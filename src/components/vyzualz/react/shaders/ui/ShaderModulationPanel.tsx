@@ -1,4 +1,5 @@
 import { IconMorphCheckbox } from '../../controls/IconMorphToggle'
+import { IconChipButton } from '../../controls/IconChipButton'
 import React, { useState } from 'react'
 import type { ShaderDefinition } from '../registry/shaderRegistryTypes'
 import type { ShaderModulationRoute } from '../modulation/shaderModulationTypes'
@@ -96,9 +97,8 @@ export function ShaderModulationPanel({
         <span className="shader-mod-panel-count">
           {routes.filter(r => r.enabled).length}/{routes.length} active
         </span>
-        <button
-          type="button"
-          className="rv-glyph-upload-btn shader-mod-add-btn"
+        <IconChipButton
+          className="shader-mod-add-btn"
           onClick={handleAdd}
           disabled={modulatableParams.length === 0}
           title={modulatableParams.length === 0
@@ -106,7 +106,7 @@ export function ShaderModulationPanel({
             : 'Add modulation route'}
         >
           + Route
-        </button>
+        </IconChipButton>
       </div>
 
       {performanceSnapshot?.active && (

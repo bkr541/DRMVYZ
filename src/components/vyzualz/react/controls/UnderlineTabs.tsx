@@ -4,6 +4,10 @@ export interface UnderlineTabOption<T extends string> {
   id: T
   label: string
   disabled?: boolean
+  /** Optional DOM id for the tab button, e.g. to pair with a tabpanel's aria-labelledby. */
+  buttonId?: string
+  title?: string
+  ariaControls?: string
 }
 
 export interface UnderlineTabsProps<T extends string> {
@@ -32,10 +36,13 @@ export function UnderlineTabs<T extends string>({
       {tabs.map(tab => (
         <button
           key={tab.id}
+          id={tab.buttonId}
           type="button"
           role="tab"
           aria-selected={activeTab === tab.id}
+          aria-controls={tab.ariaControls}
           disabled={tab.disabled}
+          title={tab.title}
           className={`dv-underline-tab${activeTab === tab.id ? ' is-active' : ''}`}
           onClick={() => onChange(tab.id)}
         >

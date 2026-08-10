@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { NoticeCard } from '../../controls/NoticeCard'
 import type { ShaderDefinition, TextureInputDef } from '../registry/shaderRegistryTypes'
 import type {
   ShaderTexSourceSelection,
@@ -121,7 +122,7 @@ function TextureInputRow({ input, selection, valid, onSelectionChange }: RowProp
       </DropdownSelect>
 
       {warning && (
-        <div className="rv-ctrl-warning" role="alert">{warning}</div>
+        <NoticeCard tone="warning" role="alert">{warning}</NoticeCard>
       )}
     </div>
   )

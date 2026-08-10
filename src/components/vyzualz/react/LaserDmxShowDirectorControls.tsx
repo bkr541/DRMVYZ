@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
-import { Collapsible, CtrlSection, NumberInputRow, SliderRow, ToggleRow } from './ReactControlRows'
-import { SelectRowV2 as SelectRow } from './ReactControlRowsV2'
+import { Collapsible, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { IconChipButton } from './controls/IconChipButton'
 import { LaserDmxShowDirectorInspector } from './LaserDmxShowDirectorInspector'
 import {
   LASER_DMX_SHOW_DIRECTOR_RENDERER_OPTIONS,
@@ -142,7 +142,7 @@ export function LaserDmxShowDirectorGlobalControls() {
           max={MAX_ZOOM}
           step={0.05}
         />
-        <button type="button" className="rv-glyph-upload-btn" onClick={() => updateSettings({ zoom: 1 })}>Fit Stage</button>
+        <IconChipButton onClick={() => updateSettings({ zoom: 1 })}>Fit Stage</IconChipButton>
       </Collapsible>
 
       <Collapsible label="Presentation & Renderer" defaultOpen>
@@ -207,21 +207,20 @@ export function LaserDmxShowDirectorGlobalControls() {
 
       <Collapsible label="Layout" defaultOpen={false}>
         <div className="rv-show-director-design-actions" aria-label="Show Director layout actions">
-          <button type="button" className="rv-glyph-upload-btn" disabled={!hasFixtures} onClick={duplicateLayout}>Duplicate Rig</button>
-          <button type="button" className="rv-glyph-upload-btn" disabled={!hasFixtures} onClick={() => mirrorLayout('horizontal')}>Mirror Rig H</button>
-          <button type="button" className="rv-glyph-upload-btn" disabled={!hasFixtures} onClick={() => mirrorLayout('vertical')}>Mirror Rig V</button>
-          <button
-            type="button"
-            className={`rv-glyph-upload-btn${isConfirmingReset ? ' rv-glyph-upload-btn--danger' : ''}`}
+          <IconChipButton disabled={!hasFixtures} onClick={duplicateLayout}>Duplicate Rig</IconChipButton>
+          <IconChipButton disabled={!hasFixtures} onClick={() => mirrorLayout('horizontal')}>Mirror Rig H</IconChipButton>
+          <IconChipButton disabled={!hasFixtures} onClick={() => mirrorLayout('vertical')}>Mirror Rig V</IconChipButton>
+          <IconChipButton
+            className={isConfirmingReset ? 'rv-glyph-upload-btn--danger' : undefined}
             onClick={requestResetLayout}
             aria-pressed={isConfirmingReset}
           >
             {isConfirmingReset ? 'Confirm Reset' : 'Reset Layout'}
-          </button>
+          </IconChipButton>
           {isConfirmingReset && (
-            <button type="button" className="rv-glyph-upload-btn" onClick={() => setIsConfirmingReset(false)}>Cancel</button>
+            <IconChipButton onClick={() => setIsConfirmingReset(false)}>Cancel</IconChipButton>
           )}
-          <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" disabled={!hasFixtures} onClick={clearFixtures}>Clear Rig</button>
+          <IconChipButton className="rv-glyph-upload-btn--danger" disabled={!hasFixtures} onClick={clearFixtures}>Clear Rig</IconChipButton>
         </div>
       </Collapsible>
     </div>
@@ -507,11 +506,11 @@ export function LaserDmxShowDirectorControls() {
       <PerformanceProgramControls />
       <Collapsible label="Fixture Tools" defaultOpen>
         <div className="rv-show-director-design-actions" aria-label="Selected Show Director fixture actions">
-          <button type="button" className="rv-glyph-upload-btn" disabled={!selectedFixture} onClick={() => selectedFixtureCount > 1 ? duplicateSelectedFixtures() : selectedFixture && duplicateFixture(selectedFixture.id)}>{selectedFixtureCount > 1 ? 'Duplicate Selected' : 'Duplicate'}</button>
-          <button type="button" className="rv-glyph-upload-btn" disabled={!selectedFixture} onClick={rotateSelected}>Rotate 90°</button>
-          <button type="button" className="rv-glyph-upload-btn" disabled={!selectedFixture} onClick={() => selectedFixture && mirrorFixture(selectedFixture.id, 'horizontal')}>Mirror H</button>
-          <button type="button" className="rv-glyph-upload-btn" disabled={!selectedFixture} onClick={() => selectedFixture && mirrorFixture(selectedFixture.id, 'vertical')}>Mirror V</button>
-          <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" disabled={!selectedFixture} onClick={() => selectedFixtureCount > 1 ? deleteSelectedFixtures() : selectedFixture && deleteFixture(selectedFixture.id)}>{selectedFixtureCount > 1 ? 'Delete Selected' : 'Delete'}</button>
+          <IconChipButton disabled={!selectedFixture} onClick={() => selectedFixtureCount > 1 ? duplicateSelectedFixtures() : selectedFixture && duplicateFixture(selectedFixture.id)}>{selectedFixtureCount > 1 ? 'Duplicate Selected' : 'Duplicate'}</IconChipButton>
+          <IconChipButton disabled={!selectedFixture} onClick={rotateSelected}>Rotate 90°</IconChipButton>
+          <IconChipButton disabled={!selectedFixture} onClick={() => selectedFixture && mirrorFixture(selectedFixture.id, 'horizontal')}>Mirror H</IconChipButton>
+          <IconChipButton disabled={!selectedFixture} onClick={() => selectedFixture && mirrorFixture(selectedFixture.id, 'vertical')}>Mirror V</IconChipButton>
+          <IconChipButton className="rv-glyph-upload-btn--danger" disabled={!selectedFixture} onClick={() => selectedFixtureCount > 1 ? deleteSelectedFixtures() : selectedFixture && deleteFixture(selectedFixture.id)}>{selectedFixtureCount > 1 ? 'Delete Selected' : 'Delete'}</IconChipButton>
         </div>
       </Collapsible>
 

@@ -28,6 +28,7 @@ import {
   type TrackTimelinePoint,
 } from './trackTimelineModel'
 import { TrackTimelineIcon } from './TrackTimelineIcon'
+import { NoticeCard } from '../controls/NoticeCard'
 import { MusicIntelligenceDiagnosticsPanel } from '../../modulation/MusicIntelligenceDiagnosticsPanel'
 import {
   clampTrackTimelinePlayheadTime,
@@ -1063,7 +1064,7 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                   </span>
                 </div>
                 {model.warnings.length > 0 && (
-                  <div className="ttv-warning-banner">{model.warnings.slice(0, 3).join(' ')}</div>
+                  <NoticeCard className="ttv-warning-banner" tone="warning" role="status">{model.warnings.slice(0, 3).join(' ')}</NoticeCard>
                 )}
                 <MusicIntelligenceDiagnosticsPanel />
               </div>

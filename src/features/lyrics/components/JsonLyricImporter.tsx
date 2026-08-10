@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
+import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import type { LyricCue } from '../../../types/lyrics'
 import { parseLyricDocumentJson, type LyricDocumentImportResult } from '../utils/lyricDocumentImport'
 import { formatMs } from '../../../lib/lyricsImport'
@@ -101,7 +103,6 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
   const hiddenCount = (result?.cues.length ?? 0) - previewCues.length
 
   const statusVariant = hasErrors ? 'error' : (result?.warnings.length ?? 0) > 0 ? 'warn' : 'ok'
-  const statusIcon    = hasErrors ? '✕' : (result?.warnings.length ?? 0) > 0 ? '⚠' : '✓'
   const statusMsg = !result ? '' : hasErrors
     ? `Parse error — ${result.errors.length} issue${result.errors.length !== 1 ? 's' : ''}`
     : result.warnings.length > 0
@@ -157,14 +158,13 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
       />
 
       <div className="lmv-import-actions">
-        <button
-          className="lmv-btn lmv-btn--ghost"
+        <IconChipButton
           onClick={handleValidate}
         >
           {result ? 'Re-validate' : 'Validate'}
-        </button>
-        <button
-          className="lmv-btn lmv-btn--primary"
+        </IconChipButton>
+        <IconChipButton
+          tone="primary"
           disabled={!canImport}
           onClick={() => {
             if (result) onImportToDraft({
@@ -177,26 +177,24 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
           }}
         >
           Import to Draft
-        </button>
+        </IconChipButton>
       </div>
 
       {/* Validation results */}
       {result && (
         <div ref={resultRef} className="lmv-validation-box">
 
-          {/* Status banner — aria-live announces changes to screen readers */}
-          <div
-            className={`lmv-parse-status lmv-parse-status--${statusVariant}`}
+          {/* Status banner — role=status announces changes to screen readers */}
+          <NoticeCard
+            className="lmv-parse-status"
+            tone={statusVariant === 'ok' ? 'success' : statusVariant === 'warn' ? 'warning' : 'error'}
             role="status"
-            aria-live="polite"
-            aria-atomic="true"
           >
-            <span className="lmv-parse-status-icon" aria-hidden="true">{statusIcon}</span>
-            <span className="lmv-parse-status-msg">{statusMsg}</span>
+            {statusMsg}
             {parseSource === 'file' && fileName && (
               <span className="lmv-parse-source-tag" aria-label={`from file: ${fileName}`}>from file</span>
             )}
-          </div>
+          </NoticeCard>
 
           {/* Next-action hint when valid */}
           {!hasErrors && result.cues.length > 0 && (
@@ -256,14 +254,14 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
           )}
 
           {result.errors.length > 0 && (
-            <div className="lmv-msg-list lmv-msg-list--error">
-              {result.errors.map((e, i) => <div key={i} className="lmv-msg-item">✕ {e}</div>)}
-            </div>
+            <NoticeCard tone="error" role="alert">
+              {result.errors.map((e, i) => <div key={i}>{e}</div>)}
+            </NoticeCard>
           )}
           {result.warnings.length > 0 && (
-            <div className="lmv-msg-list lmv-msg-list--warn">
-              {result.warnings.map((w, i) => <div key={i} className="lmv-msg-item">⚠ {w}</div>)}
-            </div>
+            <NoticeCard tone="warning" role="status">
+              {result.warnings.map((w, i) => <div key={i}>{w}</div>)}
+            </NoticeCard>
           )}
 
           {!hasErrors && previewCues.length > 0 && (

@@ -1,4 +1,5 @@
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
+import { IconChipButton } from './controls/IconChipButton'
 import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
@@ -185,19 +186,18 @@ export function LaserDmxBeamMatrixPresetBrowser() {
       {pendingId && (
         <div className="rv-bm-confirm">
           <span>Replace modified program with preset?</span>
-          <button
-            type="button"
-            className="rv-glyph-upload-btn rv-glyph-upload-btn--danger"
+          <IconChipButton
+            className="rv-glyph-upload-btn--danger"
             onClick={() => {
               applyLaserDmxBeamMatrixPreset(pendingId)
               setPendingId(null)
             }}
           >
             Replace
-          </button>
-          <button type="button" className="rv-glyph-upload-btn" onClick={() => setPendingId(null)}>
+          </IconChipButton>
+          <IconChipButton onClick={() => setPendingId(null)}>
             Cancel
-          </button>
+          </IconChipButton>
         </div>
       )}
 
@@ -271,23 +271,21 @@ export function LaserDmxBeamMatrixPresetBrowser() {
 
       {filtered.length > 1 && (
         <div className="rv-laser-dmx-preset-nav">
-          <button
-            type="button"
-            className="rv-glyph-upload-btn rv-laser-dmx-preset-nav-btn"
+          <IconChipButton
+            className="rv-laser-dmx-preset-nav-btn"
             onClick={() => navigateTo(-1)}
           >
             ‹ Prev
-          </button>
+          </IconChipButton>
           <span className="rv-laser-dmx-preset-nav-count">
             {activeIndex >= 0 ? `${activeIndex + 1} / ${filtered.length}` : `— / ${filtered.length}`}
           </span>
-          <button
-            type="button"
-            className="rv-glyph-upload-btn rv-laser-dmx-preset-nav-btn"
+          <IconChipButton
+            className="rv-laser-dmx-preset-nav-btn"
             onClick={() => navigateTo(1)}
           >
             Next ›
-          </button>
+          </IconChipButton>
         </div>
       )}
 

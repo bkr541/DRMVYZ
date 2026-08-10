@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { UnderlineTabs } from './controls/UnderlineTabs'
+import { DualRailCollapsible } from './DualRailCollapsible'
 import { useShallow } from 'zustand/react/shallow'
 import {
   resolveCinematicConfigForPreset,
@@ -478,21 +479,25 @@ function EngineSection({ engineId, presets, expandedByDefault = false, ...props 
 
   const engine = REACT_ENGINE_CATALOG[engineId]
   return (
-    <div className={`rv-preset-group${collapsed ? ' rv-preset-group--collapsed' : ''}`}>
-      <button type="button" className="rv-preset-group-hdr" onClick={() => setCollapsed(value => !value)} aria-expanded={!collapsed}>
-        <span
-          className="rv-preset-group-hdr-icon"
-          style={{ color: (presets.find(preset => preset.id === props.activePresetId) ?? presets[0])?.palette.primary }}
-        >{engine.icon}</span>
-        <span className="rv-preset-group-hdr-label">{engine.label}</span>
-        <span className="rv-preset-group-hdr-count">{presets.length}</span>
-        <span className="rv-preset-group-hdr-chevron" aria-hidden="true">▾</span>
-      </button>
-      {!collapsed && (engineId === 'cinematicPortal'
+    <DualRailCollapsible
+      className="rv-preset-group"
+      open={!collapsed}
+      onOpenChange={value => setCollapsed(!value)}
+      label={
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span
+            className="rv-preset-group-hdr-icon"
+            style={{ color: (presets.find(preset => preset.id === props.activePresetId) ?? presets[0])?.palette.primary }}
+          >{engine.icon}</span>
+          <span className="rv-preset-group-hdr-label">{engine.label}</span>
+        </span>
+      }
+      headerAccessory={<span className="rv-preset-group-hdr-count">{presets.length}</span>}
+    >
+      {engineId === 'cinematicPortal'
         ? <CinematicPresetGroups presets={presets} {...props} />
-        : <div className="rv-preset-group-cards" data-preset-grid>{presets.map(preset => renderPresetCard(preset, props))}</div>
-      )}
-    </div>
+        : <div className="rv-preset-group-cards" data-preset-grid>{presets.map(preset => renderPresetCard(preset, props))}</div>}
+    </DualRailCollapsible>
   )
 }
 

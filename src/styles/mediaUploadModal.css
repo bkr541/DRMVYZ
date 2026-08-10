@@ -161,18 +161,6 @@
   font-family: var(--az-font);
   margin-bottom: 8px;
 }
-.mum-filelist-clear {
-  background: none;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 4px;
-  color: rgba(245,248,250,0.4);
-  font-size: 10px;
-  padding: 2px 8px;
-  cursor: pointer;
-  font-family: var(--az-font);
-  transition: all 0.12s;
-}
-.mum-filelist-clear:hover { color: rgba(245,248,250,0.75); border-color: rgba(255,255,255,0.2); }
 .mum-filelist-items {
   overflow-y: auto;
   display: flex;
@@ -521,18 +509,6 @@
   flex-shrink: 0;
 }
 .mum-footer--edit { justify-content: flex-end; }
-.mum-cancel-btn {
-  padding: 8px 18px;
-  background: none;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 6px;
-  color: rgba(245,248,250,0.5);
-  font-size: 12px;
-  font-family: var(--az-font);
-  cursor: pointer;
-  transition: all 0.12s;
-}
-.mum-cancel-btn:hover { border-color: rgba(255,255,255,0.2); color: rgba(245,248,250,0.8); }
 .mum-upload-another {
   display: inline-flex;
   align-items: center;
@@ -550,23 +526,6 @@
   height: 13px;
   cursor: pointer;
 }
-.mum-upload-btn {
-  padding: 8px 22px;
-  background: #4ac7db;
-  border: none;
-  border-radius: 6px;
-  color: #020b12;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  font-family: var(--az-font);
-  cursor: pointer;
-  transition: background 0.12s, opacity 0.12s;
-  white-space: nowrap;
-}
-.mum-upload-btn:hover:not(:disabled) { background: #3dcff7; }
-.mum-upload-btn:disabled { opacity: 0.35; cursor: default; }
-
 /* ── Scrollbar ────────────────────────────────────────────────────────── */
 .mum-right::-webkit-scrollbar,
 .mum-filelist-items::-webkit-scrollbar { width: 4px; }
@@ -729,12 +688,6 @@
 .mum-batch-error {
   flex-shrink: 0;
   margin: 0 20px 8px;
-  padding: 8px 10px;
-  border: 1px solid rgba(248,113,113,0.28);
-  border-radius: 6px;
-  background: rgba(248,113,113,0.08);
-  color: #fca5a5;
-  font: 10px/1.4 var(--az-font);
 }
 .mum-progress {
   position: relative;
@@ -776,33 +729,11 @@
 
 .mum-conflict-panel {
   margin: 0 18px 10px;
-  padding: 10px 12px;
-  border: 1px solid rgba(251, 191, 36, 0.32);
-  border-radius: 7px;
-  background: rgba(251, 191, 36, 0.07);
-  color: rgba(255, 236, 181, 0.92);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 }
-.mum-conflict-panel--error {
-  border-color: rgba(248, 113, 113, 0.3);
-  background: rgba(248, 113, 113, 0.07);
-  color: rgba(255, 205, 205, 0.92);
-}
-.mum-conflict-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 10px;
-  line-height: 1.4;
-}
-.mum-conflict-copy strong { font-size: 11px; }
 .mum-conflict-actions {
   display: flex;
   align-items: center;
   gap: 7px;
   flex-shrink: 0;
+  margin-top: 6px;
 }

@@ -1,4 +1,7 @@
 import { BubbleRevealSlider } from '../../../components/vyzualz/react/controls/BubbleRevealSlider'
+import { IconMorphCheckbox } from '../../../components/vyzualz/react/controls/IconMorphToggle'
+import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { LyricCue, LyricDocument, LyricTranscriptionJob } from '../../../types/lyrics'
 import { getFullLyricDocument, saveLyricDocumentAtomic } from '../../../lib/lyricsDb'
@@ -817,14 +820,9 @@ export function AiLyricExtractor({
 
   return (
     <div className="lmv-workflow-content">
-      <div className="lmv-ai-notice lmv-ai-notice--ready">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style={{ flexShrink: 0, opacity: 0.75 }}>
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
-        </svg>
-        <span>
-          Groq credentials stay server-side. For oversized tracks, DRMVYZ creates private transcription-ready audio in your browser before the server sends safe chunks.
-        </span>
-      </div>
+      <NoticeCard className="lmv-ai-notice" tone="info" role="status">
+        Groq credentials stay server-side. For oversized tracks, DRMVYZ creates private transcription-ready audio in your browser before the server sends safe chunks.
+      </NoticeCard>
 
       <div className="lmv-section-label">STORED TRACK</div>
       <div className="lmv-ai-track-card">
@@ -911,9 +909,9 @@ export function AiLyricExtractor({
         {extractionSourceMode === 'vocal_reference' && onRequestVocalReferenceUpload && (
           <div className="lmv-field">
             <label className="lmv-field-label">ADD VOCAL TRACK</label>
-            <button className="lmv-btn lmv-btn--ghost" type="button" disabled={active} onClick={onRequestVocalReferenceUpload}>
+            <IconChipButton disabled={active} onClick={onRequestVocalReferenceUpload}>
               Upload through User Media
-            </button>
+            </IconChipButton>
             <span className="lmv-parse-next-hint">The upload is saved as normal audio and returned here as the transcription source.</span>
           </div>
         )}
@@ -930,19 +928,21 @@ export function AiLyricExtractor({
           <div className="lmv-validation-row"><span className="lmv-val-label">Track Map analysis</span><span className="lmv-val-value">{selectedTrack.analysisPayload ? 'Available from full mix' : 'Not available'}</span></div>
           <div className="lmv-validation-row"><span className="lmv-val-label">Source format</span><span className="lmv-val-value">{vocalReferenceTrack ? `${vocalReferenceTrack.sampleRate ? `${vocalReferenceTrack.sampleRate} Hz` : 'sample rate unknown'} · ${vocalReferenceTrack.channels ? `${vocalReferenceTrack.channels} ch` : 'channels unknown'}` : 'Unknown'}</span></div>
           {vocalReferenceTrack && vocalReferenceOffsetMs !== 0 && (
-            <div className="lmv-msg-list lmv-msg-list--warn" role="status">
-              <div className="lmv-msg-item">Source begins with an offset. Provider timestamps will be shifted once into the full-mix timeline.</div>
-            </div>
+            <NoticeCard tone="warning" role="status">
+              Source begins with an offset. Provider timestamps will be shifted once into the full-mix timeline.
+            </NoticeCard>
           )}
           {vocalReferenceTrack && (
-            <div className={`lmv-msg-list ${sourceCompatibility.blocked ? 'lmv-msg-list--error' : sourceCompatibility.status === 'significant_mismatch' ? 'lmv-msg-list--warn' : ''}`} role="status">
-              <div className="lmv-msg-item">{sourceCompatibility.reason}</div>
-            </div>
+            <NoticeCard
+              tone={sourceCompatibility.blocked ? 'error' : sourceCompatibility.status === 'significant_mismatch' ? 'warning' : 'info'}
+              role="status"
+            >
+              {sourceCompatibility.reason}
+            </NoticeCard>
           )}
           {sourceCompatibility.requiresConfirmation && vocalReferenceTrack && (
             <label className="lmv-checkbox-row">
-              <input
-                type="checkbox"
+              <IconMorphCheckbox
                 checked={significantMismatchConfirmed}
                 disabled={active}
                 onChange={event => setSignificantMismatchConfirmed(event.target.checked)}
@@ -1010,11 +1010,11 @@ export function AiLyricExtractor({
       </div>
 
       {!active && (!job || job.status === 'completed') && (
-        <button className="lmv-btn lmv-btn--primary lmv-extract-btn" disabled={loading || actionBusy || !browserOnline || sourceSelectionInvalid} onClick={() => { void handleStart() }}>
+        <IconChipButton tone="primary" className="lmv-extract-btn" disabled={loading || actionBusy || !browserOnline || sourceSelectionInvalid} onClick={() => { void handleStart() }}>
           {actionBusy
             ? localPreparation ? LOCAL_PREPARATION_LABELS[localPreparation.stage] : 'Starting…'
             : job?.status === 'completed' ? 'Extract Another Draft Version' : 'Start Automatic Extraction'}
-        </button>
+        </IconChipButton>
       )}
       {!browserOnline && (
         <div className="lmv-ai-offline-hint" role="status" aria-live="polite">{OFFLINE_LYRIC_EXTRACTION_MESSAGE}</div>
@@ -1027,10 +1027,10 @@ export function AiLyricExtractor({
             <DropdownSelect className="lmv-select" value={reformatStyle} onChange={event => { setReformatStyle(event.target.value as LyricCueStyle); setReformatPreview(null) }}>
               {CUE_STYLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{LYRIC_CUE_STYLE_LABELS[option.value]}</option>)}
             </DropdownSelect>
-            <button className="lmv-btn" onClick={previewReformat}>Preview Reformat</button>
+            <IconChipButton onClick={previewReformat}>Preview Reformat</IconChipButton>
           </div>
           {reformatPreview && <div className="lmv-parse-next-hint">Current: {cues.length} cues · Proposed: {reformatPreview.length} cues
-            <div><button className="lmv-btn lmv-btn--primary" disabled={actionBusy} onClick={() => void saveReformat()}>Save New Inactive Version</button> <button className="lmv-btn" onClick={() => setReformatPreview(null)}>Cancel</button></div>
+            <div><IconChipButton tone="primary" disabled={actionBusy} onClick={() => void saveReformat()}>Save New Inactive Version</IconChipButton> <IconChipButton onClick={() => setReformatPreview(null)}>Cancel</IconChipButton></div>
           </div>}
         </div>
       )}
@@ -1058,7 +1058,7 @@ export function AiLyricExtractor({
             </div>
           )}
           <div className="lmv-import-actions">
-            <button className="lmv-btn lmv-btn--ghost" onClick={() => { void handleCancel() }}>Cancel Preparation</button>
+            <IconChipButton onClick={() => { void handleCancel() }}>Cancel Preparation</IconChipButton>
           </div>
         </div>
       )}
@@ -1100,22 +1100,22 @@ export function AiLyricExtractor({
           )}
           {active && (
             <div className="lmv-import-actions">
-              <button className="lmv-btn lmv-btn--ghost" disabled={actionBusy} onClick={() => { void handleCancel() }}>Cancel</button>
+              <IconChipButton disabled={actionBusy} onClick={() => { void handleCancel() }}>Cancel</IconChipButton>
             </div>
           )}
           {active && jobStalled && (
-            <div className="lmv-msg-list lmv-msg-list--warn" role="status">
-              <div className="lmv-msg-item">This extraction has not changed for a while. Background polling is paused to avoid unnecessary traffic.</div>
+            <NoticeCard tone="warning" role="status">
+              This extraction has not changed for a while. Background polling is paused to avoid unnecessary traffic.
               <div className="lmv-import-actions">
-                <button className="lmv-btn lmv-btn--ghost" onClick={() => setPollRefreshNonce(value => value + 1)}>Refresh status</button>
+                <IconChipButton onClick={() => setPollRefreshNonce(value => value + 1)}>Refresh status</IconChipButton>
               </div>
-            </div>
+            </NoticeCard>
           )}
           {canRetry && (
             <div className="lmv-import-actions">
-              <button className="lmv-btn lmv-btn--primary" disabled={actionBusy || !browserOnline} onClick={() => { void handleRetry() }}>
+              <IconChipButton tone="primary" disabled={actionBusy || !browserOnline} onClick={() => { void handleRetry() }}>
                 {actionBusy ? 'Retrying…' : 'Retry Extraction'}
-              </button>
+              </IconChipButton>
             </div>
           )}
           {fnVersion && (
@@ -1124,8 +1124,8 @@ export function AiLyricExtractor({
         </div>
       )}
 
-      {notice && <div className="lmv-msg-list lmv-msg-list--warn" role="status" aria-live="polite"><div className="lmv-msg-item">{notice}</div></div>}
-      {error && <div className="lmv-msg-list lmv-msg-list--error" role="alert"><div className="lmv-msg-item">✕ {error}</div></div>}
+      {notice && <NoticeCard tone="warning" role="status">{notice}</NoticeCard>}
+      {error && <NoticeCard tone="error" role="alert">{error}</NoticeCard>}
 
       {job?.status === 'completed' && document && (
         <>
@@ -1150,9 +1150,9 @@ export function AiLyricExtractor({
           </div>
 
           {(providerWarnings.length > 0) && (
-            <div className="lmv-msg-list lmv-msg-list--warn">
-              {providerWarnings.slice(0, 4).map(warning => <div className="lmv-msg-item" key={warning}>Review warning: {providerWarningLabel(warning)}</div>)}
-            </div>
+            <NoticeCard tone="warning" role="status">
+              {providerWarnings.slice(0, 4).map(warning => <div key={warning}>Review warning: {providerWarningLabel(warning)}</div>)}
+            </NoticeCard>
           )}
 
           <div className="lmv-cue-preview-list" style={{ marginTop: 8 }}>
@@ -1167,9 +1167,9 @@ export function AiLyricExtractor({
           </div>
 
           <div className="lmv-import-actions">
-            <button className="lmv-btn lmv-btn--primary" onClick={() => { void onOpenCompletedDraft(document.id) }}>Open in Cue Editor</button>
+            <IconChipButton tone="primary" onClick={() => { void onOpenCompletedDraft(document.id) }}>Open in Cue Editor</IconChipButton>
             {!document.isActive && (
-              <button className="lmv-btn lmv-btn--ghost" onClick={() => { void onActivateCompletedDraft(document.id) }}>Activate This Version</button>
+              <IconChipButton onClick={() => { void onActivateCompletedDraft(document.id) }}>Activate This Version</IconChipButton>
             )}
           </div>
         </>

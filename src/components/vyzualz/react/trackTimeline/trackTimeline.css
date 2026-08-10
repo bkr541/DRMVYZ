@@ -850,12 +850,6 @@ summary.ttv-icon-btn::-webkit-details-marker {
 
 .ttv-warning-banner {
   margin: 10px 0 12px;
-  padding: 9px 10px;
-  border: 1px solid rgba(216, 185, 90, 0.31);
-  border-radius: 7px;
-  background: rgba(216, 185, 90, 0.065);
-  color: var(--az-yellow, #d8b95a);
-  font: 500 9px/1.45 var(--az-font-data, Inter, system-ui, sans-serif);
 }
 
 .ttv-analysis-panel {

@@ -7,6 +7,9 @@ import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { Collapsible, ColorRow, NumberInputRow, SelectRow, SliderRow, ToggleRow } from '../react/ReactControlRows'
+import { UnderlineTabs } from '../react/controls/UnderlineTabs'
+import { NoticeCard } from '../react/controls/NoticeCard'
+import { DualRailCollapsible } from '../react/DualRailCollapsible'
 import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from '../react/reactEngineCatalog'
 import { PixGridDesignPanel } from '../react/pixGrid/PixGridDesignPanel'
 import { PixGridSurface } from '../react/pixGrid/PixGridSurface'
@@ -143,6 +146,8 @@ const STAGE_SCALE_OPTIONS = [
 ] as const
 
 const SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE = 'showManager:pixGridDeckBuilder' as const
+
+const TRACK_MAP_TABS = [{ id: 'trackMap' as const, label: 'Track Map' }]
 
 interface ShowBrowserEntry {
   id: string
@@ -1751,11 +1756,10 @@ export function ShowManagerView() {
               </div>
               <PixGridDesignPanel groupedSections />
               <Collapsible label="Validation" defaultOpen={false}>
-                <section className="sm-validation-card">
-                  <header><strong>PixGrid document</strong><span>OK</span></header>
+                <NoticeCard tone="success" title="PixGrid document · OK">
                   <p>No blocking PixGrid issues detected.</p>
                   <p>Preset controls are connected to the existing PixGrid state.</p>
-                </section>
+                </NoticeCard>
               </Collapsible>
               <Collapsible label="Document Stats" defaultOpen={false}>
                 <section className="sm-document-stats">
@@ -1864,10 +1868,9 @@ export function ShowManagerView() {
                       removeLaserDmxShowManagerSection(activeLaserDmxShow.id, activeLaserDmxSection.id)
                     }}
                   />
-                  <section className="sm-validation-card">
-                    <header><strong>Section fixture ownership</strong><span>READY</span></header>
-                    <p>{activeLaserDmxSection.fixtures.length} fixture{activeLaserDmxSection.fixtures.length === 1 ? '' : 's'} owned by this section. Select a fixture on the grid to edit its Part 1 controls.</p>
-                  </section>
+                  <NoticeCard tone="success" title="Section fixture ownership · READY">
+                    {activeLaserDmxSection.fixtures.length} fixture{activeLaserDmxSection.fixtures.length === 1 ? '' : 's'} owned by this section. Select a fixture on the grid to edit its Part 1 controls.
+                  </NoticeCard>
                 </>
               ) : activeLaserDmxShow ? (
                 <div className="sm-laser-empty-section">
@@ -2380,10 +2383,10 @@ function CanvasShowManagerTimeline({
   return (
     <section className="sm-timeline sm-canvas-timeline" aria-label="Show Manager Canvas media timeline">
       <header className="sm-timeline-tabs">
-        <button type="button" className="is-active" disabled>Track Map</button>
+        <UnderlineTabs tabs={TRACK_MAP_TABS} activeTab="trackMap" onChange={() => undefined} ariaLabel="Canvas timeline surfaces" />
         <span className="sm-timeline-meta">{show ? `${formatClock(totalDurationSec)} total` : 'No Canvas Show open'}</span>
       </header>
-      {error && <div className="sm-canvas-authoring-feedback" role="alert">{error}</div>}
+      {error && <NoticeCard className="sm-canvas-authoring-feedback" tone="error" role="alert">{error}</NoticeCard>}
       {show ? (
         <>
           <div className="sm-timeline-grid sm-canvas-section-map">
@@ -2780,7 +2783,7 @@ function LaserDmxShowManagerTimeline({
   return (
     <section className="sm-timeline sm-laser-timeline" aria-label="Show Manager LaserDMX section timeline">
       <header className="sm-timeline-tabs">
-        <button type="button" className="is-active" disabled>Track Map</button>
+        <UnderlineTabs tabs={TRACK_MAP_TABS} activeTab="trackMap" onChange={() => undefined} ariaLabel="LaserDMX timeline surfaces" />
         <span className="sm-timeline-meta">No audio required · free boundaries</span>
       </header>
       <div className="sm-timeline-grid">
@@ -2824,24 +2827,17 @@ function LibrarySubsection({
   defaultCollapsed?: boolean
   children: ReactNode
 }) {
-  const [collapsed, setCollapsed] = useState(defaultCollapsed)
-  const contentId = useId()
-
   return (
-    <section className={`sm-library-subsection${collapsed ? ' is-collapsed' : ''}`}>
-      <button
-        type="button"
-        className="sm-library-section-toggle sm-library-subsection-toggle"
-        aria-expanded={!collapsed}
-        aria-controls={contentId}
-        onClick={() => setCollapsed(value => !value)}
-      >
-        <span className="sm-library-section-chevron" aria-hidden="true">⌄</span>
-        <strong>{title}</strong>
-        <small>{count}</small>
-      </button>
-      {!collapsed && <div id={contentId} className="sm-library-subsection-body">{children}</div>}
-    </section>
+    <DualRailCollapsible
+      className="sm-library-subsection"
+      bodyClassName="sm-library-subsection-body"
+      headerClassName="sm-library-section-toggle sm-library-subsection-toggle"
+      defaultOpen={!defaultCollapsed}
+      label={<strong>{title}</strong>}
+      headerAccessory={<small>{count}</small>}
+    >
+      {children}
+    </DualRailCollapsible>
   )
 }
 
@@ -2856,24 +2852,17 @@ function LibrarySection({
   defaultCollapsed?: boolean
   children: ReactNode
 }) {
-  const [collapsed, setCollapsed] = useState(defaultCollapsed)
-  const contentId = useId()
-
   return (
-    <section className={`sm-library-section${collapsed ? ' is-collapsed' : ''}`}>
-      <button
-        type="button"
-        className="sm-library-section-toggle"
-        aria-expanded={!collapsed}
-        aria-controls={contentId}
-        onClick={() => setCollapsed(value => !value)}
-      >
-        <span className="sm-library-section-chevron" aria-hidden="true">⌄</span>
-        <strong>{title}</strong>
-        <small>{count}</small>
-      </button>
-      {!collapsed && <div id={contentId} className="sm-library-section-body">{children}</div>}
-    </section>
+    <DualRailCollapsible
+      className="sm-library-section"
+      bodyClassName="sm-library-section-body"
+      headerClassName="sm-library-section-toggle"
+      defaultOpen={!defaultCollapsed}
+      label={<strong>{title}</strong>}
+      headerAccessory={<small>{count}</small>}
+    >
+      {children}
+    </DualRailCollapsible>
   )
 }
 
@@ -2902,7 +2891,7 @@ function ShowManagerTimeline({
   return (
     <section className="sm-timeline sm-pixgrid-timeline" aria-label="Show Manager track map preview">
       <header className="sm-timeline-tabs">
-        <button type="button" className="is-active" disabled>Track Map</button>
+        <UnderlineTabs tabs={TRACK_MAP_TABS} activeTab="trackMap" onChange={() => undefined} ariaLabel="PixGrid timeline surfaces" />
         <span className="sm-timeline-meta">Snap 1/4</span>
       </header>
       <div className="sm-timeline-grid">

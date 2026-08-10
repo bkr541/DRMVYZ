@@ -96,11 +96,7 @@
 }
 
 .mpm-error {
-  color: rgba(248,113,113,0.7);
-  font-size: 12px;
-  font-family: var(--az-font);
-  text-align: center;
-  padding: 32px 24px;
+  max-width: 320px;
 }
 
 /* ── Video controls ───────────────────────────────────────────────────── */

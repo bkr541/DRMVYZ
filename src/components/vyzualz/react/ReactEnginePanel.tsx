@@ -1,4 +1,5 @@
 import React, { useMemo, useSyncExternalStore } from 'react'
+import { IconChipButton } from './controls/IconChipButton'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { CanvasEnginePanel } from './ReactCanvasEngineShell'
 import { PixGridEnginePanel } from './pixGrid/PixGridEnginePanel'
@@ -718,16 +719,16 @@ export function ReactEnginePanel({
                       step={0.01}
                       color="#ff4fd8"
                     />
-                    <button type="button" className="rv-reset-btn" onClick={requestSoundDrawingRibbonReset}>
+                    <IconChipButton onClick={requestSoundDrawingRibbonReset}>
                       Reset Ribbon Simulation
-                    </button>
+                    </IconChipButton>
                   </DualRailCollapsible>
                 </>
               )}
               <SharedPerformanceDiagnosticsPanel engine="soundDrawing" />
-              <button type="button" className="rv-reset-btn" onClick={resetSoundDrawingPerformanceSettings}>
+              <IconChipButton onClick={resetSoundDrawingPerformanceSettings}>
                 Reset to Authored State
-              </button>
+              </IconChipButton>
             </>
           )}
           {soundDrawingPerformanceSettings.selectedShowId != null && !soundDrawingPerformanceSettings.autoPerformance && (

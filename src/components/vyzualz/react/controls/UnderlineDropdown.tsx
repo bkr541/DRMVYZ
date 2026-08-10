@@ -1,4 +1,5 @@
 import { Dropdown, type DropdownOption, type DropdownProps } from '../../../shared/Dropdown/Dropdown'
+import './canonicalControls.css'
 
 export interface UnderlineDropdownProps extends Omit<DropdownProps, 'options' | 'onChange'> {
   options: readonly DropdownOption[] | readonly string[]

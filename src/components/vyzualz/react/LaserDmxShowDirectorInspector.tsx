@@ -27,8 +27,10 @@ import {
   type LaserDmxShowDirectorTriggerMode,
   type LaserDmxShowDirectorVideoWallSource,
 } from './ReactTypes'
-import { CtrlSection, NumberInputRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
-import { SelectRowV2 as SelectRow } from './ReactControlRowsV2'
+import { CtrlSection, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
+import { IconMorphCheckbox } from './controls/IconMorphToggle'
+import { IconChipButton } from './controls/IconChipButton'
+import { NoticeCard } from './controls/NoticeCard'
 import { LaserDmxShowDirectorFixtureIcon } from './LaserDmxShowDirectorFixtureIcon'
 import {
   LASER_DMX_SCANNER_PATTERN_OPTIONS,
@@ -579,14 +581,14 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
           )}
 
           <div className="rv-show-director-inspector__actions">
-            <button type="button" className="rv-glyph-upload-btn" onClick={() => updateSelectedFixtures({ enabled: true })}>Enable Selected</button>
-            <button type="button" className="rv-glyph-upload-btn" onClick={() => updateSelectedFixtures({ enabled: false })}>Disable Selected</button>
-            <button type="button" className="rv-glyph-upload-btn" onClick={applyRecommendedTriggerRecipesToSelectedFixtures}>Recommended Recipes</button>
-            {!sharedGroup && <button type="button" className="rv-glyph-upload-btn" onClick={() => groupSelectedFixtures()}>Group Selected</button>}
-            {sharedGroup && <button type="button" className="rv-glyph-upload-btn" onClick={() => duplicateGroup(sharedGroup.id)}>Duplicate Group</button>}
-            {selectedGroupIds.length > 0 && <button type="button" className="rv-glyph-upload-btn" onClick={ungroupSelectedFixtures}>Ungroup</button>}
-            <button type="button" className="rv-glyph-upload-btn" onClick={duplicateSelectedFixtures}>Duplicate Selected</button>
-            <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={deleteSelectedFixtures}>Delete Selected</button>
+            <IconChipButton onClick={() => updateSelectedFixtures({ enabled: true })}>Enable Selected</IconChipButton>
+            <IconChipButton onClick={() => updateSelectedFixtures({ enabled: false })}>Disable Selected</IconChipButton>
+            <IconChipButton onClick={applyRecommendedTriggerRecipesToSelectedFixtures}>Recommended Recipes</IconChipButton>
+            {!sharedGroup && <IconChipButton onClick={() => groupSelectedFixtures()}>Group Selected</IconChipButton>}
+            {sharedGroup && <IconChipButton onClick={() => duplicateGroup(sharedGroup.id)}>Duplicate Group</IconChipButton>}
+            {selectedGroupIds.length > 0 && <IconChipButton onClick={ungroupSelectedFixtures}>Ungroup</IconChipButton>}
+            <IconChipButton onClick={duplicateSelectedFixtures}>Duplicate Selected</IconChipButton>
+            <IconChipButton className="rv-glyph-upload-btn--danger" onClick={deleteSelectedFixtures}>Delete Selected</IconChipButton>
           </div>
         </div>
       </aside>
@@ -761,20 +763,20 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
                 </div>
                 <SelectRow label="Direction" value={scanner.direction} options={SCANNER_DIRECTION_OPTIONS} onChange={direction => patchScanner({ direction: direction as LaserDmxShowDirectorScannerDirection })} />
                 {!fixture.scanner && scannerWarningsVisible && (
-                  <button type="button" className="rv-glyph-upload-btn" onClick={() => setScannerMigrationPreview(previewLaserDmxLegacyScannerMigration(fixture, settings.gridSize))}>Preview Legacy Conversion</button>
+                  <IconChipButton onClick={() => setScannerMigrationPreview(previewLaserDmxLegacyScannerMigration(fixture, settings.gridSize))}>Preview Legacy Conversion</IconChipButton>
                 )}
                 {scannerMigrationPreview && !fixture.scanner && scannerWarningsVisible && (
-                  <div className="rv-show-director-trigger-notes" role="status">
-                    <span>{scannerMigrationPreview.classification} · {Math.round(scannerMigrationPreview.confidence * 100)}% confidence</span>
+                  <NoticeCard tone="warning" role="status">
+                    <p>{scannerMigrationPreview.classification} · {Math.round(scannerMigrationPreview.confidence * 100)}% confidence</p>
                     <ScannerMigrationPreviewDiagram preview={scannerMigrationPreview} columns={settings.gridSize.columns} rows={settings.gridSize.rows} />
-                    <span>{scannerMigrationPreview.visibleSegmentCount} visible · {scannerMigrationPreview.blankedSegmentCount} blanked segments</span>
-                    {scannerMigrationPreview.ambiguous && <span>Review required: conversion is ambiguous.</span>}
-                    {scannerMigrationPreview.warnings.map(warning => <span key={warning}>{warning}</span>)}
-                    <button type="button" className="rv-glyph-upload-btn" onClick={() => {
+                    <p>{scannerMigrationPreview.visibleSegmentCount} visible · {scannerMigrationPreview.blankedSegmentCount} blanked segments</p>
+                    {scannerMigrationPreview.ambiguous && <p>Review required: conversion is ambiguous.</p>}
+                    {scannerMigrationPreview.warnings.map(warning => <p key={warning}>{warning}</p>)}
+                    <IconChipButton onClick={() => {
                       commitScanner({ ...scannerMigrationPreview.scanner, migration: { ...scannerMigrationPreview.scanner.migration, status: 'migrated' } })
                       setScannerMigrationPreview(null)
-                    }}>Apply Conversion</button>
-                  </div>
+                    }}>Apply Conversion</IconChipButton>
+                  </NoticeCard>
                 )}
               </>
             )}
@@ -788,13 +790,12 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
             />
             <p className="rv-show-director-trigger-hint">{TRIGGER_RECIPE_HINTS[triggerRecipe]}</p>
             {triggerRecipe !== recommendedTriggerRecipe && (
-              <button
-                type="button"
-                className="rv-glyph-upload-btn rv-show-director-recommended-recipe-btn"
+              <IconChipButton
+                className="rv-show-director-recommended-recipe-btn"
                 onClick={() => update({ trigger: triggerPatchForRecipe(recommendedTriggerRecipe) })}
               >
                 Use recommended: {recommendedTriggerRecipeLabel}
-              </button>
+              </IconChipButton>
             )}
 
             {fixtureGroup && (
@@ -808,8 +809,8 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
             )}
 
             <div className="rv-show-director-inspector__actions">
-              <button type="button" className="rv-glyph-upload-btn" onClick={() => duplicateFixture(fixture.id)}>Duplicate</button>
-              <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={() => deleteFixture(fixture.id)}>Delete</button>
+              <IconChipButton onClick={() => duplicateFixture(fixture.id)}>Duplicate</IconChipButton>
+              <IconChipButton className="rv-glyph-upload-btn--danger" onClick={() => deleteFixture(fixture.id)}>Delete</IconChipButton>
             </div>
           </>
         ) : (
@@ -916,9 +917,9 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
                   <NumberInputRow label="Blanking delay" value={scanner.path.blankingDelayMicros} min={0} max={100000} step={1} unit="µs" onChange={blankingDelayMicros => patchScannerPath({ blankingDelayMicros })} />
                 </div>
                 <div className="rv-show-director-inspector__actions">
-                  <button type="button" className="rv-glyph-upload-btn" onClick={() => commitScanner(reverseLaserDmxScannerPath(scanner))}>Reverse Path</button>
-                  <button type="button" className="rv-glyph-upload-btn" onClick={() => commitScanner(insertLaserDmxScannerPoint(scanner, fixture.id))}>Add Point</button>
-                  <button type="button" className="rv-glyph-upload-btn" onClick={() => patchScanner({ pathResetToken: scanner.pathResetToken + 1 })}>Reset Path</button>
+                  <IconChipButton onClick={() => commitScanner(reverseLaserDmxScannerPath(scanner))}>Reverse Path</IconChipButton>
+                  <IconChipButton onClick={() => commitScanner(insertLaserDmxScannerPoint(scanner, fixture.id))}>Add Point</IconChipButton>
+                  <IconChipButton onClick={() => patchScanner({ pathResetToken: scanner.pathResetToken + 1 })}>Reset Path</IconChipButton>
                 </div>
                 <div className="rv-show-director-scanner-points" aria-label="Ordered scanner path points">
                   {scanner.path.points.map((point, index) => (
@@ -926,7 +927,7 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
                       <strong>#{index + 1}</strong>
                       <input aria-label={`Point ${index + 1} X`} type="number" value={point.x} min={0} max={gridBounds.maxX} step={settings.snapEnabled ? 1 : 0.01} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { x: clamp(finite(event.target.value, point.x), 0, gridBounds.maxX) }))} />
                       <input aria-label={`Point ${index + 1} Y`} type="number" value={point.y} min={0} max={gridBounds.maxY} step={settings.snapEnabled ? 1 : 0.01} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { y: clamp(finite(event.target.value, point.y), 0, gridBounds.maxY) }))} />
-                      <label><input type="checkbox" checked={point.blanked} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { blanked: event.target.checked }))} /> Blank</label>
+                      <label><IconMorphCheckbox checked={point.blanked} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { blanked: event.target.checked }))} /> Blank</label>
                       <button type="button" onClick={() => commitScanner(reorderLaserDmxScannerPoint(scanner, point.id, -1))} disabled={index === 0} aria-label={`Move point ${index + 1} earlier`}>↑</button>
                       <button type="button" onClick={() => commitScanner(reorderLaserDmxScannerPoint(scanner, point.id, 1))} disabled={index === scanner.path.points.length - 1} aria-label={`Move point ${index + 1} later`}>↓</button>
                       <button type="button" onClick={() => commitScanner(removeLaserDmxScannerPoint(scanner, point.id))} disabled={scanner.path.points.length <= 1} aria-label={`Remove point ${index + 1}`}>×</button>
@@ -970,7 +971,11 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
                   <div><span>Apertures</span><strong>{scannerDiagnostics.apertureCount}</strong></div>
                   <div><span>Compatibility</span><strong>{scannerDiagnostics.compatibilityMode}</strong></div>
                 </div>
-                {scannerIssues.length > 0 && <div className="rv-show-director-trigger-notes" role="status">{scannerIssues.map(issue => <span key={`${issue.code}:${issue.pointId ?? ''}`}>{issue.severity.toUpperCase()}: {issue.message}</span>)}</div>}
+                {scannerIssues.length > 0 && (
+                  <NoticeCard tone="warning" role="status">
+                    {scannerIssues.map(issue => <div key={`${issue.code}:${issue.pointId ?? ''}`}>{issue.severity.toUpperCase()}: {issue.message}</div>)}
+                  </NoticeCard>
+                )}
               </>
             )}
 
@@ -979,21 +984,21 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
                 <CtrlSection label="Legacy Migration" />
                 <p className="rv-show-director-trigger-hint">This fixture still uses target endpoints. Previewing does not modify the project; applying is one history transaction and retains a target backup.</p>
                 <div className="rv-show-director-inspector__actions">
-                  <button type="button" className="rv-glyph-upload-btn" onClick={() => setScannerMigrationPreview(previewLaserDmxLegacyScannerMigration(fixture, settings.gridSize))}>Preview Conversion</button>
-                  {scannerMigrationPreview && <button type="button" className="rv-glyph-upload-btn" onClick={() => {
+                  <IconChipButton onClick={() => setScannerMigrationPreview(previewLaserDmxLegacyScannerMigration(fixture, settings.gridSize))}>Preview Conversion</IconChipButton>
+                  {scannerMigrationPreview && <IconChipButton onClick={() => {
                     const migrated = { ...scannerMigrationPreview.scanner, migration: { ...scannerMigrationPreview.scanner.migration, status: 'migrated' as const } }
                     commitScanner(migrated)
                     setScannerMigrationPreview(null)
-                  }}>Apply Conversion</button>}
+                  }}>Apply Conversion</IconChipButton>}
                 </div>
                 {scannerMigrationPreview && (
-                  <div className="rv-show-director-trigger-notes" role="status">
-                    <span>{scannerMigrationPreview.classification} · {Math.round(scannerMigrationPreview.confidence * 100)}% confidence</span>
+                  <NoticeCard tone="warning" role="status">
+                    <p>{scannerMigrationPreview.classification} · {Math.round(scannerMigrationPreview.confidence * 100)}% confidence</p>
                     <ScannerMigrationPreviewDiagram preview={scannerMigrationPreview} columns={settings.gridSize.columns} rows={settings.gridSize.rows} />
-                    <span>{scannerMigrationPreview.visibleSegmentCount} visible · {scannerMigrationPreview.blankedSegmentCount} blanked segments</span>
-                    {scannerMigrationPreview.ambiguous && <span>Review required: conversion is ambiguous.</span>}
-                    {scannerMigrationPreview.warnings.map(warning => <span key={warning}>{warning}</span>)}
-                  </div>
+                    <p>{scannerMigrationPreview.visibleSegmentCount} visible · {scannerMigrationPreview.blankedSegmentCount} blanked segments</p>
+                    {scannerMigrationPreview.ambiguous && <p>Review required: conversion is ambiguous.</p>}
+                    {scannerMigrationPreview.warnings.map(warning => <p key={warning}>{warning}</p>)}
+                  </NoticeCard>
                 )}
               </>
             )}
@@ -1048,9 +1053,9 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
         <SelectRow label="Trigger mode" value={fixture.trigger.mode} options={TRIGGER_MODE_OPTIONS} onChange={mode => updateTriggerMode(mode as LaserDmxShowDirectorTriggerMode)} />
         <p className="rv-show-director-trigger-hint">{TRIGGER_HINTS[fixture.trigger.mode]}</p>
         {triggerNotes.length > 0 && (
-          <div className="rv-show-director-trigger-notes" role="note" aria-label="Show Director timing requirements">
-            {triggerNotes.map(note => <span key={note}>{note}</span>)}
-          </div>
+          <NoticeCard tone="warning" role="status" ariaLabel="Show Director timing requirements">
+            {triggerNotes.map(note => <div key={note}>{note}</div>)}
+          </NoticeCard>
         )}
         {(fixture.trigger.mode === 'beat' || fixture.trigger.mode === 'bar' || fixture.trigger.mode === 'phrase') && (
           <SelectRow label="Beat division" value={beatDivisionValue(fixture.trigger.beatDivision)} options={BEAT_DIVISION_OPTIONS} onChange={beatDivision => update({ trigger: { beatDivision: parseBeatDivision(beatDivision) } })} />
@@ -1134,8 +1139,8 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
         )}
 
         <div className="rv-show-director-inspector__actions">
-          <button type="button" className="rv-glyph-upload-btn" onClick={() => duplicateFixture(fixture.id)}>Duplicate</button>
-          <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={() => deleteFixture(fixture.id)}>Delete</button>
+          <IconChipButton onClick={() => duplicateFixture(fixture.id)}>Duplicate</IconChipButton>
+          <IconChipButton className="rv-glyph-upload-btn--danger" onClick={() => deleteFixture(fixture.id)}>Delete</IconChipButton>
         </div>
           </>
         )}

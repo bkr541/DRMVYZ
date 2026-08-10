@@ -1,4 +1,6 @@
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
+import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { useMemo, useState } from 'react'
 import { Delete02Icon } from 'hugeicons-react'
 import { Dropdown } from '../../../components/shared/Dropdown/Dropdown'
@@ -162,10 +164,10 @@ export function LyricTrackBrowser({
       </div>
 
       {error && (
-        <div className="lmv-track-state lmv-track-state--error">
-          <span>{error}</span>
-          <button className="lmv-btn lmv-btn--ghost" onClick={onRetry}>Retry</button>
-        </div>
+        <NoticeCard tone="error" role="alert">
+          {error}{' '}
+          <IconChipButton onClick={onRetry}>Retry</IconChipButton>
+        </NoticeCard>
       )}
 
       {!error && !loading && visibleTracks.length === 0 && (
@@ -249,7 +251,7 @@ export function LyricTrackBrowser({
       <div className="lmv-track-filter-summary" aria-live="polite">{visibleTracks.length} shown · {TRACK_FILTER_LABELS[filter]}</div>
       {loading && <div className="lmv-track-state">Loading tracks…</div>}
       {!loading && hasMore && (
-        <button className="lmv-btn lmv-btn--ghost lmv-load-more" onClick={onLoadMore}>Load More</button>
+        <IconChipButton className="lmv-load-more" onClick={onLoadMore}>Load More</IconChipButton>
       )}
 
       {menu && (

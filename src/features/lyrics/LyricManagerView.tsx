@@ -1,4 +1,6 @@
 import { BubbleRevealSlider } from '../../components/vyzualz/react/controls/BubbleRevealSlider'
+import { NoticeCard } from '../../components/vyzualz/react/controls/NoticeCard'
+import { IconChipButton } from '../../components/vyzualz/react/controls/IconChipButton'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
 import { useLyricsStore } from '../../stores/lyricsStore'
@@ -42,6 +44,7 @@ import { LyricWorkflowStatus } from './components/LyricWorkflowStatus'
 import { LyricRecoveryDialog } from './components/LyricRecoveryDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
+import { UnderlineTabs } from '../../components/vyzualz/react/controls/UnderlineTabs'
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
@@ -261,20 +264,19 @@ function SelectedTrackHero({
       </div>
 
       <div className="lmv-track-hero-actions">
-        <button
-          className="lmv-btn lmv-btn--ghost"
+        <IconChipButton
           onClick={onLoadTrack}
           disabled={loading}
         >
           {loading ? 'Loading…' : selectedTrackLoaded ? 'Reload deck' : 'Load deck'}
-        </button>
-        <button
-          className="lmv-btn lmv-btn--primary"
+        </IconChipButton>
+        <IconChipButton
+          tone="primary"
           onClick={onTogglePlayback}
           disabled={!selectedTrackLoaded}
         >
           {selectedTrackPlaying ? 'Pause' : 'Preview'}
-        </button>
+        </IconChipButton>
       </div>
     </section>
   )
@@ -1959,23 +1961,15 @@ export function LyricManagerView({
       />
 
       {(error || statusMsg) && (
-        <div
-          className={`lmv-status-bar${error ? ' lmv-status-bar--error' : ' lmv-status-bar--ok'}`}
+        <NoticeCard
+          className="lmv-status-bar"
+          tone={error ? 'error' : 'info'}
           role={error ? 'alert' : 'status'}
-          aria-live={error ? 'assertive' : 'polite'}
+          onDismiss={error ? () => setError(null) : undefined}
+          dismissLabel="Dismiss lyric manager error"
         >
           {error ?? statusMsg}
-          {error && (
-            <button
-              type="button"
-              className="lmv-status-dismiss"
-              onClick={() => setError(null)}
-              aria-label="Dismiss lyric manager error"
-            >
-              ×
-            </button>
-          )}
-        </div>
+        </NoticeCard>
       )}
 
       <div
@@ -2061,9 +2055,9 @@ export function LyricManagerView({
                 <strong>Local deck file has no saved track identity</strong>
                 <span>Link it explicitly to a saved User Media track so runtime lyrics can resolve safely.</span>
               </div>
-              <button type="button" className="lmv-btn lmv-btn--ghost" onClick={() => { void handleOpenLinkSavedTrack() }}>
+              <IconChipButton onClick={() => { void handleOpenLinkSavedTrack() }}>
                 Link to Saved Track
-              </button>
+              </IconChipButton>
             </section>
           )}
 
@@ -2078,31 +2072,25 @@ export function LyricManagerView({
             runtimeAudioTrackId={runtimeAudioTrackId}
           />
 
-          <div className="lmv-tab-bar" role="tablist" aria-label="Lyric workflow">
-            {TAB_LABELS.map((tab) => {
+          <UnderlineTabs
+            tabs={TAB_LABELS.map(tab => {
               const disabled = tab.id === 'ai'
                 ? !selectedTrack
                 : (!selectedTrack && !editorDocument)
-              return (
-                <button
-                  key={tab.id}
-                  id={`lyric-tab-${tab.id}`}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === tab.id}
-                  aria-controls={`lyric-panel-${tab.id}`}
-                  className={`lmv-tab-btn${activeTab === tab.id ? ' lmv-tab-btn--active' : ''}${disabled ? ' lmv-tab-btn--disabled' : ''}`}
-                  onClick={() => {
-                    if (!disabled) setActiveTab(tab.id)
-                  }}
-                  disabled={disabled}
-                  title={tab.id === 'ai' && !selectedTrack ? 'Select a stored track first' : undefined}
-                >
-                  {tab.label}
-                </button>
-              )
+              return {
+                id: tab.id,
+                label: tab.label,
+                disabled,
+                buttonId: `lyric-tab-${tab.id}`,
+                ariaControls: `lyric-panel-${tab.id}`,
+                title: tab.id === 'ai' && !selectedTrack ? 'Select a stored track first' : undefined,
+              }
             })}
-          </div>
+            activeTab={activeTab}
+            onChange={setActiveTab}
+            ariaLabel="Lyric workflow"
+            className="lmv-tab-bar"
+          />
 
           <div className="lmv-tab-content" id={`lyric-panel-${activeTab}`} role="tabpanel" aria-labelledby={`lyric-tab-${activeTab}`}>
             {editorPlaceholder && activeTab === 'manual' ? (
@@ -2110,18 +2098,17 @@ export function LyricManagerView({
                 <div>{editorPlaceholder}</div>
                 {selectedTrack && (
                   <div className="lmv-editor-placeholder-actions">
-                    <button
-                      className="lmv-btn lmv-btn--primary"
+                    <IconChipButton
+                      tone="primary"
                       onClick={handleNewDocument}
                     >
                       Create Blank Lyrics
-                    </button>
-                    <button
-                      className="lmv-btn lmv-btn--ghost"
+                    </IconChipButton>
+                    <IconChipButton
                       onClick={handleImportDocument}
                     >
                       Import Lyrics
-                    </button>
+                    </IconChipButton>
                   </div>
                 )}
               </div>

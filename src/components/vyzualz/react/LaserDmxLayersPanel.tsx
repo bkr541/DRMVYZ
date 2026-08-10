@@ -1,4 +1,5 @@
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
+import { IconChipButton } from './controls/IconChipButton'
 import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
@@ -218,13 +219,11 @@ export function LaserDmxLayersPanel() {
           >
             {enabledOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </DropdownSelect>
-          <button
-            type="button"
-            className="rv-glyph-upload-btn"
+          <IconChipButton
             onClick={() => setFilters(DEFAULT_FILTERS)}
           >
             Clear
-          </button>
+          </IconChipButton>
         </div>
       )}
 

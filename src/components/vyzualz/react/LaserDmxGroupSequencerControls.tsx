@@ -1,6 +1,5 @@
 import type { LaserDmxBeamSequence, LaserDmxSequenceMode } from './ReactTypes'
-import { SliderRow, ToggleRow, Collapsible } from './ReactControlRows'
-import { SelectRowV2 as SelectRow } from './ReactControlRowsV2'
+import { SliderRow, ToggleRow, Collapsible, SelectRow } from './ReactControlRows'
 
 // stepsPerBeat → musical subdivision label
 // stepsPerBeat=1 → 1 step per beat → quarter-note steps

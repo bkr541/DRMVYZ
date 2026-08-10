@@ -1,4 +1,5 @@
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { useEffect, useState } from 'react'
 import type { LyricDocumentVersion } from '../lyricManagerTypes'
 
@@ -203,8 +204,8 @@ export function LyricDocumentSidebar({
           />
         </div>
         <div className="lmv-doc-primary-actions">
-          <button className="lmv-btn lmv-btn--ghost" onClick={onNewDocument} disabled={!hasSelectedTrack}>+ New Version</button>
-          <button className="lmv-btn lmv-btn--ghost" onClick={onImportDocument} disabled={!hasSelectedTrack}>Import</button>
+          <IconChipButton onClick={onNewDocument} disabled={!hasSelectedTrack}>+ New Version</IconChipButton>
+          <IconChipButton onClick={onImportDocument} disabled={!hasSelectedTrack}>Import</IconChipButton>
         </div>
       </div>
 

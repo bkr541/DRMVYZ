@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { IconChipButton } from '../controls/IconChipButton'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../../stores/reactStore'
 import type { Recorder } from '../../../../hooks/useRecorder'
@@ -230,7 +231,7 @@ export function ReactOutputWorkspacePanel({
           ) : fracturesOutputDeferred ? (
             <NoticeCard tone="info" title="Fractures recording is unavailable" ariaLabel="Fractures recording unavailable">
               <p>The effective Fractures renderer is active for preview and performance, but capture is intentionally disabled in the current MVP.</p>
-              <button type="button" className="rv-reset-btn" disabled>Recording unavailable</button>
+              <IconChipButton disabled>Recording unavailable</IconChipButton>
             </NoticeCard>
           ) : (
             <ReactRecordingPanel

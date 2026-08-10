@@ -20,8 +20,8 @@ import {
   resolveScopeStabilityMacro,
   scopeSignalModeUsesXGain,
 } from '../../../../audio/scope'
-import { SliderRow, ToggleRow, ColorRow, CtrlSection } from '../ReactControlRows'
-import { SelectRowV2 as SelectRow } from '../ReactControlRowsV2'
+import { SliderRow, ToggleRow, ColorRow, CtrlSection, SelectRow } from '../ReactControlRows'
+import { IconChipButton } from '../controls/IconChipButton'
 import { DualRailCollapsible as Collapsible } from '../DualRailCollapsible'
 import type { OscillatorSettings } from '../ReactTypes'
 import { SOUND_DRAWING_VISUAL_SIZE_MAX, SOUND_DRAWING_VISUAL_SIZE_MIN } from './SoundDrawingVisualSize'
@@ -130,9 +130,9 @@ export function SoundDrawingProScopeControls({ osc, set, hideTraceSize = false }
         <strong>{presetProvenance.label}</strong> · {presetProvenance.description}
       </p>
       {activePreset && presetProvenance.status === 'modified' && (
-        <button type="button" className="rv-reset-btn" onClick={() => set({ scope: resolveScopePresetState(activePreset.id) })}>
+        <IconChipButton onClick={() => set({ scope: resolveScopePresetState(activePreset.id) })}>
           Reset to {activePreset.name}
-        </button>
+        </IconChipButton>
       )}
 
       <SelectRow
@@ -557,9 +557,9 @@ export function SoundDrawingProScopeControls({ osc, set, hideTraceSize = false }
           description="Smoothed signal-domain calibration after Auto Gain. This is not the primary visual-size control."
         />
         {!gainLink.linked && (
-          <button type="button" className="rv-reset-btn" onClick={() => set({ scope: relinkScopeAxisGains(scope) })}>
+          <IconChipButton onClick={() => set({ scope: relinkScopeAxisGains(scope) })}>
             Relink X/Y at Average
-          </button>
+          </IconChipButton>
         )}
         <SliderRow
           label="X Trim"

@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { Collapsible, SelectRow, SliderRow } from '../ReactControlRows'
+import { IconChipButton } from '../controls/IconChipButton'
 import { productionOutputController } from './ProductionOutput'
 
 function statusTone(state: string): string {
@@ -43,15 +44,14 @@ export function ProductionOutputPanel() {
         description="Virtual Output is canonical. Art-Net and sACN are protocol-ready but cannot transmit from this renderer-only build."
       />
 
-      <button
-        type="button"
-        className={`rv-glyph-upload-btn${snapshot.rehearsalMode ? ' rv-glyph-upload-btn--active' : ''}`}
+      <IconChipButton
+        tone={snapshot.rehearsalMode ? 'primary' : 'default'}
         aria-pressed={snapshot.rehearsalMode}
         onClick={() => productionOutputController.setRehearsalMode(!snapshot.rehearsalMode)}
         style={{ marginBottom: 8 }}
       >
         Rehearsal Preview: {snapshot.rehearsalMode ? 'ON' : 'OFF'}
-      </button>
+      </IconChipButton>
       <div className="rv-ctrl-info">
         Rehearsal Preview routes cues, looks, and pad actions to Virtual Output only. Enabling it immediately disarms physical output.
       </div>
@@ -73,37 +73,30 @@ export function ProductionOutputPanel() {
       />
 
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
-        <button
-          type="button"
-          className="rv-glyph-upload-btn"
+        <IconChipButton
           onClick={() => productionOutputController.arm()}
           disabled={physicalUnavailable || snapshot.status.armed || Boolean(snapshot.rehearsalMode && selected?.canTransmit)}
         >
           {selected?.virtual ? 'Arm Virtual Test' : 'Arm Session'}
-        </button>
-        <button
-          type="button"
-          className="rv-glyph-upload-btn"
+        </IconChipButton>
+        <IconChipButton
           onClick={() => productionOutputController.disarm('User disarmed output')}
           disabled={!snapshot.status.armed && snapshot.status.state !== 'blackout'}
         >
           Disarm
-        </button>
-        <button
-          type="button"
-          className="rv-glyph-upload-btn rv-glyph-upload-btn--danger"
+        </IconChipButton>
+        <IconChipButton
+          className="rv-glyph-upload-btn--danger"
           onClick={() => productionOutputController.emergencyBlackoutNow('User emergency blackout')}
         >
           Emergency Blackout
-        </button>
-        <button
-          type="button"
-          className="rv-glyph-upload-btn"
+        </IconChipButton>
+        <IconChipButton
           onClick={() => productionOutputController.clearEmergencyBlackout()}
           disabled={!snapshot.emergencyBlackout}
         >
           Clear Latch
-        </button>
+        </IconChipButton>
       </div>
 
       {physicalUnavailable && (

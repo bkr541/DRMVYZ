@@ -1,4 +1,5 @@
 import React from 'react'
+import { IconChipButton } from '../../controls/IconChipButton'
 import { useShallow } from 'zustand/react/shallow'
 import { useShaderPanelStore } from './shaderPanelStore'
 import { shaderRegistry } from '../registry'
@@ -116,14 +117,12 @@ export function ShaderParameterPanel() {
       )}
 
       <div className="rv-ctrl-footer">
-        <button
-          type="button"
-          className="rv-reset-btn"
+        <IconChipButton
           onClick={resetParams}
           title="Reset all parameters to their defaults"
         >
           Reset Params
-        </button>
+        </IconChipButton>
       </div>
     </div>
   )

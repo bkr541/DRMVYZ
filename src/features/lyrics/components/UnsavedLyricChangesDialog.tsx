@@ -1,3 +1,5 @@
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
+
 interface Props {
   open: boolean
   busy?: boolean
@@ -22,11 +24,11 @@ export function UnsavedLyricChangesDialog({
           {message ?? 'Save your changes before continuing, discard them, or cancel and stay here.'}
         </p>
         <div className="lmv-dialog-actions">
-          <button className="lmv-btn lmv-btn--ghost" onClick={onCancel} disabled={busy}>Cancel</button>
-          <button className="lmv-btn lmv-btn--danger" onClick={onDiscard} disabled={busy}>Discard</button>
-          <button className="lmv-btn lmv-btn--primary" onClick={onSave} disabled={busy}>
+          <IconChipButton onClick={onCancel} disabled={busy}>Cancel</IconChipButton>
+          <IconChipButton className="lmv-btn--danger" onClick={onDiscard} disabled={busy}>Discard</IconChipButton>
+          <IconChipButton tone="primary" onClick={onSave} disabled={busy}>
             {busy ? 'Saving…' : 'Save'}
-          </button>
+          </IconChipButton>
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { SliderRow, ToggleRow, TextInputRow, CtrlSection, Collapsible } from './ReactControlRows'
+import { IconChipButton } from './controls/IconChipButton'
 import { LaserDmxGroupSequencerControls } from './LaserDmxGroupSequencerControls'
 import { LaserDmxTimingStatus } from './LaserDmxTimingStatus'
 import { LaserDmxLaunchControls } from './LaserDmxLaunchControls'
@@ -82,42 +83,35 @@ export function LaserDmxReactionGroupInspector() {
       </div>
 
       <div className="rv-bm-button-row rv-bm-button-row--wrap rv-bm-button-row--spaced-sm">
-        <button
-          type="button"
-          className="rv-glyph-upload-btn"
+        <IconChipButton
           aria-label="Add reaction group"
           onClick={() => useReactStore.getState().addLaserDmxReactionGroup()}
         >
           + Group
-        </button>
+        </IconChipButton>
         {group && (
           <>
-            <button
-              type="button"
-              className="rv-glyph-upload-btn"
+            <IconChipButton
               aria-label={`Duplicate group ${group.name}`}
               onClick={() => duplicateLaserDmxReactionGroup(group.id)}
             >
               ⧉ Dupe
-            </button>
-            <button
-              type="button"
-              className="rv-glyph-upload-btn rv-glyph-upload-btn--danger"
+            </IconChipButton>
+            <IconChipButton
+              className="rv-glyph-upload-btn--danger"
               aria-label={`Delete group ${group.name}`}
               onClick={() => { if (window.confirm(`Delete group "${group.name}"?`)) removeLaserDmxReactionGroup(group.id) }}
             >
               × Delete
-            </button>
+            </IconChipButton>
           </>
         )}
-        <button
-          type="button"
-          className="rv-glyph-upload-btn"
+        <IconChipButton
           title="Restore the four default starter groups (Bass React, Snare React, Beat React, Custom React)"
           onClick={restoreStarterReactionGroups}
         >
           Restore Starters
-        </button>
+        </IconChipButton>
       </div>
 
       {/* Selected group editor */}

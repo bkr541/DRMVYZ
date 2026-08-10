@@ -387,31 +387,22 @@
 }
 
 .sm-library-section { border-bottom: 1px solid rgba(154, 178, 188, 0.09); }
-.sm-library-section-toggle {
-  width: 100%;
+button.sm-library-section-toggle {
   height: 29px;
-  padding: 0 9px;
-  display: grid;
-  grid-template-columns: 12px 1fr auto;
-  align-items: center;
-  gap: 5px;
-  border: 0;
+  padding: 0 9px 0;
   background: rgba(255, 255, 255, 0.008);
   color: rgba(196, 212, 220, 0.52);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: color 120ms ease, background 120ms ease;
+  border-bottom: 0;
 }
 
-.sm-library-section-toggle:hover,
-.sm-library-section-toggle:focus-visible {
+button.sm-library-section-toggle:hover,
+button.sm-library-section-toggle:focus-visible {
   background: rgba(74, 199, 219, 0.035);
   color: rgba(232, 244, 248, 0.78);
   outline: none;
 }
 
-.sm-library-section-toggle:focus-visible {
+button.sm-library-section-toggle:focus-visible {
   box-shadow: inset 2px 0 0 rgba(103, 247, 255, 0.74);
 }
 
@@ -429,19 +420,6 @@
   background: rgba(255, 255, 255, 0.035);
   color: rgba(196, 212, 220, 0.38);
   font-size: 8px;
-}
-
-.sm-library-section-chevron {
-  display: grid;
-  place-items: center;
-  font-size: 9px;
-  opacity: 0.64;
-  transform: rotate(0deg);
-  transition: transform 150ms ease, opacity 120ms ease;
-}
-
-.sm-library-section.is-collapsed .sm-library-section-chevron {
-  transform: rotate(-90deg);
 }
 
 .sm-library-section-body { padding: 0 7px 6px; }
@@ -507,7 +485,7 @@
   overflow: hidden;
   background: rgba(255, 255, 255, 0.008);
 }
-.sm-library-subsection-toggle {
+button.sm-library-subsection-toggle {
   height: 27px;
   padding-inline: 7px;
   background: rgba(255, 255, 255, 0.012);
@@ -516,7 +494,6 @@
   font-size: 8px;
   letter-spacing: 0.055em;
 }
-.sm-library-subsection.is-collapsed .sm-library-section-chevron { transform: rotate(-90deg); }
 .sm-library-subsection-body {
   border-top: 1px solid rgba(154, 178, 188, 0.055);
 }
@@ -753,7 +730,6 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
-.sm-validation-card,
 .sm-document-stats {
   margin: 0;
   padding: 0;
@@ -761,11 +737,7 @@
   border-radius: 0;
   background: transparent;
 }
-.sm-validation-card header { display: flex; align-items: center; justify-content: space-between; }
-.sm-validation-card header strong,
 .sm-document-stats header { font-size: 9px; letter-spacing: 0.08em; color: rgba(196, 212, 220, 0.55); }
-.sm-validation-card header span { color: #61d6aa; font-size: 8px; }
-.sm-validation-card p { margin: 7px 0 0; color: rgba(196, 212, 220, 0.38); font-size: 8px; line-height: 1.4; }
 .sm-document-stats { display: grid; gap: 6px; }
 .sm-document-stats div { display: flex; justify-content: space-between; color: rgba(196, 212, 220, 0.4); font-size: 8px; }
 .sm-document-stats strong { color: rgba(232, 244, 248, 0.64); }
@@ -952,16 +924,6 @@
 .sm-deck-upload-button strong { font-size: 11px; letter-spacing: 0.04em; }
 .sm-deck-upload-button span { font-size: 8px; color: rgba(196, 212, 220, 0.54); }
 
-.sm-deck-error,
-.sm-deck-warning {
-  margin: 8px 0 0;
-  padding: 7px 8px;
-  border-radius: 5px;
-  font-size: 9px;
-  line-height: 1.35;
-}
-.sm-deck-error { background: rgba(248, 113, 113, 0.1); color: #fca5a5; }
-.sm-deck-warning { background: rgba(250, 204, 21, 0.08); color: #fde68a; }
 
 .sm-deck-image-list {
   min-height: 0;
@@ -1728,7 +1690,7 @@
 .sm-canvas-media-clip__body { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sm-canvas-clip-handle { background: rgba(103, 247, 255, 0.18); cursor: ew-resize; }
 .sm-canvas-clip-handle:focus-visible { outline: 1px solid #fff; outline-offset: -2px; }
-.sm-canvas-authoring-feedback { margin: 5px 7px 0; padding: 6px 8px; border: 1px solid rgba(255, 118, 132, 0.4); border-radius: 4px; background: rgba(255, 72, 92, 0.08); color: rgba(255, 190, 198, 0.92); font-size: 8px; }
+.sm-canvas-authoring-feedback { margin: 5px 7px 0; }
 .sm-canvas-cue-grid { display: grid; grid-template-columns: 70px minmax(0, 1fr); align-items: center; gap: 6px; }
 .sm-canvas-cue-grid > small { grid-column: 1 / -1; color: rgba(196, 212, 220, 0.42); font-size: 8px; }
 .sm-canvas-element-form .sm-canvas-delete { margin-top: 4px; }

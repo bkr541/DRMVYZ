@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { IconChipButton } from '../controls/IconChipButton'
 import { useReactStore } from '../../../../stores/reactStore'
 import {
   applyPixGridPoints,
@@ -438,8 +439,8 @@ export function PixGridEditorOverlay({ liveCanvas }: PixGridEditorOverlayProps) 
     <div className="rv-pix-grid-editor-overlay" data-testid="pix-grid-editor-overlay">
       <div className="rv-pix-grid-editor-toolbar" role="toolbar" aria-label="PixGrid editor tools">
         <div className="rv-pix-grid-editor-history" aria-label="Edit history">
-          <button type="button" className="rv-reset-btn" disabled={undoCount === 0} onClick={undo} title="Undo (Command/Ctrl+Z)">Undo</button>
-          <button type="button" className="rv-reset-btn" disabled={redoCount === 0} onClick={redo} title="Redo (Shift+Command/Ctrl+Z)">Redo</button>
+          <IconChipButton disabled={undoCount === 0} onClick={undo} title="Undo (Command/Ctrl+Z)">Undo</IconChipButton>
+          <IconChipButton disabled={redoCount === 0} onClick={redo} title="Redo (Shift+Command/Ctrl+Z)">Redo</IconChipButton>
         </div>
         <div className="rv-pix-grid-editor-tool-list">
           {TOOL_DEFINITIONS.map(item => {

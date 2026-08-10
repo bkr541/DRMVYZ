@@ -1,5 +1,7 @@
 import { IconMorphCheckbox } from './react/controls/IconMorphToggle'
 import { DreamVizTextInput } from './react/controls/DreamVizTextInput'
+import { NoticeCard } from './react/controls/NoticeCard'
+import { IconChipButton } from './react/controls/IconChipButton'
 import { useState, useRef, useEffect, useCallback, useId } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { mediaMutationKey, useMediaStore } from '../../stores/mediaStore'
@@ -711,20 +713,17 @@ export function MediaUploadModal({
             be used as a Reactive Path glyph.
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              type="button"
-              className="mum-upload-btn"
+            <IconChipButton
+              tone="primary"
               onClick={handleRasterSvgContinue}
             >
               Continue Upload
-            </button>
-            <button
-              type="button"
-              className="mum-upload-btn mum-upload-btn--secondary"
+            </IconChipButton>
+            <IconChipButton
               onClick={() => setRasterSvgWarning(null)}
             >
               Cancel
-            </button>
+            </IconChipButton>
           </div>
         </div>
       </div>
@@ -790,7 +789,7 @@ export function MediaUploadModal({
               <div className="mum-filelist">
                 <div className="mum-filelist-header">
                   <span>{uploadQueue.length} file{uploadQueue.length !== 1 ? 's' : ''} selected</span>
-                  <button className="mum-filelist-clear" onClick={clearAll} disabled={uploading}>Clear</button>
+                  <IconChipButton onClick={clearAll} disabled={uploading}>Clear</IconChipButton>
                 </div>
                 <div className="mum-filelist-items">
                   {uploadQueue.map(q => {
@@ -1046,30 +1045,24 @@ export function MediaUploadModal({
         </div>{/* /mum-body */}
 
         {isEdit && editMutation?.status === 'conflict' && (
-          <div className="mum-conflict-panel" role="alert">
-            <div className="mum-conflict-copy">
-              <strong>Newer media changes are available.</strong>
-              <span>{editMutation.message} Your attempted values are still in this form.</span>
-            </div>
+          <NoticeCard className="mum-conflict-panel" tone="warning" role="alert" title="Newer media changes are available.">
+            <p>{editMutation.message} Your attempted values are still in this form.</p>
             <div className="mum-conflict-actions">
-              <button type="button" className="mum-cancel-btn" disabled={saving} onClick={handleUseServerVersion}>Use Server Version</button>
-              <button type="button" className="mum-upload-btn" disabled={saving} onClick={handleReapplyEdit}>{saving ? 'Reapplying…' : 'Reapply My Changes'}</button>
+              <IconChipButton disabled={saving} onClick={handleUseServerVersion}>Use Server Version</IconChipButton>
+              <IconChipButton tone="primary" disabled={saving} onClick={handleReapplyEdit}>{saving ? 'Reapplying…' : 'Reapply My Changes'}</IconChipButton>
             </div>
-          </div>
+          </NoticeCard>
         )}
         {isEdit && editMutation?.status === 'failed' && (
-          <div className="mum-conflict-panel mum-conflict-panel--error" role="alert">
-            <div className="mum-conflict-copy">
-              <strong>Media changes were not saved.</strong>
-              <span>{editMutation.message}</span>
-            </div>
+          <NoticeCard className="mum-conflict-panel" tone="error" role="alert" title="Media changes were not saved.">
+            <p>{editMutation.message}</p>
             <div className="mum-conflict-actions">
-              <button type="button" className="mum-upload-btn" disabled={saving} onClick={handleRetryEdit}>{saving ? 'Retrying…' : 'Retry Save'}</button>
+              <IconChipButton tone="primary" disabled={saving} onClick={handleRetryEdit}>{saving ? 'Retrying…' : 'Retry Save'}</IconChipButton>
             </div>
-          </div>
+          </NoticeCard>
         )}
         {(selectionError || batchError || (isEdit && loadError)) && (
-          <div className="mum-batch-error" role="alert">{selectionError ?? batchError ?? loadError}</div>
+          <NoticeCard className="mum-batch-error" tone="error" role="alert">{selectionError ?? batchError ?? loadError}</NoticeCard>
         )}
         {uploading && progress.total > 0 && (
           <div className="mum-progress" aria-label={`Uploaded ${progress.completed} of ${progress.total} files`}>
@@ -1080,19 +1073,17 @@ export function MediaUploadModal({
 
         {/* ── Footer ─────────────────────────────────────────────────── */}
         <div className={`mum-footer${isEdit ? ' mum-footer--edit' : ''}`}>
-          <button
-            className="mum-cancel-btn"
+          <IconChipButton
             onClick={() => {
               if (uploading) uploadAbortRef.current?.abort()
               else if (!busy) onClose()
             }}
           >
             {uploading ? 'Cancel Upload' : 'Cancel'}
-          </button>
+          </IconChipButton>
           {!isEdit && (
             <label className="mum-upload-another">
-              <input
-                type="checkbox"
+              <IconMorphCheckbox
                 checked={uploadAnother}
                 onChange={e => setUploadAnother(e.target.checked)}
               />
@@ -1100,16 +1091,16 @@ export function MediaUploadModal({
             </label>
           )}
           {isEdit ? (
-            <button
-              className="mum-upload-btn"
+            <IconChipButton
+              tone="primary"
               disabled={!canSave}
               onClick={handleSave}
             >
               {saving ? 'Saving…' : 'Save Changes'}
-            </button>
+            </IconChipButton>
           ) : (
-            <button
-              className="mum-upload-btn"
+            <IconChipButton
+              tone="primary"
               disabled={!canUpload}
               onClick={handleUpload}
             >
@@ -1118,7 +1109,7 @@ export function MediaUploadModal({
                 : isAudioQueue
                   ? `Upload ${uploadQueue.length > 0 ? uploadQueue.length + ' ' : ''}Track${uploadQueue.length !== 1 ? 's' : ''}`
                   : `Upload ${uploadQueue.length > 0 ? uploadQueue.length + ' ' : ''}Media`}
-            </button>
+            </IconChipButton>
           )}
         </div>
 

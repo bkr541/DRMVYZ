@@ -1,4 +1,5 @@
 import { Collapsible } from './ReactControlRows'
+import { IconChipButton } from './controls/IconChipButton'
 import {
   requestLaserDmxWebGLRetry,
   useLaserDmxRendererDiagnostics,
@@ -104,9 +105,9 @@ export function LaserDmxRendererDiagnosticsPanel() {
           )}
           {showManualRetry && (
             <div className="rv-bm-button-row rv-bm-button-row--spaced-sm">
-              <button type="button" className="rv-glyph-upload-btn" onClick={() => requestLaserDmxWebGLRetry()}>
+              <IconChipButton onClick={() => requestLaserDmxWebGLRetry()}>
                 Retry WebGL
-              </button>
+              </IconChipButton>
             </div>
           )}
         </div>

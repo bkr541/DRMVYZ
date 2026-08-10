@@ -1,3 +1,5 @@
+import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import type { Track } from '../../../types'
 import type { SavedTrackLinkCandidate } from '../services/savedTrackLinking'
 
@@ -48,7 +50,7 @@ export function LinkSavedTrackDialog({
         {loading ? (
           <div className="lmv-link-track-state" role="status">Searching saved tracks…</div>
         ) : error ? (
-          <div className="lmv-link-track-state lmv-link-track-state--error" role="alert">{error}</div>
+          <NoticeCard tone="error" role="alert">{error}</NoticeCard>
         ) : candidates.length === 0 ? (
           <div className="lmv-link-track-state">No saved candidates were found. Import this audio file through Media Manager first.</div>
         ) : (
@@ -77,15 +79,14 @@ export function LinkSavedTrackDialog({
         )}
 
         <div className="lmv-dialog-actions">
-          <button type="button" className="lmv-btn lmv-btn--ghost" onClick={onCancel} disabled={confirming}>Cancel</button>
-          <button
-            type="button"
-            className="lmv-btn lmv-btn--primary"
+          <IconChipButton onClick={onCancel} disabled={confirming}>Cancel</IconChipButton>
+          <IconChipButton
+            tone="primary"
             onClick={onConfirm}
             disabled={!selected || loading || confirming}
           >
             {confirming ? 'Linking…' : 'Confirm and Reload Saved Track'}
-          </button>
+          </IconChipButton>
         </div>
       </section>
     </div>

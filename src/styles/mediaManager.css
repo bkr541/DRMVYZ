@@ -193,12 +193,6 @@
   .mmv-guidance > div { align-items: flex-start; flex-direction: column; gap: 3px; }
 }
 
-.vz-import-btn--secondary {
-  margin-left: auto;
-  border-color: rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.035);
-  color: rgba(232,238,240,0.68);
-}
 .vz-coll-actions { display: inline-flex; align-items: center; gap: 5px; margin-left: 4px; }
 .vz-coll-description {
   overflow: hidden;
@@ -213,13 +207,9 @@
   left: 8px;
   bottom: 8px;
   z-index: 3;
-  border: 1px solid rgba(248,113,113,0.32);
-  border-radius: 4px;
-  background: rgba(10,20,32,0.88);
-  color: #fca5a5;
-  padding: 3px 6px;
-  font: 700 8px var(--az-font);
-  cursor: pointer;
+  border-color: rgba(248,113,113,0.32) !important;
+  background: rgba(10,20,32,0.88) !important;
+  color: #fca5a5 !important;
 }
 .mmv-editor-modal {
   width: min(560px, calc(100vw - 32px));

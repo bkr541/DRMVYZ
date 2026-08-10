@@ -1,4 +1,6 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useMemo, type CSSProperties, type ReactNode } from 'react'
+import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { resolveLyricCueConfidence, type LyricCue, type LyricDocument, type LyricStyle } from '../../../types/lyrics'
 import {
   validateLyricCues,
@@ -95,28 +97,17 @@ function RightInspectorSection({
   children: ReactNode
   badge?: ReactNode
 }) {
-  const [open, setOpen] = useState(defaultOpen)
-  const contentId = `lmv-right-section-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
-
   return (
-    <section className={`lmv-panel-card lmv-right-section${open ? ' lmv-right-section--open' : ' lmv-right-section--closed'}`}>
-      <button
-        type="button"
-        className="lmv-right-section-header"
-        onClick={() => setOpen(value => !value)}
-        aria-expanded={open}
-        aria-controls={contentId}
-      >
-        <span className="lmv-right-section-title">{title}</span>
-        {badge && <span className="lmv-right-section-badge">{badge}</span>}
-        <span className="lmv-right-section-arrow" aria-hidden="true">▾</span>
-      </button>
-      {open && (
-        <div id={contentId} className="lmv-right-section-body">
-          {children}
-        </div>
-      )}
-    </section>
+    <DualRailCollapsible
+      className="lmv-panel-card lmv-right-section"
+      headerClassName="lmv-right-section-header"
+      bodyClassName="lmv-right-section-body"
+      defaultOpen={defaultOpen}
+      label={<span className="lmv-right-section-title">{title}</span>}
+      headerAccessory={badge ? <span className="lmv-right-section-badge">{badge}</span> : undefined}
+    >
+      {children}
+    </DualRailCollapsible>
   )
 }
 
@@ -210,8 +201,8 @@ export function LyricPreviewPanel({
         ) : (
           <div className="lmv-preview-empty">Select a cue to preview its appearance</div>
         )}
-        <button
-          className="lmv-btn lmv-btn--ghost lmv-preview-viz-btn"
+        <IconChipButton
+          className="lmv-preview-viz-btn"
           onClick={onPreviewInVisualizer}
           disabled={!hasTimedCues}
           title={hasTimedCues
@@ -219,7 +210,7 @@ export function LyricPreviewPanel({
             : 'No cues to preview. Import or create lyric cues first.'}
         >
           Preview in {previewDestination} ↗
-        </button>
+        </IconChipButton>
       </RightInspectorSection>
 
       {extractionConsole}
@@ -261,10 +252,13 @@ export function LyricPreviewPanel({
             </>
           )}
         </div>
-        <details className="lmv-stats-explainer">
-          <summary>What these counts mean</summary>
+        <DualRailCollapsible
+          className="lmv-stats-explainer"
+          defaultOpen={false}
+          label="What these counts mean"
+        >
           <p>Cues are timed lyric lines. Words are optional nested timings inside those cues, so some documents can have cue timing without word timing.</p>
-        </details>
+        </DualRailCollapsible>
       </RightInspectorSection>
     </div>
   )

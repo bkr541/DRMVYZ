@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { IconChipButton } from './controls/IconChipButton'
 import { useShallow } from 'zustand/react/shallow'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
@@ -80,7 +81,7 @@ export function CinemaInspectorPanel() {
         <InspectorKv label="Preset" value={composition.metadata.name} />
         <InspectorKv label="Selected layer" value={selectedNode?.label ?? selectedNode?.typeId ?? 'None'} />
         <div className="rv-ctrl-info">Changes here are live overrides. The original preset remains unchanged.</div>
-        {liveInstance && <button type="button" className="rv-reset-btn" onClick={() => resetCinemaLiveOverrides(composition.id)}>Reset Live Changes</button>}
+        {liveInstance && <IconChipButton onClick={() => resetCinemaLiveOverrides(composition.id)}>Reset Live Changes</IconChipButton>}
       </div>
 
       <div className="rv-ctrl-group">

@@ -1,4 +1,5 @@
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
+import { IconChipButton } from '../react/controls/IconChipButton'
 import { useEffect, useState } from 'react'
 import { MUSICAL_KEYS } from '../../../lib/mediaRoles'
 import { useAudioStore } from '../../../stores/audioStore'
@@ -96,8 +97,8 @@ export function AudioTrackEditModal({ track, onClose }: { track: SavedAudioTrack
           {(validationError || loadError) && <div className="mmv-editor-error" role="alert">{validationError ?? loadError}</div>}
         </div>
         <div className="mmv-editor-footer">
-          <button type="button" className="mum-cancel-btn" onClick={onClose} disabled={saving}>Cancel</button>
-          <button type="button" className="mum-upload-btn" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</button>
+          <IconChipButton onClick={onClose} disabled={saving}>Cancel</IconChipButton>
+          <IconChipButton tone="primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</IconChipButton>
         </div>
       </div>
     </div>

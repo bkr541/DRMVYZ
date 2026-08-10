@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
 import type { ReactSectionType } from '../ReactTypes'
-import { Collapsible, NumberInputRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
-import { SelectRowV2 as SelectRow } from '../ReactControlRowsV2'
+import { Collapsible, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
 import { HelpInfoTrigger } from '../../../shared/InfoPopover'
+import { NoticeCard } from '../controls/NoticeCard'
+import { IconChipButton } from '../controls/IconChipButton'
 import { PIX_GRID_ASSIGNMENT_TARGETS } from './PixGridAssignmentCompiler'
 import {
   PIX_GRID_AUDIO_INTELLIGENCE_SOURCES,
@@ -337,8 +338,8 @@ function ProgramRouteEditor({
       <SliderRow label="Priority" value={override.priority ?? route.priority ?? 0} min={PIX_GRID_REACTION_FIELDS.priority.min} max={PIX_GRID_REACTION_FIELDS.priority.max} step={PIX_GRID_REACTION_FIELDS.priority.step} onChange={value => update({ priority: value })} />
       <SelectRow label="Blend" value={override.blend ?? route.blend ?? 'add'} options={['add', 'multiply', 'replace', 'max'].map(value => ({ value, label: label(value) }))} onChange={value => update({ blend: value as PixGridProgramRouteOverride['blend'] })} />
       <div className="rv-ctrl-action-row">
-        <button type="button" className="rv-reset-btn" onClick={() => triggerPixGridPreviewSource(source)}>{continuous ? 'Preview Route' : 'Test Trigger'}</button>
-        <button type="button" className="rv-reset-btn" disabled={!Object.keys(override).length} title={Object.keys(override).length ? 'Restore the bundled route settings.' : 'This route already uses its bundled settings.'} onClick={reset}>Reset Route</button>
+        <IconChipButton onClick={() => triggerPixGridPreviewSource(source)}>{continuous ? 'Preview Route' : 'Test Trigger'}</IconChipButton>
+        <IconChipButton disabled={!Object.keys(override).length} title={Object.keys(override).length ? 'Restore the bundled route settings.' : 'This route already uses its bundled settings.'} onClick={reset}>Reset Route</IconChipButton>
       </div>
       <div className="rv-ctrl-info">Preview is transient and never writes a Track Map cue.</div>
     </Collapsible>
@@ -423,7 +424,7 @@ function UserRouteEditor({ state, selection, applyState }: { state: PixGridState
       <TextInputRow label="Drop Occurrences" value={(assignment.conditions?.dropOccurrences ?? []).join(', ')} placeholder="1, 2" onChange={value => update({ conditions: { ...assignment.conditions, dropOccurrences: parseOccurrence(value) ?? [] } })} />
       <SliderRow label="Priority" value={assignment.priority ?? 0} min={PIX_GRID_REACTION_FIELDS.priority.min} max={PIX_GRID_REACTION_FIELDS.priority.max} step={PIX_GRID_REACTION_FIELDS.priority.step} onChange={priority => update({ priority })} />
       <SelectRow label="Blend" value={assignment.blend} options={['add', 'multiply', 'replace', 'max'].map(value => ({ value, label: label(value) }))} onChange={value => update({ blend: value as PixGridReactionAssignment['blend'] })} />
-      <div className="rv-ctrl-action-row"><button type="button" className="rv-reset-btn" onClick={() => triggerPixGridPreviewSource(assignment.source)}>{continuous ? 'Preview Route' : 'Test Trigger'}</button><button type="button" className="rv-reset-btn" onClick={remove}>Delete Route</button></div>
+      <div className="rv-ctrl-action-row"><IconChipButton onClick={() => triggerPixGridPreviewSource(assignment.source)}>{continuous ? 'Preview Route' : 'Test Trigger'}</IconChipButton><IconChipButton onClick={remove}>Delete Route</IconChipButton></div>
     </Collapsible>
   )
 }
@@ -548,7 +549,7 @@ function RoutingOrEvents({ mode }: { mode: 'continuous' | 'event' }) {
       <div className="rv-pix-grid-route-section-help drm-help-overlay-anchor">
         <Collapsible label={continuous ? 'CONTINUOUS ROUTES' : 'EVENT ROUTES'} defaultOpen>
           <div className="rv-pix-grid-summary-strip"><span><strong>{continuous ? program.continuousRoutes.length : program.eventRoutes.length}</strong> preset</span><span><strong>{selections.filter(item => item.kind === 'user').length}</strong> user</span><span><strong>{program.metadata.name}</strong> active</span></div>
-          <div className="rv-ctrl-action-row"><button type="button" className="rv-reset-btn" onClick={() => addRoute()}>Add Route</button><button type="button" className="rv-reset-btn" disabled={!selected} onClick={duplicate}>Duplicate</button></div>
+          <div className="rv-ctrl-action-row"><IconChipButton onClick={() => addRoute()}>Add Route</IconChipButton><IconChipButton disabled={!selected} onClick={duplicate}>Duplicate</IconChipButton></div>
           <RouteList routes={routeRows} selectedId={selectedId} onSelect={setSelectedId} />
         </Collapsible>
         <HelpInfoTrigger
@@ -566,7 +567,7 @@ function RoutingOrEvents({ mode }: { mode: 'continuous' | 'event' }) {
           <SelectRow label="Selected Group" value={selectedGroup?.id ?? ''} options={state.groups.map(group => ({ value: group.id, label: group.name }))} disabled={state.groups.length === 0} onChange={groupId => applyState({ ...state, editor: { ...state.editor, selectedGroupId: groupId } })} />
           <div className="rv-pix-grid-origin-card"><strong>{selectedGroup?.name ?? 'No group selected'}</strong><span>{selectedGroup ? `${selectedGroup.cellRuns.reduce((sum, run) => sum + run[2], 0)} materialized cells · ${selectedGroup.mask.kind}` : 'Create a smart group in Design.'}</span><small>{selectedGroup ? `${groupRouteCount} targeting routes (${directGroupRouteCount} user · ${programGroupRouteCount} program) · mask ${maskCompilationStatus}` : 'Unavailable'}</small></div>
           <ToggleRow label="Show Mask Overlay" value={selectedGroup?.visible ?? false} disabled={!selectedGroup} onChange={visible => selectedGroup && applyState({ ...state, groups: state.groups.map(group => group.id === selectedGroup.id ? { ...group, visible } : group) })} />
-          <div className="rv-ctrl-action-row"><button type="button" className="rv-reset-btn" disabled={!selectedGroup} onClick={() => { if (!selectedGroup) return; setOverlayVisible(true); applyState({ ...state, authoringOverlayVisible: true, editor: { ...state.editor, selectedGroupId: selectedGroup.id } }) }}>Open Group in Editor</button><button type="button" className="rv-reset-btn" disabled={!selectedGroup} onClick={() => addRoute(selectedGroup?.id ?? null)}>Create Route for Group</button></div>
+          <div className="rv-ctrl-action-row"><IconChipButton disabled={!selectedGroup} onClick={() => { if (!selectedGroup) return; setOverlayVisible(true); applyState({ ...state, authoringOverlayVisible: true, editor: { ...state.editor, selectedGroupId: selectedGroup.id } }) }}>Open Group in Editor</IconChipButton><IconChipButton disabled={!selectedGroup} onClick={() => addRoute(selectedGroup?.id ?? null)}>Create Route for Group</IconChipButton></div>
         </Collapsible>
         <HelpInfoTrigger
           helpId="react.pixGrid.reactivity.smartGroupIntegration"
@@ -610,7 +611,7 @@ function SectionPlanEditor({ state, plan, canDisable, applyState }: { state: Pix
         <strong>Occurrence rule</strong><span>{occurrenceRuleLabel(plan.occurrence)}</span>
         <strong>Drop occurrence rule</strong><span>{occurrenceRuleLabel(plan.dropOccurrence)}</span>
       </div></Collapsible>
-      <div className="rv-ctrl-action-row"><button type="button" className="rv-reset-btn" disabled={!Object.keys(override).length} onClick={reset}>Reset Section</button></div>
+      <div className="rv-ctrl-action-row"><IconChipButton disabled={!Object.keys(override).length} onClick={reset}>Reset Section</IconChipButton></div>
     </Collapsible>
   )
 }
@@ -676,7 +677,7 @@ function ChoreographyPanel() {
       <Collapsible label="ROUTE BANKS AND CAPABILITIES" defaultOpen={false}><div className="rv-pix-grid-inspection-list"><span>Continuous route bank: {program.continuousRoutes.length} authored routes</span><span>Event route bank: {program.eventRoutes.length} authored routes</span><span>Fallback order: {program.fallbackOrder?.map(label).join(' → ') || 'program default'}</span><span>Binding warnings: {runtime?.programBindingWarnings.length ? runtime.programBindingWarnings.join(' · ') : 'none'}</span><span>Manual precedence: {runtime?.manualOverridePrecedence ?? 'Program → cues → manual override'}</span></div></Collapsible>
       <Collapsible label="OVERRIDES" defaultOpen>
         <div className="rv-pix-grid-origin-card"><strong>{runtime?.activeCueActions.length ? 'Track Map cue override active' : state.performance.lockedRoutes.length || state.layers.some(layer => layer.locked) ? 'Manual override active' : 'Program controls output'}</strong><span>{runtime?.activeCueActions.join(' · ') || state.performance.lockedRoutes.join(' · ') || 'No temporary override routes.'}</span><small>Track Map cue state is distinct from preset defaults and user-authored configuration.</small></div>
-        <div className="rv-ctrl-action-row"><button type="button" className="rv-reset-btn" onClick={clearManualOverride}>Clear Override</button><button type="button" className="rv-reset-btn" onClick={resetAll}>Reset Performance Configuration</button></div>
+        <div className="rv-ctrl-action-row"><IconChipButton onClick={clearManualOverride}>Clear Override</IconChipButton><IconChipButton onClick={resetAll}>Reset Performance Configuration</IconChipButton></div>
       </Collapsible>
     </div>
   )
@@ -869,14 +870,14 @@ function AnalysisPanel() {
         <div className="rv-pix-grid-diagnostic-tags"><span className="is-available">Available {runtime?.availableSources.length ?? 0}</span><span className="is-degraded">Degraded {runtime?.degradedSources.length ?? 0}</span><span className="is-fallback">Fallback {runtime?.assignmentsUsingFallback.length ?? 0}</span><span className="is-blocked">Confidence blocked {runtime?.assignmentsBlockedByConfidence.length ?? 0}</span><span className="is-unavailable">Unavailable {runtime?.unavailableSources.length ?? 0}</span></div>
       </Collapsible>
       <Collapsible label="CONFIGURATION VALIDATION" defaultOpen={validation.errors.length > 0}>
-        <div className="rv-pix-grid-validation-summary" role="status"><strong>{validation.valid ? 'VALID' : 'ACTION REQUIRED'}</strong><span>{validation.summary}</span></div>
+        <NoticeCard className="rv-pix-grid-validation-summary" tone={validation.valid ? 'success' : 'warning'} role="status" title={validation.valid ? 'VALID' : 'ACTION REQUIRED'}>{validation.summary}</NoticeCard>
         <div className="rv-pix-grid-validation-list" role="list" aria-label="PixGrid validation issues">
           {validation.issues.map(item => <div key={`${item.code}:${item.path}`} role="listitem" className={`is-${item.severity}`}>
             <strong>{item.severity.toUpperCase()} · {label(item.code)}</strong>
             <span>{item.message}</span>
             <small>{item.path} · {item.remediation}</small>
           </div>)}
-          {!validation.issues.length && <div className="rv-ctrl-info">Smart groups, routes, fallbacks, performance program, and migration metadata are structurally valid.</div>}
+          {!validation.issues.length && <NoticeCard tone="success" role="status">Smart groups, routes, fallbacks, performance program, and migration metadata are structurally valid.</NoticeCard>}
         </div>
       </Collapsible>
       <Collapsible label="RUNTIME DIAGNOSTICS" defaultOpen={false}>

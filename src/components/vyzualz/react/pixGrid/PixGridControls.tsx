@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
 import { useMediaStore } from '../../../../stores/mediaStore'
-import { CtrlSection, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
-import { SelectRowV2 as SelectRow } from '../ReactControlRowsV2'
+import { CtrlSection, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
+import { IconChipButton } from '../controls/IconChipButton'
 import { DEFAULT_PIX_GRID_CONVERSION_SETTINGS } from './PixGridDefaults'
 import { PIX_GRID_PERFORMANCE_PROGRAMS } from './PixGridPerformancePrograms'
 import { usePixGridReactivityRuntimeStatus } from './PixGridReactivityStatus'
@@ -133,9 +133,9 @@ export function PixGridControls() {
       </div>
       <div className="rv-ctrl-action-row">
         {(state.performance.lockedRoutes.length > 0 || state.layers.some(layer => layer.locked)) && (
-          <button type="button" className="rv-reset-btn" onClick={clearManualOverride}>Clear Override</button>
+          <IconChipButton onClick={clearManualOverride}>Clear Override</IconChipButton>
         )}
-        <button type="button" className="rv-reset-btn" onClick={() => requestPixGridWorkspace('analysis')} aria-label="Open full PixGrid diagnostics">Open Full Diagnostics</button>
+        <IconChipButton onClick={() => requestPixGridWorkspace('analysis')} aria-label="Open full PixGrid diagnostics">Open Full Diagnostics</IconChipButton>
       </div>
 
       <CtrlSection label="LED MATRIX" />
@@ -229,9 +229,9 @@ export function PixGridControls() {
       <ToggleRow label="Preserve Black" value={state.conversion.preserveBlack} onChange={value => updateConversion({ preserveBlack: value })} />
       <ToggleRow label="Preserve White" value={state.conversion.preserveWhite} onChange={value => updateConversion({ preserveWhite: value })} />
       <div className="rv-ctrl-action-row">
-        <button type="button" className="rv-reset-btn" onClick={resetConversion}>Reset Conversion</button>
+        <IconChipButton onClick={resetConversion}>Reset Conversion</IconChipButton>
         {state.conversion.selectedMediaId && (
-          <button type="button" className="rv-reset-btn" onClick={() => updateConversion({ selectedMediaId: null })}>Clear Media</button>
+          <IconChipButton onClick={() => updateConversion({ selectedMediaId: null })}>Clear Media</IconChipButton>
         )}
       </div>
 

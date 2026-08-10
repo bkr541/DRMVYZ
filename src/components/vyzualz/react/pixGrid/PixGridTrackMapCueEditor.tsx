@@ -1,4 +1,5 @@
 import { DreamVizTextInput } from '../controls/DreamVizTextInput'
+import { IconMorphCheckbox } from '../controls/IconMorphToggle'
 import { useEffect, useMemo, useState } from 'react'
 import {
   defaultPixGridCueAction,
@@ -98,9 +99,9 @@ function ActionFields({ action, state, onChange }: {
     case 'selectScene':
       return <label className="rv-pix-grid-cue-field"><span>Scene</span><DropdownSelect value={action.sceneId} onChange={event => onChange({ ...action, sceneId: event.target.value })}>{state.scenes.map(scene => <option key={scene.id} value={scene.id}>{scene.name}</option>)}</DropdownSelect></label>
     case 'setLayerVisible':
-      return <><label className="rv-pix-grid-cue-field"><span>Layer</span><DropdownSelect value={action.layerId} onChange={event => onChange({ ...action, layerId: event.target.value })}>{layerOptions.map(layer => <option key={layer.id} value={layer.id}>{layer.name}</option>)}</DropdownSelect></label><label className="rv-pix-grid-cue-check"><input type="checkbox" checked={action.visible} onChange={event => onChange({ ...action, visible: event.target.checked })} /> Visible</label></>
+      return <><label className="rv-pix-grid-cue-field"><span>Layer</span><DropdownSelect value={action.layerId} onChange={event => onChange({ ...action, layerId: event.target.value })}>{layerOptions.map(layer => <option key={layer.id} value={layer.id}>{layer.name}</option>)}</DropdownSelect></label><label className="rv-pix-grid-cue-check"><IconMorphCheckbox checked={action.visible} onChange={event => onChange({ ...action, visible: event.target.checked })} /> Visible</label></>
     case 'setGroupVisible':
-      return <><label className="rv-pix-grid-cue-field"><span>Group</span><DropdownSelect value={action.groupId} onChange={event => onChange({ ...action, groupId: event.target.value })}>{groupOptions.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</DropdownSelect></label><label className="rv-pix-grid-cue-check"><input type="checkbox" checked={action.visible} onChange={event => onChange({ ...action, visible: event.target.checked })} /> Visible</label></>
+      return <><label className="rv-pix-grid-cue-field"><span>Group</span><DropdownSelect value={action.groupId} onChange={event => onChange({ ...action, groupId: event.target.value })}>{groupOptions.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</DropdownSelect></label><label className="rv-pix-grid-cue-check"><IconMorphCheckbox checked={action.visible} onChange={event => onChange({ ...action, visible: event.target.checked })} /> Visible</label></>
     case 'flashGroup':
       return <><label className="rv-pix-grid-cue-field"><span>Group</span><DropdownSelect value={action.groupId} onChange={event => onChange({ ...action, groupId: event.target.value })}>{groupOptions.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</DropdownSelect></label><label className="rv-pix-grid-cue-field"><span>Amount</span><input type="number" min="0" max="2" step="0.05" value={action.amount} onChange={event => onChange({ ...action, amount: numeric(event.target.value, 1) })} /></label></>
     case 'revealRows':
@@ -129,9 +130,9 @@ function ActionFields({ action, state, onChange }: {
     case 'setTargetRotation':
       return <><TargetField value={action.target} state={state} onChange={target => onChange({ ...action, target })} /><label className="rv-pix-grid-cue-field"><span>Degrees</span><input type="number" min="-3600" max="3600" step="1" value={action.degrees} onChange={event => onChange({ ...action, degrees: numeric(event.target.value, 0) })} /></label></>
     case 'freeze':
-      return <label className="rv-pix-grid-cue-check"><input type="checkbox" checked={action.active} onChange={event => onChange({ ...action, active: event.target.checked })} /> Freeze animation clocks</label>
+      return <label className="rv-pix-grid-cue-check"><IconMorphCheckbox checked={action.active} onChange={event => onChange({ ...action, active: event.target.checked })} /> Freeze animation clocks</label>
     case 'setAutoPerformance':
-      return <label className="rv-pix-grid-cue-check"><input type="checkbox" checked={action.enabled} onChange={event => onChange({ ...action, enabled: event.target.checked })} /> Auto Performance enabled</label>
+      return <label className="rv-pix-grid-cue-check"><IconMorphCheckbox checked={action.enabled} onChange={event => onChange({ ...action, enabled: event.target.checked })} /> Auto Performance enabled</label>
     case 'applyManualOverride':
       return <><TargetField value={action.target} state={state} onChange={target => onChange({ ...action, target })} /><label className="rv-pix-grid-cue-field"><span>Route</span><DreamVizTextInput value={action.route} onChange={event => onChange({ ...action, route: event.target.value })} /></label><label className="rv-pix-grid-cue-field"><span>Duration</span><input type="number" min="0.05" max="3600" step="0.05" value={action.durationSec} onChange={event => onChange({ ...action, durationSec: numeric(event.target.value, 4) })} /></label><label className="rv-pix-grid-cue-field"><span>Opacity</span><input type="number" min="0" max="1" step="0.05" value={action.patch.opacity ?? 1} onChange={event => onChange({ ...action, patch: { ...action.patch, opacity: numeric(event.target.value, 1) } })} /></label></>
     case 'clearManualOverride':
@@ -174,7 +175,7 @@ export function PixGridTrackMapCueEditor({ cue, state, isNew, onSave, onCancel, 
         <label className="rv-pix-grid-cue-field"><span>Transition sec</span><input type="number" min="0" max="60" step="0.05" value={draft.transitionDurationSec} onChange={event => setDraft(current => ({ ...current, transitionDurationSec: numeric(event.target.value, 0) }))} /></label>
         <label className="rv-pix-grid-cue-field"><span>Action sec</span><input type="number" min="0.02" max="60" step="0.05" value={draft.oneShotDurationSec} onChange={event => setDraft(current => ({ ...current, oneShotDurationSec: numeric(event.target.value, 0.5) }))} /></label>
         <label className="rv-pix-grid-cue-field"><span>Loop</span><DropdownSelect value={draft.loopBehavior} onChange={event => setDraft(current => ({ ...current, loopBehavior: event.target.value as PixGridActionCue['loopBehavior'] }))}><option value="retrigger">Retrigger</option><option value="once">Once per load</option></DropdownSelect></label>
-        <label className="rv-pix-grid-cue-check"><input type="checkbox" checked={draft.enabled} onChange={event => setDraft(current => ({ ...current, enabled: event.target.checked }))} /> Enabled</label>
+        <label className="rv-pix-grid-cue-check"><IconMorphCheckbox checked={draft.enabled} onChange={event => setDraft(current => ({ ...current, enabled: event.target.checked }))} /> Enabled</label>
         <label className="rv-pix-grid-cue-field"><span>Marker</span><input type="color" value={draft.color ?? '#4ac7db'} onChange={event => setDraft(current => ({ ...current, color: event.target.value }))} /></label>
       </div>
       <div className="rv-pix-grid-cue-action-heading">{actionLabel}</div>

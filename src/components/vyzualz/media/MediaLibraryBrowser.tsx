@@ -1,4 +1,7 @@
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
+import { UnderlineTabs } from '../react/controls/UnderlineTabs'
+import { NoticeCard } from '../react/controls/NoticeCard'
+import { IconChipButton } from '../react/controls/IconChipButton'
 import { memo, useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -177,9 +180,9 @@ function PerformanceDeckEmptyState({
     <div className="vz-media-empty">
       <span>{message}</span>
       {onOpenMediaManager && (
-        <button type="button" className="vz-media-empty-action" onClick={onOpenMediaManager}>
+        <IconChipButton onClick={onOpenMediaManager}>
           Open Media Manager
-        </button>
+        </IconChipButton>
       )}
     </div>
   )
@@ -387,22 +390,19 @@ function AudioTrackRow({
         {loadError && <div className="vz-track-row-error" role="alert">{loadError}</div>}
       </div>
       <div className="vz-track-row-actions">
-        {canPreview && onPreview && <button type="button" className="vz-track-load-btn" onClick={onPreview}>Preview</button>}
+        {canPreview && onPreview && <IconChipButton onClick={onPreview}>Preview</IconChipButton>}
         {canEdit && onEdit && <button type="button" className="vz-media-edit-btn" onClick={onEdit} title="Edit track metadata"><PencilEdit01Icon size={12} color="currentColor" /></button>}
         {canLoad && (
-          <button
-            className="vz-track-load-btn"
+          <IconChipButton
             onClick={onLoad}
             disabled={loading}
             title="Load this saved track without starting playback"
           >
             {loading ? 'Loading…' : loaded ? 'Reload' : 'Load Track'}
-          </button>
+          </IconChipButton>
         )}
         {canOpenLyrics && (
-          <button
-            type="button"
-            className="vz-track-load-btn"
+          <IconChipButton
             aria-haspopup="menu"
             onClick={event => {
               const rect = event.currentTarget.getBoundingClientRect()
@@ -410,7 +410,7 @@ function AudioTrackRow({
             }}
           >
             Lyrics ▾
-          </button>
+          </IconChipButton>
         )}
         {canRemove && onRemove && (
           <button
@@ -560,7 +560,7 @@ function MediaCard({
           {mutationLabel && <span className={`vz-media-mutation-state vz-media-mutation-state--${mutationState!.status}`}>{mutationLabel}</span>}
         </div>
         <div className="vz-media-row-actions">
-          {canRetry && (m.uploadError || (m.derivativeWarning && m.uploadSourceFile)) && <button type="button" className="vz-track-load-btn" onClick={e => { e.stopPropagation(); onRetry() }}>{m.derivativeWarning ? 'Retry derivative' : 'Retry'}</button>}
+          {canRetry && (m.uploadError || (m.derivativeWarning && m.uploadSourceFile)) && <IconChipButton onClick={e => { e.stopPropagation(); onRetry() }}>{m.derivativeWarning ? 'Retry derivative' : 'Retry'}</IconChipButton>}
           {canFavorite && (
             <button
               className={`vz-media-star ${m.favorite ? 'vz-media-star--active' : ''}`}
@@ -625,7 +625,7 @@ function MediaCard({
           </div>
         )}
         {badge}
-        {canRetry && (m.uploadError || (m.derivativeWarning && m.uploadSourceFile)) && <button type="button" className="vz-media-retry" onClick={e => { e.stopPropagation(); onRetry() }}>{m.derivativeWarning ? 'Retry derivative' : 'Retry upload'}</button>}
+        {canRetry && (m.uploadError || (m.derivativeWarning && m.uploadSourceFile)) && <IconChipButton className="vz-media-retry" onClick={e => { e.stopPropagation(); onRetry() }}>{m.derivativeWarning ? 'Retry derivative' : 'Retry upload'}</IconChipButton>}
         {disabledReason && <div className="vz-media-disabled-reason vz-media-disabled-reason--overlay">{disabledReason}</div>}
         {canFavorite && (
           <button
@@ -1192,35 +1192,37 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           <Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
           <span className={`vz-panel-title${isCanvasMode ? ' vz-panel-title--nowrap' : ''}`} title={title}>{title}</span>
           {isManager && canBrowseCollections && (
-            <button type="button" className="vz-import-btn vz-import-btn--secondary" onClick={() => { setEditCollection(undefined); setCollectionEditorOpen(true) }}>New Collection</button>
+            <IconChipButton onClick={() => { setEditCollection(undefined); setCollectionEditorOpen(true) }}>New Collection</IconChipButton>
           )}
-          <button
-            type="button"
-            className="vz-import-btn vz-import-btn--secondary"
+          <IconChipButton
             onClick={() => { void refreshLibrary?.() }}
             disabled={refreshing}
             title="Refresh media library"
           >
             {refreshing ? 'Refreshing…' : 'Refresh'}
-          </button>
+          </IconChipButton>
           {canUpload && (
-            <button type="button" className="vz-import-btn" onClick={() => { setPreserveQueuedFiles(false); openImportMediaModal() }}>
-              <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
-                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-              </svg>
+            <IconChipButton
+              tone="primary"
+              onClick={() => { setPreserveQueuedFiles(false); openImportMediaModal() }}
+              icon={
+                <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
+                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+              }
+            >
               {isCanvasMode ? 'Add media to library' : 'Import'}
-            </button>
+            </IconChipButton>
           )}
         </div>
 
-        <div className="vz-filter-tabs">
-          {availableFilters.map(({ key, label }) => (
-            <button key={key}
-              className={`vz-filter-tab ${libraryFilter === key ? 'vz-filter-tab--active' : ''}`}
-              onClick={() => handleSetFilter(key)}
-            >{label}</button>
-          ))}
-        </div>
+        <UnderlineTabs
+          tabs={availableFilters.map(({ key, label }) => ({ id: key, label }))}
+          activeTab={libraryFilter}
+          onChange={handleSetFilter}
+          ariaLabel="Media library filter"
+          className="vz-filter-tabs dv-underline-tabs--scroll"
+        />
 
         <div className="vz-md-search-row">
           <div className="vz-md-search-wrap">
@@ -1266,9 +1268,11 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           ) : libraryFilter === 'collections' ? (
             renderCollectionsView()
           ) : queryError && filtered.length === 0 ? (
-            <div className="vz-media-page-error" role="alert">
-              <span>{queryError}</span>
-              <button type="button" className="vz-media-empty-action" onClick={() => { void refreshLibrary?.() }}>Retry</button>
+            <div className="vz-media-page-error">
+              <NoticeCard tone="error" role="alert">
+                {queryError}{' '}
+                <IconChipButton onClick={() => { void refreshLibrary?.() }}>Retry</IconChipButton>
+              </NoticeCard>
             </div>
           ) : loading && filtered.length === 0 ? (
             <div className="vz-media-grid" style={{ padding: '8px 4px' }}>

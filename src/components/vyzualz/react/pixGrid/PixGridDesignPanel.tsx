@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
 import { HelpInfoTrigger } from '../../../shared/InfoPopover'
-import { Collapsible, ColorRow, CtrlSection, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
-import { SelectRowV2 as SelectRow } from '../ReactControlRowsV2'
+import { IconChipButton } from '../controls/IconChipButton'
+import { Collapsible, ColorRow, CtrlSection, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
 import { PanelSubtabs, type PanelSubtabOption } from '../PanelSubtabs'
 import {
   applyPixGridPoints,
@@ -170,8 +170,8 @@ export function PixGridDesignPanel({ groupedSections = false }: { groupedSection
           />
         </div>
         <div className="rv-ctrl-action-row rv-pix-grid-history-row" aria-label="PixGrid edit history">
-          <button type="button" className="rv-reset-btn" disabled={undoCount === 0} onClick={undo}>Undo</button>
-          <button type="button" className="rv-reset-btn" disabled={redoCount === 0} onClick={redo}>Redo</button>
+          <IconChipButton disabled={undoCount === 0} onClick={undo}>Undo</IconChipButton>
+          <IconChipButton disabled={redoCount === 0} onClick={redo}>Redo</IconChipButton>
           <span className="rv-ctrl-info" aria-label={`${undoCount} undo steps and ${redoCount} redo steps`}>{undoCount} / {redoCount}</span>
         </div>
       </DesignSection>
@@ -262,9 +262,9 @@ export function PixGridDesignPanel({ groupedSections = false }: { groupedSection
           <PixGridHistoryGesture><SliderRow label="Scale Y" value={layer.scale.y} min={0.01} max={2} step={0.01} onChange={value => updateLayer({ scale: { ...layer.scale, y: value } })} /></PixGridHistoryGesture>
           <PixGridHistoryGesture><SliderRow label="Rotation" value={layer.rotation} min={-180} max={180} step={1} onChange={value => updateLayer({ rotation: value })} /></PixGridHistoryGesture>
           <div className="rv-ctrl-action-row">
-            <button type="button" className="rv-reset-btn" disabled={layer.locked} onClick={() => applyState(resetPixGridLayerTransform(state, layer.id))}>Reset Transform</button>
-            <button type="button" className="rv-reset-btn" disabled={layer.locked} onClick={() => applyState(duplicatePixGridLayer(state, layer.id))}>Duplicate</button>
-            <button type="button" className="rv-reset-btn" disabled={layer.locked} onClick={() => applyState(deletePixGridLayer(state, layer.id))}>Delete</button>
+            <IconChipButton disabled={layer.locked} onClick={() => applyState(resetPixGridLayerTransform(state, layer.id))}>Reset Transform</IconChipButton>
+            <IconChipButton disabled={layer.locked} onClick={() => applyState(duplicatePixGridLayer(state, layer.id))}>Duplicate</IconChipButton>
+            <IconChipButton disabled={layer.locked} onClick={() => applyState(deletePixGridLayer(state, layer.id))}>Delete</IconChipButton>
           </div>
         </DesignSection>
       )}
@@ -273,13 +273,13 @@ export function PixGridDesignPanel({ groupedSections = false }: { groupedSection
         <DesignSection label="Selection" grouped={groupedSections}>
           <div className="rv-ctrl-info">X {state.editor.selection.x} · Y {state.editor.selection.y} · {state.editor.selection.width} × {state.editor.selection.height}</div>
           <div className="rv-ctrl-action-row">
-            <button type="button" className="rv-reset-btn" onClick={() => {
+            <IconChipButton onClick={() => {
               begin(); applyState(applyPixGridPoints(state, selectionPoints(state), { kind: 'restore' })); commit()
-            }}>Restore Inherited</button>
-            <button type="button" className="rv-reset-btn" onClick={() => {
+            }}>Restore Inherited</IconChipButton>
+            <IconChipButton onClick={() => {
               begin(); applyState(applyPixGridPoints(state, selectionPoints(state), { kind: 'off' })); commit()
-            }}>Clear / Off</button>
-            <button type="button" className="rv-reset-btn" onClick={() => updateEditor({ selection: null })}>Deselect</button>
+            }}>Clear / Off</IconChipButton>
+            <IconChipButton onClick={() => updateEditor({ selection: null })}>Deselect</IconChipButton>
           </div>
         </DesignSection>
       )}
@@ -302,7 +302,7 @@ export function PixGridDesignPanel({ groupedSections = false }: { groupedSection
           />
           <SliderRow label="Zoom" value={state.editor.zoom} min={0.25} max={16} step={0.05} onChange={value => updateEditor({ zoom: value })} />
           <div className="rv-ctrl-action-row">
-            <button type="button" className="rv-reset-btn" onClick={() => updateEditor({ zoom: 1, panX: 0, panY: 0 })}>Reset View</button>
+            <IconChipButton onClick={() => updateEditor({ zoom: 1, panX: 0, panY: 0 })}>Reset View</IconChipButton>
           </div>
         </DesignSection>
       )}

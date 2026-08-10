@@ -1,4 +1,6 @@
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
+import { IconMorphCheckbox } from '../react/controls/IconMorphToggle'
+import { NoticeCard } from '../react/controls/NoticeCard'
 import { useId, useRef, type ChangeEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { ReactPresetThumbnail } from '../react/ReactPresetThumbnail'
@@ -123,8 +125,8 @@ export function PixGridDeckBuilderLibrary({
           <strong>{deck ? 'Add Images' : 'Upload 2–12 Images'}</strong>
           <span>{upload.active ? upload.phase : deck ? `${remainingSlots} slots remaining` : `Creates “${draftName || 'Untitled Deck'}”`}</span>
         </label>
-        {upload.error && <p role="alert" className="sm-deck-error">{upload.error}</p>}
-        {upload.warnings.map(warning => <p key={warning} className="sm-deck-warning">{warning}</p>)}
+        {upload.error && <NoticeCard tone="error" role="alert">{upload.error}</NoticeCard>}
+        {upload.warnings.map(warning => <NoticeCard key={warning} tone="warning" role="status">{warning}</NoticeCard>)}
       </div>
       <div className="sm-deck-image-list" role="list" aria-label="Ordered Deck images">
         {items.map((item, index) => (
@@ -257,7 +259,7 @@ export function PixGridDeckBuilderInspector({
             aria-label={deck ? 'Deck name' : 'New Deck name'}
             aria-invalid={Boolean(nameError)}
           />
-          {nameError && <p role="alert" className="sm-deck-error">{nameError}</p>}
+          {nameError && <NoticeCard tone="error" role="alert">{nameError}</NoticeCard>}
         </section>
 
         {deck && configuration && (
@@ -285,7 +287,7 @@ export function PixGridDeckBuilderInspector({
                 />
               </Field>
               <label className="sm-deck-checkbox">
-                <input type="checkbox" checked={configuration.loop} onChange={event => updateConfiguration({ loop: event.target.checked })} />
+                <IconMorphCheckbox checked={configuration.loop} onChange={event => updateConfiguration({ loop: event.target.checked })} />
                 <span>Loop sequence</span>
               </label>
             </section>
@@ -420,7 +422,7 @@ export function PixGridDeckBuilderInspector({
               <ProgressRow label="Transitions" progress={readiness?.transitionProgress ?? 0} />
               <p>{readiness?.message ?? 'Compiler status is not available yet.'}</p>
               {readiness?.errors?.map((error, index) => (
-                <p key={`${error}-${index}`} role="alert" className="sm-deck-error">{error}</p>
+                <NoticeCard key={`${error}-${index}`} tone="error" role="alert">{error}</NoticeCard>
               ))}
               <button
                 type="button"

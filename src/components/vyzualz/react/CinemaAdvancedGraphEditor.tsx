@@ -1,4 +1,5 @@
 import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
+import { NoticeCard } from './controls/NoticeCard'
 import {
   Component,
   useEffect,
@@ -407,13 +408,17 @@ function CinemaAdvancedGraphEditorSurface({ composition, definitions }: CinemaAd
         <span className="rv-cinema-graph-editor__zoom">{Math.round(viewport.zoom * 100)}%</span>
       </div>
 
-      {immutable && <div className="rv-cinema-composer__notice" role="note"><strong>Reference graph</strong><span>Built-in Cinema compositions are inspectable here but remain immutable. Duplicate one to edit its graph.</span></div>}
-      {message && <div className="rv-cinema-graph-editor__message" role="status">{message}</div>}
+      {immutable && <NoticeCard tone="info" role="status" title="Reference graph">Built-in Cinema compositions are inspectable here but remain immutable. Duplicate one to edit its graph.</NoticeCard>}
+      {message && <NoticeCard tone="info" role="status">{message}</NoticeCard>}
       {validation.diagnostics.diagnostics.length > 0 && (
-        <div className="rv-cinema-graph-editor__diagnostics" role="status" aria-label="Cinema graph diagnostics">
-          <strong>{validation.diagnostics.counts.error + validation.diagnostics.counts.fatal} errors · {validation.diagnostics.counts.warning} warnings</strong>
-          <span>{validation.diagnostics.diagnostics[0]?.message}</span>
-        </div>
+        <NoticeCard
+          tone="warning"
+          role="status"
+          ariaLabel="Cinema graph diagnostics"
+          title={`${validation.diagnostics.counts.error + validation.diagnostics.counts.fatal} errors · ${validation.diagnostics.counts.warning} warnings`}
+        >
+          {validation.diagnostics.diagnostics[0]?.message}
+        </NoticeCard>
       )}
 
       <div
@@ -582,7 +587,7 @@ function CinemaGraphStructuredFallback({ composition, definitions }: CinemaAdvan
   }
   return (
     <div className="rv-cinema-graph-fallback" role="region" aria-label="Cinema structured graph fallback">
-      <div className="rv-cinema-composer__notice" role="alert"><strong>Graph surface unavailable</strong><span>{message}</span></div>
+      <NoticeCard tone="error" role="alert" title="Graph surface unavailable">{message}</NoticeCard>
       <div className="rv-cinema-graph-accessible__connect">
         <label><span>Output port</span><DropdownSelect value={from} onChange={event => setFrom(event.target.value)}>{<option value="">Choose output…</option>}{outputs.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</DropdownSelect></label>
         <label><span>Input port</span><DropdownSelect value={to} onChange={event => setTo(event.target.value)}>{<option value="">Choose input…</option>}{inputs.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</DropdownSelect></label>

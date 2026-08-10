@@ -16,6 +16,7 @@ export interface DualRailCollapsibleProps {
   children: ReactNode
   className?: string
   bodyClassName?: string
+  headerClassName?: string
   headerAccessory?: ReactNode
   title?: string
 }
@@ -28,6 +29,7 @@ export function DualRailCollapsible({
   children,
   className = '',
   bodyClassName = '',
+  headerClassName = '',
   headerAccessory,
   title,
 }: DualRailCollapsibleProps) {
@@ -44,7 +46,7 @@ export function DualRailCollapsible({
     <div className={`drc-group${open ? ' is-open' : ''}${className ? ` ${className}` : ''}`}>
       <button
         type="button"
-        className="drc-header"
+        className={`drc-header${headerClassName ? ` ${headerClassName}` : ''}`}
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-controls={contentId}

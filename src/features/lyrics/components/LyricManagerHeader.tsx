@@ -1,4 +1,5 @@
 import { IconMorphToggle } from '../../../components/vyzualz/react/controls/IconMorphToggle'
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { VyzualzHeaderActions } from '../../../components/vyzualz/shared/VyzualzHeaderActions'
 import type { LyricWriteStatus } from '../../../stores/lyricsStore'
 
@@ -69,23 +70,22 @@ export function LyricManagerHeader({
           />
         </label>
 
-        <button
-          className="lmv-btn lmv-btn--ghost"
+        <IconChipButton
           onClick={onSave}
           disabled={isSaving || (!dirty && !hasDocument)}
           title="Save lyric document"
         >
           {isSaving ? 'Saving…' : 'Save'}
-        </button>
+        </IconChipButton>
 
-        <button
-          className="lmv-btn lmv-btn--primary"
+        <IconChipButton
+          tone="primary"
           onClick={onSaveAndMakeActive}
           disabled={isSaving || (!dirty && !hasDocument)}
           title="Save this version and make it the active runtime version"
         >
           {isSaving ? 'Saving…' : 'Save + Make Active'}
-        </button>
+        </IconChipButton>
 
         <VyzualzHeaderActions />
       </div>

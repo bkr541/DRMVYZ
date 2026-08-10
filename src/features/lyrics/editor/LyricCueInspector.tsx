@@ -1,4 +1,8 @@
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
+import { IconMorphCheckbox } from '../../../components/vyzualz/react/controls/IconMorphToggle'
+import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
+import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type {
   LyricAnimation,
@@ -171,13 +175,11 @@ function WordTimingEditor({
       <div className="lyric-word-editor__header">
         <strong>Word timing</strong>
         {invalidWords.length > 0 && (
-          <button
-            type="button"
-            className="lmv-btn lmv-btn--ghost"
+          <IconChipButton
             onClick={() => commitWords(words.filter(word => !invalidIds.has(word.id)))}
           >
             Remove invalid timing
-          </button>
+          </IconChipButton>
         )}
       </div>
       <div className="lyric-word-editor__rows">
@@ -318,9 +320,9 @@ export function LyricCueInspector({
       </div>
 
       {issues.length > 0 && (
-        <div className="lyric-cue-inspector__issues" role="status" aria-label={`${issues.length} cue warnings`}>
-          {issues.map((issue, index) => <span key={`${issue.code}-${issue.relatedCueId ?? issue.wordId ?? index}`}>{issue.message}</span>)}
-        </div>
+        <NoticeCard tone="warning" role="status" ariaLabel={`${issues.length} cue warnings`}>
+          {issues.map((issue, index) => <div key={`${issue.code}-${issue.relatedCueId ?? issue.wordId ?? index}`}>{issue.message}</div>)}
+        </NoticeCard>
       )}
 
       <div className="lyric-cue-inspector__grid">
@@ -394,8 +396,7 @@ export function LyricCueInspector({
         <legend>Warnings</legend>
         {WARNINGS.map(warning => (
           <label key={warning}>
-            <input
-              type="checkbox"
+            <IconMorphCheckbox
               checked={currentWarnings.has(warning)}
               onChange={event => {
                 const next = new Set(currentWarnings)
@@ -410,19 +411,22 @@ export function LyricCueInspector({
       </fieldset>
 
       <div className="lyric-cue-inspector__actions" role="group" aria-label="Cue timing actions">
-        <button type="button" className="lmv-btn lmv-btn--ghost" disabled={currentTimeMs === null} onClick={actions.setStartToPlayhead}>Set start to playhead</button>
-        <button type="button" className="lmv-btn lmv-btn--ghost" disabled={currentTimeMs === null} onClick={actions.setEndToPlayhead}>Set end to playhead</button>
-        <button type="button" className="lmv-btn lmv-btn--ghost" disabled={currentTimeMs === null} onClick={actions.moveToPlayhead}>Move to playhead</button>
-        <button type="button" className="lmv-btn lmv-btn--ghost" disabled={currentTimeMs === null} onClick={actions.addAtPlayhead}>Add at playhead</button>
-        <button type="button" className="lmv-btn lmv-btn--ghost" onClick={actions.duplicate}>Duplicate</button>
-        <button type="button" className="lmv-btn lmv-btn--ghost" disabled={currentTimeMs === null || currentTimeMs <= cue.startMs || currentTimeMs >= cue.endMs} onClick={actions.split}>Split at playhead</button>
-        <button type="button" className="lmv-btn lmv-btn--ghost" disabled={!canMergePrevious} onClick={actions.mergePrevious}>Merge previous</button>
-        <button type="button" className="lmv-btn lmv-btn--ghost" disabled={!canMergeNext} onClick={actions.mergeNext}>Merge next</button>
-        <button type="button" className="lmv-btn lyric-cue-inspector__delete" onClick={actions.delete}>Delete cue</button>
+        <IconChipButton disabled={currentTimeMs === null} onClick={actions.setStartToPlayhead}>Set start to playhead</IconChipButton>
+        <IconChipButton disabled={currentTimeMs === null} onClick={actions.setEndToPlayhead}>Set end to playhead</IconChipButton>
+        <IconChipButton disabled={currentTimeMs === null} onClick={actions.moveToPlayhead}>Move to playhead</IconChipButton>
+        <IconChipButton disabled={currentTimeMs === null} onClick={actions.addAtPlayhead}>Add at playhead</IconChipButton>
+        <IconChipButton onClick={actions.duplicate}>Duplicate</IconChipButton>
+        <IconChipButton disabled={currentTimeMs === null || currentTimeMs <= cue.startMs || currentTimeMs >= cue.endMs} onClick={actions.split}>Split at playhead</IconChipButton>
+        <IconChipButton disabled={!canMergePrevious} onClick={actions.mergePrevious}>Merge previous</IconChipButton>
+        <IconChipButton disabled={!canMergeNext} onClick={actions.mergeNext}>Merge next</IconChipButton>
+        <IconChipButton className="lyric-cue-inspector__delete" onClick={actions.delete}>Delete cue</IconChipButton>
       </div>
 
-      <details className="lyric-cue-inspector__presentation">
-        <summary>Cue appearance overrides</summary>
+      <DualRailCollapsible
+        className="lyric-cue-inspector__presentation"
+        defaultOpen={false}
+        label="Cue appearance overrides"
+      >
         <p>Only fields set here override the document defaults. Other renderer metadata is preserved.</p>
         <LyricPresentationControls
           style={cue.style ?? {}}
@@ -436,16 +440,19 @@ export function LyricCueInspector({
           onClearAnimation={() => onUpdateCue(cue.id, { animation: undefined })}
           onClearEffects={() => onUpdateCue(cue.id, { effects: undefined })}
         />
-      </details>
+      </DualRailCollapsible>
 
-      <details className="lyric-cue-inspector__metadata">
-        <summary>Advanced metadata JSON</summary>
+      <DualRailCollapsible
+        className="lyric-cue-inspector__metadata"
+        defaultOpen={false}
+        label="Advanced metadata JSON"
+      >
         <p>Use this only for uncommon renderer fields or troubleshooting. Unknown fields are preserved.</p>
         <JsonMetadataField label="Style JSON" value={cue.style} onCommit={value => onUpdateCue(cue.id, { style: value as Partial<LyricStyle> })} />
         <JsonMetadataField label="Animation JSON" value={cue.animation} onCommit={value => onUpdateCue(cue.id, { animation: value as Partial<LyricAnimation> })} />
         <JsonMetadataField label="Effects JSON" value={cue.effects} onCommit={value => onUpdateCue(cue.id, { effects: value as Partial<LyricEffects> })} />
         <JsonMetadataField label="Analysis metadata JSON" value={cue.analysisMetadata} onCommit={value => onUpdateCue(cue.id, { analysisMetadata: value })} />
-      </details>
+      </DualRailCollapsible>
 
       <WordTimingEditor cue={cue} onUpdateCue={onUpdateCue} focusWordId={focusWordId} />
     </section>

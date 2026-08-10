@@ -1,4 +1,7 @@
 import { BubbleRevealSlider } from '../../../components/vyzualz/react/controls/BubbleRevealSlider'
+import { IconMorphCheckbox } from '../../../components/vyzualz/react/controls/IconMorphToggle'
+import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useLyricsStore } from '../../../stores/lyricsStore'
@@ -343,9 +346,9 @@ export function LyricCueEditor({
       }}
     >
       <div className="lyric-cue-editor-toolbar">
-        <button type="button" className="lmv-btn lmv-btn--ghost" onClick={addAtPlayhead}>+ Add cue at playhead</button>
-        <button type="button" className="lmv-btn lmv-btn--ghost" disabled={cueHistoryPast.length === 0} onClick={undoCueEdit} aria-label="Undo lyric edit">Undo</button>
-        <button type="button" className="lmv-btn lmv-btn--ghost" disabled={cueHistoryFuture.length === 0} onClick={redoCueEdit} aria-label="Redo lyric edit">Redo</button>
+        <IconChipButton onClick={addAtPlayhead}>+ Add cue at playhead</IconChipButton>
+        <IconChipButton disabled={cueHistoryPast.length === 0} onClick={undoCueEdit} aria-label="Undo lyric edit">Undo</IconChipButton>
+        <IconChipButton disabled={cueHistoryFuture.length === 0} onClick={redoCueEdit} aria-label="Redo lyric edit">Redo</IconChipButton>
         <label>
           <span>Snap</span>
           <DropdownSelect className="lmv-select" value={snapMode} onChange={event => setSnapMode(event.target.value as LyricSnapMode)}>
@@ -362,23 +365,23 @@ export function LyricCueEditor({
           <span>Zoom {waveformZoom.toFixed(2)}×</span>
           <BubbleRevealSlider type="range" min={1} max={16} step={1} value={waveformZoom} onChange={event => setWaveformZoom(Number(event.target.value))} aria-label="Shared waveform zoom" />
         </label>
-        <details className="lyric-cue-editor-overlays">
-          <summary>
-            <span>Overlays</span>
-          </summary>
-          <div>
-            {(Object.keys(overlayVisibility) as Array<keyof TimelineOverlayVisibility>).map(key => (
-              <label key={key}>
-                <input
-                  type="checkbox"
-                  checked={overlayVisibility[key]}
-                  onChange={event => setOverlayVisibility(current => ({ ...current, [key]: event.target.checked }))}
-                />
-                <span>{key.replace(/([A-Z])/g, ' $1')}</span>
-              </label>
-            ))}
-          </div>
-        </details>
+        <DualRailCollapsible
+          className="lyric-cue-editor-overlays"
+          defaultOpen={false}
+          headerClassName="lyric-cue-editor-overlays-trigger"
+          bodyClassName="lyric-cue-editor-overlays-panel"
+          label="Overlays"
+        >
+          {(Object.keys(overlayVisibility) as Array<keyof TimelineOverlayVisibility>).map(key => (
+            <label key={key}>
+              <IconMorphCheckbox
+                checked={overlayVisibility[key]}
+                onChange={event => setOverlayVisibility(current => ({ ...current, [key]: event.target.checked }))}
+              />
+              <span>{key.replace(/([A-Z])/g, ' $1')}</span>
+            </label>
+          ))}
+        </DualRailCollapsible>
         <span className={`lyric-cue-editor-toolbar__authority${overlaySource.authoritative ? ' lyric-cue-editor-toolbar__authority--trusted' : ''}`}>
           {overlaySource.authoritative ? 'Track Map overlays' : 'Fallback timeline'}
         </span>

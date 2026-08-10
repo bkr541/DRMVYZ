@@ -1,3 +1,5 @@
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
+
 interface Props {
   targetTitle: string | null
   currentTitle: string | null
@@ -17,10 +19,10 @@ export function ConfirmLyricActivationDialog({ targetTitle, currentTitle, busy, 
           {currentTitle ? ` and replace “${currentTitle}”.` : '.'}
         </p>
         <div className="lmv-dialog-actions">
-          <button className="lmv-btn lmv-btn--ghost" onClick={onCancel} disabled={busy}>Cancel</button>
-          <button className="lmv-btn lmv-btn--primary" onClick={onConfirm} disabled={busy}>
+          <IconChipButton onClick={onCancel} disabled={busy}>Cancel</IconChipButton>
+          <IconChipButton tone="primary" onClick={onConfirm} disabled={busy}>
             {busy ? 'Activating…' : 'Make Active'}
-          </button>
+          </IconChipButton>
         </div>
       </section>
     </div>

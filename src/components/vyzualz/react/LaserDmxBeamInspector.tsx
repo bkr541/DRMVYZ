@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
-import { SliderRow, ToggleRow, TextInputRow, CtrlSection, Collapsible } from './ReactControlRows'
-import { SelectRowV2 as SelectRow } from './ReactControlRowsV2'
+import { SliderRow, ToggleRow, TextInputRow, CtrlSection, Collapsible, SelectRow } from './ReactControlRows'
+import { IconChipButton } from './controls/IconChipButton'
 import type {
   LaserDmxMatrixBeam, LaserDmxReactionGroup,
   LaserDmxMatrixBeamGeometry, LaserDmxMatrixTarget,
@@ -139,14 +139,13 @@ function SingleBeamInspector({ beam, groups }: SingleBeamProps) {
       )}
 
       <div className="rv-bm-button-row rv-bm-button-row--spaced">
-        <button type="button" className="rv-glyph-upload-btn" onClick={() => duplicateLaserDmxMatrixBeam(bid)}>⧉ Dupe</button>
-        <button
-          type="button"
-          className="rv-glyph-upload-btn rv-glyph-upload-btn--danger"
+        <IconChipButton onClick={() => duplicateLaserDmxMatrixBeam(bid)}>⧉ Dupe</IconChipButton>
+        <IconChipButton
+          className="rv-glyph-upload-btn--danger"
           onClick={() => { if (window.confirm(`Delete beam "${beam.name}"?`)) removeLaserDmxMatrixBeam(bid) }}
         >
           × Delete
-        </button>
+        </IconChipButton>
       </div>
     </>
   )
@@ -211,46 +210,43 @@ function MultiBeamBulkEditor({ beams, groups, maxBeams }: MultiBeamProps) {
       <CtrlSection label={`${beams.length} Beams Selected`} />
 
       <div className="rv-bm-button-row rv-bm-button-row--wrap">
-        <button type="button" className="rv-glyph-upload-btn" onClick={() => bulkEnable(true)}>Enable All</button>
-        <button type="button" className="rv-glyph-upload-btn" onClick={() => bulkEnable(false)}>Disable All</button>
-        <button
-          type="button"
-          className="rv-glyph-upload-btn rv-glyph-upload-btn--danger"
+        <IconChipButton onClick={() => bulkEnable(true)}>Enable All</IconChipButton>
+        <IconChipButton onClick={() => bulkEnable(false)}>Disable All</IconChipButton>
+        <IconChipButton
+          className="rv-glyph-upload-btn--danger"
           aria-label="Delete selected beams"
           onClick={() => { if (window.confirm(`Delete ${beams.length} selected beams?`)) removeSelectedLaserDmxMatrixBeams() }}
         >
           × Delete
-        </button>
+        </IconChipButton>
       </div>
 
       <CtrlSection label="Assign Group" />
       <SelectRow label="Group" value="" onChange={bulkSetGroup} options={groupOptions} />
-      <button
-        type="button"
-        className="rv-glyph-upload-btn rv-bm-block-btn"
+      <IconChipButton
+        className="rv-bm-block-btn"
         onClick={() => beams.forEach(b => updateLaserDmxMatrixBeam(b.id, { groupId: null }))}
       >
         Clear Group
-      </button>
+      </IconChipButton>
 
       <CtrlSection label="Duplicate with Offset" />
       <SliderRow label="Column Offset" value={colOff} onChange={v => setColOff(Math.round(v))} min={-14} max={14} step={1} color="#4ac7db" />
       <SliderRow label="Row Offset"    value={rowOff} onChange={v => setRowOff(Math.round(v))} min={-9}  max={9}  step={1} color="#61d6aa" />
       <ToggleRow label="Keep Groups" value={preserveGrp} onChange={setPreserveGrp} />
-      <button type="button" className="rv-glyph-upload-btn rv-bm-block-btn" onClick={dupeWithOffset}>
+      <IconChipButton className="rv-bm-block-btn" onClick={dupeWithOffset}>
         Duplicate {beams.length} Beam{beams.length !== 1 ? 's' : ''}
-      </button>
+      </IconChipButton>
       {lastDupeMsg && (
         <div className="rv-ctrl-info rv-bm-inline-message">{lastDupeMsg}</div>
       )}
 
-      <button
-        type="button"
-        className="rv-glyph-upload-btn rv-bm-clear-selection-btn"
+      <IconChipButton
+        className="rv-bm-clear-selection-btn"
         onClick={() => setSelectedLaserDmxMatrixBeams([])}
       >
         Clear Selection
-      </button>
+      </IconChipButton>
     </>
   )
 }

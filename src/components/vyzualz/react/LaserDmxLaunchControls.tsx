@@ -1,5 +1,4 @@
-import { SliderRow } from './ReactControlRows'
-import { SelectRowV2 as SelectRow } from './ReactControlRowsV2'
+import { SliderRow, SelectRow } from './ReactControlRows'
 import type { LaserDmxLaunchSettings, LaserDmxLaunchTrigger } from './ReactTypes'
 
 const TRIGGER_OPTIONS: { value: LaserDmxLaunchTrigger; label: string }[] = [

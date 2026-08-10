@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { Collapsible, CtrlSection, SliderRow, ToggleRow } from './ReactControlRows'
+import { IconChipButton } from './controls/IconChipButton'
 import { LaserDmxReactionGroupInspector } from './LaserDmxReactionGroupInspector'
 import { LASER_DMX_MATRIX_MAX_BEAMS } from './ReactTypes'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
@@ -57,74 +58,64 @@ export function LaserDmxBeamMatrixPanel() {
           </div>
 
           <div className="rv-bm-toolbar">
-            <button
-              type="button"
-              className="rv-glyph-upload-btn"
+            <IconChipButton
               disabled={atLimit}
               title={atLimit ? `Beam limit (${LASER_DMX_MATRIX_MAX_BEAMS}) reached` : 'Add a new beam (choose origin and target in the editor)'}
               aria-label="Add beam"
               onClick={() => addLaserDmxMatrixBeam()}
             >
               + Add Beam
-            </button>
+            </IconChipButton>
             {primaryId && (
-              <button
-                type="button"
-                className="rv-glyph-upload-btn"
+              <IconChipButton
                 disabled={atLimit}
                 title="Duplicate primary selected beam"
                 aria-label="Duplicate selected beam"
                 onClick={() => duplicateLaserDmxMatrixBeam(primaryId)}
               >
                 ⧉ Dup
-              </button>
+              </IconChipButton>
             )}
             {selCount > 0 && (
               <>
-                <button
-                  type="button"
-                  className="rv-glyph-upload-btn rv-glyph-upload-btn--danger"
+                <IconChipButton
+                  className="rv-glyph-upload-btn--danger"
                   aria-label={`Delete ${selCount} selected beam${selCount !== 1 ? 's' : ''}`}
                   onClick={() => { if (window.confirm(`Delete ${selCount} beam${selCount !== 1 ? 's' : ''}?`)) removeSelectedLaserDmxMatrixBeams() }}
                 >
                   × Del
-                </button>
-                <button
-                  type="button"
-                  className="rv-glyph-upload-btn"
+                </IconChipButton>
+                <IconChipButton
                   aria-label="Clear beam selection"
                   onClick={clearLaserDmxMatrixSelection}
                 >
                   Desel
-                </button>
+                </IconChipButton>
               </>
             )}
-            <button
-              type="button"
-              className="rv-glyph-upload-btn"
+            <IconChipButton
               aria-label="Select all beams"
               onClick={() => setSelectedLaserDmxMatrixBeams(beams.map(b => b.id))}
             >
               All
-            </button>
+            </IconChipButton>
           </div>
 
           {/* ── Reset with confirmation ──────────────────────────────────── */}
           {confirmReset ? (
             <div className="rv-bm-confirm">
               <span>Reset entire Beam Matrix program?</span>
-              <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={handleReset}>Confirm Reset</button>
-              <button type="button" className="rv-glyph-upload-btn" onClick={() => setConfirmReset(false)}>Cancel</button>
+              <IconChipButton className="rv-glyph-upload-btn--danger" onClick={handleReset}>Confirm Reset</IconChipButton>
+              <IconChipButton onClick={() => setConfirmReset(false)}>Cancel</IconChipButton>
             </div>
           ) : (
-            <button
-              type="button"
-              className="rv-glyph-upload-btn rv-bm-reset-btn"
+            <IconChipButton
+              className="rv-bm-reset-btn"
               onClick={handleReset}
               aria-label="Reset Beam Matrix"
             >
               Reset Matrix
-            </button>
+            </IconChipButton>
           )}
         </Collapsible>
         <HelpInfoTrigger

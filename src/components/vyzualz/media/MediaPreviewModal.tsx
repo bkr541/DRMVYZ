@@ -1,4 +1,6 @@
 import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
+import { NoticeCard } from '../react/controls/NoticeCard'
+import { IconChipButton } from '../react/controls/IconChipButton'
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { PlayIcon, PauseIcon } from 'hugeicons-react'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -117,12 +119,12 @@ export function MediaPreviewModal({
 
         <div className={`mpm-media-area${hasAlpha ? ' mpm-media-area--transparent' : ''}`}>
           {!src ? (
-            <div className="mpm-error">{recovering ? 'Refreshing media link…' : 'Media file unavailable'}</div>
+            <NoticeCard className="mpm-error" tone="error" role="status">{recovering ? 'Refreshing media link…' : 'Media file unavailable'}</NoticeCard>
           ) : isVideo && videoError ? (
-            <div className="mpm-error">
-              <span>{recovering ? 'Refreshing media link…' : 'Video could not be loaded'}</span>
-              {!recovering && <button type="button" className="vz-media-empty-action" onClick={() => { void recoverAsset('original') }}>Retry</button>}
-            </div>
+            <NoticeCard className="mpm-error" tone="error" role="alert">
+              {recovering ? 'Refreshing media link…' : 'Video could not be loaded'}{' '}
+              {!recovering && <IconChipButton onClick={() => { void recoverAsset('original') }}>Retry</IconChipButton>}
+            </NoticeCard>
           ) : isVideo ? (
             <video
               ref={videoRef}
@@ -146,10 +148,10 @@ export function MediaPreviewModal({
               playsInline
             />
           ) : imageError ? (
-            <div className="mpm-error">
-              <span>{recovering ? 'Refreshing media link…' : 'Image could not be loaded'}</span>
-              {!recovering && <button type="button" className="vz-media-empty-action" onClick={() => { void recoverAsset('original') }}>Retry</button>}
-            </div>
+            <NoticeCard className="mpm-error" tone="error" role="alert">
+              {recovering ? 'Refreshing media link…' : 'Image could not be loaded'}{' '}
+              {!recovering && <IconChipButton onClick={() => { void recoverAsset('original') }}>Retry</IconChipButton>}
+            </NoticeCard>
           ) : (
             <img
               src={src}

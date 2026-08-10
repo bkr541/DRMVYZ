@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
 import type { LyricCue, LyricDocument, LyricTranscriptionJob } from '../../../types/lyrics'
 import type { LyricWriteStatus } from '../../../stores/lyricsStore'
 import type { LyricDocumentVersion, LyricManagerTrack } from '../lyricManagerTypes'
@@ -102,62 +103,52 @@ export function LyricWorkflowStatus({
     : review.unreviewed === 0 && review.lowConfidence === 0
       ? 'Review complete'
       : `${review.unreviewed} unreviewed · ${review.lowConfidence} low confidence`
-  const bodyId = 'lmv-workflow-status-panel'
 
   return (
-    <section className={`lmv-panel-card lmv-right-section lmv-extraction-console${open ? ' lmv-right-section--open' : ' lmv-right-section--closed'}`} aria-label="Lyric workflow status">
-      <button
-        type="button"
-        className="lmv-right-section-header"
-        onClick={() => setOpen(value => !value)}
-        aria-expanded={open}
-        aria-controls={bodyId}
+    <section className="lmv-panel-card lmv-right-section lmv-extraction-console" aria-label="Lyric workflow status">
+      <DualRailCollapsible
+        open={open}
+        onOpenChange={setOpen}
+        headerClassName="lmv-right-section-header"
+        bodyClassName="lmv-right-section-body"
+        label={<span className="lmv-right-section-title">Workflow Status</span>}
       >
-        <span className="lmv-right-section-title">Workflow Status</span>
-        <span className="lmv-right-section-arrow" aria-hidden="true">▾</span>
-      </button>
-      {open && (
-        <div id={bodyId} className="lmv-right-section-body">
-          <dl className="lmv-workflow-status-grid">
-            <div><dt>Selected track</dt><dd>{selectedTrack?.title || selectedTrack?.fileName || 'None'}</dd></div>
-            <div><dt>Loaded-track match</dt><dd className={loadedTrackMatches ? 'lmv-status-good' : 'lmv-status-missing'}>{loadedTrackMatches ? 'Matched' : 'Not matched'}</dd></div>
-            <div><dt>Active lyric version</dt><dd>{activeVersion?.title || 'None'}</dd></div>
-            <div><dt>Cue count</dt><dd>{cues.length}</dd></div>
-            <div><dt>Track Map</dt><dd>{trackMapAvailable ? 'Available' : 'Unavailable'}</dd></div>
-            <div><dt>Extraction source</dt><dd>{extractionSource}</dd></div>
-            <div><dt>Cue Style</dt><dd>{cueStyleLabel(cueStyle)}</dd></div>
-            <div><dt>Save status</dt><dd>{saveStatus.replace(/_/g, ' ')}</dd></div>
-            <div><dt>Review status</dt><dd>{reviewLabel}</dd></div>
-          </dl>
+        <dl className="lmv-workflow-status-grid">
+          <div><dt>Selected track</dt><dd>{selectedTrack?.title || selectedTrack?.fileName || 'None'}</dd></div>
+          <div><dt>Loaded-track match</dt><dd className={loadedTrackMatches ? 'lmv-status-good' : 'lmv-status-missing'}>{loadedTrackMatches ? 'Matched' : 'Not matched'}</dd></div>
+          <div><dt>Active lyric version</dt><dd>{activeVersion?.title || 'None'}</dd></div>
+          <div><dt>Cue count</dt><dd>{cues.length}</dd></div>
+          <div><dt>Track Map</dt><dd>{trackMapAvailable ? 'Available' : 'Unavailable'}</dd></div>
+          <div><dt>Extraction source</dt><dd>{extractionSource}</dd></div>
+          <div><dt>Cue Style</dt><dd>{cueStyleLabel(cueStyle)}</dd></div>
+          <div><dt>Save status</dt><dd>{saveStatus.replace(/_/g, ' ')}</dd></div>
+          <div><dt>Review status</dt><dd>{reviewLabel}</dd></div>
+        </dl>
 
-          <button
-            type="button"
-            className="lmv-collapsible-toggle lmv-diagnostics-toggle"
-            aria-expanded={advancedOpen}
-            onClick={() => setAdvancedOpen(value => !value)}
-          >
-            Advanced diagnostics
-          </button>
-          {advancedOpen && (
-            <div className="lmv-diagnostics" aria-label="Advanced lyric diagnostics">
-              <p>Identifiers and state only. Provider keys, signed URLs, storage paths, and raw payloads are intentionally excluded.</p>
-              <dl>
-                <div><dt>Canonical audio track ID</dt><dd><CopyableValue value={selectedTrack?.dbId ?? null} /></dd></div>
-                <div><dt>Runtime dbId</dt><dd><CopyableValue value={runtimeAudioTrackId} /></dd></div>
-                <div><dt>Editor document ID</dt><dd><CopyableValue value={editorDocument?.id ?? null} /></dd></div>
-                <div><dt>Actual active document ID</dt><dd><CopyableValue value={runtimeActiveDocumentId ?? activeVersion?.id ?? null} /></dd></div>
-                <div><dt>Transcription job</dt><dd>{jobsLoading ? 'Loading…' : <CopyableValue value={latestJob?.id ?? null} />}</dd></div>
-                <div><dt>Job status</dt><dd>{latestJob?.status ?? 'None'}</dd></div>
-                <div><dt>Analysis source mode</dt><dd>{latestJob?.sourceMode ?? 'Not recorded'}</dd></div>
-                <div><dt>Track Map revision</dt><dd>{trackMapRevision ?? 'Missing'}</dd></div>
-                <div><dt>Cue / word counts</dt><dd>{cues.length} / {wordCount}</dd></div>
-                <div><dt>Save revision</dt><dd>{saveRevision ?? 'Not saved this session'}</dd></div>
-                <div><dt>Display state</dt><dd>{lyricsDisplayEnabled ? 'Global display on' : 'Global display off'} · {editorDocument?.isActive ? 'Open version active' : 'Open version inactive'}</dd></div>
-              </dl>
-            </div>
-          )}
-        </div>
-      )}
+        <DualRailCollapsible
+          open={advancedOpen}
+          onOpenChange={setAdvancedOpen}
+          headerClassName="lmv-collapsible-toggle lmv-diagnostics-toggle"
+          label="Advanced diagnostics"
+        >
+          <div className="lmv-diagnostics" aria-label="Advanced lyric diagnostics">
+            <p>Identifiers and state only. Provider keys, signed URLs, storage paths, and raw payloads are intentionally excluded.</p>
+            <dl>
+              <div><dt>Canonical audio track ID</dt><dd><CopyableValue value={selectedTrack?.dbId ?? null} /></dd></div>
+              <div><dt>Runtime dbId</dt><dd><CopyableValue value={runtimeAudioTrackId} /></dd></div>
+              <div><dt>Editor document ID</dt><dd><CopyableValue value={editorDocument?.id ?? null} /></dd></div>
+              <div><dt>Actual active document ID</dt><dd><CopyableValue value={runtimeActiveDocumentId ?? activeVersion?.id ?? null} /></dd></div>
+              <div><dt>Transcription job</dt><dd>{jobsLoading ? 'Loading…' : <CopyableValue value={latestJob?.id ?? null} />}</dd></div>
+              <div><dt>Job status</dt><dd>{latestJob?.status ?? 'None'}</dd></div>
+              <div><dt>Analysis source mode</dt><dd>{latestJob?.sourceMode ?? 'Not recorded'}</dd></div>
+              <div><dt>Track Map revision</dt><dd>{trackMapRevision ?? 'Missing'}</dd></div>
+              <div><dt>Cue / word counts</dt><dd>{cues.length} / {wordCount}</dd></div>
+              <div><dt>Save revision</dt><dd>{saveRevision ?? 'Not saved this session'}</dd></div>
+              <div><dt>Display state</dt><dd>{lyricsDisplayEnabled ? 'Global display on' : 'Global display off'} · {editorDocument?.isActive ? 'Open version active' : 'Open version inactive'}</dd></div>
+            </dl>
+          </div>
+        </DualRailCollapsible>
+      </DualRailCollapsible>
     </section>
   )
 }

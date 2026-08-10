@@ -1,3 +1,4 @@
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import type { LyricCue, LyricDocument } from '../../../types/lyrics'
 import {
   describeLyricRecoveryDifferences,
@@ -51,11 +52,11 @@ export function LyricRecoveryDialog({
           </div>
         )}
         <div className="lmv-dialog-actions">
-          <button className="lmv-btn lmv-btn--danger" onClick={onDiscard} disabled={busy}>Discard Recovery</button>
-          <button className="lmv-btn lmv-btn--ghost" onClick={onReview} disabled={busy} aria-pressed={reviewing}>
+          <IconChipButton className="lmv-btn--danger" onClick={onDiscard} disabled={busy}>Discard Recovery</IconChipButton>
+          <IconChipButton onClick={onReview} disabled={busy} aria-pressed={reviewing}>
             {reviewing ? 'Hide Review' : 'Review'}
-          </button>
-          <button className="lmv-btn lmv-btn--primary" onClick={onRestore} disabled={busy}>Restore as Unsaved</button>
+          </IconChipButton>
+          <IconChipButton tone="primary" onClick={onRestore} disabled={busy}>Restore as Unsaved</IconChipButton>
         </div>
       </div>
     </div>

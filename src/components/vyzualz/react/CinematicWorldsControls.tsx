@@ -483,7 +483,7 @@ export function CinematicWorldsFxControls() {
           ]}
           description="Changes geometry density, particles, ray-march steps, atmospheric layers and feedback resolution."
         />
-        {!ultraSupported && config.qualityTier === 'ultra' && <div className="rv-cinematic-warning" role="status">This project requests Ultra, but this device does not meet the safe WebGL2 and CPU threshold. Choose Auto to avoid overload.</div>}
+        {!ultraSupported && config.qualityTier === 'ultra' && <NoticeCard tone="warning" role="status">This project requests Ultra, but this device does not meet the safe WebGL2 and CPU threshold. Choose Auto to avoid overload.</NoticeCard>}
       </Collapsible>
 
       {config.worldMode === 'reactiveConstellation' && uiMode === 'simple' && <ReactiveConstellationMacroControls config={config} onChange={save} />}
@@ -546,11 +546,10 @@ export function CinematicWorldsModulationControls() {
       <Collapsible label="Audio Reaction" defaultOpen>
         <ToggleRow id="cinematic-audio-enabled" label="World Audio Mapping" value={config.audioMapping.enabled} onChange={enabled => save({ ...config, audioMapping: { ...config.audioMapping, enabled } })} />
         {inputDiagnostics.unavailableRoutes.length > 0 && (
-          <div className="rv-cinematic-capability" role="status">
-            <strong>Unavailable Music Intelligence inputs</strong>
-            <span>{inputDiagnostics.reasons.map(reason => reason.message).join(' ')}</span>
-            <small>Only {inputDiagnostics.unavailableRoutes.length} of {inputDiagnostics.activeRouteCount} active audio {inputDiagnostics.activeRouteCount === 1 ? 'mapping needs' : 'mappings need'} attention.</small>
-          </div>
+          <NoticeCard tone="warning" role="status" title="Unavailable Music Intelligence inputs">
+            <p>{inputDiagnostics.reasons.map(reason => reason.message).join(' ')}</p>
+            <p>Only {inputDiagnostics.unavailableRoutes.length} of {inputDiagnostics.activeRouteCount} active audio {inputDiagnostics.activeRouteCount === 1 ? 'mapping needs' : 'mappings need'} attention.</p>
+          </NoticeCard>
         )}
         {uiMode === 'simple' ? (
           <div className="rv-ctrl-info">This world is using {config.audioMapping.routes.length} curated source-to-target mappings. Advanced mode unlocks individual assignments, attack and release.</div>

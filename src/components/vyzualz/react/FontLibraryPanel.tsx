@@ -1,4 +1,5 @@
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
+import { IconChipButton } from './controls/IconChipButton'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { Delete02Icon } from 'hugeicons-react'
@@ -115,10 +116,14 @@ export function FontLibraryPanel() {
         </svg>
         <span className="vz-panel-title">Font Library</span>
         <input ref={fontInputRef} type="file" accept=".ttf,.otf,font/ttf,font/otf" style={{ display: 'none' }} onChange={handleFontUpload} />
-        <button type="button" className="vz-import-btn" disabled={anyBusy || fontsLoadState === 'loading'} onClick={() => fontInputRef.current?.click()}>
-          <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        <IconChipButton
+          tone="primary"
+          disabled={anyBusy || fontsLoadState === 'loading'}
+          onClick={() => fontInputRef.current?.click()}
+          icon={<svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>}
+        >
           {fontUploadPending ? 'Uploading…' : 'Import'}
-        </button>
+        </IconChipButton>
       </div>
 
       <div className="vz-md-search-row">

@@ -1,3 +1,5 @@
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
+
 interface Props {
   title: string | null
   busy?: boolean
@@ -17,10 +19,10 @@ export function ConfirmLyricDeleteDialog({ title, busy = false, onConfirm, onCan
           “{title}” and all of its cues will be permanently deleted. The audio track will remain in your library.
         </p>
         <div className="lmv-dialog-actions">
-          <button className="lmv-btn lmv-btn--ghost" onClick={onCancel} disabled={busy}>Cancel</button>
-          <button className="lmv-btn lmv-btn--danger" onClick={onConfirm} disabled={busy}>
+          <IconChipButton onClick={onCancel} disabled={busy}>Cancel</IconChipButton>
+          <IconChipButton className="lmv-btn--danger" onClick={onConfirm} disabled={busy}>
             {busy ? 'Deleting…' : 'Delete Version'}
-          </button>
+          </IconChipButton>
         </div>
       </div>
     </div>

@@ -9,6 +9,7 @@ import {
   type MutableRefObject,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { NoticeCard } from '../controls/NoticeCard'
 import {
   CANVAS_OUTPUT_AVAILABLE,
   isCanvasFracturesOutputDeferred,
@@ -486,12 +487,12 @@ function OutputCastPopover({
             )}
 
             {!bridge && (
-              <div className="rv-cast-notice">Casting is available in the DRMVYZ desktop app. Browser builds keep the visualizer local.</div>
+              <NoticeCard tone="info" role="status">Casting is available in the DRMVYZ desktop app. Browser builds keep the visualizer local.</NoticeCard>
             )}
             {bridge && !canvasReady && (
-              <div className="rv-cast-notice">The active engine is still preparing its live output canvas.</div>
+              <NoticeCard tone="info" role="status">The active engine is still preparing its live output canvas.</NoticeCard>
             )}
-            {error && <div className="rv-cast-error" role="alert">{error}</div>}
+            {error && <NoticeCard tone="error" role="alert">{error}</NoticeCard>}
 
             <section className="rv-cast-device-group" aria-label="Connected displays">
               <h3>Displays</h3>

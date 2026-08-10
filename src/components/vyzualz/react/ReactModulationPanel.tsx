@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react'
+import { IconChipButton } from './controls/IconChipButton'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { ConnectedShaderModulationPanel } from './shaders/ui/ConnectedShaderModulationPanel'
@@ -428,9 +429,9 @@ function LaserDmxBeamMatrixModPanel() {
               onDelete={() => removeLaserDmxMatrixGlobalRoute(route.id)}
             />
           ))}
-          <button type="button" className="rv-glyph-upload-btn" style={{ marginTop: 6 }} onClick={addLaserDmxMatrixGlobalRoute}>
+          <IconChipButton style={{ marginTop: 6 }} onClick={addLaserDmxMatrixGlobalRoute}>
             + Add Global Route
-          </button>
+          </IconChipButton>
         </Collapsible>
       )}
 
@@ -452,9 +453,9 @@ function LaserDmxBeamMatrixModPanel() {
                   onDelete={() => removeLaserDmxReactionGroupRoute(selectedGroup.id, route.id)}
                 />
               ))}
-              <button type="button" className="rv-glyph-upload-btn" style={{ marginTop: 6 }} onClick={() => addLaserDmxReactionGroupRoute(selectedGroup.id)}>
+              <IconChipButton style={{ marginTop: 6 }} onClick={() => addLaserDmxReactionGroupRoute(selectedGroup.id)}>
                 + Add Group Route
-              </button>
+              </IconChipButton>
             </Collapsible>
           )}
         </>
@@ -480,9 +481,9 @@ function LaserDmxBeamMatrixModPanel() {
                   onDelete={() => removeLaserDmxMatrixBeamRoute(primaryBeam.id, route.id)}
                 />
               ))}
-              <button type="button" className="rv-glyph-upload-btn" style={{ marginTop: 6 }} onClick={() => addLaserDmxMatrixBeamRoute(primaryBeam.id)}>
+              <IconChipButton style={{ marginTop: 6 }} onClick={() => addLaserDmxMatrixBeamRoute(primaryBeam.id)}>
                 + Add Beam Route
-              </button>
+              </IconChipButton>
             </Collapsible>
           )}
         </>
@@ -624,35 +625,30 @@ export function LetterAssignmentEditor({
             color="#b84fc9"
           />
           <div className="rv-letter-actions">
-            <button
-              type="button"
-              className="rv-glyph-upload-btn"
+            <IconChipButton
               onClick={() => copyToAll(sel)}
               disabled={!selAsgn}
             >
               Copy to All
-            </button>
-            <button
-              type="button"
-              className="rv-glyph-upload-btn"
+            </IconChipButton>
+            <IconChipButton
               onClick={() => { clearAssignment(sel); setSelIdx(null) }}
               disabled={!selAsgn}
             >
               Clear Letter
-            </button>
+            </IconChipButton>
           </div>
         </>
       )}
 
       <div className="rv-letter-actions">
-        <button
-          type="button"
-          className="rv-glyph-upload-btn rv-glyph-upload-btn--danger"
+        <IconChipButton
+          className="rv-glyph-upload-btn--danger"
           onClick={() => { onChange([]); setSelIdx(null) }}
           disabled={assignments.length === 0}
         >
           Reset All
-        </button>
+        </IconChipButton>
       </div>
     </>
   )

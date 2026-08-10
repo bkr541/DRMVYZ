@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Delete02Icon } from 'hugeicons-react'
+import { NoticeCard } from './controls/NoticeCard'
+import { IconChipButton } from './controls/IconChipButton'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -8,8 +11,7 @@ import { musicIntelligenceEngine } from '../../../features/musicIntelligence/Mus
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { buildSharedPerformanceContext, createSharedPerformanceDiagnostics, type SharedPerformanceContext } from '../../../features/performanceCore'
 import type { FeatureCurve, MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
-import { Collapsible, ColorRow, CtrlSection, NumberInputRow, SliderRow, ToggleRow } from './ReactControlRows'
-import { SelectRowV2 as CanvasSelectRow } from './ReactControlRowsV2'
+import { Collapsible, ColorRow, CtrlSection, NumberInputRow, SelectRow as CanvasSelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import { HelpInfoTrigger, type HelpInfoTriggerProps } from '../../shared/InfoPopover'
 import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
 import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from './SharedPerformanceDiagnosticsStore'
@@ -272,43 +274,46 @@ function CanvasLegacySessionMedia({ compact = false }: { compact?: boolean }) {
       <div className="rv-canvas-media-lock" role="status">
         <span>Legacy session media from an older CANVAS import is still available for this run. Add new files to the shared media library.</span>
       </div>
-      {mediaItems.map(item => {
-        const active = item.id === activeCanvasMediaId
-        return (
-          <div key={item.id} className={`rv-canvas-media-card${active ? ' rv-canvas-media-card--active' : ''}`}>
-            <button
-              type="button"
-              className="rv-canvas-media-card__select"
+      <div className="rv-canvas-legacy-media-grid">
+        {mediaItems.map(item => {
+          const active = item.id === activeCanvasMediaId
+          return (
+            <div
+              key={item.id}
+              className={`vz-media-card${active ? ' vz-media-card--active' : ''}`}
               onClick={() => selectCanvasMediaItem(item.id)}
-              aria-pressed={active}
             >
-              <span className={`rv-canvas-media-card__thumb rv-canvas-media-card__thumb--${item.type}`}>
+              <div className="vz-media-thumb">
                 {item.type === 'video' ? (
                   <span className="rv-canvas-media-card__video-mark">▶</span>
                 ) : (
-                  <img src={item.objectUrl} alt="" />
+                  <img src={item.objectUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                 )}
-              </span>
-              <span className="rv-canvas-media-card__body">
-                <span className="rv-canvas-media-card__name" title={item.name}>{item.name}</span>
-                <span className="rv-canvas-media-card__meta">
-                  <span>{TYPE_LABELS[item.type]}</span>
-                  <span>{formatBytes(item.fileSize)}</span>
-                </span>
-              </span>
-              {active && <span className="rv-canvas-media-card__active">{item.id === manualMediaOverrideId ? 'Locked' : 'Active'}</span>}
-            </button>
-            <button
-              type="button"
-              className="rv-canvas-media-card__remove"
-              onClick={() => removeCanvasMediaItem(item.id)}
-              aria-label={`Remove ${item.name} from legacy CANVAS session media`}
-            >
-              Remove
-            </button>
-          </div>
-        )
-      })}
+                <span className="vz-media-type-badge">{TYPE_LABELS[item.type]}</span>
+                {active && (
+                  <span className="rv-canvas-media-card__active-badge">
+                    {item.id === manualMediaOverrideId ? 'Locked' : 'Active'}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="vz-media-remove"
+                  onClick={e => { e.stopPropagation(); removeCanvasMediaItem(item.id) }}
+                  aria-label={`Remove ${item.name} from legacy CANVAS session media`}
+                >
+                  <Delete02Icon size={15} color="currentColor" />
+                </button>
+              </div>
+              <div className="vz-media-info">
+                <div className="vz-media-name-row">
+                  <div className="vz-media-name" title={item.name}>{item.name}</div>
+                </div>
+                <div className="vz-media-meta">{formatBytes(item.fileSize)}</div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -2241,9 +2246,10 @@ export function CanvasEngineSurface({
           {sourceEffectsCanvasNode}
         </div>
         {activeMediaLoadError && (
-          <div className="rv-canvas-live-error-card" role="alert">
-            <strong>CANVAS media could not load</strong>
-            <span>{activeMediaLoadError}</span>
+          <div className="rv-canvas-live-error-card">
+            <NoticeCard tone="error" role="alert" title="CANVAS media could not load">
+              {activeMediaLoadError}
+            </NoticeCard>
           </div>
         )}
         <CanvasParticleAuraLayer
@@ -2296,10 +2302,14 @@ export function CanvasEngineSurface({
           />
         )}
         {particleRendererNotice && particleReconstructionActive && (
-          <div className="rv-canvas-render-notice" role="status">{particleRendererNotice}</div>
+          <div className="rv-canvas-render-notice">
+            <NoticeCard tone="warning" role="status">{particleRendererNotice}</NoticeCard>
+          </div>
         )}
         {fracturesRendererNotice && fragmentCollageActive && (
-          <div className="rv-canvas-render-notice" role="status">{fracturesRendererNotice}</div>
+          <div className="rv-canvas-render-notice">
+            <NoticeCard tone="warning" role="status">{fracturesRendererNotice}</NoticeCard>
+          </div>
         )}
       </div>
     </div>
@@ -2904,14 +2914,13 @@ function CanvasTimingControls() {
           </div>
         </div>
       </CanvasHelpControl>
-      <button
-        type="button"
-        className="rv-reset-btn rv-canvas-restart-btn"
+      <IconChipButton
+        className="rv-canvas-restart-btn"
         onClick={restartCanvasVideo}
         disabled={!hasActiveVideo}
       >
         Restart Clip
-      </button>
+      </IconChipButton>
     </Collapsible>
   )
 }
@@ -2962,7 +2971,7 @@ function CanvasOrchestrationControls() {
         <span>{settings.compositionPreference === 'auto' ? 'Section-aware templates' : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label}</span>
       </div>
       {settings.enabled && poolItems.length === 0 && (
-        <div className="rv-canvas-engine-note rv-canvas-engine-note--warning">Select media in the left SOURCE panel to build the performance pool.</div>
+        <NoticeCard tone="warning" role="status">Select media in the left SOURCE panel to build the performance pool.</NoticeCard>
       )}
       <CanvasHelpControl
         helpId="react.canvas.performanceOrchestration.performanceShow"
@@ -3051,7 +3060,7 @@ function CanvasOrchestrationControls() {
         />
       </Collapsible>
       <SharedPerformanceDiagnosticsPanel engine="canvas" />
-      <button type="button" className="rv-reset-btn rv-canvas-restart-btn" onClick={resetCanvasOrchestration}>Reset Authored State</button>
+      <IconChipButton className="rv-canvas-restart-btn" onClick={resetCanvasOrchestration}>Reset Authored State</IconChipButton>
     </Collapsible>
   )
 }
@@ -3078,9 +3087,9 @@ function CanvasFracturesActionControl({
       <div className="rv-ctrl-toggle-row">
         <div className="rv-ctrl-toggle-line">
           <span className="rv-ctrl-label">{label}</span>
-          <button type="button" className="rv-reset-btn rv-canvas-fractures-action" onClick={onClick}>
+          <IconChipButton className="rv-canvas-fractures-action" onClick={onClick}>
             Trigger
-          </button>
+          </IconChipButton>
         </div>
         <span className="rv-ctrl-description">{description}</span>
       </div>
@@ -3424,9 +3433,9 @@ function CanvasPresetControls() {
         {customized && <span className="rv-ctrl-description">Customized recipe active.</span>}
       </div>
       {canvasPresetSettings.particleDensity > 0.02 && !activeItem && (
-        <div className="rv-canvas-engine-note rv-canvas-engine-note--warning">
+        <NoticeCard tone="warning" role="status">
           Particles need an active CANVAS library media item before they can sample pixels and emit from the source.
-        </div>
+        </NoticeCard>
       )}
       {CANVAS_REACT_CONTROL_GROUPS.map(group => (
         <Collapsible key={group.title} label={group.title} defaultOpen={group.title !== 'Motion + Particles'}>

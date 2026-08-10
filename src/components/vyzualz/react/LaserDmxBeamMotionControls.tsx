@@ -1,6 +1,5 @@
 import type { LaserDmxBeamMotion, LaserDmxBeamTravelMode } from './ReactTypes'
-import { SliderRow, Collapsible } from './ReactControlRows'
-import { SelectRowV2 as SelectRow } from './ReactControlRowsV2'
+import { SliderRow, Collapsible, SelectRow } from './ReactControlRows'
 
 const TRAVEL_MODE_OPTIONS = [
   { value: 'static',     label: 'Static'      },

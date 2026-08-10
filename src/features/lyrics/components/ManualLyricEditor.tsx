@@ -1,4 +1,5 @@
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
+import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
 import { useState } from 'react'
 import { LyricCueEditor, type LyricBeatGridStatus } from '../editor/LyricCueEditor'
 import type { LyricSectionOption } from '../editor/LyricCueInspector'
@@ -113,30 +114,23 @@ export function ManualLyricEditor({
         <span className="lmv-field-hint">Applied at render time. Canonical cue and word timestamps remain integer milliseconds.</span>
       </div>
 
-      <button
-        type="button"
-        className="lmv-collapsible-toggle"
-        aria-expanded={styleOpen}
-        onClick={() => setStyleOpen(open => !open)}
+      <DualRailCollapsible
+        headerClassName="lmv-collapsible-toggle"
+        bodyClassName="lmv-defaults-section"
+        open={styleOpen}
+        onOpenChange={setStyleOpen}
+        label="Default style / animation / effects"
       >
-        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style={{ transform: styleOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
-          <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
-        </svg>
-        Default style / animation / effects
-      </button>
-      {styleOpen && (
-        <div className="lmv-defaults-section">
-          <div className="lmv-defaults-hint">These document defaults are inherited by every cue unless that cue defines an override.</div>
-          <LyricPresentationControls
-            style={defaultStyle}
-            animation={defaultAnimation}
-            effects={defaultEffects}
-            onStyleChange={onUpdateDefaultStyle}
-            onAnimationChange={onUpdateDefaultAnimation}
-            onEffectsChange={onUpdateDefaultEffects}
-          />
-        </div>
-      )}
+        <div className="lmv-defaults-hint">These document defaults are inherited by every cue unless that cue defines an override.</div>
+        <LyricPresentationControls
+          style={defaultStyle}
+          animation={defaultAnimation}
+          effects={defaultEffects}
+          onStyleChange={onUpdateDefaultStyle}
+          onAnimationChange={onUpdateDefaultAnimation}
+          onEffectsChange={onUpdateDefaultEffects}
+        />
+      </DualRailCollapsible>
 
       <div className="lmv-section-label">Cue timeline</div>
       <LyricCueEditor

@@ -3,6 +3,8 @@ import { useShallow } from 'zustand/react/shallow'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { MediaMutationOperation } from '../../../stores/mediaStore'
 import { useAudioStore } from '../../../stores/audioStore'
+import { NoticeCard } from '../react/controls/NoticeCard'
+import { IconChipButton } from '../react/controls/IconChipButton'
 
 export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolean }) {
   const {
@@ -78,110 +80,92 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
   }, [lastRestored, clearRestored])
 
   if (loading) return (
-    <div className="vz-media-status vz-media-status--info">
-      <span className="vz-media-status-dot vz-media-status-dot--pulse" />
+    <NoticeCard tone="info" role="status">
       Reloading media library…
-    </div>
+    </NoticeCard>
   )
 
   if (!storageAvailable) return (
-    <div className="vz-media-status vz-media-status--warn">
-      <span className="vz-media-status-dot" />
+    <NoticeCard tone="warning" role="status">
       Storage not configured — files are local only
-    </div>
+    </NoticeCard>
   )
 
   if (mutationFailure) return (
-    <div className={`vz-media-status vz-media-status--${mutationFailure.status === 'conflict' ? 'warn' : 'error'}`}>
-      <span className="vz-media-status-dot" />
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {operationLabels[mutationFailure.operation]}: {mutationFailure.message}
-      </span>
-      <button
-        type="button"
+    <NoticeCard
+      tone={mutationFailure.status === 'conflict' ? 'warning' : 'error'}
+      role="alert"
+      onDismiss={() => clearMediaMutation(mutationFailure.itemId, mutationFailure.operation)}
+    >
+      {operationLabels[mutationFailure.operation]}: {mutationFailure.message}{' '}
+      <IconChipButton
         className="vz-media-status-action"
         onClick={() => { void (mutationFailure.status === 'conflict'
           ? reapplyMediaMutation(mutationFailure.itemId, mutationFailure.operation)
           : retryMediaMutation(mutationFailure.itemId, mutationFailure.operation)) }}
       >
         {mutationFailure.status === 'conflict' ? 'Reapply' : 'Retry'}
-      </button>
-      <button className="vz-media-status-dismiss" onClick={() => clearMediaMutation(mutationFailure.itemId, mutationFailure.operation)} title="Dismiss">✕</button>
-    </div>
+      </IconChipButton>
+    </NoticeCard>
   )
 
   if (reorderFailure) return (
-    <div className={`vz-media-status vz-media-status--${reorderFailure.status === 'conflict' ? 'warn' : 'error'}`}>
-      <span className="vz-media-status-dot" />
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        Collection order: {reorderFailure.message}
-      </span>
-      <button type="button" className="vz-media-status-action" onClick={() => { void retryCollectionReorder(reorderFailure.collectionId) }}>Retry</button>
-      <button className="vz-media-status-dismiss" onClick={() => clearCollectionReorderError(reorderFailure.collectionId)} title="Dismiss">✕</button>
-    </div>
+    <NoticeCard
+      tone={reorderFailure.status === 'conflict' ? 'warning' : 'error'}
+      role="alert"
+      onDismiss={() => clearCollectionReorderError(reorderFailure.collectionId)}
+    >
+      Collection order: {reorderFailure.message}{' '}
+      <IconChipButton className="vz-media-status-action" onClick={() => { void retryCollectionReorder(reorderFailure.collectionId) }}>Retry</IconChipButton>
+    </NoticeCard>
   )
 
-
   if (uploadCleanupState) return (
-    <div className={`vz-media-status vz-media-status--${uploadCleanupState.status === 'failed' ? 'error' : 'warn'}`}>
-      <span className="vz-media-status-dot" />
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        Failed upload cleanup: {uploadCleanupState.message ?? `${uploadCleanupState.completedPaths.length}/${uploadCleanupState.storagePaths.length} objects removed.`}
-      </span>
-      <button type="button" className="vz-media-status-action" onClick={() => { void retryUploadCleanup(uploadCleanupState.jobId) }}>Retry cleanup</button>
-    </div>
+    <NoticeCard tone={uploadCleanupState.status === 'failed' ? 'error' : 'warning'} role="alert">
+      Failed upload cleanup: {uploadCleanupState.message ?? `${uploadCleanupState.completedPaths.length}/${uploadCleanupState.storagePaths.length} objects removed.`}{' '}
+      <IconChipButton className="vz-media-status-action" onClick={() => { void retryUploadCleanup(uploadCleanupState.jobId) }}>Retry cleanup</IconChipButton>
+    </NoticeCard>
   )
 
   if (deletionState) return (
-    <div className={`vz-media-status vz-media-status--${deletionState.status === 'failed' ? 'error' : 'info'}`}>
-      <span className={`vz-media-status-dot${deletionState.status === 'pending' ? ' vz-media-status-dot--pulse' : ''}`} />
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {deletionState.status === 'failed'
-          ? `Media deletion cleanup needs attention: ${deletionState.message ?? 'Retry the remaining storage objects.'}`
-          : `Deleting media safely (${deletionState.completedPaths.length}/${deletionState.storagePaths.length} objects)…`}
-      </span>
+    <NoticeCard tone={deletionState.status === 'failed' ? 'error' : 'info'} role="status">
+      {deletionState.status === 'failed'
+        ? `Media deletion cleanup needs attention: ${deletionState.message ?? 'Retry the remaining storage objects.'}`
+        : `Deleting media safely (${deletionState.completedPaths.length}/${deletionState.storagePaths.length} objects)…`}
       {deletionState.status === 'failed' && (
-        <button type="button" className="vz-media-status-action" onClick={() => { void retryDeletion(deletionState.itemId) }}>Retry</button>
+        <> <IconChipButton className="vz-media-status-action" onClick={() => { void retryDeletion(deletionState.itemId) }}>Retry</IconChipButton></>
       )}
-    </div>
+    </NoticeCard>
   )
 
   if (deleteError) return (
-    <div className="vz-media-status vz-media-status--error">
-      <span className="vz-media-status-dot" />
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Delete failed: {deleteError}</span>
-      <button className="vz-media-status-dismiss" onClick={clearDeleteError} title="Dismiss">✕</button>
-    </div>
+    <NoticeCard tone="error" role="alert" onDismiss={clearDeleteError}>
+      Delete failed: {deleteError}
+    </NoticeCard>
   )
 
   if (includeAudio && audioError) return (
-    <div className="vz-media-status vz-media-status--error">
-      <span className="vz-media-status-dot" />
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{audioError}</span>
-      <button className="vz-media-status-dismiss" onClick={clearAudioError} title="Dismiss">✕</button>
-    </div>
+    <NoticeCard tone="error" role="alert" onDismiss={clearAudioError}>
+      {audioError}
+    </NoticeCard>
   )
 
   if (loadError) return (
-    <div className="vz-media-status vz-media-status--error">
-      <span className="vz-media-status-dot" />
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loadError}</span>
-      <button className="vz-media-status-dismiss" onClick={clearLoadError} title="Dismiss">✕</button>
-    </div>
+    <NoticeCard tone="error" role="alert" onDismiss={clearLoadError}>
+      {loadError}
+    </NoticeCard>
   )
 
   if (authRequired) return (
-    <div className="vz-media-status vz-media-status--info">
-      <span className="vz-media-status-dot" />
+    <NoticeCard tone="info" role="status">
       Sign in to sync media to cloud
-    </div>
+    </NoticeCard>
   )
 
   if (lastRestored !== null && lastRestored > 0) return (
-    <div className="vz-media-status vz-media-status--ok">
-      <span className="vz-media-status-dot" />
+    <NoticeCard tone="success" role="status">
       Restored {lastRestored} media item{lastRestored !== 1 ? 's' : ''}
-    </div>
+    </NoticeCard>
   )
 
   return null

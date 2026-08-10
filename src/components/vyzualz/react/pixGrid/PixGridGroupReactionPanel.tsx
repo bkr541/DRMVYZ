@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
-import { CtrlSection, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
-import { SelectRowV2 as SelectRow } from '../ReactControlRowsV2'
+import { CtrlSection, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
+import { IconChipButton } from '../controls/IconChipButton'
 import { composePixGridLogicalFrame } from './PixGridCompositor'
 import { pixGridPreparedAssetCache } from './PixGridAssetPreparation'
 import { createSilentPixGridAudioFrame } from './PixGridAudioRouting'
@@ -172,7 +172,7 @@ export function PixGridGroupReactionPanel() {
       <SelectRow label="Create By" value={method} options={SMART_METHODS} onChange={value => setMethod(value as PixGridSmartGroupMethod)} />
       {method === 'geometric' && <SelectRow label="Pattern" value={geometricPattern} options={GEOMETRIC_OPTIONS} onChange={value => setGeometricPattern(value as PixGridGeometricGroupPattern)} />}
       <div className="rv-ctrl-action-row">
-        <button type="button" className="rv-reset-btn" disabled={state.groups.length >= MAX_PIX_GRID_GROUPS} onClick={autoCreate}>Create Group</button>
+        <IconChipButton disabled={state.groups.length >= MAX_PIX_GRID_GROUPS} onClick={autoCreate}>Create Group</IconChipButton>
       </div>
       <div className="rv-ctrl-info">{state.groups.length} / {MAX_PIX_GRID_GROUPS} groups · compact masks compile only when inputs change</div>
 
@@ -202,14 +202,14 @@ export function PixGridGroupReactionPanel() {
             { value: 'stack', label: 'Stack' }, { value: 'exclusive', label: 'Exclusive' }, { value: 'replace', label: 'Replace Lower Priority' },
           ]} onChange={value => updateGroup(current => ({ ...current, overlapBehavior: value as PixGridGroup['overlapBehavior'] }))} />
           <div className="rv-ctrl-action-row">
-            <button type="button" className="rv-reset-btn" disabled={group.reactions.length >= MAX_PIX_GRID_REACTIONS_PER_GROUP} onClick={() => {
+            <IconChipButton disabled={group.reactions.length >= MAX_PIX_GRID_REACTIONS_PER_GROUP} onClick={() => {
               const next = createDefaultPixGridReactionAssignment(group.reactions.length)
               applyState({
                 ...replaceGroup(state, group.id, current => ({ ...current, reactions: [...current.reactions, next] })),
                 editor: { ...state.editor, selectedGroupId: group.id, previewReactionAssignmentId: next.id },
               })
-            }}>Add Reaction</button>
-            <button type="button" className="rv-reset-btn" onClick={() => applyState({ ...state, groups: state.groups.filter(candidate => candidate.id !== group.id), editor: { ...state.editor, selectedGroupId: null, previewReactionAssignmentId: null } })}>Delete Group</button>
+            }}>Add Reaction</IconChipButton>
+            <IconChipButton onClick={() => applyState({ ...state, groups: state.groups.filter(candidate => candidate.id !== group.id), editor: { ...state.editor, selectedGroupId: null, previewReactionAssignmentId: null } })}>Delete Group</IconChipButton>
           </div>
         </>
       )}
@@ -233,20 +233,20 @@ export function PixGridGroupReactionPanel() {
             {pixGridReactionHasAdvancedValues(assignment) && <span>Conditions, ranges, envelope precision, cooldown, quantization, blend, or priority are configured in the full editor and remain preserved here.</span>}
           </div>
           <div className="rv-ctrl-action-row">
-            <button type="button" className="rv-reset-btn" onClick={() => {
+            <IconChipButton onClick={() => {
               updateEditor({ selectedGroupId: group.id, previewReactionAssignmentId: assignment.id })
               requestPixGridWorkspace(sourceDefinition && isPixGridContinuousSourceDefinition(sourceDefinition) ? 'routing' : 'events')
-            }}>Open Full Route Editor</button>
+            }}>Open Full Route Editor</IconChipButton>
           </div>
           <div className="rv-ctrl-action-row">
-            <button type="button" className="rv-reset-btn" aria-pressed={state.editor.previewReactionAssignmentId === assignment.id} onClick={() => updateEditor({ previewReactionAssignmentId: state.editor.previewReactionAssignmentId === assignment.id ? null : assignment.id })}>Test / Preview</button>
-            <button type="button" className="rv-reset-btn" onClick={() => applyState({
+            <IconChipButton aria-pressed={state.editor.previewReactionAssignmentId === assignment.id} onClick={() => updateEditor({ previewReactionAssignmentId: state.editor.previewReactionAssignmentId === assignment.id ? null : assignment.id })}>Test / Preview</IconChipButton>
+            <IconChipButton onClick={() => applyState({
               ...replaceGroup(state, group.id, current => ({ ...current, reactions: current.reactions.filter(candidate => candidate.id !== assignment.id) })),
               editor: {
                 ...state.editor,
                 previewReactionAssignmentId: state.editor.previewReactionAssignmentId === assignment.id ? null : state.editor.previewReactionAssignmentId,
               },
-            })}>Delete Reaction</button>
+            })}>Delete Reaction</IconChipButton>
           </div>
         </>
       )}
