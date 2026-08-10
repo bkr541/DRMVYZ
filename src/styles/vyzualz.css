@@ -864,20 +864,31 @@
   padding: 6px 6px;
 }
 
+/* Masonry Frame treatment (Layout Lab → Template's Media Library winner):
+   bordered, rounded card with a corner-ribbon type badge and a radial-glow
+   thumb backdrop. --vz-media-tone is one neutral value for every media kind
+   for now — color-per-kind styling is deferred to a later pass, same as
+   the Layout Lab gallery it mirrors. */
 .vz-media-card {
+  --vz-media-tone: #9ab2bc;
+  position: relative;
   display: flex;
   flex-direction: column;
-  border-radius: 6px;
+  border-radius: 12px;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.07);
-  background: var(--az-panel2);
+  border: 1.5px solid color-mix(in srgb, var(--vz-media-tone) 32%, transparent);
+  background: rgba(6, 10, 14, 0.85);
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
-.vz-media-card:hover { border-color: rgba(74,199,219,0.25); }
+.vz-media-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--vz-media-tone);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.4), 0 0 22px color-mix(in srgb, var(--vz-media-tone) 30%, transparent);
+}
 .vz-media-card--active {
-  border-color: var(--az-cyan) !important;
-  box-shadow: 0 0 9px rgba(74,199,219,0.25);
+  border-color: var(--vz-media-tone) !important;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.4), 0 0 22px color-mix(in srgb, var(--vz-media-tone) 30%, transparent);
 }
 
 .vz-media-thumb {
@@ -885,20 +896,23 @@
   aspect-ratio: 16/9;
   position: relative;
   overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--vz-media-tone) 22%, transparent), transparent 70%),
+    #050a12;
 }
 
 .vz-media-type-badge {
   position: absolute;
-  bottom: 3px;
-  left: 3px;
+  top: 8px;
+  left: -1.5px;
   max-width: calc(100% - 6px);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: rgba(0,0,0,0.65);
-  color: rgba(245,248,250,0.55);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 0 5px 5px 0;
+  background: var(--vz-media-tone);
+  color: #0a0d10;
   text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
@@ -907,13 +921,13 @@
 
 .vz-media-star {
   position: absolute;
-  top: 3px;
-  left: 4px;
+  top: 8px;
+  right: 8px;
   display: flex;
   align-items: center;
   cursor: pointer;
   line-height: 1;
-  color: rgba(245,248,250,0.25);
+  color: rgba(255, 255, 255, 0.55);
   background: none;
   border: none;
   padding: 0;
@@ -924,7 +938,7 @@
 
 .vz-media-remove {
   position: absolute;
-  top: 3px;
+  bottom: 3px;
   right: 4px;
   display: flex;
   align-items: center;
@@ -937,7 +951,7 @@
 }
 .vz-media-remove:hover { color: #f87171; }
 
-.vz-media-info { padding: 5px 8px 6px; min-width: 0; }
+.vz-media-info { padding: 8px 10px 10px; min-width: 0; }
 .vz-media-name-row {
   display: flex;
   align-items: center;
@@ -992,38 +1006,40 @@
   letter-spacing: 0.02em;
 }
 .vz-media-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--az-text-muted);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: rgba(232, 244, 248, 0.92);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .vz-media-meta {
-  font-size: 12px;
-  color: var(--az-text-faint);
-  margin-top: 4px;
+  font-size: 7.5px;
+  color: rgba(196, 207, 211, 0.4);
+  margin-top: 6px;
 }
 .vz-media-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
-  margin-top: 5px;
+  gap: 4px;
+  margin-top: 6px;
 }
 .vz-media-tag {
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  background: rgba(74,199,219,0.1);
-  color: rgba(74,199,219,0.7);
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--vz-media-tone);
+  text-transform: uppercase;
   white-space: nowrap;
   max-width: 72px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .vz-media-tag--more {
-  background: rgba(245,248,250,0.06);
-  color: var(--az-text-faint);
+  color: rgba(196, 207, 211, 0.4);
 }
 
 /* ── Collections view ────────────────────────────────────────────────── */

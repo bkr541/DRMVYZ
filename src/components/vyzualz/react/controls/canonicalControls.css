@@ -414,3 +414,58 @@
   color: rgba(232, 244, 248, 0.72);
   font-weight: 700;
 }
+
+/* Canonical DRMVYZ action button from Layout Lab's "Icon Chip" winner. */
+
+.dv-icon-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid rgba(154, 178, 188, 0.16);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(196, 207, 211, 0.7);
+  font: 800 9.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.dv-icon-chip__icon {
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+}
+
+.dv-icon-chip__icon svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.dv-icon-chip--primary {
+  border-color: rgba(74, 199, 219, 0.4);
+  background: rgba(74, 199, 219, 0.16);
+  color: #8ef4ff;
+}
+
+.dv-icon-chip--primary:hover:not(:disabled) {
+  background: rgba(74, 199, 219, 0.26);
+}
+
+.dv-icon-chip:not(.dv-icon-chip--primary):hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(232, 244, 248, 0.9);
+}
+
+.dv-icon-chip:disabled {
+  border-color: rgba(154, 178, 188, 0.08);
+  background: rgba(255, 255, 255, 0.015);
+  color: rgba(196, 207, 211, 0.28);
+  cursor: not-allowed;
+}

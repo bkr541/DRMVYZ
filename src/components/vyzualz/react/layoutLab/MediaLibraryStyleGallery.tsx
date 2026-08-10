@@ -2,15 +2,20 @@ import { useState, type CSSProperties } from 'react'
 
 // ── MediaLibraryStyleGallery ─────────────────────────────────────────────
 //
-// Layout Lab / Template engine only. Three candidate treatments for the
-// Media Library browser (real component: MediaLibraryBrowser.tsx, its
-// .vz-media-card grid) shown throughout React's left rails and Show
-// Manager. Static local sample data modeled on real library items, no
-// upload/select/favorite wiring — chrome and card layout only.
+// Layout Lab / Template engine only. Masonry Frame: bold, tone-per-kind
+// framed cards with a corner-ribbon badge and a large preview area — the
+// winning treatment for the Media Library browser (real component:
+// MediaLibraryBrowser.tsx, its .vz-media-card grid) shown throughout
+// React's left rails and Show Manager. Static local sample data modeled on
+// real library items, no upload/select/favorite wiring — chrome and card
+// layout only.
+//
+// One neutral tone for every media kind for now — color-per-kind styling
+// is deferred to a later pass.
 
 const MEDIA_TONES: Record<string, string> = {
-  svg: '#b84fc9',
-  video: '#4ac7db',
+  svg: '#9ab2bc',
+  video: '#9ab2bc',
 }
 
 const SAMPLE_MEDIA = [
@@ -47,15 +52,6 @@ function HeartGlyph() {
   )
 }
 
-function LinkGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="3" y="4" width="14" height="10" rx="1.5" />
-      <path d="M8 18h8M12 14v4" />
-    </svg>
-  )
-}
-
 function RefreshGlyph() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -73,90 +69,8 @@ function MediaThumb({ kind }: { kind: string }) {
   )
 }
 
-// 1 — Gallery Wall: tight, rounded thumbnail grid, glowing hover, heart and
-// link badges floating on the thumbnail — closest to the current real card.
-function GalleryWallLibrary() {
-  const [active, setActive] = useState('wordmark')
-  return (
-    <div className="llml-panel">
-      <div className="llml-hdr">
-        <span className="llml-hdr-icon" aria-hidden="true"><SvgGlyph /></span>
-        <strong>Media Library</strong>
-        <button type="button" className="llml-refresh" aria-label="Refresh" title="Refresh"><RefreshGlyph /></button>
-      </div>
-      <div className="llml-tabs" role="tablist" aria-label="Media Library filter">
-        {TABS.map((tab, index) => (
-          <button key={tab} type="button" role="tab" aria-selected={index === 0} className={index === 0 ? 'is-active' : ''}>{tab}</button>
-        ))}
-      </div>
-      <input className="llml-search" placeholder="Search media…" disabled />
-      <div className="llml-wall-grid">
-        {SAMPLE_MEDIA.map(item => (
-          <button
-            key={item.id}
-            type="button"
-            className={`llml-wall-card${active === item.id ? ' is-active' : ''}`}
-            style={{ '--llml-tone': MEDIA_TONES[item.kind] } as CSSProperties}
-            onClick={() => setActive(item.id)}
-          >
-            <span className="llml-wall-thumb">
-              <MediaThumb kind={item.kind} />
-              <span className="llml-wall-badge">{item.badge}</span>
-              <span className="llml-wall-heart" aria-hidden="true"><HeartGlyph /></span>
-              <span className="llml-wall-link" aria-hidden="true"><LinkGlyph /></span>
-            </span>
-            <span className="llml-wall-name">{item.name}</span>
-            <span className="llml-wall-meta">{item.meta}</span>
-            <span className="llml-wall-tag">{item.tag}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// 2 — List Deck: a compact horizontal list, thumbnail left, info right —
-// faster to scan than a grid when the library is long.
-function ListDeckLibrary() {
-  const [active, setActive] = useState('wordmark')
-  return (
-    <div className="llml-panel">
-      <div className="llml-hdr">
-        <span className="llml-hdr-icon" aria-hidden="true"><SvgGlyph /></span>
-        <strong>Media Library</strong>
-        <button type="button" className="llml-refresh" aria-label="Refresh" title="Refresh"><RefreshGlyph /></button>
-      </div>
-      <div className="llml-tabs" role="tablist" aria-label="Media Library filter">
-        {TABS.map((tab, index) => (
-          <button key={tab} type="button" role="tab" aria-selected={index === 0} className={index === 0 ? 'is-active' : ''}>{tab}</button>
-        ))}
-      </div>
-      <input className="llml-search" placeholder="Search media…" disabled />
-      <div className="llml-list">
-        {SAMPLE_MEDIA.map(item => (
-          <button
-            key={item.id}
-            type="button"
-            className={`llml-list-row${active === item.id ? ' is-active' : ''}`}
-            style={{ '--llml-tone': MEDIA_TONES[item.kind] } as CSSProperties}
-            onClick={() => setActive(item.id)}
-          >
-            <span className="llml-list-thumb"><MediaThumb kind={item.kind} /></span>
-            <span className="llml-list-copy">
-              <span className="llml-list-name">{item.name}</span>
-              <span className="llml-list-meta">{item.meta} · {item.tag}</span>
-            </span>
-            <span className="llml-list-badge">{item.badge}</span>
-            <span className="llml-list-heart" aria-hidden="true"><HeartGlyph /></span>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// 3 — Masonry Frame: bold, tone-per-kind framed cards with a corner-ribbon
-// badge and a large preview area — the most visually confident of the three.
+// Masonry Frame: bold, tone-per-kind framed cards with a corner-ribbon
+// badge and a large preview area.
 function MasonryFrameLibrary() {
   const [active, setActive] = useState('wordmark')
   return (
@@ -197,9 +111,7 @@ function MasonryFrameLibrary() {
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'wall', title: '01 · Gallery Wall', blurb: 'A tight, rounded thumbnail grid with heart/link badges floating on the thumbnail — closest to the current real card, more polished.', Library: GalleryWallLibrary },
-  { id: 'list', title: '02 · List Deck', blurb: 'A compact horizontal list — thumbnail left, info right — faster to scan than a grid when the library is long.', Library: ListDeckLibrary },
-  { id: 'frame', title: '03 · Masonry Frame', blurb: 'Bold, tone-per-kind framed cards with a corner-ribbon badge and a large preview area — the most visually confident of the three.', Library: MasonryFrameLibrary },
+  { id: 'frame', title: '01 · Masonry Frame', blurb: 'Bold, tone-per-kind framed cards with a corner-ribbon badge and a large preview area — the most visually confident of the three.', Library: MasonryFrameLibrary },
 ]
 
 export function MediaLibraryStyleGallery() {
