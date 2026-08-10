@@ -704,7 +704,7 @@ function ReactTabMockup({ state }: { state: PixGridMockState }) {
   return (
     <div className="rv-workspace-panel">
       <div className="rv-pix-grid-reactivity-tabs-help drm-help-overlay-anchor">
-        <PanelSubtabs value={surface} onChange={setSurface} ariaLabel="PixGrid reactivity surfaces" layout="wrap" className="rv-pix-grid-reactivity-tabs" options={REACT_SURFACES} />
+        <PanelSubtabs value={surface} onChange={setSurface} ariaLabel="PixGrid reactivity surfaces" className="rv-pix-grid-reactivity-tabs" options={REACT_SURFACES} />
         <HelpInfoTrigger helpId="react.pixGrid.reactivity.workspace.tabs" currentValue={labels[surface]} currentValueTone="accent" placement="left" />
       </div>
       <div className="rv-workspace-panel-body">

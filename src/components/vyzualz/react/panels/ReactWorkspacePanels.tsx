@@ -119,7 +119,6 @@ export function ReactReactivityWorkspacePanel({ cinemaFrameBridge = null }: { ci
             value={pixGridSurface}
             onChange={value => setPixGridSurface(value)}
             ariaLabel="PixGrid reactivity surfaces"
-            layout="wrap"
             className="rv-pix-grid-reactivity-tabs"
             options={[
               { id: 'routing', label: 'ROUTING' },

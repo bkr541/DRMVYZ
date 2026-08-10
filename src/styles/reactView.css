@@ -820,6 +820,19 @@
   background: rgba(0, 0, 0, 0.13);
 }
 
+/* ── Field/parameter supporting text ─────────────────────────────────────────
+   Hidden throughout React (left and right windows, every engine): this text
+   duplicates what the HelpInfoTrigger info modal already surfaces on demand.
+   Scoped to .rv-shell (React view + its Layout Lab mirror) only, so other
+   screens that happen to reuse these class names are unaffected. !important
+   guarantees this wins regardless of the several other, more specific
+   .rv-ctrl-info/.rv-ctrl-description color/font rules elsewhere in this file. */
+.rv-shell .rv-ctrl-info,
+.rv-shell .rv-ctrl-description,
+.rv-shell .rv-control-helper-copy {
+  display: none !important;
+}
+
 /* ── Info placeholder text ───────────────────────────────────────────────────── */
 .rv-ctrl-info {
   font-size: 9.5px;
@@ -4920,7 +4933,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: rgba(8, 12, 18, 0.96);
+  background: rgb(8, 12, 18);
 }
 
 .rv-context-workspace-header {
@@ -12472,10 +12485,9 @@
   margin-top: 10px;
 }
 
-/* PixGrid native reactivity workspace */
-.rv-pix-grid-reactivity-tabs button {
-  flex: 1 1 calc(50% - 3px);
-}
+/* PixGrid native reactivity workspace — its Routing/Events/Choreography/
+   Analysis tabs use the same single-row, centered, marker+pipe treatment as
+   every other nested tab strip (no forced 50%-width two-column wrap). */
 
 .rv-pix-grid-reactivity-workspace {
   padding-top: 9px;
