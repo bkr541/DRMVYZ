@@ -1459,27 +1459,7 @@ export function ShowManagerView() {
               </LibrarySection>
             </>
           ) : selectedEngineId === 'canvas' ? (
-            <>
-              <LibrarySection title="Canvas Shows" count={canvasShowManagerShows.length}>
-                {canvasShowManagerShows.map(show => (
-                  <button
-                    key={show.id}
-                    type="button"
-                    className={`sm-library-row sm-canvas-show-row${show.id === activeCanvasShow?.id ? ' is-active' : ''}`}
-                    onClick={() => selectCanvasShowManagerShow(show.id)}
-                  >
-                    <span className="sm-library-icon" aria-hidden="true">▣</span>
-                    <span>{show.name}</span>
-                    <small>{show.id === canvasShowManagerActiveShowId ? 'Active' : `${show.sections.length} sections`}</small>
-                  </button>
-                ))}
-                {canvasShowManagerShows.length === 0 && (
-                  <div className="sm-canvas-library-empty">
-                    <p>No Canvas Shows yet.</p>
-                    <button type="button" onClick={openCanvasCreateDialog}>New Show</button>
-                  </div>
-                )}
-              </LibrarySection>
+            <LibrarySection title="Components" count={1}>
               <div className="sm-canvas-media-library" data-testid="canvas-show-manager-media-library">
                 <MediaLibraryBrowser
                   activeMediaId={canvasLibraryMediaId}
@@ -1495,7 +1475,7 @@ export function ShowManagerView() {
                     : 'Create or open a Canvas Show before adding media.'}
                 />
               </div>
-            </>
+            </LibrarySection>
           ) : (
             <div className="sm-panel-blank" />
           )}
@@ -1562,6 +1542,7 @@ export function ShowManagerView() {
                     previewShow={activeCanvasShow}
                     previewShowTimeSec={canvasPlayheadSec}
                     previewSelectedElementId={selectedCanvasElement?.id ?? null}
+                    showRuntimeStatus={false}
                     onLiveFps={setLiveFps}
                   />
                 ) : null}
@@ -1658,7 +1639,6 @@ export function ShowManagerView() {
               onSelect={selectCanvasShowManagerSection}
               onSelectElement={selectCanvasShowManagerMediaElement}
               onPatchElement={commitCanvasElementPatch}
-              onPlayhead={setCanvasPlayheadSec}
             />
           ) : (
             <ShowManagerTimeline
@@ -2219,12 +2199,13 @@ function CanvasShowManagerStage({
       <div className="sm-canvas-stage sm-canvas-stage--empty" data-testid="canvas-show-manager-empty-state">
         <span aria-hidden="true">▣</span>
         <strong>No Canvas Show open</strong>
-        <p>Create a Show or open one from the Canvas Shows list.</p>
+        <p>Create a Show or open one using the header actions.</p>
         <button type="button" onClick={onCreate}>New Show</button>
       </div>
     )
   }
   const selectedRange = sectionRanges.find(range => range.sectionId === selectedSectionId) ?? sectionRanges[0] ?? null
+  const selectedSection = show.sections.find(section => section.id === selectedRange?.sectionId) ?? null
   const visibleElements = selectedRange
     ? show.mediaElements.filter(element => element.showStartSec < selectedRange.endSec && element.showEndSec > selectedRange.startSec)
     : []
@@ -2250,10 +2231,10 @@ function CanvasShowManagerStage({
         }
       }}
     >
-      <header>
-        <div><span>CANVAS SHOW</span><strong>{show.name}</strong></div>
-        <small>{formatClock(getCanvasShowManagerTotalDuration(show))} · {show.sections.length} sections</small>
-      </header>
+      <div className="sm-laser-stage-heading sm-canvas-stage-heading">
+        <span>{show.name}</span>
+        <strong>{selectedSection ? `Editing: ${selectedSection.label}` : 'No section selected'}</strong>
+      </div>
       <div className="sm-canvas-authoring-surface" data-testid="canvas-show-manager-authoring-surface">
         {runtimePreview && <div className="sm-canvas-runtime-preview" data-testid="canvas-show-runtime-preview">{runtimePreview}</div>}
         <div
@@ -2341,7 +2322,6 @@ function CanvasShowManagerTimeline({
   onSelect,
   onSelectElement,
   onPatchElement,
-  onPlayhead,
 }: {
   show: CanvasShowManagerShow | null
   selectedSectionId: string | null
@@ -2354,9 +2334,7 @@ function CanvasShowManagerTimeline({
   onSelect: (sectionId: string | null) => void
   onSelectElement: (elementId: string | null) => void
   onPatchElement: (elementId: string, patch: CanvasShowManagerMediaElementPatch) => boolean
-  onPlayhead: (timeSec: number) => void
 }) {
-  const [playheadDragging, setPlayheadDragging] = useState(false)
   const canvasTimelineSections = useMemo<ShowManagerSectionSegment[]>(() => (
     show?.sections.map((section, index) => ({
       id: section.id,
@@ -2366,21 +2344,6 @@ function CanvasShowManagerTimeline({
       endSec: sectionRanges[index]?.endSec ?? section.durationSec,
     })) ?? []
   ), [sectionRanges, show])
-  const playheadPercent = totalDurationSec > 0
-    ? Math.min(100, Math.max(0, (playheadSec / totalDurationSec) * 100))
-    : 0
-
-  useEffect(() => {
-    if (!playheadDragging) return
-    const finishDrag = () => setPlayheadDragging(false)
-    window.addEventListener('pointerup', finishDrag, { once: true })
-    window.addEventListener('pointercancel', finishDrag, { once: true })
-    return () => {
-      window.removeEventListener('pointerup', finishDrag)
-      window.removeEventListener('pointercancel', finishDrag)
-    }
-  }, [playheadDragging])
-
   const beginPointerCueEdit = (
     event: ReactPointerEvent<HTMLButtonElement>,
     element: CanvasShowManagerMediaElement,
@@ -2415,33 +2378,14 @@ function CanvasShowManagerTimeline({
   const selectedMediaType = selectedMedia ? getCanvasLibraryMediaType(selectedMedia) : null
   const selectedSourceDuration = selectedMedia?.metadata.duration ?? null
   return (
-    <div className="sm-timeline sm-canvas-timeline" aria-label="Show Manager Canvas media timeline">
-      <div className="sm-timeline-tabs">
+    <section className="sm-timeline sm-canvas-timeline" aria-label="Show Manager Canvas media timeline">
+      <header className="sm-timeline-tabs">
         <button type="button" className="is-active" disabled>Track Map</button>
         <span className="sm-timeline-meta">{show ? `${formatClock(totalDurationSec)} total` : 'No Canvas Show open'}</span>
-      </div>
+      </header>
       {error && <div className="sm-canvas-authoring-feedback" role="alert">{error}</div>}
       {show ? (
-        <div className="sm-canvas-timeline-body">
-          <label className="sm-canvas-playhead-control">
-            <input
-              type="range"
-              aria-label="Canvas Show playhead"
-              min="0"
-              max={totalDurationSec}
-              step="0.01"
-              value={Math.min(playheadSec, totalDurationSec)}
-              onChange={event => onPlayhead(Number(event.target.value))}
-              onPointerDown={() => setPlayheadDragging(true)}
-              onPointerCancel={() => setPlayheadDragging(false)}
-            />
-            {playheadDragging && (
-              <output
-                className="sm-canvas-playhead-value"
-                style={{ left: `${Math.min(96, Math.max(4, playheadPercent))}%` }}
-              >{playheadSec.toFixed(2)}s</output>
-            )}
-          </label>
+        <>
           <div className="sm-timeline-grid sm-canvas-section-map">
             <div className="sm-timeline-ruler">
               {[0, ...sectionRanges.map(range => range.endSec)].map((timeSec, index) => (
@@ -2457,41 +2401,42 @@ function CanvasShowManagerTimeline({
               />
             </TimelineRow>
           </div>
-          <div className="sm-canvas-media-lanes">
-            {([3, 2, 1, 0] as const).map(layer => (
-              <div className="sm-canvas-media-lane" key={layer}>
-                <span className="sm-canvas-media-lane__label">L{layer + 1}</span>
-                <div className="sm-canvas-media-lane__track">
-                  <span className="sm-canvas-playhead" style={{ left: `${totalDurationSec > 0 ? (playheadSec / totalDurationSec) * 100 : 0}%` }} aria-hidden="true" />
-                  {show.mediaElements.filter(element => element.layer === layer).map(element => {
-                    const media = mediaItems.find(candidate => candidate.id === element.mediaId) ?? null
-                    const left = totalDurationSec > 0 ? (element.showStartSec / totalDurationSec) * 100 : 0
-                    const width = totalDurationSec > 0 ? ((element.showEndSec - element.showStartSec) / totalDurationSec) * 100 : 0
-                    const handleKey = (edge: 'start' | 'end', event: ReactKeyboardEvent<HTMLButtonElement>) => {
-                      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-                      event.preventDefault()
-                      nudgeCue(element, edge, (event.key === 'ArrowLeft' ? -1 : 1) * (event.shiftKey ? 1 : 0.1))
-                    }
-                    return (
-                      <div
-                        key={element.id}
-                        className={`sm-canvas-media-clip${element.id === selectedElementId ? ' is-selected' : ''}${media ? '' : ' is-missing'}`}
-                        style={{ left: `${left}%`, width: `${width}%` }}
-                      >
-                        <button className="sm-canvas-clip-handle is-start" type="button" aria-label={`Adjust start cue for ${media?.name ?? 'missing media'}`} onPointerDown={event => beginPointerCueEdit(event, element, 'start')} onKeyDown={event => handleKey('start', event)} />
-                        <button className="sm-canvas-media-clip__body" type="button" onClick={() => onSelectElement(element.id)} title={`${media?.name ?? 'Missing media'} · ${element.showStartSec.toFixed(2)}–${element.showEndSec.toFixed(2)}s`}>
-                          {media?.title?.trim() || media?.name || 'Unavailable'}
-                        </button>
-                        <button className="sm-canvas-clip-handle is-end" type="button" aria-label={`Adjust end cue for ${media?.name ?? 'missing media'}`} onPointerDown={event => beginPointerCueEdit(event, element, 'end')} onKeyDown={event => handleKey('end', event)} />
-                      </div>
-                    )
-                  })}
+          <div className="sm-canvas-timeline-body">
+            <div className="sm-canvas-media-lanes">
+              {([3, 2, 1, 0] as const).map(layer => (
+                <div className="sm-canvas-media-lane" key={layer}>
+                  <span className="sm-canvas-media-lane__label">L{layer + 1}</span>
+                  <div className="sm-canvas-media-lane__track">
+                    <span className="sm-canvas-playhead" style={{ left: `${totalDurationSec > 0 ? (playheadSec / totalDurationSec) * 100 : 0}%` }} aria-hidden="true" />
+                    {show.mediaElements.filter(element => element.layer === layer).map(element => {
+                      const media = mediaItems.find(candidate => candidate.id === element.mediaId) ?? null
+                      const left = totalDurationSec > 0 ? (element.showStartSec / totalDurationSec) * 100 : 0
+                      const width = totalDurationSec > 0 ? ((element.showEndSec - element.showStartSec) / totalDurationSec) * 100 : 0
+                      const handleKey = (edge: 'start' | 'end', event: ReactKeyboardEvent<HTMLButtonElement>) => {
+                        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+                        event.preventDefault()
+                        nudgeCue(element, edge, (event.key === 'ArrowLeft' ? -1 : 1) * (event.shiftKey ? 1 : 0.1))
+                      }
+                      return (
+                        <div
+                          key={element.id}
+                          className={`sm-canvas-media-clip${element.id === selectedElementId ? ' is-selected' : ''}${media ? '' : ' is-missing'}`}
+                          style={{ left: `${left}%`, width: `${width}%` }}
+                        >
+                          <button className="sm-canvas-clip-handle is-start" type="button" aria-label={`Adjust start cue for ${media?.name ?? 'missing media'}`} onPointerDown={event => beginPointerCueEdit(event, element, 'start')} onKeyDown={event => handleKey('start', event)} />
+                          <button className="sm-canvas-media-clip__body" type="button" onClick={() => onSelectElement(element.id)} title={`${media?.name ?? 'Missing media'} · ${element.showStartSec.toFixed(2)}–${element.showEndSec.toFixed(2)}s`}>
+                            {media?.title?.trim() || media?.name || 'Unavailable'}
+                          </button>
+                          <button className="sm-canvas-clip-handle is-end" type="button" aria-label={`Adjust end cue for ${media?.name ?? 'missing media'}`} onPointerDown={event => beginPointerCueEdit(event, element, 'end')} onKeyDown={event => handleKey('end', event)} />
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-          {selectedElement && (
-            <div className="sm-canvas-selected-clip-authoring" data-testid="canvas-selected-clip-authoring">
+              ))}
+            </div>
+            {selectedElement && (
+              <div className="sm-canvas-selected-clip-authoring" data-testid="canvas-selected-clip-authoring">
               <div className="sm-canvas-selected-clip-authoring__heading">
                 <strong>{selectedMedia?.title?.trim() || selectedMedia?.name || 'Missing media'}</strong>
                 <small>Show cues and source trim</small>
@@ -2571,11 +2516,12 @@ function CanvasShowManagerTimeline({
                   )
                 ) : <small>Video duration is still resolving. Source trim will be available when metadata is known.</small>
               )}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        </>
       ) : <div className="sm-laser-timeline-empty">Create or open a Canvas Show to edit its sections.</div>}
-    </div>
+    </section>
   )
 }
 

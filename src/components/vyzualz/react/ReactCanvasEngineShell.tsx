@@ -1317,6 +1317,7 @@ export function CanvasEngineSurface({
   previewShow = null,
   previewShowTimeSec = null,
   previewSelectedElementId = null,
+  showRuntimeStatus = true,
 }: {
   isPlaying: boolean
   isPaused: boolean
@@ -1332,6 +1333,7 @@ export function CanvasEngineSurface({
   previewShow?: CanvasShowManagerShow | null
   previewShowTimeSec?: number | null
   previewSelectedElementId?: string | null
+  showRuntimeStatus?: boolean
 }) {
   const settings = useReactStore(s => s.canvasEngineSettings)
   const activeBrandKit = useBrandKitStore(s => s.activeKit)
@@ -2150,6 +2152,7 @@ export function CanvasEngineSurface({
         brandKit={activeBrandKit}
         onCanvasReady={outputAvailable ? onCanvasReady : undefined}
         onLiveFps={onLiveFps}
+        showStatus={showRuntimeStatus}
       />
     )
   }

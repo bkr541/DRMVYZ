@@ -41,6 +41,7 @@ interface CanvasOrchestrationStageProps {
   brandKit?: Readonly<BrandKit> | null
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onLiveFps?: (fps: number) => void
+  showStatus?: boolean
 }
 
 type DrawableSource = CanvasImageSource & (HTMLVideoElement | HTMLImageElement)
@@ -313,6 +314,7 @@ function CanvasGenericOrchestrationStage({
   motionIntensity,
   onCanvasReady,
   onLiveFps,
+  showStatus,
 }: CanvasOrchestrationStageProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const shellRef = useRef<HTMLDivElement | null>(null)
@@ -511,7 +513,7 @@ function CanvasGenericOrchestrationStage({
         className="rv-canvas-orchestration-canvas"
         data-output-opacity={outputContract.canvasOutputOpacity.toFixed(3)}
       />
-      <div className="rv-canvas-orchestration-status" role="status">
+      {showStatus !== false && <div className="rv-canvas-orchestration-status" role="status">
         <strong>{frame.showLabel} · {frame.template.label}</strong>
         <span>{frame.layers.filter(layer => layer.enabled).length} layers · {frame.decoderCount} video decoders · {mediaSummary.length} sources</span>
         {frame.anticipatoryStage !== 'none' && <span>Queued: {frame.anticipatoryStage}{frame.nextSectionType ? ` → ${frame.nextSectionType}` : ''}</span>}
@@ -522,7 +524,7 @@ function CanvasGenericOrchestrationStage({
             {qualitySnapshot.fallbackReason ? ` · ${qualitySnapshot.fallbackReason}` : ''}
           </span>
         )}
-      </div>
+      </div>}
     </div>
   )
 }
@@ -543,6 +545,7 @@ function CanvasFracturesOrchestrationStage({
   isPaused,
   onCanvasReady,
   onLiveFps,
+  showStatus,
 }: CanvasOrchestrationStageProps) {
   const layer = frame.layers.find(candidate => isCanvasFracturesProcessor(candidate.processor)) ?? null
   const processor = layer?.processor && isCanvasFracturesProcessor(layer.processor) ? layer.processor : null
@@ -604,12 +607,12 @@ function CanvasFracturesOrchestrationStage({
           onLiveFps={onLiveFps}
         />
       )}
-      <div className="rv-canvas-orchestration-status" role="status">
+      {showStatus !== false && <div className="rv-canvas-orchestration-status" role="status">
         <strong>{frame.showLabel} · Fractures</strong>
         <span>1 logical layer · {frame.decoderCount} video decoder{frame.decoderCount === 1 ? '' : 's'} · internal fragment compositor</span>
         {!active && <span>Preloading the Fractures source</span>}
         {frame.anticipatoryStage !== 'none' && <span>Queued: {frame.anticipatoryStage}{frame.nextSectionType ? ` → ${frame.nextSectionType}` : ''}</span>}
-      </div>
+      </div>}
     </div>
   )
 }

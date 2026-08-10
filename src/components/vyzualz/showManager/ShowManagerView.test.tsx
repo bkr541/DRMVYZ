@@ -275,8 +275,12 @@ vi.mock('../react/ReactPlaceholderCanvas', () => ({
 }))
 
 vi.mock('../react/ReactCanvasEngineShell', () => ({
-  CanvasEngineSurface: ({ previewSelectedElementId }: { previewSelectedElementId?: string | null }) => (
-    <canvas data-testid="canvas-runtime-preview-surface" data-selected-element-id={previewSelectedElementId ?? ''} />
+  CanvasEngineSurface: ({ previewSelectedElementId, showRuntimeStatus }: { previewSelectedElementId?: string | null; showRuntimeStatus?: boolean }) => (
+    <canvas
+      data-testid="canvas-runtime-preview-surface"
+      data-selected-element-id={previewSelectedElementId ?? ''}
+      data-runtime-status={showRuntimeStatus === false ? 'hidden' : 'visible'}
+    />
   ),
 }))
 
@@ -534,7 +538,7 @@ describe('ShowManagerView production shell', () => {
     expect(container.querySelector('.sm-show-browser')).toBeNull()
   })
 
-  it('mirrors LaserDMX sections in Canvas and shows playhead seconds only while dragging the thumb', async () => {
+  it('mirrors the LaserDMX Canvas stage and Track Map layout without Canvas-only playhead controls', async () => {
     const sections = [
       ['intro', 'Intro'], ['verse', 'Verse'], ['build', 'Build'], ['preDrop', 'Pre-Drop'],
       ['drop', 'Drop'], ['breakdown', 'Breakdown'], ['outro', 'Outro'],
@@ -580,32 +584,22 @@ describe('ShowManagerView production shell', () => {
     expect(sectionRegions?.[0]?.style.getPropertyValue('--section-color')).toBe('#61d6aa')
     expect(sectionRegions?.[4]?.style.getPropertyValue('--section-color')).toBe('#c0314a')
     expect(container.querySelector('.sm-canvas-section-grid--compact')).toBeNull()
+    expect(timeline?.querySelector('.sm-canvas-section-map')?.parentElement).toBe(timeline)
+    expect(timeline?.querySelector('input[aria-label="Canvas Show playhead"]')).toBeNull()
+    expect(timeline?.querySelector('.sm-canvas-playhead-control')).toBeNull()
 
-    const slider = timeline?.querySelector<HTMLInputElement>('input[aria-label="Canvas Show playhead"]')
-    expect(timeline?.textContent).not.toContain('Playhead')
-    expect(timeline?.querySelector('.sm-canvas-playhead-value')).toBeNull()
+    const stageHeading = container.querySelector<HTMLElement>('.sm-canvas-stage > .sm-laser-stage-heading')
+    expect(stageHeading?.textContent).toContain('Track Map Show')
+    expect(stageHeading?.textContent).toContain('Editing: Intro')
+    expect(container.querySelector('[data-testid="canvas-runtime-preview-surface"]')?.getAttribute('data-runtime-status')).toBe('hidden')
 
-    await act(async () => {
-      slider?.dispatchEvent(new Event('pointerdown', { bubbles: true }))
-      await Promise.resolve()
-    })
-    expect(timeline?.querySelector('.sm-canvas-playhead-value')?.textContent).toBe('0.00s')
-
-    await act(async () => {
-      if (slider) {
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
-        setter?.call(slider, '12.32')
-        slider.dispatchEvent(new Event('input', { bubbles: true }))
-      }
-      await Promise.resolve()
-    })
-    expect(timeline?.querySelector('.sm-canvas-playhead-value')?.textContent).toBe('12.32s')
-
-    await act(async () => {
-      window.dispatchEvent(new Event('pointerup'))
-      await Promise.resolve()
-    })
-    expect(timeline?.querySelector('.sm-canvas-playhead-value')).toBeNull()
+    const library = container.querySelector<HTMLElement>('.sm-library')
+    const topLevelGroups = [...(library?.querySelectorAll<HTMLElement>('.sm-library-section') ?? [])]
+      .filter(section => section.parentElement === library)
+    expect(topLevelGroups).toHaveLength(1)
+    expect(topLevelGroups[0]?.querySelector('.sm-library-section-toggle strong')?.textContent).toBe('Components')
+    expect(topLevelGroups[0]?.querySelector('[data-testid="canvas-show-manager-media-library"]')).not.toBeNull()
+    expect(topLevelGroups[0]?.textContent).not.toContain('Canvas Shows')
   })
 
   it('uses the shared media drag contract to place a real element on an explicit Canvas layer target', async () => {
