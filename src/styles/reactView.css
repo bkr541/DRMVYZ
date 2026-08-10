@@ -2316,6 +2316,18 @@
   color: rgba(232, 244, 248, 0.72);
 }
 
+/* Static (non-collapsible) preset-group section headers — the collapsible
+   EngineSection header renders its own DualRailCollapsible .drc-header
+   instead of this class, so this only ever reaches plain <div> headers. */
+div.rv-preset-group-hdr {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
 .rv-preset-group-hdr-icon {
   font-size: 13px;
   opacity: 0.65;
@@ -2329,6 +2341,10 @@
   text-transform: uppercase;
   color: rgba(232, 244, 248, 0.5);
   transition: color 0.12s;
+}
+
+div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
+  flex: 1;
 }
 
 .rv-preset-group-hdr-count {
@@ -4912,6 +4928,10 @@
   letter-spacing: 0.02em;
 }
 
+/* RIG / LAYERS (and the equivalent left-rail tabs for other engines) sit at
+   the same navigation depth as PRESETS / DESIGN / REACT / OUTPUT, so they
+   get the same full-width sliding-underline main-tab treatment — no pipe
+   divider, no diamond marker. */
 .rv-context-workspace-tabs {
   padding: 6px 7px 5px;
 }
@@ -4919,65 +4939,6 @@
 .rv-context-workspace-tabs button {
   min-width: 52px;
   flex: 1 1 auto;
-}
-
-/* This left-rail tab strip (e.g. Matrix / Show Director) is a nested tab —
-   it lives inside an engine context rather than being top-level navigation
-   — so it gets the compact, centered "marker + pipe divider" treatment
-   instead of the main tabs' full-width sliding underline. These compound
-   overrides beat the plain-button rules above. */
-.rv-context-workspace-tabs.dv-underline-tabs {
-  display: flex;
-  justify-content: center;
-  gap: 0;
-  padding: 6px 7px 12px;
-  border-bottom: 0;
-}
-
-.rv-context-workspace-tabs .dv-underline-tab {
-  flex: 0 0 auto;
-  min-width: 0;
-  display: inline-flex;
-  flex-direction: row-reverse;
-  align-items: center;
-  gap: 6px;
-  padding: 0;
-}
-
-.rv-context-workspace-tabs .dv-underline-tab:not(:first-child) {
-  margin-left: 22px;
-}
-
-.rv-context-workspace-tabs .dv-underline-tab:not(:first-child)::before {
-  content: '';
-  position: absolute;
-  left: -12px;
-  top: 50%;
-  width: 1px;
-  height: 11px;
-  transform: translateY(-50%);
-  background: rgba(154, 178, 188, 0.28);
-}
-
-.rv-context-workspace-tabs .dv-underline-tab::after {
-  content: none;
-}
-
-.rv-context-workspace-tabs .dv-underline-tab.is-active::after {
-  content: '\25C6';
-  position: static;
-  left: auto;
-  right: auto;
-  bottom: auto;
-  width: auto;
-  height: auto;
-  border-radius: 0;
-  background: none;
-  box-shadow: none;
-  transform: none;
-  font-size: 7px;
-  color: #4ac7db;
-  text-shadow: 0 0 6px rgba(74, 199, 219, 0.7);
 }
 
 /* Explicit Sound Drawing help anchors mirror the highlighted control bounds
@@ -5566,6 +5527,7 @@
 
 .rv-right-subtabs {
   display: flex;
+  align-items: center;
   justify-content: center;
   gap: 0;
   margin: 7px 8px 0;
@@ -7163,20 +7125,74 @@
 }
 
 .rv-laser-rig-toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   flex-wrap: wrap;
   gap: 10px;
   padding: 2px;
-  background: rgba(6, 13, 16, 0.96);
-  backdrop-filter: blur(10px);
+  background: transparent;
 }
 .rv-laser-rig-surfaces {
   min-width: 0;
+}
+
+/* MATRIX / SHOW DIRECTOR is a nested tab — it lives inside the RIG left-rail
+   tab rather than being top-level navigation — so it gets the compact,
+   centered "marker + pipe divider" treatment instead of the main tabs'
+   full-width sliding underline. Mirrors .rv-right-subtabs (PanelSubtabs). */
+.rv-laser-rig-surfaces.dv-underline-tabs {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
+  border-bottom: 0;
+}
+
+.rv-laser-rig-surfaces .dv-underline-tab {
+  flex: 0 0 auto;
+  min-width: 0;
+  display: inline-flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+}
+
+.rv-laser-rig-surfaces .dv-underline-tab:not(:first-child) {
+  margin-left: 22px;
+}
+
+.rv-laser-rig-surfaces .dv-underline-tab:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  width: 1px;
+  height: 11px;
+  transform: translateY(-50%);
+  background: rgba(154, 178, 188, 0.28);
+}
+
+.rv-laser-rig-surfaces .dv-underline-tab::after {
+  content: none;
+}
+
+.rv-laser-rig-surfaces .dv-underline-tab.is-active::after {
+  content: '\25C6';
+  position: static;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  transform: none;
+  font-size: 7px;
+  color: #4ac7db;
+  text-shadow: 0 0 6px rgba(74, 199, 219, 0.7);
 }
 
 .rv-laser-workspace-surface {
@@ -9823,10 +9839,6 @@
 
 .rv-laser-rig-toolbar {
   padding: 0;
-}
-
-.rv-laser-rig-surfaces button {
-  min-height: 34px;
 }
 
 .rv-show-director-design-panel {
@@ -15985,25 +15997,6 @@
   font-weight: 700;
 }
 
-.rv-cinema-workspace__runtime {
-  display: grid;
-  gap: 3px;
-  padding: 9px;
-  border: 1px solid rgba(216, 185, 90, .24);
-  border-radius: 7px;
-  background: rgba(216, 185, 90, .06);
-}
-
-.rv-cinema-workspace__runtime strong {
-  color: rgba(255, 241, 190, .92);
-  font-size: 10px;
-}
-
-.rv-cinema-workspace__runtime span {
-  color: rgba(228, 236, 215, .68);
-  font-size: 9px;
-  line-height: 1.4;
-}
 
 .rv-cinema-workspace--stage {
   position: relative;

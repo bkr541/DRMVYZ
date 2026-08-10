@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { NoticeCard } from './controls/NoticeCard'
 import { useShallow } from 'zustand/react/shallow'
 import {
   createCinemaDiagnostic,
@@ -245,18 +246,20 @@ export function CinemaWorkspace({
     return (
       <section className="rv-cinema-workspace rv-cinema-workspace--panel" aria-label="Cinema runtime setup">
         {actionableDiagnostic && (
-          <div className="rv-cinema-workspace__runtime" role="note" aria-live="polite">
-            <strong>{actionableDiagnostic.code}</strong>
-            <span>{actionableDiagnostic.message}</span>
-          </div>
+          <NoticeCard tone="warning" role="status" title={actionableDiagnostic.code}>
+            {actionableDiagnostic.message}
+          </NoticeCard>
         )}
         <div className="rv-cinema-workspace__eyebrow">Cinema Setup</div>
         <h3>{compositionName}</h3>
         <p>Choose the active preset in Presets, select its visual hierarchy in Layers, then shape its live look in Design.</p>
-        <div className="rv-cinema-workspace__runtime" role="status">
-          <strong>{model.statusLabel}</strong>
-          <span>{diagnosticSummary(model.diagnostics)} · {model.frameAvailable ? 'Audio and timeline connected' : 'Waiting for audio and timeline'}</span>
-        </div>
+        <NoticeCard
+          tone={model.statusLabel === 'Ready' ? 'success' : model.statusLabel === 'Needs attention' ? 'warning' : 'info'}
+          role="status"
+          title={model.statusLabel}
+        >
+          {diagnosticSummary(model.diagnostics)} · {model.frameAvailable ? 'Audio and timeline connected' : 'Waiting for audio and timeline'}
+        </NoticeCard>
         <div className="rv-ctrl-info">Create presets, change structure, and manage reusable content in Show Manager.</div>
       </section>
     )
