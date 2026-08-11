@@ -9,6 +9,8 @@ const CANONICAL_CANVAS_PRESET_FIELDS: ReadonlyArray<keyof CanvasPresetSettings> 
   'sourceMixMode', 'drySourceMix', 'intensity', 'bassReactivity', 'beatPulse', 'glow', 'trailAmount',
   'rgbSplit', 'glitchAmount', 'stutterRate', 'lumaThreshold', 'motionAmount',
   'turbulence', 'particleDensity', 'particleSize', 'particleColorMode', 'particleQuality',
+  'laserImageEffect', 'laserColorEffect', 'laserSpeed', 'laserWarpAmount', 'laserPerspective',
+  'laserColorAmount', 'laserBloom', 'laserBpmSync', 'laserize',
   'fractureIntensity', 'fractureMode', 'fractureAnchorMode', 'fractureFocusProtection',
   'fractureFocusX', 'fractureFocusY', 'fractureComposition', 'fracturePlacementMode',
   'fractureTopologyInterval', 'fractureLayoutInterval', 'fractureVariationSeed', 'fractureQuality',

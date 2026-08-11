@@ -10516,6 +10516,17 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   filter: none;
 }
 
+.rv-canvas-laser-image-fx-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  filter: none;
+}
+
 .rv-canvas-fractures-renderer-layer {
   position: absolute;
   inset: 0;
@@ -10597,6 +10608,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-canvas-param-output[data-particle-reconstruction-active='true'] .rv-canvas-live-grid,
 .rv-canvas-param-output[data-particle-reconstruction-active='true'] .rv-canvas-live-media-shell::before,
 .rv-canvas-param-output[data-particle-reconstruction-active='true'] .rv-canvas-live-media-shell::after {
+  opacity: 0;
+}
+
+.rv-canvas-param-output[data-laser-image-fx-active='true'] .rv-canvas-preset-aura,
+.rv-canvas-param-output[data-laser-image-fx-active='true'] .rv-canvas-live-grid,
+.rv-canvas-param-output[data-laser-image-fx-active='true'] .rv-canvas-live-media-shell::before,
+.rv-canvas-param-output[data-laser-image-fx-active='true'] .rv-canvas-live-media-shell::after {
   opacity: 0;
 }
 

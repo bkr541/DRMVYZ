@@ -217,10 +217,23 @@ export type CanvasPresetId =
   | 'canvas-frame-stutter'
   | 'canvas-particle-aura'
   | 'canvas-fractures'
+  | 'canvas-laser-image-fx'
 
-export type CanvasPresetRendererKind = 'standard' | 'particleAura' | 'fragmentCollage'
+export type CanvasPresetRendererKind = 'standard' | 'particleAura' | 'fragmentCollage' | 'laserImageFx'
 export type CanvasPresetColorMode = 'original' | 'palette' | 'audioReactive'
 export type CanvasParticleQuality = 'low' | 'balanced' | 'high'
+export type CanvasLaserImageEffect =
+  | 'none'
+  | 'cubeA'
+  | 'flipB'
+  | 'spin3d'
+  | 'twistB'
+  | 'rubber'
+  | 'stripe'
+  | 'vignette'
+  | 'warpDiamond'
+  | 'warpSquare'
+export type CanvasLaserColorEffect = 'source' | 'beatSaturateA' | 'beatSaturateB' | 'colorBlobsA' | 'colorBlobsB'
 export type CanvasFractureAnchorMode = 'alwaysVisible' | 'reactive' | 'fadeWithMusic' | 'fullyFragmented'
 export type CanvasFractureMode = 'mixed' | 'rectangles' | 'horizontalSlices' | 'verticalSlices' | 'angledQuads'
 export type CanvasFracturePlacementMode = 'balanced' | 'offscreenSpill' | 'heavyOverlap' | 'anchorCover' | 'repeatedCrops' | 'mirrorFlip' | 'randomMix'
@@ -302,7 +315,7 @@ export const DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS: CanvasVideoTimingSettings = {
   sectionTriggerTypes: ['intro', 'build', 'drop', 'breakdown', 'outro'],
 }
 
-export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 5 as const
+export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 6 as const
 
 export interface CanvasPresetSettings {
   schemaVersion: typeof CANVAS_PRESET_SETTINGS_SCHEMA_VERSION
@@ -326,6 +339,15 @@ export interface CanvasPresetSettings {
   particleSize: number
   particleColorMode: CanvasPresetColorMode
   particleQuality: CanvasParticleQuality
+  laserImageEffect: CanvasLaserImageEffect
+  laserColorEffect: CanvasLaserColorEffect
+  laserSpeed: number
+  laserWarpAmount: number
+  laserPerspective: number
+  laserColorAmount: number
+  laserBloom: number
+  laserBpmSync: boolean
+  laserize: number
   fractureIntensity: number
   fractureMode: CanvasFractureMode
   fractureAnchorMode: CanvasFractureAnchorMode
@@ -482,6 +504,15 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
   particleSize: 2.4,
   particleColorMode: 'original',
   particleQuality: 'balanced',
+  laserImageEffect: 'spin3d',
+  laserColorEffect: 'source',
+  laserSpeed: 1,
+  laserWarpAmount: 0.58,
+  laserPerspective: 0.68,
+  laserColorAmount: 0.72,
+  laserBloom: 0.8,
+  laserBpmSync: true,
+  laserize: 0,
   fractureIntensity: 0.34,
   fractureMode: 'mixed',
   fractureAnchorMode: 'alwaysVisible',
@@ -759,6 +790,39 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       motionAmount: 0,
       turbulence: 0,
       particleDensity: 0,
+    },
+    controls: [],
+  },
+  {
+    id: 'canvas-laser-image-fx',
+    name: 'Laser Image FX',
+    description: 'GPU laser-image treatment with independent perspective/warp geometry, musical color modes, optional edge laserization, and neon bloom.',
+    accent: '#72fff0',
+    rendererKind: 'laserImageFx',
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 0.08,
+      sourceVisibility: 0.08,
+      intensity: 0.9,
+      bassReactivity: 0.7,
+      beatPulse: 0.78,
+      glow: 0,
+      trailAmount: 0,
+      rgbSplit: 0,
+      glitchAmount: 0,
+      stutterRate: 0,
+      motionAmount: 0,
+      turbulence: 0,
+      particleDensity: 0,
+      laserImageEffect: 'spin3d',
+      laserColorEffect: 'source',
+      laserSpeed: 1,
+      laserWarpAmount: 0.62,
+      laserPerspective: 0.72,
+      laserColorAmount: 0.74,
+      laserBloom: 0.88,
+      laserBpmSync: true,
+      laserize: 0,
     },
     controls: [],
   },

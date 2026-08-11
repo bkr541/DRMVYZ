@@ -50,7 +50,7 @@ export interface CanvasMockPreset {
   name: string
   description: string
   accent: string
-  rendererKind: 'standard' | 'particleAura' | 'fragmentCollage'
+  rendererKind: 'standard' | 'particleAura' | 'fragmentCollage' | 'laserImageFx'
   favorite: boolean
   modified: boolean
 }

@@ -74,6 +74,8 @@ import type {
   CanvasFractureQualityMode,
   CanvasFractureQuantizeInterval,
   CanvasFractureTransitionMode,
+  CanvasLaserColorEffect,
+  CanvasLaserImageEffect,
   CanvasPresetColorMode,
   CanvasParticleQuality,
   CanvasPresetId,
@@ -4065,6 +4067,31 @@ function normalizeCanvasParticleQuality(value: unknown): CanvasParticleQuality {
     : DEFAULT_CANVAS_PRESET_SETTINGS.particleQuality
 }
 
+function normalizeCanvasLaserImageEffect(value: unknown): CanvasLaserImageEffect {
+  return value === 'none'
+    || value === 'cubeA'
+    || value === 'flipB'
+    || value === 'spin3d'
+    || value === 'twistB'
+    || value === 'rubber'
+    || value === 'stripe'
+    || value === 'vignette'
+    || value === 'warpDiamond'
+    || value === 'warpSquare'
+    ? value
+    : DEFAULT_CANVAS_PRESET_SETTINGS.laserImageEffect
+}
+
+function normalizeCanvasLaserColorEffect(value: unknown): CanvasLaserColorEffect {
+  return value === 'source'
+    || value === 'beatSaturateA'
+    || value === 'beatSaturateB'
+    || value === 'colorBlobsA'
+    || value === 'colorBlobsB'
+    ? value
+    : DEFAULT_CANVAS_PRESET_SETTINGS.laserColorEffect
+}
+
 function normalizeCanvasFractureMode(value: unknown): CanvasFractureMode {
   return value === 'rectangles' || value === 'horizontalSlices' || value === 'verticalSlices' || value === 'angledQuads' || value === 'mixed'
     ? value
@@ -4221,6 +4248,15 @@ export function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSetti
     particleSize: clampCanvasNumber(source.particleSize, DEFAULT_CANVAS_PRESET_SETTINGS.particleSize, 0.35, 8),
     particleColorMode: normalizeCanvasPresetColorMode(source.particleColorMode),
     particleQuality: normalizeCanvasParticleQuality(source.particleQuality),
+    laserImageEffect: normalizeCanvasLaserImageEffect(source.laserImageEffect),
+    laserColorEffect: normalizeCanvasLaserColorEffect(source.laserColorEffect),
+    laserSpeed: clampCanvasNumber(source.laserSpeed, DEFAULT_CANVAS_PRESET_SETTINGS.laserSpeed, 0, 4),
+    laserWarpAmount: clampCanvasNumber(source.laserWarpAmount, DEFAULT_CANVAS_PRESET_SETTINGS.laserWarpAmount, 0, 1),
+    laserPerspective: clampCanvasNumber(source.laserPerspective, DEFAULT_CANVAS_PRESET_SETTINGS.laserPerspective, 0, 1),
+    laserColorAmount: clampCanvasNumber(source.laserColorAmount, DEFAULT_CANVAS_PRESET_SETTINGS.laserColorAmount, 0, 1),
+    laserBloom: clampCanvasNumber(source.laserBloom, DEFAULT_CANVAS_PRESET_SETTINGS.laserBloom, 0, 1),
+    laserBpmSync: source.laserBpmSync == null ? DEFAULT_CANVAS_PRESET_SETTINGS.laserBpmSync : source.laserBpmSync === true,
+    laserize: clampCanvasNumber(source.laserize, DEFAULT_CANVAS_PRESET_SETTINGS.laserize, 0, 1),
     fractureIntensity: clampCanvasNumber(source.fractureIntensity, DEFAULT_CANVAS_PRESET_SETTINGS.fractureIntensity, 0, 1),
     fractureMode: normalizeCanvasFractureMode(source.fractureMode),
     fractureAnchorMode: normalizeCanvasFractureAnchorMode(source.fractureAnchorMode),

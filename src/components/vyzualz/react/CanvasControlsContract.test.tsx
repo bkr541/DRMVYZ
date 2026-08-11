@@ -83,14 +83,45 @@ describe('CANVAS right-panel control contract', () => {
       act(() => useReactStore.getState().selectCanvasPreset('canvas-particle-aura'))
       expect(host.querySelector('[data-renderer-kind="particleAura"]')).not.toBeNull()
 
+      act(() => useReactStore.getState().selectCanvasPreset('canvas-laser-image-fx'))
+      expect(host.querySelector('[data-renderer-kind="laserImageFx"]')).not.toBeNull()
+      expect(host.querySelector('canvas.rv-canvas-laser-image-fx-layer[data-renderer-backend="webgl2"]')).not.toBeNull()
+
       act(() => useReactStore.getState().selectCanvasPreset('canvas-clean-playback'))
       expect(host.querySelector('[data-renderer-kind="standard"]')).not.toBeNull()
       expect(host.querySelector('canvas.rv-canvas-fractures-renderer-layer')).toBeNull()
+      expect(host.querySelector('canvas.rv-canvas-laser-image-fx-layer')).toBeNull()
     } finally {
       HTMLCanvasElement.prototype.getContext = originalGetContext
       window.requestAnimationFrame = originalRequestAnimationFrame
       window.cancelAnimationFrame = originalCancelAnimationFrame
     }
+  })
+
+  it('exposes the production Laser Image FX control contract when selected', () => {
+    useReactStore.getState().selectCanvasPreset('canvas-laser-image-fx')
+    act(() => root.render(<CanvasEngineFxPanel />))
+
+    const groupLabels = [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
+      .map(button => button.textContent?.trim())
+    expect(groupLabels).toContain('Laser Image FX Controls')
+    expect(groupLabels).not.toContain('Fractures Controls')
+
+    const controlLabels = [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
+      .map(node => node.textContent?.trim())
+    expect(controlLabels).toEqual(expect.arrayContaining([
+      'Image Effect',
+      'Color Effect',
+      'Intensity',
+      'Speed',
+      'Warp Amount',
+      'Perspective',
+      'Color Amount',
+      'Bloom',
+      'BPM Sync',
+      'Laserize',
+      'Dry Source Mix',
+    ]))
   })
 
   it('passes the canonical active Brand Kit into the real Fractures render path', () => {

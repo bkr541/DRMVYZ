@@ -45,6 +45,7 @@ import {
   type CanvasParticlePoint,
 } from './renderers/CanvasParticleAuraRenderer'
 import { CanvasFracturesRendererLayer } from './renderers/CanvasFracturesRendererLayer'
+import { CanvasLaserImageFxLayer } from './renderers/laserImageFx/CanvasLaserImageFxLayer'
 import {
   isCanvasOutputAvailable,
   resolveCanvasOutputCapability,
@@ -86,6 +87,8 @@ import {
   type CanvasFractureQualityMode,
   type CanvasFractureQuantizeInterval,
   type CanvasFractureTransitionMode,
+  type CanvasLaserColorEffect,
+  type CanvasLaserImageEffect,
   type CanvasMediaItem,
   type CanvasMediaItemType,
   type CanvasParticleQuality,
@@ -1358,6 +1361,7 @@ export function CanvasEngineSurface({
   const outputCaptureCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const sourceEffectsCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const particleOutputCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const laserImageFxOutputCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const orchestrationPreloadManagerRef = useRef<CanvasPreloadManager | null>(null)
   if (!orchestrationPreloadManagerRef.current) orchestrationPreloadManagerRef.current = new CanvasPreloadManager({
     maxVideoHandles: MAX_CANVAS_SHOW_VIDEO_DECODERS,
@@ -1370,6 +1374,7 @@ export function CanvasEngineSurface({
   const [orchestrationFrame, setOrchestrationFrame] = useState<CanvasResolvedPerformanceFrame | null>(null)
   const [mediaLoadError, setMediaLoadError] = useState<CanvasMediaLoadState>(EMPTY_CANVAS_MEDIA_LOAD_STATE)
   const [particleRendererNotice, setParticleRendererNotice] = useState<string | null>(null)
+  const [laserImageFxRendererNotice, setLaserImageFxRendererNotice] = useState<string | null>(null)
   const [fracturesRendererNotice, setFracturesRendererNotice] = useState<string | null>(null)
   const [fracturesReadySourceKey, setFracturesReadySourceKey] = useState<string | null>(null)
   const [detectedBackgroundMode, setDetectedBackgroundMode] = useState<{
@@ -1403,6 +1408,7 @@ export function CanvasEngineSurface({
   }), [canvasPresetSettings, settings.opacity])
   const particleReconstructionActive = rendererKind === 'particleAura'
   const fragmentCollageActive = rendererKind === 'fragmentCollage'
+  const laserImageFxActive = rendererKind === 'laserImageFx'
   const effectPassActive = rendererKind === 'standard' && hasCanvasEffectPass(canvasPresetSettings)
   const activeVideo = activeItem?.type === 'video'
   const activeMediaTransparencyKey = activeItem ? getCanvasMediaTransparencyKey(activeItem) : null
@@ -1423,6 +1429,9 @@ export function CanvasEngineSurface({
   const particleSourceRef = activeVideo ? videoRef : imageRef
   const handleParticleCanvasReady = useCallback((canvas: HTMLCanvasElement | null) => {
     particleOutputCanvasRef.current = canvas
+  }, [])
+  const handleLaserImageFxCanvasReady = useCallback((canvas: HTMLCanvasElement | null) => {
+    laserImageFxOutputCanvasRef.current = canvas
   }, [])
   const handleFracturesPreviewReady = useCallback((ready: boolean) => {
     setFracturesReadySourceKey(ready ? fracturesSourceKey : null)
@@ -1561,7 +1570,7 @@ export function CanvasEngineSurface({
   }, [orchestrationPreloadManager])
 
   useEffect(() => {
-    if (!particleReconstructionActive && !fragmentCollageActive) {
+    if (!particleReconstructionActive && !fragmentCollageActive && !laserImageFxActive) {
       previousParticlePerformanceContextRef.current = null
       particlePerformanceContextRef.current = null
       return
@@ -1591,7 +1600,7 @@ export function CanvasEngineSurface({
       previousParticlePerformanceContextRef.current = null
       particlePerformanceContextRef.current = null
     }
-  }, [activeAudioTrackId, fragmentCollageActive, particleReconstructionActive])
+  }, [activeAudioTrackId, fragmentCollageActive, laserImageFxActive, particleReconstructionActive])
 
   const orchestrationRenderable = orchestrationFrame?.runtimeMode === 'show'
     ? true
@@ -1734,8 +1743,8 @@ export function CanvasEngineSurface({
         context.restore()
       }
 
-      // Standard and Particle Aura capture begins with the same pristine,
-      // unfiltered fidelity anchor shown by the browser-owned source. Fractures
+      // Standard, Particle Aura, and Laser Image FX capture begins with the same
+      // pristine, unfiltered fidelity anchor shown by the browser-owned source. Fractures
       // exits this effect above because recording/output is intentionally
       // deferred until its final renderer contract is implemented.
       drawMediaFrame({
@@ -1772,6 +1781,19 @@ export function CanvasEngineSurface({
         })
       }
 
+      if (laserImageFxActive && laserImageFxOutputCanvasRef.current) {
+        compositionContext.save()
+        compositionContext.globalCompositeOperation = 'source-over'
+        compositionContext.globalAlpha = processedAlpha
+        compositionContext.filter = 'none'
+        try {
+          compositionContext.drawImage(laserImageFxOutputCanvasRef.current, 0, 0, cssWidth, cssHeight)
+        } catch {
+          // Preserve the dry source frame if a transient GPU snapshot copy fails.
+        }
+        compositionContext.restore()
+      }
+
       captureContext.setTransform(1, 0, 0, 1, 0, 0)
       captureContext.clearRect(0, 0, targetWidth, targetHeight)
       captureContext.globalCompositeOperation = 'source-over'
@@ -1798,7 +1820,7 @@ export function CanvasEngineSurface({
       window.cancelAnimationFrame(frameId)
       onLiveFps?.(0)
     }
-  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, fragmentCollageActive, isPaused, isPlaying, onLiveFps, orchestrationRenderable, outputContract, particleReconstructionActive, particleSourceRef, settings])
+  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, onLiveFps, orchestrationRenderable, outputContract, particleReconstructionActive, particleSourceRef, settings])
 
   useEffect(() => {
     setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
@@ -2181,6 +2203,8 @@ export function CanvasEngineSurface({
           <p className="rv-canvas-engine-desc">
             {fragmentCollageActive
               ? 'Fractures needs an active video, image, or SVG before its specialized fragment renderer can sample the source.'
+              : laserImageFxActive
+              ? 'Laser Image FX needs an active video, image, or SVG before its WebGL2 renderer can sample the source.'
               : particleReconstructionActive
               ? 'Particle Aura needs an active video, image, or SVG before it can sample pixels.'
               : hasSelectableMedia
@@ -2208,6 +2232,7 @@ export function CanvasEngineSurface({
         data-background-mode={effectiveBackgroundMode}
         data-source-effect-active={effectPassActive ? 'true' : 'false'}
         data-particle-reconstruction-active={particleReconstructionActive ? 'true' : 'false'}
+        data-laser-image-fx-active={laserImageFxActive ? 'true' : 'false'}
         data-renderer-kind={rendererKind}
         style={{ ...presetStyle, opacity: outputContract.canvasOutputOpacity }}
       >
@@ -2272,6 +2297,26 @@ export function CanvasEngineSurface({
           onStatusChange={setParticleRendererNotice}
           outputAlpha={outputContract.sourceMixMode === 'legacyComposite' ? outputContract.drySourceMix : 1}
         />
+        <CanvasLaserImageFxLayer
+          active={laserImageFxActive}
+          activeItem={activeItem}
+          sourceRef={particleSourceRef}
+          settings={canvasPresetSettings}
+          fitMode={settings.fitMode}
+          sourceTransform={{
+            scale: settings.scale,
+            positionX: settings.positionX,
+            positionY: settings.positionY,
+            rotation: settings.rotation,
+          }}
+          analyser={analyser}
+          performanceContextRef={particlePerformanceContextRef}
+          isPlaying={isPlaying}
+          isPaused={isPaused}
+          onCanvasReady={handleLaserImageFxCanvasReady}
+          onStatusChange={setLaserImageFxRendererNotice}
+          outputAlpha={outputContract.sourceMixMode === 'legacyComposite' ? outputContract.drySourceMix : 1}
+        />
         {fragmentCollageActive && (
           <CanvasFracturesRendererLayer
             key={fracturesSourceKey ?? activeItem.id}
@@ -2306,6 +2351,11 @@ export function CanvasEngineSurface({
             <NoticeCard tone="warning" role="status">{particleRendererNotice}</NoticeCard>
           </div>
         )}
+        {laserImageFxRendererNotice && laserImageFxActive && (
+          <div className="rv-canvas-render-notice">
+            <NoticeCard tone="warning" role="status">{laserImageFxRendererNotice}</NoticeCard>
+          </div>
+        )}
         {fracturesRendererNotice && fragmentCollageActive && (
           <div className="rv-canvas-render-notice">
             <NoticeCard tone="warning" role="status">{fracturesRendererNotice}</NoticeCard>
@@ -2329,6 +2379,27 @@ const CANVAS_PARTICLE_QUALITY_OPTIONS: Array<{ value: CanvasParticleQuality; lab
   { value: 'low', label: 'Low' },
   { value: 'balanced', label: 'Balanced' },
   { value: 'high', label: 'High' },
+]
+
+const CANVAS_LASER_IMAGE_EFFECT_OPTIONS: Array<{ value: CanvasLaserImageEffect; label: string }> = [
+  { value: 'none', label: 'None' },
+  { value: 'cubeA', label: '3D Cube A' },
+  { value: 'flipB', label: '3D Flip B' },
+  { value: 'spin3d', label: '3D Spin' },
+  { value: 'twistB', label: '3D Twist B' },
+  { value: 'rubber', label: 'Rubber' },
+  { value: 'stripe', label: 'Stripe' },
+  { value: 'vignette', label: 'Vignette' },
+  { value: 'warpDiamond', label: 'Warp Diamond' },
+  { value: 'warpSquare', label: 'Warp Square' },
+]
+
+const CANVAS_LASER_COLOR_EFFECT_OPTIONS: Array<{ value: CanvasLaserColorEffect; label: string }> = [
+  { value: 'source', label: 'Source / Original' },
+  { value: 'beatSaturateA', label: 'Color Beat Saturate A' },
+  { value: 'beatSaturateB', label: 'Color Beat Saturate B' },
+  { value: 'colorBlobsA', label: 'Color Blobs A' },
+  { value: 'colorBlobsB', label: 'Color Blobs B' },
 ]
 
 const CANVAS_FRACTURE_MODE_OPTIONS: Array<{ value: CanvasFractureMode; label: string }> = [
@@ -3326,6 +3397,84 @@ function CanvasFracturesControls({
   )
 }
 
+function CanvasLaserImageFxControls({
+  settings,
+  setSettings,
+  resetSettings,
+  customized,
+}: {
+  settings: CanvasPresetSettings
+  setSettings: (patch: Partial<CanvasPresetSettings>) => void
+  resetSettings: () => void
+  customized: boolean
+}) {
+  return (
+    <Collapsible label="Laser Image FX Controls" defaultOpen>
+      <div className="rv-ctrl-toggle-row rv-canvas-recipe-status">
+        <div className="rv-ctrl-toggle-line">
+          <span className="rv-ctrl-label">Laser Image FX</span>
+          <button
+            type="button"
+            className="rv-ctrl-toggle rv-canvas-recipe-reset"
+            onClick={resetSettings}
+            aria-label="Reset Laser Image FX recipe"
+          >
+            Reset
+          </button>
+        </div>
+        {customized && <span className="rv-ctrl-description">Customized recipe active.</span>}
+      </div>
+
+      <CanvasSelectRow
+        label="Image Effect"
+        value={settings.laserImageEffect}
+        onChange={value => setSettings({ laserImageEffect: value as CanvasLaserImageEffect })}
+        options={CANVAS_LASER_IMAGE_EFFECT_OPTIONS}
+        description="Geometry and UV deformation are GPU-driven; perspective modes use a subdivided mesh."
+      />
+      <CanvasSelectRow
+        label="Color Effect"
+        value={settings.laserColorEffect}
+        onChange={value => setSettings({ laserColorEffect: value as CanvasLaserColorEffect })}
+        options={CANVAS_LASER_COLOR_EFFECT_OPTIONS}
+        description="Color modes are independent of the selected image deformation."
+      />
+      <SliderRow label="Intensity" value={settings.intensity} onChange={intensity => setSettings({ intensity })} min={0} max={1} step={0.01} color="#72fff0" />
+      <SliderRow label="Speed" value={settings.laserSpeed} onChange={laserSpeed => setSettings({ laserSpeed })} min={0} max={4} step={0.01} color="#9ddcff" />
+      <SliderRow label="Warp Amount" value={settings.laserWarpAmount} onChange={laserWarpAmount => setSettings({ laserWarpAmount })} min={0} max={1} step={0.01} color="#61d6aa" />
+      <SliderRow label="Perspective" value={settings.laserPerspective} onChange={laserPerspective => setSettings({ laserPerspective })} min={0} max={1} step={0.01} color="#8de7ff" />
+      <SliderRow label="Color Amount" value={settings.laserColorAmount} onChange={laserColorAmount => setSettings({ laserColorAmount })} min={0} max={1} step={0.01} color="#ff4fd8" />
+      <SliderRow label="Bloom" value={settings.laserBloom} onChange={laserBloom => setSettings({ laserBloom })} min={0} max={1} step={0.01} color="#dffcff" />
+      <ToggleRow
+        label="BPM Sync"
+        value={settings.laserBpmSync}
+        onChange={laserBpmSync => setSettings({ laserBpmSync })}
+        description="Uses the canonical musical beat grid when available; otherwise animation uses deterministic transport time."
+      />
+      <SliderRow
+        label="Laserize"
+        value={settings.laserize}
+        onChange={laserize => setSettings({ laserize })}
+        min={0}
+        max={1}
+        step={0.01}
+        color="#e8f4f8"
+        description="Blends the source mask toward GPU edge extraction for line-like raster and video treatment."
+      />
+      <SliderRow
+        label="Dry Source Mix"
+        value={settings.drySourceMix}
+        onChange={drySourceMix => setSettings({ drySourceMix, sourceVisibility: drySourceMix })}
+        min={0}
+        max={1}
+        step={0.01}
+        color="#61d6aa"
+        description="Controls only the untreated source beneath the laser renderer."
+      />
+    </Collapsible>
+  )
+}
+
 function CanvasPresetControls() {
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const canvasPresetSettings = useReactStore(s => s.canvasPresetSettings)
@@ -3342,6 +3491,17 @@ function CanvasPresetControls() {
   if (selectedPreset.rendererKind === 'fragmentCollage') {
     return (
       <CanvasFracturesControls
+        settings={canvasPresetSettings}
+        setSettings={setCanvasPresetSettings}
+        resetSettings={resetCanvasPresetSettings}
+        customized={customized}
+      />
+    )
+  }
+
+  if (selectedPreset.rendererKind === 'laserImageFx') {
+    return (
+      <CanvasLaserImageFxControls
         settings={canvasPresetSettings}
         setSettings={setCanvasPresetSettings}
         resetSettings={resetCanvasPresetSettings}

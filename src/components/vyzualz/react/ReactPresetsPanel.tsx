@@ -100,6 +100,7 @@ const CANVAS_PRESET_CHIP_LABELS: Record<CanvasPresetId, string> = {
   'canvas-frame-stutter': 'Rhythm Stutter',
   'canvas-particle-aura': 'Particle System',
   'canvas-fractures': 'Fragment Collage',
+  'canvas-laser-image-fx': 'GPU Laser FX',
 }
 
 function createCanvasPresetCardPreset(preset: CanvasPresetDefinition): ReactPreset {
