@@ -1,5 +1,5 @@
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
-import type { CanvasShowManagerShow } from '../../showManager/CanvasShowManagerDomain'
+import type { CanvasShowManagerMediaElement, CanvasShowManagerShow } from '../../showManager/CanvasShowManagerDomain'
 import {
   getActiveCanvasShowManagerMediaElements,
   getCanvasShowManagerTotalDuration,
@@ -25,6 +25,60 @@ const SHOW_TEMPLATE: CanvasCompositionTemplate = {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
+}
+
+function hashRuntimeIdentity(value: string): number {
+  let hash = 0x811c9dc5
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return hash >>> 0
+}
+
+/**
+ * Scope revision for Show-owned media resources. The full canonical URL identity
+ * participates so replacing a source with another same-length blob URL cannot
+ * accidentally retain the old decoder/image handle.
+ */
+export function getCanvasShowRuntimePoolRevision(
+  show: CanvasShowManagerShow,
+  mediaItems: readonly CanvasMediaItem[],
+): number {
+  const byId = new Map(mediaItems.map(item => [item.id, item]))
+  const identity = [...show.mediaElements]
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map(element => {
+      const media = byId.get(element.mediaId)
+      return [
+        element.id,
+        element.mediaId,
+        media?.type ?? 'missing',
+        String(media?.mediaRevision ?? 0),
+        media?.objectUrl ?? '',
+      ].join(':')
+    })
+    .join('|')
+  return hashRuntimeIdentity(`${show.id}|${identity}`)
+}
+
+/** Returns future authored elements in playback order, including across Show loop. */
+export function getCanvasShowRuntimeUpcomingElements(
+  show: CanvasShowManagerShow,
+  showTimeSec: number,
+  lookaheadSec = 8,
+): CanvasShowManagerMediaElement[] {
+  const duration = getCanvasShowManagerTotalDuration(show)
+  if (duration <= 0 || lookaheadSec <= 0) return []
+  const timeSec = normalizeCanvasShowRuntimeTime(show, showTimeSec)
+  return show.mediaElements
+    .map(element => ({
+      element,
+      distance: ((element.showStartSec - timeSec) % duration + duration) % duration,
+    }))
+    .filter(candidate => candidate.distance > 0.000001 && candidate.distance <= lookaheadSec)
+    .sort((a, b) => a.distance - b.distance || a.element.layer - b.element.layer || a.element.id.localeCompare(b.element.id))
+    .map(candidate => candidate.element)
 }
 
 function resolveShowElementFilters(input: {
@@ -72,6 +126,7 @@ export function resolveCanvasShowRuntimeFrame({
   mediaItems,
   context,
   isMediaReady = () => true,
+  getMediaError = () => null,
   selectedElementId = null,
 }: {
   show: CanvasShowManagerShow
@@ -79,6 +134,7 @@ export function resolveCanvasShowRuntimeFrame({
   mediaItems: readonly CanvasMediaItem[]
   context: SharedPerformanceContext
   isMediaReady?: (mediaId: string) => boolean
+  getMediaError?: (mediaId: string) => string | null
   selectedElementId?: string | null
 }): CanvasResolvedPerformanceFrame | null {
   const validation = validateCanvasShowManagerShow(show)
@@ -107,15 +163,24 @@ export function resolveCanvasShowRuntimeFrame({
       // must create two decoder handles because their trim phases may differ.
       const source = media ? { ...media, id: `${media.id}::canvas-show-element::${element.id}` } : null
       const ready = Boolean(source && isMediaReady(source.id))
+      const mediaError = source ? getMediaError(source.id) : null
       if (!source) diagnostics.push(`Missing media for Layer ${element.layer + 1}: ${element.mediaId}`)
-      else if (ready) readyMediaIds.push(source.id)
-      else pendingMediaIds.push(source.id)
+      else if (mediaError) diagnostics.push(`Media failed for Layer ${element.layer + 1}: ${mediaError}`)
+      if (source && ready) readyMediaIds.push(source.id)
+      else if (source && !mediaError) pendingMediaIds.push(source.id)
       if (source?.type === 'video') decoderCount += 1
       const duration = Math.max(0, source?.durationSec ?? 0)
-      const sourceIn = source?.type === 'video' ? clamp(element.sourceInSec ?? 0, 0, duration || Number.MAX_SAFE_INTEGER) : 0
-      const requestedOut = element.sourceOutSec ?? duration
+      const sourceIn = source?.type === 'video'
+        ? clamp(element.sourceInSec ?? 0, 0, duration > 0 ? Math.max(0, duration - 0.001) : Number.MAX_SAFE_INTEGER)
+        : 0
+      const authoredOut = element.sourceOutSec != null && Number.isFinite(element.sourceOutSec)
+        ? element.sourceOutSec
+        : null
+      const unknownDurationFallbackOut = sourceIn + Math.max(0.001, element.showEndSec - element.showStartSec)
       const sourceOut = source?.type === 'video'
-        ? Math.max(sourceIn + 0.001, duration > 0 ? clamp(requestedOut || duration, sourceIn + 0.001, duration) : requestedOut)
+        ? duration > 0
+          ? clamp(authoredOut ?? duration, sourceIn + 0.001, duration)
+          : Math.max(sourceIn + 0.001, authoredOut ?? unknownDurationFallbackOut)
         : 0
       const sourceTime = source?.type === 'video'
         ? resolveCanvasShowManagerElementSourceTime({ ...element, sourceInSec: sourceIn, sourceOutSec: sourceOut }, timeSec)
@@ -180,7 +245,7 @@ export function resolveCanvasShowRuntimeFrame({
     layers,
     transition: null,
     effectRecipeId: 'none',
-    fallbackUsed: diagnostics.some(item => item.startsWith('Missing')),
+    fallbackUsed: diagnostics.some(item => item.startsWith('Missing') || item.startsWith('Media failed')),
     readyMediaIds,
     pendingMediaIds,
     decoderCount,

@@ -313,6 +313,38 @@ describe('CANVAS preload safety and media fidelity', () => {
     manager.dispose()
   })
 
+  it('does not hot-loop failed media loads and retries after an explicit scope revision', async () => {
+    let attempts = 0
+    const manager = new CanvasPreloadManager({
+      loader: async () => {
+        attempts += 1
+        throw new Error('Unsupported codec')
+      },
+    })
+    const item = media('bad-video')
+    const request = (revision: number) => buildCanvasPreloadRequests({
+      mediaItems: [item],
+      activeMediaIds: [item.id],
+      candidateMediaIds: [],
+      trackIdentity: 'track-a',
+      poolRevision: revision,
+    })
+
+    manager.setScope('track-a', 1)
+    manager.request(request(1))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(manager.getReadiness(item.id)).toMatchObject({ status: 'error', error: 'Unsupported codec' })
+    manager.request(request(1))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(attempts).toBe(1)
+
+    manager.setScope('track-a', 2)
+    manager.request(request(2))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(attempts).toBe(2)
+    manager.dispose()
+  })
+
   it('releases inactive video decoder handles promptly while retaining bounded image handles', async () => {
     const manager = new CanvasPreloadManager({ loader: async () => null })
     const pool = [media('video-a'), media('video-b'), media('still', 'image')]

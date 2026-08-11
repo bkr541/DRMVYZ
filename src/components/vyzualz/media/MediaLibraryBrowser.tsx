@@ -16,6 +16,7 @@ import {
   ListViewIcon,
   PropertyViewIcon,
   MusicNote01Icon,
+  Refresh01Icon,
 } from 'hugeicons-react'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia, MediaCollection, MediaMutationState } from '../../../stores/mediaStore'
@@ -1194,13 +1195,26 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           {isManager && canBrowseCollections && (
             <IconChipButton onClick={() => { setEditCollection(undefined); setCollectionEditorOpen(true) }}>New Collection</IconChipButton>
           )}
-          <IconChipButton
-            onClick={() => { void refreshLibrary?.() }}
-            disabled={refreshing}
-            title="Refresh media library"
-          >
-            {refreshing ? 'Refreshing…' : 'Refresh'}
-          </IconChipButton>
+          {isCanvasMode ? (
+            <button
+              type="button"
+              className="vz-md-refresh-icon-btn"
+              onClick={() => { void refreshLibrary?.() }}
+              disabled={refreshing}
+              title="Refresh media library"
+              aria-label="Refresh media library"
+            >
+              <Refresh01Icon size={11} color="currentColor" />
+            </button>
+          ) : (
+            <IconChipButton
+              onClick={() => { void refreshLibrary?.() }}
+              disabled={refreshing}
+              title="Refresh media library"
+            >
+              {refreshing ? 'Refreshing…' : 'Refresh'}
+            </IconChipButton>
+          )}
           {canUpload && (
             <IconChipButton
               tone="primary"

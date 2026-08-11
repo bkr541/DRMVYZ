@@ -59,7 +59,10 @@ import {
   CANVAS_PERFORMANCE_SHOW_OPTIONS,
   CanvasOrchestrationStage,
   CanvasPreloadManager,
+  MAX_CANVAS_ACTIVE_VIDEO_DECODERS,
   MAX_CANVAS_SHOW_VIDEO_DECODERS,
+  getCanvasShowRuntimePoolRevision,
+  getCanvasShowRuntimeUpcomingElements,
   resolveCanvasShowRuntimeFrame,
   resolveCanvasOutputContract,
   getCanvasPerformancePreloadCandidates,
@@ -1392,10 +1395,10 @@ export function CanvasEngineSurface({
     const show = canvasShowManagerShows.find(candidate => candidate.id === canvasShowManagerActiveShowId) ?? null
     return show && validateCanvasShowManagerShow(show).valid ? show : null
   }, [canvasShowManagerActiveShowId, canvasShowManagerShows])
-  const runtimeCanvasShow = previewShow && validateCanvasShowManagerShow(previewShow).valid
-    ? previewShow
+  const showPreviewMode = previewShow != null
+  const runtimeCanvasShow = showPreviewMode
+    ? (previewShow && validateCanvasShowManagerShow(previewShow).valid ? previewShow : null)
     : activeSavedCanvasShow
-  const showPreviewMode = Boolean(previewShow && runtimeCanvasShow === previewShow)
   const fracturesSourceKey = activeItem
     ? `${activeItem.id}:${activeItem.type}:${activeItem.mediaRevision ?? 0}:${activeItem.objectUrl}`
     : null
@@ -1442,7 +1445,7 @@ export function CanvasEngineSurface({
   getAudioTimeRef.current = getAudioTime
 
   useEffect(() => {
-    if (!runtimeCanvasShow && !orchestrationSettings.enabled) {
+    if (!runtimeCanvasShow && (showPreviewMode || !orchestrationSettings.enabled)) {
       orchestrationPreloadManager.releaseAll()
       previousOrchestrationContextRef.current = null
       previousOrchestrationFrameRef.current = null
@@ -1455,11 +1458,9 @@ export function CanvasEngineSurface({
       ? `canvas-show:${runtimeCanvasShow.id}`
       : activeAudioTrackId ?? 'canvas:unloaded-track'
     const poolRevision = runtimeCanvasShow
-      ? runtimeCanvasShow.mediaElements.reduce((sum, element) => {
-          const media = mediaItems.find(item => item.id === element.mediaId)
-          return sum + element.id.length + element.mediaId.length + (media?.mediaRevision ?? 0) + (media?.objectUrl.length ?? 0)
-        }, runtimeCanvasShow.mediaElements.length)
+      ? getCanvasShowRuntimePoolRevision(runtimeCanvasShow, mediaItems)
       : orchestrationSettings.poolRevision
+    orchestrationPreloadManager.setMaxVideoHandles(runtimeCanvasShow ? MAX_CANVAS_SHOW_VIDEO_DECODERS : MAX_CANVAS_ACTIVE_VIDEO_DECODERS)
     orchestrationPreloadManager.setScope(trackIdentity, poolRevision)
     previousOrchestrationContextRef.current = null
     previousOrchestrationFrameRef.current = null
@@ -1484,15 +1485,21 @@ export function CanvasEngineSurface({
             mediaItems,
             context,
             isMediaReady: mediaId => orchestrationPreloadManager.isReady(mediaId),
+            getMediaError: mediaId => {
+              const readiness = orchestrationPreloadManager.getReadiness(mediaId)
+              return readiness.status === 'error' ? readiness.error : null
+            },
             selectedElementId: showPreviewMode ? previewSelectedElementId : null,
           })
-        : resolveCanvasPerformanceFrame({
-            context,
-            settings: orchestrationSettings,
-            mediaItems,
-            previousFrame: previousOrchestrationFrameRef.current,
-            isMediaReady: mediaId => orchestrationPreloadManager.isReady(mediaId),
-          })
+        : showPreviewMode
+          ? null
+          : resolveCanvasPerformanceFrame({
+              context,
+              settings: orchestrationSettings,
+              mediaItems,
+              previousFrame: previousOrchestrationFrameRef.current,
+              isMediaReady: mediaId => orchestrationPreloadManager.isReady(mediaId),
+            })
       if (!nextFrame) {
         setOrchestrationFrame(null)
         return
@@ -1502,16 +1509,14 @@ export function CanvasEngineSurface({
         .filter((id): id is string => Boolean(id))
       let upcomingVideoBudget = Math.max(0, MAX_CANVAS_SHOW_VIDEO_DECODERS - nextFrame.decoderCount)
       const upcomingShowMedia = runtimeCanvasShow
-        ? runtimeCanvasShow.mediaElements
-            .filter(element => element.showStartSec > audioTimeSec && element.showStartSec <= audioTimeSec + 8)
-            .sort((a, b) => a.showStartSec - b.showStartSec)
-            .slice(0, 4)
+        ? getCanvasShowRuntimeUpcomingElements(runtimeCanvasShow, nextFrame.context.audioTimeSec, 8)
             .flatMap(element => {
               const media = mediaItems.find(item => item.id === element.mediaId)
               if (!media || (media.type === 'video' && upcomingVideoBudget <= 0)) return []
               if (media.type === 'video') upcomingVideoBudget -= 1
               return [{ ...media, id: `${media.id}::canvas-show-element::${element.id}` }]
             })
+            .slice(0, 4)
         : []
       const candidateMediaIds = runtimeCanvasShow
         ? upcomingShowMedia.map(media => media.id)

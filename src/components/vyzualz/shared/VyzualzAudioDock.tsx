@@ -853,24 +853,30 @@ export function VyzualzAudioDock({
             onClick={handleTap}
             disabled={engine.source !== 'file' || !track}
             title={engine.source === 'file' && track ? 'Tap tempo' : 'Tap tempo (requires a file track)'}
+            aria-label="Tap tempo"
           >
-            TAP
+            <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M6 16V8M12 16V4M18 16v-5"/>
+            </svg>
+            <span className="vz-dock-tap-label">TAP</span>
           </button>
           <button
             className="vz-dock-cue-btn"
             onClick={handleCue}
             title={engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
             disabled={!hasTrack}
+            aria-label={engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
           >
             <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M5 21V4m0 1h11l-2.5 3L16 11H5"/>
             </svg>
-            <span>CUE</span>
+            <span className="vz-dock-cue-label">CUE</span>
           </button>
           <button
             className={`vz-dock-sync-master-btn${bpmSync ? ' vz-dock-sync-master-btn--on' : ''}`}
             onClick={toggleBpmSync}
             title={bpmSync ? 'BPM Sync: ON' : 'BPM Sync: OFF'}
+            aria-label={bpmSync ? 'BPM Sync: ON' : 'BPM Sync: OFF'}
           >
             {bpmSync && <span className="vz-dock-sync-dot" />}
             <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

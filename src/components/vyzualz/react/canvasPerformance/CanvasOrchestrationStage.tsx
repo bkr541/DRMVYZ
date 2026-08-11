@@ -15,7 +15,7 @@ import { isCanvasFracturesProcessor, resolveCanvasFracturesPresetSettings } from
 import { resolveCanvasEffectVisualState } from './CanvasEffectRecipes'
 import type { CanvasPreloadHandle, CanvasPreloadManager } from './CanvasPreloadManager'
 import { resolveCanvasTransitionVisualState } from './CanvasTransitions'
-import { CanvasShowAdaptiveQualityController, type CanvasShowQualitySnapshot } from './CanvasShowAdaptiveQuality'
+import { CanvasShowAdaptiveQualityController, resolveCanvasShowCompositionDimensions, type CanvasShowQualitySnapshot } from './CanvasShowAdaptiveQuality'
 import { resolveCanvasLayerAlphaHierarchy, resolveCanvasOutputContract, type CanvasLayerAlphaHierarchy } from './CanvasOutputContract'
 import type {
   CanvasAspectBehavior,
@@ -74,6 +74,9 @@ function makeScratchCanvas(): HTMLCanvasElement | null {
   return typeof document === 'undefined' ? null : document.createElement('canvas')
 }
 
+const VIDEO_PLAY_RETRY_MS = 1_500
+const videoPlayRetryAt = new WeakMap<HTMLVideoElement, number>()
+
 function syncVideo(handle: HTMLVideoElement, layer: CanvasResolvedLayer, isPlaying: boolean, isPaused: boolean): void {
   const playback = layer.playback
   handle.muted = true
@@ -91,9 +94,19 @@ function syncVideo(handle: HTMLVideoElement, layer: CanvasResolvedLayer, isPlayi
 
   if (!isPlaying || isPaused || playback.frameHold) {
     handle.pause()
+    videoPlayRetryAt.delete(handle)
     return
   }
-  if (handle.paused) void handle.play().catch(() => undefined)
+  if (!handle.paused) {
+    videoPlayRetryAt.delete(handle)
+    return
+  }
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+  if ((videoPlayRetryAt.get(handle) ?? 0) > now) return
+  videoPlayRetryAt.set(handle, now + VIDEO_PLAY_RETRY_MS)
+  void handle.play()
+    .then(() => videoPlayRetryAt.delete(handle))
+    .catch(() => videoPlayRetryAt.set(handle, now + VIDEO_PLAY_RETRY_MS))
 }
 
 function fitRect(
@@ -387,8 +400,11 @@ function CanvasGenericOrchestrationStage({
       }
       previousDrawAt = now
       const qualityScale = liveFrame.runtimeMode === 'show' ? quality.scale : 1
-      const width = Math.max(1, Math.round(outputWidth * qualityScale))
-      const height = Math.max(1, Math.round(outputHeight * qualityScale))
+      const compositionSize = liveFrame.runtimeMode === 'show'
+        ? resolveCanvasShowCompositionDimensions({ outputWidth, outputHeight, qualityScale })
+        : { width: outputWidth, height: outputHeight }
+      const width = compositionSize.width
+      const height = compositionSize.height
       resizeCanvas(canvas, outputWidth, outputHeight)
       resizeCanvas(compositionCanvas, width, height)
       resizeCanvas(previousCanvas, width, height)

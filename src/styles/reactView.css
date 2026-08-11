@@ -6781,15 +6781,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-tap-btn {
   width: 100%;
   height: 100%;
+  padding: 0;
   border-radius: 6px;
 }
 
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-right-btns {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  flex: 0 0 132px;
-  width: 132px;
-  height: 38px;
+  flex: 0 0 108px;
+  width: 108px;
+  height: 34px;
   gap: 5px;
 }
 
@@ -6797,7 +6798,25 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-sync-master-btn {
   width: 100%;
   height: 100%;
+  min-width: 0;
+  padding: 0;
+  gap: 0;
   border-radius: 6px;
+  overflow: hidden;
+}
+
+/* Icon-only when collapsed — there isn't room for icon + text without
+   overlap, and the button title/aria-label still carry the full meaning. */
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-tap-label,
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-cue-label,
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-sync-master-label {
+  display: none;
+}
+
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-sync-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
 }
 
 /* The Stage Focus prop forces the same compact density while intentionally
@@ -10150,6 +10169,99 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   min-height: 360px;
 }
 
+/* Media Library sits directly in the CANVAS left SOURCE tab alongside the
+   other status rows — it shouldn't read as its own boxed sub-panel. Drop the
+   .vz-panel card frame and header divider so it flows like the rest of the
+   tab instead of looking like a separate group. */
+.rv-canvas-library-shell .vz-panel.vz-media-browser {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.rv-canvas-library-shell .vz-panel.vz-media-browser .vz-panel-header {
+  padding-left: 0;
+  padding-right: 0;
+  border-bottom: 0;
+}
+
+/* Match Layout Lab / Template's Masonry Frame reference exactly: a bright
+   white title (not the muted default), a compact icon-only refresh button
+   instead of a labeled pill, a shorter fixed-height thumbnail instead of a
+   16:9 box, and the search field reading as one clean bordered pill (the
+   canonical DreamVizTextInput look) instead of a double-boxed wrapper. */
+.rv-canvas-library-shell .vz-panel.vz-media-browser .vz-panel-title {
+  color: rgba(232, 244, 248, 0.92);
+}
+
+.rv-canvas-library-shell .vz-media-thumb {
+  aspect-ratio: auto;
+  height: 44px;
+}
+
+.rv-canvas-library-shell .vz-media-grid {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.rv-canvas-library-shell .vz-md-refresh-icon-btn {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(154, 178, 188, 0.18);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(196, 207, 211, 0.6);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+
+.rv-canvas-library-shell .vz-md-refresh-icon-btn:hover:not(:disabled) {
+  color: var(--az-cyan);
+  border-color: rgba(74, 199, 219, 0.4);
+  background: rgba(74, 199, 219, 0.08);
+}
+
+.rv-canvas-library-shell .vz-md-refresh-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.rv-canvas-library-shell .vz-md-search-wrap {
+  border: 0;
+  background: none;
+  padding: 0;
+  position: relative;
+}
+
+.rv-canvas-library-shell .vz-md-search-wrap:focus-within {
+  border: 0;
+  background: none;
+}
+
+.rv-canvas-library-shell .vz-md-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+}
+
+.rv-canvas-library-shell .vz-md-search-input.dv-text-input {
+  padding-left: 28px !important;
+}
+
+.rv-canvas-library-shell .vz-md-search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
 .rv-canvas-library--legacy {
   margin-top: 4px;
 }
@@ -10366,14 +10478,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   color: rgba(214, 249, 255, 0.96);
 }
 
+/* Flush like Sound Drawing's Engine Mode grid and LaserDMX's Lighting
+   Components — no side inset, no boxed background around the group. */
 .rv-canvas-engine-panel {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 11px;
-  border: 1px solid rgba(74, 199, 219, 0.12);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.025);
+  padding: 11px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .rv-canvas-panel-title {

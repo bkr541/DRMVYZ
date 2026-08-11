@@ -93,7 +93,7 @@ export class CanvasPreloadManager {
   private readonly loader: CanvasPreloadLoader
   private readonly maxQueue: number
   private readonly maxHandles: number
-  private readonly maxVideoHandles: number
+  private maxVideoHandles: number
   private readonly readiness = new Map<string, CanvasMediaReadiness>()
   private readonly handles = new Map<string, { handle: CanvasPreloadHandle | null; lastUsedAt: number; type: CanvasMediaItem['type'] }>()
   private readonly controllers = new Map<string, AbortController>()
@@ -116,6 +116,10 @@ export class CanvasPreloadManager {
     this.maxVideoHandles = Math.max(1, Math.min(MAX_CANVAS_SHOW_VIDEO_DECODERS, options.maxVideoHandles ?? MAX_CANVAS_ACTIVE_VIDEO_DECODERS))
   }
 
+  setMaxVideoHandles(maxVideoHandles: number): void {
+    this.maxVideoHandles = Math.max(1, Math.min(MAX_CANVAS_SHOW_VIDEO_DECODERS, Math.round(maxVideoHandles)))
+  }
+
   setScope(trackIdentity: string | null, poolRevision: number): void {
     if (this.trackIdentity === trackIdentity && this.poolRevision === poolRevision) return
     this.cancelPending('Scope changed')
@@ -134,7 +138,7 @@ export class CanvasPreloadManager {
 
     for (const request of accepted) {
       const existing = this.readiness.get(request.media.id)
-      if (existing?.status === 'ready' || existing?.status === 'loading' || existing?.status === 'queued') {
+      if (existing?.status === 'ready' || existing?.status === 'loading' || existing?.status === 'queued' || existing?.status === 'error') {
         const retained = this.handles.get(request.media.id)
         if (retained) retained.lastUsedAt = Date.now()
         continue

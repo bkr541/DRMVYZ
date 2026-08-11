@@ -70,7 +70,6 @@ export function ReactEngineBrowser() {
         <span className="rv-engine-dropdown-copy">
           <span className="rv-engine-dropdown-eyebrow">Engine</span>
           <span className="rv-engine-dropdown-label">{activeEngine.label}</span>
-          <span className="rv-engine-dropdown-description">{activeEngine.description}</span>
         </span>
       </button>
 

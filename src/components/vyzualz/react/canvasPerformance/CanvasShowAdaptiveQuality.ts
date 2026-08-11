@@ -12,6 +12,42 @@ export interface CanvasShowQualitySnapshot {
 const TIERS: readonly CanvasShowQualityTier[] = ['full', 'balanced', 'reduced', 'minimum']
 const SCALE: Record<CanvasShowQualityTier, number> = { full: 1, balanced: 0.8, reduced: 0.62, minimum: 0.48 }
 
+export const MAX_CANVAS_SHOW_COMPOSITION_PIXELS = 1920 * 1080
+export const MIN_CANVAS_SHOW_COMPOSITION_EDGE = 180
+
+/**
+ * Keeps Show composition work bounded independently of the published output
+ * canvas. The output surface remains at device/output resolution and receives
+ * the scaled composition in the canonical compositor pass.
+ */
+export function resolveCanvasShowCompositionDimensions({
+  outputWidth,
+  outputHeight,
+  qualityScale,
+}: {
+  outputWidth: number
+  outputHeight: number
+  qualityScale: number
+}): { width: number; height: number } {
+  const safeWidth = Math.max(1, Math.round(Number.isFinite(outputWidth) ? outputWidth : 1))
+  const safeHeight = Math.max(1, Math.round(Number.isFinite(outputHeight) ? outputHeight : 1))
+  const requestedScale = Math.max(0.1, Math.min(1, Number.isFinite(qualityScale) ? qualityScale : 1))
+  const outputPixels = safeWidth * safeHeight
+  const baseLimitScale = outputPixels > MAX_CANVAS_SHOW_COMPOSITION_PIXELS
+    ? Math.sqrt(MAX_CANVAS_SHOW_COMPOSITION_PIXELS / outputPixels)
+    : 1
+  const effectiveScale = baseLimitScale * requestedScale
+  let width = Math.max(1, Math.min(safeWidth, Math.round(safeWidth * effectiveScale)))
+  let height = Math.max(1, Math.min(safeHeight, Math.round(safeHeight * effectiveScale)))
+  const minEdge = Math.min(MIN_CANVAS_SHOW_COMPOSITION_EDGE, safeWidth, safeHeight)
+  if (Math.min(width, height) < minEdge) {
+    const lift = minEdge / Math.max(1, Math.min(width, height))
+    width = Math.min(safeWidth, Math.max(1, Math.round(width * lift)))
+    height = Math.min(safeHeight, Math.max(1, Math.round(height * lift)))
+  }
+  return { width, height }
+}
+
 export class CanvasShowAdaptiveQualityController {
   private index = 0
   private averageFrameMs = 16.67

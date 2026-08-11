@@ -8,7 +8,7 @@ import {
   type CanvasShowManagerMediaElement,
 } from '../../showManager/CanvasShowManagerDomain'
 import type { CanvasMediaItem } from '../ReactTypes'
-import { resolveCanvasShowRuntimeFrame } from './CanvasShowRuntime'
+import { getCanvasShowRuntimePoolRevision, getCanvasShowRuntimeUpcomingElements, resolveCanvasShowRuntimeFrame } from './CanvasShowRuntime'
 
 const context = { audioTimeSec: 0 } as SharedPerformanceContext
 const video = (id: string, durationSec = 12): CanvasMediaItem => ({
@@ -57,6 +57,17 @@ describe('Canvas Show production frame resolver', () => {
     expect(resolve(3)).toBe(4)
   })
 
+  it('does not collapse unknown-duration videos into a millisecond loop while metadata settles', () => {
+    const show = createCanvasShowManagerShow('Metadata delay')
+    const delayed = element('clip', 'video', 0, 0, 8)
+    delayed.sourceOutSec = null
+    show.mediaElements = [delayed]
+    const unresolved = { ...video('video'), durationSec: undefined } as CanvasMediaItem
+    const frame = resolveCanvasShowRuntimeFrame({ show, showTimeSec: 3, mediaItems: [unresolved], context })!
+    expect(frame.layers[0]!.playback.loopRange).toEqual({ startSec: 0, endSec: 8, bars: null })
+    expect(frame.layers[0]!.playback.phaseSec).toBe(3)
+  })
+
   it('orders four simultaneous layers bottom-to-top and isolates missing media', () => {
     const show = createCanvasShowManagerShow('Four')
     show.mediaElements = [0, 1, 2, 3].map(layer => element(`e${layer}`, `m${layer}`, layer as 0 | 1 | 2 | 3, 0, 8))
@@ -89,6 +100,45 @@ describe('Canvas Show production frame resolver', () => {
       id: 'neutral', x: 0, y: 0, scaleX: 1, rotation: 0, opacity: 1,
       showElementTreatment: { compositorFilter: 'none', glow: 0 },
     })
+  })
+
+
+  it('preloads through the Show loop using normalized forward distance', () => {
+    const show = createCanvasShowManagerShow('Loop preload')
+    show.mediaElements = [
+      element('near-end', 'late', 0, 52, 56),
+      element('after-loop', 'early', 1, 1, 5),
+      element('too-far', 'middle', 2, 20, 24),
+    ]
+    expect(getCanvasShowRuntimeUpcomingElements(show, 54, 5).map(item => item.id)).toEqual(['after-loop'])
+    expect(getCanvasShowRuntimeUpcomingElements(show, 110, 5).map(item => item.id)).toEqual(['after-loop'])
+  })
+
+  it('changes preload scope when a same-length media URL is replaced', () => {
+    const show = createCanvasShowManagerShow('Replacement')
+    show.mediaElements = [element('clip', 'video', 0, 0, 8)]
+    const before = [{ ...video('video'), objectUrl: 'blob:AAAA' }]
+    const after = [{ ...video('video'), objectUrl: 'blob:BBBB' }]
+    expect(before[0]!.objectUrl.length).toBe(after[0]!.objectUrl.length)
+    expect(getCanvasShowRuntimePoolRevision(show, before)).not.toBe(getCanvasShowRuntimePoolRevision(show, after))
+  })
+
+  it('isolates preload errors to their layer and marks the frame as degraded', () => {
+    const show = createCanvasShowManagerShow('Codec failure')
+    show.mediaElements = [element('good', 'one', 0, 0, 8), element('bad', 'two', 1, 0, 8)]
+    const badRuntimeId = 'two::canvas-show-element::bad'
+    const frame = resolveCanvasShowRuntimeFrame({
+      show,
+      showTimeSec: 1,
+      mediaItems: [video('one'), video('two')],
+      context,
+      isMediaReady: id => id !== badRuntimeId,
+      getMediaError: id => id === badRuntimeId ? 'Unsupported codec' : null,
+    })!
+    expect(frame.layers.map(layer => layer.enabled)).toEqual([true, true])
+    expect(frame.pendingMediaIds).not.toContain(badRuntimeId)
+    expect(frame.diagnostics).toContain('Media failed for Layer 2: Unsupported codec')
+    expect(frame.fallbackUsed).toBe(true)
   })
 
   it('keeps the terminal Show boundary on the final authored frame', () => {
