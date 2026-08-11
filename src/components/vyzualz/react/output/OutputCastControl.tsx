@@ -307,12 +307,15 @@ function OutputCastPopover({
   const titleId = 'rv-output-cast-title'
   const groups = useMemo(() => groupTargets(targets), [targets])
   const airplayProvider = useMemo(() => providerStatuses.find(status => status.providerId === 'airplay') ?? null, [providerStatuses])
+  const miracastProvider = useMemo(() => providerStatuses.find(status => status.providerId === 'miracast') ?? null, [providerStatuses])
   const providerIssues = useMemo(() => providerStatuses.filter(status => {
-    if (status.providerId === 'airplay' && status.state === 'unsupported') return false
+    if ((status.providerId === 'airplay' || status.providerId === 'miracast') && status.state === 'unsupported') return false
     return status.state !== 'available' || Boolean(status.message)
   }), [providerStatuses])
   const airplayAction = airplayProvider?.capabilities?.actions.includes('open-system-picker') ? 'open-system-picker' : null
   const airplayActionAvailable = airplayProvider?.state === 'available' || airplayProvider?.state === 'initialization-failed'
+  const miracastAction = miracastProvider?.capabilities?.actions.includes('open-system-picker') ? 'open-system-picker' : null
+  const miracastActionAvailable = miracastProvider?.state === 'available' || miracastProvider?.state === 'initialization-failed'
   const readyToCast = Boolean(windowMode && aspectRatio && canvasReady && bridge)
 
   useEffect(() => {
@@ -543,6 +546,28 @@ function OutputCastPopover({
                   </span>
                 </button>
                 <p>macOS owns AirPlay screen-mirroring selection. Once macOS connects a wireless display, DRMVYZ lists it once under Displays so the normal window, aspect-ratio, and fullscreen controls can target it.</p>
+              </section>
+            )}
+
+            {miracastProvider && miracastProvider.state !== 'unsupported' && (
+              <section className="rv-cast-device-group" aria-label="Windows wireless displays">
+                <h3>Windows Wireless Displays</h3>
+                <button
+                  type="button"
+                  className="rv-cast-provider-action"
+                  disabled={!bridge?.performProviderAction || !miracastAction || !miracastActionAvailable || Boolean(pendingProviderAction)}
+                  onClick={() => miracastAction && void performProviderAction('miracast', miracastAction)}
+                >
+                  <span className="rv-cast-device-icon"><DisplayIcon network /></span>
+                  <span className="rv-cast-device-copy">
+                    <strong>Open Windows Displays</strong>
+                    <span>Use Connect under Multiple displays to choose a Miracast / Wireless Display target.</span>
+                  </span>
+                  <span className="rv-cast-device-state">
+                    {pendingProviderAction === 'miracast:open-system-picker' ? 'Opening…' : 'Open'}
+                  </span>
+                </button>
+                <p>Windows owns full-display Miracast negotiation. After Windows connects or extends a wireless display, DRMVYZ lists that OS display once under Displays so the canonical output window, aspect ratio, and fullscreen path can target it.</p>
               </section>
             )}
 

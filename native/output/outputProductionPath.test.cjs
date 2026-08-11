@@ -192,3 +192,75 @@ test('production preload selection and IPC dispatch reach DrmvyzReceiverProvider
     await installed.shutdown()
   }
 })
+
+
+test('production preload and provider-action IPC reach WindowsMiracastProvider without creating a fake session', async () => {
+  const handlers = new Map()
+  const ipcMain = { handle: (channel, handler) => handlers.set(channel, handler) }
+  const app = new EventEmitter()
+  const screen = new FakeScreen()
+  const BrowserWindow = { getAllWindows: () => [] }
+  let windowsDisplayOpens = 0
+  const installed = installOutputCastBridge({
+    app,
+    BrowserWindow,
+    ipcMain,
+    screen,
+    platform: 'win32',
+    openWindowsDisplays: async () => {
+      windowsDisplayOpens += 1
+      return { message: 'Windows Display settings opened.' }
+    },
+    isTrustedAppUrl: url => url === 'drmvyz-app://app/index.html',
+  })
+
+  const sender = new EventEmitter()
+  sender.id = 91
+  sender.getURL = () => 'drmvyz-app://app/index.html'
+  sender.isDestroyed = () => false
+  const event = { sender, senderFrame: { url: 'drmvyz-app://app/index.html' } }
+  const ipcRenderer = new EventEmitter()
+  ipcRenderer.invoke = async (channel, ...args) => {
+    const handler = handlers.get(channel)
+    if (!handler) throw new Error(`Missing IPC handler: ${channel}`)
+    return handler(event, ...args)
+  }
+
+  const exposed = {}
+  const originalLoad = Module._load
+  Module._load = function(request, parent, isMain) {
+    if (request === 'electron') {
+      return {
+        contextBridge: { exposeInMainWorld: (name, value) => { exposed[name] = value } },
+        ipcRenderer,
+        webUtils: { getPathForFile: () => null },
+      }
+    }
+    return originalLoad.call(this, request, parent, isMain)
+  }
+
+  try {
+    const preloadPath = require.resolve('../rekordbox/preloadRekordboxBridge.cjs')
+    delete require.cache[preloadPath]
+    require(preloadPath)
+
+    const snapshot = await exposed.drmvyzNative.output.getTargetSnapshot()
+    const miracast = snapshot.providers.find(provider => provider.providerId === 'miracast')
+    assert.equal(miracast.state, 'available')
+    assert.deepEqual(miracast.capabilities, {
+      targetEnumeration: false,
+      sessions: false,
+      picker: true,
+      actions: ['open-system-picker'],
+    })
+
+    const action = await exposed.drmvyzNative.output.performProviderAction('miracast', 'open-system-picker')
+    assert.equal(action.state, 'opened')
+    assert.equal(windowsDisplayOpens, 1)
+    assert.equal(await exposed.drmvyzNative.output.getSession(), null)
+    assert.deepEqual((await exposed.drmvyzNative.output.listTargets()).map(target => target.id), ['display:7'])
+  } finally {
+    Module._load = originalLoad
+    await installed.shutdown()
+  }
+})

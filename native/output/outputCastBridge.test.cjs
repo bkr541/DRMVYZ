@@ -14,6 +14,7 @@ const {
   loadOrCreateReceiverDeviceId,
   normalizeCastRequest,
   openMacOsDisplaySettings,
+  openWindowsWirelessDisplaySettings,
 } = require('./outputCastBridge.cjs')
 
 test('normalizeCastRequest requires a target, window mode, and aspect ratio', () => {
@@ -115,5 +116,22 @@ test('macOS display action reports unavailable native system controls instead of
   await assert.rejects(
     openMacOsDisplaySettings({ shell: { openPath: async () => '' }, fsImpl: { existsSync: () => false } }),
     /could not be located/,
+  )
+})
+
+
+test('Windows wireless display action opens the documented Display settings URI', async () => {
+  const opened = []
+  const shell = { openExternal: async value => { opened.push(value) } }
+  const result = await openWindowsWirelessDisplaySettings({ shell })
+  assert.equal(result.opened, 'ms-settings:display')
+  assert.deepEqual(opened, ['ms-settings:display'])
+  assert.match(result.message, /wireless display/i)
+})
+
+test('Windows wireless display action reports unavailable native system controls instead of silently succeeding', async () => {
+  await assert.rejects(
+    openWindowsWirelessDisplaySettings({ shell: null }),
+    /shell\.openExternal is unavailable/,
   )
 })

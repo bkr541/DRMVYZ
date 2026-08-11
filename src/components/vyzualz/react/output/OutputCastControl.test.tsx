@@ -30,6 +30,7 @@ let root: ReturnType<typeof createRoot>
 let startCast: ReturnType<typeof vi.fn>
 let stopCast: ReturnType<typeof vi.fn>
 let performProviderAction: ReturnType<typeof vi.fn>
+let bridge: NativeOutputBridge
 let canvas: HTMLCanvasElement
 
 function buttonWithText(text: string): HTMLButtonElement {
@@ -56,13 +57,14 @@ beforeEach(async () => {
     state: 'opened',
     message: 'macOS display controls opened.',
   }))
-  const bridge: NativeOutputBridge = {
+  bridge = {
     listTargets: vi.fn(async () => targets),
     getTargetSnapshot: vi.fn(async () => ({
       targets,
       providers: [
         { providerId: 'local-display', label: 'Connected displays', state: 'available', targetCount: 1, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
         { providerId: 'airplay', label: 'AirPlay / Wireless Displays', state: 'available', targetCount: 0, message: null, capabilities: { targetEnumeration: false, sessions: false, picker: true, actions: ['open-system-picker'] } },
+        { providerId: 'miracast', label: 'Windows Wireless Displays', state: 'unsupported', targetCount: 0, message: 'Windows only.', capabilities: { targetEnumeration: false, sessions: false, picker: true, actions: ['open-system-picker'] } },
         { providerId: 'drmvyz-receiver', label: 'DRMVYZ Receivers', state: 'available', targetCount: 1, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
       ],
     })),
@@ -141,6 +143,28 @@ describe('OutputCastControl', () => {
     await act(async () => buttonWithText('Open macOS Displays').click())
 
     expect(performProviderAction).toHaveBeenCalledWith('airplay', 'open-system-picker')
+    expect(startCast).not.toHaveBeenCalled()
+  })
+
+
+  it('exposes Windows wireless-display selection through the same provider-action contract', async () => {
+    bridge.getTargetSnapshot = vi.fn(async () => ({
+      targets,
+      providers: [
+        { providerId: 'local-display', label: 'Connected displays', state: 'available', targetCount: 1, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
+        { providerId: 'airplay', label: 'AirPlay / Wireless Displays', state: 'unsupported', targetCount: 0, message: 'macOS only.', capabilities: { targetEnumeration: false, sessions: false, picker: true, actions: ['open-system-picker'] } },
+        { providerId: 'miracast', label: 'Windows Wireless Displays', state: 'available', targetCount: 0, message: null, capabilities: { targetEnumeration: false, sessions: false, picker: true, actions: ['open-system-picker'] } },
+        { providerId: 'drmvyz-receiver', label: 'DRMVYZ Receivers', state: 'available', targetCount: 1, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
+      ],
+    }))
+
+    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')
+    await act(async () => trigger?.click())
+
+    expect(document.body.textContent).toContain('Windows Wireless Displays')
+    await act(async () => buttonWithText('Open Windows Displays').click())
+
+    expect(performProviderAction).toHaveBeenCalledWith('miracast', 'open-system-picker')
     expect(startCast).not.toHaveBeenCalled()
   })
 

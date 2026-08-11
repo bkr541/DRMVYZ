@@ -20,6 +20,9 @@ const {
 const {
   MacOsAirPlayProvider,
 } = require('./providers/macosAirPlayProvider.cjs')
+const {
+  WindowsMiracastProvider,
+} = require('./providers/windowsMiracastProvider.cjs')
 
 const SESSION_TTL_MS = 10 * 60 * 1_000
 const MAX_JSON_BODY_BYTES = 64 * 1_024
@@ -277,6 +280,18 @@ function resolveReachableLocalAddress(remoteHost) {
 }
 
 
+async function openWindowsWirelessDisplaySettings({ shell } = {}) {
+  if (!shell || typeof shell.openExternal !== 'function') {
+    throw new Error('Electron shell.openExternal is unavailable for Windows wireless-display selection')
+  }
+
+  await shell.openExternal('ms-settings:display')
+  return {
+    opened: 'ms-settings:display',
+    message: 'Windows Display settings opened. Use Connect under Multiple displays to choose a wireless display; DRMVYZ will detect the display Windows adds.',
+  }
+}
+
 async function openMacOsDisplaySettings({ shell, fsImpl = fs } = {}) {
   if (!shell || typeof shell.openPath !== 'function') {
     throw new Error('Electron shell.openPath is unavailable for macOS display selection')
@@ -315,6 +330,7 @@ function installOutputCastBridge({
   shell = null,
   platform = process.platform,
   openSystemDisplays = null,
+  openWindowsDisplays = null,
   isTrustedAppUrl,
 }) {
   const receiverToken = crypto.randomBytes(24).toString('base64url')
@@ -378,6 +394,10 @@ function installOutputCastBridge({
     platform,
     openSystemDisplays: openSystemDisplays ?? (platform === 'darwin' ? () => openMacOsDisplaySettings({ shell }) : null),
   })
+  const windowsMiracastProvider = new WindowsMiracastProvider({
+    platform,
+    openWindowsDisplays: openWindowsDisplays ?? (platform === 'win32' ? () => openWindowsWirelessDisplaySettings({ shell }) : null),
+  })
   const receiverProvider = new DrmvyzReceiverProvider({
     isPrivateNetworkAddress,
     resolveReachableLocalAddress,
@@ -394,7 +414,7 @@ function installOutputCastBridge({
   }
 
   targetManager = new OutputTargetManager({
-    providers: [localDisplayProvider, macOsAirPlayProvider, receiverProvider],
+    providers: [localDisplayProvider, macOsAirPlayProvider, windowsMiracastProvider, receiverProvider],
     onTargetsChanged: () => void broadcastTargets(),
     onSessionChanged: session => sendToTrustedRenderers('drmvyz:output:session-changed', session),
   })
@@ -730,6 +750,7 @@ module.exports = {
   installOutputCastBridge,
   isAllowedReceiverSource,
   openMacOsDisplaySettings,
+  openWindowsWirelessDisplaySettings,
   isPrivateNetworkAddress,
   normalizeCastRequest,
   loadOrCreateReceiverDeviceId,
