@@ -212,6 +212,7 @@ describe('Show Director performance preset workflow', () => {
 describe('Show Director performance UI architecture', () => {
   const presetsSource = readFileSync(new URL('./ReactPresetsPanel.tsx', import.meta.url), 'utf8')
   const controlsSource = readFileSync(new URL('./LaserDmxShowDirectorControls.tsx', import.meta.url), 'utf8')
+  const runtimeInspectorSource = readFileSync(new URL('./LaserDmxRuntimeCueInspectorPanel.tsx', import.meta.url), 'utf8')
   const rendererSource = readFileSync(new URL('./renderers/LaserDmxRenderer.ts', import.meta.url), 'utf8')
   const thumbnailSource = readFileSync(new URL('./LaserDmxPresetThumbnail.tsx', import.meta.url), 'utf8')
 
@@ -228,9 +229,9 @@ describe('Show Director performance UI architecture', () => {
     expect(controlsSource).toContain('SliderRow')
     expect(controlsSource).toContain('SelectRow')
     expect(controlsSource).toContain('NumberInputRow')
-    expect(controlsSource).toContain("status.analysisStatus === 'ready'")
-    expect(controlsSource).toContain('Optional intelligence unavailable')
-    expect(controlsSource).toContain('data-performance-runtime-status')
+    expect(runtimeInspectorSource).toContain("status.analysisStatus === 'ready'")
+    expect(runtimeInspectorSource).toContain('Optional intelligence unavailable')
+    expect(runtimeInspectorSource).toContain('data-performance-runtime-status')
   })
 
   it('does not persist per-frame runtime state or create production thumbnail loops', () => {
