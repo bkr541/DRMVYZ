@@ -5242,6 +5242,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-main-workspace-tabs.dv-underline-tabs {
   gap: 22px;
   margin-top: 10px;
+  margin-bottom: 12px;
   justify-content: space-between;
 }
 

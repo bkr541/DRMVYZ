@@ -54,6 +54,7 @@ import {
   writeReactPresetFavorites,
 } from './reactPresetLibraryState'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
+import { Collapsible } from './ReactControlRows'
 
 function getModeHint(preset: ReactPreset): string | null {
   if (preset.engine === 'cinematicPortal') {
@@ -417,12 +418,7 @@ function CanvasPresetCollection({ thumbnailGenerationKey }: { thumbnailGeneratio
   )
 
   return (
-    <section className="rv-preset-group" aria-label="CANVAS media presets">
-      <div className="rv-preset-group-hdr">
-        <span className="rv-preset-group-hdr-icon" aria-hidden="true">▣</span>
-        <span className="rv-preset-group-hdr-label">CANVAS Media Presets</span>
-        <span className="rv-preset-group-hdr-count">{CANVAS_PRESETS.length}</span>
-      </div>
+    <Collapsible label="CANVAS Media Presets" defaultOpen>
       <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>
         {CANVAS_PRESETS.map(canvasPreset => {
           const cardPreset = cardById.get(canvasPreset.id)
@@ -443,7 +439,7 @@ function CanvasPresetCollection({ thumbnailGenerationKey }: { thumbnailGeneratio
           )
         })}
       </div>
-    </section>
+    </Collapsible>
   )
 }
 
@@ -488,12 +484,7 @@ function ShowDirectorPerformancePresets() {
   }
 
   return (
-    <section className="rv-preset-group rv-show-director-performance-preset-group" aria-label="Show Director Performance Shows">
-      <div className="rv-preset-group-hdr rv-show-director-preset-group__header">
-        <span className="rv-preset-group-hdr-icon" aria-hidden="true">◆</span>
-        <span className="rv-preset-group-hdr-label">Show Director Performance Shows</span>
-        <span className="rv-preset-group-hdr-count">{LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.length}</span>
-      </div>
+    <Collapsible label="Show Director Performance Shows" defaultOpen>
       {LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.length === 0 ? (
         <div className="rv-preset-library-empty rv-show-director-performance-empty">
           <strong>No Performance Shows installed</strong>
@@ -542,7 +533,7 @@ function ShowDirectorPerformancePresets() {
           })}
         </div>
       )}
-    </section>
+    </Collapsible>
   )
 }
 
@@ -564,12 +555,7 @@ function ShowDirectorTemplatePresets() {
   }
 
   return (
-    <section className="rv-preset-group rv-show-director-preset-group" aria-label="Show Director starter rig layouts">
-      <div className="rv-preset-group-hdr rv-show-director-preset-group__header">
-        <span className="rv-preset-group-hdr-icon" aria-hidden="true">⌁</span>
-        <span className="rv-preset-group-hdr-label">Show Director Rig Layouts</span>
-        <span className="rv-preset-group-hdr-count">{LASER_DMX_SHOW_DIRECTOR_TEMPLATES.length}</span>
-      </div>
+    <Collapsible label="Show Director Rig Layouts" defaultOpen>
       <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>
         {LASER_DMX_SHOW_DIRECTOR_TEMPLATES.map(template => {
           const isActive = showDirector.sourceTemplateId === template.id
@@ -598,22 +584,17 @@ function ShowDirectorTemplatePresets() {
           )
         })}
       </div>
-    </section>
+    </Collapsible>
   )
 }
 
 function BeamMatrixRuntimePresets() {
   return (
-    <section className="rv-preset-group rv-laser-dmx-preset-group" aria-label="Beam Matrix presets">
-      <div className="rv-preset-group-hdr rv-laser-dmx-preset-group__header">
-        <span className="rv-preset-group-hdr-icon" aria-hidden="true">⌬</span>
-        <span className="rv-preset-group-hdr-label">Beam Matrix Presets</span>
-        <span className="rv-preset-group-hdr-count">{LASER_DMX_BEAM_MATRIX_PRESETS.length}</span>
-      </div>
+    <Collapsible label="Beam Matrix Presets" defaultOpen>
       <div className="rv-laser-dmx-preset-browser-wrap">
         <LaserDmxBeamMatrixPresetBrowser />
       </div>
-    </section>
+    </Collapsible>
   )
 }
 
@@ -764,14 +745,16 @@ export function ReactPresetsPanel() {
   const presetLibraryContent = isCanvasCurrentLibrary ? (
     <CanvasPresetCollection thumbnailGenerationKey={thumbnailGenerationKey} />
   ) : isLaserDmxCurrentLibrary ? (
-    laserDmxBeamMatrixAuthoringMode === 'showDirector'
-      ? (
-          <>
-            <ShowDirectorPerformancePresets />
-            <ShowDirectorTemplatePresets />
-          </>
-        )
-      : <BeamMatrixRuntimePresets />
+    <Collapsible label="LaserDMX Media Presets" defaultOpen>
+      {laserDmxBeamMatrixAuthoringMode === 'showDirector'
+        ? (
+            <>
+              <ShowDirectorPerformancePresets />
+              <ShowDirectorTemplatePresets />
+            </>
+          )
+        : <BeamMatrixRuntimePresets />}
+    </Collapsible>
   ) : visiblePresets.length === 0 ? (
     <div className="rv-preset-library-empty">
       <strong>No {activeEngine.label} presets found</strong>
@@ -780,7 +763,9 @@ export function ReactPresetsPanel() {
   ) : activeReactEngineId === 'cinematicPortal' ? (
     <CinematicCurrentPresetBrowser presets={visiblePresets} activeWorldMode={activeCinematicWorldMode} {...collectionProps} />
   ) : (
-    <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>{visiblePresets.map(preset => renderPresetCard(preset, collectionProps))}</div>
+    <Collapsible label={`${activeEngine.label} Media Presets`} defaultOpen>
+      <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>{visiblePresets.map(preset => renderPresetCard(preset, collectionProps))}</div>
+    </Collapsible>
   )
 
   return (
