@@ -231,9 +231,9 @@
 .dv-icon-morph-checkbox {
   position: relative;
   box-sizing: border-box;
-  width: 21px;
-  height: 21px;
-  flex: 0 0 21px;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
   border: 1px solid rgba(154, 178, 188, 0.25) !important;
   border-radius: 50% !important;
   background: rgba(255, 255, 255, 0.03) !important;
@@ -255,10 +255,10 @@
    oval. Reassert the compact size wherever the two classes combine. */
 .rv-ctrl-toggle.dv-icon-morph-toggle,
 .rv-ctrl-toggle.dv-icon-morph-checkbox {
-  width: 21px !important;
-  height: 21px !important;
-  min-width: 21px !important;
-  min-height: 21px !important;
+  width: 17px !important;
+  height: 17px !important;
+  min-width: 17px !important;
+  min-height: 17px !important;
 }
 
 .dv-icon-morph-toggle.is-on,
@@ -270,8 +270,8 @@
 }
 
 .dv-icon-morph-toggle__icon {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   pointer-events: none;
 }
 

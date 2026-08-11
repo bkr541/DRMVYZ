@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
-import { Collapsible, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { Collapsible, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import { IconChipButton } from './controls/IconChipButton'
 import { LaserDmxShowDirectorInspector } from './LaserDmxShowDirectorInspector'
 import {
@@ -14,7 +14,6 @@ import {
 import type { LaserDmxShowDirectorPerformanceFallbackBehavior } from './LaserDmxShowDirectorPerformanceProgram'
 import { useLaserDmxShowDirectorPerformanceRuntimeStatus } from './LaserDmxShowDirectorPerformanceRuntimeStatus'
 import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
-import { LaserDmxRendererDiagnosticsPanel } from './LaserDmxRendererDiagnosticsPanel'
 import { validateLaserDmxShowDirectorPresetRealism } from './LaserDmxShowDirectorPresetRealismValidation'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
@@ -100,34 +99,34 @@ export function LaserDmxShowDirectorGlobalControls() {
 
   return (
     <div className="rv-show-director-design-panel rv-show-director-global-controls">
-      <CtrlSection label="Show Director Design" />
-
       <Collapsible label="Canvas" defaultOpen>
-        <ToggleRow
-          label="Snap to Grid"
-          value={settings.snapEnabled}
-          onChange={value => updateSettings({ snapEnabled: value })}
-        />
-        <ToggleRow
-          label="Show Grid"
-          value={settings.showGrid}
-          onChange={value => updateSettings({ showGrid: value })}
-        />
-        <ToggleRow
-          label="Show Labels"
-          value={settings.showLabels}
-          onChange={value => updateSettings({ showLabels: value })}
-        />
-        <ToggleRow
-          label="Show Beams"
-          value={settings.showBeams}
-          onChange={value => updateSettings({ showBeams: value })}
-        />
-        <ToggleRow
-          label="Highlight Fixtures"
-          value={settings.highlightFixtures}
-          onChange={value => updateSettings({ highlightFixtures: value })}
-        />
+        <div className="rv-laser-canvas-toggle-grid">
+          <ToggleRow
+            label="Snap to Grid"
+            value={settings.snapEnabled}
+            onChange={value => updateSettings({ snapEnabled: value })}
+          />
+          <ToggleRow
+            label="Show Grid"
+            value={settings.showGrid}
+            onChange={value => updateSettings({ showGrid: value })}
+          />
+          <ToggleRow
+            label="Show Labels"
+            value={settings.showLabels}
+            onChange={value => updateSettings({ showLabels: value })}
+          />
+          <ToggleRow
+            label="Show Beams"
+            value={settings.showBeams}
+            onChange={value => updateSettings({ showBeams: value })}
+          />
+          <ToggleRow
+            label="Highlight Fixtures"
+            value={settings.highlightFixtures}
+            onChange={value => updateSettings({ highlightFixtures: value })}
+          />
+        </div>
         <SelectRow
           label="Grid Size"
           value={gridValue}
@@ -202,8 +201,6 @@ export function LaserDmxShowDirectorGlobalControls() {
           disabled={settings.rendererMode === 'canvas2d'}
         />
       </Collapsible>
-
-      <LaserDmxRendererDiagnosticsPanel />
 
       <Collapsible label="Layout" defaultOpen={false}>
         <div className="rv-show-director-design-actions" aria-label="Show Director layout actions">

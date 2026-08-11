@@ -49,7 +49,7 @@ describe('LaserDMX workspace architecture', () => {
     await render(<LaserDmxShowDirectorPalette />)
 
     expect(container.textContent).toContain('Lighting Components')
-    expect(container.textContent).toContain('Show Director Design')
+    expect(container.textContent).toContain('Canvas')
     expect(container.textContent).toContain('Snap to Grid')
     expect(container.textContent).toContain('Show Beams')
     expect(container.textContent).not.toContain('Fixture Tools')

@@ -302,9 +302,10 @@ export function CtrlSection({ label }: { label: string }) {
 export interface CollapsibleProps {
   label: string
   defaultOpen?: boolean
+  bodyClassName?: string
   children: React.ReactNode
 }
 
-export function Collapsible({ label, defaultOpen = true, children }: CollapsibleProps) {
-  return <DualRailCollapsible label={label} defaultOpen={defaultOpen}>{children}</DualRailCollapsible>
+export function Collapsible({ label, defaultOpen = true, bodyClassName, children }: CollapsibleProps) {
+  return <DualRailCollapsible label={label} defaultOpen={defaultOpen} bodyClassName={bodyClassName}>{children}</DualRailCollapsible>
 }

@@ -5,6 +5,7 @@
 import { useEffect, useRef } from 'react'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import type { MusicIntelligenceFrame } from '../../../features/musicIntelligence/types'
+import { Collapsible } from '../react/ReactControlRows'
 
 // ── Mini display helpers ──────────────────────────────────────────────────────
 
@@ -200,132 +201,134 @@ export function MusicIntelligenceDiagnosticsPanel() {
 
   return (
     <div className="vz-mi-panel">
-      {/* ── Bands ────────────────────────────────────────────────────────── */}
-      <MiSection title="Audio Bands">
-        <div className="vz-mi-bar-group">
-          {bandBars.current.map(row => {
-            const r = barRowRefs(row)
-            return (
-              <div key={row.label} className="vz-mi-bar-col">
-                <span ref={r.valRef} className="vz-mi-bar-val">0.00</span>
-                <div className="vz-mi-bar-track">
-                  <div ref={r.barRef} className="vz-mi-bar-fill" />
+      <Collapsible label="Audio Intelligence" defaultOpen>
+        {/* ── Bands ────────────────────────────────────────────────────────── */}
+        <MiSection title="Audio Bands">
+          <div className="vz-mi-bar-group">
+            {bandBars.current.map(row => {
+              const r = barRowRefs(row)
+              return (
+                <div key={row.label} className="vz-mi-bar-col">
+                  <span ref={r.valRef} className="vz-mi-bar-val">0.00</span>
+                  <div className="vz-mi-bar-track">
+                    <div ref={r.barRef} className="vz-mi-bar-fill" />
+                  </div>
+                  <span className="vz-mi-bar-lbl">{row.label}</span>
                 </div>
-                <span className="vz-mi-bar-lbl">{row.label}</span>
-              </div>
-            )
-          })}
-        </div>
-      </MiSection>
+              )
+            })}
+          </div>
+        </MiSection>
 
-      {/* ── Rhythm ───────────────────────────────────────────────────────── */}
-      <MiSection title="Rhythm">
-        <div className="vz-mi-kv-row">
-          <span className="vz-mi-kv-label">BPM</span>
-          <span ref={bpmRef} className="vz-mi-kv-val">—</span>
-          <span className="vz-mi-kv-label">Beat</span>
-          <span ref={beatInBarRef} className="vz-mi-kv-val">1</span>
-          <span className="vz-mi-kv-label">Bar</span>
-          <span ref={barIdxRef} className="vz-mi-kv-val">0</span>
-        </div>
-        <MiBar row={phaseBar.current}    barRowRefs={barRowRefs} />
-        <MiBar row={ph16Bar.current}     barRowRefs={barRowRefs} />
-        <MiBar row={transientBar.current} barRowRefs={barRowRefs} />
-        <div className="vz-mi-dots-row">
-          {rhythmDots.current.map(row => {
-            const r = dotRowRefs(row)
-            return (
-              <div key={row.label} className="vz-mi-dot-item">
-                <span ref={r.dotRef} className="vz-mi-dot" />
-                <span className="vz-mi-dot-label">{row.label}</span>
-              </div>
-            )
-          })}
-        </div>
-      </MiSection>
-
-      {/* ── Energy ───────────────────────────────────────────────────────── */}
-      <MiSection title="Energy">
-        {energyBars.current.map(row => (
-          <MiBar key={row.label} row={row} barRowRefs={barRowRefs} />
-        ))}
-      </MiSection>
-
-      {/* ── Section ──────────────────────────────────────────────────────── */}
-      <MiSection title="Section">
-        <div className="vz-mi-kv-row">
-          <span className="vz-mi-kv-label">Type</span>
-          <span ref={sectionTypeRef} className="vz-mi-kv-val vz-mi-kv-val--tag">—</span>
-        </div>
-        <MiBar row={sectionProgBar.current}  barRowRefs={barRowRefs} />
-        <MiBar row={sectionIntBar.current}   barRowRefs={barRowRefs} />
-        <MiBar row={sectionConfBar.current}  barRowRefs={barRowRefs} />
-      </MiSection>
-
-      {/* ── Harmonic ─────────────────────────────────────────────────────── */}
-      <MiSection title="Harmonic">
-        <div className="vz-mi-kv-row">
-          <span className="vz-mi-kv-label">Key</span>
-          <span ref={keyRef} className="vz-mi-kv-val">—</span>
-          <span className="vz-mi-kv-label">Mode</span>
-          <span ref={modeRef} className="vz-mi-kv-val">—</span>
-        </div>
-        <div className="vz-mi-kv-row">
-          <span className="vz-mi-kv-label">Chord</span>
-          <span ref={chordRef} className="vz-mi-kv-val">—</span>
-        </div>
-        <div className="vz-mi-kv-row">
-          <span className="vz-mi-kv-label">Pitch</span>
-          <span ref={pitchRef} className="vz-mi-kv-val">—</span>
-          <span className="vz-mi-kv-label">Contour</span>
-          <span ref={contourRef} className="vz-mi-kv-val">—</span>
-        </div>
-        <MiBar row={keyConfBar.current} barRowRefs={barRowRefs} />
-      </MiSection>
-
-      {/* ── Stems ────────────────────────────────────────────────────────── */}
-      <MiSection title="Stems">
-        <div className="vz-mi-bar-group">
-          {stemBars.current.map(row => {
-            const r = barRowRefs(row)
-            return (
-              <div key={row.label} className="vz-mi-bar-col">
-                <span ref={r.valRef} className="vz-mi-bar-val">0.00</span>
-                <div className="vz-mi-bar-track">
-                  <div ref={r.barRef} className="vz-mi-bar-fill" />
+        {/* ── Rhythm ───────────────────────────────────────────────────────── */}
+        <MiSection title="Rhythm">
+          <div className="vz-mi-kv-row">
+            <span className="vz-mi-kv-label">BPM</span>
+            <span ref={bpmRef} className="vz-mi-kv-val">—</span>
+            <span className="vz-mi-kv-label">Beat</span>
+            <span ref={beatInBarRef} className="vz-mi-kv-val">1</span>
+            <span className="vz-mi-kv-label">Bar</span>
+            <span ref={barIdxRef} className="vz-mi-kv-val">0</span>
+          </div>
+          <MiBar row={phaseBar.current}    barRowRefs={barRowRefs} />
+          <MiBar row={ph16Bar.current}     barRowRefs={barRowRefs} />
+          <MiBar row={transientBar.current} barRowRefs={barRowRefs} />
+          <div className="vz-mi-dots-row">
+            {rhythmDots.current.map(row => {
+              const r = dotRowRefs(row)
+              return (
+                <div key={row.label} className="vz-mi-dot-item">
+                  <span ref={r.dotRef} className="vz-mi-dot" />
+                  <span className="vz-mi-dot-label">{row.label}</span>
                 </div>
-                <span className="vz-mi-bar-lbl">{row.label}</span>
-              </div>
-            )
-          })}
-        </div>
-      </MiSection>
+              )
+            })}
+          </div>
+        </MiSection>
 
-      {/* ── Lyrics ───────────────────────────────────────────────────────── */}
-      <MiSection title="Lyrics">
-        <MiBar row={vocalActBar.current} barRowRefs={barRowRefs} />
-        <div className="vz-mi-lyric-line">
-          <span className="vz-mi-kv-label">Line</span>
-          <span ref={activeLineRef} className="vz-mi-lyric-text">—</span>
-        </div>
-        <div className="vz-mi-lyric-line">
-          <span className="vz-mi-kv-label">Word</span>
-          <span ref={activeWordRef} className="vz-mi-lyric-text">—</span>
-        </div>
-      </MiSection>
+        {/* ── Energy ───────────────────────────────────────────────────────── */}
+        <MiSection title="Energy">
+          {energyBars.current.map(row => (
+            <MiBar key={row.label} row={row} barRowRefs={barRowRefs} />
+          ))}
+        </MiSection>
 
-      {/* ── Semantic ─────────────────────────────────────────────────────── */}
-      <MiSection title="Semantic">
-        {semanticBars.current.map(row => (
-          <MiBar key={row.label} row={row} barRowRefs={barRowRefs} />
-        ))}
-        <div className="vz-mi-kv-row">
-          <span className="vz-mi-kv-label">Mood</span>
-          <span ref={moodRef} className="vz-mi-kv-val vz-mi-kv-val--tag">—</span>
-          <span className="vz-mi-kv-label">Texture</span>
-          <span ref={textureRef} className="vz-mi-kv-val vz-mi-kv-val--tag">—</span>
-        </div>
-      </MiSection>
+        {/* ── Section ──────────────────────────────────────────────────────── */}
+        <MiSection title="Section">
+          <div className="vz-mi-kv-row">
+            <span className="vz-mi-kv-label">Type</span>
+            <span ref={sectionTypeRef} className="vz-mi-kv-val vz-mi-kv-val--tag">—</span>
+          </div>
+          <MiBar row={sectionProgBar.current}  barRowRefs={barRowRefs} />
+          <MiBar row={sectionIntBar.current}   barRowRefs={barRowRefs} />
+          <MiBar row={sectionConfBar.current}  barRowRefs={barRowRefs} />
+        </MiSection>
+
+        {/* ── Harmonic ─────────────────────────────────────────────────────── */}
+        <MiSection title="Harmonic">
+          <div className="vz-mi-kv-row">
+            <span className="vz-mi-kv-label">Key</span>
+            <span ref={keyRef} className="vz-mi-kv-val">—</span>
+            <span className="vz-mi-kv-label">Mode</span>
+            <span ref={modeRef} className="vz-mi-kv-val">—</span>
+          </div>
+          <div className="vz-mi-kv-row">
+            <span className="vz-mi-kv-label">Chord</span>
+            <span ref={chordRef} className="vz-mi-kv-val">—</span>
+          </div>
+          <div className="vz-mi-kv-row">
+            <span className="vz-mi-kv-label">Pitch</span>
+            <span ref={pitchRef} className="vz-mi-kv-val">—</span>
+            <span className="vz-mi-kv-label">Contour</span>
+            <span ref={contourRef} className="vz-mi-kv-val">—</span>
+          </div>
+          <MiBar row={keyConfBar.current} barRowRefs={barRowRefs} />
+        </MiSection>
+
+        {/* ── Stems ────────────────────────────────────────────────────────── */}
+        <MiSection title="Stems">
+          <div className="vz-mi-bar-group">
+            {stemBars.current.map(row => {
+              const r = barRowRefs(row)
+              return (
+                <div key={row.label} className="vz-mi-bar-col">
+                  <span ref={r.valRef} className="vz-mi-bar-val">0.00</span>
+                  <div className="vz-mi-bar-track">
+                    <div ref={r.barRef} className="vz-mi-bar-fill" />
+                  </div>
+                  <span className="vz-mi-bar-lbl">{row.label}</span>
+                </div>
+              )
+            })}
+          </div>
+        </MiSection>
+
+        {/* ── Lyrics ───────────────────────────────────────────────────────── */}
+        <MiSection title="Lyrics">
+          <MiBar row={vocalActBar.current} barRowRefs={barRowRefs} />
+          <div className="vz-mi-lyric-line">
+            <span className="vz-mi-kv-label">Line</span>
+            <span ref={activeLineRef} className="vz-mi-lyric-text">—</span>
+          </div>
+          <div className="vz-mi-lyric-line">
+            <span className="vz-mi-kv-label">Word</span>
+            <span ref={activeWordRef} className="vz-mi-lyric-text">—</span>
+          </div>
+        </MiSection>
+
+        {/* ── Semantic ─────────────────────────────────────────────────────── */}
+        <MiSection title="Semantic">
+          {semanticBars.current.map(row => (
+            <MiBar key={row.label} row={row} barRowRefs={barRowRefs} />
+          ))}
+          <div className="vz-mi-kv-row">
+            <span className="vz-mi-kv-label">Mood</span>
+            <span ref={moodRef} className="vz-mi-kv-val vz-mi-kv-val--tag">—</span>
+            <span className="vz-mi-kv-label">Texture</span>
+            <span ref={textureRef} className="vz-mi-kv-val vz-mi-kv-val--tag">—</span>
+          </div>
+        </MiSection>
+      </Collapsible>
     </div>
   )
 }

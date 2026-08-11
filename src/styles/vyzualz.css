@@ -1920,6 +1920,17 @@
 .vz-mi-panel::-webkit-scrollbar-track { background: transparent; }
 .vz-mi-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
+/* ReactAudioPanel composes Audio Intelligence with sibling content below it
+   (e.g. LaserDMX's Renderer Diagnostics) inside .rv-inspector, which already
+   owns the rail's single scrollbar. Without this, .vz-mi-panel's own flex:1
+   would keep claiming all remaining height even while its Collapsible is
+   shut, stranding the sibling content at the very bottom of the rail. */
+.rv-audio-analysis-panel .vz-mi-panel {
+  flex: none;
+  min-height: auto;
+  overflow: visible;
+}
+
 .vz-mi-section {
   padding: 6px 10px 4px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
@@ -1974,7 +1985,7 @@
   color: rgba(255,255,255,0.5);
 }
 .vz-mi-bar-lbl {
-  font-size: 9px;
+  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
   color: rgba(255,255,255,0.3);
   text-align: center;
 }
@@ -1988,7 +1999,7 @@
   margin-bottom: 3px;
 }
 .vz-mi-row-label {
-  font-size: 9px;
+  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
   color: rgba(255,255,255,0.35);
   flex: 0 0 64px;
   white-space: nowrap;
@@ -2025,10 +2036,10 @@
   margin-bottom: 4px;
 }
 .vz-mi-kv-label {
-  font-size: 9px;
+  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
   color: rgba(255,255,255,0.3);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  text-transform: none;
+  letter-spacing: normal;
 }
 .vz-mi-kv-val {
   font-size: 10px;
@@ -2069,7 +2080,7 @@
   box-shadow: 0 0 5px #4ac7db88;
 }
 .vz-mi-dot-label {
-  font-size: 9px;
+  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
   color: rgba(255,255,255,0.3);
 }
 
