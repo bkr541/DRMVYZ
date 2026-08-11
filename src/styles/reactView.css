@@ -10776,7 +10776,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-canvas-override-flag {
   width: 100%;
   min-width: 0;
-  padding-block: 4px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: rgba(2, 7, 10, 0.82);
+  backdrop-filter: blur(8px);
   pointer-events: auto;
   filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.58));
 }
@@ -17095,4 +17098,317 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-cinema-graph-fallback__node span { color: rgba(255, 255, 255, 0.48); font-size: 10px; }
 .rv-cinema-graph-fallback { display: grid; gap: 8px; }
 .rv-cinema-graph-node.is-disabled { opacity: 0.68; }
+
+/* ── Layout Lab / Template — palette group style gallery ───────────────────── */
+
+.llpg-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 18px 16px 32px;
+}
+
+.llpg-group {
+  display: grid;
+  gap: 10px 14px;
+  align-items: start;
+}
+
+.llpg-group--cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.llpg-group--cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.llpg-group--strip-6 {
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+
+/* The expanded HSL body needs the full row width regardless of which grid
+   cell it started in, so it breaks out of the 2-column flow while open. */
+.llpg-group--cols-2 .llpg-expand-row.is-open {
+  grid-column: 1 / -1;
+}
+
+.llpg-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.llpg-row--popover-anchor {
+  position: relative;
+}
+
+.llpg-row-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: rgba(196, 207, 211, 0.65);
+  font: 600 10px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.llpg-row-hex {
+  flex: 0 0 auto;
+  color: rgba(232, 244, 248, 0.55);
+  font: 600 9.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.04em;
+  min-width: 56px;
+  text-align: right;
+}
+
+/* 01 · Native swatch */
+
+.llpg-native-swatch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.llpg-native-swatch input[type='color'] {
+  position: absolute;
+  inset: -4px;
+  width: calc(100% + 8px);
+  height: calc(100% + 8px);
+  opacity: 0;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+}
+
+/* 02 · Inline expand (HSL sliders) */
+
+.llpg-expand-row {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.015);
+  overflow: hidden;
+}
+
+.llpg-expand-hdr {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.llpg-swatch-dot {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+
+.llpg-expand-caret {
+  flex: 0 0 auto;
+  color: rgba(196, 207, 211, 0.45);
+  font-size: 10px;
+  transition: transform 140ms ease;
+}
+
+.llpg-expand-row.is-open .llpg-expand-caret {
+  transform: rotate(180deg);
+}
+
+.llpg-expand-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 9px 12px 34px;
+}
+
+.llpg-hsl-row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.llpg-hsl-row > span {
+  color: rgba(196, 207, 211, 0.5);
+  font: 600 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.llpg-hex-input {
+  margin-top: 2px;
+}
+
+.llpg-hex-input--inline {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 03 · Popover gradient picker + 04 · preset grid (shared popover shell) */
+
+.llpg-swatch-btn {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  padding: 0;
+}
+
+.llpg-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 176px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(103, 247, 255, 0.16);
+  background: rgba(6, 12, 17, 0.98);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+}
+
+.llpg-gradient-square {
+  position: relative;
+  width: 100%;
+  height: 110px;
+  border-radius: 6px;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.llpg-gradient-thumb {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.llpg-hue-slider {
+  width: 100%;
+}
+
+.llpg-popover--grid {
+  width: 148px;
+}
+
+.llpg-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.llpg-preset-swatch {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+  padding: 0;
+}
+
+.llpg-preset-swatch.is-active {
+  border-color: #67f7ff;
+  box-shadow: 0 0 0 1px rgba(103, 247, 255, 0.4);
+}
+
+/* 04's compact strip: a narrow vertical cell (label above, swatch, hex below)
+   instead of the horizontal label+swatch+hex row the other four variants use. */
+
+.llpg-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.llpg-cell--popover-anchor {
+  position: relative;
+}
+
+.llpg-cell-label {
+  width: 100%;
+  color: rgba(196, 207, 211, 0.6);
+  font: 600 8.5px/1.15 var(--az-font-data, Inter, system-ui, sans-serif);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.llpg-cell-hex {
+  color: rgba(232, 244, 248, 0.5);
+  font: 600 8px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.02em;
+}
+
+.llpg-swatch-btn--cell {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+}
+
+.llpg-popover--centered {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* 05's 2x3 grid: the color fills the whole cell, label sits on top of it,
+   nothing else — the cell itself is the native color-input trigger. */
+
+.llpg-fill-cell {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  min-height: 72px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.llpg-fill-cell input[type='color'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+}
+
+.llpg-fill-cell-label {
+  position: relative;
+  z-index: 1;
+  color: #fff;
+  font: 700 10px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  mix-blend-mode: difference;
+}
 .rv-cinema-graph-editor__connections path.is-disabled { stroke-dasharray: 4 5; opacity: 0.58; }

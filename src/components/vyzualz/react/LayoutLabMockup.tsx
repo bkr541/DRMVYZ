@@ -12,6 +12,7 @@ import { NoticeStyleGallery } from './layoutLab/NoticeStyleGallery'
 import { NotificationsModalMockup } from './layoutLab/NotificationsModalMockup'
 import { MediaLibraryStyleGallery } from './layoutLab/MediaLibraryStyleGallery'
 import { ButtonStyleGallery } from './layoutLab/ButtonStyleGallery'
+import { PaletteGroupStyleGallery } from './layoutLab/PaletteGroupStyleGallery'
 import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
 import { CanvasMockup } from './layoutLab/CanvasMockup'
 import { CanvasRightRailMockup } from './layoutLab/CanvasRightRailMockup'
@@ -242,6 +243,7 @@ export function LayoutLabMockup() {
                       <NotificationsModalMockup />
                       <MediaLibraryStyleGallery />
                       <ButtonStyleGallery />
+                      <PaletteGroupStyleGallery />
                     </div>
                   </div>
                 )}
