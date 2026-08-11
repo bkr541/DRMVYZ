@@ -10210,6 +10210,14 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   gap: 10px;
 }
 
+/* Cap the grid to roughly 4 rows of cards (44px thumb + name/meta/tag stack,
+   10px row gap) so the group stays a fixed, predictable size and the user
+   scrolls within it for the rest of the library instead of the whole group
+   growing with the media count. */
+.rv-canvas-library-shell .vz-media-scroll {
+  max-height: 460px;
+}
+
 /* The name/meta/tags stack below the thumbnail carries its own bottom
    padding plus a margin-top on both the meta line and the tag row — three
    stacked gaps that add up to real height per card. Tighten them so cards
