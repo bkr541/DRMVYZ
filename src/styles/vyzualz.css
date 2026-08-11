@@ -7638,6 +7638,19 @@ input[type='range'].vz-slider--color {
   min-height: 0;
 }
 
+/* Compact mode (CANVAS): rows size to their actual content instead of the
+   fixed 146px row used elsewhere, since the shorter thumbnail + tightened
+   info block no longer needs that much height — a fixed row would just
+   leave the saved space behind as blank padding at the bottom of the card. */
+.vz-media-virtual--compact > .vz-media-grid {
+  grid-auto-rows: auto;
+}
+
+.vz-media-virtual--compact > .vz-media-grid > .vz-media-card {
+  height: auto;
+  min-height: 0;
+}
+
 .vz-media-virtual > .vz-media-list {
   gap: 4px;
 }

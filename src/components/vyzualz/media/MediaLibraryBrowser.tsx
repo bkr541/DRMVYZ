@@ -60,6 +60,7 @@ export function computeVirtualMediaWindow(input: {
   scrollTop: number
   viewMode: ViewMode
   manager: boolean
+  compact?: boolean
   overscanRows?: number
 }): VirtualMediaWindow {
   const width = Math.max(240, input.width || (input.manager ? 900 : 320))
@@ -67,7 +68,7 @@ export function computeVirtualMediaWindow(input: {
   const columns = input.viewMode === 'list'
     ? 1
     : input.manager ? Math.max(1, Math.floor((width - 8 + 10) / 200)) : 2
-  const rowHeight = input.viewMode === 'list' ? 58 : input.manager ? 190 : 150
+  const rowHeight = input.viewMode === 'list' ? 58 : input.manager ? 190 : input.compact ? 100 : 150
   const totalRows = Math.ceil(input.itemCount / columns)
   const overscan = input.overscanRows ?? 3
   const firstVisibleRow = Math.max(0, Math.floor(Math.max(0, input.scrollTop) / rowHeight))
@@ -88,6 +89,7 @@ const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
   items,
   viewMode,
   manager,
+  compact,
   scrollRef,
   renderCard,
   ensureSigned,
@@ -98,6 +100,7 @@ const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
   items: UploadedMedia[]
   viewMode: ViewMode
   manager: boolean
+  compact?: boolean
   scrollRef: RefObject<HTMLDivElement>
   renderCard: (item: UploadedMedia) => ReactNode
   ensureSigned?: (visibleIds: string[], nearIds: string[]) => void
@@ -125,7 +128,7 @@ const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
     }
   }, [manager, scrollRef])
 
-  const windowed = computeVirtualMediaWindow({ itemCount: items.length, ...metrics, viewMode, manager })
+  const windowed = computeVirtualMediaWindow({ itemCount: items.length, ...metrics, viewMode, manager, compact })
   const visibleItems = items.slice(windowed.startIndex, windowed.endIndex)
   const nearStart = Math.max(0, windowed.startIndex - windowed.columns * 2)
   const nearEnd = Math.min(items.length, windowed.endIndex + windowed.columns * 2)
@@ -145,7 +148,7 @@ const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
   }, [hasMore, items.length, loadingMore, onNearEnd, windowed.columns, windowed.endIndex])
 
   return (
-    <div className="vz-media-virtual" data-rendered-cards={visibleItems.length}>
+    <div className={`vz-media-virtual${compact ? ' vz-media-virtual--compact' : ''}`} data-rendered-cards={visibleItems.length}>
       {windowed.topSpacer > 0 && <div className="vz-media-virtual-spacer" style={{ height: windowed.topSpacer }} aria-hidden="true" />}
       <div className={viewMode === 'list' ? 'vz-media-list' : 'vz-media-grid'}>
         {visibleItems.map(renderCard)}
@@ -1017,6 +1020,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
       items={mediaList}
       viewMode={viewMode}
       manager={isManager}
+      compact={isCanvasMode}
       scrollRef={scrollRef}
       renderCard={renderMediaCard}
       ensureSigned={handleEnsureSigned}
