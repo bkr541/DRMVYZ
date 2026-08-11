@@ -97,6 +97,7 @@ class OutputTargetManager {
     this.lastProviderStatus = new Map()
     this.providerStartErrors = new Map()
     this.providerStartErrors.clear()
+    this.pendingRuntimeCleanup = new Set()
     this.started = false
     this.activeSession = null
     this.onTargetsChanged = onTargetsChanged
@@ -156,14 +157,20 @@ class OutputTargetManager {
       try {
         const rawTargets = await provider.listTargets()
         const providerTargets = Array.isArray(rawTargets) ? rawTargets.map(target => normalizeTarget(provider, target)) : []
+        const providerIds = new Set()
         for (const target of providerTargets) {
-          if (ids.has(target.id)) throw new Error(`Duplicate output target id: ${target.id}`)
-          ids.add(target.id)
-          targets.push(target)
+          if (providerIds.has(target.id) || ids.has(target.id)) throw new Error(`Duplicate output target id: ${target.id}`)
+          providerIds.add(target.id)
         }
         const status = this.providerStartErrors.has(provider.id)
-          ? { ...providerError(provider, this.providerStartErrors.get(provider.id)), targetCount: providerTargets.length }
+          ? providerError(provider, this.providerStartErrors.get(provider.id))
           : normalizeProviderStatus(provider, await provider.getStatus?.(), providerTargets.length)
+        if (!this.providerStartErrors.has(provider.id)) {
+          for (const target of providerTargets) {
+            ids.add(target.id)
+            targets.push(target)
+          }
+        }
         this.lastProviderStatus.set(provider.id, status)
         providers.push(status)
       } catch (error) {
@@ -182,8 +189,35 @@ class OutputTargetManager {
 
   getSession() {
     if (!this.activeSession) return null
-    const { runtimeHandle: _runtimeHandle, runtimeCleaned: _runtimeCleaned, provider: _provider, ...session } = this.activeSession
+    const {
+      runtimeHandle: _runtimeHandle,
+      runtimeCleaned: _runtimeCleaned,
+      startPromise: _startPromise,
+      stopRequested: _stopRequested,
+      provider: _provider,
+      ...session
+    } = this.activeSession
     return { ...session }
+  }
+
+  trackRuntimeCleanup(promise) {
+    const tracked = Promise.resolve(promise).catch(() => undefined)
+    this.pendingRuntimeCleanup.add(tracked)
+    void tracked.finally(() => this.pendingRuntimeCleanup.delete(tracked))
+    return tracked
+  }
+
+  async cleanupSessionRuntime(session) {
+    if (!session || session.runtimeCleaned) return
+    session.runtimeCleaned = true
+    const runtimeHandle = session.runtimeHandle
+    session.runtimeHandle = null
+    if (session.startPromise) {
+      const startPromise = session.startPromise
+      this.trackRuntimeCleanup(Promise.resolve(startPromise).then(handle => session.provider.stopSession?.(handle, session)))
+      return
+    }
+    await session.provider.stopSession?.(runtimeHandle, session)
   }
 
   emitSession() {
@@ -213,14 +247,29 @@ class OutputTargetManager {
       provider,
       runtimeHandle: null,
       runtimeCleaned: false,
+      startPromise: null,
+      stopRequested: false,
     }
     this.activeSession = session
     this.emitSession()
 
+    const startPromise = Promise.resolve().then(() => provider.startSession({ target, request, context }))
+    session.startPromise = startPromise
     try {
-      session.runtimeHandle = await provider.startSession({ target, request, context })
+      const runtimeHandle = await startPromise
+      if (session.startPromise === startPromise) session.startPromise = null
+      if (session.stopRequested || this.activeSession !== session) {
+        if (!session.runtimeCleaned) {
+          session.runtimeHandle = runtimeHandle
+          await this.cleanupSessionRuntime(session)
+        }
+        throw new Error('Output session was cancelled before it finished starting')
+      }
+      session.runtimeHandle = runtimeHandle
       return this.getSession()
     } catch (error) {
+      if (session.startPromise === startPromise) session.startPromise = null
+      if (session.stopRequested || this.activeSession !== session) throw error
       session.state = SESSION_STATES.FAILED
       session.error = error instanceof Error ? error.message : 'Could not start output'
       this.emitSession()
@@ -241,16 +290,12 @@ class OutputTargetManager {
     if (!session || session.id !== sessionId) return false
     session.state = SESSION_STATES.FAILED
     session.error = typeof message === 'string' && message.trim() ? message.trim() : 'Output stream failed'
+    session.stopRequested = true
     this.emitSession()
-    if (!session.runtimeCleaned) {
-      session.runtimeCleaned = true
-      const runtimeHandle = session.runtimeHandle
-      session.runtimeHandle = null
-      try {
-        await session.provider.stopSession?.(runtimeHandle, session)
-      } catch {
-        // Preserve the original transport failure; cleanup is best-effort after a failed session.
-      }
+    try {
+      await this.cleanupSessionRuntime(session)
+    } catch {
+      // Preserve the original transport failure; cleanup is best-effort after a failed session.
     }
     return true
   }
@@ -268,14 +313,10 @@ class OutputTargetManager {
     const session = this.activeSession
     if (!session) return null
     session.state = SESSION_STATES.DISCONNECTING
+    session.stopRequested = true
     this.emitSession()
     try {
-      if (!session.runtimeCleaned) {
-        session.runtimeCleaned = true
-        const runtimeHandle = session.runtimeHandle
-        session.runtimeHandle = null
-        await session.provider.stopSession?.(runtimeHandle, session)
-      }
+      await this.cleanupSessionRuntime(session)
       session.state = SESSION_STATES.DISCONNECTED
       session.error = null
       this.emitSession()
@@ -293,11 +334,17 @@ class OutputTargetManager {
 
   async shutdown() {
     try { await this.stopSession() } catch { /* Continue provider cleanup. */ }
+    if (this.pendingRuntimeCleanup.size) await Promise.allSettled([...this.pendingRuntimeCleanup])
+    const cleanedProviders = new Set()
     for (const [id, cleanup] of this.providerCleanup) {
-      try { await cleanup() } catch { /* Best-effort shutdown. */ }
+      try {
+        await cleanup()
+        cleanedProviders.add(id)
+      } catch { /* Fall back to provider.shutdown below. */ }
       this.providerCleanup.delete(id)
     }
     for (const provider of this.providers.values()) {
+      if (cleanedProviders.has(provider.id)) continue
       try { await provider.shutdown?.() } catch { /* Best-effort shutdown. */ }
     }
     this.providerStartErrors.clear()

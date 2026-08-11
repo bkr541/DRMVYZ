@@ -171,6 +171,8 @@ describe('OutputCastControl', () => {
     expect(document.body.textContent).toContain('Booth Mac · DRMVYZ — Stage LED')
     expect(document.body.textContent).toContain('Booth Mac · DRMVYZ — Preview')
     expect(document.body.textContent).toContain('Pair & Cast')
+    expect(document.body.textContent).toContain('Wireless Displays')
+    expect(document.body.textContent).toContain('Local Displays')
     expect(document.body.textContent).toContain('DRMVYZ Receivers')
   })
 

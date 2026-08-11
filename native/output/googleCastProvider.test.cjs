@@ -101,6 +101,17 @@ test('Google Cast configuration is explicit and validates only deployment-safe v
   assert.equal(normalizeMimeType('video/mp4'), null)
 })
 
+test('Google Cast reports LAN media service startup failure explicitly and recovers after reconfiguration', async () => {
+  const { provider } = configuredProvider()
+  provider.reportServiceError(new Error('LAN bind denied'))
+  assert.equal(provider.getStatus().state, 'initialization-failed')
+  assert.match(provider.getStatus().message, /LAN bind denied/)
+  await assert.rejects(provider.performAction(GOOGLE_CAST_OPEN_PICKER_ACTION), /LAN bind denied/)
+
+  provider.configureService({ port: 45679 })
+  assert.equal(provider.getStatus().state, 'available')
+})
+
 test('Google Cast picker cancellation leaves no target or fake session state', async () => {
   const { provider, getOpenedUrl } = configuredProvider({
     onOpen: (instance, url) => {

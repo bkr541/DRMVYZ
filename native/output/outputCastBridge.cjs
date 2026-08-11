@@ -411,16 +411,47 @@ function installOutputCastBridge({
   googleCastNetworkInterfaces = null,
   googleCastPickerTimeoutMs = null,
   isTrustedAppUrl,
+  listenHttpServer = null,
 }) {
   const receiverToken = crypto.randomBytes(24).toString('base64url')
   const receiverDeviceId = loadOrCreateReceiverDeviceId(app)
   const receiverTrustStore = createReceiverTrustStore(app)
   const signalSessions = new Map()
   const receiverWindows = new Map()
-  let httpServer = null
-  let httpPort = null
+  let localRelayServer = null
+  let localRelayPort = null
+  let networkServiceServer = null
+  let networkServicePort = null
   let sessionGcInterval = null
   let shuttingDown = false
+  let shutdownPromise = null
+  const registeredIpcChannels = []
+
+  const registerIpcHandler = (channel, handler) => {
+    ipcMain.handle(channel, handler)
+    registeredIpcChannels.push(channel)
+  }
+
+  const listenServer = typeof listenHttpServer === 'function'
+    ? listenHttpServer
+    : (server, host) => new Promise((resolve, reject) => {
+        const onError = error => {
+          server.removeListener('listening', onListening)
+          reject(error)
+        }
+        const onListening = () => {
+          server.removeListener('error', onError)
+          const address = server.address()
+          if (!address || typeof address === 'string') {
+            reject(new Error('Could not bind the DRMVYZ output service'))
+            return
+          }
+          resolve(address.port)
+        }
+        server.once('error', onError)
+        server.once('listening', onListening)
+        server.listen(0, host)
+      })
 
   const trustedRendererWindows = () => BrowserWindow.getAllWindows().filter(window => {
     const url = window.webContents.getURL()
@@ -429,7 +460,11 @@ function installOutputCastBridge({
 
   const sendToTrustedRenderers = (channel, payload) => {
     for (const window of trustedRendererWindows()) {
-      if (!window.isDestroyed()) window.webContents.send(channel, payload)
+      try {
+        if (!window.isDestroyed() && !window.webContents.isDestroyed?.()) window.webContents.send(channel, payload)
+      } catch (error) {
+        console.warn(`[DRMVYZ Output] Could not deliver ${channel} to a renderer:`, error)
+      }
     }
   }
 
@@ -500,6 +535,7 @@ function installOutputCastBridge({
   const broadcastTargets = async () => {
     if (!targetManager || shuttingDown) return
     const snapshot = await targetManager.getSnapshot()
+    if (shuttingDown) return
     sendToTrustedRenderers('drmvyz:output:targets-changed', snapshot.targets)
     sendToTrustedRenderers('drmvyz:output:target-snapshot-changed', snapshot)
   }
@@ -565,7 +601,7 @@ function installOutputCastBridge({
   screen.on('display-removed', handleReceiverDisplayRemoved)
 
   const handleHttpRequest = async (request, response) => {
-    const host = request.headers.host || `127.0.0.1:${httpPort}`
+    const host = request.headers.host || `127.0.0.1:${networkServicePort ?? localRelayPort ?? 0}`
     const url = new URL(request.url || '/', `http://${host}`)
     const remoteAddress = normalizeRemoteAddress(request.socket.remoteAddress || '')
 
@@ -784,24 +820,31 @@ function installOutputCastBridge({
     }
   }
 
-  const startHttpServer = () => new Promise((resolve, reject) => {
-    httpServer = http.createServer((request, response) => void handleHttpRequest(request, response))
-    httpServer.once('error', reject)
-    httpServer.listen(0, '0.0.0.0', () => {
-      const address = httpServer.address()
-      if (!address || typeof address === 'string') {
-        reject(new Error('Could not bind the DRMVYZ output receiver'))
-        return
-      }
-      httpPort = address.port
-      receiverProvider.configureReceiverService({ port: httpPort, receiverToken })
-      googleCastProvider.configureService({ port: httpPort })
-      resolve()
-    })
-  })
+  const startHttpServer = async host => {
+    const server = http.createServer((request, response) => void handleHttpRequest(request, response))
+    try {
+      const port = await listenServer(server, host)
+      if (!Number.isInteger(port) || port <= 0 || port > 65_535) throw new Error('Could not bind the DRMVYZ output service')
+      return { server, port }
+    } catch (error) {
+      try { server.close() } catch { /* Server never reached the listening state. */ }
+      throw error
+    }
+  }
 
   const startManagedSession = async (event, request) => {
-    if (!httpPort) throw new Error('The output receiver is still starting')
+    if (shuttingDown) throw new Error('Output casting is shutting down')
+    const snapshot = await targetManager.getSnapshot()
+    const selectedTarget = snapshot.targets.find(target => target.id === request.targetId)
+    if (!selectedTarget || !selectedTarget.available) throw new Error('That output target is no longer available')
+    await (selectedTarget.providerId === 'local-display' ? localRelayServerStartPromise : networkServiceStartPromise)
+    if (shuttingDown) throw new Error('Output casting is shutting down')
+    const servicePort = selectedTarget.providerId === 'local-display' ? localRelayPort : networkServicePort
+    if (!servicePort) {
+      throw new Error(selectedTarget.providerId === 'local-display'
+        ? 'Local display output is unavailable because the loopback relay could not start'
+        : 'Network casting is unavailable because the LAN media/control service could not start')
+    }
 
     const previous = currentSession()
     if (previous) await stopSession(previous.id)
@@ -823,7 +866,7 @@ function installOutputCastBridge({
     event.sender.once('destroyed', signalSession.sourceDestroyedHandler)
     signalSessions.set(signalSession.id, signalSession)
 
-    const sourceUrl = `http://127.0.0.1:${httpPort}/receiver?session=${encodeURIComponent(signalSession.id)}&token=${encodeURIComponent(signalSession.token)}`
+    const sourceUrl = `http://127.0.0.1:${servicePort}/receiver?session=${encodeURIComponent(signalSession.id)}&token=${encodeURIComponent(signalSession.token)}`
     try {
       return await targetManager.startSession(request, {
         sessionId: signalSession.id,
@@ -845,22 +888,22 @@ function installOutputCastBridge({
     return isTrustedAppUrl(url)
   }
 
-  ipcMain.handle('drmvyz:output:list-targets', async event => {
+  registerIpcHandler('drmvyz:output:list-targets', async event => {
     if (!isTrustedSender(event)) throw new Error('Untrusted output target request')
     return targetManager.listTargets()
   })
 
-  ipcMain.handle('drmvyz:output:get-target-snapshot', async event => {
+  registerIpcHandler('drmvyz:output:get-target-snapshot', async event => {
     if (!isTrustedSender(event)) throw new Error('Untrusted output target request')
     return targetManager.getSnapshot()
   })
 
-  ipcMain.handle('drmvyz:output:get-session', event => {
+  registerIpcHandler('drmvyz:output:get-session', event => {
     if (!isTrustedSender(event)) throw new Error('Untrusted output session request')
     return currentSession()
   })
 
-  ipcMain.handle('drmvyz:output:perform-provider-action', async (event, providerId, actionId, payload) => {
+  registerIpcHandler('drmvyz:output:perform-provider-action', async (event, providerId, actionId, payload) => {
     if (!isTrustedSender(event)) throw new Error('Untrusted output provider action')
     if (typeof providerId !== 'string' || !providerId.trim() || typeof actionId !== 'string' || !actionId.trim()) {
       throw new Error('A valid output provider action is required')
@@ -884,21 +927,21 @@ function installOutputCastBridge({
     return result
   })
 
-  ipcMain.handle('drmvyz:output:start-cast', async (event, value) => {
+  registerIpcHandler('drmvyz:output:start-cast', async (event, value) => {
     if (!isTrustedSender(event)) throw new Error('Untrusted output cast request')
     const request = normalizeCastRequest(value)
     if (!request) throw new Error('Select a window mode and aspect ratio before casting')
     return startManagedSession(event, request)
   })
 
-  ipcMain.handle('drmvyz:output:stop-cast', async event => {
+  registerIpcHandler('drmvyz:output:stop-cast', async event => {
     if (!isTrustedSender(event)) throw new Error('Untrusted output stop request')
     const current = currentSession()
     if (current) await stopSession(current.id)
     return null
   })
 
-  ipcMain.handle('drmvyz:output:publish-offer', (event, sessionId, offer) => {
+  registerIpcHandler('drmvyz:output:publish-offer', (event, sessionId, offer) => {
     if (!isTrustedSender(event)) throw new Error('Untrusted WebRTC offer')
     const session = signalSessions.get(sessionId)
     if (!session || session.sourceWebContentsId !== event.sender.id) throw new Error('Output session not found')
@@ -907,7 +950,7 @@ function installOutputCastBridge({
     return true
   })
 
-  ipcMain.handle('drmvyz:output:wait-for-answer', (event, sessionId) => {
+  registerIpcHandler('drmvyz:output:wait-for-answer', (event, sessionId) => {
     if (!isTrustedSender(event)) throw new Error('Untrusted WebRTC answer request')
     const session = signalSessions.get(sessionId)
     if (!session || session.sourceWebContentsId !== event.sender.id) throw new Error('Output session not found')
@@ -932,7 +975,7 @@ function installOutputCastBridge({
     })
   })
 
-  ipcMain.handle('drmvyz:output:fail-session', async (event, sessionId, message) => {
+  registerIpcHandler('drmvyz:output:fail-session', async (event, sessionId, message) => {
     if (!isTrustedSender(event)) throw new Error('Untrusted output failure request')
     const session = signalSessions.get(sessionId)
     if (!session || session.sourceWebContentsId !== event.sender.id) return false
@@ -941,7 +984,7 @@ function installOutputCastBridge({
     return failed
   })
 
-  ipcMain.handle('drmvyz:output:google-cast-begin-stream', (event, sessionId, metadata) => {
+  registerIpcHandler('drmvyz:output:google-cast-begin-stream', (event, sessionId, metadata) => {
     if (!isTrustedSender(event)) throw new Error('Untrusted Google Cast stream request')
     const signalSession = signalSessions.get(sessionId)
     const managedSession = currentSession()
@@ -951,7 +994,7 @@ function installOutputCastBridge({
     return googleCastProvider.beginMediaStream(sessionId, metadata)
   })
 
-  ipcMain.handle('drmvyz:output:google-cast-publish-chunk', (event, sessionId, value) => {
+  registerIpcHandler('drmvyz:output:google-cast-publish-chunk', (event, sessionId, value) => {
     if (!isTrustedSender(event)) throw new Error('Untrusted Google Cast media chunk')
     const signalSession = signalSessions.get(sessionId)
     const managedSession = currentSession()
@@ -969,14 +1012,14 @@ function installOutputCastBridge({
     return true
   })
 
-  ipcMain.handle('drmvyz:output:google-cast-end-stream', (event, sessionId) => {
+  registerIpcHandler('drmvyz:output:google-cast-end-stream', (event, sessionId) => {
     if (!isTrustedSender(event)) throw new Error('Untrusted Google Cast stream completion')
     const signalSession = signalSessions.get(sessionId)
     if (!signalSession || signalSession.sourceWebContentsId !== event.sender.id) return false
     return googleCastProvider.completeMediaStream(sessionId)
   })
 
-  ipcMain.handle('drmvyz:output:report-stats', (event, sessionId, stats) => {
+  registerIpcHandler('drmvyz:output:report-stats', (event, sessionId, stats) => {
     if (!isTrustedSender(event)) throw new Error('Untrusted output diagnostics')
     const session = signalSessions.get(sessionId)
     if (!session || session.sourceWebContentsId !== event.sender.id) return false
@@ -986,10 +1029,25 @@ function installOutputCastBridge({
   const providerStartPromise = targetManager.start().then(() => broadcastTargets()).catch(error => {
     console.error('[DRMVYZ Output] Provider initialization failed:', error)
   })
-  const receiverServiceStartPromise = startHttpServer().then(() => broadcastTargets()).catch(error => {
-    receiverProvider.reportReceiverServiceError(error)
+  const localRelayServerStartPromise = startHttpServer('127.0.0.1').then(({ server, port }) => {
+    localRelayServer = server
+    localRelayPort = port
+    return broadcastTargets()
+  }).catch(error => {
     void broadcastTargets()
-    console.error('[DRMVYZ Output] Receiver service failed to start:', error)
+    console.error('[DRMVYZ Output] Local display relay failed to start:', error)
+  })
+  const networkServiceStartPromise = startHttpServer('0.0.0.0').then(({ server, port }) => {
+    networkServiceServer = server
+    networkServicePort = port
+    receiverProvider.configureReceiverService({ port, receiverToken })
+    googleCastProvider.configureService({ port })
+    return broadcastTargets()
+  }).catch(error => {
+    receiverProvider.reportReceiverServiceError(error)
+    googleCastProvider.reportServiceError?.(error)
+    void broadcastTargets()
+    console.error('[DRMVYZ Output] Network casting service failed to start:', error)
   })
 
   sessionGcInterval = setInterval(() => {
@@ -1001,25 +1059,38 @@ function installOutputCastBridge({
   }, 4_000)
   sessionGcInterval.unref?.()
 
-  const shutdown = async () => {
-    if (shuttingDown) return
+  const closeHttpServer = server => new Promise(resolve => {
+    if (!server?.listening) { resolve(); return }
+    server.close(() => resolve())
+  })
+
+  let handleBeforeQuit = null
+  const shutdown = () => {
+    if (shutdownPromise) return shutdownPromise
     shuttingDown = true
-    if (sessionGcInterval) clearInterval(sessionGcInterval)
-    screen.removeListener('display-removed', handleReceiverDisplayRemoved)
-    await Promise.allSettled([providerStartPromise, receiverServiceStartPromise])
-    for (const receiver of receiverWindows.values()) {
-      if (!receiver.outputWindow.isDestroyed()) receiver.outputWindow.destroy()
-    }
-    receiverWindows.clear()
-    for (const id of [...signalSessions.keys()]) removeSignalSession(id)
-    await targetManager.shutdown()
-    await new Promise(resolve => {
-      if (!httpServer?.listening) { resolve(); return }
-      httpServer.close(() => resolve())
-    })
+    shutdownPromise = (async () => {
+      if (sessionGcInterval) clearInterval(sessionGcInterval)
+      screen.removeListener('display-removed', handleReceiverDisplayRemoved)
+      if (handleBeforeQuit) app.removeListener?.('before-quit', handleBeforeQuit)
+      for (const channel of registeredIpcChannels.splice(0)) ipcMain.removeHandler?.(channel)
+      await Promise.allSettled([providerStartPromise, localRelayServerStartPromise, networkServiceStartPromise])
+      for (const receiver of receiverWindows.values()) {
+        if (!receiver.outputWindow.isDestroyed()) receiver.outputWindow.destroy()
+      }
+      receiverWindows.clear()
+      for (const id of [...signalSessions.keys()]) removeSignalSession(id)
+      await targetManager.shutdown()
+      await Promise.allSettled([closeHttpServer(localRelayServer), closeHttpServer(networkServiceServer)])
+      localRelayServer = null
+      networkServiceServer = null
+      localRelayPort = null
+      networkServicePort = null
+    })()
+    return shutdownPromise
   }
 
-  app.on('before-quit', () => { void shutdown() })
+  handleBeforeQuit = () => { void shutdown() }
+  app.on('before-quit', handleBeforeQuit)
 
   return {
     getTargets: () => targetManager.listTargets(),

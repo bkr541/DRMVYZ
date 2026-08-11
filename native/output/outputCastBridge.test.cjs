@@ -255,3 +255,112 @@ test('Receiver V2 HTTP path pairs first use, selects the requested non-primary d
     fs.rmSync(root, { recursive: true, force: true })
   }
 })
+
+test('LAN service failure is isolated from local display output and shutdown releases bridge ownership', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'drmvyz-output-isolation-'))
+  const app = new EventEmitter()
+  app.getPath = () => root
+  const handlers = new Map()
+  const removedHandlers = []
+  const ipcMain = {
+    handle(channel, handler) { handlers.set(channel, handler) },
+    removeHandler(channel) { removedHandlers.push(channel); handlers.delete(channel) },
+  }
+
+  class FakeScreen extends EventEmitter {
+    constructor() {
+      super()
+      this.display = {
+        id: 1,
+        label: 'Control',
+        bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+        workArea: { x: 0, y: 0, width: 1920, height: 1040 },
+        scaleFactor: 1,
+        displayFrequency: 60,
+      }
+    }
+    getAllDisplays() { return [this.display] }
+    getPrimaryDisplay() { return this.display }
+  }
+
+  const createdWindows = []
+  class FakeBrowserWindow extends EventEmitter {
+    static getAllWindows() { return [] }
+    constructor(options) {
+      super()
+      this.options = options
+      this.destroyed = false
+      this.webContents = new EventEmitter()
+      this.webContents.setWindowOpenHandler = () => {}
+      createdWindows.push(this)
+    }
+    setAspectRatio() {}
+    setMenuBarVisibility() {}
+    setFullScreen() {}
+    show() {}
+    loadURL(url) { this.loadedUrl = url; return Promise.resolve() }
+    isDestroyed() { return this.destroyed }
+    close() { if (this.destroyed) return; this.destroyed = true; this.emit('closed') }
+    destroy() { this.close() }
+  }
+
+  const screen = new FakeScreen()
+  const boundHosts = []
+  const installed = installOutputCastBridge({
+    app,
+    BrowserWindow: FakeBrowserWindow,
+    ipcMain,
+    screen,
+    platform: 'linux',
+    googleCastAppId: 'A1B2C3D4',
+    googleCastSenderUrl: 'https://cast.example.test/sender/',
+    openGoogleCastCompanion: async () => {},
+    isTrustedAppUrl: () => true,
+    listenHttpServer: async (_server, host) => {
+      boundHosts.push(host)
+      if (host === '127.0.0.1') return 43123
+      throw new Error('simulated LAN bind failure')
+    },
+  })
+
+  const sender = new EventEmitter()
+  sender.id = 41
+  sender.getURL = () => 'file:///app/index.html'
+  sender.isDestroyed = () => false
+  const event = { sender, senderFrame: { url: 'file:///app/index.html' } }
+
+  try {
+    const startCast = handlers.get('drmvyz:output:start-cast')
+    assert.equal(typeof startCast, 'function')
+    const session = await startCast(event, {
+      targetId: 'display:1',
+      windowMode: 'fullscreen',
+      aspectRatio: '16:9',
+    })
+
+    assert.equal(session.providerId, 'local-display')
+    assert.equal(createdWindows.length, 1)
+    assert.match(createdWindows[0].loadedUrl, /^http:\/\/127\.0\.0\.1:43123\/receiver\?/)
+    assert.deepEqual(boundHosts, ['127.0.0.1', '0.0.0.0'])
+
+    for (let attempt = 0; attempt < 10; attempt += 1) await new Promise(resolve => setImmediate(resolve))
+    const snapshot = await handlers.get('drmvyz:output:get-target-snapshot')(event)
+    assert.equal(snapshot.providers.find(item => item.providerId === 'local-display').state, 'available')
+    assert.equal(snapshot.providers.find(item => item.providerId === 'drmvyz-receiver').state, 'initialization-failed')
+    assert.match(snapshot.providers.find(item => item.providerId === 'drmvyz-receiver').message, /simulated LAN bind failure/)
+    assert.equal(snapshot.providers.find(item => item.providerId === 'google-cast').state, 'initialization-failed')
+    assert.match(snapshot.providers.find(item => item.providerId === 'google-cast').message, /simulated LAN bind failure/)
+  } finally {
+    const firstShutdown = installed.shutdown()
+    const repeatedShutdown = installed.shutdown()
+    assert.equal(repeatedShutdown, firstShutdown)
+    await firstShutdown
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+
+  assert.equal(app.listenerCount('before-quit'), 0)
+  assert.equal(screen.listenerCount('display-removed'), 0)
+  assert.equal(handlers.size, 0)
+  assert.ok(removedHandlers.includes('drmvyz:output:start-cast'))
+  assert.ok(removedHandlers.includes('drmvyz:output:get-target-snapshot'))
+})

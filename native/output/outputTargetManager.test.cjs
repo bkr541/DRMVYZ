@@ -165,3 +165,126 @@ test('configuration-required Google Cast status does not erase healthy provider 
   assert.equal(snapshot.providers.find(item => item.providerId === 'google-cast').state, 'configuration-required')
   assert.equal(snapshot.providers.find(item => item.providerId === 'local-display').state, 'available')
 })
+
+test('duplicate targets from one provider are rejected transactionally without leaking partial targets', async () => {
+  const manager = new OutputTargetManager({
+    providers: [
+      provider('local-display', [
+        { id: 'display:healthy', kind: 'display', name: 'Healthy display', detail: '', available: true },
+      ]),
+      provider('broken-provider', [
+        { id: 'network:duplicate', kind: 'network', name: 'First duplicate', detail: '', available: true },
+        { id: 'network:duplicate', kind: 'network', name: 'Second duplicate', detail: '', available: true },
+      ]),
+    ],
+  })
+
+  const snapshot = await manager.getSnapshot()
+  assert.deepEqual(snapshot.targets.map(target => target.id), ['display:healthy'])
+  assert.equal(snapshot.providers.find(item => item.providerId === 'local-display').state, 'available')
+  assert.equal(snapshot.providers.find(item => item.providerId === 'broken-provider').state, 'initialization-failed')
+  assert.match(snapshot.providers.find(item => item.providerId === 'broken-provider').message, /Duplicate output target id/)
+})
+
+test('rapid stop while a provider is still starting cannot resurrect a stale session and cleans the late runtime', async () => {
+  let resolveRuntime
+  const stopped = []
+  const local = provider('local-display', [
+    { id: 'display:slow', kind: 'display', name: 'Slow display', detail: '', available: true },
+  ], {
+    startSession: () => new Promise(resolve => { resolveRuntime = resolve }),
+    stopSession: async handle => { stopped.push(handle) },
+  })
+  const manager = new OutputTargetManager({ providers: [local] })
+
+  const starting = manager.startSession(
+    { targetId: 'display:slow', windowMode: 'fullscreen', aspectRatio: '16:9' },
+    { sessionId: 'slow-session' },
+  )
+  while (!manager.getSession()) await new Promise(resolve => setImmediate(resolve))
+
+  await manager.stopSession()
+  assert.equal(manager.getSession(), null)
+  resolveRuntime({ windowId: 77 })
+
+  await assert.rejects(starting, /cancelled before it finished starting/)
+  await manager.shutdown()
+  assert.deepEqual(stopped, [{ windowId: 77 }])
+  assert.equal(manager.getSession(), null)
+})
+
+test('provider shutdown does not run twice when start returned an owning cleanup callback', async () => {
+  let cleanupCalls = 0
+  let shutdownCalls = 0
+  const local = provider('local-display', [], {
+    start: () => () => { cleanupCalls += 1 },
+    shutdown: () => { shutdownCalls += 1 },
+  })
+  const manager = new OutputTargetManager({ providers: [local] })
+
+  await manager.start()
+  await manager.shutdown()
+
+  assert.equal(cleanupCalls, 1)
+  assert.equal(shutdownCalls, 0)
+})
+
+test('provider startup failure cannot publish stale targets while healthy providers remain visible', async () => {
+  const stale = provider('stale-provider', [
+    { id: 'network:stale', kind: 'network', name: 'Stale receiver', detail: '', available: true },
+  ], {
+    start: async () => { throw new Error('provider startup failed') },
+  })
+  const manager = new OutputTargetManager({
+    providers: [
+      provider('local-display', [
+        { id: 'display:healthy-after-start-failure', kind: 'display', name: 'Healthy display', detail: '', available: true },
+      ]),
+      stale,
+    ],
+  })
+
+  await manager.start()
+  const snapshot = await manager.getSnapshot()
+
+  assert.deepEqual(snapshot.targets.map(target => target.id), ['display:healthy-after-start-failure'])
+  assert.equal(snapshot.providers.find(item => item.providerId === 'stale-provider').state, 'initialization-failed')
+  assert.match(snapshot.providers.find(item => item.providerId === 'stale-provider').message, /provider startup failed/)
+  await manager.shutdown()
+})
+
+test('session cleanup still calls provider stop when a provider uses no runtime handle', async () => {
+  let stopCalls = 0
+  const actionOnlyRuntime = provider('handleless-provider', [
+    { id: 'network:handleless', kind: 'network', name: 'Handleless target', detail: '', available: true },
+  ], {
+    startSession: async () => undefined,
+    stopSession: async handle => {
+      assert.equal(handle, undefined)
+      stopCalls += 1
+    },
+  })
+  const manager = new OutputTargetManager({ providers: [actionOnlyRuntime] })
+
+  await manager.startSession(
+    { targetId: 'network:handleless', windowMode: 'fullscreen', aspectRatio: '16:9' },
+    { sessionId: 'handleless-session' },
+  )
+  await manager.stopSession()
+
+  assert.equal(stopCalls, 1)
+})
+
+test('provider shutdown falls back to shutdown when the owning cleanup callback fails', async () => {
+  let shutdownCalls = 0
+  const local = provider('local-display', [], {
+    start: () => async () => { throw new Error('cleanup failed') },
+    shutdown: () => { shutdownCalls += 1 },
+  })
+  const manager = new OutputTargetManager({ providers: [local] })
+
+  await manager.start()
+  await manager.shutdown()
+
+  assert.equal(shutdownCalls, 1)
+})

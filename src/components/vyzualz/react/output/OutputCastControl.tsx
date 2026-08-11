@@ -516,7 +516,7 @@ function useGoogleCastBroadcaster(
           sessionId,
           relay,
           recorder,
-          statsTimer: null,
+          statsTimer: null as number | null,
           publishedBytes: 0,
           lastStatsBytes: 0,
           lastStatsAt: Date.now(),
@@ -671,6 +671,11 @@ function OutputCastPopover({
   const googleCastAction = googleCastProvider?.capabilities?.actions.includes('open-picker') ? 'open-picker' : null
   const googleCastActionAvailable = googleCastProvider?.state === 'available' || googleCastProvider?.state === 'initialization-failed'
   const readyToCast = Boolean(windowMode && aspectRatio && canvasReady && bridge)
+  const showWirelessDisplays = Boolean(
+    (airplayProvider && airplayProvider.state !== 'unsupported')
+      || (miracastProvider && miracastProvider.state !== 'unsupported')
+      || googleCastProvider,
+  )
 
   useEffect(() => {
     if (!session || session.state === 'connected' || session.state === 'failed' || error) setPendingTargetId(null)
@@ -866,9 +871,10 @@ function OutputCastPopover({
             {session && (
               <div className={`rv-cast-session rv-cast-session--${session.state}`}>
                 <div>
-                  <span>{session.state === 'connected' ? 'Now casting' : 'Output session'}</span>
+                  <span>{session.state === 'connected' ? 'Now casting' : session.state === 'failed' ? 'Output failed' : session.state === 'disconnecting' ? 'Stopping output' : 'Connecting output'}</span>
                   <strong>{session.targetName}</strong>
                   <small>{session.windowMode} · {session.aspectRatio}</small>
+                  {session.error && <small role="alert">{session.error}</small>}
                   {session.stats && (
                     <small>
                       {[session.stats.width && session.stats.height ? `${Math.round(session.stats.width)}×${Math.round(session.stats.height)}` : null,
@@ -897,77 +903,79 @@ function OutputCastPopover({
               </NoticeCard>
             ))}
 
-            {airplayProvider && airplayProvider.state !== 'unsupported' && (
-              <section className="rv-cast-device-group" aria-label="AirPlay and wireless displays">
-                <h3>AirPlay / Wireless Displays</h3>
-                <button
-                  type="button"
-                  className="rv-cast-provider-action"
-                  disabled={!bridge?.performProviderAction || !airplayAction || !airplayActionAvailable || Boolean(pendingProviderAction)}
-                  onClick={() => airplayAction && void performProviderAction('airplay', airplayAction)}
-                >
-                  <span className="rv-cast-device-icon"><DisplayIcon network /></span>
-                  <span className="rv-cast-device-copy">
-                    <strong>Open macOS Displays</strong>
-                    <span>Choose Screen Mirroring or extend the display in macOS.</span>
-                  </span>
-                  <span className="rv-cast-device-state">
-                    {pendingProviderAction === 'airplay:open-system-picker' ? 'Opening…' : 'Open'}
-                  </span>
-                </button>
-                <p>macOS owns AirPlay screen-mirroring selection. Once macOS connects a wireless display, DRMVYZ lists it once under Displays so the normal window, aspect-ratio, and fullscreen controls can target it.</p>
+            {showWirelessDisplays && (
+              <section className="rv-cast-device-group" aria-label="Wireless displays">
+                <h3>Wireless Displays</h3>
+                {airplayProvider && airplayProvider.state !== 'unsupported' && (
+                  <>
+                    <button
+                      type="button"
+                      className="rv-cast-provider-action"
+                      disabled={!bridge?.performProviderAction || !airplayAction || !airplayActionAvailable || Boolean(pendingProviderAction)}
+                      onClick={() => airplayAction && void performProviderAction('airplay', airplayAction)}
+                    >
+                      <span className="rv-cast-device-icon"><DisplayIcon network /></span>
+                      <span className="rv-cast-device-copy">
+                        <strong>Open macOS Displays</strong>
+                        <span>Open macOS Displays to mirror or extend to an AirPlay display.</span>
+                      </span>
+                      <span className="rv-cast-device-state">
+                        {pendingProviderAction === 'airplay:open-system-picker' ? 'Opening…' : 'Open'}
+                      </span>
+                    </button>
+                    <p>macOS owns AirPlay screen-mirroring selection. Once macOS connects a wireless display, DRMVYZ exposes it once under Local Displays and uses the canonical output-window path.</p>
+                  </>
+                )}
+
+                {miracastProvider && miracastProvider.state !== 'unsupported' && (
+                  <>
+                    <button
+                      type="button"
+                      className="rv-cast-provider-action"
+                      disabled={!bridge?.performProviderAction || !miracastAction || !miracastActionAvailable || Boolean(pendingProviderAction)}
+                      onClick={() => miracastAction && void performProviderAction('miracast', miracastAction)}
+                    >
+                      <span className="rv-cast-device-icon"><DisplayIcon network /></span>
+                      <span className="rv-cast-device-copy">
+                        <strong>Open Windows Displays</strong>
+                        <span>Open Windows Displays and use Connect under Multiple displays.</span>
+                      </span>
+                      <span className="rv-cast-device-state">
+                        {pendingProviderAction === 'miracast:open-system-picker' ? 'Opening…' : 'Open'}
+                      </span>
+                    </button>
+                    <p>Windows owns Miracast negotiation. After Windows connects or extends the wireless display, DRMVYZ exposes that OS display once under Local Displays.</p>
+                  </>
+                )}
+
+                {googleCastProvider && (
+                  <>
+                    <button
+                      type="button"
+                      className="rv-cast-provider-action"
+                      disabled={!bridge?.performProviderAction || !googleCastAction || !googleCastActionAvailable || !readyToCast || Boolean(pendingProviderAction) || Boolean(session)}
+                      onClick={() => googleCastAction && void performProviderAction('google-cast', googleCastAction, { windowMode, aspectRatio })}
+                    >
+                      <span className="rv-cast-device-icon"><DisplayIcon network /></span>
+                      <span className="rv-cast-device-copy">
+                        <strong>Choose Google Cast Device</strong>
+                        <span>{googleCastProvider.state === 'configuration-required'
+                          ? 'Configure the Cast receiver app ID and HTTPS sender companion first.'
+                          : 'Choose a Cast device in the supported browser Web Sender companion.'}</span>
+                      </span>
+                      <span className="rv-cast-device-state">
+                        {pendingProviderAction === 'google-cast:open-picker' ? 'Opening…' : googleCastProvider.state === 'available' || googleCastProvider.state === 'initialization-failed' ? 'Choose' : 'Setup'}
+                      </span>
+                    </button>
+                    <p>Google Cast stays distinct from OS wireless-display mirroring: the official Web Sender companion owns the Cast session while DRMVYZ serves the tokenized canonical live output stream.</p>
+                  </>
+                )}
               </section>
             )}
 
-            {miracastProvider && miracastProvider.state !== 'unsupported' && (
-              <section className="rv-cast-device-group" aria-label="Windows wireless displays">
-                <h3>Windows Wireless Displays</h3>
-                <button
-                  type="button"
-                  className="rv-cast-provider-action"
-                  disabled={!bridge?.performProviderAction || !miracastAction || !miracastActionAvailable || Boolean(pendingProviderAction)}
-                  onClick={() => miracastAction && void performProviderAction('miracast', miracastAction)}
-                >
-                  <span className="rv-cast-device-icon"><DisplayIcon network /></span>
-                  <span className="rv-cast-device-copy">
-                    <strong>Open Windows Displays</strong>
-                    <span>Use Connect under Multiple displays to choose a Miracast / Wireless Display target.</span>
-                  </span>
-                  <span className="rv-cast-device-state">
-                    {pendingProviderAction === 'miracast:open-system-picker' ? 'Opening…' : 'Open'}
-                  </span>
-                </button>
-                <p>Windows owns full-display Miracast negotiation. After Windows connects or extends a wireless display, DRMVYZ lists that OS display once under Displays so the canonical output window, aspect ratio, and fullscreen path can target it.</p>
-              </section>
-            )}
-
-            {googleCastProvider && (
-              <section className="rv-cast-device-group" aria-label="Google Cast devices">
-                <h3>Google Cast</h3>
-                <button
-                  type="button"
-                  className="rv-cast-provider-action"
-                  disabled={!bridge?.performProviderAction || !googleCastAction || !googleCastActionAvailable || !readyToCast || Boolean(pendingProviderAction) || Boolean(session)}
-                  onClick={() => googleCastAction && void performProviderAction('google-cast', googleCastAction, { windowMode, aspectRatio })}
-                >
-                  <span className="rv-cast-device-icon"><DisplayIcon network /></span>
-                  <span className="rv-cast-device-copy">
-                    <strong>Choose Google Cast Device</strong>
-                    <span>{googleCastProvider.state === 'configuration-required'
-                      ? 'Configure the Cast receiver app ID and HTTPS sender companion first.'
-                      : 'Opens the supported Web Sender companion in your browser, then streams the live DRMVYZ canvas.'}</span>
-                  </span>
-                  <span className="rv-cast-device-state">
-                    {pendingProviderAction === 'google-cast:open-picker' ? 'Opening…' : googleCastProvider.state === 'available' || googleCastProvider.state === 'initialization-failed' ? 'Choose' : 'Setup'}
-                  </span>
-                </button>
-                <p>Google Cast uses the official browser Web Sender flow and a registered Custom Web Receiver. Electron does not impersonate a Cast sender; the companion controls the Cast session while DRMVYZ serves only the tokenized live media stream.</p>
-              </section>
-            )}
-
-            <section className="rv-cast-device-group" aria-label="Connected displays">
-              <h3>Displays</h3>
-              {renderTargets(groups.displays, 'No displays are currently available.')}
+            <section className="rv-cast-device-group" aria-label="Local displays">
+              <h3>Local Displays</h3>
+              {renderTargets(groups.displays, 'No local displays are currently available.')}
             </section>
 
             <section className="rv-cast-device-group" aria-label="DRMVYZ receivers">
@@ -996,6 +1004,8 @@ export function OutputCastControl({
   const outputAvailable = isCanvasOutputAvailable(capability)
   const safeCanvas = outputAvailable ? canvas : null
   const outputAvailableRef = useRef(outputAvailable)
+  const refreshGenerationRef = useRef(0)
+  const unmountStopTimerRef = useRef<number | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const [open, setOpen] = useState(false)
   const [targets, setTargets] = useState<OutputTarget[]>([])
@@ -1010,6 +1020,7 @@ export function OutputCastControl({
   useLayoutEffect(() => {
     outputAvailableRef.current = outputAvailable
     if (outputAvailable) return
+    refreshGenerationRef.current += 1
     setOpen(false)
     setTargets([])
     setProviderStatuses([])
@@ -1021,6 +1032,7 @@ export function OutputCastControl({
 
   const refresh = useCallback(async () => {
     if (!bridge || !outputAvailable) return
+    const generation = ++refreshGenerationRef.current
     setLoading(true)
     setError(null)
     try {
@@ -1028,16 +1040,16 @@ export function OutputCastControl({
         ? await bridge.getTargetSnapshot()
         : { targets: await bridge.listTargets(), providers: [] }
       const nextSession = await bridge.getSession()
-      if (!outputAvailableRef.current) return
+      if (!outputAvailableRef.current || generation !== refreshGenerationRef.current) return
       setTargets(snapshot.targets)
       setProviderStatuses(snapshot.providers)
       setSession(nextSession)
     } catch (value) {
-      if (outputAvailableRef.current) {
+      if (outputAvailableRef.current && generation === refreshGenerationRef.current) {
         setError(value instanceof Error ? value.message : 'Could not discover output devices')
       }
     } finally {
-      if (outputAvailableRef.current) setLoading(false)
+      if (outputAvailableRef.current && generation === refreshGenerationRef.current) setLoading(false)
     }
   }, [bridge, outputAvailable])
 
@@ -1065,6 +1077,21 @@ export function OutputCastControl({
   useEffect(() => {
     if (open && outputAvailable) void refresh()
   }, [open, outputAvailable, refresh])
+
+  useEffect(() => {
+    if (!bridge || !outputAvailable) return
+    if (unmountStopTimerRef.current !== null) {
+      window.clearTimeout(unmountStopTimerRef.current)
+      unmountStopTimerRef.current = null
+    }
+    return () => {
+      refreshGenerationRef.current += 1
+      unmountStopTimerRef.current = window.setTimeout(() => {
+        unmountStopTimerRef.current = null
+        void bridge.stopCast().catch(() => null)
+      }, 0)
+    }
+  }, [bridge, outputAvailable])
 
   const performProviderAction = useCallback(async (providerId: OutputProviderId, actionId: string, payload?: unknown) => {
     if (!bridge?.performProviderAction || !outputAvailable) return

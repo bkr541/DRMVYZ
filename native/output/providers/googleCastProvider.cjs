@@ -107,6 +107,7 @@ class GoogleCastProvider {
     this.randomUUID = randomUUID
     this.randomBytes = randomBytes
     this.servicePort = null
+    this.serviceError = null
     this.lastError = null
     this.selectedTarget = null
     this.transactions = new Map()
@@ -122,6 +123,13 @@ class GoogleCastProvider {
 
   configureService({ port } = {}) {
     this.servicePort = Number.isInteger(port) && port > 0 && port <= 65_535 ? port : null
+    if (this.servicePort) this.serviceError = null
+    this.onStatusChanged()
+  }
+
+  reportServiceError(error) {
+    this.servicePort = null
+    this.serviceError = error instanceof Error ? error.message : 'The Google Cast media/control service failed to start.'
     this.onStatusChanged()
   }
 
@@ -143,6 +151,12 @@ class GoogleCastProvider {
       return {
         state: 'unavailable',
         message: 'Google Cast cannot open the browser sender companion in this build.',
+      }
+    }
+    if (this.serviceError) {
+      return {
+        state: 'initialization-failed',
+        message: `Google Cast media/control service failed to start: ${this.serviceError}`,
       }
     }
     if (!this.servicePort) {
@@ -209,7 +223,7 @@ class GoogleCastProvider {
       throw new Error(`${this.label} does not support action: ${actionId}`)
     }
     const status = this.getStatus()
-    if (status.state === 'configuration-required' || status.state === 'unavailable') throw new Error(status.message)
+    if (status.state === 'configuration-required' || status.state === 'unavailable' || this.serviceError) throw new Error(status.message)
     if (this.selectedTarget) throw new Error('Stop the current Google Cast output before choosing another Cast device')
 
     for (const transaction of this.transactions.values()) {
@@ -516,6 +530,7 @@ class GoogleCastProvider {
     }
     for (const transaction of [...this.transactions.values()]) this.cleanupTransaction(transaction)
     this.selectedTarget = null
+    this.serviceError = null
     this.lastError = null
   }
 }
