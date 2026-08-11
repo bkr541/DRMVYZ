@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
-import { UnderlineTabs } from './controls/UnderlineTabs'
-import { DualRailCollapsible } from './DualRailCollapsible'
 import { useShallow } from 'zustand/react/shallow'
 import {
   resolveCinematicConfigForPreset,
@@ -43,7 +41,7 @@ import { LASER_DMX_BEAM_MATRIX_PRESETS } from './laserDmxBeamMatrixPresets'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
 import type { ProductionFixtureKind } from './LaserDmxProductionRig'
-import { isSelectableReactEngineId, REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from './reactEngineCatalog'
+import { isSelectableReactEngineId, REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import { resolveReactPresetProvenance } from './ReactPresetProvenance'
 import { usePixGridDeckCompilerStore } from './pixGrid/PixGridDeckCompilerRuntime'
 import { resolvePixGridDeckPresetReadiness } from './pixGrid/PixGridDeckPreset'
@@ -54,11 +52,9 @@ import {
   readReactPresetFavorites,
   sanitizeReactPresetFavorites,
   writeReactPresetFavorites,
-  type ReactPresetLibraryView,
 } from './reactPresetLibraryState'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
-const ENGINE_ORDER: ReactEngineId[] = REACT_ENGINE_IDS.filter(engine => engine !== 'shaderPads')
 function getModeHint(preset: ReactPreset): string | null {
   if (preset.engine === 'cinematicPortal') {
     const mode = preset.cinematicConfig?.worldMode ?? 'legacyPortal'
@@ -368,7 +364,6 @@ function renderPresetCard(preset: ReactPreset, props: Omit<PresetCollectionProps
   )
 }
 
-const CINEMATIC_CATEGORY_ORDER = ['Cosmic', 'Architectural', 'Organic', 'Mechanical', 'Storm', 'Legacy'] as const
 const CINEMATIC_MOOD_ORDER = ['Ambient', 'Driving', 'Peak'] as const
 
 export function getCinematicWorldPresetGroups(presets: ReactPreset[]) {
@@ -386,35 +381,6 @@ export function getCinematicWorldPresetGroups(presets: ReactPreset[]) {
       })).filter(group => group.presets.length > 0),
     }
   }).filter(group => group.presets.length > 0)
-}
-
-type CinematicWorldPresetGroup = ReturnType<typeof getCinematicWorldPresetGroups>[number]
-
-function CinematicWorldPresetCards({
-  group,
-  props,
-  headingId,
-}: {
-  group: CinematicWorldPresetGroup
-  props: Omit<PresetCollectionProps, 'presets'>
-  headingId: string
-}) {
-  return (
-    <section className="rv-cinematic-preset-world rv-preset-group" aria-labelledby={headingId}>
-      <div className="rv-cinematic-preset-world-heading">
-        <strong id={headingId}>{group.world.label}</strong>
-        <span>{group.world.description}</span>
-      </div>
-      {group.moods.map(({ mood, presets: moodPresets }) => (
-        <div key={mood} className="rv-cinematic-preset-mood">
-          <h4>{mood}</h4>
-          <div className="rv-preset-group-cards" data-preset-grid>
-            {moodPresets.map(preset => renderPresetCard(preset, props))}
-          </div>
-        </div>
-      ))}
-    </section>
-  )
 }
 
 function CinematicCurrentPresetBrowser({
@@ -437,70 +403,6 @@ function CinematicCurrentPresetBrowser({
     </div>
   )
 }
-
-function CinematicPresetGroups({ presets, ...props }: PresetCollectionProps) {
-  const groups = useMemo(() => getCinematicWorldPresetGroups(presets), [presets])
-
-  return (
-    <div className="rv-cinematic-preset-taxonomy">
-      {CINEMATIC_CATEGORY_ORDER.map(category => {
-        const categoryGroups = groups.filter(group => group.world.category === category)
-        if (categoryGroups.length === 0) return null
-        return (
-          <section key={category} aria-labelledby={`cinematic-preset-category-${category}`}>
-            <h3 id={`cinematic-preset-category-${category}`}>{category}</h3>
-            {categoryGroups.map(group => (
-              <CinematicWorldPresetCards
-                key={group.world.id}
-                group={group}
-                props={props}
-                headingId={`cinematic-preset-world-${group.world.id}`}
-              />
-            ))}
-          </section>
-        )
-      })}
-    </div>
-  )
-}
-
-function EngineSection({ engineId, presets, expandedByDefault = false, ...props }: PresetCollectionProps & {
-  engineId: ReactEngineId
-  expandedByDefault?: boolean
-}) {
-  const containsActive = presets.some(preset => (
-    preset.id === props.activePresetId && preset.engine === props.activeEngineId
-  ))
-  const [collapsed, setCollapsed] = useState(() => !expandedByDefault && !containsActive)
-
-  useEffect(() => {
-    if (containsActive) setCollapsed(false)
-  }, [containsActive])
-
-  const engine = REACT_ENGINE_CATALOG[engineId]
-  return (
-    <DualRailCollapsible
-      className="rv-preset-group"
-      open={!collapsed}
-      onOpenChange={value => setCollapsed(!value)}
-      label={
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span
-            className="rv-preset-group-hdr-icon"
-            style={{ color: (presets.find(preset => preset.id === props.activePresetId) ?? presets[0])?.palette.primary }}
-          >{engine.icon}</span>
-          <span className="rv-preset-group-hdr-label">{engine.label}</span>
-        </span>
-      }
-      headerAccessory={<span className="rv-preset-group-hdr-count">{presets.length}</span>}
-    >
-      {engineId === 'cinematicPortal'
-        ? <CinematicPresetGroups presets={presets} {...props} />
-        : <div className="rv-preset-group-cards" data-preset-grid>{presets.map(preset => renderPresetCard(preset, props))}</div>}
-    </DualRailCollapsible>
-  )
-}
-
 
 function CanvasPresetCollection({ thumbnailGenerationKey }: { thumbnailGenerationKey: string }) {
   const selectedCanvasPresetId = useReactStore(state => state.selectedCanvasPresetId)
@@ -714,12 +616,6 @@ function BeamMatrixRuntimePresets() {
   )
 }
 
-const LIBRARY_VIEW_LABELS: Record<ReactPresetLibraryView, string> = {
-  current: 'Current Engine',
-  favorites: 'Favorites',
-  all: 'All Engines',
-}
-
 export function ReactPresetsPanel() {
   const activeBrandKit = useBrandKitStore(state => state.activeKit)
   const {
@@ -755,15 +651,7 @@ export function ReactPresetsPanel() {
     oscillatorSettings: state.oscillatorSettings,
     selectReactPreset: state.selectReactPreset,
   })))
-  const [libraryView, setLibraryView] = useState<ReactPresetLibraryView>('current')
   const [favoritePresetIds, setFavoritePresetIds] = useState<string[]>(readReactPresetFavorites)
-
-  // Selecting an engine always opens that engine's own library. Cross-engine
-  // browsing remains available through All Engines without leaving stale
-  // Cinematic/other-engine content beside the newly selected workspace.
-  useEffect(() => {
-    setLibraryView('current')
-  }, [activeReactEngineId])
 
   const displayPresets = useMemo(
     () => reactPresets.filter(preset => isSelectableReactEngineId(preset.engine)).map(preset => resolveBrandedReactPreset(
@@ -789,21 +677,9 @@ export function ReactPresetsPanel() {
     ? resolveCinematicConfigForPreset(active, cinematicConfigsByPresetId)?.worldMode ?? null
     : null
   const visiblePresets = useMemo(
-    () => filterReactPresetLibrary(displayPresets, activeReactEngineId, libraryView, favoriteIds),
-    [displayPresets, activeReactEngineId, libraryView, favoriteIds],
+    () => filterReactPresetLibrary(displayPresets, activeReactEngineId, 'current', favoriteIds),
+    [displayPresets, activeReactEngineId, favoriteIds],
   )
-  const grouped = useMemo(
-    () => ENGINE_ORDER
-      .map(engine => ({ engine, presets: visiblePresets.filter(preset => preset.engine === engine) }))
-      .filter(group => group.presets.length > 0),
-    [visiblePresets],
-  )
-  const activeWorld = activeCinematicWorldMode
-    ? CINEMATIC_WORLD_BY_ID[activeCinematicWorldMode].label
-    : null
-  const cinematicWorldCount = activeReactEngineId === 'cinematicPortal'
-    ? getCinematicWorldPresetGroups(visiblePresets).length
-    : 0
   const activePresetProvenance = useMemo(() => resolveReactPresetProvenance({
     presets: reactPresets,
     activePresetId: activeReactPresetId,
@@ -850,8 +726,8 @@ export function ReactPresetsPanel() {
     return ids
   }, [reactPresets, activePresetProvenance.status, activeReactPresetId, cinematicConfigsByPresetId])
   const activeEngine = REACT_ENGINE_CATALOG[activeReactEngineId]
-  const isLaserDmxCurrentLibrary = activeReactEngineId === 'laserDmx' && libraryView === 'current'
-  const isCanvasCurrentLibrary = activeReactEngineId === 'canvas' && libraryView === 'current'
+  const isLaserDmxCurrentLibrary = activeReactEngineId === 'laserDmx'
+  const isCanvasCurrentLibrary = activeReactEngineId === 'canvas'
   const selectedCanvasPreset = CANVAS_PRESETS.find(preset => preset.id === selectedCanvasPresetId) ?? CANVAS_PRESETS[0]
   const laserDmxPresetCount = laserDmxBeamMatrixAuthoringMode === 'showDirector'
     ? LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.length + LASER_DMX_SHOW_DIRECTOR_TEMPLATES.length
@@ -860,8 +736,8 @@ export function ReactPresetsPanel() {
     ? `${LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.length} Performance Shows · ${LASER_DMX_SHOW_DIRECTOR_TEMPLATES.length} Rig Layouts`
     : `${laserDmxPresetCount} Beam Matrix preset${laserDmxPresetCount === 1 ? '' : 's'}`
   const thumbnailGenerationKey = useMemo(
-    () => `${activeReactEngineId}:${libraryView}:${visiblePresets.map(preset => preset.id).join('|')}`,
-    [activeReactEngineId, libraryView, visiblePresets],
+    () => `${activeReactEngineId}:${visiblePresets.map(preset => preset.id).join('|')}`,
+    [activeReactEngineId, visiblePresets],
   )
 
   const toggleFavorite = (presetId: string) => {
@@ -897,80 +773,23 @@ export function ReactPresetsPanel() {
       : <BeamMatrixRuntimePresets />
   ) : visiblePresets.length === 0 ? (
     <div className="rv-preset-library-empty">
-      <strong>{libraryView === 'favorites' ? 'No favorite presets yet' : `No ${activeEngine.label} presets found`}</strong>
-      <span>{libraryView === 'favorites' ? 'Choose ☆ on a preset to pin it here.' : 'Use the Design tab to edit the active engine look.'}</span>
+      <strong>No {activeEngine.label} presets found</strong>
+      <span>Use the Design tab to edit the active engine look.</span>
     </div>
-  ) : libraryView === 'current' ? (
-    activeReactEngineId === 'cinematicPortal'
-      ? <CinematicCurrentPresetBrowser presets={visiblePresets} activeWorldMode={activeCinematicWorldMode} {...collectionProps} />
-      : <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>{visiblePresets.map(preset => renderPresetCard(preset, collectionProps))}</div>
+  ) : activeReactEngineId === 'cinematicPortal' ? (
+    <CinematicCurrentPresetBrowser presets={visiblePresets} activeWorldMode={activeCinematicWorldMode} {...collectionProps} />
   ) : (
-    grouped.map(({ engine, presets }) => (
-      <EngineSection
-        key={`${libraryView}-${engine}`}
-        engineId={engine}
-        presets={presets}
-        expandedByDefault={libraryView === 'favorites'}
-        {...collectionProps}
-      />
-    ))
+    <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>{visiblePresets.map(preset => renderPresetCard(preset, collectionProps))}</div>
   )
 
   return (
     <div className="rv-presets-panel">
-      <header className="rv-preset-library-header">
-        <div className="rv-preset-library-engine">
-          <span aria-hidden="true">{activeEngine.icon}</span>
-          <div>
-            <strong>{activeEngine.label}</strong>
-            <small>{isLaserDmxCurrentLibrary
-              ? laserDmxPresetScopeLabel
-              : isCanvasCurrentLibrary
-                ? `${CANVAS_PRESETS.length} CANVAS media presets`
-                : libraryView === 'current'
-                  ? activeReactEngineId === 'cinematicPortal'
-                    ? `${visiblePresets.length} presets across ${cinematicWorldCount} worlds`
-                    : `${visiblePresets.length} presets for the selected engine`
-                  : `${visiblePresets.length} presets shown`}</small>
-            {activePresetProvenance.status === 'modified' && activePresetProvenance.preset && (
-              <small role="status">Modified from {activePresetProvenance.preset.name}</small>
-            )}
-          </div>
-        </div>
-        <UnderlineTabs
-          className="rv-preset-library-views"
-          ariaLabel="Preset library filter"
-          activeTab={libraryView}
-          onChange={setLibraryView}
-          tabs={(Object.keys(LIBRARY_VIEW_LABELS) as ReactPresetLibraryView[]).map(view => ({
-            id: view,
-            label: `${LIBRARY_VIEW_LABELS[view]}${view === 'favorites' && favoritePresetIds.length > 0 ? ` ${favoritePresetIds.length}` : ''}`,
-          }))}
-        />
-      </header>
-
-      <p className="rv-presets-hint">
-        {libraryView === 'current'
-          ? activeReactEngineId === 'cinematicPortal' && activeWorld
-            ? `Load an ${activeWorld} preset, or choose another World from the left SOURCE panel.`
-            : activeReactEngineId === 'canvas'
-              ? 'CANVAS presets transform active uploaded media. Auto Select can choose presets from Audio Intelligence.'
-              : activeReactEngineId === 'laserDmx'
-                ? laserDmxBeamMatrixAuthoringMode === 'showDirector'
-                  ? 'Performance Shows combine a deterministic program with a rig. Rig Layouts remain static, and Matrix mode contains Beam Matrix looks.'
-                  : 'Beam Matrix looks only. Switch to Show Director for Performance Shows and Rig Layouts.'
-                : `${activeEngine.label} presets only. Use All Engines to browse other engines.`
-          : libraryView === 'favorites'
-            ? 'Star presets from any engine to keep them together here.'
-            : 'Selecting another engine’s preset switches that engine and loads the look.'}
-      </p>
-
       {activeReactEngineId === 'oscilloscope' ? (
         <div className="rv-sound-drawing-presets-help drm-help-overlay-anchor">
           {presetLibraryContent}
           <HelpInfoTrigger
             helpId="react.soundDrawing.presetLibrary"
-            currentValue={`${active?.name ?? 'No preset selected'} · ${LIBRARY_VIEW_LABELS[libraryView]} · ${visiblePresets.length} shown`}
+            currentValue={`${active?.name ?? 'No preset selected'} · ${visiblePresets.length} shown`}
             currentValueTone={active ? 'accent' : 'default'}
             placement="left"
           />
@@ -980,7 +799,7 @@ export function ReactPresetsPanel() {
           {presetLibraryContent}
           <HelpInfoTrigger
             helpId="react.laserDmx.presetLibrary"
-            currentValue={`${laserDmxBeamMatrixAuthoringMode === 'showDirector' ? 'Show Director' : 'Matrix'} · ${LIBRARY_VIEW_LABELS[libraryView]} · ${laserDmxPresetScopeLabel}`}
+            currentValue={`${laserDmxBeamMatrixAuthoringMode === 'showDirector' ? 'Show Director' : 'Matrix'} · ${laserDmxPresetScopeLabel}`}
             currentValueTone="accent"
             placement="left"
           />
@@ -990,7 +809,7 @@ export function ReactPresetsPanel() {
           {presetLibraryContent}
           <HelpInfoTrigger
             helpId="react.pixGrid.presetLibrary"
-            currentValue={`${active?.engine === 'pixGrid' ? active.name : 'No PixGrid preset selected'} · ${LIBRARY_VIEW_LABELS[libraryView]} · ${visiblePresets.length} shown`}
+            currentValue={`${active?.engine === 'pixGrid' ? active.name : 'No PixGrid preset selected'} · ${visiblePresets.length} shown`}
             currentValueTone={active?.engine === 'pixGrid' ? 'accent' : 'default'}
             placement="left"
           />
@@ -1000,7 +819,7 @@ export function ReactPresetsPanel() {
           {presetLibraryContent}
           <HelpInfoTrigger
             helpId="react.canvas.presetLibrary"
-            currentValue={`${selectedCanvasPreset?.name ?? 'No CANVAS preset selected'} · ${LIBRARY_VIEW_LABELS[libraryView]} · ${libraryView === 'current' ? `${CANVAS_PRESETS.length} CANVAS presets` : `${visiblePresets.length} shown`}`}
+            currentValue={`${selectedCanvasPreset?.name ?? 'No CANVAS preset selected'} · ${CANVAS_PRESETS.length} CANVAS presets`}
             currentValueTone={selectedCanvasPreset ? 'accent' : 'default'}
             placement="left"
           />
