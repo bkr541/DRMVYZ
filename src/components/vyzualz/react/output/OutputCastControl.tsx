@@ -21,6 +21,7 @@ import {
   type NativeOutputBridge,
   type OutputAspectRatio,
   type OutputCastSession,
+  type OutputProviderStatus,
   type OutputTarget,
   type OutputWindowMode,
 } from '../../../../native/outputBridge'
@@ -273,6 +274,7 @@ interface OutputCastPopoverProps {
   session: OutputCastSession | null
   loading: boolean
   error: string | null
+  providerStatuses: OutputProviderStatus[]
   onClose: () => void
   onRefresh: () => void
   onCast: (target: OutputTarget, windowMode: OutputWindowMode, aspectRatio: OutputAspectRatio) => void
@@ -287,6 +289,7 @@ function OutputCastPopover({
   session,
   loading,
   error,
+  providerStatuses,
   onClose,
   onRefresh,
   onCast,
@@ -299,10 +302,11 @@ function OutputCastPopover({
   const popoverRef = useRef<HTMLElement | null>(null)
   const titleId = 'rv-output-cast-title'
   const groups = useMemo(() => groupTargets(targets), [targets])
+  const providerIssues = useMemo(() => providerStatuses.filter(status => status.state !== 'available'), [providerStatuses])
   const readyToCast = Boolean(windowMode && aspectRatio && canvasReady && bridge)
 
   useEffect(() => {
-    if (!session || session.state === 'connected' || session.state === 'error' || error) setPendingTargetId(null)
+    if (!session || session.state === 'connected' || session.state === 'failed' || error) setPendingTargetId(null)
   }, [error, session])
 
   useEffect(() => {
@@ -493,6 +497,11 @@ function OutputCastPopover({
               <NoticeCard tone="info" role="status">The active engine is still preparing its live output canvas.</NoticeCard>
             )}
             {error && <NoticeCard tone="error" role="alert">{error}</NoticeCard>}
+            {providerIssues.map(status => (
+              <NoticeCard key={status.providerId} tone="warning" role="status" title={status.label}>
+                {status.message ?? 'This output provider is currently unavailable.'}
+              </NoticeCard>
+            ))}
 
             <section className="rv-cast-device-group" aria-label="Connected displays">
               <h3>Displays</h3>
@@ -502,7 +511,7 @@ function OutputCastPopover({
             <section className="rv-cast-device-group" aria-label="Network receivers">
               <h3>Network Receivers</h3>
               {renderTargets(groups.network, 'No DRMVYZ receivers were found on this network.')}
-              <p>Open DRMVYZ on another computer to make it discoverable. AirPlay and Miracast screens appear under Displays after the operating system connects them.</p>
+              <p>Open DRMVYZ on another computer to make it discoverable. This stage lists connected operating-system displays and DRMVYZ receivers only.</p>
             </section>
           </div>
         </div>
@@ -529,6 +538,7 @@ export function OutputCastControl({
   const [open, setOpen] = useState(false)
   const [targets, setTargets] = useState<OutputTarget[]>([])
   const [session, setSession] = useState<OutputCastSession | null>(null)
+  const [providerStatuses, setProviderStatuses] = useState<OutputProviderStatus[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -539,6 +549,7 @@ export function OutputCastControl({
     if (outputAvailable) return
     setOpen(false)
     setTargets([])
+    setProviderStatuses([])
     setLoading(false)
     setError(null)
     setSession(null)
@@ -550,10 +561,13 @@ export function OutputCastControl({
     setLoading(true)
     setError(null)
     try {
-      const nextTargets = await bridge.listTargets()
+      const snapshot = bridge.getTargetSnapshot
+        ? await bridge.getTargetSnapshot()
+        : { targets: await bridge.listTargets(), providers: [] }
       const nextSession = await bridge.getSession()
       if (!outputAvailableRef.current) return
-      setTargets(nextTargets)
+      setTargets(snapshot.targets)
+      setProviderStatuses(snapshot.providers)
       setSession(nextSession)
     } catch (value) {
       if (outputAvailableRef.current) {
@@ -569,12 +583,18 @@ export function OutputCastControl({
     const unsubscribeTargets = bridge.onTargetsChanged((nextTargets) => {
       if (outputAvailableRef.current) setTargets(nextTargets)
     })
+    const unsubscribeSnapshot = bridge.onTargetSnapshotChanged?.((snapshot) => {
+      if (!outputAvailableRef.current) return
+      setTargets(snapshot.targets)
+      setProviderStatuses(snapshot.providers)
+    })
     const unsubscribeSession = bridge.onSessionChanged((nextSession) => {
       if (outputAvailableRef.current) setSession(nextSession)
     })
     void refresh()
     return () => {
       unsubscribeTargets()
+      unsubscribeSnapshot?.()
       unsubscribeSession()
     }
   }, [bridge, outputAvailable, refresh])
@@ -656,6 +676,7 @@ export function OutputCastControl({
           session={session}
           loading={loading}
           error={error}
+          providerStatuses={providerStatuses}
           onClose={() => setOpen(false)}
           onRefresh={() => void refresh()}
           onCast={(target, windowMode, aspectRatio) => void startCast(target, windowMode, aspectRatio)}

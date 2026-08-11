@@ -1,11 +1,12 @@
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { resolvePositiveDuration, type TimelineViewport } from '../../../features/timeline/timelineViewport'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
+import { ContextActionMenu } from '../context-menu/ContextActionMenu'
 import { Collapsible, ColorRow, NumberInputRow, SelectRow, SliderRow, ToggleRow } from '../react/ReactControlRows'
 import { UnderlineTabs } from '../react/controls/UnderlineTabs'
 import { NoticeCard } from '../react/controls/NoticeCard'
@@ -415,6 +416,8 @@ export function ShowManagerView() {
   const addLaserDmxShowManagerFixture = useReactStore(state => state.addLaserDmxShowManagerFixture)
   const updateLaserDmxShowManagerFixture = useReactStore(state => state.updateLaserDmxShowManagerFixture)
   const removeLaserDmxShowManagerFixture = useReactStore(state => state.removeLaserDmxShowManagerFixture)
+  const duplicateLaserDmxShowManagerFixture = useReactStore(state => state.duplicateLaserDmxShowManagerFixture)
+  const mirrorLaserDmxShowManagerFixture = useReactStore(state => state.mirrorLaserDmxShowManagerFixture)
   const copyLaserDmxShowManagerFixturesFromSection = useReactStore(state => state.copyLaserDmxShowManagerFixturesFromSection)
   const updateLaserDmxShowManagerSectionBoundary = useReactStore(state => state.updateLaserDmxShowManagerSectionBoundary)
   const undoLaserDmxShowManagerEdit = useReactStore(state => state.undoLaserDmxShowManagerEdit)
@@ -448,6 +451,8 @@ export function ShowManagerView() {
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
   const [selectedLightingComponentKind, setSelectedLightingComponentKind] = useState<LaserDmxShowDirectorFixtureKind | null>(null)
   const [selectedLaserFixtureId, setSelectedLaserFixtureId] = useState<string | null>(null)
+  const [laserFixtureContextMenu, setLaserFixtureContextMenu] = useState<{ fixtureId: string; x: number; y: number } | null>(null)
+  const [laserEndpointTargetingFixtureId, setLaserEndpointTargetingFixtureId] = useState<string | null>(null)
   const [copyLaserFixturesEnabled, setCopyLaserFixturesEnabled] = useState(false)
   const [copyLaserFixturesSourceSectionId, setCopyLaserFixturesSourceSectionId] = useState<string | null>(null)
   const [previewPresetId, setPreviewPresetId] = useState<string | null>(null)
@@ -1137,6 +1142,52 @@ export function ShowManagerView() {
     setSelectedLaserFixtureId(null)
   }
 
+  const handleLaserFixtureContextMenu = (event: MouseEvent<HTMLButtonElement>, fixtureId: string) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setLaserEndpointTargetingFixtureId(null)
+    setSelectedLaserFixtureId(fixtureId)
+    setLaserFixtureContextMenu({ fixtureId, x: event.clientX, y: event.clientY })
+  }
+
+  const closeLaserFixtureContextMenu = () => setLaserFixtureContextMenu(null)
+
+  const duplicateFixtureFromContextMenu = (fixtureId: string) => {
+    if (!activeLaserDmxShow || !activeLaserDmxSection) return
+    const fixtureIdCopy = duplicateLaserDmxShowManagerFixture(activeLaserDmxShow.id, activeLaserDmxSection.id, fixtureId)
+    if (fixtureIdCopy) setSelectedLaserFixtureId(fixtureIdCopy)
+    closeLaserFixtureContextMenu()
+  }
+
+  const mirrorFixtureFromContextMenu = (fixtureId: string, axis: 'horizontal' | 'vertical') => {
+    if (!activeLaserDmxShow || !activeLaserDmxSection) return
+    mirrorLaserDmxShowManagerFixture(activeLaserDmxShow.id, activeLaserDmxSection.id, fixtureId, axis)
+    closeLaserFixtureContextMenu()
+  }
+
+  const deleteFixtureFromContextMenu = (fixtureId: string) => {
+    if (!activeLaserDmxShow || !activeLaserDmxSection) return
+    removeLaserDmxShowManagerFixture(activeLaserDmxShow.id, activeLaserDmxSection.id, fixtureId)
+    if (selectedLaserFixtureId === fixtureId) setSelectedLaserFixtureId(null)
+    closeLaserFixtureContextMenu()
+  }
+
+  const beginLaserEndpointTargeting = (fixtureId: string) => {
+    setLaserEndpointTargetingFixtureId(fixtureId)
+    closeLaserFixtureContextMenu()
+  }
+
+  const commitLaserEndpointTarget = (event: MouseEvent<HTMLDivElement>) => {
+    if (!laserEndpointTargetingFixtureId || !activeLaserDmxShow || !activeLaserDmxSection) return
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const cell = resolveLaserDmxShowManagerGridCell(event.clientX, event.clientY, bounds)
+    setLaserEndpointTargetingFixtureId(null)
+    if (!cell) return
+    updateLaserDmxShowManagerFixture(activeLaserDmxShow.id, activeLaserDmxSection.id, laserEndpointTargetingFixtureId, {
+      beam: { targetMode: 'fixed', targetX: cell.x, targetY: cell.y },
+    })
+  }
+
   const commitLaserFixtureCopy = (sourceSectionId: string) => {
     if (!activeLaserDmxShow || !activeLaserDmxSection) return
     if (!eligibleLaserFixtureCopySources.some(section => section.id === sourceSectionId)) return
@@ -1490,6 +1541,7 @@ export function ShowManagerView() {
         <main className="sm-center">
           <div className="sm-stage-frame">
             {selectedEngineId === 'laserDmx' && workspaceMode === 'default' ? (
+              <>
               <LaserDmxShowManagerStage
                 show={activeLaserDmxShow}
                 section={activeLaserDmxSection}
@@ -1523,7 +1575,32 @@ export function ShowManagerView() {
                 ) : null}
                 onDropFixture={commitLaserFixtureDrop}
                 onSelectFixture={setSelectedLaserFixtureId}
+                onFixtureContextMenu={handleLaserFixtureContextMenu}
+                endpointTargetingFixtureId={laserEndpointTargetingFixtureId}
+                onCommitEndpointTarget={commitLaserEndpointTarget}
               />
+              {laserFixtureContextMenu && (() => {
+                const menuFixture = activeLaserDmxSection?.fixtures.find(fixture => fixture.id === laserFixtureContextMenu.fixtureId)
+                if (!menuFixture) return null
+                const supportsEndpoint = menuFixture.kind === 'laser' || menuFixture.kind === 'movingHead'
+                return (
+                  <ContextActionMenu
+                    x={laserFixtureContextMenu.x}
+                    y={laserFixtureContextMenu.y}
+                    ariaLabel={`${menuFixture.label} actions`}
+                    header={{ title: menuFixture.label }}
+                    onClose={closeLaserFixtureContextMenu}
+                    items={[
+                      { id: 'duplicate', label: 'Duplicate', onSelect: () => duplicateFixtureFromContextMenu(menuFixture.id) },
+                      { id: 'mirror-h', label: 'Mirror Horizontally', onSelect: () => mirrorFixtureFromContextMenu(menuFixture.id, 'horizontal') },
+                      { id: 'mirror-v', label: 'Mirror Vertically', onSelect: () => mirrorFixtureFromContextMenu(menuFixture.id, 'vertical') },
+                      ...(supportsEndpoint ? [{ id: 'set-endpoint', label: 'Set Endpoint', onSelect: () => beginLaserEndpointTargeting(menuFixture.id) }] : []),
+                      { id: 'delete', label: 'Delete', danger: true, dividerBefore: true, onSelect: () => deleteFixtureFromContextMenu(menuFixture.id) },
+                    ]}
+                  />
+                )
+              })()}
+              </>
             ) : selectedEngineId === 'canvas' ? (
               <CanvasShowManagerStage
                 show={activeCanvasShow}
@@ -1574,6 +1651,9 @@ export function ShowManagerView() {
                 effectiveBpm={engine.currentEffectiveBpm ?? undefined}
                 onLiveFps={setLiveFps}
               />
+            )}
+            {selectedEngineId === 'canvas' && canvasAuthoringError && (
+              <NoticeCard className="sm-stage-authoring-feedback" tone="error" role="alert">{canvasAuthoringError}</NoticeCard>
             )}
             <div className="sm-stage-status">
               {selectedEngineId === 'laserDmx' && workspaceMode === 'default' ? (
@@ -1640,7 +1720,6 @@ export function ShowManagerView() {
               sectionRanges={canvasSectionRanges}
               totalDurationSec={canvasTotalDuration}
               playheadSec={canvasPlayheadSec}
-              error={canvasAuthoringError}
               onSelect={selectCanvasShowManagerSection}
               onSelectElement={selectCanvasShowManagerMediaElement}
               onPatchElement={commitCanvasElementPatch}
@@ -2321,7 +2400,6 @@ function CanvasShowManagerTimeline({
   sectionRanges,
   totalDurationSec,
   playheadSec,
-  error,
   onSelect,
   onSelectElement,
   onPatchElement,
@@ -2333,7 +2411,6 @@ function CanvasShowManagerTimeline({
   sectionRanges: readonly CanvasShowManagerSectionRange[]
   totalDurationSec: number
   playheadSec: number
-  error: string | null
   onSelect: (sectionId: string | null) => void
   onSelectElement: (elementId: string | null) => void
   onPatchElement: (elementId: string, patch: CanvasShowManagerMediaElementPatch) => boolean
@@ -2386,7 +2463,6 @@ function CanvasShowManagerTimeline({
         <UnderlineTabs tabs={TRACK_MAP_TABS} activeTab="trackMap" onChange={() => undefined} ariaLabel="Canvas timeline surfaces" />
         <span className="sm-timeline-meta">{show ? `${formatClock(totalDurationSec)} total` : 'No Canvas Show open'}</span>
       </header>
-      {error && <NoticeCard className="sm-canvas-authoring-feedback" tone="error" role="alert">{error}</NoticeCard>}
       {show ? (
         <>
           <div className="sm-timeline-grid sm-canvas-section-map">
@@ -2650,6 +2726,9 @@ function LaserDmxShowManagerStage({
   runtimePreview,
   onDropFixture,
   onSelectFixture,
+  onFixtureContextMenu,
+  endpointTargetingFixtureId,
+  onCommitEndpointTarget,
 }: {
   show: LaserDmxShowManagerShow | null
   section: LaserDmxShowManagerSection | null
@@ -2662,6 +2741,9 @@ function LaserDmxShowManagerStage({
   runtimePreview: ReactNode
   onDropFixture: (event: DragEvent<HTMLDivElement>) => void
   onSelectFixture: (fixtureId: string | null) => void
+  onFixtureContextMenu: (event: MouseEvent<HTMLButtonElement>, fixtureId: string) => void
+  endpointTargetingFixtureId: string | null
+  onCommitEndpointTarget: (event: MouseEvent<HTMLDivElement>) => void
 }) {
   const fixtures = section?.fixtures ?? []
   const collisionOrdinals = new Map<string, number>()
@@ -2672,16 +2754,17 @@ function LaserDmxShowManagerStage({
         <span>{show?.name ?? 'Untitled Show'}</span>
         <strong>{section ? `Editing: ${section.label}` : 'No section selected'}</strong>
         {playbackSectionLabel && <em>Playback: {playbackSectionLabel}</em>}
+        {endpointTargetingFixtureId && <em>Click the grid to set the beam endpoint</em>}
       </div>
       <div
-        className={`sm-laser-stage-grid-surface${showGrid ? ' is-grid-visible' : ''}${highlightGrid ? ' is-highlighted' : ''}`}
+        className={`sm-laser-stage-grid-surface${showGrid ? ' is-grid-visible' : ''}${highlightGrid ? ' is-highlighted' : ''}${endpointTargetingFixtureId ? ' is-targeting-endpoint' : ''}`}
         data-testid="laser-dmx-authoring-grid"
         onDragOver={event => {
           event.preventDefault()
           event.dataTransfer.dropEffect = 'copy'
         }}
         onDrop={onDropFixture}
-        onClick={() => onSelectFixture(null)}
+        onClick={event => endpointTargetingFixtureId ? onCommitEndpointTarget(event) : onSelectFixture(null)}
       >
         {runtimePreview && (
           <div className={`sm-laser-runtime-preview${showBeams ? '' : ' is-hidden'}`} aria-hidden="true">
@@ -2739,6 +2822,7 @@ function LaserDmxShowManagerStage({
                 event.stopPropagation()
                 onSelectFixture(fixture.id)
               }}
+              onContextMenu={event => onFixtureContextMenu(event, fixture.id)}
             >
               <span className="sm-laser-fixture-icon" aria-hidden="true"><FixtureIcon kind={fixture.kind} /></span>
               {showLabels && <span className="sm-laser-fixture-label">{fixture.label}</span>}

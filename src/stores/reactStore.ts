@@ -117,6 +117,8 @@ import {
   copyLaserDmxShowManagerFixturesBetweenSections,
   cloneLaserDmxShowManagerShow,
   createLaserDmxShowManagerShow,
+  duplicateLaserDmxShowManagerFixtureInSection,
+  mirrorLaserDmxShowManagerFixtureInSection,
   normalizeLaserDmxShowManagerShows,
   removeLaserDmxShowManagerFixtureFromSection,
   removeLaserDmxShowManagerSection,
@@ -124,6 +126,7 @@ import {
   updateLaserDmxShowManagerFixtureInSection,
   updateLaserDmxShowManagerSection,
   updateLaserDmxShowManagerWorkspaceSettings,
+  type LaserDmxShowManagerMirrorAxis,
   type LaserDmxShowManagerSectionPatch,
   type LaserDmxShowManagerWorkspaceSettingsPatch,
   type LaserDmxShowManagerShow,
@@ -2683,6 +2686,8 @@ interface ReactStoreState {
     patch: LaserDmxShowDirectorFixturePatch,
   ) => void
   removeLaserDmxShowManagerFixture: (showId: string, sectionId: string, fixtureId: string) => void
+  duplicateLaserDmxShowManagerFixture: (showId: string, sectionId: string, fixtureId: string) => string | null
+  mirrorLaserDmxShowManagerFixture: (showId: string, sectionId: string, fixtureId: string, axis: LaserDmxShowManagerMirrorAxis) => void
   copyLaserDmxShowManagerFixturesFromSection: (
     showId: string,
     sourceSectionId: string,
@@ -7530,6 +7535,27 @@ export const useReactStore = create<ReactStoreState>()(
         set(s => buildShowManagerHistoryMutationPatch(s, {
           laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId
             ? removeLaserDmxShowManagerFixtureFromSection(show, sectionId, fixtureId)
+            : show),
+        })),
+
+      duplicateLaserDmxShowManagerFixture: (showId, sectionId, fixtureId) => {
+        let duplicatedFixtureId: string | null = null
+        set(s => {
+          const shows = s.laserDmxShowManagerShows.map(show => {
+            if (show.id !== showId) return show
+            const result = duplicateLaserDmxShowManagerFixtureInSection(show, sectionId, fixtureId)
+            duplicatedFixtureId = result.fixtureId
+            return result.show
+          })
+          return buildShowManagerHistoryMutationPatch(s, { laserDmxShowManagerShows: shows })
+        })
+        return duplicatedFixtureId
+      },
+
+      mirrorLaserDmxShowManagerFixture: (showId, sectionId, fixtureId, axis) =>
+        set(s => buildShowManagerHistoryMutationPatch(s, {
+          laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId
+            ? mirrorLaserDmxShowManagerFixtureInSection(show, sectionId, fixtureId, axis)
             : show),
         })),
 

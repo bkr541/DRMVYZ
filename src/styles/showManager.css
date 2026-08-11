@@ -1215,6 +1215,11 @@ button.sm-library-subsection-toggle {
   border-color: rgba(103, 247, 255, 0.34);
   box-shadow: inset 0 0 34px rgba(74, 199, 219, 0.07), 0 0 14px rgba(74, 199, 219, 0.05);
 }
+.sm-laser-stage-grid-surface.is-targeting-endpoint {
+  cursor: crosshair;
+  border-color: rgba(103, 247, 255, 0.5);
+  box-shadow: inset 0 0 34px rgba(74, 199, 219, 0.1), 0 0 16px rgba(74, 199, 219, 0.08);
+}
 
 .sm-laser-runtime-preview {
   position: absolute;
@@ -1690,7 +1695,15 @@ button.sm-library-subsection-toggle {
 .sm-canvas-media-clip__body { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sm-canvas-clip-handle { background: rgba(103, 247, 255, 0.18); cursor: ew-resize; }
 .sm-canvas-clip-handle:focus-visible { outline: 1px solid #fff; outline-offset: -2px; }
-.sm-canvas-authoring-feedback { margin: 5px 7px 0; }
+/* Floats over the stage bottom-left, matching Canvas React's transient
+   renderer-notice placement, instead of sitting inline in the Track Map. */
+.sm-stage-authoring-feedback {
+  position: absolute;
+  left: 10px;
+  bottom: 34px;
+  z-index: 4;
+  width: min(320px, calc(100% - 20px));
+}
 .sm-canvas-cue-grid { display: grid; grid-template-columns: 70px minmax(0, 1fr); align-items: center; gap: 6px; }
 .sm-canvas-cue-grid > small { grid-column: 1 / -1; color: rgba(196, 212, 220, 0.42); font-size: 8px; }
 .sm-canvas-element-form .sm-canvas-delete { margin-top: 4px; }

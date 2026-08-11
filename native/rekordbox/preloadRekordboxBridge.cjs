@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('drmvyzNative', Object.freeze({
   }),
   output: Object.freeze({
     listTargets: () => ipcRenderer.invoke('drmvyz:output:list-targets'),
+    getTargetSnapshot: () => ipcRenderer.invoke('drmvyz:output:get-target-snapshot'),
     getSession: () => ipcRenderer.invoke('drmvyz:output:get-session'),
     startCast: request => ipcRenderer.invoke('drmvyz:output:start-cast', request),
     stopCast: () => ipcRenderer.invoke('drmvyz:output:stop-cast'),
@@ -32,6 +33,11 @@ contextBridge.exposeInMainWorld('drmvyzNative', Object.freeze({
       const listener = (_event, targets) => callback(targets)
       ipcRenderer.on('drmvyz:output:targets-changed', listener)
       return () => ipcRenderer.removeListener('drmvyz:output:targets-changed', listener)
+    },
+    onTargetSnapshotChanged: callback => {
+      const listener = (_event, snapshot) => callback(snapshot)
+      ipcRenderer.on('drmvyz:output:target-snapshot-changed', listener)
+      return () => ipcRenderer.removeListener('drmvyz:output:target-snapshot-changed', listener)
     },
     onSessionChanged: callback => {
       const listener = (_event, session) => callback(session)

@@ -3,26 +3,22 @@
 const crypto = require('node:crypto')
 const dgram = require('node:dgram')
 const http = require('node:http')
-const os = require('node:os')
 const net = require('node:net')
+const { OutputTargetManager } = require('./outputTargetManager.cjs')
+const {
+  ASPECT_RATIOS,
+  LocalDisplayProvider,
+  buildLocalDisplayTargets,
+  calculateWindowBounds,
+} = require('./providers/localDisplayProvider.cjs')
+const {
+  DISCOVERY_VERSION,
+  DrmvyzReceiverProvider,
+} = require('./providers/drmvyzReceiverProvider.cjs')
 
-const DISCOVERY_PORT = 53531
-const DISCOVERY_MAGIC = 'DRMVYZ_CAST_RECEIVER'
-const DISCOVERY_VERSION = 1
-const DISCOVERY_INTERVAL_MS = 2_500
-const DISCOVERY_EXPIRY_MS = 8_000
 const SESSION_TTL_MS = 10 * 60 * 1_000
 const MAX_JSON_BODY_BYTES = 64 * 1_024
-
 const WINDOW_MODES = new Set(['windowed', 'borderless', 'fullscreen'])
-const ASPECT_RATIOS = Object.freeze({
-  '16:9': 16 / 9,
-  '16:10': 16 / 10,
-  '4:3': 4 / 3,
-  '3:2': 3 / 2,
-  '1:1': 1,
-  '9:16': 9 / 16,
-})
 
 function normalizeRemoteAddress(value) {
   if (typeof value !== 'string') return ''
@@ -56,35 +52,6 @@ function normalizeCastRequest(value) {
   const aspectRatio = typeof value.aspectRatio === 'string' ? value.aspectRatio : ''
   if (!targetId || !WINDOW_MODES.has(windowMode) || !Object.hasOwn(ASPECT_RATIOS, aspectRatio)) return null
   return { targetId, windowMode, aspectRatio }
-}
-
-function calculateWindowBounds(displayBounds, aspectRatio, scale = 0.72) {
-  const ratio = ASPECT_RATIOS[aspectRatio] ?? ASPECT_RATIOS['16:9']
-  const availableWidth = Math.max(320, Math.floor(displayBounds.width * scale))
-  const availableHeight = Math.max(240, Math.floor(displayBounds.height * scale))
-  let width = availableWidth
-  let height = Math.round(width / ratio)
-  if (height > availableHeight) {
-    height = availableHeight
-    width = Math.round(height * ratio)
-  }
-  return {
-    x: Math.round(displayBounds.x + (displayBounds.width - width) / 2),
-    y: Math.round(displayBounds.y + (displayBounds.height - height) / 2),
-    width,
-    height,
-  }
-}
-
-function buildLocalDisplayTargets(displays, primaryDisplayId) {
-  return displays.map((display, index) => ({
-    id: `display:${display.id}`,
-    kind: 'display',
-    name: display.label?.trim() || (display.id === primaryDisplayId ? 'This display' : `Display ${index + 1}`),
-    detail: `${display.bounds.width} × ${display.bounds.height}${display.id === primaryDisplayId ? ' · Primary' : ''}`,
-    available: true,
-    displayId: String(display.id),
-  }))
 }
 
 function jsonResponse(response, statusCode, value) {
@@ -271,18 +238,15 @@ function resolveReachableLocalAddress(remoteHost) {
   })
 }
 
+
 function installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTrustedAppUrl }) {
-  const deviceId = crypto.randomUUID()
   const receiverToken = crypto.randomBytes(24).toString('base64url')
-  const networkTargets = new Map()
-  const sessions = new Map()
+  const signalSessions = new Map()
   const receiverWindows = new Map()
-  let activeSessionId = null
   let httpServer = null
   let httpPort = null
-  let discoverySocket = null
-  let discoveryInterval = null
-  let expiryInterval = null
+  let sessionGcInterval = null
+  let shuttingDown = false
 
   const trustedRendererWindows = () => BrowserWindow.getAllWindows().filter(window => {
     const url = window.webContents.getURL()
@@ -293,78 +257,6 @@ function installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTruste
     for (const window of trustedRendererWindows()) {
       if (!window.isDestroyed()) window.webContents.send(channel, payload)
     }
-  }
-
-  const getTargets = () => {
-    const displays = screen.getAllDisplays()
-    const primaryId = screen.getPrimaryDisplay().id
-    const local = buildLocalDisplayTargets(displays, primaryId)
-    const network = Array.from(networkTargets.values())
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map(target => ({
-        id: `receiver:${target.deviceId}`,
-        kind: 'network',
-        name: target.name,
-        detail: `DRMVYZ Receiver · ${target.address}`,
-        available: true,
-        receiverId: target.deviceId,
-      }))
-    return [...local, ...network]
-  }
-
-  const broadcastTargets = () => sendToTrustedRenderers('drmvyz:output:targets-changed', getTargets())
-  const currentSession = () => {
-    const session = activeSessionId ? sessions.get(activeSessionId) : null
-    if (!session) return null
-    return {
-      id: session.id,
-      targetId: session.targetId,
-      targetName: session.targetName,
-      windowMode: session.windowMode,
-      aspectRatio: session.aspectRatio,
-      state: session.state,
-      error: session.error ?? null,
-    }
-  }
-  const broadcastSession = () => sendToTrustedRenderers('drmvyz:output:session-changed', currentSession())
-
-  const removeSession = sessionId => {
-    const session = sessions.get(sessionId)
-    if (!session) return
-    if (session.sourceWebContents && !session.sourceWebContents.isDestroyed() && session.sourceDestroyedHandler) {
-      session.sourceWebContents.removeListener('destroyed', session.sourceDestroyedHandler)
-    }
-    for (const waiter of session.answerWaiters.splice(0)) {
-      waiter.reject(new Error('The output session ended before the receiver answered'))
-    }
-    sessions.delete(sessionId)
-    if (activeSessionId === sessionId) activeSessionId = null
-    broadcastSession()
-  }
-
-  const stopRemoteWindow = async session => {
-    if (!session.remoteControl) return
-    const { address, port, castId, controlToken } = session.remoteControl
-    try {
-      await fetch(`http://${address}:${port}/api/stop-cast`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ castId, controlToken, receiverToken: session.remoteControl.receiverToken }),
-        signal: AbortSignal.timeout(2_500),
-      })
-    } catch {
-      // The receiver may already be gone. Local state still needs to close.
-    }
-  }
-
-  const stopSession = async sessionId => {
-    const session = sessions.get(sessionId)
-    if (!session) return
-    session.state = 'stopping'
-    broadcastSession()
-    if (session.outputWindow && !session.outputWindow.isDestroyed()) session.outputWindow.close()
-    await stopRemoteWindow(session)
-    removeSession(sessionId)
   }
 
   const createOutputWindow = ({ display, windowMode, aspectRatio, sourceUrl, onClosed }) => {
@@ -404,6 +296,48 @@ function installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTruste
     return outputWindow
   }
 
+  const localDisplayProvider = new LocalDisplayProvider({ screen, createOutputWindow })
+  const receiverProvider = new DrmvyzReceiverProvider({
+    isPrivateNetworkAddress,
+    resolveReachableLocalAddress,
+  })
+
+  let targetManager = null
+
+  const broadcastTargets = async () => {
+    if (!targetManager || shuttingDown) return
+    const snapshot = await targetManager.getSnapshot()
+    sendToTrustedRenderers('drmvyz:output:targets-changed', snapshot.targets)
+    sendToTrustedRenderers('drmvyz:output:target-snapshot-changed', snapshot)
+  }
+
+  targetManager = new OutputTargetManager({
+    providers: [localDisplayProvider, receiverProvider],
+    onTargetsChanged: () => void broadcastTargets(),
+    onSessionChanged: session => sendToTrustedRenderers('drmvyz:output:session-changed', session),
+  })
+
+  const currentSession = () => targetManager.getSession()
+
+  const removeSignalSession = sessionId => {
+    const session = signalSessions.get(sessionId)
+    if (!session) return
+    if (session.sourceWebContents && !session.sourceWebContents.isDestroyed() && session.sourceDestroyedHandler) {
+      session.sourceWebContents.removeListener('destroyed', session.sourceDestroyedHandler)
+    }
+    for (const waiter of session.answerWaiters.splice(0)) {
+      waiter.reject(new Error('The output session ended before the receiver answered'))
+    }
+    signalSessions.delete(sessionId)
+  }
+
+  const stopSession = async sessionId => {
+    const current = currentSession()
+    if (current && (!sessionId || current.id === sessionId)) await targetManager.stopSession()
+    if (sessionId) removeSignalSession(sessionId)
+    else if (current?.id) removeSignalSession(current.id)
+  }
+
   const openIncomingReceiverWindow = ({ sourceUrl, windowMode, aspectRatio }) => {
     const display = screen.getPrimaryDisplay()
     const castId = crypto.randomUUID()
@@ -431,7 +365,7 @@ function installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTruste
       }
 
       if (request.method === 'GET' && url.pathname === '/receiver') {
-        const session = sessions.get(url.searchParams.get('session') || '')
+        const session = signalSessions.get(url.searchParams.get('session') || '')
         if (!session || session.token !== url.searchParams.get('token')) {
           emptyResponse(response, 404)
           return
@@ -450,17 +384,15 @@ function installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTruste
 
       const sessionMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/(register|offer|answer)$/)
       if (sessionMatch) {
-        const session = sessions.get(decodeURIComponent(sessionMatch[1]))
+        const session = signalSessions.get(decodeURIComponent(sessionMatch[1]))
         if (!session || session.token !== url.searchParams.get('token')) {
           emptyResponse(response, 404)
           return
         }
         const action = sessionMatch[2]
         if (request.method === 'POST' && action === 'register') {
-          session.state = 'connecting'
           session.receiverRegisteredAt = Date.now()
           sendToTrustedRenderers('drmvyz:output:receiver-requested', { sessionId: session.id })
-          broadcastSession()
           emptyResponse(response)
           return
         }
@@ -476,9 +408,8 @@ function installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTruste
             return
           }
           session.answer = { type: 'answer', sdp: answer.sdp }
-          session.state = 'connected'
           for (const waiter of session.answerWaiters.splice(0)) waiter.resolve(session.answer)
-          broadcastSession()
+          targetManager.markConnected(session.id)
           emptyResponse(response)
           return
         }
@@ -537,89 +468,24 @@ function installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTruste
         return
       }
       httpPort = address.port
+      receiverProvider.configureReceiverService({ port: httpPort, receiverToken })
       resolve()
     })
   })
-
-  const sendDiscoveryBeacon = () => {
-    if (!discoverySocket || !httpPort) return
-    const payload = Buffer.from(JSON.stringify({
-      magic: DISCOVERY_MAGIC,
-      version: DISCOVERY_VERSION,
-      deviceId,
-      name: `${os.hostname()} · DRMVYZ`,
-      port: httpPort,
-      receiverToken,
-    }))
-    discoverySocket.send(payload, DISCOVERY_PORT, '255.255.255.255', () => {})
-  }
-
-  const startDiscovery = () => {
-    discoverySocket = dgram.createSocket({ type: 'udp4', reuseAddr: true })
-    discoverySocket.on('message', (message, rinfo) => {
-      try {
-        const beacon = JSON.parse(message.toString('utf8'))
-        if (
-          beacon.magic !== DISCOVERY_MAGIC
-          || beacon.version !== DISCOVERY_VERSION
-          || beacon.deviceId === deviceId
-          || !Number.isInteger(beacon.port)
-          || beacon.port <= 0
-          || beacon.port > 65_535
-          || typeof beacon.receiverToken !== 'string'
-          || !isPrivateNetworkAddress(rinfo.address)
-        ) return
-        const previous = networkTargets.get(beacon.deviceId)
-        networkTargets.set(beacon.deviceId, {
-          deviceId: beacon.deviceId,
-          name: typeof beacon.name === 'string' && beacon.name.trim() ? beacon.name.trim() : 'DRMVYZ Receiver',
-          address: rinfo.address,
-          port: beacon.port,
-          receiverToken: beacon.receiverToken,
-          lastSeenAt: Date.now(),
-        })
-        if (!previous || previous.address !== rinfo.address || previous.port !== beacon.port || previous.name !== beacon.name) {
-          broadcastTargets()
-        }
-      } catch {
-        // Ignore unrelated UDP traffic on the discovery port.
-      }
-    })
-    discoverySocket.on('error', () => {
-      // Discovery is optional. Local display output remains available.
-    })
-    discoverySocket.bind(DISCOVERY_PORT, '0.0.0.0', () => {
-      try { discoverySocket.setBroadcast(true) } catch { /* Platform may restrict broadcast. */ }
-      sendDiscoveryBeacon()
-      discoveryInterval = setInterval(sendDiscoveryBeacon, DISCOVERY_INTERVAL_MS)
-      discoveryInterval.unref?.()
-    })
-    expiryInterval = setInterval(() => {
-      const cutoff = Date.now() - DISCOVERY_EXPIRY_MS
-      let changed = false
-      for (const [id, target] of networkTargets) {
-        if (target.lastSeenAt < cutoff) {
-          networkTargets.delete(id)
-          changed = true
-        }
-      }
-      if (changed) broadcastTargets()
-      const sessionCutoff = Date.now() - SESSION_TTL_MS
-      for (const [id, session] of sessions) {
-        if (session.createdAt < sessionCutoff && id !== activeSessionId) removeSession(id)
-      }
-    }, 4_000)
-    expiryInterval.unref?.()
-  }
 
   const isTrustedSender = event => {
     const url = event.senderFrame?.url || event.sender.getURL()
     return isTrustedAppUrl(url)
   }
 
-  ipcMain.handle('drmvyz:output:list-targets', event => {
+  ipcMain.handle('drmvyz:output:list-targets', async event => {
     if (!isTrustedSender(event)) throw new Error('Untrusted output target request')
-    return getTargets()
+    return targetManager.listTargets()
+  })
+
+  ipcMain.handle('drmvyz:output:get-target-snapshot', async event => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted output target request')
+    return targetManager.getSnapshot()
   })
 
   ipcMain.handle('drmvyz:output:get-session', event => {
@@ -632,101 +498,54 @@ function installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTruste
     const request = normalizeCastRequest(value)
     if (!request) throw new Error('Select a window mode and aspect ratio before casting')
     if (!httpPort) throw new Error('The output receiver is still starting')
-    if (activeSessionId) await stopSession(activeSessionId)
 
-    const session = {
+    const previous = currentSession()
+    if (previous) await stopSession(previous.id)
+
+    const signalSession = {
       id: crypto.randomUUID(),
       token: crypto.randomBytes(24).toString('base64url'),
       createdAt: Date.now(),
-      targetId: request.targetId,
-      targetName: 'Output',
-      windowMode: request.windowMode,
-      aspectRatio: request.aspectRatio,
-      state: 'connecting',
       offer: null,
       answer: null,
       answerWaiters: [],
-      outputWindow: null,
-      remoteControl: null,
       sourceWebContentsId: event.sender.id,
       sourceWebContents: event.sender,
       sourceDestroyedHandler: null,
     }
-    session.sourceDestroyedHandler = () => {
-      if (sessions.has(session.id)) void stopSession(session.id)
+    signalSession.sourceDestroyedHandler = () => {
+      if (signalSessions.has(signalSession.id)) void stopSession(signalSession.id)
     }
-    event.sender.once('destroyed', session.sourceDestroyedHandler)
-    sessions.set(session.id, session)
-    activeSessionId = session.id
+    event.sender.once('destroyed', signalSession.sourceDestroyedHandler)
+    signalSessions.set(signalSession.id, signalSession)
 
+    const sourceUrl = `http://127.0.0.1:${httpPort}/receiver?session=${encodeURIComponent(signalSession.id)}&token=${encodeURIComponent(signalSession.token)}`
     try {
-      if (request.targetId.startsWith('display:')) {
-        const displayId = request.targetId.slice('display:'.length)
-        const display = screen.getAllDisplays().find(item => String(item.id) === displayId)
-        if (!display) throw new Error('That display is no longer connected')
-        const target = getTargets().find(item => item.id === request.targetId)
-        session.targetName = target?.name ?? 'Display'
-        const sourceUrl = `http://127.0.0.1:${httpPort}/receiver?session=${encodeURIComponent(session.id)}&token=${encodeURIComponent(session.token)}`
-        session.outputWindow = createOutputWindow({
-          display,
-          windowMode: request.windowMode,
-          aspectRatio: request.aspectRatio,
-          sourceUrl,
-          onClosed: () => removeSession(session.id),
-        })
-      } else if (request.targetId.startsWith('receiver:')) {
-        const receiverId = request.targetId.slice('receiver:'.length)
-        const target = networkTargets.get(receiverId)
-        if (!target) throw new Error('That network receiver is no longer available')
-        session.targetName = target.name
-        const sourceAddress = await resolveReachableLocalAddress(target.address)
-        const sourceUrl = `http://${sourceAddress}:${httpPort}/receiver?session=${encodeURIComponent(session.id)}&token=${encodeURIComponent(session.token)}`
-        const response = await fetch(`http://${target.address}:${target.port}/api/start-cast`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourceUrl,
-            windowMode: request.windowMode,
-            aspectRatio: request.aspectRatio,
-            receiverToken: target.receiverToken,
-          }),
-          signal: AbortSignal.timeout(4_000),
-        })
-        if (!response.ok) throw new Error(`The receiver refused the cast (${response.status})`)
-        const remote = await response.json()
-        if (!remote || typeof remote.castId !== 'string' || typeof remote.controlToken !== 'string') {
-          throw new Error('The receiver returned an invalid session')
-        }
-        session.remoteControl = {
-          address: target.address,
-          port: target.port,
-          castId: remote.castId,
-          controlToken: remote.controlToken,
-          receiverToken: target.receiverToken,
-        }
-      } else {
-        throw new Error('Unknown output target')
-      }
-      broadcastSession()
-      return currentSession()
+      return await targetManager.startSession(request, {
+        sessionId: signalSession.id,
+        sessionToken: signalSession.token,
+        sourceUrl,
+        onClosed: () => {
+          if (signalSessions.has(signalSession.id)) void stopSession(signalSession.id)
+        },
+      })
     } catch (error) {
-      session.state = 'error'
-      session.error = error instanceof Error ? error.message : 'Could not start output'
-      broadcastSession()
-      setTimeout(() => removeSession(session.id), 2_500).unref?.()
+      targetManager.failSession(signalSession.id, error instanceof Error ? error.message : 'Could not start output')
+      setTimeout(() => void stopSession(signalSession.id), 2_500).unref?.()
       throw error
     }
   })
 
   ipcMain.handle('drmvyz:output:stop-cast', async event => {
     if (!isTrustedSender(event)) throw new Error('Untrusted output stop request')
-    if (activeSessionId) await stopSession(activeSessionId)
+    const current = currentSession()
+    if (current) await stopSession(current.id)
     return null
   })
 
   ipcMain.handle('drmvyz:output:publish-offer', (event, sessionId, offer) => {
     if (!isTrustedSender(event)) throw new Error('Untrusted WebRTC offer')
-    const session = sessions.get(sessionId)
+    const session = signalSessions.get(sessionId)
     if (!session || session.sourceWebContentsId !== event.sender.id) throw new Error('Output session not found')
     if (!offer || offer.type !== 'offer' || typeof offer.sdp !== 'string') throw new Error('Invalid WebRTC offer')
     session.offer = { type: 'offer', sdp: offer.sdp }
@@ -735,7 +554,7 @@ function installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTruste
 
   ipcMain.handle('drmvyz:output:wait-for-answer', (event, sessionId) => {
     if (!isTrustedSender(event)) throw new Error('Untrusted WebRTC answer request')
-    const session = sessions.get(sessionId)
+    const session = signalSessions.get(sessionId)
     if (!session || session.sourceWebContentsId !== event.sender.id) throw new Error('Output session not found')
     if (session.answer) return session.answer
     return new Promise((resolve, reject) => {
@@ -760,36 +579,52 @@ function installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTruste
 
   ipcMain.handle('drmvyz:output:fail-session', (event, sessionId, message) => {
     if (!isTrustedSender(event)) throw new Error('Untrusted output failure request')
-    const session = sessions.get(sessionId)
+    const session = signalSessions.get(sessionId)
     if (!session || session.sourceWebContentsId !== event.sender.id) return false
-    session.state = 'error'
-    session.error = typeof message === 'string' ? message : 'Output stream failed'
-    broadcastSession()
-    return true
+    return targetManager.failSession(sessionId, message)
   })
 
-  const onDisplayChange = () => broadcastTargets()
-  screen.on('display-added', onDisplayChange)
-  screen.on('display-removed', onDisplayChange)
-  screen.on('display-metrics-changed', onDisplayChange)
-
-  void startHttpServer().then(startDiscovery).catch(error => {
+  const providerStartPromise = targetManager.start().then(() => broadcastTargets()).catch(error => {
+    console.error('[DRMVYZ Output] Provider initialization failed:', error)
+  })
+  const receiverServiceStartPromise = startHttpServer().then(() => broadcastTargets()).catch(error => {
     console.error('[DRMVYZ Output] Receiver service failed to start:', error)
   })
 
-  app.on('before-quit', () => {
-    if (discoveryInterval) clearInterval(discoveryInterval)
-    if (expiryInterval) clearInterval(expiryInterval)
-    try { discoverySocket?.close() } catch { /* Already closed. */ }
-    try { httpServer?.close() } catch { /* Already closed. */ }
+  sessionGcInterval = setInterval(() => {
+    const cutoff = Date.now() - SESSION_TTL_MS
+    const activeId = currentSession()?.id
+    for (const [id, session] of signalSessions) {
+      if (session.createdAt < cutoff && id !== activeId) removeSignalSession(id)
+    }
+  }, 4_000)
+  sessionGcInterval.unref?.()
+
+  const shutdown = async () => {
+    if (shuttingDown) return
+    shuttingDown = true
+    if (sessionGcInterval) clearInterval(sessionGcInterval)
+    await Promise.allSettled([providerStartPromise, receiverServiceStartPromise])
     for (const receiver of receiverWindows.values()) {
       if (!receiver.outputWindow.isDestroyed()) receiver.outputWindow.destroy()
     }
-  })
+    receiverWindows.clear()
+    for (const id of [...signalSessions.keys()]) removeSignalSession(id)
+    await targetManager.shutdown()
+    await new Promise(resolve => {
+      if (!httpServer?.listening) { resolve(); return }
+      httpServer.close(() => resolve())
+    })
+  }
+
+  app.on('before-quit', () => { void shutdown() })
 
   return {
-    getTargets,
+    getTargets: () => targetManager.listTargets(),
+    getTargetSnapshot: () => targetManager.getSnapshot(),
     getSession: currentSession,
+    shutdown,
+    targetManager,
   }
 }
 
@@ -802,4 +637,5 @@ module.exports = {
   isAllowedReceiverSource,
   isPrivateNetworkAddress,
   normalizeCastRequest,
+  resolveReachableLocalAddress,
 }

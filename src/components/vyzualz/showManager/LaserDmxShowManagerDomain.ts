@@ -844,3 +844,102 @@ export function removeLaserDmxShowManagerFixtureFromSection(
     fixtures: section.fixtures.filter(candidate => candidate.id !== fixtureId),
   })
 }
+
+export interface LaserDmxShowManagerFixtureDuplicateResult {
+  show: LaserDmxShowManagerShow
+  fixtureId: string | null
+}
+
+/** Clones one fixture within its own section, offset by one grid cell so it doesn't sit on top of the source. */
+export function duplicateLaserDmxShowManagerFixtureInSection(
+  show: LaserDmxShowManagerShow,
+  sectionId: string,
+  fixtureId: string,
+): LaserDmxShowManagerFixtureDuplicateResult {
+  const section = show.sections.find(candidate => candidate.id === sectionId)
+  if (!section) return { show, fixtureId: null }
+  const source = section.fixtures.find(candidate => candidate.id === fixtureId)
+  if (!source) return { show, fixtureId: null }
+  const maxX = LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns - 1
+  const maxY = LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows - 1
+  const offsetSource = { ...source, x: clamp(source.x + 1, 0, maxX), y: clamp(source.y + 1, 0, maxY) }
+  const usedFixtureIds = new Set(show.sections.flatMap(candidate => candidate.fixtures.map(item => item.id)))
+  const copy = createLaserDmxShowManagerFixtureCopy(offsetSource, section.fixtures, usedFixtureIds, section.fixtures.length)
+  return {
+    show: updateLaserDmxShowManagerSection(show, sectionId, {
+      fixtures: [...section.fixtures, copy],
+    }),
+    fixtureId: copy.id,
+  }
+}
+
+export type LaserDmxShowManagerMirrorAxis = 'horizontal' | 'vertical'
+
+function normalizeShowManagerDegrees(value: number): number {
+  const normalized = value % 360
+  return normalized < 0 ? normalized + 360 : normalized
+}
+
+function mirrorLaserDmxShowManagerFixtureAcrossGrid(
+  fixture: LaserDmxShowDirectorFixture,
+  axis: LaserDmxShowManagerMirrorAxis,
+  index: number,
+): LaserDmxShowDirectorFixture {
+  const maxX = LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns - 1
+  const maxY = LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows - 1
+  const mirroredX = maxX - clamp(Math.round(finite(fixture.x, 0)), 0, maxX)
+  const mirroredY = maxY - clamp(Math.round(finite(fixture.y, 0)), 0, maxY)
+  const mirroredTargets = (fixture.beam.targets ?? []).map(target => ({
+    ...target,
+    x: axis === 'horizontal' ? maxX - clamp(Math.round(finite(target.x, 0)), 0, maxX) : clamp(Math.round(finite(target.x, 0)), 0, maxX),
+    y: axis === 'vertical' ? maxY - clamp(Math.round(finite(target.y, 0)), 0, maxY) : clamp(Math.round(finite(target.y, 0)), 0, maxY),
+  }))
+  const mirroredPrimaryTarget = mirroredTargets[0]
+  const mirroredTargetX = mirroredPrimaryTarget
+    ? mirroredPrimaryTarget.x
+    : fixture.beam.targetX == null
+      ? fixture.beam.targetX
+      : axis === 'horizontal' ? maxX - clamp(Math.round(finite(fixture.beam.targetX, 0)), 0, maxX) : clamp(Math.round(finite(fixture.beam.targetX, 0)), 0, maxX)
+  const mirroredTargetY = mirroredPrimaryTarget
+    ? mirroredPrimaryTarget.y
+    : fixture.beam.targetY == null
+      ? fixture.beam.targetY
+      : axis === 'vertical' ? maxY - clamp(Math.round(finite(fixture.beam.targetY, 0)), 0, maxY) : clamp(Math.round(finite(fixture.beam.targetY, 0)), 0, maxY)
+  const rotation = finite(fixture.rotation, 0)
+  const beamAngle = finite(fixture.beam.beamAngle, 0)
+  const mirroredRotation = axis === 'horizontal' ? normalizeShowManagerDegrees(180 - rotation) : normalizeShowManagerDegrees(-rotation)
+  const effectiveAngle = normalizeShowManagerDegrees(rotation + beamAngle)
+  const mirroredEffectiveAngle = axis === 'horizontal' ? normalizeShowManagerDegrees(180 - effectiveAngle) : normalizeShowManagerDegrees(-effectiveAngle)
+  const mirroredBeamAngle = normalizeShowManagerDegrees(mirroredEffectiveAngle - mirroredRotation)
+
+  return normalizeLaserDmxShowManagerFixture({
+    ...fixture,
+    x: axis === 'horizontal' ? mirroredX : fixture.x,
+    y: axis === 'vertical' ? mirroredY : fixture.y,
+    rotation: mirroredRotation,
+    beam: {
+      ...fixture.beam,
+      beamAngle: mirroredBeamAngle,
+      targetX: mirroredTargetX,
+      targetY: mirroredTargetY,
+      targets: mirroredTargets,
+    },
+  }, index)
+}
+
+/** Mirrors one fixture's position, rotation, and beam target across the fixed Part 1 grid. */
+export function mirrorLaserDmxShowManagerFixtureInSection(
+  show: LaserDmxShowManagerShow,
+  sectionId: string,
+  fixtureId: string,
+  axis: LaserDmxShowManagerMirrorAxis,
+): LaserDmxShowManagerShow {
+  const section = show.sections.find(candidate => candidate.id === sectionId)
+  if (!section) return show
+  const fixtureIndex = section.fixtures.findIndex(candidate => candidate.id === fixtureId)
+  if (fixtureIndex < 0) return show
+  const mirrored = mirrorLaserDmxShowManagerFixtureAcrossGrid(section.fixtures[fixtureIndex]!, axis, fixtureIndex)
+  return updateLaserDmxShowManagerSection(show, sectionId, {
+    fixtures: section.fixtures.map((candidate, index) => index === fixtureIndex ? mirrored : candidate),
+  })
+}
