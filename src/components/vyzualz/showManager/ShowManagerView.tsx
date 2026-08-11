@@ -1,5 +1,6 @@
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../../audio/savedTrackLoader'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { resolvePositiveDuration, type TimelineViewport } from '../../../features/timeline/timelineViewport'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
@@ -90,6 +91,7 @@ import {
   isSupportedShowManagerAudioLibraryItem,
   normalizeShowManagerShowName,
   type ShowManagerEngineId,
+  type ShowManagerShowRecord,
 } from './ShowManagerDomain'
 import '../../../styles/showManager.css'
 
@@ -160,33 +162,44 @@ const TRACK_MAP_TABS = [{ id: 'trackMap' as const, label: 'Track Map' }]
 interface ShowBrowserEntry {
   id: string
   name: string
-  details: string
+  audioLabel: string
+  tagsLabel: string
+  groupLabel: string
+  copyDisabledReason: string | null
+}
+
+interface ShowBrowserActionResult {
+  ok: boolean
+  error?: string
 }
 
 interface ShowBrowserDialogProps {
-  engineLabel: string
   shows: readonly ShowBrowserEntry[]
-  currentShowId: string | null
   onClose: () => void
-  onOpen: (showId: string) => void
+  onOpen: (showId: string) => Promise<ShowBrowserActionResult>
+  onCopy: (showId: string) => void
+  onDelete: (showId: string) => Promise<ShowBrowserActionResult>
 }
 
 function ShowBrowserDialog({
-  engineLabel,
   shows,
-  currentShowId,
   onClose,
   onOpen,
+  onCopy,
+  onDelete,
 }: ShowBrowserDialogProps) {
   const [query, setQuery] = useState('')
-  const [selectedShowId, setSelectedShowId] = useState<string | null>(
-    currentShowId ?? shows[0]?.id ?? null,
-  )
+  const [selectedShowId, setSelectedShowId] = useState<string | null>(null)
+  const [busyShowId, setBusyShowId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const busyRef = useRef(false)
   const searchRef = useRef<HTMLInputElement | null>(null)
   const filteredShows = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) return shows
-    return shows.filter(show => show.name.toLowerCase().includes(normalizedQuery))
+    return shows.filter(show => (
+      `${show.name} ${show.audioLabel} ${show.tagsLabel} ${show.groupLabel}`.toLowerCase().includes(normalizedQuery)
+    ))
   }, [query, shows])
 
   useEffect(() => {
@@ -194,13 +207,42 @@ function ShowBrowserDialog({
   }, [])
 
   useEffect(() => {
-    if (filteredShows.some(show => show.id === selectedShowId)) return
-    setSelectedShowId(filteredShows[0]?.id ?? null)
+    if (!selectedShowId || filteredShows.some(show => show.id === selectedShowId)) return
+    setSelectedShowId(null)
   }, [filteredShows, selectedShowId])
+
+  const openShow = async (showId: string) => {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusyShowId(showId)
+    setActionError(null)
+    try {
+      const result = await onOpen(showId)
+      if (!result.ok) setActionError(result.error ?? 'The Show could not be opened.')
+    } finally {
+      busyRef.current = false
+      setBusyShowId(null)
+    }
+  }
 
   const openSelectedShow = () => {
     if (!selectedShowId) return
-    onOpen(selectedShowId)
+    void openShow(selectedShowId)
+  }
+
+  const deleteShow = async (show: ShowBrowserEntry) => {
+    if (busyRef.current || !window.confirm(`Delete Show “${show.name}”? This removes only the Show and its authored data. Linked media and audio remain in the library.`)) return
+    busyRef.current = true
+    setBusyShowId(show.id)
+    setActionError(null)
+    try {
+      const result = await onDelete(show.id)
+      if (!result.ok) setActionError(result.error ?? 'The Show could not be deleted.')
+      else if (selectedShowId === show.id) setSelectedShowId(null)
+    } finally {
+      busyRef.current = false
+      setBusyShowId(null)
+    }
   }
 
   return (
@@ -208,7 +250,7 @@ function ShowBrowserDialog({
       className="sm-show-browser-backdrop"
       role="presentation"
       onMouseDown={event => {
-        if (event.currentTarget === event.target) onClose()
+        if (event.currentTarget === event.target && !busyShowId) onClose()
       }}
     >
       <section
@@ -217,7 +259,7 @@ function ShowBrowserDialog({
         aria-modal="true"
         aria-labelledby="show-browser-heading"
         onKeyDown={event => {
-          if (event.key === 'Escape') onClose()
+          if (event.key === 'Escape' && !busyShowId) onClose()
           if (event.key === 'Enter' && event.target === searchRef.current && selectedShowId) {
             event.preventDefault()
             openSelectedShow()
@@ -229,7 +271,7 @@ function ShowBrowserDialog({
             <span className="sm-show-browser-kicker">Show Manager</span>
             <h2 id="show-browser-heading">Open Show</h2>
           </div>
-          <button type="button" className="sm-show-browser-close" onClick={onClose} aria-label="Close Open Show window">
+          <button type="button" className="sm-show-browser-close" onClick={onClose} disabled={Boolean(busyShowId)} aria-label="Close Open Show window">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 6l12 12M18 6L6 18" />
             </svg>
@@ -253,7 +295,7 @@ function ShowBrowserDialog({
               <div className="sm-show-browser-breadcrumb" aria-label="Current folder">
                 <span>All Shows</span>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
-                <strong>{engineLabel}</strong>
+                <strong>Show Library</strong>
               </div>
               <label className="sm-show-browser-search">
                 <span className="sr-only">Search Shows</span>
@@ -270,33 +312,70 @@ function ShowBrowserDialog({
 
             <div className="sm-show-browser-list-header" aria-hidden="true">
               <span>Name</span>
-              <span>Contents</span>
+              <span>Audio Track</span>
+              <span>Tags</span>
+              <span>Group</span>
+              <span>Actions</span>
             </div>
-            <div className="sm-show-browser-list" role="listbox" aria-label={`${engineLabel} Shows`}>
+            <div className="sm-show-browser-list" role="listbox" aria-label="All Shows">
               {filteredShows.length > 0 ? filteredShows.map(show => (
-                <button
+                <div
                   key={show.id}
-                  type="button"
                   role="option"
                   aria-selected={show.id === selectedShowId}
-                  className={show.id === selectedShowId ? 'is-selected' : ''}
-                  onClick={() => setSelectedShowId(show.id)}
-                  onDoubleClick={() => onOpen(show.id)}
+                  className={`sm-show-browser-row${show.id === selectedShowId ? ' is-selected' : ''}`}
                 >
-                  <span className="sm-show-browser-folder-icon">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M3.5 6.5h6l2 2h9v10h-17z" />
-                    </svg>
+                  <button
+                    type="button"
+                    className="sm-show-browser-row-main"
+                    disabled={Boolean(busyShowId)}
+                    onClick={() => {
+                      setActionError(null)
+                      setSelectedShowId(show.id)
+                    }}
+                    onDoubleClick={() => void openShow(show.id)}
+                    aria-label={`Select Show ${show.name}`}
+                  >
+                    <span className="sm-show-browser-folder-icon">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3.5 6.5h6l2 2h9v10h-17z" />
+                      </svg>
+                    </span>
+                    <strong>{show.name}</strong>
+                  </button>
+                  <small title={show.audioLabel}>{show.audioLabel}</small>
+                  <small title={show.tagsLabel}>{show.tagsLabel}</small>
+                  <small title={show.groupLabel}>{show.groupLabel}</small>
+                  <span className="sm-show-browser-row-actions">
+                    <button
+                      type="button"
+                      disabled={Boolean(busyShowId) || Boolean(show.copyDisabledReason)}
+                      title={show.copyDisabledReason ?? `Copy ${show.name}`}
+                      aria-label={`Copy Show ${show.name}`}
+                      onClick={event => {
+                        event.stopPropagation()
+                        if (busyRef.current) return
+                        setActionError(null)
+                        onCopy(show.id)
+                      }}
+                    >Copy</button>
+                    <button
+                      type="button"
+                      disabled={Boolean(busyShowId)}
+                      aria-label={`Delete Show ${show.name}`}
+                      onClick={event => {
+                        event.stopPropagation()
+                        void deleteShow(show)
+                      }}
+                    >Delete</button>
                   </span>
-                  <strong>{show.name}</strong>
-                  <small>{show.details}</small>
-                </button>
+                </div>
               )) : (
                 <div className="sm-show-browser-empty">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M3.5 6.5h6l2 2h9v10h-17z" />
                   </svg>
-                  <strong>{shows.length === 0 ? `No ${engineLabel} Shows yet` : 'No matching Shows'}</strong>
+                  <strong>{shows.length === 0 ? 'No Shows yet' : 'No matching Shows'}</strong>
                   <span>{shows.length === 0 ? 'Create a new Show to begin authoring.' : 'Try a different search.'}</span>
                 </div>
               )}
@@ -306,9 +385,12 @@ function ShowBrowserDialog({
 
         <footer className="sm-show-browser-footer">
           <span>{filteredShows.length} {filteredShows.length === 1 ? 'Show' : 'Shows'}</span>
+          {actionError && <p className="sm-show-browser-error" role="alert">{actionError}</p>}
           <div>
-            <button type="button" onClick={onClose}>Cancel</button>
-            <button type="button" className="is-primary" disabled={!selectedShowId} onClick={openSelectedShow}>Open Show</button>
+            <button type="button" onClick={onClose} disabled={Boolean(busyShowId)}>Cancel</button>
+            <button type="button" className="is-primary" disabled={!selectedShowId || Boolean(busyShowId)} onClick={openSelectedShow}>
+              {busyShowId === selectedShowId ? 'Opening…' : 'Open Show'}
+            </button>
           </div>
         </footer>
       </section>
@@ -383,23 +465,26 @@ function ShowManagerSectionStrip({
 
 interface NewShowDialogProps {
   engineId: ShowManagerEngineId
+  copySource?: ShowManagerShowRecord | null
   onClose: () => void
 }
 
-function NewShowDialog({ engineId, onClose }: NewShowDialogProps) {
+function NewShowDialog({ engineId, copySource = null, onClose }: NewShowDialogProps) {
   const shows = useReactStore(state => state.showManagerShows)
   const createShow = useReactStore(state => state.createShowManagerShow)
+  const duplicateShow = useReactStore(state => state.duplicateShowManagerShow)
   const savedAudioTracks = useAudioStore(state => state.savedTracks)
   const audioLoading = useAudioStore(state => state.loading)
   const audioLoadError = useAudioStore(state => state.loadError)
   const loadSavedTracks = useAudioStore(state => state.loadSavedTracks)
   const collections = useMediaStore(state => state.collections)
   const loadCollections = useMediaStore(state => state.loadCollections)
-  const [name, setName] = useState('')
-  const [selectedAudioTrackId, setSelectedAudioTrackId] = useState('')
-  const [tags, setTags] = useState<string[]>([])
+  const copyMode = Boolean(copySource)
+  const [name, setName] = useState(copySource?.name ?? '')
+  const [selectedAudioTrackId, setSelectedAudioTrackId] = useState(copySource?.linkedAudioTrackId ?? '')
+  const [tags, setTags] = useState<string[]>(copySource?.tags ?? [])
   const [tagDraft, setTagDraft] = useState('')
-  const [groupId, setGroupId] = useState('')
+  const [groupId, setGroupId] = useState(copySource?.groupId ?? '')
   const [nameTouched, setNameTouched] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -415,7 +500,9 @@ function NewShowDialog({ engineId, onClose }: NewShowDialogProps) {
   const normalizedName = normalizeShowManagerShowName(name)
   const nameAvailable = isShowManagerShowNameAvailable(shows, name)
   const selectedTrack = savedAudioTracks.find(track => track.dbId === selectedAudioTrackId && isSupportedShowManagerAudioLibraryItem(track)) ?? null
-  const canCreate = Boolean(normalizedName && nameAvailable && selectedTrack && !submitting)
+  const copyHasAudioIdentity = Boolean(copySource?.linkedAudioTrackId)
+  const selectedGroup = groupId ? collections.find(collection => collection.id === groupId) ?? null : null
+  const canCreate = Boolean(normalizedName && nameAvailable && (copyMode ? copyHasAudioIdentity : selectedTrack) && !submitting)
 
   const addTag = (raw: string) => {
     const next = raw.trim().replace(/\s+/g, ' ')
@@ -428,19 +515,27 @@ function NewShowDialog({ engineId, onClose }: NewShowDialogProps) {
     if (submittingRef.current) return
     setNameTouched(true)
     setSubmitError(null)
-    if (!normalizedName || !nameAvailable || !selectedTrack) return
+    if (!normalizedName || !nameAvailable || (copyMode ? !copyHasAudioIdentity : !selectedTrack)) return
     submittingRef.current = true
     setSubmitting(true)
     try {
-      const showId = await createShow({
-        name: normalizedName,
-        linkedAudioTrackId: selectedTrack.dbId,
-        tags,
-        groupId: groupId || null,
-        initialEngineId: engineId,
-      })
+      const showId = copySource
+        ? await duplicateShow(copySource.id, {
+            name: normalizedName,
+            tags,
+            groupId: groupId || null,
+          })
+        : await createShow({
+            name: normalizedName,
+            linkedAudioTrackId: selectedTrack!.dbId,
+            tags,
+            groupId: groupId || null,
+            initialEngineId: engineId,
+          })
       if (!showId) {
-        setSubmitError('The Show could not be created. Check the name and persistence status, then try again.')
+        setSubmitError(copyMode
+          ? 'The Show copy could not be created. Verify the source Show is complete and the new name is unique.'
+          : 'The Show could not be created. Check the name and persistence status, then try again.')
         return
       }
       onClose()
@@ -472,8 +567,10 @@ function NewShowDialog({ engineId, onClose }: NewShowDialogProps) {
             void commit()
           }}
         >
-          <h2 id={headingId}>New Show</h2>
-          <p>Every Show requires a unique name and a linked Audio Library track.</p>
+          <h2 id={headingId}>{copyMode ? 'Copy Show' : 'New Show'}</h2>
+          <p>{copyMode
+            ? 'The complete authored Show will be duplicated. Only Show Name, Tags, and Group can be changed.'
+            : 'Every Show requires a unique name and a linked Audio Library track.'}</p>
 
           <label htmlFor="show-manager-new-show-name">Show Name <span aria-hidden="true">*</span></label>
           <DreamVizTextInput
@@ -495,19 +592,23 @@ function NewShowDialog({ engineId, onClose }: NewShowDialogProps) {
             <select
               id="show-manager-new-show-audio"
               value={selectedAudioTrackId}
-              disabled={audioLoading || submitting}
+              disabled={copyMode || audioLoading || submitting}
               onChange={event => {
                 setSelectedAudioTrackId(event.target.value)
                 setSubmitError(null)
               }}
             >
               <option value="">{audioLoading ? 'Loading Audio Library…' : 'Choose from Audio Library'}</option>
+              {copyMode && selectedAudioTrackId && !selectedTrack && (
+                <option value={selectedAudioTrackId}>Unavailable linked track · {selectedAudioTrackId}</option>
+              )}
               {savedAudioTracks.filter(isSupportedShowManagerAudioLibraryItem).map(track => (
                 <option key={track.dbId} value={track.dbId}>{track.title || track.fileName}</option>
               ))}
             </select>
-            <button type="button" onClick={() => setUploadOpen(true)} disabled={submitting}>Upload New Audio</button>
+            {!copyMode && <button type="button" onClick={() => setUploadOpen(true)} disabled={submitting}>Upload New Audio</button>}
           </div>
+          {copyMode && <p className="sm-new-show-field-note">Audio Track is locked to the source Show.</p>}
           {audioLoadError && <p className="sm-new-show-field-note" role="status">{audioLoadError}</p>}
 
           <label htmlFor="show-manager-new-show-tags">Tags <span className="sm-new-show-optional">Optional</span></label>
@@ -536,17 +637,18 @@ function NewShowDialog({ engineId, onClose }: NewShowDialogProps) {
           <label htmlFor="show-manager-new-show-group">Group <span className="sm-new-show-optional">Optional</span></label>
           <select id="show-manager-new-show-group" value={groupId} onChange={event => setGroupId(event.target.value)} disabled={submitting}>
             <option value="">No group</option>
+            {copyMode && groupId && !selectedGroup && <option value={groupId}>Unavailable group · {groupId}</option>}
             {collections.map(collection => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
           </select>
 
           {submitError && <p className="sm-canvas-form-error" role="alert">{submitError}</p>}
           <div className="sm-canvas-dialog-actions">
             <button type="button" onClick={onClose} disabled={submitting}>Cancel</button>
-            <button type="submit" disabled={!canCreate}>{submitting ? 'Creating…' : 'Create Show'}</button>
+            <button type="submit" disabled={!canCreate}>{submitting ? 'Creating…' : (copyMode ? 'Create Copy' : 'Create Show')}</button>
           </div>
         </form>
       </div>
-      {uploadOpen && (
+      {!copyMode && uploadOpen && (
         <MediaUploadModal
           audioOnly
           onClose={() => setUploadOpen(false)}
@@ -612,6 +714,7 @@ export function ShowManagerView() {
   const engine = useSharedAudio()
   const reactPresets = useReactStore(state => state.reactPresets)
   const activeReactPresetId = useReactStore(state => state.activeReactPresetId)
+  const selectReactEngine = useReactStore(state => state.selectReactEngine)
   const pixGridState = useReactStore(state => state.pixGridState)
   const pixGridDecks = useReactStore(state => state.pixGridDecks)
   const renamePixGridDeck = useReactStore(state => state.renamePixGridDeck)
@@ -627,6 +730,7 @@ export function ShowManagerView() {
   const suppressedAutoSectionsByTrackId = useReactStore(state => state.suppressedAutoSectionsByTrackId)
   const showManagerShows = useReactStore(state => state.showManagerShows)
   const showManagerEditingShowId = useReactStore(state => state.showManagerEditingShowId)
+  const deleteShowManagerShow = useReactStore(state => state.deleteShowManagerShow)
   const selectShowManagerShow = useReactStore(state => state.selectShowManagerShow)
   const resetShowManagerSession = useReactStore(state => state.resetShowManagerSession)
   const laserDmxShowManagerShows = useReactStore(state => state.laserDmxShowManagerShows)
@@ -665,7 +769,6 @@ export function ShowManagerView() {
   const addCanvasShowManagerMediaElement = useReactStore(state => state.addCanvasShowManagerMediaElement)
   const updateCanvasShowManagerMediaElement = useReactStore(state => state.updateCanvasShowManagerMediaElement)
   const removeCanvasShowManagerMediaElement = useReactStore(state => state.removeCanvasShowManagerMediaElement)
-  const deleteCanvasShowManagerShow = useReactStore(state => state.deleteCanvasShowManagerShow)
   const undoCanvasShowManagerEdit = useReactStore(state => state.undoCanvasShowManagerEdit)
   const redoCanvasShowManagerEdit = useReactStore(state => state.redoCanvasShowManagerEdit)
   const canvasShowUndoDepth = useReactStore(state => state.canvasShowManagerUndoStack.length)
@@ -674,6 +777,11 @@ export function ShowManagerView() {
   const commitCanvasShowManagerHistoryTransaction = useReactStore(state => state.commitCanvasShowManagerHistoryTransaction)
   const saveCanvasShowManagerShow = useReactStore(state => state.saveCanvasShowManagerShow)
   const sharedMediaItems = useMediaStore(state => state.items)
+  const mediaCollections = useMediaStore(state => state.collections)
+  const loadMediaCollections = useMediaStore(state => state.loadCollections)
+  const savedAudioTracks = useAudioStore(state => state.savedTracks)
+  const loadSavedAudioTracks = useAudioStore(state => state.loadSavedTracks)
+  const getSavedAudioSignedUrl = useAudioStore(state => state.getSignedUrl)
   const [showManagerSessionReady, setShowManagerSessionReady] = useState(false)
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
   const [selectedLightingComponentKind, setSelectedLightingComponentKind] = useState<LaserDmxShowDirectorFixtureKind | null>(null)
@@ -705,11 +813,13 @@ export function ShowManagerView() {
   const [canvasSaveStatus, setCanvasSaveStatus] = useState<string | null>(null)
   const [showBrowserOpen, setShowBrowserOpen] = useState(false)
   const [newShowOpen, setNewShowOpen] = useState(false)
+  const [copySourceShowId, setCopySourceShowId] = useState<string | null>(null)
   const [canvasRenameDraft, setCanvasRenameDraft] = useState('')
   const [canvasRenameError, setCanvasRenameError] = useState<string | null>(null)
   const [canvasLibraryMediaId, setCanvasLibraryMediaId] = useState<string | null>(null)
   const [canvasAuthoringError, setCanvasAuthoringError] = useState<string | null>(null)
   const [canvasPlayheadSec, setCanvasPlayheadSec] = useState(0)
+  const showOpenOperationRef = useRef(0)
   const compilerStatuses = usePixGridDeckCompilerStore(state => state.statuses)
   const transitionStatuses = usePixGridDeckCompilerStore(state => state.transitionStatuses)
   const activeShowManagerShow = useMemo(
@@ -745,11 +855,28 @@ export function ShowManagerView() {
     () => activeCanvasShow ? getCanvasShowManagerTotalDuration(activeCanvasShow) : 0,
     [activeCanvasShow],
   )
-  const showBrowserEntries = useMemo<ShowBrowserEntry[]>(() => showManagerShows.map(show => ({
-    id: show.id,
-    name: show.name,
-    details: `${show.linkedAudioTrackId ? 'Audio linked' : 'Legacy · audio link missing'}${show.tags.length ? ` · ${show.tags.length} tag${show.tags.length === 1 ? '' : 's'}` : ''}`,
-  })), [showManagerShows])
+  const showBrowserEntries = useMemo<ShowBrowserEntry[]>(() => showManagerShows.map(show => {
+    const linkedTrack = show.linkedAudioTrackId
+      ? savedAudioTracks.find(track => track.dbId === show.linkedAudioTrackId) ?? null
+      : null
+    const group = show.groupId
+      ? mediaCollections.find(collection => collection.id === show.groupId) ?? null
+      : null
+    return {
+      id: show.id,
+      name: show.name,
+      audioLabel: linkedTrack
+        ? (linkedTrack.title || linkedTrack.fileName)
+        : (show.linkedAudioTrackId ? `Unavailable · ${show.linkedAudioTrackId}` : 'Legacy · audio link missing'),
+      tagsLabel: show.tags.length ? show.tags.join(', ') : 'No tags',
+      groupLabel: group?.name ?? (show.groupId ? `Unavailable · ${show.groupId}` : 'No group'),
+      copyDisabledReason: show.linkedAudioTrackId ? null : 'Legacy Shows without a linked audio track cannot be copied.',
+    }
+  }), [mediaCollections, savedAudioTracks, showManagerShows])
+  const copySourceShow = useMemo(
+    () => copySourceShowId ? showManagerShows.find(show => show.id === copySourceShowId) ?? null : null,
+    [copySourceShowId, showManagerShows],
+  )
   const selectedCanvasElement = useMemo(
     () => activeCanvasShow?.mediaElements.find(element => element.id === canvasShowManagerEditingElementId) ?? null,
     [activeCanvasShow, canvasShowManagerEditingElementId],
@@ -810,9 +937,16 @@ export function ShowManagerView() {
     setCanvasLibraryMediaId(null)
     setShowManagerSessionReady(true)
     return () => {
+      showOpenOperationRef.current += 1
       resetShowManagerSession()
     }
   }, [resetShowManagerSession])
+
+  useEffect(() => {
+    if (!showBrowserOpen) return
+    void loadSavedAudioTracks()
+    void loadMediaCollections()
+  }, [loadMediaCollections, loadSavedAudioTracks, showBrowserOpen])
 
   useEffect(() => {
     setCanvasRenameDraft(activeCanvasShow?.name ?? '')
@@ -1184,22 +1318,87 @@ export function ShowManagerView() {
     }
   }
 
-  const openSelectedShow = (showId: string) => {
+  const openSelectedShow = async (showId: string): Promise<ShowBrowserActionResult> => {
     const show = showManagerShows.find(candidate => candidate.id === showId)
-    if (!show) return
-    const preferredEngine = show.engineIds.includes(selectedEngineId as ShowManagerEngineId)
-      ? selectedEngineId as ShowManagerEngineId
-      : (show.engineIds[0] ?? selectedEngineId as ShowManagerEngineId)
+    if (!show) return { ok: false, error: 'That Show is no longer available.' }
+    if (!show.linkedAudioTrackId) {
+      return { ok: false, error: `“${show.name}” is a legacy Show with no linked audio track and cannot be opened safely.` }
+    }
+
+    const preferredEngine = show.engineIds[0] ?? null
+    if (!preferredEngine) {
+      return { ok: false, error: `“${show.name}” has no saved Show Manager engine configuration.` }
+    }
+    if (preferredEngine === 'canvas' && !canvasShowManagerShows.some(candidate => candidate.id === show.id)) {
+      return { ok: false, error: `“${show.name}” references CANVAS, but its saved CANVAS authoring data is unavailable.` }
+    }
+    if (preferredEngine === 'laserDmx' && !laserDmxShowManagerShows.some(candidate => candidate.id === show.id)) {
+      return { ok: false, error: `“${show.name}” references LaserDMX, but its saved LaserDMX authoring data is unavailable.` }
+    }
+
+    let linkedTrack = savedAudioTracks.find(track => track.dbId === show.linkedAudioTrackId) ?? null
+    if (!linkedTrack) {
+      await loadSavedAudioTracks()
+      linkedTrack = useAudioStore.getState().savedTracks.find(track => track.dbId === show.linkedAudioTrackId) ?? null
+    }
+    if (!linkedTrack) {
+      return {
+        ok: false,
+        error: `The linked Audio Library record for “${show.name}” is unavailable (${show.linkedAudioTrackId}). The Show was not opened.`,
+      }
+    }
+    const recordedLocation = linkedTrack.storagePath?.trim() ?? ''
+    if (!recordedLocation) {
+      return {
+        ok: false,
+        error: `The linked track “${linkedTrack.title || linkedTrack.fileName}” has no recorded source location and cannot be loaded. The Show was not opened.`,
+      }
+    }
+
+    const operation = ++showOpenOperationRef.current
+    try {
+      await loadSavedTrackIntoEngine(
+        engine,
+        linkedTrack,
+        { getSignedUrl: getSavedAudioSignedUrl },
+        { shouldCommit: () => showOpenOperationRef.current === operation },
+      )
+    } catch (error) {
+      if (error instanceof SavedTrackLoadCancelledError) return { ok: false, error: 'The Show open request was superseded.' }
+      const reason = error instanceof Error ? error.message : 'The linked audio source is unavailable.'
+      return {
+        ok: false,
+        error: `The linked track “${linkedTrack.title || linkedTrack.fileName}” cannot be loaded because it no longer exists or is unavailable at its recorded location: ${recordedLocation}. ${reason}`,
+      }
+    }
+    if (showOpenOperationRef.current !== operation) return { ok: false, error: 'The Show open request was superseded.' }
+
+    selectReactEngine(preferredEngine)
     setSelectedEngineId(preferredEngine)
     selectShowManagerShow(show.id)
     selectCanvasShowManagerShow(preferredEngine === 'canvas' && canvasShowManagerShows.some(candidate => candidate.id === show.id) ? show.id : null)
     selectLaserDmxShowManagerShow(preferredEngine === 'laserDmx' && laserDmxShowManagerShows.some(candidate => candidate.id === show.id) ? show.id : null)
     setPreviewPresetId(null)
     setShowBrowserOpen(false)
+    return { ok: true }
   }
 
   const createSelectedShow = () => {
+    setCopySourceShowId(null)
     setNewShowOpen(true)
+  }
+
+  const copySelectedShow = (showId: string) => {
+    setCopySourceShowId(showId)
+    setShowBrowserOpen(false)
+    setNewShowOpen(true)
+  }
+
+  const deleteSelectedShow = async (showId: string): Promise<ShowBrowserActionResult> => {
+    const deleted = await deleteShowManagerShow(showId)
+    return deleted
+      ? { ok: true }
+      : { ok: false, error: 'The Show could not be deleted. Its Show data and linked media were left unchanged.' }
   }
 
   const saveAndActivateSelectedShow = () => {
@@ -1798,7 +1997,7 @@ export function ShowManagerView() {
                 sectionRanges={canvasSectionRanges}
                 onSelectElement={selectCanvasShowManagerMediaElement}
                 onPlaceMedia={commitCanvasMediaPlacement}
-                onCreate={() => setNewShowOpen(true)}
+                onCreate={createSelectedShow}
                 runtimePreview={activeCanvasShow ? (
                   <CanvasEngineSurface
                     isPlaying={engine.isPlaying}
@@ -2183,10 +2382,12 @@ export function ShowManagerView() {
               onInteractionEnd={commitCanvasShowManagerHistoryTransaction}
               onDeleteElement={deleteSelectedCanvasElement}
               onDelete={() => {
-                if (!activeCanvasShow || !window.confirm(`Delete Canvas Show “${activeCanvasShow.name}”?`)) return
-                deleteCanvasShowManagerShow(activeCanvasShow.id)
+                if (!activeCanvasShow || !window.confirm(`Delete Show “${activeCanvasShow.name}”? This removes only the Show and its authored data. Linked media and audio remain in the library.`)) return
+                void deleteShowManagerShow(activeCanvasShow.id).then(deleted => {
+                  if (!deleted) setCanvasAuthoringError('The Show could not be deleted. Its Show data and linked media were left unchanged.')
+                })
               }}
-              onCreate={() => setNewShowOpen(true)}
+              onCreate={createSelectedShow}
             />
           ) : (
             <div className="sm-panel-blank" />
@@ -2206,17 +2407,21 @@ export function ShowManagerView() {
       />
       {showBrowserOpen && (
         <ShowBrowserDialog
-          engineLabel={REACT_ENGINE_CATALOG[selectedEngineId].label}
           shows={showBrowserEntries}
-          currentShowId={showManagerEditingShowId}
           onClose={() => setShowBrowserOpen(false)}
           onOpen={openSelectedShow}
+          onCopy={copySelectedShow}
+          onDelete={deleteSelectedShow}
         />
       )}
       {newShowOpen && (
         <NewShowDialog
           engineId={selectedEngineId as ShowManagerEngineId}
-          onClose={() => setNewShowOpen(false)}
+          copySource={copySourceShow}
+          onClose={() => {
+            setNewShowOpen(false)
+            setCopySourceShowId(null)
+          }}
         />
       )}
     </section>

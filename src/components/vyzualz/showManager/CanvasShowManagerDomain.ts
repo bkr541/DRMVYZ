@@ -470,6 +470,33 @@ export function cloneCanvasShowManagerShow(show: CanvasShowManagerShow): CanvasS
   }
 }
 
+export function duplicateCanvasShowManagerShow(
+  show: CanvasShowManagerShow,
+  newShowId: string,
+  newName: string,
+): CanvasShowManagerShow {
+  const clone = cloneCanvasShowManagerShow(show)
+  return {
+    ...clone,
+    id: newShowId,
+    name: normalizeCanvasShowManagerName(newName, clone.name),
+    sections: clone.sections.map((section, index) => ({
+      ...section,
+      id: `${newShowId}:section:${section.type}:${index + 1}`,
+    })),
+    mediaElements: clone.mediaElements.map(element => ({
+      ...element,
+      id: createId('canvas-element'),
+      display: { ...element.display },
+      transitions: {
+        in: { ...element.transitions.in },
+        out: { ...element.transitions.out },
+      },
+      fx: { ...element.fx },
+    })),
+  }
+}
+
 export function getCanvasShowManagerSectionRanges(show: CanvasShowManagerShow): CanvasShowManagerSectionRange[] {
   return getSectionRangesFromSections(show.sections)
 }

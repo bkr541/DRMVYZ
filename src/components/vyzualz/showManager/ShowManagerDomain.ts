@@ -25,6 +25,12 @@ export interface CreateShowManagerShowInput {
   initialEngineId?: ShowManagerEngineId | null
 }
 
+export interface DuplicateShowManagerShowInput {
+  name: string
+  tags?: readonly string[]
+  groupId?: string | null
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -104,6 +110,24 @@ export function createShowManagerShow(input: CreateShowManagerShowInput): ShowMa
     tags: normalizeShowManagerTags(input.tags ?? []),
     groupId: normalizeShowManagerGroupId(input.groupId),
     engineIds: input.initialEngineId ? [input.initialEngineId] : [],
+  }
+}
+
+export function duplicateShowManagerShowRecord(
+  source: ShowManagerShowRecord,
+  input: DuplicateShowManagerShowInput,
+): ShowManagerShowRecord | null {
+  const name = normalizeShowManagerShowName(input.name)
+  const linkedAudioTrackId = normalizeShowManagerLinkedAudioTrackId(source.linkedAudioTrackId)
+  if (!name || !linkedAudioTrackId) return null
+  return {
+    schemaVersion: SHOW_MANAGER_SHOW_SCHEMA_VERSION,
+    id: createId(),
+    name,
+    linkedAudioTrackId,
+    tags: normalizeShowManagerTags(input.tags ?? source.tags),
+    groupId: normalizeShowManagerGroupId(input.groupId ?? source.groupId),
+    engineIds: normalizeShowManagerEngineIds(source.engineIds),
   }
 }
 

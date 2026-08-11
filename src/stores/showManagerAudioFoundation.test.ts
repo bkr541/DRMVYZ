@@ -203,4 +203,165 @@ describe('Show Manager audio-bound Stage 1 store integration', () => {
       expect.objectContaining({ id: 'laser-legacy', linkedAudioTrackId: null, engineIds: ['laserDmx'] }),
     ]))
   })
+  it('deep-copies Canvas authored state while retaining the linked audio identity and requiring a unique copy name', async () => {
+    vi.spyOn(reactPersistStorage, 'setItem').mockResolvedValue()
+    const sourceId = await useReactStore.getState().createShowManagerShow({
+      name: 'Canvas Source',
+      linkedAudioTrackId: 'audio-db-copy',
+      tags: ['Source'],
+      groupId: 'collection-source',
+      initialEngineId: 'canvas',
+    })
+    expect(sourceId).toBeTruthy()
+    const sourceSectionId = useReactStore.getState().canvasShowManagerShows[0]!.sections[0]!.id
+    const added = useReactStore.getState().addCanvasShowManagerMediaElement({
+      showId: sourceId!,
+      sectionId: sourceSectionId,
+      mediaId: 'media-shared-1',
+      layer: 2,
+      timedVideo: true,
+      sourceDurationSec: 12,
+    })
+    expect(added.ok).toBe(true)
+
+    await expect(useReactStore.getState().duplicateShowManagerShow(sourceId!, {
+      name: '  CANVAS SOURCE ',
+    })).resolves.toBeNull()
+
+    const copyId = await useReactStore.getState().duplicateShowManagerShow(sourceId!, {
+      name: 'Canvas Copy',
+      tags: ['Copy'],
+      groupId: 'collection-copy',
+    })
+    expect(copyId).toBeTruthy()
+
+    const state = useReactStore.getState()
+    const sourceRecord = state.showManagerShows.find(show => show.id === sourceId)!
+    const copyRecord = state.showManagerShows.find(show => show.id === copyId)!
+    expect(copyRecord).toEqual(expect.objectContaining({
+      name: 'Canvas Copy',
+      linkedAudioTrackId: sourceRecord.linkedAudioTrackId,
+      tags: ['Copy'],
+      groupId: 'collection-copy',
+      engineIds: ['canvas'],
+    }))
+    expect(copyRecord.id).not.toBe(sourceRecord.id)
+
+    const sourceShow = state.canvasShowManagerShows.find(show => show.id === sourceId)!
+    const copyShow = state.canvasShowManagerShows.find(show => show.id === copyId)!
+    expect(copyShow).not.toBe(sourceShow)
+    expect(copyShow.sections).not.toBe(sourceShow.sections)
+    expect(copyShow.sections[0]).not.toBe(sourceShow.sections[0])
+    expect(copyShow.sections[0]?.id).not.toBe(sourceShow.sections[0]?.id)
+    expect(copyShow.mediaElements).not.toBe(sourceShow.mediaElements)
+    expect(copyShow.mediaElements[0]).not.toBe(sourceShow.mediaElements[0])
+    expect(copyShow.mediaElements[0]?.id).not.toBe(sourceShow.mediaElements[0]?.id)
+    expect(copyShow.mediaElements[0]?.mediaId).toBe('media-shared-1')
+  })
+
+  it('deep-copies LaserDMX fixtures with regenerated Show-owned identities and coherent linked-pair references', async () => {
+    vi.spyOn(reactPersistStorage, 'setItem').mockResolvedValue()
+    const sourceId = await useReactStore.getState().createShowManagerShow({
+      name: 'Laser Source',
+      linkedAudioTrackId: 'audio-db-laser-copy',
+      initialEngineId: 'laserDmx',
+    })
+    expect(sourceId).toBeTruthy()
+    const sectionId = useReactStore.getState().laserDmxShowManagerShows[0]!.sections[0]!.id
+    const firstFixtureId = useReactStore.getState().addLaserDmxShowManagerFixture(sourceId!, sectionId, 'laser')
+    const secondFixtureId = useReactStore.getState().addLaserDmxShowManagerFixture(sourceId!, sectionId, 'laser')
+    expect(firstFixtureId).toBeTruthy()
+    expect(secondFixtureId).toBeTruthy()
+
+    useReactStore.setState(state => ({
+      laserDmxShowManagerShows: state.laserDmxShowManagerShows.map(show => show.id !== sourceId ? show : {
+        ...show,
+        sections: show.sections.map(section => section.id !== sectionId ? section : {
+          ...section,
+          fixtures: section.fixtures.map(fixture => ({
+            ...fixture,
+            linkedPairId: 'source-mirror-pair',
+            mirrorAxis: 'horizontal',
+          })),
+        }),
+      }),
+    }))
+
+    const copyId = await useReactStore.getState().duplicateShowManagerShow(sourceId!, { name: 'Laser Copy' })
+    expect(copyId).toBeTruthy()
+    const state = useReactStore.getState()
+    const sourceShow = state.laserDmxShowManagerShows.find(show => show.id === sourceId)!
+    const copyShow = state.laserDmxShowManagerShows.find(show => show.id === copyId)!
+    const sourceFixtures = sourceShow.sections[0]!.fixtures
+    const copyFixtures = copyShow.sections[0]!.fixtures
+
+    expect(copyShow.sections[0]?.id).not.toBe(sourceShow.sections[0]?.id)
+    expect(copyFixtures).toHaveLength(2)
+    expect(copyFixtures[0]).not.toBe(sourceFixtures[0])
+    expect(copyFixtures.map(fixture => fixture.id)).not.toEqual(sourceFixtures.map(fixture => fixture.id))
+    expect(copyFixtures[0]?.linkedPairId).toBe(copyFixtures[1]?.linkedPairId)
+    expect(copyFixtures[0]?.linkedPairId).toBeTruthy()
+    expect(copyFixtures[0]?.linkedPairId).not.toBe('source-mirror-pair')
+    expect(state.showManagerShows.find(show => show.id === copyId)?.linkedAudioTrackId).toBe('audio-db-laser-copy')
+  })
+
+  it('deletes only Show-owned data, preserves linked audio, and clears an open Show back to the empty session', async () => {
+    vi.spyOn(reactPersistStorage, 'setItem').mockResolvedValue()
+    const audioTrack: SavedAudioTrack = {
+      id: 'audio-delete-safe',
+      dbId: 'audio-delete-safe',
+      title: 'Shared Audio',
+      fileName: 'shared-audio.wav',
+      storagePath: 'user/audio/shared-audio.wav',
+      durationSec: 120,
+      sampleRate: 48000,
+      channels: 2,
+      fileSizeByte: 2048,
+      mimeType: 'audio/wav',
+      transcriptionAssets: null,
+      artist: null,
+      genre: null,
+      bpm: null,
+      musicalKey: null,
+      createdAt: '2026-08-11T00:00:00.000Z',
+    }
+    useAudioStore.setState({ savedTracks: [audioTrack] })
+    const showId = await useReactStore.getState().createShowManagerShow({
+      name: 'Delete Safe',
+      linkedAudioTrackId: audioTrack.dbId,
+      initialEngineId: 'canvas',
+    })
+    expect(showId).toBeTruthy()
+    expect(useReactStore.getState().showManagerEditingShowId).toBe(showId)
+
+    await expect(useReactStore.getState().deleteShowManagerShow(showId!)).resolves.toBe(true)
+    const state = useReactStore.getState()
+    expect(state.showManagerShows.some(show => show.id === showId)).toBe(false)
+    expect(state.canvasShowManagerShows.some(show => show.id === showId)).toBe(false)
+    expect(state.showManagerEditingShowId).toBeNull()
+    expect(state.canvasShowManagerEditingShowId).toBeNull()
+    expect(state.canvasShowManagerEditingSectionId).toBeNull()
+    expect(useAudioStore.getState().savedTracks).toEqual([audioTrack])
+  })
+
+  it('rolls back Copy and Delete when persistence fails', async () => {
+    const persist = vi.spyOn(reactPersistStorage, 'setItem').mockResolvedValue(undefined)
+    const sourceId = await useReactStore.getState().createShowManagerShow({
+      name: 'Transactional Source',
+      linkedAudioTrackId: 'audio-db-transactional',
+      initialEngineId: 'pixGrid',
+    })
+    expect(sourceId).toBeTruthy()
+    const before = useReactStore.getState().showManagerShows
+
+    persist.mockRejectedValueOnce(new Error('copy write failed'))
+    await expect(useReactStore.getState().duplicateShowManagerShow(sourceId!, { name: 'Failed Copy' })).resolves.toBeNull()
+    expect(useReactStore.getState().showManagerShows).toEqual(before)
+
+    useReactPersistenceStatusStore.getState().reset()
+    persist.mockRejectedValueOnce(new Error('delete write failed'))
+    await expect(useReactStore.getState().deleteShowManagerShow(sourceId!)).resolves.toBe(false)
+    expect(useReactStore.getState().showManagerShows.some(show => show.id === sourceId)).toBe(true)
+  })
+
 })

@@ -552,6 +552,42 @@ export function cloneLaserDmxShowManagerShow(show: LaserDmxShowManagerShow): Las
   }
 }
 
+export function duplicateLaserDmxShowManagerShow(
+  show: LaserDmxShowManagerShow,
+  newShowId: string,
+  newName: string,
+): LaserDmxShowManagerShow {
+  const clone = cloneLaserDmxShowManagerShow(show)
+  const fixtureIdMap = new Map<string, string>()
+  const linkedPairIdMap = new Map<string, string>()
+  clone.sections.forEach(section => {
+    section.fixtures.forEach(fixture => {
+      fixtureIdMap.set(fixture.id, createId('laser-dmx-fixture'))
+      if (fixture.linkedPairId && !linkedPairIdMap.has(fixture.linkedPairId)) {
+        linkedPairIdMap.set(fixture.linkedPairId, createId('laser-dmx-linked-pair'))
+      }
+    })
+  })
+  return {
+    ...clone,
+    id: newShowId,
+    name: safeName(newName, clone.name),
+    settings: { ...clone.settings },
+    sections: clone.sections.map((section, sectionIndex) => ({
+      ...section,
+      id: `${newShowId}:section:${section.type}:${sectionIndex + 1}`,
+      provenance: section.provenance ? { ...section.provenance } : undefined,
+      fixtures: section.fixtures.map((fixture, fixtureIndex) => ({
+        ...cloneFixture(fixture, fixtureIndex),
+        id: fixtureIdMap.get(fixture.id) ?? createId('laser-dmx-fixture'),
+        linkedPairId: fixture.linkedPairId
+          ? (linkedPairIdMap.get(fixture.linkedPairId) ?? null)
+          : null,
+      })),
+    })),
+  }
+}
+
 export function updateLaserDmxShowManagerWorkspaceSettings(
   show: LaserDmxShowManagerShow,
   patch: LaserDmxShowManagerWorkspaceSettingsPatch,

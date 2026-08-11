@@ -29,7 +29,9 @@ const fixture = vi.hoisted(() => ({
     loading: false,
     loadError: null as string | null,
     loadSavedTracks: vi.fn(async () => undefined),
+    getSignedUrl: vi.fn(async (storagePath: string) => `signed:${storagePath}`),
   },
+  loadSavedTrackIntoEngine: vi.fn(async () => ({ input: {}, reusedRuntimeTrack: false })),
   media: {
     collections: [{ id: 'collection-1', name: 'Festival' }],
     loadCollections: vi.fn(async () => undefined),
@@ -100,6 +102,7 @@ const fixture = vi.hoisted(() => ({
     }],
     activeReactPresetId: 'pix-grid-test',
     selectReactPreset: vi.fn(),
+    selectReactEngine: vi.fn(),
     pixGridDecks: [],
     renamePixGridDeck: vi.fn(),
     updatePixGridDeck: vi.fn(),
@@ -123,6 +126,8 @@ const fixture = vi.hoisted(() => ({
     }],
     showManagerEditingShowId: 'laser-show-1' as string | null,
     createShowManagerShow: vi.fn(async () => 'show-manager-created' as string | null),
+    duplicateShowManagerShow: vi.fn(async () => 'show-manager-copy' as string | null),
+    deleteShowManagerShow: vi.fn(async () => true),
     selectShowManagerShow: vi.fn(),
     resetShowManagerSession: vi.fn(),
     laserDmxShowManagerShows: [{
@@ -235,8 +240,15 @@ vi.mock('../../../stores/mediaStore', () => ({
   useMediaStore: (selector: (state: typeof fixture.media) => unknown) => selector(fixture.media),
 }))
 
-vi.mock('../../../stores/audioStore', () => ({
-  useAudioStore: (selector: (state: typeof fixture.audioLibrary) => unknown) => selector(fixture.audioLibrary),
+vi.mock('../../../stores/audioStore', () => {
+  const useAudioStore = (selector: (state: typeof fixture.audioLibrary) => unknown) => selector(fixture.audioLibrary)
+  Object.assign(useAudioStore, { getState: () => fixture.audioLibrary })
+  return { useAudioStore }
+})
+
+vi.mock('../../../audio/savedTrackLoader', () => ({
+  SavedTrackLoadCancelledError: class SavedTrackLoadCancelledError extends Error {},
+  loadSavedTrackIntoEngine: fixture.loadSavedTrackIntoEngine,
 }))
 
 vi.mock('../../../stores/lyricsStore', () => ({
@@ -407,6 +419,7 @@ afterEach(() => {
   fixture.state.saveLaserDmxShowManagerShow.mockClear()
   fixture.state.ensureLaserDmxShowManagerShow.mockClear()
   fixture.state.selectReactPreset.mockClear()
+  fixture.state.selectReactEngine.mockClear()
   fixture.state.createCanvasShowManagerShow.mockClear()
   fixture.state.selectCanvasShowManagerShow.mockClear()
   fixture.state.saveCanvasShowManagerShow.mockClear()
@@ -425,8 +438,13 @@ afterEach(() => {
   fixture.state.showManagerEditingShowId = 'laser-show-1'
   fixture.state.resetShowManagerSession.mockClear()
   fixture.state.createShowManagerShow.mockClear()
+  fixture.state.duplicateShowManagerShow.mockClear()
+  fixture.state.deleteShowManagerShow.mockClear()
   fixture.state.selectShowManagerShow.mockClear()
+  fixture.loadSavedTrackIntoEngine.mockReset()
+  fixture.loadSavedTrackIntoEngine.mockResolvedValue({ input: {}, reusedRuntimeTrack: false })
   fixture.audioLibrary.loadSavedTracks.mockClear()
+  fixture.audioLibrary.getSignedUrl.mockClear()
   fixture.media.loadCollections.mockClear()
   fixture.state.canvasShowManagerShows = []
   fixture.state.canvasShowManagerEditingShowId = null
@@ -596,11 +614,19 @@ describe('ShowManagerView production shell', () => {
     })
     const browser = container.querySelector<HTMLElement>('.sm-show-browser[role="dialog"]')
     expect(browser?.textContent).toContain('Test PixGrid')
-    expect(browser?.textContent).toContain('Audio linked')
+    expect(browser?.textContent).toContain('Selected Audio Track')
+    expect(browser?.querySelector<HTMLButtonElement>('.sm-show-browser-footer .is-primary')?.disabled).toBe(true)
+    await act(async () => {
+      browser?.querySelector<HTMLButtonElement>('button[aria-label="Select Show Test PixGrid"]')?.click()
+      await Promise.resolve()
+    })
     await act(async () => {
       browser?.querySelector<HTMLButtonElement>('.sm-show-browser-footer .is-primary')?.click()
       await Promise.resolve()
+      await Promise.resolve()
     })
+    expect(fixture.state.selectReactEngine).toHaveBeenCalledWith('pixGrid')
+    expect(fixture.state.selectShowManagerShow).toHaveBeenCalledWith('laser-show-1')
 
     expect(fileActions?.querySelector<HTMLButtonElement>('button[aria-label="Save + Make Active"]')?.disabled).toBe(true)
 
@@ -760,7 +786,7 @@ describe('ShowManagerView production shell', () => {
       mediaElements: [],
     }] as typeof fixture.state.canvasShowManagerShows
     fixture.state.canvasShowManagerEditingShowId = 'canvas-show-library'
-    fixture.state.showManagerShows = [{ schemaVersion: 1, id: 'canvas-show-library', name: 'Festival Visuals', linkedAudioTrackId: 'audio-db-1', tags: [], groupId: null, engineIds: ['canvas'] }] as typeof fixture.state.showManagerShows
+    fixture.state.showManagerShows = [{ schemaVersion: 1, id: 'canvas-show-library', name: 'Festival Visuals', linkedAudioTrackId: 'audio-db-1', tags: ['Peak', 'Main'], groupId: 'collection-1', engineIds: ['canvas'] }] as typeof fixture.state.showManagerShows
     fixture.state.showManagerEditingShowId = 'canvas-show-library'
 
     container = document.createElement('div')
@@ -795,16 +821,249 @@ describe('ShowManagerView production shell', () => {
     const browser = container.querySelector<HTMLElement>('.sm-show-browser[role="dialog"]')
     expect(browser?.textContent).toContain('All Shows')
     expect(browser?.textContent).toContain('Festival Visuals')
-    expect(browser?.textContent).toContain('Audio linked')
+    expect(browser?.textContent).toContain('Selected Audio Track')
+    expect(browser?.textContent).toContain('Peak, Main')
+    expect(browser?.textContent).toContain('Festival')
     expect(browser?.querySelector('input[type="search"]')).not.toBeNull()
     expect(browser?.querySelector('[role="listbox"]')).not.toBeNull()
+    expect(browser?.querySelector<HTMLButtonElement>('.sm-show-browser-footer .is-primary')?.disabled).toBe(true)
 
+    await act(async () => {
+      browser?.querySelector<HTMLButtonElement>('button[aria-label="Select Show Festival Visuals"]')?.click()
+      await Promise.resolve()
+    })
     await act(async () => {
       browser?.querySelector<HTMLButtonElement>('.sm-show-browser-footer .is-primary')?.click()
       await Promise.resolve()
+      await Promise.resolve()
     })
+    expect(fixture.loadSavedTrackIntoEngine).toHaveBeenCalledWith(
+      fixture.audio,
+      expect.objectContaining({ dbId: 'audio-db-1', storagePath: 'user/audio/selected-audio-track.wav' }),
+      { getSignedUrl: fixture.audioLibrary.getSignedUrl },
+      expect.objectContaining({ shouldCommit: expect.any(Function) }),
+    )
+    expect(fixture.state.selectReactEngine).toHaveBeenCalledWith('canvas')
+    expect(fixture.state.selectShowManagerShow).toHaveBeenCalledWith('canvas-show-library')
     expect(fixture.state.selectCanvasShowManagerShow).toHaveBeenCalledWith('canvas-show-library')
     expect(container.querySelector('.sm-show-browser')).toBeNull()
+  })
+
+  it('blocks a Show open when its recorded linked-audio source is unavailable and leaves the Show session untouched', async () => {
+    fixture.state.showManagerShows = [{
+      schemaVersion: 1,
+      id: 'missing-audio-show',
+      name: 'Missing Audio Show',
+      linkedAudioTrackId: 'audio-db-1',
+      tags: [],
+      groupId: null,
+      engineIds: ['pixGrid'],
+    }] as typeof fixture.state.showManagerShows
+    fixture.state.showManagerEditingShowId = null
+    fixture.loadSavedTrackIntoEngine.mockRejectedValueOnce(new Error('Unable to create a signed playback URL for this track.'))
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('button[aria-label="Open Show"]')?.click()
+      await Promise.resolve()
+    })
+    const browser = container.querySelector<HTMLElement>('.sm-show-browser[role="dialog"]')!
+    await act(async () => {
+      browser.querySelector<HTMLButtonElement>('button[aria-label="Select Show Missing Audio Show"]')?.click()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      browser.querySelector<HTMLButtonElement>('.sm-show-browser-footer .is-primary')?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const alert = browser.querySelector<HTMLElement>('[role="alert"]')
+    expect(alert?.textContent).toContain('user/audio/selected-audio-track.wav')
+    expect(alert?.textContent).toContain('cannot be loaded')
+    expect(fixture.state.selectShowManagerShow).not.toHaveBeenCalled()
+    expect(fixture.state.selectReactEngine).not.toHaveBeenCalled()
+    expect(container.querySelector('.sm-show-browser')).not.toBeNull()
+  })
+
+  it('keeps missing and legacy linked-audio Shows visible but refuses to bind arbitrary current audio', async () => {
+    fixture.state.showManagerShows = [
+      {
+        schemaVersion: 1,
+        id: 'missing-library-show',
+        name: 'Missing Library Record',
+        linkedAudioTrackId: 'audio-db-gone',
+        tags: [],
+        groupId: null,
+        engineIds: ['pixGrid'],
+      },
+      {
+        schemaVersion: 1,
+        id: 'legacy-show',
+        name: 'Legacy Unlinked',
+        linkedAudioTrackId: null,
+        tags: [],
+        groupId: null,
+        engineIds: ['pixGrid'],
+      },
+    ] as typeof fixture.state.showManagerShows
+    fixture.state.showManagerEditingShowId = null
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('button[aria-label="Open Show"]')?.click()
+      await Promise.resolve()
+    })
+    const browser = container.querySelector<HTMLElement>('.sm-show-browser[role="dialog"]')!
+    expect(browser.textContent).toContain('Missing Library Record')
+    expect(browser.textContent).toContain('Legacy Unlinked')
+    expect(browser.textContent).toContain('Unavailable · audio-db-gone')
+    expect(browser.textContent).toContain('Legacy · audio link missing')
+
+    await act(async () => {
+      browser.querySelector<HTMLButtonElement>('button[aria-label="Select Show Missing Library Record"]')?.click()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      browser.querySelector<HTMLButtonElement>('.sm-show-browser-footer .is-primary')?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(browser.querySelector('[role="alert"]')?.textContent).toContain('audio-db-gone')
+    expect(fixture.loadSavedTrackIntoEngine).not.toHaveBeenCalled()
+
+    await act(async () => {
+      browser.querySelector<HTMLButtonElement>('button[aria-label="Select Show Legacy Unlinked"]')?.click()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      browser.querySelector<HTMLButtonElement>('.sm-show-browser-footer .is-primary')?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(browser.querySelector('[role="alert"]')?.textContent).toContain('legacy Show with no linked audio track')
+    expect(fixture.state.selectShowManagerShow).not.toHaveBeenCalled()
+  })
+
+  it('opens Copy in the reused New Show dialog with locked audio and only editable Show metadata', async () => {
+    fixture.state.showManagerShows = [{
+      schemaVersion: 1,
+      id: 'copy-source-show',
+      name: 'Copy Source',
+      linkedAudioTrackId: 'audio-db-1',
+      tags: ['Peak'],
+      groupId: 'collection-1',
+      engineIds: ['pixGrid'],
+    }] as typeof fixture.state.showManagerShows
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('button[aria-label="Open Show"]')?.click()
+      await Promise.resolve()
+    })
+    const browser = container.querySelector<HTMLElement>('.sm-show-browser[role="dialog"]')!
+    await act(async () => {
+      browser.querySelector<HTMLButtonElement>('button[aria-label="Copy Show Copy Source"]')?.click()
+      await Promise.resolve()
+    })
+
+    expect(fixture.loadSavedTrackIntoEngine).not.toHaveBeenCalled()
+    const dialog = container.querySelector<HTMLElement>('.sm-new-show-dialog[role="dialog"]')!
+    expect(dialog.textContent).toContain('Copy Show')
+    const nameInput = dialog.querySelector<HTMLInputElement>('#show-manager-new-show-name')!
+    const audioSelect = dialog.querySelector<HTMLSelectElement>('#show-manager-new-show-audio')!
+    const tagsInput = dialog.querySelector<HTMLInputElement>('#show-manager-new-show-tags')!
+    const groupSelect = dialog.querySelector<HTMLSelectElement>('#show-manager-new-show-group')!
+    expect(nameInput.value).toBe('Copy Source')
+    expect(audioSelect.value).toBe('audio-db-1')
+    expect(audioSelect.disabled).toBe(true)
+    expect(dialog.textContent).toContain('Audio Track is locked to the source Show.')
+    expect([...dialog.querySelectorAll('button')].some(button => button.textContent === 'Upload New Audio')).toBe(false)
+    expect(dialog.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true)
+
+    await act(async () => {
+      const inputSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      inputSetter?.call(nameInput, 'Copy Source Alt')
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+      inputSetter?.call(tagsInput, 'Afterhours')
+      tagsInput.dispatchEvent(new Event('input', { bubbles: true }))
+      tagsInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      await Promise.resolve()
+    })
+    expect(groupSelect.disabled).toBe(false)
+    await act(async () => {
+      dialog.querySelector<HTMLButtonElement>('button[type="submit"]')?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(fixture.state.duplicateShowManagerShow).toHaveBeenCalledWith('copy-source-show', {
+      name: 'Copy Source Alt',
+      tags: ['Peak', 'Afterhours'],
+      groupId: 'collection-1',
+    })
+  })
+
+  it('requires delete confirmation and the Copy/Delete row actions do not trigger Open', async () => {
+    fixture.state.showManagerShows = [{
+      schemaVersion: 1,
+      id: 'delete-show',
+      name: 'Delete Candidate',
+      linkedAudioTrackId: 'audio-db-1',
+      tags: [],
+      groupId: null,
+      engineIds: ['pixGrid'],
+    }] as typeof fixture.state.showManagerShows
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('button[aria-label="Open Show"]')?.click()
+      await Promise.resolve()
+    })
+    const browser = container.querySelector<HTMLElement>('.sm-show-browser[role="dialog"]')!
+    const deleteButton = browser.querySelector<HTMLButtonElement>('button[aria-label="Delete Show Delete Candidate"]')!
+    expect(deleteButton.closest('.sm-show-browser-row-actions')).not.toBeNull()
+
+    await act(async () => {
+      deleteButton.click()
+      await Promise.resolve()
+    })
+    expect(confirm).toHaveBeenCalledTimes(1)
+    expect(fixture.state.deleteShowManagerShow).not.toHaveBeenCalled()
+    expect(fixture.loadSavedTrackIntoEngine).not.toHaveBeenCalled()
+
+    await act(async () => {
+      deleteButton.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(fixture.state.deleteShowManagerShow).toHaveBeenCalledWith('delete-show')
+    expect(fixture.loadSavedTrackIntoEngine).not.toHaveBeenCalled()
+    expect(fixture.state.selectShowManagerShow).not.toHaveBeenCalled()
   })
 
   it('mirrors the LaserDMX Canvas stage and Track Map layout without Canvas-only playhead controls', async () => {

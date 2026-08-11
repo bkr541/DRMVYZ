@@ -117,6 +117,7 @@ import {
   copyLaserDmxShowManagerFixturesBetweenSections,
   cloneLaserDmxShowManagerShow,
   createLaserDmxShowManagerShow,
+  duplicateLaserDmxShowManagerShow,
   duplicateLaserDmxShowManagerFixtureInSection,
   mirrorLaserDmxShowManagerFixtureInSection,
   normalizeLaserDmxShowManagerShows,
@@ -135,6 +136,7 @@ import {
   cloneCanvasShowManagerShow,
   createCanvasShowManagerMediaElement,
   createCanvasShowManagerShow,
+  duplicateCanvasShowManagerShow,
   getCanvasShowManagerSectionRanges,
   isCanvasShowManagerNameAvailable,
   normalizeCanvasShowManagerName,
@@ -151,10 +153,12 @@ import {
 } from '../components/vyzualz/showManager/CanvasShowManagerDomain'
 import {
   createShowManagerShow as createSharedShowManagerShow,
+  duplicateShowManagerShowRecord,
   isShowManagerShowNameAvailable,
   mergeLegacyShowManagerRecords,
   normalizeShowManagerShows,
   type CreateShowManagerShowInput,
+  type DuplicateShowManagerShowInput,
   type ShowManagerShowRecord,
 } from '../components/vyzualz/showManager/ShowManagerDomain'
 import { resolvePerformancePadTransition } from '../components/vyzualz/react/renderers/reactPresetTransition'
@@ -2516,6 +2520,8 @@ interface ReactStoreState {
   showManagerShows: ShowManagerShowRecord[]
   showManagerEditingShowId: string | null
   createShowManagerShow: (input: CreateShowManagerShowInput) => Promise<string | null>
+  duplicateShowManagerShow: (sourceShowId: string, input: DuplicateShowManagerShowInput) => Promise<string | null>
+  deleteShowManagerShow: (showId: string) => Promise<boolean>
   selectShowManagerShow: (showId: string | null) => void
   resetShowManagerSession: () => void
 
@@ -5899,7 +5905,7 @@ export function mergeReactStoreState(
 
 const REACT_STORE_PERSISTENCE_NAME = 'drmvyz:react-store'
 const REACT_STORE_PERSISTENCE_VERSION = 73
-let showManagerShowCreationInFlight = false
+let showManagerLibraryMutationInFlight = false
 
 export const reactPersistStorage = createSplitPersistStorage<Record<string, unknown>>({
   projectKeys: REACT_PROJECT_STATE_KEYS,
@@ -6852,8 +6858,8 @@ export const useReactStore = create<ReactStoreState>()(
       }),
 
       createShowManagerShow: async (input) => {
-        if (showManagerShowCreationInFlight) return null
-        showManagerShowCreationInFlight = true
+        if (showManagerLibraryMutationInFlight) return null
+        showManagerLibraryMutationInFlight = true
         try {
           const state = get()
           if (!isShowManagerShowNameAvailable(state.showManagerShows, input.name)) return null
@@ -6901,7 +6907,123 @@ export const useReactStore = create<ReactStoreState>()(
           set(patch)
           return show.id
         } finally {
-          showManagerShowCreationInFlight = false
+          showManagerLibraryMutationInFlight = false
+        }
+      },
+
+      duplicateShowManagerShow: async (sourceShowId, input) => {
+        if (showManagerLibraryMutationInFlight) return null
+        showManagerLibraryMutationInFlight = true
+        try {
+          const state = get()
+          const source = state.showManagerShows.find(show => show.id === sourceShowId)
+          if (!source || !source.linkedAudioTrackId) return null
+          if (!isShowManagerShowNameAvailable(state.showManagerShows, input.name)) return null
+
+          const duplicate = duplicateShowManagerShowRecord(source, input)
+          if (!duplicate) return null
+          const sourceCanvas = state.canvasShowManagerShows.find(show => show.id === sourceShowId) ?? null
+          const sourceLaser = state.laserDmxShowManagerShows.find(show => show.id === sourceShowId) ?? null
+          if (source.engineIds.includes('canvas') && !sourceCanvas) return null
+          if (source.engineIds.includes('laserDmx') && !sourceLaser) return null
+
+          const canvasCopy = sourceCanvas
+            ? duplicateCanvasShowManagerShow(sourceCanvas, duplicate.id, duplicate.name)
+            : null
+          const laserCopy = sourceLaser
+            ? duplicateLaserDmxShowManagerShow(sourceLaser, duplicate.id, duplicate.name)
+            : null
+          const primaryEngineId = duplicate.engineIds[0] ?? null
+          const patch: Partial<ReactStoreState> = {
+            showManagerShows: [...state.showManagerShows, duplicate],
+            showManagerEditingShowId: duplicate.id,
+            canvasShowManagerEditingShowId: primaryEngineId === 'canvas' && canvasCopy ? duplicate.id : null,
+            canvasShowManagerEditingSectionId: primaryEngineId === 'canvas' ? canvasCopy?.sections[0]?.id ?? null : null,
+            canvasShowManagerEditingElementId: null,
+            canvasShowManagerUndoStack: [],
+            canvasShowManagerRedoStack: [],
+            canvasShowManagerHistoryTransaction: null,
+            laserDmxShowManagerEditingShowId: primaryEngineId === 'laserDmx' && laserCopy ? duplicate.id : null,
+            laserDmxShowManagerEditingSectionId: primaryEngineId === 'laserDmx' ? laserCopy?.sections[0]?.id ?? null : null,
+            laserDmxShowManagerPlaybackSectionId: null,
+            showManagerUndoStack: [],
+            showManagerRedoStack: [],
+            ...(canvasCopy ? { canvasShowManagerShows: [...state.canvasShowManagerShows, canvasCopy] } : {}),
+            ...(laserCopy ? { laserDmxShowManagerShows: [...state.laserDmxShowManagerShows, laserCopy] } : {}),
+          }
+          const candidate = { ...state, ...patch } as ReactStoreState
+          try {
+            await reactPersistStorage.setItem(REACT_STORE_PERSISTENCE_NAME, {
+              state: reactStorePartialize(candidate) as unknown as Record<string, unknown>,
+              version: REACT_STORE_PERSISTENCE_VERSION,
+            })
+            if (useReactPersistenceStatusStore.getState().phase === 'error') return null
+          } catch (error) {
+            useReactPersistenceStatusStore.setState({
+              phase: 'error',
+              error: error instanceof Error ? error.message : 'The Show copy could not be created.',
+              retryPending: false,
+            })
+            return null
+          }
+          set(patch)
+          return duplicate.id
+        } finally {
+          showManagerLibraryMutationInFlight = false
+        }
+      },
+
+      deleteShowManagerShow: async (showId) => {
+        if (showManagerLibraryMutationInFlight) return false
+        showManagerLibraryMutationInFlight = true
+        try {
+          const state = get()
+          if (!state.showManagerShows.some(show => show.id === showId)) return false
+          const deletingOpenShow = state.showManagerEditingShowId === showId
+          const deletingCanvasEditingShow = state.canvasShowManagerEditingShowId === showId
+          const deletingLaserEditingShow = state.laserDmxShowManagerEditingShowId === showId
+          const patch: Partial<ReactStoreState> = {
+            showManagerShows: state.showManagerShows.filter(show => show.id !== showId),
+            canvasShowManagerShows: state.canvasShowManagerShows.filter(show => show.id !== showId),
+            laserDmxShowManagerShows: state.laserDmxShowManagerShows.filter(show => show.id !== showId),
+            canvasShowManagerActiveShowId: state.canvasShowManagerActiveShowId === showId ? null : state.canvasShowManagerActiveShowId,
+            laserDmxShowManagerActiveShowId: state.laserDmxShowManagerActiveShowId === showId ? null : state.laserDmxShowManagerActiveShowId,
+            ...(deletingOpenShow ? { showManagerEditingShowId: null } : {}),
+            ...(deletingOpenShow || deletingCanvasEditingShow ? {
+              canvasShowManagerEditingShowId: null,
+              canvasShowManagerEditingSectionId: null,
+              canvasShowManagerEditingElementId: null,
+              canvasShowManagerUndoStack: [],
+              canvasShowManagerRedoStack: [],
+              canvasShowManagerHistoryTransaction: null,
+            } : {}),
+            ...(deletingOpenShow || deletingLaserEditingShow ? {
+              laserDmxShowManagerEditingShowId: null,
+              laserDmxShowManagerEditingSectionId: null,
+              laserDmxShowManagerPlaybackSectionId: null,
+              showManagerUndoStack: [],
+              showManagerRedoStack: [],
+            } : {}),
+          }
+          const candidate = { ...state, ...patch } as ReactStoreState
+          try {
+            await reactPersistStorage.setItem(REACT_STORE_PERSISTENCE_NAME, {
+              state: reactStorePartialize(candidate) as unknown as Record<string, unknown>,
+              version: REACT_STORE_PERSISTENCE_VERSION,
+            })
+            if (useReactPersistenceStatusStore.getState().phase === 'error') return false
+          } catch (error) {
+            useReactPersistenceStatusStore.setState({
+              phase: 'error',
+              error: error instanceof Error ? error.message : 'The Show could not be deleted.',
+              retryPending: false,
+            })
+            return false
+          }
+          set(patch)
+          return true
+        } finally {
+          showManagerLibraryMutationInFlight = false
         }
       },
 
