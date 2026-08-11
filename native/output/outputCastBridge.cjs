@@ -5,8 +5,18 @@ const dgram = require('node:dgram')
 const fs = require('node:fs')
 const http = require('node:http')
 const net = require('node:net')
+const os = require('node:os')
 const path = require('node:path')
 const { OutputTargetManager } = require('./outputTargetManager.cjs')
+const {
+  DRMVYZ_RECEIVER_PROTOCOL_VERSION,
+  DRMVYZ_RECEIVER_QUALITY_POLICY,
+  buildCapabilityDocument,
+  normalizePairRequest,
+  normalizeQualityPolicy,
+  normalizeV2StartRequest,
+} = require('./drmvyzReceiverProtocol.cjs')
+const { createReceiverTrustStore } = require('./drmvyzReceiverTrustStore.cjs')
 const {
   ASPECT_RATIOS,
   LocalDisplayProvider,
@@ -197,11 +207,23 @@ async function connect() {
     if (stream) video.srcObject = stream
     void video.play().catch(() => {})
   })
+  let disconnectTimer = null
   pc.addEventListener('connectionstatechange', () => {
-    if (pc.connectionState === 'connected') setStatus('Live output', 'connected')
-    if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-      setStatus('Output connection lost', 'error')
+    if (pc.connectionState === 'connected') {
+      if (disconnectTimer !== null) clearTimeout(disconnectTimer)
+      disconnectTimer = null
+      setStatus('Live output', 'connected')
+      return
     }
+    if (pc.connectionState === 'disconnected') {
+      setStatus('Reconnecting output…', 'connecting')
+      if (disconnectTimer === null) disconnectTimer = setTimeout(() => {
+        disconnectTimer = null
+        if (pc.connectionState !== 'connected') setStatus('Output connection lost', 'error')
+      }, 3000)
+      return
+    }
+    if (pc.connectionState === 'failed') setStatus('Output connection lost', 'error')
     if (pc.connectionState === 'closed') setStatus('Output ended', 'ended')
   })
 
@@ -322,18 +344,67 @@ async function openMacOsDisplaySettings({ shell, fsImpl = fs } = {}) {
   throw new Error(lastError || 'macOS display settings could not be opened')
 }
 
+
+function buildReceiverDisplayCapabilities(screen) {
+  const displays = screen.getAllDisplays()
+  if (!Array.isArray(displays)) throw new Error('Electron did not return a display list')
+  const primaryId = screen.getPrimaryDisplay()?.id
+  return displays.map((display, index) => ({
+    id: String(display.id),
+    name: display.label?.trim() || (display.id === primaryId ? 'Primary display' : `Display ${index + 1}`),
+    width: display.bounds.width,
+    height: display.bounds.height,
+    scaleFactor: display.scaleFactor ?? 1,
+    refreshRate: Number.isFinite(Number(display.displayFrequency)) ? Number(display.displayFrequency) : null,
+    primary: display.id === primaryId,
+  }))
+}
+
+async function approveReceiverPairing(dialog, senderName, senderDeviceId) {
+  if (!dialog || typeof dialog.showMessageBox !== 'function') return false
+  const result = await dialog.showMessageBox({
+    type: 'question',
+    buttons: ['Allow', 'Deny'],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+    title: 'Pair DRMVYZ Receiver',
+    message: `Allow ${senderName} to cast to this DRMVYZ receiver?`,
+    detail: `Sender identity: ${senderDeviceId}`,
+  })
+  return result?.response === 0
+}
+
+function receiverRequestToken(request) {
+  const value = request.headers['x-drmvyz-receiver-token']
+  return Array.isArray(value) ? value[0] : value
+}
+
+function receiverSenderId(request) {
+  const value = request.headers['x-drmvyz-sender-id']
+  return Array.isArray(value) ? value[0] : value
+}
+
+function receiverPairingToken(request) {
+  const value = request.headers['x-drmvyz-pairing-token']
+  return Array.isArray(value) ? value[0] : value
+}
+
 function installOutputCastBridge({
   app,
   BrowserWindow,
   ipcMain,
   screen,
   shell = null,
+  dialog = null,
   platform = process.platform,
   openSystemDisplays = null,
   openWindowsDisplays = null,
   isTrustedAppUrl,
 }) {
   const receiverToken = crypto.randomBytes(24).toString('base64url')
+  const receiverDeviceId = loadOrCreateReceiverDeviceId(app)
+  const receiverTrustStore = createReceiverTrustStore(app)
   const signalSessions = new Map()
   const receiverWindows = new Map()
   let httpServer = null
@@ -401,7 +472,8 @@ function installOutputCastBridge({
   const receiverProvider = new DrmvyzReceiverProvider({
     isPrivateNetworkAddress,
     resolveReachableLocalAddress,
-    deviceId: loadOrCreateReceiverDeviceId(app),
+    deviceId: receiverDeviceId,
+    trustStore: receiverTrustStore,
   })
 
   let targetManager = null
@@ -440,8 +512,9 @@ function installOutputCastBridge({
     else if (current?.id) removeSignalSession(current.id)
   }
 
-  const openIncomingReceiverWindow = ({ sourceUrl, windowMode, aspectRatio }) => {
-    const display = screen.getPrimaryDisplay()
+  const openIncomingReceiverWindow = ({ sourceUrl, windowMode, aspectRatio, displayId, senderDeviceId, pairingToken, qualityPolicy }) => {
+    const display = screen.getAllDisplays().find(item => String(item.id) === String(displayId))
+    if (!display) throw new Error('The selected receiver display is no longer available')
     const castId = crypto.randomUUID()
     const controlToken = crypto.randomBytes(24).toString('base64url')
     const outputWindow = createOutputWindow({
@@ -451,9 +524,26 @@ function installOutputCastBridge({
       sourceUrl,
       onClosed: () => receiverWindows.delete(castId),
     })
-    receiverWindows.set(castId, { outputWindow, controlToken })
-    return { castId, controlToken }
+    receiverWindows.set(castId, { outputWindow, controlToken, displayId: String(display.id), senderDeviceId, pairingToken })
+    return {
+      protocolVersion: DRMVYZ_RECEIVER_PROTOCOL_VERSION,
+      castId,
+      controlToken,
+      selectedDisplay: String(display.id),
+      qualityPolicy: normalizeQualityPolicy(qualityPolicy),
+    }
   }
+
+  const handleReceiverDisplayRemoved = (_event, display) => {
+    const removedId = String(display?.id ?? '')
+    if (!removedId) return
+    for (const [castId, receiver] of receiverWindows) {
+      if (receiver.displayId !== removedId) continue
+      if (!receiver.outputWindow.isDestroyed()) receiver.outputWindow.close()
+      receiverWindows.delete(castId)
+    }
+  }
+  screen.on('display-removed', handleReceiverDisplayRemoved)
 
   const handleHttpRequest = async (request, response) => {
     const host = request.headers.host || `127.0.0.1:${httpPort}`
@@ -462,7 +552,84 @@ function installOutputCastBridge({
 
     try {
       if (request.method === 'GET' && url.pathname === '/health') {
-        jsonResponse(response, 200, { service: 'drmvyz-output', version: DISCOVERY_VERSION })
+        jsonResponse(response, 200, { service: 'drmvyz-output', discoveryVersion: DISCOVERY_VERSION, protocolVersion: DRMVYZ_RECEIVER_PROTOCOL_VERSION })
+        return
+      }
+
+      if (request.method === 'GET' && url.pathname === '/api/v2/capabilities') {
+        if (!isPrivateNetworkAddress(remoteAddress) || receiverRequestToken(request) !== receiverToken) {
+          jsonResponse(response, 403, { error: 'Receiver capability requests require a discovered local-network receiver' })
+          return
+        }
+        const senderDeviceId = receiverSenderId(request)
+        const pairingToken = receiverPairingToken(request)
+        const paired = receiverTrustStore.verifySenderToken(senderDeviceId, pairingToken)
+        jsonResponse(response, 200, buildCapabilityDocument({
+          deviceId: receiverDeviceId,
+          name: `${os.hostname()} · DRMVYZ`,
+          displays: buildReceiverDisplayCapabilities(screen),
+          paired,
+          qualityPolicy: DRMVYZ_RECEIVER_QUALITY_POLICY,
+        }))
+        return
+      }
+
+      if (request.method === 'POST' && url.pathname === '/api/v2/pair') {
+        if (!isPrivateNetworkAddress(remoteAddress)) {
+          jsonResponse(response, 403, { error: 'Receiver pairing is limited to the local network' })
+          return
+        }
+        const body = normalizePairRequest(await readJsonBody(request))
+        if (!body || body.protocolVersion !== DRMVYZ_RECEIVER_PROTOCOL_VERSION || body.receiverToken !== receiverToken) {
+          jsonResponse(response, 400, { error: 'Invalid receiver pairing request' })
+          return
+        }
+        const replacingTrust = receiverTrustStore.hasTrustedSender(body.senderDeviceId)
+        const approved = await approveReceiverPairing(dialog, body.senderName, body.senderDeviceId)
+        if (!approved) {
+          jsonResponse(response, 403, { error: 'Pairing declined' })
+          return
+        }
+        const pairingToken = receiverTrustStore.pairSender(body.senderDeviceId, body.senderName, { replace: replacingTrust })
+        jsonResponse(response, 200, { protocolVersion: DRMVYZ_RECEIVER_PROTOCOL_VERSION, paired: true, pairingToken })
+        return
+      }
+
+      if (request.method === 'POST' && url.pathname === '/api/v2/sessions') {
+        if (!isPrivateNetworkAddress(remoteAddress)) {
+          jsonResponse(response, 403, { error: 'Receiver sessions are limited to the local network' })
+          return
+        }
+        const body = normalizeV2StartRequest(await readJsonBody(request), WINDOW_MODES, new Set(Object.keys(ASPECT_RATIOS)))
+        if (!body || body.receiverToken !== receiverToken || !receiverTrustStore.verifySenderToken(body.senderDeviceId, body.pairingToken) || !isAllowedReceiverSource(body.sourceUrl, remoteAddress)) {
+          jsonResponse(response, 401, { error: 'Receiver session is not authorized' })
+          return
+        }
+        if (!screen.getAllDisplays().some(display => String(display.id) === body.displayId)) {
+          jsonResponse(response, 409, { error: 'Selected receiver display is no longer available' })
+          return
+        }
+        const receiver = openIncomingReceiverWindow(body)
+        jsonResponse(response, 200, receiver)
+        return
+      }
+
+      const v2StopMatch = url.pathname.match(/^\/api\/v2\/sessions\/([^/]+)\/stop$/)
+      if (request.method === 'POST' && v2StopMatch) {
+        if (!isPrivateNetworkAddress(remoteAddress)) {
+          jsonResponse(response, 403, { error: 'Receiver session control is limited to the local network' })
+          return
+        }
+        const body = await readJsonBody(request)
+        const castId = decodeURIComponent(v2StopMatch[1])
+        const receiver = receiverWindows.get(castId)
+        if (!receiver || body.receiverToken !== receiverToken || body.controlToken !== receiver.controlToken || body.senderDeviceId !== receiver.senderDeviceId || !receiverTrustStore.verifySenderToken(body.senderDeviceId, body.pairingToken)) {
+          jsonResponse(response, 404, { error: 'Receiver session not found' })
+          return
+        }
+        if (!receiver.outputWindow.isDestroyed()) receiver.outputWindow.close()
+        receiverWindows.delete(castId)
+        emptyResponse(response)
         return
       }
 
@@ -517,40 +684,11 @@ function installOutputCastBridge({
         }
       }
 
-      if (request.method === 'POST' && url.pathname === '/api/start-cast') {
-        if (!isPrivateNetworkAddress(remoteAddress)) {
-          jsonResponse(response, 403, { error: 'Receiver requests are limited to the local network' })
-          return
-        }
-        const body = await readJsonBody(request)
-        const normalized = normalizeCastRequest({
-          targetId: 'incoming',
-          windowMode: body.windowMode,
-          aspectRatio: body.aspectRatio,
+      if (request.method === 'POST' && (url.pathname === '/api/start-cast' || url.pathname === '/api/stop-cast')) {
+        jsonResponse(response, 426, {
+          error: `DRMVYZ Receiver V${DRMVYZ_RECEIVER_PROTOCOL_VERSION} session protocol is required`,
+          protocolVersion: DRMVYZ_RECEIVER_PROTOCOL_VERSION,
         })
-        if (body.receiverToken !== receiverToken || !normalized || !isAllowedReceiverSource(body.sourceUrl, remoteAddress)) {
-          jsonResponse(response, 400, { error: 'Invalid receiver request' })
-          return
-        }
-        const receiver = openIncomingReceiverWindow({
-          sourceUrl: body.sourceUrl,
-          windowMode: normalized.windowMode,
-          aspectRatio: normalized.aspectRatio,
-        })
-        jsonResponse(response, 200, receiver)
-        return
-      }
-
-      if (request.method === 'POST' && url.pathname === '/api/stop-cast') {
-        const body = await readJsonBody(request)
-        const receiver = receiverWindows.get(body.castId)
-        if (!receiver || body.receiverToken !== receiverToken || body.controlToken !== receiver.controlToken) {
-          jsonResponse(response, 404, { error: 'Receiver session not found' })
-          return
-        }
-        if (!receiver.outputWindow.isDestroyed()) receiver.outputWindow.close()
-        receiverWindows.delete(body.castId)
-        emptyResponse(response)
         return
       }
 
@@ -642,7 +780,7 @@ function installOutputCastBridge({
         },
       })
     } catch (error) {
-      targetManager.failSession(signalSession.id, error instanceof Error ? error.message : 'Could not start output')
+      await targetManager.failSession(signalSession.id, error instanceof Error ? error.message : 'Could not start output')
       setTimeout(() => void stopSession(signalSession.id), 2_500).unref?.()
       throw error
     }
@@ -689,11 +827,20 @@ function installOutputCastBridge({
     })
   })
 
-  ipcMain.handle('drmvyz:output:fail-session', (event, sessionId, message) => {
+  ipcMain.handle('drmvyz:output:fail-session', async (event, sessionId, message) => {
     if (!isTrustedSender(event)) throw new Error('Untrusted output failure request')
     const session = signalSessions.get(sessionId)
     if (!session || session.sourceWebContentsId !== event.sender.id) return false
-    return targetManager.failSession(sessionId, message)
+    const failed = await targetManager.failSession(sessionId, message)
+    if (failed) removeSignalSession(sessionId)
+    return failed
+  })
+
+  ipcMain.handle('drmvyz:output:report-stats', (event, sessionId, stats) => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted output diagnostics')
+    const session = signalSessions.get(sessionId)
+    if (!session || session.sourceWebContentsId !== event.sender.id) return false
+    return targetManager.updateSessionStats(sessionId, stats)
   })
 
   const providerStartPromise = targetManager.start().then(() => broadcastTargets()).catch(error => {
@@ -718,6 +865,7 @@ function installOutputCastBridge({
     if (shuttingDown) return
     shuttingDown = true
     if (sessionGcInterval) clearInterval(sessionGcInterval)
+    screen.removeListener('display-removed', handleReceiverDisplayRemoved)
     await Promise.allSettled([providerStartPromise, receiverServiceStartPromise])
     for (const receiver of receiverWindows.values()) {
       if (!receiver.outputWindow.isDestroyed()) receiver.outputWindow.destroy()
@@ -746,6 +894,7 @@ module.exports = {
   ASPECT_RATIOS,
   buildLocalDisplayTargets,
   calculateWindowBounds,
+  buildReceiverDisplayCapabilities,
   createReceiverHtml,
   installOutputCastBridge,
   isAllowedReceiverSource,
@@ -754,5 +903,6 @@ module.exports = {
   isPrivateNetworkAddress,
   normalizeCastRequest,
   loadOrCreateReceiverDeviceId,
+  approveReceiverPairing,
   resolveReachableLocalAddress,
 }

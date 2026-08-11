@@ -52,6 +52,26 @@ function normalizeProviderStatus(provider, status, targetCount) {
   }
 }
 
+
+function normalizeTransportStats(value) {
+  if (!value || typeof value !== 'object') return null
+  const timestampMs = Number(value.timestampMs)
+  if (!Number.isFinite(timestampMs) || timestampMs <= 0) return null
+  const number = (input, minimum = 0, maximum = Number.MAX_SAFE_INTEGER) => {
+    const parsed = Number(input)
+    return Number.isFinite(parsed) ? Math.min(maximum, Math.max(minimum, parsed)) : null
+  }
+  return {
+    timestampMs: Math.round(timestampMs),
+    width: number(value.width, 1, 16_384),
+    height: number(value.height, 1, 16_384),
+    framesPerSecond: number(value.framesPerSecond, 0, 240),
+    bitrateKbps: number(value.bitrateKbps, 0, 1_000_000),
+    roundTripTimeMs: number(value.roundTripTimeMs, 0, 60_000),
+    packetsLost: number(value.packetsLost, 0, Number.MAX_SAFE_INTEGER),
+  }
+}
+
 function normalizeTarget(provider, target) {
   if (!target || typeof target !== 'object') throw new Error(`${provider.label} returned an invalid target`)
   const id = typeof target.id === 'string' ? target.id.trim() : ''
@@ -161,7 +181,7 @@ class OutputTargetManager {
 
   getSession() {
     if (!this.activeSession) return null
-    const { runtimeHandle: _runtimeHandle, provider: _provider, ...session } = this.activeSession
+    const { runtimeHandle: _runtimeHandle, runtimeCleaned: _runtimeCleaned, provider: _provider, ...session } = this.activeSession
     return { ...session }
   }
 
@@ -190,6 +210,7 @@ class OutputTargetManager {
       error: null,
       provider,
       runtimeHandle: null,
+      runtimeCleaned: false,
     }
     this.activeSession = session
     this.emitSession()
@@ -213,10 +234,30 @@ class OutputTargetManager {
     return true
   }
 
-  failSession(sessionId, message) {
+  async failSession(sessionId, message) {
+    const session = this.activeSession
+    if (!session || session.id !== sessionId) return false
+    session.state = SESSION_STATES.FAILED
+    session.error = typeof message === 'string' && message.trim() ? message.trim() : 'Output stream failed'
+    this.emitSession()
+    if (!session.runtimeCleaned) {
+      session.runtimeCleaned = true
+      const runtimeHandle = session.runtimeHandle
+      session.runtimeHandle = null
+      try {
+        await session.provider.stopSession?.(runtimeHandle, session)
+      } catch {
+        // Preserve the original transport failure; cleanup is best-effort after a failed session.
+      }
+    }
+    return true
+  }
+
+  updateSessionStats(sessionId, value) {
     if (!this.activeSession || this.activeSession.id !== sessionId) return false
-    this.activeSession.state = SESSION_STATES.FAILED
-    this.activeSession.error = typeof message === 'string' && message.trim() ? message.trim() : 'Output stream failed'
+    const stats = normalizeTransportStats(value)
+    if (!stats) return false
+    this.activeSession.stats = stats
     this.emitSession()
     return true
   }
@@ -227,7 +268,12 @@ class OutputTargetManager {
     session.state = SESSION_STATES.DISCONNECTING
     this.emitSession()
     try {
-      await session.provider.stopSession?.(session.runtimeHandle, session)
+      if (!session.runtimeCleaned) {
+        session.runtimeCleaned = true
+        const runtimeHandle = session.runtimeHandle
+        session.runtimeHandle = null
+        await session.provider.stopSession?.(runtimeHandle, session)
+      }
       session.state = SESSION_STATES.DISCONNECTED
       session.error = null
       this.emitSession()
@@ -263,4 +309,5 @@ module.exports = {
   SESSION_STATES,
   normalizeProviderCapabilities,
   normalizeTarget,
+  normalizeTransportStats,
 }

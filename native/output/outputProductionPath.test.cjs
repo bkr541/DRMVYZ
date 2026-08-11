@@ -6,6 +6,7 @@ const Module = require('node:module')
 const test = require('node:test')
 const { installOutputCastBridge } = require('./outputCastBridge.cjs')
 const { serializeDiscoveryAdvertisement } = require('./providers/drmvyzReceiverProvider.cjs')
+const { DRMVYZ_RECEIVER_PROTOCOL_VERSION, buildCapabilityDocument } = require('./drmvyzReceiverProtocol.cjs')
 
 class FakeScreen extends EventEmitter {
   constructor() {
@@ -105,13 +106,37 @@ test('production preload selection and IPC dispatch reach DrmvyzReceiverProvider
   const screen = new FakeScreen()
   const BrowserWindow = { getAllWindows: () => [] }
   const fetchCalls = []
+  let remotePairingToken = null
   const originalFetch = globalThis.fetch
-  globalThis.fetch = async (url, init) => {
-    fetchCalls.push({ url: String(url), init })
-    if (String(url).endsWith('/api/start-cast')) {
-      return { ok: true, status: 200, json: async () => ({ castId: 'remote-cast-1', controlToken: 'remote-control-1' }) }
+  globalThis.fetch = async (url, init = {}) => {
+    const requestUrl = String(url)
+    fetchCalls.push({ url: requestUrl, init })
+    if (requestUrl.endsWith('/api/v2/capabilities')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => buildCapabilityDocument({
+          deviceId: 'remote-production-1',
+          name: 'Production Booth · DRMVYZ',
+          paired: Boolean(remotePairingToken && init.headers?.['X-DRMVYZ-Pairing-Token'] === remotePairingToken),
+          displays: [
+            { id: 'remote-display-a', name: 'LED Wall', width: 1920, height: 1080, primary: true },
+            { id: 'remote-display-b', name: 'Projector', width: 2560, height: 1440, primary: false },
+          ],
+        }),
+      }
     }
-    return { ok: true, status: 204, json: async () => ({}) }
+    if (requestUrl.endsWith('/api/v2/pair')) {
+      remotePairingToken = 'production-pairing-token-abcdefghijklmnopqrstuvwxyz'
+      return { ok: true, status: 200, json: async () => ({ protocolVersion: DRMVYZ_RECEIVER_PROTOCOL_VERSION, paired: true, pairingToken: remotePairingToken }) }
+    }
+    if (requestUrl.endsWith('/api/v2/sessions')) {
+      return { ok: true, status: 200, json: async () => ({ protocolVersion: DRMVYZ_RECEIVER_PROTOCOL_VERSION, castId: 'remote-cast-1', controlToken: 'remote-control-1' }) }
+    }
+    if (/\/api\/v2\/sessions\/remote-cast-1\/stop$/.test(requestUrl)) {
+      return { ok: true, status: 204, json: async () => ({}) }
+    }
+    throw new Error(`Unexpected fetch: ${requestUrl}`)
   }
 
   const installed = installOutputCastBridge({
@@ -167,9 +192,12 @@ test('production preload selection and IPC dispatch reach DrmvyzReceiverProvider
     }), { address: '127.0.0.1' })
 
     const targets = await exposed.drmvyzNative.output.listTargets()
-    const receiver = targets.find(target => target.id === 'receiver:remote-production-1')
+    const receiverDisplays = targets.filter(target => target.receiverId === 'remote-production-1')
+    assert.equal(receiverDisplays.length, 2)
+    const receiver = receiverDisplays.find(target => target.receiverDisplayId === 'remote-display-b')
     assert.ok(receiver)
     assert.equal(receiver.providerId, 'drmvyz-receiver')
+    assert.equal(receiver.receiverPaired, false)
 
     const session = await exposed.drmvyzNative.output.startCast({
       targetId: receiver.id,
@@ -179,12 +207,18 @@ test('production preload selection and IPC dispatch reach DrmvyzReceiverProvider
     assert.equal(session.providerId, 'drmvyz-receiver')
     assert.equal(session.targetId, receiver.id)
     assert.equal(session.state, 'connecting')
-    assert.match(fetchCalls[0].url, /127\.0\.0\.1:45000\/api\/start-cast$/)
-    assert.match(JSON.parse(fetchCalls[0].init.body).sourceUrl, /127\.0\.0\.1:\d+\/receiver/)
+    const pairCall = fetchCalls.find(call => call.url.endsWith('/api/v2/pair'))
+    assert.ok(pairCall)
+    const startCall = fetchCalls.find(call => call.url.endsWith('/api/v2/sessions'))
+    assert.ok(startCall)
+    const startBody = JSON.parse(startCall.init.body)
+    assert.equal(startBody.protocolVersion, DRMVYZ_RECEIVER_PROTOCOL_VERSION)
+    assert.equal(startBody.displayId, 'remote-display-b')
+    assert.equal(startBody.pairingToken, remotePairingToken)
+    assert.match(startBody.sourceUrl, /127\.0\.0\.1:\d+\/receiver/)
 
     await exposed.drmvyzNative.output.stopCast()
-    assert.equal(fetchCalls.length, 2)
-    assert.match(fetchCalls[1].url, /api\/stop-cast$/)
+    assert.ok(fetchCalls.some(call => /\/api\/v2\/sessions\/remote-cast-1\/stop$/.test(call.url)))
     assert.equal(await exposed.drmvyzNative.output.getSession(), null)
   } finally {
     Module._load = originalLoad

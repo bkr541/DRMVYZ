@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('drmvyzNative', Object.freeze({
     publishOffer: (sessionId, offer) => ipcRenderer.invoke('drmvyz:output:publish-offer', sessionId, offer),
     waitForAnswer: sessionId => ipcRenderer.invoke('drmvyz:output:wait-for-answer', sessionId),
     failSession: (sessionId, message) => ipcRenderer.invoke('drmvyz:output:fail-session', sessionId, message),
+    reportStats: (sessionId, stats) => ipcRenderer.invoke('drmvyz:output:report-stats', sessionId, stats),
     onTargetsChanged: callback => {
       const listener = (_event, targets) => callback(targets)
       ipcRenderer.on('drmvyz:output:targets-changed', listener)

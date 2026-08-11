@@ -183,7 +183,7 @@ if (!app.requestSingleInstanceLock()) {
     if (!useDevServer) registerAppProtocol()
     configureSessionSecurity()
     installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow })
-    installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, shell, isTrustedAppUrl })
+    installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, shell, dialog, isTrustedAppUrl })
     createMainWindow()
 
     app.on('activate', () => {

@@ -90,3 +90,59 @@ test('provider capability/action extension points are registry-scoped', async ()
     payload: { source: 'ui' },
   })
 })
+
+
+test('transport failure cleans provider runtime once while preserving failed state', async () => {
+  const stopped = []
+  const network = provider('drmvyz-receiver', [{
+    id: 'receiver:device-123:display:stage', kind: 'network', name: 'Stage receiver', detail: 'Stage', available: true,
+  }], {
+    startSession: async () => ({ castId: 'remote-cast' }),
+    stopSession: async handle => { stopped.push(handle) },
+  })
+  const manager = new OutputTargetManager({ providers: [network] })
+  await manager.startSession({ targetId: 'receiver:device-123:display:stage', windowMode: 'fullscreen', aspectRatio: '16:9' }, { sessionId: 'failed-session' })
+  manager.markConnected('failed-session')
+
+  assert.equal(await manager.failSession('failed-session', 'Network path lost'), true)
+  assert.equal(manager.getSession().state, 'failed')
+  assert.equal(manager.getSession().error, 'Network path lost')
+  assert.deepEqual(stopped, [{ castId: 'remote-cast' }])
+
+  await manager.stopSession()
+  assert.deepEqual(stopped, [{ castId: 'remote-cast' }])
+})
+
+test('low-frequency transport diagnostics attach only to the active session and reject malformed samples', async () => {
+  const local = provider('local-display', [{
+    id: 'display:3', kind: 'display', name: 'Stage', detail: '1920 × 1080', available: true,
+  }], {
+    startSession: async () => ({ windowId: 21 }),
+    stopSession: async () => {},
+  })
+  const manager = new OutputTargetManager({ providers: [local] })
+  await manager.startSession({ targetId: 'display:3', windowMode: 'fullscreen', aspectRatio: '16:9' }, { sessionId: 'stats-session' })
+
+  assert.equal(manager.updateSessionStats('wrong-session', { timestampMs: Date.now() }), false)
+  assert.equal(manager.updateSessionStats('stats-session', { timestampMs: 0 }), false)
+  assert.equal(manager.updateSessionStats('stats-session', {
+    timestampMs: 123456,
+    width: 1920,
+    height: 1080,
+    framesPerSecond: 59.94,
+    bitrateKbps: 8600,
+    roundTripTimeMs: 8.2,
+    packetsLost: 2,
+  }), true)
+  assert.deepEqual(manager.getSession().stats, {
+    timestampMs: 123456,
+    width: 1920,
+    height: 1080,
+    framesPerSecond: 59.94,
+    bitrateKbps: 8600,
+    roundTripTimeMs: 8.2,
+    packetsLost: 2,
+  })
+  await manager.stopSession()
+  assert.equal(manager.updateSessionStats('stats-session', { timestampMs: 123457 }), false)
+})

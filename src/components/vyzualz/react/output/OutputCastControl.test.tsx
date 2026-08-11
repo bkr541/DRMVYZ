@@ -4,7 +4,7 @@
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { NativeOutputBridge, OutputCastRequest, OutputCastSession, OutputTarget } from '../../../../native/outputBridge'
+import type { NativeOutputBridge, OutputCastRequest, OutputCastSession, OutputReceiverRequest, OutputTarget } from '../../../../native/outputBridge'
 import { CANVAS_FRACTURES_OUTPUT_DEFERRED } from '../canvasFracturesOutputContract'
 import { OutputCastControl } from './OutputCastControl'
 
@@ -17,11 +17,28 @@ const targets: OutputTarget[] = [
     available: true,
   },
   {
-    id: 'receiver:lan-stage',
+    id: 'receiver:lan-stage-01:display:stage-led',
     kind: 'network',
-    name: 'Booth Mac · DRMVYZ',
-    detail: 'DRMVYZ Receiver · 192.168.1.20',
+    name: 'Booth Mac · DRMVYZ — Stage LED',
+    detail: '2560 × 1440 · Pair on first use',
     available: true,
+    receiverId: 'lan-stage-01',
+    receiverDisplayId: 'stage-led',
+    receiverDisplayName: 'Stage LED',
+    receiverPaired: false,
+    receiverProtocolVersion: 2,
+  },
+  {
+    id: 'receiver:lan-stage-01:display:preview',
+    kind: 'network',
+    name: 'Booth Mac · DRMVYZ — Preview',
+    detail: '1920 × 1080 · Primary · Paired',
+    available: true,
+    receiverId: 'lan-stage-01',
+    receiverDisplayId: 'preview',
+    receiverDisplayName: 'Preview',
+    receiverPaired: true,
+    receiverProtocolVersion: 2,
   },
 ]
 
@@ -32,6 +49,7 @@ let stopCast: ReturnType<typeof vi.fn>
 let performProviderAction: ReturnType<typeof vi.fn>
 let bridge: NativeOutputBridge
 let canvas: HTMLCanvasElement
+let receiverRequested: ((request: OutputReceiverRequest) => void) | null
 
 function buttonWithText(text: string): HTMLButtonElement {
   const button = [...document.body.querySelectorAll<HTMLButtonElement>('button')]
@@ -41,6 +59,7 @@ function buttonWithText(text: string): HTMLButtonElement {
 }
 
 beforeEach(async () => {
+  receiverRequested = null
   startCast = vi.fn(async (request: OutputCastRequest) => ({
     id: 'session-1',
     targetId: request.targetId,
@@ -65,7 +84,7 @@ beforeEach(async () => {
         { providerId: 'local-display', label: 'Connected displays', state: 'available', targetCount: 1, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
         { providerId: 'airplay', label: 'AirPlay / Wireless Displays', state: 'available', targetCount: 0, message: null, capabilities: { targetEnumeration: false, sessions: false, picker: true, actions: ['open-system-picker'] } },
         { providerId: 'miracast', label: 'Windows Wireless Displays', state: 'unsupported', targetCount: 0, message: 'Windows only.', capabilities: { targetEnumeration: false, sessions: false, picker: true, actions: ['open-system-picker'] } },
-        { providerId: 'drmvyz-receiver', label: 'DRMVYZ Receivers', state: 'available', targetCount: 1, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
+        { providerId: 'drmvyz-receiver', label: 'DRMVYZ Receivers', state: 'available', targetCount: 2, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
       ],
     })),
     getSession: vi.fn(async () => null),
@@ -77,7 +96,10 @@ beforeEach(async () => {
     failSession: vi.fn(async () => true),
     onTargetsChanged: vi.fn(() => () => {}),
     onSessionChanged: vi.fn(() => () => {}),
-    onReceiverRequested: vi.fn(() => () => {}),
+    onReceiverRequested: vi.fn((callback: (request: OutputReceiverRequest) => void) => {
+      receiverRequested = callback
+      return () => { if (receiverRequested === callback) receiverRequested = null }
+    }),
   }
   window.drmvyzNative = {
     runtime: { isElectron: true, platform: 'darwin' },
@@ -130,10 +152,89 @@ describe('OutputCastControl', () => {
   it('shows discovered network receivers in the same chooser', async () => {
     const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')
     await act(async () => trigger?.click())
-    expect(document.body.textContent).toContain('Booth Mac · DRMVYZ')
+    expect(document.body.textContent).toContain('Booth Mac · DRMVYZ — Stage LED')
+    expect(document.body.textContent).toContain('Booth Mac · DRMVYZ — Preview')
+    expect(document.body.textContent).toContain('Pair & Cast')
     expect(document.body.textContent).toContain('DRMVYZ Receivers')
   })
 
+
+  it('reuses one relay capture while renderer transitions replace the canonical output canvas', async () => {
+    const originalCaptureStream = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'captureStream')
+    const originalPeer = globalThis.RTCPeerConnection
+    const drawImage = vi.fn()
+    const captureStream = vi.fn()
+    let animationFrame: FrameRequestCallback | null = null
+    const track = {
+      kind: 'video',
+      contentHint: '',
+      stop: vi.fn(),
+      applyConstraints: vi.fn(async () => undefined),
+    }
+    const stream = {
+      getVideoTracks: () => [track],
+      getTracks: () => [track],
+    } as unknown as MediaStream
+    captureStream.mockReturnValue(stream)
+
+    Object.defineProperty(HTMLCanvasElement.prototype, 'captureStream', { configurable: true, value: captureStream })
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      drawImage,
+      fillRect: vi.fn(),
+      fillStyle: '#000',
+    } as unknown as CanvasRenderingContext2D)
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      animationFrame = callback
+      return 1
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    class FakePeerConnection {
+      iceGatheringState: RTCIceGatheringState = 'complete'
+      connectionState: RTCPeerConnectionState = 'connected'
+      localDescription: RTCSessionDescription | null = null
+      addEventListener = vi.fn()
+      removeEventListener = vi.fn()
+      close = vi.fn()
+      addTrack = vi.fn(() => ({
+        track,
+        getParameters: () => ({ encodings: [{}] }),
+        setParameters: async () => undefined,
+      } as unknown as RTCRtpSender))
+      createOffer = async () => ({ type: 'offer' as RTCSdpType, sdp: 'offer-sdp' })
+      setLocalDescription = async (description: RTCSessionDescriptionInit) => {
+        this.localDescription = { ...description, toJSON: () => description } as RTCSessionDescription
+      }
+      setRemoteDescription = async () => undefined
+      getStats = async () => new Map() as unknown as RTCStatsReport
+    }
+    Object.defineProperty(globalThis, 'RTCPeerConnection', { configurable: true, value: FakePeerConnection })
+
+    try {
+      await act(async () => {
+        receiverRequested?.({ sessionId: 'renderer-transition-session' })
+        await Promise.resolve()
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(captureStream).toHaveBeenCalledTimes(1)
+      expect(drawImage).toHaveBeenCalledWith(canvas, 0, 0, 1280, 720)
+
+      const nextCanvas = document.createElement('canvas')
+      nextCanvas.width = 1920
+      nextCanvas.height = 1080
+      await act(async () => root.render(<OutputCastControl canvas={nextCanvas} />))
+      const nextAnimationFrame = animationFrame as FrameRequestCallback | null
+      nextAnimationFrame?.(performance.now())
+
+      expect(captureStream).toHaveBeenCalledTimes(1)
+      expect(drawImage).toHaveBeenLastCalledWith(nextCanvas, 0, 0, 1920, 1080)
+    } finally {
+      if (originalCaptureStream) Object.defineProperty(HTMLCanvasElement.prototype, 'captureStream', originalCaptureStream)
+      else Reflect.deleteProperty(HTMLCanvasElement.prototype, 'captureStream')
+      Object.defineProperty(globalThis, 'RTCPeerConnection', { configurable: true, value: originalPeer })
+    }
+  })
 
   it('exposes macOS wireless-display selection as a provider action without starting a cast session', async () => {
     const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')
@@ -154,7 +255,7 @@ describe('OutputCastControl', () => {
         { providerId: 'local-display', label: 'Connected displays', state: 'available', targetCount: 1, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
         { providerId: 'airplay', label: 'AirPlay / Wireless Displays', state: 'unsupported', targetCount: 0, message: 'macOS only.', capabilities: { targetEnumeration: false, sessions: false, picker: true, actions: ['open-system-picker'] } },
         { providerId: 'miracast', label: 'Windows Wireless Displays', state: 'available', targetCount: 0, message: null, capabilities: { targetEnumeration: false, sessions: false, picker: true, actions: ['open-system-picker'] } },
-        { providerId: 'drmvyz-receiver', label: 'DRMVYZ Receivers', state: 'available', targetCount: 1, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
+        { providerId: 'drmvyz-receiver', label: 'DRMVYZ Receivers', state: 'available', targetCount: 2, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
       ],
     }))
 

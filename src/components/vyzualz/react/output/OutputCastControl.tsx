@@ -24,6 +24,7 @@ import {
   type OutputProviderId,
   type OutputProviderStatus,
   type OutputTarget,
+  type OutputTransportStats,
   type OutputWindowMode,
 } from '../../../../native/outputBridge'
 
@@ -147,10 +148,31 @@ interface RelayCapture {
   stop: () => void
 }
 
+const RECEIVER_MAX_LONG_EDGE = 1920
+const RECEIVER_MAX_SHORT_EDGE = 1080
+const RECEIVER_MAX_FPS = 60
+const RECEIVER_MAX_BITRATE_BPS = 12_000_000
+const RECEIVER_STATS_INTERVAL_MS = 2_000
+const RECEIVER_DISCONNECT_GRACE_MS = 3_000
+
+function fitRelaySize(width: number, height: number): { width: number; height: number } {
+  const safeWidth = Math.max(2, width || 1920)
+  const safeHeight = Math.max(2, height || 1080)
+  const landscape = safeWidth >= safeHeight
+  const maxWidth = landscape ? RECEIVER_MAX_LONG_EDGE : RECEIVER_MAX_SHORT_EDGE
+  const maxHeight = landscape ? RECEIVER_MAX_SHORT_EDGE : RECEIVER_MAX_LONG_EDGE
+  const scale = Math.min(1, maxWidth / safeWidth, maxHeight / safeHeight)
+  return {
+    width: Math.max(2, Math.round(safeWidth * scale)),
+    height: Math.max(2, Math.round(safeHeight * scale)),
+  }
+}
+
 function createRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null>): RelayCapture {
   const relay = document.createElement('canvas')
-  relay.width = Math.max(2, sourceRef.current?.width ?? 1920)
-  relay.height = Math.max(2, sourceRef.current?.height ?? 1080)
+  const initial = fitRelaySize(sourceRef.current?.width ?? 1920, sourceRef.current?.height ?? 1080)
+  relay.width = initial.width
+  relay.height = initial.height
   const context = relay.getContext('2d', { alpha: false })
   if (!context || typeof relay.captureStream !== 'function') {
     throw new Error('Canvas streaming is unavailable in this runtime')
@@ -162,9 +184,10 @@ function createRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null
     if (stopped) return
     const source = sourceRef.current
     if (source && source.width > 0 && source.height > 0) {
-      if (relay.width !== source.width || relay.height !== source.height) {
-        relay.width = source.width
-        relay.height = source.height
+      const next = fitRelaySize(source.width, source.height)
+      if (relay.width !== next.width || relay.height !== next.height) {
+        relay.width = next.width
+        relay.height = next.height
       }
       context.drawImage(source, 0, 0, relay.width, relay.height)
     } else {
@@ -174,7 +197,11 @@ function createRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null
     frameId = window.requestAnimationFrame(render)
   }
   render()
-  const stream = relay.captureStream(60)
+  const stream = relay.captureStream(RECEIVER_MAX_FPS)
+  for (const track of stream.getVideoTracks()) {
+    try { track.contentHint = 'motion' } catch { /* Older Chromium may reject contentHint. */ }
+    void track.applyConstraints?.({ frameRate: { ideal: RECEIVER_MAX_FPS, max: RECEIVER_MAX_FPS } }).catch(() => undefined)
+  }
 
   return {
     stream,
@@ -186,13 +213,72 @@ function createRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null
   }
 }
 
+async function configureVideoSender(sender: RTCRtpSender): Promise<void> {
+  try {
+    const parameters = sender.getParameters()
+    if (!parameters.encodings || parameters.encodings.length === 0) parameters.encodings = [{}]
+    parameters.encodings = parameters.encodings.map(encoding => ({
+      ...encoding,
+      maxBitrate: RECEIVER_MAX_BITRATE_BPS,
+      maxFramerate: RECEIVER_MAX_FPS,
+    }))
+    await sender.setParameters(parameters)
+  } catch {
+    // SDP/WebRTC negotiation remains authoritative if sender hints are unsupported.
+  }
+}
+
+async function collectTransportStats(
+  peer: RTCPeerConnection,
+  previous: { bytesSent: number; timestamp: number } | null,
+): Promise<{ stats: OutputTransportStats; sample: { bytesSent: number; timestamp: number } | null }> {
+  const reports = await peer.getStats()
+  let outbound: (RTCStats & Record<string, unknown>) | null = null
+  let remoteInbound: (RTCStats & Record<string, unknown>) | null = null
+  reports.forEach(report => {
+    const value = report as RTCStats & Record<string, unknown>
+    if (value.type === 'outbound-rtp' && (value.kind === 'video' || value.mediaType === 'video') && !value.isRemote) outbound = value
+    if (value.type === 'remote-inbound-rtp' && (value.kind === 'video' || value.mediaType === 'video')) remoteInbound = value
+  })
+
+  const selectedOutbound = outbound as (RTCStats & Record<string, unknown>) | null
+  const selectedRemoteInbound = remoteInbound as (RTCStats & Record<string, unknown>) | null
+  const number = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) ? value : null
+  const bytesSent = number(selectedOutbound?.bytesSent)
+  const timestamp = number(selectedOutbound?.timestamp) ?? Date.now()
+  let bitrateKbps: number | null = null
+  if (bytesSent !== null && previous && timestamp > previous.timestamp && bytesSent >= previous.bytesSent) {
+    bitrateKbps = ((bytesSent - previous.bytesSent) * 8) / (timestamp - previous.timestamp)
+  }
+  const sample = bytesSent === null ? previous : { bytesSent, timestamp }
+  const roundTripTime = number(selectedRemoteInbound?.roundTripTime)
+  return {
+    stats: {
+      timestampMs: Date.now(),
+      width: number(selectedOutbound?.frameWidth),
+      height: number(selectedOutbound?.frameHeight),
+      framesPerSecond: number(selectedOutbound?.framesPerSecond),
+      bitrateKbps,
+      roundTripTimeMs: roundTripTime === null ? null : roundTripTime * 1000,
+      packetsLost: number(selectedRemoteInbound?.packetsLost),
+    },
+    sample,
+  }
+}
+
 function useOutputBroadcaster(
   bridge: NativeOutputBridge | null,
   canvas: HTMLCanvasElement | null,
   session: OutputCastSession | null,
 ) {
   const canvasRef = useRef(canvas)
-  const activeRef = useRef<{ sessionId: string; peer: RTCPeerConnection; relay: RelayCapture } | null>(null)
+  const activeRef = useRef<{
+    sessionId: string
+    peer: RTCPeerConnection
+    relay: RelayCapture
+    statsTimer: number | null
+    disconnectTimer: number | null
+  } | null>(null)
 
   useLayoutEffect(() => {
     canvasRef.current = canvas
@@ -201,6 +287,8 @@ function useOutputBroadcaster(
   const closeActive = useCallback(() => {
     const active = activeRef.current
     if (!active) return
+    if (active.statsTimer !== null) window.clearInterval(active.statsTimer)
+    if (active.disconnectTimer !== null) window.clearTimeout(active.disconnectTimer)
     active.peer.close()
     active.relay.stop()
     activeRef.current = null
@@ -221,13 +309,38 @@ function useOutputBroadcaster(
           if (typeof RTCPeerConnection === 'undefined') throw new Error('WebRTC output is unavailable in this runtime')
           const relay = createRelayCapture(canvasRef)
           const peer = new RTCPeerConnection({ iceServers: [] })
-          activeRef.current = { sessionId, peer, relay }
+          activeRef.current = { sessionId, peer, relay, statsTimer: null, disconnectTimer: null }
+          let previousStats: { bytesSent: number; timestamp: number } | null = null
+
+          const failAfterGrace = () => {
+            const active = activeRef.current
+            if (!active || active.sessionId !== sessionId || active.disconnectTimer !== null) return
+            active.disconnectTimer = window.setTimeout(() => {
+              const current = activeRef.current
+              if (!current || current.sessionId !== sessionId) return
+              if (current.peer.connectionState === 'connected') {
+                current.disconnectTimer = null
+                return
+              }
+              closeActive()
+              void bridge.failSession(sessionId, 'The output receiver connection was lost and did not recover').catch(() => false)
+            }, RECEIVER_DISCONNECT_GRACE_MS)
+          }
+
           peer.addEventListener('connectionstatechange', () => {
-            if (peer.connectionState !== 'failed') return
-            closeActive()
-            void bridge.failSession(sessionId, 'The output receiver connection failed').catch(() => false)
+            const active = activeRef.current
+            if (!active || active.sessionId !== sessionId) return
+            if (peer.connectionState === 'connected') {
+              if (active.disconnectTimer !== null) window.clearTimeout(active.disconnectTimer)
+              active.disconnectTimer = null
+              return
+            }
+            if (peer.connectionState === 'disconnected' || peer.connectionState === 'failed') failAfterGrace()
+            if (peer.connectionState === 'closed') closeActive()
           })
-          for (const track of relay.stream.getTracks()) peer.addTrack(track, relay.stream)
+
+          const senders = relay.stream.getTracks().map(track => peer.addTrack(track, relay.stream))
+          await Promise.all(senders.filter(sender => sender.track?.kind === 'video').map(configureVideoSender))
           const offer = await peer.createOffer()
           await peer.setLocalDescription(offer)
           await waitForIceGatheringComplete(peer)
@@ -235,6 +348,25 @@ function useOutputBroadcaster(
           await bridge.publishOffer(sessionId, peer.localDescription.toJSON())
           const answer = await bridge.waitForAnswer(sessionId)
           await peer.setRemoteDescription(answer)
+
+          if (bridge.reportStats) {
+            const active = activeRef.current
+            if (active && active.sessionId === sessionId) {
+              const sampleStats = async () => {
+                const current = activeRef.current
+                if (!current || current.sessionId !== sessionId || current.peer.connectionState !== 'connected') return
+                try {
+                  const result = await collectTransportStats(current.peer, previousStats)
+                  previousStats = result.sample
+                  await bridge.reportStats?.(sessionId, result.stats)
+                } catch {
+                  // Diagnostics are advisory and must never tear down a healthy session.
+                }
+              }
+              active.statsTimer = window.setInterval(() => void sampleStats(), RECEIVER_STATS_INTERVAL_MS)
+              void sampleStats()
+            }
+          }
         } catch (error) {
           const message = error instanceof Error ? error.message : 'The output stream could not start'
           closeActive()
@@ -417,7 +549,13 @@ function OutputCastPopover({
                 <span>{target.detail}</span>
               </span>
               <span className="rv-cast-device-state">
-                {active && session?.state === 'connected' ? 'Live' : pending ? 'Connecting…' : 'Cast'}
+                {active && session?.state === 'connected'
+                  ? 'Live'
+                  : pending
+                    ? 'Connecting…'
+                    : target.kind === 'network' && target.receiverPaired === false
+                      ? 'Pair & Cast'
+                      : 'Cast'}
               </span>
             </button>
           )
@@ -509,6 +647,16 @@ function OutputCastPopover({
                   <span>{session.state === 'connected' ? 'Now casting' : 'Output session'}</span>
                   <strong>{session.targetName}</strong>
                   <small>{session.windowMode} · {session.aspectRatio}</small>
+                  {session.stats && (
+                    <small>
+                      {[session.stats.width && session.stats.height ? `${Math.round(session.stats.width)}×${Math.round(session.stats.height)}` : null,
+                        session.stats.framesPerSecond !== null ? `${Math.round(session.stats.framesPerSecond)} fps` : null,
+                        session.stats.bitrateKbps !== null ? `${(session.stats.bitrateKbps / 1000).toFixed(1)} Mbps` : null,
+                        session.stats.roundTripTimeMs !== null ? `${Math.round(session.stats.roundTripTimeMs)} ms` : null]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </small>
+                  )}
                 </div>
                 <button type="button" className="rv-cast-stop" onClick={onStop}>Stop Output</button>
               </div>
@@ -579,7 +727,7 @@ function OutputCastPopover({
             <section className="rv-cast-device-group" aria-label="DRMVYZ receivers">
               <h3>DRMVYZ Receivers</h3>
               {renderTargets(groups.network, 'No DRMVYZ receivers were found on this network.')}
-              <p>Open DRMVYZ on another computer to make it discoverable. This stage lists connected operating-system displays and DRMVYZ receivers only.</p>
+              <p>Open DRMVYZ on another computer to make it discoverable. Each Receiver V2 display is selectable independently; first use asks the receiving computer to approve pairing.</p>
             </section>
           </div>
         </div>

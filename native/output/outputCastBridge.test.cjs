@@ -1,6 +1,7 @@
 'use strict'
 
 const assert = require('node:assert/strict')
+const { EventEmitter } = require('node:events')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
@@ -9,6 +10,7 @@ const {
   buildLocalDisplayTargets,
   calculateWindowBounds,
   createReceiverHtml,
+  installOutputCastBridge,
   isAllowedReceiverSource,
   isPrivateNetworkAddress,
   loadOrCreateReceiverDeviceId,
@@ -16,6 +18,7 @@ const {
   openMacOsDisplaySettings,
   openWindowsWirelessDisplaySettings,
 } = require('./outputCastBridge.cjs')
+const { DRMVYZ_RECEIVER_PROTOCOL_VERSION } = require('./drmvyzReceiverProtocol.cjs')
 
 test('normalizeCastRequest requires a target, window mode, and aspect ratio', () => {
   assert.deepEqual(normalizeCastRequest({
@@ -134,4 +137,121 @@ test('Windows wireless display action reports unavailable native system controls
     openWindowsWirelessDisplaySettings({ shell: null }),
     /shell\.openExternal is unavailable/,
   )
+})
+
+
+test('Receiver V2 HTTP path pairs first use, selects the requested non-primary display, and closes it when destination disappears', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'drmvyz-receiver-v2-'))
+  const app = new EventEmitter()
+  app.getPath = name => name === 'userData' ? root : root
+  const ipcMain = { handle() {} }
+
+  class FakeScreen extends EventEmitter {
+    constructor() {
+      super()
+      this.displays = [
+        { id: 1, label: 'Control', bounds: { x: 0, y: 0, width: 1920, height: 1080 }, workArea: { x: 0, y: 0, width: 1920, height: 1040 }, scaleFactor: 1, displayFrequency: 60 },
+        { id: 2, label: 'LED Wall', bounds: { x: 1920, y: 0, width: 2560, height: 1440 }, workArea: { x: 1920, y: 0, width: 2560, height: 1400 }, scaleFactor: 1, displayFrequency: 60 },
+      ]
+    }
+    getAllDisplays() { return this.displays }
+    getPrimaryDisplay() { return this.displays[0] }
+  }
+
+  const createdWindows = []
+  class FakeBrowserWindow extends EventEmitter {
+    static getAllWindows() { return [] }
+    constructor(options) {
+      super()
+      this.options = options
+      this.destroyed = false
+      this.webContents = new EventEmitter()
+      this.webContents.setWindowOpenHandler = () => {}
+      createdWindows.push(this)
+    }
+    setAspectRatio() {}
+    setMenuBarVisibility() {}
+    setFullScreen() {}
+    show() {}
+    loadURL(url) { this.loadedUrl = url; return Promise.resolve() }
+    isDestroyed() { return this.destroyed }
+    close() { if (this.destroyed) return; this.destroyed = true; this.emit('closed') }
+    destroy() { this.close() }
+  }
+
+  const screen = new FakeScreen()
+  const installed = installOutputCastBridge({
+    app,
+    BrowserWindow: FakeBrowserWindow,
+    ipcMain,
+    screen,
+    dialog: { showMessageBox: async () => ({ response: 0 }) },
+    isTrustedAppUrl: () => true,
+  })
+
+  try {
+    const receiverProvider = installed.targetManager.providers.get('drmvyz-receiver')
+    for (let attempt = 0; attempt < 30 && !receiverProvider.receiverService?.port; attempt += 1) {
+      await new Promise(resolve => setImmediate(resolve))
+    }
+    const { port, receiverToken } = receiverProvider.receiverService
+    const base = `http://127.0.0.1:${port}`
+    const senderDeviceId = 'sender-device-v2'
+
+    const capabilityResponse = await fetch(`${base}/api/v2/capabilities`, {
+      headers: {
+        'X-DRMVYZ-Receiver-Token': receiverToken,
+        'X-DRMVYZ-Sender-Id': senderDeviceId,
+      },
+    })
+    assert.equal(capabilityResponse.status, 200)
+    const capabilities = await capabilityResponse.json()
+    assert.equal(capabilities.protocol.version, DRMVYZ_RECEIVER_PROTOCOL_VERSION)
+    assert.deepEqual(capabilities.displays.map(display => display.id), ['1', '2'])
+    assert.equal(capabilities.pairing.paired, false)
+
+    const pairResponse = await fetch(`${base}/api/v2/pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        protocolVersion: DRMVYZ_RECEIVER_PROTOCOL_VERSION,
+        senderDeviceId,
+        senderName: 'Sender Laptop',
+        receiverToken,
+      }),
+    })
+    assert.equal(pairResponse.status, 200)
+    const pairing = await pairResponse.json()
+    assert.equal(typeof pairing.pairingToken, 'string')
+
+    const sessionResponse = await fetch(`${base}/api/v2/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        protocolVersion: DRMVYZ_RECEIVER_PROTOCOL_VERSION,
+        senderDeviceId,
+        pairingToken: pairing.pairingToken,
+        receiverToken,
+        displayId: '2',
+        sourceUrl: `${base}/receiver?session=test-session&token=test-token`,
+        windowMode: 'fullscreen',
+        aspectRatio: '16:9',
+      }),
+    })
+    assert.equal(sessionResponse.status, 200)
+    const session = await sessionResponse.json()
+    assert.equal(session.selectedDisplay, '2')
+    assert.equal(createdWindows.length, 1)
+    assert.equal(createdWindows[0].options.x, 1920)
+    assert.equal(createdWindows[0].options.width, 2560)
+
+    const legacyResponse = await fetch(`${base}/api/start-cast`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    assert.equal(legacyResponse.status, 426)
+
+    screen.emit('display-removed', {}, screen.displays[1])
+    assert.equal(createdWindows[0].isDestroyed(), true)
+  } finally {
+    await installed.shutdown()
+    fs.rmSync(root, { recursive: true, force: true })
+  }
 })

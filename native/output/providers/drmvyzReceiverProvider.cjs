@@ -4,6 +4,16 @@ const crypto = require('node:crypto')
 const dgram = require('node:dgram')
 const os = require('node:os')
 const net = require('node:net')
+const {
+  DRMVYZ_RECEIVER_CAPABILITY_CACHE_MS,
+  DRMVYZ_RECEIVER_PROTOCOL_VERSION,
+  DRMVYZ_RECEIVER_QUALITY_POLICY,
+  DRMVYZ_RECEIVER_SESSION_RETRY_COUNT,
+  DRMVYZ_RECEIVER_SESSION_RETRY_MS,
+  buildReceiverDisplayTargetId,
+  normalizeCapabilityDocument,
+  parseReceiverDisplayTargetId,
+} = require('../drmvyzReceiverProtocol.cjs')
 
 const DRMVYZ_RECEIVER_PROVIDER_ID = 'drmvyz-receiver'
 const DISCOVERY_PORT = 53531
@@ -369,6 +379,9 @@ class DrmvyzReceiverProvider {
     now = () => Date.now(),
     setIntervalImpl = setInterval,
     clearIntervalImpl = clearInterval,
+    setTimeoutImpl = setTimeout,
+    trustStore = null,
+    senderName = () => `${hostname()} · DRMVYZ`,
   }) {
     this.id = DRMVYZ_RECEIVER_PROVIDER_ID
     this.label = 'DRMVYZ Receivers'
@@ -383,7 +396,12 @@ class DrmvyzReceiverProvider {
     this.now = now
     this.setIntervalImpl = setIntervalImpl
     this.clearIntervalImpl = clearIntervalImpl
+    this.setTimeoutImpl = setTimeoutImpl
+    this.trustStore = trustStore
+    this.senderName = senderName
     this.targets = new Map()
+    this.capabilityCache = new Map()
+    this.capabilityRequests = new Map()
     this.receiverService = null
     this.receiverServiceError = null
     this.mdnsSocket = null
@@ -426,17 +444,129 @@ class DrmvyzReceiverProvider {
     return this.status
   }
 
-  listTargets() {
-    return Array.from(this.targets.values())
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map(target => ({
-        id: `receiver:${target.deviceId}`,
-        kind: 'network',
-        name: target.name,
-        detail: `DRMVYZ Receiver · ${target.address}`,
-        available: true,
-        receiverId: target.deviceId,
-      }))
+  async listTargets() {
+    const discovered = Array.from(this.targets.values()).sort((a, b) => a.name.localeCompare(b.name))
+    const results = []
+    for (const receiver of discovered) {
+      try {
+        const capabilities = await this.getReceiverCapabilities(receiver)
+        for (const display of capabilities.displays) {
+          results.push({
+            id: buildReceiverDisplayTargetId(receiver.deviceId, display.id),
+            kind: 'network',
+            name: `${receiver.name} — ${display.name}`,
+            detail: `${display.width} × ${display.height}${display.primary ? ' · Primary' : ''} · up to ${capabilities.video.maxFps} fps · ${capabilities.video.codecs[0] || 'WebRTC negotiated codec'} · ${receiver.address}${capabilities.pairing.paired ? ' · Paired' : ' · Pair on first use'}`,
+            available: true,
+            receiverId: receiver.deviceId,
+            receiverDisplayId: display.id,
+            receiverDisplayName: display.name,
+            receiverPaired: capabilities.pairing.paired,
+            receiverProtocolVersion: capabilities.protocol.version,
+            receiverVideoCapabilities: { ...capabilities.video },
+          })
+        }
+      } catch (error) {
+        results.push({
+          id: `receiver:${receiver.deviceId}`,
+          kind: 'network',
+          name: receiver.name,
+          detail: `${receiver.address} · ${error instanceof Error ? error.message : 'Receiver capabilities unavailable'}`,
+          available: false,
+          receiverId: receiver.deviceId,
+        })
+      }
+    }
+    return results
+  }
+
+  capabilityHeaders(receiver, pairingToken = null) {
+    const headers = {
+      'X-DRMVYZ-Receiver-Token': receiver.receiverToken,
+      'X-DRMVYZ-Sender-Id': this.deviceId,
+    }
+    if (pairingToken) headers['X-DRMVYZ-Pairing-Token'] = pairingToken
+    return headers
+  }
+
+  async getReceiverCapabilities(receiver, { force = false } = {}) {
+    const cached = this.capabilityCache.get(receiver.deviceId)
+    if (!force && cached && this.now() - cached.fetchedAt < DRMVYZ_RECEIVER_CAPABILITY_CACHE_MS) return cached.value
+    if (!force && this.capabilityRequests.has(receiver.deviceId)) return this.capabilityRequests.get(receiver.deviceId)
+    const pairingToken = this.trustStore?.getReceiverToken?.(receiver.deviceId) ?? null
+    const request = (async () => {
+      const response = await this.fetchImpl(`http://${formatUrlHost(receiver.address)}:${receiver.port}/api/v2/capabilities`, {
+        method: 'GET',
+        headers: this.capabilityHeaders(receiver, pairingToken),
+        signal: AbortSignal.timeout(2_500),
+      })
+      if (response.status === 426) throw new Error(`Receiver protocol is incompatible; DRMVYZ Receiver V${DRMVYZ_RECEIVER_PROTOCOL_VERSION} is required`)
+      if (!response.ok) throw new Error(`Receiver capability handshake failed (${response.status})`)
+      const value = normalizeCapabilityDocument(await response.json())
+      if (value.device.id !== receiver.deviceId) throw new Error('Receiver capability identity does not match discovery identity')
+      this.capabilityCache.set(receiver.deviceId, { value, fetchedAt: this.now() })
+      return value
+    })()
+    this.capabilityRequests.set(receiver.deviceId, request)
+    try {
+      return await request
+    } finally {
+      if (this.capabilityRequests.get(receiver.deviceId) === request) this.capabilityRequests.delete(receiver.deviceId)
+    }
+  }
+
+  async ensurePaired(receiver, capabilities) {
+    const existingToken = this.trustStore?.getReceiverToken?.(receiver.deviceId) ?? null
+    if (existingToken && capabilities.pairing.paired) return existingToken
+    if (!this.trustStore?.saveReceiverToken) throw new Error('Receiver pairing storage is unavailable')
+    const response = await this.fetchImpl(`http://${formatUrlHost(receiver.address)}:${receiver.port}/api/v2/pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        protocolVersion: DRMVYZ_RECEIVER_PROTOCOL_VERSION,
+        senderDeviceId: this.deviceId,
+        senderName: this.senderName(),
+        receiverToken: receiver.receiverToken,
+      }),
+      signal: AbortSignal.timeout(30_000),
+    })
+    if (response.status === 403) throw new Error('Pairing was declined on the receiver')
+    if (response.status === 409) throw new Error('This receiver is already paired to this sender identity, but the local trust token is missing')
+    if (!response.ok) throw new Error(`Receiver pairing failed (${response.status})`)
+    const result = await response.json()
+    if (result?.protocolVersion !== DRMVYZ_RECEIVER_PROTOCOL_VERSION || typeof result.pairingToken !== 'string') {
+      throw new Error('The receiver returned an invalid pairing response')
+    }
+    this.trustStore.saveReceiverToken(receiver.deviceId, result.pairingToken, receiver.name)
+    this.capabilityCache.delete(receiver.deviceId)
+    return result.pairingToken
+  }
+
+  wait(milliseconds) {
+    return new Promise(resolve => this.setTimeoutImpl(resolve, milliseconds))
+  }
+
+  async startRemoteCast(receiver, body) {
+    let lastError = null
+    for (let attempt = 0; attempt <= DRMVYZ_RECEIVER_SESSION_RETRY_COUNT; attempt += 1) {
+      try {
+        const response = await this.fetchImpl(`http://${formatUrlHost(receiver.address)}:${receiver.port}/api/v2/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(5_000),
+        })
+        if (response.status === 401 || response.status === 403) throw new Error('Receiver trust is no longer valid; pair the receiver again')
+        if (response.status === 409) throw new Error('The selected receiver display is no longer available')
+        if (response.status === 426) throw new Error(`Receiver protocol is incompatible; DRMVYZ Receiver V${DRMVYZ_RECEIVER_PROTOCOL_VERSION} is required`)
+        if (!response.ok) throw new Error(`The receiver refused the cast (${response.status})`)
+        return response
+      } catch (error) {
+        lastError = error
+        if (attempt >= DRMVYZ_RECEIVER_SESSION_RETRY_COUNT || (error instanceof Error && /pair|display|protocol|refused/i.test(error.message))) break
+        await this.wait(DRMVYZ_RECEIVER_SESSION_RETRY_MS)
+      }
+    }
+    throw lastError ?? new Error('The receiver connection failed')
   }
 
   setStatus(status) {
@@ -695,6 +825,7 @@ class DrmvyzReceiverProvider {
     const previous = this.targets.get(target.deviceId)
     const next = { ...target, lastSeenAt: this.now() }
     this.targets.set(target.deviceId, next)
+    if (!previous || previous.address !== next.address || previous.port !== next.port || previous.receiverToken !== next.receiverToken) this.capabilityCache.delete(target.deviceId)
     const changed = !previous
       || previous.address !== next.address
       || previous.port !== next.port
@@ -707,6 +838,8 @@ class DrmvyzReceiverProvider {
 
   removeTarget(deviceId) {
     const changed = this.targets.delete(deviceId)
+    this.capabilityCache.delete(deviceId)
+    this.capabilityRequests.delete(deviceId)
     if (changed) this.onTargetsChanged()
     return changed
   }
@@ -717,6 +850,8 @@ class DrmvyzReceiverProvider {
     for (const [id, target] of this.targets) {
       if (target.lastSeenAt < cutoff) {
         this.targets.delete(id)
+        this.capabilityCache.delete(id)
+        this.capabilityRequests.delete(id)
         changed = true
       }
     }
@@ -792,27 +927,35 @@ class DrmvyzReceiverProvider {
   }
 
   async startSession({ target, request, context }) {
-    const receiverId = target.receiverId ?? target.id.slice('receiver:'.length)
+    const parsedTarget = parseReceiverDisplayTargetId(target.id)
+    const receiverId = target.receiverId ?? parsedTarget?.receiverDeviceId
+    const displayId = target.receiverDisplayId ?? parsedTarget?.displayId
+    if (!receiverId || !displayId) throw new Error(`Select a DRMVYZ Receiver V${DRMVYZ_RECEIVER_PROTOCOL_VERSION} display before casting`)
     const receiver = this.targets.get(receiverId)
     if (!receiver) throw new Error('That network receiver is no longer available')
     if (!this.receiverService?.port) throw new Error('The output receiver is still starting')
+    let capabilities = await this.getReceiverCapabilities(receiver, { force: true })
+    if (!capabilities.displays.some(display => display.id === displayId)) throw new Error('The selected receiver display is no longer available')
+    const pairingToken = await this.ensurePaired(receiver, capabilities)
+    capabilities = await this.getReceiverCapabilities(receiver, { force: true })
+    if (!capabilities.pairing.paired) throw new Error('Receiver pairing did not become active')
+    if (!capabilities.displays.some(display => display.id === displayId)) throw new Error('The selected receiver display is no longer available')
     const sourceAddress = await this.resolveReachableLocalAddress(receiver.address)
     const sourceUrl = `http://${formatUrlHost(sourceAddress)}:${this.receiverService.port}/receiver?session=${encodeURIComponent(context.sessionId)}&token=${encodeURIComponent(context.sessionToken)}`
-    const response = await this.fetchImpl(`http://${formatUrlHost(receiver.address)}:${receiver.port}/api/start-cast`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sourceUrl,
-        windowMode: request.windowMode,
-        aspectRatio: request.aspectRatio,
-        receiverToken: receiver.receiverToken,
-      }),
-      signal: AbortSignal.timeout(4_000),
+    const response = await this.startRemoteCast(receiver, {
+      protocolVersion: DRMVYZ_RECEIVER_PROTOCOL_VERSION,
+      sourceUrl,
+      displayId,
+      windowMode: request.windowMode,
+      aspectRatio: request.aspectRatio,
+      receiverToken: receiver.receiverToken,
+      senderDeviceId: this.deviceId,
+      pairingToken,
+      qualityPolicy: { ...DRMVYZ_RECEIVER_QUALITY_POLICY },
     })
-    if (!response.ok) throw new Error(`The receiver refused the cast (${response.status})`)
     const remote = await response.json()
-    if (!remote || typeof remote.castId !== 'string' || typeof remote.controlToken !== 'string') {
-      throw new Error('The receiver returned an invalid session')
+    if (!remote || remote.protocolVersion !== DRMVYZ_RECEIVER_PROTOCOL_VERSION || typeof remote.castId !== 'string' || typeof remote.controlToken !== 'string') {
+      throw new Error('The receiver returned an invalid V2 session')
     }
     return {
       remoteControl: {
@@ -821,7 +964,11 @@ class DrmvyzReceiverProvider {
         castId: remote.castId,
         controlToken: remote.controlToken,
         receiverToken: receiver.receiverToken,
+        receiverId,
+        displayId,
+        pairingToken,
       },
+      qualityPolicy: remote.qualityPolicy ?? { ...DRMVYZ_RECEIVER_QUALITY_POLICY },
     }
   }
 
@@ -829,13 +976,14 @@ class DrmvyzReceiverProvider {
     const remote = handle?.remoteControl
     if (!remote) return
     try {
-      await this.fetchImpl(`http://${formatUrlHost(remote.address)}:${remote.port}/api/stop-cast`, {
+      await this.fetchImpl(`http://${formatUrlHost(remote.address)}:${remote.port}/api/v2/sessions/${encodeURIComponent(remote.castId)}/stop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          castId: remote.castId,
           controlToken: remote.controlToken,
           receiverToken: remote.receiverToken,
+          senderDeviceId: this.deviceId,
+          pairingToken: remote.pairingToken,
         }),
         signal: AbortSignal.timeout(2_500),
       })
@@ -869,6 +1017,8 @@ class DrmvyzReceiverProvider {
     this.networkPollInterval = null
     const hadTargets = this.targets.size > 0
     this.targets.clear()
+    this.capabilityCache.clear()
+    this.capabilityRequests.clear()
     if (hadTargets) this.onTargetsChanged()
     this.mdnsReady = false
     this.legacyReady = false

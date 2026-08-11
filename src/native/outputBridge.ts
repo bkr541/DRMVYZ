@@ -37,6 +37,20 @@ export interface OutputTarget {
   available: boolean
   displayId?: string
   receiverId?: string
+  receiverDisplayId?: string
+  receiverDisplayName?: string
+  receiverPaired?: boolean
+  receiverProtocolVersion?: number
+  receiverVideoCapabilities?: {
+    transport?: string
+    codecNegotiation?: string
+    codecs?: string[]
+    maxLongEdge?: number
+    maxShortEdge?: number
+    maxFps?: number
+    maxVideoBitrateKbps?: number
+    statsIntervalMs?: number
+  }
   providerId?: OutputProviderId
 }
 
@@ -51,6 +65,17 @@ export interface OutputCastRequest {
   aspectRatio: OutputAspectRatio
 }
 
+
+export interface OutputTransportStats {
+  timestampMs: number
+  width: number | null
+  height: number | null
+  framesPerSecond: number | null
+  bitrateKbps: number | null
+  roundTripTimeMs: number | null
+  packetsLost: number | null
+}
+
 export interface OutputCastSession {
   id: string
   targetId: string
@@ -60,6 +85,7 @@ export interface OutputCastSession {
   aspectRatio: OutputAspectRatio
   state: OutputCastState
   error: string | null
+  stats?: OutputTransportStats | null
 }
 
 export interface OutputReceiverRequest {
@@ -76,6 +102,7 @@ export interface NativeOutputBridge {
   publishOffer: (sessionId: string, offer: RTCSessionDescriptionInit) => Promise<boolean>
   waitForAnswer: (sessionId: string) => Promise<RTCSessionDescriptionInit>
   failSession: (sessionId: string, message: string) => Promise<boolean>
+  reportStats?: (sessionId: string, stats: OutputTransportStats) => Promise<boolean>
   onTargetsChanged: (callback: (targets: OutputTarget[]) => void) => () => void
   onTargetSnapshotChanged?: (callback: (snapshot: OutputTargetSnapshot) => void) => () => void
   onSessionChanged: (callback: (session: OutputCastSession | null) => void) => () => void
