@@ -11,7 +11,7 @@ import { musicIntelligenceEngine } from '../../../features/musicIntelligence/Mus
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { buildSharedPerformanceContext, createSharedPerformanceDiagnostics, type SharedPerformanceContext } from '../../../features/performanceCore'
 import type { FeatureCurve, MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
-import { Collapsible, ColorRow, CtrlSection, NumberInputRow, SelectRow as CanvasSelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { Collapsible, ColorRow, NumberInputRow, SelectRow as CanvasSelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import { HelpInfoTrigger, type HelpInfoTriggerProps } from '../../shared/InfoPopover'
 import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
 import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from './SharedPerformanceDiagnosticsStore'
@@ -3650,7 +3650,6 @@ export function CanvasEnginePanel() {
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
   return (
     <>
-      <CtrlSection label="CANVAS" />
       <div className="rv-canvas-engine-panel">
         <CanvasHelpControl
           helpId="react.canvas.source.mediaLibrary"
@@ -3719,6 +3718,7 @@ export function CanvasEngineFxPanel() {
             max={4}
             step={0.01}
             color="#61d6aa"
+            resetValue={1}
           />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.sourceAndDisplay.display.positionX" currentValue={`${Math.round(settings.positionX)}%`}>
@@ -3730,6 +3730,7 @@ export function CanvasEngineFxPanel() {
             max={100}
             step={1}
             color="#4ac7db"
+            resetValue={0}
           />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.sourceAndDisplay.display.positionY" currentValue={`${Math.round(settings.positionY)}%`}>
@@ -3741,6 +3742,7 @@ export function CanvasEngineFxPanel() {
             max={100}
             step={1}
             color="#4ac7db"
+            resetValue={0}
           />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.sourceAndDisplay.display.rotation" currentValue={`${Math.round(settings.rotation)}°`}>
@@ -3752,6 +3754,7 @@ export function CanvasEngineFxPanel() {
             max={180}
             step={1}
             color="#d8b95a"
+            resetValue={0}
           />
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.sourceAndDisplay.display.outputOpacity" currentValue={formatCanvasPercentage(settings.opacity)}>
@@ -3763,6 +3766,7 @@ export function CanvasEngineFxPanel() {
             max={1}
             step={0.01}
             color="#b84fc9"
+            resetValue={0.5}
           />
         </CanvasHelpControl>
       </Collapsible>

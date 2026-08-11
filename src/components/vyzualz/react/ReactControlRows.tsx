@@ -19,6 +19,8 @@ export interface SliderRowProps {
   id?: string
   disabled?: boolean
   description?: string
+  /** When set, double-clicking the slider resets its value to this amount. */
+  resetValue?: number
   onInteractionStart?: () => void
   onInteractionEnd?: () => void
 }
@@ -26,7 +28,7 @@ export interface SliderRowProps {
 export function SliderRow({
   label, labelAccessory, value, onChange,
   min = 0, max = 1, step = 0.01,
-  color = '#4ac7db', id, disabled = false, description, onInteractionStart, onInteractionEnd,
+  color = '#4ac7db', id, disabled = false, description, resetValue, onInteractionStart, onInteractionEnd,
 }: SliderRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
@@ -57,6 +59,7 @@ export function SliderRow({
         onKeyDown={event => { if (event.key.startsWith('Arrow') || event.key === 'Home' || event.key === 'End') onInteractionStart?.() }}
         onKeyUp={event => { if (event.key.startsWith('Arrow') || event.key === 'Home' || event.key === 'End') onInteractionEnd?.() }}
         onBlur={onInteractionEnd}
+        onDoubleClick={resetValue === undefined ? undefined : () => onChange(resetValue)}
         style={{ '--accent': color, '--pct': pct } as React.CSSProperties}
         disabled={disabled}
         aria-describedby={description ? `${inputId}-description` : undefined}
