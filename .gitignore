@@ -46,3 +46,8 @@ Thumbs.db
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Android TV receiver local/build output
+android-tv-receiver/.gradle/
+android-tv-receiver/local.properties
+android-tv-receiver/**/build/

@@ -1,0 +1,28 @@
+{
+  "protocol": { "name": "drmvyz-receiver", "version": 2, "minVersion": 2 },
+  "discovery": {
+    "magic": "DRMVYZ_CAST_RECEIVER",
+    "version": 1,
+    "legacyUdpPort": 53531,
+    "mdnsServiceType": "_drmvyz-cast._tcp."
+  },
+  "video": {
+    "transport": "webrtc",
+    "codecNegotiation": "webrtc-sdp",
+    "codecs": ["video/VP8"],
+    "maxLongEdge": 1920,
+    "maxShortEdge": 1080,
+    "maxFps": 60,
+    "maxVideoBitrateKbps": 12000,
+    "statsIntervalMs": 2000
+  },
+  "windowModes": ["windowed", "borderless", "fullscreen"],
+  "aspectRatios": ["16:9", "16:10", "4:3", "3:2", "1:1", "9:16"],
+  "routes": [
+    "GET /health",
+    "GET /api/v2/capabilities",
+    "POST /api/v2/pair",
+    "POST /api/v2/sessions",
+    "POST /api/v2/sessions/:castId/stop"
+  ]
+}
