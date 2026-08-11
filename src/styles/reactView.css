@@ -10180,20 +10180,23 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   box-shadow: none;
 }
 
-.rv-canvas-library-shell .vz-panel.vz-media-browser .vz-panel-header {
+/* Media Library is now a real Collapsible group — "Media Library" is the
+   header label and everything below (tabs, search, grid) is the body,
+   expanding/collapsing exactly like every other reusable group. Keep the
+   body flush (no side inset, no background tint) to match Sound Drawing's
+   Engine Mode and LaserDMX's Lighting Components. */
+.rv-canvas-library-shell .drc-body.vz-media-browser-collapsible-body {
   padding-left: 0;
   padding-right: 0;
-  border-bottom: 0;
+  background: transparent;
+  border-radius: 0;
 }
 
-/* Match Layout Lab / Template's Masonry Frame reference exactly: a bright
-   white title (not the muted default), a compact icon-only refresh button
-   instead of a labeled pill, a shorter fixed-height thumbnail instead of a
-   16:9 box, and the search field reading as one clean bordered pill (the
-   canonical DreamVizTextInput look) instead of a double-boxed wrapper. */
-.rv-canvas-library-shell .vz-panel.vz-media-browser .vz-panel-title {
-  color: rgba(232, 244, 248, 0.92);
-}
+/* Match Layout Lab / Template's Masonry Frame reference exactly: a compact
+   icon-only refresh button instead of a labeled pill, a shorter fixed-height
+   thumbnail instead of a 16:9 box, and the search field reading as one clean
+   bordered pill (the canonical DreamVizTextInput look) instead of a
+   double-boxed wrapper. */
 
 .rv-canvas-library-shell .vz-media-thumb {
   aspect-ratio: auto;

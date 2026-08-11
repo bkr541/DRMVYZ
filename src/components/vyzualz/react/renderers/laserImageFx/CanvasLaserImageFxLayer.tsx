@@ -62,11 +62,9 @@ export function CanvasLaserImageFxLayer({
   playbackRef.current = { isPlaying, isPaused }
 
   useEffect(() => {
-    if (!active || !activeItem) {
-      onCanvasReady?.(null)
-      onStatusChange?.(null)
-      return
-    }
+    // This layer is shared by CanvasEngineSurface, but Laser-specific lifecycle
+    // work must be completely inert while another renderer owns the surface.
+    if (!active || !activeItem) return
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -74,7 +72,10 @@ export function CanvasLaserImageFxLayer({
     if (!createResult.renderer) {
       onCanvasReady?.(null)
       onStatusChange?.(`${createResult.error ?? 'Laser Image FX could not initialize'}. The dry source remains available.`)
-      return
+      return () => {
+        onCanvasReady?.(null)
+        onStatusChange?.(null)
+      }
     }
 
     const renderer = createResult.renderer

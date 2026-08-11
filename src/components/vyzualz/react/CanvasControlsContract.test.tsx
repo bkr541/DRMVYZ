@@ -10,6 +10,7 @@ import { useBrandKitStore } from '../../../features/personalization/brandKitStor
 import type { BrandKit } from '../../../features/personalization/BrandKitTypes'
 import { CANVAS_REACT_CONTROL_GROUPS, CanvasEngineFxPanel, CanvasEngineSurface } from './ReactCanvasEngineShell'
 import { CanvasFracturesRenderer } from './renderers/fractures/CanvasFracturesRenderer'
+import { LaserImageFxRenderer } from './renderers/laserImageFx/LaserImageFxRenderer'
 
 vi.mock('../../../context/AudioEngineContext', () => ({
   useSharedAudio: () => ({
@@ -96,6 +97,85 @@ describe('CANVAS right-panel control contract', () => {
       window.requestAnimationFrame = originalRequestAnimationFrame
       window.cancelAnimationFrame = originalCancelAnimationFrame
     }
+  })
+
+  it('survives repeated renderer transitions and keeps inactive Laser Image FX inert', () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext
+    const originalRequestAnimationFrame = window.requestAnimationFrame
+    const originalCancelAnimationFrame = window.cancelAnimationFrame
+    const fracturesContext = {
+      imageSmoothingEnabled: false,
+      imageSmoothingQuality: 'low',
+      setTransform: vi.fn(),
+      clearRect: vi.fn(),
+    } as unknown as CanvasRenderingContext2D
+    HTMLCanvasElement.prototype.getContext = vi.fn(function getContext(this: HTMLCanvasElement, contextId: string) {
+      return contextId === '2d' && this.classList.contains('rv-canvas-fractures-renderer-layer')
+        ? fracturesContext
+        : null
+    }) as typeof HTMLCanvasElement.prototype.getContext
+    window.requestAnimationFrame = vi.fn(() => 1)
+    window.cancelAnimationFrame = vi.fn()
+    const laserCreate = vi.spyOn(LaserImageFxRenderer, 'create')
+
+    try {
+      useReactStore.setState({
+        canvasMediaItems: [{
+          id: 'renderer-transition-image',
+          name: 'Renderer Transition Image',
+          type: 'image',
+          objectUrl: 'data:image/png;base64,AA==',
+          createdAt: '2026-08-10T00:00:00.000Z',
+          mediaRevision: 1,
+        }],
+        activeCanvasMediaId: 'renderer-transition-image',
+      })
+
+      act(() => root.render(<CanvasEngineSurface isPlaying={false} isPaused />))
+      expect(host.querySelector('[data-renderer-kind="standard"]')).not.toBeNull()
+      expect(laserCreate).not.toHaveBeenCalled()
+
+      const transitions = [
+        ['canvas-fractures', 'fragmentCollage', 0],
+        ['canvas-particle-aura', 'particleAura', 0],
+        ['canvas-laser-image-fx', 'laserImageFx', 1],
+        ['canvas-clean-playback', 'standard', 1],
+        ['canvas-laser-image-fx', 'laserImageFx', 2],
+        ['canvas-fractures', 'fragmentCollage', 2],
+      ] as const
+
+      for (const [presetId, rendererKind, laserCreateCount] of transitions) {
+        act(() => useReactStore.getState().selectCanvasPreset(presetId))
+        expect(host.querySelector(`[data-renderer-kind="${rendererKind}"]`)).not.toBeNull()
+        expect(laserCreate).toHaveBeenCalledTimes(laserCreateCount)
+      }
+    } finally {
+      laserCreate.mockRestore()
+      HTMLCanvasElement.prototype.getContext = originalGetContext
+      window.requestAnimationFrame = originalRequestAnimationFrame
+      window.cancelAnimationFrame = originalCancelAnimationFrame
+    }
+  })
+
+  it('keeps the production controls committed across renderer-kind changes', () => {
+    act(() => root.render(<CanvasEngineFxPanel />))
+
+    const labels = () => [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
+      .map(button => button.textContent?.trim())
+
+    expect(labels()).toContain('CANVAS React Controls')
+
+    act(() => useReactStore.getState().selectCanvasPreset('canvas-fractures'))
+    expect(labels()).toEqual(expect.arrayContaining(['Fractures Controls', 'Structure', 'Motion', 'Effects', 'Audio']))
+
+    act(() => useReactStore.getState().selectCanvasPreset('canvas-particle-aura'))
+    expect(labels()).toContain('CANVAS React Controls')
+
+    act(() => useReactStore.getState().selectCanvasPreset('canvas-laser-image-fx'))
+    expect(labels()).toContain('Laser Image FX Controls')
+
+    act(() => useReactStore.getState().selectCanvasPreset('canvas-clean-playback'))
+    expect(labels()).toContain('CANVAS React Controls')
   })
 
   it('exposes the production Laser Image FX control contract when selected', () => {

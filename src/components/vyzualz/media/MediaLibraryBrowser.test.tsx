@@ -276,9 +276,8 @@ describe('MediaLibraryBrowser capability boundaries', () => {
 
     expect(findButton('Add media to library')).toBeNull()
     expect(findButton('Import')).toBeNull()
-    const title = container?.querySelector('.vz-panel-title')
-    expect(title?.textContent).toBe('Media Library')
-    expect(title?.classList.contains('vz-panel-title--nowrap')).toBe(true)
+    const header = container?.querySelector('.drc-header')
+    expect(header?.textContent).toContain('Media Library')
 
     const dropEvent = new Event('drop', { bubbles: true, cancelable: true })
     Object.defineProperty(dropEvent, 'dataTransfer', {

@@ -331,9 +331,6 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
   const toggleCanvasMediaPoolItem = useReactStore(s => s.toggleCanvasMediaPoolItem)
   const setCanvasMediaRoles = useReactStore(s => s.setCanvasMediaRoles)
   const mediaItems = useCanvasRuntimeMediaItems()
-  const manualMediaOverrideId = useReactStore(s => s.canvasEngineSettings.manualMediaOverrideId)
-  const clearCanvasMediaOverride = useReactStore(s => s.clearCanvasMediaOverride)
-  const manualMediaOverrideActive = Boolean(manualMediaOverrideId && mediaItems.some(item => item.id === manualMediaOverrideId))
   const activeItem = mediaItems.find(item => item.id === activeCanvasMediaId) ?? null
   const poolItems = orchestration.mediaPoolIds
     .map(id => mediaItems.find(item => item.id === id) ?? null)
@@ -351,14 +348,6 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className={`rv-canvas-library-shell${compact ? ' rv-canvas-library-shell--compact' : ''}`}>
-      {manualMediaOverrideActive && (
-        <CanvasOverrideStatus
-          message="Media lock: This CANVAS source stays selected."
-          clearLabel="Clear"
-          clearAriaLabel="Clear CANVAS media lock"
-          onClear={clearCanvasMediaOverride}
-        />
-      )}
       <MediaLibraryBrowser
         activeMediaId={activeCanvasMediaId}
         onSelect={id => selectCanvasMediaItem(id)}
@@ -2302,26 +2291,28 @@ export function CanvasEngineSurface({
           onStatusChange={setParticleRendererNotice}
           outputAlpha={outputContract.sourceMixMode === 'legacyComposite' ? outputContract.drySourceMix : 1}
         />
-        <CanvasLaserImageFxLayer
-          active={laserImageFxActive}
-          activeItem={activeItem}
-          sourceRef={particleSourceRef}
-          settings={canvasPresetSettings}
-          fitMode={settings.fitMode}
-          sourceTransform={{
-            scale: settings.scale,
-            positionX: settings.positionX,
-            positionY: settings.positionY,
-            rotation: settings.rotation,
-          }}
-          analyser={analyser}
-          performanceContextRef={particlePerformanceContextRef}
-          isPlaying={isPlaying}
-          isPaused={isPaused}
-          onCanvasReady={handleLaserImageFxCanvasReady}
-          onStatusChange={setLaserImageFxRendererNotice}
-          outputAlpha={outputContract.sourceMixMode === 'legacyComposite' ? outputContract.drySourceMix : 1}
-        />
+        {laserImageFxActive && (
+          <CanvasLaserImageFxLayer
+            active
+            activeItem={activeItem}
+            sourceRef={particleSourceRef}
+            settings={canvasPresetSettings}
+            fitMode={settings.fitMode}
+            sourceTransform={{
+              scale: settings.scale,
+              positionX: settings.positionX,
+              positionY: settings.positionY,
+              rotation: settings.rotation,
+            }}
+            analyser={analyser}
+            performanceContextRef={particlePerformanceContextRef}
+            isPlaying={isPlaying}
+            isPaused={isPaused}
+            onCanvasReady={handleLaserImageFxCanvasReady}
+            onStatusChange={setLaserImageFxRendererNotice}
+            outputAlpha={outputContract.sourceMixMode === 'legacyComposite' ? outputContract.drySourceMix : 1}
+          />
+        )}
         {fragmentCollageActive && (
           <CanvasFracturesRendererLayer
             key={fracturesSourceKey ?? activeItem.id}

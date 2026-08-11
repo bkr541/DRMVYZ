@@ -2,6 +2,7 @@ import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { UnderlineTabs } from '../react/controls/UnderlineTabs'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import { IconChipButton } from '../react/controls/IconChipButton'
+import { Collapsible } from '../react/ReactControlRows'
 import { memo, useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -1174,6 +1175,121 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     )
   }
 
+  const libraryBody = (
+    <>
+      <UnderlineTabs
+        tabs={availableFilters.map(({ key, label }) => ({ id: key, label }))}
+        activeTab={libraryFilter}
+        onChange={handleSetFilter}
+        ariaLabel="Media library filter"
+        className="vz-filter-tabs dv-underline-tabs--scroll"
+      />
+
+      <div className="vz-md-search-row">
+        <div className="vz-md-search-wrap">
+          <svg className="vz-md-search-icon" viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+            <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+          </svg>
+          <DreamVizTextInput
+            className="vz-md-search-input"
+            type="text"
+            placeholder={libraryFilter === 'tracks' ? 'Search tracks…' : 'Search media…'}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+          {searchQuery.length > 0 && (
+            <button className="vz-md-search-clear" onClick={() => setSearchQuery('')} title="Clear search">✕</button>
+          )}
+        </div>
+        {libraryFilter !== 'tracks' && (
+          <div className="vz-md-view-toggles">
+            <button
+              className={`vz-md-view-btn${viewMode === 'grid' ? ' vz-md-view-btn--active' : ''}`}
+              onClick={() => setViewMode('grid')}
+              title="Grid view"
+            >
+              <GridViewIcon size={13} color="currentColor" />
+            </button>
+            <button
+              className={`vz-md-view-btn${viewMode === 'list' ? ' vz-md-view-btn--active' : ''}`}
+              onClick={() => setViewMode('list')}
+              title="List view"
+            >
+              <ListViewIcon size={13} color="currentColor" />
+            </button>
+            {isCanvasMode && (
+              <button
+                type="button"
+                className="vz-md-refresh-icon-btn"
+                onClick={() => { void refreshLibrary?.() }}
+                disabled={refreshing}
+                title="Refresh media library"
+                aria-label="Refresh media library"
+              >
+                <Refresh01Icon size={11} color="currentColor" />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <MediaStatusBar includeAudio={isManager} />
+
+      <div className="vz-media-scroll" ref={scrollRef}>
+        {libraryFilter === 'tracks' ? (
+          renderTracksView()
+        ) : libraryFilter === 'collections' ? (
+          renderCollectionsView()
+        ) : queryError && filtered.length === 0 ? (
+          <div className="vz-media-page-error">
+            <NoticeCard tone="error" role="alert">
+              {queryError}{' '}
+              <IconChipButton onClick={() => { void refreshLibrary?.() }}>Retry</IconChipButton>
+            </NoticeCard>
+          </div>
+        ) : loading && filtered.length === 0 ? (
+          <div className="vz-media-grid" style={{ padding: '8px 4px' }}>
+            {[0, 1, 2].map(i => (
+              <div key={i} className="vz-media-card" style={{ opacity: 0.4, pointerEvents: 'none' }}>
+                <div className="vz-media-thumb" style={{ background: 'linear-gradient(90deg,#0a1420 25%,#0f1f30 50%,#0a1420 75%)', backgroundSize: '200% 100%', animation: 'vz-skeleton-shimmer 1.4s infinite' }}/>
+                <div className="vz-media-info"><div className="vz-media-name" style={{ background: '#0a1420', borderRadius: 2, height: 8, width: '70%' }}/></div>
+              </div>
+            ))}
+          </div>
+        ) : filtered.length === 0 && !searchActive && canUpload ? (
+          <div
+            className="ref-empty-slot"
+            style={{ cursor: 'pointer', margin: 12, height: 120, display: 'flex' }}
+            onClick={() => { setPreserveQueuedFiles(false); openImportMediaModal() }}
+          >
+            <div className="ref-empty-icon">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+              </svg>
+            </div>
+            <div className="ref-empty-title">{isCanvasMode ? 'Add media to library' : 'Import Media'}</div>
+            <div className="ref-empty-sub" style={{ fontSize: 9 }}>{dragOver ? 'Drop here!' : isCanvasMode ? 'Saved visual media' : isReactMode ? 'SVGs, Logos & Overlays' : 'Images & Video'}</div>
+          </div>
+        ) : filtered.length === 0 ? (
+          isManager ? (
+            <div className="vz-media-grid">
+              <div className="vz-coll-folder-empty">
+                {searchActive ? `No media matches "${searchQuery}"` : 'No media matches this filter.'}
+              </div>
+            </div>
+          ) : (
+            <PerformanceDeckEmptyState
+              message={searchActive ? `No media matches "${searchQuery}"` : isCanvasMode ? 'No saved media available. Add files from Media Manager.' : 'No media available. Add files from Media Manager.'}
+              onOpenMediaManager={searchActive || isCanvasMode ? undefined : onOpenMediaManager}
+            />
+          )
+        ) : (
+          renderGrid(filtered)
+        )}
+      </div>
+    </>
+  )
+
   return (
     <>
       {canUpload && importModalOpen && <MediaUploadModal preserveQueuedFiles={preserveQueuedFiles} onClose={() => { setPreserveQueuedFiles(false); closeImportMediaModal() }} />}
@@ -1189,145 +1305,42 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         onDragLeave={canUpload ? () => setDragOver(false) : undefined}
         onDrop={canUpload ? e => { e.preventDefault(); setDragOver(false); handleQuickDrop(Array.from(e.dataTransfer.files)) } : undefined}
       >
-        <div className="vz-panel-header">
-          <Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
-          <span className={`vz-panel-title${isCanvasMode ? ' vz-panel-title--nowrap' : ''}`} title={title}>{title}</span>
-          {isManager && canBrowseCollections && (
-            <IconChipButton onClick={() => { setEditCollection(undefined); setCollectionEditorOpen(true) }}>New Collection</IconChipButton>
-          )}
-          {isCanvasMode ? (
-            <button
-              type="button"
-              className="vz-md-refresh-icon-btn"
-              onClick={() => { void refreshLibrary?.() }}
-              disabled={refreshing}
-              title="Refresh media library"
-              aria-label="Refresh media library"
-            >
-              <Refresh01Icon size={11} color="currentColor" />
-            </button>
-          ) : (
-            <IconChipButton
-              onClick={() => { void refreshLibrary?.() }}
-              disabled={refreshing}
-              title="Refresh media library"
-            >
-              {refreshing ? 'Refreshing…' : 'Refresh'}
-            </IconChipButton>
-          )}
-          {canUpload && (
-            <IconChipButton
-              tone="primary"
-              onClick={() => { setPreserveQueuedFiles(false); openImportMediaModal() }}
-              icon={
-                <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
-                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                </svg>
-              }
-            >
-              {isCanvasMode ? 'Add media to library' : 'Import'}
-            </IconChipButton>
-          )}
-        </div>
-
-        <UnderlineTabs
-          tabs={availableFilters.map(({ key, label }) => ({ id: key, label }))}
-          activeTab={libraryFilter}
-          onChange={handleSetFilter}
-          ariaLabel="Media library filter"
-          className="vz-filter-tabs dv-underline-tabs--scroll"
-        />
-
-        <div className="vz-md-search-row">
-          <div className="vz-md-search-wrap">
-            <svg className="vz-md-search-icon" viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-              <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-            </svg>
-            <DreamVizTextInput
-              className="vz-md-search-input"
-              type="text"
-              placeholder={libraryFilter === 'tracks' ? 'Search tracks…' : 'Search media…'}
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-            />
-            {searchQuery.length > 0 && (
-              <button className="vz-md-search-clear" onClick={() => setSearchQuery('')} title="Clear search">✕</button>
-            )}
-          </div>
-          {libraryFilter !== 'tracks' && (
-            <div className="vz-md-view-toggles">
-              <button
-                className={`vz-md-view-btn${viewMode === 'grid' ? ' vz-md-view-btn--active' : ''}`}
-                onClick={() => setViewMode('grid')}
-                title="Grid view"
+        {isCanvasMode ? (
+          <Collapsible label={title} defaultOpen bodyClassName="vz-media-browser-collapsible-body">
+            {libraryBody}
+          </Collapsible>
+        ) : (
+          <>
+            <div className="vz-panel-header">
+              <Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
+              <span className="vz-panel-title" title={title}>{title}</span>
+              {isManager && canBrowseCollections && (
+                <IconChipButton onClick={() => { setEditCollection(undefined); setCollectionEditorOpen(true) }}>New Collection</IconChipButton>
+              )}
+              <IconChipButton
+                onClick={() => { void refreshLibrary?.() }}
+                disabled={refreshing}
+                title="Refresh media library"
               >
-                <GridViewIcon size={13} color="currentColor" />
-              </button>
-              <button
-                className={`vz-md-view-btn${viewMode === 'list' ? ' vz-md-view-btn--active' : ''}`}
-                onClick={() => setViewMode('list')}
-                title="List view"
-              >
-                <ListViewIcon size={13} color="currentColor" />
-              </button>
+                {refreshing ? 'Refreshing…' : 'Refresh'}
+              </IconChipButton>
+              {canUpload && (
+                <IconChipButton
+                  tone="primary"
+                  onClick={() => { setPreserveQueuedFiles(false); openImportMediaModal() }}
+                  icon={
+                    <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
+                      <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                    </svg>
+                  }
+                >
+                  Import
+                </IconChipButton>
+              )}
             </div>
-          )}
-        </div>
-
-        <MediaStatusBar includeAudio={isManager} />
-
-        <div className="vz-media-scroll" ref={scrollRef}>
-          {libraryFilter === 'tracks' ? (
-            renderTracksView()
-          ) : libraryFilter === 'collections' ? (
-            renderCollectionsView()
-          ) : queryError && filtered.length === 0 ? (
-            <div className="vz-media-page-error">
-              <NoticeCard tone="error" role="alert">
-                {queryError}{' '}
-                <IconChipButton onClick={() => { void refreshLibrary?.() }}>Retry</IconChipButton>
-              </NoticeCard>
-            </div>
-          ) : loading && filtered.length === 0 ? (
-            <div className="vz-media-grid" style={{ padding: '8px 4px' }}>
-              {[0, 1, 2].map(i => (
-                <div key={i} className="vz-media-card" style={{ opacity: 0.4, pointerEvents: 'none' }}>
-                  <div className="vz-media-thumb" style={{ background: 'linear-gradient(90deg,#0a1420 25%,#0f1f30 50%,#0a1420 75%)', backgroundSize: '200% 100%', animation: 'vz-skeleton-shimmer 1.4s infinite' }}/>
-                  <div className="vz-media-info"><div className="vz-media-name" style={{ background: '#0a1420', borderRadius: 2, height: 8, width: '70%' }}/></div>
-                </div>
-              ))}
-            </div>
-          ) : filtered.length === 0 && !searchActive && canUpload ? (
-            <div
-              className="ref-empty-slot"
-              style={{ cursor: 'pointer', margin: 12, height: 120, display: 'flex' }}
-              onClick={() => { setPreserveQueuedFiles(false); openImportMediaModal() }}
-            >
-              <div className="ref-empty-icon">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                </svg>
-              </div>
-              <div className="ref-empty-title">{isCanvasMode ? 'Add media to library' : 'Import Media'}</div>
-              <div className="ref-empty-sub" style={{ fontSize: 9 }}>{dragOver ? 'Drop here!' : isCanvasMode ? 'Saved visual media' : isReactMode ? 'SVGs, Logos & Overlays' : 'Images & Video'}</div>
-            </div>
-          ) : filtered.length === 0 ? (
-            isManager ? (
-              <div className="vz-media-grid">
-                <div className="vz-coll-folder-empty">
-                  {searchActive ? `No media matches "${searchQuery}"` : 'No media matches this filter.'}
-                </div>
-              </div>
-            ) : (
-              <PerformanceDeckEmptyState
-                message={searchActive ? `No media matches "${searchQuery}"` : isCanvasMode ? 'No saved media available. Add files from Media Manager.' : 'No media available. Add files from Media Manager.'}
-                onOpenMediaManager={searchActive || isCanvasMode ? undefined : onOpenMediaManager}
-              />
-            )
-          ) : (
-            renderGrid(filtered)
-          )}
-        </div>
+            {libraryBody}
+          </>
+        )}
       </div>
     </>
   )

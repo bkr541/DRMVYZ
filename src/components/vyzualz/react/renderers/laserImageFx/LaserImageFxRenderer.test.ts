@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  LaserImageFxRenderer,
   laserColorEffectToUniform,
   laserImageEffectToUniform,
   resolveLaserImageFxFitScale,
@@ -7,6 +8,14 @@ import {
 } from './LaserImageFxRenderer'
 
 describe('Laser Image FX deterministic render plan', () => {
+  it('fails locally without WebGL2 instead of throwing through the Canvas tree', () => {
+    const canvas = { getContext: () => null } as unknown as HTMLCanvasElement
+    const result = LaserImageFxRenderer.create(canvas)
+
+    expect(result.renderer).toBeNull()
+    expect(result.error).toContain('WebGL2 unavailable')
+  })
+
   it('maps every required image effect to a stable, distinct shader branch', () => {
     const effects = ['none', 'cubeA', 'flipB', 'spin3d', 'twistB', 'rubber', 'stripe', 'vignette', 'warpDiamond', 'warpSquare'] as const
     const branches = effects.map(laserImageEffectToUniform)
