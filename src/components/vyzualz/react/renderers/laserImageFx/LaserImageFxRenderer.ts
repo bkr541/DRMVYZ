@@ -51,6 +51,7 @@ const GRID_ROWS = 24
 
 const GEOMETRY_VERTEX_SRC = `#version 300 es
 precision highp float;
+precision highp int;
 layout(location = 0) in vec2 aPosition;
 layout(location = 1) in vec2 aUv;
 out vec2 vUv;
@@ -133,6 +134,7 @@ void main() {
 
 const GEOMETRY_FRAGMENT_SRC = `#version 300 es
 precision highp float;
+precision highp int;
 in vec2 vUv;
 out vec4 outColor;
 uniform sampler2D uSource;
@@ -266,6 +268,7 @@ void main() {
 
 const FULLSCREEN_VERTEX_SRC = `#version 300 es
 precision highp float;
+precision highp int;
 layout(location = 0) in vec2 aPosition;
 layout(location = 1) in vec2 aUv;
 out vec2 vUv;
@@ -277,6 +280,7 @@ void main() {
 
 const BLUR_FRAGMENT_SRC = `#version 300 es
 precision highp float;
+precision highp int;
 in vec2 vUv;
 out vec4 outColor;
 uniform sampler2D uSource;
@@ -300,6 +304,7 @@ void main() {
 
 const COMPOSITE_FRAGMENT_SRC = `#version 300 es
 precision highp float;
+precision highp int;
 in vec2 vUv;
 out vec4 outColor;
 uniform sampler2D uCore;

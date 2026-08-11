@@ -520,7 +520,7 @@ function MediaCard({
   ) : m.derivativeWarning ? (
     <span className="vz-media-type-badge" style={{ background: 'rgba(251,191,36,0.22)', color: '#fbbf24' }} title={m.derivativeWarning}>⚠ DERIVATIVE</span>
   ) : m.mediaRole && m.mediaRole !== 'other' ? (
-    <span className="vz-media-type-badge" style={{ background: 'rgba(10,20,32,0.75)' }} title={`Role: ${MEDIA_ROLE_LABELS[m.mediaRole]}`}>
+    <span className="vz-media-type-badge" title={`Role: ${MEDIA_ROLE_LABELS[m.mediaRole]}`}>
       {MEDIA_ROLE_BADGE_LABELS[m.mediaRole]}
     </span>
   ) : (
