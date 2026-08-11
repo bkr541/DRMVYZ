@@ -6,12 +6,27 @@ export type OutputCastState = 'connecting' | 'connected' | 'disconnecting' | 'di
 
 export type OutputProviderState = 'available' | 'unavailable' | 'unsupported' | 'permission-required' | 'initialization-failed'
 
+export interface OutputProviderCapabilities {
+  targetEnumeration: boolean
+  sessions: boolean
+  picker: boolean
+  actions: string[]
+}
+
 export interface OutputProviderStatus {
   providerId: OutputProviderId
   label: string
   state: OutputProviderState
   targetCount: number
   message: string | null
+  capabilities?: OutputProviderCapabilities
+}
+
+export interface OutputProviderActionResult {
+  providerId: OutputProviderId
+  actionId: string
+  state: string
+  message?: string | null
 }
 
 export interface OutputTarget {
@@ -55,6 +70,7 @@ export interface NativeOutputBridge {
   listTargets: () => Promise<OutputTarget[]>
   getTargetSnapshot?: () => Promise<OutputTargetSnapshot>
   getSession: () => Promise<OutputCastSession | null>
+  performProviderAction?: (providerId: OutputProviderId, actionId: string, payload?: unknown) => Promise<OutputProviderActionResult>
   startCast: (request: OutputCastRequest) => Promise<OutputCastSession | null>
   stopCast: () => Promise<null>
   publishOffer: (sessionId: string, offer: RTCSessionDescriptionInit) => Promise<boolean>

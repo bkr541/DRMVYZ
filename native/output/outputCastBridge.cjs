@@ -17,6 +17,9 @@ const {
   DISCOVERY_VERSION,
   DrmvyzReceiverProvider,
 } = require('./providers/drmvyzReceiverProvider.cjs')
+const {
+  MacOsAirPlayProvider,
+} = require('./providers/macosAirPlayProvider.cjs')
 
 const SESSION_TTL_MS = 10 * 60 * 1_000
 const MAX_JSON_BODY_BYTES = 64 * 1_024
@@ -274,7 +277,46 @@ function resolveReachableLocalAddress(remoteHost) {
 }
 
 
-function installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTrustedAppUrl }) {
+async function openMacOsDisplaySettings({ shell, fsImpl = fs } = {}) {
+  if (!shell || typeof shell.openPath !== 'function') {
+    throw new Error('Electron shell.openPath is unavailable for macOS display selection')
+  }
+
+  const candidates = [
+    { path: '/System/Library/PreferencePanes/Displays.prefPane', label: 'Displays settings' },
+    { path: '/System/Applications/System Settings.app', label: 'System Settings' },
+    { path: '/Applications/System Settings.app', label: 'System Settings' },
+    { path: '/System/Applications/System Preferences.app', label: 'System Preferences' },
+  ]
+  let attempted = false
+  let lastError = ''
+  for (const candidate of candidates) {
+    if (typeof fsImpl.existsSync === 'function' && !fsImpl.existsSync(candidate.path)) continue
+    attempted = true
+    const errorMessage = await shell.openPath(candidate.path)
+    if (!errorMessage) {
+      return {
+        opened: candidate.path,
+        message: `${candidate.label} opened. Use Screen Mirroring or display extension there; DRMVYZ will detect any display macOS connects.`,
+      }
+    }
+    lastError = errorMessage
+  }
+
+  if (!attempted) throw new Error('macOS display settings could not be located')
+  throw new Error(lastError || 'macOS display settings could not be opened')
+}
+
+function installOutputCastBridge({
+  app,
+  BrowserWindow,
+  ipcMain,
+  screen,
+  shell = null,
+  platform = process.platform,
+  openSystemDisplays = null,
+  isTrustedAppUrl,
+}) {
   const receiverToken = crypto.randomBytes(24).toString('base64url')
   const signalSessions = new Map()
   const receiverWindows = new Map()
@@ -332,6 +374,10 @@ function installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTruste
   }
 
   const localDisplayProvider = new LocalDisplayProvider({ screen, createOutputWindow })
+  const macOsAirPlayProvider = new MacOsAirPlayProvider({
+    platform,
+    openSystemDisplays: openSystemDisplays ?? (platform === 'darwin' ? () => openMacOsDisplaySettings({ shell }) : null),
+  })
   const receiverProvider = new DrmvyzReceiverProvider({
     isPrivateNetworkAddress,
     resolveReachableLocalAddress,
@@ -348,7 +394,7 @@ function installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTruste
   }
 
   targetManager = new OutputTargetManager({
-    providers: [localDisplayProvider, receiverProvider],
+    providers: [localDisplayProvider, macOsAirPlayProvider, receiverProvider],
     onTargetsChanged: () => void broadcastTargets(),
     onSessionChanged: session => sendToTrustedRenderers('drmvyz:output:session-changed', session),
   })
@@ -529,6 +575,16 @@ function installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTruste
     return currentSession()
   })
 
+  ipcMain.handle('drmvyz:output:perform-provider-action', async (event, providerId, actionId, payload) => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted output provider action')
+    if (typeof providerId !== 'string' || !providerId.trim() || typeof actionId !== 'string' || !actionId.trim()) {
+      throw new Error('A valid output provider action is required')
+    }
+    return targetManager.performProviderAction(providerId.trim(), actionId.trim(), payload, {
+      senderWebContentsId: event.sender.id,
+    })
+  })
+
   ipcMain.handle('drmvyz:output:start-cast', async (event, value) => {
     if (!isTrustedSender(event)) throw new Error('Untrusted output cast request')
     const request = normalizeCastRequest(value)
@@ -673,6 +729,7 @@ module.exports = {
   createReceiverHtml,
   installOutputCastBridge,
   isAllowedReceiverSource,
+  openMacOsDisplaySettings,
   isPrivateNetworkAddress,
   normalizeCastRequest,
   loadOrCreateReceiverDeviceId,

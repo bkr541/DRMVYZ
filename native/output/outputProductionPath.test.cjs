@@ -24,11 +24,17 @@ test('production preload invoke reaches IPC target manager and LocalDisplayProvi
   const app = new EventEmitter()
   const screen = new FakeScreen()
   const BrowserWindow = { getAllWindows: () => [] }
+  let macDisplayOpens = 0
   const installed = installOutputCastBridge({
     app,
     BrowserWindow,
     ipcMain,
     screen,
+    platform: 'darwin',
+    openSystemDisplays: async () => {
+      macDisplayOpens += 1
+      return { message: 'macOS display controls opened.' }
+    },
     isTrustedAppUrl: url => url === 'drmvyz-app://app/index.html',
   })
 
@@ -70,6 +76,15 @@ test('production preload invoke reaches IPC target manager and LocalDisplayProvi
     const snapshot = await exposed.drmvyzNative.output.getTargetSnapshot()
     assert.equal(snapshot.targets[0].id, 'display:7')
     assert.equal(snapshot.providers.find(provider => provider.providerId === 'local-display').state, 'available')
+    const airplay = snapshot.providers.find(provider => provider.providerId === 'airplay')
+    assert.equal(airplay.state, 'available')
+    assert.deepEqual(airplay.capabilities.actions, ['open-system-picker'])
+
+    const action = await exposed.drmvyzNative.output.performProviderAction('airplay', 'open-system-picker')
+    assert.equal(action.state, 'opened')
+    assert.equal(macDisplayOpens, 1)
+    assert.equal(await exposed.drmvyzNative.output.getSession(), null)
+    assert.deepEqual((await exposed.drmvyzNative.output.listTargets()).map(target => target.id), ['display:7'])
 
     const untrusted = { sender, senderFrame: { url: 'https://example.invalid/' } }
     await assert.rejects(

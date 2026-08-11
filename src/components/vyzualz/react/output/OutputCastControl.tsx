@@ -21,6 +21,7 @@ import {
   type NativeOutputBridge,
   type OutputAspectRatio,
   type OutputCastSession,
+  type OutputProviderId,
   type OutputProviderStatus,
   type OutputTarget,
   type OutputWindowMode,
@@ -277,6 +278,7 @@ interface OutputCastPopoverProps {
   providerStatuses: OutputProviderStatus[]
   onClose: () => void
   onRefresh: () => void
+  onProviderAction: (providerId: OutputProviderId, actionId: string) => Promise<void>
   onCast: (target: OutputTarget, windowMode: OutputWindowMode, aspectRatio: OutputAspectRatio) => void
   onStop: () => void
 }
@@ -292,17 +294,25 @@ function OutputCastPopover({
   providerStatuses,
   onClose,
   onRefresh,
+  onProviderAction,
   onCast,
   onStop,
 }: OutputCastPopoverProps) {
   const [windowMode, setWindowMode] = useState<OutputWindowMode | null>(null)
   const [aspectRatio, setAspectRatio] = useState<OutputAspectRatio | null>(null)
   const [pendingTargetId, setPendingTargetId] = useState<string | null>(null)
+  const [pendingProviderAction, setPendingProviderAction] = useState<string | null>(null)
   const [position, setPosition] = useState<CastPopoverPosition | null>(null)
   const popoverRef = useRef<HTMLElement | null>(null)
   const titleId = 'rv-output-cast-title'
   const groups = useMemo(() => groupTargets(targets), [targets])
-  const providerIssues = useMemo(() => providerStatuses.filter(status => status.state !== 'available' || Boolean(status.message)), [providerStatuses])
+  const airplayProvider = useMemo(() => providerStatuses.find(status => status.providerId === 'airplay') ?? null, [providerStatuses])
+  const providerIssues = useMemo(() => providerStatuses.filter(status => {
+    if (status.providerId === 'airplay' && status.state === 'unsupported') return false
+    return status.state !== 'available' || Boolean(status.message)
+  }), [providerStatuses])
+  const airplayAction = airplayProvider?.capabilities?.actions.includes('open-system-picker') ? 'open-system-picker' : null
+  const airplayActionAvailable = airplayProvider?.state === 'available' || airplayProvider?.state === 'initialization-failed'
   const readyToCast = Boolean(windowMode && aspectRatio && canvasReady && bridge)
 
   useEffect(() => {
@@ -369,6 +379,17 @@ function OutputCastPopover({
     if (!windowMode || !aspectRatio || !readyToCast) return
     setPendingTargetId(target.id)
     onCast(target, windowMode, aspectRatio)
+  }
+
+  const performProviderAction = async (providerId: OutputProviderId, actionId: string) => {
+    const key = `${providerId}:${actionId}`
+    if (pendingProviderAction) return
+    setPendingProviderAction(key)
+    try {
+      await onProviderAction(providerId, actionId)
+    } finally {
+      setPendingProviderAction(null)
+    }
   }
 
   const renderTargets = (items: OutputTarget[], emptyCopy: string) => {
@@ -503,6 +524,28 @@ function OutputCastPopover({
               </NoticeCard>
             ))}
 
+            {airplayProvider && airplayProvider.state !== 'unsupported' && (
+              <section className="rv-cast-device-group" aria-label="AirPlay and wireless displays">
+                <h3>AirPlay / Wireless Displays</h3>
+                <button
+                  type="button"
+                  className="rv-cast-provider-action"
+                  disabled={!bridge?.performProviderAction || !airplayAction || !airplayActionAvailable || Boolean(pendingProviderAction)}
+                  onClick={() => airplayAction && void performProviderAction('airplay', airplayAction)}
+                >
+                  <span className="rv-cast-device-icon"><DisplayIcon network /></span>
+                  <span className="rv-cast-device-copy">
+                    <strong>Open macOS Displays</strong>
+                    <span>Choose Screen Mirroring or extend the display in macOS.</span>
+                  </span>
+                  <span className="rv-cast-device-state">
+                    {pendingProviderAction === 'airplay:open-system-picker' ? 'Opening…' : 'Open'}
+                  </span>
+                </button>
+                <p>macOS owns AirPlay screen-mirroring selection. Once macOS connects a wireless display, DRMVYZ lists it once under Displays so the normal window, aspect-ratio, and fullscreen controls can target it.</p>
+              </section>
+            )}
+
             <section className="rv-cast-device-group" aria-label="Connected displays">
               <h3>Displays</h3>
               {renderTargets(groups.displays, 'No displays are currently available.')}
@@ -603,6 +646,19 @@ export function OutputCastControl({
     if (open && outputAvailable) void refresh()
   }, [open, outputAvailable, refresh])
 
+  const performProviderAction = useCallback(async (providerId: OutputProviderId, actionId: string) => {
+    if (!bridge?.performProviderAction || !outputAvailable) return
+    setError(null)
+    try {
+      await bridge.performProviderAction(providerId, actionId)
+      await refresh()
+    } catch (value) {
+      if (outputAvailableRef.current) {
+        setError(value instanceof Error ? value.message : 'Could not open the output provider action')
+      }
+    }
+  }, [bridge, outputAvailable, refresh])
+
   const startCast = useCallback(async (
     target: OutputTarget,
     windowMode: OutputWindowMode,
@@ -679,6 +735,7 @@ export function OutputCastControl({
           providerStatuses={providerStatuses}
           onClose={() => setOpen(false)}
           onRefresh={() => void refresh()}
+          onProviderAction={performProviderAction}
           onCast={(target, windowMode, aspectRatio) => void startCast(target, windowMode, aspectRatio)}
           onStop={() => void stopCast()}
         />

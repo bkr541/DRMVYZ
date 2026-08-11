@@ -13,6 +13,7 @@ const {
   isPrivateNetworkAddress,
   loadOrCreateReceiverDeviceId,
   normalizeCastRequest,
+  openMacOsDisplaySettings,
 } = require('./outputCastBridge.cjs')
 
 test('normalizeCastRequest requires a target, window mode, and aspect ratio', () => {
@@ -88,4 +89,31 @@ test('receiver identity persists under Electron userData and repairs malformed s
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }
+})
+
+
+test('macOS display action opens the legacy Displays preference pane when present and falls back to System Settings', async () => {
+  const opened = []
+  const shell = { openPath: async value => { opened.push(value); return '' } }
+  const fsImpl = { existsSync: value => value === '/System/Library/PreferencePanes/Displays.prefPane' }
+  const direct = await openMacOsDisplaySettings({ shell, fsImpl })
+  assert.equal(direct.opened, '/System/Library/PreferencePanes/Displays.prefPane')
+  assert.deepEqual(opened, ['/System/Library/PreferencePanes/Displays.prefPane'])
+
+  opened.length = 0
+  const fallbackFs = { existsSync: value => value === '/System/Applications/System Settings.app' }
+  const fallback = await openMacOsDisplaySettings({ shell, fsImpl: fallbackFs })
+  assert.equal(fallback.opened, '/System/Applications/System Settings.app')
+  assert.deepEqual(opened, ['/System/Applications/System Settings.app'])
+})
+
+test('macOS display action reports unavailable native system controls instead of silently succeeding', async () => {
+  await assert.rejects(
+    openMacOsDisplaySettings({ shell: null, fsImpl: { existsSync: () => true } }),
+    /shell\.openPath is unavailable/,
+  )
+  await assert.rejects(
+    openMacOsDisplaySettings({ shell: { openPath: async () => '' }, fsImpl: { existsSync: () => false } }),
+    /could not be located/,
+  )
 })

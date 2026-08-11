@@ -58,3 +58,25 @@ test('local display provider does not duplicate topology listeners across repeat
   assert.equal(screen.listenerCount('display-metrics-changed'), 1)
   provider.shutdown()
 })
+
+test('a system-connected wireless display reconciles through the canonical local display provider', () => {
+  const screen = new FakeScreen()
+  const provider = new LocalDisplayProvider({ screen, createOutputWindow: () => null })
+  let changes = 0
+  provider.start({ onTargetsChanged: () => { changes += 1 } })
+
+  screen.displays.push({
+    id: 23,
+    label: 'Living Room TV',
+    bounds: { x: 1920, y: 0, width: 1920, height: 1080 },
+    workArea: { x: 1920, y: 0, width: 1920, height: 1080 },
+  })
+  screen.emit('display-added', {}, screen.displays[1])
+
+  assert.equal(changes, 1)
+  assert.deepEqual(provider.listTargets().map(target => ({ id: target.id, name: target.name })), [
+    { id: 'display:1', name: 'This display' },
+    { id: 'display:23', name: 'Living Room TV' },
+  ])
+  provider.shutdown()
+})

@@ -13646,6 +13646,35 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   gap: 6px;
 }
 
+.rv-cast-provider-action {
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(103, 247, 255, 0.2);
+  border-radius: 7px;
+  background: rgba(74, 199, 219, 0.045);
+  color: rgba(232, 244, 248, 0.7);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rv-cast-provider-action:hover:not(:disabled),
+.rv-cast-provider-action:focus-visible:not(:disabled) {
+  color: #e8f4f8;
+  border-color: rgba(74, 199, 219, 0.42);
+  background: rgba(74, 199, 219, 0.08);
+  outline: none;
+}
+
+.rv-cast-provider-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .rv-cast-device {
   width: 100%;
   min-height: 52px;

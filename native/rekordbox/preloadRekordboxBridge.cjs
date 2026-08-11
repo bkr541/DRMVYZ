@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('drmvyzNative', Object.freeze({
     listTargets: () => ipcRenderer.invoke('drmvyz:output:list-targets'),
     getTargetSnapshot: () => ipcRenderer.invoke('drmvyz:output:get-target-snapshot'),
     getSession: () => ipcRenderer.invoke('drmvyz:output:get-session'),
+    performProviderAction: (providerId, actionId, payload) => ipcRenderer.invoke('drmvyz:output:perform-provider-action', providerId, actionId, payload),
     startCast: request => ipcRenderer.invoke('drmvyz:output:start-cast', request),
     stopCast: () => ipcRenderer.invoke('drmvyz:output:stop-cast'),
     publishOffer: (sessionId, offer) => ipcRenderer.invoke('drmvyz:output:publish-offer', sessionId, offer),

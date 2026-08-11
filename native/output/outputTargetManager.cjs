@@ -16,6 +16,16 @@ const PROVIDER_STATES = Object.freeze({
   INITIALIZATION_FAILED: 'initialization-failed',
 })
 
+function normalizeProviderCapabilities(provider) {
+  const declared = provider.capabilities && typeof provider.capabilities === 'object' ? provider.capabilities : {}
+  return {
+    targetEnumeration: declared.targetEnumeration !== false,
+    sessions: declared.sessions !== false && typeof provider.startSession === 'function',
+    picker: declared.picker === true,
+    actions: Array.isArray(declared.actions) ? [...new Set(declared.actions.filter(action => typeof action === 'string' && action))] : [],
+  }
+}
+
 function providerError(provider, error, fallback = 'Output provider failed') {
   const message = error instanceof Error ? error.message : fallback
   return {
@@ -24,6 +34,7 @@ function providerError(provider, error, fallback = 'Output provider failed') {
     state: PROVIDER_STATES.INITIALIZATION_FAILED,
     targetCount: 0,
     message,
+    capabilities: normalizeProviderCapabilities(provider),
   }
 }
 
@@ -37,6 +48,7 @@ function normalizeProviderStatus(provider, status, targetCount) {
     state,
     targetCount,
     message: typeof status?.message === 'string' && status.message.trim() ? status.message.trim() : null,
+    capabilities: normalizeProviderCapabilities(provider),
   }
 }
 
@@ -83,14 +95,7 @@ class OutputTargetManager {
 
   getProviderCapabilities(providerId) {
     const provider = this.providers.get(providerId)
-    if (!provider) return null
-    const declared = provider.capabilities && typeof provider.capabilities === 'object' ? provider.capabilities : {}
-    return {
-      targetEnumeration: declared.targetEnumeration !== false,
-      sessions: declared.sessions !== false && typeof provider.startSession === 'function',
-      picker: declared.picker === true,
-      actions: Array.isArray(declared.actions) ? [...new Set(declared.actions.filter(action => typeof action === 'string' && action))] : [],
-    }
+    return provider ? normalizeProviderCapabilities(provider) : null
   }
 
   async performProviderAction(providerId, actionId, payload, context = {}) {
@@ -256,5 +261,6 @@ module.exports = {
   OutputTargetManager,
   PROVIDER_STATES,
   SESSION_STATES,
+  normalizeProviderCapabilities,
   normalizeTarget,
 }
