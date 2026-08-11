@@ -1,6 +1,9 @@
 'use strict'
 
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
 const test = require('node:test')
 const {
   buildLocalDisplayTargets,
@@ -8,6 +11,7 @@ const {
   createReceiverHtml,
   isAllowedReceiverSource,
   isPrivateNetworkAddress,
+  loadOrCreateReceiverDeviceId,
   normalizeCastRequest,
 } = require('./outputCastBridge.cjs')
 
@@ -64,4 +68,24 @@ test('receiver navigation is restricted to the requesting private-network sender
   assert.equal(isAllowedReceiverSource('https://192.168.1.8/receiver', '192.168.1.8'), false)
   assert.equal(isAllowedReceiverSource('http://192.168.1.9:51300/receiver', '192.168.1.8'), false)
   assert.equal(isAllowedReceiverSource('http://8.8.8.8:51300/receiver', '8.8.8.8'), false)
+})
+
+
+test('receiver identity persists under Electron userData and repairs malformed state', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'drmvyz-output-id-'))
+  const app = { getPath: name => name === 'userData' ? root : '' }
+  try {
+    const first = loadOrCreateReceiverDeviceId(app)
+    const second = loadOrCreateReceiverDeviceId(app)
+    assert.equal(second, first)
+    assert.match(first, /^[A-Za-z0-9._:-]{8,128}$/)
+
+    const identityPath = path.join(root, 'drmvyz-output-receiver-identity.json')
+    fs.writeFileSync(identityPath, '{bad json', 'utf8')
+    const repaired = loadOrCreateReceiverDeviceId(app)
+    assert.notEqual(repaired, first)
+    assert.equal(loadOrCreateReceiverDeviceId(app), repaired)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
 })

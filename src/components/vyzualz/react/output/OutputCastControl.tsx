@@ -302,7 +302,7 @@ function OutputCastPopover({
   const popoverRef = useRef<HTMLElement | null>(null)
   const titleId = 'rv-output-cast-title'
   const groups = useMemo(() => groupTargets(targets), [targets])
-  const providerIssues = useMemo(() => providerStatuses.filter(status => status.state !== 'available'), [providerStatuses])
+  const providerIssues = useMemo(() => providerStatuses.filter(status => status.state !== 'available' || Boolean(status.message)), [providerStatuses])
   const readyToCast = Boolean(windowMode && aspectRatio && canvasReady && bridge)
 
   useEffect(() => {
@@ -508,8 +508,8 @@ function OutputCastPopover({
               {renderTargets(groups.displays, 'No displays are currently available.')}
             </section>
 
-            <section className="rv-cast-device-group" aria-label="Network receivers">
-              <h3>Network Receivers</h3>
+            <section className="rv-cast-device-group" aria-label="DRMVYZ receivers">
+              <h3>DRMVYZ Receivers</h3>
               {renderTargets(groups.network, 'No DRMVYZ receivers were found on this network.')}
               <p>Open DRMVYZ on another computer to make it discoverable. This stage lists connected operating-system displays and DRMVYZ receivers only.</p>
             </section>

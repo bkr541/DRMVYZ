@@ -2,8 +2,10 @@
 
 const crypto = require('node:crypto')
 const dgram = require('node:dgram')
+const fs = require('node:fs')
 const http = require('node:http')
 const net = require('node:net')
+const path = require('node:path')
 const { OutputTargetManager } = require('./outputTargetManager.cjs')
 const {
   ASPECT_RATIOS,
@@ -19,6 +21,39 @@ const {
 const SESSION_TTL_MS = 10 * 60 * 1_000
 const MAX_JSON_BODY_BYTES = 64 * 1_024
 const WINDOW_MODES = new Set(['windowed', 'borderless', 'fullscreen'])
+
+const RECEIVER_IDENTITY_FILENAME = 'drmvyz-output-receiver-identity.json'
+
+function isValidReceiverDeviceId(value) {
+  return typeof value === 'string' && value.length >= 8 && value.length <= 128 && /^[A-Za-z0-9._:-]+$/.test(value)
+}
+
+function loadOrCreateReceiverDeviceId(app, { fsImpl = fs, cryptoImpl = crypto } = {}) {
+  const fallback = () => cryptoImpl.randomUUID()
+  if (!app || typeof app.getPath !== 'function') return fallback()
+  let userDataPath
+  try {
+    userDataPath = app.getPath('userData')
+  } catch {
+    return fallback()
+  }
+  if (typeof userDataPath !== 'string' || !userDataPath) return fallback()
+  const identityPath = path.join(userDataPath, RECEIVER_IDENTITY_FILENAME)
+  try {
+    const parsed = JSON.parse(fsImpl.readFileSync(identityPath, 'utf8'))
+    if (parsed?.version === 1 && isValidReceiverDeviceId(parsed.deviceId)) return parsed.deviceId
+  } catch {
+    // Missing or malformed identity is repaired below.
+  }
+  const deviceId = fallback()
+  try {
+    fsImpl.mkdirSync(userDataPath, { recursive: true })
+    fsImpl.writeFileSync(identityPath, `${JSON.stringify({ version: 1, deviceId })}\n`, { encoding: 'utf8', mode: 0o600 })
+  } catch (error) {
+    console.warn('[DRMVYZ Output] Could not persist receiver identity; discovery identity will change after restart:', error)
+  }
+  return deviceId
+}
 
 function normalizeRemoteAddress(value) {
   if (typeof value !== 'string') return ''
@@ -218,7 +253,7 @@ function isAllowedReceiverSource(sourceUrl, remoteAddress) {
 
 function resolveReachableLocalAddress(remoteHost) {
   return new Promise((resolve, reject) => {
-    const socket = dgram.createSocket('udp4')
+    const socket = dgram.createSocket(net.isIPv6(remoteHost) ? 'udp6' : 'udp4')
     let settled = false
     const finish = (error, value) => {
       if (settled) return
@@ -300,6 +335,7 @@ function installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTruste
   const receiverProvider = new DrmvyzReceiverProvider({
     isPrivateNetworkAddress,
     resolveReachableLocalAddress,
+    deviceId: loadOrCreateReceiverDeviceId(app),
   })
 
   let targetManager = null
@@ -588,6 +624,8 @@ function installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, isTruste
     console.error('[DRMVYZ Output] Provider initialization failed:', error)
   })
   const receiverServiceStartPromise = startHttpServer().then(() => broadcastTargets()).catch(error => {
+    receiverProvider.reportReceiverServiceError(error)
+    void broadcastTargets()
     console.error('[DRMVYZ Output] Receiver service failed to start:', error)
   })
 
@@ -637,5 +675,6 @@ module.exports = {
   isAllowedReceiverSource,
   isPrivateNetworkAddress,
   normalizeCastRequest,
+  loadOrCreateReceiverDeviceId,
   resolveReachableLocalAddress,
 }

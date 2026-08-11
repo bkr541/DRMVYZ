@@ -113,7 +113,7 @@ describe('OutputCastControl', () => {
     const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')
     await act(async () => trigger?.click())
     expect(document.body.textContent).toContain('Booth Mac · DRMVYZ')
-    expect(document.body.textContent).toContain('Network Receivers')
+    expect(document.body.textContent).toContain('DRMVYZ Receivers')
   })
 
 
