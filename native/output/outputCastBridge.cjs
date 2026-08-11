@@ -33,6 +33,11 @@ const {
 const {
   WindowsMiracastProvider,
 } = require('./providers/windowsMiracastProvider.cjs')
+const {
+  GOOGLE_CAST_OPEN_PICKER_ACTION,
+  GOOGLE_CAST_PROVIDER_ID,
+  GoogleCastProvider,
+} = require('./providers/googleCastProvider.cjs')
 
 const SESSION_TTL_MS = 10 * 60 * 1_000
 const MAX_JSON_BODY_BYTES = 64 * 1_024
@@ -400,6 +405,11 @@ function installOutputCastBridge({
   platform = process.platform,
   openSystemDisplays = null,
   openWindowsDisplays = null,
+  googleCastAppId = process.env.DRMVYZ_GOOGLE_CAST_APP_ID,
+  googleCastSenderUrl = process.env.DRMVYZ_GOOGLE_CAST_SENDER_URL,
+  openGoogleCastCompanion = null,
+  googleCastNetworkInterfaces = null,
+  googleCastPickerTimeoutMs = null,
   isTrustedAppUrl,
 }) {
   const receiverToken = crypto.randomBytes(24).toString('base64url')
@@ -475,6 +485,15 @@ function installOutputCastBridge({
     deviceId: receiverDeviceId,
     trustStore: receiverTrustStore,
   })
+  const googleCastProvider = new GoogleCastProvider({
+    appId: googleCastAppId,
+    senderUrl: googleCastSenderUrl,
+    openCompanion: openGoogleCastCompanion ?? (shell && typeof shell.openExternal === 'function'
+      ? url => shell.openExternal(url)
+      : null),
+    ...(googleCastNetworkInterfaces ? { networkInterfaces: googleCastNetworkInterfaces } : {}),
+    ...(googleCastPickerTimeoutMs ? { pickerTimeoutMs: googleCastPickerTimeoutMs } : {}),
+  })
 
   let targetManager = null
 
@@ -486,7 +505,7 @@ function installOutputCastBridge({
   }
 
   targetManager = new OutputTargetManager({
-    providers: [localDisplayProvider, macOsAirPlayProvider, windowsMiracastProvider, receiverProvider],
+    providers: [localDisplayProvider, macOsAirPlayProvider, windowsMiracastProvider, receiverProvider, googleCastProvider],
     onTargetsChanged: () => void broadcastTargets(),
     onSessionChanged: session => sendToTrustedRenderers('drmvyz:output:session-changed', session),
   })
@@ -551,6 +570,73 @@ function installOutputCastBridge({
     const remoteAddress = normalizeRemoteAddress(request.socket.remoteAddress || '')
 
     try {
+      const companionMatch = url.pathname.match(/^\/api\/google-cast\/companion\/([^/]+)\/(events|commands)$/)
+      if (companionMatch) {
+        const senderOrigin = googleCastProvider.getSenderOrigin()
+        const requestOrigin = typeof request.headers.origin === 'string' ? request.headers.origin : ''
+        if (!senderOrigin || requestOrigin !== senderOrigin) {
+          jsonResponse(response, 403, { error: 'Google Cast companion origin is not authorized' })
+          return
+        }
+        response.setHeader('Access-Control-Allow-Origin', senderOrigin)
+        response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        response.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+        response.setHeader('Access-Control-Allow-Private-Network', 'true')
+        response.setHeader('Vary', 'Origin')
+        if (request.method === 'OPTIONS') {
+          emptyResponse(response)
+          return
+        }
+
+        const transactionId = decodeURIComponent(companionMatch[1])
+        const action = companionMatch[2]
+        const token = url.searchParams.get('token') || ''
+        if (action === 'commands' && request.method === 'GET') {
+          const result = googleCastProvider.takeCompanionCommand(transactionId, token)
+          if (!result.ok) {
+            jsonResponse(response, result.statusCode, { error: result.message })
+            return
+          }
+          jsonResponse(response, 200, { protocolVersion: 1, command: result.command })
+          return
+        }
+        if (action === 'events' && request.method === 'POST') {
+          const body = await readJsonBody(request)
+          const result = googleCastProvider.handleCompanionEvent(transactionId, token, body)
+          if (!result.ok) {
+            jsonResponse(response, result.statusCode, { error: result.message })
+            return
+          }
+          if (result.sessionEvent === 'connected' && result.sessionId) {
+            targetManager.markConnected(result.sessionId)
+          } else if (result.sessionEvent === 'failed' && result.sessionId) {
+            await targetManager.failSession(result.sessionId, result.message || 'Google Cast receiver failed')
+            removeSignalSession(result.sessionId)
+          } else if (result.sessionEvent === 'disconnected' && result.sessionId) {
+            const current = currentSession()
+            if (current?.id === result.sessionId) await stopSession(result.sessionId)
+          }
+          emptyResponse(response)
+          return
+        }
+        emptyResponse(response, 405)
+        return
+      }
+
+      const googleCastMediaMatch = url.pathname.match(/^\/api\/google-cast\/live\/([^/]+)$/)
+      if (googleCastMediaMatch) {
+        const result = googleCastProvider.handleMediaRequest(
+          request,
+          response,
+          decodeURIComponent(googleCastMediaMatch[1]),
+          url.searchParams.get('token') || '',
+          remoteAddress,
+          isPrivateNetworkAddress,
+        )
+        if (!result.handled) emptyResponse(response, result.statusCode)
+        return
+      }
+
       if (request.method === 'GET' && url.pathname === '/health') {
         jsonResponse(response, 200, { service: 'drmvyz-output', discoveryVersion: DISCOVERY_VERSION, protocolVersion: DRMVYZ_RECEIVER_PROTOCOL_VERSION })
         return
@@ -709,44 +795,12 @@ function installOutputCastBridge({
       }
       httpPort = address.port
       receiverProvider.configureReceiverService({ port: httpPort, receiverToken })
+      googleCastProvider.configureService({ port: httpPort })
       resolve()
     })
   })
 
-  const isTrustedSender = event => {
-    const url = event.senderFrame?.url || event.sender.getURL()
-    return isTrustedAppUrl(url)
-  }
-
-  ipcMain.handle('drmvyz:output:list-targets', async event => {
-    if (!isTrustedSender(event)) throw new Error('Untrusted output target request')
-    return targetManager.listTargets()
-  })
-
-  ipcMain.handle('drmvyz:output:get-target-snapshot', async event => {
-    if (!isTrustedSender(event)) throw new Error('Untrusted output target request')
-    return targetManager.getSnapshot()
-  })
-
-  ipcMain.handle('drmvyz:output:get-session', event => {
-    if (!isTrustedSender(event)) throw new Error('Untrusted output session request')
-    return currentSession()
-  })
-
-  ipcMain.handle('drmvyz:output:perform-provider-action', async (event, providerId, actionId, payload) => {
-    if (!isTrustedSender(event)) throw new Error('Untrusted output provider action')
-    if (typeof providerId !== 'string' || !providerId.trim() || typeof actionId !== 'string' || !actionId.trim()) {
-      throw new Error('A valid output provider action is required')
-    }
-    return targetManager.performProviderAction(providerId.trim(), actionId.trim(), payload, {
-      senderWebContentsId: event.sender.id,
-    })
-  })
-
-  ipcMain.handle('drmvyz:output:start-cast', async (event, value) => {
-    if (!isTrustedSender(event)) throw new Error('Untrusted output cast request')
-    const request = normalizeCastRequest(value)
-    if (!request) throw new Error('Select a window mode and aspect ratio before casting')
+  const startManagedSession = async (event, request) => {
     if (!httpPort) throw new Error('The output receiver is still starting')
 
     const previous = currentSession()
@@ -784,6 +838,57 @@ function installOutputCastBridge({
       setTimeout(() => void stopSession(signalSession.id), 2_500).unref?.()
       throw error
     }
+  }
+
+  const isTrustedSender = event => {
+    const url = event.senderFrame?.url || event.sender.getURL()
+    return isTrustedAppUrl(url)
+  }
+
+  ipcMain.handle('drmvyz:output:list-targets', async event => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted output target request')
+    return targetManager.listTargets()
+  })
+
+  ipcMain.handle('drmvyz:output:get-target-snapshot', async event => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted output target request')
+    return targetManager.getSnapshot()
+  })
+
+  ipcMain.handle('drmvyz:output:get-session', event => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted output session request')
+    return currentSession()
+  })
+
+  ipcMain.handle('drmvyz:output:perform-provider-action', async (event, providerId, actionId, payload) => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted output provider action')
+    if (typeof providerId !== 'string' || !providerId.trim() || typeof actionId !== 'string' || !actionId.trim()) {
+      throw new Error('A valid output provider action is required')
+    }
+    const normalizedProviderId = providerId.trim()
+    const normalizedActionId = actionId.trim()
+    const result = await targetManager.performProviderAction(normalizedProviderId, normalizedActionId, payload, {
+      senderWebContentsId: event.sender.id,
+    })
+    if (normalizedProviderId === GOOGLE_CAST_PROVIDER_ID && normalizedActionId === GOOGLE_CAST_OPEN_PICKER_ACTION && result?.state === 'selected' && result.targetId) {
+      const request = normalizeCastRequest({
+        targetId: result.targetId,
+        windowMode: payload?.windowMode,
+        aspectRatio: payload?.aspectRatio,
+      })
+      if (request) {
+        const session = await startManagedSession(event, request)
+        return { ...result, session }
+      }
+    }
+    return result
+  })
+
+  ipcMain.handle('drmvyz:output:start-cast', async (event, value) => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted output cast request')
+    const request = normalizeCastRequest(value)
+    if (!request) throw new Error('Select a window mode and aspect ratio before casting')
+    return startManagedSession(event, request)
   })
 
   ipcMain.handle('drmvyz:output:stop-cast', async event => {
@@ -834,6 +939,41 @@ function installOutputCastBridge({
     const failed = await targetManager.failSession(sessionId, message)
     if (failed) removeSignalSession(sessionId)
     return failed
+  })
+
+  ipcMain.handle('drmvyz:output:google-cast-begin-stream', (event, sessionId, metadata) => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted Google Cast stream request')
+    const signalSession = signalSessions.get(sessionId)
+    const managedSession = currentSession()
+    if (!signalSession || signalSession.sourceWebContentsId !== event.sender.id || managedSession?.id !== sessionId || managedSession.providerId !== GOOGLE_CAST_PROVIDER_ID) {
+      throw new Error('Google Cast output session not found')
+    }
+    return googleCastProvider.beginMediaStream(sessionId, metadata)
+  })
+
+  ipcMain.handle('drmvyz:output:google-cast-publish-chunk', (event, sessionId, value) => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted Google Cast media chunk')
+    const signalSession = signalSessions.get(sessionId)
+    const managedSession = currentSession()
+    if (!signalSession || signalSession.sourceWebContentsId !== event.sender.id || managedSession?.id !== sessionId || managedSession.providerId !== GOOGLE_CAST_PROVIDER_ID) {
+      return false
+    }
+    if (!(value instanceof Uint8Array) && !Buffer.isBuffer(value)) throw new Error('Invalid Google Cast media chunk')
+    const result = googleCastProvider.appendMediaChunk(sessionId, value)
+    if (!result.ok) {
+      if (result.reason === 'receiver-not-consuming') throw new Error('Google Cast receiver did not start consuming the live stream before the safety buffer filled')
+      if (result.reason === 'receiver-backpressure') throw new Error('Google Cast receiver could not consume the live stream fast enough')
+      if (result.reason === 'chunk-too-large') throw new Error('Google Cast media encoder produced an unexpectedly large chunk')
+      return false
+    }
+    return true
+  })
+
+  ipcMain.handle('drmvyz:output:google-cast-end-stream', (event, sessionId) => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted Google Cast stream completion')
+    const signalSession = signalSessions.get(sessionId)
+    if (!signalSession || signalSession.sourceWebContentsId !== event.sender.id) return false
+    return googleCastProvider.completeMediaStream(sessionId)
   })
 
   ipcMain.handle('drmvyz:output:report-stats', (event, sessionId, stats) => {

@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>DRMVYZ Google Cast Sender</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #111; color: #f5f5f5; }
+    main { width: min(32rem, calc(100vw - 3rem)); padding: 2rem; border: 1px solid #333; border-radius: 1rem; background: #191919; }
+    h1 { margin: 0 0 .75rem; font-size: 1.35rem; }
+    p { color: #bdbdbd; line-height: 1.5; }
+    .actions { display: flex; align-items: center; gap: 1rem; margin-top: 1.5rem; }
+    google-cast-launcher { width: 3rem; height: 3rem; --connected-color: #fff; --disconnected-color: #fff; }
+    button { border: 1px solid #555; background: #222; color: #fff; border-radius: .55rem; padding: .7rem 1rem; cursor: pointer; }
+    #status { min-height: 1.5em; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Choose a Google Cast device</h1>
+    <p>Use the Cast button below. Keep this secure browser page open while DRMVYZ is casting; the browser owns the supported Google Cast sender session.</p>
+    <div class="actions">
+      <google-cast-launcher aria-label="Choose Google Cast device"></google-cast-launcher>
+      <button id="cancel" type="button">Cancel</button>
+    </div>
+    <p id="status" role="status" aria-live="polite">Loading Google Cast…</p>
+  </main>
+  <script>
+    (() => {
+      'use strict'
+
+      const NAMESPACE = 'urn:x-cast:com.dvydrm.drmvyz.live'
+      const PROTOCOL_VERSION = 1
+      const params = new URLSearchParams(location.hash.startsWith('#') ? location.hash.slice(1) : location.hash)
+      const appId = (params.get('appId') || '').trim().toUpperCase()
+      const transactionId = params.get('transactionId') || ''
+      const callbackToken = params.get('callbackToken') || ''
+      const callbackUrlValue = params.get('callbackUrl') || ''
+      const status = document.getElementById('status')
+      const cancelButton = document.getElementById('cancel')
+      let callbackUrl = null
+      let castContext = null
+      let currentSession = null
+      let commandTimer = null
+      let selectedPosted = false
+      let disconnectedPosted = false
+
+      function setStatus(message) {
+        status.textContent = message
+      }
+
+      function parseCallbackUrl(value) {
+        try {
+          const url = new URL(value)
+          const expectedPath = `/api/google-cast/companion/${encodeURIComponent(transactionId)}`
+          if (url.protocol !== 'http:' || (url.hostname !== '127.0.0.1' && url.hostname !== 'localhost')) return null
+          if (url.username || url.password || url.search || url.hash || url.pathname !== expectedPath) return null
+          return url
+        } catch {
+          return null
+        }
+      }
+
+      async function postEvent(type, fields = {}) {
+        if (!callbackUrl) return false
+        const url = new URL(`${callbackUrl.toString().replace(/\/$/, '')}/events`)
+        url.searchParams.set('token', callbackToken)
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            mode: 'cors',
+            cache: 'no-store',
+            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+            body: JSON.stringify({ type, protocolVersion: PROTOCOL_VERSION, ...fields }),
+          })
+          return response.ok
+        } catch (error) {
+          setStatus(`DRMVYZ connection failed: ${error instanceof Error ? error.message : 'local callback unavailable'}`)
+          return false
+        }
+      }
+
+      function stopPolling() {
+        if (commandTimer !== null) window.clearTimeout(commandTimer)
+        commandTimer = null
+      }
+
+      async function pollCommands() {
+        stopPolling()
+        if (!callbackUrl || !currentSession) return
+        try {
+          const url = new URL(`${callbackUrl.toString().replace(/\/$/, '')}/commands`)
+          url.searchParams.set('token', callbackToken)
+          const response = await fetch(url, { method: 'GET', mode: 'cors', cache: 'no-store' })
+          if (!response.ok) throw new Error(`DRMVYZ returned HTTP ${response.status}`)
+          const payload = await response.json()
+          if (payload?.command) await handleCommand(payload.command)
+        } catch (error) {
+          setStatus(`Waiting for DRMVYZ: ${error instanceof Error ? error.message : 'local control unavailable'}`)
+        } finally {
+          if (currentSession) commandTimer = window.setTimeout(() => void pollCommands(), 300)
+        }
+      }
+
+      async function handleCommand(command) {
+        if (!currentSession || command?.protocolVersion !== PROTOCOL_VERSION) return
+        if (command.type === 'start') {
+          setStatus('Starting live DRMVYZ output…')
+          await currentSession.sendMessage(NAMESPACE, command)
+          return
+        }
+        if (command.type === 'stop') {
+          try { await currentSession.sendMessage(NAMESPACE, command) } catch { /* Receiver may already be gone. */ }
+          try { await currentSession.endSession(true) } catch { /* Session may already be ended. */ }
+        }
+      }
+
+      function onReceiverMessage(_namespace, message) {
+        let value = null
+        try { value = typeof message === 'string' ? JSON.parse(message) : message } catch { return }
+        if (!value || value.protocolVersion !== PROTOCOL_VERSION) return
+        if (value.type === 'playing') {
+          setStatus('Connected — DRMVYZ live output is playing.')
+          void postEvent('connected')
+        } else if (value.type === 'error') {
+          setStatus(value.message || 'The Google Cast receiver reported an error.')
+          void postEvent('error', { message: value.message || 'Google Cast receiver error' })
+        } else if (value.type === 'stopped') {
+          setStatus('Google Cast output stopped.')
+        }
+      }
+
+      function attachSession(session) {
+        if (!session) return
+        currentSession = session
+        disconnectedPosted = false
+        try { session.addMessageListener(NAMESPACE, onReceiverMessage) } catch { /* Receiver may not support custom channel yet. */ }
+        const device = session.getCastDevice?.()
+        if (!selectedPosted) {
+          selectedPosted = true
+          void postEvent('selected', {
+            receiverName: device?.friendlyName || 'Google Cast device',
+            receiverId: device?.deviceId || null,
+          })
+        }
+        setStatus(`Selected ${device?.friendlyName || 'Google Cast device'} — waiting for DRMVYZ live media…`)
+        void pollCommands()
+      }
+
+      function detachSession(message) {
+        stopPolling()
+        currentSession = null
+        selectedPosted = false
+        if (!disconnectedPosted) {
+          disconnectedPosted = true
+          void postEvent('disconnected', { message: message || 'Google Cast session ended.' })
+        }
+        setStatus('Google Cast session ended. You can close this page.')
+      }
+
+      callbackUrl = parseCallbackUrl(callbackUrlValue)
+      if (!callbackUrl || !/^[0-9A-F]{8}$/.test(appId) || !transactionId || !callbackToken) {
+        setStatus('This Google Cast sender link is invalid or incomplete. Return to DRMVYZ and try again.')
+        cancelButton.disabled = true
+        return
+      }
+
+      cancelButton.addEventListener('click', () => {
+        void postEvent('cancelled', { message: 'Google Cast selection was cancelled in the browser companion.' })
+        stopPolling()
+        window.close()
+      })
+
+      window.__onGCastApiAvailable = (isAvailable) => {
+        if (!isAvailable || !window.cast?.framework) {
+          setStatus('Google Cast is unavailable in this browser. Open this page in a supported Cast-capable browser.')
+          void postEvent('error', { message: 'Google Cast Web Sender SDK is unavailable in this browser.' })
+          return
+        }
+        try {
+          castContext = window.cast.framework.CastContext.getInstance()
+          castContext.setOptions({
+            receiverApplicationId: appId,
+            autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.PAGE_SCOPED,
+          })
+          castContext.addEventListener(window.cast.framework.CastContextEventType.SESSION_STATE_CHANGED, event => {
+            const state = event.sessionState
+            if (state === window.cast.framework.SessionState.SESSION_STARTED || state === window.cast.framework.SessionState.SESSION_RESUMED) {
+              attachSession(castContext.getCurrentSession())
+            } else if (state === window.cast.framework.SessionState.SESSION_ENDED) {
+              detachSession('Google Cast session ended.')
+            } else if (state === window.cast.framework.SessionState.SESSION_START_FAILED) {
+              setStatus('Google Cast device selection or session start failed.')
+              void postEvent('error', { message: 'Google Cast session failed to start.' })
+            }
+          })
+          setStatus('Google Cast is ready. Choose a device.')
+          void postEvent('ready')
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Google Cast initialization failed'
+          setStatus(message)
+          void postEvent('error', { message })
+        }
+      }
+    })()
+  </script>
+  <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
+</body>
+</html>

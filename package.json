@@ -138,7 +138,7 @@
       "icon": "public/drmvyz_logo2.png",
       "extendInfo": {
         "NSMicrophoneUsageDescription": "DRMVYZ uses microphone input only when you select the Microphone audio source.",
-        "NSLocalNetworkUsageDescription": "DRMVYZ uses the local network to discover and connect to other DRMVYZ receiver instances you choose to cast to.",
+        "NSLocalNetworkUsageDescription": "DRMVYZ uses the local network to discover and connect to receivers and to stream output to local casting devices you choose.",
         "NSBonjourServices": [
           "_drmvyz-cast._tcp"
         ]

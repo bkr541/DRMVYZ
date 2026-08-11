@@ -50,6 +50,10 @@ let performProviderAction: ReturnType<typeof vi.fn>
 let bridge: NativeOutputBridge
 let canvas: HTMLCanvasElement
 let receiverRequested: ((request: OutputReceiverRequest) => void) | null
+let sessionChanged: ((session: OutputCastSession | null) => void) | null
+let beginGoogleCastStream: ReturnType<typeof vi.fn>
+let publishGoogleCastChunk: ReturnType<typeof vi.fn>
+let endGoogleCastStream: ReturnType<typeof vi.fn>
 
 function buttonWithText(text: string): HTMLButtonElement {
   const button = [...document.body.querySelectorAll<HTMLButtonElement>('button')]
@@ -60,6 +64,10 @@ function buttonWithText(text: string): HTMLButtonElement {
 
 beforeEach(async () => {
   receiverRequested = null
+  sessionChanged = null
+  beginGoogleCastStream = vi.fn(async () => ({ ok: true, mediaUrls: ['http://192.168.1.2/live'] }))
+  publishGoogleCastChunk = vi.fn(async () => true)
+  endGoogleCastStream = vi.fn(async () => true)
   startCast = vi.fn(async (request: OutputCastRequest) => ({
     id: 'session-1',
     targetId: request.targetId,
@@ -85,6 +93,7 @@ beforeEach(async () => {
         { providerId: 'airplay', label: 'AirPlay / Wireless Displays', state: 'available', targetCount: 0, message: null, capabilities: { targetEnumeration: false, sessions: false, picker: true, actions: ['open-system-picker'] } },
         { providerId: 'miracast', label: 'Windows Wireless Displays', state: 'unsupported', targetCount: 0, message: 'Windows only.', capabilities: { targetEnumeration: false, sessions: false, picker: true, actions: ['open-system-picker'] } },
         { providerId: 'drmvyz-receiver', label: 'DRMVYZ Receivers', state: 'available', targetCount: 2, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
+        { providerId: 'google-cast', label: 'Google Cast', state: 'configuration-required', targetCount: 0, message: 'Google Cast deployment configuration is missing.', capabilities: { targetEnumeration: false, sessions: true, picker: true, actions: ['open-picker'] } },
       ],
     })),
     getSession: vi.fn(async () => null),
@@ -94,8 +103,15 @@ beforeEach(async () => {
     publishOffer: vi.fn(async () => true),
     waitForAnswer: vi.fn(async () => ({ type: 'answer', sdp: 'answer' })),
     failSession: vi.fn(async () => true),
+    beginGoogleCastStream,
+    publishGoogleCastChunk,
+    endGoogleCastStream,
+    reportStats: vi.fn(async () => true),
     onTargetsChanged: vi.fn(() => () => {}),
-    onSessionChanged: vi.fn(() => () => {}),
+    onSessionChanged: vi.fn((callback: (session: OutputCastSession | null) => void) => {
+      sessionChanged = callback
+      return () => { if (sessionChanged === callback) sessionChanged = null }
+    }),
     onReceiverRequested: vi.fn((callback: (request: OutputReceiverRequest) => void) => {
       receiverRequested = callback
       return () => { if (receiverRequested === callback) receiverRequested = null }
@@ -233,6 +249,193 @@ describe('OutputCastControl', () => {
       if (originalCaptureStream) Object.defineProperty(HTMLCanvasElement.prototype, 'captureStream', originalCaptureStream)
       else Reflect.deleteProperty(HTMLCanvasElement.prototype, 'captureStream')
       Object.defineProperty(globalThis, 'RTCPeerConnection', { configurable: true, value: originalPeer })
+    }
+  })
+
+
+  it('shows Google Cast as explicit configuration-required setup instead of an empty receiver list', async () => {
+    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')
+    await act(async () => trigger?.click())
+
+    expect(document.body.textContent).toContain('Google Cast')
+    expect(document.body.textContent).toContain('Configure the Cast receiver app ID and HTTPS sender companion first.')
+    const picker = buttonWithText('Choose Google Cast Device')
+    expect(picker.disabled).toBe(true)
+    expect(document.body.textContent).toContain('Google Cast deployment configuration is missing.')
+  })
+
+  it('dispatches Google Cast picker through the provider action with current output choices', async () => {
+    bridge.getTargetSnapshot = vi.fn(async () => ({
+      targets,
+      providers: [
+        { providerId: 'local-display', label: 'Connected displays', state: 'available', targetCount: 1, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
+        { providerId: 'google-cast', label: 'Google Cast', state: 'available', targetCount: 0, message: null, capabilities: { targetEnumeration: false, sessions: true, picker: true, actions: ['open-picker'] } },
+        { providerId: 'drmvyz-receiver', label: 'DRMVYZ Receivers', state: 'available', targetCount: 2, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
+      ],
+    }))
+    await act(async () => {
+      await (bridge.getTargetSnapshot?.())
+      const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')
+      trigger?.click()
+      await Promise.resolve()
+    })
+    // Re-open forces the component refresh path to read the updated provider snapshot.
+    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')
+    if (!document.body.querySelector('[role="dialog"]')) await act(async () => trigger?.click())
+    await act(async () => buttonWithText('Full Screen').click())
+    await act(async () => buttonWithText('16:9').click())
+    const picker = buttonWithText('Choose Google Cast Device')
+    expect(picker.disabled).toBe(false)
+    await act(async () => picker.click())
+
+    expect(performProviderAction).toHaveBeenCalledWith('google-cast', 'open-picker', {
+      windowMode: 'fullscreen',
+      aspectRatio: '16:9',
+    })
+    expect(startCast).not.toHaveBeenCalled()
+  })
+
+  it('keeps one Google Cast encoder relay across session-state and canonical-canvas replacement', async () => {
+    const originalCaptureStream = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'captureStream')
+    const originalMediaRecorder = globalThis.MediaRecorder
+    const drawImage = vi.fn()
+    const captureStream = vi.fn()
+    let animationFrame: FrameRequestCallback | null = null
+    const track = {
+      kind: 'video',
+      contentHint: '',
+      stop: vi.fn(),
+      applyConstraints: vi.fn(async () => undefined),
+      getSettings: () => ({ width: 1280, height: 720, frameRate: 30 }),
+    }
+    const stream = {
+      getVideoTracks: () => [track],
+      getTracks: () => [track],
+    } as unknown as MediaStream
+    captureStream.mockReturnValue(stream)
+
+    class FakeMediaRecorder extends EventTarget {
+      static isTypeSupported = vi.fn(() => true)
+      state: RecordingState = 'inactive'
+      mimeType = 'video/webm;codecs=vp8'
+      constructor(_stream: MediaStream, _options?: MediaRecorderOptions) {
+        super()
+      }
+      start = vi.fn(() => { this.state = 'recording' })
+      stop = vi.fn(() => { this.state = 'inactive' })
+      pause = vi.fn()
+      resume = vi.fn()
+      requestData = vi.fn()
+      ondataavailable: ((this: MediaRecorder, ev: BlobEvent) => unknown) | null = null
+      onerror: ((this: MediaRecorder, ev: Event) => unknown) | null = null
+      onpause: ((this: MediaRecorder, ev: Event) => unknown) | null = null
+      onresume: ((this: MediaRecorder, ev: Event) => unknown) | null = null
+      onstart: ((this: MediaRecorder, ev: Event) => unknown) | null = null
+      onstop: ((this: MediaRecorder, ev: Event) => unknown) | null = null
+      audioBitsPerSecond = 0
+      videoBitsPerSecond = 6_000_000
+      stream = stream
+    }
+
+    Object.defineProperty(HTMLCanvasElement.prototype, 'captureStream', { configurable: true, value: captureStream })
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      drawImage,
+      fillRect: vi.fn(),
+      fillStyle: '#000',
+    } as unknown as CanvasRenderingContext2D)
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      animationFrame = callback
+      return 7
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+    Object.defineProperty(globalThis, 'MediaRecorder', { configurable: true, value: FakeMediaRecorder })
+
+    const castSession: OutputCastSession = {
+      id: 'google-cast-session',
+      targetId: 'google-cast:transaction',
+      targetName: 'Studio TV',
+      providerId: 'google-cast',
+      transport: 'google-cast-webm',
+      windowMode: 'fullscreen',
+      aspectRatio: '16:9',
+      state: 'connecting',
+      error: null,
+    }
+
+    try {
+      await act(async () => {
+        sessionChanged?.(castSession)
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(captureStream).toHaveBeenCalledTimes(1)
+      expect(beginGoogleCastStream).toHaveBeenCalledTimes(1)
+      expect(drawImage).toHaveBeenCalledWith(canvas, 0, 0, 1280, 720)
+
+      await act(async () => {
+        sessionChanged?.({ ...castSession, state: 'connected' })
+        await Promise.resolve()
+      })
+      expect(captureStream).toHaveBeenCalledTimes(1)
+      expect(beginGoogleCastStream).toHaveBeenCalledTimes(1)
+
+      const nextCanvas = document.createElement('canvas')
+      nextCanvas.width = 1920
+      nextCanvas.height = 1080
+      await act(async () => root.render(<OutputCastControl canvas={nextCanvas} />))
+      const nextAnimationFrame = animationFrame as FrameRequestCallback | null
+      nextAnimationFrame?.(performance.now())
+      expect(captureStream).toHaveBeenCalledTimes(1)
+      expect(drawImage).toHaveBeenLastCalledWith(nextCanvas, 0, 0, 1280, 720)
+    } finally {
+      if (originalCaptureStream) Object.defineProperty(HTMLCanvasElement.prototype, 'captureStream', originalCaptureStream)
+      else Reflect.deleteProperty(HTMLCanvasElement.prototype, 'captureStream')
+      Object.defineProperty(globalThis, 'MediaRecorder', { configurable: true, value: originalMediaRecorder })
+    }
+  })
+
+  it('fails the managed Google Cast session when the Chromium encoder cannot start', async () => {
+    const originalCaptureStream = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'captureStream')
+    const originalMediaRecorder = globalThis.MediaRecorder
+    const track = { kind: 'video', stop: vi.fn(), applyConstraints: vi.fn(async () => undefined), getSettings: () => ({}) }
+    Object.defineProperty(HTMLCanvasElement.prototype, 'captureStream', {
+      configurable: true,
+      value: vi.fn(() => ({ getVideoTracks: () => [track], getTracks: () => [track] })),
+    })
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: vi.fn(), fillRect: vi.fn(), fillStyle: '#000' } as unknown as CanvasRenderingContext2D)
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1)
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+    Object.defineProperty(globalThis, 'MediaRecorder', {
+      configurable: true,
+      value: class {
+        static isTypeSupported() { return true }
+        constructor() { throw new Error('Encoder initialization exploded') }
+      },
+    })
+
+    try {
+      await act(async () => {
+        sessionChanged?.({
+          id: 'encoder-failure-session',
+          targetId: 'google-cast:failure',
+          targetName: 'Studio TV',
+          providerId: 'google-cast',
+          transport: 'google-cast-webm',
+          windowMode: 'fullscreen',
+          aspectRatio: '16:9',
+          state: 'connecting',
+          error: null,
+        })
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(bridge.failSession).toHaveBeenCalledWith('encoder-failure-session', 'Encoder initialization exploded')
+      expect(beginGoogleCastStream).not.toHaveBeenCalled()
+      expect(track.stop).toHaveBeenCalledTimes(1)
+    } finally {
+      if (originalCaptureStream) Object.defineProperty(HTMLCanvasElement.prototype, 'captureStream', originalCaptureStream)
+      else Reflect.deleteProperty(HTMLCanvasElement.prototype, 'captureStream')
+      Object.defineProperty(globalThis, 'MediaRecorder', { configurable: true, value: originalMediaRecorder })
     }
   })
 

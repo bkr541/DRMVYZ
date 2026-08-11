@@ -13,6 +13,7 @@ const PROVIDER_STATES = Object.freeze({
   UNAVAILABLE: 'unavailable',
   UNSUPPORTED: 'unsupported',
   PERMISSION_REQUIRED: 'permission-required',
+  CONFIGURATION_REQUIRED: 'configuration-required',
   INITIALIZATION_FAILED: 'initialization-failed',
 })
 
@@ -204,6 +205,7 @@ class OutputTargetManager {
       targetId: target.id,
       targetName: target.name,
       providerId: provider.id,
+      transport: typeof provider.transport === 'string' && provider.transport ? provider.transport : 'webrtc',
       windowMode: request.windowMode,
       aspectRatio: request.aspectRatio,
       state: SESSION_STATES.CONNECTING,

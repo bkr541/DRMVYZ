@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>DRMVYZ Google Cast Receiver</title>
+  <style>
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; }
+    video { width: 100%; height: 100%; display: block; object-fit: contain; background: #000; }
+    #status { position: fixed; right: 18px; bottom: 16px; margin: 0; padding: 7px 10px; border-radius: 6px; background: rgba(0,0,0,.62); color: #eee; font: 13px/1.25 system-ui,sans-serif; }
+  </style>
+</head>
+<body>
+  <video id="live" autoplay muted playsinline></video>
+  <p id="status" role="status">Waiting for DRMVYZ…</p>
+  <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+  <script>
+    (() => {
+      'use strict'
+
+      const NAMESPACE = 'urn:x-cast:com.dvydrm.drmvyz.live'
+      const PROTOCOL_VERSION = 1
+      const context = cast.framework.CastReceiverContext.getInstance()
+      const video = document.getElementById('live')
+      const status = document.getElementById('status')
+      let generation = 0
+      let activeSessionId = null
+
+      function setStatus(message) { status.textContent = message }
+
+      function isAllowedMediaUrl(value, sessionId) {
+        try {
+          const url = new URL(value)
+          if (url.protocol !== 'http:' || url.username || url.password || !url.searchParams.get('token')) return false
+          const octets = url.hostname.split('.').map(Number)
+          const privateV4 = octets.length === 4 && octets.every(value => Number.isInteger(value) && value >= 0 && value <= 255) && (
+            octets[0] === 10 ||
+            (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+            (octets[0] === 192 && octets[1] === 168)
+          )
+          return privateV4 && url.pathname === `/api/google-cast/live/${encodeURIComponent(sessionId)}`
+        } catch {
+          return false
+        }
+      }
+
+      function send(senderId, value) {
+        try { context.sendCustomMessage(NAMESPACE, senderId, { protocolVersion: PROTOCOL_VERSION, ...value }) } catch { /* Sender may have left. */ }
+      }
+
+      function stopMedia() {
+        generation += 1
+        activeSessionId = null
+        try { video.pause() } catch { /* no-op */ }
+        video.removeAttribute('src')
+        video.load()
+        setStatus('Waiting for DRMVYZ…')
+      }
+
+      function waitForPlayback(expectedGeneration, timeoutMs) {
+        return new Promise((resolve, reject) => {
+          let timer = null
+          const cleanup = () => {
+            if (timer !== null) clearTimeout(timer)
+            video.removeEventListener('playing', onPlaying)
+            video.removeEventListener('error', onError)
+          }
+          const onPlaying = () => {
+            cleanup()
+            expectedGeneration === generation ? resolve() : reject(new Error('Superseded'))
+          }
+          const onError = () => {
+            cleanup()
+            reject(new Error(video.error?.message || 'Receiver could not decode the live stream'))
+          }
+          video.addEventListener('playing', onPlaying, { once: true })
+          video.addEventListener('error', onError, { once: true })
+          timer = setTimeout(() => {
+            cleanup()
+            reject(new Error('Timed out while opening the DRMVYZ live stream'))
+          }, timeoutMs)
+        })
+      }
+
+      async function startMedia(senderId, message) {
+        const sessionId = typeof message.sessionId === 'string' ? message.sessionId : ''
+        const mimeType = typeof message.mimeType === 'string' ? message.mimeType : ''
+        const mediaUrls = Array.isArray(message.mediaUrls) ? message.mediaUrls.filter(value => typeof value === 'string') : []
+        if (!sessionId || !/^video\/webm(?:;\s*codecs=(?:vp8|vp9))?$/i.test(mimeType) || !mediaUrls.length) {
+          send(senderId, { type: 'error', sessionId, message: 'DRMVYZ sent invalid live media metadata.' })
+          return
+        }
+        const codec = /codecs=(vp8|vp9)/i.exec(mimeType)?.[1] || ''
+        const width = Number.isFinite(Number(message.width)) ? Number(message.width) : undefined
+        const height = Number.isFinite(Number(message.height)) ? Number(message.height) : undefined
+        const framesPerSecond = Number.isFinite(Number(message.framesPerSecond)) ? Number(message.framesPerSecond) : undefined
+        if (typeof context.canDisplayType === 'function' && !context.canDisplayType('video/webm', codec || undefined, width, height, framesPerSecond)) {
+          send(senderId, { type: 'error', sessionId, message: `This Cast receiver cannot decode ${mimeType}.` })
+          return
+        }
+        const safeUrls = mediaUrls.filter(value => isAllowedMediaUrl(value, sessionId))
+        if (!safeUrls.length) {
+          send(senderId, { type: 'error', sessionId, message: 'DRMVYZ did not provide a valid private-network live media route.' })
+          return
+        }
+
+        generation += 1
+        const expectedGeneration = generation
+        activeSessionId = sessionId
+        let lastError = null
+        for (const mediaUrl of safeUrls) {
+          if (expectedGeneration !== generation) return
+          try {
+            setStatus('Opening DRMVYZ live output…')
+            video.src = mediaUrl
+            video.load()
+            const playback = waitForPlayback(expectedGeneration, 12_000)
+            const playPromise = video.play()
+            if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(() => undefined)
+            await playback
+            if (expectedGeneration !== generation) return
+            setStatus('DRMVYZ live output')
+            send(senderId, { type: 'playing', sessionId })
+            return
+          } catch (error) {
+            lastError = error
+            video.removeAttribute('src')
+            video.load()
+          }
+        }
+        if (expectedGeneration !== generation) return
+        activeSessionId = null
+        const messageText = lastError instanceof Error ? lastError.message : 'The Cast receiver could not reach DRMVYZ live media.'
+        setStatus(messageText)
+        send(senderId, { type: 'error', sessionId, message: messageText })
+      }
+
+      context.addCustomMessageListener(NAMESPACE, event => {
+        const message = event.data
+        if (!message || message.protocolVersion !== PROTOCOL_VERSION) return
+        if (message.type === 'start') {
+          void startMedia(event.senderId, message)
+          return
+        }
+        if (message.type === 'stop') {
+          const stoppedSessionId = activeSessionId || (typeof message.sessionId === 'string' ? message.sessionId : null)
+          stopMedia()
+          send(event.senderId, { type: 'stopped', sessionId: stoppedSessionId })
+        }
+      })
+
+      context.start()
+    })()
+  </script>
+</body>
+</html>

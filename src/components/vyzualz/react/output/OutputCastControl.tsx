@@ -379,10 +379,229 @@ function useOutputBroadcaster(
   useEffect(() => closeActive, [closeActive])
 }
 
+const GOOGLE_CAST_MAX_LONG_EDGE = 1280
+const GOOGLE_CAST_MAX_SHORT_EDGE = 720
+const GOOGLE_CAST_MAX_FPS = 30
+const GOOGLE_CAST_VIDEO_BITRATE_BPS = 6_000_000
+const GOOGLE_CAST_CHUNK_INTERVAL_MS = 250
+
+function fitGoogleCastRelaySize(width: number, height: number): { width: number; height: number } {
+  const safeWidth = Math.max(2, width || 1280)
+  const safeHeight = Math.max(2, height || 720)
+  const landscape = safeWidth >= safeHeight
+  const maxWidth = landscape ? GOOGLE_CAST_MAX_LONG_EDGE : GOOGLE_CAST_MAX_SHORT_EDGE
+  const maxHeight = landscape ? GOOGLE_CAST_MAX_SHORT_EDGE : GOOGLE_CAST_MAX_LONG_EDGE
+  const scale = Math.min(1, maxWidth / safeWidth, maxHeight / safeHeight)
+  return {
+    width: Math.max(2, Math.round(safeWidth * scale)),
+    height: Math.max(2, Math.round(safeHeight * scale)),
+  }
+}
+
+function createGoogleCastRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null>): RelayCapture {
+  const relay = document.createElement('canvas')
+  const initial = fitGoogleCastRelaySize(sourceRef.current?.width ?? 1280, sourceRef.current?.height ?? 720)
+  relay.width = initial.width
+  relay.height = initial.height
+  const context = relay.getContext('2d', { alpha: false })
+  if (!context || typeof relay.captureStream !== 'function') throw new Error('Canvas capture is unavailable for Google Cast in this runtime')
+
+  let stopped = false
+  let frameId = 0
+  const render = () => {
+    if (stopped) return
+    const source = sourceRef.current
+    if (source && source.width > 0 && source.height > 0) {
+      const next = fitGoogleCastRelaySize(source.width, source.height)
+      if (relay.width !== next.width || relay.height !== next.height) {
+        relay.width = next.width
+        relay.height = next.height
+      }
+      context.drawImage(source, 0, 0, relay.width, relay.height)
+    } else {
+      context.fillStyle = '#000'
+      context.fillRect(0, 0, relay.width, relay.height)
+    }
+    frameId = window.requestAnimationFrame(render)
+  }
+  render()
+  const stream = relay.captureStream(GOOGLE_CAST_MAX_FPS)
+  for (const track of stream.getVideoTracks()) {
+    try { track.contentHint = 'motion' } catch { /* Chromium versions differ here. */ }
+    void track.applyConstraints?.({ frameRate: { ideal: GOOGLE_CAST_MAX_FPS, max: GOOGLE_CAST_MAX_FPS } }).catch(() => undefined)
+  }
+  return {
+    stream,
+    stop: () => {
+      stopped = true
+      window.cancelAnimationFrame(frameId)
+      for (const track of stream.getTracks()) track.stop()
+    },
+  }
+}
+
+function chooseGoogleCastMimeType(): string | null {
+  if (typeof MediaRecorder === 'undefined') return null
+  const candidates = ['video/webm;codecs=vp8', 'video/webm;codecs=vp9', 'video/webm']
+  if (typeof MediaRecorder.isTypeSupported !== 'function') return candidates[0]
+  return candidates.find(candidate => MediaRecorder.isTypeSupported(candidate)) ?? null
+}
+
+function useGoogleCastBroadcaster(
+  bridge: NativeOutputBridge | null,
+  canvas: HTMLCanvasElement | null,
+  session: OutputCastSession | null,
+) {
+  const canvasRef = useRef(canvas)
+  const activeRef = useRef<{
+    sessionId: string
+    relay: RelayCapture
+    recorder: MediaRecorder
+    statsTimer: number | null
+    publishedBytes: number
+    lastStatsBytes: number
+    lastStatsAt: number
+    publishChain: Promise<void>
+  } | null>(null)
+
+  useLayoutEffect(() => {
+    canvasRef.current = canvas
+  }, [canvas])
+
+  const closeActive = useCallback(() => {
+    const active = activeRef.current
+    if (!active) return
+    activeRef.current = null
+    if (active.statsTimer !== null) window.clearInterval(active.statsTimer)
+    if (active.recorder.state !== 'inactive') {
+      try { active.recorder.stop() } catch { /* Recorder may already be tearing down. */ }
+    }
+    active.relay.stop()
+    void bridge?.endGoogleCastStream?.(active.sessionId).catch(() => false)
+  }, [bridge])
+
+  const activeSessionId = session?.providerId === 'google-cast'
+    && session.transport === 'google-cast-webm'
+    && (session.state === 'connecting' || session.state === 'connected')
+    ? session.id
+    : null
+
+  useEffect(() => {
+    if (!bridge || !activeSessionId) {
+      closeActive()
+      return
+    }
+    if (activeRef.current?.sessionId === activeSessionId) return
+    if (activeRef.current) closeActive()
+
+    const sessionId = activeSessionId
+    let cancelled = false
+    let failing = false
+    void (async () => {
+      let pendingRelay: RelayCapture | null = null
+      try {
+        if (!canvasRef.current) throw new Error('The live visualizer has not published an output canvas yet')
+        if (!bridge.beginGoogleCastStream || !bridge.publishGoogleCastChunk || !bridge.endGoogleCastStream) {
+          throw new Error('This DRMVYZ build does not expose the Google Cast live media bridge')
+        }
+        const mimeType = chooseGoogleCastMimeType()
+        if (!mimeType) throw new Error('This Chromium runtime cannot encode a Google Cast compatible WebM stream')
+        const relay = createGoogleCastRelayCapture(canvasRef)
+        pendingRelay = relay
+        const recorder = new MediaRecorder(relay.stream, {
+          mimeType,
+          videoBitsPerSecond: GOOGLE_CAST_VIDEO_BITRATE_BPS,
+        })
+        const active = {
+          sessionId,
+          relay,
+          recorder,
+          statsTimer: null,
+          publishedBytes: 0,
+          lastStatsBytes: 0,
+          lastStatsAt: Date.now(),
+          publishChain: Promise.resolve(),
+        }
+        activeRef.current = active
+        pendingRelay = null
+
+        const fail = async (message: string) => {
+          if (failing || cancelled) return
+          failing = true
+          closeActive()
+          await bridge.failSession(sessionId, message).catch(() => false)
+        }
+
+        recorder.addEventListener('dataavailable', event => {
+          if (!event.data || event.data.size === 0) return
+          active.publishChain = active.publishChain.then(async () => {
+            if (cancelled || activeRef.current !== active) return
+            const bytes = new Uint8Array(await event.data.arrayBuffer())
+            const accepted = await bridge.publishGoogleCastChunk?.(sessionId, bytes)
+            if (accepted === false) throw new Error('Google Cast live media transport stopped accepting encoded frames')
+            active.publishedBytes += bytes.byteLength
+          }).catch(error => {
+            void fail(error instanceof Error ? error.message : 'Google Cast live media transport failed')
+          })
+        })
+        recorder.addEventListener('error', event => {
+          const recorderError = (event as Event & { error?: DOMException }).error
+          void fail(recorderError?.message || 'The Google Cast live encoder failed')
+        })
+
+        await bridge.beginGoogleCastStream(sessionId, {
+          mimeType: recorder.mimeType || mimeType,
+          width: (relay.stream.getVideoTracks()[0]?.getSettings().width ?? canvasRef.current?.width ?? 1280),
+          height: (relay.stream.getVideoTracks()[0]?.getSettings().height ?? canvasRef.current?.height ?? 720),
+          framesPerSecond: GOOGLE_CAST_MAX_FPS,
+        })
+        if (cancelled || activeRef.current !== active) {
+          closeActive()
+          return
+        }
+        recorder.start(GOOGLE_CAST_CHUNK_INTERVAL_MS)
+
+        if (bridge.reportStats) {
+          active.statsTimer = window.setInterval(() => {
+            if (activeRef.current !== active) return
+            const now = Date.now()
+            const elapsedMs = Math.max(1, now - active.lastStatsAt)
+            const bytes = Math.max(0, active.publishedBytes - active.lastStatsBytes)
+            const settings = relay.stream.getVideoTracks()[0]?.getSettings()
+            active.lastStatsAt = now
+            active.lastStatsBytes = active.publishedBytes
+            void bridge.reportStats?.(sessionId, {
+              timestampMs: now,
+              width: settings?.width ?? null,
+              height: settings?.height ?? null,
+              framesPerSecond: settings?.frameRate ?? GOOGLE_CAST_MAX_FPS,
+              bitrateKbps: (bytes * 8) / elapsedMs,
+              roundTripTimeMs: null,
+              packetsLost: null,
+            }).catch(() => false)
+          }, RECEIVER_STATS_INTERVAL_MS)
+        }
+      } catch (error) {
+        pendingRelay?.stop()
+        const message = error instanceof Error ? error.message : 'Google Cast live output could not start'
+        closeActive()
+        await bridge.failSession(sessionId, message).catch(() => false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      if (activeRef.current?.sessionId === sessionId) closeActive()
+    }
+  }, [activeSessionId, bridge, closeActive])
+
+  useEffect(() => closeActive, [closeActive])
+}
+
 function groupTargets(targets: OutputTarget[]) {
   return {
     displays: targets.filter(target => target.kind === 'display'),
-    network: targets.filter(target => target.kind === 'network'),
+    network: targets.filter(target => target.kind === 'network' && target.providerId !== 'google-cast'),
   }
 }
 
@@ -410,7 +629,7 @@ interface OutputCastPopoverProps {
   providerStatuses: OutputProviderStatus[]
   onClose: () => void
   onRefresh: () => void
-  onProviderAction: (providerId: OutputProviderId, actionId: string) => Promise<void>
+  onProviderAction: (providerId: OutputProviderId, actionId: string, payload?: unknown) => Promise<void>
   onCast: (target: OutputTarget, windowMode: OutputWindowMode, aspectRatio: OutputAspectRatio) => void
   onStop: () => void
 }
@@ -440,6 +659,7 @@ function OutputCastPopover({
   const groups = useMemo(() => groupTargets(targets), [targets])
   const airplayProvider = useMemo(() => providerStatuses.find(status => status.providerId === 'airplay') ?? null, [providerStatuses])
   const miracastProvider = useMemo(() => providerStatuses.find(status => status.providerId === 'miracast') ?? null, [providerStatuses])
+  const googleCastProvider = useMemo(() => providerStatuses.find(status => status.providerId === 'google-cast') ?? null, [providerStatuses])
   const providerIssues = useMemo(() => providerStatuses.filter(status => {
     if ((status.providerId === 'airplay' || status.providerId === 'miracast') && status.state === 'unsupported') return false
     return status.state !== 'available' || Boolean(status.message)
@@ -448,6 +668,8 @@ function OutputCastPopover({
   const airplayActionAvailable = airplayProvider?.state === 'available' || airplayProvider?.state === 'initialization-failed'
   const miracastAction = miracastProvider?.capabilities?.actions.includes('open-system-picker') ? 'open-system-picker' : null
   const miracastActionAvailable = miracastProvider?.state === 'available' || miracastProvider?.state === 'initialization-failed'
+  const googleCastAction = googleCastProvider?.capabilities?.actions.includes('open-picker') ? 'open-picker' : null
+  const googleCastActionAvailable = googleCastProvider?.state === 'available' || googleCastProvider?.state === 'initialization-failed'
   const readyToCast = Boolean(windowMode && aspectRatio && canvasReady && bridge)
 
   useEffect(() => {
@@ -516,12 +738,12 @@ function OutputCastPopover({
     onCast(target, windowMode, aspectRatio)
   }
 
-  const performProviderAction = async (providerId: OutputProviderId, actionId: string) => {
+  const performProviderAction = async (providerId: OutputProviderId, actionId: string, payload?: unknown) => {
     const key = `${providerId}:${actionId}`
     if (pendingProviderAction) return
     setPendingProviderAction(key)
     try {
-      await onProviderAction(providerId, actionId)
+      await onProviderAction(providerId, actionId, payload)
     } finally {
       setPendingProviderAction(null)
     }
@@ -719,6 +941,30 @@ function OutputCastPopover({
               </section>
             )}
 
+            {googleCastProvider && (
+              <section className="rv-cast-device-group" aria-label="Google Cast devices">
+                <h3>Google Cast</h3>
+                <button
+                  type="button"
+                  className="rv-cast-provider-action"
+                  disabled={!bridge?.performProviderAction || !googleCastAction || !googleCastActionAvailable || !readyToCast || Boolean(pendingProviderAction) || Boolean(session)}
+                  onClick={() => googleCastAction && void performProviderAction('google-cast', googleCastAction, { windowMode, aspectRatio })}
+                >
+                  <span className="rv-cast-device-icon"><DisplayIcon network /></span>
+                  <span className="rv-cast-device-copy">
+                    <strong>Choose Google Cast Device</strong>
+                    <span>{googleCastProvider.state === 'configuration-required'
+                      ? 'Configure the Cast receiver app ID and HTTPS sender companion first.'
+                      : 'Opens the supported Web Sender companion in your browser, then streams the live DRMVYZ canvas.'}</span>
+                  </span>
+                  <span className="rv-cast-device-state">
+                    {pendingProviderAction === 'google-cast:open-picker' ? 'Opening…' : googleCastProvider.state === 'available' || googleCastProvider.state === 'initialization-failed' ? 'Choose' : 'Setup'}
+                  </span>
+                </button>
+                <p>Google Cast uses the official browser Web Sender flow and a registered Custom Web Receiver. Electron does not impersonate a Cast sender; the companion controls the Cast session while DRMVYZ serves only the tokenized live media stream.</p>
+              </section>
+            )}
+
             <section className="rv-cast-device-group" aria-label="Connected displays">
               <h3>Displays</h3>
               {renderTargets(groups.displays, 'No displays are currently available.')}
@@ -759,6 +1005,7 @@ export function OutputCastControl({
   const [error, setError] = useState<string | null>(null)
 
   useOutputBroadcaster(outputAvailable ? bridge : null, safeCanvas, outputAvailable ? session : null)
+  useGoogleCastBroadcaster(outputAvailable ? bridge : null, safeCanvas, outputAvailable ? session : null)
 
   useLayoutEffect(() => {
     outputAvailableRef.current = outputAvailable
@@ -819,11 +1066,12 @@ export function OutputCastControl({
     if (open && outputAvailable) void refresh()
   }, [open, outputAvailable, refresh])
 
-  const performProviderAction = useCallback(async (providerId: OutputProviderId, actionId: string) => {
+  const performProviderAction = useCallback(async (providerId: OutputProviderId, actionId: string, payload?: unknown) => {
     if (!bridge?.performProviderAction || !outputAvailable) return
     setError(null)
     try {
-      await bridge.performProviderAction(providerId, actionId)
+      const result = await bridge.performProviderAction(providerId, actionId, payload)
+      if (result.session && outputAvailableRef.current) setSession(result.session)
       await refresh()
     } catch (value) {
       if (outputAvailableRef.current) {

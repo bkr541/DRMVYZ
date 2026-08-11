@@ -146,3 +146,22 @@ test('low-frequency transport diagnostics attach only to the active session and 
   await manager.stopSession()
   assert.equal(manager.updateSessionStats('stats-session', { timestampMs: 123457 }), false)
 })
+
+test('configuration-required Google Cast status does not erase healthy provider targets', async () => {
+  const manager = new OutputTargetManager({
+    providers: [
+      provider('local-display', [{ id: 'display:healthy', kind: 'display', name: 'Healthy display', detail: '', available: true }]),
+      provider('google-cast', [], {
+        label: 'Google Cast',
+        capabilities: { targetEnumeration: false, sessions: true, picker: true, actions: ['open-picker'] },
+        getStatus: () => ({ state: 'configuration-required', message: 'Cast deployment configuration is missing.' }),
+        startSession: async () => ({ sessionId: 'unused' }),
+      }),
+    ],
+  })
+
+  const snapshot = await manager.getSnapshot()
+  assert.deepEqual(snapshot.targets.map(target => target.id), ['display:healthy'])
+  assert.equal(snapshot.providers.find(item => item.providerId === 'google-cast').state, 'configuration-required')
+  assert.equal(snapshot.providers.find(item => item.providerId === 'local-display').state, 'available')
+})

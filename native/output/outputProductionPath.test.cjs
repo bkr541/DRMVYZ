@@ -298,3 +298,161 @@ test('production preload and provider-action IPC reach WindowsMiracastProvider w
     await installed.shutdown()
   }
 })
+
+test('production preload provider action reaches GoogleCastProvider and live media IPC without bypassing the target manager', async () => {
+  const handlers = new Map()
+  const ipcMain = { handle: (channel, handler) => handlers.set(channel, handler) }
+  const app = new EventEmitter()
+  const screen = new FakeScreen()
+  const BrowserWindow = { getAllWindows: () => [] }
+  let openedCompanionUrl = null
+  const installed = installOutputCastBridge({
+    app,
+    BrowserWindow,
+    ipcMain,
+    screen,
+    googleCastAppId: 'A1B2C3D4',
+    googleCastSenderUrl: 'https://cast.example.test/drmvyz/sender/',
+    openGoogleCastCompanion: async url => { openedCompanionUrl = url },
+    googleCastNetworkInterfaces: () => ({
+      wifi: [{ family: 'IPv4', address: '192.168.60.4', internal: false }],
+    }),
+    isTrustedAppUrl: url => url === 'drmvyz-app://app/index.html',
+  })
+
+  const sender = new EventEmitter()
+  sender.id = 101
+  sender.getURL = () => 'drmvyz-app://app/index.html'
+  sender.isDestroyed = () => false
+  const event = { sender, senderFrame: { url: 'drmvyz-app://app/index.html' } }
+  const ipcRenderer = new EventEmitter()
+  ipcRenderer.invoke = async (channel, ...args) => {
+    const handler = handlers.get(channel)
+    if (!handler) throw new Error(`Missing IPC handler: ${channel}`)
+    return handler(event, ...args)
+  }
+
+  const exposed = {}
+  const originalLoad = Module._load
+  Module._load = function(request, parent, isMain) {
+    if (request === 'electron') {
+      return {
+        contextBridge: { exposeInMainWorld: (name, value) => { exposed[name] = value } },
+        ipcRenderer,
+        webUtils: { getPathForFile: () => null },
+      }
+    }
+    return originalLoad.call(this, request, parent, isMain)
+  }
+
+  const companionFetch = async (path, init = {}) => {
+    const browserUrl = new URL(openedCompanionUrl)
+    const fragment = new URLSearchParams(browserUrl.hash.slice(1))
+    const callbackUrl = fragment.get('callbackUrl')
+    const callbackToken = fragment.get('callbackToken')
+    assert.ok(callbackUrl)
+    assert.ok(callbackToken)
+    const url = new URL(`${callbackUrl}${path}`)
+    url.searchParams.set('token', callbackToken)
+    return fetch(url, {
+      ...init,
+      headers: {
+        Origin: browserUrl.origin,
+        ...(init.headers || {}),
+      },
+    })
+  }
+
+  try {
+    const preloadPath = require.resolve('../rekordbox/preloadRekordboxBridge.cjs')
+    delete require.cache[preloadPath]
+    require(preloadPath)
+
+    const googleCastProvider = installed.targetManager.providers.get('google-cast')
+    assert.ok(googleCastProvider)
+    for (let attempt = 0; attempt < 30 && googleCastProvider.getStatus().state !== 'available'; attempt += 1) {
+      await new Promise(resolve => setImmediate(resolve))
+    }
+    const snapshot = await exposed.drmvyzNative.output.getTargetSnapshot()
+    const googleCast = snapshot.providers.find(provider => provider.providerId === 'google-cast')
+    assert.equal(googleCast.state, 'available')
+    assert.deepEqual(googleCast.capabilities.actions, ['open-picker'])
+    assert.equal(snapshot.targets.some(target => target.providerId === 'google-cast'), false)
+
+    const actionPromise = exposed.drmvyzNative.output.performProviderAction('google-cast', 'open-picker', {
+      windowMode: 'fullscreen',
+      aspectRatio: '16:9',
+    })
+    for (let attempt = 0; attempt < 30 && !openedCompanionUrl; attempt += 1) {
+      await new Promise(resolve => setImmediate(resolve))
+    }
+    assert.match(openedCompanionUrl, /^https:\/\/cast\.example\.test\/drmvyz\/sender\/#/)
+
+    const unauthorized = await fetch(new URL(openedCompanionUrl).hash
+      ? (() => {
+          const browserUrl = new URL(openedCompanionUrl)
+          const fragment = new URLSearchParams(browserUrl.hash.slice(1))
+          const url = new URL(`${fragment.get('callbackUrl')}/events`)
+          url.searchParams.set('token', fragment.get('callbackToken'))
+          return url
+        })()
+      : 'http://127.0.0.1/invalid', {
+      method: 'POST',
+      headers: { Origin: 'https://attacker.example.test', 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({ type: 'selected', receiverName: 'Attacker TV' }),
+    })
+    assert.equal(unauthorized.status, 403)
+
+    const selectedResponse = await companionFetch('/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({ type: 'selected', receiverName: 'Production Cast TV', receiverId: 'receiver-101' }),
+    })
+    assert.equal(selectedResponse.status, 204)
+
+    const action = await actionPromise
+    assert.equal(action.state, 'selected')
+    assert.equal(action.session.providerId, 'google-cast')
+    assert.equal(action.session.transport, 'google-cast-webm')
+    assert.equal(action.session.state, 'connecting')
+    assert.equal(action.session.targetName, 'Production Cast TV')
+
+    const started = await exposed.drmvyzNative.output.beginGoogleCastStream(action.session.id, {
+      mimeType: 'video/webm;codecs=vp8',
+      width: 1280,
+      height: 720,
+      framesPerSecond: 30,
+    })
+    assert.equal(started.ok, true)
+    assert.match(started.mediaUrls[0], /^http:\/\/192\.168\.60\.4:/)
+    assert.equal(await exposed.drmvyzNative.output.publishGoogleCastChunk(action.session.id, new Uint8Array([1, 2, 3, 4])), true)
+
+    const commandsResponse = await companionFetch('/commands')
+    assert.equal(commandsResponse.status, 200)
+    const commands = await commandsResponse.json()
+    assert.equal(commands.command.type, 'start')
+    assert.equal(commands.command.sessionId, action.session.id)
+    assert.equal(commands.command.mimeType, 'video/webm;codecs=vp8')
+
+    const connectedResponse = await companionFetch('/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({ type: 'connected' }),
+    })
+    assert.equal(connectedResponse.status, 204)
+    assert.equal((await exposed.drmvyzNative.output.getSession()).state, 'connected')
+
+    const disconnectedResponse = await companionFetch('/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({ type: 'disconnected', message: 'Receiver left the session.' }),
+    })
+    assert.equal(disconnectedResponse.status, 204)
+    assert.equal(await exposed.drmvyzNative.output.getSession(), null)
+    assert.equal((await exposed.drmvyzNative.output.listTargets()).some(target => target.providerId === 'google-cast'), false)
+    assert.equal(googleCastProvider.mediaSessions.size, 0)
+  } finally {
+    Module._load = originalLoad
+    await installed.shutdown()
+  }
+})

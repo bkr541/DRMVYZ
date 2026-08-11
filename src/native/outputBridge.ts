@@ -4,7 +4,7 @@ export type OutputTargetKind = 'display' | 'network'
 export type OutputProviderId = 'local-display' | 'drmvyz-receiver' | 'airplay' | 'miracast' | 'google-cast' | (string & {})
 export type OutputCastState = 'connecting' | 'connected' | 'disconnecting' | 'disconnected' | 'failed'
 
-export type OutputProviderState = 'available' | 'unavailable' | 'unsupported' | 'permission-required' | 'initialization-failed'
+export type OutputProviderState = 'available' | 'unavailable' | 'unsupported' | 'permission-required' | 'configuration-required' | 'initialization-failed'
 
 export interface OutputProviderCapabilities {
   targetEnumeration: boolean
@@ -27,6 +27,8 @@ export interface OutputProviderActionResult {
   actionId: string
   state: string
   message?: string | null
+  targetId?: string | null
+  session?: OutputCastSession | null
 }
 
 export interface OutputTarget {
@@ -41,6 +43,8 @@ export interface OutputTarget {
   receiverDisplayName?: string
   receiverPaired?: boolean
   receiverProtocolVersion?: number
+  googleCastTransactionId?: string
+  googleCastReceiverId?: string | null
   receiverVideoCapabilities?: {
     transport?: string
     codecNegotiation?: string
@@ -81,6 +85,7 @@ export interface OutputCastSession {
   targetId: string
   targetName: string
   providerId?: OutputProviderId
+  transport?: 'webrtc' | 'google-cast-webm' | (string & {})
   windowMode: OutputWindowMode
   aspectRatio: OutputAspectRatio
   state: OutputCastState
@@ -102,6 +107,9 @@ export interface NativeOutputBridge {
   publishOffer: (sessionId: string, offer: RTCSessionDescriptionInit) => Promise<boolean>
   waitForAnswer: (sessionId: string) => Promise<RTCSessionDescriptionInit>
   failSession: (sessionId: string, message: string) => Promise<boolean>
+  beginGoogleCastStream?: (sessionId: string, metadata: { mimeType: string; width: number; height: number; framesPerSecond: number }) => Promise<{ ok: boolean; mediaUrls?: string[] }>
+  publishGoogleCastChunk?: (sessionId: string, chunk: Uint8Array) => Promise<boolean>
+  endGoogleCastStream?: (sessionId: string) => Promise<boolean>
   reportStats?: (sessionId: string, stats: OutputTransportStats) => Promise<boolean>
   onTargetsChanged: (callback: (targets: OutputTarget[]) => void) => () => void
   onTargetSnapshotChanged?: (callback: (snapshot: OutputTargetSnapshot) => void) => () => void
