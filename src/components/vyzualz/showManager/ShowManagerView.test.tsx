@@ -7,7 +7,32 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const fixture = vi.hoisted(() => ({
   laserRuntimePreviewProps: [] as Array<Record<string, unknown>>,
+  audioLibrary: {
+    savedTracks: [{
+      id: 'audio-audio-db-1',
+      dbId: 'audio-db-1',
+      title: 'Selected Audio Track',
+      fileName: 'selected-audio-track.wav',
+      storagePath: 'user/audio/selected-audio-track.wav',
+      durationSec: 240,
+      sampleRate: 48000,
+      channels: 2,
+      fileSizeByte: 1234,
+      mimeType: 'audio/wav',
+      transcriptionAssets: null,
+      artist: 'DVYDRM',
+      genre: null,
+      bpm: 128,
+      musicalKey: null,
+      createdAt: '2026-08-11T00:00:00.000Z',
+    }],
+    loading: false,
+    loadError: null as string | null,
+    loadSavedTracks: vi.fn(async () => undefined),
+  },
   media: {
+    collections: [{ id: 'collection-1', name: 'Festival' }],
+    loadCollections: vi.fn(async () => undefined),
     items: [{
       id: 'media-video-1',
       name: 'aurora-loop.mp4',
@@ -87,6 +112,19 @@ const fixture = vi.hoisted(() => ({
     pixGridActionCuesByTrackId: {},
     manualTrackSectionsByTrackId: {},
     suppressedAutoSectionsByTrackId: {},
+    showManagerShows: [{
+      schemaVersion: 1,
+      id: 'laser-show-1',
+      name: 'Test PixGrid',
+      linkedAudioTrackId: 'audio-db-1',
+      tags: [],
+      groupId: null,
+      engineIds: ['pixGrid', 'laserDmx'],
+    }],
+    showManagerEditingShowId: 'laser-show-1' as string | null,
+    createShowManagerShow: vi.fn(async () => 'show-manager-created' as string | null),
+    selectShowManagerShow: vi.fn(),
+    resetShowManagerSession: vi.fn(),
     laserDmxShowManagerShows: [{
       schemaVersion: 2,
       id: 'laser-show-1',
@@ -195,6 +233,34 @@ vi.mock('../../../stores/reactStore', () => {
 
 vi.mock('../../../stores/mediaStore', () => ({
   useMediaStore: (selector: (state: typeof fixture.media) => unknown) => selector(fixture.media),
+}))
+
+vi.mock('../../../stores/audioStore', () => ({
+  useAudioStore: (selector: (state: typeof fixture.audioLibrary) => unknown) => selector(fixture.audioLibrary),
+}))
+
+vi.mock('../../../stores/lyricsStore', () => ({
+  useLyricsStore: (selector: (state: { editorDirty: boolean; isSaving: boolean }) => unknown) => selector({
+    editorDirty: false,
+    isSaving: false,
+  }),
+}))
+
+vi.mock('../react/ReactView', () => ({
+  ReactView: () => <div data-testid="react-workspace" />,
+}))
+
+vi.mock('../MediaUploadModal', () => ({
+  MediaUploadModal: ({ onClose, onAudioUploaded }: { onClose: () => void; onAudioUploaded?: (tracks: typeof fixture.audioLibrary.savedTracks) => void }) => (
+    <div role="dialog" aria-label="Mock audio upload">
+      <button type="button" onClick={() => {
+        onAudioUploaded?.(fixture.audioLibrary.savedTracks)
+        onClose()
+      }}>Complete Audio Upload</button>
+      <button type="button" onClick={onClose}>Fail Audio Upload</button>
+      <button type="button" onClick={onClose}>Cancel Audio Upload</button>
+    </div>
+  ),
 }))
 
 vi.mock('../media/MediaLibraryBrowser', () => ({
@@ -325,6 +391,7 @@ import {
   copyLaserDmxShowManagerFixturesBetweenSections,
   removeLaserDmxShowManagerFixtureFromSection,
 } from './LaserDmxShowManagerDomain'
+import { VyzualzView } from '../VyzualzView'
 import { ShowManagerView } from './ShowManagerView'
 
 let container: HTMLDivElement | null = null
@@ -338,6 +405,7 @@ afterEach(() => {
   fixture.state.undoLaserDmxShowManagerEdit.mockClear()
   fixture.state.redoLaserDmxShowManagerEdit.mockClear()
   fixture.state.saveLaserDmxShowManagerShow.mockClear()
+  fixture.state.ensureLaserDmxShowManagerShow.mockClear()
   fixture.state.selectReactPreset.mockClear()
   fixture.state.createCanvasShowManagerShow.mockClear()
   fixture.state.selectCanvasShowManagerShow.mockClear()
@@ -345,6 +413,21 @@ afterEach(() => {
   fixture.state.addCanvasShowManagerMediaElement.mockReset()
   fixture.state.updateCanvasShowManagerMediaElement.mockReset()
   fixture.state.removeCanvasShowManagerMediaElement.mockReset()
+  fixture.state.showManagerShows = [{
+    schemaVersion: 1,
+    id: 'laser-show-1',
+    name: 'Test PixGrid',
+    linkedAudioTrackId: 'audio-db-1',
+    tags: [],
+    groupId: null,
+    engineIds: ['pixGrid', 'laserDmx'],
+  }] as typeof fixture.state.showManagerShows
+  fixture.state.showManagerEditingShowId = 'laser-show-1'
+  fixture.state.resetShowManagerSession.mockClear()
+  fixture.state.createShowManagerShow.mockClear()
+  fixture.state.selectShowManagerShow.mockClear()
+  fixture.audioLibrary.loadSavedTracks.mockClear()
+  fixture.media.loadCollections.mockClear()
   fixture.state.canvasShowManagerShows = []
   fixture.state.canvasShowManagerEditingShowId = null
   fixture.state.canvasShowManagerEditingSectionId = null
@@ -357,6 +440,99 @@ afterEach(() => {
 })
 
 describe('ShowManagerView production shell', () => {
+  it('enters a true empty workspace even when persisted Shows and stale editing selections exist', async () => {
+    fixture.state.showManagerEditingShowId = 'laser-show-1'
+    fixture.state.canvasShowManagerEditingShowId = 'stale-canvas-show'
+    fixture.state.laserDmxShowManagerEditingShowId = 'laser-show-1'
+    fixture.state.resetShowManagerSession.mockImplementationOnce(() => {
+      fixture.state.showManagerEditingShowId = null
+      fixture.state.canvasShowManagerEditingShowId = null
+      fixture.state.canvasShowManagerEditingSectionId = null
+      fixture.state.canvasShowManagerEditingElementId = null
+      fixture.state.laserDmxShowManagerEditingShowId = null
+      fixture.state.laserDmxShowManagerEditingSectionId = null
+      fixture.state.laserDmxShowManagerPlaybackSectionId = null
+    })
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+
+    expect(fixture.state.resetShowManagerSession).toHaveBeenCalled()
+    expect(container.querySelector('[data-testid="show-manager-empty-library"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="show-manager-empty-visualizer"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="show-manager-empty-track-map"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="show-manager-empty-inspector"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="pix-grid-surface"]')).toBeNull()
+    expect(container.querySelector('[data-testid="laser-dmx-runtime-preview"]')).toBeNull()
+    expect(container.querySelector('[data-testid="canvas-runtime-preview-surface"]')).toBeNull()
+  })
+
+  it('navigates through the real sidebar and creates an audio-bound Show through the production New Show action', async () => {
+    fixture.state.showManagerEditingShowId = null
+    fixture.state.createShowManagerShow.mockResolvedValueOnce('show-manager-created')
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<VyzualzView activeView="vyzualz" onNavigate={vi.fn()} initialAppView="react" />)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('button[aria-label="Show Manager"]')?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(container.querySelector('[data-testid="show-manager-empty-visualizer"]')).not.toBeNull()
+
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('button[aria-label="New Show"]')?.click()
+      await Promise.resolve()
+    })
+    const dialog = container.querySelector<HTMLElement>('.sm-new-show-dialog')!
+    const nameInput = dialog.querySelector<HTMLInputElement>('#show-manager-new-show-name')!
+    const audioSelect = dialog.querySelector<HTMLSelectElement>('#show-manager-new-show-audio')!
+    const tagsInput = dialog.querySelector<HTMLInputElement>('#show-manager-new-show-tags')!
+    const groupSelect = dialog.querySelector<HTMLSelectElement>('#show-manager-new-show-group')!
+
+    await act(async () => {
+      const inputSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
+      inputSetter?.call(nameInput, '  Festival   Main  ')
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+      selectSetter?.call(audioSelect, 'audio-db-1')
+      audioSelect.dispatchEvent(new Event('change', { bubbles: true }))
+      inputSetter?.call(tagsInput, 'Peak')
+      tagsInput.dispatchEvent(new Event('input', { bubbles: true }))
+      tagsInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      selectSetter?.call(groupSelect, 'collection-1')
+      groupSelect.dispatchEvent(new Event('change', { bubbles: true }))
+      await Promise.resolve()
+    })
+
+    const createButton = dialog.querySelector<HTMLButtonElement>('button[type="submit"]')!
+    expect(createButton.disabled).toBe(false)
+    await act(async () => {
+      createButton.click()
+      await Promise.resolve()
+    })
+
+    expect(fixture.state.createShowManagerShow).toHaveBeenCalledWith({
+      name: 'Festival Main',
+      linkedAudioTrackId: 'audio-db-1',
+      tags: ['Peak'],
+      groupId: 'collection-1',
+      initialEngineId: 'pixGrid',
+    })
+  })
   it('uses the shared dropdown in the left rail and enables the production Show Manager engines', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -420,26 +596,22 @@ describe('ShowManagerView production shell', () => {
     })
     const browser = container.querySelector<HTMLElement>('.sm-show-browser[role="dialog"]')
     expect(browser?.textContent).toContain('Test PixGrid')
-    expect(browser?.textContent).toContain('PixGrid Preset')
+    expect(browser?.textContent).toContain('Audio linked')
     await act(async () => {
       browser?.querySelector<HTMLButtonElement>('.sm-show-browser-footer .is-primary')?.click()
       await Promise.resolve()
     })
 
-    await act(async () => {
-      fileActions?.querySelector<HTMLButtonElement>('button[aria-label="Save + Make Active"]')?.click()
-      await Promise.resolve()
-    })
-    expect(fixture.state.selectReactPreset).toHaveBeenCalledWith('pix-grid-test')
+    expect(fileActions?.querySelector<HTMLButtonElement>('button[aria-label="Save + Make Active"]')?.disabled).toBe(true)
 
     await act(async () => {
       fileActions?.querySelector<HTMLButtonElement>('button[aria-label="New Show"]')?.click()
       await Promise.resolve()
     })
-    expect(container.querySelector('.sm-title-block')?.textContent).toContain('DECK BUILDER')
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain('Every Show requires a unique name and a linked Audio Library track.')
   })
 
-  it('enters Canvas through the production engine selector and requests only a Show name', async () => {
+  it('uses one audio-bound New Show dialog for Canvas with required audio and optional metadata', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -461,23 +633,118 @@ describe('ShowManagerView production shell', () => {
       await Promise.resolve()
     })
 
-    expect(container.querySelector('[data-testid="canvas-show-manager-empty-state"]')).not.toBeNull()
-    expect(container.querySelector('[aria-label="Show Manager Canvas media timeline"]')).not.toBeNull()
-    expect(container.querySelector('[data-testid="pix-grid-surface"]')).toBeNull()
-
-    const newShowButton = [...container.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent === 'New Show')
+    const newShowButton = container.querySelector<HTMLButtonElement>('button[aria-label="New Show"]')
     await act(async () => {
       newShowButton?.click()
       await Promise.resolve()
     })
-    const dialog = container.querySelector<HTMLElement>('[role="dialog"]')
-    expect(dialog?.textContent).toContain('New Canvas Show')
-    expect(dialog?.querySelector('input#canvas-new-show-name')).not.toBeNull()
-    expect(dialog?.querySelectorAll('input')).toHaveLength(1)
-    expect(dialog?.querySelector('input[type="file"]')).toBeNull()
-    expect(dialog?.textContent).toContain('Media is added afterward')
+    const dialog = container.querySelector<HTMLElement>('.sm-new-show-dialog[role="dialog"]')
+    expect(dialog?.textContent).toContain('New Show')
+    expect(dialog?.querySelector('input#show-manager-new-show-name')).not.toBeNull()
+    expect(dialog?.querySelector('select#show-manager-new-show-audio')).not.toBeNull()
+    expect(dialog?.querySelector('input#show-manager-new-show-tags')).not.toBeNull()
+    expect(dialog?.querySelector('select#show-manager-new-show-group')).not.toBeNull()
+    expect(dialog?.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true)
+    expect(fixture.audioLibrary.loadSavedTracks).toHaveBeenCalled()
+    expect(fixture.media.loadCollections).toHaveBeenCalled()
   })
+
+
+  it('links a newly ingested canonical audio record before committing the Show', async () => {
+    fixture.state.showManagerEditingShowId = null
+    fixture.state.createShowManagerShow.mockResolvedValueOnce('show-manager-upload-created')
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('button[aria-label="New Show"]')?.click()
+      await Promise.resolve()
+    })
+    const dialog = container.querySelector<HTMLElement>('.sm-new-show-dialog')!
+    const nameInput = dialog.querySelector<HTMLInputElement>('#show-manager-new-show-name')!
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(nameInput, 'Uploaded Audio Show')
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Upload New Audio')?.click()
+      await Promise.resolve()
+    })
+    const uploadDialog = container.querySelector<HTMLElement>('[aria-label="Mock audio upload"]')!
+    await act(async () => {
+      [...uploadDialog.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Complete Audio Upload')?.click()
+      await Promise.resolve()
+    })
+
+    const createButton = dialog.querySelector<HTMLButtonElement>('button[type="submit"]')!
+    expect(createButton.disabled).toBe(false)
+    await act(async () => {
+      createButton.click()
+      await Promise.resolve()
+    })
+
+    expect(fixture.state.createShowManagerShow).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Uploaded Audio Show',
+      linkedAudioTrackId: 'audio-db-1',
+    }))
+  })
+
+  it('does not commit a Show when the canonical audio-upload boundary fails or is cancelled', async () => {
+    fixture.state.showManagerEditingShowId = null
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('button[aria-label="New Show"]')?.click()
+      await Promise.resolve()
+    })
+    const dialog = container.querySelector<HTMLElement>('.sm-new-show-dialog')!
+    const nameInput = dialog.querySelector<HTMLInputElement>('#show-manager-new-show-name')!
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(nameInput, 'Upload Failure Show')
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Upload New Audio')?.click()
+      await Promise.resolve()
+    })
+    const uploadDialog = container.querySelector<HTMLElement>('[aria-label="Mock audio upload"]')!
+    await act(async () => {
+      [...uploadDialog.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Fail Audio Upload')?.click()
+      await Promise.resolve()
+    })
+
+    expect(dialog.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true)
+    expect(fixture.state.createShowManagerShow).not.toHaveBeenCalled()
+
+    await act(async () => {
+      [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Upload New Audio')?.click()
+      await Promise.resolve()
+    })
+    const cancelledUploadDialog = container.querySelector<HTMLElement>('[aria-label="Mock audio upload"]')!
+    await act(async () => {
+      [...cancelledUploadDialog.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Cancel Audio Upload')?.click()
+      await Promise.resolve()
+    })
+
+    expect(dialog.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true)
+    expect(fixture.state.createShowManagerShow).not.toHaveBeenCalled()
+  })
+
 
   it('opens Shows from an icon-only header action and directory-style browser', async () => {
     fixture.state.canvasShowManagerShows = [{
@@ -493,6 +760,8 @@ describe('ShowManagerView production shell', () => {
       mediaElements: [],
     }] as typeof fixture.state.canvasShowManagerShows
     fixture.state.canvasShowManagerEditingShowId = 'canvas-show-library'
+    fixture.state.showManagerShows = [{ schemaVersion: 1, id: 'canvas-show-library', name: 'Festival Visuals', linkedAudioTrackId: 'audio-db-1', tags: [], groupId: null, engineIds: ['canvas'] }] as typeof fixture.state.showManagerShows
+    fixture.state.showManagerEditingShowId = 'canvas-show-library'
 
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -526,7 +795,7 @@ describe('ShowManagerView production shell', () => {
     const browser = container.querySelector<HTMLElement>('.sm-show-browser[role="dialog"]')
     expect(browser?.textContent).toContain('All Shows')
     expect(browser?.textContent).toContain('Festival Visuals')
-    expect(browser?.textContent).toContain('1 section · 0 media items')
+    expect(browser?.textContent).toContain('Audio linked')
     expect(browser?.querySelector('input[type="search"]')).not.toBeNull()
     expect(browser?.querySelector('[role="listbox"]')).not.toBeNull()
 
@@ -556,6 +825,8 @@ describe('ShowManagerView production shell', () => {
       mediaElements: [],
     }] as typeof fixture.state.canvasShowManagerShows
     fixture.state.canvasShowManagerEditingShowId = 'canvas-show-track-map'
+    fixture.state.showManagerShows = [{ schemaVersion: 1, id: 'canvas-show-track-map', name: 'Track Map Show', linkedAudioTrackId: 'audio-db-1', tags: [], groupId: null, engineIds: ['canvas'] }] as typeof fixture.state.showManagerShows
+    fixture.state.showManagerEditingShowId = 'canvas-show-track-map'
     fixture.state.canvasShowManagerEditingSectionId = sections[0]!.id
 
     container = document.createElement('div')
@@ -634,8 +905,10 @@ describe('ShowManagerView production shell', () => {
     }
     fixture.state.canvasShowManagerShows = [show] as typeof fixture.state.canvasShowManagerShows
     fixture.state.canvasShowManagerEditingShowId = show.id
+    fixture.state.showManagerShows = [{ schemaVersion: 1, id: show.id, name: show.name, linkedAudioTrackId: 'audio-db-1', tags: [], groupId: null, engineIds: ['canvas'] }] as typeof fixture.state.showManagerShows
+    fixture.state.showManagerEditingShowId = show.id
     fixture.state.canvasShowManagerEditingSectionId = show.sections[0]!.id
-    fixture.state.addCanvasShowManagerMediaElement.mockImplementation(input => {
+    fixture.state.addCanvasShowManagerMediaElement.mockImplementation((input: { mediaId: string; layer: number }) => {
       if (show.mediaElements.some(element => element.layer === input.layer)) {
         return { ok: false, code: 'overlap', message: `Layer ${input.layer + 1} already contains media in that Show cue range.` }
       }
@@ -658,7 +931,7 @@ describe('ShowManagerView production shell', () => {
       fixture.state.canvasShowManagerEditingElementId = element.id
       return { ok: true, show, element }
     })
-    fixture.state.updateCanvasShowManagerMediaElement.mockImplementation((_showId, elementId, patch) => {
+    fixture.state.updateCanvasShowManagerMediaElement.mockImplementation((_showId: string, elementId: string, patch: Partial<(typeof show.mediaElements)[number]>) => {
       const element = show.mediaElements.find(candidate => candidate.id === elementId)!
       Object.assign(element, patch, {
         display: patch.display ? { ...element.display, ...patch.display } : element.display,
@@ -820,7 +1093,7 @@ describe('ShowManagerView production shell', () => {
         await Promise.resolve()
       })
 
-      expect(fixture.state.ensureLaserDmxShowManagerShow).toHaveBeenCalled()
+      expect(fixture.state.ensureLaserDmxShowManagerShow).not.toHaveBeenCalled()
       expect(container.querySelector('[aria-label="LaserDMX Part 1 authoring grid"]')).not.toBeNull()
       expect(container.querySelector('[aria-label="Show Manager LaserDMX section timeline"]')).not.toBeNull()
       expect(container.querySelector('[data-testid="pix-grid-surface"]')).toBeNull()

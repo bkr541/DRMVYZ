@@ -441,8 +441,8 @@ export function createDefaultLaserDmxShowManagerSections(
   }))
 }
 
-export function createLaserDmxShowManagerShow(name = 'Untitled Show'): LaserDmxShowManagerShow {
-  const id = createId('laser-dmx-show')
+export function createLaserDmxShowManagerShow(name = 'Untitled Show', explicitId?: string): LaserDmxShowManagerShow {
+  const id = explicitId?.trim() || createId('laser-dmx-show')
   return {
     schemaVersion: LASER_DMX_SHOW_MANAGER_SCHEMA_VERSION,
     id,

@@ -4,6 +4,7 @@ import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { resolvePositiveDuration, type TimelineViewport } from '../../../features/timeline/timelineViewport'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { useReactStore } from '../../../stores/reactStore'
+import { useAudioStore, type SavedAudioTrack } from '../../../stores/audioStore'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { ContextActionMenu } from '../context-menu/ContextActionMenu'
@@ -43,6 +44,7 @@ import { ingestPixGridDeckSourceFiles } from '../react/pixGrid/PixGridDeckMediaS
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
+import { MediaUploadModal } from '../MediaUploadModal'
 import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
 import { getCanvasLibraryDisabledReason, getCanvasLibraryMediaType } from '../react/canvasMediaLibraryContract'
 import {
@@ -73,7 +75,6 @@ import {
   getCanvasShowManagerSectionRanges,
   getCanvasShowManagerTotalDuration,
   canvasShowManagerRangeOverlaps,
-  isCanvasShowManagerNameAvailable,
   normalizeCanvasShowManagerDuration,
   type CanvasShowManagerLayer,
   type CanvasShowManagerMediaElement,
@@ -84,6 +85,12 @@ import {
   type CanvasShowManagerTransitionType,
 } from './CanvasShowManagerDomain'
 import '../../../styles/reactView.css'
+import {
+  isShowManagerShowNameAvailable,
+  isSupportedShowManagerAudioLibraryItem,
+  normalizeShowManagerShowName,
+  type ShowManagerEngineId,
+} from './ShowManagerDomain'
 import '../../../styles/showManager.css'
 
 const COMPONENTS = [
@@ -177,9 +184,9 @@ function ShowBrowserDialog({
   )
   const searchRef = useRef<HTMLInputElement | null>(null)
   const filteredShows = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase()
+    const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) return shows
-    return shows.filter(show => show.name.toLocaleLowerCase().includes(normalizedQuery))
+    return shows.filter(show => show.name.toLowerCase().includes(normalizedQuery))
   }, [query, shows])
 
   useEffect(() => {
@@ -374,6 +381,225 @@ function ShowManagerSectionStrip({
   )
 }
 
+interface NewShowDialogProps {
+  engineId: ShowManagerEngineId
+  onClose: () => void
+}
+
+function NewShowDialog({ engineId, onClose }: NewShowDialogProps) {
+  const shows = useReactStore(state => state.showManagerShows)
+  const createShow = useReactStore(state => state.createShowManagerShow)
+  const savedAudioTracks = useAudioStore(state => state.savedTracks)
+  const audioLoading = useAudioStore(state => state.loading)
+  const audioLoadError = useAudioStore(state => state.loadError)
+  const loadSavedTracks = useAudioStore(state => state.loadSavedTracks)
+  const collections = useMediaStore(state => state.collections)
+  const loadCollections = useMediaStore(state => state.loadCollections)
+  const [name, setName] = useState('')
+  const [selectedAudioTrackId, setSelectedAudioTrackId] = useState('')
+  const [tags, setTags] = useState<string[]>([])
+  const [tagDraft, setTagDraft] = useState('')
+  const [groupId, setGroupId] = useState('')
+  const [nameTouched, setNameTouched] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const submittingRef = useRef(false)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const headingId = useId()
+
+  useEffect(() => {
+    void loadSavedTracks()
+    void loadCollections()
+  }, [loadCollections, loadSavedTracks])
+
+  const normalizedName = normalizeShowManagerShowName(name)
+  const nameAvailable = isShowManagerShowNameAvailable(shows, name)
+  const selectedTrack = savedAudioTracks.find(track => track.dbId === selectedAudioTrackId && isSupportedShowManagerAudioLibraryItem(track)) ?? null
+  const canCreate = Boolean(normalizedName && nameAvailable && selectedTrack && !submitting)
+
+  const addTag = (raw: string) => {
+    const next = raw.trim().replace(/\s+/g, ' ')
+    if (!next) return
+    setTags(current => current.some(tag => tag.toLowerCase() === next.toLowerCase()) ? current : [...current, next])
+    setTagDraft('')
+  }
+
+  const commit = async () => {
+    if (submittingRef.current) return
+    setNameTouched(true)
+    setSubmitError(null)
+    if (!normalizedName || !nameAvailable || !selectedTrack) return
+    submittingRef.current = true
+    setSubmitting(true)
+    try {
+      const showId = await createShow({
+        name: normalizedName,
+        linkedAudioTrackId: selectedTrack.dbId,
+        tags,
+        groupId: groupId || null,
+        initialEngineId: engineId,
+      })
+      if (!showId) {
+        setSubmitError('The Show could not be created. Check the name and persistence status, then try again.')
+        return
+      }
+      onClose()
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <>
+      <div
+        className="sm-canvas-dialog-backdrop"
+        role="presentation"
+        onMouseDown={event => {
+          if (event.target === event.currentTarget && !submitting) onClose()
+        }}
+      >
+        <form
+          className="sm-canvas-dialog sm-new-show-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={headingId}
+          onKeyDown={event => {
+            if (event.key === 'Escape' && !submitting) onClose()
+          }}
+          onSubmit={event => {
+            event.preventDefault()
+            void commit()
+          }}
+        >
+          <h2 id={headingId}>New Show</h2>
+          <p>Every Show requires a unique name and a linked Audio Library track.</p>
+
+          <label htmlFor="show-manager-new-show-name">Show Name <span aria-hidden="true">*</span></label>
+          <DreamVizTextInput
+            id="show-manager-new-show-name"
+            autoFocus
+            value={name}
+            aria-invalid={nameTouched && (!normalizedName || !nameAvailable)}
+            onBlur={() => setNameTouched(true)}
+            onChange={event => {
+              setName(event.target.value)
+              setSubmitError(null)
+            }}
+          />
+          {nameTouched && !normalizedName && <p className="sm-canvas-form-error" role="alert">Show Name is required.</p>}
+          {nameTouched && normalizedName && !nameAvailable && <p className="sm-canvas-form-error" role="alert">A Show with this name already exists.</p>}
+
+          <label htmlFor="show-manager-new-show-audio">Audio Track <span aria-hidden="true">*</span></label>
+          <div className="sm-new-show-audio-row">
+            <select
+              id="show-manager-new-show-audio"
+              value={selectedAudioTrackId}
+              disabled={audioLoading || submitting}
+              onChange={event => {
+                setSelectedAudioTrackId(event.target.value)
+                setSubmitError(null)
+              }}
+            >
+              <option value="">{audioLoading ? 'Loading Audio Library…' : 'Choose from Audio Library'}</option>
+              {savedAudioTracks.filter(isSupportedShowManagerAudioLibraryItem).map(track => (
+                <option key={track.dbId} value={track.dbId}>{track.title || track.fileName}</option>
+              ))}
+            </select>
+            <button type="button" onClick={() => setUploadOpen(true)} disabled={submitting}>Upload New Audio</button>
+          </div>
+          {audioLoadError && <p className="sm-new-show-field-note" role="status">{audioLoadError}</p>}
+
+          <label htmlFor="show-manager-new-show-tags">Tags <span className="sm-new-show-optional">Optional</span></label>
+          <DreamVizTextInput
+            id="show-manager-new-show-tags"
+            value={tagDraft}
+            placeholder="Type a tag and press Enter"
+            onChange={event => setTagDraft(event.target.value)}
+            onKeyDown={event => {
+              if (event.key !== 'Enter' && event.key !== ',') return
+              event.preventDefault()
+              addTag(tagDraft)
+            }}
+            onBlur={() => addTag(tagDraft)}
+          />
+          {tags.length > 0 && (
+            <div className="sm-new-show-tags" aria-label="Show tags">
+              {tags.map(tag => (
+                <button key={tag} type="button" onClick={() => setTags(current => current.filter(value => value !== tag))} aria-label={`Remove tag ${tag}`}>
+                  {tag} ×
+                </button>
+              ))}
+            </div>
+          )}
+
+          <label htmlFor="show-manager-new-show-group">Group <span className="sm-new-show-optional">Optional</span></label>
+          <select id="show-manager-new-show-group" value={groupId} onChange={event => setGroupId(event.target.value)} disabled={submitting}>
+            <option value="">No group</option>
+            {collections.map(collection => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
+          </select>
+
+          {submitError && <p className="sm-canvas-form-error" role="alert">{submitError}</p>}
+          <div className="sm-canvas-dialog-actions">
+            <button type="button" onClick={onClose} disabled={submitting}>Cancel</button>
+            <button type="submit" disabled={!canCreate}>{submitting ? 'Creating…' : 'Create Show'}</button>
+          </div>
+        </form>
+      </div>
+      {uploadOpen && (
+        <MediaUploadModal
+          audioOnly
+          onClose={() => setUploadOpen(false)}
+          onAudioUploaded={(tracks: SavedAudioTrack[]) => {
+            const track = tracks[0]
+            if (track && isSupportedShowManagerAudioLibraryItem(track)) setSelectedAudioTrackId(track.dbId)
+          }}
+        />
+      )}
+    </>
+  )
+}
+
+function EmptyShowManagerWorkspace({
+  selectedEngineId,
+  onEngineChange,
+}: {
+  selectedEngineId: ReactEngineId
+  onEngineChange: (engineId: ReactEngineId) => void
+}) {
+  return (
+    <>
+      <aside className="sm-library" aria-label="Show Manager component library">
+        <div className="sm-engine-picker">
+          <Dropdown
+            id="show-manager-engine"
+            ariaLabel="Show Manager engine"
+            value={selectedEngineId}
+            onChange={value => onEngineChange(value as ReactEngineId)}
+            options={SHOW_MANAGER_ENGINE_OPTIONS}
+            size="compact"
+            maxMenuHeight={360}
+            className="sm-engine-dropdown"
+            menuClassName="sm-engine-dropdown-menu"
+          />
+        </div>
+        <div className="sm-panel-blank" data-testid="show-manager-empty-library" />
+      </aside>
+      <main className="sm-center" aria-label="Show Manager visualizer and Track Map">
+        <div className="sm-stage-frame sm-stage-frame--empty" data-testid="show-manager-empty-visualizer" aria-label="Blank Show Manager visualizer" />
+        <div className="sm-timeline sm-timeline--empty" data-testid="show-manager-empty-track-map" aria-label="Empty Show Manager Track Map" />
+      </main>
+      <aside className="sm-inspector" aria-label={`Show Manager ${REACT_ENGINE_CATALOG[selectedEngineId].label} inspector`}>
+        <div className="sm-panel-heading sm-panel-heading--inspector">
+          <strong>INSPECTOR</strong>
+          <span>No Show open</span>
+        </div>
+        <div className="sm-panel-blank" data-testid="show-manager-empty-inspector" />
+      </aside>
+    </>
+  )
+}
+
 function findPixGridPreset(
   presets: readonly ReactPreset[],
   preferredId: string | null,
@@ -386,7 +612,6 @@ export function ShowManagerView() {
   const engine = useSharedAudio()
   const reactPresets = useReactStore(state => state.reactPresets)
   const activeReactPresetId = useReactStore(state => state.activeReactPresetId)
-  const selectReactPreset = useReactStore(state => state.selectReactPreset)
   const pixGridState = useReactStore(state => state.pixGridState)
   const pixGridDecks = useReactStore(state => state.pixGridDecks)
   const renamePixGridDeck = useReactStore(state => state.renamePixGridDeck)
@@ -400,13 +625,15 @@ export function ShowManagerView() {
   const pixGridActionCuesByTrackId = useReactStore(state => state.pixGridActionCuesByTrackId)
   const manualTrackSectionsByTrackId = useReactStore(state => state.manualTrackSectionsByTrackId)
   const suppressedAutoSectionsByTrackId = useReactStore(state => state.suppressedAutoSectionsByTrackId)
+  const showManagerShows = useReactStore(state => state.showManagerShows)
+  const showManagerEditingShowId = useReactStore(state => state.showManagerEditingShowId)
+  const selectShowManagerShow = useReactStore(state => state.selectShowManagerShow)
+  const resetShowManagerSession = useReactStore(state => state.resetShowManagerSession)
   const laserDmxShowManagerShows = useReactStore(state => state.laserDmxShowManagerShows)
   const laserDmxShowManagerEditingShowId = useReactStore(state => state.laserDmxShowManagerEditingShowId)
   const laserDmxShowManagerEditingSectionId = useReactStore(state => state.laserDmxShowManagerEditingSectionId)
   const laserDmxShowManagerPlaybackSectionId = useReactStore(state => state.laserDmxShowManagerPlaybackSectionId)
-  const createLaserDmxShowManagerShow = useReactStore(state => state.createLaserDmxShowManagerShow)
   const selectLaserDmxShowManagerShow = useReactStore(state => state.selectLaserDmxShowManagerShow)
-  const ensureLaserDmxShowManagerShow = useReactStore(state => state.ensureLaserDmxShowManagerShow)
   const selectLaserDmxShowManagerSection = useReactStore(state => state.selectLaserDmxShowManagerSection)
   const updateLaserDmxShowManagerSection = useReactStore(state => state.updateLaserDmxShowManagerSection)
   const updateLaserDmxShowManagerWorkspaceSettings = useReactStore(state => state.updateLaserDmxShowManagerWorkspaceSettings)
@@ -430,7 +657,6 @@ export function ShowManagerView() {
   const canvasShowManagerEditingShowId = useReactStore(state => state.canvasShowManagerEditingShowId)
   const canvasShowManagerEditingSectionId = useReactStore(state => state.canvasShowManagerEditingSectionId)
   const canvasShowManagerEditingElementId = useReactStore(state => state.canvasShowManagerEditingElementId)
-  const createCanvasShowManagerShow = useReactStore(state => state.createCanvasShowManagerShow)
   const selectCanvasShowManagerShow = useReactStore(state => state.selectCanvasShowManagerShow)
   const selectCanvasShowManagerSection = useReactStore(state => state.selectCanvasShowManagerSection)
   const selectCanvasShowManagerMediaElement = useReactStore(state => state.selectCanvasShowManagerMediaElement)
@@ -448,6 +674,7 @@ export function ShowManagerView() {
   const commitCanvasShowManagerHistoryTransaction = useReactStore(state => state.commitCanvasShowManagerHistoryTransaction)
   const saveCanvasShowManagerShow = useReactStore(state => state.saveCanvasShowManagerShow)
   const sharedMediaItems = useMediaStore(state => state.items)
+  const [showManagerSessionReady, setShowManagerSessionReady] = useState(false)
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
   const [selectedLightingComponentKind, setSelectedLightingComponentKind] = useState<LaserDmxShowDirectorFixtureKind | null>(null)
   const [selectedLaserFixtureId, setSelectedLaserFixtureId] = useState<string | null>(null)
@@ -477,9 +704,7 @@ export function ShowManagerView() {
   const [canvasSavePending, setCanvasSavePending] = useState<'save' | 'active' | null>(null)
   const [canvasSaveStatus, setCanvasSaveStatus] = useState<string | null>(null)
   const [showBrowserOpen, setShowBrowserOpen] = useState(false)
-  const [canvasCreateOpen, setCanvasCreateOpen] = useState(false)
-  const [canvasCreateName, setCanvasCreateName] = useState('')
-  const [canvasCreateError, setCanvasCreateError] = useState<string | null>(null)
+  const [newShowOpen, setNewShowOpen] = useState(false)
   const [canvasRenameDraft, setCanvasRenameDraft] = useState('')
   const [canvasRenameError, setCanvasRenameError] = useState<string | null>(null)
   const [canvasLibraryMediaId, setCanvasLibraryMediaId] = useState<string | null>(null)
@@ -487,15 +712,24 @@ export function ShowManagerView() {
   const [canvasPlayheadSec, setCanvasPlayheadSec] = useState(0)
   const compilerStatuses = usePixGridDeckCompilerStore(state => state.statuses)
   const transitionStatuses = usePixGridDeckCompilerStore(state => state.transitionStatuses)
+  const activeShowManagerShow = useMemo(
+    () => showManagerSessionReady
+      ? showManagerShows.find(show => show.id === showManagerEditingShowId) ?? null
+      : null,
+    [showManagerEditingShowId, showManagerSessionReady, showManagerShows],
+  )
+  const hasOpenShow = activeShowManagerShow !== null
   const activeLaserDmxShow = useMemo(
-    () => laserDmxShowManagerShows.find(show => show.id === laserDmxShowManagerEditingShowId)
-      ?? laserDmxShowManagerShows[0]
-      ?? null,
-    [laserDmxShowManagerEditingShowId, laserDmxShowManagerShows],
+    () => activeShowManagerShow && selectedEngineId === 'laserDmx'
+      ? laserDmxShowManagerShows.find(show => show.id === activeShowManagerShow.id) ?? null
+      : null,
+    [activeShowManagerShow, laserDmxShowManagerShows, selectedEngineId],
   )
   const activeCanvasShow = useMemo(
-    () => canvasShowManagerShows.find(show => show.id === canvasShowManagerEditingShowId) ?? null,
-    [canvasShowManagerEditingShowId, canvasShowManagerShows],
+    () => activeShowManagerShow && selectedEngineId === 'canvas'
+      ? canvasShowManagerShows.find(show => show.id === activeShowManagerShow.id) ?? null
+      : null,
+    [activeShowManagerShow, canvasShowManagerShows, selectedEngineId],
   )
   const activeCanvasSection = useMemo(
     () => activeCanvasShow?.sections.find(section => section.id === canvasShowManagerEditingSectionId)
@@ -511,52 +745,11 @@ export function ShowManagerView() {
     () => activeCanvasShow ? getCanvasShowManagerTotalDuration(activeCanvasShow) : 0,
     [activeCanvasShow],
   )
-  const showBrowserEntries = useMemo<ShowBrowserEntry[]>(() => {
-    if (selectedEngineId === 'canvas') {
-      return canvasShowManagerShows.map(show => ({
-        id: show.id,
-        name: show.name,
-        details: `${show.sections.length} ${show.sections.length === 1 ? 'section' : 'sections'} · ${show.mediaElements.length} media ${show.mediaElements.length === 1 ? 'item' : 'items'}`,
-      }))
-    }
-    if (selectedEngineId === 'laserDmx') {
-      return laserDmxShowManagerShows.map(show => {
-        const fixtureCount = show.sections.reduce((total, section) => total + section.fixtures.length, 0)
-        return {
-          id: show.id,
-          name: show.name,
-          details: `${show.sections.length} ${show.sections.length === 1 ? 'section' : 'sections'} · ${fixtureCount} ${fixtureCount === 1 ? 'fixture' : 'fixtures'}`,
-        }
-      })
-    }
-    if (selectedEngineId === 'pixGrid') {
-      return reactPresets
-        .filter(preset => preset.engine === 'pixGrid')
-        .filter(preset => {
-          if (!preset.pixGridDeck) return true
-          const deck = pixGridDecks.find(candidate => candidate.id === preset.pixGridDeck?.deckId)
-          return Boolean(deck && resolvePixGridDeckPresetReadiness(
-            deck,
-            compilerStatuses[deck.id],
-            transitionStatuses[deck.id],
-          ).ready)
-        })
-        .map(preset => ({
-          id: preset.id,
-          name: preset.name,
-          details: `${preset.scenes.length} ${preset.scenes.length === 1 ? 'scene' : 'scenes'} · ${preset.pixGridDeck ? 'Deck Preset' : 'PixGrid Preset'}`,
-        }))
-    }
-    return []
-  }, [
-    canvasShowManagerShows,
-    compilerStatuses,
-    laserDmxShowManagerShows,
-    pixGridDecks,
-    reactPresets,
-    selectedEngineId,
-    transitionStatuses,
-  ])
+  const showBrowserEntries = useMemo<ShowBrowserEntry[]>(() => showManagerShows.map(show => ({
+    id: show.id,
+    name: show.name,
+    details: `${show.linkedAudioTrackId ? 'Audio linked' : 'Legacy · audio link missing'}${show.tags.length ? ` · ${show.tags.length} tag${show.tags.length === 1 ? '' : 's'}` : ''}`,
+  })), [showManagerShows])
   const selectedCanvasElement = useMemo(
     () => activeCanvasShow?.mediaElements.find(element => element.id === canvasShowManagerEditingElementId) ?? null,
     [activeCanvasShow, canvasShowManagerEditingElementId],
@@ -611,9 +804,15 @@ export function ShowManagerView() {
   laserTimelineViewportRef.current = laserTimelineViewport
 
   useEffect(() => {
-    if (selectedEngineId !== 'laserDmx') return
-    ensureLaserDmxShowManagerShow()
-  }, [ensureLaserDmxShowManagerShow, selectedEngineId])
+    resetShowManagerSession()
+    setPreviewPresetId(null)
+    setSelectedLaserFixtureId(null)
+    setCanvasLibraryMediaId(null)
+    setShowManagerSessionReady(true)
+    return () => {
+      resetShowManagerSession()
+    }
+  }, [resetShowManagerSession])
 
   useEffect(() => {
     setCanvasRenameDraft(activeCanvasShow?.name ?? '')
@@ -962,26 +1161,6 @@ export function ShowManagerView() {
     }
   }
 
-  const openCanvasCreateDialog = () => {
-    setCanvasCreateName('')
-    setCanvasCreateError(null)
-    setCanvasCreateOpen(true)
-  }
-
-  const commitCanvasCreate = () => {
-    if (!isCanvasShowManagerNameAvailable(canvasShowManagerShows, canvasCreateName)) {
-      setCanvasCreateError(canvasCreateName.trim() ? 'A Canvas Show with this name already exists.' : 'Show name is required.')
-      return
-    }
-    const showId = createCanvasShowManagerShow(canvasCreateName)
-    if (!showId) {
-      setCanvasCreateError('The Canvas Show could not be created.')
-      return
-    }
-    setCanvasCreateOpen(false)
-    setCanvasCreateName('')
-  }
-
   const commitCanvasRename = () => {
     if (!activeCanvasShow) return
     if (!renameCanvasShowManagerShow(activeCanvasShow.id, canvasRenameDraft)) {
@@ -1006,22 +1185,26 @@ export function ShowManagerView() {
   }
 
   const openSelectedShow = (showId: string) => {
-    if (selectedEngineId === 'canvas') selectCanvasShowManagerShow(showId)
-    else if (selectedEngineId === 'laserDmx') selectLaserDmxShowManagerShow(showId)
-    else if (selectedEngineId === 'pixGrid') setPreviewPresetId(showId)
+    const show = showManagerShows.find(candidate => candidate.id === showId)
+    if (!show) return
+    const preferredEngine = show.engineIds.includes(selectedEngineId as ShowManagerEngineId)
+      ? selectedEngineId as ShowManagerEngineId
+      : (show.engineIds[0] ?? selectedEngineId as ShowManagerEngineId)
+    setSelectedEngineId(preferredEngine)
+    selectShowManagerShow(show.id)
+    selectCanvasShowManagerShow(preferredEngine === 'canvas' && canvasShowManagerShows.some(candidate => candidate.id === show.id) ? show.id : null)
+    selectLaserDmxShowManagerShow(preferredEngine === 'laserDmx' && laserDmxShowManagerShows.some(candidate => candidate.id === show.id) ? show.id : null)
+    setPreviewPresetId(null)
     setShowBrowserOpen(false)
   }
 
   const createSelectedShow = () => {
-    if (selectedEngineId === 'canvas') openCanvasCreateDialog()
-    else if (selectedEngineId === 'laserDmx') createLaserDmxShowManagerShow()
-    else if (selectedEngineId === 'pixGrid') enterDeckBuilder(null)
+    setNewShowOpen(true)
   }
 
   const saveAndActivateSelectedShow = () => {
     if (selectedEngineId === 'canvas') void commitCanvasShowSave(true)
     else if (selectedEngineId === 'laserDmx') void commitLaserShowSave(true)
-    else if (selectedEngineId === 'pixGrid' && activePreset) selectReactPreset(activePreset.id)
   }
 
   const saveAndActivatePending = selectedEngineId === 'canvas'
@@ -1031,7 +1214,7 @@ export function ShowManagerView() {
     ? !activeCanvasShow || canvasSavePending !== null
     : selectedEngineId === 'laserDmx'
       ? !activeLaserDmxShow || laserSavePending !== null
-      : !activePreset || Boolean(activePreset.pixGridDeck && !activeDeckReadiness?.ready)
+      : true
 
   const commitCanvasMediaPlacement = (mediaId: string, layer: CanvasShowManagerLayer) => {
     if (!activeCanvasShow || !activeCanvasSection) {
@@ -1229,7 +1412,7 @@ export function ShowManagerView() {
       <header className="sm-topbar">
         <div className="sm-title-block" tabIndex={-1} ref={deckBuilderHeadingRef}>
           <strong>{workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? 'DECK BUILDER' : 'SHOW MANAGER'}</strong>
-          <span>{workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? 'PixGrid image sequence authoring' : 'Preset authoring workspace'}</span>
+          <span>{workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? 'PixGrid image sequence authoring' : hasOpenShow ? 'Show authoring workspace' : 'Use New Show or Open Show to begin'}</span>
         </div>
 
         {workspaceMode === 'default' && (
@@ -1329,6 +1512,10 @@ export function ShowManagerView() {
       </header>
 
       <div className="sm-workspace">
+        {workspaceMode === 'default' && !hasOpenShow ? (
+          <EmptyShowManagerWorkspace selectedEngineId={selectedEngineId} onEngineChange={setSelectedEngineId} />
+        ) : (
+          <>
         {workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? (
           <aside className="sm-library sm-library--deck" aria-label="Show Manager Deck images">
             <PixGridDeckBuilderLibrary
@@ -1611,7 +1798,7 @@ export function ShowManagerView() {
                 sectionRanges={canvasSectionRanges}
                 onSelectElement={selectCanvasShowManagerMediaElement}
                 onPlaceMedia={commitCanvasMediaPlacement}
-                onCreate={openCanvasCreateDialog}
+                onCreate={() => setNewShowOpen(true)}
                 runtimePreview={activeCanvasShow ? (
                   <CanvasEngineSurface
                     isPlaying={engine.isPlaying}
@@ -1999,12 +2186,14 @@ export function ShowManagerView() {
                 if (!activeCanvasShow || !window.confirm(`Delete Canvas Show “${activeCanvasShow.name}”?`)) return
                 deleteCanvasShowManagerShow(activeCanvasShow.id)
               }}
-              onCreate={openCanvasCreateDialog}
+              onCreate={() => setNewShowOpen(true)}
             />
           ) : (
             <div className="sm-panel-blank" />
           )}
         </aside>
+        )}
+          </>
         )}
       </div>
 
@@ -2019,46 +2208,16 @@ export function ShowManagerView() {
         <ShowBrowserDialog
           engineLabel={REACT_ENGINE_CATALOG[selectedEngineId].label}
           shows={showBrowserEntries}
-          currentShowId={selectedEngineId === 'canvas'
-            ? canvasShowManagerEditingShowId
-            : selectedEngineId === 'laserDmx'
-              ? laserDmxShowManagerEditingShowId
-              : previewPresetId}
+          currentShowId={showManagerEditingShowId}
           onClose={() => setShowBrowserOpen(false)}
           onOpen={openSelectedShow}
         />
       )}
-      {canvasCreateOpen && (
-        <div className="sm-canvas-dialog-backdrop" role="presentation">
-          <form
-            className="sm-canvas-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="canvas-new-show-heading"
-            onSubmit={event => {
-              event.preventDefault()
-              commitCanvasCreate()
-            }}
-          >
-            <h2 id="canvas-new-show-heading">New Canvas Show</h2>
-            <p>Create the Show first. Media is added afterward.</p>
-            <label htmlFor="canvas-new-show-name">Show Name</label>
-            <DreamVizTextInput
-              id="canvas-new-show-name"
-              autoFocus
-              value={canvasCreateName}
-              onChange={event => {
-                setCanvasCreateName(event.target.value)
-                setCanvasCreateError(null)
-              }}
-            />
-            {canvasCreateError && <p className="sm-canvas-form-error" role="alert">{canvasCreateError}</p>}
-            <div className="sm-canvas-dialog-actions">
-              <button type="button" onClick={() => setCanvasCreateOpen(false)}>Cancel</button>
-              <button type="submit">Create Show</button>
-            </div>
-          </form>
-        </div>
+      {newShowOpen && (
+        <NewShowDialog
+          engineId={selectedEngineId as ShowManagerEngineId}
+          onClose={() => setNewShowOpen(false)}
+        />
       )}
     </section>
   )

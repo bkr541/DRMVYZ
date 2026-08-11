@@ -300,8 +300,8 @@ export function createDefaultCanvasShowManagerSections(showId: string): CanvasSh
   }))
 }
 
-export function createCanvasShowManagerShow(name: string): CanvasShowManagerShow {
-  const id = createId('canvas-show')
+export function createCanvasShowManagerShow(name: string, explicitId?: string): CanvasShowManagerShow {
+  const id = explicitId?.trim() || createId('canvas-show')
   return {
     schemaVersion: CANVAS_SHOW_MANAGER_SCHEMA_VERSION,
     id,

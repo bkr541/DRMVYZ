@@ -149,6 +149,14 @@ import {
   type CanvasShowManagerSectionDurationEdit,
   type CanvasShowManagerShow,
 } from '../components/vyzualz/showManager/CanvasShowManagerDomain'
+import {
+  createShowManagerShow as createSharedShowManagerShow,
+  isShowManagerShowNameAvailable,
+  mergeLegacyShowManagerRecords,
+  normalizeShowManagerShows,
+  type CreateShowManagerShowInput,
+  type ShowManagerShowRecord,
+} from '../components/vyzualz/showManager/ShowManagerDomain'
 import { resolvePerformancePadTransition } from '../components/vyzualz/react/renderers/reactPresetTransition'
 import { SOUND_DRAWING_PERFORMANCE_SHOWS } from '../components/vyzualz/react/soundDrawing/SoundDrawingPerformanceShows'
 import {
@@ -2430,6 +2438,7 @@ interface ShowManagerHistorySnapshot {
 }
 
 interface CanvasShowManagerHistorySnapshot {
+  showManagerShows: ShowManagerShowRecord[]
   canvasShowManagerShows: CanvasShowManagerShow[]
   canvasShowManagerActiveShowId: string | null
   canvasShowManagerEditingShowId: string | null
@@ -2502,6 +2511,13 @@ interface ReactStoreState {
   canvasPresetOverride: CanvasPresetOverrideState | null
   canvasVideoRestartRevision: number
   canvasOrchestrationSettings: CanvasOrchestrationSettings
+
+  // Shared Show Manager identity/audio metadata. Persisted Shows are distinct from the transient open/edit session.
+  showManagerShows: ShowManagerShowRecord[]
+  showManagerEditingShowId: string | null
+  createShowManagerShow: (input: CreateShowManagerShowInput) => Promise<string | null>
+  selectShowManagerShow: (showId: string | null) => void
+  resetShowManagerSession: () => void
 
   // Canvas Show Manager authoring. Shows and active identity persist; editing selection and history remain transient.
   canvasShowManagerShows: CanvasShowManagerShow[]
@@ -3135,6 +3151,7 @@ function normalizeCanvasShowManagerActiveShowId(
 
 function captureCanvasShowManagerHistorySnapshot(
   state: Pick<ReactStoreState,
+    | 'showManagerShows'
     | 'canvasShowManagerShows'
     | 'canvasShowManagerActiveShowId'
     | 'canvasShowManagerEditingShowId'
@@ -3143,6 +3160,7 @@ function captureCanvasShowManagerHistorySnapshot(
   >,
 ): CanvasShowManagerHistorySnapshot {
   return {
+    showManagerShows: normalizeShowManagerShows(state.showManagerShows),
     canvasShowManagerShows: cloneCanvasShowManagerShows(state.canvasShowManagerShows),
     canvasShowManagerActiveShowId: state.canvasShowManagerActiveShowId,
     canvasShowManagerEditingShowId: state.canvasShowManagerEditingShowId,
@@ -3159,6 +3177,7 @@ function trimCanvasShowManagerHistory(
 
 function buildCanvasShowManagerHistoryMutationPatch(
   state: Pick<ReactStoreState,
+    | 'showManagerShows'
     | 'canvasShowManagerShows'
     | 'canvasShowManagerActiveShowId'
     | 'canvasShowManagerEditingShowId'
@@ -3205,6 +3224,7 @@ function restoreCanvasShowManagerHistorySnapshot(
     ? snapshot.canvasShowManagerEditingElementId
     : null
   return {
+    showManagerShows: normalizeShowManagerShows(snapshot.showManagerShows),
     canvasShowManagerShows: shows,
     canvasShowManagerActiveShowId: activeShowId,
     canvasShowManagerEditingShowId: editingShow?.id ?? null,
@@ -5291,6 +5311,19 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       ),
     }
   }
+  if (version < 73) {
+    // Audio-bound Show Manager Stage 1 introduces one engine-independent Show registry.
+    // Legacy engine Shows remain representable without fabricating an audio association.
+    const canvasShows = normalizeCanvasShowManagerShows(state.canvasShowManagerShows)
+    const laserShows = normalizeLaserDmxShowManagerShows(state.laserDmxShowManagerShows)
+    state = {
+      ...state,
+      showManagerShows: mergeLegacyShowManagerRecords(state.showManagerShows, [
+        ...canvasShows.map(show => ({ id: show.id, name: show.name, engineId: 'canvas' as const })),
+        ...laserShows.map(show => ({ id: show.id, name: show.name, engineId: 'laserDmx' as const })),
+      ]),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -5309,8 +5342,13 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   }
   const normalizedLaserDmxShowManagerShows = normalizeLaserDmxShowManagerShows(state.laserDmxShowManagerShows)
   const normalizedCanvasShowManagerShows = normalizeCanvasShowManagerShows(state.canvasShowManagerShows)
+  const normalizedShowManagerShows = mergeLegacyShowManagerRecords(state.showManagerShows, [
+    ...normalizedCanvasShowManagerShows.map(show => ({ id: show.id, name: show.name, engineId: 'canvas' as const })),
+    ...normalizedLaserDmxShowManagerShows.map(show => ({ id: show.id, name: show.name, engineId: 'laserDmx' as const })),
+  ])
   state = {
     ...state,
+    showManagerShows: normalizedShowManagerShows,
     canvasEngineSettings: normalizeCanvasEngineSettings(state.canvasEngineSettings),
     canvasShowManagerShows: normalizedCanvasShowManagerShows,
     canvasShowManagerActiveShowId: normalizeCanvasShowManagerActiveShowId(
@@ -5530,6 +5568,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     canvasPresetSettings:               normalizeCanvasPresetSettings(s.canvasPresetSettings),
     canvasPresetOverride:               s.canvasPresetOverride,
     canvasOrchestrationSettings:         normalizeCanvasOrchestrationSettings(s.canvasOrchestrationSettings),
+    showManagerShows:                    normalizeShowManagerShows(s.showManagerShows),
     canvasShowManagerShows:              normalizeCanvasShowManagerShows(s.canvasShowManagerShows),
     canvasShowManagerActiveShowId:       normalizeCanvasShowManagerActiveShowId(
       s.canvasShowManagerActiveShowId,
@@ -5604,6 +5643,7 @@ export const REACT_PROJECT_STATE_KEYS = [
   'canvasPresetSettings',
   'canvasPresetOverride',
   'canvasOrchestrationSettings',
+  'showManagerShows',
   'canvasShowManagerShows',
   'canvasShowManagerActiveShowId',
   'manualTrackSectionsByTrackId',
@@ -5801,6 +5841,10 @@ export function mergeReactStoreState(
     ...merged,
     ...repairedSelection,
     pixGridState,
+    showManagerShows: mergeLegacyShowManagerRecords(persisted.showManagerShows, [
+      ...merged.canvasShowManagerShows.map(show => ({ id: show.id, name: show.name, engineId: 'canvas' as const })),
+      ...merged.laserDmxShowManagerShows.map(show => ({ id: show.id, name: show.name, engineId: 'laserDmx' as const })),
+    ]),
     canvasShowManagerActiveShowId: normalizeCanvasShowManagerActiveShowId(
       persisted.canvasShowManagerActiveShowId,
       merged.canvasShowManagerShows,
@@ -5825,6 +5869,7 @@ export function mergeReactStoreState(
     activeCanvasMediaId: merged.activeCanvasMediaId ?? merged.selectedCanvasMediaId ?? merged.canvasEngineSettings.selectedMediaId ?? null,
     canvasVideoRestartRevision: currentState.canvasVideoRestartRevision,
     canvasShowManagerEditingShowId: null,
+    showManagerEditingShowId: null,
     canvasShowManagerEditingSectionId: null,
     canvasShowManagerEditingElementId: null,
     canvasShowManagerUndoStack: [],
@@ -5853,7 +5898,8 @@ export function mergeReactStoreState(
 }
 
 const REACT_STORE_PERSISTENCE_NAME = 'drmvyz:react-store'
-const REACT_STORE_PERSISTENCE_VERSION = 72
+const REACT_STORE_PERSISTENCE_VERSION = 73
+let showManagerShowCreationInFlight = false
 
 export const reactPersistStorage = createSplitPersistStorage<Record<string, unknown>>({
   projectKeys: REACT_PROJECT_STATE_KEYS,
@@ -5890,6 +5936,8 @@ export const useReactStore = create<ReactStoreState>()(
       canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
       canvasVideoRestartRevision: 0,
       canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
+      showManagerShows: [],
+      showManagerEditingShowId: null,
       canvasShowManagerShows: [],
       canvasShowManagerActiveShowId: null,
       canvasShowManagerEditingShowId: null,
@@ -6803,6 +6851,79 @@ export const useReactStore = create<ReactStoreState>()(
         }
       }),
 
+      createShowManagerShow: async (input) => {
+        if (showManagerShowCreationInFlight) return null
+        showManagerShowCreationInFlight = true
+        try {
+          const state = get()
+          if (!isShowManagerShowNameAvailable(state.showManagerShows, input.name)) return null
+          const show = createSharedShowManagerShow(input)
+          if (!show) return null
+
+          const canvasShow = input.initialEngineId === 'canvas'
+            ? createCanvasShowManagerShow(show.name, show.id)
+            : null
+          const laserShow = input.initialEngineId === 'laserDmx'
+            ? createLaserDmxShowManagerShow(show.name, show.id)
+            : null
+          const patch: Partial<ReactStoreState> = {
+            showManagerShows: [...state.showManagerShows, show],
+            showManagerEditingShowId: show.id,
+            canvasShowManagerEditingShowId: canvasShow ? show.id : null,
+            canvasShowManagerEditingSectionId: canvasShow?.sections[0]?.id ?? null,
+            canvasShowManagerEditingElementId: null,
+            canvasShowManagerUndoStack: [],
+            canvasShowManagerRedoStack: [],
+            canvasShowManagerHistoryTransaction: null,
+            laserDmxShowManagerEditingShowId: laserShow ? show.id : null,
+            laserDmxShowManagerEditingSectionId: laserShow?.sections[0]?.id ?? null,
+            laserDmxShowManagerPlaybackSectionId: null,
+            showManagerUndoStack: [],
+            showManagerRedoStack: [],
+            ...(canvasShow ? { canvasShowManagerShows: [...state.canvasShowManagerShows, canvasShow] } : {}),
+            ...(laserShow ? { laserDmxShowManagerShows: [...state.laserDmxShowManagerShows, laserShow] } : {}),
+          }
+          const candidate = { ...state, ...patch } as ReactStoreState
+          try {
+            await reactPersistStorage.setItem(REACT_STORE_PERSISTENCE_NAME, {
+              state: reactStorePartialize(candidate) as unknown as Record<string, unknown>,
+              version: REACT_STORE_PERSISTENCE_VERSION,
+            })
+            if (useReactPersistenceStatusStore.getState().phase === 'error') return null
+          } catch (error) {
+            useReactPersistenceStatusStore.setState({
+              phase: 'error',
+              error: error instanceof Error ? error.message : 'The Show could not be created.',
+              retryPending: false,
+            })
+            return null
+          }
+          set(patch)
+          return show.id
+        } finally {
+          showManagerShowCreationInFlight = false
+        }
+      },
+
+      selectShowManagerShow: (showId) => set(state => ({
+        showManagerEditingShowId: showId && state.showManagerShows.some(show => show.id === showId) ? showId : null,
+      })),
+
+      resetShowManagerSession: () => set({
+        showManagerEditingShowId: null,
+        canvasShowManagerEditingShowId: null,
+        canvasShowManagerEditingSectionId: null,
+        canvasShowManagerEditingElementId: null,
+        canvasShowManagerUndoStack: [],
+        canvasShowManagerRedoStack: [],
+        canvasShowManagerHistoryTransaction: null,
+        laserDmxShowManagerEditingShowId: null,
+        laserDmxShowManagerEditingSectionId: null,
+        laserDmxShowManagerPlaybackSectionId: null,
+        showManagerUndoStack: [],
+        showManagerRedoStack: [],
+      }),
+
       createCanvasShowManagerShow: (name) => {
         const state = get()
         const normalizedName = normalizeCanvasShowManagerName(name)
@@ -6865,16 +6986,21 @@ export const useReactStore = create<ReactStoreState>()(
         set(s => {
           const show = s.canvasShowManagerShows.find(candidate => candidate.id === showId)
           const normalizedName = normalizeCanvasShowManagerName(name)
-          if (!show || !isCanvasShowManagerNameAvailable(s.canvasShowManagerShows, normalizedName, showId)) return {}
+          if (!show
+            || !isCanvasShowManagerNameAvailable(s.canvasShowManagerShows, normalizedName, showId)
+            || !isShowManagerShowNameAvailable(s.showManagerShows, normalizedName, showId)) return {}
           const nextShow = renameCanvasShowManagerShow(show, normalizedName)
-          if (nextShow === show) {
-            renamed = true
-            return {}
-          }
           renamed = true
-          return buildCanvasShowManagerHistoryMutationPatch(s, {
-            canvasShowManagerShows: s.canvasShowManagerShows.map(candidate => candidate.id === showId ? nextShow : candidate),
-          })
+          const sharedChanged = s.showManagerShows.some(candidate => candidate.id === showId && candidate.name !== normalizedName)
+          if (nextShow === show && !sharedChanged) return {}
+          return {
+            ...buildCanvasShowManagerHistoryMutationPatch(s, {
+              canvasShowManagerShows: s.canvasShowManagerShows.map(candidate => candidate.id === showId ? nextShow : candidate),
+            }),
+            showManagerShows: s.showManagerShows.map(candidate => candidate.id === showId
+              ? { ...candidate, name: normalizedName }
+              : candidate),
+          }
         })
         return renamed
       },
@@ -6972,7 +7098,13 @@ export const useReactStore = create<ReactStoreState>()(
           const shows = s.canvasShowManagerShows.filter(show => show.id !== showId)
           const editingDeleted = s.canvasShowManagerEditingShowId === showId
           const fallback = editingDeleted ? (shows[index] ?? shows[index - 1] ?? null) : null
-          return buildCanvasShowManagerHistoryMutationPatch(s, {
+          const showManagerShows = s.showManagerShows.flatMap(show => {
+            if (show.id !== showId) return [show]
+            const engineIds = show.engineIds.filter(engineId => engineId !== 'canvas')
+            return engineIds.length > 0 ? [{ ...show, engineIds }] : []
+          })
+          return {
+            ...buildCanvasShowManagerHistoryMutationPatch(s, {
             canvasShowManagerShows: shows,
             canvasShowManagerActiveShowId: s.canvasShowManagerActiveShowId === showId
               ? null
@@ -6984,7 +7116,10 @@ export const useReactStore = create<ReactStoreState>()(
               ? fallback?.sections[0]?.id ?? null
               : s.canvasShowManagerEditingSectionId,
             canvasShowManagerEditingElementId: editingDeleted ? null : s.canvasShowManagerEditingElementId,
-          })
+            }),
+            showManagerShows,
+            showManagerEditingShowId: s.showManagerEditingShowId === showId ? null : s.showManagerEditingShowId,
+          }
         })
         return deleted
       },
@@ -10532,6 +10667,7 @@ export const useReactStore = create<ReactStoreState>()(
             laserDmxBeamMatrixAuthoringMode: 'manual' as const,
             selectedSectionId: null,
             selectedSectionByTrackId: {},
+            showManagerEditingShowId: null,
             canvasShowManagerEditingShowId: null,
             canvasShowManagerEditingSectionId: null,
             canvasShowManagerEditingElementId: null,
@@ -10597,6 +10733,8 @@ export const useReactStore = create<ReactStoreState>()(
             canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
             canvasVideoRestartRevision: s.canvasVideoRestartRevision + 1,
+            showManagerShows: [],
+            showManagerEditingShowId: null,
             canvasShowManagerShows: [],
             canvasShowManagerActiveShowId: null,
             canvasShowManagerEditingShowId: null,
@@ -10667,6 +10805,8 @@ export const useReactStore = create<ReactStoreState>()(
           canvasPresetOverride:         DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
           canvasOrchestrationSettings:  normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
           canvasVideoRestartRevision:   get().canvasVideoRestartRevision + 1,
+          showManagerShows:             [],
+          showManagerEditingShowId:     null,
           canvasShowManagerShows:       [],
           canvasShowManagerActiveShowId: null,
           canvasShowManagerEditingShowId: null,
