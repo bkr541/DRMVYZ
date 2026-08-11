@@ -7043,8 +7043,17 @@ export const useReactStore = create<ReactStoreState>()(
 
         const current = get()
         const currentShow = current.canvasShowManagerShows.find(candidate => candidate.id === showId)
-        if (!currentShow || !validateCanvasShowManagerShow(currentShow).valid) return false
-        if (!canvasShowManagerShowsEqual(stateAtSave.canvasShowManagerShows, current.canvasShowManagerShows)) return false
+        const stale = !currentShow
+          || !validateCanvasShowManagerShow(currentShow).valid
+          || !canvasShowManagerShowsEqual(stateAtSave.canvasShowManagerShows, current.canvasShowManagerShows)
+        if (stale) {
+          // The optimistic persisted candidate included the requested active ID.
+          // If authoring changed while storage was pending, immediately replace
+          // that candidate with the latest live snapshot so a reload cannot
+          // activate stale Canvas Show data after this operation reports failure.
+          await persistState(current)
+          return false
+        }
 
         set({ ...activationPatch, canvasShowManagerActiveShowId: showId })
         return true

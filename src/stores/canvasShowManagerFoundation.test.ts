@@ -135,5 +135,17 @@ describe('Canvas Show Manager Stage 1 store integration', () => {
 
     await expect(save).resolves.toBe(false)
     expect(useReactStore.getState().canvasShowManagerActiveShowId).toBeNull()
+
+    const persistedCalls = vi.mocked(reactPersistStorage.setItem).mock.calls
+    expect(persistedCalls).toHaveLength(2)
+    const optimistic = persistedCalls[0]![1] as { state: Record<string, unknown> }
+    const rollback = persistedCalls[1]![1] as { state: Record<string, unknown> }
+    expect(optimistic.state.canvasShowManagerActiveShowId).toBe(showId)
+    expect(rollback.state.canvasShowManagerActiveShowId).toBeNull()
+    expect((rollback.state.canvasShowManagerShows as Array<{ sections: Array<{ durationSec: number }> }>)[0]!.sections[0]!.durationSec).toBe(9)
+
+    const reloaded = mergeReactStoreState(rollback.state, useReactStore.getState())
+    expect(reloaded.canvasShowManagerActiveShowId).toBeNull()
+    expect(reloaded.canvasShowManagerShows[0]!.sections[0]!.durationSec).toBe(9)
   })
 })
