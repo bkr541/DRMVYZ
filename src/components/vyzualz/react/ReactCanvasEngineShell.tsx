@@ -179,6 +179,7 @@ function CanvasMediaTokens() {
 }
 
 interface CanvasOverrideStatusProps {
+  title: string
   message: string
   clearLabel: string
   clearAriaLabel: string
@@ -186,16 +187,62 @@ interface CanvasOverrideStatusProps {
 }
 
 function CanvasOverrideStatus({
+  title,
   message,
   clearLabel,
   clearAriaLabel,
   onClear,
 }: CanvasOverrideStatusProps) {
   return (
-    <div className="rv-canvas-auto-status rv-canvas-auto-status--override" role="status">
-      <span>{message}</span>
-      <button type="button" onClick={onClear} aria-label={clearAriaLabel}>{clearLabel}</button>
-    </div>
+    <NoticeCard className="rv-canvas-override-flag" tone="warning" role="status" title={title}>
+      <div className="rv-canvas-override-flag__content">
+        <span className="rv-canvas-override-flag__message">{message}</span>
+        <IconChipButton
+          className="rv-canvas-override-flag__action"
+          onClick={onClear}
+          aria-label={clearAriaLabel}
+        >
+          {clearLabel}
+        </IconChipButton>
+      </div>
+    </NoticeCard>
+  )
+}
+
+function CanvasVisualizerOverrideNotices() {
+  const settings = useReactStore(s => s.canvasEngineSettings)
+  const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
+  const canvasPresetOverride = useReactStore(s => s.canvasPresetOverride)
+  const mediaItems = useCanvasRuntimeMediaItems()
+  const clearCanvasPresetOverride = useReactStore(s => s.clearCanvasPresetOverride)
+  const clearCanvasMediaOverride = useReactStore(s => s.clearCanvasMediaOverride)
+  const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
+  const manualPresetOverrideActive = canvasPresetOverride?.source === 'manual'
+  const manualMediaOverrideActive = Boolean(
+    settings.manualMediaOverrideId && mediaItems.some(item => item.id === settings.manualMediaOverrideId),
+  )
+
+  return (
+    <>
+      {manualPresetOverrideActive && (
+        <CanvasOverrideStatus
+          title="Manual Override"
+          message={`${selectedPreset.name} is selected.`}
+          clearLabel="Clear Override"
+          clearAriaLabel={`Clear ${selectedPreset.name} manual preset override`}
+          onClear={clearCanvasPresetOverride}
+        />
+      )}
+      {settings.autoSelectEnabled && manualMediaOverrideActive && (
+        <CanvasOverrideStatus
+          title="Media Lock"
+          message="Auto Select can change presets, but this source stays selected."
+          clearLabel="Clear"
+          clearAriaLabel="Clear CANVAS media lock"
+          onClear={clearCanvasMediaOverride}
+        />
+      )}
+    </>
   )
 }
 
@@ -2342,21 +2389,24 @@ export function CanvasEngineSurface({
             onStatusChange={setFracturesRendererNotice}
           />
         )}
-        {particleRendererNotice && particleReconstructionActive && (
-          <div className="rv-canvas-render-notice">
-            <NoticeCard tone="warning" role="status">{particleRendererNotice}</NoticeCard>
-          </div>
-        )}
-        {laserImageFxRendererNotice && laserImageFxActive && (
-          <div className="rv-canvas-render-notice">
-            <NoticeCard tone="warning" role="status">{laserImageFxRendererNotice}</NoticeCard>
-          </div>
-        )}
-        {fracturesRendererNotice && fragmentCollageActive && (
-          <div className="rv-canvas-render-notice">
-            <NoticeCard tone="warning" role="status">{fracturesRendererNotice}</NoticeCard>
-          </div>
-        )}
+        <div className="rv-canvas-visualizer-notice-stack" aria-label="CANVAS visualizer notices">
+          {particleRendererNotice && particleReconstructionActive && (
+            <div className="rv-canvas-render-notice">
+              <NoticeCard tone="warning" role="status">{particleRendererNotice}</NoticeCard>
+            </div>
+          )}
+          {laserImageFxRendererNotice && laserImageFxActive && (
+            <div className="rv-canvas-render-notice">
+              <NoticeCard tone="warning" role="status">{laserImageFxRendererNotice}</NoticeCard>
+            </div>
+          )}
+          {fracturesRendererNotice && fragmentCollageActive && (
+            <div className="rv-canvas-render-notice">
+              <NoticeCard tone="warning" role="status">{fracturesRendererNotice}</NoticeCard>
+            </div>
+          )}
+          <CanvasVisualizerOverrideNotices />
+        </div>
       </div>
     </div>
   )
@@ -2657,8 +2707,6 @@ function CanvasAutoSelectControl() {
   const mediaItems = useCanvasRuntimeMediaItems()
   const mediaCount = mediaItems.length
   const setCanvasAutoSelectEnabled = useReactStore(s => s.setCanvasAutoSelectEnabled)
-  const clearCanvasPresetOverride = useReactStore(s => s.clearCanvasPresetOverride)
-  const clearCanvasMediaOverride = useReactStore(s => s.clearCanvasMediaOverride)
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
   const [autoPreviewRevision, setAutoPreviewRevision] = useState(0)
   const hasTrackLoaded = Boolean(engine.currentTrackId)
@@ -2728,14 +2776,6 @@ function CanvasAutoSelectControl() {
           description={description}
         />
       </CanvasHelpControl>
-      {manualOverrideActive && (
-        <CanvasOverrideStatus
-          message={`Manual override: ${selectedPreset.name} is selected.`}
-          clearLabel="Clear Override"
-          clearAriaLabel={`Clear ${selectedPreset.name} manual preset override`}
-          onClear={clearCanvasPresetOverride}
-        />
-      )}
       {!manualOverrideActive && autoSelectionActive && (
         <div className="rv-canvas-auto-status" role="status">
           <span>Auto Select: {canvasPresetOverride?.label ?? `${selectedPreset.name} is selected`}.</span>
@@ -2755,14 +2795,6 @@ function CanvasAutoSelectControl() {
         <div className="rv-canvas-auto-status rv-canvas-auto-status--helper" role="status">
           <span>Auto Select armed. {autoPreview.sourceLabel} is reading {autoPreview.reason.toLowerCase()}.</span>
         </div>
-      )}
-      {settings.autoSelectEnabled && manualMediaOverrideActive && (
-        <CanvasOverrideStatus
-          message="Media lock: Auto Select can change presets, but this source stays selected."
-          clearLabel="Clear"
-          clearAriaLabel="Clear CANVAS media lock"
-          onClear={clearCanvasMediaOverride}
-        />
       )}
     </div>
   )
