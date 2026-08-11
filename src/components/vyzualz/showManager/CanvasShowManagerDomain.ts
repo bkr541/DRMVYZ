@@ -160,7 +160,7 @@ export interface CanvasShowManagerResolvedElementVisual {
 
 export type CanvasShowManagerMediaElementMutationResult =
   | { ok: true; show: CanvasShowManagerShow; element: CanvasShowManagerMediaElement }
-  | { ok: false; code: 'show-not-found' | 'section-not-found' | 'invalid-media' | 'invalid-range' | 'invalid-trim' | 'overlap'; message: string }
+  | { ok: false; code: 'show-not-found' | 'section-not-found' | 'invalid-media' | 'invalid-layer' | 'invalid-range' | 'invalid-trim' | 'overlap'; message: string }
 
 export interface CanvasShowManagerMediaReference {
   showId: string
@@ -277,6 +277,13 @@ export function normalizeCanvasShowManagerDuration(value: unknown): number {
   return parsed != null && parsed > 0
     ? Math.max(CANVAS_SHOW_MANAGER_MIN_SECTION_DURATION_SEC, parsed)
     : CANVAS_SHOW_MANAGER_DEFAULT_SECTION_DURATION_SEC
+}
+
+export function isCanvasShowManagerLayer(value: unknown): value is CanvasShowManagerLayer {
+  return typeof value === 'number'
+    && Number.isInteger(value)
+    && value >= 0
+    && value < CANVAS_SHOW_MANAGER_LAYER_COUNT
 }
 
 export function normalizeCanvasShowManagerLayer(value: unknown): CanvasShowManagerLayer {
@@ -519,7 +526,10 @@ export function createCanvasShowManagerMediaElement(
   if (start == null || end == null || start < 0 || end <= start || end > totalDurationSec) {
     return { ok: false, code: 'invalid-range', message: 'Show cues must be a valid range inside the Show.' }
   }
-  const layer = normalizeCanvasShowManagerLayer(input.layer)
+  if (!isCanvasShowManagerLayer(input.layer)) {
+    return { ok: false, code: 'invalid-layer', message: 'Choose one of the four explicit Canvas layers.' }
+  }
+  const layer = input.layer
   if (canvasShowManagerRangeOverlaps(show.mediaElements, layer, start, end)) {
     return { ok: false, code: 'overlap', message: `Layer ${layer + 1} already contains media in that Show cue range.` }
   }
@@ -556,7 +566,10 @@ export function updateCanvasShowManagerMediaElement(
   if (showStartSec == null || showEndSec == null || showStartSec < 0 || showEndSec <= showStartSec || showEndSec > totalDurationSec) {
     return { ok: false, code: 'invalid-range', message: 'Show cues must be a valid range inside the Show.' }
   }
-  const layer = patch.layer === undefined ? current.layer : normalizeCanvasShowManagerLayer(patch.layer)
+  if (patch.layer !== undefined && !isCanvasShowManagerLayer(patch.layer)) {
+    return { ok: false, code: 'invalid-layer', message: 'Choose one of the four explicit Canvas layers.' }
+  }
+  const layer = patch.layer ?? current.layer
   if (canvasShowManagerRangeOverlaps(show.mediaElements, layer, showStartSec, showEndSec, current.id)) {
     return { ok: false, code: 'overlap', message: `Layer ${layer + 1} already contains media in that Show cue range.` }
   }

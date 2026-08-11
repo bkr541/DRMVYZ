@@ -44,6 +44,23 @@ describe('Canvas Show Manager Stage 2 media domain', () => {
     })).toMatchObject({ ok: false, code: 'overlap' })
   })
 
+  it('rejects malformed layer mutations instead of silently auto-placing them', () => {
+    const show = createCanvasShowManagerShow('Explicit Layers')
+    expect(createCanvasShowManagerMediaElement(show, {
+      mediaId: 'media-invalid-layer', layer: 4, showStartSec: 0, showEndSec: 8, timedVideo: false,
+    })).toMatchObject({ ok: false, code: 'invalid-layer' })
+    expect(createCanvasShowManagerMediaElement(show, {
+      mediaId: 'media-fractional-layer', layer: 1.5, showStartSec: 0, showEndSec: 8, timedVideo: false,
+    })).toMatchObject({ ok: false, code: 'invalid-layer' })
+
+    const created = addElement(show, {
+      mediaId: 'media-valid-layer', layer: 2, showStartSec: 0, showEndSec: 8, timedVideo: false,
+    })
+    expect(updateCanvasShowManagerMediaElement(created.show, created.element.id, { layer: -1 }))
+      .toMatchObject({ ok: false, code: 'invalid-layer' })
+    expect(created.show.mediaElements[0]).toMatchObject({ layer: 2 })
+  })
+
   it('keeps Show cues independent from video source trim and resolves looping source time', () => {
     const created = addElement(createCanvasShowManagerShow('Video Show'), {
       mediaId: 'video-a', layer: 1, showStartSec: 4, showEndSec: 20, timedVideo: true, sourceDurationSec: 6,
