@@ -15,6 +15,7 @@ import {
   type CinemaAssetReference,
   type CinemaControlDescriptor,
   type CinemaNodeId,
+  type CinemaParameterDefinition,
   type CinemaParameterId,
   type CinemaParameterValue,
 } from '../cinema'
@@ -55,7 +56,8 @@ export function CinemaInspectorPanel() {
   const supportedNodeSchemas = useMemo(() => persistedDefinition
     ? getCinemaSupportedParameterSchemas(persistedDefinition.definition)
     : [], [persistedDefinition])
-  const supportedCameraSchemas = appearanceCapabilities?.cameraParameterSchemas ?? Object.freeze({})
+  const supportedCameraSchemas: Readonly<Record<string, readonly Readonly<CinemaParameterDefinition>[]>> =
+    appearanceCapabilities?.cameraParameterSchemas ?? Object.freeze({})
   const masterDescriptors = useMemo(() => composition
     ? createCinemaControlDescriptors({ namespace: 'master', schemas: supportedMasterSchemas, values: { ...composition.masterValues, ...(liveInstance?.masterOverrides ?? {}) } }).descriptors
     : [], [composition, liveInstance, supportedMasterSchemas])
