@@ -585,6 +585,44 @@ export interface VisualSessionRow {
   updated_at: string
 }
 
+export interface ShowRow {
+  id: string
+  user_id: string
+  name: string
+  linked_audio_track_id: string
+  tags: string[]
+  group_id: string | null
+  engine_ids: string[]
+  track_map: Json | null
+  schema_version: number
+  revision: number
+  created_at: string
+  updated_at: string
+}
+
+export type ShowInsert = Omit<ShowRow, 'created_at' | 'updated_at' | 'revision'> & { revision?: number }
+export type ShowUpdate = Partial<Omit<ShowRow, 'id' | 'user_id' | 'created_at'>>
+
+export interface ShowEngineConfigRow {
+  show_id: string
+  engine_id: 'canvas' | 'laserDmx'
+  schema_version: number
+  payload: Json
+  revision: number
+  created_at: string
+  updated_at: string
+}
+
+export type ShowEngineConfigInsert = Omit<ShowEngineConfigRow, 'created_at' | 'updated_at' | 'revision'> & { revision?: number }
+export type ShowEngineConfigUpdate = Partial<Omit<ShowEngineConfigRow, 'show_id' | 'engine_id' | 'created_at'>>
+
+export interface ShowMediaRefRow {
+  show_id: string
+  media_item_id: string
+  engine_id: 'canvas'
+  created_at: string
+}
+
 export interface CanvasExport {
   id: string
   user_id: string | null
@@ -751,6 +789,22 @@ export interface Database {
         }
         Returns: Json
       }
+      save_show_bundle: {
+        Args: {
+          p_show_id: string
+          p_expected_revision: number | null
+          p_show: Json
+          p_engine_configs: Json
+        }
+        Returns: Json
+      }
+      delete_show: {
+        Args: {
+          p_show_id: string
+          p_expected_revision: number | null
+        }
+        Returns: Json
+      }
     }
     Enums:          Record<string, never>
     CompositeTypes: Record<string, never>
@@ -803,6 +857,32 @@ export interface Database {
       effect_chain_options:     { Row: DBRec<EffectChainOptionRow>;    Insert: DBRec<Omit<EffectChainOptionRow,'created_at'|'updated_at'>>;     Update: DBRec<Partial<Omit<EffectChainOptionRow,'id'|'created_at'|'updated_at'>>>; Relationships: [] }
       visual_presets:           { Row: DBRec<VisualPresetRow>;        Insert: DBRec<Omit<VisualPresetRow,'id'|'created_at'|'updated_at'>>;     Update: DBRec<Partial<Omit<VisualPresetRow,'id'>>>; Relationships: [] }
       visual_sessions:          { Row: DBRec<VisualSessionRow>;       Insert: DBRec<Omit<VisualSessionRow,'id'|'created_at'|'updated_at'>>;    Update: DBRec<Partial<Omit<VisualSessionRow,'id'>>>; Relationships: [] }
+      shows: {
+        Row: DBRec<ShowRow>
+        Insert: DBRec<ShowInsert>
+        Update: DBRec<ShowUpdate>
+        Relationships: [
+          { foreignKeyName: 'shows_linked_audio_track_id_fkey'; columns: ['linked_audio_track_id']; isOneToOne: false; referencedRelation: 'audio_tracks'; referencedColumns: ['id'] },
+          { foreignKeyName: 'shows_group_id_fkey'; columns: ['group_id']; isOneToOne: false; referencedRelation: 'media_collections'; referencedColumns: ['id'] },
+        ]
+      }
+      show_engine_configs: {
+        Row: DBRec<ShowEngineConfigRow>
+        Insert: DBRec<ShowEngineConfigInsert>
+        Update: DBRec<ShowEngineConfigUpdate>
+        Relationships: [
+          { foreignKeyName: 'show_engine_configs_show_id_fkey'; columns: ['show_id']; isOneToOne: false; referencedRelation: 'shows'; referencedColumns: ['id'] },
+        ]
+      }
+      show_media_refs: {
+        Row: DBRec<ShowMediaRefRow>
+        Insert: never
+        Update: never
+        Relationships: [
+          { foreignKeyName: 'show_media_refs_show_id_fkey'; columns: ['show_id']; isOneToOne: false; referencedRelation: 'shows'; referencedColumns: ['id'] },
+          { foreignKeyName: 'show_media_refs_media_item_id_fkey'; columns: ['media_item_id']; isOneToOne: false; referencedRelation: 'media_items'; referencedColumns: ['id'] },
+        ]
+      }
       canvas_exports:           { Row: DBRec<CanvasExport>;           Insert: DBRec<Omit<CanvasExport,'id'|'exported_at'>>;                    Update: DBRec<Partial<Omit<CanvasExport,'id'>>>; Relationships: [] }
       audio_track_tags:         { Row: DBRec<{ track_id: string; tag_id: string }>; Insert: DBRec<{ track_id: string; tag_id: string }>; Update: never; Relationships: [] }
       lyric_documents: {

@@ -148,6 +148,7 @@ const fixture = vi.hoisted(() => ({
       },
     }],
     showManagerEditingShowId: 'laser-show-1' as string | null,
+    loadShowManagerShowsFromCloud: vi.fn(async () => true),
     createShowManagerShow: vi.fn(async () => 'show-manager-created' as string | null),
     duplicateShowManagerShow: vi.fn(async () => 'show-manager-copy' as string | null),
     deleteShowManagerShow: vi.fn(async () => true),
@@ -474,6 +475,7 @@ afterEach(() => {
   }] as typeof fixture.state.showManagerShows
   fixture.state.showManagerEditingShowId = 'laser-show-1'
   fixture.state.resetShowManagerSession.mockClear()
+  fixture.state.loadShowManagerShowsFromCloud.mockClear()
   fixture.state.createShowManagerShow.mockClear()
   fixture.state.duplicateShowManagerShow.mockClear()
   fixture.state.deleteShowManagerShow.mockClear()

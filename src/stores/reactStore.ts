@@ -1,6 +1,12 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createSplitPersistStorage } from '../lib/splitPersistStorage'
+import {
+  deleteShowManagerCloudShow,
+  listShowManagerCloudBundles,
+  saveShowManagerCloudBundle,
+  type ShowManagerCloudBundle,
+} from '../lib/showManagerDb'
 import { handleReactPersistenceStatus, useReactPersistenceStatusStore } from './reactPersistenceStatusStore'
 import { createLegacyPortalCinematicConfig, normalizeCinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
 import { resolveCinematicPresetBaseConfig, resolveCinematicPresetProvenance } from '../components/vyzualz/react/CinematicPresetProvenance'
@@ -2530,6 +2536,7 @@ interface ReactStoreState {
   // Shared Show Manager identity/audio metadata. Persisted Shows are distinct from the transient open/edit session.
   showManagerShows: ShowManagerShowRecord[]
   showManagerEditingShowId: string | null
+  loadShowManagerShowsFromCloud: () => Promise<boolean>
   createShowManagerShow: (input: CreateShowManagerShowInput) => Promise<string | null>
   duplicateShowManagerShow: (sourceShowId: string, input: DuplicateShowManagerShowInput) => Promise<string | null>
   deleteShowManagerShow: (showId: string) => Promise<boolean>
@@ -6106,6 +6113,143 @@ export function mergeReactStoreState(
 const REACT_STORE_PERSISTENCE_NAME = 'drmvyz:react-store'
 const REACT_STORE_PERSISTENCE_VERSION = 74
 let showManagerLibraryMutationInFlight = false
+const showManagerCloudRevisions = new Map<string, number>()
+const SHOW_MANAGER_CLOUD_MIGRATION_MARKER_KEY = 'drmvyz:show-manager-cloud-migration-users:v1'
+type ShowManagerCloudMigrationState = 'none' | 'started' | 'complete'
+
+function readShowManagerCloudMigrationStates(): Record<string, Exclude<ShowManagerCloudMigrationState, 'none'>> {
+  if (typeof localStorage === 'undefined') return {}
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SHOW_MANAGER_CLOUD_MIGRATION_MARKER_KEY) ?? '{}')
+    // Compatibility with an early marker shape used while this migration was developed.
+    if (Array.isArray(parsed)) {
+      return Object.fromEntries(parsed.filter(value => typeof value === 'string').map(userId => [userId, 'complete']))
+    }
+    if (!parsed || typeof parsed !== 'object') return {}
+    return Object.fromEntries(Object.entries(parsed).flatMap(([userId, value]) =>
+      value === 'started' || value === 'complete' ? [[userId, value]] : []
+    )) as Record<string, Exclude<ShowManagerCloudMigrationState, 'none'>>
+  } catch {
+    return {}
+  }
+}
+
+function getShowManagerCloudMigrationState(userId: string): ShowManagerCloudMigrationState {
+  return readShowManagerCloudMigrationStates()[userId] ?? 'none'
+}
+
+function setShowManagerCloudMigrationState(
+  userId: string,
+  state: Exclude<ShowManagerCloudMigrationState, 'none'>,
+): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    const states = readShowManagerCloudMigrationStates()
+    states[userId] = state
+    localStorage.setItem(SHOW_MANAGER_CLOUD_MIGRATION_MARKER_KEY, JSON.stringify(states))
+  } catch {
+    // Migration metadata is only an anti-resurrection/retry safeguard.
+  }
+}
+
+function buildShowManagerCloudBundleFromState(
+  state: Pick<ReactStoreState, 'showManagerShows' | 'canvasShowManagerShows' | 'laserDmxShowManagerShows'>,
+  showId: string,
+): Omit<ShowManagerCloudBundle, 'revision'> | null {
+  const show = state.showManagerShows.find(candidate => candidate.id === showId) ?? null
+  if (!show?.linkedAudioTrackId) return null
+  const canvas = show.engineIds.includes('canvas')
+    ? state.canvasShowManagerShows.find(candidate => candidate.id === showId) ?? null
+    : null
+  const laserDmx = show.engineIds.includes('laserDmx')
+    ? state.laserDmxShowManagerShows.find(candidate => candidate.id === showId) ?? null
+    : null
+  if (show.engineIds.includes('canvas') && !canvas) return null
+  if (show.engineIds.includes('laserDmx') && !laserDmx) return null
+  return {
+    show,
+    canvas: canvas ? { ...canvas, id: show.id, name: show.name } : null,
+    laserDmx: laserDmx ? { ...laserDmx, id: show.id, name: show.name } : null,
+  }
+}
+
+function normalizeShowManagerCloudBundleForStore(bundle: ShowManagerCloudBundle): ShowManagerCloudBundle {
+  const trackSections = bundle.show.trackMap?.sections ?? []
+  return {
+    ...bundle,
+    canvas: bundle.canvas
+      ? {
+          ...(trackSections.length > 0
+            ? syncCanvasShowManagerSectionsToTrackMap(bundle.canvas, trackSections)
+            : bundle.canvas),
+          id: bundle.show.id,
+          name: bundle.show.name,
+        }
+      : null,
+    laserDmx: bundle.laserDmx
+      ? {
+          ...(trackSections.length > 0
+            ? syncLaserDmxShowManagerSectionsToTrackMap(bundle.laserDmx, trackSections)
+            : bundle.laserDmx),
+          id: bundle.show.id,
+          name: bundle.show.name,
+        }
+      : null,
+  }
+}
+
+async function persistShowManagerLocalCache(state: ReactStoreState, fallbackMessage: string): Promise<boolean> {
+  try {
+    await reactPersistStorage.setItem(REACT_STORE_PERSISTENCE_NAME, {
+      state: reactStorePartialize(state) as unknown as Record<string, unknown>,
+      version: REACT_STORE_PERSISTENCE_VERSION,
+    })
+    return useReactPersistenceStatusStore.getState().phase !== 'error'
+  } catch (error) {
+    useReactPersistenceStatusStore.setState({
+      phase: 'error',
+      error: error instanceof Error ? error.message : fallbackMessage,
+      retryPending: false,
+    })
+    return false
+  }
+}
+
+function reportShowManagerCloudFailure(message: string): void {
+  useReactPersistenceStatusStore.setState({ phase: 'error', error: message, retryPending: false })
+}
+
+async function waitForReactStoreHydration(): Promise<void> {
+  if (useReactStore.persist.hasHydrated()) return
+  await new Promise<void>(resolve => {
+    const unsubscribe = useReactStore.persist.onFinishHydration(() => {
+      unsubscribe()
+      resolve()
+    })
+  })
+}
+
+async function persistShowManagerAuthoredBundle(
+  state: ReactStoreState,
+  showId: string,
+  fallbackMessage: string,
+): Promise<boolean> {
+  const bundle = buildShowManagerCloudBundleFromState(state, showId)
+  if (!bundle) {
+    reportShowManagerCloudFailure('The Show is missing required authored engine data and cannot be saved.')
+    return false
+  }
+  const saved = await saveShowManagerCloudBundle(bundle, showManagerCloudRevisions.get(showId) ?? null)
+  if (!saved.ok) {
+    reportShowManagerCloudFailure(saved.message)
+    return false
+  }
+  if (saved.mode === 'cloud' && saved.bundle) {
+    showManagerCloudRevisions.set(showId, saved.bundle.revision)
+  }
+  const cached = await persistShowManagerLocalCache(state, fallbackMessage)
+  return saved.mode === 'cloud' ? true : cached
+}
 
 export const reactPersistStorage = createSplitPersistStorage<Record<string, unknown>>({
   projectKeys: REACT_PROJECT_STATE_KEYS,
@@ -7057,6 +7201,102 @@ export const useReactStore = create<ReactStoreState>()(
         }
       }),
 
+      loadShowManagerShowsFromCloud: async () => {
+        // IndexedDB rehydration is asynchronous. Wait for it before deciding
+        // whether an empty cloud library needs the one-time local Show upgrade.
+        await waitForReactStoreHydration()
+        const state = get()
+        const initialLibraryFingerprint = JSON.stringify({
+          shows: state.showManagerShows,
+          canvas: state.canvasShowManagerShows,
+          laserDmx: state.laserDmxShowManagerShows,
+        })
+        const listed = await listShowManagerCloudBundles()
+        if (!listed.ok) {
+          reportShowManagerCloudFailure(listed.message)
+          return false
+        }
+        if (listed.mode === 'local-fallback') return true
+
+        let bundles = listed.bundles.map(normalizeShowManagerCloudBundleForStore)
+
+        // One-time upgrade path for Shows authored before Supabase persistence.
+        // A 'started' marker makes the migration resumable if the network drops
+        // after only some Shows reach Supabase, without later resurrecting Shows
+        // that the user intentionally deleted after migration completed.
+        const migrationState = getShowManagerCloudMigrationState(listed.userId)
+        if (migrationState !== 'complete') {
+          const localBundles = state.showManagerShows
+            .map(show => buildShowManagerCloudBundleFromState(state, show.id))
+            .filter((bundle): bundle is Omit<ShowManagerCloudBundle, 'revision'> => bundle !== null)
+
+          if (migrationState === 'none' && bundles.length > 0) {
+            // This account already has a cloud Show library. Treat it as canonical
+            // rather than uploading potentially stale IndexedDB rows from this device.
+            setShowManagerCloudMigrationState(listed.userId, 'complete')
+          } else {
+            if (migrationState === 'none') setShowManagerCloudMigrationState(listed.userId, 'started')
+            const cloudIds = new Set(bundles.map(bundle => bundle.show.id))
+            for (const bundle of localBundles) {
+              if (cloudIds.has(bundle.show.id)) continue
+              const saved = await saveShowManagerCloudBundle(bundle, null, 'create')
+              if (!saved.ok) {
+                reportShowManagerCloudFailure(`Local Show migration failed: ${saved.message}`)
+                return false
+              }
+              if (saved.mode === 'cloud' && saved.bundle) {
+                const migrated = normalizeShowManagerCloudBundleForStore(saved.bundle)
+                bundles.push(migrated)
+                cloudIds.add(migrated.show.id)
+              }
+            }
+            setShowManagerCloudMigrationState(listed.userId, 'complete')
+          }
+        }
+
+        const currentBeforeApply = get()
+        const currentLibraryFingerprint = JSON.stringify({
+          shows: currentBeforeApply.showManagerShows,
+          canvas: currentBeforeApply.canvasShowManagerShows,
+          laserDmx: currentBeforeApply.laserDmxShowManagerShows,
+        })
+        if (currentLibraryFingerprint !== initialLibraryFingerprint) return false
+
+        showManagerCloudRevisions.clear()
+        bundles.forEach(bundle => showManagerCloudRevisions.set(bundle.show.id, bundle.revision))
+
+        const cloudShowIds = new Set(bundles.map(bundle => bundle.show.id))
+        const patch: Partial<ReactStoreState> = {
+          showManagerShows: bundles.map(bundle => bundle.show),
+          canvasShowManagerShows: bundles.flatMap(bundle => bundle.canvas ? [bundle.canvas] : []),
+          laserDmxShowManagerShows: bundles.flatMap(bundle => bundle.laserDmx ? [bundle.laserDmx] : []),
+          canvasShowManagerActiveShowId: currentBeforeApply.canvasShowManagerActiveShowId && cloudShowIds.has(currentBeforeApply.canvasShowManagerActiveShowId)
+            ? currentBeforeApply.canvasShowManagerActiveShowId
+            : null,
+          laserDmxShowManagerActiveShowId: currentBeforeApply.laserDmxShowManagerActiveShowId && cloudShowIds.has(currentBeforeApply.laserDmxShowManagerActiveShowId)
+            ? currentBeforeApply.laserDmxShowManagerActiveShowId
+            : null,
+          showManagerEditingShowId: null,
+          canvasShowManagerEditingShowId: null,
+          canvasShowManagerEditingSectionId: null,
+          canvasShowManagerEditingElementId: null,
+          canvasShowManagerUndoStack: [],
+          canvasShowManagerRedoStack: [],
+          canvasShowManagerHistoryTransaction: null,
+          laserDmxShowManagerEditingShowId: null,
+          laserDmxShowManagerEditingSectionId: null,
+          laserDmxShowManagerPlaybackSectionId: null,
+          showManagerUndoStack: [],
+          showManagerRedoStack: [],
+        }
+        set(patch)
+        await persistShowManagerLocalCache(
+          get(),
+          'The cloud Show library loaded, but its local recovery cache could not be updated.',
+        )
+        return true
+      },
+
       createShowManagerShow: async (input) => {
         if (showManagerLibraryMutationInFlight) return null
         showManagerLibraryMutationInFlight = true
@@ -7090,20 +7330,23 @@ export const useReactStore = create<ReactStoreState>()(
             ...(laserShow ? { laserDmxShowManagerShows: [...state.laserDmxShowManagerShows, laserShow] } : {}),
           }
           const candidate = { ...state, ...patch } as ReactStoreState
-          try {
-            await reactPersistStorage.setItem(REACT_STORE_PERSISTENCE_NAME, {
-              state: reactStorePartialize(candidate) as unknown as Record<string, unknown>,
-              version: REACT_STORE_PERSISTENCE_VERSION,
-            })
-            if (useReactPersistenceStatusStore.getState().phase === 'error') return null
-          } catch (error) {
-            useReactPersistenceStatusStore.setState({
-              phase: 'error',
-              error: error instanceof Error ? error.message : 'The Show could not be created.',
-              retryPending: false,
-            })
+          const bundle = buildShowManagerCloudBundleFromState(candidate, show.id)
+          if (!bundle) return null
+          const cloudSaved = await saveShowManagerCloudBundle(bundle, null, 'create')
+          if (!cloudSaved.ok) {
+            reportShowManagerCloudFailure(cloudSaved.message)
             return null
           }
+          if (cloudSaved.mode === 'cloud' && cloudSaved.bundle) {
+            showManagerCloudRevisions.set(show.id, cloudSaved.bundle.revision)
+          }
+          const cached = await persistShowManagerLocalCache(
+            candidate,
+            'The Show was saved to Supabase, but its local recovery cache could not be updated.',
+          )
+          if (cloudSaved.mode === 'local-fallback' && !cached) return null
+          // Supabase is canonical once a cloud create succeeds; a cache failure
+          // must not make the newly-created remote Show disappear from live state.
           set(patch)
           return show.id
         } finally {
@@ -7158,20 +7401,21 @@ export const useReactStore = create<ReactStoreState>()(
             ...(laserCopy ? { laserDmxShowManagerShows: [...state.laserDmxShowManagerShows, laserCopy] } : {}),
           }
           const candidate = { ...state, ...patch } as ReactStoreState
-          try {
-            await reactPersistStorage.setItem(REACT_STORE_PERSISTENCE_NAME, {
-              state: reactStorePartialize(candidate) as unknown as Record<string, unknown>,
-              version: REACT_STORE_PERSISTENCE_VERSION,
-            })
-            if (useReactPersistenceStatusStore.getState().phase === 'error') return null
-          } catch (error) {
-            useReactPersistenceStatusStore.setState({
-              phase: 'error',
-              error: error instanceof Error ? error.message : 'The Show copy could not be created.',
-              retryPending: false,
-            })
+          const bundle = buildShowManagerCloudBundleFromState(candidate, duplicate.id)
+          if (!bundle) return null
+          const cloudSaved = await saveShowManagerCloudBundle(bundle, null, 'create')
+          if (!cloudSaved.ok) {
+            reportShowManagerCloudFailure(cloudSaved.message)
             return null
           }
+          if (cloudSaved.mode === 'cloud' && cloudSaved.bundle) {
+            showManagerCloudRevisions.set(duplicate.id, cloudSaved.bundle.revision)
+          }
+          const cached = await persistShowManagerLocalCache(
+            candidate,
+            'The Show copy was saved to Supabase, but its local recovery cache could not be updated.',
+          )
+          if (cloudSaved.mode === 'local-fallback' && !cached) return null
           set(patch)
           return duplicate.id
         } finally {
@@ -7185,6 +7429,13 @@ export const useReactStore = create<ReactStoreState>()(
         try {
           const state = get()
           if (!state.showManagerShows.some(show => show.id === showId)) return false
+
+          const cloudDeleted = await deleteShowManagerCloudShow(showId, showManagerCloudRevisions.get(showId) ?? null)
+          if (!cloudDeleted.ok) {
+            reportShowManagerCloudFailure(cloudDeleted.message)
+            return false
+          }
+
           const deletingOpenShow = state.showManagerEditingShowId === showId
           const deletingCanvasEditingShow = state.canvasShowManagerEditingShowId === showId
           const deletingLaserEditingShow = state.laserDmxShowManagerEditingShowId === showId
@@ -7212,20 +7463,12 @@ export const useReactStore = create<ReactStoreState>()(
             } : {}),
           }
           const candidate = { ...state, ...patch } as ReactStoreState
-          try {
-            await reactPersistStorage.setItem(REACT_STORE_PERSISTENCE_NAME, {
-              state: reactStorePartialize(candidate) as unknown as Record<string, unknown>,
-              version: REACT_STORE_PERSISTENCE_VERSION,
-            })
-            if (useReactPersistenceStatusStore.getState().phase === 'error') return false
-          } catch (error) {
-            useReactPersistenceStatusStore.setState({
-              phase: 'error',
-              error: error instanceof Error ? error.message : 'The Show could not be deleted.',
-              retryPending: false,
-            })
-            return false
-          }
+          const cached = await persistShowManagerLocalCache(
+            candidate,
+            'The Show was deleted from Supabase, but the local recovery cache could not be updated.',
+          )
+          if (cloudDeleted.mode === 'local-fallback' && !cached) return false
+          showManagerCloudRevisions.delete(showId)
           set(patch)
           return true
         } finally {
@@ -7593,27 +7836,17 @@ export const useReactStore = create<ReactStoreState>()(
         : {}),
 
       saveCanvasShowManagerShow: async (showId, options = {}) => {
-        const persistState = async (state: ReactStoreState): Promise<boolean> => {
-          try {
-            await reactPersistStorage.setItem(REACT_STORE_PERSISTENCE_NAME, {
-              state: reactStorePartialize(state) as unknown as Record<string, unknown>,
-              version: REACT_STORE_PERSISTENCE_VERSION,
-            })
-            return useReactPersistenceStatusStore.getState().phase !== 'error'
-          } catch (error) {
-            useReactPersistenceStatusStore.setState({
-              phase: 'error',
-              error: error instanceof Error ? error.message : 'The Canvas Show could not be saved.',
-              retryPending: false,
-            })
-            return false
-          }
-        }
-
         const stateAtSave = get()
         const show = stateAtSave.canvasShowManagerShows.find(candidate => candidate.id === showId)
         if (!show || !validateCanvasShowManagerShow(show).valid) return false
-        if (!options.makeActive) return persistState(stateAtSave)
+
+        if (!options.makeActive) {
+          return persistShowManagerAuthoredBundle(
+            stateAtSave,
+            showId,
+            'The Canvas Show was saved to Supabase, but its local recovery cache could not be updated.',
+          )
+        }
 
         const activationPatch = buildCanvasShowManagerActivationPatch(stateAtSave)
         const persistedCandidate: ReactStoreState = {
@@ -7621,7 +7854,11 @@ export const useReactStore = create<ReactStoreState>()(
           ...activationPatch,
           canvasShowManagerActiveShowId: showId,
         }
-        if (!(await persistState(persistedCandidate))) return false
+        if (!(await persistShowManagerAuthoredBundle(
+          persistedCandidate,
+          showId,
+          'The Canvas Show was saved to Supabase, but its local recovery cache could not be updated.',
+        ))) return false
 
         const current = get()
         const currentShow = current.canvasShowManagerShows.find(candidate => candidate.id === showId)
@@ -7629,11 +7866,15 @@ export const useReactStore = create<ReactStoreState>()(
           || !validateCanvasShowManagerShow(currentShow).valid
           || !canvasShowManagerShowsEqual(stateAtSave.canvasShowManagerShows, current.canvasShowManagerShows)
         if (stale) {
-          // The optimistic persisted candidate included the requested active ID.
-          // If authoring changed while storage was pending, immediately replace
-          // that candidate with the latest live snapshot so a reload cannot
-          // activate stale Canvas Show data after this operation reports failure.
-          await persistState(current)
+          // Preserve the pre-cloud Canvas race guarantee: a requested activation
+          // must not leave the local recovery cache pointing at the older snapshot
+          // when authoring changes while Save is in flight. Supabase intentionally
+          // retains the snapshot that the user actually saved; the newer live edits
+          // remain local/unsaved until the next explicit Save.
+          await persistShowManagerLocalCache(
+            current,
+            'The latest Canvas edits could not be written to the local recovery cache.',
+          )
           return false
         }
 
@@ -8188,26 +8429,16 @@ export const useReactStore = create<ReactStoreState>()(
       clearShowManagerHistory: () => set({ showManagerUndoStack: [], showManagerRedoStack: [] }),
 
       saveLaserDmxShowManagerShow: async (showId, options = {}) => {
-        const persistState = async (state: ReactStoreState): Promise<boolean> => {
-          try {
-            await reactPersistStorage.setItem(REACT_STORE_PERSISTENCE_NAME, {
-              state: reactStorePartialize(state) as unknown as Record<string, unknown>,
-              version: REACT_STORE_PERSISTENCE_VERSION,
-            })
-            return useReactPersistenceStatusStore.getState().phase !== 'error'
-          } catch (error) {
-            useReactPersistenceStatusStore.setState({
-              phase: 'error',
-              error: error instanceof Error ? error.message : 'The Show could not be saved.',
-              retryPending: false,
-            })
-            return false
-          }
-        }
-
         const stateAtSave = get()
         if (!stateAtSave.laserDmxShowManagerShows.some(show => show.id === showId)) return false
-        if (!options.makeActive) return persistState(stateAtSave)
+
+        if (!options.makeActive) {
+          return persistShowManagerAuthoredBundle(
+            stateAtSave,
+            showId,
+            'The LaserDMX Show was saved to Supabase, but its local recovery cache could not be updated.',
+          )
+        }
 
         const activationPatch = buildLaserDmxShowManagerActivationPatch(stateAtSave)
         if (!activationPatch || activationPatch.activeReactEngineId !== 'laserDmx') return false
@@ -8216,12 +8447,15 @@ export const useReactStore = create<ReactStoreState>()(
           ...activationPatch,
           laserDmxShowManagerActiveShowId: showId,
         }
-        if (!(await persistState(persistedCandidate))) return false
+        if (!(await persistShowManagerAuthoredBundle(
+          persistedCandidate,
+          showId,
+          'The LaserDMX Show was saved to Supabase, but its local recovery cache could not be updated.',
+        ))) return false
 
         // The persisted activation must describe the same canonical Show snapshot
-        // that is about to become live. If authoring changed while storage was
-        // pending, leave live state untouched so a subsequent save can persist
-        // and activate the newer snapshot atomically.
+        // that is about to become live. If authoring changed while Supabase was
+        // pending, leave live state untouched; the newer draft remains local.
         const current = get()
         if (!current.laserDmxShowManagerShows.some(show => show.id === showId)) return false
         if (!laserDmxShowManagerShowsEqual(

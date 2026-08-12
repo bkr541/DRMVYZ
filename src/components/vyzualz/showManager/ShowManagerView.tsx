@@ -784,6 +784,7 @@ export function ShowManagerView() {
   const reactBassReactivity = useReactStore(state => state.reactBassReactivity)
   const pixGridActionCuesByTrackId = useReactStore(state => state.pixGridActionCuesByTrackId)
   const showManagerShows = useReactStore(state => state.showManagerShows)
+  const loadShowManagerShowsFromCloud = useReactStore(state => state.loadShowManagerShowsFromCloud)
   const showManagerEditingShowId = useReactStore(state => state.showManagerEditingShowId)
   const deleteShowManagerShow = useReactStore(state => state.deleteShowManagerShow)
   const selectShowManagerShow = useReactStore(state => state.selectShowManagerShow)
@@ -998,11 +999,12 @@ export function ShowManagerView() {
     setSelectedLaserFixtureId(null)
     setCanvasLibraryMediaId(null)
     setShowManagerSessionReady(true)
+    void loadShowManagerShowsFromCloud()
     return () => {
       showOpenOperationRef.current += 1
       resetShowManagerSession()
     }
-  }, [resetShowManagerSession])
+  }, [loadShowManagerShowsFromCloud, resetShowManagerSession])
 
   useEffect(() => {
     if (!showBrowserOpen) return
