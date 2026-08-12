@@ -26,10 +26,8 @@ import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import {
-  getAudioSourcePolicyBlockedAttemptId,
   getAudioSourcePolicySnapshot,
   getLastAudioSourcePolicyMessage,
-  isShowManagerAudioSourceLocked,
   isShowManagerTransportReady,
   requestAudioSourceMutation,
   subscribeAudioSourcePolicy,
@@ -207,13 +205,14 @@ export function VyzualzAudioDock({
   const [rekordboxBusy, setRekordboxBusy] = useState(false)
   const [rekordboxUsbMode, setRekordboxUsbMode] = useState(false)
   const [dismissedSourceLockAttempt, setDismissedSourceLockAttempt] = useState<number | null>(null)
-  useSyncExternalStore(
+  const audioSourcePolicySnapshot = useSyncExternalStore(
     subscribeAudioSourcePolicy,
     getAudioSourcePolicySnapshot,
     getAudioSourcePolicySnapshot,
   )
-  const sourceSelectionLocked = isShowManagerAudioSourceLocked()
-  const sourceLockAttemptId = getAudioSourcePolicyBlockedAttemptId()
+  const [audioSourcePolicyAppView, , blockedAttemptIdText] = audioSourcePolicySnapshot.split('|')
+  const sourceSelectionLocked = audioSourcePolicyAppView === 'showManager'
+  const sourceLockAttemptId = Number.parseInt(blockedAttemptIdText ?? '0', 10) || 0
   const sourceLockMessage = getLastAudioSourcePolicyMessage()
   const showSourceLockMessage = sourceSelectionLocked
     && sourceLockMessage !== null

@@ -195,6 +195,7 @@ const fixture = vi.hoisted(() => ({
     showManagerRedoStack: [] as unknown[],
     createLaserDmxShowManagerShow: vi.fn(() => 'laser-show-2'),
     ensureLaserDmxShowManagerShow: vi.fn(() => 'laser-show-1'),
+    selectLaserDmxShowManagerShow: vi.fn(),
     selectLaserDmxShowManagerSection: vi.fn(),
     updateLaserDmxShowManagerSection: vi.fn(),
     updateLaserDmxShowManagerWorkspaceSettings: vi.fn(),
@@ -444,6 +445,7 @@ afterEach(() => {
   fixture.state.redoLaserDmxShowManagerEdit.mockClear()
   fixture.state.saveLaserDmxShowManagerShow.mockClear()
   fixture.state.ensureLaserDmxShowManagerShow.mockClear()
+  fixture.state.selectLaserDmxShowManagerShow.mockClear()
   fixture.state.selectReactPreset.mockClear()
   fixture.state.selectReactEngine.mockClear()
   fixture.state.createCanvasShowManagerShow.mockClear()

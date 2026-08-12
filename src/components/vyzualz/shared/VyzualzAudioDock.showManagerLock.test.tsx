@@ -120,13 +120,24 @@ let container: HTMLDivElement | null = null
 let root: ReturnType<typeof createRoot> | null = null
 
 async function renderView(initialAppView: 'showManager' | 'react'): Promise<void> {
+  // Warm the real Audio Dock module before VyzualzView enters a lazy workspace.
+  // The mocked ShowManagerView/ReactView factories both render this real component;
+  // resolving its large dependency graph inside React.lazy made the first (cold)
+  // Show Manager render depend on Vitest's 1s waitFor timeout, while the sibling
+  // React test only passed because the module graph had already been cached.
+  await import('./VyzualzAudioDock')
+
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
   await act(async () => {
     root?.render(<VyzualzView activeView="vyzualz" onNavigate={() => {}} initialAppView={initialAppView} />)
     await Promise.resolve()
-    await Promise.resolve()
+  })
+  await act(async () => {
+    await vi.waitFor(() => {
+      expect(container?.querySelector('.vz-dock-addtrack-btn')).not.toBeNull()
+    })
   })
 }
 
