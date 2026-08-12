@@ -121,6 +121,8 @@ import {
   duplicateLaserDmxShowManagerFixtureInSection,
   mirrorLaserDmxShowManagerFixtureInSection,
   normalizeLaserDmxShowManagerShows,
+  isLaserDmxShowManagerGeneratedDefaultTimeline,
+  syncLaserDmxShowManagerSectionsToTrackMap,
   removeLaserDmxShowManagerFixtureFromSection,
   removeLaserDmxShowManagerSection,
   reorderLaserDmxShowManagerSection,
@@ -141,6 +143,8 @@ import {
   isCanvasShowManagerNameAvailable,
   normalizeCanvasShowManagerName,
   normalizeCanvasShowManagerShows,
+  isCanvasShowManagerGeneratedDefaultTimeline,
+  syncCanvasShowManagerSectionsToTrackMap,
   renameCanvasShowManagerShow,
   removeCanvasShowManagerMediaElement,
   updateCanvasShowManagerMediaElement,
@@ -152,14 +156,20 @@ import {
   type CanvasShowManagerShow,
 } from '../components/vyzualz/showManager/CanvasShowManagerDomain'
 import {
+  buildShowManagerCanonicalTrackMap,
+  createLegacyAuthoredShowManagerTrackMap,
   createShowManagerShow as createSharedShowManagerShow,
   duplicateShowManagerShowRecord,
   isShowManagerShowNameAvailable,
   mergeLegacyShowManagerRecords,
   normalizeShowManagerShows,
+  reconcileShowManagerTrackMap,
+  updateShowManagerTrackMapBoundary as updateSharedShowManagerTrackMapBoundary,
+  updateShowManagerTrackMapSection as updateSharedShowManagerTrackMapSection,
   type CreateShowManagerShowInput,
   type DuplicateShowManagerShowInput,
   type ShowManagerShowRecord,
+  type ShowManagerTrackMap,
 } from '../components/vyzualz/showManager/ShowManagerDomain'
 import { resolvePerformancePadTransition } from '../components/vyzualz/react/renderers/reactPresetTransition'
 import { SOUND_DRAWING_PERFORMANCE_SHOWS } from '../components/vyzualz/react/soundDrawing/SoundDrawingPerformanceShows'
@@ -2436,6 +2446,7 @@ function normalizeCinematicSeedLocks(
 
 // Show Manager history snapshots canonical authored project state only; renderer/runtime state stays derived.
 interface ShowManagerHistorySnapshot {
+  showManagerShows: ShowManagerShowRecord[]
   laserDmxShowManagerShows: LaserDmxShowManagerShow[]
   laserDmxShowManagerEditingShowId: string | null
   laserDmxShowManagerEditingSectionId: string | null
@@ -2524,6 +2535,22 @@ interface ReactStoreState {
   deleteShowManagerShow: (showId: string) => Promise<boolean>
   selectShowManagerShow: (showId: string | null) => void
   resetShowManagerSession: () => void
+  reconcileShowManagerTrackMapFromAnalysis: (input: {
+    showId: string
+    linkedAudioTrackId: string
+    analysisVersion?: string | null
+    durationSec: number
+    canonicalSections: readonly ReactTrackSection[]
+  }) => void
+  updateShowManagerTrackMapSection: (showId: string, sectionId: string, patch: Partial<ReactTrackSection>) => void
+  updateShowManagerTrackMapBoundary: (
+    showId: string,
+    sectionId: string,
+    edge: 'start' | 'end',
+    newTime: number,
+    neighborId: string | null,
+    neighborTime: number | null,
+  ) => void
 
   // Canvas Show Manager authoring. Shows and active identity persist; editing selection and history remain transient.
   canvasShowManagerShows: CanvasShowManagerShow[]
@@ -3030,9 +3057,10 @@ function cloneLaserDmxShowManagerShows(shows: readonly LaserDmxShowManagerShow[]
 }
 
 function captureShowManagerHistorySnapshot(
-  state: Pick<ReactStoreState, 'laserDmxShowManagerShows' | 'laserDmxShowManagerEditingShowId' | 'laserDmxShowManagerEditingSectionId'>,
+  state: Pick<ReactStoreState, 'showManagerShows' | 'laserDmxShowManagerShows' | 'laserDmxShowManagerEditingShowId' | 'laserDmxShowManagerEditingSectionId'>,
 ): ShowManagerHistorySnapshot {
   return {
+    showManagerShows: normalizeShowManagerShows(state.showManagerShows),
     laserDmxShowManagerShows: cloneLaserDmxShowManagerShows(state.laserDmxShowManagerShows),
     laserDmxShowManagerEditingShowId: state.laserDmxShowManagerEditingShowId,
     laserDmxShowManagerEditingSectionId: state.laserDmxShowManagerEditingSectionId,
@@ -3086,6 +3114,8 @@ function buildLaserDmxShowManagerActivationPatch(
 
 function buildShowManagerHistoryMutationPatch(
   state: Pick<ReactStoreState,
+    | 'showManagerShows'
+    | 'canvasShowManagerShows'
     | 'laserDmxShowManagerShows'
     | 'laserDmxShowManagerEditingShowId'
     | 'laserDmxShowManagerEditingSectionId'
@@ -3093,6 +3123,7 @@ function buildShowManagerHistoryMutationPatch(
     | 'showManagerRedoStack'
   >,
   patch: Partial<Pick<ReactStoreState,
+    | 'showManagerShows'
     | 'laserDmxShowManagerShows'
     | 'laserDmxShowManagerEditingShowId'
     | 'laserDmxShowManagerEditingSectionId'
@@ -3118,15 +3149,29 @@ function normalizeLaserDmxShowManagerActiveShowId(
 }
 
 function restoreShowManagerHistorySnapshot(
-  state: Pick<ReactStoreState, 'laserDmxShowManagerActiveShowId'>,
+  state: Pick<ReactStoreState,
+    | 'canvasShowManagerShows'
+    | 'canvasShowManagerEditingShowId'
+    | 'canvasShowManagerEditingSectionId'
+    | 'laserDmxShowManagerActiveShowId'
+  >,
   snapshot: ShowManagerHistorySnapshot,
 ) {
+  const sharedShows = normalizeShowManagerShows(snapshot.showManagerShows)
   const shows = cloneLaserDmxShowManagerShows(snapshot.laserDmxShowManagerShows)
+  const canvasShows = syncCanvasShowManagerMirrorsToSharedTrackMaps(state.canvasShowManagerShows, sharedShows)
   const editingShow = shows.find(show => show.id === snapshot.laserDmxShowManagerEditingShowId) ?? null
   const editingSectionId = editingShow?.sections.some(section => section.id === snapshot.laserDmxShowManagerEditingSectionId)
     ? snapshot.laserDmxShowManagerEditingSectionId
     : editingShow?.sections[0]?.id ?? null
+  const canvasEditingShow = canvasShows.find(show => show.id === state.canvasShowManagerEditingShowId) ?? null
+  const canvasEditingSectionId = canvasEditingShow?.sections.some(section => section.id === state.canvasShowManagerEditingSectionId)
+    ? state.canvasShowManagerEditingSectionId
+    : canvasEditingShow?.sections[0]?.id ?? null
   return {
+    showManagerShows: sharedShows,
+    canvasShowManagerShows: canvasShows,
+    canvasShowManagerEditingSectionId: canvasEditingSectionId,
     laserDmxShowManagerShows: shows,
     laserDmxShowManagerActiveShowId: shows.some(show => show.id === state.laserDmxShowManagerActiveShowId)
       ? state.laserDmxShowManagerActiveShowId
@@ -3185,6 +3230,7 @@ function buildCanvasShowManagerHistoryMutationPatch(
   state: Pick<ReactStoreState,
     | 'showManagerShows'
     | 'canvasShowManagerShows'
+    | 'laserDmxShowManagerShows'
     | 'canvasShowManagerActiveShowId'
     | 'canvasShowManagerEditingShowId'
     | 'canvasShowManagerEditingSectionId'
@@ -3215,9 +3261,16 @@ function buildCanvasShowManagerHistoryMutationPatch(
 }
 
 function restoreCanvasShowManagerHistorySnapshot(
+  state: Pick<ReactStoreState,
+    | 'laserDmxShowManagerShows'
+    | 'laserDmxShowManagerEditingShowId'
+    | 'laserDmxShowManagerEditingSectionId'
+  >,
   snapshot: CanvasShowManagerHistorySnapshot,
 ) {
+  const sharedShows = normalizeShowManagerShows(snapshot.showManagerShows)
   const shows = cloneCanvasShowManagerShows(snapshot.canvasShowManagerShows)
+  const laserShows = syncLaserDmxShowManagerMirrorsToSharedTrackMaps(state.laserDmxShowManagerShows, sharedShows)
   const activeShowId = normalizeCanvasShowManagerActiveShowId(
     snapshot.canvasShowManagerActiveShowId,
     shows,
@@ -3229,13 +3282,150 @@ function restoreCanvasShowManagerHistorySnapshot(
   const editingElementId = editingShow?.mediaElements.some(element => element.id === snapshot.canvasShowManagerEditingElementId)
     ? snapshot.canvasShowManagerEditingElementId
     : null
+  const laserEditingShow = laserShows.find(show => show.id === state.laserDmxShowManagerEditingShowId) ?? null
+  const laserEditingSectionId = laserEditingShow?.sections.some(section => section.id === state.laserDmxShowManagerEditingSectionId)
+    ? state.laserDmxShowManagerEditingSectionId
+    : laserEditingShow?.sections[0]?.id ?? null
   return {
-    showManagerShows: normalizeShowManagerShows(snapshot.showManagerShows),
+    showManagerShows: sharedShows,
     canvasShowManagerShows: shows,
+    laserDmxShowManagerShows: laserShows,
+    laserDmxShowManagerEditingSectionId: laserEditingSectionId,
     canvasShowManagerActiveShowId: activeShowId,
     canvasShowManagerEditingShowId: editingShow?.id ?? null,
     canvasShowManagerEditingSectionId: editingSectionId,
     canvasShowManagerEditingElementId: editingElementId,
+  }
+}
+
+function canvasShowManagerSectionsToTrackSections(show: CanvasShowManagerShow): ReactTrackSection[] {
+  const ranges = getCanvasShowManagerSectionRanges(show)
+  return show.sections.map((section, index) => {
+    const range = ranges[index]
+    return {
+      id: section.id,
+      label: section.label,
+      type: section.type,
+      startSec: range?.startSec ?? 0,
+      endSec: range?.endSec ?? Math.max(0.001, section.durationSec),
+      intensity: section.type === 'drop' ? 1 : section.type === 'build' || section.type === 'preDrop' ? 0.8 : 0.55,
+      source: 'user-created' as const,
+    }
+  })
+}
+
+function resolveLegacyShowManagerTrackMap(
+  state: Pick<ReactStoreState, 'canvasShowManagerShows' | 'laserDmxShowManagerShows'>,
+  show: ShowManagerShowRecord,
+  canonical: ShowManagerTrackMap,
+): ShowManagerTrackMap | null {
+  for (const engineId of show.engineIds) {
+    if (engineId === 'laserDmx') {
+      const laserShow = state.laserDmxShowManagerShows.find(candidate => candidate.id === show.id)
+      if (laserShow && laserShow.sections.length > 0 && !isLaserDmxShowManagerGeneratedDefaultTimeline(laserShow)) {
+        return createLegacyAuthoredShowManagerTrackMap({
+          linkedAudioTrackId: show.linkedAudioTrackId!,
+          sections: laserShow.sections,
+          durationSec: canonical.durationSec,
+        })
+      }
+    }
+    if (engineId === 'canvas') {
+      const canvasShow = state.canvasShowManagerShows.find(candidate => candidate.id === show.id)
+      if (canvasShow && canvasShow.sections.length > 0 && !isCanvasShowManagerGeneratedDefaultTimeline(canvasShow)) {
+        return createLegacyAuthoredShowManagerTrackMap({
+          linkedAudioTrackId: show.linkedAudioTrackId!,
+          sections: canvasShowManagerSectionsToTrackSections(canvasShow),
+          durationSec: canonical.durationSec,
+        })
+      }
+    }
+  }
+  return null
+}
+
+function syncCanvasShowManagerMirrorsToSharedTrackMaps(
+  shows: readonly CanvasShowManagerShow[],
+  sharedShows: readonly ShowManagerShowRecord[],
+): CanvasShowManagerShow[] {
+  let next = cloneCanvasShowManagerShows(shows)
+  for (const sharedShow of sharedShows) {
+    if (!sharedShow.trackMap) continue
+    next = next.map(show => show.id === sharedShow.id
+      ? syncCanvasShowManagerSectionsToTrackMap(show, sharedShow.trackMap!.sections)
+      : show)
+  }
+  return next
+}
+
+function syncLaserDmxShowManagerMirrorsToSharedTrackMaps(
+  shows: readonly LaserDmxShowManagerShow[],
+  sharedShows: readonly ShowManagerShowRecord[],
+): LaserDmxShowManagerShow[] {
+  let next = cloneLaserDmxShowManagerShows(shows)
+  for (const sharedShow of sharedShows) {
+    if (!sharedShow.trackMap) continue
+    next = next.map(show => show.id === sharedShow.id
+      ? syncLaserDmxShowManagerSectionsToTrackMap(show, sharedShow.trackMap!.sections)
+      : show)
+  }
+  return next
+}
+
+function buildShowManagerTrackMapMirrorPatch(
+  state: Pick<ReactStoreState,
+    | 'canvasShowManagerShows'
+    | 'laserDmxShowManagerShows'
+    | 'canvasShowManagerEditingShowId'
+    | 'canvasShowManagerEditingSectionId'
+    | 'laserDmxShowManagerEditingShowId'
+    | 'laserDmxShowManagerEditingSectionId'
+  >,
+  showId: string,
+  trackMap: ShowManagerTrackMap,
+): Partial<ReactStoreState> {
+  const canvasShows = state.canvasShowManagerShows.map(show => show.id === showId
+    ? syncCanvasShowManagerSectionsToTrackMap(show, trackMap.sections)
+    : show)
+  const laserShows = state.laserDmxShowManagerShows.map(show => show.id === showId
+    ? syncLaserDmxShowManagerSectionsToTrackMap(show, trackMap.sections)
+    : show)
+  const canvasShow = canvasShows.find(show => show.id === showId) ?? null
+  const laserShow = laserShows.find(show => show.id === showId) ?? null
+  const canvasSelectionValid = canvasShow?.sections.some(section => section.id === state.canvasShowManagerEditingSectionId) ?? false
+  const laserSelectionValid = laserShow?.sections.some(section => section.id === state.laserDmxShowManagerEditingSectionId) ?? false
+  return {
+    canvasShowManagerShows: canvasShows,
+    laserDmxShowManagerShows: laserShows,
+    ...(state.canvasShowManagerEditingShowId === showId && !canvasSelectionValid
+      ? { canvasShowManagerEditingSectionId: canvasShow?.sections[0]?.id ?? null }
+      : {}),
+    ...(state.laserDmxShowManagerEditingShowId === showId && !laserSelectionValid
+      ? { laserDmxShowManagerEditingSectionId: laserShow?.sections[0]?.id ?? null }
+      : {}),
+  }
+}
+
+function buildSharedShowManagerTrackMapHistoryPatch(
+  state: ReactStoreState,
+  patch: Partial<ReactStoreState>,
+): Partial<ReactStoreState> {
+  const nextShowManagerShows = patch.showManagerShows ?? state.showManagerShows
+  if (JSON.stringify(nextShowManagerShows) === JSON.stringify(state.showManagerShows)) return patch
+  return {
+    ...patch,
+    showManagerUndoStack: trimShowManagerHistory([
+      ...state.showManagerUndoStack,
+      captureShowManagerHistorySnapshot(state),
+    ]),
+    showManagerRedoStack: [],
+    ...(state.canvasShowManagerHistoryTransaction ? {} : {
+      canvasShowManagerUndoStack: trimCanvasShowManagerHistory([
+        ...state.canvasShowManagerUndoStack,
+        captureCanvasShowManagerHistorySnapshot(state),
+      ]),
+      canvasShowManagerRedoStack: [],
+    }),
   }
 }
 
@@ -5330,6 +5520,16 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       ]),
     }
   }
+  if (version < 74) {
+    // Stage 3 adds a Show-owned Track Map snapshot. Do not guess whether legacy
+    // engine timing was authored during persistence migration because canonical
+    // linked-track analysis is unavailable here. Runtime reconciliation performs
+    // that comparison once analysis resolves and only replaces provable defaults.
+    state = {
+      ...state,
+      showManagerShows: normalizeShowManagerShows(state.showManagerShows),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -5904,7 +6104,7 @@ export function mergeReactStoreState(
 }
 
 const REACT_STORE_PERSISTENCE_NAME = 'drmvyz:react-store'
-const REACT_STORE_PERSISTENCE_VERSION = 73
+const REACT_STORE_PERSISTENCE_VERSION = 74
 let showManagerLibraryMutationInFlight = false
 
 export const reactPersistStorage = createSplitPersistStorage<Record<string, unknown>>({
@@ -6866,11 +7066,11 @@ export const useReactStore = create<ReactStoreState>()(
           const show = createSharedShowManagerShow(input)
           if (!show) return null
 
-          const canvasShow = input.initialEngineId === 'canvas'
-            ? createCanvasShowManagerShow(show.name, show.id)
+          const canvasShow: CanvasShowManagerShow | null = input.initialEngineId === 'canvas'
+            ? { ...createCanvasShowManagerShow(show.name, show.id), sections: [] }
             : null
-          const laserShow = input.initialEngineId === 'laserDmx'
-            ? createLaserDmxShowManagerShow(show.name, show.id)
+          const laserShow: LaserDmxShowManagerShow | null = input.initialEngineId === 'laserDmx'
+            ? { ...createLaserDmxShowManagerShow(show.name, show.id), sections: [] }
             : null
           const patch: Partial<ReactStoreState> = {
             showManagerShows: [...state.showManagerShows, show],
@@ -6927,12 +7127,18 @@ export const useReactStore = create<ReactStoreState>()(
           if (source.engineIds.includes('canvas') && !sourceCanvas) return null
           if (source.engineIds.includes('laserDmx') && !sourceLaser) return null
 
-          const canvasCopy = sourceCanvas
+          const rawCanvasCopy = sourceCanvas
             ? duplicateCanvasShowManagerShow(sourceCanvas, duplicate.id, duplicate.name)
             : null
-          const laserCopy = sourceLaser
+          const rawLaserCopy = sourceLaser
             ? duplicateLaserDmxShowManagerShow(sourceLaser, duplicate.id, duplicate.name)
             : null
+          const canvasCopy = rawCanvasCopy && duplicate.trackMap
+            ? syncCanvasShowManagerSectionsToTrackMap(rawCanvasCopy, duplicate.trackMap.sections)
+            : rawCanvasCopy
+          const laserCopy = rawLaserCopy && duplicate.trackMap
+            ? syncLaserDmxShowManagerSectionsToTrackMap(rawLaserCopy, duplicate.trackMap.sections)
+            : rawLaserCopy
           const primaryEngineId = duplicate.engineIds[0] ?? null
           const patch: Partial<ReactStoreState> = {
             showManagerShows: [...state.showManagerShows, duplicate],
@@ -7046,6 +7252,81 @@ export const useReactStore = create<ReactStoreState>()(
         showManagerRedoStack: [],
       }),
 
+      reconcileShowManagerTrackMapFromAnalysis: (input) =>
+        set(s => {
+          const show = s.showManagerShows.find(candidate => candidate.id === input.showId)
+          if (!show || show.linkedAudioTrackId !== input.linkedAudioTrackId) return {}
+          const canonical = buildShowManagerCanonicalTrackMap({
+            linkedAudioTrackId: input.linkedAudioTrackId,
+            analysisVersion: input.analysisVersion,
+            durationSec: input.durationSec,
+            canonicalSections: input.canonicalSections,
+          })
+          if (!canonical) return {}
+          const legacyAuthored = show.trackMap ? null : resolveLegacyShowManagerTrackMap(s, show, canonical)
+          const nextTrackMap = legacyAuthored ?? reconcileShowManagerTrackMap(show.trackMap, canonical)
+          const currentSerialized = JSON.stringify(show.trackMap)
+          const nextSerialized = JSON.stringify(nextTrackMap)
+          const mirrorPatch = buildShowManagerTrackMapMirrorPatch(s, show.id, nextTrackMap)
+          const mirrorsChanged = JSON.stringify(mirrorPatch.canvasShowManagerShows) !== JSON.stringify(s.canvasShowManagerShows)
+            || JSON.stringify(mirrorPatch.laserDmxShowManagerShows) !== JSON.stringify(s.laserDmxShowManagerShows)
+          if (currentSerialized === nextSerialized && !mirrorsChanged) return {}
+          return {
+            showManagerShows: s.showManagerShows.map(candidate => candidate.id === show.id
+              ? { ...candidate, trackMap: nextTrackMap }
+              : candidate),
+            ...mirrorPatch,
+          }
+        }),
+
+      updateShowManagerTrackMapSection: (showId, sectionId, patch) =>
+        set(s => {
+          const show = s.showManagerShows.find(candidate => candidate.id === showId)
+          if (!show?.trackMap) return {}
+          const { startSec, endSec, ...metadataPatch } = patch
+          let nextTrackMap = Object.keys(metadataPatch).length > 0
+            ? updateSharedShowManagerTrackMapSection(show.trackMap, sectionId, metadataPatch)
+            : show.trackMap
+          if (typeof startSec === 'number' && Number.isFinite(startSec)) {
+            nextTrackMap = updateSharedShowManagerTrackMapBoundary(nextTrackMap, sectionId, 'start', startSec, null, null)
+          }
+          if (typeof endSec === 'number' && Number.isFinite(endSec)) {
+            nextTrackMap = updateSharedShowManagerTrackMapBoundary(nextTrackMap, sectionId, 'end', endSec, null, null)
+          }
+          if (nextTrackMap === show.trackMap || JSON.stringify(nextTrackMap) === JSON.stringify(show.trackMap)) return {}
+          const nextShows = s.showManagerShows.map(candidate => candidate.id === showId
+            ? { ...candidate, trackMap: nextTrackMap }
+            : candidate)
+          const mirrorPatch = buildShowManagerTrackMapMirrorPatch(s, showId, nextTrackMap)
+          return buildSharedShowManagerTrackMapHistoryPatch(s, {
+            showManagerShows: nextShows,
+            ...mirrorPatch,
+          })
+        }),
+
+      updateShowManagerTrackMapBoundary: (showId, sectionId, edge, newTime, neighborId, neighborTime) =>
+        set(s => {
+          const show = s.showManagerShows.find(candidate => candidate.id === showId)
+          if (!show?.trackMap) return {}
+          const nextTrackMap = updateSharedShowManagerTrackMapBoundary(
+            show.trackMap,
+            sectionId,
+            edge,
+            newTime,
+            neighborId,
+            neighborTime,
+          )
+          if (nextTrackMap === show.trackMap || JSON.stringify(nextTrackMap) === JSON.stringify(show.trackMap)) return {}
+          const nextShows = s.showManagerShows.map(candidate => candidate.id === showId
+            ? { ...candidate, trackMap: nextTrackMap }
+            : candidate)
+          const mirrorPatch = buildShowManagerTrackMapMirrorPatch(s, showId, nextTrackMap)
+          return buildSharedShowManagerTrackMapHistoryPatch(s, {
+            showManagerShows: nextShows,
+            ...mirrorPatch,
+          })
+        }),
+
       createCanvasShowManagerShow: (name) => {
         const state = get()
         const normalizedName = normalizeCanvasShowManagerName(name)
@@ -7128,6 +7409,9 @@ export const useReactStore = create<ReactStoreState>()(
       },
 
       updateCanvasShowManagerSectionDuration: (showId, sectionId, durationSec) => {
+        // Audio-bound Shows use the shared Track Map boundary editor. Keeping this
+        // legacy Canvas duration API read-only for them prevents a second timing truth.
+        if (get().showManagerShows.some(show => show.id === showId && show.linkedAudioTrackId)) return null
         let edit: CanvasShowManagerSectionDurationEdit | null = null
         set(s => {
           const show = s.canvasShowManagerShows.find(candidate => candidate.id === showId)
@@ -7252,7 +7536,7 @@ export const useReactStore = create<ReactStoreState>()(
           if (!previous) return {}
           const current = captureCanvasShowManagerHistorySnapshot(s)
           return {
-            ...restoreCanvasShowManagerHistorySnapshot(previous),
+            ...restoreCanvasShowManagerHistorySnapshot(s, previous),
             canvasShowManagerUndoStack: s.canvasShowManagerUndoStack.slice(0, -1),
             canvasShowManagerRedoStack: trimCanvasShowManagerHistory([
               ...s.canvasShowManagerRedoStack,
@@ -7268,7 +7552,7 @@ export const useReactStore = create<ReactStoreState>()(
           if (!next) return {}
           const current = captureCanvasShowManagerHistorySnapshot(s)
           return {
-            ...restoreCanvasShowManagerHistorySnapshot(next),
+            ...restoreCanvasShowManagerHistorySnapshot(s, next),
             canvasShowManagerUndoStack: trimCanvasShowManagerHistory([
               ...s.canvasShowManagerUndoStack,
               current,
@@ -7303,7 +7587,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       cancelCanvasShowManagerHistoryTransaction: () => set(s => s.canvasShowManagerHistoryTransaction
         ? {
-            ...restoreCanvasShowManagerHistorySnapshot(s.canvasShowManagerHistoryTransaction),
+            ...restoreCanvasShowManagerHistorySnapshot(s, s.canvasShowManagerHistoryTransaction),
             canvasShowManagerHistoryTransaction: null,
           }
         : {}),
@@ -7714,12 +7998,29 @@ export const useReactStore = create<ReactStoreState>()(
             : { laserDmxShowManagerEditingSectionId: show.sections[0]?.id ?? null }
         }),
 
-      updateLaserDmxShowManagerSection: (showId, sectionId, patch) =>
+      updateLaserDmxShowManagerSection: (showId, sectionId, patch) => {
+        const sharedShow = get().showManagerShows.find(show => show.id === showId)
+        if (sharedShow?.linkedAudioTrackId) {
+          if (!sharedShow.trackMap) return
+          const { fixtures, ...trackPatch } = patch
+          if (Object.keys(trackPatch).length > 0) {
+            get().updateShowManagerTrackMapSection(showId, sectionId, trackPatch)
+          }
+          if (fixtures) {
+            set(s => buildShowManagerHistoryMutationPatch(s, {
+              laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId
+                ? updateLaserDmxShowManagerSection(show, sectionId, { fixtures })
+                : show),
+            }))
+          }
+          return
+        }
         set(s => buildShowManagerHistoryMutationPatch(s, {
           laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId
             ? updateLaserDmxShowManagerSection(show, sectionId, patch)
             : show),
-        })),
+        }))
+      },
 
       updateLaserDmxShowManagerWorkspaceSettings: (showId, patch) =>
         set(s => buildShowManagerHistoryMutationPatch(s, {
@@ -7729,6 +8030,8 @@ export const useReactStore = create<ReactStoreState>()(
         })),
 
       addLaserDmxShowManagerSection: (showId, seed = {}) => {
+        // Shared audio-bound section structure comes only from the Show Track Map.
+        if (get().showManagerShows.some(show => show.id === showId && show.linkedAudioTrackId)) return null
         let sectionId: string | null = null
         set(s => {
           const shows = s.laserDmxShowManagerShows.map(show => {
@@ -7745,7 +8048,8 @@ export const useReactStore = create<ReactStoreState>()(
         return sectionId
       },
 
-      removeLaserDmxShowManagerSection: (showId, sectionId) =>
+      removeLaserDmxShowManagerSection: (showId, sectionId) => {
+        if (get().showManagerShows.some(show => show.id === showId && show.linkedAudioTrackId)) return
         set(s => {
           const currentShow = s.laserDmxShowManagerShows.find(show => show.id === showId)
           if (!currentShow || !currentShow.sections.some(section => section.id === sectionId)) return {}
@@ -7758,14 +8062,17 @@ export const useReactStore = create<ReactStoreState>()(
             laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId ? nextShow : show),
             laserDmxShowManagerEditingSectionId: nextSelectedSectionId,
           })
-        }),
+        })
+      },
 
-      reorderLaserDmxShowManagerSection: (showId, sectionId, direction) =>
+      reorderLaserDmxShowManagerSection: (showId, sectionId, direction) => {
+        if (get().showManagerShows.some(show => show.id === showId && show.linkedAudioTrackId)) return
         set(s => buildShowManagerHistoryMutationPatch(s, {
           laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId
             ? reorderLaserDmxShowManagerSection(show, sectionId, direction)
             : show),
-        })),
+        }))
+      },
 
       addLaserDmxShowManagerFixture: (showId, sectionId, kind, initial = {}) => {
         let fixtureId: string | null = null
@@ -7830,7 +8137,13 @@ export const useReactStore = create<ReactStoreState>()(
         return copiedFixtureIds
       },
 
-      updateLaserDmxShowManagerSectionBoundary: (showId, sectionId, edge, newTime, neighborId, neighborTime) =>
+      updateLaserDmxShowManagerSectionBoundary: (showId, sectionId, edge, newTime, neighborId, neighborTime) => {
+        const sharedShow = get().showManagerShows.find(show => show.id === showId)
+        if (sharedShow?.linkedAudioTrackId) {
+          if (!sharedShow.trackMap) return
+          get().updateShowManagerTrackMapBoundary(showId, sectionId, edge, newTime, neighborId, neighborTime)
+          return
+        }
         set(s => {
           const shows = s.laserDmxShowManagerShows.map(show => {
             if (show.id !== showId) return show
@@ -7845,7 +8158,8 @@ export const useReactStore = create<ReactStoreState>()(
             return next
           })
           return buildShowManagerHistoryMutationPatch(s, { laserDmxShowManagerShows: shows })
-        }),
+        })
+      },
 
       undoLaserDmxShowManagerEdit: () =>
         set(s => {

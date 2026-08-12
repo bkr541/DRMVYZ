@@ -1,6 +1,6 @@
-import type { ReactSectionType } from '../react/ReactTypes'
+import type { ReactSectionType, ReactTrackSection } from '../react/ReactTypes'
 
-export const CANVAS_SHOW_MANAGER_SCHEMA_VERSION = 3 as const
+export const CANVAS_SHOW_MANAGER_SCHEMA_VERSION = 4 as const
 export const CANVAS_SHOW_MANAGER_DEFAULT_SECTION_DURATION_SEC = 8
 export const CANVAS_SHOW_MANAGER_MIN_SECTION_DURATION_SEC = 0.001
 export const CANVAS_SHOW_MANAGER_MIN_ELEMENT_DURATION_SEC = 0.001
@@ -75,8 +75,11 @@ export interface CanvasShowManagerSection {
   id: string
   type: ReactSectionType
   label: string
-  /** Canonical persisted timing. Cumulative boundaries are always derived. */
+  /** Legacy/standalone duration representation retained for existing authoring APIs. */
   durationSec: number
+  /** Present on audio-bound mirrors so Canvas consumes the exact shared Track Map range, including gaps. */
+  startSec?: number
+  endSec?: number
 }
 
 export interface CanvasShowManagerMediaElement {
@@ -292,6 +295,8 @@ export function normalizeCanvasShowManagerLayer(value: unknown): CanvasShowManag
 }
 
 export function createDefaultCanvasShowManagerSections(showId: string): CanvasShowManagerSection[] {
+  // Legacy/standalone compatibility scaffold. Shared audio-bound Show creation
+  // persists an empty Canvas section mirror until the canonical Track Map arrives.
   return CANVAS_SHOW_MANAGER_DEFAULT_SECTION_TEMPLATE.map(([type, label], index) => ({
     id: `${showId}:section:${type}:${index + 1}`,
     type,
@@ -311,14 +316,77 @@ export function createCanvasShowManagerShow(name: string, explicitId?: string): 
   }
 }
 
+
+/** True only for the Stage 1/2 generated seven-section, eight-seconds-each timing scaffold. */
+export function isCanvasShowManagerGeneratedDefaultTimeline(show: CanvasShowManagerShow): boolean {
+  return show.sections.length === CANVAS_SHOW_MANAGER_DEFAULT_SECTION_TEMPLATE.length
+    && show.sections.every((section, index) => {
+      const expected = CANVAS_SHOW_MANAGER_DEFAULT_SECTION_TEMPLATE[index]
+      return Boolean(expected)
+        && section.type === expected![0]
+        && section.label === expected![1]
+        && Math.abs(section.durationSec - CANVAS_SHOW_MANAGER_DEFAULT_SECTION_DURATION_SEC) <= 1e-6
+    })
+}
+
+/**
+ * Mirrors the shared Show Track Map into Canvas's section-content attachment list.
+ * Timing ownership remains with the shared Show record; Canvas retains only the
+ * per-section IDs/labels needed for media authoring compatibility.
+ */
+export function syncCanvasShowManagerSectionsToTrackMap(
+  show: CanvasShowManagerShow,
+  trackSections: readonly ReactTrackSection[],
+): CanvasShowManagerShow {
+  if (trackSections.length === 0) return show
+  const unused = new Set(show.sections.map(section => section.id))
+  const sections = trackSections.map((trackSection, index) => {
+    let existing = show.sections.find(section => section.id === trackSection.id && unused.has(section.id)) ?? null
+    if (!existing) {
+      existing = show.sections.find(section => section.type === trackSection.type && unused.has(section.id))
+        ?? show.sections[index]
+        ?? null
+    }
+    if (existing) unused.delete(existing.id)
+    return {
+      id: trackSection.id,
+      type: trackSection.type,
+      label: trackSection.label,
+      durationSec: Math.max(CANVAS_SHOW_MANAGER_MIN_SECTION_DURATION_SEC, trackSection.endSec - trackSection.startSec),
+      startSec: trackSection.startSec,
+      endSec: trackSection.endSec,
+    }
+  })
+  return { ...show, schemaVersion: CANVAS_SHOW_MANAGER_SCHEMA_VERSION, sections }
+}
+
 function normalizeCanvasShowManagerSection(raw: unknown, showId: string, index: number): CanvasShowManagerSection {
-  const [type, label] = CANVAS_SHOW_MANAGER_DEFAULT_SECTION_TEMPLATE[index]!
+  const fallback = CANVAS_SHOW_MANAGER_DEFAULT_SECTION_TEMPLATE[index]
+    ?? (['unknown', `Section ${index + 1}`] as const)
   const value = isRecord(raw) ? raw : {}
+  const rawType = typeof value.type === 'string' ? value.type : fallback[0]
+  const type = CANVAS_SHOW_MANAGER_DEFAULT_SECTION_TEMPLATE.some(([candidate]) => candidate === rawType)
+    || rawType === 'bridge' || rawType === 'unknown'
+    ? rawType as ReactSectionType
+    : fallback[0]
+  const label = typeof value.label === 'string' && value.label.trim()
+    ? value.label.trim()
+    : (type === fallback[0] ? fallback[1] : type === 'preDrop' ? 'Pre-Drop' : type.charAt(0).toUpperCase() + type.slice(1))
+  const explicitStart = finiteNumber(value.startSec)
+  const explicitEnd = finiteNumber(value.endSec)
+  const hasExplicitRange = explicitStart != null && explicitEnd != null && explicitEnd > explicitStart
+  const normalizedStart = hasExplicitRange ? Math.max(0, explicitStart) : null
+  const normalizedEnd = hasExplicitRange
+    ? Math.max(normalizedStart! + CANVAS_SHOW_MANAGER_MIN_SECTION_DURATION_SEC, explicitEnd)
+    : null
   return {
     id: safeId(value.id, `${showId}:section:${type}:${index + 1}`),
     type,
     label,
-    durationSec: normalizeCanvasShowManagerDuration(value.durationSec),
+    durationSec: normalizedStart != null && normalizedEnd != null
+      ? normalizedEnd - normalizedStart
+      : normalizeCanvasShowManagerDuration(value.durationSec),
+    ...(normalizedStart != null && normalizedEnd != null ? { startSec: normalizedStart, endSec: normalizedEnd } : {}),
   }
 }
 
@@ -344,6 +412,15 @@ function normalizeCanvasShowManagerSectionIds(
 function getSectionRangesFromSections(sections: readonly CanvasShowManagerSection[]): CanvasShowManagerSectionRange[] {
   let cursor = 0
   return sections.map((section, index) => {
+    const explicitStart = finiteNumber(section.startSec)
+    const explicitEnd = finiteNumber(section.endSec)
+    if (explicitStart != null && explicitEnd != null && explicitEnd > explicitStart) {
+      const startSec = Math.max(0, explicitStart)
+      const endSec = Math.max(startSec + CANVAS_SHOW_MANAGER_MIN_SECTION_DURATION_SEC, explicitEnd)
+      const durationSec = endSec - startSec
+      cursor = Math.max(cursor, endSec)
+      return { sectionId: section.id, index, startSec, endSec, durationSec }
+    }
     const startSec = cursor
     const durationSec = normalizeCanvasShowManagerDuration(section.durationSec)
     cursor += durationSec
@@ -404,8 +481,16 @@ export function normalizeCanvasShowManagerShow(raw: unknown, fallbackIndex = 0):
   const value = isRecord(raw) ? raw : {}
   const id = safeId(value.id, `canvas-show-recovered-${fallbackIndex + 1}`)
   const rawSections = Array.isArray(value.sections) ? value.sections : []
+  const sectionSource = Array.isArray(value.sections)
+    ? rawSections
+    : CANVAS_SHOW_MANAGER_DEFAULT_SECTION_TEMPLATE.map(([type, label], index) => ({
+        id: `${id}:section:${type}:${index + 1}`,
+        type,
+        label,
+        durationSec: CANVAS_SHOW_MANAGER_DEFAULT_SECTION_DURATION_SEC,
+      }))
   const sections = normalizeCanvasShowManagerSectionIds(
-    CANVAS_SHOW_MANAGER_DEFAULT_SECTION_TEMPLATE.map((_, index) => normalizeCanvasShowManagerSection(rawSections[index], id, index)),
+    sectionSource.map((section, index) => normalizeCanvasShowManagerSection(section, id, index)),
     id,
   )
   const ranges = getSectionRangesFromSections(sections)
@@ -794,19 +879,17 @@ export function findCanvasShowManagerMediaReferences(
 export function validateCanvasShowManagerShow(show: CanvasShowManagerShow): CanvasShowManagerValidationResult {
   const issues: string[] = []
   if (!normalizeCanvasShowManagerName(show.name)) issues.push('Show name is required.')
-  if (show.sections.length !== CANVAS_SHOW_MANAGER_DEFAULT_SECTION_TEMPLATE.length) {
-    issues.push('Canvas Shows require the canonical seven sections.')
-  }
+  if (show.sections.length === 0) issues.push('Canvas Shows require at least one Track Map section.')
   const sectionIds = new Set<string>()
   show.sections.forEach((section, index) => {
-    const expected = CANVAS_SHOW_MANAGER_DEFAULT_SECTION_TEMPLATE[index]
-    if (!expected || section.type !== expected[0] || section.label !== expected[1]) {
-      issues.push(`Section ${index + 1} does not match the canonical template.`)
-    }
     if (!section.id || sectionIds.has(section.id)) issues.push(`Section ${index + 1} has an invalid or duplicate ID.`)
     sectionIds.add(section.id)
     if (!Number.isFinite(section.durationSec) || section.durationSec <= 0) {
       issues.push(`Section ${index + 1} requires a finite positive duration.`)
+    }
+    const hasEitherExplicitBoundary = section.startSec != null || section.endSec != null
+    if (hasEitherExplicitBoundary && (!Number.isFinite(section.startSec) || !Number.isFinite(section.endSec) || section.endSec! <= section.startSec!)) {
+      issues.push(`Section ${index + 1} has an invalid explicit Track Map range.`)
     }
   })
   const totalDurationSec = getCanvasShowManagerTotalDuration(show)

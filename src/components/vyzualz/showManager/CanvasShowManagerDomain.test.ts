@@ -8,6 +8,7 @@ import {
   getCanvasShowManagerTotalDuration,
   normalizeCanvasShowManagerShow,
   normalizeCanvasShowManagerShows,
+  syncCanvasShowManagerSectionsToTrackMap,
   updateCanvasShowManagerSectionDuration,
   validateCanvasShowManagerShow,
 } from './CanvasShowManagerDomain'
@@ -62,12 +63,31 @@ describe('Canvas Show Manager Stage 1 domain', () => {
       ],
     })
 
-    expect(normalized.schemaVersion).toBe(3)
+    expect(normalized.schemaVersion).toBe(4)
     expect(normalized.name).toBe('Legacy')
-    expect(normalized.sections).toHaveLength(7)
-    expect(new Set(normalized.sections.map(section => section.id)).size).toBe(7)
-    expect(normalized.sections.map(section => section.durationSec)).toEqual([4, 8, 8, 10, 8, 8, 8])
+    expect(normalized.sections).toHaveLength(4)
+    expect(new Set(normalized.sections.map(section => section.id)).size).toBe(4)
+    expect(normalized.sections.map(section => section.durationSec)).toEqual([4, 8, 8, 10])
     expect(validateCanvasShowManagerShow(normalized).valid).toBe(true)
+  })
+
+
+  it('mirrors exact shared Track Map ranges instead of reconstructing timing from ordinal durations', () => {
+    const show = createCanvasShowManagerShow('Canonical Mirror')
+    const mirrored = syncCanvasShowManagerSectionsToTrackMap(show, [
+      { id: 'intro-a', label: 'Intro', type: 'intro', startSec: 0, endSec: 9.5, intensity: 0.4, source: 'auto' },
+      { id: 'drop-a', label: 'Drop', type: 'drop', startSec: 12, endSec: 21.25, intensity: 1, source: 'auto' },
+    ])
+
+    expect(getCanvasShowManagerSectionRanges(mirrored).map(range => [range.startSec, range.endSec])).toEqual([
+      [0, 9.5],
+      [12, 21.25],
+    ])
+    expect(getCanvasShowManagerTotalDuration(mirrored)).toBe(21.25)
+    expect(normalizeCanvasShowManagerShow(mirrored).sections.map(section => [section.startSec, section.endSec])).toEqual([
+      [0, 9.5],
+      [12, 21.25],
+    ])
   })
 
   it('repairs duplicate Show IDs and names deterministically while preserving valid unique identities', () => {

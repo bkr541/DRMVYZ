@@ -3,7 +3,9 @@ import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type D
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../../audio/savedTrackLoader'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { resolvePositiveDuration, type TimelineViewport } from '../../../features/timeline/timelineViewport'
-import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
+import { adaptMIAnalysis } from '../../../features/trackIntelligence/trackMapAdapter'
+import { navigateBoundaryAlternative, snapBoundaryTime, type SectionBoundarySnapMode } from '../../../features/trackIntelligence/sectionBoundaryDrag'
+import type { BeatMarkerMI, BoundaryAlternative } from '../../../features/musicIntelligence/types'
 import { useReactStore } from '../../../stores/reactStore'
 import { useAudioStore, type SavedAudioTrack } from '../../../stores/audioStore'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
@@ -76,7 +78,6 @@ import {
   getCanvasShowManagerSectionRanges,
   getCanvasShowManagerTotalDuration,
   canvasShowManagerRangeOverlaps,
-  normalizeCanvasShowManagerDuration,
   type CanvasShowManagerLayer,
   type CanvasShowManagerMediaElement,
   type CanvasShowManagerMediaElementPatch,
@@ -463,6 +464,59 @@ function ShowManagerSectionStrip({
   )
 }
 
+function ShowManagerTrackMapSectionEditor({
+  showId,
+  section,
+  durationSec,
+  effectiveBpm,
+  beatGrid,
+  boundaryAlternatives,
+}: {
+  showId: string
+  section: ReactTrackSection
+  durationSec: number
+  effectiveBpm: number | null
+  beatGrid: BeatMarkerMI[]
+  boundaryAlternatives: BoundaryAlternative[]
+}) {
+  const updateSection = useReactStore(state => state.updateShowManagerTrackMapSection)
+  const updateBoundary = useReactStore(state => state.updateShowManagerTrackMapBoundary)
+  const [snapMode, setSnapMode] = useState<SectionBoundarySnapMode>(beatGrid.length > 0 ? 'beat' : 'free')
+  const [draftRevision, setDraftRevision] = useState(0)
+
+  useEffect(() => {
+    setSnapMode(beatGrid.length > 0 ? 'beat' : 'free')
+    setDraftRevision(revision => revision + 1)
+  }, [beatGrid.length, section.id, showId])
+
+  const commitBoundaryTool = (edge: 'start' | 'end', proposedTime: number) => {
+    updateBoundary(showId, section.id, edge, proposedTime, null, null)
+  }
+
+  return (
+    <EditSectionForm
+      key={`${section.id}:${draftRevision}`}
+      section={section}
+      durationSec={durationSec}
+      effectiveBpm={effectiveBpm}
+      snapMode={snapMode}
+      onSnapModeChange={setSnapMode}
+      boundaryAlternatives={boundaryAlternatives}
+      onNavigateAlternative={(edge, direction) => {
+        const currentTime = edge === 'start' ? section.startSec : section.endSec
+        const alternative = navigateBoundaryAlternative(currentTime, boundaryAlternatives, direction)
+        if (alternative) commitBoundaryTool(edge, alternative.timeSec)
+      }}
+      onSnapBoundary={edge => {
+        const currentTime = edge === 'start' ? section.startSec : section.endSec
+        commitBoundaryTool(edge, snapBoundaryTime(currentTime, beatGrid, snapMode))
+      }}
+      onCancel={() => setDraftRevision(revision => revision + 1)}
+      onSave={patch => updateSection(showId, section.id, patch)}
+    />
+  )
+}
+
 interface NewShowDialogProps {
   engineId: ShowManagerEngineId
   copySource?: ShowManagerShowRecord | null
@@ -712,6 +766,8 @@ function findPixGridPreset(
 
 export function ShowManagerView() {
   const engine = useSharedAudio()
+  const showManagerAudioEngineRef = useRef(engine)
+  showManagerAudioEngineRef.current = engine
   const reactPresets = useReactStore(state => state.reactPresets)
   const activeReactPresetId = useReactStore(state => state.activeReactPresetId)
   const selectReactEngine = useReactStore(state => state.selectReactEngine)
@@ -726,31 +782,26 @@ export function ShowManagerView() {
   const reactGlow = useReactStore(state => state.reactGlow)
   const reactBassReactivity = useReactStore(state => state.reactBassReactivity)
   const pixGridActionCuesByTrackId = useReactStore(state => state.pixGridActionCuesByTrackId)
-  const manualTrackSectionsByTrackId = useReactStore(state => state.manualTrackSectionsByTrackId)
-  const suppressedAutoSectionsByTrackId = useReactStore(state => state.suppressedAutoSectionsByTrackId)
   const showManagerShows = useReactStore(state => state.showManagerShows)
   const showManagerEditingShowId = useReactStore(state => state.showManagerEditingShowId)
   const deleteShowManagerShow = useReactStore(state => state.deleteShowManagerShow)
   const selectShowManagerShow = useReactStore(state => state.selectShowManagerShow)
   const resetShowManagerSession = useReactStore(state => state.resetShowManagerSession)
+  const reconcileShowManagerTrackMapFromAnalysis = useReactStore(state => state.reconcileShowManagerTrackMapFromAnalysis)
+  const updateShowManagerTrackMapBoundary = useReactStore(state => state.updateShowManagerTrackMapBoundary)
   const laserDmxShowManagerShows = useReactStore(state => state.laserDmxShowManagerShows)
   const laserDmxShowManagerEditingShowId = useReactStore(state => state.laserDmxShowManagerEditingShowId)
   const laserDmxShowManagerEditingSectionId = useReactStore(state => state.laserDmxShowManagerEditingSectionId)
   const laserDmxShowManagerPlaybackSectionId = useReactStore(state => state.laserDmxShowManagerPlaybackSectionId)
   const selectLaserDmxShowManagerShow = useReactStore(state => state.selectLaserDmxShowManagerShow)
   const selectLaserDmxShowManagerSection = useReactStore(state => state.selectLaserDmxShowManagerSection)
-  const updateLaserDmxShowManagerSection = useReactStore(state => state.updateLaserDmxShowManagerSection)
   const updateLaserDmxShowManagerWorkspaceSettings = useReactStore(state => state.updateLaserDmxShowManagerWorkspaceSettings)
-  const addLaserDmxShowManagerSection = useReactStore(state => state.addLaserDmxShowManagerSection)
-  const removeLaserDmxShowManagerSection = useReactStore(state => state.removeLaserDmxShowManagerSection)
-  const reorderLaserDmxShowManagerSection = useReactStore(state => state.reorderLaserDmxShowManagerSection)
   const addLaserDmxShowManagerFixture = useReactStore(state => state.addLaserDmxShowManagerFixture)
   const updateLaserDmxShowManagerFixture = useReactStore(state => state.updateLaserDmxShowManagerFixture)
   const removeLaserDmxShowManagerFixture = useReactStore(state => state.removeLaserDmxShowManagerFixture)
   const duplicateLaserDmxShowManagerFixture = useReactStore(state => state.duplicateLaserDmxShowManagerFixture)
   const mirrorLaserDmxShowManagerFixture = useReactStore(state => state.mirrorLaserDmxShowManagerFixture)
   const copyLaserDmxShowManagerFixturesFromSection = useReactStore(state => state.copyLaserDmxShowManagerFixturesFromSection)
-  const updateLaserDmxShowManagerSectionBoundary = useReactStore(state => state.updateLaserDmxShowManagerSectionBoundary)
   const undoLaserDmxShowManagerEdit = useReactStore(state => state.undoLaserDmxShowManagerEdit)
   const redoLaserDmxShowManagerEdit = useReactStore(state => state.redoLaserDmxShowManagerEdit)
   const laserShowUndoDepth = useReactStore(state => state.showManagerUndoStack.length)
@@ -765,7 +816,6 @@ export function ShowManagerView() {
   const selectCanvasShowManagerSection = useReactStore(state => state.selectCanvasShowManagerSection)
   const selectCanvasShowManagerMediaElement = useReactStore(state => state.selectCanvasShowManagerMediaElement)
   const renameCanvasShowManagerShow = useReactStore(state => state.renameCanvasShowManagerShow)
-  const updateCanvasShowManagerSectionDuration = useReactStore(state => state.updateCanvasShowManagerSectionDuration)
   const addCanvasShowManagerMediaElement = useReactStore(state => state.addCanvasShowManagerMediaElement)
   const updateCanvasShowManagerMediaElement = useReactStore(state => state.updateCanvasShowManagerMediaElement)
   const removeCanvasShowManagerMediaElement = useReactStore(state => state.removeCanvasShowManagerMediaElement)
@@ -819,6 +869,8 @@ export function ShowManagerView() {
   const [canvasLibraryMediaId, setCanvasLibraryMediaId] = useState<string | null>(null)
   const [canvasAuthoringError, setCanvasAuthoringError] = useState<string | null>(null)
   const [canvasPlayheadSec, setCanvasPlayheadSec] = useState(0)
+  const [pixGridTrackMapSectionId, setPixGridTrackMapSectionId] = useState<string | null>(null)
+  const [linkedAudioLoadError, setLinkedAudioLoadError] = useState<string | null>(null)
   const showOpenOperationRef = useRef(0)
   const compilerStatuses = usePixGridDeckCompilerStore(state => state.statuses)
   const transitionStatuses = usePixGridDeckCompilerStore(state => state.transitionStatuses)
@@ -920,8 +972,8 @@ export function ShowManagerView() {
     [activeLaserDmxSection, activeLaserDmxShow],
   )
   const laserTimelineDuration = useMemo(
-    () => Math.max(1, ...(activeLaserDmxShow?.sections.map(section => section.endSec) ?? [1])),
-    [activeLaserDmxShow],
+    () => activeShowManagerShow?.trackMap?.durationSec ?? Math.max(1, ...(activeLaserDmxShow?.sections.map(section => section.endSec) ?? [1])),
+    [activeLaserDmxShow, activeShowManagerShow?.trackMap?.durationSec],
   )
   const laserTimelineViewport = useMemo<TimelineViewport>(
     () => ({ startSec: 0, endSec: laserTimelineDuration }),
@@ -947,6 +999,88 @@ export function ShowManagerView() {
     void loadSavedAudioTracks()
     void loadMediaCollections()
   }, [loadMediaCollections, loadSavedAudioTracks, showBrowserOpen])
+
+  useEffect(() => {
+    const show = activeShowManagerShow
+    if (!show?.linkedAudioTrackId) {
+      setLinkedAudioLoadError(null)
+      return
+    }
+    const audioEngine = showManagerAudioEngineRef.current
+    if (audioEngine.currentAudioTrackId === show.linkedAudioTrackId) {
+      setLinkedAudioLoadError(null)
+      return
+    }
+
+    let disposed = false
+    const operation = ++showOpenOperationRef.current
+    setLinkedAudioLoadError(null)
+    void (async () => {
+      let linkedTrack = useAudioStore.getState().savedTracks.find(track => track.dbId === show.linkedAudioTrackId) ?? null
+      if (!linkedTrack) {
+        await loadSavedAudioTracks()
+        linkedTrack = useAudioStore.getState().savedTracks.find(track => track.dbId === show.linkedAudioTrackId) ?? null
+      }
+      if (disposed || showOpenOperationRef.current !== operation) return
+      if (!linkedTrack) {
+        setLinkedAudioLoadError(`The linked Audio Library record is unavailable (${show.linkedAudioTrackId}).`)
+        return
+      }
+      if (!linkedTrack.storagePath?.trim()) {
+        setLinkedAudioLoadError(`The linked track “${linkedTrack.title || linkedTrack.fileName}” has no recorded source location.`)
+        return
+      }
+      try {
+        await loadSavedTrackIntoEngine(
+          audioEngine,
+          linkedTrack,
+          { getSignedUrl: getSavedAudioSignedUrl },
+          { shouldCommit: () => !disposed && showOpenOperationRef.current === operation },
+        )
+      } catch (error) {
+        if (disposed || error instanceof SavedTrackLoadCancelledError) return
+        const reason = error instanceof Error ? error.message : 'The linked audio source is unavailable.'
+        setLinkedAudioLoadError(`The linked track “${linkedTrack.title || linkedTrack.fileName}” could not be loaded. ${reason}`)
+      }
+    })()
+
+    return () => {
+      disposed = true
+      if (showOpenOperationRef.current === operation) showOpenOperationRef.current += 1
+    }
+  }, [
+    activeShowManagerShow?.id,
+    activeShowManagerShow?.linkedAudioTrackId,
+    getSavedAudioSignedUrl,
+    loadSavedAudioTracks,
+  ])
+
+  useEffect(() => {
+    const show = activeShowManagerShow
+    const analysis = engine.currentAnalysis
+    if (!show?.linkedAudioTrackId || !analysis) return
+    if (engine.currentAudioTrackId !== show.linkedAudioTrackId || engine.currentAnalysisStatus !== 'complete') return
+    const canonicalSections = adaptMIAnalysis(analysis)
+    if (canonicalSections.length === 0) return
+    const analysisDurationSec = (analysis.durationMs ?? 0) / 1000
+    const canonicalDurationSec = Math.max(engine.duration, analysisDurationSec, canonicalSections[canonicalSections.length - 1]?.endSec ?? 0)
+    if (!(canonicalDurationSec > 0)) return
+    reconcileShowManagerTrackMapFromAnalysis({
+      showId: show.id,
+      linkedAudioTrackId: show.linkedAudioTrackId,
+      analysisVersion: analysis.analysisVersion,
+      durationSec: canonicalDurationSec,
+      canonicalSections,
+    })
+  }, [
+    activeShowManagerShow?.id,
+    activeShowManagerShow?.linkedAudioTrackId,
+    engine.currentAnalysis,
+    engine.currentAnalysisStatus,
+    engine.currentAudioTrackId,
+    engine.duration,
+    reconcileShowManagerTrackMapFromAnalysis,
+  ])
 
   useEffect(() => {
     setCanvasRenameDraft(activeCanvasShow?.name ?? '')
@@ -1069,25 +1203,34 @@ export function ShowManagerView() {
   const activeCues = engine.currentTrackId
     ? (pixGridActionCuesByTrackId[engine.currentTrackId] ?? [])
     : []
-  const durationSec = resolvePositiveDuration(engine.duration, 180)
-  const activeManualTrackSections = useMemo(() => {
-    const trackId = engine.currentTrackId
-    return trackId ? (manualTrackSectionsByTrackId[trackId] ?? []) : []
-  }, [engine.currentTrackId, manualTrackSectionsByTrackId])
-  const resolvedTrackSections = useMemo(() => resolveTrackSections({
-    analyzedSections: engine.currentAnalysis ? adaptMIAnalysis(engine.currentAnalysis) : [],
-    manualSections: activeManualTrackSections,
-    suppressedIds: engine.currentTrackId
-      ? (suppressedAutoSectionsByTrackId[engine.currentTrackId] ?? [])
-      : [],
-    durationSec,
-  }), [
-    activeManualTrackSections,
-    durationSec,
-    engine.currentAnalysis,
-    engine.currentTrackId,
-    suppressedAutoSectionsByTrackId,
-  ])
+  const showTrackMap = activeShowManagerShow?.trackMap ?? null
+  const activeCanvasTrackSection = showTrackMap?.sections.find(section => section.id === canvasShowManagerEditingSectionId)
+    ?? showTrackMap?.sections[0]
+    ?? null
+  const durationSec = showTrackMap?.durationSec
+    ?? resolvePositiveDuration(
+      Math.max(engine.duration, (engine.currentAnalysis?.durationMs ?? 0) / 1000),
+      1,
+    )
+  const resolvedTrackSections = showTrackMap?.sections ?? []
+  const activeLaserTrackSection = resolvedTrackSections.find(section => section.id === activeLaserDmxSection?.id)
+    ?? resolvedTrackSections[0]
+    ?? null
+  const showTrackMapStatusMessage = linkedAudioLoadError
+    ?? (engine.currentAudioTrackId === activeShowManagerShow?.linkedAudioTrackId && engine.currentAnalysisStatus === 'failed'
+      ? `Linked-track analysis is unavailable.${engine.currentAnalysisError ? ` ${engine.currentAnalysisError}` : ''}`
+      : engine.currentAudioTrackId === activeShowManagerShow?.linkedAudioTrackId && engine.currentAnalysisStatus === 'complete'
+        ? 'Linked-track analysis completed without a usable Track Map.'
+        : 'Linked-track analysis is loading. No placeholder sections are created while analysis is unavailable.')
+  const selectedPixGridTrackSection = useMemo(
+    () => resolvedTrackSections.find(section => section.id === pixGridTrackMapSectionId) ?? resolvedTrackSections[0] ?? null,
+    [pixGridTrackMapSectionId, resolvedTrackSections],
+  )
+  useEffect(() => {
+    setPixGridTrackMapSectionId(current => resolvedTrackSections.some(section => section.id === current)
+      ? current
+      : resolvedTrackSections[0]?.id ?? null)
+  }, [activeShowManagerShow?.id, resolvedTrackSections])
   const effectiveTrackAnalysis = useMemo(() => {
     const analysis = engine.currentAnalysis
     const beatGrid = engine.currentEffectiveBeatGrid
@@ -1596,7 +1739,7 @@ export function ShowManagerView() {
     neighborTime: number | null,
   ) => {
     if (!activeLaserDmxShow) return
-    updateLaserDmxShowManagerSectionBoundary(
+    updateShowManagerTrackMapBoundary(
       activeLaserDmxShow.id,
       sectionId,
       edge,
@@ -2085,16 +2228,14 @@ export function ShowManagerView() {
             />
           ) : selectedEngineId === 'laserDmx' ? (
             <LaserDmxShowManagerTimeline
-              show={activeLaserDmxShow}
+              sections={resolvedTrackSections}
               selectedSectionId={activeLaserDmxSection?.id ?? null}
               durationSec={laserTimelineDuration}
               viewport={laserTimelineViewport}
               viewportRef={laserTimelineViewportRef}
+              beatGrid={engine.currentEffectiveBeatGrid ?? engine.currentAnalysis?.beatGrid ?? []}
+              effectiveBpm={engine.currentEffectiveBpm}
               onSelect={selectLaserSectionForEditing}
-              onRemove={sectionId => {
-                if (!activeLaserDmxShow) return
-                removeLaserDmxShowManagerSection(activeLaserDmxShow.id, sectionId)
-              }}
               onCommitBoundary={commitLaserSectionBoundary}
             />
           ) : selectedEngineId === 'canvas' ? (
@@ -2117,6 +2258,15 @@ export function ShowManagerView() {
               playheadPercent={playheadPercent}
               sections={resolvedTrackSections}
               sceneLabels={sceneLabels}
+              beatGrid={engine.currentEffectiveBeatGrid ?? undefined}
+              effectiveBpm={engine.currentEffectiveBpm}
+              selectedSectionId={selectedPixGridTrackSection?.id ?? null}
+              onSelectSection={setPixGridTrackMapSectionId}
+              onCommitBoundary={(sectionId, edge, newTime, neighborId, neighborTime) => {
+                if (!activeShowManagerShow) return
+                updateShowManagerTrackMapBoundary(activeShowManagerShow.id, sectionId, edge, newTime, neighborId, neighborTime)
+              }}
+              statusMessage={showTrackMapStatusMessage}
             />
           )}
         </main>
@@ -2220,6 +2370,20 @@ export function ShowManagerView() {
                 </div>
               </div>
               <PixGridDesignPanel groupedSections />
+              <Collapsible label="Show Track Map" defaultOpen>
+                {selectedPixGridTrackSection && activeShowManagerShow ? (
+                  <ShowManagerTrackMapSectionEditor
+                    showId={activeShowManagerShow.id}
+                    section={selectedPixGridTrackSection}
+                    durationSec={durationSec}
+                    effectiveBpm={engine.currentEffectiveBpm}
+                    beatGrid={engine.currentEffectiveBeatGrid ?? []}
+                    boundaryAlternatives={engine.currentAnalysis?.boundaryAlternatives ?? []}
+                  />
+                ) : (
+                  <p className="sm-new-show-field-note">{linkedAudioLoadError ?? 'Linked-track analysis is loading.'}</p>
+                )}
+              </Collapsible>
               <Collapsible label="Validation" defaultOpen={false}>
                 <NoticeCard tone="success" title="PixGrid document · OK">
                   <p>No blocking PixGrid issues detected.</p>
@@ -2249,38 +2413,9 @@ export function ShowManagerView() {
                     onDelete={deleteSelectedLaserFixture}
                   />
                 ) : <>
-                  <div className="sm-laser-section-actions">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const index = activeLaserDmxShow.sections.findIndex(section => section.id === activeLaserDmxSection.id)
-                        if (index <= 0) return
-                        reorderLaserDmxShowManagerSection(activeLaserDmxShow.id, activeLaserDmxSection.id, -1)
-                      }}
-                      disabled={activeLaserDmxShow.sections[0]?.id === activeLaserDmxSection.id}
-                    >Move Earlier</button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const index = activeLaserDmxShow.sections.findIndex(section => section.id === activeLaserDmxSection.id)
-                        if (index < 0 || index >= activeLaserDmxShow.sections.length - 1) return
-                        reorderLaserDmxShowManagerSection(activeLaserDmxShow.id, activeLaserDmxSection.id, 1)
-                      }}
-                      disabled={activeLaserDmxShow.sections[activeLaserDmxShow.sections.length - 1]?.id === activeLaserDmxSection.id}
-                    >Move Later</button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const last = activeLaserDmxShow.sections[activeLaserDmxShow.sections.length - 1]
-                        addLaserDmxShowManagerSection(activeLaserDmxShow.id, {
-                          type: 'unknown',
-                          label: 'Section',
-                          startSec: last?.endSec ?? 0,
-                          endSec: (last?.endSec ?? 0) + 1,
-                        })
-                      }}
-                    >Add Section</button>
-                  </div>
+                  <NoticeCard tone="info" title="Show Track Map · linked audio">
+                    Section order and count come from this Show’s linked-track analysis. Edit labels, types, intensity, or shared boundaries below; the underlying audio analysis is not modified.
+                  </NoticeCard>
                   <section className="sm-laser-copy-fixtures" data-testid="laser-dmx-copy-fixtures-controls">
                     <ToggleRow
                       id="show-manager-laser-copy-fixtures"
@@ -2319,33 +2454,23 @@ export function ShowManagerView() {
                       </div>
                     )}
                   </section>
-                  <EditSectionForm
-                    key={activeLaserDmxSection.id}
-                    section={activeLaserDmxSection}
-                    durationSec={laserTimelineDuration}
-                    effectiveBpm={null}
-                    snapMode="free"
-                    onCancel={() => undefined}
-                    onSave={patch => {
-                      updateLaserDmxShowManagerSection(activeLaserDmxShow.id, activeLaserDmxSection.id, patch)
-                    }}
-                    onDelete={() => {
-                      removeLaserDmxShowManagerSection(activeLaserDmxShow.id, activeLaserDmxSection.id)
-                    }}
-                  />
+                  {activeLaserTrackSection && (
+                    <ShowManagerTrackMapSectionEditor
+                      showId={activeLaserDmxShow.id}
+                      section={activeLaserTrackSection}
+                      durationSec={laserTimelineDuration}
+                      effectiveBpm={engine.currentEffectiveBpm}
+                      beatGrid={engine.currentEffectiveBeatGrid ?? []}
+                      boundaryAlternatives={engine.currentAnalysis?.boundaryAlternatives ?? []}
+                    />
+                  )}
                   <NoticeCard tone="success" title="Section fixture ownership · READY">
                     {activeLaserDmxSection.fixtures.length} fixture{activeLaserDmxSection.fixtures.length === 1 ? '' : 's'} owned by this section. Select a fixture on the grid to edit its Part 1 controls.
                   </NoticeCard>
                 </>
               ) : activeLaserDmxShow ? (
                 <div className="sm-laser-empty-section">
-                  <p>This Show intentionally has no sections.</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      addLaserDmxShowManagerSection(activeLaserDmxShow.id, { label: 'Section', startSec: 0, endSec: 1 })
-                    }}
-                  >Add Section</button>
+                  <p>{showTrackMapStatusMessage}</p>
                 </div>
               ) : (
                 <div className="sm-panel-blank" />
@@ -2354,27 +2479,18 @@ export function ShowManagerView() {
           ) : selectedEngineId === 'canvas' ? (
             <CanvasShowManagerInspector
               show={activeCanvasShow}
-              section={activeCanvasSection}
+              trackSection={activeCanvasTrackSection}
               element={selectedCanvasElement}
               elementMedia={selectedCanvasElementMedia}
-              sectionRanges={canvasSectionRanges}
               totalDurationSec={canvasTotalDuration}
+              effectiveBpm={engine.currentEffectiveBpm}
+              beatGrid={engine.currentEffectiveBeatGrid ?? []}
+              boundaryAlternatives={engine.currentAnalysis?.boundaryAlternatives ?? []}
+              trackMapStatusMessage={showTrackMapStatusMessage}
               renameDraft={canvasRenameDraft}
               renameError={canvasRenameError}
               onRenameDraft={setCanvasRenameDraft}
               onRename={commitCanvasRename}
-              onUpdateDuration={(sectionId, durationSec) => {
-                if (!activeCanvasShow) return false
-                const current = activeCanvasShow.sections.find(section => section.id === sectionId)
-                const edit = updateCanvasShowManagerSectionDuration(activeCanvasShow.id, sectionId, durationSec)
-                if (!edit && current?.durationSec !== durationSec) {
-                  setCanvasAuthoringError('That section duration would create invalid or overlapping media cues. Adjust the affected clips first.')
-                  return false
-                } else {
-                  setCanvasAuthoringError(null)
-                  return true
-                }
-              }}
               onPatchElement={patch => selectedCanvasElement
                 ? commitCanvasElementPatch(selectedCanvasElement.id, patch)
                 : false}
@@ -2430,16 +2546,18 @@ export function ShowManagerView() {
 
 function CanvasShowManagerInspector({
   show,
-  section,
+  trackSection,
   element,
   elementMedia,
-  sectionRanges,
   totalDurationSec,
+  effectiveBpm,
+  beatGrid,
+  boundaryAlternatives,
+  trackMapStatusMessage,
   renameDraft,
   renameError,
   onRenameDraft,
   onRename,
-  onUpdateDuration,
   onPatchElement,
   onInteractionStart,
   onInteractionEnd,
@@ -2448,16 +2566,18 @@ function CanvasShowManagerInspector({
   onCreate,
 }: {
   show: CanvasShowManagerShow | null
-  section: CanvasShowManagerShow['sections'][number] | null
+  trackSection: ReactTrackSection | null
   element: CanvasShowManagerMediaElement | null
   elementMedia: UploadedMedia | null
-  sectionRanges: readonly CanvasShowManagerSectionRange[]
   totalDurationSec: number
+  effectiveBpm: number | null
+  beatGrid: BeatMarkerMI[]
+  boundaryAlternatives: BoundaryAlternative[]
+  trackMapStatusMessage: string
   renameDraft: string
   renameError: string | null
   onRenameDraft: (value: string) => void
   onRename: () => void
-  onUpdateDuration: (sectionId: string, durationSec: number) => boolean
   onPatchElement: (patch: CanvasShowManagerMediaElementPatch) => boolean
   onInteractionStart: () => void
   onInteractionEnd: () => void
@@ -2476,7 +2596,6 @@ function CanvasShowManagerInspector({
       </div>
     )
   }
-  const range = sectionRanges.find(candidate => candidate.sectionId === section?.id)
   if (element) {
     const transitionOptions = [
       { value: 'hardCut', label: 'None / Hard Cut' },
@@ -2589,26 +2708,19 @@ function CanvasShowManagerInspector({
           <button type="submit">Update Name</button>
         </form>
       </Collapsible>
-      {section && (
-        <Collapsible label="Section" defaultOpen>
-          <div className="sm-canvas-form">
-            <strong>{section.label}</strong>
-            <label htmlFor="canvas-section-duration">Duration (seconds)</label>
-            <DreamVizTextInput
-              id="canvas-section-duration"
-              key={`${section.id}:${section.durationSec}`}
-              type="number"
-              min="0.001"
-              step="0.1"
-              defaultValue={section.durationSec}
-              onBlur={event => {
-                const duration = normalizeCanvasShowManagerDuration(event.target.value)
-                event.target.value = String(onUpdateDuration(section.id, duration) ? duration : section.durationSec)
-              }}
-            />
-            <small>{range ? `${formatClock(range.startSec)} – ${formatClock(range.endSec)}` : ''}</small>
-          </div>
+      {trackSection ? (
+        <Collapsible label="Show Track Map Section" defaultOpen>
+          <ShowManagerTrackMapSectionEditor
+            showId={show.id}
+            section={trackSection}
+            durationSec={totalDurationSec}
+            effectiveBpm={effectiveBpm}
+            beatGrid={beatGrid}
+            boundaryAlternatives={boundaryAlternatives}
+          />
         </Collapsible>
+      ) : (
+        <NoticeCard tone="info" title="Show Track Map">{trackMapStatusMessage}</NoticeCard>
       )}
       <button type="button" className="sm-canvas-delete" onClick={onDelete}>Delete Show</button>
     </div>
@@ -3204,22 +3316,26 @@ function LaserDmxShowManagerStage({
 }
 
 function LaserDmxShowManagerTimeline({
-  show,
+  sections,
   selectedSectionId,
   durationSec,
   viewport,
   viewportRef,
+  beatGrid,
+  effectiveBpm,
   onSelect,
   onRemove,
   onCommitBoundary,
 }: {
-  show: LaserDmxShowManagerShow | null
+  sections: ReactTrackSection[]
   selectedSectionId: string | null
   durationSec: number
   viewport: TimelineViewport
   viewportRef: MutableRefObject<TimelineViewport>
+  beatGrid: BeatMarkerMI[]
+  effectiveBpm: number | null
   onSelect: (sectionId: string) => void
-  onRemove: (sectionId: string) => void
+  onRemove?: (sectionId: string) => void
   onCommitBoundary: (
     sectionId: string,
     edge: 'start' | 'end',
@@ -3232,7 +3348,7 @@ function LaserDmxShowManagerTimeline({
     <section className="sm-timeline sm-laser-timeline" aria-label="Show Manager LaserDMX section timeline">
       <header className="sm-timeline-tabs">
         <UnderlineTabs tabs={TRACK_MAP_TABS} activeTab="trackMap" onChange={() => undefined} ariaLabel="LaserDMX timeline surfaces" />
-        <span className="sm-timeline-meta">No audio required · free boundaries</span>
+        <span className="sm-timeline-meta">Linked Track Map · Show-specific</span>
       </header>
       <div className="sm-timeline-grid">
         <div className="sm-timeline-ruler">
@@ -3241,15 +3357,15 @@ function LaserDmxShowManagerTimeline({
           ))}
         </div>
         <TimelineRow label="Section" className="sm-timeline-row--sections">
-          {show && show.sections.length > 0 ? (
+          {sections.length > 0 ? (
             <SectionTimeline
-              sections={show.sections}
+              sections={sections}
               durationSec={durationSec}
               viewport={viewport}
               viewportRef={viewportRef}
-              beatGrid={[]}
-              effectiveBpm={null}
-              snapMode="free"
+              beatGrid={beatGrid}
+              effectiveBpm={effectiveBpm}
+              snapMode={beatGrid.length > 0 ? 'beat' : 'free'}
               selectedId={selectedSectionId}
               onSelect={onSelect}
               onRemove={onRemove}
@@ -3320,22 +3436,28 @@ function ShowManagerTimeline({
   playheadPercent,
   sections,
   sceneLabels,
+  beatGrid,
+  effectiveBpm,
+  selectedSectionId,
+  onSelectSection,
+  onCommitBoundary,
+  statusMessage,
 }: {
   currentTime: number
   duration: number
   playheadPercent: number
   sections: readonly ReactTrackSection[]
   sceneLabels: readonly string[]
+  beatGrid?: BeatMarkerMI[]
+  effectiveBpm?: number | null
+  selectedSectionId: string | null
+  onSelectSection: (id: string) => void
+  onCommitBoundary: (sectionId: string, edge: 'start' | 'end', newTime: number, neighborId: string | null, neighborTime: number | null) => void
+  statusMessage: string
 }) {
-  const timelineSections: readonly ShowManagerSectionSegment[] = sections.length > 0
-    ? sections
-    : SECTION_SEGMENTS.map((segment, index) => ({
-        id: `pix-grid-fallback-section-${segment.type}`,
-        label: segment.label,
-        type: segment.type,
-        startSec: (duration / SECTION_SEGMENTS.length) * index,
-        endSec: (duration / SECTION_SEGMENTS.length) * (index + 1),
-      }))
+  const viewport = useMemo<TimelineViewport>(() => ({ startSec: 0, endSec: duration }), [duration])
+  const viewportRef = useRef<TimelineViewport>(viewport)
+  viewportRef.current = viewport
   return (
     <section className="sm-timeline sm-pixgrid-timeline" aria-label="Show Manager track map preview">
       <header className="sm-timeline-tabs">
@@ -3349,7 +3471,22 @@ function ShowManagerTimeline({
           ))}
         </div>
         <TimelineRow label="Section" className="sm-timeline-row--sections">
-          <ShowManagerSectionStrip sections={timelineSections} durationSec={duration} />
+          {sections.length > 0 ? (
+            <SectionTimeline
+              sections={[...sections]}
+              durationSec={duration}
+              viewport={viewport}
+              viewportRef={viewportRef}
+              beatGrid={beatGrid}
+              effectiveBpm={effectiveBpm}
+              snapMode={beatGrid && beatGrid.length > 0 ? 'beat' : 'free'}
+              selectedId={selectedSectionId}
+              onSelect={onSelectSection}
+              onCommitBoundary={onCommitBoundary}
+            />
+          ) : (
+            <p className="sm-new-show-field-note" role="status">{statusMessage}</p>
+          )}
         </TimelineRow>
         <TimelineRow label="Scenes">
           <div className="sm-segment-row sm-segment-row--scenes">

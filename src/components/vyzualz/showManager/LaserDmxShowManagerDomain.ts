@@ -14,7 +14,7 @@ import {
 } from '../react/ReactTypes'
 import { resolveSectionAtTime as resolveAuthoritativeSectionAtTime } from '../../../features/trackIntelligence/authoritativeTimeline'
 
-export const LASER_DMX_SHOW_MANAGER_SCHEMA_VERSION = 2 as const
+export const LASER_DMX_SHOW_MANAGER_SCHEMA_VERSION = 3 as const
 
 /** Fixed Part 1 authoring grid. Existing Show Director defaults remain untouched. */
 export const LASER_DMX_SHOW_MANAGER_GRID_SIZE = Object.freeze({
@@ -422,6 +422,63 @@ export function resolveLaserDmxShowManagerTriggerOption(
   }
 }
 
+/** True only for the Stage 1/2 ordinal one-second generated timing scaffold. */
+export function isLaserDmxShowManagerGeneratedDefaultTimeline(show: LaserDmxShowManagerShow): boolean {
+  return show.sections.length === LASER_DMX_SHOW_MANAGER_DEFAULT_SECTION_TEMPLATE.length
+    && show.sections.every((section, index) => {
+      const expected = LASER_DMX_SHOW_MANAGER_DEFAULT_SECTION_TEMPLATE[index]
+      return Boolean(expected)
+        && section.type === expected![0]
+        && section.label === expected![1]
+        && Math.abs(section.startSec - index) <= 1e-6
+        && Math.abs(section.endSec - (index + 1)) <= 1e-6
+    })
+}
+
+/**
+ * Mirrors the shared Show Track Map into LaserDMX's section fixture attachment
+ * list while preserving section-local fixture authoring. Track timing remains
+ * owned by the shared Show record.
+ */
+export function syncLaserDmxShowManagerSectionsToTrackMap(
+  show: LaserDmxShowManagerShow,
+  trackSections: readonly ReactTrackSection[],
+): LaserDmxShowManagerShow {
+  if (trackSections.length === 0) return show
+  const unused = new Set(show.sections.map(section => section.id))
+  const sections = trackSections.map((trackSection, index) => {
+    let existing = show.sections.find(section => section.id === trackSection.id && unused.has(section.id)) ?? null
+    if (!existing) {
+      existing = show.sections.find(section => section.type === trackSection.type && unused.has(section.id))
+        ?? (show.sections[index] && unused.has(show.sections[index]!.id) ? show.sections[index]! : null)
+    }
+    if (existing) unused.delete(existing.id)
+    return {
+      ...trackSection,
+      engineId: 'laserDmx' as const,
+      fixtures: existing?.fixtures.map((fixture, fixtureIndex) => cloneFixture(fixture, fixtureIndex)) ?? [],
+    }
+  })
+
+  // A canonical analysis can contain fewer/different sections than the legacy
+  // generated scaffold. Never discard fixtures authored on a section that no
+  // longer has a direct match: deterministically carry them to the nearest
+  // surviving section by ordinal position.
+  show.sections.forEach((legacySection, legacyIndex) => {
+    if (!unused.has(legacySection.id) || legacySection.fixtures.length === 0) return
+    const target = sections[Math.min(legacyIndex, sections.length - 1)]
+    if (!target) return
+    const existingFixtureIds = new Set(target.fixtures.map(fixture => fixture.id))
+    legacySection.fixtures.forEach((fixture, fixtureIndex) => {
+      if (existingFixtureIds.has(fixture.id)) return
+      target.fixtures.push(cloneFixture(fixture, target.fixtures.length + fixtureIndex))
+      existingFixtureIds.add(fixture.id)
+    })
+  })
+
+  return { ...show, schemaVersion: LASER_DMX_SHOW_MANAGER_SCHEMA_VERSION, sections }
+}
+
 export function createDefaultLaserDmxShowManagerSections(
   showId: string,
 ): LaserDmxShowManagerSection[] {
@@ -429,9 +486,9 @@ export function createDefaultLaserDmxShowManagerSections(
     id: `${showId}:section:${type}:${index + 1}`,
     label,
     type,
-    // React Track Map sections require finite start/end values. Without audio,
-    // Part 1 uses compact ordinal windows only to preserve the canonical model;
-    // these values are not analysis and may later be replaced by authored timing.
+    // Legacy/standalone compatibility scaffold only. Shared audio-bound Show
+    // creation deliberately persists no sections until canonical analysis exists.
+    // Reconciliation recognizes this exact ordinal shape and replaces it safely.
     startSec: index,
     endSec: index + 1,
     intensity: type === 'drop' ? 1 : type === 'build' || type === 'preDrop' ? 0.8 : 0.55,
@@ -484,7 +541,13 @@ export function normalizeLaserDmxShowManagerSection(
     endSec,
     intensity: clamp(finite(raw.intensity, 0.55), 0, 1),
     engineId: 'laserDmx',
-    source: raw.source === 'manual' || raw.source === 'user-edited-auto' || raw.source === 'user-created'
+    source: raw.source === 'manual'
+      || raw.source === 'auto'
+      || raw.source === 'mock'
+      || raw.source === 'user-edited-auto'
+      || raw.source === 'user-created'
+      || raw.source === 'imported'
+      || raw.source === 'fallback'
       ? raw.source
       : 'user-created',
     ...(typeof raw.locked === 'boolean' ? { locked: raw.locked } : {}),

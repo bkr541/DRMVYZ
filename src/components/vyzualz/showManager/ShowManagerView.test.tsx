@@ -54,6 +54,9 @@ const fixture = vi.hoisted(() => ({
   audio: {
     analyserMaster: null,
     currentTrackId: 'audio-track-1',
+    currentAudioTrackId: 'audio-db-1',
+    currentAnalysisStatus: 'complete',
+    currentAnalysisError: null as string | null,
     currentTrack: {
       id: 'audio-track-1',
       displayName: 'Selected Audio Track',
@@ -69,6 +72,9 @@ const fixture = vi.hoisted(() => ({
       { timeSec: 0.46875, beatIndex: 1, isDownbeat: false },
     ],
     currentAnalysis: {
+      analysisVersion: 'analysis-v3',
+      createdAt: '2026-08-11T00:00:00.000Z',
+      durationMs: 240000,
       beatGridOffsetSec: 0.02,
       sections: [{
         id: 'section-1',
@@ -116,13 +122,30 @@ const fixture = vi.hoisted(() => ({
     manualTrackSectionsByTrackId: {},
     suppressedAutoSectionsByTrackId: {},
     showManagerShows: [{
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: 'laser-show-1',
       name: 'Test PixGrid',
       linkedAudioTrackId: 'audio-db-1',
       tags: [],
       groupId: null,
       engineIds: ['pixGrid', 'laserDmx'],
+      trackMap: {
+        schemaVersion: 1,
+        linkedAudioTrackId: 'audio-db-1',
+        baseAnalysisVersion: 'analysis-v3',
+        baseTimelineRevision: 'test-section-1',
+        durationSec: 240,
+        sections: [{
+          id: 'section-1',
+          label: 'Intro',
+          type: 'intro',
+          startSec: 0,
+          endSec: 64,
+          intensity: 0.35,
+          source: 'auto',
+        }],
+        edited: false,
+      },
     }],
     showManagerEditingShowId: 'laser-show-1' as string | null,
     createShowManagerShow: vi.fn(async () => 'show-manager-created' as string | null),
@@ -130,6 +153,9 @@ const fixture = vi.hoisted(() => ({
     deleteShowManagerShow: vi.fn(async () => true),
     selectShowManagerShow: vi.fn(),
     resetShowManagerSession: vi.fn(),
+    reconcileShowManagerTrackMapFromAnalysis: vi.fn(),
+    updateShowManagerTrackMapSection: vi.fn(),
+    updateShowManagerTrackMapBoundary: vi.fn(),
     laserDmxShowManagerShows: [{
       schemaVersion: 2,
       id: 'laser-show-1',
@@ -427,13 +453,22 @@ afterEach(() => {
   fixture.state.updateCanvasShowManagerMediaElement.mockReset()
   fixture.state.removeCanvasShowManagerMediaElement.mockReset()
   fixture.state.showManagerShows = [{
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: 'laser-show-1',
     name: 'Test PixGrid',
     linkedAudioTrackId: 'audio-db-1',
     tags: [],
     groupId: null,
     engineIds: ['pixGrid', 'laserDmx'],
+    trackMap: {
+      schemaVersion: 1,
+      linkedAudioTrackId: 'audio-db-1',
+      baseAnalysisVersion: 'analysis-v3',
+      baseTimelineRevision: 'test-section-1',
+      durationSec: 240,
+      sections: [{ id: 'section-1', label: 'Intro', type: 'intro', startSec: 0, endSec: 64, intensity: 0.35, source: 'auto' }],
+      edited: false,
+    },
   }] as typeof fixture.state.showManagerShows
   fixture.state.showManagerEditingShowId = 'laser-show-1'
   fixture.state.resetShowManagerSession.mockClear()
@@ -441,6 +476,9 @@ afterEach(() => {
   fixture.state.duplicateShowManagerShow.mockClear()
   fixture.state.deleteShowManagerShow.mockClear()
   fixture.state.selectShowManagerShow.mockClear()
+  fixture.state.reconcileShowManagerTrackMapFromAnalysis.mockClear()
+  fixture.state.updateShowManagerTrackMapSection.mockClear()
+  fixture.state.updateShowManagerTrackMapBoundary.mockClear()
   fixture.loadSavedTrackIntoEngine.mockReset()
   fixture.loadSavedTrackIntoEngine.mockResolvedValue({ input: {}, reusedRuntimeTrack: false })
   fixture.audioLibrary.loadSavedTracks.mockClear()
@@ -451,6 +489,9 @@ afterEach(() => {
   fixture.state.canvasShowManagerEditingSectionId = null
   fixture.state.canvasShowManagerEditingElementId = null
   fixture.audio.isPlaying = false
+  fixture.audio.currentAudioTrackId = 'audio-db-1'
+  fixture.audio.currentAnalysisStatus = 'complete'
+  fixture.audio.currentAnalysisError = null
   if (root) act(() => root?.unmount())
   container?.remove()
   root = null
@@ -1309,7 +1350,7 @@ describe('ShowManagerView production shell', () => {
     )
   })
 
-  it('enters the production LaserDMX path with no audio and exposes the canonical seven Show-owned sections', async () => {
+  it('keeps the persisted Show-specific LaserDMX Track Map available while runtime analysis is unavailable', async () => {
     const originalAudio = {
       currentTrackId: fixture.audio.currentTrackId,
       currentTrack: fixture.audio.currentTrack,
@@ -1357,9 +1398,9 @@ describe('ShowManagerView production shell', () => {
       expect(container.querySelector('[aria-label="Show Manager LaserDMX section timeline"]')).not.toBeNull()
       expect(container.querySelector('[data-testid="pix-grid-surface"]')).toBeNull()
       expect(container.textContent).toContain('18 × 12')
-      for (const label of ['Intro', 'Verse', 'Build', 'Pre-Drop', 'Drop', 'Breakdown', 'Outro']) {
-        expect(container.textContent).toContain(label)
-      }
+      expect(container.querySelectorAll('.rv-section-region')).toHaveLength(1)
+      expect(container.textContent).toContain('Intro')
+      expect(container.textContent).not.toContain('Pre-Drop')
       expect(container.querySelector('[data-testid="show-manager-audio-dock"]')?.getAttribute('data-track-id')).toBe('')
     } finally {
       Object.assign(fixture.audio, originalAudio)
@@ -1974,7 +2015,7 @@ describe('ShowManagerView production shell', () => {
     }
   })
 
-  it('routes section edits through the production LaserDMX history controls', async () => {
+  it('routes LaserDMX section edits through the shared Show Track Map and history controls', async () => {
     fixture.state.showManagerUndoStack = [{}]
     fixture.state.showManagerRedoStack = [{}]
     container = document.createElement('div')
@@ -2016,11 +2057,12 @@ describe('ShowManagerView production shell', () => {
       await Promise.resolve()
     })
 
-    expect(fixture.state.updateLaserDmxShowManagerSection).toHaveBeenCalledWith(
+    expect(fixture.state.updateShowManagerTrackMapSection).toHaveBeenCalledWith(
       'laser-show-1',
-      'laser-show-1:section:intro:1',
+      'section-1',
       expect.objectContaining({ label: 'Opening' }),
     )
+    expect(fixture.state.updateLaserDmxShowManagerSection).not.toHaveBeenCalled()
     const undo = container.querySelector<HTMLButtonElement>('button[title="Undo section edit"]')
     const redo = container.querySelector<HTMLButtonElement>('button[title="Redo section edit"]')
     await act(async () => {
@@ -2063,6 +2105,35 @@ describe('ShowManagerView production shell', () => {
     expect(surface?.getAttribute('data-audio-time-sec')).toBe('42')
     expect(surface?.getAttribute('data-track-section-count')).toBe('1')
     expect(surface?.getAttribute('data-has-track-analysis')).toBe('true')
+    expect(fixture.state.reconcileShowManagerTrackMapFromAnalysis).toHaveBeenCalledWith(expect.objectContaining({
+      showId: 'laser-show-1',
+      linkedAudioTrackId: 'audio-db-1',
+      analysisVersion: 'analysis-v3',
+      durationSec: 240,
+      canonicalSections: [expect.objectContaining({ id: 'section-1', startSec: 0, endSec: 64, source: 'auto' })],
+    }))
+  })
+
+  it('shows linked-track analysis failure without fabricating Track Map sections', async () => {
+    fixture.state.showManagerShows = [{
+      ...fixture.state.showManagerShows[0]!,
+      trackMap: null,
+    }] as typeof fixture.state.showManagerShows
+    fixture.audio.currentAnalysisStatus = 'failed'
+    fixture.audio.currentAnalysisError = 'Music Intelligence failed for this track.'
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+
+    const trackMap = container.querySelector<HTMLElement>('[aria-label="Show Manager track map preview"]')
+    expect(trackMap?.querySelectorAll('.rv-section-region')).toHaveLength(0)
+    expect(trackMap?.textContent).toContain('Linked-track analysis is unavailable. Music Intelligence failed for this track.')
+    expect(fixture.state.reconcileShowManagerTrackMapFromAnalysis).not.toHaveBeenCalled()
   })
 
   it('keeps the inspector panel heading inside its rail and moves stage tools plus account actions into the top bar', async () => {
