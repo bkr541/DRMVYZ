@@ -16325,6 +16325,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   gap: 9px;
 }
 
+/* Gap between the Source/Layers tab row and Engine Mode. `.rv-context-workspace
+   > .rv-left-tab-body` (reactView.css ~line 5117) zeroes out that container's
+   own padding, so the full amount has to come from this group alone. */
+.rv-context-workspace > .rv-left-tab-body > .rv-engine-viewport > .rv-ctrl-group:has(.rv-cinema-workspace--panel) {
+  padding-top: 24px;
+}
+
 .rv-cinema-workspace--panel h3 {
   margin: 0;
   color: #e8fbfc;
