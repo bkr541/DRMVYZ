@@ -294,7 +294,7 @@ describe('Cinema production engine registration', () => {
     await act(async () => presetButton?.click())
     const layerButton = host?.querySelector<HTMLButtonElement>('.rv-cinema-layer-tree button')
     await act(async () => layerButton?.click())
-    const color = host?.querySelector<HTMLInputElement>('.rv-ctrl-color-input')
+    const color = host?.querySelector<HTMLInputElement>('.rv-ctrl-palette-swatch-input')
     expect(color).not.toBeNull()
     await act(async () => {
       if (!color) return

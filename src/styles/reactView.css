@@ -11968,6 +11968,55 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   letter-spacing: 0.04em;
 }
 
+/* Palette color row — Layout Lab "Full-Bleed Swatch" winner. The label sits
+   above a full-width color block instead of a small swatch + hex readout;
+   the block itself is the native color-input trigger. Used by dedicated
+   named-color-slot groups (Cinema's per-layer Palette), not every lone
+   ColorRow scattered among unrelated controls elsewhere. */
+.rv-ctrl-palette-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.rv-ctrl-palette-row-label {
+  color: rgba(245, 248, 250, 0.7);
+  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.rv-ctrl-palette-swatch {
+  position: relative;
+  display: block;
+  min-height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.rv-ctrl-palette-swatch--disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.rv-ctrl-palette-swatch-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+}
+
+.rv-ctrl-palette-swatch-input:focus-visible {
+  outline: 2px solid #67f7ff;
+  outline-offset: 2px;
+}
+
 .rv-ctrl-action-row {
   display: flex;
   flex-wrap: wrap;
@@ -17377,15 +17426,29 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   transform: translateX(-50%);
 }
 
-/* 05's 2x3 grid: the color fills the whole cell, label sits on top of it,
-   nothing else — the cell itself is the native color-input trigger. */
+/* 05's 2x3 grid: the label sits above the block, same as every other
+   variation's label-above-control convention, then a full-width color
+   block below it — the block itself is the native color-input trigger. */
+
+.llpg-fillcell-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.llpg-fillcell-label {
+  color: rgba(196, 207, 211, 0.65);
+  font: 600 10px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .llpg-fill-cell {
   position: relative;
-  display: flex;
-  align-items: flex-start;
-  min-height: 72px;
-  padding: 8px 9px;
+  display: block;
+  min-height: 36px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
@@ -17402,13 +17465,5 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   cursor: pointer;
   border: 0;
   padding: 0;
-}
-
-.llpg-fill-cell-label {
-  position: relative;
-  z-index: 1;
-  color: #fff;
-  font: 700 10px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
-  mix-blend-mode: difference;
 }
 .rv-cinema-graph-editor__connections path.is-disabled { stroke-dasharray: 4 5; opacity: 0.58; }

@@ -294,6 +294,44 @@ export function ColorRow({ label, value, onChange, disabled = false, id, descrip
   )
 }
 
+// ── Palette color row (Layout Lab "Full-Bleed Swatch") ─────────────────────────
+//
+// Canonical treatment for named-color-slot groups (Cinema's per-layer Palette:
+// Background / Primary / Secondary / Accent / Foreground / Highlight). The
+// label sits above a full-width color block instead of a small swatch + hex
+// readout — the block itself is the native color-input trigger.
+
+export interface PaletteColorRowProps {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  disabled?: boolean
+  id?: string
+  description?: string
+}
+
+export function PaletteColorRow({ label, value, onChange, disabled = false, id, description }: PaletteColorRowProps) {
+  const generatedId = useId()
+  const inputId = id ?? generatedId
+  return (
+    <div className="rv-ctrl-palette-row">
+      <label className="rv-ctrl-palette-row-label" htmlFor={inputId}>{label}</label>
+      <span className={`rv-ctrl-palette-swatch${disabled ? ' rv-ctrl-palette-swatch--disabled' : ''}`} style={{ background: value }}>
+        <input
+          id={inputId}
+          type="color"
+          className="rv-ctrl-palette-swatch-input"
+          value={value}
+          disabled={disabled}
+          onChange={event => onChange(event.target.value)}
+          aria-describedby={description ? `${inputId}-description` : undefined}
+        />
+      </span>
+      {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
+    </div>
+  )
+}
+
 // ── Section label ─────────────────────────────────────────────────────────────
 
 export function CtrlSection({ label }: { label: string }) {

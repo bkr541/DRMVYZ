@@ -296,17 +296,19 @@ function HexFirstPalette() {
   const [state, setColor] = usePaletteState()
 
   return (
-    <div className="llpg-group llpg-group--cols-2">
+    <div className="llpg-group llpg-group--cols-3">
       {PALETTE_FIELDS.map(field => (
-        <label key={field.key} className="llpg-fill-cell" style={{ background: state[field.key] }}>
-          <span className="llpg-fill-cell-label">{field.label}</span>
-          <input
-            type="color"
-            value={state[field.key]}
-            onChange={event => setColor(field.key, event.target.value)}
-            aria-label={field.label}
-          />
-        </label>
+        <div key={field.key} className="llpg-fillcell-wrap">
+          <span className="llpg-fillcell-label">{field.label.replace(' Color', '')}</span>
+          <label className="llpg-fill-cell" style={{ background: state[field.key] }}>
+            <input
+              type="color"
+              value={state[field.key]}
+              onChange={event => setColor(field.key, event.target.value)}
+              aria-label={field.label}
+            />
+          </label>
+        </div>
       ))}
     </div>
   )
@@ -317,7 +319,7 @@ const GALLERY_ENTRIES = [
   { id: 'expand', title: '02 · Inline Expand', blurb: 'Clicking a row expands it in place — accordion-style — to reveal Hue/Saturation/Lightness sliders and a hex field. No overlay, everything stays in document flow.', Palette: ExpandHslPalette },
   { id: 'gradient', title: '03 · Popover Gradient', blurb: 'Clicking the swatch opens a floating picker with a 2D saturation/lightness square, a hue strip, and a hex field — the fullest, most "real" color-picker experience.', Palette: GradientPopoverPalette },
   { id: 'preset', title: '04 · Preset Grid', blurb: 'Clicking the swatch opens a curated grid of on-brand colors only — no arbitrary color entry. Fastest to pick from, keeps every palette on-brand by construction.', Palette: PresetGridPalette },
-  { id: 'hexFirst', title: '05 · Full-Bleed Swatch', blurb: 'The color fills the entire cell with only the label sitting on top of it — no visible hex text or buttons. Clicking anywhere on the color opens the OS picker.', Palette: HexFirstPalette },
+  { id: 'hexFirst', title: '05 · Full-Bleed Swatch', blurb: 'The label sits above a full-width color block — no visible hex text or buttons. Clicking anywhere on the color opens the OS picker.', Palette: HexFirstPalette },
 ]
 
 export function PaletteGroupStyleGallery() {

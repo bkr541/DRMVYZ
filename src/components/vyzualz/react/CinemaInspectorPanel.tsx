@@ -16,7 +16,7 @@ import {
   type CinemaParameterId,
   type CinemaParameterValue,
 } from '../cinema'
-import { Collapsible, ColorRow, CtrlSection, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
+import { Collapsible, ColorRow, CtrlSection, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import {
   getCinemaLiveInstance,
@@ -86,19 +86,22 @@ export function CinemaInspectorPanel() {
 
       <div className="rv-ctrl-group">
         <Collapsible label="Palette">
-          {paletteDescriptors.length === 0 ? <div className="rv-ctrl-info">This layer does not expose palette colors. Select another visual layer to change its background and brand colors.</div> : paletteDescriptors.map(descriptor => (
-            <SchemaControl
-              key={descriptor.path}
-              descriptor={descriptor}
-              assetOptions={assetOptions}
-              onChange={value => {
-                const schema = persistedDefinition?.definition.parameters.find(candidate => candidate.id === descriptor.id)
-                if (schema && selectedNode) setCinemaLiveNodeOverride(composition, selectedNode.id, schema, value)
-              }}
-              onInteractionStart={() => {}}
-              onInteractionEnd={() => {}}
-            />
-          ))}
+          {paletteDescriptors.length === 0 ? <div className="rv-ctrl-info">This layer does not expose palette colors. Select another visual layer to change its background and brand colors.</div> : paletteDescriptors.map(descriptor => {
+            const color = Array.isArray(descriptor.value) ? descriptor.value : [1, 1, 1, 1]
+            return (
+              <PaletteColorRow
+                key={descriptor.path}
+                label={descriptor.label}
+                value={rgbaToHex(color)}
+                disabled={descriptor.disabled}
+                description={descriptor.disabledReason ?? descriptor.help.helpText ?? descriptor.help.description}
+                onChange={hex => {
+                  const schema = persistedDefinition?.definition.parameters.find(candidate => candidate.id === descriptor.id)
+                  if (schema && selectedNode) setCinemaLiveNodeOverride(composition, selectedNode.id, schema, hexToRgba(hex, Number(color[3] ?? 1)))
+                }}
+              />
+            )
+          })}
         </Collapsible>
       </div>
 
