@@ -52,6 +52,35 @@
 .rv-cinema-library-grid article small, .rv-cinema-effect-results article small { display: block; color: #6f8292; font-size: 9px; margin-top: 2px; }
 .rv-cinema-library-grid article p { color: #8996a3; font-size: 10px; line-height: 1.4; margin: 5px 0 0; }
 .rv-cinema-library-grid article.is-disabled { opacity: .48; }
+.rv-cinema-effect-browser-status {
+  display: grid;
+  gap: 2px;
+  border-left: 2px solid rgba(74,199,219,.46);
+  background: rgba(74,199,219,.035);
+  padding: 6px 8px;
+  color: #80909e;
+  font-size: 9px;
+  line-height: 1.4;
+}
+.rv-cinema-effect-browser-status strong {
+  color: #a9bac6;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.rv-cinema-effect-results .rv-cinema-effect-result {
+  border-style: dashed;
+  background: rgba(8,14,22,.24);
+  cursor: default;
+  user-select: text;
+}
+.rv-cinema-effect-empty {
+  padding: 8px;
+  color: #6f8292;
+  font-size: 9px;
+  font-style: italic;
+}
 .rv-cinema-stage19__fieldset { min-width: 0; margin: 0; border: 0; padding: 0; }
 .rv-cinema-stage19__fieldset:disabled { opacity: .72; }
 

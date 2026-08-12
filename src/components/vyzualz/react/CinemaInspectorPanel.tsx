@@ -233,17 +233,31 @@ export function CinemaInspectorPanel() {
 function CinemaEffectBrowser() {
   const [query, setQuery] = useState('')
   const definitions = useCinemaStore(store => store.definitions)
+  const normalizedQuery = query.trim().toLowerCase()
   const effects = useMemo(() => buildCinemaComposerLibraryItems(definitions, CINEMA_PRODUCTION_RUNTIME_REGISTRY)
-    .filter(item => item.category === 'Effects' && `${item.label} ${item.description}`.toLowerCase().includes(query.trim().toLowerCase())), [definitions, query])
+    .filter(item => item.category === 'Effects' && `${item.label} ${item.description}`.toLowerCase().includes(normalizedQuery)), [definitions, normalizedQuery])
   return (
     <div className="rv-ctrl-group">
       <Collapsible label="Find Effects" defaultOpen={false}>
-        <DreamVizTextInput value={query} onChange={event => setQuery(event.target.value)} placeholder="Search by look or parameter…" aria-label="Search Cinema effects" />
-        <div className="rv-cinema-effect-results">
-          {effects.map(effect => <article key={effect.id}><strong>{effect.label}</strong><small>{effect.description}</small></article>)}
-          {effects.length === 0 && <div className="rv-ctrl-info">No effects match this search.</div>}
+        <div className="rv-cinema-effect-browser-status" role="note" data-cinema-effect-browser-mode="browse-only">
+          <strong>Browse only</strong>
+          <span>These cards are reference entries. They do not add, select, or remove effects. Cinema effect structure cannot currently be authored in Show Manager.</span>
         </div>
-        <div className="rv-ctrl-info">Effect discovery lives here; attach or remove effects while authoring the preset in Show Manager.</div>
+        <DreamVizTextInput value={query} onChange={event => setQuery(event.target.value)} placeholder="Search by look or parameter…" aria-label="Search Cinema effects" />
+        <div className="rv-cinema-effect-results" role="list" aria-label="Cinema effect reference catalog">
+          {effects.map(effect => (
+            <article
+              key={effect.id}
+              className="rv-cinema-effect-result"
+              role="listitem"
+              data-cinema-effect-reference="true"
+            >
+              <strong>{effect.label}</strong>
+              <small>{effect.description}</small>
+            </article>
+          ))}
+          {effects.length === 0 && <div className="rv-cinema-effect-empty" role="status">No effects match this search.</div>}
+        </div>
       </Collapsible>
     </div>
   )

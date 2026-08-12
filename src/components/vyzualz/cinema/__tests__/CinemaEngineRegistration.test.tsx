@@ -569,6 +569,17 @@ describe('Cinema production engine registration', () => {
     expect(host?.textContent).not.toContain('New Composition')
     expect(host?.textContent).not.toContain('Cinema Composer')
 
+    const findEffectsHeader = [...(host?.querySelectorAll<HTMLButtonElement>('.drc-header') ?? [])]
+      .find(button => button.textContent?.includes('Find Effects'))
+    await act(async () => findEffectsHeader?.click())
+    const findEffectsGroup = findEffectsHeader?.closest<HTMLElement>('.drc-group') ?? null
+    const effectResults = findEffectsGroup?.querySelector<HTMLElement>('.rv-cinema-effect-results') ?? null
+    expect(findEffectsGroup?.querySelector('[data-cinema-effect-browser-mode="browse-only"]')).not.toBeNull()
+    expect(findEffectsGroup?.textContent).toContain('Cinema effect structure cannot currently be authored in Show Manager.')
+    expect(findEffectsGroup?.querySelector('.drc-body button, .drc-body a[href], .drc-body [role="button"]')).toBeNull()
+    expect(effectResults?.querySelectorAll('[data-cinema-effect-reference="true"]').length).toBeGreaterThan(0)
+    expect(effectResults?.querySelector('button, [role="button"], [tabindex]')).toBeNull()
+
     const presetButton = host?.querySelector<HTMLButtonElement>('.rv-preset-card')
     await act(async () => presetButton?.click())
     const layerButton = host?.querySelector<HTMLButtonElement>('.rv-cinema-layer-tree button')
