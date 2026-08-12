@@ -11,7 +11,6 @@ interface Props {
   draftTitle: string
   selectedTrackName: string | null
   dirty: boolean
-  onBack: () => void
   onToggleLyricsDisplay: () => void
   onSave: () => void
   onSaveAndMakeActive: () => void
@@ -25,7 +24,6 @@ export function LyricManagerHeader({
   draftTitle,
   selectedTrackName,
   dirty,
-  onBack,
   onToggleLyricsDisplay,
   onSave,
   onSaveAndMakeActive,
@@ -45,7 +43,6 @@ export function LyricManagerHeader({
   return (
     <header className="lmv-header">
       <div className="lmv-header-left">
-        <button className="lmv-header-back" onClick={onBack} aria-label="Leave Lyric Manager">←</button>
         <div className="lmv-header-title-group">
           <span className="lmv-header-title">LYRIC MANAGER</span>
           <span className="lmv-header-subtitle">

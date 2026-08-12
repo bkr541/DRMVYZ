@@ -104,51 +104,6 @@
   overflow: hidden;
 }
 
-.mmv-guidance {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 10px 12px;
-  border: 1px solid rgba(74,199,219,0.14);
-  border-radius: 8px;
-  background: rgba(74,199,219,0.045);
-}
-
-.mmv-guidance > div {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.mmv-guidance strong {
-  color: rgba(232,238,240,0.88);
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  white-space: nowrap;
-}
-
-.mmv-guidance span {
-  color: rgba(196,207,211,0.42);
-  font-size: 10px;
-  line-height: 1;
-}
-
-.mmv-foundation-badge {
-  flex-shrink: 0;
-  padding: 3px 7px;
-  border: 1px solid rgba(97,214,170,0.25);
-  border-radius: 999px;
-  background: rgba(97,214,170,0.07);
-  color: rgba(97,214,170,0.78) !important;
-  font-size: 8px !important;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
 .vz-media-browser--manager {
   min-width: 0;
   border-radius: 9px;
@@ -190,7 +145,6 @@
 
 @media (max-width: 980px) {
   .mmv-summary { display: none; }
-  .mmv-guidance > div { align-items: flex-start; flex-direction: column; gap: 3px; }
 }
 
 .vz-coll-actions { display: inline-flex; align-items: center; gap: 5px; margin-left: 4px; }

@@ -46,7 +46,7 @@ import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import { FontLibraryPanel } from './FontLibraryPanel'
 import { ReactEngineBrowser } from './ReactEngineBrowser'
 import { CinemaWorkspace } from './CinemaWorkspace'
-import { CinemaLayersPanel, CinemaLibraryPanel, CinemaPresetsPanel } from './CinemaWorkspacePanels'
+import { CinemaLayersPanel, CinemaPresetsPanel } from './CinemaWorkspacePanels'
 import { createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
 import { buildCinemaWorkspaceFrameBridge } from './CinemaWorkspaceFrameBridge'
 import type { CinemaWorkspaceRuntimeFrameConfig } from './CinemaWorkspaceRuntimeFrameSource'
@@ -869,7 +869,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   {leftTab === 'layers' && (activeReactEngineId === 'cinema' ? <CinemaLayersPanel /> : workspaceComposition.showLaserLayersTab ? (
                     <Suspense fallback={<LazyWorkspaceFallback label="LaserDMX layers" />}><LaserDmxLayersPanel /></Suspense>
                   ) : null)}
-                  {leftTab === 'library' && activeReactEngineId === 'cinema' && <CinemaLibraryPanel />}
                   {leftTab === 'fonts' && <FontLibraryPanel />}
                 </div>
               </div>

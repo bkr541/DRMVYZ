@@ -258,8 +258,9 @@ describe('Cinema production engine registration', () => {
     ))
 
     expect(useCinemaStore.getState().activeCompositionId).toBe(CINEMA_STAGE16_REFERENCE_COMPOSITION_ID)
-    expect(host?.textContent).toContain('Cinema Layer Compositor Reference')
-    expect(host?.textContent).toContain('Choose the active preset in Presets')
+    expect(host?.textContent).toContain('Engine Mode')
+    expect(host?.textContent).toContain('Shaders')
+    expect(host?.textContent).toContain('Worlds')
     expect(host?.textContent).not.toContain('Cinema Runtime')
   })
 
@@ -284,7 +285,6 @@ describe('Cinema production engine registration', () => {
     expect(useReactStore.getState().activeReactEngineId).toBe('cinema')
     expect(host?.textContent).toContain('Presets')
     expect(host?.textContent).toContain('Layers')
-    expect(host?.textContent).toContain('Library')
     expect(host?.textContent).toContain('Master Appearance')
     expect(host?.textContent).toContain('Find Effects')
     expect(host?.textContent).not.toContain('New Composition')

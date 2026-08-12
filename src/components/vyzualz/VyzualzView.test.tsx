@@ -57,11 +57,9 @@ vi.mock('./showManager/ShowManagerView', () => ({
 }))
 
 vi.mock('../../features/media/MediaManagerView', () => ({
-  MediaManagerView: ({ onBack, returnView, onOpenLyricManager }: { onBack: () => void; returnView: PerformanceAppView; onOpenLyricManager: (intent: { id: string; targetAudioTrackId: string; workflow: 'ai-extract' }) => void }) => (
-    <div data-testid="media-manager" data-return-view={returnView}>
+  MediaManagerView: ({ onOpenLyricManager }: { onOpenLyricManager: (intent: { id: string; targetAudioTrackId: string; workflow: 'ai-extract' }) => void }) => (
+    <div data-testid="media-manager">
       Media Manager
-      <button onClick={onBack}>Back</button>
-      <button onClick={onBack}>Preview</button>
       <button onClick={() => onOpenLyricManager({ id: 'intent-1', targetAudioTrackId: 'track-a', workflow: 'ai-extract' })}>Open Track Lyrics</button>
     </div>
   ),
@@ -195,7 +193,7 @@ describe('Vyzualz application-view lifecycle isolation', () => {
   it('preserves manager origin across manager-to-manager navigation', async () => {
     await renderView('react')
     await clickLabel('Media Manager')
-    expect(container?.querySelector('[data-testid="media-manager"]')?.getAttribute('data-return-view')).toBe('react')
+    expect(container?.querySelector('[data-testid="media-manager"]')).not.toBeNull()
     await clickLabel('Lyric Manager')
     expect(container?.querySelector('[data-testid="lyric-manager"]')?.getAttribute('data-return-view')).toBe('react')
     await clickLabel('Back')
@@ -203,7 +201,8 @@ describe('Vyzualz application-view lifecycle isolation', () => {
 
     await clickLabel('Visualizer')
     await clickLabel('Media Manager')
-    expect(container?.querySelector('[data-testid="media-manager"]')?.getAttribute('data-return-view')).toBe('visualizer')
+    await clickLabel('Lyric Manager')
+    expect(container?.querySelector('[data-testid="lyric-manager"]')?.getAttribute('data-return-view')).toBe('visualizer')
     await clickLabel('Back')
     expect(container?.querySelector('[data-testid="visualizer-workspace"]')).not.toBeNull()
   })

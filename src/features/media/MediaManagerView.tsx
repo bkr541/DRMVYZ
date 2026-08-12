@@ -1,18 +1,14 @@
 import { useAudioStore } from '../../stores/audioStore'
 import { useMediaStore } from '../../stores/mediaStore'
-import type { PerformanceAppView } from '../../components/vyzualz/appView'
-import { APP_VIEW_LABELS } from '../../components/vyzualz/appView'
 import { MediaLibraryBrowser } from '../../components/vyzualz/media/MediaLibraryBrowser'
 import { MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
 import type { LyricManagerNavigationIntent } from '../lyrics/lyricNavigation'
 
 interface MediaManagerViewProps {
-  onBack: () => void
-  returnView: PerformanceAppView
   onOpenLyricManager: (intent: LyricManagerNavigationIntent) => void
 }
 
-export function MediaManagerView({ onBack, returnView, onOpenLyricManager }: MediaManagerViewProps) {
+export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) {
   const mediaCount = useMediaStore(state => state.items.length)
   const collectionCount = useMediaStore(state => state.collections.length)
   const trackCount = useAudioStore(state => state.savedTracks.length)
@@ -21,17 +17,6 @@ export function MediaManagerView({ onBack, returnView, onOpenLyricManager }: Med
     <main className="mmv-root" aria-labelledby="media-manager-title">
       <header className="mmv-header">
         <div className="mmv-header-left">
-          <button
-            type="button"
-            className="lmv-back-btn"
-            onClick={onBack}
-            aria-label={`Return to ${APP_VIEW_LABELS[returnView]}`}
-          >
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
-              <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.42-1.41L7.83 13H20v-2z" />
-            </svg>
-            {APP_VIEW_LABELS[returnView]}
-          </button>
           <div className="mmv-header-title-group">
             <h1 id="media-manager-title" className="mmv-header-title">Media Manager</h1>
             <p className="mmv-header-subtitle">
@@ -47,13 +32,6 @@ export function MediaManagerView({ onBack, returnView, onOpenLyricManager }: Med
       </header>
 
       <section className="mmv-workspace" aria-label="Media management workspace">
-        <div className="mmv-guidance">
-          <div>
-            <strong>Your media control room.</strong>
-            <span>Manage visual assets, saved tracks, metadata, favorites, and collections through the same canonical stores used on stage.</span>
-          </div>
-          <span className="mmv-foundation-badge">Management online</span>
-        </div>
         <MediaLibraryBrowser
           activeMediaId={null}
           context="manager"

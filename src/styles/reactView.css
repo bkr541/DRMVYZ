@@ -12091,6 +12091,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   gap: 10px 12px;
 }
 
+/* Engine Mode should sit flush like LaserDMX's Lighting Components group —
+   no side inset and no Collapsible-body tint boxing the cards in. */
+.drc-body.rv-cinema-engine-mode-body {
+  padding-left: 0;
+  padding-right: 0;
+  background: transparent;
+  border-radius: 0;
+}
+
 .rv-ctrl-action-row {
   display: flex;
   flex-wrap: wrap;
@@ -16308,13 +16317,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   color: rgba(232, 248, 250, .94);
 }
 
+/* No card frame — Engine Mode sits bare the same way LaserDMX's Lighting
+   Components sits directly in .rv-show-director-palette with no border,
+   padding box, or background of its own. */
 .rv-cinema-workspace--panel {
   display: grid;
   gap: 9px;
-  padding: 10px;
-  border: 1px solid rgba(71, 221, 229, .2);
-  border-radius: 8px;
-  background: linear-gradient(145deg, rgba(11, 31, 36, .92), rgba(5, 14, 18, .96));
 }
 
 .rv-cinema-workspace--panel h3 {

@@ -453,8 +453,8 @@ describe('LyricManagerView track-first workflow', () => {
     expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2')
   })
 
-  it('guards track changes, document changes, and leaving with Save, Discard, and Cancel choices', async () => {
-    const onBack = await render()
+  it('guards track changes and document changes with Save, Discard, and Cancel choices', async () => {
+    await render()
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
 
@@ -477,16 +477,6 @@ describe('LyricManagerView track-first workflow', () => {
     await act(async () => buttonWithText('Save', saveDialog).click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2'))
     expect(mocks.saveLyricDocumentAtomic).toHaveBeenCalled()
-
-    await act(async () => useLyricsStore.getState().markEditorDirty(true))
-    const backButton = container.querySelector('[aria-label="Leave Lyric Manager"]') as HTMLButtonElement
-    await act(async () => backButton.click())
-    await act(async () => buttonWithText('Cancel').click())
-    expect(onBack).not.toHaveBeenCalled()
-
-    await act(async () => backButton.click())
-    await act(async () => buttonWithText('Discard').click())
-    expect(onBack).toHaveBeenCalledOnce()
   })
 
   it('keeps document-list responses scoped to the selected track', async () => {

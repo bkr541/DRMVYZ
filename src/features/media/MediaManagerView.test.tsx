@@ -50,7 +50,7 @@ describe('MediaManagerView', () => {
     root = createRoot(container)
 
     act(() => {
-      root?.render(<MediaManagerView returnView="react" onBack={vi.fn()} onOpenLyricManager={vi.fn()} />)
+      root?.render(<MediaManagerView onOpenLyricManager={vi.fn()} />)
     })
 
     expect(container.querySelector('#media-manager-title')?.textContent).toBe('Media Manager')
@@ -65,21 +65,5 @@ describe('MediaManagerView', () => {
     }))
     expect(MEDIA_MANAGER_CAPABILITIES).toEqual(expect.arrayContaining(['upload', 'edit', 'remove', 'collections']))
     expect(MEDIA_MANAGER_CAPABILITIES).not.toContain('select')
-  })
-
-  it('returns to the prior performance view', () => {
-    const onBack = vi.fn()
-    container = document.createElement('div')
-    document.body.appendChild(container)
-    root = createRoot(container)
-
-    act(() => {
-      root?.render(<MediaManagerView returnView="visualizer" onBack={onBack} onOpenLyricManager={vi.fn()} />)
-    })
-
-    const backButton = container.querySelector<HTMLButtonElement>('[aria-label="Return to Visualizer"]')
-    expect(backButton).not.toBeNull()
-    act(() => backButton?.click())
-    expect(onBack).toHaveBeenCalledTimes(1)
   })
 })

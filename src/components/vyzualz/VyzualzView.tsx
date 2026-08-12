@@ -170,8 +170,6 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
       <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
         <Suspense fallback={<WorkspaceLoading label="Media Manager" />}>
           <MediaManagerView
-            returnView={originatingPerformanceView}
-            onBack={() => requestAppViewChange(originatingPerformanceView)}
             onOpenLyricManager={openLyricManager}
           />
         </Suspense>

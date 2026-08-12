@@ -1936,12 +1936,6 @@ export function LyricManagerView({
         draftTitle={draftTitle}
         selectedTrackName={selectedTrackName}
         dirty={editorDirty}
-        onBack={() =>
-          requestTransition(
-            'Save changes before leaving Lyric Manager?',
-            onBack,
-          )
-        }
         onToggleLyricsDisplay={() => setLyricsDisplayEnabled(!lyricsDisplayEnabled)}
         onSave={() => {
           void doSave()

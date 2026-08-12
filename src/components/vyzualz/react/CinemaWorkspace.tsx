@@ -17,6 +17,62 @@ import {
 import { CinemaCanvas } from './CinemaCanvas'
 import type { CinemaWorkspaceFrameBridgeResult } from './CinemaWorkspaceFrameBridge'
 import type { CinemaWorkspaceRuntimeFrameConfig } from './CinemaWorkspaceRuntimeFrameSource'
+import { Collapsible } from './ReactControlRows'
+
+// ── Engine Mode (Shaders / Worlds) ──────────────────────────────────────────
+//
+// Mirrors Sound Drawing's "Engine Mode" source grid exactly (same
+// .rv-sound-source-grid/.rv-sound-source-card radiogroup pattern). Visual
+// selector only for now — it does not yet filter or drive anything.
+
+type CinemaEngineMode = 'shaders' | 'worlds'
+
+const CINEMA_ENGINE_MODE_OPTIONS: { value: CinemaEngineMode; label: string }[] = [
+  { value: 'shaders', label: 'Shaders' },
+  { value: 'worlds', label: 'Worlds' },
+]
+
+function CinemaEngineModeIcon({ mode }: { mode: CinemaEngineMode }) {
+  if (mode === 'shaders') {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M16 3v6M16 23v6M3 16h6M23 16h6M7 7l4 4M21 21l4 4M25 7l-4 4M11 21l-4 4" />
+        <circle cx="16" cy="16" r="5" />
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="16" cy="16" r="11" />
+      <ellipse cx="16" cy="16" rx="11" ry="4.5" />
+      <path d="M16 5v22" />
+    </svg>
+  )
+}
+
+function CinemaEngineModeGrid({
+  onChange,
+}: {
+  onChange: (value: CinemaEngineMode) => void
+}) {
+  return (
+    <div className="rv-sound-source-grid" role="group" aria-label="Cinema engine mode">
+      {CINEMA_ENGINE_MODE_OPTIONS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          className="rv-sound-source-card"
+          onClick={() => onChange(option.value)}
+        >
+          <span className="rv-sound-source-card-icon">
+            <CinemaEngineModeIcon mode={option.value} />
+          </span>
+          <span className="rv-sound-source-card-label">{option.label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
 
 export type CinemaWorkspaceSurface = 'panel' | 'stage'
 
@@ -239,28 +295,12 @@ export function CinemaWorkspace({
   const [localRuntimeSnapshot, setLocalRuntimeSnapshot] = useState<CinemaRuntimeSnapshot | null>(null)
   const runtimeSnapshot = controlledRuntimeSnapshot === undefined ? localRuntimeSnapshot : controlledRuntimeSnapshot
   const { state, model } = useCinemaWorkspaceReadModel(frameBridge, runtimeSnapshot)
-  const compositionName = model.activeComposition?.metadata.name ?? 'None selected'
-  const actionableDiagnostic = findActionableDiagnostic(model.diagnostics)
-
   if (surface === 'panel') {
     return (
       <section className="rv-cinema-workspace rv-cinema-workspace--panel" aria-label="Cinema runtime setup">
-        {actionableDiagnostic && (
-          <NoticeCard tone="warning" role="status" title={actionableDiagnostic.code}>
-            {actionableDiagnostic.message}
-          </NoticeCard>
-        )}
-        <div className="rv-cinema-workspace__eyebrow">Cinema Setup</div>
-        <h3>{compositionName}</h3>
-        <p>Choose the active preset in Presets, select its visual hierarchy in Layers, then shape its live look in Design.</p>
-        <NoticeCard
-          tone={model.statusLabel === 'Ready' ? 'success' : model.statusLabel === 'Needs attention' ? 'warning' : 'info'}
-          role="status"
-          title={model.statusLabel}
-        >
-          {diagnosticSummary(model.diagnostics)} · {model.frameAvailable ? 'Audio and timeline connected' : 'Waiting for audio and timeline'}
-        </NoticeCard>
-        <div className="rv-ctrl-info">Create presets, change structure, and manage reusable content in Show Manager.</div>
+        <Collapsible label="Engine Mode" defaultOpen bodyClassName="rv-cinema-engine-mode-body">
+          <CinemaEngineModeGrid onChange={() => {}} />
+        </Collapsible>
       </section>
     )
   }
