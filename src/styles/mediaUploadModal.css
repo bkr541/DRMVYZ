@@ -175,6 +175,13 @@
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: 6px;
   padding: 6px 8px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.mum-file-row:hover { background: rgba(255,255,255,0.05); }
+.mum-file-row--selected {
+  background: rgba(74,199,219,0.1);
+  border-color: rgba(74,199,219,0.5);
 }
 .mum-file-thumb {
   width: 52px;
@@ -241,6 +248,21 @@
   flex-direction: column;
   gap: 14px;
 }
+
+.mum-editing-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(74,199,219,0.08);
+  border: 1px solid rgba(74,199,219,0.2);
+  border-radius: 6px;
+  font-size: 11px;
+  color: rgba(245,248,250,0.7);
+  font-family: var(--az-font);
+}
+.mum-editing-banner strong { color: #4ac7db; }
 
 /* Fields */
 .mum-field { display: flex; flex-direction: column; gap: 5px; }

@@ -21,7 +21,7 @@ import {
 } from '../lib/mediaDb'
 import type { MediaMetadata, MediaDerivativePath, MediaCleanupJobRow, MediaUploadPhase } from '../types/database'
 import type { CanonicalMediaItem, MediaLibraryCursor, MediaLibraryQuery } from '../lib/mediaDb'
-import { suggestMediaRole, isAudioFile, isSvgFile } from '../lib/mediaRoles'
+import { suggestMediaRole, isAudioFile, isSvgFile, roleImpliesAlpha } from '../lib/mediaRoles'
 import type { MediaRole, MediaEnergy } from '../lib/mediaRoles'
 import { useAudioStore } from './audioStore'
 import { analyzeAudioFile } from '../utils/analyzeAudioFile'
@@ -251,7 +251,7 @@ export interface MediaCollection {
   description?: string
 }
 
-const DEFAULT_DRAFT: UploadDraft = {
+export const DEFAULT_UPLOAD_DRAFT: UploadDraft = {
   role: 'other',
   title: '',
   description: '',
@@ -262,6 +262,22 @@ const DEFAULT_DRAFT: UploadDraft = {
   audioGenre: '',
   audioBpm: '',
   audioMusicalKey: '',
+}
+
+function getFilenameWithoutExt(name: string): string {
+  return name.replace(/\.[^.]+$/, '')
+}
+
+/** Patches the currently-active upload draft (edit mode uses the '' key; queue mode uses the selected tempId). */
+function patchActiveUploadDraft(
+  set: (fn: (state: MediaState) => Partial<MediaState>) => void,
+  patch: Partial<UploadDraft>,
+): void {
+  set(state => {
+    const key = state.activeUploadDraftKey ?? ''
+    const current = state.uploadDrafts[key] ?? DEFAULT_UPLOAD_DRAFT
+    return { uploadDrafts: { ...state.uploadDrafts, [key]: { ...current, ...patch } } }
+  })
 }
 
 export const MEDIA_LIBRARY_PAGE_SIZE = 48
@@ -1091,8 +1107,14 @@ interface MediaState {
   removeUploadQueueItem(tempId: string): void
   clearUploadQueue(): void
 
-  // Upload draft (shared metadata for all queued files)
-  uploadDraft: UploadDraft
+  // Upload drafts — one per queued file (keyed by tempId), so a multi-file
+  // batch can give each file its own title/artist/genre/BPM/etc. Edit mode
+  // (single existing item, no queue) uses the '' key exclusively.
+  uploadDrafts: Record<string, UploadDraft>
+  activeUploadDraftKey: string | null
+  analyzingAudioTempIds: Set<string>
+  setActiveUploadDraftKey(key: string | null): void
+  applyUploadDraftToAllQueued(): void
   setUploadDraftRole(role: MediaRole): void
   setUploadDraftTitle(title: string): void
   setUploadDraftDescription(desc: string): void
@@ -1233,37 +1255,115 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         isAudio: audio,
       }
     })
-    set(state => ({ uploadQueue: [...state.uploadQueue, ...items], loadError: null }))
+    set(state => {
+      const nextDrafts = { ...state.uploadDrafts }
+      for (const item of items) {
+        nextDrafts[item.tempId] = {
+          ...DEFAULT_UPLOAD_DRAFT,
+          role: item.suggestedRole,
+          title: getFilenameWithoutExt(item.file.name),
+          metadata: item.isAudio ? {} : { hasAlpha: roleImpliesAlpha(item.suggestedRole) },
+        }
+      }
+      return {
+        uploadQueue: [...state.uploadQueue, ...items],
+        uploadDrafts: nextDrafts,
+        activeUploadDraftKey: state.activeUploadDraftKey ?? items[0]?.tempId ?? null,
+        loadError: null,
+      }
+    })
+
+    // Background BPM detection per audio file — writes directly to that
+    // file's own draft (which may no longer be the active selection by the
+    // time analysis resolves) without clobbering a value the user already typed.
+    for (const item of items) {
+      if (!item.isAudio) continue
+      set(state => ({ analyzingAudioTempIds: new Set(state.analyzingAudioTempIds).add(item.tempId) }))
+      analyzeAudioFile(item.file)
+        .then(result => {
+          if (result.bpm === null) return
+          set(state => {
+            const current = state.uploadDrafts[item.tempId]
+            if (!current || current.audioBpm) return {}
+            return { uploadDrafts: { ...state.uploadDrafts, [item.tempId]: { ...current, audioBpm: String(result.bpm) } } }
+          })
+        })
+        .catch(() => { /* non-fatal */ })
+        .finally(() => {
+          set(state => {
+            const next = new Set(state.analyzingAudioTempIds)
+            next.delete(item.tempId)
+            return { analyzingAudioTempIds: next }
+          })
+        })
+    }
+
     return items.length
   },
 
   removeUploadQueueItem(tempId) {
     const item = get().uploadQueue.find(q => q.tempId === tempId)
     if (item) releaseManagedObjectUrl(`queue:${item.tempId}`, item.previewUrl)
-    set(s => ({ uploadQueue: s.uploadQueue.filter(q => q.tempId !== tempId) }))
+    set(s => {
+      const remaining = s.uploadQueue.filter(q => q.tempId !== tempId)
+      const nextDrafts = { ...s.uploadDrafts }
+      delete nextDrafts[tempId]
+      return {
+        uploadQueue: remaining,
+        uploadDrafts: nextDrafts,
+        activeUploadDraftKey: s.activeUploadDraftKey === tempId
+          ? (remaining[0]?.tempId ?? null)
+          : s.activeUploadDraftKey,
+      }
+    })
   },
 
   clearUploadQueue() {
     get().uploadQueue.forEach(q => releaseManagedObjectUrl(`queue:${q.tempId}`, q.previewUrl))
-    set({ uploadQueue: [] })
+    set({ uploadQueue: [], uploadDrafts: {}, activeUploadDraftKey: null, analyzingAudioTempIds: new Set() })
   },
 
   // ── Upload draft ──────────────────────────────────────────────────────────
+  // One draft per queued file (keyed by tempId); edit mode uses the '' key.
 
-  uploadDraft: { ...DEFAULT_DRAFT },
+  uploadDrafts: {},
+  activeUploadDraftKey: null,
+  analyzingAudioTempIds: new Set(),
 
-  setUploadDraftRole(role)               { set(s => ({ uploadDraft: { ...s.uploadDraft, role } })) },
-  setUploadDraftTitle(title)             { set(s => ({ uploadDraft: { ...s.uploadDraft, title } })) },
-  setUploadDraftDescription(description) { set(s => ({ uploadDraft: { ...s.uploadDraft, description } })) },
-  setUploadDraftTags(tags)               { set(s => ({ uploadDraft: { ...s.uploadDraft, tags } })) },
-  setUploadDraftCollections(collectionIds) { set(s => ({ uploadDraft: { ...s.uploadDraft, collectionIds } })) },
-  setUploadDraftMetadata(patch)          { set(s => ({ uploadDraft: { ...s.uploadDraft, metadata: { ...s.uploadDraft.metadata, ...patch } } })) },
-  replaceUploadDraftMetadata(metadata)    { set(s => ({ uploadDraft: { ...s.uploadDraft, metadata: { ...metadata } } })) },
-  setUploadDraftAudioArtist(v)     { set(s => ({ uploadDraft: { ...s.uploadDraft, audioArtist: v } })) },
-  setUploadDraftAudioGenre(v)      { set(s => ({ uploadDraft: { ...s.uploadDraft, audioGenre: v } })) },
-  setUploadDraftAudioBpm(v)        { set(s => ({ uploadDraft: { ...s.uploadDraft, audioBpm: v } })) },
-  setUploadDraftAudioMusicalKey(v) { set(s => ({ uploadDraft: { ...s.uploadDraft, audioMusicalKey: v } })) },
-  resetUploadDraft()               { set({ uploadDraft: { ...DEFAULT_DRAFT } }) },
+  setActiveUploadDraftKey(key) { set({ activeUploadDraftKey: key }) },
+
+  applyUploadDraftToAllQueued() {
+    set(state => {
+      const key = state.activeUploadDraftKey
+      const source = key !== null ? state.uploadDrafts[key] : undefined
+      if (!source) return {}
+      const nextDrafts = { ...state.uploadDrafts }
+      for (const item of state.uploadQueue) {
+        const existing = nextDrafts[item.tempId] ?? DEFAULT_UPLOAD_DRAFT
+        nextDrafts[item.tempId] = { ...source, title: existing.title }
+      }
+      return { uploadDrafts: nextDrafts }
+    })
+  },
+
+  setUploadDraftRole(role)               { patchActiveUploadDraft(set, { role }) },
+  setUploadDraftTitle(title)             { patchActiveUploadDraft(set, { title }) },
+  setUploadDraftDescription(description) { patchActiveUploadDraft(set, { description }) },
+  setUploadDraftTags(tags)               { patchActiveUploadDraft(set, { tags }) },
+  setUploadDraftCollections(collectionIds) { patchActiveUploadDraft(set, { collectionIds }) },
+  setUploadDraftMetadata(patch) {
+    set(state => {
+      const key = state.activeUploadDraftKey ?? ''
+      const current = state.uploadDrafts[key] ?? DEFAULT_UPLOAD_DRAFT
+      return { uploadDrafts: { ...state.uploadDrafts, [key]: { ...current, metadata: { ...current.metadata, ...patch } } } }
+    })
+  },
+  replaceUploadDraftMetadata(metadata) { patchActiveUploadDraft(set, { metadata: { ...metadata } }) },
+  setUploadDraftAudioArtist(v)     { patchActiveUploadDraft(set, { audioArtist: v }) },
+  setUploadDraftAudioGenre(v)      { patchActiveUploadDraft(set, { audioGenre: v }) },
+  setUploadDraftAudioBpm(v)        { patchActiveUploadDraft(set, { audioBpm: v }) },
+  setUploadDraftAudioMusicalKey(v) { patchActiveUploadDraft(set, { audioMusicalKey: v }) },
+  resetUploadDraft() { set({ uploadDrafts: {}, activeUploadDraftKey: null, analyzingAudioTempIds: new Set() }) },
 
   // ── Canonical visual upload service ──────────────────────────────────────
 
@@ -1343,7 +1443,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   // ── Upload: queue-based (modal path) ─────────────────────────────────────
 
   async uploadQueuedMedia(options = {}) {
-    const { uploadQueue, uploadDraft } = get()
+    const { uploadQueue, uploadDrafts } = get()
     const total = uploadQueue.length
     const failures: UploadBatchFailure[] = []
     if (!total) return { total: 0, succeeded: 0, failures }
@@ -1389,15 +1489,17 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         phase: 'preparing',
       })
 
+      const draft = uploadDrafts[queueItem.tempId] ?? DEFAULT_UPLOAD_DRAFT
+
       if (queueItem.isAudio) {
         const analysis = await analyzeAudioFile(queueItem.file).catch(() => null)
         const saved = await useAudioStore.getState().uploadAndSaveTrack({
           file: queueItem.file,
-          title: total === 1 ? uploadDraft.title : '',
-          artist: uploadDraft.audioArtist,
-          genre: uploadDraft.audioGenre,
-          bpmInput: uploadDraft.audioBpm,
-          musicalKey: uploadDraft.audioMusicalKey,
+          title: draft.title,
+          artist: draft.audioArtist,
+          genre: draft.audioGenre,
+          bpmInput: draft.audioBpm,
+          musicalKey: draft.audioMusicalKey,
           userId,
           analysis,
         })
@@ -1415,12 +1517,12 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       }
 
       const localItem = await buildLocalItem(queueItem.file, {
-        role: uploadDraft.role,
-        title: total === 1 ? (uploadDraft.title || undefined) : undefined,
-        description: uploadDraft.description || undefined,
-        tags: uploadDraft.tags,
-        collectionIds: uploadDraft.collectionIds,
-        metadata: uploadDraft.metadata,
+        role: draft.role,
+        title: draft.title || undefined,
+        description: draft.description || undefined,
+        tags: draft.tags,
+        collectionIds: draft.collectionIds,
+        metadata: draft.metadata,
       })
       const result = await uploadToSupabase(queueItem.file, localItem, userId, queueItem.operationId, {
         signal: options.signal,

@@ -4,7 +4,7 @@ import { NoticeCard } from './react/controls/NoticeCard'
 import { IconChipButton } from './react/controls/IconChipButton'
 import { useState, useRef, useEffect, useCallback, useId } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { mediaMutationKey, useMediaStore } from '../../stores/mediaStore'
+import { mediaMutationKey, useMediaStore, DEFAULT_UPLOAD_DRAFT } from '../../stores/mediaStore'
 import type { MediaCollection, UploadedMedia, UploadWorkflowPhase } from '../../stores/mediaStore'
 import {
   VISUAL_MEDIA_ROLES,
@@ -18,7 +18,6 @@ import {
   isSvgFilename,
 } from '../../lib/mediaRoles'
 import type { MediaRole, MediaEnergy } from '../../lib/mediaRoles'
-import { analyzeAudioFile } from '../../utils/analyzeAudioFile'
 import { useAudioStore } from '../../stores/audioStore'
 import type { SavedAudioTrack } from '../../stores/audioStore'
 import { analyzeSvgCapabilities } from './react/renderers/svgCapabilityAnalysis'
@@ -183,7 +182,11 @@ export function MediaUploadModal({
     addFilesToUploadQueue,
     removeUploadQueueItem,
     clearUploadQueue,
-    uploadDraft,
+    uploadDrafts,
+    activeUploadDraftKey,
+    analyzingAudioTempIds,
+    setActiveUploadDraftKey,
+    applyUploadDraftToAllQueued,
     setUploadDraftRole,
     setUploadDraftTitle,
     setUploadDraftDescription,
@@ -213,7 +216,11 @@ export function MediaUploadModal({
     addFilesToUploadQueue: state.addFilesToUploadQueue,
     removeUploadQueueItem: state.removeUploadQueueItem,
     clearUploadQueue: state.clearUploadQueue,
-    uploadDraft: state.uploadDraft,
+    uploadDrafts: state.uploadDrafts,
+    activeUploadDraftKey: state.activeUploadDraftKey,
+    analyzingAudioTempIds: state.analyzingAudioTempIds,
+    setActiveUploadDraftKey: state.setActiveUploadDraftKey,
+    applyUploadDraftToAllQueued: state.applyUploadDraftToAllQueued,
     setUploadDraftRole: state.setUploadDraftRole,
     setUploadDraftTitle: state.setUploadDraftTitle,
     setUploadDraftDescription: state.setUploadDraftDescription,
@@ -240,13 +247,16 @@ export function MediaUploadModal({
     clearMediaMutation: state.clearMediaMutation,
   })))
 
+  const uploadDraft = uploadDrafts[activeUploadDraftKey ?? ''] ?? DEFAULT_UPLOAD_DRAFT
+  const activeQueueItem = uploadQueue.find(q => q.tempId === activeUploadDraftKey) ?? null
+
   const editMutation = editItem ? mutationStates[mediaMutationKey(editItem.id, 'edit')] : undefined
   const canonicalEditItem = editItem ? items.find(item => item.id === editItem.id) ?? editItem : undefined
 
   // Local display metadata keyed by tempId — only for thumbnail/dims in file list
   const [displayMeta, setDisplayMeta] = useState<Map<string, EntryDisplay>>(new Map())
-  // Detected BPM from background analysis (pre-fills the field when available)
-  const [analyzingAudio, setAnalyzingAudio] = useState(false)
+  // Whether the currently-selected file's background BPM analysis is still running
+  const analyzingAudio = activeUploadDraftKey !== null && analyzingAudioTempIds.has(activeUploadDraftKey)
 
   const [tagInput,  setTagInput]  = useState('')
   const [collInput, setCollInput] = useState('')
@@ -276,10 +286,12 @@ export function MediaUploadModal({
     loadCollections()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset queue and draft on every fresh open so prior upload values don't persist
+  // Reset queue and draft on every fresh open so prior upload values don't
+  // persist — but not when preserving already-queued files, since their
+  // per-file drafts were already seeded (title/role/etc.) when they were queued.
   useEffect(() => {
-    if (!isEdit) {
-      if (!preserveQueuedFiles) clearUploadQueue()
+    if (!isEdit && !preserveQueuedFiles) {
+      clearUploadQueue()
       resetUploadDraft()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -340,32 +352,6 @@ export function MediaUploadModal({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, uploading, saving])
-
-  // Auto-suggest role when first file is added
-  useEffect(() => {
-    if (uploadQueue.length === 1) {
-      const q = uploadQueue[0]
-      if (q.isAudio) {
-        setUploadDraftRole('audio_track')
-        // Default title to filename without extension
-        if (!uploadDraft.title) setUploadDraftTitle(getFilenameWithoutExt(q.file.name))
-        // Background BPM detection
-        setAnalyzingAudio(true)
-        analyzeAudioFile(q.file)
-          .then(result => {
-            if (result.bpm !== null && !uploadDraft.audioBpm) {
-              setUploadDraftAudioBpm(String(result.bpm))
-            }
-          })
-          .catch(() => { /* non-fatal */ })
-          .finally(() => setAnalyzingAudio(false))
-      } else {
-        const role = q.suggestedRole
-        setUploadDraftRole(role)
-        setUploadDraftMetadata({ hasAlpha: roleImpliesAlpha(role) })
-      }
-    }
-  }, [uploadQueue.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRoleChange = (role: MediaRole) => {
     setUploadDraftRole(role)
@@ -655,11 +641,10 @@ export function MediaUploadModal({
     addFiles(Array.from(e.dataTransfer.files))
   }
 
-  // Computed display info from first queue item
-  const firstQueueItem = uploadQueue[0]
-  const firstMeta      = firstQueueItem ? displayMeta.get(firstQueueItem.tempId) : undefined
-  const detectedRes    = firstMeta?.width && firstMeta?.height ? `${firstMeta.width} × ${firstMeta.height}` : undefined
-  const detectedDur    = firstMeta?.duration !== undefined ? firstMeta.duration.toFixed(2) : undefined
+  // Computed display info from the currently-selected queue item
+  const activeMeta   = activeQueueItem ? displayMeta.get(activeQueueItem.tempId) : undefined
+  const detectedRes  = activeMeta?.width && activeMeta?.height ? `${activeMeta.width} × ${activeMeta.height}` : undefined
+  const detectedDur  = activeMeta?.duration !== undefined ? activeMeta.duration.toFixed(2) : undefined
 
   const busy      = uploading || saving || editMutation?.status === 'pending'
   const canUpload = uploadQueue.length > 0 && !busy && !bpmError
@@ -794,8 +779,18 @@ export function MediaUploadModal({
                 <div className="mum-filelist-items">
                   {uploadQueue.map(q => {
                     const dm = displayMeta.get(q.tempId)
+                    const selected = q.tempId === activeUploadDraftKey
                     return (
-                      <div key={q.tempId} className="mum-file-row">
+                      <div
+                        key={q.tempId}
+                        className={`mum-file-row${selected ? ' mum-file-row--selected' : ''}`}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={selected}
+                        aria-label={`Edit details for ${q.file.name}`}
+                        onClick={() => setActiveUploadDraftKey(q.tempId)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveUploadDraftKey(q.tempId) } }}
+                      >
                         <div className="mum-file-thumb">
                           {dm?.isAudio ? (
                             <div className="mum-file-thumb-audio">♪</div>
@@ -818,10 +813,11 @@ export function MediaUploadModal({
                         </div>
                         <StatusBadge status={dm?.status ?? 'ready'} phase={dm?.phase} errorMsg={dm?.errorMsg} />
                         <button
+                          type="button"
                           className="mum-file-remove"
-                          onClick={() => removeEntry(q.tempId)}
+                          onClick={e => { e.stopPropagation(); removeEntry(q.tempId) }}
                           disabled={uploading}
-                          aria-label="Remove file"
+                          aria-label={`Remove ${q.file.name}`}
                         >×</button>
                       </div>
                     )
@@ -833,6 +829,15 @@ export function MediaUploadModal({
 
           {/* Right: metadata form */}
           <div className="mum-right">
+
+            {!isEdit && uploadQueue.length > 1 && (
+              <div className="mum-editing-banner">
+                <span>Editing <strong>{activeQueueItem?.file.name ?? 'a file'}</strong></span>
+                <IconChipButton onClick={applyUploadDraftToAllQueued} disabled={!activeQueueItem}>
+                  Apply to all {uploadQueue.length} files
+                </IconChipButton>
+              </div>
+            )}
 
             {/* ── Audio queue: locked role badge + Track Details ─── */}
             {isAudioQueue && !isEdit ? (
@@ -848,7 +853,7 @@ export function MediaUploadModal({
                   <label className="mum-field-label">TRACK TITLE <span className="mum-opt">(OPTIONAL)</span></label>
                   <DreamVizTextInput
                     className="mum-input"
-                    placeholder={uploadQueue[0] ? getFilenameWithoutExt(uploadQueue[0].file.name) : 'e.g. My Track'}
+                    placeholder={activeQueueItem ? getFilenameWithoutExt(activeQueueItem.file.name) : 'e.g. My Track'}
                     maxLength={120}
                     value={uploadDraft.title}
                     onChange={e => setUploadDraftTitle(e.target.value)}

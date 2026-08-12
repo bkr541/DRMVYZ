@@ -153,10 +153,7 @@ function resetStore() {
     loadError: null, deleteError: null, pendingDeletionWarning: null, authRequired: false, storageAvailable: true,
     lastRestored: null, activeFilter: 'all', mutationStates: {}, collectionOrderMutations: {}, deletionStates: {}, uploadCleanupStates: {},
     importModalOpen: false, uploadQueue: [],
-    uploadDraft: {
-      role: 'other', title: '', description: '', tags: [], collectionIds: [], metadata: {},
-      audioArtist: '', audioGenre: '', audioBpm: '', audioMusicalKey: '',
-    },
+    uploadDrafts: {}, activeUploadDraftKey: null, analyzingAudioTempIds: new Set(),
   })
 }
 
@@ -491,7 +488,10 @@ describe('Media Manager canonical workflows', () => {
     expect(useMediaStore.getState().addFilesToUploadQueue([file])).toBe(1)
     const queued = useMediaStore.getState().uploadQueue[0]
     useMediaStore.setState(state => ({
-      uploadDraft: { ...state.uploadDraft, role: 'overlay', title: 'Visual', tags: ['live'], collectionIds: ['collection-1'] },
+      uploadDrafts: {
+        ...state.uploadDrafts,
+        [queued.tempId]: { ...state.uploadDrafts[queued.tempId], role: 'overlay', title: 'Visual', tags: ['live'], collectionIds: ['collection-1'] },
+      },
     }))
 
     const result = await useMediaStore.getState().uploadQueuedMedia()
