@@ -125,46 +125,48 @@ export function CinemaComposerStage19Panel({
 
   return (
     <div className="rv-cinema-stage19" aria-label="Cinema modulation performance camera and timeline authoring">
-      {readOnly && <ComposerNotice>Preset structure is read-only in Cinema Engine. Author routes and performance rules in Show Manager.</ComposerNotice>}
-      <fieldset className="rv-cinema-stage19__fieldset" disabled={readOnly}>
-      {(surface === 'all' || surface === 'routing') && (
-      <Collapsible label={`Modulation (${composition.modulationRoutes.length})`}>
-        <div className="rv-cinema-stage19__toolbar">
-          <SelectRow label="Route" value={activeRoute?.id ?? ''} onChange={setSelectedRouteId} options={composition.modulationRoutes.map((route, index) => ({ value: String(route.id), label: `Route ${index + 1} · ${shortSource(route.sourceId)}` }))} />
-          <button type="button" onClick={addRoute} disabled={modulatableDestinations.length === 0} title={modulatableDestinations.length === 0 ? 'No compatible modulatable parameter destinations are available.' : undefined}>Add Route</button>
-        </div>
-        {!activeRoute ? <ComposerNotice>No modulation routes yet. Add one to map audio, musical, lyric, or state sources to schema-backed parameters.</ComposerNotice> : (
-          <div className="rv-cinema-stage19__editor">
-            <ToggleRow label="Enabled" value={activeRoute.enabled} onChange={enabled => edit('Toggle Cinema modulation route', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { enabled }))} />
-            <SelectRow
-              label="Source"
-              value={String(activeRoute.sourceId)}
-              onChange={value => edit('Change Cinema modulation source', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { sourceId: cinemaStableId<CinemaModulationSourceId>(value, 'modulation source') }))}
-              options={CINEMA_MODULATION_SOURCE_CATALOG.map(source => ({ value: String(source.id), label: `${source.label} · ${source.kind}`, disabled: sourceDisabledReason(source, frameBridge?.frame ?? null) != null }))}
-              description={CINEMA_MODULATION_SOURCE_CATALOG.find(source => source.id === activeRoute.sourceId) ? sourceDisabledReason(CINEMA_MODULATION_SOURCE_CATALOG.find(source => source.id === activeRoute.sourceId)!, frameBridge?.frame ?? null) ?? undefined : 'Unknown modulation source.'}
-            />
-            <SelectRow label="Destination" value={String(activeRoute.destination)} onChange={value => edit('Change Cinema modulation destination', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { destination: value as CinemaParameterPath }))} options={modulatableDestinations.map(destination => ({ value: String(destination.path), label: `${destination.label} · ${destination.path}` }))} />
-            <SelectRow label="Operation" value={activeRoute.mode} onChange={mode => edit('Change Cinema modulation operation', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { mode: mode as CinemaModulationMode }))} options={MODULATION_MODES.map(mode => ({ value: mode, label: capitalize(mode) }))} />
-            <NumberInputRow label="Amount" value={activeRoute.amount} step={0.01} onChange={amount => edit('Edit Cinema modulation amount', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { amount }))} />
-            <NumberInputRow label="Offset" value={activeRoute.offset ?? 0} step={0.01} onChange={offset => edit('Edit Cinema modulation offset', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { offset }))} />
-            <RangeEditor label="Input range" value={activeRoute.inputRange ?? [0, 1]} onChange={inputRange => edit('Edit Cinema modulation input range', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { inputRange }))} />
-            <RangeEditor label="Output range" value={activeRoute.outputRange ?? [0, 1]} onChange={outputRange => edit('Edit Cinema modulation output range', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { outputRange }))} />
-            <NumberInputRow label="Attack" value={activeRoute.attackMs ?? 0} min={0} step={1} unit="ms" onChange={attackMs => edit('Edit Cinema modulation attack', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { attackMs }))} />
-            <NumberInputRow label="Release" value={activeRoute.releaseMs ?? 0} min={0} step={1} unit="ms" onChange={releaseMs => edit('Edit Cinema modulation release', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { releaseMs }))} />
-            <NumberInputRow label="Smoothing" value={activeRoute.smoothing ?? 0} min={0} max={1} step={0.01} onChange={smoothing => edit('Edit Cinema modulation smoothing', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { smoothing }))} />
-            <SelectRow label="Curve" value={curvePreset(activeRoute.curve)} onChange={preset => edit('Edit Cinema modulation curve', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { curve: curveForPreset(preset) }))} options={[{ value: 'linear', label: 'Linear' }, { value: 'ease-in', label: 'Ease In' }, { value: 'ease-out', label: 'Ease Out' }, { value: 's-curve', label: 'S-Curve' }]} />
-            <SelectRow label="Musical division" value={activeRoute.quantization ?? 'none'} onChange={quantization => edit('Edit Cinema modulation musical division', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { quantization: quantization as typeof activeRoute.quantization }))} options={CINEMA_COMPOSER_MUSICAL_DIVISIONS.map(value => ({ value, label: musicalLabel(value) }))} description="Stored as a musical unit, not converted to milliseconds." />
-            <ConditionEditor condition={activeRoute.condition ?? {}} onChange={condition => edit('Edit Cinema modulation condition', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { condition }))} />
-            <RangeEditor label="Clamp" value={activeRoute.clamp ?? [0, 1]} onChange={clamp => edit('Edit Cinema modulation clamp', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { clamp }))} />
-            <div className="rv-cinema-stage19__actions">
-              <button type="button" disabled={!activeRoute.enabled} aria-pressed={runtimePreview.modulationRouteId === activeRoute.id} onClick={() => useCinemaStore.getState().setCinemaComposerModulationPreview(composition.id, runtimePreview.modulationRouteId === activeRoute.id ? null : activeRoute.id)}>Test Route</button>
-              <button type="button" onClick={() => edit('Remove Cinema modulation route', current => removeCinemaComposerModulationRoute(current, activeRoute.id))}>Remove Route</button>
-            </div>
-            <small className="rv-cinema-stage19__hint">Route testing is runtime-only. The saved parameter baseline and undo history are not overwritten.</small>
+      {readOnly && <ComposerNotice>Preset structure is read-only in Cinema Engine. Cinema route and performance structure cannot currently be authored in Show Manager.</ComposerNotice>}
+      {(surface === 'all' || surface === 'routing') && (readOnly ? (
+        <ReadOnlyRoutingPresentation composition={composition} destinations={destinations} />
+      ) : (
+        <Collapsible label={`Modulation (${composition.modulationRoutes.length})`}>
+          <div className="rv-cinema-stage19__toolbar">
+            <SelectRow label="Route" value={activeRoute?.id ?? ''} onChange={setSelectedRouteId} options={composition.modulationRoutes.map((route, index) => ({ value: String(route.id), label: `Route ${index + 1} · ${shortSource(route.sourceId)}` }))} />
+            <button type="button" onClick={addRoute} disabled={modulatableDestinations.length === 0} title={modulatableDestinations.length === 0 ? 'No compatible modulatable parameter destinations are available.' : undefined}>Add Route</button>
           </div>
-        )}
-      </Collapsible>
-      )}
+          {!activeRoute ? <ComposerNotice>No modulation routes yet. Add one to map audio, musical, lyric, or state sources to schema-backed parameters.</ComposerNotice> : (
+            <div className="rv-cinema-stage19__editor">
+              <ToggleRow label="Enabled" value={activeRoute.enabled} onChange={enabled => edit('Toggle Cinema modulation route', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { enabled }))} />
+              <SelectRow
+                label="Source"
+                value={String(activeRoute.sourceId)}
+                onChange={value => edit('Change Cinema modulation source', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { sourceId: cinemaStableId<CinemaModulationSourceId>(value, 'modulation source') }))}
+                options={CINEMA_MODULATION_SOURCE_CATALOG.map(source => ({ value: String(source.id), label: `${source.label} · ${source.kind}`, disabled: sourceDisabledReason(source, frameBridge?.frame ?? null) != null }))}
+                description={CINEMA_MODULATION_SOURCE_CATALOG.find(source => source.id === activeRoute.sourceId) ? sourceDisabledReason(CINEMA_MODULATION_SOURCE_CATALOG.find(source => source.id === activeRoute.sourceId)!, frameBridge?.frame ?? null) ?? undefined : 'Unknown modulation source.'}
+              />
+              <SelectRow label="Destination" value={String(activeRoute.destination)} onChange={value => edit('Change Cinema modulation destination', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { destination: value as CinemaParameterPath }))} options={modulatableDestinations.map(destination => ({ value: String(destination.path), label: `${destination.label} · ${destination.path}` }))} />
+              <SelectRow label="Operation" value={activeRoute.mode} onChange={mode => edit('Change Cinema modulation operation', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { mode: mode as CinemaModulationMode }))} options={MODULATION_MODES.map(mode => ({ value: mode, label: capitalize(mode) }))} />
+              <NumberInputRow label="Amount" value={activeRoute.amount} step={0.01} onChange={amount => edit('Edit Cinema modulation amount', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { amount }))} />
+              <NumberInputRow label="Offset" value={activeRoute.offset ?? 0} step={0.01} onChange={offset => edit('Edit Cinema modulation offset', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { offset }))} />
+              <RangeEditor label="Input range" value={activeRoute.inputRange ?? [0, 1]} onChange={inputRange => edit('Edit Cinema modulation input range', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { inputRange }))} />
+              <RangeEditor label="Output range" value={activeRoute.outputRange ?? [0, 1]} onChange={outputRange => edit('Edit Cinema modulation output range', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { outputRange }))} />
+              <NumberInputRow label="Attack" value={activeRoute.attackMs ?? 0} min={0} step={1} unit="ms" onChange={attackMs => edit('Edit Cinema modulation attack', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { attackMs }))} />
+              <NumberInputRow label="Release" value={activeRoute.releaseMs ?? 0} min={0} step={1} unit="ms" onChange={releaseMs => edit('Edit Cinema modulation release', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { releaseMs }))} />
+              <NumberInputRow label="Smoothing" value={activeRoute.smoothing ?? 0} min={0} max={1} step={0.01} onChange={smoothing => edit('Edit Cinema modulation smoothing', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { smoothing }))} />
+              <SelectRow label="Curve" value={curvePreset(activeRoute.curve)} onChange={preset => edit('Edit Cinema modulation curve', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { curve: curveForPreset(preset) }))} options={[{ value: 'linear', label: 'Linear' }, { value: 'ease-in', label: 'Ease In' }, { value: 'ease-out', label: 'Ease Out' }, { value: 's-curve', label: 'S-Curve' }]} />
+              <SelectRow label="Musical division" value={activeRoute.quantization ?? 'none'} onChange={quantization => edit('Edit Cinema modulation musical division', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { quantization: quantization as typeof activeRoute.quantization }))} options={CINEMA_COMPOSER_MUSICAL_DIVISIONS.map(value => ({ value, label: musicalLabel(value) }))} description="Stored as a musical unit, not converted to milliseconds." />
+              <ConditionEditor condition={activeRoute.condition ?? {}} onChange={condition => edit('Edit Cinema modulation condition', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { condition }))} />
+              <RangeEditor label="Clamp" value={activeRoute.clamp ?? [0, 1]} onChange={clamp => edit('Edit Cinema modulation clamp', current => updateCinemaComposerModulationRoute(current, activeRoute.id, { clamp }))} />
+              <div className="rv-cinema-stage19__actions">
+                <button type="button" disabled={!activeRoute.enabled} aria-pressed={runtimePreview.modulationRouteId === activeRoute.id} onClick={() => useCinemaStore.getState().setCinemaComposerModulationPreview(composition.id, runtimePreview.modulationRouteId === activeRoute.id ? null : activeRoute.id)}>Test Route</button>
+                <button type="button" onClick={() => edit('Remove Cinema modulation route', current => removeCinemaComposerModulationRoute(current, activeRoute.id))}>Remove Route</button>
+              </div>
+              <small className="rv-cinema-stage19__hint">Route testing is runtime-only. The saved parameter baseline and undo history are not overwritten.</small>
+            </div>
+          )}
+        </Collapsible>
+      ))}
+      <fieldset className="rv-cinema-stage19__fieldset" disabled={readOnly}>
 
       {(surface === 'all' || surface === 'performance') && (
       <Collapsible label={`Performance (${composition.performanceRules.length})`} defaultOpen={false}>
@@ -343,6 +345,67 @@ function CinemaTimeline({ model }: { model: ReturnType<typeof buildCinemaCompose
       <small>Markers reference the normalized Cinema playhead, authoritative track sections/beat grid, runtime lyric cues, authored modulation divisions, and performance cues. No duplicate timeline store is created.</small>
     </div>
   )
+}
+
+
+function ReadOnlyRoutingPresentation({
+  composition,
+  destinations,
+}: {
+  composition: Readonly<CinemaCompositionDefinition>
+  destinations: ReturnType<typeof buildCinemaComposerDestinations>
+}) {
+  return (
+    <section className="rv-cinema-routing-readonly" aria-label="Read-only Cinema modulation routes" data-cinema-routing-mode="read-only">
+      <div className="rv-cinema-routing-readonly__status" role="note">
+        <strong>Read only</strong>
+        <span>Built-in preset routing is reference-only in Cinema Engine. Cinema route structure cannot currently be authored in Show Manager.</span>
+      </div>
+      {composition.modulationRoutes.length === 0 ? (
+        <div className="rv-cinema-routing-readonly__empty" role="status">
+          <strong>No modulation routes are authored for this built-in preset.</strong>
+          <span>There is nothing to edit here, so Cinema does not show disabled Route or Add Route controls.</span>
+        </div>
+      ) : (
+        <div className="rv-cinema-routing-readonly__list" role="list" aria-label="Authored modulation route references">
+          {composition.modulationRoutes.map((route, index) => {
+            const source = CINEMA_MODULATION_SOURCE_CATALOG.find(candidate => candidate.id === route.sourceId)
+            const destination = destinations.find(candidate => candidate.path === route.destination)
+            return (
+              <article className="rv-cinema-routing-readonly__route" role="listitem" data-cinema-route-reference="true" key={route.id}>
+                <div className="rv-cinema-routing-readonly__route-header">
+                  <strong>Route {index + 1}</strong>
+                  <span>{route.enabled ? 'Enabled' : 'Disabled'}</span>
+                </div>
+                <dl>
+                  <RouteReferenceValue label="Source" value={source ? `${source.label} · ${source.kind}` : String(route.sourceId)} />
+                  <RouteReferenceValue label="Destination" value={destination ? `${destination.label} · ${destination.path}` : String(route.destination)} />
+                  <RouteReferenceValue label="Operation" value={capitalize(route.mode)} />
+                  <RouteReferenceValue label="Amount" value={formatRouteNumber(route.amount)} />
+                  <RouteReferenceValue label="Offset" value={formatRouteNumber(route.offset ?? 0)} />
+                  <RouteReferenceValue label="Ranges" value={`${formatRouteRange(route.inputRange ?? [0, 1])} → ${formatRouteRange(route.outputRange ?? [0, 1])}`} />
+                  <RouteReferenceValue label="Envelope" value={`${formatRouteNumber(route.attackMs ?? 0)} ms attack · ${formatRouteNumber(route.releaseMs ?? 0)} ms release · ${formatRouteNumber(route.smoothing ?? 0)} smoothing`} />
+                  <RouteReferenceValue label="Division" value={musicalLabel(route.quantization ?? 'none')} />
+                </dl>
+              </article>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function RouteReferenceValue({ label, value }: { label: string; value: string }) {
+  return <div><dt>{label}</dt><dd>{value}</dd></div>
+}
+
+function formatRouteNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(3)))
+}
+
+function formatRouteRange(value: readonly [number, number]): string {
+  return `${formatRouteNumber(value[0])}–${formatRouteNumber(value[1])}`
 }
 
 function ComposerNotice({ children }: { children: ReactNode }) { return <div className="rv-cinema-composer__notice" role="note"><span>{children}</span></div> }
