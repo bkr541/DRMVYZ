@@ -182,7 +182,7 @@ describe('CinemaGraphExecutor', () => {
         definitions: CINEMA_FOUNDATION_PERSISTED_DEFINITIONS,
       })
       expect(executor.render(frame(false))).toBe(true)
-      expect(observedAngles.at(-1)).toBe(angle)
+      expect(observedAngles[observedAngles.length - 1]).toBe(angle)
     }
 
     expect(initializeCount).toBe(1)
@@ -304,7 +304,7 @@ describe('CinemaGraphExecutor', () => {
     executor.setGraph({ composition, instance: replacementInstance, definitions })
     expect(initializedAssetId).toBe('asset-replacement')
     expect(executor.render(frame(false))).toBe(true)
-    expect(feedbackInputs.at(-1)).toBe(false)
+    expect(feedbackInputs[feedbackInputs.length - 1]).toBe(false)
 
     executor.setGraph({ composition: null, instance: null, definitions })
     expect(targets.getDiagnostics().activeLeaseCount).toBe(0)

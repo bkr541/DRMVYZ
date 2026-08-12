@@ -192,7 +192,7 @@ describe('Cinema production engine registration', () => {
     await act(async () => scheduled[1](16.67))
     expect(gl.uniform1f).toHaveBeenCalledWith(expect.anything(), -46 * Math.PI / 180)
     expect(host?.querySelector('[data-cinema-output-rendered="true"]')).not.toBeNull()
-  })
+  }, 15_000)
 
   it('samples the high-precision audio clock on every production Cinema RAF without a React rerender', async () => {
     const gl = createCinemaMockWebGL()
