@@ -489,7 +489,9 @@ afterEach(() => {
   fixture.state.canvasShowManagerEditingSectionId = null
   fixture.state.canvasShowManagerEditingElementId = null
   fixture.audio.isPlaying = false
+  fixture.audio.currentTrackId = 'audio-track-1'
   fixture.audio.currentAudioTrackId = 'audio-db-1'
+  fixture.audio.currentTime = 42
   fixture.audio.currentAnalysisStatus = 'complete'
   fixture.audio.currentAnalysisError = null
   if (root) act(() => root?.unmount())
@@ -882,7 +884,10 @@ describe('ShowManagerView production shell', () => {
       fixture.audio,
       expect.objectContaining({ dbId: 'audio-db-1', storagePath: 'user/audio/selected-audio-track.wav' }),
       { getSignedUrl: fixture.audioLibrary.getSignedUrl },
-      expect.objectContaining({ shouldCommit: expect.any(Function) }),
+      expect.objectContaining({
+        shouldCommit: expect.any(Function),
+        sourceMutationAuthority: 'showManagerLinkedTrack',
+      }),
     )
     expect(fixture.state.selectReactEngine).toHaveBeenCalledWith('canvas')
     expect(fixture.state.selectShowManagerShow).toHaveBeenCalledWith('canvas-show-library')
@@ -2112,6 +2117,36 @@ describe('ShowManagerView production shell', () => {
       durationSec: 240,
       canonicalSections: [expect.objectContaining({ id: 'section-1', startSec: 0, endSec: 64, source: 'auto' })],
     }))
+  })
+
+
+  it('withholds unrelated global audio from Show Manager runtime while the linked track is being restored', async () => {
+    fixture.audio.currentTrackId = 'runtime-unrelated'
+    fixture.audio.currentAudioTrackId = 'audio-db-unrelated'
+    fixture.audio.currentTime = 91
+    fixture.audio.isPlaying = true
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const surface = container.querySelector<HTMLElement>('[data-testid="pix-grid-surface"]')
+    expect(surface?.getAttribute('data-track-identity')).toBe('')
+    expect(surface?.getAttribute('data-audio-time-sec')).toBe('0')
+    expect(surface?.getAttribute('data-has-track-analysis')).toBe('false')
+    expect(fixture.state.reconcileShowManagerTrackMapFromAnalysis).not.toHaveBeenCalled()
+    expect(fixture.loadSavedTrackIntoEngine).toHaveBeenCalledWith(
+      fixture.audio,
+      expect.objectContaining({ dbId: 'audio-db-1' }),
+      { getSignedUrl: fixture.audioLibrary.getSignedUrl },
+      expect.objectContaining({ sourceMutationAuthority: 'showManagerLinkedTrack' }),
+    )
   })
 
   it('shows linked-track analysis failure without fabricating Track Map sections', async () => {

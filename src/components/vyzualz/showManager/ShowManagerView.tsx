@@ -1,6 +1,7 @@
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../../audio/savedTrackLoader'
+import { setShowManagerLinkedAudioTrackId } from '../../../audio/audioSourcePolicy'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { resolvePositiveDuration, type TimelineViewport } from '../../../features/timeline/timelineViewport'
 import { adaptMIAnalysis } from '../../../features/trackIntelligence/trackMapAdapter'
@@ -880,6 +881,15 @@ export function ShowManagerView() {
       : null,
     [showManagerEditingShowId, showManagerSessionReady, showManagerShows],
   )
+
+  useLayoutEffect(() => {
+    setShowManagerLinkedAudioTrackId(activeShowManagerShow?.linkedAudioTrackId ?? null)
+    return () => setShowManagerLinkedAudioTrackId(null)
+  }, [activeShowManagerShow?.linkedAudioTrackId])
+  const showManagerLinkedAudioReady = Boolean(
+    activeShowManagerShow?.linkedAudioTrackId
+      && engine.currentAudioTrackId === activeShowManagerShow.linkedAudioTrackId,
+  )
   const hasOpenShow = activeShowManagerShow !== null
   const activeLaserDmxShow = useMemo(
     () => activeShowManagerShow && selectedEngineId === 'laserDmx'
@@ -1035,7 +1045,10 @@ export function ShowManagerView() {
           audioEngine,
           linkedTrack,
           { getSignedUrl: getSavedAudioSignedUrl },
-          { shouldCommit: () => !disposed && showOpenOperationRef.current === operation },
+          {
+            shouldCommit: () => !disposed && showOpenOperationRef.current === operation,
+            sourceMutationAuthority: 'showManagerLinkedTrack',
+          },
         )
       } catch (error) {
         if (disposed || error instanceof SavedTrackLoadCancelledError) return
@@ -1090,16 +1103,16 @@ export function ShowManagerView() {
   }, [activeCanvasShow?.id, activeCanvasShow?.name])
 
   useEffect(() => {
-    if (selectedEngineId !== 'canvas' || !engine.isPlaying || canvasTotalDuration <= 0) return
+    if (selectedEngineId !== 'canvas' || !showManagerLinkedAudioReady || !engine.isPlaying || canvasTotalDuration <= 0) return
     setCanvasPlayheadSec(engine.currentTime % canvasTotalDuration)
-  }, [canvasTotalDuration, engine.currentTime, engine.isPlaying, selectedEngineId])
+  }, [canvasTotalDuration, engine.currentTime, engine.isPlaying, selectedEngineId, showManagerLinkedAudioReady])
 
   useEffect(() => {
-    if (selectedEngineId === 'laserDmx' && engine.isPlaying) return
+    if (selectedEngineId === 'laserDmx' && showManagerLinkedAudioReady && engine.isPlaying) return
     if (useReactStore.getState().laserDmxShowManagerPlaybackSectionId !== null) {
       useReactStore.setState({ laserDmxShowManagerPlaybackSectionId: null })
     }
-  }, [engine.isPlaying, selectedEngineId])
+  }, [engine.isPlaying, selectedEngineId, showManagerLinkedAudioReady])
 
   useEffect(() => () => {
     if (useReactStore.getState().laserDmxShowManagerPlaybackSectionId !== null) {
@@ -1200,16 +1213,24 @@ export function ShowManagerView() {
       .map(layerId => displayedPixGridState.layers.find(layer => layer.id === layerId))
       .filter((layer): layer is PixGridLayer => Boolean(layer))
     : []
-  const activeCues = engine.currentTrackId
-    ? (pixGridActionCuesByTrackId[engine.currentTrackId] ?? [])
-    : []
   const showTrackMap = activeShowManagerShow?.trackMap ?? null
+  const showRuntimeAudioReady = showManagerLinkedAudioReady
+  const showRuntimeIsPlaying = showRuntimeAudioReady && engine.isPlaying
+  const showRuntimeCurrentTime = showRuntimeAudioReady ? engine.currentTime : 0
+  const showRuntimeTrackId = showRuntimeAudioReady ? engine.currentTrackId : null
+  const showRuntimeAnalyser = showRuntimeAudioReady ? engine.analyserMaster : null
+  const showRuntimeBpm = showRuntimeAudioReady ? engine.currentEffectiveBpm : null
+  const showRuntimeBeatGrid = showRuntimeAudioReady ? engine.currentEffectiveBeatGrid : null
+  const showRuntimeAnalysis = showRuntimeAudioReady ? engine.currentAnalysis : null
+  const activeCues = showRuntimeTrackId
+    ? (pixGridActionCuesByTrackId[showRuntimeTrackId] ?? [])
+    : []
   const activeCanvasTrackSection = showTrackMap?.sections.find(section => section.id === canvasShowManagerEditingSectionId)
     ?? showTrackMap?.sections[0]
     ?? null
   const durationSec = showTrackMap?.durationSec
     ?? resolvePositiveDuration(
-      Math.max(engine.duration, (engine.currentAnalysis?.durationMs ?? 0) / 1000),
+      Math.max(showRuntimeAudioReady ? engine.duration : 0, (showRuntimeAnalysis?.durationMs ?? 0) / 1000),
       1,
     )
   const resolvedTrackSections = showTrackMap?.sections ?? []
@@ -1232,9 +1253,9 @@ export function ShowManagerView() {
       : resolvedTrackSections[0]?.id ?? null)
   }, [activeShowManagerShow?.id, resolvedTrackSections])
   const effectiveTrackAnalysis = useMemo(() => {
-    const analysis = engine.currentAnalysis
-    const beatGrid = engine.currentEffectiveBeatGrid
-    const bpm = engine.currentEffectiveBpm
+    const analysis = showRuntimeAnalysis
+    const beatGrid = showRuntimeBeatGrid
+    const bpm = showRuntimeBpm
     if (!analysis || !beatGrid || bpm == null || bpm <= 0) return analysis
     return {
       ...analysis,
@@ -1243,8 +1264,8 @@ export function ShowManagerView() {
       beatGrid,
       downbeats: beatGrid.filter(marker => marker.isDownbeat),
     }
-  }, [engine.currentAnalysis, engine.currentEffectiveBeatGrid, engine.currentEffectiveBpm])
-  const playheadPercent = Math.min(100, Math.max(0, (engine.currentTime / durationSec) * 100))
+  }, [showRuntimeAnalysis, showRuntimeBeatGrid, showRuntimeBpm])
+  const playheadPercent = Math.min(100, Math.max(0, (showRuntimeCurrentTime / durationSec) * 100))
   const sceneLabels = displayedPixGridState.scenes.slice(0, SECTION_SEGMENTS.length).map(scene => scene.name)
   const matrixLabel = `${displayedPixGridState.matrixWidth}×${displayedPixGridState.matrixHeight}`
   const activeDeck = activePreset?.pixGridDeck
@@ -1274,10 +1295,10 @@ export function ShowManagerView() {
   })
   const previewEnabledItems = editingDeck?.items.filter(item => item.enabled) ?? []
   const previewDeckIndex = Math.max(0, previewEnabledItems.findIndex(item => item.id === previewDeckItemId))
-  const previewBpm = engine.currentEffectiveBpm && engine.currentEffectiveBpm > 0 ? engine.currentEffectiveBpm : 120
+  const previewBpm = showRuntimeBpm && showRuntimeBpm > 0 ? showRuntimeBpm : 120
   const builderPreviewTime = editingDeck
     ? (previewDeckIndex * editingDeck.configuration.defaultItemDurationBeats * 60) / previewBpm + 0.01
-    : engine.currentTime
+    : showRuntimeCurrentTime
 
   const enterDeckBuilder = (deckId: string | null) => {
     uploadOperationRef.current += 1
@@ -1504,7 +1525,10 @@ export function ShowManagerView() {
         engine,
         linkedTrack,
         { getSignedUrl: getSavedAudioSignedUrl },
-        { shouldCommit: () => showOpenOperationRef.current === operation },
+        {
+          shouldCommit: () => showOpenOperationRef.current === operation,
+          sourceMutationAuthority: 'showManagerLinkedTrack',
+        },
       )
     } catch (error) {
       if (error instanceof SavedTrackLoadCancelledError) return { ok: false, error: 'The Show open request was superseded.' }
@@ -2079,26 +2103,26 @@ export function ShowManagerView() {
                 showLabels={activeLaserDmxShow?.settings?.showLabels ?? true}
                 showBeams={activeLaserDmxShow?.settings?.showBeams ?? true}
                 highlightGrid={activeLaserDmxShow?.settings?.highlightGrid ?? true}
-                playbackSectionLabel={engine.isPlaying ? playbackLaserDmxSection?.label ?? 'No active section' : null}
-                runtimePreview={engine.isPlaying && laserDmxRuntimePreset && activeLaserDmxShow ? (
+                playbackSectionLabel={showRuntimeIsPlaying ? playbackLaserDmxSection?.label ?? 'No active section' : null}
+                runtimePreview={showRuntimeIsPlaying && laserDmxRuntimePreset && activeLaserDmxShow ? (
                   <ReactPlaceholderCanvas
-                    analyser={engine.analyserMaster}
+                    analyser={showRuntimeAnalyser}
                     engine="laserDmx"
                     activePreset={laserDmxRuntimePreset}
                     intensity={reactIntensity}
                     motion={reactMotion}
                     glow={reactGlow}
                     bassReactivity={reactBassReactivity}
-                    isPlaying={engine.isPlaying}
-                    isPaused={false}
+                    isPlaying={showRuntimeIsPlaying}
+                    isPaused={!showRuntimeIsPlaying}
                     trackSections={resolvedTrackSections}
                     trackAnalysis={effectiveTrackAnalysis}
                     laserDmxSectionRuntimePrograms={laserDmxRuntimePrograms}
                     laserDmxEmptyRuntimeShowDirector={laserDmxEmptyRuntimeShowDirector}
                     onLaserDmxPlaybackSectionChange={handleLaserDmxPlaybackSectionChange}
-                    getAudioTime={engine.getCurrentTime}
-                    effectiveBpm={engine.currentEffectiveBpm ?? undefined}
-                    activeAudioTrackId={engine.currentTrackId}
+                    getAudioTime={showRuntimeAudioReady ? engine.getCurrentTime : () => 0}
+                    effectiveBpm={showRuntimeBpm ?? undefined}
+                    activeAudioTrackId={showRuntimeTrackId}
                     durationSec={durationSec}
                   />
                 ) : null}
@@ -2143,13 +2167,13 @@ export function ShowManagerView() {
                 onCreate={createSelectedShow}
                 runtimePreview={activeCanvasShow ? (
                   <CanvasEngineSurface
-                    isPlaying={engine.isPlaying}
-                    isPaused={!engine.isPlaying}
-                    analyser={engine.analyserMaster}
+                    isPlaying={showRuntimeIsPlaying}
+                    isPaused={!showRuntimeIsPlaying}
+                    analyser={showRuntimeAnalyser}
                     trackAnalysis={effectiveTrackAnalysis}
                     trackSections={resolvedTrackSections}
                     getAudioTime={() => canvasPlayheadSec}
-                    activeAudioTrackId={engine.currentTrackId}
+                    activeAudioTrackId={showRuntimeTrackId}
                     previewShow={activeCanvasShow}
                     previewShowTimeSec={canvasPlayheadSec}
                     previewSelectedElementId={selectedCanvasElement?.id ?? null}
@@ -2160,7 +2184,7 @@ export function ShowManagerView() {
               />
             ) : (
               <PixGridSurface
-                analyser={engine.analyserMaster}
+                analyser={showRuntimeAnalyser}
                 activePreset={displayedPreset}
                 pixGridState={displayedPixGridState}
                 pixGridDecks={pixGridDecks}
@@ -2169,15 +2193,15 @@ export function ShowManagerView() {
                 motion={reactMotion}
                 glow={reactGlow}
                 bassReactivity={reactBassReactivity}
-                isPlaying={engine.isPlaying}
-                isPaused={!engine.isPlaying}
+                isPlaying={showRuntimeIsPlaying}
+                isPaused={!showRuntimeIsPlaying}
                 trackSections={resolvedTrackSections}
                 trackAnalysis={effectiveTrackAnalysis}
-                trackIdentity={engine.currentTrackId}
+                trackIdentity={showRuntimeTrackId}
                 durationSec={durationSec}
-                audioTimeSec={workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? builderPreviewTime : engine.currentTime}
-                getAudioTime={workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? () => builderPreviewTime : engine.getCurrentTime}
-                effectiveBpm={engine.currentEffectiveBpm ?? undefined}
+                audioTimeSec={workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? builderPreviewTime : showRuntimeCurrentTime}
+                getAudioTime={workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? () => builderPreviewTime : showRuntimeAudioReady ? engine.getCurrentTime : () => 0}
+                effectiveBpm={showRuntimeBpm ?? undefined}
                 onLiveFps={setLiveFps}
               />
             )}
@@ -2189,7 +2213,7 @@ export function ShowManagerView() {
                 <>
                   <span>LaserDMX {LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns} × {LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows}</span>
                   <span>{activeLaserDmxSection?.fixtures.length ?? 0} editing fixtures</span>
-                  <span>{engine.isPlaying ? `Playback: ${playbackLaserDmxSection?.label ?? 'None'}` : 'Playback stopped'}</span>
+                  <span>{showRuntimeIsPlaying ? `Playback: ${playbackLaserDmxSection?.label ?? 'None'}` : 'Playback stopped'}</span>
                   <span>{selectedLaserFixture?.label ?? 'No selection'}</span>
                 </>
               ) : selectedEngineId === 'canvas' ? (
@@ -2233,8 +2257,8 @@ export function ShowManagerView() {
               durationSec={laserTimelineDuration}
               viewport={laserTimelineViewport}
               viewportRef={laserTimelineViewportRef}
-              beatGrid={engine.currentEffectiveBeatGrid ?? engine.currentAnalysis?.beatGrid ?? []}
-              effectiveBpm={engine.currentEffectiveBpm}
+              beatGrid={showRuntimeBeatGrid ?? showRuntimeAnalysis?.beatGrid ?? []}
+              effectiveBpm={showRuntimeBpm}
               onSelect={selectLaserSectionForEditing}
               onCommitBoundary={commitLaserSectionBoundary}
             />
@@ -2253,13 +2277,13 @@ export function ShowManagerView() {
             />
           ) : (
             <ShowManagerTimeline
-              currentTime={engine.currentTime}
+              currentTime={showRuntimeCurrentTime}
               duration={durationSec}
               playheadPercent={playheadPercent}
               sections={resolvedTrackSections}
               sceneLabels={sceneLabels}
-              beatGrid={engine.currentEffectiveBeatGrid ?? undefined}
-              effectiveBpm={engine.currentEffectiveBpm}
+              beatGrid={showRuntimeBeatGrid ?? undefined}
+              effectiveBpm={showRuntimeBpm}
               selectedSectionId={selectedPixGridTrackSection?.id ?? null}
               onSelectSection={setPixGridTrackMapSectionId}
               onCommitBoundary={(sectionId, edge, newTime, neighborId, neighborTime) => {
@@ -2376,9 +2400,9 @@ export function ShowManagerView() {
                     showId={activeShowManagerShow.id}
                     section={selectedPixGridTrackSection}
                     durationSec={durationSec}
-                    effectiveBpm={engine.currentEffectiveBpm}
-                    beatGrid={engine.currentEffectiveBeatGrid ?? []}
-                    boundaryAlternatives={engine.currentAnalysis?.boundaryAlternatives ?? []}
+                    effectiveBpm={showRuntimeBpm}
+                    beatGrid={showRuntimeBeatGrid ?? []}
+                    boundaryAlternatives={showRuntimeAnalysis?.boundaryAlternatives ?? []}
                   />
                 ) : (
                   <p className="sm-new-show-field-note">{linkedAudioLoadError ?? 'Linked-track analysis is loading.'}</p>
@@ -2459,9 +2483,9 @@ export function ShowManagerView() {
                       showId={activeLaserDmxShow.id}
                       section={activeLaserTrackSection}
                       durationSec={laserTimelineDuration}
-                      effectiveBpm={engine.currentEffectiveBpm}
-                      beatGrid={engine.currentEffectiveBeatGrid ?? []}
-                      boundaryAlternatives={engine.currentAnalysis?.boundaryAlternatives ?? []}
+                      effectiveBpm={showRuntimeBpm}
+                      beatGrid={showRuntimeBeatGrid ?? []}
+                      boundaryAlternatives={showRuntimeAnalysis?.boundaryAlternatives ?? []}
                     />
                   )}
                   <NoticeCard tone="success" title="Section fixture ownership · READY">
@@ -2483,9 +2507,9 @@ export function ShowManagerView() {
               element={selectedCanvasElement}
               elementMedia={selectedCanvasElementMedia}
               totalDurationSec={canvasTotalDuration}
-              effectiveBpm={engine.currentEffectiveBpm}
-              beatGrid={engine.currentEffectiveBeatGrid ?? []}
-              boundaryAlternatives={engine.currentAnalysis?.boundaryAlternatives ?? []}
+              effectiveBpm={showRuntimeBpm}
+              beatGrid={showRuntimeBeatGrid ?? []}
+              boundaryAlternatives={showRuntimeAnalysis?.boundaryAlternatives ?? []}
               trackMapStatusMessage={showTrackMapStatusMessage}
               renameDraft={canvasRenameDraft}
               renameError={canvasRenameError}

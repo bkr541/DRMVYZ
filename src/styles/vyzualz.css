@@ -7801,3 +7801,25 @@ input[type='range'].vz-slider--color {
     animation: none;
   }
 }
+
+/* Show Manager owns the Audio Dock source. The notice overlays the dock so the
+   required rejection remains visible without changing the transport geometry. */
+.az-dock.vz-transport-dock {
+  position: relative;
+}
+
+.vz-dock-source-lock-notice {
+  position: absolute;
+  z-index: 24;
+  left: 50%;
+  bottom: 12px;
+  width: min(620px, calc(100% - 48px));
+  transform: translateX(-50%);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.46);
+}
+
+.vz-dock-addtrack-btn[aria-disabled='true'],
+.vz-dock-art[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.56;
+}

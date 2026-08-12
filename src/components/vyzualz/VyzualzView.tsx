@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useState } from 'react'
+import { lazy, Suspense, useCallback, useLayoutEffect, useState } from 'react'
 import { useLyricsStore } from '../../stores/lyricsStore'
 import { UnsavedLyricChangesDialog } from '../../features/lyrics/components/UnsavedLyricChangesDialog'
 import { VyzualzSidebar } from './VyzualzSidebar'
@@ -9,6 +9,7 @@ import {
 } from './appView'
 import type { AppView, PerformanceAppView } from './appView'
 import type { LyricManagerNavigationIntent } from '../../features/lyrics/lyricNavigation'
+import { setAudioSourcePolicyAppView } from '../../audio/audioSourcePolicy'
 
 const VisualizerWorkspace = lazy(() =>
   import('./VisualizerWorkspace').then(module => ({ default: module.VisualizerWorkspace })),
@@ -89,6 +90,11 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
   const [lyricPreviewPending, setLyricPreviewPending] = useState(false)
   const lyricEditorDirty = useLyricsStore(state => state.editorDirty)
   const lyricEditorSaving = useLyricsStore(state => state.isSaving)
+
+  useLayoutEffect(() => {
+    setAudioSourcePolicyAppView(appView)
+    return () => setAudioSourcePolicyAppView(null)
+  }, [appView])
 
   const commitAppViewChange = useCallback((next: AppView) => {
     if (isPerformanceAppView(appView) && !isPerformanceAppView(next)) {

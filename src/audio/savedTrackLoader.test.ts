@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AudioEngine } from '../hooks/useAudioEngine'
 import type { Track } from '../types'
 import type { SavedAudioTrack } from '../stores/audioStore'
+import {
+  resetAudioSourcePolicyForTests,
+  setAudioSourcePolicyAppView,
+  setShowManagerLinkedAudioTrackId,
+  SHOW_MANAGER_AUDIO_SOURCE_LOCK_MESSAGE,
+} from './audioSourcePolicy'
 
 const mocks = vi.hoisted(() => ({
   listTrackAnalysisPayloads: vi.fn(),
@@ -55,6 +61,7 @@ function engine(overrides: Partial<AudioEngine> = {}): AudioEngine {
 }
 
 beforeEach(() => {
+  resetAudioSourcePolicyForTests()
   clearSavedTrackSignedUrlCache()
   vi.clearAllMocks()
   mocks.listTrackAnalysisPayloads.mockResolvedValue({ rows: [], error: null })
@@ -98,7 +105,7 @@ describe('savedTrackLoader', () => {
           analysisVersion: 'mi-v1',
         }),
       }),
-    ])
+    ], { notifyOnBlocked: false })
     expect(result.input.dbId).toBe('track-a')
     expect(audio.play).not.toHaveBeenCalled()
   })
@@ -173,4 +180,44 @@ describe('savedTrackLoader', () => {
     expect(audio.replaceTrackUrls).not.toHaveBeenCalled()
     expect(audio.play).not.toHaveBeenCalled()
   })
+
+  it('rejects an untrusted saved-track load in Show Manager before URL, analysis, or engine mutation', async () => {
+    setAudioSourcePolicyAppView('showManager')
+    setShowManagerLinkedAudioTrackId('track-b')
+    const audio = engine({ currentAudioTrackId: 'track-b' })
+    const getSignedUrl = vi.fn().mockResolvedValue('https://signed.test/track-c.wav')
+
+    await expect(loadSavedTrackIntoEngine(
+      audio,
+      savedTrack({ dbId: 'track-c', storagePath: 'user/track-c/track-c.wav' }),
+      { getSignedUrl },
+    )).rejects.toThrow(SHOW_MANAGER_AUDIO_SOURCE_LOCK_MESSAGE)
+
+    expect(getSignedUrl).not.toHaveBeenCalled()
+    expect(mocks.listTrackAnalysisPayloads).not.toHaveBeenCalled()
+    expect(audio.addTrackUrls).not.toHaveBeenCalled()
+    expect(audio.replaceTrackUrls).not.toHaveBeenCalled()
+    expect(audio.setSource).not.toHaveBeenCalled()
+  })
+
+  it('allows the trusted Show-open path to activate the linked saved track', async () => {
+    setAudioSourcePolicyAppView('showManager')
+    setShowManagerLinkedAudioTrackId('track-b')
+    const currentTrack = { id: 'runtime-track-a', dbId: 'track-a', url: 'blob:track-a' } as Track
+    const audio = engine({ currentAudioTrackId: 'track-a', currentTrack, tracks: [currentTrack] })
+    const getSignedUrl = vi.fn().mockResolvedValue('https://signed.test/track-b.wav')
+
+    await loadSavedTrackIntoEngine(
+      audio,
+      savedTrack({ dbId: 'track-b', storagePath: 'user/track-b/track-b.wav' }),
+      { getSignedUrl },
+      { sourceMutationAuthority: 'showManagerLinkedTrack' },
+    )
+
+    expect(audio.replaceTrackUrls).toHaveBeenCalledWith(
+      [expect.objectContaining({ dbId: 'track-b' })],
+      { authority: 'showManagerLinkedTrack', notifyOnBlocked: false },
+    )
+  })
+
 })

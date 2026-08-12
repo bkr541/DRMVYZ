@@ -1,5 +1,5 @@
 import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
-import { useId, useState, useRef, useEffect, useCallback } from 'react'
+import { useId, useState, useRef, useEffect, useCallback, useSyncExternalStore } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useVisualStore, DEFAULT_PRESETS } from '../../../stores/visualStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -24,6 +24,16 @@ import { buildManualCueMarker } from '../../../features/timeline/manualCuePoint'
 import { cueMarkerBelongsToTrack } from '../../../types/cue'
 import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
+import { NoticeCard } from '../react/controls/NoticeCard'
+import {
+  getAudioSourcePolicyBlockedAttemptId,
+  getAudioSourcePolicySnapshot,
+  getLastAudioSourcePolicyMessage,
+  isShowManagerAudioSourceLocked,
+  isShowManagerTransportReady,
+  requestAudioSourceMutation,
+  subscribeAudioSourcePolicy,
+} from '../../../audio/audioSourcePolicy'
 
 const AUDIO_DOCK_COLLAPSED_STORAGE_KEY = 'drmvyz.audioDock.collapsed.v1'
 
@@ -196,6 +206,18 @@ export function VyzualzAudioDock({
   const [rekordboxDiagnostic, setRekordboxDiagnostic] = useState<string | null>(null)
   const [rekordboxBusy, setRekordboxBusy] = useState(false)
   const [rekordboxUsbMode, setRekordboxUsbMode] = useState(false)
+  const [dismissedSourceLockAttempt, setDismissedSourceLockAttempt] = useState<number | null>(null)
+  useSyncExternalStore(
+    subscribeAudioSourcePolicy,
+    getAudioSourcePolicySnapshot,
+    getAudioSourcePolicySnapshot,
+  )
+  const sourceSelectionLocked = isShowManagerAudioSourceLocked()
+  const sourceLockAttemptId = getAudioSourcePolicyBlockedAttemptId()
+  const sourceLockMessage = getLastAudioSourcePolicyMessage()
+  const showSourceLockMessage = sourceSelectionLocked
+    && sourceLockMessage !== null
+    && dismissedSourceLockAttempt !== sourceLockAttemptId
 
   const dockCollapsed = compact || (expandable && collapsedByUser)
 
@@ -207,6 +229,16 @@ export function VyzualzAudioDock({
 
   const track    = engine.currentTrack
   const hasTrack = engine.tracks.length > 0
+  const transportReady = isShowManagerTransportReady(engine.currentAudioTrackId)
+
+  useEffect(() => {
+    if (!sourceSelectionLocked || transportReady || !engine.isPlaying) return
+    // Entering an empty Show Manager session or switching Shows must never leave
+    // an unrelated pre-existing source audibly running behind the locked dock.
+    engine.pause()
+    setPlaying(false)
+  }, [engine.isPlaying, engine.pause, setPlaying, sourceSelectionLocked, transportReady])
+
   const manualTrackSectionsByTrackId = useReactStore(state => state.manualTrackSectionsByTrackId)
   const suppressedAutoSectionsByTrackId = useReactStore(state => state.suppressedAutoSectionsByTrackId)
 
@@ -343,6 +375,7 @@ export function VyzualzAudioDock({
     library: RekordboxLibrary | null,
     options: { forceUsbMode?: boolean } = {},
   ): { summary: RekordboxHydrationSummary | null; replaced: boolean; hadCurrentFile: boolean } => {
+    if (!requestAudioSourceMutation()) return { summary: null, replaced: false, hadCurrentFile: Boolean(engine.currentTrack?.sourceFile) }
     const currentFile = engine.currentTrack?.sourceFile
     if (!currentFile) return { summary: null, replaced: false, hadCurrentFile: false }
 
@@ -351,8 +384,8 @@ export function VyzualzAudioDock({
     const shouldReplace = summary.realMatches > 0 || summary.usbFallbacks > 0
 
     if (shouldReplace) {
-      engine.replacePreparedTracks(prepared)
-      if (engine.source !== 'file') engine.setSource('file')
+      engine.replacePreparedTracks(prepared, { notifyOnBlocked: false })
+      if (engine.source !== 'file') engine.setSource('file', { notifyOnBlocked: false })
     }
 
     return { summary, replaced: shouldReplace, hadCurrentFile: true }
@@ -364,6 +397,7 @@ export function VyzualzAudioDock({
       f.type.startsWith('audio/') || /\.(mp3|wav|aiff?|m4a|ogg|flac)$/i.test(f.name)
     )
     if (!audio.length) return
+    if (!requestAudioSourceMutation()) return
 
     let activeLibrary = rekordboxLibrary
     let autoNativeStatus: string | null = null
@@ -393,9 +427,13 @@ export function VyzualzAudioDock({
     const shouldForceUsbMode = rekordboxUsbMode || activeLibrary?.source === 'rekordbox_usb'
     const prepared = createPreparedTrackInputs(audio, activeLibrary, { forceUsbMode: shouldForceUsbMode })
     const summary = summarizePreparedRekordboxInputs(prepared)
-    if (engine.tracks.length > 0) engine.replacePreparedTracks(prepared)
-    else engine.addPreparedTracks(prepared)
-    if (engine.source !== 'file') engine.setSource('file')
+    // Native Rekordbox probing can await. Re-check at the mutation boundary in
+    // case navigation entered Show Manager while the file request was in flight.
+    if (!requestAudioSourceMutation()) return
+    const mutationOptions = { notifyOnBlocked: false }
+    if (engine.tracks.length > 0) engine.replacePreparedTracks(prepared, mutationOptions)
+    else engine.addPreparedTracks(prepared, mutationOptions)
+    if (engine.source !== 'file') engine.setSource('file', mutationOptions)
 
     if (activeLibrary || shouldForceUsbMode || autoNativeStatus) {
       const matchedPhrase = summary.realMatches > 0
@@ -564,9 +602,15 @@ export function VyzualzAudioDock({
         {deckLabel && <div className="vz-dock-card-label">{deckLabel}</div>}
         <label
           className="az-dock-thumb vz-dock-art"
-          htmlFor={fileInputId}
-          title={hasTrack ? title : 'Click to load audio'}
-          style={{ cursor: 'pointer', borderColor: preset.color + '40' }}
+          htmlFor={sourceSelectionLocked ? undefined : fileInputId}
+          aria-disabled={sourceSelectionLocked}
+          title={sourceSelectionLocked ? 'Audio track loading is locked while in Show Manager' : hasTrack ? title : 'Click to load audio'}
+          onClick={event => {
+            if (!sourceSelectionLocked) return
+            event.preventDefault()
+            requestAudioSourceMutation()
+          }}
+          style={{ cursor: sourceSelectionLocked ? 'not-allowed' : 'pointer', borderColor: preset.color + '40' }}
         >
           <span className="az-dock-thumb-letter" style={{ color: preset.color + 'cc' }}>
             {hasTrack ? initial : '♪'}
@@ -582,13 +626,13 @@ export function VyzualzAudioDock({
           {/* Transport receives its own full-width row instead of competing with track metadata. */}
           <div className="vz-dock-controls-row">
             <div className="az-dock-transport">
-              <button className="az-transport-btn" title="Previous" disabled={!hasTrack} onClick={engine.prev}>
+              <button className="az-transport-btn" title={sourceSelectionLocked ? 'Track switching is unavailable in Show Manager' : 'Previous'} disabled={!hasTrack || sourceSelectionLocked} onClick={engine.prev}>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
               </button>
               <button
                 className="az-play-btn"
                 title={engine.isPlaying ? 'Pause' : 'Play'}
-                disabled={!hasTrack}
+                disabled={!hasTrack || !transportReady}
                 style={{ borderColor: preset.color, color: preset.color, boxShadow: `0 0 12px ${preset.color}30` }}
                 onClick={handleTogglePlayback}
               >
@@ -597,7 +641,7 @@ export function VyzualzAudioDock({
                   : <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                 }
               </button>
-              <button className="az-transport-btn" title="Next" disabled={!hasTrack} onClick={engine.next}>
+              <button className="az-transport-btn" title={sourceSelectionLocked ? 'Track switching is unavailable in Show Manager' : 'Next'} disabled={!hasTrack || sourceSelectionLocked} onClick={engine.next}>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
               </button>
             </div>
@@ -630,13 +674,19 @@ export function VyzualzAudioDock({
 
         <label
           className="vz-dock-addtrack-btn"
-          htmlFor={fileInputId}
-          title={hasTrack ? `Replace: ${title}` : 'Add Track'}
+          htmlFor={sourceSelectionLocked ? undefined : fileInputId}
+          aria-disabled={sourceSelectionLocked}
+          title={sourceSelectionLocked ? 'Audio track loading is locked while in Show Manager' : hasTrack ? `Replace: ${title}` : 'Add Track'}
+          onClick={event => {
+            if (!sourceSelectionLocked) return
+            event.preventDefault()
+            requestAudioSourceMutation()
+          }}
         >
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M12 5v14M5 12h14"/>
           </svg>
-          <span>{hasTrack ? 'Replace Track' : 'Add Track'}</span>
+          <span>{sourceSelectionLocked ? 'Track Locked' : hasTrack ? 'Replace Track' : 'Add Track'}</span>
         </label>
 
       </div>
@@ -827,7 +877,7 @@ export function VyzualzAudioDock({
             id={rekordboxActionSelectId}
             className="vz-dock-rekordbox-select"
             value=""
-            disabled={rekordboxBusy}
+            disabled={rekordboxBusy || sourceSelectionLocked}
             onChange={event => {
               const action = event.currentTarget.value
               event.currentTarget.value = ''
@@ -837,7 +887,9 @@ export function VyzualzAudioDock({
               if (action === 'usb') void handleRekordboxUsbRoot()
               if (action === 'mode') toggleRekordboxUsbMode()
             }}
-            title="Import Rekordbox metadata or arm USB Mode. USB Mode does not import cues unless XML or the native parser matches the track."
+            title={sourceSelectionLocked
+              ? 'Rekordbox source rehydration is unavailable while in Show Manager'
+              : 'Import Rekordbox metadata or arm USB Mode. USB Mode does not import cues unless XML or the native parser matches the track.'}
           >
             <option value="">{rekordboxBusy ? 'Reading…' : rekordboxUsbMode ? 'USB Mode Armed' : 'RB Tools'}</option>
             <option value="xml">Import XML…</option>
@@ -864,7 +916,7 @@ export function VyzualzAudioDock({
             className="vz-dock-cue-btn"
             onClick={handleCue}
             title={engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
-            disabled={!hasTrack}
+            disabled={!hasTrack || !transportReady}
             aria-label={engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
           >
             <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -894,6 +946,18 @@ export function VyzualzAudioDock({
         placement="above"
       />
       </div>
+
+      {showSourceLockMessage && (
+        <NoticeCard
+          className="vz-dock-source-lock-notice"
+          tone="error"
+          role="alert"
+          title="Show Manager audio locked"
+          onDismiss={() => setDismissedSourceLockAttempt(sourceLockAttemptId)}
+        >
+          {sourceLockMessage}
+        </NoticeCard>
+      )}
 
       <input
         id={fileInputId}

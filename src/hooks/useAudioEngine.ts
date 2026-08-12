@@ -30,6 +30,11 @@ import {
 } from '../audio/runtimeTrack'
 import { upsertTrackAnalysisPayload } from '../lib/audioDb'
 import { useReactStore } from '../stores/reactStore'
+import {
+  isShowManagerTransportReady,
+  requestAudioSourceMutation,
+  type AudioSourceMutationOptions,
+} from '../audio/audioSourcePolicy'
 import { adaptMIAnalysis, resolveTrackSections } from '../features/trackIntelligence/trackMapAdapter'
 import {
   TrackAnalysisCoordinator,
@@ -96,7 +101,7 @@ class RingBuffer {
 
 export interface AudioEngine {
   source: AudioSource
-  setSource: (s: AudioSource) => Promise<void>
+  setSource: (s: AudioSource, options?: AudioSourceMutationOptions) => Promise<void>
   micError: string | null
   isActive: boolean
 
@@ -111,15 +116,15 @@ export interface AudioEngine {
   getCurrentTime: () => number
   duration: number
   volume: number
-  addTracks: (files: File[]) => void
-  replaceTracks: (files: File[]) => void
-  addPreparedTracks: (inputs: PreparedTrackInput[]) => void
-  replacePreparedTracks: (inputs: PreparedTrackInput[]) => void
+  addTracks: (files: File[], options?: AudioSourceMutationOptions) => void
+  replaceTracks: (files: File[], options?: AudioSourceMutationOptions) => void
+  addPreparedTracks: (inputs: PreparedTrackInput[], options?: AudioSourceMutationOptions) => void
+  replacePreparedTracks: (inputs: PreparedTrackInput[], options?: AudioSourceMutationOptions) => void
   /** Load pre-built tracks by URL (e.g. signed Supabase URLs) without a File object. */
-  addTrackUrls: (tracks: RuntimeTrackUrlInput[]) => void
-  replaceTrackUrls: (tracks: RuntimeTrackUrlInput[]) => void
-  removeTrack: (id: string) => void
-  selectTrack: (i: number) => void
+  addTrackUrls: (tracks: RuntimeTrackUrlInput[], options?: AudioSourceMutationOptions) => void
+  replaceTrackUrls: (tracks: RuntimeTrackUrlInput[], options?: AudioSourceMutationOptions) => void
+  removeTrack: (id: string, options?: AudioSourceMutationOptions) => void
+  selectTrack: (i: number, options?: AudioSourceMutationOptions) => void
   play: () => void
   pause: () => void
   stop: () => void
@@ -363,11 +368,12 @@ export function useAudioEngine(): AudioEngine {
     setCurrentIndex(prev => {
       const nextIndex    = prev + 1
       const hasNextTrack = nextIndex < tracks.length
-      // Only keep isPlaying=true when a next track exists.
-      // Without this check, the final track ending leaves isPlaying=true and
-      // LaserDMX keeps rendering after the audio has stopped.
-      setIsPlaying(hasNextTrack)
-      return hasNextTrack ? nextIndex : prev
+      const mayAdvanceSource = requestAudioSourceMutation({ notifyOnBlocked: false })
+      // Show Manager owns one linked track. Never auto-advance from it into an
+      // unrelated playlist entry when playback reaches the end.
+      const shouldAdvance = hasNextTrack && mayAdvanceSource
+      setIsPlaying(shouldAdvance)
+      return shouldAdvance ? nextIndex : prev
     })
   }, [tracks.length])
 
@@ -677,7 +683,8 @@ export function useAudioEngine(): AudioEngine {
     activeSourceNodeRef.current = bassG
   }, [ensureContext])
 
-  const setSource = useCallback(async (s: AudioSource) => {
+  const setSource = useCallback(async (s: AudioSource, options: AudioSourceMutationOptions = {}) => {
+    if (!requestAudioSourceMutation(options)) return
     disconnectSource()
     if (masterGainRef.current) masterGainRef.current.gain.value = 1
     if (s === 'file') {
@@ -1036,7 +1043,8 @@ export function useAudioEngine(): AudioEngine {
   }
 
   // ── Playlist ─────────────────────────────────────────────────────────────────
-  const addTracks = useCallback((files: File[]) => {
+  const addTracks = useCallback((files: File[], options: AudioSourceMutationOptions = {}) => {
+    if (!requestAudioSourceMutation(options)) return
     const newTracks = files.map(file => createLocalRuntimeTrack(file))
     setTracks(prev => {
       if (prev.length === 0) setCurrentIndex(0)
@@ -1045,7 +1053,8 @@ export function useAudioEngine(): AudioEngine {
     newTracks.forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
   }, [])
 
-  const replaceTracks = useCallback((files: File[]) => {
+  const replaceTracks = useCallback((files: File[], options: AudioSourceMutationOptions = {}) => {
+    if (!requestAudioSourceMutation(options)) return
     coordinatorRef.current?.invalidate()
     // Synchronously clear stale MI state before the new tracks arrive so the
     // old track's BPM/markers never bleed into the new track's analysis window.
@@ -1060,7 +1069,8 @@ export function useAudioEngine(): AudioEngine {
     newTracks.forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
   }, [])
 
-  const addPreparedTracks = useCallback((inputs: PreparedTrackInput[]) => {
+  const addPreparedTracks = useCallback((inputs: PreparedTrackInput[], options: AudioSourceMutationOptions = {}) => {
+    if (!requestAudioSourceMutation(options)) return
     const newTracks = inputs.map(createPreparedRuntimeTrack)
     setTracks(prev => {
       if (prev.length === 0) setCurrentIndex(0)
@@ -1069,7 +1079,8 @@ export function useAudioEngine(): AudioEngine {
     newTracks.forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
   }, [])
 
-  const replacePreparedTracks = useCallback((inputs: PreparedTrackInput[]) => {
+  const replacePreparedTracks = useCallback((inputs: PreparedTrackInput[], options: AudioSourceMutationOptions = {}) => {
+    if (!requestAudioSourceMutation(options)) return
     coordinatorRef.current?.invalidate()
     musicIntelligenceEngine.setSourceId(null, null)
     musicIntelligenceEngine.setTrackAnalysis(null)
@@ -1082,7 +1093,8 @@ export function useAudioEngine(): AudioEngine {
     newTracks.forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
   }, [])
 
-  const addTrackUrls = useCallback((tracks: RuntimeTrackUrlInput[]) => {
+  const addTrackUrls = useCallback((tracks: RuntimeTrackUrlInput[], options: AudioSourceMutationOptions = {}) => {
+    if (!requestAudioSourceMutation(options)) return
     const newTracks = tracks.map(createRemoteRuntimeTrack)
     const previousTracks = tracksRef.current
     const nextTracks = [...previousTracks, ...newTracks]
@@ -1097,7 +1109,8 @@ export function useAudioEngine(): AudioEngine {
       .forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
   }, [])
 
-  const replaceTrackUrls = useCallback((tracks: RuntimeTrackUrlInput[]) => {
+  const replaceTrackUrls = useCallback((tracks: RuntimeTrackUrlInput[], options: AudioSourceMutationOptions = {}) => {
+    if (!requestAudioSourceMutation(options)) return
     coordinatorRef.current?.invalidate()
     musicIntelligenceEngine.setSourceId(null, null)
     musicIntelligenceEngine.setTrackAnalysis(null)
@@ -1114,7 +1127,8 @@ export function useAudioEngine(): AudioEngine {
       .forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
   }, [])
 
-  const removeTrack = useCallback((id: string) => {
+  const removeTrack = useCallback((id: string, options: AudioSourceMutationOptions = {}) => {
+    if (!requestAudioSourceMutation(options)) return
     coordinatorRef.current?.cancelTrack(id)
     // If the active track is being removed, clear MI state immediately.
     if (tracksRef.current[currentIndexRef.current]?.id === id) {
@@ -1134,7 +1148,8 @@ export function useAudioEngine(): AudioEngine {
     })
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectTrack = useCallback((i: number) => {
+  const selectTrack = useCallback((i: number, options: AudioSourceMutationOptions = {}) => {
+    if (!requestAudioSourceMutation(options)) return
     setCurrentIndex(i); setIsPlaying(true)
     scopeTapRef.current?.reset()
     connectFileSource()
@@ -1145,7 +1160,7 @@ export function useAudioEngine(): AudioEngine {
   const play = useCallback(() => {
     const el = audioRef.current
     const track = tracksRef.current[currentIndexRef.current]
-    if (!el || !track) return
+    if (!el || !track || !isShowManagerTransportReady(getTrackAudioTrackId(track))) return
     // URL loaders update the authoritative refs before React commits their
     // playlist state. Point the media element at that track immediately so a
     // same-tick Load and Play action cannot observe a stale index/source.
@@ -1159,22 +1174,31 @@ export function useAudioEngine(): AudioEngine {
     el.play().then(() => setIsPlaying(true)).catch(() => { /**/ })
   }, [connectFileSource, ensureContext])
 
-  const pause  = useCallback(() => { audioRef.current?.pause(); setIsPlaying(false) }, [])
+  const pause  = useCallback(() => {
+    // Pausing is always safe: Show Manager uses this to silence a stale source
+    // while the linked track is being activated. Starting/seek remain gated.
+    audioRef.current?.pause(); setIsPlaying(false)
+  }, [])
   const stop   = useCallback(() => {
     const el = audioRef.current
-    if (!el) return
+    const track = tracksRef.current[currentIndexRef.current]
+    if (!el || !isShowManagerTransportReady(getTrackAudioTrackId(track))) return
     el.pause(); el.currentTime = 0; setIsPlaying(false); setCurrentTime(0)
     scopeTapRef.current?.reset()
     musicIntelligenceEngine.resolveLyricsAt(0, 'discontinuous')
   }, [])
   const next   = useCallback(() => {
+    if (!requestAudioSourceMutation()) return
     if (currentIndex < tracks.length - 1) { setCurrentIndex(i => i + 1); setIsPlaying(true); connectFileSource() }
   }, [currentIndex, tracks.length, connectFileSource])
   const prev   = useCallback(() => {
+    if (!requestAudioSourceMutation()) return
     if (currentIndex > 0) { setCurrentIndex(i => i - 1); setIsPlaying(true); connectFileSource() }
   }, [currentIndex, connectFileSource])
   const seek   = useCallback((t: number) => {
-    const el = audioRef.current; if (!el) return
+    const el = audioRef.current
+    const track = tracksRef.current[currentIndexRef.current]
+    if (!el || !isShowManagerTransportReady(getTrackAudioTrackId(track))) return
     el.currentTime = t
     const resolvedTime = el.currentTime
     setCurrentTime(resolvedTime)

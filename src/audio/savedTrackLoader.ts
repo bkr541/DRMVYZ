@@ -5,6 +5,12 @@ import type { TrackIntelligenceAnalysis } from '../features/musicIntelligence/ty
 import type { RuntimeTrackUrlInput } from './runtimeTrack'
 import { listTrackAnalysisPayloads } from '../lib/audioDb'
 import type { Json } from '../types/database'
+import {
+  requestAudioSourceMutation,
+  SHOW_MANAGER_AUDIO_SOURCE_LOCK_MESSAGE,
+  type AudioSourceMutationAuthority,
+  type AudioSourceMutationOptions,
+} from './audioSourcePolicy'
 
 export interface PersistedAudioTrackInput extends SavedAudioTrack {
   analysisPayload?: TrackIntelligenceAnalysis | null
@@ -18,6 +24,7 @@ export interface LoadSavedTrackOptions {
   autoplay?: boolean
   forceReload?: boolean
   shouldCommit?: () => boolean
+  sourceMutationAuthority?: AudioSourceMutationAuthority
 }
 
 export interface LoadSavedTrackResult {
@@ -124,9 +131,21 @@ export async function loadSavedTrackIntoEngine(
   if (!track.dbId) throw new Error('This saved track has no canonical audio track ID.')
   if (!track.storagePath) throw new Error('This saved track has no accessible audio file.')
 
+  const mutationOptions: AudioSourceMutationOptions = options.sourceMutationAuthority
+    ? { authority: options.sourceMutationAuthority }
+    : {}
+  const guardedMutationOptions: AudioSourceMutationOptions = { ...mutationOptions, notifyOnBlocked: false }
+  const assertSourceMutationAllowed = () => {
+    if (!requestAudioSourceMutation(mutationOptions)) throw new Error(SHOW_MANAGER_AUDIO_SOURCE_LOCK_MESSAGE)
+  }
+
   try {
+    // Reject a forbidden Show Manager source request before URL resolution,
+    // analysis hydration, or any engine/runtime mutation can begin.
+    assertSourceMutationAllowed()
     if (!options.forceReload && engine.currentAudioTrackId === track.dbId && engine.currentTrack) {
       const hydratedTrack = await hydrateAnalysis(track)
+      assertSourceMutationAllowed()
       if (options.shouldCommit && !options.shouldCommit()) throw new SavedTrackLoadCancelledError()
       const analysis = hydratedTrack.analysisPayload ?? null
       if (analysis && engine.currentTrack.analysisRuntime?.analysis !== analysis) {
@@ -137,7 +156,7 @@ export async function loadSavedTrackIntoEngine(
           error: null,
         })
       }
-      if (engine.source !== 'file') await engine.setSource('file')
+      if (engine.source !== 'file') await engine.setSource('file', guardedMutationOptions)
       if (options.shouldCommit && !options.shouldCommit()) throw new SavedTrackLoadCancelledError()
       if (options.autoplay) engine.play()
       return {
@@ -151,11 +170,12 @@ export async function loadSavedTrackIntoEngine(
       hydrateAnalysis(track),
     ])
     if (!url) throw new Error('Unable to create a signed playback URL for this track.')
+    assertSourceMutationAllowed()
     if (options.shouldCommit && !options.shouldCommit()) throw new SavedTrackLoadCancelledError()
     const input = buildSavedTrackRuntimeInput(hydratedTrack, url)
-    if (engine.tracks.length > 0) engine.replaceTrackUrls([input])
-    else engine.addTrackUrls([input])
-    if (engine.source !== 'file') await engine.setSource('file')
+    if (engine.tracks.length > 0) engine.replaceTrackUrls([input], guardedMutationOptions)
+    else engine.addTrackUrls([input], guardedMutationOptions)
+    if (engine.source !== 'file') await engine.setSource('file', guardedMutationOptions)
     if (options.shouldCommit && !options.shouldCommit()) throw new SavedTrackLoadCancelledError()
     if (options.autoplay) engine.play()
     return { input, reusedRuntimeTrack: false }
