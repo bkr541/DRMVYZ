@@ -181,8 +181,14 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
       runtimeRegistry: options.runtimeRegistry ?? CINEMA_PRODUCTION_RUNTIME_REGISTRY,
       platform: this.capabilities, targets: this.targets, textures: this.textures, assetManager: this.assets, webgl: this.webgl, diagnostics: this,
       onSnapshot: snapshot => {
+        const previousOutputRendered = this.graphSnapshot.outputRendered
+        const previousSafeOutputActive = this.graphSnapshot.safeOutputActive
         this.graphSnapshot = snapshot
-        if (!this.disposed) this.emitFrameDrivenSnapshot()
+        if (this.disposed) return
+        const outputStateChanged = previousOutputRendered !== snapshot.outputRendered
+          || previousSafeOutputActive !== snapshot.safeOutputActive
+        if (outputStateChanged) this.emitSnapshot()
+        else this.emitFrameDrivenSnapshot()
       },
     })
     this.contextDiagnosticHandle = registerDrmvyzWebGLContext(gl, {

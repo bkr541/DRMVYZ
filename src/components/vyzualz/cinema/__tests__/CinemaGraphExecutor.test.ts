@@ -287,10 +287,10 @@ describe('CinemaGraphExecutor', () => {
     expect(targets.getDiagnostics().activeLeaseCount).toBe(2)
     expect(diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
     expect(executor.getSnapshot()).toMatchObject({ parameterResolutionCount: 0, parameterReuseCount: 3 })
-    expect(snapshotCount).toBe(immediateSnapshotCount)
+    expect(snapshotCount).toBe(immediateSnapshotCount + 1)
     nowMs = 300
     expect(executor.render(frame(false))).toBe(true)
-    expect(snapshotCount).toBe(immediateSnapshotCount + 1)
+    expect(snapshotCount).toBe(immediateSnapshotCount + 2)
 
     expectedAssetId = 'asset-replacement'
     const replacementInstance: CinemaCompositionInstance = {

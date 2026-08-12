@@ -286,10 +286,12 @@ export class CinemaGraphExecutor {
 
   render(frame: Readonly<CinemaFrameContext> | null): boolean {
     if (this.disposed) return false
+    const previousOutputRendered = this.outputRendered
+    const previousSafeOutputActive = this.safeOutputActive
     this.outputRendered = false
     if (!frame || !this.plan) {
       this.renderSafeOutput()
-      this.emitSnapshot(false)
+      this.emitRenderSnapshot(previousOutputRendered, previousSafeOutputActive)
       return false
     }
 
@@ -436,7 +438,7 @@ export class CinemaGraphExecutor {
       this.profileTotals.graphRenderMs += Math.max(0, this.now() - profileMarkMs)
       this.profileSampleCount += 1
     }
-    this.emitSnapshot(false)
+    this.emitRenderSnapshot(previousOutputRendered, previousSafeOutputActive)
     return this.outputRendered
   }
 
@@ -1221,6 +1223,12 @@ export class CinemaGraphExecutor {
       if (this.diagnostics.length > 100) this.diagnostics.splice(0, this.diagnostics.length - 100)
     }
     this.diagnosticsSink.report(diagnostic)
+  }
+
+  private emitRenderSnapshot(previousOutputRendered: boolean, previousSafeOutputActive: boolean): void {
+    const outputStateChanged = previousOutputRendered !== this.outputRendered
+      || previousSafeOutputActive !== this.safeOutputActive
+    this.emitSnapshot(outputStateChanged)
   }
 
   private emitSnapshot(immediate = true): void {

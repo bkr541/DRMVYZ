@@ -21,9 +21,10 @@ import { Collapsible } from './ReactControlRows'
 
 // ── Engine Mode (Shaders / Worlds) ──────────────────────────────────────────
 //
-// Mirrors Sound Drawing's "Engine Mode" source grid exactly (same
-// .rv-sound-source-grid/.rv-sound-source-card radiogroup pattern). Visual
-// selector only for now — it does not yet filter or drive anything.
+// Uses the same visual card language as Sound Drawing without borrowing its
+// interactive semantics. Renderer family is authored by the selected Cinema
+// preset, so these cards are intentionally informational rather than no-op
+// controls.
 
 type CinemaEngineMode = 'shaders' | 'worlds'
 
@@ -50,25 +51,19 @@ function CinemaEngineModeIcon({ mode }: { mode: CinemaEngineMode }) {
   )
 }
 
-function CinemaEngineModeGrid({
-  onChange,
-}: {
-  onChange: (value: CinemaEngineMode) => void
-}) {
+function CinemaEngineModeGrid() {
   return (
-    <div className="rv-sound-source-grid" role="group" aria-label="Cinema engine mode">
+    <div className="rv-sound-source-grid" aria-label="Cinema renderer families">
       {CINEMA_ENGINE_MODE_OPTIONS.map((option) => (
-        <button
+        <div
           key={option.value}
-          type="button"
-          className="rv-sound-source-card"
-          onClick={() => onChange(option.value)}
+          className="rv-sound-source-card rv-cinema-engine-mode-card"
         >
           <span className="rv-sound-source-card-icon">
             <CinemaEngineModeIcon mode={option.value} />
           </span>
           <span className="rv-sound-source-card-label">{option.label}</span>
-        </button>
+        </div>
       ))}
     </div>
   )
@@ -299,7 +294,10 @@ export function CinemaWorkspace({
     return (
       <section className="rv-cinema-workspace rv-cinema-workspace--panel" aria-label="Cinema runtime setup">
         <Collapsible label="Engine Mode" defaultOpen bodyClassName="rv-cinema-engine-mode-body">
-          <CinemaEngineModeGrid onChange={() => {}} />
+          <CinemaEngineModeGrid />
+          <div className="rv-ctrl-info rv-control-helper-copy">
+            Renderer family follows the active Cinema preset. Choose a Shader or World preset from Presets; this view is reference-only.
+          </div>
         </Collapsible>
       </section>
     )

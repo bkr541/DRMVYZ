@@ -199,6 +199,65 @@ describe('Cinema production engine registration', () => {
     expect(host?.querySelector('[data-cinema-output-rendered="true"]')).not.toBeNull()
   }, 15_000)
 
+  it('keeps one production runtime while switching from a Shader Scene to a Cinematic World', async () => {
+    const gl = createCinemaMockWebGL()
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+      const id = nextRaf++
+      callbacks.set(id, callback)
+      return id
+    }))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn((id: number) => { callbacks.delete(id) }))
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => (
+      kind === 'webgl2' ? gl : null
+    ) as RenderingContext | null)
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 960, height: 540, top: 0, left: 0, right: 960, bottom: 540, x: 0, y: 0, toJSON: () => ({}),
+    })
+
+    const shaderNode = CINEMA_SHADER_REFERENCE_COMPOSITION.nodes.find(node => node.family === 'shader')
+    const worldNode = CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.nodes.find(node => node.family === 'procedural')
+    expect(shaderNode).toBeDefined()
+    expect(worldNode).toBeDefined()
+    expect(useCinemaStore.getState().setActiveCinemaComposition(CINEMA_SHADER_REFERENCE_COMPOSITION.id).ok).toBe(true)
+    expect(useCinemaStore.getState().setCinemaEditorSelection(CINEMA_SHADER_REFERENCE_COMPOSITION.id, shaderNode!.id).ok).toBe(true)
+
+    await act(async () => root?.render(<ProductionLiveControlHarness />))
+    expect(getContext).toHaveBeenCalledTimes(1)
+    expect(callbacks.size).toBe(1)
+
+    const shaderFrame = [...callbacks.entries()][0]
+    expect(shaderFrame).toBeDefined()
+    callbacks.delete(shaderFrame[0])
+    await act(async () => shaderFrame[1](16.67))
+    expect(host?.querySelector('[data-cinema-output-rendered="true"]')).not.toBeNull()
+    const shaderDrawCount = gl.__calls.drawCount
+    expect(shaderDrawCount).toBeGreaterThan(0)
+
+    await act(async () => {
+      expect(useCinemaStore.getState().setActiveCinemaComposition(CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.id).ok).toBe(true)
+      expect(useCinemaStore.getState().setCinemaEditorSelection(
+        CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.id,
+        worldNode!.id,
+      ).ok).toBe(true)
+    })
+
+    expect(getContext).toHaveBeenCalledTimes(1)
+    expect(callbacks.size).toBe(1)
+    expect(host?.querySelector('[data-cinema-output-rendered="false"]')).not.toBeNull()
+    expect(host?.textContent).toContain('Camera resources (1)')
+
+    const worldFrame = [...callbacks.entries()][0]
+    expect(worldFrame).toBeDefined()
+    callbacks.delete(worldFrame[0])
+    await act(async () => worldFrame[1](33.34))
+    expect(host?.querySelector('[data-cinema-output-rendered="true"]')).not.toBeNull()
+    expect(gl.__calls.drawCount).toBeGreaterThan(shaderDrawCount)
+    expect(getContext).toHaveBeenCalledTimes(1)
+    expect(callbacks.size).toBe(1)
+  }, 15_000)
+
   it('shows only renderer-supported Inspector controls and refreshes them on production preset switches', async () => {
     const shaderNode = CINEMA_SHADER_REFERENCE_COMPOSITION.nodes.find(node => node.family === 'shader')
     const unsupportedMaster = CINEMA_SHADER_REFERENCE_COMPOSITION.masterParameters.find(parameter => parameter.label === 'Master Glow')
@@ -255,6 +314,17 @@ describe('Cinema production engine registration', () => {
 
     expect(host?.textContent).not.toContain('Master Appearance')
     expect(host?.textContent).toContain('Camera resources (1)')
+
+    await act(async () => {
+      expect(useCinemaStore.getState().setActiveCinemaComposition(CINEMA_SHADER_REFERENCE_COMPOSITION.id).ok).toBe(true)
+      expect(useCinemaStore.getState().setCinemaEditorSelection(
+        CINEMA_SHADER_REFERENCE_COMPOSITION.id,
+        shaderNode!.id,
+      ).ok).toBe(true)
+    })
+    expect(host?.textContent).toContain('Master Appearance')
+    expect(host?.textContent).toContain('Master Intensity')
+    expect(host?.textContent).not.toContain('Camera resources (')
   })
 
   it('shows semantic Background only for a consuming world and hot-applies it without rebuilding renderer resources', async () => {
@@ -417,6 +487,7 @@ describe('Cinema production engine registration', () => {
     expect(gl.uniform1f).toHaveBeenCalledWith(fovLocation, 72)
     expect(gl.__calls.createdPrograms).toBe(initialPrograms)
     expect(gl.__calls.drawCount).toBeGreaterThan(initialDrawCount)
+    expect(host?.querySelector('[data-cinema-output-rendered="true"]')).not.toBeNull()
   })
 
   it('samples the high-precision audio clock on every production Cinema RAF without a React rerender', async () => {
@@ -470,7 +541,7 @@ describe('Cinema production engine registration', () => {
     expect(callbacks.size).toBe(0)
   })
 
-  it('starts in Cinema, hides retired identities, owns one runtime, and retires it on a user-facing engine switch', async () => {
+  it('starts in Cinema, hides retired identities, and keeps one runtime across navigation away and re-entry', async () => {
     const retire = vi.fn()
     const onCanvasReady = vi.fn()
     const gl = createCinemaMockWebGL()
@@ -544,6 +615,34 @@ describe('Cinema production engine registration', () => {
       phase: 'stable',
     })
     expect(retire).not.toHaveBeenCalled()
+
+    const reentryTrigger = host?.querySelector<HTMLButtonElement>('.rv-engine-dropdown-trigger')
+    expect(reentryTrigger).not.toBeNull()
+    await act(async () => reentryTrigger?.click())
+    const reentryOptions = [...(host?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])]
+    const cinemaOption = reentryOptions.find(option => option.textContent?.includes('Cinema'))
+    expect(cinemaOption).not.toBeUndefined()
+    await act(async () => cinemaOption?.click())
+
+    const reenteredCanvas = host?.querySelector<HTMLCanvasElement>('[data-cinema-output-canvas="true"]') ?? null
+    expect(useReactStore.getState().activeReactEngineId).toBe('cinema')
+    expect(reenteredCanvas).not.toBeNull()
+    expect(getContext).toHaveBeenCalledTimes(2)
+    expect(callbacks.size).toBe(1)
+    expect(onCanvasReady).toHaveBeenLastCalledWith(reenteredCanvas)
+    expect(retire).toHaveBeenCalledTimes(1)
+    expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
+      activeEngine: 'cinema',
+      activeOwnerCount: 1,
+      phase: 'stable',
+    })
+
+    const reentryFrame = [...callbacks.entries()][0]
+    expect(reentryFrame).toBeDefined()
+    callbacks.delete(reentryFrame[0])
+    await act(async () => reentryFrame[1](33.34))
+    expect(host?.querySelector('[data-cinema-output-rendered="true"]')).not.toBeNull()
+    expect(callbacks.size).toBe(1)
   })
 
   it('surfaces the Stage 19 Composer through the canonical Cinema store and production workspace', async () => {
@@ -558,6 +657,10 @@ describe('Cinema production engine registration', () => {
     expect(host?.textContent).toContain('Engine Mode')
     expect(host?.textContent).toContain('Shaders')
     expect(host?.textContent).toContain('Worlds')
+    const rendererFamilies = host?.querySelector<HTMLElement>('[aria-label="Cinema renderer families"]') ?? null
+    expect(rendererFamilies).not.toBeNull()
+    expect(rendererFamilies?.querySelector('button')).toBeNull()
+    expect(host?.textContent).toContain('this view is reference-only')
     expect(host?.textContent).not.toContain('Cinema Runtime')
   })
 
