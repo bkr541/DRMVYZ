@@ -25,8 +25,11 @@ export function createCinemaParameterCapabilityMap(
   const cached = cacheable ? CAPABILITY_MAP_CACHE.get(definition) : undefined
   if (cached) return cached
   const declared = definition.parameterCapabilities ?? []
+  const parameterIds = new Set(definition.parameters.map(parameter => parameter.id))
   const byId = new Map<CinemaParameterId, Readonly<CinemaParameterCapabilityDescriptor>>()
-  for (const capability of declared) byId.set(capability.parameterId, capability)
+  for (const capability of declared) {
+    if (parameterIds.has(capability.parameterId)) byId.set(capability.parameterId, capability)
+  }
   if (cacheable) CAPABILITY_MAP_CACHE.set(definition, byId)
   return byId
 }

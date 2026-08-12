@@ -7,6 +7,7 @@ import {
   cinemaStableId,
   compileCinemaCompositionGraph,
   createCinemaNodeDefinitionRegistry,
+  getCinemaSupportedParameterSchemas,
   validateCinemaCompositionGraph,
   type CinemaAssetBindingId,
   type CinemaAssetId,
@@ -205,6 +206,29 @@ describe('Cinema node definition registry', () => {
     expect(runtimeResult.diagnostics.map(diagnostic => diagnostic.code)).toContain('CINEMA_NODE_REGISTRY_INVALID')
     expect(cyclicResult.registry.size).toBe(0)
     expect(cyclicResult.diagnostics.map(diagnostic => diagnostic.code)).toContain('CINEMA_NODE_REGISTRY_INVALID')
+  })
+
+  it('keeps spread-cloned definitions runnable when inherited capability metadata no longer matches replaced parameters', () => {
+    const inheritedCapability = {
+      ...structuredClone(sourceEntry),
+      definition: {
+        ...structuredClone(sourceEntry.definition),
+        parameterCapabilities: [{
+          parameterId: stableId<CinemaParameterId>('inherited-removed-parameter', 'parameter'),
+          support: 'live' as const,
+        }],
+      },
+    }
+
+    const result = createCinemaNodeDefinitionRegistry([inheritedCapability])
+
+    expect(result.registry.size).toBe(1)
+    expect(result.diagnostics).toHaveLength(1)
+    expect(result.diagnostics[0]).toMatchObject({
+      code: 'CINEMA_NODE_REGISTRY_INVALID',
+      severity: 'warning',
+    })
+    expect(getCinemaSupportedParameterSchemas(result.registry.get(inheritedCapability.definition.typeId)!.definition)).toEqual([])
   })
 
   it('rejects feedback and quality declarations that contradict the node definition', () => {

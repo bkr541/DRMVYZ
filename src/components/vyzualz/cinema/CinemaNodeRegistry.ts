@@ -273,7 +273,7 @@ function validateCinemaNodeRegistryEntryInternal(entry: CinemaNodeRegistryEntry)
         const parameterId = String(capability?.parameterId ?? '<missing>')
         diagnostics.push(...parseCinemaStableId(capability?.parameterId, 'parameter capability').diagnostics)
         if (!parameterIds.has(parameterId)) {
-          diagnostics.push(registryDiagnostic(typeId, `Cinema parameter capability "${parameterId}" does not match a declared parameter.`))
+          diagnostics.push(registryWarning(typeId, `Cinema parameter capability "${parameterId}" does not match a declared parameter and will be ignored.`))
         }
         if (capabilityIds.has(parameterId)) {
           diagnostics.push(registryDiagnostic(typeId, `Cinema parameter capability "${parameterId}" is declared more than once.`))
@@ -388,6 +388,15 @@ function registryDiagnostic(typeId: string, message: string): CinemaDiagnostic {
   return createCinemaDiagnostic({
     code: 'CINEMA_NODE_REGISTRY_INVALID',
     severity: 'error',
+    message,
+    details: { typeId },
+  })
+}
+
+function registryWarning(typeId: string, message: string): CinemaDiagnostic {
+  return createCinemaDiagnostic({
+    code: 'CINEMA_NODE_REGISTRY_INVALID',
+    severity: 'warning',
     message,
     details: { typeId },
   })
