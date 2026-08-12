@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
 import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
 import type { LyricCue, LyricDocument, LyricTranscriptionJob } from '../../../types/lyrics'
 import type { LyricWriteStatus } from '../../../stores/lyricsStore'
@@ -88,7 +89,6 @@ export function LyricWorkflowStatus({
   latestJob,
   jobsLoading = false,
 }: Props) {
-  const [open, setOpen] = useState(true)
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const review = useMemo(() => getLyricReviewStatistics(cues), [cues])
   const wordCount = cues.reduce((total, cue) => total + (cue.words?.length ?? 0), 0)
@@ -105,14 +105,8 @@ export function LyricWorkflowStatus({
       : `${review.unreviewed} unreviewed · ${review.lowConfidence} low confidence`
 
   return (
-    <section className="lmv-panel-card lmv-right-section lmv-extraction-console" aria-label="Lyric workflow status">
-      <DualRailCollapsible
-        open={open}
-        onOpenChange={setOpen}
-        headerClassName="lmv-right-section-header"
-        bodyClassName="lmv-right-section-body"
-        label={<span className="lmv-right-section-title">Workflow Status</span>}
-      >
+    <section className="lmv-extraction-console" aria-label="Lyric workflow status">
+      <Collapsible label="Workflow Status" defaultOpen>
         <dl className="lmv-workflow-status-grid">
           <div><dt>Selected track</dt><dd>{selectedTrack?.title || selectedTrack?.fileName || 'None'}</dd></div>
           <div><dt>Loaded-track match</dt><dd className={loadedTrackMatches ? 'lmv-status-good' : 'lmv-status-missing'}>{loadedTrackMatches ? 'Matched' : 'Not matched'}</dd></div>
@@ -148,7 +142,7 @@ export function LyricWorkflowStatus({
             </dl>
           </div>
         </DualRailCollapsible>
-      </DualRailCollapsible>
+      </Collapsible>
     </section>
   )
 }

@@ -33,6 +33,7 @@ import type {
   CinemaNodeResetContext,
   CinemaNodeResizeContext,
   CinemaNodeTypeDefinition,
+  CinemaParameterCapabilityDescriptor,
   CinemaRenderNode,
   CinemaStateResetActionId,
 } from './CinemaRendererContracts'
@@ -543,6 +544,7 @@ function createNodeDefinition(
 ): Readonly<CinemaNodeTypeDefinition> {
   const specialized = definition.id === 'reactiveConstellation'
   const direction = definition.direction
+  const parameters = createParameterDefinitions(definition.id as CinematicWorldMode)
   const outputDescriptor = {
     ...OUTPUT_DESCRIPTOR,
     hasDepth: definition.capabilities.supportsGeometryPasses,
@@ -562,7 +564,8 @@ function createNodeDefinition(
       direction: 'output',
       dataType: 'color-texture',
     }],
-    parameters: createParameterDefinitions(definition.id as CinematicWorldMode),
+    parameters,
+    parameterCapabilities: createCinematicWorldParameterCapabilities(definition, parameters, backend),
     capabilities: {
       backends: backend === 'canvas2d' ? ['webgl2', 'canvas2d'] : ['webgl2'],
       canvas2d: {
@@ -613,6 +616,37 @@ function createNodeDefinition(
       postStackInputsRetained: definition.capabilities.supportsPostProcessing,
       standaloneEngineRetained: true,
     },
+  })
+}
+
+function createCinematicWorldParameterCapabilities(
+  definition: CinematicWorldDefinition,
+  parameters: readonly CinemaParameterDefinition[],
+  backend: 'webgl2' | 'canvas2d',
+): readonly CinemaParameterCapabilityDescriptor[] {
+  const targets = new Set(definition.capabilities.modulationTargets)
+  const directLegacy = backend === 'canvas2d'
+  const commonSupport = new Map<CinemaParameterId, boolean>([
+    [INTENSITY_PARAMETER_ID, true],
+    [MOTION_PARAMETER_ID, directLegacy || targets.has('cameraTravel') || targets.has('cameraMotion') || targets.has('geometryRotation')],
+    [GLOW_PARAMETER_ID, directLegacy || targets.has('bloom') || targets.has('environmentBrightness') || targets.has('atmosphere') || targets.has('glow')],
+    [BASS_REACTIVITY_PARAMETER_ID, directLegacy || targets.has('portalAperture')],
+    [TRAIL_DECAY_PARAMETER_ID, directLegacy || targets.has('feedback')],
+    [FOG_DENSITY_PARAMETER_ID, directLegacy || targets.has('fogDensity') || targets.has('fog')],
+    [PARTICLE_DENSITY_PARAMETER_ID, directLegacy || targets.has('particleEmission') || targets.has('debris')],
+  ])
+  return parameters.map(parameter => {
+    if (parameter.id === SEED_PARAMETER_ID) return { parameterId: parameter.id, support: 'structural' as const }
+    if (parameter.id === QUALITY_PARAMETER_ID) return { parameterId: parameter.id, support: 'conditional' as const }
+    const common = commonSupport.get(parameter.id)
+    if (common === false) {
+      return {
+        parameterId: parameter.id,
+        support: 'unsupported' as const,
+        reason: 'This Cinematic World does not advertise the modulation/runtime target consumed by this parameter.',
+      }
+    }
+    return { parameterId: parameter.id, support: 'live' as const }
   })
 }
 

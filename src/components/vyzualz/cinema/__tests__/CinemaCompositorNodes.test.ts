@@ -28,6 +28,7 @@ import {
   createCinemaDefinitionRegistryFromPersisted,
   createCinemaFoundationPersistedState,
   encodeCinemaSrgb,
+  getCinemaSupportedParameterSchemas,
   linearizeCinemaSrgb,
   resolveCinemaMaskWeight,
   type CinemaColor,
@@ -78,6 +79,23 @@ describe('Cinema Stage 16 compositor contracts', () => {
     expect(clock.begin('second', 1, 2)).toMatchObject({ progress: 0.5, initialProgress: 0.5, generation: 2 })
     expect(clock.sample(2)).toMatchObject({ progress: 0.75, active: true })
     expect(clock.sample(3)).toMatchObject({ progress: 1, active: false })
+  })
+
+  it('exposes only compositor effect parameters consumed by each shader branch', () => {
+    expect(getCinemaSupportedParameterSchemas(CINEMA_EFFECT_NODE_DEFINITIONS['color-grading']).map(parameter => parameter.label)).toEqual([
+      'Exposure',
+      'Contrast',
+      'Saturation',
+      'Hue',
+    ])
+    expect(getCinemaSupportedParameterSchemas(CINEMA_EFFECT_NODE_DEFINITIONS['edge-detection']).map(parameter => parameter.label)).toEqual([
+      'Scale',
+    ])
+    expect(getCinemaSupportedParameterSchemas(CINEMA_EFFECT_NODE_DEFINITIONS.bloom).map(parameter => parameter.label)).toEqual([
+      'Amount',
+      'Secondary',
+      'Scale',
+    ])
   })
 
   it('registers every mixer, effect, feedback contract, and transition as stable production definitions', () => {

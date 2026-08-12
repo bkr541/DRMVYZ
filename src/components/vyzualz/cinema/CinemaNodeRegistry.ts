@@ -72,6 +72,7 @@ const CAMERA_CAPABILITY_MODES = new Set([
   'world',
   'native',
 ])
+const PARAMETER_SUPPORT_MODES = new Set(['live', 'structural', 'conditional', 'unsupported'])
 const CAMERA_CONTROLS = new Set([
   'position',
   'rotation',
@@ -261,6 +262,28 @@ function validateCinemaNodeRegistryEntryInternal(entry: CinemaNodeRegistryEntry)
       }))
     }
     parameterIds.add(parameterId)
+  }
+
+  if (definition.parameterCapabilities !== undefined) {
+    if (!Array.isArray(definition.parameterCapabilities)) {
+      diagnostics.push(registryDiagnostic(typeId, 'Cinema node parameter capabilities must be an array when declared.'))
+    } else {
+      const capabilityIds = new Set<string>()
+      for (const capability of definition.parameterCapabilities) {
+        const parameterId = String(capability?.parameterId ?? '<missing>')
+        diagnostics.push(...parseCinemaStableId(capability?.parameterId, 'parameter capability').diagnostics)
+        if (!parameterIds.has(parameterId)) {
+          diagnostics.push(registryDiagnostic(typeId, `Cinema parameter capability "${parameterId}" does not match a declared parameter.`))
+        }
+        if (capabilityIds.has(parameterId)) {
+          diagnostics.push(registryDiagnostic(typeId, `Cinema parameter capability "${parameterId}" is declared more than once.`))
+        }
+        capabilityIds.add(parameterId)
+        if (!PARAMETER_SUPPORT_MODES.has(String(capability?.support))) {
+          diagnostics.push(registryDiagnostic(typeId, `Cinema parameter capability "${parameterId}" has an unsupported support mode.`))
+        }
+      }
+    }
   }
 
   diagnostics.push(...validateCameraCapability(typeId, definition.capabilities?.camera))

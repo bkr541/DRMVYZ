@@ -34,6 +34,7 @@ import type {
   CinemaNodeResetContext,
   CinemaNodeResizeContext,
   CinemaNodeTypeDefinition,
+  CinemaParameterCapabilityDescriptor,
   CinemaRenderNode,
   CinemaRenderTargetLease,
   CinemaShaderPassMetadata,
@@ -427,6 +428,7 @@ function createAdapterEntry(shader: ShaderDefinition): CinemaShaderSceneAdapterE
       ...createBrandColorParameterDefinitions(),
       ...parameterMappings.map(mapping => cinemaParameterDefinition(mapping)),
     ],
+    parameterCapabilities: createShaderParameterCapabilities(shader, parameterMappings),
     capabilities: {
       backends: ['webgl2'],
       canvas2d: { compatibility: 'unsupported', preservesPremultipliedAlpha: true },
@@ -1478,6 +1480,52 @@ function createBrandTextureInputMappings(shader: ShaderDefinition): ShaderBrandT
     }))
 }
 
+function createShaderParameterCapabilities(
+  shader: ShaderDefinition,
+  parameterMappings: readonly ShaderParameterMapping[],
+): readonly CinemaParameterCapabilityDescriptor[] {
+  const source = shaderSource(shader)
+  const result: CinemaParameterCapabilityDescriptor[] = []
+  for (const spec of MASTER_PARAMETER_SPECS) {
+    const supported = shaderSourceDeclaresUniform(source, spec.uniform)
+    result.push({
+      parameterId: cinemaShaderParameterId(spec.id),
+      support: supported ? 'live' : 'unsupported',
+      ...(!supported ? { reason: `Shader source does not declare ${spec.uniform}.` } : {}),
+    })
+  }
+  const brandUniforms: Readonly<Partial<Record<CinemaBrandRole, readonly string[]>>> = {
+    primary: ['uBrandPrimary'],
+    secondary: ['uBrandSecondary'],
+    accent: ['uBrandAccent'],
+    background: ['uBrandBackground'],
+    foreground: ['uBrandForeground', 'uBrandText'],
+    highlight: ['uBrandHighlight'],
+  }
+  for (const spec of BRAND_COLOR_PARAMETER_SPECS) {
+    const uniforms = brandUniforms[spec.role] ?? []
+    const supported = uniforms.some(uniform => shaderSourceDeclaresUniform(source, uniform))
+    result.push({
+      parameterId: cinemaShaderParameterId(spec.id),
+      support: supported ? 'live' : 'unsupported',
+      ...(!supported ? { reason: `Shader source does not declare a ${spec.role} Brand Kit uniform.` } : {}),
+    })
+  }
+  for (const mapping of parameterMappings) {
+    const supported = mapping.shader.type !== 'texture' && shaderSourceDeclaresUniform(source, mapping.shader.uniformName)
+    result.push({
+      parameterId: mapping.cinemaId,
+      support: supported ? 'live' : 'unsupported',
+      ...(!supported ? {
+        reason: mapping.shader.type === 'texture'
+          ? 'Shader texture parameters are not consumed by the Cinema shader adapter.'
+          : `Shader source does not declare ${mapping.shader.uniformName}.`,
+      } : {}),
+    })
+  }
+  return result
+}
+
 function shaderSource(shader: ShaderDefinition): string {
   return [
     shader.fragSrc ?? '',
@@ -1488,6 +1536,10 @@ function shaderSource(shader: ShaderDefinition): string {
 
 function shaderSourceUsesUniform(source: string, uniformName: string): boolean {
   return new RegExp(`\\b${escapeRegExp(uniformName)}\\b`).test(source)
+}
+
+function shaderSourceDeclaresUniform(source: string, uniformName: string): boolean {
+  return new RegExp(`\\buniform\\s+(?:(?:lowp|mediump|highp)\\s+)?[A-Za-z_][A-Za-z0-9_]*\\s+${escapeRegExp(uniformName)}(?:\\s*\\[[^\\]]+\\])?\\s*;`).test(source)
 }
 
 function escapeRegExp(value: string): string {

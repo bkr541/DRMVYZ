@@ -19,6 +19,7 @@ import {
 } from '../../react/renderers/ReactLiveEngineOwnership'
 import {
   CINEMA_FOUNDATION_COMPOSITION,
+  CINEMA_SHADER_REFERENCE_COMPOSITION,
   CINEMA_FOUNDATION_GRADIENT_NODE_ID,
   CINEMA_STAGE16_REFERENCE_COMPOSITION_ID,
   createCinemaFoundationPersistedState,
@@ -193,6 +194,47 @@ describe('Cinema production engine registration', () => {
     expect(gl.uniform1f).toHaveBeenCalledWith(expect.anything(), -46 * Math.PI / 180)
     expect(host?.querySelector('[data-cinema-output-rendered="true"]')).not.toBeNull()
   }, 15_000)
+
+  it('shows only renderer-supported Inspector controls and refreshes them on production preset switches', async () => {
+    const shaderNode = CINEMA_SHADER_REFERENCE_COMPOSITION.nodes.find(node => node.family === 'shader')
+    const unsupportedMaster = CINEMA_SHADER_REFERENCE_COMPOSITION.masterParameters.find(parameter => parameter.label === 'Master Glow')
+    expect(shaderNode).toBeDefined()
+    expect(unsupportedMaster).toBeDefined()
+    const preservedMasterValue = unsupportedMaster
+      ? CINEMA_SHADER_REFERENCE_COMPOSITION.masterValues[unsupportedMaster.id]
+      : undefined
+
+    expect(useCinemaStore.getState().setActiveCinemaComposition(CINEMA_SHADER_REFERENCE_COMPOSITION.id).ok).toBe(true)
+    expect(useCinemaStore.getState().setCinemaEditorSelection(
+      CINEMA_SHADER_REFERENCE_COMPOSITION.id,
+      shaderNode!.id,
+    ).ok).toBe(true)
+
+    await act(async () => root?.render(<ComposerSelectionHarness />))
+    expect(host?.textContent).toContain('Master Intensity')
+    expect(host?.textContent).toContain('Master Motion')
+    expect(host?.textContent).not.toContain('Master Glow')
+    expect(host?.textContent).not.toContain('Master Trail Decay')
+    expect(host?.textContent).not.toContain('Master Particle Density')
+    expect(host?.textContent).toContain('Glow')
+
+    const shaderAfterRender = useCinemaStore.getState().compositions.find(
+      composition => composition.id === CINEMA_SHADER_REFERENCE_COMPOSITION.id,
+    )
+    expect(unsupportedMaster && shaderAfterRender?.masterValues[unsupportedMaster.id]).toEqual(preservedMasterValue)
+
+    await act(async () => {
+      expect(useCinemaStore.getState().setActiveCinemaComposition(CINEMA_FOUNDATION_COMPOSITION.id).ok).toBe(true)
+      expect(useCinemaStore.getState().setCinemaEditorSelection(
+        CINEMA_FOUNDATION_COMPOSITION.id,
+        CINEMA_FOUNDATION_GRADIENT_NODE_ID,
+      ).ok).toBe(true)
+    })
+
+    expect(host?.textContent).not.toContain('Master Intensity')
+    expect(host?.textContent).toContain('Angle')
+    expect(host?.textContent).toContain('Opacity')
+  })
 
   it('samples the high-precision audio clock on every production Cinema RAF without a React rerender', async () => {
     const gl = createCinemaMockWebGL()

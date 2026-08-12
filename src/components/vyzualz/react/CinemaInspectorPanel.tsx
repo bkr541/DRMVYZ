@@ -9,6 +9,8 @@ import {
   buildCinemaComposerLibraryItems,
   CINEMA_PRODUCTION_RUNTIME_REGISTRY,
   getCinemaEditorSelection,
+  getCinemaSupportedMasterParameterSchemas,
+  getCinemaSupportedParameterSchemas,
   useCinemaStore,
   type CinemaAssetReference,
   type CinemaControlDescriptor,
@@ -46,17 +48,23 @@ export function CinemaInspectorPanel() {
     ? composition?.assetBindings.find(binding => binding.id === selectedNode.assetBindingIds?.[0]) ?? null
     : null
 
+  const supportedMasterSchemas = useMemo(() => composition
+    ? getCinemaSupportedMasterParameterSchemas(composition, state.definitions)
+    : [], [composition, state.definitions])
+  const supportedNodeSchemas = useMemo(() => persistedDefinition
+    ? getCinemaSupportedParameterSchemas(persistedDefinition.definition)
+    : [], [persistedDefinition])
   const masterDescriptors = useMemo(() => composition
-    ? createCinemaControlDescriptors({ namespace: 'master', schemas: composition.masterParameters, values: { ...composition.masterValues, ...(liveInstance?.masterOverrides ?? {}) } }).descriptors
-    : [], [composition, liveInstance])
+    ? createCinemaControlDescriptors({ namespace: 'master', schemas: supportedMasterSchemas, values: { ...composition.masterValues, ...(liveInstance?.masterOverrides ?? {}) } }).descriptors
+    : [], [composition, liveInstance, supportedMasterSchemas])
   const nodeDescriptors = useMemo(() => selectedNode && persistedDefinition
     ? createCinemaControlDescriptors({
         namespace: selectedNode.family === 'effect' ? 'effects' : 'nodes',
         ownerId: selectedNode.id,
-        schemas: persistedDefinition.definition.parameters,
+        schemas: supportedNodeSchemas,
         values: { ...selectedNode.parameterValues, ...(liveInstance?.nodeOverrides.find(override => override.nodeId === selectedNode.id)?.values ?? {}) },
       }).descriptors
-    : [], [liveInstance, persistedDefinition, selectedNode])
+    : [], [liveInstance, persistedDefinition, selectedNode, supportedNodeSchemas])
   const paletteOrder = ['background', 'primary', 'secondary', 'accent', 'foreground', 'highlight']
   const roleForDescriptor = (id: typeof nodeDescriptors[number]['id']) => {
     const schema = persistedDefinition?.definition.parameters.find(parameter => parameter.id === id)
@@ -200,10 +208,10 @@ export function CinemaInspectorPanel() {
       {persistedDefinition && (
         <div className="rv-ctrl-group">
           <Collapsible label="Brand Kit mappings" defaultOpen={false}>
-            {persistedDefinition.definition.parameters.map(parameter => parameter.type === 'color' && parameter.brandRole ? (
+            {supportedNodeSchemas.map(parameter => parameter.type === 'color' && parameter.brandRole ? (
               <InspectorKv key={parameter.id} label={parameter.label} value={`${parameter.brandRole} · ${parameter.brandPolicy ?? 'derived'}`} />
             ) : null)}
-            {!persistedDefinition.definition.parameters.some(parameter => parameter.type === 'color' && parameter.brandRole) && <div className="rv-ctrl-info">This node has no schema-declared Brand Kit color mappings.</div>}
+            {!supportedNodeSchemas.some(parameter => parameter.type === 'color' && parameter.brandRole) && <div className="rv-ctrl-info">This node has no renderer-supported Brand Kit color mappings.</div>}
           </Collapsible>
         </div>
       )}

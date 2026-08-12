@@ -377,6 +377,15 @@ export interface CinemaPlatformCapabilities {
   maximumTextureUnits: number
 }
 
+export type CinemaParameterSupportMode = 'live' | 'structural' | 'conditional' | 'unsupported'
+
+export interface CinemaParameterCapabilityDescriptor {
+  parameterId: CinemaParameterId
+  /** Runtime update semantics. Unsupported entries stay persisted but must not be exposed as editable controls. */
+  support: CinemaParameterSupportMode
+  reason?: string
+}
+
 export interface CinemaNodeCapabilityDescriptor {
   backends: readonly CinemaRenderBackend[]
   canvas2d: {
@@ -565,6 +574,8 @@ export interface CinemaNodeTypeDefinition {
   inputPorts: readonly import('./CinemaDomain').CinemaPortDefinition[]
   outputPorts: readonly import('./CinemaDomain').CinemaPortDefinition[]
   parameters: readonly CinemaParameterDefinition[]
+  /** Renderer/adapter-owned truth for which persisted parameters have real runtime consumers. */
+  parameterCapabilities?: readonly CinemaParameterCapabilityDescriptor[]
   capabilities: CinemaNodeCapabilityDescriptor
   cost: CinemaNodeCostProfile
   seekPolicy: CinemaSeekReconstructionPolicy

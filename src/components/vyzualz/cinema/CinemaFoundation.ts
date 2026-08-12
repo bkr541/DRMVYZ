@@ -194,6 +194,12 @@ export const CINEMA_FOUNDATION_GRADIENT_DEFINITION: Readonly<CinemaNodeTypeDefin
       ui: { control: 'slider', order: 3 },
     },
   ],
+  parameterCapabilities: [
+    { parameterId: CINEMA_FOUNDATION_COLOR_A_PARAMETER_ID, support: 'live' },
+    { parameterId: CINEMA_FOUNDATION_COLOR_B_PARAMETER_ID, support: 'live' },
+    { parameterId: CINEMA_FOUNDATION_ANGLE_PARAMETER_ID, support: 'live' },
+    { parameterId: CINEMA_FOUNDATION_OPACITY_PARAMETER_ID, support: 'live' },
+  ],
   capabilities: FOUNDATION_CAPABILITIES,
   cost: {
     cpu: 'minimal',
@@ -223,6 +229,7 @@ export const CINEMA_FOUNDATION_OUTPUT_DEFINITION: Readonly<CinemaNodeTypeDefinit
   }],
   outputPorts: [],
   parameters: [],
+  parameterCapabilities: [],
   capabilities: FOUNDATION_CAPABILITIES,
   cost: {
     cpu: 'minimal',

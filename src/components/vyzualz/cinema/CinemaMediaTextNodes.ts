@@ -36,6 +36,7 @@ import type {
   CinemaLyricFrame,
 } from './CinemaRendererContracts'
 import { createCinemaDiagnostic } from './CinemaDiagnostics'
+import { createCinemaParameterCapabilities } from './CinemaParameterCapabilities'
 
 export const CINEMA_IMAGE_NODE_TYPE_ID = nodeTypeId('drmvyz.cinema.media.image')
 export const CINEMA_VIDEO_NODE_TYPE_ID = nodeTypeId('drmvyz.cinema.media.video')
@@ -519,6 +520,7 @@ function mediaDefinition(
     inputPorts: [],
     outputPorts: [COLOR_PORT],
     parameters,
+    parameterCapabilities: createCinemaParameterCapabilities(parameters),
     capabilities: WEBGL_CAPABILITIES,
     cost: {
       cpu: roles.includes('video') ? 'low' : 'minimal',
@@ -571,6 +573,7 @@ export const CINEMA_TEXT_NODE_DEFINITION: Readonly<CinemaNodeTypeDefinition> = d
   inputPorts: [],
   outputPorts: [COLOR_PORT, MASK_PORT],
   parameters: TEXT_PARAMETERS,
+  parameterCapabilities: createCinemaParameterCapabilities(TEXT_PARAMETERS),
   capabilities: TEXT_CAPABILITIES,
   cost: { cpu: 'low', gpu: 'low', estimatedPassCount: 1, persistentTargetCount: 0, pingPongPairCount: 0 },
   seekPolicy: { mode: 'stateless' },
@@ -587,6 +590,7 @@ export const CINEMA_LYRIC_NODE_DEFINITION: Readonly<CinemaNodeTypeDefinition> = 
   inputPorts: [],
   outputPorts: [COLOR_PORT, MASK_PORT],
   parameters: LYRIC_PARAMETERS,
+  parameterCapabilities: createCinemaParameterCapabilities(LYRIC_PARAMETERS),
   capabilities: deepFreeze({
     ...TEXT_CAPABILITIES,
     fallbacks: [
@@ -613,6 +617,7 @@ export const CINEMA_GENERATED_MASK_NODE_DEFINITION: Readonly<CinemaNodeTypeDefin
   inputPorts: [],
   outputPorts: [COLOR_PORT, MASK_PORT],
   parameters: MASK_PARAMETERS,
+  parameterCapabilities: createCinemaParameterCapabilities(MASK_PARAMETERS),
   capabilities: WEBGL_CAPABILITIES,
   cost: { cpu: 'minimal', gpu: 'minimal', estimatedPassCount: 1, persistentTargetCount: 0, pingPongPairCount: 0 },
   seekPolicy: { mode: 'stateless' },

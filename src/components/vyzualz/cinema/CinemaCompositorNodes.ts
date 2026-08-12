@@ -24,9 +24,11 @@ import type {
   CinemaNodeResetContext,
   CinemaNodeResizeContext,
   CinemaNodeTypeDefinition,
+  CinemaParameterCapabilityDescriptor,
   CinemaRenderNode,
   CinemaTextureView,
 } from './CinemaRendererContracts'
+import { createCinemaParameterCapabilities } from './CinemaParameterCapabilities'
 import { CINEMATIC_POST_PROCESS_CONSTANTS } from '../shared/CinematicPostProcessPasses'
 import {
   CinemaCompositionTransitionClock,
@@ -358,6 +360,7 @@ function blendDefinition(mode: CinemaCompositorBlendMode): Readonly<CinemaNodeTy
     inputPorts: [BACKGROUND_INPUT_PORT, FOREGROUND_INPUT_PORT],
     outputPorts: [COLOR_OUTPUT_PORT],
     parameters: [OPACITY_PARAMETER],
+    parameterCapabilities: createCinemaParameterCapabilities([OPACITY_PARAMETER]),
     capabilities: WEBGL_CAPABILITIES,
     cost: { cpu: 'minimal', gpu: 'low', estimatedPassCount: 1, persistentTargetCount: 0, pingPongPairCount: 0 },
     seekPolicy: { mode: 'stateless' },
@@ -406,6 +409,11 @@ export const CINEMA_MASKED_COMPOSITE_NODE_DEFINITION: Readonly<CinemaNodeTypeDef
       ui: { control: 'toggle', order: 2 },
     },
   ],
+  parameterCapabilities: [
+    { parameterId: CINEMA_COMPOSITOR_OPACITY_PARAMETER_ID, support: 'live' },
+    { parameterId: CINEMA_COMPOSITOR_MASK_MODE_PARAMETER_ID, support: 'live' },
+    { parameterId: CINEMA_COMPOSITOR_MASK_INVERT_PARAMETER_ID, support: 'live' },
+  ],
   capabilities: WEBGL_CAPABILITIES,
   cost: { cpu: 'minimal', gpu: 'low', estimatedPassCount: 1, persistentTargetCount: 0, pingPongPairCount: 0 },
   seekPolicy: { mode: 'stateless' },
@@ -428,6 +436,7 @@ function effectDefinition(kind: CinemaEffectKind): Readonly<CinemaNodeTypeDefini
     inputPorts,
     outputPorts: [COLOR_OUTPUT_PORT],
     parameters: EFFECT_PARAMETERS,
+    parameterCapabilities: createEffectParameterCapabilities(kind),
     capabilities: WEBGL_CAPABILITIES,
     cost: {
       cpu: 'minimal',
@@ -450,6 +459,32 @@ function effectDefinition(kind: CinemaEffectKind): Readonly<CinemaNodeTypeDefini
         : {}),
     },
   })
+}
+
+function createEffectParameterCapabilities(kind: CinemaEffectKind): readonly CinemaParameterCapabilityDescriptor[] {
+  const consumedByKind: Readonly<Record<CinemaEffectKind, readonly CinemaParameterId[]>> = {
+    bloom: [CINEMA_COMPOSITOR_AMOUNT_PARAMETER_ID, CINEMA_COMPOSITOR_SECONDARY_PARAMETER_ID, CINEMA_COMPOSITOR_SCALE_PARAMETER_ID],
+    blur: [CINEMA_COMPOSITOR_AMOUNT_PARAMETER_ID, CINEMA_COMPOSITOR_SCALE_PARAMETER_ID],
+    feedback: [CINEMA_COMPOSITOR_AMOUNT_PARAMETER_ID, CINEMA_COMPOSITOR_SECONDARY_PARAMETER_ID],
+    refraction: [CINEMA_COMPOSITOR_AMOUNT_PARAMETER_ID, CINEMA_COMPOSITOR_SCALE_PARAMETER_ID, CINEMA_COMPOSITOR_OFFSET_PARAMETER_ID],
+    pixelation: [CINEMA_COMPOSITOR_AMOUNT_PARAMETER_ID, CINEMA_COMPOSITOR_SCALE_PARAMETER_ID],
+    'chromatic-aberration': [CINEMA_COMPOSITOR_AMOUNT_PARAMETER_ID, CINEMA_COMPOSITOR_SCALE_PARAMETER_ID],
+    'color-grading': [CINEMA_COMPOSITOR_EXPOSURE_PARAMETER_ID, CINEMA_COMPOSITOR_CONTRAST_PARAMETER_ID, CINEMA_COMPOSITOR_SATURATION_PARAMETER_ID, CINEMA_COMPOSITOR_HUE_PARAMETER_ID],
+    kaleidoscope: [CINEMA_COMPOSITOR_AMOUNT_PARAMETER_ID, CINEMA_COMPOSITOR_SCALE_PARAMETER_ID],
+    'edge-detection': [CINEMA_COMPOSITOR_SCALE_PARAMETER_ID],
+    strobe: [CINEMA_COMPOSITOR_AMOUNT_PARAMETER_ID, CINEMA_COMPOSITOR_SECONDARY_PARAMETER_ID, CINEMA_COMPOSITOR_SCALE_PARAMETER_ID, CINEMA_COMPOSITOR_OFFSET_PARAMETER_ID],
+    grain: [CINEMA_COMPOSITOR_AMOUNT_PARAMETER_ID, CINEMA_COMPOSITOR_SCALE_PARAMETER_ID],
+    vignette: [CINEMA_COMPOSITOR_AMOUNT_PARAMETER_ID, CINEMA_COMPOSITOR_SECONDARY_PARAMETER_ID],
+    'tone-mapping': [CINEMA_COMPOSITOR_EXPOSURE_PARAMETER_ID],
+  }
+  const consumed = new Set(consumedByKind[kind])
+  return EFFECT_PARAMETERS.map(parameter => consumed.has(parameter.id)
+    ? { parameterId: parameter.id, support: 'live' as const }
+    : {
+        parameterId: parameter.id,
+        support: 'unsupported' as const,
+        reason: `${EFFECT_LABELS[kind]} does not consume this shared effect parameter.`,
+      })
 }
 
 export const CINEMA_EFFECT_NODE_DEFINITIONS: Readonly<Record<CinemaEffectKind, Readonly<CinemaNodeTypeDefinition>>> = deepFreeze({
@@ -541,6 +576,14 @@ export const CINEMA_TRANSITION_NODE_DEFINITION: Readonly<CinemaNodeTypeDefinitio
       modulatable: true,
       ui: { control: 'slider', order: 5 },
     },
+  ],
+  parameterCapabilities: [
+    { parameterId: CINEMA_COMPOSITOR_TRANSITION_KIND_PARAMETER_ID, support: 'live' },
+    { parameterId: CINEMA_COMPOSITOR_TRANSITION_PROGRESS_PARAMETER_ID, support: 'live' },
+    { parameterId: CINEMA_COMPOSITOR_TRANSITION_AUTOMATIC_PARAMETER_ID, support: 'live' },
+    { parameterId: CINEMA_COMPOSITOR_TRANSITION_TOKEN_PARAMETER_ID, support: 'live' },
+    { parameterId: CINEMA_COMPOSITOR_TRANSITION_DURATION_PARAMETER_ID, support: 'live' },
+    { parameterId: CINEMA_COMPOSITOR_TRANSITION_SOFTNESS_PARAMETER_ID, support: 'live' },
   ],
   capabilities: WEBGL_CAPABILITIES,
   cost: { cpu: 'minimal', gpu: 'low', estimatedPassCount: 1, persistentTargetCount: 0, pingPongPairCount: 0 },

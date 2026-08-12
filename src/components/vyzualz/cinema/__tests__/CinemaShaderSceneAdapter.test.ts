@@ -6,6 +6,7 @@ import {
 } from '../CinemaDomain'
 import {
   CINEMA_FOUNDATION_COMPOSITION_ID,
+  CINEMA_FOUNDATION_GRADIENT_DEFINITION,
   CINEMA_FOUNDATION_INPUT_PORT_ID,
   CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
   CINEMA_LEGACY_PRESET_CATALOG,
@@ -36,7 +37,10 @@ import { CinemaRenderTargetPool } from '../runtime/CinemaRenderTargetPool'
 import { CinemaTextureManager } from '../runtime/CinemaTextureManager'
 import { CinemaWebGLRenderServiceImpl } from '../runtime/CinemaWebGLRenderService'
 import { ShaderRegistry, shaderRegistry } from '../../react/shaders/registry'
+import type { ShaderDefinition } from '../../react/shaders/registry/shaderRegistryTypes'
 import { REACTOR_SCENE_ID } from '../../react/shaders/scenes/reactor'
+import { PRISM_TUNNEL } from '../../react/shaders/scenes/prismTunnel'
+import { getCinemaSupportedParameterSchemas } from '../CinemaParameterCapabilities'
 import { SOUND_DRAWING_VECTORSCOPE } from '../../react/shaders/scenes/soundDrawingVectorscope'
 import { createCinemaMockWebGL } from './CinemaWebGLTestUtils'
 import { CinemaImpulseGate } from '../CinemaImpulseGate'
@@ -71,6 +75,48 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
       cinemaShaderBrandTexturePortId('brand-background'),
     ])
     expect(reactor?.definition.metadata?.brandTextureSlotCount).toBe(3)
+  })
+
+  it('derives Inspector parameter capability from actual Shader uniform consumers', () => {
+    const prism = CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries.find(entry => entry.sceneId === PRISM_TUNNEL.id)
+    expect(prism).toBeDefined()
+    const byLabel = new Map(prism!.definition.parameters.map(parameter => [parameter.label, parameter]))
+    const capabilities = new Map(prism!.definition.parameterCapabilities?.map(capability => [capability.parameterId, capability]))
+
+    expect(capabilities.get(byLabel.get('Master Intensity')!.id)?.support).toBe('live')
+    expect(capabilities.get(byLabel.get('Master Motion')!.id)?.support).toBe('live')
+    expect(capabilities.get(byLabel.get('Master Glow')!.id)?.support).toBe('unsupported')
+    expect(capabilities.get(byLabel.get('Master Trail Decay')!.id)?.support).toBe('unsupported')
+    expect(capabilities.get(byLabel.get('Master Particle Density')!.id)?.support).toBe('unsupported')
+    expect(getCinemaSupportedParameterSchemas(prism!.definition).map(parameter => parameter.label)).toContain('Glow')
+  })
+
+  it('hides a declared Shader parameter when its uniform is missing and uses a conservative legacy fallback', () => {
+    const registry = new ShaderRegistry()
+    const missingUniform: ShaderDefinition = {
+      ...PRISM_TUNNEL,
+      id: 'stage2-missing-uniform',
+      name: 'Stage 2 Missing Uniform',
+      params: [
+        ...PRISM_TUNNEL.params,
+        {
+          id: 'dead-control',
+          label: 'Dead Control',
+          type: 'float',
+          uniformName: 'uDeadControl',
+          default: 0.5,
+          min: 0,
+          max: 1,
+          step: 0.01,
+        },
+      ],
+    }
+    registry.register(missingUniform)
+    const definition = createCinemaShaderSceneAdapterBundle(registry).entries[0]!.definition
+    expect(getCinemaSupportedParameterSchemas(definition).map(parameter => parameter.label)).not.toContain('Dead Control')
+
+    const legacyDefinition = { ...CINEMA_FOUNDATION_GRADIENT_DEFINITION, parameterCapabilities: undefined }
+    expect(getCinemaSupportedParameterSchemas(legacyDefinition)).toEqual([])
   })
 
   it('preserves geometry-pass metadata and float-target downgrade semantics for adapter-capable definitions', () => {

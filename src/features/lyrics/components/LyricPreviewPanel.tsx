@@ -1,4 +1,5 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react'
+import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
 import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { resolveLyricCueConfidence, type LyricCue, type LyricDocument, type LyricStyle } from '../../../types/lyrics'
@@ -98,16 +99,9 @@ function RightInspectorSection({
   badge?: ReactNode
 }) {
   return (
-    <DualRailCollapsible
-      className="lmv-panel-card lmv-right-section"
-      headerClassName="lmv-right-section-header"
-      bodyClassName="lmv-right-section-body"
-      defaultOpen={defaultOpen}
-      label={<span className="lmv-right-section-title">{title}</span>}
-      headerAccessory={badge ? <span className="lmv-right-section-badge">{badge}</span> : undefined}
-    >
+    <Collapsible label={title} defaultOpen={defaultOpen} headerAccessory={badge}>
       {children}
-    </DualRailCollapsible>
+    </Collapsible>
   )
 }
 

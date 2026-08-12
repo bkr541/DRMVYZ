@@ -17,6 +17,7 @@ import {
   createCinemaCinematicWorldAdapterBundle,
   createCinemaCinematicWorldComposition,
   createCinemaFoundationPersistedState,
+  getCinemaSupportedParameterSchemas,
   type CinemaActionId,
   type CinemaCompositionDefinition,
   type CinemaEventId,
@@ -66,6 +67,21 @@ describe('Cinema Cinematic World adapters', () => {
     expect(legacy?.backend).toBe('canvas2d')
     expect(legacy?.definition.capabilities.canvas2d.compatibility).toBe('raster-upload')
     expect(legacy?.definition.capabilities.requires).toEqual({ webgl2: true, canvas2d: true })
+  })
+
+  it('derives non-shader Inspector support from each Cinematic World runtime contract', () => {
+    const corridor = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'infiniteCorridor')
+    expect(corridor).toBeDefined()
+    const supported = getCinemaSupportedParameterSchemas(corridor!.definition).map(parameter => parameter.label)
+    expect(supported).toContain('Intensity')
+    expect(supported).toContain('Motion')
+    expect(supported).toContain('Glow')
+    expect(supported).toContain('Fog Density')
+    expect(supported).not.toContain('Bass Reactivity')
+    expect(supported).not.toContain('Trail Decay')
+    expect(supported).not.toContain('Particle Density')
+    expect(supported).toContain('Seed')
+    expect(supported).toContain('Quality Tier')
   })
 
   it('retains Reactive Constellation as a specialized deterministic procedural plugin', () => {
