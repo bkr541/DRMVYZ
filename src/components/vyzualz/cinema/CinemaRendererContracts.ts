@@ -358,6 +358,8 @@ export type CinemaCameraControl =
   | 'beat-punch'
   | 'shake'
   | 'depth-of-field'
+  | 'near'
+  | 'far'
 
 export interface CinemaCameraCapabilityDescriptor {
   mode: CinemaCameraCapability

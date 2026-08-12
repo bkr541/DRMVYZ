@@ -25,6 +25,7 @@ import {
 } from './CinemaIdentifiers'
 import type { CinemaPersistedDefinition } from './CinemaPersistence'
 import type {
+  CinemaCameraControl,
   CinemaFrameContext,
   CinemaNodeDisposeContext,
   CinemaNodeInitializeContext,
@@ -574,7 +575,7 @@ function createNodeDefinition(
       },
       camera: {
         mode: direction ? 'worldCamera' : 'none',
-        controls: direction ? ['position', 'rotation', 'fov', 'orbit', 'dolly', 'speed', 'banking', 'handheld', 'beat-punch', 'shake'] : [],
+        controls: cinematicWorldCameraControls(direction),
         autoDirector: direction?.supportedCameraRigs.includes('autoDirector') ?? false,
       },
       requires: backend === 'canvas2d' ? { webgl2: true, canvas2d: true } : { webgl2: true },
@@ -617,6 +618,36 @@ function createNodeDefinition(
       standaloneEngineRetained: true,
     },
   })
+}
+
+function cinematicWorldCameraControls(
+  direction: Readonly<CinematicWorldDirection> | undefined,
+): readonly CinemaCameraControl[] {
+  if (!direction) return Object.freeze([])
+  const rigs = new Set(direction.supportedCameraRigs)
+  const controls = new Set<CinemaCameraControl>(['position', 'rotation', 'fov', 'roll'])
+  if (rigs.has('locked') || rigs.has('autoDirector')) controls.add('beat-punch')
+  if (rigs.has('orbit')) {
+    controls.add('target')
+    controls.add('orbit')
+    controls.add('speed')
+    controls.add('banking')
+  }
+  if (rigs.has('dolly')) {
+    controls.add('dolly')
+    controls.add('speed')
+    controls.add('beat-punch')
+  }
+  if (rigs.has('flyThrough')) {
+    controls.add('speed')
+    controls.add('banking')
+  }
+  if (rigs.has('handheld')) {
+    controls.add('handheld')
+    controls.add('shake')
+    controls.add('beat-punch')
+  }
+  return Object.freeze([...controls])
 }
 
 function createCinematicWorldParameterCapabilities(

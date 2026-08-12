@@ -236,6 +236,78 @@ describe('Cinema production engine registration', () => {
     expect(host?.textContent).toContain('Opacity')
   })
 
+  it('shows only mode-aware camera controls and hot-applies Field of View through the production Cinema runtime', async () => {
+    const gl = createCinemaMockWebGL()
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+      const id = nextRaf++
+      callbacks.set(id, callback)
+      return id
+    }))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn((id: number) => { callbacks.delete(id) }))
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => (
+      kind === 'webgl2' ? gl : null
+    ) as RenderingContext | null)
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 960, height: 540, top: 0, left: 0, right: 960, bottom: 540, x: 0, y: 0, toJSON: () => ({}),
+    })
+    expect(useCinemaStore.getState().setActiveCinemaComposition(CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.id).ok).toBe(true)
+
+    await act(async () => root?.render(<ProductionLiveControlHarness />))
+    const cameraResources = [...(host?.querySelectorAll<HTMLButtonElement>('.drc-header') ?? [])]
+      .find(button => button.textContent?.includes('Camera resources (1)'))
+    expect(cameraResources).toBeDefined()
+    await act(async () => cameraResources?.click())
+    const cameraHeader = [...(host?.querySelectorAll<HTMLButtonElement>('.drc-header') ?? [])]
+      .find(button => button.textContent?.includes('Event Horizon Shared Camera'))
+    expect(cameraHeader).toBeDefined()
+    await act(async () => cameraHeader?.click())
+
+    const cameraBody = cameraHeader?.nextElementSibling as HTMLElement | null
+    expect(cameraBody?.textContent).toContain('Orbit Radius')
+    expect(cameraBody?.textContent).toContain('Orbit Speed')
+    expect(cameraBody?.textContent).toContain('Orbit Elevation')
+    expect(cameraBody?.textContent).not.toContain('Dolly Range')
+    expect(cameraBody?.textContent).not.toContain('Dolly Speed')
+    expect(cameraBody?.textContent).not.toContain('Fly Speed')
+    expect(cameraBody?.textContent).not.toContain('Handheld')
+    expect(cameraBody?.textContent).not.toContain('Near Plane')
+    expect(cameraBody?.textContent).not.toContain('Far Plane')
+    expect(cameraBody?.textContent).not.toContain('Focus Distance')
+    expect(cameraBody?.textContent).not.toContain('Aperture')
+
+    const fovLabel = [...(cameraBody?.querySelectorAll<HTMLLabelElement>('label') ?? [])]
+      .find(label => label.textContent?.trim() === 'Field of View')
+    const fovInput = fovLabel?.htmlFor
+      ? document.getElementById(fovLabel.htmlFor) as HTMLInputElement | null
+      : null
+    expect(fovInput?.type).toBe('range')
+    const initialPrograms = gl.__calls.createdPrograms
+    const fovUniformIndex = gl.getUniformLocation.mock.calls.findIndex(([, name]) => name === 'uCameraFieldOfView')
+    expect(fovUniformIndex).toBeGreaterThanOrEqual(0)
+    const fovLocation = gl.getUniformLocation.mock.results[fovUniformIndex]?.value
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    expect(valueSetter).toBeDefined()
+
+    await act(async () => {
+      valueSetter?.call(fovInput, '72')
+      fovInput?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(gl.__calls.createdPrograms).toBe(initialPrograms)
+    const activeInstanceId = useCinemaStore.getState().activeInstanceId
+    const activeInstance = useCinemaStore.getState().instances.find(instance => instance.id === activeInstanceId)
+    expect(activeInstance?.cameraOverrides[0]?.values).toMatchObject({ 'fov-degrees': 72 })
+
+    const scheduled = [...callbacks.entries()][0]
+    expect(scheduled).toBeDefined()
+    callbacks.delete(scheduled[0])
+    await act(async () => scheduled[1](16.67))
+    expect(gl.uniform1f).toHaveBeenCalledWith(fovLocation, 72)
+    expect(gl.__calls.createdPrograms).toBe(initialPrograms)
+    expect(host?.querySelector('[data-cinema-output-rendered="true"]')).not.toBeNull()
+  })
+
   it('samples the high-precision audio clock on every production Cinema RAF without a React rerender', async () => {
     const gl = createCinemaMockWebGL()
     const callbacks = new Map<number, FrameRequestCallback>()

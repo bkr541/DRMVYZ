@@ -9,6 +9,7 @@ import {
   CINEMA_FOUNDATION_COMPOSITION,
   CINEMA_FOUNDATION_PERSISTED_DEFINITIONS,
   CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
+  createCinemaFoundationPersistedState,
 } from '../CinemaFoundation'
 import type { CinemaCompositionDefinition, CinemaCompositionInstance } from '../CinemaDomain'
 import type { CinemaCameraId, CinemaCompositionInstanceId } from '../CinemaIdentifiers'
@@ -16,6 +17,7 @@ import { createCinemaParameterPath } from '../CinemaIdentifiers'
 import type { CinemaFrameContext } from '../CinemaRendererContracts'
 import { validateCinemaNodeRegistryEntry } from '../CinemaNodeRegistry'
 import { validateCinemaParameterSchemas } from '../CinemaParameterSchema'
+import { createCinemaSupportedCameraParameterSchemaMap } from '../CinemaParameterCapabilities'
 
 const CAMERA_ID = 'shared-camera' as CinemaCameraId
 
@@ -206,6 +208,60 @@ describe('CinemaCameraRuntime', () => {
 
     expect(schemas[CAMERA_ID].some(schema => schema.id === CINEMA_CAMERA_PARAMETER_IDS.fovDegrees)).toBe(true)
     expect(resolved.camera?.fovDegrees).toBe(72)
+  })
+
+  it('filters camera controls by active mode and verified renderer capabilities without deleting canonical schemas', () => {
+    const state = createCinemaFoundationPersistedState()
+    const fixture = structuredClone(CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION) as CinemaCompositionDefinition
+    const camera = fixture.cameras[0]
+    expect(camera).toBeDefined()
+    if (!camera) return
+
+    const autoSchemas = createCinemaSupportedCameraParameterSchemaMap(fixture, state.definitions)[camera.id]
+    const autoLabels = autoSchemas.map(schema => schema.label)
+    expect(autoLabels).toEqual(expect.arrayContaining([
+      'Position',
+      'Rotation',
+      'Field of View',
+      'Roll',
+      'Target',
+      'Orbit Radius',
+      'Orbit Speed',
+      'Orbit Elevation',
+      'Banking',
+      'Beat Punch',
+    ]))
+    expect(autoLabels).not.toEqual(expect.arrayContaining([
+      'Dolly Range',
+      'Dolly Speed',
+      'Fly Speed',
+      'Handheld',
+      'Shake',
+      'Near Plane',
+      'Far Plane',
+      'Focus Distance',
+      'Aperture',
+    ]))
+
+    fixture.cameras = fixture.cameras.map(candidate => ({ ...candidate, mode: 'orbit' }))
+    const orbitSchemas = createCinemaSupportedCameraParameterSchemaMap(fixture, state.definitions)[camera.id]
+    const orbitLabels = orbitSchemas.map(schema => schema.label)
+    expect(orbitLabels).toEqual([
+      'Rotation',
+      'Target',
+      'Field of View',
+      'Roll',
+      'Orbit Radius',
+      'Orbit Speed',
+      'Orbit Elevation',
+      'Banking',
+    ])
+    expect(createCinemaCameraParameterSchemaMap(fixture)[camera.id]).toHaveLength(Object.keys(CINEMA_CAMERA_PARAMETER_IDS).length)
+  })
+
+  it('does not invent camera controls for a composition without camera resources', () => {
+    const state = createCinemaFoundationPersistedState()
+    expect(createCinemaSupportedCameraParameterSchemaMap(CINEMA_FOUNDATION_COMPOSITION, state.definitions)).toEqual({})
   })
 
   it('publishes authored Cinematic Worlds shots as reusable Cinema camera resources', () => {

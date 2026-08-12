@@ -69,6 +69,15 @@ describe('Cinema Cinematic World adapters', () => {
     expect(legacy?.definition.capabilities.requires).toEqual({ webgl2: true, canvas2d: true })
   })
 
+  it('declares camera controls from each world direction instead of a generic all-modes list', () => {
+    const eventHorizon = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'eventHorizon')
+    const corridor = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'infiniteCorridor')
+    expect(eventHorizon?.definition.capabilities.camera.controls).toEqual(expect.arrayContaining(['position', 'rotation', 'fov', 'roll', 'target', 'orbit', 'speed', 'banking', 'beat-punch']))
+    expect(eventHorizon?.definition.capabilities.camera.controls).not.toEqual(expect.arrayContaining(['dolly', 'handheld', 'shake', 'depth-of-field']))
+    expect(corridor?.definition.capabilities.camera.controls).toEqual(expect.arrayContaining(['position', 'rotation', 'fov', 'roll', 'dolly', 'speed', 'handheld', 'shake', 'beat-punch']))
+    expect(corridor?.definition.capabilities.camera.controls).not.toContain('orbit')
+  })
+
   it('derives non-shader Inspector support from each Cinematic World runtime contract', () => {
     const corridor = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'infiniteCorridor')
     expect(corridor).toBeDefined()

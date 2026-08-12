@@ -88,6 +88,8 @@ const CAMERA_CONTROLS = new Set([
   'beat-punch',
   'shake',
   'depth-of-field',
+  'near',
+  'far',
 ])
 
 const CINEMA_REGISTRY_CONSTRUCTION_TOKEN = Symbol('CinemaNodeDefinitionRegistry')
