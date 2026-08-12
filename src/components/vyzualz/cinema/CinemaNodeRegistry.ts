@@ -73,6 +73,7 @@ const CAMERA_CAPABILITY_MODES = new Set([
   'native',
 ])
 const PARAMETER_SUPPORT_MODES = new Set(['live', 'structural', 'conditional', 'unsupported'])
+const PALETTE_ROLES = new Set(['primary', 'secondary', 'accent', 'background', 'foreground', 'highlight', 'shadow'])
 const CAMERA_CONTROLS = new Set([
   'position',
   'rotation',
@@ -289,6 +290,7 @@ function validateCinemaNodeRegistryEntryInternal(entry: CinemaNodeRegistryEntry)
   }
 
   diagnostics.push(...validateCameraCapability(typeId, definition.capabilities?.camera))
+  diagnostics.push(...validatePaletteCapability(typeId, definition.capabilities?.palette))
 
   if (entry.feedback) {
     const input = inputPorts.find(port => port.id === entry.feedback?.inputPortId)
@@ -349,6 +351,28 @@ function validateCameraCapability(typeId: string, value: unknown): CinemaDiagnos
       typeId,
       `Cinema node camera capability "${mode}" cannot advertise shared controls or Auto Director support.`,
     ))
+  }
+  return diagnostics
+}
+
+function validatePaletteCapability(typeId: string, value: unknown): CinemaDiagnostic[] {
+  if (value === undefined) return []
+  if (!value || typeof value !== 'object') {
+    return [registryDiagnostic(typeId, 'Cinema node palette capability must be an object when declared.')]
+  }
+  const roles = (value as Record<string, unknown>).roles
+  if (!Array.isArray(roles)) {
+    return [registryDiagnostic(typeId, 'Cinema node palette capability must declare a roles array.')]
+  }
+  const diagnostics: CinemaDiagnostic[] = []
+  const seen = new Set<string>()
+  for (const role of roles) {
+    if (typeof role !== 'string' || !PALETTE_ROLES.has(role)) {
+      diagnostics.push(registryDiagnostic(typeId, `Cinema node palette capability role "${String(role)}" is unsupported.`))
+      continue
+    }
+    if (seen.has(role)) diagnostics.push(registryDiagnostic(typeId, `Cinema node palette capability role "${role}" is declared more than once.`))
+    seen.add(role)
   }
   return diagnostics
 }

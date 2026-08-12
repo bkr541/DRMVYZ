@@ -139,6 +139,7 @@ export const diagnosticCinematicWorldDefinition: CinematicWebGLWorldDefinition =
     backend: 'webgl2',
     cameraRigs: ['locked'],
     modulationTargets: ['depth', 'cameraPunch', 'fogDensity', 'particleEmission', 'bloom', 'chromaticAberration', 'environmentBrightness', 'feedback', 'impact'],
+    paletteRoles: [],
     supportsGeometryPasses: true,
     supportsFullscreenPasses: true,
     supportsTextureInputs: true,

@@ -1,4 +1,5 @@
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
+import { IconChipButton } from '../react/controls/IconChipButton'
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../../audio/savedTrackLoader'
 import { setShowManagerLinkedAudioTrackId } from '../../../audio/audioSourcePolicy'
@@ -12,7 +13,7 @@ import { useAudioStore, type SavedAudioTrack } from '../../../stores/audioStore'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { ContextActionMenu } from '../context-menu/ContextActionMenu'
-import { Collapsible, ColorRow, NumberInputRow, SelectRow, SliderRow, ToggleRow } from '../react/ReactControlRows'
+import { Collapsible, ColorRow, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
 import { UnderlineTabs } from '../react/controls/UnderlineTabs'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import { DualRailCollapsible } from '../react/DualRailCollapsible'
@@ -552,6 +553,11 @@ function NewShowDialog({ engineId, copySource = null, onClose }: NewShowDialogPr
     void loadCollections()
   }, [loadCollections, loadSavedTracks])
 
+  // TextInputRow doesn't expose autoFocus, so focus the Show Name field imperatively on mount.
+  useEffect(() => {
+    document.getElementById('show-manager-new-show-name')?.focus()
+  }, [])
+
   const normalizedName = normalizeShowManagerShowName(name)
   const nameAvailable = isShowManagerShowNameAvailable(shows, name)
   const selectedTrack = savedAudioTracks.find(track => track.dbId === selectedAudioTrackId && isSupportedShowManagerAudioLibraryItem(track)) ?? null
@@ -627,79 +633,89 @@ function NewShowDialog({ engineId, copySource = null, onClose }: NewShowDialogPr
             ? 'The complete authored Show will be duplicated. Only Show Name, Tags, and Group can be changed.'
             : 'Every Show requires a unique name and a linked Audio Library track.'}</p>
 
-          <label htmlFor="show-manager-new-show-name">Show Name <span aria-hidden="true">*</span></label>
-          <DreamVizTextInput
+          <TextInputRow
             id="show-manager-new-show-name"
-            autoFocus
+            label="Show Name *"
             value={name}
-            aria-invalid={nameTouched && (!normalizedName || !nameAvailable)}
             onBlur={() => setNameTouched(true)}
-            onChange={event => {
-              setName(event.target.value)
+            onChange={value => {
+              setName(value)
               setSubmitError(null)
             }}
           />
           {nameTouched && !normalizedName && <p className="sm-canvas-form-error" role="alert">Show Name is required.</p>}
           {nameTouched && normalizedName && !nameAvailable && <p className="sm-canvas-form-error" role="alert">A Show with this name already exists.</p>}
 
-          <label htmlFor="show-manager-new-show-audio">Audio Track <span aria-hidden="true">*</span></label>
           <div className="sm-new-show-audio-row">
-            <select
+            <SelectRow
               id="show-manager-new-show-audio"
+              label="Audio Track *"
               value={selectedAudioTrackId}
               disabled={copyMode || audioLoading || submitting}
-              onChange={event => {
-                setSelectedAudioTrackId(event.target.value)
+              onChange={value => {
+                setSelectedAudioTrackId(value)
                 setSubmitError(null)
               }}
-            >
-              <option value="">{audioLoading ? 'Loading Audio Library…' : 'Choose from Audio Library'}</option>
-              {copyMode && selectedAudioTrackId && !selectedTrack && (
-                <option value={selectedAudioTrackId}>Unavailable linked track · {selectedAudioTrackId}</option>
-              )}
-              {savedAudioTracks.filter(isSupportedShowManagerAudioLibraryItem).map(track => (
-                <option key={track.dbId} value={track.dbId}>{track.title || track.fileName}</option>
-              ))}
-            </select>
-            {!copyMode && <button type="button" onClick={() => setUploadOpen(true)} disabled={submitting}>Upload New Audio</button>}
+              options={[
+                { value: '', label: audioLoading ? 'Loading Audio Library…' : 'Choose from Audio Library' },
+                ...(copyMode && selectedAudioTrackId && !selectedTrack
+                  ? [{ value: selectedAudioTrackId, label: `Unavailable linked track · ${selectedAudioTrackId}` }]
+                  : []),
+                ...savedAudioTracks.filter(isSupportedShowManagerAudioLibraryItem).map(track => ({
+                  value: track.dbId, label: track.title || track.fileName,
+                })),
+              ]}
+            />
+            {!copyMode && <IconChipButton type="button" onClick={() => setUploadOpen(true)} disabled={submitting}>Upload New Audio</IconChipButton>}
           </div>
           {copyMode && <p className="sm-new-show-field-note">Audio Track is locked to the source Show.</p>}
           {audioLoadError && <p className="sm-new-show-field-note" role="status">{audioLoadError}</p>}
 
-          <label htmlFor="show-manager-new-show-tags">Tags <span className="sm-new-show-optional">Optional</span></label>
-          <DreamVizTextInput
-            id="show-manager-new-show-tags"
-            value={tagDraft}
-            placeholder="Type a tag and press Enter"
-            onChange={event => setTagDraft(event.target.value)}
-            onKeyDown={event => {
-              if (event.key !== 'Enter' && event.key !== ',') return
-              event.preventDefault()
-              addTag(tagDraft)
-            }}
-            onBlur={() => addTag(tagDraft)}
-          />
+          <div className="rv-ctrl-row">
+            <span className="rv-ctrl-label-cluster">
+              <label className="rv-ctrl-label" htmlFor="show-manager-new-show-tags">Tags <span className="sm-new-show-optional">Optional</span></label>
+            </span>
+            <DreamVizTextInput
+              id="show-manager-new-show-tags"
+              className="rv-ctrl-text-input"
+              value={tagDraft}
+              placeholder="Type a tag and press Enter"
+              onChange={event => setTagDraft(event.target.value)}
+              onKeyDown={event => {
+                if (event.key !== 'Enter' && event.key !== ',') return
+                event.preventDefault()
+                addTag(tagDraft)
+              }}
+              onBlur={() => addTag(tagDraft)}
+            />
+          </div>
           {tags.length > 0 && (
             <div className="sm-new-show-tags" aria-label="Show tags">
               {tags.map(tag => (
-                <button key={tag} type="button" onClick={() => setTags(current => current.filter(value => value !== tag))} aria-label={`Remove tag ${tag}`}>
+                <IconChipButton key={tag} type="button" onClick={() => setTags(current => current.filter(value => value !== tag))} aria-label={`Remove tag ${tag}`}>
                   {tag} ×
-                </button>
+                </IconChipButton>
               ))}
             </div>
           )}
 
-          <label htmlFor="show-manager-new-show-group">Group <span className="sm-new-show-optional">Optional</span></label>
-          <select id="show-manager-new-show-group" value={groupId} onChange={event => setGroupId(event.target.value)} disabled={submitting}>
-            <option value="">No group</option>
-            {copyMode && groupId && !selectedGroup && <option value={groupId}>Unavailable group · {groupId}</option>}
-            {collections.map(collection => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
-          </select>
+          <SelectRow
+            id="show-manager-new-show-group"
+            label="Group (Optional)"
+            value={groupId}
+            disabled={submitting}
+            onChange={setGroupId}
+            options={[
+              { value: '', label: 'No group' },
+              ...(copyMode && groupId && !selectedGroup ? [{ value: groupId, label: `Unavailable group · ${groupId}` }] : []),
+              ...collections.map(collection => ({ value: collection.id, label: collection.name })),
+            ]}
+          />
 
           {submitError && <p className="sm-canvas-form-error" role="alert">{submitError}</p>}
           <div className="sm-canvas-dialog-actions">
-            <button type="button" onClick={onClose} disabled={submitting}>Cancel</button>
-            <button type="submit" disabled={!canCreate}>{submitting ? 'Creating…' : (copyMode ? 'Create Copy' : 'Create Show')}</button>
+            <IconChipButton type="button" onClick={onClose} disabled={submitting}>Cancel</IconChipButton>
+            <IconChipButton type="submit" tone="primary" disabled={!canCreate}>{submitting ? 'Creating…' : (copyMode ? 'Create Copy' : 'Create Show')}</IconChipButton>
           </div>
         </form>
       </div>

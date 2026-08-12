@@ -564,22 +564,41 @@ describe('ShowManagerView production shell', () => {
     })
     const dialog = container.querySelector<HTMLElement>('.sm-new-show-dialog')!
     const nameInput = dialog.querySelector<HTMLInputElement>('#show-manager-new-show-name')!
-    const audioSelect = dialog.querySelector<HTMLSelectElement>('#show-manager-new-show-audio')!
+    const audioTrigger = dialog.querySelector<HTMLButtonElement>('#show-manager-new-show-audio')!
     const tagsInput = dialog.querySelector<HTMLInputElement>('#show-manager-new-show-tags')!
-    const groupSelect = dialog.querySelector<HTMLSelectElement>('#show-manager-new-show-group')!
+    const groupTrigger = dialog.querySelector<HTMLButtonElement>('#show-manager-new-show-group')!
 
     await act(async () => {
       const inputSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
-      const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
       inputSetter?.call(nameInput, '  Festival   Main  ')
       nameInput.dispatchEvent(new Event('input', { bubbles: true }))
-      selectSetter?.call(audioSelect, 'audio-db-1')
-      audioSelect.dispatchEvent(new Event('change', { bubbles: true }))
       inputSetter?.call(tagsInput, 'Peak')
       tagsInput.dispatchEvent(new Event('input', { bubbles: true }))
       tagsInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-      selectSetter?.call(groupSelect, 'collection-1')
-      groupSelect.dispatchEvent(new Event('change', { bubbles: true }))
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      audioTrigger.click()
+      await Promise.resolve()
+    })
+    const audioMenu = document.body.querySelector('.drm-dropdown__menu[role="listbox"]')
+    const audioOption = [...(audioMenu?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])]
+      .find(option => option.textContent?.includes('Selected Audio Track'))
+    await act(async () => {
+      audioOption?.click()
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      groupTrigger.click()
+      await Promise.resolve()
+    })
+    const groupMenu = document.body.querySelector('.drm-dropdown__menu[role="listbox"]')
+    const groupOption = [...(groupMenu?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])]
+      .find(option => option.textContent?.includes('Festival'))
+    await act(async () => {
+      groupOption?.click()
       await Promise.resolve()
     })
 
@@ -714,9 +733,9 @@ describe('ShowManagerView production shell', () => {
     const dialog = container.querySelector<HTMLElement>('.sm-new-show-dialog[role="dialog"]')
     expect(dialog?.textContent).toContain('New Show')
     expect(dialog?.querySelector('input#show-manager-new-show-name')).not.toBeNull()
-    expect(dialog?.querySelector('select#show-manager-new-show-audio')).not.toBeNull()
+    expect(dialog?.querySelector('button#show-manager-new-show-audio')).not.toBeNull()
     expect(dialog?.querySelector('input#show-manager-new-show-tags')).not.toBeNull()
-    expect(dialog?.querySelector('select#show-manager-new-show-group')).not.toBeNull()
+    expect(dialog?.querySelector('button#show-manager-new-show-group')).not.toBeNull()
     expect(dialog?.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true)
     expect(fixture.audioLibrary.loadSavedTracks).toHaveBeenCalled()
     expect(fixture.media.loadCollections).toHaveBeenCalled()
@@ -1039,12 +1058,12 @@ describe('ShowManagerView production shell', () => {
     const dialog = container.querySelector<HTMLElement>('.sm-new-show-dialog[role="dialog"]')!
     expect(dialog.textContent).toContain('Copy Show')
     const nameInput = dialog.querySelector<HTMLInputElement>('#show-manager-new-show-name')!
-    const audioSelect = dialog.querySelector<HTMLSelectElement>('#show-manager-new-show-audio')!
+    const audioTrigger = dialog.querySelector<HTMLButtonElement>('#show-manager-new-show-audio')!
     const tagsInput = dialog.querySelector<HTMLInputElement>('#show-manager-new-show-tags')!
-    const groupSelect = dialog.querySelector<HTMLSelectElement>('#show-manager-new-show-group')!
+    const groupTrigger = dialog.querySelector<HTMLButtonElement>('#show-manager-new-show-group')!
     expect(nameInput.value).toBe('Copy Source')
-    expect(audioSelect.value).toBe('audio-db-1')
-    expect(audioSelect.disabled).toBe(true)
+    expect(audioTrigger.textContent).toContain('Selected Audio Track')
+    expect(audioTrigger.disabled).toBe(true)
     expect(dialog.textContent).toContain('Audio Track is locked to the source Show.')
     expect([...dialog.querySelectorAll('button')].some(button => button.textContent === 'Upload New Audio')).toBe(false)
     expect(dialog.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true)
@@ -1058,7 +1077,7 @@ describe('ShowManagerView production shell', () => {
       tagsInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
       await Promise.resolve()
     })
-    expect(groupSelect.disabled).toBe(false)
+    expect(groupTrigger.disabled).toBe(false)
     await act(async () => {
       dialog.querySelector<HTMLButtonElement>('button[type="submit"]')?.click()
       await Promise.resolve()

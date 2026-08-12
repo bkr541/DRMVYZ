@@ -395,6 +395,10 @@ export interface CinemaNodeCapabilityDescriptor {
     preservesPremultipliedAlpha: boolean
   }
   camera: CinemaCameraCapabilityDescriptor
+  /** Semantic palette roles with verified renderer consumers. Omitted means no verified semantic palette support. */
+  palette?: {
+    roles: readonly CinemaBrandRole[]
+  }
   requires: Partial<Record<keyof CinemaPlatformCapabilities, boolean | number>>
   fallbacks: readonly {
     capability: keyof CinemaPlatformCapabilities | keyof CinemaFrameCapabilities

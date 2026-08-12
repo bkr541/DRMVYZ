@@ -1,6 +1,7 @@
 import {
   CINEMA_COMPOSITION_SCHEMA_ID,
   CINEMA_COMPOSITION_SCHEMA_VERSION,
+  type CinemaBrandRole,
   type CinemaCameraResourceDefinition,
   type CinemaColor,
   type CinemaCompositionDefinition,
@@ -578,6 +579,7 @@ function createNodeDefinition(
         controls: cinematicWorldCameraControls(direction),
         autoDirector: direction?.supportedCameraRigs.includes('autoDirector') ?? false,
       },
+      palette: { roles: cinematicWorldPaletteRoles(definition) },
       requires: backend === 'canvas2d' ? { webgl2: true, canvas2d: true } : { webgl2: true },
       fallbacks: [
         {
@@ -650,12 +652,23 @@ function cinematicWorldCameraControls(
   return Object.freeze([...controls])
 }
 
+function cinematicWorldPaletteRoles(definition: CinematicWorldDefinition): readonly CinemaBrandRole[] {
+  return Object.freeze((definition.capabilities.paletteRoles ?? []).map(role => (
+    role === 'text' ? 'foreground' : role
+  )))
+}
+
 function createCinematicWorldParameterCapabilities(
   definition: CinematicWorldDefinition,
   parameters: readonly CinemaParameterDefinition[],
   backend: 'webgl2' | 'canvas2d',
 ): readonly CinemaParameterCapabilityDescriptor[] {
   const targets = new Set(definition.capabilities.modulationTargets)
+  const paletteRoles = new Set<CinemaBrandRole>(cinematicWorldPaletteRoles(definition))
+  const paletteParameterRoles = new Map<CinemaParameterId, CinemaBrandRole>(CINEMATIC_PALETTE_SPECS.map(([role]) => [
+    cinemaCinematicWorldParameterId(`palette-${role}`),
+    role === 'text' ? 'foreground' : role,
+  ]))
   const directLegacy = backend === 'canvas2d'
   const commonSupport = new Map<CinemaParameterId, boolean>([
     [INTENSITY_PARAMETER_ID, true],
@@ -667,6 +680,15 @@ function createCinematicWorldParameterCapabilities(
     [PARTICLE_DENSITY_PARAMETER_ID, directLegacy || targets.has('particleEmission') || targets.has('debris')],
   ])
   return parameters.map(parameter => {
+    const paletteRole = paletteParameterRoles.get(parameter.id)
+    if (paletteRole) {
+      const supported = paletteRoles.has(paletteRole)
+      return {
+        parameterId: parameter.id,
+        support: supported ? 'live' as const : 'unsupported' as const,
+        ...(!supported ? { reason: `This Cinematic World does not consume the ${paletteRole} palette role.` } : {}),
+      }
+    }
     if (parameter.id === SEED_PARAMETER_ID) return { parameterId: parameter.id, support: 'structural' as const }
     if (parameter.id === QUALITY_PARAMETER_ID) return { parameterId: parameter.id, support: 'conditional' as const }
     const common = commonSupport.get(parameter.id)

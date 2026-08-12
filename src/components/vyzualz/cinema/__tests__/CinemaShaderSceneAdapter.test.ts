@@ -40,7 +40,7 @@ import { ShaderRegistry, shaderRegistry } from '../../react/shaders/registry'
 import type { ShaderDefinition } from '../../react/shaders/registry/shaderRegistryTypes'
 import { REACTOR_SCENE_ID } from '../../react/shaders/scenes/reactor'
 import { PRISM_TUNNEL } from '../../react/shaders/scenes/prismTunnel'
-import { getCinemaSupportedParameterSchemas } from '../CinemaParameterCapabilities'
+import { getCinemaSupportedPaletteRoles, getCinemaSupportedParameterSchemas } from '../CinemaParameterCapabilities'
 import { SOUND_DRAWING_VECTORSCOPE } from '../../react/shaders/scenes/soundDrawingVectorscope'
 import { createCinemaMockWebGL } from './CinemaWebGLTestUtils'
 import { CinemaImpulseGate } from '../CinemaImpulseGate'
@@ -89,6 +89,27 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     expect(capabilities.get(byLabel.get('Master Trail Decay')!.id)?.support).toBe('unsupported')
     expect(capabilities.get(byLabel.get('Master Particle Density')!.id)?.support).toBe('unsupported')
     expect(getCinemaSupportedParameterSchemas(prism!.definition).map(parameter => parameter.label)).toContain('Glow')
+  })
+
+  it('publishes shader semantic palette roles from verified Brand Kit uniform consumers', () => {
+    const registry = new ShaderRegistry()
+    registry.register({
+      ...PRISM_TUNNEL,
+      id: 'stage4-palette-capability',
+      name: 'Stage 4 Palette Capability',
+      fragSrc: 'uniform vec4 uBrandPrimary;\nuniform vec4 uBrandBackground;',
+    })
+    const definition = createCinemaShaderSceneAdapterBundle(registry).entries[0]!.definition
+    expect(getCinemaSupportedPaletteRoles(definition)).toEqual(['primary', 'background'])
+    expect(definition.capabilities.palette?.roles).toEqual(['primary', 'background'])
+
+    const supported = getCinemaSupportedParameterSchemas(definition).map(parameter => parameter.label)
+    expect(supported).toContain('Primary Color')
+    expect(supported).toContain('Background Color')
+    expect(supported).not.toContain('Secondary Color')
+    expect(supported).not.toContain('Accent Color')
+    expect(supported).not.toContain('Foreground Color')
+    expect(supported).not.toContain('Highlight Color')
   })
 
   it('hides a declared Shader parameter when its uniform is missing and uses a conservative legacy fallback', () => {

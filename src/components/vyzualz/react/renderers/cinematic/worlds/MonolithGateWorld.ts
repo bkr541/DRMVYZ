@@ -82,6 +82,7 @@ export const monolithGateWorldDefinition: CinematicWebGLWorldDefinition = {
     backend: 'webgl2',
     cameraRigs: ['locked', 'dolly', 'orbit', 'autoDirector'],
     modulationTargets: ['portalAperture', 'depth', 'cameraPunch', 'cameraTravel', 'fogDensity', 'environmentBrightness', 'bloom', 'impact'],
+    paletteRoles: ['primary', 'secondary', 'accent'],
     supportsGeometryPasses: true,
     supportsFullscreenPasses: true,
     supportsTextureInputs: false,

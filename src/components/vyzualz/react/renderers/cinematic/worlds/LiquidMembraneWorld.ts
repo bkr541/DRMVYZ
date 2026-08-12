@@ -65,6 +65,7 @@ export const liquidMembraneWorldDefinition: CinematicWebGLWorldDefinition = {
     backend: 'webgl2',
     cameraRigs: ['locked', 'orbit', 'handheld', 'autoDirector'],
     modulationTargets: ['portalAperture', 'distortion', 'refraction', 'environmentBrightness', 'feedback', 'bloom', 'chromaticAberration', 'impact'],
+    paletteRoles: ['primary', 'secondary', 'accent'],
     supportsGeometryPasses: true,
     supportsFullscreenPasses: true,
     supportsTextureInputs: false,

@@ -569,6 +569,7 @@ cinematicWorldRendererRegistry.register({
     backend: 'canvas2d',
     cameraRigs: ['locked'],
     modulationTargets: ['portalAperture', 'cameraPunch', 'fogDensity', 'particleEmission', 'environmentBrightness', 'impact'],
+    paletteRoles: ['primary', 'secondary', 'accent', 'background'],
     supportsGeometryPasses: false,
     supportsFullscreenPasses: false,
     supportsTextureInputs: false,

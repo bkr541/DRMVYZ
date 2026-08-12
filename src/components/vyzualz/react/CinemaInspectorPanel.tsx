@@ -10,6 +10,7 @@ import {
   CINEMA_PRODUCTION_RUNTIME_REGISTRY,
   getCinemaEditorSelection,
   getCinemaSupportedMasterParameterSchemas,
+  getCinemaSupportedPaletteRoles,
   getCinemaSupportedParameterSchemas,
   useCinemaStore,
   type CinemaAssetReference,
@@ -69,20 +70,25 @@ export function CinemaInspectorPanel() {
       }).descriptors
     : [], [liveInstance, persistedDefinition, selectedNode, supportedNodeSchemas])
   const paletteOrder = ['background', 'primary', 'secondary', 'accent', 'foreground', 'highlight']
+  const supportedPaletteRoles = persistedDefinition ? getCinemaSupportedPaletteRoles(persistedDefinition.definition) : []
   const roleForDescriptor = (id: typeof nodeDescriptors[number]['id']) => {
     const schema = persistedDefinition?.definition.parameters.find(parameter => parameter.id === id)
     return schema?.type === 'color' ? schema.brandRole : undefined
   }
   const colorDescriptors = nodeDescriptors.filter(descriptor => descriptor.type === 'color')
-  const brandDescriptors = colorDescriptors.filter(descriptor => roleForDescriptor(descriptor.id) !== undefined)
-  // Prefer the six canonical brand-role slots when a node exposes them —
+  const semanticColorDescriptors = colorDescriptors.filter(descriptor => roleForDescriptor(descriptor.id) !== undefined)
+  const brandDescriptors = semanticColorDescriptors.filter(descriptor => {
+    const role = roleForDescriptor(descriptor.id)
+    return role !== undefined && supportedPaletteRoles.includes(role)
+  })
+  // Prefer only canonical brand-role slots with verified renderer consumers —
   // that's what "Palette" means. Otherwise a node's own non-brand color
   // params (e.g. Prism Tunnel's own "Primary Color"/"Secondary Color"
   // uniforms, added alongside the generic brand set) collide visually under
   // the same stripped label. Nodes with no brand-tagged colors at all (e.g.
   // Foundation Gradient's Background Color/Color B) fall back to showing
   // every color param, same as before.
-  const paletteDescriptors = brandDescriptors.length > 0
+  const paletteDescriptors = semanticColorDescriptors.length > 0
     ? [...brandDescriptors].sort((left, right) => paletteOrder.indexOf(roleForDescriptor(left.id) as string) - paletteOrder.indexOf(roleForDescriptor(right.id) as string))
     : colorDescriptors
   const detailDescriptors = nodeDescriptors.filter(descriptor => !paletteDescriptors.includes(descriptor))

@@ -17,6 +17,7 @@ import {
   createCinemaCinematicWorldAdapterBundle,
   createCinemaCinematicWorldComposition,
   createCinemaFoundationPersistedState,
+  getCinemaSupportedPaletteRoles,
   getCinemaSupportedParameterSchemas,
   type CinemaActionId,
   type CinemaCompositionDefinition,
@@ -91,6 +92,40 @@ describe('Cinema Cinematic World adapters', () => {
     expect(supported).not.toContain('Particle Density')
     expect(supported).toContain('Seed')
     expect(supported).toContain('Quality Tier')
+  })
+
+  it('declares only palette roles that each Cinematic World renderer actually consumes', () => {
+    const eventHorizon = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'eventHorizon')
+    const reactive = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'reactiveConstellation')
+    const legacy = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'legacyPortal')
+    expect(eventHorizon).toBeDefined()
+    expect(reactive).toBeDefined()
+    expect(legacy).toBeDefined()
+
+    expect(getCinemaSupportedPaletteRoles(eventHorizon!.definition)).toEqual(['primary', 'secondary', 'accent'])
+    expect(getCinemaSupportedPaletteRoles(reactive!.definition)).toEqual(['primary', 'secondary', 'accent', 'background'])
+    expect(getCinemaSupportedPaletteRoles(legacy!.definition)).toEqual(['primary', 'secondary', 'accent', 'background'])
+
+    const eventHorizonLabels = getCinemaSupportedParameterSchemas(eventHorizon!.definition).map(parameter => parameter.label)
+    expect(eventHorizonLabels).toEqual(expect.arrayContaining(['Primary Color', 'Secondary Color', 'Accent Color']))
+    expect(eventHorizonLabels).not.toContain('Background Color')
+    expect(eventHorizonLabels).not.toContain('Highlight Color')
+    expect(eventHorizonLabels).not.toContain('Foreground Color')
+
+    const hiddenBackground = eventHorizon!.definition.parameters.find(parameter => parameter.label === 'Background Color')
+    const eventHorizonComposition = createCinemaCinematicWorldComposition(
+      'eventHorizon',
+      CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+      CINEMA_FOUNDATION_INPUT_PORT_ID,
+    )
+    const eventHorizonNode = eventHorizonComposition.nodes.find(node => node.family === 'procedural')
+    expect(hiddenBackground).toBeDefined()
+    expect(eventHorizonNode?.parameterValues[hiddenBackground!.id]).toEqual(hiddenBackground!.default)
+
+    const reactiveLabels = getCinemaSupportedParameterSchemas(reactive!.definition).map(parameter => parameter.label)
+    expect(reactiveLabels).toContain('Background Color')
+    expect(reactiveLabels).not.toContain('Highlight Color')
+    expect(reactiveLabels).not.toContain('Foreground Color')
   })
 
   it('retains Reactive Constellation as a specialized deterministic procedural plugin', () => {

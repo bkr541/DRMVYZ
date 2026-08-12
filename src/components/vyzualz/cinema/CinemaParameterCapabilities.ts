@@ -1,5 +1,6 @@
 import type {
   CinemaCameraMode,
+  CinemaBrandRole,
   CinemaCameraResourceDefinition,
   CinemaCompositionDefinition,
   CinemaParameterDefinition,
@@ -101,6 +102,21 @@ export function getCinemaSupportedParameterSchemas(
     const capability = capabilities.get(parameter.id)
     return capability != null && capability.support !== 'unsupported'
   })
+}
+
+export function getCinemaSupportedPaletteRoles(
+  definition: Readonly<CinemaNodeTypeDefinition>,
+): readonly CinemaBrandRole[] {
+  const declaredRoles = definition.capabilities.palette?.roles ?? []
+  if (declaredRoles.length === 0) return Object.freeze([])
+  const capabilities = createCinemaParameterCapabilityMap(definition)
+  const supportedRoles = new Set<CinemaBrandRole>()
+  for (const parameter of definition.parameters) {
+    if (parameter.type !== 'color' || !parameter.brandRole || !declaredRoles.includes(parameter.brandRole)) continue
+    const capability = capabilities.get(parameter.id)
+    if (capability && capability.support !== 'unsupported') supportedRoles.add(parameter.brandRole)
+  }
+  return Object.freeze(declaredRoles.filter(role => supportedRoles.has(role)))
 }
 
 export function getCinemaUnsupportedParameterSchemas(

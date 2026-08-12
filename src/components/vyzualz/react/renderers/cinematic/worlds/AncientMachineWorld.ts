@@ -100,6 +100,7 @@ export const ancientMachineWorldDefinition: CinematicWebGLWorldDefinition = {
     backend: 'webgl2',
     cameraRigs: ['locked', 'dolly', 'orbit', 'autoDirector'],
     modulationTargets: ['portalAperture', 'depth', 'geometryRotation', 'cameraPunch', 'cameraTravel', 'environmentBrightness', 'bloom', 'impact'],
+    paletteRoles: ['primary', 'secondary', 'accent'],
     supportsGeometryPasses: true,
     supportsFullscreenPasses: true,
     supportsTextureInputs: false,

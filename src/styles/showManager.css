@@ -1382,8 +1382,7 @@ button.sm-library-subsection-toggle {
 .sm-canvas-library-empty button,
 .sm-canvas-inspector-empty button,
 .sm-canvas-form button,
-.sm-canvas-stage button,
-.sm-canvas-dialog-actions button {
+.sm-canvas-stage button {
   min-height: 29px;
   padding: 0 10px;
   border: 1px solid rgba(74, 199, 219, 0.28);
@@ -1406,8 +1405,7 @@ button.sm-library-subsection-toggle {
 .sm-canvas-stage--empty > strong { color: rgba(232, 244, 248, 0.88); font-size: 16px; }
 .sm-canvas-stage--empty > p { margin: -10px 0 2px; color: rgba(196, 212, 220, 0.48); font-size: 10px; }
 .sm-canvas-form { display: grid; gap: 7px; }
-.sm-canvas-form label,
-.sm-canvas-dialog label { color: rgba(196, 212, 220, 0.56); font-size: 8px; letter-spacing: 0.06em; text-transform: uppercase; }
+.sm-canvas-form label { color: rgba(196, 212, 220, 0.56); font-size: 8px; letter-spacing: 0.06em; text-transform: uppercase; }
 .sm-canvas-form > small { color: rgba(196, 212, 220, 0.42); font-size: 8px; }
 .sm-canvas-form-error { margin: 0; color: #fca5a5; font-size: 8px; }
 .sm-canvas-delete {
@@ -1438,10 +1436,11 @@ button.sm-library-subsection-toggle {
   gap: 10px;
   border: 1px solid rgba(103, 247, 255, 0.28);
   border-radius: 9px;
-  background: #0b1115;
+  background: var(--color-panel-alt, #0b1115);
+  font-family: var(--az-font, Inter, system-ui, sans-serif);
   box-shadow: 0 22px 70px rgba(0, 0, 0, 0.55);
 }
-.sm-canvas-dialog h2 { margin: 0; color: rgba(240, 247, 249, 0.94); font-size: 15px; }
+.sm-canvas-dialog h2 { margin: 0; color: rgba(240, 247, 249, 0.94); font-size: 15px; font-family: inherit; }
 .sm-canvas-dialog > p { margin: 0 0 4px; color: rgba(196, 212, 220, 0.48); font-size: 9px; }
 .sm-canvas-dialog-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 4px; }
 
@@ -1798,34 +1797,9 @@ button.sm-library-subsection-toggle {
 }
 .sm-timeline--empty { min-height: 122px; }
 .sm-new-show-dialog { width: min(480px, calc(100vw - 32px)); }
-.sm-new-show-dialog select {
-  min-width: 0;
-  min-height: 34px;
-  padding: 0 9px;
-  border: 1px solid rgba(154, 178, 188, 0.18);
-  border-radius: 5px;
-  background: rgba(4, 8, 11, 0.92);
-  color: rgba(232, 244, 248, 0.84);
-  font: inherit;
-  font-size: 9px;
-}
-.sm-new-show-dialog select:focus { outline: 1px solid rgba(103, 247, 255, 0.62); outline-offset: 1px; }
-.sm-new-show-audio-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; align-items: center; }
-.sm-new-show-audio-row button,
-.sm-new-show-tags button {
-  min-height: 30px;
-  padding: 0 9px;
-  border: 1px solid rgba(74, 199, 219, 0.24);
-  border-radius: 5px;
-  background: rgba(74, 199, 219, 0.07);
-  color: rgba(126, 226, 238, 0.88);
-  font: inherit;
-  font-size: 8px;
-  cursor: pointer;
-}
+.sm-new-show-audio-row { display: flex; align-items: flex-end; gap: 8px; }
+.sm-new-show-audio-row > .rv-ctrl-row { flex: 1; min-width: 0; }
 .sm-new-show-tags { display: flex; flex-wrap: wrap; gap: 5px; }
-.sm-new-show-tags button { min-height: 24px; border-radius: 999px; }
+.sm-new-show-tags .dv-icon-chip { min-height: 24px; border-radius: 999px; }
 .sm-new-show-optional { color: rgba(196, 212, 220, 0.32); font-size: 7px; text-transform: none; letter-spacing: 0; }
 .sm-new-show-field-note { margin: -4px 0 0; color: rgba(196, 212, 220, 0.46); font-size: 8px; }
-.sm-new-show-dialog button:disabled,
-.sm-new-show-dialog select:disabled { opacity: 0.45; cursor: not-allowed; }

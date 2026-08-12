@@ -1093,6 +1093,7 @@ export const reactiveConstellationWorldDefinition: CinematicWebGLWorldDefinition
     backend: 'webgl2',
     cameraRigs: ['locked', 'dolly', 'orbit', 'handheld', 'autoDirector'],
     modulationTargets: ['networkSpread', 'nodeScale', 'nodeSpin', 'edgeBrightness', 'edgeWidth', 'trailLength', 'topologyMorph', 'collapseForce', 'burstImpulse', 'facetOpacity', 'depth', 'geometryRotation', 'environmentBrightness', 'cameraPunch', 'bloom', 'impact'],
+    paletteRoles: ['primary', 'secondary', 'accent', 'background'],
     supportsGeometryPasses: true,
     supportsFullscreenPasses: false,
     supportsTextureInputs: false,

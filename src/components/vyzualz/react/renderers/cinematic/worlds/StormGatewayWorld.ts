@@ -67,6 +67,7 @@ export const stormGatewayWorldDefinition: CinematicWebGLWorldDefinition = {
     backend: 'webgl2',
     cameraRigs: ['locked', 'orbit', 'handheld', 'autoDirector'],
     modulationTargets: ['portalAperture', 'depth', 'cameraPunch', 'fogDensity', 'particleEmission', 'lightning', 'environmentBrightness', 'distortion', 'bloom', 'chromaticAberration', 'impact'],
+    paletteRoles: ['primary', 'secondary', 'accent'],
     supportsGeometryPasses: true,
     supportsFullscreenPasses: true,
     supportsTextureInputs: false,

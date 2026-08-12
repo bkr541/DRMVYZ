@@ -192,10 +192,14 @@ export interface CinematicWebGLWorldRenderer {
   dispose(): void
 }
 
+export type CinematicPaletteRole = 'primary' | 'secondary' | 'accent' | 'background' | 'highlight' | 'text'
+
 export interface CinematicWorldCapabilities {
   backend: CinematicWorldBackend
   cameraRigs: readonly CinematicCameraRig[]
   modulationTargets: readonly CinematicAudioTarget[]
+  /** Renderer-owned semantic palette inputs actually consumed by this world. */
+  paletteRoles?: readonly CinematicPaletteRole[]
   supportsGeometryPasses: boolean
   supportsFullscreenPasses: boolean
   supportsTextureInputs: boolean

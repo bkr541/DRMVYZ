@@ -191,6 +191,15 @@ const BRAND_COLOR_PARAMETER_SPECS = Object.freeze([
   { id: 'brand-highlight-color', label: 'Highlight Color', role: 'highlight', default: DEFAULT_BRAND_COLORS.highlight },
 ] as const)
 
+const SHADER_BRAND_ROLE_UNIFORMS: Readonly<Partial<Record<CinemaBrandRole, readonly string[]>>> = Object.freeze({
+  primary: ['uBrandPrimary'],
+  secondary: ['uBrandSecondary'],
+  accent: ['uBrandAccent'],
+  background: ['uBrandBackground'],
+  foreground: ['uBrandForeground', 'uBrandText'],
+  highlight: ['uBrandHighlight'],
+})
+
 export function cinemaShaderSceneTypeId(sceneId: string): CinemaNodeTypeId {
   return cinemaNamespacedId<CinemaNodeTypeId>(`drmvyz.cinema.shader.${normalizeNamespacedSegment(sceneId)}`, 'node type')
 }
@@ -433,6 +442,7 @@ function createAdapterEntry(shader: ShaderDefinition): CinemaShaderSceneAdapterE
       backends: ['webgl2'],
       canvas2d: { compatibility: 'unsupported', preservesPremultipliedAlpha: true },
       camera: { mode: 'uniformCamera', controls: [], autoDirector: false },
+      palette: { roles: createShaderPaletteRoles(shader) },
       requires: { webgl2: true },
       fallbacks: [
         {
@@ -1480,6 +1490,13 @@ function createBrandTextureInputMappings(shader: ShaderDefinition): ShaderBrandT
     }))
 }
 
+function createShaderPaletteRoles(shader: ShaderDefinition): readonly CinemaBrandRole[] {
+  const source = shaderSource(shader)
+  return Object.freeze(BRAND_COLOR_PARAMETER_SPECS
+    .filter(spec => (SHADER_BRAND_ROLE_UNIFORMS[spec.role] ?? []).some(uniform => shaderSourceDeclaresUniform(source, uniform)))
+    .map(spec => spec.role as CinemaBrandRole))
+}
+
 function createShaderParameterCapabilities(
   shader: ShaderDefinition,
   parameterMappings: readonly ShaderParameterMapping[],
@@ -1494,16 +1511,8 @@ function createShaderParameterCapabilities(
       ...(!supported ? { reason: `Shader source does not declare ${spec.uniform}.` } : {}),
     })
   }
-  const brandUniforms: Readonly<Partial<Record<CinemaBrandRole, readonly string[]>>> = {
-    primary: ['uBrandPrimary'],
-    secondary: ['uBrandSecondary'],
-    accent: ['uBrandAccent'],
-    background: ['uBrandBackground'],
-    foreground: ['uBrandForeground', 'uBrandText'],
-    highlight: ['uBrandHighlight'],
-  }
   for (const spec of BRAND_COLOR_PARAMETER_SPECS) {
-    const uniforms = brandUniforms[spec.role] ?? []
+    const uniforms = SHADER_BRAND_ROLE_UNIFORMS[spec.role] ?? []
     const supported = uniforms.some(uniform => shaderSourceDeclaresUniform(source, uniform))
     result.push({
       parameterId: cinemaShaderParameterId(spec.id),

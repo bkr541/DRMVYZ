@@ -72,6 +72,7 @@ export const celestialCathedralWorldDefinition: CinematicWebGLWorldDefinition = 
     backend: 'webgl2',
     cameraRigs: ['locked', 'dolly', 'flyThrough', 'autoDirector'],
     modulationTargets: ['depth', 'cameraTravel', 'fogDensity', 'particleEmission', 'environmentBrightness', 'bloom', 'impact'],
+    paletteRoles: ['primary', 'secondary', 'accent'],
     supportsGeometryPasses: true,
     supportsFullscreenPasses: true,
     supportsTextureInputs: false,
