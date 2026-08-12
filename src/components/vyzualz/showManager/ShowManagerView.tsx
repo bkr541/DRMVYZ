@@ -176,6 +176,51 @@ interface ShowBrowserActionResult {
   error?: string
 }
 
+/** In-app replacement for window.confirm() — matches the canonical NewShowDialog chrome. */
+function ConfirmDeleteDialog({
+  title = 'Delete Show',
+  message,
+  busy = false,
+  onCancel,
+  onConfirm,
+}: {
+  title?: string
+  message: string
+  busy?: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const headingId = useId()
+  return (
+    <div
+      className="sm-canvas-dialog-backdrop"
+      role="presentation"
+      onMouseDown={event => {
+        if (event.target === event.currentTarget && !busy) onCancel()
+      }}
+    >
+      <div
+        className="sm-canvas-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={headingId}
+        onKeyDown={event => {
+          if (event.key === 'Escape' && !busy) onCancel()
+        }}
+      >
+        <h2 id={headingId}>{title}</h2>
+        <p>{message}</p>
+        <div className="sm-canvas-dialog-actions">
+          <IconChipButton type="button" onClick={onCancel} disabled={busy}>Cancel</IconChipButton>
+          <IconChipButton type="button" className="dv-icon-chip--danger" onClick={onConfirm} disabled={busy}>
+            {busy ? 'Deleting…' : 'Delete'}
+          </IconChipButton>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface ShowBrowserDialogProps {
   shows: readonly ShowBrowserEntry[]
   onClose: () => void
@@ -195,6 +240,7 @@ function ShowBrowserDialog({
   const [selectedShowId, setSelectedShowId] = useState<string | null>(null)
   const [busyShowId, setBusyShowId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [pendingDeleteShow, setPendingDeleteShow] = useState<ShowBrowserEntry | null>(null)
   const busyRef = useRef(false)
   const searchRef = useRef<HTMLInputElement | null>(null)
   const filteredShows = useMemo(() => {
@@ -233,8 +279,15 @@ function ShowBrowserDialog({
     void openShow(selectedShowId)
   }
 
-  const deleteShow = async (show: ShowBrowserEntry) => {
-    if (busyRef.current || !window.confirm(`Delete Show “${show.name}”? This removes only the Show and its authored data. Linked media and audio remain in the library.`)) return
+  const deleteShow = (show: ShowBrowserEntry) => {
+    if (busyRef.current) return
+    setPendingDeleteShow(show)
+  }
+
+  const confirmDeleteShow = async () => {
+    const show = pendingDeleteShow
+    if (!show) return
+    setPendingDeleteShow(null)
     busyRef.current = true
     setBusyShowId(show.id)
     setActionError(null)
@@ -249,6 +302,7 @@ function ShowBrowserDialog({
   }
 
   return (
+    <>
     <div
       className="sm-show-browser-backdrop"
       role="presentation"
@@ -368,7 +422,7 @@ function ShowBrowserDialog({
                       aria-label={`Delete Show ${show.name}`}
                       onClick={event => {
                         event.stopPropagation()
-                        void deleteShow(show)
+                        deleteShow(show)
                       }}
                     >Delete</button>
                   </span>
@@ -398,6 +452,15 @@ function ShowBrowserDialog({
         </footer>
       </section>
     </div>
+    {pendingDeleteShow && (
+      <ConfirmDeleteDialog
+        message={`Delete Show “${pendingDeleteShow.name}”? This removes only the Show and its authored data. Linked media and audio remain in the library.`}
+        busy={busyShowId === pendingDeleteShow.id}
+        onCancel={() => setPendingDeleteShow(null)}
+        onConfirm={() => void confirmDeleteShow()}
+      />
+    )}
+    </>
   )
 }
 
@@ -886,6 +949,8 @@ export function ShowManagerView() {
   const [canvasRenameError, setCanvasRenameError] = useState<string | null>(null)
   const [canvasLibraryMediaId, setCanvasLibraryMediaId] = useState<string | null>(null)
   const [canvasAuthoringError, setCanvasAuthoringError] = useState<string | null>(null)
+  const [pendingDeleteCanvasShow, setPendingDeleteCanvasShow] = useState<{ id: string; name: string } | null>(null)
+  const [deletingCanvasShow, setDeletingCanvasShow] = useState(false)
   const [canvasPlayheadSec, setCanvasPlayheadSec] = useState(0)
   const [pixGridTrackMapSectionId, setPixGridTrackMapSectionId] = useState<string | null>(null)
   const [linkedAudioLoadError, setLinkedAudioLoadError] = useState<string | null>(null)
@@ -1584,6 +1649,19 @@ export function ShowManagerView() {
     return deleted
       ? { ok: true }
       : { ok: false, error: 'The Show could not be deleted. Its Show data and linked media were left unchanged.' }
+  }
+
+  const confirmDeleteCanvasShow = async () => {
+    const show = pendingDeleteCanvasShow
+    if (!show) return
+    setPendingDeleteCanvasShow(null)
+    setDeletingCanvasShow(true)
+    try {
+      const deleted = await deleteShowManagerShow(show.id)
+      if (!deleted) setCanvasAuthoringError('The Show could not be deleted. Its Show data and linked media were left unchanged.')
+    } finally {
+      setDeletingCanvasShow(false)
+    }
   }
 
   const saveAndActivateSelectedShow = () => {
@@ -2540,10 +2618,8 @@ export function ShowManagerView() {
               onInteractionEnd={commitCanvasShowManagerHistoryTransaction}
               onDeleteElement={deleteSelectedCanvasElement}
               onDelete={() => {
-                if (!activeCanvasShow || !window.confirm(`Delete Show “${activeCanvasShow.name}”? This removes only the Show and its authored data. Linked media and audio remain in the library.`)) return
-                void deleteShowManagerShow(activeCanvasShow.id).then(deleted => {
-                  if (!deleted) setCanvasAuthoringError('The Show could not be deleted. Its Show data and linked media were left unchanged.')
-                })
+                if (!activeCanvasShow) return
+                setPendingDeleteCanvasShow({ id: activeCanvasShow.id, name: activeCanvasShow.name })
               }}
               onCreate={createSelectedShow}
             />
@@ -2580,6 +2656,14 @@ export function ShowManagerView() {
             setNewShowOpen(false)
             setCopySourceShowId(null)
           }}
+        />
+      )}
+      {pendingDeleteCanvasShow && (
+        <ConfirmDeleteDialog
+          message={`Delete Show “${pendingDeleteCanvasShow.name}”? This removes only the Show and its authored data. Linked media and audio remain in the library.`}
+          busy={deletingCanvasShow}
+          onCancel={() => setPendingDeleteCanvasShow(null)}
+          onConfirm={() => void confirmDeleteCanvasShow()}
         />
       )}
     </section>

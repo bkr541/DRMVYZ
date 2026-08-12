@@ -1443,6 +1443,15 @@ button.sm-library-subsection-toggle {
 .sm-canvas-dialog h2 { margin: 0; color: rgba(240, 247, 249, 0.94); font-size: 15px; font-family: inherit; }
 .sm-canvas-dialog > p { margin: 0 0 4px; color: rgba(196, 212, 220, 0.48); font-size: 9px; }
 .sm-canvas-dialog-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 4px; }
+.sm-canvas-dialog-actions .dv-icon-chip.dv-icon-chip--danger {
+  border-color: rgba(255, 96, 112, 0.34);
+  background: rgba(255, 72, 92, 0.08);
+  color: rgba(255, 174, 184, 0.9);
+}
+.sm-canvas-dialog-actions .dv-icon-chip.dv-icon-chip--danger:hover:not(:disabled) {
+  background: rgba(255, 72, 92, 0.16);
+  color: rgba(255, 174, 184, 0.9);
+}
 
 /* Directory-style Open Show browser. */
 .sm-show-browser-backdrop {

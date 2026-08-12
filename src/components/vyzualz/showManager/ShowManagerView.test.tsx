@@ -1100,8 +1100,6 @@ describe('ShowManagerView production shell', () => {
       groupId: null,
       engineIds: ['pixGrid'],
     }] as typeof fixture.state.showManagerShows
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
-
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -1121,12 +1119,27 @@ describe('ShowManagerView production shell', () => {
       deleteButton.click()
       await Promise.resolve()
     })
-    expect(confirm).toHaveBeenCalledTimes(1)
+    const confirmDialog = container.querySelector<HTMLElement>('.sm-canvas-dialog[role="alertdialog"]')!
+    expect(confirmDialog.textContent).toContain('Delete Candidate')
     expect(fixture.state.deleteShowManagerShow).not.toHaveBeenCalled()
     expect(fixture.loadSavedTrackIntoEngine).not.toHaveBeenCalled()
 
+    const cancelButton = [...confirmDialog.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Cancel')!
+    await act(async () => {
+      cancelButton.click()
+      await Promise.resolve()
+    })
+    expect(container.querySelector('.sm-canvas-dialog[role="alertdialog"]')).toBeNull()
+    expect(fixture.state.deleteShowManagerShow).not.toHaveBeenCalled()
+
     await act(async () => {
       deleteButton.click()
+      await Promise.resolve()
+    })
+    const reopenedDialog = container.querySelector<HTMLElement>('.sm-canvas-dialog[role="alertdialog"]')!
+    const confirmDeleteButton = [...reopenedDialog.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === 'Delete')!
+    await act(async () => {
+      confirmDeleteButton.click()
       await Promise.resolve()
       await Promise.resolve()
     })
