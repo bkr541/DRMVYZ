@@ -85,13 +85,13 @@ export function CinemaInspectorPanel() {
       </div>
 
       <div className="rv-ctrl-group">
-        <Collapsible label="Palette">
+        <Collapsible label="Palette" bodyClassName={paletteDescriptors.length === 0 ? undefined : 'rv-cinema-palette-body'}>
           {paletteDescriptors.length === 0 ? <div className="rv-ctrl-info">This layer does not expose palette colors. Select another visual layer to change its background and brand colors.</div> : paletteDescriptors.map(descriptor => {
             const color = Array.isArray(descriptor.value) ? descriptor.value : [1, 1, 1, 1]
             return (
               <PaletteColorRow
                 key={descriptor.path}
-                label={descriptor.label}
+                label={descriptor.label.replace(' Color', '')}
                 value={rgbaToHex(color)}
                 disabled={descriptor.disabled}
                 description={descriptor.disabledReason ?? descriptor.help.helpText ?? descriptor.help.description}

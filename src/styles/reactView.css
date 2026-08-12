@@ -11988,7 +11988,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ctrl-palette-swatch {
   position: relative;
   display: block;
-  min-height: 36px;
+  min-height: var(--ui-control-height);
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
@@ -12015,6 +12015,14 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ctrl-palette-swatch-input:focus-visible {
   outline: 2px solid #67f7ff;
   outline-offset: 2px;
+}
+
+/* Cinema's Palette group lays its PaletteColorRow items out in a 4-column
+   grid, matching the Full-Bleed Swatch winner's final Layout Lab layout. */
+.drc-body.rv-cinema-palette-body {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px 12px;
 }
 
 .rv-ctrl-action-row {
