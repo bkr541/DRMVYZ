@@ -55,9 +55,12 @@ interface DrumHit {
   confidence: number
 }
 
+const DRUM_BASELINE_MIN = 0.005
+
 class DrumHitDetector {
   private readonly baseline = new EMAFilter()
   private cooldown          = 0
+  private baselineArmed     = false
 
   constructor(
     private readonly cooldownFrames: number,
@@ -66,17 +69,34 @@ class DrumHitDetector {
   ) {}
 
   update(signal: number, isPlaying: boolean): DrumHit {
-    const baseline = this.baseline.update(signal, 0.08)  // medium EMA tracks local level
-    const onset    = baseline > 0.005
-      ? Math.max(0, (signal - baseline) / baseline)
-      : 0
-    const strength = Math.min(1, onset)
+    const safeSignal = Number.isFinite(signal) ? Math.max(0, signal) : 0
+    const previousBaseline = this.baseline.current
 
     if (this.cooldown > 0) this.cooldown--
 
+    // A detector that has no meaningful prior level cannot distinguish a real
+    // onset from the source simply becoming non-zero. Seed the baseline from
+    // that first meaningful frame and arm on the *next* comparison instead of
+    // turning the zero -> signal discontinuity into a synthetic drum hit.
+    if (!this.baselineArmed || previousBaseline <= DRUM_BASELINE_MIN) {
+      if (safeSignal > DRUM_BASELINE_MIN) {
+        this.baseline.reset(safeSignal)
+        this.baselineArmed = true
+      } else {
+        this.baseline.update(safeSignal, 0.08)
+      }
+      return { hit: false, strength: 0, confidence: 0 }
+    }
+
+    // Compare against the previous-frame baseline. Updating the EMA first makes
+    // the onset self-referential and exaggerates the first rising frame.
+    const onset = Math.max(0, (safeSignal - previousBaseline) / previousBaseline)
+    const strength = Math.min(1, onset)
+    this.baseline.update(safeSignal, 0.08)
+
     const hit = isPlaying &&
       strength  > this.hitThreshold &&
-      signal    > this.presenceMin  &&
+      safeSignal > this.presenceMin &&
       this.cooldown === 0
 
     if (hit) this.cooldown = this.cooldownFrames
@@ -87,6 +107,7 @@ class DrumHitDetector {
   reset(): void {
     this.baseline.reset()
     this.cooldown = 0
+    this.baselineArmed = false
   }
 }
 

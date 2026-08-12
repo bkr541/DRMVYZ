@@ -1397,6 +1397,7 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
           sampleRate: an.context.sampleRate,
           audioTime:  audioTimeNow,
           isPlaying:  isPlayingRef.current,
+          publisherId: 'visualizer:live',
         })
       }
       const lyricPlayback = an && buf

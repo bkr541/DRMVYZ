@@ -95,6 +95,10 @@ export class MusicIntelligenceEngine {
   private sourceId: string | null = null
   private trackId:  string | null = null
   private frameId   = 0
+  private lastAnalyserAudioTime: number | null = null
+  private lastAnalyserSourceId: string | null = null
+  private lastAnalyserTrackId: string | null = null
+  private lastAnalyserIsPlaying = false
 
   // Optional getter registered by useAudioEngine so Meyda features flow in
   private meydaFeaturesGetter: (() => MeydaFeatureSnapshot | null) | null = null
@@ -122,6 +126,47 @@ export class MusicIntelligenceEngine {
     isGap: false,
   }
   private readonly semanticAnalyzer = new SemanticAnalyzer()
+
+  private resetRhythmRuntimeState(): void {
+    this.rhythmAnalyzer.reset()
+    this.lastAnalyserAudioTime = null
+    this.lastAnalyserSourceId = null
+    this.lastAnalyserTrackId = null
+    this.lastAnalyserIsPlaying = false
+  }
+
+  private analyserIdentityMatches(): boolean {
+    return this.lastAnalyserSourceId === this.sourceId
+      && this.lastAnalyserTrackId === this.trackId
+  }
+
+  private isDuplicateAnalyserPublication(
+    audioTime: number,
+    isPlaying: boolean,
+    publisherId: string | undefined,
+  ): boolean {
+    if (!publisherId || this.lastAnalyserAudioTime === null || !this.analyserIdentityMatches()) return false
+    return Math.abs(audioTime - this.lastAnalyserAudioTime) <= 1 / 240
+      && isPlaying === this.lastAnalyserIsPlaying
+  }
+
+  private resetRhythmForTransportDiscontinuity(audioTime: number): void {
+    if (this.lastAnalyserAudioTime === null || !this.analyserIdentityMatches()) return
+    const delta = audioTime - this.lastAnalyserAudioTime
+    if (delta < -0.001 || delta > 0.75) {
+      // BeatGrid derives indices from absolute audio time and already suppresses
+      // seek/skip hits. Drum/onset detectors are stateful and must discard their
+      // EMA/cooldown history across discontinuous transport positions.
+      this.rhythmAnalyzer.reset()
+    }
+  }
+
+  private rememberAnalyserPublication(audioTime: number, isPlaying: boolean): void {
+    this.lastAnalyserAudioTime = audioTime
+    this.lastAnalyserSourceId = this.sourceId
+    this.lastAnalyserTrackId = this.trackId
+    this.lastAnalyserIsPlaying = isPlaying
+  }
 
   private analysisCapabilities(): TrackAnalysisCapabilities {
     const analysis = this.trackAnalysis
@@ -477,6 +522,7 @@ export class MusicIntelligenceEngine {
     this.beatGrid.setBpm(0, 0, 0)
     this.beatGrid.setMarkers([], [])
     this.stemInterpolator.setData(null)
+    this.resetRhythmRuntimeState()
     this.clearLyricStateForSource(`source:${trackId ?? sourceId ?? 'none'}`)
     AudioFeatureBus.reset()
     this.publishCapabilityState(false)
@@ -573,8 +619,16 @@ export class MusicIntelligenceEngine {
   }
 
   updateFromAudioFrame(input: AudioFrameInput): void {
-    const { freqBuf, timeBuf, sampleRate, audioTime, isPlaying, publisherId } = input
+    const { freqBuf, timeBuf, sampleRate, isPlaying, publisherId } = input
+    const audioTime = Number.isFinite(input.audioTime) ? Math.max(0, input.audioTime) : 0
     this.sampleRate = sampleRate > 0 ? sampleRate : this.sampleRate
+
+    // Several renderer surfaces can coexist briefly during navigation/StrictMode.
+    // Preserve the first canonical snapshot for one transport instant instead of
+    // advancing the singleton detector twice and overwriting one-frame hit edges.
+    if (this.isDuplicateAnalyserPublication(audioTime, isPlaying, publisherId)) return
+
+    this.resetRhythmForTransportDiscontinuity(audioTime)
     this.frameId++
 
     const fftSize = freqBuf.length * 2  // analyser frequencyBinCount = fftSize/2
@@ -708,6 +762,7 @@ export class MusicIntelligenceEngine {
     // Publish final frame with semantics filled in
     const frame: MusicIntelligenceFrame = { ...partialFrame, semantics: semanticsResult }
     AudioFeatureBus.setFrame(frame, publisherId ?? null)
+    this.rememberAnalyserPublication(audioTime, isPlaying)
   }
 
   start(): void { /**/ }
@@ -716,7 +771,7 @@ export class MusicIntelligenceEngine {
   reset(): void {
     this.frameId = 0
     this.bandAnalyzer.reset()
-    this.rhythmAnalyzer.reset()
+    this.resetRhythmRuntimeState()
     this.beatGrid.reset()
     this.energyAnalyzer.reset()
     this.harmonicAnalyzer.reset()

@@ -1910,6 +1910,7 @@ export function CanvasEngineSurface({
         sampleRate: analyser.context.sampleRate,
         audioTime: resolveCanvasAudioTime(getAudioTimeRef.current),
         isPlaying: isPlaying && !isPaused,
+        publisherId: 'react:canvas',
       })
 
       frameId = window.requestAnimationFrame(tick)

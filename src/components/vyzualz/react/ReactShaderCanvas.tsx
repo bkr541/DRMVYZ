@@ -455,6 +455,7 @@ export function ReactShaderCanvas({
           sampleRate: an.context.sampleRate,
           audioTime:  audioTimeRef.current,
           isPlaying:  isPlayingRef.current,
+          publisherId: 'react:shader',
         })
       }
 

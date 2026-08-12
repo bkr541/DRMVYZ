@@ -671,6 +671,35 @@ describe('audio-reactive group behaviour', () => {
     expect(beam!.intensity).toBeGreaterThan(0)
   })
 
+  it('restarts an active snare envelope on every later hit instead of latching after the first event', () => {
+    const store = useReactStore.getState()
+    const customGroup = store.laserDmxBeamMatrix.groups.find(g => g.id === 'grp-custom')!
+    store.addLaserDmxMatrixBeam({
+      groupId: customGroup.id,
+      appearance: { dimmer: 1, shutterOpen: true, width: 1, focus: 1, strobeRate: 0, flickerAmount: 0, divergence: 0.15, glow: 0.65, geometry: 'line' },
+      modulationRoutes: [{
+        id: 'test-snr-repeat', enabled: true,
+        source: 'snare', target: 'dimmer' as const,
+        amount: 1, min: 0, max: 1,
+        curve: 'linear' as const, mode: 'trigger' as const,
+        smoothing: 0, attack: 0, release: 0.8, invert: false,
+      }],
+    })
+    const settings = useReactStore.getState().laserDmxBeamMatrix
+
+    const first = compileLaserDmxBeamMatrix({ ...defaultInput(), settings, mi: makeHitMi('snareHit'), timeSec: 0 })
+    const tail = compileLaserDmxBeamMatrix({ ...defaultInput(), settings, mi: MI0, timeSec: 0.1 })
+    const retriggered = compileLaserDmxBeamMatrix({ ...defaultInput(), settings, mi: makeHitMi('snareHit'), timeSec: 0.12 })
+
+    const firstIntensity = first.beams.find(b => b.groupId === 'grp-custom')?.intensity ?? 0
+    const tailIntensity = tail.beams.find(b => b.groupId === 'grp-custom')?.intensity ?? 0
+    const retriggeredIntensity = retriggered.beams.find(b => b.groupId === 'grp-custom')?.intensity ?? 0
+    expect(firstIntensity).toBeGreaterThan(0)
+    expect(tailIntensity).toBeGreaterThan(0)
+    expect(tailIntensity).toBeLessThan(firstIntensity)
+    expect(retriggeredIntensity).toBeGreaterThan(tailIntensity)
+  })
+
   it('trigger beam-level route (linear curve) produces non-zero intensity on beat hit', () => {
     const store = useReactStore.getState()
     const customGroup = store.laserDmxBeamMatrix.groups.find(g => g.id === 'grp-custom')!
@@ -693,6 +722,31 @@ describe('audio-reactive group behaviour', () => {
     const beam = result.beams.find(b => b.groupId === 'grp-custom')
     expect(beam).toBeDefined()
     expect(beam!.intensity).toBeGreaterThan(0)
+  })
+
+  it('restarts a beat trigger envelope on successive beat events', () => {
+    const store = useReactStore.getState()
+    const customGroup = store.laserDmxBeamMatrix.groups.find(g => g.id === 'grp-custom')!
+    store.addLaserDmxMatrixBeam({
+      groupId: customGroup.id,
+      appearance: { dimmer: 1, shutterOpen: true, width: 1, focus: 1, strobeRate: 0, flickerAmount: 0, divergence: 0.15, glow: 0.65, geometry: 'line' },
+      modulationRoutes: [{
+        id: 'test-beat-repeat', enabled: true,
+        source: 'beat', target: 'dimmer' as const, amount: 1, min: 0, max: 1,
+        curve: 'linear' as const, mode: 'trigger' as const, smoothing: 0, attack: 0, release: 0.8, invert: false,
+      }],
+    })
+    const settings = useReactStore.getState().laserDmxBeamMatrix
+
+    const first = compileLaserDmxBeamMatrix({ ...defaultInput(), settings, mi: makeHitMi('beatHit'), timeSec: 0 })
+    const tail = compileLaserDmxBeamMatrix({ ...defaultInput(), settings, mi: MI0, timeSec: 0.1 })
+    const second = compileLaserDmxBeamMatrix({ ...defaultInput(), settings, mi: makeHitMi('beatHit'), timeSec: 0.12 })
+    const firstIntensity = first.beams.find(b => b.groupId === 'grp-custom')?.intensity ?? 0
+    const tailIntensity = tail.beams.find(b => b.groupId === 'grp-custom')?.intensity ?? 0
+    const secondIntensity = second.beams.find(b => b.groupId === 'grp-custom')?.intensity ?? 0
+    expect(firstIntensity).toBeGreaterThan(0)
+    expect(tailIntensity).toBeLessThan(firstIntensity)
+    expect(secondIntensity).toBeGreaterThan(tailIntensity)
   })
 
   it('group routes are applied per-group (same route produces same result for all beams in group)', () => {

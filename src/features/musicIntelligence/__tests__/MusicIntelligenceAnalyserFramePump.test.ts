@@ -93,6 +93,78 @@ describe('MusicIntelligenceAnalyserFramePump', () => {
     expect(pump.diagnostics.skippedDuplicateCount).toBe(1)
   })
 
+  it('keeps the first canonical publication stable when two publishers pump the same transport instant', () => {
+    const engine = new MusicIntelligenceEngine()
+    engine.setSourceId('track-a', 'track-a')
+    const firstFrequencyData = new Uint8Array(32).fill(210) as Uint8Array<ArrayBuffer>
+    const secondFrequencyData = new Uint8Array(32).fill(12) as Uint8Array<ArrayBuffer>
+    const timeDomainData = new Uint8Array(64).fill(128) as Uint8Array<ArrayBuffer>
+
+    engine.updateFromAudioFrame({
+      freqBuf: firstFrequencyData,
+      timeBuf: timeDomainData,
+      sampleRate: 48_000,
+      audioTime: 5,
+      isPlaying: true,
+      publisherId: 'react:placeholder',
+    })
+    const firstFrame = AudioFeatureBus.getFrame()
+    const firstMeta = AudioFeatureBus.getFramePublicationMeta()
+
+    engine.updateFromAudioFrame({
+      freqBuf: secondFrequencyData,
+      timeBuf: timeDomainData,
+      sampleRate: 48_000,
+      audioTime: 5,
+      isPlaying: true,
+      publisherId: 'react:shader',
+    })
+
+    expect(AudioFeatureBus.getFrame()).toBe(firstFrame)
+    expect(AudioFeatureBus.getFrame().frameId).toBe(firstFrame.frameId)
+    expect(AudioFeatureBus.getFrame().raw.freqData).toBe(firstFrequencyData)
+    expect(AudioFeatureBus.getFramePublicationMeta()).toEqual(firstMeta)
+    expect(firstMeta.publisherId).toBe('react:placeholder')
+  })
+
+  it('resets stateful drum detection across backward/forward transport discontinuities and re-arms afterward', () => {
+    const engine = new MusicIntelligenceEngine()
+    engine.setSourceId('track-a', 'track-a')
+    const timeDomainData = new Uint8Array(512).fill(128) as Uint8Array<ArrayBuffer>
+    const baseline = new Uint8Array(256).fill(24) as Uint8Array<ArrayBuffer>
+    const kickTransient = new Uint8Array(baseline) as Uint8Array<ArrayBuffer>
+    kickTransient.fill(118, 0, 4)
+
+    const publish = (freqBuf: Uint8Array<ArrayBuffer>, audioTime: number) => {
+      engine.updateFromAudioFrame({
+        freqBuf,
+        timeBuf: timeDomainData,
+        sampleRate: 48_000,
+        audioTime,
+        isPlaying: true,
+        publisherId: 'react:placeholder',
+      })
+      return AudioFeatureBus.getFrame()
+    }
+
+    publish(baseline, 10)
+    expect(publish(kickTransient, 10.02).rhythm.kickHit).toBe(true)
+    for (let i = 1; i <= 12; i++) publish(baseline, 10.02 + i * 0.02)
+
+    // Backward seek/replay/loop: the first nonzero frame at the new position is
+    // baseline acquisition, so stale detector history cannot fabricate a hit.
+    expect(publish(kickTransient, 2).rhythm.kickHit).toBe(false)
+    for (let i = 1; i <= 12; i++) publish(baseline, 2 + i * 0.02)
+    expect(publish(kickTransient, 2.26).rhythm.kickHit).toBe(true)
+
+    for (let i = 1; i <= 12; i++) publish(baseline, 2.26 + i * 0.02)
+    // Large forward seek is the same discontinuity class and must not inherit
+    // the pre-seek EMA/cooldown state either.
+    expect(publish(kickTransient, 8).rhythm.kickHit).toBe(false)
+    for (let i = 1; i <= 12; i++) publish(baseline, 8 + i * 0.02)
+    expect(publish(kickTransient, 8.26).rhythm.kickHit).toBe(true)
+  })
+
   it('stops sampling after disposal', () => {
     const engine = new MusicIntelligenceEngine()
     const fixture = analyserFixture()

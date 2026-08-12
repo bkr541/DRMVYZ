@@ -544,6 +544,7 @@ export function ReactPlaceholderCanvas({
           sampleRate: an.context.sampleRate,
           audioTime:  audioTimeRef.current,
           isPlaying:  isPlayingRef.current,
+          publisherId: 'react:placeholder',
         })
       }
 
