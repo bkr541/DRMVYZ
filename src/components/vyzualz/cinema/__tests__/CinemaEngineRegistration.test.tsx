@@ -19,6 +19,7 @@ import {
 } from '../../react/renderers/ReactLiveEngineOwnership'
 import {
   CINEMA_FOUNDATION_COMPOSITION,
+  CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
   CINEMA_SHADER_REFERENCE_COMPOSITION,
   CINEMA_FOUNDATION_GRADIENT_NODE_ID,
   CINEMA_STAGE16_REFERENCE_COMPOSITION_ID,
@@ -284,9 +285,10 @@ describe('Cinema production engine registration', () => {
       : null
     expect(fovInput?.type).toBe('range')
     const initialPrograms = gl.__calls.createdPrograms
-    const fovUniformIndex = gl.getUniformLocation.mock.calls.findIndex(([, name]) => name === 'uCameraFieldOfView')
+    const getUniformLocationMock = vi.mocked(gl.getUniformLocation)
+    const fovUniformIndex = getUniformLocationMock.mock.calls.findIndex(([, name]) => name === 'uCameraFieldOfView')
     expect(fovUniformIndex).toBeGreaterThanOrEqual(0)
-    const fovLocation = gl.getUniformLocation.mock.results[fovUniformIndex]?.value
+    const fovLocation = getUniformLocationMock.mock.results[fovUniformIndex]?.value
     const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
     expect(valueSetter).toBeDefined()
 
@@ -301,11 +303,12 @@ describe('Cinema production engine registration', () => {
 
     const scheduled = [...callbacks.entries()][0]
     expect(scheduled).toBeDefined()
+    const initialDrawCount = gl.__calls.drawCount
     callbacks.delete(scheduled[0])
     await act(async () => scheduled[1](16.67))
     expect(gl.uniform1f).toHaveBeenCalledWith(fovLocation, 72)
     expect(gl.__calls.createdPrograms).toBe(initialPrograms)
-    expect(host?.querySelector('[data-cinema-output-rendered="true"]')).not.toBeNull()
+    expect(gl.__calls.drawCount).toBeGreaterThan(initialDrawCount)
   })
 
   it('samples the high-precision audio clock on every production Cinema RAF without a React rerender', async () => {
