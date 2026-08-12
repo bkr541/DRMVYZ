@@ -215,6 +215,8 @@ describe('Cinema production engine registration', () => {
     ).ok).toBe(true)
 
     await act(async () => root?.render(<ComposerSelectionHarness />))
+    expect(host?.textContent).toContain('Master Appearance')
+    expect(host?.textContent).not.toContain('Camera resources (')
     expect(host?.textContent).toContain('Master Intensity')
     expect(host?.textContent).toContain('Master Motion')
     expect(host?.textContent).not.toContain('Master Glow')
@@ -235,9 +237,24 @@ describe('Cinema production engine registration', () => {
       ).ok).toBe(true)
     })
 
+    expect(host?.textContent).not.toContain('Master Appearance')
     expect(host?.textContent).not.toContain('Master Intensity')
+    expect(host?.textContent).not.toContain('Camera resources (')
     expect(host?.textContent).toContain('Angle')
     expect(host?.textContent).toContain('Opacity')
+
+    const worldNode = CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.nodes.find(node => node.family === 'procedural')
+    expect(worldNode).toBeDefined()
+    await act(async () => {
+      expect(useCinemaStore.getState().setActiveCinemaComposition(CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.id).ok).toBe(true)
+      expect(useCinemaStore.getState().setCinemaEditorSelection(
+        CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.id,
+        worldNode!.id,
+      ).ok).toBe(true)
+    })
+
+    expect(host?.textContent).not.toContain('Master Appearance')
+    expect(host?.textContent).toContain('Camera resources (1)')
   })
 
   it('shows semantic Background only for a consuming world and hot-applies it without rebuilding renderer resources', async () => {
@@ -346,6 +363,7 @@ describe('Cinema production engine registration', () => {
     expect(useCinemaStore.getState().setActiveCinemaComposition(CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.id).ok).toBe(true)
 
     await act(async () => root?.render(<ProductionLiveControlHarness />))
+    expect(host?.textContent).not.toContain('Master Appearance')
     const cameraResources = [...(host?.querySelectorAll<HTMLButtonElement>('.drc-header') ?? [])]
       .find(button => button.textContent?.includes('Camera resources (1)'))
     expect(cameraResources).toBeDefined()

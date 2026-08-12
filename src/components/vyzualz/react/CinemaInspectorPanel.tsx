@@ -4,12 +4,11 @@ import { useShallow } from 'zustand/react/shallow'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
 import {
-  createCinemaSupportedCameraParameterSchemaMap,
+  createCinemaInspectorAppearanceCapabilities,
   createCinemaControlDescriptors,
   buildCinemaComposerLibraryItems,
   CINEMA_PRODUCTION_RUNTIME_REGISTRY,
   getCinemaEditorSelection,
-  getCinemaSupportedMasterParameterSchemas,
   getCinemaSupportedPaletteRoles,
   getCinemaSupportedParameterSchemas,
   useCinemaStore,
@@ -49,15 +48,14 @@ export function CinemaInspectorPanel() {
     ? composition?.assetBindings.find(binding => binding.id === selectedNode.assetBindingIds?.[0]) ?? null
     : null
 
-  const supportedMasterSchemas = useMemo(() => composition
-    ? getCinemaSupportedMasterParameterSchemas(composition, state.definitions)
-    : [], [composition, state.definitions])
+  const appearanceCapabilities = useMemo(() => composition
+    ? createCinemaInspectorAppearanceCapabilities(composition, state.definitions)
+    : null, [composition, state.definitions])
+  const supportedMasterSchemas = appearanceCapabilities?.masterParameters ?? []
   const supportedNodeSchemas = useMemo(() => persistedDefinition
     ? getCinemaSupportedParameterSchemas(persistedDefinition.definition)
     : [], [persistedDefinition])
-  const supportedCameraSchemas = useMemo(() => composition
-    ? createCinemaSupportedCameraParameterSchemaMap(composition, state.definitions)
-    : Object.freeze({}) as ReturnType<typeof createCinemaSupportedCameraParameterSchemaMap>, [composition, state.definitions])
+  const supportedCameraSchemas = appearanceCapabilities?.cameraParameterSchemas ?? Object.freeze({})
   const masterDescriptors = useMemo(() => composition
     ? createCinemaControlDescriptors({ namespace: 'master', schemas: supportedMasterSchemas, values: { ...composition.masterValues, ...(liveInstance?.masterOverrides ?? {}) } }).descriptors
     : [], [composition, liveInstance, supportedMasterSchemas])
@@ -101,23 +99,25 @@ export function CinemaInspectorPanel() {
 
   return (
     <>
-      <div className="rv-ctrl-group">
-        <Collapsible label="Master Appearance">
-          {masterDescriptors.length === 0 ? <div className="rv-ctrl-info">This preset has no master appearance controls.</div> : masterDescriptors.map(descriptor => (
-            <SchemaControl
-              key={descriptor.path}
-              descriptor={descriptor}
-              assetOptions={assetOptions}
-              onChange={value => {
-                const schema = composition.masterParameters.find(candidate => candidate.id === descriptor.id)
-                if (schema) setCinemaLiveMasterOverride(composition, schema, value)
-              }}
-              onInteractionStart={() => {}}
-              onInteractionEnd={() => {}}
-            />
-          ))}
-        </Collapsible>
-      </div>
+      {appearanceCapabilities?.showMasterAppearance && (
+        <div className="rv-ctrl-group">
+          <Collapsible label="Master Appearance">
+            {masterDescriptors.map(descriptor => (
+              <SchemaControl
+                key={descriptor.path}
+                descriptor={descriptor}
+                assetOptions={assetOptions}
+                onChange={value => {
+                  const schema = composition.masterParameters.find(candidate => candidate.id === descriptor.id)
+                  if (schema) setCinemaLiveMasterOverride(composition, schema, value)
+                }}
+                onInteractionStart={() => {}}
+                onInteractionEnd={() => {}}
+              />
+            ))}
+          </Collapsible>
+        </div>
+      )}
 
       <div className="rv-ctrl-group">
         <div className="rv-ctrl-info">Changes here are live overrides. The original preset remains unchanged.</div>
@@ -182,39 +182,41 @@ export function CinemaInspectorPanel() {
 
       <CinemaEffectBrowser />
 
-      <div className="rv-ctrl-group">
-        <Collapsible label={`Camera resources (${composition.cameras.length})`} defaultOpen={false}>
-          {composition.cameras.length === 0 ? <div className="rv-ctrl-info">No camera resources are referenced by this composition.</div> : composition.cameras.map(camera => {
-            const schemas = supportedCameraSchemas[camera.id] ?? []
-            const descriptors = createCinemaControlDescriptors({
-              namespace: 'cameras',
-              ownerId: camera.id,
-              schemas,
-              values: { ...camera.parameterValues, ...(liveInstance?.cameraOverrides.find(override => override.cameraId === camera.id)?.values ?? {}) },
-            }).descriptors
-            return (
-              <Collapsible key={camera.id} label={camera.label} defaultOpen={false}>
-                <InspectorKv label="Mode" value={camera.mode} />
-                <InspectorKv label="Stable ID" value={String(camera.id)} />
-                {descriptors.map(descriptor => (
-                  <SchemaControl
-                    key={descriptor.path}
-                    descriptor={descriptor}
-                    assetOptions={assetOptions}
-                    onChange={value => {
-                      const schema = schemas.find(candidate => candidate.id === descriptor.id)
-                      if (schema) setCinemaLiveCameraOverride(composition, camera.id, schema, value)
-                    }}
-                    onInteractionStart={() => {}}
-                    onInteractionEnd={() => {}}
-                  />
-                ))}
-                {descriptors.length === 0 && <div className="rv-ctrl-info">This camera mode has no renderer-supported live controls.</div>}
-              </Collapsible>
-            )
-          })}
-        </Collapsible>
-      </div>
+      {appearanceCapabilities?.showCameraResources && (
+        <div className="rv-ctrl-group">
+          <Collapsible label={`Camera resources (${composition.cameras.length})`} defaultOpen={false}>
+            {composition.cameras.map(camera => {
+              const schemas = supportedCameraSchemas[camera.id] ?? []
+              const descriptors = createCinemaControlDescriptors({
+                namespace: 'cameras',
+                ownerId: camera.id,
+                schemas,
+                values: { ...camera.parameterValues, ...(liveInstance?.cameraOverrides.find(override => override.cameraId === camera.id)?.values ?? {}) },
+              }).descriptors
+              return (
+                <Collapsible key={camera.id} label={camera.label} defaultOpen={false}>
+                  <InspectorKv label="Mode" value={camera.mode} />
+                  <InspectorKv label="Stable ID" value={String(camera.id)} />
+                  {descriptors.map(descriptor => (
+                    <SchemaControl
+                      key={descriptor.path}
+                      descriptor={descriptor}
+                      assetOptions={assetOptions}
+                      onChange={value => {
+                        const schema = schemas.find(candidate => candidate.id === descriptor.id)
+                        if (schema) setCinemaLiveCameraOverride(composition, camera.id, schema, value)
+                      }}
+                      onInteractionStart={() => {}}
+                      onInteractionEnd={() => {}}
+                    />
+                  ))}
+                  {descriptors.length === 0 && <div className="rv-ctrl-info">This camera mode has no renderer-supported live controls.</div>}
+                </Collapsible>
+              )
+            })}
+          </Collapsible>
+        </div>
+      )}
 
       {persistedDefinition && (
         <div className="rv-ctrl-group">

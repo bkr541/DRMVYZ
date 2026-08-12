@@ -126,6 +126,37 @@ export function getCinemaUnsupportedParameterSchemas(
   return definition.parameters.filter(parameter => !supportedIds.has(parameter.id))
 }
 
+export interface CinemaInspectorAppearanceCapabilities {
+  /** Renderer-verified composition masters that may be edited live. */
+  masterParameters: readonly Readonly<CinemaParameterDefinition>[]
+  /** Camera schemas projected from each resource's mode and assigned renderer consumers. */
+  cameraParameterSchemas: Readonly<Record<string, readonly Readonly<CinemaParameterDefinition>[]>>
+  /** Master Appearance is absent when no live master semantic has a verified consumer. */
+  showMasterAppearance: boolean
+  /** Camera Resources is absent when the composition does not own a camera resource. */
+  showCameraResources: boolean
+}
+
+/**
+ * Canonical Inspector section policy for appearance resources. Consistency is
+ * capability-driven rather than renderer-family-driven: masters require a
+ * verified live binding, while cameras require a real canonical resource and
+ * expose only controls supported by assigned renderer consumers.
+ */
+export function createCinemaInspectorAppearanceCapabilities(
+  composition: Readonly<CinemaCompositionDefinition>,
+  definitions: readonly Readonly<CinemaPersistedDefinition>[],
+): Readonly<CinemaInspectorAppearanceCapabilities> {
+  const masterParameters = getCinemaSupportedMasterParameterSchemas(composition, definitions)
+  const cameraParameterSchemas = createCinemaSupportedCameraParameterSchemaMap(composition, definitions)
+  return Object.freeze({
+    masterParameters: Object.freeze([...masterParameters]),
+    cameraParameterSchemas,
+    showMasterAppearance: masterParameters.length > 0,
+    showCameraResources: composition.cameras.length > 0,
+  })
+}
+
 /**
  * A composition-level master is editable only when an enabled node exposes a
  * verified parameter consumer bound to that master. This keeps master support
