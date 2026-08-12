@@ -1,5 +1,6 @@
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
+import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
 import { useEffect, useState } from 'react'
 import type { LyricDocumentVersion } from '../lyricManagerTypes'
 
@@ -189,11 +190,7 @@ export function LyricDocumentSidebar({
 
   return (
     <aside className="lmv-doc-sidebar">
-      <div className="lmv-doc-sidebar-head">
-        <div className="lmv-doc-title-row">
-          <div className="lmv-doc-sidebar-title">LYRIC VERSIONS</div>
-          <button className="lmv-icon-btn" onClick={onNewDocument} disabled={!hasSelectedTrack} aria-label="Create new lyric version">+</button>
-        </div>
+      <Collapsible label="Lyric Versions" defaultOpen bodyClassName="lmv-lyric-versions-body">
         <div className="lmv-doc-search-wrap">
           <DreamVizTextInput
             className="lmv-doc-search"
@@ -207,20 +204,20 @@ export function LyricDocumentSidebar({
           <IconChipButton onClick={onNewDocument} disabled={!hasSelectedTrack}>+ New Version</IconChipButton>
           <IconChipButton onClick={onImportDocument} disabled={!hasSelectedTrack}>Import</IconChipButton>
         </div>
-      </div>
 
-      <div className="lmv-doc-filters">
-        {FILTERS.map(item => (
-          <button
-            key={item.id}
-            className={`lmv-filter-chip${filter === item.id ? ' lmv-filter-chip--active' : ''}`}
-            onClick={() => setFilter(item.id)}
-            aria-pressed={filter === item.id}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+        <div className="lmv-doc-filters">
+          {FILTERS.map(item => (
+            <button
+              key={item.id}
+              className={`lmv-filter-chip${filter === item.id ? ' lmv-filter-chip--active' : ''}`}
+              onClick={() => setFilter(item.id)}
+              aria-pressed={filter === item.id}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </Collapsible>
 
       <div className="lmv-doc-list">
         {loading && <div className="lmv-doc-empty">Loading lyric versions…</div>}

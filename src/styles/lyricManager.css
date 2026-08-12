@@ -150,14 +150,6 @@
   overflow: hidden;
 }
 
-.lmv-doc-sidebar-head {
-  padding: 12px 12px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border-bottom: 1px solid rgba(154,178,188,0.08);
-}
-
 .lmv-doc-search-wrap {
   position: relative;
   display: flex;
@@ -907,25 +899,6 @@
   background: rgba(10,14,16,0.88);
   border-bottom: 1px solid rgba(154,178,188,0.1);
 }
-.lmv-track-browser-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-.lmv-track-browser-title,
-.lmv-doc-sidebar-title {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: rgba(232,238,240,0.8);
-}
-.lmv-track-browser-subtitle {
-  margin-top: 2px;
-  font-size: 10px;
-  color: rgba(196,207,211,0.38);
-}
 .lmv-track-search-wrap { max-width: 420px; margin-bottom: 8px; }
 .lmv-track-search { height: 30px; }
 .lmv-track-grid {
@@ -1015,7 +988,6 @@
 .lmv-track-identity-status { flex: 1; flex-wrap: wrap; color: rgba(196,207,211,0.42); font-size: 9px; }
 .lmv-track-identity-status span { border-right: 1px solid rgba(255,255,255,0.08); padding-right: 7px; }
 
-.lmv-doc-sidebar-title { margin-bottom: 2px; }
 .lmv-doc-primary-actions > .lmv-btn { flex: 1; justify-content: center; }
 .lmv-doc-card { cursor: default; }
 .lmv-doc-card-main { width: 100%; background: none; border: 0; color: inherit; text-align: left; padding: 0; cursor: pointer; }
@@ -1640,21 +1612,21 @@
   flex-direction: column;
 }
 
-.lmv-track-browser-head,
-.lmv-doc-sidebar-head {
-  padding: 0;
-  border: 0;
+/* Track Library uses the same reusable Collapsible group as LaserDMX's
+   Lighting Components / Cinema's Engine Mode. .lmv-track-browser is the
+   group's only child now, so it needs to stay in the flex/scroll chain that
+   lets .lmv-track-grid scroll internally instead of overflowing the panel. */
+.lmv-track-browser > .drc-group {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
 }
 
-.lmv-track-browser-title,
-.lmv-doc-sidebar-title {
-  color: rgba(237,249,251,0.9);
-  font-size: 12px;
-  letter-spacing: 0.12em;
-}
-
-.lmv-track-browser-subtitle {
-  display: none;
+.drc-body.lmv-track-library-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .lmv-track-browser-actions {
@@ -1787,6 +1759,13 @@
   padding: 14px 12px 12px;
   border: 0;
   background: transparent;
+}
+
+/* Lyric Versions uses the same reusable Collapsible group as Track Library
+   above. .lmv-doc-list (the actual version cards) stays a sibling below it,
+   ungrouped. */
+.lmv-doc-sidebar > .drc-group {
+  flex-shrink: 0;
 }
 
 .lmv-doc-primary-actions {
@@ -2423,13 +2402,6 @@ button.lmv-right-section-header:hover {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
-.lmv-doc-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
 /* Lyric draft recovery and truthful transport semantics ---------------------- */
 .lmv-recovery-review {
   margin: 0 0 18px;

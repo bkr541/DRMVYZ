@@ -1,6 +1,7 @@
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
+import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
 import { useMemo, useState } from 'react'
 import { Delete02Icon } from 'hugeicons-react'
 import { Dropdown } from '../../../components/shared/Dropdown/Dropdown'
@@ -129,27 +130,22 @@ export function LyricTrackBrowser({
 
   return (
     <section className="lmv-track-browser" aria-label="Stored audio tracks">
-      <div className="lmv-track-browser-head">
-        <div>
-          <div className="lmv-track-browser-title">TRACK LIBRARY</div>
-          <div className="lmv-track-browser-subtitle">Select, double-click to load, or right-click for actions.</div>
-        </div>
-        <div className="lmv-track-browser-actions">
-          <button className="lmv-icon-btn" onClick={onUpload} aria-label="Upload track" title="Upload track"><span className="lmv-sr-label">Upload Track</span>⇧</button>
-          <Dropdown
-            id="lyric-track-filter"
-            value={filter}
-            options={(Object.entries(TRACK_FILTER_LABELS) as Array<[LyricTrackFilter, string]>).map(([value, label]) => ({ value, label }))}
-            onChange={value => setFilter(value as LyricTrackFilter)}
-            ariaLabel={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`}
-            menuLabel="Track Library Filters"
-            title={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`}
-            size="dense"
-            menuWidth={220}
-            showDescriptions={false}
-            className="lmv-track-filter-dropdown"
-          />
-        </div>
+      <Collapsible label="Track Library" defaultOpen bodyClassName="lmv-track-library-body">
+      <div className="lmv-track-browser-actions">
+        <button className="lmv-icon-btn" onClick={onUpload} aria-label="Upload track" title="Upload track"><span className="lmv-sr-label">Upload Track</span>⇧</button>
+        <Dropdown
+          id="lyric-track-filter"
+          value={filter}
+          options={(Object.entries(TRACK_FILTER_LABELS) as Array<[LyricTrackFilter, string]>).map(([value, label]) => ({ value, label }))}
+          onChange={value => setFilter(value as LyricTrackFilter)}
+          ariaLabel={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`}
+          menuLabel="Track Library Filters"
+          title={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`}
+          size="dense"
+          menuWidth={220}
+          showDescriptions={false}
+          className="lmv-track-filter-dropdown"
+        />
       </div>
 
       <div className="lmv-track-search-wrap">
@@ -248,11 +244,11 @@ export function LyricTrackBrowser({
         })}
       </div>
 
-      <div className="lmv-track-filter-summary" aria-live="polite">{visibleTracks.length} shown · {TRACK_FILTER_LABELS[filter]}</div>
       {loading && <div className="lmv-track-state">Loading tracks…</div>}
       {!loading && hasMore && (
         <IconChipButton className="lmv-load-more" onClick={onLoadMore}>Load More</IconChipButton>
       )}
+      </Collapsible>
 
       {menu && (
         <ContextActionMenu
