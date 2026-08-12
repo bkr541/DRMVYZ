@@ -134,6 +134,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
   private readonly impulseGate = new CinemaImpulseGate()
   private composition: Readonly<CinemaCompositionDefinition> | null = null
   private instance: Readonly<CinemaCompositionInstance> | null = null
+  private preparedCompositionKey: string | null = null
   private animationFrameId = 0
   private runningRequested = false
   private visibilitySuspended = false
@@ -288,18 +289,24 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
   ): void {
     if (this.disposed) return
     if (composition) {
-      const preparation = prepareCinemaShaderScenePrograms(this.gl, composition)
-      if (!preparation.ok) {
-        this.report(createCinemaDiagnostic({
-          code: 'CINEMA_SHADER_COMPILE_FAILED',
-          severity: 'error',
-          message: `Cinema kept the active preset because the replacement Shader scene failed preparation: ${preparation.message}`,
-          attribution: { compositionId: composition.id, stage: 'shader-scene-adapter' },
-          details: { sceneId: preparation.sceneId },
-        }))
-        this.emitSnapshot()
-        return
+      const preparationKey = `${composition.id}:${composition.revision}`
+      if (preparationKey !== this.preparedCompositionKey) {
+        const preparation = prepareCinemaShaderScenePrograms(this.gl, composition)
+        if (!preparation.ok) {
+          this.report(createCinemaDiagnostic({
+            code: 'CINEMA_SHADER_COMPILE_FAILED',
+            severity: 'error',
+            message: `Cinema kept the active preset because the replacement Shader scene failed preparation: ${preparation.message}`,
+            attribution: { compositionId: composition.id, stage: 'shader-scene-adapter' },
+            details: { sceneId: preparation.sceneId },
+          }))
+          this.emitSnapshot()
+          return
+        }
+        this.preparedCompositionKey = preparationKey
       }
+    } else {
+      this.preparedCompositionKey = null
     }
     this.composition = composition
     this.instance = instance

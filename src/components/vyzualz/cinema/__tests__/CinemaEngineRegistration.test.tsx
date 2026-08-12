@@ -18,6 +18,8 @@ import {
   resetReactLiveEngineOwnershipForTests,
 } from '../../react/renderers/ReactLiveEngineOwnership'
 import {
+  CINEMA_FOUNDATION_COMPOSITION,
+  CINEMA_FOUNDATION_GRADIENT_NODE_ID,
   CINEMA_STAGE16_REFERENCE_COMPOSITION_ID,
   createCinemaFoundationPersistedState,
 } from '../CinemaFoundation'
@@ -98,6 +100,21 @@ function ComposerSelectionHarness() {
   )
 }
 
+function ProductionLiveControlHarness() {
+  const engineId = useReactStore(state => state.activeReactEngineId)
+  return (
+    <>
+      <ReactEngineBrowser />
+      {engineId === 'cinema' ? (
+        <>
+          <CinemaWorkspace surface="stage" frameBridge={productionFrameBridge} />
+          <CinemaInspectorPanel />
+        </>
+      ) : <div data-live-control-legacy-engine={engineId} />}
+    </>
+  )
+}
+
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   CinemaResizeObserverMock.reset()
@@ -122,6 +139,61 @@ afterEach(async () => {
 })
 
 describe('Cinema production engine registration', () => {
+  it('hot-applies 50+ Inspector slider changes through the production workspace without recreating renderer resources', async () => {
+    const gl = createCinemaMockWebGL()
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+      const id = nextRaf++
+      callbacks.set(id, callback)
+      return id
+    }))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn((id: number) => { callbacks.delete(id) }))
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => (
+      kind === 'webgl2' ? gl : null
+    ) as RenderingContext | null)
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 960, height: 540, top: 0, left: 0, right: 960, bottom: 540, x: 0, y: 0, toJSON: () => ({}),
+    })
+    expect(useCinemaStore.getState().setActiveCinemaComposition(CINEMA_FOUNDATION_COMPOSITION.id).ok).toBe(true)
+    expect(useCinemaStore.getState().setCinemaEditorSelection(
+      CINEMA_FOUNDATION_COMPOSITION.id,
+      CINEMA_FOUNDATION_GRADIENT_NODE_ID,
+    ).ok).toBe(true)
+
+    await act(async () => root?.render(<ProductionLiveControlHarness />))
+    const angleLabel = [...(host?.querySelectorAll<HTMLLabelElement>('label') ?? [])]
+      .find(label => label.textContent?.trim() === 'Angle')
+    const angleInput = angleLabel?.htmlFor
+      ? document.getElementById(angleLabel.htmlFor) as HTMLInputElement | null
+      : null
+    expect(angleInput?.type).toBe('range')
+    const initialPrograms = gl.__calls.createdPrograms
+    const initialDeletedPrograms = gl.__calls.deletedPrograms
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    expect(valueSetter).toBeDefined()
+
+    for (let index = 0; index < 55; index += 1) {
+      await act(async () => {
+        valueSetter?.call(angleInput, String(-100 + index))
+        angleInput?.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+    }
+
+    const activeInstanceId = useCinemaStore.getState().activeInstanceId
+    const activeInstance = useCinemaStore.getState().instances.find(instance => instance.id === activeInstanceId)
+    expect(activeInstance?.revision).toBe(55)
+    expect(gl.__calls.createdPrograms).toBe(initialPrograms)
+    expect(gl.__calls.deletedPrograms).toBe(initialDeletedPrograms)
+
+    const scheduled = [...callbacks.entries()][0]
+    expect(scheduled).toBeDefined()
+    callbacks.delete(scheduled[0])
+    await act(async () => scheduled[1](16.67))
+    expect(gl.uniform1f).toHaveBeenCalledWith(expect.anything(), -46 * Math.PI / 180)
+    expect(host?.querySelector('[data-cinema-output-rendered="true"]')).not.toBeNull()
+  })
+
   it('samples the high-precision audio clock on every production Cinema RAF without a React rerender', async () => {
     const gl = createCinemaMockWebGL()
     const callbacks = new Map<number, FrameRequestCallback>()

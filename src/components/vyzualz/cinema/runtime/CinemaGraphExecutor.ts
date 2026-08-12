@@ -247,9 +247,12 @@ export class CinemaGraphExecutor {
 
   setGraph(configuration: GraphConfiguration): void {
     if (this.disposed) return
-    const nextKey = configurationKey(configuration, this.runtimeRegistry.fingerprint)
+    const nextKey = structuralConfigurationKey(configuration, this.runtimeRegistry.fingerprint)
     this.configuration = configuration
-    if (nextKey === this.configurationKey) return
+    if (nextKey === this.configurationKey) {
+      this.refreshLiveParameterState()
+      return
+    }
     this.configurationKey = nextKey
     this.rebuild('superseded')
   }
@@ -712,6 +715,35 @@ export class CinemaGraphExecutor {
 
     this.resetAll(CINEMA_STATE_RESET_ACTION_IDS.activation, null)
     this.emitSnapshot()
+  }
+
+  /**
+   * Re-resolves mutable instance values without touching graph topology or
+   * renderer lifecycle. Cinema's Inspector writes live node/master/camera
+   * overrides into the active instance and increments its persisted revision;
+   * those edits must reach the running renderers without disposing stateful
+   * nodes, feedback history, simulations, or shader resources.
+   */
+  private refreshLiveParameterState(): void {
+    const composition = this.configuration.composition
+    const registry = this.parameterRegistry
+    if (!composition || !registry || !this.plan) return
+
+    const resolution = resolveCinemaParameterSnapshot({
+      composition,
+      registry,
+      instance: this.configuration.instance,
+      cameraParameterSchemas: this.cameraParameterSchemas,
+    })
+    for (const diagnostic of resolution.diagnostics.diagnostics) this.report(diagnostic)
+    const valuesByNode = collectNodeValues(resolution.values)
+    this.baseParameterValues = resolution.values
+    this.baseNodeValues = valuesByNode
+    this.staticParameterValues = resolution.values
+    this.staticNodeValues = valuesByNode
+    this.staticBrandColors = null
+    this.applyNodeValues(valuesByNode)
+    this.parameterResolutionCount += 1
   }
 
   private acquireFrameTarget(
@@ -1331,18 +1363,29 @@ function positiveModulo(value: number, divisor: number): number {
   return ((value % divisor) + divisor) % divisor
 }
 
-function configurationKey(configuration: GraphConfiguration, runtimeFingerprint: string): string {
+function structuralConfigurationKey(configuration: GraphConfiguration, runtimeFingerprint: string): string {
   const composition = configuration.composition
   if (!composition) return `none:${runtimeFingerprint}:${definitionFingerprint(configuration.definitions)}`
-  const instance = configuration.instance
   return [
     composition.id,
     composition.revision,
-    instance?.id ?? 'base',
-    instance?.revision ?? 0,
+    assetBindingOverrideFingerprint(configuration.instance),
     definitionFingerprint(configuration.definitions),
     runtimeFingerprint,
   ].join(':')
+}
+
+function assetBindingOverrideFingerprint(instance: Readonly<CinemaCompositionInstance> | null): string {
+  if (!instance || instance.assetBindingOverrides.length === 0) return 'assets:base'
+  const normalized = [...instance.assetBindingOverrides]
+    .sort((left, right) => compareStrings(String(left.bindingId), String(right.bindingId)))
+    .map(override => ({
+      bindingId: String(override.bindingId),
+      values: Object.fromEntries(
+        Object.entries(override.values).sort(([left], [right]) => compareStrings(left, right)),
+      ),
+    }))
+  return `assets:${JSON.stringify(normalized)}`
 }
 
 function definitionFingerprint(definitions: readonly CinemaPersistedDefinition[]): string {

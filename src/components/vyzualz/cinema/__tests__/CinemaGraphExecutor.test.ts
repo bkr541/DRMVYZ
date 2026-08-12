@@ -109,9 +109,107 @@ const EFFECT_DEFINITION: CinemaNodeTypeDefinition = {
 }
 
 describe('CinemaGraphExecutor', () => {
+  it('hot-applies 50+ live instance revisions without rebuilding stateful renderer nodes', () => {
+    let initializeCount = 0
+    let resetCount = 0
+    let disposeCount = 0
+    const observedAngles: number[] = []
+    const gradientPlugin: CinemaNodePlugin = {
+      definition: CINEMA_FOUNDATION_GRADIENT_DEFINITION,
+      createNode: authored => ({
+        ...renderTargetNode(authored, context => {
+          observedAngles.push(Number(context.values[CINEMA_FOUNDATION_ANGLE_PARAMETER_ID]))
+        }),
+        initialize() { initializeCount += 1 },
+        reset() { resetCount += 1 },
+        dispose() { disposeCount += 1 },
+      }),
+    }
+    const outputRegistration = CINEMA_FOUNDATION_RUNTIME_REGISTRY.getByPluginId(CINEMA_FOUNDATION_OUTPUT_PLUGIN_ID)
+    expect(outputRegistration).toBeDefined()
+    if (!outputRegistration) return
+
+    const runtimeRegistry = createCinemaRuntimeNodeRegistry([
+      { pluginId: CINEMA_FOUNDATION_GRADIENT_PLUGIN_ID, plugin: gradientPlugin },
+      outputRegistration,
+    ]).registry
+    const gl = createCinemaMockWebGL()
+    const sink = { report: () => {} }
+    const viewport = { width: 320, height: 180, dpr: 1 }
+    const textures = new CinemaTextureManager()
+    const targets = new CinemaRenderTargetPool(gl, textures, viewport, sink)
+    const webgl = new CinemaWebGLRenderServiceImpl(gl, targets, textures)
+    const executor = new CinemaGraphExecutor({
+      runtimeRegistry,
+      platform: {
+        webgl2: true, canvas2d: false, floatColorTargets: false, floatBlending: false,
+        textureArrays: true, instancing: true, timerQueries: false,
+        maximumTextureSize: 8192, maximumTextureUnits: 16,
+      },
+      targets,
+      textures,
+      webgl,
+      diagnostics: sink,
+    })
+    const liveInstance = (revision: number, angle: number): CinemaCompositionInstance => ({
+      id: 'foundation-live-hot-update' as CinemaCompositionInstanceId,
+      compositionId: CINEMA_FOUNDATION_COMPOSITION.id,
+      label: 'Foundation Live Hot Update',
+      revision,
+      masterOverrides: {},
+      nodeOverrides: [{
+        nodeId: CINEMA_FOUNDATION_GRADIENT_NODE_ID,
+        values: { [CINEMA_FOUNDATION_ANGLE_PARAMETER_ID]: angle },
+      }],
+      cameraOverrides: [],
+      assetBindingOverrides: [],
+    })
+
+    executor.resize({ width: 1, height: 1, dpr: 1 }, viewport)
+    executor.setGraph({
+      composition: CINEMA_FOUNDATION_COMPOSITION,
+      instance: liveInstance(1, -120),
+      definitions: CINEMA_FOUNDATION_PERSISTED_DEFINITIONS,
+    })
+    expect(executor.render(frame(false))).toBe(true)
+    const activationResetCount = resetCount
+
+    for (let index = 0; index < 55; index += 1) {
+      const angle = -110 + index
+      executor.setGraph({
+        composition: CINEMA_FOUNDATION_COMPOSITION,
+        instance: liveInstance(index + 2, angle),
+        definitions: CINEMA_FOUNDATION_PERSISTED_DEFINITIONS,
+      })
+      expect(executor.render(frame(false))).toBe(true)
+      expect(observedAngles.at(-1)).toBe(angle)
+    }
+
+    expect(initializeCount).toBe(1)
+    expect(disposeCount).toBe(0)
+    expect(resetCount).toBe(activationResetCount)
+
+    const structuralComposition = {
+      ...CINEMA_FOUNDATION_COMPOSITION,
+      revision: CINEMA_FOUNDATION_COMPOSITION.revision + 1,
+    } as CinemaCompositionDefinition
+    executor.setGraph({
+      composition: structuralComposition,
+      instance: liveInstance(57, -45),
+      definitions: CINEMA_FOUNDATION_PERSISTED_DEFINITIONS,
+    })
+    expect(initializeCount).toBe(2)
+    expect(disposeCount).toBe(1)
+
+    executor.dispose()
+    targets.dispose()
+    textures.dispose()
+  })
+
   it('retains explicit feedback history, resets it on seek, and resolves instance asset bindings', () => {
     const feedbackInputs: boolean[] = []
     let initializedAssetId: string | null = null
+    let expectedAssetId = 'asset-override'
     const feedbackPlugin: CinemaNodePlugin = {
       definition: FEEDBACK_DEFINITION,
       createNode: node => renderTargetNode(node, context => {
@@ -126,7 +224,7 @@ describe('CinemaGraphExecutor', () => {
           initializedAssetId = String(context.assets[0]?.assetId ?? '')
         },
         render(context) {
-          expect(context.assets[0]?.assetId).toBe('asset-override')
+          expect(context.assets[0]?.assetId).toBe(expectedAssetId)
           expect(context.target).not.toBeNull()
           if (!context.target) return
           context.webgl.bindTarget(context.target)
@@ -193,6 +291,20 @@ describe('CinemaGraphExecutor', () => {
     nowMs = 300
     expect(executor.render(frame(false))).toBe(true)
     expect(snapshotCount).toBe(immediateSnapshotCount + 1)
+
+    expectedAssetId = 'asset-replacement'
+    const replacementInstance: CinemaCompositionInstance = {
+      ...instance,
+      revision: instance.revision + 1,
+      assetBindingOverrides: [{
+        bindingId: 'asset-binding' as CinemaAssetBindingId,
+        values: { assetId: 'asset-replacement' as CinemaAssetId },
+      }],
+    }
+    executor.setGraph({ composition, instance: replacementInstance, definitions })
+    expect(initializedAssetId).toBe('asset-replacement')
+    expect(executor.render(frame(false))).toBe(true)
+    expect(feedbackInputs.at(-1)).toBe(false)
 
     executor.setGraph({ composition: null, instance: null, definitions })
     expect(targets.getDiagnostics().activeLeaseCount).toBe(0)
