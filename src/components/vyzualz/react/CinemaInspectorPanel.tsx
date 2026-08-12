@@ -220,16 +220,6 @@ export function CinemaInspectorPanel() {
         </div>
       )}
 
-      {persistedDefinition && (
-        <div className="rv-ctrl-group">
-          <Collapsible label="Brand Kit mappings" defaultOpen={false}>
-            {supportedNodeSchemas.map(parameter => parameter.type === 'color' && parameter.brandRole ? (
-              <InspectorKv key={parameter.id} label={parameter.label} value={`${parameter.brandRole} · ${parameter.brandPolicy ?? 'derived'}`} />
-            ) : null)}
-            {!supportedNodeSchemas.some(parameter => parameter.type === 'color' && parameter.brandRole) && <div className="rv-ctrl-info">This node has no renderer-supported Brand Kit color mappings.</div>}
-          </Collapsible>
-        </div>
-      )}
     </>
   )
 }
