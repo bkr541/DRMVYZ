@@ -16,7 +16,7 @@ import {
   type CinemaParameterId,
   type CinemaParameterValue,
 } from '../cinema'
-import { Collapsible, ColorRow, CtrlSection, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
+import { Collapsible, ColorRow, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import {
   getCinemaLiveInstance,
@@ -58,14 +58,22 @@ export function CinemaInspectorPanel() {
       }).descriptors
     : [], [liveInstance, persistedDefinition, selectedNode])
   const paletteOrder = ['background', 'primary', 'secondary', 'accent', 'foreground', 'highlight']
-  const paletteDescriptors = nodeDescriptors.filter(descriptor => descriptor.type === 'color').sort((left, right) => {
-    const roleFor = (id: typeof left.id) => {
-      const schema = persistedDefinition?.definition.parameters.find(parameter => parameter.id === id)
-      return schema?.type === 'color' ? schema.brandRole : undefined
-    }
-    const rank = (role: string | undefined) => role ? paletteOrder.indexOf(role) : paletteOrder.length
-    return rank(roleFor(left.id)) - rank(roleFor(right.id))
-  })
+  const roleForDescriptor = (id: typeof nodeDescriptors[number]['id']) => {
+    const schema = persistedDefinition?.definition.parameters.find(parameter => parameter.id === id)
+    return schema?.type === 'color' ? schema.brandRole : undefined
+  }
+  const colorDescriptors = nodeDescriptors.filter(descriptor => descriptor.type === 'color')
+  const brandDescriptors = colorDescriptors.filter(descriptor => roleForDescriptor(descriptor.id) !== undefined)
+  // Prefer the six canonical brand-role slots when a node exposes them —
+  // that's what "Palette" means. Otherwise a node's own non-brand color
+  // params (e.g. Prism Tunnel's own "Primary Color"/"Secondary Color"
+  // uniforms, added alongside the generic brand set) collide visually under
+  // the same stripped label. Nodes with no brand-tagged colors at all (e.g.
+  // Foundation Gradient's Background Color/Color B) fall back to showing
+  // every color param, same as before.
+  const paletteDescriptors = brandDescriptors.length > 0
+    ? [...brandDescriptors].sort((left, right) => paletteOrder.indexOf(roleForDescriptor(left.id) as string) - paletteOrder.indexOf(roleForDescriptor(right.id) as string))
+    : colorDescriptors
   const detailDescriptors = nodeDescriptors.filter(descriptor => !paletteDescriptors.includes(descriptor))
 
   if (!composition) {
@@ -77,9 +85,24 @@ export function CinemaInspectorPanel() {
   return (
     <>
       <div className="rv-ctrl-group">
-        <CtrlSection label="Preset Look" />
-        <InspectorKv label="Preset" value={composition.metadata.name} />
-        <InspectorKv label="Selected layer" value={selectedNode?.label ?? selectedNode?.typeId ?? 'None'} />
+        <Collapsible label="Master Appearance">
+          {masterDescriptors.length === 0 ? <div className="rv-ctrl-info">This preset has no master appearance controls.</div> : masterDescriptors.map(descriptor => (
+            <SchemaControl
+              key={descriptor.path}
+              descriptor={descriptor}
+              assetOptions={assetOptions}
+              onChange={value => {
+                const schema = composition.masterParameters.find(candidate => candidate.id === descriptor.id)
+                if (schema) setCinemaLiveMasterOverride(composition, schema, value)
+              }}
+              onInteractionStart={() => {}}
+              onInteractionEnd={() => {}}
+            />
+          ))}
+        </Collapsible>
+      </div>
+
+      <div className="rv-ctrl-group">
         <div className="rv-ctrl-info">Changes here are live overrides. The original preset remains unchanged.</div>
         {liveInstance && <IconChipButton onClick={() => resetCinemaLiveOverrides(composition.id)}>Reset Live Changes</IconChipButton>}
       </div>
@@ -102,24 +125,6 @@ export function CinemaInspectorPanel() {
               />
             )
           })}
-        </Collapsible>
-      </div>
-
-      <div className="rv-ctrl-group">
-        <Collapsible label="Master Appearance">
-          {masterDescriptors.length === 0 ? <div className="rv-ctrl-info">This preset has no master appearance controls.</div> : masterDescriptors.map(descriptor => (
-            <SchemaControl
-              key={descriptor.path}
-              descriptor={descriptor}
-              assetOptions={assetOptions}
-              onChange={value => {
-                const schema = composition.masterParameters.find(candidate => candidate.id === descriptor.id)
-                if (schema) setCinemaLiveMasterOverride(composition, schema, value)
-              }}
-              onInteractionStart={() => {}}
-              onInteractionEnd={() => {}}
-            />
-          ))}
         </Collapsible>
       </div>
 

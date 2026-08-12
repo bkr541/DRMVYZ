@@ -1,4 +1,5 @@
-import { useId, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { IconMorphToggle } from './controls/IconMorphToggle'
@@ -294,12 +295,65 @@ export function ColorRow({ label, value, onChange, disabled = false, id, descrip
   )
 }
 
-// ── Palette color row (Layout Lab "Full-Bleed Swatch") ─────────────────────────
+// ── Palette color row (Layout Lab "Full-Bleed Swatch" + popover HSL picker) ────
 //
 // Canonical treatment for named-color-slot groups (Cinema's per-layer Palette:
 // Background / Primary / Secondary / Accent / Foreground / Highlight). The
-// label sits above a full-width color block instead of a small swatch + hex
-// readout — the block itself is the native color-input trigger.
+// label sits above a full-width color block; clicking it opens an in-app
+// popover with Hue/Saturation/Lightness sliders (Layout Lab's "Inline Expand"
+// controls) positioned and dismissed like Layout Lab's "Popover Gradient"
+// variant — an OS-native color panel can't be resized or recolored, so this
+// picker is fully DOM-owned instead.
+
+function hexToRgb(hex: string): [number, number, number] {
+  const clean = hex.replace('#', '').trim()
+  const full = clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean.padStart(6, '0')
+  const value = Number.parseInt(full, 16) || 0
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255]
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return `#${[r, g, b].map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('')}`
+}
+
+function hexToHsl(hex: string): [number, number, number] {
+  const [r0, g0, b0] = hexToRgb(hex).map(v => v / 255)
+  const max = Math.max(r0, g0, b0)
+  const min = Math.min(r0, g0, b0)
+  const l = (max + min) / 2
+  const d = max - min
+  let h = 0
+  let s = 0
+  if (d !== 0) {
+    s = d / (1 - Math.abs(2 * l - 1))
+    if (max === r0) h = ((g0 - b0) / d) % 6
+    else if (max === g0) h = (b0 - r0) / d + 2
+    else h = (r0 - g0) / d + 4
+    h *= 60
+    if (h < 0) h += 360
+  }
+  return [h, s * 100, l * 100]
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const sat = s / 100
+  const light = l / 100
+  const c = (1 - Math.abs(2 * light - 1)) * sat
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const m = light - c / 2
+  let [r, g, b] = [0, 0, 0]
+  if (h < 60) [r, g, b] = [c, x, 0]
+  else if (h < 120) [r, g, b] = [x, c, 0]
+  else if (h < 180) [r, g, b] = [0, c, x]
+  else if (h < 240) [r, g, b] = [0, x, c]
+  else if (h < 300) [r, g, b] = [x, 0, c]
+  else [r, g, b] = [c, 0, x]
+  return rgbToHex((r + m) * 255, (g + m) * 255, (b + m) * 255)
+}
+
+function isValidHex(value: string): boolean {
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value.trim())
+}
 
 export interface PaletteColorRowProps {
   label: string
@@ -313,20 +367,108 @@ export interface PaletteColorRowProps {
 export function PaletteColorRow({ label, value, onChange, disabled = false, id, description }: PaletteColorRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
+  const [open, setOpen] = useState(false)
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
+  const swatchRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
+
+  const updatePosition = useCallback(() => {
+    const rect = swatchRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setPosition({ top: rect.bottom + 6, left: rect.left })
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    updatePosition()
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (swatchRef.current?.contains(target) || popoverRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    window.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [open, updatePosition])
+
+  // Once the popover has actually mounted, clamp it to the viewport — a
+  // swatch near the panel's right/bottom edge would otherwise anchor the
+  // popover off-screen. Bails out (returns the same object) once the
+  // clamped position stops changing, so this converges instead of looping.
+  useLayoutEffect(() => {
+    if (!open || !position) return
+    const swatchRect = swatchRef.current?.getBoundingClientRect()
+    const popoverRect = popoverRef.current?.getBoundingClientRect()
+    if (!swatchRect || !popoverRect) return
+    const margin = 8
+    const nextLeft = Math.min(swatchRect.left, Math.max(margin, window.innerWidth - margin - popoverRect.width))
+    const nextTop = (swatchRect.bottom + 6 + popoverRect.height > window.innerHeight - margin)
+      ? Math.max(margin, swatchRect.top - popoverRect.height - 6)
+      : swatchRect.bottom + 6
+    setPosition(current => (current && current.left === nextLeft && current.top === nextTop) ? current : { left: nextLeft, top: nextTop })
+  }, [open, position])
+
+  const [h, s, l] = hexToHsl(value)
+  const setHsl = (nextH: number, nextS: number, nextL: number) => onChange(hslToHex(nextH, nextS, nextL))
+
   return (
     <div className="rv-ctrl-palette-row">
       <label className="rv-ctrl-palette-row-label" htmlFor={inputId}>{label}</label>
-      <span className={`rv-ctrl-palette-swatch${disabled ? ' rv-ctrl-palette-swatch--disabled' : ''}`} style={{ background: value }}>
-        <input
-          id={inputId}
-          type="color"
-          className="rv-ctrl-palette-swatch-input"
-          value={value}
-          disabled={disabled}
-          onChange={event => onChange(event.target.value)}
-          aria-describedby={description ? `${inputId}-description` : undefined}
-        />
-      </span>
+      <button
+        ref={swatchRef}
+        id={inputId}
+        type="button"
+        className={`rv-ctrl-palette-swatch${disabled ? ' rv-ctrl-palette-swatch--disabled' : ''}`}
+        style={{ background: value }}
+        disabled={disabled}
+        aria-label={label}
+        aria-expanded={open}
+        aria-describedby={description ? `${inputId}-description` : undefined}
+        onClick={() => setOpen(current => !current)}
+      />
+      {open && !disabled && position && typeof document !== 'undefined' && createPortal(
+        <div ref={popoverRef} className="rv-ctrl-palette-popover" style={{ top: position.top, left: position.left }}>
+          <div
+            className="rv-ctrl-palette-gradient-square"
+            style={{ background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${h} 100% 50%))` }}
+            onPointerDown={event => {
+              const rect = event.currentTarget.getBoundingClientRect()
+              const move = (clientX: number, clientY: number) => {
+                const x = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+                const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height))
+                setHsl(h, x * 100, (1 - y) * 100)
+              }
+              move(event.clientX, event.clientY)
+              const onMove = (moveEvent: PointerEvent) => move(moveEvent.clientX, moveEvent.clientY)
+              const onUp = () => window.removeEventListener('pointermove', onMove)
+              window.addEventListener('pointermove', onMove)
+              window.addEventListener('pointerup', onUp, { once: true })
+            }}
+          >
+            <span className="rv-ctrl-palette-gradient-thumb" style={{ left: `${s}%`, top: `${100 - l}%` }} aria-hidden="true" />
+          </div>
+          <BubbleRevealSlider
+            className="rv-ctrl-palette-hue-slider"
+            min={0} max={360} step={1} value={h}
+            aria-label="Hue"
+            onChange={event => setHsl(Number(event.target.value), s, l)}
+          />
+          <div className="rv-ctrl-palette-popover-hex-row">
+            <span className="rv-ctrl-palette-popover-swatch" style={{ background: value }} aria-hidden="true" />
+            <DreamVizTextInput
+              className="rv-ctrl-palette-popover-hex"
+              value={value}
+              onChange={event => { if (isValidHex(event.target.value)) onChange(event.target.value) }}
+            />
+          </div>
+        </div>,
+        document.body,
+      )}
       {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>
   )

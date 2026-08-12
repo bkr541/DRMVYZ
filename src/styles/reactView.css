@@ -11968,11 +11968,14 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   letter-spacing: 0.04em;
 }
 
-/* Palette color row — Layout Lab "Full-Bleed Swatch" winner. The label sits
-   above a full-width color block instead of a small swatch + hex readout;
-   the block itself is the native color-input trigger. Used by dedicated
-   named-color-slot groups (Cinema's per-layer Palette), not every lone
-   ColorRow scattered among unrelated controls elsewhere. */
+/* Palette color row — Layout Lab "Full-Bleed Swatch" winner, paired with the
+   "Popover Gradient" variant's popover mechanics (position + outside-click
+   dismissal) and the "Inline Expand" variant's Hue/Saturation/Lightness
+   sliders. Used by dedicated named-color-slot groups (Cinema's per-layer
+   Palette), not every lone ColorRow scattered among unrelated controls
+   elsewhere. An OS-native <input type="color"> panel can't be resized or
+   recolored, so the swatch is a plain trigger button and the picker itself
+   is a fully DOM-owned popover. */
 .rv-ctrl-palette-row {
   display: flex;
   flex-direction: column;
@@ -11986,14 +11989,17 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-ctrl-palette-swatch {
-  position: relative;
   display: block;
-  min-height: var(--ui-control-height);
+  width: 100%;
+  min-height: calc(var(--ui-control-height) - 6px);
+  margin: 0;
+  padding: 0;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
   cursor: pointer;
-  overflow: hidden;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .rv-ctrl-palette-swatch--disabled {
@@ -12001,20 +12007,80 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   opacity: 0.42;
 }
 
-.rv-ctrl-palette-swatch-input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  border: 0;
-  padding: 0;
-}
-
-.rv-ctrl-palette-swatch-input:focus-visible {
+.rv-ctrl-palette-swatch:focus-visible {
   outline: 2px solid #67f7ff;
   outline-offset: 2px;
+}
+
+/* Portalled straight to document.body (see PaletteColorRow) so it can never
+   lose to a sibling/ancestor stacking context or get clipped by a scroll
+   container — position: fixed + top/left are computed in JS from the
+   swatch's own bounding rect. z-index matches this codebase's established
+   "always on top of everything" tier (cast popover / context menus sit at
+   2147483000–2147483002), one above the current ceiling. */
+.rv-ctrl-palette-popover {
+  position: fixed;
+  z-index: 2147483003;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 244px;
+  padding: 13px;
+  border-radius: 10px;
+  border: 1px solid rgba(103, 247, 255, 0.18);
+  /* Fully opaque — darkened past the right window's own panel color so the
+     group underneath never bleeds through. */
+  background: color-mix(in srgb, var(--color-panel-alt, #12171b) 65%, #000 35%);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.55);
+}
+
+.rv-ctrl-palette-gradient-square {
+  position: relative;
+  width: 100%;
+  height: 114px;
+  border-radius: 8px;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.rv-ctrl-palette-gradient-thumb {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* The gradient square only plots saturation × lightness at one fixed hue —
+   this strip is the third dimension, the only way to actually reach the
+   full spectrum. .dv-bubble-slider's own background rule is !important, so
+   this override needs equal specificity + !important too. */
+.rv-ctrl-palette-popover .dv-bubble-slider.rv-ctrl-palette-hue-slider {
+  width: 100%;
+  background: linear-gradient(to right, #ff0000, #ffea00, #35ff00, #00fff2, #0033ff, #d400ff, #ff0000) !important;
+}
+
+.rv-ctrl-palette-popover-hex-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rv-ctrl-palette-popover-swatch {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+
+.rv-ctrl-palette-popover-hex {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* Cinema's Palette group lays its PaletteColorRow items out in a 4-column
