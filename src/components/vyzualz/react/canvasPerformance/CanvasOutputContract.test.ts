@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CANVAS_PRESET_SETTINGS } from '../ReactTypes'
+import { CANVAS_PRESET_SETTINGS_SCHEMA_VERSION, DEFAULT_CANVAS_PRESET_SETTINGS } from '../ReactTypes'
 import { makeCanvasCaptureFilter, resolveCanvasEffectOpacity } from '../canvasMediaFidelity'
 import { normalizeCanvasPresetSettings } from '../../../../stores/reactStore'
 import { resolveCanvasLayerAlphaHierarchy, resolveCanvasOutputContract } from './CanvasOutputContract'
@@ -7,7 +7,7 @@ import { resolveCanvasLayerAlphaHierarchy, resolveCanvasOutputContract } from '.
 describe('CANVAS output ownership contract', () => {
   it('migrates legacy Source Visibility exactly once into Dry Source Mix', () => {
     const migrated = normalizeCanvasPresetSettings({ sourceVisibility: 0.37 })
-    expect(migrated.schemaVersion).toBe(2)
+    expect(migrated.schemaVersion).toBe(CANVAS_PRESET_SETTINGS_SCHEMA_VERSION)
     expect(migrated.sourceMixMode).toBe('legacyComposite')
     expect(migrated.drySourceMix).toBeCloseTo(0.37)
     expect(migrated.sourceVisibility).toBeCloseTo(0.37)

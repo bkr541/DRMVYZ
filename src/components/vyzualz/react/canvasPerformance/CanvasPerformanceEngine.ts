@@ -123,6 +123,7 @@ function continuousTreatmentForRole(
   if (motion <= 0) return null
 
   const bass = Math.max(0, Math.min(1, context.bass))
+  const phrase = Math.max(0, Math.min(1, context.phraseProgress))
   const flux = Math.max(0, Math.min(1, context.spectralFlux))
   const tension = Math.max(0, Math.min(1, context.tension))
   const vocal = Math.max(0, Math.min(1, context.vocalEnergy))
@@ -143,7 +144,10 @@ function continuousTreatmentForRole(
     return {
       roles: [role],
       scaleMultiplier: 1 + (bass * 0.055 + (slowOscillator + 1) * 0.008) * motion,
-      offsetX: slowOscillator * 0.055 * motion,
+      // Preserve musical phrase travel while retaining the stronger deterministic
+      // drift introduced by Stage 1. Sampling the same clock phase with different
+      // phrase progress must still produce different hero positions.
+      offsetX: Math.max(-0.055, Math.min(0.055, slowOscillator * 0.04 + (phrase - 0.5) * 0.03)) * motion,
       offsetY: fastOscillator * 0.025 * motion,
       rotationOffset: fastOscillator * 1.2 * motion,
       cropInset: Math.min(0.11, tensionCrop),
@@ -154,7 +158,9 @@ function continuousTreatmentForRole(
       roles: [role],
       scaleMultiplier: 1 + (0.018 + flux * 0.025) * motion,
       offsetX: fastOscillator * 0.045 * motion,
-      offsetY: slowOscillator * 0.065 * motion,
+      // Spectral flux shifts the texture's center of travel while the oscillator
+      // supplies continuous motion, all within the same bounded Stage 1 range.
+      offsetY: Math.max(-0.065, Math.min(0.065, slowOscillator * 0.05 + (flux - 0.5) * 0.03)) * motion,
       rotationOffset: slowOscillator * 3.2 * motion,
     }
   }
@@ -194,6 +200,25 @@ function continuousTreatmentForRole(
   return null
 }
 
+function continuousAppearanceTreatmentForRole(
+  role: CanvasLayerRole,
+  context: SharedPerformanceContext,
+): CanvasLayerTreatment | null {
+  const energy = Math.max(0, Math.min(1, context.trackRelativeEnergy))
+  const vocal = Math.max(0, Math.min(1, context.vocalEnergy))
+
+  if (role === 'texture') {
+    return { roles: [role], opacityMultiplier: 0.82 + energy * 0.18 }
+  }
+  if (role === 'foregroundAccent') {
+    return { roles: [role], opacityMultiplier: 0.8 + vocal * 0.2 }
+  }
+  if (role === 'background') {
+    return { roles: [role], opacityMultiplier: 0.9 + energy * 0.1 }
+  }
+  return null
+}
+
 function resolvedTreatmentForRole(
   authored: readonly CanvasLayerTreatment[],
   role: CanvasLayerRole,
@@ -203,7 +228,8 @@ function resolvedTreatmentForRole(
   const motion = settings.globalLocks.motion ? 0 : resolveCanvasMotionResponse(settings.motionIntensity)
   const authoredTreatment = scaledAuthoredMotionTreatment(treatmentForRole(authored, role), motion)
   const continuous = continuousTreatmentForRole(role, context, settings)
-  const combined = [authoredTreatment, continuous].filter((value): value is CanvasLayerTreatment => value !== null)
+  const appearance = continuousAppearanceTreatmentForRole(role, context)
+  const combined = [authoredTreatment, continuous, appearance].filter((value): value is CanvasLayerTreatment => value !== null)
   return treatmentForRole(combined, role)
 }
 
