@@ -13,7 +13,6 @@ import { buildSharedPerformanceContext, createSharedPerformanceDiagnostics, type
 import type { FeatureCurve, MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
 import { Collapsible, ColorRow, NumberInputRow, SelectRow as CanvasSelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import { HelpInfoTrigger, type HelpInfoTriggerProps } from '../../shared/InfoPopover'
-import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
 import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from './SharedPerformanceDiagnosticsStore'
 import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
 import {
@@ -3153,7 +3152,6 @@ function CanvasOrchestrationControls() {
           ]}
         />
       </Collapsible>
-      <SharedPerformanceDiagnosticsPanel engine="canvas" />
       <IconChipButton className="rv-canvas-restart-btn" onClick={resetCanvasOrchestration}>Reset Authored State</IconChipButton>
     </Collapsible>
   )

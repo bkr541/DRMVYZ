@@ -9,108 +9,64 @@ function text(values: readonly string[], fallback = 'None'): string {
 export function SharedPerformanceDiagnosticsPanel({
   engine,
   label = 'Performance Diagnostics',
+  variant = 'grid',
 }: {
   engine: SharedPerformanceDiagnosticsEngine
   label?: string
+  /** 'grid' is the original dt/dd status grid. 'audioIntelligence' mirrors the
+   *  Audio Intelligence panel's key/value row styling (vz-mi-*), used when this
+   *  panel sits alongside Audio Intelligence in the REACT tab's Analysis group. */
+  variant?: 'grid' | 'audioIntelligence'
 }) {
   const diagnostics = useSharedPerformanceDiagnostics(engine)
+  const fields = diagnostics ? [
+    { label: 'Engine', value: diagnostics.engine },
+    { label: 'Show', value: diagnostics.performanceShow ?? 'None' },
+    { label: 'Scene', value: diagnostics.scene ?? 'Fallback' },
+    { label: 'Section', value: `${diagnostics.section} ${diagnostics.sectionOccurrence || ''}`.trim() },
+    { label: 'Family', value: diagnostics.sectionFamily ?? 'None' },
+    { label: 'Drop', value: String(diagnostics.dropOccurrence || 0) },
+    { label: 'Phrase', value: String(diagnostics.phraseIndex + 1) },
+    { label: 'Bar', value: String(diagnostics.barWithinSection + 1) },
+    { label: '4 / 8 / 16', value: `${diagnostics.fourBarStage} / ${diagnostics.eightBarStage} / ${diagnostics.sixteenBarStage}` },
+    { label: 'Motif', value: diagnostics.motifOrComposition ?? 'Base' },
+    { label: 'Layers', value: text(diagnostics.activeLayers) },
+    { label: 'Events', value: text(diagnostics.activeEventEnvelopes) },
+    { label: 'Recent', value: text(diagnostics.recentActions) },
+    { label: 'Routes', value: text(diagnostics.continuousRoutes) },
+    { label: 'Upcoming', value: diagnostics.upcomingSemanticMoment ?? 'None' },
+    { label: 'Locks', value: text(diagnostics.lockedParameters) },
+    { label: 'Fallback', value: diagnostics.fallbackState ?? 'None' },
+    { label: 'Capabilities', value: text(diagnostics.capabilityLimitations) },
+    { label: 'Confidence', value: text(diagnostics.confidenceLimitations) },
+    { label: 'Limits', value: text(diagnostics.resourceLimitDecisions) },
+    ...diagnostics.engineDetails.map(detail => ({ label: detail.label, value: detail.value })),
+  ] : []
+
   return (
     <Collapsible label={label} defaultOpen={false}>
       {!diagnostics ? (
         <div className="rv-ctrl-info rv-control-helper-copy">
           Runtime diagnostics appear while Auto Performance is active and the engine is rendering.
         </div>
+      ) : variant === 'audioIntelligence' ? (
+        <div className="vz-mi-panel" data-shared-performance-diagnostics={engine}>
+          <div className="vz-mi-section">
+            {fields.map(field => (
+              <div key={field.label} className="vz-mi-kv-row">
+                <span className="vz-mi-kv-label">{field.label}</span>
+                <span className="vz-mi-kv-val">{field.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       ) : (
         <div className="rv-show-director-performance-status" data-shared-performance-diagnostics={engine}>
           <dl className="rv-show-director-performance-status__grid">
-            <div>
-              <dt>Engine</dt>
-              <dd>{diagnostics.engine}</dd>
-            </div>
-            <div>
-              <dt>Show</dt>
-              <dd>{diagnostics.performanceShow ?? 'None'}</dd>
-            </div>
-            <div>
-              <dt>Scene</dt>
-              <dd>{diagnostics.scene ?? 'Fallback'}</dd>
-            </div>
-            <div>
-              <dt>Section</dt>
-              <dd>
-                {diagnostics.section} {diagnostics.sectionOccurrence || ''}
-              </dd>
-            </div>
-            <div>
-              <dt>Family</dt>
-              <dd>{diagnostics.sectionFamily ?? 'None'}</dd>
-            </div>
-            <div>
-              <dt>Drop</dt>
-              <dd>{diagnostics.dropOccurrence || 0}</dd>
-            </div>
-            <div>
-              <dt>Phrase</dt>
-              <dd>{diagnostics.phraseIndex + 1}</dd>
-            </div>
-            <div>
-              <dt>Bar</dt>
-              <dd>{diagnostics.barWithinSection + 1}</dd>
-            </div>
-            <div>
-              <dt>4 / 8 / 16</dt>
-              <dd>
-                {diagnostics.fourBarStage} / {diagnostics.eightBarStage} / {diagnostics.sixteenBarStage}
-              </dd>
-            </div>
-            <div>
-              <dt>Motif</dt>
-              <dd>{diagnostics.motifOrComposition ?? 'Base'}</dd>
-            </div>
-            <div>
-              <dt>Layers</dt>
-              <dd>{text(diagnostics.activeLayers)}</dd>
-            </div>
-            <div>
-              <dt>Events</dt>
-              <dd>{text(diagnostics.activeEventEnvelopes)}</dd>
-            </div>
-            <div>
-              <dt>Recent</dt>
-              <dd>{text(diagnostics.recentActions)}</dd>
-            </div>
-            <div>
-              <dt>Routes</dt>
-              <dd>{text(diagnostics.continuousRoutes)}</dd>
-            </div>
-            <div>
-              <dt>Upcoming</dt>
-              <dd>{diagnostics.upcomingSemanticMoment ?? 'None'}</dd>
-            </div>
-            <div>
-              <dt>Locks</dt>
-              <dd>{text(diagnostics.lockedParameters)}</dd>
-            </div>
-            <div>
-              <dt>Fallback</dt>
-              <dd>{diagnostics.fallbackState ?? 'None'}</dd>
-            </div>
-            <div>
-              <dt>Capabilities</dt>
-              <dd>{text(diagnostics.capabilityLimitations)}</dd>
-            </div>
-            <div>
-              <dt>Confidence</dt>
-              <dd>{text(diagnostics.confidenceLimitations)}</dd>
-            </div>
-            <div>
-              <dt>Limits</dt>
-              <dd>{text(diagnostics.resourceLimitDecisions)}</dd>
-            </div>
-            {diagnostics.engineDetails.map((detail) => (
-              <div key={`${detail.label}:${detail.value}`}>
-                <dt>{detail.label}</dt>
-                <dd>{detail.value}</dd>
+            {fields.map(field => (
+              <div key={field.label}>
+                <dt>{field.label}</dt>
+                <dd>{field.value}</dd>
               </div>
             ))}
           </dl>
