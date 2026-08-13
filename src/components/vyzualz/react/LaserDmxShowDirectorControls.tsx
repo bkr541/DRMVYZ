@@ -12,7 +12,6 @@ import {
   type LaserDmxShowDirectorWebGLQuality,
 } from './ReactTypes'
 import type { LaserDmxShowDirectorPerformanceFallbackBehavior } from './LaserDmxShowDirectorPerformanceProgram'
-import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
 const GRID_PRESETS = [
@@ -333,7 +332,6 @@ function PerformanceProgramControls() {
           { value: 'programDefault', label: 'Program Default Scene' },
         ]}
       />
-      <SharedPerformanceDiagnosticsPanel engine="laserDmx" label="Shared Core Diagnostics" />
     </Collapsible>
   )
 }

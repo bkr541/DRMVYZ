@@ -31,7 +31,6 @@ import {
   soundDrawingSectionScopeModeLabel,
 } from './soundDrawing/SoundDrawingSectionMode'
 import { DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS } from './soundDrawing/SoundDrawingPerformanceTypes'
-import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
 import { CINEMATIC_WORLD_UI, type CinematicWorldUiDefinition } from './CinematicWorldsUi'
 import type { CinematicWorldMode } from './CinematicWorldConfig'
 import { resolvePresetCardNavigationIndex } from './ReactPresetCard'
@@ -725,7 +724,6 @@ export function ReactEnginePanel({
                   </DualRailCollapsible>
                 </>
               )}
-              <SharedPerformanceDiagnosticsPanel engine="soundDrawing" />
               <IconChipButton onClick={resetSoundDrawingPerformanceSettings}>
                 Reset to Authored State
               </IconChipButton>
