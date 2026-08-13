@@ -8,7 +8,7 @@ import { useReactStore } from '../../../stores/reactStore'
 import { useContextualHelpStore } from '../../../features/contextualHelp/contextualHelpStore'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import type { BrandKit } from '../../../features/personalization/BrandKitTypes'
-import { CANVAS_REACT_CONTROL_GROUPS, CanvasEngineFxPanel, CanvasEngineSurface } from './ReactCanvasEngineShell'
+import { CANVAS_REACT_CONTROL_GROUPS, CanvasEngineFxPanel, CanvasEngineSurface, resolveCanvasPresetControlGroups } from './ReactCanvasEngineShell'
 import { CanvasFracturesRenderer } from './renderers/fractures/CanvasFracturesRenderer'
 import { LaserImageFxRenderer } from './renderers/laserImageFx/LaserImageFxRenderer'
 
@@ -273,6 +273,85 @@ describe('CANVAS right-panel control contract', () => {
     ]))
   })
 
+  it('filters renderer-specific unconsumed controls while preserving supported conditional controls and saved values', () => {
+    useReactStore.getState().selectCanvasPreset('canvas-clean-playback')
+    useReactStore.getState().setCanvasPresetSettings({ particleQuality: 'low' })
+    act(() => root.render(<CanvasEngineFxPanel />))
+
+    const groupLabels = () => [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
+      .map(button => button.textContent?.trim())
+    const controlLabels = () => [...host.querySelectorAll<HTMLElement>('.rv-canvas-react-control-help .rv-ctrl-label')]
+      .map(node => node.textContent?.trim())
+
+    expect(groupLabels()).toEqual(expect.arrayContaining(['Source + Reactivity', 'FX', 'Motion + Particles']))
+    expect(controlLabels()).toEqual(expect.arrayContaining([
+      'Dry Source Mix',
+      'Visual Intensity',
+      'Bass Reactivity',
+      'Beat Pulse',
+      'Glow Amount',
+      'Trail Amount',
+      'RGB Split',
+      'Glitch Amount',
+      'Stutter Rate',
+      'Luma Threshold',
+    ]))
+    expect(controlLabels()).not.toContain('Particle Size')
+    expect(controlLabels()).not.toContain('Particle Color Mode')
+    expect(controlLabels()).not.toContain('Particle Quality')
+    expect(useReactStore.getState().canvasPresetSettings.particleQuality).toBe('low')
+
+    const cleanMotionGroup = [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
+      .find(button => button.textContent?.trim() === 'Motion + Particles')
+    act(() => cleanMotionGroup?.click())
+    expect(controlLabels()).toEqual(expect.arrayContaining(['Motion Amount', 'Turbulence', 'Particle Density']))
+    expect(controlLabels()).not.toContain('Particle Size')
+    expect(controlLabels()).not.toContain('Particle Color Mode')
+    expect(controlLabels()).not.toContain('Particle Quality')
+
+    act(() => useReactStore.getState().selectCanvasPreset('canvas-particle-aura'))
+    const particleMotionGroup = [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
+      .find(button => button.textContent?.trim() === 'Motion + Particles')
+    expect(particleMotionGroup).toBeDefined()
+    if (particleMotionGroup?.getAttribute('aria-expanded') !== 'true') act(() => particleMotionGroup?.click())
+    expect(controlLabels()).toEqual(expect.arrayContaining([
+      'Particle Density',
+      'Particle Size',
+      'Particle Color Mode',
+      'Particle Quality',
+    ]))
+
+    act(() => useReactStore.getState().selectCanvasPreset('canvas-clean-playback'))
+    expect(controlLabels()).not.toContain('Particle Size')
+    expect(controlLabels()).not.toContain('Particle Color Mode')
+    expect(controlLabels()).not.toContain('Particle Quality')
+  })
+
+  it('removes control groups that become empty after capability filtering', () => {
+    const groups = resolveCanvasPresetControlGroups({ controls: ['drySourceMix'] })
+    expect(groups.map(group => group.title)).toEqual(['Source + Reactivity'])
+    expect(groups[0]?.controls).toEqual(['drySourceMix'])
+  })
+
+  it('hides the generic Composition preference for the fixed-composition Fractures performance show', () => {
+    useReactStore.getState().setCanvasOrchestrationSettings({
+      programId: 'canvas-fractures-performance',
+      compositionPreference: 'fourPanelGrid',
+    })
+    act(() => root.render(<CanvasEngineFxPanel />))
+
+    const controlLabels = () => [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
+      .map(node => node.textContent?.trim())
+
+    expect(controlLabels()).not.toContain('Composition')
+    expect(host.querySelector('.rv-canvas-orchestration-summary')?.textContent).toContain('Fixed Fractures composition')
+    expect(useReactStore.getState().canvasOrchestrationSettings.compositionPreference).toBe('fourPanelGrid')
+
+    act(() => useReactStore.getState().setCanvasOrchestrationSettings({ programId: 'canvas-cinematic-bass-editor' }))
+    expect(controlLabels()).toContain('Composition')
+    expect(useReactStore.getState().canvasOrchestrationSettings.compositionPreference).toBe('fourPanelGrid')
+  })
+
   it('renders Display before orchestration and CANVAS React Controls', () => {
     act(() => root.render(<CanvasEngineFxPanel />))
     const labels = [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
@@ -427,13 +506,13 @@ describe('CANVAS right-panel control contract', () => {
     })
   })
 
-  it('places explicit info triggers beside CANVAS controls without changing the control contract', () => {
+  it('places info triggers only beside controls supported by the active preset', () => {
     act(() => root.render(<CanvasEngineFxPanel />))
 
-    const helpIds = [...host.querySelectorAll<HTMLButtonElement>('.drm-help-info-trigger')]
+    const helpIds = () => [...host.querySelectorAll<HTMLButtonElement>('.drm-help-info-trigger')]
       .map(button => button.dataset.helpId)
 
-    expect(helpIds).toEqual(expect.arrayContaining([
+    expect(helpIds()).toEqual(expect.arrayContaining([
       'react.canvas.sourceAndDisplay.sourceLink.autoSelect',
       'react.canvas.sourceAndDisplay.display.fitMode',
       'react.canvas.sourceAndDisplay.display.scale',
@@ -470,15 +549,15 @@ describe('CANVAS right-panel control contract', () => {
       'react.canvas.videoTiming.restartOnManualPresetChange',
       'react.canvas.videoTiming.sectionTriggerMapping.overview',
     ]))
+    expect(helpIds()).not.toContain('react.canvas.reactControls.motionAndParticles.particleQuality')
 
+    act(() => useReactStore.getState().selectCanvasPreset('canvas-particle-aura'))
     const motionGroup = [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
       .find(button => button.textContent?.includes('Motion + Particles'))
     expect(motionGroup).toBeDefined()
     act(() => motionGroup?.click())
 
-    const expandedHelpIds = [...host.querySelectorAll<HTMLButtonElement>('.drm-help-info-trigger')]
-      .map(button => button.dataset.helpId)
-    expect(expandedHelpIds).toEqual(expect.arrayContaining([
+    expect(helpIds()).toEqual(expect.arrayContaining([
       'react.canvas.reactControls.motionAndParticles.motionAmount',
       'react.canvas.reactControls.motionAndParticles.turbulence',
       'react.canvas.reactControls.motionAndParticles.particleDensity',

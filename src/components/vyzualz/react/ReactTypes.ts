@@ -579,6 +579,29 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
 
 export const DEFAULT_CANVAS_PRESET_OVERRIDE_STATE: CanvasPresetOverrideState | null = null
 
+const CANVAS_STANDARD_RUNTIME_CONTROLS: CanvasPresetControlKey[] = [
+  'drySourceMix',
+  'intensity',
+  'bassReactivity',
+  'beatPulse',
+  'glow',
+  'trailAmount',
+  'rgbSplit',
+  'glitchAmount',
+  'stutterRate',
+  'lumaThreshold',
+  'motionAmount',
+  'turbulence',
+  'particleDensity',
+]
+
+const CANVAS_PARTICLE_AURA_RUNTIME_CONTROLS: CanvasPresetControlKey[] = [
+  ...CANVAS_STANDARD_RUNTIME_CONTROLS,
+  'particleSize',
+  'particleColorMode',
+  'particleQuality',
+]
+
 export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
   {
     id: 'canvas-clean-playback',
@@ -602,7 +625,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       turbulence: 0,
       particleDensity: 0,
     },
-    controls: ['drySourceMix', 'intensity'],
+    controls: [...CANVAS_STANDARD_RUNTIME_CONTROLS],
   },
   {
     id: 'canvas-bass-bloom',
@@ -626,7 +649,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       turbulence: 0.08,
       particleDensity: 0,
     },
-    controls: ['drySourceMix', 'intensity', 'bassReactivity', 'beatPulse', 'glow', 'trailAmount', 'motionAmount'],
+    controls: [...CANVAS_STANDARD_RUNTIME_CONTROLS],
   },
   {
     id: 'canvas-ghost-echo',
@@ -650,7 +673,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       turbulence: 0.18,
       particleDensity: 0,
     },
-    controls: ['drySourceMix', 'intensity', 'trailAmount', 'motionAmount', 'glow', 'bassReactivity'],
+    controls: [...CANVAS_STANDARD_RUNTIME_CONTROLS],
   },
   {
     id: 'canvas-glitch-pulse',
@@ -675,7 +698,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       turbulence: 0.32,
       particleDensity: 0,
     },
-    controls: ['drySourceMix', 'intensity', 'beatPulse', 'rgbSplit', 'glitchAmount', 'stutterRate', 'motionAmount'],
+    controls: [...CANVAS_STANDARD_RUNTIME_CONTROLS],
   },
   {
     id: 'canvas-luma-melt',
@@ -700,7 +723,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       turbulence: 0.26,
       particleDensity: 0,
     },
-    controls: ['drySourceMix', 'intensity', 'lumaThreshold', 'glow', 'trailAmount', 'motionAmount', 'turbulence'],
+    controls: [...CANVAS_STANDARD_RUNTIME_CONTROLS],
   },
   {
     id: 'canvas-frame-stutter',
@@ -724,7 +747,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       turbulence: 0.12,
       particleDensity: 0,
     },
-    controls: ['drySourceMix', 'intensity', 'beatPulse', 'stutterRate', 'rgbSplit', 'glitchAmount'],
+    controls: [...CANVAS_STANDARD_RUNTIME_CONTROLS],
   },
   {
     id: 'canvas-particle-aura',
@@ -752,22 +775,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       particleColorMode: 'audioReactive',
       particleQuality: 'high',
     },
-    controls: [
-      'drySourceMix',
-      'intensity',
-      'particleDensity',
-      'particleSize',
-      'turbulence',
-      'motionAmount',
-      'trailAmount',
-      'glow',
-      'rgbSplit',
-      'glitchAmount',
-      'bassReactivity',
-      'beatPulse',
-      'particleColorMode',
-      'particleQuality',
-    ],
+    controls: [...CANVAS_PARTICLE_AURA_RUNTIME_CONTROLS],
   },
   {
     id: 'canvas-fractures',
@@ -833,6 +841,22 @@ export const CANVAS_PRESET_BY_ID: Record<CanvasPresetId, CanvasPresetDefinition>
   acc[preset.id] = preset
   return acc
 }, {} as Record<CanvasPresetId, CanvasPresetDefinition>)
+
+/**
+ * Canonical preset-level capability check for the generic CANVAS control surface.
+ * The deprecated Source Visibility ID remains equivalent to Dry Source Mix for
+ * loaded projects, but visibility is otherwise owned by each preset's audited
+ * runtime control contract.
+ */
+export function canvasPresetSupportsControl(
+  preset: Pick<CanvasPresetDefinition, 'controls'>,
+  control: CanvasPresetControlKey,
+): boolean {
+  const canonicalControl = control === 'sourceVisibility' ? 'drySourceMix' : control
+  return preset.controls.some(candidate =>
+    (candidate === 'sourceVisibility' ? 'drySourceMix' : candidate) === canonicalControl,
+  )
+}
 
 export function resolveCanvasPresetRendererKind(presetId: CanvasPresetId): CanvasPresetRendererKind {
   return CANVAS_PRESET_BY_ID[presetId]?.rendererKind ?? 'standard'

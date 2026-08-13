@@ -36,6 +36,7 @@ export interface CanvasPerformanceShowDefinition {
   mediaStrategy: CanvasPerformanceMediaStrategy
   program: SharedPerformanceProgram<CanvasPerformanceAction>
   fallbackSceneId: string
+  supportsCompositionPreference: boolean
 }
 
 const CANVAS_PERFORMANCE_MEDIA_STRATEGIES: Readonly<Record<CanvasPerformanceShowId, CanvasPerformanceMediaStrategy>> = {
@@ -492,6 +493,7 @@ function show(
   visualPhilosophy: string,
   scenes: readonly SharedPerformanceProgramScene<CanvasPerformanceAction>[],
   fallbackSceneId: string,
+  supportsCompositionPreference = true,
 ): CanvasPerformanceShowDefinition {
   return {
     id,
@@ -500,6 +502,7 @@ function show(
     visualPhilosophy,
     mediaStrategy: CANVAS_PERFORMANCE_MEDIA_STRATEGIES[id],
     fallbackSceneId,
+    supportsCompositionPreference,
     program: {
       id,
       metadata: { name: label, description, engine: 'canvas', version: 1, authoringRevision: 'stage-2-media-intelligence' },
@@ -516,7 +519,7 @@ export const CANVAS_PERFORMANCE_SHOWS: readonly CanvasPerformanceShowDefinition[
   show('canvas-dreamstate-media-tunnel', 'Dreamstate Media Tunnel', 'Layered depth, echo-tunnel compositions, atmospheric builds, and expansive drops.', 'Continuous depth travel with soft feedback and cinematic breathing room.', dreamScenes, 'dream-verse-orbit'),
   show('canvas-impact-cut-system', 'Impact Cut System', 'Precise hard cuts, strong kick and snare separation, restrained effects, and aggressive drop editing.', 'Editorial percussion with minimal processing between musical events.', impactScenes, 'impact-verse-clean'),
   show('canvas-layered-luma-journey', 'Layered Luma Journey', 'Luma masks, texture blending, organic transitions, and long-form repeated-section evolution.', 'Slow-blooming compositing where masks and textures carry the narrative.', lumaScenes, 'luma-verse-organic'),
-  show('canvas-fractures-performance', 'Fractures Performance', 'Section-aware Fractures choreography that preserves one logical Canvas layer and the preset’s local audio response.', 'Authored macro direction outside, deterministic fragment planning inside.', fracturesScenes, 'fractures-verse-editorial-motion'),
+  show('canvas-fractures-performance', 'Fractures Performance', 'Section-aware Fractures choreography that preserves one logical Canvas layer and the preset’s local audio response.', 'Authored macro direction outside, deterministic fragment planning inside.', fracturesScenes, 'fractures-verse-editorial-motion', false),
 ]
 
 export const CANVAS_PERFORMANCE_SHOW_BY_ID = Object.fromEntries(

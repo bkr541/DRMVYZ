@@ -78,6 +78,7 @@ import {
 import { validateCanvasShowManagerShow, type CanvasShowManagerShow } from '../showManager/CanvasShowManagerDomain'
 import {
   CANVAS_PRESET_BY_ID,
+  canvasPresetSupportsControl,
   DEFAULT_CANVAS_PRESET_ID,
   DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS,
   type CanvasFitMode,
@@ -95,6 +96,7 @@ import {
   type CanvasMediaItemType,
   type CanvasParticleQuality,
   type CanvasPresetColorMode,
+  type CanvasPresetDefinition,
   type CanvasPresetControlKey,
   type CanvasPresetId,
   type CanvasPresetSettings,
@@ -2660,6 +2662,17 @@ export const CANVAS_REACT_CONTROL_GROUPS: Array<{
   },
 ]
 
+export function resolveCanvasPresetControlGroups(
+  preset: Pick<CanvasPresetDefinition, 'controls'>,
+): Array<{ title: string; controls: CanvasPresetControlKey[] }> {
+  return CANVAS_REACT_CONTROL_GROUPS
+    .map(group => ({
+      ...group,
+      controls: group.controls.filter(control => canvasPresetSupportsControl(preset, control)),
+    }))
+    .filter(group => group.controls.length > 0)
+}
+
 const CANVAS_REACT_CONTROL_HELP_IDS: Record<CanvasPresetControlKey, HelpInfoTriggerProps['helpId']> = {
   drySourceMix: 'react.canvas.reactControls.sourceAndReactivity.drySourceMix',
   sourceVisibility: 'react.canvas.reactControls.sourceAndReactivity.drySourceMix',
@@ -3061,7 +3074,9 @@ function CanvasOrchestrationControls() {
       <div className="rv-canvas-orchestration-summary" role="status">
         <span>{poolItems.length} pooled source{poolItems.length === 1 ? '' : 's'}</span>
         <span>{selectedShow.label}</span>
-        <span>{settings.compositionPreference === 'auto' ? 'Section-aware templates' : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label}</span>
+        <span>{selectedShow.supportsCompositionPreference
+          ? (settings.compositionPreference === 'auto' ? 'Section-aware templates' : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label)
+          : 'Fixed Fractures composition'}</span>
       </div>
       {settings.enabled && poolItems.length === 0 && (
         <NoticeCard tone="warning" role="status">Select media in the left SOURCE panel to build the performance pool.</NoticeCard>
@@ -3092,23 +3107,25 @@ function CanvasOrchestrationControls() {
           description="Derives conservative roles from type, alpha, duration, aspect, tags, and media-library organization when no explicit role exists."
         />
       </CanvasHelpControl>
-      <CanvasHelpControl
-        helpId="react.canvas.performanceOrchestration.composition"
-        currentValue={settings.compositionPreference === 'auto'
-          ? 'Auto · Section Aware'
-          : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label ?? settings.compositionPreference}
-        currentValueTone="accent"
-      >
-        <CanvasSelectRow
-          label="Composition"
-          value={settings.compositionPreference}
-          onChange={value => setSettings({ compositionPreference: value as CanvasCompositionPreference })}
-          options={[
-            { value: 'auto', label: 'Auto · Section Aware' },
-            ...CANVAS_COMPOSITION_TEMPLATE_OPTIONS,
-          ]}
-        />
-      </CanvasHelpControl>
+      {selectedShow.supportsCompositionPreference && (
+        <CanvasHelpControl
+          helpId="react.canvas.performanceOrchestration.composition"
+          currentValue={settings.compositionPreference === 'auto'
+            ? 'Auto · Section Aware'
+            : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label ?? settings.compositionPreference}
+          currentValueTone="accent"
+        >
+          <CanvasSelectRow
+            label="Composition"
+            value={settings.compositionPreference}
+            onChange={value => setSettings({ compositionPreference: value as CanvasCompositionPreference })}
+            options={[
+              { value: 'auto', label: 'Auto · Section Aware' },
+              ...CANVAS_COMPOSITION_TEMPLATE_OPTIONS,
+            ]}
+          />
+        </CanvasHelpControl>
+      )}
       <CanvasHelpControl helpId="react.canvas.performanceOrchestration.layerComplexity" currentValue={formatCanvasPercentage(settings.complexity)}>
         <SliderRow label="Layer Complexity" value={settings.complexity} onChange={complexity => setSettings({ complexity })} min={0} max={1} step={0.01} color="#61d6aa" />
       </CanvasHelpControl>
@@ -3503,6 +3520,7 @@ function CanvasPresetControls() {
   const setCanvasPresetSettings = useReactStore(s => s.setCanvasPresetSettings)
   const resetCanvasPresetSettings = useReactStore(s => s.resetCanvasPresetSettings)
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
+  const visibleControlGroups = useMemo(() => resolveCanvasPresetControlGroups(selectedPreset), [selectedPreset])
 
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const mediaItems = useCanvasRuntimeMediaItems()
@@ -3618,7 +3636,7 @@ function CanvasPresetControls() {
           Particles need an active CANVAS library media item before they can sample pixels and emit from the source.
         </NoticeCard>
       )}
-      {CANVAS_REACT_CONTROL_GROUPS.map(group => (
+      {visibleControlGroups.map(group => (
         <Collapsible key={group.title} label={group.title} defaultOpen={group.title !== 'Motion + Particles'}>
           {group.controls.map(renderControl)}
         </Collapsible>
