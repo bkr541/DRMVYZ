@@ -13,11 +13,13 @@ import {
   type CinemaCompiledGraphPlan,
   type CinemaGraphCompilationResult,
 } from '../CinemaGraphCompiler'
-import type {
-  CinemaAssetBindingId,
-  CinemaAssetId,
-  CinemaNodeId,
-  CinemaPortId,
+import {
+  cinemaStableId,
+  type CinemaAssetBindingId,
+  type CinemaAssetId,
+  type CinemaNodeId,
+  type CinemaParameterId,
+  type CinemaPortId,
 } from '../CinemaIdentifiers'
 import type { CinemaNodeDefinitionRegistry, CinemaNodeRegistryEntry } from '../CinemaNodeRegistry'
 import type { CinemaRuntimeNodeRegistry } from '../CinemaRuntimeNodeRegistry'
@@ -93,6 +95,7 @@ const NOOP_ASSET_RUNTIME: CinemaAssetRuntimeService = Object.freeze({
 })
 
 const EMPTY_NODE_VALUES: Readonly<CinemaParameterValues> = Object.freeze({})
+const MOTION_PARAMETER_ID = cinemaStableId<CinemaParameterId>('motion', 'parameter')
 const CINEMA_BRAND_ROLES: readonly CinemaBrandRole[] = Object.freeze([
   'primary', 'secondary', 'accent', 'background', 'foreground', 'highlight', 'shadow',
 ])
@@ -1064,7 +1067,7 @@ export class CinemaGraphExecutor {
   private resolveSharedCameraMotionScale(): number {
     for (const record of this.records.values()) {
       if (record.authored.family !== 'procedural') continue
-      const value = record.values.motion
+      const value = record.values[MOTION_PARAMETER_ID]
       if (typeof value !== 'number' || !Number.isFinite(value)) continue
       return Math.max(0, Math.min(1, value))
     }
