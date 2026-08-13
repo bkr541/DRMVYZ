@@ -30,7 +30,7 @@ const oscPreset       = DEFAULT_REACT_PRESETS.find(p => p.engine === 'oscillosco
 const enhancedOscPreset = DEFAULT_REACT_PRESETS.find(
   p => p.engine === 'oscilloscope' && p.oscillatorSettings != null,
 )
-const PRESET_FREE_ENGINE_IDS = new Set<ReactEngineId>(['canvas', 'cinema', 'oscilloscope'])
+const PRESET_FREE_ENGINE_IDS = new Set<ReactEngineId>(['canvas', 'cinema', 'oscilloscope', 'headliner'])
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

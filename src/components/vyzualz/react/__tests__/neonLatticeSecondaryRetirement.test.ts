@@ -90,6 +90,11 @@ describe('Neon Lattice secondary integration retirement', () => {
       id: 'test-cinema-thumbnail',
       engine: 'cinema',
     })
+    sampleByEngine.set('headliner', {
+      ...DEFAULT_REACT_PRESETS[0],
+      id: 'test-headliner-thumbnail',
+      engine: 'headliner',
+    })
 
     expect([...sampleByEngine.keys()].sort()).toEqual([...REACT_ENGINE_IDS].sort())
     for (const engineId of REACT_ENGINE_IDS) {

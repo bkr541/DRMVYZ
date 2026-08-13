@@ -79,6 +79,7 @@ describe('Cinema production boundary through Stage 23', () => {
       'canvas',
       'laserDmx',
       'pixGrid',
+      'headliner',
     ])
     expect(isSelectableReactEngineId('cinema')).toBe(true)
     expect(REACT_ENGINE_CATALOG.cinema.label).toBe('Cinema')

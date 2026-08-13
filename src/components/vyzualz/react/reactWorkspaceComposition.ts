@@ -38,12 +38,17 @@ export function resolveReactWorkspaceComposition(
   const isLaser = engineId === 'laserDmx'
   const isCanvas = engineId === 'canvas'
   const isPixGrid = engineId === 'pixGrid'
+  const isHeadliner = engineId === 'headliner'
   void laserWorkspaceMode
 
   let leftTabs: ReactLeftTab[] = ['workspace']
   let workspaceTabLabel: ReactWorkspaceTabLabel = 'SETUP'
 
-  if (isCinema) {
+  if (isHeadliner) {
+    // Stage 1: Headliner is a bare stub — only the ENGINE dropdown shows,
+    // no tabs, no track map, no performance pads.
+    leftTabs = []
+  } else if (isCinema) {
     leftTabs = ['workspace', 'layers']
     workspaceTabLabel = 'SOURCE'
   } else if (isCinematic) {
@@ -68,10 +73,11 @@ export function resolveReactWorkspaceComposition(
   return {
     // React performance pads target live React presets and contextual production actions.
     // Shader uses its independent scene system and has no compatible React presets.
-    showPerformancePads: !isShader && !isCinema,
+    showPerformancePads: !isShader && !isCinema && !isHeadliner,
     showSoundDrawingTimeline: isSoundDrawing,
-    // Track sections and transport context are shared by every React engine.
-    showTrackMap: true,
+    // Track sections and transport context are shared by every React engine,
+    // except Headliner's Stage 1 stub which shows only the ENGINE dropdown.
+    showTrackMap: !isHeadliner,
     showLaserBeamEditor: isLaser && beamEditorVisible,
     showLaserLayersTab: isLaser,
     presetSurface: isShader ? 'shaderScenes' : 'enginePresets',

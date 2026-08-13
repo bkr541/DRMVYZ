@@ -16,6 +16,7 @@ export const REACT_KNOWN_ENGINE_IDS: ReactEngineId[] = [
   'canvas',
   'laserDmx',
   'pixGrid',
+  'headliner',
 ]
 
 /** User-facing engine choices. Legacy Shader Pads/Cinematic Worlds IDs remain known only for restore/import compatibility. */
@@ -72,6 +73,13 @@ export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry
     shortLabel: 'PixGrid',
     icon: '▦',
     description: 'Programmable LED-cell artwork, animation, and full-song pixel choreography.',
+  },
+  headliner: {
+    id: 'headliner',
+    label: 'HEADLINER',
+    shortLabel: 'Headliner',
+    icon: '★',
+    description: 'Headliner engine.',
   },
 }
 

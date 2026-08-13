@@ -59,6 +59,7 @@ const ENGINE_ACCESSIBLE_LABELS: Record<ReactEngineId, string> = {
   canvas:          'CANVAS',
   laserDmx:        'LaserDMX',
   pixGrid:         'PixGrid',
+  headliner:       'HEADLINER',
 }
 
 export interface LaserDmxSectionRuntimeProgram {
