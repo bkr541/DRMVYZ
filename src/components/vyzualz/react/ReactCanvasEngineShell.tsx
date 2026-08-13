@@ -194,7 +194,7 @@ function CanvasOverrideStatus({
   onClear,
 }: CanvasOverrideStatusProps) {
   return (
-    <NoticeCard className="rv-canvas-override-flag" tone="warning" role="status" title={title}>
+    <NoticeCard tone="warning" role="status" title={title}>
       <div className="rv-canvas-override-flag__content">
         <span className="rv-canvas-override-flag__message">{message}</span>
         <IconChipButton
@@ -2392,19 +2392,13 @@ export function CanvasEngineSurface({
         )}
         <div className="rv-canvas-visualizer-notice-stack" aria-label="CANVAS visualizer notices">
           {particleRendererNotice && particleReconstructionActive && (
-            <div className="rv-canvas-render-notice">
-              <NoticeCard tone="warning" role="status">{particleRendererNotice}</NoticeCard>
-            </div>
+            <NoticeCard tone="warning" role="status">{particleRendererNotice}</NoticeCard>
           )}
           {laserImageFxRendererNotice && laserImageFxActive && (
-            <div className="rv-canvas-render-notice">
-              <NoticeCard tone="warning" role="status">{laserImageFxRendererNotice}</NoticeCard>
-            </div>
+            <NoticeCard tone="warning" role="status">{laserImageFxRendererNotice}</NoticeCard>
           )}
           {fracturesRendererNotice && fragmentCollageActive && (
-            <div className="rv-canvas-render-notice">
-              <NoticeCard tone="warning" role="status">{fracturesRendererNotice}</NoticeCard>
-            </div>
+            <NoticeCard tone="warning" role="status">{fracturesRendererNotice}</NoticeCard>
           )}
           <CanvasVisualizerOverrideNotices />
         </div>
