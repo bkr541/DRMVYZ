@@ -78,6 +78,8 @@ export const LASER_DMX_SHOW_MANAGER_DEFAULT_SECTION_TEMPLATE = [
 export interface LaserDmxShowManagerSection extends ReactTrackSection {
   /** Canonical section-local fixture collection. Fixtures are never shared across sections. */
   fixtures: LaserDmxShowDirectorFixture[]
+  /** Authoring/display preferences are section-scoped so two LaserDMX sections can render differently. */
+  settings: LaserDmxShowManagerWorkspaceSettings
 }
 
 export interface LaserDmxShowManagerShow {
@@ -117,6 +119,7 @@ function createLaserDmxShowManagerRuntimeRig(
   show: LaserDmxShowManagerShow,
   identity: string,
   fixtures: readonly LaserDmxShowDirectorFixture[],
+  settings: LaserDmxShowManagerWorkspaceSettings = show.settings,
 ): LaserDmxShowDirectorState {
   const base = createDefaultLaserDmxShowDirectorState()
   return {
@@ -129,12 +132,12 @@ function createLaserDmxShowManagerRuntimeRig(
       ...base.settings,
       gridSize: { ...LASER_DMX_SHOW_MANAGER_GRID_SIZE },
       snapEnabled: true,
-      showLabels: show.settings.showLabels,
-      showBeams: show.settings.showBeams,
-      showGrid: show.settings.showGrid,
-      highlightFixtures: show.settings.highlightGrid,
+      showLabels: settings.showLabels,
+      showBeams: settings.showBeams,
+      showGrid: settings.showGrid,
+      highlightFixtures: settings.highlightGrid,
       presentationMode: 'live',
-      rendererMode: show.settings.rendererMode,
+      rendererMode: settings.rendererMode,
       webglQuality: LASER_DMX_SHOW_MANAGER_QUALITY,
     },
   }
@@ -144,7 +147,7 @@ export function createLaserDmxShowManagerRuntimeShowDirector(
   show: LaserDmxShowManagerShow,
   section: LaserDmxShowManagerSection,
 ): LaserDmxShowDirectorState {
-  return createLaserDmxShowManagerRuntimeRig(show, section.id, section.fixtures)
+  return createLaserDmxShowManagerRuntimeRig(show, section.id, section.fixtures, section.settings)
 }
 
 export function createLaserDmxShowManagerEmptyRuntimeShowDirector(
@@ -456,6 +459,7 @@ export function syncLaserDmxShowManagerSectionsToTrackMap(
     return {
       ...trackSection,
       engineId: 'laserDmx' as const,
+      settings: normalizeLaserDmxShowManagerWorkspaceSettings(existing?.settings),
       fixtures: existing?.fixtures.map((fixture, fixtureIndex) => cloneFixture(fixture, fixtureIndex)) ?? [],
     }
   })
@@ -494,6 +498,7 @@ export function createDefaultLaserDmxShowManagerSections(
     intensity: type === 'drop' ? 1 : type === 'build' || type === 'preDrop' ? 0.8 : 0.55,
     engineId: 'laserDmx',
     source: 'user-created',
+    settings: normalizeLaserDmxShowManagerWorkspaceSettings(undefined),
     fixtures: [],
   }))
 }
@@ -554,6 +559,7 @@ export function normalizeLaserDmxShowManagerSection(
     ...(isRecord(raw.provenance) ? { provenance: { ...raw.provenance } as unknown as ReactTrackSection['provenance'] } : {}),
     ...confidenceFields,
     ...(isRecord(raw.interpretation) ? { interpretation: raw.interpretation as ReactTrackSection['interpretation'] } : {}),
+    settings: normalizeLaserDmxShowManagerWorkspaceSettings(raw.settings),
     fixtures,
   }
 }
@@ -597,6 +603,7 @@ export function normalizeLaserDmxShowManagerShows(raw: unknown): LaserDmxShowMan
       sections: show.sections.map((section, sectionIndex) => ({
         ...section,
         id: `${id}:section:${section.type}:${sectionIndex + 1}`,
+        settings: { ...section.settings },
         fixtures: section.fixtures.map((fixture, fixtureIndex) => cloneFixture(fixture, fixtureIndex)),
       })),
     }
@@ -610,6 +617,7 @@ export function cloneLaserDmxShowManagerShow(show: LaserDmxShowManagerShow): Las
     sections: show.sections.map((section, sectionIndex) => ({
       ...section,
       provenance: section.provenance ? { ...section.provenance } : undefined,
+      settings: { ...section.settings },
       fixtures: section.fixtures.map((fixture, fixtureIndex) => cloneFixture(fixture, fixtureIndex)),
     })),
   }
@@ -640,6 +648,7 @@ export function duplicateLaserDmxShowManagerShow(
       ...section,
       id: `${newShowId}:section:${section.type}:${sectionIndex + 1}`,
       provenance: section.provenance ? { ...section.provenance } : undefined,
+      settings: { ...section.settings },
       fixtures: section.fixtures.map((fixture, fixtureIndex) => ({
         ...cloneFixture(fixture, fixtureIndex),
         id: fixtureIdMap.get(fixture.id) ?? createId('laser-dmx-fixture'),
@@ -661,6 +670,26 @@ export function updateLaserDmxShowManagerWorkspaceSettings(
       ...show.settings,
       ...patch,
     }),
+  }
+}
+
+export function updateLaserDmxShowManagerSectionWorkspaceSettings(
+  show: LaserDmxShowManagerShow,
+  sectionId: string,
+  patch: LaserDmxShowManagerWorkspaceSettingsPatch,
+): LaserDmxShowManagerShow {
+  if (!show.sections.some(section => section.id === sectionId)) return show
+  return {
+    ...show,
+    sections: show.sections.map(section => section.id !== sectionId
+      ? section
+      : {
+          ...section,
+          settings: normalizeLaserDmxShowManagerWorkspaceSettings({
+            ...section.settings,
+            ...patch,
+          }),
+        }),
   }
 }
 
@@ -700,6 +729,7 @@ export function addLaserDmxShowManagerSection(
     intensity: clamp(finite(seed.intensity, 0.55), 0, 1),
     engineId: 'laserDmx',
     source: 'user-created',
+    settings: normalizeLaserDmxShowManagerWorkspaceSettings(undefined),
     fixtures: [],
   }
   return { show: { ...show, sections: [...show.sections, candidate] }, sectionId }

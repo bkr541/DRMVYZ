@@ -143,6 +143,7 @@ const fixture = vi.hoisted(() => ({
           endSec: 64,
           intensity: 0.35,
           source: 'auto',
+          engineId: 'pixGrid',
         }],
         edited: false,
       },
@@ -153,6 +154,8 @@ const fixture = vi.hoisted(() => ({
     duplicateShowManagerShow: vi.fn(async () => 'show-manager-copy' as string | null),
     deleteShowManagerShow: vi.fn(async () => true),
     selectShowManagerShow: vi.fn(),
+    ensureShowManagerAuthoringMirrors: vi.fn(),
+    replaceShowManagerSectionEngine: vi.fn(() => true),
     resetShowManagerSession: vi.fn(),
     reconcileShowManagerTrackMapFromAnalysis: vi.fn(),
     updateShowManagerTrackMapSection: vi.fn(),
@@ -186,6 +189,13 @@ const fixture = vi.hoisted(() => ({
         engineId: 'laserDmx',
         source: 'user-created',
         fixtures: [],
+        settings: {
+          showGrid: true,
+          showLabels: true,
+          showBeams: true,
+          highlightGrid: true,
+          rendererMode: 'auto',
+        },
       })),
     }],
     laserDmxShowManagerEditingShowId: 'laser-show-1',
@@ -200,6 +210,7 @@ const fixture = vi.hoisted(() => ({
     selectLaserDmxShowManagerSection: vi.fn(),
     updateLaserDmxShowManagerSection: vi.fn(),
     updateLaserDmxShowManagerWorkspaceSettings: vi.fn(),
+    updateLaserDmxShowManagerSectionWorkspaceSettings: vi.fn(),
     addLaserDmxShowManagerSection: vi.fn(),
     removeLaserDmxShowManagerSection: vi.fn(),
     reorderLaserDmxShowManagerSection: vi.fn(),
@@ -437,6 +448,63 @@ import { ShowManagerView } from './ShowManagerView'
 let container: HTMLDivElement | null = null
 let root: ReturnType<typeof createRoot> | null = null
 
+function setSharedShowToLaserAuthoredSections() {
+  const shared = fixture.state.showManagerShows.find(show => show.id === 'laser-show-1')
+  const laser = fixture.state.laserDmxShowManagerShows.find(show => show.id === 'laser-show-1')
+  if (!shared || !laser) return
+  shared.engineIds = ['laserDmx']
+  shared.trackMap = {
+    schemaVersion: 1,
+    linkedAudioTrackId: 'audio-db-1',
+    baseAnalysisVersion: 'analysis-v3',
+    baseTimelineRevision: 'laser-authored-test',
+    durationSec: 240,
+    sections: laser.sections.map(section => ({
+      id: section.id,
+      label: section.label,
+      type: section.type,
+      startSec: section.startSec,
+      endSec: section.endSec,
+      intensity: section.intensity,
+      source: section.source,
+      engineId: 'laserDmx' as const,
+    })),
+    edited: false,
+  }
+}
+
+function setSharedShowToCanvasAuthoredSections(showId: string) {
+  const shared = fixture.state.showManagerShows.find(show => show.id === showId)
+  const canvas = fixture.state.canvasShowManagerShows.find(show => show.id === showId)
+  if (!shared || !canvas) return
+  let cursor = 0
+  const sections = canvas.sections.map(section => {
+    const startSec = typeof section.startSec === 'number' ? section.startSec : cursor
+    const endSec = typeof section.endSec === 'number' ? section.endSec : startSec + section.durationSec
+    cursor = endSec
+    return {
+      id: section.id,
+      label: section.label,
+      type: section.type,
+      startSec,
+      endSec,
+      intensity: 0.5,
+      source: 'user-created' as const,
+      engineId: 'canvas' as const,
+    }
+  })
+  shared.engineIds = ['canvas']
+  shared.trackMap = {
+    schemaVersion: 1,
+    linkedAudioTrackId: shared.linkedAudioTrackId,
+    baseAnalysisVersion: 'analysis-v3',
+    baseTimelineRevision: `canvas-authored-${showId}`,
+    durationSec: Math.max(cursor, 1),
+    sections,
+    edited: false,
+  }
+}
+
 afterEach(() => {
   fixture.laserRuntimePreviewProps.length = 0
   fixture.state.laserDmxShowManagerPlaybackSectionId = null
@@ -445,6 +513,7 @@ afterEach(() => {
   fixture.state.undoLaserDmxShowManagerEdit.mockClear()
   fixture.state.redoLaserDmxShowManagerEdit.mockClear()
   fixture.state.saveLaserDmxShowManagerShow.mockClear()
+  fixture.state.updateLaserDmxShowManagerSectionWorkspaceSettings.mockClear()
   fixture.state.ensureLaserDmxShowManagerShow.mockClear()
   fixture.state.selectLaserDmxShowManagerShow.mockClear()
   fixture.state.selectReactPreset.mockClear()
@@ -469,7 +538,7 @@ afterEach(() => {
       baseAnalysisVersion: 'analysis-v3',
       baseTimelineRevision: 'test-section-1',
       durationSec: 240,
-      sections: [{ id: 'section-1', label: 'Intro', type: 'intro', startSec: 0, endSec: 64, intensity: 0.35, source: 'auto' }],
+      sections: [{ id: 'section-1', label: 'Intro', type: 'intro', startSec: 0, endSec: 64, intensity: 0.35, source: 'auto', engineId: 'pixGrid' }],
       edited: false,
     },
   }] as typeof fixture.state.showManagerShows
@@ -480,6 +549,8 @@ afterEach(() => {
   fixture.state.duplicateShowManagerShow.mockClear()
   fixture.state.deleteShowManagerShow.mockClear()
   fixture.state.selectShowManagerShow.mockClear()
+  fixture.state.ensureShowManagerAuthoringMirrors.mockClear()
+  fixture.state.replaceShowManagerSectionEngine.mockClear()
   fixture.state.reconcileShowManagerTrackMapFromAnalysis.mockClear()
   fixture.state.updateShowManagerTrackMapSection.mockClear()
   fixture.state.updateShowManagerTrackMapBoundary.mockClear()
@@ -614,7 +685,7 @@ describe('ShowManagerView production shell', () => {
       linkedAudioTrackId: 'audio-db-1',
       tags: ['Peak'],
       groupId: 'collection-1',
-      initialEngineId: 'pixGrid',
+      initialEngineId: null,
     })
   })
   it('uses the shared dropdown in the left rail and enables the production Show Manager engines', async () => {
@@ -1169,6 +1240,7 @@ describe('ShowManagerView production shell', () => {
     fixture.state.showManagerShows = [{ schemaVersion: 1, id: 'canvas-show-track-map', name: 'Track Map Show', linkedAudioTrackId: 'audio-db-1', tags: [], groupId: null, engineIds: ['canvas'] }] as typeof fixture.state.showManagerShows
     fixture.state.showManagerEditingShowId = 'canvas-show-track-map'
     fixture.state.canvasShowManagerEditingSectionId = sections[0]!.id
+    setSharedShowToCanvasAuthoredSections('canvas-show-track-map')
 
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -1249,6 +1321,7 @@ describe('ShowManagerView production shell', () => {
     fixture.state.showManagerShows = [{ schemaVersion: 1, id: show.id, name: show.name, linkedAudioTrackId: 'audio-db-1', tags: [], groupId: null, engineIds: ['canvas'] }] as typeof fixture.state.showManagerShows
     fixture.state.showManagerEditingShowId = show.id
     fixture.state.canvasShowManagerEditingSectionId = show.sections[0]!.id
+    setSharedShowToCanvasAuthoredSections(show.id)
     fixture.state.addCanvasShowManagerMediaElement.mockImplementation((input: { mediaId: string; layer: number }) => {
       if (show.mediaElements.some(element => element.layer === input.layer)) {
         return { ok: false, code: 'overlap', message: `Layer ${input.layer + 1} already contains media in that Show cue range.` }
@@ -1392,6 +1465,9 @@ describe('ShowManagerView production shell', () => {
   })
 
   it('keeps the persisted Show-specific LaserDMX Track Map available while runtime analysis is unavailable', async () => {
+    const sharedShow = fixture.state.showManagerShows.find(show => show.id === 'laser-show-1')!
+    sharedShow.engineIds = ['laserDmx']
+    if (sharedShow.trackMap?.sections[0]) sharedShow.trackMap.sections[0].engineId = 'laserDmx'
     const originalAudio = {
       currentTrackId: fixture.audio.currentTrackId,
       currentTrack: fixture.audio.currentTrack,
@@ -1449,6 +1525,7 @@ describe('ShowManagerView production shell', () => {
   })
 
   it('routes Save and Save + Make Active from the production Show Manager header into canonical persistence', async () => {
+    setSharedShowToLaserAuthoredSections()
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -1491,6 +1568,7 @@ describe('ShowManagerView production shell', () => {
   })
 
   it('keeps the editing section selected while playback feeds a different section into the real LaserDMX runtime preview', async () => {
+    setSharedShowToLaserAuthoredSections()
     const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
     const drop = fixture.state.laserDmxShowManagerShows[0]!.sections[4]!
     const originalIntroFixtures = intro.fixtures
@@ -1563,7 +1641,8 @@ describe('ShowManagerView production shell', () => {
   })
 
   it('renders the Stage 2 LaserDMX library and workspace controls through the production Show Manager path', async () => {
-    fixture.state.updateLaserDmxShowManagerWorkspaceSettings.mockClear()
+    setSharedShowToLaserAuthoredSections()
+    fixture.state.updateLaserDmxShowManagerSectionWorkspaceSettings.mockClear()
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -1632,8 +1711,9 @@ describe('ShowManagerView production shell', () => {
       showGridToggle?.click()
       await Promise.resolve()
     })
-    expect(fixture.state.updateLaserDmxShowManagerWorkspaceSettings).toHaveBeenCalledWith(
+    expect(fixture.state.updateLaserDmxShowManagerSectionWorkspaceSettings).toHaveBeenCalledWith(
       'laser-show-1',
+      'laser-show-1:section:intro:1',
       { showGrid: false },
     )
 
@@ -1651,6 +1731,7 @@ describe('ShowManagerView production shell', () => {
   })
 
   it('routes Stage 3 drag/drop through the production LaserDMX grid with snapped cells and history', async () => {
+    setSharedShowToLaserAuthoredSections()
     fixture.state.addLaserDmxShowManagerFixture.mockClear()
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -1719,6 +1800,7 @@ describe('ShowManagerView production shell', () => {
   })
 
   it('keeps LaserDMX fixture selection single and clears it from empty grid space', async () => {
+    setSharedShowToLaserAuthoredSections()
     const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
     const originalFixtures = intro.fixtures
     intro.fixtures = [
@@ -1776,6 +1858,7 @@ describe('ShowManagerView production shell', () => {
   })
 
   it('binds the Part 1 fixture Inspector to the selected production fixture and exposes only the approved trigger list', async () => {
+    setSharedShowToLaserAuthoredSections()
     const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
     const originalFixtures = intro.fixtures
     intro.fixtures = [{
@@ -1862,6 +1945,7 @@ describe('ShowManagerView production shell', () => {
   })
 
   it('deletes only the selected fixture and routes Undo/Redo through the shared Show Manager history', async () => {
+    setSharedShowToLaserAuthoredSections()
     const show = fixture.state.laserDmxShowManagerShows[0]!
     const intro = show.sections[0]!
     const originalFixtures = intro.fixtures
@@ -1941,6 +2025,7 @@ describe('ShowManagerView production shell', () => {
   })
 
   it('copies fixtures through the production section toggle/dropdown and treats the entire copy as one Undo/Redo action', async () => {
+    setSharedShowToLaserAuthoredSections()
     const originalShows = fixture.state.laserDmxShowManagerShows
     const originalEditingSectionId = fixture.state.laserDmxShowManagerEditingSectionId
     const testShow = structuredClone(originalShows[0]!)
@@ -1996,6 +2081,13 @@ describe('ShowManagerView production shell', () => {
         .find(option => option.textContent?.includes('LaserDMX'))
       await act(async () => {
         laserOption?.click()
+        await Promise.resolve()
+      })
+
+      const verseRegion = [...container.querySelectorAll<HTMLButtonElement>('.rv-section-region')]
+        .find(region => region.textContent?.includes('Verse'))
+      await act(async () => {
+        verseRegion?.click()
         await Promise.resolve()
       })
 
@@ -2057,6 +2149,7 @@ describe('ShowManagerView production shell', () => {
   })
 
   it('routes LaserDMX section edits through the shared Show Track Map and history controls', async () => {
+    setSharedShowToLaserAuthoredSections()
     fixture.state.showManagerUndoStack = [{}]
     fixture.state.showManagerRedoStack = [{}]
     container = document.createElement('div')
@@ -2100,7 +2193,7 @@ describe('ShowManagerView production shell', () => {
 
     expect(fixture.state.updateShowManagerTrackMapSection).toHaveBeenCalledWith(
       'laser-show-1',
-      'section-1',
+      'laser-show-1:section:intro:1',
       expect.objectContaining({ label: 'Opening' }),
     )
     expect(fixture.state.updateLaserDmxShowManagerSection).not.toHaveBeenCalled()

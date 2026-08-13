@@ -21,6 +21,7 @@ import {
   triggerPatchForLaserDmxShowManagerOption,
   updateLaserDmxShowManagerFixtureInSection,
   updateLaserDmxShowManagerSection,
+  updateLaserDmxShowManagerSectionWorkspaceSettings,
   updateLaserDmxShowManagerWorkspaceSettings,
 } from './LaserDmxShowManagerDomain'
 
@@ -119,6 +120,24 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
       rendererMode: 'invalid' as never,
     })
     expect(malformed.settings.rendererMode).toBe('auto')
+  })
+
+  it('stores LaserDMX workspace settings independently on each authored section', () => {
+    const show = createLaserDmxShowManagerShow()
+    const introId = show.sections[0]!.id
+    const dropId = show.sections[4]!.id
+    const updated = updateLaserDmxShowManagerSectionWorkspaceSettings(show, introId, {
+      showGrid: false,
+      rendererMode: 'webgl',
+    })
+
+    expect(updated.sections.find(section => section.id === introId)?.settings).toMatchObject({
+      showGrid: false,
+      rendererMode: 'webgl',
+    })
+    expect(updated.sections.find(section => section.id === dropId)?.settings).toEqual(
+      DEFAULT_LASER_DMX_SHOW_MANAGER_WORKSPACE_SETTINGS,
+    )
   })
 
   it('normalizes the canonical Pre-Drop display label without replacing custom labels', () => {
@@ -323,7 +342,7 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
       label: 'Playback Strobe',
       trigger: triggerPatchForLaserDmxShowManagerOption('24bars'),
     }).show
-    show = updateLaserDmxShowManagerWorkspaceSettings(show, { rendererMode: 'webgl', showBeams: false })
+    show = updateLaserDmxShowManagerSectionWorkspaceSettings(show, dropId, { rendererMode: 'webgl', showBeams: false })
 
     const drop = show.sections.find(section => section.id === dropId)!
     const runtime = createLaserDmxShowManagerRuntimeShowDirector(show, drop)

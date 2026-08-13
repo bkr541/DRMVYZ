@@ -118,6 +118,7 @@ import type {
   LaserDmxShowDirectorMirrorAxis,
 } from '../components/vyzualz/react/ReactTypes'
 import {
+  DEFAULT_LASER_DMX_SHOW_MANAGER_WORKSPACE_SETTINGS,
   addLaserDmxShowManagerFixtureToSection,
   addLaserDmxShowManagerSection,
   copyLaserDmxShowManagerFixturesBetweenSections,
@@ -134,6 +135,7 @@ import {
   reorderLaserDmxShowManagerSection,
   updateLaserDmxShowManagerFixtureInSection,
   updateLaserDmxShowManagerSection,
+  updateLaserDmxShowManagerSectionWorkspaceSettings,
   updateLaserDmxShowManagerWorkspaceSettings,
   type LaserDmxShowManagerMirrorAxis,
   type LaserDmxShowManagerSectionPatch,
@@ -170,10 +172,12 @@ import {
   mergeLegacyShowManagerRecords,
   normalizeShowManagerShows,
   reconcileShowManagerTrackMap,
+  setShowManagerTrackMapSectionEngine,
   updateShowManagerTrackMapBoundary as updateSharedShowManagerTrackMapBoundary,
   updateShowManagerTrackMapSection as updateSharedShowManagerTrackMapSection,
   type CreateShowManagerShowInput,
   type DuplicateShowManagerShowInput,
+  type ShowManagerEngineId,
   type ShowManagerShowRecord,
   type ShowManagerTrackMap,
 } from '../components/vyzualz/showManager/ShowManagerDomain'
@@ -2541,6 +2545,8 @@ interface ReactStoreState {
   duplicateShowManagerShow: (sourceShowId: string, input: DuplicateShowManagerShowInput) => Promise<string | null>
   deleteShowManagerShow: (showId: string) => Promise<boolean>
   selectShowManagerShow: (showId: string | null) => void
+  ensureShowManagerAuthoringMirrors: (showId: string) => void
+  replaceShowManagerSectionEngine: (showId: string, sectionId: string, engineId: ShowManagerEngineId) => boolean
   resetShowManagerSession: () => void
   reconcileShowManagerTrackMapFromAnalysis: (input: {
     showId: string
@@ -2726,6 +2732,7 @@ interface ReactStoreState {
   selectLaserDmxShowManagerSection: (sectionId: string | null) => void
   updateLaserDmxShowManagerSection: (showId: string, sectionId: string, patch: LaserDmxShowManagerSectionPatch) => void
   updateLaserDmxShowManagerWorkspaceSettings: (showId: string, patch: LaserDmxShowManagerWorkspaceSettingsPatch) => void
+  updateLaserDmxShowManagerSectionWorkspaceSettings: (showId: string, sectionId: string, patch: LaserDmxShowManagerWorkspaceSettingsPatch) => void
   addLaserDmxShowManagerSection: (showId: string, seed?: Partial<ReactTrackSection>) => string | null
   removeLaserDmxShowManagerSection: (showId: string, sectionId: string) => void
   reorderLaserDmxShowManagerSection: (showId: string, sectionId: string, direction: -1 | 1) => void
@@ -3411,6 +3418,72 @@ function buildShowManagerTrackMapMirrorPatch(
       ? { laserDmxShowManagerEditingSectionId: laserShow?.sections[0]?.id ?? null }
       : {}),
   }
+}
+
+function ensureShowManagerAuthoringMirrorsPatch(
+  state: ReactStoreState,
+  showId: string,
+): Partial<ReactStoreState> {
+  const sharedShow = state.showManagerShows.find(show => show.id === showId) ?? null
+  if (!sharedShow) return {}
+  const trackSections = sharedShow.trackMap?.sections ?? []
+
+  let canvasShows = state.canvasShowManagerShows
+  if (!canvasShows.some(show => show.id === showId)) {
+    let canvasShow: CanvasShowManagerShow = { ...createCanvasShowManagerShow(sharedShow.name, showId), sections: [] }
+    if (trackSections.length > 0) canvasShow = syncCanvasShowManagerSectionsToTrackMap(canvasShow, trackSections)
+    canvasShows = [...canvasShows, canvasShow]
+  }
+
+  let laserShows = state.laserDmxShowManagerShows
+  if (!laserShows.some(show => show.id === showId)) {
+    let laserShow: LaserDmxShowManagerShow = { ...createLaserDmxShowManagerShow(sharedShow.name, showId), sections: [] }
+    if (trackSections.length > 0) laserShow = syncLaserDmxShowManagerSectionsToTrackMap(laserShow, trackSections)
+    laserShows = [...laserShows, laserShow]
+  }
+
+  const canvasShow = canvasShows.find(show => show.id === showId) ?? null
+  const laserShow = laserShows.find(show => show.id === showId) ?? null
+  const preferredSectionId = sharedShow.trackMap?.sections[0]?.id ?? null
+  return {
+    ...(canvasShows !== state.canvasShowManagerShows ? { canvasShowManagerShows: canvasShows } : {}),
+    ...(laserShows !== state.laserDmxShowManagerShows ? { laserDmxShowManagerShows: laserShows } : {}),
+    canvasShowManagerEditingShowId: showId,
+    canvasShowManagerEditingSectionId: canvasShow?.sections.some(section => section.id === state.canvasShowManagerEditingSectionId)
+      ? state.canvasShowManagerEditingSectionId
+      : preferredSectionId,
+    laserDmxShowManagerEditingShowId: showId,
+    laserDmxShowManagerEditingSectionId: laserShow?.sections.some(section => section.id === state.laserDmxShowManagerEditingSectionId)
+      ? state.laserDmxShowManagerEditingSectionId
+      : preferredSectionId,
+  }
+}
+
+function assignShowManagerSectionEngine(
+  show: ShowManagerShowRecord,
+  sectionId: string,
+  engineId: ShowManagerEngineId,
+): ShowManagerShowRecord | null {
+  if (!show.trackMap) return null
+  const section = show.trackMap.sections.find(candidate => candidate.id === sectionId)
+  if (!section || (section.engineId && section.engineId !== engineId)) return null
+  if (section.engineId === engineId && show.engineIds.includes(engineId)) return show
+  const trackMap = section.engineId === engineId
+    ? show.trackMap
+    : setShowManagerTrackMapSectionEngine(show.trackMap, sectionId, engineId)
+  return {
+    ...show,
+    engineIds: show.engineIds.includes(engineId) ? show.engineIds : [...show.engineIds, engineId],
+    trackMap,
+  }
+}
+
+function engineIdsForShowManagerTrackMap(trackMap: ShowManagerTrackMap): ShowManagerEngineId[] {
+  return Array.from(new Set(trackMap.sections.flatMap(section => (
+    section.engineId === 'pixGrid' || section.engineId === 'laserDmx' || section.engineId === 'canvas'
+      ? [section.engineId]
+      : []
+  ))))
 }
 
 function buildSharedShowManagerTrackMapHistoryPatch(
@@ -7306,28 +7379,26 @@ export const useReactStore = create<ReactStoreState>()(
           const show = createSharedShowManagerShow(input)
           if (!show) return null
 
-          const canvasShow: CanvasShowManagerShow | null = input.initialEngineId === 'canvas'
-            ? { ...createCanvasShowManagerShow(show.name, show.id), sections: [] }
-            : null
-          const laserShow: LaserDmxShowManagerShow | null = input.initialEngineId === 'laserDmx'
-            ? { ...createLaserDmxShowManagerShow(show.name, show.id), sections: [] }
-            : null
+          // Engine mirrors are supporting authoring containers, not Show/section ownership.
+          // Seed both silently so browsing an engine never has to create a second "Show".
+          const canvasShow: CanvasShowManagerShow = { ...createCanvasShowManagerShow(show.name, show.id), sections: [] }
+          const laserShow: LaserDmxShowManagerShow = { ...createLaserDmxShowManagerShow(show.name, show.id), sections: [] }
           const patch: Partial<ReactStoreState> = {
             showManagerShows: [...state.showManagerShows, show],
             showManagerEditingShowId: show.id,
-            canvasShowManagerEditingShowId: canvasShow ? show.id : null,
-            canvasShowManagerEditingSectionId: canvasShow?.sections[0]?.id ?? null,
+            canvasShowManagerShows: [...state.canvasShowManagerShows, canvasShow],
+            canvasShowManagerEditingShowId: show.id,
+            canvasShowManagerEditingSectionId: canvasShow.sections[0]?.id ?? null,
             canvasShowManagerEditingElementId: null,
             canvasShowManagerUndoStack: [],
             canvasShowManagerRedoStack: [],
             canvasShowManagerHistoryTransaction: null,
-            laserDmxShowManagerEditingShowId: laserShow ? show.id : null,
-            laserDmxShowManagerEditingSectionId: laserShow?.sections[0]?.id ?? null,
+            laserDmxShowManagerShows: [...state.laserDmxShowManagerShows, laserShow],
+            laserDmxShowManagerEditingShowId: show.id,
+            laserDmxShowManagerEditingSectionId: laserShow.sections[0]?.id ?? null,
             laserDmxShowManagerPlaybackSectionId: null,
             showManagerUndoStack: [],
             showManagerRedoStack: [],
-            ...(canvasShow ? { canvasShowManagerShows: [...state.canvasShowManagerShows, canvasShow] } : {}),
-            ...(laserShow ? { laserDmxShowManagerShows: [...state.laserDmxShowManagerShows, laserShow] } : {}),
           }
           const candidate = { ...state, ...patch } as ReactStoreState
           const bundle = buildShowManagerCloudBundleFromState(candidate, show.id)
@@ -7476,9 +7547,76 @@ export const useReactStore = create<ReactStoreState>()(
         }
       },
 
-      selectShowManagerShow: (showId) => set(state => ({
-        showManagerEditingShowId: showId && state.showManagerShows.some(show => show.id === showId) ? showId : null,
-      })),
+      selectShowManagerShow: (showId) => set(state => {
+        if (!showId || !state.showManagerShows.some(show => show.id === showId)) {
+          return { showManagerEditingShowId: null }
+        }
+        return {
+          showManagerEditingShowId: showId,
+          ...ensureShowManagerAuthoringMirrorsPatch(state, showId),
+        }
+      }),
+
+      ensureShowManagerAuthoringMirrors: (showId) =>
+        set(state => ensureShowManagerAuthoringMirrorsPatch(state, showId)),
+
+      replaceShowManagerSectionEngine: (showId, sectionId, engineId) => {
+        get().ensureShowManagerAuthoringMirrors(showId)
+        let replaced = false
+        set(s => {
+          const sharedShow = s.showManagerShows.find(show => show.id === showId) ?? null
+          const currentSection = sharedShow?.trackMap?.sections.find(section => section.id === sectionId) ?? null
+          if (!sharedShow?.trackMap || !currentSection) return {}
+          if (currentSection.engineId === engineId) {
+            replaced = true
+            return {}
+          }
+
+          let canvasShows = s.canvasShowManagerShows
+          let laserShows = s.laserDmxShowManagerShows
+          if (currentSection.engineId === 'canvas') {
+            canvasShows = canvasShows.map(show => {
+              if (show.id !== showId) return show
+              const range = getCanvasShowManagerSectionRanges(show).find(candidate => candidate.sectionId === sectionId)
+              if (!range) return show
+              return {
+                ...show,
+                mediaElements: show.mediaElements.filter(element => !(
+                  element.showStartSec < range.endSec && element.showEndSec > range.startSec
+                )),
+              }
+            })
+          } else if (currentSection.engineId === 'laserDmx') {
+            laserShows = laserShows.map(show => show.id === showId
+              ? updateLaserDmxShowManagerSection(show, sectionId, {
+                  fixtures: [],
+                  settings: { ...DEFAULT_LASER_DMX_SHOW_MANAGER_WORKSPACE_SETTINGS },
+                })
+              : show)
+          }
+
+          const nextTrackMap = setShowManagerTrackMapSectionEngine(sharedShow.trackMap, sectionId, engineId)
+          canvasShows = canvasShows.map(show => show.id === showId
+            ? syncCanvasShowManagerSectionsToTrackMap(show, nextTrackMap.sections)
+            : show)
+          laserShows = laserShows.map(show => show.id === showId
+            ? syncLaserDmxShowManagerSectionsToTrackMap(show, nextTrackMap.sections)
+            : show)
+          const nextSharedShow: ShowManagerShowRecord = {
+            ...sharedShow,
+            engineIds: engineIdsForShowManagerTrackMap(nextTrackMap),
+            trackMap: nextTrackMap,
+          }
+          replaced = true
+          return buildSharedShowManagerTrackMapHistoryPatch(s, {
+            showManagerShows: s.showManagerShows.map(show => show.id === showId ? nextSharedShow : show),
+            canvasShowManagerShows: canvasShows,
+            laserDmxShowManagerShows: laserShows,
+            canvasShowManagerEditingElementId: currentSection.engineId === 'canvas' ? null : s.canvasShowManagerEditingElementId,
+          })
+        })
+        return replaced
+      },
 
       resetShowManagerSession: () => set({
         showManagerEditingShowId: null,
@@ -7669,12 +7807,23 @@ export const useReactStore = create<ReactStoreState>()(
       },
 
       addCanvasShowManagerMediaElement: (input) => {
+        get().ensureShowManagerAuthoringMirrors(input.showId)
         let result: CanvasShowManagerMediaElementMutationResult = {
           ok: false,
           code: 'show-not-found',
           message: 'Open a Canvas Show before adding media.',
         }
         set(s => {
+          const sharedShow = s.showManagerShows.find(candidate => candidate.id === input.showId) ?? null
+          const sharedSection = sharedShow?.trackMap?.sections.find(candidate => candidate.id === input.sectionId) ?? null
+          if (sharedSection?.engineId && sharedSection.engineId !== 'canvas') {
+            result = {
+              ok: false,
+              code: 'invalid-range',
+              message: `This section is already authored by ${sharedSection.engineId}. Clear the section before using Canvas.`,
+            }
+            return {}
+          }
           const show = s.canvasShowManagerShows.find(candidate => candidate.id === input.showId)
           if (!show) return {}
           const range = getCanvasShowManagerSectionRanges(show).find(candidate => candidate.sectionId === input.sectionId)
@@ -7692,6 +7841,17 @@ export const useReactStore = create<ReactStoreState>()(
           })
           result = next
           if (!next.ok) return {}
+          const nextSharedShow = sharedShow
+            ? assignShowManagerSectionEngine(sharedShow, input.sectionId, 'canvas')
+            : null
+          if (sharedShow && !nextSharedShow) return {}
+          if (nextSharedShow && nextSharedShow !== sharedShow) {
+            return buildSharedShowManagerTrackMapHistoryPatch(s, {
+              showManagerShows: s.showManagerShows.map(candidate => candidate.id === input.showId ? nextSharedShow : candidate),
+              canvasShowManagerShows: s.canvasShowManagerShows.map(candidate => candidate.id === input.showId ? next.show : candidate),
+              canvasShowManagerEditingElementId: next.element.id,
+            })
+          }
           return buildCanvasShowManagerHistoryMutationPatch(s, {
             canvasShowManagerShows: s.canvasShowManagerShows.map(candidate => candidate.id === input.showId ? next.show : candidate),
             canvasShowManagerEditingElementId: next.element.id,
@@ -8270,6 +8430,13 @@ export const useReactStore = create<ReactStoreState>()(
             : show),
         })),
 
+      updateLaserDmxShowManagerSectionWorkspaceSettings: (showId, sectionId, patch) =>
+        set(s => buildShowManagerHistoryMutationPatch(s, {
+          laserDmxShowManagerShows: s.laserDmxShowManagerShows.map(show => show.id === showId
+            ? updateLaserDmxShowManagerSectionWorkspaceSettings(show, sectionId, patch)
+            : show),
+        })),
+
       addLaserDmxShowManagerSection: (showId, seed = {}) => {
         // Shared audio-bound section structure comes only from the Show Track Map.
         if (get().showManagerShows.some(show => show.id === showId && show.linkedAudioTrackId)) return null
@@ -8316,14 +8483,32 @@ export const useReactStore = create<ReactStoreState>()(
       },
 
       addLaserDmxShowManagerFixture: (showId, sectionId, kind, initial = {}) => {
+        get().ensureShowManagerAuthoringMirrors(showId)
         let fixtureId: string | null = null
         set(s => {
+          const sharedShow = s.showManagerShows.find(candidate => candidate.id === showId) ?? null
+          const sharedSection = sharedShow?.trackMap?.sections.find(candidate => candidate.id === sectionId) ?? null
+          if (sharedSection?.engineId && sharedSection.engineId !== 'laserDmx') return {}
           const shows = s.laserDmxShowManagerShows.map(show => {
             if (show.id !== showId) return show
             const result = addLaserDmxShowManagerFixtureToSection(show, sectionId, kind, initial)
             fixtureId = result.fixtureId
             return result.show
           })
+          if (!fixtureId) return {}
+          const nextSharedShow = sharedShow
+            ? assignShowManagerSectionEngine(sharedShow, sectionId, 'laserDmx')
+            : null
+          if (sharedShow && !nextSharedShow) {
+            fixtureId = null
+            return {}
+          }
+          if (nextSharedShow && nextSharedShow !== sharedShow) {
+            return buildSharedShowManagerTrackMapHistoryPatch(s, {
+              showManagerShows: s.showManagerShows.map(show => show.id === showId ? nextSharedShow : show),
+              laserDmxShowManagerShows: shows,
+            })
+          }
           return buildShowManagerHistoryMutationPatch(s, { laserDmxShowManagerShows: shows })
         })
         return fixtureId

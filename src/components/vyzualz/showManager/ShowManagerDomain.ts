@@ -76,6 +76,7 @@ function normalizeTrackSection(raw: unknown, index: number, durationSec: number)
     || raw.source === 'user-created' || raw.source === 'imported' || raw.source === 'fallback'
     ? raw.source
     : undefined
+  const engineId = isShowManagerEngineId(raw.engineId) ? raw.engineId : undefined
   return {
     id,
     label: typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : (type === 'preDrop' ? 'Pre-Drop' : type.charAt(0).toUpperCase() + type.slice(1)),
@@ -83,6 +84,7 @@ function normalizeTrackSection(raw: unknown, index: number, durationSec: number)
     startSec: boundedStart,
     endSec: boundedEnd,
     intensity: intensity == null ? 0.5 : Math.max(0, Math.min(1, intensity)),
+    ...(engineId ? { engineId } : {}),
     ...(source ? { source } : {}),
     ...(typeof raw.locked === 'boolean' ? { locked: raw.locked } : {}),
     ...(isRecord(raw.provenance) ? { provenance: { ...raw.provenance } as unknown as ReactTrackSection['provenance'] } : {}),
@@ -189,6 +191,21 @@ export function createLegacyAuthoredShowManagerTrackMap(input: {
     durationSec: input.durationSec,
     sections,
     edited: true,
+  }
+}
+
+export function setShowManagerTrackMapSectionEngine(
+  map: ShowManagerTrackMap,
+  sectionId: string,
+  engineId: ShowManagerEngineId,
+): ShowManagerTrackMap {
+  const section = map.sections.find(candidate => candidate.id === sectionId)
+  if (!section || section.engineId === engineId) return map
+  return {
+    ...map,
+    sections: map.sections.map(candidate => candidate.id === sectionId
+      ? { ...candidate, engineId }
+      : candidate),
   }
 }
 

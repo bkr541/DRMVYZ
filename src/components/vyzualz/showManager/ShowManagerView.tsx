@@ -72,6 +72,7 @@ import {
   resolveLaserDmxShowManagerTriggerOption,
   triggerPatchForLaserDmxShowManagerOption,
   type LaserDmxShowManagerTriggerOption,
+  type LaserDmxShowManagerGridCell,
   type LaserDmxShowManagerSection,
   type LaserDmxShowManagerShow,
   type LaserDmxShowManagerWorkspaceSettingsPatch,
@@ -176,17 +177,32 @@ interface ShowBrowserActionResult {
   error?: string
 }
 
+type PendingSectionEngineReplacement = {
+  sectionId: string
+  sectionLabel: string
+  currentEngineId: ShowManagerEngineId
+  targetEngineId: Extract<ShowManagerEngineId, 'canvas' | 'laserDmx'>
+  action:
+    | { type: 'laserFixture'; kind: LaserDmxShowDirectorFixtureKind; cell: LaserDmxShowManagerGridCell }
+    | { type: 'laserSettings'; patch: LaserDmxShowManagerWorkspaceSettingsPatch }
+    | { type: 'canvasMedia'; mediaId: string; layer: CanvasShowManagerLayer }
+}
+
 /** In-app replacement for window.confirm() — matches the canonical NewShowDialog chrome. */
 function ConfirmDeleteDialog({
   title = 'Delete Show',
   message,
   busy = false,
+  confirmLabel = 'Delete',
+  busyLabel = 'Deleting…',
   onCancel,
   onConfirm,
 }: {
   title?: string
   message: string
   busy?: boolean
+  confirmLabel?: string
+  busyLabel?: string
   onCancel: () => void
   onConfirm: () => void
 }) {
@@ -213,7 +229,7 @@ function ConfirmDeleteDialog({
         <div className="sm-canvas-dialog-actions">
           <IconChipButton type="button" onClick={onCancel} disabled={busy}>Cancel</IconChipButton>
           <IconChipButton type="button" className="dv-icon-chip--danger" onClick={onConfirm} disabled={busy}>
-            {busy ? 'Deleting…' : 'Delete'}
+            {busy ? busyLabel : confirmLabel}
           </IconChipButton>
         </div>
       </div>
@@ -583,12 +599,11 @@ function ShowManagerTrackMapSectionEditor({
 }
 
 interface NewShowDialogProps {
-  engineId: ShowManagerEngineId
   copySource?: ShowManagerShowRecord | null
   onClose: () => void
 }
 
-function NewShowDialog({ engineId, copySource = null, onClose }: NewShowDialogProps) {
+function NewShowDialog({ copySource = null, onClose }: NewShowDialogProps) {
   const shows = useReactStore(state => state.showManagerShows)
   const createShow = useReactStore(state => state.createShowManagerShow)
   const duplicateShow = useReactStore(state => state.duplicateShowManagerShow)
@@ -654,7 +669,9 @@ function NewShowDialog({ engineId, copySource = null, onClose }: NewShowDialogPr
             linkedAudioTrackId: selectedTrack!.dbId,
             tags,
             groupId: groupId || null,
-            initialEngineId: engineId,
+            // The left engine picker is a component-library choice. A section is
+            // not authored by an engine until the first element/component lands.
+            initialEngineId: null,
           })
       if (!showId) {
         setSubmitError(copyMode
@@ -867,16 +884,17 @@ export function ShowManagerView() {
   const showManagerEditingShowId = useReactStore(state => state.showManagerEditingShowId)
   const deleteShowManagerShow = useReactStore(state => state.deleteShowManagerShow)
   const selectShowManagerShow = useReactStore(state => state.selectShowManagerShow)
+  const ensureShowManagerAuthoringMirrors = useReactStore(state => state.ensureShowManagerAuthoringMirrors)
+  const replaceShowManagerSectionEngine = useReactStore(state => state.replaceShowManagerSectionEngine)
   const resetShowManagerSession = useReactStore(state => state.resetShowManagerSession)
   const reconcileShowManagerTrackMapFromAnalysis = useReactStore(state => state.reconcileShowManagerTrackMapFromAnalysis)
   const updateShowManagerTrackMapBoundary = useReactStore(state => state.updateShowManagerTrackMapBoundary)
   const laserDmxShowManagerShows = useReactStore(state => state.laserDmxShowManagerShows)
   const laserDmxShowManagerEditingShowId = useReactStore(state => state.laserDmxShowManagerEditingShowId)
-  const laserDmxShowManagerEditingSectionId = useReactStore(state => state.laserDmxShowManagerEditingSectionId)
   const laserDmxShowManagerPlaybackSectionId = useReactStore(state => state.laserDmxShowManagerPlaybackSectionId)
   const selectLaserDmxShowManagerShow = useReactStore(state => state.selectLaserDmxShowManagerShow)
   const selectLaserDmxShowManagerSection = useReactStore(state => state.selectLaserDmxShowManagerSection)
-  const updateLaserDmxShowManagerWorkspaceSettings = useReactStore(state => state.updateLaserDmxShowManagerWorkspaceSettings)
+  const updateLaserDmxShowManagerSectionWorkspaceSettings = useReactStore(state => state.updateLaserDmxShowManagerSectionWorkspaceSettings)
   const addLaserDmxShowManagerFixture = useReactStore(state => state.addLaserDmxShowManagerFixture)
   const updateLaserDmxShowManagerFixture = useReactStore(state => state.updateLaserDmxShowManagerFixture)
   const removeLaserDmxShowManagerFixture = useReactStore(state => state.removeLaserDmxShowManagerFixture)
@@ -891,7 +909,6 @@ export function ShowManagerView() {
   const canvasShowManagerShows = useReactStore(state => state.canvasShowManagerShows)
   const canvasShowManagerActiveShowId = useReactStore(state => state.canvasShowManagerActiveShowId)
   const canvasShowManagerEditingShowId = useReactStore(state => state.canvasShowManagerEditingShowId)
-  const canvasShowManagerEditingSectionId = useReactStore(state => state.canvasShowManagerEditingSectionId)
   const canvasShowManagerEditingElementId = useReactStore(state => state.canvasShowManagerEditingElementId)
   const selectCanvasShowManagerShow = useReactStore(state => state.selectCanvasShowManagerShow)
   const selectCanvasShowManagerSection = useReactStore(state => state.selectCanvasShowManagerSection)
@@ -915,6 +932,7 @@ export function ShowManagerView() {
   const getSavedAudioSignedUrl = useAudioStore(state => state.getSignedUrl)
   const [showManagerSessionReady, setShowManagerSessionReady] = useState(false)
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
+  const [selectedShowManagerSectionId, setSelectedShowManagerSectionId] = useState<string | null>(null)
   const [selectedLightingComponentKind, setSelectedLightingComponentKind] = useState<LaserDmxShowDirectorFixtureKind | null>(null)
   const [selectedLaserFixtureId, setSelectedLaserFixtureId] = useState<string | null>(null)
   const [laserFixtureContextMenu, setLaserFixtureContextMenu] = useState<{ fixtureId: string; x: number; y: number } | null>(null)
@@ -949,10 +967,12 @@ export function ShowManagerView() {
   const [canvasRenameError, setCanvasRenameError] = useState<string | null>(null)
   const [canvasLibraryMediaId, setCanvasLibraryMediaId] = useState<string | null>(null)
   const [canvasAuthoringError, setCanvasAuthoringError] = useState<string | null>(null)
+  const [pixGridCanvasDragActive, setPixGridCanvasDragActive] = useState(false)
+  const [pixGridHoveredCanvasLayer, setPixGridHoveredCanvasLayer] = useState<CanvasShowManagerLayer | null>(null)
+  const [pendingSectionEngineReplacement, setPendingSectionEngineReplacement] = useState<PendingSectionEngineReplacement | null>(null)
   const [pendingDeleteCanvasShow, setPendingDeleteCanvasShow] = useState<{ id: string; name: string } | null>(null)
   const [deletingCanvasShow, setDeletingCanvasShow] = useState(false)
   const [canvasPlayheadSec, setCanvasPlayheadSec] = useState(0)
-  const [pixGridTrackMapSectionId, setPixGridTrackMapSectionId] = useState<string | null>(null)
   const [linkedAudioLoadError, setLinkedAudioLoadError] = useState<string | null>(null)
   const showOpenOperationRef = useRef(0)
   const compilerStatuses = usePixGridDeckCompilerStore(state => state.statuses)
@@ -963,6 +983,12 @@ export function ShowManagerView() {
       : null,
     [showManagerEditingShowId, showManagerSessionReady, showManagerShows],
   )
+  const showTrackMap = activeShowManagerShow?.trackMap ?? null
+  const resolvedTrackSections = useMemo(() => showTrackMap?.sections ?? [], [showTrackMap])
+  const selectedShowManagerSection = resolvedTrackSections.find(section => section.id === selectedShowManagerSectionId)
+    ?? resolvedTrackSections[0]
+    ?? null
+  const activeSectionEngineId = selectedShowManagerSection?.engineId ?? null
 
   useLayoutEffect(() => {
     setShowManagerLinkedAudioTrackId(activeShowManagerShow?.linkedAudioTrackId ?? null)
@@ -974,22 +1000,22 @@ export function ShowManagerView() {
   )
   const hasOpenShow = activeShowManagerShow !== null
   const activeLaserDmxShow = useMemo(
-    () => activeShowManagerShow && selectedEngineId === 'laserDmx'
+    () => activeShowManagerShow
       ? laserDmxShowManagerShows.find(show => show.id === activeShowManagerShow.id) ?? null
       : null,
-    [activeShowManagerShow, laserDmxShowManagerShows, selectedEngineId],
+    [activeShowManagerShow, laserDmxShowManagerShows],
   )
   const activeCanvasShow = useMemo(
-    () => activeShowManagerShow && selectedEngineId === 'canvas'
+    () => activeShowManagerShow
       ? canvasShowManagerShows.find(show => show.id === activeShowManagerShow.id) ?? null
       : null,
-    [activeShowManagerShow, canvasShowManagerShows, selectedEngineId],
+    [activeShowManagerShow, canvasShowManagerShows],
   )
   const activeCanvasSection = useMemo(
-    () => activeCanvasShow?.sections.find(section => section.id === canvasShowManagerEditingSectionId)
+    () => activeCanvasShow?.sections.find(section => section.id === selectedShowManagerSection?.id)
       ?? activeCanvasShow?.sections[0]
       ?? null,
-    [activeCanvasShow, canvasShowManagerEditingSectionId],
+    [activeCanvasShow, selectedShowManagerSection?.id],
   )
   const canvasSectionRanges = useMemo(
     () => activeCanvasShow ? getCanvasShowManagerSectionRanges(activeCanvasShow) : [],
@@ -1030,10 +1056,10 @@ export function ShowManagerView() {
     [selectedCanvasElement, sharedMediaItems],
   )
   const activeLaserDmxSection = useMemo(
-    () => activeLaserDmxShow?.sections.find(section => section.id === laserDmxShowManagerEditingSectionId)
+    () => activeLaserDmxShow?.sections.find(section => section.id === selectedShowManagerSection?.id)
       ?? activeLaserDmxShow?.sections[0]
       ?? null,
-    [activeLaserDmxShow, laserDmxShowManagerEditingSectionId],
+    [activeLaserDmxShow, selectedShowManagerSection?.id],
   )
   const playbackLaserDmxSection = useMemo(
     () => activeLaserDmxShow?.sections.find(section => section.id === laserDmxShowManagerPlaybackSectionId) ?? null,
@@ -1186,16 +1212,48 @@ export function ShowManagerView() {
   }, [activeCanvasShow?.id, activeCanvasShow?.name])
 
   useEffect(() => {
-    if (selectedEngineId !== 'canvas' || !showManagerLinkedAudioReady || !engine.isPlaying || canvasTotalDuration <= 0) return
-    setCanvasPlayheadSec(engine.currentTime % canvasTotalDuration)
-  }, [canvasTotalDuration, engine.currentTime, engine.isPlaying, selectedEngineId, showManagerLinkedAudioReady])
+    if (!activeShowManagerShow) {
+      setSelectedShowManagerSectionId(null)
+      return
+    }
+    ensureShowManagerAuthoringMirrors(activeShowManagerShow.id)
+    setSelectedShowManagerSectionId(current => resolvedTrackSections.some(section => section.id === current)
+      ? current
+      : resolvedTrackSections[0]?.id ?? null)
+  }, [activeShowManagerShow?.id, ensureShowManagerAuthoringMirrors, resolvedTrackSections])
 
   useEffect(() => {
-    if (selectedEngineId === 'laserDmx' && showManagerLinkedAudioReady && engine.isPlaying) return
+    if (!activeShowManagerShow || !selectedShowManagerSection) return
+    selectCanvasShowManagerShow(activeShowManagerShow.id)
+    selectLaserDmxShowManagerShow(activeShowManagerShow.id)
+    selectCanvasShowManagerSection(selectedShowManagerSection.id)
+    selectLaserDmxShowManagerSection(selectedShowManagerSection.id)
+    if (selectedShowManagerSection.engineId === 'canvas'
+      || selectedShowManagerSection.engineId === 'laserDmx'
+      || selectedShowManagerSection.engineId === 'pixGrid') {
+      setSelectedEngineId(selectedShowManagerSection.engineId)
+    }
+  }, [
+    activeShowManagerShow?.id,
+    selectedShowManagerSection?.engineId,
+    selectedShowManagerSection?.id,
+    selectCanvasShowManagerSection,
+    selectCanvasShowManagerShow,
+    selectLaserDmxShowManagerSection,
+    selectLaserDmxShowManagerShow,
+  ])
+
+  useEffect(() => {
+    if (activeSectionEngineId !== 'canvas' || !showManagerLinkedAudioReady || !engine.isPlaying || canvasTotalDuration <= 0) return
+    setCanvasPlayheadSec(engine.currentTime % canvasTotalDuration)
+  }, [activeSectionEngineId, canvasTotalDuration, engine.currentTime, engine.isPlaying, showManagerLinkedAudioReady])
+
+  useEffect(() => {
+    if (activeSectionEngineId === 'laserDmx' && showManagerLinkedAudioReady && engine.isPlaying) return
     if (useReactStore.getState().laserDmxShowManagerPlaybackSectionId !== null) {
       useReactStore.setState({ laserDmxShowManagerPlaybackSectionId: null })
     }
-  }, [engine.isPlaying, selectedEngineId, showManagerLinkedAudioReady])
+  }, [activeSectionEngineId, engine.isPlaying, showManagerLinkedAudioReady])
 
   useEffect(() => () => {
     if (useReactStore.getState().laserDmxShowManagerPlaybackSectionId !== null) {
@@ -1296,7 +1354,6 @@ export function ShowManagerView() {
       .map(layerId => displayedPixGridState.layers.find(layer => layer.id === layerId))
       .filter((layer): layer is PixGridLayer => Boolean(layer))
     : []
-  const showTrackMap = activeShowManagerShow?.trackMap ?? null
   const showRuntimeAudioReady = showManagerLinkedAudioReady
   const showRuntimeIsPlaying = showRuntimeAudioReady && engine.isPlaying
   const showRuntimeCurrentTime = showRuntimeAudioReady ? engine.currentTime : 0
@@ -1308,33 +1365,20 @@ export function ShowManagerView() {
   const activeCues = showRuntimeTrackId
     ? (pixGridActionCuesByTrackId[showRuntimeTrackId] ?? [])
     : []
-  const activeCanvasTrackSection = showTrackMap?.sections.find(section => section.id === canvasShowManagerEditingSectionId)
-    ?? showTrackMap?.sections[0]
-    ?? null
+  const activeCanvasTrackSection = selectedShowManagerSection
   const durationSec = showTrackMap?.durationSec
     ?? resolvePositiveDuration(
       Math.max(showRuntimeAudioReady ? engine.duration : 0, (showRuntimeAnalysis?.durationMs ?? 0) / 1000),
       1,
     )
-  const resolvedTrackSections = showTrackMap?.sections ?? []
-  const activeLaserTrackSection = resolvedTrackSections.find(section => section.id === activeLaserDmxSection?.id)
-    ?? resolvedTrackSections[0]
-    ?? null
+  const activeLaserTrackSection = selectedShowManagerSection
   const showTrackMapStatusMessage = linkedAudioLoadError
     ?? (engine.currentAudioTrackId === activeShowManagerShow?.linkedAudioTrackId && engine.currentAnalysisStatus === 'failed'
       ? `Linked-track analysis is unavailable.${engine.currentAnalysisError ? ` ${engine.currentAnalysisError}` : ''}`
       : engine.currentAudioTrackId === activeShowManagerShow?.linkedAudioTrackId && engine.currentAnalysisStatus === 'complete'
         ? 'Linked-track analysis completed without a usable Track Map.'
         : 'Linked-track analysis is loading. No placeholder sections are created while analysis is unavailable.')
-  const selectedPixGridTrackSection = useMemo(
-    () => resolvedTrackSections.find(section => section.id === pixGridTrackMapSectionId) ?? resolvedTrackSections[0] ?? null,
-    [pixGridTrackMapSectionId, resolvedTrackSections],
-  )
-  useEffect(() => {
-    setPixGridTrackMapSectionId(current => resolvedTrackSections.some(section => section.id === current)
-      ? current
-      : resolvedTrackSections[0]?.id ?? null)
-  }, [activeShowManagerShow?.id, resolvedTrackSections])
+  const selectedPixGridTrackSection = selectedShowManagerSection
   const effectiveTrackAnalysis = useMemo(() => {
     const analysis = showRuntimeAnalysis
     const beatGrid = showRuntimeBeatGrid
@@ -1524,8 +1568,20 @@ export function ShowManagerView() {
   }
 
   const commitLaserWorkspaceSettings = (patch: LaserDmxShowManagerWorkspaceSettingsPatch) => {
-    if (!activeLaserDmxShow) return
-    updateLaserDmxShowManagerWorkspaceSettings(activeLaserDmxShow.id, patch)
+    if (!activeLaserDmxShow || !activeLaserDmxSection || !selectedShowManagerSection) return
+    if (activeSectionEngineId && activeSectionEngineId !== 'laserDmx') {
+      setPendingSectionEngineReplacement({
+        sectionId: selectedShowManagerSection.id,
+        sectionLabel: selectedShowManagerSection.label,
+        currentEngineId: activeSectionEngineId as ShowManagerEngineId,
+        targetEngineId: 'laserDmx',
+        action: { type: 'laserSettings', patch },
+      })
+      return
+    }
+    // Display/renderer settings may be preconfigured on an empty section, but
+    // they do not claim engine ownership. The first placed component does that.
+    updateLaserDmxShowManagerSectionWorkspaceSettings(activeLaserDmxShow.id, activeLaserDmxSection.id, patch)
   }
 
   const commitLaserShowSave = async (makeActive: boolean) => {
@@ -1572,16 +1628,9 @@ export function ShowManagerView() {
       return { ok: false, error: `“${show.name}” is a legacy Show with no linked audio track and cannot be opened safely.` }
     }
 
-    const preferredEngine = show.engineIds[0] ?? null
-    if (!preferredEngine) {
-      return { ok: false, error: `“${show.name}” has no saved Show Manager engine configuration.` }
-    }
-    if (preferredEngine === 'canvas' && !canvasShowManagerShows.some(candidate => candidate.id === show.id)) {
-      return { ok: false, error: `“${show.name}” references CANVAS, but its saved CANVAS authoring data is unavailable.` }
-    }
-    if (preferredEngine === 'laserDmx' && !laserDmxShowManagerShows.some(candidate => candidate.id === show.id)) {
-      return { ok: false, error: `“${show.name}” references LaserDMX, but its saved LaserDMX authoring data is unavailable.` }
-    }
+    const preferredEngine = show.trackMap?.sections.find(section => section.engineId)?.engineId
+      ?? show.engineIds[0]
+      ?? selectedEngineId
 
     let linkedTrack = savedAudioTracks.find(track => track.dbId === show.linkedAudioTrackId) ?? null
     if (!linkedTrack) {
@@ -1626,8 +1675,8 @@ export function ShowManagerView() {
     selectReactEngine(preferredEngine)
     setSelectedEngineId(preferredEngine)
     selectShowManagerShow(show.id)
-    selectCanvasShowManagerShow(preferredEngine === 'canvas' && canvasShowManagerShows.some(candidate => candidate.id === show.id) ? show.id : null)
-    selectLaserDmxShowManagerShow(preferredEngine === 'laserDmx' && laserDmxShowManagerShows.some(candidate => candidate.id === show.id) ? show.id : null)
+    selectCanvasShowManagerShow(show.id)
+    selectLaserDmxShowManagerShow(show.id)
     setPreviewPresetId(null)
     setShowBrowserOpen(false)
     return { ok: true }
@@ -1664,22 +1713,26 @@ export function ShowManagerView() {
     }
   }
 
+  const saveEngineId = activeSectionEngineId === 'canvas' || activeSectionEngineId === 'laserDmx'
+    ? activeSectionEngineId
+    : resolvedTrackSections.find(section => section.engineId === 'canvas' || section.engineId === 'laserDmx')?.engineId ?? null
+
   const saveAndActivateSelectedShow = () => {
-    if (selectedEngineId === 'canvas') void commitCanvasShowSave(true)
-    else if (selectedEngineId === 'laserDmx') void commitLaserShowSave(true)
+    if (saveEngineId === 'canvas') void commitCanvasShowSave(true)
+    else if (saveEngineId === 'laserDmx') void commitLaserShowSave(true)
   }
 
-  const saveAndActivatePending = selectedEngineId === 'canvas'
+  const saveAndActivatePending = saveEngineId === 'canvas'
     ? canvasSavePending === 'active'
-    : selectedEngineId === 'laserDmx' && laserSavePending === 'active'
-  const saveAndActivateDisabled = selectedEngineId === 'canvas'
+    : saveEngineId === 'laserDmx' && laserSavePending === 'active'
+  const saveAndActivateDisabled = saveEngineId === 'canvas'
     ? !activeCanvasShow || canvasSavePending !== null
-    : selectedEngineId === 'laserDmx'
+    : saveEngineId === 'laserDmx'
       ? !activeLaserDmxShow || laserSavePending !== null
       : true
 
-  const commitCanvasMediaPlacement = (mediaId: string, layer: CanvasShowManagerLayer) => {
-    if (!activeCanvasShow || !activeCanvasSection) {
+  const performCanvasMediaPlacement = (mediaId: string, layer: CanvasShowManagerLayer) => {
+    if (!activeCanvasShow || !selectedShowManagerSection) {
       setCanvasAuthoringError('Create or open a Canvas Show and select a section before adding media.')
       return false
     }
@@ -1696,7 +1749,7 @@ export function ShowManagerView() {
     }
     const result = addCanvasShowManagerMediaElement({
       showId: activeCanvasShow.id,
-      sectionId: activeCanvasSection.id,
+      sectionId: selectedShowManagerSection.id,
       mediaId,
       layer,
       timedVideo: mediaType === 'video',
@@ -1709,6 +1762,21 @@ export function ShowManagerView() {
     setCanvasLibraryMediaId(mediaId)
     setCanvasAuthoringError(null)
     return true
+  }
+
+  const commitCanvasMediaPlacement = (mediaId: string, layer: CanvasShowManagerLayer) => {
+    if (!selectedShowManagerSection) return false
+    if (activeSectionEngineId && activeSectionEngineId !== 'canvas') {
+      setPendingSectionEngineReplacement({
+        sectionId: selectedShowManagerSection.id,
+        sectionLabel: selectedShowManagerSection.label,
+        currentEngineId: activeSectionEngineId as ShowManagerEngineId,
+        targetEngineId: 'canvas',
+        action: { type: 'canvasMedia', mediaId, layer },
+      })
+      return false
+    }
+    return performCanvasMediaPlacement(mediaId, layer)
   }
 
   const commitCanvasElementPatch = (
@@ -1755,9 +1823,20 @@ export function ShowManagerView() {
     event.dataTransfer.setData('text/plain', kind)
   }
 
+  const performLaserFixturePlacement = (
+    kind: LaserDmxShowDirectorFixtureKind,
+    cell: LaserDmxShowManagerGridCell,
+  ) => {
+    if (!activeLaserDmxShow || !selectedShowManagerSection) return false
+    const fixtureId = addLaserDmxShowManagerFixture(activeLaserDmxShow.id, selectedShowManagerSection.id, kind, cell)
+    if (!fixtureId) return false
+    setSelectedLaserFixtureId(fixtureId)
+    return true
+  }
+
   const commitLaserFixtureDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
-    if (!activeLaserDmxShow || !activeLaserDmxSection) return
+    if (!activeLaserDmxShow || !selectedShowManagerSection) return
     const rawKind = event.dataTransfer.getData('application/x-drmvyz-laserdmx-fixture-kind')
       || event.dataTransfer.getData('text/plain')
     const kind = parseLaserDmxShowManagerFixtureKind(rawKind)
@@ -1765,10 +1844,17 @@ export function ShowManagerView() {
     const bounds = event.currentTarget.getBoundingClientRect()
     const cell = resolveLaserDmxShowManagerGridCell(event.clientX, event.clientY, bounds)
     if (!cell) return
-    const fixtureId = addLaserDmxShowManagerFixture(activeLaserDmxShow.id, activeLaserDmxSection.id, kind, cell)
-    if (fixtureId) {
-      setSelectedLaserFixtureId(fixtureId)
+    if (activeSectionEngineId && activeSectionEngineId !== 'laserDmx') {
+      setPendingSectionEngineReplacement({
+        sectionId: selectedShowManagerSection.id,
+        sectionLabel: selectedShowManagerSection.label,
+        currentEngineId: activeSectionEngineId as ShowManagerEngineId,
+        targetEngineId: 'laserDmx',
+        action: { type: 'laserFixture', kind, cell },
+      })
+      return
     }
+    performLaserFixturePlacement(kind, cell)
   }
 
   const commitLaserFixturePatch = (patch: LaserDmxShowDirectorFixturePatch) => {
@@ -1846,9 +1932,48 @@ export function ShowManagerView() {
     setCopyLaserFixturesSourceSectionId(null)
   }
 
-  const selectLaserSectionForEditing = (sectionId: string) => {
+  const selectShowManagerSectionForEditing = (sectionId: string | null) => {
+    if (!sectionId) return
+    const section = resolvedTrackSections.find(candidate => candidate.id === sectionId)
+    if (!section) return
+    setSelectedShowManagerSectionId(sectionId)
     setSelectedLaserFixtureId(null)
+    selectCanvasShowManagerMediaElement(null)
+    setCanvasPlayheadSec(section.startSec)
+    selectCanvasShowManagerSection(sectionId)
     selectLaserDmxShowManagerSection(sectionId)
+    if (section.engineId === 'canvas' || section.engineId === 'laserDmx' || section.engineId === 'pixGrid') {
+      setSelectedEngineId(section.engineId)
+    }
+  }
+
+  const confirmSectionEngineReplacement = () => {
+    const pending = pendingSectionEngineReplacement
+    if (!pending || !activeShowManagerShow) return
+    const replaced = replaceShowManagerSectionEngine(
+      activeShowManagerShow.id,
+      pending.sectionId,
+      pending.targetEngineId,
+    )
+    if (!replaced) {
+      setPendingSectionEngineReplacement(null)
+      return
+    }
+    setPendingSectionEngineReplacement(null)
+    setSelectedEngineId(pending.targetEngineId)
+    setSelectedLaserFixtureId(null)
+    selectCanvasShowManagerMediaElement(null)
+    if (pending.action.type === 'laserFixture') {
+      performLaserFixturePlacement(pending.action.kind, pending.action.cell)
+    } else if (pending.action.type === 'laserSettings') {
+      updateLaserDmxShowManagerSectionWorkspaceSettings(
+        activeShowManagerShow.id,
+        pending.sectionId,
+        pending.action.patch,
+      )
+    } else {
+      performCanvasMediaPlacement(pending.action.mediaId, pending.action.layer)
+    }
   }
 
   const commitLaserSectionBoundary = (
@@ -1925,18 +2050,18 @@ export function ShowManagerView() {
 
         <div className="sm-topbar-spacer" />
         <div className="sm-stage-tools sm-stage-tools--header" aria-label="Show Manager stage tools">
-          {(selectedEngineId === 'laserDmx' || selectedEngineId === 'canvas') && workspaceMode === 'default' ? (
+          {(activeSectionEngineId === 'laserDmx' || activeSectionEngineId === 'canvas') && workspaceMode === 'default' ? (
             <>
               <button
                 type="button"
-                onClick={selectedEngineId === 'canvas' ? undoCanvasShowManagerEdit : undoLaserShowEdit}
-                disabled={(selectedEngineId === 'canvas' ? canvasShowUndoDepth : laserShowUndoDepth) === 0}
+                onClick={activeSectionEngineId === 'canvas' ? undoCanvasShowManagerEdit : undoLaserShowEdit}
+                disabled={(activeSectionEngineId === 'canvas' ? canvasShowUndoDepth : laserShowUndoDepth) === 0}
                 title="Undo Show edit"
               >↶</button>
               <button
                 type="button"
-                onClick={selectedEngineId === 'canvas' ? redoCanvasShowManagerEdit : redoLaserShowEdit}
-                disabled={(selectedEngineId === 'canvas' ? canvasShowRedoDepth : laserShowRedoDepth) === 0}
+                onClick={activeSectionEngineId === 'canvas' ? redoCanvasShowManagerEdit : redoLaserShowEdit}
+                disabled={(activeSectionEngineId === 'canvas' ? canvasShowRedoDepth : laserShowRedoDepth) === 0}
                 title="Redo Show edit"
               >↷</button>
               {['↖', '✥', '⌗', '▦', '◫'].map(tool => (
@@ -1956,16 +2081,16 @@ export function ShowManagerView() {
         <button
           type="button"
           className="sm-header-button"
-          onClick={() => void (selectedEngineId === 'canvas' ? commitCanvasShowSave(false) : commitLaserShowSave(false))}
-          disabled={(selectedEngineId !== 'laserDmx' && selectedEngineId !== 'canvas')
-            || (selectedEngineId === 'canvas' ? !activeCanvasShow || canvasSavePending !== null : !activeLaserDmxShow || laserSavePending !== null)}
-        >{(selectedEngineId === 'canvas' ? canvasSavePending : laserSavePending) === 'save' ? 'Saving…' : 'Save'}</button>
-        {(selectedEngineId === 'laserDmx' || selectedEngineId === 'canvas' || selectedEngineId === 'pixGrid') && (
+          onClick={() => void (saveEngineId === 'canvas' ? commitCanvasShowSave(false) : commitLaserShowSave(false))}
+          disabled={(saveEngineId !== 'laserDmx' && saveEngineId !== 'canvas')
+            || (saveEngineId === 'canvas' ? !activeCanvasShow || canvasSavePending !== null : !activeLaserDmxShow || laserSavePending !== null)}
+        >{(saveEngineId === 'canvas' ? canvasSavePending : laserSavePending) === 'save' ? 'Saving…' : 'Save'}</button>
+        {(activeSectionEngineId === 'laserDmx' || activeSectionEngineId === 'canvas' || activeSectionEngineId === 'pixGrid') && (
           <>
             <ReactPersistenceStatus />
-            {selectedEngineId !== 'pixGrid' && (selectedEngineId === 'canvas' ? canvasSaveStatus : laserSaveStatus) && (
+            {activeSectionEngineId !== 'pixGrid' && (activeSectionEngineId === 'canvas' ? canvasSaveStatus : laserSaveStatus) && (
               <span className="sm-header-save-status" role="status">
-                {selectedEngineId === 'canvas' ? canvasSaveStatus : laserSaveStatus}
+                {activeSectionEngineId === 'canvas' ? canvasSaveStatus : laserSaveStatus}
               </span>
             )}
           </>
@@ -2108,26 +2233,26 @@ export function ShowManagerView() {
                   <div className="sm-library-controls">
                     <ToggleRow
                       label="Show Grid"
-                      value={activeLaserDmxShow?.settings?.showGrid ?? true}
-                      disabled={!activeLaserDmxShow}
+                      value={activeLaserDmxSection?.settings?.showGrid ?? true}
+                      disabled={!activeLaserDmxShow || !selectedShowManagerSection}
                       onChange={showGrid => commitLaserWorkspaceSettings({ showGrid })}
                     />
                     <ToggleRow
                       label="Show Labels"
-                      value={activeLaserDmxShow?.settings?.showLabels ?? true}
-                      disabled={!activeLaserDmxShow}
+                      value={activeLaserDmxSection?.settings?.showLabels ?? true}
+                      disabled={!activeLaserDmxShow || !selectedShowManagerSection}
                       onChange={showLabels => commitLaserWorkspaceSettings({ showLabels })}
                     />
                     <ToggleRow
                       label="Show Beams"
-                      value={activeLaserDmxShow?.settings?.showBeams ?? true}
-                      disabled={!activeLaserDmxShow}
+                      value={activeLaserDmxSection?.settings?.showBeams ?? true}
+                      disabled={!activeLaserDmxShow || !selectedShowManagerSection}
                       onChange={showBeams => commitLaserWorkspaceSettings({ showBeams })}
                     />
                     <ToggleRow
                       label="Highlight Grid"
-                      value={activeLaserDmxShow?.settings?.highlightGrid ?? true}
-                      disabled={!activeLaserDmxShow}
+                      value={activeLaserDmxSection?.settings?.highlightGrid ?? true}
+                      disabled={!activeLaserDmxShow || !selectedShowManagerSection}
                       onChange={highlightGrid => commitLaserWorkspaceSettings({ highlightGrid })}
                     />
                   </div>
@@ -2144,8 +2269,8 @@ export function ShowManagerView() {
                     />
                     <SelectRow
                       label="Lighting Renderer"
-                      value={activeLaserDmxShow?.settings?.rendererMode ?? 'auto'}
-                      disabled={!activeLaserDmxShow}
+                      value={activeLaserDmxSection?.settings?.rendererMode ?? 'auto'}
+                      disabled={!activeLaserDmxShow || !selectedShowManagerSection}
                       onChange={value => {
                         const option = LASER_DMX_SHOW_DIRECTOR_RENDERER_OPTIONS.find(candidate => candidate.value === value)
                         if (option) commitLaserWorkspaceSettings({ rendererMode: option.value })
@@ -2188,17 +2313,44 @@ export function ShowManagerView() {
         )}
 
         <main className="sm-center">
-          <div className="sm-stage-frame">
-            {selectedEngineId === 'laserDmx' && workspaceMode === 'default' ? (
+          <div
+            className="sm-stage-frame"
+            onDragEnter={event => {
+              if (activeSectionEngineId === 'pixGrid' && Array.from(event.dataTransfer.types).includes('vz/mediaId')) {
+                setPixGridCanvasDragActive(true)
+              }
+            }}
+            onDragOver={event => {
+              if (activeSectionEngineId !== 'pixGrid') return
+              const types = Array.from(event.dataTransfer.types)
+              if (!types.includes('application/x-drmvyz-laserdmx-fixture-kind') && !types.includes('vz/mediaId')) return
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'copy'
+              if (types.includes('vz/mediaId')) setPixGridCanvasDragActive(true)
+            }}
+            onDragLeave={event => {
+              if (activeSectionEngineId !== 'pixGrid') return
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                setPixGridCanvasDragActive(false)
+                setPixGridHoveredCanvasLayer(null)
+              }
+            }}
+            onDrop={event => {
+              if (activeSectionEngineId !== 'pixGrid') return
+              if (!Array.from(event.dataTransfer.types).includes('application/x-drmvyz-laserdmx-fixture-kind')) return
+              commitLaserFixtureDrop(event)
+            }}
+          >
+            {activeSectionEngineId === 'laserDmx' && workspaceMode === 'default' ? (
               <>
               <LaserDmxShowManagerStage
                 show={activeLaserDmxShow}
                 section={activeLaserDmxSection}
                 selectedFixtureId={selectedLaserFixtureId}
-                showGrid={activeLaserDmxShow?.settings?.showGrid ?? true}
-                showLabels={activeLaserDmxShow?.settings?.showLabels ?? true}
-                showBeams={activeLaserDmxShow?.settings?.showBeams ?? true}
-                highlightGrid={activeLaserDmxShow?.settings?.highlightGrid ?? true}
+                showGrid={activeLaserDmxSection?.settings?.showGrid ?? true}
+                showLabels={activeLaserDmxSection?.settings?.showLabels ?? true}
+                showBeams={activeLaserDmxSection?.settings?.showBeams ?? true}
+                highlightGrid={activeLaserDmxSection?.settings?.highlightGrid ?? true}
                 playbackSectionLabel={showRuntimeIsPlaying ? playbackLaserDmxSection?.label ?? 'No active section' : null}
                 runtimePreview={showRuntimeIsPlaying && laserDmxRuntimePreset && activeLaserDmxShow ? (
                   <ReactPlaceholderCanvas
@@ -2223,6 +2375,8 @@ export function ShowManagerView() {
                   />
                 ) : null}
                 onDropFixture={commitLaserFixtureDrop}
+                selectedCanvasMediaId={selectedEngineId === 'canvas' ? canvasLibraryMediaId : null}
+                onPlaceCanvasMedia={commitCanvasMediaPlacement}
                 onSelectFixture={setSelectedLaserFixtureId}
                 onFixtureContextMenu={handleLaserFixtureContextMenu}
                 endpointTargetingFixtureId={laserEndpointTargetingFixtureId}
@@ -2250,16 +2404,17 @@ export function ShowManagerView() {
                 )
               })()}
               </>
-            ) : selectedEngineId === 'canvas' ? (
+            ) : activeSectionEngineId === 'canvas' ? (
               <CanvasShowManagerStage
                 show={activeCanvasShow}
                 selectedSectionId={activeCanvasSection?.id ?? null}
                 selectedElementId={selectedCanvasElement?.id ?? null}
-                selectedLibraryMediaId={canvasLibraryMediaId}
+                selectedLibraryMediaId={selectedEngineId === 'canvas' ? canvasLibraryMediaId : null}
                 mediaItems={sharedMediaItems}
                 sectionRanges={canvasSectionRanges}
                 onSelectElement={selectCanvasShowManagerMediaElement}
                 onPlaceMedia={commitCanvasMediaPlacement}
+                onDropLaserFixture={commitLaserFixtureDrop}
                 onCreate={createSelectedShow}
                 runtimePreview={activeCanvasShow ? (
                   <CanvasEngineSurface
@@ -2278,7 +2433,7 @@ export function ShowManagerView() {
                   />
                 ) : null}
               />
-            ) : (
+            ) : activeSectionEngineId === 'pixGrid' ? (
               <PixGridSurface
                 analyser={showRuntimeAnalyser}
                 activePreset={displayedPreset}
@@ -2300,29 +2455,78 @@ export function ShowManagerView() {
                 effectiveBpm={showRuntimeBpm ?? undefined}
                 onLiveFps={setLiveFps}
               />
+            ) : (
+              <UnownedShowManagerStage
+                showName={activeShowManagerShow?.name ?? 'Untitled Show'}
+                section={selectedShowManagerSection}
+                selectedCanvasMediaId={selectedEngineId === 'canvas' ? canvasLibraryMediaId : null}
+                onDropLaserFixture={commitLaserFixtureDrop}
+                onPlaceCanvasMedia={commitCanvasMediaPlacement}
+              />
             )}
-            {selectedEngineId === 'canvas' && canvasAuthoringError && (
+            {activeSectionEngineId === 'pixGrid' && selectedShowManagerSection && (pixGridCanvasDragActive || (selectedEngineId === 'canvas' && canvasLibraryMediaId != null)) && (
+              <div className="sm-canvas-layer-targets" role="group" aria-label="Canvas media layer drop targets">
+                {([3, 2, 1, 0] as const).map(layer => (
+                  <button
+                    key={layer}
+                    type="button"
+                    className={pixGridHoveredCanvasLayer === layer ? 'is-hovered' : ''}
+                    aria-label={`Clear ${selectedShowManagerSection.label}, assign it to Canvas, and place media on Layer ${layer + 1}`}
+                    onDragOver={event => {
+                      if (!Array.from(event.dataTransfer.types).includes('vz/mediaId')) return
+                      event.preventDefault()
+                      event.stopPropagation()
+                      setPixGridHoveredCanvasLayer(layer)
+                    }}
+                    onDragLeave={() => setPixGridHoveredCanvasLayer(current => current === layer ? null : current)}
+                    onDrop={event => {
+                      if (!Array.from(event.dataTransfer.types).includes('vz/mediaId')) return
+                      event.preventDefault()
+                      event.stopPropagation()
+                      const mediaId = event.dataTransfer.getData('vz/mediaId')
+                      if (mediaId) commitCanvasMediaPlacement(mediaId, layer)
+                      setPixGridCanvasDragActive(false)
+                      setPixGridHoveredCanvasLayer(null)
+                    }}
+                    onClick={() => {
+                      if (canvasLibraryMediaId) commitCanvasMediaPlacement(canvasLibraryMediaId, layer)
+                    }}
+                  >
+                    <span>Layer {layer + 1}</span>
+                    <strong>{layer === 3 ? 'TOP / FRONT' : layer === 0 ? 'BOTTOM / BACK' : `STACK ${layer + 1}`}</strong>
+                    <small>Replace section with Canvas</small>
+                  </button>
+                ))}
+              </div>
+            )}
+            {(activeSectionEngineId === 'canvas' || selectedEngineId === 'canvas') && canvasAuthoringError && (
               <NoticeCard className="sm-stage-authoring-feedback" tone="error" role="alert">{canvasAuthoringError}</NoticeCard>
             )}
             <div className="sm-stage-status">
-              {selectedEngineId === 'laserDmx' && workspaceMode === 'default' ? (
+              {activeSectionEngineId === 'laserDmx' && workspaceMode === 'default' ? (
                 <>
                   <span>LaserDMX {LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns} × {LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows}</span>
                   <span>{activeLaserDmxSection?.fixtures.length ?? 0} editing fixtures</span>
                   <span>{showRuntimeIsPlaying ? `Playback: ${playbackLaserDmxSection?.label ?? 'None'}` : 'Playback stopped'}</span>
                   <span>{selectedLaserFixture?.label ?? 'No selection'}</span>
                 </>
-              ) : selectedEngineId === 'canvas' ? (
+              ) : activeSectionEngineId === 'canvas' ? (
                 <>
                   <span>Canvas Show</span>
                   <span>{activeCanvasShow ? `${activeCanvasShow.sections.length} sections` : 'No Show open'}</span>
                   <span>{activeCanvasShow ? `${formatClock(canvasTotalDuration)} total` : 'Create or open a Show'}</span>
                   <span>{activeCanvasShow?.id === canvasShowManagerActiveShowId ? 'Active Show' : 'Editing'}</span>
                 </>
-              ) : (
+              ) : activeSectionEngineId === 'pixGrid' ? (
                 <>
                   <span>PixGrid {matrixLabel}</span>
                   <span>FPS {liveFps > 0 ? liveFps.toFixed(1) : '—'}</span>
+                </>
+              ) : (
+                <>
+                  <span>Unassigned Section</span>
+                  <span>{selectedShowManagerSection?.label ?? 'No section selected'}</span>
+                  <span>Drag the first component or element to assign an engine</span>
                 </>
               )}
             </div>
@@ -2346,28 +2550,28 @@ export function ShowManagerView() {
               onPrevious={() => stepPreview(-1)}
               onNext={() => stepPreview(1)}
             />
-          ) : selectedEngineId === 'laserDmx' ? (
+          ) : activeSectionEngineId === 'laserDmx' ? (
             <LaserDmxShowManagerTimeline
               sections={resolvedTrackSections}
-              selectedSectionId={activeLaserDmxSection?.id ?? null}
+              selectedSectionId={selectedShowManagerSection?.id ?? null}
               durationSec={laserTimelineDuration}
               viewport={laserTimelineViewport}
               viewportRef={laserTimelineViewportRef}
               beatGrid={showRuntimeBeatGrid ?? showRuntimeAnalysis?.beatGrid ?? []}
               effectiveBpm={showRuntimeBpm}
-              onSelect={selectLaserSectionForEditing}
+              onSelect={selectShowManagerSectionForEditing}
               onCommitBoundary={commitLaserSectionBoundary}
             />
-          ) : selectedEngineId === 'canvas' ? (
+          ) : activeSectionEngineId === 'canvas' ? (
             <CanvasShowManagerTimeline
               show={activeCanvasShow}
-              selectedSectionId={activeCanvasSection?.id ?? null}
+              selectedSectionId={selectedShowManagerSection?.id ?? null}
               selectedElementId={selectedCanvasElement?.id ?? null}
               mediaItems={sharedMediaItems}
               sectionRanges={canvasSectionRanges}
               totalDurationSec={canvasTotalDuration}
               playheadSec={canvasPlayheadSec}
-              onSelect={selectCanvasShowManagerSection}
+              onSelect={selectShowManagerSectionForEditing}
               onSelectElement={selectCanvasShowManagerMediaElement}
               onPatchElement={commitCanvasElementPatch}
             />
@@ -2380,8 +2584,8 @@ export function ShowManagerView() {
               sceneLabels={sceneLabels}
               beatGrid={showRuntimeBeatGrid ?? undefined}
               effectiveBpm={showRuntimeBpm}
-              selectedSectionId={selectedPixGridTrackSection?.id ?? null}
-              onSelectSection={setPixGridTrackMapSectionId}
+              selectedSectionId={selectedShowManagerSection?.id ?? null}
+              onSelectSection={selectShowManagerSectionForEditing}
               onCommitBoundary={(sectionId, edge, newTime, neighborId, neighborTime) => {
                 if (!activeShowManagerShow) return
                 updateShowManagerTrackMapBoundary(activeShowManagerShow.id, sectionId, edge, newTime, neighborId, neighborTime)
@@ -2425,12 +2629,12 @@ export function ShowManagerView() {
             />
           </aside>
         ) : (
-        <aside className="sm-inspector" aria-label={`Show Manager ${REACT_ENGINE_CATALOG[selectedEngineId].label} inspector`}>
+        <aside className="sm-inspector" aria-label={`Show Manager ${activeSectionEngineId ? REACT_ENGINE_CATALOG[activeSectionEngineId].label : 'section'} inspector`}>
           <div className="sm-panel-heading sm-panel-heading--inspector">
             <strong>INSPECTOR</strong>
-            <span>{REACT_ENGINE_CATALOG[selectedEngineId].label} parameters</span>
+            <span>{activeSectionEngineId ? `${REACT_ENGINE_CATALOG[activeSectionEngineId].label} parameters` : 'Unassigned section'}</span>
           </div>
-          {selectedEngineId === 'pixGrid' ? (
+          {activeSectionEngineId === 'pixGrid' ? (
             <div className="sm-inspector-scroll">
               <Collapsible label="Preset" defaultOpen>
                 <div className="sm-preset-browser">
@@ -2519,7 +2723,7 @@ export function ShowManagerView() {
                 </section>
               </Collapsible>
             </div>
-          ) : selectedEngineId === 'laserDmx' ? (
+          ) : activeSectionEngineId === 'laserDmx' ? (
             <div className="sm-inspector-scroll sm-laser-section-inspector">
               <div className="sm-inspector-context">
                 <div><span>Show</span><strong>{activeLaserDmxShow?.name ?? 'Untitled Show'}</strong></div>
@@ -2596,7 +2800,7 @@ export function ShowManagerView() {
                 <div className="sm-panel-blank" />
               )}
             </div>
-          ) : selectedEngineId === 'canvas' ? (
+          ) : activeSectionEngineId === 'canvas' ? (
             <CanvasShowManagerInspector
               show={activeCanvasShow}
               trackSection={activeCanvasTrackSection}
@@ -2624,7 +2828,25 @@ export function ShowManagerView() {
               onCreate={createSelectedShow}
             />
           ) : (
-            <div className="sm-panel-blank" />
+            <div className="sm-inspector-scroll">
+              <div className="sm-inspector-context">
+                <div><span>Section</span><strong>{selectedShowManagerSection?.label ?? 'No section selected'}</strong></div>
+                <div><span>Engine</span><strong>Unassigned</strong></div>
+              </div>
+              <NoticeCard tone="info" title="Section ready for authoring">
+                Choose any engine in the left component library. The section will be assigned only when its first component or element is added.
+              </NoticeCard>
+              {selectedShowManagerSection && activeShowManagerShow && (
+                <ShowManagerTrackMapSectionEditor
+                  showId={activeShowManagerShow.id}
+                  section={selectedShowManagerSection}
+                  durationSec={durationSec}
+                  effectiveBpm={showRuntimeBpm}
+                  beatGrid={showRuntimeBeatGrid ?? []}
+                  boundaryAlternatives={showRuntimeAnalysis?.boundaryAlternatives ?? []}
+                />
+              )}
+            </div>
           )}
         </aside>
         )}
@@ -2650,12 +2872,20 @@ export function ShowManagerView() {
       )}
       {newShowOpen && (
         <NewShowDialog
-          engineId={selectedEngineId as ShowManagerEngineId}
           copySource={copySourceShow}
           onClose={() => {
             setNewShowOpen(false)
             setCopySourceShowId(null)
           }}
+        />
+      )}
+      {pendingSectionEngineReplacement && (
+        <ConfirmDeleteDialog
+          title="Change Section Engine?"
+          message={`“${pendingSectionEngineReplacement.sectionLabel}” is already used by ${REACT_ENGINE_CATALOG[pendingSectionEngineReplacement.currentEngineId].label}. Using ${REACT_ENGINE_CATALOG[pendingSectionEngineReplacement.targetEngineId].label} here will clear the existing elements and settings from this section.`}
+          confirmLabel={`Clear Section & Use ${REACT_ENGINE_CATALOG[pendingSectionEngineReplacement.targetEngineId].label}`}
+          onCancel={() => setPendingSectionEngineReplacement(null)}
+          onConfirm={confirmSectionEngineReplacement}
         />
       )}
       {pendingDeleteCanvasShow && (
@@ -2853,6 +3083,90 @@ function CanvasShowManagerInspector({
   )
 }
 
+function UnownedShowManagerStage({
+  showName,
+  section,
+  selectedCanvasMediaId,
+  onDropLaserFixture,
+  onPlaceCanvasMedia,
+}: {
+  showName: string
+  section: ReactTrackSection | null
+  selectedCanvasMediaId: string | null
+  onDropLaserFixture: (event: DragEvent<HTMLDivElement>) => void
+  onPlaceCanvasMedia: (mediaId: string, layer: CanvasShowManagerLayer) => boolean
+}) {
+  const [mediaDragActive, setMediaDragActive] = useState(false)
+  const mediaTargetsVisible = mediaDragActive || selectedCanvasMediaId != null
+  const hasMediaPayload = (event: DragEvent<HTMLElement>) => Array.from(event.dataTransfer.types).includes('vz/mediaId')
+  const hasLaserPayload = (event: DragEvent<HTMLElement>) => Array.from(event.dataTransfer.types).includes('application/x-drmvyz-laserdmx-fixture-kind')
+
+  return (
+    <div className="sm-laser-stage sm-canvas-stage" aria-label="Unassigned Show section authoring surface">
+      <div className="sm-laser-stage-heading sm-canvas-stage-heading">
+        <span>{showName}</span>
+        <strong>{section ? `Editing: ${section.label}` : 'No section selected'}</strong>
+        <em>Engine unassigned</em>
+      </div>
+      <div
+        className="sm-laser-stage-grid-surface sm-canvas-authoring-surface"
+        data-testid="show-manager-unassigned-authoring-surface"
+        onDragEnter={event => {
+          if (hasMediaPayload(event)) setMediaDragActive(true)
+        }}
+        onDragOver={event => {
+          if (!hasMediaPayload(event) && !hasLaserPayload(event)) return
+          event.preventDefault()
+          event.dataTransfer.dropEffect = 'copy'
+          if (hasMediaPayload(event)) setMediaDragActive(true)
+        }}
+        onDragLeave={event => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setMediaDragActive(false)
+        }}
+        onDrop={event => {
+          if (!hasLaserPayload(event)) return
+          onDropLaserFixture(event)
+        }}
+      >
+        <div className="sm-canvas-authored-elements" aria-hidden={mediaTargetsVisible}>
+          <p>Drag the first component or element into this section to assign its engine.</p>
+        </div>
+        {mediaTargetsVisible && section && (
+          <div className="sm-canvas-layer-targets" role="group" aria-label="Canvas media layer drop targets">
+            {([3, 2, 1, 0] as const).map(layer => (
+              <button
+                key={layer}
+                type="button"
+                data-testid={`unassigned-canvas-layer-drop-target-${layer + 1}`}
+                aria-label={`Assign this section to Canvas and place media on Layer ${layer + 1}`}
+                onDragOver={event => {
+                  if (!hasMediaPayload(event)) return
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
+                onDrop={event => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  const mediaId = event.dataTransfer.getData('vz/mediaId')
+                  if (mediaId) onPlaceCanvasMedia(mediaId, layer)
+                  setMediaDragActive(false)
+                }}
+                onClick={() => {
+                  if (selectedCanvasMediaId) onPlaceCanvasMedia(selectedCanvasMediaId, layer)
+                }}
+              >
+                <span>Layer {layer + 1}</span>
+                <strong>{layer === 3 ? 'TOP / FRONT' : layer === 0 ? 'BOTTOM / BACK' : `STACK ${layer + 1}`}</strong>
+                <small>Drop here</small>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function CanvasShowManagerStage({
   show,
   selectedSectionId,
@@ -2862,6 +3176,7 @@ function CanvasShowManagerStage({
   sectionRanges,
   onSelectElement,
   onPlaceMedia,
+  onDropLaserFixture,
   onCreate,
   runtimePreview,
 }: {
@@ -2873,6 +3188,7 @@ function CanvasShowManagerStage({
   sectionRanges: readonly CanvasShowManagerSectionRange[]
   onSelectElement: (elementId: string | null) => void
   onPlaceMedia: (mediaId: string, layer: CanvasShowManagerLayer) => boolean
+  onDropLaserFixture: (event: DragEvent<HTMLDivElement>) => void
   onCreate: () => void
   runtimePreview?: ReactNode
 }) {
@@ -2919,7 +3235,21 @@ function CanvasShowManagerStage({
         <span>{show.name}</span>
         <strong>{selectedSection ? `Editing: ${selectedSection.label}` : 'No section selected'}</strong>
       </div>
-      <div className="sm-canvas-authoring-surface" data-testid="canvas-show-manager-authoring-surface">
+      <div
+        className="sm-canvas-authoring-surface"
+        data-testid="canvas-show-manager-authoring-surface"
+        onDragOver={event => {
+          if (!Array.from(event.dataTransfer.types).includes('application/x-drmvyz-laserdmx-fixture-kind')) return
+          event.preventDefault()
+          event.stopPropagation()
+          event.dataTransfer.dropEffect = 'copy'
+        }}
+        onDrop={event => {
+          if (!Array.from(event.dataTransfer.types).includes('application/x-drmvyz-laserdmx-fixture-kind')) return
+          event.stopPropagation()
+          onDropLaserFixture(event)
+        }}
+      >
         {runtimePreview && <div className="sm-canvas-runtime-preview" data-testid="canvas-show-runtime-preview">{runtimePreview}</div>}
         <div
           className="sm-canvas-authored-elements"
@@ -2964,12 +3294,14 @@ function CanvasShowManagerStage({
                   data-testid={`canvas-layer-drop-target-${layer + 1}`}
                   aria-label={`Place selected media on Layer ${layer + 1}${layer === 3 ? ', top front' : layer === 0 ? ', bottom back' : ''}`}
                   onDragOver={event => {
+                    if (!Array.from(event.dataTransfer.types).includes('vz/mediaId')) return
                     event.preventDefault()
                     event.stopPropagation()
                     setHoveredLayer(layer)
                   }}
                   onDragLeave={() => setHoveredLayer(current => current === layer ? null : current)}
                   onDrop={event => {
+                    if (!Array.from(event.dataTransfer.types).includes('vz/mediaId')) return
                     event.preventDefault()
                     event.stopPropagation()
                     const mediaId = event.dataTransfer.getData('vz/mediaId')
@@ -3327,6 +3659,8 @@ function LaserDmxShowManagerStage({
   playbackSectionLabel,
   runtimePreview,
   onDropFixture,
+  selectedCanvasMediaId,
+  onPlaceCanvasMedia,
   onSelectFixture,
   onFixtureContextMenu,
   endpointTargetingFixtureId,
@@ -3342,6 +3676,8 @@ function LaserDmxShowManagerStage({
   playbackSectionLabel: string | null
   runtimePreview: ReactNode
   onDropFixture: (event: DragEvent<HTMLDivElement>) => void
+  selectedCanvasMediaId: string | null
+  onPlaceCanvasMedia: (mediaId: string, layer: CanvasShowManagerLayer) => boolean
   onSelectFixture: (fixtureId: string | null) => void
   onFixtureContextMenu: (event: MouseEvent<HTMLButtonElement>, fixtureId: string) => void
   endpointTargetingFixtureId: string | null
@@ -3349,6 +3685,9 @@ function LaserDmxShowManagerStage({
 }) {
   const fixtures = section?.fixtures ?? []
   const collisionOrdinals = new Map<string, number>()
+  const [canvasDragActive, setCanvasDragActive] = useState(false)
+  const [hoveredCanvasLayer, setHoveredCanvasLayer] = useState<CanvasShowManagerLayer | null>(null)
+  const canvasTargetsVisible = canvasDragActive || selectedCanvasMediaId != null
 
   return (
     <div className="sm-laser-stage" aria-label="LaserDMX Part 1 authoring grid">
@@ -3361,11 +3700,26 @@ function LaserDmxShowManagerStage({
       <div
         className={`sm-laser-stage-grid-surface${showGrid ? ' is-grid-visible' : ''}${highlightGrid ? ' is-highlighted' : ''}${endpointTargetingFixtureId ? ' is-targeting-endpoint' : ''}`}
         data-testid="laser-dmx-authoring-grid"
+        onDragEnter={event => {
+          if (Array.from(event.dataTransfer.types).includes('vz/mediaId')) setCanvasDragActive(true)
+        }}
         onDragOver={event => {
+          const types = Array.from(event.dataTransfer.types)
+          if (!types.includes('application/x-drmvyz-laserdmx-fixture-kind') && !types.includes('vz/mediaId')) return
           event.preventDefault()
           event.dataTransfer.dropEffect = 'copy'
+          if (types.includes('vz/mediaId')) setCanvasDragActive(true)
         }}
-        onDrop={onDropFixture}
+        onDragLeave={event => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setCanvasDragActive(false)
+            setHoveredCanvasLayer(null)
+          }
+        }}
+        onDrop={event => {
+          if (!Array.from(event.dataTransfer.types).includes('application/x-drmvyz-laserdmx-fixture-kind')) return
+          onDropFixture(event)
+        }}
         onClick={event => endpointTargetingFixtureId ? onCommitEndpointTarget(event) : onSelectFixture(null)}
       >
         {runtimePreview && (
@@ -3395,6 +3749,42 @@ function LaserDmxShowManagerStage({
               />]
             })}
           </svg>
+        )}
+        {canvasTargetsVisible && section && (
+          <div className="sm-canvas-layer-targets" role="group" aria-label="Canvas media layer drop targets">
+            {([3, 2, 1, 0] as const).map(layer => (
+              <button
+                key={layer}
+                type="button"
+                className={hoveredCanvasLayer === layer ? 'is-hovered' : ''}
+                aria-label={`Clear ${section.label}, assign it to Canvas, and place media on Layer ${layer + 1}`}
+                onDragOver={event => {
+                  if (!Array.from(event.dataTransfer.types).includes('vz/mediaId')) return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setHoveredCanvasLayer(layer)
+                }}
+                onDragLeave={() => setHoveredCanvasLayer(current => current === layer ? null : current)}
+                onDrop={event => {
+                  if (!Array.from(event.dataTransfer.types).includes('vz/mediaId')) return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  const mediaId = event.dataTransfer.getData('vz/mediaId')
+                  if (mediaId) onPlaceCanvasMedia(mediaId, layer)
+                  setCanvasDragActive(false)
+                  setHoveredCanvasLayer(null)
+                }}
+                onClick={event => {
+                  event.stopPropagation()
+                  if (selectedCanvasMediaId) onPlaceCanvasMedia(selectedCanvasMediaId, layer)
+                }}
+              >
+                <span>Layer {layer + 1}</span>
+                <strong>{layer === 3 ? 'TOP / FRONT' : layer === 0 ? 'BOTTOM / BACK' : `STACK ${layer + 1}`}</strong>
+                <small>Replace section with Canvas</small>
+              </button>
+            ))}
+          </div>
         )}
         {fixtures.map(fixture => {
           const collisionKey = `${fixture.x}:${fixture.y}`
