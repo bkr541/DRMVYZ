@@ -68,6 +68,8 @@ export interface CinemaCameraResolveInput {
   frame: Readonly<CinemaFrameContext>
   requestedCameraId?: CinemaCameraId | null
   resolvedParameterValues?: Readonly<Record<string, CinemaParameterValue>>
+  /** Global motion amplitude for shared camera animation. Zero locks the authored/base pose. */
+  motionScale?: number
 }
 
 export interface CinemaCameraResolveResult {
@@ -129,7 +131,16 @@ export function resolveCinemaCameraFrame(input: CinemaCameraResolveInput): Cinem
       attribution: { cameraId: String(resource.id), compositionId: String(input.composition.id), stage: 'camera-runtime' },
     }))
   }
-  const animated = applyMode(base, selectedShot, resource.path, resolvedMode, values, input.frame, resource.id)
+  const animated = applyMode(
+    base,
+    selectedShot,
+    resource.path,
+    resolvedMode,
+    values,
+    input.frame,
+    resource.id,
+    clamp(finiteOr(input.motionScale, 1), 0, 1),
+  )
   const safe = enforceCameraSafety(animated, safeRange, resource.invalidRegions ?? [], diagnostics, resource.id, input.composition.id)
 
   return {
@@ -345,19 +356,25 @@ function applyMode(
   values: Readonly<Partial<Record<CinemaParameterId, CinemaParameterValue>>>,
   frame: Readonly<CinemaFrameContext>,
   cameraId: CinemaCameraId,
+  motionScale: number,
 ): RuntimePose {
-  let pose = applyPoseDefinition(base, shot)
+  const shotPose = applyPoseDefinition(base, shot)
+  let pose = blendRuntimePose(base, shotPose, motionScale)
   const time = Math.max(0, frame.transport.audioTimeSec)
-  const beatPunch = numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.beatPunch], 0) * (frame.impulses.beat ? 1 : 0)
-  const shake = numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.shake], 0)
-  const handheld = numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.handheld], 0)
-  const banking = numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.banking], 0)
-  const phase = deterministicPhase(frame.timing.seeds.musicalPosition, String(cameraId))
+  const beatPunch = numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.beatPunch], 0) * (frame.impulses.beat ? 1 : 0) * motionScale
+  const shake = numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.shake], 0) * motionScale
+  const handheld = numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.handheld], 0) * motionScale
+  const banking = numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.banking], 0) * motionScale
+  // Camera phase must remain stable while transport time advances. Using the
+  // musical-position seed made phase jump up to 64 times per beat, which
+  // effectively teleported dolly/orbit cameras from frame to frame.
+  const stableSeed = (frame.timing.seeds.composition ^ frame.timing.seeds.track) >>> 0
+  const phase = deterministicPhase(stableSeed, String(cameraId))
 
   switch (mode) {
     case 'dolly': {
       const speed = Math.max(0, numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.dollySpeed], 0.08))
-      const range = Math.max(0, numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.dollyRange], 1))
+      const range = Math.max(0, numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.dollyRange], 1)) * motionScale
       const progress = (Math.sin(time * speed * Math.PI * 2 + phase) + 1) * 0.5
       pose = { ...pose, position: freezeVector([pose.position[0], pose.position[1], pose.position[2] - (progress * 2 - 1) * range - beatPunch]), dollyProgress: progress }
       break
@@ -371,9 +388,9 @@ function applyMode(
       pose = {
         ...pose,
         position: freezeVector([
-          pose.target[0] + Math.sin(angle) * radius,
-          pose.target[1] + elevation,
-          pose.target[2] + Math.cos(angle) * radius,
+          pose.position[0] + (pose.target[0] + Math.sin(angle) * radius - pose.position[0]) * motionScale,
+          pose.position[1] + (pose.target[1] + elevation - pose.position[1]) * motionScale,
+          pose.position[2] + (pose.target[2] + Math.cos(angle) * radius - pose.position[2]) * motionScale,
         ]),
         rollRadians: pose.rollRadians + Math.sin(angle) * banking,
         orbitProgress: progress,
@@ -386,9 +403,10 @@ function applyMode(
       const speed = Math.max(0, numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.flySpeed], 0.04))
       const progress = positiveModulo(time * speed, 1)
       if (path.length > 0) {
-        pose = interpolatePath(pose, path, progress)
+        const animatedPathPose = interpolatePath(pose, path, progress)
+        pose = blendRuntimePose(pose, animatedPathPose, motionScale)
       } else if (mode === 'fly') {
-        const travel = Math.max(0.01, numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.dollyRange], 1))
+        const travel = Math.max(0.01, numberValue(values[CINEMA_CAMERA_PARAMETER_IDS.dollyRange], 1)) * motionScale
         pose = {
           ...pose,
           position: freezeVector([
@@ -420,6 +438,32 @@ function applyMode(
     }
   }
   return pose
+}
+
+function blendRuntimePose(base: RuntimePose, animated: RuntimePose, amount: number): RuntimePose {
+  const t = clamp(amount, 0, 1)
+  if (t <= 0) return base
+  if (t >= 1) return animated
+  return {
+    ...animated,
+    position: freezeVector([
+      base.position[0] + (animated.position[0] - base.position[0]) * t,
+      base.position[1] + (animated.position[1] - base.position[1]) * t,
+      base.position[2] + (animated.position[2] - base.position[2]) * t,
+    ]),
+    rotation: freezeVector([
+      base.rotation[0] + (animated.rotation[0] - base.rotation[0]) * t,
+      base.rotation[1] + (animated.rotation[1] - base.rotation[1]) * t,
+      base.rotation[2] + (animated.rotation[2] - base.rotation[2]) * t,
+    ]),
+    target: freezeVector([
+      base.target[0] + (animated.target[0] - base.target[0]) * t,
+      base.target[1] + (animated.target[1] - base.target[1]) * t,
+      base.target[2] + (animated.target[2] - base.target[2]) * t,
+    ]),
+    fovDegrees: base.fovDegrees + (animated.fovDegrees - base.fovDegrees) * t,
+    rollRadians: base.rollRadians + (animated.rollRadians - base.rollRadians) * t,
+  }
 }
 
 function applyPoseDefinition(base: RuntimePose, patch: CinemaCameraPoseDefinition | null | undefined): RuntimePose {

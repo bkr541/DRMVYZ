@@ -143,6 +143,31 @@ describe('Reactive Constellation musical choreography', () => {
   })
 
 
+  it('treats the common Motion control as a final master gate over choreography and performance offsets', () => {
+    const settings = {
+      ...REACTIVE_CONSTELLATION_DEFAULTS,
+      macroMotion: 1,
+      macroCamera: 1,
+    }
+    const automatic = resolveReactiveConstellationComposition({
+      settings,
+      audio: audioFrame({ section: 'drop' }),
+      modulation: modulation(),
+      motionScale: 1,
+      performanceActionEnvelopes: { motionScale: 0.8 },
+    }).values
+    const stopped = resolveReactiveConstellationComposition({
+      settings,
+      audio: audioFrame({ section: 'drop' }),
+      modulation: modulation(),
+      motionScale: 0,
+      performanceActionEnvelopes: { motionScale: 0.8 },
+    }).values
+
+    expect(automatic.motionScale).toBeGreaterThan(0)
+    expect(stopped.motionScale).toBe(0)
+  })
+
   it('compresses the crimson launch target through the build without increasing random motion', () => {
     const settings = {
       ...REACTIVE_CONSTELLATION_DEFAULTS,

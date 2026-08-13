@@ -349,6 +349,7 @@ export class CinemaGraphExecutor {
           frame: performanceFrame,
           requestedCameraId: performanceFrame.activeCameraId,
           resolvedParameterValues,
+          motionScale: this.resolveSharedCameraMotionScale(),
         })
       : null
     for (const diagnostic of cameraResolution?.diagnostics.diagnostics ?? []) this.reportOnce(diagnostic)
@@ -1052,6 +1053,22 @@ export class CinemaGraphExecutor {
       this.staticBrandColors = frame.brand.colors
     }
     return resolution.values
+  }
+
+  /**
+   * Cinematic World presets expose Motion on their procedural world node rather
+   * than as a composition master parameter. Feed that value into the shared
+   * Cinema camera so Motion is a true global movement amplitude instead of
+   * leaving dolly/orbit motion running independently of the Inspector slider.
+   */
+  private resolveSharedCameraMotionScale(): number {
+    for (const record of this.records.values()) {
+      if (record.authored.family !== 'procedural') continue
+      const value = record.values.motion
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue
+      return Math.max(0, Math.min(1, value))
+    }
+    return 1
   }
 
   private applyNodeValues(valuesByNode: ReadonlyMap<CinemaNodeId, Readonly<CinemaParameterValues>>): void {

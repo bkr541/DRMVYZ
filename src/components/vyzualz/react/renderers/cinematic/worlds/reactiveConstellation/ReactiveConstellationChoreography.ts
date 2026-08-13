@@ -337,9 +337,14 @@ export function resolveReactiveConstellationComposition(
     internalGlow: settings.internalGlow,
     rimIntensity: settings.rimIntensity,
     springStrength: settings.springStrength,
-    motionScale: clamp(input.motionScale ?? 1, 0, 2),
+    // Automatic choreography/audio/macro motion is composed at full authored
+    // strength first. The Inspector Motion control is applied once at the end
+    // as a true master amplitude so zero cannot be overridden by later layers.
+    motionScale: 1,
     cameraOrbit: settings.cameraOrbit,
   }
+
+  const masterMotion = clamp(input.motionScale ?? 1, 0, 1)
 
   addOffsets(values, resolveReactiveConstellationChoreography(input.audio, settings.choreographyProfile))
   addOffsets(values, audioOffsets(input.modulation))
@@ -361,7 +366,7 @@ export function resolveReactiveConstellationComposition(
   values.internalGlow = clamp(values.internalGlow, REACTIVE_CONSTELLATION_BOUNDS.internalGlow[0], REACTIVE_CONSTELLATION_BOUNDS.internalGlow[1])
   values.rimIntensity = clamp(values.rimIntensity, REACTIVE_CONSTELLATION_BOUNDS.rimIntensity[0], REACTIVE_CONSTELLATION_BOUNDS.rimIntensity[1])
   values.springStrength = clamp(values.springStrength, REACTIVE_CONSTELLATION_BOUNDS.springStrength[0], REACTIVE_CONSTELLATION_BOUNDS.springStrength[1])
-  values.motionScale = clamp(values.motionScale, 0, 2)
+  values.motionScale = clamp(values.motionScale, 0, 2) * masterMotion
   values.cameraOrbit = clamp(values.cameraOrbit, REACTIVE_CONSTELLATION_BOUNDS.cameraOrbit[0], REACTIVE_CONSTELLATION_BOUNDS.cameraOrbit[1])
 
   return {

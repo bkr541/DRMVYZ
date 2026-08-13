@@ -78,6 +78,59 @@ describe('CinemaCameraRuntime', () => {
     expect(sameWindow.selectedShotId).toBe(first.selectedShotId)
   })
 
+  it('keeps animated camera phase stable when the musical-position seed changes within a beat', () => {
+    const fixture = composition()
+    fixture.cameras = fixture.cameras.map(camera => ({
+      ...camera,
+      mode: 'dolly',
+      authoredShots: [],
+      invalidRegions: [],
+      parameterValues: {
+        ...camera.parameterValues,
+        [CINEMA_CAMERA_PARAMETER_IDS.dollyRange]: 0.8,
+        [CINEMA_CAMERA_PARAMETER_IDS.dollySpeed]: 0.075,
+      },
+    }))
+    const baseFrame = frame()
+    const shiftedSeedFrame = {
+      ...baseFrame,
+      timing: {
+        ...baseFrame.timing,
+        seeds: { ...baseFrame.timing.seeds, musicalPosition: baseFrame.timing.seeds.musicalPosition + 9999 },
+      },
+    }
+
+    const first = resolveCinemaCameraFrame({ composition: fixture, frame: baseFrame })
+    const shifted = resolveCinemaCameraFrame({ composition: fixture, frame: shiftedSeedFrame })
+
+    expect(shifted.camera?.position).toEqual(first.camera?.position)
+    expect(shifted.camera?.dollyProgress).toBe(first.camera?.dollyProgress)
+  })
+
+  it('uses motionScale as a true shared-camera amplitude and locks animated rigs at zero', () => {
+    const fixture = composition()
+    fixture.cameras = fixture.cameras.map(camera => ({
+      ...camera,
+      mode: 'dolly',
+      authoredShots: [],
+      invalidRegions: [],
+      parameterValues: {
+        ...camera.parameterValues,
+        [CINEMA_CAMERA_PARAMETER_IDS.dollyRange]: 0.8,
+        [CINEMA_CAMERA_PARAMETER_IDS.dollySpeed]: 0.075,
+      },
+    }))
+    const laterFrame = { ...frame(), transport: { ...frame().transport, audioTimeSec: 36 } }
+
+    const stopped = resolveCinemaCameraFrame({ composition: fixture, frame: frame(), motionScale: 0 })
+    const stoppedLater = resolveCinemaCameraFrame({ composition: fixture, frame: laterFrame, motionScale: 0 })
+    const moving = resolveCinemaCameraFrame({ composition: fixture, frame: frame(), motionScale: 1 })
+
+    expect(stopped.camera?.position).toEqual([0, 0, 2])
+    expect(stoppedLater.camera?.position).toEqual(stopped.camera?.position)
+    expect(moving.camera?.position).not.toEqual(stopped.camera?.position)
+  })
+
   it('falls back deterministically when the requested camera is unavailable', () => {
     const result = resolveCinemaCameraFrame({
       composition: composition(),

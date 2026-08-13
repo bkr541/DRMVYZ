@@ -521,9 +521,9 @@ export class ConstellationSimulation {
     const springCoefficient = (5 + springStrength * 27) * (0.72 + settings.topologyStability * 0.62)
     const anchorCoefficient = (0.6 + settings.topologyStability * 11) * (0.35 + springStrength * 0.65)
     const centralCoefficient = settings.centralGravity * 3.2 + collapseForce * 2.4
-    const driftCoefficient = settings.driftAmount * (0.25 + motionScale * 0.75)
-    const turbulenceCoefficient = settings.turbulence * (0.15 + motionScale * 0.85)
-    const orbitCoefficient = settings.orbitAmount * (0.3 + motionScale * 0.7)
+    const driftCoefficient = settings.driftAmount * motionScale
+    const turbulenceCoefficient = settings.turbulence * motionScale
+    const orbitCoefficient = settings.orbitAmount * motionScale
     const impactCoefficient = impact * settings.burstStrength * 1.2
     const time = simulationTimeSec
 
@@ -616,7 +616,7 @@ export class ConstellationSimulation {
     const dampingRate = (0.7 + settings.damping * 8.5) * (1 - settings.elasticity * 0.48)
     const damping = Math.exp(-dampingRate * dt)
     const maximumVelocity = 2.2 + settings.elasticity * 2.8 + motionScale * 0.8
-    const spinTarget = (settings.nodeSpin + nodeSpinOffset) * (0.35 + motionScale * 0.9)
+    const spinTarget = (settings.nodeSpin + nodeSpinOffset) * motionScale
 
     for (let index = 0; index < this.graph.nodes.length; index += 1) {
       const offset = index * 3

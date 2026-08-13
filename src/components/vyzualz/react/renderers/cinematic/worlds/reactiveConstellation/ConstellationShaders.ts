@@ -40,13 +40,13 @@ mat3 rotateZ(float angle) {
 }
 
 void main() {
-  float spin = uTime * uNodeSpin * (0.22 + uMotion * 0.78) * mix(0.72, 1.35, aInstancePalette);
+  float spin = uTime * uNodeSpin * uMotion * mix(0.72, 1.35, aInstancePalette);
   mat3 nodeRotation = rotateZ(aInstanceRotation.z - spin * 0.37) * rotateY(aInstanceRotation.y + spin) * rotateX(aInstanceRotation.x + spin * 0.53);
-  float pulseScale = 1.0 + uBeat * (0.035 + aInstanceProminence * 0.09);
+  float pulseScale = 1.0 + uBeat * uMotion * (0.035 + aInstanceProminence * 0.09);
   vec3 localPosition = nodeRotation * aPosition * (uNodeScale * aInstanceScale * pulseScale);
   vec3 center = aInstancePosition;
-  center.z *= 1.0 + uDepthPulse * 0.38;
-  float orbit = uTime * uCameraOrbit * (0.15 + uMotion * 0.5) + uGeometryRotation * 0.65;
+  center.z *= 1.0 + uDepthPulse * 0.38 * uMotion;
+  float orbit = (uTime * uCameraOrbit + uGeometryRotation * 0.65) * uMotion;
   mat3 worldOrbit = rotateY(orbit) * rotateX(sin(orbit * 0.37) * uCameraOrbit * 0.12);
   vec3 worldPosition = worldOrbit * (center + localPosition);
   vWorldPosition = worldPosition;
@@ -121,23 +121,23 @@ void main() {
   base = mix(base, uAccent, vProminence * 0.18 + edge * uWireframeAmount * 0.52);
   float internal = (backLight * 0.62 + pow(1.0 - abs(dot(normal, viewDirection)), 4.0) * 0.38) * uInternalGlow;
   float lighting = 0.12 + diffuse * 0.82 + fill * 0.22 + internal * 0.38;
-  lighting *= (0.62 + uIntensity * 0.58) * (1.0 + uBrightness * 0.26 + uBeat * 0.08);
+  lighting *= (1.0 + uBrightness * 0.26 + uBeat * 0.08);
   vec3 faceColor = base * lighting + uAccent * (rim * (0.16 + uGlow * 0.18) + internal * 0.12);
 
   float distanceToCamera = length(uCameraPosition - vWorldPosition);
   float fogFactor = 1.0 - exp(-max(0.0, distanceToCamera - 1.1) * uFogAmount * uDepthFade * 0.34);
-  faceColor = mix(faceColor, uFogColor, clamp(fogFactor, 0.0, 0.82));
+  faceColor = mix(faceColor, uFogColor, clamp(fogFactor, 0.0, 0.82)) * uIntensity;
 
   if (uPassMode < 0.5) {
-    if (uFaceOpacity < orderedDither4x4(gl_FragCoord.xy)) discard;
+    if (uFaceOpacity * uIntensity < orderedDither4x4(gl_FragCoord.xy)) discard;
     outColor = vec4(faceColor, 1.0);
     return;
   }
 
   float emissiveAlpha = clamp(
-    edge * uWireframeAmount * 0.72
+    (edge * uWireframeAmount * 0.72
       + rim * (0.18 + uGlow * 0.18)
-      + internal * 0.12,
+      + internal * 0.12) * uIntensity,
     0.0,
     1.0
   );
@@ -147,7 +147,7 @@ void main() {
       + rim * (0.5 + uGlow * 0.5)
       + internal * 0.34
   );
-  emissive = mix(emissive, uFogColor, clamp(fogFactor * 0.65, 0.0, 0.7));
+  emissive = mix(emissive, uFogColor, clamp(fogFactor * 0.65, 0.0, 0.7)) * uIntensity;
   outColor = vec4(emissive, emissiveAlpha);
 }
 `
@@ -190,8 +190,8 @@ mat3 rotateY(float angle) {
 }
 
 vec3 transformEndpoint(vec3 endpoint) {
-  endpoint.z *= 1.0 + uDepthPulse * 0.38;
-  float orbit = uTime * uCameraOrbit * (0.15 + uMotion * 0.5) + uGeometryRotation * 0.65;
+  endpoint.z *= 1.0 + uDepthPulse * 0.38 * uMotion;
+  float orbit = (uTime * uCameraOrbit + uGeometryRotation * 0.65) * uMotion;
   mat3 worldOrbit = rotateY(orbit) * rotateX(sin(orbit * 0.37) * uCameraOrbit * 0.12);
   return worldOrbit * endpoint;
 }
@@ -270,6 +270,7 @@ uniform float uFogAmount;
 uniform float uDepthFade;
 uniform float uBeat;
 uniform float uBrightness;
+uniform float uIntensity;
 
 out vec4 outColor;
 
@@ -279,10 +280,10 @@ void main() {
   float ageColor = smoothstep(0.15, 1.0, vAge);
   float paletteMix = clamp(0.5 + (vPalette - 0.5) * (0.24 + uColorVariation * 1.76), 0.0, 1.0);
   vec3 color = mix(uBeamColor, uBeamAccent, clamp(paletteMix * 0.7 + ageColor * 0.16, 0.0, 1.0));
-  float brightness = uPassBrightness * (1.0 + uBeat * 0.24 + uBrightness * 0.2);
+  float brightness = uPassBrightness * (1.0 + uBeat * 0.24 + uBrightness * 0.2) * uIntensity;
   float fogFactor = 1.0 - exp(-max(0.0, vDistance - 1.0) * uFogAmount * uDepthFade * 0.28);
   color = mix(color, uFogColor, clamp(fogFactor, 0.0, 0.78));
-  float alpha = clamp(vAlpha * uEdgeOpacity * profile * (1.0 - fogFactor * 0.45), 0.0, 1.0);
+  float alpha = clamp(vAlpha * uEdgeOpacity * profile * (1.0 - fogFactor * 0.45) * uIntensity, 0.0, 1.0);
   outColor = vec4(color * brightness, alpha);
 }
 `

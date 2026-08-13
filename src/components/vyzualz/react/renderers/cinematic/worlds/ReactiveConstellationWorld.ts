@@ -109,7 +109,7 @@ const BEAM_REQUIRED_UNIFORMS = [
   'uViewProjection', 'uViewport', 'uCameraPosition', 'uBeamWidthPx', 'uPassWidthScale',
   'uTime', 'uMotion', 'uCameraOrbit', 'uGeometryRotation', 'uDepthPulse', 'uBeamColor',
   'uBeamAccent', 'uFogColor', 'uEdgeOpacity', 'uPassBrightness', 'uPassSoftness',
-  'uColorVariation', 'uFogAmount', 'uDepthFade', 'uBeat', 'uBrightness',
+  'uColorVariation', 'uFogAmount', 'uDepthFade', 'uBeat', 'uBrightness', 'uIntensity',
 ] as const
 
 function createBuffer(gl: WebGL2RenderingContext, services: CinematicWebGLServices): WebGLBuffer {
@@ -282,11 +282,12 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
       deltaTimeSec: frame.deltaTimeSec,
       timingDiscontinuity: frame.timingDiscontinuity,
     })
+    const masterMotion = Math.min(1, Math.max(0, frame.params.motion))
     const composition = resolveReactiveConstellationComposition({
       settings,
       audio: frame.musicalAudio,
       modulation: frame.modulation,
-      motionScale: Math.max(0, frame.params.motion),
+      motionScale: masterMotion,
       performanceActionEnvelopes: performance.offsets,
     })
     const next = composition.values
@@ -327,6 +328,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     const atBarBoundary = Boolean(frame.musicalAudio?.events.barStart)
     if (
       isPlaying
+      && masterMotion > 0
       && reseedEveryBars > 0
       && atBarBoundary
       && barIndex > 0
@@ -353,8 +355,8 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
       : null
 
     this.simulation.update({
-      deltaTimeSec: frame.deltaTimeSec,
-      isPlaying: isPlaying && !performance.freeze,
+      deltaTimeSec: frame.deltaTimeSec * masterMotion,
+      isPlaying: isPlaying && !performance.freeze && masterMotion > 0,
       timingDiscontinuity: frame.timingDiscontinuity,
       motionScale: this.heldMotionScale,
       impact: 0,
@@ -436,7 +438,8 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
           beamAccent: basePalette.beamCore,
         }
       : basePalette
-    const flash = Math.min(1, Math.max(0, performance.whiteFlash))
+    const masterIntensity = Math.min(1, Math.max(0, frame.params.intensity))
+    const flash = Math.min(1, Math.max(0, performance.whiteFlash)) * masterIntensity
     const towardWhite = (color: { r: number; g: number; b: number }) => ({
       r: color.r + (1 - color.r) * flash,
       g: color.g + (1 - color.g) * flash,
@@ -456,7 +459,11 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
       : flippedPalette
     const fogAmount = Math.min(1, Math.max(0, frame.config.environment.fog))
     const motion = this.heldMotionScale
-    const materialGlow = Math.max(frame.params.glow, frame.config.material.glow)
+    const masterGlow = Math.min(1, Math.max(0, frame.params.glow))
+    // The common Glow control scales authored glow layers instead of competing
+    // with material glow via Math.max(), so Glow=0 is a real off state while
+    // preserving the non-glow core geometry/beam pass.
+    const materialGlow = Math.min(2, masterGlow * Math.max(0, frame.config.material.glow))
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer)
     gl.viewport(0, 0, target.width, target.height)
@@ -489,6 +496,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.beamProgram.setFloat('uDepthFade', settings.depthFade)
     this.beamProgram.setFloat('uBeat', Math.min(1, this.heldBurstImpulse / 2.5))
     this.beamProgram.setFloat('uBrightness', this.heldBrightness)
+    this.beamProgram.setFloat('uIntensity', masterIntensity)
 
     // Additive background and network beams are drawn before the ordered face pass.
     // The subsequent dithered opaque coverage lets beams remain visible through
@@ -514,7 +522,7 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
       gl.bindVertexArray(this.beamResource.vao)
       if (settings.beamGlow > 0 && this.beamGlowInstanceCount > 0) {
         this.beamProgram.setFloat('uPassWidthScale', 3.2 + budget.glowPassComplexity * 1.7)
-        this.beamProgram.setFloat('uPassBrightness', settings.beamGlow * (0.36 + budget.glowPassComplexity * 0.22))
+        this.beamProgram.setFloat('uPassBrightness', settings.beamGlow * masterGlow * (0.36 + budget.glowPassComplexity * 0.22))
         this.beamProgram.setFloat('uPassSoftness', 0.72)
         gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.beamGlowInstanceCount)
       }
@@ -539,12 +547,12 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
     this.nodeProgram.setVec3('uSecondary', palette.secondary.r, palette.secondary.g, palette.secondary.b)
     this.nodeProgram.setVec3('uAccent', palette.accent.r, palette.accent.g, palette.accent.b)
     this.nodeProgram.setVec3('uFogColor', palette.fog.r, palette.fog.g, palette.fog.b)
-    this.nodeProgram.setFloat('uIntensity', Math.max(0, frame.params.intensity))
+    this.nodeProgram.setFloat('uIntensity', masterIntensity)
     this.nodeProgram.setFloat('uGlow', materialGlow)
     this.nodeProgram.setFloat('uFaceOpacity', this.heldFacetOpacity)
     this.nodeProgram.setFloat('uFacetContrast', settings.facetContrast)
-    this.nodeProgram.setFloat('uInternalGlow', this.heldInternalGlow)
-    this.nodeProgram.setFloat('uRimIntensity', this.heldRimIntensity)
+    this.nodeProgram.setFloat('uInternalGlow', this.heldInternalGlow * masterGlow)
+    this.nodeProgram.setFloat('uRimIntensity', this.heldRimIntensity * masterGlow)
     this.nodeProgram.setFloat('uWireframeAmount', settings.wireframeAmount)
     this.nodeProgram.setFloat('uColorVariation', settings.colorVariation)
     this.nodeProgram.setFloat('uFogAmount', fogAmount)
