@@ -438,6 +438,7 @@ vi.mock('../shared/VyzualzHeaderActions', () => ({
 }))
 
 import { createDefaultLaserDmxShowDirectorFixture } from '../react/ReactTypes'
+import type { CanvasShowManagerShow } from './CanvasShowManagerDomain'
 import {
   copyLaserDmxShowManagerFixturesBetweenSections,
   removeLaserDmxShowManagerFixtureFromSection,
@@ -475,7 +476,8 @@ function setSharedShowToLaserAuthoredSections() {
 
 function setSharedShowToCanvasAuthoredSections(showId: string) {
   const shared = fixture.state.showManagerShows.find(show => show.id === showId)
-  const canvas = fixture.state.canvasShowManagerShows.find(show => show.id === showId)
+  const canvasShows = fixture.state.canvasShowManagerShows as CanvasShowManagerShow[]
+  const canvas = canvasShows.find(show => show.id === showId)
   if (!shared || !canvas) return
   let cursor = 0
   const sections = canvas.sections.map(section => {

@@ -215,14 +215,16 @@ describe('Show Manager linked-track Track Map integration', () => {
     expect(map.sections[1]!.startSec).toBe(1.5)
   })
 
-  it('assigns section ownership only on the first LaserDMX authoring action and keeps display settings section-local', async () => {
-    const showId = await useReactStore.getState().createShowManagerShow({
+  it('assigns section ownership only on the first LaserDMX authoring action and keeps display settings section-local', () => {
+    const shared = createShowManagerShow({
       name: 'Section Ownership',
       linkedAudioTrackId: 'audio-db-shared',
       initialEngineId: null,
-    })
-    expect(showId).toBeTruthy()
-    reconcile(showId!)
+    })!
+    const showId = shared.id
+    useReactStore.setState({ showManagerShows: [shared], showManagerEditingShowId: showId })
+    useReactStore.getState().ensureShowManagerAuthoringMirrors(showId)
+    reconcile(showId)
 
     let state = useReactStore.getState()
     const sharedBefore = state.showManagerShows.find(show => show.id === showId)!
@@ -231,12 +233,12 @@ describe('Show Manager linked-track Track Map integration', () => {
     expect(state.canvasShowManagerShows.some(show => show.id === showId)).toBe(true)
     expect(state.laserDmxShowManagerShows.some(show => show.id === showId)).toBe(true)
 
-    state.updateLaserDmxShowManagerSectionWorkspaceSettings(showId!, 'analysis-intro', { showGrid: false })
+    state.updateLaserDmxShowManagerSectionWorkspaceSettings(showId, 'analysis-intro', { showGrid: false })
     state = useReactStore.getState()
     expect(state.laserDmxShowManagerShows.find(show => show.id === showId)?.sections[0]?.settings.showGrid).toBe(false)
     expect(state.showManagerShows.find(show => show.id === showId)?.trackMap?.sections[0]?.engineId).toBeUndefined()
 
-    const fixtureId = state.addLaserDmxShowManagerFixture(showId!, 'analysis-intro', 'movingHead', { x: 3, y: 4 })
+    const fixtureId = state.addLaserDmxShowManagerFixture(showId, 'analysis-intro', 'movingHead', { x: 3, y: 4 })
     expect(fixtureId).toBeTruthy()
 
     state = useReactStore.getState()
@@ -251,7 +253,7 @@ describe('Show Manager linked-track Track Map integration', () => {
       y: 4,
     })
 
-    state.updateLaserDmxShowManagerSectionWorkspaceSettings(showId!, 'analysis-intro', { showLabels: false })
+    state.updateLaserDmxShowManagerSectionWorkspaceSettings(showId, 'analysis-intro', { showLabels: false })
     state = useReactStore.getState()
     const laser = state.laserDmxShowManagerShows.find(show => show.id === showId)!
     expect(laser.sections.find(section => section.id === 'analysis-intro')?.settings.showGrid).toBe(false)
@@ -264,22 +266,24 @@ describe('Show Manager linked-track Track Map integration', () => {
     expect(reloaded.showManagerShows.find(show => show.id === showId)?.trackMap?.sections[0]?.engineId).toBe('laserDmx')
   })
 
-  it('clears the current section before changing its authoring engine and leaves neighboring sections intact', async () => {
-    const showId = await useReactStore.getState().createShowManagerShow({
+  it('clears the current section before changing its authoring engine and leaves neighboring sections intact', () => {
+    const sharedShow = createShowManagerShow({
       name: 'Engine Replacement',
       linkedAudioTrackId: 'audio-db-shared',
       initialEngineId: null,
-    })
-    expect(showId).toBeTruthy()
-    reconcile(showId!)
+    })!
+    const showId = sharedShow.id
+    useReactStore.setState({ showManagerShows: [sharedShow], showManagerEditingShowId: showId })
+    useReactStore.getState().ensureShowManagerAuthoringMirrors(showId)
+    reconcile(showId)
 
-    const introFixture = useReactStore.getState().addLaserDmxShowManagerFixture(showId!, 'analysis-intro', 'laser', { label: 'Intro Laser' })
-    const buildFixture = useReactStore.getState().addLaserDmxShowManagerFixture(showId!, 'analysis-build', 'strobe', { label: 'Build Strobe' })
+    const introFixture = useReactStore.getState().addLaserDmxShowManagerFixture(showId, 'analysis-intro', 'laser', { label: 'Intro Laser' })
+    const buildFixture = useReactStore.getState().addLaserDmxShowManagerFixture(showId, 'analysis-build', 'strobe', { label: 'Build Strobe' })
     expect(introFixture).toBeTruthy()
     expect(buildFixture).toBeTruthy()
-    useReactStore.getState().updateLaserDmxShowManagerSectionWorkspaceSettings(showId!, 'analysis-intro', { showLabels: false })
+    useReactStore.getState().updateLaserDmxShowManagerSectionWorkspaceSettings(showId, 'analysis-intro', { showLabels: false })
 
-    expect(useReactStore.getState().replaceShowManagerSectionEngine(showId!, 'analysis-intro', 'canvas')).toBe(true)
+    expect(useReactStore.getState().replaceShowManagerSectionEngine(showId, 'analysis-intro', 'canvas')).toBe(true)
 
     const state = useReactStore.getState()
     const shared = state.showManagerShows.find(show => show.id === showId)!
@@ -290,7 +294,7 @@ describe('Show Manager linked-track Track Map integration', () => {
     expect(laser.sections.find(section => section.id === 'analysis-intro')?.fixtures).toEqual([])
     expect(laser.sections.find(section => section.id === 'analysis-intro')?.settings.showLabels).toBe(true)
     expect(laser.sections.find(section => section.id === 'analysis-build')?.fixtures.map(fixture => fixture.label)).toEqual(['Build Strobe'])
-    expect(useReactStore.getState().addLaserDmxShowManagerFixture(showId!, 'analysis-intro', 'movingHead')).toBeNull()
+    expect(useReactStore.getState().addLaserDmxShowManagerFixture(showId, 'analysis-intro', 'movingHead')).toBeNull()
   })
 
   it('blocks legacy engine timing mutation APIs while an audio-bound Show is waiting for analysis', async () => {

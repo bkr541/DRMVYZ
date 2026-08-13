@@ -3717,7 +3717,10 @@ function LaserDmxShowManagerStage({
           }
         }}
         onDrop={event => {
-          if (!Array.from(event.dataTransfer.types).includes('application/x-drmvyz-laserdmx-fixture-kind')) return
+          const transferTypes = event.dataTransfer.types ? Array.from(event.dataTransfer.types) : []
+          const hasLaserPayload = transferTypes.includes('application/x-drmvyz-laserdmx-fixture-kind')
+            || Boolean(event.dataTransfer.getData('application/x-drmvyz-laserdmx-fixture-kind'))
+          if (!hasLaserPayload) return
           onDropFixture(event)
         }}
         onClick={event => endpointTargetingFixtureId ? onCommitEndpointTarget(event) : onSelectFixture(null)}
