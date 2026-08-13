@@ -8,6 +8,7 @@ import { resolveCanvasContextualTransitionIds } from './CanvasTransitions'
 import {
   getCanvasPerformancePreloadCandidates,
   resolveCanvasAuthoredProgramState,
+  resolveCanvasDeterministicMedia,
   resolveCanvasPerformanceFrame,
 } from './CanvasPerformanceEngine'
 import {
@@ -213,6 +214,14 @@ describe('authored CANVAS Performance Shows', () => {
     },
   )
 
+  it('keeps Fractures Performance on its specialized one-logical-source duplication path', () => {
+    const frame = resolve('canvas-fractures-performance', 56)
+    expect(getCanvasPerformanceShow('canvas-fractures-performance').mediaStrategy.duplicationPolicy).toBe('fracture')
+    expect(frame.layers).toHaveLength(1)
+    expect(frame.layers[0]?.processor?.kind).toBe('fractures')
+    expect(frame.diagnostics).toEqual(expect.arrayContaining(['specialized:fractures', 'fractures-one-logical-layer']))
+  })
+
   it('evolves Drop 2 while preserving the show identity', () => {
     for (const show of CANVAS_PERFORMANCE_SHOWS) {
       const drop1 = resolve(show.id, 56)
@@ -221,6 +230,179 @@ describe('authored CANVAS Performance Shows', () => {
       expect(drop2.sceneId).not.toBe(drop1.sceneId)
       expect(drop2.context.dropOccurrence).toBeGreaterThan(drop1.context.dropOccurrence)
     }
+  })
+
+  it('uses visibly different Auto Section Aware architectures across sections and Performance Shows', () => {
+    const cinematicSections = [8, 24, 36, 54, 120, 220].map(timeSec => resolve('canvas-cinematic-bass-editor', timeSec))
+    expect(new Set(cinematicSections.map(frame => frame.template.id)).size).toBeGreaterThanOrEqual(4)
+
+    const dropTemplates = [
+      'canvas-cinematic-bass-editor',
+      'canvas-glitch-collage-reactor',
+      'canvas-dreamstate-media-tunnel',
+      'canvas-impact-cut-system',
+      'canvas-layered-luma-journey',
+    ].map(showId => resolve(showId as CanvasPerformanceShowId, 54).template.id)
+    expect(new Set(dropTemplates).size).toBeGreaterThanOrEqual(4)
+  })
+
+  it('preserves each show architecture during shared pre-drop contraction instead of flattening every show to one composition', () => {
+    const templates = [
+      'canvas-cinematic-bass-editor',
+      'canvas-glitch-collage-reactor',
+      'canvas-dreamstate-media-tunnel',
+      'canvas-impact-cut-system',
+      'canvas-layered-luma-journey',
+    ].map(showId => resolve(showId as CanvasPerformanceShowId, 45).template.id)
+
+    expect(templates).toEqual([
+      'heroPlusTexture',
+      'fourPanelGrid',
+      'echoTunnel',
+      'splitScreen',
+      'layeredLumaCollage',
+    ])
+  })
+
+  it('applies explicit show media priorities inside equal role-suitability tiers', () => {
+    const context = contextAt(56)
+    const choose = (
+      showId: CanvasPerformanceShowId,
+      pool: CanvasMediaItem[],
+      roleMap: CanvasOrchestrationSettings['mediaRolesById'],
+      requiredRoles: Parameters<typeof resolveCanvasDeterministicMedia>[0]['requiredRoles'],
+      layerRole: Parameters<typeof resolveCanvasDeterministicMedia>[0]['layerRole'],
+    ) => resolveCanvasDeterministicMedia({
+      items: pool,
+      requiredRoles,
+      settings: settings(showId, { mediaPoolIds: pool.map(item => item.id), mediaRolesById: roleMap }),
+      context,
+      layerRole,
+    })?.id
+
+    const heroPool = [media('cinematic-video', 'video'), media('impact-drop-image', 'image')]
+    const heroRoles = { 'cinematic-video': ['hero'], 'impact-drop-image': ['hero', 'dropAsset'] } satisfies CanvasOrchestrationSettings['mediaRolesById']
+    expect(choose('canvas-cinematic-bass-editor', heroPool, heroRoles, ['hero', 'dropAsset'], 'hero')).toBe('cinematic-video')
+    expect(choose('canvas-impact-cut-system', heroPool, heroRoles, ['hero', 'dropAsset'], 'hero')).toBe('impact-drop-image')
+
+    const texturePool = [media('grain', 'image'), media('mask-svg', 'svg', { hasAlpha: true })]
+    const textureRoles = { grain: ['texture'], 'mask-svg': ['texture', 'mask'] } satisfies CanvasOrchestrationSettings['mediaRolesById']
+    expect(choose('canvas-glitch-collage-reactor', texturePool, textureRoles, ['texture'], 'texture')).toBe('grain')
+    expect(choose('canvas-layered-luma-journey', texturePool, textureRoles, ['texture'], 'texture')).toBe('mask-svg')
+
+    const backgroundPool = [media('atmo-video', 'video'), media('clean-still', 'image')]
+    const backgroundRoles = { 'atmo-video': ['background'], 'clean-still': ['background'] } satisfies CanvasOrchestrationSettings['mediaRolesById']
+    expect(choose('canvas-dreamstate-media-tunnel', backgroundPool, backgroundRoles, ['background'], 'background')).toBe('atmo-video')
+    expect(choose('canvas-impact-cut-system', backgroundPool, backgroundRoles, ['background'], 'background')).toBe('clean-still')
+
+    const accentPool = [media('alternate-video', 'video'), media('accent-svg', 'svg', { hasAlpha: true })]
+    const accentRoles = { 'alternate-video': ['alternateHero'], 'accent-svg': ['foregroundAccent'] } satisfies CanvasOrchestrationSettings['mediaRolesById']
+    expect(choose('canvas-cinematic-bass-editor', accentPool, accentRoles, ['alternateHero', 'foregroundAccent'], 'foregroundAccent')).toBe('alternate-video')
+    expect(choose('canvas-glitch-collage-reactor', accentPool, accentRoles, ['alternateHero', 'foregroundAccent'], 'foregroundAccent')).toBe('accent-svg')
+  })
+
+  it('changes media vocabulary by Performance Show even inside the same manual composition', () => {
+    const strategyPool = [
+      media('strong-hero-video', 'video'),
+      media('drop-alternate-image', 'image'),
+      media('atmosphere-video', 'video'),
+      media('texture-image', 'image'),
+      media('luma-mask', 'svg', { hasAlpha: true }),
+      media('accent-svg', 'svg', { hasAlpha: true }),
+    ]
+    const roleMap: CanvasOrchestrationSettings['mediaRolesById'] = {
+      'strong-hero-video': ['hero'],
+      'drop-alternate-image': ['dropAsset', 'alternateHero'],
+      'atmosphere-video': ['background', 'breakdownAsset'],
+      'texture-image': ['texture'],
+      'luma-mask': ['mask', 'texture'],
+      'accent-svg': ['foregroundAccent', 'alternateHero'],
+    }
+    const signatureFor = (showId: CanvasPerformanceShowId) => {
+      const frame = resolveCanvasPerformanceFrame({
+        context: contextAt(56),
+        settings: settings(showId, {
+          compositionPreference: 'fourPanelGrid',
+          complexity: 0,
+          mediaPoolIds: strategyPool.map(item => item.id),
+          mediaRolesById: roleMap,
+          cutDensity: 0,
+        }),
+        mediaItems: strategyPool,
+      })
+      return frame.layers.map(layer => `${layer.role}:${layer.sourceMediaId}`).join('|')
+    }
+
+    const cinematic = signatureFor('canvas-cinematic-bass-editor')
+    const glitch = signatureFor('canvas-glitch-collage-reactor')
+    const dream = signatureFor('canvas-dreamstate-media-tunnel')
+    const impact = signatureFor('canvas-impact-cut-system')
+    const luma = signatureFor('canvas-layered-luma-journey')
+
+    expect(new Set([cinematic, glitch, dream, impact, luma]).size).toBeGreaterThanOrEqual(4)
+    expect(glitch).not.toBe(cinematic)
+    expect(dream).not.toBe(impact)
+    expect(luma).not.toBe(glitch)
+  })
+
+  it('keeps manual Composition authoritative while show media personality remains active', () => {
+    const intro = resolve('canvas-glitch-collage-reactor', 8, 'none', { compositionPreference: 'fullScreenHero' })
+    const drop = resolve('canvas-glitch-collage-reactor', 56, 'none', { compositionPreference: 'fullScreenHero' })
+    const cinematicDrop = resolve('canvas-cinematic-bass-editor', 56, 'none', { compositionPreference: 'fullScreenHero' })
+
+    expect(intro.template.id).toBe('fullScreenHero')
+    expect(drop.template.id).toBe('fullScreenHero')
+    expect(drop.effectRecipeId).not.toBe(cinematicDrop.effectRecipeId)
+  })
+
+  it('reselects unlocked media when the Performance Show changes while preserving explicit locks', () => {
+    const switchPool = [media('cinematic-video', 'video'), media('impact-drop-image', 'image')]
+    const switchRoles = {
+      'cinematic-video': ['hero'],
+      'impact-drop-image': ['hero', 'dropAsset'],
+    } satisfies CanvasOrchestrationSettings['mediaRolesById']
+    const common = {
+      compositionPreference: 'fullScreenHero' as const,
+      complexity: 0,
+      cutDensity: 0,
+      mediaPoolIds: switchPool.map(item => item.id),
+      mediaRolesById: switchRoles,
+    }
+    const first = resolveCanvasPerformanceFrame({
+      context: contextAt(56),
+      settings: settings('canvas-cinematic-bass-editor', common),
+      mediaItems: switchPool,
+    })
+    const switched = resolveCanvasPerformanceFrame({
+      context: contextAt(56),
+      settings: settings('canvas-impact-cut-system', common),
+      mediaItems: switchPool,
+      previousFrame: first,
+    })
+    const locked = resolveCanvasPerformanceFrame({
+      context: contextAt(56),
+      settings: settings('canvas-impact-cut-system', {
+        ...common,
+        mediaLocksByLayer: { hero: 'cinematic-video' },
+        layerLocks: { hero: true },
+      }),
+      mediaItems: switchPool,
+      previousFrame: first,
+    })
+
+    expect(first.layers[0]?.sourceMediaId).toBe('cinematic-video')
+    expect(switched.layers[0]?.sourceMediaId).toBe('impact-drop-image')
+    expect(locked.layers[0]?.sourceMediaId).toBe('cinematic-video')
+    expect(locked.layers[0]?.userLocked).toBe(true)
+  })
+
+  it('does not let a high-energy section override Stage 1 Layer Complexity', () => {
+    const low = resolve('canvas-glitch-collage-reactor', 56, 'none', { complexity: 0 })
+    const high = resolve('canvas-glitch-collage-reactor', 56, 'none', { complexity: 1 })
+
+    expect(low.template.id).toBe('fourPanelGrid')
+    expect(low.layers).toHaveLength(4)
+    expect(high.layers.length).toBeGreaterThan(low.layers.length)
   })
 
   it('changes four-bar motifs, recruits at eight bars, and evolves at sixteen bars', () => {
@@ -244,7 +426,7 @@ describe('authored CANVAS Performance Shows', () => {
     const contractionContext = contextAt(45)
     const contraction = resolveCanvasPerformanceFrame({ context: contractionContext, settings: showSettings, mediaItems: fullPool })
     expect(contraction.anticipatoryStage).toBe('contraction')
-    expect(contraction.template.id).toBe('maskedHeroReveal')
+    expect(contraction.template.id).toBe('heroPlusTexture')
     expect(contraction.effectRecipeId).toBe('preDropVacuum')
 
     const holdContext = contextAt(50.5, 'none', contractionContext)

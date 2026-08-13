@@ -10,6 +10,7 @@ import {
   DEFAULT_CANVAS_ENGINE_SETTINGS,
   type CanvasMediaItem,
   type CanvasPresetId,
+  type ReactTrackSection,
 } from '../ReactTypes'
 import {
   CanvasPreloadManager,
@@ -34,6 +35,10 @@ vi.mock('../renderers/CanvasFracturesRendererLayer', () => ({
 }))
 
 import { CanvasEngineSurface } from '../ReactCanvasEngineShell'
+import {
+  clearAllSharedPerformanceDiagnostics,
+  getSharedPerformanceDiagnostics,
+} from '../SharedPerformanceDiagnosticsStore'
 import {
   CANVAS_SHOW_MANAGER_DEFAULT_DISPLAY,
   CANVAS_SHOW_MANAGER_DEFAULT_FX,
@@ -61,6 +66,25 @@ const media: CanvasMediaItem = {
   height: 1080,
   tags: ['hero', 'background'],
 }
+
+const routingSections: ReactTrackSection[] = [
+  { id: 'routing-intro', label: 'Intro', type: 'intro', startSec: 0, endSec: 16, intensity: 0.25, source: 'auto', confidence: 0.95 },
+  { id: 'routing-verse', label: 'Verse', type: 'verse', startSec: 16, endSec: 32, intensity: 0.5, source: 'auto', confidence: 0.95 },
+  { id: 'routing-build', label: 'Build', type: 'build', startSec: 32, endSec: 48, intensity: 0.75, source: 'auto', confidence: 0.95 },
+  { id: 'routing-predrop', label: 'Pre-Drop', type: 'preDrop', startSec: 48, endSec: 52, intensity: 0.55, source: 'auto', confidence: 0.95 },
+  { id: 'routing-drop', label: 'Drop', type: 'drop', startSec: 52, endSec: 80, intensity: 0.96, source: 'auto', confidence: 0.97 },
+  { id: 'routing-breakdown', label: 'Breakdown', type: 'breakdown', startSec: 80, endSec: 96, intensity: 0.3, source: 'auto', confidence: 0.94 },
+  { id: 'routing-outro', label: 'Outro', type: 'outro', startSec: 96, endSec: 112, intensity: 0.2, source: 'auto', confidence: 0.92 },
+]
+
+const automaticRoutingPool: CanvasMediaItem[] = [
+  { ...media, id: 'routing-drop-video', name: 'Drop Hero Video', type: 'video', mimeType: 'video/mp4', objectUrl: 'media://routing-drop-video', tags: ['drop'], durationSec: 32, fps: 30 },
+  { ...media, id: 'routing-alt-portrait', name: 'Alternate Portrait', type: 'video', mimeType: 'video/mp4', objectUrl: 'media://routing-alt-portrait', width: 900, height: 1600, tags: ['drop'], durationSec: 16, fps: 30 },
+  { ...media, id: 'routing-atmosphere', name: 'Atmosphere Background', objectUrl: 'media://routing-atmosphere', libraryRole: 'background_image', tags: ['ambient'] },
+  { ...media, id: 'routing-texture', name: 'Texture Grain', objectUrl: 'media://routing-texture', width: 1200, height: 1200, tags: ['texture'] },
+  { ...media, id: 'routing-accent', name: 'Logo Accent', type: 'svg', mimeType: 'image/svg+xml', objectUrl: 'media://routing-accent', width: 800, height: 1200, libraryRole: 'logo', hasAlpha: true, tags: ['accent'] },
+  { ...media, id: 'routing-transition', name: 'Transition Flash', objectUrl: 'media://routing-transition', width: 1200, height: 1200, tags: ['transition'] },
+]
 
 const recorder: Recorder = {
   recorderState: 'idle',
@@ -143,9 +167,13 @@ function setCanvasRoutingState({
 async function renderSurface({
   onCanvasReady,
   onOutputCapabilityChange,
+  audioTime = 0,
+  trackSections = [],
 }: {
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onOutputCapabilityChange?: (capability: CanvasOutputCapability) => void
+  audioTime?: number
+  trackSections?: ReactTrackSection[]
 } = {}) {
   await act(async () => {
     root?.render(
@@ -154,7 +182,8 @@ async function renderSurface({
         isPaused={false}
         analyser={null}
         activeAudioTrackId="routing-track"
-        getAudioTime={() => 0}
+        getAudioTime={() => audioTime}
+        trackSections={trackSections}
         onCanvasReady={onCanvasReady}
         onOutputCapabilityChange={onOutputCapabilityChange}
       />,
@@ -213,6 +242,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   mediaReady = true
   canvasAssignments = []
+  clearAllSharedPerformanceDiagnostics()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
   vi.stubGlobal('cancelAnimationFrame', vi.fn())
@@ -259,6 +289,7 @@ afterEach(async () => {
   host = null
   useReactStore.getState().resetReactView()
   useMediaStore.setState({ items: [] })
+  clearAllSharedPerformanceDiagnostics()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
   vi.useRealTimers()
@@ -395,6 +426,59 @@ describe('CanvasEngineSurface Performance Show routing', () => {
 
     expect(host?.querySelector('.rv-canvas-orchestration-stage')).toBeNull()
     expect(host?.querySelector('.rv-canvas-live-output')).not.toBeNull()
+  })
+
+  it('routes Auto Role media diversity and section-aware show identity through the production CANVAS surface', async () => {
+    setCanvasRoutingState({
+      presetId: 'canvas-clean-playback',
+      showId: 'canvas-glitch-collage-reactor',
+      enabled: true,
+    })
+    useReactStore.setState(state => ({
+      canvasMediaItems: automaticRoutingPool,
+      selectedCanvasMediaId: automaticRoutingPool[0].id,
+      activeCanvasMediaId: automaticRoutingPool[0].id,
+      canvasEngineSettings: {
+        ...state.canvasEngineSettings,
+        selectedMediaId: automaticRoutingPool[0].id,
+        mediaIds: automaticRoutingPool.map(item => item.id),
+      },
+      canvasOrchestrationSettings: {
+        ...state.canvasOrchestrationSettings,
+        autoRoleEnabled: true,
+        compositionPreference: 'auto',
+        complexity: 0,
+        motionIntensity: 0,
+        effectIntensity: 0,
+        transitionDensity: 0,
+        cutDensity: 0,
+        mediaPoolIds: automaticRoutingPool.map(item => item.id),
+        mediaRolesById: {},
+        poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+      },
+    }))
+
+    await renderSurface({ audioTime: 8, trackSections: routingSections })
+    const intro = getSharedPerformanceDiagnostics('canvas')
+    expect(intro?.performanceShow).toBe('Glitch Collage Reactor')
+    expect(intro?.section).toBe('intro')
+    expect(intro?.motifOrComposition).toBe('Split Screen')
+    expect(useReactStore.getState().canvasOrchestrationSettings.autoRoleEnabled).toBe(true)
+
+    await renderSurface({ audioTime: 56, trackSections: routingSections })
+    await act(async () => {
+      vi.advanceTimersByTime(80)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    const drop = getSharedPerformanceDiagnostics('canvas')
+    const activeSources = (drop?.activeLayers ?? []).map(layer => layer.split(':').slice(1).join(':'))
+
+    expect(drop?.section).toBe('drop')
+    expect(drop?.motifOrComposition).toBe('Four-panel Grid')
+    expect(drop?.activeLayers).toHaveLength(4)
+    expect(new Set(activeSources).size).toBe(4)
+    expect(host?.querySelector('[aria-label="CANVAS orchestrated media surface"]')).not.toBeNull()
   })
 
   it('derives orchestration stage from the resolved show and reserves the selected preset for direct fallback', async () => {

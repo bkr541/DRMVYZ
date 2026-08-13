@@ -3,23 +3,124 @@ import type {
   SharedPerformanceProgramScene,
 } from '../../../../features/performanceCore'
 import type { ReactSectionType } from '../../../../features/musicIntelligence/types'
+import type { CanvasMediaItemType } from '../ReactTypes'
 import type {
   CanvasCompositionTemplateId,
   CanvasEffectRecipeId,
   CanvasLayerRole,
+  CanvasMediaRole,
   CanvasPerformanceAction,
   CanvasPerformanceShowId,
   CanvasFracturesOverrideProfile,
   CanvasTransitionId,
 } from './CanvasPerformanceTypes'
 
+export interface CanvasPerformanceMediaStrategy {
+  /** Relative preference among media roles after the composition slot's required-role tier is satisfied. */
+  roleWeights: Readonly<Partial<Record<CanvasMediaRole, number>>>
+  /** Per-layer semantic priorities let a show recruit a different visual vocabulary inside the same composition. */
+  layerRolePreferences: Readonly<Partial<Record<CanvasLayerRole, readonly CanvasMediaRole[]>>>
+  /** Small media-kind preferences are applied only inside an equal role-suitability tier. */
+  sourceTypeWeights: Readonly<Partial<Record<CanvasLayerRole, Partial<Record<CanvasMediaItemType, number>>>>>
+  /** Strength of duplicate-source avoidance for unrelated simultaneous roles. */
+  diversityWeight: number
+  /** Echo permits deliberate reuse in feedback/mirror treatments; fracture owns duplication internally. */
+  duplicationPolicy: 'avoid' | 'echo' | 'fracture'
+}
+
 export interface CanvasPerformanceShowDefinition {
   id: CanvasPerformanceShowId
   label: string
   description: string
   visualPhilosophy: string
+  mediaStrategy: CanvasPerformanceMediaStrategy
   program: SharedPerformanceProgram<CanvasPerformanceAction>
   fallbackSceneId: string
+}
+
+const CANVAS_PERFORMANCE_MEDIA_STRATEGIES: Readonly<Record<CanvasPerformanceShowId, CanvasPerformanceMediaStrategy>> = {
+  'canvas-cinematic-bass-editor': {
+    roleWeights: { hero: 3.2, alternateHero: 2.4, background: 1.6, texture: 0.7, foregroundAccent: 1.0, dropAsset: 2.2, breakdownAsset: 1.5 },
+    layerRolePreferences: {
+      hero: ['hero', 'dropAsset', 'alternateHero'],
+      background: ['background', 'breakdownAsset'],
+      texture: ['texture', 'background'],
+      foregroundAccent: ['alternateHero', 'foregroundAccent'],
+      mask: ['mask', 'texture'],
+      transition: ['transition', 'alternateHero'],
+      feedback: ['hero', 'background'],
+    },
+    sourceTypeWeights: { hero: { video: 1.2, image: 0.35 }, background: { video: 0.5, image: 0.45 }, foregroundAccent: { svg: 0.55, image: 0.35 } },
+    diversityWeight: 1.0,
+    duplicationPolicy: 'avoid',
+  },
+  'canvas-glitch-collage-reactor': {
+    roleWeights: { alternateHero: 3.2, texture: 3.0, foregroundAccent: 2.8, transition: 2.2, hero: 1.7, background: 1.2, dropAsset: 1.8 },
+    layerRolePreferences: {
+      hero: ['alternateHero', 'hero', 'dropAsset'],
+      background: ['alternateHero', 'background', 'texture'],
+      texture: ['texture', 'alternateHero', 'transition'],
+      foregroundAccent: ['foregroundAccent', 'alternateHero', 'transition'],
+      mask: ['texture', 'mask', 'foregroundAccent'],
+      transition: ['transition', 'texture', 'alternateHero'],
+      feedback: ['texture', 'alternateHero', 'hero'],
+    },
+    sourceTypeWeights: { hero: { video: 0.7, image: 0.5 }, texture: { image: 0.8, video: 0.35 }, foregroundAccent: { svg: 1.05, image: 0.55, video: 0.35 } },
+    diversityWeight: 1.65,
+    duplicationPolicy: 'avoid',
+  },
+  'canvas-dreamstate-media-tunnel': {
+    roleWeights: { background: 3.2, texture: 2.8, breakdownAsset: 2.5, hero: 2.0, alternateHero: 1.1, foregroundAccent: 0.9, transition: 0.8 },
+    layerRolePreferences: {
+      hero: ['hero', 'breakdownAsset'],
+      background: ['background', 'breakdownAsset', 'texture'],
+      texture: ['texture', 'background', 'breakdownAsset'],
+      foregroundAccent: ['foregroundAccent', 'alternateHero'],
+      mask: ['texture', 'mask'],
+      transition: ['texture', 'transition'],
+      feedback: ['hero', 'background', 'texture'],
+    },
+    sourceTypeWeights: { hero: { video: 0.7, image: 0.3 }, background: { video: 1.1, image: 0.2 }, texture: { video: 0.45, image: 0.65 } },
+    diversityWeight: 0.9,
+    duplicationPolicy: 'echo',
+  },
+  'canvas-impact-cut-system': {
+    roleWeights: { hero: 3.2, alternateHero: 3.6, dropAsset: 4.2, foregroundAccent: 0.9, background: 0.4, texture: 0.15, transition: 0.35 },
+    layerRolePreferences: {
+      hero: ['dropAsset', 'hero', 'alternateHero'],
+      background: ['hero', 'background'],
+      texture: ['alternateHero', 'texture'],
+      foregroundAccent: ['alternateHero', 'foregroundAccent'],
+      mask: ['mask', 'foregroundAccent'],
+      transition: ['alternateHero', 'transition'],
+      feedback: ['hero'],
+    },
+    sourceTypeWeights: { hero: { image: 0.95, video: 0.85 }, background: { image: 0.8, video: 0.1 }, foregroundAccent: { image: 0.7, video: 0.55 } },
+    diversityWeight: 1.25,
+    duplicationPolicy: 'avoid',
+  },
+  'canvas-layered-luma-journey': {
+    roleWeights: { texture: 3.3, mask: 3.1, background: 2.5, breakdownAsset: 1.9, hero: 1.8, foregroundAccent: 1.5, alternateHero: 0.8 },
+    layerRolePreferences: {
+      hero: ['hero', 'breakdownAsset'],
+      background: ['background', 'breakdownAsset'],
+      texture: ['texture', 'mask', 'background'],
+      foregroundAccent: ['foregroundAccent', 'texture'],
+      mask: ['mask', 'texture', 'foregroundAccent'],
+      transition: ['texture', 'transition', 'mask'],
+      feedback: ['texture', 'hero'],
+    },
+    sourceTypeWeights: { background: { image: 0.65, video: 0.5 }, texture: { image: 0.7, svg: 1.05 }, mask: { svg: 1.0, image: 0.7 } },
+    diversityWeight: 1.15,
+    duplicationPolicy: 'avoid',
+  },
+  'canvas-fractures-performance': {
+    roleWeights: { hero: 3.4, dropAsset: 2.7, alternateHero: 2.0, buildAsset: 1.6, breakdownAsset: 1.5 },
+    layerRolePreferences: { hero: ['dropAsset', 'hero', 'alternateHero'] },
+    sourceTypeWeights: { hero: { video: 0.8, image: 0.6 } },
+    diversityWeight: 0,
+    duplicationPolicy: 'fracture',
+  },
 }
 
 type SectionRecipe = {
@@ -397,10 +498,11 @@ function show(
     label,
     description,
     visualPhilosophy,
+    mediaStrategy: CANVAS_PERFORMANCE_MEDIA_STRATEGIES[id],
     fallbackSceneId,
     program: {
       id,
-      metadata: { name: label, description, engine: 'canvas', version: 1, authoringRevision: 'patch-5' },
+      metadata: { name: label, description, engine: 'canvas', version: 1, authoringRevision: 'stage-2-media-intelligence' },
       fallbackOrder: ['unknown', 'verse', 'intro', 'breakdown', 'drop'],
       fallbackSceneId,
       scenes,

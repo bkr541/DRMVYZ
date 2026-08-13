@@ -146,6 +146,143 @@ describe('CANVAS media roles and deterministic selection', () => {
     expect(next?.id).not.toBe(first?.id)
     expect(locked?.id).toBe('c')
   })
+
+  it('prefers distinct suitable sources across unrelated simultaneously active roles', () => {
+    const pool = [
+      media('hero', 'video'),
+      media('alternate', 'video'),
+      media('background', 'image'),
+      media('texture', 'image'),
+      media('accent', 'svg', { hasAlpha: true }),
+      media('transition', 'image'),
+    ]
+    const orchestration = settings({
+      programId: 'canvas-glitch-collage-reactor',
+      compositionPreference: 'fourPanelGrid',
+      complexity: 0,
+      mediaPoolIds: pool.map(item => item.id),
+      mediaRolesById: {
+        hero: ['hero', 'dropAsset'],
+        alternate: ['alternateHero'],
+        background: ['background'],
+        texture: ['texture'],
+        accent: ['foregroundAccent', 'mask'],
+        transition: ['transition'],
+      },
+    })
+    const frame = resolveCanvasPerformanceFrame({ context: contextAt(10), settings: orchestration, mediaItems: pool })
+    const core = frame.layers.filter(layer => ['hero', 'foregroundAccent', 'texture', 'background'].includes(layer.role))
+    const ids = core.map(layer => layer.sourceMediaId).filter((id): id is string => Boolean(id))
+
+    expect(core).toHaveLength(4)
+    expect(new Set(ids).size).toBe(4)
+    expect(Object.fromEntries(core.map(layer => [layer.role, layer.sourceMediaId]))).toMatchObject({
+      hero: 'hero',
+      foregroundAccent: 'alternate',
+      texture: 'texture',
+      background: 'background',
+    })
+  })
+
+  it('does not collapse a pool of manually Hero-tagged sources onto the first asset', () => {
+    const pool = Array.from({ length: 6 }, (_, index) => media(`hero-only-${index}`, 'image'))
+    const orchestration = settings({
+      programId: 'canvas-glitch-collage-reactor',
+      compositionPreference: 'fourPanelGrid',
+      complexity: 0,
+      mediaPoolIds: pool.map(item => item.id),
+      mediaRolesById: Object.fromEntries(pool.map(item => [item.id, ['hero' as const]])),
+    })
+    const frame = resolveCanvasPerformanceFrame({ context: contextAt(10), settings: orchestration, mediaItems: pool })
+    const ids = frame.layers.map(layer => layer.sourceMediaId).filter((id): id is string => Boolean(id))
+
+    expect(ids).toHaveLength(4)
+    expect(new Set(ids).size).toBe(4)
+  })
+
+  it('lets locks outrank diversity and gracefully reuses a one-source pool', () => {
+    const diversePool = [media('hero-a'), media('hero-b'), media('background', 'image')]
+    const lockedFrame = resolveCanvasPerformanceFrame({
+      context: contextAt(10),
+      settings: settings({
+        programId: 'canvas-cinematic-bass-editor',
+        compositionPreference: 'fullScreenHero',
+        complexity: 0.35,
+        mediaPoolIds: diversePool.map(item => item.id),
+        mediaRolesById: { 'hero-a': ['hero'], 'hero-b': ['hero'], background: ['background'] },
+        mediaLocksByLayer: { background: 'hero-a' },
+      }),
+      mediaItems: diversePool,
+    })
+    expect(lockedFrame.layers.find(layer => layer.role === 'background')?.sourceMediaId).toBe('hero-a')
+    expect(lockedFrame.layers.find(layer => layer.role === 'background')?.userLocked).toBe(true)
+
+    const only = media('only-source', 'image')
+    const oneSourceFrame = resolveCanvasPerformanceFrame({
+      context: contextAt(10),
+      settings: settings({
+        programId: 'canvas-glitch-collage-reactor',
+        compositionPreference: 'fourPanelGrid',
+        complexity: 0,
+        mediaPoolIds: [only.id],
+      }),
+      mediaItems: [only],
+    })
+    expect(oneSourceFrame.layers.filter(layer => layer.enabled)).toHaveLength(4)
+    expect(new Set(oneSourceFrame.layers.map(layer => layer.sourceMediaId))).toEqual(new Set([only.id]))
+    expect(oneSourceFrame.diagnostics).toContain('single-media-safe-mode')
+  })
+
+  it('preserves deliberate mirrored hero duplication when the composition calls for it', () => {
+    const pool = [media('mirror-hero', 'video'), media('mirror-background', 'image'), media('mirror-texture', 'image')]
+    const frame = resolveCanvasPerformanceFrame({
+      context: contextAt(10),
+      settings: settings({
+        programId: 'canvas-cinematic-bass-editor',
+        compositionPreference: 'mirroredDualClip',
+        complexity: 0,
+        mediaPoolIds: pool.map(item => item.id),
+        mediaRolesById: {
+          'mirror-hero': ['hero'],
+          'mirror-background': ['background'],
+          'mirror-texture': ['texture'],
+        },
+      }),
+      mediaItems: pool,
+    })
+
+    expect(frame.layers.map(layer => layer.sourceMediaId)).toEqual(['mirror-hero', 'mirror-hero'])
+  })
+
+  it('preserves deliberate echo duplication without allowing unrelated roles to collapse onto one source', () => {
+    const pool = [
+      media('hero-only', 'video'),
+      media('atmosphere', 'image'),
+      media('texture-only', 'image'),
+    ]
+    const frame = resolveCanvasPerformanceFrame({
+      context: contextAt(10),
+      settings: settings({
+        programId: 'canvas-dreamstate-media-tunnel',
+        compositionPreference: 'echoTunnel',
+        complexity: 0,
+        mediaPoolIds: pool.map(item => item.id),
+        mediaRolesById: {
+          'hero-only': ['hero'],
+          atmosphere: ['background'],
+          'texture-only': ['texture'],
+        },
+      }),
+      mediaItems: pool,
+    })
+    const hero = frame.layers.find(layer => layer.role === 'hero')
+    const feedback = frame.layers.find(layer => layer.role === 'feedback')
+    const texture = frame.layers.find(layer => layer.role === 'texture')
+
+    expect(hero?.sourceMediaId).toBe('hero-only')
+    expect(feedback?.sourceMediaId).toBe('hero-only')
+    expect(texture?.sourceMediaId).toBe('texture-only')
+  })
 })
 
 describe('CANVAS composition, playback, and transitions', () => {

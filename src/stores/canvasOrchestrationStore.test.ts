@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { CANVAS_PRESET_BY_ID, type CanvasMediaItem } from '../components/vyzualz/react/ReactTypes'
-import { useReactStore } from './reactStore'
+import { mergeReactStoreState, reactStorePartialize, useReactStore } from './reactStore'
 
 beforeEach(() => {
   useReactStore.getState().resetReactView()
@@ -20,6 +20,37 @@ describe('CANVAS orchestration persistence and compatibility', () => {
       'canvas-particle-aura',
       'canvas-fractures',
     ]))
+  })
+
+  it('defaults Auto Role on for an unconfigured Auto Performance workflow while preserving explicit user intent', () => {
+    const store = useReactStore.getState()
+    expect(store.canvasOrchestrationSettings.autoRoleEnabled).toBe(true)
+
+    store.setCanvasOrchestrationSettings({ enabled: true })
+    expect(useReactStore.getState().canvasOrchestrationSettings.autoRoleEnabled).toBe(true)
+
+    useReactStore.getState().setCanvasOrchestrationSettings({ autoRoleEnabled: false })
+    expect(useReactStore.getState().canvasOrchestrationSettings.autoRoleEnabled).toBe(false)
+
+    useReactStore.getState().setCanvasOrchestrationSettings({ enabled: false })
+    useReactStore.getState().setCanvasOrchestrationSettings({ enabled: true })
+    expect(useReactStore.getState().canvasOrchestrationSettings.autoRoleEnabled).toBe(false)
+
+    useReactStore.getState().setCanvasOrchestrationSettings({ autoRoleEnabled: true })
+    expect(useReactStore.getState().canvasOrchestrationSettings.autoRoleEnabled).toBe(true)
+  })
+
+  it('migrates missing Auto Role intent to on while round-tripping explicit off through persistence', () => {
+    useReactStore.getState().setCanvasOrchestrationSettings({ enabled: true, autoRoleEnabled: false })
+    const current = useReactStore.getState()
+    const persisted = JSON.parse(JSON.stringify(reactStorePartialize(current))) as ReturnType<typeof reactStorePartialize>
+    const explicitOff = mergeReactStoreState(persisted, current)
+    expect(explicitOff.canvasOrchestrationSettings.autoRoleEnabled).toBe(false)
+
+    const legacy = JSON.parse(JSON.stringify(persisted)) as typeof persisted
+    delete (legacy.canvasOrchestrationSettings as Partial<typeof legacy.canvasOrchestrationSettings>).autoRoleEnabled
+    const migrated = mergeReactStoreState(legacy, current)
+    expect(migrated.canvasOrchestrationSettings.autoRoleEnabled).toBe(true)
   })
 
   it('adds manual selections to the multi-media pool without changing manual selection or Auto Select locks', () => {

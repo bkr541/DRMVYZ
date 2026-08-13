@@ -2,13 +2,12 @@ import {
   createPerformanceDeterministicSeed,
   performanceDeterministicUnit,
   resolveSharedPerformanceProgram,
-  selectPerformanceDeterministicIndex,
   type SharedPerformanceContext,
 } from '../../../../features/performanceCore'
 import type { CanvasMediaItem } from '../ReactTypes'
 import { getCanvasCompositionTemplate } from './CanvasCompositionTemplates'
 import { resolveCanvasEffectChain, resolveCanvasEffectRecipeForSection } from './CanvasEffectRecipes'
-import { canvasMediaSupportsAnyRole, resolveCanvasMediaRoles } from './CanvasMediaRoles'
+import { resolveCanvasMediaRoles } from './CanvasMediaRoles'
 import { resolveCanvasPlayback } from './CanvasPlayback'
 import { resolveCanvasContextualTransitionIds, resolveCanvasTransition } from './CanvasTransitions'
 import { getCanvasPerformanceShow } from './CanvasPerformanceShows'
@@ -278,14 +277,14 @@ function uniqueMedia(items: readonly CanvasMediaItem[]): CanvasMediaItem[] {
 
 function sectionPreferredRolesForType(sectionType: string | null | undefined): CanvasMediaRole[] {
   switch (sectionType) {
-    case 'drop': return ['dropAsset', 'hero', 'alternateHero']
-    case 'build': return ['buildAsset', 'hero', 'alternateHero']
-    case 'preDrop': return ['buildAsset', 'transition', 'hero']
+    case 'drop': return ['dropAsset', 'hero', 'alternateHero', 'foregroundAccent']
+    case 'build': return ['buildAsset', 'transition', 'alternateHero', 'hero']
+    case 'preDrop': return ['buildAsset', 'transition', 'mask', 'hero']
     case 'breakdown':
-    case 'bridge': return ['breakdownAsset', 'background', 'hero']
-    case 'intro': return ['introAsset', 'background', 'hero']
+    case 'bridge': return ['breakdownAsset', 'background', 'texture', 'hero']
+    case 'intro': return ['introAsset', 'background', 'hero', 'texture']
     case 'outro': return ['outroAsset', 'background', 'hero']
-    default: return ['hero', 'background', 'alternateHero']
+    default: return ['hero', 'alternateHero', 'background']
   }
 }
 
@@ -293,20 +292,109 @@ function sectionPreferredRoles(context: SharedPerformanceContext): CanvasMediaRo
   return sectionPreferredRolesForType(context.sectionType)
 }
 
-function roleCandidates(
-  items: readonly CanvasMediaItem[],
-  requiredRoles: readonly CanvasMediaRole[],
-  fallbackRoles: readonly CanvasMediaRole[],
-  settings: CanvasOrchestrationSettings,
-  context: SharedPerformanceContext,
-): CanvasMediaItem[] {
-  const preferred = [...sectionPreferredRoles(context), ...requiredRoles]
-  const primary = items.filter(item => canvasMediaSupportsAnyRole(item, preferred, settings))
-  if (primary.length > 0) return primary
-  const fallback = items.filter(item => canvasMediaSupportsAnyRole(item, fallbackRoles, settings))
-  return fallback.length > 0 ? fallback : [...items]
+type CanvasMediaSuitabilityTier = 0 | 1 | 2 | 3
+
+interface CanvasMediaCandidateScore {
+  item: CanvasMediaItem
+  tier: CanvasMediaSuitabilityTier
+  score: number
 }
 
+function mediaSuitabilityTier(
+  effectiveRoles: readonly CanvasMediaRole[],
+  requiredRoles: readonly CanvasMediaRole[],
+  fallbackRoles: readonly CanvasMediaRole[],
+  sectionRoles: readonly CanvasMediaRole[],
+): CanvasMediaSuitabilityTier {
+  if (requiredRoles.some(role => effectiveRoles.includes(role))) return 3
+  if (fallbackRoles.some(role => effectiveRoles.includes(role))) return 2
+  if (sectionRoles.some(role => effectiveRoles.includes(role))) return 1
+  return 0
+}
+
+function orderedRolePreferenceScore(
+  effectiveRoles: readonly CanvasMediaRole[],
+  preferences: readonly CanvasMediaRole[],
+  scale: number,
+): number {
+  const index = preferences.findIndex(role => effectiveRoles.includes(role))
+  return index < 0 ? 0 : (preferences.length - index) * scale
+}
+
+function scoreCanvasMediaCandidate({
+  item,
+  requiredRoles,
+  fallbackRoles,
+  settings,
+  context,
+  layerRole,
+  assignedMediaIds,
+  allowIntentionalDuplication,
+  selectionIdentity,
+}: {
+  item: CanvasMediaItem
+  requiredRoles: readonly CanvasMediaRole[]
+  fallbackRoles: readonly CanvasMediaRole[]
+  settings: CanvasOrchestrationSettings
+  context: SharedPerformanceContext
+  layerRole: CanvasLayerRole
+  assignedMediaIds: ReadonlySet<string>
+  allowIntentionalDuplication: boolean
+  selectionIdentity: string
+}): CanvasMediaCandidateScore {
+  const show = getCanvasPerformanceShow(settings.programId)
+  const strategy = show.mediaStrategy
+  const roles = resolveCanvasMediaRoles(item, settings)
+  const sectionRoles = sectionPreferredRoles(context)
+  const tier = mediaSuitabilityTier(roles.effective, requiredRoles, fallbackRoles, sectionRoles)
+  const explicitMatch = roles.explicit.some(role => requiredRoles.includes(role)) ? 1.25 : 0
+  const requiredPreference = orderedRolePreferenceScore(roles.effective, requiredRoles, 0.85)
+  const sectionPreference = orderedRolePreferenceScore(roles.effective, sectionRoles, 0.34)
+  const showLayerPreference = orderedRolePreferenceScore(
+    roles.effective,
+    strategy.layerRolePreferences[layerRole] ?? [],
+    1.1,
+  )
+  const showRolePreference = roles.effective.reduce(
+    (best, role) => Math.max(best, strategy.roleWeights[role] ?? 0),
+    0,
+  )
+  const sourceTypePreference = strategy.sourceTypeWeights[layerRole]?.[item.type] ?? 0
+  const duplicatePenalty = !allowIntentionalDuplication && assignedMediaIds.has(item.id)
+    ? strategy.diversityWeight * 12
+    : 0
+  const stableVariation = performanceDeterministicUnit(
+    context.trackIdentity,
+    settings.programId,
+    context.sectionIdentity,
+    context.sectionOccurrence,
+    context.performanceFourBarBlockIndex,
+    settings.poolRevision,
+    layerRole,
+    item.id,
+    selectionIdentity,
+    'canvas-stage2-media-score',
+  ) * 0.45
+
+  return {
+    item,
+    tier,
+    score: explicitMatch
+      + requiredPreference
+      + sectionPreference
+      + showLayerPreference
+      + showRolePreference
+      + sourceTypePreference
+      + stableVariation
+      - duplicatePenalty,
+  }
+}
+
+/**
+ * Deterministic media intelligence for a single composition role. Role suitability
+ * is a hard tier: diversity and show personality can decide among equally suitable
+ * sources, but they cannot make an unrelated source beat a genuinely suitable one.
+ */
 export function resolveCanvasDeterministicMedia({
   items,
   requiredRoles,
@@ -317,6 +405,8 @@ export function resolveCanvasDeterministicMedia({
   previousMediaId = null,
   lockedMediaId = null,
   selectionIdentity = '',
+  assignedMediaIds = [],
+  allowIntentionalDuplication = false,
 }: {
   items: readonly CanvasMediaItem[]
   requiredRoles: readonly CanvasMediaRole[]
@@ -327,30 +417,50 @@ export function resolveCanvasDeterministicMedia({
   previousMediaId?: string | null
   lockedMediaId?: string | null
   selectionIdentity?: string
+  assignedMediaIds?: readonly string[]
+  allowIntentionalDuplication?: boolean
 }): CanvasMediaItem | null {
   const pool = uniqueMedia(items)
   if (lockedMediaId) {
     const locked = pool.find(item => item.id === lockedMediaId)
     if (locked) return locked
   }
-  let candidates = roleCandidates(pool, requiredRoles, fallbackRoles, settings, context)
-  if (candidates.length > 1 && previousMediaId) {
-    const withoutImmediateRepeat = candidates.filter(item => item.id !== previousMediaId)
-    if (withoutImmediateRepeat.length > 0) candidates = withoutImmediateRepeat
-  }
-  if (candidates.length === 0) return null
-  const index = selectPerformanceDeterministicIndex(
-    candidates.length,
-    context.trackIdentity,
-    settings.programId,
-    context.sectionFamily,
-    context.sectionOccurrence,
-    context.performanceFourBarBlockIndex,
-    settings.poolRevision,
+  if (pool.length === 0) return null
+
+  const assigned = new Set(assignedMediaIds)
+  let scored = pool.map(item => scoreCanvasMediaCandidate({
+    item,
+    requiredRoles,
+    fallbackRoles,
+    settings,
+    context,
     layerRole,
+    assignedMediaIds: assigned,
+    allowIntentionalDuplication,
     selectionIdentity,
-  )
-  return candidates[index] ?? candidates[0] ?? null
+  }))
+  const bestTier = scored.reduce<CanvasMediaSuitabilityTier>((best, candidate) => Math.max(best, candidate.tier) as CanvasMediaSuitabilityTier, 0)
+  scored = scored.filter(candidate => candidate.tier === bestTier)
+
+  // An authored advance is an edit opportunity, so avoid the immediately previous
+  // source when another equally suitable source exists. A one-source pool still reuses safely.
+  if (previousMediaId && scored.length > 1) {
+    const withoutImmediateRepeat = scored.filter(candidate => candidate.item.id !== previousMediaId)
+    if (withoutImmediateRepeat.length > 0) scored = withoutImmediateRepeat
+  }
+
+  scored.sort((a, b) => b.score - a.score || a.item.id.localeCompare(b.item.id))
+  return scored[0]?.item ?? null
+}
+
+function slotAllowsIntentionalDuplication(
+  templateId: CanvasCompositionTemplateId,
+  slot: CanvasCompositionSlot,
+  settings: CanvasOrchestrationSettings,
+): boolean {
+  if (slot.role === 'feedback') return true
+  if (templateId === 'mirroredDualClip' && slot.id === 'hero-right') return true
+  return getCanvasPerformanceShow(settings.programId).mediaStrategy.duplicationPolicy === 'fracture'
 }
 
 export function resolveCanvasAuthoredProgramState(
@@ -396,7 +506,9 @@ export function resolveCanvasAuthoredProgramState(
   const nextSectionType = nextSection?.type ?? null
   const anticipatoryStage = resolveAnticipatoryStage(context, nextSectionType)
   if (anticipatoryStage === 'contraction') {
-    templateId = 'maskedHeroReveal'
+    // Keep the resolved show's authored composition. Stage 1's shared contraction
+    // recipe used to force every show into Masked Hero Reveal here,
+    // flattening show identity immediately before the most visible boundary.
     effectRecipeId = 'preDropVacuum'
     transitionIds = ['feedbackSmear', 'maskExpansion', 'frameHoldRelease']
     retiredRoles.add('texture')
@@ -496,6 +608,8 @@ function resolveSlotLayer({
   forceAdvance,
   selectionIdentity,
   effectBoost,
+  assignedMediaIds,
+  allowIntentionalDuplication,
 }: {
   slot: CanvasCompositionSlot
   pool: readonly CanvasMediaItem[]
@@ -509,6 +623,8 @@ function resolveSlotLayer({
   forceAdvance: boolean
   selectionIdentity: string
   effectBoost: number
+  assignedMediaIds: readonly string[]
+  allowIntentionalDuplication: boolean
 }): { layer: CanvasResolvedLayer; pendingMediaId: string | null; fallbackUsed: boolean } {
   const previousLayer = previousFrame?.layers.find(layer => layer.role === slot.role || layer.id === slot.id) ?? null
   const layerLocked = settings.layerLocks[slot.role] === true
@@ -519,7 +635,9 @@ function resolveSlotLayer({
     previousLayer?.sourceMediaId && pool.some(item => item.id === previousLayer.sourceMediaId),
   )
   const lockedChoiceChanged = Boolean(lockedMediaId && lockedMediaId !== previousLayer?.sourceMediaId)
+  const programChanged = Boolean(previousFrame && previousFrame.programId !== settings.programId)
   const shouldReselect = forceAdvance
+    || programChanged
     || !previousLayer?.source
     || !previousSourceStillAvailable
     || lockedChoiceChanged
@@ -553,6 +671,8 @@ function resolveSlotLayer({
       layerRole: slot.role,
       previousMediaId: forceAdvance && !timelineReset ? previousLayer?.sourceMediaId ?? null : null,
       selectionIdentity: forceAdvance ? selectionIdentity : '',
+      assignedMediaIds,
+      allowIntentionalDuplication,
     })
   }
 
@@ -615,15 +735,26 @@ function resolveSlotLayer({
 
 function enforceDecoderBounds(layers: CanvasResolvedLayer[], pool: readonly CanvasMediaItem[]): CanvasResolvedLayer[] {
   const activeVideos = new Set<string>()
+  const activeSources = new Set<string>()
   return layers.map(layer => {
-    if (!layer.enabled || layer.source?.type !== 'video' || !layer.sourceMediaId) return layer
-    if (activeVideos.has(layer.sourceMediaId)) return layer
-    if (activeVideos.size < MAX_CANVAS_ACTIVE_VIDEO_DECODERS) {
-      activeVideos.add(layer.sourceMediaId)
+    if (!layer.enabled || !layer.sourceMediaId) return layer
+    if (layer.source?.type !== 'video') {
+      activeSources.add(layer.sourceMediaId)
       return layer
     }
-    const imageFallback = pool.find(item => item.type !== 'video' && item.id !== layer.sourceMediaId)
+    if (activeVideos.has(layer.sourceMediaId)) {
+      activeSources.add(layer.sourceMediaId)
+      return layer
+    }
+    if (activeVideos.size < MAX_CANVAS_ACTIVE_VIDEO_DECODERS) {
+      activeVideos.add(layer.sourceMediaId)
+      activeSources.add(layer.sourceMediaId)
+      return layer
+    }
+    const imageFallbacks = pool.filter(item => item.type !== 'video' && item.id !== layer.sourceMediaId)
+    const imageFallback = imageFallbacks.find(item => !activeSources.has(item.id)) ?? imageFallbacks[0]
     if (!imageFallback) return { ...layer, enabled: false, source: null, sourceMediaId: null }
+    activeSources.add(imageFallback.id)
     return {
       ...layer,
       source: imageFallback,
@@ -671,6 +802,8 @@ function resolveCanvasFracturesPerformanceFrame({
     forceAdvance: program.advanceRoles.has('hero'),
     selectionIdentity: program.selectionIdentity || program.sceneId,
     effectBoost: 0,
+    assignedMediaIds: [],
+    allowIntentionalDuplication: true,
   })
   const overrides = resolveCanvasFracturesShowOverrides({
     authoredProfile: program.fracturesProfile!,
@@ -787,7 +920,9 @@ export function resolveCanvasPerformanceFrame({
 
   const activeSlots = activeSlotsForComplexity(template, settings, program.retiredRoles)
 
-  let layers = activeSlots.map(slot => {
+  let layers: CanvasResolvedLayer[] = []
+  for (const slot of activeSlots) {
+    const allowIntentionalDuplication = slotAllowsIntentionalDuplication(template.id, slot, settings)
     const result = resolveSlotLayer({
       slot,
       pool: selection.items,
@@ -801,11 +936,15 @@ export function resolveCanvasPerformanceFrame({
       forceAdvance: program.advanceRoles.has(slot.role),
       selectionIdentity: program.selectionIdentity,
       effectBoost: program.effectBoost,
+      assignedMediaIds: allowIntentionalDuplication
+        ? []
+        : layers.map(layer => layer.sourceMediaId).filter((id): id is string => Boolean(id)),
+      allowIntentionalDuplication,
     })
     if (result.pendingMediaId) pendingMediaIds.add(result.pendingMediaId)
     fallbackUsed ||= result.fallbackUsed
-    return result.layer
-  })
+    layers.push(result.layer)
+  }
 
   if (previousFrame) {
     const representedRoles = new Set(layers.map(layer => layer.role))
@@ -891,13 +1030,19 @@ export function getCanvasPerformancePreloadCandidates(
   const upcomingRoles = sectionPreferredRolesForType(frame.nextSectionType)
   const pending = frame.pendingMediaIds.filter(id => !active.has(id))
   const pendingSet = new Set(pending)
+  const strategy = getCanvasPerformanceShow(settings.programId).mediaStrategy
   const ranked = pool
     .filter(item => !active.has(item.id) && !pendingSet.has(item.id))
-    .map(item => ({
-      id: item.id,
-      score: resolveCanvasMediaRoles(item, settings).effective.reduce((score, role) => score + (sectionRoles.includes(role) ? 3 : upcomingRoles.includes(role) ? 4 : role === 'transition' || role === 'mask' ? 1 : 0), 0)
-        + performanceDeterministicUnit(frame.frameIdentity, item.id),
-    }))
+    .map(item => {
+      const roles = resolveCanvasMediaRoles(item, settings).effective
+      return {
+        id: item.id,
+        score: roles.reduce((score, role) => score
+          + (sectionRoles.includes(role) ? 3 : upcomingRoles.includes(role) ? 4 : role === 'transition' || role === 'mask' ? 1 : 0)
+          + (strategy.roleWeights[role] ?? 0), 0)
+          + performanceDeterministicUnit(frame.frameIdentity, item.id),
+      }
+    })
     .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
   return [...pending, ...ranked.map(item => item.id)].slice(0, 4)
 }
