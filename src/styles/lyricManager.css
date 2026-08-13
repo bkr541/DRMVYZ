@@ -638,20 +638,7 @@
 
 /* ── Message lists ───────────────────────────────────────────────────── */
 
-.lmv-msg-list {
-  border-radius: 6px;
-  padding: 8px 10px;
-  margin-top: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.lmv-msg-list--error { background: rgba(224,90,90,0.08);  border: 1px solid rgba(224,90,90,0.18); }
-.lmv-msg-list--warn  { background: rgba(216,185,90,0.07); border: 1px solid rgba(216,185,90,0.18); }
-.lmv-msg-item { font-size: 10px; line-height: 1.4; }
-.lmv-msg-list--error .lmv-msg-item { color: #e05a5a; }
-.lmv-msg-list--warn  .lmv-msg-item { color: #d8b95a; }
-.lmv-msg-muted { color: rgba(196,207,211,0.35) !important; }
+.lmv-more-warnings-note { font-size: 10px; line-height: 1.4; color: rgba(196,207,211,0.35); margin-top: 6px; }
 
 /* ── Cue preview list ────────────────────────────────────────────────── */
 
@@ -2823,14 +2810,16 @@
 .lmv-inline-action:hover,
 .lmv-inline-action:focus-visible { color: #a6f1d2; outline: 1px solid rgba(97,214,170,0.35); outline-offset: 2px; }
 
-.lmv-msg-item--action {
+.lmv-notice-issue-btn {
   width: 100%;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 6px;
   border: 0;
-  padding: 5px 0;
+  border-radius: 4px;
+  padding: 3px 4px;
+  margin: -3px -4px;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -2838,10 +2827,9 @@
   text-align: left;
   cursor: pointer;
 }
-.lmv-msg-item--action em { color: #7ed9e8; font-size: 8px; font-style: normal; }
-.lmv-msg-item--action:hover,
-.lmv-msg-item--action:focus-visible { background: rgba(255,255,255,0.035); outline: 1px solid rgba(126,218,232,0.22); outline-offset: 2px; }
-.lmv-msg-item--action:disabled { cursor: default; opacity: 0.75; }
+.lmv-notice-issue-btn em { color: #7ed9e8; font-size: 8px; font-style: normal; }
+.lmv-notice-issue-btn:hover,
+.lmv-notice-issue-btn:focus-visible { background: rgba(255,255,255,0.06); outline: 1px solid rgba(126,218,232,0.22); outline-offset: 2px; }
 .lmv-attention-box {
   display: grid;
   gap: 8px;
@@ -2856,8 +2844,6 @@
 .lmv-attention-counts div { display: flex; justify-content: space-between; gap: 6px; }
 .lmv-attention-counts dt { color: rgba(196,207,211,0.52); font-size: 8px; }
 .lmv-attention-counts dd { margin: 0; color: rgba(237,249,251,0.88); font-size: 9px; font-weight: 700; }
-.lmv-stats-explainer { margin-top: 8px; color: rgba(196,207,211,0.58); font-size: 8px; line-height: 1.45; }
-.lmv-stats-explainer .drc-header { color: #7ed9e8; }
 
 .lmv-workflow-status-grid,
 .lmv-diagnostics dl { display: grid; gap: 6px; margin: 0; }

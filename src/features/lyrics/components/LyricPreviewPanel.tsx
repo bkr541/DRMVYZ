@@ -1,7 +1,7 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react'
 import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
-import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
+import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
 import { resolveLyricCueConfidence, type LyricCue, type LyricDocument, type LyricStyle } from '../../../types/lyrics'
 import {
   validateLyricCues,
@@ -113,23 +113,30 @@ function IssueList({
   onNavigate?: (issue: LyricValidationIssue) => void
 }) {
   if (!issues.length) return null
+  const isError = issues[0]?.severity === 'error'
   return (
-    <div className={`lmv-msg-list lmv-msg-list--${issues[0]?.severity === 'error' ? 'error' : 'warn'}`}>
-      {issues.map(issue => (
-        <button
-          key={issue.id}
-          type="button"
-          className="lmv-msg-item lmv-msg-item--action"
-          onClick={() => onNavigate?.(issue)}
-          disabled={!issue.cueId || !onNavigate}
-          aria-label={`${issue.severity === 'error' ? 'Error' : 'Warning'}: ${issue.message}. Open affected lyric timing.`}
-        >
-          <span aria-hidden="true">{issue.severity === 'error' ? '✕' : '⚠'}</span>
-          <span>{issue.message}</span>
-          {issue.cueId && onNavigate && <em>Open</em>}
-        </button>
-      ))}
-    </div>
+    <NoticeCard
+      tone={isError ? 'error' : 'warning'}
+      ariaLabel={`${issues.length} ${isError ? 'error' : 'warning'}${issues.length === 1 ? '' : 's'}`}
+    >
+      {issues.map(issue => {
+        const navigable = Boolean(issue.cueId && onNavigate)
+        return navigable ? (
+          <button
+            key={issue.id}
+            type="button"
+            className="lmv-notice-issue-btn"
+            onClick={() => onNavigate?.(issue)}
+            aria-label={`${issue.severity === 'error' ? 'Error' : 'Warning'}: ${issue.message}. Open affected lyric timing.`}
+          >
+            <span>{issue.message}</span>
+            <em>Open</em>
+          </button>
+        ) : (
+          <div key={issue.id}>{issue.message}</div>
+        )
+      })}
+    </NoticeCard>
   )
 }
 
@@ -212,7 +219,7 @@ export function LyricPreviewPanel({
       <RightInspectorSection title="Validation" badge={validationBadge}>
         <IssueList issues={errorIssues} onNavigate={onNavigateToIssue} />
         <IssueList issues={warningIssues.slice(0, 8)} onNavigate={onNavigateToIssue} />
-        {warningIssues.length > 8 && <div className="lmv-msg-item lmv-msg-muted">+{warningIssues.length - 8} more warnings</div>}
+        {warningIssues.length > 8 && <div className="lmv-more-warnings-note">+{warningIssues.length - 8} more warnings</div>}
         {(attentionCueIds.size > 0 || validation.issues.length > 0) && (
           <div className="lmv-attention-box">
             <strong>{attentionCueIds.size} unique cue{attentionCueIds.size === 1 ? '' : 's'} needing attention</strong>
@@ -246,13 +253,6 @@ export function LyricPreviewPanel({
             </>
           )}
         </div>
-        <DualRailCollapsible
-          className="lmv-stats-explainer"
-          defaultOpen={false}
-          label="What these counts mean"
-        >
-          <p>Cues are timed lyric lines. Words are optional nested timings inside those cues, so some documents can have cue timing without word timing.</p>
-        </DualRailCollapsible>
       </RightInspectorSection>
     </div>
   )

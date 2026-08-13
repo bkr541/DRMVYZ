@@ -41,7 +41,7 @@ describe('LyricPreviewPanel', () => {
       />,
     ))
 
-    const issueButton = [...container.querySelectorAll<HTMLButtonElement>('.lmv-msg-item--action')]
+    const issueButton = [...container.querySelectorAll<HTMLButtonElement>('.lmv-notice-issue-btn')]
       .find(button => button.textContent?.includes('word 1'))
     expect(issueButton).toBeTruthy()
     await act(async () => issueButton?.click())
