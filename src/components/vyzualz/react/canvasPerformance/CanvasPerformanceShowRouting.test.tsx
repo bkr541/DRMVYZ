@@ -355,6 +355,48 @@ describe('CanvasEngineSurface Performance Show routing', () => {
     expect(host?.querySelector('[data-testid="fractures-renderer"]')).toBeNull()
   })
 
+  it('updates the active production orchestration render state when Layer Complexity changes, then restores manual fallback when Auto Performance is disabled', async () => {
+    setCanvasRoutingState({
+      presetId: 'canvas-clean-playback',
+      showId: 'canvas-cinematic-bass-editor',
+      enabled: true,
+    })
+    useReactStore.getState().setCanvasOrchestrationSettings({
+      compositionPreference: 'fullScreenHero',
+      complexity: 0,
+      motionIntensity: 0,
+      effectIntensity: 0,
+      transitionDensity: 0,
+      cutDensity: 0,
+    })
+    await renderSurface()
+
+    expect(host?.querySelector('[aria-label="CANVAS orchestrated media surface"]')).not.toBeNull()
+    expect(host?.textContent).toContain('1 layers')
+
+    await act(async () => {
+      useReactStore.getState().setCanvasOrchestrationSettings({ complexity: 1 })
+      await Promise.resolve()
+      vi.advanceTimersByTime(80)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(host?.querySelector('[aria-label="CANVAS orchestrated media surface"]')).not.toBeNull()
+    expect(host?.textContent).toContain('6 layers')
+
+    await act(async () => {
+      useReactStore.getState().setCanvasOrchestrationSettings({ enabled: false })
+      await Promise.resolve()
+      vi.advanceTimersByTime(80)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(host?.querySelector('.rv-canvas-orchestration-stage')).toBeNull()
+    expect(host?.querySelector('.rv-canvas-live-output')).not.toBeNull()
+  })
+
   it('derives orchestration stage from the resolved show and reserves the selected preset for direct fallback', async () => {
     setCanvasRoutingState({
       presetId: 'canvas-fractures',

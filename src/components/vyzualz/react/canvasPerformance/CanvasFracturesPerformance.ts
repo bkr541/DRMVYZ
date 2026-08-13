@@ -4,6 +4,7 @@ import {
   CANVAS_PRESET_BY_ID,
   DEFAULT_CANVAS_PRESET_SETTINGS,
   type CanvasFractureEffectRole,
+  type CanvasFractureQuantizeInterval,
   type CanvasPresetId,
   type CanvasPresetSettings,
 } from '../ReactTypes'
@@ -12,7 +13,9 @@ import type {
   CanvasFracturesNumericOverrideKey,
   CanvasFracturesOverridePatch,
   CanvasFracturesOverrideProfile,
+  CanvasOrchestrationSettings,
 } from './CanvasPerformanceTypes'
+import { clampCanvasOrchestrationControl } from './CanvasOrchestrationResponse'
 
 const ANCHOR_MODES = new Set(['alwaysVisible', 'reactive', 'fadeWithMusic', 'fullyFragmented'])
 const PLACEMENT_MODES = new Set(['balanced', 'offscreenSpill', 'heavyOverlap', 'anchorCover', 'repeatedCrops', 'mirrorFlip', 'randomMix'])
@@ -141,18 +144,96 @@ export function resolveCanvasFracturesOverrideProfile(
   return resolved
 }
 
+function scaleFracturesAuthoredStrength(
+  authoredValue: number | undefined,
+  intent: number,
+  lowFactor: number,
+  highBoost: number,
+): number | undefined {
+  if (authoredValue == null) return undefined
+  const authored = clamp01(authoredValue)
+  const normalized = clampCanvasOrchestrationControl(intent)
+  if (normalized <= 0.5) {
+    const lowerProgress = normalized / 0.5
+    return clamp01(authored * (lowFactor + (1 - lowFactor) * lowerProgress))
+  }
+  const upperProgress = (normalized - 0.5) / 0.5
+  return clamp01(authored + (1 - authored) * highBoost * upperProgress)
+}
+
+const FRACTURES_TRANSITION_INTERVALS: readonly CanvasFractureQuantizeInterval[] = [
+  'beat', 'bar', '2bars', '4bars', '8bars', '16bars',
+]
+const FRACTURES_TRANSITION_INTERVAL_SCORE: Readonly<Record<CanvasFractureQuantizeInterval, number>> = {
+  manualOnly: 4,
+  beat: -2,
+  bar: 0,
+  '2bars': 1,
+  '4bars': 2,
+  '8bars': 3,
+  '16bars': 4,
+  section: 4,
+}
+
+function resolveFracturesTransitionInterval(
+  authored: CanvasFractureQuantizeInterval | undefined,
+  transitionDensity: number,
+): CanvasFractureQuantizeInterval | undefined {
+  if (!authored) return undefined
+  const density = clampCanvasOrchestrationControl(transitionDensity)
+  if (density === 0.5) return authored
+  const authoredScore = FRACTURES_TRANSITION_INTERVAL_SCORE[authored]
+  const targetScore = density <= 0.5
+    ? 4 + (authoredScore - 4) * (density / 0.5)
+    : authoredScore + (-2 - authoredScore) * ((density - 0.5) / 0.5)
+  return FRACTURES_TRANSITION_INTERVALS.reduce((best, candidate) => (
+    Math.abs(FRACTURES_TRANSITION_INTERVAL_SCORE[candidate] - targetScore)
+      < Math.abs(FRACTURES_TRANSITION_INTERVAL_SCORE[best] - targetScore)
+      ? candidate
+      : best
+  ), '4bars')
+}
+
+/**
+ * Adapts the five canonical orchestration controls into Fractures' native
+ * vocabulary. The authored section profile remains the midpoint personality;
+ * the global controls open or close its structural, effect, and motion range.
+ */
+export function applyCanvasFracturesOrchestrationControls(
+  base: CanvasFracturesOverridePatch,
+  settings: Pick<CanvasOrchestrationSettings, 'complexity' | 'transitionDensity' | 'effectIntensity' | 'motionIntensity'>,
+): CanvasFracturesOverridePatch {
+  return {
+    ...base,
+    fractureIntensity: scaleFracturesAuthoredStrength(base.fractureIntensity, settings.complexity, 0.18, 0.7),
+    fractureComposition: scaleFracturesAuthoredStrength(base.fractureComposition, settings.complexity, 0.22, 0.75),
+    fractureDuplicationAmount: scaleFracturesAuthoredStrength(base.fractureDuplicationAmount, settings.complexity, 0, 0.8),
+    // 50% preserves the authored Fractures personality. Zero mutes orchestration-
+    // controlled processing/motion; 100% opens the native controls to full scale.
+    fractureEffectsIntensity: scaleFracturesAuthoredStrength(base.fractureEffectsIntensity, settings.effectIntensity, 0, 1),
+    fractureGlowAmount: scaleFracturesAuthoredStrength(base.fractureGlowAmount, settings.effectIntensity, 0, 1),
+    fractureGlitchAmount: scaleFracturesAuthoredStrength(base.fractureGlitchAmount, settings.effectIntensity, 0, 1),
+    fractureTransientGlitch: scaleFracturesAuthoredStrength(base.fractureTransientGlitch, settings.effectIntensity, 0, 1),
+    fractureMotionAmount: scaleFracturesAuthoredStrength(base.fractureMotionAmount, settings.motionIntensity, 0, 1),
+    fractureBassMotion: scaleFracturesAuthoredStrength(base.fractureBassMotion, settings.motionIntensity, 0, 1),
+    fractureLayoutInterval: resolveFracturesTransitionInterval(base.fractureLayoutInterval, settings.transitionDensity),
+  }
+}
+
 export function resolveCanvasFracturesShowOverrides({
   authoredProfile,
   persistedProfile,
+  orchestrationSettings,
   context,
 }: {
   authoredProfile: CanvasFracturesOverrideProfile
   persistedProfile?: CanvasFracturesOverrideProfile | null
+  orchestrationSettings: Pick<CanvasOrchestrationSettings, 'complexity' | 'transitionDensity' | 'effectIntensity' | 'motionIntensity'>
   context: SharedPerformanceContext
 }): CanvasFracturesOverridePatch {
   const authored = resolveCanvasFracturesOverrideProfile(authoredProfile, context)
   const persisted = resolveCanvasFracturesOverrideProfile(persistedProfile, context)
-  return mergeOverridePatches(authored, persisted)
+  return applyCanvasFracturesOrchestrationControls(mergeOverridePatches(authored, persisted), orchestrationSettings)
 }
 
 export function makeCanvasFracturesProcessorIdentity({

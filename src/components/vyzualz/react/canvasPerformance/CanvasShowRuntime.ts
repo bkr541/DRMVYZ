@@ -20,6 +20,8 @@ const SHOW_TEMPLATE: CanvasCompositionTemplate = {
   maxLayers: 4,
   maxVideoDecoders: 4,
   feedbackPasses: 0,
+  coreSlotIds: [],
+  maxRichnessTier: 0,
   slots: [],
 }
 

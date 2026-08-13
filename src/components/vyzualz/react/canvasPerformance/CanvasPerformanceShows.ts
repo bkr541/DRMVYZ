@@ -376,7 +376,13 @@ const fracturesScenes = [
       },
     },
   }),
-]
+].map(candidate => ({
+  ...candidate,
+  // Fractures keeps its authored visual personality, but source replacement still
+  // participates in the canonical Cut Density contract at musical opportunities.
+  eventActions: { downbeat: [advance('hero')] },
+  fourBarActions: candidate.fourBarActions ?? [[advance('hero')]],
+}))
 
 function show(
   id: CanvasPerformanceShowId,

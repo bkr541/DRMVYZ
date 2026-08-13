@@ -1,5 +1,6 @@
 import { curveSharedPerformanceProgress } from '../../../../features/performanceCore'
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
+import { resolveCanvasEffectResponse } from './CanvasOrchestrationResponse'
 import {
   MAX_CANVAS_EFFECT_CHAIN_DEPTH,
   type CanvasEffectNode,
@@ -196,7 +197,14 @@ export function resolveCanvasEffectChain(
 ): readonly CanvasEffectNode[] {
   const recipe = CANVAS_EFFECT_RECIPES[recipeId] ?? CANVAS_EFFECT_RECIPES.none
   if (recipe.sectionFilters.length > 0 && context.sectionType && !recipe.sectionFilters.includes(context.sectionType)) return []
-  const globalIntensity = clamp(intensity * recipe.intensityScale, [0, 1])
+  const response = resolveCanvasEffectResponse(intensity)
+  // At zero the renderer receives no processed pass at all, so Effect Intensity
+  // genuinely resolves to the clean source instead of redrawing a zeroed chain.
+  if (response <= 0 || recipe.effects.length === 0) return []
+  // intensityScale now shapes the authored midpoint instead of capping the 100%
+  // endpoint. Every non-empty recipe can therefore reach its full safe vocabulary.
+  const recipeGain = 0.82 + recipe.intensityScale * 0.28
+  const globalIntensity = clamp(response * recipeGain, [0, 1])
 
   return recipe.effects.slice(0, MAX_CANVAS_EFFECT_CHAIN_DEPTH).map(node => {
     let amount = node.amount * globalIntensity

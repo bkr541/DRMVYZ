@@ -20,7 +20,9 @@ import {
   MAX_CANVAS_FEEDBACK_PASSES,
   MAX_CANVAS_MEDIA_HANDLES,
   MAX_CANVAS_PERFORMANCE_LAYERS,
+  type CanvasCompositionTemplateId,
   type CanvasOrchestrationSettings,
+  type CanvasPerformanceShowId,
 } from './CanvasPerformanceTypes'
 import { resolveCanvasTransition, resolveCanvasTransitionDefinition } from './CanvasTransitions'
 
@@ -186,6 +188,147 @@ describe('CANVAS composition, playback, and transitions', () => {
     expect(recruited.textureHandleCount).toBeLessThanOrEqual(MAX_CANVAS_MEDIA_HANDLES)
   })
 
+  it.each([
+    { templateId: 'fullScreenHero' as const, low: 1, medium: 3, high: 6 },
+    { templateId: 'mirroredDualClip' as const, low: 2, medium: 4, high: 6 },
+    { templateId: 'fourPanelGrid' as const, low: 4, medium: 5, high: 7 },
+    { templateId: 'videoWall' as const, low: 4, medium: 5, high: 7 },
+  ])('turns Layer Complexity into structural richness for $templateId without losing its core identity', ({ templateId, low, medium, high }: { templateId: CanvasCompositionTemplateId; low: number; medium: number; high: number }) => {
+    const pool = Array.from({ length: 7 }, (_, index) => media(`richness-${index}`, 'image'))
+    const base = settings({
+      programId: 'canvas-cinematic-bass-editor',
+      mediaPoolIds: pool.map(item => item.id),
+      compositionPreference: templateId,
+      motionIntensity: 0,
+      effectIntensity: 0,
+      cutDensity: 0,
+    })
+    const lowFrame = resolveCanvasPerformanceFrame({ context: contextAt(5.25), settings: { ...base, complexity: 0 }, mediaItems: pool })
+    const mediumFrame = resolveCanvasPerformanceFrame({ context: contextAt(5.25), settings: { ...base, complexity: 0.5 }, mediaItems: pool })
+    const highFrame = resolveCanvasPerformanceFrame({ context: contextAt(5.25), settings: { ...base, complexity: 1 }, mediaItems: pool })
+    const coreSlotIds = CANVAS_COMPOSITION_TEMPLATES[templateId].coreSlotIds
+
+    expect(lowFrame.layers).toHaveLength(low)
+    expect(mediumFrame.layers).toHaveLength(medium)
+    expect(highFrame.layers).toHaveLength(high)
+    expect(coreSlotIds.every(id => lowFrame.layers.some(layer => layer.id === id))).toBe(true)
+    expect(coreSlotIds.every(id => highFrame.layers.some(layer => layer.id === id))).toBe(true)
+    expect(highFrame.template.id).toBe(templateId)
+  })
+
+  it('makes Motion Intensity produce a strong renderer-consumed 0% to 100% transform range', () => {
+    const pool = [media('motion-hero', 'image')]
+    const base = settings({
+      programId: 'canvas-cinematic-bass-editor',
+      mediaPoolIds: pool.map(item => item.id),
+      compositionPreference: 'fullScreenHero',
+      complexity: 0,
+      effectIntensity: 0,
+      cutDensity: 0,
+    })
+    const at = (motionIntensity: number) => resolveCanvasPerformanceFrame({
+      context: contextAt(5.25),
+      settings: { ...base, motionIntensity },
+      mediaItems: pool,
+    }).layers[0]
+    const low = at(0)
+    const medium = at(0.5)
+    const high = at(1)
+    const displacement = (layer: NonNullable<typeof low>) => (
+      Math.abs(layer.x) + Math.abs(layer.y) + Math.abs(layer.rotation) / 10 + Math.abs(layer.scaleX - 1) + Math.abs(layer.crop.width - 1)
+    )
+
+    expect(displacement(low!)).toBeCloseTo(0, 6)
+    expect(displacement(medium!)).toBeGreaterThan(0.01)
+    expect(displacement(high!)).toBeGreaterThan(displacement(medium!) * 1.8)
+  })
+
+  it.each([
+    'canvas-glitch-collage-reactor' as const,
+    'canvas-dreamstate-media-tunnel' as const,
+  ])('normalizes Effect Intensity endpoints through renderer-consumed effect chains for %s', (programId: CanvasPerformanceShowId) => {
+    const pool = [media(`effect-${programId}`, 'image')]
+    const base = settings({
+      programId,
+      mediaPoolIds: pool.map(item => item.id),
+      compositionPreference: 'fullScreenHero',
+      complexity: 0,
+      motionIntensity: 0,
+      cutDensity: 0,
+    })
+    const strength = (effectIntensity: number) => {
+      const frame = resolveCanvasPerformanceFrame({ context: contextAt(5.25), settings: { ...base, effectIntensity }, mediaItems: pool })
+      return frame.layers[0]?.effectChain.reduce((sum, node) => sum + node.amount, 0) ?? 0
+    }
+
+    expect(strength(0)).toBe(0)
+    expect(strength(0.5)).toBeGreaterThan(0)
+    expect(strength(1)).toBeGreaterThan(strength(0.5))
+  })
+
+  it('turns Cut Density into a deterministic low-to-high media-change frequency across musical opportunities', () => {
+    const pool = [media('cut-a', 'image'), media('cut-b', 'image'), media('cut-c', 'image')]
+    const run = (cutDensity: number) => {
+      const orchestration = settings({
+        programId: 'canvas-impact-cut-system',
+        mediaPoolIds: pool.map(item => item.id),
+        compositionPreference: 'fullScreenHero',
+        complexity: 0,
+        motionIntensity: 0,
+        effectIntensity: 0,
+        transitionDensity: 0,
+        cutDensity,
+      })
+      let context = contextAt(4.1)
+      let frame = resolveCanvasPerformanceFrame({ context, settings: orchestration, mediaItems: pool })
+      let changes = 0
+      for (const timeSec of [6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30]) {
+        const nextContext = contextAt(timeSec, context)
+        const nextFrame = resolveCanvasPerformanceFrame({ context: nextContext, settings: orchestration, mediaItems: pool, previousFrame: frame })
+        if (nextFrame.layers[0]?.sourceMediaId !== frame.layers[0]?.sourceMediaId) changes += 1
+        context = nextContext
+        frame = nextFrame
+      }
+      return changes
+    }
+
+    const low = run(0)
+    const medium = run(0.5)
+    const high = run(1)
+    expect(low).toBe(0)
+    expect(medium).toBeGreaterThan(low)
+    expect(high).toBeGreaterThan(medium)
+    expect(high).toBeGreaterThanOrEqual(8)
+  })
+
+  it('turns Transition Density into a deterministic low-to-high animated-transition frequency across visual changes', () => {
+    const countTransitions = (density: number) => {
+      let previousContext = contextAt(4.1)
+      let count = 0
+      for (const timeSec of [6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30]) {
+        const context = contextAt(timeSec, previousContext)
+        const transition = resolveCanvasTransition({
+          context,
+          density,
+          allowedIds: ['crossfade', 'push'],
+          fromFrameIdentity: `from-${timeSec}`,
+          toFrameIdentity: `to-${timeSec}`,
+        })
+        if (transition) count += 1
+        previousContext = context
+      }
+      return count
+    }
+
+    const low = countTransitions(0)
+    const medium = countTransitions(0.5)
+    const high = countTransitions(1)
+    expect(low).toBe(0)
+    expect(medium).toBeGreaterThan(low)
+    expect(high).toBeGreaterThan(medium)
+    expect(high).toBe(13)
+  })
+
   it('uses a safe transition fallback and resolves seek interruptions immediately', () => {
     expect(resolveCanvasTransitionDefinition('not-supported' as never).id).toBe('crossfade')
     const previous = contextAt(4)
@@ -198,6 +341,7 @@ describe('CANVAS composition, playback, and transitions', () => {
     const orchestration = settings({
       mediaPoolIds: pool.map(item => item.id),
       compositionPreference: 'fullScreenHero',
+      cutDensity: 1,
       poolRevision: 3,
     })
     const initialContext = contextAt(4.1)

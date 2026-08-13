@@ -13,6 +13,11 @@ import { resolveCanvasPlayback } from './CanvasPlayback'
 import { resolveCanvasContextualTransitionIds, resolveCanvasTransition } from './CanvasTransitions'
 import { getCanvasPerformanceShow } from './CanvasPerformanceShows'
 import {
+  resolveCanvasCompositionRichnessTier,
+  resolveCanvasCutOpportunityProbability,
+  resolveCanvasMotionResponse,
+} from './CanvasOrchestrationResponse'
+import {
   makeCanvasFracturesProcessorIdentity,
   resolveCanvasFracturesShowOverrides,
 } from './CanvasFracturesPerformance'
@@ -89,6 +94,24 @@ function treatmentForRole(treatments: readonly CanvasLayerTreatment[], role: Can
   }), { roles: [role] })
 }
 
+function scaledAuthoredMotionTreatment(
+  treatment: CanvasLayerTreatment | null,
+  motion: number,
+): CanvasLayerTreatment | null {
+  if (!treatment) return null
+  return {
+    roles: treatment.roles,
+    // Opacity is authored appearance, not physical motion, so it is intentionally
+    // not coupled to the Motion Intensity control.
+    opacityMultiplier: treatment.opacityMultiplier,
+    scaleMultiplier: treatment.scaleMultiplier == null ? undefined : 1 + (treatment.scaleMultiplier - 1) * motion,
+    rotationOffset: (treatment.rotationOffset ?? 0) * motion,
+    offsetX: (treatment.offsetX ?? 0) * motion,
+    offsetY: (treatment.offsetY ?? 0) * motion,
+    cropInset: (treatment.cropInset ?? 0) * motion,
+  }
+}
+
 function continuousTreatmentForRole(
   role: CanvasLayerRole,
   context: SharedPerformanceContext,
@@ -96,39 +119,77 @@ function continuousTreatmentForRole(
 ): CanvasLayerTreatment | null {
   if (settings.globalLocks.motion) return null
   const confidenceScale = context.sectionConfidence < 0.36 ? 0.35 : 1
-  const motion = Math.max(0, Math.min(1, settings.motionIntensity)) * confidenceScale
+  const motion = resolveCanvasMotionResponse(settings.motionIntensity) * confidenceScale
   if (motion <= 0) return null
-  const energy = Math.max(0, Math.min(1, context.trackRelativeEnergy))
-  const phrase = Math.max(0, Math.min(1, context.phraseProgress))
+
+  const bass = Math.max(0, Math.min(1, context.bass))
   const flux = Math.max(0, Math.min(1, context.spectralFlux))
+  const tension = Math.max(0, Math.min(1, context.tension))
+  const vocal = Math.max(0, Math.min(1, context.vocalEnergy))
+  const phaseOffset = performanceDeterministicUnit(
+    context.trackIdentity,
+    settings.programId,
+    context.sectionIdentity,
+    role,
+    'canvas-motion-phase',
+  ) * Math.PI * 2
+  const slowOscillator = Math.sin(context.audioTimeSec * 1.15 + phaseOffset)
+  const fastOscillator = Math.sin(context.audioTimeSec * 2.4 + phaseOffset * 0.73)
 
   if (role === 'hero') {
     const tensionCrop = context.sectionType === 'build' || context.sectionType === 'preDrop'
-      ? Math.max(0, Math.min(0.055, context.tension * (0.018 + context.buildProgress * 0.032) * motion))
+      ? tension * (0.035 + context.buildProgress * 0.065) * motion
       : 0
     return {
       roles: [role],
-      scaleMultiplier: 1 + Math.max(0, Math.min(1, context.bass)) * 0.014 * motion,
-      offsetX: (phrase - 0.5) * 0.018 * motion,
-      cropInset: tensionCrop,
+      scaleMultiplier: 1 + (bass * 0.055 + (slowOscillator + 1) * 0.008) * motion,
+      offsetX: slowOscillator * 0.055 * motion,
+      offsetY: fastOscillator * 0.025 * motion,
+      rotationOffset: fastOscillator * 1.2 * motion,
+      cropInset: Math.min(0.11, tensionCrop),
     }
   }
   if (role === 'texture') {
-    const opacityTarget = 0.82 + energy * 0.18
     return {
       roles: [role],
-      opacityMultiplier: 1 + (opacityTarget - 1) * motion,
-      offsetY: (flux - 0.5) * 0.014 * motion,
-      rotationOffset: (flux - 0.5) * 0.45 * motion,
+      scaleMultiplier: 1 + (0.018 + flux * 0.025) * motion,
+      offsetX: fastOscillator * 0.045 * motion,
+      offsetY: slowOscillator * 0.065 * motion,
+      rotationOffset: slowOscillator * 3.2 * motion,
     }
   }
   if (role === 'foregroundAccent') {
-    const vocalVisibility = 0.8 + Math.max(0, Math.min(1, context.vocalEnergy)) * 0.2
-    return { roles: [role], opacityMultiplier: 1 + (vocalVisibility - 1) * motion }
+    return {
+      roles: [role],
+      scaleMultiplier: 1 + (0.02 + vocal * 0.035) * motion,
+      offsetX: slowOscillator * (0.045 + vocal * 0.025) * motion,
+      offsetY: fastOscillator * 0.04 * motion,
+      rotationOffset: fastOscillator * 2.1 * motion,
+    }
   }
   if (role === 'background') {
-    const opacityTarget = 0.9 + energy * 0.1
-    return { roles: [role], opacityMultiplier: 1 + (opacityTarget - 1) * motion }
+    return {
+      roles: [role],
+      scaleMultiplier: 1 + (0.018 + bass * 0.025) * motion,
+      offsetX: slowOscillator * 0.025 * motion,
+      offsetY: fastOscillator * 0.018 * motion,
+    }
+  }
+  if (role === 'feedback' || role === 'transition') {
+    return {
+      roles: [role],
+      scaleMultiplier: 1 + (0.025 + flux * 0.035) * motion,
+      rotationOffset: slowOscillator * 2.6 * motion,
+      offsetX: fastOscillator * 0.035 * motion,
+      offsetY: slowOscillator * 0.035 * motion,
+    }
+  }
+  if (role === 'mask') {
+    return {
+      roles: [role],
+      scaleMultiplier: 1 + 0.025 * motion,
+      rotationOffset: slowOscillator * 1.4 * motion,
+    }
   }
   return null
 }
@@ -139,8 +200,11 @@ function resolvedTreatmentForRole(
   context: SharedPerformanceContext,
   settings: CanvasOrchestrationSettings,
 ): CanvasLayerTreatment | null {
+  const motion = settings.globalLocks.motion ? 0 : resolveCanvasMotionResponse(settings.motionIntensity)
+  const authoredTreatment = scaledAuthoredMotionTreatment(treatmentForRole(authored, role), motion)
   const continuous = continuousTreatmentForRole(role, context, settings)
-  return treatmentForRole(continuous ? [...authored, continuous] : authored, role)
+  const combined = [authoredTreatment, continuous].filter((value): value is CanvasLayerTreatment => value !== null)
+  return treatmentForRole(combined, role)
 }
 
 function shouldApplyAdvanceIntent(
@@ -148,8 +212,28 @@ function shouldApplyAdvanceIntent(
   settings: CanvasOrchestrationSettings,
   intent: { reason: string; identity: string },
 ): boolean {
-  if (intent.reason === 'sectionEntry' || intent.reason === 'fourBarMotif' || intent.reason === 'eightBarRecruitment' || intent.reason === 'sixteenBarEvolution') return true
-  const eventMultiplier = intent.reason === 'downbeat' || intent.reason === 'semanticMoment' ? 1 : 0.72
+  // Cadence actions remain present for the duration of their cadence stage. Only
+  // treat the actual crossed boundary as an edit opportunity, otherwise a 100%
+  // Cut Density value would reselect media on every orchestration tick.
+  if (intent.reason === 'sectionEntry' && !context.boundaries.sectionEntry && !context.boundaries.macroSectionEntry) return false
+  if (intent.reason === 'fourBarMotif' && !context.boundaries.performanceFourBarBoundary) return false
+  if (intent.reason === 'eightBarRecruitment' && !context.boundaries.performanceEightBarBoundary) return false
+  if (intent.reason === 'sixteenBarEvolution' && !context.boundaries.performanceSixteenBarBoundary) return false
+
+  const opportunityWeight = intent.reason === 'sectionEntry' || intent.reason === 'sixteenBarEvolution'
+    ? 1
+    : intent.reason === 'eightBarRecruitment'
+      ? 0.96
+      : intent.reason === 'fourBarMotif' || intent.reason === 'downbeat'
+        ? 0.9
+        : intent.reason === 'semanticMoment'
+          ? 0.82
+          : intent.reason === 'snare' || intent.reason === 'kick'
+            ? 0.68
+            : 0.55
+  const chance = resolveCanvasCutOpportunityProbability(settings.cutDensity, opportunityWeight)
+  if (chance <= 0) return false
+  if (chance >= 1) return true
   return performanceDeterministicUnit(
     context.trackIdentity,
     settings.programId,
@@ -157,7 +241,7 @@ function shouldApplyAdvanceIntent(
     context.beatIndex,
     intent.identity,
     'canvas-authored-cut-density',
-  ) < Math.max(0, Math.min(1, settings.cutDensity * eventMultiplier))
+  ) < chance
 }
 
 function uniqueMedia(items: readonly CanvasMediaItem[]): CanvasMediaItem[] {
@@ -336,10 +420,17 @@ export function resolveCanvasAuthoredProgramState(
   }
 }
 
-function desiredLayerBudget(settings: CanvasOrchestrationSettings, context: SharedPerformanceContext, templateLayerCount: number): number {
-  const base = 1 + Math.round(Math.max(0, Math.min(1, settings.complexity)) * (templateLayerCount - 1))
-  const recruitmentBonus = context.performanceEightBarBlockIndex > 0 ? 1 : 0
-  return Math.max(1, Math.min(MAX_CANVAS_PERFORMANCE_LAYERS, templateLayerCount, base + recruitmentBonus))
+function activeSlotsForComplexity(
+  template: ReturnType<typeof getCanvasCompositionTemplate>,
+  settings: CanvasOrchestrationSettings,
+  retiredRoles: ReadonlySet<CanvasLayerRole>,
+): readonly CanvasCompositionSlot[] {
+  const richnessTier = Math.min(template.maxRichnessTier, resolveCanvasCompositionRichnessTier(settings.complexity))
+  return template.slots
+    .filter(slot => slot.richnessTier <= richnessTier)
+    // Core slots are structural identity and cannot be removed by scene retirement.
+    .filter(slot => slot.richnessTier === 0 || !retiredRoles.has(slot.role))
+    .slice(0, MAX_CANVAS_PERFORMANCE_LAYERS)
 }
 
 function selectPool(
@@ -398,9 +489,6 @@ function resolveSlotLayer({
   const mediaChoiceLocked = settings.globalLocks.media === true || layerLocked
   const lockedMediaId = settings.mediaLocksByLayer[slot.role] ?? null
   const timelineReset = context.seekDetected || context.loopWrapDetected || context.trackReplacementDetected
-  const quantizedSelectionBoundary = context.boundaries.sectionEntry
-    || context.boundaries.macroSectionEntry
-    || context.boundaries.performanceFourBarBoundary
   const previousSourceStillAvailable = Boolean(
     previousLayer?.sourceMediaId && pool.some(item => item.id === previousLayer.sourceMediaId),
   )
@@ -410,7 +498,6 @@ function resolveSlotLayer({
     || !previousSourceStillAvailable
     || lockedChoiceChanged
     || timelineReset
-    || quantizedSelectionBoundary
 
   let chosen: CanvasMediaItem | null
   if (lockedMediaId) {
@@ -438,7 +525,7 @@ function resolveSlotLayer({
       settings,
       context,
       layerRole: slot.role,
-      previousMediaId: (quantizedSelectionBoundary || forceAdvance) && !timelineReset ? previousLayer?.sourceMediaId ?? null : null,
+      previousMediaId: forceAdvance && !timelineReset ? previousLayer?.sourceMediaId ?? null : null,
       selectionIdentity: forceAdvance ? selectionIdentity : '',
     })
   }
@@ -449,9 +536,12 @@ function resolveSlotLayer({
     ? { ...previousLayer.playback, loopRange: { ...previousLayer.playback.loopRange } }
     : resolveCanvasPlayback(source, context, slot.role, `${settings.programId}|${slot.id}`)
   if (frameHold && !settings.globalLocks.playback) resolvedPlayback.frameHold = true
+  const effectiveEffectIntensity = settings.effectIntensity <= 0
+    ? 0
+    : Math.min(1, settings.effectIntensity * (1 + effectBoost))
   const effectChain = layerLocked || settings.globalLocks.effectChain
     ? previousLayer?.effectChain ?? []
-    : resolveCanvasEffectChain(effectRecipeId, context, Math.min(1, settings.effectIntensity + effectBoost)).slice(0, MAX_CANVAS_EFFECT_CHAIN_DEPTH)
+    : resolveCanvasEffectChain(effectRecipeId, context, effectiveEffectIntensity).slice(0, MAX_CANVAS_EFFECT_CHAIN_DEPTH)
   const lockedAppearance = layerLocked ? previousLayer : null
   const treatmentEnabled = !lockedAppearance && !settings.globalLocks.motion && treatment !== null
   const opacityMultiplier = treatmentEnabled ? treatment?.opacityMultiplier ?? 1 : 1
@@ -559,6 +649,7 @@ function resolveCanvasFracturesPerformanceFrame({
   const overrides = resolveCanvasFracturesShowOverrides({
     authoredProfile: program.fracturesProfile!,
     persistedProfile: settings.fracturesShowOverrides,
+    orchestrationSettings: settings,
     context,
   })
   const processorIdentity = makeCanvasFracturesProcessorIdentity({
@@ -580,7 +671,7 @@ function resolveCanvasFracturesPerformanceFrame({
       overrides,
     },
   }
-  const frameIdentity = frameIdentityFor(context, settings, template.id, [layer]) + `|${processorIdentity}`
+  const frameIdentity = frameIdentityFor(context, settings, template.id, program.effectRecipeId, [layer]) + `|${processorIdentity}`
   const sourceMediaId = layer.sourceMediaId
   const readyMediaIds = sourceMediaId && (!isMediaReady || isMediaReady(sourceMediaId)) ? [sourceMediaId] : []
   const pendingMediaIds = result.pendingMediaId ? [result.pendingMediaId] : []
@@ -618,19 +709,22 @@ function frameIdentityFor(
   context: SharedPerformanceContext,
   settings: CanvasOrchestrationSettings,
   templateId: CanvasCompositionTemplateId,
+  effectRecipeId: CanvasEffectRecipeId,
   layers: readonly CanvasResolvedLayer[],
 ): string {
+  // Transition identity represents discrete visual state, not the passage of a cadence block.
+  // Musical boundaries still gate transition opportunities in CanvasTransitions.
   const seed = createPerformanceDeterministicSeed(
     context.trackIdentity,
     settings.programId,
     context.sectionFamily,
     context.sectionOccurrence,
-    context.performanceFourBarBlockIndex,
     settings.poolRevision,
     templateId,
-    ...layers.map(layer => `${layer.role}:${layer.sourceMediaId ?? 'none'}`),
+    effectRecipeId,
+    ...layers.map(layer => `${layer.id}:${layer.role}:${layer.sourceMediaId ?? 'none'}`),
   )
-  return `${settings.programId}|${templateId}|${context.sectionIdentity}|${context.performanceFourBarBlockIndex}|${seed}`
+  return `${settings.programId}|${templateId}|${context.sectionIdentity}|${effectRecipeId}|${seed}`
 }
 
 export function resolveCanvasPerformanceFrame({
@@ -662,14 +756,10 @@ export function resolveCanvasPerformanceFrame({
     ? previousFrame.template.id
     : program.templateId
   const template = getCanvasCompositionTemplate(templateId)
-  const budget = desiredLayerBudget(settings, context, template.slots.length)
   const pendingMediaIds = new Set<string>()
   let fallbackUsed = selection.fallbackUsed
 
-  const activeSlots = template.slots
-    .filter(slot => program.recruitedRoles.has(slot.role) || slot.role === 'hero' || slot.role === 'background')
-    .filter(slot => !program.retiredRoles.has(slot.role))
-    .slice(0, budget)
+  const activeSlots = activeSlotsForComplexity(template, settings, program.retiredRoles)
 
   let layers = activeSlots.map(slot => {
     const result = resolveSlotLayer({
@@ -714,7 +804,7 @@ export function resolveCanvasPerformanceFrame({
   layers = attachMaskSources(layers)
   const requestedLayerCount = layers.length
   layers = layers.slice(0, MAX_CANVAS_PERFORMANCE_LAYERS)
-  const frameIdentity = frameIdentityFor(context, settings, template.id, layers)
+  const frameIdentity = frameIdentityFor(context, settings, template.id, program.effectRecipeId, layers)
   const transition = settings.globalLocks.transition
     ? null
     : resolveCanvasTransition({

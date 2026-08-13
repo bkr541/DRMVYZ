@@ -263,10 +263,14 @@ export interface CanvasEffectRecipe {
   intensityScale: number
 }
 
+export type CanvasCompositionRichnessTier = 0 | 1 | 2 | 3 | 4
+
 export interface CanvasCompositionSlot {
   id: string
   role: CanvasLayerRole
   requiredMediaRoles: readonly CanvasMediaRole[]
+  /** 0 is composition-defining structure; 1-4 are progressively optional richness. */
+  richnessTier: CanvasCompositionRichnessTier
   fallbackMediaRoles: readonly CanvasMediaRole[]
   enabled: boolean
   opacity: number
@@ -291,6 +295,9 @@ export interface CanvasCompositionTemplate {
   maxLayers: number
   maxVideoDecoders: number
   feedbackPasses: 0 | 1
+  /** Stable structural identity that Layer Complexity is never allowed to remove. */
+  coreSlotIds: readonly string[]
+  maxRichnessTier: CanvasCompositionRichnessTier
 }
 
 export interface CanvasResolvedPlayback {

@@ -43,6 +43,10 @@ function frameAt(timeSec: number): MusicIntelligenceFrame {
       beatPhase: timeSec * 2 - beatIndex,
       beatInBar: beatIndex % 4,
       barIndex: Math.floor(beatIndex / 4),
+      beatHit: Number.isInteger(timeSec / 2),
+      downbeatHit: Number.isInteger(timeSec / 2),
+      kickHit: Number.isInteger(timeSec / 2),
+      kickStrength: Number.isInteger(timeSec / 2) ? 0.9 : 0,
     },
     bands: { ...DEFAULT_MI_FRAME.bands, normalizedBass: 0.72, normalizedMid: 0.5, normalizedHigh: 0.42 },
     energy: { ...DEFAULT_MI_FRAME.energy, instant: 0.75, percentile: 0.8, spectralFlux: 0.55, tension: 0.7, complexity: 0.6 },
@@ -86,7 +90,7 @@ function media(id: string, type: CanvasMediaItem['type'] = 'video'): CanvasMedia
   }
 }
 
-const pool = [media('hero-video'), media('fallback-image', 'image')]
+const pool = [media('hero-video'), media('fallback-image', 'image'), media('alternate-image', 'image')]
 
 function showSettings(patch: Partial<CanvasOrchestrationSettings> = {}): CanvasOrchestrationSettings {
   return {
@@ -94,7 +98,7 @@ function showSettings(patch: Partial<CanvasOrchestrationSettings> = {}): CanvasO
     enabled: true,
     programId: 'canvas-fractures-performance',
     mediaPoolIds: pool.map(item => item.id),
-    mediaRolesById: { 'hero-video': ['hero'], 'fallback-image': ['background', 'hero'] },
+    mediaRolesById: { 'hero-video': ['hero'], 'fallback-image': ['background', 'hero'], 'alternate-image': ['hero', 'alternateHero'] },
     ...patch,
   }
 }
@@ -148,6 +152,62 @@ describe('Fractures Canvas Performance Show integration', () => {
     expect(breakdown.fractureAnchorMode).toBe('alwaysVisible')
     expect(outro.fractureReturnToAnchor).toBe(true)
     expect(outro.fractureEffectsIntensity).toBeLessThan(breakdown.fractureEffectsIntensity!)
+  })
+
+  it('maps Complexity, Effect, Motion, and Transition Density into Fractures native renderer parameters', () => {
+    const complexityLow = processorAt(56, { complexity: 0 }).processor.overrides
+    const complexityMid = processorAt(56, { complexity: 0.5 }).processor.overrides
+    const complexityHigh = processorAt(56, { complexity: 1 }).processor.overrides
+    expect(complexityLow.fractureIntensity).toBeLessThan(complexityMid.fractureIntensity!)
+    expect(complexityHigh.fractureIntensity).toBeGreaterThan(complexityMid.fractureIntensity!)
+    expect(complexityLow.fractureComposition).toBeLessThan(complexityHigh.fractureComposition!)
+    expect(complexityLow.fractureDuplicationAmount).toBeLessThan(complexityHigh.fractureDuplicationAmount!)
+
+    const effectLow = processorAt(56, { effectIntensity: 0 }).processor.overrides
+    const effectMid = processorAt(56, { effectIntensity: 0.5 }).processor.overrides
+    const effectHigh = processorAt(56, { effectIntensity: 1 }).processor.overrides
+    expect(effectLow.fractureEffectsIntensity).toBe(0)
+    expect(effectLow.fractureGlowAmount).toBe(0)
+    expect(effectLow.fractureGlitchAmount).toBe(0)
+    expect(effectMid.fractureEffectsIntensity).toBeGreaterThan(0)
+    expect(effectHigh.fractureEffectsIntensity).toBeGreaterThan(effectMid.fractureEffectsIntensity!)
+
+    const motionLow = processorAt(56, { motionIntensity: 0 }).processor.overrides
+    const motionMid = processorAt(56, { motionIntensity: 0.5 }).processor.overrides
+    const motionHigh = processorAt(56, { motionIntensity: 1 }).processor.overrides
+    expect(motionLow.fractureMotionAmount).toBe(0)
+    expect(motionLow.fractureBassMotion).toBe(0)
+    expect(motionMid.fractureMotionAmount).toBeGreaterThan(0)
+    expect(motionHigh.fractureMotionAmount).toBeGreaterThan(motionMid.fractureMotionAmount!)
+
+    expect(processorAt(56, { transitionDensity: 0 }).processor.overrides.fractureLayoutInterval).toBe('16bars')
+    expect(processorAt(56, { transitionDensity: 0.5 }).processor.overrides.fractureLayoutInterval).toBe('bar')
+    expect(processorAt(56, { transitionDensity: 1 }).processor.overrides.fractureLayoutInterval).toBe('beat')
+  })
+
+  it('maps Cut Density into deterministic Fractures source replacement frequency at musical edit opportunities', () => {
+    const run = (cutDensity: number) => {
+      const orchestration = showSettings({ cutDensity, transitionDensity: 0 })
+      let context = contextAt(52.1)
+      let frame = resolveCanvasPerformanceFrame({ context, settings: orchestration, mediaItems: pool })
+      let changes = 0
+      for (const timeSec of [54, 56, 58, 60, 62, 64, 66, 68, 70, 72, 74, 76, 78, 80, 82]) {
+        const nextContext = contextAt(timeSec, context)
+        const nextFrame = resolveCanvasPerformanceFrame({ context: nextContext, settings: orchestration, mediaItems: pool, previousFrame: frame })
+        if (nextFrame.layers[0]?.sourceMediaId !== frame.layers[0]?.sourceMediaId) changes += 1
+        context = nextContext
+        frame = nextFrame
+      }
+      return changes
+    }
+
+    const low = run(0)
+    const medium = run(0.5)
+    const high = run(1)
+    expect(low).toBe(0)
+    expect(medium).toBeGreaterThan(low)
+    expect(high).toBeGreaterThan(medium)
+    expect(high).toBeGreaterThanOrEqual(10)
   })
 
   it('applies defaults, user baseline, show overrides, and local-audio controls in the documented precedence without mutation', () => {

@@ -3,6 +3,7 @@ import {
   selectPerformanceDeterministicIndex,
 } from '../../../../features/performanceCore'
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
+import { resolveCanvasTransitionOpportunityProbability } from './CanvasOrchestrationResponse'
 import { canvasMusicalDurationToSeconds } from './CanvasPlayback'
 import type {
   CanvasMusicalDuration,
@@ -94,16 +95,31 @@ function chooseTransitionPool(context: SharedPerformanceContext): readonly Canva
   return CANVAS_CLEAN_TRANSITIONS
 }
 
-function shouldStartTransition(context: SharedPerformanceContext, density: number): boolean {
+function shouldStartTransition(
+  context: SharedPerformanceContext,
+  density: number,
+  fromFrameIdentity: string | null | undefined,
+  toFrameIdentity: string,
+): boolean {
   if (context.seekDetected || context.loopWrapDetected || context.trackReplacementDetected) return false
-  if (context.boundaries.sectionEntry || context.boundaries.macroSectionEntry) return true
-  if (!context.boundaries.performanceFourBarBoundary) return false
-  const chance = Math.max(0, Math.min(1, density)) * 0.45
+  if (!fromFrameIdentity || fromFrameIdentity === toFrameIdentity) return false
+
+  const sectionBoundary = context.boundaries.sectionEntry || context.boundaries.macroSectionEntry
+  const phraseBoundary = context.boundaries.performanceFourBarBoundary
+  const eventBoundary = context.boundaries.beatBoundary && (context.downbeat || context.kick || context.snare)
+  if (!sectionBoundary && !phraseBoundary && !eventBoundary) return false
+
+  const opportunityWeight = sectionBoundary ? 1 : phraseBoundary ? 0.92 : context.downbeat ? 0.82 : 0.66
+  const chance = resolveCanvasTransitionOpportunityProbability(density, opportunityWeight)
+  if (chance <= 0) return false
+  if (chance >= 1) return true
   return performanceDeterministicUnit(
     context.trackIdentity,
     context.sectionFamily,
     context.sectionOccurrence,
     context.performanceFourBarBlockIndex,
+    context.beatIndex,
+    toFrameIdentity,
     'canvas-transition-density',
   ) < chance
 }
@@ -138,7 +154,7 @@ export function resolveCanvasTransition({
     }
   }
 
-  if (!shouldStartTransition(context, density)) return null
+  if (!shouldStartTransition(context, density, fromFrameIdentity, toFrameIdentity)) return null
   const candidates = (allowedIds?.length ? allowedIds : chooseTransitionPool(context))
     .map(resolveCanvasTransitionDefinition)
     .filter((definition, index, list) => list.findIndex(item => item.id === definition.id) === index)
