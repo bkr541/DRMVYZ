@@ -1,5 +1,6 @@
 import { SliderRow, SelectRow } from './ReactControlRows'
 import type { LaserDmxLaunchSettings, LaserDmxLaunchTrigger } from './ReactTypes'
+import { laserDmxLaunchConsumesCooldownBeats, laserDmxLaunchConsumesThreshold } from './laserDmxBeamMatrixParameterCapabilities'
 
 const TRIGGER_OPTIONS: { value: LaserDmxLaunchTrigger; label: string }[] = [
   { value: 'none',        label: 'None (off)'    },
@@ -24,6 +25,8 @@ export function LaserDmxLaunchControls({
   onMaxActiveChange,
 }: LaserDmxLaunchControlsProps) {
   const hasTrigger = launch.trigger !== 'none'
+  const showThreshold = laserDmxLaunchConsumesThreshold(launch)
+  const showCooldownBeats = laserDmxLaunchConsumesCooldownBeats(launch)
 
   return (
     <>
@@ -35,24 +38,28 @@ export function LaserDmxLaunchControls({
       />
       {hasTrigger && (
         <>
-          <SliderRow
-            label="Threshold"
-            value={launch.threshold}
-            onChange={v => onChange({ threshold: v })}
-            min={0} max={1} step={0.01}
-          />
+          {showThreshold && (
+            <SliderRow
+              label="Threshold"
+              value={launch.threshold}
+              onChange={v => onChange({ threshold: v })}
+              min={0} max={1} step={0.01}
+            />
+          )}
           <SliderRow
             label="Min Energy"
             value={launch.minimumEnergy}
             onChange={v => onChange({ minimumEnergy: v })}
             min={0} max={1} step={0.01}
           />
-          <SliderRow
-            label="Cooldown Beats"
-            value={launch.cooldownBeats}
-            onChange={v => onChange({ cooldownBeats: v })}
-            min={0} max={16} step={0.25}
-          />
+          {showCooldownBeats && (
+            <SliderRow
+              label="Cooldown Beats"
+              value={launch.cooldownBeats}
+              onChange={v => onChange({ cooldownBeats: v })}
+              min={0} max={16} step={0.25}
+            />
+          )}
         </>
       )}
       <SliderRow

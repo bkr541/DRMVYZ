@@ -9,6 +9,7 @@ import type {
 } from './ReactTypes'
 import { LASER_DMX_MATRIX_COLUMNS, LASER_DMX_MATRIX_ROWS, LASER_DMX_MATRIX_MAX_BEAMS } from './ReactTypes'
 import { LaserDmxBeamMotionControls } from './LaserDmxBeamMotionControls'
+import { laserDmxBeamConsumesRetrigger, laserDmxBeamConsumesSequenceIndex } from './laserDmxBeamMatrixParameterCapabilities'
 
 const GEOMETRY_OPTIONS = [
   { value: 'line',          label: 'Line'           },
@@ -100,19 +101,24 @@ function SingleBeamInspector({ beam, groups }: SingleBeamProps) {
         </>
       )}
 
-      <CtrlSection label="Sequence" />
-      <SliderRow
-        label="Sequence Index"
-        value={beam.sequenceIndex}
-        onChange={v => upd({ sequenceIndex: Math.round(v) })}
-        min={0} max={299} step={1}
-        color="#4ac7db"
-      />
+      {laserDmxBeamConsumesSequenceIndex(beam, groups) && (
+        <>
+          <CtrlSection label="Sequence" />
+          <SliderRow
+            label="Sequence Index"
+            value={beam.sequenceIndex}
+            onChange={v => upd({ sequenceIndex: Math.round(v) })}
+            min={0} max={299} step={1}
+            color="#4ac7db"
+          />
+        </>
+      )}
 
       <Collapsible label="Motion" defaultOpen={false}>
         <LaserDmxBeamMotionControls
           motion={beam.motion}
           onChange={motion => upd({ motion })}
+          retriggerSupported={laserDmxBeamConsumesRetrigger(beam, groups)}
         />
       </Collapsible>
 

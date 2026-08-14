@@ -20,6 +20,7 @@ import {
 } from './ReactTypes'
 import { BEATS_PER_BAR } from './ReactTypes'
 import { TRIGGER_TIMING_EVENT_SOURCES } from './renderers/LaserDmxModulationEngine'
+import { laserDmxRouteConsumesCurve, laserDmxRouteConsumesSmoothing } from './laserDmxBeamMatrixParameterCapabilities'
 
 // ── Source / target option lists ──────────────────────────────────────────────
 
@@ -288,7 +289,9 @@ function RouteRow({
       </div>
       <SelectRow label="Source" value={route.source} onChange={v => onChange({ source: v })} options={sources} />
       <SelectRow label="Target" value={route.target} onChange={v => onChange({ target: v as LaserDmxModulationRoute['target'] })} options={targets} />
-      <SelectRow label="Curve"  value={route.curve}  onChange={v => onChange({ curve:  v as LaserDmxModulationRoute['curve']  })} options={CURVE_OPTIONS} />
+      {laserDmxRouteConsumesCurve(route) && (
+        <SelectRow label="Curve" value={route.curve} onChange={v => onChange({ curve: v as LaserDmxModulationRoute['curve'] })} options={CURVE_OPTIONS} />
+      )}
       <SelectRow label="Mode"   value={route.mode}   onChange={v => onChange({ mode:   v as LaserDmxModulationRoute['mode']   })} options={MODE_OPTIONS} />
       <SliderRow label="Amount"    value={r('amount')}    onChange={v => onChange({ amount:    v })} min={0} max={1} step={0.01} color="#4ac7db" />
       <SliderRow label="Min"       value={r('min')}       onChange={v => onChange({ min:       v })} min={isOffsetTarget ? -1 : 0} max={1} step={0.01} color="#61d6aa" />
@@ -296,7 +299,9 @@ function RouteRow({
       {isOffsetTarget && (
         <p className="rv-ctrl-info">Offsets are relative to the rendered canvas. 0.10 moves the beam by 10% of the canvas dimension.</p>
       )}
-      <SliderRow label="Smoothing" value={r('smoothing')} onChange={v => onChange({ smoothing: v })} min={0} max={1} step={0.01} color="#b84fc9" />
+      {laserDmxRouteConsumesSmoothing(route) && (
+        <SliderRow label="Smoothing" value={r('smoothing')} onChange={v => onChange({ smoothing: v })} min={0} max={1} step={0.01} color="#b84fc9" />
+      )}
       <SliderRow label="Attack"    value={r('attack')}    onChange={v => onChange({ attack:    v })} min={0} max={1} step={0.01} color="#61d6aa" />
       <SliderRow label="Release"   value={r('release')}   onChange={v => onChange({ release:   v })} min={0} max={1} step={0.01} color="#c0314a" />
       <ToggleRow label="Invert"    value={route.invert}   onChange={v => onChange({ invert:    v })} />

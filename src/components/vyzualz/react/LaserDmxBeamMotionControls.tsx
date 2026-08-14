@@ -36,9 +36,10 @@ const RETRIGGER_OPTIONS = [
 interface LaserDmxBeamMotionControlsProps {
   motion:   LaserDmxBeamMotion
   onChange: (motion: LaserDmxBeamMotion) => void
+  retriggerSupported?: boolean
 }
 
-export function LaserDmxBeamMotionControls({ motion, onChange }: LaserDmxBeamMotionControlsProps) {
+export function LaserDmxBeamMotionControls({ motion, onChange, retriggerSupported = true }: LaserDmxBeamMotionControlsProps) {
   const upd = (patch: Partial<LaserDmxBeamMotion>) => onChange({
     ...motion,
     ...patch,
@@ -53,7 +54,7 @@ export function LaserDmxBeamMotionControls({ motion, onChange }: LaserDmxBeamMot
   const showTail    = m === 'projectile' || m === 'scanner' || m === 'pulseTrain'
   const showHeadGlow  = m !== 'static'
   const showEasing    = m !== 'static' && m !== 'pulseTrain'
-  const showRetrigger = m !== 'static'
+  const showRetrigger = m !== 'static' && retriggerSupported
 
   // Find closest beats option or fall back to first
   const beatsValue = BEATS_PER_TRAVEL_OPTIONS.some(o => o.value === String(motion.beatsPerTravel))
