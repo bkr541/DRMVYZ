@@ -185,6 +185,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     activeReactPresetId,
     activeReactEngineId,
     selectedCanvasPresetId,
+    selectedCanvasLayerId,
     laserDmxWorkspaceMode,
     reactIntensity,
     reactMotion,
@@ -228,6 +229,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     activeReactPresetId:    s.activeReactPresetId,
     activeReactEngineId:    s.activeReactEngineId,
     selectedCanvasPresetId: s.selectedCanvasPresetId,
+    selectedCanvasLayerId:  s.selectedCanvasLayerId,
     laserDmxWorkspaceMode:  s.laserDmxWorkspaceMode,
     reactIntensity:         s.reactIntensity,
     reactMotion:            s.reactMotion,
@@ -455,10 +457,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
       activeReactEngineId,
       activeShaderId,
       oscillatorSettings,
+      selectedCanvasLayerId,
         laserDmxWorkspaceMode,
       laserDmxBeamMatrix,
     }),
-    [activeReactEngineId, activeShaderId, oscillatorSettings, laserDmxWorkspaceMode, laserDmxBeamMatrix],
+    [activeReactEngineId, activeShaderId, oscillatorSettings, selectedCanvasLayerId, laserDmxWorkspaceMode, laserDmxBeamMatrix],
   )
 
   const rightTabs = useMemo<RailTabOption<ReactRightPanel>[]>(

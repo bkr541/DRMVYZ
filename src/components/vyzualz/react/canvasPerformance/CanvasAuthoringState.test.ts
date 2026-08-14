@@ -5,6 +5,8 @@ import {
   normalizeCanvasAuthoringState,
   normalizeCanvasAuthoredLayers,
   reorderCanvasAuthoredLayers,
+  isCanvasAuthoredLayerRenderEligible,
+  setCanvasAuthoredLayerSoloState,
 } from './CanvasAuthoringState'
 import { MAX_CANVAS_AUTHORED_LAYERS, MAX_CANVAS_PERFORMANCE_LAYERS } from './CanvasPerformanceTypes'
 
@@ -37,6 +39,29 @@ describe('CANVAS canonical authoring state', () => {
     expect(reordered?.map(layer => layer.id)).toEqual(['layer-b', 'layer-c', 'layer-a'])
     expect(reordered?.map(layer => layer.order)).toEqual([0, 1, 2])
     expect(reordered?.find(layer => layer.id === 'layer-a')?.mediaId).toBe('media-a')
+  })
+
+  it('applies a single-solo contract without destroying enabled state and exposes canonical render eligibility', () => {
+    const layers = normalizeCanvasAuthoredLayers([
+      { id: 'layer-a', mediaId: 'media-a', order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
+      { id: 'layer-b', mediaId: 'media-b', order: 1, enabled: false, solo: false, ownership: 'manual', pinned: true },
+      { id: 'layer-c', mediaId: 'media-c', order: 2, enabled: true, solo: false, ownership: 'automatic', pinned: false },
+    ])
+
+    const soloed = setCanvasAuthoredLayerSoloState(layers, 'layer-c', true)
+    expect(soloed?.map(layer => ({ id: layer.id, enabled: layer.enabled, solo: layer.solo }))).toEqual([
+      { id: 'layer-a', enabled: true, solo: false },
+      { id: 'layer-b', enabled: false, solo: false },
+      { id: 'layer-c', enabled: true, solo: true },
+    ])
+    expect(isCanvasAuthoredLayerRenderEligible(soloed ?? [], 'layer-a')).toBe(false)
+    expect(isCanvasAuthoredLayerRenderEligible(soloed ?? [], 'layer-b')).toBe(false)
+    expect(isCanvasAuthoredLayerRenderEligible(soloed ?? [], 'layer-c')).toBe(true)
+
+    const unsoloed = setCanvasAuthoredLayerSoloState(soloed ?? [], 'layer-c', false)
+    expect(unsoloed?.find(layer => layer.id === 'layer-b')?.enabled).toBe(false)
+    expect(isCanvasAuthoredLayerRenderEligible(unsoloed ?? [], 'layer-a')).toBe(true)
+    expect(isCanvasAuthoredLayerRenderEligible(unsoloed ?? [], 'layer-b')).toBe(false)
   })
 
   it('blocks shared-library deletion while canonical layer or pool references exist', () => {

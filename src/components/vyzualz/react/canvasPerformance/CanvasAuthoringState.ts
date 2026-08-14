@@ -54,10 +54,17 @@ export function normalizeCanvasAuthoredLayers(value: unknown): CanvasAuthoredLay
     })
   }
 
-  return candidates
+  const ordered = candidates
     .sort((left, right) => left.order - right.order || left.sourceIndex - right.sourceIndex || left.id.localeCompare(right.id))
     .slice(0, MAX_CANVAS_AUTHORED_LAYERS)
     .map(({ sourceIndex: _sourceIndex, ...layer }, order) => ({ ...layer, order }))
+
+  let soloClaimed = false
+  return ordered.map(layer => {
+    const solo = layer.solo && !soloClaimed
+    if (solo) soloClaimed = true
+    return solo === layer.solo ? layer : { ...layer, solo }
+  })
 }
 
 export function normalizeCanvasMediaPools(value: unknown): CanvasMediaPool[] {
@@ -133,6 +140,40 @@ export function reorderCanvasAuthoredLayers(
   const [moved] = next.splice(sourceIndex, 1)
   next.splice(targetIndex, 0, moved)
   return next.map((layer, order) => ({ ...layer, order }))
+}
+
+/**
+ * Applies the authoring-layer solo contract without rewriting enabled state.
+ * CANVAS uses a deterministic single-solo model: enabling solo on one layer
+ * clears solo from every other layer; disabling it simply clears that layer.
+ */
+export function setCanvasAuthoredLayerSoloState(
+  layers: readonly CanvasAuthoredLayer[],
+  layerId: string,
+  solo: boolean,
+): CanvasAuthoredLayer[] | null {
+  const normalized = normalizeCanvasAuthoredLayers(layers)
+  if (!normalized.some(layer => layer.id === layerId)) return null
+  return normalized.map(layer => ({
+    ...layer,
+    solo: layer.id === layerId ? solo : (solo ? false : layer.solo),
+  }))
+}
+
+/**
+ * Canonical Stage 3 eligibility rule for the authored stack. The production
+ * compositor begins consuming authored layers in Stage 4; keeping this rule
+ * domain-only prevents the authoring UI from inventing a parallel render path.
+ */
+export function isCanvasAuthoredLayerRenderEligible(
+  layers: readonly CanvasAuthoredLayer[],
+  layerId: string,
+): boolean {
+  const normalized = normalizeCanvasAuthoredLayers(layers)
+  const layer = normalized.find(candidate => candidate.id === layerId)
+  if (!layer?.enabled) return false
+  const activeSoloId = normalized.find(candidate => candidate.enabled && candidate.solo)?.id ?? null
+  return activeSoloId === null || activeSoloId === layer.id
 }
 
 export function upsertCanvasCompatibilityPool(

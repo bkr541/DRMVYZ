@@ -116,9 +116,11 @@ describe('CANVAS orchestration persistence and compatibility', () => {
       second.layer.id,
     ])
 
+    useReactStore.getState().setSelectedCanvasLayer(first.layer.id)
     const updated = useReactStore.getState().updateCanvasAuthoredLayer(first.layer.id, { solo: true, pinned: false })
     expect(updated.ok).toBe(true)
     expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.find(layer => layer.id === first.layer.id)).toMatchObject({ solo: true, pinned: false })
+    expect(useReactStore.getState().selectedCanvasLayerId).toBe(first.layer.id)
 
     expect(useReactStore.getState().removeCanvasAuthoredLayer(second.layer.id).ok).toBe(true)
     const duplicate = useReactStore.getState().duplicateCanvasAuthoredLayer(first.layer.id)
@@ -127,6 +129,60 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     expect(duplicate.layer.id).not.toBe(first.layer.id)
     expect(duplicate.layer.mediaId).toBe(first.layer.mediaId)
     expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers).toHaveLength(4)
+    expect(useReactStore.getState().selectedCanvasLayerId).toBe(duplicate.layer.id)
+
+    expect(useReactStore.getState().setCanvasAuthoredLayerSolo(fourth.layer.id, true).ok).toBe(true)
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.filter(layer => layer.solo).map(layer => layer.id)).toEqual([fourth.layer.id])
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.find(layer => layer.id === first.layer.id)?.enabled).toBe(true)
+
+    const selectedIndex = useReactStore.getState().canvasOrchestrationSettings.authoredLayers.findIndex(layer => layer.id === duplicate.layer.id)
+    expect(useReactStore.getState().removeCanvasAuthoredLayer(duplicate.layer.id).ok).toBe(true)
+    const remaining = useReactStore.getState().canvasOrchestrationSettings.authoredLayers
+    const expectedNeighbor = remaining[selectedIndex]?.id ?? remaining[selectedIndex - 1]?.id ?? remaining[0]?.id ?? null
+    expect(useReactStore.getState().selectedCanvasLayerId).toBe(expectedNeighbor)
+  })
+
+  it('deletes selected soloed top, middle, and bottom instances with deterministic neighbor cleanup and allows re-add', () => {
+    for (const targetIndex of [0, 1, 2]) {
+      useReactStore.getState().resetReactView()
+      useReactStore.getState().selectReactEngine('canvas')
+      const a = useReactStore.getState().addCanvasAuthoredLayer(`delete-a-${targetIndex}`)
+      const b = useReactStore.getState().addCanvasAuthoredLayer(`delete-b-${targetIndex}`)
+      const c = useReactStore.getState().addCanvasAuthoredLayer(`delete-c-${targetIndex}`)
+      if (!a.ok || !b.ok || !c.ok) throw new Error('Expected deletion scenario layers')
+
+      const ordered = useReactStore.getState().canvasOrchestrationSettings.authoredLayers
+      const target = ordered[targetIndex]
+      if (!target) throw new Error('Expected deletion target')
+      useReactStore.getState().setSelectedCanvasLayer(target.id)
+      expect(useReactStore.getState().setCanvasAuthoredLayerSolo(target.id, true).ok).toBe(true)
+
+      expect(useReactStore.getState().removeCanvasAuthoredLayer(target.id).ok).toBe(true)
+      const remaining = useReactStore.getState().canvasOrchestrationSettings.authoredLayers
+      const expectedNeighbor = remaining[targetIndex]?.id ?? remaining[targetIndex - 1]?.id ?? remaining[0]?.id ?? null
+      expect(useReactStore.getState().selectedCanvasLayerId).toBe(expectedNeighbor)
+      expect(remaining.some(layer => layer.solo)).toBe(false)
+
+      const readded = useReactStore.getState().addCanvasAuthoredLayer(target.mediaId)
+      expect(readded.ok).toBe(true)
+    }
+  })
+
+  it('keeps current CANVAS layer selection runtime-only across persistence and hydration', () => {
+    const added = useReactStore.getState().addCanvasAuthoredLayer('runtime-selection-media')
+    expect(added.ok).toBe(true)
+    if (!added.ok) throw new Error('Expected CANVAS layer')
+
+    useReactStore.getState().setSelectedCanvasLayer(added.layer.id)
+    expect(useReactStore.getState().selectedCanvasLayerId).toBe(added.layer.id)
+
+    const persisted = reactStorePartialize(useReactStore.getState()) as unknown as Record<string, unknown>
+    expect(persisted).not.toHaveProperty('selectedCanvasLayerId')
+
+    const contaminatedPersisted = { ...persisted, selectedCanvasLayerId: added.layer.id }
+    const reloaded = mergeReactStoreState(contaminatedPersisted, useReactStore.getState())
+    expect(reloaded.selectedCanvasLayerId).toBeNull()
+    expect(reloaded.canvasOrchestrationSettings.authoredLayers.map(layer => layer.id)).toContain(added.layer.id)
   })
 
   it('supports multiple named pools while deriving the legacy runtime pool from exactly one active pool', () => {

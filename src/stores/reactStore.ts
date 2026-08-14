@@ -206,6 +206,7 @@ import {
   normalizeCanvasMediaIds,
   normalizeCanvasMediaPools,
   reorderCanvasAuthoredLayers,
+  setCanvasAuthoredLayerSoloState,
   upsertCanvasCompatibilityPool,
 } from '../components/vyzualz/react/canvasPerformance/CanvasAuthoringState'
 import { CANVAS_COMPOSITION_TEMPLATES } from '../components/vyzualz/react/canvasPerformance/CanvasCompositionTemplates'
@@ -2551,9 +2552,10 @@ interface ReactStoreState {
   canvasPresetOverride: CanvasPresetOverrideState | null
   canvasVideoRestartRevision: number
   canvasOrchestrationSettings: CanvasOrchestrationSettings
-  // Cross-tab selection: which layer role the Layers tab and the Design
-  // tab's Locks section are both currently pointed at. Mirrors Cinema's
-  // layer-selection-drives-Design pattern.
+  /** Runtime-only authoring selection. Layer identity is independent of media identity. */
+  selectedCanvasLayerId: string | null
+  // Performance Orchestration lock-editor role. This remains independent of
+  // the canonical authored-layer selection used by the Layers/Selection UI.
   canvasOrchestrationEditingLayerRole: CanvasLayerRole
 
   // Shared Show Manager identity/audio metadata. Persisted Shows are distinct from the transient open/edit session.
@@ -2599,6 +2601,8 @@ interface ReactStoreState {
   reorderCanvasAuthoredLayer: (layerId: string, targetIndex: number) => CanvasLayerMutationResult
   duplicateCanvasAuthoredLayer: (layerId: string) => CanvasLayerMutationResult
   removeCanvasAuthoredLayer: (layerId: string) => CanvasLayerMutationResult
+  setSelectedCanvasLayer: (layerId: string | null) => void
+  setCanvasAuthoredLayerSolo: (layerId: string, solo: boolean) => CanvasLayerMutationResult
   createCanvasMediaPool: (name: string) => CanvasMediaPoolMutationResult
   renameCanvasMediaPool: (poolId: string, name: string) => CanvasMediaPoolMutationResult
   deleteCanvasMediaPool: (poolId: string) => CanvasMediaPoolMutationResult
@@ -6212,6 +6216,7 @@ export function mergeReactStoreState(
     selectedCanvasMediaId: merged.selectedCanvasMediaId ?? merged.canvasEngineSettings.selectedMediaId ?? null,
     activeCanvasMediaId: merged.activeCanvasMediaId ?? merged.selectedCanvasMediaId ?? merged.canvasEngineSettings.selectedMediaId ?? null,
     canvasVideoRestartRevision: currentState.canvasVideoRestartRevision,
+    selectedCanvasLayerId: null,
     canvasShowManagerEditingShowId: null,
     showManagerEditingShowId: null,
     canvasShowManagerEditingSectionId: null,
@@ -6417,6 +6422,7 @@ export const useReactStore = create<ReactStoreState>()(
       canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
       canvasVideoRestartRevision: 0,
       canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
+      selectedCanvasLayerId: null,
       canvasOrchestrationEditingLayerRole: 'hero',
       showManagerShows: [],
       showManagerEditingShowId: null,
@@ -6940,14 +6946,18 @@ export const useReactStore = create<ReactStoreState>()(
           || Object.prototype.hasOwnProperty.call(patch, 'activeMediaPoolId')
           || Object.prototype.hasOwnProperty.call(patch, 'mediaRolesById')
           || Object.prototype.hasOwnProperty.call(patch, 'mediaLocksByLayer')
-        return {
-          canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+        const canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
             ...state.canvasOrchestrationSettings,
             ...canonicalPatch,
             poolRevision: poolChanged
               ? state.canvasOrchestrationSettings.poolRevision + 1
               : patch.poolRevision ?? state.canvasOrchestrationSettings.poolRevision,
-          }),
+          })
+        return {
+          canvasOrchestrationSettings,
+          selectedCanvasLayerId: canvasOrchestrationSettings.authoredLayers.some(layer => layer.id === state.selectedCanvasLayerId)
+            ? state.selectedCanvasLayerId
+            : null,
         }
       }),
 
@@ -7025,8 +7035,11 @@ export const useReactStore = create<ReactStoreState>()(
             ownership,
             pinned: typeof patch.pinned === 'boolean' ? patch.pinned : existing.pinned,
           }
-          const authoredLayers = [...current]
+          let authoredLayers = [...current]
           authoredLayers[index] = updated
+          if (patch.solo === true) {
+            authoredLayers = setCanvasAuthoredLayerSoloState(authoredLayers, layerId, true) ?? authoredLayers
+          }
           result = { ok: true, layer: updated }
           return {
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
@@ -7098,12 +7111,16 @@ export const useReactStore = create<ReactStoreState>()(
             duplicate,
             ...current.slice(sourceIndex + 1),
           ].map((layer, order) => ({ ...layer, order }))
+          const canonicalLayers = current[sourceIndex].solo
+            ? setCanvasAuthoredLayerSoloState(authoredLayers, duplicate.id, true) ?? authoredLayers
+            : authoredLayers
           result = { ok: true, layer: duplicate }
           return {
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
               ...state.canvasOrchestrationSettings,
-              authoredLayers,
+              authoredLayers: canonicalLayers,
             }),
+            selectedCanvasLayerId: duplicate.id,
           }
         })
         return result
@@ -7122,7 +7139,48 @@ export const useReactStore = create<ReactStoreState>()(
           const authoredLayers = current
             .filter(layer => layer.id !== layerId)
             .map((layer, order) => ({ ...layer, order }))
+          const removedIndex = current.findIndex(layer => layer.id === layerId)
+          const fallbackSelection = authoredLayers[removedIndex]?.id
+            ?? authoredLayers[removedIndex - 1]?.id
+            ?? authoredLayers[0]?.id
+            ?? null
           result = { ok: true, layer: removed }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              authoredLayers,
+            }),
+            selectedCanvasLayerId: state.selectedCanvasLayerId === layerId
+              ? fallbackSelection
+              : state.selectedCanvasLayerId,
+          }
+        })
+        return result
+      },
+
+      setSelectedCanvasLayer: (layerId) => set((state) => ({
+        selectedCanvasLayerId: layerId != null
+          && state.canvasOrchestrationSettings.authoredLayers.some(layer => layer.id === layerId)
+          ? layerId
+          : null,
+      })),
+
+      setCanvasAuthoredLayerSolo: (layerId, solo) => {
+        let result: CanvasLayerMutationResult = {
+          ok: false,
+          code: 'layer-not-found',
+          message: 'That CANVAS layer is no longer available.',
+        }
+        set((state) => {
+          const authoredLayers = setCanvasAuthoredLayerSoloState(
+            state.canvasOrchestrationSettings.authoredLayers,
+            layerId,
+            solo,
+          )
+          if (!authoredLayers) return {}
+          const layer = authoredLayers.find(candidate => candidate.id === layerId)
+          if (!layer) return {}
+          result = { ok: true, layer }
           return {
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
               ...state.canvasOrchestrationSettings,
@@ -7437,6 +7495,7 @@ export const useReactStore = create<ReactStoreState>()(
           canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
           canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
           canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
+          selectedCanvasLayerId: null,
           canvasOrchestrationEditingLayerRole: 'hero',
           canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
         }
@@ -7657,6 +7716,10 @@ export const useReactStore = create<ReactStoreState>()(
 
         const { [id]: _removedTiming, ...nextTimingById } = state.canvasMediaTimingById
         void _removedTiming
+        const authoredLayers = normalizeCanvasAuthoredLayers(
+          state.canvasOrchestrationSettings.authoredLayers.filter(layer => layer.mediaId !== id),
+        )
+        const selectedLayerStillExists = authoredLayers.some(layer => layer.id === state.selectedCanvasLayerId)
 
         return repairCanvasRuntimeState({
           ...state,
@@ -7673,9 +7736,10 @@ export const useReactStore = create<ReactStoreState>()(
               : state.canvasEngineSettings.manualMediaOverrideId,
           }),
           canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
+          selectedCanvasLayerId: selectedLayerStillExists ? state.selectedCanvasLayerId : null,
           canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
             ...state.canvasOrchestrationSettings,
-            authoredLayers: state.canvasOrchestrationSettings.authoredLayers.filter(layer => layer.mediaId !== id),
+            authoredLayers,
             mediaPools: state.canvasOrchestrationSettings.mediaPools.map(pool => ({
               ...pool,
               mediaIds: pool.mediaIds.filter(mediaId => mediaId !== id),
@@ -7714,6 +7778,9 @@ export const useReactStore = create<ReactStoreState>()(
           canvasMediaTimingById: {},
           selectedCanvasMediaId: null,
           activeCanvasMediaId: null,
+          selectedCanvasLayerId: authoredLayers.some(layer => layer.id === state.selectedCanvasLayerId)
+            ? state.selectedCanvasLayerId
+            : null,
           canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
           canvasEngineSettings: normalizeCanvasEngineSettings({
             ...state.canvasEngineSettings,
@@ -11955,6 +12022,7 @@ export const useReactStore = create<ReactStoreState>()(
               canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
               canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
               canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
+              selectedCanvasLayerId: null,
               canvasOrchestrationEditingLayerRole: 'hero',
               canvasVideoRestartRevision: s.canvasVideoRestartRevision + 1,
             }
@@ -12048,6 +12116,7 @@ export const useReactStore = create<ReactStoreState>()(
             canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
             canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
+            selectedCanvasLayerId: null,
             canvasOrchestrationEditingLayerRole: 'hero',
             canvasVideoRestartRevision: s.canvasVideoRestartRevision + 1,
             showManagerShows: [],
@@ -12121,6 +12190,7 @@ export const useReactStore = create<ReactStoreState>()(
           canvasPresetSettings:         { ...DEFAULT_CANVAS_PRESET_SETTINGS },
           canvasPresetOverride:         DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
           canvasOrchestrationSettings:  normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
+          selectedCanvasLayerId:        null,
           canvasVideoRestartRevision:   get().canvasVideoRestartRevision + 1,
           showManagerShows:             [],
           showManagerEditingShowId:     null,

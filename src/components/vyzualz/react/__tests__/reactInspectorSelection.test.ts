@@ -11,6 +11,7 @@ function baseArgs() {
     activeReactEngineId: 'cinematicPortal' as const,
     activeShaderId: null,
     oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
+    selectedCanvasLayerId: null,
     laserDmxWorkspaceMode: 'retiredFixtureRig',
     laserDmxBeamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
   }
@@ -53,6 +54,20 @@ describe('resolveReactInspectorSelection', () => {
       activeReactEngineId: 'shaderPads',
       activeShaderId: 'shader-1',
     })).toEqual({ kind: 'shaderScene', id: 'shader-1' })
+  })
+
+  it('routes a concrete CANVAS authored-layer identity into Selection', () => {
+    expect(resolveReactInspectorSelection({
+      ...baseArgs(),
+      activeReactEngineId: 'canvas',
+      selectedCanvasLayerId: null,
+    })).toBeNull()
+
+    expect(resolveReactInspectorSelection({
+      ...baseArgs(),
+      activeReactEngineId: 'canvas',
+      selectedCanvasLayerId: 'canvas-layer-1',
+    })).toEqual({ kind: 'canvasLayer', id: 'canvas-layer-1' })
   })
 
   it('does not expose retired fixture selections when LaserDMX is locked to Beam Matrix', () => {

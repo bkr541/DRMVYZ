@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react'
 import { Delete02Icon } from 'hugeicons-react'
 import { NoticeCard } from './controls/NoticeCard'
 import { IconChipButton } from './controls/IconChipButton'
@@ -3293,41 +3293,132 @@ function CanvasOrchestrationControls() {
 
 // ── Canvas layers tab ──────────────────────────────────────────────────────
 //
-// Mirrors Cinema's Layers panel: a numbered, click-to-select list of the
-// composition's layers. Canvas has no per-frame layer snapshot in the store
-// (orchestration resolves layers live inside the renderer), so this lists
-// the seven authored layer roles instead, with a Locked/Auto badge sourced
-// from the same orchestration lock state the Design tab's Locks section
-// edits. Selecting a role here selects it there too — "select a layer to
-// edit its live look in Design," same as Cinema.
+// Canonical authored layer instances. The top row is the highest visual
+// z-order, row selection routes into the shared Selection inspector, and the
+// rendered CANVAS surface remains intentionally selection-inert.
 
 export function CanvasLayersPanel() {
   const settings = useReactStore(s => s.canvasOrchestrationSettings)
-  const lockLayerRole = useReactStore(s => s.canvasOrchestrationEditingLayerRole)
-  const setLockLayerRole = useReactStore(s => s.setCanvasOrchestrationEditingLayerRole)
+  const selectedLayerId = useReactStore(s => s.selectedCanvasLayerId)
+  const setSelectedCanvasLayer = useReactStore(s => s.setSelectedCanvasLayer)
+  const reorderCanvasAuthoredLayer = useReactStore(s => s.reorderCanvasAuthoredLayer)
+  const setCanvasAuthoredLayerSolo = useReactStore(s => s.setCanvasAuthoredLayerSolo)
+  const duplicateCanvasAuthoredLayer = useReactStore(s => s.duplicateCanvasAuthoredLayer)
+  const removeCanvasAuthoredLayer = useReactStore(s => s.removeCanvasAuthoredLayer)
   const mediaItems = useCanvasRuntimeMediaItems()
+  const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null)
+  const [dragOverLayerId, setDragOverLayerId] = useState<string | null>(null)
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null)
+
+  const layers = settings.authoredLayers
+
+  const handleDragStart = (event: DragEvent<HTMLDivElement>, layerId: string) => {
+    setDraggedLayerId(layerId)
+    setDragOverLayerId(null)
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('application/x-drmvyz-canvas-layer', layerId)
+    event.dataTransfer.setData('text/plain', layerId)
+  }
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>, layerId: string) => {
+    if (!draggedLayerId || draggedLayerId === layerId) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    setDragOverLayerId(layerId)
+  }
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>, targetLayerId: string) => {
+    event.preventDefault()
+    const sourceLayerId = draggedLayerId
+      ?? event.dataTransfer.getData('application/x-drmvyz-canvas-layer')
+    const targetIndex = layers.findIndex(layer => layer.id === targetLayerId)
+    if (sourceLayerId && targetIndex >= 0 && sourceLayerId !== targetLayerId) {
+      const result = reorderCanvasAuthoredLayer(sourceLayerId, targetIndex)
+      if (!result.ok) setActionFeedback(result.message)
+      else setActionFeedback(null)
+    }
+    setDraggedLayerId(null)
+    setDragOverLayerId(null)
+  }
+
+  const duplicateLayer = (layerId: string) => {
+    const result = duplicateCanvasAuthoredLayer(layerId)
+    if (!result.ok) setActionFeedback(result.message)
+    else setActionFeedback(null)
+  }
+
+  const deleteLayer = (layerId: string) => {
+    const result = removeCanvasAuthoredLayer(layerId)
+    if (!result.ok) setActionFeedback(result.message)
+    else setActionFeedback(null)
+  }
 
   return (
     <section className="rv-cinema-panel-list" aria-label="Canvas layers">
-      <div className="rv-cinema-panel-list__header"><strong>Layers</strong><span>{CANVAS_LAYER_ROLE_OPTIONS.length}</span></div>
-      <p className="rv-cinema-panel-list__hint">Select a layer to edit its lock and locked media in Design. Composition and role recruitment are set in Performance Orchestration.</p>
+      <div className="rv-cinema-panel-list__header"><strong>Layers</strong><span>{layers.length} / {MAX_CANVAS_AUTHORED_LAYERS}</span></div>
+      <p className="rv-cinema-panel-list__hint">Top rows render above lower rows. Select a layer for Selection context, or drag a row to change stack order.</p>
+      {actionFeedback && <NoticeCard tone="error" role="status">{actionFeedback}</NoticeCard>}
       <div className="rv-cinema-layer-tree">
-        {CANVAS_LAYER_ROLE_OPTIONS.map((option, index) => {
-          const locked = settings.layerLocks[option.value] === true
-          const lockedMediaId = settings.mediaLocksByLayer[option.value]
-          const lockedMediaName = lockedMediaId ? mediaItems.find(item => item.id === lockedMediaId)?.name : undefined
+        {layers.map((layer, index) => {
+          const media = mediaItems.find(item => item.id === layer.mediaId) ?? null
+          const ownership = layer.ownership === 'manual' ? 'Manual' : 'Automatic'
+          const state = !layer.enabled ? 'Off' : layer.solo ? 'Solo' : layer.pinned ? 'Pinned' : 'Available'
+          const label = media?.name ?? `Missing media · ${layer.mediaId}`
           return (
-            <LayerRow
-              key={option.value}
-              index={index + 1}
-              label={option.label}
-              status={locked ? (lockedMediaName ?? 'Locked') : 'Auto'}
-              tone={CANVAS_LAYER_ROW_TONES[index % CANVAS_LAYER_ROW_TONES.length]}
-              active={lockLayerRole === option.value}
-              onClick={() => setLockLayerRole(option.value)}
-            />
+            <div
+              key={layer.id}
+              className={`rv-canvas-layer-stack-row${draggedLayerId === layer.id ? ' is-dragging' : ''}${dragOverLayerId === layer.id ? ' is-drag-over' : ''}`}
+              draggable
+              onDragStart={event => handleDragStart(event, layer.id)}
+              onDragOver={event => handleDragOver(event, layer.id)}
+              onDragLeave={() => setDragOverLayerId(current => current === layer.id ? null : current)}
+              onDrop={event => handleDrop(event, layer.id)}
+              onDragEnd={() => { setDraggedLayerId(null); setDragOverLayerId(null) }}
+              data-canvas-layer-id={layer.id}
+              data-canvas-layer-order={layer.order}
+            >
+              <LayerRow
+                index={index + 1}
+                label={label}
+                status={`${ownership} · ${state}`}
+                tone={CANVAS_LAYER_ROW_TONES[index % CANVAS_LAYER_ROW_TONES.length]}
+                active={selectedLayerId === layer.id}
+                aria-pressed={selectedLayerId === layer.id}
+                aria-label={`Select CANVAS layer ${index + 1}: ${label}`}
+                title="Drag to reorder"
+                onClick={() => setSelectedCanvasLayer(layer.id)}
+              />
+              <div className="rv-canvas-layer-row-actions" aria-label={`Actions for ${label}`}>
+                <IconChipButton
+                  className={`rv-canvas-layer-row-action${layer.solo ? ' is-active' : ''}`}
+                  title={layer.solo ? 'Unsolo layer' : 'Solo layer'}
+                  aria-label={`${layer.solo ? 'Unsolo' : 'Solo'} CANVAS layer ${label}`}
+                  aria-pressed={layer.solo}
+                  onClick={event => {
+                    event.stopPropagation()
+                    const result = setCanvasAuthoredLayerSolo(layer.id, !layer.solo)
+                    if (!result.ok) setActionFeedback(result.message)
+                    else setActionFeedback(null)
+                  }}
+                >S</IconChipButton>
+                <IconChipButton
+                  className="rv-canvas-layer-row-action"
+                  title="Duplicate layer"
+                  aria-label={`Duplicate CANVAS layer ${label}`}
+                  onClick={event => { event.stopPropagation(); duplicateLayer(layer.id) }}
+                >⧉</IconChipButton>
+                <IconChipButton
+                  className="rv-canvas-layer-row-action rv-canvas-layer-row-action--delete"
+                  title="Delete layer"
+                  aria-label={`Delete CANVAS layer ${label}`}
+                  icon={<Delete02Icon size={12} color="currentColor" />}
+                  onClick={event => { event.stopPropagation(); deleteLayer(layer.id) }}
+                />
+              </div>
+            </div>
           )
         })}
+        {layers.length === 0 && <div className="rv-ctrl-info">No CANVAS layers yet. Use Add as Layer from the Media Library.</div>}
       </div>
     </section>
   )

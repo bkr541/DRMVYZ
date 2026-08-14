@@ -785,3 +785,78 @@
 .dv-layer-row.is-active .dv-layer-row-label {
   color: #e8fcff;
 }
+
+/* CANVAS Stage 3 layer-stack affordances. Keep the canonical LayerRow as the
+   selectable surface while sibling actions sit above it, avoiding nested
+   interactive controls inside the button primitive. */
+.rv-canvas-layer-stack-row {
+  position: relative;
+  cursor: grab;
+  border-radius: 5px;
+  transition: box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.rv-canvas-layer-stack-row:active {
+  cursor: grabbing;
+}
+
+.rv-canvas-layer-stack-row.is-dragging {
+  opacity: 0.5;
+}
+
+.rv-canvas-layer-stack-row.is-drag-over {
+  box-shadow: 0 -2px 0 #4ac7db;
+}
+
+.rv-canvas-layer-stack-row .dv-layer-row {
+  padding-right: 92px;
+}
+
+.rv-canvas-layer-row-actions {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease;
+}
+
+.rv-canvas-layer-stack-row:hover .rv-canvas-layer-row-actions,
+.rv-canvas-layer-stack-row:focus-within .rv-canvas-layer-row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.dv-icon-chip.rv-canvas-layer-row-action {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  padding: 0;
+  border-radius: 5px;
+  background: rgba(5, 11, 15, 0.9);
+  color: rgba(205, 216, 221, 0.7);
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.dv-icon-chip.rv-canvas-layer-row-action:hover,
+.dv-icon-chip.rv-canvas-layer-row-action:focus-visible,
+.dv-icon-chip.rv-canvas-layer-row-action.is-active {
+  border-color: rgba(74, 199, 219, 0.48);
+  background: rgba(74, 199, 219, 0.14);
+  color: #8ef4ff;
+}
+
+.dv-icon-chip.rv-canvas-layer-row-action--delete:hover,
+.dv-icon-chip.rv-canvas-layer-row-action--delete:focus-visible {
+  border-color: rgba(255, 107, 107, 0.48);
+  background: rgba(255, 107, 107, 0.12);
+  color: #ff8e8e;
+}

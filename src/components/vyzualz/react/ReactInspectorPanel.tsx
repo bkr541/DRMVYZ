@@ -181,6 +181,8 @@ export function ReactInspectorPanel() {
     laserDmxBeamMatrix,
     canvasMediaItems,
     activeCanvasMediaId,
+    canvasOrchestrationSettings,
+    selectedCanvasLayerId,
     resetOscillatorSettings,
   } = useReactStore(useShallow(s => ({
     activeReactPresetId:       s.activeReactPresetId,
@@ -194,6 +196,8 @@ export function ReactInspectorPanel() {
     laserDmxBeamMatrix:        s.laserDmxBeamMatrix,
     canvasMediaItems:          s.canvasMediaItems,
     activeCanvasMediaId:       s.activeCanvasMediaId,
+    canvasOrchestrationSettings: s.canvasOrchestrationSettings,
+    selectedCanvasLayerId:     s.selectedCanvasLayerId,
     resetOscillatorSettings:   s.resetOscillatorSettings,
   })))
   const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
@@ -211,6 +215,7 @@ export function ReactInspectorPanel() {
     activeReactEngineId,
     activeShaderId,
     oscillatorSettings,
+    selectedCanvasLayerId,
     laserDmxWorkspaceMode,
     laserDmxBeamMatrix,
   })
@@ -250,6 +255,21 @@ export function ReactInspectorPanel() {
 
   if (activeReactEngineId === 'canvas') {
     const canvasReadyLibraryItems = allMediaItems.filter(item => resolveCanvasLibraryMediaType(item) !== null)
+    const selectedLayer = inspectableSelection?.kind === 'canvasLayer'
+      ? canvasOrchestrationSettings.authoredLayers.find(layer => layer.id === inspectableSelection.id) ?? null
+      : null
+    const selectedLibraryMedia = selectedLayer
+      ? allMediaItems.find(item => item.id === selectedLayer.mediaId) ?? null
+      : null
+    const selectedLegacyMedia = selectedLayer
+      ? canvasMediaItems.find(item => item.id === selectedLayer.mediaId) ?? null
+      : null
+    const selectedLayerName = selectedLibraryMedia
+      ? getCanvasLibraryMediaName(selectedLibraryMedia)
+      : selectedLegacyMedia?.name ?? (selectedLayer ? `Missing media · ${selectedLayer.mediaId}` : 'No layer selected')
+    const selectedLayerType = selectedLibraryMedia
+      ? resolveCanvasLibraryMediaType(selectedLibraryMedia)
+      : selectedLegacyMedia?.type ?? null
     const activeLibraryMedia = activeCanvasMediaId
       ? allMediaItems.find(item => item.id === activeCanvasMediaId) ?? null
       : null
@@ -264,6 +284,18 @@ export function ReactInspectorPanel() {
     return (
       <>
         {engineSummary}
+        {selectedLayer && (
+          <div className="rv-ctrl-group">
+            <CtrlSection label="CANVAS Layer" />
+            <KvRow label="Position" value={`${selectedLayer.order + 1} of ${canvasOrchestrationSettings.authoredLayers.length}`} />
+            <KvRow label="Media" value={selectedLayerName} />
+            <KvRow label="Type" value={selectedLayerType ? CANVAS_MEDIA_TYPE_LABELS[selectedLayerType] : '—'} />
+            <KvRow label="Ownership" value={selectedLayer.ownership === 'manual' ? 'Manual' : 'Automatic'} />
+            <KvRow label="Pinned" value={selectedLayer.pinned ? 'Yes' : 'No'} />
+            <KvRow label="State" value={!selectedLayer.enabled ? 'Off' : selectedLayer.solo ? 'Solo' : 'Enabled'} />
+            <div className="rv-ctrl-info">Layer-specific production controls are not finalized yet. Selection is routed here without converting global CANVAS controls into per-layer settings.</div>
+          </div>
+        )}
         <div className="rv-ctrl-group">
           <CtrlSection label="CANVAS Media" />
           <KvRow label="Library Media" value={canvasReadyLibraryItems.length.toString()} />

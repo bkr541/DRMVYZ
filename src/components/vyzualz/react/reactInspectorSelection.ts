@@ -7,6 +7,7 @@ import type {
 export type ReactInspectableSelection =
   | { kind: 'shaderScene'; id: string }
   | { kind: 'soundDrawingSource'; id: string }
+  | { kind: 'canvasLayer'; id: string }
   | { kind: 'laserBeam'; id: string }
   | { kind: 'laserGroup'; id: string }
 
@@ -14,6 +15,7 @@ interface ResolveReactInspectorSelectionArgs {
   activeReactEngineId: ReactEngineId
   activeShaderId: string | null
   oscillatorSettings: OscillatorSettings
+  selectedCanvasLayerId: string | null
   laserDmxWorkspaceMode: unknown
   laserDmxBeamMatrix: LaserDmxBeamMatrixSettings
 }
@@ -22,6 +24,7 @@ export function resolveReactInspectorSelection({
   activeReactEngineId,
   activeShaderId,
   oscillatorSettings,
+  selectedCanvasLayerId,
   laserDmxBeamMatrix,
 }: ResolveReactInspectorSelectionArgs): ReactInspectableSelection | null {
   if (activeReactEngineId === 'shaderPads') {
@@ -51,6 +54,10 @@ export function resolveReactInspectorSelection({
       default:
         return null
     }
+  }
+
+  if (activeReactEngineId === 'canvas') {
+    return selectedCanvasLayerId ? { kind: 'canvasLayer', id: selectedCanvasLayerId } : null
   }
 
   if (activeReactEngineId !== 'laserDmx') return null
