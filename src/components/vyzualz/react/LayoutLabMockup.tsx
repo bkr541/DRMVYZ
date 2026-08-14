@@ -14,6 +14,8 @@ import { MediaLibraryStyleGallery } from './layoutLab/MediaLibraryStyleGallery'
 import { ButtonStyleGallery } from './layoutLab/ButtonStyleGallery'
 import { PaletteGroupStyleGallery } from './layoutLab/PaletteGroupStyleGallery'
 import { BadgeStyleGallery } from './layoutLab/BadgeStyleGallery'
+import { LayerRowStyleGallery } from './layoutLab/LayerRowStyleGallery'
+import { TrackLibraryRowStyleGallery } from './layoutLab/TrackLibraryRowStyleGallery'
 import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
 import { CanvasMockup } from './layoutLab/CanvasMockup'
@@ -247,6 +249,8 @@ export function LayoutLabMockup() {
                       <ButtonStyleGallery />
                       <PaletteGroupStyleGallery />
                       <BadgeStyleGallery />
+                      <LayerRowStyleGallery />
+                      <TrackLibraryRowStyleGallery />
                     </div>
                   </div>
                 )}

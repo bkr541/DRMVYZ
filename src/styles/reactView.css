@@ -16407,6 +16407,316 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   color: rgba(232, 244, 248, 0.85);
 }
 
+/* ── Layer Row Style Gallery (Layout Lab / Template) ──────────────────────── */
+
+.lllr-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 18px 16px 32px;
+}
+
+.lllr-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lllr-branch {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.lllr-tree button {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 6px;
+  background: rgba(8, 14, 22, 0.55);
+  color: #aeb9c5;
+  padding: 8px;
+  text-align: left;
+}
+
+.lllr-tree button strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lllr-tree button small {
+  color: #687583;
+}
+
+.lllr-tree button.is-active {
+  border-color: rgba(74, 199, 219, 0.55);
+  background: rgba(74, 199, 219, 0.09);
+  color: #e8fcff;
+}
+
+/* 01 · Truncated Status — fixed max-width + ellipsis on the status column */
+.lllr-tree--truncate button small {
+  display: block;
+  max-width: 132px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 02 · Two-Line Layout — status drops to its own full-width wrapped line */
+.lllr-tree--twoLine button {
+  grid-template-columns: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.lllr-twoLine-top {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+}
+
+.lllr-twoLine-top strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lllr-tree--twoLine button small {
+  padding-left: 31px;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+/* 03 · Status Chip — status renders as its own bordered pill */
+.lllr-chip {
+  display: inline-block;
+  max-width: 132px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  vertical-align: middle;
+}
+
+/* ── Track Library Row Style Gallery (Layout Lab / Template) ─────────────── */
+
+.lltl-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 18px 16px 32px;
+}
+
+.lltl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.lltl-art {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 5px;
+  border: 1px solid rgba(126, 218, 232, 0.16);
+  background:
+    linear-gradient(145deg, rgba(74, 199, 219, 0.2), transparent 50%),
+    radial-gradient(circle at 50% 25%, rgba(237, 249, 251, 0.2), transparent 26%),
+    #071014;
+  color: rgba(237, 249, 251, 0.9);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 14px rgba(74, 199, 219, 0.66);
+}
+
+/* 01 · Compact Grid Card */
+.lltl-card {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 10px;
+  min-height: 66px;
+  padding: 8px;
+  border: 1px solid rgba(126, 218, 232, 0.08);
+  border-radius: 7px;
+  background: rgba(11, 21, 25, 0.8);
+  text-align: left;
+}
+
+.lltl-card.is-active {
+  background: linear-gradient(90deg, rgba(74, 199, 219, 0.18), rgba(74, 199, 219, 0.05));
+  border-color: rgba(74, 199, 219, 0.56);
+  box-shadow: inset 3px 0 0 #20d7ef, 0 0 24px rgba(74, 199, 219, 0.08);
+}
+
+.lltl-card .lltl-art {
+  width: 52px;
+  height: 52px;
+  font-size: 13px;
+}
+
+.lltl-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.lltl-title {
+  overflow: hidden;
+  color: rgba(237, 249, 251, 0.92);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltl-artist {
+  overflow: hidden;
+  margin-top: 2px;
+  color: rgba(196, 207, 211, 0.58);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltl-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: 9px;
+  color: rgba(196, 207, 211, 0.38);
+}
+
+.lltl-meta span {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.045);
+  color: rgba(196, 207, 211, 0.56);
+}
+
+/* 02 · Condensed List Row */
+.lltl-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid rgba(126, 218, 232, 0.08);
+  border-radius: 6px;
+  background: rgba(11, 21, 25, 0.8);
+  text-align: left;
+}
+
+.lltl-row.is-active {
+  border-color: rgba(74, 199, 219, 0.56);
+  background: rgba(74, 199, 219, 0.09);
+}
+
+.lltl-art--sm {
+  width: 34px;
+  height: 34px;
+  font-size: 9px;
+}
+
+.lltl-row-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.lltl-row-text strong {
+  overflow: hidden;
+  color: rgba(237, 249, 251, 0.92);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltl-row-text span {
+  overflow: hidden;
+  color: rgba(196, 207, 211, 0.5);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltl-row-date {
+  flex-shrink: 0;
+  color: rgba(196, 207, 211, 0.4);
+  font-size: 9px;
+}
+
+/* 03 · Stacked Media Tile */
+.lltl-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(126, 218, 232, 0.08);
+  border-radius: 8px;
+  background: rgba(11, 21, 25, 0.8);
+  text-align: left;
+}
+
+.lltl-tile.is-active {
+  border-color: rgba(74, 199, 219, 0.56);
+  background: linear-gradient(180deg, rgba(74, 199, 219, 0.14), rgba(74, 199, 219, 0.04));
+}
+
+.lltl-art--lg {
+  width: 100%;
+  height: 64px;
+  font-size: 16px;
+}
+
+.lltl-tile-title {
+  overflow: hidden;
+  color: rgba(237, 249, 251, 0.92);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.lltl-tile-artist {
+  color: rgba(196, 207, 211, 0.55);
+  font-size: 10px;
+}
+
+.lltl-tile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 9px;
+}
+
+.lltl-tile-meta span {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.045);
+  color: rgba(196, 207, 211, 0.56);
+}
+
 /* ── Cinema engine registration and single-owner runtime workspace ───────── */
 .rv-cinema-workspace {
   box-sizing: border-box;
