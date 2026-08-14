@@ -16499,39 +16499,61 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   color: #e8fcff;
 }
 
-/* 02 · Depth Stack — cards step forward/back with a shallow shadow depth,
-   status rides as a rotated corner stamp. */
+/* 02 · Depth Stack — the same accent-rail body as Channel Strip, but the
+   ghost index is outlined instead of filled, rows step forward in a shallow
+   stack (alternating offset + shadow), and the background carries a cooler
+   diagonal gradient instead of Channel Strip's flat tone. */
 
 .lllr-stack-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
-.lllr-stack-card {
+.lllr-stack-row {
   position: relative;
+  display: grid;
+  grid-template-columns: 4px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
   border: 1px solid rgba(148, 163, 184, 0.14);
-  border-radius: 7px;
-  background: rgba(9, 14, 19, 0.85);
-  padding: 10px 64px 10px 34px;
+  border-radius: 5px;
+  background: linear-gradient(135deg, rgba(21, 28, 35, 0.85), rgba(6, 9, 12, 0.85));
+  padding: 9px 12px 9px 0;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.28);
 }
 
-.lllr-stack-list .lllr-stack-card:nth-child(3n+2) { margin-left: 6px; box-shadow: 0 5px 14px rgba(0, 0, 0, 0.34); }
-.lllr-stack-list .lllr-stack-card:nth-child(3n) { margin-left: 12px; box-shadow: 0 7px 18px rgba(0, 0, 0, 0.4); }
+.lllr-stack-list .lllr-stack-row:nth-child(3n+2) { margin-left: 6px; box-shadow: 0 5px 14px rgba(0, 0, 0, 0.34); }
+.lllr-stack-list .lllr-stack-row:nth-child(3n) { margin-left: 12px; box-shadow: 0 7px 18px rgba(0, 0, 0, 0.4); }
 
-.lllr-stack-index {
+.lllr-stack-accent {
+  align-self: stretch;
+  background: rgba(154, 178, 188, 0.5);
+  border-radius: 2px;
+}
+
+.lllr-stack-ghost {
   position: absolute;
   top: 50%;
-  left: 12px;
+  right: 10px;
   transform: translateY(-50%);
-  color: rgba(196, 207, 211, 0.4);
-  font-size: 10px;
-  font-weight: 700;
+  font: 800 30px/1 var(--az-font, Inter, system-ui, sans-serif);
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.1);
+  letter-spacing: -0.02em;
+  pointer-events: none;
+}
+
+.lllr-stack-body {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .lllr-stack-label {
-  display: block;
   overflow: hidden;
   color: #cdd8dd;
   font-size: 12px;
@@ -16539,38 +16561,40 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   white-space: nowrap;
 }
 
-.lllr-stack-stamp {
-  position: absolute;
-  top: 8px;
-  right: -4px;
-  max-width: 84px;
+.lllr-stack-status {
+  display: block;
+  max-width: 78%;
   overflow: hidden;
-  transform: rotate(-4deg);
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.04);
-  padding: 2px 7px;
-  color: rgba(196, 207, 211, 0.6);
-  font-size: 8.5px;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  color: #687583;
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  mask-image: linear-gradient(to right, #000 75%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 75%, transparent 100%);
 }
 
-.lllr-stack-card.is-active {
-  border-color: rgba(74, 199, 219, 0.5);
-  background: rgba(74, 199, 219, 0.08);
+.lllr-stack-row.is-active {
+  border-color: rgba(74, 199, 219, 0.4);
+  background: linear-gradient(135deg, rgba(74, 199, 219, 0.12), rgba(74, 199, 219, 0.02));
+  box-shadow: 0 0 20px rgba(74, 199, 219, 0.08);
 }
 
-.lllr-stack-card.is-active .lllr-stack-label {
+.lllr-stack-row.is-active .lllr-stack-accent {
+  background: #4ac7db;
+  box-shadow: 0 0 10px #4ac7db;
+}
+
+.lllr-stack-row.is-active .lllr-stack-ghost {
+  -webkit-text-stroke-color: rgba(74, 199, 219, 0.35);
+}
+
+.lllr-stack-row.is-active .lllr-stack-label {
   color: #e8fcff;
 }
 
-.lllr-stack-card.is-active .lllr-stack-stamp {
-  border-color: rgba(74, 199, 219, 0.55);
-  color: #9be8f3;
-}
-
-/* 03 · Icon Rail — colored initial chip, status fades via mask-image. */
+/* 03 · Icon Rail — the same accent-rail body again, but the ghost index
+   becomes a small solid numeral chip in the role color, and the row
+   background picks up a faint wash of that same tone. */
 
 .lllr-rail-list {
   display: flex;
@@ -16579,32 +16603,39 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .lllr-rail-row {
-  display: flex;
+  position: relative;
+  display: grid;
+  grid-template-columns: 4px auto minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   border: 1px solid rgba(148, 163, 184, 0.12);
-  border-radius: 8px;
-  background: rgba(9, 14, 19, 0.8);
-  padding: 7px 12px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--rail-tone, #4ac7db) 9%, rgba(9, 14, 19, 0.85)) 0%, rgba(9, 14, 19, 0.85) 65%);
+  padding: 7px 12px 7px 0;
 }
 
-.lllr-rail-glyph {
+.lllr-rail-accent {
+  align-self: stretch;
+  background: var(--rail-tone, #4ac7db);
+  opacity: 0.55;
+  border-radius: 2px;
+}
+
+.lllr-rail-chip {
   display: grid;
   flex-shrink: 0;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--rail-tone, #4ac7db) 20%, #05090c);
-  border: 1px solid color-mix(in srgb, var(--rail-tone, #4ac7db) 45%, transparent);
-  color: var(--rail-tone, #4ac7db);
-  font: 700 11px/1 var(--az-font, Inter, system-ui, sans-serif);
+  background: var(--rail-tone, #4ac7db);
+  color: #04080a;
+  font: 800 10px/1 var(--az-font, Inter, system-ui, sans-serif);
 }
 
 .lllr-rail-text {
   display: flex;
   min-width: 0;
-  flex: 1;
   flex-direction: column;
   gap: 1px;
 }
@@ -16629,12 +16660,17 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .lllr-rail-row.is-active {
-  border-color: rgba(74, 199, 219, 0.4);
-  background: rgba(74, 199, 219, 0.08);
+  border-color: color-mix(in srgb, var(--rail-tone, #4ac7db) 55%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--rail-tone, #4ac7db) 18%, rgba(9, 14, 19, 0.85)) 0%, rgba(9, 14, 19, 0.85) 70%);
 }
 
-.lllr-rail-row.is-active .lllr-rail-glyph {
-  box-shadow: 0 0 0 3px rgba(74, 199, 219, 0.16);
+.lllr-rail-row.is-active .lllr-rail-accent {
+  opacity: 1;
+  box-shadow: 0 0 10px var(--rail-tone, #4ac7db);
+}
+
+.lllr-rail-row.is-active .lllr-rail-chip {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--rail-tone, #4ac7db) 25%, transparent);
 }
 
 .lllr-rail-row.is-active .lllr-rail-label {

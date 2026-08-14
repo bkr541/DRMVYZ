@@ -25,6 +25,9 @@ const LAYER_SAMPLES: LayerRowSample[] = [
   { label: 'Mask', status: 'Auto' },
   { label: 'Transition', status: 'TheKodyRobinson_The_cat_aggressively_defends_959e-49de-8548-d446f97e31ed.mp4' },
   { label: 'Feedback', status: 'Auto' },
+  { label: 'Glow', status: 'Auto' },
+  { label: 'Vignette', status: 'Auto' },
+  { label: 'Grain', status: 'Auto' },
 ]
 
 const ROLE_TONES = ['#4ac7db', '#67f7ff', '#6b4cff', '#b84fc9', '#d8b95a', '#61d6aa', '#ff6b6b']
@@ -56,18 +59,22 @@ function ChannelStripRows() {
 }
 
 // ── 02 · Depth Stack ─────────────────────────────────────────────────────────
-// Cards step forward/back in a shallow physical stack (alternating offset +
-// shadow depth). Status rides as a rotated stamp pinned to the card's corner,
-// clipped with an ellipsis, reading as metadata rather than body text.
+// Same accent-rail-and-body skeleton as Channel Strip, but the ghost index is
+// outlined instead of filled, and rows step forward in a shallow physical
+// stack — alternating offset, shadow depth, and a cooler gradient wash —
+// while status still dissolves via the same mask-image fade.
 
 function DepthStackRows() {
   return (
     <div className="lllr-stack-list">
       {LAYER_SAMPLES.map((row, index) => (
-        <div key={row.label} className={`lllr-stack-card${row.active ? ' is-active' : ''}`}>
-          <span className="lllr-stack-index" aria-hidden="true">{index + 1}</span>
-          <strong className="lllr-stack-label">{row.label}</strong>
-          <small className="lllr-stack-stamp" title={row.status}>{row.status}</small>
+        <div key={row.label} className={`lllr-stack-row${row.active ? ' is-active' : ''}`}>
+          <span className="lllr-stack-ghost" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+          <span className="lllr-stack-accent" aria-hidden="true" />
+          <span className="lllr-stack-body">
+            <strong className="lllr-stack-label">{row.label}</strong>
+            <small className="lllr-stack-status" title={row.status}>{row.status}</small>
+          </span>
         </div>
       ))}
     </div>
@@ -75,9 +82,9 @@ function DepthStackRows() {
 }
 
 // ── 03 · Icon Rail ───────────────────────────────────────────────────────────
-// A colored initial chip replaces the numeral. Label and status stack inside
-// a fixed-width text column, status fading via mask-image so a long filename
-// dissolves at the edge instead of being cut off with "…".
+// Same accent-rail-and-body skeleton as Channel Strip, but the ghost index is
+// replaced with a small solid numeral chip in the role color, and each row's
+// background carries a faint wash of that same tone instead of flat neutral.
 
 function IconRailRows() {
   return (
@@ -88,7 +95,8 @@ function IconRailRows() {
           className={`lllr-rail-row${row.active ? ' is-active' : ''}`}
           style={{ '--rail-tone': ROLE_TONES[index % ROLE_TONES.length] } as CSSProperties}
         >
-          <span className="lllr-rail-glyph" aria-hidden="true">{row.label.charAt(0)}</span>
+          <span className="lllr-rail-accent" aria-hidden="true" />
+          <span className="lllr-rail-chip" aria-hidden="true">{index + 1}</span>
           <span className="lllr-rail-text">
             <strong className="lllr-rail-label">{row.label}</strong>
             <small className="lllr-rail-status" title={row.status}>{row.status}</small>
@@ -101,8 +109,8 @@ function IconRailRows() {
 
 const GALLERY_ENTRIES = [
   { id: 'strip', title: '01 · Channel Strip', blurb: 'Each layer reads like a mixer channel — a colored accent rail, a huge faint index watermark behind it, label up top. The status line fades out with a mask-image gradient instead of an ellipsis, so the long locked-media filename on Transition dissolves at the edge rather than clipping.', Rows: ChannelStripRows },
-  { id: 'stack', title: '02 · Depth Stack', blurb: 'Cards step forward and back in a shallow physical stack — alternating offset and shadow depth suggest real layering. Status rides as a small rotated stamp pinned to the corner, so the Transition filename reads as a tag, not as row text fighting for space.', Rows: DepthStackRows },
-  { id: 'rail', title: '03 · Icon Rail', blurb: 'A colored initial chip stands in for the numeral, echoing per-layer role color. Label and status stack in a fixed text column; status fades via mask-image on overflow, so the long filename dissolves rather than getting cut off.', Rows: IconRailRows },
+  { id: 'stack', title: '02 · Depth Stack', blurb: 'The same accent-rail body as Channel Strip, but the ghost index is outlined instead of filled, rows step forward in a shallow physical stack, and the background carries a cooler diagonal gradient — depth without changing how status dissolves at the edge.', Rows: DepthStackRows },
+  { id: 'rail', title: '03 · Icon Rail', blurb: 'The same accent-rail body again, but the ghost index becomes a small solid numeral chip in the role color, and the row background picks up a faint wash of that same tone — a warmer, more color-coded read of the same family.', Rows: IconRailRows },
 ]
 
 export function LayerRowStyleGallery() {
