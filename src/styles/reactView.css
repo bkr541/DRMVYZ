@@ -5745,7 +5745,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-lower-workspace-toolbar {
   position: relative;
   min-height: 36px;
-  padding: 5px 8px;
+  padding: 10px 8px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -5855,7 +5855,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-lower-workspace-chevron {
-  width: 27px;
+  width: 17px;
   height: 26px;
   display: grid;
   place-items: center;
