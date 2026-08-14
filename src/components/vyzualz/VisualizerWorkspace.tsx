@@ -448,7 +448,7 @@ export function VisualizerWorkspace({
   // Recording
   const recorder = useRecorder()
   const { startVideoRecording } = recorder
-  const { isActive: hasActiveProgramAudio, getRecordingStream } = engine
+  const { hasActiveProgramAudio, getRecordingStream } = engine
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
   const [liveFps, setLiveFps] = useState(0)
 

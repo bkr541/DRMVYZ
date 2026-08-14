@@ -370,7 +370,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   // Recording — useRecorder lives at view level so active recordings survive tab switches
   const recorder = useRecorder()
   const { startVideoRecording } = recorder
-  const { isActive: hasActiveProgramAudio, getRecordingStream } = engine
+  const { hasActiveProgramAudio, getRecordingStream } = engine
   const [rekordboxHeaderSlot, setRekordboxHeaderSlot] = useState<HTMLDivElement | null>(null)
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
   const [canvasOutputCapability, setCanvasOutputCapability] = useState<CanvasOutputCapability>(CANVAS_OUTPUT_AVAILABLE)
@@ -736,7 +736,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
             onChange={(e) => engine.setSource(e.target.value as typeof engine.source)}
           >
             <option value="file">Track Input</option>
-            <option value="microphone">Microphone</option>
+            <option value="microphone">Live Input</option>
             <option value="demo">Demo Signal</option>
           </DropdownSelect>
           <HelpInfoTrigger
@@ -744,7 +744,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
             currentValue={engine.source === 'file'
               ? 'Track Input'
               : engine.source === 'microphone'
-                ? 'Microphone'
+                ? 'Live Input'
                 : 'Demo Signal'}
             placement="below"
           />

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSharedAudio } from '../../context/AudioEngineContext'
 import type { AppView } from './appView'
 
 interface Props {
@@ -12,8 +13,10 @@ export function VyzualzSidebar({
   appView,
   onAppViewChange,
 }: Props) {
+  const engine = useSharedAudio()
   const [collapsed, setCollapsed] = useState(compact)
   const isCollapsed = collapsed
+  const showManagerUnavailable = engine.source === 'microphone'
 
   return (
     <aside className={`az-sidebar${isCollapsed ? ' az-sidebar--collapsed' : ''}`}>
@@ -92,10 +95,16 @@ export function VyzualzSidebar({
         <button
           type="button"
           className={`az-nav-item${appView === 'showManager' ? ' az-nav-item--active' : ''}`}
-          onClick={() => onAppViewChange?.('showManager')}
-          title="Show Manager"
+          onClick={() => {
+            if (!showManagerUnavailable) onAppViewChange?.('showManager')
+          }}
+          title={showManagerUnavailable
+            ? 'Show Manager requires a loaded audio track. Switch Live Input back to Track/File first.'
+            : 'Show Manager'}
           aria-label="Show Manager"
           aria-current={appView === 'showManager' ? 'page' : undefined}
+          aria-disabled={showManagerUnavailable}
+          disabled={showManagerUnavailable}
         >
           <span className="az-nav-fill" aria-hidden="true" />
           <svg viewBox="0 0 28 28" width="28" height="28" fill="none" aria-hidden="true">

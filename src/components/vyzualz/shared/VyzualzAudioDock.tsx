@@ -218,6 +218,13 @@ export function VyzualzAudioDock({
   )
   const [audioSourcePolicyAppView, , blockedAttemptIdText] = audioSourcePolicySnapshot.split('|')
   const sourceSelectionLocked = audioSourcePolicyAppView === 'showManager'
+  const liveInputSelected = engine.source === 'microphone'
+  const trackSourceLocked = sourceSelectionLocked || liveInputSelected
+  const trackSourceLockTitle = sourceSelectionLocked
+    ? 'Audio track loading is locked while in Show Manager'
+    : liveInputSelected
+      ? 'Audio track controls are unavailable while Live Input is selected'
+      : undefined
   const sourceLockAttemptId = Number.parseInt(blockedAttemptIdText ?? '0', 10) || 0
   const sourceLockMessage = getLastAudioSourcePolicyMessage()
   const showSourceLockMessage = sourceSelectionLocked
@@ -380,6 +387,7 @@ export function VyzualzAudioDock({
     library: RekordboxLibrary | null,
     options: { forceUsbMode?: boolean } = {},
   ): { summary: RekordboxHydrationSummary | null; replaced: boolean; hadCurrentFile: boolean } => {
+    if (liveInputSelected) return { summary: null, replaced: false, hadCurrentFile: Boolean(engine.currentTrack?.sourceFile) }
     if (!requestAudioSourceMutation()) return { summary: null, replaced: false, hadCurrentFile: Boolean(engine.currentTrack?.sourceFile) }
     const currentFile = engine.currentTrack?.sourceFile
     if (!currentFile) return { summary: null, replaced: false, hadCurrentFile: false }
@@ -398,6 +406,7 @@ export function VyzualzAudioDock({
 
   const handleFiles = async (files: FileList | null) => {
     if (!files) return
+    if (liveInputSelected) return
     const audio = Array.from(files).filter(f =>
       f.type.startsWith('audio/') || /\.(mp3|wav|aiff?|m4a|ogg|flac)$/i.test(f.name)
     )
@@ -457,6 +466,7 @@ export function VyzualzAudioDock({
 
   const handleRekordboxXml = async (files: FileList | null) => {
     if (!files || files.length === 0) return
+    if (liveInputSelected) return
     setRekordboxBusy(true)
     try {
       const library = await importRekordboxXml(files)
@@ -483,6 +493,7 @@ export function VyzualzAudioDock({
   }
 
   const handleRekordboxUsbRoot = async () => {
+    if (liveInputSelected) return
     setRekordboxBusy(true)
     try {
       const result = await selectRekordboxUsbRoot()
@@ -529,6 +540,7 @@ export function VyzualzAudioDock({
   }
 
   const toggleRekordboxUsbMode = () => {
+    if (liveInputSelected) return
     setRekordboxUsbMode(current => {
       const next = !current
       setRekordboxStatusWithDiagnostic(next
@@ -574,6 +586,7 @@ export function VyzualzAudioDock({
     expandable ? 'vz-transport-dock--expandable' : '',
     dockCollapsed ? 'vz-transport-dock--collapsed' : '',
     compact ? 'vz-transport-dock--focus' : '',
+    liveInputSelected ? 'vz-transport-dock--live-input' : '',
   ].filter(Boolean).join(' ')
 
   const rekordboxMenu = (
@@ -591,7 +604,7 @@ export function VyzualzAudioDock({
         id={rekordboxActionSelectId}
         className={rekordboxMenuPortalTarget ? 'az-select' : 'vz-dock-rekordbox-select'}
         value=""
-        disabled={rekordboxBusy || sourceSelectionLocked}
+        disabled={rekordboxBusy || trackSourceLocked}
         onChange={event => {
           const action = event.currentTarget.value
           event.currentTarget.value = ''
@@ -601,8 +614,10 @@ export function VyzualzAudioDock({
           if (action === 'usb') void handleRekordboxUsbRoot()
           if (action === 'mode') toggleRekordboxUsbMode()
         }}
-        title={sourceSelectionLocked
-          ? 'Rekordbox source rehydration is unavailable while in Show Manager'
+        title={trackSourceLocked
+          ? (sourceSelectionLocked
+            ? 'Rekordbox source rehydration is unavailable while in Show Manager'
+            : 'Rekordbox source rehydration is unavailable while Live Input is selected')
           : 'Import Rekordbox metadata or arm USB Mode. USB Mode does not import cues unless XML or the native parser matches the track.'}
       >
         <option value="">{rekordboxBusy ? 'Reading…' : rekordboxUsbMode ? 'USB Mode Armed' : 'RB Tools'}</option>
@@ -620,6 +635,8 @@ export function VyzualzAudioDock({
       className={dockClassName}
       data-collapsed={dockCollapsed ? 'true' : 'false'}
       data-has-deck-label={deckLabel ? 'true' : undefined}
+      data-live-input-disabled={liveInputSelected ? 'true' : undefined}
+      aria-disabled={liveInputSelected ? 'true' : undefined}
     >
 
       {expandable && !compact && (
@@ -646,15 +663,15 @@ export function VyzualzAudioDock({
         {deckLabel && <div className="vz-dock-card-label">{deckLabel}</div>}
         <label
           className="az-dock-thumb vz-dock-art"
-          htmlFor={sourceSelectionLocked ? undefined : fileInputId}
-          aria-disabled={sourceSelectionLocked}
-          title={sourceSelectionLocked ? 'Audio track loading is locked while in Show Manager' : hasTrack ? title : 'Click to load audio'}
+          htmlFor={trackSourceLocked ? undefined : fileInputId}
+          aria-disabled={trackSourceLocked}
+          title={trackSourceLocked ? trackSourceLockTitle : hasTrack ? title : 'Click to load audio'}
           onClick={event => {
-            if (!sourceSelectionLocked) return
+            if (!trackSourceLocked) return
             event.preventDefault()
-            requestAudioSourceMutation()
+            if (sourceSelectionLocked) requestAudioSourceMutation()
           }}
-          style={{ cursor: sourceSelectionLocked ? 'not-allowed' : 'pointer', borderColor: preset.color + '40' }}
+          style={{ cursor: trackSourceLocked ? 'not-allowed' : 'pointer', borderColor: preset.color + '40' }}
         >
           <span className="az-dock-thumb-letter" style={{ color: preset.color + 'cc' }}>
             {hasTrack ? initial : '♪'}
@@ -670,13 +687,13 @@ export function VyzualzAudioDock({
           {/* Transport receives its own full-width row instead of competing with track metadata. */}
           <div className="vz-dock-controls-row">
             <div className="az-dock-transport">
-              <button className="az-transport-btn" title={sourceSelectionLocked ? 'Track switching is unavailable in Show Manager' : 'Previous'} disabled={!hasTrack || sourceSelectionLocked} onClick={engine.prev}>
+              <button className="az-transport-btn" title={trackSourceLocked ? trackSourceLockTitle : 'Previous'} disabled={!hasTrack || trackSourceLocked} onClick={engine.prev}>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
               </button>
               <button
                 className="az-play-btn"
-                title={engine.isPlaying ? 'Pause' : 'Play'}
-                disabled={!hasTrack || !transportReady}
+                title={liveInputSelected ? trackSourceLockTitle : engine.isPlaying ? 'Pause' : 'Play'}
+                disabled={!hasTrack || !transportReady || liveInputSelected}
                 style={{ borderColor: preset.color, color: preset.color, boxShadow: `0 0 12px ${preset.color}30` }}
                 onClick={handleTogglePlayback}
               >
@@ -685,7 +702,7 @@ export function VyzualzAudioDock({
                   : <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                 }
               </button>
-              <button className="az-transport-btn" title={sourceSelectionLocked ? 'Track switching is unavailable in Show Manager' : 'Next'} disabled={!hasTrack || sourceSelectionLocked} onClick={engine.next}>
+              <button className="az-transport-btn" title={trackSourceLocked ? trackSourceLockTitle : 'Next'} disabled={!hasTrack || trackSourceLocked} onClick={engine.next}>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
               </button>
             </div>
@@ -710,6 +727,7 @@ export function VyzualzAudioDock({
               max={1}
               step={0.005}
               value={vol}
+              disabled={liveInputSelected}
               onChange={e => engine.setVolume(parseFloat(e.target.value))}
               style={{ '--pct': volPct } as React.CSSProperties}
             />
@@ -718,19 +736,19 @@ export function VyzualzAudioDock({
 
         <label
           className="vz-dock-addtrack-btn"
-          htmlFor={sourceSelectionLocked ? undefined : fileInputId}
-          aria-disabled={sourceSelectionLocked}
-          title={sourceSelectionLocked ? 'Audio track loading is locked while in Show Manager' : hasTrack ? `Replace: ${title}` : 'Add Track'}
+          htmlFor={trackSourceLocked ? undefined : fileInputId}
+          aria-disabled={trackSourceLocked}
+          title={trackSourceLocked ? trackSourceLockTitle : hasTrack ? `Replace: ${title}` : 'Add Track'}
           onClick={event => {
-            if (!sourceSelectionLocked) return
+            if (!trackSourceLocked) return
             event.preventDefault()
-            requestAudioSourceMutation()
+            if (sourceSelectionLocked) requestAudioSourceMutation()
           }}
         >
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M12 5v14M5 12h14"/>
           </svg>
-          <span>{sourceSelectionLocked ? 'Track Locked' : hasTrack ? 'Replace Track' : 'Add Track'}</span>
+          <span>{sourceSelectionLocked ? 'Track Locked' : liveInputSelected ? 'Live Input Active' : hasTrack ? 'Replace Track' : 'Add Track'}</span>
         </label>
 
       </div>
@@ -754,15 +772,15 @@ export function VyzualzAudioDock({
             followTimelineViewport={unifiedTimeline}
             appearance={waveformAppearance}
             beatGrid={engine.currentEffectiveBeatGrid ?? engine.currentAnalysis?.beatGrid ?? null}
-            onCreateCuePoint={track ? handleCreateCuePoint : undefined}
+            onCreateCuePoint={track && !liveInputSelected ? handleCreateCuePoint : undefined}
             editableCueMarkerIds={activeManualCues.map(marker => marker.id)}
-            onUpdateCuePoint={track ? updateCueMarker : undefined}
-            onDeleteCuePoint={track ? removeCueMarker : undefined}
+            onUpdateCuePoint={track && !liveInputSelected ? updateCueMarker : undefined}
+            onDeleteCuePoint={track && !liveInputSelected ? removeCueMarker : undefined}
           />
         </div>
         <div className="vz-dock-zoom-btns">
-          <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom * 2)} disabled={waveformZoom >= 16} title="Zoom in">+</button>
-          <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom / 2)} disabled={waveformZoom <= 1} title="Zoom out">−</button>
+          <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom * 2)} disabled={liveInputSelected || waveformZoom >= 16} title={liveInputSelected ? trackSourceLockTitle : 'Zoom in'}>+</button>
+          <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom / 2)} disabled={liveInputSelected || waveformZoom <= 1} title={liveInputSelected ? trackSourceLockTitle : 'Zoom out'}>−</button>
         </div>
       </div>
       <HelpInfoTrigger
@@ -932,8 +950,8 @@ export function VyzualzAudioDock({
           <button
             className="vz-dock-cue-btn"
             onClick={handleCue}
-            title={engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
-            disabled={!hasTrack || !transportReady}
+            title={liveInputSelected ? trackSourceLockTitle : engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
+            disabled={!hasTrack || !transportReady || liveInputSelected}
             aria-label={engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
           >
             <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -944,8 +962,9 @@ export function VyzualzAudioDock({
           <button
             className={`vz-dock-sync-master-btn${bpmSync ? ' vz-dock-sync-master-btn--on' : ''}`}
             onClick={toggleBpmSync}
-            title={bpmSync ? 'BPM Sync: ON' : 'BPM Sync: OFF'}
+            title={liveInputSelected ? trackSourceLockTitle : bpmSync ? 'BPM Sync: ON' : 'BPM Sync: OFF'}
             aria-label={bpmSync ? 'BPM Sync: ON' : 'BPM Sync: OFF'}
+            disabled={liveInputSelected}
           >
             {bpmSync && <span className="vz-dock-sync-dot" />}
             <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -976,12 +995,34 @@ export function VyzualzAudioDock({
         </NoticeCard>
       )}
 
+      {liveInputSelected && (
+        <NoticeCard
+          className="vz-dock-source-lock-notice"
+          tone="info"
+          title="Live Input active"
+        >
+          Track and Show controls are unavailable while Live Input analyzes the default microphone. Switch the input back to Track/File to restore them.
+        </NoticeCard>
+      )}
+
+      {engine.micError && (
+        <NoticeCard
+          className="vz-dock-source-lock-notice"
+          tone="error"
+          role="alert"
+          title="Live Input unavailable"
+        >
+          {engine.micError}
+        </NoticeCard>
+      )}
+
       <input
         id={fileInputId}
         type="file"
         accept="audio/*"
         multiple
         className="az-upload-input"
+        disabled={trackSourceLocked}
         onChange={e => handleFiles(e.target.files)}
       />
       <input
@@ -989,6 +1030,7 @@ export function VyzualzAudioDock({
         type="file"
         accept=".xml,text/xml,application/xml"
         className="az-upload-input"
+        disabled={trackSourceLocked}
         onChange={e => handleRekordboxXml(e.target.files)}
       />
     </div>

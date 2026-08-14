@@ -103,6 +103,12 @@ export interface AudioEngine {
   source: AudioSource
   setSource: (s: AudioSource, options?: AudioSourceMutationOptions) => Promise<void>
   micError: string | null
+  /** True only after a Live Input MediaStream has been acquired and connected. */
+  liveInputActive: boolean
+  /** Source-level analysis activity, intentionally independent from file transport playing. */
+  analysisActive: boolean
+  /** True only when the active source is valid program audio for recording/output capture. */
+  hasActiveProgramAudio: boolean
   isActive: boolean
 
   tracks: Track[]
@@ -250,6 +256,7 @@ export interface AudioEngine {
 export function useAudioEngine(): AudioEngine {
   const [source, setSourceState] = useState<AudioSource>('file')
   const [micError, setMicError] = useState<string | null>(null)
+  const [liveInputActive, setLiveInputActive] = useState(false)
   const [tracks, setTracks] = useState<Track[]>([])
   const [currentIndex, setCurrentIndex] = useState(-1)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -279,6 +286,7 @@ export function useAudioEngine(): AudioEngine {
   const monitoringChainRef = useRef<MonitoringChain | null>(null)
   const abGainARef       = useRef<GainNode | null>(null)  // main → monitoring (A mode)
   const abGainBRef       = useRef<GainNode | null>(null)  // ref → monitoring (B mode)
+  const programOutputGainRef = useRef<GainNode | null>(null) // source-aware gate before program monitoring/output
   const muteGainRef      = useRef<GainNode | null>(null)  // output mute (for silent demo)
 
   // Reference graph refs
@@ -294,6 +302,7 @@ export function useAudioEngine(): AudioEngine {
   const fileSourceRef    = useRef<MediaElementAudioSourceNode | null>(null)
   const micSourceRef     = useRef<MediaStreamAudioSourceNode | null>(null)
   const micStreamRef     = useRef<MediaStream | null>(null)
+  const micEndedCleanupRef = useRef<(() => void) | null>(null)
   const demoNodesRef     = useRef<AudioNode[]>([])
 
   // Ring buffer — written by AudioWorklet message handler
@@ -304,6 +313,10 @@ export function useAudioEngine(): AudioEngine {
   const audioRef         = useRef<HTMLAudioElement | null>(null)
   const activeSourceNodeRef = useRef<AudioNode | null>(null)
   const meydaRef         = useRef<ReturnType<typeof Meyda.createMeydaAnalyzer> | null>(null)
+  const sourceRef        = useRef<AudioSource>('file')
+  const sourceRequestIdRef = useRef(0)
+  const disposedRef      = useRef(false)
+  const liveClockEpochRef = useRef<number | null>(null)
 
   // Spectral data hot path — never triggers React renders
   const spectralFeaturesRef     = useRef<SpectralFeatures | null>(null)
@@ -311,6 +324,8 @@ export function useAudioEngine(): AudioEngine {
   // Shadow ref so getCurrentTime can fall back without capturing state in its closure
   const currentTimeRef = useRef(0)
   useEffect(() => { currentTimeRef.current = currentTime }, [currentTime])
+  const isPlayingRef = useRef(false)
+  useEffect(() => { isPlayingRef.current = isPlaying }, [isPlaying])
 
   // ── Track analysis coordinator refs ──────────────────────────────────────────
   // Stable mutable callbacks so the coordinator never holds stale React closure refs.
@@ -471,10 +486,18 @@ export function useAudioEngine(): AudioEngine {
     refSplitter.connect(refAL, 0)
     refSplitter.connect(refAR, 1)
 
+    // Source-aware program-output gate. The shared master/analyser path remains
+    // hot for analysis, while Live Input can be guaranteed silent before any
+    // signal reaches the A/B monitoring/output graph.
+    const programOutputGain = ctx.createGain()
+    programOutputGain.gain.value = sourceRef.current === 'microphone' ? 0 : 1
+    programOutputGainRef.current = programOutputGain
+
     // A/B crossfade gains — A=main, B=ref → both feed monitoringHead
     const abGainA = ctx.createGain(); abGainA.gain.value = 1; abGainARef.current = abGainA
     const abGainB = ctx.createGain(); abGainB.gain.value = 0; abGainBRef.current = abGainB
-    aMaster.connect(abGainA)
+    aMaster.connect(programOutputGain)
+    programOutputGain.connect(abGainA)
     refAnalyserM.connect(abGainB)
 
     // Monitoring head → initial stereo chain → destination
@@ -615,6 +638,8 @@ export function useAudioEngine(): AudioEngine {
 
   // ── Source management ───────────────────────────────────────────────────────
   const disconnectSource = useCallback(() => {
+    micEndedCleanupRef.current?.()
+    micEndedCleanupRef.current = null
     const node = activeSourceNodeRef.current
     const gain = masterGainRef.current
     if (node && gain) { try { node.disconnect(gain) } catch { /**/ } }
@@ -625,6 +650,7 @@ export function useAudioEngine(): AudioEngine {
     micStreamRef.current?.getTracks().forEach(t => t.stop())
     micStreamRef.current = null; micSourceRef.current = null
     activeSourceNodeRef.current = null
+    liveClockEpochRef.current = null
   }, [])
 
   const connectFileSource = useCallback(() => {
@@ -637,22 +663,113 @@ export function useAudioEngine(): AudioEngine {
     activeSourceNodeRef.current = fileSourceRef.current
   }, [ensureContext])
 
-  const connectMicSource = useCallback(async () => {
-    setMicError(null)
-    const ctx = ensureContext()
-    const gain = masterGainRef.current
-    if (!gain) return
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-      micStreamRef.current = stream
-      const micNode = ctx.createMediaStreamSource(stream)
-      micSourceRef.current = micNode
-      micNode.connect(gain)
-      activeSourceNodeRef.current = micNode
-    } catch (err) {
-      setMicError(`Microphone access denied: ${err instanceof Error ? err.message : String(err)}`)
+  const restoreFileSource = useCallback(() => {
+    const activeIndex = currentIndexRef.current
+    if (activeIndex >= 0) connectFileSource()
+    const track = tracksRef.current[activeIndex]
+    if (track) {
+      musicIntelligenceEngine.setSourceId(track.id, track.id)
+      publishAuthoritativeTrackState(
+        track,
+        track.analysisRuntime.status === 'complete' ? track.analysisRuntime.analysis : null,
+      )
+    } else {
+      musicIntelligenceEngine.setSourceId(null, null)
+      musicIntelligenceEngine.setTrackAnalysis(null)
     }
-  }, [ensureContext])
+  }, [connectFileSource])
+
+  const connectMicSource = useCallback(async (requestId: number): Promise<boolean> => {
+    setMicError(null)
+    let ctx: AudioContext
+    try {
+      ctx = ensureContext()
+    } catch (err) {
+      if (!disposedRef.current && sourceRequestIdRef.current === requestId) {
+        setMicError(`Live Input could not initialize the shared analysis graph: ${err instanceof Error ? err.message : String(err)}`)
+      }
+      return false
+    }
+    const gain = masterGainRef.current
+    if (!gain) {
+      setMicError('Live Input could not initialize the shared analysis graph.')
+      return false
+    }
+
+    let stream: MediaStream | null = null
+    let micNode: MediaStreamAudioSourceNode | null = null
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      if (disposedRef.current || sourceRequestIdRef.current !== requestId) {
+        stream.getTracks().forEach(track => track.stop())
+        return false
+      }
+
+      // Silence the program path before the live node is connected. The shared
+      // master analyser/ring-buffer path remains active upstream of this gate.
+      if (programOutputGainRef.current) programOutputGainRef.current.gain.value = 0
+      micNode = ctx.createMediaStreamSource(stream)
+      micNode.connect(gain)
+      micStreamRef.current = stream
+      micSourceRef.current = micNode
+      activeSourceNodeRef.current = micNode
+      liveClockEpochRef.current = ctx.currentTime
+
+      const activeStream = stream
+      const activeMicNode = micNode
+      const handleEnded = () => {
+        if (disposedRef.current || micStreamRef.current !== activeStream) return
+        sourceRequestIdRef.current += 1
+        micEndedCleanupRef.current?.()
+        micEndedCleanupRef.current = null
+        try { activeMicNode.disconnect(gain) } catch { /**/ }
+        activeStream.getTracks().forEach(track => {
+          try { track.stop() } catch { /**/ }
+        })
+        micStreamRef.current = null
+        micSourceRef.current = null
+        activeSourceNodeRef.current = null
+        liveClockEpochRef.current = null
+        if (programOutputGainRef.current) programOutputGainRef.current.gain.value = 1
+        sourceRef.current = 'file'
+        setLiveInputActive(false)
+        setSourceState('file')
+        setIsPlaying(false)
+        setMicError('Live Input ended unexpectedly. Re-select Live Input to reconnect.')
+        restoreFileSource()
+      }
+      const tracks = activeStream.getTracks()
+      tracks.forEach(track => track.addEventListener('ended', handleEnded))
+      micEndedCleanupRef.current = () => {
+        tracks.forEach(track => track.removeEventListener('ended', handleEnded))
+      }
+      if (tracks.some(track => track.readyState === 'ended')) {
+        handleEnded()
+        return false
+      }
+      return true
+    } catch (err) {
+      micEndedCleanupRef.current?.()
+      micEndedCleanupRef.current = null
+      if (micNode) {
+        try { micNode.disconnect(gain) } catch { /**/ }
+      }
+      if (stream) {
+        stream.getTracks().forEach(track => {
+          try { track.stop() } catch { /**/ }
+        })
+      }
+      if (micStreamRef.current === stream) micStreamRef.current = null
+      if (micSourceRef.current === micNode) micSourceRef.current = null
+      if (activeSourceNodeRef.current === micNode) activeSourceNodeRef.current = null
+      liveClockEpochRef.current = null
+      if (programOutputGainRef.current) programOutputGainRef.current.gain.value = 1
+      if (!disposedRef.current && sourceRequestIdRef.current === requestId) {
+        setMicError(`Live Input access failed: ${err instanceof Error ? err.message : String(err)}`)
+      }
+      return false
+    }
+  }, [ensureContext, restoreFileSource])
 
   const connectDemoSource = useCallback(() => {
     const ctx = ensureContext()
@@ -685,32 +802,56 @@ export function useAudioEngine(): AudioEngine {
 
   const setSource = useCallback(async (s: AudioSource, options: AudioSourceMutationOptions = {}) => {
     if (!requestAudioSourceMutation(options)) return
+    const requestId = ++sourceRequestIdRef.current
+    const previousSource = sourceRef.current
+    const previousTransportPlaying = isPlayingRef.current
     disconnectSource()
+    setLiveInputActive(false)
     if (masterGainRef.current) masterGainRef.current.gain.value = 1
     if (s === 'file') {
-      const activeIndex = currentIndexRef.current
-      if (activeIndex >= 0) connectFileSource()
-      // Re-apply the active track's analysis when switching back to file.
-      // This handles the case where mic/demo was active and we return to the
-      // same file track (currentIndex unchanged, so the track-change effect
-      // does not refire, but MI state was cleared on mic/demo entry).
-      const track = tracksRef.current[activeIndex]
-      if (track) {
-        musicIntelligenceEngine.setSourceId(track.id, track.id)
-        publishAuthoritativeTrackState(
-          track,
-          track.analysisRuntime.status === 'complete' ? track.analysisRuntime.analysis : null,
-        )
-      } else {
-        musicIntelligenceEngine.setSourceId(null, null)
-        musicIntelligenceEngine.setTrackAnalysis(null)
-      }
+      setMicError(null)
+      if (programOutputGainRef.current) programOutputGainRef.current.gain.value = 1
+      sourceRef.current = 'file'
+      restoreFileSource()
+      setSourceState('file')
+      setIsPlaying(previousSource === 'file' ? previousTransportPlaying : false)
+      return
     } else if (s === 'microphone') {
-      // Clear offline analysis — live BPM comes from AudioFeatureBus each frame.
+      const connected = await connectMicSource(requestId)
+      if (disposedRef.current || sourceRequestIdRef.current !== requestId) return
+      if (!connected) {
+        // A failed permission/device request must not commit a false Live Input
+        // state. Restore the previous safe source; a previous live stream cannot
+        // be restored after teardown, so that case intentionally falls back File.
+        const fallbackSource = previousSource === 'demo' ? 'demo' : 'file'
+        if (programOutputGainRef.current) programOutputGainRef.current.gain.value = 1
+        sourceRef.current = fallbackSource
+        if (fallbackSource === 'demo') {
+          connectDemoSource()
+          if (muteGainRef.current) muteGainRef.current.gain.value = demoSilent ? 0 : 1
+          musicIntelligenceEngine.setSourceId('demo', null)
+          musicIntelligenceEngine.setTrackAnalysis(null)
+        } else {
+          restoreFileSource()
+        }
+        setSourceState(fallbackSource)
+        setIsPlaying(fallbackSource === 'demo' ? previousTransportPlaying : previousTransportPlaying && previousSource === 'file')
+        return
+      }
+
+      // Commit Live Input only after capture succeeds. File transport is stopped
+      // while the realtime signal remains independently analysis-active.
+      audioRef.current?.pause()
+      sourceRef.current = 'microphone'
+      setSourceState('microphone')
+      setIsPlaying(false)
+      setLiveInputActive(true)
       musicIntelligenceEngine.setSourceId('microphone', null)
       musicIntelligenceEngine.setTrackAnalysis(null)
-      await connectMicSource()
+      return
     } else {
+      setMicError(null)
+      if (programOutputGainRef.current) programOutputGainRef.current.gain.value = 1
       // Demo: clear file analysis, set demo source, demo BPM is handled by
       // the currentEffectiveBpm effect which reads source === 'demo'.
       musicIntelligenceEngine.setSourceId('demo', null)
@@ -718,10 +859,21 @@ export function useAudioEngine(): AudioEngine {
       connectDemoSource()
       // Apply current demoSilent state to mute node
       if (muteGainRef.current) muteGainRef.current.gain.value = demoSilent ? 0 : 1
+      sourceRef.current = 'demo'
+      setSourceState('demo')
+      setIsPlaying(true)
+      return
     }
-    setSourceState(s)
-    setIsPlaying(s === 'demo')
-  }, [disconnectSource, connectFileSource, connectMicSource, connectDemoSource, demoSilent])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [disconnectSource, connectMicSource, connectDemoSource, demoSilent, restoreFileSource])
+
+  useEffect(() => {
+    disposedRef.current = false
+    return () => {
+      disposedRef.current = true
+      sourceRequestIdRef.current += 1
+      disconnectSource()
+    }
+  }, [disconnectSource])
 
   // ── Track load ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -914,8 +1066,9 @@ export function useAudioEngine(): AudioEngine {
   }, [currentIndex, currentTrackId, currentAnalysisStatus])
 
   const getRecordingStream = useCallback((): MediaStream | null => {
+    if (sourceRef.current === 'microphone') return null
     const ctx = ensureContext()
-    const gain = masterGainRef.current
+    const gain = programOutputGainRef.current
     if (!gain) return null
     if (!recordingDestRef.current) {
       const dest = ctx.createMediaStreamDestination()
@@ -1211,11 +1364,19 @@ export function useAudioEngine(): AudioEngine {
   // Stable getter — reads audioRef directly so it is safe to call every RAF frame
   // without touching React state. Falls back to currentTimeRef when no element exists.
   const getCurrentTime = useCallback((): number => {
+    if (sourceRef.current === 'microphone') {
+      const epoch = liveClockEpochRef.current
+      const ctx = ctxRef.current
+      if (epoch !== null && ctx) return Math.max(0, ctx.currentTime - epoch)
+      return 0
+    }
     return audioRef.current?.currentTime ?? currentTimeRef.current
   }, [])  // intentionally empty: only reads refs, never stale
   const setVolume = useCallback((v: number) => setVolumeState(v), [])
 
-  const isActive = (source === 'file' && isPlaying) || source === 'microphone' || source === 'demo'
+  const analysisActive = (source === 'file' && isPlaying) || liveInputActive || source === 'demo'
+  const hasActiveProgramAudio = (source === 'file' && isPlaying) || source === 'demo'
+  const isActive = analysisActive
 
   let currentEffectiveBpm:  number | null = null
   let currentBpmSource:     BpmSource | null = null
@@ -1336,7 +1497,7 @@ export function useAudioEngine(): AudioEngine {
     : null
 
   return {
-    source, setSource, micError, isActive,
+    source, setSource, micError, liveInputActive, analysisActive, hasActiveProgramAudio, isActive,
     tracks, currentIndex, isPlaying, currentTime, getCurrentTime, duration, volume,
     addTracks, replaceTracks, addPreparedTracks, replacePreparedTracks, addTrackUrls, replaceTrackUrls, removeTrack, selectTrack, play, pause, stop, next, prev, seek, setVolume,
     analyserMaster: aMasterRef.current,

@@ -10,6 +10,7 @@ import { resetAudioSourcePolicyForTests } from '../../../audio/audioSourcePolicy
 const fixture = vi.hoisted(() => ({
   engine: {
     source: 'file',
+    micError: null,
     tracks: [],
     currentTrack: null,
     currentTrackId: null,
@@ -155,6 +156,7 @@ async function dispatchAudioFile(name = 'track-c.wav'): Promise<void> {
 beforeEach(() => {
   resetAudioSourcePolicyForTests()
   fixture.engine.source = 'file'
+  fixture.engine.micError = null
   fixture.engine.tracks = []
   fixture.engine.currentTrack = null
   fixture.engine.currentTrackId = null
@@ -195,6 +197,27 @@ describe('Show Manager Audio Dock source lock integration', () => {
       'An audio track cannot be loaded while in Show Manager.',
     )
     expect(container?.querySelector('[role="alert"]')?.textContent).toContain('React, VYZUALZ, or Media Manager')
+  })
+
+  it('disables the real Audio Dock track routes and surfaces capture errors while Live Input is selected', async () => {
+    fixture.engine.source = 'microphone'
+    fixture.engine.micError = 'Live Input access failed: Permission denied'
+    fixture.engine.tracks = [{ id: 'loaded-track' }] as unknown as AudioEngine['tracks']
+    await renderView('react')
+
+    const dock = container?.querySelector<HTMLElement>('.vz-transport-dock')
+    expect(dock?.dataset.liveInputDisabled).toBe('true')
+    expect(dock?.getAttribute('aria-disabled')).toBe('true')
+    expect(container?.querySelector('.vz-dock-addtrack-btn')?.textContent).toContain('Live Input Active')
+    expect(container?.querySelector('.vz-dock-addtrack-btn')?.getAttribute('aria-disabled')).toBe('true')
+    expect(container?.querySelector<HTMLInputElement>('input[type="file"][accept="audio/*"]')?.disabled).toBe(true)
+    expect(container?.querySelector('[role="alert"]')?.textContent).toContain('Permission denied')
+
+    await dispatchAudioFile('blocked-during-live-input.wav')
+
+    expect(fixture.engine.addPreparedTracks).not.toHaveBeenCalled()
+    expect(fixture.engine.replacePreparedTracks).not.toHaveBeenCalled()
+    expect(fixture.engine.tracks).toHaveLength(1)
   })
 
   it('preserves normal real Audio Dock file loading in the React workspace', async () => {

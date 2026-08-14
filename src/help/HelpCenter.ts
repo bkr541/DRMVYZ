@@ -125,7 +125,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "summary": "Chooses the audio source that drives playback, analysis, and audio-reactive visual behavior in React.",
     "whatItDoes": [
       "Track Input uses the loaded audio track and its available analysis data.",
-      "Microphone listens to live input, while Demo Signal provides a generated source for testing without a track."
+      "Live Input listens to the default computer microphone for analysis without monitoring it to program output, while Demo Signal provides a generated source for testing without a track."
     ],
     "whenToUse": "Choose the source that matches the current performance or setup workflow before configuring audio-reactive visuals.",
     "affects": [
@@ -136,7 +136,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "the selected React engine or preset",
       "saved visual parameter values"
     ],
-    "tip": "Use Demo Signal to confirm that a visual reacts before troubleshooting a track file or microphone connection.",
+    "tip": "Use Demo Signal to confirm that a visual reacts before troubleshooting a track file or Live Input connection.",
     "relatedHelpIds": [
       "visualizer.audioDeck.trackPlayer"
     ]

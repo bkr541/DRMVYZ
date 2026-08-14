@@ -181,7 +181,7 @@ export function useRecorder(): Recorder {
     seconds: number,
   ) => {
     if (!ringBuffer) {
-      alert('No audio captured yet. Play a track or use microphone input first.')
+      alert('No audio captured yet. Play a track or use Live Input first.')
       return
     }
     const samples = ringBuffer.read(seconds)

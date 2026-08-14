@@ -4,12 +4,19 @@
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+const fixture = vi.hoisted(() => ({ source: 'file' as 'file' | 'microphone' | 'demo' }))
+
+vi.mock('../../context/AudioEngineContext', () => ({
+  useSharedAudio: () => fixture,
+}))
+
 import { VyzualzSidebar } from './VyzualzSidebar'
 
 let container: HTMLDivElement | null = null
 let root: ReturnType<typeof createRoot> | null = null
 
 afterEach(() => {
+  fixture.source = 'file'
   if (root) act(() => root?.unmount())
   container?.remove()
   root = null
@@ -17,6 +24,25 @@ afterEach(() => {
 })
 
 describe('VyzualzSidebar workspace navigation', () => {
+  it('disables Show Manager while Live Input is selected', () => {
+    fixture.source = 'microphone'
+    const onAppViewChange = vi.fn()
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    act(() => {
+      root?.render(<VyzualzSidebar compact appView="react" onAppViewChange={onAppViewChange} />)
+    })
+
+    const showManagerItem = container.querySelector<HTMLButtonElement>('[aria-label="Show Manager"]')
+    expect(showManagerItem?.disabled).toBe(true)
+    expect(showManagerItem?.getAttribute('aria-disabled')).toBe('true')
+    expect(showManagerItem?.title).toContain('requires a loaded audio track')
+    act(() => showManagerItem?.click())
+    expect(onAppViewChange).not.toHaveBeenCalledWith('showManager')
+  })
+
   it('renders Media Manager directly beneath Lyric Manager and navigates to media', () => {
     const onAppViewChange = vi.fn()
     container = document.createElement('div')

@@ -30,7 +30,7 @@ export function AudioEngineProvider({ children }: { children: React.ReactNode })
   // This prevents Meyda (or any future high-frequency internal state) from
   // broadcasting unnecessary re-renders to every context consumer.
   const contextRevision = useMemo(() => [
-    engine.source, engine.micError, engine.isActive,
+    engine.source, engine.micError, engine.liveInputActive, engine.analysisActive, engine.hasActiveProgramAudio, engine.isActive,
     engine.tracks, engine.currentIndex, engine.isPlaying,
     engine.currentTime, engine.duration, engine.volume,
     engine.fftSize, engine.smoothing, engine.sampleRate,
@@ -46,7 +46,7 @@ export function AudioEngineProvider({ children }: { children: React.ReactNode })
     engine.currentEffectiveBpm, engine.currentBpmConfidence, engine.currentBpmSource,
     engine.currentKey,
   ] as const, [
-    engine.source, engine.micError, engine.isActive,
+    engine.source, engine.micError, engine.liveInputActive, engine.analysisActive, engine.hasActiveProgramAudio, engine.isActive,
     engine.tracks, engine.currentIndex, engine.isPlaying,
     engine.currentTime, engine.duration, engine.volume,
     engine.fftSize, engine.smoothing, engine.sampleRate,

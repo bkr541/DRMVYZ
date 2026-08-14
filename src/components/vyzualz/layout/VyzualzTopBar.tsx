@@ -174,7 +174,7 @@ export function VyzualzTopBar({ analyser, onSaveSession }: VyzualzTopBarProps) {
           <span className="vz-input-label">Audio In</span>
           <DropdownSelect className="az-select" value={engine.source} onChange={e => engine.setSource(e.target.value as typeof engine.source)}>
             <option value="file">File Input</option>
-            <option value="microphone">Microphone</option>
+            <option value="microphone">Live Input</option>
             <option value="demo">Demo Signal</option>
           </DropdownSelect>
         </div>

@@ -23,7 +23,7 @@ interface RecordingPanelProps {
   onStartRecording: (canvas: HTMLCanvasElement) => void
   onStopRecording: () => void
   /**
-   * True when a program audio source (file playing, microphone, demo) is actively
+   * True when a program audio source (file playing or demo) is actively
    * connected and producing signal in the audio graph.
    * Used only for the pre-recording status label — never used to create a stream.
    */
