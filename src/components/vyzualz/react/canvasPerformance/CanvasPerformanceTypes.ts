@@ -24,7 +24,8 @@ export const CANVAS_PERFORMANCE_SHOW_IDS = [
 ] as const
 
 export type CanvasPerformanceShowId = typeof CANVAS_PERFORMANCE_SHOW_IDS[number]
-export const MAX_CANVAS_PERFORMANCE_LAYERS = 7
+export const MAX_CANVAS_AUTHORED_LAYERS = 4
+export const MAX_CANVAS_PERFORMANCE_LAYERS = MAX_CANVAS_AUTHORED_LAYERS
 export const MAX_CANVAS_ACTIVE_VIDEO_DECODERS = 3
 /** The validated Show Manager path may explicitly opt in to one video per authored lane. */
 export const MAX_CANVAS_SHOW_VIDEO_DECODERS = 4
@@ -420,9 +421,56 @@ export interface CanvasResolvedTransition {
   complete: boolean
 }
 
+export type CanvasAuthoredLayerOwnership = 'manual' | 'automatic'
+
+export interface CanvasAuthoredLayer {
+  /** Stable instance identity. Multiple instances may reference the same mediaId. */
+  id: string
+  mediaId: string
+  /** Canonical top-to-bottom order. 0 is the visually highest authored layer. */
+  order: number
+  enabled: boolean
+  solo: boolean
+  ownership: CanvasAuthoredLayerOwnership
+  pinned: boolean
+}
+
+export interface CanvasMediaPool {
+  id: string
+  name: string
+  mediaIds: string[]
+}
+
+export type CanvasLayerMutationFailureCode =
+  | 'invalid-media-id'
+  | 'layer-limit-reached'
+  | 'layer-not-found'
+  | 'invalid-order'
+
+export type CanvasLayerMutationResult =
+  | { ok: true; layer: CanvasAuthoredLayer }
+  | { ok: false; code: CanvasLayerMutationFailureCode; message: string }
+
+export type CanvasMediaPoolMutationFailureCode =
+  | 'invalid-pool-name'
+  | 'pool-limit-reached'
+  | 'pool-not-found'
+  | 'invalid-media-id'
+
+export type CanvasMediaPoolMutationResult =
+  | { ok: true; pool: CanvasMediaPool }
+  | { ok: false; code: CanvasMediaPoolMutationFailureCode; message: string }
+
 export interface CanvasOrchestrationSettings {
   enabled: boolean
   autoRoleEnabled: boolean
+  /** Canonical authored layer instances. The array is normalized top-to-bottom. */
+  authoredLayers: CanvasAuthoredLayer[]
+  /** Canonical named media pools. */
+  mediaPools: CanvasMediaPool[]
+  /** Exactly zero or one active pool. */
+  activeMediaPoolId: string | null
+  /** Derived compatibility view of the active named pool. Never mutate as independent truth. */
   mediaPoolIds: string[]
   mediaRolesById: Record<string, CanvasMediaRole[]>
   mediaLocksByLayer: Partial<Record<CanvasLayerRole, string>>
@@ -443,6 +491,9 @@ export interface CanvasOrchestrationSettings {
 export const DEFAULT_CANVAS_ORCHESTRATION_SETTINGS: CanvasOrchestrationSettings = {
   enabled: false,
   autoRoleEnabled: true,
+  authoredLayers: [],
+  mediaPools: [],
+  activeMediaPoolId: null,
   mediaPoolIds: [],
   mediaRolesById: {},
   mediaLocksByLayer: {},

@@ -108,7 +108,8 @@ function projectMediaReferences(): Set<string> {
     ...state.canvasMediaItems.map(item => item.id),
     state.selectedCanvasMediaId,
     state.activeCanvasMediaId,
-    ...state.canvasOrchestrationSettings.mediaPoolIds,
+    ...(state.canvasOrchestrationSettings.mediaPools?.flatMap(pool => pool.mediaIds) ?? []),
+    ...(state.canvasOrchestrationSettings.authoredLayers?.map(layer => layer.mediaId) ?? []),
     ...Object.values(state.canvasOrchestrationSettings.mediaLocksByLayer),
   ]) {
     if (mediaId) references.add(mediaId)

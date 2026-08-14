@@ -4,6 +4,7 @@ import type { MusicIntelligenceFrame } from '../../../../features/musicIntellige
 import { buildSharedPerformanceContext } from '../../../../features/performanceCore'
 import type { ReactTrackSection, CanvasMediaItem } from '../ReactTypes'
 import { resolveCanvasPlaybackUrl } from '../canvasMediaFidelity'
+import { normalizeCanvasAuthoringState } from './CanvasAuthoringState'
 import { CANVAS_COMPOSITION_TEMPLATES } from './CanvasCompositionTemplates'
 import {
   getCanvasPerformancePreloadCandidates,
@@ -125,6 +126,38 @@ describe('CANVAS media roles and deterministic selection', () => {
     const assigned = resolveCanvasMediaRoles(alphaSvg, settings({ mediaRolesById: { [alphaSvg.id]: ['transition', 'texture'] } }))
     expect(assigned.explicit).toEqual(['transition', 'texture'])
     expect(assigned.effective).toEqual(['transition', 'texture'])
+  })
+
+  it('routes runtime selection through only the active canonical named pool', () => {
+    const active = media('active-hero', 'image')
+    const inactive = media('inactive-hero', 'image')
+    const authoring = normalizeCanvasAuthoringState({
+      mediaPools: [
+        { id: 'pool-active', name: 'Active', mediaIds: [active.id] },
+        { id: 'pool-inactive', name: 'Inactive', mediaIds: [inactive.id] },
+      ],
+      activeMediaPoolId: 'pool-active',
+    })
+    const orchestration = settings({
+      ...authoring,
+      compositionPreference: 'fullScreenHero',
+      complexity: 0,
+      mediaRolesById: {
+        [active.id]: ['hero'],
+        [inactive.id]: ['hero'],
+      },
+    })
+
+    const frame = resolveCanvasPerformanceFrame({
+      context: contextAt(10),
+      settings: orchestration,
+      mediaItems: [inactive, active],
+    })
+
+    expect(orchestration.mediaPoolIds).toEqual([active.id])
+    const resolvedIds = frame.layers.map(layer => layer.sourceMediaId).filter((id): id is string => Boolean(id))
+    expect(resolvedIds.length).toBeGreaterThan(0)
+    expect(new Set(resolvedIds)).toEqual(new Set([active.id]))
   })
 
   it('selects the same media for stable inputs across reload, seek, and loop identities', () => {

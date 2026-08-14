@@ -187,12 +187,27 @@ import {
   DEFAULT_CANVAS_ORCHESTRATION_SETTINGS,
   CANVAS_MEDIA_ROLES,
   CANVAS_PERFORMANCE_SHOW_IDS,
+  MAX_CANVAS_AUTHORED_LAYERS,
+  type CanvasAuthoredLayer,
+  type CanvasLayerMutationResult,
   type CanvasLayerRole,
+  type CanvasMediaPoolMutationResult,
   type CanvasMediaRole,
   type CanvasOrchestrationLockKey,
   type CanvasOrchestrationSettings,
 } from '../components/vyzualz/react/canvasPerformance/CanvasPerformanceTypes'
 import { normalizeCanvasMediaRoleMap } from '../components/vyzualz/react/canvasPerformance/CanvasMediaRoles'
+import {
+  CANVAS_LEGACY_COMPATIBILITY_POOL_ID,
+  CANVAS_LEGACY_COMPATIBILITY_POOL_NAME,
+  MAX_CANVAS_MEDIA_POOLS,
+  normalizeCanvasAuthoringState,
+  normalizeCanvasAuthoredLayers,
+  normalizeCanvasMediaIds,
+  normalizeCanvasMediaPools,
+  reorderCanvasAuthoredLayers,
+  upsertCanvasCompatibilityPool,
+} from '../components/vyzualz/react/canvasPerformance/CanvasAuthoringState'
 import { CANVAS_COMPOSITION_TEMPLATES } from '../components/vyzualz/react/canvasPerformance/CanvasCompositionTemplates'
 import { normalizeCanvasFracturesOverrideProfile } from '../components/vyzualz/react/canvasPerformance/CanvasFracturesPerformance'
 import {
@@ -2579,6 +2594,17 @@ interface ReactStoreState {
   canvasShowManagerRedoStack: CanvasShowManagerHistorySnapshot[]
   canvasShowManagerHistoryTransaction: CanvasShowManagerHistorySnapshot | null
   setCanvasOrchestrationSettings: (patch: Partial<CanvasOrchestrationSettings>) => void
+  addCanvasAuthoredLayer: (mediaId: string, options?: Partial<Pick<CanvasAuthoredLayer, 'enabled' | 'solo' | 'ownership' | 'pinned'>>) => CanvasLayerMutationResult
+  updateCanvasAuthoredLayer: (layerId: string, patch: Partial<Pick<CanvasAuthoredLayer, 'mediaId' | 'enabled' | 'solo' | 'ownership' | 'pinned'>>) => CanvasLayerMutationResult
+  reorderCanvasAuthoredLayer: (layerId: string, targetIndex: number) => CanvasLayerMutationResult
+  duplicateCanvasAuthoredLayer: (layerId: string) => CanvasLayerMutationResult
+  removeCanvasAuthoredLayer: (layerId: string) => CanvasLayerMutationResult
+  createCanvasMediaPool: (name: string) => CanvasMediaPoolMutationResult
+  renameCanvasMediaPool: (poolId: string, name: string) => CanvasMediaPoolMutationResult
+  deleteCanvasMediaPool: (poolId: string) => CanvasMediaPoolMutationResult
+  setActiveCanvasMediaPool: (poolId: string | null) => CanvasMediaPoolMutationResult | null
+  addCanvasMediaToPool: (poolId: string, mediaId: string) => CanvasMediaPoolMutationResult
+  removeCanvasMediaFromPool: (poolId: string, mediaId: string) => CanvasMediaPoolMutationResult
   toggleCanvasMediaPoolItem: (mediaId: string, selected?: boolean) => void
   setCanvasMediaRoles: (mediaId: string, roles: CanvasMediaRole[]) => void
   setCanvasLayerLock: (role: CanvasLayerRole, locked: boolean) => void
@@ -2596,6 +2622,7 @@ interface ReactStoreState {
   setCanvasPresetSettings: (patch: Partial<CanvasPresetSettings>) => void
   resetCanvasPresetSettings: () => void
   addCanvasMediaItems: (items: CanvasMediaItem[]) => void
+  focusCanvasMediaItem: (id: string | null) => void
   selectCanvasMediaItem: (id: string, options?: { manual?: boolean }) => void
   restartCanvasVideo: () => void
   setCanvasMediaTiming: (mediaId: string, patch: Partial<CanvasVideoTimingSettings>) => void
@@ -4322,10 +4349,10 @@ function normalizeCanvasMediaLocks(value: unknown): Partial<Record<CanvasLayerRo
 }
 
 export function normalizeCanvasOrchestrationSettings(value: unknown): CanvasOrchestrationSettings {
-  const source = isRecord(value) ? value : DEFAULT_CANVAS_ORCHESTRATION_SETTINGS
-  const rawPoolIds = Array.isArray(source.mediaPoolIds)
-    ? source.mediaPoolIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
-    : DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.mediaPoolIds
+  const source: Record<string, unknown> = isRecord(value)
+    ? value
+    : DEFAULT_CANVAS_ORCHESTRATION_SETTINGS as unknown as Record<string, unknown>
+  const authoring = normalizeCanvasAuthoringState(source)
   const compositionPreference = source.compositionPreference === 'auto' || (
     typeof source.compositionPreference === 'string' && source.compositionPreference in CANVAS_COMPOSITION_TEMPLATES
   )
@@ -4334,7 +4361,10 @@ export function normalizeCanvasOrchestrationSettings(value: unknown): CanvasOrch
   return {
     enabled: source.enabled === true,
     autoRoleEnabled: source.autoRoleEnabled !== false,
-    mediaPoolIds: [...new Set(rawPoolIds)].slice(0, 128),
+    authoredLayers: authoring.authoredLayers,
+    mediaPools: authoring.mediaPools,
+    activeMediaPoolId: authoring.activeMediaPoolId,
+    mediaPoolIds: authoring.mediaPoolIds,
     mediaRolesById: normalizeCanvasMediaRoleMap(source.mediaRolesById),
     mediaLocksByLayer: normalizeCanvasMediaLocks(source.mediaLocksByLayer),
     layerLocks: normalizeCanvasBooleanRecord(source.layerLocks, CANVAS_LAYER_ROLE_VALUES),
@@ -4351,6 +4381,20 @@ export function normalizeCanvasOrchestrationSettings(value: unknown): CanvasOrch
       : DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId,
     fracturesShowOverrides: normalizeCanvasFracturesOverrideProfile(source.fracturesShowOverrides),
   }
+}
+
+function createCanvasOrchestrationSettingsForPersistence(
+  value: unknown,
+): Omit<CanvasOrchestrationSettings, 'mediaPoolIds'> {
+  const { mediaPoolIds: _derivedCompatibilityIds, ...canonical } = normalizeCanvasOrchestrationSettings(value)
+  void _derivedCompatibilityIds
+  return canonical
+}
+
+function createCanvasAuthoringIdentity(prefix: 'layer' | 'pool'): string {
+  const randomUuid = globalThis.crypto?.randomUUID?.()
+  if (randomUuid) return `canvas-${prefix}-${randomUuid}`
+  return `canvas-${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 
@@ -5615,6 +5659,15 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       showManagerShows: normalizeShowManagerShows(state.showManagerShows),
     }
   }
+  if (version < 75) {
+    // CANVAS Layering Stage 1 replaces the historical flat Performance Pool
+    // with canonical authored layers plus named pools. The normalizer performs
+    // the deterministic flat-pool migration without touching unrelated CANVAS state.
+    state = {
+      ...state,
+      canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(state.canvasOrchestrationSettings),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -5858,7 +5911,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     selectedCanvasPresetId:             s.selectedCanvasPresetId,
     canvasPresetSettings:               normalizeCanvasPresetSettings(s.canvasPresetSettings),
     canvasPresetOverride:               s.canvasPresetOverride,
-    canvasOrchestrationSettings:         normalizeCanvasOrchestrationSettings(s.canvasOrchestrationSettings),
+    canvasOrchestrationSettings:         createCanvasOrchestrationSettingsForPersistence(s.canvasOrchestrationSettings),
     showManagerShows:                    normalizeShowManagerShows(s.showManagerShows),
     canvasShowManagerShows:              normalizeCanvasShowManagerShows(s.canvasShowManagerShows),
     canvasShowManagerActiveShowId:       normalizeCanvasShowManagerActiveShowId(
@@ -6189,7 +6242,7 @@ export function mergeReactStoreState(
 }
 
 const REACT_STORE_PERSISTENCE_NAME = 'drmvyz:react-store'
-const REACT_STORE_PERSISTENCE_VERSION = 74
+const REACT_STORE_PERSISTENCE_VERSION = 75
 let showManagerLibraryMutationInFlight = false
 const showManagerCloudRevisions = new Map<string, number>()
 const SHOW_MANAGER_CLOUD_MIGRATION_MARKER_KEY = 'drmvyz:show-manager-cloud-migration-users:v1'
@@ -6868,13 +6921,29 @@ export const useReactStore = create<ReactStoreState>()(
       setCinematicWorldsUiMode: (mode) => set({ cinematicWorldsUiMode: mode }),
 
       setCanvasOrchestrationSettings: (patch) => set((state) => {
+        const legacyPoolPatch = Object.prototype.hasOwnProperty.call(patch, 'mediaPoolIds')
+          ? upsertCanvasCompatibilityPool(
+              state.canvasOrchestrationSettings.mediaPools,
+              state.canvasOrchestrationSettings.activeMediaPoolId,
+              patch.mediaPoolIds,
+            )
+          : null
+        const canonicalPatch = legacyPoolPatch
+          ? {
+              ...patch,
+              mediaPools: legacyPoolPatch.mediaPools,
+              activeMediaPoolId: legacyPoolPatch.activeMediaPoolId,
+            }
+          : patch
         const poolChanged = Object.prototype.hasOwnProperty.call(patch, 'mediaPoolIds')
+          || Object.prototype.hasOwnProperty.call(patch, 'mediaPools')
+          || Object.prototype.hasOwnProperty.call(patch, 'activeMediaPoolId')
           || Object.prototype.hasOwnProperty.call(patch, 'mediaRolesById')
           || Object.prototype.hasOwnProperty.call(patch, 'mediaLocksByLayer')
         return {
           canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
             ...state.canvasOrchestrationSettings,
-            ...patch,
+            ...canonicalPatch,
             poolRevision: poolChanged
               ? state.canvasOrchestrationSettings.poolRevision + 1
               : patch.poolRevision ?? state.canvasOrchestrationSettings.poolRevision,
@@ -6882,27 +6951,400 @@ export const useReactStore = create<ReactStoreState>()(
         }
       }),
 
+      addCanvasAuthoredLayer: (mediaId, options) => {
+        let result: CanvasLayerMutationResult = {
+          ok: false,
+          code: 'invalid-media-id',
+          message: 'Choose a valid media item before adding a CANVAS layer.',
+        }
+        set((state) => {
+          const id = typeof mediaId === 'string' ? mediaId.trim() : ''
+          if (!id) return {}
+          const current = normalizeCanvasAuthoredLayers(state.canvasOrchestrationSettings.authoredLayers)
+          if (current.length >= MAX_CANVAS_AUTHORED_LAYERS) {
+            result = {
+              ok: false,
+              code: 'layer-limit-reached',
+              message: `CANVAS supports up to ${MAX_CANVAS_AUTHORED_LAYERS} authored layers. Remove a layer before adding another.`,
+            }
+            return {}
+          }
+          const ownership = options?.ownership === 'automatic' ? 'automatic' : 'manual'
+          const layer: CanvasAuthoredLayer = {
+            id: createCanvasAuthoringIdentity('layer'),
+            mediaId: id,
+            order: current.length,
+            enabled: options?.enabled !== false,
+            solo: options?.solo === true,
+            ownership,
+            pinned: typeof options?.pinned === 'boolean' ? options.pinned : ownership === 'manual',
+          }
+          result = { ok: true, layer }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              authoredLayers: [...current, layer],
+            }),
+          }
+        })
+        return result
+      },
+
+      updateCanvasAuthoredLayer: (layerId, patch) => {
+        let result: CanvasLayerMutationResult = {
+          ok: false,
+          code: 'layer-not-found',
+          message: 'That CANVAS layer is no longer available.',
+        }
+        set((state) => {
+          const current = normalizeCanvasAuthoredLayers(state.canvasOrchestrationSettings.authoredLayers)
+          const index = current.findIndex(layer => layer.id === layerId)
+          if (index < 0) return {}
+          const existing = current[index]
+          const nextMediaId = Object.prototype.hasOwnProperty.call(patch, 'mediaId')
+            ? typeof patch.mediaId === 'string' ? patch.mediaId.trim() : ''
+            : existing.mediaId
+          if (!nextMediaId) {
+            result = {
+              ok: false,
+              code: 'invalid-media-id',
+              message: 'A CANVAS layer must reference a valid media item.',
+            }
+            return {}
+          }
+          const ownership = patch.ownership === 'automatic'
+            ? 'automatic'
+            : patch.ownership === 'manual'
+              ? 'manual'
+              : existing.ownership
+          const updated: CanvasAuthoredLayer = {
+            ...existing,
+            mediaId: nextMediaId,
+            enabled: typeof patch.enabled === 'boolean' ? patch.enabled : existing.enabled,
+            solo: typeof patch.solo === 'boolean' ? patch.solo : existing.solo,
+            ownership,
+            pinned: typeof patch.pinned === 'boolean' ? patch.pinned : existing.pinned,
+          }
+          const authoredLayers = [...current]
+          authoredLayers[index] = updated
+          result = { ok: true, layer: updated }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              authoredLayers,
+            }),
+          }
+        })
+        return result
+      },
+
+      reorderCanvasAuthoredLayer: (layerId, targetIndex) => {
+        let result: CanvasLayerMutationResult = {
+          ok: false,
+          code: 'layer-not-found',
+          message: 'That CANVAS layer is no longer available.',
+        }
+        set((state) => {
+          const current = normalizeCanvasAuthoredLayers(state.canvasOrchestrationSettings.authoredLayers)
+          const existing = current.find(layer => layer.id === layerId)
+          if (!existing) return {}
+          if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= current.length) {
+            result = {
+              ok: false,
+              code: 'invalid-order',
+              message: 'Choose a valid CANVAS layer position.',
+            }
+            return {}
+          }
+          const authoredLayers = reorderCanvasAuthoredLayers(current, layerId, targetIndex)
+          if (!authoredLayers) return {}
+          const moved = authoredLayers.find(layer => layer.id === layerId) ?? existing
+          result = { ok: true, layer: moved }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              authoredLayers,
+            }),
+          }
+        })
+        return result
+      },
+
+      duplicateCanvasAuthoredLayer: (layerId) => {
+        let result: CanvasLayerMutationResult = {
+          ok: false,
+          code: 'layer-not-found',
+          message: 'That CANVAS layer is no longer available.',
+        }
+        set((state) => {
+          const current = normalizeCanvasAuthoredLayers(state.canvasOrchestrationSettings.authoredLayers)
+          const sourceIndex = current.findIndex(layer => layer.id === layerId)
+          if (sourceIndex < 0) return {}
+          if (current.length >= MAX_CANVAS_AUTHORED_LAYERS) {
+            result = {
+              ok: false,
+              code: 'layer-limit-reached',
+              message: `CANVAS supports up to ${MAX_CANVAS_AUTHORED_LAYERS} authored layers. Remove a layer before duplicating another.`,
+            }
+            return {}
+          }
+          const duplicate: CanvasAuthoredLayer = {
+            ...current[sourceIndex],
+            id: createCanvasAuthoringIdentity('layer'),
+            order: sourceIndex + 1,
+          }
+          const authoredLayers = [
+            ...current.slice(0, sourceIndex + 1),
+            duplicate,
+            ...current.slice(sourceIndex + 1),
+          ].map((layer, order) => ({ ...layer, order }))
+          result = { ok: true, layer: duplicate }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              authoredLayers,
+            }),
+          }
+        })
+        return result
+      },
+
+      removeCanvasAuthoredLayer: (layerId) => {
+        let result: CanvasLayerMutationResult = {
+          ok: false,
+          code: 'layer-not-found',
+          message: 'That CANVAS layer is no longer available.',
+        }
+        set((state) => {
+          const current = normalizeCanvasAuthoredLayers(state.canvasOrchestrationSettings.authoredLayers)
+          const removed = current.find(layer => layer.id === layerId)
+          if (!removed) return {}
+          const authoredLayers = current
+            .filter(layer => layer.id !== layerId)
+            .map((layer, order) => ({ ...layer, order }))
+          result = { ok: true, layer: removed }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              authoredLayers,
+            }),
+          }
+        })
+        return result
+      },
+
+      createCanvasMediaPool: (name) => {
+        let result: CanvasMediaPoolMutationResult = {
+          ok: false,
+          code: 'invalid-pool-name',
+          message: 'Enter a name for the CANVAS Media Pool.',
+        }
+        set((state) => {
+          const normalizedName = typeof name === 'string' ? name.trim() : ''
+          if (!normalizedName) return {}
+          const current = normalizeCanvasMediaPools(state.canvasOrchestrationSettings.mediaPools)
+          if (current.length >= MAX_CANVAS_MEDIA_POOLS) {
+            result = {
+              ok: false,
+              code: 'pool-limit-reached',
+              message: 'The CANVAS project already contains the maximum number of Media Pools.',
+            }
+            return {}
+          }
+          const pool = { id: createCanvasAuthoringIdentity('pool'), name: normalizedName, mediaIds: [] }
+          result = { ok: true, pool }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              mediaPools: [...current, pool],
+              poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+            }),
+          }
+        })
+        return result
+      },
+
+      renameCanvasMediaPool: (poolId, name) => {
+        let result: CanvasMediaPoolMutationResult = {
+          ok: false,
+          code: 'pool-not-found',
+          message: 'That CANVAS Media Pool is no longer available.',
+        }
+        set((state) => {
+          const normalizedName = typeof name === 'string' ? name.trim() : ''
+          if (!normalizedName) {
+            result = {
+              ok: false,
+              code: 'invalid-pool-name',
+              message: 'Enter a name for the CANVAS Media Pool.',
+            }
+            return {}
+          }
+          const current = normalizeCanvasMediaPools(state.canvasOrchestrationSettings.mediaPools)
+          const index = current.findIndex(pool => pool.id === poolId)
+          if (index < 0) return {}
+          const pool = { ...current[index], name: normalizedName }
+          result = { ok: true, pool }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              mediaPools: current.map((candidate, candidateIndex) => candidateIndex === index ? pool : candidate),
+              poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+            }),
+          }
+        })
+        return result
+      },
+
+      deleteCanvasMediaPool: (poolId) => {
+        let result: CanvasMediaPoolMutationResult = {
+          ok: false,
+          code: 'pool-not-found',
+          message: 'That CANVAS Media Pool is no longer available.',
+        }
+        set((state) => {
+          const current = normalizeCanvasMediaPools(state.canvasOrchestrationSettings.mediaPools)
+          const removed = current.find(pool => pool.id === poolId)
+          if (!removed) return {}
+          result = { ok: true, pool: removed }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              mediaPools: current.filter(pool => pool.id !== poolId),
+              activeMediaPoolId: state.canvasOrchestrationSettings.activeMediaPoolId === poolId
+                ? null
+                : state.canvasOrchestrationSettings.activeMediaPoolId,
+              poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+            }),
+          }
+        })
+        return result
+      },
+
+      setActiveCanvasMediaPool: (poolId) => {
+        if (poolId === null) {
+          set((state) => state.canvasOrchestrationSettings.activeMediaPoolId === null
+            ? {}
+            : {
+                canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+                  ...state.canvasOrchestrationSettings,
+                  activeMediaPoolId: null,
+                  poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+                }),
+              })
+          return null
+        }
+        let result: CanvasMediaPoolMutationResult = {
+          ok: false,
+          code: 'pool-not-found',
+          message: 'That CANVAS Media Pool is no longer available.',
+        }
+        set((state) => {
+          const pool = state.canvasOrchestrationSettings.mediaPools.find(candidate => candidate.id === poolId)
+          if (!pool) return {}
+          result = { ok: true, pool }
+          if (state.canvasOrchestrationSettings.activeMediaPoolId === poolId) return {}
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              activeMediaPoolId: poolId,
+              poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+            }),
+          }
+        })
+        return result
+      },
+
+      addCanvasMediaToPool: (poolId, mediaId) => {
+        let result: CanvasMediaPoolMutationResult = {
+          ok: false,
+          code: 'pool-not-found',
+          message: 'That CANVAS Media Pool is no longer available.',
+        }
+        set((state) => {
+          const id = typeof mediaId === 'string' ? mediaId.trim() : ''
+          if (!id) {
+            result = {
+              ok: false,
+              code: 'invalid-media-id',
+              message: 'Choose a valid media item before adding it to a CANVAS Media Pool.',
+            }
+            return {}
+          }
+          const current = normalizeCanvasMediaPools(state.canvasOrchestrationSettings.mediaPools)
+          const index = current.findIndex(pool => pool.id === poolId)
+          if (index < 0) return {}
+          const existing = current[index]
+          const pool = existing.mediaIds.includes(id)
+            ? existing
+            : { ...existing, mediaIds: normalizeCanvasMediaIds([...existing.mediaIds, id]) }
+          result = { ok: true, pool }
+          if (pool === existing) return {}
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              mediaPools: current.map((candidate, candidateIndex) => candidateIndex === index ? pool : candidate),
+              poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+            }),
+          }
+        })
+        return result
+      },
+
+      removeCanvasMediaFromPool: (poolId, mediaId) => {
+        let result: CanvasMediaPoolMutationResult = {
+          ok: false,
+          code: 'pool-not-found',
+          message: 'That CANVAS Media Pool is no longer available.',
+        }
+        set((state) => {
+          const id = typeof mediaId === 'string' ? mediaId.trim() : ''
+          if (!id) {
+            result = {
+              ok: false,
+              code: 'invalid-media-id',
+              message: 'Choose a valid media item before removing it from a CANVAS Media Pool.',
+            }
+            return {}
+          }
+          const current = normalizeCanvasMediaPools(state.canvasOrchestrationSettings.mediaPools)
+          const index = current.findIndex(pool => pool.id === poolId)
+          if (index < 0) return {}
+          const existing = current[index]
+          const mediaIds = existing.mediaIds.filter(candidate => candidate !== id)
+          const pool = mediaIds.length === existing.mediaIds.length ? existing : { ...existing, mediaIds }
+          result = { ok: true, pool }
+          if (pool === existing) return {}
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              mediaPools: current.map((candidate, candidateIndex) => candidateIndex === index ? pool : candidate),
+              poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+            }),
+          }
+        })
+        return result
+      },
+
       toggleCanvasMediaPoolItem: (mediaId, selected) => set((state) => {
         if (typeof mediaId !== 'string' || !mediaId.trim()) return {}
         const id = mediaId.trim()
-        const current = state.canvasOrchestrationSettings.mediaPoolIds
-        const shouldInclude = selected ?? !current.includes(id)
-        const mediaPoolIds = shouldInclude
-          ? uniqueCanvasMediaIds([...current, id])
-          : current.filter(candidate => candidate !== id)
-        if (mediaPoolIds.length === current.length && mediaPoolIds.every((candidate, index) => candidate === current[index])) return {}
-        const { [id]: removedRoles, ...mediaRolesById } = state.canvasOrchestrationSettings.mediaRolesById
-        void removedRoles
-        const mediaLocksByLayer = Object.fromEntries(
-          Object.entries(state.canvasOrchestrationSettings.mediaLocksByLayer)
-            .filter(([, lockedId]) => shouldInclude || lockedId !== id),
+        const currentIds = state.canvasOrchestrationSettings.mediaPoolIds
+        const shouldInclude = selected ?? !currentIds.includes(id)
+        const nextIds = shouldInclude
+          ? normalizeCanvasMediaIds([...currentIds, id])
+          : currentIds.filter(candidate => candidate !== id)
+        if (nextIds.length === currentIds.length && nextIds.every((candidate, index) => candidate === currentIds[index])) return {}
+        const compatibility = upsertCanvasCompatibilityPool(
+          state.canvasOrchestrationSettings.mediaPools,
+          state.canvasOrchestrationSettings.activeMediaPoolId,
+          nextIds,
         )
         return {
           canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
             ...state.canvasOrchestrationSettings,
-            mediaPoolIds,
-            mediaRolesById: shouldInclude ? state.canvasOrchestrationSettings.mediaRolesById : mediaRolesById,
-            mediaLocksByLayer,
+            mediaPools: compatibility.mediaPools,
+            activeMediaPoolId: compatibility.activeMediaPoolId,
             poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
           }),
         }
@@ -6915,7 +7357,6 @@ export const useReactStore = create<ReactStoreState>()(
         return {
           canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
             ...state.canvasOrchestrationSettings,
-            mediaPoolIds: uniqueCanvasMediaIds([...state.canvasOrchestrationSettings.mediaPoolIds, id]),
             mediaRolesById: {
               ...state.canvasOrchestrationSettings.mediaRolesById,
               [id]: validRoles,
@@ -6963,7 +7404,9 @@ export const useReactStore = create<ReactStoreState>()(
       resetCanvasOrchestration: () => set((state) => ({
         canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
           ...DEFAULT_CANVAS_ORCHESTRATION_SETTINGS,
-          mediaPoolIds: state.canvasOrchestrationSettings.mediaPoolIds,
+          authoredLayers: state.canvasOrchestrationSettings.authoredLayers,
+          mediaPools: state.canvasOrchestrationSettings.mediaPools,
+          activeMediaPoolId: state.canvasOrchestrationSettings.activeMediaPoolId,
           mediaRolesById: state.canvasOrchestrationSettings.mediaRolesById,
           poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
         }),
@@ -7153,32 +7596,30 @@ export const useReactStore = create<ReactStoreState>()(
         })
       }),
 
+      focusCanvasMediaItem: (id) => set((state) => {
+        const nextId = typeof id === 'string' && id.trim() ? id.trim() : null
+        if (state.selectedCanvasMediaId === nextId) return {}
+        return { selectedCanvasMediaId: nextId }
+      }),
+
       selectCanvasMediaItem: (id, options) => set((state) => {
         if (typeof id !== 'string' || id.trim().length === 0) return repairCanvasRuntimeState(state)
+        const nextId = id.trim()
         const manualMediaOverrideId = state.canvasEngineSettings.manualMediaOverrideId
         const manualMediaOverrideValid = typeof manualMediaOverrideId === 'string' && manualMediaOverrideId.trim().length > 0
         if (options?.manual === false && manualMediaOverrideValid) return repairCanvasRuntimeState(state)
-        const nextState = repairCanvasRuntimeState({
+        return repairCanvasRuntimeState({
           ...state,
-          selectedCanvasMediaId: id,
-          activeCanvasMediaId: id,
+          selectedCanvasMediaId: nextId,
+          activeCanvasMediaId: nextId,
           canvasEngineSettings: normalizeCanvasEngineSettings({
             ...state.canvasEngineSettings,
-            selectedMediaId: id,
-            mediaIds: uniqueCanvasMediaIds([...state.canvasEngineSettings.mediaIds, ...state.canvasMediaItems.map(item => item.id), id]),
-            manualMediaOverrideId: options?.manual === false ? null : id,
+            selectedMediaId: nextId,
+            mediaIds: uniqueCanvasMediaIds([...state.canvasEngineSettings.mediaIds, ...state.canvasMediaItems.map(item => item.id), nextId]),
+            manualMediaOverrideId: options?.manual === false ? null : nextId,
             rotation: 0,
           }),
         })
-        if (options?.manual === false || state.canvasOrchestrationSettings.mediaPoolIds.includes(id)) return nextState
-        return {
-          ...nextState,
-          canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
-            ...state.canvasOrchestrationSettings,
-            mediaPoolIds: uniqueCanvasMediaIds([...state.canvasOrchestrationSettings.mediaPoolIds, id]),
-            poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
-          }),
-        }
       }),
 
       restartCanvasVideo: () => set((state) => ({
@@ -7234,7 +7675,11 @@ export const useReactStore = create<ReactStoreState>()(
           canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
           canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
             ...state.canvasOrchestrationSettings,
-            mediaPoolIds: state.canvasOrchestrationSettings.mediaPoolIds.filter(mediaId => mediaId !== id),
+            authoredLayers: state.canvasOrchestrationSettings.authoredLayers.filter(layer => layer.mediaId !== id),
+            mediaPools: state.canvasOrchestrationSettings.mediaPools.map(pool => ({
+              ...pool,
+              mediaIds: pool.mediaIds.filter(mediaId => mediaId !== id),
+            })),
             mediaRolesById: Object.fromEntries(
               Object.entries(state.canvasOrchestrationSettings.mediaRolesById).filter(([mediaId]) => mediaId !== id),
             ),
@@ -7249,14 +7694,19 @@ export const useReactStore = create<ReactStoreState>()(
       clearCanvasMediaItems: () => set((state) => {
         const removedIds = new Set(state.canvasMediaItems.map(item => item.id))
         revokeCanvasMediaObjectUrls(state.canvasMediaItems)
-        const mediaPoolIds = state.canvasOrchestrationSettings.mediaPoolIds.filter(id => !removedIds.has(id))
+        const authoredLayers = state.canvasOrchestrationSettings.authoredLayers.filter(layer => !removedIds.has(layer.mediaId))
+        const mediaPools = state.canvasOrchestrationSettings.mediaPools.map(pool => ({
+          ...pool,
+          mediaIds: pool.mediaIds.filter(id => !removedIds.has(id)),
+        }))
         const mediaRolesById = Object.fromEntries(
           Object.entries(state.canvasOrchestrationSettings.mediaRolesById).filter(([id]) => !removedIds.has(id)),
         )
         const mediaLocksByLayer = Object.fromEntries(
           Object.entries(state.canvasOrchestrationSettings.mediaLocksByLayer).filter(([, id]) => !removedIds.has(id)),
         )
-        const orchestrationChanged = mediaPoolIds.length !== state.canvasOrchestrationSettings.mediaPoolIds.length
+        const orchestrationChanged = authoredLayers.length !== state.canvasOrchestrationSettings.authoredLayers.length
+          || mediaPools.some((pool, index) => pool.mediaIds.length !== state.canvasOrchestrationSettings.mediaPools[index]?.mediaIds.length)
           || Object.keys(mediaRolesById).length !== Object.keys(state.canvasOrchestrationSettings.mediaRolesById).length
           || Object.keys(mediaLocksByLayer).length !== Object.keys(state.canvasOrchestrationSettings.mediaLocksByLayer).length
         return {
@@ -7274,7 +7724,8 @@ export const useReactStore = create<ReactStoreState>()(
           canvasOrchestrationSettings: orchestrationChanged
             ? normalizeCanvasOrchestrationSettings({
                 ...state.canvasOrchestrationSettings,
-                mediaPoolIds,
+                authoredLayers,
+                mediaPools,
                 mediaRolesById,
                 mediaLocksByLayer,
                 poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,

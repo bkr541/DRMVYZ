@@ -1,4 +1,6 @@
 export * from './CanvasPerformanceTypes'
+export * from './CanvasAuthoringState'
+export * from './CanvasAuthoringMediaDeletion'
 export * from './CanvasMediaRoles'
 export * from './CanvasCompositionTemplates'
 export * from './CanvasPlayback'
