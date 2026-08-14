@@ -63,7 +63,7 @@ export function resolveReactWorkspaceComposition(
     leftTabs = ['workspace', 'layers']
     workspaceTabLabel = 'RIG'
   } else if (isCanvas) {
-    leftTabs = ['workspace']
+    leftTabs = ['workspace', 'layers']
     workspaceTabLabel = 'SOURCE'
   } else if (isPixGrid) {
     leftTabs = ['workspace', 'media']

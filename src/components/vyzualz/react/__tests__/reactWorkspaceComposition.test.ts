@@ -112,8 +112,9 @@ describe('React workspace composition', () => {
     expect(getReactLeftTabLabel('workspace', soundDrawing)).toBe('SOURCE')
 
     const canvas = resolveReactWorkspaceComposition('canvas', 'beamMatrix', false)
-    expect(getReactLeftTabs(canvas)).toEqual(['workspace'])
+    expect(getReactLeftTabs(canvas)).toEqual(['workspace', 'layers'])
     expect(getReactLeftTabLabel('workspace', canvas)).toBe('SOURCE')
+    expect(getReactLeftTabLabel('layers', canvas)).toBe('LAYERS')
 
     const pixGrid = resolveReactWorkspaceComposition('pixGrid', 'beamMatrix', false)
     expect(getReactLeftTabs(pixGrid)).toEqual(['workspace', 'media'])

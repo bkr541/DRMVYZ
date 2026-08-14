@@ -28,8 +28,9 @@ describe('CANVAS final-pass store and workspace contract', () => {
     expect(REACT_ENGINE_CATALOG.canvas.label).toBe('CANVAS')
 
     const composition = resolveReactWorkspaceComposition('canvas', 'beamMatrix', false)
-    expect(getReactLeftTabs(composition)).toEqual(['workspace'])
+    expect(getReactLeftTabs(composition)).toEqual(['workspace', 'layers'])
     expect(getReactLeftTabLabel('workspace', composition)).toBe('SOURCE')
+    expect(getReactLeftTabLabel('layers', composition)).toBe('LAYERS')
     expect(composition.presetSurface).toBe('enginePresets')
     expect(getReactPresetTabLabel(composition)).toBe('PRESETS')
     expect(composition.showPerformancePads).toBe(true)

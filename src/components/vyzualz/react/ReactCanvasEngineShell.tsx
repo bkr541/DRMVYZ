@@ -3049,7 +3049,8 @@ function CanvasOrchestrationControls() {
   const setCanvasOrchestrationLock = useReactStore(s => s.setCanvasOrchestrationLock)
   const resetCanvasOrchestration = useReactStore(s => s.resetCanvasOrchestration)
   const mediaItems = useCanvasRuntimeMediaItems()
-  const [lockLayerRole, setLockLayerRole] = useState<CanvasLayerRole>('hero')
+  const lockLayerRole = useReactStore(s => s.canvasOrchestrationEditingLayerRole)
+  const setLockLayerRole = useReactStore(s => s.setCanvasOrchestrationEditingLayerRole)
   const poolItems = settings.mediaPoolIds
     .map(id => mediaItems.find(item => item.id === id) ?? null)
     .filter((item): item is CanvasMediaItem => item !== null)
@@ -3171,6 +3172,50 @@ function CanvasOrchestrationControls() {
       </Collapsible>
       <IconChipButton className="rv-canvas-restart-btn" onClick={resetCanvasOrchestration}>Reset Authored State</IconChipButton>
     </Collapsible>
+  )
+}
+
+// ── Canvas layers tab ──────────────────────────────────────────────────────
+//
+// Mirrors Cinema's Layers panel: a numbered, click-to-select list of the
+// composition's layers. Canvas has no per-frame layer snapshot in the store
+// (orchestration resolves layers live inside the renderer), so this lists
+// the seven authored layer roles instead, with a Locked/Auto badge sourced
+// from the same orchestration lock state the Design tab's Locks section
+// edits. Selecting a role here selects it there too — "select a layer to
+// edit its live look in Design," same as Cinema.
+
+export function CanvasLayersPanel() {
+  const settings = useReactStore(s => s.canvasOrchestrationSettings)
+  const lockLayerRole = useReactStore(s => s.canvasOrchestrationEditingLayerRole)
+  const setLockLayerRole = useReactStore(s => s.setCanvasOrchestrationEditingLayerRole)
+  const mediaItems = useCanvasRuntimeMediaItems()
+
+  return (
+    <section className="rv-cinema-panel-list" aria-label="Canvas layers">
+      <div className="rv-cinema-panel-list__header"><strong>Layers</strong><span>{CANVAS_LAYER_ROLE_OPTIONS.length}</span></div>
+      <p className="rv-cinema-panel-list__hint">Select a layer to edit its lock and locked media in Design. Composition and role recruitment are set in Performance Orchestration.</p>
+      <div className="rv-cinema-layer-tree">
+        {CANVAS_LAYER_ROLE_OPTIONS.map((option, index) => {
+          const locked = settings.layerLocks[option.value] === true
+          const lockedMediaId = settings.mediaLocksByLayer[option.value]
+          const lockedMediaName = lockedMediaId ? mediaItems.find(item => item.id === lockedMediaId)?.name : undefined
+          return (
+            <div className="rv-cinema-layer-tree__branch" key={option.value}>
+              <button
+                type="button"
+                className={lockLayerRole === option.value ? 'is-active' : ''}
+                onClick={() => setLockLayerRole(option.value)}
+              >
+                <span>{index + 1}</span>
+                <strong>{option.label}</strong>
+                <small>{locked ? (lockedMediaName ?? 'Locked') : 'Auto'}</small>
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 

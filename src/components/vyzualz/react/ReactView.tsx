@@ -12,7 +12,7 @@ import { useMediaStore } from '../../../stores/mediaStore'
 import { useLyricsStore } from '../../../stores/lyricsStore'
 import { ReactPresetsPanel, ReactEnginePanel } from './panels/ReactRightPanels'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
-import { CanvasEngineSurface } from './ReactCanvasEngineShell'
+import { CanvasEngineSurface, CanvasLayersPanel } from './ReactCanvasEngineShell'
 import { PixGridSurface } from './pixGrid/PixGridSurface'
 import { PixGridEditorOverlay, shouldShowPixGridEditorOverlay } from './pixGrid/PixGridEditorOverlay'
 import { addPixGridMediaLayer } from './pixGrid/PixGridAuthoring'
@@ -869,7 +869,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                       getDisabledReason={getMediaDisabledReason}
                     />
                   )}
-                  {leftTab === 'layers' && (activeReactEngineId === 'cinema' ? <CinemaLayersPanel /> : workspaceComposition.showLaserLayersTab ? (
+                  {leftTab === 'layers' && (activeReactEngineId === 'cinema' ? <CinemaLayersPanel /> : activeReactEngineId === 'canvas' ? <CanvasLayersPanel /> : workspaceComposition.showLaserLayersTab ? (
                     <Suspense fallback={<LazyWorkspaceFallback label="LaserDMX layers" />}><LaserDmxLayersPanel /></Suspense>
                   ) : null)}
                   {leftTab === 'fonts' && <FontLibraryPanel />}

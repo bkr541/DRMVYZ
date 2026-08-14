@@ -2536,6 +2536,10 @@ interface ReactStoreState {
   canvasPresetOverride: CanvasPresetOverrideState | null
   canvasVideoRestartRevision: number
   canvasOrchestrationSettings: CanvasOrchestrationSettings
+  // Cross-tab selection: which layer role the Layers tab and the Design
+  // tab's Locks section are both currently pointed at. Mirrors Cinema's
+  // layer-selection-drives-Design pattern.
+  canvasOrchestrationEditingLayerRole: CanvasLayerRole
 
   // Shared Show Manager identity/audio metadata. Persisted Shows are distinct from the transient open/edit session.
   showManagerShows: ShowManagerShowRecord[]
@@ -2581,6 +2585,7 @@ interface ReactStoreState {
   setCanvasMediaLock: (role: CanvasLayerRole, mediaId: string | null) => void
   setCanvasOrchestrationLock: (lock: CanvasOrchestrationLockKey, locked: boolean) => void
   resetCanvasOrchestration: () => void
+  setCanvasOrchestrationEditingLayerRole: (role: CanvasLayerRole) => void
   setCanvasEngineSettings: (patch: Partial<CanvasEngineSettings>) => void
   resetCanvasEngineSettings: () => void
   setCanvasAutoSelectEnabled: (enabled: boolean) => void
@@ -6359,6 +6364,7 @@ export const useReactStore = create<ReactStoreState>()(
       canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
       canvasVideoRestartRevision: 0,
       canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
+      canvasOrchestrationEditingLayerRole: 'hero',
       showManagerShows: [],
       showManagerEditingShowId: null,
       canvasShowManagerShows: [],
@@ -6929,6 +6935,8 @@ export const useReactStore = create<ReactStoreState>()(
         }),
       })),
 
+      setCanvasOrchestrationEditingLayerRole: (role) => set({ canvasOrchestrationEditingLayerRole: role }),
+
       setCanvasMediaLock: (role, mediaId) => set((state) => {
         const nextLocks = { ...state.canvasOrchestrationSettings.mediaLocksByLayer }
         if (typeof mediaId === 'string' && mediaId.trim()) nextLocks[role] = mediaId.trim()
@@ -6986,6 +6994,7 @@ export const useReactStore = create<ReactStoreState>()(
           canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
           canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
           canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
+          canvasOrchestrationEditingLayerRole: 'hero',
           canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
         }
       }),
@@ -11495,6 +11504,7 @@ export const useReactStore = create<ReactStoreState>()(
               canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
               canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
               canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
+              canvasOrchestrationEditingLayerRole: 'hero',
               canvasVideoRestartRevision: s.canvasVideoRestartRevision + 1,
             }
           }
@@ -11587,6 +11597,7 @@ export const useReactStore = create<ReactStoreState>()(
             canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
             canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
+            canvasOrchestrationEditingLayerRole: 'hero',
             canvasVideoRestartRevision: s.canvasVideoRestartRevision + 1,
             showManagerShows: [],
             showManagerEditingShowId: null,
