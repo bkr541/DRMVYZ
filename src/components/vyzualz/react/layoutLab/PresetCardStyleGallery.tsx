@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { Badge } from '../controls/Badge'
 
 // ── PresetCardStyleGallery ────────────────────────────────────────────────
 //
@@ -27,8 +28,8 @@ const PRESET_SAMPLES: PresetSample[] = [
 function PresetChips({ preset }: { preset: PresetSample }) {
   return (
     <>
-      {preset.chips.map(chip => <span key={chip} className="llpc-chip">{chip}</span>)}
-      {preset.modified && <span className="llpc-chip llpc-chip--modified">Modified</span>}
+      {preset.chips.map(chip => <Badge key={chip} label={chip} tone={preset.tone} />)}
+      {preset.modified && <Badge label="Modified" tone="#ffb347" />}
     </>
   )
 }

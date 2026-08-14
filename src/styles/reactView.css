@@ -16456,27 +16456,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   padding: 18px 16px 32px;
 }
 
-.llpc-chip {
-  padding: 0 5px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(232, 244, 248, 0.55);
-  font-size: 9px;
-  line-height: 16px;
-  white-space: nowrap;
-}
-
-.llpc-chip--modified {
-  background: rgba(255, 176, 0, 0.12);
-  color: rgba(255, 197, 79, 0.85);
-}
-
-.llpc-chip--ghost {
-  background: rgba(0, 0, 0, 0.35);
-  color: rgba(237, 249, 251, 0.75);
-  backdrop-filter: blur(2px);
-}
-
 /* 01 · Filmstrip Row — the current production shape, refined. */
 
 .llpc-filmstrip-list {
