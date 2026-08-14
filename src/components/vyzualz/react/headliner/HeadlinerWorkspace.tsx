@@ -70,7 +70,10 @@ export function HeadlinerSurface({
 
     const compositor = new HeadlinerFullscreenCompositor({
       canvas,
-      getProgramInput: () => createHeadlinerFullscreenProgram(runtime.getFrameSource()),
+      getProgramInput: () => createHeadlinerFullscreenProgram(
+        runtime.getFrameSource(),
+        runtime.getSnapshot().status,
+      ),
       onLiveFps,
     })
 
@@ -96,7 +99,7 @@ export function HeadlinerSurface({
           ? 'Camera unavailable'
           : 'Camera error'
       : snapshot.status === 'disconnected'
-        ? 'Camera disconnected'
+        ? 'Connection Lost'
         : 'Camera not started'
   const statusBody = snapshot.status === 'requesting'
     ? 'Allow camera access to show the default front camera in Headliner.'
@@ -123,8 +126,7 @@ export function HeadlinerSurface({
         playsInline
       />
       {!isLive && (
-        <div className="rv-headliner-surface-placeholder" role="status">
-          <span className="rv-headliner-surface-icon" aria-hidden="true"><HeadlinerFullscreenIcon /></span>
+        <div className="sr-only" role="status" aria-live="polite">
           <strong>{statusTitle}</strong>
           <span>{statusBody}</span>
         </div>

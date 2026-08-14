@@ -4,6 +4,7 @@ import {
   advanceHeadlinerAdaptiveQuality,
   createHeadlinerFullscreenProgram,
   HEADLINER_ADAPTIVE_SCALES,
+  HEADLINER_CONNECTION_LOST_TEXT,
   HEADLINER_INITIAL_ADAPTIVE_QUALITY,
   HEADLINER_MAX_CAMERA_LAYERS,
   resolveHeadlinerCoverSourceRect,
@@ -22,6 +23,7 @@ describe('Headliner fullscreen compositor domain', () => {
     expect(HEADLINER_MAX_CAMERA_LAYERS).toBe(4)
     expect(createHeadlinerFullscreenProgram(source)).toEqual({
       mode: 'fullscreen',
+      cameraStatus: 'live',
       layers: [{
         slotId: 'camera-1',
         sourceId: 'default-front-camera',
@@ -36,6 +38,11 @@ describe('Headliner fullscreen compositor domain', () => {
       masterEffectIds: [],
     })
     expect(createHeadlinerFullscreenProgram(null).layers).toEqual([])
+    expect(createHeadlinerFullscreenProgram(null, 'disconnected')).toMatchObject({
+      cameraStatus: 'disconnected',
+      layers: [],
+    })
+    expect(HEADLINER_CONNECTION_LOST_TEXT).toBe('Connection Lost')
   })
 
   it('center-crops landscape and portrait sources to cover the program canvas', () => {

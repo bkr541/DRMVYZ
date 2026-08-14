@@ -5,11 +5,13 @@ import {
 } from '../rendering/canvasResolution'
 import type {
   HeadlinerCameraFrameSource,
+  HeadlinerCameraRuntimeStatus,
   HeadlinerCameraSlotId,
 } from './HeadlinerCameraRuntime'
 
 export const HEADLINER_MAX_CAMERA_LAYERS = 4
 export const HEADLINER_MAX_BACKING_PIXELS = 1920 * 1080
+export const HEADLINER_CONNECTION_LOST_TEXT = 'Connection Lost'
 
 export interface HeadlinerNormalizedRect {
   x: number
@@ -38,6 +40,7 @@ export interface HeadlinerCameraLayerInput {
 
 export interface HeadlinerProgramInput {
   mode: 'fullscreen'
+  cameraStatus: HeadlinerCameraRuntimeStatus
   layers: readonly HeadlinerCameraLayerInput[]
   masterEffectIds: readonly string[]
 }
@@ -61,12 +64,16 @@ const PRESSURE_FRAMES_TO_DEGRADE = 8
 const HEALTHY_FRAMES_TO_RECOVER = 120
 const FPS_SAMPLE_WINDOW_MS = 500
 
+type HeadlinerRenderedState = 'live' | 'lost' | 'neutral'
+
 export function createHeadlinerFullscreenProgram(
   source: HeadlinerCameraFrameSource | null,
+  cameraStatus: HeadlinerCameraRuntimeStatus = source ? 'live' : 'idle',
 ): HeadlinerProgramInput {
   if (!source) {
     return {
       mode: 'fullscreen',
+      cameraStatus,
       layers: [],
       masterEffectIds: [],
     }
@@ -74,6 +81,7 @@ export function createHeadlinerFullscreenProgram(
 
   return {
     mode: 'fullscreen',
+    cameraStatus,
     layers: [{
       slotId: source.slotId,
       sourceId: source.sourceId,
@@ -185,9 +193,13 @@ export class HeadlinerFullscreenCompositor {
   private active = false
   private previousResolution: CanvasResolution | null = null
   private adaptiveQuality: HeadlinerAdaptiveQualityState = { ...HEADLINER_INITIAL_ADAPTIVE_QUALITY }
-  private previousFrameTimestamp: number | null = null
+  private previousLiveFrameTimestamp: number | null = null
   private fpsWindowStartedAt: number | null = null
   private fpsFrames = 0
+  private renderedState: HeadlinerRenderedState | null = null
+  private lastGoodFrameCanvas: HTMLCanvasElement | null = null
+  private lastGoodFrameContext: CanvasRenderingContext2D | null = null
+  private hasLastGoodFrame = false
 
   constructor({ canvas, getProgramInput, onLiveFps }: HeadlinerFullscreenCompositorOptions) {
     this.canvas = canvas
@@ -213,9 +225,13 @@ export class HeadlinerFullscreenCompositor {
     this.resizeObserver = null
     this.removeWindowResizeListener?.()
     this.removeWindowResizeListener = null
-    this.previousFrameTimestamp = null
-    this.fpsWindowStartedAt = null
-    this.fpsFrames = 0
+    this.previousFrameReset()
+    this.adaptiveQuality = { ...HEADLINER_INITIAL_ADAPTIVE_QUALITY }
+    this.previousResolution = null
+    this.renderedState = null
+    this.releaseLastGoodFrame()
+    this.canvas.removeAttribute('data-headliner-output-rendered')
+    this.canvas.removeAttribute('data-headliner-output-state')
     this.onLiveFps?.(0)
   }
 
@@ -238,80 +254,229 @@ export class HeadlinerFullscreenCompositor {
   private renderFrame = (timestamp: number): void => {
     if (!this.active) return
 
-    if (this.previousFrameTimestamp !== null) {
-      const nextAdaptiveQuality = advanceHeadlinerAdaptiveQuality(
-        this.adaptiveQuality,
-        timestamp - this.previousFrameTimestamp,
-      )
-      if (nextAdaptiveQuality.tier !== this.adaptiveQuality.tier) this.previousResolution = null
-      this.adaptiveQuality = nextAdaptiveQuality
+    const program = this.getProgramInput()
+    if (program.cameraStatus === 'live') {
+      if (this.previousLiveFrameTimestamp !== null) {
+        const nextAdaptiveQuality = advanceHeadlinerAdaptiveQuality(
+          this.adaptiveQuality,
+          timestamp - this.previousLiveFrameTimestamp,
+        )
+        if (nextAdaptiveQuality.tier !== this.adaptiveQuality.tier) this.previousResolution = null
+        this.adaptiveQuality = nextAdaptiveQuality
+      }
+      this.previousLiveFrameTimestamp = timestamp
+    } else {
+      // Lost/neutral frames must not degrade quality or count the disconnected
+      // interval as a slow frame when the camera comes back.
+      this.previousLiveFrameTimestamp = null
     }
-    this.previousFrameTimestamp = timestamp
 
-    const rendered = this.renderProgramFrame()
-    if (rendered) this.sampleFps(timestamp)
+    const renderedState = this.renderProgramFrame(program)
+    if (renderedState === 'live') {
+      this.sampleFps(timestamp)
+    } else if (this.renderedState === 'live') {
+      this.resetFpsSample()
+      this.onLiveFps?.(0)
+    }
+    this.renderedState = renderedState
 
     this.rafId = window.requestAnimationFrame(this.renderFrame)
   }
 
-  private renderProgramFrame(): boolean {
+  private renderProgramFrame(program: HeadlinerProgramInput): HeadlinerRenderedState {
     const context = this.context
-    if (!context) return false
+    if (!context) return 'neutral'
 
     const resolution = this.resolveBackingResolution()
-    if (!resolution?.valid) return false
-    applyCanvasResolution(this.canvas, resolution)
+    if (!resolution?.valid) return 'neutral'
 
-    const program = this.getProgramInput()
-    const layer = program.layers.find(candidate => candidate.enabled) ?? null
-    const video = layer?.video ?? null
+    const willResize = this.canvas.width !== resolution.backingWidth || this.canvas.height !== resolution.backingHeight
+    if (this.renderedState === 'live' && (program.cameraStatus === 'disconnected' || willResize)) {
+      // The visible program canvas already is the latest compositor-owned frame.
+      // Snapshot it only at a loss/resize boundary instead of copying every RAF.
+      this.captureLastGoodFrame()
+    }
+    const resolutionChanged = applyCanvasResolution(this.canvas, resolution)
 
-    context.fillStyle = '#020709'
-    context.fillRect(0, 0, this.canvas.width, this.canvas.height)
-
-    if (
-      program.mode !== 'fullscreen'
-      || !video
-      || video.readyState < 2
-      || video.videoWidth <= 0
-      || video.videoHeight <= 0
-    ) {
-      this.canvas.removeAttribute('data-headliner-output-rendered')
-      return false
+    if (program.cameraStatus === 'disconnected') {
+      if (this.renderedState === 'lost' && !resolutionChanged && this.hasLastGoodFrame) {
+        // A frozen program frame is already complete. Keep the canvas static
+        // instead of spending work redrawing a dead camera source every RAF.
+        return 'lost'
+      }
+      if (this.drawFrozenFrame()) {
+        this.drawConnectionLostOverlay()
+        this.markOutputRendered('lost')
+        return 'lost'
+      }
+      this.drawNeutralSurface('Camera Unavailable')
+      this.markOutputRendered('neutral')
+      return 'neutral'
     }
 
-    const sourceRect = resolveHeadlinerCoverSourceRect(
-      video.videoWidth,
-      video.videoHeight,
-      this.canvas.width,
-      this.canvas.height,
-    )
-    if (!sourceRect) return false
-
-    context.globalAlpha = layer?.opacity ?? 1
-    try {
-      context.drawImage(
-        video,
-        sourceRect.sx,
-        sourceRect.sy,
-        sourceRect.sw,
-        sourceRect.sh,
-        0,
-        0,
+    const layer = program.layers.find(candidate => candidate.enabled) ?? null
+    const video = layer?.video ?? null
+    if (
+      program.mode === 'fullscreen'
+      && program.cameraStatus === 'live'
+      && video
+      && video.readyState >= 2
+      && video.videoWidth > 0
+      && video.videoHeight > 0
+    ) {
+      const sourceRect = resolveHeadlinerCoverSourceRect(
+        video.videoWidth,
+        video.videoHeight,
         this.canvas.width,
         this.canvas.height,
       )
-    } catch {
-      // A camera track can become unreadable between readiness checks and the
-      // draw itself. Keep the compositor loop alive; Stage 4 owns the final
-      // frozen-frame/Connection Lost presentation for that condition.
-      context.globalAlpha = 1
-      this.canvas.removeAttribute('data-headliner-output-rendered')
-      return false
+      if (sourceRect) {
+        context.globalAlpha = layer?.opacity ?? 1
+        try {
+          context.drawImage(
+            video,
+            sourceRect.sx,
+            sourceRect.sy,
+            sourceRect.sw,
+            sourceRect.sh,
+            0,
+            0,
+            this.canvas.width,
+            this.canvas.height,
+          )
+          context.globalAlpha = 1
+          this.markOutputRendered('live')
+          return 'live'
+        } catch {
+          // Track/video readiness can race with drawImage. If the backing store
+          // did not change, the existing program pixels are already the last
+          // good frame. Otherwise use the boundary snapshot taken above.
+          context.globalAlpha = 1
+          if (!resolutionChanged && this.renderedState === 'live') {
+            this.markOutputRendered('live')
+            return 'live'
+          }
+          if (this.drawFrozenFrame()) {
+            this.markOutputRendered('live')
+            return 'live'
+          }
+        }
+      }
     }
+
+    if (program.cameraStatus === 'live') {
+      if (!resolutionChanged && this.renderedState === 'live') {
+        this.markOutputRendered('live')
+        return 'live'
+      }
+      if (this.drawFrozenFrame()) {
+        this.markOutputRendered('live')
+        return 'live'
+      }
+    }
+
+    const neutralLabel = program.cameraStatus === 'requesting' ? 'Starting Camera' : 'Camera Unavailable'
+    this.drawNeutralSurface(neutralLabel)
+    this.markOutputRendered('neutral')
+    return 'neutral'
+  }
+
+  private captureLastGoodFrame(): void {
+    const buffer = this.ensureLastGoodFrameBuffer()
+    const context = this.lastGoodFrameContext
+    if (!buffer || !context) return
+
     context.globalAlpha = 1
-    this.canvas.setAttribute('data-headliner-output-rendered', 'true')
+    context.drawImage(this.canvas, 0, 0, this.canvas.width, this.canvas.height)
+    this.hasLastGoodFrame = true
+  }
+
+  private ensureLastGoodFrameBuffer(): HTMLCanvasElement | null {
+    if (!this.lastGoodFrameCanvas) {
+      const buffer = this.canvas.ownerDocument.createElement('canvas')
+      const context = buffer.getContext('2d', { alpha: false })
+      if (!context) return null
+      context.imageSmoothingEnabled = true
+      this.lastGoodFrameCanvas = buffer
+      this.lastGoodFrameContext = context
+    }
+
+    const buffer = this.lastGoodFrameCanvas
+    if (buffer.width !== this.canvas.width) buffer.width = this.canvas.width
+    if (buffer.height !== this.canvas.height) buffer.height = this.canvas.height
+    return buffer
+  }
+
+  private drawFrozenFrame(): boolean {
+    if (!this.hasLastGoodFrame || !this.lastGoodFrameCanvas || !this.context) return false
+    this.context.globalAlpha = 1
+    this.context.drawImage(
+      this.lastGoodFrameCanvas,
+      0,
+      0,
+      this.lastGoodFrameCanvas.width,
+      this.lastGoodFrameCanvas.height,
+      0,
+      0,
+      this.canvas.width,
+      this.canvas.height,
+    )
     return true
+  }
+
+  private drawConnectionLostOverlay(): void {
+    const context = this.context
+    if (!context) return
+    const width = this.canvas.width
+    const height = this.canvas.height
+    const gradient = context.createLinearGradient(0, 0, 0, height)
+    gradient.addColorStop(0, 'rgba(20, 24, 26, 0.46)')
+    gradient.addColorStop(0.55, 'rgba(78, 82, 84, 0.58)')
+    gradient.addColorStop(1, 'rgba(16, 18, 19, 0.72)')
+    context.fillStyle = gradient
+    context.fillRect(0, 0, width, height)
+    this.drawCenteredLabel(HEADLINER_CONNECTION_LOST_TEXT)
+  }
+
+  private drawNeutralSurface(label: string): void {
+    const context = this.context
+    if (!context) return
+    const width = this.canvas.width
+    const height = this.canvas.height
+    const gradient = context.createLinearGradient(0, 0, width, height)
+    gradient.addColorStop(0, '#202426')
+    gradient.addColorStop(0.5, '#3a3f42')
+    gradient.addColorStop(1, '#171a1c')
+    context.globalAlpha = 1
+    context.fillStyle = gradient
+    context.fillRect(0, 0, width, height)
+    this.drawCenteredLabel(label)
+  }
+
+  private drawCenteredLabel(label: string): void {
+    const context = this.context
+    if (!context) return
+    const fontSize = Math.max(18, Math.round(Math.min(this.canvas.width, this.canvas.height) * 0.045))
+    context.fillStyle = 'rgba(240, 244, 246, 0.94)'
+    context.font = `800 ${fontSize}px Inter, system-ui, sans-serif`
+    context.textAlign = 'center'
+    context.textBaseline = 'middle'
+    context.fillText(label, this.canvas.width / 2, this.canvas.height / 2, this.canvas.width * 0.82)
+  }
+
+  private markOutputRendered(state: 'live' | 'lost' | 'neutral'): void {
+    this.canvas.setAttribute('data-headliner-output-rendered', 'true')
+    this.canvas.setAttribute('data-headliner-output-state', state)
+  }
+
+  private releaseLastGoodFrame(): void {
+    if (this.lastGoodFrameCanvas) {
+      this.lastGoodFrameCanvas.width = 0
+      this.lastGoodFrameCanvas.height = 0
+    }
+    this.lastGoodFrameCanvas = null
+    this.lastGoodFrameContext = null
+    this.hasLastGoodFrame = false
   }
 
   private resolveBackingResolution(): CanvasResolution | null {
@@ -349,5 +514,15 @@ export class HeadlinerFullscreenCompositor {
     this.onLiveFps?.(Math.max(0, Math.round((this.fpsFrames * 1000) / elapsed)))
     this.fpsWindowStartedAt = timestamp
     this.fpsFrames = 0
+  }
+
+  private resetFpsSample(): void {
+    this.fpsWindowStartedAt = null
+    this.fpsFrames = 0
+  }
+
+  private previousFrameReset(): void {
+    this.previousLiveFrameTimestamp = null
+    this.resetFpsSample()
   }
 }
