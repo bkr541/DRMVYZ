@@ -2,6 +2,7 @@ import { IconMorphCheckbox } from './react/controls/IconMorphToggle'
 import { DreamVizTextInput } from './react/controls/DreamVizTextInput'
 import { NoticeCard } from './react/controls/NoticeCard'
 import { IconChipButton } from './react/controls/IconChipButton'
+import { Badge } from './react/controls/Badge'
 import { useState, useRef, useEffect, useCallback, useId } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { mediaMutationKey, useMediaStore, DEFAULT_UPLOAD_DRAFT } from '../../stores/mediaStore'
@@ -134,10 +135,7 @@ function TagChips({ tags, onRemove }: { tags: string[]; onRemove: (t: string) =>
   return (
     <>
       {tags.map(t => (
-        <span key={t} className="mum-chip">
-          {t}
-          <button className="mum-chip-x" onClick={() => onRemove(t)} aria-label={`Remove tag ${t}`}>×</button>
-        </span>
+        <Badge key={t} label={t} tone="#4ac7db" onRemove={() => onRemove(t)} removeLabel="Remove tag" />
       ))}
     </>
   )
@@ -151,10 +149,7 @@ function CollectionChips({ ids, collections, onRemove }: {
       {ids.map(id => {
         const name = collections.find(c => c.id === id)?.name ?? id
         return (
-          <span key={id} className="mum-chip mum-chip--coll">
-            {name}
-            <button className="mum-chip-x" onClick={() => onRemove(id)} aria-label={`Remove collection ${name}`}>×</button>
-          </span>
+          <Badge key={id} label={name} tone="#b84fc9" onRemove={() => onRemove(id)} removeLabel="Remove collection" />
         )
       })}
     </>

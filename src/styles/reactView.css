@@ -341,23 +341,6 @@
   margin-top: 5px;
 }
 
-.rv-production-badges span,
-.rv-production-tags span {
-  padding: 2px 5px;
-  border-radius: 999px;
-  font-size: 9px;
-  line-height: 1.25;
-  color: #cde8ef;
-  background: rgba(74, 199, 219, 0.1);
-  border: 1px solid rgba(74, 199, 219, 0.18);
-}
-
-.rv-production-tags span {
-  color: #cbbcf8;
-  background: rgba(167, 139, 250, 0.09);
-  border-color: rgba(167, 139, 250, 0.16);
-}
-
 .rv-production-meta {
   display: grid;
   gap: 2px;

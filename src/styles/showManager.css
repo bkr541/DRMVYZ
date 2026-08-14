@@ -1809,6 +1809,5 @@ button.sm-library-subsection-toggle {
 .sm-new-show-audio-row { display: flex; align-items: flex-end; gap: 8px; }
 .sm-new-show-audio-row > .rv-ctrl-row { flex: 1; min-width: 0; }
 .sm-new-show-tags { display: flex; flex-wrap: wrap; gap: 5px; }
-.sm-new-show-tags .dv-icon-chip { min-height: 24px; border-radius: 999px; }
 .sm-new-show-optional { color: rgba(196, 212, 220, 0.32); font-size: 7px; text-transform: none; letter-spacing: 0; }
 .sm-new-show-field-note { margin: -4px 0 0; color: rgba(196, 212, 220, 0.46); font-size: 8px; }

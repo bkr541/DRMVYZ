@@ -16,6 +16,7 @@ import {
   DEFAULT_CANVAS_PRESET_SETTINGS,
 } from './ReactTypes'
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
+import { Badge } from './controls/Badge'
 import {
   ReactPresetCard,
   resolvePresetCardNavigationIndex,
@@ -214,7 +215,7 @@ function StandardReactPresetCard({
       contentBeforeDescription={detailsOpen => production ? (
         <div className="rv-production-badges" aria-label={`${preset.name} fixture families`}>
           {production.fixtureFamilyBadges.slice(0, detailsOpen ? 7 : 5).map(kind => (
-            <span key={kind}>{FIXTURE_BADGE_LABELS[kind]}</span>
+            <Badge key={kind} label={FIXTURE_BADGE_LABELS[kind]} tone="#4ac7db" />
           ))}
         </div>
       ) : null}
@@ -225,7 +226,7 @@ function StandardReactPresetCard({
             <span>{production.requiredCapabilities.map(item => item.label).join(' · ')}</span>
           </div>
           <div className="rv-production-tags">
-            {production.styleTags.map(tag => <span key={tag}>{tag}</span>)}
+            {production.styleTags.map(tag => <Badge key={tag} label={tag} tone="#a78bfa" />)}
           </div>
         </div>
       ) : undefined}
