@@ -76,13 +76,12 @@ describe('LaserDMX preset-aware parameter visibility', () => {
   })
 
   it('keeps a hidden Sequence Index value intact and restores its control when sequencing becomes supported', async () => {
-    const store = useReactStore.getState()
-    store.applyLaserDmxBeamMatrixPreset('minimal-crossfire')
+    useReactStore.getState().applyLaserDmxBeamMatrixPreset('minimal-crossfire')
     const beamId = selectFirstBeam()
-    const groupId = store.laserDmxBeamMatrix.beams.find(beam => beam.id === beamId)?.groupId
+    const groupId = useReactStore.getState().laserDmxBeamMatrix.beams.find(beam => beam.id === beamId)?.groupId
     if (!groupId) throw new Error('Expected selected beam to belong to a group')
 
-    store.updateLaserDmxMatrixBeam(beamId, { sequenceIndex: 37 })
+    useReactStore.getState().updateLaserDmxMatrixBeam(beamId, { sequenceIndex: 37 })
     await render(<LaserDmxBeamInspector />)
     expect(container.textContent).not.toContain('Sequence Index')
     expect(useReactStore.getState().laserDmxBeamMatrix.beams.find(beam => beam.id === beamId)?.sequenceIndex).toBe(37)
@@ -100,13 +99,12 @@ describe('LaserDMX preset-aware parameter visibility', () => {
   })
 
   it('shows only launch controls consumed by the selected launch mode and cooldown contract', async () => {
-    const store = useReactStore.getState()
-    store.applyLaserDmxBeamMatrixPreset('minimal-crossfire')
+    useReactStore.getState().applyLaserDmxBeamMatrixPreset('minimal-crossfire')
     const groupId = selectFirstGroup()
-    const base = store.laserDmxBeamMatrix.groups.find(group => group.id === groupId)?.launch
+    const base = useReactStore.getState().laserDmxBeamMatrix.groups.find(group => group.id === groupId)?.launch
     if (!base) throw new Error('Expected launch settings')
 
-    store.updateLaserDmxReactionGroup(groupId, { launch: { ...base, trigger: 'beat' } })
+    useReactStore.getState().updateLaserDmxReactionGroup(groupId, { launch: { ...base, trigger: 'beat' } })
     await render(<LaserDmxReactionGroupInspector />)
     expect(container.textContent).not.toContain('Threshold')
     expect(container.textContent).toContain('Min Energy')
@@ -147,10 +145,9 @@ describe('LaserDMX preset-aware parameter visibility', () => {
   })
 
   it('keeps Retrigger hidden until an assigned group can actually launch the selected animated beam', async () => {
-    const store = useReactStore.getState()
-    store.applyLaserDmxBeamMatrixPreset('bass-fan')
+    useReactStore.getState().applyLaserDmxBeamMatrixPreset('bass-fan')
     const beamId = selectFirstBeam()
-    const groupId = store.laserDmxBeamMatrix.beams.find(beam => beam.id === beamId)?.groupId
+    const groupId = useReactStore.getState().laserDmxBeamMatrix.beams.find(beam => beam.id === beamId)?.groupId
     if (!groupId) throw new Error('Expected selected beam to belong to a group')
 
     await render(<LaserDmxBeamInspector />)
