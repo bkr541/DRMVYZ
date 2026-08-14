@@ -14,6 +14,7 @@ import { MediaLibraryStyleGallery } from './layoutLab/MediaLibraryStyleGallery'
 import { ButtonStyleGallery } from './layoutLab/ButtonStyleGallery'
 import { PaletteGroupStyleGallery } from './layoutLab/PaletteGroupStyleGallery'
 import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
+import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
 import { CanvasMockup } from './layoutLab/CanvasMockup'
 import { CanvasRightRailMockup } from './layoutLab/CanvasRightRailMockup'
 import { LaserDmxMockup } from './layoutLab/LaserDmxMockup'
@@ -362,6 +363,9 @@ export function LayoutLabMockup() {
           )}
         </WorkspaceRail>
       </div>
+
+      {/* Bottom dock mockup — outside the grid, full width, matches production placement */}
+      {engineId === 'template' && <TemplateAudioDockMockup />}
     </div>
   )
 }
