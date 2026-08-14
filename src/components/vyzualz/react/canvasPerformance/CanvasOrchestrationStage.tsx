@@ -391,16 +391,17 @@ function CanvasGenericOrchestrationStage({
       const outputWidth = Math.max(1, Math.round(cssWidth * dpr))
       const outputHeight = Math.max(1, Math.round(cssHeight * dpr))
       const now = performance.now()
-      if (liveFrame.runtimeMode === 'show') {
+      const adaptiveCompositionQuality = liveFrame.runtimeMode === 'show' || liveFrame.runtimeMode === 'authored'
+      if (adaptiveCompositionQuality) {
         quality = qualityControllerRef.current.sample(now - previousDrawAt, liveFrame.decoderCount)
-        if (now - qualityPublishAt >= 500) {
+        if (liveFrame.runtimeMode === 'show' && now - qualityPublishAt >= 500) {
           setQualitySnapshot(quality)
           qualityPublishAt = now
         }
       }
       previousDrawAt = now
-      const qualityScale = liveFrame.runtimeMode === 'show' ? quality.scale : 1
-      const compositionSize = liveFrame.runtimeMode === 'show'
+      const qualityScale = adaptiveCompositionQuality ? quality.scale : 1
+      const compositionSize = adaptiveCompositionQuality
         ? resolveCanvasShowCompositionDimensions({ outputWidth, outputHeight, qualityScale })
         : { width: outputWidth, height: outputHeight }
       const width = compositionSize.width

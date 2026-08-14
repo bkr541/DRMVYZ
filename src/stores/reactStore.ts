@@ -4365,6 +4365,11 @@ export function normalizeCanvasOrchestrationSettings(value: unknown): CanvasOrch
   return {
     enabled: source.enabled === true,
     autoRoleEnabled: source.autoRoleEnabled !== false,
+    renderMode: source.renderMode === 'layers' || source.renderMode === 'performance'
+      ? source.renderMode
+      : source.enabled === true
+        ? 'performance'
+        : 'single',
     authoredLayers: authoring.authoredLayers,
     mediaPools: authoring.mediaPools,
     activeMediaPoolId: authoring.activeMediaPoolId,
@@ -6946,13 +6951,27 @@ export const useReactStore = create<ReactStoreState>()(
           || Object.prototype.hasOwnProperty.call(patch, 'activeMediaPoolId')
           || Object.prototype.hasOwnProperty.call(patch, 'mediaRolesById')
           || Object.prototype.hasOwnProperty.call(patch, 'mediaLocksByLayer')
+        const hasExplicitRenderMode = Object.prototype.hasOwnProperty.call(patch, 'renderMode')
+        const hasExplicitEnabled = Object.prototype.hasOwnProperty.call(patch, 'enabled')
+        const renderMode = hasExplicitRenderMode
+          ? patch.renderMode
+          : hasExplicitEnabled
+            ? patch.enabled === true
+              ? 'performance'
+              : state.canvasOrchestrationSettings.renderMode === 'performance'
+                ? state.canvasOrchestrationSettings.authoredLayers.length > 0
+                  ? 'layers'
+                  : 'single'
+                : state.canvasOrchestrationSettings.renderMode
+            : state.canvasOrchestrationSettings.renderMode
         const canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
-            ...state.canvasOrchestrationSettings,
-            ...canonicalPatch,
-            poolRevision: poolChanged
-              ? state.canvasOrchestrationSettings.poolRevision + 1
-              : patch.poolRevision ?? state.canvasOrchestrationSettings.poolRevision,
-          })
+          ...state.canvasOrchestrationSettings,
+          ...canonicalPatch,
+          renderMode,
+          poolRevision: poolChanged
+            ? state.canvasOrchestrationSettings.poolRevision + 1
+            : patch.poolRevision ?? state.canvasOrchestrationSettings.poolRevision,
+        })
         return {
           canvasOrchestrationSettings,
           selectedCanvasLayerId: canvasOrchestrationSettings.authoredLayers.some(layer => layer.id === state.selectedCanvasLayerId)
@@ -6993,6 +7012,7 @@ export const useReactStore = create<ReactStoreState>()(
           return {
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
               ...state.canvasOrchestrationSettings,
+              renderMode: 'layers',
               authoredLayers: [layer, ...current.map(existing => ({ ...existing, order: existing.order + 1 }))],
             }),
           }
@@ -7044,6 +7064,7 @@ export const useReactStore = create<ReactStoreState>()(
           return {
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
               ...state.canvasOrchestrationSettings,
+              renderMode: 'layers',
               authoredLayers,
             }),
           }
@@ -7076,6 +7097,7 @@ export const useReactStore = create<ReactStoreState>()(
           return {
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
               ...state.canvasOrchestrationSettings,
+              renderMode: 'layers',
               authoredLayers,
             }),
           }
@@ -7118,6 +7140,7 @@ export const useReactStore = create<ReactStoreState>()(
           return {
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
               ...state.canvasOrchestrationSettings,
+              renderMode: 'layers',
               authoredLayers: canonicalLayers,
             }),
             selectedCanvasLayerId: duplicate.id,
@@ -7148,6 +7171,7 @@ export const useReactStore = create<ReactStoreState>()(
           return {
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
               ...state.canvasOrchestrationSettings,
+              renderMode: authoredLayers.length > 0 ? 'layers' : 'single',
               authoredLayers,
             }),
             selectedCanvasLayerId: state.selectedCanvasLayerId === layerId
@@ -7158,12 +7182,23 @@ export const useReactStore = create<ReactStoreState>()(
         return result
       },
 
-      setSelectedCanvasLayer: (layerId) => set((state) => ({
-        selectedCanvasLayerId: layerId != null
+      setSelectedCanvasLayer: (layerId) => set((state) => {
+        const selectedCanvasLayerId = layerId != null
           && state.canvasOrchestrationSettings.authoredLayers.some(layer => layer.id === layerId)
           ? layerId
-          : null,
-      })),
+          : null
+        return {
+          selectedCanvasLayerId,
+          ...(selectedCanvasLayerId
+            ? {
+                canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+                  ...state.canvasOrchestrationSettings,
+                  renderMode: 'layers',
+                }),
+              }
+            : {}),
+        }
+      }),
 
       setCanvasAuthoredLayerSolo: (layerId, solo) => {
         let result: CanvasLayerMutationResult = {
@@ -7184,6 +7219,7 @@ export const useReactStore = create<ReactStoreState>()(
           return {
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
               ...state.canvasOrchestrationSettings,
+              renderMode: 'layers',
               authoredLayers,
             }),
           }
@@ -7671,6 +7707,10 @@ export const useReactStore = create<ReactStoreState>()(
           ...state,
           selectedCanvasMediaId: nextId,
           activeCanvasMediaId: nextId,
+          canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+            ...state.canvasOrchestrationSettings,
+            ...(options?.manual === false ? {} : { renderMode: 'single' as const }),
+          }),
           canvasEngineSettings: normalizeCanvasEngineSettings({
             ...state.canvasEngineSettings,
             selectedMediaId: nextId,

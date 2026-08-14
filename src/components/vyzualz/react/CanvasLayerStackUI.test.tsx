@@ -96,6 +96,8 @@ describe('CANVAS Stage 3 layer stack UI', () => {
     expect(layerRows()).toHaveLength(2)
     expect(layerRows()[0].textContent).toContain('Layer B')
     expect(layerRows()[1].textContent).toContain('Layer A')
+    expect(host.textContent).toContain('Manual Layers · Full-screen Hero')
+    expect(host.textContent).toContain('2 layers · 0 video decoders · 2 sources')
 
     const layerASelect = host.querySelector<HTMLButtonElement>(`[aria-label="Select CANVAS layer 2: Layer A"]`)
     if (!layerASelect) throw new Error('Expected Layer A selection row')
@@ -105,7 +107,7 @@ describe('CANVAS Stage 3 layer stack UI', () => {
     expect(host.textContent).toContain('2 of 2')
     expect(host.textContent).toContain('Layer-specific production controls are not finalized yet.')
 
-    const stage = host.querySelector<HTMLElement>('[aria-label="CANVAS engine render surface"]')
+    const stage = host.querySelector<HTMLElement>('[aria-label="CANVAS orchestrated media surface"]')
     if (!stage) throw new Error('Expected render-only CANVAS stage')
     act(() => stage.click())
     expect(useReactStore.getState().selectedCanvasLayerId).toBe(first.layer.id)
@@ -148,6 +150,7 @@ describe('CANVAS Stage 3 layer stack UI', () => {
     if (!soloB) throw new Error('Expected Layer B solo action')
     act(() => soloB.click())
     expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.filter(layer => layer.solo).map(layer => layer.id)).toEqual([b.layer.id])
+    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('layers')
   })
 
   it('duplicates without media confirmation, selects the duplicate, enforces capacity, and deletes only the instance', () => {

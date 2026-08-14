@@ -151,6 +151,7 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     const state = useReactStore.getState()
     expect(state.activeCanvasMediaId).toBe(mediaOne.id)
     expect(state.canvasEngineSettings.manualMediaOverrideId).toBe(mediaOne.id)
+    expect(state.canvasOrchestrationSettings.renderMode).toBe('single')
     expect(state.canvasOrchestrationSettings.authoredLayers).toEqual(before.authoredLayers)
     expect(state.canvasOrchestrationSettings.mediaPools).toEqual(before.mediaPools)
     expect(state.canvasOrchestrationSettings.mediaPoolIds).toEqual([mediaTwo.id])
@@ -164,6 +165,7 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     chooseAction('Add as Layer')
 
     const layers = useReactStore.getState().canvasOrchestrationSettings.authoredLayers
+    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('layers')
     expect(layers).toHaveLength(2)
     expect(layers[0]).toMatchObject({
       mediaId: mediaOne.id,

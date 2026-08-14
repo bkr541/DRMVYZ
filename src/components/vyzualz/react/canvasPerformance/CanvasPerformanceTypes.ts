@@ -422,6 +422,7 @@ export interface CanvasResolvedTransition {
 }
 
 export type CanvasAuthoredLayerOwnership = 'manual' | 'automatic'
+export type CanvasRenderMode = 'single' | 'layers' | 'performance'
 
 export interface CanvasAuthoredLayer {
   /** Stable instance identity. Multiple instances may reference the same mediaId. */
@@ -464,6 +465,8 @@ export type CanvasMediaPoolMutationResult =
 export interface CanvasOrchestrationSettings {
   enabled: boolean
   autoRoleEnabled: boolean
+  /** Chooses the one primary live CANVAS output path without discarding authored state. */
+  renderMode: CanvasRenderMode
   /** Canonical authored layer instances. The array is normalized top-to-bottom. */
   authoredLayers: CanvasAuthoredLayer[]
   /** Canonical named media pools. */
@@ -491,6 +494,7 @@ export interface CanvasOrchestrationSettings {
 export const DEFAULT_CANVAS_ORCHESTRATION_SETTINGS: CanvasOrchestrationSettings = {
   enabled: false,
   autoRoleEnabled: true,
+  renderMode: 'single',
   authoredLayers: [],
   mediaPools: [],
   activeMediaPoolId: null,
@@ -554,7 +558,7 @@ export interface CanvasResolvedPerformanceFrame {
   anticipatoryStage: 'none' | 'preload' | 'contraction' | 'finalHold' | 'breakdownMigration' | 'phraseQueue'
   diagnostics: readonly string[]
   /** Authored Shows bypass the global preset/orchestration transform bridge. */
-  runtimeMode?: 'orchestration' | 'show'
+  runtimeMode?: 'orchestration' | 'authored' | 'show'
   selectedElementId?: string | null
 }
 

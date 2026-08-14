@@ -70,6 +70,7 @@ import {
   getCanvasPerformancePreloadCandidates,
   getCanvasPerformanceShow,
   canRenderCanvasOrchestrationFrame,
+  resolveCanvasAuthoredLayerFrame,
   resolveCanvasMediaRoles,
   resolveCanvasPerformanceFrame,
   type CanvasCompositionPreference,
@@ -1595,7 +1596,11 @@ export function CanvasEngineSurface({
   getAudioTimeRef.current = getAudioTime
 
   useEffect(() => {
-    if (!runtimeCanvasShow && (showPreviewMode || !orchestrationSettings.enabled)) {
+    const authoredLayerRuntime = !runtimeCanvasShow && orchestrationSettings.renderMode === 'layers'
+    const performanceRuntime = !runtimeCanvasShow
+      && orchestrationSettings.renderMode === 'performance'
+      && orchestrationSettings.enabled
+    if (!runtimeCanvasShow && (showPreviewMode || (!authoredLayerRuntime && !performanceRuntime))) {
       orchestrationPreloadManager.releaseAll()
       previousOrchestrationContextRef.current = null
       previousOrchestrationFrameRef.current = null
@@ -1643,18 +1648,29 @@ export function CanvasEngineSurface({
           })
         : showPreviewMode
           ? null
-          : resolveCanvasPerformanceFrame({
-              context,
-              settings: orchestrationSettings,
-              mediaItems,
-              previousFrame: previousOrchestrationFrameRef.current,
-              isMediaReady: mediaId => orchestrationPreloadManager.isReady(mediaId),
-            })
+          : authoredLayerRuntime
+            ? resolveCanvasAuthoredLayerFrame({
+                context,
+                settings: orchestrationSettings,
+                mediaItems,
+                fitMode: settings.fitMode,
+                isMediaReady: mediaId => orchestrationPreloadManager.isReady(mediaId),
+              })
+            : performanceRuntime
+              ? resolveCanvasPerformanceFrame({
+                  context,
+                  settings: orchestrationSettings,
+                  mediaItems,
+                  previousFrame: previousOrchestrationFrameRef.current,
+                  isMediaReady: mediaId => orchestrationPreloadManager.isReady(mediaId),
+                })
+              : null
       if (!nextFrame) {
         setOrchestrationFrame(null)
         return
       }
       const activeMediaIds = nextFrame.layers
+        .filter(layer => layer.enabled)
         .map(layer => layer.sourceMediaId)
         .filter((id): id is string => Boolean(id))
       let upcomingVideoBudget = Math.max(0, MAX_CANVAS_SHOW_VIDEO_DECODERS - nextFrame.decoderCount)
@@ -1670,7 +1686,9 @@ export function CanvasEngineSurface({
         : []
       const candidateMediaIds = runtimeCanvasShow
         ? upcomingShowMedia.map(media => media.id)
-        : getCanvasPerformancePreloadCandidates(nextFrame, orchestrationSettings, mediaItems)
+        : nextFrame.runtimeMode === 'authored'
+          ? []
+          : getCanvasPerformancePreloadCandidates(nextFrame, orchestrationSettings, mediaItems)
       const requestMediaItems = runtimeCanvasShow
         ? [
             ...nextFrame.layers.map(layer => layer.source).filter((item): item is CanvasMediaItem => item != null),
@@ -1717,7 +1735,7 @@ export function CanvasEngineSurface({
     resolveFrame()
     const intervalId = window.setInterval(resolveFrame, 80)
     return () => window.clearInterval(intervalId)
-  }, [activeAudioTrackId, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, showPreviewMode])
+  }, [activeAudioTrackId, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, settings.fitMode, showPreviewMode])
 
   useEffect(() => () => {
     orchestrationPreloadManager.dispose()
@@ -1759,7 +1777,9 @@ export function CanvasEngineSurface({
 
   const orchestrationRenderable = orchestrationFrame?.runtimeMode === 'show'
     ? true
-    : canRenderCanvasOrchestrationFrame(orchestrationSettings, orchestrationFrame)
+    : orchestrationFrame?.runtimeMode === 'authored'
+      ? orchestrationSettings.renderMode === 'layers'
+      : canRenderCanvasOrchestrationFrame(orchestrationSettings, orchestrationFrame)
   const outputCapability = useMemo(() => resolveCanvasOutputCapability({
     selectedPresetId: selectedCanvasPresetId,
     orchestrationRenderable,
@@ -3172,18 +3192,19 @@ function CanvasOrchestrationControls() {
     .filter((item): item is CanvasMediaItem => item !== null)
   const lockedMediaId = settings.mediaLocksByLayer[lockLayerRole] ?? ''
   const selectedShow = getCanvasPerformanceShow(settings.programId)
+  const autoPerformanceActive = settings.enabled && settings.renderMode === 'performance'
 
   return (
     <Collapsible label="Performance Orchestration" defaultOpen>
       <CanvasHelpControl
         helpId="react.canvas.performanceOrchestration.autoPerformance"
-        currentValue={settings.enabled ? 'On' : 'Off'}
+        currentValue={autoPerformanceActive ? 'On' : 'Off'}
         currentValueLabel="Status"
-        currentValueTone={settings.enabled ? 'accent' : 'default'}
+        currentValueTone={autoPerformanceActive ? 'accent' : 'default'}
       >
         <ToggleRow
           label="Auto Performance"
-          value={settings.enabled}
+          value={autoPerformanceActive}
           onChange={enabled => setSettings({ enabled })}
           description="Uses the Shared Performance Core to arrange the selected pool. Existing presets and manual playback remain the fallback when disabled."
         />
@@ -3195,7 +3216,7 @@ function CanvasOrchestrationControls() {
           ? (settings.compositionPreference === 'auto' ? 'Section-aware templates' : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label)
           : 'Fixed Fractures composition'}</span>
       </div>
-      {settings.enabled && poolItems.length === 0 && (
+      {autoPerformanceActive && poolItems.length === 0 && (
         <NoticeCard tone="warning" role="status">Select media in the left SOURCE panel to build the performance pool.</NoticeCard>
       )}
       <CanvasHelpControl

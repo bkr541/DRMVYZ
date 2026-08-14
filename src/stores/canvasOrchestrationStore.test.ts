@@ -13,6 +13,7 @@ describe('CANVAS orchestration persistence and compatibility', () => {
   it('keeps orchestration opt-in and preserves every existing CANVAS preset', () => {
     const settings = useReactStore.getState().canvasOrchestrationSettings
     expect(settings.enabled).toBe(false)
+    expect(settings.renderMode).toBe('single')
     expect(settings.authoredLayers).toEqual([])
     expect(settings.mediaPools).toEqual([])
     expect(settings.activeMediaPoolId).toBeNull()
@@ -34,11 +35,13 @@ describe('CANVAS orchestration persistence and compatibility', () => {
 
     store.setCanvasOrchestrationSettings({ enabled: true })
     expect(useReactStore.getState().canvasOrchestrationSettings.autoRoleEnabled).toBe(true)
+    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('performance')
 
     useReactStore.getState().setCanvasOrchestrationSettings({ autoRoleEnabled: false })
     expect(useReactStore.getState().canvasOrchestrationSettings.autoRoleEnabled).toBe(false)
 
     useReactStore.getState().setCanvasOrchestrationSettings({ enabled: false })
+    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('single')
     useReactStore.getState().setCanvasOrchestrationSettings({ enabled: true })
     expect(useReactStore.getState().canvasOrchestrationSettings.autoRoleEnabled).toBe(false)
 
@@ -68,7 +71,15 @@ describe('CANVAS orchestration persistence and compatibility', () => {
 
     const layerResult = useReactStore.getState().addCanvasAuthoredLayer('library-image-2')
     expect(layerResult.ok).toBe(true)
+    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('layers')
     expect(useReactStore.getState().canvasOrchestrationSettings.mediaPoolIds).toEqual(['library-image-2'])
+
+    useReactStore.getState().selectCanvasMediaItem('library-video-1')
+    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('single')
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers).toHaveLength(1)
+
+    useReactStore.getState().setSelectedCanvasLayer(layerResult.ok ? layerResult.layer.id : null)
+    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('layers')
 
     useReactStore.getState().removeCanvasMediaFromPool(poolResult.pool.id, 'library-image-2')
     expect(useReactStore.getState().canvasOrchestrationSettings.mediaPoolIds).toEqual([])
@@ -282,6 +293,28 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     delete (legacy.canvasOrchestrationSettings as Partial<typeof legacy.canvasOrchestrationSettings>).autoRoleEnabled
     const migrated = mergeReactStoreState(legacy, current)
     expect(migrated.canvasOrchestrationSettings.autoRoleEnabled).toBe(true)
+  })
+
+  it('persists layered render ownership while legacy state without the discriminator safely migrates to single-source output', () => {
+    const added = useReactStore.getState().addCanvasAuthoredLayer('persisted-layer-media')
+    if (!added.ok) throw new Error(added.message)
+    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('layers')
+
+    const persisted = JSON.parse(JSON.stringify(reactStorePartialize(useReactStore.getState()))) as ReturnType<typeof reactStorePartialize>
+    const restored = mergeReactStoreState(persisted, useReactStore.getState())
+    expect(restored.canvasOrchestrationSettings.renderMode).toBe('layers')
+    expect(restored.canvasOrchestrationSettings.authoredLayers.map(layer => layer.id)).toContain(added.layer.id)
+
+    const legacy = JSON.parse(JSON.stringify(persisted)) as typeof persisted
+    delete (legacy.canvasOrchestrationSettings as Partial<typeof legacy.canvasOrchestrationSettings>).renderMode
+    const migrated = mergeReactStoreState(legacy, useReactStore.getState())
+    expect(migrated.canvasOrchestrationSettings.renderMode).toBe('single')
+    expect(migrated.canvasOrchestrationSettings.authoredLayers.map(layer => layer.id)).toContain(added.layer.id)
+
+    const legacyAutoPerformance = JSON.parse(JSON.stringify(legacy)) as typeof legacy
+    legacyAutoPerformance.canvasOrchestrationSettings.enabled = true
+    const migratedAutoPerformance = mergeReactStoreState(legacyAutoPerformance, useReactStore.getState())
+    expect(migratedAutoPerformance.canvasOrchestrationSettings.renderMode).toBe('performance')
   })
 
   it('removes cleared local media from canonical layers, all pools, roles, and locks without disturbing library references', () => {
