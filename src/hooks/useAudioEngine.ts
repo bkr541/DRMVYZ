@@ -14,6 +14,8 @@ import {
   musicIntelligenceEngine,
   type MusicIntelligenceEngine,
 } from '../features/musicIntelligence/MusicIntelligenceEngine'
+import { AudioFeatureBus } from '../features/musicIntelligence/AudioFeatureBus'
+import { MusicIntelligenceAnalyserFramePump } from '../features/musicIntelligence/MusicIntelligenceAnalyserFramePump'
 import { buildEffectiveBeatGrid } from '../features/trackIntelligence/beatGridUtils'
 import { applyResnap, applyReanalyze } from '../features/musicIntelligence/bpmReanalysis'
 import type { BpmReanalysisMode, BpmReanalysisStatus } from '../features/musicIntelligence/types'
@@ -53,6 +55,8 @@ function resolveAuthoritativeSectionsForTrack(
   const durationSec = Math.max(track.duration, analysis?.durationMs ? analysis.durationMs / 1000 : 0)
   return resolveTrackSections({ analyzedSections, manualSections, suppressedIds, durationSec })
 }
+
+const LIVE_INPUT_ANALYSIS_PUBLISHER_ID = 'audio:live-input'
 
 function publishAuthoritativeTrackState(track: Track, analysis: TrackIntelligenceAnalysis | null): boolean {
   return musicIntelligenceEngine.setAuthoritativeTrackState({
@@ -317,6 +321,14 @@ export function useAudioEngine(): AudioEngine {
   const sourceRequestIdRef = useRef(0)
   const disposedRef      = useRef(false)
   const liveClockEpochRef = useRef<number | null>(null)
+  const liveAnalysisSourceIdRef = useRef<string | null>(null)
+  const liveAnalysisPumpRef = useRef<MusicIntelligenceAnalyserFramePump | null>(null)
+  if (!liveAnalysisPumpRef.current) {
+    liveAnalysisPumpRef.current = new MusicIntelligenceAnalyserFramePump({
+      publisherId: LIVE_INPUT_ANALYSIS_PUBLISHER_ID,
+      analysisMode: 'live-input',
+    })
+  }
 
   // Spectral data hot path — never triggers React renders
   const spectralFeaturesRef     = useRef<SpectralFeatures | null>(null)
@@ -651,6 +663,9 @@ export function useAudioEngine(): AudioEngine {
     micStreamRef.current = null; micSourceRef.current = null
     activeSourceNodeRef.current = null
     liveClockEpochRef.current = null
+    liveAnalysisSourceIdRef.current = null
+    liveAnalysisPumpRef.current?.reset()
+    AudioFeatureBus.setAuthoritativeFramePublisherId(null)
   }, [])
 
   const connectFileSource = useCallback(() => {
@@ -730,6 +745,9 @@ export function useAudioEngine(): AudioEngine {
         micSourceRef.current = null
         activeSourceNodeRef.current = null
         liveClockEpochRef.current = null
+        liveAnalysisSourceIdRef.current = null
+        liveAnalysisPumpRef.current?.reset()
+        AudioFeatureBus.setAuthoritativeFramePublisherId(null)
         if (programOutputGainRef.current) programOutputGainRef.current.gain.value = 1
         sourceRef.current = 'file'
         setLiveInputActive(false)
@@ -846,7 +864,10 @@ export function useAudioEngine(): AudioEngine {
       setSourceState('microphone')
       setIsPlaying(false)
       setLiveInputActive(true)
-      musicIntelligenceEngine.setSourceId('microphone', null)
+      const liveAnalysisSourceId = `live-input:${requestId}`
+      liveAnalysisSourceIdRef.current = liveAnalysisSourceId
+      AudioFeatureBus.setAuthoritativeFramePublisherId(LIVE_INPUT_ANALYSIS_PUBLISHER_ID)
+      musicIntelligenceEngine.setSourceId(liveAnalysisSourceId, null)
       musicIntelligenceEngine.setTrackAnalysis(null)
       return
     } else {
@@ -1049,6 +1070,7 @@ export function useAudioEngine(): AudioEngine {
   // Also depends on `currentAnalysisStatus` so we re-apply analysis when it
   // transitions to 'complete' without the coordinator path running first.
   useEffect(() => {
+    if (sourceRef.current !== 'file') return
     const track = tracksRef.current[currentIndex]
     if (!track) {
       musicIntelligenceEngine.setSourceId(null, null)
@@ -1063,7 +1085,7 @@ export function useAudioEngine(): AudioEngine {
       track.analysisRuntime.status === 'complete' ? track.analysisRuntime.analysis : null,
     )
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex, currentTrackId, currentAnalysisStatus])
+  }, [source, currentIndex, currentTrackId, currentAnalysisStatus])
 
   const getRecordingStream = useCallback((): MediaStream | null => {
     if (sourceRef.current === 'microphone') return null
@@ -1149,6 +1171,7 @@ export function useAudioEngine(): AudioEngine {
     })
   }
   dispatchRef.current.engine = (analysis, trackId) => {
+    if (sourceRef.current !== 'file') return
     const track = tracksRef.current.find(candidate => candidate.id === trackId)
     if (!track || !dispatchRef.current.isActive(trackId)) return
     musicIntelligenceEngine.setSourceId(trackId, trackId)
@@ -1372,6 +1395,37 @@ export function useAudioEngine(): AudioEngine {
     }
     return audioRef.current?.currentTime ?? currentTimeRef.current
   }, [])  // intentionally empty: only reads refs, never stale
+
+  // Canonical Live Input publication lives with the shared audio engine, not a
+  // renderer. This keeps analysis alive while engines switch and makes the same
+  // AudioFeatureBus frame available to every visual consumer. React only observes
+  // source/capture lifecycle here; metric updates stay on the bus/ref hot path.
+  useEffect(() => {
+    if (source !== 'microphone' || !liveInputActive) return
+    const analyser = aMasterRef.current
+    const sourceIdentity = liveAnalysisSourceIdRef.current
+    const pump = liveAnalysisPumpRef.current
+    if (!analyser || !sourceIdentity || !pump) return
+
+    let animationFrameId = 0
+    const tick = () => {
+      if (sourceRef.current !== 'microphone' || !micStreamRef.current) return
+      pump.sample({
+        analyser,
+        audioTime: getCurrentTime(),
+        // Live capture advances analysis even though file transport is stopped.
+        isPlaying: true,
+        trackIdentity: sourceIdentity,
+      })
+      animationFrameId = requestAnimationFrame(tick)
+    }
+    animationFrameId = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(animationFrameId)
+      pump.reset()
+    }
+  }, [source, liveInputActive, getCurrentTime])
+
   const setVolume = useCallback((v: number) => setVolumeState(v), [])
 
   const analysisActive = (source === 'file' && isPlaying) || liveInputActive || source === 'demo'

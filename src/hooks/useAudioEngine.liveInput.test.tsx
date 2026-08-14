@@ -32,14 +32,19 @@ vi.mock('meyda', () => ({
   },
 }))
 
+import { AudioFeatureBus } from '../features/musicIntelligence/AudioFeatureBus'
 import { useAudioEngine, type AudioEngine } from './useAudioEngine'
 
 class FakeAudioNode {
+  context: { sampleRate: number } | null = null
+  frequencyDataValue = 24
+  timeDomainDataValue = 128
   gain = { value: 0, setTargetAtTime: vi.fn() }
   frequency = { value: 0 }
   type = ''
   fftSize = 0
   smoothingTimeConstant = 0
+  get frequencyBinCount(): number { return Math.max(1, this.fftSize / 2) }
   connections: unknown[] = []
 
   connect(destination: unknown): unknown {
@@ -50,6 +55,8 @@ class FakeAudioNode {
     if (destination === undefined) this.connections = []
     else this.connections = this.connections.filter(candidate => candidate !== destination)
   }
+  getByteFrequencyData(buffer: Uint8Array): void { buffer.fill(this.frequencyDataValue) }
+  getByteTimeDomainData(buffer: Uint8Array): void { buffer.fill(this.timeDomainDataValue) }
   start(): void {}
   stop(): void {}
 }
@@ -82,6 +89,7 @@ class FakeAudioContext {
   audioWorklet = { addModule: vi.fn().mockRejectedValue(new Error('worklet unavailable in test')) }
   gains: FakeAudioNode[] = []
   mediaStreamSources: FakeAudioNode[] = []
+  analysers: FakeAudioNode[] = []
 
   constructor() { FakeAudioContext.instances.push(this) }
 
@@ -90,7 +98,12 @@ class FakeAudioContext {
     this.gains.push(node)
     return node as unknown as GainNode
   }
-  createAnalyser(): AnalyserNode { return new FakeAudioNode() as unknown as AnalyserNode }
+  createAnalyser(): AnalyserNode {
+    const node = new FakeAudioNode()
+    node.context = this
+    this.analysers.push(node)
+    return node as unknown as AnalyserNode
+  }
   createChannelSplitter(): ChannelSplitterNode { return new FakeAudioNode() as unknown as ChannelSplitterNode }
   createMediaElementSource(): MediaElementAudioSourceNode {
     return new FakeAudioNode() as unknown as MediaElementAudioSourceNode
@@ -143,6 +156,7 @@ describe('useAudioEngine Live Input lifecycle', () => {
   let originalAudioContext: typeof AudioContext
   let mediaDevicesDescriptor: PropertyDescriptor | undefined
   let getUserMedia: ReturnType<typeof vi.fn>
+  let rafCallbacks: FrameRequestCallback[]
 
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -153,6 +167,14 @@ describe('useAudioEngine Live Input lifecycle', () => {
     FakeAudioContext.instances.length = 0
     FakeAudioContext.failMediaStreamSource = false
     getUserMedia = vi.fn()
+    rafCallbacks = []
+    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+      rafCallbacks.push(callback)
+      return rafCallbacks.length
+    }))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    AudioFeatureBus.setAuthoritativeFramePublisherId(null)
+    AudioFeatureBus.reset()
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
       value: { getUserMedia },
@@ -181,6 +203,8 @@ describe('useAudioEngine Live Input lifecycle', () => {
     if (mediaDevicesDescriptor) Object.defineProperty(navigator, 'mediaDevices', mediaDevicesDescriptor)
     else delete (navigator as unknown as { mediaDevices?: MediaDevices }).mediaDevices
     delete (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT
+    AudioFeatureBus.setAuthoritativeFramePublisherId(null)
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
@@ -234,6 +258,43 @@ describe('useAudioEngine Live Input lifecycle', () => {
     expect(engine?.tracks).toHaveLength(1)
     expect(context?.gains[2]?.gain.value).toBe(1)
     expect(engine?.getRecordingStream()).not.toBeNull()
+  })
+
+
+  it('publishes canonical realtime metrics from the shared audio engine without requiring a renderer', async () => {
+    const stream = new FakeMediaStream()
+    getUserMedia.mockResolvedValue(stream as unknown as MediaStream)
+
+    await act(async () => { await engine?.setSource('microphone') })
+    const context = FakeAudioContext.instances[0]
+    const masterAnalyser = context?.analysers[0]
+    expect(masterAnalyser).toBeDefined()
+    expect(AudioFeatureBus.getAuthoritativeFramePublisherId()).toBe('audio:live-input')
+
+    masterAnalyser!.frequencyDataValue = 20
+    masterAnalyser!.timeDomainDataValue = 128
+    act(() => { rafCallbacks.shift()?.(16) })
+    const first = AudioFeatureBus.getFrame()
+
+    if (context) context.currentTime += 0.02
+    masterAnalyser!.frequencyDataValue = 220
+    masterAnalyser!.timeDomainDataValue = 154
+    act(() => { rafCallbacks.shift()?.(32) })
+    const second = AudioFeatureBus.getFrame()
+
+    expect(first.sourceId).toMatch(/^live-input:/)
+    expect(second.frameId).toBeGreaterThan(first.frameId)
+    expect(second.timeSec).toBeCloseTo(0.02, 5)
+    expect(second.bands.volume).toBeGreaterThan(first.bands.volume)
+    expect(second.energy.spectralFlux).toBeGreaterThan(0)
+    expect(second.energy.buildProgress).toBe(0)
+    expect(second.energy.dropImpact).toBe(0)
+    expect(second.section.type).toBeNull()
+    expect(second.semantics.buildConfidence).toBe(0)
+    expect(AudioFeatureBus.getFramePublicationMeta().publisherId).toBe('audio:live-input')
+
+    await act(async () => { await engine?.setSource('file') })
+    expect(AudioFeatureBus.getAuthoritativeFramePublisherId()).toBeNull()
   })
 
   it('denial restores a previously playing File source and exposes a clear error instead of a false Live Input state', async () => {

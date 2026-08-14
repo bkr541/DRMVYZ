@@ -25,6 +25,7 @@ let publicationMeta: AudioFeatureBusPublicationMeta = {
   kind: 'reset',
 }
 let framePublicationMeta: AudioFeatureBusPublicationMeta = publicationMeta
+let authoritativeFramePublisherId: string | null = null
 const listeners = new Set<FrameListener>()
 
 function publicationTime(): number {
@@ -69,8 +70,25 @@ export const AudioFeatureBus = {
     return framePublicationMeta
   },
 
+  /**
+   * Runtime-only ownership guard for sources that have one canonical analyser publisher.
+   * null preserves the legacy/file behavior where renderer bridges may publish frames.
+   */
+  getAuthoritativeFramePublisherId(): string | null {
+    return authoritativeFramePublisherId
+  },
+
+  setAuthoritativeFramePublisherId(publisherId: string | null): void {
+    authoritativeFramePublisherId = publisherId
+  },
+
+  canPublishFrame(publisherId: string | null): boolean {
+    return authoritativeFramePublisherId === null || authoritativeFramePublisherId === publisherId
+  },
+
   /** Replace the current frame and notify all subscribers. */
   setFrame(frame: MusicIntelligenceFrame, publisherId: string | null = null): void {
+    if (!AudioFeatureBus.canPublishFrame(publisherId)) return
     currentFrame = frame
     framePublicationMeta = recordPublication(publisherId, 'frame')
     notifyListeners()

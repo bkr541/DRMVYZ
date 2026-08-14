@@ -29,8 +29,39 @@ interface TextRow {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function MusicIntelligenceDiagnosticsPanel() {
+export interface MusicIntelligenceDiagnosticsPanelProps {
+  liveInputActive?: boolean
+}
+
+export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false }: MusicIntelligenceDiagnosticsPanelProps = {}) {
   const animRef = useRef<number>(0)
+
+  // Live Input: compact operator view. Values update through DOM refs so the
+  // Analysis surface observes the bus without analyser-rate React renders.
+  const liveStatusRef = useRef<HTMLSpanElement | null>(null)
+  const liveFrameRef = useRef<HTMLSpanElement | null>(null)
+  const liveKickCountRef = useRef<HTMLSpanElement | null>(null)
+  const liveSnareCountRef = useRef<HTMLSpanElement | null>(null)
+  const liveEventDots = useRef<DotRow[]>([
+    { label: 'Transient', dotEl: null, valEl: null },
+    { label: 'Kick', dotEl: null, valEl: null },
+    { label: 'Snare', dotEl: null, valEl: null },
+  ])
+  const liveMetricBars = useRef<BarRow[]>([
+    { label: 'Volume', barEl: null, valEl: null },
+    { label: 'Bass', barEl: null, valEl: null },
+    { label: 'Mids', barEl: null, valEl: null },
+    { label: 'Highs', barEl: null, valEl: null },
+    { label: 'Energy', barEl: null, valEl: null },
+    { label: 'Spectral Move', barEl: null, valEl: null },
+    { label: 'Transient', barEl: null, valEl: null },
+    { label: 'Kick', barEl: null, valEl: null },
+    { label: 'Snare', barEl: null, valEl: null },
+  ])
+  const lastLiveEventFrameRef = useRef(0)
+  const lastLiveSourceRef = useRef<string | null>(null)
+  const liveKickCount = useRef(0)
+  const liveSnareCount = useRef(0)
 
   // Bands
   const bandBars = useRef<BarRow[]>([
@@ -130,6 +161,40 @@ export function MusicIntelligenceDiagnosticsPanel() {
       const ly = f.lyrics
       const sm = f.semantics
 
+      if (liveInputActive) {
+        if (lastLiveSourceRef.current !== f.sourceId) {
+          lastLiveSourceRef.current = f.sourceId
+          lastLiveEventFrameRef.current = 0
+          liveKickCount.current = 0
+          liveSnareCount.current = 0
+        }
+        if (f.frameId !== lastLiveEventFrameRef.current) {
+          lastLiveEventFrameRef.current = f.frameId
+          if (r.kickHit) liveKickCount.current += 1
+          if (r.snareHit) liveSnareCount.current += 1
+        }
+        if (liveStatusRef.current) liveStatusRef.current.textContent = f.frameId > 0 ? 'LIVE' : 'WAITING'
+        if (liveFrameRef.current) liveFrameRef.current.textContent = String(f.frameId)
+        if (liveKickCountRef.current) liveKickCountRef.current.textContent = String(liveKickCount.current)
+        if (liveSnareCountRef.current) liveSnareCountRef.current.textContent = String(liveSnareCount.current)
+        const mids = (b.lowMid + b.mid) * 0.5
+        const highs = (b.high + b.air) * 0.5
+        const liveValues = [
+          b.volume,
+          b.bass,
+          mids,
+          highs,
+          e.instant,
+          Math.min(1, e.spectralFlux * 8),
+          r.transient,
+          r.kickStrength,
+          r.snareStrength,
+        ]
+        liveMetricBars.current.forEach((row, i) => updateBar(row, liveValues[i] ?? 0))
+        const liveEvents = [r.transient > 0.15, r.kickHit, r.snareHit]
+        liveEventDots.current.forEach((row, i) => updateDot(row, liveEvents[i] ?? false))
+      }
+
       // Bands
       const bandVals = [b.sub, b.bass, b.lowMid, b.mid, b.high, b.air]
       bandBars.current.forEach((row, i) => updateBar(row, bandVals[i] ?? 0))
@@ -182,7 +247,7 @@ export function MusicIntelligenceDiagnosticsPanel() {
 
     animRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(animRef.current)
-  }, [])
+  }, [liveInputActive])
 
   // ── Ref setters ─────────────────────────────────────────────────────────────
 
@@ -202,6 +267,37 @@ export function MusicIntelligenceDiagnosticsPanel() {
   return (
     <div className="vz-mi-panel">
       <Collapsible label="Audio Intelligence" defaultOpen>
+        {liveInputActive && (
+          <MiSection title="Live Input">
+            <div className="vz-mi-kv-row">
+              <span className="vz-mi-kv-label">Capture</span>
+              <span ref={liveStatusRef} className="vz-mi-kv-val vz-mi-kv-val--tag">WAITING</span>
+              <span className="vz-mi-kv-label">Frame</span>
+              <span ref={liveFrameRef} className="vz-mi-kv-val">0</span>
+            </div>
+            {liveMetricBars.current.map(row => (
+              <MiBar key={row.label} row={row} barRowRefs={barRowRefs} />
+            ))}
+            <div className="vz-mi-dots-row">
+              {liveEventDots.current.map(row => {
+                const refs = dotRowRefs(row)
+                return (
+                  <div key={row.label} className="vz-mi-dot-item">
+                    <span ref={refs.dotRef} className="vz-mi-dot" />
+                    <span className="vz-mi-dot-label">{row.label}</span>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="vz-mi-kv-row">
+              <span className="vz-mi-kv-label">Kick events</span>
+              <span ref={liveKickCountRef} className="vz-mi-kv-val">0</span>
+              <span className="vz-mi-kv-label">Snare events</span>
+              <span ref={liveSnareCountRef} className="vz-mi-kv-val">0</span>
+            </div>
+          </MiSection>
+        )}
+        {!liveInputActive && <>
         {/* ── Bands ────────────────────────────────────────────────────────── */}
         <MiSection title="Audio Bands">
           <div className="vz-mi-bar-group">
@@ -328,6 +424,7 @@ export function MusicIntelligenceDiagnosticsPanel() {
             <span ref={textureRef} className="vz-mi-kv-val vz-mi-kv-val--tag">—</span>
           </div>
         </MiSection>
+        </>}
       </Collapsible>
     </div>
   )

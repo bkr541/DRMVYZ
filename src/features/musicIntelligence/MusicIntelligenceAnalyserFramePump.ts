@@ -2,6 +2,8 @@ import { AudioFeatureBus } from './AudioFeatureBus'
 import { musicIntelligenceEngine, type MusicIntelligenceEngine } from './MusicIntelligenceEngine'
 import type { MusicIntelligenceFrame } from './types'
 
+export type MusicIntelligenceAnalyserAnalysisMode = 'default' | 'live-input'
+
 export interface MusicIntelligenceAnalyserFramePumpInput {
   analyser: AnalyserNode | null
   audioTime: number
@@ -13,6 +15,7 @@ export interface MusicIntelligenceAnalyserFramePumpDiagnostics {
   sampleCount: number
   reusedBufferCount: number
   skippedDuplicateCount: number
+  skippedAuthorityCount: number
   frequencyBufferLength: number
   timeDomainBufferLength: number
 }
@@ -22,6 +25,7 @@ export interface MusicIntelligenceAnalyserFramePumpOptions {
   freshnessWindowMs?: number
   now?: () => number
   engine?: Pick<MusicIntelligenceEngine, 'updateFromAudioFrame'>
+  analysisMode?: MusicIntelligenceAnalyserAnalysisMode
 }
 
 function monotonicNow(): number {
@@ -53,6 +57,7 @@ export class MusicIntelligenceAnalyserFramePump {
   private readonly freshnessWindowMs: number
   private readonly now: () => number
   private readonly engine: Pick<MusicIntelligenceEngine, 'updateFromAudioFrame'>
+  private readonly analysisMode: MusicIntelligenceAnalyserAnalysisMode
   private analyser: AnalyserNode | null = null
   private trackIdentity: string | null = null
   private frequencyData: Uint8Array<ArrayBuffer> | null = null
@@ -64,17 +69,23 @@ export class MusicIntelligenceAnalyserFramePump {
   private sampleCount = 0
   private reusedBufferCount = 0
   private skippedDuplicateCount = 0
+  private skippedAuthorityCount = 0
 
   constructor(options: MusicIntelligenceAnalyserFramePumpOptions) {
     this.publisherId = options.publisherId
     this.freshnessWindowMs = Math.max(0, options.freshnessWindowMs ?? 4)
     this.now = options.now ?? monotonicNow
     this.engine = options.engine ?? musicIntelligenceEngine
+    this.analysisMode = options.analysisMode ?? 'default'
   }
 
   sample(input: MusicIntelligenceAnalyserFramePumpInput): MusicIntelligenceFrame {
     const current = AudioFeatureBus.getFrame()
     if (this.disposed || !input.analyser) return current
+    if (!AudioFeatureBus.canPublishFrame(this.publisherId)) {
+      this.skippedAuthorityCount += 1
+      return current
+    }
 
     const trackIdentity = input.trackIdentity ?? null
     if (this.analyser !== input.analyser || this.trackIdentity !== trackIdentity) {
@@ -134,6 +145,7 @@ export class MusicIntelligenceAnalyserFramePump {
       audioTime,
       isPlaying: input.isPlaying,
       publisherId: this.publisherId,
+      analysisMode: this.analysisMode,
     })
 
     const published = AudioFeatureBus.getFrame()
@@ -164,6 +176,7 @@ export class MusicIntelligenceAnalyserFramePump {
       sampleCount: this.sampleCount,
       reusedBufferCount: this.reusedBufferCount,
       skippedDuplicateCount: this.skippedDuplicateCount,
+      skippedAuthorityCount: this.skippedAuthorityCount,
       frequencyBufferLength: this.frequencyData?.length ?? 0,
       timeDomainBufferLength: this.timeDomainData?.length ?? 0,
     }

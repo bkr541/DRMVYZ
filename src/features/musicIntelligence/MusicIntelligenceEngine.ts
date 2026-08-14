@@ -73,6 +73,8 @@ export interface AnalyserInputFrame {
   publisherId?: string
 }
 
+export type MusicIntelligenceRealtimeAnalysisMode = 'default' | 'live-input'
+
 export interface AudioFrameInput {
   freqBuf:    Uint8Array<ArrayBuffer>
   timeBuf:    Uint8Array<ArrayBuffer> | null
@@ -80,6 +82,7 @@ export interface AudioFrameInput {
   audioTime:  number
   isPlaying:  boolean
   publisherId?: string
+  analysisMode?: MusicIntelligenceRealtimeAnalysisMode
 }
 
 // ── Engine class ──────────────────────────────────────────────────────────────
@@ -522,7 +525,14 @@ export class MusicIntelligenceEngine {
     this.beatGrid.setBpm(0, 0, 0)
     this.beatGrid.setMarkers([], [])
     this.stemInterpolator.setData(null)
+    // Source identity changes are hard realtime-analysis discontinuities. Reset
+    // every stateful analyser so spectral movement, rolling levels, and onset
+    // baselines cannot bridge unrelated files or Live Input capture sessions.
+    this.bandAnalyzer.reset()
     this.resetRhythmRuntimeState()
+    this.energyAnalyzer.reset()
+    this.harmonicAnalyzer.reset()
+    this.semanticAnalyzer.reset()
     this.clearLyricStateForSource(`source:${trackId ?? sourceId ?? 'none'}`)
     AudioFeatureBus.reset()
     this.publishCapabilityState(false)
@@ -623,6 +633,11 @@ export class MusicIntelligenceEngine {
     const audioTime = Number.isFinite(input.audioTime) ? Math.max(0, input.audioTime) : 0
     this.sampleRate = sampleRate > 0 ? sampleRate : this.sampleRate
 
+    // Live Input installs a shared authoritative publisher at the audio-engine
+    // level. Renderer-local bridges may still call this method, but must never
+    // advance state or overwrite the canonical live frame while that owner is set.
+    if (!AudioFeatureBus.canPublishFrame(publisherId ?? null)) return
+
     // Several renderer surfaces can coexist briefly during navigation/StrictMode.
     // Preserve the first canonical snapshot for one transport instant instead of
     // advancing the singleton detector twice and overwriting one-frame hit edges.
@@ -639,14 +654,96 @@ export class MusicIntelligenceEngine {
     // ── Layer 2: Rhythm / onset detection ───────────────────────────────────
     const rhythmResult = this.rhythmAnalyzer.analyze(freqBuf, bandResult, isPlaying)
 
-    // ── Layer 3: Beat grid / phrase tracking ────────────────────────────────
-    const beatState = this.beatGrid.update(audioTime, isPlaying)
-
     // ── Layer 4: Energy (+ optional Meyda spectral features) ────────────────
     const meyda        = this.meydaFeaturesGetter ? this.meydaFeaturesGetter() : null
     const energyResult = this.energyAnalyzer.analyze(
       bandResult, timeBuf, rhythmResult.spectralFlux, meyda, this.sampleRate,
     )
+
+    if (input.analysisMode === 'live-input') {
+      // Stage 2 intentionally publishes only low-level realtime signal features.
+      // BPM/beat phase belongs to Stage 3, while section/build/drop/phrase inference
+      // is explicitly excluded for Live Input. Keeping these fields neutral also
+      // avoids spending CPU on harmonic/semantic/lyric work that live consumers do
+      // not need.
+      const frame: MusicIntelligenceFrame = {
+        timeSec: audioTime,
+        frameId: this.frameId,
+        sampleRate: this.sampleRate,
+        sourceId: this.sourceId,
+        trackId: null,
+        bands: bandResult.bands,
+        rhythm: {
+          ...DEFAULT_MI_FRAME.rhythm,
+          kickHit: rhythmResult.kickHit,
+          kickStrength: rhythmResult.kickStrength,
+          snareHit: rhythmResult.snareHit,
+          snareStrength: rhythmResult.snareStrength,
+          hatHit: rhythmResult.hatHit,
+          hatStrength: rhythmResult.hatStrength,
+          transient: rhythmResult.transient,
+          transientConfidence: rhythmResult.transientConfidence,
+        },
+        energy: {
+          instant: energyResult.instant,
+          shortTerm: energyResult.shortTerm,
+          longTerm: energyResult.longTerm,
+          peak: energyResult.peak,
+          rms: energyResult.rms,
+          crestFactor: energyResult.crestFactor,
+          spectralFlux: energyResult.spectralFlux,
+          delta: energyResult.delta,
+          percentile: energyResult.percentile,
+          buildProgress: 0,
+          dropImpact: 0,
+          tension: 0,
+          complexity: energyResult.complexity,
+          spectralCentroid: energyResult.spectralCentroid,
+          spectralSpread: energyResult.spectralSpread,
+          spectralRolloff: energyResult.spectralRolloff,
+          spectralFlatness: energyResult.spectralFlatness,
+        },
+        section: { ...DEFAULT_MI_FRAME.section },
+        harmonic: { ...DEFAULT_MI_FRAME.harmonic },
+        stems: { ...DEFAULT_MI_FRAME.stems },
+        lyrics: { ...DEFAULT_MI_FRAME.lyrics },
+        semantics: { ...DEFAULT_MI_FRAME.semantics },
+        capabilities: {
+          liveBands: true,
+          rhythmEvents: true,
+          beatGrid: false,
+          sections: false,
+          trackEnergyCurve: false,
+          stemCurves: false,
+          lyrics: false,
+        },
+        resolvedSections: [],
+        currentResolvedSection: null,
+        phraseMarkers: [],
+        semanticMoments: [],
+        gridConfidence: null,
+        analysisSource: 'none',
+        analysisCapabilities: { ...DEFAULT_MI_FRAME.analysisCapabilities! },
+        analysisRevision: null,
+        timelineRevision: null,
+        raw: {
+          freqData: freqBuf,
+          timeDomainData: timeBuf,
+        },
+        confidence: {
+          overall: Math.max(bandResult.bands.volume, rhythmResult.transientConfidence),
+          rhythm: rhythmResult.transientConfidence,
+          harmonic: 0,
+          section: 0,
+        },
+      }
+      AudioFeatureBus.setFrame(frame, publisherId ?? null)
+      this.rememberAnalyserPublication(audioTime, isPlaying)
+      return
+    }
+
+    // ── Layer 3: Beat grid / phrase tracking ────────────────────────────────
+    const beatState = this.beatGrid.update(audioTime, isPlaying)
 
     // ── Layer 6: Harmonic analysis ───────────────────────────────────────────
     const harmonicResult = this.harmonicAnalyzer.analyze(

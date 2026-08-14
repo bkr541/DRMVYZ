@@ -21,7 +21,10 @@ function analyserFixture(options: { frequencyBinCount?: number; fftSize?: number
 }
 
 describe('MusicIntelligenceAnalyserFramePump', () => {
-  beforeEach(() => AudioFeatureBus.reset())
+  beforeEach(() => {
+    AudioFeatureBus.setAuthoritativeFramePublisherId(null)
+    AudioFeatureBus.reset()
+  })
 
   it('reuses analyser buffers and publishes through the canonical Music Intelligence engine', () => {
     const engine = new MusicIntelligenceEngine()
@@ -163,6 +166,89 @@ describe('MusicIntelligenceAnalyserFramePump', () => {
     expect(publish(kickTransient, 8).rhythm.kickHit).toBe(false)
     for (let i = 1; i <= 12; i++) publish(baseline, 8 + i * 0.02)
     expect(publish(kickTransient, 8.26).rhythm.kickHit).toBe(true)
+  })
+
+  it('enforces one authoritative Live Input publisher and emits only realtime low-level features', () => {
+    const engine = new MusicIntelligenceEngine()
+    engine.setSourceId('live-input:7', null)
+    let value = 24
+    const getByteFrequencyData = vi.fn((buffer: Uint8Array) => buffer.fill(value))
+    const getByteTimeDomainData = vi.fn((buffer: Uint8Array) => buffer.fill(128 + Math.floor(value / 12)))
+    const analyser = {
+      frequencyBinCount: 256,
+      fftSize: 512,
+      context: { sampleRate: 48_000 },
+      getByteFrequencyData,
+      getByteTimeDomainData,
+    } as unknown as AnalyserNode
+    const central = new MusicIntelligenceAnalyserFramePump({
+      publisherId: 'audio:live-input',
+      analysisMode: 'live-input',
+      engine,
+    })
+    const renderer = new MusicIntelligenceAnalyserFramePump({ publisherId: 'react:cinema', engine })
+    AudioFeatureBus.setAuthoritativeFramePublisherId('audio:live-input')
+
+    const first = central.sample({ analyser, audioTime: 0, isPlaying: true, trackIdentity: 'live-input:7' })
+    value = 220
+    const second = central.sample({ analyser, audioTime: 0.02, isPlaying: true, trackIdentity: 'live-input:7' })
+    const readsBeforeRenderer = getByteFrequencyData.mock.calls.length
+    const rendererFrame = renderer.sample({ analyser, audioTime: 0.03, isPlaying: true, trackIdentity: 'live-input:7' })
+
+    expect(first.frameId).toBeGreaterThan(0)
+    expect(second.frameId).toBeGreaterThan(first.frameId)
+    expect(second.sourceId).toBe('live-input:7')
+    expect(second.trackId).toBeNull()
+    expect(second.bands.volume).toBeGreaterThan(0)
+    expect(second.energy.instant).toBeGreaterThan(0)
+    expect(second.energy.spectralFlux).toBeGreaterThan(0)
+    expect(second.rhythm.transient).toBeGreaterThan(0)
+    expect(second.capabilities).toMatchObject({ liveBands: true, rhythmEvents: true, beatGrid: false, sections: false })
+    expect(second.section.type).toBeNull()
+    expect(second.energy.buildProgress).toBe(0)
+    expect(second.energy.dropImpact).toBe(0)
+    expect(second.semantics.buildConfidence).toBe(0)
+    expect(second.semantics.dropConfidence).toBe(0)
+    expect(second.rhythm.bpm).toBe(0)
+    expect(rendererFrame).toBe(second)
+    expect(getByteFrequencyData).toHaveBeenCalledTimes(readsBeforeRenderer)
+    expect(renderer.diagnostics.skippedAuthorityCount).toBe(1)
+    expect(AudioFeatureBus.getFramePublicationMeta().publisherId).toBe('audio:live-input')
+  })
+
+  it('resets Live Input spectral and transient history on a new capture session', () => {
+    const engine = new MusicIntelligenceEngine()
+    const timeDomainData = new Uint8Array(512).fill(128) as Uint8Array<ArrayBuffer>
+    const baseline = new Uint8Array(256).fill(24) as Uint8Array<ArrayBuffer>
+    const transient = new Uint8Array(256).fill(220) as Uint8Array<ArrayBuffer>
+
+    AudioFeatureBus.setAuthoritativeFramePublisherId('audio:live-input')
+    engine.setSourceId('live-input:1', null)
+    const publish = (freqBuf: Uint8Array<ArrayBuffer>, audioTime: number) => {
+      engine.updateFromAudioFrame({
+        freqBuf,
+        timeBuf: timeDomainData,
+        sampleRate: 48_000,
+        audioTime,
+        isPlaying: true,
+        publisherId: 'audio:live-input',
+        analysisMode: 'live-input',
+      })
+      return AudioFeatureBus.getFrame()
+    }
+
+    publish(baseline, 0)
+    const beforeReconnect = publish(transient, 0.02)
+    expect(beforeReconnect.energy.spectralFlux).toBeGreaterThan(0)
+    expect(beforeReconnect.rhythm.transient).toBeGreaterThan(0)
+
+    engine.setSourceId('live-input:2', null)
+    const firstAfterReconnect = publish(transient, 0)
+
+    expect(firstAfterReconnect.frameId).toBeGreaterThan(beforeReconnect.frameId)
+    expect(firstAfterReconnect.sourceId).toBe('live-input:2')
+    expect(firstAfterReconnect.energy.spectralFlux).toBe(0)
+    expect(firstAfterReconnect.rhythm.transient).toBe(0)
   })
 
   it('stops sampling after disposal', () => {
