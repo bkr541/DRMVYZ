@@ -23,6 +23,10 @@
   flex-shrink: 0;
 }
 
+.vz-header-rekordbox-slot {
+  display: contents;
+}
+
 .vz-header-title-group {
   display: flex;
   flex-direction: column;

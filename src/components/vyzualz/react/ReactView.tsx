@@ -363,6 +363,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const recorder = useRecorder()
   const { startVideoRecording } = recorder
   const { isActive: hasActiveProgramAudio, getRecordingStream } = engine
+  const [rekordboxHeaderSlot, setRekordboxHeaderSlot] = useState<HTMLDivElement | null>(null)
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
   const [canvasOutputCapability, setCanvasOutputCapability] = useState<CanvasOutputCapability>(CANVAS_OUTPUT_AVAILABLE)
   const outputCapability = activeReactEngineId === 'canvas'
@@ -739,6 +740,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
             placement="below"
           />
         </div>
+
+        <div ref={setRekordboxHeaderSlot} className="vz-header-rekordbox-slot" />
 
         <span className="az-spacer" />
         <ReactPersistenceStatus />
@@ -1150,6 +1153,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           !stageFocus
         }
         waveformAppearance="deck"
+        rekordboxMenuPortalTarget={rekordboxHeaderSlot}
       />
     </div>
   )

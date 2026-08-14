@@ -1,5 +1,6 @@
 import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
 import { useId, useState, useRef, useEffect, useCallback, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
 import { useVisualStore, DEFAULT_PRESETS } from '../../../stores/visualStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -160,6 +161,10 @@ export interface VyzualzAudioDockProps {
   unifiedTimeline?: boolean
   /** Select the waveform rendering language used by this dock. */
   waveformAppearance?: 'rgb' | 'deck'
+  /** Render the Rekordbox tools dropdown into this element (e.g. the top
+   *  header row) instead of its default spot in the dock. State and import
+   *  handlers stay owned by this component either way. */
+  rekordboxMenuPortalTarget?: HTMLElement | null
 }
 
 export function VyzualzAudioDock({
@@ -168,6 +173,7 @@ export function VyzualzAudioDock({
   deckLabel,
   unifiedTimeline = false,
   waveformAppearance = 'rgb',
+  rekordboxMenuPortalTarget = null,
 }: VyzualzAudioDockProps) {
   const {
     presets, activePresetId, bpmSync, toggleBpmSync, setPlaying,
@@ -570,7 +576,46 @@ export function VyzualzAudioDock({
     compact ? 'vz-transport-dock--focus' : '',
   ].filter(Boolean).join(' ')
 
+  const rekordboxMenu = (
+    <div
+      className={rekordboxMenuPortalTarget ? 'vz-input-group' : 'vz-dock-rekordbox-menu'}
+      aria-label="Rekordbox import tools"
+    >
+      <label
+        className={rekordboxMenuPortalTarget ? 'vz-input-label' : 'vz-dock-rekordbox-label'}
+        htmlFor={rekordboxActionSelectId}
+      >
+        Rekordbox
+      </label>
+      <DropdownSelect
+        id={rekordboxActionSelectId}
+        className={rekordboxMenuPortalTarget ? 'az-select' : 'vz-dock-rekordbox-select'}
+        value=""
+        disabled={rekordboxBusy || sourceSelectionLocked}
+        onChange={event => {
+          const action = event.currentTarget.value
+          event.currentTarget.value = ''
+          if (action === 'xml') {
+            document.getElementById(rekordboxXmlInputId)?.click()
+          }
+          if (action === 'usb') void handleRekordboxUsbRoot()
+          if (action === 'mode') toggleRekordboxUsbMode()
+        }}
+        title={sourceSelectionLocked
+          ? 'Rekordbox source rehydration is unavailable while in Show Manager'
+          : 'Import Rekordbox metadata or arm USB Mode. USB Mode does not import cues unless XML or the native parser matches the track.'}
+      >
+        <option value="">{rekordboxBusy ? 'Reading…' : rekordboxUsbMode ? 'USB Mode Armed' : 'RB Tools'}</option>
+        <option value="xml">Import XML…</option>
+        <option value="usb">Scan USB…</option>
+        <option value="mode">{rekordboxUsbMode ? 'Turn USB Mode Off' : 'Arm USB Mode'}</option>
+      </DropdownSelect>
+    </div>
+  )
+
   return (
+    <>
+    {rekordboxMenuPortalTarget && createPortal(rekordboxMenu, rekordboxMenuPortalTarget)}
     <div
       className={dockClassName}
       data-collapsed={dockCollapsed ? 'true' : 'false'}
@@ -868,34 +913,7 @@ export function VyzualzAudioDock({
         )}
         </div>{/* end vz-dock-bpm-wrap */}
 
-        <div className="vz-dock-rekordbox-menu" aria-label="Rekordbox import tools">
-          <label className="vz-dock-rekordbox-label" htmlFor={rekordboxActionSelectId}>
-            Rekordbox
-          </label>
-          <DropdownSelect
-            id={rekordboxActionSelectId}
-            className="vz-dock-rekordbox-select"
-            value=""
-            disabled={rekordboxBusy || sourceSelectionLocked}
-            onChange={event => {
-              const action = event.currentTarget.value
-              event.currentTarget.value = ''
-              if (action === 'xml') {
-                document.getElementById(rekordboxXmlInputId)?.click()
-              }
-              if (action === 'usb') void handleRekordboxUsbRoot()
-              if (action === 'mode') toggleRekordboxUsbMode()
-            }}
-            title={sourceSelectionLocked
-              ? 'Rekordbox source rehydration is unavailable while in Show Manager'
-              : 'Import Rekordbox metadata or arm USB Mode. USB Mode does not import cues unless XML or the native parser matches the track.'}
-          >
-            <option value="">{rekordboxBusy ? 'Reading…' : rekordboxUsbMode ? 'USB Mode Armed' : 'RB Tools'}</option>
-            <option value="xml">Import XML…</option>
-            <option value="usb">Scan USB…</option>
-            <option value="mode">{rekordboxUsbMode ? 'Turn USB Mode Off' : 'Arm USB Mode'}</option>
-          </DropdownSelect>
-        </div>
+        {!rekordboxMenuPortalTarget && rekordboxMenu}
         </div>
 
         <div className="vz-dock-right-btns">
@@ -974,5 +992,6 @@ export function VyzualzAudioDock({
         onChange={e => handleRekordboxXml(e.target.files)}
       />
     </div>
+    </>
   )
 }
