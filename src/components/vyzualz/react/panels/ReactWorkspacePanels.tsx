@@ -15,6 +15,7 @@ import type { CinemaWorkspaceFrameBridgeResult } from '../CinemaWorkspaceFrameBr
 import { isCinemaBuiltInComposition, useCinemaStore, type CinemaRuntimeSnapshot } from '../../cinema'
 import { LaserDmxShowDirectorControls } from '../LaserDmxShowDirectorControls'
 import { ProductionOutputPanel } from '../output/ProductionOutputPanel'
+import { OutputCastControl } from '../output/OutputCastControl'
 import { PixGridDesignPanel } from '../pixGrid/PixGridDesignPanel'
 import { PixGridReactivityWorkspace, type PixGridReactivitySurface } from '../pixGrid/PixGridReactivityWorkspace'
 import { PanelSubtabs } from '../PanelSubtabs'
@@ -185,6 +186,7 @@ interface ReactOutputWorkspacePanelProps {
   onStartRecording: (canvas: HTMLCanvasElement) => void
   cinemaFrameBridge?: CinemaWorkspaceFrameBridgeResult | null
   cinemaRuntimeSnapshot?: CinemaRuntimeSnapshot | null
+  showCastControl?: boolean
 }
 
 export function ReactOutputWorkspacePanel({
@@ -196,6 +198,7 @@ export function ReactOutputWorkspacePanel({
   onStartRecording,
   cinemaFrameBridge = null,
   cinemaRuntimeSnapshot = null,
+  showCastControl = false,
 }: ReactOutputWorkspacePanelProps) {
   const activeReactEngineId = useReactStore(state => state.activeReactEngineId)
   const isLaserDmx = activeReactEngineId === 'laserDmx'
@@ -225,6 +228,15 @@ export function ReactOutputWorkspacePanel({
               frameBridge={cinemaFrameBridge}
               runtimeSnapshot={cinemaRuntimeSnapshot}
             />
+          )}
+          {showCastControl && (
+            <div className="rv-headliner-program-output">
+              <div>
+                <strong>Fullscreen program output</strong>
+                <span>The Headliner compositor canvas is the shared recording and casting source.</span>
+              </div>
+              <OutputCastControl canvas={canvas} capability={outputCapability} />
+            </div>
           )}
           {surface === 'production' && isLaserDmx ? (
             <div className="rv-ctrl-group"><ProductionOutputPanel /></div>

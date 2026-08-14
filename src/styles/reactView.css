@@ -18248,7 +18248,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   color: rgba(255, 170, 170, 0.9);
 }
 
-/* ── Headliner Stage 1 workspace foundation ────────────────────────────────── */
+/* ── Headliner workspace + fullscreen CPU program compositor ───────────────── */
 .rv-headliner-mode-grid {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -18333,13 +18333,23 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   background: rgba(255, 255, 255, 0.018);
 }
 
-.rv-headliner-camera-video {
+.rv-headliner-program-canvas {
   position: absolute;
   inset: 0;
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
   background: #020709;
+}
+
+/* The Stage 2 video element is capture/runtime input only. The Canvas2D program
+   canvas above is the sole visible/capturable Headliner output surface. */
+.rv-headliner-camera-video {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .rv-headliner-surface[data-headliner-camera-status] {
@@ -18347,11 +18357,38 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   overflow: hidden;
 }
 
-.rv-headliner-surface[data-headliner-camera-status]:not([data-headliner-camera-status="live"]) .rv-headliner-camera-video {
-  visibility: hidden;
-}
-
 .rv-headliner-surface[data-headliner-camera-status] .rv-headliner-surface-placeholder {
   position: relative;
   z-index: 1;
+}
+
+.rv-headliner-program-output {
+  margin: 8px 10px 10px;
+  padding: 9px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid rgba(232, 244, 248, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.rv-headliner-program-output > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.rv-headliner-program-output strong {
+  color: #e8f4f8;
+  font: 800 9px/1.2 var(--az-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.rv-headliner-program-output span {
+  color: rgba(232, 244, 248, 0.58);
+  font-size: 8.5px;
+  line-height: 1.4;
 }

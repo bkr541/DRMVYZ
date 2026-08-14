@@ -16,7 +16,6 @@ import { CanvasEngineSurface, CanvasLayersPanel } from './ReactCanvasEngineShell
 import { PixGridSurface } from './pixGrid/PixGridSurface'
 import {
   HeadlinerDesignPanel,
-  HeadlinerOutputPanel,
   HeadlinerPresetsPanel,
   HeadlinerReactivityPanel,
   HeadlinerSurface,
@@ -1148,20 +1147,17 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 : <ReactReactivityWorkspacePanel cinemaFrameBridge={cinemaFrameBridge} />
             )}
             {activeRightPanel === 'output' && (
-              activeReactEngineId === 'headliner' ? (
-                <HeadlinerOutputPanel />
-              ) : (
-                <ReactOutputWorkspacePanel
-                  canvas={outputCanvas}
-                  outputCapability={outputCapability}
-                  recorder={recorder}
-                  liveFps={liveFps}
-                  hasActiveProgramAudio={hasActiveProgramAudio}
-                  onStartRecording={handleStartRecording}
-                  cinemaFrameBridge={cinemaFrameBridge}
-                  cinemaRuntimeSnapshot={cinemaRuntimeSnapshot}
-                />
-              )
+              <ReactOutputWorkspacePanel
+                canvas={outputCanvas}
+                outputCapability={outputCapability}
+                recorder={recorder}
+                liveFps={liveFps}
+                hasActiveProgramAudio={hasActiveProgramAudio}
+                onStartRecording={handleStartRecording}
+                cinemaFrameBridge={cinemaFrameBridge}
+                cinemaRuntimeSnapshot={cinemaRuntimeSnapshot}
+                showCastControl={activeReactEngineId === 'headliner'}
+              />
             )}
           </div>
         </WorkspaceRail>

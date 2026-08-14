@@ -3,6 +3,10 @@ import { useReactStore } from '../../../../stores/reactStore'
 import { CtrlSection, SelectRow } from '../ReactControlRows'
 import { ReactAudioPanel } from '../ReactAudioPanel'
 import { HeadlinerCameraRuntime } from './HeadlinerCameraRuntime'
+import {
+  createHeadlinerFullscreenProgram,
+  HeadlinerFullscreenCompositor,
+} from './HeadlinerCompositor'
 
 function HeadlinerFullscreenIcon() {
   return (
@@ -53,17 +57,30 @@ export function HeadlinerSurface({
   onLiveFps?: (fps: number) => void
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const runtimeRef = useRef<HeadlinerCameraRuntime | null>(null)
   if (!runtimeRef.current) runtimeRef.current = new HeadlinerCameraRuntime('camera-1')
   const runtime = runtimeRef.current
   const snapshot = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot, runtime.getSnapshot)
 
   useEffect(() => {
-    onCanvasReady?.(null)
-    onLiveFps?.(0)
     const video = videoRef.current
-    if (video) void runtime.start(video)
+    const canvas = canvasRef.current
+    if (!video || !canvas) return
+
+    const compositor = new HeadlinerFullscreenCompositor({
+      canvas,
+      getProgramInput: () => createHeadlinerFullscreenProgram(runtime.getFrameSource()),
+      onLiveFps,
+    })
+
+    onCanvasReady?.(canvas)
+    onLiveFps?.(0)
+    compositor.start()
+    void runtime.start(video)
+
     return () => {
+      compositor.stop()
       runtime.stop()
       onCanvasReady?.(null)
     }
@@ -92,10 +109,15 @@ export function HeadlinerSurface({
       data-headliner-surface="camera"
       data-headliner-camera-status={snapshot.status}
     >
+      <canvas
+        ref={canvasRef}
+        className="rv-headliner-program-canvas"
+        data-headliner-output-canvas="true"
+      />
       <video
         ref={videoRef}
         className="rv-headliner-camera-video"
-        aria-label="Default Front Camera"
+        aria-hidden="true"
         autoPlay
         muted
         playsInline
@@ -139,7 +161,7 @@ export function HeadlinerDesignPanel() {
   return (
     <HeadlinerEmptyWorkspacePanel
       title="Camera design controls are not available yet"
-      body="Per-camera and master-output design controls are intentionally deferred until the Headliner runtime is connected."
+      body="Per-camera and master-output design controls are intentionally deferred until the Headliner effect model is defined."
     />
   )
 }
@@ -156,14 +178,5 @@ export function HeadlinerReactivityPanel() {
         </div>
       </div>
     </div>
-  )
-}
-
-export function HeadlinerOutputPanel() {
-  return (
-    <HeadlinerEmptyWorkspacePanel
-      title="Headliner output is not connected yet"
-      body="Camera output and recording are intentionally deferred until the live compositor is introduced."
-    />
   )
 }
