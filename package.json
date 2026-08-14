@@ -141,7 +141,8 @@
         "NSLocalNetworkUsageDescription": "DRMVYZ uses the local network to discover and connect to receivers and to stream output to local casting devices you choose.",
         "NSBonjourServices": [
           "_drmvyz-cast._tcp"
-        ]
+        ],
+        "NSCameraUsageDescription": "DRMVYZ uses the camera only when you open Headliner to display the camera feed in your visual performance."
       }
     },
     "win": {

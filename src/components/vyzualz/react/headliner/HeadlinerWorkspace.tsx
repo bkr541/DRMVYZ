@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
 import { CtrlSection, SelectRow } from '../ReactControlRows'
 import { ReactAudioPanel } from '../ReactAudioPanel'
+import { HeadlinerCameraRuntime } from './HeadlinerCameraRuntime'
 
 function HeadlinerFullscreenIcon() {
   return (
@@ -38,7 +39,7 @@ export function HeadlinerEnginePanel() {
         value={settings.inputSourceId}
         onChange={() => setHeadlinerSettings({ inputSourceId: 'default-front-camera' })}
         options={[{ value: 'default-front-camera', label: 'Default Front Camera' }]}
-        description="Stage 1 reserves the default computer front camera. Camera permission and capture begin in Stage 2."
+        description="Headliner uses the default computer front camera. Camera access is requested when Headliner becomes active."
       />
     </section>
   )
@@ -51,23 +52,61 @@ export function HeadlinerSurface({
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onLiveFps?: (fps: number) => void
 }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const runtimeRef = useRef<HeadlinerCameraRuntime | null>(null)
+  if (!runtimeRef.current) runtimeRef.current = new HeadlinerCameraRuntime('camera-1')
+  const runtime = runtimeRef.current
+  const snapshot = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot, runtime.getSnapshot)
+
   useEffect(() => {
     onCanvasReady?.(null)
     onLiveFps?.(0)
-    return () => onCanvasReady?.(null)
-  }, [onCanvasReady, onLiveFps])
+    const video = videoRef.current
+    if (video) void runtime.start(video)
+    return () => {
+      runtime.stop()
+      onCanvasReady?.(null)
+    }
+  }, [onCanvasReady, onLiveFps, runtime])
+
+  const isLive = snapshot.status === 'live'
+  const statusTitle = snapshot.status === 'requesting'
+    ? 'Starting camera'
+    : snapshot.status === 'error'
+      ? snapshot.errorCode === 'permission-denied'
+        ? 'Camera permission denied'
+        : snapshot.errorCode === 'unavailable'
+          ? 'Camera unavailable'
+          : 'Camera error'
+      : snapshot.status === 'disconnected'
+        ? 'Camera disconnected'
+        : 'Camera not started'
+  const statusBody = snapshot.status === 'requesting'
+    ? 'Allow camera access to show the default front camera in Headliner.'
+    : snapshot.message ?? 'Fullscreen workspace is preparing the default front camera.'
 
   return (
     <section
       className="rv-headliner-surface"
       aria-label="Headliner workspace"
-      data-headliner-surface="foundation"
+      data-headliner-surface="camera"
+      data-headliner-camera-status={snapshot.status}
     >
-      <div className="rv-headliner-surface-placeholder" role="status">
-        <span className="rv-headliner-surface-icon" aria-hidden="true"><HeadlinerFullscreenIcon /></span>
-        <strong>Camera not started</strong>
-        <span>Fullscreen workspace ready for the default front camera.</span>
-      </div>
+      <video
+        ref={videoRef}
+        className="rv-headliner-camera-video"
+        aria-label="Default Front Camera"
+        autoPlay
+        muted
+        playsInline
+      />
+      {!isLive && (
+        <div className="rv-headliner-surface-placeholder" role="status">
+          <span className="rv-headliner-surface-icon" aria-hidden="true"><HeadlinerFullscreenIcon /></span>
+          <strong>{statusTitle}</strong>
+          <span>{statusBody}</span>
+        </div>
+      )}
     </section>
   )
 }

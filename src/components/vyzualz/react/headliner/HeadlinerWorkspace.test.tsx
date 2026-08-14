@@ -31,10 +31,35 @@ vi.mock('../../../../features/lyrics/runtime/useLyricPlayback', () => ({
   }),
 }))
 
+
+class FakeHeadlinerTrack extends EventTarget {
+  readonly kind = 'video'
+  stop = vi.fn()
+}
+
+class FakeHeadlinerStream {
+  constructor(readonly track: FakeHeadlinerTrack) {}
+  getTracks = () => [this.track] as unknown as MediaStreamTrack[]
+  getVideoTracks = () => [this.track] as unknown as MediaStreamTrack[]
+  getAudioTracks = () => [] as MediaStreamTrack[]
+}
+
+function installHeadlinerCamera(streamOrError: MediaStream | DOMException) {
+  const getUserMedia = streamOrError instanceof DOMException
+    ? vi.fn(async () => { throw streamOrError })
+    : vi.fn(async () => streamOrError)
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: { getUserMedia },
+  })
+  return getUserMedia
+}
+
 let container: HTMLElement
 let root: ReturnType<typeof createRoot>
 
 beforeEach(() => {
+  vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
   useReactStore.getState().resetReactView()
   useReactStore.getState().selectReactEngine('headliner')
   container = document.createElement('div')
@@ -48,7 +73,7 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 
-describe('Headliner Stage 1 production workspace controls', () => {
+describe('Headliner production workspace controls', () => {
   it('enters through canonical Headliner selection and renders only Fullscreen/default front camera controls', async () => {
     await act(async () => root.render(<ReactEnginePanel />))
 
@@ -67,20 +92,55 @@ describe('Headliner Stage 1 production workspace controls', () => {
     expect(cameraTrigger?.textContent).toContain('Default Front Camera')
   })
 
-  it('owns a resource-free stage boundary rather than starting camera capture in Stage 1', async () => {
+  it('requests the default front camera through the production Headliner surface and releases it on exit', async () => {
+    const track = new FakeHeadlinerTrack()
+    const stream = new FakeHeadlinerStream(track) as unknown as MediaStream
+    const getUserMedia = installHeadlinerCamera(stream)
     const onCanvasReady = vi.fn()
     const onLiveFps = vi.fn()
 
     await act(async () => root.render(
       <HeadlinerSurface onCanvasReady={onCanvasReady} onLiveFps={onLiveFps} />,
     ))
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
 
-    expect(container.querySelector('[data-headliner-surface="foundation"]')).not.toBeNull()
-    expect(container.textContent).toContain('Camera not started')
+    const surface = container.querySelector<HTMLElement>('[data-headliner-surface="camera"]')
+    const video = container.querySelector<HTMLVideoElement>('video[aria-label="Default Front Camera"]')
+    expect(surface?.dataset.headlinerCameraStatus).toBe('requesting')
+    expect(video).not.toBeNull()
+    expect(getUserMedia).toHaveBeenCalledWith({
+      audio: false,
+      video: { facingMode: { ideal: 'user' } },
+    })
+
+    await act(async () => video?.dispatchEvent(new Event('loadeddata')))
+    expect(surface?.dataset.headlinerCameraStatus).toBe('live')
+    expect(container.textContent).not.toContain('Camera not started')
     expect(onCanvasReady).toHaveBeenCalledWith(null)
     expect(onLiveFps).toHaveBeenCalledWith(0)
-    expect(container.querySelector('video')).toBeNull()
     expect(container.querySelector('canvas')).toBeNull()
+
+    await act(async () => root.unmount())
+    expect(track.stop).toHaveBeenCalledTimes(1)
+    root = createRoot(container)
+  })
+
+  it('shows a contained permission-denied state instead of a fake active camera', async () => {
+    installHeadlinerCamera(new DOMException('denied', 'NotAllowedError'))
+
+    await act(async () => root.render(<HeadlinerSurface />))
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const surface = container.querySelector<HTMLElement>('[data-headliner-surface="camera"]')
+    expect(surface?.dataset.headlinerCameraStatus).toBe('error')
+    expect(container.textContent).toContain('Camera permission denied')
+    expect(container.textContent).toContain('Camera permission was denied')
   })
 
   it('keeps unfinished Presets, Design, and Output surfaces restrained and Headliner-specific', async () => {
