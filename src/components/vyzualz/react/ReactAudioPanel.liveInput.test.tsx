@@ -64,11 +64,24 @@ describe('ReactAudioPanel Live Input analysis', () => {
       },
       rhythm: {
         ...DEFAULT_MI_FRAME.rhythm,
+        bpm: 128,
+        bpmConfidence: 0.82,
+        bpmSource: 'live_analysis',
+        beatHit: true,
+        beatIndex: 7,
+        beatEventId: 7,
+        beatEventTimeSec: 3.75,
         transient: 0.75,
         kickHit: true,
         kickStrength: 0.9,
         snareHit: true,
         snareStrength: 0.8,
+      },
+      capabilities: {
+        ...DEFAULT_MI_FRAME.capabilities!,
+        liveBands: true,
+        rhythmEvents: true,
+        beatGrid: true,
       },
       energy: {
         ...DEFAULT_MI_FRAME.energy,
@@ -91,6 +104,10 @@ describe('ReactAudioPanel Live Input analysis', () => {
     expect(host.textContent).toContain('Live Input')
     expect(host.textContent).toContain('Capture')
     expect(host.textContent).toContain('LIVE')
+    expect(host.textContent).toContain('BPM')
+    expect(host.textContent).toContain('128.0')
+    expect(host.textContent).toContain('82%')
+    expect(host.textContent).toContain('LOCKED')
     expect(rowValue('Volume')).toBe('0.72')
     expect(rowValue('Bass')).toBe('0.61')
     expect(rowValue('Mids')).toBe('0.50')
@@ -102,7 +119,9 @@ describe('ReactAudioPanel Live Input analysis', () => {
     expect(rowValue('Snare')).toBe('0.80')
     expect(host.textContent).toContain('Kick events1')
     expect(host.textContent).toContain('Snare events1')
-    expect(host.textContent).not.toContain('BPM')
+    const beatDotItem = Array.from(host.querySelectorAll<HTMLElement>('.vz-mi-dot-item'))
+      .find(element => element.querySelector('.vz-mi-dot-label')?.textContent === 'Beat')
+    expect(beatDotItem?.querySelector('.vz-mi-dot')?.className).toContain('vz-mi-dot--on')
     expect(host.textContent).not.toContain('Section')
     expect(host.textContent).not.toContain('Semantic')
   })

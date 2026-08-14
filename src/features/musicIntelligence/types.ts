@@ -27,9 +27,15 @@ export interface MIBands {
 export interface MIRhythm {
   bpm:              number   // detected or set BPM
   bpmConfidence:    number   // 0–1
+  /** Runtime BPM authority. Live Input publishes 'live_analysis'. */
+  bpmSource?:        'offline_analysis' | 'live_analysis' | 'manual_override' | 'rekordbox' | null
   beatPhase:        number   // 0–1 within current beat
   beatHit:          boolean  // true on beat boundary this frame
   beatIndex:        number   // monotonically increasing beat count
+  /** Stable identity for the beat impulse on this frame; null between beats. */
+  beatEventId?:      number | null
+  /** Predicted/observed beat-boundary timestamp for beatHit, in source-clock seconds. */
+  beatEventTimeSec?: number | null
   beatInBar:        number   // 0–3 (for 4/4 time)
   barIndex:         number   // monotonically increasing bar count
   downbeatHit:      boolean  // beatHit && beatInBar === 0

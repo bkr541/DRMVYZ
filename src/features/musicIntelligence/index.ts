@@ -71,6 +71,9 @@ export { RhythmAnalyzer } from './rhythmAnalysis'
 export type { BeatGridState } from './beatGrid'
 export { BeatGrid } from './beatGrid'
 
+export type { LiveTempoDiagnostics, LiveTempoInput, LiveTempoState } from './liveTempoAnalysis'
+export { LIVE_TEMPO_TUNING, LiveTempoAnalyzer } from './liveTempoAnalysis'
+
 export type { MeydaFeatureSnapshot, EnergyAnalysisResult } from './energyAnalysis'
 export { EnergyAnalyzer } from './energyAnalysis'
 

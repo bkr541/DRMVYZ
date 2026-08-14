@@ -10,6 +10,7 @@ import { DEFAULT_MI_FRAME } from './constants'
 import { buildBeatMarkers } from './offlineTrackAnalyzer'
 import { MultiBandAnalyzer } from './bandAnalysis'
 import { RhythmAnalyzer } from './rhythmAnalysis'
+import { LiveTempoAnalyzer } from './liveTempoAnalysis'
 import { BeatGrid } from './beatGrid'
 import { EnergyAnalyzer, type MeydaFeatureSnapshot } from './energyAnalysis'
 import { HarmonicAnalyzer } from './harmonicAnalysis'
@@ -109,6 +110,7 @@ export class MusicIntelligenceEngine {
   // ── Layer modules ──────────────────────────────────────────────────────────
   private readonly bandAnalyzer    = new MultiBandAnalyzer()
   private readonly rhythmAnalyzer  = new RhythmAnalyzer()
+  private readonly liveTempoAnalyzer = new LiveTempoAnalyzer()
   private readonly beatGrid        = new BeatGrid()
   private readonly energyAnalyzer  = new EnergyAnalyzer()
   private readonly harmonicAnalyzer = new HarmonicAnalyzer()
@@ -132,6 +134,7 @@ export class MusicIntelligenceEngine {
 
   private resetRhythmRuntimeState(): void {
     this.rhythmAnalyzer.reset()
+    this.liveTempoAnalyzer.reset()
     this.lastAnalyserAudioTime = null
     this.lastAnalyserSourceId = null
     this.lastAnalyserTrackId = null
@@ -161,6 +164,7 @@ export class MusicIntelligenceEngine {
       // seek/skip hits. Drum/onset detectors are stateful and must discard their
       // EMA/cooldown history across discontinuous transport positions.
       this.rhythmAnalyzer.reset()
+      this.liveTempoAnalyzer.reset()
     }
   }
 
@@ -661,11 +665,32 @@ export class MusicIntelligenceEngine {
     )
 
     if (input.analysisMode === 'live-input') {
-      // Stage 2 intentionally publishes only low-level realtime signal features.
-      // BPM/beat phase belongs to Stage 3, while section/build/drop/phrase inference
-      // is explicitly excluded for Live Input. Keeping these fields neutral also
-      // avoids spending CPU on harmonic/semantic/lyric work that live consumers do
-      // not need.
+      // Live Input reuses the canonical onset detector above, then layers a bounded
+      // streaming tempo/beat clock over those events. Structural semantics remain
+      // intentionally neutral: realtime BPM is not evidence of bars, downbeats,
+      // phrases, builds, drops, or sections.
+      const spectralOnset = isPlaying
+        && rhythmResult.spectralFlux > Math.max(0.002, rhythmResult.adaptiveThreshold)
+      const onsetHit = spectralOnset
+        || rhythmResult.kickHit
+        || rhythmResult.snareHit
+        || rhythmResult.hatHit
+      const spectralOnsetStrength = spectralOnset
+        ? Math.min(1, rhythmResult.spectralFlux / Math.max(0.002, rhythmResult.adaptiveThreshold) - 1)
+        : 0
+      const tempoState = this.liveTempoAnalyzer.update({
+        audioTime,
+        isPlaying,
+        onsetHit,
+        onsetStrength: Math.max(
+          rhythmResult.transient,
+          rhythmResult.transientConfidence,
+          rhythmResult.kickStrength,
+          rhythmResult.snareStrength,
+          rhythmResult.hatStrength,
+          spectralOnsetStrength,
+        ),
+      })
       const frame: MusicIntelligenceFrame = {
         timeSec: audioTime,
         frameId: this.frameId,
@@ -675,6 +700,14 @@ export class MusicIntelligenceEngine {
         bands: bandResult.bands,
         rhythm: {
           ...DEFAULT_MI_FRAME.rhythm,
+          bpm: tempoState.bpm,
+          bpmConfidence: tempoState.bpmConfidence,
+          bpmSource: 'live_analysis',
+          beatPhase: tempoState.beatPhase,
+          beatHit: tempoState.beatHit,
+          beatIndex: tempoState.beatIndex,
+          beatEventId: tempoState.beatEventId,
+          beatEventTimeSec: tempoState.beatEventTimeSec,
           kickHit: rhythmResult.kickHit,
           kickStrength: rhythmResult.kickStrength,
           snareHit: rhythmResult.snareHit,
@@ -711,7 +744,7 @@ export class MusicIntelligenceEngine {
         capabilities: {
           liveBands: true,
           rhythmEvents: true,
-          beatGrid: false,
+          beatGrid: tempoState.beatAvailable,
           sections: false,
           trackEnergyCurve: false,
           stemCurves: false,
@@ -731,8 +764,8 @@ export class MusicIntelligenceEngine {
           timeDomainData: timeBuf,
         },
         confidence: {
-          overall: Math.max(bandResult.bands.volume, rhythmResult.transientConfidence),
-          rhythm: rhythmResult.transientConfidence,
+          overall: Math.max(bandResult.bands.volume, rhythmResult.transientConfidence, tempoState.bpmConfidence),
+          rhythm: Math.max(rhythmResult.transientConfidence, tempoState.bpmConfidence),
           harmonic: 0,
           section: 0,
         },

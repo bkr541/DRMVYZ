@@ -40,9 +40,13 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false }: M
   // Analysis surface observes the bus without analyser-rate React renders.
   const liveStatusRef = useRef<HTMLSpanElement | null>(null)
   const liveFrameRef = useRef<HTMLSpanElement | null>(null)
+  const liveBpmRef = useRef<HTMLSpanElement | null>(null)
+  const liveBpmConfidenceRef = useRef<HTMLSpanElement | null>(null)
+  const liveTempoStatusRef = useRef<HTMLSpanElement | null>(null)
   const liveKickCountRef = useRef<HTMLSpanElement | null>(null)
   const liveSnareCountRef = useRef<HTMLSpanElement | null>(null)
   const liveEventDots = useRef<DotRow[]>([
+    { label: 'Beat', dotEl: null, valEl: null },
     { label: 'Transient', dotEl: null, valEl: null },
     { label: 'Kick', dotEl: null, valEl: null },
     { label: 'Snare', dotEl: null, valEl: null },
@@ -175,6 +179,15 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false }: M
         }
         if (liveStatusRef.current) liveStatusRef.current.textContent = f.frameId > 0 ? 'LIVE' : 'WAITING'
         if (liveFrameRef.current) liveFrameRef.current.textContent = String(f.frameId)
+        if (liveBpmRef.current) liveBpmRef.current.textContent = r.bpm > 0 ? r.bpm.toFixed(1) : '—'
+        if (liveBpmConfidenceRef.current) liveBpmConfidenceRef.current.textContent = `${Math.round(r.bpmConfidence * 100)}%`
+        if (liveTempoStatusRef.current) {
+          liveTempoStatusRef.current.textContent = r.bpm <= 0
+            ? 'LISTENING'
+            : f.capabilities?.beatGrid
+              ? 'LOCKED'
+              : 'LOW CONF'
+        }
         if (liveKickCountRef.current) liveKickCountRef.current.textContent = String(liveKickCount.current)
         if (liveSnareCountRef.current) liveSnareCountRef.current.textContent = String(liveSnareCount.current)
         const mids = (b.lowMid + b.mid) * 0.5
@@ -191,7 +204,7 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false }: M
           r.snareStrength,
         ]
         liveMetricBars.current.forEach((row, i) => updateBar(row, liveValues[i] ?? 0))
-        const liveEvents = [r.transient > 0.15, r.kickHit, r.snareHit]
+        const liveEvents = [r.beatHit, r.transient > 0.15, r.kickHit, r.snareHit]
         liveEventDots.current.forEach((row, i) => updateDot(row, liveEvents[i] ?? false))
       }
 
@@ -274,6 +287,14 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false }: M
               <span ref={liveStatusRef} className="vz-mi-kv-val vz-mi-kv-val--tag">WAITING</span>
               <span className="vz-mi-kv-label">Frame</span>
               <span ref={liveFrameRef} className="vz-mi-kv-val">0</span>
+            </div>
+            <div className="vz-mi-kv-row">
+              <span className="vz-mi-kv-label">BPM</span>
+              <span ref={liveBpmRef} className="vz-mi-kv-val">—</span>
+              <span className="vz-mi-kv-label">Confidence</span>
+              <span ref={liveBpmConfidenceRef} className="vz-mi-kv-val">0%</span>
+              <span className="vz-mi-kv-label">Tempo</span>
+              <span ref={liveTempoStatusRef} className="vz-mi-kv-val vz-mi-kv-val--tag">LISTENING</span>
             </div>
             {liveMetricBars.current.map(row => (
               <MiBar key={row.label} row={row} barRowRefs={barRowRefs} />

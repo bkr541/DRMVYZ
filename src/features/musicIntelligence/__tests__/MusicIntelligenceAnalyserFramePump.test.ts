@@ -216,6 +216,62 @@ describe('MusicIntelligenceAnalyserFramePump', () => {
     expect(AudioFeatureBus.getFramePublicationMeta().publisherId).toBe('audio:live-input')
   })
 
+
+  it('publishes converged Live Input BPM, confidence, and monotonic beat events through the authoritative bus path', () => {
+    const engine = new MusicIntelligenceEngine()
+    engine.setSourceId('live-input:tempo', null)
+    let value = 24
+    const getByteFrequencyData = vi.fn((buffer: Uint8Array) => buffer.fill(value))
+    const getByteTimeDomainData = vi.fn((buffer: Uint8Array) => buffer.fill(128))
+    const analyser = {
+      frequencyBinCount: 256,
+      fftSize: 512,
+      context: { sampleRate: 48_000 },
+      getByteFrequencyData,
+      getByteTimeDomainData,
+    } as unknown as AnalyserNode
+    const pump = new MusicIntelligenceAnalyserFramePump({
+      publisherId: 'audio:live-input',
+      analysisMode: 'live-input',
+      engine,
+    })
+    AudioFeatureBus.setAuthoritativeFramePublisherId('audio:live-input')
+
+    const beatEventIds: number[] = []
+    let frame = AudioFeatureBus.getFrame()
+    const frameSec = 0.02
+    const beatPeriodSec = 0.5
+    let nextPulseSec = 0.5
+    for (let audioTime = 0; audioTime <= 7 + 1e-9; audioTime += frameSec) {
+      const pulse = audioTime + frameSec * 0.5 >= nextPulseSec
+      value = pulse ? 220 : 24
+      if (pulse) nextPulseSec += beatPeriodSec
+      frame = pump.sample({ analyser, audioTime, isPlaying: true, trackIdentity: 'live-input:tempo' })
+      if (frame.rhythm.beatHit && frame.rhythm.beatEventId != null) beatEventIds.push(frame.rhythm.beatEventId)
+    }
+
+    expect(frame.rhythm.bpm).toBeCloseTo(120, 0)
+    expect(frame.rhythm.bpmConfidence).toBeGreaterThan(0.5)
+    expect(frame.rhythm.bpmSource).toBe('live_analysis')
+    expect(frame.capabilities?.beatGrid).toBe(true)
+    expect(frame.section.type).toBeNull()
+    expect(frame.semantics.buildConfidence).toBe(0)
+    expect(frame.semantics.dropConfidence).toBe(0)
+    expect(beatEventIds.length).toBeGreaterThan(3)
+    expect(new Set(beatEventIds).size).toBe(beatEventIds.length)
+    for (let index = 1; index < beatEventIds.length; index++) {
+      expect(beatEventIds[index]).toBeGreaterThan(beatEventIds[index - 1])
+    }
+    expect(AudioFeatureBus.getFramePublicationMeta().publisherId).toBe('audio:live-input')
+
+    engine.setSourceId('live-input:tempo-2', null)
+    value = 24
+    const resetFrame = pump.sample({ analyser, audioTime: 0, isPlaying: true, trackIdentity: 'live-input:tempo-2' })
+    expect(resetFrame.rhythm.bpm).toBe(0)
+    expect(resetFrame.rhythm.bpmConfidence).toBe(0)
+    expect(resetFrame.capabilities?.beatGrid).toBe(false)
+  })
+
   it('resets Live Input spectral and transient history on a new capture session', () => {
     const engine = new MusicIntelligenceEngine()
     const timeDomainData = new Uint8Array(512).fill(128) as Uint8Array<ArrayBuffer>

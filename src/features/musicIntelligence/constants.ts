@@ -24,9 +24,12 @@ export const DEFAULT_MI_FRAME: MusicIntelligenceFrame = {
   rhythm: {
     bpm:              0,
     bpmConfidence:    0,
+    bpmSource:        null,
     beatPhase:        0,
     beatHit:          false,
     beatIndex:        0,
+    beatEventId:      null,
+    beatEventTimeSec: null,
     beatInBar:        0,
     barIndex:         0,
     downbeatHit:      false,
