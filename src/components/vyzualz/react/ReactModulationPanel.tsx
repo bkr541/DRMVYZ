@@ -21,6 +21,8 @@ import {
 import { BEATS_PER_BAR } from './ReactTypes'
 import { TRIGGER_TIMING_EVENT_SOURCES } from './renderers/LaserDmxModulationEngine'
 import { laserDmxRouteConsumesCurve, laserDmxRouteConsumesSmoothing } from './laserDmxBeamMatrixParameterCapabilities'
+import { getUnifiedSvgPointCount, resolveSvgUiCapabilities, resolveUnifiedSvgSource } from './svgSourceLifecycle'
+import { resolveSoundDrawingControlCapabilities } from './soundDrawing/SoundDrawingControlVisibility'
 
 // ── Source / target option lists ──────────────────────────────────────────────
 
@@ -665,10 +667,15 @@ export function ReactModulationPanel() {
   const {
     activeReactEngineId,
     oscillatorSettings, setOscillatorSettings,
+    oscillatorGlyphAssets, oscillatorGlyphPointCache,
+    soundDrawingPerformanceSettings,
   } = useReactStore(useShallow(s => ({
     activeReactEngineId:   s.activeReactEngineId,
     oscillatorSettings:    s.oscillatorSettings,
     setOscillatorSettings: s.setOscillatorSettings,
+    oscillatorGlyphAssets: s.oscillatorGlyphAssets,
+    oscillatorGlyphPointCache: s.oscillatorGlyphPointCache,
+    soundDrawingPerformanceSettings: s.soundDrawingPerformanceSettings,
   })))
 
   const osc = oscillatorSettings
@@ -677,6 +684,14 @@ export function ReactModulationPanel() {
   const isSoundDrawing = activeReactEngineId === 'oscilloscope'
   const isCinematic    = activeReactEngineId === 'cinematicPortal'
   const isLaserDmx     = activeReactEngineId === 'laserDmx'
+  const svgPointCount = getUnifiedSvgPointCount(osc, oscillatorGlyphAssets, oscillatorGlyphPointCache)
+  const svgCapabilities = resolveSvgUiCapabilities(osc, svgPointCount)
+  const isSvgOriginalArtwork = svgCapabilities.isOriginalArtwork && resolveUnifiedSvgSource(osc)?.mediaId != null
+  const soundDrawingCapabilities = resolveSoundDrawingControlCapabilities({
+    oscillator: osc,
+    performanceSettings: soundDrawingPerformanceSettings,
+    isSvgOriginalArtwork,
+  })
 
   // ── Shader: delegate to ConnectedShaderModulationPanel ───────────────────
   if (activeReactEngineId === 'shaderPads') {
@@ -706,130 +721,166 @@ export function ReactModulationPanel() {
     )
   }
 
-  // ── Oscilloscope: full per-frequency routing ──────────────────────────────
+  // ── Oscilloscope: only controls consumed by the active runtime branch ───────
+  const showAudioReactivity =
+    soundDrawingCapabilities.audioDisplaceMode || soundDrawingCapabilities.audioDisplacement
+  const showFrequencyResponse =
+    soundDrawingCapabilities.bassScale ||
+    soundDrawingCapabilities.midTwist ||
+    soundDrawingCapabilities.altTwist ||
+    soundDrawingCapabilities.highJitter ||
+    soundDrawingCapabilities.beatBloom
+  const showTextControls =
+    soundDrawingCapabilities.textLetterMotion || soundDrawingCapabilities.textWaveformMode
+
+  if (!showAudioReactivity && !showFrequencyResponse && !showTextControls) return null
+
   return (
     <div className="rv-ctrl-group">
-      <DualRailCollapsible label="Audio Reactivity" defaultOpen>
-        <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
-          <div className="rv-ctrl-row">
-            <Dropdown
-              id="sound-drawing-displace-mode"
-              label="Displace Mode"
-              menuLabel="Displace Modes"
-              value={osc.audioDisplaceMode}
-              onChange={v => set({ audioDisplaceMode: v as OscillatorAudioDisplaceMode })}
-              options={SOUND_DRAWING_DISPLACE_MODE_OPTIONS}
-              size="compact"
-            />
-          </div>
-          <HelpInfoTrigger
-            helpId="react.soundDrawing.audioReactivity.displaceMode"
-            currentValue={getSoundDrawingDisplaceModeLabel(osc.audioDisplaceMode)}
-            placement="left"
-          />
-        </div>
-        <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
-          <SliderRow label="Displacement" value={osc.audioDisplacement} onChange={v => set({ audioDisplacement: v })} color="#4ac7db" />
-          <HelpInfoTrigger
-            helpId="react.soundDrawing.audioReactivity.displacement"
-            currentValue={formatSoundDrawingPercent(osc.audioDisplacement)}
-            placement="left"
-          />
-        </div>
-      </DualRailCollapsible>
-
-      {osc.sourceType === 'text' && (
-        <>
-          <DualRailCollapsible label="Text Letter Motion" defaultOpen>
-            <SelectRow
-              label="Letter Reaction"
-              value={osc.textLetterReactionMode}
-              onChange={v => set({ textLetterReactionMode: v as OscillatorTextLetterReactionMode })}
-              options={[
-                { value: 'uniform',        label: 'Uniform'         },
-                { value: 'alternating',    label: 'Alternating'     },
-                { value: 'frequencySplit', label: 'Frequency Split' },
-                { value: 'ripple',         label: 'Ripple'          },
-                { value: 'custom',         label: 'Custom'          },
-              ]}
-            />
-            {osc.textLetterReactionMode === 'custom' && (
-              <LetterAssignmentEditor
-                text={osc.text}
-                assignments={osc.textLetterAssignments}
-                onChange={next => set({ textLetterAssignments: next })}
+      {showAudioReactivity && (
+        <DualRailCollapsible label="Audio Reactivity" defaultOpen>
+          {soundDrawingCapabilities.audioDisplaceMode && (
+            <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
+              <div className="rv-ctrl-row">
+                <Dropdown
+                  id="sound-drawing-displace-mode"
+                  label="Displace Mode"
+                  menuLabel="Displace Modes"
+                  value={osc.audioDisplaceMode}
+                  onChange={v => set({ audioDisplaceMode: v as OscillatorAudioDisplaceMode })}
+                  options={SOUND_DRAWING_DISPLACE_MODE_OPTIONS}
+                  size="compact"
+                />
+              </div>
+              <HelpInfoTrigger
+                helpId="react.soundDrawing.audioReactivity.displaceMode"
+                currentValue={getSoundDrawingDisplaceModeLabel(osc.audioDisplaceMode)}
+                placement="left"
               />
-            )}
-          </DualRailCollapsible>
-          <DualRailCollapsible label="Text Waveform Distortion" defaultOpen>
-            <SelectRow
-              label="Text Wave"
-              value={osc.textWaveformMode}
-              onChange={v => set({ textWaveformMode: v as import('./ReactTypes').OscillatorTextWaveformMode })}
-              options={[
-                { value: 'off',     label: 'Off'     },
-                { value: 'normal',  label: 'Normal'  },
-                { value: 'radial',  label: 'Radial'  },
-                { value: 'tangent', label: 'Tangent' },
-                { value: 'xy',      label: 'XY'      },
-              ]}
-            />
-            <SliderRow label="Text Wave Amount" value={osc.textWaveformAmount} onChange={v => set({ textWaveformAmount: v })} min={0} max={0.30} step={0.005} color="#4ac7db" />
-            <SliderRow label="Text Wave Cycles" value={osc.textWaveformCycles} onChange={v => set({ textWaveformCycles: v })} min={1} max={16} step={1} color="#61d6aa" />
-            <SliderRow label="Text Wave Scroll" value={osc.textWaveformScroll} onChange={v => set({ textWaveformScroll: v })} min={0} max={2} step={0.01} color="#b84fc9" />
-          </DualRailCollapsible>
-        </>
+            </div>
+          )}
+          {soundDrawingCapabilities.audioDisplacement && (
+            <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
+              <SliderRow label="Displacement" value={osc.audioDisplacement} onChange={v => set({ audioDisplacement: v })} color="#4ac7db" />
+              <HelpInfoTrigger
+                helpId="react.soundDrawing.audioReactivity.displacement"
+                currentValue={formatSoundDrawingPercent(osc.audioDisplacement)}
+                placement="left"
+              />
+            </div>
+          )}
+        </DualRailCollapsible>
       )}
 
-      <DualRailCollapsible label="Frequency Response" defaultOpen>
-        <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
-          <SliderRow label="Bass → Scale" value={osc.bassScale} onChange={v => set({ bassScale: v })} color="#d8b95a" />
-          <HelpInfoTrigger
-            helpId="react.soundDrawing.audioReactivity.bassScale"
-            currentValue={formatSoundDrawingPercent(osc.bassScale)}
-            placement="left"
+      {soundDrawingCapabilities.textLetterMotion && (
+        <DualRailCollapsible label="Text Letter Motion" defaultOpen>
+          <SelectRow
+            label="Letter Reaction"
+            value={osc.textLetterReactionMode}
+            onChange={v => set({ textLetterReactionMode: v as OscillatorTextLetterReactionMode })}
+            options={[
+              { value: 'uniform',        label: 'Uniform'         },
+              { value: 'alternating',    label: 'Alternating'     },
+              { value: 'frequencySplit', label: 'Frequency Split' },
+              { value: 'ripple',         label: 'Ripple'          },
+              { value: 'custom',         label: 'Custom'          },
+            ]}
           />
-        </div>
-        <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
-          <SliderRow label="Mid → Twist" value={osc.midTwist} onChange={v => set({ midTwist: v })} color="#61d6aa" />
-          <HelpInfoTrigger
-            helpId="react.soundDrawing.audioReactivity.midTwist"
-            currentValue={formatSoundDrawingPercent(osc.midTwist)}
-            placement="left"
+          {osc.textLetterReactionMode === 'custom' && (
+            <LetterAssignmentEditor
+              text={osc.text}
+              assignments={osc.textLetterAssignments}
+              onChange={next => set({ textLetterAssignments: next })}
+            />
+          )}
+        </DualRailCollapsible>
+      )}
+
+      {soundDrawingCapabilities.textWaveformMode && (
+        <DualRailCollapsible label="Text Waveform Distortion" defaultOpen>
+          <SelectRow
+            label="Text Wave"
+            value={osc.textWaveformMode}
+            onChange={v => set({ textWaveformMode: v as import('./ReactTypes').OscillatorTextWaveformMode })}
+            options={[
+              { value: 'off',     label: 'Off'     },
+              { value: 'normal',  label: 'Normal'  },
+              { value: 'radial',  label: 'Radial'  },
+              { value: 'tangent', label: 'Tangent' },
+              { value: 'xy',      label: 'XY'      },
+            ]}
           />
-        </div>
-        <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
-          <ToggleRow
-            label="Alternate"
-            value={osc.altTwist}
-            onChange={v => set({ altTwist: v })}
-            title="Randomly alternate twist direction on each beat"
-          />
-          <HelpInfoTrigger
-            helpId="react.soundDrawing.audioReactivity.alternate"
-            currentValue={osc.altTwist ? 'On' : 'Off'}
-            currentValueLabel="Status"
-            currentValueTone={osc.altTwist ? 'accent' : 'default'}
-            placement="left"
-          />
-        </div>
-        <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
-          <SliderRow label="High → Jitter" value={osc.highJitter} onChange={v => set({ highJitter: v })} color="#b84fc9" />
-          <HelpInfoTrigger
-            helpId="react.soundDrawing.audioReactivity.highJitter"
-            currentValue={formatSoundDrawingPercent(osc.highJitter)}
-            placement="left"
-          />
-        </div>
-        <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
-          <SliderRow label="Beat → Bloom" value={osc.beatBloom} onChange={v => set({ beatBloom: v })} color="#c0314a" />
-          <HelpInfoTrigger
-            helpId="react.soundDrawing.audioReactivity.beatBloom"
-            currentValue={formatSoundDrawingPercent(osc.beatBloom)}
-            placement="left"
-          />
-        </div>
-      </DualRailCollapsible>
+          {soundDrawingCapabilities.textWaveformDetails && (
+            <>
+              <SliderRow label="Text Wave Amount" value={osc.textWaveformAmount} onChange={v => set({ textWaveformAmount: v })} min={0} max={0.30} step={0.005} color="#4ac7db" />
+              <SliderRow label="Text Wave Cycles" value={osc.textWaveformCycles} onChange={v => set({ textWaveformCycles: v })} min={1} max={16} step={1} color="#61d6aa" />
+              <SliderRow label="Text Wave Scroll" value={osc.textWaveformScroll} onChange={v => set({ textWaveformScroll: v })} min={0} max={2} step={0.01} color="#b84fc9" />
+            </>
+          )}
+        </DualRailCollapsible>
+      )}
+
+      {showFrequencyResponse && (
+        <DualRailCollapsible label="Frequency Response" defaultOpen>
+          {soundDrawingCapabilities.bassScale && (
+            <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
+              <SliderRow label="Bass → Scale" value={osc.bassScale} onChange={v => set({ bassScale: v })} color="#d8b95a" />
+              <HelpInfoTrigger
+                helpId="react.soundDrawing.audioReactivity.bassScale"
+                currentValue={formatSoundDrawingPercent(osc.bassScale)}
+                placement="left"
+              />
+            </div>
+          )}
+          {soundDrawingCapabilities.midTwist && (
+            <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
+              <SliderRow label="Mid → Twist" value={osc.midTwist} onChange={v => set({ midTwist: v })} color="#61d6aa" />
+              <HelpInfoTrigger
+                helpId="react.soundDrawing.audioReactivity.midTwist"
+                currentValue={formatSoundDrawingPercent(osc.midTwist)}
+                placement="left"
+              />
+            </div>
+          )}
+          {soundDrawingCapabilities.altTwist && (
+            <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
+              <ToggleRow
+                label="Alternate"
+                value={osc.altTwist}
+                onChange={v => set({ altTwist: v })}
+                title="Randomly alternate twist direction on each beat"
+              />
+              <HelpInfoTrigger
+                helpId="react.soundDrawing.audioReactivity.alternate"
+                currentValue={osc.altTwist ? 'On' : 'Off'}
+                currentValueLabel="Status"
+                currentValueTone={osc.altTwist ? 'accent' : 'default'}
+                placement="left"
+              />
+            </div>
+          )}
+          {soundDrawingCapabilities.highJitter && (
+            <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
+              <SliderRow label="High → Jitter" value={osc.highJitter} onChange={v => set({ highJitter: v })} color="#b84fc9" />
+              <HelpInfoTrigger
+                helpId="react.soundDrawing.audioReactivity.highJitter"
+                currentValue={formatSoundDrawingPercent(osc.highJitter)}
+                placement="left"
+              />
+            </div>
+          )}
+          {soundDrawingCapabilities.beatBloom && (
+            <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
+              <SliderRow label="Beat → Bloom" value={osc.beatBloom} onChange={v => set({ beatBloom: v })} color="#c0314a" />
+              <HelpInfoTrigger
+                helpId="react.soundDrawing.audioReactivity.beatBloom"
+                currentValue={formatSoundDrawingPercent(osc.beatBloom)}
+                placement="left"
+              />
+            </div>
+          )}
+        </DualRailCollapsible>
+      )}
     </div>
   )
 }

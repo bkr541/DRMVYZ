@@ -210,11 +210,25 @@ describe('Sound Drawing size controls', () => {
     expect(container.querySelector('[data-help-id="react.soundDrawing.engineMode.visualSize"]')).not.toBeNull()
   }
 
-  it('shows one Visual Size control for every manual source family', async () => {
-    await expectManualVisualSizeFor({ sourceType: 'classic' })
+  it('shows Visual Size only for manual runtime branches that consume pathScale', async () => {
+    useReactStore.getState().setSoundDrawingPerformanceSettings({ autoPerformance: false })
+    useReactStore.getState().setOscillatorSettings({
+      sourceType: 'classic',
+      classicMode: 'waveform',
+      autoSectionMode: false,
+    })
+    await act(async () => root.render(<ReactEnginePanel />))
+    expect(container.textContent).not.toContain('Visual Size')
+
+    await expectManualVisualSizeFor({
+      sourceType: 'classic',
+      classicMode: 'professionalScope',
+      autoSectionMode: false,
+    })
     await expectManualVisualSizeFor({ sourceType: 'builtinShape' })
     await expectManualVisualSizeFor({ sourceType: 'text' })
     await expectManualVisualSizeFor({ sourceType: 'svg', selectedSvgId: 'test-svg', svgRenderMode: 'reactivePath' })
+    await expectManualVisualSizeFor({ sourceType: 'svg', selectedSvgId: 'test-svg', svgRenderMode: 'originalArtwork' })
   })
 
   it('replaces manual Visual Size with one composition-level Show Size whenever a show is selected', async () => {

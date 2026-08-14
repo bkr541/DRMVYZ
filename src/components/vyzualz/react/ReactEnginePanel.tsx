@@ -18,11 +18,20 @@ import { NoticeCard } from './controls/NoticeCard'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import { getSvgVisualCacheVersion, getSvgVisualEntry, subscribeSvgVisualCache } from './renderers/svgVisualCache'
-import { buildUnifiedSvgStatus, isUnifiedSvgMediaItem, resolveUnifiedSvgSource } from './svgSourceLifecycle'
+import {
+  buildUnifiedSvgStatus,
+  getUnifiedSvgPointCount,
+  isUnifiedSvgMediaItem,
+  resolveSvgUiCapabilities,
+  resolveUnifiedSvgSource,
+} from './svgSourceLifecycle'
 import {
   SOUND_DRAWING_PERFORMANCE_SHOWS,
 } from './soundDrawing/SoundDrawingPerformanceShows'
-import { shouldShowLivingRibbonControls } from './soundDrawing/SoundDrawingControlVisibility'
+import {
+  resolveSoundDrawingControlCapabilities,
+  shouldShowLivingRibbonControls,
+} from './soundDrawing/SoundDrawingControlVisibility'
 import { resolveSoundDrawingOwnership } from './soundDrawing/SoundDrawingOwnership'
 import { SoundDrawingProScopeControls } from './soundDrawing/SoundDrawingProScopeControls'
 import { SOUND_DRAWING_VISUAL_SIZE_MAX, SOUND_DRAWING_VISUAL_SIZE_MIN } from './soundDrawing/SoundDrawingVisualSize'
@@ -457,6 +466,18 @@ export function ReactEnginePanel({
   const svgMediaItems = allMediaItems.filter(isUnifiedSvgMediaItem)
   const activeSvgSource = resolveUnifiedSvgSource(osc)
   const selectedSvgMediaId = activeSvgSource?.mediaId ?? null
+  const svgPointCount = getUnifiedSvgPointCount(
+    osc,
+    oscillatorGlyphAssets,
+    oscillatorGlyphPointCache,
+  )
+  const svgCapabilities = resolveSvgUiCapabilities(osc, svgPointCount)
+  const isSvgOriginalArtwork = svgCapabilities.isOriginalArtwork && activeSvgSource?.mediaId != null
+  const soundDrawingCapabilities = resolveSoundDrawingControlCapabilities({
+    oscillator: osc,
+    performanceSettings: soundDrawingPerformanceSettings,
+    isSvgOriginalArtwork,
+  })
 
   return (
     <div className="rv-ctrl-group">
@@ -622,16 +643,18 @@ export function ReactEnginePanel({
                 step={0.01}
                 color="#9ddcff"
               />
-              <SliderRow
-                label="Show Size"
-                value={osc.pathScale}
-                onChange={(value) => set({ pathScale: value })}
-                min={SOUND_DRAWING_VISUAL_SIZE_MIN}
-                max={SOUND_DRAWING_VISUAL_SIZE_MAX}
-                step={0.01}
-                color="#4ac7db"
-                description="Scales the authored composition without replacing its generator, layers, or source identity."
-              />
+              {soundDrawingCapabilities.visualSize && (
+                <SliderRow
+                  label="Show Size"
+                  value={osc.pathScale}
+                  onChange={(value) => set({ pathScale: value })}
+                  min={SOUND_DRAWING_VISUAL_SIZE_MIN}
+                  max={SOUND_DRAWING_VISUAL_SIZE_MAX}
+                  step={0.01}
+                  color="#4ac7db"
+                  description="Scales the authored composition without replacing its generator, layers, or source identity."
+                />
+              )}
               {showLivingRibbonControls && (
                 <>
                   <DualRailCollapsible label="Living Ribbon Controls" defaultOpen>
@@ -732,16 +755,18 @@ export function ReactEnginePanel({
           {soundDrawingPerformanceSettings.selectedShowId != null && !soundDrawingPerformanceSettings.autoPerformance && (
             <>
               <CtrlSection label="Base Design" />
-              <SliderRow
-                label="Show Size"
-                value={osc.pathScale}
-                onChange={(value) => set({ pathScale: value })}
-                min={SOUND_DRAWING_VISUAL_SIZE_MIN}
-                max={SOUND_DRAWING_VISUAL_SIZE_MAX}
-                step={0.01}
-                color="#4ac7db"
-                description="Scales the selected show's stable base design. Auto Performance can be enabled separately without replacing this visual family."
-              />
+              {soundDrawingCapabilities.visualSize && (
+                <SliderRow
+                  label="Show Size"
+                  value={osc.pathScale}
+                  onChange={(value) => set({ pathScale: value })}
+                  min={SOUND_DRAWING_VISUAL_SIZE_MIN}
+                  max={SOUND_DRAWING_VISUAL_SIZE_MAX}
+                  step={0.01}
+                  color="#4ac7db"
+                  description="Scales the selected show's stable base design. Auto Performance can be enabled separately without replacing this visual family."
+                />
+              )}
               <div className="rv-ctrl-info rv-control-helper-copy">
                 {selectedSoundDrawingShow?.name ?? 'The selected Performance Show'} is active in its stable base-design state. Auto Performance is off, so section transitions and authored choreography are paused.
               </div>
@@ -787,23 +812,25 @@ export function ReactEnginePanel({
             />
           </div>
 
-          <div className="rv-sound-drawing-control-help drm-help-overlay-anchor">
-            <SliderRow
-              label="Visual Size"
-              value={osc.pathScale}
-              onChange={value => set({ pathScale: value })}
-              min={SOUND_DRAWING_VISUAL_SIZE_MIN}
-              max={SOUND_DRAWING_VISUAL_SIZE_MAX}
-              step={0.01}
-              disabled={!soundDrawingOwnership.domains.geometry.editable}
-              description={`Sets the base size for the selected manual Engine Mode. ${soundDrawingOwnership.domains.geometry.ariaDescription}`}
-            />
-            <HelpInfoTrigger
-              helpId="react.soundDrawing.engineMode.visualSize"
-              currentValue={`${osc.pathScale.toFixed(2)}×`}
-              placement="right"
-            />
-          </div>
+          {soundDrawingCapabilities.visualSize && (
+            <div className="rv-sound-drawing-control-help drm-help-overlay-anchor">
+              <SliderRow
+                label="Visual Size"
+                value={osc.pathScale}
+                onChange={value => set({ pathScale: value })}
+                min={SOUND_DRAWING_VISUAL_SIZE_MIN}
+                max={SOUND_DRAWING_VISUAL_SIZE_MAX}
+                step={0.01}
+                disabled={!soundDrawingOwnership.domains.geometry.editable}
+                description={`Sets the base size for the selected manual Engine Mode. ${soundDrawingOwnership.domains.geometry.ariaDescription}`}
+              />
+              <HelpInfoTrigger
+                helpId="react.soundDrawing.engineMode.visualSize"
+                currentValue={`${osc.pathScale.toFixed(2)}×`}
+                placement="right"
+              />
+            </div>
+          )}
 
           <fieldset
             className="rv-ctrl-fieldset-stack"
@@ -1044,11 +1071,13 @@ export function ReactEnginePanel({
                     { value: 'originalArtwork', label: 'Original Artwork' },
                   ]}
                 />
-                <ToggleRow
-                  label="React Palette"
-                  value={osc.svgUseReactPalette !== false}
-                  onChange={(v) => set({ svgUseReactPalette: v })}
-                />
+                {soundDrawingCapabilities.svgReactPalette && (
+                  <ToggleRow
+                    label="React Palette"
+                    value={osc.svgUseReactPalette !== false}
+                    onChange={(v) => set({ svgUseReactPalette: v })}
+                  />
+                )}
                 <ToggleRow
                   label="Auto Rotate"
                   value={osc.autoRotate !== false}
@@ -1064,7 +1093,7 @@ export function ReactEnginePanel({
               ))}
 
             {/* ── Source: path resolution (non-classic; hide for pure originalArtwork modes) ── */}
-            {osc.sourceType !== 'classic' && activeSvgSource?.renderMode !== 'originalArtwork' && (
+            {soundDrawingCapabilities.pathResolution && (
             <>
               <CtrlSection label="Source" />
               <SliderRow

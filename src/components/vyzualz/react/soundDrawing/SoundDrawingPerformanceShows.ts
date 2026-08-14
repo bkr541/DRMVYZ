@@ -1520,16 +1520,29 @@ export const SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID = Object.fromEntries(
   SOUND_DRAWING_PERFORMANCE_SHOWS.map((show) => [show.id, show]),
 ) as Record<SoundDrawingPerformanceShowDefinition['id'], SoundDrawingPerformanceShowDefinition>
 
+export function soundDrawingPerformanceShowGenerators(
+  showId: SoundDrawingPerformanceShowDefinition['id'],
+): readonly SoundDrawingPerformanceLayerBlueprint['generator'][] {
+  const show = SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID[showId]
+  if (!show) return []
+  const generators = new Set<SoundDrawingPerformanceLayerBlueprint['generator']>()
+  for (const candidate of show.program.scenes) {
+    for (const action of candidate.actions ?? []) {
+      if (action.type === 'scene') {
+        for (const layer of action.layers) generators.add(layer.generator)
+      } else if (action.type === 'recruitLayer') {
+        generators.add(action.layer.generator)
+      }
+    }
+  }
+  return [...generators]
+}
+
 export function soundDrawingPerformanceShowUsesGenerator(
   showId: SoundDrawingPerformanceShowDefinition['id'],
   generator: SoundDrawingPerformanceLayerBlueprint['generator'],
 ): boolean {
-  const show = SOUND_DRAWING_PERFORMANCE_SHOW_BY_ID[showId]
-  return show.program.scenes.some((candidate) =>
-    candidate.actions?.some(
-      (action) => action.type === 'scene' && action.layers.some((layer) => layer.generator === generator),
-    ),
-  )
+  return soundDrawingPerformanceShowGenerators(showId).includes(generator)
 }
 
 /** All authored scope declarations, used to size the live stereo capture window. */
