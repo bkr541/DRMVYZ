@@ -44,16 +44,17 @@ export class CinemaWorkspaceRuntimeFrameSource {
     const config = this.getConfig()
     if (this.disposed || !config) return null
     const audioTimeSec = finiteNonNegative(config.getAudioTime(), this.state?.audioTimeSec ?? 0)
+    const analysisActive = config.analysisActive ?? config.playing
     const musicIntelligence = config.analyser
       ? this.analyserPump.sample({
           analyser: config.analyser,
           audioTime: audioTimeSec,
-          isPlaying: config.playing && !config.paused,
+          isPlaying: analysisActive && !config.paused,
           trackIdentity: config.trackId,
         })
       : (config.getMusicIntelligence?.() ?? AudioFeatureBus.getFrame())
     const elapsedTimeSec = this.state
-      ? this.state.elapsedTimeSec + (config.playing && !config.paused ? sample.deltaTimeSec : 0)
+      ? this.state.elapsedTimeSec + (analysisActive && !config.paused ? sample.deltaTimeSec : 0)
       : audioTimeSec
 
     const result = buildCinemaWorkspaceFrameBridge({

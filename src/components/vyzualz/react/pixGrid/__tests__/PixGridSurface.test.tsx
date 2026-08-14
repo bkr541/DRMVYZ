@@ -3,6 +3,7 @@ import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AudioFeatureBus } from '../../../../../features/musicIntelligence/AudioFeatureBus'
+import { DEFAULT_MI_FRAME } from '../../../../../features/musicIntelligence/constants'
 import { musicIntelligenceEngine } from '../../../../../features/musicIntelligence/MusicIntelligenceEngine'
 import { DEFAULT_REACT_PRESETS } from '../../ReactTypes'
 import { resetReactLiveEngineOwnershipForTests } from '../../renderers/ReactLiveEngineOwnership'
@@ -87,6 +88,7 @@ afterEach(() => {
 
 function renderSurface({
   isPlaying,
+  analysisActive,
   isPaused = false,
   analyser = null,
   state = createDefaultPixGridState(),
@@ -98,6 +100,7 @@ function renderSurface({
   getAudioTime = vi.fn(() => 42),
 }: {
   isPlaying: boolean
+  analysisActive?: boolean
   isPaused?: boolean
   analyser?: AnalyserNode | null
   state?: PixGridState
@@ -119,6 +122,7 @@ function renderSurface({
       glow={0.5}
       bassReactivity={0.9}
       isPlaying={isPlaying}
+      analysisActive={analysisActive}
       isPaused={isPaused}
       audioTimeSec={audioTimeSec}
       trackIdentity={trackIdentity}
@@ -237,6 +241,38 @@ describe('PixGridSurface lifecycle', () => {
 
     runNextFrame(32)
     expect(fixture.getByteFrequencyData).toHaveBeenCalledTimes(2)
+    expect(rafCallbacks.size).toBe(1)
+  })
+
+  it('consumes authoritative Live Input while transport stays stopped and does not republish from PixGrid', () => {
+    const fixture = analyserFixture(240)
+    AudioFeatureBus.setAuthoritativeFramePublisherId('audio:live-input')
+    AudioFeatureBus.setFrame({
+      ...DEFAULT_MI_FRAME,
+      frameId: 41,
+      sourceId: 'live-input:41',
+      trackId: null,
+      timeSec: 42,
+      bands: { ...DEFAULT_MI_FRAME.bands, bass: 0.8, lowMid: 0.5, mid: 0.5, high: 0.4, air: 0.3, volume: 0.7 },
+      energy: { ...DEFAULT_MI_FRAME.energy, instant: 0.74, spectralFlux: 0.1 },
+      capabilities: { ...DEFAULT_MI_FRAME.capabilities!, liveBands: true, rhythmEvents: true, beatGrid: false, sections: false },
+    }, 'audio:live-input')
+
+    renderSurface({ isPlaying: false, analysisActive: true, analyser: fixture.analyser, getAudioTime: vi.fn(() => 42) })
+    runNextFrame()
+
+    const pixGridFrame = getPixGridReactivityRuntimeStatus().audioFrame
+    expect(fixture.getByteFrequencyData).not.toHaveBeenCalled()
+    expect(fixture.getByteTimeDomainData).not.toHaveBeenCalled()
+    expect(AudioFeatureBus.getFramePublicationMeta().publisherId).toBe('audio:live-input')
+    expect(pixGridFrame).toMatchObject({
+      isPlaying: true,
+      transportState: 'stopped',
+      inputSource: 'shared-bus',
+    })
+    expect(pixGridFrame?.energy).toBeGreaterThan(0)
+    expect(pixGridFrame?.sourceValues?.bass).toBeGreaterThan(0)
+    expect(pixGridFrame?.sectionType).toBeNull()
     expect(rafCallbacks.size).toBe(1)
   })
 

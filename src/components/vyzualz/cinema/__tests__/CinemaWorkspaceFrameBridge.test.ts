@@ -111,6 +111,42 @@ describe('Cinema production frame bridge', () => {
     expect(result.frame.transport.audioTimeSec).toBe(4.25)
   })
 
+  it('consumes a Live Input frame while keeping transport stopped and structural capabilities unavailable', () => {
+    const liveFrame = {
+      ...DEFAULT_MI_FRAME,
+      frameId: 21,
+      sourceId: 'live-input:21',
+      trackId: null,
+      timeSec: 4,
+      bands: { ...DEFAULT_MI_FRAME.bands, bass: 0.72, lowMid: 0.4, mid: 0.6, high: 0.5, air: 0.7, volume: 0.64 },
+      energy: { ...DEFAULT_MI_FRAME.energy, instant: 0.68, spectralFlux: 0.12 },
+      rhythm: { ...DEFAULT_MI_FRAME.rhythm, bpm: 126, bpmConfidence: 0.71, transient: 0.8, kickHit: true, kickStrength: 0.9 },
+      capabilities: { ...DEFAULT_MI_FRAME.capabilities!, liveBands: true, rhythmEvents: true, beatGrid: false, sections: false },
+    }
+    const result = buildCinemaWorkspaceFrameBridge({
+      width: 1280,
+      height: 720,
+      dpr: 1,
+      audioTimeSec: 4,
+      durationSec: null,
+      trackId: null,
+      playing: false,
+      analysisActive: true,
+      paused: false,
+      bpm: 126,
+      musicIntelligence: liveFrame,
+      authoritativeSections: [],
+    })
+
+    expect(result.frame.transport.playing).toBe(false)
+    expect(result.frame.timing.deltaTimeSec).toBeGreaterThan(0)
+    expect(result.frame.audio).toMatchObject({ available: true, bass: 0.72, energy: 0.68 })
+    expect(result.frame.capabilities).toMatchObject({ musicIntelligence: true, beatGrid: false, authoritativeSections: false, lyrics: false })
+    expect(result.frame.music.sectionId).toBeNull()
+    expect(result.frame.music.sectionType).toBeNull()
+    expect(result.timeline.sections).toEqual([])
+  })
+
   it('returns a neutral no-track snapshot instead of leaking a previous publication', () => {
     const result = buildCinemaWorkspaceFrameBridge({
       width: 1,

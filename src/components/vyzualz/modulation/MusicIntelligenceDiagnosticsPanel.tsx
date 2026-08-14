@@ -316,6 +316,11 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false }: M
               <span className="vz-mi-kv-label">Snare events</span>
               <span ref={liveSnareCountRef} className="vz-mi-kv-val">0</span>
             </div>
+            <div className="vz-mi-kv-row" data-live-input-structural-status="unavailable">
+              <span className="vz-mi-kv-label">Track structure</span>
+              <span className="vz-mi-kv-val vz-mi-kv-val--tag">UNAVAILABLE</span>
+            </div>
+            <p className="vz-mi-note">Sections, builds, drops, phrases, lyrics, and loaded-track timeline intelligence are not fabricated for Live Input.</p>
           </MiSection>
         )}
         {!liveInputActive && <>

@@ -297,6 +297,41 @@ describe('useAudioEngine Live Input lifecycle', () => {
     expect(AudioFeatureBus.getAuthoritativeFramePublisherId()).toBeNull()
   })
 
+  it('hot-shapes the canonical Live Input analysis without changing silent program output or transport state', async () => {
+    const stream = new FakeMediaStream()
+    getUserMedia.mockResolvedValue(stream as unknown as MediaStream)
+
+    await act(async () => { await engine?.setSource('microphone') })
+    const context = FakeAudioContext.instances[0]
+    const masterAnalyser = context?.analysers[0]
+    expect(masterAnalyser).toBeDefined()
+    expect(engine?.liveInputSensitivity).toBe(1)
+    expect(engine?.liveInputNoiseGate).toBe(0.02)
+
+    masterAnalyser!.frequencyDataValue = 60
+    masterAnalyser!.timeDomainDataValue = 140
+    act(() => { rafCallbacks.shift()?.(16) })
+    const baselineFrequency = AudioFeatureBus.getFrame().raw.freqData?.[0]
+
+    act(() => { engine?.setLiveInputSensitivity(2) })
+    if (context) context.currentTime += 0.02
+    act(() => { rafCallbacks.shift()?.(32) })
+    expect(engine?.liveInputSensitivity).toBe(2)
+    expect(AudioFeatureBus.getFrame().raw.freqData?.[0]).toBe((baselineFrequency ?? 0) * 2)
+
+    act(() => { engine?.setLiveInputNoiseGate(0.2) })
+    masterAnalyser!.frequencyDataValue = 220
+    masterAnalyser!.timeDomainDataValue = 129
+    if (context) context.currentTime += 0.02
+    act(() => { rafCallbacks.shift()?.(48) })
+    expect(engine?.liveInputNoiseGate).toBe(0.2)
+    expect(AudioFeatureBus.getFrame().raw.freqData?.[0]).toBe(0)
+    expect(AudioFeatureBus.getFrame().raw.timeDomainData?.[0]).toBe(128)
+    expect(engine?.isPlaying).toBe(false)
+    expect(engine?.analysisActive).toBe(true)
+    expect(context?.gains[2]?.gain.value).toBe(0)
+  })
+
   it('denial restores a previously playing File source and exposes a clear error instead of a false Live Input state', async () => {
     getUserMedia.mockRejectedValue(new DOMException('Permission denied', 'NotAllowedError'))
     act(() => {

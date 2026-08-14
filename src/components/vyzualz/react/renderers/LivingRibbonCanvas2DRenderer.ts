@@ -398,7 +398,7 @@ export function prepareLivingRibbonCanvasFrame(
   const state = getOwnerState(input.ownerContext)
   state.frameSequence = incrementBounded(state.frameSequence)
   if (state.autoQuality.mode !== input.mode) Object.assign(state.autoQuality, createAutoQualityState(input.mode))
-  const autoResolved = input.quality === 'auto' && input.frame.isPlaying !== false
+  const autoResolved = input.quality === 'auto' && (input.frame.analysisActive ?? input.frame.isPlaying) !== false
     ? updateAutoQualityState(state.autoQuality, input.mode, input.frame.deltaTimeSec ?? DEFAULT_FRAME_DELTA_SEC)
     : state.autoQuality.resolved
   const qualityBudget = resolveLivingRibbonCanvasQualityBudget(
@@ -539,7 +539,7 @@ export function prepareLivingRibbonCanvasFrame(
     if (!activeKeys.has(key)) state.failures.delete(key)
   }
 
-  if (input.frame.isPlaying === false) {
+  if ((input.frame.analysisActive ?? input.frame.isPlaying) === false) {
     pauseLivingRibbonCanvasRuntimes(input.ownerContext)
   } else if (wasPaused) {
     resumeLivingRibbonCanvasRuntimes(input.ownerContext)
@@ -592,7 +592,7 @@ export function renderLivingRibbonCanvasLayer(
   let recoveryAttempted = false
   try {
     const finiteRepairsBefore = record.simulation.getDiagnostics().finiteRepairCount
-    if (input.frame.isPlaying !== false && !state.paused) {
+    if ((input.frame.analysisActive ?? input.frame.isPlaying) !== false && !state.paused) {
       applyPhysicalImpulses(record, input.layer)
       const deltaTimeSec = finiteNumber(input.frame.deltaTimeSec, DEFAULT_FRAME_DELTA_SEC)
       record.simulation.update({ deltaTimeSec: Math.max(0, deltaTimeSec) })

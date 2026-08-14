@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AudioFeatureBus } from '../AudioFeatureBus'
-import { MusicIntelligenceAnalyserFramePump } from '../MusicIntelligenceAnalyserFramePump'
+import { MusicIntelligenceAnalyserFramePump, shapeLiveInputAnalysisBuffers } from '../MusicIntelligenceAnalyserFramePump'
 import { MusicIntelligenceEngine } from '../MusicIntelligenceEngine'
 
 function analyserFixture(options: { frequencyBinCount?: number; fftSize?: number; value?: number } = {}) {
@@ -21,6 +21,20 @@ function analyserFixture(options: { frequencyBinCount?: number; fftSize?: number
 }
 
 describe('MusicIntelligenceAnalyserFramePump', () => {
+  it('shapes Live Input analysis buffers without touching the audio graph', () => {
+    const quietFrequency = new Uint8Array([20, 100, 200])
+    const quietWaveform = new Uint8Array([128, 129, 127, 128])
+    shapeLiveInputAnalysisBuffers(quietFrequency, quietWaveform, 2, 0.02)
+    expect([...quietFrequency]).toEqual([0, 0, 0])
+    expect([...quietWaveform]).toEqual([128, 128, 128, 128])
+
+    const frequency = new Uint8Array([40, 80])
+    const waveform = new Uint8Array([138, 118])
+    shapeLiveInputAnalysisBuffers(frequency, waveform, 2, 0)
+    expect([...frequency]).toEqual([80, 160])
+    expect([...waveform]).toEqual([148, 108])
+  })
+
   beforeEach(() => {
     AudioFeatureBus.setAuthoritativeFramePublisherId(null)
     AudioFeatureBus.reset()

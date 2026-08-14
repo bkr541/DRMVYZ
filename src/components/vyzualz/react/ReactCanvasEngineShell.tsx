@@ -1455,6 +1455,7 @@ function getCanvasMediaLoadErrorMessage(item: CanvasMediaItem): string {
 
 export function CanvasEngineSurface({
   isPlaying,
+  analysisActive = isPlaying,
   isPaused,
   analyser,
   trackAnalysis = null,
@@ -1470,6 +1471,8 @@ export function CanvasEngineSurface({
   showRuntimeStatus = true,
 }: {
   isPlaying: boolean
+  /** Shared analyser activity. Live Input can be reactive while file transport is stopped. */
+  analysisActive?: boolean
   isPaused: boolean
   analyser?: AnalyserNode | null
   trackAnalysis?: TrackIntelligenceAnalysis | null
@@ -1485,6 +1488,8 @@ export function CanvasEngineSurface({
   previewSelectedElementId?: string | null
   showRuntimeStatus?: boolean
 }) {
+  const reactivityActive = analysisActive && !isPaused
+  const liveInputAnalysisOnly = analysisActive && !isPlaying
   const settings = useReactStore(s => s.canvasEngineSettings)
   const activeBrandKit = useBrandKitStore(s => s.activeKit)
   const orchestrationSettings = useReactStore(s => s.canvasOrchestrationSettings)
@@ -1856,7 +1861,15 @@ export function CanvasEngineSurface({
       let beat = 0
       const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
       const now = nowMs / 1000
-      if (analyser && frequencyData && isPlaying && !isPaused) {
+      if (liveInputAnalysisOnly) {
+        const liveFrame = AudioFeatureBus.getFrame()
+        if (liveFrame.frameId > 0) {
+          bass = liveFrame.bands.bass
+          high = (liveFrame.bands.high + liveFrame.bands.air) * 0.5
+          beat = Math.max(liveFrame.rhythm.kickStrength, liveFrame.rhythm.transient)
+          previousBass = bass
+        }
+      } else if (analyser && frequencyData && reactivityActive) {
         analyser.getByteFrequencyData(frequencyData)
         bass = averageByteRange(frequencyData, 0, 0.16)
         high = averageByteRange(frequencyData, 0.62, 1)
@@ -2003,7 +2016,7 @@ export function CanvasEngineSurface({
       window.cancelAnimationFrame(frameId)
       onLiveFps?.(0)
     }
-  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, onLiveFps, orchestrationRenderable, outputContract, particleReconstructionActive, particleSourceRef, settings])
+  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, onLiveFps, orchestrationRenderable, outputContract, particleReconstructionActive, particleSourceRef, reactivityActive, settings])
 
   useEffect(() => {
     setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
@@ -2044,23 +2057,25 @@ export function CanvasEngineSurface({
         timeDomainData = new Uint8Array(timeSize) as Uint8Array<ArrayBuffer>
       }
 
-      analyser.getByteFrequencyData(frequencyData)
-      analyser.getByteTimeDomainData(timeDomainData)
-      musicIntelligenceEngine.updateFromAudioFrame({
-        freqBuf: frequencyData,
-        timeBuf: timeDomainData,
-        sampleRate: analyser.context.sampleRate,
-        audioTime: resolveCanvasAudioTime(getAudioTimeRef.current),
-        isPlaying: isPlaying && !isPaused,
-        publisherId: 'react:canvas',
-      })
+      if (AudioFeatureBus.canPublishFrame('react:canvas')) {
+        analyser.getByteFrequencyData(frequencyData)
+        analyser.getByteTimeDomainData(timeDomainData)
+        musicIntelligenceEngine.updateFromAudioFrame({
+          freqBuf: frequencyData,
+          timeBuf: timeDomainData,
+          sampleRate: analyser.context.sampleRate,
+          audioTime: resolveCanvasAudioTime(getAudioTimeRef.current),
+          isPlaying: reactivityActive,
+          publisherId: 'react:canvas',
+        })
+      }
 
       frameId = window.requestAnimationFrame(tick)
     }
 
     tick()
     return () => window.cancelAnimationFrame(frameId)
-  }, [analyser, isPaused, isPlaying])
+  }, [analyser, reactivityActive])
 
   useEffect(() => {
     if (!settings.autoSelectEnabled) return
@@ -2261,7 +2276,15 @@ export function CanvasEngineSurface({
       let high = 0.12 + Math.sin(now * 2.1) * 0.03
       let beat = 0
 
-      if (analyser && frequencyData && isPlaying && !isPaused) {
+      if (liveInputAnalysisOnly) {
+        const liveFrame = AudioFeatureBus.getFrame()
+        if (liveFrame.frameId > 0) {
+          bass = liveFrame.bands.bass
+          high = (liveFrame.bands.high + liveFrame.bands.air) * 0.5
+          beat = Math.max(liveFrame.rhythm.kickStrength, liveFrame.rhythm.transient)
+          previousBass = bass
+        }
+      } else if (analyser && frequencyData && reactivityActive) {
         analyser.getByteFrequencyData(frequencyData)
         bass = averageByteRange(frequencyData, 0, 0.16)
         high = averageByteRange(frequencyData, 0.62, 1)
@@ -2300,7 +2323,7 @@ export function CanvasEngineSurface({
 
     tick()
     return () => window.cancelAnimationFrame(frameId)
-  }, [analyser, canvasPresetSettings, isPaused, isPlaying, selectedCanvasPresetId])
+  }, [analyser, canvasPresetSettings, liveInputAnalysisOnly, reactivityActive, selectedCanvasPresetId])
 
   useEffect(() => {
     if (canvasPresetSettings.stutterRate <= 0.2 || !activeVideo || !isPlaying || isPaused || activeMediaLoadError) return
@@ -2473,9 +2496,9 @@ export function CanvasEngineSurface({
             positionY: settings.positionY,
             rotation: settings.rotation,
           }}
-          analyser={analyser}
+          analyser={liveInputAnalysisOnly ? null : analyser}
           performanceContextRef={particlePerformanceContextRef}
-          isPlaying={isPlaying}
+          isPlaying={reactivityActive}
           isPaused={isPaused}
           onCanvasReady={handleParticleCanvasReady}
           onStatusChange={setParticleRendererNotice}
@@ -2494,9 +2517,9 @@ export function CanvasEngineSurface({
               positionY: settings.positionY,
               rotation: settings.rotation,
             }}
-            analyser={analyser}
+            analyser={liveInputAnalysisOnly ? null : analyser}
             performanceContextRef={particlePerformanceContextRef}
-            isPlaying={isPlaying}
+            isPlaying={reactivityActive}
             isPaused={isPaused}
             onCanvasReady={handleLaserImageFxCanvasReady}
             onStatusChange={setLaserImageFxRendererNotice}
@@ -2515,9 +2538,10 @@ export function CanvasEngineSurface({
             trackAnalysis={trackAnalysis}
             trackSections={trackSections}
             getAudioTime={getAudioTime}
-            analyser={analyser}
+            analyser={liveInputAnalysisOnly ? null : analyser}
             performanceContextRef={particlePerformanceContextRef}
             isPlaying={isPlaying}
+            analysisActive={analysisActive}
             isPaused={isPaused}
             fitMode={settings.fitMode}
             sourceTransform={{

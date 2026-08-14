@@ -105,6 +105,8 @@ export interface PixGridSurfaceProps {
   glow: number
   bassReactivity: number
   isPlaying: boolean
+  /** Shared analyser activity. Live Input can be reactive while transport is stopped. */
+  analysisActive?: boolean
   isPaused?: boolean
   trackSections?: readonly ReactTrackSection[]
   trackAnalysis?: TrackIntelligenceAnalysis | null
@@ -721,10 +723,12 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         previousTransportState = transportState
       }
       const shouldAnimate = transportState === 'playing'
+      const reactivityActive = (current.analysisActive ?? current.isPlaying) && current.isPaused !== true
+      const clockActive = shouldAnimate || reactivityActive
       const propAudioTime = Number.isFinite(current.audioTimeSec)
         ? Math.max(0, current.audioTimeSec as number)
         : lastAudioTime
-      const shouldReadLivePlayhead = shouldAnimate || (force && current.isPaused === true)
+      const shouldReadLivePlayhead = clockActive || (force && current.isPaused === true)
       const sampledAudioTime = shouldReadLivePlayhead ? current.getAudioTime() : propAudioTime
       const audioTime = Number.isFinite(sampledAudioTime) ? Math.max(0, sampledAudioTime) : propAudioTime
       const trackIdentity = current.trackIdentity ?? null
@@ -751,7 +755,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       const wallDeltaSec = Math.max(0, (transportSampleAtMs - lastTransportSampleAtMs) / 1_000)
       const audioDeltaSec = audioTime - lastAudioTime
       const hasPreviousTransportSample = previousPerformanceContext != null
-      const expectedAdvanceSec = shouldAnimate ? wallDeltaSec : 0
+      const expectedAdvanceSec = clockActive ? wallDeltaSec : 0
       const movedBackward = hasPreviousTransportSample && audioDeltaSec < -0.05
       const forwardSeek = hasPreviousTransportSample && (
         shouldAnimate
@@ -759,7 +763,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           : audioDeltaSec > 0.02
       )
       const pausedOrStoppedSeek = hasPreviousTransportSample
-        && !shouldAnimate
+        && !clockActive
         && Math.abs(audioDeltaSec) > 0.02
       const durationSec = Math.max(0, current.durationSec ?? 0)
       const loopWrap = movedBackward
@@ -780,29 +784,30 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       }
       lastTransportSampleAtMs = transportSampleAtMs
 
-      const busPublication = current.analyser ? null : AudioFeatureBus.getFramePublicationMeta()
+      const busPublication = AudioFeatureBus.getFramePublicationMeta()
+      const rendererCanPublishAnalyser = Boolean(current.analyser && AudioFeatureBus.canPublishFrame('react:pixGrid'))
       const intelligenceFrame = current.analyser
         ? analyserFramePump.sample({
             analyser: current.analyser,
             audioTime,
-            isPlaying: shouldAnimate,
+            isPlaying: reactivityActive,
             trackIdentity,
           })
         : resolvePixGridBusMusicIntelligenceFrame({
             frame: AudioFeatureBus.getFrame(),
-            publication: busPublication!,
+            publication: busPublication,
             audioTimeSec: audioTime,
             trackIdentity,
           })
       const publicationAgeMs = busPublication?.publishedAtMs
         ? Math.max(0, globalThis.performance.now() - busPublication.publishedAtMs)
         : null
-      const usingFreshBusFrame = !current.analyser
-        && busPublication?.kind === 'frame'
+      const usingFreshBusFrame = !rendererCanPublishAnalyser
+        && busPublication.kind === 'frame'
         && publicationAgeMs != null
         && publicationAgeMs <= 250
         && intelligenceFrame.frameId > 0
-      const deltaTimeSec = shouldAnimate ? Math.max(0, Math.min(0.25, audioTime - lastAudioTime)) : 0
+      const deltaTimeSec = reactivityActive ? Math.max(0, Math.min(0.25, audioTime - lastAudioTime)) : 0
       const priorPerformanceContext = previousPerformanceContext
       const context = buildSharedPerformanceContext({
         audioTimeSec: audioTime,
@@ -819,12 +824,12 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       previousPerformanceContext = context
       lastAudioTime = audioTime
       const baseLiveAudioFrame = createPixGridAudioFrame(context, {
-        isPlaying: shouldAnimate,
+        isPlaying: reactivityActive,
         deltaTimeSec,
         autoPerformanceEnabled: current.pixGridState.performance.enabled,
       })
       const liveAudioFrame = baseLiveAudioFrame
-      const authoredAudioFrameBase = transportState === 'stopped'
+      const authoredAudioFrameBase = transportState === 'stopped' && !reactivityActive
         ? createSilentPixGridAudioFrame({
             audioTime,
             deltaTimeSec: 0,
@@ -848,7 +853,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         : liveAudioFrame
       const authoredAudioFrame: PixGridAudioFrame = {
         ...authoredAudioFrameBase,
-        stableInspectionFrame: transportState !== 'playing',
+        stableInspectionFrame: !reactivityActive,
       }
       const confidenceValues = Object.entries(authoredAudioFrame.confidence ?? {})
         .filter(([, value]) => typeof value === 'number')
@@ -858,7 +863,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         || (authoredAudioFrame.energy ?? 0) > 0.001
         || (authoredAudioFrame.spectralFlux ?? 0) > 0.001
       )
-      const inputSource: NonNullable<PixGridAudioFrame['inputSource']> = current.analyser
+      const inputSource: NonNullable<PixGridAudioFrame['inputSource']> = rendererCanPublishAnalyser
         ? 'analyser'
         : usingFreshBusFrame
           ? 'shared-bus'
@@ -943,7 +948,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
             height: state.matrixHeight,
           })
         : null
-      latestRuntimeDiagnostics = transportState === 'stopped'
+      latestRuntimeDiagnostics = transportState === 'stopped' && !reactivityActive
         ? {
             ...resolvedRuntime.diagnostics,
             activeAssignmentCount: 0,
@@ -1033,7 +1038,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         deckFrameSource: deckRuntimeResolution?.source ?? null,
         deckRuntimeStatus: deckRuntimeResolution?.status ?? null,
         deckRuntimeDiagnostic: deckRuntimeResolution?.diagnostic ?? null,
-        blackout: !current.isPlaying && !current.isPaused && state.stoppedBehavior === 'blackout',
+        blackout: !(current.analysisActive ?? current.isPlaying) && !current.isPaused && state.stoppedBehavior === 'blackout',
         frame: {
           width: activePath === 'webgl2' ? gpuCanvas.width : fallbackCanvas.width,
           height: activePath === 'webgl2' ? gpuCanvas.height : fallbackCanvas.height,
@@ -1290,14 +1295,15 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
 
       frameCount += 1
       const elapsed = now - fpsWindowStarted
+      const frameReactivityActive = (current.analysisActive ?? current.isPlaying) && !current.isPaused
       if (elapsed >= 1000) {
-        lastFps = current.isPlaying && !current.isPaused
+        lastFps = frameReactivityActive
           ? Math.round((frameCount * 1000) / elapsed)
           : 0
         fpsReporter.report(lastFps)
         frameCount = 0
         fpsWindowStarted = now
-        if (current.isPlaying && !current.isPaused) {
+        if (frameReactivityActive) {
           const previousProfile = adaptiveProfileRef.current
           const nextProfile = adaptiveControllerRef.current.sample({
             fps: lastFps,
@@ -1317,7 +1323,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         }
         publishDiagnostics({ ...lastDiagnostics, fps: lastFps })
       }
-      if (current.isPlaying && !current.isPaused) requestRender()
+      if (frameReactivityActive) requestRender()
       else fpsReporter.unavailable()
     }
 

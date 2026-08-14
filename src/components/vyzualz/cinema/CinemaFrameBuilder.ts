@@ -157,10 +157,11 @@ export function buildCinemaFrameContext(input: CinemaFrameBuilderInput): CinemaF
   const audioTimeSec = nonNegativeFinite(reactFrame.audioTime)
   const durationSec = positiveFiniteOrNull(transportInput.durationSec)
   const playing = reactFrame.isPlaying === true
+  const analysisActive = reactFrame.analysisActive ?? playing
   const paused = reactFrame.isPaused === true
   const visibilitySuspended = transportInput.visibilitySuspended === true
   const rawDeltaTimeSec = finiteOr(reactFrame.deltaTimeSec, 0)
-  const deltaTimeSec = paused || !playing ? 0 : clamp(rawDeltaTimeSec, 0, 0.25)
+  const deltaTimeSec = paused || !analysisActive ? 0 : clamp(rawDeltaTimeSec, 0, 0.25)
   const elapsedTimeSec = paused && previous
     ? previous.elapsedTimeSec
     : Math.max(previous?.elapsedTimeSec ?? 0, nonNegativeFinite(reactFrame.elapsedTimeSec ?? 0))
@@ -182,7 +183,7 @@ export function buildCinemaFrameContext(input: CinemaFrameBuilderInput): CinemaF
   const suppressImpulses = previous == null
     || reset.required
     || paused
-    || !playing
+    || !analysisActive
     || visibilitySuspended
 
   const sections = input.authoritativeSections

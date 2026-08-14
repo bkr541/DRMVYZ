@@ -6,8 +6,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { DEFAULT_MI_FRAME } from '../../../features/musicIntelligence/constants'
 
+const liveControls = vi.hoisted(() => ({
+  setLiveInputSensitivity: vi.fn(),
+  setLiveInputNoiseGate: vi.fn(),
+}))
+
 vi.mock('../../../context/AudioEngineContext', () => ({
-  useSharedAudio: () => ({ source: 'microphone', liveInputActive: true }),
+  useSharedAudio: () => ({
+    source: 'microphone',
+    liveInputActive: true,
+    liveInputSensitivity: 1,
+    setLiveInputSensitivity: liveControls.setLiveInputSensitivity,
+    liveInputNoiseGate: 0.02,
+    setLiveInputNoiseGate: liveControls.setLiveInputNoiseGate,
+  }),
 }))
 
 vi.mock('../../../stores/reactStore', () => ({
@@ -122,7 +134,11 @@ describe('ReactAudioPanel Live Input analysis', () => {
     const beatDotItem = Array.from(host.querySelectorAll<HTMLElement>('.vz-mi-dot-item'))
       .find(element => element.querySelector('.vz-mi-dot-label')?.textContent === 'Beat')
     expect(beatDotItem?.querySelector('.vz-mi-dot')?.className).toContain('vz-mi-dot--on')
-    expect(host.textContent).not.toContain('Section')
+    expect(host.querySelector('[data-live-input-structural-status="unavailable"]')?.textContent).toContain('UNAVAILABLE')
+    expect(host.textContent).toContain('not fabricated for Live Input')
     expect(host.textContent).not.toContain('Semantic')
+    expect(host.querySelector<HTMLInputElement>('#live-input-analysis-sensitivity')?.value).toBe('1')
+    expect(host.querySelector<HTMLInputElement>('#live-input-analysis-noise-gate')?.value).toBe('0.02')
+    expect(host.textContent).toContain('Live Input remains inaudible')
   })
 })

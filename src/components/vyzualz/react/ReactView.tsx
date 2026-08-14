@@ -512,7 +512,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   // Timeline math requires a finite positive duration. New/decoding tracks can
   // briefly expose 0, and malformed metadata may contain NaN/Infinity/negatives.
   const audioDurationSec = resolvePositiveDuration(engine.duration, 180)
-  const transportPaused = isReactTransportPaused({
+  const transportPaused = engine.source === 'file' && isReactTransportPaused({
     isPlaying:     engine.isPlaying,
     currentTimeSec: engine.currentTime,
     durationSec:    audioDurationSec,
@@ -590,6 +590,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
       deltaTimeSec: 1 / 60,
       trackId: engine.currentAudioTrackId ?? engine.currentTrackId,
       playing: engine.isPlaying,
+      analysisActive: engine.analysisActive,
       paused: transportPaused,
       bpm: engine.currentEffectiveBpm,
       visibilitySuspended: typeof document !== 'undefined' && document.visibilityState === 'hidden',
@@ -616,6 +617,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     effectiveTrackAnalysis,
     engine.currentTime,
     engine.currentTrackId,
+    engine.analysisActive,
     engine.isPlaying,
     lyricPlayback,
     runtimeLyricCues,
@@ -637,6 +639,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
       durationSec: audioDurationSec,
       trackId: engine.currentAudioTrackId ?? engine.currentTrackId,
       playing: engine.isPlaying,
+      analysisActive: engine.analysisActive,
       paused: transportPaused,
       bpm: engine.currentEffectiveBpm,
       authoritativeSections: resolvedTrackSections,
@@ -661,6 +664,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     engine.currentEffectiveBpm,
     engine.currentTrackId,
     engine.getCurrentTime,
+    engine.analysisActive,
     engine.isPlaying,
     performanceActionEvents,
     performanceActionToggleStates,
@@ -905,6 +909,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
             ) : activeReactEngineId === 'canvas' ? (
               <CanvasEngineSurface
                 isPlaying={engine.isPlaying}
+                analysisActive={engine.analysisActive}
                 isPaused={transportPaused}
                 analyser={analyser}
                 trackAnalysis={effectiveTrackAnalysis}
@@ -928,6 +933,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 glow={reactGlow}
                 bassReactivity={reactBassReactivity}
                 isPlaying={engine.isPlaying}
+                analysisActive={engine.analysisActive}
                 isPaused={transportPaused}
                 trackSections={resolvedTrackSections}
                 trackAnalysis={effectiveTrackAnalysis}
@@ -968,6 +974,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 performanceActionEvents={performanceActionEvents}
                 performanceActionToggleStates={performanceActionToggleStates}
                 isPlaying={engine.isPlaying}
+                analysisActive={engine.analysisActive}
                 isPaused={transportPaused}
                 trackSections={resolvedTrackSections}
                 trackAnalysis={effectiveTrackAnalysis}

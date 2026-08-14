@@ -25,6 +25,8 @@ export interface CinemaWorkspaceFrameBridgeInput {
   deltaTimeSec?: number
   trackId: string | null
   playing: boolean
+  /** Shared analysis activity, independent from file transport playing. */
+  analysisActive?: boolean
   paused: boolean
   bpm: number | null
   timingDiscontinuity?: boolean
@@ -58,7 +60,12 @@ export interface CinemaWorkspaceFrameBridgeResult extends CinemaFrameBuildResult
 export function buildCinemaWorkspaceFrameBridge(
   input: CinemaWorkspaceFrameBridgeInput,
 ): CinemaWorkspaceFrameBridgeResult {
-  const mi = currentMusicFrame(input.musicIntelligence ?? null, input.trackId, input.audioTimeSec)
+  const mi = currentMusicFrame(
+    input.musicIntelligence ?? null,
+    input.trackId,
+    input.audioTimeSec,
+    input.analysisActive ?? input.playing,
+  )
   const lyrics = currentLyricFrame(input.lyrics ?? null, input.trackId)
   const reactFrame = createCinemaReactFrameSnapshot(input, mi)
   const performanceEvents = (input.performanceEvents ?? []).filter(event => event.target.engineId === 'cinema')
@@ -153,6 +160,7 @@ export function createCinemaReactFrameSnapshot(
     beatPhase: mi ? clamp01(mi.rhythm.beatPhase) : Number.NaN,
     beatHit: mi?.rhythm.beatHit === true,
     isPlaying: input.playing,
+    analysisActive: input.analysisActive ?? input.playing,
     isPaused: input.paused,
     audio: {
       bass: clamp01(mi?.bands.bass ?? 0),
@@ -175,8 +183,9 @@ function currentMusicFrame(
   frame: Readonly<MusicIntelligenceFrame> | null,
   trackId: string | null,
   audioTimeSec: number,
+  analysisActive: boolean,
 ): Readonly<MusicIntelligenceFrame> | null {
-  if (!frame || frame.frameId <= 0 || trackId == null) return null
+  if (!frame || frame.frameId <= 0 || !analysisActive) return null
   const explicitTrackMismatch = trackId != null
     && frame.trackId != null
     && frame.trackId !== trackId

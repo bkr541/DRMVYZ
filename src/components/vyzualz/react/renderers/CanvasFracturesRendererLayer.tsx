@@ -31,6 +31,7 @@ export interface CanvasFracturesRendererLayerProps {
   analyser?: AnalyserNode | null
   performanceContextRef?: RefObject<SharedPerformanceContext | null>
   isPlaying: boolean
+  analysisActive?: boolean
   isPaused: boolean
   fitMode: CanvasFitMode
   sourceTransform: CanvasFracturesSourceTransform
@@ -188,7 +189,8 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
       renderer.resize(cssWidth, cssHeight, Math.min(window.devicePixelRatio || 1, qualityProfile.dprCap))
 
       const frameNowSec = finitePosition(frameNowMs / 1000)
-      if (previousFrameNowSec !== null && !live.trackIdentity && live.isPlaying && !live.isPaused) {
+      const analysisActive = (live.analysisActive ?? live.isPlaying) && !live.isPaused
+      if (previousFrameNowSec !== null && !live.trackIdentity && analysisActive) {
         fallbackPositionSec += Math.max(0, Math.min(0.25, frameNowSec - previousFrameNowSec))
       }
       previousFrameNowSec = frameNowSec
@@ -207,7 +209,7 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
       const audioFrame = audioAdapter.update({
         context: live.performanceContextRef?.current ?? null,
         analyser: live.analyser,
-        isPlaying: live.isPlaying,
+        isPlaying: analysisActive,
         isPaused: live.isPaused,
         nowSec: frameNowSec,
         positionSec: transportPositionSec,
@@ -279,7 +281,7 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
           zoomAmount: settings.fractureZoomAmount,
         },
         structuralIdentity: settings.fractureFreezeLayout ? null : audioFrame.structure,
-        isPlaying: live.isPlaying,
+        isPlaying: analysisActive,
         isPaused: live.isPaused,
       })
       renderer.setPlan(plan)

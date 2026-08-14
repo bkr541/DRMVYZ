@@ -203,6 +203,7 @@ export function renderReactEngine(
       ctx.fillRect(0, 0, frame.W, frame.H)
       break
     case 'pixGrid': {
+      const analysisActive = frame.analysisActive ?? frame.isPlaying
       const basePixGridState = createPixGridStateForPreset(preset)
       const mappedSceneId = sectionType
         ? preset.sectionMappings.find(mapping => mapping.sectionType === sectionType)?.sceneId
@@ -223,7 +224,7 @@ export function renderReactEngine(
           ?? (frame.audio.high > 0.45 && frame.beatPhase < 0.12),
         beatPhase: frame.beatPhase,
         beatIndex: Math.max(0, Math.floor(frame.audioTime * frame.bpm / 60)),
-        isPlaying: frame.isPlaying !== false,
+        isPlaying: analysisActive !== false,
         motion: effectiveParams.motion,
         intensity: effectiveParams.intensity,
         glow: effectiveParams.glow,
@@ -242,7 +243,7 @@ export function renderReactEngine(
           volume: frame.audio.volume,
           beatHit: frame.beatHit,
           beatPhase: frame.beatPhase,
-          isPlaying: frame.isPlaying !== false,
+          isPlaying: analysisActive !== false,
           sectionType,
           sectionProgress: sectionResolution.progress,
           barIndex: Math.max(0, Math.floor(frame.audioTime * frame.bpm / 60 / 4)),
@@ -252,10 +253,11 @@ export function renderReactEngine(
       )
       break
     }
-    case 'laserDmx':
-      // Level-1 gate: skip compilation entirely when not playing.
-      // clearLaserDmxVisualState wipes trail persistence and resets compiler dt.
-      if (frame.isPlaying === false) {
+    case 'laserDmx': {
+      const analysisActive = frame.analysisActive ?? frame.isPlaying
+      // Live Input may drive realtime LaserDMX analysis while file transport remains stopped.
+      // clearLaserDmxVisualState still owns the true no-analysis path.
+      if (analysisActive === false) {
         clearLaserDmxVisualState(ctx, frame.W, frame.H, {
           affectProductionOutput: shouldAffectLaserDmxProductionOutput(effectiveParams),
         })
@@ -263,6 +265,7 @@ export function renderReactEngine(
         renderLaserDmx(ctx, frame, preset, effectiveParams, sectionType)
       }
       break
+    }
     default:
       // Unknown engine — draw a placeholder so the frame is never blank
       ctx.clearRect(0, 0, frame.W, frame.H)

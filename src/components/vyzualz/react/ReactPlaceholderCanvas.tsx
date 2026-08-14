@@ -106,6 +106,8 @@ interface Props {
   performanceActionEvents?:     readonly ReactPerformanceActionEvent[]
   performanceActionToggleStates?: Readonly<Record<string, boolean>>
   isPlaying:                    boolean
+  /** Shared analyser activity; Live Input may be active while file transport is stopped. */
+  analysisActive?:              boolean
   /** True when playback is paused at a non-terminal playhead position. */
   isPaused?:                    boolean
   trackSections?:               ReactTrackSection[]
@@ -160,6 +162,7 @@ export function ReactPlaceholderCanvas({
   performanceActionEvents    = [],
   performanceActionToggleStates = {},
   isPlaying,
+  analysisActive               = isPlaying,
   isPaused                    = false,
   trackSections              = [],
   trackAnalysis              = null,
@@ -211,6 +214,7 @@ export function ReactPlaceholderCanvas({
   const performanceActionEventsRef = useRef<readonly ReactPerformanceActionEvent[]>(performanceActionEvents)
   const performanceActionToggleStatesRef = useRef<Readonly<Record<string, boolean>>>(performanceActionToggleStates)
   const isPlayingRef           = useRef(isPlaying)
+  const analysisActiveRef      = useRef(analysisActive)
   const isPausedRef            = useRef(isPaused)
   const presetRef             = useRef<ReactPreset | null>(activePreset)
   const trackSectionsRef      = useRef<ReactTrackSection[]>(trackSections)
@@ -251,6 +255,7 @@ export function ReactPlaceholderCanvas({
   performanceActionEventsRef.current = performanceActionEvents
   performanceActionToggleStatesRef.current = performanceActionToggleStates
   isPlayingRef.current           = isPlaying
+  analysisActiveRef.current      = analysisActive
   isPausedRef.current            = isPaused
   presetRef.current             = activePreset
   trackSectionsRef.current      = trackSections
@@ -500,7 +505,23 @@ export function ReactPlaceholderCanvas({
         mid = 0.05,
         high = 0.05,
         vol = 0.05
-      if (an && buf) {
+      let frameFrequencyData: ReactFrameContext['freqData'] = buf ?? null
+      let frameTimeDomainData: ReactFrameContext['timeDomainData'] = tBuf ?? null
+      const sharedLiveFrame = analysisActiveRef.current && !isPlayingRef.current
+        ? AudioFeatureBus.getFrame()
+        : null
+      const hasSharedLiveFrame = Boolean(sharedLiveFrame && sharedLiveFrame.frameId > 0)
+
+      if (sharedLiveFrame && hasSharedLiveFrame) {
+        bass = sharedLiveFrame.bands.bass
+        mid = (sharedLiveFrame.bands.lowMid + sharedLiveFrame.bands.mid) * 0.5
+        high = (sharedLiveFrame.bands.high + sharedLiveFrame.bands.air) * 0.5
+        vol = sharedLiveFrame.bands.volume
+        frameFrequencyData = sharedLiveFrame.raw.freqData
+        frameTimeDomainData = sharedLiveFrame.raw.timeDomainData
+        const freshTime = getAudioTimeRef.current?.()
+        if (freshTime !== undefined) audioTimeRef.current = freshTime
+      } else if (an && buf) {
         an.getByteFrequencyData(buf)
         if (tBuf) an.getByteTimeDomainData(tBuf)
         const binCount  = buf.length
@@ -536,17 +557,16 @@ export function ReactPlaceholderCanvas({
           audioTimeRef.current += 1 / 60
         }
 
-        // Pump Music Intelligence Engine so LaserDMX and other React engines get
-        // full MI data (kick, snare, beatPhase, buildProgress, etc.), not just the
-        // simple bass/mid/high fallback that ReactPlaceholderCanvas computes above.
-        musicIntelligenceEngine.updateFromAudioFrame({
-          freqBuf:    buf,
-          timeBuf:    tBuf,
-          sampleRate: an.context.sampleRate,
-          audioTime:  audioTimeRef.current,
-          isPlaying:  isPlayingRef.current,
-          publisherId: 'react:placeholder',
-        })
+        if (AudioFeatureBus.canPublishFrame('react:placeholder')) {
+          musicIntelligenceEngine.updateFromAudioFrame({
+            freqBuf:    buf,
+            timeBuf:    tBuf,
+            sampleRate: an.context.sampleRate,
+            audioTime:  audioTimeRef.current,
+            isPlaying:  analysisActiveRef.current,
+            publisherId: 'react:placeholder',
+          })
+        }
       }
 
       // Expose the MI frame whenever any data has been published (frameId > 0),
@@ -658,10 +678,11 @@ export function ReactPlaceholderCanvas({
         beatPhase: activeBeatPhase,
         beatHit,
         isPlaying: isPlayingRef.current,
+        analysisActive: analysisActiveRef.current,
         isPaused:  isPausedRef.current,
         audio:     { bass, mid, high, volume: vol },
-        freqData:       buf ?? null,
-        timeDomainData: tBuf ?? null,
+        freqData:       frameFrequencyData,
+        timeDomainData: frameTimeDomainData,
         scopeStereo,
         musicIntelligence: hasMI ? miFrame : null,
         trackAnalysis: trackAnalysisRef.current,

@@ -9,6 +9,10 @@ export interface MusicIntelligenceAnalyserFramePumpInput {
   audioTime: number
   isPlaying: boolean
   trackIdentity?: string | null
+  /** Live Input-only analysis gain. 1 preserves the captured analyser values. */
+  analysisSensitivity?: number
+  /** Live Input-only normalized RMS floor. Frames below this floor are treated as silence. */
+  analysisNoiseGate?: number
 }
 
 export interface MusicIntelligenceAnalyserFramePumpDiagnostics {
@@ -45,6 +49,46 @@ function frameIdentityMatches(frame: MusicIntelligenceFrame, trackIdentity: stri
 
 function frameTimeMatches(frame: MusicIntelligenceFrame, audioTime: number): boolean {
   return Math.abs(frame.timeSec - audioTime) <= 1 / 120
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min))
+}
+
+/**
+ * Shape the canonical Live Input analyser snapshot before Music Intelligence
+ * derives bands/events/tempo from it. This never touches the Web Audio graph,
+ * so these controls cannot enable monitoring or change program output level.
+ */
+export function shapeLiveInputAnalysisBuffers(
+  frequencyData: Uint8Array,
+  timeDomainData: Uint8Array,
+  sensitivity = 1,
+  noiseGate = 0,
+): void {
+  const gain = clamp(sensitivity, 0.25, 4)
+  const gate = clamp(noiseGate, 0, 0.5)
+
+  let sumSquares = 0
+  for (let i = 0; i < timeDomainData.length; i += 1) {
+    const centered = (timeDomainData[i]! - 128) / 128
+    sumSquares += centered * centered
+  }
+  const rms = timeDomainData.length > 0 ? Math.sqrt(sumSquares / timeDomainData.length) : 0
+  if (rms < gate) {
+    frequencyData.fill(0)
+    timeDomainData.fill(128)
+    return
+  }
+
+  if (gain === 1) return
+  for (let i = 0; i < frequencyData.length; i += 1) {
+    frequencyData[i] = Math.round(clamp(frequencyData[i]! * gain, 0, 255))
+  }
+  for (let i = 0; i < timeDomainData.length; i += 1) {
+    const centered = (timeDomainData[i]! - 128) * gain
+    timeDomainData[i] = Math.round(clamp(128 + centered, 0, 255))
+  }
 }
 
 /**
@@ -138,6 +182,14 @@ export class MusicIntelligenceAnalyserFramePump {
 
     analyser.getByteFrequencyData(this.frequencyData)
     analyser.getByteTimeDomainData(this.timeDomainData)
+    if (this.analysisMode === 'live-input') {
+      shapeLiveInputAnalysisBuffers(
+        this.frequencyData,
+        this.timeDomainData,
+        input.analysisSensitivity,
+        input.analysisNoiseGate,
+      )
+    }
     this.engine.updateFromAudioFrame({
       freqBuf: this.frequencyData,
       timeBuf: this.timeDomainData,

@@ -111,6 +111,12 @@ export interface AudioEngine {
   liveInputActive: boolean
   /** Source-level analysis activity, intentionally independent from file transport playing. */
   analysisActive: boolean
+  /** Global Live Input analysis gain. Does not affect monitored/program audio. */
+  liveInputSensitivity: number
+  setLiveInputSensitivity: (value: number) => void
+  /** Global Live Input normalized RMS floor. Does not affect monitored/program audio. */
+  liveInputNoiseGate: number
+  setLiveInputNoiseGate: (value: number) => void
   /** True only when the active source is valid program audio for recording/output capture. */
   hasActiveProgramAudio: boolean
   isActive: boolean
@@ -261,6 +267,8 @@ export function useAudioEngine(): AudioEngine {
   const [source, setSourceState] = useState<AudioSource>('file')
   const [micError, setMicError] = useState<string | null>(null)
   const [liveInputActive, setLiveInputActive] = useState(false)
+  const [liveInputSensitivity, setLiveInputSensitivityState] = useState(1)
+  const [liveInputNoiseGate, setLiveInputNoiseGateState] = useState(0.02)
   const [tracks, setTracks] = useState<Track[]>([])
   const [currentIndex, setCurrentIndex] = useState(-1)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -322,6 +330,8 @@ export function useAudioEngine(): AudioEngine {
   const disposedRef      = useRef(false)
   const liveClockEpochRef = useRef<number | null>(null)
   const liveAnalysisSourceIdRef = useRef<string | null>(null)
+  const liveInputSensitivityRef = useRef(1)
+  const liveInputNoiseGateRef = useRef(0.02)
   const liveAnalysisPumpRef = useRef<MusicIntelligenceAnalyserFramePump | null>(null)
   if (!liveAnalysisPumpRef.current) {
     liveAnalysisPumpRef.current = new MusicIntelligenceAnalyserFramePump({
@@ -1153,6 +1163,18 @@ export function useAudioEngine(): AudioEngine {
     }
   }, [])
 
+  const setLiveInputSensitivity = useCallback((value: number) => {
+    const next = Math.min(4, Math.max(0.25, Number.isFinite(value) ? value : 1))
+    liveInputSensitivityRef.current = next
+    setLiveInputSensitivityState(next)
+  }, [])
+
+  const setLiveInputNoiseGate = useCallback((value: number) => {
+    const next = Math.min(0.5, Math.max(0, Number.isFinite(value) ? value : 0.02))
+    liveInputNoiseGateRef.current = next
+    setLiveInputNoiseGateState(next)
+  }, [])
+
   // ── Update coordinator dispatch table each render ─────────────────────────────
   // Must happen before any playlist callback that references these.
   tracksRef.current       = tracks
@@ -1416,6 +1438,8 @@ export function useAudioEngine(): AudioEngine {
         // Live capture advances analysis even though file transport is stopped.
         isPlaying: true,
         trackIdentity: sourceIdentity,
+        analysisSensitivity: liveInputSensitivityRef.current,
+        analysisNoiseGate: liveInputNoiseGateRef.current,
       })
       animationFrameId = requestAnimationFrame(tick)
     }
@@ -1551,7 +1575,9 @@ export function useAudioEngine(): AudioEngine {
     : null
 
   return {
-    source, setSource, micError, liveInputActive, analysisActive, hasActiveProgramAudio, isActive,
+    source, setSource, micError, liveInputActive, analysisActive,
+    liveInputSensitivity, setLiveInputSensitivity, liveInputNoiseGate, setLiveInputNoiseGate,
+    hasActiveProgramAudio, isActive,
     tracks, currentIndex, isPlaying, currentTime, getCurrentTime, duration, volume,
     addTracks, replaceTracks, addPreparedTracks, replacePreparedTracks, addTrackUrls, replaceTrackUrls, removeTrack, selectTrack, play, pause, stop, next, prev, seek, setVolume,
     analyserMaster: aMasterRef.current,

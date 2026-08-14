@@ -630,8 +630,9 @@ export function renderLaserDmx(
   const { W, H } = frame
   if (!W || !H) return
 
+  const analysisActive = frame.analysisActive ?? frame.isPlaying
   const affectProductionOutput = shouldAffectLaserDmxProductionOutput(params)
-  if (!shouldRenderLaserDmx(frame.isPlaying)) {
+  if (!shouldRenderLaserDmx(analysisActive)) {
     clearLaserDmxVisualState(ctx, W, H, { affectProductionOutput })
     return
   }
@@ -662,7 +663,7 @@ export function renderLaserDmx(
   const directorPresetKey = `${preset.id}:beamMatrix:${beamMatrixAuthoringMode}:${state.activeLaserDmxBeamMatrixPresetId ?? 'custom'}:${performanceState.activeProgramId ?? 'show:none'}:${performanceState.runtimeInvalidationId}:${resolvedAuthoredSettings.rigId ?? 'rig'}:${previewRigIdentity}`
   const lifecycle = getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx, affectProductionOutput))
   if (!lifecycle.sync({
-    isPlaying: frame.isPlaying,
+    isPlaying: analysisActive,
     trackKey,
     presetKey: directorPresetKey,
   })) return
@@ -718,7 +719,7 @@ export function renderLaserDmx(
         evaluatedBeamMatrix: state.laserDmxBeamMatrix,
         audioTimeSec: timeSec,
         deltaTimeSec: sceneDeltaTimeSec,
-        isPlaying: frame.isPlaying,
+        isPlaying: analysisActive,
         timingDiscontinuity: timingDiscontinuity || loopWrapped,
         trackKey: trackKey ?? null,
         historyIdentity,
@@ -776,7 +777,7 @@ export function renderLaserDmx(
     settings: resolvedAuthoredSettings,
     beamMatrix: renderBeamMatrix,
     audioTimeSec: timeSec,
-    isPlaying: frame.isPlaying,
+    isPlaying: analysisActive,
     timingDiscontinuity,
     bpm: frame.bpm,
     analysis: frame.trackAnalysis,

@@ -193,6 +193,27 @@ describe('ReactPlaceholderCanvas live ownership boundary', () => {
 
 
 
+  it('keeps file transport stopped while exposing Live Input analysis activity to renderer consumers', async () => {
+    await act(async () => root?.render(
+      <ReactPlaceholderCanvas
+        key="live-input-oscilloscope"
+        analyser={null}
+        engine="oscilloscope"
+        activePreset={findPreset('oscilloscope')}
+        intensity={1}
+        motion={1}
+        glow={0.5}
+        bassReactivity={0.7}
+        isPlaying={false}
+        analysisActive
+      />,
+    ))
+
+    const frame = mocks.renderReactEngine.mock.calls[0]?.[1]
+    expect(frame).toMatchObject({ isPlaying: false, analysisActive: true })
+    expect(rafCallbacks.size).toBe(1)
+  })
+
   it('retires ownership and observers when the first engine frame throws', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     mocks.renderReactEngine.mockImplementationOnce(() => { throw new Error('render failed') })

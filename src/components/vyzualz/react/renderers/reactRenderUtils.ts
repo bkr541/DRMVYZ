@@ -45,6 +45,8 @@ export interface ReactFrameContext {
   beatHit: boolean
   /** Whether the audio transport is currently playing. */
   isPlaying: boolean
+  /** Shared analyser activity; Live Input may be active while transport remains stopped. */
+  analysisActive?: boolean
   /**
    * True only for a user pause. Renderers must preserve the last completed
    * frame rather than clearing, idling, or advancing transport-driven state.
