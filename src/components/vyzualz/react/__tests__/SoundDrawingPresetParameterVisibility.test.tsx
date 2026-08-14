@@ -20,7 +20,7 @@ async function renderPanels(): Promise<void> {
 }
 
 function hasControl(label: string): boolean {
-  return [...container.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
+  return [...container.querySelectorAll<HTMLElement>('.rv-ctrl-label, .drm-dropdown__label')]
     .some(candidate => candidate.textContent?.trim() === label)
 }
 
