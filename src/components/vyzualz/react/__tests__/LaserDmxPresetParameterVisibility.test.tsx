@@ -151,7 +151,7 @@ describe('LaserDMX preset-aware parameter visibility', () => {
     if (!groupId) throw new Error('Expected selected beam to belong to a group')
 
     await render(<LaserDmxBeamInspector />)
-    const motionHeader = [...container.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
+    const motionHeader = [...container.querySelectorAll<HTMLButtonElement>('.drc-header')]
       .find(button => button.textContent?.trim().startsWith('Motion'))
     if (!motionHeader) throw new Error('Expected Motion collapsible')
     await act(async () => motionHeader.click())
