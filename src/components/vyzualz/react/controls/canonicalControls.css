@@ -707,3 +707,81 @@
 .dv-track-row.is-active .dv-track-row-disc {
   box-shadow: 0 0 0 3px rgba(74, 199, 219, 0.14);
 }
+
+/* Canonical DRMVYZ layer-list row from Layout Lab's "Channel Strip" winner. */
+
+.dv-layer-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 4px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 5px;
+  background: rgba(6, 10, 14, 0.7);
+  padding: 9px 12px 9px 0;
+  text-align: left;
+}
+
+.dv-layer-row-accent {
+  align-self: stretch;
+  background: var(--layer-row-tone, #4ac7db);
+  opacity: 0.55;
+  border-radius: 2px;
+}
+
+.dv-layer-row-ghost {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  font: 800 30px/1 var(--az-font, Inter, system-ui, sans-serif);
+  color: rgba(255, 255, 255, 0.04);
+  letter-spacing: -0.02em;
+  pointer-events: none;
+}
+
+.dv-layer-row-body {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dv-layer-row-label {
+  overflow: hidden;
+  color: #cdd8dd;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dv-layer-row-status {
+  display: block;
+  max-width: 78%;
+  overflow: hidden;
+  white-space: nowrap;
+  color: #687583;
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  mask-image: linear-gradient(to right, #000 75%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 75%, transparent 100%);
+}
+
+.dv-layer-row.is-active {
+  border-color: rgba(74, 199, 219, 0.4);
+  background: rgba(74, 199, 219, 0.07);
+  box-shadow: 0 0 20px rgba(74, 199, 219, 0.08);
+}
+
+.dv-layer-row.is-active .dv-layer-row-accent {
+  opacity: 1;
+  box-shadow: 0 0 10px var(--layer-row-tone, #4ac7db);
+}
+
+.dv-layer-row.is-active .dv-layer-row-label {
+  color: #e8fcff;
+}
