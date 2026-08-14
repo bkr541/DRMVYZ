@@ -718,6 +718,71 @@ describe('Cinema production engine registration', () => {
     expect(useCinemaStore.getState().instances.some(instance => instance.metadata?.reactLiveOverride === true)).toBe(true)
   })
 
+  it('recomputes consumed controls through production preset selection without stale sliders or persisted-value loss', async () => {
+    await act(async () => root?.render(<ComposerSelectionHarness />))
+    const trigger = host?.querySelector<HTMLButtonElement>('.rv-engine-dropdown-trigger')
+    await act(async () => trigger?.click())
+    const cinemaOption = [...(host?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])]
+      .find(option => option.textContent?.includes('Cinema'))
+    await act(async () => cinemaOption?.click())
+
+    const presetButton = (name: string) => [...(host?.querySelectorAll<HTMLButtonElement>('.rv-preset-card') ?? [])]
+      .find(button => button.querySelector('.rv-preset-name')?.textContent === name)
+    const selectedLayerText = () => [...(host?.querySelectorAll<HTMLButtonElement>('.drc-header') ?? [])]
+      .find(button => button.textContent?.includes('Selected Layer'))
+      ?.closest<HTMLElement>('.drc-group')?.textContent ?? ''
+
+    const singularity = presetButton('Singularity Crown')
+    expect(singularity).toBeDefined()
+    await act(async () => singularity?.click())
+    const singularityComposition = useCinemaStore.getState().compositions.find(composition => composition.metadata.name === 'Singularity Crown')
+    const singularityNode = singularityComposition?.nodes.find(node => node.family === 'procedural')
+    expect(singularityNode).toBeDefined()
+    const preservedValues = singularityNode?.parameterValues
+
+    expect(selectedLayerText()).toContain('Core Radius')
+    expect(selectedLayerText()).not.toContain('Intensity')
+    expect(selectedLayerText()).not.toContain('Motion')
+    expect(selectedLayerText()).not.toContain('Glow')
+    expect(selectedLayerText()).not.toContain('Environment Depth')
+    expect(selectedLayerText()).not.toContain('Bloom Boost')
+
+    const crystal = presetButton('Crystal Synapse')
+    expect(crystal).toBeDefined()
+    await act(async () => crystal?.click())
+    expect(selectedLayerText()).toContain('Intensity')
+    expect(selectedLayerText()).toContain('Motion')
+    expect(selectedLayerText()).toContain('Glow')
+    expect(selectedLayerText()).not.toContain('Bass Reactivity')
+    expect(selectedLayerText()).not.toContain('Particle Density')
+    expect(selectedLayerText()).toContain('Environment Fog')
+    expect(selectedLayerText()).toContain('Material Glow')
+    expect(selectedLayerText()).not.toContain('Environment Depth')
+    expect(selectedLayerText()).not.toContain('Visual Dna Profile')
+
+    await act(async () => presetButton('Singularity Crown')?.click())
+    expect(selectedLayerText()).not.toContain('Intensity')
+    expect(selectedLayerText()).not.toContain('Motion')
+    expect(selectedLayerText()).not.toContain('Environment Fog')
+    const singularityAfterSwitch = useCinemaStore.getState().compositions.find(composition => composition.metadata.name === 'Singularity Crown')
+      ?.nodes.find(node => node.family === 'procedural')
+    expect(singularityAfterSwitch?.parameterValues).toEqual(preservedValues)
+  })
+
+  it('does not render an empty Palette group when the selected production node exposes no consumed colors', async () => {
+    const composition = useCinemaStore.getState().compositions.find(candidate => candidate.id === CINEMA_STAGE16_REFERENCE_COMPOSITION_ID)
+    const effect = composition?.nodes.find(node => node.family === 'effect')
+    expect(composition).toBeDefined()
+    expect(effect).toBeDefined()
+    expect(useCinemaStore.getState().setActiveCinemaComposition(CINEMA_STAGE16_REFERENCE_COMPOSITION_ID).ok).toBe(true)
+    expect(useCinemaStore.getState().setCinemaEditorSelection(CINEMA_STAGE16_REFERENCE_COMPOSITION_ID, effect!.id).ok).toBe(true)
+
+    await act(async () => root?.render(<CinemaInspectorPanel />))
+    const headers = [...(host?.querySelectorAll<HTMLButtonElement>('.drc-header') ?? [])].map(button => button.textContent?.trim())
+    expect(headers).not.toContain('Palette')
+    expect(headers).toContain('Selected Effect')
+  })
+
   it('keeps only one active Cinema context and loop through a Strict Mode effect replay', async () => {
     const gl = createCinemaMockWebGL()
     const callbacks = new Map<number, FrameRequestCallback>()

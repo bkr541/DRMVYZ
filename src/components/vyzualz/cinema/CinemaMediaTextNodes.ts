@@ -573,7 +573,15 @@ export const CINEMA_TEXT_NODE_DEFINITION: Readonly<CinemaNodeTypeDefinition> = d
   inputPorts: [],
   outputPorts: [COLOR_PORT, MASK_PORT],
   parameters: TEXT_PARAMETERS,
-  parameterCapabilities: createCinemaParameterCapabilities(TEXT_PARAMETERS),
+  parameterCapabilities: TEXT_PARAMETERS.map(parameter => (
+    parameter.id === CINEMA_TEXT_HIGHLIGHT_COLOR_PARAMETER_ID || parameter.id === CINEMA_TEXT_KINETIC_PARAMETER_ID
+      ? {
+          parameterId: parameter.id,
+          support: 'unsupported' as const,
+          reason: 'Static text does not consume lyric word highlighting or kinetic word-progress animation.',
+        }
+      : { parameterId: parameter.id, support: 'live' as const }
+  )),
   capabilities: TEXT_CAPABILITIES,
   cost: { cpu: 'low', gpu: 'low', estimatedPassCount: 1, persistentTargetCount: 0, pingPongPairCount: 0 },
   seekPolicy: { mode: 'stateless' },

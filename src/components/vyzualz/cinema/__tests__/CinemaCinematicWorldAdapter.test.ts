@@ -12,11 +12,14 @@ import {
   CINEMA_PERFORMANCE_STATE_ACTION_IDS,
   CINEMA_PRODUCTION_RUNTIME_REGISTRY,
   cinemaCinematicResetReason,
+  cinemaCinematicWorldParameterId,
   cinemaCinematicWorldTypeId,
   createCinemaCinematicPresetComposition,
   createCinemaCinematicWorldAdapterBundle,
   createCinemaCinematicWorldComposition,
   createCinemaFoundationPersistedState,
+  createCinemaStore,
+  getCinemaCinematicWorldSupportedParameterSchemasForNode,
   getCinemaSupportedPaletteRoles,
   getCinemaSupportedParameterSchemas,
   type CinemaActionId,
@@ -83,7 +86,7 @@ describe('Cinema Cinematic World adapters', () => {
     const corridor = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'infiniteCorridor')
     expect(corridor).toBeDefined()
     const supported = getCinemaSupportedParameterSchemas(corridor!.definition).map(parameter => parameter.label)
-    expect(supported).toContain('Intensity')
+    expect(supported).not.toContain('Intensity')
     expect(supported).toContain('Motion')
     expect(supported).toContain('Glow')
     expect(supported).toContain('Fog Density')
@@ -92,6 +95,136 @@ describe('Cinema Cinematic World adapters', () => {
     expect(supported).not.toContain('Particle Density')
     expect(supported).toContain('Seed')
     expect(supported).toContain('Quality Tier')
+    expect(supported).not.toContain('Environment Depth')
+    expect(supported).not.toContain('Environment Fog')
+    expect(supported).not.toContain('Bloom')
+    expect(supported).not.toContain('Material Glow')
+  })
+
+  it('hides generic Environment/Material fields and post-pipeline-only world settings that Cinema never renders', () => {
+    const eventHorizon = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'eventHorizon')
+    const reactive = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'reactiveConstellation')
+    const legacy = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'legacyPortal')
+    expect(eventHorizon).toBeDefined()
+    expect(reactive).toBeDefined()
+    expect(legacy).toBeDefined()
+
+    const eventLabels = getCinemaSupportedParameterSchemas(eventHorizon!.definition).map(parameter => parameter.label)
+    expect(eventLabels).not.toContain('Environment Depth')
+    expect(eventLabels).not.toContain('Bloom')
+    expect(eventLabels).not.toContain('Bloom Boost')
+    expect(eventLabels).not.toContain('Chromatic Aberration Boost')
+    expect(eventLabels).toContain('Core Radius')
+    expect(eventLabels).toContain('Lensing Strength')
+
+    const reactiveLabels = getCinemaSupportedParameterSchemas(reactive!.definition).map(parameter => parameter.label)
+    expect(reactiveLabels).toContain('Environment Fog')
+    expect(reactiveLabels).toContain('Atmosphere')
+    expect(reactiveLabels).toContain('Material Glow')
+    expect(reactiveLabels).not.toContain('Environment Depth')
+    expect(reactiveLabels).not.toContain('Bloom')
+    expect(reactiveLabels).not.toContain('Visual Dna Profile')
+    expect(reactiveLabels).toContain('Choreography Profile')
+
+    const legacyLabels = getCinemaSupportedParameterSchemas(legacy!.definition).map(parameter => parameter.label)
+    expect(legacyLabels).toContain('Intensity')
+    expect(legacyLabels).toContain('Bass Reactivity')
+    expect(legacyLabels).not.toContain('Trail Decay')
+    expect(legacyLabels).not.toContain('Quality Tier')
+    expect(legacyLabels).not.toContain('Environment Fog')
+    expect(legacyLabels).not.toContain('Material Glow')
+  })
+
+  it('does not treat standalone-only modulation targets as Cinema consumers', () => {
+    const eventHorizon = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'eventHorizon')
+    const mirror = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'mirrorDimension')
+    const cathedral = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'celestialCathedral')
+    expect(eventHorizon).toBeDefined()
+    expect(mirror).toBeDefined()
+    expect(cathedral).toBeDefined()
+
+    const eventLabels = getCinemaSupportedParameterSchemas(eventHorizon!.definition).map(parameter => parameter.label)
+    const mirrorLabels = getCinemaSupportedParameterSchemas(mirror!.definition).map(parameter => parameter.label)
+    const cathedralLabels = getCinemaSupportedParameterSchemas(cathedral!.definition).map(parameter => parameter.label)
+    expect(eventLabels).not.toContain('Trail Decay')
+    expect(mirrorLabels).toContain('Trail Decay')
+    expect(cathedralLabels).not.toContain('Fog Density')
+    expect(cathedralLabels).toContain('Particle Density')
+  })
+
+  it('filters preset-backed common sliders when authored audio mapping bypasses their fallback consumer', () => {
+    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'preset-singularity-crown')
+    const eventHorizon = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'eventHorizon')
+    expect(preset).toBeDefined()
+    expect(eventHorizon).toBeDefined()
+    const composition = createCinemaCinematicPresetComposition(
+      preset!,
+      CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+      CINEMA_FOUNDATION_INPUT_PORT_ID,
+    )
+    const node = composition.nodes.find(candidate => candidate.family === 'procedural')
+    expect(node).toBeDefined()
+
+    const labels = getCinemaCinematicWorldSupportedParameterSchemasForNode(eventHorizon!.definition, node!).map(parameter => parameter.label)
+    expect(labels).not.toContain('Intensity')
+    expect(labels).not.toContain('Motion')
+    expect(labels).not.toContain('Glow')
+    expect(labels).not.toContain('Bass Reactivity')
+    expect(labels).not.toContain('Trail Decay')
+    expect(labels).not.toContain('Fog Density')
+    expect(labels).not.toContain('Particle Density')
+    expect(labels).toContain('Seed')
+    expect(labels).toContain('Quality Tier')
+    expect(labels).toContain('Primary Color')
+    expect(labels).toContain('Core Radius')
+  })
+
+  it('preserves hidden preset parameter values through canonical save hydration', () => {
+    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'preset-singularity-crown')
+    const eventHorizon = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'eventHorizon')
+    expect(preset).toBeDefined()
+    expect(eventHorizon).toBeDefined()
+
+    const authored = createCinemaCinematicPresetComposition(
+      preset!,
+      CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+      CINEMA_FOUNDATION_INPUT_PORT_ID,
+    )
+    const state = createCinemaFoundationPersistedState()
+    const persisted = state.compositions.find(composition => composition.id === authored.id)
+    const persistedNode = persisted?.nodes.find(candidate => candidate.family === 'procedural')
+    const motionId = cinemaCinematicWorldParameterId('motion')
+    expect(persistedNode).toBeDefined()
+    expect(Object.prototype.hasOwnProperty.call(persistedNode?.parameterValues ?? {}, motionId)).toBe(true)
+    const savedMotion = persistedNode?.parameterValues[motionId]
+
+    const store = createCinemaStore()
+    expect(store.getState().hydrateCinemaState(JSON.parse(JSON.stringify(state))).ok).toBe(true)
+    const reloaded = store.getState().compositions.find(composition => composition.id === authored.id)
+    const reloadedNode = reloaded?.nodes.find(candidate => candidate.family === 'procedural')
+    expect(reloadedNode?.parameterValues[motionId]).toEqual(savedMotion)
+
+    const labels = getCinemaCinematicWorldSupportedParameterSchemasForNode(eventHorizon!.definition, reloadedNode!).map(parameter => parameter.label)
+    expect(labels).not.toContain('Motion')
+  })
+
+  it('keeps Reactive Constellation direct common controls while hiding its mapped-only common controls', () => {
+    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'preset-crystal-synapse')
+    const reactive = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'reactiveConstellation')
+    expect(preset).toBeDefined()
+    expect(reactive).toBeDefined()
+    const composition = createCinemaCinematicPresetComposition(
+      preset!,
+      CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+      CINEMA_FOUNDATION_INPUT_PORT_ID,
+    )
+    const node = composition.nodes.find(candidate => candidate.family === 'procedural')
+    expect(node).toBeDefined()
+
+    const labels = getCinemaCinematicWorldSupportedParameterSchemasForNode(reactive!.definition, node!).map(parameter => parameter.label)
+    expect(labels).toEqual(expect.arrayContaining(['Intensity', 'Motion', 'Glow']))
+    expect(labels).not.toEqual(expect.arrayContaining(['Bass Reactivity', 'Trail Decay', 'Fog Density', 'Particle Density']))
+    expect(labels).toEqual(expect.arrayContaining(['Environment Fog', 'Atmosphere', 'Material Glow']))
   })
 
   it('declares only palette roles that each Cinematic World renderer actually consumes', () => {

@@ -6,12 +6,15 @@ import {
   CINEMA_MODULATION_SOURCE_IDS,
   CINEMA_STAGE15_REFERENCE_COMPOSITION,
   CINEMA_STAGE15_REFERENCE_COMPOSITION_ID,
+  CINEMA_TEXT_HIGHLIGHT_COLOR_PARAMETER_ID,
+  CINEMA_TEXT_KINETIC_PARAMETER_ID,
   CINEMA_TEXT_NODE_DEFINITION,
   CINEMA_VIDEO_NODE_DEFINITION,
   compileCinemaCompositionGraph,
   createCinemaDefinitionRegistryFromPersisted,
   createCinemaFoundationPersistedState,
   createCinemaStore,
+  getCinemaSupportedParameterSchemas,
   resolveCinemaLyricDisplay,
   resolveCinemaModulationSourceSample,
   validateCinemaParameterSchemas,
@@ -71,6 +74,15 @@ describe('Cinema Stage 15 media, text, lyrics, and mask nodes', () => {
     expect(CINEMA_TEXT_NODE_DEFINITION.output.hasMask).toBe(true)
     expect(CINEMA_LYRIC_NODE_DEFINITION.output.hasMask).toBe(true)
     expect(CINEMA_TEXT_NODE_DEFINITION.outputPorts.find(port => port.dataType === 'mask-texture')).toBeDefined()
+  })
+
+  it('hides lyric-only highlighting and kinetic controls from static Text while retaining them for Timed Lyrics', () => {
+    const staticIds = getCinemaSupportedParameterSchemas(CINEMA_TEXT_NODE_DEFINITION).map(parameter => parameter.id)
+    const lyricIds = getCinemaSupportedParameterSchemas(CINEMA_LYRIC_NODE_DEFINITION).map(parameter => parameter.id)
+    expect(staticIds).not.toContain(CINEMA_TEXT_HIGHLIGHT_COLOR_PARAMETER_ID)
+    expect(staticIds).not.toContain(CINEMA_TEXT_KINETIC_PARAMETER_ID)
+    expect(lyricIds).toContain(CINEMA_TEXT_HIGHLIGHT_COLOR_PARAMETER_ID)
+    expect(lyricIds).toContain(CINEMA_TEXT_KINETIC_PARAMETER_ID)
   })
 
   it('resolves current line and word with explicit hide, hold, and static fallbacks', () => {

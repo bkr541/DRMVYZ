@@ -130,6 +130,81 @@ const MATERIAL_PARAMETER_SPECS = Object.freeze([
   ['glow', 'Material Glow'],
 ] as const)
 
+const CINEMATIC_WORLD_COMMON_PARAMETER_IDS = Object.freeze([
+  INTENSITY_PARAMETER_ID,
+  MOTION_PARAMETER_ID,
+  GLOW_PARAMETER_ID,
+  BASS_REACTIVITY_PARAMETER_ID,
+  TRAIL_DECAY_PARAMETER_ID,
+  FOG_DENSITY_PARAMETER_ID,
+  PARTICLE_DENSITY_PARAMETER_ID,
+] as const)
+
+/**
+ * Common React parameters that the world renderer itself reads after the
+ * Cinema adapter has constructed a frame. These remain live even when a
+ * legacy preset supplies its own authored audio mapping. Parameters omitted
+ * here can only influence the adapter's fallback modulation snapshot.
+ */
+const DIRECT_COMMON_PARAMETER_USAGE: Readonly<Partial<Record<CinematicWorldMode, readonly CinemaParameterId[]>>> = Object.freeze({
+  legacyPortal: Object.freeze([
+    INTENSITY_PARAMETER_ID,
+    MOTION_PARAMETER_ID,
+    GLOW_PARAMETER_ID,
+    BASS_REACTIVITY_PARAMETER_ID,
+    FOG_DENSITY_PARAMETER_ID,
+    PARTICLE_DENSITY_PARAMETER_ID,
+  ]),
+  reactiveConstellation: Object.freeze([
+    INTENSITY_PARAMETER_ID,
+    MOTION_PARAMETER_ID,
+    GLOW_PARAMETER_ID,
+  ]),
+})
+
+/** Environment/material fields read by the direct Cinema world renderers. */
+const DIRECT_ENVIRONMENT_PARAMETER_USAGE: Readonly<Partial<Record<CinematicWorldMode, readonly string[]>>> = Object.freeze({
+  reactiveConstellation: Object.freeze(['fog', 'atmosphere']),
+})
+
+const DIRECT_MATERIAL_PARAMETER_USAGE: Readonly<Partial<Record<CinematicWorldMode, readonly string[]>>> = Object.freeze({
+  reactiveConstellation: Object.freeze(['glow']),
+})
+
+/**
+ * Direct-renderer modulation targets that are fed by Cinema's generic common
+ * sliders. This intentionally does not reuse definition.capabilities because
+ * those legacy declarations also describe standalone-only post-processing
+ * targets, while renderer targets unrelated to common sliders do not affect
+ * this visibility decision.
+ */
+const cinematicAudioTargets = (...targets: CinematicAudioTarget[]): readonly CinematicAudioTarget[] => Object.freeze(targets)
+
+const DIRECT_COMMON_MODULATION_TARGET_USAGE: Readonly<Partial<Record<CinematicWorldMode, readonly CinematicAudioTarget[]>>> = Object.freeze({
+  eventHorizon: cinematicAudioTargets('environmentBrightness', 'portalAperture', 'geometryRotation'),
+  infiniteCorridor: cinematicAudioTargets('environmentBrightness', 'cameraTravel', 'fogDensity'),
+  fractureRift: cinematicAudioTargets('environmentBrightness', 'portalAperture', 'particleEmission'),
+  monolithGate: cinematicAudioTargets('environmentBrightness', 'portalAperture', 'cameraTravel'),
+  liquidMembrane: cinematicAudioTargets('environmentBrightness', 'portalAperture'),
+  celestialCathedral: cinematicAudioTargets('environmentBrightness', 'cameraTravel', 'particleEmission'),
+  mirrorDimension: cinematicAudioTargets('environmentBrightness', 'geometryRotation', 'feedback'),
+  ancientMachine: cinematicAudioTargets('environmentBrightness', 'portalAperture', 'cameraTravel', 'geometryRotation'),
+  stormGateway: cinematicAudioTargets('environmentBrightness', 'portalAperture', 'fogDensity', 'particleEmission'),
+  reactiveConstellation: cinematicAudioTargets('environmentBrightness', 'geometryRotation'),
+})
+
+/**
+ * Authored world settings retained for compatibility but not read by the
+ * Cinema production renderer. Event Horizon's two boost fields are consumed
+ * only by the standalone post-processing pipeline, which the Cinema graph
+ * adapter does not execute. Reactive Constellation's visualDnaProfile is
+ * normalized/persisted but has no production render consumer.
+ */
+const UNCONSUMED_WORLD_SETTING_KEYS: Readonly<Partial<Record<CinematicWorldMode, readonly string[]>>> = Object.freeze({
+  eventHorizon: Object.freeze(['bloomBoost', 'chromaticAberrationBoost']),
+  reactiveConstellation: Object.freeze(['visualDnaProfile']),
+})
+
 const WORLD_BOUNDS: Readonly<Record<string, Readonly<Record<string, readonly [number, number]>>>> = Object.freeze({
   eventHorizon: WorldSettings.EVENT_HORIZON_BOUNDS,
   infiniteCorridor: WorldSettings.INFINITE_CORRIDOR_BOUNDS,
@@ -663,21 +738,25 @@ function createCinematicWorldParameterCapabilities(
   parameters: readonly CinemaParameterDefinition[],
   backend: 'webgl2' | 'canvas2d',
 ): readonly CinemaParameterCapabilityDescriptor[] {
-  const targets = new Set(definition.capabilities.modulationTargets)
+  const worldId = definition.id as CinematicWorldMode
+  const targets = new Set(DIRECT_COMMON_MODULATION_TARGET_USAGE[worldId] ?? [])
   const paletteRoles = new Set<CinemaBrandRole>(cinematicWorldPaletteRoles(definition))
+  const directCommon = new Set(DIRECT_COMMON_PARAMETER_USAGE[worldId] ?? [])
+  const directEnvironment = new Set(DIRECT_ENVIRONMENT_PARAMETER_USAGE[worldId] ?? [])
+  const directMaterial = new Set(DIRECT_MATERIAL_PARAMETER_USAGE[worldId] ?? [])
+  const unconsumedWorldSettings = new Set((UNCONSUMED_WORLD_SETTING_KEYS[worldId] ?? []).map(worldParameterId))
   const paletteParameterRoles = new Map<CinemaParameterId, CinemaBrandRole>(CINEMATIC_PALETTE_SPECS.map(([role]) => [
     cinemaCinematicWorldParameterId(`palette-${role}`),
     role === 'text' ? 'foreground' : role,
   ]))
-  const directLegacy = backend === 'canvas2d'
   const commonSupport = new Map<CinemaParameterId, boolean>([
-    [INTENSITY_PARAMETER_ID, true],
-    [MOTION_PARAMETER_ID, directLegacy || targets.has('cameraTravel') || targets.has('cameraMotion') || targets.has('geometryRotation')],
-    [GLOW_PARAMETER_ID, directLegacy || targets.has('bloom') || targets.has('environmentBrightness') || targets.has('atmosphere') || targets.has('glow')],
-    [BASS_REACTIVITY_PARAMETER_ID, directLegacy || targets.has('portalAperture')],
-    [TRAIL_DECAY_PARAMETER_ID, directLegacy || targets.has('feedback')],
-    [FOG_DENSITY_PARAMETER_ID, directLegacy || targets.has('fogDensity') || targets.has('fog')],
-    [PARTICLE_DENSITY_PARAMETER_ID, directLegacy || targets.has('particleEmission') || targets.has('debris')],
+    [INTENSITY_PARAMETER_ID, directCommon.has(INTENSITY_PARAMETER_ID)],
+    [MOTION_PARAMETER_ID, directCommon.has(MOTION_PARAMETER_ID) || targets.has('cameraTravel') || targets.has('cameraMotion') || targets.has('geometryRotation')],
+    [GLOW_PARAMETER_ID, directCommon.has(GLOW_PARAMETER_ID) || targets.has('bloom') || targets.has('environmentBrightness') || targets.has('atmosphere') || targets.has('glow')],
+    [BASS_REACTIVITY_PARAMETER_ID, directCommon.has(BASS_REACTIVITY_PARAMETER_ID) || targets.has('portalAperture')],
+    [TRAIL_DECAY_PARAMETER_ID, directCommon.has(TRAIL_DECAY_PARAMETER_ID) || targets.has('feedback')],
+    [FOG_DENSITY_PARAMETER_ID, directCommon.has(FOG_DENSITY_PARAMETER_ID) || targets.has('fogDensity') || targets.has('fog')],
+    [PARTICLE_DENSITY_PARAMETER_ID, directCommon.has(PARTICLE_DENSITY_PARAMETER_ID) || targets.has('particleEmission') || targets.has('debris')],
   ])
   return parameters.map(parameter => {
     const paletteRole = paletteParameterRoles.get(parameter.id)
@@ -690,7 +769,14 @@ function createCinematicWorldParameterCapabilities(
       }
     }
     if (parameter.id === SEED_PARAMETER_ID) return { parameterId: parameter.id, support: 'structural' as const }
-    if (parameter.id === QUALITY_PARAMETER_ID) return { parameterId: parameter.id, support: 'conditional' as const }
+    if (parameter.id === QUALITY_PARAMETER_ID) {
+      const supported = backend === 'webgl2'
+      return {
+        parameterId: parameter.id,
+        support: supported ? 'structural' as const : 'unsupported' as const,
+        ...(!supported ? { reason: 'The Legacy Portal Canvas2D renderer does not consume the authored quality tier.' } : {}),
+      }
+    }
     const common = commonSupport.get(parameter.id)
     if (common === false) {
       return {
@@ -699,8 +785,73 @@ function createCinematicWorldParameterCapabilities(
         reason: 'This Cinematic World does not advertise the modulation/runtime target consumed by this parameter.',
       }
     }
+    if (common === true) return { parameterId: parameter.id, support: 'live' as const }
+
+    const environmentKey = environmentParameterKey(parameter.id)
+    if (environmentKey) {
+      const supported = directEnvironment.has(environmentKey)
+      return {
+        parameterId: parameter.id,
+        support: supported ? 'live' as const : 'unsupported' as const,
+        ...(!supported ? { reason: 'This Cinema world renderer does not read this environment field.' } : {}),
+      }
+    }
+    const materialKey = materialParameterKey(parameter.id)
+    if (materialKey) {
+      const supported = directMaterial.has(materialKey)
+      return {
+        parameterId: parameter.id,
+        support: supported ? 'live' as const : 'unsupported' as const,
+        ...(!supported ? { reason: 'This Cinema world renderer does not read this material field.' } : {}),
+      }
+    }
+    if (unconsumedWorldSettings.has(parameter.id)) {
+      return {
+        parameterId: parameter.id,
+        support: 'unsupported' as const,
+        reason: 'This authored world setting is retained for compatibility but has no reachable Cinema production renderer consumer.',
+      }
+    }
     return { parameterId: parameter.id, support: 'live' as const }
   })
+}
+
+/**
+ * Applies the active preset's runtime branch on top of the renderer-owned
+ * definition capability map. Legacy preset-backed nodes with authored audio
+ * mappings bypass Cinema's fallback modulation snapshot, so common sliders
+ * that only feed that fallback path must disappear for those presets.
+ */
+export function getCinemaCinematicWorldSupportedParameterSchemasForNode(
+  definition: Readonly<CinemaNodeTypeDefinition>,
+  node: Readonly<CinemaNodeDefinition>,
+): readonly CinemaParameterDefinition[] {
+  if (definition.metadata?.adapter !== 'CinematicWorldNodeAdapter') return Object.freeze([])
+  const declared = new Map((definition.parameterCapabilities ?? []).map(capability => [capability.parameterId, capability]))
+  const staticallySupported = definition.parameters.filter(parameter => declared.get(parameter.id)?.support !== 'unsupported')
+  const sourcePreset = readLegacyCinematicPreset(node)
+  if (!sourcePreset?.cinematicConfig?.audioMapping.enabled) return Object.freeze(staticallySupported)
+
+  const worldId = sourcePreset.cinematicConfig.worldMode
+  const directCommon = new Set(DIRECT_COMMON_PARAMETER_USAGE[worldId] ?? [])
+  const commonIds = new Set<CinemaParameterId>(CINEMATIC_WORLD_COMMON_PARAMETER_IDS)
+  return Object.freeze(staticallySupported.filter(parameter => (
+    !commonIds.has(parameter.id) || directCommon.has(parameter.id)
+  )))
+}
+
+function environmentParameterKey(parameterId: CinemaParameterId): string | null {
+  for (const [key] of ENVIRONMENT_PARAMETER_SPECS) {
+    if (parameterId === cinemaCinematicWorldParameterId(`environment-${key}`)) return key
+  }
+  return null
+}
+
+function materialParameterKey(parameterId: CinemaParameterId): string | null {
+  for (const [key] of MATERIAL_PARAMETER_SPECS) {
+    if (parameterId === cinemaCinematicWorldParameterId(`material-${key}`)) return key
+  }
+  return null
 }
 
 function createPersistedDefinition(

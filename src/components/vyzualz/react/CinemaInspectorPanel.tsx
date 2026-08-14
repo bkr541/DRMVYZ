@@ -9,6 +9,7 @@ import {
   buildCinemaComposerLibraryItems,
   CINEMA_PRODUCTION_RUNTIME_REGISTRY,
   getCinemaEditorSelection,
+  getCinemaCinematicWorldSupportedParameterSchemasForNode,
   getCinemaSupportedPaletteRoles,
   getCinemaSupportedParameterSchemas,
   useCinemaStore,
@@ -53,9 +54,12 @@ export function CinemaInspectorPanel() {
     ? createCinemaInspectorAppearanceCapabilities(composition, state.definitions)
     : null, [composition, state.definitions])
   const supportedMasterSchemas = appearanceCapabilities?.masterParameters ?? []
-  const supportedNodeSchemas = useMemo(() => persistedDefinition
-    ? getCinemaSupportedParameterSchemas(persistedDefinition.definition)
-    : [], [persistedDefinition])
+  const supportedNodeSchemas = useMemo(() => {
+    if (!persistedDefinition || !selectedNode) return []
+    return persistedDefinition.definition.metadata?.adapter === 'CinematicWorldNodeAdapter'
+      ? getCinemaCinematicWorldSupportedParameterSchemasForNode(persistedDefinition.definition, selectedNode)
+      : getCinemaSupportedParameterSchemas(persistedDefinition.definition)
+  }, [persistedDefinition, selectedNode])
   const supportedCameraSchemas: Readonly<Record<string, readonly Readonly<CinemaParameterDefinition>[]>> =
     appearanceCapabilities?.cameraParameterSchemas ?? Object.freeze({})
   const masterDescriptors = useMemo(() => composition
@@ -126,9 +130,9 @@ export function CinemaInspectorPanel() {
         {liveInstance && <IconChipButton onClick={() => resetCinemaLiveOverrides(composition.id)}>Reset Live Changes</IconChipButton>}
       </div>
 
-      <div className="rv-ctrl-group">
-        <Collapsible label="Palette" bodyClassName={paletteDescriptors.length === 0 ? undefined : 'rv-cinema-palette-body'}>
-          {paletteDescriptors.length === 0 ? <div className="rv-ctrl-info">This layer does not expose palette colors. Select another visual layer to change its background and brand colors.</div> : paletteDescriptors.map(descriptor => {
+      {paletteDescriptors.length > 0 && <div className="rv-ctrl-group">
+        <Collapsible label="Palette" bodyClassName="rv-cinema-palette-body">
+          {paletteDescriptors.map(descriptor => {
             const color = Array.isArray(descriptor.value) ? descriptor.value : [1, 1, 1, 1]
             return (
               <PaletteColorRow
@@ -145,7 +149,7 @@ export function CinemaInspectorPanel() {
             )
           })}
         </Collapsible>
-      </div>
+      </div>}
 
       <div className="rv-ctrl-group">
         <Collapsible label={selectedNode?.family === 'effect' ? 'Selected Effect' : 'Selected Layer'}>
