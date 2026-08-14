@@ -608,3 +608,102 @@
 .dv-badge-remove:focus-visible {
   background: rgba(255, 255, 255, 0.16);
 }
+
+/* Canonical DRMVYZ track-library row from Layout Lab's "Vinyl Row" winner. */
+
+.dv-track-row {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid rgba(126, 218, 232, 0.08);
+  border-radius: 8px;
+  background: rgba(11, 21, 25, 0.85);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.dv-track-row-disc {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background:
+    repeating-radial-gradient(circle, rgba(255, 255, 255, 0.09) 0 1.5px, transparent 1.5px 4px),
+    radial-gradient(circle at 35% 30%, rgba(74, 199, 219, 0.22), transparent 55%),
+    #05090b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: transform 0.6s linear;
+}
+
+.dv-track-row:hover .dv-track-row-disc {
+  transform: rotate(60deg);
+}
+
+.dv-track-row-label {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #0d1a1f;
+  border: 1px solid rgba(74, 199, 219, 0.35);
+  color: rgba(237, 249, 251, 0.85);
+  font-size: 6.5px;
+  font-weight: 800;
+}
+
+.dv-track-row-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dv-track-row-title {
+  overflow: hidden;
+  color: rgba(237, 249, 251, 0.92);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dv-track-row-artist {
+  overflow: hidden;
+  color: rgba(196, 207, 211, 0.55);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dv-track-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 9.5px/1 ui-monospace, 'SF Mono', Menlo, monospace;
+  color: rgba(196, 207, 211, 0.5);
+}
+
+.dv-track-row-meta-hl {
+  color: #6fe0f0;
+  font-weight: 700;
+}
+
+.dv-track-row-dot {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: rgba(196, 207, 211, 0.4);
+}
+
+.dv-track-row.is-active {
+  border-color: rgba(74, 199, 219, 0.5);
+  background: rgba(74, 199, 219, 0.08);
+}
+
+.dv-track-row.is-active .dv-track-row-disc {
+  box-shadow: 0 0 0 3px rgba(74, 199, 219, 0.14);
+}

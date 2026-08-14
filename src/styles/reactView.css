@@ -16412,309 +16412,251 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .lllr-gallery {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 28px;
   padding: 18px 16px 32px;
 }
 
-.lllr-tree {
+/* 01 · Channel Strip — mixer-channel rail with a ghost index and a status
+   line that dissolves via mask-image instead of clipping with an ellipsis. */
+
+.lllr-strip-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
-.lllr-branch {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.lllr-tree button {
+.lllr-strip-row {
+  position: relative;
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
+  grid-template-columns: 4px minmax(0, 1fr);
   align-items: center;
-  gap: 7px;
-  width: 100%;
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  border-radius: 6px;
-  background: rgba(8, 14, 22, 0.55);
-  color: #aeb9c5;
-  padding: 8px;
-  text-align: left;
+  gap: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 5px;
+  background: rgba(6, 10, 14, 0.7);
+  padding: 9px 12px 9px 0;
 }
 
-.lllr-tree button strong {
+.lllr-strip-accent {
+  align-self: stretch;
+  background: var(--strip-tone, #4ac7db);
+  opacity: 0.55;
+  border-radius: 2px;
+}
+
+.lllr-strip-ghost {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  font: 800 30px/1 var(--az-font, Inter, system-ui, sans-serif);
+  color: rgba(255, 255, 255, 0.04);
+  letter-spacing: -0.02em;
+  pointer-events: none;
+}
+
+.lllr-strip-body {
+  position: relative;
+  display: flex;
   min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lllr-strip-label {
   overflow: hidden;
+  color: #cdd8dd;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.lllr-tree button small {
+.lllr-strip-status {
+  display: block;
+  max-width: 78%;
+  overflow: hidden;
+  white-space: nowrap;
   color: #687583;
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  mask-image: linear-gradient(to right, #000 75%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 75%, transparent 100%);
 }
 
-.lllr-tree button.is-active {
-  border-color: rgba(74, 199, 219, 0.55);
-  background: rgba(74, 199, 219, 0.09);
+.lllr-strip-row.is-active {
+  border-color: rgba(74, 199, 219, 0.4);
+  background: rgba(74, 199, 219, 0.07);
+  box-shadow: 0 0 20px rgba(74, 199, 219, 0.08);
+}
+
+.lllr-strip-row.is-active .lllr-strip-accent {
+  opacity: 1;
+  box-shadow: 0 0 10px var(--strip-tone, #4ac7db);
+}
+
+.lllr-strip-row.is-active .lllr-strip-label {
   color: #e8fcff;
 }
 
-/* 01 · Truncated Status — fixed max-width + ellipsis on the status column */
-.lllr-tree--truncate button small {
+/* 02 · Depth Stack — cards step forward/back with a shallow shadow depth,
+   status rides as a rotated corner stamp. */
+
+.lllr-stack-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lllr-stack-card {
+  position: relative;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 7px;
+  background: rgba(9, 14, 19, 0.85);
+  padding: 10px 64px 10px 34px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.28);
+}
+
+.lllr-stack-list .lllr-stack-card:nth-child(3n+2) { margin-left: 6px; box-shadow: 0 5px 14px rgba(0, 0, 0, 0.34); }
+.lllr-stack-list .lllr-stack-card:nth-child(3n) { margin-left: 12px; box-shadow: 0 7px 18px rgba(0, 0, 0, 0.4); }
+
+.lllr-stack-index {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  color: rgba(196, 207, 211, 0.4);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.lllr-stack-label {
   display: block;
-  max-width: 132px;
   overflow: hidden;
+  color: #cdd8dd;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* 02 · Two-Line Layout — status drops to its own full-width wrapped line */
-.lllr-tree--twoLine button {
-  grid-template-columns: none;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
-}
-
-.lllr-twoLine-top {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  align-items: center;
-  gap: 7px;
-}
-
-.lllr-twoLine-top strong {
-  min-width: 0;
+.lllr-stack-stamp {
+  position: absolute;
+  top: 8px;
+  right: -4px;
+  max-width: 84px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lllr-tree--twoLine button small {
-  padding-left: 31px;
-  white-space: normal;
-  word-break: break-word;
-  line-height: 1.4;
-}
-
-/* 03 · Status Chip — status renders as its own bordered pill */
-.lllr-chip {
-  display: inline-block;
-  max-width: 132px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 2px 6px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 999px;
+  transform: rotate(-4deg);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 3px;
   background: rgba(255, 255, 255, 0.04);
-  vertical-align: middle;
+  padding: 2px 7px;
+  color: rgba(196, 207, 211, 0.6);
+  font-size: 8.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* ── Track Library Row Style Gallery (Layout Lab / Template) ─────────────── */
-
-.lltl-gallery {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding: 18px 16px 32px;
+.lllr-stack-card.is-active {
+  border-color: rgba(74, 199, 219, 0.5);
+  background: rgba(74, 199, 219, 0.08);
 }
 
-.lltl-list {
+.lllr-stack-card.is-active .lllr-stack-label {
+  color: #e8fcff;
+}
+
+.lllr-stack-card.is-active .lllr-stack-stamp {
+  border-color: rgba(74, 199, 219, 0.55);
+  color: #9be8f3;
+}
+
+/* 03 · Icon Rail — colored initial chip, status fades via mask-image. */
+
+.lllr-rail-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  width: 100%;
 }
 
-.lltl-art {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  border-radius: 5px;
-  border: 1px solid rgba(126, 218, 232, 0.16);
-  background:
-    linear-gradient(145deg, rgba(74, 199, 219, 0.2), transparent 50%),
-    radial-gradient(circle at 50% 25%, rgba(237, 249, 251, 0.2), transparent 26%),
-    #071014;
-  color: rgba(237, 249, 251, 0.9);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-shadow: 0 0 14px rgba(74, 199, 219, 0.66);
-}
-
-/* 01 · Compact Grid Card */
-.lltl-card {
-  display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
-  gap: 10px;
-  min-height: 66px;
-  padding: 8px;
-  border: 1px solid rgba(126, 218, 232, 0.08);
-  border-radius: 7px;
-  background: rgba(11, 21, 25, 0.8);
-  text-align: left;
-}
-
-.lltl-card.is-active {
-  background: linear-gradient(90deg, rgba(74, 199, 219, 0.18), rgba(74, 199, 219, 0.05));
-  border-color: rgba(74, 199, 219, 0.56);
-  box-shadow: inset 3px 0 0 #20d7ef, 0 0 24px rgba(74, 199, 219, 0.08);
-}
-
-.lltl-card .lltl-art {
-  width: 52px;
-  height: 52px;
-  font-size: 13px;
-}
-
-.lltl-main {
+.lllr-rail-row {
   display: flex;
-  min-width: 0;
-  flex-direction: column;
-}
-
-.lltl-title {
-  overflow: hidden;
-  color: rgba(237, 249, 251, 0.92);
-  font-size: 12px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lltl-artist {
-  overflow: hidden;
-  margin-top: 2px;
-  color: rgba(196, 207, 211, 0.58);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lltl-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 6px;
-  font-size: 9px;
-  color: rgba(196, 207, 211, 0.38);
-}
-
-.lltl-meta span {
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.045);
-  color: rgba(196, 207, 211, 0.56);
-}
-
-/* 02 · Condensed List Row */
-.lltl-row {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border: 1px solid rgba(126, 218, 232, 0.08);
-  border-radius: 6px;
-  background: rgba(11, 21, 25, 0.8);
-  text-align: left;
+  gap: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 8px;
+  background: rgba(9, 14, 19, 0.8);
+  padding: 7px 12px;
 }
 
-.lltl-row.is-active {
-  border-color: rgba(74, 199, 219, 0.56);
-  background: rgba(74, 199, 219, 0.09);
+.lllr-rail-glyph {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--rail-tone, #4ac7db) 20%, #05090c);
+  border: 1px solid color-mix(in srgb, var(--rail-tone, #4ac7db) 45%, transparent);
+  color: var(--rail-tone, #4ac7db);
+  font: 700 11px/1 var(--az-font, Inter, system-ui, sans-serif);
 }
 
-.lltl-art--sm {
-  width: 34px;
-  height: 34px;
-  font-size: 9px;
-}
-
-.lltl-row-text {
+.lllr-rail-text {
   display: flex;
   min-width: 0;
+  flex: 1;
   flex-direction: column;
   gap: 1px;
 }
 
-.lltl-row-text strong {
+.lllr-rail-label {
   overflow: hidden;
-  color: rgba(237, 249, 251, 0.92);
-  font-size: 11px;
+  color: #cdd8dd;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.lltl-row-text span {
+.lllr-rail-status {
+  display: block;
+  max-width: 100%;
   overflow: hidden;
-  color: rgba(196, 207, 211, 0.5);
-  font-size: 9px;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  color: #687583;
+  font-size: 9.5px;
+  mask-image: linear-gradient(to right, #000 80%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 80%, transparent 100%);
 }
 
-.lltl-row-date {
-  flex-shrink: 0;
-  color: rgba(196, 207, 211, 0.4);
-  font-size: 9px;
+.lllr-rail-row.is-active {
+  border-color: rgba(74, 199, 219, 0.4);
+  background: rgba(74, 199, 219, 0.08);
 }
 
-/* 03 · Stacked Media Tile */
-.lltl-tile {
+.lllr-rail-row.is-active .lllr-rail-glyph {
+  box-shadow: 0 0 0 3px rgba(74, 199, 219, 0.16);
+}
+
+.lllr-rail-row.is-active .lllr-rail-label {
+  color: #e8fcff;
+}
+
+/* ── Track Library Row Style Gallery (Layout Lab / Template) ─────────────── */
+/* Per-row visual styling for the winning "Vinyl Row" treatment now lives on
+   the reusable AudioTrackRow component as .dv-track-row* in
+   controls/canonicalControls.css. Only gallery scaffolding remains here. */
+
+.lltl-gallery {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 10px;
-  border: 1px solid rgba(126, 218, 232, 0.08);
-  border-radius: 8px;
-  background: rgba(11, 21, 25, 0.8);
-  text-align: left;
+  gap: 28px;
+  padding: 18px 16px 32px;
 }
 
-.lltl-tile.is-active {
-  border-color: rgba(74, 199, 219, 0.56);
-  background: linear-gradient(180deg, rgba(74, 199, 219, 0.14), rgba(74, 199, 219, 0.04));
-}
-
-.lltl-art--lg {
-  width: 100%;
-  height: 64px;
-  font-size: 16px;
-}
-
-.lltl-tile-title {
-  overflow: hidden;
-  color: rgba(237, 249, 251, 0.92);
-  font-size: 12px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  width: 100%;
-}
-
-.lltl-tile-artist {
-  color: rgba(196, 207, 211, 0.55);
-  font-size: 10px;
-}
-
-.lltl-tile-meta {
+.lltl-vinyl-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  font-size: 9px;
-}
-
-.lltl-tile-meta span {
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.045);
-  color: rgba(196, 207, 211, 0.56);
+  flex-direction: column;
+  gap: 8px;
 }
 
 /* ── Cinema engine registration and single-owner runtime workspace ───────── */

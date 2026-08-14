@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react'
+
 // ── LayerRowStyleGallery ──────────────────────────────────────────────────
 //
 // Layout Lab / Template engine only. Three candidate treatments for a
@@ -5,8 +7,9 @@
 // label, status). Grounded in a real bug: the production Canvas Layers
 // tab's status column has no max-width/truncation, so a long locked-media
 // filename overflows and squeezes the label out of the row. Each candidate
-// includes that exact scenario (a long filename on one row) to show how it
-// handles the overflow.
+// includes that exact scenario (a long filename on the Transition row) but
+// solves it with its own distinct visual language rather than reusing the
+// current tree-row look.
 
 interface LayerRowSample {
   label: string
@@ -24,56 +27,72 @@ const LAYER_SAMPLES: LayerRowSample[] = [
   { label: 'Feedback', status: 'Auto' },
 ]
 
-// ── 01 · Truncated Status ───────────────────────────────────────────────────
+const ROLE_TONES = ['#4ac7db', '#67f7ff', '#6b4cff', '#b84fc9', '#d8b95a', '#61d6aa', '#ff6b6b']
 
-function TruncatedStatusRows() {
+// ── 01 · Channel Strip ───────────────────────────────────────────────────────
+// A mixing-console channel per layer: a colored accent rail with a huge faint
+// ghost index behind it, label up top, status faded out with a mask-image
+// gradient instead of an ellipsis — so overflow dissolves rather than clips.
+
+function ChannelStripRows() {
   return (
-    <div className="lllr-tree lllr-tree--truncate">
+    <div className="lllr-strip-list">
       {LAYER_SAMPLES.map((row, index) => (
-        <div className="lllr-branch" key={row.label}>
-          <button type="button" className={row.active ? 'is-active' : ''}>
-            <span>{index + 1}</span>
-            <strong>{row.label}</strong>
-            <small title={row.status}>{row.status}</small>
-          </button>
+        <div
+          key={row.label}
+          className={`lllr-strip-row${row.active ? ' is-active' : ''}`}
+          style={{ '--strip-tone': ROLE_TONES[index % ROLE_TONES.length] } as CSSProperties}
+        >
+          <span className="lllr-strip-ghost" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+          <span className="lllr-strip-accent" aria-hidden="true" />
+          <span className="lllr-strip-body">
+            <strong className="lllr-strip-label">{row.label}</strong>
+            <small className="lllr-strip-status" title={row.status}>{row.status}</small>
+          </span>
         </div>
       ))}
     </div>
   )
 }
 
-// ── 02 · Two-Line Layout ─────────────────────────────────────────────────────
+// ── 02 · Depth Stack ─────────────────────────────────────────────────────────
+// Cards step forward/back in a shallow physical stack (alternating offset +
+// shadow depth). Status rides as a rotated stamp pinned to the card's corner,
+// clipped with an ellipsis, reading as metadata rather than body text.
 
-function TwoLineRows() {
+function DepthStackRows() {
   return (
-    <div className="lllr-tree lllr-tree--twoLine">
+    <div className="lllr-stack-list">
       {LAYER_SAMPLES.map((row, index) => (
-        <div className="lllr-branch" key={row.label}>
-          <button type="button" className={row.active ? 'is-active' : ''}>
-            <span className="lllr-twoLine-top">
-              <span>{index + 1}</span>
-              <strong>{row.label}</strong>
-            </span>
-            <small>{row.status}</small>
-          </button>
+        <div key={row.label} className={`lllr-stack-card${row.active ? ' is-active' : ''}`}>
+          <span className="lllr-stack-index" aria-hidden="true">{index + 1}</span>
+          <strong className="lllr-stack-label">{row.label}</strong>
+          <small className="lllr-stack-stamp" title={row.status}>{row.status}</small>
         </div>
       ))}
     </div>
   )
 }
 
-// ── 03 · Status Chip ─────────────────────────────────────────────────────────
+// ── 03 · Icon Rail ───────────────────────────────────────────────────────────
+// A colored initial chip replaces the numeral. Label and status stack inside
+// a fixed-width text column, status fading via mask-image so a long filename
+// dissolves at the edge instead of being cut off with "…".
 
-function StatusChipRows() {
+function IconRailRows() {
   return (
-    <div className="lllr-tree lllr-tree--chip">
+    <div className="lllr-rail-list">
       {LAYER_SAMPLES.map((row, index) => (
-        <div className="lllr-branch" key={row.label}>
-          <button type="button" className={row.active ? 'is-active' : ''}>
-            <span>{index + 1}</span>
-            <strong>{row.label}</strong>
-            <small><span className="lllr-chip" title={row.status}>{row.status}</span></small>
-          </button>
+        <div
+          key={row.label}
+          className={`lllr-rail-row${row.active ? ' is-active' : ''}`}
+          style={{ '--rail-tone': ROLE_TONES[index % ROLE_TONES.length] } as CSSProperties}
+        >
+          <span className="lllr-rail-glyph" aria-hidden="true">{row.label.charAt(0)}</span>
+          <span className="lllr-rail-text">
+            <strong className="lllr-rail-label">{row.label}</strong>
+            <small className="lllr-rail-status" title={row.status}>{row.status}</small>
+          </span>
         </div>
       ))}
     </div>
@@ -81,9 +100,9 @@ function StatusChipRows() {
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'truncate', title: '01 · Truncated Status', blurb: 'Same three-column grid as production, but the status column gets a fixed max-width and text-overflow ellipsis — a long locked-media filename truncates cleanly on one line instead of overflowing the row.', Rows: TruncatedStatusRows },
-  { id: 'twoLine', title: '02 · Two-Line Layout', blurb: 'Index and label share a full-width top line; status drops to its own full-width line below and wraps naturally. Nothing gets clipped, at the cost of a taller row.', Rows: TwoLineRows },
-  { id: 'chip', title: '03 · Status Chip', blurb: 'Status renders as a small bordered chip with its own max-width and ellipsis, reading as metadata rather than inline text — visually separates "what" from "state."', Rows: StatusChipRows },
+  { id: 'strip', title: '01 · Channel Strip', blurb: 'Each layer reads like a mixer channel — a colored accent rail, a huge faint index watermark behind it, label up top. The status line fades out with a mask-image gradient instead of an ellipsis, so the long locked-media filename on Transition dissolves at the edge rather than clipping.', Rows: ChannelStripRows },
+  { id: 'stack', title: '02 · Depth Stack', blurb: 'Cards step forward and back in a shallow physical stack — alternating offset and shadow depth suggest real layering. Status rides as a small rotated stamp pinned to the corner, so the Transition filename reads as a tag, not as row text fighting for space.', Rows: DepthStackRows },
+  { id: 'rail', title: '03 · Icon Rail', blurb: 'A colored initial chip stands in for the numeral, echoing per-layer role color. Label and status stack in a fixed text column; status fades via mask-image on overflow, so the long filename dissolves rather than getting cut off.', Rows: IconRailRows },
 ]
 
 export function LayerRowStyleGallery() {
