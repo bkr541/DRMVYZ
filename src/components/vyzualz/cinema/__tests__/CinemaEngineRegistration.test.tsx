@@ -779,8 +779,8 @@ describe('Cinema production engine registration', () => {
 
     await act(async () => root?.render(<CinemaInspectorPanel />))
     const headers = [...(host?.querySelectorAll<HTMLButtonElement>('.drc-header') ?? [])].map(button => button.textContent?.trim())
-    expect(headers).not.toContain('Palette')
-    expect(headers).toContain('Selected Effect')
+    expect(headers.some(header => header?.includes('Palette'))).toBe(false)
+    expect(headers.some(header => header?.includes('Selected Effect'))).toBe(true)
   })
 
   it('keeps only one active Cinema context and loop through a Strict Mode effect replay', async () => {

@@ -27,7 +27,7 @@ import {
   type CinemaEventId,
   type CinemaPerformanceRuleId,
 } from '..'
-import { cinemaStableId, type CinemaCompositionId } from '../CinemaIdentifiers'
+import { cinemaStableId, type CinemaCompositionId, type CinemaNodeId } from '../CinemaIdentifiers'
 import type { CinemaFrameContext } from '../CinemaRendererContracts'
 import { createCinemaRuntimeNodeRegistry } from '../CinemaRuntimeNodeRegistry'
 import { CinemaGraphExecutor } from '../runtime/CinemaGraphExecutor'
@@ -189,6 +189,11 @@ describe('Cinema Cinematic World adapters', () => {
       preset!,
       CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
       CINEMA_FOUNDATION_INPUT_PORT_ID,
+      {
+        compositionId: cinemaStableId<CinemaCompositionId>('legacy-cinematic-preset-singularity-crown', 'composition'),
+        worldNodeId: cinemaStableId<CinemaNodeId>('legacy-cinematic-preset-singularity-crown', 'node'),
+        outputNodeId: cinemaStableId<CinemaNodeId>('legacy-cinematic-output-preset-singularity-crown', 'node'),
+      },
     )
     const state = createCinemaFoundationPersistedState()
     const persisted = state.compositions.find(composition => composition.id === authored.id)
