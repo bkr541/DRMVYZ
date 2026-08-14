@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { Delete02Icon } from 'hugeicons-react'
 import { NoticeCard } from './controls/NoticeCard'
 import { IconChipButton } from './controls/IconChipButton'
+import { LayerRow } from './controls/LayerRow'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -3041,6 +3042,9 @@ const CANVAS_LAYER_ROLE_OPTIONS: Array<{ value: CanvasLayerRole; label: string }
   { value: 'feedback', label: 'Feedback' },
 ]
 
+// Same accent palette as the LayerRow canonical component's Layout Lab gallery.
+const CANVAS_LAYER_ROW_TONES = ['#4ac7db', '#67f7ff', '#6b4cff', '#b84fc9', '#d8b95a', '#61d6aa', '#ff6b6b']
+
 function CanvasOrchestrationControls() {
   const settings = useReactStore(s => s.canvasOrchestrationSettings)
   const setSettings = useReactStore(s => s.setCanvasOrchestrationSettings)
@@ -3201,17 +3205,15 @@ export function CanvasLayersPanel() {
           const lockedMediaId = settings.mediaLocksByLayer[option.value]
           const lockedMediaName = lockedMediaId ? mediaItems.find(item => item.id === lockedMediaId)?.name : undefined
           return (
-            <div className="rv-cinema-layer-tree__branch" key={option.value}>
-              <button
-                type="button"
-                className={lockLayerRole === option.value ? 'is-active' : ''}
-                onClick={() => setLockLayerRole(option.value)}
-              >
-                <span>{index + 1}</span>
-                <strong>{option.label}</strong>
-                <small>{locked ? (lockedMediaName ?? 'Locked') : 'Auto'}</small>
-              </button>
-            </div>
+            <LayerRow
+              key={option.value}
+              index={index + 1}
+              label={option.label}
+              status={locked ? (lockedMediaName ?? 'Locked') : 'Auto'}
+              tone={CANVAS_LAYER_ROW_TONES[index % CANVAS_LAYER_ROW_TONES.length]}
+              active={lockLayerRole === option.value}
+              onClick={() => setLockLayerRole(option.value)}
+            />
           )
         })}
       </div>

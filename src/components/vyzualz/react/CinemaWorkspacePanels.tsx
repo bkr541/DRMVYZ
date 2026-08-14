@@ -13,6 +13,10 @@ import {
 } from '../cinema'
 import { isCinemaLiveInstance } from './CinemaLiveOverrides'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
+import { LayerRow } from './controls/LayerRow'
+
+// Same accent palette as the LayerRow canonical component's Layout Lab gallery.
+const CINEMA_LAYER_ROW_TONES = ['#4ac7db', '#67f7ff', '#6b4cff', '#b84fc9', '#d8b95a', '#61d6aa', '#ff6b6b']
 
 function useCinemaPanelState() {
   const state = useCinemaStore(useShallow(store => ({
@@ -92,9 +96,14 @@ export function CinemaLayersPanel() {
       <div className="rv-cinema-layer-tree">
         {layers.map((layer, index) => (
           <div className="rv-cinema-layer-tree__branch" key={layer.node.id}>
-            <button type="button" className={selectedNodeId === layer.node.id ? 'is-active' : ''} onClick={() => selectNode(layer.node.id)}>
-              <span>{index + 1}</span><strong>{layer.node.label ?? String(layer.node.typeId)}</strong><small>{layer.node.enabled ? `${Math.round(layer.node.opacity * 100)}%` : 'Off'}</small>
-            </button>
+            <LayerRow
+              index={index + 1}
+              label={layer.node.label ?? String(layer.node.typeId)}
+              status={layer.node.enabled ? `${Math.round(layer.node.opacity * 100)}%` : 'Off'}
+              tone={CINEMA_LAYER_ROW_TONES[index % CINEMA_LAYER_ROW_TONES.length]}
+              active={selectedNodeId === layer.node.id}
+              onClick={() => selectNode(layer.node.id)}
+            />
             {layer.effects.map(effect => (
               <button type="button" className={`rv-cinema-layer-tree__effect${selectedNodeId === effect.id ? ' is-active' : ''}`} key={effect.id} onClick={() => selectNode(effect.id)}>
                 <span>FX</span><strong>{effect.label ?? String(effect.typeId)}</strong>
