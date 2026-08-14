@@ -15,6 +15,7 @@ import { ButtonStyleGallery } from './layoutLab/ButtonStyleGallery'
 import { PaletteGroupStyleGallery } from './layoutLab/PaletteGroupStyleGallery'
 import { BadgeStyleGallery } from './layoutLab/BadgeStyleGallery'
 import { LayerRowStyleGallery } from './layoutLab/LayerRowStyleGallery'
+import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
 import { TrackLibraryRowStyleGallery } from './layoutLab/TrackLibraryRowStyleGallery'
 import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
@@ -341,6 +342,11 @@ export function LayoutLabMockup() {
                 ariaLabel="Layout Lab inspector tabs"
               />
               <div className="vz-panel-body">
+                {templateRightTab === 'presets' && (
+                  <div className="rv-inspector rv-inspector-scroll">
+                    <PresetCardStyleGallery />
+                  </div>
+                )}
                 {templateRightTab === 'output' && (
                   <div className="rv-inspector rv-inspector-scroll">
                     <TemplateOutputDiagnosticsMockup />

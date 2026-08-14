@@ -16443,6 +16443,307 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   gap: 8px;
 }
 
+/* ── Preset Card Style Gallery (Layout Lab / Template) ────────────────────── */
+/* Grounded in the real right-rail preset card (ReactPresetCard): a 76×52
+   thumbnail, a name, up to two chips, a "Modified" badge, and a favorite
+   star — no description or palette swatch, since production never renders
+   those despite declaring the props. */
+
+.llpc-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 18px 16px 32px;
+}
+
+.llpc-chip {
+  padding: 0 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(232, 244, 248, 0.55);
+  font-size: 9px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.llpc-chip--modified {
+  background: rgba(255, 176, 0, 0.12);
+  color: rgba(255, 197, 79, 0.85);
+}
+
+.llpc-chip--ghost {
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(237, 249, 251, 0.75);
+  backdrop-filter: blur(2px);
+}
+
+/* 01 · Filmstrip Row — the current production shape, refined. */
+
+.llpc-filmstrip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.llpc-filmstrip-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 70px;
+  padding: 8px 34px 8px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+}
+
+.llpc-filmstrip-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(74, 199, 219, 0.3);
+}
+
+.llpc-filmstrip-card.is-active {
+  border-color: #4ac7db;
+  background: rgba(74, 199, 219, 0.07);
+}
+
+.llpc-filmstrip-thumb {
+  flex: 0 0 76px;
+  width: 76px;
+  height: 52px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--llpc-tone, #4ac7db) 45%, transparent), transparent 60%),
+    #020508;
+}
+
+.llpc-filmstrip-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.llpc-filmstrip-name {
+  overflow: hidden;
+  color: rgba(232, 244, 248, 0.9);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.llpc-filmstrip-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.llpc-filmstrip-fav {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  color: #f0b429;
+  font-size: 13px;
+}
+
+/* 02 · Preview Tile Grid — a two-column visual browser. */
+
+.llpc-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.llpc-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+}
+
+.llpc-tile:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(74, 199, 219, 0.3);
+}
+
+.llpc-tile.is-active {
+  border-color: #4ac7db;
+  background: rgba(74, 199, 219, 0.07);
+}
+
+.llpc-tile-thumb {
+  position: relative;
+  width: 100%;
+  height: 76px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--llpc-tone, #4ac7db) 45%, transparent), transparent 60%),
+    #020508;
+}
+
+.llpc-tile-fav {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  color: #f0b429;
+  font-size: 12px;
+}
+
+.llpc-tile-name {
+  overflow: hidden;
+  color: rgba(232, 244, 248, 0.9);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.llpc-tile-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+/* 03 · Minimal List — no thumbnail, highest density. */
+
+.llpc-minimal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.llpc-minimal-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  text-align: left;
+}
+
+.llpc-minimal-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.llpc-minimal-row.is-active {
+  border-color: rgba(74, 199, 219, 0.35);
+  background: rgba(74, 199, 219, 0.07);
+}
+
+.llpc-minimal-dot {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--llpc-tone, #4ac7db);
+}
+
+.llpc-minimal-name {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(232, 244, 248, 0.9);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.llpc-minimal-chips {
+  display: flex;
+  flex: 1;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 5px;
+  overflow: hidden;
+}
+
+.llpc-minimal-fav {
+  flex: 0 0 auto;
+  color: #f0b429;
+  font-size: 12px;
+}
+
+/* 04 · Spotlight Card — full-bleed poster-style thumbnail. */
+
+.llpc-spotlight-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.llpc-spotlight-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 96px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  text-align: left;
+}
+
+.llpc-spotlight-card.is-active {
+  border-color: #4ac7db;
+  box-shadow: 0 0 0 1px rgba(74, 199, 219, 0.4), 0 0 24px rgba(74, 199, 219, 0.14);
+}
+
+.llpc-spotlight-thumb {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, transparent 40%, rgba(2, 5, 8, 0.92) 100%),
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--llpc-tone, #4ac7db) 55%, transparent), transparent 62%),
+    #020508;
+}
+
+.llpc-spotlight-fav {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  right: 10px;
+  color: #f0b429;
+  font-size: 13px;
+}
+
+.llpc-spotlight-caption {
+  position: absolute;
+  z-index: 1;
+  left: 10px;
+  right: 10px;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.llpc-spotlight-name {
+  overflow: hidden;
+  color: rgba(245, 248, 250, 0.95);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.llpc-spotlight-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
 /* ── Cinema engine registration and single-owner runtime workspace ───────── */
 .rv-cinema-workspace {
   box-sizing: border-box;
