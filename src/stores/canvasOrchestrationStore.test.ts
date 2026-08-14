@@ -214,15 +214,64 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     expect(useReactStore.getState().canvasOrchestrationSettings.mediaPoolIds).toEqual(['drop-a'])
     expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools).toHaveLength(2)
 
+    useReactStore.getState().selectCanvasMediaItem('drop-a')
+    const protectedLayer = useReactStore.getState().addCanvasAuthoredLayer('drop-a')
+    if (!protectedLayer.ok) throw new Error(protectedLayer.message)
+
     const deleted = useReactStore.getState().deleteCanvasMediaPool(second.pool.id)
     expect(deleted.ok).toBe(true)
     expect(useReactStore.getState().canvasOrchestrationSettings.activeMediaPoolId).toBeNull()
     expect(useReactStore.getState().canvasOrchestrationSettings.mediaPoolIds).toEqual([])
     expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools.map(pool => pool.id)).toEqual([first.pool.id])
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.find(layer => layer.id === protectedLayer.layer.id)?.mediaId).toBe('drop-a')
+    expect(useReactStore.getState().activeCanvasMediaId).toBe('drop-a')
 
     expect(useReactStore.getState().deleteCanvasMediaPool(first.pool.id).ok).toBe(true)
     expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools).toEqual([])
     expect(useReactStore.getState().canvasOrchestrationSettings.mediaPoolIds).toEqual([])
+  })
+
+  it('removes Pool membership idempotently without changing source or layer state', () => {
+    useReactStore.getState().selectCanvasMediaItem('pool-media')
+    const layer = useReactStore.getState().addCanvasAuthoredLayer('pool-media')
+    if (!layer.ok) throw new Error(layer.message)
+    const pool = useReactStore.getState().createCanvasMediaPool('Removal')
+    if (!pool.ok) throw new Error(pool.message)
+    useReactStore.getState().setActiveCanvasMediaPool(pool.pool.id)
+    useReactStore.getState().addCanvasMediaToPool(pool.pool.id, 'pool-media')
+
+    expect(useReactStore.getState().removeCanvasMediaFromPool(pool.pool.id, 'pool-media').ok).toBe(true)
+    const revisionAfterFirstRemoval = useReactStore.getState().canvasOrchestrationSettings.poolRevision
+    expect(useReactStore.getState().removeCanvasMediaFromPool(pool.pool.id, 'pool-media').ok).toBe(true)
+
+    const state = useReactStore.getState()
+    expect(state.canvasOrchestrationSettings.poolRevision).toBe(revisionAfterFirstRemoval)
+    expect(state.canvasOrchestrationSettings.mediaPoolIds).toEqual([])
+    expect(state.canvasOrchestrationSettings.authoredLayers.map(candidate => candidate.id)).toContain(layer.layer.id)
+    expect(state.activeCanvasMediaId).toBe('pool-media')
+  })
+
+  it('rejects blank and case-folded duplicate pool names without mutating canonical pool state', () => {
+    const blank = useReactStore.getState().createCanvasMediaPool('   ')
+    expect(blank).toMatchObject({ ok: false, code: 'invalid-pool-name' })
+    expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools).toEqual([])
+
+    const first = useReactStore.getState().createCanvasMediaPool('Warmup')
+    expect(first.ok).toBe(true)
+    if (!first.ok) throw new Error(first.message)
+
+    const duplicate = useReactStore.getState().createCanvasMediaPool(' warmUP ')
+    expect(duplicate).toMatchObject({ ok: false, code: 'pool-name-conflict' })
+    expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools.map(pool => pool.name)).toEqual(['Warmup'])
+
+    const second = useReactStore.getState().createCanvasMediaPool('Drop')
+    expect(second.ok).toBe(true)
+    if (!second.ok) throw new Error(second.message)
+    expect(useReactStore.getState().renameCanvasMediaPool(second.pool.id, 'WARMUP')).toMatchObject({
+      ok: false,
+      code: 'pool-name-conflict',
+    })
+    expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools.map(pool => pool.name)).toEqual(['Warmup', 'Drop'])
   })
 
   it('migrates legacy flat pool persistence into a deterministic compatibility pool and round-trips only canonical pool truth', () => {

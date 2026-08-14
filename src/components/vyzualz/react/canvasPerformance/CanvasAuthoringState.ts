@@ -87,6 +87,30 @@ export function normalizeCanvasMediaPools(value: unknown): CanvasMediaPool[] {
   return pools
 }
 
+export function normalizeCanvasMediaPoolName(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+export function isCanvasMediaPoolNameAvailable(
+  pools: readonly CanvasMediaPool[],
+  name: unknown,
+  exceptPoolId: string | null = null,
+): boolean {
+  const normalizedName = normalizeCanvasMediaPoolName(name)
+  if (!normalizedName) return false
+  const key = normalizedName.toLowerCase()
+  return !normalizeCanvasMediaPools(pools).some(pool => (
+    pool.id !== exceptPoolId && pool.name.trim().toLowerCase() === key
+  ))
+}
+
+export function resolveActiveCanvasMediaPool(
+  settings: Pick<NormalizedCanvasAuthoringState, 'mediaPools' | 'activeMediaPoolId'>,
+): CanvasMediaPool | null {
+  if (!settings.activeMediaPoolId) return null
+  return settings.mediaPools.find(pool => pool.id === settings.activeMediaPoolId) ?? null
+}
+
 export interface NormalizedCanvasAuthoringState {
   authoredLayers: CanvasAuthoredLayer[]
   mediaPools: CanvasMediaPool[]

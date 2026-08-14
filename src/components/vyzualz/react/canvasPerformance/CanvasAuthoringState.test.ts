@@ -4,6 +4,8 @@ import {
   CANVAS_LEGACY_COMPATIBILITY_POOL_ID,
   normalizeCanvasAuthoringState,
   normalizeCanvasAuthoredLayers,
+  isCanvasMediaPoolNameAvailable,
+  resolveActiveCanvasMediaPool,
   reorderCanvasAuthoredLayers,
   isCanvasAuthoredLayerRenderEligible,
   setCanvasAuthoredLayerSoloState,
@@ -64,23 +66,55 @@ describe('CANVAS canonical authoring state', () => {
     expect(isCanvasAuthoredLayerRenderEligible(unsoloed ?? [], 'layer-b')).toBe(false)
   })
 
-  it('blocks shared-library deletion while canonical layer or pool references exist', () => {
-    const guard = createCanvasAuthoringMediaDeletionGuard(() => ({
+  it('blocks shared-library deletion for layer references while pool-only references clean transactionally', () => {
+    const layerGuard = createCanvasAuthoringMediaDeletionGuard(() => ({
       canvasOrchestrationSettings: {
         authoredLayers: [
           { id: 'layer-a', mediaId: 'media-a', order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
           { id: 'layer-b', mediaId: 'media-a', order: 1, enabled: true, solo: false, ownership: 'manual', pinned: true },
         ],
         mediaPools: [{ id: 'pool-a', name: 'Main', mediaIds: ['media-a'] }],
+        activeMediaPoolId: 'pool-a',
       },
     }))
 
-    const referenced = guard({ id: 'media-a' } as Parameters<typeof guard>[0])
+    const referenced = layerGuard({ id: 'media-a' } as Parameters<typeof layerGuard>[0])
     expect(referenced.allowed).toBe(false)
     if (referenced.allowed) throw new Error('Expected CANVAS authoring deletion refusal')
     expect(referenced.warning.message).toContain('2 CANVAS layers and 1 Media Pool')
 
-    expect(guard({ id: 'media-b' } as Parameters<typeof guard>[0])).toEqual({ allowed: true })
+    let mediaPools = [
+      { id: 'pool-a', name: 'Main', mediaIds: ['media-a', 'media-b'] },
+      { id: 'pool-b', name: 'Drop', mediaIds: ['media-a'] },
+    ]
+    const poolGuard = createCanvasAuthoringMediaDeletionGuard(() => ({
+      canvasOrchestrationSettings: { authoredLayers: [], mediaPools, activeMediaPoolId: 'pool-a' },
+      setCanvasOrchestrationSettings: patch => {
+        if (patch.mediaPools) mediaPools = patch.mediaPools
+      },
+    }))
+    const cleanup = poolGuard({ id: 'media-a' } as Parameters<typeof poolGuard>[0])
+    expect(cleanup.allowed).toBe(true)
+    if (!cleanup.allowed) throw new Error(cleanup.warning.message)
+    expect(cleanup.apply?.()).toBe(true)
+    expect(mediaPools.map(pool => pool.mediaIds)).toEqual([['media-b'], []])
+    cleanup.rollback?.()
+    expect(mediaPools.map(pool => pool.mediaIds)).toEqual([['media-a', 'media-b'], ['media-a']])
+
+    expect(poolGuard({ id: 'media-c' } as Parameters<typeof poolGuard>[0])).toEqual({ allowed: true })
+  })
+
+  it('resolves the canonical active Pool and applies case-insensitive name availability without conflating ids', () => {
+    const pools = [
+      { id: 'pool-a', name: 'Warmup', mediaIds: ['media-a'] },
+      { id: 'pool-b', name: 'Drop', mediaIds: ['media-b'] },
+    ]
+    expect(resolveActiveCanvasMediaPool({ mediaPools: pools, activeMediaPoolId: 'pool-b' })?.mediaIds).toEqual(['media-b'])
+    expect(resolveActiveCanvasMediaPool({ mediaPools: pools, activeMediaPoolId: 'missing' })).toBeNull()
+    expect(isCanvasMediaPoolNameAvailable(pools, '  warmup  ')).toBe(false)
+    expect(isCanvasMediaPoolNameAvailable(pools, 'WARMUP', 'pool-a')).toBe(true)
+    expect(isCanvasMediaPoolNameAvailable(pools, 'Build')).toBe(true)
+    expect(isCanvasMediaPoolNameAvailable(pools, '   ')).toBe(false)
   })
 
   it('migrates a legacy flat pool once and derives compatibility ids from the active named pool', () => {
@@ -102,6 +136,13 @@ describe('CANVAS canonical authoring state', () => {
       mediaPoolIds: ['stale-legacy-id'],
     })
     expect(named.mediaPoolIds).toEqual(['media-b'])
+
+    const corruptActive = normalizeCanvasAuthoringState({
+      mediaPools: [{ id: 'pool-a', name: 'A', mediaIds: ['media-a'] }],
+      activeMediaPoolId: 'missing-pool',
+    })
+    expect(corruptActive.activeMediaPoolId).toBeNull()
+    expect(corruptActive.mediaPoolIds).toEqual([])
 
     const intentionallyEmptyCanonical = normalizeCanvasAuthoringState({
       mediaPools: [],

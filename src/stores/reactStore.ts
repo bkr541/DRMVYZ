@@ -205,6 +205,8 @@ import {
   normalizeCanvasAuthoredLayers,
   normalizeCanvasMediaIds,
   normalizeCanvasMediaPools,
+  normalizeCanvasMediaPoolName,
+  isCanvasMediaPoolNameAvailable,
   reorderCanvasAuthoredLayers,
   setCanvasAuthoredLayerSoloState,
   upsertCanvasCompatibilityPool,
@@ -7234,9 +7236,17 @@ export const useReactStore = create<ReactStoreState>()(
           message: 'Enter a name for the CANVAS Media Pool.',
         }
         set((state) => {
-          const normalizedName = typeof name === 'string' ? name.trim() : ''
+          const normalizedName = normalizeCanvasMediaPoolName(name)
           if (!normalizedName) return {}
           const current = normalizeCanvasMediaPools(state.canvasOrchestrationSettings.mediaPools)
+          if (!isCanvasMediaPoolNameAvailable(current, normalizedName)) {
+            result = {
+              ok: false,
+              code: 'pool-name-conflict',
+              message: `A CANVAS Media Pool named "${normalizedName}" already exists.`,
+            }
+            return {}
+          }
           if (current.length >= MAX_CANVAS_MEDIA_POOLS) {
             result = {
               ok: false,
@@ -7265,7 +7275,7 @@ export const useReactStore = create<ReactStoreState>()(
           message: 'That CANVAS Media Pool is no longer available.',
         }
         set((state) => {
-          const normalizedName = typeof name === 'string' ? name.trim() : ''
+          const normalizedName = normalizeCanvasMediaPoolName(name)
           if (!normalizedName) {
             result = {
               ok: false,
@@ -7277,6 +7287,14 @@ export const useReactStore = create<ReactStoreState>()(
           const current = normalizeCanvasMediaPools(state.canvasOrchestrationSettings.mediaPools)
           const index = current.findIndex(pool => pool.id === poolId)
           if (index < 0) return {}
+          if (!isCanvasMediaPoolNameAvailable(current, normalizedName, poolId)) {
+            result = {
+              ok: false,
+              code: 'pool-name-conflict',
+              message: `A CANVAS Media Pool named "${normalizedName}" already exists.`,
+            }
+            return {}
+          }
           const pool = { ...current[index], name: normalizedName }
           result = { ok: true, pool }
           return {

@@ -454,6 +454,7 @@ export type CanvasLayerMutationResult =
 
 export type CanvasMediaPoolMutationFailureCode =
   | 'invalid-pool-name'
+  | 'pool-name-conflict'
   | 'pool-limit-reached'
   | 'pool-not-found'
   | 'invalid-media-id'

@@ -219,7 +219,7 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     openMediaActions()
     chooseAction('Add to Pool')
 
-    expect(host.textContent).toContain('Create or select a Media Pool first, then add this media again.')
+    expect(host.textContent).toContain('Create or activate a Media Pool first, then add this media again.')
     expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools).toEqual([])
 
     const first = useReactStore.getState().createCanvasMediaPool('First')

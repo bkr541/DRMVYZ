@@ -17776,3 +17776,211 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   color: rgba(255, 255, 255, 0.78);
   font-size: 11px;
 }
+
+/* CANVAS Stage 5 named Media Pool authoring */
+.rv-canvas-pools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid rgba(74, 199, 219, 0.14);
+  border-radius: 10px;
+  background: rgba(3, 10, 12, 0.54);
+}
+
+.rv-canvas-pools__header,
+.rv-canvas-pools__inspector-head,
+.rv-canvas-pools__row,
+.rv-canvas-pools__member {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rv-canvas-pools__header > div,
+.rv-canvas-pools__inspector-head > div:first-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rv-canvas-pools__header strong,
+.rv-canvas-pools__inspector-head strong {
+  color: rgba(232, 244, 248, 0.8);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rv-canvas-pools__header span,
+.rv-canvas-pools__header em,
+.rv-canvas-pools__inspector-head span,
+.rv-canvas-pools__select span {
+  color: rgba(232, 244, 248, 0.46);
+  font-size: 8px;
+  font-style: normal;
+}
+
+.rv-canvas-pools__header em {
+  color: rgba(97, 214, 170, 0.76);
+  font-weight: 700;
+}
+
+.rv-canvas-pools__create,
+.rv-canvas-pools__rename,
+.rv-canvas-pools__actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.rv-canvas-pools__create input,
+.rv-canvas-pools__rename input {
+  min-width: 0;
+  flex: 1;
+  height: 28px;
+  border: 1px solid rgba(74, 199, 219, 0.16);
+  border-radius: 4px;
+  outline: none;
+  background: rgba(0, 0, 0, 0.18);
+  padding: 0 8px;
+  color: rgba(232, 244, 248, 0.84);
+  font-size: 9.5px;
+}
+
+.rv-canvas-pools__create input:focus,
+.rv-canvas-pools__rename input:focus {
+  border-color: rgba(74, 199, 219, 0.48);
+}
+
+.rv-canvas-pools__feedback {
+  margin: 0;
+  color: rgba(255, 170, 170, 0.88);
+  font-size: 8.5px;
+  line-height: 1.35;
+}
+
+.rv-canvas-pools__list,
+.rv-canvas-pools__members,
+.rv-canvas-pools__inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.rv-canvas-pools__row {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.018);
+  padding: 4px;
+}
+
+.rv-canvas-pools__row--selected {
+  border-color: rgba(74, 199, 219, 0.34);
+  background: rgba(74, 199, 219, 0.055);
+}
+
+.rv-canvas-pools__select {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  border: 0;
+  background: transparent;
+  padding: 3px 4px;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.rv-canvas-pools__select strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: rgba(232, 244, 248, 0.76);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-canvas-pools__active-btn {
+  flex: none;
+  border: 1px solid rgba(74, 199, 219, 0.16);
+  border-radius: 999px;
+  background: transparent;
+  padding: 4px 7px;
+  color: rgba(74, 199, 219, 0.62);
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rv-canvas-pools__active-btn--active {
+  border-color: rgba(97, 214, 170, 0.5);
+  background: rgba(97, 214, 170, 0.12);
+  color: rgba(216, 255, 239, 0.92);
+}
+
+.rv-canvas-pools__inspector {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 8px;
+}
+
+.rv-canvas-pools__actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.rv-canvas-pools__rename {
+  width: 100%;
+}
+
+.rv-canvas-pools__member {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.018);
+  padding: 4px 5px;
+}
+
+.rv-canvas-pools__member-copy {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+}
+
+.rv-canvas-pools__member-copy img,
+.rv-canvas-pools__member-placeholder {
+  width: 24px;
+  height: 18px;
+  flex: none;
+  border-radius: 3px;
+  object-fit: cover;
+  background: rgba(74, 199, 219, 0.08);
+}
+
+.rv-canvas-pools__member-copy span:last-child {
+  overflow: hidden;
+  color: rgba(232, 244, 248, 0.68);
+  font-size: 8.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-canvas-pools__member > button {
+  flex: none;
+  border: 0;
+  background: transparent;
+  padding: 3px 4px;
+  color: rgba(232, 244, 248, 0.42);
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.rv-canvas-pools__member > button:hover {
+  color: rgba(255, 170, 170, 0.9);
+}
