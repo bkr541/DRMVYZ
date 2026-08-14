@@ -63,7 +63,7 @@ describe('Canvas Layout Lab through the real shell', () => {
   it('selects Canvas and exposes SOURCE, complete inspector tabs, and canonical lower surfaces', async () => {
     await selectEngine('CANVAS')
 
-    expect(tabLabels('Canvas left workspace tabs')).toEqual(['SOURCE'])
+    expect(tabLabels('Canvas left workspace tabs')).toEqual(['SOURCE', 'LAYERS'])
     expect(tabLabels('Canvas inspector tabs')).toEqual(['PRESETS', 'DESIGN', 'REACT', 'OUTPUT'])
     expect(tabLabels('Timeline surfaces (mockup)')).toEqual(['Track Map', 'Performance Pads'])
     expect(container.querySelector('[data-lower-surface="soundDrawing"]')).toBeNull()

@@ -68,7 +68,7 @@ describe('Template Layout Lab workspace', () => {
     await selectEngine('Template')
     await selectEngine('CANVAS')
 
-    expect(tabLabels('Canvas left workspace tabs')).toEqual(['SOURCE'])
+    expect(tabLabels('Canvas left workspace tabs')).toEqual(['SOURCE', 'LAYERS'])
     expect(tabLabels('Canvas inspector tabs')).toEqual(['PRESETS', 'DESIGN', 'REACT', 'OUTPUT'])
     expect(tabLabels('Timeline surfaces (mockup)')).toEqual(['Track Map', 'Performance Pads'])
   })
