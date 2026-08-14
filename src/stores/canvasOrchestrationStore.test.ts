@@ -454,4 +454,53 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     expect(reset.mediaRolesById['hero-a']).toEqual(['hero', 'dropAsset'])
     expect(reset.mediaLocksByLayer).toEqual({})
   })
+
+  it('persists Pool automation authoring choices while keeping runtime event state transient', () => {
+    const initial = useReactStore.getState().canvasOrchestrationSettings
+    expect(initial.poolAutomationEnabled).toBe(false)
+    expect(initial.poolAutomationTrigger).toBe('beat')
+    expect(initial.poolAutomationTransitionId).toBe('crossfade')
+
+    useReactStore.getState().setCanvasOrchestrationSettings({
+      poolAutomationEnabled: true,
+      poolAutomationTrigger: '6bars',
+      poolAutomationTransitionId: 'dipToBlack',
+      renderMode: 'layers',
+    })
+    const persisted = reactStorePartialize(useReactStore.getState()) as unknown as Record<string, unknown>
+    const persistedCanvas = persisted.canvasOrchestrationSettings as Record<string, unknown>
+    expect(persistedCanvas).toMatchObject({
+      poolAutomationEnabled: true,
+      poolAutomationTrigger: '6bars',
+      poolAutomationTransitionId: 'dipToBlack',
+    })
+    expect(persistedCanvas).not.toHaveProperty('lastEventToken')
+    expect(persistedCanvas).not.toHaveProperty('automaticMediaIds')
+
+    const restored = mergeReactStoreState(persisted, useReactStore.getState())
+    expect(restored.canvasOrchestrationSettings).toMatchObject({
+      poolAutomationEnabled: true,
+      poolAutomationTrigger: '6bars',
+      poolAutomationTransitionId: 'dipToBlack',
+    })
+
+    const legacy = JSON.parse(JSON.stringify(persisted)) as typeof persisted
+    const legacyCanvas = legacy.canvasOrchestrationSettings as Record<string, unknown>
+    delete legacyCanvas.poolAutomationEnabled
+    delete legacyCanvas.poolAutomationTrigger
+    delete legacyCanvas.poolAutomationTransitionId
+    const migrated = mergeReactStoreState(legacy, useReactStore.getState())
+    expect(migrated.canvasOrchestrationSettings.poolAutomationEnabled).toBe(false)
+    expect(migrated.canvasOrchestrationSettings.poolAutomationTrigger).toBe('beat')
+    expect(migrated.canvasOrchestrationSettings.poolAutomationTransitionId).toBe('crossfade')
+
+    const corrupt = JSON.parse(JSON.stringify(persisted)) as typeof persisted
+    const corruptCanvas = corrupt.canvasOrchestrationSettings as Record<string, unknown>
+    corruptCanvas.poolAutomationTrigger = '3bars'
+    corruptCanvas.poolAutomationTransitionId = 'parallel-transition-engine'
+    const repaired = mergeReactStoreState(corrupt, useReactStore.getState())
+    expect(repaired.canvasOrchestrationSettings.poolAutomationTrigger).toBe('beat')
+    expect(repaired.canvasOrchestrationSettings.poolAutomationTransitionId).toBe('crossfade')
+  })
+
 })

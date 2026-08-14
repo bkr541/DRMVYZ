@@ -333,9 +333,11 @@ function CanvasGenericOrchestrationStage({
   const shellRef = useRef<HTMLDivElement | null>(null)
   const compositionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const previousCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const transitionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const layerCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const previousIdentityRef = useRef<string | null>(null)
+  const previousTransitionScopeRef = useRef(false)
   const qualityControllerRef = useRef(new CanvasShowAdaptiveQualityController())
   const [qualitySnapshot, setQualitySnapshot] = useState<CanvasShowQualitySnapshot | null>(null)
   const frameRef = useRef(frame)
@@ -362,13 +364,15 @@ function CanvasGenericOrchestrationStage({
     if (!outputContext) return
     compositionCanvasRef.current ??= makeScratchCanvas()
     previousCanvasRef.current ??= makeScratchCanvas()
+    transitionCanvasRef.current ??= makeScratchCanvas()
     layerCanvasRef.current ??= makeScratchCanvas()
     maskCanvasRef.current ??= makeScratchCanvas()
     const compositionCanvas = compositionCanvasRef.current
     const previousCanvas = previousCanvasRef.current
+    const transitionCanvas = transitionCanvasRef.current
     const layerCanvas = layerCanvasRef.current
     const maskCanvas = maskCanvasRef.current
-    if (!compositionCanvas || !previousCanvas || !layerCanvas || !maskCanvas) return
+    if (!compositionCanvas || !previousCanvas || !transitionCanvas || !layerCanvas || !maskCanvas) return
     const context = compositionCanvas.getContext('2d', { alpha: true })
     if (!context) return
 
@@ -409,20 +413,80 @@ function CanvasGenericOrchestrationStage({
       resizeCanvas(canvas, outputWidth, outputHeight)
       resizeCanvas(compositionCanvas, width, height)
       resizeCanvas(previousCanvas, width, height)
+      resizeCanvas(transitionCanvas, width, height)
       resizeCanvas(layerCanvas, width, height)
       resizeCanvas(maskCanvas, width, height)
 
+      const transitionLayerIds = liveFrame.runtimeMode === 'authored' && liveFrame.transitionLayerIds?.length
+        ? new Set(liveFrame.transitionLayerIds)
+        : null
+      const scopedTransition = transitionLayerIds !== null
       if (previousIdentityRef.current && previousIdentityRef.current !== liveFrame.frameIdentity) {
         const previousContext = previousCanvas.getContext('2d', { alpha: true })
         previousContext?.clearRect(0, 0, width, height)
-        previousContext?.drawImage(compositionCanvas, 0, 0)
+        if (scopedTransition === previousTransitionScopeRef.current) {
+          previousContext?.drawImage(scopedTransition ? transitionCanvas : compositionCanvas, 0, 0)
+        }
       }
       previousIdentityRef.current = liveFrame.frameIdentity
+      previousTransitionScopeRef.current = scopedTransition
 
       context.setTransform(1, 0, 0, 1, 0, 0)
       context.clearRect(0, 0, width, height)
       const transition = resolveCanvasTransitionVisualState(liveFrame.transition)
-      if (transition.outgoingOpacity > 0.001) {
+      const showDriven = liveFrame.runtimeMode === 'show'
+      const liveOutputContract = showDriven
+        ? { canvasOutputOpacity: 1, drySourceMix: 1, sourceMixMode: 'legacyComposite' as const }
+        : resolveCanvasOutputContract({
+            canvasOutputOpacity: liveProps.engineSettings.opacity,
+            presetSettings: liveProps.presetSettings,
+          })
+      const layers = [...liveFrame.layers].filter(layer => layer.enabled && layer.sourceMediaId).sort((a, b) => a.zIndex - b.zIndex)
+      const motion = Math.max(0, Math.min(1, liveProps.motionIntensity))
+      const drawLayers = (
+        output: CanvasRenderingContext2D,
+        targetLayers: readonly CanvasResolvedLayer[],
+        transitionOpacity: number,
+        incomingScale: number,
+        incomingRotation: number,
+        incomingOffsetX: number,
+        incomingOffsetY: number,
+      ) => {
+        for (const layer of targetLayers) {
+          const handle = layer.sourceMediaId ? preloadManager.getHandle(layer.sourceMediaId) : null
+          if (!sourceReady(handle)) continue
+          if (isVideoHandle(handle)) syncVideo(handle, layer, liveProps.isPlaying, liveProps.isPaused)
+          const maskHandle = layer.maskSourceMediaId ? preloadManager.getHandle(layer.maskSourceMediaId) : null
+          const mask = sourceReady(maskHandle) ? maskHandle : null
+          const globalScale = showDriven ? 1 : (1 + (incomingScale - 1) * motion) * liveProps.engineSettings.scale
+          const globalRotation = showDriven ? 0 : incomingRotation * motion + liveProps.engineSettings.rotation
+          const globalOffsetX = showDriven ? 0 : incomingOffsetX * motion + liveProps.engineSettings.positionX / 100
+          const globalOffsetY = showDriven ? 0 : incomingOffsetY * motion + liveProps.engineSettings.positionY / 100
+          drawLayerWithOptionalMask({
+            output,
+            layerCanvas,
+            maskCanvas,
+            layer,
+            source: handle,
+            mask,
+            width,
+            height,
+            globalScale,
+            globalRotation,
+            globalOffsetX,
+            globalOffsetY,
+            alphaHierarchy: resolveCanvasLayerAlphaHierarchy({
+              layer,
+              transitionOpacity,
+              drySourceMix: liveOutputContract.drySourceMix,
+              sourceMixMode: liveOutputContract.sourceMixMode,
+            }),
+            motionIntensity: motion,
+          })
+        }
+      }
+      const drawOutgoingTransition = () => {
+        if (transition.outgoingOpacity <= 0.001) return
         context.save()
         context.globalAlpha = transition.outgoingOpacity
         context.filter = transition.smear > 0.01 ? `blur(${(transition.smear * 8).toFixed(2)}px)` : 'none'
@@ -439,51 +503,57 @@ function CanvasGenericOrchestrationStage({
         }
         context.restore()
       }
-
-      context.save()
-      applyIncomingTransitionClip(context, liveFrame.transition?.id ?? null, transition.clipProgress, width, height)
-      const showDriven = liveFrame.runtimeMode === 'show'
-      const liveOutputContract = showDriven
-        ? { canvasOutputOpacity: 1, drySourceMix: 1, sourceMixMode: 'legacyComposite' as const }
-        : resolveCanvasOutputContract({
-            canvasOutputOpacity: liveProps.engineSettings.opacity,
-            presetSettings: liveProps.presetSettings,
-          })
-      const layers = [...liveFrame.layers].filter(layer => layer.enabled && layer.sourceMediaId).sort((a, b) => a.zIndex - b.zIndex)
-      for (const layer of layers) {
-        const handle = layer.sourceMediaId ? preloadManager.getHandle(layer.sourceMediaId) : null
-        if (!sourceReady(handle)) continue
-        if (isVideoHandle(handle)) syncVideo(handle, layer, liveProps.isPlaying, liveProps.isPaused)
-        const maskHandle = layer.maskSourceMediaId ? preloadManager.getHandle(layer.maskSourceMediaId) : null
-        const mask = sourceReady(maskHandle) ? maskHandle : null
-        const motion = Math.max(0, Math.min(1, liveProps.motionIntensity))
-        const globalScale = showDriven ? 1 : (1 + (transition.incomingScale - 1) * motion) * liveProps.engineSettings.scale
-        const globalRotation = showDriven ? 0 : transition.incomingRotation * motion + liveProps.engineSettings.rotation
-        const globalOffsetX = showDriven ? 0 : transition.incomingOffsetX * motion + liveProps.engineSettings.positionX / 100
-        const globalOffsetY = showDriven ? 0 : transition.incomingOffsetY * motion + liveProps.engineSettings.positionY / 100
-        drawLayerWithOptionalMask({
-          output: context,
-          layerCanvas,
-          maskCanvas,
-          layer,
-          source: handle,
-          mask,
-          width,
-          height,
-          globalScale,
-          globalRotation,
-          globalOffsetX,
-          globalOffsetY,
-          alphaHierarchy: resolveCanvasLayerAlphaHierarchy({
-            layer,
-            transitionOpacity: transition.incomingOpacity,
-            drySourceMix: liveOutputContract.drySourceMix,
-            sourceMixMode: liveOutputContract.sourceMixMode,
-          }),
-          motionIntensity: motion,
-        })
+      const drawTransitionFlash = () => {
+        if (transition.flash <= 0.01) return
+        context.save()
+        context.globalAlpha = Math.min(0.5, transition.flash * 0.45)
+        context.fillStyle = '#fff'
+        context.fillRect(0, 0, width, height)
+        context.restore()
       }
-      context.restore()
+
+      if (scopedTransition) {
+        const transitionContext = transitionCanvas.getContext('2d', { alpha: true })
+        transitionContext?.setTransform(1, 0, 0, 1, 0, 0)
+        transitionContext?.clearRect(0, 0, width, height)
+        const automaticLayers = layers.filter(layer => transitionLayerIds.has(layer.id))
+        const fixedLayers = layers.filter(layer => !transitionLayerIds.has(layer.id))
+        if (transitionContext) drawLayers(transitionContext, automaticLayers, 1, 1, 0, 0, 0)
+
+        drawOutgoingTransition()
+        context.save()
+        applyIncomingTransitionClip(context, liveFrame.transition?.id ?? null, transition.clipProgress, width, height)
+        context.globalAlpha = transition.incomingOpacity
+        context.translate(
+          width * 0.5 + transition.incomingOffsetX * motion * width,
+          height * 0.5 + transition.incomingOffsetY * motion * height,
+        )
+        context.rotate(transition.incomingRotation * motion * Math.PI / 180)
+        const incomingScale = 1 + (transition.incomingScale - 1) * motion
+        context.scale(incomingScale, incomingScale)
+        context.drawImage(transitionCanvas, -width / 2, -height / 2)
+        context.restore()
+        drawTransitionFlash()
+
+        // Pool automation owns only the transient automatic sub-composition.
+        // Draw pinned/manual layers last with neutral transition values so their
+        // rendered geometry and opacity remain fixed throughout an automatic swap.
+        drawLayers(context, fixedLayers, 1, 1, 0, 0, 0)
+      } else {
+        drawOutgoingTransition()
+        context.save()
+        applyIncomingTransitionClip(context, liveFrame.transition?.id ?? null, transition.clipProgress, width, height)
+        drawLayers(
+          context,
+          layers,
+          transition.incomingOpacity,
+          transition.incomingScale,
+          transition.incomingRotation,
+          transition.incomingOffsetX,
+          transition.incomingOffsetY,
+        )
+        context.restore()
+      }
 
       if (liveFrame.feedbackPasses > 0) {
         context.save()
@@ -494,13 +564,7 @@ function CanvasGenericOrchestrationStage({
         context.drawImage(previousCanvas, -width / 2, -height / 2)
         context.restore()
       }
-      if (transition.flash > 0.01) {
-        context.save()
-        context.globalAlpha = Math.min(0.5, transition.flash * 0.45)
-        context.fillStyle = '#fff'
-        context.fillRect(0, 0, width, height)
-        context.restore()
-      }
+      if (!scopedTransition) drawTransitionFlash()
 
       outputContext.setTransform(1, 0, 0, 1, 0, 0)
       outputContext.clearRect(0, 0, outputWidth, outputHeight)

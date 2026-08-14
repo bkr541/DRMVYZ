@@ -59,6 +59,9 @@ import {
   CANVAS_MEDIA_ROLES,
   CANVAS_MEDIA_ROLE_LABELS,
   CANVAS_PERFORMANCE_SHOW_OPTIONS,
+  CANVAS_POOL_AUTOMATION_TRIGGER_OPTIONS,
+  CANVAS_TRANSITIONS,
+  EMPTY_CANVAS_POOL_AUTOMATION_RUNTIME_STATE,
   CanvasOrchestrationStage,
   CanvasPreloadManager,
   MAX_CANVAS_AUTHORED_LAYERS,
@@ -69,16 +72,21 @@ import {
   resolveCanvasShowRuntimeFrame,
   resolveCanvasOutputContract,
   getCanvasPerformancePreloadCandidates,
+  getCanvasPoolAutomationPreloadCandidates,
   getCanvasPerformanceShow,
   canRenderCanvasOrchestrationFrame,
   resolveCanvasAuthoredLayerFrame,
   resolveCanvasMediaRoles,
   resolveCanvasPerformanceFrame,
+  resolveCanvasPoolAutomationRuntime,
   type CanvasCompositionPreference,
   type CanvasLayerRole,
   type CanvasMediaRole,
   type CanvasPerformanceShowId,
+  type CanvasPoolAutomationRuntimeState,
+  type CanvasPoolAutomationTrigger,
   type CanvasResolvedPerformanceFrame,
+  type CanvasTransitionId,
 } from './canvasPerformance'
 import { validateCanvasShowManagerShow, type CanvasShowManagerShow } from '../showManager/CanvasShowManagerDomain'
 import {
@@ -1503,6 +1511,7 @@ export function CanvasEngineSurface({
   const orchestrationPreloadManager = orchestrationPreloadManagerRef.current
   const previousOrchestrationContextRef = useRef<SharedPerformanceContext | null>(null)
   const previousOrchestrationFrameRef = useRef<CanvasResolvedPerformanceFrame | null>(null)
+  const poolAutomationRuntimeRef = useRef<CanvasPoolAutomationRuntimeState>(EMPTY_CANVAS_POOL_AUTOMATION_RUNTIME_STATE)
   const previousParticlePerformanceContextRef = useRef<SharedPerformanceContext | null>(null)
   const particlePerformanceContextRef = useRef<SharedPerformanceContext | null>(null)
   const [orchestrationFrame, setOrchestrationFrame] = useState<CanvasResolvedPerformanceFrame | null>(null)
@@ -1584,6 +1593,7 @@ export function CanvasEngineSurface({
       orchestrationPreloadManager.releaseAll()
       previousOrchestrationContextRef.current = null
       previousOrchestrationFrameRef.current = null
+      poolAutomationRuntimeRef.current = EMPTY_CANVAS_POOL_AUTOMATION_RUNTIME_STATE
       setOrchestrationFrame(null)
       clearSharedPerformanceDiagnostics('canvas')
       return
@@ -1599,6 +1609,7 @@ export function CanvasEngineSurface({
     orchestrationPreloadManager.setScope(trackIdentity, poolRevision)
     previousOrchestrationContextRef.current = null
     previousOrchestrationFrameRef.current = null
+    poolAutomationRuntimeRef.current = EMPTY_CANVAS_POOL_AUTOMATION_RUNTIME_STATE
 
     const resolveFrame = () => {
       const audioTimeSec = showPreviewMode && previewShowTimeSec != null
@@ -1613,6 +1624,16 @@ export function CanvasEngineSurface({
         trackChangeIdentity: `track:${trackIdentity}`,
         previous: previousOrchestrationContextRef.current,
       })
+      const poolAutomation = authoredLayerRuntime
+        ? resolveCanvasPoolAutomationRuntime({
+            context,
+            settings: orchestrationSettings,
+            mediaItems,
+            previousState: poolAutomationRuntimeRef.current,
+          })
+        : null
+      if (poolAutomation) poolAutomationRuntimeRef.current = poolAutomation.state
+
       const nextFrame = runtimeCanvasShow
         ? resolveCanvasShowRuntimeFrame({
             show: runtimeCanvasShow,
@@ -1635,6 +1656,13 @@ export function CanvasEngineSurface({
                 mediaItems,
                 fitMode: settings.fitMode,
                 isMediaReady: mediaId => orchestrationPreloadManager.isReady(mediaId),
+                automaticLayers: poolAutomation?.automaticLayers ?? [],
+                previousFrame: previousOrchestrationFrameRef.current,
+                automationAdvanced: poolAutomation?.advanced ?? false,
+                automationTransitionId: orchestrationSettings.poolAutomationEnabled
+                  ? orchestrationSettings.poolAutomationTransitionId
+                  : null,
+                automationDiagnostics: poolAutomation?.diagnostics ?? [],
               })
             : performanceRuntime
               ? resolveCanvasPerformanceFrame({
@@ -1667,7 +1695,7 @@ export function CanvasEngineSurface({
       const candidateMediaIds = runtimeCanvasShow
         ? upcomingShowMedia.map(media => media.id)
         : nextFrame.runtimeMode === 'authored'
-          ? []
+          ? getCanvasPoolAutomationPreloadCandidates(orchestrationSettings, mediaItems, activeMediaIds)
           : getCanvasPerformancePreloadCandidates(nextFrame, orchestrationSettings, mediaItems)
       const requestMediaItems = runtimeCanvasShow
         ? [
@@ -3154,6 +3182,10 @@ const CANVAS_LAYER_ROLE_OPTIONS: Array<{ value: CanvasLayerRole; label: string }
   { value: 'feedback', label: 'Feedback' },
 ]
 
+const CANVAS_POOL_AUTOMATION_TRANSITION_OPTIONS: Array<{ value: CanvasTransitionId; label: string }> = Object.values(CANVAS_TRANSITIONS)
+  .filter(definition => definition.supportedByCanvas2d)
+  .map(definition => ({ value: definition.id, label: definition.label }))
+
 // Same accent palette as the LayerRow canonical component's Layout Lab gallery.
 const CANVAS_LAYER_ROW_TONES = ['#4ac7db', '#67f7ff', '#6b4cff', '#b84fc9', '#d8b95a', '#61d6aa', '#ff6b6b']
 
@@ -3185,10 +3217,40 @@ function CanvasOrchestrationControls() {
         <ToggleRow
           label="Auto Performance"
           value={autoPerformanceActive}
-          onChange={enabled => setSettings({ enabled })}
+          onChange={enabled => setSettings(enabled
+            ? { enabled: true, poolAutomationEnabled: false }
+            : { enabled: false })}
           description="Uses the Shared Performance Core to arrange the selected pool. Existing presets and manual playback remain the fallback when disabled."
         />
       </CanvasHelpControl>
+      <ToggleRow
+        label="Pool Automation"
+        value={settings.poolAutomationEnabled}
+        onChange={poolAutomationEnabled => setSettings(poolAutomationEnabled
+          ? { poolAutomationEnabled: true, enabled: false, renderMode: 'layers' }
+          : {
+              poolAutomationEnabled: false,
+              renderMode: settings.authoredLayers.length > 0 ? 'layers' : 'single',
+            })}
+        description="Rotates only the free automatic CANVAS slots from the one active Media Pool. Manual layers stay pinned."
+      />
+      <CanvasSelectRow
+        label="Pool Trigger"
+        value={settings.poolAutomationTrigger}
+        onChange={value => setSettings({ poolAutomationTrigger: value as CanvasPoolAutomationTrigger })}
+        options={[...CANVAS_POOL_AUTOMATION_TRIGGER_OPTIONS]}
+        disabled={!settings.poolAutomationEnabled}
+      />
+      <CanvasSelectRow
+        label="Pool Transition"
+        value={settings.poolAutomationTransitionId}
+        onChange={value => setSettings({ poolAutomationTransitionId: value as CanvasTransitionId })}
+        options={CANVAS_POOL_AUTOMATION_TRANSITION_OPTIONS}
+        disabled={!settings.poolAutomationEnabled}
+      />
+      {settings.poolAutomationEnabled && !settings.activeMediaPoolId && (
+        <NoticeCard tone="warning" role="status">Activate a Media Pool to start automatic CANVAS rotation.</NoticeCard>
+      )}
       <div className="rv-canvas-orchestration-summary" role="status">
         <span>{poolItems.length} pooled source{poolItems.length === 1 ? '' : 's'}</span>
         <span>{selectedShow.label}</span>

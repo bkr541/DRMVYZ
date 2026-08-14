@@ -193,6 +193,56 @@ export function resolveCanvasTransition({
   }
 }
 
+export function resolveCanvasExplicitTransition({
+  context,
+  id,
+  previous,
+  fromFrameIdentity,
+  toFrameIdentity,
+  start,
+}: {
+  context: SharedPerformanceContext
+  id: CanvasTransitionId
+  previous?: CanvasResolvedTransition | null
+  fromFrameIdentity?: string | null
+  toFrameIdentity: string
+  start: boolean
+}): CanvasResolvedTransition | null {
+  if (context.seekDetected || context.loopWrapDetected || context.trackReplacementDetected || context.boundaries.timingDiscontinuity) return null
+
+  if (previous && !previous.complete && previous.toFrameIdentity === toFrameIdentity) {
+    const elapsed = Math.max(0, context.audioTimeSec - previous.startAudioTimeSec)
+    const progress = previous.durationSec <= 0 ? 1 : Math.min(1, elapsed / previous.durationSec)
+    return { ...previous, progress, complete: progress >= 1 }
+  }
+
+  if (!start || !fromFrameIdentity || fromFrameIdentity === toFrameIdentity) return null
+
+  const definition = resolveCanvasTransitionDefinition(id)
+  const durationSec = Math.max(0.03, canvasMusicalDurationToSeconds(context, definition.duration))
+  return {
+    id: definition.id,
+    category: definition.category,
+    duration: definition.duration,
+    startAudioTimeSec: context.audioTimeSec,
+    durationSec,
+    progress: 0,
+    quantized: true,
+    deterministicVariation: performanceDeterministicUnit(
+      context.trackIdentity,
+      context.runtimeIdentity,
+      definition.id,
+      toFrameIdentity,
+      'canvas-explicit-transition-variation',
+    ),
+    interruptionPolicy: definition.interruptionPolicy,
+    fallbackId: definition.fallbackId,
+    fromFrameIdentity,
+    toFrameIdentity,
+    complete: false,
+  }
+}
+
 export interface CanvasTransitionVisualState {
   incomingOpacity: number
   outgoingOpacity: number

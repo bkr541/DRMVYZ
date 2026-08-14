@@ -40,6 +40,33 @@ afterEach(() => {
 })
 
 describe('CANVAS right-panel control contract', () => {
+  it('exposes and activates the hybrid Pool automation controls with all required triggers', () => {
+    act(() => root.render(<CanvasEngineFxPanel />))
+
+    const poolLabel = [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
+      .find(element => element.textContent?.trim() === 'Pool Automation')
+    const poolButton = poolLabel?.closest('.rv-ctrl-toggle-row')?.querySelector<HTMLButtonElement>('button') ?? null
+    expect(poolButton).not.toBeNull()
+
+    act(() => poolButton?.click())
+    expect(useReactStore.getState().canvasOrchestrationSettings).toMatchObject({
+      poolAutomationEnabled: true,
+      enabled: false,
+      renderMode: 'layers',
+    })
+
+    const trigger = host.querySelector<HTMLButtonElement>('button[role="combobox"][aria-label="Pool Trigger"]')
+    const transition = host.querySelector<HTMLButtonElement>('button[role="combobox"][aria-label="Pool Transition"]')
+    expect(trigger?.disabled).toBe(false)
+    expect(transition?.disabled).toBe(false)
+
+    act(() => trigger?.click())
+    const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')].map(option => option.textContent?.trim())
+    expect(options).toEqual(expect.arrayContaining([
+      'Beat', '4 Bar', '6 Bar', '8 Bar', '16 Bar', 'Track Sections', 'Kick Hit', 'Snare Hit',
+    ]))
+  })
+
   it('switches the active surface through the explicit renderer-kind contract', () => {
     const originalGetContext = HTMLCanvasElement.prototype.getContext
     const originalRequestAnimationFrame = window.requestAnimationFrame

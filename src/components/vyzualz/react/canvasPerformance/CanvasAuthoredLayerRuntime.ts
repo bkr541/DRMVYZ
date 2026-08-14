@@ -2,12 +2,15 @@ import type { SharedPerformanceContext } from '../../../../features/performanceC
 import type { CanvasFitMode, CanvasMediaItem } from '../ReactTypes'
 import { getCanvasCompositionTemplate } from './CanvasCompositionTemplates'
 import { resolveCanvasPlayback } from './CanvasPlayback'
+import { resolveCanvasExplicitTransition } from './CanvasTransitions'
 import {
   MAX_CANVAS_ACTIVE_VIDEO_DECODERS,
   MAX_CANVAS_AUTHORED_LAYERS,
   MAX_CANVAS_MEDIA_HANDLES,
+  type CanvasAuthoredLayer,
   type CanvasOrchestrationSettings,
   type CanvasResolvedLayer,
+  type CanvasTransitionId,
   type CanvasResolvedPerformanceFrame,
 } from './CanvasPerformanceTypes'
 
@@ -24,20 +27,33 @@ export function resolveCanvasAuthoredLayerFrame({
   mediaItems,
   fitMode,
   isMediaReady,
+  automaticLayers = [],
+  previousFrame = null,
+  automationAdvanced = false,
+  automationTransitionId = null,
+  automationDiagnostics = [],
 }: {
   context: SharedPerformanceContext
   settings: Pick<CanvasOrchestrationSettings, 'authoredLayers' | 'programId'>
   mediaItems: readonly CanvasMediaItem[]
   fitMode: CanvasFitMode
   isMediaReady?: (mediaId: string) => boolean
+  automaticLayers?: readonly CanvasAuthoredLayer[]
+  previousFrame?: CanvasResolvedPerformanceFrame | null
+  automationAdvanced?: boolean
+  automationTransitionId?: CanvasTransitionId | null
+  automationDiagnostics?: readonly string[]
 }): CanvasResolvedPerformanceFrame {
   const mediaById = new Map(mediaItems.map(item => [item.id, item]))
-  const authoredLayers = [...settings.authoredLayers]
+  const manualLayers = [...settings.authoredLayers]
     .sort((left, right) => left.order - right.order || left.id.localeCompare(right.id))
-    .slice(0, MAX_CANVAS_AUTHORED_LAYERS)
+  const authoredLayers = [
+    ...manualLayers,
+    ...automaticLayers.map((layer, index) => ({ ...layer, order: manualLayers.length + index })),
+  ].slice(0, MAX_CANVAS_AUTHORED_LAYERS)
   const soloLayer = authoredLayers.find(layer => layer.solo && layer.enabled) ?? null
   const activeVideoIds = new Set<string>()
-  const diagnostics: string[] = []
+  const diagnostics: string[] = [...automationDiagnostics]
 
   const layers: CanvasResolvedLayer[] = authoredLayers.map((authored, index) => {
     const source = mediaById.get(authored.mediaId) ?? null
@@ -92,18 +108,29 @@ export function resolveCanvasAuthoredLayerFrame({
   if (authoredLayers.length === 0) diagnostics.push('no-authored-layers')
 
   const frameIdentity = `canvas-authored|${authoredLayers
-    .map(layer => `${layer.id}:${layer.mediaId}:${layer.order}:${layer.enabled ? 1 : 0}:${layer.solo ? 1 : 0}`)
+    .map(layer => `${layer.id}:${layer.mediaId}:${layer.order}:${layer.enabled ? 1 : 0}:${layer.solo ? 1 : 0}:${layer.ownership}`)
     .join('|')}`
+  const transition = automationTransitionId
+    ? resolveCanvasExplicitTransition({
+        context,
+        id: automationTransitionId,
+        previous: previousFrame?.transition,
+        fromFrameIdentity: previousFrame?.frameIdentity ?? null,
+        toFrameIdentity: frameIdentity,
+        start: automationAdvanced,
+      })
+    : null
 
   return {
     programId: settings.programId,
     frameIdentity,
     sceneId: 'canvas-authored-layers',
-    showLabel: 'Manual Layers',
+    showLabel: automaticLayers.length > 0 ? 'Hybrid Pool Layers' : 'Manual Layers',
     context,
     template: getCanvasCompositionTemplate('fullScreenHero'),
     layers,
-    transition: null,
+    transition,
+    transitionLayerIds: automaticLayers.map(layer => layer.id),
     effectRecipeId: 'none',
     fallbackUsed: false,
     readyMediaIds,

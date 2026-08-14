@@ -1,6 +1,7 @@
 export * from './CanvasPerformanceTypes'
 export * from './CanvasAuthoringState'
 export * from './CanvasAuthoredLayerRuntime'
+export * from './CanvasPoolAutomationRuntime'
 export * from './CanvasAuthoringMediaDeletion'
 export * from './CanvasMediaRoles'
 export * from './CanvasCompositionTemplates'

@@ -186,6 +186,7 @@ import { SOUND_DRAWING_PERFORMANCE_SHOWS } from '../components/vyzualz/react/sou
 import {
   DEFAULT_CANVAS_ORCHESTRATION_SETTINGS,
   CANVAS_MEDIA_ROLES,
+  CANVAS_POOL_AUTOMATION_TRIGGER_OPTIONS,
   CANVAS_PERFORMANCE_SHOW_IDS,
   MAX_CANVAS_AUTHORED_LAYERS,
   type CanvasAuthoredLayer,
@@ -195,6 +196,8 @@ import {
   type CanvasMediaRole,
   type CanvasOrchestrationLockKey,
   type CanvasOrchestrationSettings,
+  type CanvasPoolAutomationTrigger,
+  type CanvasTransitionId,
 } from '../components/vyzualz/react/canvasPerformance/CanvasPerformanceTypes'
 import { normalizeCanvasMediaRoleMap } from '../components/vyzualz/react/canvasPerformance/CanvasMediaRoles'
 import {
@@ -212,6 +215,7 @@ import {
   upsertCanvasCompatibilityPool,
 } from '../components/vyzualz/react/canvasPerformance/CanvasAuthoringState'
 import { CANVAS_COMPOSITION_TEMPLATES } from '../components/vyzualz/react/canvasPerformance/CanvasCompositionTemplates'
+import { CANVAS_TRANSITIONS } from '../components/vyzualz/react/canvasPerformance/CanvasTransitions'
 import { normalizeCanvasFracturesOverrideProfile } from '../components/vyzualz/react/canvasPerformance/CanvasFracturesPerformance'
 import {
   DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS,
@@ -4330,6 +4334,9 @@ const CANVAS_LAYER_ROLE_VALUES = new Set<CanvasLayerRole>([
 const CANVAS_ORCHESTRATION_LOCK_VALUES = new Set<CanvasOrchestrationLockKey>([
   'media', 'composition', 'layerRecruitment', 'transition', 'effectChain', 'motion', 'playback',
 ])
+const CANVAS_POOL_AUTOMATION_TRIGGER_VALUES = new Set<CanvasPoolAutomationTrigger>(
+  CANVAS_POOL_AUTOMATION_TRIGGER_OPTIONS.map(option => option.value),
+)
 
 function normalizeCanvasBooleanRecord<T extends string>(
   value: unknown,
@@ -4376,6 +4383,15 @@ export function normalizeCanvasOrchestrationSettings(value: unknown): CanvasOrch
     mediaPools: authoring.mediaPools,
     activeMediaPoolId: authoring.activeMediaPoolId,
     mediaPoolIds: authoring.mediaPoolIds,
+    poolAutomationEnabled: source.poolAutomationEnabled === true,
+    poolAutomationTrigger: typeof source.poolAutomationTrigger === 'string'
+      && CANVAS_POOL_AUTOMATION_TRIGGER_VALUES.has(source.poolAutomationTrigger as CanvasPoolAutomationTrigger)
+      ? source.poolAutomationTrigger as CanvasPoolAutomationTrigger
+      : DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.poolAutomationTrigger,
+    poolAutomationTransitionId: typeof source.poolAutomationTransitionId === 'string'
+      && source.poolAutomationTransitionId in CANVAS_TRANSITIONS
+      ? source.poolAutomationTransitionId as CanvasTransitionId
+      : DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.poolAutomationTransitionId,
     mediaRolesById: normalizeCanvasMediaRoleMap(source.mediaRolesById),
     mediaLocksByLayer: normalizeCanvasMediaLocks(source.mediaLocksByLayer),
     layerLocks: normalizeCanvasBooleanRecord(source.layerLocks, CANVAS_LAYER_ROLE_VALUES),

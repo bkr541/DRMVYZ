@@ -423,6 +423,26 @@ export interface CanvasResolvedTransition {
 
 export type CanvasAuthoredLayerOwnership = 'manual' | 'automatic'
 export type CanvasRenderMode = 'single' | 'layers' | 'performance'
+export type CanvasPoolAutomationTrigger =
+  | 'beat'
+  | '4bars'
+  | '6bars'
+  | '8bars'
+  | '16bars'
+  | 'trackSections'
+  | 'kickHit'
+  | 'snareHit'
+
+export const CANVAS_POOL_AUTOMATION_TRIGGER_OPTIONS: readonly { value: CanvasPoolAutomationTrigger; label: string }[] = [
+  { value: 'beat', label: 'Beat' },
+  { value: '4bars', label: '4 Bar' },
+  { value: '6bars', label: '6 Bar' },
+  { value: '8bars', label: '8 Bar' },
+  { value: '16bars', label: '16 Bar' },
+  { value: 'trackSections', label: 'Track Sections' },
+  { value: 'kickHit', label: 'Kick Hit' },
+  { value: 'snareHit', label: 'Snare Hit' },
+]
 
 export interface CanvasAuthoredLayer {
   /** Stable instance identity. Multiple instances may reference the same mediaId. */
@@ -476,6 +496,10 @@ export interface CanvasOrchestrationSettings {
   activeMediaPoolId: string | null
   /** Derived compatibility view of the active named pool. Never mutate as independent truth. */
   mediaPoolIds: string[]
+  /** Hybrid layer automation is independent from the legacy full Auto Performance program. */
+  poolAutomationEnabled: boolean
+  poolAutomationTrigger: CanvasPoolAutomationTrigger
+  poolAutomationTransitionId: CanvasTransitionId
   mediaRolesById: Record<string, CanvasMediaRole[]>
   mediaLocksByLayer: Partial<Record<CanvasLayerRole, string>>
   layerLocks: Partial<Record<CanvasLayerRole, boolean>>
@@ -500,6 +524,9 @@ export const DEFAULT_CANVAS_ORCHESTRATION_SETTINGS: CanvasOrchestrationSettings 
   mediaPools: [],
   activeMediaPoolId: null,
   mediaPoolIds: [],
+  poolAutomationEnabled: false,
+  poolAutomationTrigger: 'beat',
+  poolAutomationTransitionId: 'crossfade',
   mediaRolesById: {},
   mediaLocksByLayer: {},
   layerLocks: {},
@@ -547,6 +574,8 @@ export interface CanvasResolvedPerformanceFrame {
   template: CanvasCompositionTemplate
   layers: readonly CanvasResolvedLayer[]
   transition: CanvasResolvedTransition | null
+  /** Optional transient scope for transitions that must not disturb fixed layers. */
+  transitionLayerIds?: readonly string[]
   effectRecipeId: CanvasEffectRecipeId
   fallbackUsed: boolean
   readyMediaIds: readonly string[]
