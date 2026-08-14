@@ -3,6 +3,7 @@ import { IconChipButton } from './controls/IconChipButton'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { CanvasEnginePanel } from './ReactCanvasEngineShell'
 import { PixGridEnginePanel } from './pixGrid/PixGridEnginePanel'
+import { HeadlinerEnginePanel } from './headliner/HeadlinerWorkspace'
 import { CinemaWorkspace } from './CinemaWorkspace'
 import type { CinemaWorkspaceFrameBridgeResult } from './CinemaWorkspaceFrameBridge'
 import type { CinemaRuntimeSnapshot } from '../cinema'
@@ -517,6 +518,9 @@ export function ReactEnginePanel({
 
       {/* ── Engine Mode: PixGrid ──────────────────────────────────────── */}
       {activeReactEngineId === 'pixGrid' && <PixGridEnginePanel />}
+
+      {/* ── Engine Mode: Headliner ────────────────────────────────────── */}
+      {activeReactEngineId === 'headliner' && <HeadlinerEnginePanel />}
 
       {/* ── Engine Mode: LaserDMX ─────────────────────────────────────── */}
       {activeReactEngineId === 'laserDmx' && <LaserDmxEnginePanel />}

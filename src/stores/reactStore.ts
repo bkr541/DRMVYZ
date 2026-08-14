@@ -13,6 +13,11 @@ import { resolveCinematicPresetBaseConfig, resolveCinematicPresetProvenance } fr
 import { isLaserDmxBeamMatrixPresetModified } from '../components/vyzualz/react/LaserDmxBeamMatrixPresetProvenance'
 import { getLaserDmxBeamMatrixPreset } from '../components/vyzualz/react/laserDmxBeamMatrixPresets'
 import { normalizeSoundDrawingVisualSize } from '../components/vyzualz/react/soundDrawing/SoundDrawingVisualSize'
+import {
+  DEFAULT_HEADLINER_SETTINGS,
+  normalizeHeadlinerSettings,
+  type HeadlinerSettings,
+} from '../components/vyzualz/react/headliner/HeadlinerSettings'
 import { normalizeSoundDrawingScopeState } from '../audio/scope/scopeStateNormalization'
 import type { CinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
 import {
@@ -2497,6 +2502,11 @@ interface ReactStoreState {
   activeReactPresetId: string | null
   activeReactEngineId: ReactEngineId
   reactPresets: ReactPreset[]
+
+  // Headliner Stage 1 authoring preferences. Runtime camera resources remain outside the store.
+  headlinerSettings: HeadlinerSettings
+  setHeadlinerSettings: (patch: Partial<HeadlinerSettings>) => void
+
   /** Persisted only until Stage 23 transfers legacy authored selection into canonical Cinema state. */
   pendingCinemaLegacySelectionMigration: CinemaLegacySelectionMigration | null
   completeCinemaLegacySelectionMigration: () => void
@@ -3952,6 +3962,7 @@ export function sanitizeRetiredNeonLatticeReactState(persistedState: unknown): R
     activeEngineId === 'shaderPads'
     || activeEngineId === 'canvas'
     || activeEngineId === 'oscilloscope'
+    || activeEngineId === 'headliner'
   ) && activePresetId == null
   const validPresetSelection = activeEngineId != null
     && activeEngineId !== RETIRED_NEON_LATTICE_ENGINE_ID
@@ -5695,6 +5706,14 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(state.canvasOrchestrationSettings),
     }
   }
+  if (version < 76) {
+    // Headliner Stage 1 persists only stable authoring preferences. Unknown or
+    // missing future mode/source tokens fall back to the current safe defaults.
+    state = {
+      ...state,
+      headlinerSettings: normalizeHeadlinerSettings(state.headlinerSettings),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -5720,6 +5739,7 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
   state = {
     ...state,
     showManagerShows: normalizedShowManagerShows,
+    headlinerSettings: normalizeHeadlinerSettings(state.headlinerSettings),
     canvasEngineSettings: normalizeCanvasEngineSettings(state.canvasEngineSettings),
     canvasShowManagerShows: normalizedCanvasShowManagerShows,
     canvasShowManagerActiveShowId: normalizeCanvasShowManagerActiveShowId(
@@ -5924,6 +5944,7 @@ export function reactStorePartialize(s: ReactStoreState) {
   const persisted = {
     activeReactPresetId:                persistedSelection.activeReactPresetId,
     activeReactEngineId:                persistedSelection.activeReactEngineId,
+    headlinerSettings:                   normalizeHeadlinerSettings(s.headlinerSettings),
     pendingCinemaLegacySelectionMigration: s.pendingCinemaLegacySelectionMigration,
     reactPresets:                       coherentReactPresets,
     pixGridState:                       coherentPixGridState,
@@ -5999,6 +6020,7 @@ export type ReactPersistedState = ReturnType<typeof reactStorePartialize>
  * These fields are structured-cloned into IndexedDB by reactPersistStorage.
  */
 export const REACT_PROJECT_STATE_KEYS = [
+  'headlinerSettings',
   'pendingCinemaLegacySelectionMigration',
   'reactPresets',
   'pixGridState',
@@ -6101,6 +6123,7 @@ export function mergeReactStoreState(
     ...currentState,
     ...persisted,
     reactPresets,
+    headlinerSettings: normalizeHeadlinerSettings(persisted.headlinerSettings ?? currentState.headlinerSettings),
     performancePads,
     presetAutomationCuesByTrackId,
     cinematicConfigsByPresetId,
@@ -6270,7 +6293,7 @@ export function mergeReactStoreState(
 }
 
 const REACT_STORE_PERSISTENCE_NAME = 'drmvyz:react-store'
-const REACT_STORE_PERSISTENCE_VERSION = 75
+const REACT_STORE_PERSISTENCE_VERSION = 76
 let showManagerLibraryMutationInFlight = false
 const showManagerCloudRevisions = new Map<string, number>()
 const SHOW_MANAGER_CLOUD_MIGRATION_MARKER_KEY = 'drmvyz:show-manager-cloud-migration-users:v1'
@@ -6421,6 +6444,10 @@ export const useReactStore = create<ReactStoreState>()(
       activeReactPresetId: INITIAL_PRESET_ID,
       activeReactEngineId: INITIAL_ENGINE_ID,
       reactPresets: DEFAULT_REACT_PRESETS,
+      headlinerSettings: normalizeHeadlinerSettings(DEFAULT_HEADLINER_SETTINGS),
+      setHeadlinerSettings: (patch) => set((state) => ({
+        headlinerSettings: normalizeHeadlinerSettings({ ...state.headlinerSettings, ...patch }),
+      })),
       pendingCinemaLegacySelectionMigration: null,
       completeCinemaLegacySelectionMigration: () => set({ pendingCinemaLegacySelectionMigration: null }),
       pixGridState: createDefaultPixGridState(),
@@ -12083,6 +12110,13 @@ export const useReactStore = create<ReactStoreState>()(
             }
           }
 
+          if (s.activeReactEngineId === 'headliner') {
+            return {
+              ...sharedDefaults,
+              headlinerSettings: normalizeHeadlinerSettings(DEFAULT_HEADLINER_SETTINGS),
+            }
+          }
+
           if (s.activeReactEngineId === 'canvas') {
             revokeCanvasMediaObjectUrls(s.canvasMediaItems)
             return {
@@ -12181,6 +12215,7 @@ export const useReactStore = create<ReactStoreState>()(
             pixGridDeckHistoryTransaction: null,
             cinematicConfigsByPresetId: {},
             cinematicSeedLocksByPresetId: {},
+            headlinerSettings: normalizeHeadlinerSettings(DEFAULT_HEADLINER_SETTINGS),
             canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
             canvasMediaItems: [],
             canvasMediaTimingById: {},
@@ -12255,6 +12290,7 @@ export const useReactStore = create<ReactStoreState>()(
           cinematicConfigsByPresetId:   {},
           cinematicSeedLocksByPresetId: {},
           cinematicWorldsUiMode:        'simple',
+          headlinerSettings:             normalizeHeadlinerSettings(DEFAULT_HEADLINER_SETTINGS),
           canvasEngineSettings:         { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
           canvasMediaItems:             [],
           canvasMediaTimingById:        {},

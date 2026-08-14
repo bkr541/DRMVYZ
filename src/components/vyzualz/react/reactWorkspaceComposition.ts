@@ -45,9 +45,9 @@ export function resolveReactWorkspaceComposition(
   let workspaceTabLabel: ReactWorkspaceTabLabel = 'SETUP'
 
   if (isHeadliner) {
-    // Stage 1: Headliner is a bare stub — only the ENGINE dropdown shows,
-    // no tabs, no track map, no performance pads.
-    leftTabs = []
+    // Headliner owns a minimal setup workspace while Track Map and performance
+    // pads remain intentionally absent from its fullscreen camera foundation.
+    leftTabs = ['workspace']
   } else if (isCinema) {
     leftTabs = ['workspace', 'layers']
     workspaceTabLabel = 'SOURCE'
@@ -76,7 +76,7 @@ export function resolveReactWorkspaceComposition(
     showPerformancePads: !isShader && !isCinema && !isHeadliner,
     showSoundDrawingTimeline: isSoundDrawing,
     // Track sections and transport context are shared by every React engine,
-    // except Headliner's Stage 1 stub which shows only the ENGINE dropdown.
+    // except Headliner's minimal fullscreen camera workspace.
     showTrackMap: !isHeadliner,
     showLaserBeamEditor: isLaser && beamEditorVisible,
     showLaserLayersTab: isLaser,

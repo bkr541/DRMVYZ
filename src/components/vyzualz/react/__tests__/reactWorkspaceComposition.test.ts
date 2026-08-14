@@ -39,7 +39,7 @@ describe('React workspace composition', () => {
     ])
     expect(isReactLowerSurfaceAvailable('soundDrawing', soundDrawing)).toBe(true)
 
-    for (const engine of ['shaderPads', 'cinematicPortal', 'cinema', 'canvas', 'laserDmx', 'pixGrid'] as ReactEngineId[]) {
+    for (const engine of ['shaderPads', 'cinematicPortal', 'cinema', 'canvas', 'laserDmx', 'pixGrid', 'headliner'] as ReactEngineId[]) {
       const composition = resolveReactWorkspaceComposition(engine, 'beamMatrix', false)
       expect(composition.showSoundDrawingTimeline).toBe(false)
       expect(getReactLowerSurfaces(composition)).not.toContain('soundDrawing')
@@ -121,8 +121,21 @@ describe('React workspace composition', () => {
     expect(getReactLeftTabLabel('workspace', pixGrid)).toBe('SETUP')
   })
 
+  it('gives Headliner its minimal setup rail while keeping Track Map and performance pads absent', () => {
+    const headliner = resolveReactWorkspaceComposition('headliner', 'beamMatrix', false)
+
+    expect(getReactLeftTabs(headliner)).toEqual(['workspace'])
+    expect(getReactLeftTabLabel('workspace', headliner)).toBe('SETUP')
+    expect(getReactLowerSurfaces(headliner)).toEqual([])
+    expect(headliner.showTrackMap).toBe(false)
+    expect(headliner.showPerformancePads).toBe(false)
+    expect(headliner.showSoundDrawingTimeline).toBe(false)
+    expect(headliner.presetSurface).toBe('enginePresets')
+    expect(getReactPresetTabLabel(headliner)).toBe('PRESETS')
+  })
+
   it('never advertises unfinished or unrelated contextual destinations', () => {
-    for (const engine of ['shaderPads', 'cinematicPortal', 'cinema', 'oscilloscope', 'canvas', 'laserDmx', 'pixGrid'] as ReactEngineId[]) {
+    for (const engine of ['shaderPads', 'cinematicPortal', 'cinema', 'oscilloscope', 'canvas', 'laserDmx', 'pixGrid', 'headliner'] as ReactEngineId[]) {
       const tabs = getReactLeftTabs(resolveReactWorkspaceComposition(engine, 'beamMatrix', false))
       expect(tabs).not.toContain('sessions')
       if (engine !== 'oscilloscope') expect(tabs).not.toContain('fonts')

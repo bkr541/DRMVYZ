@@ -14,6 +14,13 @@ import { ReactPresetsPanel, ReactEnginePanel } from './panels/ReactRightPanels'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { CanvasEngineSurface, CanvasLayersPanel } from './ReactCanvasEngineShell'
 import { PixGridSurface } from './pixGrid/PixGridSurface'
+import {
+  HeadlinerDesignPanel,
+  HeadlinerOutputPanel,
+  HeadlinerPresetsPanel,
+  HeadlinerReactivityPanel,
+  HeadlinerSurface,
+} from './headliner/HeadlinerWorkspace'
 import { PixGridEditorOverlay, shouldShowPixGridEditorOverlay } from './pixGrid/PixGridEditorOverlay'
 import { addPixGridMediaLayer } from './pixGrid/PixGridAuthoring'
 import { isReactTransportPaused }  from './reactTransportState'
@@ -494,7 +501,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   // Fall back only within the active engine family. Never render a preset from
   // another engine merely because it appears first in the global collection.
   const activePreset =
-    isCinemaLegacyEngineId(activeReactEngineId) || activeReactEngineId === 'canvas' || activeReactEngineId === 'cinema'
+    isCinemaLegacyEngineId(activeReactEngineId) || activeReactEngineId === 'canvas' || activeReactEngineId === 'cinema' || activeReactEngineId === 'headliner'
       ? null
       : (selectedPresetForEngine ?? reactPresets.find((p) => p.engine === activeReactEngineId) ?? null)
 
@@ -933,6 +940,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 onCanvasReady={handlePixGridCanvasReady}
                 onLiveFps={setLiveFps}
               />
+            ) : activeReactEngineId === 'headliner' ? (
+              <HeadlinerSurface onCanvasReady={setOutputCanvas} onLiveFps={setLiveFps} />
             ) : (
               <ReactPlaceholderCanvas
                 key={`react-live-${activeReactEngineId}`}
@@ -1123,24 +1132,36 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   </Suspense>
               ) : activeReactEngineId === 'cinema' ? (
                 <CinemaPresetsPanel />
+              ) : activeReactEngineId === 'headliner' ? (
+                <HeadlinerPresetsPanel />
               ) : (
                 <ReactPresetsPanel />
               ))}
             {activeRightPanel === 'design' && (
-              <ReactDesignWorkspacePanel hasSelection={inspectableSelection !== null} />
+              activeReactEngineId === 'headliner'
+                ? <HeadlinerDesignPanel />
+                : <ReactDesignWorkspacePanel hasSelection={inspectableSelection !== null} />
             )}
-            {activeRightPanel === 'react' && <ReactReactivityWorkspacePanel cinemaFrameBridge={cinemaFrameBridge} />}
+            {activeRightPanel === 'react' && (
+              activeReactEngineId === 'headliner'
+                ? <HeadlinerReactivityPanel />
+                : <ReactReactivityWorkspacePanel cinemaFrameBridge={cinemaFrameBridge} />
+            )}
             {activeRightPanel === 'output' && (
-              <ReactOutputWorkspacePanel
-                canvas={outputCanvas}
-                outputCapability={outputCapability}
-                recorder={recorder}
-                liveFps={liveFps}
-                hasActiveProgramAudio={hasActiveProgramAudio}
-                onStartRecording={handleStartRecording}
-                cinemaFrameBridge={cinemaFrameBridge}
-                cinemaRuntimeSnapshot={cinemaRuntimeSnapshot}
-              />
+              activeReactEngineId === 'headliner' ? (
+                <HeadlinerOutputPanel />
+              ) : (
+                <ReactOutputWorkspacePanel
+                  canvas={outputCanvas}
+                  outputCapability={outputCapability}
+                  recorder={recorder}
+                  liveFps={liveFps}
+                  hasActiveProgramAudio={hasActiveProgramAudio}
+                  onStartRecording={handleStartRecording}
+                  cinemaFrameBridge={cinemaFrameBridge}
+                  cinemaRuntimeSnapshot={cinemaRuntimeSnapshot}
+                />
+              )
             )}
           </div>
         </WorkspaceRail>

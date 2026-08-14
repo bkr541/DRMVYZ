@@ -18264,3 +18264,88 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-canvas-pools__member > button:hover {
   color: rgba(255, 170, 170, 0.9);
 }
+
+/* ── Headliner Stage 1 workspace foundation ────────────────────────────────── */
+.rv-headliner-mode-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.rv-headliner-mode-grid .rv-sound-source-card {
+  width: 100%;
+}
+
+.rv-headliner-surface {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(74, 199, 219, 0.055), transparent 44%),
+    rgba(2, 7, 9, 0.98);
+  color: #e8f4f8;
+}
+
+.rv-headliner-surface-placeholder {
+  width: min(340px, calc(100% - 40px));
+  padding: 26px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(232, 244, 248, 0.1);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.024);
+  text-align: center;
+}
+
+.rv-headliner-surface-placeholder strong,
+.rv-headliner-empty-state strong {
+  font: 800 10px/1.2 var(--az-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rv-headliner-surface-placeholder > span:last-child,
+.rv-headliner-empty-state span,
+.rv-headliner-global-analysis-note {
+  color: rgba(232, 244, 248, 0.58);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.rv-headliner-surface-icon {
+  width: 36px;
+  height: 36px;
+  margin-bottom: 4px;
+  color: rgba(103, 247, 255, 0.76);
+}
+
+.rv-headliner-surface-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rv-headliner-empty-state {
+  margin: 10px;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid rgba(232, 244, 248, 0.08);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.rv-headliner-global-analysis-note {
+  margin: 8px 10px 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(232, 244, 248, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.018);
+}
