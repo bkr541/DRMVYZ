@@ -479,7 +479,7 @@ function MediaCard({
   m: UploadedMedia
   isActive: boolean
   viewMode: ViewMode
-  onSelect: () => void
+  onSelect: (anchor: MediaLibraryCardActionAnchor) => void
   onEdit?: () => void
   onRemove?: () => void
   onToggleFavorite: () => void
@@ -531,7 +531,11 @@ function MediaCard({
     return (
       <div
         className={`vz-media-row ${isActive ? 'vz-media-row--active' : ''}${disabled ? ' vz-media-row--disabled' : ''}`}
-        onClick={() => canSelect && !disabled && !m.uploading && onSelect()}
+        onClick={event => {
+          if (!canSelect || disabled || m.uploading) return
+          const rect = event.currentTarget.getBoundingClientRect()
+          onSelect({ x: rect.right, y: rect.top })
+        }}
         style={m.uploading || disabled || !canSelect ? { opacity: m.uploading ? 0.6 : disabled ? 0.72 : 1, cursor: disabled ? 'not-allowed' : 'default' } : undefined}
         title={disabledReason ?? undefined}
         draggable={canDrag && !m.uploading && !disabled}
@@ -606,7 +610,11 @@ function MediaCard({
   return (
     <div
       className={`vz-media-card ${isActive ? 'vz-media-card--active' : ''}${disabled ? ' vz-media-card--disabled' : ''}`}
-      onClick={() => canSelect && !disabled && !m.uploading && onSelect()}
+      onClick={event => {
+        if (!canSelect || disabled || m.uploading) return
+        const rect = event.currentTarget.getBoundingClientRect()
+        onSelect({ x: rect.right, y: rect.top })
+      }}
       style={m.uploading || disabled || !canSelect ? { opacity: m.uploading ? 0.6 : disabled ? 0.72 : 1, cursor: disabled ? 'not-allowed' : 'default' } : undefined}
       title={disabledReason ?? undefined}
       draggable={canDrag && !m.uploading && !disabled}
@@ -696,6 +704,10 @@ function MediaCard({
 export interface MediaLibraryBrowserProps {
   activeMediaId: string | null
   onSelect?: (id: string) => void
+  /** Optional card-click interception for anchored action menus. When supplied,
+   * it replaces immediate selection without changing the default behavior of
+   * other MediaLibraryBrowser consumers. */
+  onCardActionRequest?: (id: string, anchor: MediaLibraryCardActionAnchor) => void
   onOpenMediaManager?: () => void
   onOpenLyricManager?: (intent: LyricManagerNavigationIntent) => void
   context?: MediaLibraryContext
@@ -704,9 +716,15 @@ export interface MediaLibraryBrowserProps {
   getDisabledReason?: (media: UploadedMedia) => string | null
 }
 
+export interface MediaLibraryCardActionAnchor {
+  x: number
+  y: number
+}
+
 export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   activeMediaId,
   onSelect,
+  onCardActionRequest,
   onOpenMediaManager,
   onOpenLyricManager,
   context = 'visualizer',
@@ -786,7 +804,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const isManager = context === 'manager'
   const isCanvasMode = context === 'canvas'
   const isPixGridMode = context === 'pixGrid'
-  const canSelect = capabilitySet.has('select') && onSelect !== undefined
+  const canSelect = capabilitySet.has('select') && (onSelect !== undefined || onCardActionRequest !== undefined)
   const canLoadTrack = capabilitySet.has('load-track')
   const canOpenLyrics = capabilitySet.has('lyrics') && onOpenLyricManager !== undefined
   const canPreview = capabilitySet.has('preview')
@@ -968,6 +986,14 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     onSelect?.(media.id)
   }, [ensureMediaSigned, onSelect])
 
+  const handleMediaCardAction = useCallback((media: UploadedMedia, anchor: MediaLibraryCardActionAnchor) => {
+    if (onCardActionRequest) {
+      onCardActionRequest(media.id, anchor)
+      return
+    }
+    void handleSelectMedia(media)
+  }, [handleSelectMedia, onCardActionRequest])
+
   const handlePreviewMedia = useCallback(async (media: UploadedMedia) => {
     if (typeof ensureMediaSigned === 'function') await ensureMediaSigned([media.id], 'visible')
     const current = items.find(item => item.id === media.id) ?? media
@@ -982,7 +1008,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         m={media}
         isActive={activeMediaId === media.id}
         viewMode={viewMode}
-        onSelect={() => { void handleSelectMedia(media) }}
+        onSelect={anchor => handleMediaCardAction(media, anchor)}
         onEdit={canEdit ? () => setEditItem(media) : undefined}
         onRemove={canRemove ? () => {
           if (window.confirm(`Delete “${media.title ?? media.name}”? It will disappear immediately, while exact storage cleanup remains recoverable until finalized.`)) void removeItem(media.id)
@@ -1003,7 +1029,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         onThumbnailLoad={() => { markMediaAssetLoaded?.(media.id, 'thumbnail') }}
       />
     )
-  }, [activeMediaId, canDragMedia, canEdit, canFavorite, canPreview, canRemove, canSelect, context, getDisabledReason, handlePreviewMedia, handleSelectMedia, markMediaAssetLoaded, mutationStates, removeItem, retryMediaAsset, retryUpload, toggleFavorite, viewMode])
+  }, [activeMediaId, canDragMedia, canEdit, canFavorite, canPreview, canRemove, canSelect, context, getDisabledReason, handleMediaCardAction, handlePreviewMedia, markMediaAssetLoaded, mutationStates, removeItem, retryMediaAsset, retryUpload, toggleFavorite, viewMode])
 
   const handleEnsureSigned = useCallback((visibleIds: string[], nearIds: string[]) => {
     void ensureMediaSigned?.(visibleIds, 'visible')

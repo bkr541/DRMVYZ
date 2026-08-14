@@ -15,7 +15,8 @@ import type { FeatureCurve, MusicIntelligenceFrame, TrackIntelligenceAnalysis } 
 import { Collapsible, ColorRow, NumberInputRow, SelectRow as CanvasSelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import { HelpInfoTrigger, type HelpInfoTriggerProps } from '../../shared/InfoPopover'
 import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from './SharedPerformanceDiagnosticsStore'
-import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
+import { MediaLibraryBrowser, type MediaLibraryCardActionAnchor } from '../media/MediaLibraryBrowser'
+import { ContextActionMenu } from '../context-menu/ContextActionMenu'
 import {
   getCanvasMediaTransparencyKey,
   prepareCanvasCaptureBackground,
@@ -59,6 +60,7 @@ import {
   CANVAS_PERFORMANCE_SHOW_OPTIONS,
   CanvasOrchestrationStage,
   CanvasPreloadManager,
+  MAX_CANVAS_AUTHORED_LAYERS,
   MAX_CANVAS_ACTIVE_VIDEO_DECODERS,
   MAX_CANVAS_SHOW_VIDEO_DECODERS,
   getCanvasShowRuntimePoolRevision,
@@ -377,15 +379,24 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const selectCanvasMediaItem = useReactStore(s => s.selectCanvasMediaItem)
   const orchestration = useReactStore(s => s.canvasOrchestrationSettings)
+  const addCanvasAuthoredLayer = useReactStore(s => s.addCanvasAuthoredLayer)
+  const addCanvasMediaToPool = useReactStore(s => s.addCanvasMediaToPool)
   const toggleCanvasMediaPoolItem = useReactStore(s => s.toggleCanvasMediaPoolItem)
   const setCanvasMediaRoles = useReactStore(s => s.setCanvasMediaRoles)
   const mediaItems = useCanvasRuntimeMediaItems()
+  const [actionMenu, setActionMenu] = useState<({ mediaId: string } & MediaLibraryCardActionAnchor) | null>(null)
+  const [duplicateConfirmation, setDuplicateConfirmation] = useState<({ mediaId: string } & MediaLibraryCardActionAnchor) | null>(null)
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null)
   const activeItem = mediaItems.find(item => item.id === activeCanvasMediaId) ?? null
   const poolItems = orchestration.mediaPoolIds
     .map(id => mediaItems.find(item => item.id === id) ?? null)
     .filter((item): item is CanvasMediaItem => item !== null)
   const roleResolution = activeItem ? resolveCanvasMediaRoles(activeItem, orchestration) : null
   const explicitRoles = activeItem ? orchestration.mediaRolesById[activeItem.id] ?? [] : []
+  const actionMedia = actionMenu ? mediaItems.find(item => item.id === actionMenu.mediaId) ?? null : null
+  const confirmationMedia = duplicateConfirmation
+    ? mediaItems.find(item => item.id === duplicateConfirmation.mediaId) ?? null
+    : null
 
   const toggleRole = (role: CanvasMediaRole) => {
     if (!activeItem) return
@@ -395,23 +406,124 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
     setCanvasMediaRoles(activeItem.id, roles)
   }
 
+  const openMediaActions = (mediaId: string, anchor: MediaLibraryCardActionAnchor) => {
+    setActionFeedback(null)
+    setDuplicateConfirmation(null)
+    setActionMenu({ mediaId, ...anchor })
+  }
+
+  const addLayerNow = (mediaId: string) => {
+    const result = addCanvasAuthoredLayer(mediaId, { ownership: 'manual', pinned: true })
+    if (!result.ok) setActionFeedback(result.message)
+    else setActionFeedback(null)
+  }
+
+  const requestAddAsLayer = (mediaId: string, anchor: MediaLibraryCardActionAnchor) => {
+    const currentLayers = useReactStore.getState().canvasOrchestrationSettings.authoredLayers
+    if (currentLayers.length >= MAX_CANVAS_AUTHORED_LAYERS) {
+      setDuplicateConfirmation(null)
+      setActionFeedback('All four CANVAS layer slots are in use. Remove a layer before adding another.')
+      return
+    }
+    if (currentLayers.some(layer => layer.mediaId === mediaId)) {
+      setActionFeedback(null)
+      setDuplicateConfirmation({ mediaId, ...anchor })
+      return
+    }
+    addLayerNow(mediaId)
+  }
+
+  const addToActivePool = (mediaId: string) => {
+    const activePoolId = useReactStore.getState().canvasOrchestrationSettings.activeMediaPoolId
+    if (!activePoolId) {
+      setActionFeedback('Create or select a Media Pool first, then add this media again.')
+      return
+    }
+    const result = addCanvasMediaToPool(activePoolId, mediaId)
+    if (!result.ok) setActionFeedback(result.message)
+    else setActionFeedback(null)
+  }
+
   return (
     <div className={`rv-canvas-library-shell${compact ? ' rv-canvas-library-shell--compact' : ''}`}>
       <MediaLibraryBrowser
         activeMediaId={activeCanvasMediaId}
-        onSelect={id => selectCanvasMediaItem(id)}
+        onCardActionRequest={openMediaActions}
         context="canvas"
         title="Media Library"
         capabilities={CANVAS_MEDIA_LIBRARY_CAPABILITIES}
         getDisabledReason={getCanvasLibraryDisabledReason}
       />
+      {actionFeedback && (
+        <NoticeCard
+          tone="warning"
+          role="alert"
+          title="CANVAS media action"
+          onDismiss={() => setActionFeedback(null)}
+        >
+          {actionFeedback}
+        </NoticeCard>
+      )}
+      {actionMenu && (
+        <ContextActionMenu
+          x={actionMenu.x}
+          y={actionMenu.y}
+          ariaLabel={`CANVAS actions for ${actionMedia?.name ?? actionMenu.mediaId}`}
+          header={{ title: actionMedia?.name ?? 'CANVAS media', subtitle: 'Choose how to use this media.' }}
+          onClose={() => setActionMenu(null)}
+          items={[
+            {
+              id: 'make-active',
+              label: 'Make Active',
+              onSelect: () => {
+                setActionFeedback(null)
+                selectCanvasMediaItem(actionMenu.mediaId)
+              },
+            },
+            {
+              id: 'add-as-layer',
+              label: 'Add as Layer',
+              onSelect: () => requestAddAsLayer(actionMenu.mediaId, actionMenu),
+            },
+            {
+              id: 'add-to-pool',
+              label: 'Add to Pool',
+              onSelect: () => addToActivePool(actionMenu.mediaId),
+            },
+          ]}
+        />
+      )}
+      {duplicateConfirmation && (
+        <ContextActionMenu
+          x={duplicateConfirmation.x}
+          y={duplicateConfirmation.y}
+          ariaLabel={`Confirm duplicate CANVAS layer for ${confirmationMedia?.name ?? duplicateConfirmation.mediaId}`}
+          header={{
+            title: 'Already in visualizer',
+            subtitle: `${confirmationMedia?.name ?? 'This media'} is already in the visualizer. Confirm to add another layer instance.`,
+          }}
+          onClose={() => setDuplicateConfirmation(null)}
+          items={[
+            {
+              id: 'confirm',
+              label: 'Confirm',
+              onSelect: () => addLayerNow(duplicateConfirmation.mediaId),
+            },
+            {
+              id: 'cancel',
+              label: 'Cancel',
+              onSelect: () => undefined,
+            },
+          ]}
+        />
+      )}
       <div className="rv-canvas-pool" aria-label="CANVAS performance media pool">
         <div className="rv-canvas-pool__head">
           <span>Performance Pool</span>
           <strong>{poolItems.length}</strong>
         </div>
         {poolItems.length === 0 ? (
-          <p className="rv-control-helper-copy">Select media to build a deterministic multi-source pool.</p>
+          <p className="rv-control-helper-copy">Use Add to Pool from a media card after a Media Pool is active.</p>
         ) : (
           <div className="rv-canvas-pool__chips">
             {poolItems.map(item => (

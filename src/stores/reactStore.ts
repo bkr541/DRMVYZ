@@ -6973,7 +6973,7 @@ export const useReactStore = create<ReactStoreState>()(
           const layer: CanvasAuthoredLayer = {
             id: createCanvasAuthoringIdentity('layer'),
             mediaId: id,
-            order: current.length,
+            order: 0,
             enabled: options?.enabled !== false,
             solo: options?.solo === true,
             ownership,
@@ -6983,7 +6983,7 @@ export const useReactStore = create<ReactStoreState>()(
           return {
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
               ...state.canvasOrchestrationSettings,
-              authoredLayers: [...current, layer],
+              authoredLayers: [layer, ...current.map(existing => ({ ...existing, order: existing.order + 1 }))],
             }),
           }
         })

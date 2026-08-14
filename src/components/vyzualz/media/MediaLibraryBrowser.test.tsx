@@ -170,6 +170,37 @@ afterEach(() => {
 })
 
 describe('MediaLibraryBrowser capability boundaries', () => {
+  it('can route a selectable card click to an anchored action request without changing default selection behavior', async () => {
+    const onSelect = vi.fn()
+    const onCardActionRequest = vi.fn()
+    await renderBrowser({
+      activeMediaId: null,
+      onSelect,
+      onCardActionRequest,
+      context: 'canvas',
+      capabilities: CANVAS_MEDIA_LIBRARY_CAPABILITIES,
+    })
+
+    const card = container?.querySelector<HTMLElement>('.vz-media-card')
+    expect(card).not.toBeNull()
+    vi.spyOn(card!, 'getBoundingClientRect').mockReturnValue({
+      x: 10,
+      y: 20,
+      width: 200,
+      height: 150,
+      top: 20,
+      right: 210,
+      bottom: 170,
+      left: 10,
+      toJSON: () => ({}),
+    } as DOMRect)
+
+    act(() => card?.click())
+
+    expect(onCardActionRequest).toHaveBeenCalledWith('media-1', { x: 210, y: 20 })
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
   it('keeps Media Deck performance-only and ignores upload drops', async () => {
     const onSelect = vi.fn()
     await renderBrowser({

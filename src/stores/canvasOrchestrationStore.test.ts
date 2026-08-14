@@ -94,6 +94,12 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     expect(new Set(fourLayerState.map(layer => layer.id)).size).toBe(4)
     expect(fourLayerState.filter(layer => layer.mediaId === 'shared-media')).toHaveLength(2)
     expect(fourLayerState.map(layer => layer.order)).toEqual([0, 1, 2, 3])
+    expect(fourLayerState.map(layer => layer.id)).toEqual([
+      fourth.layer.id,
+      third.layer.id,
+      second.layer.id,
+      first.layer.id,
+    ])
     expect(fourLayerState.find(layer => layer.id === third.layer.id)).toMatchObject({ ownership: 'automatic', pinned: false })
 
     const beforeRejectedAdd = JSON.stringify(fourLayerState)
@@ -101,13 +107,13 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     expect(rejected).toMatchObject({ ok: false, code: 'layer-limit-reached' })
     expect(JSON.stringify(useReactStore.getState().canvasOrchestrationSettings.authoredLayers)).toBe(beforeRejectedAdd)
 
-    const reordered = useReactStore.getState().reorderCanvasAuthoredLayer(first.layer.id, 3)
+    const reordered = useReactStore.getState().reorderCanvasAuthoredLayer(first.layer.id, 0)
     expect(reordered.ok).toBe(true)
     expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.map(layer => layer.id)).toEqual([
-      second.layer.id,
-      third.layer.id,
-      fourth.layer.id,
       first.layer.id,
+      fourth.layer.id,
+      third.layer.id,
+      second.layer.id,
     ])
 
     const updated = useReactStore.getState().updateCanvasAuthoredLayer(first.layer.id, { solo: true, pinned: false })
