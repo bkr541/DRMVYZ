@@ -4385,7 +4385,12 @@ export function normalizeCanvasOrchestrationSettings(value: unknown): CanvasOrch
   return {
     enabled: source.enabled === true,
     autoRoleEnabled: source.autoRoleEnabled !== false,
-    renderMode: source.renderMode === 'layers' || source.renderMode === 'performance'
+    // `single` is an explicit runtime ownership mode, not merely the disabled
+    // fallback. Make Active intentionally keeps orchestration enabled so the
+    // user's Auto Performance preferences survive, while handing the current
+    // visual to the direct renderer. Never coerce that explicit handoff back
+    // to `performance` just because `enabled` remains true.
+    renderMode: source.renderMode === 'single' || source.renderMode === 'layers' || source.renderMode === 'performance'
       ? source.renderMode
       : source.enabled === true
         ? 'performance'

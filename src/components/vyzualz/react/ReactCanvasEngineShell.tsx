@@ -74,6 +74,7 @@ import {
   getCanvasPerformancePreloadCandidates,
   getCanvasPoolAutomationPreloadCandidates,
   getCanvasPerformanceShow,
+  canRenderCanvasAuthoredLayerFrame,
   canRenderCanvasOrchestrationFrame,
   resolveCanvasAuthoredLayerFrame,
   resolveCanvasMediaRoles,
@@ -523,10 +524,6 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
           x={duplicateConfirmation.x}
           y={duplicateConfirmation.y}
           ariaLabel={`Confirm duplicate CANVAS layer for ${confirmationMedia?.name ?? duplicateConfirmation.mediaId}`}
-          header={{
-            title: 'Already in visualizer',
-            subtitle: `${confirmationMedia?.name ?? 'This media'} is already in the visualizer. Confirm to add another layer instance.`,
-          }}
           onClose={() => setDuplicateConfirmation(null)}
           items={[
             {
@@ -1830,17 +1827,15 @@ export function CanvasEngineSurface({
     }
   }, [activeAudioTrackId, fragmentCollageActive, laserImageFxActive, particleReconstructionActive])
 
-  // Keep the proven single-source renderer on screen while the authored stack is
-  // warming up. The compositor takes ownership as soon as at least one enabled
-  // layer has a drawable preload handle, preventing Add as Layer from flashing
-  // or stranding the visualizer on a black frame.
-  const authoredLayerHasDrawableSource = orchestrationFrame?.runtimeMode !== 'authored'
-    || orchestrationFrame.readyMediaIds.length > 0
-    || !activeItem
+  // Keep the direct renderer visible only while every authored source is still
+  // preloading. Once a source is drawable, or all authored sources have failed,
+  // the authored stage owns the frame so the layer stack and any load error are
+  // truthful instead of leaving stale single-source media on screen indefinitely.
   const orchestrationRenderable = orchestrationFrame?.runtimeMode === 'show'
     ? true
     : orchestrationFrame?.runtimeMode === 'authored'
-      ? orchestrationSettings.renderMode === 'layers' && authoredLayerHasDrawableSource
+      ? orchestrationSettings.renderMode === 'layers'
+        && canRenderCanvasAuthoredLayerFrame(orchestrationFrame, Boolean(activeItem))
       : canRenderCanvasOrchestrationFrame(orchestrationSettings, orchestrationFrame)
   const outputCapability = useMemo(() => resolveCanvasOutputCapability({
     selectedPresetId: selectedCanvasPresetId,

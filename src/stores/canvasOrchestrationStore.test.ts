@@ -49,6 +49,37 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     expect(useReactStore.getState().canvasOrchestrationSettings.autoRoleEnabled).toBe(true)
   })
 
+  it('Make Active exits Auto Performance without disabling its saved preference, then Add as Layer preserves the visible source', () => {
+    const store = useReactStore.getState()
+    store.setCanvasOrchestrationSettings({ enabled: true })
+    expect(useReactStore.getState().canvasOrchestrationSettings).toMatchObject({
+      enabled: true,
+      renderMode: 'performance',
+    })
+
+    store.selectCanvasMediaItem('visible-media')
+    expect(useReactStore.getState().canvasOrchestrationSettings).toMatchObject({
+      enabled: true,
+      renderMode: 'single',
+    })
+    expect(useReactStore.getState().activeCanvasMediaId).toBe('visible-media')
+
+    const added = useReactStore.getState().addCanvasAuthoredLayer('new-layer-media', {
+      ownership: 'manual',
+      pinned: true,
+      preserveActiveSource: true,
+    })
+    expect(added.ok).toBe(true)
+
+    const state = useReactStore.getState()
+    expect(state.canvasOrchestrationSettings.renderMode).toBe('layers')
+    expect(state.canvasOrchestrationSettings.authoredLayers.map(layer => layer.mediaId)).toEqual([
+      'new-layer-media',
+      'visible-media',
+    ])
+    expect(state.selectedCanvasLayerId).toBe(added.ok ? added.layer.id : null)
+  })
+
   it('keeps library focus, Make Active, authored layers, and pool membership independent', () => {
     useReactStore.getState().setCanvasAutoSelectEnabled(true)
     useReactStore.getState().selectCanvasMediaItem('library-video-1')

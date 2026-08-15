@@ -166,6 +166,32 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     expect(state.canvasOrchestrationSettings.mediaPoolIds).toEqual([mediaTwo.id])
   })
 
+  it('reproduces the recorded Auto Performance → Make Active → Add as Layer handoff', async () => {
+    act(() => useReactStore.getState().setCanvasOrchestrationSettings({ enabled: true }))
+    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('performance')
+
+    openMediaActions(mediaTwo.id)
+    chooseAction('Make Active')
+    expect(useReactStore.getState().activeCanvasMediaId).toBe(mediaTwo.id)
+    expect(useReactStore.getState().canvasOrchestrationSettings).toMatchObject({
+      enabled: true,
+      renderMode: 'single',
+    })
+
+    openMediaActions(mediaOne.id)
+    chooseAction('Add as Layer')
+    await flushAsyncActions()
+
+    const state = useReactStore.getState()
+    expect(state.canvasOrchestrationSettings.renderMode).toBe('layers')
+    expect(state.canvasOrchestrationSettings.authoredLayers.map(layer => layer.mediaId)).toEqual([
+      mediaOne.id,
+      mediaTwo.id,
+    ])
+    expect(state.selectedCanvasLayerId).toBe(state.canvasOrchestrationSettings.authoredLayers[0]?.id)
+    expect(document.body.querySelector('.vz-app-context-menu__meta')).toBeNull()
+  })
+
   it('Add as Layer promotes the visible single source underneath the new manual pinned layer', async () => {
     act(() => useReactStore.getState().selectCanvasMediaItem(mediaTwo.id))
     expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('single')
