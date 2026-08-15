@@ -16706,6 +16706,24 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   gap: 5px;
 }
 
+/* ── Numeric Input Style Gallery (Layout Lab / Template) ──────────────────── */
+/* Per-field visual styling for the winning "Drag Scrubber" treatment now
+   lives on the reusable NumericScrubField component as .dv-scrub* in
+   controls/canonicalControls.css. Only gallery scaffolding remains here. */
+
+.llni-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 18px 16px 32px;
+}
+
+.llni-scrubber-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 /* ── Cinema engine registration and single-owner runtime workspace ───────── */
 .rv-cinema-workspace {
   box-sizing: border-box;

@@ -16,6 +16,7 @@ import { PaletteGroupStyleGallery } from './layoutLab/PaletteGroupStyleGallery'
 import { BadgeStyleGallery } from './layoutLab/BadgeStyleGallery'
 import { LayerRowStyleGallery } from './layoutLab/LayerRowStyleGallery'
 import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
+import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { TrackLibraryRowStyleGallery } from './layoutLab/TrackLibraryRowStyleGallery'
 import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
@@ -252,6 +253,7 @@ export function LayoutLabMockup() {
                       <BadgeStyleGallery />
                       <LayerRowStyleGallery />
                       <TrackLibraryRowStyleGallery />
+                      <NumericInputStyleGallery />
                     </div>
                   </div>
                 )}

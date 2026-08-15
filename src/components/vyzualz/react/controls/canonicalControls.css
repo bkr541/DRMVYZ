@@ -860,3 +860,97 @@
   background: rgba(255, 107, 107, 0.12);
   color: #ff8e8e;
 }
+
+/* Canonical DRMVYZ numeric input from Layout Lab's "Drag Scrubber" winner. */
+
+.dv-scrub-field-label {
+  display: block;
+  margin-bottom: 5px;
+  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  color: rgba(245, 248, 250, 0.7);
+}
+
+.dv-scrub {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+  cursor: ew-resize;
+}
+
+.dv-scrub:focus,
+.dv-scrub:focus-visible {
+  outline: none;
+  border-color: rgba(74, 199, 219, 0.55);
+  box-shadow: 0 0 0 3px rgba(74, 199, 219, 0.12);
+}
+
+.dv-scrub.is-editing {
+  cursor: text;
+}
+
+.dv-scrub.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.dv-scrub-fill {
+  position: absolute;
+  inset: 0;
+  width: var(--dv-scrub-fill, 50%);
+  background: linear-gradient(90deg, rgba(74, 199, 219, 0.22), rgba(74, 199, 219, 0.06));
+  border-right: 1px solid rgba(74, 199, 219, 0.4);
+  pointer-events: none;
+  transition: width 60ms linear;
+}
+
+.dv-scrub-value {
+  position: relative;
+  font: 700 13px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  color: rgba(237, 249, 251, 0.94);
+  cursor: text;
+}
+
+.dv-scrub-edit-input {
+  position: relative;
+  width: 64px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+  font: 700 13px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  color: #8ef4ff;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.dv-scrub-edit-input:focus,
+.dv-scrub-edit-input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.dv-scrub-edit-input::-webkit-inner-spin-button,
+.dv-scrub-edit-input::-webkit-outer-spin-button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.dv-scrub-unit {
+  position: relative;
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(196, 207, 211, 0.45);
+}
