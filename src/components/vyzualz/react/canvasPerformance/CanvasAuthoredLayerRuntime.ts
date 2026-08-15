@@ -27,6 +27,7 @@ export function resolveCanvasAuthoredLayerFrame({
   mediaItems,
   fitMode,
   isMediaReady,
+  getMediaError,
   automaticLayers = [],
   previousFrame = null,
   automationAdvanced = false,
@@ -38,6 +39,7 @@ export function resolveCanvasAuthoredLayerFrame({
   mediaItems: readonly CanvasMediaItem[]
   fitMode: CanvasFitMode
   isMediaReady?: (mediaId: string) => boolean
+  getMediaError?: (mediaId: string) => string | null
   automaticLayers?: readonly CanvasAuthoredLayer[]
   previousFrame?: CanvasResolvedPerformanceFrame | null
   automationAdvanced?: boolean
@@ -101,8 +103,14 @@ export function resolveCanvasAuthoredLayerFrame({
 
   const activeLayers = layers.filter(layer => layer.enabled && layer.sourceMediaId)
   const activeMediaIds = [...new Set(activeLayers.map(layer => layer.sourceMediaId).filter((id): id is string => Boolean(id)))]
+  const mediaErrors = activeMediaIds.flatMap(mediaId => {
+    const message = getMediaError?.(mediaId) ?? null
+    return message ? [{ mediaId, message }] : []
+  })
+  const failedMediaIds = new Set(mediaErrors.map(item => item.mediaId))
   const readyMediaIds = activeMediaIds.filter(id => !isMediaReady || isMediaReady(id))
-  const pendingMediaIds = activeMediaIds.filter(id => isMediaReady && !isMediaReady(id))
+  const pendingMediaIds = activeMediaIds.filter(id => isMediaReady && !isMediaReady(id) && !failedMediaIds.has(id))
+  mediaErrors.forEach(({ mediaId, message }) => diagnostics.push(`media-load-error:${mediaId}:${message}`))
   if (soloLayer) diagnostics.push(`solo:${soloLayer.id}`)
   if (authoredLayers.some(layer => !mediaById.has(layer.mediaId))) diagnostics.push('missing-authored-media')
   if (authoredLayers.length === 0) diagnostics.push('no-authored-layers')
@@ -135,6 +143,7 @@ export function resolveCanvasAuthoredLayerFrame({
     fallbackUsed: false,
     readyMediaIds,
     pendingMediaIds,
+    mediaErrors,
     decoderCount: activeVideoIds.size,
     textureHandleCount: Math.min(MAX_CANVAS_MEDIA_HANDLES, activeMediaIds.length),
     feedbackPasses: 0,

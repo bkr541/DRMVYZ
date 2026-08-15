@@ -346,6 +346,7 @@ function CanvasGenericOrchestrationStage({
   propsRef.current = { isPlaying, isPaused, engineSettings, presetSettings, motionIntensity }
 
   const mediaSummary = useMemo(() => activeMedia(frame), [frame])
+  const mediaErrors = frame.mediaErrors ?? []
   const outputContract = useMemo(() => resolveCanvasOutputContract({
     canvasOutputOpacity: engineSettings.opacity,
     presetSettings,
@@ -599,6 +600,11 @@ function CanvasGenericOrchestrationStage({
         <span>{frame.layers.filter(layer => layer.enabled).length} layers · {frame.decoderCount} video decoders · {mediaSummary.length} sources</span>
         {frame.anticipatoryStage !== 'none' && <span>Queued: {frame.anticipatoryStage}{frame.nextSectionType ? ` → ${frame.nextSectionType}` : ''}</span>}
         {frame.pendingMediaIds.length > 0 && <span>Preloading {frame.pendingMediaIds.length} upcoming source{frame.pendingMediaIds.length === 1 ? '' : 's'}</span>}
+        {mediaErrors.length > 0 && (
+          <span role="alert">
+            Failed to load {mediaErrors.length} source{mediaErrors.length === 1 ? '' : 's'} · {mediaErrors[0]?.message}
+          </span>
+        )}
         {frame.runtimeMode === 'show' && qualitySnapshot && (
           <span data-testid="canvas-show-quality-diagnostics">
             Quality {qualitySnapshot.tier} · {Math.round(qualitySnapshot.scale * 100)}% composition · {qualitySnapshot.activeVideoCount} video{qualitySnapshot.activeVideoCount === 1 ? '' : 's'} · {qualitySnapshot.averageFrameMs.toFixed(1)}ms

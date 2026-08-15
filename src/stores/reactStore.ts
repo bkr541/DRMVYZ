@@ -7764,14 +7764,14 @@ export const useReactStore = create<ReactStoreState>()(
         const manualMediaOverrideId = state.canvasEngineSettings.manualMediaOverrideId
         const manualMediaOverrideValid = typeof manualMediaOverrideId === 'string' && manualMediaOverrideId.trim().length > 0
         if (options?.manual === false && manualMediaOverrideValid) return repairCanvasRuntimeState(state)
-        return repairCanvasRuntimeState({
+        const canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
+          ...state.canvasOrchestrationSettings,
+          ...(options?.manual === false ? {} : { renderMode: 'single' as const }),
+        })
+        const repaired = repairCanvasRuntimeState({
           ...state,
           selectedCanvasMediaId: nextId,
           activeCanvasMediaId: nextId,
-          canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
-            ...state.canvasOrchestrationSettings,
-            ...(options?.manual === false ? {} : { renderMode: 'single' as const }),
-          }),
           canvasEngineSettings: normalizeCanvasEngineSettings({
             ...state.canvasEngineSettings,
             selectedMediaId: nextId,
@@ -7780,6 +7780,11 @@ export const useReactStore = create<ReactStoreState>()(
             rotation: 0,
           }),
         })
+        return {
+          ...repaired,
+          canvasOrchestrationSettings,
+          ...(options?.manual === false ? {} : { selectedCanvasLayerId: null }),
+        }
       }),
 
       restartCanvasVideo: () => set((state) => ({
@@ -7822,7 +7827,22 @@ export const useReactStore = create<ReactStoreState>()(
         )
         const selectedLayerStillExists = authoredLayers.some(layer => layer.id === state.selectedCanvasLayerId)
 
-        return repairCanvasRuntimeState({
+        const canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
+          ...state.canvasOrchestrationSettings,
+          authoredLayers,
+          mediaPools: state.canvasOrchestrationSettings.mediaPools.map(pool => ({
+            ...pool,
+            mediaIds: pool.mediaIds.filter(mediaId => mediaId !== id),
+          })),
+          mediaRolesById: Object.fromEntries(
+            Object.entries(state.canvasOrchestrationSettings.mediaRolesById).filter(([mediaId]) => mediaId !== id),
+          ),
+          mediaLocksByLayer: Object.fromEntries(
+            Object.entries(state.canvasOrchestrationSettings.mediaLocksByLayer).filter(([, mediaId]) => mediaId !== id),
+          ),
+          poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+        })
+        const repaired = repairCanvasRuntimeState({
           ...state,
           canvasMediaItems: nextItems,
           canvasMediaTimingById: nextTimingById,
@@ -7836,24 +7856,13 @@ export const useReactStore = create<ReactStoreState>()(
               ? null
               : state.canvasEngineSettings.manualMediaOverrideId,
           }),
+        })
+        return {
+          ...repaired,
           canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
           selectedCanvasLayerId: selectedLayerStillExists ? state.selectedCanvasLayerId : null,
-          canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
-            ...state.canvasOrchestrationSettings,
-            authoredLayers,
-            mediaPools: state.canvasOrchestrationSettings.mediaPools.map(pool => ({
-              ...pool,
-              mediaIds: pool.mediaIds.filter(mediaId => mediaId !== id),
-            })),
-            mediaRolesById: Object.fromEntries(
-              Object.entries(state.canvasOrchestrationSettings.mediaRolesById).filter(([mediaId]) => mediaId !== id),
-            ),
-            mediaLocksByLayer: Object.fromEntries(
-              Object.entries(state.canvasOrchestrationSettings.mediaLocksByLayer).filter(([, mediaId]) => mediaId !== id),
-            ),
-            poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
-          }),
-        })
+          canvasOrchestrationSettings,
+        }
       }),
 
       clearCanvasMediaItems: () => set((state) => {

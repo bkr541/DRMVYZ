@@ -580,6 +580,7 @@ export interface CanvasResolvedPerformanceFrame {
   fallbackUsed: boolean
   readyMediaIds: readonly string[]
   pendingMediaIds: readonly string[]
+  mediaErrors?: readonly { mediaId: string; message: string }[]
   decoderCount: number
   textureHandleCount: number
   feedbackPasses: number

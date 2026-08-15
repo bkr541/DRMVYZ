@@ -659,6 +659,37 @@ describe('CANVAS preload safety and media fidelity', () => {
     manager.dispose()
   })
 
+  it('retries failed media when the backing source URL changes without requiring a scope revision', async () => {
+    const attempts: string[] = []
+    const manager = new CanvasPreloadManager({
+      loader: async item => {
+        attempts.push(item.objectUrl)
+        if (item.objectUrl === 'expired://signed-source') throw new Error('Expired signed URL')
+        return null
+      },
+    })
+    const original = media('signed-media', 'image', { objectUrl: 'expired://signed-source', mediaRevision: 4 })
+    const refreshed = { ...original, objectUrl: 'fresh://signed-source' }
+    const request = (item: CanvasMediaItem) => buildCanvasPreloadRequests({
+      mediaItems: [item],
+      activeMediaIds: [item.id],
+      candidateMediaIds: [],
+      trackIdentity: 'track-a',
+      poolRevision: 1,
+    })
+
+    manager.setScope('track-a', 1)
+    manager.request(request(original))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(manager.getReadiness(original.id)).toMatchObject({ status: 'error', error: 'Expired signed URL' })
+
+    manager.request(request(refreshed))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(attempts).toEqual(['expired://signed-source', 'fresh://signed-source'])
+    expect(manager.getReadiness(original.id).status).toBe('ready')
+    manager.dispose()
+  })
+
   it('releases inactive video decoder handles promptly while retaining bounded image handles', async () => {
     const manager = new CanvasPreloadManager({ loader: async () => null })
     const pool = [media('video-a'), media('video-b'), media('still', 'image')]

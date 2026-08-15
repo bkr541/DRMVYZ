@@ -129,4 +129,23 @@ describe('CANVAS authored multi-layer runtime adapter', () => {
     expect(solo.layers.filter(candidate => candidate.enabled).map(candidate => candidate.id)).toEqual([authored[3].id])
     expect(solo.decoderCount).toBe(1)
   })
+
+  it('reports failed authored media separately from sources that are still preloading', () => {
+    const failed = media('failed-image')
+    const frame = resolveCanvasAuthoredLayerFrame({
+      context: context(),
+      settings: {
+        programId: DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId,
+        authoredLayers: [layer('failed-layer', failed.id, 0)],
+      },
+      mediaItems: [failed],
+      fitMode: 'cover',
+      isMediaReady: () => false,
+      getMediaError: mediaId => mediaId === failed.id ? 'Expired signed URL' : null,
+    })
+
+    expect(frame.pendingMediaIds).toEqual([])
+    expect(frame.mediaErrors).toEqual([{ mediaId: failed.id, message: 'Expired signed URL' }])
+    expect(frame.diagnostics).toContain(`media-load-error:${failed.id}:Expired signed URL`)
+  })
 })

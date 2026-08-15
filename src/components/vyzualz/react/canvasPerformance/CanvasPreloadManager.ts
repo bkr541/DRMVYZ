@@ -23,6 +23,11 @@ export type CanvasPreloadLoader = (
 
 interface QueueEntry extends CanvasPreloadRequest {
   order: number
+  sourceKey: string
+}
+
+function getCanvasPreloadSourceKey(media: CanvasMediaItem): string {
+  return `${media.type}:${media.mediaRevision ?? 0}:${media.objectUrl}`
 }
 
 function defaultCanvasPreloadLoader(media: CanvasMediaItem, signal: AbortSignal): Promise<CanvasPreloadHandle | null> {
@@ -97,6 +102,7 @@ export class CanvasPreloadManager {
   private readonly readiness = new Map<string, CanvasMediaReadiness>()
   private readonly handles = new Map<string, { handle: CanvasPreloadHandle | null; lastUsedAt: number; type: CanvasMediaItem['type'] }>()
   private readonly controllers = new Map<string, AbortController>()
+  private readonly sourceKeys = new Map<string, string>()
   private queue: QueueEntry[] = []
   private order = 0
   private activeLoads = 0
@@ -126,6 +132,7 @@ export class CanvasPreloadManager {
     for (const entry of this.handles.values()) releaseCanvasPreloadHandle(entry.handle)
     this.handles.clear()
     this.readiness.clear()
+    this.sourceKeys.clear()
     this.trackIdentity = trackIdentity
     this.poolRevision = poolRevision
   }
@@ -137,13 +144,26 @@ export class CanvasPreloadManager {
       .sort((a, b) => b.priority - a.priority || a.media.id.localeCompare(b.media.id))
 
     for (const request of accepted) {
+      const sourceKey = getCanvasPreloadSourceKey(request.media)
+      const previousSourceKey = this.sourceKeys.get(request.media.id)
+      if (previousSourceKey && previousSourceKey !== sourceKey) {
+        this.queue = this.queue.filter(entry => entry.media.id !== request.media.id)
+        this.controllers.get(request.media.id)?.abort()
+        const retained = this.handles.get(request.media.id)
+        if (retained) releaseCanvasPreloadHandle(retained.handle)
+        this.handles.delete(request.media.id)
+        this.readiness.delete(request.media.id)
+        this.sourceKeys.delete(request.media.id)
+      }
+
       const existing = this.readiness.get(request.media.id)
       if (existing?.status === 'ready' || existing?.status === 'loading' || existing?.status === 'queued' || existing?.status === 'error') {
         const retained = this.handles.get(request.media.id)
         if (retained) retained.lastUsedAt = Date.now()
         continue
       }
-      this.queue.push({ ...request, order: this.order++ })
+      this.queue.push({ ...request, order: this.order++, sourceKey })
+      this.sourceKeys.set(request.media.id, sourceKey)
       this.readiness.set(request.media.id, {
         mediaId: request.media.id,
         status: 'queued',
@@ -194,11 +214,12 @@ export class CanvasPreloadManager {
 
       void this.loader(entry.media, controller.signal).then(handle => {
         const scopeIsCurrent = entry.trackIdentity === this.trackIdentity && entry.poolRevision === this.poolRevision
-        if (controller.signal.aborted || !scopeIsCurrent || this.disposed) {
+        const sourceIsCurrent = this.sourceKeys.get(entry.media.id) === entry.sourceKey
+        if (controller.signal.aborted || !scopeIsCurrent || !sourceIsCurrent || this.disposed) {
           releaseCanvasPreloadHandle(handle)
           // A late completion from an old track or pool must never overwrite the
-          // readiness state belonging to the replacement scope.
-          if (scopeIsCurrent && !this.disposed) {
+          // readiness state belonging to the replacement scope or refreshed URL.
+          if (scopeIsCurrent && sourceIsCurrent && !this.disposed) {
             this.readiness.set(entry.media.id, {
               mediaId: entry.media.id,
               status: 'cancelled',
@@ -220,7 +241,8 @@ export class CanvasPreloadManager {
         this.enforceHandleBounds(new Set([entry.media.id]))
       }).catch(error => {
         const scopeIsCurrent = entry.trackIdentity === this.trackIdentity && entry.poolRevision === this.poolRevision
-        if (!scopeIsCurrent || this.disposed) return
+        const sourceIsCurrent = this.sourceKeys.get(entry.media.id) === entry.sourceKey
+        if (!scopeIsCurrent || !sourceIsCurrent || this.disposed) return
         const cancelled = controller.signal.aborted || error?.name === 'AbortError'
         this.readiness.set(entry.media.id, {
           mediaId: entry.media.id,
@@ -268,6 +290,7 @@ export class CanvasPreloadManager {
       releaseCanvasPreloadHandle(entry.handle)
       this.handles.delete(mediaId)
       this.readiness.delete(mediaId)
+      this.sourceKeys.delete(mediaId)
     }
     this.enforceHandleBounds(retain)
   }
@@ -281,6 +304,8 @@ export class CanvasPreloadManager {
       if (totalCount <= this.maxHandles && (entry.type !== 'video' || videoCount <= this.maxVideoHandles)) continue
       releaseCanvasPreloadHandle(entry.handle)
       this.handles.delete(mediaId)
+      this.readiness.delete(mediaId)
+      this.sourceKeys.delete(mediaId)
       totalCount -= 1
       if (entry.type === 'video') videoCount -= 1
     }
@@ -313,6 +338,7 @@ export class CanvasPreloadManager {
     for (const entry of this.handles.values()) releaseCanvasPreloadHandle(entry.handle)
     this.handles.clear()
     this.readiness.clear()
+    this.sourceKeys.clear()
   }
 
   dispose(): void {

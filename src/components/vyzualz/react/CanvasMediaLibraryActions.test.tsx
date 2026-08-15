@@ -121,6 +121,7 @@ describe('CANVAS Media Library Stage 2 actions', () => {
   it('opens exactly the three required primary actions and Escape dismisses without mutation', () => {
     openMediaActions()
 
+    expect(useMediaStore.getState().ensureMediaSigned).toHaveBeenCalledWith([mediaOne.id], 'visible')
     expect(menuButtons().map(button => button.textContent?.trim())).toEqual([
       'Make Active',
       'Add as Layer',

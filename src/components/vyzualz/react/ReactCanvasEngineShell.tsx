@@ -388,6 +388,7 @@ function CanvasLegacySessionMedia({ compact = false }: { compact?: boolean }) {
 function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const selectCanvasMediaItem = useReactStore(s => s.selectCanvasMediaItem)
+  const ensureMediaSigned = useMediaStore(s => s.ensureMediaSigned)
   const orchestration = useReactStore(s => s.canvasOrchestrationSettings)
   const addCanvasAuthoredLayer = useReactStore(s => s.addCanvasAuthoredLayer)
   const addCanvasMediaToPool = useReactStore(s => s.addCanvasMediaToPool)
@@ -415,6 +416,7 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
   const openMediaActions = (mediaId: string, anchor: MediaLibraryCardActionAnchor) => {
     setActionFeedback(null)
     setDuplicateConfirmation(null)
+    void ensureMediaSigned?.([mediaId], 'visible')
     setActionMenu({ mediaId, ...anchor })
   }
 
@@ -1517,6 +1519,7 @@ export function CanvasEngineSurface({
   const previousOrchestrationContextRef = useRef<SharedPerformanceContext | null>(null)
   const previousOrchestrationFrameRef = useRef<CanvasResolvedPerformanceFrame | null>(null)
   const poolAutomationRuntimeRef = useRef<CanvasPoolAutomationRuntimeState>(EMPTY_CANVAS_POOL_AUTOMATION_RUNTIME_STATE)
+  const orchestrationMediaRetryRef = useRef(new Set<string>())
   const previousParticlePerformanceContextRef = useRef<SharedPerformanceContext | null>(null)
   const particlePerformanceContextRef = useRef<SharedPerformanceContext | null>(null)
   const [orchestrationFrame, setOrchestrationFrame] = useState<CanvasResolvedPerformanceFrame | null>(null)
@@ -1596,6 +1599,7 @@ export function CanvasEngineSurface({
       && orchestrationSettings.enabled
     if (!runtimeCanvasShow && (showPreviewMode || (!authoredLayerRuntime && !performanceRuntime))) {
       orchestrationPreloadManager.releaseAll()
+      orchestrationMediaRetryRef.current.clear()
       previousOrchestrationContextRef.current = null
       previousOrchestrationFrameRef.current = null
       poolAutomationRuntimeRef.current = EMPTY_CANVAS_POOL_AUTOMATION_RUNTIME_STATE
@@ -1661,6 +1665,10 @@ export function CanvasEngineSurface({
                 mediaItems,
                 fitMode: settings.fitMode,
                 isMediaReady: mediaId => orchestrationPreloadManager.isReady(mediaId),
+                getMediaError: mediaId => {
+                  const readiness = orchestrationPreloadManager.getReadiness(mediaId)
+                  return readiness.status === 'error' ? readiness.error : null
+                },
                 automaticLayers: poolAutomation?.automaticLayers ?? [],
                 previousFrame: previousOrchestrationFrameRef.current,
                 automationAdvanced: poolAutomation?.advanced ?? false,
@@ -1715,6 +1723,23 @@ export function CanvasEngineSurface({
         trackIdentity,
         poolRevision,
       }))
+      if (nextFrame.runtimeMode === 'authored') {
+        const mediaStore = useMediaStore.getState()
+        activeMediaIds.forEach(mediaId => {
+          const readiness = orchestrationPreloadManager.getReadiness(mediaId)
+          if (readiness.status === 'ready') {
+            mediaStore.markMediaAssetLoaded(mediaId, 'original')
+            return
+          }
+          if (readiness.status !== 'error') return
+          const media = mediaItems.find(item => item.id === mediaId)
+          if (!media || media.source !== 'library') return
+          const retryKey = `${media.id}:${media.mediaRevision ?? 0}:${media.objectUrl}`
+          if (orchestrationMediaRetryRef.current.has(retryKey)) return
+          orchestrationMediaRetryRef.current.add(retryKey)
+          void mediaStore.retryMediaAsset(mediaId, 'original')
+        })
+      }
       orchestrationPreloadManager.retainOnly([...activeMediaIds, ...candidateMediaIds])
       previousOrchestrationContextRef.current = context
       previousOrchestrationFrameRef.current = nextFrame
