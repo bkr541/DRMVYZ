@@ -82,6 +82,13 @@ function chooseAction(label: string) {
   act(() => button.click())
 }
 
+async function flushAsyncActions() {
+  await act(async () => {
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+}
+
 beforeEach(() => {
   mediaStoreBaseline = useMediaStore.getState()
   useMediaStore.setState({
@@ -122,6 +129,7 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     openMediaActions()
 
     expect(useMediaStore.getState().ensureMediaSigned).toHaveBeenCalledWith([mediaOne.id], 'visible')
+    expect(document.body.querySelector('.vz-app-context-menu__meta')).toBeNull()
     expect(menuButtons().map(button => button.textContent?.trim())).toEqual([
       'Make Active',
       'Add as Layer',
@@ -158,26 +166,65 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     expect(state.canvasOrchestrationSettings.mediaPoolIds).toEqual([mediaTwo.id])
   })
 
-  it('Add as Layer creates a topmost manual pinned layer through the canonical store action', () => {
-    const existing = useReactStore.getState().addCanvasAuthoredLayer(mediaTwo.id)
-    if (!existing.ok) throw new Error(existing.message)
+  it('Add as Layer promotes the visible single source underneath the new manual pinned layer', async () => {
+    act(() => useReactStore.getState().selectCanvasMediaItem(mediaTwo.id))
+    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('single')
 
     openMediaActions()
     chooseAction('Add as Layer')
+    await flushAsyncActions()
 
-    const layers = useReactStore.getState().canvasOrchestrationSettings.authoredLayers
-    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('layers')
+    const state = useReactStore.getState()
+    const layers = state.canvasOrchestrationSettings.authoredLayers
+    expect(state.canvasOrchestrationSettings.renderMode).toBe('layers')
     expect(layers).toHaveLength(2)
     expect(layers[0]).toMatchObject({
       mediaId: mediaOne.id,
       order: 0,
+      enabled: true,
+      solo: false,
       ownership: 'manual',
       pinned: true,
     })
-    expect(layers[1]).toMatchObject({ mediaId: mediaTwo.id, order: 1 })
+    expect(layers[1]).toMatchObject({
+      mediaId: mediaTwo.id,
+      order: 1,
+      enabled: true,
+      solo: false,
+      ownership: 'manual',
+      pinned: true,
+    })
+    expect(state.selectedCanvasLayerId).toBe(layers[0]?.id)
   })
 
-  it('requires explicit duplicate confirmation, Cancel is inert, and Confirm creates a distinct instance', () => {
+  it('does not switch out of the visible single-source renderer until layer media signing completes', async () => {
+    act(() => useReactStore.getState().selectCanvasMediaItem(mediaTwo.id))
+    openMediaActions()
+
+    let finishSigning: (() => void) | null = null
+    useMediaStore.setState({
+      ensureMediaSigned: vi.fn(() => new Promise<void>(resolve => { finishSigning = resolve })),
+    })
+
+    chooseAction('Add as Layer')
+    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('single')
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers).toEqual([])
+
+    await act(async () => {
+      finishSigning?.()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const state = useReactStore.getState()
+    expect(state.canvasOrchestrationSettings.renderMode).toBe('layers')
+    expect(state.canvasOrchestrationSettings.authoredLayers.map(layer => layer.mediaId)).toEqual([
+      mediaOne.id,
+      mediaTwo.id,
+    ])
+  })
+
+  it('requires explicit duplicate confirmation, Cancel is inert, and Confirm creates a distinct instance', async () => {
     const initial = useReactStore.getState().addCanvasAuthoredLayer(mediaOne.id)
     if (!initial.ok) throw new Error(initial.message)
 
@@ -194,6 +241,7 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     openMediaActions()
     chooseAction('Add as Layer')
     chooseAction('Confirm')
+    await flushAsyncActions()
 
     const layers = useReactStore.getState().canvasOrchestrationSettings.authoredLayers
     expect(layers).toHaveLength(2)

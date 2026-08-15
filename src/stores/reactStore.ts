@@ -2612,7 +2612,7 @@ interface ReactStoreState {
   canvasShowManagerRedoStack: CanvasShowManagerHistorySnapshot[]
   canvasShowManagerHistoryTransaction: CanvasShowManagerHistorySnapshot | null
   setCanvasOrchestrationSettings: (patch: Partial<CanvasOrchestrationSettings>) => void
-  addCanvasAuthoredLayer: (mediaId: string, options?: Partial<Pick<CanvasAuthoredLayer, 'enabled' | 'solo' | 'ownership' | 'pinned'>>) => CanvasLayerMutationResult
+  addCanvasAuthoredLayer: (mediaId: string, options?: Partial<Pick<CanvasAuthoredLayer, 'enabled' | 'solo' | 'ownership' | 'pinned'>> & { preserveActiveSource?: boolean }) => CanvasLayerMutationResult
   updateCanvasAuthoredLayer: (layerId: string, patch: Partial<Pick<CanvasAuthoredLayer, 'mediaId' | 'enabled' | 'solo' | 'ownership' | 'pinned'>>) => CanvasLayerMutationResult
   reorderCanvasAuthoredLayer: (layerId: string, targetIndex: number) => CanvasLayerMutationResult
   duplicateCanvasAuthoredLayer: (layerId: string) => CanvasLayerMutationResult
@@ -7035,7 +7035,16 @@ export const useReactStore = create<ReactStoreState>()(
           const id = typeof mediaId === 'string' ? mediaId.trim() : ''
           if (!id) return {}
           const current = normalizeCanvasAuthoredLayers(state.canvasOrchestrationSettings.authoredLayers)
-          if (current.length >= MAX_CANVAS_AUTHORED_LAYERS) {
+          const activeMediaId = typeof state.activeCanvasMediaId === 'string'
+            ? state.activeCanvasMediaId.trim()
+            : ''
+          const shouldPromoteActiveSource = options?.preserveActiveSource === true
+            && state.canvasOrchestrationSettings.renderMode === 'single'
+            && activeMediaId.length > 0
+            && activeMediaId !== id
+            && !current.some(existing => existing.mediaId === activeMediaId)
+          const requiredSlots = 1 + (shouldPromoteActiveSource ? 1 : 0)
+          if (current.length + requiredSlots > MAX_CANVAS_AUTHORED_LAYERS) {
             result = {
               ok: false,
               code: 'layer-limit-reached',
@@ -7053,13 +7062,30 @@ export const useReactStore = create<ReactStoreState>()(
             ownership,
             pinned: typeof options?.pinned === 'boolean' ? options.pinned : ownership === 'manual',
           }
+          const promotedActiveLayer: CanvasAuthoredLayer | null = shouldPromoteActiveSource
+            ? {
+                id: createCanvasAuthoringIdentity('layer'),
+                mediaId: activeMediaId,
+                order: 1,
+                enabled: true,
+                solo: false,
+                ownership: 'manual',
+                pinned: true,
+              }
+            : null
+          const nextLayers = [
+            layer,
+            ...(promotedActiveLayer ? [promotedActiveLayer] : []),
+            ...current,
+          ].map((candidate, order) => ({ ...candidate, order }))
           result = { ok: true, layer }
           return {
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
               ...state.canvasOrchestrationSettings,
               renderMode: 'layers',
-              authoredLayers: [layer, ...current.map(existing => ({ ...existing, order: existing.order + 1 }))],
+              authoredLayers: nextLayers,
             }),
+            selectedCanvasLayerId: layer.id,
           }
         })
         return result

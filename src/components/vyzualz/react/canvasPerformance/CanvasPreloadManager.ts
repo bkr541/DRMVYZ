@@ -9,6 +9,8 @@ import {
 
 export type CanvasPreloadHandle = HTMLVideoElement | HTMLImageElement
 
+const DEFAULT_CANVAS_PRELOAD_TIMEOUT_MS = 10_000
+
 export interface CanvasPreloadRequest {
   media: CanvasMediaItem
   trackIdentity: string | null
@@ -99,6 +101,7 @@ export class CanvasPreloadManager {
   private readonly maxQueue: number
   private readonly maxHandles: number
   private maxVideoHandles: number
+  private readonly preloadTimeoutMs: number
   private readonly readiness = new Map<string, CanvasMediaReadiness>()
   private readonly handles = new Map<string, { handle: CanvasPreloadHandle | null; lastUsedAt: number; type: CanvasMediaItem['type'] }>()
   private readonly controllers = new Map<string, AbortController>()
@@ -115,11 +118,13 @@ export class CanvasPreloadManager {
     maxQueue?: number
     maxHandles?: number
     maxVideoHandles?: number
+    preloadTimeoutMs?: number
   } = {}) {
     this.loader = options.loader ?? defaultCanvasPreloadLoader
     this.maxQueue = Math.max(1, Math.min(MAX_CANVAS_PRELOAD_QUEUE, options.maxQueue ?? MAX_CANVAS_PRELOAD_QUEUE))
     this.maxHandles = Math.max(1, Math.min(MAX_CANVAS_MEDIA_HANDLES, options.maxHandles ?? MAX_CANVAS_MEDIA_HANDLES))
     this.maxVideoHandles = Math.max(1, Math.min(MAX_CANVAS_SHOW_VIDEO_DECODERS, options.maxVideoHandles ?? MAX_CANVAS_ACTIVE_VIDEO_DECODERS))
+    this.preloadTimeoutMs = Math.max(1, Math.round(options.preloadTimeoutMs ?? DEFAULT_CANVAS_PRELOAD_TIMEOUT_MS))
   }
 
   setMaxVideoHandles(maxVideoHandles: number): void {
@@ -212,14 +217,24 @@ export class CanvasPreloadManager {
         error: null,
       })
 
-      void this.loader(entry.media, controller.signal).then(handle => {
+      let timedOut = false
+      let timeoutId: ReturnType<typeof setTimeout> | null = null
+      const timeout = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          timedOut = true
+          controller.abort()
+          reject(new Error(`Timed out preloading ${entry.media.name}`))
+        }, this.preloadTimeoutMs)
+      })
+
+      void Promise.race([this.loader(entry.media, controller.signal), timeout]).then(handle => {
         const scopeIsCurrent = entry.trackIdentity === this.trackIdentity && entry.poolRevision === this.poolRevision
         const sourceIsCurrent = this.sourceKeys.get(entry.media.id) === entry.sourceKey
         if (controller.signal.aborted || !scopeIsCurrent || !sourceIsCurrent || this.disposed) {
           releaseCanvasPreloadHandle(handle)
           // A late completion from an old track or pool must never overwrite the
           // readiness state belonging to the replacement scope or refreshed URL.
-          if (scopeIsCurrent && sourceIsCurrent && !this.disposed) {
+          if (scopeIsCurrent && sourceIsCurrent && !this.disposed && !timedOut) {
             this.readiness.set(entry.media.id, {
               mediaId: entry.media.id,
               status: 'cancelled',
@@ -243,15 +258,21 @@ export class CanvasPreloadManager {
         const scopeIsCurrent = entry.trackIdentity === this.trackIdentity && entry.poolRevision === this.poolRevision
         const sourceIsCurrent = this.sourceKeys.get(entry.media.id) === entry.sourceKey
         if (!scopeIsCurrent || !sourceIsCurrent || this.disposed) return
-        const cancelled = controller.signal.aborted || error?.name === 'AbortError'
+        const cancelled = !timedOut && (controller.signal.aborted || error?.name === 'AbortError')
+        const errorMessage = timedOut
+          ? `Timed out preloading ${entry.media.name}`
+          : error instanceof Error
+            ? error.message
+            : 'Preload failed'
         this.readiness.set(entry.media.id, {
           mediaId: entry.media.id,
           status: cancelled ? 'cancelled' : 'error',
           trackIdentity: entry.trackIdentity,
           poolRevision: entry.poolRevision,
-          error: cancelled ? 'Preload cancelled' : error instanceof Error ? error.message : 'Preload failed',
+          error: cancelled ? 'Preload cancelled' : errorMessage,
         })
       }).finally(() => {
+        if (timeoutId) clearTimeout(timeoutId)
         if (this.controllers.get(entry.media.id) === controller) this.controllers.delete(entry.media.id)
         this.activeLoads = Math.max(0, this.activeLoads - 1)
         this.pump()

@@ -420,15 +420,33 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
     setActionMenu({ mediaId, ...anchor })
   }
 
-  const addLayerNow = (mediaId: string) => {
-    const result = addCanvasAuthoredLayer(mediaId, { ownership: 'manual', pinned: true })
+  const addLayerNow = async (mediaId: string) => {
+    const currentState = useReactStore.getState()
+    const mediaIdsToPrepare = new Set([mediaId])
+    if (currentState.canvasOrchestrationSettings.renderMode === 'single' && currentState.activeCanvasMediaId) {
+      mediaIdsToPrepare.add(currentState.activeCanvasMediaId)
+    }
+    await ensureMediaSigned([...mediaIdsToPrepare], 'visible')
+    const result = addCanvasAuthoredLayer(mediaId, {
+      ownership: 'manual',
+      pinned: true,
+      preserveActiveSource: true,
+    })
     if (!result.ok) setActionFeedback(result.message)
     else setActionFeedback(null)
   }
 
   const requestAddAsLayer = (mediaId: string, anchor: MediaLibraryCardActionAnchor) => {
-    const currentLayers = useReactStore.getState().canvasOrchestrationSettings.authoredLayers
-    if (currentLayers.length >= MAX_CANVAS_AUTHORED_LAYERS) {
+    const currentState = useReactStore.getState()
+    const currentLayers = currentState.canvasOrchestrationSettings.authoredLayers
+    const activeMediaId = currentState.activeCanvasMediaId
+    const shouldPromoteActiveSource = currentState.canvasOrchestrationSettings.renderMode === 'single'
+      && typeof activeMediaId === 'string'
+      && activeMediaId.length > 0
+      && activeMediaId !== mediaId
+      && !currentLayers.some(layer => layer.mediaId === activeMediaId)
+    const requiredSlots = 1 + (shouldPromoteActiveSource ? 1 : 0)
+    if (currentLayers.length + requiredSlots > MAX_CANVAS_AUTHORED_LAYERS) {
       setDuplicateConfirmation(null)
       setActionFeedback('All four CANVAS layer slots are in use. Remove a layer before adding another.')
       return
@@ -438,7 +456,7 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
       setDuplicateConfirmation({ mediaId, ...anchor })
       return
     }
-    addLayerNow(mediaId)
+    void addLayerNow(mediaId)
   }
 
   const addToActivePool = (mediaId: string) => {
@@ -477,7 +495,6 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
           x={actionMenu.x}
           y={actionMenu.y}
           ariaLabel={`CANVAS actions for ${actionMedia?.name ?? actionMenu.mediaId}`}
-          header={{ title: actionMedia?.name ?? 'CANVAS media', subtitle: 'Choose how to use this media.' }}
           onClose={() => setActionMenu(null)}
           items={[
             {
@@ -515,7 +532,7 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
             {
               id: 'confirm',
               label: 'Confirm',
-              onSelect: () => addLayerNow(duplicateConfirmation.mediaId),
+              onSelect: () => { void addLayerNow(duplicateConfirmation.mediaId) },
             },
             {
               id: 'cancel',
@@ -1813,10 +1830,17 @@ export function CanvasEngineSurface({
     }
   }, [activeAudioTrackId, fragmentCollageActive, laserImageFxActive, particleReconstructionActive])
 
+  // Keep the proven single-source renderer on screen while the authored stack is
+  // warming up. The compositor takes ownership as soon as at least one enabled
+  // layer has a drawable preload handle, preventing Add as Layer from flashing
+  // or stranding the visualizer on a black frame.
+  const authoredLayerHasDrawableSource = orchestrationFrame?.runtimeMode !== 'authored'
+    || orchestrationFrame.readyMediaIds.length > 0
+    || !activeItem
   const orchestrationRenderable = orchestrationFrame?.runtimeMode === 'show'
     ? true
     : orchestrationFrame?.runtimeMode === 'authored'
-      ? orchestrationSettings.renderMode === 'layers'
+      ? orchestrationSettings.renderMode === 'layers' && authoredLayerHasDrawableSource
       : canRenderCanvasOrchestrationFrame(orchestrationSettings, orchestrationFrame)
   const outputCapability = useMemo(() => resolveCanvasOutputCapability({
     selectedPresetId: selectedCanvasPresetId,

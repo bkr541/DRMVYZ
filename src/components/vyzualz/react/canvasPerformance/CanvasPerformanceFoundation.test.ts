@@ -659,6 +659,35 @@ describe('CANVAS preload safety and media fidelity', () => {
     manager.dispose()
   })
 
+  it('fails a hung preload after a bounded timeout instead of remaining loading forever', async () => {
+    let signal: AbortSignal | null = null
+    const manager = new CanvasPreloadManager({
+      preloadTimeoutMs: 5,
+      loader: (_item, nextSignal) => {
+        signal = nextSignal
+        return new Promise(() => undefined)
+      },
+    })
+    const item = media('hung-image', 'image')
+    manager.setScope('track-a', 1)
+    manager.request(buildCanvasPreloadRequests({
+      mediaItems: [item],
+      activeMediaIds: [item.id],
+      candidateMediaIds: [],
+      trackIdentity: 'track-a',
+      poolRevision: 1,
+    }))
+
+    expect(manager.getReadiness(item.id).status).toBe('loading')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect((signal as AbortSignal | null)?.aborted).toBe(true)
+    expect(manager.getReadiness(item.id)).toMatchObject({
+      status: 'error',
+      error: `Timed out preloading ${item.name}`,
+    })
+    manager.dispose()
+  })
+
   it('retries failed media when the backing source URL changes without requiring a scope revision', async () => {
     const attempts: string[] = []
     const manager = new CanvasPreloadManager({
