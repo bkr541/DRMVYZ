@@ -701,7 +701,7 @@ describe('Cinema production engine registration', () => {
     expect(effectResults?.querySelectorAll('[data-cinema-effect-reference="true"]').length).toBeGreaterThan(0)
     expect(effectResults?.querySelector('button, [role="button"], [tabindex]')).toBeNull()
 
-    const presetButton = host?.querySelector<HTMLButtonElement>('.rv-preset-card')
+    const presetButton = host?.querySelector<HTMLButtonElement>('.rv-cinema-preset-tile')
     await act(async () => presetButton?.click())
     const layerButton = host?.querySelector<HTMLButtonElement>('.rv-cinema-layer-tree button')
     await act(async () => layerButton?.click())
@@ -726,8 +726,8 @@ describe('Cinema production engine registration', () => {
       .find(option => option.textContent?.includes('Cinema'))
     await act(async () => cinemaOption?.click())
 
-    const presetButton = (name: string) => [...(host?.querySelectorAll<HTMLButtonElement>('.rv-preset-card') ?? [])]
-      .find(button => button.querySelector('.rv-preset-name')?.textContent === name)
+    const presetButton = (name: string) => [...(host?.querySelectorAll<HTMLButtonElement>('.rv-cinema-preset-tile') ?? [])]
+      .find(button => button.querySelector('.rv-cinema-preset-tile-name')?.textContent === name)
     const selectedLayerText = () => [...(host?.querySelectorAll<HTMLButtonElement>('.drc-header') ?? [])]
       .find(button => button.textContent?.includes('Selected Layer'))
       ?.closest<HTMLElement>('.drc-group')?.textContent ?? ''

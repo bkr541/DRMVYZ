@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   CINEMA_PRODUCTION_RUNTIME_REGISTRY,
@@ -14,6 +14,7 @@ import {
 import { isCinemaLiveInstance } from './CinemaLiveOverrides'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { LayerRow } from './controls/LayerRow'
+import { Badge } from './controls/Badge'
 
 // Same accent palette as the LayerRow canonical component's Layout Lab gallery.
 const CINEMA_LAYER_ROW_TONES = ['#4ac7db', '#67f7ff', '#6b4cff', '#b84fc9', '#d8b95a', '#61d6aa', '#ff6b6b']
@@ -56,20 +57,28 @@ export function CinemaPresetsPanel() {
       </div>
       <DreamVizTextInput value={query} onChange={event => setQuery(event.target.value)} placeholder="Search presets…" aria-label="Search Cinema presets" />
       <p className="rv-cinema-panel-list__hint">Choose a preset here. Preset creation and management live in Show Manager.</p>
-      <div className="rv-preset-list">
-        {presets.map(candidate => {
+      <div className="rv-cinema-preset-grid">
+        {presets.map((candidate, index) => {
           const variations = state.instances.filter(instance => instance.compositionId === candidate.id && !isCinemaLiveInstance(instance))
+          const isActive = candidate.id === preset?.id
+          const tone = CINEMA_LAYER_ROW_TONES[index % CINEMA_LAYER_ROW_TONES.length]
+          const originLabel = `${isCinemaBuiltInComposition(candidate) ? 'Built-in' : 'Show Manager'}${variations.length ? ` · ${variations.length} variation${variations.length === 1 ? '' : 's'}` : ''}`
+          const firstTag = candidate.metadata.tags?.[0]
           return (
             <button
               type="button"
               key={candidate.id}
-              className={`rv-preset-card${candidate.id === preset?.id ? ' rv-preset-card--active' : ''}`}
-              aria-pressed={candidate.id === preset?.id}
+              className={`rv-cinema-preset-tile${isActive ? ' is-active' : ''}`}
+              aria-pressed={isActive}
+              title={candidate.metadata.description}
               onClick={() => selectPreset(candidate.id)}
             >
-              <span className="rv-preset-name">{candidate.metadata.name}</span>
-              <span className="rv-preset-engine-label">{isCinemaBuiltInComposition(candidate) ? 'Built-in' : 'Show Manager'}{variations.length ? ` · ${variations.length} variation${variations.length === 1 ? '' : 's'}` : ''}</span>
-              {candidate.metadata.description && <span className="rv-preset-desc">{candidate.metadata.description}</span>}
+              <span className="rv-cinema-preset-tile-thumb" style={{ '--rv-preset-tone': tone } as CSSProperties} aria-hidden="true" />
+              <span className="rv-cinema-preset-tile-name">{candidate.metadata.name}</span>
+              <span className="rv-cinema-preset-tile-chips">
+                <Badge label={originLabel} tone={tone} />
+                {firstTag && <Badge label={firstTag} tone={tone} />}
+              </span>
             </button>
           )
         })}

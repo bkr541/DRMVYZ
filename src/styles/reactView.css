@@ -84,6 +84,62 @@
 .rv-cinema-stage19__fieldset { min-width: 0; margin: 0; border: 0; padding: 0; }
 .rv-cinema-stage19__fieldset:disabled { opacity: .72; }
 
+/* Cinema presets tab — two-column preview tile grid, ported from Layout
+   Lab's "Preview Tile Grid" preset-card mockup (PresetCardStyleGallery). */
+
+.rv-cinema-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.rv-cinema-preset-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+}
+
+.rv-cinema-preset-tile:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(74, 199, 219, 0.3);
+}
+
+.rv-cinema-preset-tile.is-active {
+  border-color: #4ac7db;
+  background: rgba(74, 199, 219, 0.07);
+}
+
+.rv-cinema-preset-tile-thumb {
+  position: relative;
+  width: 100%;
+  height: 76px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--rv-preset-tone, #4ac7db) 45%, transparent), transparent 60%),
+    #020508;
+}
+
+.rv-cinema-preset-tile-name {
+  overflow: hidden;
+  color: rgba(232, 244, 248, 0.9);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-cinema-preset-tile-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
 .rv-shell:has(> .vz-transport-dock--collapsed) {
   --rv-react-dock-height: 72px;
 }
