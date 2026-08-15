@@ -82,6 +82,32 @@ describe('CANVAS authored multi-layer runtime adapter', () => {
     expect(frame.layers.every(candidate => candidate.userLocked)).toBe(true)
   })
 
+  it('keeps a raster Image at the top/front of a mixed Image + SVG + SVG authored stack', () => {
+    const image = media('image-c', 'image')
+    const svgB = media('svg-b', 'svg')
+    const svgA = media('svg-a', 'svg')
+    const frame = resolveCanvasAuthoredLayerFrame({
+      context: context(),
+      settings: {
+        programId: DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId,
+        authoredLayers: [
+          layer('layer-image-c', image.id, 0),
+          layer('layer-svg-b', svgB.id, 1),
+          layer('layer-svg-a', svgA.id, 2),
+        ],
+      },
+      mediaItems: [svgA, image, svgB],
+      fitMode: 'contain',
+      isMediaReady: () => true,
+    })
+
+    expect(frame.layers.map(candidate => candidate.source?.type)).toEqual(['image', 'svg', 'svg'])
+    expect(frame.layers.map(candidate => candidate.sourceMediaId)).toEqual([image.id, svgB.id, svgA.id])
+    expect(frame.readyMediaIds).toEqual([image.id, svgB.id, svgA.id])
+    expect(frame.layers[0].zIndex).toBeGreaterThan(frame.layers[1].zIndex)
+    expect(frame.layers[1].zIndex).toBeGreaterThan(frame.layers[2].zIndex)
+  })
+
   it('keeps duplicate media as distinct layer instances while sharing one source handle identity', () => {
     const shared = media('shared-video', 'video')
     const frame = resolveCanvasAuthoredLayerFrame({

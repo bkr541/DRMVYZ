@@ -13,7 +13,7 @@ import { CanvasFracturesRendererLayer } from '../renderers/CanvasFracturesRender
 import type { CanvasFracturesSourceElement } from '../renderers/fractures/CanvasFracturesTypes'
 import { isCanvasFracturesProcessor, resolveCanvasFracturesPresetSettings } from './CanvasFracturesPerformance'
 import { resolveCanvasEffectVisualState } from './CanvasEffectRecipes'
-import type { CanvasPreloadHandle, CanvasPreloadManager } from './CanvasPreloadManager'
+import { isCanvasPreloadHandleDrawable, type CanvasPreloadHandle, type CanvasPreloadManager } from './CanvasPreloadManager'
 import { resolveCanvasTransitionVisualState } from './CanvasTransitions'
 import { CanvasShowAdaptiveQualityController, resolveCanvasShowCompositionDimensions, type CanvasShowQualitySnapshot } from './CanvasShowAdaptiveQuality'
 import { resolveCanvasLayerAlphaHierarchy, resolveCanvasOutputContract, type CanvasLayerAlphaHierarchy } from './CanvasOutputContract'
@@ -55,9 +55,7 @@ function isImageHandle(handle: CanvasPreloadHandle | null): handle is HTMLImageE
 }
 
 function sourceReady(handle: CanvasPreloadHandle | null): handle is DrawableSource {
-  if (isVideoHandle(handle)) return handle.readyState >= 2 && handle.videoWidth > 0 && handle.videoHeight > 0
-  if (isImageHandle(handle)) return handle.complete && handle.naturalWidth > 0 && handle.naturalHeight > 0
-  return false
+  return isCanvasPreloadHandleDrawable(handle)
 }
 
 function sourceSize(handle: DrawableSource): { width: number; height: number } {

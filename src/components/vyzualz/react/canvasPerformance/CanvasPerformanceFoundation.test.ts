@@ -105,6 +105,23 @@ function media(id: string, type: CanvasMediaItem['type'] = 'video', patch: Parti
   }
 }
 
+function drawableHandle(type: CanvasMediaItem['type']): HTMLImageElement | HTMLVideoElement {
+  if (type === 'video') {
+    return {
+      tagName: 'VIDEO',
+      readyState: 2,
+      videoWidth: 1920,
+      videoHeight: 1080,
+    } as unknown as HTMLVideoElement
+  }
+  return {
+    tagName: 'IMG',
+    complete: true,
+    naturalWidth: 1920,
+    naturalHeight: 1080,
+  } as unknown as HTMLImageElement
+}
+
 function settings(patch: Partial<CanvasOrchestrationSettings> = {}): CanvasOrchestrationSettings {
   return {
     ...DEFAULT_CANVAS_ORCHESTRATION_SETTINGS,
@@ -659,6 +676,28 @@ describe('CANVAS preload safety and media fidelity', () => {
     manager.dispose()
   })
 
+  it('never reports a raster source ready without a compositor-drawable handle', async () => {
+    const manager = new CanvasPreloadManager({ loader: async () => null })
+    const item = media('undrawable-image', 'image')
+    manager.setScope('track-a', 1)
+    manager.request(buildCanvasPreloadRequests({
+      mediaItems: [item],
+      activeMediaIds: [item.id],
+      candidateMediaIds: [],
+      trackIdentity: 'track-a',
+      poolRevision: 1,
+    }))
+
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(manager.isReady(item.id)).toBe(false)
+    expect(manager.getHandle(item.id)).toBeNull()
+    expect(manager.getReadiness(item.id)).toMatchObject({
+      status: 'error',
+      error: `Preloaded ${item.name} without drawable image data`,
+    })
+    manager.dispose()
+  })
+
   it('fails a hung preload after a bounded timeout instead of remaining loading forever', async () => {
     let signal: AbortSignal | null = null
     const manager = new CanvasPreloadManager({
@@ -694,7 +733,7 @@ describe('CANVAS preload safety and media fidelity', () => {
       loader: async item => {
         attempts.push(item.objectUrl)
         if (item.objectUrl === 'expired://signed-source') throw new Error('Expired signed URL')
-        return null
+        return drawableHandle(item.type)
       },
     })
     const original = media('signed-media', 'image', { objectUrl: 'expired://signed-source', mediaRevision: 4 })
@@ -719,8 +758,40 @@ describe('CANVAS preload safety and media fidelity', () => {
     manager.dispose()
   })
 
+  it('can explicitly invalidate a failed raster source and retry the same signed URL', async () => {
+    let attempts = 0
+    const manager = new CanvasPreloadManager({
+      loader: async item => {
+        attempts += 1
+        if (attempts === 1) throw new Error('Transient raster load failure')
+        return drawableHandle(item.type)
+      },
+    })
+    const item = media('same-url-image', 'image', { objectUrl: 'https://storage.test/signed-image.png' })
+    const request = buildCanvasPreloadRequests({
+      mediaItems: [item],
+      activeMediaIds: [item.id],
+      candidateMediaIds: [],
+      trackIdentity: 'track-a',
+      poolRevision: 1,
+    })
+
+    manager.setScope('track-a', 1)
+    manager.request(request)
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(manager.getReadiness(item.id).status).toBe('error')
+
+    manager.invalidate(item.id)
+    manager.request(request)
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(attempts).toBe(2)
+    expect(manager.isReady(item.id)).toBe(true)
+    expect(manager.getHandle(item.id)).not.toBeNull()
+    manager.dispose()
+  })
+
   it('releases inactive video decoder handles promptly while retaining bounded image handles', async () => {
-    const manager = new CanvasPreloadManager({ loader: async () => null })
+    const manager = new CanvasPreloadManager({ loader: async item => drawableHandle(item.type) })
     const pool = [media('video-a'), media('video-b'), media('still', 'image')]
     manager.setScope('track-a', 1)
     manager.request(buildCanvasPreloadRequests({

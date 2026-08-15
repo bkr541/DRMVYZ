@@ -51,6 +51,7 @@ let host: HTMLDivElement | null = null
 let readyImage: HTMLImageElement
 let mediaReady = true
 let canvasAssignments: Array<{ property: PropertyKey; value: unknown }> = []
+let canvasDrawSources: unknown[] = []
 
 const media: CanvasMediaItem = {
   id: 'routing-hero',
@@ -109,7 +110,11 @@ function canvasContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   }
   return new Proxy(target, {
     get(object, property) {
-      if (!(property in object)) object[property] = vi.fn()
+      if (!(property in object)) {
+        object[property] = property === 'drawImage'
+          ? vi.fn((source: unknown) => { canvasDrawSources.push(source) })
+          : vi.fn()
+      }
       return object[property]
     },
     set(object, property, value) {
@@ -242,6 +247,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   mediaReady = true
   canvasAssignments = []
+  canvasDrawSources = []
   clearAllSharedPerformanceDiagnostics()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
@@ -521,6 +527,73 @@ describe('CanvasEngineSurface Performance Show routing', () => {
 
     expect(host?.querySelector('.rv-canvas-orchestration-stage')).toBeNull()
     expect(host?.querySelector('[data-testid="fractures-renderer"]')).not.toBeNull()
+  })
+
+  it('draws a newly added raster Image through the authored compositor above an SVG + SVG stack', async () => {
+    const raster: CanvasMediaItem = {
+      ...media,
+      id: 'authored-raster-c',
+      name: 'DVYDRM_wm2.png',
+      type: 'image',
+      mimeType: 'image/png',
+      objectUrl: 'media://authored-raster-c',
+    }
+    const svgB: CanvasMediaItem = {
+      ...media,
+      id: 'authored-svg-b',
+      name: 'Cloud B.svg',
+      type: 'svg',
+      mimeType: 'image/svg+xml',
+      objectUrl: 'media://authored-svg-b',
+    }
+    const svgA: CanvasMediaItem = {
+      ...media,
+      id: 'authored-svg-a',
+      name: 'Cloud A.svg',
+      type: 'svg',
+      mimeType: 'image/svg+xml',
+      objectUrl: 'media://authored-svg-a',
+    }
+    const rasterHandle = document.createElement('img')
+    const svgBHandle = document.createElement('img')
+    const svgAHandle = document.createElement('img')
+    for (const handle of [rasterHandle, svgBHandle, svgAHandle]) {
+      Object.defineProperties(handle, {
+        complete: { configurable: true, value: true },
+        naturalWidth: { configurable: true, value: 1920 },
+        naturalHeight: { configurable: true, value: 1080 },
+      })
+    }
+    vi.mocked(CanvasPreloadManager.prototype.getHandle).mockImplementation(mediaId => ({
+      [raster.id]: rasterHandle,
+      [svgB.id]: svgBHandle,
+      [svgA.id]: svgAHandle,
+    }[mediaId] ?? null))
+
+    useReactStore.setState(state => ({
+      canvasMediaItems: [raster, svgB, svgA],
+      selectedCanvasMediaId: raster.id,
+      activeCanvasMediaId: svgA.id,
+      canvasOrchestrationSettings: {
+        ...DEFAULT_CANVAS_ORCHESTRATION_SETTINGS,
+        enabled: true,
+        renderMode: 'layers',
+        poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+        authoredLayers: [
+          { id: 'layer-raster-c', mediaId: raster.id, order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
+          { id: 'layer-svg-b', mediaId: svgB.id, order: 1, enabled: true, solo: false, ownership: 'manual', pinned: true },
+          { id: 'layer-svg-a', mediaId: svgA.id, order: 2, enabled: true, solo: false, ownership: 'manual', pinned: true },
+        ],
+      },
+    }))
+
+    await renderSurface()
+
+    expect(host?.querySelector('[aria-label="CANVAS orchestrated media surface"]')).not.toBeNull()
+    expect(host?.textContent).toContain('3 layers')
+    expect(canvasDrawSources).toContain(rasterHandle)
+    expect(canvasDrawSources.lastIndexOf(rasterHandle)).toBeGreaterThan(canvasDrawSources.lastIndexOf(svgBHandle))
+    expect(canvasDrawSources.lastIndexOf(svgBHandle)).toBeGreaterThan(canvasDrawSources.lastIndexOf(svgAHandle))
   })
 
   it('drives the real Recording and Cast paths from effective renderer capability and clears stale output', async () => {

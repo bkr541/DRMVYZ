@@ -1751,7 +1751,13 @@ export function CanvasEngineSurface({
           const retryKey = `${media.id}:${media.mediaRevision ?? 0}:${media.objectUrl}`
           if (orchestrationMediaRetryRef.current.has(retryKey)) return
           orchestrationMediaRetryRef.current.add(retryKey)
-          void mediaStore.retryMediaAsset(mediaId, 'original')
+          void mediaStore.retryMediaAsset(mediaId, 'original').then(refreshed => {
+            if (!refreshed) return
+            // A forced signing refresh can legally return the same URL string.
+            // Explicitly invalidate the failed preload so the authored compositor
+            // retries the source instead of leaving it stuck in terminal `error`.
+            orchestrationPreloadManager.invalidate(mediaId)
+          })
         })
       }
       orchestrationPreloadManager.retainOnly([...activeMediaIds, ...candidateMediaIds])

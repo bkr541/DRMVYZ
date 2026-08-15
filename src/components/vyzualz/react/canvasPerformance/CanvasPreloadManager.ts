@@ -9,6 +9,33 @@ import {
 
 export type CanvasPreloadHandle = HTMLVideoElement | HTMLImageElement
 
+function isVideoPreloadHandle(handle: CanvasPreloadHandle | null): handle is HTMLVideoElement {
+  if (!handle) return false
+  if (typeof HTMLVideoElement !== 'undefined' && handle instanceof HTMLVideoElement) return true
+  return String((handle as { tagName?: string }).tagName ?? '').toUpperCase() === 'VIDEO'
+}
+
+function isImagePreloadHandle(handle: CanvasPreloadHandle | null): handle is HTMLImageElement {
+  if (!handle) return false
+  if (typeof HTMLImageElement !== 'undefined' && handle instanceof HTMLImageElement) return true
+  return String((handle as { tagName?: string }).tagName ?? '').toUpperCase() === 'IMG'
+}
+
+/**
+ * A preload is only ready when the compositor can draw the retained source.
+ * Keep this contract shared with CanvasOrchestrationStage so readiness cannot
+ * claim success for a missing/zero-dimension handle that the stage then skips.
+ */
+export function isCanvasPreloadHandleDrawable(handle: CanvasPreloadHandle | null): handle is CanvasPreloadHandle {
+  if (isVideoPreloadHandle(handle)) {
+    return handle.readyState >= 2 && handle.videoWidth > 0 && handle.videoHeight > 0
+  }
+  if (isImagePreloadHandle(handle)) {
+    return handle.complete && handle.naturalWidth > 0 && handle.naturalHeight > 0
+  }
+  return false
+}
+
 const DEFAULT_CANVAS_PRELOAD_TIMEOUT_MS = 10_000
 
 export interface CanvasPreloadRequest {
@@ -245,6 +272,10 @@ export class CanvasPreloadManager {
           }
           return
         }
+        if (!isCanvasPreloadHandleDrawable(handle)) {
+          releaseCanvasPreloadHandle(handle)
+          throw new Error(`Preloaded ${entry.media.name} without drawable ${entry.media.type === 'video' ? 'video' : 'image'} data`)
+        }
         this.handles.set(entry.media.id, { handle, lastUsedAt: Date.now(), type: entry.media.type })
         this.readiness.set(entry.media.id, {
           mediaId: entry.media.id,
@@ -291,7 +322,8 @@ export class CanvasPreloadManager {
   }
 
   isReady(mediaId: string): boolean {
-    return this.getReadiness(mediaId).status === 'ready'
+    if (this.getReadiness(mediaId).status !== 'ready') return false
+    return isCanvasPreloadHandleDrawable(this.handles.get(mediaId)?.handle ?? null)
   }
 
   getHandle(mediaId: string): CanvasPreloadHandle | null {
@@ -299,6 +331,18 @@ export class CanvasPreloadManager {
     if (!entry) return null
     entry.lastUsedAt = Date.now()
     return entry.handle
+  }
+
+  /** Clear one retained/error source so an explicit URL refresh can be retried even when the signed URL string is unchanged. */
+  invalidate(mediaId: string): void {
+    this.queue = this.queue.filter(entry => entry.media.id !== mediaId)
+    this.controllers.get(mediaId)?.abort()
+    this.controllers.delete(mediaId)
+    const retained = this.handles.get(mediaId)
+    if (retained) releaseCanvasPreloadHandle(retained.handle)
+    this.handles.delete(mediaId)
+    this.readiness.delete(mediaId)
+    this.sourceKeys.delete(mediaId)
   }
 
   retainOnly(mediaIds: readonly string[]): void {
