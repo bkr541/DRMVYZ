@@ -1569,7 +1569,7 @@ describe('ShowManagerView production shell', () => {
     expect(container.querySelector('.sm-header-save-status')?.textContent).toContain('Saved and made active.')
   })
 
-  it('keeps the editing section selected while playback feeds a different section into the real LaserDMX runtime preview', async () => {
+  it('keeps the visible LaserDMX authoring section synchronized with the real runtime across playback boundaries and seeks', async () => {
     setSharedShowToLaserAuthoredSections()
     const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
     const drop = fixture.state.laserDmxShowManagerShows[0]!.sections[4]!
@@ -1611,6 +1611,13 @@ describe('ShowManagerView production shell', () => {
       expect(container.querySelector('[data-fixture-id="fixture-playback"]')).toBeNull()
       expect(fixture.state.laserDmxShowManagerEditingSectionId).toBe(intro.id)
 
+      const editingFixtureButton = container.querySelector<HTMLButtonElement>('[data-fixture-id="fixture-editing"]')
+      await act(async () => {
+        editingFixtureButton?.click()
+        await Promise.resolve()
+      })
+      expect(editingFixtureButton?.getAttribute('aria-pressed')).toBe('true')
+
       const previewProps = fixture.laserRuntimePreviewProps[fixture.laserRuntimePreviewProps.length - 1]!
       const programs = previewProps.laserDmxSectionRuntimePrograms as Array<{
         section: { id: string }
@@ -1628,16 +1635,33 @@ describe('ShowManagerView production shell', () => {
         await Promise.resolve()
       })
       expect(fixture.state.laserDmxShowManagerPlaybackSectionId).toBe(drop.id)
+      expect(fixture.state.laserDmxShowManagerEditingSectionId).toBe(drop.id)
+      expect(container.textContent).toContain('Editing: Drop')
+      expect(container.textContent).toContain('Playback: Drop')
+      expect(container.querySelector('[data-fixture-id="fixture-editing"]')).toBeNull()
+      expect(container.querySelector('[data-fixture-id="fixture-playback"]')).not.toBeNull()
+      expect(container.textContent).toContain('No selection')
+      expect(container.querySelector('[aria-label^="Drop,"]')?.getAttribute('aria-pressed')).toBe('true')
+
+      await act(async () => {
+        ;(previewProps.onLaserDmxPlaybackSectionChange as (sectionId: string | null) => void)(intro.id)
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      expect(fixture.state.laserDmxShowManagerPlaybackSectionId).toBe(intro.id)
       expect(fixture.state.laserDmxShowManagerEditingSectionId).toBe(intro.id)
       expect(container.textContent).toContain('Editing: Intro')
-      expect(container.textContent).toContain('Playback: Drop')
+      expect(container.textContent).toContain('Playback: Intro')
       expect(container.querySelector('[data-fixture-id="fixture-editing"]')).not.toBeNull()
+      expect(container.querySelector('[data-fixture-id="fixture-playback"]')).toBeNull()
+      expect(container.querySelector('[aria-label^="Intro,"]')?.getAttribute('aria-pressed')).toBe('true')
     } finally {
       intro.fixtures = originalIntroFixtures
       drop.fixtures = originalDropFixtures
       fixture.audio.currentTime = originalCurrentTime
       fixture.audio.getCurrentTime = originalGetCurrentTime
       fixture.audio.isPlaying = false
+      fixture.state.laserDmxShowManagerEditingSectionId = intro.id
       fixture.state.laserDmxShowManagerPlaybackSectionId = null
     }
   })

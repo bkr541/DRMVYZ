@@ -1267,8 +1267,23 @@ export function ShowManagerView() {
   }, [])
 
   const handleLaserDmxPlaybackSectionChange = (sectionId: string | null) => {
-    if (useReactStore.getState().laserDmxShowManagerPlaybackSectionId === sectionId) return
-    useReactStore.setState({ laserDmxShowManagerPlaybackSectionId: sectionId })
+    const state = useReactStore.getState()
+    const sectionIsValid = sectionId == null
+      || activeLaserDmxShow?.sections.some(section => section.id === sectionId)
+    if (!sectionIsValid) return
+
+    const playbackIsAlreadyCurrent = state.laserDmxShowManagerPlaybackSectionId === sectionId
+    const editingIsAlreadyCurrent = sectionId == null || state.laserDmxShowManagerEditingSectionId === sectionId
+    if (!playbackIsAlreadyCurrent || !editingIsAlreadyCurrent) {
+      useReactStore.setState({
+        laserDmxShowManagerPlaybackSectionId: sectionId,
+        ...(sectionId == null ? {} : { laserDmxShowManagerEditingSectionId: sectionId }),
+      })
+    }
+
+    if (sectionId != null) {
+      setSelectedShowManagerSectionId(current => current === sectionId ? current : sectionId)
+    }
   }
 
   useEffect(() => {

@@ -116,7 +116,7 @@ interface Props {
   laserDmxSectionRuntimePrograms?: readonly LaserDmxSectionRuntimeProgram[]
   /** Empty rig used while playback is outside every authored Show section. */
   laserDmxEmptyRuntimeShowDirector?: LaserDmxShowDirectorState | null
-  /** Receives boundary changes only; never drives editing selection. */
+  /** Reports runtime boundary changes so Show Manager can keep its visible section synchronized. */
   onLaserDmxPlaybackSectionChange?: (sectionId: string | null) => void
   getAudioTime?:                () => number
   /**
