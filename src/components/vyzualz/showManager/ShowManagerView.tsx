@@ -3955,38 +3955,6 @@ function LaserDmxShowManagerFixtureInspector({
         )}
       </div>
 
-      <Collapsible label="Transform" defaultOpen>
-        <div className="sm-inspector-triple-row">
-          <NumberInputRow
-            label="X"
-            value={fixture.x}
-            min={0}
-            max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns - 1}
-            step={1}
-            onChange={x => onPatch({ x })}
-          />
-          <NumberInputRow
-            label="Y"
-            value={fixture.y}
-            min={0}
-            max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows - 1}
-            step={1}
-            onChange={y => onPatch({ y })}
-          />
-          <NumberInputRow label="Z" value={fixture.z} min={-1} max={1} step={0.05} onChange={z => onPatch({ z })} />
-        </div>
-        <div className="sm-laser-depth-note">X/Y/Z are grid cells, not meters — Z controls renderer depth only; the 2D grid marker remains positioned by X/Y.</div>
-        {isLaser ? (
-          !manualTargetCoordinatesActive && (
-            <NumberInputRow label="Yaw" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />
-          )
-        ) : (
-          (!isMovingHead || !manualTargetCoordinatesActive) && (
-            <NumberInputRow label="Rotation" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />
-          )
-        )}
-      </Collapsible>
-
       <Collapsible label="Appearance" defaultOpen>
         <ColorRow label="Color" value={fixture.color} onChange={color => onPatch({ color })} />
         <SelectRow
@@ -4001,6 +3969,29 @@ function LaserDmxShowManagerFixtureInspector({
 
       {isMovingHead ? (
         <Collapsible label="Moving Head" defaultOpen>
+          <div className="sm-inspector-triple-row">
+            <NumberInputRow
+              label="X"
+              value={fixture.x}
+              min={0}
+              max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns - 1}
+              step={1}
+              onChange={x => onPatch({ x })}
+            />
+            <NumberInputRow
+              label="Y"
+              value={fixture.y}
+              min={0}
+              max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows - 1}
+              step={1}
+              onChange={y => onPatch({ y })}
+            />
+            <NumberInputRow label="Z" value={fixture.z} min={-1} max={1} step={0.05} onChange={z => onPatch({ z })} />
+          </div>
+          <div className="sm-laser-depth-note">X/Y/Z are grid cells, not meters — Z controls renderer depth only; the 2D grid marker remains positioned by X/Y.</div>
+          {(!isMovingHead || !manualTargetCoordinatesActive) && (
+            <NumberInputRow label="Rotation" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />
+          )}
           <ToggleRow label="Beam Enabled" value={fixture.beam.beamEnabled} onChange={beamEnabled => onPatch({ beam: { beamEnabled } })} />
           <SelectRow
             label="Pan / tilt style"
@@ -4064,6 +4055,29 @@ function LaserDmxShowManagerFixtureInspector({
         </Collapsible>
       ) : isLaser ? (
         <Collapsible label="Beam" defaultOpen>
+          <div className="sm-inspector-triple-row">
+            <NumberInputRow
+              label="X"
+              value={fixture.x}
+              min={0}
+              max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns - 1}
+              step={1}
+              onChange={x => onPatch({ x })}
+            />
+            <NumberInputRow
+              label="Y"
+              value={fixture.y}
+              min={0}
+              max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows - 1}
+              step={1}
+              onChange={y => onPatch({ y })}
+            />
+            <NumberInputRow label="Z" value={fixture.z} min={-1} max={1} step={0.05} onChange={z => onPatch({ z })} />
+          </div>
+          <div className="sm-laser-depth-note">X/Y/Z are grid cells, not meters — Z controls renderer depth only; the 2D grid marker remains positioned by X/Y.</div>
+          {!manualTargetCoordinatesActive && (
+            <NumberInputRow label="Yaw" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />
+          )}
           <ToggleRow label="Beam Enabled" value={fixture.beam.beamEnabled} onChange={beamEnabled => onPatch({ beam: { beamEnabled } })} />
           {!fixture.scanner && (
             <SelectRow
@@ -4100,6 +4114,27 @@ function LaserDmxShowManagerFixtureInspector({
         </Collapsible>
       ) : isLedBar ? (
         <Collapsible label="LED Bar" defaultOpen>
+          <div className="sm-inspector-triple-row">
+            <NumberInputRow
+              label="X"
+              value={fixture.x}
+              min={0}
+              max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns - 1}
+              step={1}
+              onChange={x => onPatch({ x })}
+            />
+            <NumberInputRow
+              label="Y"
+              value={fixture.y}
+              min={0}
+              max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows - 1}
+              step={1}
+              onChange={y => onPatch({ y })}
+            />
+            <NumberInputRow label="Z" value={fixture.z} min={-1} max={1} step={0.05} onChange={z => onPatch({ z })} />
+          </div>
+          <div className="sm-laser-depth-note">X/Y/Z are grid cells, not meters — Z controls renderer depth only; the 2D grid marker remains positioned by X/Y.</div>
+          <NumberInputRow label="Rotation" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />
           <ToggleRow label="Beam enabled" value={fixture.beam.beamEnabled} onChange={beamEnabled => onPatch({ beam: { beamEnabled } })} />
           <NumberInputRow
             label="Cell count"
@@ -4118,6 +4153,27 @@ function LaserDmxShowManagerFixtureInspector({
         </Collapsible>
       ) : isStrobe ? (
         <Collapsible label="Strobe" defaultOpen>
+          <div className="sm-inspector-triple-row">
+            <NumberInputRow
+              label="X"
+              value={fixture.x}
+              min={0}
+              max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns - 1}
+              step={1}
+              onChange={x => onPatch({ x })}
+            />
+            <NumberInputRow
+              label="Y"
+              value={fixture.y}
+              min={0}
+              max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows - 1}
+              step={1}
+              onChange={y => onPatch({ y })}
+            />
+            <NumberInputRow label="Z" value={fixture.z} min={-1} max={1} step={0.05} onChange={z => onPatch({ z })} />
+          </div>
+          <div className="sm-laser-depth-note">X/Y/Z are grid cells, not meters — Z controls renderer depth only; the 2D grid marker remains positioned by X/Y.</div>
+          <NumberInputRow label="Rotation" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />
           <ToggleRow label="Beam enabled" value={fixture.beam.beamEnabled} onChange={beamEnabled => onPatch({ beam: { beamEnabled } })} />
           <NumberInputRow
             label="Strobe rate"

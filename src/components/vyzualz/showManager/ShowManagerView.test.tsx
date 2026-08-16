@@ -2189,7 +2189,7 @@ describe('ShowManagerView production shell', () => {
       expect(inspector).not.toBeNull()
       expect(inspector?.textContent).toContain('Inspector Laser')
       for (const approved of [
-        'Transform', 'X', 'Y', 'Z', 'Appearance', 'Color', 'Color Mode', 'Brightness', 'Beam', 'Beam Enabled', 'Target Mode', 'Beam Angle', 'Spread', 'Focus', 'Scanner', 'Scanner Pattern',
+        'X', 'Y', 'Z', 'Appearance', 'Color', 'Color Mode', 'Brightness', 'Beam', 'Beam Enabled', 'Target Mode', 'Beam Angle', 'Spread', 'Focus', 'Scanner', 'Scanner Pattern',
         'Reactivity', 'Audio band', 'Beat division', 'Threshold', 'Fade in', 'Fade out', 'Retrigger',
       ]) {
         expect(inspector?.textContent).toContain(approved)
@@ -2409,7 +2409,7 @@ describe('ShowManagerView production shell', () => {
       })
       let inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
       expect(inspector?.textContent).toContain('Inspector LED Bar')
-      for (const supported of ['Transform', 'X', 'Y', 'Z', 'Rotation', 'Appearance', 'Brightness', 'LED Bar', 'Beam enabled', 'Cell count', 'Direction', 'Reactivity']) {
+      for (const supported of ['X', 'Y', 'Z', 'Rotation', 'Appearance', 'Brightness', 'LED Bar', 'Beam enabled', 'Cell count', 'Direction', 'Reactivity']) {
         expect(inspector?.textContent).toContain(supported)
       }
       for (const ignored of ['Beam Configuration', 'Beam Type / Pattern', 'Target X', 'Target Y', 'Width', 'Spread', 'Focus']) {
@@ -2462,7 +2462,7 @@ describe('ShowManagerView production shell', () => {
       })
       inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
       expect(inspector?.textContent).toContain('Inspector Strobe')
-      for (const supported of ['Transform', 'X', 'Y', 'Z', 'Rotation', 'Appearance', 'Brightness', 'Strobe', 'Beam enabled', 'Strobe rate', 'Reactivity']) {
+      for (const supported of ['X', 'Y', 'Z', 'Rotation', 'Appearance', 'Brightness', 'Strobe', 'Beam enabled', 'Strobe rate', 'Reactivity']) {
         expect(inspector?.textContent).toContain(supported)
       }
       for (const ignored of ['Beam Configuration', 'Beam Type / Pattern', 'Target X', 'Target Y', 'Width', 'Spread', 'Focus', 'Cell count', 'Direction']) {
