@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultLaserDmxShowDirectorFixture } from '../react/ReactTypes'
+import { createDefaultLaserDmxBeamMatrixSettings, createDefaultLaserDmxShowDirectorFixture } from '../react/ReactTypes'
+import { createLaserDmxScannerPattern, scannerPointsToBeamTargets } from '../react/laserDmxScannerAuthoring'
+import { compileLaserDmxShowDirectorToBeamMatrix } from '../react/renderers/LaserDmxShowDirectorBeamMatrixCompiler'
+import { createLaserDmxSceneFrame } from '../react/renderers/laserDmx/LaserDmxSceneFrame'
 import {
   DEFAULT_LASER_DMX_SHOW_MANAGER_WORKSPACE_SETTINGS,
   LASER_DMX_SHOW_MANAGER_GRID_SIZE,
@@ -370,6 +373,166 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
       .toEqual(['Editing Laser'])
     expect(empty.fixtures).toEqual([])
     expect(empty.sourceTemplateId).toBe(`show-manager:${show.id}:empty`)
+  })
+
+  it('keeps the visible Laser position, target-mode, aim, spread, focus, color, and brightness contract reachable through production compilation', () => {
+    let show = createLaserDmxShowManagerShow()
+    const sectionId = show.sections[0]!.id
+    const added = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'laser', {
+      label: 'Stage 4 Legacy Target Laser',
+      x: 4,
+      y: 5,
+      z: 0.25,
+      color: '#ff00aa',
+      brightness: 0.67,
+      beam: {
+        beamEnabled: true,
+        beamAngle: 27,
+        beamSpread: 64,
+        focus: 0.91,
+        targetMode: 'fan',
+      },
+    })
+    show = added.show
+    const fixtureId = added.fixtureId!
+    const section = () => show.sections.find(candidate => candidate.id === sectionId)!
+    const runtime = () => createLaserDmxShowManagerRuntimeShowDirector(show, section())
+    const compile = () => compileLaserDmxShowDirectorToBeamMatrix({
+      showDirector: runtime(),
+      beamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
+    })
+
+    const fanRuntime = runtime()
+    expect(fanRuntime.fixtures[0]).toMatchObject({
+      id: fixtureId,
+      x: 4,
+      y: 5,
+      z: 0.25,
+      color: '#ff00aa',
+      brightness: 0.67,
+      beam: { beamEnabled: true, beamAngle: 27, beamSpread: 64, focus: 0.91, targetMode: 'fan' },
+    })
+    const fanCompiled = compile()
+    expect(fanCompiled.beams.length).toBeGreaterThan(0)
+    expect(fanCompiled.beams[0]!.target.kind).toBe('stage')
+    expect(fanCompiled.beams[0]!.appearance).toMatchObject({
+      dimmer: 0.67,
+      focus: 0.91,
+    })
+    expect(fanCompiled.beams[0]!.color).toMatchObject({ red: 255, green: 0, blue: 170 })
+    expect(fanCompiled.beams[0]!.appearance.divergence).toBeCloseTo(64 / 240)
+    const firstFanTarget = fanCompiled.beams[0]!.target
+
+    show = updateLaserDmxShowManagerFixtureInSection(show, sectionId, fixtureId, { beam: { beamAngle: 83 } })
+    expect(compile().beams[0]!.target).not.toEqual(firstFanTarget)
+
+    show = updateLaserDmxShowManagerFixtureInSection(show, sectionId, fixtureId, {
+      beam: {
+        targetMode: 'fixed',
+        targetX: 2,
+        targetY: 3,
+        targets: [{ id: `${fixtureId}-stage4-fixed-target`, x: 2, y: 3 }],
+      },
+    })
+    const fixedRuntime = runtime()
+    expect(fixedRuntime.fixtures[0]!.beam).toMatchObject({ targetMode: 'fixed', targetX: 2, targetY: 3 })
+    const fixedCompiled = compile()
+    expect(fixedCompiled.beams[0]!.target).toMatchObject({ kind: 'grid', column: 3, row: 3 })
+
+    const frame = createLaserDmxSceneFrame({
+      showDirector: fixedRuntime,
+      evaluatedBeamMatrix: fixedCompiled,
+      audioTimeSec: 2,
+      deltaTimeSec: 1 / 60,
+      isPlaying: true,
+      timingDiscontinuity: false,
+      trackKey: 'show-manager-stage-4-legacy-target',
+      bpm: 128,
+    })
+    expect(frame.fixtures[0]!.position.x).toBeCloseTo(4 / 17)
+    expect(frame.fixtures[0]!.position.y).toBeCloseTo(5 / 11)
+    expect(frame.fixtures[0]!.position.z).toBeCloseTo(0.25)
+    expect(frame.beams[0]?.focus).toBeCloseTo(0.91)
+    expect(frame.beams[0]?.spreadDeg).toBeCloseTo(64)
+  })
+
+  it('keeps Stage 4 Laser parameters reachable from canonical Show Manager state through the production compiler and scanner renderer', () => {
+    let show = createLaserDmxShowManagerShow()
+    const sectionId = show.sections[0]!.id
+    const added = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'laser', { label: 'Stage 4 Laser' })
+    show = added.show
+    const fixtureId = added.fixtureId!
+    const fixture = show.sections[0]!.fixtures.find(candidate => candidate.id === fixtureId)!
+    const scanner = createLaserDmxScannerPattern(fixture, 'fanSweep', LASER_DMX_SHOW_MANAGER_GRID_SIZE)
+    scanner.scanRatePps = 18000
+    scanner.direction = 'reverse'
+    const targets = scannerPointsToBeamTargets(scanner)
+
+    show = updateLaserDmxShowManagerFixtureInSection(show, sectionId, fixtureId, {
+      color: '#ff00aa',
+      brightness: 0.67,
+      beam: {
+        beamEnabled: true,
+        beamSpread: 64,
+        focus: 0.91,
+        targetX: targets[0]!.x,
+        targetY: targets[0]!.y,
+        targets,
+      },
+      scanner,
+    })
+
+    const section = show.sections.find(candidate => candidate.id === sectionId)!
+    const runtime = createLaserDmxShowManagerRuntimeShowDirector(show, section)
+    const runtimeFixture = runtime.fixtures[0]!
+    expect(runtimeFixture).toMatchObject({
+      id: fixtureId,
+      color: '#ff00aa',
+      brightness: 0.67,
+      beam: {
+        beamEnabled: true,
+        beamSpread: 64,
+        focus: 0.91,
+      },
+      scanner: { patternType: 'fanSweep', scanRatePps: 18000, direction: 'reverse' },
+    })
+
+    const compiled = compileLaserDmxShowDirectorToBeamMatrix({
+      showDirector: runtime,
+      beamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
+    })
+    expect(compiled.beams.length).toBeGreaterThan(0)
+    expect(compiled.beams[0]!.appearance.focus).toBeCloseTo(0.91)
+    expect(compiled.beams[0]!.appearance.divergence).toBeCloseTo(64 / 240)
+
+    const frame = createLaserDmxSceneFrame({
+      showDirector: runtime,
+      evaluatedBeamMatrix: compiled,
+      audioTimeSec: 2,
+      deltaTimeSec: 1 / 60,
+      isPlaying: true,
+      timingDiscontinuity: false,
+      trackKey: 'show-manager-stage-4',
+      bpm: 128,
+    })
+    expect(frame.scannerHeads[0]?.scanRatePps).toBe(18000)
+    expect(frame.scanPaths[0]).toMatchObject({
+      fixtureId,
+      authoringPatternType: 'fanSweep',
+      scanDirection: 'reverse',
+      compatibilityMode: 'native',
+    })
+    expect(frame.beams[0]?.focus).toBeCloseTo(0.91)
+    expect(frame.beams[0]?.spreadDeg).toBeCloseTo(64)
+  })
+
+  it('preserves legacy Laser optics.zoom data even though Stage 4 no longer presents it as beam Width', () => {
+    const legacy = createDefaultLaserDmxShowDirectorFixture('laser', 'legacy-laser-zoom')
+    legacy.optics.zoom = 0.73
+
+    const normalized = normalizeLaserDmxShowManagerFixture(legacy)
+
+    expect(normalized.optics.zoom).toBe(0.73)
   })
 
   it('centralizes the supported Show Manager trigger choices onto canonical trigger fields', () => {

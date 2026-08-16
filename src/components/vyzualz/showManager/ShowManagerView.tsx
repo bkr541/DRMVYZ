@@ -29,12 +29,20 @@ import {
   type LaserDmxShowDirectorFixture,
   type LaserDmxShowDirectorFixturePatch,
   type LaserDmxShowDirectorFixtureKind,
+  type LaserDmxShowDirectorScannerConfig,
+  type LaserDmxShowDirectorScannerDirection,
+  type LaserDmxShowDirectorScannerPatternType,
   type ReactEngineId,
   type ReactPreset,
   type ReactSectionType,
   type ReactTrackSection,
 } from '../react/ReactTypes'
 import { FixtureIcon } from '../react/LaserDmxShowDirectorPalette'
+import {
+  LASER_DMX_SCANNER_PATTERN_OPTIONS,
+  createLaserDmxScannerPattern,
+  scannerPointsToBeamTargets,
+} from '../react/laserDmxScannerAuthoring'
 import { ReactPlaceholderCanvas } from '../react/ReactPlaceholderCanvas'
 import { CanvasEngineSurface } from '../react/ReactCanvasEngineShell'
 import { ReactPersistenceStatus } from '../react/ReactPersistenceStatus'
@@ -3609,7 +3617,7 @@ function LaserDmxShowManagerFixtureInspector({
       ]
     : LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS.map(option => ({ ...option }))
   const sliderGesture = { onInteractionStart, onInteractionEnd }
-  const beamPatternOptions = [
+  const beamTargetOptions = [
     { value: 'fixed', label: 'Fixed' },
     { value: 'fan', label: 'Fan' },
     { value: 'sweep', label: 'Sweep' },
@@ -3617,6 +3625,53 @@ function LaserDmxShowManagerFixtureInspector({
     { value: 'mirror', label: 'Mirror' },
     { value: 'audioReactive', label: 'Audio Reactive' },
   ]
+  const isLaser = fixture.kind === 'laser'
+  const manualTargetCoordinatesActive = fixture.beam.targetMode === 'fixed'
+  const scannerDirectionOptions: Array<{ value: LaserDmxShowDirectorScannerDirection; label: string }> = [
+    { value: 'forward', label: 'Forward' },
+    { value: 'reverse', label: 'Reverse' },
+    { value: 'alternating', label: 'Alternating' },
+  ]
+  const scannerPatternValue = fixture.scanner?.patternType ?? 'legacyTargetMode'
+  const scannerPatternOptions: Array<{ value: string; label: string; disabled?: boolean }> = fixture.scanner
+    ? LASER_DMX_SCANNER_PATTERN_OPTIONS.map(option => ({ ...option }))
+    : [
+        { value: 'legacyTargetMode', label: 'Legacy Target Mode', disabled: true },
+        ...LASER_DMX_SCANNER_PATTERN_OPTIONS.map(option => ({ ...option })),
+      ]
+
+  const commitScanner = (nextScanner: LaserDmxShowDirectorScannerConfig) => {
+    const targets = scannerPointsToBeamTargets(nextScanner)
+    const primary = targets[0]
+    onPatch({
+      scanner: nextScanner,
+      beam: {
+        targets,
+        ...(primary ? {
+          targetX: primary.x,
+          targetY: primary.y,
+          ...(primary.z == null ? {} : { targetZ: primary.z }),
+        } : {}),
+      },
+    })
+  }
+
+  const changeScannerPattern = (patternType: LaserDmxShowDirectorScannerPatternType) => {
+    const next = createLaserDmxScannerPattern(fixture, patternType, LASER_DMX_SHOW_MANAGER_GRID_SIZE)
+    if (fixture.scanner) {
+      next.scanRatePps = fixture.scanner.scanRatePps
+      next.durationBeats = fixture.scanner.durationBeats
+      next.phase = fixture.scanner.phase
+      next.depthLayer = fixture.scanner.depthLayer
+      next.advanced = { ...fixture.scanner.advanced }
+    }
+    commitScanner(next)
+  }
+
+  const patchScanner = (patch: Partial<LaserDmxShowDirectorScannerConfig>) => {
+    if (!fixture.scanner) return
+    commitScanner({ ...fixture.scanner, ...patch })
+  }
 
   return (
     <div className="sm-laser-fixture-inspector" data-testid="laser-dmx-fixture-inspector">
@@ -3643,7 +3698,7 @@ function LaserDmxShowManagerFixtureInspector({
           onChange={y => onPatch({ y })}
         />
         <NumberInputRow label="Z" value={fixture.z} min={-1} max={1} step={0.05} onChange={z => onPatch({ z })} />
-        <NumberInputRow label="Rotation" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />
+        {!isLaser && <NumberInputRow label="Rotation" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />}
       </Collapsible>
 
       <Collapsible label="Color & Brightness" defaultOpen>
@@ -3659,40 +3714,72 @@ function LaserDmxShowManagerFixtureInspector({
       </Collapsible>
 
       <Collapsible label="Beam Configuration" defaultOpen>
-        <SelectRow
-          label="Beam Type / Pattern"
-          value={fixture.beam.targetMode}
-          options={beamPatternOptions}
-          onChange={targetMode => onPatch({ beam: { targetMode: targetMode as LaserDmxShowDirectorFixture['beam']['targetMode'] } })}
-        />
-        <NumberInputRow
-          label="Target X"
-          value={fixture.beam.targetX ?? fixture.x}
-          min={0}
-          max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns - 1}
-          step={1}
-          onChange={targetX => onPatch({ beam: { targetX } })}
-        />
-        <NumberInputRow
-          label="Target Y"
-          value={fixture.beam.targetY ?? fixture.y}
-          min={0}
-          max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows - 1}
-          step={1}
-          onChange={targetY => onPatch({ beam: { targetY } })}
-        />
-        <SliderRow
-          label="Width"
-          value={fixture.optics.zoom}
-          min={0}
-          max={1}
-          step={0.01}
-          onChange={zoom => onPatch({ optics: { zoom } })}
-          {...sliderGesture}
-        />
+        {isLaser && <ToggleRow label="Beam Enabled" value={fixture.beam.beamEnabled} onChange={beamEnabled => onPatch({ beam: { beamEnabled } })} />}
+        {(!isLaser || !fixture.scanner) && (
+          <SelectRow
+            label={isLaser ? 'Target Mode' : 'Beam Type / Pattern'}
+            value={fixture.beam.targetMode}
+            options={beamTargetOptions}
+            description={isLaser ? 'Controls legacy endpoint generation. Choosing a Scanner Pattern below switches this fixture to the production scanner path.' : undefined}
+            onChange={targetMode => onPatch({ beam: { targetMode: targetMode as LaserDmxShowDirectorFixture['beam']['targetMode'] } })}
+          />
+        )}
+        {isLaser && !fixture.scanner && !manualTargetCoordinatesActive && <NumberInputRow label="Beam Angle" value={fixture.beam.beamAngle} min={-360} max={360} step={1} unit="°" onChange={beamAngle => onPatch({ beam: { beamAngle } })} />}
+        {(!isLaser || (!fixture.scanner && manualTargetCoordinatesActive)) && (
+          <>
+            <NumberInputRow
+              label="Target X"
+              value={fixture.beam.targetX ?? fixture.x}
+              min={0}
+              max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns - 1}
+              step={1}
+              onChange={targetX => onPatch({ beam: { targetX } })}
+            />
+            <NumberInputRow
+              label="Target Y"
+              value={fixture.beam.targetY ?? fixture.y}
+              min={0}
+              max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows - 1}
+              step={1}
+              onChange={targetY => onPatch({ beam: { targetY } })}
+            />
+          </>
+        )}
+        {!isLaser && (
+          <SliderRow
+            label="Width"
+            value={fixture.optics.zoom}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={zoom => onPatch({ optics: { zoom } })}
+            {...sliderGesture}
+          />
+        )}
         <SliderRow label="Spread" value={fixture.beam.beamSpread} min={0} max={180} step={1} onChange={beamSpread => onPatch({ beam: { beamSpread } })} {...sliderGesture} />
         <SliderRow label="Focus" value={fixture.beam.focus} min={0} max={1} step={0.01} onChange={focus => onPatch({ beam: { focus } })} {...sliderGesture} />
       </Collapsible>
+
+      {isLaser && (
+        <Collapsible label="Scanner" defaultOpen>
+          <SelectRow
+            label="Scanner Pattern"
+            value={scannerPatternValue}
+            options={scannerPatternOptions}
+            description={fixture.scanner ? 'Uses the production physical-scanner path.' : 'Choose a scanner pattern to opt this legacy target-mode fixture into physical scanner authoring.'}
+            onChange={value => {
+              if (value === 'legacyTargetMode') return
+              changeScannerPattern(value as LaserDmxShowDirectorScannerPatternType)
+            }}
+          />
+          {fixture.scanner && (
+            <>
+              <NumberInputRow label="Scan Rate" value={fixture.scanner.scanRatePps} min={10} max={100000} step={100} unit="pps" onChange={scanRatePps => patchScanner({ scanRatePps })} />
+              <SelectRow label="Scan Direction" value={fixture.scanner.direction} options={scannerDirectionOptions} onChange={direction => patchScanner({ direction: direction as LaserDmxShowDirectorScannerDirection })} />
+            </>
+          )}
+        </Collapsible>
+      )}
 
       <Collapsible label="Trigger Configuration" defaultOpen>
         <SelectRow
@@ -3825,7 +3912,9 @@ function LaserDmxShowManagerStage({
                 style={{
                   stroke: fixture.color,
                   strokeOpacity: Math.max(0.08, fixture.brightness * 0.45),
-                  strokeWidth: 0.12 + fixture.optics.zoom * 0.38,
+                  strokeWidth: fixture.kind === 'laser'
+                    ? 0.18 + (1 - fixture.beam.focus) * 0.12
+                    : 0.12 + fixture.optics.zoom * 0.38,
                 }}
               />]
             })}

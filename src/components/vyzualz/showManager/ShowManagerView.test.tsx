@@ -442,6 +442,7 @@ vi.mock('../shared/VyzualzHeaderActions', () => ({
 }))
 
 import { createDefaultLaserDmxShowDirectorFixture } from '../react/ReactTypes'
+import { createLaserDmxScannerPattern } from '../react/laserDmxScannerAuthoring'
 import type { CanvasShowManagerShow } from './CanvasShowManagerDomain'
 import {
   copyLaserDmxShowManagerFixturesBetweenSections,
@@ -2090,12 +2091,15 @@ describe('ShowManagerView production shell', () => {
       const inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
       expect(inspector).not.toBeNull()
       expect(inspector?.textContent).toContain('Inspector Laser')
-      for (const approved of ['Position', 'X', 'Y', 'Z', 'Rotation', 'Color', 'Color Mode', 'Brightness', 'Beam Configuration', 'Trigger Configuration']) {
+      for (const approved of ['Position', 'X', 'Y', 'Z', 'Color', 'Color Mode', 'Brightness', 'Beam Configuration', 'Beam Enabled', 'Target Mode', 'Beam Angle', 'Spread', 'Focus', 'Scanner', 'Scanner Pattern', 'Trigger Configuration']) {
         expect(inspector?.textContent).toContain(approved)
       }
-      for (const deferred of ['Gobo', 'Prism', 'Diffraction', 'Scanner', 'Modulation']) {
-        expect(inspector?.textContent).not.toContain(deferred)
+      for (const misleadingOrDeferred of ['Rotation', 'Beam Type / Pattern', 'Width', 'Gobo', 'Prism', 'Diffraction', 'Modulation']) {
+        expect(inspector?.textContent).not.toContain(misleadingOrDeferred)
       }
+      expect(inspector?.textContent).not.toContain('Target X')
+      expect(inspector?.textContent).not.toContain('Target Y')
+      expect(inspector?.textContent).toContain('Legacy Target Mode')
 
       const colorMode = inspector?.querySelector<HTMLButtonElement>('button[aria-label="Color Mode"]')
       expect(colorMode?.disabled).toBe(true)
@@ -2130,6 +2134,176 @@ describe('ShowManagerView production shell', () => {
         'fixture-inspector',
         { x: 17 },
       )
+    } finally {
+      intro.fixtures = originalFixtures
+    }
+  })
+
+  it('shows manual Laser target coordinates only in Fixed mode and never exposes the non-production Width/Zoom control', async () => {
+    setSharedShowToLaserAuthoredSections()
+    const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
+    const originalFixtures = intro.fixtures
+    const laser = createDefaultLaserDmxShowDirectorFixture('laser', 'fixture-target-contract')
+    laser.beam.targetMode = 'fan'
+    intro.fixtures = [laser] as never[]
+
+    try {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+      await act(async () => {
+        engineTrigger?.click()
+        await Promise.resolve()
+      })
+      const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.includes('LaserDMX'))
+      await act(async () => {
+        laserOption?.click()
+        await Promise.resolve()
+      })
+      await act(async () => {
+        container?.querySelector<HTMLButtonElement>('button[data-fixture-id="fixture-target-contract"]')?.click()
+        await Promise.resolve()
+      })
+
+      let inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
+      expect(inspector?.querySelector('button[aria-label="Target Mode"]')?.textContent).toContain('Fan')
+      expect(inspector?.textContent).not.toContain('Target X')
+      expect(inspector?.textContent).not.toContain('Target Y')
+      expect(inspector?.textContent).toContain('Beam Angle')
+      expect(inspector?.textContent).not.toContain('Width')
+
+      laser.beam.targetMode = 'fixed'
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
+      expect(inspector?.textContent).toContain('Target X')
+      expect(inspector?.textContent).toContain('Target Y')
+      expect(inspector?.textContent).not.toContain('Beam Angle')
+      expect(inspector?.textContent).not.toContain('Width')
+    } finally {
+      intro.fixtures = originalFixtures
+    }
+  })
+
+  it('writes Laser scanner pattern controls onto the canonical scanner contract instead of overloading target mode', async () => {
+    setSharedShowToLaserAuthoredSections()
+    const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
+    const originalFixtures = intro.fixtures
+    const laser = createDefaultLaserDmxShowDirectorFixture('laser', 'fixture-scanner-contract')
+    intro.fixtures = [laser] as never[]
+    fixture.state.updateLaserDmxShowManagerFixture.mockClear()
+
+    try {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+      await act(async () => {
+        engineTrigger?.click()
+        await Promise.resolve()
+      })
+      const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.includes('LaserDMX'))
+      await act(async () => {
+        laserOption?.click()
+        await Promise.resolve()
+      })
+      await act(async () => {
+        container?.querySelector<HTMLButtonElement>('button[data-fixture-id="fixture-scanner-contract"]')?.click()
+        await Promise.resolve()
+      })
+
+      const inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
+      const pattern = inspector?.querySelector<HTMLButtonElement>('button[aria-label="Scanner Pattern"]')
+      expect(pattern?.textContent).toContain('Legacy Target Mode')
+      await act(async () => {
+        pattern?.click()
+        await Promise.resolve()
+      })
+      const fanSweep = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.trim() === 'Fan Sweep')
+      await act(async () => {
+        fanSweep?.click()
+        await Promise.resolve()
+      })
+
+      expect(fixture.state.updateLaserDmxShowManagerFixture).toHaveBeenCalledWith(
+        'laser-show-1',
+        'laser-show-1:section:intro:1',
+        'fixture-scanner-contract',
+        expect.objectContaining({
+          scanner: expect.objectContaining({ patternType: 'fanSweep', enabled: true, scanRatePps: 24000 }),
+          beam: expect.objectContaining({ targets: expect.any(Array), targetX: expect.any(Number), targetY: expect.any(Number) }),
+        }),
+      )
+      const scannerPatch = fixture.state.updateLaserDmxShowManagerFixture.mock.calls.at(-1)?.[3] as { scanner?: { patternType?: string } } | undefined
+      expect(scannerPatch?.scanner?.patternType).toBe('fanSweep')
+      expect(scannerPatch).not.toHaveProperty('beam.targetMode')
+    } finally {
+      intro.fixtures = originalFixtures
+    }
+  })
+
+  it('exposes persisted production scanner rate and direction without presenting inactive target-mode controls', async () => {
+    setSharedShowToLaserAuthoredSections()
+    const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
+    const originalFixtures = intro.fixtures
+    const laser = createDefaultLaserDmxShowDirectorFixture('laser', 'fixture-scanner-existing')
+    laser.scanner = createLaserDmxScannerPattern(laser, 'circle', { columns: 18, rows: 12 })
+    laser.scanner.scanRatePps = 18000
+    laser.scanner.direction = 'reverse'
+    intro.fixtures = [laser] as never[]
+
+    try {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+      await act(async () => {
+        engineTrigger?.click()
+        await Promise.resolve()
+      })
+      const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.includes('LaserDMX'))
+      await act(async () => {
+        laserOption?.click()
+        await Promise.resolve()
+      })
+      await act(async () => {
+        container?.querySelector<HTMLButtonElement>('button[data-fixture-id="fixture-scanner-existing"]')?.click()
+        await Promise.resolve()
+      })
+
+      const inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
+      expect(inspector?.querySelector('button[aria-label="Scanner Pattern"]')?.textContent).toContain('Circle')
+      expect(inspector?.querySelector('button[aria-label="Scan Direction"]')?.textContent).toContain('Reverse')
+      const scanRateLabel = [...(inspector?.querySelectorAll<HTMLLabelElement>('label') ?? [])]
+        .find(label => label.textContent?.includes('Scan Rate'))
+      const scanRateInput = scanRateLabel?.htmlFor ? inspector?.querySelector<HTMLInputElement>(`#${scanRateLabel.htmlFor}`) : null
+      expect(scanRateInput?.value).toBe('18000')
+      expect(inspector?.querySelector('button[aria-label="Target Mode"]')).toBeNull()
+      expect(inspector?.textContent).not.toContain('Beam Angle')
+      expect(inspector?.textContent).not.toContain('Target X')
+      expect(inspector?.textContent).not.toContain('Target Y')
+      expect(inspector?.textContent).not.toContain('Beam Type / Pattern')
     } finally {
       intro.fixtures = originalFixtures
     }
