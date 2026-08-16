@@ -1312,6 +1312,11 @@ export function ShowManagerView() {
     }
   }, [activeLaserDmxSection, selectedLaserFixtureId])
 
+  // Selecting a fixture surfaces its details in the Design tab, not Inspector.
+  useEffect(() => {
+    if (selectedLaserFixtureId) setRightInspectorTab('design')
+  }, [selectedLaserFixtureId])
+
   useEffect(() => {
     setCopyLaserFixturesEnabled(false)
     setCopyLaserFixturesSourceSectionId(null)
@@ -2829,15 +2834,7 @@ export function ShowManagerView() {
                 <div><span>Grid</span><strong>{LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns} × {LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows}</strong></div>
               </div>
               {activeLaserDmxShow && activeLaserDmxSection ? (
-                selectedLaserFixture ? (
-                  <LaserDmxShowManagerFixtureInspector
-                    fixture={selectedLaserFixture}
-                    onPatch={commitLaserFixturePatch}
-                    onInteractionStart={beginLaserDmxShowManagerHistoryTransaction}
-                    onInteractionEnd={commitLaserDmxShowManagerHistoryTransaction}
-                    onDelete={deleteSelectedLaserFixture}
-                  />
-                ) : <>
+                <>
                   <NoticeCard tone="info" title="Show Track Map · linked audio">
                     Section order and count come from this Show’s linked-track analysis. Edit labels, types, intensity, or shared boundaries below; the underlying audio analysis is not modified.
                   </NoticeCard>
@@ -2943,7 +2940,21 @@ export function ShowManagerView() {
             </div>
           )
           )}
-          {rightInspectorTab === 'design' && <div className="sm-panel-blank" data-testid="show-manager-inspector-design-empty" />}
+          {rightInspectorTab === 'design' && (
+            activeSectionEngineId === 'laserDmx' && selectedLaserFixture ? (
+              <div className="sm-inspector-scroll sm-laser-section-inspector">
+                <LaserDmxShowManagerFixtureInspector
+                  fixture={selectedLaserFixture}
+                  onPatch={commitLaserFixturePatch}
+                  onInteractionStart={beginLaserDmxShowManagerHistoryTransaction}
+                  onInteractionEnd={commitLaserDmxShowManagerHistoryTransaction}
+                  onDelete={deleteSelectedLaserFixture}
+                />
+              </div>
+            ) : (
+              <div className="sm-panel-blank" data-testid="show-manager-inspector-design-empty" />
+            )
+          )}
           {rightInspectorTab === 'react' && <div className="sm-panel-blank" data-testid="show-manager-inspector-react-empty" />}
         </aside>
         )}
