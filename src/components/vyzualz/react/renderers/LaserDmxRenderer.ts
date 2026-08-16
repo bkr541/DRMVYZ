@@ -811,16 +811,12 @@ export function renderLaserDmx(
     canvasHeight: H,
     personalization,
   })
-  const sceneOutputBeamMatrix = {
-    ...finalBeamMatrix,
-    output: {
-      ...finalBeamMatrix.output,
-      ...authoredCompiled.output,
-    },
-  }
-
   const authoredSceneFrame = unresolvedSceneFrame
-    ? resolveLaserDmxSceneFrameOutput(unresolvedSceneFrame, sceneOutputBeamMatrix)
+    ? resolveLaserDmxSceneFrameOutput(unresolvedSceneFrame, finalBeamMatrix, {
+        compiled: authoredCompiled,
+        canvasWidth: W,
+        canvasHeight: H,
+      })
     : null
   const resolvedOutput = resolveLaserDmxOutputHierarchy({
     authoredOutput: authoredCompiled.output,

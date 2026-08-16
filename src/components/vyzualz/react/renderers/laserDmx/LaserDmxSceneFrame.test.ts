@@ -218,7 +218,7 @@ describe('LaserDMX engine-neutral scene frame', () => {
     const hidden = createLaserDmxSceneFrame({
       showDirector,
       evaluatedBeamMatrix: evaluated,
-      audioTimeSec: 0.02,
+      audioTimeSec: 0.08,
       deltaTimeSec: 1 / 60,
       isPlaying: true,
       timingDiscontinuity: false,

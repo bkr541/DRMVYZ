@@ -48,8 +48,13 @@ export function applyCurve(v: number, curve: string): number {
 }
 
 export function resolveStrobeVisible(rate: number, timeSec: number): boolean {
-  if (rate <= 0) return true
-  const freq = lerp(1, 30, clamp01(rate))
+  const normalizedRate = clamp01(rate)
+  if (normalizedRate <= 0) return true
+  // Beam Matrix strobe values are a linear 0–30 Hz domain encoded as 0–1.
+  // This keeps authored Show Director rates exact: 1 Hz = 1/30, 15 Hz = 0.5,
+  // and 30 Hz = 1. The previous 1..30 lerp made every intermediate authored
+  // value run too fast (for example 15 Hz rendered at 15.5 Hz).
+  const freq = normalizedRate * 30
   return (timeSec * freq % 1) < 0.5
 }
 

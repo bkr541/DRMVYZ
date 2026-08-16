@@ -1,5 +1,6 @@
 import type {
   LaserDmxBeamMatrixSettings,
+  LaserDmxMatrixBeam,
   LaserDmxMatrixBeamColor,
   LaserDmxMatrixBeamVisualRole,
   LaserDmxShowDirectorBeamTarget,
@@ -20,6 +21,11 @@ import {
 import type { LaserDmxShowDirectorBeamPriorityRole } from '../../LaserDmxShowDirectorPerformanceProgram'
 import { applyLaserDmxScannerRuntimeOverrides } from '../../laserDmxScannerAuthoring'
 import { resolveStrobeVisible } from '../LaserDmxModulationEngine'
+import type {
+  CompiledLaserDmxBeamMatrixResult,
+  CompiledLaserDmxMatrixBeam,
+} from '../LaserDmxBeamMatrixCompiler'
+import { gridAnchorToCanvas, targetToCanvas, zDepthFactors } from '../LaserDmxBeamGeometry'
 import {
   createLaserDmxFanRayParameters,
   LASER_DMX_PRIORITY_ROLE_TO_VISUAL_ROLE,
@@ -191,6 +197,8 @@ export interface LaserDmxSceneFixture extends LaserDmxSceneSpatialAssignment {
   color: LaserDmxSceneColor
   intensity: number
   strobeRate: number
+  /** Canonical Show Director beam-output gate. Kept separate from trigger/runtime enable state. */
+  beamEnabled: boolean
   enabled: boolean
   selected: boolean
   component: LaserDmxShowDirectorFixtureSpecificConfig
@@ -1003,6 +1011,7 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       // scene/Beam Matrix runtime uses a normalized 0-1 strobe domain. Other
       // fixture kinds carry the shared component shape but do not own this field.
       strobeRate: fixture.kind === 'strobe' ? clamp01(fixture.component.strobeRate / 30) : 0,
+      beamEnabled: fixture.beam.beamEnabled,
       enabled: fixtureEnabled,
       selected: selected.has(fixture.id),
       component: { ...fixture.component },
@@ -1281,21 +1290,171 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
   }
 }
 
+
+export interface LaserDmxCompiledSceneOutputInput {
+  compiled: CompiledLaserDmxBeamMatrixResult
+  canvasWidth: number
+  canvasHeight: number
+}
+
+interface LaserDmxCompiledBeamPair {
+  matrixBeam: LaserDmxMatrixBeam
+  compiledBeam: CompiledLaserDmxMatrixBeam | null
+}
+
+interface LaserDmxCompiledGeometryDelta {
+  origin: LaserDmxSceneVec3
+  target: LaserDmxSceneVec3
+}
+
+function colorFromCompiledBeam(
+  beam: CompiledLaserDmxMatrixBeam | undefined,
+  fallback: LaserDmxSceneColor,
+  fixtureKind: LaserDmxShowDirectorFixtureKind,
+): LaserDmxSceneColor {
+  if (!beam) return fallback
+  const calibrated = calibrateLaserDmxChannels({
+    red: finite(beam.rgba.r, 0),
+    green: finite(beam.rgba.g, 0),
+    blue: finite(beam.rgba.b, 0),
+    white: 0,
+  }, resolveLaserDmxFixtureCalibration(fixtureKind))
+  return { ...calibrated, a: clamp01(finite(beam.rgba.a, fallback.a)) }
+}
+
+function compiledGeometryDelta(
+  matrixBeam: LaserDmxMatrixBeam,
+  compiledBeam: CompiledLaserDmxMatrixBeam,
+  canvasWidth: number,
+  canvasHeight: number,
+): LaserDmxCompiledGeometryDelta {
+  const width = Math.max(1, finite(canvasWidth, 1))
+  const height = Math.max(1, finite(canvasHeight, 1))
+  const baseOrigin = gridAnchorToCanvas(
+    matrixBeam.origin.column,
+    matrixBeam.origin.row,
+    matrixBeam.origin.z,
+    width,
+    height,
+  )
+  const baseTarget = targetToCanvas(matrixBeam.target, width, height)
+  return {
+    origin: {
+      x: (compiledBeam.origin.x - baseOrigin.x) / width,
+      y: (compiledBeam.origin.y - baseOrigin.y) / height,
+      z: compiledBeam.origin.z - baseOrigin.z,
+    },
+    target: {
+      x: (compiledBeam.target.x - baseTarget.x) / width,
+      y: (compiledBeam.target.y - baseTarget.y) / height,
+      z: compiledBeam.target.z - baseTarget.z,
+    },
+  }
+}
+
+function addSceneDelta(point: LaserDmxSceneVec3, delta: LaserDmxSceneVec3): LaserDmxSceneVec3 {
+  return {
+    x: point.x + delta.x,
+    y: point.y + delta.y,
+    z: point.z + delta.z,
+  }
+}
+
+function compiledLocalBeamWidth(
+  matrixBeam: LaserDmxMatrixBeam,
+  compiledBeam: CompiledLaserDmxMatrixBeam,
+  compiled: CompiledLaserDmxBeamMatrixResult,
+): number {
+  const globalWidth = clamp(compiled.output.globalBeamWidth, 0.1, 6)
+  const originScale = zDepthFactors(matrixBeam.origin.z).widthScale
+  const targetScale = zDepthFactors(matrixBeam.target.z).widthScale
+  const matrixDepthScale = Math.max(0.001, (originScale + targetScale) * 0.5)
+  return clamp(compiledBeam.beamWidth / (globalWidth * matrixDepthScale), 0.1, 8)
+}
+
+function compiledLocalGlow(
+  compiledBeam: CompiledLaserDmxMatrixBeam,
+  compiled: CompiledLaserDmxBeamMatrixResult,
+): number {
+  const globalGlow = clamp01(compiled.output.globalGlow)
+  return globalGlow > 0.001 ? clamp01(compiledBeam.glow / globalGlow) : 0
+}
+
 export function resolveLaserDmxSceneFrameOutput(
   frame: LaserDmxSceneFrame,
   evaluated: LaserDmxBeamMatrixSettings,
+  compiledInput?: LaserDmxCompiledSceneOutputInput,
 ): LaserDmxSceneFrame {
-  const masterDimmer = clamp01(evaluated.output.masterDimmer)
-  const safetyClamp = clamp01(evaluated.output.safetyClamp)
-  const outputDimmer = masterDimmer * safetyClamp
-  const blackout = evaluated.output.blackout === true
+  const compiled = compiledInput?.compiled ?? null
+  const resolvedOutput = compiled?.output ?? evaluated.output
+  const resolvedFog = compiled?.fog ?? evaluated.fog
+  const masterDimmer = clamp01(resolvedOutput.masterDimmer)
+  const safetyClamp = clamp01(resolvedOutput.safetyClamp)
+  // Compiled beam intensity already contains authored master dimmer + safety.
+  // The settings-only compatibility path still needs to apply those here.
+  const settingsOutputDimmer = masterDimmer * safetyClamp
+  const blackout = resolvedOutput.blackout === true
   const matrixByFixture = new Map<string, ReturnType<typeof matrixBeamsForFixture>>()
+  const compiledById = new Map<string, CompiledLaserDmxMatrixBeam>()
+  for (const beam of compiled?.beams ?? []) compiledById.set(beam.beamId, beam)
+
+  const pairsByFixture = new Map<string, LaserDmxCompiledBeamPair[]>()
+  const geometryDeltaByFixture = new Map<string, LaserDmxCompiledGeometryDelta>()
   for (const fixture of frame.fixtures) {
-    matrixByFixture.set(fixture.id, matrixBeamsForFixture(evaluated, fixture.id))
+    const matrixBeams = matrixBeamsForFixture(evaluated, fixture.id)
+    matrixByFixture.set(fixture.id, matrixBeams)
+    if (!compiled) continue
+    const pairs = matrixBeams.map(matrixBeam => ({
+      matrixBeam,
+      compiledBeam: compiledById.get(matrixBeam.id) ?? null,
+    }))
+    pairsByFixture.set(fixture.id, pairs)
+    const geometryPair = pairs.find(pair => pair.compiledBeam != null)
+    if (geometryPair?.compiledBeam && compiledInput) {
+      geometryDeltaByFixture.set(fixture.id, compiledGeometryDelta(
+        geometryPair.matrixBeam,
+        geometryPair.compiledBeam,
+        compiledInput.canvasWidth,
+        compiledInput.canvasHeight,
+      ))
+    }
   }
 
   const fixtures = frame.fixtures.map(fixture => {
     const matrixBeams = matrixByFixture.get(fixture.id) ?? []
+    const compiledPairs = pairsByFixture.get(fixture.id) ?? []
+    const compiledBeams = compiledPairs
+      .map(pair => pair.compiledBeam)
+      .filter((beam): beam is CompiledLaserDmxMatrixBeam => beam != null)
+    const visibleCompiledBeams = compiledBeams.filter(beam => beam.strobeVisible && beam.intensity > 0.001)
+    const strongestCompiledBeam = visibleCompiledBeams.reduce<CompiledLaserDmxMatrixBeam | undefined>(
+      (strongest, beam) => !strongest || beam.intensity > strongest.intensity ? beam : strongest,
+      undefined,
+    )
+    const matrixDriven = BEAM_FIXTURE_KINDS.has(fixture.kind)
+
+    if (compiled && matrixDriven) {
+      const intensity = visibleCompiledBeams.reduce(
+        (maximum, beam) => Math.max(maximum, clamp01(beam.intensity)),
+        0,
+      )
+      const strobeRate = compiledBeams.reduce(
+        (maximum, beam) => Math.max(maximum, clamp01(beam.strobeRate)),
+        fixture.strobeRate,
+      )
+      const enabled = fixture.enabled
+        && fixture.beamEnabled
+        && !blackout
+        && visibleCompiledBeams.length > 0
+      return {
+        ...fixture,
+        color: colorFromCompiledBeam(strongestCompiledBeam ?? compiledBeams[0], fixture.color, fixture.kind),
+        strobeRate,
+        enabled,
+        intensity: enabled ? intensity : 0,
+      }
+    }
+
     const matrixIntensity = matrixBeams.length > 0
       ? Math.max(...matrixBeams.map(beam => clamp01(beam.appearance.dimmer)))
       : fixture.intensity
@@ -1309,7 +1468,7 @@ export function resolveLaserDmxSceneFrameOutput(
       color,
       strobeRate: Math.max(fixture.strobeRate, matrixStrobeRate),
       enabled: fixture.enabled && !blackout,
-      intensity: fixture.enabled && !blackout ? clamp01(matrixIntensity * outputDimmer) : 0,
+      intensity: fixture.enabled && !blackout ? clamp01(matrixIntensity * settingsOutputDimmer) : 0,
     }
   })
   const fixtureById = new Map(fixtures.map(fixture => [fixture.id, fixture]))
@@ -1320,20 +1479,58 @@ export function resolveLaserDmxSceneFrameOutput(
     const index = beamIndexByFixture.get(beam.fixtureId) ?? 0
     beamIndexByFixture.set(beam.fixtureId, index + 1)
     const matrixBeam = matrixBeams[index] ?? matrixBeams[0]
+    const compiledBeam = matrixBeam ? compiledById.get(matrixBeam.id) : undefined
     const fixture = fixtureById.get(beam.fixtureId)
-    const enabled = Boolean(fixture?.enabled && (matrixBeam?.enabled ?? beam.enabled) && (matrixBeam?.appearance.shutterOpen ?? true))
-    const intensity = enabled ? clamp01((matrixBeam?.appearance.dimmer ?? beam.intensity) * outputDimmer) : 0
-    const focus = clamp01(matrixBeam?.appearance.focus ?? beam.focus)
-    const visualRole = matrixBeam?.visualRole ?? beam.visualRole
-    const color = colorFromMatrix(matrixBeam?.color, fixture?.color ?? beam.color, beam.fixtureKind)
+
+    const enabled = compiled
+      ? Boolean(
+          fixture?.enabled
+          && compiledBeam
+          && compiledBeam.strobeVisible
+          && compiledBeam.intensity > 0.001,
+        )
+      : Boolean(
+          fixture?.enabled
+          && (matrixBeam?.enabled ?? beam.enabled)
+          && (matrixBeam?.appearance.shutterOpen ?? true),
+        )
+    const intensity = compiled
+      ? enabled ? clamp01(compiledBeam?.intensity ?? 0) : 0
+      : enabled ? clamp01((matrixBeam?.appearance.dimmer ?? beam.intensity) * settingsOutputDimmer) : 0
+    const focus = clamp01(compiledBeam?.focus ?? matrixBeam?.appearance.focus ?? beam.focus)
+    const visualRole = compiledBeam?.visualRole ?? matrixBeam?.visualRole ?? beam.visualRole
+    const color = compiledBeam
+      ? colorFromCompiledBeam(compiledBeam, fixture?.color ?? beam.color, beam.fixtureKind)
+      : colorFromMatrix(matrixBeam?.color, fixture?.color ?? beam.color, beam.fixtureKind)
+
+    let origin = beam.origin
+    let target = beam.target
+    if (compiled && matrixBeam && compiledBeam && compiledInput) {
+      const delta = compiledGeometryDelta(
+        matrixBeam,
+        compiledBeam,
+        compiledInput.canvasWidth,
+        compiledInput.canvasHeight,
+      )
+      origin = addSceneDelta(beam.origin, delta.origin)
+      target = addSceneDelta(beam.target, delta.target)
+    }
+    const direction = normalizeLaserDmxDirection(origin, target)
+    const depthRange = resolveLaserDmxDepthRange(origin, target)
+    const localWidth = compiled && matrixBeam && compiledBeam
+      ? compiledLocalBeamWidth(matrixBeam, compiledBeam, compiled)
+      : matrixBeam?.appearance.width ?? beam.width
+    const localGlow = compiled && compiledBeam
+      ? compiledLocalGlow(compiledBeam, compiled)
+      : matrixBeam?.appearance.glow ?? Math.min(1, beam.scatterEnvelopeWidth / 6)
     const optical = resolveLaserDmxBeamOpticalProfile({
       fixtureKind: beam.fixtureKind,
       intensity,
       focus,
       spreadDeg: beam.spreadDeg,
-      width: matrixBeam?.appearance.width ?? beam.width,
-      divergence: matrixBeam?.appearance.divergence ?? beam.divergence,
-      glow: matrixBeam?.appearance.glow ?? Math.min(1, beam.scatterEnvelopeWidth / 6),
+      width: localWidth,
+      divergence: compiledBeam?.divergence ?? matrixBeam?.appearance.divergence ?? beam.divergence,
+      glow: localGlow,
       opacity: color.a,
       opticalSoftness: fixture?.optics.opticalSoftness,
       zoom: fixture?.optics.zoom,
@@ -1343,7 +1540,19 @@ export function resolveLaserDmxSceneFrameOutput(
     })
     return {
       ...beam,
-      id: matrixBeam?.id ?? beam.id,
+      id: compiledBeam?.beamId ?? matrixBeam?.id ?? beam.id,
+      origin,
+      target,
+      direction,
+      length: Math.hypot(
+        target.x - origin.x,
+        target.y - origin.y,
+        target.z - origin.z,
+      ),
+      startDepth: origin.z,
+      endDepth: target.z,
+      depthRange,
+      sortDepth: laserDmxDepthSortValue(origin, target),
       color,
       intensity,
       coreIntensity: optical.coreIntensity,
@@ -1357,6 +1566,16 @@ export function resolveLaserDmxSceneFrameOutput(
       enabled,
     }
   })
+
+  const targetPositionById = new Map<string, LaserDmxSceneVec3>()
+  for (const beam of beams) targetPositionById.set(beam.targetId, beam.target)
+  const targets = frame.targets.map(target => {
+    const fromBeam = targetPositionById.get(target.id)
+    if (fromBeam) return { ...target, position: fromBeam }
+    const delta = geometryDeltaByFixture.get(target.fixtureId)
+    return delta ? { ...target, position: addSceneDelta(target.position, delta.target) } : target
+  })
+
   const emitters = frame.emitters.map(emitter => {
     const fixture = fixtureById.get(emitter.fixtureId)
     return {
@@ -1364,14 +1583,18 @@ export function resolveLaserDmxSceneFrameOutput(
       color: fixture?.color ?? emitter.color,
     }
   })
+
   const resolveScannerOutput = <T extends LaserDmxScannerInstantaneousRay | LaserDmxExposureSample>(sample: T): T => {
     const fixture = fixtureById.get(sample.fixtureId)
     const originalFixture = originalFixtureById.get(sample.fixtureId)
     const intensityRatio = originalFixture && originalFixture.intensity > 0.001
       ? clamp01((fixture?.intensity ?? 0) / originalFixture.intensity)
       : 0
+    const delta = geometryDeltaByFixture.get(sample.fixtureId)
     return {
       ...sample,
+      origin: delta ? addSceneDelta(sample.origin, delta.origin) : sample.origin,
+      targetOrDirection: delta ? addSceneDelta(sample.targetOrDirection, delta.target) : sample.targetOrDirection,
       color: fixture?.color ?? sample.color,
       intensity: fixture?.enabled && !sample.blanked
         ? clamp01(sample.intensity * intensityRatio)
@@ -1381,6 +1604,22 @@ export function resolveLaserDmxSceneFrameOutput(
   }
   const scannerInstantaneousRays = frame.scannerInstantaneousRays.map(resolveScannerOutput)
   const exposureSamples = frame.exposureSamples.map(resolveScannerOutput)
+  const scanPaths = frame.scanPaths.map(path => {
+    const delta = geometryDeltaByFixture.get(path.fixtureId)
+    if (!delta) return path
+    return {
+      ...path,
+      points: path.points.map(point => ({
+        ...point,
+        position: addSceneDelta(point.position, delta.target),
+      })),
+      intendedRaySlots: path.intendedRaySlots?.map(slot => ({
+        ...slot,
+        target: addSceneDelta(slot.target, delta.target),
+      })),
+    }
+  })
+
   const atmosphereSources = frame.atmosphereSources.map(source => {
     const originalFixture = originalFixtureById.get(source.fixtureId)
     const fixture = fixtureById.get(source.fixtureId)
@@ -1392,7 +1631,7 @@ export function resolveLaserDmxSceneFrameOutput(
       color: fixture?.color ?? source.color,
       density: fixture?.enabled ? clamp01((fixture.intensity ?? 0) * hazeRatio) : 0,
       dissipation: source.kind === 'haze'
-        ? clamp01(evaluated.fog.dissipation * (0.55 + (1 - hazeRatio) * 0.45))
+        ? clamp01(resolvedFog.dissipation * (0.55 + (1 - hazeRatio) * 0.45))
         : source.dissipation,
       enabled: Boolean(fixture?.enabled && hazeRatio > 0.001),
     }
@@ -1404,14 +1643,14 @@ export function resolveLaserDmxSceneFrameOutput(
     blackout,
     fixtures,
     atmosphereSources,
-    globalStrobeRate: evaluated.output.globalStrobeRate,
+    globalStrobeRate: resolvedOutput.globalStrobeRate,
   })
 
   return {
     ...frame,
     atmosphere: {
       ...sceneAtmosphereFromFog(
-        evaluated.fog,
+        resolvedFog,
         frame.atmosphere.qualityTier,
         frame.transport.trackKey,
         energized.beams.some(beam => beam.enabled && beam.intensity > 0.001),
@@ -1420,10 +1659,13 @@ export function resolveLaserDmxSceneFrameOutput(
     },
     depthOrdering: {
       ...frame.depthOrdering,
+      bounds: depthBounds(fixtures, targets),
       frontToBackBeamIds: stableLaserDmxDepthOrder(energized.beams, 'frontToBack'),
       backToFrontBeamIds: stableLaserDmxDepthOrder(energized.beams, 'backToFront'),
     },
     fixtures,
+    targets,
+    scanPaths,
     scannerInstantaneousRays,
     exposureSamples,
     beams: energized.beams,
@@ -1433,11 +1675,11 @@ export function resolveLaserDmxSceneFrameOutput(
     output: {
       blackout,
       masterDimmer,
-      safetyClamp: clamp01(evaluated.output.safetyClamp),
-      globalGlow: clamp01(evaluated.output.globalGlow),
-      globalBeamWidth: clamp(evaluated.output.globalBeamWidth, 0.1, 6),
-      globalStrobeRate: clamp01(evaluated.output.globalStrobeRate),
-      beamPersistence: clamp01(evaluated.output.beamPersistence),
+      safetyClamp,
+      globalGlow: clamp01(resolvedOutput.globalGlow),
+      globalBeamWidth: clamp(resolvedOutput.globalBeamWidth, 0.1, 6),
+      globalStrobeRate: clamp01(resolvedOutput.globalStrobeRate),
+      beamPersistence: clamp01(resolvedOutput.beamPersistence),
     },
   }
 }

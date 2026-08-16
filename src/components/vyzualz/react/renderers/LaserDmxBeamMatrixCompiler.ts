@@ -122,6 +122,8 @@ export interface CompiledLaserDmxMatrixBeam {
   focus: number
   /** 0–1 glow multiplier (combined beam + global). */
   glow: number
+  /** Effective normalized strobe rate after beam + global modulation (0–1 = 0–30 Hz). */
+  strobeRate: number
   /** False when strobe is in its "off" phase. */
   strobeVisible: boolean
   /** ≈1.0 ± deterministic noise from flickerAmount. */
@@ -1043,6 +1045,7 @@ export function compileLaserDmxBeamMatrix(
       divergence:        safeF(bs.beamDivergence, 0.15),
       focus:             safeF(bs.focus, 1),
       glow:              safeF(effectiveGlow, 0.65),
+      strobeRate:        safeF(effectiveStrobe, 0),
       strobeVisible,
       flickerMultiplier: safeF(flickerMultiplier, 1),
       geometry:          app.geometry ?? 'line',
