@@ -974,7 +974,7 @@ interface SectionTimelineProps {
   presetAssignedSectionIds?: Set<string>
 }
 
-interface SectionTimelineHandle {
+export interface SectionTimelineHandle {
   updateViewport: (viewport: TimelineViewport) => void
 }
 
