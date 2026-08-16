@@ -5,12 +5,12 @@ import './canonicalControls.css'
 //
 // Canonical DRMVYZ warning/notification treatment. Production source of
 // truth for Layout Lab → Template's "Inline Flag" notice style: a thin
-// tone-colored accent line, a small icon, an optional title, and body copy.
+// tone-colored accent line, a small icon, a required title, and body copy.
 
 export type NoticeCardTone = 'info' | 'warning' | 'error' | 'success'
 
 export interface NoticeCardProps {
-  title?: ReactNode
+  title: ReactNode
   tone?: NoticeCardTone
   role?: 'status' | 'alert'
   ariaLabel?: string
@@ -44,7 +44,7 @@ export function NoticeCard({
     <div className={`dv-notice${className ? ` ${className}` : ''}`} data-tone={tone} role={role} aria-label={ariaLabel}>
       <div className="dv-notice-hdr">
         <span className="dv-notice-icon"><NoticeCardIcon /></span>
-        {title != null && <strong className="dv-notice-title">{title}</strong>}
+        <strong className="dv-notice-title">{title}</strong>
         {onDismiss && (
           <button type="button" className="dv-notice-dismiss" onClick={onDismiss} aria-label={dismissLabel}>
             ×

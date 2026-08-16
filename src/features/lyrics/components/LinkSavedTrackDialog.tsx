@@ -50,7 +50,7 @@ export function LinkSavedTrackDialog({
         {loading ? (
           <div className="lmv-link-track-state" role="status">Searching saved tracks…</div>
         ) : error ? (
-          <NoticeCard tone="error" role="alert">{error}</NoticeCard>
+          <NoticeCard tone="error" role="alert" title="Saved track lookup failed">{error}</NoticeCard>
         ) : candidates.length === 0 ? (
           <div className="lmv-link-track-state">No saved candidates were found. Import this audio file through Media Manager first.</div>
         ) : (

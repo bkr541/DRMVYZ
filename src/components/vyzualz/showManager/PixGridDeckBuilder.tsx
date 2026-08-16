@@ -125,8 +125,8 @@ export function PixGridDeckBuilderLibrary({
           <strong>{deck ? 'Add Images' : 'Upload 2–12 Images'}</strong>
           <span>{upload.active ? upload.phase : deck ? `${remainingSlots} slots remaining` : `Creates “${draftName || 'Untitled Deck'}”`}</span>
         </label>
-        {upload.error && <NoticeCard tone="error" role="alert">{upload.error}</NoticeCard>}
-        {upload.warnings.map(warning => <NoticeCard key={warning} tone="warning" role="status">{warning}</NoticeCard>)}
+        {upload.error && <NoticeCard tone="error" role="alert" title="Deck upload failed">{upload.error}</NoticeCard>}
+        {upload.warnings.map(warning => <NoticeCard key={warning} tone="warning" role="status" title="Deck upload warning">{warning}</NoticeCard>)}
       </div>
       <div className="sm-deck-image-list" role="list" aria-label="Ordered Deck images">
         {items.map((item, index) => (
@@ -259,7 +259,7 @@ export function PixGridDeckBuilderInspector({
             aria-label={deck ? 'Deck name' : 'New Deck name'}
             aria-invalid={Boolean(nameError)}
           />
-          {nameError && <NoticeCard tone="error" role="alert">{nameError}</NoticeCard>}
+          {nameError && <NoticeCard tone="error" role="alert" title="Deck name">{nameError}</NoticeCard>}
         </section>
 
         {deck && configuration && (
@@ -422,7 +422,7 @@ export function PixGridDeckBuilderInspector({
               <ProgressRow label="Transitions" progress={readiness?.transitionProgress ?? 0} />
               <p>{readiness?.message ?? 'Compiler status is not available yet.'}</p>
               {readiness?.errors?.map((error, index) => (
-                <NoticeCard key={`${error}-${index}`} tone="error" role="alert">{error}</NoticeCard>
+                <NoticeCard key={`${error}-${index}`} tone="error" role="alert" title="Deck compiler error">{error}</NoticeCard>
               ))}
               <button
                 type="button"

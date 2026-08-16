@@ -1062,7 +1062,7 @@ export function MediaUploadModal({
           </NoticeCard>
         )}
         {(selectionError || batchError || (isEdit && loadError)) && (
-          <NoticeCard className="mum-batch-error" tone="error" role="alert">{selectionError ?? batchError ?? loadError}</NoticeCard>
+          <NoticeCard className="mum-batch-error" tone="error" role="alert" title="Media upload issue">{selectionError ?? batchError ?? loadError}</NoticeCard>
         )}
         {uploading && progress.total > 0 && (
           <div className="mum-progress" aria-label={`Uploaded ${progress.completed} of ${progress.total} files`}>

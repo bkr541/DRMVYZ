@@ -117,6 +117,7 @@ function IssueList({
   return (
     <NoticeCard
       tone={isError ? 'error' : 'warning'}
+      title={isError ? 'Validation errors' : 'Validation warnings'}
       ariaLabel={`${issues.length} ${isError ? 'error' : 'warning'}${issues.length === 1 ? '' : 's'}`}
     >
       {issues.map(issue => {

@@ -820,7 +820,7 @@ export function AiLyricExtractor({
 
   return (
     <div className="lmv-workflow-content">
-      <NoticeCard className="lmv-ai-notice" tone="info" role="status">
+      <NoticeCard className="lmv-ai-notice" tone="info" role="status" title="Private transcription processing">
         Groq credentials stay server-side. For oversized tracks, DRMVYZ creates private transcription-ready audio in your browser before the server sends safe chunks.
       </NoticeCard>
 
@@ -928,7 +928,7 @@ export function AiLyricExtractor({
           <div className="lmv-validation-row"><span className="lmv-val-label">Track Map analysis</span><span className="lmv-val-value">{selectedTrack.analysisPayload ? 'Available from full mix' : 'Not available'}</span></div>
           <div className="lmv-validation-row"><span className="lmv-val-label">Source format</span><span className="lmv-val-value">{vocalReferenceTrack ? `${vocalReferenceTrack.sampleRate ? `${vocalReferenceTrack.sampleRate} Hz` : 'sample rate unknown'} · ${vocalReferenceTrack.channels ? `${vocalReferenceTrack.channels} ch` : 'channels unknown'}` : 'Unknown'}</span></div>
           {vocalReferenceTrack && vocalReferenceOffsetMs !== 0 && (
-            <NoticeCard tone="warning" role="status">
+            <NoticeCard tone="warning" role="status" title="Vocal source offset">
               Source begins with an offset. Provider timestamps will be shifted once into the full-mix timeline.
             </NoticeCard>
           )}
@@ -936,6 +936,7 @@ export function AiLyricExtractor({
             <NoticeCard
               tone={sourceCompatibility.blocked ? 'error' : sourceCompatibility.status === 'significant_mismatch' ? 'warning' : 'info'}
               role="status"
+              title={sourceCompatibility.blocked ? 'Source incompatible' : sourceCompatibility.status === 'significant_mismatch' ? 'Source compatibility warning' : 'Source compatibility'}
             >
               {sourceCompatibility.reason}
             </NoticeCard>
@@ -1104,7 +1105,7 @@ export function AiLyricExtractor({
             </div>
           )}
           {active && jobStalled && (
-            <NoticeCard tone="warning" role="status">
+            <NoticeCard tone="warning" role="status" title="Extraction paused">
               This extraction has not changed for a while. Background polling is paused to avoid unnecessary traffic.
               <div className="lmv-import-actions">
                 <IconChipButton onClick={() => setPollRefreshNonce(value => value + 1)}>Refresh status</IconChipButton>
@@ -1124,8 +1125,8 @@ export function AiLyricExtractor({
         </div>
       )}
 
-      {notice && <NoticeCard tone="warning" role="status">{notice}</NoticeCard>}
-      {error && <NoticeCard tone="error" role="alert">{error}</NoticeCard>}
+      {notice && <NoticeCard tone="warning" role="status" title="Extraction warning">{notice}</NoticeCard>}
+      {error && <NoticeCard tone="error" role="alert" title="Extraction failed">{error}</NoticeCard>}
 
       {job?.status === 'completed' && document && (
         <>
@@ -1150,7 +1151,7 @@ export function AiLyricExtractor({
           </div>
 
           {(providerWarnings.length > 0) && (
-            <NoticeCard tone="warning" role="status">
+            <NoticeCard tone="warning" role="status" title="Provider review warnings">
               {providerWarnings.slice(0, 4).map(warning => <div key={warning}>Review warning: {providerWarningLabel(warning)}</div>)}
             </NoticeCard>
           )}

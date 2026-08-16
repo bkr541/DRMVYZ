@@ -1064,7 +1064,7 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                   </span>
                 </div>
                 {model.warnings.length > 0 && (
-                  <NoticeCard className="ttv-warning-banner" tone="warning" role="status">{model.warnings.slice(0, 3).join(' ')}</NoticeCard>
+                  <NoticeCard className="ttv-warning-banner" tone="warning" role="status" title="Analysis warnings">{model.warnings.slice(0, 3).join(' ')}</NoticeCard>
                 )}
                 <MusicIntelligenceDiagnosticsPanel />
               </div>

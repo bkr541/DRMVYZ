@@ -299,6 +299,16 @@ describe('snapBoundaryTime', () => {
     expect(snapBoundaryTime(1.14, grid, 'beat')).toBeCloseTo(1)
   })
 
+  it('allows true track start when the detected beat grid begins after 0.000', () => {
+    const offsetGrid: BeatMarkerMI[] = [
+      { timeSec: 0.5, confidence: 1, isDownbeat: true, beatIndex: 0, beatWithinBar: 0, barIndex: 0 },
+      { timeSec: 1.0, confidence: 1, isDownbeat: false, beatIndex: 1, beatWithinBar: 1, barIndex: 0 },
+    ]
+    expect(snapBoundaryTime(0, offsetGrid, 'beat')).toBe(0)
+    expect(snapBoundaryTime(0.1, offsetGrid, 'bar')).toBe(0)
+    expect(snapBoundaryTime(0.48, offsetGrid, 'beat')).toBeCloseTo(0.5)
+  })
+
   it('snaps to the nearest downbeat', () => {
     expect(snapBoundaryTime(2.31, grid, 'downbeat')).toBeCloseTo(2)
   })

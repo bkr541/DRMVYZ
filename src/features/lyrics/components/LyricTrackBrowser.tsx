@@ -160,7 +160,7 @@ export function LyricTrackBrowser({
       </div>
 
       {error && (
-        <NoticeCard tone="error" role="alert">
+        <NoticeCard tone="error" role="alert" title="Track browser error">
           {error}{' '}
           <IconChipButton onClick={onRetry}>Retry</IconChipButton>
         </NoticeCard>

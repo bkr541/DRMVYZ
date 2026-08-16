@@ -119,9 +119,9 @@ export function MediaPreviewModal({
 
         <div className={`mpm-media-area${hasAlpha ? ' mpm-media-area--transparent' : ''}`}>
           {!src ? (
-            <NoticeCard className="mpm-error" tone="error" role="status">{recovering ? 'Refreshing media link…' : 'Media file unavailable'}</NoticeCard>
+            <NoticeCard className="mpm-error" tone="error" role="status" title="Media unavailable">{recovering ? 'Refreshing media link…' : 'Media file unavailable'}</NoticeCard>
           ) : isVideo && videoError ? (
-            <NoticeCard className="mpm-error" tone="error" role="alert">
+            <NoticeCard className="mpm-error" tone="error" role="alert" title="Video unavailable">
               {recovering ? 'Refreshing media link…' : 'Video could not be loaded'}{' '}
               {!recovering && <IconChipButton onClick={() => { void recoverAsset('original') }}>Retry</IconChipButton>}
             </NoticeCard>
@@ -148,7 +148,7 @@ export function MediaPreviewModal({
               playsInline
             />
           ) : imageError ? (
-            <NoticeCard className="mpm-error" tone="error" role="alert">
+            <NoticeCard className="mpm-error" tone="error" role="alert" title="Image unavailable">
               {recovering ? 'Refreshing media link…' : 'Image could not be loaded'}{' '}
               {!recovering && <IconChipButton onClick={() => { void recoverAsset('original') }}>Retry</IconChipButton>}
             </NoticeCard>

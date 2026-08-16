@@ -1959,6 +1959,7 @@ export function LyricManagerView({
           className="lmv-status-bar"
           tone={error ? 'error' : 'info'}
           role={error ? 'alert' : 'status'}
+          title={error ? 'Lyric Manager error' : 'Lyric Manager status'}
           onDismiss={error ? () => setError(null) : undefined}
           dismissLabel="Dismiss lyric manager error"
         >

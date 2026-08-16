@@ -483,7 +483,7 @@ export function CinematicWorldsFxControls() {
           ]}
           description="Changes geometry density, particles, ray-march steps, atmospheric layers and feedback resolution."
         />
-        {!ultraSupported && config.qualityTier === 'ultra' && <NoticeCard tone="warning" role="status">This project requests Ultra, but this device does not meet the safe WebGL2 and CPU threshold. Choose Auto to avoid overload.</NoticeCard>}
+        {!ultraSupported && config.qualityTier === 'ultra' && <NoticeCard tone="warning" role="status" title="Ultra quality unavailable">This project requests Ultra, but this device does not meet the safe WebGL2 and CPU threshold. Choose Auto to avoid overload.</NoticeCard>}
       </Collapsible>
 
       {config.worldMode === 'reactiveConstellation' && uiMode === 'simple' && <ReactiveConstellationMacroControls config={config} onChange={save} />}

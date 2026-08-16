@@ -1402,7 +1402,9 @@ button.sm-library-subsection-toggle {
 .sm-canvas-dialog-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  /* Confirmation dialogs can be launched from the Open Show browser (z-index 1100).
+     Keep the confirmation layer above every Show Manager browser/modal surface. */
+  z-index: 1200;
   display: grid;
   place-items: center;
   background: rgba(0, 0, 0, 0.72);

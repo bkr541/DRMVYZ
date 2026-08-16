@@ -320,7 +320,7 @@ export function LyricCueInspector({
       </div>
 
       {issues.length > 0 && (
-        <NoticeCard tone="warning" role="status" ariaLabel={`${issues.length} cue warnings`}>
+        <NoticeCard tone="warning" role="status" ariaLabel={`${issues.length} cue warnings`} title="Cue warnings">
           {issues.map((issue, index) => <div key={`${issue.code}-${issue.relatedCueId ?? issue.wordId ?? index}`}>{issue.message}</div>)}
         </NoticeCard>
       )}

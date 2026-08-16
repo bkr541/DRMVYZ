@@ -5,12 +5,13 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSP
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../../audio/savedTrackLoader'
 import { setShowManagerLinkedAudioTrackId } from '../../../audio/audioSourcePolicy'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
-import { resolvePositiveDuration, type TimelineViewport } from '../../../features/timeline/timelineViewport'
+import { computeViewportRangeLayout, computeWaveformViewport, resolvePositiveDuration, type TimelineViewport } from '../../../features/timeline/timelineViewport'
 import { adaptMIAnalysis } from '../../../features/trackIntelligence/trackMapAdapter'
 import { navigateBoundaryAlternative, snapBoundaryTime, type SectionBoundarySnapMode } from '../../../features/trackIntelligence/sectionBoundaryDrag'
 import type { BeatMarkerMI, BoundaryAlternative } from '../../../features/musicIntelligence/types'
 import { useReactStore } from '../../../stores/reactStore'
 import { useAudioStore, type SavedAudioTrack } from '../../../stores/audioStore'
+import { useVisualStore } from '../../../stores/visualStore'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { ContextActionMenu } from '../context-menu/ContextActionMenu'
@@ -505,11 +506,13 @@ function formatClock(value: number): string {
 function ShowManagerSectionStrip({
   sections,
   durationSec,
+  viewport,
   selectedSectionId = null,
   onSelect,
 }: {
   sections: readonly ShowManagerSectionSegment[]
   durationSec: number
+  viewport: TimelineViewport
   selectedSectionId?: string | null
   onSelect?: (sectionId: string) => void
 }) {
@@ -519,6 +522,7 @@ function ShowManagerSectionStrip({
       {sections.map(section => {
         const startSec = Math.max(0, Math.min(safeDuration, section.startSec))
         const endSec = Math.max(startSec, Math.min(safeDuration, section.endSec))
+        const layout = computeViewportRangeLayout({ startSec, endSec }, viewport)
         const isSelected = section.id === selectedSectionId
         const selectSection = () => onSelect?.(section.id)
         return (
@@ -530,8 +534,9 @@ function ShowManagerSectionStrip({
             className={`rv-section-region${isSelected ? ' rv-section-region--selected' : ''}`}
             title={`${section.label} · ${formatClock(startSec)}–${formatClock(endSec)}`}
             style={{
-              left: `${(startSec / safeDuration) * 100}%`,
-              width: `${((endSec - startSec) / safeDuration) * 100}%`,
+              display: layout.visible ? undefined : 'none',
+              left: `${layout.leftPct}%`,
+              width: `${layout.widthPct}%`,
               '--section-color': SHOW_MANAGER_SECTION_COLORS[section.type] ?? SHOW_MANAGER_SECTION_COLORS.unknown,
             } as CSSProperties}
           >
@@ -952,6 +957,7 @@ export function ShowManagerView() {
   const savedAudioTracks = useAudioStore(state => state.savedTracks)
   const loadSavedAudioTracks = useAudioStore(state => state.loadSavedTracks)
   const getSavedAudioSignedUrl = useAudioStore(state => state.getSignedUrl)
+  const waveformZoom = useVisualStore(state => state.waveformZoom)
   const [showManagerSessionReady, setShowManagerSessionReady] = useState(false)
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
   const [selectedShowManagerSectionId, setSelectedShowManagerSectionId] = useState<string | null>(null)
@@ -1115,13 +1121,6 @@ export function ShowManagerView() {
     () => activeShowManagerShow?.trackMap?.durationSec ?? Math.max(1, ...(activeLaserDmxShow?.sections.map(section => section.endSec) ?? [1])),
     [activeLaserDmxShow, activeShowManagerShow?.trackMap?.durationSec],
   )
-  const laserTimelineViewport = useMemo<TimelineViewport>(
-    () => ({ startSec: 0, endSec: laserTimelineDuration }),
-    [laserTimelineDuration],
-  )
-  const laserTimelineViewportRef = useRef<TimelineViewport>(laserTimelineViewport)
-  laserTimelineViewportRef.current = laserTimelineViewport
-
   useEffect(() => {
     resetShowManagerSession()
     setPreviewPresetId(null)
@@ -1408,6 +1407,20 @@ export function ShowManagerView() {
       Math.max(showRuntimeAudioReady ? engine.duration : 0, (showRuntimeAnalysis?.durationMs ?? 0) / 1000),
       1,
     )
+  const timelineViewport = useMemo<TimelineViewport>(
+    () => computeWaveformViewport(durationSec, showRuntimeCurrentTime, waveformZoom),
+    [durationSec, showRuntimeCurrentTime, waveformZoom],
+  )
+  const laserTimelineViewport = useMemo<TimelineViewport>(
+    () => computeWaveformViewport(laserTimelineDuration, showRuntimeCurrentTime, waveformZoom),
+    [laserTimelineDuration, showRuntimeCurrentTime, waveformZoom],
+  )
+  const laserTimelineViewportRef = useRef<TimelineViewport>(laserTimelineViewport)
+  laserTimelineViewportRef.current = laserTimelineViewport
+  const canvasTimelineViewport = useMemo<TimelineViewport>(
+    () => computeWaveformViewport(resolvePositiveDuration(canvasTotalDuration, 1), showRuntimeCurrentTime, waveformZoom),
+    [canvasTotalDuration, showRuntimeCurrentTime, waveformZoom],
+  )
   const activeLaserTrackSection = selectedShowManagerSection
   const showTrackMapStatusMessage = linkedAudioLoadError
     ?? (engine.currentAudioTrackId === activeShowManagerShow?.linkedAudioTrackId && engine.currentAnalysisStatus === 'failed'
@@ -1429,7 +1442,6 @@ export function ShowManagerView() {
       downbeats: beatGrid.filter(marker => marker.isDownbeat),
     }
   }, [showRuntimeAnalysis, showRuntimeBeatGrid, showRuntimeBpm])
-  const playheadPercent = Math.min(100, Math.max(0, (showRuntimeCurrentTime / durationSec) * 100))
   const sceneLabels = displayedPixGridState.scenes.slice(0, SECTION_SEGMENTS.length).map(scene => scene.name)
   const matrixLabel = `${displayedPixGridState.matrixWidth}×${displayedPixGridState.matrixHeight}`
   const activeDeck = activePreset?.pixGridDeck
@@ -2567,7 +2579,7 @@ export function ShowManagerView() {
               </div>
             )}
             {(activeSectionEngineId === 'canvas' || selectedEngineId === 'canvas') && canvasAuthoringError && (
-              <NoticeCard className="sm-stage-authoring-feedback" tone="error" role="alert">{canvasAuthoringError}</NoticeCard>
+              <NoticeCard className="sm-stage-authoring-feedback" tone="error" role="alert" title="Canvas authoring failed">{canvasAuthoringError}</NoticeCard>
             )}
             <div className="sm-stage-status">
               {activeSectionEngineId === 'laserDmx' && workspaceMode === 'default' ? (
@@ -2637,6 +2649,7 @@ export function ShowManagerView() {
               mediaItems={sharedMediaItems}
               sectionRanges={canvasSectionRanges}
               totalDurationSec={canvasTotalDuration}
+              viewport={canvasTimelineViewport}
               playheadSec={canvasPlayheadSec}
               onSelect={selectShowManagerSectionForEditing}
               onSelectElement={selectCanvasShowManagerMediaElement}
@@ -2646,7 +2659,7 @@ export function ShowManagerView() {
             <ShowManagerTimeline
               currentTime={showRuntimeCurrentTime}
               duration={durationSec}
-              playheadPercent={playheadPercent}
+              viewport={timelineViewport}
               sections={resolvedTrackSections}
               sceneLabels={sceneLabels}
               beatGrid={showRuntimeBeatGrid ?? undefined}
@@ -3399,6 +3412,7 @@ function CanvasShowManagerTimeline({
   mediaItems,
   sectionRanges,
   totalDurationSec,
+  viewport,
   playheadSec,
   onSelect,
   onSelectElement,
@@ -3410,6 +3424,7 @@ function CanvasShowManagerTimeline({
   mediaItems: readonly UploadedMedia[]
   sectionRanges: readonly CanvasShowManagerSectionRange[]
   totalDurationSec: number
+  viewport: TimelineViewport
   playheadSec: number
   onSelect: (sectionId: string | null) => void
   onSelectElement: (elementId: string | null) => void
@@ -3424,6 +3439,9 @@ function CanvasShowManagerTimeline({
       endSec: sectionRanges[index]?.endSec ?? section.durationSec,
     })) ?? []
   ), [sectionRanges, show])
+  const viewportDurationSec = Math.max(0.001, viewport.endSec - viewport.startSec)
+  const playheadVisible = playheadSec >= viewport.startSec && playheadSec <= viewport.endSec
+  const playheadLeftPct = ((playheadSec - viewport.startSec) / viewportDurationSec) * 100
   const beginPointerCueEdit = (
     event: ReactPointerEvent<HTMLButtonElement>,
     element: CanvasShowManagerMediaElement,
@@ -3437,7 +3455,7 @@ function CanvasShowManagerTimeline({
     const originX = event.clientX
     const finish = (pointerEvent: PointerEvent) => {
       window.removeEventListener('pointerup', finish)
-      const deltaSec = ((pointerEvent.clientX - originX) / width) * totalDurationSec
+      const deltaSec = ((pointerEvent.clientX - originX) / width) * viewportDurationSec
       if (edge === 'start') {
         onPatchElement(element.id, { showStartSec: Math.max(0, Math.min(element.showEndSec - 0.001, element.showStartSec + deltaSec)) })
       } else {
@@ -3467,14 +3485,17 @@ function CanvasShowManagerTimeline({
         <>
           <div className="sm-timeline-grid sm-canvas-section-map">
             <div className="sm-timeline-ruler">
-              {[0, ...sectionRanges.map(range => range.endSec)].map((timeSec, index) => (
-                <span key={`${timeSec}:${index}`}>{formatClock(timeSec)}</span>
-              ))}
+              {Array.from({ length: 7 }, (_, index) => {
+                const ratio = index / 6
+                const timeSec = viewport.startSec + viewportDurationSec * ratio
+                return <span key={index}>{formatClock(timeSec)}</span>
+              })}
             </div>
             <TimelineRow label="Section" className="sm-timeline-row--sections">
               <ShowManagerSectionStrip
                 sections={canvasTimelineSections}
                 durationSec={totalDurationSec}
+                viewport={viewport}
                 selectedSectionId={selectedSectionId}
                 onSelect={onSelect}
               />
@@ -3486,11 +3507,17 @@ function CanvasShowManagerTimeline({
                 <div className="sm-canvas-media-lane" key={layer}>
                   <span className="sm-canvas-media-lane__label">L{layer + 1}</span>
                   <div className="sm-canvas-media-lane__track">
-                    <span className="sm-canvas-playhead" style={{ left: `${totalDurationSec > 0 ? (playheadSec / totalDurationSec) * 100 : 0}%` }} aria-hidden="true" />
+                    <span
+                      className="sm-canvas-playhead"
+                      style={{ display: playheadVisible ? undefined : 'none', left: `${playheadLeftPct}%` }}
+                      aria-hidden="true"
+                    />
                     {show.mediaElements.filter(element => element.layer === layer).map(element => {
                       const media = mediaItems.find(candidate => candidate.id === element.mediaId) ?? null
-                      const left = totalDurationSec > 0 ? (element.showStartSec / totalDurationSec) * 100 : 0
-                      const width = totalDurationSec > 0 ? ((element.showEndSec - element.showStartSec) / totalDurationSec) * 100 : 0
+                      const layout = computeViewportRangeLayout(
+                        { startSec: element.showStartSec, endSec: element.showEndSec },
+                        viewport,
+                      )
                       const handleKey = (edge: 'start' | 'end', event: ReactKeyboardEvent<HTMLButtonElement>) => {
                         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
                         event.preventDefault()
@@ -3500,13 +3527,31 @@ function CanvasShowManagerTimeline({
                         <div
                           key={element.id}
                           className={`sm-canvas-media-clip${element.id === selectedElementId ? ' is-selected' : ''}${media ? '' : ' is-missing'}`}
-                          style={{ left: `${left}%`, width: `${width}%` }}
+                          style={{
+                            display: layout.visible ? undefined : 'none',
+                            left: `${layout.leftPct}%`,
+                            width: `${layout.widthPct}%`,
+                          }}
                         >
-                          <button className="sm-canvas-clip-handle is-start" type="button" aria-label={`Adjust start cue for ${media?.name ?? 'missing media'}`} onPointerDown={event => beginPointerCueEdit(event, element, 'start')} onKeyDown={event => handleKey('start', event)} />
+                          <button
+                            className="sm-canvas-clip-handle is-start"
+                            type="button"
+                            style={{ display: layout.startEdgeVisible ? undefined : 'none' }}
+                            aria-label={`Adjust start cue for ${media?.name ?? 'missing media'}`}
+                            onPointerDown={event => beginPointerCueEdit(event, element, 'start')}
+                            onKeyDown={event => handleKey('start', event)}
+                          />
                           <button className="sm-canvas-media-clip__body" type="button" onClick={() => onSelectElement(element.id)} title={`${media?.name ?? 'Missing media'} · ${element.showStartSec.toFixed(2)}–${element.showEndSec.toFixed(2)}s`}>
                             {media?.title?.trim() || media?.name || 'Unavailable'}
                           </button>
-                          <button className="sm-canvas-clip-handle is-end" type="button" aria-label={`Adjust end cue for ${media?.name ?? 'missing media'}`} onPointerDown={event => beginPointerCueEdit(event, element, 'end')} onKeyDown={event => handleKey('end', event)} />
+                          <button
+                            className="sm-canvas-clip-handle is-end"
+                            type="button"
+                            style={{ display: layout.endEdgeVisible ? undefined : 'none' }}
+                            aria-label={`Adjust end cue for ${media?.name ?? 'missing media'}`}
+                            onPointerDown={event => beginPointerCueEdit(event, element, 'end')}
+                            onKeyDown={event => handleKey('end', event)}
+                          />
                         </div>
                       )
                     })}
@@ -4201,9 +4246,11 @@ function LaserDmxShowManagerTimeline({
       </header>
       <div className="sm-timeline-grid">
         <div className="sm-timeline-ruler">
-          {Array.from({ length: 8 }, (_, index) => (
-            <span key={index}>{index}</span>
-          ))}
+          {Array.from({ length: 8 }, (_, index) => {
+            const ratio = index / 7
+            const timeSec = viewport.startSec + (viewport.endSec - viewport.startSec) * ratio
+            return <span key={index}>{formatClock(timeSec)}</span>
+          })}
         </div>
         <TimelineRow label="Section" className="sm-timeline-row--sections">
           {sections.length > 0 ? (
@@ -4282,7 +4329,7 @@ function LibrarySection({
 function ShowManagerTimeline({
   currentTime,
   duration,
-  playheadPercent,
+  viewport,
   sections,
   sceneLabels,
   beatGrid,
@@ -4294,7 +4341,7 @@ function ShowManagerTimeline({
 }: {
   currentTime: number
   duration: number
-  playheadPercent: number
+  viewport: TimelineViewport
   sections: readonly ReactTrackSection[]
   sceneLabels: readonly string[]
   beatGrid?: BeatMarkerMI[]
@@ -4304,9 +4351,10 @@ function ShowManagerTimeline({
   onCommitBoundary: (sectionId: string, edge: 'start' | 'end', newTime: number, neighborId: string | null, neighborTime: number | null) => void
   statusMessage: string
 }) {
-  const viewport = useMemo<TimelineViewport>(() => ({ startSec: 0, endSec: duration }), [duration])
   const viewportRef = useRef<TimelineViewport>(viewport)
   viewportRef.current = viewport
+  const viewportDurationSec = Math.max(0.001, viewport.endSec - viewport.startSec)
+  const playheadPercent = Math.max(0, Math.min(100, ((currentTime - viewport.startSec) / viewportDurationSec) * 100))
   return (
     <section className="sm-timeline sm-pixgrid-timeline" aria-label="Show Manager track map preview">
       <header className="sm-timeline-tabs">
@@ -4315,9 +4363,11 @@ function ShowManagerTimeline({
       </header>
       <div className="sm-timeline-grid">
         <div className="sm-timeline-ruler">
-          {Array.from({ length: 7 }, (_, index) => (
-            <span key={index}>{formatClock((duration / 6) * index)}</span>
-          ))}
+          {Array.from({ length: 7 }, (_, index) => {
+            const ratio = index / 6
+            const timeSec = viewport.startSec + viewportDurationSec * ratio
+            return <span key={index}>{formatClock(timeSec)}</span>
+          })}
         </div>
         <TimelineRow label="Section" className="sm-timeline-row--sections">
           {sections.length > 0 ? (

@@ -2652,13 +2652,13 @@ export function CanvasEngineSurface({
         )}
         <div className="rv-canvas-visualizer-notice-stack" aria-label="CANVAS visualizer notices">
           {particleRendererNotice && particleReconstructionActive && (
-            <NoticeCard tone="warning" role="status">{particleRendererNotice}</NoticeCard>
+            <NoticeCard tone="warning" role="status" title="Particle renderer">{particleRendererNotice}</NoticeCard>
           )}
           {laserImageFxRendererNotice && laserImageFxActive && (
-            <NoticeCard tone="warning" role="status">{laserImageFxRendererNotice}</NoticeCard>
+            <NoticeCard tone="warning" role="status" title="Laser Image FX renderer">{laserImageFxRendererNotice}</NoticeCard>
           )}
           {fracturesRendererNotice && fragmentCollageActive && (
-            <NoticeCard tone="warning" role="status">{fracturesRendererNotice}</NoticeCard>
+            <NoticeCard tone="warning" role="status" title="Fractures renderer">{fracturesRendererNotice}</NoticeCard>
           )}
           <CanvasVisualizerOverrideNotices />
         </div>
@@ -3367,7 +3367,7 @@ function CanvasOrchestrationControls() {
         disabled={!settings.poolAutomationEnabled}
       />
       {settings.poolAutomationEnabled && !settings.activeMediaPoolId && (
-        <NoticeCard tone="warning" role="status">Activate a Media Pool to start automatic CANVAS rotation.</NoticeCard>
+        <NoticeCard tone="warning" role="status" title="No active Media Pool">Activate a Media Pool to start automatic CANVAS rotation.</NoticeCard>
       )}
       <div className="rv-canvas-orchestration-summary" role="status">
         <span>{poolItems.length} pooled source{poolItems.length === 1 ? '' : 's'}</span>
@@ -3377,7 +3377,7 @@ function CanvasOrchestrationControls() {
           : 'Fixed Fractures composition'}</span>
       </div>
       {autoPerformanceActive && poolItems.length === 0 && (
-        <NoticeCard tone="warning" role="status">Select media in the left SOURCE panel to build the performance pool.</NoticeCard>
+        <NoticeCard tone="warning" role="status" title="Performance pool is empty">Select media in the left SOURCE panel to build the performance pool.</NoticeCard>
       )}
       <CanvasHelpControl
         helpId="react.canvas.performanceOrchestration.performanceShow"
@@ -3538,7 +3538,7 @@ export function CanvasLayersPanel() {
     <section className="rv-cinema-panel-list" aria-label="Canvas layers">
       <div className="rv-cinema-panel-list__header"><strong>Layers</strong><span>{layers.length} / {MAX_CANVAS_AUTHORED_LAYERS}</span></div>
       <p className="rv-cinema-panel-list__hint">Top rows render above lower rows. Select a layer for Selection context, or drag a row to change stack order.</p>
-      {actionFeedback && <NoticeCard tone="error" role="status">{actionFeedback}</NoticeCard>}
+      {actionFeedback && <NoticeCard tone="error" role="status" title="Layer action failed">{actionFeedback}</NoticeCard>}
       <div className="rv-cinema-layer-tree">
         {layers.map((layer, index) => {
           const media = mediaItems.find(item => item.id === layer.mediaId) ?? null
@@ -4063,7 +4063,7 @@ function CanvasPresetControls() {
         {customized && <span className="rv-ctrl-description">Customized recipe active.</span>}
       </div>
       {canvasPresetSettings.particleDensity > 0.02 && !activeItem && (
-        <NoticeCard tone="warning" role="status">
+        <NoticeCard tone="warning" role="status" title="Active media required">
           Particles need an active CANVAS library media item before they can sample pixels and emit from the source.
         </NoticeCard>
       )}

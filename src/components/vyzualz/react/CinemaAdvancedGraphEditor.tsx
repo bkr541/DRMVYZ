@@ -409,7 +409,7 @@ function CinemaAdvancedGraphEditorSurface({ composition, definitions }: CinemaAd
       </div>
 
       {immutable && <NoticeCard tone="info" role="status" title="Reference graph">Built-in Cinema compositions are inspectable here but remain immutable. Duplicate one to edit its graph.</NoticeCard>}
-      {message && <NoticeCard tone="info" role="status">{message}</NoticeCard>}
+      {message && <NoticeCard tone="info" role="status" title="Graph update">{message}</NoticeCard>}
       {validation.diagnostics.diagnostics.length > 0 && (
         <NoticeCard
           tone="warning"

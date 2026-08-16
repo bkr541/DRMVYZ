@@ -877,7 +877,7 @@ function AnalysisPanel() {
             <span>{item.message}</span>
             <small>{item.path} · {item.remediation}</small>
           </div>)}
-          {!validation.issues.length && <NoticeCard tone="success" role="status">Smart groups, routes, fallbacks, performance program, and migration metadata are structurally valid.</NoticeCard>}
+          {!validation.issues.length && <NoticeCard tone="success" role="status" title="Configuration valid">Smart groups, routes, fallbacks, performance program, and migration metadata are structurally valid.</NoticeCard>}
         </div>
       </Collapsible>
       <Collapsible label="RUNTIME DIAGNOSTICS" defaultOpen={false}>

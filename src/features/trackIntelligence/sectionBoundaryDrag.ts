@@ -75,9 +75,9 @@ export function snapToNearestBeat(
   return nearest
 }
 
-function nearestMarkerTime(time: number, markers: BeatMarkerMI[]): number {
+function nearestMarkerTime(time: number, markers: BeatMarkerMI[], includeTrackStart = false): number {
   if (markers.length === 0) return time
-  let nearest = markers[0]!.timeSec
+  let nearest = includeTrackStart ? 0 : markers[0]!.timeSec
   let minimumDistance = Math.abs(time - nearest)
   for (const marker of markers) {
     const distance = Math.abs(time - marker.timeSec)
@@ -97,11 +97,15 @@ export function snapBoundaryTime(
   altKeyHeld = false,
 ): number {
   if (altKeyHeld || mode === 'free' || beatGrid.length === 0) return time
-  if (mode === 'beat') return nearestMarkerTime(time, beatGrid)
+  // Track start is a valid authored boundary even when the first detected musical
+  // beat occurs later because of silence, ambience, or a pickup. Including 0.000
+  // as a snap candidate lets the first Show Manager section return to true track
+  // start without corrupting the detected beat-grid offset.
+  if (mode === 'beat') return nearestMarkerTime(time, beatGrid, true)
   const downbeats = beatGrid.filter(marker => marker.isDownbeat)
-  if (mode === 'downbeat' || mode === 'bar') return nearestMarkerTime(time, downbeats)
+  if (mode === 'downbeat' || mode === 'bar') return nearestMarkerTime(time, downbeats, true)
   const fourBarMarkers = downbeats.filter((marker, index) => (marker.barIndex ?? index) % 4 === 0)
-  return nearestMarkerTime(time, fourBarMarkers.length > 0 ? fourBarMarkers : downbeats)
+  return nearestMarkerTime(time, fourBarMarkers.length > 0 ? fourBarMarkers : downbeats, true)
 }
 
 export function navigateBoundaryAlternative(

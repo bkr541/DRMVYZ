@@ -80,13 +80,13 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
   }, [lastRestored, clearRestored])
 
   if (loading) return (
-    <NoticeCard tone="info" role="status">
+    <NoticeCard tone="info" role="status" title="Media library refresh">
       Reloading media library…
     </NoticeCard>
   )
 
   if (!storageAvailable) return (
-    <NoticeCard tone="warning" role="status">
+    <NoticeCard tone="warning" role="status" title="Cloud storage unavailable">
       Storage not configured — files are local only
     </NoticeCard>
   )
@@ -95,6 +95,7 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
     <NoticeCard
       tone={mutationFailure.status === 'conflict' ? 'warning' : 'error'}
       role="alert"
+      title={`${operationLabels[mutationFailure.operation]} needs attention`}
       onDismiss={() => clearMediaMutation(mutationFailure.itemId, mutationFailure.operation)}
     >
       {operationLabels[mutationFailure.operation]}: {mutationFailure.message}{' '}
@@ -113,6 +114,7 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
     <NoticeCard
       tone={reorderFailure.status === 'conflict' ? 'warning' : 'error'}
       role="alert"
+      title="Collection order needs attention"
       onDismiss={() => clearCollectionReorderError(reorderFailure.collectionId)}
     >
       Collection order: {reorderFailure.message}{' '}
@@ -121,14 +123,14 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
   )
 
   if (uploadCleanupState) return (
-    <NoticeCard tone={uploadCleanupState.status === 'failed' ? 'error' : 'warning'} role="alert">
+    <NoticeCard tone={uploadCleanupState.status === 'failed' ? 'error' : 'warning'} role="alert" title="Upload cleanup needs attention">
       Failed upload cleanup: {uploadCleanupState.message ?? `${uploadCleanupState.completedPaths.length}/${uploadCleanupState.storagePaths.length} objects removed.`}{' '}
       <IconChipButton className="vz-media-status-action" onClick={() => { void retryUploadCleanup(uploadCleanupState.jobId) }}>Retry cleanup</IconChipButton>
     </NoticeCard>
   )
 
   if (deletionState) return (
-    <NoticeCard tone={deletionState.status === 'failed' ? 'error' : 'info'} role="status">
+    <NoticeCard tone={deletionState.status === 'failed' ? 'error' : 'info'} role="status" title="Media deletion">
       {deletionState.status === 'failed'
         ? `Media deletion cleanup needs attention: ${deletionState.message ?? 'Retry the remaining storage objects.'}`
         : `Deleting media safely (${deletionState.completedPaths.length}/${deletionState.storagePaths.length} objects)…`}
@@ -139,31 +141,31 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
   )
 
   if (deleteError) return (
-    <NoticeCard tone="error" role="alert" onDismiss={clearDeleteError}>
+    <NoticeCard tone="error" role="alert" title="Delete failed" onDismiss={clearDeleteError}>
       Delete failed: {deleteError}
     </NoticeCard>
   )
 
   if (includeAudio && audioError) return (
-    <NoticeCard tone="error" role="alert" onDismiss={clearAudioError}>
+    <NoticeCard tone="error" role="alert" title="Audio library error" onDismiss={clearAudioError}>
       {audioError}
     </NoticeCard>
   )
 
   if (loadError) return (
-    <NoticeCard tone="error" role="alert" onDismiss={clearLoadError}>
+    <NoticeCard tone="error" role="alert" title="Media library error" onDismiss={clearLoadError}>
       {loadError}
     </NoticeCard>
   )
 
   if (authRequired) return (
-    <NoticeCard tone="info" role="status">
+    <NoticeCard tone="info" role="status" title="Cloud sync unavailable">
       Sign in to sync media to cloud
     </NoticeCard>
   )
 
   if (lastRestored !== null && lastRestored > 0) return (
-    <NoticeCard tone="success" role="status">
+    <NoticeCard tone="success" role="status" title="Media restored">
       Restored {lastRestored} media item{lastRestored !== 1 ? 's' : ''}
     </NoticeCard>
   )

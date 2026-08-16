@@ -189,6 +189,7 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
             className="lmv-parse-status"
             tone={statusVariant === 'ok' ? 'success' : statusVariant === 'warn' ? 'warning' : 'error'}
             role="status"
+            title={statusVariant === 'ok' ? 'Import ready' : statusVariant === 'warn' ? 'Import needs review' : 'Import failed'}
           >
             {statusMsg}
             {parseSource === 'file' && fileName && (
@@ -254,12 +255,12 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
           )}
 
           {result.errors.length > 0 && (
-            <NoticeCard tone="error" role="alert">
+            <NoticeCard tone="error" role="alert" title="Import errors">
               {result.errors.map((e, i) => <div key={i}>{e}</div>)}
             </NoticeCard>
           )}
           {result.warnings.length > 0 && (
-            <NoticeCard tone="warning" role="status">
+            <NoticeCard tone="warning" role="status" title="Import warnings">
               {result.warnings.map((w, i) => <div key={i}>{w}</div>)}
             </NoticeCard>
           )}

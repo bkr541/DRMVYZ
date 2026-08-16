@@ -122,7 +122,7 @@ function TextureInputRow({ input, selection, valid, onSelectionChange }: RowProp
       </DropdownSelect>
 
       {warning && (
-        <NoticeCard tone="warning" role="alert">{warning}</NoticeCard>
+        <NoticeCard tone="warning" role="alert" title="Texture input unavailable">{warning}</NoticeCard>
       )}
     </div>
   )

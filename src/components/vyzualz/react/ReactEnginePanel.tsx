@@ -787,7 +787,7 @@ export function ReactEnginePanel({
           <CtrlSection label="Engine Mode" />
 
           {glyphLostNotice && (
-            <NoticeCard tone="warning" onDismiss={clearGlyphLostNotice}>
+            <NoticeCard tone="warning" title="Source media unavailable" onDismiss={clearGlyphLostNotice}>
               <strong>"{glyphLostNotice}"</strong> was removed from your library. Select a new source below.
             </NoticeCard>
           )}

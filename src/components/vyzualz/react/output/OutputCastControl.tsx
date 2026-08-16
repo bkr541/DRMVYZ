@@ -891,12 +891,12 @@ function OutputCastPopover({
             )}
 
             {!bridge && (
-              <NoticeCard tone="info" role="status">Casting is available in the DRMVYZ desktop app. Browser builds keep the visualizer local.</NoticeCard>
+              <NoticeCard tone="info" role="status" title="Desktop app required">Casting is available in the DRMVYZ desktop app. Browser builds keep the visualizer local.</NoticeCard>
             )}
             {bridge && !canvasReady && (
-              <NoticeCard tone="info" role="status">The active engine is still preparing its live output canvas.</NoticeCard>
+              <NoticeCard tone="info" role="status" title="Output canvas preparing">The active engine is still preparing its live output canvas.</NoticeCard>
             )}
-            {error && <NoticeCard tone="error" role="alert">{error}</NoticeCard>}
+            {error && <NoticeCard tone="error" role="alert" title="Casting error">{error}</NoticeCard>}
             {providerIssues.map(status => (
               <NoticeCard key={status.providerId} tone="warning" role="status" title={status.label}>
                 {status.message ?? 'This output provider is currently unavailable.'}

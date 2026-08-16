@@ -1272,7 +1272,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           renderCollectionsView()
         ) : queryError && filtered.length === 0 ? (
           <div className="vz-media-page-error">
-            <NoticeCard tone="error" role="alert">
+            <NoticeCard tone="error" role="alert" title="Media library unavailable">
               {queryError}{' '}
               <IconChipButton onClick={() => { void refreshLibrary?.() }}>Retry</IconChipButton>
             </NoticeCard>
