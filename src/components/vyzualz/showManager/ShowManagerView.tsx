@@ -2647,6 +2647,7 @@ export function ShowManagerView() {
             />
           ) : activeSectionEngineId === 'laserDmx' ? (
             <LaserDmxShowManagerTimeline
+              currentTime={showRuntimeCurrentTime}
               sections={resolvedTrackSections}
               selectedSectionId={selectedShowManagerSection?.id ?? null}
               durationSec={laserTimelineDuration}
@@ -4424,6 +4425,7 @@ function LaserDmxShowManagerStage({
 }
 
 function LaserDmxShowManagerTimeline({
+  currentTime,
   sections,
   selectedSectionId,
   durationSec,
@@ -4436,6 +4438,7 @@ function LaserDmxShowManagerTimeline({
   onRemove,
   onCommitBoundary,
 }: {
+  currentTime: number
   sections: ReactTrackSection[]
   selectedSectionId: string | null
   durationSec: number
@@ -4454,6 +4457,8 @@ function LaserDmxShowManagerTimeline({
     neighborTime: number | null,
   ) => void
 }) {
+  const viewportDurationSec = Math.max(0.001, viewport.endSec - viewport.startSec)
+  const playheadPercent = Math.max(0, Math.min(100, ((currentTime - viewport.startSec) / viewportDurationSec) * 100))
   return (
     <section className="sm-timeline sm-laser-timeline" aria-label="Show Manager LaserDMX section timeline">
       <header className="sm-timeline-tabs">
@@ -4485,6 +4490,9 @@ function LaserDmxShowManagerTimeline({
           )}
         </TimelineRow>
         <ShowManagerTimeRow viewport={viewport} divisions={7} />
+        <div className="sm-playhead" style={{ left: `calc(${playheadPercent}% + ${76 * (1 - playheadPercent / 100)}px)` }}>
+          <span>{formatClock(currentTime)}</span>
+        </div>
       </div>
     </section>
   )
