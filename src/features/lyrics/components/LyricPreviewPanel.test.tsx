@@ -33,11 +33,7 @@ describe('LyricPreviewPanel', () => {
       <LyricPreviewPanel
         cues={[cue]}
         document={null}
-        selectedCue={cue}
-        currentAudioTimeMs={2_000}
-        isPlaying
         onNavigateToIssue={navigate}
-        onPreviewInVisualizer={vi.fn()}
       />,
     ))
 

@@ -34,12 +34,11 @@ import { LyricDocumentSidebar } from './components/LyricDocumentSidebar'
 import { ManualLyricEditor } from './components/ManualLyricEditor'
 import { JsonLyricImporter } from './components/JsonLyricImporter'
 import { AiLyricExtractor } from './components/AiLyricExtractor'
-import { LyricPreviewPanel } from './components/LyricPreviewPanel'
+import { LyricLivePreviewPanel, LyricPreviewPanel } from './components/LyricPreviewPanel'
 import { UnsavedLyricChangesDialog } from './components/UnsavedLyricChangesDialog'
 import { ConfirmLyricDeleteDialog } from './components/ConfirmLyricDeleteDialog'
 import { ConfirmLyricActivationDialog } from './components/ConfirmLyricActivationDialog'
 import { ConfirmTrackDeleteDialog } from './components/ConfirmTrackDeleteDialog'
-import { LyricSignalPathStatus } from './components/LyricSignalPathStatus'
 import { LyricWorkflowStatus } from './components/LyricWorkflowStatus'
 import { LyricRecoveryDialog } from './components/LyricRecoveryDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
@@ -210,6 +209,7 @@ function SelectedTrackHero({
   loading,
   onLoadTrack,
   onTogglePlayback,
+  compact = false,
 }: {
   track: LyricManagerTrack | null
   openVersionTitle: string | null
@@ -219,10 +219,11 @@ function SelectedTrackHero({
   loading: boolean
   onLoadTrack: () => void
   onTogglePlayback: () => void
+  compact?: boolean
 }) {
   if (!track) {
     return (
-      <section className="lmv-track-hero lmv-track-hero--empty" aria-label="Selected track">
+      <section className={`lmv-track-hero lmv-track-hero--empty${compact ? ' lmv-track-hero--rail' : ''}`} aria-label="Selected track">
         <div className="lmv-track-art lmv-track-art--empty">♪</div>
         <div className="lmv-track-hero-main">
           <span className="lmv-kicker">No track selected</span>
@@ -234,7 +235,7 @@ function SelectedTrackHero({
   }
 
   return (
-    <section className="lmv-track-hero" aria-label="Selected track">
+    <section className={`lmv-track-hero${compact ? ' lmv-track-hero--rail' : ''}`} aria-label="Selected track">
       <div className="lmv-track-art" aria-hidden="true">
         <span>{trackInitials(track)}</span>
       </div>
@@ -404,7 +405,6 @@ export function LyricManagerView({
     markEditorDirty,
     preserveDraftForNextEditorExit,
     restoreRecoveredLyricDraft,
-    runtimeLyricsStatus,
     runtimeAudioTrackId,
     runtimeActiveDocumentId,
   } = useLyricsStore()
@@ -1840,7 +1840,6 @@ export function LyricManagerView({
       : null,
     [engine, selectedTrackLoaded],
   )
-  const deckHasPersistedIdentity = engine.currentTrack !== null && engine.currentAudioTrackId !== null
   const selectedCue = storeCues.find((cue) => cue.id === selectedCueId) ?? null
   const runtimeTrackId = selectedTrackLoaded ? engine.currentTrackId : null
   const runtimeTrackUrl = selectedTrackLoaded ? (engine.currentTrack?.url ?? null) : null
@@ -2031,17 +2030,15 @@ export function LyricManagerView({
         </WorkspaceRail>
 
         <main className="lmv-center" aria-label="Lyric editing workspace">
-          <SelectedTrackHero
-            track={selectedTrack}
-            openVersionTitle={editorDocument?.title ?? null}
-            activeVersionTitle={activeVersionForSelectedTrack?.title ?? null}
-            selectedTrackLoaded={selectedTrackLoaded}
-            selectedTrackPlaying={selectedTrackPlaying}
-            loading={selectedTrack ? audioPreviewStates[selectedTrack.dbId]?.status === 'loading' : false}
-            onLoadTrack={() => {
-              void handleLoadSelectedTrack()
-            }}
-            onTogglePlayback={handleTogglePlayback}
+          <LyricLivePreviewPanel
+            cues={storeCues}
+            document={editorDocument}
+            selectedCue={selectedCue}
+            currentAudioTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
+            isPlaying={selectedTrackPlaying}
+            globalOffsetMs={globalOffsetMs}
+            onPreviewInVisualizer={handlePreviewInPerformanceView}
+            previewDestination={returnView === 'react' ? 'React' : returnView === 'showManager' ? 'Show Manager' : 'Visualizer'}
           />
 
           {engine.currentTrack && !engine.currentAudioTrackId && (
@@ -2055,17 +2052,6 @@ export function LyricManagerView({
               </IconChipButton>
             </section>
           )}
-
-          <LyricSignalPathStatus
-            selectedTrack={selectedTrack}
-            deckTrackPresent={engine.currentTrack !== null}
-            deckTrackLoaded={selectedTrackLoaded}
-            deckHasPersistedIdentity={deckHasPersistedIdentity}
-            activeVersion={activeVersionForSelectedTrack}
-            lyricsDisplayEnabled={lyricsDisplayEnabled}
-            runtimeStatus={runtimeLyricsStatus}
-            runtimeAudioTrackId={runtimeAudioTrackId}
-          />
 
           <UnderlineTabs
             tabs={TAB_LABELS.map(tab => {
@@ -2176,16 +2162,24 @@ export function LyricManagerView({
           onToggleCollapsed={() => setRightRailCollapsed(value => !value)}
           className="lmv-right-rail"
         >
+          <SelectedTrackHero
+            track={selectedTrack}
+            openVersionTitle={editorDocument?.title ?? null}
+            activeVersionTitle={activeVersionForSelectedTrack?.title ?? null}
+            selectedTrackLoaded={selectedTrackLoaded}
+            selectedTrackPlaying={selectedTrackPlaying}
+            loading={selectedTrack ? audioPreviewStates[selectedTrack.dbId]?.status === 'loading' : false}
+            onLoadTrack={() => {
+              void handleLoadSelectedTrack()
+            }}
+            onTogglePlayback={handleTogglePlayback}
+            compact
+          />
+
           <LyricPreviewPanel
             cues={storeCues}
             document={editorDocument}
-            selectedCue={selectedCue}
-            currentAudioTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
-            isPlaying={selectedTrackPlaying}
-            globalOffsetMs={globalOffsetMs}
             onNavigateToIssue={handleNavigateToValidationIssue}
-            onPreviewInVisualizer={handlePreviewInPerformanceView}
-            previewDestination={returnView === 'react' ? 'React' : returnView === 'showManager' ? 'Show Manager' : 'Visualizer'}
             extractionConsole={
               <LyricWorkflowStatus
                 selectedTrack={selectedTrack}

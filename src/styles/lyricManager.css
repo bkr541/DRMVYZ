@@ -1913,6 +1913,20 @@
   gap: 7px;
 }
 
+.lmv-track-hero--rail {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.lmv-track-hero--rail .lmv-track-hero-stats {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.lmv-track-hero--rail .lmv-track-hero-actions {
+  grid-column: 1 / -1;
+  flex-direction: row;
+}
+
 .lmv-tab-bar {
   min-height: 36px;
   padding: 10px 8px;
@@ -2394,49 +2408,6 @@
   border-color: rgba(224,90,90,0.24);
   background: rgba(224,90,90,0.08);
   color: rgba(244,176,176,0.82);
-}
-
-.lmv-signal-path {
-  margin: 0 18px 12px;
-  padding: 10px 12px;
-  border: 1px solid rgba(126,218,232,0.14);
-  border-radius: 8px;
-  background: rgba(8,16,20,0.68);
-}
-
-.lmv-signal-path-summary {
-  margin-bottom: 8px;
-  color: rgba(126,218,232,0.88);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-}
-
-.lmv-signal-path-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0;
-}
-
-.lmv-signal-path-grid div { min-width: 0; }
-.lmv-signal-path-grid dt {
-  color: rgba(196,207,211,0.46);
-  font-size: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.lmv-signal-path-grid dd {
-  margin: 3px 0 0;
-  overflow: hidden;
-  color: rgba(232,244,248,0.8);
-  font-size: 9px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-@media (max-width: 1180px) {
-  .lmv-signal-path-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* Patch 2: explicit track identity and manual linking ---------------------- */

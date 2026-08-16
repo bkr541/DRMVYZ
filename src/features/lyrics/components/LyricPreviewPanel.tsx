@@ -14,14 +14,19 @@ import { toCanonicalLyricTimeMs, toEffectiveLyricTimeMs } from '../runtime/lyric
 interface Props {
   cues: LyricCue[]
   document: LyricDocument | null
+  onNavigateToIssue?: (issue: LyricValidationIssue) => void
+  extractionConsole?: ReactNode
+}
+
+interface LivePreviewProps {
+  cues: LyricCue[]
+  document: LyricDocument | null
   selectedCue: LyricCue | null
   currentAudioTimeMs?: number | null
   isPlaying?: boolean
   globalOffsetMs?: number
-  onNavigateToIssue?: (issue: LyricValidationIssue) => void
   onPreviewInVisualizer: () => void
   previewDestination?: 'React' | 'Visualizer' | 'Show Manager'
-  extractionConsole?: ReactNode
 }
 
 export function calculateLyricCueProgress(
@@ -141,25 +146,68 @@ function IssueList({
   )
 }
 
-export function LyricPreviewPanel({
+export function LyricLivePreviewPanel({
   cues,
   document,
   selectedCue,
   currentAudioTimeMs = null,
   isPlaying = false,
   globalOffsetMs = 0,
-  onNavigateToIssue,
   onPreviewInVisualizer,
   previewDestination = 'Visualizer',
-  extractionConsole,
-}: Props) {
-  const validation = useMemo(() => validateLyricCues(cues), [cues])
-  const review = useMemo(() => getLyricReviewStatistics(cues), [cues])
+}: LivePreviewProps) {
   const hasTimedCues = cues.some(c => typeof c.endMs === 'number' && typeof c.startMs === 'number' && c.endMs > c.startMs)
   const activeCue = useMemo(() => activeCueAt(cues, currentAudioTimeMs, globalOffsetMs), [cues, currentAudioTimeMs, globalOffsetMs])
   const previewCue = isPlaying && activeCue ? activeCue : selectedCue ?? activeCue
   const selectedIndex = previewCue ? cues.findIndex(cue => cue.id === previewCue.id) : -1
   const progressPercent = calculateLyricCueProgress(currentAudioTimeMs, previewCue, globalOffsetMs)
+
+  return (
+    <RightInspectorSection title="Live Preview">
+      {previewCue ? (
+        <>
+          <StylePreviewBox cue={previewCue} doc={document} />
+          <div className="lmv-preview-cue-meta">
+            <span>{isPlaying && activeCue?.id === previewCue.id ? 'Playing cue' : 'Selected cue'}: {selectedIndex + 1} / {cues.length}</span>
+            <strong>{previewCue.text || 'Empty cue'}</strong>
+            <div
+              className="lmv-preview-progress"
+              role="progressbar"
+              aria-label="Cue playback progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(progressPercent)}
+            >
+              <span style={{ width: `${progressPercent}%` }} />
+            </div>
+            <em>{formatMsCompact(toEffectiveLyricTimeMs(previewCue.startMs, globalOffsetMs))} / {formatMsCompact(toEffectiveLyricTimeMs(previewCue.endMs, globalOffsetMs))}</em>
+          </div>
+        </>
+      ) : (
+        <div className="lmv-preview-empty">Select a cue to preview its appearance</div>
+      )}
+      <IconChipButton
+        className="lmv-preview-viz-btn"
+        onClick={onPreviewInVisualizer}
+        disabled={!hasTimedCues}
+        title={hasTimedCues
+          ? `Push draft cues to ${previewDestination} for live preview`
+          : 'No cues to preview. Import or create lyric cues first.'}
+      >
+        Preview in {previewDestination} ↗
+      </IconChipButton>
+    </RightInspectorSection>
+  )
+}
+
+export function LyricPreviewPanel({
+  cues,
+  document,
+  onNavigateToIssue,
+  extractionConsole,
+}: Props) {
+  const validation = useMemo(() => validateLyricCues(cues), [cues])
+  const review = useMemo(() => getLyricReviewStatistics(cues), [cues])
   const validationCueIds = new Set(validation.issues.map(issue => issue.cueId).filter((id): id is string => Boolean(id)))
   const attentionCueIds = new Set<string>(validationCueIds)
   for (const cue of cues) {
@@ -180,41 +228,6 @@ export function LyricPreviewPanel({
 
   return (
     <div className="lmv-right-panel">
-      <RightInspectorSection title="Live Preview">
-        {previewCue ? (
-          <>
-            <StylePreviewBox cue={previewCue} doc={document} />
-            <div className="lmv-preview-cue-meta">
-              <span>{isPlaying && activeCue?.id === previewCue.id ? 'Playing cue' : 'Selected cue'}: {selectedIndex + 1} / {cues.length}</span>
-              <strong>{previewCue.text || 'Empty cue'}</strong>
-              <div
-                className="lmv-preview-progress"
-                role="progressbar"
-                aria-label="Cue playback progress"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round(progressPercent)}
-              >
-                <span style={{ width: `${progressPercent}%` }} />
-              </div>
-              <em>{formatMsCompact(toEffectiveLyricTimeMs(previewCue.startMs, globalOffsetMs))} / {formatMsCompact(toEffectiveLyricTimeMs(previewCue.endMs, globalOffsetMs))}</em>
-            </div>
-          </>
-        ) : (
-          <div className="lmv-preview-empty">Select a cue to preview its appearance</div>
-        )}
-        <IconChipButton
-          className="lmv-preview-viz-btn"
-          onClick={onPreviewInVisualizer}
-          disabled={!hasTimedCues}
-          title={hasTimedCues
-            ? `Push draft cues to ${previewDestination} for live preview`
-            : 'No cues to preview. Import or create lyric cues first.'}
-        >
-          Preview in {previewDestination} ↗
-        </IconChipButton>
-      </RightInspectorSection>
-
       {extractionConsole}
 
       <RightInspectorSection title="Validation" badge={validationBadge}>
