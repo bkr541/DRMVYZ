@@ -620,7 +620,7 @@ function ShowManagerTrackMapSectionEditor({
       }}
       onCancel={() => setDraftRevision(revision => revision + 1)}
       onSave={patch => updateSection(showId, section.id, patch)}
-      hideBoundaryAltRows
+      layout="compact"
     />
   )
 }
@@ -2930,10 +2930,6 @@ export function ShowManagerView() {
             />
           ) : (
             <div className="sm-inspector-scroll">
-              <div className="sm-inspector-context">
-                <div><span>Section</span><strong>{selectedShowManagerSection?.label ?? 'No section selected'}</strong></div>
-                <div><span>Engine</span><strong>Unassigned</strong></div>
-              </div>
               {selectedShowManagerSection && activeShowManagerShow && (
                 <ShowManagerTrackMapSectionEditor
                   showId={activeShowManagerShow.id}

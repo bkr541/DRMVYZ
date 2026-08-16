@@ -11887,6 +11887,30 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   margin-left: 0;
 }
 
+/* ── Compact layout (Show Manager Inspector) ────────────────────────────── */
+
+.rv-add-section-form--compact {
+  display: block;
+  padding: 0;
+}
+
+.rv-compact-section-row {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+  min-width: 0;
+}
+
+.rv-compact-section-row > * {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
+.rv-form-actions--end {
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
 @media (max-width: 1180px) {
   .rv-section-editor-primary-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));

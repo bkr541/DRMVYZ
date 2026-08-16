@@ -531,8 +531,13 @@ interface EditSectionFormProps {
   boundaryAlternatives?: BoundaryAlternative[]
   onNavigateAlternative?: (edge: SectionEdge, direction: 'previous' | 'next') => void
   onSnapBoundary?: (edge: SectionEdge) => void
-  /** Hides the Start/End boundary-alternative rows below the Snap field. */
-  hideBoundaryAltRows?: boolean
+  /**
+   * 'default' is the full React Track Map editor. 'compact' is the condensed
+   * Show Manager Inspector rendering: Type+Label row, Start+End row, Intensity,
+   * an "Information" sub-group with just Snap, then Cancel/Save — no boundary
+   * alternatives, analysis diagnostics, or source badge.
+   */
+  layout?: 'default' | 'compact'
 }
 
 export function EditSectionForm({
@@ -553,7 +558,7 @@ export function EditSectionForm({
   boundaryAlternatives = [],
   onNavigateAlternative = () => undefined,
   onSnapBoundary = () => undefined,
-  hideBoundaryAltRows = false,
+  layout = 'default',
 }: EditSectionFormProps) {
   const idPrefix = useId()
   const [type,           setType]           = useState<ReactSectionType>(section.type)
@@ -639,6 +644,86 @@ export function EditSectionForm({
     { value: 'free', label: 'Free' },
   ]
 
+  if (layout === 'compact') {
+    return (
+      <div className="rv-add-section-form rv-add-section-form--compact">
+        <Collapsible label={section.label} defaultOpen>
+          <div className="rv-compact-section-row">
+            <SelectRow
+              id={`${idPrefix}-type`}
+              label="Type"
+              value={type}
+              options={SECTION_ORDER.map(t => ({ value: t, label: formatReactSectionTypeLabel(t) }))}
+              onChange={value => { markDirty('type'); setType(value as ReactSectionType) }}
+            />
+            <TextInputRow
+              id={`${idPrefix}-label`}
+              label="Label"
+              placeholder={type}
+              value={label}
+              maxLength={32}
+              onChange={value => { markDirty('label'); setLabel(value) }}
+            />
+          </div>
+
+          <div className="rv-compact-section-row">
+            <NumberInputRow
+              id={`${idPrefix}-start`}
+              label="Start (s)"
+              value={startSec}
+              min={0}
+              max={durationSec}
+              step={0.01}
+              onChange={value => { markDirty('startSec'); setStartSec(Math.max(0, value)) }}
+            />
+            <NumberInputRow
+              id={`${idPrefix}-end`}
+              label="End (s)"
+              value={endSec}
+              min={0}
+              max={durationSec}
+              step={0.01}
+              onChange={value => { markDirty('endSec'); setEndSec(Math.max(0, value)) }}
+            />
+          </div>
+
+          <SliderRow
+            id={`${idPrefix}-intensity`}
+            label="Intensity"
+            value={intensity}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={value => { markDirty('intensity'); setIntensity(value) }}
+          />
+
+          <Collapsible label="Information" defaultOpen>
+            <SelectRow
+              id={`${idPrefix}-snap-mode`}
+              label="Snap"
+              value={snapMode}
+              options={snapModeOptions}
+              onChange={value => onSnapModeChange(value as SectionBoundarySnapMode)}
+            />
+          </Collapsible>
+
+          <div className="rv-form-actions rv-form-actions--end">
+            <IconChipButton onClick={onCancel}>Cancel</IconChipButton>
+            <IconChipButton tone="primary" onClick={handleSave} disabled={!isValid}>
+              Save Changes
+            </IconChipButton>
+          </div>
+
+          {errors.length > 0 && (
+            <div className="rv-validation-errors rv-validation-errors--full">
+              {errors.map((err, i) => <p key={i} className="rv-validation-error">{err}</p>)}
+            </div>
+          )}
+        </Collapsible>
+      </div>
+    )
+  }
+
   return (
     <div className="rv-add-section-form rv-add-section-form--edit">
       <div className="rv-section-editor-primary-grid">
@@ -708,7 +793,6 @@ export function EditSectionForm({
             options={snapModeOptions}
             onChange={value => onSnapModeChange(value as SectionBoundarySnapMode)}
           />
-          {!hideBoundaryAltRows && (
           <div className="rv-boundary-action-grid">
             <span className="rv-form-label">Start</span>
             <IconChipButton onClick={() => onNavigateAlternative('start', 'previous')} disabled={boundaryAlternatives.length === 0} title="Previous boundary suggestion">‹ Alt</IconChipButton>
@@ -719,7 +803,6 @@ export function EditSectionForm({
             <IconChipButton onClick={() => onNavigateAlternative('end', 'next')} disabled={boundaryAlternatives.length === 0} title="Next boundary suggestion">Alt ›</IconChipButton>
             <IconChipButton onClick={() => onSnapBoundary('end')} disabled={snapMode === 'free'}>Snap</IconChipButton>
           </div>
-          )}
         </div>
 
         {reactPresets && onAssignPreset && (
