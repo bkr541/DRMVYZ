@@ -684,7 +684,7 @@ export function MediaUploadModal({
     <>
     {/* ── Raster SVG warning dialog ─────────────────────────────────── */}
     {rasterSvgWarning && (
-      <div className="mum-backdrop" style={{ zIndex: 1100 }} onClick={e => e.stopPropagation()}>
+      <div className="mum-backdrop" style={{ zIndex: 1500 }} onClick={e => e.stopPropagation()}>
         <div className="mum-modal" role="alertdialog" aria-modal="true" style={{ maxWidth: 420, padding: '24px 28px' }}>
           <div className="mum-title" style={{ marginBottom: 8 }}>SVG Contains Only a Raster Image</div>
           <p style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 16, opacity: 0.85 }}>
