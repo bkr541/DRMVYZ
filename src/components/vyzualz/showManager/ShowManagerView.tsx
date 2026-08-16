@@ -4344,16 +4344,6 @@ function ShowManagerTimeline({
             ))}
           </div>
         </TimelineRow>
-        <TimelineRow label="Cues">
-          <div className="sm-cue-row">
-            {[8, 18, 31, 43, 55, 69, 82, 94].map(position => <i key={position} style={{ left: `${position}%` }} />)}
-          </div>
-        </TimelineRow>
-        <TimelineRow label="Glow">
-          <svg className="sm-automation-curve" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true">
-            <polyline points="0,14 12,13 25,11 38,5 50,10 63,12 76,6 88,9 100,13" />
-          </svg>
-        </TimelineRow>
         <TimelineRow label="Intensity">
           <svg className="sm-automation-curve is-green" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true">
             <polyline points="0,15 16,15 30,12 45,7 58,9 72,5 84,9 100,14" />

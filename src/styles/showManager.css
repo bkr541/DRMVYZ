@@ -828,19 +828,6 @@ button.sm-library-subsection-toggle {
 .sm-segment-row span.is-breakdown { background: rgba(155, 117, 34, 0.65); }
 .sm-segment-row--scenes span { background: rgba(105, 55, 140, 0.42); }
 
-.sm-cue-row { height: 100%; }
-.sm-cue-row i {
-  position: absolute;
-  top: 50%;
-  width: 6px;
-  height: 6px;
-  background: #4ac7db;
-  transform: translate(-50%, -50%) rotate(45deg);
-  box-shadow: 0 0 5px rgba(74, 199, 219, 0.35);
-}
-.sm-cue-row i:nth-child(3n) { background: #b84fc9; }
-.sm-cue-row i:nth-child(4n) { background: #d8b95a; }
-
 .sm-automation-curve { width: 100%; height: 100%; display: block; overflow: visible; }
 .sm-automation-curve polyline { fill: none; stroke: #4ac7db; stroke-width: 0.7; vector-effect: non-scaling-stroke; }
 .sm-automation-curve.is-green polyline { stroke: #61d6aa; }
