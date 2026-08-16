@@ -620,6 +620,7 @@ function ShowManagerTrackMapSectionEditor({
       }}
       onCancel={() => setDraftRevision(revision => revision + 1)}
       onSave={patch => updateSection(showId, section.id, patch)}
+      hideBoundaryAltRows
     />
   )
 }

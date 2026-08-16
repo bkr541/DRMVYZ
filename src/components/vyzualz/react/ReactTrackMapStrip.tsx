@@ -531,6 +531,8 @@ interface EditSectionFormProps {
   boundaryAlternatives?: BoundaryAlternative[]
   onNavigateAlternative?: (edge: SectionEdge, direction: 'previous' | 'next') => void
   onSnapBoundary?: (edge: SectionEdge) => void
+  /** Hides the Start/End boundary-alternative rows below the Snap field. */
+  hideBoundaryAltRows?: boolean
 }
 
 export function EditSectionForm({
@@ -551,6 +553,7 @@ export function EditSectionForm({
   boundaryAlternatives = [],
   onNavigateAlternative = () => undefined,
   onSnapBoundary = () => undefined,
+  hideBoundaryAltRows = false,
 }: EditSectionFormProps) {
   const idPrefix = useId()
   const [type,           setType]           = useState<ReactSectionType>(section.type)
@@ -705,6 +708,7 @@ export function EditSectionForm({
             options={snapModeOptions}
             onChange={value => onSnapModeChange(value as SectionBoundarySnapMode)}
           />
+          {!hideBoundaryAltRows && (
           <div className="rv-boundary-action-grid">
             <span className="rv-form-label">Start</span>
             <IconChipButton onClick={() => onNavigateAlternative('start', 'previous')} disabled={boundaryAlternatives.length === 0} title="Previous boundary suggestion">‹ Alt</IconChipButton>
@@ -715,6 +719,7 @@ export function EditSectionForm({
             <IconChipButton onClick={() => onNavigateAlternative('end', 'next')} disabled={boundaryAlternatives.length === 0} title="Next boundary suggestion">Alt ›</IconChipButton>
             <IconChipButton onClick={() => onSnapBoundary('end')} disabled={snapMode === 'free'}>Snap</IconChipButton>
           </div>
+          )}
         </div>
 
         {reactPresets && onAssignPreset && (
