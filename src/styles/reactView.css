@@ -18311,13 +18311,27 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 9px;
-  border: 1px solid rgba(74, 199, 219, 0.14);
-  border-radius: 10px;
-  background: rgba(3, 10, 12, 0.54);
 }
 
-.rv-canvas-pools__header,
+.rv-canvas-pools__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rv-canvas-pools__summary span {
+  color: rgba(232, 244, 248, 0.46);
+  font-size: 8px;
+}
+
+.rv-canvas-pools__summary em {
+  color: rgba(97, 214, 170, 0.76);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 700;
+}
+
 .rv-canvas-pools__inspector-head,
 .rv-canvas-pools__row,
 .rv-canvas-pools__member {
@@ -18327,14 +18341,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   gap: 8px;
 }
 
-.rv-canvas-pools__header > div,
 .rv-canvas-pools__inspector-head > div:first-child {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
-.rv-canvas-pools__header strong,
 .rv-canvas-pools__inspector-head strong {
   color: rgba(232, 244, 248, 0.8);
   font-size: 9px;
@@ -18343,18 +18355,11 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   text-transform: uppercase;
 }
 
-.rv-canvas-pools__header span,
-.rv-canvas-pools__header em,
 .rv-canvas-pools__inspector-head span,
 .rv-canvas-pools__select span {
   color: rgba(232, 244, 248, 0.46);
   font-size: 8px;
   font-style: normal;
-}
-
-.rv-canvas-pools__header em {
-  color: rgba(97, 214, 170, 0.76);
-  font-weight: 700;
 }
 
 .rv-canvas-pools__create,
@@ -18365,30 +18370,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   gap: 5px;
 }
 
-.rv-canvas-pools__create input,
-.rv-canvas-pools__rename input {
+.rv-canvas-pools__create .dv-text-input,
+.rv-canvas-pools__rename .dv-text-input {
   min-width: 0;
   flex: 1;
-  height: 28px;
-  border: 1px solid rgba(74, 199, 219, 0.16);
-  border-radius: 4px;
-  outline: none;
-  background: rgba(0, 0, 0, 0.18);
-  padding: 0 8px;
-  color: rgba(232, 244, 248, 0.84);
-  font-size: 9.5px;
-}
-
-.rv-canvas-pools__create input:focus,
-.rv-canvas-pools__rename input:focus {
-  border-color: rgba(74, 199, 219, 0.48);
-}
-
-.rv-canvas-pools__feedback {
-  margin: 0;
-  color: rgba(255, 170, 170, 0.88);
-  font-size: 8.5px;
-  line-height: 1.35;
 }
 
 .rv-canvas-pools__list,
@@ -18433,24 +18418,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   font-size: 9px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.rv-canvas-pools__active-btn {
-  flex: none;
-  border: 1px solid rgba(74, 199, 219, 0.16);
-  border-radius: 999px;
-  background: transparent;
-  padding: 4px 7px;
-  color: rgba(74, 199, 219, 0.62);
-  font-size: 8px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.rv-canvas-pools__active-btn--active {
-  border-color: rgba(97, 214, 170, 0.5);
-  background: rgba(97, 214, 170, 0.12);
-  color: rgba(216, 255, 239, 0.92);
 }
 
 .rv-canvas-pools__inspector {
@@ -18498,20 +18465,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   font-size: 8.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.rv-canvas-pools__member > button {
-  flex: none;
-  border: 0;
-  background: transparent;
-  padding: 3px 4px;
-  color: rgba(232, 244, 248, 0.42);
-  font-size: 8px;
-  cursor: pointer;
-}
-
-.rv-canvas-pools__member > button:hover {
-  color: rgba(255, 170, 170, 0.9);
 }
 
 /* ── Headliner workspace + fullscreen CPU program compositor ───────────────── */
