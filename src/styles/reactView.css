@@ -14869,40 +14869,126 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   text-transform: uppercase;
 }
 
-/* ── DJ Laser Beam Builder (Layout Lab / Template, REACT tab) ──────────────── */
+/* ── DJ Laser Trigger Routing Matrix (Layout Lab / Template, REACT tab) ────── */
 
-.rv-dj-laser-beam-list {
+.rv-dj-laser-matrix {
   display: grid;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.rv-dj-laser-beam-card {
-  display: grid;
-  gap: 6px;
-  padding: 8px;
-  border: 1px solid rgba(103, 247, 255, 0.14);
-  border-radius: 7px;
-  background: rgba(2, 8, 12, 0.42);
-}
-
-.rv-dj-laser-beam-card-header {
-  display: flex;
+  grid-template-columns: minmax(70px, 1fr) repeat(var(--beam-count), 28px);
+  gap: 3px;
   align-items: center;
-  justify-content: space-between;
+  margin-top: 6px;
 }
 
-.rv-dj-laser-beam-card-header > strong {
-  color: #67f7ff;
-  font: 800 10px/1.2 var(--az-font, Inter, system-ui, sans-serif);
-  letter-spacing: 0.09em;
+.rv-dj-laser-matrix-row {
+  display: contents;
+}
+
+.rv-dj-laser-matrix-corner {
+  align-self: end;
+  padding-bottom: 4px;
+  color: rgba(232, 244, 248, 0.35);
+  font-size: 8px;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.rv-dj-laser-matrix-col-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.rv-dj-laser-matrix-col-head-btn {
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(103, 247, 255, 0.18);
+  border-radius: 5px;
+  background: rgba(2, 8, 12, 0.5);
+  color: rgba(232, 244, 248, 0.65);
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rv-dj-laser-matrix-col-head-btn.is-focused {
+  border-color: #4ac7db;
+  background: rgba(74, 199, 219, 0.16);
+  color: #8ef4ff;
+  box-shadow: 0 0 8px rgba(74, 199, 219, 0.25);
+}
+
+.rv-dj-laser-matrix-col-remove {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: rgba(232, 244, 248, 0.3);
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.rv-dj-laser-matrix-col-remove:hover {
+  color: rgba(255, 170, 170, 0.85);
+}
+
+.rv-dj-laser-matrix-group-label {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(103, 247, 255, 0.1);
+  color: #67f7ff;
+  font: 800 9px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rv-dj-laser-matrix-row-label {
+  overflow: hidden;
+  color: rgba(232, 244, 248, 0.66);
+  font-size: 9px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rv-dj-laser-matrix-cell {
+  justify-self: center;
 }
 
 .rv-dj-laser-add-beam {
   width: 100%;
   justify-content: center;
   margin-top: 8px;
+}
+
+.rv-dj-laser-beam-detail {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px solid rgba(103, 247, 255, 0.14);
+  border-radius: 7px;
+  background: rgba(2, 8, 12, 0.42);
+}
+
+.rv-dj-laser-beam-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rv-dj-laser-beam-detail-head > strong {
+  color: #67f7ff;
+  font: 800 10px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.rv-dj-laser-signal-flow {
+  color: rgba(97, 214, 170, 0.85);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
 }
 
 .rv-layout-lab-canvas-preset-thumb {
