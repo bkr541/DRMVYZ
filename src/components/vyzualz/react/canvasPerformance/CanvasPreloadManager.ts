@@ -130,7 +130,7 @@ export class CanvasPreloadManager {
   private maxVideoHandles: number
   private readonly preloadTimeoutMs: number
   private readonly readiness = new Map<string, CanvasMediaReadiness>()
-  private readonly handles = new Map<string, { handle: CanvasPreloadHandle | null; lastUsedAt: number; type: CanvasMediaItem['type'] }>()
+  private readonly handles = new Map<string, { handle: CanvasPreloadHandle | null; lastUsedAt: number; type: CanvasMediaItem['type']; ownedByManager: boolean }>()
   private readonly controllers = new Map<string, AbortController>()
   private readonly sourceKeys = new Map<string, string>()
   private queue: QueueEntry[] = []
@@ -161,7 +161,7 @@ export class CanvasPreloadManager {
   setScope(trackIdentity: string | null, poolRevision: number): void {
     if (this.trackIdentity === trackIdentity && this.poolRevision === poolRevision) return
     this.cancelPending('Scope changed')
-    for (const entry of this.handles.values()) releaseCanvasPreloadHandle(entry.handle)
+    for (const entry of this.handles.values()) if (entry.ownedByManager) releaseCanvasPreloadHandle(entry.handle)
     this.handles.clear()
     this.readiness.clear()
     this.sourceKeys.clear()
@@ -182,14 +182,14 @@ export class CanvasPreloadManager {
     if (previousSourceKey && previousSourceKey !== sourceKey) this.invalidate(media.id)
 
     const existing = this.handles.get(media.id)
-    if (existing?.handle && existing.handle !== handle) releaseCanvasPreloadHandle(existing.handle)
+    if (existing?.handle && existing.handle !== handle && existing.ownedByManager) releaseCanvasPreloadHandle(existing.handle)
 
     // A queued duplicate is no longer useful. If the same source is already
     // loading, let it finish; the completion handlers below preserve this
     // adopted drawable instead of allowing a late failure to revoke readiness.
     this.queue = this.queue.filter(entry => entry.media.id !== media.id)
     this.sourceKeys.set(media.id, sourceKey)
-    this.handles.set(media.id, { handle, lastUsedAt: Date.now(), type: media.type })
+    this.handles.set(media.id, { handle, lastUsedAt: Date.now(), type: media.type, ownedByManager: false })
     this.readiness.set(media.id, {
       mediaId: media.id,
       status: 'ready',
@@ -214,7 +214,7 @@ export class CanvasPreloadManager {
         this.queue = this.queue.filter(entry => entry.media.id !== request.media.id)
         this.controllers.get(request.media.id)?.abort()
         const retained = this.handles.get(request.media.id)
-        if (retained) releaseCanvasPreloadHandle(retained.handle)
+        if (retained?.ownedByManager) releaseCanvasPreloadHandle(retained.handle)
         this.handles.delete(request.media.id)
         this.readiness.delete(request.media.id)
         this.sourceKeys.delete(request.media.id)
@@ -313,7 +313,7 @@ export class CanvasPreloadManager {
           if (handle !== adoptedHandle) releaseCanvasPreloadHandle(handle)
           return
         }
-        this.handles.set(entry.media.id, { handle, lastUsedAt: Date.now(), type: entry.media.type })
+        this.handles.set(entry.media.id, { handle, lastUsedAt: Date.now(), type: entry.media.type, ownedByManager: true })
         this.readiness.set(entry.media.id, {
           mediaId: entry.media.id,
           status: 'ready',
@@ -380,7 +380,7 @@ export class CanvasPreloadManager {
     this.controllers.get(mediaId)?.abort()
     this.controllers.delete(mediaId)
     const retained = this.handles.get(mediaId)
-    if (retained) releaseCanvasPreloadHandle(retained.handle)
+    if (retained?.ownedByManager) releaseCanvasPreloadHandle(retained.handle)
     this.handles.delete(mediaId)
     this.readiness.delete(mediaId)
     this.sourceKeys.delete(mediaId)
@@ -393,7 +393,7 @@ export class CanvasPreloadManager {
     // the bounded LRU cache because they do not consume a decoder.
     for (const [mediaId, entry] of this.handles) {
       if (retain.has(mediaId) || entry.type !== 'video') continue
-      releaseCanvasPreloadHandle(entry.handle)
+      if (entry.ownedByManager) releaseCanvasPreloadHandle(entry.handle)
       this.handles.delete(mediaId)
       this.readiness.delete(mediaId)
       this.sourceKeys.delete(mediaId)
@@ -408,7 +408,7 @@ export class CanvasPreloadManager {
     for (const [mediaId, entry] of entries) {
       if (retain.has(mediaId)) continue
       if (totalCount <= this.maxHandles && (entry.type !== 'video' || videoCount <= this.maxVideoHandles)) continue
-      releaseCanvasPreloadHandle(entry.handle)
+      if (entry.ownedByManager) releaseCanvasPreloadHandle(entry.handle)
       this.handles.delete(mediaId)
       this.readiness.delete(mediaId)
       this.sourceKeys.delete(mediaId)
@@ -441,7 +441,7 @@ export class CanvasPreloadManager {
 
   releaseAll(): void {
     this.cancelPending('Resources released')
-    for (const entry of this.handles.values()) releaseCanvasPreloadHandle(entry.handle)
+    for (const entry of this.handles.values()) if (entry.ownedByManager) releaseCanvasPreloadHandle(entry.handle)
     this.handles.clear()
     this.readiness.clear()
     this.sourceKeys.clear()

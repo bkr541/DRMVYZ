@@ -562,10 +562,25 @@ describe('CanvasEngineSurface Performance Show routing', () => {
       },
     })
 
+    const adoptSpy = vi.spyOn(CanvasPreloadManager.prototype, 'adoptDrawableHandle').mockReturnValue(true)
     await renderSurface()
 
     expect(host?.querySelector('[aria-label="CANVAS orchestrated media surface"]')).not.toBeNull()
     expect(host?.querySelector('[aria-label="CANVAS engine media surface"]')).toBeNull()
+
+    // The production failure left this frame permanently black because the
+    // authored compositor had no drawable source of its own. Layers mode now
+    // mounts a browser-owned source host for the active authored media so a real
+    // load event can hand the decoded element directly to the compositor.
+    const sourceHost = host?.querySelector(`[data-canvas-authored-source="${top.id}"]`) as HTMLImageElement | null
+    expect(sourceHost).not.toBeNull()
+    Object.defineProperties(sourceHost!, {
+      complete: { configurable: true, value: true },
+      naturalWidth: { configurable: true, value: 1920 },
+      naturalHeight: { configurable: true, value: 1080 },
+    })
+    sourceHost?.dispatchEvent(new Event('load'))
+    expect(adoptSpy).toHaveBeenCalledWith(expect.objectContaining({ id: top.id }), sourceHost)
   })
 
   it('draws a newly added raster Image through the authored compositor above an SVG + SVG stack', async () => {

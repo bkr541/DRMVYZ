@@ -315,6 +315,10 @@ function activeMedia(frame: CanvasResolvedPerformanceFrame): CanvasMediaItem[] {
   return [...byId.values()]
 }
 
+function authoredSourceIdentity(media: CanvasMediaItem): string {
+  return `${media.id}:${media.type}:${media.mediaRevision ?? 0}:${media.objectUrl}`
+}
+
 function CanvasGenericOrchestrationStage({
   frame,
   preloadManager,
@@ -340,6 +344,7 @@ function CanvasGenericOrchestrationStage({
   const [qualitySnapshot, setQualitySnapshot] = useState<CanvasShowQualitySnapshot | null>(null)
   const frameRef = useRef(frame)
   const propsRef = useRef({ isPlaying, isPaused, engineSettings, presetSettings, motionIntensity })
+  const authoredSourceHandlesRef = useRef(new Map<string, { identity: string; handle: CanvasPreloadHandle }>())
   frameRef.current = frame
   propsRef.current = { isPlaying, isPaused, engineSettings, presetSettings, motionIntensity }
 
@@ -452,8 +457,17 @@ function CanvasGenericOrchestrationStage({
         incomingOffsetY: number,
       ) => {
         for (const layer of targetLayers) {
-          const handle = layer.sourceMediaId ? preloadManager.getHandle(layer.sourceMediaId) : null
-          if (!sourceReady(handle)) continue
+          const managerHandle = layer.sourceMediaId ? preloadManager.getHandle(layer.sourceMediaId) : null
+          const localEntry = layer.sourceMediaId ? authoredSourceHandlesRef.current.get(layer.sourceMediaId) ?? null : null
+          const localHandle = layer.source && localEntry?.identity === authoredSourceIdentity(layer.source)
+            ? localEntry.handle
+            : null
+          const handle = sourceReady(managerHandle)
+            ? managerHandle
+            : sourceReady(localHandle)
+              ? localHandle
+              : null
+          if (!handle) continue
           if (isVideoHandle(handle)) syncVideo(handle, layer, liveProps.isPlaying, liveProps.isPaused)
           const maskHandle = layer.maskSourceMediaId ? preloadManager.getHandle(layer.maskSourceMediaId) : null
           const mask = sourceReady(maskHandle) ? maskHandle : null
@@ -586,8 +600,48 @@ function CanvasGenericOrchestrationStage({
     return () => window.cancelAnimationFrame(animationFrame)
   }, [onLiveFps, preloadManager])
 
+  const authoredSourceHosts = frame.runtimeMode === 'authored'
+    ? mediaSummary.map(media => {
+        const identity = authoredSourceIdentity(media)
+        const adopt = (handle: CanvasPreloadHandle) => {
+          if (!sourceReady(handle)) return
+          authoredSourceHandlesRef.current.set(media.id, { identity, handle })
+          preloadManager.adoptDrawableHandle(media, handle)
+        }
+        const sharedProps = {
+          key: identity,
+          crossOrigin: 'anonymous' as const,
+          src: media.objectUrl,
+          'data-canvas-authored-source': media.id,
+          'aria-hidden': true,
+          style: {
+            position: 'absolute' as const,
+            width: '1px',
+            height: '1px',
+            left: '-10000px',
+            top: '-10000px',
+            opacity: 0,
+            pointerEvents: 'none' as const,
+          },
+        }
+        return media.type === 'video'
+          ? (
+              <video
+                {...sharedProps}
+                muted
+                playsInline
+                preload="auto"
+                onLoadedData={event => adopt(event.currentTarget)}
+                onCanPlay={event => adopt(event.currentTarget)}
+              />
+            )
+          : <img {...sharedProps} alt="" onLoad={event => adopt(event.currentTarget)} />
+      })
+    : null
+
   return (
     <div ref={shellRef} className="rv-canvas-engine-surface rv-canvas-orchestration-stage" role="region" aria-label="CANVAS orchestrated media surface">
+      {authoredSourceHosts}
       <canvas
         ref={canvasRef}
         className="rv-canvas-orchestration-canvas"

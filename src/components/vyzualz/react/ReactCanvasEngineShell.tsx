@@ -64,6 +64,7 @@ import {
   EMPTY_CANVAS_POOL_AUTOMATION_RUNTIME_STATE,
   CanvasOrchestrationStage,
   CanvasPreloadManager,
+  isCanvasPreloadHandleDrawable,
   MAX_CANVAS_AUTHORED_LAYERS,
   MAX_CANVAS_ACTIVE_VIDEO_DECODERS,
   MAX_CANVAS_SHOW_VIDEO_DECODERS,
@@ -86,6 +87,7 @@ import {
   type CanvasPerformanceShowId,
   type CanvasPoolAutomationRuntimeState,
   type CanvasPoolAutomationTrigger,
+  type CanvasPreloadHandle,
   type CanvasResolvedPerformanceFrame,
   type CanvasTransitionId,
 } from './canvasPerformance'
@@ -1520,6 +1522,12 @@ export function CanvasEngineSurface({
   const applyCanvasAutoSelection = useReactStore(s => s.applyCanvasAutoSelection)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const imageRef = useRef<HTMLImageElement | null>(null)
+  const lastDirectDrawableRef = useRef<{
+    mediaId: string
+    mediaType: CanvasMediaItemType
+    mediaRevision: number
+    handle: CanvasPreloadHandle
+  } | null>(null)
   const outputRef = useRef<HTMLDivElement | null>(null)
   const outputCaptureCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const sourceEffectsCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -1638,7 +1646,15 @@ export function CanvasEngineSurface({
     // behind a second preload gate, making Solo/Add/Reorder appear non-functional.
     if (authoredLayerRuntime && activeItem
       && orchestrationSettings.authoredLayers.some(layer => layer.enabled && layer.mediaId === activeItem.id)) {
-      const liveHandle = activeItem.type === 'video' ? videoRef.current : imageRef.current
+      const mountedHandle = activeItem.type === 'video' ? videoRef.current : imageRef.current
+      const cachedDirect = lastDirectDrawableRef.current
+      const cachedHandle = cachedDirect
+        && cachedDirect.mediaId === activeItem.id
+        && cachedDirect.mediaType === activeItem.type
+        && cachedDirect.mediaRevision === (activeItem.mediaRevision ?? 0)
+        ? cachedDirect.handle
+        : null
+      const liveHandle = isCanvasPreloadHandleDrawable(mountedHandle) ? mountedHandle : cachedHandle
       orchestrationPreloadManager.adoptDrawableHandle(activeItem, liveHandle)
     }
 
@@ -2520,7 +2536,15 @@ export function CanvasEngineSurface({
               playsInline
               loop={settings.loopVideo && !activeTiming.loopClipRange && activeTiming.clipEndSec <= 0}
               preload="auto"
-              onCanPlay={() => setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)}
+              onCanPlay={event => {
+                lastDirectDrawableRef.current = {
+                  mediaId: activeItem.id,
+                  mediaType: activeItem.type,
+                  mediaRevision: activeItem.mediaRevision ?? 0,
+                  handle: event.currentTarget,
+                }
+                setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
+              }}
               onError={() => setMediaLoadError({ mediaId: activeItem.id, message: getCanvasMediaLoadErrorMessage(activeItem) })}
             />
           ) : (
@@ -2533,7 +2557,15 @@ export function CanvasEngineSurface({
               className="rv-canvas-live-media"
               style={mediaStyle}
               draggable={false}
-              onLoad={event => handleCanvasImageLoad(event.currentTarget)}
+              onLoad={event => {
+                lastDirectDrawableRef.current = {
+                  mediaId: activeItem.id,
+                  mediaType: activeItem.type,
+                  mediaRevision: activeItem.mediaRevision ?? 0,
+                  handle: event.currentTarget,
+                }
+                handleCanvasImageLoad(event.currentTarget)
+              }}
               onError={() => setMediaLoadError({ mediaId: activeItem.id, message: getCanvasMediaLoadErrorMessage(activeItem) })}
             />
           )}
