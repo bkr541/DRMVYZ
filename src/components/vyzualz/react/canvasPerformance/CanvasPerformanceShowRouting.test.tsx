@@ -35,6 +35,7 @@ vi.mock('../renderers/CanvasFracturesRendererLayer', () => ({
 }))
 
 import { CanvasEngineSurface } from '../ReactCanvasEngineShell'
+import { LaserImageFxRenderer } from '../renderers/laserImageFx/LaserImageFxRenderer'
 import {
   clearAllSharedPerformanceDiagnostics,
   getSharedPerformanceDiagnostics,
@@ -529,6 +530,52 @@ describe('CanvasEngineSurface Performance Show routing', () => {
     expect(host?.querySelector('[data-testid="fractures-renderer"]')).not.toBeNull()
   })
 
+  it('routes the full authored layer composition through the selected Laser Image FX renderer', async () => {
+    const laserRender = vi.fn(() => true)
+    const laserResize = vi.fn()
+    const laserDispose = vi.fn()
+    vi.spyOn(LaserImageFxRenderer, 'create').mockReturnValue({
+      renderer: {
+        resize: laserResize,
+        render: laserRender,
+        dispose: laserDispose,
+      } as unknown as LaserImageFxRenderer,
+      error: null,
+    })
+
+    const second: CanvasMediaItem = {
+      ...media,
+      id: 'routing-authored-laser-second',
+      name: 'Second Layer',
+      objectUrl: 'media://routing-authored-laser-second',
+    }
+    useReactStore.getState().selectCanvasPreset('canvas-laser-image-fx')
+    useReactStore.setState({
+      canvasMediaItems: [media, second],
+      selectedCanvasMediaId: second.id,
+      activeCanvasMediaId: media.id,
+      canvasOrchestrationSettings: {
+        ...DEFAULT_CANVAS_ORCHESTRATION_SETTINGS,
+        renderMode: 'layers',
+        authoredLayers: [
+          { id: 'laser-layer-top', mediaId: second.id, order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
+          { id: 'laser-layer-bottom', mediaId: media.id, order: 1, enabled: true, solo: false, ownership: 'manual', pinned: true },
+        ],
+      },
+    })
+
+    await renderSurface()
+
+    const stage = host?.querySelector<HTMLElement>('[aria-label="CANVAS orchestrated media surface"]')
+    expect(stage?.dataset.authoredPresetRenderer).toBe('laserImageFx')
+    expect(laserResize).toHaveBeenCalledWith(640, 360)
+    expect(laserRender).toHaveBeenCalled()
+    const params = laserRender.mock.calls[0]?.[0]
+    expect(params?.source).toBeInstanceOf(HTMLCanvasElement)
+    expect(params?.settings.laserImageEffect).toBe('spin3d')
+    expect(params?.settings.drySourceMix).toBe(0.08)
+  })
+
   it('never leaves the stale single-source renderer in control after Layers mode is selected', async () => {
     mediaReady = false
     const top: CanvasMediaItem = {
@@ -618,7 +665,7 @@ describe('CanvasEngineSurface Performance Show routing', () => {
         naturalHeight: { configurable: true, value: 1080 },
       })
     }
-    vi.mocked(CanvasPreloadManager.prototype.getHandle).mockImplementation(mediaId => ({
+    vi.mocked(CanvasPreloadManager.prototype.getHandle).mockImplementation((mediaId: string) => ({
       [raster.id]: rasterHandle,
       [svgB.id]: svgBHandle,
       [svgA.id]: svgAHandle,

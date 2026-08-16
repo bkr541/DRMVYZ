@@ -2643,7 +2643,7 @@ interface ReactStoreState {
   resetCanvasPresetSettings: () => void
   addCanvasMediaItems: (items: CanvasMediaItem[]) => void
   focusCanvasMediaItem: (id: string | null) => void
-  selectCanvasMediaItem: (id: string, options?: { manual?: boolean }) => void
+  selectCanvasMediaItem: (id: string, options?: { manual?: boolean; ensureAuthoredLayer?: boolean }) => void
   restartCanvasVideo: () => void
   setCanvasMediaTiming: (mediaId: string, patch: Partial<CanvasVideoTimingSettings>) => void
   removeCanvasMediaItem: (id: string) => void
@@ -7795,8 +7795,32 @@ export const useReactStore = create<ReactStoreState>()(
         const manualMediaOverrideId = state.canvasEngineSettings.manualMediaOverrideId
         const manualMediaOverrideValid = typeof manualMediaOverrideId === 'string' && manualMediaOverrideId.trim().length > 0
         if (options?.manual === false && manualMediaOverrideValid) return repairCanvasRuntimeState(state)
+
+        const currentAuthoredLayers = normalizeCanvasAuthoredLayers(state.canvasOrchestrationSettings.authoredLayers)
+        const shouldEnsureAuthoredLayer = options?.manual !== false && options?.ensureAuthoredLayer === true
+        const existingAuthoredLayer = shouldEnsureAuthoredLayer
+          ? currentAuthoredLayers.find(layer => layer.mediaId === nextId) ?? null
+          : null
+        const canCreateAuthoredLayer = shouldEnsureAuthoredLayer
+          && !existingAuthoredLayer
+          && currentAuthoredLayers.length < MAX_CANVAS_AUTHORED_LAYERS
+        const ensuredAuthoredLayer: CanvasAuthoredLayer | null = existingAuthoredLayer ?? (canCreateAuthoredLayer
+          ? {
+              id: createCanvasAuthoringIdentity('layer'),
+              mediaId: nextId,
+              order: 0,
+              enabled: true,
+              solo: false,
+              ownership: 'manual',
+              pinned: true,
+            }
+          : null)
+        const authoredLayers = canCreateAuthoredLayer && ensuredAuthoredLayer
+          ? [ensuredAuthoredLayer, ...currentAuthoredLayers].map((layer, order) => ({ ...layer, order }))
+          : currentAuthoredLayers
         const canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
           ...state.canvasOrchestrationSettings,
+          authoredLayers,
           ...(options?.manual === false ? {} : { renderMode: 'single' as const }),
         })
         const repaired = repairCanvasRuntimeState({

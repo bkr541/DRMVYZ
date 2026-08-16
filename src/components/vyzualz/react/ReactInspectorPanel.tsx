@@ -3,11 +3,12 @@ import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { CtrlSection } from './ReactControlRows'
-import type {
-  OscillatorSettings,
-  OscillatorGlyphAsset,
-  OscillatorFontAsset,
-  CanvasMediaItemType,
+import {
+  CANVAS_PRESET_BY_ID,
+  type OscillatorSettings,
+  type OscillatorGlyphAsset,
+  type OscillatorFontAsset,
+  type CanvasMediaItemType,
 } from './ReactTypes'
 import { ShaderInspectorPanel } from './shaders/ui/ShaderInspectorPanel'
 import { useShaderPanelStore } from './shaders/ui/shaderPanelStore'
@@ -183,6 +184,7 @@ export function ReactInspectorPanel() {
     activeCanvasMediaId,
     canvasOrchestrationSettings,
     selectedCanvasLayerId,
+    selectedCanvasPresetId,
     resetOscillatorSettings,
   } = useReactStore(useShallow(s => ({
     activeReactPresetId:       s.activeReactPresetId,
@@ -198,6 +200,7 @@ export function ReactInspectorPanel() {
     activeCanvasMediaId:       s.activeCanvasMediaId,
     canvasOrchestrationSettings: s.canvasOrchestrationSettings,
     selectedCanvasLayerId:     s.selectedCanvasLayerId,
+    selectedCanvasPresetId:    s.selectedCanvasPresetId,
     resetOscillatorSettings:   s.resetOscillatorSettings,
   })))
   const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
@@ -220,11 +223,15 @@ export function ReactInspectorPanel() {
     laserDmxBeamMatrix,
   })
 
+  const activePresetName = activeReactEngineId === 'canvas'
+    ? CANVAS_PRESET_BY_ID[selectedCanvasPresetId]?.name ?? 'None'
+    : preset?.name ?? 'None'
+
   const engineSummary = (
     <div className="rv-ctrl-group">
       <CtrlSection label="Engine Summary" />
       <KvRow label="Engine" value={REACT_ENGINE_CATALOG[activeReactEngineId].label} />
-      <KvRow label="Active Preset" value={preset?.name ?? 'None'} />
+      <KvRow label="Active Preset" value={activePresetName} />
     </div>
   )
 

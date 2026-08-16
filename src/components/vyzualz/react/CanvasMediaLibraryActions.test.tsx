@@ -145,7 +145,25 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers).toEqual([])
   })
 
-  it('Make Active preserves single-source behavior without changing layer or pool membership', () => {
+  it('Make Active immediately seeds layer 1 when the authored stack is empty', () => {
+    openMediaActions()
+    chooseAction('Make Active')
+
+    const state = useReactStore.getState()
+    expect(state.activeCanvasMediaId).toBe(mediaOne.id)
+    expect(state.canvasOrchestrationSettings.renderMode).toBe('single')
+    expect(state.canvasOrchestrationSettings.authoredLayers).toHaveLength(1)
+    expect(state.canvasOrchestrationSettings.authoredLayers[0]).toMatchObject({
+      mediaId: mediaOne.id,
+      order: 0,
+      enabled: true,
+      solo: false,
+      ownership: 'manual',
+      pinned: true,
+    })
+  })
+
+  it('Make Active preserves single-source rendering while ensuring the active media exists in the canonical layer stack', () => {
     const layer = useReactStore.getState().addCanvasAuthoredLayer(mediaTwo.id)
     if (!layer.ok) throw new Error(layer.message)
     const pool = useReactStore.getState().createCanvasMediaPool('Main')
@@ -161,7 +179,18 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     expect(state.activeCanvasMediaId).toBe(mediaOne.id)
     expect(state.canvasEngineSettings.manualMediaOverrideId).toBe(mediaOne.id)
     expect(state.canvasOrchestrationSettings.renderMode).toBe('single')
-    expect(state.canvasOrchestrationSettings.authoredLayers).toEqual(before.authoredLayers)
+    expect(state.canvasOrchestrationSettings.authoredLayers).toHaveLength(2)
+    expect(state.canvasOrchestrationSettings.authoredLayers[0]).toMatchObject({
+      mediaId: mediaOne.id,
+      order: 0,
+      enabled: true,
+      ownership: 'manual',
+      pinned: true,
+    })
+    expect(state.canvasOrchestrationSettings.authoredLayers[1]).toMatchObject({
+      ...before.authoredLayers[0],
+      order: 1,
+    })
     expect(state.canvasOrchestrationSettings.mediaPools).toEqual(before.mediaPools)
     expect(state.canvasOrchestrationSettings.mediaPoolIds).toEqual([mediaTwo.id])
   })

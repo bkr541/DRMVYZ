@@ -351,7 +351,7 @@ function CanvasLegacySessionMedia({ compact = false }: { compact?: boolean }) {
             <div
               key={item.id}
               className={`vz-media-card${active ? ' vz-media-card--active' : ''}`}
-              onClick={() => selectCanvasMediaItem(item.id)}
+              onClick={() => selectCanvasMediaItem(item.id, { ensureAuthoredLayer: true })}
             >
               <div className="vz-media-thumb">
                 {item.type === 'video' ? (
@@ -505,7 +505,7 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
               label: 'Make Active',
               onSelect: () => {
                 setActionFeedback(null)
-                selectCanvasMediaItem(actionMenu.mediaId)
+                selectCanvasMediaItem(actionMenu.mediaId, { ensureAuthoredLayer: true })
               },
             },
             {

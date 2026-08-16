@@ -2,14 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { BrandKit } from '../../../../features/personalization/BrandKitTypes'
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
-import type {
-  CanvasEngineSettings,
-  CanvasMediaItem,
-  CanvasPresetId,
-  CanvasPresetSettings,
-  ReactTrackSection,
+import {
+  resolveCanvasPresetRendererKind,
+  type CanvasEngineSettings,
+  type CanvasMediaItem,
+  type CanvasPresetId,
+  type CanvasPresetSettings,
+  type ReactTrackSection,
 } from '../ReactTypes'
 import { CanvasFracturesRendererLayer } from '../renderers/CanvasFracturesRendererLayer'
+import { LaserImageFxRenderer } from '../renderers/laserImageFx/LaserImageFxRenderer'
+import { hasCanvasEffectPass, makeCanvasCaptureFilter, resolveCanvasEffectOpacity } from '../canvasMediaFidelity'
 import type { CanvasFracturesSourceElement } from '../renderers/fractures/CanvasFracturesTypes'
 import { isCanvasFracturesProcessor, resolveCanvasFracturesPresetSettings } from './CanvasFracturesPerformance'
 import { resolveCanvasEffectVisualState } from './CanvasEffectRecipes'
@@ -70,6 +73,122 @@ function resizeCanvas(canvas: HTMLCanvasElement, width: number, height: number):
 
 function makeScratchCanvas(): HTMLCanvasElement | null {
   return typeof document === 'undefined' ? null : document.createElement('canvas')
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
+}
+
+function drawAuthoredPresetSource({
+  context,
+  source,
+  width,
+  height,
+  engineSettings,
+  alpha,
+  filter = 'none',
+  compositeOperation = 'source-over',
+  reactive = null,
+}: {
+  context: CanvasRenderingContext2D
+  source: HTMLCanvasElement
+  width: number
+  height: number
+  engineSettings: CanvasEngineSettings
+  alpha: number
+  filter?: string
+  compositeOperation?: GlobalCompositeOperation
+  reactive?: {
+    scale: number
+    offsetX: number
+    offsetY: number
+    rotation: number
+  } | null
+}): void {
+  if (alpha <= 0.001) return
+  context.save()
+  context.globalCompositeOperation = compositeOperation
+  context.globalAlpha = clamp01(alpha)
+  context.translate(
+    width * 0.5 + width * 0.5 * (engineSettings.positionX / 100) + (reactive?.offsetX ?? 0),
+    height * 0.5 + height * 0.5 * (engineSettings.positionY / 100) + (reactive?.offsetY ?? 0),
+  )
+  context.rotate((engineSettings.rotation + (reactive?.rotation ?? 0)) * Math.PI / 180)
+  const scale = reactive?.scale ?? engineSettings.scale
+  context.scale(scale, scale)
+  context.filter = filter
+  try {
+    context.drawImage(source, -width / 2, -height / 2, width, height)
+  } catch {
+    // Preserve the previous valid output if a browser rejects a transient source copy.
+  }
+  context.restore()
+}
+
+function drawAuthoredStandardPreset({
+  context,
+  source,
+  width,
+  height,
+  engineSettings,
+  presetSettings,
+  outputOpacity,
+  performanceContext,
+  isPlaying,
+  isPaused,
+  nowSec,
+}: {
+  context: CanvasRenderingContext2D
+  source: HTMLCanvasElement
+  width: number
+  height: number
+  engineSettings: CanvasEngineSettings
+  presetSettings: CanvasPresetSettings
+  outputOpacity: number
+  performanceContext: SharedPerformanceContext
+  isPlaying: boolean
+  isPaused: boolean
+  nowSec: number
+}): void {
+  const active = isPlaying && !isPaused
+  const bass = clamp01(performanceContext.bass)
+  const high = clamp01(performanceContext.high)
+  const beat = active ? clamp01(Math.max(performanceContext.kickStrength, performanceContext.transient)) : 0
+  const drySourceAlpha = clamp01(presetSettings.drySourceMix ?? presetSettings.sourceVisibility)
+
+  drawAuthoredPresetSource({
+    context,
+    source,
+    width,
+    height,
+    engineSettings,
+    alpha: drySourceAlpha * outputOpacity,
+  })
+
+  if (!hasCanvasEffectPass(presetSettings)) return
+  const processedAlpha = presetSettings.sourceMixMode === 'legacyComposite' ? drySourceAlpha : 1
+  const liveScale = engineSettings.scale
+    + bass * presetSettings.bassReactivity * presetSettings.intensity * 0.16
+    + beat * presetSettings.beatPulse * presetSettings.intensity * 0.045
+  const shake = (beat * 9 + high * 4 + 0.8) * presetSettings.glitchAmount * presetSettings.intensity
+  const reactive = {
+    scale: liveScale,
+    offsetX: Math.sin(nowSec * 48) * shake + Math.sin(nowSec * (0.9 + presetSettings.turbulence * 2.6)) * presetSettings.motionAmount * 9,
+    offsetY: Math.cos(nowSec * 41) * shake + Math.cos(nowSec * (0.74 + presetSettings.turbulence * 2.1)) * presetSettings.motionAmount * 7,
+    rotation: shake * 0.16,
+  }
+
+  drawAuthoredPresetSource({
+    context,
+    source,
+    width,
+    height,
+    engineSettings,
+    alpha: processedAlpha * resolveCanvasEffectOpacity(presetSettings) * outputOpacity,
+    filter: makeCanvasCaptureFilter(presetSettings, bass, high),
+    compositeOperation: 'screen',
+    reactive,
+  })
 }
 
 const VIDEO_PLAY_RETRY_MS = 1_500
@@ -327,6 +446,7 @@ function CanvasGenericOrchestrationStage({
   isPlaying,
   isPaused,
   motionIntensity,
+  selectedPresetId,
   onCanvasReady,
   onLiveFps,
   showStatus,
@@ -350,6 +470,7 @@ function CanvasGenericOrchestrationStage({
 
   const mediaSummary = useMemo(() => activeMedia(frame), [frame])
   const mediaErrors = frame.mediaErrors ?? []
+  const selectedRendererKind = resolveCanvasPresetRendererKind(selectedPresetId)
   const outputContract = useMemo(() => resolveCanvasOutputContract({
     canvasOutputOpacity: engineSettings.opacity,
     presetSettings,
@@ -379,6 +500,9 @@ function CanvasGenericOrchestrationStage({
     if (!compositionCanvas || !previousCanvas || !transitionCanvas || !layerCanvas || !maskCanvas) return
     const context = compositionCanvas.getContext('2d', { alpha: true })
     if (!context) return
+    const laserCanvas = selectedRendererKind === 'laserImageFx' ? makeScratchCanvas() : null
+    const laserCreateResult = laserCanvas ? LaserImageFxRenderer.create(laserCanvas) : null
+    const laserRenderer = laserCreateResult?.renderer ?? null
 
     let animationFrame = 0
     let fpsFrames = 0
@@ -471,10 +595,19 @@ function CanvasGenericOrchestrationStage({
           if (isVideoHandle(handle)) syncVideo(handle, layer, liveProps.isPlaying, liveProps.isPaused)
           const maskHandle = layer.maskSourceMediaId ? preloadManager.getHandle(layer.maskSourceMediaId) : null
           const mask = sourceReady(maskHandle) ? maskHandle : null
-          const globalScale = showDriven ? 1 : (1 + (incomingScale - 1) * motion) * liveProps.engineSettings.scale
-          const globalRotation = showDriven ? 0 : incomingRotation * motion + liveProps.engineSettings.rotation
-          const globalOffsetX = showDriven ? 0 : incomingOffsetX * motion + liveProps.engineSettings.positionX / 100
-          const globalOffsetY = showDriven ? 0 : incomingOffsetY * motion + liveProps.engineSettings.positionY / 100
+          const authoredSourceComposition = liveFrame.runtimeMode === 'authored'
+          const globalScale = showDriven
+            ? 1
+            : (1 + (incomingScale - 1) * motion) * (authoredSourceComposition ? 1 : liveProps.engineSettings.scale)
+          const globalRotation = showDriven
+            ? 0
+            : incomingRotation * motion + (authoredSourceComposition ? 0 : liveProps.engineSettings.rotation)
+          const globalOffsetX = showDriven
+            ? 0
+            : incomingOffsetX * motion + (authoredSourceComposition ? 0 : liveProps.engineSettings.positionX / 100)
+          const globalOffsetY = showDriven
+            ? 0
+            : incomingOffsetY * motion + (authoredSourceComposition ? 0 : liveProps.engineSettings.positionY / 100)
           drawLayerWithOptionalMask({
             output,
             layerCanvas,
@@ -491,8 +624,12 @@ function CanvasGenericOrchestrationStage({
             alphaHierarchy: resolveCanvasLayerAlphaHierarchy({
               layer,
               transitionOpacity,
-              drySourceMix: liveOutputContract.drySourceMix,
-              sourceMixMode: liveOutputContract.sourceMixMode,
+              // Authored Layers mode first builds a full-strength source composition.
+              // The selected CANVAS preset is applied once to that composite below.
+              // This prevents reconstructive presets such as Laser Image FX from
+              // leaving only their tiny dry-source contribution on screen.
+              drySourceMix: liveFrame.runtimeMode === 'authored' ? 1 : liveOutputContract.drySourceMix,
+              sourceMixMode: liveFrame.runtimeMode === 'authored' ? 'dryOnly' : liveOutputContract.sourceMixMode,
             }),
             motionIntensity: motion,
           })
@@ -582,10 +719,83 @@ function CanvasGenericOrchestrationStage({
       outputContext.setTransform(1, 0, 0, 1, 0, 0)
       outputContext.clearRect(0, 0, outputWidth, outputHeight)
       outputContext.globalCompositeOperation = 'source-over'
-      outputContext.globalAlpha = liveOutputContract.canvasOutputOpacity
-      outputContext.filter = 'none'
-      outputContext.drawImage(compositionCanvas, 0, 0, outputWidth, outputHeight)
       outputContext.globalAlpha = 1
+      outputContext.filter = 'none'
+
+      if (liveFrame.runtimeMode === 'authored') {
+        const nowSec = liveFrame.context.audioTimeSec > 0
+          ? liveFrame.context.audioTimeSec
+          : now / 1000
+        if (selectedRendererKind === 'laserImageFx') {
+          const dryAlpha = liveOutputContract.drySourceMix * liveOutputContract.canvasOutputOpacity
+          let renderedLaser = false
+          if (laserRenderer && laserCanvas) {
+            laserRenderer.resize(outputWidth, outputHeight)
+            renderedLaser = laserRenderer.render({
+              source: compositionCanvas,
+              settings: liveProps.presetSettings,
+              fitMode: liveProps.engineSettings.fitMode,
+              sourceTransform: {
+                scale: liveProps.engineSettings.scale,
+                positionX: liveProps.engineSettings.positionX,
+                positionY: liveProps.engineSettings.positionY,
+                rotation: liveProps.engineSettings.rotation,
+              },
+              audio: {
+                bass: clamp01(liveFrame.context.bass),
+                mid: clamp01(liveFrame.context.mid),
+                high: clamp01(liveFrame.context.high),
+                beat: liveProps.isPlaying && !liveProps.isPaused
+                  ? clamp01(Math.max(liveFrame.context.kickStrength, liveFrame.context.transient))
+                  : 0,
+                bpm: Math.max(0, liveFrame.context.bpm),
+                absoluteBeat: Math.max(0, liveFrame.context.absoluteBeat),
+              },
+              timeSec: nowSec,
+            })
+          }
+
+          // Match the single-source Laser Image FX contract: retain the configured
+          // dry source underneath the processed GPU frame. If WebGL cannot render,
+          // fall back to a fully visible source instead of an unusable 8% ghost.
+          drawAuthoredPresetSource({
+            context: outputContext,
+            source: compositionCanvas,
+            width: outputWidth,
+            height: outputHeight,
+            engineSettings: liveProps.engineSettings,
+            alpha: (renderedLaser ? dryAlpha : liveOutputContract.canvasOutputOpacity),
+          })
+          if (renderedLaser && laserCanvas) {
+            outputContext.save()
+            outputContext.globalCompositeOperation = 'source-over'
+            outputContext.globalAlpha = liveOutputContract.sourceMixMode === 'legacyComposite'
+              ? liveOutputContract.drySourceMix * liveOutputContract.canvasOutputOpacity
+              : liveOutputContract.canvasOutputOpacity
+            outputContext.filter = 'none'
+            outputContext.drawImage(laserCanvas, 0, 0, outputWidth, outputHeight)
+            outputContext.restore()
+          }
+        } else {
+          drawAuthoredStandardPreset({
+            context: outputContext,
+            source: compositionCanvas,
+            width: outputWidth,
+            height: outputHeight,
+            engineSettings: liveProps.engineSettings,
+            presetSettings: liveProps.presetSettings,
+            outputOpacity: liveOutputContract.canvasOutputOpacity,
+            performanceContext: liveFrame.context,
+            isPlaying: liveProps.isPlaying,
+            isPaused: liveProps.isPaused,
+            nowSec,
+          })
+        }
+      } else {
+        outputContext.globalAlpha = liveOutputContract.canvasOutputOpacity
+        outputContext.drawImage(compositionCanvas, 0, 0, outputWidth, outputHeight)
+        outputContext.globalAlpha = 1
+      }
 
       fpsFrames += 1
       if (now - fpsStartedAt >= 1000) {
@@ -597,8 +807,11 @@ function CanvasGenericOrchestrationStage({
     }
 
     draw()
-    return () => window.cancelAnimationFrame(animationFrame)
-  }, [onLiveFps, preloadManager])
+    return () => {
+      window.cancelAnimationFrame(animationFrame)
+      laserRenderer?.dispose()
+    }
+  }, [onLiveFps, preloadManager, selectedRendererKind])
 
   const authoredSourceHosts = frame.runtimeMode === 'authored'
     ? mediaSummary.map(media => {
@@ -640,7 +853,13 @@ function CanvasGenericOrchestrationStage({
     : null
 
   return (
-    <div ref={shellRef} className="rv-canvas-engine-surface rv-canvas-orchestration-stage" role="region" aria-label="CANVAS orchestrated media surface">
+    <div
+      ref={shellRef}
+      className="rv-canvas-engine-surface rv-canvas-orchestration-stage"
+      role="region"
+      aria-label="CANVAS orchestrated media surface"
+      data-authored-preset-renderer={frame.runtimeMode === 'authored' ? selectedRendererKind : undefined}
+    >
       {authoredSourceHosts}
       <canvas
         ref={canvasRef}

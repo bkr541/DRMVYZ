@@ -86,6 +86,14 @@ afterEach(() => {
 })
 
 describe('CANVAS Stage 3 layer stack UI', () => {
+  it('reports the selected CANVAS preset in the inspector instead of the generic React preset slot', () => {
+    useReactStore.getState().selectCanvasPreset('canvas-laser-image-fx')
+    act(() => root.render(<ReactInspectorPanel />))
+
+    expect(host.textContent).toContain('Active Preset')
+    expect(host.textContent).toContain('Laser Image FX')
+  })
+
   it('renders canonical instances, selects only from rows, and exposes focused row actions', () => {
     const first = useReactStore.getState().addCanvasAuthoredLayer(mediaItems[0].id)
     const second = useReactStore.getState().addCanvasAuthoredLayer(mediaItems[1].id)

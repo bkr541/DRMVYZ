@@ -7,7 +7,7 @@ import type {
 import { ShaderCompiler } from '../../shaders/runtime/ShaderCompiler'
 import { ShaderProgram } from '../../shaders/runtime/ShaderProgram'
 
-export type LaserImageFxSourceElement = HTMLVideoElement | HTMLImageElement
+export type LaserImageFxSourceElement = HTMLVideoElement | HTMLImageElement | HTMLCanvasElement
 
 export type LaserImageFxAudioFrame = {
   bass: number
@@ -385,14 +385,25 @@ export function resolveLaserImageFxFitScale(
 
 function sourceReady(source: LaserImageFxSourceElement | null): source is LaserImageFxSourceElement {
   if (!source) return false
-  if (source instanceof HTMLVideoElement) return source.readyState >= 2 && source.videoWidth > 0 && source.videoHeight > 0
-  return source.complete && source.naturalWidth > 0 && source.naturalHeight > 0
+  if (typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement) {
+    return source.readyState >= 2 && source.videoWidth > 0 && source.videoHeight > 0
+  }
+  if (typeof HTMLCanvasElement !== 'undefined' && source instanceof HTMLCanvasElement) {
+    return source.width > 0 && source.height > 0
+  }
+  const image = source as HTMLImageElement
+  return image.complete && image.naturalWidth > 0 && image.naturalHeight > 0
 }
 
 function sourceSize(source: LaserImageFxSourceElement): { width: number; height: number } {
-  return source instanceof HTMLVideoElement
-    ? { width: source.videoWidth, height: source.videoHeight }
-    : { width: source.naturalWidth, height: source.naturalHeight }
+  if (typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement) {
+    return { width: source.videoWidth, height: source.videoHeight }
+  }
+  if (typeof HTMLCanvasElement !== 'undefined' && source instanceof HTMLCanvasElement) {
+    return { width: source.width, height: source.height }
+  }
+  const image = source as HTMLImageElement
+  return { width: image.naturalWidth, height: image.naturalHeight }
 }
 
 function buildGrid(): { vertices: Float32Array; indices: Uint16Array } {
@@ -698,8 +709,13 @@ export class LaserImageFxRenderer {
 
   private updateSourceTexture(source: LaserImageFxSourceElement | null): boolean {
     if (!this.sourceTexture || !sourceReady(source)) return false
-    const sourceTime = source instanceof HTMLVideoElement ? source.currentTime : 0
-    if (this.uploadedSource === source && Math.abs(sourceTime - this.uploadedSourceTime) < 0.00001) return true
+    const sourceIsVideo = typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement
+    const sourceIsCanvas = typeof HTMLCanvasElement !== 'undefined' && source instanceof HTMLCanvasElement
+    const sourceTime = sourceIsVideo ? source.currentTime : 0
+    // Authored-layer mode feeds the live multi-layer composition through a stable
+    // HTMLCanvasElement. Its identity does not change as its pixels change, so it
+    // must be re-uploaded every frame instead of taking the static-image fast path.
+    if (!sourceIsCanvas && this.uploadedSource === source && Math.abs(sourceTime - this.uploadedSourceTime) < 0.00001) return true
     const gl = this.gl
     const size = sourceSize(source)
     try {
