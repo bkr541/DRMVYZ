@@ -227,7 +227,7 @@ describe('LaserDMX engine-neutral scene frame', () => {
     })
 
     expect(visible.output.globalStrobeRate).toBe(0.25)
-    expect(visible.fixtures.find(fixture => fixture.kind === 'strobe')?.strobeRate).toBe(1)
+    expect(visible.fixtures.find(fixture => fixture.kind === 'strobe')?.strobeRate).toBeCloseTo(1 / 30)
     expect(visible.transientEvents).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: 'strobe', strength: 0.9 }),
       expect.objectContaining({ kind: 'blinder', strength: 0.8 }),

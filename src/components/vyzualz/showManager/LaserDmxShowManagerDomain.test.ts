@@ -605,6 +605,186 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
     expect(disabledCompiled.beams).toHaveLength(0)
   })
 
+  it('round-trips the Stage 6 LED Bar and Strobe contracts through the production compiler and dedicated renderer', () => {
+    let show = createLaserDmxShowManagerShow()
+    const sectionId = show.sections[0]!.id
+    const addedLed = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'ledBar', {
+      label: 'Stage 6 LED Bar',
+      x: 5,
+      y: 7,
+      z: 0.2,
+      rotation: 90,
+      color: '#33ffaa',
+      brightness: 0.68,
+      optics: { zoom: 0.66 },
+      beam: {
+        beamEnabled: true,
+        targetX: 14,
+        targetY: 2,
+        beamSpread: 88,
+        focus: 0.23,
+      },
+      component: {
+        ledCellCount: 24,
+        ledDirection: 'centerOut',
+      },
+    })
+    show = addedLed.show
+    const ledId = addedLed.fixtureId!
+    const addedStrobe = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'strobe', {
+      label: 'Stage 6 Strobe',
+      x: 11,
+      y: 4,
+      z: -0.15,
+      rotation: 35,
+      color: '#ffffff',
+      brightness: 0.9,
+      optics: { zoom: 0.44 },
+      beam: {
+        beamEnabled: true,
+        targetX: 1,
+        targetY: 10,
+        beamSpread: 104,
+        focus: 0.12,
+      },
+      component: { strobeRate: 15 },
+    })
+    show = addedStrobe.show
+    const strobeId = addedStrobe.fixtureId!
+
+    const reloaded = normalizeLaserDmxShowManagerShow(JSON.parse(JSON.stringify(show)))
+    const reloadedLed = reloaded.sections[0]!.fixtures.find(candidate => candidate.id === ledId)!
+    const reloadedStrobe = reloaded.sections[0]!.fixtures.find(candidate => candidate.id === strobeId)!
+    expect(reloadedLed).toMatchObject({
+      x: 5,
+      y: 7,
+      z: 0.2,
+      rotation: 90,
+      color: '#33ffaa',
+      brightness: 0.68,
+      component: { ledCellCount: 24, ledDirection: 'centerOut' },
+      // Hidden Stage 6 legacy fields remain loadable/persisted for compatibility.
+      optics: { zoom: 0.66 },
+      beam: { targetX: 14, targetY: 2, beamSpread: 88, focus: 0.23 },
+    })
+    expect(reloadedStrobe).toMatchObject({
+      x: 11,
+      y: 4,
+      z: -0.15,
+      rotation: 35,
+      brightness: 0.9,
+      component: { strobeRate: 15 },
+      optics: { zoom: 0.44 },
+      beam: { targetX: 1, targetY: 10, beamSpread: 104, focus: 0.12 },
+    })
+
+    const runtime = createLaserDmxShowManagerRuntimeShowDirector(reloaded, reloaded.sections[0]!)
+    const compiled = compileLaserDmxShowDirectorToBeamMatrix({
+      showDirector: runtime,
+      beamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
+    })
+    const ledBeams = compiled.beams.filter(beam => beam.id.startsWith(`sd-${ledId}-bar-`))
+    const strobeBeam = compiled.beams.find(beam => beam.id.startsWith(`sd-${strobeId}-strobe-field`))
+    expect(ledBeams).toHaveLength(16)
+    expect(compiled.groups.find(group => group.name === 'Stage 6 LED Bar')?.sequence.mode).toBe('centerOut')
+    expect(strobeBeam?.appearance).toMatchObject({ width: 8, divergence: 0.42, focus: 0.42, strobeRate: 0.5 })
+
+    const frame = createLaserDmxSceneFrame({
+      showDirector: runtime,
+      evaluatedBeamMatrix: compiled,
+      audioTimeSec: 0,
+      deltaTimeSec: 1 / 60,
+      isPlaying: true,
+      timingDiscontinuity: false,
+      trackKey: 'show-manager-stage-6-led-strobe',
+      bpm: 128,
+    })
+    expect(frame.fixtures.find(candidate => candidate.id === strobeId)?.strobeRate).toBeCloseTo(0.5)
+    const fixturePlan = buildLaserDmxDedicatedFixtureRenderPlan(frame, {
+      backingWidth: 1920,
+      backingHeight: 1080,
+      cssWidth: 960,
+      cssHeight: 540,
+    })
+    expect(fixturePlan.leds.find(led => led.id === `${ledId}-led`)).toMatchObject({ segments: 24, behavior: 3 })
+    expect(fixturePlan.flashes.some(flash => flash.id === `${strobeId}-strobe`)).toBe(true)
+
+    const strobeOff = updateLaserDmxShowManagerFixtureInSection(reloaded, sectionId, strobeId, { component: { strobeRate: 0 } })
+    const offRuntime = createLaserDmxShowManagerRuntimeShowDirector(strobeOff, strobeOff.sections[0]!)
+    const offCompiled = compileLaserDmxShowDirectorToBeamMatrix({
+      showDirector: offRuntime,
+      beamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
+    })
+    expect(offCompiled.beams.find(beam => beam.id.startsWith(`sd-${strobeId}-strobe-field`))?.appearance.strobeRate).toBe(0)
+    const offFrame = createLaserDmxSceneFrame({
+      showDirector: offRuntime,
+      evaluatedBeamMatrix: offCompiled,
+      audioTimeSec: 0,
+      deltaTimeSec: 1 / 60,
+      isPlaying: true,
+      timingDiscontinuity: false,
+      trackKey: 'show-manager-stage-6-strobe-off',
+      bpm: 128,
+    })
+    expect(offFrame.fixtures.find(candidate => candidate.id === strobeId)?.strobeRate).toBe(0)
+    expect(offFrame.transientEvents.some(event => event.kind === 'strobe')).toBe(false)
+
+    const strobeMax = updateLaserDmxShowManagerFixtureInSection(reloaded, sectionId, strobeId, { component: { strobeRate: 30 } })
+    const maxRuntime = createLaserDmxShowManagerRuntimeShowDirector(strobeMax, strobeMax.sections[0]!)
+    const maxCompiled = compileLaserDmxShowDirectorToBeamMatrix({
+      showDirector: maxRuntime,
+      beamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
+    })
+    const maxFrame = createLaserDmxSceneFrame({
+      showDirector: maxRuntime,
+      evaluatedBeamMatrix: maxCompiled,
+      audioTimeSec: 0,
+      deltaTimeSec: 1 / 60,
+      isPlaying: true,
+      timingDiscontinuity: false,
+      trackKey: 'show-manager-stage-6-strobe-max',
+      bpm: 128,
+    })
+    expect(maxFrame.fixtures.find(candidate => candidate.id === strobeId)?.strobeRate).toBe(1)
+  })
+
+  it('defaults missing Stage 6 fixture-specific fields without deleting legacy saved fixture data', () => {
+    const legacyLed = createDefaultLaserDmxShowDirectorFixture('ledBar', 'legacy-led-stage-6')
+    const legacyStrobe = createDefaultLaserDmxShowDirectorFixture('strobe', 'legacy-strobe-stage-6')
+    const rawLed = JSON.parse(JSON.stringify(legacyLed)) as {
+      component: Record<string, unknown>
+      beam: Record<string, unknown>
+      optics: Record<string, unknown>
+    }
+    const rawStrobe = JSON.parse(JSON.stringify(legacyStrobe)) as {
+      component: Record<string, unknown>
+      beam: Record<string, unknown>
+      optics: Record<string, unknown>
+    }
+    delete rawLed.component.ledCellCount
+    delete rawLed.component.ledDirection
+    delete rawStrobe.component.strobeRate
+    rawLed.optics.zoom = 0.71
+    rawStrobe.optics.zoom = 0.39
+    rawLed.beam.targetX = 16
+    rawLed.beam.targetY = 9
+    rawLed.beam.beamSpread = 77
+    rawLed.beam.focus = 0.31
+    rawStrobe.beam.targetX = 2
+    rawStrobe.beam.targetY = 8
+    rawStrobe.beam.beamSpread = 99
+    rawStrobe.beam.focus = 0.17
+
+    const normalizedLed = normalizeLaserDmxShowManagerFixture(rawLed)
+    const normalizedStrobe = normalizeLaserDmxShowManagerFixture(rawStrobe)
+    expect(normalizedLed.component).toMatchObject({ ledCellCount: 8, ledDirection: 'leftToRight' })
+    expect(normalizedStrobe.component.strobeRate).toBe(8)
+    expect(normalizedLed.optics.zoom).toBe(0.71)
+    expect(normalizedStrobe.optics.zoom).toBe(0.39)
+    expect(normalizedLed.beam).toMatchObject({ targetX: 16, targetY: 9, beamSpread: 77, focus: 0.31 })
+    expect(normalizedStrobe.beam).toMatchObject({ targetX: 2, targetY: 8, beamSpread: 99, focus: 0.17 })
+  })
+
   it('uses angle-based Moving Head aiming only outside Fixed mode', () => {
     let show = createLaserDmxShowManagerShow()
     const sectionId = show.sections[0]!.id

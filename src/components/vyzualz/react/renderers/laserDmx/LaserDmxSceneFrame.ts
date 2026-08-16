@@ -999,7 +999,10 @@ export function createLaserDmxSceneFrame(input: CreateLaserDmxSceneFrameInput): 
       rotationDeg: finite(fixture.rotation, 0),
       color,
       intensity,
-      strobeRate: clamp01(fixture.component.strobeRate),
+      // Fixture-specific strobe authoring stores rate in Hz (0-30), while the
+      // scene/Beam Matrix runtime uses a normalized 0-1 strobe domain. Other
+      // fixture kinds carry the shared component shape but do not own this field.
+      strobeRate: fixture.kind === 'strobe' ? clamp01(fixture.component.strobeRate / 30) : 0,
       enabled: fixtureEnabled,
       selected: selected.has(fixture.id),
       component: { ...fixture.component },

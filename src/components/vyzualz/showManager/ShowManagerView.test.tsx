@@ -2252,6 +2252,132 @@ describe('ShowManagerView production shell', () => {
     }
   })
 
+  it('shows truthful LED Bar and Strobe fixture-specific controls and hides ignored generic beam controls', async () => {
+    setSharedShowToLaserAuthoredSections()
+    const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
+    const originalFixtures = intro.fixtures
+    const ledBar = createDefaultLaserDmxShowDirectorFixture('ledBar', 'fixture-led-bar-contract')
+    ledBar.label = 'Inspector LED Bar'
+    ledBar.component.ledCellCount = 12
+    ledBar.component.ledDirection = 'rightToLeft'
+    const strobe = createDefaultLaserDmxShowDirectorFixture('strobe', 'fixture-strobe-contract')
+    strobe.label = 'Inspector Strobe'
+    strobe.component.strobeRate = 8
+    intro.fixtures = [ledBar, strobe] as never[]
+    fixture.state.updateLaserDmxShowManagerFixture.mockClear()
+
+    const numberInputFor = (inspector: HTMLElement | null, labelText: string) => {
+      const label = [...(inspector?.querySelectorAll<HTMLLabelElement>('label') ?? [])]
+        .find(candidate => candidate.textContent?.trim() === labelText)
+      return label?.htmlFor ? inspector?.querySelector<HTMLInputElement>(`#${label.htmlFor}`) ?? null : null
+    }
+
+    try {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+      await act(async () => {
+        engineTrigger?.click()
+        await Promise.resolve()
+      })
+      const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.includes('LaserDMX'))
+      await act(async () => {
+        laserOption?.click()
+        await Promise.resolve()
+      })
+
+      await act(async () => {
+        container?.querySelector<HTMLButtonElement>('button[data-fixture-id="fixture-led-bar-contract"]')?.click()
+        await Promise.resolve()
+      })
+      let inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
+      expect(inspector?.textContent).toContain('Inspector LED Bar')
+      for (const supported of ['Position', 'X', 'Y', 'Z', 'Rotation', 'Color & Brightness', 'Brightness', 'LED Bar', 'Beam enabled', 'Cell count', 'Direction', 'Trigger Configuration']) {
+        expect(inspector?.textContent).toContain(supported)
+      }
+      for (const ignored of ['Beam Configuration', 'Beam Type / Pattern', 'Target X', 'Target Y', 'Width', 'Spread', 'Focus']) {
+        expect(inspector?.textContent).not.toContain(ignored)
+      }
+      expect(numberInputFor(inspector, 'Cell count')?.value).toBe('12')
+      expect(inspector?.querySelector<HTMLButtonElement>('button[aria-label="Direction"]')?.textContent).toContain('Right to left')
+
+      const cellCount = numberInputFor(inspector, 'Cell count')
+      await act(async () => {
+        if (!cellCount) return
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+        setter?.call(cellCount, '24')
+        cellCount.dispatchEvent(new Event('input', { bubbles: true }))
+        cellCount.dispatchEvent(new Event('change', { bubbles: true }))
+        await Promise.resolve()
+      })
+      expect(fixture.state.updateLaserDmxShowManagerFixture).toHaveBeenCalledWith(
+        'laser-show-1',
+        'laser-show-1:section:intro:1',
+        'fixture-led-bar-contract',
+        { component: { ledCellCount: 24 } },
+      )
+
+      const direction = inspector?.querySelector<HTMLButtonElement>('button[aria-label="Direction"]')
+      await act(async () => {
+        direction?.click()
+        await Promise.resolve()
+      })
+      const centerOut = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.trim() === 'Center out')
+      await act(async () => {
+        centerOut?.click()
+        await Promise.resolve()
+      })
+      expect(fixture.state.updateLaserDmxShowManagerFixture).toHaveBeenCalledWith(
+        'laser-show-1',
+        'laser-show-1:section:intro:1',
+        'fixture-led-bar-contract',
+        { component: { ledDirection: 'centerOut' } },
+      )
+
+      await act(async () => {
+        container?.querySelector<HTMLButtonElement>('button[data-fixture-id="fixture-strobe-contract"]')?.click()
+        await Promise.resolve()
+      })
+      inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
+      expect(inspector?.textContent).toContain('Inspector Strobe')
+      for (const supported of ['Position', 'X', 'Y', 'Z', 'Rotation', 'Color & Brightness', 'Brightness', 'Strobe', 'Beam enabled', 'Strobe rate', 'Trigger Configuration']) {
+        expect(inspector?.textContent).toContain(supported)
+      }
+      for (const ignored of ['Beam Configuration', 'Beam Type / Pattern', 'Target X', 'Target Y', 'Width', 'Spread', 'Focus', 'Cell count', 'Direction']) {
+        expect(inspector?.textContent).not.toContain(ignored)
+      }
+      const strobeRate = numberInputFor(inspector, 'Strobe rate')
+      expect(strobeRate?.value).toBe('8')
+      expect(strobeRate?.getAttribute('min')).toBe('0')
+      expect(strobeRate?.getAttribute('max')).toBe('30')
+      expect(strobeRate?.getAttribute('step')).toBe('0.5')
+      await act(async () => {
+        if (!strobeRate) return
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+        setter?.call(strobeRate, '12.5')
+        strobeRate.dispatchEvent(new Event('input', { bubbles: true }))
+        strobeRate.dispatchEvent(new Event('change', { bubbles: true }))
+        await Promise.resolve()
+      })
+      expect(fixture.state.updateLaserDmxShowManagerFixture).toHaveBeenCalledWith(
+        'laser-show-1',
+        'laser-show-1:section:intro:1',
+        'fixture-strobe-contract',
+        { component: { strobeRate: 12.5 } },
+      )
+    } finally {
+      intro.fixtures = originalFixtures
+    }
+  })
+
   it('shows manual Laser target coordinates only in Fixed mode and never exposes the non-production Width/Zoom control', async () => {
     setSharedShowToLaserAuthoredSections()
     const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!

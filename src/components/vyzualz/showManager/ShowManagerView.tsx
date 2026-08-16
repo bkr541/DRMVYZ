@@ -32,6 +32,7 @@ import {
   type LaserDmxShowDirectorFixturePatch,
   type LaserDmxShowDirectorFixtureKind,
   type LaserDmxShowDirectorGoboPattern,
+  type LaserDmxShowDirectorLedDirection,
   type LaserDmxShowDirectorMovingHeadPanTiltStyle,
   type LaserDmxShowDirectorScannerConfig,
   type LaserDmxShowDirectorScannerDirection,
@@ -3636,6 +3637,13 @@ function LaserDmxShowManagerFixtureInspector({
     { value: 'figureEight', label: 'Figure eight' },
     { value: 'audioReactive', label: 'Audio reactive' },
   ]
+  const ledDirectionOptions: Array<{ value: LaserDmxShowDirectorLedDirection; label: string }> = [
+    { value: 'leftToRight', label: 'Left to right' },
+    { value: 'rightToLeft', label: 'Right to left' },
+    { value: 'centerOut', label: 'Center out' },
+    { value: 'edgesIn', label: 'Edges in' },
+    { value: 'chase', label: 'Chase' },
+  ]
   const movingHeadGoboOptions: Array<{ value: LaserDmxShowDirectorGoboPattern; label: string }> = [
     { value: 'open', label: 'Open' },
     { value: 'circle', label: 'Circle' },
@@ -3656,6 +3664,8 @@ function LaserDmxShowManagerFixtureInspector({
     .map(([value, label]) => ({ value, label }))
   const isLaser = fixture.kind === 'laser'
   const isMovingHead = fixture.kind === 'movingHead'
+  const isLedBar = fixture.kind === 'ledBar'
+  const isStrobe = fixture.kind === 'strobe'
   const manualTargetCoordinatesActive = fixture.beam.targetMode === 'fixed'
   const scannerDirectionOptions: Array<{ value: LaserDmxShowDirectorScannerDirection; label: string }> = [
     { value: 'forward', label: 'Forward' },
@@ -3808,20 +3818,20 @@ function LaserDmxShowManagerFixtureInspector({
             onChange={value => onPatch({ optics: { prismFacets: value === '5' ? 5 : value === '3' ? 3 : 1 } })}
           />
         </Collapsible>
-      ) : (
+      ) : isLaser ? (
         <Collapsible label="Beam Configuration" defaultOpen>
-          {isLaser && <ToggleRow label="Beam Enabled" value={fixture.beam.beamEnabled} onChange={beamEnabled => onPatch({ beam: { beamEnabled } })} />}
-          {(!isLaser || !fixture.scanner) && (
+          <ToggleRow label="Beam Enabled" value={fixture.beam.beamEnabled} onChange={beamEnabled => onPatch({ beam: { beamEnabled } })} />
+          {!fixture.scanner && (
             <SelectRow
-              label={isLaser ? 'Target Mode' : 'Beam Type / Pattern'}
+              label="Target Mode"
               value={fixture.beam.targetMode}
               options={beamTargetOptions}
-              description={isLaser ? 'Controls legacy endpoint generation. Choosing a Scanner Pattern below switches this fixture to the production scanner path.' : undefined}
+              description="Controls legacy endpoint generation. Choosing a Scanner Pattern below switches this fixture to the production scanner path."
               onChange={targetMode => onPatch({ beam: { targetMode: targetMode as LaserDmxShowDirectorFixture['beam']['targetMode'] } })}
             />
           )}
-          {isLaser && !fixture.scanner && !manualTargetCoordinatesActive && <NumberInputRow label="Beam Angle" value={fixture.beam.beamAngle} min={-360} max={360} step={1} unit="°" onChange={beamAngle => onPatch({ beam: { beamAngle } })} />}
-          {(!isLaser || (!fixture.scanner && manualTargetCoordinatesActive)) && (
+          {!fixture.scanner && !manualTargetCoordinatesActive && <NumberInputRow label="Beam Angle" value={fixture.beam.beamAngle} min={-360} max={360} step={1} unit="°" onChange={beamAngle => onPatch({ beam: { beamAngle } })} />}
+          {!fixture.scanner && manualTargetCoordinatesActive && (
             <>
               <NumberInputRow
                 label="Target X"
@@ -3841,21 +3851,41 @@ function LaserDmxShowManagerFixtureInspector({
               />
             </>
           )}
-          {!isLaser && (
-            <SliderRow
-              label="Width"
-              value={fixture.optics.zoom}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={zoom => onPatch({ optics: { zoom } })}
-              {...sliderGesture}
-            />
-          )}
           <SliderRow label="Spread" value={fixture.beam.beamSpread} min={0} max={180} step={1} onChange={beamSpread => onPatch({ beam: { beamSpread } })} {...sliderGesture} />
           <SliderRow label="Focus" value={fixture.beam.focus} min={0} max={1} step={0.01} onChange={focus => onPatch({ beam: { focus } })} {...sliderGesture} />
         </Collapsible>
-      )}
+      ) : isLedBar ? (
+        <Collapsible label="LED Bar" defaultOpen>
+          <ToggleRow label="Beam enabled" value={fixture.beam.beamEnabled} onChange={beamEnabled => onPatch({ beam: { beamEnabled } })} />
+          <NumberInputRow
+            label="Cell count"
+            value={fixture.component.ledCellCount}
+            min={1}
+            max={64}
+            step={1}
+            onChange={ledCellCount => onPatch({ component: { ledCellCount: Math.max(1, Math.min(64, Math.round(ledCellCount))) } })}
+          />
+          <SelectRow
+            label="Direction"
+            value={fixture.component.ledDirection}
+            options={ledDirectionOptions}
+            onChange={ledDirection => onPatch({ component: { ledDirection: ledDirection as LaserDmxShowDirectorLedDirection } })}
+          />
+        </Collapsible>
+      ) : isStrobe ? (
+        <Collapsible label="Strobe" defaultOpen>
+          <ToggleRow label="Beam enabled" value={fixture.beam.beamEnabled} onChange={beamEnabled => onPatch({ beam: { beamEnabled } })} />
+          <NumberInputRow
+            label="Strobe rate"
+            value={fixture.component.strobeRate}
+            min={0}
+            max={30}
+            step={0.5}
+            unit="Hz"
+            onChange={strobeRate => onPatch({ component: { strobeRate: Math.max(0, Math.min(30, strobeRate)) } })}
+          />
+        </Collapsible>
+      ) : null}
 
       {isLaser && (
         <Collapsible label="Scanner" defaultOpen>
