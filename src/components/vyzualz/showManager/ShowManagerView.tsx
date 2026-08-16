@@ -4565,18 +4565,6 @@ function ShowManagerTimeline({
             <p className="sm-new-show-field-note" role="status">{statusMessage}</p>
           )}
         </TimelineRow>
-        <TimelineRow label="Motion">
-          <svg className="sm-automation-curve is-purple" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true">
-            <polyline points="0,13 14,12 28,12 43,8 57,13 70,10 84,6 100,11" />
-          </svg>
-        </TimelineRow>
-        <TimelineRow label="Audio">
-          <div className="sm-waveform" aria-hidden="true">
-            {Array.from({ length: 96 }, (_, index) => (
-              <i key={index} style={{ height: `${22 + ((index * 17) % 68)}%` }} />
-            ))}
-          </div>
-        </TimelineRow>
         <ShowManagerTimeRow viewport={viewport} />
         <div className="sm-playhead" style={{ left: `calc(${playheadPercent}% + ${76 * (1 - playheadPercent / 100)}px)` }}>
           <span>{formatClock(currentTime)}</span>

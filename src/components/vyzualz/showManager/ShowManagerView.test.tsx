@@ -761,8 +761,6 @@ describe('ShowManagerView production shell', () => {
     expect(trackMapRows.map(row => row.querySelector(':scope > strong')?.textContent)).toEqual([
       'Beats',
       'Section',
-      'Motion',
-      'Audio',
       'Time',
     ])
     expect(trackMapRows[0]?.querySelector('canvas.sm-track-map-beat-canvas')).not.toBeNull()

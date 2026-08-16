@@ -732,14 +732,6 @@ button.sm-library-section-toggle:focus-visible {
 .sm-segment-row span.is-breakdown { background: rgba(155, 117, 34, 0.65); }
 .sm-segment-row--scenes span { background: rgba(105, 55, 140, 0.42); }
 
-.sm-automation-curve { width: 100%; height: 100%; display: block; overflow: visible; }
-.sm-automation-curve polyline { fill: none; stroke: #4ac7db; stroke-width: 0.7; vector-effect: non-scaling-stroke; }
-.sm-automation-curve.is-green polyline { stroke: #61d6aa; }
-.sm-automation-curve.is-purple polyline { stroke: #b84fc9; }
-
-.sm-waveform { height: 100%; display: flex; align-items: center; gap: 1px; padding: 2px; opacity: 0.45; }
-.sm-waveform i { flex: 1; min-width: 1px; background: rgba(196, 212, 220, 0.5); }
-
 .sm-playhead {
   position: absolute;
   top: 0;
