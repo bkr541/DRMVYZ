@@ -38,7 +38,8 @@ export const DEFAULT_LASER_DMX_SHOW_MANAGER_WORKSPACE_SETTINGS: Readonly<LaserDm
   showGrid: DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.showGrid,
   showLabels: DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.showLabels,
   showBeams: DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.showBeams,
-  highlightGrid: DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.highlightFixtures,
+  // Grid highlighting is a Show Manager authoring affordance, not fixture highlighting.
+  highlightGrid: true,
   rendererMode: DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.rendererMode,
 })
 
@@ -52,6 +53,12 @@ export const LASER_DMX_SHOW_MANAGER_ENABLED_FIXTURE_KINDS = [
 const ENABLED_FIXTURE_KIND_SET = new Set<LaserDmxShowDirectorFixtureKind>(
   LASER_DMX_SHOW_MANAGER_ENABLED_FIXTURE_KINDS,
 )
+
+const LASER_DMX_SHOW_MANAGER_BEAM_OUTPUT_KINDS = new Set<LaserDmxShowDirectorFixtureKind>([
+  'laser',
+  'movingHead',
+  'parWash',
+])
 
 const SECTION_TYPES = new Set<ReactSectionType>([
   'intro',
@@ -125,7 +132,17 @@ function createLaserDmxShowManagerRuntimeRig(
   return {
     ...base,
     sourceTemplateId: `show-manager:${show.id}:${identity}`,
-    fixtures: fixtures.map((fixture, index) => cloneFixture(fixture, index)),
+    fixtures: fixtures.map((fixture, index) => {
+      const cloned = cloneFixture(fixture, index)
+      if (settings.showBeams || !LASER_DMX_SHOW_MANAGER_BEAM_OUTPUT_KINDS.has(cloned.kind)) return cloned
+      // Show Beams is preview-only. Suppress canonical beam-producing fixtures
+      // without mutating persisted fixture programming; source icons remain in
+      // the Show Manager editor overlay and LED Bar/Strobe output stays visible.
+      return {
+        ...cloned,
+        beam: { ...cloned.beam, beamEnabled: false },
+      }
+    }),
     selectedFixtureId: null,
     selectedFixtureIds: [],
     settings: {
@@ -135,7 +152,9 @@ function createLaserDmxShowManagerRuntimeRig(
       showLabels: settings.showLabels,
       showBeams: settings.showBeams,
       showGrid: settings.showGrid,
-      highlightFixtures: settings.highlightGrid,
+      // Highlight Grid belongs to the editor grid overlay. Never reinterpret it
+      // as the runtime's unrelated Highlight Fixtures setting.
+      highlightFixtures: base.settings.highlightFixtures,
       presentationMode: 'live',
       rendererMode: settings.rendererMode,
       webglQuality: LASER_DMX_SHOW_MANAGER_QUALITY,

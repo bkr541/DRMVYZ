@@ -1530,6 +1530,15 @@ describe('ShowManagerView production shell', () => {
       expect(container.textContent).toContain('Intro')
       expect(container.textContent).not.toContain('Pre-Drop')
       expect(container.querySelector('[data-testid="show-manager-audio-dock"]')?.getAttribute('data-track-id')).toBe('')
+      expect(container.querySelector('[data-testid="laser-dmx-runtime-preview"]')).not.toBeNull()
+      expect(container.querySelector('.sm-laser-stage-beams')).toBeNull()
+      const previewProps = fixture.laserRuntimePreviewProps[fixture.laserRuntimePreviewProps.length - 1]!
+      expect(previewProps).toMatchObject({
+        isPlaying: false,
+        analysisActive: false,
+        isPaused: true,
+        laserDmxAuthoringSectionId: 'laser-show-1:section:intro:1',
+      })
     } finally {
       Object.assign(fixture.audio, originalAudio)
     }
@@ -1672,6 +1681,70 @@ describe('ShowManagerView production shell', () => {
       fixture.audio.isPlaying = false
       fixture.state.laserDmxShowManagerEditingSectionId = intro.id
       fixture.state.laserDmxShowManagerPlaybackSectionId = null
+    }
+  })
+
+  it('keeps the canonical LaserDMX runtime visible with Show Beams off and leaves Highlight Grid on the editor grid only', async () => {
+    setSharedShowToLaserAuthoredSections()
+    const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
+    const originalSettings = intro.settings
+    const originalFixtures = intro.fixtures
+    intro.settings = { ...intro.settings, showBeams: false, highlightGrid: false }
+    intro.fixtures = [
+      createDefaultLaserDmxShowDirectorFixture('laser', 'stage7-laser'),
+      createDefaultLaserDmxShowDirectorFixture('ledBar', 'stage7-led'),
+      createDefaultLaserDmxShowDirectorFixture('strobe', 'stage7-strobe'),
+    ] as never[]
+
+    try {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+      await act(async () => {
+        engineTrigger?.click()
+        await Promise.resolve()
+      })
+      const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.includes('LaserDMX'))
+      await act(async () => {
+        laserOption?.click()
+        await Promise.resolve()
+      })
+
+      expect(fixture.audio.isPlaying).toBe(false)
+      expect(container.querySelector('[data-testid="laser-dmx-runtime-preview"]')).not.toBeNull()
+      expect(container.querySelector('.sm-laser-runtime-preview')?.classList.contains('is-hidden')).toBe(false)
+      expect(container.querySelector('.sm-laser-stage-beams')).toBeNull()
+      expect(container.querySelector('[data-testid="laser-dmx-authoring-grid"]')?.classList.contains('is-highlighted')).toBe(false)
+
+      const previewProps = fixture.laserRuntimePreviewProps[fixture.laserRuntimePreviewProps.length - 1]!
+      const programs = previewProps.laserDmxSectionRuntimePrograms as Array<{
+        section: { id: string }
+        showDirector: {
+          settings: { showBeams: boolean; highlightFixtures: boolean }
+          fixtures: Array<{ id: string; kind: string; beam: { beamEnabled: boolean } }>
+        }
+      }>
+      const introProgram = programs.find(program => program.section.id === intro.id)!
+      expect(previewProps).toMatchObject({
+        isPlaying: false,
+        analysisActive: false,
+        isPaused: true,
+        laserDmxAuthoringSectionId: intro.id,
+      })
+      expect(introProgram.showDirector.settings).toMatchObject({ showBeams: false, highlightFixtures: true })
+      expect(introProgram.showDirector.fixtures.find(item => item.id === 'stage7-laser')?.beam.beamEnabled).toBe(false)
+      expect(introProgram.showDirector.fixtures.find(item => item.id === 'stage7-led')?.beam.beamEnabled).toBe(true)
+      expect(introProgram.showDirector.fixtures.find(item => item.id === 'stage7-strobe')?.beam.beamEnabled).toBe(true)
+      expect(intro.fixtures.every(item => item.beam.beamEnabled)).toBe(true)
+    } finally {
+      intro.settings = originalSettings
+      intro.fixtures = originalFixtures
     }
   })
 

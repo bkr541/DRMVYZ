@@ -3,7 +3,7 @@
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_REACT_PRESETS, type ReactEngineId, type ReactPreset } from '../ReactTypes'
+import { createDefaultLaserDmxShowDirectorFixture, createDefaultLaserDmxShowDirectorState, DEFAULT_REACT_PRESETS, type ReactEngineId, type ReactPreset } from '../ReactTypes'
 import { REACT_ENGINE_IDS } from '../reactEngineCatalog'
 import {
   getReactLiveEngineOwnershipDiagnosticsForTests,
@@ -212,6 +212,71 @@ describe('ReactPlaceholderCanvas live ownership boundary', () => {
     const frame = mocks.renderReactEngine.mock.calls[0]?.[1]
     expect(frame).toMatchObject({ isPlaying: false, analysisActive: true })
     expect(rafCallbacks.size).toBe(1)
+  })
+
+  it('reuses one LaserDMX loop across stopped authoring edits and playback transitions', async () => {
+    const preset = findPreset('laserDmx')
+    const introRig = createDefaultLaserDmxShowDirectorState()
+    introRig.sourceTemplateId = 'show-manager:test:intro'
+    introRig.fixtures = [createDefaultLaserDmxShowDirectorFixture('laser', 'intro-laser')]
+    const dropRig = createDefaultLaserDmxShowDirectorState()
+    dropRig.sourceTemplateId = 'show-manager:test:drop'
+    dropRig.fixtures = [createDefaultLaserDmxShowDirectorFixture('strobe', 'drop-strobe')]
+    const programs = [
+      { section: { id: 'intro', label: 'Intro', type: 'intro' as const, startSec: 0, endSec: 1, intensity: 0.4, engineId: 'laserDmx' as const }, showDirector: introRig },
+      { section: { id: 'drop', label: 'Drop', type: 'drop' as const, startSec: 1, endSec: 2, intensity: 1, engineId: 'laserDmx' as const }, showDirector: dropRig },
+    ]
+    let audioTime = 1.5
+    const render = (isPlaying: boolean, nextPrograms = programs) => (
+      <ReactPlaceholderCanvas
+        key="stage7-laser-preview"
+        analyser={null}
+        engine="laserDmx"
+        activePreset={preset}
+        intensity={1}
+        motion={1}
+        glow={0.5}
+        bassReactivity={0.7}
+        isPlaying={isPlaying}
+        analysisActive={isPlaying}
+        isPaused={!isPlaying}
+        laserDmxSectionRuntimePrograms={nextPrograms}
+        laserDmxAuthoringSectionId="drop"
+        getAudioTime={() => audioTime}
+      />
+    )
+
+    await act(async () => root?.render(render(false)))
+    expect(resizeObservers).toHaveLength(1)
+    expect(rafCallbacks.size).toBe(1)
+    expect(mocks.disposeReactEngineRenderer).not.toHaveBeenCalled()
+    expect(mocks.renderReactEngine.mock.calls.at(-1)?.[1]).toMatchObject({ isPlaying: false, analysisActive: false, audioTime: 1.5 })
+    expect(mocks.renderReactEngine.mock.calls.at(-1)?.[3]?.laserDmxPreviewShowDirector?.sourceTemplateId).toBe('show-manager:test:drop')
+
+    const editedDropRig = { ...dropRig, fixtures: [{ ...dropRig.fixtures[0]!, brightness: 0.33 }] }
+    const editedPrograms = [programs[0]!, { ...programs[1]!, showDirector: editedDropRig }]
+    await act(async () => root?.render(render(false, editedPrograms)))
+    const pausedFrame = [...rafCallbacks.values()][0]
+    await act(async () => pausedFrame?.(performance.now() + 16))
+    expect(mocks.renderReactEngine.mock.calls.at(-1)?.[3]?.laserDmxPreviewShowDirector?.fixtures[0]?.brightness).toBe(0.33)
+    expect(resizeObservers).toHaveLength(1)
+    expect(rafCallbacks.size).toBe(1)
+
+    audioTime = 0.5
+    await act(async () => root?.render(render(true, editedPrograms)))
+    const playingFrame = [...rafCallbacks.values()][0]
+    await act(async () => playingFrame?.(performance.now() + 32))
+    expect(mocks.renderReactEngine.mock.calls.at(-1)?.[1]).toMatchObject({ isPlaying: true, analysisActive: true, audioTime: 0.5 })
+    expect(mocks.renderReactEngine.mock.calls.at(-1)?.[3]?.laserDmxPreviewShowDirector?.sourceTemplateId).toBe('show-manager:test:intro')
+    expect(resizeObservers).toHaveLength(1)
+    expect(rafCallbacks.size).toBe(1)
+    expect(mocks.disposeReactEngineRenderer).not.toHaveBeenCalled()
+
+    await act(async () => root?.unmount())
+    root = null
+    expect(rafCallbacks.size).toBe(0)
+    expect(resizeObservers[0].disconnect).toHaveBeenCalledTimes(1)
+    expect(mocks.disposeReactEngineRenderer).toHaveBeenCalledTimes(1)
   })
 
   it('retires ownership and observers when the first engine frame throws', async () => {

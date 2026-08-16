@@ -415,6 +415,41 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
     expect(empty.sourceTemplateId).toBe(`show-manager:${show.id}:empty`)
   })
 
+  it('keeps Show Beams preview-only while preserving LED Bar/Strobe output and truthful grid semantics', () => {
+    let show = createLaserDmxShowManagerShow()
+    const sectionId = show.sections[0]!.id
+    const fixtureIds: Record<string, string> = {}
+    for (const kind of ['laser', 'movingHead', 'ledBar', 'strobe'] as const) {
+      const added = addLaserDmxShowManagerFixtureToSection(show, sectionId, kind, { label: `Stage 7 ${kind}` })
+      show = added.show
+      fixtureIds[kind] = added.fixtureId!
+    }
+    show = updateLaserDmxShowManagerSectionWorkspaceSettings(show, sectionId, {
+      showBeams: false,
+      highlightGrid: false,
+    })
+
+    const persistedSection = show.sections[0]!
+    expect(persistedSection.fixtures.every(fixture => fixture.beam.beamEnabled)).toBe(true)
+
+    const runtime = createLaserDmxShowManagerRuntimeShowDirector(show, persistedSection)
+    const runtimeByKind = Object.fromEntries(runtime.fixtures.map(fixture => [fixture.kind, fixture]))
+    expect(runtimeByKind.laser.beam.beamEnabled).toBe(false)
+    expect(runtimeByKind.movingHead.beam.beamEnabled).toBe(false)
+    expect(runtimeByKind.ledBar.beam.beamEnabled).toBe(true)
+    expect(runtimeByKind.strobe.beam.beamEnabled).toBe(true)
+    expect(runtime.settings).toMatchObject({ showBeams: false, highlightFixtures: true })
+
+    const compiled = compileLaserDmxShowDirectorToBeamMatrix({
+      showDirector: runtime,
+      beamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
+    })
+    expect(compiled.beams.some(beam => beam.id.includes(fixtureIds.laser))).toBe(false)
+    expect(compiled.beams.some(beam => beam.id.includes(fixtureIds.movingHead))).toBe(false)
+    expect(compiled.beams.some(beam => beam.id.includes(fixtureIds.ledBar))).toBe(true)
+    expect(compiled.beams.some(beam => beam.id.includes(fixtureIds.strobe))).toBe(true)
+  })
+
   it('keeps the visible Laser position, target-mode, aim, spread, focus, color, and brightness contract reachable through production compilation', () => {
     let show = createLaserDmxShowManagerShow()
     const sectionId = show.sections[0]!.id

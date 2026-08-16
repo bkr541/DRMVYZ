@@ -6,6 +6,7 @@ import {
   pauseLaserDmxRenderer,
   shouldAffectLaserDmxProductionOutput,
   shouldRenderLaserDmx,
+  shouldRenderLaserDmxFrame,
 } from '../LaserDmxRenderer'
 import { productionOutputController } from '../../output/ProductionOutput'
 
@@ -37,6 +38,20 @@ describe('shouldRenderLaserDmx', () => {
   it('is a strict boolean gate — true always renders, false always clears', () => {
     expect(shouldRenderLaserDmx(true)).not.toBe(false)
     expect(shouldRenderLaserDmx(false)).not.toBe(true)
+  })
+})
+
+describe('shouldRenderLaserDmxFrame', () => {
+  it('keeps ordinary stopped runtime output gated', () => {
+    expect(shouldRenderLaserDmxFrame(false, false)).toBe(false)
+  })
+
+  it('allows an isolated Show Manager virtual preview to render while stopped', () => {
+    expect(shouldRenderLaserDmxFrame(false, true)).toBe(true)
+  })
+
+  it('continues to render during active playback', () => {
+    expect(shouldRenderLaserDmxFrame(true, false)).toBe(true)
   })
 })
 

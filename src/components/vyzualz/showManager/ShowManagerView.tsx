@@ -2403,10 +2403,9 @@ export function ShowManagerView() {
                 selectedFixtureId={selectedLaserFixtureId}
                 showGrid={activeLaserDmxSection?.settings?.showGrid ?? true}
                 showLabels={activeLaserDmxSection?.settings?.showLabels ?? true}
-                showBeams={activeLaserDmxSection?.settings?.showBeams ?? true}
                 highlightGrid={activeLaserDmxSection?.settings?.highlightGrid ?? true}
                 playbackSectionLabel={showRuntimeIsPlaying ? playbackLaserDmxSection?.label ?? 'No active section' : null}
-                runtimePreview={showRuntimeIsPlaying && laserDmxRuntimePreset && activeLaserDmxShow ? (
+                runtimePreview={laserDmxRuntimePreset && activeLaserDmxShow ? (
                   <ReactPlaceholderCanvas
                     analyser={showRuntimeAnalyser}
                     engine="laserDmx"
@@ -2416,11 +2415,13 @@ export function ShowManagerView() {
                     glow={reactGlow}
                     bassReactivity={reactBassReactivity}
                     isPlaying={showRuntimeIsPlaying}
+                    analysisActive={showRuntimeIsPlaying}
                     isPaused={!showRuntimeIsPlaying}
                     trackSections={resolvedTrackSections}
                     trackAnalysis={effectiveTrackAnalysis}
                     laserDmxSectionRuntimePrograms={laserDmxRuntimePrograms}
                     laserDmxEmptyRuntimeShowDirector={laserDmxEmptyRuntimeShowDirector}
+                    laserDmxAuthoringSectionId={activeLaserDmxSection?.id ?? null}
                     onLaserDmxPlaybackSectionChange={handleLaserDmxPlaybackSectionChange}
                     getAudioTime={showRuntimeAudioReady ? engine.getCurrentTime : () => 0}
                     effectiveBpm={showRuntimeBpm ?? undefined}
@@ -3934,7 +3935,6 @@ function LaserDmxShowManagerStage({
   selectedFixtureId,
   showGrid,
   showLabels,
-  showBeams,
   highlightGrid,
   playbackSectionLabel,
   runtimePreview,
@@ -3955,7 +3955,6 @@ function LaserDmxShowManagerStage({
   selectedFixtureId: string | null
   showGrid: boolean
   showLabels: boolean
-  showBeams: boolean
   highlightGrid: boolean
   playbackSectionLabel: string | null
   runtimePreview: ReactNode
@@ -4018,34 +4017,9 @@ function LaserDmxShowManagerStage({
         onClick={event => endpointTargetingFixtureId ? onCommitEndpointTarget(event) : onSelectFixture(null)}
       >
         {runtimePreview && (
-          <div className={`sm-laser-runtime-preview${showBeams ? '' : ' is-hidden'}`} aria-hidden="true">
+          <div className="sm-laser-runtime-preview" aria-hidden="true">
             {runtimePreview}
           </div>
-        )}
-        {showBeams && !runtimePreview && fixtures.length > 0 && (
-          <svg className="sm-laser-stage-beams" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            {fixtures.flatMap(fixture => {
-              if (!fixture.beam.beamEnabled || fixture.beam.targetX == null || fixture.beam.targetY == null) return []
-              const x1 = ((fixture.x + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns) * 100
-              const y1 = ((fixture.y + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows) * 100
-              const x2 = ((fixture.beam.targetX + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns) * 100
-              const y2 = ((fixture.beam.targetY + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows) * 100
-              return [<line
-                key={fixture.id}
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
-                style={{
-                  stroke: fixture.color,
-                  strokeOpacity: Math.max(0.08, fixture.brightness * 0.45),
-                  strokeWidth: fixture.kind === 'laser'
-                    ? 0.18 + (1 - fixture.beam.focus) * 0.12
-                    : 0.12 + fixture.optics.zoom * 0.38,
-                }}
-              />]
-            })}
-          </svg>
         )}
         {canvasTargetsVisible && section && (
           <div className="sm-canvas-layer-targets" role="group" aria-label="Canvas media layer drop targets">

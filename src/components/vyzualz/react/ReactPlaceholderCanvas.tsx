@@ -116,6 +116,8 @@ interface Props {
   laserDmxSectionRuntimePrograms?: readonly LaserDmxSectionRuntimeProgram[]
   /** Empty rig used while playback is outside every authored Show section. */
   laserDmxEmptyRuntimeShowDirector?: LaserDmxShowDirectorState | null
+  /** Show Manager section currently being edited; used for canonical stopped preview. */
+  laserDmxAuthoringSectionId?: string | null
   /** Reports runtime boundary changes so Show Manager can keep its visible section synchronized. */
   onLaserDmxPlaybackSectionChange?: (sectionId: string | null) => void
   getAudioTime?:                () => number
@@ -168,6 +170,7 @@ export function ReactPlaceholderCanvas({
   trackAnalysis              = null,
   laserDmxSectionRuntimePrograms = [],
   laserDmxEmptyRuntimeShowDirector = null,
+  laserDmxAuthoringSectionId = null,
   onLaserDmxPlaybackSectionChange,
   getAudioTime,
   effectiveBpm               = null,
@@ -221,6 +224,7 @@ export function ReactPlaceholderCanvas({
   const trackAnalysisRef      = useRef<TrackIntelligenceAnalysis | null>(trackAnalysis)
   const laserDmxSectionRuntimeProgramsRef = useRef<readonly LaserDmxSectionRuntimeProgram[]>(laserDmxSectionRuntimePrograms)
   const laserDmxEmptyRuntimeShowDirectorRef = useRef<LaserDmxShowDirectorState | null>(laserDmxEmptyRuntimeShowDirector)
+  const laserDmxAuthoringSectionIdRef = useRef<string | null>(laserDmxAuthoringSectionId)
   const onLaserDmxPlaybackSectionChangeRef = useRef(onLaserDmxPlaybackSectionChange)
   const lastLaserDmxPlaybackSectionIdRef = useRef<string | null>(null)
   const audioTimeRef          = useRef(0)
@@ -262,6 +266,7 @@ export function ReactPlaceholderCanvas({
   trackAnalysisRef.current      = trackAnalysis
   laserDmxSectionRuntimeProgramsRef.current = laserDmxSectionRuntimePrograms
   laserDmxEmptyRuntimeShowDirectorRef.current = laserDmxEmptyRuntimeShowDirector
+  laserDmxAuthoringSectionIdRef.current = laserDmxAuthoringSectionId
   onLaserDmxPlaybackSectionChangeRef.current = onLaserDmxPlaybackSectionChange
   getAudioTimeRef.current        = getAudioTime
   effectiveBpmRef.current        = effectiveBpm
@@ -709,16 +714,17 @@ export function ReactPlaceholderCanvas({
         const runtimeProgram = isPlayingRef.current
           ? resolveLaserDmxSectionRuntimeProgram(laserDmxSectionRuntimeProgramsRef.current, canonicalAudioTime)
           : null
+        const authoringProgram = !isPlayingRef.current && laserDmxAuthoringSectionIdRef.current
+          ? laserDmxSectionRuntimeProgramsRef.current.find(program => program.section.id === laserDmxAuthoringSectionIdRef.current) ?? null
+          : null
         const playbackSectionId = runtimeProgram?.section.id ?? null
         if (playbackSectionId !== lastLaserDmxPlaybackSectionIdRef.current) {
           lastLaserDmxPlaybackSectionIdRef.current = playbackSectionId
           onLaserDmxPlaybackSectionChangeRef.current?.(playbackSectionId)
         }
-        if (isPlayingRef.current) {
-          laserDmxPreviewShowDirector = runtimeProgram?.showDirector
-            ?? laserDmxEmptyRuntimeShowDirectorRef.current
-            ?? undefined
-        }
+        laserDmxPreviewShowDirector = isPlayingRef.current
+          ? runtimeProgram?.showDirector ?? laserDmxEmptyRuntimeShowDirectorRef.current ?? undefined
+          : authoringProgram?.showDirector ?? laserDmxEmptyRuntimeShowDirectorRef.current ?? undefined
       } else if (lastLaserDmxPlaybackSectionIdRef.current !== null) {
         lastLaserDmxPlaybackSectionIdRef.current = null
         onLaserDmxPlaybackSectionChangeRef.current?.(null)

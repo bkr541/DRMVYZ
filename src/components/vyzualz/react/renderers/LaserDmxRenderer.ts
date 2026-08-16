@@ -376,6 +376,10 @@ export function shouldRenderLaserDmx(isPlaying: boolean): boolean {
   return isPlaying
 }
 
+export function shouldRenderLaserDmxFrame(analysisActive: boolean, hasVirtualPreview: boolean): boolean {
+  return shouldRenderLaserDmx(analysisActive) || hasVirtualPreview
+}
+
 let prevFogTimeSec = -1
 const showDirectorRuntimeByContext = new WeakMap<CanvasRenderingContext2D, ShowDirectorRuntime>()
 const pausedAudioTimeByContext = new WeakMap<CanvasRenderingContext2D, number>()
@@ -631,8 +635,9 @@ export function renderLaserDmx(
   if (!W || !H) return
 
   const analysisActive = frame.analysisActive ?? frame.isPlaying
+  const previewShowDirector = params.laserDmxPreviewShowDirector
   const affectProductionOutput = shouldAffectLaserDmxProductionOutput(params)
-  if (!shouldRenderLaserDmx(analysisActive)) {
+  if (!shouldRenderLaserDmxFrame(analysisActive, previewShowDirector != null)) {
     clearLaserDmxVisualState(ctx, W, H, { affectProductionOutput })
     return
   }
@@ -642,7 +647,6 @@ export function renderLaserDmx(
   const mi = resolveLaserDmxMusicIntelligenceFrame(frame, busMi)
   const authoritativeSections = mi.resolvedSections?.length ? mi.resolvedSections : frame.trackSections
   const trackKey = frame.trackKey ?? mi.trackId ?? mi.sourceId
-  const previewShowDirector = params.laserDmxPreviewShowDirector
   const beamMatrixAuthoringMode = previewShowDirector
     ? 'showDirector'
     : state.laserDmxBeamMatrixAuthoringMode === 'showDirector'
