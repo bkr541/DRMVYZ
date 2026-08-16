@@ -2674,7 +2674,7 @@ export function ShowManagerView() {
               duration={durationSec}
               viewport={timelineViewport}
               sections={resolvedTrackSections}
-              beatGrid={showRuntimeBeatGrid ?? undefined}
+              beatGrid={showRuntimeBeatGrid ?? showRuntimeAnalysis?.beatGrid ?? []}
               effectiveBpm={showRuntimeBpm}
               selectedSectionId={selectedShowManagerSection?.id ?? null}
               onSelectSection={selectShowManagerSectionForEditing}
@@ -2723,10 +2723,6 @@ export function ShowManagerView() {
           </aside>
         ) : (
         <aside className="sm-inspector" aria-label={`Show Manager ${activeSectionEngineId ? REACT_ENGINE_CATALOG[activeSectionEngineId].label : 'section'} inspector`}>
-          <div className="sm-panel-heading sm-panel-heading--inspector">
-            <strong>INSPECTOR</strong>
-            <span>{activeSectionEngineId ? `${REACT_ENGINE_CATALOG[activeSectionEngineId].label} parameters` : 'Unassigned section'}</span>
-          </div>
           <RailTabs
             tabs={SHOW_MANAGER_RIGHT_INSPECTOR_TABS}
             activeTab={rightInspectorTab}
