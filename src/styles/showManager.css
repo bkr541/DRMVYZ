@@ -1294,12 +1294,10 @@ button.sm-library-subsection-toggle {
 
 .sm-laser-copy-fixtures {
   margin: 7px 0;
-  padding: 8px;
+  padding: 8px 0;
   display: grid;
   gap: 7px;
-  border: 1px solid rgba(74, 199, 219, 0.12);
-  border-radius: 6px;
-  background: rgba(74, 199, 219, 0.035);
+  border-top: 1px solid var(--sm-border);
 }
 .sm-laser-copy-fixtures .rv-ctrl-toggle-row { padding: 0; }
 .sm-laser-copy-fixtures-picker { display: grid; gap: 6px; }
@@ -1333,10 +1331,8 @@ button.sm-library-subsection-toggle {
   align-items: center;
   gap: 8px;
   margin: 4px 0 10px;
-  padding: 8px;
-  border: 1px solid rgba(154, 178, 188, 0.16);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.02);
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--sm-border);
 }
 
 .sm-inspector-fixture-icon {

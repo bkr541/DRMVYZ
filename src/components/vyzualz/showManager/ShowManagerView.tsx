@@ -18,6 +18,7 @@ import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { ContextActionMenu } from '../context-menu/ContextActionMenu'
 import { Collapsible, ColorRow, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
 import { UnderlineTabs } from '../react/controls/UnderlineTabs'
+import { RailTabs, type RailTabOption } from '../layout/RailTabs'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import { DualRailCollapsible } from '../react/DualRailCollapsible'
 import { MoreVerticalIcon } from 'hugeicons-react'
@@ -171,6 +172,14 @@ const STAGE_SCALE_OPTIONS = [
 ] as const
 
 const SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE = 'showManager:pixGridDeckBuilder' as const
+
+type ShowManagerRightInspectorTab = 'inspector' | 'design' | 'react'
+
+const SHOW_MANAGER_RIGHT_INSPECTOR_TABS: RailTabOption<ShowManagerRightInspectorTab>[] = [
+  { id: 'inspector', label: 'INSPECTOR' },
+  { id: 'design', label: 'DESIGN' },
+  { id: 'react', label: 'REACT' },
+]
 
 const TRACK_MAP_TABS = [{ id: 'trackMap' as const, label: 'Track Map' }]
 
@@ -963,6 +972,7 @@ export function ShowManagerView() {
   const getSavedAudioSignedUrl = useAudioStore(state => state.getSignedUrl)
   const waveformZoom = useVisualStore(state => state.waveformZoom)
   const [showManagerSessionReady, setShowManagerSessionReady] = useState(false)
+  const [rightInspectorTab, setRightInspectorTab] = useState<ShowManagerRightInspectorTab>('inspector')
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
   const [selectedShowManagerSectionId, setSelectedShowManagerSectionId] = useState<string | null>(null)
   const [selectedLightingComponentKind, setSelectedLightingComponentKind] = useState<LaserDmxShowDirectorFixtureKind | null>(null)
@@ -2776,7 +2786,16 @@ export function ShowManagerView() {
             <strong>INSPECTOR</strong>
             <span>{activeSectionEngineId ? `${REACT_ENGINE_CATALOG[activeSectionEngineId].label} parameters` : 'Unassigned section'}</span>
           </div>
-          {activeSectionEngineId === 'pixGrid' ? (
+          <RailTabs
+            tabs={SHOW_MANAGER_RIGHT_INSPECTOR_TABS}
+            activeTab={rightInspectorTab}
+            onChange={setRightInspectorTab}
+            ariaLabel="Show Manager inspector tabs"
+            className="rv-main-workspace-tabs"
+            variant="underline"
+          />
+          {rightInspectorTab === 'inspector' && (
+          activeSectionEngineId === 'pixGrid' ? (
             <div className="sm-inspector-scroll">
               <Collapsible label="Preset" defaultOpen>
                 <div className="sm-preset-browser">
@@ -2988,7 +3007,10 @@ export function ShowManagerView() {
                 />
               )}
             </div>
+          )
           )}
+          {rightInspectorTab === 'design' && <div className="sm-panel-blank" data-testid="show-manager-inspector-design-empty" />}
+          {rightInspectorTab === 'react' && <div className="sm-panel-blank" data-testid="show-manager-inspector-react-empty" />}
         </aside>
         )}
           </>

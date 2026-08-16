@@ -11840,13 +11840,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: grid;
   align-content: start;
   gap: 6px;
-  padding: 8px 10px 9px;
-  border: 1px solid rgba(74, 199, 219, 0.12);
-  border-radius: 6px;
-  background: rgba(74, 199, 219, 0.025);
+  padding: 0;
 }
 
 .rv-add-section-form--edit .rv-form-group-label {
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.16);
   color: rgba(232, 244, 248, 0.7);
   font-size: 10px;
   font-weight: 700;
