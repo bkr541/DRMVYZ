@@ -680,6 +680,17 @@ button.sm-library-section-toggle:focus-visible {
   min-height: 0;
   overflow: hidden;
 }
+
+.sm-pixgrid-timeline .sm-timeline-grid {
+  display: flex;
+  flex-direction: column;
+}
+.sm-pixgrid-timeline .sm-timeline-row {
+  flex: 0 0 auto;
+}
+.sm-timeline-row-spacer {
+  flex: 1 1 auto;
+}
 .sm-timeline-ruler {
   width: 100%;
   height: 21px;

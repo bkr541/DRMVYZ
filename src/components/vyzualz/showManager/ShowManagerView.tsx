@@ -4565,6 +4565,7 @@ function ShowManagerTimeline({
             <p className="sm-new-show-field-note" role="status">{statusMessage}</p>
           )}
         </TimelineRow>
+        <div className="sm-timeline-row-spacer" aria-hidden="true" />
         <ShowManagerTimeRow viewport={viewport} />
         <div className="sm-playhead" style={{ left: `calc(${playheadPercent}% + ${76 * (1 - playheadPercent / 100)}px)` }}>
           <span>{formatClock(currentTime)}</span>
