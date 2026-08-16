@@ -1237,10 +1237,10 @@ button.sm-library-subsection-toggle {
   min-width: 24px;
   min-height: 24px;
   padding: 3px 5px;
-  border: 1px solid rgba(74, 199, 219, 0.32);
+  border: 1px solid rgba(196, 212, 220, 0.28);
   border-radius: 5px;
-  background: rgba(4, 13, 16, 0.94);
-  color: rgba(232, 244, 248, 0.8);
+  background: rgba(4, 10, 12, 0.96);
+  color: rgba(232, 244, 248, 0.76);
   font: inherit;
   font-size: 7px;
   line-height: 1;
@@ -1250,12 +1250,12 @@ button.sm-library-subsection-toggle {
   transform: translate(-50%, -50%);
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.32);
 }
-.sm-laser-fixture:hover { border-color: rgba(103, 247, 255, 0.55); }
+.sm-laser-fixture:hover { border-color: rgba(232, 244, 248, 0.5); }
 .sm-laser-fixture.is-dragging { cursor: grabbing; }
 .sm-laser-fixture.is-selected {
   z-index: 3;
-  border-color: #67f7ff;
-  box-shadow: 0 0 0 1px rgba(103, 247, 255, 0.24), 0 0 14px rgba(103, 247, 255, 0.18);
+  border-color: rgba(232, 244, 248, 0.9);
+  box-shadow: 0 0 0 1px rgba(232, 244, 248, 0.18), 0 0 12px rgba(0, 0, 0, 0.34);
 }
 .sm-laser-fixture-icon {
   display: inline-grid;
@@ -1263,7 +1263,11 @@ button.sm-library-subsection-toggle {
   height: 13px;
   place-items: center;
   flex: 0 0 auto;
+  color: rgba(232, 244, 248, 0.7);
+  transform-origin: center;
 }
+.sm-laser-fixture-icon.is-orientation-aware { transition: transform 100ms linear; }
+.sm-laser-fixture-icon .rv-show-director-fixture-icon { --fixture-color: rgba(232, 244, 248, 0.7); color: rgba(232, 244, 248, 0.7); }
 .sm-laser-fixture-icon svg { width: 12px; height: 12px; }
 .sm-laser-fixture-label { white-space: nowrap; }
 .sm-laser-stage-empty {
@@ -1334,6 +1338,7 @@ button.sm-library-subsection-toggle {
 }
 
 .sm-laser-fixture-context { margin-top: 7px; }
+.sm-laser-depth-note { margin: -2px 0 4px; color: rgba(196, 212, 220, 0.46); font-size: 8px; line-height: 1.35; }
 
 .sm-laser-delete-fixture {
   min-height: 30px;

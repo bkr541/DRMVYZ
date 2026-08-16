@@ -2220,6 +2220,7 @@ describe('ShowManagerView production shell', () => {
     movingHead.label = 'Inspector Moving Head'
     movingHead.x = 8
     movingHead.y = 8
+    movingHead.rotation = 37
     movingHead.beam.targetMode = 'fixed'
     movingHead.beam.targetX = 8
     movingHead.beam.targetY = 4
@@ -2272,6 +2273,10 @@ describe('ShowManagerView production shell', () => {
       expect(inspector?.querySelector('button[aria-label="Target depth"]')?.textContent).toContain('Deep Air')
       expect(inspector?.querySelector('button[aria-label="Gobo pattern"]')?.textContent).toContain('Circle')
       expect(inspector?.querySelector('button[aria-label="Prism"]')?.textContent).toContain('3-facet prism')
+      expect(inspector?.textContent).toContain('Z controls renderer depth only; the 2D grid marker remains positioned by X/Y.')
+      const fixedOrientation = container.querySelector<HTMLElement>('button[data-fixture-id="fixture-moving-head-contract"] .sm-laser-fixture-icon')
+      expect(fixedOrientation?.getAttribute('data-orientation-deg')).toBeNull()
+      expect(fixedOrientation?.getAttribute('style')).toBeNull()
 
       const goboPattern = inspector?.querySelector<HTMLButtonElement>('button[aria-label="Gobo pattern"]')
       await act(async () => {
@@ -2320,6 +2325,9 @@ describe('ShowManagerView production shell', () => {
       expect(inspector?.textContent).not.toContain('Target X')
       expect(inspector?.textContent).not.toContain('Target Y')
       expect(inspector?.textContent).toContain('Target depth')
+      const proceduralOrientation = container.querySelector<HTMLElement>('button[data-fixture-id="fixture-moving-head-contract"] .sm-laser-fixture-icon')
+      expect(proceduralOrientation?.getAttribute('data-orientation-deg')).toBe('37')
+      expect(proceduralOrientation?.style.transform).toBe('rotate(37deg)')
     } finally {
       intro.fixtures = originalFixtures
     }
@@ -2331,10 +2339,12 @@ describe('ShowManagerView production shell', () => {
     const originalFixtures = intro.fixtures
     const ledBar = createDefaultLaserDmxShowDirectorFixture('ledBar', 'fixture-led-bar-contract')
     ledBar.label = 'Inspector LED Bar'
+    ledBar.rotation = 24
     ledBar.component.ledCellCount = 12
     ledBar.component.ledDirection = 'rightToLeft'
     const strobe = createDefaultLaserDmxShowDirectorFixture('strobe', 'fixture-strobe-contract')
     strobe.label = 'Inspector Strobe'
+    strobe.rotation = -35
     strobe.component.strobeRate = 8
     intro.fixtures = [ledBar, strobe] as never[]
     fixture.state.updateLaserDmxShowManagerFixture.mockClear()
@@ -2380,6 +2390,10 @@ describe('ShowManagerView production shell', () => {
       }
       expect(numberInputFor(inspector, 'Cell count')?.value).toBe('12')
       expect(inspector?.querySelector<HTMLButtonElement>('button[aria-label="Direction"]')?.textContent).toContain('Right to left')
+      expect(inspector?.textContent).toContain('Z controls renderer depth only; the 2D grid marker remains positioned by X/Y.')
+      const ledOrientation = container.querySelector<HTMLElement>('button[data-fixture-id="fixture-led-bar-contract"] .sm-laser-fixture-icon')
+      expect(ledOrientation?.getAttribute('data-orientation-deg')).toBe('24')
+      expect(ledOrientation?.style.transform).toBe('rotate(24deg)')
 
       const cellCount = numberInputFor(inspector, 'Cell count')
       await act(async () => {
@@ -2432,6 +2446,9 @@ describe('ShowManagerView production shell', () => {
       expect(strobeRate?.getAttribute('min')).toBe('0')
       expect(strobeRate?.getAttribute('max')).toBe('30')
       expect(strobeRate?.getAttribute('step')).toBe('0.5')
+      const strobeOrientation = container.querySelector<HTMLElement>('button[data-fixture-id="fixture-strobe-contract"] .sm-laser-fixture-icon')
+      expect(strobeOrientation?.getAttribute('data-orientation-deg')).toBe('-35')
+      expect(strobeOrientation?.style.transform).toBe('rotate(-35deg)')
       await act(async () => {
         if (!strobeRate) return
         const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set

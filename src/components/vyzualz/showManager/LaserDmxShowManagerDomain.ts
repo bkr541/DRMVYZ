@@ -393,7 +393,7 @@ export function normalizeLaserDmxShowManagerFixture(
   }
 }
 
-function createLaserDmxShowManagerInitialMovingHeadEndpoint(
+function createLaserDmxShowManagerInitialDirectionalEndpoint(
   base: LaserDmxShowDirectorFixture,
   patch: LaserDmxShowDirectorFixturePatch,
 ): { targetX: number; targetY: number } {
@@ -422,15 +422,16 @@ export function createLaserDmxShowManagerFixture(
   if (!isLaserDmxShowManagerFixtureKindEnabled(kind)) return null
   const id = createId('laser-dmx-fixture')
   const base = createDefaultLaserDmxShowDirectorFixture(kind, id, index)
-  const hasAuthoredMovingHeadTargets = kind === 'movingHead'
+  const isDirectionalFixture = kind === 'laser' || kind === 'movingHead'
+  const hasAuthoredDirectionalTargets = isDirectionalFixture
     && Array.isArray(patch.beam?.targets)
     && patch.beam.targets.length > 0
-  const movingHeadEndpoint = kind === 'movingHead' && !hasAuthoredMovingHeadTargets
-    ? createLaserDmxShowManagerInitialMovingHeadEndpoint(base, patch)
+  const directionalEndpoint = isDirectionalFixture && !hasAuthoredDirectionalTargets
+    ? createLaserDmxShowManagerInitialDirectionalEndpoint(base, patch)
     : null
   const beam = {
     ...base.beam,
-    ...(movingHeadEndpoint ?? {}),
+    ...(directionalEndpoint ?? {}),
     ...(patch.beam ?? {}),
   }
   return normalizeLaserDmxShowManagerFixture({

@@ -3739,6 +3739,7 @@ function LaserDmxShowManagerFixtureInspector({
           onChange={y => onPatch({ y })}
         />
         <NumberInputRow label="Z" value={fixture.z} min={-1} max={1} step={0.05} onChange={z => onPatch({ z })} />
+        <div className="sm-laser-depth-note">Z controls renderer depth only; the 2D grid marker remains positioned by X/Y.</div>
         {!isLaser && (!isMovingHead || !manualTargetCoordinatesActive) && (
           <NumberInputRow label="Rotation" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />
         )}
@@ -4065,6 +4066,8 @@ function LaserDmxShowManagerStage({
           const left = ((fixture.x + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns) * 100
           const top = ((fixture.y + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows) * 100
           const isSelected = fixture.id === selectedFixtureId
+          const showsOrientation = fixture.kind !== 'laser'
+            && (fixture.kind !== 'movingHead' || fixture.beam.targetMode !== 'fixed')
           return (
             <button
               key={fixture.id}
@@ -4136,7 +4139,12 @@ function LaserDmxShowManagerStage({
               }}
               onContextMenu={event => onFixtureContextMenu(event, fixture.id)}
             >
-              <span className="sm-laser-fixture-icon" aria-hidden="true"><FixtureIcon kind={fixture.kind} /></span>
+              <span
+                className={`sm-laser-fixture-icon${showsOrientation ? ' is-orientation-aware' : ''}`}
+                style={showsOrientation ? { transform: `rotate(${fixture.rotation}deg)` } : undefined}
+                data-orientation-deg={showsOrientation ? fixture.rotation : undefined}
+                aria-hidden="true"
+              ><FixtureIcon kind={fixture.kind} /></span>
               {showLabels && <span className="sm-laser-fixture-label">{fixture.label}</span>}
             </button>
           )

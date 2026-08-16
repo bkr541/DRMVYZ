@@ -200,7 +200,7 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
     expect(show).not.toHaveProperty('groups')
   })
 
-  it('creates a newly dropped Moving Head target from its actual Show Manager position and preserves authored targets', () => {
+  it('creates directional fixture targets from final drop coordinates and preserves authored targets across reload', () => {
     let show = createLaserDmxShowManagerShow()
     const sectionId = show.sections[0]!.id
     const dropped = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'movingHead', {
@@ -214,6 +214,23 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
     expect(fixture).toMatchObject({ x: 12, y: 8, rotation: 90 })
     expect(fixture.beam).toMatchObject({ targetX: 16, targetY: 8 })
     expect(fixture.beam.targets?.[0]).toMatchObject({ x: 16, y: 8 })
+
+    const droppedLaser = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'laser', {
+      x: 12,
+      y: 8,
+      rotation: 90,
+    })
+    show = droppedLaser.show
+    const laserFixture = show.sections[0]!.fixtures.find(candidate => candidate.id === droppedLaser.fixtureId)!
+    expect(laserFixture).toMatchObject({ x: 12, y: 8, rotation: 90 })
+    expect(laserFixture.beam).toMatchObject({ targetX: 12, targetY: 11 })
+    expect(laserFixture.beam.targets?.[0]).toMatchObject({ x: 12, y: 11 })
+
+    const reloaded = normalizeLaserDmxShowManagerShow(JSON.parse(JSON.stringify(show)))
+    const reloadedLaser = reloaded.sections[0]!.fixtures.find(candidate => candidate.id === droppedLaser.fixtureId)!
+    expect(reloadedLaser).toMatchObject({ x: 12, y: 8, rotation: 90 })
+    expect(reloadedLaser.beam).toMatchObject({ targetX: 12, targetY: 11 })
+    expect(reloadedLaser.beam.targets?.[0]).toMatchObject({ x: 12, y: 11 })
 
     const explicit = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'movingHead', {
       x: 15,
