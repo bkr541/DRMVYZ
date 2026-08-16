@@ -203,9 +203,8 @@ describe('React preset accessibility', () => {
     expect(activeButton.querySelector('.rv-preset-selected-label')).toBeNull()
     expect(container.querySelector('button[aria-pressed="false"]')).not.toBeNull()
 
-    const layout = activeButton.querySelector('.rv-preset-card-layout')
-    expect(layout?.firstElementChild?.classList.contains('rv-preset-thumb')).toBe(true)
-    expect(layout?.lastElementChild?.classList.contains('rv-preset-card-content')).toBe(true)
+    expect(activeButton.firstElementChild?.classList.contains('rv-preset-spotlight-thumb')).toBe(true)
+    expect(activeButton.lastElementChild?.classList.contains('rv-preset-spotlight-caption')).toBe(true)
   })
 })
 

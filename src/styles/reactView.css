@@ -388,6 +388,173 @@
   opacity: 0.45;
 }
 
+/* ── Spotlight preset card ──────────────────────────────────────────────────
+   The shared reusable preset card (ReactPresetCard) used across every engine's
+   Presets tab, based on Layout Lab's "04 · Spotlight Card" winner: a full-bleed
+   glowing thumbnail with the name/chips overlaid on a bottom gradient caption.
+   Dedicated classes only — nothing here is shared with any other card style,
+   so it can't be affected by unrelated cascade rules elsewhere in this file. */
+
+.rv-preset-spotlight-shell {
+  position: relative;
+  min-width: 0;
+}
+
+.rv-preset-card.rv-preset-spotlight-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 96px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.rv-preset-card.rv-preset-spotlight-card:hover {
+  border-color: rgba(74, 199, 219, 0.35);
+}
+
+.rv-preset-card.rv-preset-spotlight-card:focus-visible {
+  outline: 2px solid rgba(103, 247, 255, 0.82);
+  outline-offset: 2px;
+  border-color: rgba(103, 247, 255, 0.76);
+}
+
+.rv-preset-card.rv-preset-spotlight-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.rv-preset-card.rv-preset-spotlight-card.rv-preset-spotlight-card--active {
+  border-color: #4ac7db;
+  box-shadow: 0 0 0 1px rgba(74, 199, 219, 0.4), 0 0 24px rgba(74, 199, 219, 0.14);
+}
+
+.rv-preset-card.rv-preset-spotlight-card.rv-preset-spotlight-card--no-thumb {
+  height: auto;
+  min-height: 56px;
+  padding: 10px 12px;
+}
+
+.rv-preset-spotlight-thumb {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.rv-preset-spotlight-thumb .rv-preset-thumb {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.rv-preset-spotlight-thumb .rv-preset-thumb-img {
+  object-fit: cover;
+}
+
+.rv-preset-spotlight-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, transparent 38%, rgba(2, 5, 8, 0.94) 100%);
+  pointer-events: none;
+}
+
+.rv-preset-spotlight-caption {
+  position: absolute;
+  z-index: 2;
+  left: 10px;
+  right: 10px;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  pointer-events: none;
+}
+
+.rv-preset-spotlight-card--no-thumb .rv-preset-spotlight-caption {
+  position: static;
+}
+
+.rv-preset-spotlight-name {
+  overflow: hidden;
+  color: rgba(245, 248, 250, 0.95);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.rv-preset-spotlight-card--no-thumb .rv-preset-spotlight-name {
+  color: rgba(232, 244, 248, 0.9);
+  text-shadow: none;
+}
+
+.rv-preset-spotlight-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.rv-preset-spotlight-actions {
+  position: absolute;
+  z-index: 3;
+  top: 8px;
+  right: 10px;
+  display: flex;
+  gap: 4px;
+}
+
+.rv-preset-spotlight-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 5px;
+  background: rgba(2, 5, 8, 0.55);
+  color: rgba(232, 244, 248, 0.75);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.rv-preset-spotlight-action--text {
+  width: auto;
+  min-width: 24px;
+  padding: 0 6px;
+  font-family: var(--az-font);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.rv-preset-spotlight-action--active {
+  color: #f0b429;
+  border-color: rgba(240, 180, 41, 0.4);
+}
+
+.rv-preset-spotlight-action--danger {
+  color: #ee8ea0;
+  border-color: rgba(192, 49, 74, 0.4);
+}
+
+.rv-preset-spotlight-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 
 .rv-production-badges,
 .rv-production-tags {

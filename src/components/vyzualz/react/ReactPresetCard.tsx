@@ -1,4 +1,5 @@
 import { type KeyboardEvent, type ReactNode } from 'react'
+import { Badge } from './controls/Badge'
 
 export type ReactPresetCardChipTone = 'mode' | 'switch'
 
@@ -81,12 +82,17 @@ export function handlePresetCardKeyDown(event: KeyboardEvent<HTMLButtonElement>)
   cards[nextIndex]?.focus()
 }
 
+const SWITCH_CHIP_TONE = '#b84fc9'
+const MODIFIED_CHIP_TONE = '#ffb347'
+const DEFAULT_CHIP_TONE = '#4ac7db'
+
 export function ReactPresetCard({
   id,
   title,
   description,
   thumbnail,
   chips = [],
+  palette = [],
   isActive = false,
   isModified = false,
   isFavorite = false,
@@ -102,16 +108,17 @@ export function ReactPresetCard({
   const hasThumbnail = Boolean(thumbnail)
   const hasActions = Boolean(onToggleFavorite) || secondaryActions.length > 0
   const visibleChips = chips.slice(0, 2)
+  const chipTone = palette[0]?.color ?? DEFAULT_CHIP_TONE
 
   return (
     <div
-      className={`rv-preset-card-shell rv-compact-preset-card-shell${hasActions ? ' rv-compact-preset-card-shell--has-actions' : ''}${shellClassName ? ` ${shellClassName}` : ''}`}
+      className={`rv-preset-card-shell rv-preset-spotlight-shell${shellClassName ? ` ${shellClassName}` : ''}`}
       data-preset-card-shell
       data-preset-card-id={id}
     >
       <button
         type="button"
-        className={`rv-preset-card rv-shader-scene-card rv-compact-preset-card${hasThumbnail ? ' rv-preset-card--with-thumb' : ''}${isActive ? ' rv-preset-card--active rv-shader-scene-card--active' : ''}${className ? ` ${className}` : ''}`}
+        className={`rv-preset-card rv-preset-spotlight-card${hasThumbnail ? '' : ' rv-preset-spotlight-card--no-thumb'}${isActive ? ' rv-preset-card--active rv-preset-spotlight-card--active' : ''}${className ? ` ${className}` : ''}`}
         onClick={disabled ? undefined : onActivate}
         onKeyDown={handlePresetCardKeyDown}
         disabled={disabled}
@@ -122,39 +129,35 @@ export function ReactPresetCard({
         aria-label={activateLabel}
         title={titleText}
       >
-        <div className="rv-preset-card-layout rv-compact-preset-card-layout">
-          {hasThumbnail && (
-            <div className="rv-preset-thumb rv-shader-scene-thumb rv-compact-preset-thumb" aria-hidden="true">
-              {thumbnail}
-            </div>
+        {hasThumbnail && (
+          <>
+            <span className="rv-preset-spotlight-thumb" aria-hidden="true">{thumbnail}</span>
+            <span className="rv-preset-spotlight-scrim" aria-hidden="true" />
+          </>
+        )}
+        <span className="rv-preset-spotlight-caption">
+          <span className="rv-preset-spotlight-name">{title}</span>
+          {(visibleChips.length > 0 || isModified) && (
+            <span className="rv-preset-spotlight-chips">
+              {visibleChips.map((chip, index) => (
+                <Badge
+                  key={`${chip.label}-${index}`}
+                  label={chip.label}
+                  tone={chip.tone === 'switch' ? SWITCH_CHIP_TONE : chipTone}
+                />
+              ))}
+              {isModified && <Badge label="Modified" tone={MODIFIED_CHIP_TONE} />}
+            </span>
           )}
-          <div className="rv-preset-card-content rv-shader-scene-card-body rv-compact-preset-card-body">
-            <div className="rv-preset-name rv-shader-scene-name">{title}</div>
-            {(visibleChips.length > 0 || isModified) && (
-              <div className="rv-shader-scene-meta rv-compact-preset-meta">
-                {visibleChips.map((chip, index) => (
-                  <span
-                    key={`${chip.label}-${index}`}
-                    className={index === 0 && chip.tone !== 'switch'
-                      ? 'rv-shader-scene-category'
-                      : `rv-shader-scene-badge${chip.tone === 'switch' ? ' rv-compact-preset-switch-badge' : ''}`}
-                  >
-                    {chip.label}
-                  </span>
-                ))}
-                {isModified && <span className="rv-shader-scene-badge">Modified</span>}
-              </div>
-            )}
-          </div>
-        </div>
+        </span>
       </button>
 
       {hasActions && (
-        <div className="rv-shader-scene-actions rv-compact-preset-actions" aria-label={`${title} preset actions`}>
+        <div className="rv-preset-spotlight-actions" aria-label={`${title} preset actions`}>
           {onToggleFavorite && (
             <button
               type="button"
-              className={`rv-shader-scene-action${isFavorite ? ' rv-shader-scene-action--active' : ''}`}
+              className={`rv-preset-spotlight-action${isFavorite ? ' rv-preset-spotlight-action--active' : ''}`}
               onClick={event => {
                 event.stopPropagation()
                 onToggleFavorite()
@@ -170,7 +173,7 @@ export function ReactPresetCard({
             <button
               key={action.id}
               type="button"
-              className={`rv-shader-scene-action rv-compact-preset-action${action.tone === 'danger' ? ' rv-shader-scene-action--danger' : ''}${action.iconOnly ? '' : ' rv-compact-preset-action--text'}`}
+              className={`rv-preset-spotlight-action${action.tone === 'danger' ? ' rv-preset-spotlight-action--danger' : ''}${action.iconOnly ? '' : ' rv-preset-spotlight-action--text'}`}
               onClick={event => {
                 event.stopPropagation()
                 action.onSelect()
