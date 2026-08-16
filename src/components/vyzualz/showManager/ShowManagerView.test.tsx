@@ -446,6 +446,7 @@ import type { CanvasShowManagerShow } from './CanvasShowManagerDomain'
 import {
   copyLaserDmxShowManagerFixturesBetweenSections,
   removeLaserDmxShowManagerFixtureFromSection,
+  triggerPatchForLaserDmxShowManagerOption,
 } from './LaserDmxShowManagerDomain'
 import { VyzualzView } from '../VyzualzView'
 import { ShowManagerView } from './ShowManagerView'
@@ -2052,6 +2053,10 @@ describe('ShowManagerView production shell', () => {
       x: 4,
       y: 5,
       label: 'Inspector Laser',
+      trigger: {
+        ...createDefaultLaserDmxShowDirectorFixture('laser', 'fixture-inspector-trigger').trigger,
+        ...triggerPatchForLaserDmxShowManagerOption('none'),
+      },
     }] as never[]
     fixture.state.updateLaserDmxShowManagerFixture.mockClear()
 
@@ -2104,7 +2109,7 @@ describe('ShowManagerView production shell', () => {
       const triggerOptions = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
         .map(option => option.textContent?.trim())
       expect(triggerOptions).toEqual([
-        'None', 'Beat', 'Downbeat', 'Bar', '4 Bars', '8 Bars', '16 Bars', '24 Bars', 'Kick Hit', 'Snare Hit',
+        'None', 'Beat', 'Downbeat', '4 Bars', '8 Bars', '16 Bars', '24 Bars', 'Kick Hit', 'Snare Hit',
       ])
 
       const xLabel = [...(inspector?.querySelectorAll<HTMLLabelElement>('label') ?? [])]
@@ -2125,6 +2130,69 @@ describe('ShowManagerView production shell', () => {
         'fixture-inspector',
         { x: 17 },
       )
+    } finally {
+      intro.fixtures = originalFixtures
+    }
+  })
+
+  it('shows unsupported saved trigger semantics explicitly instead of presenting them as None', async () => {
+    setSharedShowToLaserAuthoredSections()
+    const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
+    const originalFixtures = intro.fixtures
+    const legacy = createDefaultLaserDmxShowDirectorFixture('laser', 'fixture-stored-trigger')
+    intro.fixtures = [{
+      ...legacy,
+      x: 4,
+      y: 5,
+      label: 'Stored Trigger Laser',
+      trigger: {
+        ...legacy.trigger,
+        sectionTypes: ['build'],
+      },
+    }] as never[]
+
+    try {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+      await act(async () => {
+        engineTrigger?.click()
+        await Promise.resolve()
+      })
+      const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.includes('LaserDMX'))
+      await act(async () => {
+        laserOption?.click()
+        await Promise.resolve()
+      })
+
+      const fixtureButton = container.querySelector<HTMLButtonElement>('button[data-fixture-id="fixture-stored-trigger"]')
+      await act(async () => {
+        fixtureButton?.click()
+        await Promise.resolve()
+      })
+
+      const inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
+      const trigger = inspector?.querySelector<HTMLButtonElement>('button[aria-label="Trigger"]')
+      expect(trigger?.textContent).toContain('Stored: Section (build)')
+      expect(trigger?.textContent).not.toContain('None')
+
+      await act(async () => {
+        trigger?.click()
+        await Promise.resolve()
+      })
+      const triggerOptions = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .map(option => option.textContent?.trim())
+      expect(triggerOptions).toEqual([
+        'Stored: Section (build)',
+        'None', 'Beat', 'Downbeat', '4 Bars', '8 Bars', '16 Bars', '24 Bars', 'Kick Hit', 'Snare Hit',
+      ])
     } finally {
       intro.fixtures = originalFixtures
     }

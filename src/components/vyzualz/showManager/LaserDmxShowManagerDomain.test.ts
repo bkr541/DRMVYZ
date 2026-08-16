@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createDefaultLaserDmxShowDirectorFixture } from '../react/ReactTypes'
 import {
   DEFAULT_LASER_DMX_SHOW_MANAGER_WORKSPACE_SETTINGS,
   LASER_DMX_SHOW_MANAGER_GRID_SIZE,
@@ -18,6 +19,8 @@ import {
   resolveLaserDmxShowManagerPlaybackSection,
   resolveLaserDmxShowManagerGridCell,
   resolveLaserDmxShowManagerTriggerOption,
+  describeLaserDmxShowManagerStoredTrigger,
+  normalizeLaserDmxShowManagerFixture,
   triggerPatchForLaserDmxShowManagerOption,
   updateLaserDmxShowManagerFixtureInSection,
   updateLaserDmxShowManagerSection,
@@ -369,9 +372,9 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
     expect(empty.sourceTemplateId).toBe(`show-manager:${show.id}:empty`)
   })
 
-  it('centralizes the exact ten Part 1 trigger choices onto canonical trigger fields', () => {
+  it('centralizes the supported Show Manager trigger choices onto canonical trigger fields', () => {
     expect(LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS.map(option => option.label)).toEqual([
-      'None', 'Beat', 'Downbeat', 'Bar', '4 Bars', '8 Bars', '16 Bars', '24 Bars', 'Kick Hit', 'Snare Hit',
+      'None', 'Beat', 'Downbeat', '4 Bars', '8 Bars', '16 Bars', '24 Bars', 'Kick Hit', 'Snare Hit',
     ])
 
     let show = createLaserDmxShowManagerShow()
@@ -387,6 +390,34 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
       const fixture = show.sections[0]!.fixtures.find(candidate => candidate.id === fixtureId)!
       expect(resolveLaserDmxShowManagerTriggerOption(fixture.trigger)).toBe(option.value)
     }
+  })
+
+
+  it('normalizes the legacy hidden Drop default for Show Manager lasers without rewriting other unsupported stored triggers', () => {
+    const legacyDefault = createDefaultLaserDmxShowDirectorFixture('laser', 'legacy-hidden-drop')
+    const normalizedDefault = normalizeLaserDmxShowManagerFixture(legacyDefault)
+
+    expect(normalizedDefault.trigger).toMatchObject({
+      mode: 'alwaysOn',
+      quantize: 'none',
+      retrigger: 'allow',
+      fadeInMs: 0,
+      fadeOutMs: 0,
+    })
+    expect(resolveLaserDmxShowManagerTriggerOption(normalizedDefault.trigger)).toBe('none')
+
+    const storedBuild = normalizeLaserDmxShowManagerFixture({
+      ...legacyDefault,
+      id: 'stored-build',
+      trigger: {
+        ...legacyDefault.trigger,
+        sectionTypes: ['build'],
+      },
+    })
+    expect(storedBuild.trigger.mode).toBe('section')
+    expect(storedBuild.trigger.sectionTypes).toEqual(['build'])
+    expect(resolveLaserDmxShowManagerTriggerOption(storedBuild.trigger)).toBeNull()
+    expect(describeLaserDmxShowManagerStoredTrigger(storedBuild.trigger)).toBe('Stored: Section (build)')
   })
 
   it('reorders canonical sections while keeping deterministic non-overlapping timing windows', () => {

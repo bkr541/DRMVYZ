@@ -71,6 +71,7 @@ import {
   parseLaserDmxShowManagerFixtureKind,
   resolveLaserDmxShowManagerGridCell,
   resolveLaserDmxShowManagerTriggerOption,
+  describeLaserDmxShowManagerStoredTrigger,
   triggerPatchForLaserDmxShowManagerOption,
   type LaserDmxShowManagerTriggerOption,
   type LaserDmxShowManagerGridCell,
@@ -3599,6 +3600,14 @@ function LaserDmxShowManagerFixtureInspector({
 }) {
   useEffect(() => () => onInteractionEnd(), [fixture.id, onInteractionEnd])
   const triggerOption = resolveLaserDmxShowManagerTriggerOption(fixture.trigger)
+  const storedTriggerValue = `stored:${fixture.trigger.mode}`
+  const triggerSelectValue = triggerOption ?? storedTriggerValue
+  const triggerOptions = triggerOption == null
+    ? [
+        { value: storedTriggerValue, label: describeLaserDmxShowManagerStoredTrigger(fixture.trigger), disabled: true },
+        ...LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS.map(option => ({ ...option })),
+      ]
+    : LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS.map(option => ({ ...option }))
   const sliderGesture = { onInteractionStart, onInteractionEnd }
   const beamPatternOptions = [
     { value: 'fixed', label: 'Fixed' },
@@ -3688,9 +3697,13 @@ function LaserDmxShowManagerFixtureInspector({
       <Collapsible label="Trigger Configuration" defaultOpen>
         <SelectRow
           label="Trigger"
-          value={triggerOption}
-          options={LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS.map(option => ({ ...option }))}
-          onChange={value => onPatch({ trigger: triggerPatchForLaserDmxShowManagerOption(value as LaserDmxShowManagerTriggerOption) })}
+          value={triggerSelectValue}
+          options={triggerOptions}
+          description={triggerOption == null ? 'This saved trigger is preserved as-is. Choose a supported Trigger value to convert it.' : undefined}
+          onChange={value => {
+            if (value === storedTriggerValue) return
+            onPatch({ trigger: triggerPatchForLaserDmxShowManagerOption(value as LaserDmxShowManagerTriggerOption) })
+          }}
         />
       </Collapsible>
 

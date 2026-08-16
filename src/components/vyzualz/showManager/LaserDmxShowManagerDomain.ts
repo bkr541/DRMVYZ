@@ -179,7 +179,6 @@ export type LaserDmxShowManagerTriggerOption =
   | 'none'
   | 'beat'
   | 'downbeat'
-  | 'bar'
   | '4bars'
   | '8bars'
   | '16bars'
@@ -191,7 +190,6 @@ export const LASER_DMX_SHOW_MANAGER_TRIGGER_OPTIONS = [
   { value: 'none', label: 'None' },
   { value: 'beat', label: 'Beat' },
   { value: 'downbeat', label: 'Downbeat' },
-  { value: 'bar', label: 'Bar' },
   { value: '4bars', label: '4 Bars' },
   { value: '8bars', label: '8 Bars' },
   { value: '16bars', label: '16 Bars' },
@@ -316,11 +314,35 @@ export function resolveLaserDmxShowManagerGridCell(
   }
 }
 
+function isLegacyLaserDmxShowManagerDefaultLaserTrigger(
+  fixture: LaserDmxShowDirectorFixture,
+): boolean {
+  const trigger = fixture.trigger
+  return fixture.kind === 'laser'
+    && trigger.mode === 'section'
+    && trigger.quantize === 'section'
+    && trigger.retrigger === 'allow'
+    && trigger.beatDivision === 1
+    && trigger.barInterval === 1
+    && trigger.phraseLengthBars === 8
+    && trigger.sectionTypes.length === 1
+    && trigger.sectionTypes[0] === 'drop'
+    && trigger.cuePointIds.length === 0
+    && trigger.energyThreshold === 0.7
+    && trigger.audioBand === 'bass'
+    && trigger.audioThreshold === 0.65
+    && trigger.fadeInMs === 120
+    && trigger.fadeOutMs === 380
+}
+
 export function normalizeLaserDmxShowManagerFixture(
   raw: unknown,
   index = 0,
 ): LaserDmxShowDirectorFixture {
   const normalized = normalizeLaserDmxShowDirectorFixture(raw, index)
+  const trigger = isLegacyLaserDmxShowManagerDefaultLaserTrigger(normalized)
+    ? { ...normalized.trigger, ...triggerPatchForLaserDmxShowManagerOption('none') }
+    : normalized.trigger
   const maxX = LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns - 1
   const maxY = LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows - 1
   const x = clamp(Math.round(finite(normalized.x, 0)), 0, maxX)
@@ -338,6 +360,7 @@ export function normalizeLaserDmxShowManagerFixture(
     y,
     groupId: null,
     colorMode: 'fixed',
+    trigger,
     beam: {
       ...normalized.beam,
       targetX,
@@ -380,10 +403,6 @@ export function triggerPatchForLaserDmxShowManagerOption(
     case 'beat':
       return { mode: 'beat', quantize: 'beat', retrigger: 'oncePerBeat', beatDivision: 1, fadeInMs: 0, fadeOutMs: 140 }
     case 'downbeat':
-      // The canonical Show Director runtime represents a downbeat as a one-bar trigger.
-      // `quantize: beat` preserves the authoring distinction from the explicit Bar option.
-      return { mode: 'bar', quantize: 'beat', retrigger: 'oncePerBar', beatDivision: 1, barInterval: 1, fadeInMs: 0, fadeOutMs: 220 }
-    case 'bar':
       return { mode: 'bar', quantize: 'bar', retrigger: 'oncePerBar', beatDivision: 1, barInterval: 1, fadeInMs: 0, fadeOutMs: 220 }
     case '4bars':
       return { mode: 'bar', quantize: 'bar', retrigger: 'oncePerBar', beatDivision: 1, barInterval: 4, fadeInMs: 0, fadeOutMs: 360 }
@@ -405,23 +424,56 @@ export function triggerPatchForLaserDmxShowManagerOption(
 
 export function resolveLaserDmxShowManagerTriggerOption(
   trigger: LaserDmxShowDirectorFixture['trigger'],
-): LaserDmxShowManagerTriggerOption {
+): LaserDmxShowManagerTriggerOption | null {
   switch (trigger.mode) {
     case 'beat':
-      return 'beat'
+      return trigger.beatDivision === 1 ? 'beat' : null
     case 'bar':
       if (trigger.barInterval === 24) return '24bars'
       if (trigger.barInterval === 16) return '16bars'
       if (trigger.barInterval === 8) return '8bars'
       if (trigger.barInterval === 4) return '4bars'
-      return trigger.quantize === 'beat' ? 'downbeat' : 'bar'
+      return trigger.barInterval === 1 ? 'downbeat' : null
     case 'bassHit':
       return 'kickHit'
     case 'snareTransient':
       return 'snareHit'
     case 'alwaysOn':
-    default:
       return 'none'
+    default:
+      return null
+  }
+}
+
+export function describeLaserDmxShowManagerStoredTrigger(
+  trigger: LaserDmxShowDirectorFixture['trigger'],
+): string {
+  switch (trigger.mode) {
+    case 'beat':
+      return `Stored: Every ${trigger.beatDivision} Beat${trigger.beatDivision === 1 ? '' : 's'}`
+    case 'bar':
+      return `Stored: Every ${Math.max(1, Math.round(trigger.barInterval))} Bars`
+    case 'phrase':
+      return `Stored: Phrase (${Math.max(1, Math.round(trigger.phraseLengthBars))} Bars)`
+    case 'section': {
+      const sections = trigger.sectionTypes.length > 0 ? trigger.sectionTypes.join(', ') : 'unspecified'
+      return `Stored: Section (${sections})`
+    }
+    case 'cuePoint': {
+      const cues = trigger.cuePointIds.length > 0 ? trigger.cuePointIds.join(', ') : 'generic'
+      return `Stored: Cue Point (${cues})`
+    }
+    case 'energy':
+      return `Stored: Energy (${Math.round(trigger.energyThreshold * 100)}%)`
+    case 'audioBand':
+      return `Stored: ${trigger.audioBand} Band (${Math.round(trigger.audioThreshold * 100)}%)`
+    case 'bassHit':
+      return 'Kick Hit'
+    case 'snareTransient':
+      return 'Snare Hit'
+    case 'alwaysOn':
+    default:
+      return 'None'
   }
 }
 
