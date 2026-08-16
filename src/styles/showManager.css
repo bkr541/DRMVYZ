@@ -1261,11 +1261,14 @@ button.sm-library-subsection-toggle {
   font: inherit;
   font-size: 7px;
   line-height: 1;
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
   transform: translate(-50%, -50%);
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.32);
 }
 .sm-laser-fixture:hover { border-color: rgba(103, 247, 255, 0.55); }
+.sm-laser-fixture.is-dragging { cursor: grabbing; }
 .sm-laser-fixture.is-selected {
   z-index: 3;
   border-color: #67f7ff;

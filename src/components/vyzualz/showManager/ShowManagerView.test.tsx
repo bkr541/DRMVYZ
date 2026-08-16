@@ -204,6 +204,7 @@ const fixture = vi.hoisted(() => ({
     laserDmxShowManagerActiveShowId: null as string | null,
     showManagerUndoStack: [] as unknown[],
     showManagerRedoStack: [] as unknown[],
+    laserDmxShowManagerHistoryTransaction: null as unknown,
     createLaserDmxShowManagerShow: vi.fn(() => 'laser-show-2'),
     ensureLaserDmxShowManagerShow: vi.fn(() => 'laser-show-1'),
     selectLaserDmxShowManagerShow: vi.fn(),
@@ -221,6 +222,9 @@ const fixture = vi.hoisted(() => ({
     updateLaserDmxShowManagerSectionBoundary: vi.fn(),
     undoLaserDmxShowManagerEdit: vi.fn(),
     redoLaserDmxShowManagerEdit: vi.fn(),
+    beginLaserDmxShowManagerHistoryTransaction: vi.fn(),
+    commitLaserDmxShowManagerHistoryTransaction: vi.fn(),
+    cancelLaserDmxShowManagerHistoryTransaction: vi.fn(),
     saveLaserDmxShowManagerShow: vi.fn(async () => true),
     canvasShowManagerShows: [],
     canvasShowManagerActiveShowId: null as string | null,
@@ -514,6 +518,9 @@ afterEach(() => {
   fixture.state.showManagerRedoStack = []
   fixture.state.undoLaserDmxShowManagerEdit.mockClear()
   fixture.state.redoLaserDmxShowManagerEdit.mockClear()
+  fixture.state.beginLaserDmxShowManagerHistoryTransaction.mockClear()
+  fixture.state.commitLaserDmxShowManagerHistoryTransaction.mockClear()
+  fixture.state.cancelLaserDmxShowManagerHistoryTransaction.mockClear()
   fixture.state.saveLaserDmxShowManagerShow.mockClear()
   fixture.state.updateLaserDmxShowManagerSectionWorkspaceSettings.mockClear()
   fixture.state.ensureLaserDmxShowManagerShow.mockClear()
@@ -1878,6 +1885,159 @@ describe('ShowManagerView production shell', () => {
         await Promise.resolve()
       })
       expect(fixtureButtons.every(button => button.getAttribute('aria-pressed') === 'false')).toBe(true)
+    } finally {
+      intro.fixtures = originalFixtures
+    }
+  })
+
+  it('repositions every placed LaserDMX fixture kind through the real grid pointer path without creating duplicates', async () => {
+    setSharedShowToLaserAuthoredSections()
+    const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
+    const originalFixtures = intro.fixtures
+    intro.fixtures = [
+      { ...createDefaultLaserDmxShowDirectorFixture('laser', 'fixture-drag-laser'), x: 1, y: 1 },
+      { ...createDefaultLaserDmxShowDirectorFixture('movingHead', 'fixture-drag-moving-head'), x: 3, y: 2 },
+      { ...createDefaultLaserDmxShowDirectorFixture('ledBar', 'fixture-drag-led-bar'), x: 5, y: 3 },
+      { ...createDefaultLaserDmxShowDirectorFixture('strobe', 'fixture-drag-strobe'), x: 7, y: 4 },
+    ] as never[]
+    fixture.state.updateLaserDmxShowManagerFixture.mockClear()
+    fixture.state.addLaserDmxShowManagerFixture.mockClear()
+    fixture.state.beginLaserDmxShowManagerHistoryTransaction.mockClear()
+    fixture.state.commitLaserDmxShowManagerHistoryTransaction.mockClear()
+
+    const pointerEvent = (type: string, pointerId: number, clientX: number, clientY: number) => {
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX, clientY })
+      Object.defineProperty(event, 'pointerId', { configurable: true, value: pointerId })
+      return event
+    }
+
+    try {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+      await act(async () => {
+        engineTrigger?.click()
+        await Promise.resolve()
+      })
+      const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.includes('LaserDMX'))
+      await act(async () => {
+        laserOption?.click()
+        await Promise.resolve()
+      })
+
+      const grid = container.querySelector<HTMLElement>('[data-testid="laser-dmx-authoring-grid"]')
+      expect(grid).not.toBeNull()
+      if (!grid) return
+      Object.defineProperty(grid, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ left: 0, top: 0, width: 180, height: 120, right: 180, bottom: 120, x: 0, y: 0, toJSON: () => ({}) }),
+      })
+
+      const fixtureIds = ['fixture-drag-laser', 'fixture-drag-moving-head', 'fixture-drag-led-bar', 'fixture-drag-strobe']
+      for (const [index, fixtureId] of fixtureIds.entries()) {
+        const button = container.querySelector<HTMLButtonElement>(`button[data-fixture-id="${fixtureId}"]`)
+        expect(button).not.toBeNull()
+        if (!button) continue
+        await act(async () => {
+          button.dispatchEvent(pointerEvent('pointerdown', index + 1, 10, 10))
+          button.dispatchEvent(pointerEvent('pointermove', index + 1, 95, 65))
+          button.dispatchEvent(pointerEvent('pointerup', index + 1, 250, -20))
+          await Promise.resolve()
+        })
+      }
+
+      expect(fixture.state.beginLaserDmxShowManagerHistoryTransaction).toHaveBeenCalledTimes(4)
+      expect(fixture.state.commitLaserDmxShowManagerHistoryTransaction).toHaveBeenCalledTimes(4)
+      for (const fixtureId of fixtureIds) {
+        expect(fixture.state.updateLaserDmxShowManagerFixture).toHaveBeenCalledWith(
+          'laser-show-1',
+          'laser-show-1:section:intro:1',
+          fixtureId,
+          { x: 17, y: 0 },
+        )
+      }
+      expect(fixture.state.addLaserDmxShowManagerFixture).not.toHaveBeenCalled()
+    } finally {
+      intro.fixtures = originalFixtures
+    }
+  })
+
+  it('wraps continuous LaserDMX Inspector sliders in one shared history interaction transaction', async () => {
+    setSharedShowToLaserAuthoredSections()
+    const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
+    const originalFixtures = intro.fixtures
+    intro.fixtures = [{
+      ...createDefaultLaserDmxShowDirectorFixture('laser', 'fixture-slider-transaction'),
+      brightness: 0.4,
+    }] as never[]
+    fixture.state.updateLaserDmxShowManagerFixture.mockClear()
+    fixture.state.beginLaserDmxShowManagerHistoryTransaction.mockClear()
+    fixture.state.commitLaserDmxShowManagerHistoryTransaction.mockClear()
+
+    try {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+      await act(async () => {
+        engineTrigger?.click()
+        await Promise.resolve()
+      })
+      const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.includes('LaserDMX'))
+      await act(async () => {
+        laserOption?.click()
+        await Promise.resolve()
+      })
+      const fixtureButton = container.querySelector<HTMLButtonElement>('button[data-fixture-id="fixture-slider-transaction"]')
+      await act(async () => {
+        fixtureButton?.click()
+        await Promise.resolve()
+      })
+
+      const inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
+      const brightnessLabel = [...(inspector?.querySelectorAll<HTMLLabelElement>('label') ?? [])]
+        .find(label => label.textContent?.trim() === 'Brightness')
+      const brightnessInput = brightnessLabel?.htmlFor
+        ? inspector?.querySelector<HTMLInputElement>(`#${brightnessLabel.htmlFor}`)
+        : null
+      expect(brightnessInput).not.toBeNull()
+      if (!brightnessInput) return
+
+      const pointerDown = new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 })
+      Object.defineProperty(pointerDown, 'pointerId', { configurable: true, value: 41 })
+      const pointerUp = new MouseEvent('pointerup', { bubbles: true, cancelable: true, button: 0 })
+      Object.defineProperty(pointerUp, 'pointerId', { configurable: true, value: 41 })
+      await act(async () => {
+        brightnessInput.dispatchEvent(pointerDown)
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+        setter?.call(brightnessInput, '0.72')
+        brightnessInput.dispatchEvent(new Event('input', { bubbles: true }))
+        brightnessInput.dispatchEvent(new Event('change', { bubbles: true }))
+        brightnessInput.dispatchEvent(pointerUp)
+        await Promise.resolve()
+      })
+
+      expect(fixture.state.beginLaserDmxShowManagerHistoryTransaction).toHaveBeenCalledTimes(1)
+      expect(fixture.state.commitLaserDmxShowManagerHistoryTransaction).toHaveBeenCalledTimes(1)
+      expect(fixture.state.updateLaserDmxShowManagerFixture).toHaveBeenCalledWith(
+        'laser-show-1',
+        'laser-show-1:section:intro:1',
+        'fixture-slider-transaction',
+        { brightness: 0.72 },
+      )
     } finally {
       intro.fixtures = originalFixtures
     }

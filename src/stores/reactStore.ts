@@ -2707,6 +2707,7 @@ interface ReactStoreState {
   laserDmxShowManagerPlaybackSectionId: string | null
   showManagerUndoStack: ShowManagerHistorySnapshot[]
   showManagerRedoStack: ShowManagerHistorySnapshot[]
+  laserDmxShowManagerHistoryTransaction: ShowManagerHistorySnapshot | null
 
   // React preset automation cues — stored per stable track ID.
   // `presetId` is the authoritative assignment; no Engine ID is stored here.
@@ -2819,6 +2820,9 @@ interface ReactStoreState {
   undoLaserDmxShowManagerEdit: () => void
   redoLaserDmxShowManagerEdit: () => void
   clearShowManagerHistory: () => void
+  beginLaserDmxShowManagerHistoryTransaction: () => void
+  commitLaserDmxShowManagerHistoryTransaction: () => void
+  cancelLaserDmxShowManagerHistoryTransaction: () => void
   saveLaserDmxShowManagerShow: (showId: string, options?: { makeActive?: boolean }) => Promise<boolean>
 
   /** Returns cues for a track sorted ascending by timeSec. Empty array if none. */
@@ -3144,6 +3148,14 @@ function laserDmxShowManagerShowsEqual(
   return JSON.stringify(left) === JSON.stringify(right)
 }
 
+function showManagerHistorySnapshotsEqual(
+  left: ShowManagerHistorySnapshot,
+  right: ShowManagerHistorySnapshot,
+): boolean {
+  return JSON.stringify(left.showManagerShows) === JSON.stringify(right.showManagerShows)
+    && laserDmxShowManagerShowsEqual(left.laserDmxShowManagerShows, right.laserDmxShowManagerShows)
+}
+
 function buildLaserDmxShowManagerActivationPatch(
   state: ReactStoreState,
 ): Partial<ReactStoreState> | null {
@@ -3187,6 +3199,7 @@ function buildShowManagerHistoryMutationPatch(
     | 'laserDmxShowManagerEditingSectionId'
     | 'showManagerUndoStack'
     | 'showManagerRedoStack'
+    | 'laserDmxShowManagerHistoryTransaction'
   >,
   patch: Partial<Pick<ReactStoreState,
     | 'showManagerShows'
@@ -3197,6 +3210,7 @@ function buildShowManagerHistoryMutationPatch(
 ) {
   const nextShows = patch.laserDmxShowManagerShows ?? state.laserDmxShowManagerShows
   if (laserDmxShowManagerShowsEqual(state.laserDmxShowManagerShows, nextShows)) return patch
+  if (state.laserDmxShowManagerHistoryTransaction) return patch
   return {
     ...patch,
     showManagerUndoStack: trimShowManagerHistory([
@@ -6283,6 +6297,7 @@ export function mergeReactStoreState(
     laserDmxShowManagerPlaybackSectionId: null,
     showManagerUndoStack: [],
     showManagerRedoStack: [],
+    laserDmxShowManagerHistoryTransaction: null,
     pixGridUndoStack: [],
     pixGridRedoStack: [],
     pixGridHistoryTransaction: null,
@@ -6500,6 +6515,7 @@ export const useReactStore = create<ReactStoreState>()(
       laserDmxShowManagerPlaybackSectionId: null,
       showManagerUndoStack: [],
       showManagerRedoStack: [],
+      laserDmxShowManagerHistoryTransaction: null,
       presetAutomationCuesByTrackId: {},
       pixGridActionCuesByTrackId: {},
       soundDrawingLayersByTrackId: {},
@@ -8053,6 +8069,7 @@ export const useReactStore = create<ReactStoreState>()(
           laserDmxShowManagerPlaybackSectionId: null,
           showManagerUndoStack: [],
           showManagerRedoStack: [],
+          laserDmxShowManagerHistoryTransaction: null,
         }
         set(patch)
         await persistShowManagerLocalCache(
@@ -8091,6 +8108,7 @@ export const useReactStore = create<ReactStoreState>()(
             laserDmxShowManagerPlaybackSectionId: null,
             showManagerUndoStack: [],
             showManagerRedoStack: [],
+            laserDmxShowManagerHistoryTransaction: null,
           }
           const candidate = { ...state, ...patch } as ReactStoreState
           const bundle = buildShowManagerCloudBundleFromState(candidate, show.id)
@@ -8160,6 +8178,7 @@ export const useReactStore = create<ReactStoreState>()(
             laserDmxShowManagerPlaybackSectionId: null,
             showManagerUndoStack: [],
             showManagerRedoStack: [],
+            laserDmxShowManagerHistoryTransaction: null,
             ...(canvasCopy ? { canvasShowManagerShows: [...state.canvasShowManagerShows, canvasCopy] } : {}),
             ...(laserCopy ? { laserDmxShowManagerShows: [...state.laserDmxShowManagerShows, laserCopy] } : {}),
           }
@@ -8223,6 +8242,7 @@ export const useReactStore = create<ReactStoreState>()(
               laserDmxShowManagerPlaybackSectionId: null,
               showManagerUndoStack: [],
               showManagerRedoStack: [],
+              laserDmxShowManagerHistoryTransaction: null,
             } : {}),
           }
           const candidate = { ...state, ...patch } as ReactStoreState
@@ -8323,6 +8343,7 @@ export const useReactStore = create<ReactStoreState>()(
         laserDmxShowManagerPlaybackSectionId: null,
         showManagerUndoStack: [],
         showManagerRedoStack: [],
+        laserDmxShowManagerHistoryTransaction: null,
       }),
 
       reconcileShowManagerTrackMapFromAnalysis: (input) =>
@@ -9042,6 +9063,7 @@ export const useReactStore = create<ReactStoreState>()(
           laserDmxShowManagerPlaybackSectionId: null,
           showManagerUndoStack: [],
           showManagerRedoStack: [],
+          laserDmxShowManagerHistoryTransaction: null,
         }))
         return show.id
       },
@@ -9288,6 +9310,7 @@ export const useReactStore = create<ReactStoreState>()(
             ...restoreShowManagerHistorySnapshot(s, previous),
             showManagerUndoStack: s.showManagerUndoStack.slice(0, -1),
             showManagerRedoStack: trimShowManagerHistory([...s.showManagerRedoStack, current]),
+            laserDmxShowManagerHistoryTransaction: null,
           }
         }),
 
@@ -9300,10 +9323,41 @@ export const useReactStore = create<ReactStoreState>()(
             ...restoreShowManagerHistorySnapshot(s, next),
             showManagerUndoStack: trimShowManagerHistory([...s.showManagerUndoStack, current]),
             showManagerRedoStack: s.showManagerRedoStack.slice(0, -1),
+            laserDmxShowManagerHistoryTransaction: null,
           }
         }),
 
-      clearShowManagerHistory: () => set({ showManagerUndoStack: [], showManagerRedoStack: [] }),
+      clearShowManagerHistory: () => set({
+        showManagerUndoStack: [],
+        showManagerRedoStack: [],
+        laserDmxShowManagerHistoryTransaction: null,
+      }),
+
+      beginLaserDmxShowManagerHistoryTransaction: () => set(s => s.laserDmxShowManagerHistoryTransaction
+        ? {}
+        : { laserDmxShowManagerHistoryTransaction: captureShowManagerHistorySnapshot(s) }),
+
+      commitLaserDmxShowManagerHistoryTransaction: () => set(s => {
+        const base = s.laserDmxShowManagerHistoryTransaction
+        if (!base) return {}
+        const current = captureShowManagerHistorySnapshot(s)
+        if (showManagerHistorySnapshotsEqual(base, current)) {
+          return { laserDmxShowManagerHistoryTransaction: null }
+        }
+        return {
+          showManagerUndoStack: trimShowManagerHistory([...s.showManagerUndoStack, base]),
+          showManagerRedoStack: [],
+          laserDmxShowManagerHistoryTransaction: null,
+        }
+      }),
+
+      cancelLaserDmxShowManagerHistoryTransaction: () => set(s => s.laserDmxShowManagerHistoryTransaction
+        ? {
+            ...restoreShowManagerHistorySnapshot(s, s.laserDmxShowManagerHistoryTransaction),
+            laserDmxShowManagerPlaybackSectionId: s.laserDmxShowManagerPlaybackSectionId,
+            laserDmxShowManagerHistoryTransaction: null,
+          }
+        : {}),
 
       saveLaserDmxShowManagerShow: async (showId, options = {}) => {
         const stateAtSave = get()
@@ -12325,6 +12379,7 @@ export const useReactStore = create<ReactStoreState>()(
             laserDmxShowManagerPlaybackSectionId: null,
             showManagerUndoStack: [],
             showManagerRedoStack: [],
+            laserDmxShowManagerHistoryTransaction: null,
             activeLaserDmxBeamMatrixPresetId: null,
             laserDmxBeamMatrixPresetDirty: false,
             performancePadTransition: null,
@@ -12386,6 +12441,7 @@ export const useReactStore = create<ReactStoreState>()(
           laserDmxShowManagerPlaybackSectionId: null,
           showManagerUndoStack:          [],
           showManagerRedoStack:          [],
+          laserDmxShowManagerHistoryTransaction: null,
           suppressedAutoSectionsByTrackId: {},
           presetAutomationCuesByTrackId: {},
           pixGridActionCuesByTrackId: {},

@@ -908,6 +908,9 @@ export function ShowManagerView() {
   const copyLaserDmxShowManagerFixturesFromSection = useReactStore(state => state.copyLaserDmxShowManagerFixturesFromSection)
   const undoLaserDmxShowManagerEdit = useReactStore(state => state.undoLaserDmxShowManagerEdit)
   const redoLaserDmxShowManagerEdit = useReactStore(state => state.redoLaserDmxShowManagerEdit)
+  const beginLaserDmxShowManagerHistoryTransaction = useReactStore(state => state.beginLaserDmxShowManagerHistoryTransaction)
+  const commitLaserDmxShowManagerHistoryTransaction = useReactStore(state => state.commitLaserDmxShowManagerHistoryTransaction)
+  const cancelLaserDmxShowManagerHistoryTransaction = useReactStore(state => state.cancelLaserDmxShowManagerHistoryTransaction)
   const laserShowUndoDepth = useReactStore(state => state.showManagerUndoStack.length)
   const laserShowRedoDepth = useReactStore(state => state.showManagerRedoStack.length)
   const saveLaserDmxShowManagerShow = useReactStore(state => state.saveLaserDmxShowManagerShow)
@@ -1887,6 +1890,23 @@ export function ShowManagerView() {
     )
   }
 
+  const beginLaserFixtureReposition = (fixtureId: string) => {
+    if (!activeLaserDmxShow || !activeLaserDmxSection) return
+    if (!activeLaserDmxSection.fixtures.some(fixture => fixture.id === fixtureId)) return
+    setLaserFixtureContextMenu(null)
+    setLaserEndpointTargetingFixtureId(null)
+    setSelectedLaserFixtureId(fixtureId)
+    beginLaserDmxShowManagerHistoryTransaction()
+  }
+
+  const updateLaserFixtureReposition = (fixtureId: string, cell: LaserDmxShowManagerGridCell) => {
+    if (!activeLaserDmxShow || !activeLaserDmxSection) return
+    updateLaserDmxShowManagerFixture(activeLaserDmxShow.id, activeLaserDmxSection.id, fixtureId, cell)
+  }
+
+  const commitLaserFixtureReposition = () => commitLaserDmxShowManagerHistoryTransaction()
+  const cancelLaserFixtureReposition = () => cancelLaserDmxShowManagerHistoryTransaction()
+
   const deleteSelectedLaserFixture = () => {
     if (!activeLaserDmxShow || !activeLaserDmxSection || !selectedLaserFixture) return
     removeLaserDmxShowManagerFixture(activeLaserDmxShow.id, activeLaserDmxSection.id, selectedLaserFixture.id)
@@ -2398,6 +2418,10 @@ export function ShowManagerView() {
                 selectedCanvasMediaId={selectedEngineId === 'canvas' ? canvasLibraryMediaId : null}
                 onPlaceCanvasMedia={commitCanvasMediaPlacement}
                 onSelectFixture={setSelectedLaserFixtureId}
+                onFixtureRepositionStart={beginLaserFixtureReposition}
+                onFixtureReposition={updateLaserFixtureReposition}
+                onFixtureRepositionEnd={commitLaserFixtureReposition}
+                onFixtureRepositionCancel={cancelLaserFixtureReposition}
                 onFixtureContextMenu={handleLaserFixtureContextMenu}
                 endpointTargetingFixtureId={laserEndpointTargetingFixtureId}
                 onCommitEndpointTarget={commitLaserEndpointTarget}
@@ -2754,6 +2778,8 @@ export function ShowManagerView() {
                   <LaserDmxShowManagerFixtureInspector
                     fixture={selectedLaserFixture}
                     onPatch={commitLaserFixturePatch}
+                    onInteractionStart={beginLaserDmxShowManagerHistoryTransaction}
+                    onInteractionEnd={commitLaserDmxShowManagerHistoryTransaction}
                     onDelete={deleteSelectedLaserFixture}
                   />
                 ) : <>
@@ -3561,13 +3587,19 @@ function CanvasShowManagerTimeline({
 function LaserDmxShowManagerFixtureInspector({
   fixture,
   onPatch,
+  onInteractionStart,
+  onInteractionEnd,
   onDelete,
 }: {
   fixture: LaserDmxShowDirectorFixture
   onPatch: (patch: LaserDmxShowDirectorFixturePatch) => void
+  onInteractionStart: () => void
+  onInteractionEnd: () => void
   onDelete: () => void
 }) {
+  useEffect(() => () => onInteractionEnd(), [fixture.id, onInteractionEnd])
   const triggerOption = resolveLaserDmxShowManagerTriggerOption(fixture.trigger)
+  const sliderGesture = { onInteractionStart, onInteractionEnd }
   const beamPatternOptions = [
     { value: 'fixed', label: 'Fixed' },
     { value: 'fan', label: 'Fan' },
@@ -3614,7 +3646,7 @@ function LaserDmxShowManagerFixtureInspector({
           options={[{ value: 'fixed', label: 'Static' }]}
           onChange={() => undefined}
         />
-        <SliderRow label="Brightness" value={fixture.brightness} min={0} max={1} step={0.01} onChange={brightness => onPatch({ brightness })} />
+        <SliderRow label="Brightness" value={fixture.brightness} min={0} max={1} step={0.01} onChange={brightness => onPatch({ brightness })} {...sliderGesture} />
       </Collapsible>
 
       <Collapsible label="Beam Configuration" defaultOpen>
@@ -3647,9 +3679,10 @@ function LaserDmxShowManagerFixtureInspector({
           max={1}
           step={0.01}
           onChange={zoom => onPatch({ optics: { zoom } })}
+          {...sliderGesture}
         />
-        <SliderRow label="Spread" value={fixture.beam.beamSpread} min={0} max={180} step={1} onChange={beamSpread => onPatch({ beam: { beamSpread } })} />
-        <SliderRow label="Focus" value={fixture.beam.focus} min={0} max={1} step={0.01} onChange={focus => onPatch({ beam: { focus } })} />
+        <SliderRow label="Spread" value={fixture.beam.beamSpread} min={0} max={180} step={1} onChange={beamSpread => onPatch({ beam: { beamSpread } })} {...sliderGesture} />
+        <SliderRow label="Focus" value={fixture.beam.focus} min={0} max={1} step={0.01} onChange={focus => onPatch({ beam: { focus } })} {...sliderGesture} />
       </Collapsible>
 
       <Collapsible label="Trigger Configuration" defaultOpen>
@@ -3682,6 +3715,10 @@ function LaserDmxShowManagerStage({
   selectedCanvasMediaId,
   onPlaceCanvasMedia,
   onSelectFixture,
+  onFixtureRepositionStart,
+  onFixtureReposition,
+  onFixtureRepositionEnd,
+  onFixtureRepositionCancel,
   onFixtureContextMenu,
   endpointTargetingFixtureId,
   onCommitEndpointTarget,
@@ -3699,6 +3736,10 @@ function LaserDmxShowManagerStage({
   selectedCanvasMediaId: string | null
   onPlaceCanvasMedia: (mediaId: string, layer: CanvasShowManagerLayer) => boolean
   onSelectFixture: (fixtureId: string | null) => void
+  onFixtureRepositionStart: (fixtureId: string) => void
+  onFixtureReposition: (fixtureId: string, cell: LaserDmxShowManagerGridCell) => void
+  onFixtureRepositionEnd: () => void
+  onFixtureRepositionCancel: () => void
   onFixtureContextMenu: (event: MouseEvent<HTMLButtonElement>, fixtureId: string) => void
   endpointTargetingFixtureId: string | null
   onCommitEndpointTarget: (event: MouseEvent<HTMLDivElement>) => void
@@ -3707,6 +3748,9 @@ function LaserDmxShowManagerStage({
   const collisionOrdinals = new Map<string, number>()
   const [canvasDragActive, setCanvasDragActive] = useState(false)
   const [hoveredCanvasLayer, setHoveredCanvasLayer] = useState<CanvasShowManagerLayer | null>(null)
+  const [draggingFixtureId, setDraggingFixtureId] = useState<string | null>(null)
+  const gridSurfaceRef = useRef<HTMLDivElement>(null)
+  const fixtureDragRef = useRef<{ fixtureId: string; pointerId: number; x: number; y: number } | null>(null)
   const canvasTargetsVisible = canvasDragActive || selectedCanvasMediaId != null
 
   return (
@@ -3718,6 +3762,7 @@ function LaserDmxShowManagerStage({
         {endpointTargetingFixtureId && <em>Click the grid to set the beam endpoint</em>}
       </div>
       <div
+        ref={gridSurfaceRef}
         className={`sm-laser-stage-grid-surface${showGrid ? ' is-grid-visible' : ''}${highlightGrid ? ' is-highlighted' : ''}${endpointTargetingFixtureId ? ' is-targeting-endpoint' : ''}`}
         data-testid="laser-dmx-authoring-grid"
         onDragEnter={event => {
@@ -3821,7 +3866,7 @@ function LaserDmxShowManagerStage({
             <button
               key={fixture.id}
               type="button"
-              className={`sm-laser-fixture${isSelected ? ' is-selected' : ''}`}
+              className={`sm-laser-fixture${isSelected ? ' is-selected' : ''}${draggingFixtureId === fixture.id ? ' is-dragging' : ''}`}
               style={{
                 left: `${left}%`,
                 top: `${top}%`,
@@ -3833,6 +3878,55 @@ function LaserDmxShowManagerStage({
               data-fixture-id={fixture.id}
               data-grid-x={fixture.x}
               data-grid-y={fixture.y}
+              onPointerDown={event => {
+                if (endpointTargetingFixtureId || event.button !== 0) return
+                event.preventDefault()
+                event.stopPropagation()
+                fixtureDragRef.current = { fixtureId: fixture.id, pointerId: event.pointerId, x: fixture.x, y: fixture.y }
+                setDraggingFixtureId(fixture.id)
+                onSelectFixture(fixture.id)
+                onFixtureRepositionStart(fixture.id)
+                event.currentTarget.setPointerCapture?.(event.pointerId)
+              }}
+              onPointerMove={event => {
+                const drag = fixtureDragRef.current
+                if (!drag || drag.fixtureId !== fixture.id || drag.pointerId !== event.pointerId) return
+                const bounds = gridSurfaceRef.current?.getBoundingClientRect()
+                if (!bounds) return
+                const cell = resolveLaserDmxShowManagerGridCell(event.clientX, event.clientY, bounds)
+                if (!cell || (cell.x === drag.x && cell.y === drag.y)) return
+                event.preventDefault()
+                event.stopPropagation()
+                drag.x = cell.x
+                drag.y = cell.y
+                onFixtureReposition(fixture.id, cell)
+              }}
+              onPointerUp={event => {
+                const drag = fixtureDragRef.current
+                if (!drag || drag.fixtureId !== fixture.id || drag.pointerId !== event.pointerId) return
+                const bounds = gridSurfaceRef.current?.getBoundingClientRect()
+                const cell = bounds ? resolveLaserDmxShowManagerGridCell(event.clientX, event.clientY, bounds) : null
+                if (cell && (cell.x !== drag.x || cell.y !== drag.y)) onFixtureReposition(fixture.id, cell)
+                event.preventDefault()
+                event.stopPropagation()
+                fixtureDragRef.current = null
+                setDraggingFixtureId(null)
+                onFixtureRepositionEnd()
+              }}
+              onPointerCancel={event => {
+                const drag = fixtureDragRef.current
+                if (!drag || drag.fixtureId !== fixture.id || drag.pointerId !== event.pointerId) return
+                fixtureDragRef.current = null
+                setDraggingFixtureId(null)
+                onFixtureRepositionCancel()
+              }}
+              onLostPointerCapture={event => {
+                const drag = fixtureDragRef.current
+                if (!drag || drag.fixtureId !== fixture.id || drag.pointerId !== event.pointerId) return
+                fixtureDragRef.current = null
+                setDraggingFixtureId(null)
+                onFixtureRepositionCancel()
+              }}
               onClick={event => {
                 event.stopPropagation()
                 onSelectFixture(fixture.id)

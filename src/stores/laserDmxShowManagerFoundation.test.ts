@@ -11,6 +11,7 @@ describe('LaserDMX Show Manager Part 1 store integration', () => {
       laserDmxShowManagerPlaybackSectionId: null,
       showManagerUndoStack: [],
       showManagerRedoStack: [],
+      laserDmxShowManagerHistoryTransaction: null,
     })
   })
 
@@ -89,6 +90,7 @@ describe('LaserDMX Show Manager Part 1 store integration', () => {
     expect(persisted).not.toHaveProperty('laserDmxShowManagerPlaybackSectionId')
     expect(persisted).not.toHaveProperty('showManagerUndoStack')
     expect(persisted).not.toHaveProperty('showManagerRedoStack')
+    expect(persisted).not.toHaveProperty('laserDmxShowManagerHistoryTransaction')
 
     const merged = mergeReactStoreState(persisted, useReactStore.getState())
     expect(merged.laserDmxShowManagerShows).toHaveLength(1)
@@ -98,6 +100,7 @@ describe('LaserDMX Show Manager Part 1 store integration', () => {
     expect(merged.laserDmxShowManagerPlaybackSectionId).toBeNull()
     expect(merged.showManagerUndoStack).toEqual([])
     expect(merged.showManagerRedoStack).toEqual([])
+    expect(merged.laserDmxShowManagerHistoryTransaction).toBeNull()
   })
 
   it('migrates missing Stage 1 state safely without auto-creating a Show', () => {
@@ -200,6 +203,54 @@ describe('LaserDMX Show Manager Part 1 store integration', () => {
     const persistedShows = persisted.laserDmxShowManagerShows as typeof state.laserDmxShowManagerShows
     expect(persistedShows[0]!.sections[0]!.fixtures.map(fixture => fixture.id)).toEqual([colocatedId])
   })
+  it('batches a continuous fixture reposition into one LaserDMX Show Manager undo transaction', () => {
+    const showId = useReactStore.getState().createLaserDmxShowManagerShow('Drag Transaction')
+    const sectionId = useReactStore.getState().laserDmxShowManagerShows[0]!.sections[0]!.id
+    const fixtureId = useReactStore.getState().addLaserDmxShowManagerFixture(showId, sectionId, 'movingHead', { x: 2, y: 3 })!
+    useReactStore.getState().clearShowManagerHistory()
+
+    useReactStore.getState().beginLaserDmxShowManagerHistoryTransaction()
+    useReactStore.getState().updateLaserDmxShowManagerFixture(showId, sectionId, fixtureId, { x: 5, y: 4 })
+    useReactStore.getState().updateLaserDmxShowManagerFixture(showId, sectionId, fixtureId, { x: 11, y: 8 })
+    useReactStore.getState().updateLaserDmxShowManagerFixture(showId, sectionId, fixtureId, { x: 17, y: 11 })
+
+    let state = useReactStore.getState()
+    expect(state.showManagerUndoStack).toHaveLength(0)
+    expect(state.laserDmxShowManagerHistoryTransaction).not.toBeNull()
+    expect(state.laserDmxShowManagerShows[0]!.sections[0]!.fixtures[0]).toMatchObject({ x: 17, y: 11 })
+
+    useReactStore.getState().commitLaserDmxShowManagerHistoryTransaction()
+    state = useReactStore.getState()
+    expect(state.showManagerUndoStack).toHaveLength(1)
+    expect(state.showManagerRedoStack).toHaveLength(0)
+    expect(state.laserDmxShowManagerHistoryTransaction).toBeNull()
+
+    useReactStore.getState().undoLaserDmxShowManagerEdit()
+    state = useReactStore.getState()
+    expect(state.laserDmxShowManagerShows[0]!.sections[0]!.fixtures[0]).toMatchObject({ x: 2, y: 3 })
+    expect(state.showManagerRedoStack).toHaveLength(1)
+
+    useReactStore.getState().redoLaserDmxShowManagerEdit()
+    expect(useReactStore.getState().laserDmxShowManagerShows[0]!.sections[0]!.fixtures[0]).toMatchObject({ x: 17, y: 11 })
+  })
+
+  it('rolls back an aborted fixture reposition transaction without adding history', () => {
+    const showId = useReactStore.getState().createLaserDmxShowManagerShow('Cancelled Drag')
+    const sectionId = useReactStore.getState().laserDmxShowManagerShows[0]!.sections[0]!.id
+    const fixtureId = useReactStore.getState().addLaserDmxShowManagerFixture(showId, sectionId, 'strobe', { x: 6, y: 7 })!
+    useReactStore.getState().clearShowManagerHistory()
+
+    useReactStore.getState().beginLaserDmxShowManagerHistoryTransaction()
+    useReactStore.getState().updateLaserDmxShowManagerFixture(showId, sectionId, fixtureId, { x: 13, y: 10 })
+    useReactStore.getState().cancelLaserDmxShowManagerHistoryTransaction()
+
+    const state = useReactStore.getState()
+    expect(state.laserDmxShowManagerShows[0]!.sections[0]!.fixtures[0]).toMatchObject({ x: 6, y: 7 })
+    expect(state.showManagerUndoStack).toHaveLength(0)
+    expect(state.showManagerRedoStack).toHaveLength(0)
+    expect(state.laserDmxShowManagerHistoryTransaction).toBeNull()
+  })
+
   it('copies section fixtures atomically through the canonical store and persists independent appended clones', () => {
     const beforePixGrid = useReactStore.getState().pixGridState
     const showId = useReactStore.getState().createLaserDmxShowManagerShow('Copy')
