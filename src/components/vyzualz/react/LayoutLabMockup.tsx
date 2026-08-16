@@ -19,6 +19,7 @@ import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { TrackLibraryRowStyleGallery } from './layoutLab/TrackLibraryRowStyleGallery'
 import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
+import { LaserDjBeamBuilderMockup } from './layoutLab/LaserDjBeamBuilderMockup'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
 import { CanvasMockup } from './layoutLab/CanvasMockup'
 import { CanvasRightRailMockup } from './layoutLab/CanvasRightRailMockup'
@@ -354,6 +355,7 @@ export function LayoutLabMockup() {
                     <TemplateOutputDiagnosticsMockup />
                   </div>
                 )}
+                {templateRightTab === 'react' && <LaserDjBeamBuilderMockup />}
               </div>
             </>
           ) : engineId === 'oscilloscope' ? (

@@ -14850,6 +14850,42 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   text-transform: uppercase;
 }
 
+/* ── DJ Laser Beam Builder (Layout Lab / Template, REACT tab) ──────────────── */
+
+.rv-dj-laser-beam-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.rv-dj-laser-beam-card {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(103, 247, 255, 0.14);
+  border-radius: 7px;
+  background: rgba(2, 8, 12, 0.42);
+}
+
+.rv-dj-laser-beam-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rv-dj-laser-beam-card-header > strong {
+  color: #67f7ff;
+  font: 800 10px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.rv-dj-laser-add-beam {
+  width: 100%;
+  justify-content: center;
+  margin-top: 8px;
+}
+
 .rv-layout-lab-canvas-preset-thumb {
   position: relative;
   width: 100%;
