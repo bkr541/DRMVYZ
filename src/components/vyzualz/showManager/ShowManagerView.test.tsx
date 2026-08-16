@@ -753,8 +753,20 @@ describe('ShowManagerView production shell', () => {
     const sectionRegion = trackMap?.querySelector<HTMLElement>('.sm-timeline-row--sections .rv-section-region')
     expect(sectionRegion).not.toBeNull()
     expect(sectionRegion?.style.getPropertyValue('--section-color')).toBe('#61d6aa')
-    expect([...(trackMap?.querySelectorAll<HTMLButtonElement>('.sm-timeline-tabs button') ?? [])]
-      .map(button => button.textContent?.trim())).toEqual(['Track Map'])
+    const trackMapButton = trackMap?.querySelector<HTMLButtonElement>('.sm-timeline-tabs .rv-lower-workspace-tabs .dv-underline-tab')
+    expect(trackMapButton?.textContent?.trim()).toBe('Track Map')
+    expect(trackMapButton?.classList.contains('is-active')).toBe(true)
+
+    const trackMapRows = [...(trackMap?.querySelectorAll<HTMLElement>('.sm-timeline-grid > .sm-timeline-row') ?? [])]
+    expect(trackMapRows.map(row => row.querySelector(':scope > strong')?.textContent)).toEqual([
+      'Beats',
+      'Section',
+      'Motion',
+      'Audio',
+      'Time',
+    ])
+    expect(trackMapRows[0]?.querySelector('canvas.sm-track-map-beat-canvas')).not.toBeNull()
+    expect(trackMapRows[trackMapRows.length - 1]?.classList.contains('sm-timeline-row--time')).toBe(true)
 
     await act(async () => {
       fileActions?.querySelector<HTMLButtonElement>('button[aria-label="Open Show"]')?.click()
@@ -1773,12 +1785,19 @@ describe('ShowManagerView production shell', () => {
     })
 
     const library = container.querySelector<HTMLElement>('.sm-library')
-    const topLevelGroups = [...(library?.querySelectorAll<HTMLElement>('.sm-library-section') ?? [])]
-      .filter(section => section.parentElement === library)
+    const laserGroups = library?.querySelector<HTMLElement>('.sm-laser-library-groups') ?? null
+    const topLevelGroups = [...(laserGroups?.children ?? [])]
+      .filter((element): element is HTMLElement => element instanceof HTMLElement && element.classList.contains('drc-group'))
     expect(topLevelGroups).toHaveLength(2)
-    expect(topLevelGroups.map(section => section.querySelector('.sm-library-section-toggle strong')?.textContent)).toEqual([
+    expect(topLevelGroups.map(group => group.querySelector<HTMLButtonElement>(':scope > .drc-header')?.firstElementChild?.textContent)).toEqual([
       'Lighting Components',
       'Workspace',
+    ])
+    expect(laserGroups?.querySelector('.sm-library-section, .sm-library-subsection')).toBeNull()
+    const workspaceGroups = [...(topLevelGroups[1]?.querySelectorAll<HTMLElement>(':scope > .drc-body > .drc-group') ?? [])]
+    expect(workspaceGroups.map(group => group.querySelector<HTMLButtonElement>(':scope > .drc-header')?.firstElementChild?.textContent)).toEqual([
+      'Display Settings',
+      'Render Settings',
     ])
 
     const fixtureRows = [...container.querySelectorAll<HTMLButtonElement>('.sm-library-row--fixture')]
@@ -1824,6 +1843,14 @@ describe('ShowManagerView production shell', () => {
       'laser-show-1:section:intro:1',
       { showGrid: false },
     )
+
+    const laserTrackMap = container.querySelector<HTMLElement>('[aria-label="Show Manager LaserDMX section timeline"]')
+    const laserTrackMapButton = laserTrackMap?.querySelector<HTMLButtonElement>('.sm-timeline-tabs .rv-lower-workspace-tabs .dv-underline-tab')
+    expect(laserTrackMapButton?.textContent?.trim()).toBe('Track Map')
+    const laserTrackMapRows = [...(laserTrackMap?.querySelectorAll<HTMLElement>('.sm-timeline-grid > .sm-timeline-row') ?? [])]
+    expect(laserTrackMapRows.map(row => row.querySelector(':scope > strong')?.textContent)).toEqual(['Beats', 'Section', 'Time'])
+    expect(laserTrackMapRows[0]?.querySelector('canvas.sm-track-map-beat-canvas')).not.toBeNull()
+    expect(laserTrackMapRows[laserTrackMapRows.length - 1]?.classList.contains('sm-timeline-row--time')).toBe(true)
 
     await act(async () => {
       renderer?.click()

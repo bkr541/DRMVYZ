@@ -58,7 +58,7 @@ import {
 import { ReactPlaceholderCanvas } from '../react/ReactPlaceholderCanvas'
 import { CanvasEngineSurface } from '../react/ReactCanvasEngineShell'
 import { ReactPersistenceStatus } from '../react/ReactPersistenceStatus'
-import { EditSectionForm, SectionTimeline } from '../react/ReactTrackMapStrip'
+import { EditSectionForm, SectionTimeline, drawBeatGridCanvas } from '../react/ReactTrackMapStrip'
 import type { PixGridLayer } from '../react/pixGrid/PixGridTypes'
 import { applyPixGridPresetSettings } from '../react/pixGrid/PixGridState'
 import {
@@ -2346,8 +2346,8 @@ export function ShowManagerView() {
               </LibrarySection>
             </>
           ) : selectedEngineId === 'laserDmx' ? (
-            <>
-              <LibrarySection title="Lighting Components" count={LASER_DMX_SHOW_DIRECTOR_FIXTURE_KINDS.length}>
+            <div className="sm-laser-library-groups">
+              <Collapsible label="Lighting Components" defaultOpen bodyClassName="rv-show-director-lighting-body" headerAccessory={<small>{LASER_DMX_SHOW_DIRECTOR_FIXTURE_KINDS.length}</small>}>
                 {LASER_DMX_SHOW_DIRECTOR_FIXTURE_KINDS.map(kind => {
                   const enabled = isLaserDmxShowManagerFixtureKindEnabled(kind)
                   const active = enabled && selectedLightingComponentKind === kind
@@ -2370,68 +2370,64 @@ export function ShowManagerView() {
                     </button>
                   )
                 })}
-              </LibrarySection>
+              </Collapsible>
 
-              <LibrarySection title="Workspace" count={2}>
-                <LibrarySubsection title="Display Settings" count={4}>
-                  <div className="sm-library-controls">
-                    <ToggleRow
-                      label="Show Grid"
-                      value={activeLaserDmxSection?.settings?.showGrid ?? true}
-                      disabled={!activeLaserDmxShow || !selectedShowManagerSection}
-                      onChange={showGrid => commitLaserWorkspaceSettings({ showGrid })}
-                    />
-                    <ToggleRow
-                      label="Show Labels"
-                      value={activeLaserDmxSection?.settings?.showLabels ?? true}
-                      disabled={!activeLaserDmxShow || !selectedShowManagerSection}
-                      onChange={showLabels => commitLaserWorkspaceSettings({ showLabels })}
-                    />
-                    <ToggleRow
-                      label="Show Beams"
-                      value={activeLaserDmxSection?.settings?.showBeams ?? true}
-                      disabled={!activeLaserDmxShow || !selectedShowManagerSection}
-                      onChange={showBeams => commitLaserWorkspaceSettings({ showBeams })}
-                    />
-                    <ToggleRow
-                      label="Highlight Grid"
-                      value={activeLaserDmxSection?.settings?.highlightGrid ?? true}
-                      disabled={!activeLaserDmxShow || !selectedShowManagerSection}
-                      onChange={highlightGrid => commitLaserWorkspaceSettings({ highlightGrid })}
-                    />
-                  </div>
-                </LibrarySubsection>
+              <Collapsible label="Workspace" defaultOpen headerAccessory={<small>2</small>}>
+                <Collapsible label="Display Settings" defaultOpen headerAccessory={<small>4</small>}>
+                  <ToggleRow
+                    label="Show Grid"
+                    value={activeLaserDmxSection?.settings?.showGrid ?? true}
+                    disabled={!activeLaserDmxShow || !selectedShowManagerSection}
+                    onChange={showGrid => commitLaserWorkspaceSettings({ showGrid })}
+                  />
+                  <ToggleRow
+                    label="Show Labels"
+                    value={activeLaserDmxSection?.settings?.showLabels ?? true}
+                    disabled={!activeLaserDmxShow || !selectedShowManagerSection}
+                    onChange={showLabels => commitLaserWorkspaceSettings({ showLabels })}
+                  />
+                  <ToggleRow
+                    label="Show Beams"
+                    value={activeLaserDmxSection?.settings?.showBeams ?? true}
+                    disabled={!activeLaserDmxShow || !selectedShowManagerSection}
+                    onChange={showBeams => commitLaserWorkspaceSettings({ showBeams })}
+                  />
+                  <ToggleRow
+                    label="Highlight Grid"
+                    value={activeLaserDmxSection?.settings?.highlightGrid ?? true}
+                    disabled={!activeLaserDmxShow || !selectedShowManagerSection}
+                    onChange={highlightGrid => commitLaserWorkspaceSettings({ highlightGrid })}
+                  />
+                </Collapsible>
 
-                <LibrarySubsection title="Render Settings" count={3}>
-                  <div className="sm-library-controls">
-                    <SelectRow
-                      label="Grid Size"
-                      value="18x12"
-                      disabled
-                      onChange={() => undefined}
-                      options={[{ value: '18x12', label: '18 × 12' }]}
-                    />
-                    <SelectRow
-                      label="Lighting Renderer"
-                      value={activeLaserDmxSection?.settings?.rendererMode ?? 'auto'}
-                      disabled={!activeLaserDmxShow || !selectedShowManagerSection}
-                      onChange={value => {
-                        const option = LASER_DMX_SHOW_DIRECTOR_RENDERER_OPTIONS.find(candidate => candidate.value === value)
-                        if (option) commitLaserWorkspaceSettings({ rendererMode: option.value })
-                      }}
-                      options={LASER_DMX_SHOW_DIRECTOR_RENDERER_OPTIONS.map(option => ({ ...option }))}
-                    />
-                    <SelectRow
-                      label="Quality"
-                      value={LASER_DMX_SHOW_MANAGER_QUALITY}
-                      disabled
-                      onChange={() => undefined}
-                      options={[{ value: LASER_DMX_SHOW_MANAGER_QUALITY, label: 'High' }]}
-                    />
-                  </div>
-                </LibrarySubsection>
-              </LibrarySection>
-            </>
+                <Collapsible label="Render Settings" defaultOpen headerAccessory={<small>3</small>}>
+                  <SelectRow
+                    label="Grid Size"
+                    value="18x12"
+                    disabled
+                    onChange={() => undefined}
+                    options={[{ value: '18x12', label: '18 × 12' }]}
+                  />
+                  <SelectRow
+                    label="Lighting Renderer"
+                    value={activeLaserDmxSection?.settings?.rendererMode ?? 'auto'}
+                    disabled={!activeLaserDmxShow || !selectedShowManagerSection}
+                    onChange={value => {
+                      const option = LASER_DMX_SHOW_DIRECTOR_RENDERER_OPTIONS.find(candidate => candidate.value === value)
+                      if (option) commitLaserWorkspaceSettings({ rendererMode: option.value })
+                    }}
+                    options={LASER_DMX_SHOW_DIRECTOR_RENDERER_OPTIONS.map(option => ({ ...option }))}
+                  />
+                  <SelectRow
+                    label="Quality"
+                    value={LASER_DMX_SHOW_MANAGER_QUALITY}
+                    disabled
+                    onChange={() => undefined}
+                    options={[{ value: LASER_DMX_SHOW_MANAGER_QUALITY, label: 'High' }]}
+                  />
+                </Collapsible>
+              </Collapsible>
+            </div>
           ) : selectedEngineId === 'canvas' ? (
             <LibrarySection title="Components" count={1}>
               <div className="sm-canvas-media-library" data-testid="canvas-show-manager-media-library">
@@ -2721,6 +2717,7 @@ export function ShowManagerView() {
               sectionRanges={canvasSectionRanges}
               totalDurationSec={canvasTotalDuration}
               viewport={canvasTimelineViewport}
+              beatGrid={showRuntimeBeatGrid ?? showRuntimeAnalysis?.beatGrid ?? []}
               playheadSec={canvasPlayheadSec}
               onSelect={selectShowManagerSectionForEditing}
               onContextMenu={activeLaserDmxShow?.sections.some(section => section.fixtures.length > 0) ? handleLaserSectionContextMenu : undefined}
@@ -3533,6 +3530,56 @@ function CanvasShowManagerStage({
   )
 }
 
+function ShowManagerBeatGrid({
+  beatGrid,
+  durationSec,
+  viewport,
+}: {
+  beatGrid: readonly BeatMarkerMI[]
+  durationSec: number
+  viewport: TimelineViewport
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    drawBeatGridCanvas(canvas, beatGrid, durationSec, viewport)
+  }, [beatGrid, durationSec, viewport])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => drawBeatGridCanvas(canvas, beatGrid, durationSec, viewport))
+    observer.observe(canvas)
+    return () => observer.disconnect()
+  }, [beatGrid, durationSec, viewport])
+
+  return <canvas ref={canvasRef} className="sm-track-map-beat-canvas" aria-hidden="true" />
+}
+
+function ShowManagerTimeRow({
+  viewport,
+  divisions = 6,
+}: {
+  viewport: TimelineViewport
+  divisions?: number
+}) {
+  const count = Math.max(1, Math.floor(divisions))
+  const span = Math.max(0, viewport.endSec - viewport.startSec)
+  return (
+    <TimelineRow label="Time" className="sm-timeline-row--time">
+      <div className="sm-timeline-ruler">
+        {Array.from({ length: count + 1 }, (_, index) => {
+          const ratio = index / count
+          const timeSec = viewport.startSec + span * ratio
+          return <span key={index}>{formatClock(timeSec)}</span>
+        })}
+      </div>
+    </TimelineRow>
+  )
+}
+
 function CanvasShowManagerTimeline({
   show,
   selectedSectionId,
@@ -3541,6 +3588,7 @@ function CanvasShowManagerTimeline({
   sectionRanges,
   totalDurationSec,
   viewport,
+  beatGrid,
   playheadSec,
   onSelect,
   onContextMenu,
@@ -3554,6 +3602,7 @@ function CanvasShowManagerTimeline({
   sectionRanges: readonly CanvasShowManagerSectionRange[]
   totalDurationSec: number
   viewport: TimelineViewport
+  beatGrid: readonly BeatMarkerMI[]
   playheadSec: number
   onSelect: (sectionId: string | null) => void
   onContextMenu?: (event: MouseEvent<HTMLDivElement>, sectionId: string) => void
@@ -3608,19 +3657,15 @@ function CanvasShowManagerTimeline({
   return (
     <section className="sm-timeline sm-canvas-timeline" aria-label="Show Manager Canvas media timeline">
       <header className="sm-timeline-tabs">
-        <UnderlineTabs tabs={TRACK_MAP_TABS} activeTab="trackMap" onChange={() => undefined} ariaLabel="Canvas timeline surfaces" />
+        <UnderlineTabs tabs={TRACK_MAP_TABS} activeTab="trackMap" onChange={() => undefined} ariaLabel="Canvas timeline surfaces" className="rv-lower-workspace-tabs" />
         <span className="sm-timeline-meta">{show ? `${formatClock(totalDurationSec)} total` : 'No Canvas Show open'}</span>
       </header>
       {show ? (
         <>
           <div className="sm-timeline-grid sm-canvas-section-map">
-            <div className="sm-timeline-ruler">
-              {Array.from({ length: 7 }, (_, index) => {
-                const ratio = index / 6
-                const timeSec = viewport.startSec + viewportDurationSec * ratio
-                return <span key={index}>{formatClock(timeSec)}</span>
-              })}
-            </div>
+            <TimelineRow label="Beats" className="sm-timeline-row--beats">
+              <ShowManagerBeatGrid beatGrid={beatGrid} durationSec={totalDurationSec} viewport={viewport} />
+            </TimelineRow>
             <TimelineRow label="Section" className="sm-timeline-row--sections">
               <ShowManagerSectionStrip
                 sections={canvasTimelineSections}
@@ -3631,6 +3676,7 @@ function CanvasShowManagerTimeline({
                 onContextMenu={onContextMenu}
               />
             </TimelineRow>
+            <ShowManagerTimeRow viewport={viewport} />
           </div>
           <div className="sm-canvas-timeline-body">
             <div className="sm-canvas-media-lanes">
@@ -4481,17 +4527,13 @@ function LaserDmxShowManagerTimeline({
   return (
     <section className="sm-timeline sm-laser-timeline" aria-label="Show Manager LaserDMX section timeline">
       <header className="sm-timeline-tabs">
-        <UnderlineTabs tabs={TRACK_MAP_TABS} activeTab="trackMap" onChange={() => undefined} ariaLabel="LaserDMX timeline surfaces" />
+        <UnderlineTabs tabs={TRACK_MAP_TABS} activeTab="trackMap" onChange={() => undefined} ariaLabel="LaserDMX timeline surfaces" className="rv-lower-workspace-tabs" />
         <span className="sm-timeline-meta">Linked Track Map · Show-specific</span>
       </header>
       <div className="sm-timeline-grid">
-        <div className="sm-timeline-ruler">
-          {Array.from({ length: 8 }, (_, index) => {
-            const ratio = index / 7
-            const timeSec = viewport.startSec + (viewport.endSec - viewport.startSec) * ratio
-            return <span key={index}>{formatClock(timeSec)}</span>
-          })}
-        </div>
+        <TimelineRow label="Beats" className="sm-timeline-row--beats">
+          <ShowManagerBeatGrid beatGrid={beatGrid} durationSec={durationSec} viewport={viewport} />
+        </TimelineRow>
         <TimelineRow label="Section" className="sm-timeline-row--sections">
           {sections.length > 0 ? (
             <SectionTimeline
@@ -4512,33 +4554,9 @@ function LaserDmxShowManagerTimeline({
             <div className="sm-laser-timeline-empty">No sections</div>
           )}
         </TimelineRow>
+        <ShowManagerTimeRow viewport={viewport} divisions={7} />
       </div>
     </section>
-  )
-}
-
-function LibrarySubsection({
-  title,
-  count,
-  defaultCollapsed = false,
-  children,
-}: {
-  title: string
-  count: number
-  defaultCollapsed?: boolean
-  children: ReactNode
-}) {
-  return (
-    <DualRailCollapsible
-      className="sm-library-subsection"
-      bodyClassName="sm-library-subsection-body"
-      headerClassName="sm-library-section-toggle sm-library-subsection-toggle"
-      defaultOpen={!defaultCollapsed}
-      label={<strong>{title}</strong>}
-      headerAccessory={<small>{count}</small>}
-    >
-      {children}
-    </DualRailCollapsible>
   )
 }
 
@@ -4599,17 +4617,13 @@ function ShowManagerTimeline({
   return (
     <section className="sm-timeline sm-pixgrid-timeline" aria-label="Show Manager track map preview">
       <header className="sm-timeline-tabs">
-        <UnderlineTabs tabs={TRACK_MAP_TABS} activeTab="trackMap" onChange={() => undefined} ariaLabel="PixGrid timeline surfaces" />
+        <UnderlineTabs tabs={TRACK_MAP_TABS} activeTab="trackMap" onChange={() => undefined} ariaLabel="PixGrid timeline surfaces" className="rv-lower-workspace-tabs" />
         <span className="sm-timeline-meta">Snap 1/4</span>
       </header>
       <div className="sm-timeline-grid">
-        <div className="sm-timeline-ruler">
-          {Array.from({ length: 7 }, (_, index) => {
-            const ratio = index / 6
-            const timeSec = viewport.startSec + viewportDurationSec * ratio
-            return <span key={index}>{formatClock(timeSec)}</span>
-          })}
-        </div>
+        <TimelineRow label="Beats" className="sm-timeline-row--beats">
+          <ShowManagerBeatGrid beatGrid={beatGrid ?? []} durationSec={duration} viewport={viewport} />
+        </TimelineRow>
         <TimelineRow label="Section" className="sm-timeline-row--sections">
           {sections.length > 0 ? (
             <SectionTimeline
@@ -4641,6 +4655,7 @@ function ShowManagerTimeline({
             ))}
           </div>
         </TimelineRow>
+        <ShowManagerTimeRow viewport={viewport} />
         <div className="sm-playhead" style={{ left: `calc(${playheadPercent}% + ${76 * (1 - playheadPercent / 100)}px)` }}>
           <span>{formatClock(currentTime)}</span>
         </div>

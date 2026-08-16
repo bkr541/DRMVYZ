@@ -388,6 +388,8 @@
   scrollbar-color: rgba(74, 199, 219, 0.22) transparent;
 }
 
+.sm-laser-library-groups > * + * { margin-top: 10px; }
+
 .sm-library-section { border-bottom: 1px solid rgba(154, 178, 188, 0.09); }
 button.sm-library-section-toggle {
   height: 29px;
@@ -479,50 +481,6 @@ button.sm-library-section-toggle:focus-visible {
   height: 16px;
   max-width: 16px;
   max-height: 16px;
-}
-.sm-library-subsection {
-  margin-top: 4px;
-  border: 1px solid rgba(154, 178, 188, 0.075);
-  border-radius: 4px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.008);
-}
-button.sm-library-subsection-toggle {
-  height: 27px;
-  padding-inline: 7px;
-  background: rgba(255, 255, 255, 0.012);
-}
-.sm-library-subsection-toggle strong {
-  font-size: 8px;
-  letter-spacing: 0.055em;
-}
-.sm-library-subsection-body {
-  border-top: 1px solid rgba(154, 178, 188, 0.055);
-}
-.sm-library-controls {
-  display: grid;
-  gap: 8px;
-  padding: 8px 7px 9px;
-}
-.sm-library-controls .rv-ctrl-label {
-  font-size: 8.5px;
-  letter-spacing: 0.055em;
-}
-.sm-library-controls .rv-ctrl-toggle {
-  min-width: 44px;
-  height: 23px;
-  padding: 0 8px;
-  font-size: 8px;
-}
-.sm-library-controls .rv-ctrl-dropdown {
-  --drm-dropdown-trigger-height: 27px;
-  --drm-dropdown-trigger-padding: 7px;
-  --drm-dropdown-value-size: 8px;
-  --drm-dropdown-radius: 4px;
-}
-.sm-library-controls .drm-dropdown--disabled,
-.sm-library-controls .drm-dropdown__trigger:disabled {
-  opacity: 0.5;
 }
 .sm-scene-index { color: rgba(196, 212, 220, 0.42); font-size: 8px; }
 .sm-layer-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ac7db; justify-self: center; }
@@ -761,19 +719,6 @@ button.sm-library-subsection-toggle {
   padding: 0 7px;
   border-bottom: 1px solid rgba(154, 178, 188, 0.1);
 }
-.sm-timeline-tabs button {
-  padding: 0 9px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: rgba(196, 212, 220, 0.38);
-  font: inherit;
-  font-size: 8px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-.sm-timeline-tabs button:disabled { opacity: 1; }
-.sm-timeline-tabs button.is-active { color: #4ac7db; border-bottom-color: #4ac7db; }
 .sm-timeline-meta { margin-left: auto; align-self: center; color: rgba(196, 212, 220, 0.34); font-size: 8px; }
 
 .sm-timeline-grid {
@@ -781,20 +726,16 @@ button.sm-library-subsection-toggle {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding-top: 21px;
 }
 .sm-timeline-ruler {
-  position: absolute;
-  top: 0;
-  left: 76px;
-  right: 6px;
+  width: 100%;
   height: 21px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0 6px;
   color: rgba(196, 212, 220, 0.32);
   font-size: 7px;
-  border-bottom: 1px solid rgba(154, 178, 188, 0.08);
 }
 
 .sm-timeline-row {
@@ -814,6 +755,14 @@ button.sm-library-subsection-toggle {
   text-transform: uppercase;
 }
 .sm-timeline-row > div { position: relative; min-width: 0; }
+.sm-timeline-row--beats { min-height: 28px; }
+.sm-track-map-beat-canvas {
+  display: block;
+  width: 100%;
+  height: 28px;
+}
+.sm-timeline-row--time { min-height: 21px; }
+
 
 .sm-segment-row { height: 100%; display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; padding: 2px; }
 .sm-segment-row span {
@@ -1269,7 +1218,6 @@ button.sm-library-subsection-toggle {
   pointer-events: none;
 }
 
-.sm-laser-timeline .sm-timeline-grid { padding-top: 21px; }
 .sm-timeline-row--sections { min-height: 48px; }
 .sm-timeline-row--sections .rv-section-timeline { height: 100%; min-height: 45px; }
 .sm-section-strip .rv-section-body { cursor: default; }
@@ -1770,7 +1718,7 @@ button.sm-library-subsection-toggle {
 
 .sm-canvas-timeline { max-height: 310px; overflow: auto; }
 .sm-canvas-timeline-body { display: grid; gap: 0; padding: 5px 7px 8px; }
-.sm-canvas-section-map { flex: 0 0 auto; min-height: 69px; padding-top: 21px; }
+.sm-canvas-section-map { flex: 0 0 auto; min-height: 97px; }
 .sm-canvas-media-lanes { display: grid; gap: 3px; }
 .sm-canvas-media-lane { min-height: 32px; display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: stretch; gap: 4px; }
 .sm-canvas-media-lane__label { display: grid; place-items: center; color: rgba(103, 247, 255, 0.5); font-size: 8px; }

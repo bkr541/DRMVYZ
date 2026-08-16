@@ -280,46 +280,29 @@ export function computeBeatStride(regularBeatCount: number, canvasWidth: number,
 }
 
 /**
- * Draws beat ticks and downbeat ticks onto the beat canvas.
- *
- * Every beat in the grid has exactly one tick. `isDownbeat` on each
- * BeatMarkerMI determines the style: regular beats get a short cyan tick;
- * downbeats get a taller green tick; and every fourth bar boundary gets the
- * tallest red tick. All ticks share the same top anchor so the beat grid reads
- * from the top edge of its lane.
- *
- * When `effective` is supplied (manual BPM override active), `effective.beatGrid`
- * replaces `analysis.beatGrid` for all tick rendering so that regular beats and
- * downbeats originate from the same grid. `effective.downbeats` is ignored —
- * downbeat status is read from `beat.isDownbeat` directly.
- *
- * Section data (`analysis.sections`) is intentionally not rendered here.
- * Proportional section regions (backgrounds, labels, and boundaries) will be
- * drawn by a dedicated section-region overlay layer added in a future task.
- * Passing `effective` never mutates `analysis`.
+ * Draws the canonical React Track Map beat-grid treatment from a supplied grid.
+ * Regular beats use short cyan ticks, downbeats use taller green ticks, and
+ * every fourth downbeat uses the tallest red tick. The input grid is read-only.
  */
-export function drawBeatCanvas(
-  canvas:    HTMLCanvasElement,
-  analysis:  TrackIntelligenceAnalysis,
-  effective?: { beatGrid: BeatMarkerMI[]; downbeats?: BeatMarkerMI[] },
-  viewport?:  TimelineViewport,
+export function drawBeatGridCanvas(
+  canvas:      HTMLCanvasElement,
+  beatGrid:    readonly BeatMarkerMI[],
+  durationSec: number,
+  viewport?:   TimelineViewport,
 ): void {
   const ctx = setupCanvas(canvas)
-  if (!ctx) return
+  if (!ctx || !isFinitePositiveDuration(durationSec)) return
   const w = canvas.offsetWidth
   const h = canvas.offsetHeight
-  const durationSec = analysis.durationMs / 1000
-  if (!isFinitePositiveDuration(durationSec)) return
   ctx.clearRect(0, 0, w, h)
 
   const vpStart = viewport?.startSec ?? 0
   const vpEnd   = viewport?.endSec   ?? durationSec
   const vpDur   = vpEnd - vpStart
+  if (!Number.isFinite(vpDur) || vpDur <= 0) return
 
-  // isDownbeat is set on every BeatMarkerMI; the separate downbeats array is unused.
-  // Filter out any beats with non-finite timestamps so bad data can't crash layout.
-  const rawGrid  = effective?.beatGrid ?? analysis.beatGrid
-  const allBeats = rawGrid.filter(b => isFinite(b.timeSec) && b.timeSec >= 0)
+  // Filter out any beats with non-finite timestamps so bad persisted data can't crash layout.
+  const allBeats = beatGrid.filter(b => isFinite(b.timeSec) && b.timeSec >= 0)
 
   // Promote every fourth downbeat to a four-bar marker. Build this set from the
   // full grid before viewport filtering so zooming or panning does not reset
@@ -331,12 +314,12 @@ export function drawBeatCanvas(
   )
 
   // Only draw beats within the visible viewport (plus one tolerance beat on each side).
-  const beatGrid = allBeats.filter(b => b.timeSec >= vpStart - 0.01 && b.timeSec <= vpEnd + 0.01)
+  const visibleBeatGrid = allBeats.filter(b => b.timeSec >= vpStart - 0.01 && b.timeSec <= vpEnd + 0.01)
 
   // Density reduction: when beats are so close together they would overlap,
   // skip intermediate regular beats so ticks stay at least ~3 px apart.
   // Downbeats are always drawn regardless.
-  const regularBeats = beatGrid.filter(b => !b.isDownbeat)
+  const regularBeats = visibleBeatGrid.filter(b => !b.isDownbeat)
   const stride = computeBeatStride(regularBeats.length, w)
 
   const timeToX = (t: number) => Math.floor(((t - vpStart) / vpDur) * w) + 0.5
@@ -345,7 +328,7 @@ export function drawBeatCanvas(
   // Half-pixel x offset (+0.5) keeps 1 px strokes crisp on all DPR values.
   ctx.beginPath()
   let beatIdx = 0
-  for (const beat of beatGrid) {
+  for (const beat of visibleBeatGrid) {
     if (beat.isDownbeat) continue
     if (beatIdx % stride === 0) {
       const x = timeToX(beat.timeSec)
@@ -363,7 +346,7 @@ export function drawBeatCanvas(
   // Drawn in a separate pass so lineWidth/strokeStyle differ per category
   // without any duplicate stroke at the same x-position.
   ctx.beginPath()
-  for (const beat of beatGrid) {
+  for (const beat of visibleBeatGrid) {
     if (!beat.isDownbeat || fourBarDownbeats.has(beat)) continue
     const x = timeToX(beat.timeSec)
     ctx.moveTo(x, 0)
@@ -375,7 +358,7 @@ export function drawBeatCanvas(
 
   // Four-bar boundaries — the strongest visual divider in the beat lane.
   ctx.beginPath()
-  for (const beat of beatGrid) {
+  for (const beat of visibleBeatGrid) {
     if (!fourBarDownbeats.has(beat)) continue
     const x = timeToX(beat.timeSec)
     ctx.moveTo(x, 0)
@@ -384,6 +367,23 @@ export function drawBeatCanvas(
   ctx.strokeStyle = TRACK_MAP_FOUR_BAR_COLOR
   ctx.lineWidth   = TRACK_MAP_FOUR_BAR_LINE_WIDTH
   ctx.stroke()
+}
+
+/**
+ * React Track Map adapter. A manual-BPM effective grid replaces the analysis
+ * grid for rendering; `effective.downbeats` stays intentionally unused because
+ * downbeat status is authoritative on each BeatMarkerMI.
+ */
+export function drawBeatCanvas(
+  canvas:    HTMLCanvasElement,
+  analysis:  TrackIntelligenceAnalysis,
+  effective?: { beatGrid: BeatMarkerMI[]; downbeats?: BeatMarkerMI[] },
+  viewport?:  TimelineViewport,
+): void {
+  const durationSec = analysis.durationMs / 1000
+  // `effective.downbeats` remains intentionally ignored — downbeat status is
+  // authoritative on each BeatMarkerMI in the selected grid.
+  drawBeatGridCanvas(canvas, effective?.beatGrid ?? analysis.beatGrid, durationSec, viewport)
 }
 
 export function drawEnergyCanvas(
