@@ -8,6 +8,7 @@ import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { computeViewportRangeLayout, computeWaveformViewport, resolvePositiveDuration, type TimelineViewport } from '../../../features/timeline/timelineViewport'
 import { adaptMIAnalysis } from '../../../features/trackIntelligence/trackMapAdapter'
 import { navigateBoundaryAlternative, snapBoundaryTime, type SectionBoundarySnapMode } from '../../../features/trackIntelligence/sectionBoundaryDrag'
+import { resolveSectionAtTime } from '../../../features/trackIntelligence/authoritativeTimeline'
 import type { BeatMarkerMI, BoundaryAlternative } from '../../../features/musicIntelligence/types'
 import { useReactStore } from '../../../stores/reactStore'
 import { useAudioStore, type SavedAudioTrack } from '../../../stores/audioStore'
@@ -132,16 +133,6 @@ const ASSETS = [
   ['Aa', 'Fonts', '9'],
 ] as const
 
-const SECTION_SEGMENTS = [
-  { type: 'intro', label: 'Intro' },
-  { type: 'verse', label: 'Verse' },
-  { type: 'build', label: 'Build' },
-  { type: 'preDrop', label: 'Pre-Drop' },
-  { type: 'drop', label: 'Drop' },
-  { type: 'breakdown', label: 'Breakdown' },
-  { type: 'outro', label: 'Outro' },
-] as const
-
 const SHOW_MANAGER_SECTION_COLORS: Record<ReactSectionType, string> = {
   intro: '#61d6aa',
   verse: '#4ac7db',
@@ -201,6 +192,7 @@ type PendingSectionEngineReplacement = {
   action:
     | { type: 'laserFixture'; kind: LaserDmxShowDirectorFixtureKind; cell: LaserDmxShowManagerGridCell }
     | { type: 'laserSettings'; patch: LaserDmxShowManagerWorkspaceSettingsPatch }
+    | { type: 'laserFixtureCopy'; sourceSectionId: string }
     | { type: 'canvasMedia'; mediaId: string; layer: CanvasShowManagerLayer }
 }
 
@@ -509,12 +501,14 @@ function ShowManagerSectionStrip({
   viewport,
   selectedSectionId = null,
   onSelect,
+  onContextMenu,
 }: {
   sections: readonly ShowManagerSectionSegment[]
   durationSec: number
   viewport: TimelineViewport
   selectedSectionId?: string | null
   onSelect?: (sectionId: string) => void
+  onContextMenu?: (event: MouseEvent<HTMLDivElement>, sectionId: string) => void
 }) {
   const safeDuration = Math.max(0.001, durationSec)
   return (
@@ -547,6 +541,12 @@ function ShowManagerSectionStrip({
               aria-label={`${section.label}, ${formatClock(startSec)} to ${formatClock(endSec)}`}
               aria-pressed={onSelect ? isSelected : undefined}
               onClick={selectSection}
+              onContextMenu={event => {
+                if (!onContextMenu) return
+                event.preventDefault()
+                event.stopPropagation()
+                onContextMenu(event, section.id)
+              }}
               onKeyDown={event => {
                 if (!onSelect || (event.key !== 'Enter' && event.key !== ' ')) return
                 event.preventDefault()
@@ -964,6 +964,8 @@ export function ShowManagerView() {
   const [selectedLightingComponentKind, setSelectedLightingComponentKind] = useState<LaserDmxShowDirectorFixtureKind | null>(null)
   const [selectedLaserFixtureId, setSelectedLaserFixtureId] = useState<string | null>(null)
   const [laserFixtureContextMenu, setLaserFixtureContextMenu] = useState<{ fixtureId: string; x: number; y: number } | null>(null)
+  const [laserSectionContextMenu, setLaserSectionContextMenu] = useState<{ sectionId: string; x: number; y: number } | null>(null)
+  const [laserSectionCopyMenu, setLaserSectionCopyMenu] = useState<{ sectionId: string; x: number; y: number } | null>(null)
   const [laserEndpointTargetingFixtureId, setLaserEndpointTargetingFixtureId] = useState<string | null>(null)
   const [copyLaserFixturesEnabled, setCopyLaserFixturesEnabled] = useState(false)
   const [copyLaserFixturesSourceSectionId, setCopyLaserFixturesSourceSectionId] = useState<string | null>(null)
@@ -1398,6 +1400,16 @@ export function ShowManagerView() {
   const showRuntimeBpm = showRuntimeAudioReady ? engine.currentEffectiveBpm : null
   const showRuntimeBeatGrid = showRuntimeAudioReady ? engine.currentEffectiveBeatGrid : null
   const showRuntimeAnalysis = showRuntimeAudioReady ? engine.currentAnalysis : null
+
+  // Playback-follow belongs to the shared Track Map, not to whichever engine preview
+  // happens to be mounted. This lets playback enter a LaserDMX section from an
+  // unassigned/PixGrid/Canvas section and switch the authoring surface immediately.
+  useEffect(() => {
+    if (!showRuntimeIsPlaying || resolvedTrackSections.length === 0) return
+    const playbackSection = resolveSectionAtTime(resolvedTrackSections, showRuntimeCurrentTime)
+    if (!playbackSection) return
+    setSelectedShowManagerSectionId(current => current === playbackSection.id ? current : playbackSection.id)
+  }, [resolvedTrackSections, showRuntimeCurrentTime, showRuntimeIsPlaying])
   const activeCues = showRuntimeTrackId
     ? (pixGridActionCuesByTrackId[showRuntimeTrackId] ?? [])
     : []
@@ -1442,7 +1454,6 @@ export function ShowManagerView() {
       downbeats: beatGrid.filter(marker => marker.isDownbeat),
     }
   }, [showRuntimeAnalysis, showRuntimeBeatGrid, showRuntimeBpm])
-  const sceneLabels = displayedPixGridState.scenes.slice(0, SECTION_SEGMENTS.length).map(scene => scene.name)
   const matrixLabel = `${displayedPixGridState.matrixWidth}×${displayedPixGridState.matrixHeight}`
   const activeDeck = activePreset?.pixGridDeck
     ? pixGridDecks.find(deck => deck.id === activePreset.pixGridDeck?.deckId) ?? null
@@ -1985,17 +1996,60 @@ export function ShowManagerView() {
     })
   }
 
-  const commitLaserFixtureCopy = (sourceSectionId: string) => {
-    if (!activeLaserDmxShow || !activeLaserDmxSection) return
-    if (!eligibleLaserFixtureCopySources.some(section => section.id === sourceSectionId)) return
+  const commitLaserFixtureCopyToSection = (sourceSectionId: string, destinationSectionId: string) => {
+    if (!activeLaserDmxShow || sourceSectionId === destinationSectionId) return
+    const sourceSection = activeLaserDmxShow.sections.find(section => section.id === sourceSectionId)
+    const destinationSection = activeLaserDmxShow.sections.find(section => section.id === destinationSectionId)
+    if (!sourceSection || sourceSection.fixtures.length === 0 || !destinationSection) return
     const copiedFixtureIds = copyLaserDmxShowManagerFixturesFromSection(
       activeLaserDmxShow.id,
       sourceSectionId,
-      activeLaserDmxSection.id,
+      destinationSectionId,
     )
     if (copiedFixtureIds.length === 0) return
+    setSelectedShowManagerSectionId(destinationSectionId)
+    setSelectedEngineId('laserDmx')
+    selectLaserDmxShowManagerSection(destinationSectionId)
     setSelectedLaserFixtureId(null)
     setCopyLaserFixturesSourceSectionId(null)
+    setLaserSectionContextMenu(null)
+    setLaserSectionCopyMenu(null)
+  }
+
+  const commitLaserFixtureCopy = (sourceSectionId: string) => {
+    if (!activeLaserDmxSection) return
+    if (!eligibleLaserFixtureCopySources.some(section => section.id === sourceSectionId)) return
+    commitLaserFixtureCopyToSection(sourceSectionId, activeLaserDmxSection.id)
+  }
+
+  const handleLaserSectionContextMenu = (event: MouseEvent<HTMLDivElement>, sectionId: string) => {
+    if (!activeLaserDmxShow?.sections.some(section => section.fixtures.length > 0)) return
+    event.preventDefault()
+    event.stopPropagation()
+    setLaserSectionCopyMenu(null)
+    setLaserSectionContextMenu({ sectionId, x: event.clientX, y: event.clientY })
+  }
+
+  const openLaserSectionCopyMenu = (sectionId: string, x: number, y: number) => {
+    setLaserSectionCopyMenu({ sectionId, x: x + 196, y })
+  }
+
+  const requestLaserFixtureCopyToSection = (sourceSectionId: string, destinationSectionId: string) => {
+    if (!activeShowManagerShow) return
+    const destination = resolvedTrackSections.find(section => section.id === destinationSectionId)
+    if (!destination) return
+    if (destination.engineId === 'pixGrid' || destination.engineId === 'canvas') {
+      setPendingSectionEngineReplacement({
+        sectionId: destination.id,
+        sectionLabel: destination.label,
+        currentEngineId: destination.engineId,
+        targetEngineId: 'laserDmx',
+        action: { type: 'laserFixtureCopy', sourceSectionId },
+      })
+      setLaserSectionCopyMenu(null)
+      return
+    }
+    commitLaserFixtureCopyToSection(sourceSectionId, destinationSectionId)
   }
 
   const selectShowManagerSectionForEditing = (sectionId: string | null) => {
@@ -2045,6 +2099,8 @@ export function ShowManagerView() {
         pending.sectionId,
         pending.action.patch,
       )
+    } else if (pending.action.type === 'laserFixtureCopy') {
+      commitLaserFixtureCopyToSection(pending.action.sourceSectionId, pending.sectionId)
     } else {
       performCanvasMediaPlacement(pending.action.mediaId, pending.action.layer)
     }
@@ -2639,6 +2695,7 @@ export function ShowManagerView() {
               beatGrid={showRuntimeBeatGrid ?? showRuntimeAnalysis?.beatGrid ?? []}
               effectiveBpm={showRuntimeBpm}
               onSelect={selectShowManagerSectionForEditing}
+              onContextMenu={activeLaserDmxShow?.sections.some(section => section.fixtures.length > 0) ? handleLaserSectionContextMenu : undefined}
               onCommitBoundary={commitLaserSectionBoundary}
             />
           ) : activeSectionEngineId === 'canvas' ? (
@@ -2652,6 +2709,7 @@ export function ShowManagerView() {
               viewport={canvasTimelineViewport}
               playheadSec={canvasPlayheadSec}
               onSelect={selectShowManagerSectionForEditing}
+              onContextMenu={activeLaserDmxShow?.sections.some(section => section.fixtures.length > 0) ? handleLaserSectionContextMenu : undefined}
               onSelectElement={selectCanvasShowManagerMediaElement}
               onPatchElement={commitCanvasElementPatch}
             />
@@ -2661,11 +2719,11 @@ export function ShowManagerView() {
               duration={durationSec}
               viewport={timelineViewport}
               sections={resolvedTrackSections}
-              sceneLabels={sceneLabels}
               beatGrid={showRuntimeBeatGrid ?? undefined}
               effectiveBpm={showRuntimeBpm}
               selectedSectionId={selectedShowManagerSection?.id ?? null}
               onSelectSection={selectShowManagerSectionForEditing}
+              onContextMenu={activeLaserDmxShow?.sections.some(section => section.fixtures.length > 0) ? handleLaserSectionContextMenu : undefined}
               onCommitBoundary={(sectionId, edge, newTime, neighborId, neighborTime) => {
                 if (!activeShowManagerShow) return
                 updateShowManagerTrackMapBoundary(activeShowManagerShow.id, sectionId, edge, newTime, neighborId, neighborTime)
@@ -2932,6 +2990,50 @@ export function ShowManagerView() {
           </>
         )}
       </div>
+
+      {laserSectionContextMenu && (() => {
+        const destination = resolvedTrackSections.find(section => section.id === laserSectionContextMenu.sectionId)
+        if (!destination || !activeLaserDmxShow) return null
+        const sources = getEligibleLaserDmxShowManagerFixtureCopySources(activeLaserDmxShow, destination.id)
+        return (
+          <ContextActionMenu
+            x={laserSectionContextMenu.x}
+            y={laserSectionContextMenu.y}
+            ariaLabel={`${destination.label} section actions`}
+            header={{ title: destination.label }}
+            onClose={() => setLaserSectionContextMenu(null)}
+            items={[{
+              id: 'copy-fixtures',
+              label: 'Copy Fixtures ›',
+              disabled: sources.length === 0,
+              onSelect: () => openLaserSectionCopyMenu(
+                destination.id,
+                laserSectionContextMenu.x,
+                laserSectionContextMenu.y,
+              ),
+            }]}
+          />
+        )
+      })()}
+      {laserSectionCopyMenu && (() => {
+        const destination = resolvedTrackSections.find(section => section.id === laserSectionCopyMenu.sectionId)
+        if (!destination || !activeLaserDmxShow) return null
+        const sources = getEligibleLaserDmxShowManagerFixtureCopySources(activeLaserDmxShow, destination.id)
+        return (
+          <ContextActionMenu
+            x={laserSectionCopyMenu.x}
+            y={laserSectionCopyMenu.y}
+            ariaLabel={`Copy fixtures into ${destination.label}`}
+            header={{ title: 'Copy Fixtures', subtitle: `Into ${destination.label}` }}
+            onClose={() => setLaserSectionCopyMenu(null)}
+            items={sources.map(source => ({
+              id: `copy-fixtures-${source.id}`,
+              label: `${source.label} (${source.fixtures.length} fixture${source.fixtures.length === 1 ? '' : 's'})`,
+              onSelect: () => requestLaserFixtureCopyToSection(source.id, destination.id),
+            }))}
+          />
+        )
+      })()}
 
       {/* Shared application Audio Dock. Loading or selecting a track here updates
           the same AudioEngineContext consumed by the Show Manager preview. */}
@@ -3415,6 +3517,7 @@ function CanvasShowManagerTimeline({
   viewport,
   playheadSec,
   onSelect,
+  onContextMenu,
   onSelectElement,
   onPatchElement,
 }: {
@@ -3427,6 +3530,7 @@ function CanvasShowManagerTimeline({
   viewport: TimelineViewport
   playheadSec: number
   onSelect: (sectionId: string | null) => void
+  onContextMenu?: (event: MouseEvent<HTMLDivElement>, sectionId: string) => void
   onSelectElement: (elementId: string | null) => void
   onPatchElement: (elementId: string, patch: CanvasShowManagerMediaElementPatch) => boolean
 }) {
@@ -3498,6 +3602,7 @@ function CanvasShowManagerTimeline({
                 viewport={viewport}
                 selectedSectionId={selectedSectionId}
                 onSelect={onSelect}
+                onContextMenu={onContextMenu}
               />
             </TimelineRow>
           </div>
@@ -4218,6 +4323,7 @@ function LaserDmxShowManagerTimeline({
   beatGrid,
   effectiveBpm,
   onSelect,
+  onContextMenu,
   onRemove,
   onCommitBoundary,
 }: {
@@ -4229,6 +4335,7 @@ function LaserDmxShowManagerTimeline({
   beatGrid: BeatMarkerMI[]
   effectiveBpm: number | null
   onSelect: (sectionId: string) => void
+  onContextMenu?: (event: MouseEvent<HTMLDivElement>, sectionId: string) => void
   onRemove?: (sectionId: string) => void
   onCommitBoundary: (
     sectionId: string,
@@ -4264,6 +4371,7 @@ function LaserDmxShowManagerTimeline({
               snapMode={beatGrid.length > 0 ? 'beat' : 'free'}
               selectedId={selectedSectionId}
               onSelect={onSelect}
+              onContextMenu={onContextMenu}
               onRemove={onRemove}
               onCommitBoundary={onCommitBoundary}
             />
@@ -4331,11 +4439,11 @@ function ShowManagerTimeline({
   duration,
   viewport,
   sections,
-  sceneLabels,
   beatGrid,
   effectiveBpm,
   selectedSectionId,
   onSelectSection,
+  onContextMenu,
   onCommitBoundary,
   statusMessage,
 }: {
@@ -4343,11 +4451,11 @@ function ShowManagerTimeline({
   duration: number
   viewport: TimelineViewport
   sections: readonly ReactTrackSection[]
-  sceneLabels: readonly string[]
   beatGrid?: BeatMarkerMI[]
   effectiveBpm?: number | null
   selectedSectionId: string | null
   onSelectSection: (id: string) => void
+  onContextMenu?: (event: MouseEvent<HTMLDivElement>, sectionId: string) => void
   onCommitBoundary: (sectionId: string, edge: 'start' | 'end', newTime: number, neighborId: string | null, neighborTime: number | null) => void
   statusMessage: string
 }) {
@@ -4381,23 +4489,12 @@ function ShowManagerTimeline({
               snapMode={beatGrid && beatGrid.length > 0 ? 'beat' : 'free'}
               selectedId={selectedSectionId}
               onSelect={onSelectSection}
+              onContextMenu={onContextMenu}
               onCommitBoundary={onCommitBoundary}
             />
           ) : (
             <p className="sm-new-show-field-note" role="status">{statusMessage}</p>
           )}
-        </TimelineRow>
-        <TimelineRow label="Scenes">
-          <div className="sm-segment-row sm-segment-row--scenes">
-            {SECTION_SEGMENTS.slice(0, 4).map((segment, index) => (
-              <span key={segment.label}>{sceneLabels[index] ?? segment.label}</span>
-            ))}
-          </div>
-        </TimelineRow>
-        <TimelineRow label="Intensity">
-          <svg className="sm-automation-curve is-green" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true">
-            <polyline points="0,15 16,15 30,12 45,7 58,9 72,5 84,9 100,14" />
-          </svg>
         </TimelineRow>
         <TimelineRow label="Motion">
           <svg className="sm-automation-curve is-purple" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true">

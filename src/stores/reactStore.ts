@@ -9264,14 +9264,32 @@ export const useReactStore = create<ReactStoreState>()(
         })),
 
       copyLaserDmxShowManagerFixturesFromSection: (showId, sourceSectionId, destinationSectionId) => {
+        get().ensureShowManagerAuthoringMirrors(showId)
         let copiedFixtureIds: string[] = []
         set(s => {
+          const sharedShow = s.showManagerShows.find(candidate => candidate.id === showId) ?? null
+          const sharedSection = sharedShow?.trackMap?.sections.find(candidate => candidate.id === destinationSectionId) ?? null
+          if (sharedSection?.engineId && sharedSection.engineId !== 'laserDmx') return {}
           const shows = s.laserDmxShowManagerShows.map(show => {
             if (show.id !== showId) return show
             const result = copyLaserDmxShowManagerFixturesBetweenSections(show, sourceSectionId, destinationSectionId)
             copiedFixtureIds = result.fixtureIds
             return result.show
           })
+          if (copiedFixtureIds.length === 0) return {}
+          const nextSharedShow = sharedShow
+            ? assignShowManagerSectionEngine(sharedShow, destinationSectionId, 'laserDmx')
+            : null
+          if (sharedShow && !nextSharedShow) {
+            copiedFixtureIds = []
+            return {}
+          }
+          if (nextSharedShow && nextSharedShow !== sharedShow) {
+            return buildSharedShowManagerTrackMapHistoryPatch(s, {
+              showManagerShows: s.showManagerShows.map(show => show.id === showId ? nextSharedShow : show),
+              laserDmxShowManagerShows: shows,
+            })
+          }
           return buildShowManagerHistoryMutationPatch(s, { laserDmxShowManagerShows: shows })
         })
         return copiedFixtureIds

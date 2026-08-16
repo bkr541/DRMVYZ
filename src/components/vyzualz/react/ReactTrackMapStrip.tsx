@@ -958,6 +958,7 @@ interface SectionTimelineProps {
   selectedId:     string | null
   onSelect:       (id: string) => void
   onRemove?:      (id: string) => void
+  onContextMenu?: (event: React.MouseEvent<HTMLDivElement>, id: string) => void
   onCommitBoundary: (
     sectionId:       string,
     edge:            SectionEdge,
@@ -1017,6 +1018,7 @@ export const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimeline
   selectedId,
   onSelect,
   onRemove,
+  onContextMenu,
   onCommitBoundary,
   onDragPreview,
   presetAssignedSectionIds,
@@ -1243,6 +1245,12 @@ export const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimeline
               aria-label={`Section ${orig.label}, ${formatTime(orig.startSec)} to ${formatTime(orig.endSec)}`}
               aria-pressed={isSelected}
               onClick={() => onSelect(orig.id)}
+              onContextMenu={event => {
+                if (!onContextMenu) return
+                event.preventDefault()
+                event.stopPropagation()
+                onContextMenu(event, orig.id)
+              }}
               onKeyDown={e => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(orig.id) }
               }}

@@ -65,6 +65,7 @@ const ENGINE_ACCESSIBLE_LABELS: Record<ReactEngineId, string> = {
 export interface LaserDmxSectionRuntimeProgram {
   section: ReactTrackSection
   showDirector: LaserDmxShowDirectorState
+  authoringShowDirector?: LaserDmxShowDirectorState
 }
 
 export function resolveLaserDmxSectionRuntimeProgram(
@@ -724,7 +725,7 @@ export function ReactPlaceholderCanvas({
         }
         laserDmxPreviewShowDirector = isPlayingRef.current
           ? runtimeProgram?.showDirector ?? laserDmxEmptyRuntimeShowDirectorRef.current ?? undefined
-          : authoringProgram?.showDirector ?? laserDmxEmptyRuntimeShowDirectorRef.current ?? undefined
+          : authoringProgram?.authoringShowDirector ?? authoringProgram?.showDirector ?? laserDmxEmptyRuntimeShowDirectorRef.current ?? undefined
       } else if (lastLaserDmxPlaybackSectionIdRef.current !== null) {
         lastLaserDmxPlaybackSectionIdRef.current = null
         onLaserDmxPlaybackSectionChangeRef.current?.(null)

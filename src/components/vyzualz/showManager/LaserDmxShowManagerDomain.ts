@@ -100,7 +100,10 @@ export interface LaserDmxShowManagerShow {
 /** Runtime-only projection of one Show-owned section into the canonical Show Director renderer contract. */
 export interface LaserDmxShowManagerRuntimeSectionProgram {
   section: LaserDmxShowManagerSection
+  /** Playback-accurate program that preserves the fixture's authored trigger semantics. */
   showDirector: LaserDmxShowDirectorState
+  /** Stopped authoring preview: fixtures remain visibly on while Show Beams still controls beam output. */
+  authoringShowDirector: LaserDmxShowDirectorState
 }
 
 /**
@@ -127,13 +130,24 @@ function createLaserDmxShowManagerRuntimeRig(
   identity: string,
   fixtures: readonly LaserDmxShowDirectorFixture[],
   settings: LaserDmxShowManagerWorkspaceSettings = show.settings,
+  options: { authoringPreview?: boolean } = {},
 ): LaserDmxShowDirectorState {
   const base = createDefaultLaserDmxShowDirectorState()
   return {
     ...base,
     sourceTemplateId: `show-manager:${show.id}:${identity}`,
     fixtures: fixtures.map((fixture, index) => {
-      const cloned = cloneFixture(fixture, index)
+      let cloned = cloneFixture(fixture, index)
+      if (options.authoringPreview) {
+        // A stopped Show Manager preview is an authoring view, not a transport
+        // performance. Keep the fixture visible regardless of beat/section/audio
+        // trigger programming so position, aim, color and beam edits have immediate
+        // visual feedback. Playback continues to use the untouched trigger below.
+        cloned = {
+          ...cloned,
+          trigger: { ...cloned.trigger, ...triggerPatchForLaserDmxShowManagerOption('none') },
+        }
+      }
       if (settings.showBeams || !LASER_DMX_SHOW_MANAGER_BEAM_OUTPUT_KINDS.has(cloned.kind)) return cloned
       // Show Beams is preview-only. Suppress canonical beam-producing fixtures
       // without mutating persisted fixture programming; source icons remain in
@@ -169,6 +183,13 @@ export function createLaserDmxShowManagerRuntimeShowDirector(
   return createLaserDmxShowManagerRuntimeRig(show, section.id, section.fixtures, section.settings)
 }
 
+export function createLaserDmxShowManagerAuthoringPreviewShowDirector(
+  show: LaserDmxShowManagerShow,
+  section: LaserDmxShowManagerSection,
+): LaserDmxShowDirectorState {
+  return createLaserDmxShowManagerRuntimeRig(show, `${section.id}:authoring`, section.fixtures, section.settings, { authoringPreview: true })
+}
+
 export function createLaserDmxShowManagerEmptyRuntimeShowDirector(
   show: LaserDmxShowManagerShow,
 ): LaserDmxShowDirectorState {
@@ -182,6 +203,7 @@ export function createLaserDmxShowManagerRuntimeSectionPrograms(
   return show.sections.map(section => ({
     section,
     showDirector: createLaserDmxShowManagerRuntimeShowDirector(show, section),
+    authoringShowDirector: createLaserDmxShowManagerAuthoringPreviewShowDirector(show, section),
   }))
 }
 
