@@ -1,23 +1,20 @@
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { Badge } from '../react/controls/Badge'
-import { IconMorphToggle } from '../react/controls/IconMorphToggle'
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../../audio/savedTrackLoader'
 import { setShowManagerLinkedAudioTrackId } from '../../../audio/audioSourcePolicy'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
-import { computeViewportRangeLayout, computeWaveformViewport, resolvePositiveDuration, timeToViewportRatio, type TimelineViewport } from '../../../features/timeline/timelineViewport'
+import { computeViewportRangeLayout, computeWaveformViewport, resolvePositiveDuration, type TimelineViewport } from '../../../features/timeline/timelineViewport'
 import { adaptMIAnalysis } from '../../../features/trackIntelligence/trackMapAdapter'
 import { navigateBoundaryAlternative, snapBoundaryTime, type SectionBoundarySnapMode } from '../../../features/trackIntelligence/sectionBoundaryDrag'
 import { resolveSectionAtTime } from '../../../features/trackIntelligence/authoritativeTimeline'
-import type { BeatMarkerMI, BoundaryAlternative, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
-import { cueMarkerBelongsToTrack } from '../../../types/cue'
+import type { BeatMarkerMI, BoundaryAlternative } from '../../../features/musicIntelligence/types'
 import { useReactStore } from '../../../stores/reactStore'
 import { useAudioStore, type SavedAudioTrack } from '../../../stores/audioStore'
 import { useVisualStore } from '../../../stores/visualStore'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
-import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import { ContextActionMenu } from '../context-menu/ContextActionMenu'
 import { Collapsible, ColorRow, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
 import { UnderlineTabs } from '../react/controls/UnderlineTabs'
@@ -56,16 +53,7 @@ import {
 import { ReactPlaceholderCanvas } from '../react/ReactPlaceholderCanvas'
 import { CanvasEngineSurface } from '../react/ReactCanvasEngineShell'
 import { ReactPersistenceStatus } from '../react/ReactPersistenceStatus'
-import {
-  buildTimelineCueTitle,
-  computeTimelineCueLayout,
-  drawBeatCanvas,
-  drawTimelineRuler,
-  EditSectionForm,
-  formatTimePrecise,
-  SectionTimeline,
-  type SectionTimelineHandle,
-} from '../react/ReactTrackMapStrip'
+import { EditSectionForm, SectionTimeline } from '../react/ReactTrackMapStrip'
 import type { PixGridLayer } from '../react/pixGrid/PixGridTypes'
 import { applyPixGridPresetSettings } from '../react/pixGrid/PixGridState'
 import {
@@ -584,9 +572,6 @@ function ShowManagerTrackMapSectionEditor({
   effectiveBpm,
   beatGrid,
   boundaryAlternatives,
-  snapMode: controlledSnapMode,
-  onSnapModeChange: onControlledSnapModeChange,
-  dragPreview = null,
 }: {
   showId: string
   section: ReactTrackSection
@@ -594,22 +579,16 @@ function ShowManagerTrackMapSectionEditor({
   effectiveBpm: number | null
   beatGrid: BeatMarkerMI[]
   boundaryAlternatives: BoundaryAlternative[]
-  snapMode?: SectionBoundarySnapMode
-  onSnapModeChange?: (mode: SectionBoundarySnapMode) => void
-  dragPreview?: { start: number; end: number } | null
 }) {
   const updateSection = useReactStore(state => state.updateShowManagerTrackMapSection)
   const updateBoundary = useReactStore(state => state.updateShowManagerTrackMapBoundary)
-  const [localSnapMode, setLocalSnapMode] = useState<SectionBoundarySnapMode>(beatGrid.length > 0 ? 'beat' : 'free')
+  const [snapMode, setSnapMode] = useState<SectionBoundarySnapMode>(beatGrid.length > 0 ? 'beat' : 'free')
   const [draftRevision, setDraftRevision] = useState(0)
-  const isSnapModeControlled = controlledSnapMode != null
-  const snapMode = controlledSnapMode ?? localSnapMode
-  const setSnapMode = onControlledSnapModeChange ?? setLocalSnapMode
 
   useEffect(() => {
-    if (!isSnapModeControlled) setLocalSnapMode(beatGrid.length > 0 ? 'beat' : 'free')
+    setSnapMode(beatGrid.length > 0 ? 'beat' : 'free')
     setDraftRevision(revision => revision + 1)
-  }, [beatGrid.length, isSnapModeControlled, section.id, showId])
+  }, [beatGrid.length, section.id, showId])
 
   const commitBoundaryTool = (edge: 'start' | 'end', proposedTime: number) => {
     updateBoundary(showId, section.id, edge, proposedTime, null, null)
@@ -621,7 +600,6 @@ function ShowManagerTrackMapSectionEditor({
       section={section}
       durationSec={durationSec}
       effectiveBpm={effectiveBpm}
-      dragPreview={dragPreview}
       snapMode={snapMode}
       onSnapModeChange={setSnapMode}
       boundaryAlternatives={boundaryAlternatives}
@@ -985,8 +963,6 @@ export function ShowManagerView() {
   const [selectedShowManagerSectionId, setSelectedShowManagerSectionId] = useState<string | null>(null)
   const [selectedLightingComponentKind, setSelectedLightingComponentKind] = useState<LaserDmxShowDirectorFixtureKind | null>(null)
   const [selectedLaserFixtureId, setSelectedLaserFixtureId] = useState<string | null>(null)
-  const [laserTrackMapSnapMode, setLaserTrackMapSnapMode] = useState<SectionBoundarySnapMode>('free')
-  const [laserTrackMapDragPreview, setLaserTrackMapDragPreview] = useState<{ sectionId: string; start: number; end: number } | null>(null)
   const [laserFixtureContextMenu, setLaserFixtureContextMenu] = useState<{ fixtureId: string; x: number; y: number } | null>(null)
   const [laserSectionContextMenu, setLaserSectionContextMenu] = useState<{ sectionId: string; x: number; y: number } | null>(null)
   const [laserSectionCopyMenu, setLaserSectionCopyMenu] = useState<{ sectionId: string; x: number; y: number } | null>(null)
@@ -1425,11 +1401,6 @@ export function ShowManagerView() {
   const showRuntimeBeatGrid = showRuntimeAudioReady ? engine.currentEffectiveBeatGrid : null
   const showRuntimeAnalysis = showRuntimeAudioReady ? engine.currentAnalysis : null
 
-  useEffect(() => {
-    setLaserTrackMapSnapMode(showRuntimeBeatGrid && showRuntimeBeatGrid.length > 0 ? 'beat' : 'free')
-    setLaserTrackMapDragPreview(null)
-  }, [activeShowManagerShow?.id, showRuntimeBeatGrid?.length, showRuntimeTrackId])
-
   // Playback-follow belongs to the shared Track Map, not to whichever engine preview
   // happens to be mounted. This lets playback enter a LaserDMX section from an
   // unassigned/PixGrid/Canvas section and switch the authoring surface immediately.
@@ -1452,6 +1423,12 @@ export function ShowManagerView() {
     () => computeWaveformViewport(durationSec, showRuntimeCurrentTime, waveformZoom),
     [durationSec, showRuntimeCurrentTime, waveformZoom],
   )
+  const laserTimelineViewport = useMemo<TimelineViewport>(
+    () => computeWaveformViewport(laserTimelineDuration, showRuntimeCurrentTime, waveformZoom),
+    [laserTimelineDuration, showRuntimeCurrentTime, waveformZoom],
+  )
+  const laserTimelineViewportRef = useRef<TimelineViewport>(laserTimelineViewport)
+  laserTimelineViewportRef.current = laserTimelineViewport
   const canvasTimelineViewport = useMemo<TimelineViewport>(
     () => computeWaveformViewport(resolvePositiveDuration(canvasTotalDuration, 1), showRuntimeCurrentTime, waveformZoom),
     [canvasTotalDuration, showRuntimeCurrentTime, waveformZoom],
@@ -2137,7 +2114,6 @@ export function ShowManagerView() {
     neighborTime: number | null,
   ) => {
     if (!activeLaserDmxShow) return
-    setLaserTrackMapDragPreview(null)
     updateShowManagerTrackMapBoundary(
       activeLaserDmxShow.id,
       sectionId,
@@ -2714,18 +2690,13 @@ export function ShowManagerView() {
               sections={resolvedTrackSections}
               selectedSectionId={selectedShowManagerSection?.id ?? null}
               durationSec={laserTimelineDuration}
+              viewport={laserTimelineViewport}
+              viewportRef={laserTimelineViewportRef}
               beatGrid={showRuntimeBeatGrid ?? showRuntimeAnalysis?.beatGrid ?? []}
               effectiveBpm={showRuntimeBpm}
-              analysis={showRuntimeAnalysis}
-              currentTime={showRuntimeCurrentTime}
-              getCurrentTime={() => showRuntimeAudioReady ? engine.getCurrentTime() : 0}
-              snapMode={laserTrackMapSnapMode}
-              undoDepth={laserShowUndoDepth}
-              onUndo={undoLaserDmxShowManagerEdit}
               onSelect={selectShowManagerSectionForEditing}
               onContextMenu={activeLaserDmxShow?.sections.some(section => section.fixtures.length > 0) ? handleLaserSectionContextMenu : undefined}
               onCommitBoundary={commitLaserSectionBoundary}
-              onDragPreview={(sectionId, start, end) => setLaserTrackMapDragPreview({ sectionId, start, end })}
             />
           ) : activeSectionEngineId === 'canvas' ? (
             <CanvasShowManagerTimeline
@@ -2955,11 +2926,6 @@ export function ShowManagerView() {
                       effectiveBpm={showRuntimeBpm}
                       beatGrid={showRuntimeBeatGrid ?? []}
                       boundaryAlternatives={showRuntimeAnalysis?.boundaryAlternatives ?? []}
-                      snapMode={laserTrackMapSnapMode}
-                      onSnapModeChange={setLaserTrackMapSnapMode}
-                      dragPreview={laserTrackMapDragPreview?.sectionId === activeLaserTrackSection.id
-                        ? { start: laserTrackMapDragPreview.start, end: laserTrackMapDragPreview.end }
-                        : null}
                     />
                   )}
                   <NoticeCard tone="success" title="Section fixture ownership · READY">
@@ -4348,57 +4314,29 @@ function LaserDmxShowManagerStage({
   )
 }
 
-type LaserTrackMapCueKind = 'preset' | 'pixgrid' | 'cue' | 'phrase' | 'moment'
-
-interface LaserTrackMapCueItem {
-  id: string
-  timeSec: number
-  label: string
-  color: string
-  kind: LaserTrackMapCueKind
-  enabled: boolean
-  title?: string
-}
-
-function applyLaserTrackMapCueViewport(container: HTMLDivElement, viewport: TimelineViewport): void {
-  container.querySelectorAll<HTMLElement>('[data-timeline-cue]').forEach(marker => {
-    const timeSec = Number(marker.dataset.cueTime)
-    const layout = computeTimelineCueLayout(timeSec, viewport)
-    marker.style.display = layout.visible ? '' : 'none'
-    if (layout.visible) marker.style.left = `${layout.leftPct}%`
-  })
-}
-
 function LaserDmxShowManagerTimeline({
   sections,
   selectedSectionId,
   durationSec,
+  viewport,
+  viewportRef,
   beatGrid,
   effectiveBpm,
-  analysis,
-  currentTime,
-  getCurrentTime,
-  snapMode,
-  undoDepth,
-  onUndo,
   onSelect,
   onContextMenu,
+  onRemove,
   onCommitBoundary,
-  onDragPreview,
 }: {
   sections: ReactTrackSection[]
   selectedSectionId: string | null
   durationSec: number
+  viewport: TimelineViewport
+  viewportRef: MutableRefObject<TimelineViewport>
   beatGrid: BeatMarkerMI[]
   effectiveBpm: number | null
-  analysis: TrackIntelligenceAnalysis | null
-  currentTime: number
-  getCurrentTime: () => number
-  snapMode: SectionBoundarySnapMode
-  undoDepth: number
-  onUndo: () => void
   onSelect: (sectionId: string) => void
   onContextMenu?: (event: MouseEvent<HTMLDivElement>, sectionId: string) => void
+  onRemove?: (sectionId: string) => void
   onCommitBoundary: (
     sectionId: string,
     edge: 'start' | 'end',
@@ -4406,361 +4344,41 @@ function LaserDmxShowManagerTimeline({
     neighborId: string | null,
     neighborTime: number | null,
   ) => void
-  onDragPreview: (sectionId: string, previewStart: number, previewEnd: number) => void
 }) {
-  const engine = useSharedAudio()
-  const reactPresets = useReactStore(state => state.reactPresets)
-  const presetAutomationCuesByTrackId = useReactStore(state => state.presetAutomationCuesByTrackId)
-  const pixGridActionCuesByTrackId = useReactStore(state => state.pixGridActionCuesByTrackId)
-  const waveformZoom = useVisualStore(state => state.waveformZoom)
-  const beatGridEnabled = useVisualStore(state => state.beatGridEnabled)
-  const setBeatGridEnabled = useVisualStore(state => state.setBeatGridEnabled)
-  const cueMarkers = useVisualStore(state => state.cueMarkers)
-
-  const safeDurationSec = resolvePositiveDuration(durationSec, 1)
-  const activeTrackId = engine.currentTrack?.id ?? null
-  const trackPresetCues = activeTrackId ? (presetAutomationCuesByTrackId[activeTrackId] ?? []) : []
-  const trackPixGridCues = activeTrackId ? (pixGridActionCuesByTrackId[activeTrackId] ?? []) : []
-  const assignedSectionIds = useMemo(
-    () => new Set(trackPresetCues.filter(cue => cue.sectionId != null).map(cue => cue.sectionId!)),
-    [trackPresetCues],
-  )
-  const activeCueMarkers = useMemo(() => [
-    ...cueMarkers.filter(cue => cueMarkerBelongsToTrack(cue, activeTrackId)),
-    ...(engine.currentTrack?.importedCueMarkers ?? []),
-  ].sort((a, b) => a.time - b.time), [activeTrackId, cueMarkers, engine.currentTrack])
-
-  const timelineCueItems = useMemo<LaserTrackMapCueItem[]>(() => [
-    ...trackPresetCues.map(cue => {
-      const preset = reactPresets.find(candidate => candidate.id === cue.presetId)
-      return {
-        id: `preset:${cue.id}`,
-        timeSec: cue.timeSec,
-        label: cue.label,
-        color: preset?.palette.primary ?? '#b84fc9',
-        kind: 'preset' as const,
-        enabled: cue.enabled,
-      }
-    }),
-    ...trackPixGridCues.map(cue => ({
-      id: `pixgrid:${cue.id}`,
-      timeSec: cue.timeSec,
-      label: cue.label,
-      color: cue.color ?? '#4ac7db',
-      kind: 'pixgrid' as const,
-      enabled: cue.enabled,
-      title: `${cue.label} · PixGrid ${cue.action.type.replace(/([A-Z])/g, ' $1').toLowerCase()} · ${formatTimePrecise(cue.timeSec)}`,
-    })),
-    ...activeCueMarkers.map(cue => ({
-      id: `${cue.source === 'rekordbox' ? 'rekordbox' : 'transport'}:${cue.id}`,
-      timeSec: cue.time,
-      label: cue.label,
-      color: cue.color ?? '#e2364f',
-      kind: 'cue' as const,
-      enabled: true,
-      title: buildTimelineCueTitle(cue),
-    })),
-    ...(analysis?.phrases ?? [])
-      .filter(phrase => phrase.structurallyDetected && phrase.confidence >= 0.58 && ((phrase.lengthBars ?? phrase.phraseLength) >= 16 || phrase.source === 'section_boundary'))
-      .slice(0, 24)
-      .map(phrase => ({
-        id: `phrase:${phrase.id ?? Math.round(phrase.timeSec * 1000)}`,
-        timeSec: phrase.timeSec,
-        label: `${phrase.lengthBars ?? phrase.phraseLength}-bar phrase`,
-        color: '#5b8def',
-        kind: 'phrase' as const,
-        enabled: true,
-        title: `${phrase.reason ?? 'Structural phrase boundary'} · ${Math.round(phrase.confidence * 100)}% confidence`,
-      })),
-    ...(analysis?.semanticMoments ?? [])
-      .filter(moment => moment.confidence >= 0.62 && moment.type !== 'section_entry' && moment.type !== 'section_exit')
-      .slice(0, 24)
-      .map(moment => ({
-        id: `moment:${moment.id ?? `${moment.type}-${Math.round(moment.timeSec * 1000)}`}`,
-        timeSec: moment.timeSec,
-        label: moment.label ?? moment.type.replace(/_/g, ' '),
-        color: moment.type === 'drop_impact' || moment.type === 'major_impact' ? '#c0314a' : '#d8b95a',
-        kind: 'moment' as const,
-        enabled: true,
-        title: `${moment.label ?? moment.type.replace(/_/g, ' ')} · ${Math.round(moment.confidence * 100)}% confidence${moment.supportingSignals?.length ? ` · ${moment.supportingSignals.slice(0, 3).join(', ')}` : ''}`,
-      })),
-  ].filter(cue => Number.isFinite(cue.timeSec)), [activeCueMarkers, analysis?.phrases, analysis?.semanticMoments, reactPresets, trackPixGridCues, trackPresetCues])
-
-  const initialViewport = computeWaveformViewport(safeDurationSec, currentTime, waveformZoom)
-  const [layoutViewport, setLayoutViewport] = useState<TimelineViewport>(initialViewport)
-  const stripRef = useRef<HTMLDivElement>(null)
-  const rulerCanvasRef = useRef<HTMLCanvasElement>(null)
-  const beatCanvasRef = useRef<HTMLCanvasElement>(null)
-  const cueTimelineRef = useRef<HTMLDivElement>(null)
-  const playheadRef = useRef<HTMLDivElement>(null)
-  const sectionTimelineRef = useRef<SectionTimelineHandle>(null)
-  const viewportRef = useRef<TimelineViewport>(initialViewport)
-  const rafRef = useRef<number | null>(null)
-  const [drawTick, setDrawTick] = useState(0)
-
-  const waveformZoomRef = useRef(waveformZoom)
-  const durationRef = useRef(safeDurationSec)
-  const analysisRef = useRef(analysis)
-  const beatGridRef = useRef(beatGrid)
-  const beatGridEnabledRef = useRef(beatGridEnabled)
-  const getCurrentTimeRef = useRef(getCurrentTime)
-
-  waveformZoomRef.current = waveformZoom
-  durationRef.current = safeDurationSec
-  analysisRef.current = analysis
-  beatGridRef.current = beatGrid
-  beatGridEnabledRef.current = beatGridEnabled
-  getCurrentTimeRef.current = getCurrentTime
-
-  useEffect(() => {
-    const el = stripRef.current
-    if (!el || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(() => setDrawTick(value => value + 1))
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
-
-  useEffect(() => {
-    const viewport = computeWaveformViewport(safeDurationSec, getCurrentTimeRef.current(), waveformZoom)
-    viewportRef.current = viewport
-    setLayoutViewport(viewport)
-    sectionTimelineRef.current?.updateViewport(viewport)
-  }, [safeDurationSec, waveformZoom])
-
-  useEffect(() => {
-    const ruler = rulerCanvasRef.current
-    if (ruler) drawTimelineRuler(ruler, viewportRef.current)
-    const cueLane = cueTimelineRef.current
-    if (cueLane) applyLaserTrackMapCueViewport(cueLane, viewportRef.current)
-  }, [drawTick, layoutViewport, timelineCueItems])
-
-  useEffect(() => {
-    const canvas = beatCanvasRef.current
-    if (!canvas) return
-    if (!analysis || !beatGridEnabled) {
-      canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
-      return
-    }
-    drawBeatCanvas(
-      canvas,
-      analysis,
-      beatGrid.length > 0 ? { beatGrid } : undefined,
-      viewportRef.current,
-    )
-  }, [analysis, beatGrid, beatGridEnabled, drawTick, layoutViewport])
-
-  useEffect(() => {
-    const playhead = playheadRef.current
-    if (!playhead || safeDurationSec <= 0 || typeof requestAnimationFrame === 'undefined') {
-      if (playhead) playhead.style.display = 'none'
-      return
-    }
-
-    const tick = () => {
-      const timeSec = getCurrentTimeRef.current()
-      const duration = durationRef.current
-      const viewport = computeWaveformViewport(duration, timeSec, waveformZoomRef.current)
-      const ratio = timeToViewportRatio(timeSec, viewport)
-
-      if (ratio >= 0 && ratio <= 1) {
-        playhead.style.left = `${ratio * 100}%`
-        playhead.style.display = 'block'
-      } else {
-        playhead.style.display = 'none'
-      }
-
-      const previous = viewportRef.current
-      const viewportChanged = previous.startSec !== viewport.startSec || previous.endSec !== viewport.endSec
-      if (viewportChanged) {
-        viewportRef.current = viewport
-
-        const ruler = rulerCanvasRef.current
-        if (ruler) drawTimelineRuler(ruler, viewport)
-
-        const cueLane = cueTimelineRef.current
-        if (cueLane) applyLaserTrackMapCueViewport(cueLane, viewport)
-
-        const beatCanvas = beatCanvasRef.current
-        const currentAnalysis = analysisRef.current
-        if (beatCanvas && currentAnalysis && beatGridEnabledRef.current) {
-          const currentBeatGrid = beatGridRef.current
-          drawBeatCanvas(
-            beatCanvas,
-            currentAnalysis,
-            currentBeatGrid.length > 0 ? { beatGrid: currentBeatGrid } : undefined,
-            viewport,
-          )
-        } else if (beatCanvas) {
-          beatCanvas.getContext('2d')?.clearRect(0, 0, beatCanvas.width, beatCanvas.height)
-        }
-
-        sectionTimelineRef.current?.updateViewport(viewport)
-      }
-
-      rafRef.current = requestAnimationFrame(tick)
-    }
-
-    rafRef.current = requestAnimationFrame(tick)
-    return () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
-      rafRef.current = null
-    }
-  }, [safeDurationSec])
-
   return (
-    <section className="sm-timeline sm-laser-timeline sm-laser-track-map-mirror rv-lower-workspace" aria-label="Show Manager LaserDMX Track Map">
-      <header className="rv-lower-workspace-toolbar sm-laser-track-map-toolbar">
-        <UnderlineTabs
-          tabs={TRACK_MAP_TABS}
-          activeTab="trackMap"
-          onChange={() => undefined}
-          ariaLabel="LaserDMX timeline surfaces"
-          className="rv-lower-workspace-tabs"
-        />
+    <section className="sm-timeline sm-laser-timeline" aria-label="Show Manager LaserDMX section timeline">
+      <header className="sm-timeline-tabs">
+        <UnderlineTabs tabs={TRACK_MAP_TABS} activeTab="trackMap" onChange={() => undefined} ariaLabel="LaserDMX timeline surfaces" />
+        <span className="sm-timeline-meta">Linked Track Map · Show-specific</span>
       </header>
-      <div className="rv-lower-workspace-surface rv-lower-workspace-surface--track-map sm-laser-track-map-surface">
-        <div className="rv-track-map-strip rv-track-map-strip--embedded" ref={stripRef}>
-          <div className="rv-timeline-lanes" aria-label="Expandable Track Map timeline lanes">
-            <div
-              className="rv-timeline-lane rv-timeline-lane--beats drm-help-overlay-anchor"
-              role="group"
-              aria-label="Beat Grid"
-            >
-              <div className="rv-timeline-lane-content rv-beat-canvas-wrap">
-                <canvas ref={beatCanvasRef} className="rv-beat-canvas" aria-hidden="true" />
-              </div>
-              <div className="rv-timeline-lane-tools">
-                <IconMorphToggle
-                  checked={beatGridEnabled}
-                  onCheckedChange={setBeatGridEnabled}
-                  className={`rv-ctrl-toggle rv-timeline-beat-grid-toggle${beatGridEnabled ? ' rv-ctrl-toggle--on' : ''}`}
-                  aria-label={`Turn Beat Grid ${beatGridEnabled ? 'off' : 'on'}`}
-                  title={`Beat Grid: ${beatGridEnabled ? 'On' : 'Off'}`}
-                />
-              </div>
-              <HelpInfoTrigger
-                helpId="react.shared.trackMap.beatGridLane"
-                currentValue={beatGridEnabled ? 'On' : 'Off'}
-                currentValueLabel="Status"
-                currentValueTone={beatGridEnabled ? 'accent' : 'default'}
-                placement="left"
-              />
-            </div>
-
-            <div
-              className="rv-timeline-lane rv-timeline-lane--sections drm-help-overlay-anchor"
-              role="group"
-              aria-label="Sections"
-            >
-              <div className="rv-timeline-lane-content">
-                {sections.length > 0 ? (
-                  <SectionTimeline
-                    ref={sectionTimelineRef}
-                    sections={sections}
-                    durationSec={safeDurationSec}
-                    viewport={layoutViewport}
-                    viewportRef={viewportRef}
-                    beatGrid={beatGrid}
-                    effectiveBpm={effectiveBpm}
-                    snapMode={snapMode}
-                    selectedId={selectedSectionId}
-                    onSelect={onSelect}
-                    onContextMenu={onContextMenu}
-                    onCommitBoundary={onCommitBoundary}
-                    onDragPreview={onDragPreview}
-                    presetAssignedSectionIds={assignedSectionIds}
-                  />
-                ) : (
-                  <div className="rv-timeline-lane-empty">No sections</div>
-                )}
-              </div>
-              <div className="rv-timeline-lane-tools">
-                <button
-                  type="button"
-                  className="rv-timeline-tool-btn"
-                  onPointerDown={event => event.stopPropagation()}
-                  onClick={event => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    onUndo()
-                  }}
-                  title="Undo most recent Show Track Section change"
-                  aria-label="Undo most recent Show Track Section change"
-                  disabled={undoDepth === 0}
-                >↶</button>
-              </div>
-              <HelpInfoTrigger
-                helpId="react.shared.trackMap.sectionsLane"
-                currentValue={`${sections.length} section${sections.length === 1 ? '' : 's'}`}
-                placement="left"
-              />
-            </div>
-
-            <div
-              className="rv-timeline-lane rv-timeline-lane--cues drm-help-overlay-anchor"
-              role="group"
-              aria-label="Cues and Presets"
-            >
-              <div ref={cueTimelineRef} className="rv-timeline-lane-content rv-timeline-cue-lane">
-                {timelineCueItems.map(cue => {
-                  const layout = computeTimelineCueLayout(cue.timeSec, viewportRef.current)
-                  return (
-                    <button
-                      key={cue.id}
-                      type="button"
-                      data-timeline-cue
-                      data-cue-time={cue.timeSec}
-                      className={`rv-timeline-cue rv-timeline-cue--${cue.kind}${cue.enabled ? '' : ' rv-timeline-cue--disabled'}`}
-                      style={{
-                        display: layout.visible ? undefined : 'none',
-                        left: `${layout.leftPct}%`,
-                        '--cue-color': cue.color,
-                      } as CSSProperties}
-                      onClick={() => engine.seek(cue.timeSec)}
-                      aria-label={`${cue.label}, ${cue.kind} cue, ${formatTimePrecise(cue.timeSec)}${cue.enabled ? '' : ', disabled'}`}
-                      title={cue.title ?? `${cue.label} · ${formatTimePrecise(cue.timeSec)}`}
-                    >
-                      <span className="rv-timeline-cue-diamond" aria-hidden="true" />
-                      <span className="rv-timeline-cue-label">{cue.label}</span>
-                    </button>
-                  )
-                })}
-                {timelineCueItems.length === 0 && (
-                  <span className="rv-timeline-lane-empty">No cue or preset markers</span>
-                )}
-              </div>
-              <div
-                className="rv-timeline-lane-tools rv-timeline-lane-state"
-                title={`${timelineCueItems.length} cue or preset marker${timelineCueItems.length === 1 ? '' : 's'}`}
-                aria-label={`${timelineCueItems.length} cue or preset marker${timelineCueItems.length === 1 ? '' : 's'}`}
-              >
-                {trackPixGridCues.length > 0 ? `P${trackPixGridCues.length} · ${timelineCueItems.length}` : timelineCueItems.length}
-              </div>
-              <HelpInfoTrigger
-                helpId="react.shared.trackMap.cuesLane"
-                currentValue={`${timelineCueItems.length} marker${timelineCueItems.length === 1 ? '' : 's'}`}
-                placement="left"
-              />
-            </div>
-
-            <div
-              className="rv-timeline-lane rv-timeline-lane--ruler"
-              role="group"
-              aria-label="Visible Range"
-            >
-              <div className="rv-timeline-lane-content rv-timeline-ruler-content">
-                <canvas ref={rulerCanvasRef} className="rv-timeline-ruler-canvas" aria-hidden="true" />
-              </div>
-              <div className="rv-timeline-lane-tools rv-timeline-zoom-readout" title="Waveform zoom">
-                {waveformZoom}×
-              </div>
-            </div>
-
-            <div className="rv-timeline-playhead-layer" aria-hidden="true">
-              <div ref={playheadRef} className="rv-timeline-shared-playhead" />
-            </div>
-          </div>
+      <div className="sm-timeline-grid">
+        <div className="sm-timeline-ruler">
+          {Array.from({ length: 8 }, (_, index) => {
+            const ratio = index / 7
+            const timeSec = viewport.startSec + (viewport.endSec - viewport.startSec) * ratio
+            return <span key={index}>{formatClock(timeSec)}</span>
+          })}
         </div>
+        <TimelineRow label="Section" className="sm-timeline-row--sections">
+          {sections.length > 0 ? (
+            <SectionTimeline
+              sections={sections}
+              durationSec={durationSec}
+              viewport={viewport}
+              viewportRef={viewportRef}
+              beatGrid={beatGrid}
+              effectiveBpm={effectiveBpm}
+              snapMode={beatGrid.length > 0 ? 'beat' : 'free'}
+              selectedId={selectedSectionId}
+              onSelect={onSelect}
+              onContextMenu={onContextMenu}
+              onRemove={onRemove}
+              onCommitBoundary={onCommitBoundary}
+            />
+          ) : (
+            <div className="sm-laser-timeline-empty">No sections</div>
+          )}
+        </TimelineRow>
       </div>
     </section>
   )

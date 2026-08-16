@@ -1268,21 +1268,6 @@ button.sm-library-subsection-toggle {
 }
 
 .sm-laser-timeline .sm-timeline-grid { padding-top: 21px; }
-.sm-laser-track-map-mirror {
-  min-height: 0;
-  background:
-    linear-gradient(180deg, rgba(74, 199, 219, 0.035), transparent 24%),
-    rgba(5, 11, 17, 0.98);
-}
-.sm-laser-track-map-toolbar { flex: 0 0 auto; }
-.sm-laser-track-map-surface {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: visible;
-}
-.sm-laser-track-map-mirror .rv-track-map-strip--embedded {
-  min-height: 0;
-}
 .sm-timeline-row--sections { min-height: 48px; }
 .sm-timeline-row--sections .rv-section-timeline { height: 100%; min-height: 45px; }
 .sm-section-strip .rv-section-body { cursor: default; }
