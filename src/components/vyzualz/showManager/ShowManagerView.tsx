@@ -1988,6 +1988,14 @@ export function ShowManagerView() {
 
   const selectShowManagerSectionForEditing = (sectionId: string | null) => {
     if (!sectionId) return
+    if (sectionId === selectedShowManagerSectionId) {
+      setSelectedShowManagerSectionId(null)
+      setSelectedLaserFixtureId(null)
+      selectCanvasShowManagerMediaElement(null)
+      selectCanvasShowManagerSection(null)
+      selectLaserDmxShowManagerSection(null)
+      return
+    }
     const section = resolvedTrackSections.find(candidate => candidate.id === sectionId)
     if (!section) return
     setSelectedShowManagerSectionId(sectionId)
@@ -2894,9 +2902,6 @@ export function ShowManagerView() {
                 <div><span>Section</span><strong>{selectedShowManagerSection?.label ?? 'No section selected'}</strong></div>
                 <div><span>Engine</span><strong>Unassigned</strong></div>
               </div>
-              <NoticeCard tone="info" title="Section ready for authoring">
-                Choose any engine in the left component library. The section will be assigned only when its first component or element is added.
-              </NoticeCard>
               {selectedShowManagerSection && activeShowManagerShow && (
                 <ShowManagerTrackMapSectionEditor
                   showId={activeShowManagerShow.id}

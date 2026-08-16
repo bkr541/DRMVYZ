@@ -1178,6 +1178,7 @@ export const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimeline
         const color      = SECTION_COLORS[section.type] ?? '#6a7a8a'
         const barRange   = beatGrid ? buildBarRange(section, beatGrid) : null
         const isSelected = selectedId === section.id
+        const isDeselected = selectedId !== null && !isSelected
         const src        = section.source
         const isUser     = src === 'manual' || src === 'user-created' || src === 'user-edited-auto' || src == null
         const isDragging = drag?.sectionId === orig.id
@@ -1194,8 +1195,9 @@ export const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimeline
             data-end-sec={section.endSec}
             className={[
               'rv-section-region',
-              isSelected  ? 'rv-section-region--selected'  : '',
-              isDragging  ? 'rv-section-region--dragging'  : '',
+              isSelected    ? 'rv-section-region--selected'    : '',
+              isDeselected  ? 'rv-section-region--deselected'  : '',
+              isDragging    ? 'rv-section-region--dragging'    : '',
               (src === 'auto' || src === 'user-edited-auto')
                 ? `rv-section-region--confidence-${confidenceDisplay.tier}`
                 : '',

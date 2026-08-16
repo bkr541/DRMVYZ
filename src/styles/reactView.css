@@ -2205,6 +2205,15 @@
               0 0 10px color-mix(in srgb, var(--section-color, #4ac7db) 40%, transparent);
 }
 
+.rv-section-region--deselected {
+  opacity: 0.45;
+  filter: saturate(0.6);
+}
+
+.rv-section-region--deselected:hover {
+  opacity: 0.7;
+}
+
 .rv-section-body-tint {
   position: absolute;
   inset: 0;
@@ -11654,6 +11663,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-section-region--dragging {
   box-shadow: none;
   filter: brightness(1.14);
+}
+
+.rv-section-region--deselected {
+  opacity: 0.45;
+  filter: saturate(0.5);
+}
+
+.rv-section-region--deselected:hover {
+  opacity: 0.7;
+  filter: saturate(0.5) brightness(1.14);
 }
 
 .rv-section-region:focus-visible,
