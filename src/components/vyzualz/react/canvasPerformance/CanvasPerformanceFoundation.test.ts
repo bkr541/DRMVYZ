@@ -676,6 +676,39 @@ describe('CANVAS preload safety and media fidelity', () => {
     manager.dispose()
   })
 
+  it('adopts an already-decoded direct-renderer source for an immediate authored-layer handoff', async () => {
+    const pending = { reject: null as ((reason?: unknown) => void) | null }
+    const manager = new CanvasPreloadManager({
+      loader: () => new Promise((_resolve, reject) => { pending.reject = reject }),
+    })
+    const item = media('active-direct-image', 'image')
+    const request = buildCanvasPreloadRequests({
+      mediaItems: [item],
+      activeMediaIds: [item.id],
+      candidateMediaIds: [],
+      trackIdentity: 'track-a',
+      poolRevision: 1,
+    })
+
+    manager.setScope('track-a', 1)
+    manager.request(request)
+    expect(manager.getReadiness(item.id).status).toBe('loading')
+
+    const liveHandle = drawableHandle('image') as HTMLImageElement
+    expect(manager.adoptDrawableHandle(item, liveHandle)).toBe(true)
+    expect(manager.isReady(item.id)).toBe(true)
+    expect(manager.getHandle(item.id)).toBe(liveHandle)
+
+    // A duplicate preload that was already in flight must not be allowed to
+    // revoke the adopted source and bounce CANVAS back to the direct renderer.
+    pending.reject?.(new Error('duplicate preload failed'))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(manager.isReady(item.id)).toBe(true)
+    expect(manager.getReadiness(item.id).status).toBe('ready')
+    manager.dispose()
+  })
+
   it('never reports a raster source ready without a compositor-drawable handle', async () => {
     const manager = new CanvasPreloadManager({ loader: async () => null })
     const item = media('undrawable-image', 'image')

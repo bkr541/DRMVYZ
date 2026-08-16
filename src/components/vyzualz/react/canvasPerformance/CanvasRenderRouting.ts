@@ -19,18 +19,18 @@ export function canRenderCanvasOrchestrationFrame(
 }
 
 /**
- * Authored layers are allowed to take ownership as soon as at least one source
- * is drawable. While every source is still preloading, keep the direct renderer
- * visible so Add as Layer never flashes black. If every authored source has
- * resolved to an error, hand ownership to the authored stage anyway so its
- * load diagnostics are visible instead of leaving stale direct media on screen.
+ * Once CANVAS enters authored Layers mode, the authored compositor owns the
+ * output immediately. Readiness controls which layer sources can be drawn, not
+ * which renderer owns the frame. Falling back to the direct renderer while
+ * authored sources preload makes the Layers UI lie: Solo, reorder, enable, and
+ * Add as Layer can all update state while a stale single source remains visible.
+ *
+ * The direct renderer's already-decoded active source is adopted by the preload
+ * manager during the handoff, so the normal path remains visually continuous.
  */
 export function canRenderCanvasAuthoredLayerFrame(
   frame: Pick<CanvasResolvedPerformanceFrame, 'readyMediaIds' | 'pendingMediaIds' | 'mediaErrors'> | null | undefined,
-  hasDirectFallback: boolean,
+  _hasDirectFallback: boolean,
 ): boolean {
-  if (!frame) return false
-  if (!hasDirectFallback) return true
-  if (frame.readyMediaIds.length > 0) return true
-  return frame.pendingMediaIds.length === 0 && frame.mediaErrors.length > 0
+  return Boolean(frame)
 }

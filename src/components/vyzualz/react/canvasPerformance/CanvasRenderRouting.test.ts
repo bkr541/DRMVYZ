@@ -22,12 +22,12 @@ describe('Canvas orchestration render routing', () => {
 })
 
 describe('Canvas authored-layer render routing', () => {
-  it('keeps the direct source visible only while every authored source is still preloading', () => {
+  it('gives Layers mode immediate compositor ownership even while every authored source is still preloading', () => {
     expect(canRenderCanvasAuthoredLayerFrame({
       readyMediaIds: [],
       pendingMediaIds: ['layer-a', 'layer-b'],
       mediaErrors: [],
-    }, true)).toBe(false)
+    }, true)).toBe(true)
 
     expect(canRenderCanvasAuthoredLayerFrame({
       readyMediaIds: ['layer-a'],
@@ -36,11 +36,12 @@ describe('Canvas authored-layer render routing', () => {
     }, true)).toBe(true)
   })
 
-  it('hands ownership to the authored stage when loading resolves to errors so diagnostics are not hidden behind stale media', () => {
+  it('keeps authored ownership for load errors and rejects only a missing authored frame', () => {
     expect(canRenderCanvasAuthoredLayerFrame({
       readyMediaIds: [],
       pendingMediaIds: [],
       mediaErrors: [{ mediaId: 'layer-a', message: 'Unable to preload Layer A' }],
     }, true)).toBe(true)
+    expect(canRenderCanvasAuthoredLayerFrame(null, true)).toBe(false)
   })
 })

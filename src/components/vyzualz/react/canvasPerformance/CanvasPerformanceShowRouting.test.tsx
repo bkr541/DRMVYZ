@@ -529,6 +529,45 @@ describe('CanvasEngineSurface Performance Show routing', () => {
     expect(host?.querySelector('[data-testid="fractures-renderer"]')).not.toBeNull()
   })
 
+  it('never leaves the stale single-source renderer in control after Layers mode is selected', async () => {
+    mediaReady = false
+    const top: CanvasMediaItem = {
+      ...media,
+      id: 'authored-top-pending',
+      name: 'DVYDRM_wm2.png',
+      type: 'image',
+      mimeType: 'image/png',
+      objectUrl: 'media://authored-top-pending',
+    }
+    const bottom: CanvasMediaItem = {
+      ...media,
+      id: 'authored-bottom-active',
+      name: 'DVYDRM Logo.svg',
+      type: 'svg',
+      mimeType: 'image/svg+xml',
+      objectUrl: 'media://authored-bottom-active',
+    }
+
+    useReactStore.setState({
+      canvasMediaItems: [top, bottom],
+      selectedCanvasMediaId: top.id,
+      activeCanvasMediaId: bottom.id,
+      canvasOrchestrationSettings: {
+        ...DEFAULT_CANVAS_ORCHESTRATION_SETTINGS,
+        renderMode: 'layers',
+        authoredLayers: [
+          { id: 'layer-top', mediaId: top.id, order: 0, enabled: true, solo: true, ownership: 'manual', pinned: true },
+          { id: 'layer-bottom', mediaId: bottom.id, order: 1, enabled: true, solo: false, ownership: 'manual', pinned: true },
+        ],
+      },
+    })
+
+    await renderSurface()
+
+    expect(host?.querySelector('[aria-label="CANVAS orchestrated media surface"]')).not.toBeNull()
+    expect(host?.querySelector('[aria-label="CANVAS engine media surface"]')).toBeNull()
+  })
+
   it('draws a newly added raster Image through the authored compositor above an SVG + SVG stack', async () => {
     const raster: CanvasMediaItem = {
       ...media,

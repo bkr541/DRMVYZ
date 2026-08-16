@@ -169,6 +169,38 @@ export class CanvasPreloadManager {
     this.poolRevision = poolRevision
   }
 
+  /**
+   * Reuse a source the direct CANVAS renderer has already decoded. This makes
+   * the single-source -> authored-layer handoff atomic instead of waiting for a
+   * second Image/video element to independently preload the exact same media.
+   */
+  adoptDrawableHandle(media: CanvasMediaItem, handle: CanvasPreloadHandle | null): boolean {
+    if (this.disposed || !media.objectUrl || !isCanvasPreloadHandleDrawable(handle)) return false
+
+    const sourceKey = getCanvasPreloadSourceKey(media)
+    const previousSourceKey = this.sourceKeys.get(media.id)
+    if (previousSourceKey && previousSourceKey !== sourceKey) this.invalidate(media.id)
+
+    const existing = this.handles.get(media.id)
+    if (existing?.handle && existing.handle !== handle) releaseCanvasPreloadHandle(existing.handle)
+
+    // A queued duplicate is no longer useful. If the same source is already
+    // loading, let it finish; the completion handlers below preserve this
+    // adopted drawable instead of allowing a late failure to revoke readiness.
+    this.queue = this.queue.filter(entry => entry.media.id !== media.id)
+    this.sourceKeys.set(media.id, sourceKey)
+    this.handles.set(media.id, { handle, lastUsedAt: Date.now(), type: media.type })
+    this.readiness.set(media.id, {
+      mediaId: media.id,
+      status: 'ready',
+      trackIdentity: this.trackIdentity,
+      poolRevision: this.poolRevision,
+      error: null,
+    })
+    this.enforceHandleBounds(new Set([media.id]))
+    return true
+  }
+
   request(requests: readonly CanvasPreloadRequest[]): void {
     if (this.disposed) return
     const accepted = requests
@@ -276,6 +308,11 @@ export class CanvasPreloadManager {
           releaseCanvasPreloadHandle(handle)
           throw new Error(`Preloaded ${entry.media.name} without drawable ${entry.media.type === 'video' ? 'video' : 'image'} data`)
         }
+        const adoptedHandle = this.handles.get(entry.media.id)?.handle ?? null
+        if (this.getReadiness(entry.media.id).status === 'ready' && isCanvasPreloadHandleDrawable(adoptedHandle)) {
+          if (handle !== adoptedHandle) releaseCanvasPreloadHandle(handle)
+          return
+        }
         this.handles.set(entry.media.id, { handle, lastUsedAt: Date.now(), type: entry.media.type })
         this.readiness.set(entry.media.id, {
           mediaId: entry.media.id,
@@ -289,6 +326,10 @@ export class CanvasPreloadManager {
         const scopeIsCurrent = entry.trackIdentity === this.trackIdentity && entry.poolRevision === this.poolRevision
         const sourceIsCurrent = this.sourceKeys.get(entry.media.id) === entry.sourceKey
         if (!scopeIsCurrent || !sourceIsCurrent || this.disposed) return
+        // A direct-renderer handle may have been adopted while this duplicate
+        // request was in flight. Never let a late preload failure demote a
+        // source that the compositor can already draw.
+        if (this.isReady(entry.media.id)) return
         const cancelled = !timedOut && (controller.signal.aborted || error?.name === 'AbortError')
         const errorMessage = timedOut
           ? `Timed out preloading ${entry.media.name}`

@@ -1630,6 +1630,18 @@ export function CanvasEngineSurface({
       : orchestrationSettings.poolRevision
     orchestrationPreloadManager.setMaxVideoHandles(runtimeCanvasShow ? MAX_CANVAS_SHOW_VIDEO_DECODERS : MAX_CANVAS_ACTIVE_VIDEO_DECODERS)
     orchestrationPreloadManager.setScope(trackIdentity, poolRevision)
+
+    // The direct renderer is already displaying the active source when the user
+    // chooses Add as Layer. Hand that decoded DOM source to the authored
+    // compositor before resolving its first frame. Without this handoff the UI
+    // can enter Layers mode while the old single-source renderer remains visible
+    // behind a second preload gate, making Solo/Add/Reorder appear non-functional.
+    if (authoredLayerRuntime && activeItem
+      && orchestrationSettings.authoredLayers.some(layer => layer.enabled && layer.mediaId === activeItem.id)) {
+      const liveHandle = activeItem.type === 'video' ? videoRef.current : imageRef.current
+      orchestrationPreloadManager.adoptDrawableHandle(activeItem, liveHandle)
+    }
+
     previousOrchestrationContextRef.current = null
     previousOrchestrationFrameRef.current = null
     poolAutomationRuntimeRef.current = EMPTY_CANVAS_POOL_AUTOMATION_RUNTIME_STATE
@@ -1793,7 +1805,7 @@ export function CanvasEngineSurface({
     resolveFrame()
     const intervalId = window.setInterval(resolveFrame, 80)
     return () => window.clearInterval(intervalId)
-  }, [activeAudioTrackId, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, settings.fitMode, showPreviewMode])
+  }, [activeAudioTrackId, activeItem, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, settings.fitMode, showPreviewMode])
 
   useEffect(() => () => {
     orchestrationPreloadManager.dispose()
