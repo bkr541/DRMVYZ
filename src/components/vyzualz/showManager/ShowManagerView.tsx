@@ -2481,6 +2481,7 @@ export function ShowManagerView() {
                 selectedFixtureId={selectedLaserFixtureId}
                 showGrid={activeLaserDmxSection?.settings?.showGrid ?? true}
                 showLabels={activeLaserDmxSection?.settings?.showLabels ?? true}
+                showBeams={activeLaserDmxSection?.settings?.showBeams ?? true}
                 highlightGrid={activeLaserDmxSection?.settings?.highlightGrid ?? true}
                 runtimePreview={laserDmxRuntimePreset && activeLaserDmxShow ? (
                   <ReactPlaceholderCanvas
@@ -3988,7 +3989,6 @@ function LaserDmxShowManagerFixtureInspector({
             />
             <NumberInputRow label="Z" value={fixture.z} min={-1} max={1} step={0.05} onChange={z => onPatch({ z })} />
           </div>
-          <div className="sm-laser-depth-note">X/Y/Z are grid cells, not meters — Z controls renderer depth only; the 2D grid marker remains positioned by X/Y.</div>
           {(!isMovingHead || !manualTargetCoordinatesActive) && (
             <NumberInputRow label="Rotation" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />
           )}
@@ -4074,7 +4074,6 @@ function LaserDmxShowManagerFixtureInspector({
             />
             <NumberInputRow label="Z" value={fixture.z} min={-1} max={1} step={0.05} onChange={z => onPatch({ z })} />
           </div>
-          <div className="sm-laser-depth-note">X/Y/Z are grid cells, not meters — Z controls renderer depth only; the 2D grid marker remains positioned by X/Y.</div>
           {!manualTargetCoordinatesActive && (
             <NumberInputRow label="Yaw" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />
           )}
@@ -4133,7 +4132,6 @@ function LaserDmxShowManagerFixtureInspector({
             />
             <NumberInputRow label="Z" value={fixture.z} min={-1} max={1} step={0.05} onChange={z => onPatch({ z })} />
           </div>
-          <div className="sm-laser-depth-note">X/Y/Z are grid cells, not meters — Z controls renderer depth only; the 2D grid marker remains positioned by X/Y.</div>
           <NumberInputRow label="Rotation" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />
           <ToggleRow label="Beam enabled" value={fixture.beam.beamEnabled} onChange={beamEnabled => onPatch({ beam: { beamEnabled } })} />
           <NumberInputRow
@@ -4172,7 +4170,6 @@ function LaserDmxShowManagerFixtureInspector({
             />
             <NumberInputRow label="Z" value={fixture.z} min={-1} max={1} step={0.05} onChange={z => onPatch({ z })} />
           </div>
-          <div className="sm-laser-depth-note">X/Y/Z are grid cells, not meters — Z controls renderer depth only; the 2D grid marker remains positioned by X/Y.</div>
           <NumberInputRow label="Rotation" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />
           <ToggleRow label="Beam enabled" value={fixture.beam.beamEnabled} onChange={beamEnabled => onPatch({ beam: { beamEnabled } })} />
           <NumberInputRow
@@ -4263,6 +4260,7 @@ function LaserDmxShowManagerStage({
   selectedFixtureId,
   showGrid,
   showLabels,
+  showBeams,
   highlightGrid,
   runtimePreview,
   onDropFixture,
@@ -4281,6 +4279,7 @@ function LaserDmxShowManagerStage({
   selectedFixtureId: string | null
   showGrid: boolean
   showLabels: boolean
+  showBeams: boolean
   highlightGrid: boolean
   runtimePreview: ReactNode
   onDropFixture: (event: DragEvent<HTMLDivElement>) => void
@@ -4303,6 +4302,13 @@ function LaserDmxShowManagerStage({
   const gridSurfaceRef = useRef<HTMLDivElement>(null)
   const fixtureDragRef = useRef<{ fixtureId: string; pointerId: number; x: number; y: number } | null>(null)
   const canvasTargetsVisible = canvasDragActive || selectedCanvasMediaId != null
+  const selectedBeamFixture = showBeams ? fixtures.find(fixture => fixture.id === selectedFixtureId) ?? null : null
+  const selectedBeamTargetX = selectedBeamFixture ? selectedBeamFixture.beam.targetX ?? selectedBeamFixture.x : 0
+  const selectedBeamTargetY = selectedBeamFixture ? selectedBeamFixture.beam.targetY ?? selectedBeamFixture.y : 0
+  const laserDmxGridToPercent = (x: number, y: number) => ({
+    left: ((x + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns) * 100,
+    top: ((y + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows) * 100,
+  })
 
   return (
     <div className="sm-laser-stage" aria-label="LaserDMX Part 1 authoring grid">
@@ -4343,6 +4349,22 @@ function LaserDmxShowManagerStage({
             {runtimePreview}
           </div>
         )}
+        {selectedBeamFixture && (() => {
+          const origin = laserDmxGridToPercent(selectedBeamFixture.x, selectedBeamFixture.y)
+          const target = laserDmxGridToPercent(selectedBeamTargetX, selectedBeamTargetY)
+          return (
+            <svg className="sm-laser-beam-overlay" aria-hidden="true">
+              <line
+                x1={`${origin.left}%`}
+                y1={`${origin.top}%`}
+                x2={`${target.left}%`}
+                y2={`${target.top}%`}
+                stroke={selectedBeamFixture.color}
+              />
+              <circle className="sm-laser-beam-target" cx={`${target.left}%`} cy={`${target.top}%`} r={5} stroke={selectedBeamFixture.color} />
+            </svg>
+          )
+        })()}
         {canvasTargetsVisible && section && (
           <div className="sm-canvas-layer-targets" role="group" aria-label="Canvas media layer drop targets">
             {([3, 2, 1, 0] as const).map(layer => (

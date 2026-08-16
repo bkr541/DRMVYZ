@@ -1913,7 +1913,7 @@ function createDefaultLaserDmxShowDirectorBeamConfig(kind: LaserDmxShowDirectorF
     beamAngle:   kind === 'movingHead' ? -90 : 0,
     beamSpread:  kind === 'laser' ? 18 : kind === 'parWash' ? 55 : 0,
     focus:       kind === 'parWash' ? 0.45 : 0.8,
-    targetMode:  kind === 'laser' ? 'fan' : 'fixed',
+    targetMode:  'fixed',
     targetX:     Math.floor(DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.columns / 2),
     targetY:     Math.floor(DEFAULT_LASER_DMX_SHOW_DIRECTOR_SETTINGS.gridSize.rows / 2),
     targetZ:     0,

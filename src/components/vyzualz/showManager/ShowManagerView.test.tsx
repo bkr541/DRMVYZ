@@ -2300,7 +2300,6 @@ describe('ShowManagerView production shell', () => {
       expect(inspector?.querySelector('button[aria-label="Target depth"]')?.textContent).toContain('Deep Air')
       expect(inspector?.querySelector('button[aria-label="Gobo pattern"]')?.textContent).toContain('Circle')
       expect(inspector?.querySelector('button[aria-label="Prism"]')?.textContent).toContain('3-facet prism')
-      expect(inspector?.textContent).toContain('Z controls renderer depth only; the 2D grid marker remains positioned by X/Y.')
       const fixedOrientation = container.querySelector<HTMLElement>('button[data-fixture-id="fixture-moving-head-contract"] .sm-laser-fixture-icon')
       expect(fixedOrientation?.getAttribute('data-orientation-deg')).toBeNull()
       expect(fixedOrientation?.getAttribute('style')).toBeNull()
@@ -2417,7 +2416,6 @@ describe('ShowManagerView production shell', () => {
       }
       expect(numberInputFor(inspector, 'Cell count')?.value).toBe('12')
       expect(inspector?.querySelector<HTMLButtonElement>('button[aria-label="Direction"]')?.textContent).toContain('Right to left')
-      expect(inspector?.textContent).toContain('Z controls renderer depth only; the 2D grid marker remains positioned by X/Y.')
       const ledOrientation = container.querySelector<HTMLElement>('button[data-fixture-id="fixture-led-bar-contract"] .sm-laser-fixture-icon')
       expect(ledOrientation?.getAttribute('data-orientation-deg')).toBe('24')
       expect(ledOrientation?.style.transform).toBe('rotate(24deg)')
