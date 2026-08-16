@@ -96,7 +96,6 @@ import {
   type LaserDmxShowManagerTriggerOption,
   type LaserDmxShowManagerGridCell,
   type LaserDmxShowManagerSection,
-  type LaserDmxShowManagerShow,
   type LaserDmxShowManagerWorkspaceSettingsPatch,
 } from './LaserDmxShowManagerDomain'
 import {
@@ -164,12 +163,6 @@ const SHOW_MANAGER_ENGINE_OPTIONS = REACT_ENGINE_IDS.map(engineId => ({
   description: REACT_ENGINE_CATALOG[engineId].description,
   disabled: engineId !== 'pixGrid' && engineId !== 'laserDmx' && engineId !== 'canvas',
 }))
-
-const STAGE_SCALE_OPTIONS = [
-  { value: 'fit', label: 'Fit' },
-  { value: 'fill', label: 'Fill' },
-  { value: '100', label: '100%' },
-] as const
 
 const SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE = 'showManager:pixGridDeckBuilder' as const
 
@@ -928,7 +921,6 @@ export function ShowManagerView() {
   const updateShowManagerTrackMapBoundary = useReactStore(state => state.updateShowManagerTrackMapBoundary)
   const laserDmxShowManagerShows = useReactStore(state => state.laserDmxShowManagerShows)
   const laserDmxShowManagerEditingShowId = useReactStore(state => state.laserDmxShowManagerEditingShowId)
-  const laserDmxShowManagerPlaybackSectionId = useReactStore(state => state.laserDmxShowManagerPlaybackSectionId)
   const selectLaserDmxShowManagerShow = useReactStore(state => state.selectLaserDmxShowManagerShow)
   const selectLaserDmxShowManagerSection = useReactStore(state => state.selectLaserDmxShowManagerSection)
   const updateLaserDmxShowManagerSectionWorkspaceSettings = useReactStore(state => state.updateLaserDmxShowManagerSectionWorkspaceSettings)
@@ -984,7 +976,6 @@ export function ShowManagerView() {
   const [copyLaserFixturesEnabled, setCopyLaserFixturesEnabled] = useState(false)
   const [copyLaserFixturesSourceSectionId, setCopyLaserFixturesSourceSectionId] = useState<string | null>(null)
   const [previewPresetId, setPreviewPresetId] = useState<string | null>(null)
-  const [liveFps, setLiveFps] = useState(0)
   const [workspaceMode, setWorkspaceMode] = useState<'default' | typeof SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE>('default')
   const [editingDeckId, setEditingDeckId] = useState<string | null>(null)
   const [deckDraftName, setDeckDraftName] = useState('Untitled Deck')
@@ -1104,10 +1095,6 @@ export function ShowManagerView() {
       ?? activeLaserDmxShow?.sections[0]
       ?? null,
     [activeLaserDmxShow, selectedShowManagerSection?.id],
-  )
-  const playbackLaserDmxSection = useMemo(
-    () => activeLaserDmxShow?.sections.find(section => section.id === laserDmxShowManagerPlaybackSectionId) ?? null,
-    [activeLaserDmxShow, laserDmxShowManagerPlaybackSectionId],
   )
   const laserDmxRuntimePrograms = useMemo(
     () => createLaserDmxShowManagerRuntimeSectionPrograms(activeLaserDmxShow),
@@ -2484,13 +2471,11 @@ export function ShowManagerView() {
             {activeSectionEngineId === 'laserDmx' && workspaceMode === 'default' ? (
               <>
               <LaserDmxShowManagerStage
-                show={activeLaserDmxShow}
                 section={activeLaserDmxSection}
                 selectedFixtureId={selectedLaserFixtureId}
                 showGrid={activeLaserDmxSection?.settings?.showGrid ?? true}
                 showLabels={activeLaserDmxSection?.settings?.showLabels ?? true}
                 highlightGrid={activeLaserDmxSection?.settings?.highlightGrid ?? true}
-                playbackSectionLabel={showRuntimeIsPlaying ? playbackLaserDmxSection?.label ?? 'No active section' : null}
                 runtimePreview={laserDmxRuntimePreset && activeLaserDmxShow ? (
                   <ReactPlaceholderCanvas
                     analyser={showRuntimeAnalyser}
@@ -2574,7 +2559,6 @@ export function ShowManagerView() {
                     previewShowTimeSec={canvasPlayheadSec}
                     previewSelectedElementId={selectedCanvasElement?.id ?? null}
                     showRuntimeStatus={false}
-                    onLiveFps={setLiveFps}
                   />
                 ) : null}
               />
@@ -2598,11 +2582,9 @@ export function ShowManagerView() {
                 audioTimeSec={workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? builderPreviewTime : showRuntimeCurrentTime}
                 getAudioTime={workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? () => builderPreviewTime : showRuntimeAudioReady ? engine.getCurrentTime : () => 0}
                 effectiveBpm={showRuntimeBpm ?? undefined}
-                onLiveFps={setLiveFps}
               />
             ) : (
               <UnownedShowManagerStage
-                showName={activeShowManagerShow?.name ?? 'Untitled Show'}
                 section={selectedShowManagerSection}
                 selectedCanvasMediaId={selectedEngineId === 'canvas' ? canvasLibraryMediaId : null}
                 onDropLaserFixture={commitLaserFixtureDrop}
@@ -2647,44 +2629,6 @@ export function ShowManagerView() {
             {(activeSectionEngineId === 'canvas' || selectedEngineId === 'canvas') && canvasAuthoringError && (
               <NoticeCard className="sm-stage-authoring-feedback" tone="error" role="alert" title="Canvas authoring failed">{canvasAuthoringError}</NoticeCard>
             )}
-            <div className="sm-stage-status">
-              {activeSectionEngineId === 'laserDmx' && workspaceMode === 'default' ? (
-                <>
-                  <span>LaserDMX {LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns} × {LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows}</span>
-                  <span>{activeLaserDmxSection?.fixtures.length ?? 0} editing fixtures</span>
-                  <span>{showRuntimeIsPlaying ? `Playback: ${playbackLaserDmxSection?.label ?? 'None'}` : 'Playback stopped'}</span>
-                  <span>{selectedLaserFixture?.label ?? 'No selection'}</span>
-                </>
-              ) : activeSectionEngineId === 'canvas' ? (
-                <>
-                  <span>Canvas Show</span>
-                  <span>{activeCanvasShow ? `${activeCanvasShow.sections.length} sections` : 'No Show open'}</span>
-                  <span>{activeCanvasShow ? `${formatClock(canvasTotalDuration)} total` : 'Create or open a Show'}</span>
-                  <span>{activeCanvasShow?.id === canvasShowManagerActiveShowId ? 'Active Show' : 'Editing'}</span>
-                </>
-              ) : activeSectionEngineId === 'pixGrid' ? (
-                <>
-                  <span>PixGrid {matrixLabel}</span>
-                  <span>FPS {liveFps > 0 ? liveFps.toFixed(1) : '—'}</span>
-                </>
-              ) : (
-                <>
-                  <span>Unassigned Section</span>
-                  <span>{selectedShowManagerSection?.label ?? 'No section selected'}</span>
-                  <span>Drag the first component or element to assign an engine</span>
-                </>
-              )}
-            </div>
-            <Dropdown
-              id="show-manager-stage-scale"
-              ariaLabel="Show Manager stage scale"
-              value="fit"
-              options={STAGE_SCALE_OPTIONS}
-              size="dense"
-              showDescriptions={false}
-              disabled
-              className="sm-fit-dropdown"
-            />
           </div>
 
           {workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE && editingDeck ? (
@@ -3288,13 +3232,11 @@ function CanvasShowManagerInspector({
 }
 
 function UnownedShowManagerStage({
-  showName,
   section,
   selectedCanvasMediaId,
   onDropLaserFixture,
   onPlaceCanvasMedia,
 }: {
-  showName: string
   section: ReactTrackSection | null
   selectedCanvasMediaId: string | null
   onDropLaserFixture: (event: DragEvent<HTMLDivElement>) => void
@@ -3307,11 +3249,6 @@ function UnownedShowManagerStage({
 
   return (
     <div className="sm-laser-stage sm-canvas-stage" aria-label="Unassigned Show section authoring surface">
-      <div className="sm-laser-stage-heading sm-canvas-stage-heading">
-        <span>{showName}</span>
-        <strong>{section ? `Editing: ${section.label}` : 'No section selected'}</strong>
-        <em>Engine unassigned</em>
-      </div>
       <div
         className="sm-laser-stage-grid-surface sm-canvas-authoring-surface"
         data-testid="show-manager-unassigned-authoring-surface"
@@ -3435,10 +3372,6 @@ function CanvasShowManagerStage({
         }
       }}
     >
-      <div className="sm-laser-stage-heading sm-canvas-stage-heading">
-        <span>{show.name}</span>
-        <strong>{selectedSection ? `Editing: ${selectedSection.label}` : 'No section selected'}</strong>
-      </div>
       <div
         className="sm-canvas-authoring-surface"
         data-testid="canvas-show-manager-authoring-surface"
@@ -4265,13 +4198,11 @@ function LaserDmxShowManagerFixtureInspector({
 }
 
 function LaserDmxShowManagerStage({
-  show,
   section,
   selectedFixtureId,
   showGrid,
   showLabels,
   highlightGrid,
-  playbackSectionLabel,
   runtimePreview,
   onDropFixture,
   selectedCanvasMediaId,
@@ -4285,13 +4216,11 @@ function LaserDmxShowManagerStage({
   endpointTargetingFixtureId,
   onCommitEndpointTarget,
 }: {
-  show: LaserDmxShowManagerShow | null
   section: LaserDmxShowManagerSection | null
   selectedFixtureId: string | null
   showGrid: boolean
   showLabels: boolean
   highlightGrid: boolean
-  playbackSectionLabel: string | null
   runtimePreview: ReactNode
   onDropFixture: (event: DragEvent<HTMLDivElement>) => void
   selectedCanvasMediaId: string | null
@@ -4316,12 +4245,9 @@ function LaserDmxShowManagerStage({
 
   return (
     <div className="sm-laser-stage" aria-label="LaserDMX Part 1 authoring grid">
-      <div className="sm-laser-stage-heading">
-        <span>{show?.name ?? 'Untitled Show'}</span>
-        <strong>{section ? `Editing: ${section.label}` : 'No section selected'}</strong>
-        {playbackSectionLabel && <em>Playback: {playbackSectionLabel}</em>}
-        {endpointTargetingFixtureId && <em>Click the grid to set the beam endpoint</em>}
-      </div>
+      {endpointTargetingFixtureId && (
+        <div className="sm-laser-stage-instruction">Click the grid to set the beam endpoint</div>
+      )}
       <div
         ref={gridSurfaceRef}
         className={`sm-laser-stage-grid-surface${showGrid ? ' is-grid-visible' : ''}${highlightGrid ? ' is-highlighted' : ''}${endpointTargetingFixtureId ? ' is-targeting-endpoint' : ''}`}

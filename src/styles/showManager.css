@@ -524,53 +524,6 @@ button.sm-library-section-toggle:focus-visible {
 }
 
 .sm-stage-frame .rv-pix-grid-surface-host { width: 100%; height: 100%; }
-.sm-stage-status {
-  position: absolute;
-  left: 10px;
-  bottom: 9px;
-  z-index: 3;
-  display: flex;
-  gap: 12px;
-  padding: 4px 7px;
-  border-radius: 4px;
-  background: rgba(3, 8, 10, 0.72);
-  color: rgba(196, 212, 220, 0.5);
-  font-size: 8px;
-  pointer-events: none;
-}
-
-.sm-fit-dropdown {
-  position: absolute;
-  right: 9px;
-  bottom: 8px;
-  z-index: 3;
-  width: 58px;
-  --drm-dropdown-trigger-height: 24px;
-  --drm-dropdown-trigger-padding: 7px;
-  --drm-dropdown-value-size: 8px;
-  --drm-dropdown-radius: 4px;
-}
-
-.sm-fit-dropdown.drm-dropdown--disabled,
-.sm-fit-dropdown .drm-dropdown__trigger:disabled {
-  opacity: 1;
-}
-
-.sm-fit-dropdown .drm-dropdown__trigger {
-  border-width: 1px;
-  border-color: rgba(154, 178, 188, 0.16);
-  background: rgba(3, 8, 10, 0.75);
-  box-shadow: none;
-  color: rgba(196, 212, 220, 0.52);
-}
-
-.sm-fit-dropdown .drm-dropdown__chevron {
-  width: 12px;
-  height: 12px;
-  color: rgba(196, 212, 220, 0.42);
-  filter: none;
-}
-
 .sm-inspector-scroll {
   height: calc(100% - 42px);
   min-height: 0;
@@ -1121,18 +1074,15 @@ button.sm-library-section-toggle:focus-visible {
   background: radial-gradient(circle at 50% 45%, rgba(28, 92, 108, 0.18), transparent 48%), #020506;
 }
 
-.sm-laser-stage-heading {
+.sm-laser-stage-instruction {
   position: absolute;
   top: 12px;
   left: 14px;
   z-index: 4;
-  display: grid;
-  gap: 2px;
+  color: rgba(103, 247, 255, 0.62);
+  font-size: 8px;
   pointer-events: none;
 }
-.sm-laser-stage-heading span { color: rgba(196, 212, 220, 0.4); font-size: 8px; }
-.sm-laser-stage-heading strong { color: rgba(232, 244, 248, 0.78); font-size: 10px; }
-.sm-laser-stage-heading em { color: rgba(103, 247, 255, 0.62); font-size: 8px; font-style: normal; }
 
 .sm-laser-stage-grid-surface {
   position: absolute;

@@ -1295,9 +1295,9 @@ describe('ShowManagerView production shell', () => {
     expect(timeline?.querySelector('input[aria-label="Canvas Show playhead"]')).toBeNull()
     expect(timeline?.querySelector('.sm-canvas-playhead-control')).toBeNull()
 
-    const stageHeading = container.querySelector<HTMLElement>('.sm-canvas-stage > .sm-laser-stage-heading')
-    expect(stageHeading?.textContent).toContain('Track Map Show')
-    expect(stageHeading?.textContent).toContain('Editing: Intro')
+    expect(container.querySelector('.sm-canvas-stage > .sm-laser-stage-heading')).toBeNull()
+    expect(container.querySelector('.sm-stage-status')).toBeNull()
+    expect(container.querySelector('[aria-label="Show Manager stage scale"]')).toBeNull()
     expect(container.querySelector('[data-testid="canvas-runtime-preview-surface"]')?.getAttribute('data-runtime-status')).toBe('hidden')
 
     const library = container.querySelector<HTMLElement>('.sm-library')
@@ -1666,11 +1666,11 @@ describe('ShowManagerView production shell', () => {
       })
       expect(fixture.state.laserDmxShowManagerPlaybackSectionId).toBe(drop.id)
       expect(fixture.state.laserDmxShowManagerEditingSectionId).toBe(drop.id)
-      expect(container.textContent).toContain('Editing: Drop')
-      expect(container.textContent).toContain('Playback: Drop')
+      expect(container.querySelector('.sm-laser-stage-heading')).toBeNull()
+      expect(container.querySelector('.sm-stage-status')).toBeNull()
+      expect(container.querySelector('[aria-label="Show Manager stage scale"]')).toBeNull()
       expect(container.querySelector('[data-fixture-id="fixture-editing"]')).toBeNull()
       expect(container.querySelector('[data-fixture-id="fixture-playback"]')).not.toBeNull()
-      expect(container.textContent).toContain('No selection')
       expect(container.querySelector('[aria-label^="Drop,"]')?.getAttribute('aria-pressed')).toBe('true')
 
       await act(async () => {
@@ -1680,8 +1680,7 @@ describe('ShowManagerView production shell', () => {
       })
       expect(fixture.state.laserDmxShowManagerPlaybackSectionId).toBe(intro.id)
       expect(fixture.state.laserDmxShowManagerEditingSectionId).toBe(intro.id)
-      expect(container.textContent).toContain('Editing: Intro')
-      expect(container.textContent).toContain('Playback: Intro')
+      expect(container.querySelector('.sm-laser-stage-heading')).toBeNull()
       expect(container.querySelector('[data-fixture-id="fixture-editing"]')).not.toBeNull()
       expect(container.querySelector('[data-fixture-id="fixture-playback"]')).toBeNull()
       expect(container.querySelector('[aria-label^="Intro,"]')?.getAttribute('aria-pressed')).toBe('true')
