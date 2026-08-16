@@ -3,6 +3,7 @@ import { createDefaultLaserDmxBeamMatrixSettings, createDefaultLaserDmxShowDirec
 import { createLaserDmxScannerPattern, scannerPointsToBeamTargets } from '../react/laserDmxScannerAuthoring'
 import { compileLaserDmxShowDirectorToBeamMatrix } from '../react/renderers/LaserDmxShowDirectorBeamMatrixCompiler'
 import { createLaserDmxSceneFrame } from '../react/renderers/laserDmx/LaserDmxSceneFrame'
+import { buildLaserDmxDedicatedFixtureRenderPlan } from '../react/renderers/laserDmx/LaserDmxDedicatedFixturePlan'
 import {
   DEFAULT_LASER_DMX_SHOW_MANAGER_WORKSPACE_SETTINGS,
   LASER_DMX_SHOW_MANAGER_GRID_SIZE,
@@ -197,6 +198,45 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
     show = enabled.show
     expect(show.sections[0]!.fixtures[0]).toMatchObject({ x: 17, y: 0, groupId: null, colorMode: 'fixed' })
     expect(show).not.toHaveProperty('groups')
+  })
+
+  it('creates a newly dropped Moving Head target from its actual Show Manager position and preserves authored targets', () => {
+    let show = createLaserDmxShowManagerShow()
+    const sectionId = show.sections[0]!.id
+    const dropped = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'movingHead', {
+      x: 12,
+      y: 8,
+      rotation: 90,
+    })
+    show = dropped.show
+    const fixture = show.sections[0]!.fixtures.find(candidate => candidate.id === dropped.fixtureId)!
+
+    expect(fixture).toMatchObject({ x: 12, y: 8, rotation: 90 })
+    expect(fixture.beam).toMatchObject({ targetX: 16, targetY: 8 })
+    expect(fixture.beam.targets?.[0]).toMatchObject({ x: 16, y: 8 })
+
+    const explicit = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'movingHead', {
+      x: 15,
+      y: 9,
+      beam: {
+        targetX: 3,
+        targetY: 4,
+        targets: [{ id: 'authored-moving-head-target', x: 3, y: 4 }],
+      },
+    })
+    const explicitFixture = explicit.show.sections[0]!.fixtures.find(candidate => candidate.id === explicit.fixtureId)!
+    expect(explicitFixture.beam).toMatchObject({ targetX: 3, targetY: 4 })
+    expect(explicitFixture.beam.targets?.[0]).toMatchObject({ id: 'authored-moving-head-target', x: 3, y: 4 })
+
+    const saved = createDefaultLaserDmxShowDirectorFixture('movingHead', 'saved-moving-head-target', 0)
+    saved.x = 14
+    saved.y = 10
+    saved.beam.targetX = 2
+    saved.beam.targetY = 3
+    saved.beam.targets = [{ id: 'saved-moving-head-target-1', x: 2, y: 3 }]
+    const normalizedSaved = normalizeLaserDmxShowManagerFixture(saved)
+    expect(normalizedSaved.beam).toMatchObject({ targetX: 2, targetY: 3 })
+    expect(normalizedSaved.beam.targets?.[0]).toMatchObject({ id: 'saved-moving-head-target-1', x: 2, y: 3 })
   })
 
   it('maps pointer coordinates deterministically to the fixed grid, including boundary clamping', () => {
@@ -454,6 +494,141 @@ describe('LaserDMX Show Manager Part 1 domain', () => {
     expect(frame.fixtures[0]!.position.z).toBeCloseTo(0.25)
     expect(frame.beams[0]?.focus).toBeCloseTo(0.91)
     expect(frame.beams[0]?.spreadDeg).toBeCloseTo(64)
+  })
+
+  it('round-trips the Moving Head Stage 5 contract and carries its aiming, optics, and pattern fields through the production renderer', () => {
+    let show = createLaserDmxShowManagerShow()
+    const sectionId = show.sections[0]!.id
+    const added = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'movingHead', {
+      label: 'Stage 5 Moving Head',
+      x: 8,
+      y: 8,
+      rotation: 28,
+      color: '#22ffaa',
+      brightness: 0.74,
+      beam: {
+        beamEnabled: true,
+        beamAngle: 14,
+        beamSpread: 36,
+        focus: 0.64,
+        targetMode: 'fixed',
+        targetX: 8,
+        targetY: 4,
+        targetDepthLayer: 'deepAir',
+      },
+      component: { movingHeadPanTiltStyle: 'snap' },
+      optics: {
+        zoom: 0.33,
+        iris: 0.71,
+        frost: 0.12,
+        goboPattern: 'star',
+        goboAmount: 0.82,
+        goboRotation: 47,
+        prismFacets: 3,
+      },
+    })
+    show = added.show
+    const fixtureId = added.fixtureId!
+
+    const reloaded = normalizeLaserDmxShowManagerShow(JSON.parse(JSON.stringify(show)))
+    const reloadedFixture = reloaded.sections[0]!.fixtures.find(candidate => candidate.id === fixtureId)!
+    expect(reloadedFixture).toMatchObject({
+      x: 8,
+      y: 8,
+      rotation: 28,
+      color: '#22ffaa',
+      brightness: 0.74,
+      beam: {
+        beamEnabled: true,
+        beamAngle: 14,
+        beamSpread: 36,
+        focus: 0.64,
+        targetMode: 'fixed',
+        targetX: 8,
+        targetY: 4,
+        targetDepthLayer: 'deepAir',
+      },
+      component: { movingHeadPanTiltStyle: 'snap' },
+      optics: {
+        zoom: 0.33,
+        iris: 0.71,
+        frost: 0.12,
+        goboPattern: 'star',
+        goboAmount: 0.82,
+        goboRotation: 47,
+        prismFacets: 3,
+      },
+    })
+
+    const runtime = createLaserDmxShowManagerRuntimeShowDirector(reloaded, reloaded.sections[0]!)
+    const compiled = compileLaserDmxShowDirectorToBeamMatrix({
+      showDirector: runtime,
+      beamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
+    })
+    expect(compiled.beams).toHaveLength(1)
+    expect(compiled.beams[0]!.motion.mode).toBe('projectile')
+    expect(compiled.beams[0]!.appearance).toMatchObject({ dimmer: 0.74, focus: 0.64 })
+
+    const frame = createLaserDmxSceneFrame({
+      showDirector: runtime,
+      evaluatedBeamMatrix: compiled,
+      audioTimeSec: 2,
+      deltaTimeSec: 1 / 60,
+      isPlaying: true,
+      timingDiscontinuity: false,
+      trackKey: 'show-manager-stage-5-moving-head',
+      bpm: 128,
+    })
+    expect(frame.targets.find(target => target.fixtureId === fixtureId)).toMatchObject({
+      depthZone: 'deepAir',
+      depthSource: 'explicitLayer',
+    })
+    expect(frame.beams[0]).toMatchObject({ fixtureId, focus: 0.64, spreadDeg: 36 })
+
+    const fixturePlan = buildLaserDmxDedicatedFixtureRenderPlan(frame, {
+      backingWidth: 1920,
+      backingHeight: 1080,
+      cssWidth: 960,
+      cssHeight: 540,
+    })
+    expect(fixturePlan.movingHeads).toHaveLength(3)
+    expect(fixturePlan.movingHeads.every(head => head.goboPattern === 5 && head.goboAmount === 0.82)).toBe(true)
+    expect(fixturePlan.movingHeads.every(head => head.zoom === 0.33 && head.iris === 0.71 && head.frost === 0.12)).toBe(true)
+    expect(fixturePlan.movingHeads[0]?.goboRotationRad).toBeCloseTo(47 * Math.PI / 180 + 2 * 0.22, 6)
+
+    const disabled = updateLaserDmxShowManagerFixtureInSection(reloaded, sectionId, fixtureId, { beam: { beamEnabled: false } })
+    const disabledRuntime = createLaserDmxShowManagerRuntimeShowDirector(disabled, disabled.sections[0]!)
+    const disabledCompiled = compileLaserDmxShowDirectorToBeamMatrix({
+      showDirector: disabledRuntime,
+      beamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
+    })
+    expect(disabledCompiled.beams).toHaveLength(0)
+  })
+
+  it('uses angle-based Moving Head aiming only outside Fixed mode', () => {
+    let show = createLaserDmxShowManagerShow()
+    const sectionId = show.sections[0]!.id
+    const added = addLaserDmxShowManagerFixtureToSection(show, sectionId, 'movingHead', {
+      x: 8,
+      y: 8,
+      rotation: 0,
+      beam: { targetMode: 'fixed', targetX: 8, targetY: 4, beamAngle: -90 },
+    })
+    show = added.show
+    const fixtureId = added.fixtureId!
+    const compile = () => compileLaserDmxShowDirectorToBeamMatrix({
+      showDirector: createLaserDmxShowManagerRuntimeShowDirector(show, show.sections[0]!),
+      beamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
+    })
+
+    const fixedTarget = compile().beams[0]!.target
+    show = updateLaserDmxShowManagerFixtureInSection(show, sectionId, fixtureId, { rotation: 90, beam: { beamAngle: 0 } })
+    expect(compile().beams[0]!.target).toEqual(fixedTarget)
+
+    show = updateLaserDmxShowManagerFixtureInSection(show, sectionId, fixtureId, { beam: { targetMode: 'fan' } })
+    const fanTarget = compile().beams[0]!.target
+    show = updateLaserDmxShowManagerFixtureInSection(show, sectionId, fixtureId, { rotation: 180 })
+    expect(compile().beams[0]!.target).not.toEqual(fanTarget)
   })
 
   it('keeps Stage 4 Laser parameters reachable from canonical Show Manager state through the production compiler and scanner renderer', () => {

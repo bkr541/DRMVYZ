@@ -374,6 +374,27 @@ export function normalizeLaserDmxShowManagerFixture(
   }
 }
 
+function createLaserDmxShowManagerInitialMovingHeadEndpoint(
+  base: LaserDmxShowDirectorFixture,
+  patch: LaserDmxShowDirectorFixturePatch,
+): { targetX: number; targetY: number } {
+  const maxX = LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns - 1
+  const maxY = LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows - 1
+  const x = clamp(Math.round(finite(patch.x, base.x)), 0, maxX)
+  const y = clamp(Math.round(finite(patch.y, base.y)), 0, maxY)
+  const rotation = clamp(finite(patch.rotation, base.rotation), -360, 360)
+  const beamAngle = clamp(finite(patch.beam?.beamAngle, base.beam.beamAngle), -360, 360)
+  const distance = Math.max(2, Math.min(
+    LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns,
+    LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows,
+  ) * 0.32)
+  const radians = (rotation + beamAngle) * Math.PI / 180
+  return {
+    targetX: Math.round(clamp(x + Math.cos(radians) * distance, 0, maxX)),
+    targetY: Math.round(clamp(y + Math.sin(radians) * distance, 0, maxY)),
+  }
+}
+
 export function createLaserDmxShowManagerFixture(
   kind: LaserDmxShowDirectorFixtureKind,
   index: number,
@@ -382,6 +403,17 @@ export function createLaserDmxShowManagerFixture(
   if (!isLaserDmxShowManagerFixtureKindEnabled(kind)) return null
   const id = createId('laser-dmx-fixture')
   const base = createDefaultLaserDmxShowDirectorFixture(kind, id, index)
+  const hasAuthoredMovingHeadTargets = kind === 'movingHead'
+    && Array.isArray(patch.beam?.targets)
+    && patch.beam.targets.length > 0
+  const movingHeadEndpoint = kind === 'movingHead' && !hasAuthoredMovingHeadTargets
+    ? createLaserDmxShowManagerInitialMovingHeadEndpoint(base, patch)
+    : null
+  const beam = {
+    ...base.beam,
+    ...(movingHeadEndpoint ?? {}),
+    ...(patch.beam ?? {}),
+  }
   return normalizeLaserDmxShowManagerFixture({
     ...base,
     ...patch,
@@ -389,7 +421,7 @@ export function createLaserDmxShowManagerFixture(
     kind,
     groupId: null,
     colorMode: 'fixed',
-    beam: patch.beam ? { ...base.beam, ...patch.beam } : base.beam,
+    beam,
     trigger: patch.trigger ? { ...base.trigger, ...patch.trigger } : base.trigger,
     component: patch.component ? { ...base.component, ...patch.component } : base.component,
     optics: patch.optics ? { ...base.optics, ...patch.optics } : base.optics,

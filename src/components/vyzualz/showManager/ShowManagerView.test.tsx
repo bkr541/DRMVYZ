@@ -2139,6 +2139,119 @@ describe('ShowManagerView production shell', () => {
     }
   })
 
+  it('shows a Moving Head-specific production contract and only presents aiming controls that affect the active mode', async () => {
+    setSharedShowToLaserAuthoredSections()
+    const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
+    const originalFixtures = intro.fixtures
+    const movingHead = createDefaultLaserDmxShowDirectorFixture('movingHead', 'fixture-moving-head-contract')
+    movingHead.label = 'Inspector Moving Head'
+    movingHead.x = 8
+    movingHead.y = 8
+    movingHead.beam.targetMode = 'fixed'
+    movingHead.beam.targetX = 8
+    movingHead.beam.targetY = 4
+    movingHead.beam.targetDepthLayer = 'deepAir'
+    movingHead.component.movingHeadPanTiltStyle = 'smoothSweep'
+    movingHead.optics.goboPattern = 'circle'
+    movingHead.optics.goboAmount = 0.4
+    movingHead.optics.prismFacets = 3
+    intro.fixtures = [movingHead] as never[]
+    fixture.state.updateLaserDmxShowManagerFixture.mockClear()
+
+    try {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+      await act(async () => {
+        engineTrigger?.click()
+        await Promise.resolve()
+      })
+      const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.includes('LaserDMX'))
+      await act(async () => {
+        laserOption?.click()
+        await Promise.resolve()
+      })
+      await act(async () => {
+        container?.querySelector<HTMLButtonElement>('button[data-fixture-id="fixture-moving-head-contract"]')?.click()
+        await Promise.resolve()
+      })
+
+      let inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
+      expect(inspector).not.toBeNull()
+      for (const supported of [
+        'Moving Head', 'Beam Enabled', 'Pan / tilt style', 'Aiming Mode', 'Target X', 'Target Y', 'Target depth',
+        'Zoom', 'Spread', 'Focus', 'Iris', 'Frost', 'Gobo pattern', 'Gobo amount', 'Gobo rotation', 'Prism',
+      ]) {
+        expect(inspector?.textContent).toContain(supported)
+      }
+      for (const inactiveOrMisleading of ['Beam Configuration', 'Beam Type / Pattern', 'Beam Angle', 'Rotation', 'Width']) {
+        expect(inspector?.textContent).not.toContain(inactiveOrMisleading)
+      }
+      expect(inspector?.querySelector('button[aria-label="Pan / tilt style"]')?.textContent).toContain('Smooth sweep')
+      expect(inspector?.querySelector('button[aria-label="Aiming Mode"]')?.textContent).toContain('Fixed')
+      expect(inspector?.querySelector('button[aria-label="Target depth"]')?.textContent).toContain('Deep Air')
+      expect(inspector?.querySelector('button[aria-label="Gobo pattern"]')?.textContent).toContain('Circle')
+      expect(inspector?.querySelector('button[aria-label="Prism"]')?.textContent).toContain('3-facet prism')
+
+      const goboPattern = inspector?.querySelector<HTMLButtonElement>('button[aria-label="Gobo pattern"]')
+      await act(async () => {
+        goboPattern?.click()
+        await Promise.resolve()
+      })
+      const star = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.trim() === 'Star')
+      await act(async () => {
+        star?.click()
+        await Promise.resolve()
+      })
+      expect(fixture.state.updateLaserDmxShowManagerFixture).toHaveBeenCalledWith(
+        'laser-show-1',
+        'laser-show-1:section:intro:1',
+        'fixture-moving-head-contract',
+        { optics: { goboPattern: 'star' } },
+      )
+
+      const panTiltStyle = inspector?.querySelector<HTMLButtonElement>('button[aria-label="Pan / tilt style"]')
+      await act(async () => {
+        panTiltStyle?.click()
+        await Promise.resolve()
+      })
+      const figureEight = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.trim() === 'Figure eight')
+      await act(async () => {
+        figureEight?.click()
+        await Promise.resolve()
+      })
+      expect(fixture.state.updateLaserDmxShowManagerFixture).toHaveBeenCalledWith(
+        'laser-show-1',
+        'laser-show-1:section:intro:1',
+        'fixture-moving-head-contract',
+        { component: { movingHeadPanTiltStyle: 'figureEight' } },
+      )
+
+      movingHead.beam.targetMode = 'fan'
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
+      expect(inspector?.textContent).toContain('Rotation')
+      expect(inspector?.textContent).toContain('Beam Angle')
+      expect(inspector?.textContent).not.toContain('Target X')
+      expect(inspector?.textContent).not.toContain('Target Y')
+      expect(inspector?.textContent).toContain('Target depth')
+    } finally {
+      intro.fixtures = originalFixtures
+    }
+  })
+
   it('shows manual Laser target coordinates only in Fixed mode and never exposes the non-production Width/Zoom control', async () => {
     setSharedShowToLaserAuthoredSections()
     const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
