@@ -302,7 +302,6 @@
 
 .lmv-tab-bar {
   display: flex;
-  gap: 0;
   border-bottom: 1px solid rgba(154,178,188,0.1);
   background: rgba(10,14,16,0.6);
   flex-shrink: 0;
@@ -1915,8 +1914,9 @@
 }
 
 .lmv-tab-bar {
-  height: 42px;
-  padding: 0 14px;
+  min-height: 36px;
+  padding: 10px 8px;
+  gap: 18px;
   border-bottom-color: rgba(126,218,232,0.12);
   background: rgba(7,14,17,0.34);
 }
