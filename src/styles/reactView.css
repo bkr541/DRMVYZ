@@ -4064,17 +4064,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   background: rgba(15,224,200,0.06);
 }
 
-/* Sound Drawing presets intentionally use the exact compact Shader Pads scene-card
-   architecture instead of the taller generic preset recipe card. */
-.rv-sound-drawing-preset-card {
-  min-height: 70px;
-}
-.rv-sound-drawing-preset-thumb {
-  min-height: 52px;
-}
-.rv-sound-drawing-preset-thumb .rv-preset-thumb-img {
-  object-fit: cover;
-}
 .rv-shader-scene-thumb {
   position: relative;
   width: 76px;

@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { getReactEngineIconComponent } from '../reactEngineIcons'
+import { ReactPresetCard } from '../ReactPresetCard'
 
 // ── SoundDrawingPresetsMockup ──────────────────────────────────────────────
 //
 // Disconnected copy of ReactPresetsPanel.tsx's layout for Sound Drawing
 // (right rail, PRESETS tab) — engine header, library-view tabs (Current
-// Engine / Favorites / All Engines), and the compact preset-card grid
-// (renderPresetCard's oscilloscope branch → SoundDrawingPresetCard). Cards
-// use static sample data and a flat color swatch in place of
+// Engine / Favorites / All Engines), and the shared Spotlight preset card
+// (ReactPresetCard, same component the real panel renders). Cards use
+// static sample data and a flat color swatch in place of
 // ReactPresetThumbnail, which renders a live canvas preview of the actual
 // oscillator settings — that's a real renderer, out of scope for a mockup.
 
@@ -48,41 +49,19 @@ function SoundDrawingPresetCardMockup({
   onToggleFavorite: (id: string) => void
 }) {
   return (
-    <div
-      className={`rv-shader-scene-card rv-sound-drawing-preset-card${isActive ? ' rv-shader-scene-card--active' : ''}`}
-      role="button"
-      tabIndex={0}
-      aria-pressed={isActive}
-      aria-current={isActive ? 'true' : undefined}
-      aria-label={`Load ${preset.name}`}
-      title={preset.description}
-      onClick={() => onSelect(preset.id)}
-    >
-      <div
-        className="rv-shader-scene-thumb rv-sound-drawing-preset-thumb"
-        style={{ background: preset.swatch }}
-      />
-
-      <div className="rv-shader-scene-card-body">
-        <div className="rv-shader-scene-name">{preset.name}</div>
-        <div className="rv-shader-scene-meta">
-          <span className="rv-shader-scene-category">{preset.modeHint}</span>
-        </div>
-      </div>
-
-      <div className="rv-shader-scene-actions" onClick={event => event.stopPropagation()}>
-        <button
-          type="button"
-          className={`rv-shader-scene-action${isFavorite ? ' rv-shader-scene-action--active' : ''}`}
-          onClick={() => onToggleFavorite(preset.id)}
-          aria-pressed={isFavorite}
-          aria-label={`${isFavorite ? 'Remove' : 'Add'} ${preset.name} ${isFavorite ? 'from' : 'to'} favorites`}
-          title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-        >
-          {isFavorite ? '★' : '☆'}
-        </button>
-      </div>
-    </div>
+    <ReactPresetCard
+      id={preset.id}
+      title={preset.name}
+      description={preset.description}
+      thumbnail={<div style={{ width: '100%', height: '100%', background: preset.swatch } as CSSProperties} />}
+      chips={[{ label: preset.modeHint }]}
+      palette={[{ color: preset.swatch }]}
+      isActive={isActive}
+      isFavorite={isFavorite}
+      activateLabel={`Load ${preset.name}`}
+      onActivate={() => onSelect(preset.id)}
+      onToggleFavorite={() => onToggleFavorite(preset.id)}
+    />
   )
 }
 

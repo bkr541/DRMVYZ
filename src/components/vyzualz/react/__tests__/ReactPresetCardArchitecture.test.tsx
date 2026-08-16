@@ -237,24 +237,22 @@ describe('canonical React preset card architecture', () => {
     })
   })
 
-  it('renders Sound Drawing presets with the same compact scene-card structure as Shader Pads', async () => {
+  it('renders Sound Drawing presets through the shared Spotlight card, same as every other engine', async () => {
     await act(async () => {
       useReactStore.getState().selectReactEngine('oscilloscope')
     })
     await render(<ReactPresetsPanel />)
 
     const card = container.querySelector<HTMLElement>('[data-preset-card]')!
-    expect(card.classList.contains('rv-shader-scene-card')).toBe(true)
-    expect(card.classList.contains('rv-sound-drawing-preset-card')).toBe(true)
-    expect(card.classList.contains('rv-preset-card')).toBe(false)
-    expect(card.querySelector('.rv-shader-scene-thumb.rv-sound-drawing-preset-thumb')).not.toBeNull()
-    expect(card.querySelector('.rv-shader-scene-card-body')).not.toBeNull()
-    expect(card.querySelector('.rv-shader-scene-name')).not.toBeNull()
-    expect(card.querySelector('.rv-shader-scene-meta')).not.toBeNull()
-    expect(card.querySelector('.rv-shader-scene-actions .rv-shader-scene-action')).not.toBeNull()
+    expect(card.classList.contains('rv-preset-card')).toBe(true)
+    expect(card.classList.contains('rv-preset-spotlight-card')).toBe(true)
+    expect(card.classList.contains('rv-shader-scene-card')).toBe(false)
+    expect(card.querySelector('.rv-preset-spotlight-thumb')).not.toBeNull()
+    expect(card.querySelector('.rv-preset-spotlight-caption')).not.toBeNull()
     expect(card.querySelector('.rv-preset-desc')).toBeNull()
     expect(card.querySelector('.rv-preset-palette')).toBeNull()
     expect(container.querySelector('.rv-preset-more-btn')).toBeNull()
+    expect(container.querySelector('.rv-preset-spotlight-action')).not.toBeNull()
 
     await click(card)
     expect(useReactStore.getState().activeReactPresetId).not.toBeNull()
