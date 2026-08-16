@@ -1767,164 +1767,44 @@
   border-right: 1px solid rgba(126,218,232,0.1);
 }
 
-.lmv-track-hero {
-  display: grid;
-  grid-template-columns: 78px minmax(0, 1fr) minmax(312px, 448px) minmax(156px, 188px);
-  align-items: center;
-  gap: 16px;
-  min-height: 112px;
-  padding: 14px 18px 12px;
+.lmv-track-info-panel {
+  flex: 0 0 auto;
+  padding: 12px 14px 4px;
   border-bottom: 1px solid rgba(126,218,232,0.1);
-  background:
-    linear-gradient(180deg, rgba(11,20,24,0.8), rgba(8,15,18,0.42)),
-    radial-gradient(circle at 24% 0%, rgba(74,199,219,0.1), transparent 42%);
 }
 
-.lmv-track-hero--empty {
-  grid-template-columns: 58px minmax(0, 1fr);
-}
-
-.lmv-track-hero--empty .lmv-track-hero-main p {
-  max-width: 600px;
-}
-
-.lmv-track-art {
-  width: 78px;
-  height: 78px;
-  font-size: 22px;
-}
-
-.lmv-track-art--empty {
-  width: 58px;
-  height: 58px;
-  color: rgba(196,207,211,0.52);
-}
-
-.lmv-track-hero-main {
-  min-width: 0;
-  overflow: hidden;
-}
-
-.lmv-kicker,
-.lmv-active-version-pill {
-  display: inline-flex;
-  width: max-content;
-  border-radius: 999px;
-  padding: 3px 8px;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.lmv-kicker {
-  background: rgba(255,255,255,0.05);
-  color: rgba(196,207,211,0.55);
-}
-
-.lmv-active-version-pill {
-  display: inline-block;
-  box-sizing: border-box;
-  width: auto;
-  max-width: 100%;
-  min-width: 0;
-  margin-top: 8px;
-  background: rgba(97,214,170,0.12);
-  color: #61d6aa;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lmv-track-title-row {
+.lmv-track-info-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
-  max-width: 100%;
 }
 
-.lmv-track-title-row h2,
-.lmv-track-hero-main h2 {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-  color: rgba(237,249,251,0.95);
-  font-size: 21px;
-  font-weight: 760;
-  line-height: 1.15;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lmv-track-hero-main p {
-  margin: 5px 0 0;
-  color: rgba(196,207,211,0.72);
+.lmv-track-info-header .lmv-track-art {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
   font-size: 13px;
 }
 
-.lmv-favorite-star {
-  flex: 0 0 auto;
-  color: rgba(196,207,211,0.62);
-  font-size: 20px;
+.lmv-track-info-header .lmv-track-card-main {
+  flex: 1 1 0%;
+  min-width: 0;
 }
 
-.lmv-playing-badge,
-.lmv-loaded-badge {
-  flex: 0 0 auto;
+.lmv-track-info-stats {
+  margin-top: 10px;
 }
 
-.lmv-track-hero-stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(70px, 1fr));
-  gap: 8px;
-}
-
-.lmv-track-stat {
-  min-width: 74px;
-  padding: 9px 10px;
-  border-radius: 6px;
-  background: rgba(10,18,22,0.78);
-  border: 1px solid rgba(126,218,232,0.1);
-  text-align: center;
-}
-
-.lmv-track-stat strong {
-  display: block;
-  color: rgba(237,249,251,0.92);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.lmv-track-stat span {
-  display: block;
-  margin-top: 3px;
-  color: rgba(196,207,211,0.45);
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+.lmv-track-info-versions {
+  margin-top: 10px;
 }
 
 .lmv-track-hero-actions {
   display: flex;
   flex-direction: column;
   gap: 7px;
-}
-
-.lmv-track-hero--rail {
-  grid-template-columns: 64px minmax(0, 1fr);
-}
-
-.lmv-track-hero--rail .lmv-track-hero-stats {
-  grid-column: 1 / -1;
-  grid-template-columns: repeat(4, 1fr);
-}
-
-.lmv-track-hero--rail .lmv-track-hero-actions {
-  grid-column: 1 / -1;
-  flex-direction: row;
+  margin-top: 10px;
 }
 
 .lmv-tab-bar {
@@ -2297,9 +2177,6 @@
     --lmv-side-width: 360px;
     grid-template-columns: var(--lmv-left-width) minmax(520px, 1fr) var(--lmv-right-width);
   }
-  .lmv-track-hero { grid-template-columns: 64px minmax(0, 1fr); }
-  .lmv-track-hero-stats { grid-column: 1 / -1; grid-template-columns: repeat(4, 1fr); }
-  .lmv-track-hero-actions { grid-column: 1 / -1; flex-direction: row; }
   .lmv-transport-bar { grid-template-columns: 1fr; gap: 10px; }
   .lmv-transport-left,
   .lmv-transport-right { justify-content: center; flex-wrap: wrap; }
@@ -2370,44 +2247,16 @@
 }
 
 /* Runtime lyric identity and activation signal path ------------------------- */
-.lmv-version-status-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.lmv-open-version-pill,
 .lmv-open-badge {
   border: 1px solid rgba(232,244,248,0.18);
   background: rgba(232,244,248,0.06);
   color: rgba(232,244,248,0.72);
-}
-
-.lmv-version-status-row .lmv-active-version-pill { margin-top: 0; }
-
-.lmv-open-version-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-}
-
-.lmv-open-badge {
   padding: 2px 5px;
   border-radius: 4px;
   font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-}
-
-.lmv-active-version-pill--empty {
-  border-color: rgba(224,90,90,0.24);
-  background: rgba(224,90,90,0.08);
-  color: rgba(244,176,176,0.82);
 }
 
 /* Patch 2: explicit track identity and manual linking ---------------------- */

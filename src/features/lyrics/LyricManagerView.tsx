@@ -1,6 +1,7 @@
 import { BubbleRevealSlider } from '../../components/vyzualz/react/controls/BubbleRevealSlider'
 import { NoticeCard } from '../../components/vyzualz/react/controls/NoticeCard'
 import { IconChipButton } from '../../components/vyzualz/react/controls/IconChipButton'
+import { Collapsible } from '../../components/vyzualz/react/ReactControlRows'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
 import { useLyricsStore } from '../../stores/lyricsStore'
@@ -209,7 +210,6 @@ function SelectedTrackHero({
   loading,
   onLoadTrack,
   onTogglePlayback,
-  compact = false,
 }: {
   track: LyricManagerTrack | null
   openVersionTitle: string | null
@@ -219,66 +219,59 @@ function SelectedTrackHero({
   loading: boolean
   onLoadTrack: () => void
   onTogglePlayback: () => void
-  compact?: boolean
 }) {
-  if (!track) {
-    return (
-      <section className={`lmv-track-hero lmv-track-hero--empty${compact ? ' lmv-track-hero--rail' : ''}`} aria-label="Selected track">
-        <div className="lmv-track-art lmv-track-art--empty">♪</div>
-        <div className="lmv-track-hero-main">
-          <span className="lmv-kicker">No track selected</span>
-          <h2>Select a track from the library</h2>
-          <p>Pick a stored audio track to inspect lyric versions, edit timed cues, and preview the document in the visualizer.</p>
-        </div>
-      </section>
-    )
-  }
-
   return (
-    <section className={`lmv-track-hero${compact ? ' lmv-track-hero--rail' : ''}`} aria-label="Selected track">
-      <div className="lmv-track-art" aria-hidden="true">
-        <span>{trackInitials(track)}</span>
-      </div>
+    <section className="lmv-track-info-panel" aria-label="Selected track">
+      <Collapsible label="Track Information" defaultOpen>
+        {!track ? (
+          <div className="lmv-track-state">Select a track from the library to inspect lyric versions, edit timed cues, and preview the document in the visualizer.</div>
+        ) : (
+          <>
+            <div className="lmv-track-info-header">
+              <div className="lmv-track-art" aria-hidden="true"><span>{trackInitials(track)}</span></div>
+              <div className="lmv-track-card-main">
+                <div className="lmv-track-card-topline">
+                  <span className="lmv-track-title">{track.title || track.fileName}</span>
+                  <span className="lmv-track-state-badges">
+                    <span className="lmv-selected-badge">Selected</span>
+                    {selectedTrackLoaded && <span className="lmv-loaded-badge">Loaded</span>}
+                    {selectedTrackPlaying && <span className="lmv-playing-badge">Playing</span>}
+                  </span>
+                </div>
+                <span className="lmv-track-artist">{track.artist || 'Unknown artist'}</span>
+              </div>
+            </div>
 
-      <div className="lmv-track-hero-main">
-        <div className="lmv-track-title-row">
-          <h2>{track.title || track.fileName}</h2>
-          <span className="lmv-favorite-star" aria-hidden="true">☆</span>
-          <span className="lmv-selected-badge">Selected</span>
-          {selectedTrackLoaded && <span className="lmv-loaded-badge">Loaded</span>}
-          {selectedTrackPlaying && <span className="lmv-playing-badge">Playing</span>}
-        </div>
-        <p>{track.artist || 'Unknown artist'}</p>
-        <div className="lmv-version-status-row">
-          <span className="lmv-open-version-pill">Open version: {openVersionTitle ?? 'None'}</span>
-          <span className={`lmv-active-version-pill${activeVersionTitle ? '' : ' lmv-active-version-pill--empty'}`}>
-            {activeVersionTitle ? `Active version: ${activeVersionTitle}` : 'No active version'}
-          </span>
-        </div>
-      </div>
+            <div className="lmv-stats-grid lmv-track-info-stats" aria-label="Track details">
+              <div className="lmv-stat-row"><span className="lmv-stat-label">Duration</span><span className="lmv-stat-value">{formatDuration(track.durationSec)}</span></div>
+              <div className="lmv-stat-row"><span className="lmv-stat-label">Tempo</span><span className="lmv-stat-value">{track.bpm ? `${Math.round(track.bpm)} BPM` : '—'}</span></div>
+              <div className="lmv-stat-row"><span className="lmv-stat-label">Key</span><span className="lmv-stat-value">{track.musicalKey || '—'}</span></div>
+              <div className="lmv-stat-row"><span className="lmv-stat-label">Added</span><span className="lmv-stat-value">{formatTrackDate(track.createdAt)}</span></div>
+            </div>
 
-      <div className="lmv-track-hero-stats" aria-label="Track details">
-        <div className="lmv-track-stat"><strong>{formatDuration(track.durationSec)}</strong><span>Duration</span></div>
-        <div className="lmv-track-stat"><strong>{track.bpm ? `${Math.round(track.bpm)} BPM` : '—'}</strong><span>Tempo</span></div>
-        <div className="lmv-track-stat"><strong>{track.musicalKey || '—'}</strong><span>Key</span></div>
-        <div className="lmv-track-stat"><strong>{formatTrackDate(track.createdAt)}</strong><span>Added</span></div>
-      </div>
+            <dl className="lmv-workflow-status-grid lmv-track-info-versions">
+              <div><dt>Open version</dt><dd>{openVersionTitle ?? 'None'}</dd></div>
+              <div><dt>Active version</dt><dd className={activeVersionTitle ? 'lmv-status-good' : 'lmv-status-missing'}>{activeVersionTitle ?? 'None'}</dd></div>
+            </dl>
 
-      <div className="lmv-track-hero-actions">
-        <IconChipButton
-          onClick={onLoadTrack}
-          disabled={loading}
-        >
-          {loading ? 'Loading…' : selectedTrackLoaded ? 'Reload deck' : 'Load deck'}
-        </IconChipButton>
-        <IconChipButton
-          tone="primary"
-          onClick={onTogglePlayback}
-          disabled={!selectedTrackLoaded}
-        >
-          {selectedTrackPlaying ? 'Pause' : 'Preview'}
-        </IconChipButton>
-      </div>
+            <div className="lmv-track-hero-actions">
+              <IconChipButton
+                onClick={onLoadTrack}
+                disabled={loading}
+              >
+                {loading ? 'Loading…' : selectedTrackLoaded ? 'Reload deck' : 'Load deck'}
+              </IconChipButton>
+              <IconChipButton
+                tone="primary"
+                onClick={onTogglePlayback}
+                disabled={!selectedTrackLoaded}
+              >
+                {selectedTrackPlaying ? 'Pause' : 'Preview'}
+              </IconChipButton>
+            </div>
+          </>
+        )}
+      </Collapsible>
     </section>
   )
 }
@@ -2173,7 +2166,6 @@ export function LyricManagerView({
               void handleLoadSelectedTrack()
             }}
             onTogglePlayback={handleTogglePlayback}
-            compact
           />
 
           <LyricPreviewPanel

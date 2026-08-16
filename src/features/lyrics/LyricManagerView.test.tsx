@@ -399,8 +399,11 @@ describe('LyricManagerView track-first workflow', () => {
     const alternate = documentCard('Alternate Lyrics').querySelector('.lmv-doc-card-main') as HTMLButtonElement
     await act(async () => alternate.click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2'))
-    expect(container.textContent).toContain('Open version: Alternate Lyrics')
-    expect(container.textContent).toContain('Active version: Approved Lyrics')
+    const versionRows = container.querySelector('.lmv-track-info-versions')?.textContent ?? ''
+    expect(versionRows).toContain('Open version')
+    expect(versionRows).toContain('Alternate Lyrics')
+    expect(versionRows).toContain('Active version')
+    expect(versionRows).toContain('Approved Lyrics')
   })
 
   it('handles a track with no lyrics and saves a new document with the selected audio_tracks ID', async () => {
@@ -631,7 +634,7 @@ describe('LyricManagerView track-first workflow', () => {
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
 
-    const heroStats = container.querySelector('.lmv-track-hero-stats')?.textContent ?? ''
+    const heroStats = container.querySelector('.lmv-track-info-panel .lmv-track-info-stats')?.textContent ?? ''
     expect(heroStats).toContain('Added')
     expect(heroStats).not.toContain('Updated')
 
