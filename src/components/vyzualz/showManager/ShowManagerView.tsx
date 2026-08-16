@@ -7,9 +7,8 @@ import { setShowManagerLinkedAudioTrackId } from '../../../audio/audioSourcePoli
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { computeViewportRangeLayout, computeWaveformViewport, resolvePositiveDuration, type TimelineViewport } from '../../../features/timeline/timelineViewport'
 import { adaptMIAnalysis } from '../../../features/trackIntelligence/trackMapAdapter'
-import { navigateBoundaryAlternative, snapBoundaryTime, type SectionBoundarySnapMode } from '../../../features/trackIntelligence/sectionBoundaryDrag'
 import { resolveSectionAtTime } from '../../../features/trackIntelligence/authoritativeTimeline'
-import type { BeatMarkerMI, BoundaryAlternative } from '../../../features/musicIntelligence/types'
+import type { BeatMarkerMI } from '../../../features/musicIntelligence/types'
 import { useReactStore } from '../../../stores/reactStore'
 import { useAudioStore, type SavedAudioTrack } from '../../../stores/audioStore'
 import { useVisualStore } from '../../../stores/visualStore'
@@ -576,29 +575,18 @@ function ShowManagerTrackMapSectionEditor({
   section,
   durationSec,
   effectiveBpm,
-  beatGrid,
-  boundaryAlternatives,
 }: {
   showId: string
   section: ReactTrackSection
   durationSec: number
   effectiveBpm: number | null
-  beatGrid: BeatMarkerMI[]
-  boundaryAlternatives: BoundaryAlternative[]
 }) {
   const updateSection = useReactStore(state => state.updateShowManagerTrackMapSection)
-  const updateBoundary = useReactStore(state => state.updateShowManagerTrackMapBoundary)
-  const [snapMode, setSnapMode] = useState<SectionBoundarySnapMode>(beatGrid.length > 0 ? 'beat' : 'free')
   const [draftRevision, setDraftRevision] = useState(0)
 
   useEffect(() => {
-    setSnapMode(beatGrid.length > 0 ? 'beat' : 'free')
     setDraftRevision(revision => revision + 1)
-  }, [beatGrid.length, section.id, showId])
-
-  const commitBoundaryTool = (edge: 'start' | 'end', proposedTime: number) => {
-    updateBoundary(showId, section.id, edge, proposedTime, null, null)
-  }
+  }, [section.id, showId])
 
   return (
     <EditSectionForm
@@ -606,18 +594,6 @@ function ShowManagerTrackMapSectionEditor({
       section={section}
       durationSec={durationSec}
       effectiveBpm={effectiveBpm}
-      snapMode={snapMode}
-      onSnapModeChange={setSnapMode}
-      boundaryAlternatives={boundaryAlternatives}
-      onNavigateAlternative={(edge, direction) => {
-        const currentTime = edge === 'start' ? section.startSec : section.endSec
-        const alternative = navigateBoundaryAlternative(currentTime, boundaryAlternatives, direction)
-        if (alternative) commitBoundaryTool(edge, alternative.timeSec)
-      }}
-      onSnapBoundary={edge => {
-        const currentTime = edge === 'start' ? section.startSec : section.endSec
-        commitBoundaryTool(edge, snapBoundaryTime(currentTime, beatGrid, snapMode))
-      }}
       onCancel={() => setDraftRevision(revision => revision + 1)}
       onSave={patch => updateSection(showId, section.id, patch)}
       layout="compact"
@@ -2481,7 +2457,6 @@ export function ShowManagerView() {
                 selectedFixtureId={selectedLaserFixtureId}
                 showGrid={activeLaserDmxSection?.settings?.showGrid ?? true}
                 showLabels={activeLaserDmxSection?.settings?.showLabels ?? true}
-                showBeams={activeLaserDmxSection?.settings?.showBeams ?? true}
                 highlightGrid={activeLaserDmxSection?.settings?.highlightGrid ?? true}
                 runtimePreview={laserDmxRuntimePreset && activeLaserDmxShow ? (
                   <ReactPlaceholderCanvas
@@ -2807,8 +2782,6 @@ export function ShowManagerView() {
                     section={selectedPixGridTrackSection}
                     durationSec={durationSec}
                     effectiveBpm={showRuntimeBpm}
-                    beatGrid={showRuntimeBeatGrid ?? []}
-                    boundaryAlternatives={showRuntimeAnalysis?.boundaryAlternatives ?? []}
                   />
                 ) : (
                   <p className="sm-new-show-field-note">{linkedAudioLoadError ?? 'Linked-track analysis is loading.'}</p>
@@ -2838,7 +2811,7 @@ export function ShowManagerView() {
               {activeLaserDmxShow && activeLaserDmxSection ? (
                 <>
                   <NoticeCard tone="info" title="Show Track Map · linked audio">
-                    Section order and count come from this Show’s linked-track analysis. Edit labels, types, intensity, or shared boundaries below; the underlying audio analysis is not modified.
+                    Section order and count come from this Show’s linked-track analysis. Edit labels, types, or shared boundaries below; the underlying audio analysis is not modified.
                   </NoticeCard>
                   <section className="sm-laser-copy-fixtures" data-testid="laser-dmx-copy-fixtures-controls">
                     <ToggleRow
@@ -2884,8 +2857,6 @@ export function ShowManagerView() {
                       section={activeLaserTrackSection}
                       durationSec={laserTimelineDuration}
                       effectiveBpm={showRuntimeBpm}
-                      beatGrid={showRuntimeBeatGrid ?? []}
-                      boundaryAlternatives={showRuntimeAnalysis?.boundaryAlternatives ?? []}
                     />
                   )}
                   <NoticeCard tone="success" title="Section fixture ownership · READY">
@@ -2908,8 +2879,6 @@ export function ShowManagerView() {
               elementMedia={selectedCanvasElementMedia}
               totalDurationSec={canvasTotalDuration}
               effectiveBpm={showRuntimeBpm}
-              beatGrid={showRuntimeBeatGrid ?? []}
-              boundaryAlternatives={showRuntimeAnalysis?.boundaryAlternatives ?? []}
               trackMapStatusMessage={showTrackMapStatusMessage}
               renameDraft={canvasRenameDraft}
               renameError={canvasRenameError}
@@ -2935,8 +2904,6 @@ export function ShowManagerView() {
                   section={selectedShowManagerSection}
                   durationSec={durationSec}
                   effectiveBpm={showRuntimeBpm}
-                  beatGrid={showRuntimeBeatGrid ?? []}
-                  boundaryAlternatives={showRuntimeAnalysis?.boundaryAlternatives ?? []}
                 />
               )}
             </div>
@@ -3061,8 +3028,6 @@ function CanvasShowManagerInspector({
   elementMedia,
   totalDurationSec,
   effectiveBpm,
-  beatGrid,
-  boundaryAlternatives,
   trackMapStatusMessage,
   renameDraft,
   renameError,
@@ -3081,8 +3046,6 @@ function CanvasShowManagerInspector({
   elementMedia: UploadedMedia | null
   totalDurationSec: number
   effectiveBpm: number | null
-  beatGrid: BeatMarkerMI[]
-  boundaryAlternatives: BoundaryAlternative[]
   trackMapStatusMessage: string
   renameDraft: string
   renameError: string | null
@@ -3225,8 +3188,6 @@ function CanvasShowManagerInspector({
             section={trackSection}
             durationSec={totalDurationSec}
             effectiveBpm={effectiveBpm}
-            beatGrid={beatGrid}
-            boundaryAlternatives={boundaryAlternatives}
           />
         </Collapsible>
       ) : (
@@ -4260,7 +4221,6 @@ function LaserDmxShowManagerStage({
   selectedFixtureId,
   showGrid,
   showLabels,
-  showBeams,
   highlightGrid,
   runtimePreview,
   onDropFixture,
@@ -4279,7 +4239,6 @@ function LaserDmxShowManagerStage({
   selectedFixtureId: string | null
   showGrid: boolean
   showLabels: boolean
-  showBeams: boolean
   highlightGrid: boolean
   runtimePreview: ReactNode
   onDropFixture: (event: DragEvent<HTMLDivElement>) => void
@@ -4302,9 +4261,11 @@ function LaserDmxShowManagerStage({
   const gridSurfaceRef = useRef<HTMLDivElement>(null)
   const fixtureDragRef = useRef<{ fixtureId: string; pointerId: number; x: number; y: number } | null>(null)
   const canvasTargetsVisible = canvasDragActive || selectedCanvasMediaId != null
-  const selectedBeamFixture = showBeams ? fixtures.find(fixture => fixture.id === selectedFixtureId) ?? null : null
-  const selectedBeamTargetX = selectedBeamFixture ? selectedBeamFixture.beam.targetX ?? selectedBeamFixture.x : 0
-  const selectedBeamTargetY = selectedBeamFixture ? selectedBeamFixture.beam.targetY ?? selectedBeamFixture.y : 0
+  const targetingBeamFixture = endpointTargetingFixtureId
+    ? fixtures.find(fixture => fixture.id === endpointTargetingFixtureId) ?? null
+    : null
+  const targetingBeamTargetX = targetingBeamFixture ? targetingBeamFixture.beam.targetX ?? targetingBeamFixture.x : 0
+  const targetingBeamTargetY = targetingBeamFixture ? targetingBeamFixture.beam.targetY ?? targetingBeamFixture.y : 0
   const laserDmxGridToPercent = (x: number, y: number) => ({
     left: ((x + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns) * 100,
     top: ((y + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows) * 100,
@@ -4349,9 +4310,9 @@ function LaserDmxShowManagerStage({
             {runtimePreview}
           </div>
         )}
-        {selectedBeamFixture && (() => {
-          const origin = laserDmxGridToPercent(selectedBeamFixture.x, selectedBeamFixture.y)
-          const target = laserDmxGridToPercent(selectedBeamTargetX, selectedBeamTargetY)
+        {targetingBeamFixture && (() => {
+          const origin = laserDmxGridToPercent(targetingBeamFixture.x, targetingBeamFixture.y)
+          const target = laserDmxGridToPercent(targetingBeamTargetX, targetingBeamTargetY)
           return (
             <svg className="sm-laser-beam-overlay" aria-hidden="true">
               <line
@@ -4359,9 +4320,16 @@ function LaserDmxShowManagerStage({
                 y1={`${origin.top}%`}
                 x2={`${target.left}%`}
                 y2={`${target.top}%`}
-                stroke={selectedBeamFixture.color}
+                stroke={targetingBeamFixture.color}
               />
-              <circle className="sm-laser-beam-target" cx={`${target.left}%`} cy={`${target.top}%`} r={5} stroke={selectedBeamFixture.color} />
+              <circle
+                className="sm-laser-beam-target"
+                cx={`${target.left}%`}
+                cy={`${target.top}%`}
+                r={5}
+                fill={targetingBeamFixture.color}
+                stroke={targetingBeamFixture.color}
+              />
             </svg>
           )
         })()}
@@ -4557,6 +4525,7 @@ function LaserDmxShowManagerTimeline({
               beatGrid={beatGrid}
               effectiveBpm={effectiveBpm}
               snapMode={beatGrid.length > 0 ? 'beat' : 'free'}
+              allowSnapBypass={false}
               selectedId={selectedSectionId}
               onSelect={onSelect}
               onContextMenu={onContextMenu}
@@ -4650,6 +4619,7 @@ function ShowManagerTimeline({
               beatGrid={beatGrid}
               effectiveBpm={effectiveBpm}
               snapMode={beatGrid && beatGrid.length > 0 ? 'beat' : 'free'}
+              allowSnapBypass={false}
               selectedId={selectedSectionId}
               onSelect={onSelectSection}
               onContextMenu={onContextMenu}

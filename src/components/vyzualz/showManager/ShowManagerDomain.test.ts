@@ -141,7 +141,7 @@ describe('ShowManagerDomain audio-bound Stage 1 contract', () => {
     expect(show.trackMap?.edited).toBe(true)
     expect(show.trackMap?.sections.map(section => [section.id, section.startSec, section.endSec, section.intensity])).toEqual([
       ['valid', 0, 12, 1],
-      ['outro', 12, 30, 0.2],
+      ['outro', 12, 30, 1],
     ])
   })
 
@@ -163,6 +163,7 @@ describe('ShowManagerDomain audio-bound Stage 1 contract', () => {
       ['intro', 0, 12],
       ['drop', 12, 30],
     ])
+    expect(map.sections.map(section => section.intensity)).toEqual([1, 1])
     expect(JSON.stringify(canonical)).toBe(before)
   })
 

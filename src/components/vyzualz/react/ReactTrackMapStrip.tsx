@@ -533,9 +533,9 @@ interface EditSectionFormProps {
   onSnapBoundary?: (edge: SectionEdge) => void
   /**
    * 'default' is the full React Track Map editor. 'compact' is the condensed
-   * Show Manager Inspector rendering: Type+Label row, Start+End row, Intensity,
-   * an "Information" sub-group with just Snap, then Cancel/Save — no boundary
-   * alternatives, analysis diagnostics, or source badge.
+   * Show Manager Inspector rendering: Type+Label row, Start+End row, then
+   * Cancel/Save — no section intensity, snap selector, boundary alternatives,
+   * analysis diagnostics, or source badge.
    */
   layout?: 'default' | 'compact'
 }
@@ -627,13 +627,16 @@ export function EditSectionForm({
   const handleSave = () => {
     if (!isValid) return
     const trimmed = label.trim()
-    onSave({
+    const patch: Partial<ReactTrackSection> = {
       type,
-      label:     trimmed || formatReactSectionTypeLabel(type),
+      label: trimmed || formatReactSectionTypeLabel(type),
       startSec,
       endSec,
-      intensity: Math.max(0, Math.min(1, intensity)),
-    })
+    }
+    // Show Manager's compact Track Section editor owns timing/structure only.
+    // The full React Track Map editor retains its legacy section intensity control.
+    if (layout !== 'compact') patch.intensity = Math.max(0, Math.min(1, intensity))
+    onSave(patch)
   }
 
   const snapModeOptions = [
@@ -687,25 +690,6 @@ export function EditSectionForm({
             />
           </div>
 
-          <SliderRow
-            id={`${idPrefix}-intensity`}
-            label="Intensity"
-            value={intensity}
-            min={0}
-            max={1}
-            step={0.01}
-            onChange={value => { markDirty('intensity'); setIntensity(value) }}
-          />
-
-          <Collapsible label="Information" defaultOpen>
-            <SelectRow
-              id={`${idPrefix}-snap-mode`}
-              label="Snap"
-              value={snapMode}
-              options={snapModeOptions}
-              onChange={value => onSnapModeChange(value as SectionBoundarySnapMode)}
-            />
-          </Collapsible>
 
           <div className="rv-form-actions rv-form-actions--end">
             <IconChipButton onClick={onCancel}>Cancel</IconChipButton>
@@ -1020,6 +1004,8 @@ interface SectionTimelineProps {
   beatGrid?:      BeatMarkerMI[]
   effectiveBpm?:  number | null
   snapMode:       SectionBoundarySnapMode
+  /** When false, modifier keys cannot bypass the configured snap mode. */
+  allowSnapBypass?: boolean
   selectedId:     string | null
   onSelect:       (id: string) => void
   onRemove?:      (id: string) => void
@@ -1080,6 +1066,7 @@ export const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimeline
   beatGrid,
   effectiveBpm,
   snapMode,
+  allowSnapBypass = true,
   selectedId,
   onSelect,
   onRemove,
@@ -1179,7 +1166,7 @@ export const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimeline
         activeViewport.endSec,
       )
       const grid     = beatGrid ?? []
-      const snapped  = snapBoundaryTime(rawTime, grid, snapMode, e.altKey)
+      const snapped  = snapBoundaryTime(rawTime, grid, snapMode, allowSnapBypass && e.altKey)
       const minDur   = computeMinDuration(effectiveBpm)
       const clamped  = clampEdgeAgainstTimeline(
         edge,
@@ -1227,7 +1214,7 @@ export const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimeline
       const curTime = edge === 'start' ? orig.startSec : orig.endSec
       const delta   = e.key === 'ArrowRight' ? step : -step
       const minDur  = computeMinDuration(effectiveBpm)
-      const snapped = snapBoundaryTime(curTime + delta, beatGrid ?? [], snapMode, e.altKey)
+      const snapped = snapBoundaryTime(curTime + delta, beatGrid ?? [], snapMode, allowSnapBypass && e.altKey)
       const clamped = clampEdgeAgainstTimeline(edge, snapped, orig, sorted, minDur, durationSec)
       const neighbor = findSharedBoundaryNeighbor(sorted, orig.id, edge)
       onCommitBoundary(orig.id, edge, clamped, neighbor?.id ?? null, neighbor ? clamped : null)

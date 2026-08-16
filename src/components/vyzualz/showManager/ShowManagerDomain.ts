@@ -71,7 +71,6 @@ function normalizeTrackSection(raw: unknown, index: number, durationSec: number)
   const boundedStart = Math.max(0, Math.min(durationSec, start))
   const boundedEnd = Math.max(boundedStart, Math.min(durationSec, end))
   if (boundedEnd - boundedStart <= 1e-6) return null
-  const intensity = finiteNumber(raw.intensity)
   const source = raw.source === 'auto' || raw.source === 'manual' || raw.source === 'mock' || raw.source === 'user-edited-auto'
     || raw.source === 'user-created' || raw.source === 'imported' || raw.source === 'fallback'
     ? raw.source
@@ -83,7 +82,9 @@ function normalizeTrackSection(raw: unknown, index: number, durationSec: number)
     type,
     startSec: boundedStart,
     endSec: boundedEnd,
-    intensity: intensity == null ? 0.5 : Math.max(0, Math.min(1, intensity)),
+    // Show Manager sections are timing/structure only. Keep the required ReactTrackSection
+    // compatibility field neutral so section metadata never scales fixture/media output.
+    intensity: 1,
     ...(engineId ? { engineId } : {}),
     ...(source ? { source } : {}),
     ...(typeof raw.locked === 'boolean' ? { locked: raw.locked } : {}),
@@ -101,6 +102,9 @@ function normalizeTrackSection(raw: unknown, index: number, durationSec: number)
 export function cloneShowManagerTrackSections(sections: readonly ReactTrackSection[]): ReactTrackSection[] {
   return sections.map(section => ({
     ...section,
+    // Intensity belongs to authored fixtures/media, not the Show-level Track Section.
+    // Force a neutral multiplier when canonical analysis is cloned into a Show.
+    intensity: 1,
     provenance: section.provenance ? { ...section.provenance } : undefined,
     interpretation: section.interpretation ? { ...section.interpretation } : undefined,
   }))

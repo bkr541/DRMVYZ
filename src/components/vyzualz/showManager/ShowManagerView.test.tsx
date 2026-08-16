@@ -1757,6 +1757,69 @@ describe('ShowManagerView production shell', () => {
     }
   })
 
+  it('shows the endpoint guide only while actively targeting a Laser beam endpoint', async () => {
+    setSharedShowToLaserAuthoredSections()
+    const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
+    const originalSettings = intro.settings
+    const originalFixtures = intro.fixtures
+    const laser = createDefaultLaserDmxShowDirectorFixture('laser', 'endpoint-guide-laser')
+    intro.settings = { ...intro.settings, showBeams: true }
+    intro.fixtures = [laser] as never[]
+
+    try {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+      await act(async () => {
+        root?.render(<ShowManagerView />)
+        await Promise.resolve()
+      })
+      const engineTrigger = container.querySelector<HTMLButtonElement>('button[aria-label="Show Manager engine"]')
+      await act(async () => {
+        engineTrigger?.click()
+        await Promise.resolve()
+      })
+      const laserOption = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+        .find(option => option.textContent?.includes('LaserDMX'))
+      await act(async () => {
+        laserOption?.click()
+        await Promise.resolve()
+      })
+
+      const fixtureButton = container.querySelector<HTMLButtonElement>('button[data-fixture-id="endpoint-guide-laser"]')
+      await act(async () => {
+        fixtureButton?.click()
+        await Promise.resolve()
+      })
+      expect(container.querySelector('.sm-laser-beam-overlay')).toBeNull()
+
+      await act(async () => {
+        fixtureButton?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 120, clientY: 120 }))
+        await Promise.resolve()
+      })
+      const setEndpoint = [...document.body.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]')]
+        .find(button => button.textContent?.trim() === 'Set Endpoint')
+      expect(setEndpoint).toBeDefined()
+      await act(async () => {
+        setEndpoint?.click()
+        await Promise.resolve()
+      })
+
+      const guide = container.querySelector<SVGElement>('.sm-laser-beam-overlay')
+      expect(guide).not.toBeNull()
+      expect(guide?.querySelector('circle')?.getAttribute('fill')).toBe(laser.color)
+
+      await act(async () => {
+        container.querySelector<HTMLElement>('[data-testid="laser-dmx-authoring-grid"]')?.click()
+        await Promise.resolve()
+      })
+      expect(container.querySelector('.sm-laser-beam-overlay')).toBeNull()
+    } finally {
+      intro.settings = originalSettings
+      intro.fixtures = originalFixtures
+    }
+  })
+
   it('renders the Stage 2 LaserDMX library and workspace controls through the production Show Manager path', async () => {
     setSharedShowToLaserAuthoredSections()
     fixture.state.updateLaserDmxShowManagerSectionWorkspaceSettings.mockClear()
@@ -2960,6 +3023,10 @@ describe('ShowManagerView production shell', () => {
       await Promise.resolve()
     })
 
+    const compactSectionEditor = container.querySelector<HTMLElement>('.rv-add-section-form--compact')
+    expect(compactSectionEditor?.textContent).not.toContain('Intensity')
+    expect(compactSectionEditor?.textContent).not.toContain('Snap')
+
     const labelInput = [...container.querySelectorAll<HTMLInputElement>('input[type="text"]')]
       .find(input => input.value === 'Intro')
     expect(labelInput).toBeDefined()
@@ -2983,6 +3050,9 @@ describe('ShowManagerView production shell', () => {
       'laser-show-1:section:intro:1',
       expect.objectContaining({ label: 'Opening' }),
     )
+    const sectionEditCalls = fixture.state.updateShowManagerTrackMapSection.mock.calls
+    const sectionPatch = sectionEditCalls[sectionEditCalls.length - 1]?.[2]
+    expect(sectionPatch).not.toHaveProperty('intensity')
     expect(fixture.state.updateLaserDmxShowManagerSection).not.toHaveBeenCalled()
     const undo = container.querySelector<HTMLButtonElement>('button[title="Undo section edit"]')
     const redo = container.querySelector<HTMLButtonElement>('button[title="Redo section edit"]')
