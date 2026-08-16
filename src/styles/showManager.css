@@ -1324,25 +1324,82 @@ button.sm-library-subsection-toggle {
   gap: 1px;
 }
 
-.sm-laser-fixture-context { margin-top: 7px; }
 .sm-laser-depth-note { margin: -2px 0 4px; color: rgba(196, 212, 220, 0.46); font-size: 8px; line-height: 1.35; }
 
-.sm-laser-delete-fixture {
-  min-height: 30px;
-  margin-top: 4px;
-  border: 1px solid rgba(255, 96, 112, 0.34);
-  border-radius: 5px;
-  background: rgba(255, 72, 92, 0.08);
-  color: rgba(255, 174, 184, 0.9);
-  font: inherit;
-  font-size: 8px;
-  letter-spacing: 0.04em;
-  cursor: pointer;
+/* ── Fixture header card ────────────────────────────────────────────────── */
+.sm-inspector-fixture-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 10px;
+  padding: 8px;
+  border: 1px solid rgba(154, 178, 188, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
 }
 
-.sm-laser-delete-fixture:hover {
-  border-color: rgba(255, 118, 132, 0.58);
-  background: rgba(255, 72, 92, 0.12);
+.sm-inspector-fixture-icon {
+  display: grid;
+  flex: 0 0 30px;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sm-inspector-fixture-icon img { width: 18px; height: 18px; }
+
+.sm-inspector-fixture-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.sm-inspector-fixture-copy > strong {
+  overflow: hidden;
+  color: rgba(245, 248, 250, 0.94);
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sm-inspector-fixture-copy > span {
+  color: rgba(196, 212, 220, 0.48);
+  font-size: 8.5px;
+}
+
+.sm-inspector-fixture-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.sm-inspector-fixture-menu { flex: 0 0 auto; }
+
+/* ── Transform's compact X / Y / Z row ──────────────────────────────────── */
+.sm-inspector-triple-row {
+  display: flex;
+  gap: 6px;
+}
+
+.sm-inspector-triple-row > .rv-ctrl-row {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Footer hint ─────────────────────────────────────────────────────────── */
+.sm-inspector-hint {
+  margin: 8px 0 0;
+  color: rgba(196, 212, 220, 0.4);
+  font-size: 8px;
+  line-height: 1.4;
 }
 
 /* Canvas Show Manager Stage 1 lifecycle and section-timing shell. */

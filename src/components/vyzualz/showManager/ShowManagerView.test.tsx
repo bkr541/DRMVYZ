@@ -2164,7 +2164,10 @@ describe('ShowManagerView production shell', () => {
       const inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
       expect(inspector).not.toBeNull()
       expect(inspector?.textContent).toContain('Inspector Laser')
-      for (const approved of ['Position', 'X', 'Y', 'Z', 'Color', 'Color Mode', 'Brightness', 'Beam Configuration', 'Beam Enabled', 'Target Mode', 'Beam Angle', 'Spread', 'Focus', 'Scanner', 'Scanner Pattern', 'Trigger Configuration']) {
+      for (const approved of [
+        'Transform', 'X', 'Y', 'Z', 'Appearance', 'Color', 'Color Mode', 'Brightness', 'Beam', 'Beam Enabled', 'Target Mode', 'Beam Angle', 'Spread', 'Focus', 'Scanner', 'Scanner Pattern',
+        'Reactivity', 'Audio band', 'Beat division', 'Threshold', 'Fade in', 'Fade out', 'Retrigger',
+      ]) {
         expect(inspector?.textContent).toContain(approved)
       }
       for (const misleadingOrDeferred of ['Rotation', 'Beam Type / Pattern', 'Width', 'Gobo', 'Prism', 'Diffraction', 'Modulation']) {
@@ -2382,7 +2385,7 @@ describe('ShowManagerView production shell', () => {
       })
       let inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
       expect(inspector?.textContent).toContain('Inspector LED Bar')
-      for (const supported of ['Position', 'X', 'Y', 'Z', 'Rotation', 'Color & Brightness', 'Brightness', 'LED Bar', 'Beam enabled', 'Cell count', 'Direction', 'Trigger Configuration']) {
+      for (const supported of ['Transform', 'X', 'Y', 'Z', 'Rotation', 'Appearance', 'Brightness', 'LED Bar', 'Beam enabled', 'Cell count', 'Direction', 'Reactivity']) {
         expect(inspector?.textContent).toContain(supported)
       }
       for (const ignored of ['Beam Configuration', 'Beam Type / Pattern', 'Target X', 'Target Y', 'Width', 'Spread', 'Focus']) {
@@ -2435,7 +2438,7 @@ describe('ShowManagerView production shell', () => {
       })
       inspector = container.querySelector<HTMLElement>('[data-testid="laser-dmx-fixture-inspector"]')
       expect(inspector?.textContent).toContain('Inspector Strobe')
-      for (const supported of ['Position', 'X', 'Y', 'Z', 'Rotation', 'Color & Brightness', 'Brightness', 'Strobe', 'Beam enabled', 'Strobe rate', 'Trigger Configuration']) {
+      for (const supported of ['Transform', 'X', 'Y', 'Z', 'Rotation', 'Appearance', 'Brightness', 'Strobe', 'Beam enabled', 'Strobe rate', 'Reactivity']) {
         expect(inspector?.textContent).toContain(supported)
       }
       for (const ignored of ['Beam Configuration', 'Beam Type / Pattern', 'Target X', 'Target Y', 'Width', 'Spread', 'Focus', 'Cell count', 'Direction']) {
@@ -2746,7 +2749,12 @@ describe('ShowManagerView production shell', () => {
         selected?.click()
         await Promise.resolve()
       })
-      const deleteButton = [...container.querySelectorAll<HTMLButtonElement>('button')]
+      const fixtureMenuTrigger = container.querySelector<HTMLButtonElement>('.sm-inspector-fixture-menu')
+      await act(async () => {
+        fixtureMenuTrigger?.click()
+        await Promise.resolve()
+      })
+      const deleteButton = [...document.body.querySelectorAll<HTMLButtonElement>('[role="menu"] button[role="menuitem"]')]
         .find(button => button.textContent?.trim() === 'Delete Fixture')
       await act(async () => {
         deleteButton?.click()

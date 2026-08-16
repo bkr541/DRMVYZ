@@ -20,6 +20,7 @@ import { Collapsible, ColorRow, NumberInputRow, SelectRow, SliderRow, TextInputR
 import { UnderlineTabs } from '../react/controls/UnderlineTabs'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import { DualRailCollapsible } from '../react/DualRailCollapsible'
+import { MoreVerticalIcon } from 'hugeicons-react'
 import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from '../react/reactEngineCatalog'
 import { PixGridDesignPanel } from '../react/pixGrid/PixGridDesignPanel'
 import { PixGridSurface } from '../react/pixGrid/PixGridSurface'
@@ -29,6 +30,8 @@ import {
   LASER_DMX_SHOW_DIRECTOR_DEPTH_LAYER_LABELS,
   DEFAULT_REACT_PRESETS,
   LASER_DMX_SHOW_DIRECTOR_RENDERER_OPTIONS,
+  type LaserDmxShowDirectorAudioBand,
+  type LaserDmxShowDirectorBeatDivision,
   type LaserDmxShowDirectorDepthLayer,
   type LaserDmxShowDirectorFixture,
   type LaserDmxShowDirectorFixturePatch,
@@ -39,6 +42,7 @@ import {
   type LaserDmxShowDirectorScannerConfig,
   type LaserDmxShowDirectorScannerDirection,
   type LaserDmxShowDirectorScannerPatternType,
+  type LaserDmxShowDirectorTriggerRetrigger,
   type ReactEngineId,
   type ReactPreset,
   type ReactSectionType,
@@ -3754,6 +3758,41 @@ function CanvasShowManagerTimeline({
   )
 }
 
+// Same vocabulary/labels as the Beam Matrix fixture inspector's Audio band
+// and Beat division rows (LaserDmxShowDirectorInspector.tsx) — mirrored here
+// rather than reinvented so the two inspectors describe the same real
+// trigger fields the same way.
+const SHOW_MANAGER_AUDIO_BAND_OPTIONS: Array<{ value: LaserDmxShowDirectorAudioBand; label: string }> = [
+  { value: 'sub', label: 'Sub' },
+  { value: 'bass', label: 'Bass' },
+  { value: 'lowMid', label: 'Low-mid' },
+  { value: 'mid', label: 'Mid' },
+  { value: 'highMid', label: 'High-mid' },
+  { value: 'high', label: 'High' },
+]
+
+const SHOW_MANAGER_BEAT_DIVISION_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '0.25', label: '1/4 beat' },
+  { value: '0.5', label: '1/2 beat' },
+  { value: '1', label: '1 beat' },
+  { value: '2', label: '2 beats' },
+  { value: '4', label: '4 beats' },
+  { value: '8', label: '8 beats' },
+]
+
+function parseShowManagerBeatDivision(value: string): LaserDmxShowDirectorBeatDivision {
+  const numeric = Number(value)
+  if (numeric === 0.25 || numeric === 0.5 || numeric === 2 || numeric === 4 || numeric === 8) return numeric
+  return 1
+}
+
+const SHOW_MANAGER_RETRIGGER_OPTIONS: Array<{ value: LaserDmxShowDirectorTriggerRetrigger; label: string }> = [
+  { value: 'allow', label: 'Always' },
+  { value: 'oncePerBeat', label: 'Once per Beat' },
+  { value: 'oncePerBar', label: 'Once per Bar' },
+  { value: 'oncePerPhrase', label: 'Once per Phrase' },
+]
+
 function LaserDmxShowManagerFixtureInspector({
   fixture,
   onPatch,
@@ -3768,6 +3807,7 @@ function LaserDmxShowManagerFixtureInspector({
   onDelete: () => void
 }) {
   useEffect(() => () => onInteractionEnd(), [fixture.id, onInteractionEnd])
+  const [fixtureMenuAnchor, setFixtureMenuAnchor] = useState<{ x: number; y: number } | null>(null)
   const triggerOption = resolveLaserDmxShowManagerTriggerOption(fixture.trigger)
   const storedTriggerValue = `stored:${fixture.trigger.mode}`
   const triggerSelectValue = triggerOption ?? storedTriggerValue
@@ -3871,36 +3911,77 @@ function LaserDmxShowManagerFixtureInspector({
 
   return (
     <div className="sm-laser-fixture-inspector" data-testid="laser-dmx-fixture-inspector">
-      <div className="sm-inspector-context sm-laser-fixture-context">
-        <div><span>Fixture</span><strong>{fixture.label}</strong></div>
-        <div><span>Type</span><strong>{LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[fixture.kind]}</strong></div>
+      <div className="sm-inspector-fixture-card">
+        <span className="sm-inspector-fixture-icon" aria-hidden="true"><FixtureIcon kind={fixture.kind} /></span>
+        <div className="sm-inspector-fixture-copy">
+          <strong>{fixture.label}</strong>
+          <span>{LASER_DMX_SHOW_DIRECTOR_FIXTURE_KIND_LABELS[fixture.kind]}</span>
+        </div>
+        <span className="sm-inspector-fixture-dot" style={{ background: fixture.color }} title={fixture.color} aria-hidden="true" />
+        <IconChipButton
+          className="sm-inspector-fixture-menu"
+          aria-label={`${fixture.label} actions`}
+          onClick={event => {
+            const rect = event.currentTarget.getBoundingClientRect()
+            setFixtureMenuAnchor({ x: rect.right, y: rect.bottom })
+          }}
+        >
+          <MoreVerticalIcon size={14} color="currentColor" />
+        </IconChipButton>
+        {fixtureMenuAnchor && (
+          <ContextActionMenu
+            x={fixtureMenuAnchor.x}
+            y={fixtureMenuAnchor.y}
+            ariaLabel={`${fixture.label} actions`}
+            onClose={() => setFixtureMenuAnchor(null)}
+            items={[
+              {
+                id: 'delete',
+                label: 'Delete Fixture',
+                danger: true,
+                onSelect: () => {
+                  setFixtureMenuAnchor(null)
+                  onDelete()
+                },
+              },
+            ]}
+          />
+        )}
       </div>
 
-      <Collapsible label="Position" defaultOpen>
-        <NumberInputRow
-          label="X"
-          value={fixture.x}
-          min={0}
-          max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns - 1}
-          step={1}
-          onChange={x => onPatch({ x })}
-        />
-        <NumberInputRow
-          label="Y"
-          value={fixture.y}
-          min={0}
-          max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows - 1}
-          step={1}
-          onChange={y => onPatch({ y })}
-        />
-        <NumberInputRow label="Z" value={fixture.z} min={-1} max={1} step={0.05} onChange={z => onPatch({ z })} />
-        <div className="sm-laser-depth-note">Z controls renderer depth only; the 2D grid marker remains positioned by X/Y.</div>
-        {!isLaser && (!isMovingHead || !manualTargetCoordinatesActive) && (
-          <NumberInputRow label="Rotation" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />
+      <Collapsible label="Transform" defaultOpen>
+        <div className="sm-inspector-triple-row">
+          <NumberInputRow
+            label="X"
+            value={fixture.x}
+            min={0}
+            max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns - 1}
+            step={1}
+            onChange={x => onPatch({ x })}
+          />
+          <NumberInputRow
+            label="Y"
+            value={fixture.y}
+            min={0}
+            max={LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows - 1}
+            step={1}
+            onChange={y => onPatch({ y })}
+          />
+          <NumberInputRow label="Z" value={fixture.z} min={-1} max={1} step={0.05} onChange={z => onPatch({ z })} />
+        </div>
+        <div className="sm-laser-depth-note">X/Y/Z are grid cells, not meters — Z controls renderer depth only; the 2D grid marker remains positioned by X/Y.</div>
+        {isLaser ? (
+          !manualTargetCoordinatesActive && (
+            <NumberInputRow label="Yaw" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />
+          )
+        ) : (
+          (!isMovingHead || !manualTargetCoordinatesActive) && (
+            <NumberInputRow label="Rotation" value={fixture.rotation} min={-360} max={360} step={1} unit="°" onChange={rotation => onPatch({ rotation })} />
+          )
         )}
       </Collapsible>
 
-      <Collapsible label="Color & Brightness" defaultOpen>
+      <Collapsible label="Appearance" defaultOpen>
         <ColorRow label="Color" value={fixture.color} onChange={color => onPatch({ color })} />
         <SelectRow
           label="Color Mode"
@@ -3976,7 +4057,7 @@ function LaserDmxShowManagerFixtureInspector({
           />
         </Collapsible>
       ) : isLaser ? (
-        <Collapsible label="Beam Configuration" defaultOpen>
+        <Collapsible label="Beam" defaultOpen>
           <ToggleRow label="Beam Enabled" value={fixture.beam.beamEnabled} onChange={beamEnabled => onPatch({ beam: { beamEnabled } })} />
           {!fixture.scanner && (
             <SelectRow
@@ -4065,7 +4146,7 @@ function LaserDmxShowManagerFixtureInspector({
         </Collapsible>
       )}
 
-      <Collapsible label="Trigger Configuration" defaultOpen>
+      <Collapsible label="Reactivity" defaultOpen>
         <SelectRow
           label="Trigger"
           value={triggerSelectValue}
@@ -4076,11 +4157,41 @@ function LaserDmxShowManagerFixtureInspector({
             onPatch({ trigger: triggerPatchForLaserDmxShowManagerOption(value as LaserDmxShowManagerTriggerOption) })
           }}
         />
+        <SelectRow
+          label="Audio band"
+          value={fixture.trigger.audioBand}
+          options={SHOW_MANAGER_AUDIO_BAND_OPTIONS}
+          description="Used when the Trigger is driven by a kick/snare hit or an audio band."
+          onChange={audioBand => onPatch({ trigger: { audioBand: audioBand as LaserDmxShowDirectorAudioBand } })}
+        />
+        <SelectRow
+          label="Beat division"
+          value={String(fixture.trigger.beatDivision)}
+          options={SHOW_MANAGER_BEAT_DIVISION_OPTIONS}
+          description="Applies when the Trigger is beat-quantized."
+          onChange={value => onPatch({ trigger: { beatDivision: parseShowManagerBeatDivision(value) } })}
+        />
+        <SliderRow
+          label="Threshold"
+          value={fixture.trigger.audioThreshold}
+          min={0}
+          max={1}
+          step={0.01}
+          description="How hard the source must hit to fire."
+          onChange={audioThreshold => onPatch({ trigger: { audioThreshold } })}
+          {...sliderGesture}
+        />
+        <NumberInputRow label="Fade in" value={fixture.trigger.fadeInMs} min={0} max={10000} step={25} unit="ms" onChange={fadeInMs => onPatch({ trigger: { fadeInMs: Math.max(0, Math.round(fadeInMs)) } })} />
+        <NumberInputRow label="Fade out" value={fixture.trigger.fadeOutMs} min={0} max={10000} step={25} unit="ms" onChange={fadeOutMs => onPatch({ trigger: { fadeOutMs: Math.max(0, Math.round(fadeOutMs)) } })} />
+        <SelectRow
+          label="Retrigger"
+          value={fixture.trigger.retrigger}
+          options={SHOW_MANAGER_RETRIGGER_OPTIONS}
+          onChange={retrigger => onPatch({ trigger: { retrigger: retrigger as LaserDmxShowDirectorTriggerRetrigger } })}
+        />
       </Collapsible>
 
-      <button type="button" className="sm-laser-delete-fixture" onClick={onDelete} aria-label={`Delete ${fixture.label}`}>
-        Delete Fixture
-      </button>
+      <p className="sm-inspector-hint">What should this fixture do, when, and how strong?</p>
     </div>
   )
 }

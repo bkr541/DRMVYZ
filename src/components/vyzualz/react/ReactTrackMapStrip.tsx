@@ -1,6 +1,8 @@
 import { IconMorphToggle } from './controls/IconMorphToggle'
 import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
+import { IconChipButton } from './controls/IconChipButton'
+import { Collapsible, NumberInputRow, SelectRow, SliderRow, TextInputRow } from './ReactControlRows'
 import { forwardRef, useState, useCallback, useRef, useEffect, useId, useImperativeHandle, useMemo, type MutableRefObject } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
@@ -626,135 +628,108 @@ export function EditSectionForm({
     })
   }
 
+  const snapModeOptions = [
+    { value: 'beat', label: 'Beat' },
+    { value: 'downbeat', label: 'Downbeat' },
+    { value: 'bar', label: 'Bar' },
+    { value: 'four-bar', label: 'Four-bar' },
+    { value: 'free', label: 'Free' },
+  ]
+
   return (
     <div className="rv-add-section-form rv-add-section-form--edit">
       <div className="rv-section-editor-primary-grid">
-        <div className="rv-form-row">
-          <label className="rv-form-label" htmlFor={`${idPrefix}-type`}>Type</label>
-          <DropdownSelect
-            id={`${idPrefix}-type`}
-            className="rv-form-select"
-            value={type}
-            onChange={e => { markDirty('type'); setType(e.target.value as ReactSectionType) }}
-          >
-            {SECTION_ORDER.map(t => (
-              <option key={t} value={t} style={{ color: SECTION_COLORS[t] }}>
-                {formatReactSectionTypeLabel(t)}
-              </option>
-            ))}
-          </DropdownSelect>
-        </div>
+        <SelectRow
+          id={`${idPrefix}-type`}
+          label="Type"
+          value={type}
+          options={SECTION_ORDER.map(t => ({ value: t, label: formatReactSectionTypeLabel(t) }))}
+          onChange={value => { markDirty('type'); setType(value as ReactSectionType) }}
+        />
 
-        <div className="rv-form-row rv-form-row--section-label">
-          <label className="rv-form-label" htmlFor={`${idPrefix}-label`}>Label</label>
-          <DreamVizTextInput
+        <div className="rv-form-row--section-label">
+          <TextInputRow
             id={`${idPrefix}-label`}
-            className="rv-form-input"
-            type="text"
+            label="Label"
             placeholder={type}
             value={label}
-            onChange={e => { markDirty('label'); setLabel(e.target.value) }}
             maxLength={32}
+            onChange={value => { markDirty('label'); setLabel(value) }}
           />
         </div>
 
-        <div className="rv-form-row">
-          <label className="rv-form-label" htmlFor={`${idPrefix}-start`}>Start (s)</label>
-          <div className="rv-form-time-row">
-            <input
-              id={`${idPrefix}-start`}
-              className="rv-form-input rv-form-input--num"
-              type="number"
-              min={0}
-              max={durationSec}
-              step={0.01}
-              value={startSec.toFixed(3)}
-              onChange={e => { markDirty('startSec'); setStartSec(Math.max(0, parseFloat(e.target.value) || 0)) }}
-            />
-            <span className="rv-form-time">{formatTimePrecise(startSec)}</span>
-          </div>
+        <div>
+          <NumberInputRow
+            id={`${idPrefix}-start`}
+            label="Start (s)"
+            value={startSec}
+            min={0}
+            max={durationSec}
+            step={0.01}
+            onChange={value => { markDirty('startSec'); setStartSec(Math.max(0, value)) }}
+          />
+          <span className="rv-form-time">{formatTimePrecise(startSec)}</span>
         </div>
 
-        <div className="rv-form-row">
-          <label className="rv-form-label" htmlFor={`${idPrefix}-end`}>End (s)</label>
-          <div className="rv-form-time-row">
-            <input
-              id={`${idPrefix}-end`}
-              className="rv-form-input rv-form-input--num"
-              type="number"
-              min={0}
-              max={durationSec}
-              step={0.01}
-              value={endSec.toFixed(3)}
-              onChange={e => { markDirty('endSec'); setEndSec(Math.max(0, parseFloat(e.target.value) || 0)) }}
-            />
-            <span className="rv-form-time">{formatTimePrecise(endSec)}</span>
-          </div>
+        <div>
+          <NumberInputRow
+            id={`${idPrefix}-end`}
+            label="End (s)"
+            value={endSec}
+            min={0}
+            max={durationSec}
+            step={0.01}
+            onChange={value => { markDirty('endSec'); setEndSec(Math.max(0, value)) }}
+          />
+          <span className="rv-form-time">{formatTimePrecise(endSec)}</span>
         </div>
 
-        <div className="rv-form-row">
-          <label className="rv-form-label" htmlFor={`${idPrefix}-intensity`}>Intensity</label>
-          <div className="rv-form-inline-control">
-            <BubbleRevealSlider
-              id={`${idPrefix}-intensity`}
-              className="rv-form-range"
-              type="range"
-              min={0} max={1} step={0.01}
-              value={intensity}
-              onChange={e => { markDirty('intensity'); setIntensity(parseFloat(e.target.value)) }}
-            />
-            <span className="rv-form-val">{Math.round(intensity * 100)}%</span>
-          </div>
-        </div>
+        <SliderRow
+          id={`${idPrefix}-intensity`}
+          label="Intensity"
+          value={intensity}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={value => { markDirty('intensity'); setIntensity(value) }}
+        />
       </div>
 
       <div className={`rv-section-editor-secondary-grid${reactPresets && onAssignPreset ? '' : ' rv-section-editor-secondary-grid--single'}`}>
         <div className="rv-form-group-sep rv-boundary-tools">
           <div className="rv-form-group-label">Boundary Tools</div>
-          <div className="rv-form-row">
-            <label className="rv-form-label" htmlFor={`${idPrefix}-snap-mode`}>Snap</label>
-            <DropdownSelect
-              id={`${idPrefix}-snap-mode`}
-              className="rv-form-select"
-              value={snapMode}
-              onChange={event => onSnapModeChange(event.target.value as SectionBoundarySnapMode)}
-            >
-              <option value="beat">Beat</option>
-              <option value="downbeat">Downbeat</option>
-              <option value="bar">Bar</option>
-              <option value="four-bar">Four-bar</option>
-              <option value="free">Free</option>
-            </DropdownSelect>
-          </div>
+          <SelectRow
+            id={`${idPrefix}-snap-mode`}
+            label="Snap"
+            value={snapMode}
+            options={snapModeOptions}
+            onChange={value => onSnapModeChange(value as SectionBoundarySnapMode)}
+          />
           <div className="rv-boundary-action-grid">
             <span className="rv-form-label">Start</span>
-            <button type="button" className="rv-form-cancel-btn" onClick={() => onNavigateAlternative('start', 'previous')} disabled={boundaryAlternatives.length === 0} title="Previous boundary suggestion">‹ Alt</button>
-            <button type="button" className="rv-form-cancel-btn" onClick={() => onNavigateAlternative('start', 'next')} disabled={boundaryAlternatives.length === 0} title="Next boundary suggestion">Alt ›</button>
-            <button type="button" className="rv-form-cancel-btn" onClick={() => onSnapBoundary('start')} disabled={snapMode === 'free'}>Snap</button>
+            <IconChipButton onClick={() => onNavigateAlternative('start', 'previous')} disabled={boundaryAlternatives.length === 0} title="Previous boundary suggestion">‹ Alt</IconChipButton>
+            <IconChipButton onClick={() => onNavigateAlternative('start', 'next')} disabled={boundaryAlternatives.length === 0} title="Next boundary suggestion">Alt ›</IconChipButton>
+            <IconChipButton onClick={() => onSnapBoundary('start')} disabled={snapMode === 'free'}>Snap</IconChipButton>
             <span className="rv-form-label">End</span>
-            <button type="button" className="rv-form-cancel-btn" onClick={() => onNavigateAlternative('end', 'previous')} disabled={boundaryAlternatives.length === 0} title="Previous boundary suggestion">‹ Alt</button>
-            <button type="button" className="rv-form-cancel-btn" onClick={() => onNavigateAlternative('end', 'next')} disabled={boundaryAlternatives.length === 0} title="Next boundary suggestion">Alt ›</button>
-            <button type="button" className="rv-form-cancel-btn" onClick={() => onSnapBoundary('end')} disabled={snapMode === 'free'}>Snap</button>
+            <IconChipButton onClick={() => onNavigateAlternative('end', 'previous')} disabled={boundaryAlternatives.length === 0} title="Previous boundary suggestion">‹ Alt</IconChipButton>
+            <IconChipButton onClick={() => onNavigateAlternative('end', 'next')} disabled={boundaryAlternatives.length === 0} title="Next boundary suggestion">Alt ›</IconChipButton>
+            <IconChipButton onClick={() => onSnapBoundary('end')} disabled={snapMode === 'free'}>Snap</IconChipButton>
           </div>
         </div>
 
         {reactPresets && onAssignPreset && (
           <div className="rv-form-group-sep rv-visual-assignment-tools">
             <div className="rv-form-group-label">Visual Assignment</div>
-            <div className="rv-form-row">
-              <label className="rv-form-label" htmlFor={`${idPrefix}-preset`}>Preset</label>
-              <DropdownSelect
-                id={`${idPrefix}-preset`}
-                className="rv-form-select"
-                value={assignedPresetId ?? ''}
-                onChange={e => onAssignPreset(e.target.value || null)}
-              >
-                <option value="">No preset assignment</option>
-                {reactPresets.filter(p => isSelectableReactEngineId(p.engine)).map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </DropdownSelect>
-            </div>
+            <SelectRow
+              id={`${idPrefix}-preset`}
+              label="Preset"
+              value={assignedPresetId ?? ''}
+              options={[
+                { value: '', label: 'No preset assignment' },
+                ...reactPresets.filter(p => isSelectableReactEngineId(p.engine)).map(p => ({ value: p.id, label: p.name })),
+              ]}
+              onChange={value => onAssignPreset(value || null)}
+            />
             {assignedPresetId && (() => {
               const preset = reactPresets.find(p => p.id === assignedPresetId)
               return preset ? (
@@ -771,13 +746,15 @@ export function EditSectionForm({
       </div>
 
       {(isAuto || isEdited) && (
-        <details className="rv-section-diagnostics">
-          <summary>
-            Analysis Diagnostics
+        <Collapsible
+          label="Analysis Diagnostics"
+          defaultOpen={false}
+          headerAccessory={
             <span className={`rv-confidence-badge rv-confidence-badge--${confidenceDisplay.tier}`} title={confidenceDisplay.tooltip}>
               {confidenceDisplay.tier}
             </span>
-          </summary>
+          }
+        >
           <div className="rv-section-diagnostics-grid">
             <span>Source</span><strong>{confidenceDisplay.sourceLabel}</strong>
             <span>Bars</span><strong>{interpretation?.startBar != null && interpretation?.endBar != null ? `${interpretation.startBar + 1}–${interpretation.endBar}` : 'Unavailable'}</strong>
@@ -798,36 +775,36 @@ export function EditSectionForm({
             <p><b>Alternative labels:</b> {alternatives.slice(1).map(alternative => `${alternative.type} ${Math.round(alternative.confidence * 100)}%`).join(' · ')}</p>
           )}
           <p><b>Boundary suggestions:</b> {boundaryAlternatives.length}</p>
-        </details>
+        </Collapsible>
       )}
 
       <div className="rv-form-actions">
         <span className="rv-section-source-badge">{sourceBadgeText}</span>
-        <button className="rv-form-cancel-btn" onClick={onCancel}>Cancel</button>
-        <button className="rv-form-add-btn" onClick={handleSave} disabled={!isValid}>
+        <IconChipButton onClick={onCancel}>Cancel</IconChipButton>
+        <IconChipButton tone="primary" onClick={handleSave} disabled={!isValid}>
           Save Changes
-        </button>
+        </IconChipButton>
         {isEdited && onRestore && (
-          <button className="rv-restore-btn" onClick={onRestore} title="Restore original analyzed values">
+          <IconChipButton onClick={onRestore} title="Restore original analyzed values">
             ↺ Restore
-          </button>
+          </IconChipButton>
         )}
         {isAuto && onSuppress && (
-          <button className="rv-delete-btn" onClick={onSuppress}>
+          <IconChipButton className="rv-glyph-upload-btn--danger" onClick={onSuppress}>
             Hide
-          </button>
+          </IconChipButton>
         )}
         {isUser && onDelete && (
           confirmDelete ? (
             <>
               <span className="rv-confirm-delete-label">Remove?</span>
-              <button className="rv-confirm-delete-btn" onClick={onDelete}>Yes</button>
-              <button className="rv-form-cancel-btn" onClick={() => setConfirmDelete(false)}>No</button>
+              <IconChipButton className="rv-glyph-upload-btn--danger" onClick={onDelete}>Yes</IconChipButton>
+              <IconChipButton onClick={() => setConfirmDelete(false)}>No</IconChipButton>
             </>
           ) : (
-            <button className="rv-delete-btn" onClick={() => setConfirmDelete(true)}>
+            <IconChipButton className="rv-glyph-upload-btn--danger" onClick={() => setConfirmDelete(true)}>
               Delete
-            </button>
+            </IconChipButton>
           )
         )}
       </div>
