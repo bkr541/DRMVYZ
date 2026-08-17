@@ -5,6 +5,7 @@
 import { guess } from 'web-audio-beat-detector'
 import { PitchDetector } from 'pitchy'
 import { analyzeStructuralRegions } from './sectionAnalysis'
+import { buildRekordboxAuthoritativeSections } from './rekordboxSectionAnalysis'
 import { detectSemanticMoments } from './semanticAnalysis'
 import { generateMusicalHierarchy } from './musicalHierarchyAnalysis'
 import { CURRENT_ANALYSIS_VERSION } from './analysisVersion'
@@ -719,20 +720,36 @@ export async function analyzeTrackBuffer(
     }
   })
 
-  // Structural analysis consumes the resolved grid-derived bar features.
-  // Bar-aware self-similarity is primary; the deterministic time-domain detector
-  // remains available only as an explicitly marked low-confidence fallback.
+  // Track-section source precedence is independent from beat-grid precedence.
+  // A Rekordbox-imported track gets PSSI boundary authority only when the source
+  // phrase map validates against this exact audio duration. In that mode native
+  // structural segmentation is deliberately not run: DRMVYZ classifies/enriches
+  // the fixed PSSI regions without moving, splitting, merging, or replacing them.
   throwIfAnalysisAborted(signal)
   report({ stage: 'structural_analysis', progress: 0.76 })
-  const structuralResult = analyzeStructuralRegions(
-    { instant: normInstant, bass: normBass, mid: normMid, high: normHigh },
-    { centroid: normCentroid, flux: normFlux, complexity: normComplex },
-    durationSec,
-    { minSegmentSec: minSectionSec, barFeatures, musicalGrid: gridResolution.info },
-  )
-  const baseSections = seed?.sections?.length
-    ? mergeSeededSections(seed.sections, structuralResult.sections, durationSec)
-    : structuralResult.sections
+  const rekordboxSectionResult = rekordboxSeed
+    ? buildRekordboxAuthoritativeSections({
+        phrases: seed?.rekordboxPhrases,
+        durationSec,
+        barFeatures,
+      })
+    : null
+  const usesRekordboxSections = rekordboxSectionResult?.valid === true
+
+  const structuralResult = usesRekordboxSections
+    ? null
+    : analyzeStructuralRegions(
+        { instant: normInstant, bass: normBass, mid: normMid, high: normHigh },
+        { centroid: normCentroid, flux: normFlux, complexity: normComplex },
+        durationSec,
+        { minSegmentSec: minSectionSec, barFeatures, musicalGrid: gridResolution.info },
+      )
+  const structuralSegmentation = structuralResult?.structuralSegmentation
+  const baseSections = usesRekordboxSections
+    ? rekordboxSectionResult!.sections
+    : !rekordboxSeed && seed?.sections?.length
+      ? mergeSeededSections(seed.sections, structuralResult!.sections, durationSec)
+      : structuralResult!.sections
   const hierarchy = generateMusicalHierarchy({
     durationSec,
     beatGrid: gridResolution.beatGrid,
@@ -740,7 +757,7 @@ export async function analyzeTrackBuffer(
     barFeatures,
     musicalGrid: gridResolution.info,
     sections: baseSections,
-    structuralSegmentation: structuralResult.structuralSegmentation,
+    structuralSegmentation,
     importedPhrases: seed?.phrases,
   })
   const sections = hierarchy.sections
@@ -760,7 +777,13 @@ export async function analyzeTrackBuffer(
   const warnings = [
     ...typedWarnings.map(warning => warning.message),
     ...(seed?.bpm != null ? [`BPM seeded from ${seed.source ?? 'external metadata'}.`] : []),
-    ...(seed?.sections?.length ? [`Sections seeded from ${seed.source ?? 'external metadata'}.`] : []),
+    ...(usesRekordboxSections
+      ? ['Track Section boundaries sourced from validated Rekordbox PSSI; DRMVYZ semantic analysis preserved those boundaries.']
+      : rekordboxSeed && (seed?.rekordboxPhrases?.length ?? 0) > 0
+        ? [`Rekordbox PSSI was not accepted for Track Section authority (${rekordboxSectionResult?.reason ?? 'validation failed'}); native DRMVYZ segmentation was used.`]
+        : []),
+    ...(rekordboxSectionResult?.normalizationNotes ?? []),
+    ...(!rekordboxSeed && seed?.sections?.length ? [`Sections seeded from ${seed.source ?? 'external metadata'}.`] : []),
     ...(seededKey ? [`Key seeded from ${seed?.source ?? 'external metadata'}.`] : []),
   ]
 
@@ -768,7 +791,7 @@ export async function analyzeTrackBuffer(
     bpm: rekordboxSeed && ((seed?.bpm ?? 0) > 0 || importedBeatGrid.length >= 2) ? 'rekordbox' as const : 'drmvyz' as const,
     beatGrid: rekordboxSeed && importedBeatGrid.length >= 2 ? 'rekordbox' as const : 'drmvyz' as const,
     key: rekordboxSeed && seededKey ? 'rekordbox' as const : 'drmvyz' as const,
-    trackSections: sectionFeatureSource(sections),
+    trackSections: usesRekordboxSections ? 'rekordbox' as const : sectionFeatureSource(sections),
   }
   const inferredRekordboxAvailability: RekordboxFeatureAvailability | undefined = rekordboxSeed
     ? {
@@ -801,7 +824,7 @@ export async function analyzeTrackBuffer(
     phrases: hierarchy.phrases,
     phraseHierarchy: hierarchy.phraseHierarchy,
     sections,
-    structuralSegmentation: structuralResult.structuralSegmentation,
+    structuralSegmentation,
     boundaryAlternatives: hierarchy.boundaryAlternatives,
     energyCurves: {
       instant: downsample(normInstant),
@@ -860,21 +883,33 @@ export async function analyzeTrackBuffer(
       barCount: gridResolution.bars.length,
       barFeatureCount: barFeatures.length,
       sectionCount: sections.length,
-      usedFallback: structuralResult.structuralSegmentation.diagnostics.usedFallback,
+      usedFallback: usesRekordboxSections ? false : structuralSegmentation?.diagnostics.usedFallback ?? true,
       gridSource: gridResolution.info.source,
       fallbackReason: gridResolution.info.fallbackReason,
       downbeatPhaseScores: gridResolution.phaseScores,
-      structuralSource: structuralResult.structuralSegmentation.source,
-      structuralCandidateCount: structuralResult.structuralSegmentation.diagnostics.candidateCount,
-      selectedStructuralBoundaryCount: structuralResult.structuralSegmentation.diagnostics.selectedBoundaryCount,
-      similarityMatrixDimension: structuralResult.structuralSegmentation.diagnostics.matrixDimension,
-      similarityMatrixBytes: structuralResult.structuralSegmentation.diagnostics.matrixBytes,
-      contextualClassifierVersion: structuralResult.structuralSegmentation.contextualDiagnostics?.classifierVersion,
-      detectedDropAnchorCount: structuralResult.structuralSegmentation.contextualDiagnostics?.dropAnchorCount,
-      refinedBuildBoundaryCount: structuralResult.structuralSegmentation.contextualDiagnostics?.buildRefinementCount,
-      detectedPreDropCount: structuralResult.structuralSegmentation.contextualDiagnostics?.preDropCount,
-      sectionFamilyCount: structuralResult.structuralSegmentation.contextualDiagnostics?.familyCount,
-      ambiguousSectionCount: structuralResult.structuralSegmentation.contextualDiagnostics?.ambiguousSectionCount,
+      structuralSource: structuralSegmentation?.source,
+      structuralCandidateCount: structuralSegmentation?.diagnostics.candidateCount,
+      selectedStructuralBoundaryCount: structuralSegmentation?.diagnostics.selectedBoundaryCount,
+      similarityMatrixDimension: structuralSegmentation?.diagnostics.matrixDimension,
+      similarityMatrixBytes: structuralSegmentation?.diagnostics.matrixBytes,
+      contextualClassifierVersion: usesRekordboxSections
+        ? rekordboxSectionResult?.contextualDiagnostics?.classifierVersion
+        : structuralSegmentation?.contextualDiagnostics?.classifierVersion,
+      detectedDropAnchorCount: usesRekordboxSections
+        ? rekordboxSectionResult?.contextualDiagnostics?.dropAnchorCount
+        : structuralSegmentation?.contextualDiagnostics?.dropAnchorCount,
+      refinedBuildBoundaryCount: usesRekordboxSections
+        ? rekordboxSectionResult?.contextualDiagnostics?.buildRefinementCount
+        : structuralSegmentation?.contextualDiagnostics?.buildRefinementCount,
+      detectedPreDropCount: usesRekordboxSections
+        ? rekordboxSectionResult?.contextualDiagnostics?.preDropCount
+        : structuralSegmentation?.contextualDiagnostics?.preDropCount,
+      sectionFamilyCount: usesRekordboxSections
+        ? rekordboxSectionResult?.contextualDiagnostics?.familyCount
+        : structuralSegmentation?.contextualDiagnostics?.familyCount,
+      ambiguousSectionCount: usesRekordboxSections
+        ? rekordboxSectionResult?.contextualDiagnostics?.ambiguousSectionCount
+        : structuralSegmentation?.contextualDiagnostics?.ambiguousSectionCount,
       structuralPhraseCount: hierarchy.phrases.filter(phrase => phrase.structurallyDetected).length,
       gridDerivedPhraseCount: hierarchy.phrases.filter(phrase => !phrase.structurallyDetected).length,
       boundaryAlternativeCount: hierarchy.boundaryAlternatives.length,

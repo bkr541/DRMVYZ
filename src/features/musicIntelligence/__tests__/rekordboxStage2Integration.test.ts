@@ -39,9 +39,9 @@ const phrase: RekordboxPhrase = {
   sourceLabel: 'Verse 1',
   normalizedLabel: 'verse',
   startBeat: 1,
-  endBeat: 5,
+  endBeat: 9,
   startTimeSec: 0,
-  endTimeSec: 2,
+  endTimeSec: 4,
   fillStartBeat: 4,
   fillStartTimeSec: 1.5,
   sourceFlags: { fill: true, beatFill: 4, masked: true },
@@ -77,7 +77,7 @@ describe('Rekordbox Stage 2 Track Intelligence integration', () => {
       bpm: 'rekordbox',
       beatGrid: 'rekordbox',
       key: 'rekordbox',
-      trackSections: 'drmvyz',
+      trackSections: 'rekordbox',
     })
     expect(result.trackProvenance).toMatchObject({
       trackOrigin: 'rekordbox',

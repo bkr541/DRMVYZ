@@ -27,7 +27,7 @@ export interface RekordboxPhrase {
   bank: RekordboxPhraseBank | null
   /** Human-readable label derived from Rekordbox's phrase-kind enum. */
   sourceLabel: string | null
-  /** Coarser normalized source label retained for future DRMVYZ mapping. */
+  /** Coarser normalized source label retained for DRMVYZ semantic mapping. */
   normalizedLabel: string | null
   /** One-based Rekordbox beat numbers. endBeat is an exclusive boundary. */
   startBeat: number

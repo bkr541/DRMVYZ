@@ -68,7 +68,7 @@ describe('mapRekordboxMatchToDrmvyz PSSI transport', () => {
     expect(result.analysisSeed.phrases).toBeUndefined()
     expect(result.analysisSeed.rekordboxPhrases).toEqual([phrase])
     expect(result.analysisSeed.featureAvailability).toEqual({ bpm: true, beatGrid: true, key: false, phrases: true })
-    expect(result.analysisSeed.sections).toEqual([])
+    expect(result.analysisSeed.sections).toBeUndefined()
     expect(result.cueMarkers).toEqual([])
     expect(result.cueRegions).toEqual([])
   })

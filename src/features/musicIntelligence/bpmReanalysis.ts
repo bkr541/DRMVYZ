@@ -4,6 +4,7 @@
 // segmentation implementation used by the initial offline analysis.
 
 import { analyzeStructuralRegions } from './sectionAnalysis'
+import { buildRekordboxAuthoritativeSections } from './rekordboxSectionAnalysis'
 import { resolveTrackAnalysisSources } from './analysisCompatibility'
 import { detectSemanticMoments } from './semanticAnalysis'
 import { generateMusicalHierarchy } from './musicalHierarchyAnalysis'
@@ -26,6 +27,29 @@ function mergeProtectedSections(protectedSections: TrackSectionMI[], automaticSe
     ...protectedSections,
     ...automaticSections.filter(section => !overlapsProtected(section)),
   ].sort((a, b) => a.startSec - b.startSec)
+}
+
+function hasAuthoritativeRekordboxSections(analysis: TrackIntelligenceAnalysis): boolean {
+  return resolveTrackAnalysisSources(analysis).trackSections === 'rekordbox'
+    && analysis.trackProvenance?.trackOrigin === 'rekordbox'
+    && analysis.sections.some(section => section.source === 'rekordbox')
+}
+
+function rebuildAuthoritativeRekordboxSections(
+  analysis: TrackIntelligenceAnalysis,
+  gridData: ReturnType<typeof rebuildBpmDependentData>,
+  durationSec: number,
+): TrackSectionMI[] {
+  const rebuilt = buildRekordboxAuthoritativeSections({
+    phrases: analysis.rekordboxSourceData?.phrases,
+    durationSec,
+    barFeatures: gridData.barFeatures,
+  })
+  if (rebuilt.valid) return rebuilt.sections
+  // The persisted sections came from a previously validated PSSI map. If a
+  // later BPM-only operation lacks enough enrichment data, keep that authority
+  // rather than silently replacing it with native segmentation.
+  return analysis.sections.filter(section => section.source === 'rekordbox')
 }
 
 /**
@@ -149,7 +173,9 @@ function assembleReanalysis(
           barCount: gridData.barMarkers.length,
           barFeatureCount: gridData.barFeatures.length,
           sectionCount: hierarchy.sections.length,
-          usedFallback: structuralSegmentation?.diagnostics.usedFallback ?? true,
+          usedFallback: hierarchy.sections.every(section => section.source === 'rekordbox')
+            ? false
+            : structuralSegmentation?.diagnostics.usedFallback ?? true,
           gridSource: gridData.musicalGrid.source,
           fallbackReason: gridData.musicalGrid.fallbackReason,
           structuralSource: structuralSegmentation?.source,
@@ -192,6 +218,16 @@ export function applyResnap(
 ): TrackIntelligenceAnalysis {
   const durationSec = analysis.durationMs / 1000
   const gridData = rebuildBpmDependentData(analysis, bpm, beatsPerBar)
+  if (hasAuthoritativeRekordboxSections(analysis)) {
+    return assembleReanalysis(
+      analysis,
+      bpm,
+      gridData,
+      analysis.sections.filter(section => section.source === 'rekordbox'),
+      undefined,
+      'resnap',
+    )
+  }
   const structural = rebuildStructuralAnalysis(analysis, gridData, durationSec)
   const relabeled = preserveCompatibilityLabels(analysis.sections, structural.sections)
   const preserved = analysis.sections.filter(isProtected)
@@ -216,6 +252,16 @@ export function applyReanalyze(
 ): TrackIntelligenceAnalysis {
   const durationSec = analysis.durationMs / 1000
   const gridData = rebuildBpmDependentData(analysis, bpm, beatsPerBar)
+  if (hasAuthoritativeRekordboxSections(analysis)) {
+    return assembleReanalysis(
+      analysis,
+      bpm,
+      gridData,
+      rebuildAuthoritativeRekordboxSections(analysis, gridData, durationSec),
+      undefined,
+      'reanalyze',
+    )
+  }
   const structural = rebuildStructuralAnalysis(analysis, gridData, durationSec)
   const preserved = analysis.sections.filter(isProtected)
   return assembleReanalysis(

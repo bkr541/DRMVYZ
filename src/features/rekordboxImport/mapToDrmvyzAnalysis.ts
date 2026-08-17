@@ -1,5 +1,3 @@
-import type { ReactSectionType } from '../../components/vyzualz/react/ReactTypes'
-import type { TrackSectionMI } from '../musicIntelligence/types'
 import type { ExternalTrackMetadata } from '../../types'
 import type { VzCueMarker, VzCueRegion } from '../../types/cue'
 import type { ImportedTrackIntelligence, RekordboxAnalysisSeed, RekordboxCuePoint, RekordboxLibrary, RekordboxTrackMetadata } from './types'
@@ -16,13 +14,6 @@ function cueVisualType(label: string, fallback: VzCueMarker['type'] = 'custom'):
   if (lower.includes('break')) return 'break'
   if (lower.includes('outro') || lower.includes('end')) return 'outro'
   return fallback
-}
-
-function sectionTypeFromCue(label: string): ReactSectionType | null {
-  const type = cueVisualType(label)
-  if (type === 'break') return 'breakdown'
-  if (type === 'custom') return null
-  return type
 }
 
 function cueColor(cue: RekordboxCuePoint, index: number): string {
@@ -74,7 +65,6 @@ export function mapRekordboxMatchToDrmvyz(match: RekordboxTrackMatch, library: R
     }
   })
 
-  const sourceSections = buildCueSeededSections(track)
   const beatGrid = track.beatGrid?.filter(beat => Number.isFinite(beat.timeSec)) ?? []
   const downbeats = track.downbeats?.length
     ? track.downbeats
@@ -101,7 +91,6 @@ export function mapRekordboxMatchToDrmvyz(match: RekordboxTrackMatch, library: R
     rekordboxPhrases: phraseSeed,
     key: track.key ?? null,
     keyConfidence: track.key ? 0.92 : null,
-    sections: sourceSections,
   }
 
   const metadata: ExternalTrackMetadata = {
@@ -163,28 +152,4 @@ function inferBpmFromBeatGrid(beatGrid: NonNullable<RekordboxTrackMetadata['beat
   if (!deltas.length) return null
   const avg = deltas.reduce((sum, value) => sum + value, 0) / deltas.length
   return Math.round((60 / avg) * 100) / 100
-}
-
-function buildCueSeededSections(track: RekordboxTrackMetadata): TrackSectionMI[] {
-  const labeledCues = track.cues
-    .map((cue, index) => ({ cue, index, label: cueLabel(cue, index), type: sectionTypeFromCue(cueLabel(cue, index)) }))
-    .filter((item): item is { cue: RekordboxCuePoint; index: number; label: string; type: ReactSectionType } => item.type != null)
-
-  if (labeledCues.length === 0) return []
-
-  return labeledCues.map((item, index) => {
-    const next = labeledCues[index + 1]
-    const endSec = next?.cue.startSec ?? track.durationSec ?? item.cue.endSec ?? item.cue.startSec + 32
-    return {
-      id: `rekordbox-section-${track.trackId}-${index}`,
-      label: item.label,
-      type: item.type,
-      startSec: item.cue.startSec,
-      endSec: Math.max(item.cue.startSec + 1, endSec),
-      intensity: item.type === 'drop' ? 0.95 : item.type === 'build' ? 0.78 : 0.55,
-      confidence: 0.72,
-      source: 'rekordbox',
-      locked: true,
-    }
-  })
 }

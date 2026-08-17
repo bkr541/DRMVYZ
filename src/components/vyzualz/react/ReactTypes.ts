@@ -3260,6 +3260,23 @@ export interface ReactSectionClassificationDiagnostics {
   dropAnchor?: ReactDropAnchorDiagnostics
 }
 
+export interface ReactRekordboxSectionSourceMetadata {
+  phraseIndex: number
+  sourceIndex: number | null
+  originalKind: string | null
+  normalizedLabel: string | null
+  sourceKind: number
+  mood: string | null
+  sourceMood: number
+  bank: string | null
+  sourceBank: number
+  sourceStartBeat: number
+  sourceEndBeat: number | null
+  sourceStartTimeSec: number | null
+  sourceEndTimeSec: number | null
+  classificationExplanation: string
+}
+
 export interface ReactSectionInterpretationMetadata {
   startBar?: number | null
   endBar?: number | null
@@ -3283,6 +3300,8 @@ export interface ReactSectionInterpretationMetadata {
   startBoundaryReason?: string
   endBoundaryReason?: string
   classificationDiagnostics?: ReactSectionClassificationDiagnostics
+  /** Source-faithful PSSI identity retained when Rekordbox owns section boundaries. */
+  rekordboxPhrase?: ReactRekordboxSectionSourceMetadata
 }
 
 export interface ReactPalette {

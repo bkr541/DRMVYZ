@@ -299,7 +299,7 @@ export interface TrackAnalysisProvenance {
 export interface RekordboxSourceAnalysisData {
   source: RekordboxImportSource
   featureAvailability: RekordboxFeatureAvailability
-  /** Native PSSI records, deliberately not converted into DRMVYZ phrases/sections in Stage 2. */
+  /** Source-faithful PSSI records retained even when Stage 3 maps them into Track Sections. */
   phrases: RekordboxPhrase[]
 }
 
