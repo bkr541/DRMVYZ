@@ -4,6 +4,9 @@ export type {
   RekordboxCuePoint,
   RekordboxImportSource,
   RekordboxLibrary,
+  RekordboxPhrase,
+  RekordboxPhraseBank,
+  RekordboxPhraseMood,
   RekordboxTrackMetadata,
   TrackAnalysisSeed,
 } from './types'

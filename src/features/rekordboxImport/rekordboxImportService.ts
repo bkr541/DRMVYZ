@@ -329,6 +329,7 @@ function createUsbModeFallback(file: File, library: RekordboxLibrary | null): Im
     },
     cueMarkers: [],
     cueRegions: [],
+    rekordboxPhrases: [],
     analysisSeed: {
       source: 'rekordbox_usb',
     },

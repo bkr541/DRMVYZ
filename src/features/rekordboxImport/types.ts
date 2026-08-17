@@ -15,6 +15,43 @@ export interface RekordboxCuePoint {
   color?: string | null
 }
 
+
+export type RekordboxPhraseMood = 'high_energy' | 'mid_energy' | 'low_energy'
+export type RekordboxPhraseBank = 'default' | 'cool' | 'natural' | 'hot' | 'subtle' | 'warm' | 'vivid' | 'club_1' | 'club_2'
+
+/** Native Rekordbox PSSI song-structure record. Kept separate from DRMVYZ-native phrases/sections. */
+export interface RekordboxPhrase {
+  /** Zero-based phrase position after parsing. */
+  phraseIndex: number
+  /** Rekordbox's one-based source phrase index, when present. */
+  sourceIndex?: number | null
+  /** Raw Rekordbox track mood code. */
+  sourceMood: number
+  mood: RekordboxPhraseMood | null
+  /** Raw Rekordbox phrase-kind code. */
+  sourceKind: number
+  /** Rekordbox phrase-kind enum label (for example verse_2 or chorus). */
+  rekordboxKind: string | null
+  /** Raw Rekordbox lighting-bank code. */
+  sourceBank: number
+  bank: RekordboxPhraseBank | null
+  /** Human-readable label derived from Rekordbox's phrase-kind enum. */
+  sourceLabel: string | null
+  /** Coarser normalized label for future DRMVYZ mapping; not authoritative in Stage 1. */
+  normalizedLabel: string | null
+  /** One-based Rekordbox beat numbers. endBeat is an exclusive boundary. */
+  startBeat: number
+  endBeat: number | null
+  /** Timestamps derived from PQTZ beat timings when available. */
+  startTimeSec: number | null
+  endTimeSec: number | null
+  fillStartBeat: number | null
+  fillStartTimeSec: number | null
+  /** Raw/diagnostic PSSI flags retained so future stages do not need to reparse ANLZ. */
+  sourceFlags: Record<string, boolean | number | string | null>
+  sourcePayload: Record<string, unknown>
+}
+
 export interface RekordboxTrackMetadata {
   trackId: string
   name: string
@@ -31,6 +68,7 @@ export interface RekordboxTrackMetadata {
   location?: string | null
   filename?: string | null
   cues: RekordboxCuePoint[]
+  phrases?: RekordboxPhrase[]
   beatGrid?: BeatMarkerMI[]
   downbeats?: BeatMarkerMI[]
   beatGridOffsetSec?: number | null
@@ -72,6 +110,8 @@ export interface ImportedTrackIntelligence {
   metadata: ExternalTrackMetadata
   cueMarkers: VzCueMarker[]
   cueRegions: VzCueRegion[]
+  /** Native Rekordbox PSSI phrases, deliberately not mapped into DRMVYZ analysisSeed yet. */
+  rekordboxPhrases: RekordboxPhrase[]
   analysisSeed: RekordboxAnalysisSeed
   matchConfidence: number
   matchReason: string

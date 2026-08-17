@@ -9,6 +9,7 @@ import {
   runtimeIdForAudioTrack,
 } from './runtimeTrack'
 import { CURRENT_ANALYSIS_VERSION } from '../features/musicIntelligence/analysisVersion'
+import type { ImportedTrackIntelligence } from '../features/rekordboxImport/types'
 
 describe('runtime track identity', () => {
   beforeEach(() => {
@@ -77,6 +78,52 @@ describe('runtime track identity', () => {
     expect(track.sourceFile).toBe(file)
     expect(getTrackAudioTrackId(track)).toBeNull()
     expect(isPersistedTrack(track)).toBe(false)
+  })
+
+  it('preserves Rekordbox PSSI phrases on the runtime track without promoting them into the native analysis seed', () => {
+    const file = new File(['audio'], 'rekordbox-phrase.wav', { type: 'audio/wav' })
+    const imported: ImportedTrackIntelligence = {
+      source: 'rekordbox_usb',
+      metadata: {
+        source: 'rekordbox_usb',
+        sourceLibraryId: 'library-1',
+        sourceTrackId: 'rb-track-1',
+        title: 'Rekordbox Phrase Track',
+        importedAt: '2026-08-16T00:00:00.000Z',
+      },
+      cueMarkers: [],
+      cueRegions: [],
+      rekordboxPhrases: [{
+        phraseIndex: 0,
+        sourceIndex: 1,
+        sourceMood: 2,
+        mood: 'mid_energy',
+        sourceKind: 2,
+        rekordboxKind: 'verse_1',
+        sourceBank: 0,
+        bank: 'default',
+        sourceLabel: 'Verse 1',
+        normalizedLabel: 'verse',
+        startBeat: 1,
+        endBeat: 9,
+        startTimeSec: 0,
+        endTimeSec: 4,
+        fillStartBeat: null,
+        fillStartTimeSec: null,
+        sourceFlags: { fill: false },
+        sourcePayload: { kind: 2 },
+      }],
+      analysisSeed: { source: 'rekordbox_usb', bpm: 120 },
+      matchConfidence: 0.99,
+      matchReason: 'test match',
+      warnings: [],
+    }
+
+    const track = createLocalRuntimeTrack(file, imported)
+
+    expect(track.importedRekordboxPhrases).toEqual(imported.rekordboxPhrases)
+    expect(track.importedAnalysisSeed?.phrases).toBeUndefined()
+    expect(track.importedAnalysisSeed?.sections).toBeUndefined()
   })
 
   it('continues to accept legacy remote URL inputs without persisted identity', () => {

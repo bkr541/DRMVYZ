@@ -90,6 +90,7 @@ export function createLocalRuntimeTrack(file: File, imported?: ImportedTrackInte
     externalMetadata:   importedMetadata,
     importedCueMarkers: imported?.cueMarkers ?? [],
     importedCueRegions: imported?.cueRegions ?? [],
+    importedRekordboxPhrases: imported?.rekordboxPhrases ?? [],
     importedAnalysisSeed: imported?.analysisSeed,
     sourceKind:         'file',
     sourceFile:         file,

@@ -3,6 +3,11 @@
 const fs = require('node:fs/promises')
 const path = require('node:path')
 const crypto = require('node:crypto')
+const {
+  parsePssiTag,
+  alignRekordboxPhrases,
+  mergeRekordboxPhrases,
+} = require('./rekordboxPssi.cjs')
 
 const AUDIO_EXT_RE = /\.(mp3|wav|aiff?|m4a|ogg|flac)$/i
 const ANLZ_EXT_RE = /\.(DAT|EXT|2EX)$/i
@@ -120,6 +125,11 @@ async function parseAnlzLibrary(files, rootPath, warnings) {
       const existing = byAudioPath.get(key) || makeTrackFromPath(stablePath, filePath)
       existing.cues = mergeCues(existing.cues || [], parsed.cues || [])
       existing.beatGrid = mergeBeatGrid(existing.beatGrid || [], parsed.beatGrid || [])
+      existing.phrases = alignRekordboxPhrases(
+        mergeRekordboxPhrases(existing.phrases || [], parsed.phrases || []),
+        existing.beatGrid,
+      )
+      for (const warning of parsed.warnings || []) warnings.push(`${path.basename(filePath)}: ${warning}`)
       existing.downbeats = (existing.beatGrid || []).filter(beat => beat.isDownbeat)
       existing.beatGridOffsetSec = existing.beatGrid?.[0]?.timeSec ?? existing.beatGridOffsetSec ?? null
       existing.bpm = existing.bpm || inferBpmFromBeatGrid(existing.beatGrid || [])
@@ -145,6 +155,8 @@ function parseAnlzBuffer(buffer, filePath) {
     pathTag: null,
     beatGrid: [],
     cues: [],
+    phrases: [],
+    warnings: [],
     durationSec: null,
   }
 
@@ -170,12 +182,17 @@ function parseAnlzBuffer(buffer, filePath) {
       cueBuckets.extended.push(...parseExtendedCueTag(buffer, offset, tagLen, filePath))
     } else if (fourcc === 'PCOB') {
       cueBuckets.legacy.push(...parseLegacyCueTag(buffer, offset, tagLen, filePath))
+    } else if (fourcc === 'PSSI') {
+      const pssi = parsePssiTag(buffer, offset, tagLen)
+      result.phrases.push(...pssi.phrases)
+      result.warnings.push(...pssi.warnings)
     }
 
     offset += tagLen
   }
 
   result.cues = dedupeCues(cueBuckets.extended.length > 0 ? cueBuckets.extended : cueBuckets.legacy)
+  result.phrases = alignRekordboxPhrases(result.phrases, result.beatGrid)
   const lastCue = result.cues.reduce((max, cue) => Math.max(max, cue.endSec || cue.startSec || 0), 0)
   result.durationSec = Math.max(result.durationSec || 0, lastCue) || null
   return result
@@ -354,6 +371,7 @@ function pdbRowToTrack(row, lookups) {
     location: normalizeDevicePath(filePath || filename || ''),
     filename,
     cues: [],
+    phrases: [],
     beatGrid: [],
     downbeats: [],
     beatGridOffsetSec: null,
@@ -368,10 +386,15 @@ function mergePdbAndAnlzTracks(pdbTracks, anlzTracks) {
     const match = findBestTrackMatch(pdb, anlzTracks, usedAnlz)
     if (match) {
       usedAnlz.add(match.trackId)
+      const beatGrid = match.beatGrid || pdb.beatGrid || []
       output.push({
         ...pdb,
         cues: mergeCues(pdb.cues || [], match.cues || []).map(cue => ({ ...cue, trackId: pdb.trackId })),
-        beatGrid: match.beatGrid || pdb.beatGrid || [],
+        phrases: alignRekordboxPhrases(
+          mergeRekordboxPhrases(pdb.phrases || [], match.phrases || []),
+          beatGrid,
+        ),
+        beatGrid,
         downbeats: match.downbeats || pdb.downbeats || [],
         beatGridOffsetSec: match.beatGridOffsetSec ?? pdb.beatGridOffsetSec ?? null,
         bpm: pdb.bpm || match.bpm || null,
@@ -388,6 +411,7 @@ function mergePdbAndAnlzTracks(pdbTracks, anlzTracks) {
   return output.map(track => ({
     ...track,
     cues: (track.cues || []).map(cue => ({ ...cue, trackId: track.trackId })),
+    phrases: alignRekordboxPhrases(track.phrases || [], track.beatGrid || []),
   }))
 }
 
@@ -427,6 +451,7 @@ function makeTrackFromPath(audioPath, anlzPath) {
     location: normalizeDevicePath(audioPath || ''),
     filename,
     cues: [],
+    phrases: [],
     beatGrid: [],
     downbeats: [],
     beatGridOffsetSec: null,

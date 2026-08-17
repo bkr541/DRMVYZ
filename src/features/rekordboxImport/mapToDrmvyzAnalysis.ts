@@ -115,6 +115,7 @@ export function mapRekordboxMatchToDrmvyz(match: RekordboxTrackMatch, library: R
     metadata,
     cueMarkers,
     cueRegions,
+    rekordboxPhrases: track.phrases ?? [],
     analysisSeed,
     matchConfidence: match.confidence,
     matchReason: match.reason,

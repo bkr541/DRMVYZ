@@ -65,7 +65,7 @@ export type FftSize = 512 | 1024 | 2048 | 4096 | 8192
 export type { TrackAnalysisStatus, BpmReanalysisStatus } from './features/musicIntelligence/types'
 import type { TrackIntelligenceAnalysis, TrackAnalysisStatus, BeatMarkerMI, BpmReanalysisStatus, AnalysisStage } from './features/musicIntelligence/types'
 import type { VzCueMarker, VzCueRegion } from './types/cue'
-import type { RekordboxAnalysisSeed } from './features/rekordboxImport/types'
+import type { RekordboxAnalysisSeed, RekordboxPhrase } from './features/rekordboxImport/types'
 
 export type BpmSource = 'offline_analysis' | 'live_analysis' | 'manual_override' | 'rekordbox'
 
@@ -169,6 +169,8 @@ export interface Track {
   externalMetadata?: ExternalTrackMetadata
   importedCueMarkers?: VzCueMarker[]
   importedCueRegions?: VzCueRegion[]
+  /** Native Rekordbox PSSI song-structure phrases. Not DRMVYZ-native Track Sections. */
+  importedRekordboxPhrases?: RekordboxPhrase[]
   /** External analysis seed to pass into the offline analyzer for BPM/key/section hydration. */
   importedAnalysisSeed?: RekordboxAnalysisSeed
   sourceKind:      'file' | 'remote'
