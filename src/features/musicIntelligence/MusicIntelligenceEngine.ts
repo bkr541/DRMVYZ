@@ -279,6 +279,7 @@ export class MusicIntelligenceEngine {
     | 'analysisSources'
     | 'trackProvenance'
     | 'rekordboxSourceData'
+    | 'analysisDiagnostics'
     | 'analysisRevision'
     | 'timelineRevision'
   > {
@@ -294,6 +295,7 @@ export class MusicIntelligenceEngine {
       analysisSources: this.trackAnalysis ? resolveTrackAnalysisSources(this.trackAnalysis) : null,
       trackProvenance: this.trackAnalysis ? resolveTrackAnalysisProvenance(this.trackAnalysis) : null,
       rekordboxSourceData: this.trackAnalysis?.rekordboxSourceData ?? null,
+      analysisDiagnostics: this.trackAnalysis?.analysisDiagnostics ?? null,
       analysisRevision: this.analysisRevision(),
       timelineRevision: this.resolvedTimelineRevision,
     }
@@ -880,6 +882,7 @@ export class MusicIntelligenceEngine {
       analysisSources: analysisPublication.analysisSources,
       trackProvenance: analysisPublication.trackProvenance,
       rekordboxSourceData: analysisPublication.rekordboxSourceData,
+      analysisDiagnostics: analysisPublication.analysisDiagnostics,
       analysisRevision: analysisPublication.analysisRevision,
       timelineRevision: analysisPublication.timelineRevision,
       raw: {

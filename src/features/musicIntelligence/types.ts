@@ -261,6 +261,8 @@ export interface MusicIntelligenceFrame {
   trackProvenance?: TrackAnalysisProvenance | null
   /** Source-faithful Rekordbox payload retained for diagnostics/future mapping. */
   rekordboxSourceData?: RekordboxSourceAnalysisData | null
+  /** Structured offline diagnostics, including Rekordbox source/fallback decisions. */
+  analysisDiagnostics?: AnalysisDiagnostics | null
   /** Changes only when the complete offline analysis snapshot changes. */
   analysisRevision?: string | null
   /** Deterministic revision of the resolved section timeline. */
@@ -437,6 +439,27 @@ export interface AnalysisWarning {
   recoverable: boolean
 }
 
+export interface RekordboxAnalysisDiagnostics {
+  /** True only when the track entered analysis through an explicit Rekordbox workflow. */
+  imported: boolean
+  source: RekordboxImportSource | null
+  /** Usable Rekordbox PQTZ timing survived validation for this analysis. */
+  beatGridAvailable: boolean
+  /** One or more Rekordbox PSSI records reached offline analysis. */
+  pssiAvailable: boolean
+  beatGridSource: TrackAnalysisFeatureSource
+  trackSectionsSource: TrackAnalysisFeatureSource
+  importedPhraseCount: number
+  /** True only when validated PSSI owns the final Track Section boundaries. */
+  pssiAccepted: boolean
+  nativeBeatGridFallbackUsed: boolean
+  nativeTrackSectionFallbackUsed: boolean
+  /** Stable developer-facing explanation when PSSI did not become authoritative. */
+  pssiFallbackReason: string | null
+  /** Safe normalizations applied while retaining PSSI boundary authority. */
+  pssiNormalizationNotes: string[]
+}
+
 export interface AnalysisDiagnostics {
   featureFrameCount: number
   /** One shared FFT/feature pass should serve every downstream stage. */
@@ -469,6 +492,8 @@ export interface AnalysisDiagnostics {
   semanticMomentCount?: number
   boundaryAlternativeCount?: number
   hierarchyUnitCount?: number
+  /** Structured Rekordbox source/fallback diagnostics. Present on new analyses. */
+  rekordbox?: RekordboxAnalysisDiagnostics
 }
 
 export type PhraseMarkerSource =

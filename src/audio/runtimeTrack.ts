@@ -1,5 +1,5 @@
 import type { Track, TrackAnalysisRuntime, PersistedTrackMetadata } from '../types'
-import type { ImportedTrackIntelligence } from '../features/rekordboxImport/types'
+import type { ImportedTrackIntelligence, RekordboxAnalysisSeed } from '../features/rekordboxImport/types'
 import { DEFAULT_TRACK_ANALYSIS_RUNTIME } from '../types'
 import { generateId, getFilenameWithoutExtension } from '../utils/audioUtils'
 import {
@@ -7,6 +7,8 @@ import {
   CURRENT_ANALYSIS_VERSION,
 } from '../features/trackIntelligence/TrackAnalysisCoordinator'
 import { isCurrentAnalysisVersion } from '../features/musicIntelligence/analysisVersion'
+import { resolveTrackAnalysisProvenance, resolveTrackAnalysisSources } from '../features/musicIntelligence/analysisCompatibility'
+import type { TrackIntelligenceAnalysis } from '../features/musicIntelligence/types'
 
 /** Backward-compatible input for signed URLs, restored remote tracks, and saved audio_tracks rows. */
 export interface PreparedTrackInput {
@@ -29,6 +31,51 @@ export interface RuntimeTrackUrlInput {
 
 export function runtimeIdForAudioTrack(dbId: string): string {
   return `audio-${dbId}`
+}
+
+/**
+ * Rebuild the source-faithful Rekordbox seed from a persisted analysis payload.
+ * Saved tracks do not retain the original import object, so without this bridge a
+ * later full re-analysis would lose Rekordbox feature precedence after reload.
+ */
+export function restoreRekordboxAnalysisSeed(
+  analysis: TrackIntelligenceAnalysis | null | undefined,
+): RekordboxAnalysisSeed | undefined {
+  if (!analysis) return undefined
+  const provenance = resolveTrackAnalysisProvenance(analysis)
+  const sourceData = analysis.rekordboxSourceData
+  if (provenance.trackOrigin !== 'rekordbox' || !sourceData) return undefined
+
+  const sources = resolveTrackAnalysisSources(analysis)
+  const featureAvailability = {
+    bpm: sources.bpm === 'rekordbox',
+    beatGrid: sources.beatGrid === 'rekordbox',
+    key: sources.key === 'rekordbox',
+    phrases: sourceData.phrases.length > 0,
+  }
+  const key = sources.key === 'rekordbox' && analysis.harmonic.dominantKey
+    ? `${analysis.harmonic.dominantKey}${analysis.harmonic.dominantMode ? ` ${analysis.harmonic.dominantMode}` : ''}`
+    : null
+
+  return {
+    source: sourceData.source,
+    featureAvailability,
+    bpm: sources.bpm === 'rekordbox' ? analysis.bpm : null,
+    beatGridOffsetSec: sources.beatGrid === 'rekordbox' ? analysis.beatGridOffsetSec : null,
+    beatGrid: sources.beatGrid === 'rekordbox'
+      ? analysis.beatGrid.map(beat => ({ ...beat }))
+      : undefined,
+    downbeats: sources.beatGrid === 'rekordbox'
+      ? analysis.downbeats.map(beat => ({ ...beat }))
+      : undefined,
+    rekordboxPhrases: sourceData.phrases.map(phrase => ({
+      ...phrase,
+      sourceFlags: { ...phrase.sourceFlags },
+      sourcePayload: { ...phrase.sourcePayload },
+    })),
+    key,
+    keyConfidence: sources.key === 'rekordbox' ? analysis.harmonic.keyConfidence : null,
+  }
 }
 
 function buildAnalysisRuntime(
@@ -104,6 +151,7 @@ export function createPreparedRuntimeTrack(input: PreparedTrackInput): Track {
 
 export function createRemoteRuntimeTrack(input: RuntimeTrackUrlInput): Track {
   const title = input.title?.trim() || getFilenameWithoutExtension(input.name)
+  const importedAnalysisSeed = restoreRekordboxAnalysisSeed(input.analysisRuntime?.analysis)
   return {
     id:                input.dbId ? runtimeIdForAudioTrack(input.dbId) : (input.runtimeId ?? generateId()),
     dbId:              input.dbId,
@@ -115,9 +163,11 @@ export function createRemoteRuntimeTrack(input: RuntimeTrackUrlInput): Track {
     duration:          input.duration ?? 0,
     storagePath:       input.storagePath,
     persistedMetadata: input.persistedMetadata,
+    importedRekordboxPhrases: importedAnalysisSeed?.rekordboxPhrases ?? [],
+    importedAnalysisSeed,
     sourceKind:        'remote',
     analysisRuntime:   buildAnalysisRuntime(
-      { sourceKind: 'remote', url: input.url },
+      { sourceKind: 'remote', url: input.url, importedAnalysisSeed },
       input.analysisRuntime,
     ),
   }

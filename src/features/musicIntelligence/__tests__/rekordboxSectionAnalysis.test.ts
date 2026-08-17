@@ -114,6 +114,40 @@ describe('Rekordbox PSSI Track Section authority', () => {
     expect(result.normalizationNotes.length).toBeGreaterThan(0)
   })
 
+  it('accepts a very short track with a single complete PSSI phrase', () => {
+    const result = validateRekordboxPssi([makePhrase(0, 'intro', 0, 0.75)], 0.75)
+
+    expect(result.valid).toBe(true)
+    expect(result.regions).toHaveLength(1)
+    expect(result.regions[0]).toMatchObject({ startSec: 0, endSec: 0.75 })
+  })
+
+  it('deterministically closes an omitted final PSSI end boundary at the track duration', () => {
+    const phrases = [
+      makePhrase(0, 'intro', 0, 4),
+      { ...makePhrase(1, 'outro', 4, 8), endTimeSec: null, endBeat: null },
+    ]
+    const result = validateRekordboxPssi(phrases, 8)
+
+    expect(result.valid).toBe(true)
+    expect(result.regions.map(region => [region.startSec, region.endSec])).toEqual([[0, 4], [4, 8]])
+    expect(result.normalizationNotes.some(note => note.includes('end boundary was omitted'))).toBe(true)
+  })
+
+  it('keeps repeated phrase kinds and malformed optional fill metadata out of boundary decisions', () => {
+    const first = makePhrase(0, 'verse_1', 0, 4)
+    const second = {
+      ...makePhrase(1, 'verse_1', 4, 8),
+      fillStartBeat: 999_999,
+      fillStartTimeSec: Number.NaN,
+      sourceFlags: { fill: true, fill_unknown: 999 },
+    }
+    const result = validateRekordboxPssi([first, second], 8)
+
+    expect(result.valid).toBe(true)
+    expect(result.regions.map(region => [region.startSec, region.endSec])).toEqual([[0, 4], [4, 8]])
+  })
+
   it('maps Intro, Verse variants, Up, and Outro directly while preserving exact source boundaries', () => {
     const phrases = [
       makePhrase(0, 'intro', 0, 2),

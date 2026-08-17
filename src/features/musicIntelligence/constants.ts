@@ -157,6 +157,7 @@ export const DEFAULT_MI_FRAME: MusicIntelligenceFrame = {
     mood:    null,
     texture: null,
   },
+  analysisDiagnostics: null,
   raw: {
     freqData:       null,
     timeDomainData: null,

@@ -914,6 +914,24 @@ export async function analyzeTrackBuffer(
       gridDerivedPhraseCount: hierarchy.phrases.filter(phrase => !phrase.structurallyDetected).length,
       boundaryAlternativeCount: hierarchy.boundaryAlternatives.length,
       hierarchyUnitCount: hierarchy.phraseHierarchy.units.length,
+      rekordbox: rekordboxSeed
+        ? {
+            imported: true,
+            source: seed!.source as RekordboxImportSource,
+            beatGridAvailable: importedBeatGrid.length >= 2,
+            pssiAvailable: (seed?.rekordboxPhrases?.length ?? 0) > 0,
+            beatGridSource: analysisSources.beatGrid,
+            trackSectionsSource: analysisSources.trackSections,
+            importedPhraseCount: seed?.rekordboxPhrases?.length ?? 0,
+            pssiAccepted: usesRekordboxSections,
+            nativeBeatGridFallbackUsed: analysisSources.beatGrid !== 'rekordbox',
+            nativeTrackSectionFallbackUsed: analysisSources.trackSections !== 'rekordbox',
+            pssiFallbackReason: !usesRekordboxSections
+              ? (rekordboxSectionResult?.reason ?? 'Rekordbox PSSI validation did not produce an authoritative section map.')
+              : null,
+            pssiNormalizationNotes: [...(rekordboxSectionResult?.normalizationNotes ?? [])],
+          }
+        : undefined,
     },
     detectedBpm: bpm,
     bpmUsedForGrid: bpm,

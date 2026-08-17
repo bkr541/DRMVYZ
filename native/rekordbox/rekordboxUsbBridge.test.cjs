@@ -283,6 +283,31 @@ test('scanRekordboxUsbRoot merges sibling DAT beat grid and EXT PSSI for the sam
   assert.equal(track.phrases[1].fillStartTimeSec, 3.5)
 })
 
+test('corrupted ANLZ extension does not prevent readable sibling metadata or export.pdb discovery', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'drmvyz-rb-corrupt-ext-'))
+  t.after(() => fs.rm(root, { recursive: true, force: true }))
+  const analysisDir = path.join(root, 'PIONEER', 'USBANLZ', 'P001', '00000000')
+  const rekordboxDir = path.join(root, 'PIONEER', 'rekordbox')
+  await fs.mkdir(analysisDir, { recursive: true })
+  await fs.mkdir(rekordboxDir, { recursive: true })
+  const audioPath = '/Contents/Still Usable.wav'
+
+  await fs.writeFile(path.join(analysisDir, 'ANLZ0000.DAT'), makePmai([
+    makePpthTag(audioPath),
+    makePqtzTag(grid([0, 500, 1000, 1500, 2000], [120])),
+  ]))
+  await fs.writeFile(path.join(analysisDir, 'ANLZ0000.EXT'), Buffer.from('corrupt-anlz-extension'))
+  await fs.writeFile(path.join(rekordboxDir, 'export.pdb'), Buffer.from('readable-placeholder-pdb'))
+
+  const result = await scanRekordboxUsbRoot(root)
+  assert.equal(result.detectedPdbFiles, 1)
+  assert.equal(result.detectedAnlzFiles, 2)
+  assert.equal(result.library.tracks.length, 1)
+  assert.equal(result.library.tracks[0].location, audioPath)
+  assert.equal(result.library.tracks[0].beatGrid.length, 5)
+  assert.ok(result.warnings.some(warning => warning.includes('ANLZ0000.EXT')) || result.warnings.some(warning => warning.includes('export.pdb')))
+})
+
 test('scanRekordboxUsbRoot returns a safe empty result for a non-Rekordbox folder', async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'drmvyz-rb-'))
   t.after(() => fs.rm(root, { recursive: true, force: true }))

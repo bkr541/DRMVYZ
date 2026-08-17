@@ -97,9 +97,14 @@ export function validateRekordboxPssi(
   }
 
   const normalizationNotes: string[] = []
-  // phraseIndex is the source parse order. Sort only by that stable identity so
-  // impossible timing order cannot be hidden by sorting on timestamps.
-  const sorted = [...phrases].sort((a, b) => a.phraseIndex - b.phraseIndex)
+  // phraseIndex is the source parse order. Explicit tie-breakers keep malformed
+  // duplicate indices deterministic without hiding impossible timing order.
+  const sorted = [...phrases].sort((a, b) => (
+    a.phraseIndex - b.phraseIndex
+    || (a.sourceIndex ?? Number.MAX_SAFE_INTEGER) - (b.sourceIndex ?? Number.MAX_SAFE_INTEGER)
+    || a.startBeat - b.startBeat
+    || a.sourceKind - b.sourceKind
+  ))
   const tolerance = edgeToleranceSec(durationSec)
   const regions: ValidatedRekordboxPhraseRegion[] = []
 
@@ -107,7 +112,13 @@ export function validateRekordboxPssi(
     const phrase = sorted[index]!
     const next = sorted[index + 1]
     const rawStart = phrase.startTimeSec
-    const rawEnd = phrase.endTimeSec ?? next?.startTimeSec ?? null
+    const inferredTrackEnd = !next && phrase.endTimeSec == null && rawStart != null && Number.isFinite(rawStart)
+      ? durationSec
+      : null
+    const rawEnd = phrase.endTimeSec ?? next?.startTimeSec ?? inferredTrackEnd
+    if (inferredTrackEnd != null) {
+      normalizationNotes.push(`Closed final PSSI phrase ${phrase.sourceIndex ?? phrase.phraseIndex + 1} at track duration because its end boundary was omitted.`)
+    }
     if (rawStart == null || rawEnd == null || !Number.isFinite(rawStart) || !Number.isFinite(rawEnd)) {
       return {
         valid: false,

@@ -6,7 +6,7 @@
     "rgbWaveformVersion": 1,
     "trackAnalysisInvocation": "analyzeTrackBuffer(audioBuffer)",
     "trackAnalysisSeed": null,
-    "trackAnalysisVersion": "auto-6.0"
+    "trackAnalysisVersion": "auto-6.1"
   },
   "browserRuntime": {
     "audioContextSampleRate": 48000,
@@ -24656,7 +24656,7 @@
         "structuralSource": "time_domain_fallback",
         "usedFallback": true
       },
-      "analysisVersion": "auto-6.0",
+      "analysisVersion": "auto-6.1",
       "analysisWarnings": [
         {
           "code": "low_bpm_confidence",
