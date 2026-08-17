@@ -27,70 +27,70 @@ export function LaserDmxRendererDiagnosticsPanel() {
       {diagnostics.activeRenderer === 'inactive' ? (
         <div className="rv-ctrl-info rv-control-helper-copy">Renderer diagnostics appear while LaserDMX is actively rendering.</div>
       ) : (
-        <div className="rv-show-director-performance-status" data-laser-dmx-renderer-diagnostics>
-          <dl className="rv-show-director-performance-status__grid">
-            <div><dt>Renderer</dt><dd>{diagnostics.activeRenderer === 'webgl' ? 'WebGL2' : 'Canvas2D'}</dd></div>
-            <div><dt>Requested</dt><dd>{diagnostics.requestedRenderer}</dd></div>
-            <div><dt>Presentation</dt><dd>{diagnostics.presentationMode}</dd></div>
-            <div><dt>Authored Show Dimmer</dt><dd>{diagnostics.authoredShowDimmer.toFixed(3)}</dd></div>
-            <div><dt>Preview Output Trim</dt><dd>{diagnostics.previewOutputTrim.toFixed(3)}</dd></div>
-            <div><dt>Safety Clamp</dt><dd>{diagnostics.safetyClamp.toFixed(3)}</dd></div>
-            <div><dt>Resolved Preview Product</dt><dd>{diagnostics.resolvedPreviewIntensity.toFixed(3)}</dd></div>
-            <div><dt>Hardware-Safe Product</dt><dd>{diagnostics.resolvedHardwareIntensity.toFixed(3)}</dd></div>
-            <div><dt>Authored / Preview Glow</dt><dd>{diagnostics.authoredShowGlow.toFixed(3)} × {diagnostics.previewGlowTrim.toFixed(3)} = {diagnostics.resolvedPreviewGlow.toFixed(3)}</dd></div>
-            <div><dt>Hardware-Safe Glow</dt><dd>{diagnostics.resolvedHardwareGlow.toFixed(3)}</dd></div>
-            <div><dt>WebGL2</dt><dd>{diagnostics.webgl2Available == null ? 'Not probed' : diagnostics.webgl2Available ? 'Available' : 'Unavailable'}</dd></div>
-            <div><dt>Float Targets</dt><dd>{diagnostics.floatTargetsAvailable ? 'RGBA16F' : 'RGBA8 / none'}</dd></div>
-            <div><dt>Quality</dt><dd>{diagnostics.requestedQuality}{diagnostics.effectiveQuality ? ` → ${diagnostics.effectiveQuality}` : ''}</dd></div>
-            <div><dt>Quality Decision</dt><dd>{diagnostics.qualityAdjustmentReason ?? 'Stable'}</dd></div>
-            <div><dt>Atmosphere</dt><dd>{diagnostics.atmosphereQuality ?? 'Canvas2D'}{diagnostics.atmosphereSampleCount ? ` · ${diagnostics.atmosphereSampleCount} samples` : ''}</dd></div>
-            <div><dt>Resolution</dt><dd>{diagnostics.renderWidth} × {diagnostics.renderHeight}</dd></div>
-            <div><dt>Atmosphere Buffer</dt><dd>{diagnostics.atmosphereWidth} × {diagnostics.atmosphereHeight}</dd></div>
-            <div><dt>Beams</dt><dd>{diagnostics.activeBeamCount}{diagnostics.requestedBeamCount !== diagnostics.activeBeamCount ? ` / ${diagnostics.requestedBeamCount}` : ''}</dd></div>
-            <div><dt>Fixtures</dt><dd>{diagnostics.activeFixtureCount}</dd></div>
+        <div className="vz-mi-panel" data-laser-dmx-renderer-diagnostics>
+          <div className="vz-mi-section vz-mi-section--kv-grid">
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Renderer</span><span className="vz-mi-kv-val">{diagnostics.activeRenderer === 'webgl' ? 'WebGL2' : 'Canvas2D'}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Requested</span><span className="vz-mi-kv-val">{diagnostics.requestedRenderer}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Presentation</span><span className="vz-mi-kv-val">{diagnostics.presentationMode}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Authored Show Dimmer</span><span className="vz-mi-kv-val">{diagnostics.authoredShowDimmer.toFixed(3)}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Preview Output Trim</span><span className="vz-mi-kv-val">{diagnostics.previewOutputTrim.toFixed(3)}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Safety Clamp</span><span className="vz-mi-kv-val">{diagnostics.safetyClamp.toFixed(3)}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Resolved Preview Product</span><span className="vz-mi-kv-val">{diagnostics.resolvedPreviewIntensity.toFixed(3)}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Hardware-Safe Product</span><span className="vz-mi-kv-val">{diagnostics.resolvedHardwareIntensity.toFixed(3)}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Authored / Preview Glow</span><span className="vz-mi-kv-val">{diagnostics.authoredShowGlow.toFixed(3)} × {diagnostics.previewGlowTrim.toFixed(3)} = {diagnostics.resolvedPreviewGlow.toFixed(3)}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Hardware-Safe Glow</span><span className="vz-mi-kv-val">{diagnostics.resolvedHardwareGlow.toFixed(3)}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">WebGL2</span><span className="vz-mi-kv-val">{diagnostics.webgl2Available == null ? 'Not probed' : diagnostics.webgl2Available ? 'Available' : 'Unavailable'}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Float Targets</span><span className="vz-mi-kv-val">{diagnostics.floatTargetsAvailable ? 'RGBA16F' : 'RGBA8 / none'}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Quality</span><span className="vz-mi-kv-val">{diagnostics.requestedQuality}{diagnostics.effectiveQuality ? ` → ${diagnostics.effectiveQuality}` : ''}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Quality Decision</span><span className="vz-mi-kv-val">{diagnostics.qualityAdjustmentReason ?? 'Stable'}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Atmosphere</span><span className="vz-mi-kv-val">{diagnostics.atmosphereQuality ?? 'Canvas2D'}{diagnostics.atmosphereSampleCount ? ` · ${diagnostics.atmosphereSampleCount} samples` : ''}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Resolution</span><span className="vz-mi-kv-val">{diagnostics.renderWidth} × {diagnostics.renderHeight}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Atmosphere Buffer</span><span className="vz-mi-kv-val">{diagnostics.atmosphereWidth} × {diagnostics.atmosphereHeight}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Beams</span><span className="vz-mi-kv-val">{diagnostics.activeBeamCount}{diagnostics.requestedBeamCount !== diagnostics.activeBeamCount ? ` / ${diagnostics.requestedBeamCount}` : ''}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Fixtures</span><span className="vz-mi-kv-val">{diagnostics.activeFixtureCount}</span></div>
             {diagnostics.presentationMode !== 'capture' && (
               <>
-                <div><dt>Scanner Heads</dt><dd>{diagnostics.scannerHeadCount}</dd></div>
-                <div><dt>Selected Head</dt><dd>{diagnostics.selectedScannerHeadId ?? 'None'}</dd></div>
-                <div><dt>Pattern</dt><dd>{diagnostics.activeScannerPattern ?? 'Inactive'}</dd></div>
-                <div><dt>Path Points</dt><dd>{diagnostics.scannerPointCount}</dd></div>
-                <div><dt>Path Segments</dt><dd>{diagnostics.visibleScannerSegmentCount} visible / {diagnostics.blankedScannerSegmentCount} blanked</dd></div>
-                <div><dt>Ordered Paths</dt><dd>{diagnostics.orderedPathCount}</dd></div>
-                <div><dt>Exposure Samples</dt><dd>{diagnostics.exposureSampleCount}</dd></div>
-                <div><dt>Raw / Aggregated</dt><dd>{diagnostics.rawExposureSampleCount} / {diagnostics.aggregatedRayCount}</dd></div>
-                <div><dt>Exposure Energy</dt><dd>{diagnostics.scannerEnergyBeforeAggregation.toFixed(3)} → {diagnostics.scannerEnergyAfterAggregation.toFixed(3)}</dd></div>
-                <div><dt>Macro Paths</dt><dd>{diagnostics.macroControlledPathCount}</dd></div>
-                <div><dt>Legacy Paths</dt><dd>{diagnostics.legacyConvertedPathCount}</dd></div>
-                <div><dt>Optical Copies</dt><dd>{diagnostics.explicitOpticalCopyCount}</dd></div>
-                <div><dt>Apertures</dt><dd>{diagnostics.scannerApertureCount}</dd></div>
-                <div><dt>Dwell</dt><dd>{diagnostics.scannerDwellTotalMicros.toLocaleString()} μs</dd></div>
-                <div><dt>Scan Rate</dt><dd>{diagnostics.currentScanRatePps ? `${diagnostics.currentScanRatePps.toLocaleString()} pps` : 'Inactive'}</dd></div>
-                <div><dt>Blanked Samples</dt><dd>{diagnostics.blankedScannerSampleCount}</dd></div>
-                <div><dt>Retrace Segments</dt><dd>{diagnostics.retraceScannerSegmentCount}</dd></div>
-                <div><dt>Velocity / Dwell</dt><dd>{diagnostics.averageScannerVelocity.toFixed(3)} / {diagnostics.averageScannerDwellWeight.toFixed(3)}</dd></div>
-                <div><dt>Exposure / History</dt><dd>{diagnostics.averageScannerExposureWeight.toFixed(3)} / {diagnostics.averageScannerHistoryWeight.toFixed(3)}</dd></div>
-                <div><dt>Normalized Energy</dt><dd>{diagnostics.normalizedScannerFixtureEnergy.toFixed(3)}</dd></div>
-                <div><dt>Cue Owner</dt><dd>{diagnostics.currentScannerCueOwner ?? 'None'}</dd></div>
-                <div><dt>Stable / Animated</dt><dd>{diagnostics.stableScannerPathCount} / {diagnostics.animatedScannerPathCount}</dd></div>
-                <div><dt>Path Errors</dt><dd>{diagnostics.scannerValidationErrorCount}</dd></div>
-                <div><dt>Scanner Mode</dt><dd>{diagnostics.scannerCompatibilityMode}</dd></div>
-                <div><dt>Migration</dt><dd>{diagnostics.scannerMigrationStatus}</dd></div>
-                <div><dt>Duplicate Paths</dt><dd>{diagnostics.duplicateRenderingFixtureIds.length ? diagnostics.duplicateRenderingFixtureIds.join(', ') : 'None'}</dd></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Scanner Heads</span><span className="vz-mi-kv-val">{diagnostics.scannerHeadCount}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Selected Head</span><span className="vz-mi-kv-val">{diagnostics.selectedScannerHeadId ?? 'None'}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Pattern</span><span className="vz-mi-kv-val">{diagnostics.activeScannerPattern ?? 'Inactive'}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Path Points</span><span className="vz-mi-kv-val">{diagnostics.scannerPointCount}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Path Segments</span><span className="vz-mi-kv-val">{diagnostics.visibleScannerSegmentCount} visible / {diagnostics.blankedScannerSegmentCount} blanked</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Ordered Paths</span><span className="vz-mi-kv-val">{diagnostics.orderedPathCount}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Exposure Samples</span><span className="vz-mi-kv-val">{diagnostics.exposureSampleCount}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Raw / Aggregated</span><span className="vz-mi-kv-val">{diagnostics.rawExposureSampleCount} / {diagnostics.aggregatedRayCount}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Exposure Energy</span><span className="vz-mi-kv-val">{diagnostics.scannerEnergyBeforeAggregation.toFixed(3)} → {diagnostics.scannerEnergyAfterAggregation.toFixed(3)}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Macro Paths</span><span className="vz-mi-kv-val">{diagnostics.macroControlledPathCount}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Legacy Paths</span><span className="vz-mi-kv-val">{diagnostics.legacyConvertedPathCount}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Optical Copies</span><span className="vz-mi-kv-val">{diagnostics.explicitOpticalCopyCount}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Apertures</span><span className="vz-mi-kv-val">{diagnostics.scannerApertureCount}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Dwell</span><span className="vz-mi-kv-val">{diagnostics.scannerDwellTotalMicros.toLocaleString()} μs</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Scan Rate</span><span className="vz-mi-kv-val">{diagnostics.currentScanRatePps ? `${diagnostics.currentScanRatePps.toLocaleString()} pps` : 'Inactive'}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Blanked Samples</span><span className="vz-mi-kv-val">{diagnostics.blankedScannerSampleCount}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Retrace Segments</span><span className="vz-mi-kv-val">{diagnostics.retraceScannerSegmentCount}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Velocity / Dwell</span><span className="vz-mi-kv-val">{diagnostics.averageScannerVelocity.toFixed(3)} / {diagnostics.averageScannerDwellWeight.toFixed(3)}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Exposure / History</span><span className="vz-mi-kv-val">{diagnostics.averageScannerExposureWeight.toFixed(3)} / {diagnostics.averageScannerHistoryWeight.toFixed(3)}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Normalized Energy</span><span className="vz-mi-kv-val">{diagnostics.normalizedScannerFixtureEnergy.toFixed(3)}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Cue Owner</span><span className="vz-mi-kv-val">{diagnostics.currentScannerCueOwner ?? 'None'}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Stable / Animated</span><span className="vz-mi-kv-val">{diagnostics.stableScannerPathCount} / {diagnostics.animatedScannerPathCount}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Path Errors</span><span className="vz-mi-kv-val">{diagnostics.scannerValidationErrorCount}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Scanner Mode</span><span className="vz-mi-kv-val">{diagnostics.scannerCompatibilityMode}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Migration</span><span className="vz-mi-kv-val">{diagnostics.scannerMigrationStatus}</span></div>
+                <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Duplicate Paths</span><span className="vz-mi-kv-val">{diagnostics.duplicateRenderingFixtureIds.length ? diagnostics.duplicateRenderingFixtureIds.join(', ') : 'None'}</span></div>
               </>
             )}
-            <div><dt>CPU Frame</dt><dd>{timing(diagnostics.cpuFrameMs)}</dd></div>
-            <div><dt>GPU Frame</dt><dd>{timing(diagnostics.gpuFrameMs)}</dd></div>
-            <div><dt>Post</dt><dd>{diagnostics.postProcessingStatus}{diagnostics.bloomLevels ? ` · ${diagnostics.bloomLevels} bloom levels` : ''}</dd></div>
-            <div><dt>Laser History</dt><dd>{diagnostics.temporalHistoryActive ? `Active · ${diagnostics.laserHistoryInputCount} inputs / ${diagnostics.laserHistorySliceCount} slices` : 'Clear'}</dd></div>
-            <div><dt>Depth</dt><dd>{diagnostics.depthMode === 'none' ? 'Canvas2D' : `${diagnostics.depthMode} · ${diagnostics.depthSliceCount} slices`}</dd></div>
-            <div><dt>Depth Buffer</dt><dd>{diagnostics.depthBufferStatus}</dd></div>
-            <div><dt>Context Losses</dt><dd>{diagnostics.contextLossCount}</dd></div>
-            <div><dt>Failure Class</dt><dd>{diagnostics.failureClassification ?? 'None'}</dd></div>
-            <div><dt>Retry Count</dt><dd>{diagnostics.retryCount}</dd></div>
-            <div><dt>Automatic Retry</dt><dd>{retryTime(diagnostics.nextAutomaticRetryMs)}</dd></div>
-            <div><dt>Manual Retry</dt><dd>{diagnostics.manualRetryAvailable ? 'Available' : retryTime(diagnostics.manualRetryAvailableAtMs)}</dd></div>
-            <div><dt>Last WebGL Start</dt><dd>{timestamp(diagnostics.lastSuccessfulInitializationMs)}</dd></div>
-          </dl>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">CPU Frame</span><span className="vz-mi-kv-val">{timing(diagnostics.cpuFrameMs)}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">GPU Frame</span><span className="vz-mi-kv-val">{timing(diagnostics.gpuFrameMs)}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Post</span><span className="vz-mi-kv-val">{diagnostics.postProcessingStatus}{diagnostics.bloomLevels ? ` · ${diagnostics.bloomLevels} bloom levels` : ''}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Laser History</span><span className="vz-mi-kv-val">{diagnostics.temporalHistoryActive ? `Active · ${diagnostics.laserHistoryInputCount} inputs / ${diagnostics.laserHistorySliceCount} slices` : 'Clear'}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Depth</span><span className="vz-mi-kv-val">{diagnostics.depthMode === 'none' ? 'Canvas2D' : `${diagnostics.depthMode} · ${diagnostics.depthSliceCount} slices`}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Depth Buffer</span><span className="vz-mi-kv-val">{diagnostics.depthBufferStatus}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Context Losses</span><span className="vz-mi-kv-val">{diagnostics.contextLossCount}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Failure Class</span><span className="vz-mi-kv-val">{diagnostics.failureClassification ?? 'None'}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Retry Count</span><span className="vz-mi-kv-val">{diagnostics.retryCount}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Automatic Retry</span><span className="vz-mi-kv-val">{retryTime(diagnostics.nextAutomaticRetryMs)}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Manual Retry</span><span className="vz-mi-kv-val">{diagnostics.manualRetryAvailable ? 'Available' : retryTime(diagnostics.manualRetryAvailableAtMs)}</span></div>
+            <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Last WebGL Start</span><span className="vz-mi-kv-val">{timestamp(diagnostics.lastSuccessfulInitializationMs)}</span></div>
+          </div>
           {diagnostics.fallbackCode && (
             <p className="rv-show-director-performance-status__warning">Fallback code: {diagnostics.fallbackCode}</p>
           )}

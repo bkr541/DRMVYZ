@@ -38,7 +38,7 @@
 
 .dv-underline-dropdown .drm-dropdown__value {
   color: rgba(232, 238, 240, 0.94);
-  font: 700 13px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  font: 700 13px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
 }
 
 .dv-underline-dropdown .drm-dropdown__value--placeholder {
@@ -68,7 +68,7 @@
   background: transparent !important;
   box-shadow: none !important;
   color: rgba(196, 207, 211, 0.65);
-  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  font: 600 11px/1.25 var(--az-font-data, Inter, system-ui, sans-serif);
 }
 
 .dv-underline-dropdown .drm-dropdown__option::before {
@@ -911,7 +911,7 @@
 
 .dv-scrub-value {
   position: relative;
-  font: 700 13px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  font: 700 13px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
   font-variant-numeric: tabular-nums;
   color: rgba(237, 249, 251, 0.94);
   cursor: text;
@@ -926,7 +926,7 @@
   background: transparent;
   outline: none;
   box-shadow: none;
-  font: 700 13px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  font: 700 13px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
   font-variant-numeric: tabular-nums;
   color: #8ef4ff;
   appearance: textfield;

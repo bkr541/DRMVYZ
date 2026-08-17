@@ -2039,6 +2039,17 @@
   gap: 4px 10px;
   margin-bottom: 4px;
 }
+
+/* Two-column layout for sections with many individually-labeled kv pairs
+   (e.g. LaserDMX Renderer Diagnostics) instead of one field per full-width row. */
+.vz-mi-section--kv-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 14px;
+}
+.vz-mi-section--kv-grid .vz-mi-kv-row {
+  margin-bottom: 0;
+}
 .vz-mi-kv-label {
   font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
   color: rgba(255,255,255,0.3);
