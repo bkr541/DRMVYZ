@@ -2,6 +2,7 @@ import type { AudioEngine } from '../hooks/useAudioEngine'
 import type { SavedAudioTrack } from '../stores/audioStore'
 import { DEFAULT_TRACK_ANALYSIS_RUNTIME } from '../types'
 import type { TrackIntelligenceAnalysis } from '../features/musicIntelligence/types'
+import { withTrackAnalysisCompatibilityDefaults } from '../features/musicIntelligence/analysisCompatibility'
 import type { RuntimeTrackUrlInput } from './runtimeTrack'
 import { listTrackAnalysisPayloads } from '../lib/audioDb'
 import type { Json } from '../types/database'
@@ -76,12 +77,17 @@ function isAnalysisPayload(value: Json | null | undefined): value is Json & Trac
 }
 
 async function hydrateAnalysis(track: PersistedAudioTrackInput): Promise<PersistedAudioTrackInput> {
-  if (track.analysisPayload) return track
+  if (track.analysisPayload) {
+    return { ...track, analysisPayload: withTrackAnalysisCompatibilityDefaults(track.analysisPayload) }
+  }
   try {
     const result = await listTrackAnalysisPayloads([track.dbId])
     const payload = result.error ? null : result.rows[0]?.analysis_payload
     return isAnalysisPayload(payload)
-      ? { ...track, analysisPayload: payload as unknown as TrackIntelligenceAnalysis }
+      ? {
+          ...track,
+          analysisPayload: withTrackAnalysisCompatibilityDefaults(payload as unknown as TrackIntelligenceAnalysis),
+        }
       : track
   } catch (error) {
     console.warn('[savedTrackLoader] analysis hydration failed:', error)

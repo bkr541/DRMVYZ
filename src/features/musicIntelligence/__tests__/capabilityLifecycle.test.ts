@@ -83,6 +83,61 @@ describe('Music Intelligence capability lifecycle', () => {
     })
   })
 
+  it('publishes Stage 2 analysis provenance and Rekordbox source data into runtime Music Intelligence frames', () => {
+    engine.setSourceId('track-a', 'track-a')
+    engine.setTrackAnalysis(analysis({
+      analysisSources: { bpm: 'rekordbox', beatGrid: 'rekordbox', key: 'drmvyz', trackSections: 'drmvyz' },
+      trackProvenance: {
+        trackOrigin: 'rekordbox',
+        rekordboxSource: 'rekordbox_usb',
+        rekordboxFeatureAvailability: { bpm: true, beatGrid: true, key: false, phrases: true },
+      },
+      rekordboxSourceData: {
+        source: 'rekordbox_usb',
+        featureAvailability: { bpm: true, beatGrid: true, key: false, phrases: true },
+        phrases: [{
+          phraseIndex: 0,
+          sourceMood: 2,
+          mood: 'mid_energy',
+          sourceKind: 2,
+          rekordboxKind: 'verse_1',
+          sourceBank: 0,
+          bank: 'default',
+          sourceLabel: 'Verse 1',
+          normalizedLabel: 'verse',
+          startBeat: 1,
+          endBeat: 9,
+          startTimeSec: 0,
+          endTimeSec: 4,
+          fillStartBeat: null,
+          fillStartTimeSec: null,
+          sourceFlags: { fill: false },
+          sourcePayload: { kind: 2 },
+        }],
+      },
+    }))
+
+    expect(AudioFeatureBus.getFrame()).toMatchObject({
+      analysisSources: { bpm: 'rekordbox', beatGrid: 'rekordbox', key: 'drmvyz', trackSections: 'drmvyz' },
+      trackProvenance: { trackOrigin: 'rekordbox', rekordboxSource: 'rekordbox_usb' },
+      rekordboxSourceData: { source: 'rekordbox_usb', phrases: [expect.objectContaining({ rekordboxKind: 'verse_1' })] },
+    })
+
+    engine.updateFromAudioFrame({
+      freqBuf: new Uint8Array(32),
+      timeBuf: new Uint8Array(64),
+      sampleRate: 44_100,
+      audioTime: 1,
+      isPlaying: true,
+    })
+
+    expect(AudioFeatureBus.getFrame()).toMatchObject({
+      analysisSources: { bpm: 'rekordbox', beatGrid: 'rekordbox', key: 'drmvyz', trackSections: 'drmvyz' },
+      trackProvenance: { trackOrigin: 'rekordbox', rekordboxSource: 'rekordbox_usb' },
+      rekordboxSourceData: { source: 'rekordbox_usb', phrases: [expect.objectContaining({ normalizedLabel: 'verse' })] },
+    })
+  })
+
   it('clears stale capabilities when a track is replaced or removed', () => {
     engine.setSourceId('track-a', 'track-a')
     engine.setTrackAnalysis(analysis())

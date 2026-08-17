@@ -332,6 +332,8 @@ function createUsbModeFallback(file: File, library: RekordboxLibrary | null): Im
     rekordboxPhrases: [],
     analysisSeed: {
       source: 'rekordbox_usb',
+      featureAvailability: { bpm: false, beatGrid: false, key: false, phrases: false },
+      rekordboxPhrases: [],
     },
     matchConfidence: 0.1,
     matchReason: library ? 'usb-mode-unmatched' : 'usb-mode-manual-confirmation',

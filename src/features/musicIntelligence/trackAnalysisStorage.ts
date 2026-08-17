@@ -19,6 +19,7 @@ import type {
 import { isCurrentAnalysisVersion } from './analysisVersion'
 import { ANALYSIS_TUNING } from './analysisTuning'
 import { isUsableTrackAnalysis } from './analysisValidation'
+import { resolveTrackAnalysisSources, withTrackAnalysisCompatibilityDefaults } from './analysisCompatibility'
 
 /** The subset of TrackIntelligenceAnalysis fields that a grid rebuild may replace. */
 export interface AnalysisGridPatch {
@@ -46,7 +47,8 @@ const {
 } = ANALYSIS_TUNING.persistence
 
 export function boundTrackAnalysisForStorage(analysis: TrackIntelligenceAnalysis): TrackIntelligenceAnalysis {
-  const structural = analysis.structuralSegmentation
+  const compatible = withTrackAnalysisCompatibilityDefaults(analysis)
+  const structural = compatible.structuralSegmentation
   const compactStructural = structural
     ? {
         ...structural,
@@ -63,14 +65,14 @@ export function boundTrackAnalysisForStorage(analysis: TrackIntelligenceAnalysis
   }
 
   return {
-    ...analysis,
-    phrases: analysis.phrases.slice(0, MAX_STORED_PHRASES),
-    semanticMoments: analysis.semanticMoments.slice(0, MAX_STORED_SEMANTIC_MOMENTS),
-    boundaryAlternatives: analysis.boundaryAlternatives?.slice(0, MAX_STORED_BOUNDARY_ALTERNATIVES),
-    phraseHierarchy: analysis.phraseHierarchy
+    ...compatible,
+    phrases: compatible.phrases.slice(0, MAX_STORED_PHRASES),
+    semanticMoments: compatible.semanticMoments.slice(0, MAX_STORED_SEMANTIC_MOMENTS),
+    boundaryAlternatives: compatible.boundaryAlternatives?.slice(0, MAX_STORED_BOUNDARY_ALTERNATIVES),
+    phraseHierarchy: compatible.phraseHierarchy
       ? {
-          ...analysis.phraseHierarchy,
-          units: analysis.phraseHierarchy.units.slice(0, MAX_STORED_HIERARCHY_UNITS),
+          ...compatible.phraseHierarchy,
+          units: compatible.phraseHierarchy.units.slice(0, MAX_STORED_HIERARCHY_UNITS),
         }
       : undefined,
     structuralSegmentation: compactStructural,
@@ -215,6 +217,10 @@ export const useTrackAnalysisStore = create<TrackAnalysisStorageState>()(
           const updatedAnalysis: TrackIntelligenceAnalysis = {
             ...existing,
             ...patch,
+            analysisSources: {
+              ...resolveTrackAnalysisSources(existing),
+              beatGrid: 'drmvyz',
+            },
             // Re-merge preserved sections so manual/locked entries are not lost.
             sections: preservedSections.length > 0
               ? [
@@ -233,7 +239,7 @@ export const useTrackAnalysisStore = create<TrackAnalysisStorageState>()(
     }),
     {
       name: 'drmvyz:track-analyses',
-      version: 6,
+      version: 7,
       migrate: migrateTrackAnalysisStorageState,
       // Only persist the data — actions are recreated each hydration.
       partialize: s => ({ analyses: s.analyses, statuses: s.statuses }),

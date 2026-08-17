@@ -7,6 +7,7 @@
 
 import { AudioFeatureBus } from './AudioFeatureBus'
 import { DEFAULT_MI_FRAME } from './constants'
+import { resolveTrackAnalysisProvenance, resolveTrackAnalysisSources } from './analysisCompatibility'
 import { buildBeatMarkers } from './offlineTrackAnalyzer'
 import { MultiBandAnalyzer } from './bandAnalysis'
 import { RhythmAnalyzer } from './rhythmAnalysis'
@@ -275,6 +276,9 @@ export class MusicIntelligenceEngine {
     | 'gridConfidence'
     | 'analysisSource'
     | 'analysisCapabilities'
+    | 'analysisSources'
+    | 'trackProvenance'
+    | 'rekordboxSourceData'
     | 'analysisRevision'
     | 'timelineRevision'
   > {
@@ -287,6 +291,9 @@ export class MusicIntelligenceEngine {
       gridConfidence: this.trackAnalysis?.musicalGrid?.confidence ?? null,
       analysisSource: this.resolvedAnalysisSource(),
       analysisCapabilities: this.analysisCapabilities(),
+      analysisSources: this.trackAnalysis ? resolveTrackAnalysisSources(this.trackAnalysis) : null,
+      trackProvenance: this.trackAnalysis ? resolveTrackAnalysisProvenance(this.trackAnalysis) : null,
+      rekordboxSourceData: this.trackAnalysis?.rekordboxSourceData ?? null,
       analysisRevision: this.analysisRevision(),
       timelineRevision: this.resolvedTimelineRevision,
     }
@@ -870,6 +877,9 @@ export class MusicIntelligenceEngine {
       gridConfidence: analysisPublication.gridConfidence,
       analysisSource: analysisPublication.analysisSource,
       analysisCapabilities: analysisPublication.analysisCapabilities,
+      analysisSources: analysisPublication.analysisSources,
+      trackProvenance: analysisPublication.trackProvenance,
+      rekordboxSourceData: analysisPublication.rekordboxSourceData,
       analysisRevision: analysisPublication.analysisRevision,
       timelineRevision: analysisPublication.timelineRevision,
       raw: {

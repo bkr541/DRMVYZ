@@ -101,7 +101,11 @@ describe('savedTrackLoader', () => {
         },
         analysisRuntime: expect.objectContaining({
           status: 'complete',
-          analysis,
+          analysis: expect.objectContaining({
+            ...analysis,
+            analysisSources: { bpm: 'drmvyz', beatGrid: 'drmvyz', key: 'drmvyz', trackSections: 'drmvyz' },
+            trackProvenance: { trackOrigin: 'ordinary' },
+          }),
           analysisVersion: 'mi-v1',
         }),
       }),
@@ -154,7 +158,11 @@ describe('savedTrackLoader', () => {
     expect(getSignedUrl).not.toHaveBeenCalled()
     expect(audio.updateTrackRuntime).toHaveBeenCalledWith('audio-track-a', expect.objectContaining({
       status: 'complete',
-      analysis,
+      analysis: expect.objectContaining({
+        ...analysis,
+        analysisSources: { bpm: 'drmvyz', beatGrid: 'drmvyz', key: 'drmvyz', trackSections: 'drmvyz' },
+        trackProvenance: { trackOrigin: 'ordinary' },
+      }),
       analysisVersion: 'mi-v1',
     }))
     expect(audio.addTrackUrls).not.toHaveBeenCalled()

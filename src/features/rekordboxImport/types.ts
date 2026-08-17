@@ -1,8 +1,8 @@
 import type { TrackIntelligenceAnalysis, BeatMarkerMI, PhraseMarker, TrackSectionMI } from '../musicIntelligence/types'
+import type { RekordboxFeatureAvailability, RekordboxImportSource, RekordboxPhrase } from './sourceTypes'
+export type { RekordboxFeatureAvailability, RekordboxImportSource, RekordboxPhrase, RekordboxPhraseBank, RekordboxPhraseMood } from './sourceTypes'
 import type { ExternalTrackMetadata } from '../../types'
 import type { VzCueMarker, VzCueRegion } from '../../types/cue'
-
-export type RekordboxImportSource = 'rekordbox_xml' | 'rekordbox_usb'
 
 export interface RekordboxCuePoint {
   id: string
@@ -13,43 +13,6 @@ export interface RekordboxCuePoint {
   kind: 'hot_cue' | 'memory_cue' | 'loop' | 'marker'
   slot?: string | null
   color?: string | null
-}
-
-
-export type RekordboxPhraseMood = 'high_energy' | 'mid_energy' | 'low_energy'
-export type RekordboxPhraseBank = 'default' | 'cool' | 'natural' | 'hot' | 'subtle' | 'warm' | 'vivid' | 'club_1' | 'club_2'
-
-/** Native Rekordbox PSSI song-structure record. Kept separate from DRMVYZ-native phrases/sections. */
-export interface RekordboxPhrase {
-  /** Zero-based phrase position after parsing. */
-  phraseIndex: number
-  /** Rekordbox's one-based source phrase index, when present. */
-  sourceIndex?: number | null
-  /** Raw Rekordbox track mood code. */
-  sourceMood: number
-  mood: RekordboxPhraseMood | null
-  /** Raw Rekordbox phrase-kind code. */
-  sourceKind: number
-  /** Rekordbox phrase-kind enum label (for example verse_2 or chorus). */
-  rekordboxKind: string | null
-  /** Raw Rekordbox lighting-bank code. */
-  sourceBank: number
-  bank: RekordboxPhraseBank | null
-  /** Human-readable label derived from Rekordbox's phrase-kind enum. */
-  sourceLabel: string | null
-  /** Coarser normalized label for future DRMVYZ mapping; not authoritative in Stage 1. */
-  normalizedLabel: string | null
-  /** One-based Rekordbox beat numbers. endBeat is an exclusive boundary. */
-  startBeat: number
-  endBeat: number | null
-  /** Timestamps derived from PQTZ beat timings when available. */
-  startTimeSec: number | null
-  endTimeSec: number | null
-  fillStartBeat: number | null
-  fillStartTimeSec: number | null
-  /** Raw/diagnostic PSSI flags retained so future stages do not need to reparse ANLZ. */
-  sourceFlags: Record<string, boolean | number | string | null>
-  sourcePayload: Record<string, unknown>
 }
 
 export interface RekordboxTrackMetadata {
@@ -94,11 +57,16 @@ export interface RekordboxLibrary {
 }
 
 export interface RekordboxAnalysisSeed {
+  /** Explicitly records that this seed came through the Rekordbox workflow. */
   source: RekordboxImportSource
+  /** Source-feature availability stays independent from the values DRMVYZ may later derive natively. */
+  featureAvailability?: RekordboxFeatureAvailability
   bpm?: number | null
   beatGridOffsetSec?: number | null
   beatGrid?: BeatMarkerMI[]
   downbeats?: BeatMarkerMI[]
+  /** Native Rekordbox PSSI source data. Never treated as DRMVYZ phrase/section output in Stage 2. */
+  rekordboxPhrases?: RekordboxPhrase[]
   phrases?: PhraseMarker[]
   sections?: TrackSectionMI[]
   key?: string | null
@@ -110,7 +78,7 @@ export interface ImportedTrackIntelligence {
   metadata: ExternalTrackMetadata
   cueMarkers: VzCueMarker[]
   cueRegions: VzCueRegion[]
-  /** Native Rekordbox PSSI phrases, deliberately not mapped into DRMVYZ analysisSeed yet. */
+  /** Native Rekordbox PSSI phrases retained for direct runtime diagnostics/backward compatibility. */
   rekordboxPhrases: RekordboxPhrase[]
   analysisSeed: RekordboxAnalysisSeed
   matchConfidence: number
@@ -120,6 +88,8 @@ export interface ImportedTrackIntelligence {
 
 export type TrackAnalysisSeed = Pick<Partial<TrackIntelligenceAnalysis>, 'bpm' | 'bpmConfidence' | 'beatGridOffsetSec' | 'timeSignature' | 'beatGrid' | 'downbeats' | 'phrases' | 'sections'> & {
   source?: RekordboxImportSource | 'manual' | 'analysis'
+  featureAvailability?: RekordboxFeatureAvailability
+  rekordboxPhrases?: RekordboxPhrase[]
   key?: string | null
   keyConfidence?: number | null
 }

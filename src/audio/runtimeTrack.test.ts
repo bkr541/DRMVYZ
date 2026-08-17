@@ -9,7 +9,7 @@ import {
   runtimeIdForAudioTrack,
 } from './runtimeTrack'
 import { CURRENT_ANALYSIS_VERSION } from '../features/musicIntelligence/analysisVersion'
-import type { ImportedTrackIntelligence } from '../features/rekordboxImport/types'
+import type { ImportedTrackIntelligence, RekordboxPhrase } from '../features/rekordboxImport/types'
 
 describe('runtime track identity', () => {
   beforeEach(() => {
@@ -80,8 +80,28 @@ describe('runtime track identity', () => {
     expect(isPersistedTrack(track)).toBe(false)
   })
 
-  it('preserves Rekordbox PSSI phrases on the runtime track without promoting them into the native analysis seed', () => {
+  it('carries Rekordbox PSSI through the runtime seed without promoting it into native phrases or sections', () => {
     const file = new File(['audio'], 'rekordbox-phrase.wav', { type: 'audio/wav' })
+    const importedPhrase: RekordboxPhrase = {
+      phraseIndex: 0,
+      sourceIndex: 1,
+      sourceMood: 2,
+      mood: 'mid_energy',
+      sourceKind: 2,
+      rekordboxKind: 'verse_1',
+      sourceBank: 0,
+      bank: 'default',
+      sourceLabel: 'Verse 1',
+      normalizedLabel: 'verse',
+      startBeat: 1,
+      endBeat: 9,
+      startTimeSec: 0,
+      endTimeSec: 4,
+      fillStartBeat: null,
+      fillStartTimeSec: null,
+      sourceFlags: { fill: false },
+      sourcePayload: { kind: 2 },
+    }
     const imported: ImportedTrackIntelligence = {
       source: 'rekordbox_usb',
       metadata: {
@@ -93,27 +113,13 @@ describe('runtime track identity', () => {
       },
       cueMarkers: [],
       cueRegions: [],
-      rekordboxPhrases: [{
-        phraseIndex: 0,
-        sourceIndex: 1,
-        sourceMood: 2,
-        mood: 'mid_energy',
-        sourceKind: 2,
-        rekordboxKind: 'verse_1',
-        sourceBank: 0,
-        bank: 'default',
-        sourceLabel: 'Verse 1',
-        normalizedLabel: 'verse',
-        startBeat: 1,
-        endBeat: 9,
-        startTimeSec: 0,
-        endTimeSec: 4,
-        fillStartBeat: null,
-        fillStartTimeSec: null,
-        sourceFlags: { fill: false },
-        sourcePayload: { kind: 2 },
-      }],
-      analysisSeed: { source: 'rekordbox_usb', bpm: 120 },
+      rekordboxPhrases: [importedPhrase],
+      analysisSeed: {
+        source: 'rekordbox_usb',
+        featureAvailability: { bpm: true, beatGrid: false, key: false, phrases: true },
+        bpm: 120,
+        rekordboxPhrases: [importedPhrase],
+      },
       matchConfidence: 0.99,
       matchReason: 'test match',
       warnings: [],
@@ -123,6 +129,7 @@ describe('runtime track identity', () => {
 
     expect(track.importedRekordboxPhrases).toEqual(imported.rekordboxPhrases)
     expect(track.importedAnalysisSeed?.phrases).toBeUndefined()
+    expect(track.importedAnalysisSeed?.rekordboxPhrases).toEqual([importedPhrase])
     expect(track.importedAnalysisSeed?.sections).toBeUndefined()
   })
 

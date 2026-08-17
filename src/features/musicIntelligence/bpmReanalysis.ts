@@ -4,6 +4,7 @@
 // segmentation implementation used by the initial offline analysis.
 
 import { analyzeStructuralRegions } from './sectionAnalysis'
+import { resolveTrackAnalysisSources } from './analysisCompatibility'
 import { detectSemanticMoments } from './semanticAnalysis'
 import { generateMusicalHierarchy } from './musicalHierarchyAnalysis'
 import type { BpmReanalysisMode, TrackIntelligenceAnalysis, TrackSectionMI } from './types'
@@ -133,6 +134,13 @@ function assembleReanalysis(
     lastGridRebuiltAt: gridData.lastGridRebuiltAt,
     lastReanalysisMode: mode === 'reanalyze' ? 'full' : 'grid_only',
     gridStale: false,
+    analysisSources: {
+      ...resolveTrackAnalysisSources(analysis),
+      beatGrid: 'drmvyz',
+      trackSections: hierarchy.sections.some(section => section.source === 'rekordbox')
+        ? hierarchy.sections.some(section => section.source !== 'rekordbox') ? 'mixed' : 'rekordbox'
+        : 'drmvyz',
+    },
     analysisDiagnostics: analysis.analysisDiagnostics
       ? {
           ...analysis.analysisDiagnostics,

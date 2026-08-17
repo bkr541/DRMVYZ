@@ -79,12 +79,26 @@ export function mapRekordboxMatchToDrmvyz(match: RekordboxTrackMatch, library: R
   const downbeats = track.downbeats?.length
     ? track.downbeats
     : beatGrid.filter(beat => beat.isDownbeat)
+  const phraseSeed = (track.phrases ?? []).map(phrase => ({
+    ...phrase,
+    sourceFlags: { ...phrase.sourceFlags },
+    sourcePayload: { ...phrase.sourcePayload },
+  }))
+  const inferredBpm = track.bpm ?? inferBpmFromBeatGrid(beatGrid)
+  const featureAvailability = {
+    bpm: inferredBpm != null && inferredBpm > 0,
+    beatGrid: hasUsableBeatGrid(beatGrid),
+    key: Boolean(track.key?.trim()),
+    phrases: phraseSeed.length > 0,
+  }
   const analysisSeed: RekordboxAnalysisSeed = {
     source: library.source,
-    bpm: track.bpm ?? inferBpmFromBeatGrid(beatGrid),
+    featureAvailability,
+    bpm: inferredBpm,
     beatGridOffsetSec: track.beatGridOffsetSec ?? beatGrid[0]?.timeSec ?? null,
     beatGrid: beatGrid.length ? beatGrid : undefined,
     downbeats: downbeats.length ? downbeats : undefined,
+    rekordboxPhrases: phraseSeed,
     key: track.key ?? null,
     keyConfidence: track.key ? 0.92 : null,
     sections: sourceSections,
@@ -115,12 +129,26 @@ export function mapRekordboxMatchToDrmvyz(match: RekordboxTrackMatch, library: R
     metadata,
     cueMarkers,
     cueRegions,
-    rekordboxPhrases: track.phrases ?? [],
+    rekordboxPhrases: phraseSeed,
     analysisSeed,
     matchConfidence: match.confidence,
     matchReason: match.reason,
     warnings,
   }
+}
+
+
+function hasUsableBeatGrid(beatGrid: NonNullable<RekordboxTrackMetadata['beatGrid']>): boolean {
+  const times = beatGrid
+    .map(beat => beat.timeSec)
+    .filter(time => Number.isFinite(time) && time >= 0)
+    .sort((a, b) => a - b)
+    .filter((time, index, values) => index === 0 || time - values[index - 1]! > 1e-4)
+  if (times.length < 2) return false
+  return times.slice(1).every((time, index) => {
+    const delta = time - times[index]!
+    return delta >= 0.1 && delta <= 3
+  })
 }
 
 function inferBpmFromBeatGrid(beatGrid: NonNullable<RekordboxTrackMetadata['beatGrid']>): number | null {

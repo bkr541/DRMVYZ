@@ -67,4 +67,68 @@ describe('track analysis persistence migration', () => {
     expect(migrated.statuses?.primitive).toBe('stale')
   })
 
+  it('preserves Stage 2 provenance and Rekordbox source data through JSON persistence', () => {
+    const sourceAware: TrackIntelligenceAnalysis = {
+      ...analysis('auto-6.0'),
+      analysisSources: {
+        bpm: 'rekordbox',
+        beatGrid: 'rekordbox',
+        key: 'drmvyz',
+        trackSections: 'drmvyz',
+      },
+      trackProvenance: {
+        trackOrigin: 'rekordbox',
+        rekordboxSource: 'rekordbox_usb',
+        rekordboxFeatureAvailability: { bpm: true, beatGrid: true, key: false, phrases: true },
+      },
+      rekordboxSourceData: {
+        source: 'rekordbox_usb',
+        featureAvailability: { bpm: true, beatGrid: true, key: false, phrases: true },
+        phrases: [{
+          phraseIndex: 0,
+          sourceIndex: 1,
+          sourceMood: 3,
+          mood: 'high_energy',
+          sourceKind: 5,
+          rekordboxKind: 'chorus',
+          sourceBank: 8,
+          bank: 'club_2',
+          sourceLabel: 'Chorus',
+          normalizedLabel: 'chorus',
+          startBeat: 33,
+          endBeat: 65,
+          startTimeSec: 16,
+          endTimeSec: 32,
+          fillStartBeat: 61,
+          fillStartTimeSec: 30,
+          sourceFlags: { fill: true },
+          sourcePayload: { kind: 5, beat: 33, beatFill: 61 },
+        }],
+      },
+    }
+
+    const serialized = JSON.parse(JSON.stringify(boundTrackAnalysisForStorage(sourceAware))) as TrackIntelligenceAnalysis
+    const migrated = migrateTrackAnalysisStorageState({ analyses: { track: serialized }, statuses: { track: 'complete' } })
+    const restored = migrated.analyses?.track
+
+    expect(restored?.analysisSources).toEqual(sourceAware.analysisSources)
+    expect(restored?.trackProvenance).toEqual(sourceAware.trackProvenance)
+    expect(restored?.rekordboxSourceData).toEqual(sourceAware.rekordboxSourceData)
+  })
+
+  it('loads pre-Stage-2 persisted analyses with safe DRMVYZ/ordinary defaults', () => {
+    const legacy = analysis('auto-6.0')
+    const migrated = migrateTrackAnalysisStorageState({ analyses: { track: legacy }, statuses: { track: 'complete' } })
+    const restored = migrated.analyses?.track
+
+    expect(restored?.analysisSources).toEqual({
+      bpm: 'drmvyz',
+      beatGrid: 'drmvyz',
+      key: 'drmvyz',
+      trackSections: 'drmvyz',
+    })
+    expect(restored?.trackProvenance).toEqual({ trackOrigin: 'ordinary' })
+    expect(restored?.rekordboxSourceData).toBeUndefined()
+  })
+
 })

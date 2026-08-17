@@ -17,6 +17,7 @@ import {
   type ChromaFrame,
   type MusicalFeatureCurves,
 } from './musicalGridAnalysis'
+import type { RekordboxFeatureAvailability, RekordboxImportSource, RekordboxPhrase } from '../rekordboxImport/sourceTypes'
 import type {
   TrackIntelligenceAnalysis,
   FeatureCurve,
@@ -36,12 +37,14 @@ const MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.6
 const NOTE_NAMES    = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
 export interface TrackAnalysisSeed {
-  source?: 'rekordbox_xml' | 'rekordbox_usb' | 'analysis' | 'manual'
+  source?: RekordboxImportSource | 'analysis' | 'manual'
+  featureAvailability?: RekordboxFeatureAvailability
   bpm?: number | null
   bpmConfidence?: number | null
   beatGridOffsetSec?: number | null
   beatGrid?: BeatMarkerMI[]
   downbeats?: BeatMarkerMI[]
+  rekordboxPhrases?: RekordboxPhrase[]
   phrases?: PhraseMarker[]
   sections?: TrackSectionMI[]
   key?: string | null
@@ -306,10 +309,37 @@ function frameRms(samples: Float32Array, start: number, length: number): number 
   return count > 0 ? Math.sqrt(sumSquares / count) : 0
 }
 
-function seedGridSource(seed: TrackAnalysisSeed | undefined): MusicalGridSource {
+function isRekordboxSeed(seed: TrackAnalysisSeed | undefined): seed is TrackAnalysisSeed & { source: RekordboxImportSource } {
+  return seed?.source === 'rekordbox_xml' || seed?.source === 'rekordbox_usb'
+}
+
+function usableImportedBeatGrid(seed: TrackAnalysisSeed | undefined, durationSec: number): BeatMarkerMI[] {
+  const sorted = (seed?.beatGrid ?? [])
+    .filter(marker => Number.isFinite(marker.timeSec) && marker.timeSec >= 0 && marker.timeSec <= durationSec + 1e-6)
+    .sort((a, b) => a.timeSec - b.timeSec)
+  const result: BeatMarkerMI[] = []
+  for (const marker of sorted) {
+    if (result.length === 0 || marker.timeSec - result[result.length - 1]!.timeSec > 1e-4) result.push(marker)
+  }
+  if (result.length < 2) return []
+  const hasOnlyPlausibleBeatIntervals = result.slice(1).every((marker, index) => {
+    const delta = marker.timeSec - result[index]!.timeSec
+    return delta >= 0.1 && delta <= 3
+  })
+  return hasOnlyPlausibleBeatIntervals ? result : []
+}
+
+function seedGridSource(seed: TrackAnalysisSeed | undefined, importedBeatGrid: BeatMarkerMI[]): MusicalGridSource {
   if (seed?.source === 'manual') return 'manual_correction'
-  if (seed?.source === 'rekordbox_xml' || seed?.source === 'rekordbox_usb') return 'imported'
+  if (isRekordboxSeed(seed) && importedBeatGrid.length >= 2) return 'imported'
   return 'automatic'
+}
+
+function sectionFeatureSource(sections: TrackSectionMI[]): 'rekordbox' | 'drmvyz' | 'mixed' {
+  const hasRekordbox = sections.some(section => section.source === 'rekordbox')
+  const hasDrmvyz = sections.some(section => section.source !== 'rekordbox')
+  if (hasRekordbox && hasDrmvyz) return 'mixed'
+  return hasRekordbox ? 'rekordbox' : 'drmvyz'
 }
 
 
@@ -570,6 +600,8 @@ export async function analyzeTrackBuffer(
   // Tempo is intentionally resolved after the shared high-resolution feature
   // pass so confidence can be measured against real transient alignment.
   report({ stage: 'resolving_tempo', progress: 0.42 })
+  const importedBeatGrid = usableImportedBeatGrid(seed, durationSec)
+  const rekordboxSeed = isRekordboxSeed(seed)
   let bpm: number | null = null
   let bpmConfidence: number | null = null
   let beatPhaseConfidence: number | null = null
@@ -577,16 +609,18 @@ export async function analyzeTrackBuffer(
 
   if (seed?.bpm != null && seed.bpm > 0) {
     bpm = seed.bpm
-    beatOffsetSec = seed.beatGridOffsetSec ?? seed.beatGrid?.[0]?.timeSec ?? 0
+    beatOffsetSec = rekordboxSeed && importedBeatGrid.length === 0
+      ? 0
+      : seed.beatGridOffsetSec ?? importedBeatGrid[0]?.timeSec ?? 0
     bpmConfidence = seed.bpmConfidence ?? 0.97
-    beatPhaseConfidence = seed.beatGrid?.length ? 0.99 : 0.92
-  } else if (seed?.beatGrid && seed.beatGrid.length >= 2) {
-    const deltas = seed.beatGrid.slice(1).map((marker, index) => marker.timeSec - seed.beatGrid![index]!.timeSec)
+    beatPhaseConfidence = importedBeatGrid.length >= 2 ? 0.99 : 0.92
+  } else if (importedBeatGrid.length >= 2) {
+    const deltas = importedBeatGrid.slice(1).map((marker, index) => marker.timeSec - importedBeatGrid[index]!.timeSec)
       .filter(delta => delta > 0.1 && delta < 3)
       .sort((a, b) => a - b)
     const medianDelta = deltas[Math.floor(deltas.length / 2)]
     bpm = medianDelta ? 60 / medianDelta : null
-    beatOffsetSec = seed.beatGrid[0]?.timeSec ?? 0
+    beatOffsetSec = importedBeatGrid[0]?.timeSec ?? 0
     bpmConfidence = bpm ? 0.96 : null
     beatPhaseConfidence = bpm ? 0.99 : null
   } else {
@@ -630,7 +664,7 @@ export async function analyzeTrackBuffer(
 
   throwIfAnalysisAborted(signal)
   report({ stage: 'resolving_musical_grid', progress: 0.55 })
-  const gridSource = seedGridSource(seed)
+  const gridSource = seedGridSource(seed, importedBeatGrid)
   const gridResolution = resolveMusicalGrid({
     durationSec,
     bpm,
@@ -639,8 +673,8 @@ export async function analyzeTrackBuffer(
     beatOffsetSec,
     timeSignature: 4,
     source: gridSource,
-    importedBeatGrid: seed?.beatGrid,
-    importedDownbeats: seed?.downbeats,
+    importedBeatGrid: importedBeatGrid.length ? importedBeatGrid : undefined,
+    importedDownbeats: importedBeatGrid.length ? seed?.downbeats : undefined,
     features: {
       energy: normInstant,
       transient: normTransient,
@@ -730,6 +764,24 @@ export async function analyzeTrackBuffer(
     ...(seededKey ? [`Key seeded from ${seed?.source ?? 'external metadata'}.`] : []),
   ]
 
+  const analysisSources = {
+    bpm: rekordboxSeed && ((seed?.bpm ?? 0) > 0 || importedBeatGrid.length >= 2) ? 'rekordbox' as const : 'drmvyz' as const,
+    beatGrid: rekordboxSeed && importedBeatGrid.length >= 2 ? 'rekordbox' as const : 'drmvyz' as const,
+    key: rekordboxSeed && seededKey ? 'rekordbox' as const : 'drmvyz' as const,
+    trackSections: sectionFeatureSource(sections),
+  }
+  const inferredRekordboxAvailability: RekordboxFeatureAvailability | undefined = rekordboxSeed
+    ? {
+        bpm: (seed?.bpm ?? 0) > 0 || importedBeatGrid.length >= 2,
+        beatGrid: importedBeatGrid.length >= 2,
+        key: Boolean(seed?.key?.trim()),
+        phrases: (seed?.rekordboxPhrases?.length ?? 0) > 0,
+      }
+    : undefined
+  const rekordboxFeatureAvailability = rekordboxSeed
+    ? inferredRekordboxAvailability
+    : undefined
+
   const partialAnalysis: TrackIntelligenceAnalysis = {
     analysisVersion: CURRENT_ANALYSIS_VERSION,
     createdAt: new Date().toISOString(),
@@ -777,6 +829,25 @@ export async function analyzeTrackBuffer(
     semanticMoments: [],
     warnings,
     errors: [],
+    analysisSources,
+    trackProvenance: rekordboxSeed
+      ? {
+          trackOrigin: 'rekordbox',
+          rekordboxSource: seed.source,
+          rekordboxFeatureAvailability,
+        }
+      : { trackOrigin: 'ordinary' },
+    rekordboxSourceData: rekordboxSeed
+      ? {
+          source: seed.source,
+          featureAvailability: rekordboxFeatureAvailability!,
+          phrases: (seed.rekordboxPhrases ?? []).map(phrase => ({
+            ...phrase,
+            sourceFlags: { ...phrase.sourceFlags },
+            sourcePayload: { ...phrase.sourcePayload },
+          })),
+        }
+      : undefined,
     analysisWarnings: typedWarnings,
     analysisDiagnostics: {
       featureFrameCount: totalFrames,

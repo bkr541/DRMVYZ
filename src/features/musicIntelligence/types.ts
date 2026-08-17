@@ -1,3 +1,4 @@
+import type { RekordboxFeatureAvailability, RekordboxImportSource, RekordboxPhrase } from '../rekordboxImport/sourceTypes'
 import type {
   ReactSectionInterpretationMetadata,
   ReactSectionType,
@@ -254,6 +255,12 @@ export interface MusicIntelligenceFrame {
   gridConfidence?: MusicalGridConfidence | null
   analysisSource?: ResolvedTimelineAnalysisSource
   analysisCapabilities?: TrackAnalysisCapabilities
+  /** Per-feature offline-analysis provenance. Optional on legacy frames. */
+  analysisSources?: TrackAnalysisSources | null
+  /** Explicit track import provenance. Optional on legacy frames. */
+  trackProvenance?: TrackAnalysisProvenance | null
+  /** Source-faithful Rekordbox payload retained for diagnostics/future mapping. */
+  rekordboxSourceData?: RekordboxSourceAnalysisData | null
   /** Changes only when the complete offline analysis snapshot changes. */
   analysisRevision?: string | null
   /** Deterministic revision of the resolved section timeline. */
@@ -271,6 +278,30 @@ export interface MusicIntelligenceFrame {
 }
 
 // ── Offline / persistent analysis types ──────────────────────────────────────
+
+export type TrackAnalysisFeatureSource = 'rekordbox' | 'drmvyz' | 'mixed'
+
+export interface TrackAnalysisSources {
+  bpm: TrackAnalysisFeatureSource
+  beatGrid: TrackAnalysisFeatureSource
+  key: TrackAnalysisFeatureSource
+  trackSections: TrackAnalysisFeatureSource
+}
+
+export interface TrackAnalysisProvenance {
+  /** Explicit workflow provenance; never inferred from filenames or library membership. */
+  trackOrigin: 'ordinary' | 'rekordbox'
+  rekordboxSource?: RekordboxImportSource
+  /** Which Rekordbox features were actually available at import time. */
+  rekordboxFeatureAvailability?: RekordboxFeatureAvailability
+}
+
+export interface RekordboxSourceAnalysisData {
+  source: RekordboxImportSource
+  featureAvailability: RekordboxFeatureAvailability
+  /** Native PSSI records, deliberately not converted into DRMVYZ phrases/sections in Stage 2. */
+  phrases: RekordboxPhrase[]
+}
 
 export interface FeatureCurvePoint {
   timeSec: number
@@ -737,6 +768,12 @@ export interface TrackIntelligenceAnalysis {
   /** Typed companions to the legacy string warnings/errors fields. */
   analysisWarnings?:    AnalysisWarning[]
   analysisDiagnostics?: AnalysisDiagnostics
+  /** Explicit per-feature provenance; absent only on pre-Stage-2 persisted analyses. */
+  analysisSources?: TrackAnalysisSources
+  /** Explicitly records whether this track entered analysis through the Rekordbox workflow. */
+  trackProvenance?: TrackAnalysisProvenance
+  /** JSON-safe source-faithful Rekordbox analysis data retained for future mapping/debugging. */
+  rekordboxSourceData?: RekordboxSourceAnalysisData
 
   // ── BPM tracking metadata (optional; absent in analyses created before this field) ──
 
