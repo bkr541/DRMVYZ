@@ -44,7 +44,7 @@ export function ReactAudioPanel() {
       <MusicIntelligenceDiagnosticsPanel liveInputActive={liveInputActive} />
       {isCanvas && <SharedPerformanceDiagnosticsPanel engine="canvas" variant="audioIntelligence" />}
       {isSoundDrawing && <SharedPerformanceDiagnosticsPanel engine="soundDrawing" />}
-      {isLaserDmx && <SharedPerformanceDiagnosticsPanel engine="laserDmx" label="Shared Core Diagnostics" />}
+      {isLaserDmx && <SharedPerformanceDiagnosticsPanel engine="laserDmx" label="Shared Core Diagnostics" variant="audioIntelligence" twoColumn />}
       {isLaserDmx && <LaserDmxRuntimeCueInspectorPanel />}
       {isLaserDmx && <LaserDmxRendererDiagnosticsPanel />}
     </div>

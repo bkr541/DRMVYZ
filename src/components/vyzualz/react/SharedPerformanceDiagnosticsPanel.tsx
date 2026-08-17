@@ -10,6 +10,7 @@ export function SharedPerformanceDiagnosticsPanel({
   engine,
   label = 'Performance Diagnostics',
   variant = 'grid',
+  twoColumn = false,
 }: {
   engine: SharedPerformanceDiagnosticsEngine
   label?: string
@@ -17,6 +18,10 @@ export function SharedPerformanceDiagnosticsPanel({
    *  Audio Intelligence panel's key/value row styling (vz-mi-*), used when this
    *  panel sits alongside Audio Intelligence in the REACT tab's Analysis group. */
   variant?: 'grid' | 'audioIntelligence'
+  /** 'audioIntelligence' only. Lays fields out in a fixed-height two-column
+   *  grid (value always under label) instead of one flowing row per field,
+   *  matching LaserDMX's Renderer Diagnostics treatment. */
+  twoColumn?: boolean
 }) {
   const diagnostics = useSharedPerformanceDiagnostics(engine)
   const fields = diagnostics ? [
@@ -51,7 +56,7 @@ export function SharedPerformanceDiagnosticsPanel({
         </div>
       ) : variant === 'audioIntelligence' ? (
         <div className="vz-mi-panel" data-shared-performance-diagnostics={engine}>
-          <div className="vz-mi-section">
+          <div className={`vz-mi-section${twoColumn ? ' vz-mi-section--kv-grid' : ''}`}>
             {fields.map(field => (
               <div key={field.label} className="vz-mi-kv-row">
                 <span className="vz-mi-kv-label">{field.label}</span>
