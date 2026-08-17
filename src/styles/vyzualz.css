@@ -2120,6 +2120,36 @@
   color: rgba(255,255,255,0.3);
 }
 
+/* Trigger rows: label left, firing-state dot right (Routing Triggers). */
+.vz-mi-trigger-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+}
+.vz-mi-trigger-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 4px 0;
+}
+.vz-mi-trigger-row-label {
+  font: 600 11px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  color: rgba(255,255,255,0.3);
+}
+.vz-mi-trigger-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.6);
+  flex-shrink: 0;
+  transition: background 0.05s;
+}
+.vz-mi-trigger-dot--active {
+  background: #61d6aa;
+  box-shadow: 0 0 5px #61d6aa88;
+}
+
 /* Lyric text rows */
 .vz-mi-lyric-line {
   display: flex;

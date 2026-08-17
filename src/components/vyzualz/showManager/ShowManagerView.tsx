@@ -20,6 +20,9 @@ import { UnderlineTabs } from '../react/controls/UnderlineTabs'
 import { RailTabs, type RailTabOption } from '../layout/RailTabs'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import { DualRailCollapsible } from '../react/DualRailCollapsible'
+import { PanelSubtabs } from '../react/PanelSubtabs'
+import { MusicIntelligenceDiagnosticsPanel } from '../modulation/MusicIntelligenceDiagnosticsPanel'
+import { LaserDmxRoutingTriggersPanel } from './LaserDmxRoutingTriggersPanel'
 import { MoreVerticalIcon } from 'hugeicons-react'
 import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from '../react/reactEngineCatalog'
 import { PixGridDesignPanel } from '../react/pixGrid/PixGridDesignPanel'
@@ -942,6 +945,7 @@ export function ShowManagerView() {
   const waveformZoom = useVisualStore(state => state.waveformZoom)
   const [showManagerSessionReady, setShowManagerSessionReady] = useState(false)
   const [rightInspectorTab, setRightInspectorTab] = useState<ShowManagerRightInspectorTab>('inspector')
+  const [rightReactTabSurface, setRightReactTabSurface] = useState<'routing' | 'analysis'>('routing')
   const [selectedEngineId, setSelectedEngineId] = useState<ReactEngineId>('pixGrid')
   const [selectedShowManagerSectionId, setSelectedShowManagerSectionId] = useState<string | null>(null)
   const [selectedLightingComponentKind, setSelectedLightingComponentKind] = useState<LaserDmxShowDirectorFixtureKind | null>(null)
@@ -2924,7 +2928,29 @@ export function ShowManagerView() {
               <div className="sm-panel-blank" data-testid="show-manager-inspector-design-empty" />
             )
           )}
-          {rightInspectorTab === 'react' && <div className="sm-panel-blank" data-testid="show-manager-inspector-react-empty" />}
+          {rightInspectorTab === 'react' && (
+            activeSectionEngineId === 'laserDmx' ? (
+              <div className="sm-inspector-scroll">
+                <PanelSubtabs
+                  value={rightReactTabSurface}
+                  onChange={setRightReactTabSurface}
+                  ariaLabel="Reactivity surfaces"
+                  options={[
+                    { id: 'routing', label: 'ROUTING' },
+                    { id: 'analysis', label: 'ANALYSIS' },
+                  ]}
+                />
+                {rightReactTabSurface === 'analysis' && (
+                  <>
+                    <MusicIntelligenceDiagnosticsPanel />
+                    <LaserDmxRoutingTriggersPanel />
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="sm-panel-blank" data-testid="show-manager-inspector-react-empty" />
+            )
+          )}
         </aside>
         )}
           </>
