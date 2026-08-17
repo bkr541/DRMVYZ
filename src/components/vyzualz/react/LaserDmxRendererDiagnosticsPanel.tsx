@@ -1,3 +1,4 @@
+import awaitingAudioIconUrl from '../../../assets/laserDmx/awaiting-audio.svg'
 import { Collapsible } from './ReactControlRows'
 import { IconChipButton } from './controls/IconChipButton'
 import {
@@ -25,7 +26,11 @@ export function LaserDmxRendererDiagnosticsPanel() {
   return (
     <Collapsible label="Renderer Diagnostics" defaultOpen={false}>
       {diagnostics.activeRenderer === 'inactive' ? (
-        <div className="rv-ctrl-info rv-control-helper-copy">Renderer diagnostics appear while LaserDMX is actively rendering.</div>
+        <div className="rv-renderer-diagnostics-empty">
+          <img src={awaitingAudioIconUrl} alt="" aria-hidden="true" />
+          <strong>Awaiting Audio</strong>
+          <span>Renderer diagnostics appear while LaserDMX is actively rendering.</span>
+        </div>
       ) : (
         <div className="vz-mi-panel" data-laser-dmx-renderer-diagnostics>
           <div className="vz-mi-section vz-mi-section--kv-grid">
