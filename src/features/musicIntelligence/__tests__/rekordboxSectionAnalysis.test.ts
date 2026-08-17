@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildRekordboxAuthoritativeSections, validateRekordboxPssi } from '../rekordboxSectionAnalysis'
+import {
+  buildRekordboxAuthoritativeSections as buildRekordboxAuthoritativeSectionsImpl,
+  validateRekordboxPssi as validateRekordboxPssiImpl,
+} from '../rekordboxSectionAnalysis'
 import type { BarMusicalFeatures } from '../types'
-import type { RekordboxPhrase, RekordboxPhraseMood } from '../../rekordboxImport/sourceTypes'
+import type { RekordboxPhrase, RekordboxPhraseMood, RekordboxPssiIntegrity } from '../../rekordboxImport/sourceTypes'
 
 function makePhrase(
   phraseIndex: number,
@@ -31,6 +34,32 @@ function makePhrase(
     sourceFlags: { fill: false },
     sourcePayload: { kind, phraseIndex },
   }
+}
+
+function completePssiIntegrity(count: number, overrides: Partial<RekordboxPssiIntegrity> = {}): RekordboxPssiIntegrity {
+  return {
+    detected: true,
+    version: 0,
+    entrySize: 24,
+    declaredEntryCount: count,
+    readableEntryCount: count,
+    complete: true,
+    masked: false,
+    supported: true,
+    warnings: [],
+    ...overrides,
+  }
+}
+
+function validateRekordboxPssi(phrases: readonly RekordboxPhrase[] | null | undefined, durationSec: number) {
+  return validateRekordboxPssiImpl(phrases, durationSec, completePssiIntegrity(phrases?.length ?? 0))
+}
+
+function buildRekordboxAuthoritativeSections(input: Parameters<typeof buildRekordboxAuthoritativeSectionsImpl>[0]) {
+  return buildRekordboxAuthoritativeSectionsImpl({
+    ...input,
+    pssiIntegrity: input.pssiIntegrity ?? completePssiIntegrity(input.phrases?.length ?? 0),
+  })
 }
 
 function makeBar(
@@ -93,7 +122,7 @@ describe('Rekordbox PSSI Track Section authority', () => {
     expect(validateRekordboxPssi([makePhrase(0, 'intro', -2, 8)], 8).valid).toBe(false)
     expect(validateRekordboxPssi([makePhrase(0, 'intro', 0, 12)], 8).valid).toBe(false)
     expect(validateRekordboxPssi([makePhrase(0, 'intro', 0, 0)], 8).valid).toBe(false)
-    expect(validateRekordboxPssi([makePhrase(0, 'intro', 3, 8)], 8).valid).toBe(false)
+    expect(validateRekordboxPssi([makePhrase(0, 'intro', 3, 8)], 8).valid).toBe(true)
 
     const impossibleOrdering = validateRekordboxPssi([
       makePhrase(0, 'intro', 4, 8),
@@ -102,16 +131,16 @@ describe('Rekordbox PSSI Track Section authority', () => {
     expect(impossibleOrdering.valid).toBe(false)
   })
 
-  it('safely normalizes only minor edge/join timing inconsistencies', () => {
+  it('preserves legitimate leading/trailing edge silence while normalizing only safe internal join drift', () => {
     const phrases = [
-      makePhrase(0, 'intro', 0.05, 3.98),
-      makePhrase(1, 'verse_1', 4.02, 7.96),
+      makePhrase(0, 'intro', 0.5, 3.98),
+      makePhrase(1, 'verse_1', 4.02, 7.0),
     ]
     const result = validateRekordboxPssi(phrases, 8)
 
     expect(result.valid).toBe(true)
-    expect(result.regions.map(region => [region.startSec, region.endSec])).toEqual([[0, 4.02], [4.02, 8]])
-    expect(result.normalizationNotes.length).toBeGreaterThan(0)
+    expect(result.regions.map(region => [region.startSec, region.endSec])).toEqual([[0.5, 4.02], [4.02, 7]])
+    expect(result.normalizationNotes.some(note => note.includes('next Rekordbox phrase start'))).toBe(true)
   })
 
   it('accepts a very short track with a single complete PSSI phrase', () => {
@@ -122,16 +151,15 @@ describe('Rekordbox PSSI Track Section authority', () => {
     expect(result.regions[0]).toMatchObject({ startSec: 0, endSec: 0.75 })
   })
 
-  it('deterministically closes an omitted final PSSI end boundary at the track duration', () => {
+  it('does not fabricate a physical-track end boundary when the final PSSI boundary is missing', () => {
     const phrases = [
       makePhrase(0, 'intro', 0, 4),
       { ...makePhrase(1, 'outro', 4, 8), endTimeSec: null, endBeat: null },
     ]
     const result = validateRekordboxPssi(phrases, 8)
 
-    expect(result.valid).toBe(true)
-    expect(result.regions.map(region => [region.startSec, region.endSec])).toEqual([[0, 4], [4, 8]])
-    expect(result.normalizationNotes.some(note => note.includes('end boundary was omitted'))).toBe(true)
+    expect(result.valid).toBe(false)
+    expect(result.reason).toContain('end beat')
   })
 
   it('keeps repeated phrase kinds and malformed optional fill metadata out of boundary decisions', () => {
@@ -260,4 +288,46 @@ describe('Rekordbox PSSI Track Section authority', () => {
     })
     expect(result.sections[0]?.interpretation?.classificationDiagnostics?.evidence[0]).toContain('Direct high-confidence Rekordbox mapping')
   })
+
+  it('rejects missing or partial parser integrity even when surviving phrases look contiguous', () => {
+    const phrases = [makePhrase(0, 'intro', 0, 4), makePhrase(1, 'verse_1', 4, 8)]
+    const missing = validateRekordboxPssiImpl(phrases, 8)
+    expect(missing.valid).toBe(false)
+    expect(missing.reason).toContain('integrity metadata is unavailable')
+
+    const partial = validateRekordboxPssiImpl(phrases, 8, completePssiIntegrity(3, {
+      readableEntryCount: 2,
+      complete: false,
+      warnings: ['truncated'],
+    }))
+    expect(partial.valid).toBe(false)
+    expect(partial.reason).toContain('2 readable phrase entries')
+  })
+
+  it('rejects internal beat-map corruption but accepts a final phrase ending before physical audio end', () => {
+    const edgeSilence = [makePhrase(0, 'intro', 0.5, 4), makePhrase(1, 'outro', 4, 7)]
+    expect(validateRekordboxPssi(edgeSilence, 10).valid).toBe(true)
+
+    const internalGap = [
+      makePhrase(0, 'intro', 0, 4),
+      { ...makePhrase(1, 'outro', 4, 8), startBeat: 11 },
+    ]
+    const result = validateRekordboxPssi(internalGap, 8)
+    expect(result.valid).toBe(false)
+    expect(result.reason).toContain('structural gap')
+  })
+
+  it('keeps genuinely unclassifiable Rekordbox phrases Unknown instead of manufacturing Verse', () => {
+    const unknown = makePhrase(0, '', 0, 4)
+    unknown.rekordboxKind = null
+    unknown.normalizedLabel = null
+    unknown.sourceLabel = null
+    unknown.sourceKind = 99
+    const result = buildRekordboxAuthoritativeSections({ phrases: [unknown], durationSec: 4, barFeatures: [] })
+
+    expect(result.valid).toBe(true)
+    expect(result.sections[0]?.type).toBe('unknown')
+    expect(result.sections[0]?.labelConfidence).toBeLessThan(0.5)
+  })
+
 })

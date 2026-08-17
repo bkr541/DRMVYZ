@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CURRENT_ANALYSIS_VERSION } from '../analysisVersion'
 import { boundTrackAnalysisForStorage, migrateTrackAnalysisStorageState } from '../trackAnalysisStorage'
 import type { TrackIntelligenceAnalysis } from '../types'
 
@@ -69,7 +70,7 @@ describe('track analysis persistence migration', () => {
 
   it('preserves Stage 2 provenance and Rekordbox source data through JSON persistence', () => {
     const sourceAware: TrackIntelligenceAnalysis = {
-      ...analysis('auto-6.0'),
+      ...analysis(CURRENT_ANALYSIS_VERSION),
       analysisSources: {
         bpm: 'rekordbox',
         beatGrid: 'rekordbox',
@@ -84,6 +85,10 @@ describe('track analysis persistence migration', () => {
       rekordboxSourceData: {
         source: 'rekordbox_usb',
         featureAvailability: { bpm: true, beatGrid: true, key: false, phrases: true },
+        pssiIntegrity: {
+          detected: true, version: 1, entrySize: 24, declaredEntryCount: 1, readableEntryCount: 1,
+          complete: true, masked: true, supported: true, warnings: ['fixture warning retained'],
+        },
         phrases: [{
           phraseIndex: 0,
           sourceIndex: 1,
@@ -114,6 +119,28 @@ describe('track analysis persistence migration', () => {
     expect(restored?.analysisSources).toEqual(sourceAware.analysisSources)
     expect(restored?.trackProvenance).toEqual(sourceAware.trackProvenance)
     expect(restored?.rekordboxSourceData).toEqual(sourceAware.rekordboxSourceData)
+    expect(restored?.rekordboxSourceData?.pssiIntegrity).toEqual(sourceAware.rekordboxSourceData?.pssiIntegrity)
+  })
+
+  it('loads pre-hardening Rekordbox records without PSSI integrity safely and marks their old analysis revision stale', () => {
+    const legacyRekordbox: TrackIntelligenceAnalysis = {
+      ...analysis('auto-6.1'),
+      analysisSources: { bpm: 'rekordbox', beatGrid: 'rekordbox', key: 'drmvyz', trackSections: 'rekordbox' },
+      trackProvenance: {
+        trackOrigin: 'rekordbox',
+        rekordboxSource: 'rekordbox_usb',
+        rekordboxFeatureAvailability: { bpm: true, beatGrid: true, key: false, phrases: true },
+      },
+      rekordboxSourceData: {
+        source: 'rekordbox_usb',
+        featureAvailability: { bpm: true, beatGrid: true, key: false, phrases: true },
+        phrases: [],
+      },
+    }
+    const migrated = migrateTrackAnalysisStorageState({ analyses: { track: legacyRekordbox }, statuses: { track: 'complete' } })
+
+    expect(migrated.analyses?.track?.rekordboxSourceData?.pssiIntegrity).toBeUndefined()
+    expect(migrated.statuses?.track).toBe('stale')
   })
 
   it('loads pre-Stage-2 persisted analyses with safe DRMVYZ/ordinary defaults', () => {

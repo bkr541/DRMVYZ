@@ -18,7 +18,7 @@ import {
   type ChromaFrame,
   type MusicalFeatureCurves,
 } from './musicalGridAnalysis'
-import type { RekordboxFeatureAvailability, RekordboxImportSource, RekordboxPhrase } from '../rekordboxImport/sourceTypes'
+import type { RekordboxFeatureAvailability, RekordboxImportSource, RekordboxPhrase, RekordboxPssiIntegrity } from '../rekordboxImport/sourceTypes'
 import type {
   TrackIntelligenceAnalysis,
   FeatureCurve,
@@ -46,6 +46,7 @@ export interface TrackAnalysisSeed {
   beatGrid?: BeatMarkerMI[]
   downbeats?: BeatMarkerMI[]
   rekordboxPhrases?: RekordboxPhrase[]
+  rekordboxPssiIntegrity?: RekordboxPssiIntegrity | null
   phrases?: PhraseMarker[]
   sections?: TrackSectionMI[]
   key?: string | null
@@ -730,6 +731,7 @@ export async function analyzeTrackBuffer(
   const rekordboxSectionResult = rekordboxSeed
     ? buildRekordboxAuthoritativeSections({
         phrases: seed?.rekordboxPhrases,
+        pssiIntegrity: seed?.rekordboxPssiIntegrity,
         durationSec,
         barFeatures,
       })
@@ -779,7 +781,7 @@ export async function analyzeTrackBuffer(
     ...(seed?.bpm != null ? [`BPM seeded from ${seed.source ?? 'external metadata'}.`] : []),
     ...(usesRekordboxSections
       ? ['Track Section boundaries sourced from validated Rekordbox PSSI; DRMVYZ semantic analysis preserved those boundaries.']
-      : rekordboxSeed && (seed?.rekordboxPhrases?.length ?? 0) > 0
+      : rekordboxSeed && ((seed?.rekordboxPhrases?.length ?? 0) > 0 || seed?.rekordboxPssiIntegrity?.detected === true)
         ? [`Rekordbox PSSI was not accepted for Track Section authority (${rekordboxSectionResult?.reason ?? 'validation failed'}); native DRMVYZ segmentation was used.`]
         : []),
     ...(rekordboxSectionResult?.normalizationNotes ?? []),
@@ -869,6 +871,9 @@ export async function analyzeTrackBuffer(
             sourceFlags: { ...phrase.sourceFlags },
             sourcePayload: { ...phrase.sourcePayload },
           })),
+          pssiIntegrity: seed.rekordboxPssiIntegrity
+            ? { ...seed.rekordboxPssiIntegrity, warnings: [...seed.rekordboxPssiIntegrity.warnings] }
+            : null,
         }
       : undefined,
     analysisWarnings: typedWarnings,
@@ -920,6 +925,13 @@ export async function analyzeTrackBuffer(
             source: seed!.source as RekordboxImportSource,
             beatGridAvailable: importedBeatGrid.length >= 2,
             pssiAvailable: (seed?.rekordboxPhrases?.length ?? 0) > 0,
+            pssiDetected: seed?.rekordboxPssiIntegrity?.detected === true,
+            pssiVersion: seed?.rekordboxPssiIntegrity?.version ?? null,
+            pssiMasked: seed?.rekordboxPssiIntegrity?.masked ?? null,
+            pssiDeclaredPhraseCount: seed?.rekordboxPssiIntegrity?.declaredEntryCount ?? 0,
+            pssiReadablePhraseCount: seed?.rekordboxPssiIntegrity?.readableEntryCount ?? 0,
+            pssiComplete: seed?.rekordboxPssiIntegrity?.complete === true,
+            pssiParserWarnings: [...(seed?.rekordboxPssiIntegrity?.warnings ?? [])],
             beatGridSource: analysisSources.beatGrid,
             trackSectionsSource: analysisSources.trackSections,
             importedPhraseCount: seed?.rekordboxPhrases?.length ?? 0,

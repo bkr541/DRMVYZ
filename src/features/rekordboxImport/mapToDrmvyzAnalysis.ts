@@ -74,6 +74,10 @@ export function mapRekordboxMatchToDrmvyz(match: RekordboxTrackMatch, library: R
     sourceFlags: { ...phrase.sourceFlags },
     sourcePayload: { ...phrase.sourcePayload },
   }))
+  const pssiIntegrity = track.pssiIntegrity
+    ? { ...track.pssiIntegrity, warnings: [...track.pssiIntegrity.warnings] }
+    : null
+  if (pssiIntegrity?.warnings.length) warnings.push(...pssiIntegrity.warnings)
   const inferredBpm = track.bpm ?? inferBpmFromBeatGrid(beatGrid)
   const featureAvailability = {
     bpm: inferredBpm != null && inferredBpm > 0,
@@ -89,6 +93,7 @@ export function mapRekordboxMatchToDrmvyz(match: RekordboxTrackMatch, library: R
     beatGrid: beatGrid.length ? beatGrid : undefined,
     downbeats: downbeats.length ? downbeats : undefined,
     rekordboxPhrases: phraseSeed,
+    rekordboxPssiIntegrity: pssiIntegrity,
     key: track.key ?? null,
     keyConfidence: track.key ? 0.92 : null,
   }

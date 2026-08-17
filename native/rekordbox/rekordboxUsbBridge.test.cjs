@@ -61,7 +61,7 @@ function makePpthTag(audioPath) {
   return makeTag('PPTH', body, 0x10)
 }
 
-function makePssiTag({ mood = 2, bank = 0, endBeat, entries, masked = false, entryBytes = 24 }) {
+function makePssiTag({ mood = 2, bank = 0, endBeat, entries, masked = false, entryBytes = 24, version = 0, declaredEntryCount = entries.length }) {
   const songBody = Buffer.alloc(14 + entries.length * entryBytes)
   songBody.writeUInt16BE(mood, 0)
   songBody.writeUInt16BE(endBeat, 8)
@@ -86,14 +86,16 @@ function makePssiTag({ mood = 2, bank = 0, endBeat, entries, masked = false, ent
 
   const encodedSongBody = Buffer.from(songBody)
   if (masked) {
+    const maskStart = version % PSSI_MASK_BASE.length
     for (let index = 0; index < encodedSongBody.length; index++) {
-      encodedSongBody[index] ^= (PSSI_MASK_BASE[index % PSSI_MASK_BASE.length] + entries.length) & 0xff
+      encodedSongBody[index] ^= (PSSI_MASK_BASE[(index + maskStart) % PSSI_MASK_BASE.length] + declaredEntryCount) & 0xff
     }
   }
 
   const body = Buffer.alloc(6 + encodedSongBody.length)
-  body.writeUInt32BE(entryBytes, 0)
-  body.writeUInt16BE(entries.length, 4)
+  body.writeUInt16BE(version, 0)
+  body.writeUInt16BE(entryBytes, 2)
+  body.writeUInt16BE(declaredEntryCount, 4)
   encodedSongBody.copy(body, 6)
   return makeTag('PSSI', body, 0x20)
 }
@@ -165,6 +167,96 @@ test('parseAnlzBuffer parses masked PSSI phrases in order with fill metadata and
   assert.equal(result.warnings.length, 0)
 })
 
+test('PSSI version 0 and version 1 headers parse plaintext and masked records with version-aware mask alignment', () => {
+  for (const version of [0, 1]) {
+    for (const masked of [false, true]) {
+      const result = parseAnlzBuffer(makePmai([
+        makePssiTag({
+          version,
+          masked,
+          mood: 1,
+          bank: 3,
+          endBeat: 17,
+          entries: [
+            { beat: 1, kind: 1, k1: 1 },
+            { beat: 5, kind: 2, k2: 0, k3: 1 },
+            { beat: 9, kind: 5, k1: 1 },
+            { beat: 13, kind: 6, k1: 0 },
+          ],
+        }),
+      ]), `PSSI-v${version}-${masked ? 'masked' : 'plain'}.EXT`)
+
+      assert.equal(result.pssiIntegrity.version, version)
+      assert.equal(result.pssiIntegrity.entrySize, 24)
+      assert.equal(result.pssiIntegrity.declaredEntryCount, 4)
+      assert.equal(result.pssiIntegrity.readableEntryCount, 4)
+      assert.equal(result.pssiIntegrity.complete, true)
+      assert.equal(result.pssiIntegrity.masked, masked)
+      assert.equal(result.pssiIntegrity.supported, true)
+      assert.deepEqual(result.phrases.map(phrase => phrase.sourceLabel), ['Intro 1', 'Up 2', 'Chorus 2', 'Outro 2'])
+    }
+  }
+})
+
+test('masked PSSI is decoded structurally even when encoded mood would pass the legacy rawMood <= 20 heuristic', () => {
+  const entries = Array.from({ length: 53 }, (_, index) => ({ beat: index * 4 + 1, kind: index === 0 ? 1 : 2 }))
+  const tag = makePssiTag({ mood: 2, endBeat: 213, masked: true, entries })
+  const encodedMood = tag.readUInt16BE(18)
+  assert.ok(encodedMood <= 20, `fixture must falsify the old heuristic; encoded mood was ${encodedMood}`)
+
+  const result = parseAnlzBuffer(makePmai([tag]), 'PSSI-mask-threshold.EXT')
+  assert.equal(result.pssiIntegrity.masked, true)
+  assert.equal(result.pssiIntegrity.complete, true)
+  assert.equal(result.phrases.length, 53)
+  assert.equal(result.phrases[0].mood, 'mid_energy')
+  assert.equal(result.phrases[52].startBeat, 209)
+})
+
+test('unsupported PSSI versions and entry sizes fail safely without guessing phrase data', () => {
+  const unsupportedVersion = parseAnlzBuffer(makePmai([
+    makePssiTag({ version: 2, mood: 2, endBeat: 9, entries: [{ beat: 1, kind: 1 }] }),
+  ]), 'PSSI-v2.EXT')
+  assert.deepEqual(unsupportedVersion.phrases, [])
+  assert.equal(unsupportedVersion.pssiIntegrity.version, 2)
+  assert.equal(unsupportedVersion.pssiIntegrity.supported, false)
+  assert.equal(unsupportedVersion.pssiIntegrity.complete, false)
+
+  const unsupportedEntry = parseAnlzBuffer(makePmai([
+    makePssiTag({ entryBytes: 28, mood: 2, endBeat: 9, entries: [{ beat: 1, kind: 1 }] }),
+  ]), 'PSSI-entry-size.EXT')
+  assert.deepEqual(unsupportedEntry.phrases, [])
+  assert.equal(unsupportedEntry.pssiIntegrity.entrySize, 28)
+  assert.equal(unsupportedEntry.pssiIntegrity.supported, false)
+  assert.equal(unsupportedEntry.pssiIntegrity.complete, false)
+  assert.ok(unsupportedEntry.warnings.some(warning => warning.includes('entry size 28 is unsupported')))
+})
+
+test('High-mood source labels retain numbered Rekordbox variants and unknown kinds retain raw source metadata', () => {
+  const result = parseAnlzBuffer(makePmai([
+    makePssiTag({
+      mood: 1,
+      endBeat: 29,
+      entries: [
+        { beat: 1, kind: 1, k1: 0 },
+        { beat: 5, kind: 2, k2: 0, k3: 0 },
+        { beat: 9, kind: 2, k2: 1, k3: 0, b: 1, beat2: 10, beat3: 11, beat4: 12 },
+        { beat: 13, kind: 5, k1: 0 },
+        { beat: 17, kind: 6, k1: 1 },
+        { beat: 21, kind: 99 },
+        { beat: 25, kind: 3 },
+      ],
+    }),
+  ]), 'PSSI-high-variants.EXT')
+
+  assert.deepEqual(result.phrases.map(phrase => phrase.sourceLabel), ['Intro 2', 'Up 1', 'Up 3', 'Chorus 1', 'Outro 1', null, 'Down 1'])
+  assert.equal(result.phrases[2].sourceFlags.b, 1)
+  assert.equal(result.phrases[2].sourceFlags.beat4, 12)
+  assert.equal(result.phrases[5].sourceKind, 99)
+  assert.equal(result.phrases[5].rekordboxKind, null)
+  assert.equal(result.phrases[5].normalizedLabel, null)
+  assert.ok(result.warnings.some(warning => warning.includes('kind=99')))
+})
+
 test('PSSI timestamps follow a variable-tempo/manual PQTZ grid instead of average BPM math', () => {
   const timesMs = [0, 500, 1000, 1500, 1900, 2300, 2700, 3100, 3450, 3800, 4150, 4500]
   const bpms = [120, 120, 120, 120, 150, 150, 150, 150, 171.43, 171.43, 171.43, 171.43]
@@ -208,7 +300,18 @@ test('partial PSSI keeps complete entries and reports the truncated remainder', 
 
   assert.equal(result.phrases.length, 2)
   assert.deepEqual(result.phrases.map(phrase => phrase.startBeat), [1, 5])
-  assert.deepEqual(result.phrases.map(phrase => phrase.endBeat), [5, 13])
+  assert.deepEqual(result.phrases.map(phrase => phrase.endBeat), [5, null])
+  assert.deepEqual(result.pssiIntegrity, {
+    detected: true,
+    version: 0,
+    entrySize: 24,
+    declaredEntryCount: 3,
+    readableEntryCount: 2,
+    complete: false,
+    masked: false,
+    supported: true,
+    warnings: result.pssiIntegrity.warnings,
+  })
   assert.ok(result.warnings.some(warning => warning.includes('2 readable phrase entries but declares 3')))
 })
 
@@ -277,6 +380,13 @@ test('scanRekordboxUsbRoot merges sibling DAT beat grid and EXT PSSI for the sam
   assert.equal(track.beatGrid.length, 9)
   assert.equal(track.cues.length, 1)
   assert.equal(track.phrases.length, 2)
+  assert.deepEqual(track.pssiIntegrity && {
+    version: track.pssiIntegrity.version,
+    declaredEntryCount: track.pssiIntegrity.declaredEntryCount,
+    readableEntryCount: track.pssiIntegrity.readableEntryCount,
+    complete: track.pssiIntegrity.complete,
+    masked: track.pssiIntegrity.masked,
+  }, { version: 0, declaredEntryCount: 2, readableEntryCount: 2, complete: true, masked: false })
   assert.equal(track.phrases[1].rekordboxKind, 'chorus')
   assert.equal(track.phrases[1].startTimeSec, 2)
   assert.equal(track.phrases[1].endTimeSec, 4)

@@ -7,6 +7,7 @@ const {
   parsePssiTag,
   alignRekordboxPhrases,
   mergeRekordboxPhrases,
+  mergePssiIntegrity,
 } = require('./rekordboxPssi.cjs')
 
 const AUDIO_EXT_RE = /\.(mp3|wav|aiff?|m4a|ogg|flac)$/i
@@ -129,6 +130,7 @@ async function parseAnlzLibrary(files, rootPath, warnings) {
         mergeRekordboxPhrases(existing.phrases || [], parsed.phrases || []),
         existing.beatGrid,
       )
+      existing.pssiIntegrity = mergePssiIntegrity(existing.pssiIntegrity, parsed.pssiIntegrity)
       for (const warning of parsed.warnings || []) warnings.push(`${path.basename(filePath)}: ${warning}`)
       existing.downbeats = (existing.beatGrid || []).filter(beat => beat.isDownbeat)
       existing.beatGridOffsetSec = existing.beatGrid?.[0]?.timeSec ?? existing.beatGridOffsetSec ?? null
@@ -156,6 +158,7 @@ function parseAnlzBuffer(buffer, filePath) {
     beatGrid: [],
     cues: [],
     phrases: [],
+    pssiIntegrity: null,
     warnings: [],
     durationSec: null,
   }
@@ -185,6 +188,7 @@ function parseAnlzBuffer(buffer, filePath) {
     } else if (fourcc === 'PSSI') {
       const pssi = parsePssiTag(buffer, offset, tagLen)
       result.phrases.push(...pssi.phrases)
+      result.pssiIntegrity = mergePssiIntegrity(result.pssiIntegrity, pssi.integrity)
       result.warnings.push(...pssi.warnings)
     }
 
@@ -372,6 +376,7 @@ function pdbRowToTrack(row, lookups) {
     filename,
     cues: [],
     phrases: [],
+    pssiIntegrity: null,
     beatGrid: [],
     downbeats: [],
     beatGridOffsetSec: null,
@@ -394,6 +399,7 @@ function mergePdbAndAnlzTracks(pdbTracks, anlzTracks) {
           mergeRekordboxPhrases(pdb.phrases || [], match.phrases || []),
           beatGrid,
         ),
+        pssiIntegrity: match.pssiIntegrity ?? pdb.pssiIntegrity ?? null,
         beatGrid,
         downbeats: match.downbeats || pdb.downbeats || [],
         beatGridOffsetSec: match.beatGridOffsetSec ?? pdb.beatGridOffsetSec ?? null,
@@ -452,6 +458,7 @@ function makeTrackFromPath(audioPath, anlzPath) {
     filename,
     cues: [],
     phrases: [],
+    pssiIntegrity: null,
     beatGrid: [],
     downbeats: [],
     beatGridOffsetSec: null,

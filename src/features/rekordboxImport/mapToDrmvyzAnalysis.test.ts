@@ -32,6 +32,10 @@ function makeTrack(): RekordboxTrackMetadata {
     durationSec: 180,
     cues: [],
     phrases: [phrase],
+    pssiIntegrity: {
+      detected: true, version: 1, entrySize: 24, declaredEntryCount: 1, readableEntryCount: 1,
+      complete: true, masked: true, supported: true, warnings: [],
+    },
     beatGrid: [
       { timeSec: 0, confidence: 0.98, isDownbeat: true, bpm: 120 },
       { timeSec: 0.5, confidence: 0.98, isDownbeat: false, bpm: 120 },
@@ -67,6 +71,8 @@ describe('mapRekordboxMatchToDrmvyz PSSI transport', () => {
     expect(result.rekordboxPhrases).toEqual([phrase])
     expect(result.analysisSeed.phrases).toBeUndefined()
     expect(result.analysisSeed.rekordboxPhrases).toEqual([phrase])
+    expect(result.analysisSeed.rekordboxPssiIntegrity).toEqual(track.pssiIntegrity)
+    expect(result.analysisSeed.rekordboxPssiIntegrity).not.toBe(track.pssiIntegrity)
     expect(result.analysisSeed.featureAvailability).toEqual({ bpm: true, beatGrid: true, key: false, phrases: true })
     expect(result.analysisSeed.sections).toBeUndefined()
     expect(result.cueMarkers).toEqual([])

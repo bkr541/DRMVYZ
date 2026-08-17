@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { analyzeTrackBuffer } from '../offlineTrackAnalyzer'
 import type { BeatMarkerMI } from '../types'
-import type { RekordboxPhrase } from '../../rekordboxImport/types'
+import type { RekordboxPhrase, RekordboxPssiIntegrity } from '../../rekordboxImport/types'
 
 function makeBuffer(durationSec = 4, sampleRate = 8_000): AudioBuffer {
   const length = Math.max(1, Math.round(durationSec * sampleRate))
@@ -48,6 +48,10 @@ const phrase: RekordboxPhrase = {
   sourcePayload: { kind: 2, beat: 1, beatFill: 4 },
 }
 
+function completePssiIntegrity(count: number): RekordboxPssiIntegrity {
+  return { detected: true, version: 0, entrySize: 24, declaredEntryCount: count, readableEntryCount: count, complete: true, masked: true, supported: true, warnings: [] }
+}
+
 const analysisOptions = {
   fftSize: 256,
   hopSize: 128,
@@ -67,6 +71,7 @@ describe('Rekordbox Stage 2 Track Intelligence integration', () => {
         beatGrid: grid,
         downbeats: grid.filter(beat => beat.isDownbeat),
         rekordboxPhrases: [phrase],
+        rekordboxPssiIntegrity: completePssiIntegrity(1),
         key: 'C major',
         keyConfidence: 0.92,
       },
@@ -123,6 +128,7 @@ describe('Rekordbox Stage 2 Track Intelligence integration', () => {
         featureAvailability: { bpm: true, beatGrid: false, key: false, phrases: true },
         bpm: 120,
         rekordboxPhrases: [unresolvedPhrase],
+        rekordboxPssiIntegrity: completePssiIntegrity(1),
       },
     })
 
@@ -145,6 +151,7 @@ describe('Rekordbox Stage 2 Track Intelligence integration', () => {
           { timeSec: 0.001, confidence: 0.99, isDownbeat: false },
         ],
         rekordboxPhrases: [phrase],
+        rekordboxPssiIntegrity: completePssiIntegrity(1),
       },
     })
 

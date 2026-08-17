@@ -13,7 +13,7 @@ import { getConditionSourceValue, getMusicIntelligenceSourceValue } from '../sel
 import { boundTrackAnalysisForStorage } from '../trackAnalysisStorage'
 import type { BeatMarkerMI, TrackIntelligenceAnalysis } from '../types'
 import type { RekordboxAnalysisSeed } from '../../rekordboxImport/types'
-import type { RekordboxPhrase } from '../../rekordboxImport/sourceTypes'
+import type { RekordboxPhrase, RekordboxPssiIntegrity } from '../../rekordboxImport/sourceTypes'
 
 function makeBuffer(durationSec = 8, sampleRate = 4_000): AudioBuffer {
   const length = Math.max(1, Math.round(durationSec * sampleRate))
@@ -74,15 +74,24 @@ function validPssi(): RekordboxPhrase[] {
   ]
 }
 
+function completePssiIntegrity(count: number, overrides: Partial<RekordboxPssiIntegrity> = {}): RekordboxPssiIntegrity {
+  return { detected: true, version: 0, entrySize: 24, declaredEntryCount: count, readableEntryCount: count, complete: true, masked: false, supported: true, warnings: [], ...overrides }
+}
+
 function rbSeed(overrides: Partial<RekordboxAnalysisSeed> = {}): RekordboxAnalysisSeed {
   const grid = rekordboxGrid()
+  const phrases = overrides.rekordboxPhrases ?? validPssi()
+  const integrity = Object.prototype.hasOwnProperty.call(overrides, 'rekordboxPssiIntegrity')
+    ? overrides.rekordboxPssiIntegrity
+    : phrases.length > 0 ? completePssiIntegrity(phrases.length) : null
   return {
     source: 'rekordbox_usb',
     featureAvailability: { bpm: true, beatGrid: true, key: false, phrases: true },
     bpm: 120,
     beatGrid: grid,
     downbeats: grid.filter(beat => beat.isDownbeat),
-    rekordboxPhrases: validPssi(),
+    rekordboxPhrases: phrases,
+    rekordboxPssiIntegrity: integrity,
     ...overrides,
   }
 }
@@ -94,6 +103,8 @@ let fullRekordbox: TrackIntelligenceAnalysis
 let gridOnly: TrackIntelligenceAnalysis
 let badGridAndPssi: TrackIntelligenceAnalysis
 let malformedPssi: TrackIntelligenceAnalysis
+let truncatedPssi: TrackIntelligenceAnalysis
+let unsupportedPssi: TrackIntelligenceAnalysis
 let pssiWithNativeGridFallback: TrackIntelligenceAnalysis
 
 describe('Rekordbox Stage 4 production lifecycle', () => {
@@ -120,6 +131,31 @@ describe('Rekordbox Stage 4 production lifecycle', () => {
       ...options,
       seed: rbSeed({
         rekordboxPhrases: [phrase(0, 'intro', 0, 5), phrase(1, 'down', 4, 8)],
+      }),
+    })
+    truncatedPssi = await analyzeTrackBuffer(makeBuffer(), {
+      ...options,
+      seed: rbSeed({
+        rekordboxPhrases: [phrase(0, 'intro', 0, 2), phrase(1, 'verse_2', 2, null)],
+        rekordboxPssiIntegrity: completePssiIntegrity(3, {
+          readableEntryCount: 2,
+          complete: false,
+          warnings: ['fixture: truncated final PSSI entry'],
+        }),
+      }),
+    })
+    unsupportedPssi = await analyzeTrackBuffer(makeBuffer(), {
+      ...options,
+      seed: rbSeed({
+        featureAvailability: { bpm: true, beatGrid: true, key: false, phrases: false },
+        rekordboxPhrases: [],
+        rekordboxPssiIntegrity: completePssiIntegrity(0, {
+          version: 2,
+          supported: false,
+          masked: null,
+          complete: false,
+          warnings: ['fixture: unsupported PSSI version 2'],
+        }),
       }),
     })
     pssiWithNativeGridFallback = await analyzeTrackBuffer(makeBuffer(), {
@@ -212,6 +248,34 @@ describe('Rekordbox Stage 4 production lifecycle', () => {
     expect(malformedPssi.analysisDiagnostics?.rekordbox?.pssiFallbackReason).toContain('overlap')
   })
 
+  it('rejects truncated/incomplete PSSI without poisoning a valid Rekordbox beat grid', () => {
+    expect(truncatedPssi.analysisSources).toMatchObject({ beatGrid: 'rekordbox', trackSections: 'drmvyz' })
+    expect(truncatedPssi.analysisDiagnostics?.rekordbox).toMatchObject({
+      beatGridSource: 'rekordbox',
+      pssiDetected: true,
+      pssiDeclaredPhraseCount: 3,
+      pssiReadablePhraseCount: 2,
+      pssiComplete: false,
+      pssiAccepted: false,
+      nativeBeatGridFallbackUsed: false,
+      nativeTrackSectionFallbackUsed: true,
+    })
+    expect(truncatedPssi.analysisDiagnostics?.rekordbox?.pssiFallbackReason).toContain('incomplete')
+    expect(truncatedPssi.analysisDiagnostics?.rekordbox?.pssiParserWarnings).toContain('fixture: truncated final PSSI entry')
+  })
+
+  it('rejects unsupported PSSI versions while preserving independent Rekordbox timing features', () => {
+    expect(unsupportedPssi.analysisSources).toMatchObject({ beatGrid: 'rekordbox', trackSections: 'drmvyz' })
+    expect(unsupportedPssi.analysisDiagnostics?.rekordbox).toMatchObject({
+      pssiDetected: true,
+      pssiVersion: 2,
+      pssiAccepted: false,
+      nativeBeatGridFallbackUsed: false,
+      nativeTrackSectionFallbackUsed: true,
+    })
+    expect(unsupportedPssi.analysisDiagnostics?.rekordbox?.pssiFallbackReason).toContain('unsupported')
+  })
+
   it('F: persistence/reload preserves boundaries/provenance and restores the seed required for later re-analysis', () => {
     const stored = boundTrackAnalysisForStorage(fullRekordbox)
     const hydrated = withTrackAnalysisCompatibilityDefaults(JSON.parse(JSON.stringify(stored)) as TrackIntelligenceAnalysis)
@@ -235,6 +299,7 @@ describe('Rekordbox Stage 4 production lifecycle', () => {
     expect(remote.analysisRuntime.analysis?.analysisSources).toEqual(fullRekordbox.analysisSources)
     expect(remote.analysisRuntime.analysis?.analysisDiagnostics?.rekordbox).toEqual(fullRekordbox.analysisDiagnostics?.rekordbox)
     expect(remote.importedAnalysisSeed?.rekordboxPhrases).toEqual(fullRekordbox.rekordboxSourceData?.phrases)
+    expect(remote.importedAnalysisSeed?.rekordboxPssiIntegrity).toEqual(fullRekordbox.rekordboxSourceData?.pssiIntegrity)
     expect(remote.importedAnalysisSeed?.beatGrid?.map(beat => beat.timeSec)).toEqual(fullRekordbox.beatGrid.map(beat => beat.timeSec))
     expect(remote.analysisRuntime.analysisKey).toContain(`:${CURRENT_ANALYSIS_VERSION}`)
     expect(remote.analysisRuntime.analysisKey).toContain(':imported-grid=')
@@ -266,7 +331,7 @@ describe('Rekordbox Stage 4 production lifecycle', () => {
       expect(frame.section.type).toBe(section.type)
       expect(getMusicIntelligenceSourceValue(frame, 'sectionType')).toBe(section.type)
       for (const [key, type] of [
-        ['isDrop', 'drop'], ['isBuild', 'build'], ['isVerse', 'verse'], ['isBreakdown', 'breakdown'], ['isIntro', 'intro'], ['isOutro', 'outro'],
+        ['isDrop', 'drop'], ['isBuild', 'build'], ['isVerse', 'verse'], ['isBreakdown', 'breakdown'], ['isBridge', 'bridge'], ['isIntro', 'intro'], ['isOutro', 'outro'],
       ] as const) {
         expect(getConditionSourceValue(frame, key)).toBe(section.type === type)
       }
@@ -287,15 +352,15 @@ describe('Rekordbox Stage 4 production lifecycle', () => {
     expect(computeImportedGridRevision(changed)).not.toBe(computeImportedGridRevision(first))
   })
 
-  it('invalidates pre-Stage-4 cached analyses while retaining their recoverable Rekordbox seed for re-analysis', () => {
-    const oldAnalysis = { ...fullRekordbox, analysisVersion: 'auto-6.0' }
+  it('invalidates pre-hardening cached analyses while retaining their recoverable Rekordbox seed for re-analysis', () => {
+    const oldAnalysis = { ...fullRekordbox, analysisVersion: 'auto-6.1' }
     const remote = createRemoteRuntimeTrack({
       name: 'cached-rb.wav',
       url: 'https://example.test/cached-rb.wav',
       analysisRuntime: {
         ...DEFAULT_TRACK_ANALYSIS_RUNTIME,
         status: 'complete',
-        analysisVersion: 'auto-6.0',
+        analysisVersion: 'auto-6.1',
         analysisKey: 'old-key',
         analysis: oldAnalysis,
       },
@@ -308,4 +373,30 @@ describe('Rekordbox Stage 4 production lifecycle', () => {
     expect(remote.analysisRuntime.analysisKey).toContain(`:${CURRENT_ANALYSIS_VERSION}`)
     expect(remote.analysisRuntime.analysisKey).toContain(':imported-grid=')
   })
+
+  it('loads an old Rekordbox snapshot with no PSSI integrity safely and reanalyzes with independent Rekordbox grid/native sections', async () => {
+    const oldAnalysis = JSON.parse(JSON.stringify({ ...fullRekordbox, analysisVersion: 'auto-6.1' })) as TrackIntelligenceAnalysis
+    if (oldAnalysis.rekordboxSourceData) delete oldAnalysis.rekordboxSourceData.pssiIntegrity
+    const remote = createRemoteRuntimeTrack({
+      name: 'cached-rb-no-integrity.wav',
+      url: 'https://example.test/cached-rb-no-integrity.wav',
+      analysisRuntime: {
+        ...DEFAULT_TRACK_ANALYSIS_RUNTIME,
+        status: 'complete',
+        analysisVersion: 'auto-6.1',
+        analysisKey: 'old-no-integrity-key',
+        analysis: oldAnalysis,
+      },
+    })
+
+    expect(remote.analysisRuntime.status).toBe('queued')
+    expect(remote.analysisRuntime.analysis).toBeNull()
+    expect(remote.importedAnalysisSeed?.rekordboxPssiIntegrity).toBeNull()
+    expect(remote.importedAnalysisSeed?.rekordboxPhrases).toHaveLength(validPssi().length)
+
+    const reanalyzed = await analyzeTrackBuffer(makeBuffer(), { ...options, seed: remote.importedAnalysisSeed })
+    expect(reanalyzed.analysisSources).toMatchObject({ beatGrid: 'rekordbox', trackSections: 'drmvyz' })
+    expect(reanalyzed.analysisDiagnostics?.rekordbox?.pssiFallbackReason).toContain('integrity metadata is unavailable')
+  }, 30_000)
+
 })

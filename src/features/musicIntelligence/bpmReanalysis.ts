@@ -30,8 +30,13 @@ function mergeProtectedSections(protectedSections: TrackSectionMI[], automaticSe
 }
 
 function hasAuthoritativeRekordboxSections(analysis: TrackIntelligenceAnalysis): boolean {
+  const integrity = analysis.rekordboxSourceData?.pssiIntegrity
   return resolveTrackAnalysisSources(analysis).trackSections === 'rekordbox'
     && analysis.trackProvenance?.trackOrigin === 'rekordbox'
+    && integrity?.supported === true
+    && integrity.complete === true
+    && integrity.masked != null
+    && integrity.declaredEntryCount === integrity.readableEntryCount
     && analysis.sections.some(section => section.source === 'rekordbox')
 }
 
@@ -42,6 +47,7 @@ function rebuildAuthoritativeRekordboxSections(
 ): TrackSectionMI[] {
   const rebuilt = buildRekordboxAuthoritativeSections({
     phrases: analysis.rekordboxSourceData?.phrases,
+    pssiIntegrity: analysis.rekordboxSourceData?.pssiIntegrity,
     durationSec,
     barFeatures: gridData.barFeatures,
   })

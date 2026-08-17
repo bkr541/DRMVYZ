@@ -1,6 +1,6 @@
 import type { TrackIntelligenceAnalysis, BeatMarkerMI, PhraseMarker, TrackSectionMI } from '../musicIntelligence/types'
-import type { RekordboxFeatureAvailability, RekordboxImportSource, RekordboxPhrase } from './sourceTypes'
-export type { RekordboxFeatureAvailability, RekordboxImportSource, RekordboxPhrase, RekordboxPhraseBank, RekordboxPhraseMood } from './sourceTypes'
+import type { RekordboxFeatureAvailability, RekordboxImportSource, RekordboxPhrase, RekordboxPssiIntegrity } from './sourceTypes'
+export type { RekordboxFeatureAvailability, RekordboxImportSource, RekordboxPhrase, RekordboxPhraseBank, RekordboxPhraseMood, RekordboxPssiIntegrity } from './sourceTypes'
 import type { ExternalTrackMetadata } from '../../types'
 import type { VzCueMarker, VzCueRegion } from '../../types/cue'
 
@@ -32,6 +32,7 @@ export interface RekordboxTrackMetadata {
   filename?: string | null
   cues: RekordboxCuePoint[]
   phrases?: RekordboxPhrase[]
+  pssiIntegrity?: RekordboxPssiIntegrity | null
   beatGrid?: BeatMarkerMI[]
   downbeats?: BeatMarkerMI[]
   beatGridOffsetSec?: number | null
@@ -67,6 +68,7 @@ export interface RekordboxAnalysisSeed {
   downbeats?: BeatMarkerMI[]
   /** Native Rekordbox PSSI source data. Never treated as DRMVYZ phrase/section output in Stage 2. */
   rekordboxPhrases?: RekordboxPhrase[]
+  rekordboxPssiIntegrity?: RekordboxPssiIntegrity | null
   phrases?: PhraseMarker[]
   sections?: TrackSectionMI[]
   key?: string | null
@@ -90,6 +92,7 @@ export type TrackAnalysisSeed = Pick<Partial<TrackIntelligenceAnalysis>, 'bpm' |
   source?: RekordboxImportSource | 'manual' | 'analysis'
   featureAvailability?: RekordboxFeatureAvailability
   rekordboxPhrases?: RekordboxPhrase[]
+  rekordboxPssiIntegrity?: RekordboxPssiIntegrity | null
   key?: string | null
   keyConfidence?: number | null
 }

@@ -73,6 +73,9 @@ export function restoreRekordboxAnalysisSeed(
       sourceFlags: { ...phrase.sourceFlags },
       sourcePayload: { ...phrase.sourcePayload },
     })),
+    rekordboxPssiIntegrity: sourceData.pssiIntegrity
+      ? { ...sourceData.pssiIntegrity, warnings: [...sourceData.pssiIntegrity.warnings] }
+      : null,
     key,
     keyConfidence: sources.key === 'rekordbox' ? analysis.harmonic.keyConfidence : null,
   }

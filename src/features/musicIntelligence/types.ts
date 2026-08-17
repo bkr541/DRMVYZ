@@ -1,4 +1,4 @@
-import type { RekordboxFeatureAvailability, RekordboxImportSource, RekordboxPhrase } from '../rekordboxImport/sourceTypes'
+import type { RekordboxFeatureAvailability, RekordboxImportSource, RekordboxPhrase, RekordboxPssiIntegrity } from '../rekordboxImport/sourceTypes'
 import type {
   ReactSectionInterpretationMetadata,
   ReactSectionType,
@@ -303,6 +303,8 @@ export interface RekordboxSourceAnalysisData {
   featureAvailability: RekordboxFeatureAvailability
   /** Source-faithful PSSI records retained even when Stage 3 maps them into Track Sections. */
   phrases: RekordboxPhrase[]
+  /** Parser trust metadata required before persisted PSSI may regain boundary authority. */
+  pssiIntegrity?: RekordboxPssiIntegrity | null
 }
 
 export interface FeatureCurvePoint {
@@ -445,8 +447,16 @@ export interface RekordboxAnalysisDiagnostics {
   source: RekordboxImportSource | null
   /** Usable Rekordbox PQTZ timing survived validation for this analysis. */
   beatGridAvailable: boolean
-  /** One or more Rekordbox PSSI records reached offline analysis. */
+  /** One or more recoverable Rekordbox PSSI phrases reached offline analysis. */
   pssiAvailable: boolean
+  /** A PSSI tag was detected even if it could not produce phrases. */
+  pssiDetected: boolean
+  pssiVersion: number | null
+  pssiMasked: boolean | null
+  pssiDeclaredPhraseCount: number
+  pssiReadablePhraseCount: number
+  pssiComplete: boolean
+  pssiParserWarnings: string[]
   beatGridSource: TrackAnalysisFeatureSource
   trackSectionsSource: TrackAnalysisFeatureSource
   importedPhraseCount: number

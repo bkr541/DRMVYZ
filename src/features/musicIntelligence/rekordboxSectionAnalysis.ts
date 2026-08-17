@@ -5,7 +5,7 @@ import type {
   StructuralRegion,
   TrackSectionMI,
 } from './types'
-import type { RekordboxPhrase } from '../rekordboxImport/sourceTypes'
+import type { RekordboxPhrase, RekordboxPssiIntegrity } from '../rekordboxImport/sourceTypes'
 import type { ReactSectionType } from '../../components/vyzualz/react/ReactTypes'
 
 const EPS = 1e-6
@@ -76,24 +76,59 @@ function percentileRank(values: number[], value: number): number {
   return clamp01((below + equal * 0.5) / values.length)
 }
 
-function edgeToleranceSec(durationSec: number): number {
-  return Math.min(1.5, Math.max(0.25, durationSec * 0.01))
+function pssiIntegrityReason(integrity: RekordboxPssiIntegrity | null | undefined): string | null {
+  if (!integrity) return 'PSSI integrity metadata is unavailable; a fresh complete parse is required before Rekordbox Track Section authority can be trusted.'
+  if (!integrity.detected) return 'No Rekordbox PSSI tag was detected.'
+  if (!integrity.supported) {
+    const parserReason = integrity.warnings.find(warning => warning.trim().length > 0)
+    return parserReason
+      ? `PSSI parser rejected source: ${parserReason}`
+      : integrity.version != null
+        ? `PSSI version ${integrity.version} or its encoding is unsupported.`
+        : 'PSSI encoding could not be interpreted safely.'
+  }
+  if (integrity.masked == null) return 'PSSI plaintext/masked decoding could not be resolved safely.'
+  if (!integrity.complete || integrity.declaredEntryCount !== integrity.readableEntryCount) {
+    return `PSSI is incomplete: ${integrity.readableEntryCount} readable phrase entries were recovered from ${integrity.declaredEntryCount} declared entries.`
+  }
+  return null
 }
 
 /**
  * Validates PSSI as a complete, ordered timing map before it is allowed to own
- * Track Section boundaries. Small floating-point/tail overruns are normalized;
- * ambiguous gaps, overlaps, or disconnected maps fall back to native analysis.
+ * Track Section boundaries. Track-edge silence is permitted by the PSSI format;
+ * only internal structural discontinuities or impossible track-range timings
+ * invalidate an otherwise complete source map.
  */
 export function validateRekordboxPssi(
   phrases: readonly RekordboxPhrase[] | null | undefined,
   durationSec: number,
+  integrity?: RekordboxPssiIntegrity | null,
 ): RekordboxPhraseValidationResult {
   if (!Number.isFinite(durationSec) || durationSec <= 0) {
     return { valid: false, regions: [], reason: 'Track duration is unavailable or invalid.', normalizationNotes: [] }
   }
+
   if (!phrases?.length) {
-    return { valid: false, regions: [], reason: 'No Rekordbox PSSI phrases are available.', normalizationNotes: [] }
+    const detectedIntegrityReason = integrity?.detected ? pssiIntegrityReason(integrity) : null
+    return {
+      valid: false,
+      regions: [],
+      reason: detectedIntegrityReason ?? 'No Rekordbox PSSI phrases are available.',
+      normalizationNotes: [],
+    }
+  }
+  const integrityReason = pssiIntegrityReason(integrity)
+  if (integrityReason) {
+    return { valid: false, regions: [], reason: integrityReason, normalizationNotes: [] }
+  }
+  if (integrity!.readableEntryCount !== phrases.length) {
+    return {
+      valid: false,
+      regions: [],
+      reason: `PSSI integrity reports ${integrity!.readableEntryCount} readable entries but ${phrases.length} phrase records reached Track Intelligence.`,
+      normalizationNotes: [],
+    }
   }
 
   const normalizationNotes: string[] = []
@@ -105,20 +140,36 @@ export function validateRekordboxPssi(
     || a.startBeat - b.startBeat
     || a.sourceKind - b.sourceKind
   ))
-  const tolerance = edgeToleranceSec(durationSec)
   const regions: ValidatedRekordboxPhraseRegion[] = []
 
   for (let index = 0; index < sorted.length; index++) {
     const phrase = sorted[index]!
     const next = sorted[index + 1]
-    const rawStart = phrase.startTimeSec
-    const inferredTrackEnd = !next && phrase.endTimeSec == null && rawStart != null && Number.isFinite(rawStart)
-      ? durationSec
-      : null
-    const rawEnd = phrase.endTimeSec ?? next?.startTimeSec ?? inferredTrackEnd
-    if (inferredTrackEnd != null) {
-      normalizationNotes.push(`Closed final PSSI phrase ${phrase.sourceIndex ?? phrase.phraseIndex + 1} at track duration because its end boundary was omitted.`)
+    if (!Number.isInteger(phrase.startBeat) || phrase.startBeat < 1) {
+      return { valid: false, regions: [], reason: `PSSI phrase ${phrase.sourceIndex ?? phrase.phraseIndex + 1} has an impossible start beat.`, normalizationNotes }
     }
+    if (!Number.isInteger(phrase.endBeat) || phrase.endBeat == null || phrase.endBeat <= phrase.startBeat) {
+      return { valid: false, regions: [], reason: `PSSI phrase ${phrase.sourceIndex ?? phrase.phraseIndex + 1} has an impossible or missing end beat.`, normalizationNotes }
+    }
+    if (next) {
+      if (!Number.isInteger(next.startBeat) || next.startBeat < 1) {
+        return { valid: false, regions: [], reason: `PSSI phrase ${next.sourceIndex ?? next.phraseIndex + 1} has an impossible start beat.`, normalizationNotes }
+      }
+      if (phrase.endBeat !== next.startBeat) {
+        const delta = next.startBeat - phrase.endBeat
+        return {
+          valid: false,
+          regions: [],
+          reason: delta > 0
+            ? `PSSI phrases contain an internal ${delta}-beat structural gap.`
+            : `PSSI phrases contain an internal ${Math.abs(delta)}-beat overlap/backwards boundary.`,
+          normalizationNotes,
+        }
+      }
+    }
+
+    const rawStart = phrase.startTimeSec
+    const rawEnd = phrase.endTimeSec
     if (rawStart == null || rawEnd == null || !Number.isFinite(rawStart) || !Number.isFinite(rawEnd)) {
       return {
         valid: false,
@@ -127,7 +178,7 @@ export function validateRekordboxPssi(
         normalizationNotes,
       }
     }
-    if (rawStart < -tolerance || rawEnd < -tolerance) {
+    if (rawStart < -JOIN_TOLERANCE_SEC || rawEnd < -JOIN_TOLERANCE_SEC) {
       return {
         valid: false,
         regions: [],
@@ -135,7 +186,7 @@ export function validateRekordboxPssi(
         normalizationNotes,
       }
     }
-    if (rawStart > durationSec + tolerance || rawEnd > durationSec + tolerance) {
+    if (rawStart > durationSec + JOIN_TOLERANCE_SEC || rawEnd > durationSec + JOIN_TOLERANCE_SEC) {
       return {
         valid: false,
         regions: [],
@@ -144,18 +195,10 @@ export function validateRekordboxPssi(
       }
     }
 
-    let startSec = Math.max(0, rawStart)
-    let endSec = Math.min(durationSec, rawEnd)
+    let startSec = rawStart < 0 ? 0 : rawStart
+    let endSec = rawEnd > durationSec ? durationSec : rawEnd
     if (rawStart < 0) normalizationNotes.push(`Clamped phrase ${phrase.phraseIndex} start from ${rawStart.toFixed(3)}s to 0s.`)
     if (rawEnd > durationSec) normalizationNotes.push(`Clamped phrase ${phrase.phraseIndex} end to track duration.`)
-    if (index === 0 && startSec > EPS && startSec <= tolerance) {
-      normalizationNotes.push(`Normalized phrase ${phrase.phraseIndex} start to track start.`)
-      startSec = 0
-    }
-    if (index === sorted.length - 1 && endSec < durationSec - EPS && durationSec - endSec <= tolerance) {
-      normalizationNotes.push(`Normalized phrase ${phrase.phraseIndex} end to track duration.`)
-      endSec = durationSec
-    }
 
     if (next?.startTimeSec != null && Number.isFinite(next.startTimeSec)) {
       const joinDelta = rawEnd - next.startTimeSec
@@ -192,18 +235,13 @@ export function validateRekordboxPssi(
 
   const first = regions[0]!
   const last = regions[regions.length - 1]!
-  if (first.startSec > tolerance || durationSec - last.endSec > tolerance) {
-    return {
-      valid: false,
-      regions: [],
-      reason: 'PSSI timing is disconnected from the available track timing.',
-      normalizationNotes,
-    }
-  }
   if (last.endSec - first.startSec <= EPS) {
     return { valid: false, regions: [], reason: 'PSSI structural map has zero length.', normalizationNotes }
   }
 
+  // PSSI explicitly permits non-phrase material at either physical track edge.
+  // Preserve those source boundaries instead of fabricating Rekordbox sections
+  // or stretching the first/final phrase across silence.
   return { valid: true, regions, reason: null, normalizationNotes }
 }
 
@@ -401,7 +439,7 @@ function resolveAmbiguousType(
     const best = nonDropCandidates
       .map(type => ({ type, value: score(context.scores, type) + (type === context.primaryType ? 0.08 : 0) }))
       .sort((a, b) => b.value - a.value)[0]
-    const type = best && best.value >= 0.18 ? best.type : 'verse'
+    const type = best && best.value >= 0.18 ? best.type : 'unknown'
     return {
       type,
       explanation: `Rekordbox Chorus was not blindly promoted to Drop; contextual analysis favored ${type} while Drop evidence was ${dropScore.toFixed(2)}.`,
@@ -418,7 +456,7 @@ function resolveAmbiguousType(
 
   const contextualType = context.primaryType === 'preDrop' ? 'build' : context.primaryType
   return {
-    type: contextualType === 'unknown' ? 'verse' : contextualType,
+    type: contextualType,
     explanation: `Unrecognized Rekordbox phrase kind was interpreted from DRMVYZ contextual Audio Intelligence without changing its boundaries.`,
   }
 }
@@ -456,8 +494,9 @@ export function buildRekordboxAuthoritativeSections(input: {
   phrases: readonly RekordboxPhrase[] | null | undefined
   durationSec: number
   barFeatures: BarMusicalFeatures[]
+  pssiIntegrity?: RekordboxPssiIntegrity | null
 }): RekordboxSectionBuildResult {
-  const validation = validateRekordboxPssi(input.phrases, input.durationSec)
+  const validation = validateRekordboxPssi(input.phrases, input.durationSec, input.pssiIntegrity)
   if (!validation.valid) {
     return { valid: false, sections: [], reason: validation.reason, normalizationNotes: validation.normalizationNotes }
   }
@@ -491,7 +530,11 @@ export function buildRekordboxAuthoritativeSections(input: {
 
     const range = barRange(input.barFeatures, region.startSec, region.endSec)
     const contextualScore = Math.max(score(context.scores, resolved.type), context.primaryType === resolved.type ? 0.65 : 0)
-    const labelConfidence = direct ? 0.96 : rounded(0.56 + contextualScore * 0.34)
+    const labelConfidence = direct
+      ? 0.96
+      : resolved.type === 'unknown'
+        ? rounded(0.18 + contextualScore * 0.24)
+        : rounded(0.56 + contextualScore * 0.34)
     const gridConfidence = rounded(average(barsForRegion(input.barFeatures, region.startSec, region.endSec).map(bar => bar.gridConfidence)))
     const analysisConfidence = rounded(0.99 * 0.34 + labelConfidence * 0.46 + gridConfidence * 0.20)
     const preDropEvidence = contextualSections

@@ -5,6 +5,23 @@ export type RekordboxPhraseMood = 'high_energy' | 'mid_energy' | 'low_energy'
 export type RekordboxPhraseBank = 'default' | 'cool' | 'natural' | 'hot' | 'subtle' | 'warm' | 'vivid' | 'club_1' | 'club_2'
 export type RekordboxSerializableValue = string | number | boolean | null
 
+/** Parser-level trust metadata for one Rekordbox PSSI song-structure record. */
+export interface RekordboxPssiIntegrity {
+  detected: boolean
+  /** Supported PSSI content version, or the raw unsupported value when readable. */
+  version: number | null
+  entrySize: number | null
+  declaredEntryCount: number
+  readableEntryCount: number
+  /** Byte-level completeness only; structural/timing authority is validated later. */
+  complete: boolean
+  /** null means the parser could not safely choose plaintext vs masked decoding. */
+  masked: boolean | null
+  /** False for unsupported versions or an undecidable/corrupt encoding. */
+  supported: boolean
+  warnings: string[]
+}
+
 /**
  * Native Rekordbox PSSI song-structure record.
  * This remains source-faithful data, not a DRMVYZ Track Section classification.
@@ -25,7 +42,7 @@ export interface RekordboxPhrase {
   /** Raw Rekordbox lighting-bank code. */
   sourceBank: number
   bank: RekordboxPhraseBank | null
-  /** Human-readable label derived from Rekordbox's phrase-kind enum. */
+  /** Source-facing label, including reliable Rekordbox phrase variants when encoded. */
   sourceLabel: string | null
   /** Coarser normalized source label retained for DRMVYZ semantic mapping. */
   normalizedLabel: string | null

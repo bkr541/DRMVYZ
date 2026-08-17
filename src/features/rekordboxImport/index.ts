@@ -8,6 +8,7 @@ export type {
   RekordboxPhrase,
   RekordboxPhraseBank,
   RekordboxPhraseMood,
+  RekordboxPssiIntegrity,
   RekordboxTrackMetadata,
   TrackAnalysisSeed,
 } from './types'

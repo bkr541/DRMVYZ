@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { analyzeTrackBuffer } from '../offlineTrackAnalyzer'
 import type { BeatMarkerMI } from '../types'
-import type { RekordboxPhrase } from '../../rekordboxImport/sourceTypes'
+import type { RekordboxPhrase, RekordboxPssiIntegrity } from '../../rekordboxImport/sourceTypes'
 
 function makeBuffer(durationSec = 8, sampleRate = 4_000): AudioBuffer {
   const length = Math.max(1, Math.round(durationSec * sampleRate))
@@ -53,6 +53,11 @@ function phrase(index: number, kind: string, startTimeSec: number, endTimeSec: n
   }
 }
 
+
+function completePssiIntegrity(count: number): RekordboxPssiIntegrity {
+  return { detected: true, version: 0, entrySize: 24, declaredEntryCount: count, readableEntryCount: count, complete: true, masked: false, supported: true, warnings: [] }
+}
+
 const analysisOptions = {
   fftSize: 256,
   hopSize: 128,
@@ -93,6 +98,7 @@ describe('Rekordbox Stage 3 Track Section precedence', () => {
         beatGrid: grid,
         downbeats: grid.filter(beat => beat.isDownbeat),
         rekordboxPhrases: phrases,
+        rekordboxPssiIntegrity: completePssiIntegrity(phrases.length),
       },
     })
 
@@ -136,6 +142,7 @@ describe('Rekordbox Stage 3 Track Section precedence', () => {
         bpm: 120,
         beatGrid: grid,
         rekordboxPhrases: malformed,
+        rekordboxPssiIntegrity: completePssiIntegrity(malformed.length),
       },
     })
 
@@ -172,6 +179,7 @@ describe('Rekordbox Stage 3 Track Section precedence', () => {
         bpm: 120,
         beatGrid: grid,
         rekordboxPhrases: validPssi(),
+        rekordboxPssiIntegrity: completePssiIntegrity(validPssi().length),
       },
     })
 
@@ -194,6 +202,7 @@ describe('Rekordbox Stage 3 Track Section precedence', () => {
         bpm: 120,
         beatGrid: grid,
         rekordboxPhrases: awkward,
+        rekordboxPssiIntegrity: completePssiIntegrity(awkward.length),
       },
     })
 
@@ -212,6 +221,7 @@ describe('Rekordbox Stage 3 Track Section precedence', () => {
         bpm: 120,
         beatGrid: grid,
         rekordboxPhrases: validPssi(),
+        rekordboxPssiIntegrity: completePssiIntegrity(validPssi().length),
       },
     })
 
