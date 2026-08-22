@@ -1757,8 +1757,9 @@ describe('ShowManagerView production shell', () => {
     }
   })
 
-  it('shows the endpoint guide only while actively targeting a Laser beam endpoint', async () => {
+  it('previews the hovered Laser endpoint and commits it only on click', async () => {
     setSharedShowToLaserAuthoredSections()
+    fixture.state.updateLaserDmxShowManagerFixture.mockClear()
     const intro = fixture.state.laserDmxShowManagerShows[0]!.sections[0]!
     const originalSettings = intro.settings
     const originalFixtures = intro.fixtures
@@ -1809,10 +1810,37 @@ describe('ShowManagerView production shell', () => {
       expect(guide).not.toBeNull()
       expect(guide?.querySelector('circle')?.getAttribute('fill')).toBe(laser.color)
 
+      const grid = container.querySelector<HTMLElement>('[data-testid="laser-dmx-authoring-grid"]')
+      expect(grid).not.toBeNull()
+      Object.defineProperty(grid!, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({
+          left: 100, top: 50, width: 180, height: 120,
+          right: 280, bottom: 170, x: 100, y: 50,
+          toJSON: () => ({}),
+        }),
+      })
+
+      // Hovering previews the prospective endpoint without mutating persisted fixture state.
       await act(async () => {
-        container.querySelector<HTMLElement>('[data-testid="laser-dmx-authoring-grid"]')?.click()
+        grid?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 245, clientY: 75 }))
         await Promise.resolve()
       })
+      const hoveredTarget = container.querySelector<SVGCircleElement>('.sm-laser-beam-target')
+      expect(hoveredTarget?.getAttribute('cx')).toBe(`${((14 + 0.5) / 18) * 100}%`)
+      expect(hoveredTarget?.getAttribute('cy')).toBe(`${((2 + 0.5) / 12) * 100}%`)
+      expect(fixture.state.updateLaserDmxShowManagerFixture).not.toHaveBeenCalled()
+
+      await act(async () => {
+        grid?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 245, clientY: 75 }))
+        await Promise.resolve()
+      })
+      expect(fixture.state.updateLaserDmxShowManagerFixture).toHaveBeenCalledWith(
+        'laser-show-1',
+        intro.id,
+        'endpoint-guide-laser',
+        { beam: { targetMode: 'fixed', targetX: 14, targetY: 2 } },
+      )
       expect(container.querySelector('.sm-laser-beam-overlay')).toBeNull()
     } finally {
       intro.settings = originalSettings

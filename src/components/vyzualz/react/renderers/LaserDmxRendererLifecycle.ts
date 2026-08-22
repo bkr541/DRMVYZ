@@ -16,12 +16,14 @@ export interface LaserDmxRendererLifecycleSnapshot {
 
 export interface LaserDmxRendererLifecycleSync {
   isPlaying: boolean
+  /** Isolated authoring previews may render while transport is stopped. */
+  allowWhileStopped?: boolean
   trackKey: string | null
   presetKey: string | null
 }
 
 /**
- * Small lifecycle state machine for the Canvas2D production renderer. It owns no
+ * Small lifecycle state machine for the LaserDMX renderer. It owns no
  * animation loop, so the React canvas remains the sole requestAnimationFrame
  * owner. This makes cleanup deterministic for live canvases and thumbnails.
  */
@@ -51,7 +53,7 @@ export class LaserDmxRendererLifecycle {
     }
     this.snapshotValue = {
       ...this.snapshotValue,
-      paused: !input.isPlaying,
+      paused: !input.isPlaying && !input.allowWhileStopped,
       trackKey: input.trackKey,
       presetKey: input.presetKey,
     }

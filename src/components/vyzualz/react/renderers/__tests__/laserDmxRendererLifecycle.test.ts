@@ -24,6 +24,26 @@ describe('LaserDMX renderer lifecycle helper', () => {
     expect(lifecycle.snapshot.generation).toBe(2)
   })
 
+  it('allows an isolated authoring preview to draw while stopped without opening the ordinary playback gate', () => {
+    const reset = vi.fn()
+    const lifecycle = new LaserDmxRendererLifecycle(reset)
+
+    expect(lifecycle.sync({
+      isPlaying: false,
+      allowWhileStopped: true,
+      trackKey: 'track-a',
+      presetKey: 'preview-a',
+    })).toBe(true)
+    expect(lifecycle.snapshot.paused).toBe(false)
+
+    expect(lifecycle.sync({
+      isPlaying: false,
+      trackKey: 'track-a',
+      presetKey: 'preview-a',
+    })).toBe(false)
+    expect(lifecycle.snapshot.paused).toBe(true)
+  })
+
   it('blocks drawing during context loss, resets on restoration, and disposes idempotently', () => {
     const reset = vi.fn()
     const lifecycle = new LaserDmxRendererLifecycle(reset)

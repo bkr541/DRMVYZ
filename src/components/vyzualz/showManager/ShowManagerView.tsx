@@ -1976,11 +1976,13 @@ export function ShowManagerView() {
     if (!laserEndpointTargetingFixtureId || !activeLaserDmxShow || !activeLaserDmxSection) return
     const bounds = event.currentTarget.getBoundingClientRect()
     const cell = resolveLaserDmxShowManagerGridCell(event.clientX, event.clientY, bounds)
-    setLaserEndpointTargetingFixtureId(null)
     if (!cell) return
     updateLaserDmxShowManagerFixture(activeLaserDmxShow.id, activeLaserDmxSection.id, laserEndpointTargetingFixtureId, {
       beam: { targetMode: 'fixed', targetX: cell.x, targetY: cell.y },
     })
+    // Keep targeting active until after the authored endpoint is committed so the
+    // guide and the stopped runtime preview hand off on the same React update.
+    setLaserEndpointTargetingFixtureId(null)
   }
 
   const commitLaserFixtureCopyToSection = (sourceSectionId: string, destinationSectionId: string) => {
@@ -4284,18 +4286,27 @@ function LaserDmxShowManagerStage({
   const [canvasDragActive, setCanvasDragActive] = useState(false)
   const [hoveredCanvasLayer, setHoveredCanvasLayer] = useState<CanvasShowManagerLayer | null>(null)
   const [draggingFixtureId, setDraggingFixtureId] = useState<string | null>(null)
+  const [endpointTargetingHoverCell, setEndpointTargetingHoverCell] = useState<LaserDmxShowManagerGridCell | null>(null)
   const gridSurfaceRef = useRef<HTMLDivElement>(null)
   const fixtureDragRef = useRef<{ fixtureId: string; pointerId: number; x: number; y: number } | null>(null)
   const canvasTargetsVisible = canvasDragActive || selectedCanvasMediaId != null
   const targetingBeamFixture = endpointTargetingFixtureId
     ? fixtures.find(fixture => fixture.id === endpointTargetingFixtureId) ?? null
     : null
-  const targetingBeamTargetX = targetingBeamFixture ? targetingBeamFixture.beam.targetX ?? targetingBeamFixture.x : 0
-  const targetingBeamTargetY = targetingBeamFixture ? targetingBeamFixture.beam.targetY ?? targetingBeamFixture.y : 0
+  const targetingBeamTargetX = targetingBeamFixture
+    ? endpointTargetingHoverCell?.x ?? targetingBeamFixture.beam.targetX ?? targetingBeamFixture.x
+    : 0
+  const targetingBeamTargetY = targetingBeamFixture
+    ? endpointTargetingHoverCell?.y ?? targetingBeamFixture.beam.targetY ?? targetingBeamFixture.y
+    : 0
   const laserDmxGridToPercent = (x: number, y: number) => ({
     left: ((x + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.columns) * 100,
     top: ((y + 0.5) / LASER_DMX_SHOW_MANAGER_GRID_SIZE.rows) * 100,
   })
+
+  useEffect(() => {
+    setEndpointTargetingHoverCell(null)
+  }, [endpointTargetingFixtureId])
 
   return (
     <div className="sm-laser-stage" aria-label="LaserDMX Part 1 authoring grid">
@@ -4328,6 +4339,16 @@ function LaserDmxShowManagerStage({
             || Boolean(event.dataTransfer.getData('application/x-drmvyz-laserdmx-fixture-kind'))
           if (!hasLaserPayload) return
           onDropFixture(event)
+        }}
+        onMouseMove={event => {
+          if (!endpointTargetingFixtureId) return
+          const bounds = event.currentTarget.getBoundingClientRect()
+          const cell = resolveLaserDmxShowManagerGridCell(event.clientX, event.clientY, bounds)
+          if (!cell) return
+          setEndpointTargetingHoverCell(previous => previous?.x === cell.x && previous.y === cell.y ? previous : cell)
+        }}
+        onMouseLeave={() => {
+          if (endpointTargetingFixtureId) setEndpointTargetingHoverCell(null)
         }}
         onClick={event => endpointTargetingFixtureId ? onCommitEndpointTarget(event) : onSelectFixture(null)}
       >

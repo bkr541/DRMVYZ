@@ -636,8 +636,10 @@ export function renderLaserDmx(
 
   const analysisActive = frame.analysisActive ?? frame.isPlaying
   const previewShowDirector = params.laserDmxPreviewShowDirector
+  const hasVirtualPreview = previewShowDirector != null
+  const stoppedAuthoringPreview = hasVirtualPreview && !analysisActive
   const affectProductionOutput = shouldAffectLaserDmxProductionOutput(params)
-  if (!shouldRenderLaserDmxFrame(analysisActive, previewShowDirector != null)) {
+  if (!shouldRenderLaserDmxFrame(analysisActive, hasVirtualPreview)) {
     clearLaserDmxVisualState(ctx, W, H, { affectProductionOutput })
     return
   }
@@ -668,6 +670,7 @@ export function renderLaserDmx(
   const lifecycle = getLaserDmxRendererLifecycle(ctx, reason => resetLaserDmxRuntimeState(reason, ctx, affectProductionOutput))
   if (!lifecycle.sync({
     isPlaying: analysisActive,
+    allowWhileStopped: hasVirtualPreview,
     trackKey,
     presetKey: directorPresetKey,
   })) return
@@ -724,7 +727,10 @@ export function renderLaserDmx(
         audioTimeSec: timeSec,
         deltaTimeSec: sceneDeltaTimeSec,
         isPlaying: analysisActive,
-        timingDiscontinuity: timingDiscontinuity || loopWrapped,
+        // Stopped Show Manager editing is a discontinuous authoring surface.
+        // Clearing temporal history on each authored redraw prevents both WebGL
+        // and Canvas2D from retaining the previously aimed beam after an edit.
+        timingDiscontinuity: timingDiscontinuity || loopWrapped || stoppedAuthoringPreview,
         trackKey: trackKey ?? null,
         historyIdentity,
         occurrenceSeed: performanceContext.deterministicVariationSeed,
