@@ -16,6 +16,7 @@ import { hasCanvasEffectPass, makeCanvasCaptureFilter, resolveCanvasEffectOpacit
 import type { CanvasFracturesSourceElement } from '../renderers/fractures/CanvasFracturesTypes'
 import { isCanvasFracturesProcessor, resolveCanvasFracturesPresetSettings } from './CanvasFracturesPerformance'
 import { resolveCanvasEffectVisualState } from './CanvasEffectRecipes'
+import { CanvasLayerEffectRuntime, type CanvasLayerEffectFrameContext } from './CanvasLayerEffectRendering'
 import { isCanvasPreloadHandleDrawable, type CanvasPreloadHandle, type CanvasPreloadManager } from './CanvasPreloadManager'
 import { resolveCanvasTransitionVisualState } from './CanvasTransitions'
 import { CanvasShowAdaptiveQualityController, resolveCanvasShowCompositionDimensions, type CanvasShowQualitySnapshot } from './CanvasShowAdaptiveQuality'
@@ -327,6 +328,10 @@ function drawLayerWithOptionalMask({
   output,
   layerCanvas,
   maskCanvas,
+  effectScratchA,
+  effectScratchB,
+  layerEffectRuntime,
+  layerEffectContext,
   layer,
   source,
   mask,
@@ -342,6 +347,10 @@ function drawLayerWithOptionalMask({
   output: CanvasRenderingContext2D
   layerCanvas: HTMLCanvasElement
   maskCanvas: HTMLCanvasElement
+  effectScratchA: HTMLCanvasElement
+  effectScratchB: HTMLCanvasElement
+  layerEffectRuntime: CanvasLayerEffectRuntime
+  layerEffectContext: CanvasLayerEffectFrameContext
   layer: CanvasResolvedLayer
   source: DrawableSource
   mask: DrawableSource | null
@@ -387,10 +396,25 @@ function drawLayerWithOptionalMask({
     layerContext.drawImage(maskCanvas, 0, 0)
     layerContext.restore()
   }
+  const processedLayer = layer.userEffects?.length && layer.source
+    ? layerEffectRuntime.render({
+        layerId: layer.id,
+        sourceIdentity: authoredSourceIdentity(layer.source),
+        mediaType: layer.source.type,
+        effects: layer.userEffects,
+        source: layerCanvas,
+        scratchA: effectScratchA,
+        scratchB: effectScratchB,
+        width,
+        height,
+        context: layerEffectContext,
+      })
+    : layerCanvas
+
   output.save()
   output.globalCompositeOperation = layer.blendMode
   output.globalAlpha = 1
-  output.drawImage(layerCanvas, 0, 0)
+  output.drawImage(processedLayer, 0, 0)
   output.restore()
 }
 
@@ -463,6 +487,9 @@ function CanvasGenericOrchestrationStage({
   const transitionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const layerCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const effectScratchARef = useRef<HTMLCanvasElement | null>(null)
+  const effectScratchBRef = useRef<HTMLCanvasElement | null>(null)
+  const layerEffectRuntimeRef = useRef<CanvasLayerEffectRuntime | null>(null)
   const previousIdentityRef = useRef<string | null>(null)
   const previousTransitionScopeRef = useRef(false)
   const qualityControllerRef = useRef(new CanvasShowAdaptiveQualityController())
@@ -497,12 +524,18 @@ function CanvasGenericOrchestrationStage({
     transitionCanvasRef.current ??= makeScratchCanvas()
     layerCanvasRef.current ??= makeScratchCanvas()
     maskCanvasRef.current ??= makeScratchCanvas()
+    effectScratchARef.current ??= makeScratchCanvas()
+    effectScratchBRef.current ??= makeScratchCanvas()
+    layerEffectRuntimeRef.current ??= new CanvasLayerEffectRuntime(makeScratchCanvas)
     const compositionCanvas = compositionCanvasRef.current
     const previousCanvas = previousCanvasRef.current
     const transitionCanvas = transitionCanvasRef.current
     const layerCanvas = layerCanvasRef.current
     const maskCanvas = maskCanvasRef.current
-    if (!compositionCanvas || !previousCanvas || !transitionCanvas || !layerCanvas || !maskCanvas) return
+    const effectScratchA = effectScratchARef.current
+    const effectScratchB = effectScratchBRef.current
+    const layerEffectRuntime = layerEffectRuntimeRef.current
+    if (!compositionCanvas || !previousCanvas || !transitionCanvas || !layerCanvas || !maskCanvas || !effectScratchA || !effectScratchB || !layerEffectRuntime) return
     const context = compositionCanvas.getContext('2d', { alpha: true })
     if (!context) return
     const laserCanvas = selectedRendererKind === 'laserImageFx' ? makeScratchCanvas() : null
@@ -549,6 +582,8 @@ function CanvasGenericOrchestrationStage({
       resizeCanvas(transitionCanvas, width, height)
       resizeCanvas(layerCanvas, width, height)
       resizeCanvas(maskCanvas, width, height)
+      resizeCanvas(effectScratchA, width, height)
+      resizeCanvas(effectScratchB, width, height)
 
       const transitionLayerIds = liveFrame.runtimeMode === 'authored' && liveFrame.transitionLayerIds?.length
         ? new Set(liveFrame.transitionLayerIds)
@@ -575,6 +610,24 @@ function CanvasGenericOrchestrationStage({
             presetSettings: liveProps.presetSettings,
           })
       const layers = [...liveFrame.layers].filter(layer => layer.enabled && layer.sourceMediaId).sort((a, b) => a.zIndex - b.zIndex)
+      layerEffectRuntime.reconcile(layers
+        .filter(layer => Boolean(layer.userEffects?.length && layer.source))
+        .map(layer => ({
+          id: layer.id,
+          sourceIdentity: layer.source ? authoredSourceIdentity(layer.source) : '',
+          effects: layer.userEffects ?? [],
+        })))
+      const layerEffectContext: CanvasLayerEffectFrameContext = {
+        bass: clamp01(liveFrame.context.bass),
+        high: clamp01(liveFrame.context.high),
+        beat: clamp01(Math.max(liveFrame.context.kickStrength, liveFrame.context.transient)),
+        transient: clamp01(liveFrame.context.transient),
+        bpm: Math.max(0, liveFrame.context.bpm),
+        absoluteBeat: Math.max(0, liveFrame.context.absoluteBeat),
+        audioTimeSec: Math.max(0, liveFrame.context.audioTimeSec),
+        isPlaying: liveProps.isPlaying,
+        isPaused: liveProps.isPaused,
+      }
       const motion = Math.max(0, Math.min(1, liveProps.motionIntensity))
       const drawLayers = (
         output: CanvasRenderingContext2D,
@@ -617,6 +670,10 @@ function CanvasGenericOrchestrationStage({
             output,
             layerCanvas,
             maskCanvas,
+            effectScratchA,
+            effectScratchB,
+            layerEffectRuntime,
+            layerEffectContext,
             layer,
             source: handle,
             mask,
@@ -814,6 +871,7 @@ function CanvasGenericOrchestrationStage({
     draw()
     return () => {
       window.cancelAnimationFrame(animationFrame)
+      layerEffectRuntime.dispose()
       laserRenderer?.dispose()
     }
   }, [onLiveFps, preloadManager, selectedRendererKind])
