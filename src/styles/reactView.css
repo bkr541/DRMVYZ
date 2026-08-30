@@ -10461,9 +10461,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 /* Cap the grid to roughly 4 rows of cards (44px thumb + name/meta/tag stack,
    10px row gap) so the group stays a fixed, predictable size and the user
    scrolls within it for the rest of the library instead of the whole group
-   growing with the media count. */
+   growing with the media count. The same barely-there tint used by every
+   other reusable group's .drc-body marks just the media grid itself — not
+   the tab row or the search row above it, which stay flush against the
+   panel like the rest of the tab. */
 .rv-canvas-library-shell .vz-media-scroll {
   max-height: 460px;
+  background: rgba(255, 255, 255, 0.012);
+  border-radius: 6px;
+  padding: 10px;
 }
 
 /* The name/meta/tags stack below the thumbnail carries its own bottom
