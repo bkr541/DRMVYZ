@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { useReactStore } from '../../../stores/reactStore'
 import { CanvasEnginePanel } from './ReactCanvasEngineShell'
+import { clearCanvasLayerAdmissionCacheForTests, setCanvasTransparentPngVerificationForTests } from './canvasLayerAdmission'
 
 vi.mock('../../../context/AudioEngineContext', () => ({
   useSharedAudio: () => ({
@@ -53,6 +54,17 @@ const mediaTwo: UploadedMedia = {
   thumbnailUrl: 'https://example.test/canvas-two-thumb.png',
 }
 
+function admissionMedia(media: UploadedMedia) {
+  return {
+    id: media.id,
+    name: media.title?.trim() || media.name,
+    type: 'image' as const,
+    objectUrl: media.url ?? '',
+    mimeType: media.mimeType,
+    mediaRevision: media.revision,
+  }
+}
+
 let host: HTMLDivElement
 let root: Root
 let mediaStoreBaseline: ReturnType<typeof useMediaStore.getState>
@@ -90,6 +102,9 @@ async function flushAsyncActions() {
 }
 
 beforeEach(() => {
+  clearCanvasLayerAdmissionCacheForTests()
+  setCanvasTransparentPngVerificationForTests(admissionMedia(mediaOne), true)
+  setCanvasTransparentPngVerificationForTests(admissionMedia(mediaTwo), true)
   mediaStoreBaseline = useMediaStore.getState()
   useMediaStore.setState({
     items: [mediaOne, mediaTwo],
@@ -145,25 +160,31 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers).toEqual([])
   })
 
-  it('Make Active immediately seeds layer 1 when the authored stack is empty', () => {
+  it('omits Add as Layer for a verified opaque PNG', () => {
+    setCanvasTransparentPngVerificationForTests(admissionMedia(mediaOne), false)
+    openMediaActions()
+    expect(menuButtons().map(button => button.textContent?.trim())).toEqual(['Make Active', 'Add to Pool'])
+  })
+
+  it('keeps Add as Layer absent while PNG transparency verification is pending', () => {
+    clearCanvasLayerAdmissionCacheForTests()
+    setCanvasTransparentPngVerificationForTests(admissionMedia(mediaTwo), true)
+    useMediaStore.setState({ ensureMediaSigned: vi.fn(() => new Promise<void>(() => undefined)) })
+    openMediaActions()
+    expect(menuButtons().map(button => button.textContent?.trim())).toEqual(['Make Active', 'Add to Pool'])
+  })
+
+  it('Make Active switches the single source without consuming an authored-layer slot', () => {
     openMediaActions()
     chooseAction('Make Active')
 
     const state = useReactStore.getState()
     expect(state.activeCanvasMediaId).toBe(mediaOne.id)
     expect(state.canvasOrchestrationSettings.renderMode).toBe('single')
-    expect(state.canvasOrchestrationSettings.authoredLayers).toHaveLength(1)
-    expect(state.canvasOrchestrationSettings.authoredLayers[0]).toMatchObject({
-      mediaId: mediaOne.id,
-      order: 0,
-      enabled: true,
-      solo: false,
-      ownership: 'manual',
-      pinned: true,
-    })
+    expect(state.canvasOrchestrationSettings.authoredLayers).toEqual([])
   })
 
-  it('Make Active preserves single-source rendering while ensuring the active media exists in the canonical layer stack', () => {
+  it('Make Active preserves existing authored layers without adding the browsed media', () => {
     const layer = useReactStore.getState().addCanvasAuthoredLayer(mediaTwo.id)
     if (!layer.ok) throw new Error(layer.message)
     const pool = useReactStore.getState().createCanvasMediaPool('Main')
@@ -179,18 +200,8 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     expect(state.activeCanvasMediaId).toBe(mediaOne.id)
     expect(state.canvasEngineSettings.manualMediaOverrideId).toBe(mediaOne.id)
     expect(state.canvasOrchestrationSettings.renderMode).toBe('single')
-    expect(state.canvasOrchestrationSettings.authoredLayers).toHaveLength(2)
-    expect(state.canvasOrchestrationSettings.authoredLayers[0]).toMatchObject({
-      mediaId: mediaOne.id,
-      order: 0,
-      enabled: true,
-      ownership: 'manual',
-      pinned: true,
-    })
-    expect(state.canvasOrchestrationSettings.authoredLayers[1]).toMatchObject({
-      ...before.authoredLayers[0],
-      order: 1,
-    })
+    expect(state.canvasOrchestrationSettings.authoredLayers).toEqual(before.authoredLayers)
+    expect(state.canvasOrchestrationSettings.authoredLayers.some(layer => layer.mediaId === mediaOne.id)).toBe(false)
     expect(state.canvasOrchestrationSettings.mediaPools).toEqual(before.mediaPools)
     expect(state.canvasOrchestrationSettings.mediaPoolIds).toEqual([mediaTwo.id])
   })
@@ -214,14 +225,14 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     const state = useReactStore.getState()
     expect(state.canvasOrchestrationSettings.renderMode).toBe('layers')
     expect(state.canvasOrchestrationSettings.authoredLayers.map(layer => layer.mediaId)).toEqual([
-      mediaOne.id,
       mediaTwo.id,
+      mediaOne.id,
     ])
-    expect(state.selectedCanvasLayerId).toBe(state.canvasOrchestrationSettings.authoredLayers[0]?.id)
+    expect(state.selectedCanvasLayerId).toBe(state.canvasOrchestrationSettings.authoredLayers[1]?.id)
     expect(document.body.querySelector('.vz-app-context-menu__meta')).toBeNull()
   })
 
-  it('Add as Layer promotes the visible single source underneath the new manual pinned layer', async () => {
+  it('Add as Layer promotes the visible single source first and appends the new manual pinned layer', async () => {
     act(() => useReactStore.getState().selectCanvasMediaItem(mediaTwo.id))
     expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('single')
 
@@ -234,7 +245,7 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     expect(state.canvasOrchestrationSettings.renderMode).toBe('layers')
     expect(layers).toHaveLength(2)
     expect(layers[0]).toMatchObject({
-      mediaId: mediaOne.id,
+      mediaId: mediaTwo.id,
       order: 0,
       enabled: true,
       solo: false,
@@ -242,14 +253,14 @@ describe('CANVAS Media Library Stage 2 actions', () => {
       pinned: true,
     })
     expect(layers[1]).toMatchObject({
-      mediaId: mediaTwo.id,
+      mediaId: mediaOne.id,
       order: 1,
       enabled: true,
       solo: false,
       ownership: 'manual',
       pinned: true,
     })
-    expect(state.selectedCanvasLayerId).toBe(layers[0]?.id)
+    expect(state.selectedCanvasLayerId).toBe(layers[1]?.id)
   })
 
   it('does not switch out of the visible single-source renderer until layer media signing completes', async () => {
@@ -274,8 +285,8 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     const state = useReactStore.getState()
     expect(state.canvasOrchestrationSettings.renderMode).toBe('layers')
     expect(state.canvasOrchestrationSettings.authoredLayers.map(layer => layer.mediaId)).toEqual([
-      mediaOne.id,
       mediaTwo.id,
+      mediaOne.id,
     ])
   })
 
@@ -304,19 +315,22 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     expect(new Set(layers.map(layer => layer.id)).size).toBe(2)
   })
 
-  it('lets the four-layer capacity guard win over duplicate confirmation and leaves state unchanged', () => {
+  it('omits Add as Layer at four occupied slots and exposes it again after removal', () => {
     for (const mediaId of [mediaOne.id, 'capacity-b', 'capacity-c', 'capacity-d']) {
       const result = useReactStore.getState().addCanvasAuthoredLayer(mediaId)
       if (!result.ok) throw new Error(result.message)
     }
-    const before = JSON.stringify(useReactStore.getState().canvasOrchestrationSettings.authoredLayers)
 
-    openMediaActions()
-    chooseAction('Add as Layer')
+    openMediaActions(mediaTwo.id)
+    expect(menuButton('Add as Layer')).toBeNull()
 
-    expect(document.body.querySelector('[aria-label^="Confirm duplicate CANVAS layer"]')).toBeNull()
-    expect(host.textContent).toContain('All four CANVAS layer slots are in use. Remove a layer before adding another.')
-    expect(JSON.stringify(useReactStore.getState().canvasOrchestrationSettings.authoredLayers)).toBe(before)
+    const layerToRemove = useReactStore.getState().canvasOrchestrationSettings.authoredLayers[1]
+    if (!layerToRemove) throw new Error('Expected removable CANVAS layer')
+    act(() => { useReactStore.getState().removeCanvasAuthoredLayer(layerToRemove.id) })
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+
+    openMediaActions(mediaTwo.id)
+    expect(menuButton('Add as Layer')).not.toBeNull()
   })
 
   it('Add to Pool fails safely without an active pool and targets the live active pool idempotently', () => {

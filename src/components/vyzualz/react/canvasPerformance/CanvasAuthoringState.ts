@@ -3,12 +3,49 @@ import {
   type CanvasAuthoredLayer,
   type CanvasAuthoredLayerOwnership,
   type CanvasMediaPool,
+  type CanvasRenderMode,
 } from './CanvasPerformanceTypes'
 
 export const CANVAS_LEGACY_COMPATIBILITY_POOL_ID = 'canvas-pool-legacy'
 export const CANVAS_LEGACY_COMPATIBILITY_POOL_NAME = 'Performance Pool'
 export const MAX_CANVAS_MEDIA_POOLS = 64
 export const MAX_CANVAS_MEDIA_IDS_PER_POOL = 128
+
+export interface CanvasLayerSlotState {
+  authoredLayers: readonly Pick<CanvasAuthoredLayer, 'mediaId'>[]
+  renderMode: CanvasRenderMode
+  activeCanvasMediaId: string | null
+  candidateMediaId: string | null
+}
+
+export function getCanvasLayerSlotState(state: CanvasLayerSlotState): {
+  occupiedSlots: number
+  requiredSlots: number
+  hasCapacity: boolean
+  activeLayerIndex: number
+} {
+  const activeMediaId = typeof state.activeCanvasMediaId === 'string'
+    ? state.activeCanvasMediaId.trim()
+    : ''
+  const candidateMediaId = typeof state.candidateMediaId === 'string'
+    ? state.candidateMediaId.trim()
+    : ''
+  const activeLayerIndex = activeMediaId
+    ? state.authoredLayers.findIndex(layer => layer.mediaId === activeMediaId)
+    : -1
+  const needsPrimaryPromotion = state.renderMode === 'single'
+    && activeMediaId.length > 0
+    && activeMediaId !== candidateMediaId
+    && activeLayerIndex < 0
+  const requiredSlots = 1 + (needsPrimaryPromotion ? 1 : 0)
+  const occupiedSlots = state.authoredLayers.length + (needsPrimaryPromotion ? 1 : 0)
+  return {
+    occupiedSlots,
+    requiredSlots,
+    hasCapacity: state.authoredLayers.length + requiredSlots <= MAX_CANVAS_AUTHORED_LAYERS,
+    activeLayerIndex,
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)

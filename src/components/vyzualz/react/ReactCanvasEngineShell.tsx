@@ -28,6 +28,12 @@ import {
 import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
 import { getCanvasLibraryDisabledReason, getCanvasLibraryMediaType } from './canvasMediaLibraryContract'
 import {
+  ensureCanvasTransparentPngVerification,
+  getCanvasLayerAdmissionDecision,
+  getCanvasTransparentPngVerification,
+  isCanvasPngLayerCandidate,
+} from './canvasLayerAdmission'
+import {
   hasCanvasBaseTransform,
   hasCanvasEffectPass,
   makeCanvasCaptureFilter,
@@ -333,7 +339,7 @@ function CanvasLegacySessionMedia({ compact = false }: { compact?: boolean }) {
             <div
               key={item.id}
               className={`vz-media-card${active ? ' vz-media-card--active' : ''}`}
-              onClick={() => selectCanvasMediaItem(item.id, { ensureAuthoredLayer: true })}
+              onClick={() => selectCanvasMediaItem(item.id)}
             >
               <div className="vz-media-thumb">
                 {item.type === 'video' ? (
@@ -382,6 +388,7 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
   const [actionMenu, setActionMenu] = useState<({ mediaId: string } & MediaLibraryCardActionAnchor) | null>(null)
   const [duplicateConfirmation, setDuplicateConfirmation] = useState<({ mediaId: string } & MediaLibraryCardActionAnchor) | null>(null)
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
+  const [, setLayerEligibilityRevision] = useState(0)
   const activeItem = mediaItems.find(item => item.id === activeCanvasMediaId) ?? null
   const roleResolution = activeItem ? resolveCanvasMediaRoles(activeItem, orchestration) : null
   const explicitRoles = activeItem ? orchestration.mediaRolesById[activeItem.id] ?? [] : []
@@ -389,6 +396,13 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
   const confirmationMedia = duplicateConfirmation
     ? mediaItems.find(item => item.id === duplicateConfirmation.mediaId) ?? null
     : null
+  const actionLayerAdmission = actionMedia ? getCanvasLayerAdmissionDecision({
+    candidate: actionMedia,
+    verifiedTransparentPng: getCanvasTransparentPngVerification(actionMedia),
+    authoredLayers: orchestration.authoredLayers,
+    renderMode: orchestration.renderMode,
+    activeCanvasMediaId,
+  }) : null
 
   const toggleRole = (role: CanvasMediaRole) => {
     if (!activeItem) return
@@ -401,7 +415,20 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
   const openMediaActions = (mediaId: string, anchor: MediaLibraryCardActionAnchor) => {
     setActionFeedback(null)
     setDuplicateConfirmation(null)
-    void ensureMediaSigned?.([mediaId], 'visible')
+    const currentMedia = mediaItems.find(item => item.id === mediaId) ?? null
+    const signing = ensureMediaSigned([mediaId], 'visible')
+    if (currentMedia
+      && isCanvasPngLayerCandidate(currentMedia)
+      && getCanvasTransparentPngVerification(currentMedia) === null) {
+      void signing.then(async () => {
+        const libraryItem = useMediaStore.getState().items.find(item => item.id === mediaId) ?? null
+        const freshMedia = libraryItem
+          ? makeCanvasMediaItemFromLibrary(libraryItem, useReactStore.getState().canvasMediaTimingById[mediaId])
+          : useReactStore.getState().canvasMediaItems.find(item => item.id === mediaId) ?? null
+        if (freshMedia) await ensureCanvasTransparentPngVerification(freshMedia)
+        setLayerEligibilityRevision(revision => revision + 1)
+      })
+    }
     setActionMenu({ mediaId, ...anchor })
   }
 
@@ -412,6 +439,21 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
       mediaIdsToPrepare.add(currentState.activeCanvasMediaId)
     }
     await ensureMediaSigned([...mediaIdsToPrepare], 'visible')
+    const libraryItem = useMediaStore.getState().items.find(item => item.id === mediaId) ?? null
+    const candidate = libraryItem
+      ? makeCanvasMediaItemFromLibrary(libraryItem, useReactStore.getState().canvasMediaTimingById[mediaId])
+      : useReactStore.getState().canvasMediaItems.find(item => item.id === mediaId) ?? null
+    if (!candidate || await ensureCanvasTransparentPngVerification(candidate) !== true) return
+    const latestState = useReactStore.getState()
+    const admission = getCanvasLayerAdmissionDecision({
+      candidate,
+      verifiedTransparentPng: getCanvasTransparentPngVerification(candidate),
+      authoredLayers: latestState.canvasOrchestrationSettings.authoredLayers,
+      renderMode: latestState.canvasOrchestrationSettings.renderMode,
+      activeCanvasMediaId: latestState.activeCanvasMediaId,
+    })
+    if (!admission.eligible) return
+
     const result = addCanvasAuthoredLayer(mediaId, {
       ownership: 'manual',
       pinned: true,
@@ -423,20 +465,19 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
 
   const requestAddAsLayer = (mediaId: string, anchor: MediaLibraryCardActionAnchor) => {
     const currentState = useReactStore.getState()
-    const currentLayers = currentState.canvasOrchestrationSettings.authoredLayers
-    const activeMediaId = currentState.activeCanvasMediaId
-    const shouldPromoteActiveSource = currentState.canvasOrchestrationSettings.renderMode === 'single'
-      && typeof activeMediaId === 'string'
-      && activeMediaId.length > 0
-      && activeMediaId !== mediaId
-      && !currentLayers.some(layer => layer.mediaId === activeMediaId)
-    const requiredSlots = 1 + (shouldPromoteActiveSource ? 1 : 0)
-    if (currentLayers.length + requiredSlots > MAX_CANVAS_AUTHORED_LAYERS) {
+    const candidate = mediaItems.find(item => item.id === mediaId) ?? null
+    const admission = getCanvasLayerAdmissionDecision({
+      candidate,
+      verifiedTransparentPng: getCanvasTransparentPngVerification(candidate),
+      authoredLayers: currentState.canvasOrchestrationSettings.authoredLayers,
+      renderMode: currentState.canvasOrchestrationSettings.renderMode,
+      activeCanvasMediaId: currentState.activeCanvasMediaId,
+    })
+    if (!admission.eligible) {
       setDuplicateConfirmation(null)
-      setActionFeedback('All four CANVAS layer slots are in use. Remove a layer before adding another.')
       return
     }
-    if (currentLayers.some(layer => layer.mediaId === mediaId)) {
+    if (currentState.canvasOrchestrationSettings.authoredLayers.some(layer => layer.mediaId === mediaId)) {
       setActionFeedback(null)
       setDuplicateConfirmation({ mediaId, ...anchor })
       return
@@ -487,14 +528,14 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
               label: 'Make Active',
               onSelect: () => {
                 setActionFeedback(null)
-                selectCanvasMediaItem(actionMenu.mediaId, { ensureAuthoredLayer: true })
+                selectCanvasMediaItem(actionMenu.mediaId)
               },
             },
-            {
+            ...(actionLayerAdmission?.eligible ? [{
               id: 'add-as-layer',
               label: 'Add as Layer',
               onSelect: () => requestAddAsLayer(actionMenu.mediaId, actionMenu),
-            },
+            }] : []),
             {
               id: 'add-to-pool',
               label: 'Add to Pool',

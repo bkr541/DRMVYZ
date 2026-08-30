@@ -74,8 +74,8 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     const state = useReactStore.getState()
     expect(state.canvasOrchestrationSettings.renderMode).toBe('layers')
     expect(state.canvasOrchestrationSettings.authoredLayers.map(layer => layer.mediaId)).toEqual([
-      'new-layer-media',
       'visible-media',
+      'new-layer-media',
     ])
     expect(state.selectedCanvasLayerId).toBe(added.ok ? added.layer.id : null)
   })
@@ -121,6 +121,51 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     expect(useReactStore.getState().activeCanvasMediaId).toBe('library-video-1')
   })
 
+  it('counts a single-mode primary at the store mutation boundary and rejects a fifth total slot atomically', () => {
+    for (const mediaId of ['existing-a', 'existing-b', 'existing-c']) {
+      const result = useReactStore.getState().addCanvasAuthoredLayer(mediaId)
+      if (!result.ok) throw new Error(result.message)
+    }
+    useReactStore.getState().selectCanvasMediaItem('primary-media')
+    const before = useReactStore.getState().canvasOrchestrationSettings.authoredLayers.map(layer => layer.id)
+
+    const rejected = useReactStore.getState().addCanvasAuthoredLayer('candidate-media', { preserveActiveSource: true })
+    expect(rejected).toMatchObject({ ok: false, code: 'layer-limit-reached' })
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.map(layer => layer.id)).toEqual(before)
+    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('single')
+  })
+
+  it('reuses an existing primary layer identity, moves it first, and appends the new layer without duplication', () => {
+    const first = useReactStore.getState().addCanvasAuthoredLayer('first-media')
+    const primary = useReactStore.getState().addCanvasAuthoredLayer('primary-media')
+    if (!first.ok || !primary.ok) throw new Error('Expected authored layers')
+    useReactStore.getState().selectCanvasMediaItem('primary-media')
+
+    const added = useReactStore.getState().addCanvasAuthoredLayer('candidate-media', { preserveActiveSource: true })
+    if (!added.ok) throw new Error(added.message)
+    const layers = useReactStore.getState().canvasOrchestrationSettings.authoredLayers
+    expect(layers.map(layer => layer.mediaId)).toEqual(['primary-media', 'first-media', 'candidate-media'])
+    expect(layers[0]?.id).toBe(primary.layer.id)
+    expect(layers.filter(layer => layer.mediaId === 'primary-media')).toHaveLength(1)
+    expect(layers.map(layer => layer.order)).toEqual([0, 1, 2])
+  })
+
+  it('does not accumulate hidden authored layers during repeated normal media selection', () => {
+    const authored = useReactStore.getState().addCanvasAuthoredLayer('intentional-layer')
+    if (!authored.ok) throw new Error(authored.message)
+    const originalLayerId = authored.layer.id
+
+    for (const mediaId of ['browse-a', 'browse-b', 'browse-c']) {
+      useReactStore.getState().selectCanvasMediaItem(mediaId)
+    }
+
+    const state = useReactStore.getState()
+    expect(state.activeCanvasMediaId).toBe('browse-c')
+    expect(state.canvasOrchestrationSettings.renderMode).toBe('single')
+    expect(state.canvasOrchestrationSettings.authoredLayers).toHaveLength(1)
+    expect(state.canvasOrchestrationSettings.authoredLayers[0]).toMatchObject({ id: originalLayerId, mediaId: 'intentional-layer' })
+  })
+
   it('supports 0-4 authored layer instances, duplicate media, deterministic reorder, update, duplicate, and atomic fifth-layer rejection', () => {
     expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers).toEqual([])
 
@@ -137,10 +182,10 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     expect(fourLayerState.filter(layer => layer.mediaId === 'shared-media')).toHaveLength(2)
     expect(fourLayerState.map(layer => layer.order)).toEqual([0, 1, 2, 3])
     expect(fourLayerState.map(layer => layer.id)).toEqual([
-      fourth.layer.id,
-      third.layer.id,
-      second.layer.id,
       first.layer.id,
+      second.layer.id,
+      third.layer.id,
+      fourth.layer.id,
     ])
     expect(fourLayerState.find(layer => layer.id === third.layer.id)).toMatchObject({ ownership: 'automatic', pinned: false })
 
@@ -149,13 +194,13 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     expect(rejected).toMatchObject({ ok: false, code: 'layer-limit-reached' })
     expect(JSON.stringify(useReactStore.getState().canvasOrchestrationSettings.authoredLayers)).toBe(beforeRejectedAdd)
 
-    const reordered = useReactStore.getState().reorderCanvasAuthoredLayer(first.layer.id, 0)
+    const reordered = useReactStore.getState().reorderCanvasAuthoredLayer(first.layer.id, 3)
     expect(reordered.ok).toBe(true)
     expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.map(layer => layer.id)).toEqual([
-      first.layer.id,
-      fourth.layer.id,
-      third.layer.id,
       second.layer.id,
+      third.layer.id,
+      fourth.layer.id,
+      first.layer.id,
     ])
 
     useReactStore.getState().setSelectedCanvasLayer(first.layer.id)
@@ -375,21 +420,22 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     expect(migrated.canvasOrchestrationSettings.autoRoleEnabled).toBe(true)
   })
 
-  it('persists layered render ownership while legacy state without the discriminator safely migrates to single-source output', () => {
-    const added = useReactStore.getState().addCanvasAuthoredLayer('persisted-layer-media')
-    if (!added.ok) throw new Error(added.message)
+  it('persists layered render ownership and canonical authored order while legacy state without the discriminator safely migrates to single-source output', () => {
+    const first = useReactStore.getState().addCanvasAuthoredLayer('persisted-layer-a')
+    const second = useReactStore.getState().addCanvasAuthoredLayer('persisted-layer-b')
+    if (!first.ok || !second.ok) throw new Error('Expected persisted CANVAS layers')
     expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('layers')
 
     const persisted = JSON.parse(JSON.stringify(reactStorePartialize(useReactStore.getState()))) as ReturnType<typeof reactStorePartialize>
     const restored = mergeReactStoreState(persisted, useReactStore.getState())
     expect(restored.canvasOrchestrationSettings.renderMode).toBe('layers')
-    expect(restored.canvasOrchestrationSettings.authoredLayers.map(layer => layer.id)).toContain(added.layer.id)
+    expect(restored.canvasOrchestrationSettings.authoredLayers.map(layer => layer.id)).toEqual([first.layer.id, second.layer.id])
 
     const legacy = JSON.parse(JSON.stringify(persisted)) as typeof persisted
     delete (legacy.canvasOrchestrationSettings as Partial<typeof legacy.canvasOrchestrationSettings>).renderMode
     const migrated = mergeReactStoreState(legacy, useReactStore.getState())
     expect(migrated.canvasOrchestrationSettings.renderMode).toBe('single')
-    expect(migrated.canvasOrchestrationSettings.authoredLayers.map(layer => layer.id)).toContain(added.layer.id)
+    expect(migrated.canvasOrchestrationSettings.authoredLayers.map(layer => layer.id)).toEqual([first.layer.id, second.layer.id])
 
     const legacyAutoPerformance = JSON.parse(JSON.stringify(legacy)) as typeof legacy
     legacyAutoPerformance.canvasOrchestrationSettings.enabled = true

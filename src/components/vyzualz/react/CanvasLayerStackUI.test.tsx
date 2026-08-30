@@ -102,17 +102,17 @@ describe('CANVAS Stage 3 layer stack UI', () => {
 
     expect(host.textContent).toContain('2 / 4')
     expect(layerRows()).toHaveLength(2)
-    expect(layerRows()[0].textContent).toContain('Layer B')
-    expect(layerRows()[1].textContent).toContain('Layer A')
+    expect(layerRows()[0].textContent).toContain('Layer A')
+    expect(layerRows()[1].textContent).toContain('Layer B')
     expect(host.textContent).toContain('Manual Layers · Full-screen Hero')
     expect(host.textContent).toContain('2 layers · 0 video decoders · 2 sources')
 
-    const layerASelect = host.querySelector<HTMLButtonElement>(`[aria-label="Select CANVAS layer 2: Layer A"]`)
+    const layerASelect = host.querySelector<HTMLButtonElement>(`[aria-label="Select CANVAS layer 1: Layer A"]`)
     if (!layerASelect) throw new Error('Expected Layer A selection row')
     act(() => layerASelect.click())
     expect(useReactStore.getState().selectedCanvasLayerId).toBe(first.layer.id)
     expect(host.textContent).toContain('CANVAS Layer')
-    expect(host.textContent).toContain('2 of 2')
+    expect(host.textContent).toContain('1 of 2')
     expect(host.textContent).toContain('Layer-specific production controls are not finalized yet.')
 
     const stage = host.querySelector<HTMLElement>('[aria-label="CANVAS orchestrated media surface"]')
@@ -143,9 +143,9 @@ describe('CANVAS Stage 3 layer stack UI', () => {
     dispatchDrag(target, 'drop', transfer)
 
     expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.map(layer => layer.id)).toEqual([
-      a.layer.id,
-      c.layer.id,
       b.layer.id,
+      c.layer.id,
+      a.layer.id,
     ])
     expect(useReactStore.getState().selectedCanvasLayerId).toBe(b.layer.id)
 
