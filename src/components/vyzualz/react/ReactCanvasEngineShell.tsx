@@ -86,6 +86,7 @@ import {
   canRenderCanvasAuthoredLayerFrame,
   canRenderCanvasOrchestrationFrame,
   resolveCanvasAuthoredLayerFrame,
+  resolveCanvasEffectiveAuthoredLayers,
   resolveCanvasMediaRoles,
   resolveCanvasPerformanceFrame,
   resolveCanvasPoolAutomationRuntime,
@@ -3519,6 +3520,7 @@ export function CanvasLayersPanel() {
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
 
   const layers = settings.authoredLayers
+  const activeLayerCount = Math.min(MAX_CANVAS_AUTHORED_LAYERS, resolveCanvasEffectiveAuthoredLayers(layers).length)
 
   const handleDragStart = (event: DragEvent<HTMLDivElement>, layerId: string) => {
     setDraggedLayerId(layerId)
@@ -3563,7 +3565,7 @@ export function CanvasLayersPanel() {
 
   return (
     <section className="rv-cinema-panel-list" aria-label="Canvas layers">
-      <div className="rv-cinema-panel-list__header"><strong>Layers</strong><span>{layers.length} / {MAX_CANVAS_AUTHORED_LAYERS}</span></div>
+      <div className="rv-cinema-panel-list__header"><strong>Layers</strong><span>{activeLayerCount} / {MAX_CANVAS_AUTHORED_LAYERS}</span></div>
       <p className="rv-cinema-panel-list__hint">Top rows render above lower rows. Select a layer for Selection context, or drag a row to change stack order.</p>
       {actionFeedback && <NoticeCard tone="error" role="status" title="Layer action failed">{actionFeedback}</NoticeCard>}
       <div className="rv-cinema-layer-tree">
@@ -4005,7 +4007,7 @@ function CanvasAddEffectsControls() {
   })
   const layers = orchestration.renderMode === 'single'
     ? primaryLayer ? [primaryLayer] : []
-    : orchestration.authoredLayers
+    : resolveCanvasEffectiveAuthoredLayers(orchestration.authoredLayers).slice(0, MAX_CANVAS_AUTHORED_LAYERS)
 
   return (
     <Collapsible label="Add Effects" defaultOpen>

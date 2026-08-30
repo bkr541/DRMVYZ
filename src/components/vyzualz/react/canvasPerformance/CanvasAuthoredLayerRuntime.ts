@@ -1,6 +1,7 @@
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
 import type { CanvasFitMode, CanvasMediaItem } from '../ReactTypes'
 import { resolveCanvasAuthoredLayerLayout } from './CanvasAuthoredLayerLayout'
+import { resolveCanvasEffectiveAuthoredLayers } from './CanvasAuthoringState'
 import { getCanvasCompositionTemplate } from './CanvasCompositionTemplates'
 import { resolveCanvasPlayback } from './CanvasPlayback'
 import { resolveCanvasExplicitTransition } from './CanvasTransitions'
@@ -53,13 +54,15 @@ export function resolveCanvasAuthoredLayerFrame({
   const authoredLayers = [
     ...manualLayers,
     ...automaticLayers.map((layer, index) => ({ ...layer, order: manualLayers.length + index })),
-  ].slice(0, MAX_CANVAS_AUTHORED_LAYERS)
-  const soloLayer = authoredLayers.find(layer => layer.solo && layer.enabled) ?? null
+  ]
+  const effectiveLayers = resolveCanvasEffectiveAuthoredLayers(authoredLayers)
+  const soloLayer = effectiveLayers.find(layer => layer.solo) ?? null
   const activeVideoIds = new Set<string>()
   const diagnostics: string[] = [...automationDiagnostics]
-  const renderableLayers = authoredLayers.map(authored => {
+  let activeLayerCount = 0
+  const renderableLayers = effectiveLayers.map(authored => {
     const source = mediaById.get(authored.mediaId) ?? null
-    let enabled = authored.enabled && (!soloLayer || soloLayer.id === authored.id) && source != null
+    let enabled = source != null && activeLayerCount < MAX_CANVAS_AUTHORED_LAYERS
 
     if (enabled && source?.type === 'video' && !activeVideoIds.has(source.id)) {
       if (activeVideoIds.size >= MAX_CANVAS_ACTIVE_VIDEO_DECODERS) {
@@ -69,6 +72,7 @@ export function resolveCanvasAuthoredLayerFrame({
         activeVideoIds.add(source.id)
       }
     }
+    if (enabled) activeLayerCount += 1
 
     return { authored, source, enabled }
   })
@@ -131,10 +135,10 @@ export function resolveCanvasAuthoredLayerFrame({
   const pendingMediaIds = activeMediaIds.filter(id => isMediaReady && !isMediaReady(id) && !failedMediaIds.has(id))
   mediaErrors.forEach(({ mediaId, message }) => diagnostics.push(`media-load-error:${mediaId}:${message}`))
   if (soloLayer) diagnostics.push(`solo:${soloLayer.id}`)
-  if (authoredLayers.some(layer => !mediaById.has(layer.mediaId))) diagnostics.push('missing-authored-media')
-  if (authoredLayers.length === 0) diagnostics.push('no-authored-layers')
+  if (effectiveLayers.some(layer => !mediaById.has(layer.mediaId))) diagnostics.push('missing-authored-media')
+  if (effectiveLayers.length === 0) diagnostics.push('no-authored-layers')
 
-  const frameIdentity = `canvas-authored|${authoredLayers
+  const frameIdentity = `canvas-authored|${effectiveLayers
     .map(layer => `${layer.id}:${layer.mediaId}:${layer.order}:${layer.enabled ? 1 : 0}:${layer.solo ? 1 : 0}:${layer.ownership}:${layer.effects.join(',')}`)
     .join('|')}`
   const transition = automationTransitionId

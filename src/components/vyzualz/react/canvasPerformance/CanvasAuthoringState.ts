@@ -2,6 +2,7 @@ import {
   CANVAS_LAYER_EFFECT_IDS,
   MAX_CANVAS_AUTHORED_LAYERS,
   MAX_CANVAS_LAYER_EFFECTS,
+  MAX_CANVAS_STORED_AUTHORED_LAYERS,
   type CanvasAuthoredLayer,
   type CanvasAuthoredLayerOwnership,
   type CanvasLayerEffectId,
@@ -19,10 +20,9 @@ export const MAX_CANVAS_MEDIA_IDS_PER_POOL = 128
 const CANVAS_LAYER_EFFECT_ID_SET = new Set<string>(CANVAS_LAYER_EFFECT_IDS)
 
 export interface CanvasLayerSlotState {
-  authoredLayers: readonly Pick<CanvasAuthoredLayer, 'mediaId'>[]
+  authoredLayers: readonly Pick<CanvasAuthoredLayer, 'id' | 'mediaId' | 'enabled' | 'solo'>[]
   renderMode: CanvasRenderMode
   activeCanvasMediaId: string | null
-  candidateMediaId: string | null
 }
 
 export function getCanvasLayerSlotState(state: CanvasLayerSlotState): {
@@ -34,22 +34,17 @@ export function getCanvasLayerSlotState(state: CanvasLayerSlotState): {
   const activeMediaId = typeof state.activeCanvasMediaId === 'string'
     ? state.activeCanvasMediaId.trim()
     : ''
-  const candidateMediaId = typeof state.candidateMediaId === 'string'
-    ? state.candidateMediaId.trim()
-    : ''
   const activeLayerIndex = activeMediaId
     ? state.authoredLayers.findIndex(layer => layer.mediaId === activeMediaId)
     : -1
-  const needsPrimaryPromotion = state.renderMode === 'single'
-    && activeMediaId.length > 0
-    && activeMediaId !== candidateMediaId
-    && activeLayerIndex < 0
-  const requiredSlots = 1 + (needsPrimaryPromotion ? 1 : 0)
-  const occupiedSlots = state.authoredLayers.length + (needsPrimaryPromotion ? 1 : 0)
+  const occupiedSlots = state.renderMode === 'single'
+    ? Number(activeMediaId.length > 0)
+    : resolveCanvasEffectiveAuthoredLayers(state.authoredLayers).length
+  const requiredSlots = 1
   return {
     occupiedSlots,
     requiredSlots,
-    hasCapacity: state.authoredLayers.length + requiredSlots <= MAX_CANVAS_AUTHORED_LAYERS,
+    hasCapacity: occupiedSlots + requiredSlots <= MAX_CANVAS_AUTHORED_LAYERS,
     activeLayerIndex,
   }
 }
@@ -118,7 +113,7 @@ export function normalizeCanvasAuthoredLayers(value: unknown): CanvasAuthoredLay
 
   const ordered = candidates
     .sort((left, right) => left.order - right.order || left.sourceIndex - right.sourceIndex || left.id.localeCompare(right.id))
-    .slice(0, MAX_CANVAS_AUTHORED_LAYERS)
+    .slice(0, MAX_CANVAS_STORED_AUTHORED_LAYERS)
     .map(({ sourceIndex: _sourceIndex, ...layer }, order) => ({ ...layer, order }))
 
   let soloClaimed = false
@@ -440,15 +435,19 @@ export function setCanvasAuthoredLayerSoloState(
  * Canonical authored-stack eligibility rule. Keeping this rule domain-only
  * prevents authoring UI from inventing a parallel render path.
  */
+export function resolveCanvasEffectiveAuthoredLayers(
+  layers: readonly Pick<CanvasAuthoredLayer, 'id' | 'mediaId' | 'enabled' | 'solo'>[],
+): CanvasAuthoredLayer[] {
+  const normalized = normalizeCanvasAuthoredLayers(layers)
+  const activeSoloId = normalized.find(candidate => candidate.enabled && candidate.solo)?.id ?? null
+  return normalized.filter(layer => layer.enabled && (activeSoloId === null || activeSoloId === layer.id))
+}
+
 export function isCanvasAuthoredLayerRenderEligible(
   layers: readonly CanvasAuthoredLayer[],
   layerId: string,
 ): boolean {
-  const normalized = normalizeCanvasAuthoredLayers(layers)
-  const layer = normalized.find(candidate => candidate.id === layerId)
-  if (!layer?.enabled) return false
-  const activeSoloId = normalized.find(candidate => candidate.enabled && candidate.solo)?.id ?? null
-  return activeSoloId === null || activeSoloId === layer.id
+  return resolveCanvasEffectiveAuthoredLayers(layers).some(layer => layer.id === layerId)
 }
 
 export function upsertCanvasCompatibilityPool(

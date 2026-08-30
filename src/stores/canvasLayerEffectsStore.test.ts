@@ -110,15 +110,16 @@ describe('CANVAS per-layer effect store and persistence', () => {
     ])
   })
 
-  it('persists a detached primary owner without promoting it into hidden authored layers', () => {
+  it('replaces detached primary effect ownership when Make Active starts a new single-media composition', () => {
     useReactStore.getState().selectCanvasMediaItem('single-a')
     const primary = useReactStore.getState().getCanvasPrimaryLayer()
     if (!primary) throw new Error('Expected detached primary')
     useReactStore.getState().addCanvasLayerEffect(primary.id, 'stutter')
 
     useReactStore.getState().selectCanvasMediaItem('single-b')
-    const retargeted = useReactStore.getState().getCanvasPrimaryLayer()
-    expect(retargeted).toMatchObject({ id: primary.id, mediaId: 'single-b', effects: ['stutter'] })
+    const replacement = useReactStore.getState().getCanvasPrimaryLayer()
+    expect(replacement).toMatchObject({ mediaId: 'single-b', effects: [] })
+    expect(replacement?.id).not.toBe(primary.id)
     expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers).toEqual([])
 
     const persisted = JSON.parse(JSON.stringify(reactStorePartialize(useReactStore.getState()))) as ReturnType<typeof reactStorePartialize>
@@ -126,7 +127,7 @@ describe('CANVAS per-layer effect store and persistence', () => {
     expect(restored.canvasOrchestrationSettings.authoredLayers).toEqual([])
     expect(restored.canvasOrchestrationSettings.primaryLayer).toMatchObject({
       kind: 'detached',
-      layer: { id: primary.id, mediaId: 'single-b', effects: ['stutter'] },
+      layer: { id: replacement?.id, mediaId: 'single-b', effects: [] },
     })
   })
 })

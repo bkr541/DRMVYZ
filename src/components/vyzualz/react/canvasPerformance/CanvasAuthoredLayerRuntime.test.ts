@@ -170,12 +170,12 @@ describe('CANVAS authored multi-layer runtime adapter', () => {
       isMediaReady: () => true,
     })
 
-    expect(frame.layers).toHaveLength(3)
-    expect(frame.layers[1]).toMatchObject({ id: 'stable-2', enabled: false })
-    expect(frame.layers.filter(candidate => candidate.enabled).map(({ id, x, y }) => ({ id, x, y }))).toEqual([
+    expect(frame.layers).toHaveLength(2)
+    expect(frame.layers.map(({ id, x, y }) => ({ id, x, y }))).toEqual([
       { id: 'stable-1', x: -0.5, y: -0.5 },
       { id: 'stable-3', x: 0.5, y: 0.5 },
     ])
+    expect(frame.layers.some(candidate => candidate.id === 'stable-2')).toBe(false)
 
     const soloFrame = resolveCanvasAuthoredLayerFrame({
       context: context(),
@@ -190,6 +190,32 @@ describe('CANVAS authored multi-layer runtime adapter', () => {
     const visible = soloFrame.layers.filter(candidate => candidate.enabled)
     expect(visible).toHaveLength(1)
     expect(visible[0]).toMatchObject({ id: 'stable-3', x: 0, y: 0, scaleX: 1, scaleY: 1, aspectBehavior: 'cover' })
+  })
+
+  it('fills the four rendered slots from canonical enabled order when disabled authored layers are retained', () => {
+    const mediaItems = ['one', 'two', 'three', 'four', 'five'].map(id => media(id))
+    const authoredLayers = [
+      layer('stable-1', 'one', 0),
+      layer('stable-2', 'two', 1, { enabled: false }),
+      layer('stable-3', 'three', 2),
+      layer('stable-4', 'four', 3),
+      layer('stable-5', 'five', 4),
+    ]
+    const frame = resolveCanvasAuthoredLayerFrame({
+      context: context(),
+      settings: { programId: DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId, authoredLayers },
+      mediaItems,
+      fitMode: 'contain',
+      isMediaReady: () => true,
+    })
+
+    expect(frame.layers.map(candidate => candidate.id)).toEqual(['stable-1', 'stable-3', 'stable-4', 'stable-5'])
+    expect(frame.layers.map(({ x, y }) => ({ x, y }))).toEqual([
+      { x: -0.5, y: -0.5 },
+      { x: 0.5, y: -0.5 },
+      { x: -0.5, y: 0.5 },
+      { x: 0.5, y: 0.5 },
+    ])
   })
 
   it('keeps alpha-capable PNG sources as dry source-over layers with no mask or opaque slot treatment', () => {

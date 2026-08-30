@@ -156,6 +156,34 @@ describe('CANVAS Pool automation runtime', () => {
     expect(blocked.diagnostics).toContain('pool-automation-no-free-slots')
   })
 
+  it('bases automatic capacity on effective enabled layers and suppresses automatic layers while a manual layer is soloed', () => {
+    const mediaItems = [
+      media('manual-a'), media('manual-b'), media('manual-c'), media('manual-d'),
+      media('pool-a'), media('pool-b'), media('pool-c'), media('pool-d'),
+    ]
+    const retainedDisabled = settings({
+      authoredLayers: [
+        manualLayer('manual-1', 'manual-a', 0),
+        { ...manualLayer('manual-2', 'manual-b', 1), enabled: false },
+        manualLayer('manual-3', 'manual-c', 2),
+        manualLayer('manual-4', 'manual-d', 3),
+      ],
+    })
+    const withDisabled = resolveCanvasPoolAutomationRuntime({ context: contextAt(1), settings: retainedDisabled, mediaItems })
+    expect(withDisabled.automaticLayers).toHaveLength(1)
+
+    const soloed = settings({
+      authoredLayers: retainedDisabled.authoredLayers.map(layer => ({
+        ...layer,
+        enabled: true,
+        solo: layer.id === 'manual-3',
+      })),
+    })
+    const withSolo = resolveCanvasPoolAutomationRuntime({ context: contextAt(1), settings: soloed, mediaItems })
+    expect(withSolo.automaticLayers).toEqual([])
+    expect(withSolo.diagnostics).toContain('pool-automation-no-free-slots')
+  })
+
   it('respects the four-layer cap for every manual-layer count from zero through four', () => {
     const mediaItems = [
       media('manual-a'), media('manual-b'), media('manual-c'), media('manual-d'),

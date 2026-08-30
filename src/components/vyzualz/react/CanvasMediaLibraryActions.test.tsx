@@ -184,14 +184,15 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     expect(state.canvasOrchestrationSettings.authoredLayers).toEqual([])
   })
 
-  it('Make Active preserves existing authored layers without adding the browsed media', () => {
+  it('Make Active retires the previous authored composition without changing pool membership', () => {
     const layer = useReactStore.getState().addCanvasAuthoredLayer(mediaTwo.id)
     if (!layer.ok) throw new Error(layer.message)
+    useReactStore.getState().addCanvasLayerEffect(layer.layer.id, 'echo')
     const pool = useReactStore.getState().createCanvasMediaPool('Main')
     if (!pool.ok) throw new Error(pool.message)
     useReactStore.getState().setActiveCanvasMediaPool(pool.pool.id)
     useReactStore.getState().addCanvasMediaToPool(pool.pool.id, mediaTwo.id)
-    const before = useReactStore.getState().canvasOrchestrationSettings
+    const beforePools = useReactStore.getState().canvasOrchestrationSettings.mediaPools
 
     openMediaActions()
     chooseAction('Make Active')
@@ -200,10 +201,25 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     expect(state.activeCanvasMediaId).toBe(mediaOne.id)
     expect(state.canvasEngineSettings.manualMediaOverrideId).toBe(mediaOne.id)
     expect(state.canvasOrchestrationSettings.renderMode).toBe('single')
-    expect(state.canvasOrchestrationSettings.authoredLayers).toEqual(before.authoredLayers)
-    expect(state.canvasOrchestrationSettings.authoredLayers.some(layer => layer.mediaId === mediaOne.id)).toBe(false)
-    expect(state.canvasOrchestrationSettings.mediaPools).toEqual(before.mediaPools)
+    expect(state.canvasOrchestrationSettings.authoredLayers).toEqual([])
+    expect(state.getCanvasPrimaryLayer()).toMatchObject({ mediaId: mediaOne.id, effects: [] })
+    expect(state.canvasOrchestrationSettings.mediaPools).toEqual(beforePools)
     expect(state.canvasOrchestrationSettings.mediaPoolIds).toEqual([mediaTwo.id])
+  })
+
+  it('Make Active after four active layers exposes Add as Layer for a verified transparent PNG', () => {
+    for (const mediaId of ['capacity-a', 'capacity-b', 'capacity-c', 'capacity-d']) {
+      const result = useReactStore.getState().addCanvasAuthoredLayer(mediaId)
+      if (!result.ok) throw new Error(result.message)
+    }
+
+    openMediaActions(mediaOne.id)
+    chooseAction('Make Active')
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers).toEqual([])
+    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('single')
+
+    openMediaActions(mediaTwo.id)
+    expect(menuButton('Add as Layer')).not.toBeNull()
   })
 
   it('reproduces the recorded Auto Performance → Make Active → Add as Layer handoff', async () => {
@@ -328,6 +344,18 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     if (!layerToRemove) throw new Error('Expected removable CANVAS layer')
     act(() => { useReactStore.getState().removeCanvasAuthoredLayer(layerToRemove.id) })
     act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+
+    openMediaActions(mediaTwo.id)
+    expect(menuButton('Add as Layer')).not.toBeNull()
+  })
+
+  it('does not let a disabled authored layer hide Add as Layer when only three media are rendered', () => {
+    const layers = [mediaOne.id, 'capacity-b', 'capacity-c', 'capacity-d'].map(mediaId => {
+      const result = useReactStore.getState().addCanvasAuthoredLayer(mediaId)
+      if (!result.ok) throw new Error(result.message)
+      return result.layer
+    })
+    expect(useReactStore.getState().updateCanvasAuthoredLayer(layers[1].id, { enabled: false }).ok).toBe(true)
 
     openMediaActions(mediaTwo.id)
     expect(menuButton('Add as Layer')).not.toBeNull()

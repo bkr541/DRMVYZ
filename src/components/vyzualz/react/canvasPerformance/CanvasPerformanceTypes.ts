@@ -25,6 +25,7 @@ export const CANVAS_PERFORMANCE_SHOW_IDS = [
 
 export type CanvasPerformanceShowId = typeof CANVAS_PERFORMANCE_SHOW_IDS[number]
 export const MAX_CANVAS_AUTHORED_LAYERS = 4
+export const MAX_CANVAS_STORED_AUTHORED_LAYERS = 64
 export const MAX_CANVAS_PERFORMANCE_LAYERS = MAX_CANVAS_AUTHORED_LAYERS
 export const MAX_CANVAS_ACTIVE_VIDEO_DECODERS = 3
 /** The validated Show Manager path may explicitly opt in to one video per authored lane. */

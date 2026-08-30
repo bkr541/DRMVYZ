@@ -54,7 +54,7 @@ export function getCanvasLayerAdmissionDecision({
   authoredLayers,
   renderMode,
   activeCanvasMediaId,
-}: Omit<CanvasLayerSlotState, 'candidateMediaId'> & {
+}: CanvasLayerSlotState & {
   candidate: CanvasLayerAdmissionMedia | null | undefined
   verifiedTransparentPng: boolean | null
 }): CanvasLayerAdmissionDecision {
@@ -62,7 +62,6 @@ export function getCanvasLayerAdmissionDecision({
     authoredLayers,
     renderMode,
     activeCanvasMediaId,
-    candidateMediaId: candidate?.id ?? null,
   })
   return {
     eligible: isCanvasPngLayerCandidate(candidate)

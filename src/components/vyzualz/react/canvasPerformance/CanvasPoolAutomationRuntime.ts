@@ -1,5 +1,6 @@
 import { selectPerformanceDeterministicIndex, type SharedPerformanceContext } from '../../../../features/performanceCore'
 import type { CanvasMediaItem } from '../ReactTypes'
+import { resolveCanvasEffectiveAuthoredLayers } from './CanvasAuthoringState'
 import {
   MAX_CANVAS_AUTHORED_LAYERS,
   type CanvasAuthoredLayer,
@@ -37,7 +38,7 @@ function activePoolMediaIds(settings: CanvasOrchestrationSettings, mediaItems: r
 
 function automationScopeIdentity(context: SharedPerformanceContext, settings: CanvasOrchestrationSettings): string {
   const authoredIdentity = settings.authoredLayers
-    .map(layer => `${layer.id}:${layer.order}:${layer.enabled ? 1 : 0}:${layer.pinned ? 1 : 0}`)
+    .map(layer => `${layer.id}:${layer.order}:${layer.enabled ? 1 : 0}:${layer.solo ? 1 : 0}:${layer.pinned ? 1 : 0}`)
     .join('|')
   return [
     context.trackIdentity ?? 'track:none',
@@ -149,8 +150,11 @@ export function resolveCanvasPoolAutomationRuntime({
   mediaItems: readonly CanvasMediaItem[]
   previousState?: CanvasPoolAutomationRuntimeState
 }): CanvasPoolAutomationResolution {
-  const manualCount = Math.min(MAX_CANVAS_AUTHORED_LAYERS, settings.authoredLayers.length)
-  const capacity = Math.max(0, MAX_CANVAS_AUTHORED_LAYERS - manualCount)
+  const effectiveManualLayers = resolveCanvasEffectiveAuthoredLayers(settings.authoredLayers)
+  const manualCount = Math.min(MAX_CANVAS_AUTHORED_LAYERS, effectiveManualLayers.length)
+  const capacity = effectiveManualLayers.some(layer => layer.solo)
+    ? 0
+    : Math.max(0, MAX_CANVAS_AUTHORED_LAYERS - manualCount)
   const poolMediaIds = activePoolMediaIds(settings, mediaItems)
   const scopeIdentity = automationScopeIdentity(context, settings)
   const scopeChanged = previousState.scopeIdentity !== scopeIdentity

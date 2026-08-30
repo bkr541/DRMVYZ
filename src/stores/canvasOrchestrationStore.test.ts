@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { CANVAS_PRESET_BY_ID, type CanvasMediaItem } from '../components/vyzualz/react/ReactTypes'
-import { CANVAS_LEGACY_COMPATIBILITY_POOL_ID } from '../components/vyzualz/react/canvasPerformance/CanvasAuthoringState'
+import { CANVAS_LEGACY_COMPATIBILITY_POOL_ID, resolveCanvasEffectiveAuthoredLayers } from '../components/vyzualz/react/canvasPerformance/CanvasAuthoringState'
 import { MAX_CANVAS_AUTHORED_LAYERS } from '../components/vyzualz/react/canvasPerformance/CanvasPerformanceTypes'
 import { mergeReactStoreState, migrateReactStore, reactStorePartialize, useReactStore } from './reactStore'
 
@@ -80,7 +80,7 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     expect(state.selectedCanvasLayerId).toBe(added.ok ? added.layer.id : null)
   })
 
-  it('keeps library focus, Make Active, authored layers, and pool membership independent', () => {
+  it('keeps library focus and pool membership independent while Make Active retires the previous composition', () => {
     useReactStore.getState().setCanvasAutoSelectEnabled(true)
     useReactStore.getState().selectCanvasMediaItem('library-video-1')
     expect(useReactStore.getState().activeCanvasMediaId).toBe('library-video-1')
@@ -98,75 +98,89 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     useReactStore.getState().setActiveCanvasMediaPool(poolResult.pool.id)
     useReactStore.getState().addCanvasMediaToPool(poolResult.pool.id, 'library-image-2')
     expect(useReactStore.getState().canvasOrchestrationSettings.mediaPoolIds).toEqual(['library-image-2'])
-    expect(useReactStore.getState().activeCanvasMediaId).toBe('library-video-1')
 
     const layerResult = useReactStore.getState().addCanvasAuthoredLayer('library-image-2')
     expect(layerResult.ok).toBe(true)
     expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('layers')
-    expect(useReactStore.getState().canvasOrchestrationSettings.mediaPoolIds).toEqual(['library-image-2'])
 
     useReactStore.getState().selectCanvasMediaItem('library-video-1')
-    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('single')
-    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers).toHaveLength(1)
+    const afterMakeActive = useReactStore.getState()
+    expect(afterMakeActive.canvasOrchestrationSettings.renderMode).toBe('single')
+    expect(afterMakeActive.canvasOrchestrationSettings.authoredLayers).toEqual([])
+    expect(afterMakeActive.selectedCanvasLayerId).toBeNull()
+    expect(afterMakeActive.canvasOrchestrationSettings.mediaPoolIds).toEqual(['library-image-2'])
 
     useReactStore.getState().setSelectedCanvasLayer(layerResult.ok ? layerResult.layer.id : null)
-    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('layers')
+    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('single')
 
     useReactStore.getState().removeCanvasMediaFromPool(poolResult.pool.id, 'library-image-2')
     expect(useReactStore.getState().canvasOrchestrationSettings.mediaPoolIds).toEqual([])
-    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers).toHaveLength(1)
-    expect(useReactStore.getState().activeCanvasMediaId).toBe('library-video-1')
-
-    useReactStore.getState().applyCanvasAutoSelection({ mediaId: 'library-image-3', presetId: 'canvas-bass-bloom' })
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers).toEqual([])
     expect(useReactStore.getState().activeCanvasMediaId).toBe('library-video-1')
   })
 
-  it('counts a single-mode primary at the store mutation boundary and rejects a fifth total slot atomically', () => {
-    for (const mediaId of ['existing-a', 'existing-b', 'existing-c']) {
+  it('Make Active after a four-layer composition starts a fresh composition and permits Add as Layer', () => {
+    const retiredLayerIds: string[] = []
+    for (const mediaId of ['existing-a', 'existing-b', 'existing-c', 'existing-d']) {
       const result = useReactStore.getState().addCanvasAuthoredLayer(mediaId)
       if (!result.ok) throw new Error(result.message)
+      retiredLayerIds.push(result.layer.id)
     }
-    useReactStore.getState().selectCanvasMediaItem('primary-media')
-    const before = useReactStore.getState().canvasOrchestrationSettings.authoredLayers.map(layer => layer.id)
+    useReactStore.getState().addCanvasLayerEffect(retiredLayerIds[0], 'echo')
+    useReactStore.getState().addCanvasLayerEffect(retiredLayerIds[1], 'stutter')
 
-    const rejected = useReactStore.getState().addCanvasAuthoredLayer('candidate-media', { preserveActiveSource: true })
-    expect(rejected).toMatchObject({ ok: false, code: 'layer-limit-reached' })
-    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.map(layer => layer.id)).toEqual(before)
-    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('single')
+    useReactStore.getState().selectCanvasMediaItem('primary-media')
+    const fresh = useReactStore.getState()
+    expect(fresh.canvasOrchestrationSettings.renderMode).toBe('single')
+    expect(fresh.canvasOrchestrationSettings.authoredLayers).toEqual([])
+    expect(fresh.canvasOrchestrationSettings.primaryLayer).toMatchObject({ kind: 'detached' })
+    expect(fresh.getCanvasPrimaryLayer()).toMatchObject({ mediaId: 'primary-media', effects: [] })
+    const persisted = reactStorePartialize(fresh) as unknown as Record<string, unknown>
+    expect((persisted.canvasOrchestrationSettings as { authoredLayers?: unknown[] }).authoredLayers).toEqual([])
+
+    const added = fresh.addCanvasAuthoredLayer('candidate-media', { preserveActiveSource: true })
+    if (!added.ok) throw new Error(added.message)
+    const layers = useReactStore.getState().canvasOrchestrationSettings.authoredLayers
+    expect(layers.map(layer => layer.mediaId)).toEqual(['primary-media', 'candidate-media'])
+    expect(layers.every(layer => !retiredLayerIds.includes(layer.id))).toBe(true)
   })
 
-  it('reuses an existing primary layer identity, moves it first, and appends the new layer without duplication', () => {
+  it('creates a fresh primary identity after Make Active instead of reviving a retired authored layer', () => {
     const first = useReactStore.getState().addCanvasAuthoredLayer('first-media')
-    const primary = useReactStore.getState().addCanvasAuthoredLayer('primary-media')
-    if (!first.ok || !primary.ok) throw new Error('Expected authored layers')
+    const previousPrimary = useReactStore.getState().addCanvasAuthoredLayer('primary-media')
+    if (!first.ok || !previousPrimary.ok) throw new Error('Expected authored layers')
+    useReactStore.getState().addCanvasLayerEffect(previousPrimary.layer.id, 'bloom')
+
     useReactStore.getState().selectCanvasMediaItem('primary-media')
+    const freshPrimary = useReactStore.getState().getCanvasPrimaryLayer()
+    if (!freshPrimary) throw new Error('Expected fresh primary')
+    expect(freshPrimary.id).not.toBe(previousPrimary.layer.id)
+    expect(freshPrimary).toMatchObject({ mediaId: 'primary-media', effects: [] })
 
     const added = useReactStore.getState().addCanvasAuthoredLayer('candidate-media', { preserveActiveSource: true })
     if (!added.ok) throw new Error(added.message)
     const layers = useReactStore.getState().canvasOrchestrationSettings.authoredLayers
-    expect(layers.map(layer => layer.mediaId)).toEqual(['primary-media', 'first-media', 'candidate-media'])
-    expect(layers[0]?.id).toBe(primary.layer.id)
-    expect(layers.filter(layer => layer.mediaId === 'primary-media')).toHaveLength(1)
-    expect(layers.map(layer => layer.order)).toEqual([0, 1, 2])
+    expect(layers.map(layer => layer.mediaId)).toEqual(['primary-media', 'candidate-media'])
+    expect(layers[0]?.id).toBe(freshPrimary.id)
+    expect(layers.map(layer => layer.order)).toEqual([0, 1])
   })
 
   it('does not accumulate hidden authored layers during repeated normal media selection', () => {
     const authored = useReactStore.getState().addCanvasAuthoredLayer('intentional-layer')
     if (!authored.ok) throw new Error(authored.message)
-    const originalLayerId = authored.layer.id
 
     for (const mediaId of ['browse-a', 'browse-b', 'browse-c']) {
       useReactStore.getState().selectCanvasMediaItem(mediaId)
+      expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers).toEqual([])
     }
 
     const state = useReactStore.getState()
     expect(state.activeCanvasMediaId).toBe('browse-c')
     expect(state.canvasOrchestrationSettings.renderMode).toBe('single')
-    expect(state.canvasOrchestrationSettings.authoredLayers).toHaveLength(1)
-    expect(state.canvasOrchestrationSettings.authoredLayers[0]).toMatchObject({ id: originalLayerId, mediaId: 'intentional-layer' })
+    expect(state.canvasOrchestrationSettings.authoredLayers).toEqual([])
   })
 
-  it('supports 0-4 authored layer instances, duplicate media, deterministic reorder, update, duplicate, and atomic fifth-layer rejection', () => {
+  it('supports four active authored layer instances, duplicate media, deterministic reorder, update, duplicate, and atomic fifth-active-layer rejection', () => {
     expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers).toEqual([])
 
     const first = useReactStore.getState().addCanvasAuthoredLayer('shared-media')
@@ -227,6 +241,27 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     const remaining = useReactStore.getState().canvasOrchestrationSettings.authoredLayers
     const expectedNeighbor = remaining[selectedIndex]?.id ?? remaining[selectedIndex - 1]?.id ?? remaining[0]?.id ?? null
     expect(useReactStore.getState().selectedCanvasLayerId).toBe(expectedNeighbor)
+  })
+
+  it('allows disabled stored layers to remain without consuming active capacity and blocks re-enable beyond four active media', () => {
+    const layers = ['media-a', 'media-b', 'media-c', 'media-d'].map(mediaId => {
+      const result = useReactStore.getState().addCanvasAuthoredLayer(mediaId)
+      if (!result.ok) throw new Error(result.message)
+      return result.layer
+    })
+    expect(useReactStore.getState().updateCanvasAuthoredLayer(layers[1].id, { enabled: false }).ok).toBe(true)
+
+    const fifth = useReactStore.getState().addCanvasAuthoredLayer('media-e')
+    if (!fifth.ok) throw new Error(fifth.message)
+    const stored = useReactStore.getState().canvasOrchestrationSettings.authoredLayers
+    expect(stored).toHaveLength(5)
+    expect(resolveCanvasEffectiveAuthoredLayers(stored).map(layer => layer.mediaId)).toEqual([
+      'media-a', 'media-c', 'media-d', 'media-e',
+    ])
+
+    const rejectedEnable = useReactStore.getState().updateCanvasAuthoredLayer(layers[1].id, { enabled: true })
+    expect(rejectedEnable).toMatchObject({ ok: false, code: 'layer-limit-reached' })
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.find(layer => layer.id === layers[1].id)?.enabled).toBe(false)
   })
 
   it('deletes selected soloed top, middle, and bottom instances with deterministic neighbor cleanup and allows re-add', () => {

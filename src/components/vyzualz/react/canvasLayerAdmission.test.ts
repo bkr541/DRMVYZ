@@ -64,7 +64,7 @@ describe('CANVAS layer admission', () => {
     expect(isCanvasPngLayerCandidate(media({ mimeType: null, name: 'fallback.png' }))).toBe(true)
   })
 
-  it('counts a promotable primary toward the four-slot maximum', () => {
+  it('counts only the current single-media composition and ignores stale authored layers', () => {
     const candidate = media({ id: 'candidate' })
     const authoredLayers = ['a', 'b', 'c'].map((mediaId, order) => ({
       id: `layer-${mediaId}`,
@@ -81,7 +81,29 @@ describe('CANVAS layer admission', () => {
       authoredLayers,
       renderMode: 'single',
       activeCanvasMediaId: 'primary',
-    })).toMatchObject({ eligible: false, occupiedSlots: 4, requiredSlots: 2, hasCapacity: false })
+    })).toMatchObject({ eligible: true, occupiedSlots: 1, requiredSlots: 1, hasCapacity: true })
+  })
+
+  it('does not let disabled or solo-hidden authored layers consume active-media capacity', () => {
+    const candidate = media()
+    const authoredLayers = [
+      { id: 'layer-a', mediaId: 'a', order: 0, enabled: true, solo: false, ownership: 'manual' as const, pinned: true },
+      { id: 'layer-b', mediaId: 'b', order: 1, enabled: false, solo: false, ownership: 'manual' as const, pinned: true },
+      { id: 'layer-c', mediaId: 'c', order: 2, enabled: true, solo: false, ownership: 'manual' as const, pinned: true },
+      { id: 'layer-d', mediaId: 'd', order: 3, enabled: true, solo: false, ownership: 'manual' as const, pinned: true },
+    ]
+
+    expect(getCanvasLayerAdmissionDecision({
+      candidate, verifiedTransparentPng: true, authoredLayers, renderMode: 'layers', activeCanvasMediaId: null,
+    })).toMatchObject({ eligible: true, occupiedSlots: 3, requiredSlots: 1, hasCapacity: true })
+
+    expect(getCanvasLayerAdmissionDecision({
+      candidate,
+      verifiedTransparentPng: true,
+      authoredLayers: authoredLayers.map(layer => ({ ...layer, enabled: true, solo: layer.id === 'layer-c' })),
+      renderMode: 'layers',
+      activeCanvasMediaId: null,
+    })).toMatchObject({ eligible: true, occupiedSlots: 1, requiredSlots: 1, hasCapacity: true })
   })
 
   it('rejects a fifth authored slot and allows one slot after removal', () => {

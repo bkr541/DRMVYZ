@@ -8,12 +8,13 @@ import {
   resolveActiveCanvasMediaPool,
   reorderCanvasAuthoredLayers,
   isCanvasAuthoredLayerRenderEligible,
+  resolveCanvasEffectiveAuthoredLayers,
   setCanvasAuthoredLayerSoloState,
 } from './CanvasAuthoringState'
 import { MAX_CANVAS_AUTHORED_LAYERS, MAX_CANVAS_PERFORMANCE_LAYERS } from './CanvasPerformanceTypes'
 
 describe('CANVAS canonical authoring state', () => {
-  it('normalizes authored layer identity, duplicate media references, order, and the four-layer cap', () => {
+  it('normalizes stored authored layer identity, duplicate media references, and canonical order independently of the four-active-media cap', () => {
     const normalized = normalizeCanvasAuthoredLayers([
       { id: 'layer-c', mediaId: 'media-shared', effects: [], order: 3, enabled: true, solo: false, ownership: 'manual', pinned: true },
       { id: 'layer-a', mediaId: 'media-shared', effects: [], order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
@@ -24,9 +25,9 @@ describe('CANVAS canonical authoring state', () => {
 
     expect(MAX_CANVAS_AUTHORED_LAYERS).toBe(4)
     expect(MAX_CANVAS_PERFORMANCE_LAYERS).toBe(4)
-    expect(normalized).toHaveLength(4)
-    expect(normalized.map(layer => layer.id)).toEqual(['layer-a', 'layer-d', 'layer-b', 'layer-c'])
-    expect(normalized.map(layer => layer.order)).toEqual([0, 1, 2, 3])
+    expect(normalized).toHaveLength(5)
+    expect(normalized.map(layer => layer.id)).toEqual(['layer-a', 'layer-d', 'layer-b', 'layer-c', 'layer-e'])
+    expect(normalized.map(layer => layer.order)).toEqual([0, 1, 2, 3, 4])
     expect(normalized.filter(layer => layer.mediaId === 'media-shared')).toHaveLength(2)
   })
 
@@ -59,11 +60,13 @@ describe('CANVAS canonical authoring state', () => {
     expect(isCanvasAuthoredLayerRenderEligible(soloed ?? [], 'layer-a')).toBe(false)
     expect(isCanvasAuthoredLayerRenderEligible(soloed ?? [], 'layer-b')).toBe(false)
     expect(isCanvasAuthoredLayerRenderEligible(soloed ?? [], 'layer-c')).toBe(true)
+    expect(resolveCanvasEffectiveAuthoredLayers(soloed ?? []).map(layer => layer.id)).toEqual(['layer-c'])
 
     const unsoloed = setCanvasAuthoredLayerSoloState(soloed ?? [], 'layer-c', false)
     expect(unsoloed?.find(layer => layer.id === 'layer-b')?.enabled).toBe(false)
     expect(isCanvasAuthoredLayerRenderEligible(unsoloed ?? [], 'layer-a')).toBe(true)
     expect(isCanvasAuthoredLayerRenderEligible(unsoloed ?? [], 'layer-b')).toBe(false)
+    expect(resolveCanvasEffectiveAuthoredLayers(unsoloed ?? []).map(layer => layer.id)).toEqual(['layer-a', 'layer-c'])
   })
 
   it('blocks shared-library deletion for layer references while pool-only references clean transactionally', () => {

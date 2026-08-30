@@ -159,6 +159,8 @@ describe('CANVAS per-layer effect rendering runtime', () => {
 
     runtime.reconcile([])
     expect(runtime.size).toBe(0)
+    expect(runtime.has('layer-a')).toBe(false)
+    expect(runtime.getTemporalAllocationCount('layer-a')).toBe(0)
   })
 
   it('holds only the owning video layer while a sibling stutter runtime advances independently', () => {

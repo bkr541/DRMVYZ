@@ -156,6 +156,79 @@ describe('CANVAS Add Effects UI', () => {
     ])
   })
 
+  it('numbers only enabled rendered layers while preserving hidden layer effect ownership', () => {
+    useReactStore.setState({
+      canvasMediaItems: [
+        media('media-a', 'A.png'),
+        media('media-b', 'B.png'),
+        media('media-c', 'C.png'),
+      ],
+    })
+    const firstId = addLayer('media-a')
+    const hiddenId = addLayer('media-b')
+    const thirdId = addLayer('media-c')
+    act(() => {
+      useReactStore.getState().addCanvasLayerEffect(firstId, 'bloom')
+      useReactStore.getState().addCanvasLayerEffect(hiddenId, 'echo')
+      useReactStore.getState().addCanvasLayerEffect(thirdId, 'melt')
+      useReactStore.getState().updateCanvasAuthoredLayer(hiddenId, { enabled: false })
+      root.render(<CanvasEngineFxPanel />)
+    })
+
+    expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(2)
+    expect(host.textContent).toContain('Active Media 1 — A.png')
+    expect(host.textContent).toContain('Active Media 2 — C.png')
+    expect(host.textContent).not.toContain('B.png')
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.find(layer => layer.id === hiddenId)?.effects).toEqual(['echo'])
+
+    act(() => {
+      const enabled = useReactStore.getState().updateCanvasAuthoredLayer(hiddenId, { enabled: true })
+      if (!enabled.ok) throw new Error(enabled.message)
+    })
+    expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(3)
+    expect(host.textContent).toContain('Active Media 2 — B.png')
+    expect(host.textContent).toContain('Active Media 3 — C.png')
+    expect(host.querySelector('[aria-label="Effect 1 for Active Media 2 — B.png"]')).not.toBeNull()
+  })
+
+  it('matches compositor solo semantics by presenting only the soloed layer as Active Media 1', () => {
+    useReactStore.setState({
+      canvasMediaItems: [
+        media('solo-a', 'Solo A.png'),
+        media('solo-b', 'Solo B.png'),
+        media('solo-c', 'Solo C.png'),
+      ],
+    })
+    const firstId = addLayer('solo-a')
+    const secondId = addLayer('solo-b')
+    const thirdId = addLayer('solo-c')
+    act(() => {
+      useReactStore.getState().addCanvasLayerEffect(firstId, 'bloom')
+      useReactStore.getState().addCanvasLayerEffect(secondId, 'echo')
+      useReactStore.getState().addCanvasLayerEffect(thirdId, 'stutter')
+      const soloed = useReactStore.getState().setCanvasAuthoredLayerSolo(thirdId, true)
+      if (!soloed.ok) throw new Error(soloed.message)
+      root.render(<CanvasEngineFxPanel />)
+    })
+
+    expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(1)
+    expect(host.textContent).toContain('Active Media 1 — Solo C.png')
+    expect(host.textContent).not.toContain('Active Media 2 —')
+    expect(host.querySelector('[aria-label="Effect 1 for Active Media 1 — Solo C.png"]')).not.toBeNull()
+
+    act(() => {
+      const unsoloed = useReactStore.getState().setCanvasAuthoredLayerSolo(thirdId, false)
+      if (!unsoloed.ok) throw new Error(unsoloed.message)
+    })
+    expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(3)
+    expect(host.textContent).toContain('Active Media 1 — Solo A.png')
+    expect(host.textContent).toContain('Active Media 2 — Solo B.png')
+    expect(host.textContent).toContain('Active Media 3 — Solo C.png')
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.map(layer => layer.effects)).toEqual([
+      ['bloom'], ['echo'], ['stutter'],
+    ])
+  })
+
   it('filters choices within one layer while allowing the same effect on another layer', () => {
     useReactStore.setState({
       canvasMediaItems: [media('filter-a', 'Filter A.png'), media('filter-b', 'Filter B.png')],

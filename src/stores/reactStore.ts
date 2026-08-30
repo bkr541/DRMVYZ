@@ -195,6 +195,7 @@ import {
   CANVAS_POOL_AUTOMATION_TRIGGER_OPTIONS,
   CANVAS_PERFORMANCE_SHOW_IDS,
   MAX_CANVAS_AUTHORED_LAYERS,
+  MAX_CANVAS_STORED_AUTHORED_LAYERS,
   type CanvasAuthoredLayer,
   type CanvasLayerEffectId,
   type CanvasLayerEffectMutationResult,
@@ -215,7 +216,6 @@ import {
   getAvailableCanvasLayerEffects,
   CANVAS_LEGACY_COMPATIBILITY_POOL_NAME,
   MAX_CANVAS_MEDIA_POOLS,
-  getCanvasLayerSlotState,
   normalizeCanvasAuthoringState,
   normalizeCanvasAuthoredLayers,
   normalizeCanvasMediaIds,
@@ -225,6 +225,7 @@ import {
   removeCanvasLayerEffectState,
   isCanvasMediaPoolNameAvailable,
   reorderCanvasAuthoredLayers,
+  resolveCanvasEffectiveAuthoredLayers,
   resolveCanvasPrimaryLayer,
   retargetCanvasPrimaryLayerState,
   setCanvasLayerEffectState,
@@ -7130,17 +7131,11 @@ export const useReactStore = create<ReactStoreState>()(
             : ''
           const preserveActiveSource = options?.preserveActiveSource === true
             && state.canvasOrchestrationSettings.renderMode === 'single'
-          const slotState = getCanvasLayerSlotState({
-            authoredLayers: current,
-            renderMode: preserveActiveSource ? 'single' : state.canvasOrchestrationSettings.renderMode,
-            activeCanvasMediaId: preserveActiveSource ? activeMediaId : null,
-            candidateMediaId: id,
-          })
-          if (!slotState.hasCapacity) {
+          if (!preserveActiveSource && current.length >= MAX_CANVAS_STORED_AUTHORED_LAYERS) {
             result = {
               ok: false,
               code: 'layer-limit-reached',
-              message: `CANVAS supports up to ${MAX_CANVAS_AUTHORED_LAYERS} authored layers. Remove a layer before adding another.`,
+              message: 'CANVAS authored layer storage is full. Remove a layer before adding another.',
             }
             return {}
           }
@@ -7156,9 +7151,9 @@ export const useReactStore = create<ReactStoreState>()(
             pinned: typeof options?.pinned === 'boolean' ? options.pinned : ownership === 'manual',
           }
 
-          let orderedBase = current
+          let orderedBase = preserveActiveSource ? [] : current
           let promotedPrimaryId: string | null = null
-          if (preserveActiveSource && activeMediaId && activeMediaId !== id) {
+          if (preserveActiveSource && activeMediaId) {
             const primaryOwner = resolveCanvasPrimaryLayer(
               state.canvasOrchestrationSettings.primaryLayer,
               current,
@@ -7166,32 +7161,37 @@ export const useReactStore = create<ReactStoreState>()(
             if (primaryOwner?.mediaId === activeMediaId) {
               const authoredPrimaryIndex = current.findIndex(existing => existing.id === primaryOwner.id)
               orderedBase = authoredPrimaryIndex >= 0
-                ? [
-                    current[authoredPrimaryIndex],
-                    ...current.filter((_, index) => index !== authoredPrimaryIndex),
-                  ]
-                : [{ ...primaryOwner, order: 0 }, ...current]
+                ? [current[authoredPrimaryIndex]]
+                : [{ ...primaryOwner, order: 0 }]
               promotedPrimaryId = primaryOwner.id
             } else {
               const activeLayerIndex = current.findIndex(existing => existing.mediaId === activeMediaId)
               if (activeLayerIndex >= 0) {
                 const activeLayer = current[activeLayerIndex]
-                orderedBase = [
-                  activeLayer,
-                  ...current.filter((_, index) => index !== activeLayerIndex),
-                ]
+                orderedBase = [activeLayer]
                 promotedPrimaryId = activeLayer.id
               } else {
                 const fallbackPrimary = createDetachedCanvasPrimaryLayer(activeMediaId)
-                orderedBase = [fallbackPrimary, ...current]
+                orderedBase = [fallbackPrimary]
                 promotedPrimaryId = fallbackPrimary.id
               }
             }
           }
 
-          const nextLayers = [...orderedBase, layer]
+          let nextLayers = [...orderedBase, layer]
             .map((candidate, order) => ({ ...candidate, order }))
-          result = { ok: true, layer }
+          if (layer.solo) {
+            nextLayers = setCanvasAuthoredLayerSoloState(nextLayers, layer.id, true) ?? nextLayers
+          }
+          if (resolveCanvasEffectiveAuthoredLayers(nextLayers).length > MAX_CANVAS_AUTHORED_LAYERS) {
+            result = {
+              ok: false,
+              code: 'layer-limit-reached',
+              message: `CANVAS supports up to ${MAX_CANVAS_AUTHORED_LAYERS} active media items. Disable or solo a layer before adding another.`,
+            }
+            return {}
+          }
+          result = { ok: true, layer: nextLayers.find(candidate => candidate.id === layer.id) ?? layer }
           return {
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
               ...state.canvasOrchestrationSettings,
@@ -7389,7 +7389,15 @@ export const useReactStore = create<ReactStoreState>()(
           if (patch.solo === true) {
             authoredLayers = setCanvasAuthoredLayerSoloState(authoredLayers, layerId, true) ?? authoredLayers
           }
-          result = { ok: true, layer: updated }
+          if (resolveCanvasEffectiveAuthoredLayers(authoredLayers).length > MAX_CANVAS_AUTHORED_LAYERS) {
+            result = {
+              ok: false,
+              code: 'layer-limit-reached',
+              message: `CANVAS supports up to ${MAX_CANVAS_AUTHORED_LAYERS} active media items. Disable or solo another layer first.`,
+            }
+            return {}
+          }
+          result = { ok: true, layer: authoredLayers.find(layer => layer.id === layerId) ?? updated }
           return {
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
               ...state.canvasOrchestrationSettings,
@@ -7444,11 +7452,11 @@ export const useReactStore = create<ReactStoreState>()(
           const current = normalizeCanvasAuthoredLayers(state.canvasOrchestrationSettings.authoredLayers)
           const sourceIndex = current.findIndex(layer => layer.id === layerId)
           if (sourceIndex < 0) return {}
-          if (current.length >= MAX_CANVAS_AUTHORED_LAYERS) {
+          if (current.length >= MAX_CANVAS_STORED_AUTHORED_LAYERS) {
             result = {
               ok: false,
               code: 'layer-limit-reached',
-              message: `CANVAS supports up to ${MAX_CANVAS_AUTHORED_LAYERS} authored layers. Remove a layer before duplicating another.`,
+              message: 'CANVAS authored layer storage is full. Remove a layer before duplicating another.',
             }
             return {}
           }
@@ -7465,7 +7473,15 @@ export const useReactStore = create<ReactStoreState>()(
           const canonicalLayers = current[sourceIndex].solo
             ? setCanvasAuthoredLayerSoloState(authoredLayers, duplicate.id, true) ?? authoredLayers
             : authoredLayers
-          result = { ok: true, layer: duplicate }
+          if (resolveCanvasEffectiveAuthoredLayers(canonicalLayers).length > MAX_CANVAS_AUTHORED_LAYERS) {
+            result = {
+              ok: false,
+              code: 'layer-limit-reached',
+              message: `CANVAS supports up to ${MAX_CANVAS_AUTHORED_LAYERS} active media items. Disable or solo a layer before duplicating another.`,
+            }
+            return {}
+          }
+          result = { ok: true, layer: canonicalLayers.find(layer => layer.id === duplicate.id) ?? duplicate }
           return {
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
               ...state.canvasOrchestrationSettings,
@@ -7551,6 +7567,14 @@ export const useReactStore = create<ReactStoreState>()(
           if (!authoredLayers) return {}
           const layer = authoredLayers.find(candidate => candidate.id === layerId)
           if (!layer) return {}
+          if (resolveCanvasEffectiveAuthoredLayers(authoredLayers).length > MAX_CANVAS_AUTHORED_LAYERS) {
+            result = {
+              ok: false,
+              code: 'layer-limit-reached',
+              message: `CANVAS supports up to ${MAX_CANVAS_AUTHORED_LAYERS} active media items. Disable another layer before leaving Solo.`,
+            }
+            return {}
+          }
           result = { ok: true, layer }
           return {
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
@@ -8084,10 +8108,12 @@ export const useReactStore = create<ReactStoreState>()(
         const manualMediaOverrideValid = typeof manualMediaOverrideId === 'string' && manualMediaOverrideId.trim().length > 0
         if (options?.manual === false && manualMediaOverrideValid) return repairCanvasRuntimeState(state)
 
+        const manualSelection = options?.manual !== false
         let canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
           ...state.canvasOrchestrationSettings,
-          authoredLayers: state.canvasOrchestrationSettings.authoredLayers,
-          ...(options?.manual === false ? {} : { renderMode: 'single' as const }),
+          ...(manualSelection
+            ? { renderMode: 'single' as const, authoredLayers: [], primaryLayer: null }
+            : {}),
         })
         if (canvasOrchestrationSettings.renderMode === 'single') {
           canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
@@ -8111,7 +8137,7 @@ export const useReactStore = create<ReactStoreState>()(
         return {
           ...repaired,
           canvasOrchestrationSettings,
-          ...(options?.manual === false ? {} : { selectedCanvasLayerId: null }),
+          ...(manualSelection ? { selectedCanvasLayerId: null } : {}),
         }
       }),
 
