@@ -16,8 +16,11 @@ const ALPHA_SCAN_YIELD_INTERVAL = 16
 const transparencyResults = new Map<string, boolean>()
 const transparencyChecks = new Map<string, Promise<boolean | null>>()
 
+export type CanvasAuthoredLayerCandidateKind = 'svg' | 'png'
+
 export interface CanvasLayerAdmissionDecision {
   eligible: boolean
+  candidateKind: CanvasAuthoredLayerCandidateKind | null
   verifiedTransparentPng: boolean | null
   occupiedSlots: number
   requiredSlots: number
@@ -34,6 +37,12 @@ function hasPngExtension(value: string): boolean {
   return /\.png(?:$|[?#])/i.test(value.trim())
 }
 
+export function isCanvasSvgLayerCandidate(
+  item: CanvasLayerAdmissionMedia | null | undefined,
+): item is CanvasLayerAdmissionMedia {
+  return Boolean(item && item.type === 'svg')
+}
+
 export function isCanvasPngLayerCandidate(
   item: CanvasLayerAdmissionMedia | null | undefined,
 ): item is CanvasLayerAdmissionMedia {
@@ -46,6 +55,14 @@ export function isCanvasPngLayerCandidate(
 export function hasCanvasPngSignature(bytes: Uint8Array): boolean {
   return bytes.length >= PNG_SIGNATURE.length
     && PNG_SIGNATURE.every((value, index) => bytes[index] === value)
+}
+
+export function getCanvasAuthoredLayerCandidateKind(
+  item: CanvasLayerAdmissionMedia | null | undefined,
+): CanvasAuthoredLayerCandidateKind | null {
+  if (isCanvasSvgLayerCandidate(item)) return 'svg'
+  if (isCanvasPngLayerCandidate(item)) return 'png'
+  return null
 }
 
 export function getCanvasLayerAdmissionDecision({
@@ -63,10 +80,12 @@ export function getCanvasLayerAdmissionDecision({
     renderMode,
     activeCanvasMediaId,
   })
+  const candidateKind = getCanvasAuthoredLayerCandidateKind(candidate)
   return {
-    eligible: isCanvasPngLayerCandidate(candidate)
-      && verifiedTransparentPng === true
+    eligible: candidateKind !== null
+      && (candidateKind === 'svg' || verifiedTransparentPng === true)
       && slotState.hasCapacity,
+    candidateKind,
     verifiedTransparentPng,
     occupiedSlots: slotState.occupiedSlots,
     requiredSlots: slotState.requiredSlots,

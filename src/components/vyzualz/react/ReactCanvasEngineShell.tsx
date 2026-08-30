@@ -29,6 +29,7 @@ import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabili
 import { getCanvasLibraryDisabledReason, getCanvasLibraryMediaType } from './canvasMediaLibraryContract'
 import {
   ensureCanvasTransparentPngVerification,
+  getCanvasAuthoredLayerCandidateKind,
   getCanvasLayerAdmissionDecision,
   getCanvasTransparentPngVerification,
   isCanvasPngLayerCandidate,
@@ -448,7 +449,9 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
     const candidate = libraryItem
       ? makeCanvasMediaItemFromLibrary(libraryItem, useReactStore.getState().canvasMediaTimingById[mediaId])
       : useReactStore.getState().canvasMediaItems.find(item => item.id === mediaId) ?? null
-    if (!candidate || await ensureCanvasTransparentPngVerification(candidate) !== true) return
+    const candidateKind = getCanvasAuthoredLayerCandidateKind(candidate)
+    if (!candidate || !candidateKind) return
+    if (candidateKind === 'png' && await ensureCanvasTransparentPngVerification(candidate) !== true) return
     const latestState = useReactStore.getState()
     const admission = getCanvasLayerAdmissionDecision({
       candidate,

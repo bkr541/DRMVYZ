@@ -31,7 +31,7 @@ function media(id: string, type: CanvasMediaItem['type'] = 'image'): CanvasMedia
     type,
     objectUrl: `runtime://${id}`,
     thumbnailUrl: null,
-    mimeType: type === 'video' ? 'video/mp4' : 'image/png',
+    mimeType: type === 'video' ? 'video/mp4' : type === 'svg' ? 'image/svg+xml' : 'image/png',
     meta: type,
     source: 'library',
     createdAt: new Date(0).toISOString(),
@@ -121,6 +121,28 @@ describe('CANVAS authored multi-layer runtime adapter', () => {
     expect(frame.layers.every(candidate => candidate.scaleX === candidate.scaleY)).toBe(true)
     expect(frame.layers.every(candidate => Math.abs(candidate.scaleX - 0.46) < 1e-10)).toBe(true)
     expect(frame.layers.every(candidate => candidate.aspectBehavior === 'contain')).toBe(true)
+  })
+
+  it('routes four authored SVG sources through the same canonical four-layer compositor frame', () => {
+    const mediaItems = ['svg-one', 'svg-two', 'svg-three', 'svg-four'].map(id => media(id, 'svg'))
+    const authoredLayers = mediaItems.map((item, index) => layer(`svg-layer-${index + 1}`, item.id, index))
+    const frame = resolveCanvasAuthoredLayerFrame({
+      context: context(),
+      settings: { programId: DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId, authoredLayers },
+      mediaItems,
+      fitMode: 'contain',
+      isMediaReady: () => true,
+    })
+
+    expect(frame.layers).toHaveLength(4)
+    expect(frame.layers.map(candidate => candidate.source?.type)).toEqual(['svg', 'svg', 'svg', 'svg'])
+    expect(frame.readyMediaIds).toEqual(mediaItems.map(item => item.id))
+    expect(frame.layers.map(({ x, y }) => ({ x, y }))).toEqual([
+      { x: -0.5, y: -0.5 },
+      { x: 0.5, y: -0.5 },
+      { x: -0.5, y: 0.5 },
+      { x: 0.5, y: 0.5 },
+    ])
   })
 
   it('compacts visible ordinals after middle removal while preserving the remaining stable layer IDs', () => {

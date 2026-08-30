@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { CanvasMediaItem } from './ReactTypes'
 import {
   clearCanvasLayerAdmissionCacheForTests,
+  getCanvasAuthoredLayerCandidateKind,
   getCanvasLayerAdmissionDecision,
   getCanvasTransparentPngVerification,
   hasCanvasPngSignature,
   isCanvasPngLayerCandidate,
+  isCanvasSvgLayerCandidate,
   setCanvasTransparentPngVerificationForTests,
 } from './canvasLayerAdmission'
 
@@ -30,7 +32,7 @@ const emptySlots = {
 beforeEach(() => clearCanvasLayerAdmissionCacheForTests())
 
 describe('CANVAS layer admission', () => {
-  it('admits only a verified transparent PNG while capacity is available', () => {
+  it('keeps verified transparent PNG admission intact while capacity is available', () => {
     const candidate = media()
     setCanvasTransparentPngVerificationForTests(candidate, true)
     expect(getCanvasTransparentPngVerification(candidate)).toBe(true)
@@ -38,7 +40,25 @@ describe('CANVAS layer admission', () => {
       candidate,
       verifiedTransparentPng: getCanvasTransparentPngVerification(candidate),
       ...emptySlots,
-    }).eligible).toBe(true)
+    })).toMatchObject({ eligible: true, candidateKind: 'png' })
+  })
+
+  it('admits canonical SVG media without PNG transparency verification', () => {
+    const candidate = media({
+      name: 'candidate.svg',
+      type: 'svg',
+      objectUrl: 'blob:candidate.svg',
+      mimeType: 'image/svg+xml',
+    })
+
+    expect(isCanvasSvgLayerCandidate(candidate)).toBe(true)
+    expect(getCanvasAuthoredLayerCandidateKind(candidate)).toBe('svg')
+    expect(getCanvasTransparentPngVerification(candidate)).toBe(false)
+    expect(getCanvasLayerAdmissionDecision({
+      candidate,
+      verifiedTransparentPng: getCanvasTransparentPngVerification(candidate),
+      ...emptySlots,
+    })).toMatchObject({ eligible: true, candidateKind: 'svg', hasCapacity: true })
   })
 
   it('fails closed for unknown or verified-opaque PNG transparency', () => {
@@ -58,10 +78,17 @@ describe('CANVAS layer admission', () => {
     }).eligible).toBe(false)
   })
 
-  it('rejects non-PNG media and conflicting non-PNG MIME metadata', () => {
-    expect(isCanvasPngLayerCandidate(media({ type: 'video', mimeType: 'video/mp4', name: 'clip.png' }))).toBe(false)
-    expect(isCanvasPngLayerCandidate(media({ mimeType: 'image/webp', name: 'looks-like.png' }))).toBe(false)
+  it('rejects unsupported authored-layer media while preserving PNG metadata checks', () => {
+    const video = media({ type: 'video', mimeType: 'video/mp4', name: 'clip.png' })
+    const webp = media({ mimeType: 'image/webp', name: 'looks-like.png' })
+    const jpeg = media({ mimeType: 'image/jpeg', name: 'still.jpg', objectUrl: 'blob:still.jpg' })
+
+    expect(isCanvasPngLayerCandidate(video)).toBe(false)
+    expect(isCanvasPngLayerCandidate(webp)).toBe(false)
     expect(isCanvasPngLayerCandidate(media({ mimeType: null, name: 'fallback.png' }))).toBe(true)
+    expect(getCanvasAuthoredLayerCandidateKind(video)).toBeNull()
+    expect(getCanvasAuthoredLayerCandidateKind(webp)).toBeNull()
+    expect(getCanvasAuthoredLayerCandidateKind(jpeg)).toBeNull()
   })
 
   it('counts only the current single-media composition and ignores stale authored layers', () => {
@@ -123,6 +150,31 @@ describe('CANVAS layer admission', () => {
     expect(getCanvasLayerAdmissionDecision({
       candidate, verifiedTransparentPng: true, authoredLayers: four.slice(0, 3), renderMode: 'layers', activeCanvasMediaId: null,
     }).eligible).toBe(true)
+  })
+
+  it('applies the same four-active-media capacity to SVG candidates', () => {
+    const candidate = media({
+      name: 'fifth.svg',
+      type: 'svg',
+      objectUrl: 'blob:fifth.svg',
+      mimeType: 'image/svg+xml',
+    })
+    const four = ['a', 'b', 'c', 'd'].map((mediaId, order) => ({
+      id: `layer-${mediaId}`,
+      mediaId,
+      order,
+      enabled: true,
+      solo: false,
+      ownership: 'manual' as const,
+      pinned: true,
+    }))
+
+    expect(getCanvasLayerAdmissionDecision({
+      candidate, verifiedTransparentPng: false, authoredLayers: four, renderMode: 'layers', activeCanvasMediaId: null,
+    })).toMatchObject({ eligible: false, candidateKind: 'svg', occupiedSlots: 4, hasCapacity: false })
+    expect(getCanvasLayerAdmissionDecision({
+      candidate, verifiedTransparentPng: false, authoredLayers: four.slice(0, 3), renderMode: 'layers', activeCanvasMediaId: null,
+    })).toMatchObject({ eligible: true, candidateKind: 'svg', occupiedSlots: 3, hasCapacity: true })
   })
 
   it('checks the actual PNG file signature instead of trusting an extension alone', () => {

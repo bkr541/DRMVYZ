@@ -54,6 +54,25 @@ const mediaTwo: UploadedMedia = {
   thumbnailUrl: 'https://example.test/canvas-two-thumb.png',
 }
 
+function makeSvgMedia(index: number): UploadedMedia {
+  return {
+    ...mediaOne,
+    id: `canvas-svg-${index}`,
+    dbId: `db-canvas-svg-${index}`,
+    storagePath: `user/canvas-svg-${index}/logo.svg`,
+    mimeType: 'image/svg+xml',
+    name: `canvas-svg-${index}.svg`,
+    title: `Canvas SVG ${index}`,
+    description: `CANVAS SVG test visual ${index}`,
+    url: `https://example.test/canvas-svg-${index}.svg`,
+    thumbnailUrl: `https://example.test/canvas-svg-${index}-thumb.png`,
+    meta: 'SVG · 1920×1080',
+    mediaRole: 'svg',
+  }
+}
+
+const svgMedia = [1, 2, 3, 4].map(makeSvgMedia)
+
 function admissionMedia(media: UploadedMedia) {
   return {
     id: media.id,
@@ -78,7 +97,8 @@ function menuButton(label: string): HTMLButtonElement | null {
 }
 
 function mediaCard(id: string): HTMLElement {
-  const image = host.querySelector<HTMLImageElement>(`img[alt="${id === mediaOne.id ? mediaOne.name : mediaTwo.name}"]`)
+  const media = useMediaStore.getState().items.find(item => item.id === id)
+  const image = media ? host.querySelector<HTMLImageElement>(`img[alt="${media.name}"]`) : null
   const card = image?.closest<HTMLElement>('.vz-media-card')
   if (!card) throw new Error(`Expected media card ${id}`)
   return card
@@ -86,6 +106,17 @@ function mediaCard(id: string): HTMLElement {
 
 function openMediaActions(id = mediaOne.id) {
   act(() => mediaCard(id).click())
+}
+
+function openMediaActionsByRightClick(id: string): MouseEvent {
+  const event = new MouseEvent('contextmenu', {
+    bubbles: true,
+    cancelable: true,
+    clientX: 220,
+    clientY: 140,
+  })
+  act(() => mediaCard(id).dispatchEvent(event))
+  return event
 }
 
 function chooseAction(label: string) {
@@ -107,8 +138,8 @@ beforeEach(() => {
   setCanvasTransparentPngVerificationForTests(admissionMedia(mediaTwo), true)
   mediaStoreBaseline = useMediaStore.getState()
   useMediaStore.setState({
-    items: [mediaOne, mediaTwo],
-    queryItemIds: [mediaOne.id, mediaTwo.id],
+    items: [mediaOne, mediaTwo, ...svgMedia],
+    queryItemIds: [mediaOne.id, mediaTwo.id, ...svgMedia.map(media => media.id)],
     collections: [],
     loading: false,
     nextPageLoading: false,
@@ -172,6 +203,55 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     useMediaStore.setState({ ensureMediaSigned: vi.fn(() => new Promise<void>(() => undefined)) })
     openMediaActions()
     expect(menuButtons().map(button => button.textContent?.trim())).toEqual(['Make Active', 'Add to Pool'])
+  })
+
+  it('right-clicks a canonical SVG through the production Media Library menu and adds it without PNG verification', async () => {
+    const event = openMediaActionsByRightClick(svgMedia[0].id)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(menuButtons().map(button => button.textContent?.trim())).toEqual([
+      'Make Active',
+      'Add as Layer',
+      'Add to Pool',
+    ])
+
+    chooseAction('Add as Layer')
+    await flushAsyncActions()
+
+    const state = useReactStore.getState()
+    expect(state.canvasOrchestrationSettings.renderMode).toBe('layers')
+    expect(state.canvasOrchestrationSettings.authoredLayers.map(layer => layer.mediaId)).toEqual([svgMedia[0].id])
+  })
+
+  it('admits four SVGs through Add as Layer and hides the action at the fifth active slot', async () => {
+    for (const svg of svgMedia) {
+      openMediaActionsByRightClick(svg.id)
+      expect(menuButton('Add as Layer')).not.toBeNull()
+      chooseAction('Add as Layer')
+      await flushAsyncActions()
+    }
+
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.map(layer => layer.mediaId)).toEqual(
+      svgMedia.map(media => media.id),
+    )
+
+    openMediaActions(mediaOne.id)
+    expect(menuButton('Add as Layer')).toBeNull()
+  })
+
+  it('keeps verified transparent PNG and SVG media compatible in one authored composition', async () => {
+    openMediaActions(mediaOne.id)
+    chooseAction('Add as Layer')
+    await flushAsyncActions()
+
+    openMediaActionsByRightClick(svgMedia[0].id)
+    chooseAction('Add as Layer')
+    await flushAsyncActions()
+
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.map(layer => layer.mediaId)).toEqual([
+      mediaOne.id,
+      svgMedia[0].id,
+    ])
   })
 
   it('Make Active switches the single source without consuming an authored-layer slot', () => {

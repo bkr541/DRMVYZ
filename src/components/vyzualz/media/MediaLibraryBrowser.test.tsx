@@ -205,6 +205,33 @@ describe('MediaLibraryBrowser capability boundaries', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
+  it('routes a selectable card right-click to the same action request at pointer coordinates', async () => {
+    const onSelect = vi.fn()
+    const onCardActionRequest = vi.fn()
+    await renderBrowser({
+      activeMediaId: null,
+      onSelect,
+      onCardActionRequest,
+      context: 'canvas',
+      capabilities: CANVAS_MEDIA_LIBRARY_CAPABILITIES,
+    })
+
+    const card = container?.querySelector<HTMLElement>('.vz-media-card')
+    expect(card).not.toBeNull()
+    const event = new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 143,
+      clientY: 87,
+    })
+
+    act(() => card?.dispatchEvent(event))
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(onCardActionRequest).toHaveBeenCalledWith('media-1', { x: 143, y: 87 })
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
   it('keeps Media Deck performance-only and ignores upload drops', async () => {
     const onSelect = vi.fn()
     await renderBrowser({
