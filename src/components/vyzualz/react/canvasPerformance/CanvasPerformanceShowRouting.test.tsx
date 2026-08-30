@@ -558,8 +558,8 @@ describe('CanvasEngineSurface Performance Show routing', () => {
         ...DEFAULT_CANVAS_ORCHESTRATION_SETTINGS,
         renderMode: 'layers',
         authoredLayers: [
-          { id: 'laser-layer-top', mediaId: second.id, order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
-          { id: 'laser-layer-bottom', mediaId: media.id, order: 1, enabled: true, solo: false, ownership: 'manual', pinned: true },
+          { id: 'laser-layer-top', mediaId: second.id, effects: [], order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
+          { id: 'laser-layer-bottom', mediaId: media.id, effects: [], order: 1, enabled: true, solo: false, ownership: 'manual', pinned: true },
         ],
       },
     })
@@ -603,8 +603,8 @@ describe('CanvasEngineSurface Performance Show routing', () => {
         ...DEFAULT_CANVAS_ORCHESTRATION_SETTINGS,
         renderMode: 'layers',
         authoredLayers: [
-          { id: 'layer-top', mediaId: top.id, order: 0, enabled: true, solo: true, ownership: 'manual', pinned: true },
-          { id: 'layer-bottom', mediaId: bottom.id, order: 1, enabled: true, solo: false, ownership: 'manual', pinned: true },
+          { id: 'layer-top', mediaId: top.id, effects: [], order: 0, enabled: true, solo: true, ownership: 'manual', pinned: true },
+          { id: 'layer-bottom', mediaId: bottom.id, effects: [], order: 1, enabled: true, solo: false, ownership: 'manual', pinned: true },
         ],
       },
     })
@@ -681,9 +681,9 @@ describe('CanvasEngineSurface Performance Show routing', () => {
         renderMode: 'layers',
         poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
         authoredLayers: [
-          { id: 'layer-raster-c', mediaId: raster.id, order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
-          { id: 'layer-svg-b', mediaId: svgB.id, order: 1, enabled: true, solo: false, ownership: 'manual', pinned: true },
-          { id: 'layer-svg-a', mediaId: svgA.id, order: 2, enabled: true, solo: false, ownership: 'manual', pinned: true },
+          { id: 'layer-raster-c', mediaId: raster.id, effects: [], order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
+          { id: 'layer-svg-b', mediaId: svgB.id, effects: [], order: 1, enabled: true, solo: false, ownership: 'manual', pinned: true },
+          { id: 'layer-svg-a', mediaId: svgA.id, effects: [], order: 2, enabled: true, solo: false, ownership: 'manual', pinned: true },
         ],
       },
     }))

@@ -114,6 +114,7 @@ export function resolveCanvasAuthoredLayerFrame({
       // stable layer IDs remain independent while source playback stays coherent.
       playback: resolveCanvasPlayback(source, context, 'hero', `canvas-authored-source:${source?.id ?? authored.mediaId}`),
       effectChain: [],
+      userEffects: authored.effects,
       modulationRoutes: [],
       userLocked: authored.pinned || authored.ownership === 'manual',
     }
@@ -134,7 +135,7 @@ export function resolveCanvasAuthoredLayerFrame({
   if (authoredLayers.length === 0) diagnostics.push('no-authored-layers')
 
   const frameIdentity = `canvas-authored|${authoredLayers
-    .map(layer => `${layer.id}:${layer.mediaId}:${layer.order}:${layer.enabled ? 1 : 0}:${layer.solo ? 1 : 0}:${layer.ownership}`)
+    .map(layer => `${layer.id}:${layer.mediaId}:${layer.order}:${layer.enabled ? 1 : 0}:${layer.solo ? 1 : 0}:${layer.ownership}:${layer.effects.join(',')}`)
     .join('|')}`
   const transition = automationTransitionId
     ? resolveCanvasExplicitTransition({

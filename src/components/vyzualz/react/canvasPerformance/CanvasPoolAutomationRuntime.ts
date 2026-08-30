@@ -129,6 +129,7 @@ function automaticLayers(mediaIds: readonly string[]): CanvasAuthoredLayer[] {
   return mediaIds.map((mediaId, index) => ({
     id: `canvas-pool-auto-slot-${index + 1}`,
     mediaId,
+    effects: [],
     order: index,
     enabled: true,
     solo: false,

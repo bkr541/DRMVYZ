@@ -46,6 +46,7 @@ function layer(id: string, mediaId: string, order: number, patch: Partial<Canvas
   return {
     id,
     mediaId,
+    effects: [],
     order,
     enabled: true,
     solo: false,
@@ -80,6 +81,23 @@ describe('CANVAS authored multi-layer runtime adapter', () => {
     expect(frame.layers[1].zIndex).toBeGreaterThan(frame.layers[2].zIndex)
     expect(frame.layers.every(candidate => candidate.aspectBehavior === 'contain')).toBe(true)
     expect(frame.layers.every(candidate => candidate.userLocked)).toBe(true)
+  })
+
+  it('hands ordered user effects through without fabricating primitive renderer nodes', () => {
+    const source = media('effect-source')
+    const frame = resolveCanvasAuthoredLayerFrame({
+      context: context(),
+      settings: {
+        programId: DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId,
+        authoredLayers: [layer('effect-layer', source.id, 0, { effects: ['bloom', 'stutter'] })],
+      },
+      mediaItems: [source],
+      fitMode: 'cover',
+      isMediaReady: () => true,
+    })
+
+    expect(frame.layers[0]?.userEffects).toEqual(['bloom', 'stutter'])
+    expect(frame.layers[0]?.effectChain).toEqual([])
   })
 
   it('resolves four visible authored layers into canonical quadrants without changing stable identities', () => {

@@ -195,6 +195,8 @@ import {
   CANVAS_PERFORMANCE_SHOW_IDS,
   MAX_CANVAS_AUTHORED_LAYERS,
   type CanvasAuthoredLayer,
+  type CanvasLayerEffectId,
+  type CanvasLayerEffectMutationResult,
   type CanvasLayerMutationResult,
   type CanvasLayerRole,
   type CanvasMediaPoolMutationResult,
@@ -207,6 +209,9 @@ import {
 import { normalizeCanvasMediaRoleMap } from '../components/vyzualz/react/canvasPerformance/CanvasMediaRoles'
 import {
   CANVAS_LEGACY_COMPATIBILITY_POOL_ID,
+  addCanvasLayerEffectState,
+  clearCanvasLayerEffectsState,
+  getAvailableCanvasLayerEffects,
   CANVAS_LEGACY_COMPATIBILITY_POOL_NAME,
   MAX_CANVAS_MEDIA_POOLS,
   getCanvasLayerSlotState,
@@ -215,8 +220,13 @@ import {
   normalizeCanvasMediaIds,
   normalizeCanvasMediaPools,
   normalizeCanvasMediaPoolName,
+  removeCanvasLayerEffectAtState,
+  removeCanvasLayerEffectState,
   isCanvasMediaPoolNameAvailable,
   reorderCanvasAuthoredLayers,
+  resolveCanvasPrimaryLayer,
+  retargetCanvasPrimaryLayerState,
+  setCanvasLayerEffectState,
   setCanvasAuthoredLayerSoloState,
   upsertCanvasCompatibilityPool,
 } from '../components/vyzualz/react/canvasPerformance/CanvasAuthoringState'
@@ -2614,6 +2624,13 @@ interface ReactStoreState {
   canvasShowManagerHistoryTransaction: CanvasShowManagerHistorySnapshot | null
   setCanvasOrchestrationSettings: (patch: Partial<CanvasOrchestrationSettings>) => void
   addCanvasAuthoredLayer: (mediaId: string, options?: Partial<Pick<CanvasAuthoredLayer, 'enabled' | 'solo' | 'ownership' | 'pinned'>> & { preserveActiveSource?: boolean }) => CanvasLayerMutationResult
+  getCanvasPrimaryLayer: () => CanvasAuthoredLayer | null
+  getAvailableCanvasLayerEffects: (layerId: string) => CanvasLayerEffectId[]
+  addCanvasLayerEffect: (layerId: string, effectId: string) => CanvasLayerEffectMutationResult
+  setCanvasLayerEffect: (layerId: string, index: number, effectId: string) => CanvasLayerEffectMutationResult
+  removeCanvasLayerEffect: (layerId: string, effectId: string) => CanvasLayerEffectMutationResult
+  removeCanvasLayerEffectAt: (layerId: string, index: number) => CanvasLayerEffectMutationResult
+  clearCanvasLayerEffects: (layerId: string) => CanvasLayerEffectMutationResult
   updateCanvasAuthoredLayer: (layerId: string, patch: Partial<Pick<CanvasAuthoredLayer, 'mediaId' | 'enabled' | 'solo' | 'ownership' | 'pinned'>>) => CanvasLayerMutationResult
   reorderCanvasAuthoredLayer: (layerId: string, targetIndex: number) => CanvasLayerMutationResult
   duplicateCanvasAuthoredLayer: (layerId: string) => CanvasLayerMutationResult
@@ -4411,6 +4428,7 @@ export function normalizeCanvasOrchestrationSettings(value: unknown): CanvasOrch
         ? 'performance'
         : 'single',
     authoredLayers: authoring.authoredLayers,
+    primaryLayer: authoring.primaryLayer,
     mediaPools: authoring.mediaPools,
     activeMediaPoolId: authoring.activeMediaPoolId,
     mediaPoolIds: authoring.mediaPoolIds,
@@ -4453,6 +4471,31 @@ function createCanvasAuthoringIdentity(prefix: 'layer' | 'pool'): string {
   const randomUuid = globalThis.crypto?.randomUUID?.()
   if (randomUuid) return `canvas-${prefix}-${randomUuid}`
   return `canvas-${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function createDetachedCanvasPrimaryLayer(mediaId: string): CanvasAuthoredLayer {
+  return {
+    id: createCanvasAuthoringIdentity('layer'),
+    mediaId,
+    effects: [],
+    order: 0,
+    enabled: true,
+    solo: false,
+    ownership: 'manual',
+    pinned: true,
+  }
+}
+
+function retargetCanvasPrimaryLayerForMedia(
+  settings: CanvasOrchestrationSettings,
+  mediaId: string | null,
+) {
+  return retargetCanvasPrimaryLayerState(
+    settings.authoredLayers,
+    settings.primaryLayer,
+    mediaId,
+    createDetachedCanvasPrimaryLayer,
+  )
 }
 
 
@@ -5735,6 +5778,12 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       headlinerSettings: normalizeHeadlinerSettings(state.headlinerSettings),
     }
   }
+  if (version < 77) {
+    state = {
+      ...state,
+      canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(state.canvasOrchestrationSettings),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -6251,6 +6300,17 @@ export function mergeReactStoreState(
           ? null
           : canonicalActivePixGridPreset?.id ?? canonicalPersistedPixGridPreset?.id ?? null,
       )
+  const activeCanvasMediaId = merged.activeCanvasMediaId
+    ?? merged.selectedCanvasMediaId
+    ?? merged.canvasEngineSettings.selectedMediaId
+    ?? null
+  let canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings(merged.canvasOrchestrationSettings)
+  if (canvasOrchestrationSettings.renderMode === 'single' && activeCanvasMediaId) {
+    canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
+      ...canvasOrchestrationSettings,
+      primaryLayer: retargetCanvasPrimaryLayerForMedia(canvasOrchestrationSettings, activeCanvasMediaId),
+    })
+  }
 
   return {
     ...merged,
@@ -6274,14 +6334,14 @@ export function mergeReactStoreState(
     }),
     laserDmxBeamMatrixPresetDirty: dirty,
     canvasEngineSettings: createCanvasEngineSettingsForPersistence(merged.canvasEngineSettings),
-    canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(merged.canvasOrchestrationSettings),
+    canvasOrchestrationSettings,
     canvasPresetOverride: merged.canvasEngineSettings.autoSelectEnabled || merged.canvasPresetOverride?.source !== 'auto'
       ? merged.canvasPresetOverride
       : null,
     canvasMediaItems: [],
     canvasMediaTimingById: normalizeCanvasMediaTimingById(merged.canvasMediaTimingById),
     selectedCanvasMediaId: merged.selectedCanvasMediaId ?? merged.canvasEngineSettings.selectedMediaId ?? null,
-    activeCanvasMediaId: merged.activeCanvasMediaId ?? merged.selectedCanvasMediaId ?? merged.canvasEngineSettings.selectedMediaId ?? null,
+    activeCanvasMediaId,
     canvasVideoRestartRevision: currentState.canvasVideoRestartRevision,
     selectedCanvasLayerId: null,
     canvasShowManagerEditingShowId: null,
@@ -6315,7 +6375,7 @@ export function mergeReactStoreState(
 }
 
 const REACT_STORE_PERSISTENCE_NAME = 'drmvyz:react-store'
-const REACT_STORE_PERSISTENCE_VERSION = 76
+const REACT_STORE_PERSISTENCE_VERSION = 77
 let showManagerLibraryMutationInFlight = false
 const showManagerCloudRevisions = new Map<string, number>()
 const SHOW_MANAGER_CLOUD_MIGRATION_MARKER_KEY = 'drmvyz:show-manager-cloud-migration-users:v1'
@@ -7032,7 +7092,7 @@ export const useReactStore = create<ReactStoreState>()(
                   : 'single'
                 : state.canvasOrchestrationSettings.renderMode
             : state.canvasOrchestrationSettings.renderMode
-        const canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
+        let canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
           ...state.canvasOrchestrationSettings,
           ...canonicalPatch,
           renderMode,
@@ -7040,6 +7100,12 @@ export const useReactStore = create<ReactStoreState>()(
             ? state.canvasOrchestrationSettings.poolRevision + 1
             : patch.poolRevision ?? state.canvasOrchestrationSettings.poolRevision,
         })
+        if (canvasOrchestrationSettings.renderMode === 'single' && state.activeCanvasMediaId) {
+          canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
+            ...canvasOrchestrationSettings,
+            primaryLayer: retargetCanvasPrimaryLayerForMedia(canvasOrchestrationSettings, state.activeCanvasMediaId),
+          })
+        }
         return {
           canvasOrchestrationSettings,
           selectedCanvasLayerId: canvasOrchestrationSettings.authoredLayers.some(layer => layer.id === state.selectedCanvasLayerId)
@@ -7081,6 +7147,7 @@ export const useReactStore = create<ReactStoreState>()(
           const layer: CanvasAuthoredLayer = {
             id: createCanvasAuthoringIdentity('layer'),
             mediaId: id,
+            effects: [],
             order: current.length,
             enabled: options?.enabled !== false,
             solo: options?.solo === true,
@@ -7089,24 +7156,35 @@ export const useReactStore = create<ReactStoreState>()(
           }
 
           let orderedBase = current
+          let promotedPrimaryId: string | null = null
           if (preserveActiveSource && activeMediaId && activeMediaId !== id) {
-            const activeLayerIndex = current.findIndex(existing => existing.mediaId === activeMediaId)
-            if (activeLayerIndex >= 0) {
-              const activeLayer = current[activeLayerIndex]
-              orderedBase = [
-                activeLayer,
-                ...current.filter((_, index) => index !== activeLayerIndex),
-              ]
+            const primaryOwner = resolveCanvasPrimaryLayer(
+              state.canvasOrchestrationSettings.primaryLayer,
+              current,
+            )
+            if (primaryOwner?.mediaId === activeMediaId) {
+              const authoredPrimaryIndex = current.findIndex(existing => existing.id === primaryOwner.id)
+              orderedBase = authoredPrimaryIndex >= 0
+                ? [
+                    current[authoredPrimaryIndex],
+                    ...current.filter((_, index) => index !== authoredPrimaryIndex),
+                  ]
+                : [{ ...primaryOwner, order: 0 }, ...current]
+              promotedPrimaryId = primaryOwner.id
             } else {
-              orderedBase = [{
-                id: createCanvasAuthoringIdentity('layer'),
-                mediaId: activeMediaId,
-                order: 0,
-                enabled: true,
-                solo: false,
-                ownership: 'manual',
-                pinned: true,
-              }, ...current]
+              const activeLayerIndex = current.findIndex(existing => existing.mediaId === activeMediaId)
+              if (activeLayerIndex >= 0) {
+                const activeLayer = current[activeLayerIndex]
+                orderedBase = [
+                  activeLayer,
+                  ...current.filter((_, index) => index !== activeLayerIndex),
+                ]
+                promotedPrimaryId = activeLayer.id
+              } else {
+                const fallbackPrimary = createDetachedCanvasPrimaryLayer(activeMediaId)
+                orderedBase = [fallbackPrimary, ...current]
+                promotedPrimaryId = fallbackPrimary.id
+              }
             }
           }
 
@@ -7118,8 +7196,153 @@ export const useReactStore = create<ReactStoreState>()(
               ...state.canvasOrchestrationSettings,
               renderMode: 'layers',
               authoredLayers: nextLayers,
+              primaryLayer: promotedPrimaryId
+                ? { kind: 'authored', layerId: promotedPrimaryId }
+                : state.canvasOrchestrationSettings.primaryLayer,
             }),
             selectedCanvasLayerId: layer.id,
+          }
+        })
+        return result
+      },
+
+      getCanvasPrimaryLayer: () => {
+        const state = get()
+        return resolveCanvasPrimaryLayer(
+          state.canvasOrchestrationSettings.primaryLayer,
+          state.canvasOrchestrationSettings.authoredLayers,
+        )
+      },
+
+      getAvailableCanvasLayerEffects: (layerId) => {
+        const state = get()
+        return getAvailableCanvasLayerEffects(
+          state.canvasOrchestrationSettings.authoredLayers,
+          state.canvasOrchestrationSettings.primaryLayer,
+          layerId,
+        )
+      },
+
+      addCanvasLayerEffect: (layerId, effectId) => {
+        let result: CanvasLayerEffectMutationResult = { ok: false, code: 'layer-not-found' }
+        set((state) => {
+          const mutation = addCanvasLayerEffectState(
+            state.canvasOrchestrationSettings.authoredLayers,
+            state.canvasOrchestrationSettings.primaryLayer,
+            layerId,
+            effectId,
+          )
+          if (!mutation.ok) {
+            result = mutation
+            return {}
+          }
+          result = { ok: true, layer: mutation.layer }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              authoredLayers: mutation.authoredLayers,
+              primaryLayer: mutation.primaryLayer,
+            }),
+          }
+        })
+        return result
+      },
+
+      setCanvasLayerEffect: (layerId, index, effectId) => {
+        let result: CanvasLayerEffectMutationResult = { ok: false, code: 'layer-not-found' }
+        set((state) => {
+          const mutation = setCanvasLayerEffectState(
+            state.canvasOrchestrationSettings.authoredLayers,
+            state.canvasOrchestrationSettings.primaryLayer,
+            layerId,
+            index,
+            effectId,
+          )
+          if (!mutation.ok) {
+            result = mutation
+            return {}
+          }
+          result = { ok: true, layer: mutation.layer }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              authoredLayers: mutation.authoredLayers,
+              primaryLayer: mutation.primaryLayer,
+            }),
+          }
+        })
+        return result
+      },
+
+      removeCanvasLayerEffect: (layerId, effectId) => {
+        let result: CanvasLayerEffectMutationResult = { ok: false, code: 'layer-not-found' }
+        set((state) => {
+          const mutation = removeCanvasLayerEffectState(
+            state.canvasOrchestrationSettings.authoredLayers,
+            state.canvasOrchestrationSettings.primaryLayer,
+            layerId,
+            effectId,
+          )
+          if (!mutation.ok) {
+            result = mutation
+            return {}
+          }
+          result = { ok: true, layer: mutation.layer }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              authoredLayers: mutation.authoredLayers,
+              primaryLayer: mutation.primaryLayer,
+            }),
+          }
+        })
+        return result
+      },
+
+      removeCanvasLayerEffectAt: (layerId, index) => {
+        let result: CanvasLayerEffectMutationResult = { ok: false, code: 'layer-not-found' }
+        set((state) => {
+          const mutation = removeCanvasLayerEffectAtState(
+            state.canvasOrchestrationSettings.authoredLayers,
+            state.canvasOrchestrationSettings.primaryLayer,
+            layerId,
+            index,
+          )
+          if (!mutation.ok) {
+            result = mutation
+            return {}
+          }
+          result = { ok: true, layer: mutation.layer }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              authoredLayers: mutation.authoredLayers,
+              primaryLayer: mutation.primaryLayer,
+            }),
+          }
+        })
+        return result
+      },
+
+      clearCanvasLayerEffects: (layerId) => {
+        let result: CanvasLayerEffectMutationResult = { ok: false, code: 'layer-not-found' }
+        set((state) => {
+          const mutation = clearCanvasLayerEffectsState(
+            state.canvasOrchestrationSettings.authoredLayers,
+            state.canvasOrchestrationSettings.primaryLayer,
+            layerId,
+          )
+          if (!mutation.ok) {
+            result = mutation
+            return {}
+          }
+          result = { ok: true, layer: mutation.layer }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              authoredLayers: mutation.authoredLayers,
+              primaryLayer: mutation.primaryLayer,
+            }),
           }
         })
         return result
@@ -7273,12 +7496,19 @@ export const useReactStore = create<ReactStoreState>()(
             ?? authoredLayers[0]?.id
             ?? null
           result = { ok: true, layer: removed }
+          let canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
+            ...state.canvasOrchestrationSettings,
+            renderMode: authoredLayers.length > 0 ? 'layers' : 'single',
+            authoredLayers,
+          })
+          if (canvasOrchestrationSettings.renderMode === 'single') {
+            canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
+              ...canvasOrchestrationSettings,
+              primaryLayer: retargetCanvasPrimaryLayerForMedia(canvasOrchestrationSettings, state.activeCanvasMediaId),
+            })
+          }
           return {
-            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
-              ...state.canvasOrchestrationSettings,
-              renderMode: authoredLayers.length > 0 ? 'layers' : 'single',
-              authoredLayers,
-            }),
+            canvasOrchestrationSettings,
             selectedCanvasLayerId: state.selectedCanvasLayerId === layerId
               ? fallbackSelection
               : state.selectedCanvasLayerId,
@@ -7620,6 +7850,7 @@ export const useReactStore = create<ReactStoreState>()(
         canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
           ...DEFAULT_CANVAS_ORCHESTRATION_SETTINGS,
           authoredLayers: state.canvasOrchestrationSettings.authoredLayers,
+          primaryLayer: state.canvasOrchestrationSettings.primaryLayer,
           mediaPools: state.canvasOrchestrationSettings.mediaPools,
           activeMediaPoolId: state.canvasOrchestrationSettings.activeMediaPoolId,
           mediaRolesById: state.canvasOrchestrationSettings.mediaRolesById,
@@ -7712,6 +7943,15 @@ export const useReactStore = create<ReactStoreState>()(
 
         if (!presetChanged && !mediaChanged) return {}
 
+        const primaryLayerPatch = mediaChanged && nextMediaId && state.canvasOrchestrationSettings.renderMode === 'single'
+          ? {
+              canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+                ...state.canvasOrchestrationSettings,
+                primaryLayer: retargetCanvasPrimaryLayerForMedia(state.canvasOrchestrationSettings, nextMediaId),
+              }),
+            }
+          : {}
+
         return {
           ...(preset
             ? {
@@ -7725,6 +7965,7 @@ export const useReactStore = create<ReactStoreState>()(
               }
             : {}),
           ...mediaPatch,
+          ...primaryLayerPatch,
         }
       }),
 
@@ -7806,7 +8047,14 @@ export const useReactStore = create<ReactStoreState>()(
         const nextSelectedId = state.selectedCanvasMediaId ?? nextActiveId
         const activatedFreshItem = state.activeCanvasMediaId === null && nextActiveId !== null
 
-        return repairCanvasRuntimeState({
+        const canvasOrchestrationSettings = state.canvasOrchestrationSettings.renderMode === 'single' && nextActiveId
+          ? normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              primaryLayer: retargetCanvasPrimaryLayerForMedia(state.canvasOrchestrationSettings, nextActiveId),
+            })
+          : state.canvasOrchestrationSettings
+
+        const repaired = repairCanvasRuntimeState({
           ...state,
           canvasMediaItems: nextItems,
           selectedCanvasMediaId: nextSelectedId,
@@ -7815,6 +8063,10 @@ export const useReactStore = create<ReactStoreState>()(
             ? normalizeCanvasEngineSettings({ ...state.canvasEngineSettings, rotation: 0 })
             : state.canvasEngineSettings,
         })
+        return {
+          ...repaired,
+          canvasOrchestrationSettings,
+        }
       }),
 
       focusCanvasMediaItem: (id) => set((state) => {
@@ -7830,15 +8082,22 @@ export const useReactStore = create<ReactStoreState>()(
         const manualMediaOverrideValid = typeof manualMediaOverrideId === 'string' && manualMediaOverrideId.trim().length > 0
         if (options?.manual === false && manualMediaOverrideValid) return repairCanvasRuntimeState(state)
 
-        const canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
+        let canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
           ...state.canvasOrchestrationSettings,
           authoredLayers: state.canvasOrchestrationSettings.authoredLayers,
           ...(options?.manual === false ? {} : { renderMode: 'single' as const }),
         })
+        if (canvasOrchestrationSettings.renderMode === 'single') {
+          canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
+            ...canvasOrchestrationSettings,
+            primaryLayer: retargetCanvasPrimaryLayerForMedia(canvasOrchestrationSettings, nextId),
+          })
+        }
         const repaired = repairCanvasRuntimeState({
           ...state,
           selectedCanvasMediaId: nextId,
           activeCanvasMediaId: nextId,
+          canvasOrchestrationSettings,
           canvasEngineSettings: normalizeCanvasEngineSettings({
             ...state.canvasEngineSettings,
             selectedMediaId: nextId,
@@ -7894,7 +8153,7 @@ export const useReactStore = create<ReactStoreState>()(
         )
         const selectedLayerStillExists = authoredLayers.some(layer => layer.id === state.selectedCanvasLayerId)
 
-        const canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
+        let canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
           ...state.canvasOrchestrationSettings,
           authoredLayers,
           mediaPools: state.canvasOrchestrationSettings.mediaPools.map(pool => ({
@@ -7909,12 +8168,19 @@ export const useReactStore = create<ReactStoreState>()(
           ),
           poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
         })
+        if (canvasOrchestrationSettings.renderMode === 'single') {
+          canvasOrchestrationSettings = normalizeCanvasOrchestrationSettings({
+            ...canvasOrchestrationSettings,
+            primaryLayer: retargetCanvasPrimaryLayerForMedia(canvasOrchestrationSettings, nextActiveId),
+          })
+        }
         const repaired = repairCanvasRuntimeState({
           ...state,
           canvasMediaItems: nextItems,
           canvasMediaTimingById: nextTimingById,
           selectedCanvasMediaId: nextSelectedId,
           activeCanvasMediaId: nextActiveId,
+          canvasOrchestrationSettings,
           canvasEngineSettings: normalizeCanvasEngineSettings({
             ...state.canvasEngineSettings,
             selectedMediaId: nextActiveId,
@@ -7950,6 +8216,7 @@ export const useReactStore = create<ReactStoreState>()(
           || mediaPools.some((pool, index) => pool.mediaIds.length !== state.canvasOrchestrationSettings.mediaPools[index]?.mediaIds.length)
           || Object.keys(mediaRolesById).length !== Object.keys(state.canvasOrchestrationSettings.mediaRolesById).length
           || Object.keys(mediaLocksByLayer).length !== Object.keys(state.canvasOrchestrationSettings.mediaLocksByLayer).length
+          || state.canvasOrchestrationSettings.primaryLayer !== null
         return {
           canvasMediaItems: [],
           canvasMediaTimingById: {},
@@ -7969,6 +8236,7 @@ export const useReactStore = create<ReactStoreState>()(
             ? normalizeCanvasOrchestrationSettings({
                 ...state.canvasOrchestrationSettings,
                 authoredLayers,
+                primaryLayer: null,
                 mediaPools,
                 mediaRolesById,
                 mediaLocksByLayer,

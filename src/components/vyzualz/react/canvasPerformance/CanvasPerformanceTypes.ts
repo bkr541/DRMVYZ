@@ -32,6 +32,10 @@ export const MAX_CANVAS_SHOW_VIDEO_DECODERS = 4
 export const MAX_CANVAS_MEDIA_HANDLES = 10
 export const MAX_CANVAS_PRELOAD_QUEUE = 5
 export const MAX_CANVAS_EFFECT_CHAIN_DEPTH = 5
+export const CANVAS_LAYER_EFFECT_IDS = ['bloom', 'echo', 'glitch', 'melt', 'stutter'] as const
+export type CanvasLayerEffectId = typeof CANVAS_LAYER_EFFECT_IDS[number]
+export const MAX_CANVAS_LAYER_EFFECTS = CANVAS_LAYER_EFFECT_IDS.length
+
 export const MAX_CANVAS_CONCURRENT_TRANSITIONS = 1
 export const MAX_CANVAS_FEEDBACK_PASSES = 1
 
@@ -389,6 +393,8 @@ export interface CanvasResolvedLayer {
   maskMode: CanvasMaskMode | null
   playback: CanvasResolvedPlayback
   effectChain: readonly CanvasEffectNode[]
+  /** Ordered user-authored layer effects. Runtime processors are introduced separately. */
+  userEffects?: readonly CanvasLayerEffectId[]
   modulationRoutes: readonly CanvasModulationRoute[]
   userLocked: boolean
   /** Exact per-element Show treatment. Absent for preset/orchestration layers. */
@@ -450,6 +456,8 @@ export interface CanvasAuthoredLayer {
   /** Stable instance identity. Multiple instances may reference the same mediaId. */
   id: string
   mediaId: string
+  /** Ordered user-selected effects owned by this stable layer instance. */
+  effects: CanvasLayerEffectId[]
   /** Canonical top-to-bottom order. 0 is the visually highest authored layer. */
   order: number
   enabled: boolean
@@ -457,6 +465,22 @@ export interface CanvasAuthoredLayer {
   ownership: CanvasAuthoredLayerOwnership
   pinned: boolean
 }
+
+
+export type CanvasPrimaryLayerState =
+  | { kind: 'authored'; layerId: string }
+  | { kind: 'detached'; layer: CanvasAuthoredLayer }
+
+export type CanvasLayerEffectMutationFailureCode =
+  | 'layer-not-found'
+  | 'invalid-effect-id'
+  | 'effect-limit-reached'
+  | 'duplicate-effect'
+  | 'invalid-effect-index'
+
+export type CanvasLayerEffectMutationResult =
+  | { ok: true; layer: CanvasAuthoredLayer }
+  | { ok: false; code: CanvasLayerEffectMutationFailureCode }
 
 export interface CanvasMediaPool {
   id: string
@@ -492,6 +516,8 @@ export interface CanvasOrchestrationSettings {
   renderMode: CanvasRenderMode
   /** Canonical authored layer instances. The array is normalized top-to-bottom. */
   authoredLayers: CanvasAuthoredLayer[]
+  /** Stable owner for the direct single-media output without polluting the authored stack. */
+  primaryLayer: CanvasPrimaryLayerState | null
   /** Canonical named media pools. */
   mediaPools: CanvasMediaPool[]
   /** Exactly zero or one active pool. */
@@ -523,6 +549,7 @@ export const DEFAULT_CANVAS_ORCHESTRATION_SETTINGS: CanvasOrchestrationSettings 
   autoRoleEnabled: true,
   renderMode: 'single',
   authoredLayers: [],
+  primaryLayer: null,
   mediaPools: [],
   activeMediaPoolId: null,
   mediaPoolIds: [],

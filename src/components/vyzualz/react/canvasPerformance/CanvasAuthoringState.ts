@@ -1,8 +1,13 @@
 import {
+  CANVAS_LAYER_EFFECT_IDS,
   MAX_CANVAS_AUTHORED_LAYERS,
+  MAX_CANVAS_LAYER_EFFECTS,
   type CanvasAuthoredLayer,
   type CanvasAuthoredLayerOwnership,
+  type CanvasLayerEffectId,
+  type CanvasLayerEffectMutationFailureCode,
   type CanvasMediaPool,
+  type CanvasPrimaryLayerState,
   type CanvasRenderMode,
 } from './CanvasPerformanceTypes'
 
@@ -10,6 +15,8 @@ export const CANVAS_LEGACY_COMPATIBILITY_POOL_ID = 'canvas-pool-legacy'
 export const CANVAS_LEGACY_COMPATIBILITY_POOL_NAME = 'Performance Pool'
 export const MAX_CANVAS_MEDIA_POOLS = 64
 export const MAX_CANVAS_MEDIA_IDS_PER_POOL = 128
+
+const CANVAS_LAYER_EFFECT_ID_SET = new Set<string>(CANVAS_LAYER_EFFECT_IDS)
 
 export interface CanvasLayerSlotState {
   authoredLayers: readonly Pick<CanvasAuthoredLayer, 'mediaId'>[]
@@ -51,6 +58,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+export function isCanvasLayerEffectId(value: unknown): value is CanvasLayerEffectId {
+  return typeof value === 'string' && CANVAS_LAYER_EFFECT_ID_SET.has(value)
+}
+
+export function normalizeCanvasLayerEffects(value: unknown): CanvasLayerEffectId[] {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<CanvasLayerEffectId>()
+  const effects: CanvasLayerEffectId[] = []
+  for (const candidate of value) {
+    if (!isCanvasLayerEffectId(candidate) || seen.has(candidate)) continue
+    seen.add(candidate)
+    effects.push(candidate)
+    if (effects.length >= MAX_CANVAS_LAYER_EFFECTS) break
+  }
+  return effects
+}
+
 export function normalizeCanvasMediaIds(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   const seen = new Set<string>()
@@ -82,6 +106,7 @@ export function normalizeCanvasAuthoredLayers(value: unknown): CanvasAuthoredLay
     candidates.push({
       id,
       mediaId,
+      effects: normalizeCanvasLayerEffects(raw.effects),
       order: rawOrder,
       enabled: raw.enabled !== false,
       solo: raw.solo === true,
@@ -102,6 +127,194 @@ export function normalizeCanvasAuthoredLayers(value: unknown): CanvasAuthoredLay
     if (solo) soloClaimed = true
     return solo === layer.solo ? layer : { ...layer, solo }
   })
+}
+
+export function normalizeCanvasPrimaryLayerState(
+  value: unknown,
+  authoredLayers: readonly CanvasAuthoredLayer[],
+): CanvasPrimaryLayerState | null {
+  if (!isRecord(value)) return null
+  const canonicalLayers = normalizeCanvasAuthoredLayers(authoredLayers)
+  if (value.kind === 'authored') {
+    const layerId = typeof value.layerId === 'string' ? value.layerId.trim() : ''
+    return canonicalLayers.some(layer => layer.id === layerId) ? { kind: 'authored', layerId } : null
+  }
+  if (value.kind !== 'detached') return null
+  const layer = normalizeCanvasAuthoredLayers([value.layer])[0] ?? null
+  if (!layer) return null
+  if (canonicalLayers.some(candidate => candidate.id === layer.id)) {
+    return { kind: 'authored', layerId: layer.id }
+  }
+  return { kind: 'detached', layer: { ...layer, order: 0 } }
+}
+
+export function resolveCanvasPrimaryLayer(
+  primaryLayer: CanvasPrimaryLayerState | null,
+  authoredLayers: readonly CanvasAuthoredLayer[],
+): CanvasAuthoredLayer | null {
+  const canonicalLayers = normalizeCanvasAuthoredLayers(authoredLayers)
+  const canonicalPrimary = normalizeCanvasPrimaryLayerState(primaryLayer, canonicalLayers)
+  if (!canonicalPrimary) return null
+  return canonicalPrimary.kind === 'authored'
+    ? canonicalLayers.find(layer => layer.id === canonicalPrimary.layerId) ?? null
+    : canonicalPrimary.layer
+}
+
+export function retargetCanvasPrimaryLayerState(
+  authoredLayers: readonly CanvasAuthoredLayer[],
+  primaryLayer: CanvasPrimaryLayerState | null,
+  mediaId: unknown,
+  createDetachedLayer: (mediaId: string) => CanvasAuthoredLayer,
+): CanvasPrimaryLayerState | null {
+  const nextMediaId = typeof mediaId === 'string' ? mediaId.trim() : ''
+  if (!nextMediaId) return null
+  const canonicalLayers = normalizeCanvasAuthoredLayers(authoredLayers)
+  const matchingAuthored = canonicalLayers.find(layer => layer.mediaId === nextMediaId)
+  if (matchingAuthored) return { kind: 'authored', layerId: matchingAuthored.id }
+
+  const canonicalPrimary = normalizeCanvasPrimaryLayerState(primaryLayer, canonicalLayers)
+  if (canonicalPrimary?.kind === 'detached') {
+    return {
+      kind: 'detached',
+      layer: { ...canonicalPrimary.layer, mediaId: nextMediaId, order: 0 },
+    }
+  }
+
+  const created = normalizeCanvasAuthoredLayers([createDetachedLayer(nextMediaId)])[0] ?? null
+  return created ? { kind: 'detached', layer: { ...created, order: 0 } } : null
+}
+
+export function getAvailableCanvasLayerEffects(
+  authoredLayers: readonly CanvasAuthoredLayer[],
+  primaryLayer: CanvasPrimaryLayerState | null,
+  layerId: string,
+): CanvasLayerEffectId[] {
+  const layer = findCanvasLayerEffectOwner(authoredLayers, primaryLayer, layerId)
+  if (!layer) return []
+  const selected = new Set(layer.effects)
+  return CANVAS_LAYER_EFFECT_IDS.filter(effect => !selected.has(effect))
+}
+
+type CanvasLayerEffectStateMutationResult =
+  | {
+      ok: true
+      layer: CanvasAuthoredLayer
+      authoredLayers: CanvasAuthoredLayer[]
+      primaryLayer: CanvasPrimaryLayerState | null
+    }
+  | { ok: false; code: CanvasLayerEffectMutationFailureCode }
+
+function findCanvasLayerEffectOwner(
+  authoredLayers: readonly CanvasAuthoredLayer[],
+  primaryLayer: CanvasPrimaryLayerState | null,
+  layerId: string,
+): CanvasAuthoredLayer | null {
+  const id = typeof layerId === 'string' ? layerId.trim() : ''
+  if (!id) return null
+  const canonicalLayers = normalizeCanvasAuthoredLayers(authoredLayers)
+  const authored = canonicalLayers.find(layer => layer.id === id)
+  if (authored) return authored
+  const canonicalPrimary = normalizeCanvasPrimaryLayerState(primaryLayer, canonicalLayers)
+  return canonicalPrimary?.kind === 'detached' && canonicalPrimary.layer.id === id
+    ? canonicalPrimary.layer
+    : null
+}
+
+function mutateCanvasLayerEffects(
+  authoredLayers: readonly CanvasAuthoredLayer[],
+  primaryLayer: CanvasPrimaryLayerState | null,
+  layerId: string,
+  update: (effects: readonly CanvasLayerEffectId[]) => CanvasLayerEffectId[] | CanvasLayerEffectMutationFailureCode,
+): CanvasLayerEffectStateMutationResult {
+  const id = typeof layerId === 'string' ? layerId.trim() : ''
+  const canonicalLayers = normalizeCanvasAuthoredLayers(authoredLayers)
+  const canonicalPrimary = normalizeCanvasPrimaryLayerState(primaryLayer, canonicalLayers)
+  const authoredIndex = canonicalLayers.findIndex(layer => layer.id === id)
+  const target = authoredIndex >= 0
+    ? canonicalLayers[authoredIndex]
+    : canonicalPrimary?.kind === 'detached' && canonicalPrimary.layer.id === id
+      ? canonicalPrimary.layer
+      : null
+  if (!target) return { ok: false, code: 'layer-not-found' }
+
+  const nextEffects = update(target.effects)
+  if (typeof nextEffects === 'string') return { ok: false, code: nextEffects }
+  const layer = { ...target, effects: normalizeCanvasLayerEffects(nextEffects) }
+  if (authoredIndex >= 0) {
+    const nextLayers = [...canonicalLayers]
+    nextLayers[authoredIndex] = layer
+    return { ok: true, layer, authoredLayers: nextLayers, primaryLayer: canonicalPrimary }
+  }
+  return {
+    ok: true,
+    layer,
+    authoredLayers: canonicalLayers,
+    primaryLayer: { kind: 'detached', layer },
+  }
+}
+
+export function addCanvasLayerEffectState(
+  authoredLayers: readonly CanvasAuthoredLayer[],
+  primaryLayer: CanvasPrimaryLayerState | null,
+  layerId: string,
+  effectId: unknown,
+): CanvasLayerEffectStateMutationResult {
+  if (!isCanvasLayerEffectId(effectId)) return { ok: false, code: 'invalid-effect-id' }
+  return mutateCanvasLayerEffects(authoredLayers, primaryLayer, layerId, effects => {
+    if (effects.includes(effectId)) return 'duplicate-effect'
+    if (effects.length >= MAX_CANVAS_LAYER_EFFECTS) return 'effect-limit-reached'
+    return [...effects, effectId]
+  })
+}
+
+export function setCanvasLayerEffectState(
+  authoredLayers: readonly CanvasAuthoredLayer[],
+  primaryLayer: CanvasPrimaryLayerState | null,
+  layerId: string,
+  index: number,
+  effectId: unknown,
+): CanvasLayerEffectStateMutationResult {
+  if (!isCanvasLayerEffectId(effectId)) return { ok: false, code: 'invalid-effect-id' }
+  return mutateCanvasLayerEffects(authoredLayers, primaryLayer, layerId, effects => {
+    if (!Number.isInteger(index) || index < 0 || index >= effects.length) return 'invalid-effect-index'
+    if (effects[index] === effectId) return [...effects]
+    if (effects.includes(effectId)) return 'duplicate-effect'
+    const next = [...effects]
+    next[index] = effectId
+    return next
+  })
+}
+
+export function removeCanvasLayerEffectAtState(
+  authoredLayers: readonly CanvasAuthoredLayer[],
+  primaryLayer: CanvasPrimaryLayerState | null,
+  layerId: string,
+  index: number,
+): CanvasLayerEffectStateMutationResult {
+  return mutateCanvasLayerEffects(authoredLayers, primaryLayer, layerId, effects => {
+    if (!Number.isInteger(index) || index < 0 || index >= effects.length) return 'invalid-effect-index'
+    return effects.filter((_, effectIndex) => effectIndex !== index)
+  })
+}
+
+export function removeCanvasLayerEffectState(
+  authoredLayers: readonly CanvasAuthoredLayer[],
+  primaryLayer: CanvasPrimaryLayerState | null,
+  layerId: string,
+  effectId: unknown,
+): CanvasLayerEffectStateMutationResult {
+  if (!isCanvasLayerEffectId(effectId)) return { ok: false, code: 'invalid-effect-id' }
+  return mutateCanvasLayerEffects(authoredLayers, primaryLayer, layerId, effects => (
+    effects.includes(effectId) ? effects.filter(effect => effect !== effectId) : [...effects]
+  ))
+}
+
+export function clearCanvasLayerEffectsState(
+  authoredLayers: readonly CanvasAuthoredLayer[],
+  primaryLayer: CanvasPrimaryLayerState | null,
+  layerId: string,
+): CanvasLayerEffectStateMutationResult {
+  return mutateCanvasLayerEffects(authoredLayers, primaryLayer, layerId, () => [])
 }
 
 export function normalizeCanvasMediaPools(value: unknown): CanvasMediaPool[] {
@@ -150,17 +363,19 @@ export function resolveActiveCanvasMediaPool(
 
 export interface NormalizedCanvasAuthoringState {
   authoredLayers: CanvasAuthoredLayer[]
+  primaryLayer: CanvasPrimaryLayerState | null
   mediaPools: CanvasMediaPool[]
   activeMediaPoolId: string | null
   mediaPoolIds: string[]
 }
 
 /**
- * Normalizes the new canonical authoring graph and performs the one-way legacy
+ * Normalizes the canonical authoring graph and performs the one-way legacy
  * migration from the historical flat mediaPoolIds list when no named pools exist.
  */
 export function normalizeCanvasAuthoringState(source: Record<string, unknown>): NormalizedCanvasAuthoringState {
   const authoredLayers = normalizeCanvasAuthoredLayers(source.authoredLayers)
+  const primaryLayer = normalizeCanvasPrimaryLayerState(source.primaryLayer, authoredLayers)
   const hasCanonicalPoolSchema = Object.prototype.hasOwnProperty.call(source, 'mediaPools')
   let mediaPools = normalizeCanvasMediaPools(source.mediaPools)
   let activeMediaPoolId = typeof source.activeMediaPoolId === 'string' && source.activeMediaPoolId.trim()
@@ -185,7 +400,7 @@ export function normalizeCanvasAuthoringState(source: Record<string, unknown>): 
     ? mediaPools.find(pool => pool.id === activeMediaPoolId)?.mediaIds ?? []
     : []
 
-  return { authoredLayers, mediaPools, activeMediaPoolId, mediaPoolIds: [...mediaPoolIds] }
+  return { authoredLayers, primaryLayer, mediaPools, activeMediaPoolId, mediaPoolIds: [...mediaPoolIds] }
 }
 
 export function reorderCanvasAuthoredLayers(
@@ -222,9 +437,8 @@ export function setCanvasAuthoredLayerSoloState(
 }
 
 /**
- * Canonical Stage 3 eligibility rule for the authored stack. The production
- * compositor begins consuming authored layers in Stage 4; keeping this rule
- * domain-only prevents the authoring UI from inventing a parallel render path.
+ * Canonical authored-stack eligibility rule. Keeping this rule domain-only
+ * prevents authoring UI from inventing a parallel render path.
  */
 export function isCanvasAuthoredLayerRenderEligible(
   layers: readonly CanvasAuthoredLayer[],

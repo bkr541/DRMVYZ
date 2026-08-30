@@ -15,11 +15,11 @@ import { MAX_CANVAS_AUTHORED_LAYERS, MAX_CANVAS_PERFORMANCE_LAYERS } from './Can
 describe('CANVAS canonical authoring state', () => {
   it('normalizes authored layer identity, duplicate media references, order, and the four-layer cap', () => {
     const normalized = normalizeCanvasAuthoredLayers([
-      { id: 'layer-c', mediaId: 'media-shared', order: 3, enabled: true, solo: false, ownership: 'manual', pinned: true },
-      { id: 'layer-a', mediaId: 'media-shared', order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
-      { id: 'layer-b', mediaId: 'media-b', order: 2, enabled: false, solo: true, ownership: 'automatic', pinned: false },
-      { id: 'layer-d', mediaId: 'media-d', order: 1, enabled: true, solo: false, ownership: 'manual', pinned: true },
-      { id: 'layer-e', mediaId: 'media-e', order: 4, enabled: true, solo: false, ownership: 'manual', pinned: true },
+      { id: 'layer-c', mediaId: 'media-shared', effects: [], order: 3, enabled: true, solo: false, ownership: 'manual', pinned: true },
+      { id: 'layer-a', mediaId: 'media-shared', effects: [], order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
+      { id: 'layer-b', mediaId: 'media-b', effects: [], order: 2, enabled: false, solo: true, ownership: 'automatic', pinned: false },
+      { id: 'layer-d', mediaId: 'media-d', effects: [], order: 1, enabled: true, solo: false, ownership: 'manual', pinned: true },
+      { id: 'layer-e', mediaId: 'media-e', effects: [], order: 4, enabled: true, solo: false, ownership: 'manual', pinned: true },
     ])
 
     expect(MAX_CANVAS_AUTHORED_LAYERS).toBe(4)
@@ -32,9 +32,9 @@ describe('CANVAS canonical authoring state', () => {
 
   it('reorders by layer instance identity without changing media identity', () => {
     const layers = normalizeCanvasAuthoredLayers([
-      { id: 'layer-a', mediaId: 'media-a', order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
-      { id: 'layer-b', mediaId: 'media-b', order: 1, enabled: true, solo: false, ownership: 'automatic', pinned: false },
-      { id: 'layer-c', mediaId: 'media-c', order: 2, enabled: true, solo: false, ownership: 'manual', pinned: true },
+      { id: 'layer-a', mediaId: 'media-a', effects: [], order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
+      { id: 'layer-b', mediaId: 'media-b', effects: [], order: 1, enabled: true, solo: false, ownership: 'automatic', pinned: false },
+      { id: 'layer-c', mediaId: 'media-c', effects: [], order: 2, enabled: true, solo: false, ownership: 'manual', pinned: true },
     ])
 
     const reordered = reorderCanvasAuthoredLayers(layers, 'layer-a', 2)
@@ -45,9 +45,9 @@ describe('CANVAS canonical authoring state', () => {
 
   it('applies a single-solo contract without destroying enabled state and exposes canonical render eligibility', () => {
     const layers = normalizeCanvasAuthoredLayers([
-      { id: 'layer-a', mediaId: 'media-a', order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
-      { id: 'layer-b', mediaId: 'media-b', order: 1, enabled: false, solo: false, ownership: 'manual', pinned: true },
-      { id: 'layer-c', mediaId: 'media-c', order: 2, enabled: true, solo: false, ownership: 'automatic', pinned: false },
+      { id: 'layer-a', mediaId: 'media-a', effects: [], order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
+      { id: 'layer-b', mediaId: 'media-b', effects: [], order: 1, enabled: false, solo: false, ownership: 'manual', pinned: true },
+      { id: 'layer-c', mediaId: 'media-c', effects: [], order: 2, enabled: true, solo: false, ownership: 'automatic', pinned: false },
     ])
 
     const soloed = setCanvasAuthoredLayerSoloState(layers, 'layer-c', true)
@@ -70,8 +70,8 @@ describe('CANVAS canonical authoring state', () => {
     const layerGuard = createCanvasAuthoringMediaDeletionGuard(() => ({
       canvasOrchestrationSettings: {
         authoredLayers: [
-          { id: 'layer-a', mediaId: 'media-a', order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
-          { id: 'layer-b', mediaId: 'media-a', order: 1, enabled: true, solo: false, ownership: 'manual', pinned: true },
+          { id: 'layer-a', mediaId: 'media-a', effects: [], order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
+          { id: 'layer-b', mediaId: 'media-a', effects: [], order: 1, enabled: true, solo: false, ownership: 'manual', pinned: true },
         ],
         mediaPools: [{ id: 'pool-a', name: 'Main', mediaIds: ['media-a'] }],
         activeMediaPoolId: 'pool-a',

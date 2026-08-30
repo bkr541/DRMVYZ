@@ -94,7 +94,7 @@ function media(id: string, type: CanvasMediaItem['type'] = 'image'): CanvasMedia
 }
 
 function manualLayer(id: string, mediaId: string, order: number): CanvasAuthoredLayer {
-  return { id, mediaId, order, enabled: true, solo: false, ownership: 'manual', pinned: true }
+  return { id, mediaId, effects: [], order, enabled: true, solo: false, ownership: 'manual', pinned: true }
 }
 
 function settings(patch: Partial<CanvasOrchestrationSettings> = {}): CanvasOrchestrationSettings {
@@ -311,7 +311,7 @@ describe('CANVAS Pool automation runtime', () => {
       mediaItems,
       fitMode: 'cover',
       automaticLayers: [
-        { id: 'canvas-pool-auto-slot-1', mediaId: 'pool-a', order: 0, enabled: true, solo: false, ownership: 'automatic', pinned: false },
+        { id: 'canvas-pool-auto-slot-1', mediaId: 'pool-a', effects: [], order: 0, enabled: true, solo: false, ownership: 'automatic', pinned: false },
       ],
       automationTransitionId: configured.poolAutomationTransitionId,
       isMediaReady: () => true,
@@ -324,7 +324,7 @@ describe('CANVAS Pool automation runtime', () => {
       mediaItems,
       fitMode: 'cover',
       automaticLayers: [
-        { id: 'canvas-pool-auto-slot-1', mediaId: 'pool-b', order: 0, enabled: true, solo: false, ownership: 'automatic', pinned: false },
+        { id: 'canvas-pool-auto-slot-1', mediaId: 'pool-b', effects: [], order: 0, enabled: true, solo: false, ownership: 'automatic', pinned: false },
       ],
       previousFrame: initialFrame,
       automationAdvanced: true,
