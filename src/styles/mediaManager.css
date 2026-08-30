@@ -100,7 +100,6 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px;
   overflow: hidden;
 }
 
@@ -117,9 +116,15 @@
   box-sizing: border-box;
 }
 
+/* React's rail panels sit flush against the container with square corners
+   and no drop shadow (.rv-shell / .rv-layout carry neither) — override the
+   floating-card look .vz-panel gives every other MediaLibraryBrowser
+   consumer (Visualizer, PixGrid, Canvas keep that look; Manager doesn't). */
 .vz-media-browser--manager {
   min-width: 0;
-  border-radius: 9px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .vz-media-browser--manager .vz-panel-header {
