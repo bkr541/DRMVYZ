@@ -38,18 +38,15 @@ function addLayer(mediaId: string): string {
   return result.layer.id
 }
 
-function parentButton(label: string): HTMLButtonElement {
-  const button = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
-    .find(candidate => candidate.textContent?.includes(label))
-  if (!button) throw new Error(`Missing collapsible: ${label}`)
-  return button
-}
-
 function comboboxByAriaLabel(label: string): HTMLButtonElement {
   const button = [...host.querySelectorAll<HTMLButtonElement>('button[role="combobox"]')]
     .find(candidate => candidate.getAttribute('aria-label') === label)
   if (!button) throw new Error(`Missing combobox: ${label}`)
   return button
+}
+
+function activeMediaCombobox(ordinal: number): HTMLButtonElement {
+  return comboboxByAriaLabel(`Active Media ${ordinal}`)
 }
 
 function optionLabels(): string[] {
@@ -91,8 +88,9 @@ describe('CANVAS Add Effects UI', () => {
     act(() => root.render(<CanvasAddEffectsControls />))
 
     expect(host.textContent).toContain('Add Effects')
-    expect(host.textContent).toContain('Active Media 1 — single-source.png')
-    const addEffect = comboboxByAriaLabel('Add effect to Active Media 1 — single-source.png')
+    expect(host.textContent).toContain('Active Media 1')
+    expect(activeMediaCombobox(1).textContent).toContain('single-source.png')
+    const addEffect = comboboxByAriaLabel('Add effect to Active Media 1')
     expect(addEffect.textContent).toContain('Select Effect…')
 
     act(() => addEffect.click())
@@ -131,10 +129,10 @@ describe('CANVAS Add Effects UI', () => {
       useReactStore.getState().addCanvasLayerEffect(layerIds[3], 'stutter')
     })
 
-    expect(host.textContent).toContain('Active Media 1 — A.png')
-    expect(host.textContent).toContain('Active Media 2 — B.png')
-    expect(host.textContent).toContain('Active Media 3 — C.png')
-    expect(host.textContent).toContain('Active Media 4 — D.png')
+    expect(activeMediaCombobox(1).textContent).toContain('A.png')
+    expect(activeMediaCombobox(2).textContent).toContain('B.png')
+    expect(activeMediaCombobox(3).textContent).toContain('C.png')
+    expect(activeMediaCombobox(4).textContent).toContain('D.png')
 
     act(() => {
       const removed = useReactStore.getState().removeCanvasAuthoredLayer(layerIds[1])
@@ -142,10 +140,10 @@ describe('CANVAS Add Effects UI', () => {
     })
 
     expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(3)
-    expect(host.textContent).toContain('Active Media 1 — A.png')
-    expect(host.textContent).toContain('Active Media 2 — C.png')
-    expect(host.textContent).toContain('Active Media 3 — D.png')
-    expect(host.textContent).not.toContain('Active Media 4 —')
+    expect(activeMediaCombobox(1).textContent).toContain('A.png')
+    expect(activeMediaCombobox(2).textContent).toContain('C.png')
+    expect(activeMediaCombobox(3).textContent).toContain('D.png')
+    expect(host.querySelector('[aria-label="Active Media 4"]')).toBeNull()
     expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.map(layer => ({
       id: layer.id,
       effects: layer.effects,
@@ -176,8 +174,8 @@ describe('CANVAS Add Effects UI', () => {
     })
 
     expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(2)
-    expect(host.textContent).toContain('Active Media 1 — A.png')
-    expect(host.textContent).toContain('Active Media 2 — C.png')
+    expect(activeMediaCombobox(1).textContent).toContain('A.png')
+    expect(activeMediaCombobox(2).textContent).toContain('C.png')
     expect(host.textContent).not.toContain('B.png')
     expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.find(layer => layer.id === hiddenId)?.effects).toEqual(['echo'])
 
@@ -186,9 +184,9 @@ describe('CANVAS Add Effects UI', () => {
       if (!enabled.ok) throw new Error(enabled.message)
     })
     expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(3)
-    expect(host.textContent).toContain('Active Media 2 — B.png')
-    expect(host.textContent).toContain('Active Media 3 — C.png')
-    expect(host.querySelector('[aria-label="Effect 1 for Active Media 2 — B.png"]')).not.toBeNull()
+    expect(activeMediaCombobox(2).textContent).toContain('B.png')
+    expect(activeMediaCombobox(3).textContent).toContain('C.png')
+    expect(host.querySelector('[aria-label="Effect 1 for Active Media 2"]')).not.toBeNull()
   })
 
   it('matches compositor solo semantics by presenting only the soloed layer as Active Media 1', () => {
@@ -212,18 +210,18 @@ describe('CANVAS Add Effects UI', () => {
     })
 
     expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(1)
-    expect(host.textContent).toContain('Active Media 1 — Solo C.png')
-    expect(host.textContent).not.toContain('Active Media 2 —')
-    expect(host.querySelector('[aria-label="Effect 1 for Active Media 1 — Solo C.png"]')).not.toBeNull()
+    expect(activeMediaCombobox(1).textContent).toContain('Solo C.png')
+    expect(host.querySelector('[aria-label="Active Media 2"]')).toBeNull()
+    expect(host.querySelector('[aria-label="Effect 1 for Active Media 1"]')).not.toBeNull()
 
     act(() => {
       const unsoloed = useReactStore.getState().setCanvasAuthoredLayerSolo(thirdId, false)
       if (!unsoloed.ok) throw new Error(unsoloed.message)
     })
     expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(3)
-    expect(host.textContent).toContain('Active Media 1 — Solo A.png')
-    expect(host.textContent).toContain('Active Media 2 — Solo B.png')
-    expect(host.textContent).toContain('Active Media 3 — Solo C.png')
+    expect(activeMediaCombobox(1).textContent).toContain('Solo A.png')
+    expect(activeMediaCombobox(2).textContent).toContain('Solo B.png')
+    expect(activeMediaCombobox(3).textContent).toContain('Solo C.png')
     expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.map(layer => layer.effects)).toEqual([
       ['bloom'], ['echo'], ['stutter'],
     ])
@@ -241,18 +239,18 @@ describe('CANVAS Add Effects UI', () => {
       root.render(<CanvasAddEffectsControls />)
     })
 
-    const addFirst = comboboxByAriaLabel('Add effect to Active Media 1 — Filter A.png')
+    const addFirst = comboboxByAriaLabel('Add effect to Active Media 1')
     act(() => addFirst.click())
     expect(optionLabels()).toEqual(['Glitch', 'Melt', 'Stutter'])
     act(() => addFirst.click())
 
-    const firstExisting = comboboxByAriaLabel('Effect 1 for Active Media 1 — Filter A.png')
+    const firstExisting = comboboxByAriaLabel('Effect 1 for Active Media 1')
     act(() => firstExisting.click())
     expect(optionLabels()).toEqual(['Bloom', 'Glitch', 'Melt', 'Stutter'])
     expect(optionLabels()).not.toContain('Echo')
     act(() => firstExisting.click())
 
-    const addSecond = comboboxByAriaLabel('Add effect to Active Media 2 — Filter B.png')
+    const addSecond = comboboxByAriaLabel('Add effect to Active Media 2')
     act(() => addSecond.click())
     expect(optionLabels()).toContain('Bloom')
     selectOpenOption('Bloom')
@@ -271,10 +269,10 @@ describe('CANVAS Add Effects UI', () => {
 
     const stack = host.querySelector(`[data-canvas-effect-layer-id="${layerId}"]`)
     expect(stack?.querySelectorAll('button[role="combobox"]')).toHaveLength(5)
-    expect(host.querySelector('[aria-label="Add effect to Active Media 1 — Stack.png"]')).toBeNull()
+    expect(host.querySelector('[aria-label="Add effect to Active Media 1"]')).toBeNull()
     expect(stack?.querySelectorAll('.rv-canvas-layer-effect-remove')).toHaveLength(5)
 
-    const removeEcho = host.querySelector<HTMLButtonElement>('[aria-label="Remove Echo from Active Media 1 — Stack.png"]')
+    const removeEcho = host.querySelector<HTMLButtonElement>('[aria-label="Remove Echo from Active Media 1"]')
     act(() => removeEcho?.click())
 
     expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers[0]?.effects).toEqual([
@@ -286,21 +284,30 @@ describe('CANVAS Add Effects UI', () => {
     expect(stack?.querySelectorAll('.rv-canvas-layer-effect-remove')).toHaveLength(4)
   })
 
-  it('keeps effect state intact when an active-media parent is collapsed and expanded', () => {
-    useReactStore.setState({ canvasMediaItems: [media('collapse-media', 'Collapse.png')] })
-    const layerId = addLayer('collapse-media')
+  it('renders the Active Media field styled like Fit Mode/Scale/Position, but display-only — media assignment stays in the Media Library', () => {
+    useReactStore.setState({
+      canvasMediaItems: [media('media-a', 'A.png'), media('media-b', 'B.png')],
+    })
+    const layerId = addLayer('media-a')
     useReactStore.getState().addCanvasLayerEffect(layerId, 'glitch')
     act(() => root.render(<CanvasAddEffectsControls />))
 
-    const header = parentButton('Active Media 1 — Collapse.png')
-    expect(header.getAttribute('aria-expanded')).toBe('true')
-    act(() => header.click())
-    expect(header.getAttribute('aria-expanded')).toBe('false')
-    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers[0]?.effects).toEqual(['glitch'])
+    const label = host.querySelector('label.rv-ctrl-label')
+    expect(label?.textContent).toBe('Active Media 1')
+    const picker = activeMediaCombobox(1)
+    expect(picker.getAttribute('role')).toBe('combobox')
+    expect(picker.textContent).toContain('A.png')
+    // Full, non-dimmed styling — matches every other reusable dropdown (Fit
+    // Mode, Scale, etc.) instead of looking disabled/faded.
+    expect(picker.disabled).toBe(false)
 
-    act(() => header.click())
-    expect(parentButton('Active Media 1 — Collapse.png').getAttribute('aria-expanded')).toBe('true')
-    expect(host.querySelector('[aria-label="Effect 1 for Active Media 1 — Collapse.png"]')).not.toBeNull()
-    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers[0]?.effects).toEqual(['glitch'])
+    // Only the media's own current value is offered, so opening it can never
+    // actually reassign which media this slot points to.
+    act(() => picker.click())
+    expect(optionLabels()).toEqual(['A.png'])
+    selectOpenOption('A.png')
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.find(layer => layer.id === layerId)?.mediaId).toBe('media-a')
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.find(layer => layer.id === layerId)?.effects).toEqual(['glitch'])
+    expect(host.querySelector('[aria-label="Effect 1 for Active Media 1"]')).not.toBeNull()
   })
 })

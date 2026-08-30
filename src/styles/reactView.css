@@ -18770,9 +18770,14 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   line-height: 1.4;
 }
 
-/* CANVAS per-layer Add Effects rows. */
-.rv-canvas-layer-effects-body {
-  padding-top: 6px;
+/* CANVAS per-layer Add Effects rows. Each media's own picker is a real
+   dropdown field — the exact CanvasSelectRow used for Fit Mode/Scale/etc. —
+   not an interactive collapsible header; there is nothing per-media to
+   expand or collapse. */
+.rv-canvas-layer-effects-group {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
 }
 
 .rv-canvas-layer-effects-stack {
@@ -18793,20 +18798,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   min-width: 0;
 }
 
-.rv-canvas-layer-effect-remove.dv-icon-chip {
-  flex: 0 0 28px;
-  width: 28px;
-  min-width: 28px;
-  min-height: 28px;
-  padding: 0;
-  border-color: rgba(255, 48, 48, 0.46);
-  background: rgba(255, 32, 32, 0.1);
-  color: #ff3b3b;
-}
-
-.rv-canvas-layer-effect-remove.dv-icon-chip:hover:not(:disabled),
-.rv-canvas-layer-effect-remove.dv-icon-chip:focus-visible {
-  border-color: rgba(255, 56, 56, 0.72);
-  background: rgba(255, 32, 32, 0.2);
-  color: #ff1f1f;
+/* Reuses .vz-media-remove — the same bare, borderless delete icon shown on
+   media thumbnails in the Media Manager library — for visual consistency.
+   Only flex alignment within the row is added here. */
+.rv-canvas-layer-effect-remove {
+  flex: 0 0 auto;
+  align-self: center;
 }

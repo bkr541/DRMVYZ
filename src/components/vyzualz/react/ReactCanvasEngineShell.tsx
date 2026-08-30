@@ -4033,11 +4033,20 @@ export function CanvasAddEffectsControls() {
   return (
     <Collapsible label="Add Effects" defaultOpen>
       {layers.map((layer, layerIndex) => {
+        const parentLabel = `Active Media ${layerIndex + 1}`
         const mediaName = mediaItems.find(item => item.id === layer.mediaId)?.name ?? layer.mediaId
-        const parentLabel = `Active Media ${layerIndex + 1} — ${mediaName}`
         const selectedEffects = new Set(layer.effects)
         return (
-          <Collapsible key={layer.id} label={parentLabel} defaultOpen bodyClassName="rv-canvas-layer-effects-body">
+          <div key={layer.id} className="rv-canvas-layer-effects-group">
+            {/* Which media occupies this slot is decided in the Media Library
+                (Make Active / Add as Layer) — this field is display-only, just
+                styled like a real input field (e.g. Fit Mode) for consistency. */}
+            <CanvasSelectRow
+              label={parentLabel}
+              value={layer.mediaId}
+              onChange={() => {}}
+              options={[{ value: layer.mediaId, label: mediaName }]}
+            />
             <div className="rv-canvas-layer-effects-stack" data-canvas-effect-layer-id={layer.id}>
               {layer.effects.map((effectId, effectIndex) => {
                 const options = CANVAS_LAYER_EFFECT_OPTIONS.filter(option => (
@@ -4052,12 +4061,15 @@ export function CanvasAddEffectsControls() {
                       onChange={value => setCanvasLayerEffect(layer.id, effectIndex, value)}
                       options={options}
                     />
-                    <IconChipButton
-                      className="rv-canvas-layer-effect-remove"
+                    <button
+                      type="button"
+                      className="vz-media-remove rv-canvas-layer-effect-remove"
+                      style={{ position: 'static' }}
                       aria-label={`Remove ${CANVAS_LAYER_EFFECT_LABELS[effectId]} from ${parentLabel}`}
-                      icon={<Delete02Icon size={12} color="currentColor" />}
                       onClick={() => removeCanvasLayerEffectAt(layer.id, effectIndex)}
-                    />
+                    >
+                      <Delete02Icon size={13} color="currentColor" />
+                    </button>
                   </div>
                 )
               })}
@@ -4074,7 +4086,7 @@ export function CanvasAddEffectsControls() {
                 </div>
               )}
             </div>
-          </Collapsible>
+          </div>
         )
       })}
     </Collapsible>
