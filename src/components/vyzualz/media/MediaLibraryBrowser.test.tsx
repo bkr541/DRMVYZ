@@ -326,27 +326,34 @@ describe('MediaLibraryBrowser capability boundaries', () => {
     expect(CANVAS_MEDIA_LIBRARY_CAPABILITIES).not.toContain('lyrics')
   })
 
-  it('retains upload, edit, delete, and drop workflows in Media Manager', async () => {
+  it('retains upload, select, delete, and drop workflows in Media Manager', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const onSelect = vi.fn()
+    const onSelectTrack = vi.fn()
     await renderBrowser({
       activeMediaId: null,
+      onSelect,
+      onSelectTrack,
       context: 'manager',
       capabilities: MEDIA_MANAGER_CAPABILITIES,
     })
 
     expect(findButton('Import')).not.toBeNull()
     expect(findButton('New Collection')).not.toBeNull()
-    expect(container?.querySelector('[title="Edit media"]')).not.toBeNull()
+    // The pencil/eye quick-action icons are gone in Media Manager — selecting
+    // the card itself now drives the middle/right panels instead.
+    expect(container?.querySelector('[title="Edit media"]')).toBeNull()
+    expect(container?.querySelector('.vz-media-preview-btn')).toBeNull()
     expect(container?.querySelector('.vz-media-remove')).not.toBeNull()
 
-    // Media Manager is asset management, not deck selection — clicking a card
-    // must not require (or invoke) onSelect. See MEDIA_MANAGER_CAPABILITIES.
-    expect(MEDIA_MANAGER_CAPABILITIES).not.toContain('select')
+    // Media Manager now supports card selection so the shared left/middle/right
+    // window layout can drive a preview + edit panel. See MEDIA_MANAGER_CAPABILITIES.
+    expect(MEDIA_MANAGER_CAPABILITIES).toContain('select')
 
     act(() => {
-      container?.querySelector<HTMLButtonElement>('[title="Edit media"]')?.click()
+      container?.querySelector<HTMLElement>('.vz-media-card')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
-    expect(container?.querySelector('[data-testid="media-edit-modal"]')).not.toBeNull()
+    expect(onSelect).toHaveBeenCalledWith('media-1')
 
     act(() => {
       container?.querySelector<HTMLButtonElement>('.vz-media-remove')?.click()
@@ -366,13 +373,13 @@ describe('MediaLibraryBrowser capability boundaries', () => {
     expect(mocks.mediaState.openImportMediaModal).toHaveBeenCalledTimes(1)
 
     act(() => findButton('Audio Tracks')?.click())
-    expect(container?.querySelector('[title="Edit track metadata"]')).not.toBeNull()
+    expect(container?.querySelector('[title="Edit track metadata"]')).toBeNull()
     expect(container?.querySelector('.vz-track-remove-btn')).not.toBeNull()
 
     act(() => {
-      container?.querySelector<HTMLButtonElement>('[title="Edit track metadata"]')?.click()
+      container?.querySelector<HTMLElement>('.vz-track-row')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
-    expect(container?.querySelector('[data-testid="audio-edit-modal"]')).not.toBeNull()
+    expect(onSelectTrack).toHaveBeenCalledWith(expect.objectContaining({ id: 'audio-track-1' }))
 
     await act(async () => {
       container?.querySelector<HTMLButtonElement>('.vz-track-remove-btn')?.click()

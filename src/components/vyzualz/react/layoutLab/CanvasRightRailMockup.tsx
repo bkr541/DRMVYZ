@@ -310,6 +310,7 @@ function FracturesControls({ state }: { state: CanvasMockState }) {
         <SliderRow label="Motion" value={s.fractureMotionAmount} onChange={fractureMotionAmount => update({ fractureMotionAmount })} />
         <SelectRow label="Transition" value={s.fractureTransitionMode} onChange={value => update({ fractureTransitionMode: value as CanvasFractureTransitionMode })} options={[{ value: 'hardGlitchCut', label: 'Hard Glitch Cut' }, { value: 'staggeredAssembly', label: 'Staggered Assembly' }, { value: 'zoomInOut', label: 'Zoom In and Out' }]} />
         <SliderRow label="Transition Speed" value={s.fractureTransitionSpeed} onChange={fractureTransitionSpeed => update({ fractureTransitionSpeed })} />
+        <ToggleRow label="BPM Sync" value={s.fractureBpmSync} onChange={fractureBpmSync => update({ fractureBpmSync })} />
         <SliderRow label="Stagger" value={s.fractureStaggerAmount} onChange={fractureStaggerAmount => update({ fractureStaggerAmount })} />
         <SliderRow label="Zoom" value={s.fractureZoomAmount} onChange={fractureZoomAmount => update({ fractureZoomAmount })} />
         <div className="rv-layout-lab-canvas-command-grid">

@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { generateCanvasFracturesPlan, generateCanvasFracturesTopology, scoreCanvasFractureCandidate } from './CanvasFracturesPlan'
 import { CanvasFracturesRuntime, deriveCanvasFracturesPlanIdentityKeys } from './CanvasFracturesRuntime'
 import { resolveCanvasFracturesIntervalIdentity, resolveCanvasFracturesTimeline } from './CanvasFracturesTimeline'
-import { evaluateCanvasFracturesTransition, resolveCanvasFracturesFragmentDelay } from './CanvasFracturesTransition'
+import {
+  evaluateCanvasFracturesTransition,
+  resolveCanvasFracturesFragmentDelay,
+  resolveCanvasFracturesTransitionDuration,
+} from './CanvasFracturesTransition'
 import type {
   CanvasFracturesPlanInput,
   CanvasFracturesRuntimeFrameInput,
@@ -88,6 +92,8 @@ function frameInput(
       manualTransitionPositionSec: 0,
       transitionMode: 'staggeredAssembly',
       transitionSpeed: 0.5,
+      bpmSync: false,
+      bpm: 120,
       staggerAmount: 0.65,
       zoomAmount: 0.5,
     },
@@ -290,6 +296,48 @@ describe('Canvas Fractures placement scoring and composition modes', () => {
       expect(fragment.targetTransform.centerY).toBe(fragment.homeTransform.centerY)
       expect(fragment.targetTransform.rotationDeg).toBe(0)
     }
+  })
+})
+
+describe('Canvas Fractures BPM-synced transition timing', () => {
+  it('preserves legacy seconds timing when BPM Sync is disabled or BPM is unavailable', () => {
+    const legacy = resolveCanvasFracturesTransitionDuration('staggeredAssembly', 0.45)
+    expect(resolveCanvasFracturesTransitionDuration('staggeredAssembly', 0.45, { bpmSync: false, bpm: 150 })).toBe(legacy)
+    expect(resolveCanvasFracturesTransitionDuration('staggeredAssembly', 0.45, { bpmSync: true, bpm: 0 })).toBe(legacy)
+  })
+
+  it('scales transition duration musically around the authored 128 BPM reference', () => {
+    const reference = resolveCanvasFracturesTransitionDuration('staggeredAssembly', 0.45)
+    const syncedAt128 = resolveCanvasFracturesTransitionDuration('staggeredAssembly', 0.45, { bpmSync: true, bpm: 128 })
+    const syncedAt64 = resolveCanvasFracturesTransitionDuration('staggeredAssembly', 0.45, { bpmSync: true, bpm: 64 })
+    const syncedAt256 = resolveCanvasFracturesTransitionDuration('staggeredAssembly', 0.45, { bpmSync: true, bpm: 256 })
+
+    expect(syncedAt128).toBe(reference)
+    expect(syncedAt64).toBeCloseTo(reference * 2, 5)
+    expect(syncedAt256).toBeCloseTo(reference / 2, 5)
+  })
+
+  it('uses BPM-synced duration inside deterministic runtime reconstruction', () => {
+    const off = new CanvasFracturesRuntime().resolveFrame(frameInput(8.25, {
+      runtimeSettings: {
+        ...frameInput(8.25).runtimeSettings,
+        bpmSync: false,
+        bpm: 150,
+      },
+    }))
+    const on = new CanvasFracturesRuntime().resolveFrame(frameInput(8.25, {
+      runtimeSettings: {
+        ...frameInput(8.25).runtimeSettings,
+        bpmSync: true,
+        bpm: 150,
+      },
+    }))
+
+    expect(on.transition?.durationSec).toBeLessThan(off.transition?.durationSec ?? Number.POSITIVE_INFINITY)
+    expect(on.transition?.progress).toBeGreaterThan(off.transition?.progress ?? 0)
+    expect(new CanvasFracturesRuntime().resolveFrame(frameInput(8.25, {
+      runtimeSettings: { ...frameInput(8.25).runtimeSettings, bpmSync: true, bpm: 150 },
+    }))).toEqual(on)
   })
 })
 

@@ -1,6 +1,10 @@
+import { useState } from 'react'
 import { useAudioStore } from '../../stores/audioStore'
 import { useMediaStore } from '../../stores/mediaStore'
+import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import { MediaLibraryBrowser } from '../../components/vyzualz/media/MediaLibraryBrowser'
+import { MediaManagerStage } from '../../components/vyzualz/media/MediaManagerStage'
+import { MediaManagerInspector } from '../../components/vyzualz/media/MediaManagerInspector'
 import { MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
 import type { LyricManagerNavigationIntent } from '../lyrics/lyricNavigation'
 
@@ -12,6 +16,16 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
   const mediaCount = useMediaStore(state => state.items.length)
   const collectionCount = useMediaStore(state => state.collections.length)
   const trackCount = useAudioStore(state => state.savedTracks.length)
+  const mediaItems = useMediaStore(state => state.items)
+  const savedTracks = useAudioStore(state => state.savedTracks)
+
+  const [leftCollapsed, setLeftCollapsed] = useState(false)
+  const [rightCollapsed, setRightCollapsed] = useState(false)
+  const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null)
+  const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
+
+  const selectedMedia = selectedMediaId ? mediaItems.find(item => item.id === selectedMediaId) ?? null : null
+  const selectedTrack = selectedTrackId ? savedTracks.find(track => track.id === selectedTrackId) ?? null : null
 
   return (
     <main className="mmv-root" aria-labelledby="media-manager-title">
@@ -32,13 +46,42 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
       </header>
 
       <section className="mmv-workspace" aria-label="Media management workspace">
-        <MediaLibraryBrowser
-          activeMediaId={null}
-          context="manager"
-          title="Media Library"
-          capabilities={MEDIA_MANAGER_CAPABILITIES}
-          onOpenLyricManager={onOpenLyricManager}
-        />
+        <div
+          className="vz-content"
+          data-left-collapsed={leftCollapsed ? 'true' : 'false'}
+          data-right-collapsed={rightCollapsed ? 'true' : 'false'}
+        >
+          <WorkspaceRail
+            side="left"
+            label="Media Manager library"
+            collapsed={leftCollapsed}
+            onToggleCollapsed={() => setLeftCollapsed(value => !value)}
+          >
+            <MediaLibraryBrowser
+              activeMediaId={selectedMediaId}
+              onSelect={id => { setSelectedMediaId(id); setSelectedTrackId(null) }}
+              activeTrackId={selectedTrackId}
+              onSelectTrack={track => { setSelectedTrackId(track.id); setSelectedMediaId(null) }}
+              context="manager"
+              title="Media Library"
+              capabilities={MEDIA_MANAGER_CAPABILITIES}
+              onOpenLyricManager={onOpenLyricManager}
+            />
+          </WorkspaceRail>
+
+          <div className="mmv-stage-area" aria-label="Selected media preview">
+            <MediaManagerStage media={selectedMedia} track={selectedTrack} />
+          </div>
+
+          <WorkspaceRail
+            side="right"
+            label="Media Manager details"
+            collapsed={rightCollapsed}
+            onToggleCollapsed={() => setRightCollapsed(value => !value)}
+          >
+            <MediaManagerInspector media={selectedMedia} track={selectedTrack} />
+          </WorkspaceRail>
+        </div>
       </section>
     </main>
   )

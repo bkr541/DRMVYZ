@@ -14,7 +14,7 @@ const CANONICAL_CANVAS_PRESET_FIELDS: ReadonlyArray<keyof CanvasPresetSettings> 
   'fractureIntensity', 'fractureMode', 'fractureAnchorMode', 'fractureFocusProtection',
   'fractureFocusX', 'fractureFocusY', 'fractureComposition', 'fracturePlacementMode',
   'fractureTopologyInterval', 'fractureLayoutInterval', 'fractureVariationSeed', 'fractureQuality',
-  'fractureMotionAmount', 'fractureTransitionMode', 'fractureTransitionSpeed', 'fractureStaggerAmount',
+  'fractureMotionAmount', 'fractureTransitionMode', 'fractureTransitionSpeed', 'fractureBpmSync', 'fractureStaggerAmount',
   'fractureZoomAmount', 'fractureFreezeLayout', 'fractureReturnToAnchor', 'fractureTopologyRevision',
   'fractureLayoutRevision', 'fractureEffectsIntensity', 'fractureGlowAmount', 'fractureOutlineAmount',
   'fractureOutlineThickness', 'fractureRgbSplitAmount', 'fractureLumaMode', 'fractureLumaThreshold',

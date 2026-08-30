@@ -114,6 +114,221 @@
   padding-inline: 14px;
 }
 
+/* ── Middle stage: plain media preview (no live effects) ────────────────── */
+.mmv-stage-area {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  background: #070c14;
+}
+
+.mms-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mms-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: rgba(196,207,211,0.36);
+  font-size: 11px;
+  text-align: center;
+}
+
+.mms-media-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 24px;
+}
+
+.mms-media-area--transparent {
+  background-image:
+    linear-gradient(45deg, #1a2028 25%, transparent 25%),
+    linear-gradient(-45deg, #1a2028 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1a2028 75%),
+    linear-gradient(-45deg, transparent 75%, #1a2028 75%);
+  background-size: 14px 14px;
+  background-position: 0 0, 0 7px, 7px -7px, -7px 0px;
+  background-color: #0f1520;
+}
+
+.mms-image,
+.mms-video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+  border-radius: 4px;
+}
+
+.mms-video { background: #000; }
+
+.mms-caption {
+  flex-shrink: 0;
+  padding: 8px 16px 10px;
+  color: rgba(232,238,240,0.7);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mms-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px 14px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+
+.mms-play-btn {
+  background: none;
+  border: 1px solid rgba(74,199,219,0.3);
+  border-radius: 4px;
+  color: #4ac7db;
+  width: 30px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, border-color 0.12s;
+}
+.mms-play-btn:hover { background: rgba(74,199,219,0.1); border-color: rgba(74,199,219,0.6); }
+.mms-play-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.mms-scrubber { flex: 1; cursor: pointer; accent-color: #4ac7db; }
+
+.mms-time {
+  font-size: 10px;
+  font-family: var(--az-font);
+  color: rgba(196,207,211,0.55);
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+}
+
+/* ── Audio track hero + waveform ─────────────────────────────────────────── */
+.mms-stage--audio { justify-content: center; gap: 18px; padding: 24px; }
+
+.mms-track-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.mms-track-hero-art {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  color: rgba(196,207,211,0.4);
+}
+
+.mms-track-hero-info { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+
+.mms-track-hero-title {
+  color: rgba(232,238,240,0.92);
+  font-size: 15px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mms-track-hero-artist {
+  color: rgba(196,207,211,0.55);
+  font-size: 11px;
+}
+
+.mms-track-hero-meta {
+  display: flex;
+  gap: 8px;
+  color: rgba(196,207,211,0.4);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mms-waveform-wrap {
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+}
+
+.mms-waveform-wrap .vz-mini-waveform {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 4px;
+}
+
+/* ── Right inspector ──────────────────────────────────────────────────────── */
+.mmi-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+}
+
+.mmi-empty {
+  padding: 24px 14px;
+  color: rgba(196,207,211,0.36);
+  font-size: 11px;
+  text-align: center;
+}
+
+.mmi-textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.mmi-readonly {
+  color: rgba(196,207,211,0.6);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mmi-chip-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.mmi-chip-input {
+  flex: 1;
+  min-width: 90px;
+}
+
+.mmi-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
 .vz-media-browser--manager .vz-filter-tabs,
 .vz-media-browser--manager .vz-md-search-row {
   padding-inline: 14px;

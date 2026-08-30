@@ -363,6 +363,7 @@ export interface CanvasPresetSettings {
   fractureMotionAmount: number
   fractureTransitionMode: CanvasFractureTransitionMode
   fractureTransitionSpeed: number
+  fractureBpmSync: boolean
   fractureStaggerAmount: number
   fractureZoomAmount: number
   fractureFreezeLayout: boolean
@@ -528,6 +529,7 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
   fractureMotionAmount: 0.24,
   fractureTransitionMode: 'staggeredAssembly',
   fractureTransitionSpeed: 0.45,
+  fractureBpmSync: false,
   fractureStaggerAmount: 0.28,
   fractureZoomAmount: 0.18,
   fractureFreezeLayout: false,
@@ -798,6 +800,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       motionAmount: 0,
       turbulence: 0,
       particleDensity: 0,
+      fractureBpmSync: true,
     },
     controls: [],
   },

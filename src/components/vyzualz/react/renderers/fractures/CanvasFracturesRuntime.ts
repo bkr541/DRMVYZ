@@ -210,6 +210,8 @@ export class CanvasFracturesRuntime {
       startSec: transitionStartSec,
       positionSec: progressPositionSec,
       transitionSpeed: input.runtimeSettings.transitionSpeed,
+      bpmSync: input.runtimeSettings.bpmSync,
+      bpm: input.runtimeSettings.bpm,
       staggerAmount: input.runtimeSettings.staggerAmount,
       zoomAmount: input.runtimeSettings.zoomAmount,
       forceComplete,
@@ -225,6 +227,7 @@ export class CanvasFracturesRuntime {
     return Math.max(automatic, manual) + resolveCanvasFracturesTransitionDuration(
       input.runtimeSettings.transitionMode,
       input.runtimeSettings.transitionSpeed,
+      { bpmSync: input.runtimeSettings.bpmSync, bpm: input.runtimeSettings.bpm },
     )
   }
 
@@ -262,6 +265,8 @@ export class CanvasFracturesRuntime {
       startSec: transitionStartSec,
       positionSec: progressPositionSec,
       transitionSpeed: input.runtimeSettings.transitionSpeed,
+      bpmSync: input.runtimeSettings.bpmSync,
+      bpm: input.runtimeSettings.bpm,
       staggerAmount: input.runtimeSettings.staggerAmount,
       zoomAmount: input.runtimeSettings.zoomAmount,
     })

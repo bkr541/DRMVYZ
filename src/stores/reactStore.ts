@@ -4688,6 +4688,7 @@ export function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSetti
     fractureMotionAmount: clampCanvasNumber(source.fractureMotionAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureMotionAmount, 0, 1),
     fractureTransitionMode: normalizeCanvasFractureTransitionMode(source.fractureTransitionMode),
     fractureTransitionSpeed: clampCanvasNumber(source.fractureTransitionSpeed, DEFAULT_CANVAS_PRESET_SETTINGS.fractureTransitionSpeed, 0, 1),
+    fractureBpmSync: source.fractureBpmSync == null ? DEFAULT_CANVAS_PRESET_SETTINGS.fractureBpmSync : source.fractureBpmSync === true,
     fractureStaggerAmount: clampCanvasNumber(source.fractureStaggerAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureStaggerAmount, 0, 1),
     fractureZoomAmount: clampCanvasNumber(source.fractureZoomAmount, DEFAULT_CANVAS_PRESET_SETTINGS.fractureZoomAmount, 0, 1),
     fractureFreezeLayout: sourceSchemaVersion >= 4 && source.fractureFreezeLayout === true,

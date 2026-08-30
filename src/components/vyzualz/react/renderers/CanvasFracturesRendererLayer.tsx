@@ -202,12 +202,16 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
         live.trackIdentity
         && (intelligenceFrame.trackId === live.trackIdentity || intelligenceFrame.sourceId === live.trackIdentity),
       )
+      const performanceContext = live.performanceContextRef?.current ?? null
       const bpm = live.trackAnalysis?.bpm
         ?? (frameMatchesTrack && intelligenceFrame.rhythm.bpm > 0 ? intelligenceFrame.rhythm.bpm : null)
+      const transitionBpm = performanceContext && performanceContext.bpm > 0
+        ? performanceContext.bpm
+        : (bpm ?? 0)
       const settings = live.settings
       syncOrchestratedSourcePlayback(live.sourceRef.current, live.sourcePlayback, live.isPlaying, live.isPaused)
       const audioFrame = audioAdapter.update({
-        context: live.performanceContextRef?.current ?? null,
+        context: performanceContext,
         analyser: live.analyser,
         isPlaying: analysisActive,
         isPaused: live.isPaused,
@@ -277,6 +281,8 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
           manualTransitionPositionSec: settings.fractureManualTransitionPositionSec,
           transitionMode: settings.fractureTransitionMode,
           transitionSpeed: settings.fractureTransitionSpeed,
+          bpmSync: settings.fractureBpmSync,
+          bpm: transitionBpm,
           staggerAmount: settings.fractureStaggerAmount,
           zoomAmount: settings.fractureZoomAmount,
         },

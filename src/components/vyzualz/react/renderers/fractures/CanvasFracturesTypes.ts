@@ -218,6 +218,8 @@ export interface CanvasFracturesRuntimeSettings {
   manualTransitionPositionSec: number
   transitionMode: CanvasFractureTransitionMode
   transitionSpeed: number
+  bpmSync: boolean
+  bpm: number
   staggerAmount: number
   zoomAmount: number
 }

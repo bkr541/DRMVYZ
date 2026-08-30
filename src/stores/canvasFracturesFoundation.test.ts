@@ -94,6 +94,7 @@ describe('Fractures CANVAS foundation', () => {
       fractureMotionAmount: Number.NaN,
       fractureTransitionMode: 'wipe',
       fractureTransitionSpeed: 4,
+      fractureBpmSync: true,
       fractureStaggerAmount: -1,
       fractureZoomAmount: 3,
       fractureFreezeLayout: 'yes',
@@ -147,6 +148,7 @@ describe('Fractures CANVAS foundation', () => {
       fractureMotionAmount: DEFAULT_CANVAS_PRESET_SETTINGS.fractureMotionAmount,
       fractureTransitionMode: DEFAULT_CANVAS_PRESET_SETTINGS.fractureTransitionMode,
       fractureTransitionSpeed: 1,
+      fractureBpmSync: true,
       fractureStaggerAmount: 0,
       fractureZoomAmount: 1,
       fractureFreezeLayout: false,
@@ -187,6 +189,8 @@ describe('Fractures CANVAS foundation', () => {
     expect(normalizeCanvasPresetSettings({ fractureQuality: 'auto' }).fractureQuality).toBe('auto')
     expect(normalizeCanvasPresetSettings({ particleQuality: 'ultra' }).particleQuality)
       .toBe(DEFAULT_CANVAS_PRESET_SETTINGS.particleQuality)
+    expect(normalizeCanvasPresetSettings({ fractureBpmSync: undefined }).fractureBpmSync)
+      .toBe(DEFAULT_CANVAS_PRESET_SETTINGS.fractureBpmSync)
   })
 
   it('migrates a pre-Fractures project lazily without replacing existing CANVAS values', () => {
@@ -255,6 +259,7 @@ describe('Fractures CANVAS foundation', () => {
       fractureMotionAmount: 0.77,
       fractureTransitionMode: 'zoomInOut',
       fractureTransitionSpeed: 0.69,
+      fractureBpmSync: true,
       fractureStaggerAmount: 0.31,
       fractureZoomAmount: 0.52,
       fractureFreezeLayout: true,

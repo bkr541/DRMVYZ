@@ -63,7 +63,6 @@ describe('MediaManagerView', () => {
       title: 'Media Library',
       capabilities: MEDIA_MANAGER_CAPABILITIES,
     }))
-    expect(MEDIA_MANAGER_CAPABILITIES).toEqual(expect.arrayContaining(['upload', 'edit', 'remove', 'collections']))
-    expect(MEDIA_MANAGER_CAPABILITIES).not.toContain('select')
+    expect(MEDIA_MANAGER_CAPABILITIES).toEqual(expect.arrayContaining(['select', 'upload', 'edit', 'remove', 'collections']))
   })
 })

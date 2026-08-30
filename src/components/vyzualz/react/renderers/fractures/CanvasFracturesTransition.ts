@@ -17,6 +17,8 @@ export interface CanvasFracturesTransitionInput {
   startSec: number
   positionSec: number
   transitionSpeed: number
+  bpmSync?: boolean
+  bpm?: number
   staggerAmount: number
   zoomAmount: number
   forceComplete?: boolean
@@ -50,14 +52,36 @@ function lerpTransform(
   }
 }
 
-export function resolveCanvasFracturesTransitionDuration(
+const CANVAS_FRACTURES_REFERENCE_BPM = 128
+
+function resolveCanvasFracturesBaseTransitionDuration(
   mode: CanvasFractureTransitionMode,
   transitionSpeed: number,
 ): number {
   const speed = clampFracturesUnit(transitionSpeed)
-  if (mode === 'hardGlitchCut') return roundFractures(0.018 + (1 - speed) * 0.055, 6)
-  if (mode === 'staggeredAssembly') return roundFractures(0.36 + (1 - speed) * 1.04, 6)
-  return roundFractures(0.3 + (1 - speed) * 0.9, 6)
+  if (mode === 'hardGlitchCut') return 0.018 + (1 - speed) * 0.055
+  if (mode === 'staggeredAssembly') return 0.36 + (1 - speed) * 1.04
+  return 0.3 + (1 - speed) * 0.9
+}
+
+/**
+ * Resolves transition duration from the same authored speed curve used before
+ * BPM Sync existed. With sync enabled the curve is interpreted as musical
+ * beats at a 128 BPM reference, then scaled to the live canonical BPM. This
+ * keeps the preset's existing feel at 128 BPM while making transition motion
+ * accelerate/decelerate with the track instead of wall-clock seconds.
+ */
+export function resolveCanvasFracturesTransitionDuration(
+  mode: CanvasFractureTransitionMode,
+  transitionSpeed: number,
+  timing?: { bpmSync?: boolean; bpm?: number },
+): number {
+  const baseDurationSec = resolveCanvasFracturesBaseTransitionDuration(mode, transitionSpeed)
+  const bpm = Number.isFinite(timing?.bpm) ? Math.max(0, timing?.bpm ?? 0) : 0
+  if (!timing?.bpmSync || bpm <= 0) return roundFractures(baseDurationSec, 6)
+
+  const authoredBeats = baseDurationSec * CANVAS_FRACTURES_REFERENCE_BPM / 60
+  return roundFractures(authoredBeats * 60 / bpm, 6)
 }
 
 export function resolveCanvasFracturesFragmentDelay(
@@ -112,7 +136,10 @@ function transitionDirection(identity: string): 'in' | 'out' {
 }
 
 export function evaluateCanvasFracturesTransition(input: CanvasFracturesTransitionInput): CanvasFracturesPlan {
-  const durationSec = resolveCanvasFracturesTransitionDuration(input.mode, input.transitionSpeed)
+  const durationSec = resolveCanvasFracturesTransitionDuration(input.mode, input.transitionSpeed, {
+    bpmSync: input.bpmSync,
+    bpm: input.bpm,
+  })
   const rawProgress = input.forceComplete
     ? 1
     : clampFracturesUnit((Math.max(0, input.positionSec) - Math.max(0, input.startSec)) / Math.max(1e-4, durationSec))

@@ -3723,6 +3723,12 @@ function CanvasFracturesControls({
         <CanvasHelpControl helpId="react.canvas.fractures.motion.transitionSpeed" currentValue={formatCanvasPercentage(settings.fractureTransitionSpeed)} className="rv-canvas-react-control-help">
           <SliderRow label="Transition Speed" value={settings.fractureTransitionSpeed} onChange={fractureTransitionSpeed => setSettings({ fractureTransitionSpeed })} min={0} max={1} step={0.01} color="#4ac7db" />
         </CanvasHelpControl>
+        <ToggleRow
+          label="BPM Sync"
+          value={settings.fractureBpmSync}
+          onChange={fractureBpmSync => setSettings({ fractureBpmSync })}
+          description="Locks Fractures transition timing to the canonical musical BPM while preserving deterministic seek and loop reconstruction."
+        />
         <CanvasHelpControl helpId="react.canvas.fractures.motion.stagger" currentValue={formatCanvasPercentage(settings.fractureStaggerAmount)} className="rv-canvas-react-control-help">
           <SliderRow label="Stagger" value={settings.fractureStaggerAmount} onChange={fractureStaggerAmount => setSettings({ fractureStaggerAmount })} min={0} max={1} step={0.01} color="#d8b95a" />
         </CanvasHelpControl>

@@ -29,8 +29,6 @@ import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { MediaUploadModal } from '../MediaUploadModal'
 import { MediaPreviewModal } from './MediaPreviewModal'
 import { MediaStatusBar } from './MediaStatusBar'
-import { AudioTrackEditModal } from './AudioTrackEditModal'
-import { AudioTrackPreviewModal } from './AudioTrackPreviewModal'
 import { CollectionEditorModal } from './CollectionEditorModal'
 import { MEDIA_ROLE_BADGE_LABELS, MEDIA_ROLE_LABELS } from '../../../lib/mediaRoles'
 import { isUnifiedSvgMediaItem } from '../../../lib/svgMediaEligibility'
@@ -346,7 +344,9 @@ function AudioTrackRow({
   loadError,
   canLoad,
   canOpenLyrics,
-  canRemove, canEdit, canPreview, onEdit, onPreview,
+  canRemove,
+  isActive,
+  onSelect,
   onOpenTimeline,
   onOpenActiveLyrics,
   onOpenAiExtract,
@@ -361,10 +361,8 @@ function AudioTrackRow({
   canLoad: boolean
   canOpenLyrics: boolean
   canRemove: boolean
-  canEdit: boolean
-  canPreview: boolean
-  onEdit?: () => void
-  onPreview?: () => void
+  isActive?: boolean
+  onSelect?: () => void
   onOpenTimeline?: () => void
   onOpenActiveLyrics?: () => void
   onOpenAiExtract?: () => void
@@ -376,7 +374,13 @@ function AudioTrackRow({
   if (track.musicalKey)  meta.push(track.musicalKey)
 
   return (
-    <div className={`vz-track-row${loaded ? ' vz-track-row--loaded' : ''}${playing ? ' vz-track-row--playing' : ''}`}>
+    <div
+      className={`vz-track-row${loaded ? ' vz-track-row--loaded' : ''}${playing ? ' vz-track-row--playing' : ''}${isActive ? ' vz-track-row--active' : ''}`}
+      onClick={onSelect}
+      role={onSelect ? 'button' : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onKeyDown={onSelect ? event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect() } } : undefined}
+    >
       <div className="vz-track-row-icon">
         <MusicNote01Icon size={14} color="currentColor" />
       </div>
@@ -395,11 +399,9 @@ function AudioTrackRow({
         {loadError && <div className="vz-track-row-error" role="alert">{loadError}</div>}
       </div>
       <div className="vz-track-row-actions">
-        {canPreview && onPreview && <IconChipButton onClick={onPreview}>Preview</IconChipButton>}
-        {canEdit && onEdit && <button type="button" className="vz-media-edit-btn" onClick={onEdit} title="Edit track metadata"><PencilEdit01Icon size={12} color="currentColor" /></button>}
         {canLoad && (
           <IconChipButton
-            onClick={onLoad}
+            onClick={event => { event.stopPropagation(); onLoad() }}
             disabled={loading}
             title="Load this saved track without starting playback"
           >
@@ -410,6 +412,7 @@ function AudioTrackRow({
           <IconChipButton
             aria-haspopup="menu"
             onClick={event => {
+              event.stopPropagation()
               const rect = event.currentTarget.getBoundingClientRect()
               setLyricsMenu({ x: rect.right, y: rect.bottom + 4 })
             }}
@@ -421,7 +424,8 @@ function AudioTrackRow({
           <button
             type="button"
             className="vz-track-remove-btn"
-            onClick={() => {
+            onClick={event => {
+              event.stopPropagation()
               const confirmed = window.confirm(
                 `Delete “${track.title}”? This also deletes its saved lyric versions and transcription jobs.`,
               )
@@ -459,12 +463,10 @@ function MediaCard({
   isActive,
   viewMode,
   onSelect,
-  onEdit,
   onRemove,
   onToggleFavorite,
   onPreview,
   canSelect,
-  canEdit,
   canRemove,
   canFavorite,
   canPreview,
@@ -480,12 +482,10 @@ function MediaCard({
   isActive: boolean
   viewMode: ViewMode
   onSelect: (anchor: MediaLibraryCardActionAnchor) => void
-  onEdit?: () => void
   onRemove?: () => void
   onToggleFavorite: () => void
   onPreview: () => void
   canSelect: boolean
-  canEdit: boolean
   canRemove: boolean
   canFavorite: boolean
   canPreview: boolean
@@ -582,16 +582,6 @@ function MediaCard({
               <FavouriteIcon size={14} color="currentColor" />
             </button>
           )}
-          {canEdit && onEdit && (
-            <button
-              className="vz-media-edit-btn"
-              onClick={e => { e.stopPropagation(); onEdit() }}
-              title="Edit media"
-              style={{ opacity: 1 }}
-            >
-              <PencilEdit01Icon size={11} color="currentColor" />
-            </button>
-          )}
           {canRemove && onRemove && (
             <button
               className="vz-media-remove"
@@ -673,15 +663,6 @@ function MediaCard({
       <div className="vz-media-info">
         <div className="vz-media-name-row">
           <div className="vz-media-name">{displayName}</div>
-          {canEdit && onEdit && (
-            <button
-              className="vz-media-edit-btn"
-              onClick={e => { e.stopPropagation(); onEdit() }}
-              title="Edit media"
-            >
-              <PencilEdit01Icon size={11} color="currentColor" />
-            </button>
-          )}
         </div>
         <div className="vz-media-meta">{m.meta}</div>
         {mutationLabel && <div className={`vz-media-mutation-state vz-media-mutation-state--${mutationState!.status}`}>{mutationLabel}</div>}
@@ -714,6 +695,10 @@ export interface MediaLibraryBrowserProps {
   title?: string
   capabilities: readonly MediaLibraryCapability[]
   getDisabledReason?: (media: UploadedMedia) => string | null
+  /** Manager-only: selects a saved audio track into the manager's own preview/
+   * inspector panels. Independent of loading the track into the shared deck. */
+  activeTrackId?: string | null
+  onSelectTrack?: (track: SavedAudioTrack) => void
 }
 
 export interface MediaLibraryCardActionAnchor {
@@ -731,6 +716,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   title = 'Media Library',
   capabilities,
   getDisabledReason,
+  activeTrackId = null,
+  onSelectTrack,
 }: MediaLibraryBrowserProps) {
   const {
     items, queryItemIds, addFilesToUploadQueue, clearUploadQueue, removeItem, retryUpload, toggleFavorite,
@@ -782,10 +769,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [dragOver, setDragOver]       = useState(false)
-  const [editItem, setEditItem]       = useState<UploadedMedia | null>(null)
   const [previewItem, setPreviewItem] = useState<UploadedMedia | null>(null)
-  const [editTrack, setEditTrack] = useState<SavedAudioTrack | null>(null)
-  const [previewTrack, setPreviewTrack] = useState<SavedAudioTrack | null>(null)
   const [editCollection, setEditCollection] = useState<MediaCollection | undefined>(undefined)
   const [collectionEditorOpen, setCollectionEditorOpen] = useState(false)
   const [preserveQueuedFiles, setPreserveQueuedFiles] = useState(false)
@@ -810,7 +794,6 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const canPreview = capabilitySet.has('preview')
   const canFavorite = capabilitySet.has('favorite')
   const canUpload = (isManager || isCanvasMode) && capabilitySet.has('upload')
-  const canEdit = isManager && capabilitySet.has('edit')
   const canRemove = isManager && capabilitySet.has('remove')
   const canBrowseCollections = capabilitySet.has('collections')
   const canDragMedia = capabilitySet.has('drag-media')
@@ -962,22 +945,12 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   }, [engine, removeSavedTrack])
 
   useEffect(() => {
-    if (editItem) {
-      const current = items.find(item => item.id === editItem.id)
-      if (!current) setEditItem(null)
-      else if (current !== editItem) setEditItem(current)
-    }
     if (previewItem) {
       const current = items.find(item => item.id === previewItem.id)
       if (!current) setPreviewItem(null)
       else if (current !== previewItem) setPreviewItem(current)
     }
-  }, [editItem, items, previewItem])
-
-  useEffect(() => {
-    if (editTrack && !savedTracks.some(track => track.id === editTrack.id)) setEditTrack(null)
-    if (previewTrack && !savedTracks.some(track => track.id === previewTrack.id)) setPreviewTrack(null)
-  }, [editTrack, previewTrack, savedTracks])
+  }, [items, previewItem])
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -1009,17 +982,15 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         isActive={activeMediaId === media.id}
         viewMode={viewMode}
         onSelect={anchor => handleMediaCardAction(media, anchor)}
-        onEdit={canEdit ? () => setEditItem(media) : undefined}
         onRemove={canRemove ? () => {
           if (window.confirm(`Delete “${media.title ?? media.name}”? It will disappear immediately, while exact storage cleanup remains recoverable until finalized.`)) void removeItem(media.id)
         } : undefined}
         onToggleFavorite={() => { void toggleFavorite(media.id) }}
         onPreview={() => { void handlePreviewMedia(media) }}
         canSelect={canSelect && !disabledReason}
-        canEdit={canEdit}
         canRemove={canRemove}
         canFavorite={canFavorite}
-        canPreview={canPreview}
+        canPreview={canPreview && !isManager}
         canDrag={canDragMedia && !disabledReason}
         canRetry={context === 'manager'}
         onRetry={() => { void retryUpload(media.id) }}
@@ -1029,7 +1000,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         onThumbnailLoad={() => { markMediaAssetLoaded?.(media.id, 'thumbnail') }}
       />
     )
-  }, [activeMediaId, canDragMedia, canEdit, canFavorite, canPreview, canRemove, canSelect, context, getDisabledReason, handleMediaCardAction, handlePreviewMedia, markMediaAssetLoaded, mutationStates, removeItem, retryMediaAsset, retryUpload, toggleFavorite, viewMode])
+  }, [activeMediaId, canDragMedia, canFavorite, canPreview, canRemove, canSelect, context, getDisabledReason, handleMediaCardAction, handlePreviewMedia, isManager, markMediaAssetLoaded, mutationStates, removeItem, retryMediaAsset, retryUpload, toggleFavorite, viewMode])
 
   const handleEnsureSigned = useCallback((visibleIds: string[], nearIds: string[]) => {
     void ensureMediaSigned?.(visibleIds, 'visible')
@@ -1107,10 +1078,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             canLoad={canLoadTrack}
             canOpenLyrics={canOpenLyrics}
             canRemove={canRemove}
-            canEdit={canEdit}
-            canPreview={isManager && canPreview}
-            onEdit={canEdit ? () => setEditTrack(t) : undefined}
-            onPreview={isManager && canPreview ? () => setPreviewTrack(t) : undefined}
+            isActive={isManager && activeTrackId === t.id}
+            onSelect={isManager && onSelectTrack ? () => onSelectTrack(t) : undefined}
             onOpenTimeline={canOpenLyrics ? () => onOpenLyricManager?.(createLyricManagerNavigationIntent(t.dbId, 'timeline')) : undefined}
             onOpenActiveLyrics={canOpenLyrics ? () => onOpenLyricManager?.(createLyricManagerNavigationIntent(t.dbId, 'active-lyrics')) : undefined}
             onOpenAiExtract={canOpenLyrics ? () => onOpenLyricManager?.(createLyricManagerNavigationIntent(t.dbId, 'ai-extract')) : undefined}
@@ -1323,10 +1292,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   return (
     <>
       {canUpload && importModalOpen && <MediaUploadModal preserveQueuedFiles={preserveQueuedFiles} onClose={() => { setPreserveQueuedFiles(false); closeImportMediaModal() }} />}
-      {canEdit && editItem && <MediaUploadModal editItem={editItem} onClose={() => setEditItem(null)} />}
-      {canPreview && previewItem && <MediaPreviewModal media={previewItem} onClose={() => setPreviewItem(null)} />}
-      {isManager && editTrack && <AudioTrackEditModal track={editTrack} onClose={() => setEditTrack(null)} />}
-      {isManager && previewTrack && <AudioTrackPreviewModal track={previewTrack} onClose={() => setPreviewTrack(null)} />}
+      {canPreview && !isManager && previewItem && <MediaPreviewModal media={previewItem} onClose={() => setPreviewItem(null)} />}
       {isManager && collectionEditorOpen && <CollectionEditorModal collection={editCollection} onClose={() => { setCollectionEditorOpen(false); setEditCollection(undefined) }} />}
       <div
         className={`vz-panel vz-media-browser${isManager ? ' vz-media-browser--manager' : ''}`}
