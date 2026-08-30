@@ -37,12 +37,15 @@ type RuntimeEntry = {
   height: number
   echoHistory: RuntimeCanvas | null
   stutterFrame: RuntimeCanvas | null
+  meltSample: RuntimeCanvas | null
   stutterBucket: number | null
   stutterInitialized: boolean
 }
 
 const EFFECT_ID_SET = new Set<string>(CANVAS_LAYER_EFFECT_IDS)
 const TEMPORAL_EFFECTS = new Set<CanvasLayerEffectId>(['echo', 'stutter'])
+const MELT_SAMPLE_COLUMNS = 16
+const MELT_SAMPLE_ROWS = 6
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
@@ -106,13 +109,24 @@ export function resolveCanvasLayerEffectRenderPlan(
       case 'melt':
         return { id, amount: clamp01(0.46 + bass * 0.12 + high * 0.16), variation, stutterBucket: null }
       case 'stutter': {
+        const amount = clamp01(beat * 0.72 + transient * 0.18 + bass * 0.1)
         const stutterBucket = context.isPlaying && !context.isPaused
-          ? Math.max(0, Math.floor(beatPosition * 6))
+          ? resolveStutterBucket(beatPosition, amount)
           : null
-        return { id, amount: clamp01(0.62 + beat * 0.24), variation, stutterBucket }
+        return { id, amount, variation, stutterBucket }
       }
     }
   })
+}
+
+function resolveStutterBucket(beatPosition: number, amount: number): number | null {
+  if (amount <= 0.04) return null
+  const subdivisions = 2 + Math.round(amount * 4)
+  const position = beatPosition * subdivisions
+  const bucket = Math.max(0, Math.floor(position))
+  const phase = position - bucket
+  const liveFraction = Math.max(0.14, 0.96 - amount * 0.82)
+  return phase >= liveFraction ? bucket : null
 }
 
 function effectSignature(effects: readonly CanvasLayerEffectId[]): string {
@@ -124,9 +138,15 @@ function resizeRuntimeCanvas(canvas: RuntimeCanvas, width: number, height: numbe
   if (canvas.height !== height) canvas.height = height
 }
 
+function releaseRuntimeCanvas(canvas: RuntimeCanvas | null): void {
+  if (!canvas) return
+  canvas.width = 0
+  canvas.height = 0
+}
+
 /**
- * Bounded temporal ownership for authored layer effects. At most one entry is
- * retained per stable layer ID; only Echo/Stutter allocate persistent canvases.
+ * Bounded runtime ownership for authored layer effects. At most one entry is
+ * retained per stable layer ID; Echo/Stutter own full-size temporal canvases.
  */
 export class CanvasLayerEffectRuntime {
   private readonly entries = new Map<string, RuntimeEntry>()
@@ -155,12 +175,21 @@ export class CanvasLayerEffectRuntime {
         !active
         || entry.sourceIdentity !== active.sourceIdentity
         || entry.effectSignature !== effectSignature(normalizedEffects(active.effects))
-      ) this.entries.delete(layerId)
+      ) this.releaseEntry(layerId)
     }
   }
 
   dispose(): void {
-    this.entries.clear()
+    for (const layerId of this.entries.keys()) this.releaseEntry(layerId)
+  }
+
+  private releaseEntry(layerId: string): void {
+    const entry = this.entries.get(layerId)
+    if (!entry) return
+    releaseRuntimeCanvas(entry.echoHistory)
+    releaseRuntimeCanvas(entry.stutterFrame)
+    releaseRuntimeCanvas(entry.meltSample)
+    this.entries.delete(layerId)
   }
 
   private entryFor(
@@ -179,6 +208,7 @@ export class CanvasLayerEffectRuntime {
       && existing.width === width
       && existing.height === height
     ) return existing
+    if (existing) this.releaseEntry(layerId)
 
     const next: RuntimeEntry = {
       sourceIdentity,
@@ -187,6 +217,7 @@ export class CanvasLayerEffectRuntime {
       height,
       echoHistory: null,
       stutterFrame: null,
+      meltSample: null,
       stutterBucket: null,
       stutterInitialized: false,
     }
@@ -205,6 +236,18 @@ export class CanvasLayerEffectRuntime {
     resizeRuntimeCanvas(canvas, entry.width, entry.height)
     if (kind === 'echo') entry.echoHistory = canvas
     else entry.stutterFrame = canvas
+    return canvas
+  }
+
+  private meltSampleCanvas(entry: RuntimeEntry): RuntimeCanvas | null {
+    if (entry.meltSample) {
+      resizeRuntimeCanvas(entry.meltSample, MELT_SAMPLE_COLUMNS, MELT_SAMPLE_ROWS)
+      return entry.meltSample
+    }
+    const canvas = this.createCanvas()
+    if (!canvas) return null
+    resizeRuntimeCanvas(canvas, MELT_SAMPLE_COLUMNS, MELT_SAMPLE_ROWS)
+    entry.meltSample = canvas
     return canvas
   }
 
@@ -232,7 +275,10 @@ export class CanvasLayerEffectRuntime {
     context: CanvasLayerEffectFrameContext
   }): RuntimeCanvas {
     const plan = resolveCanvasLayerEffectRenderPlan(layerId, effects, context)
-    if (plan.length === 0) return source
+    if (plan.length === 0) {
+      this.releaseEntry(layerId)
+      return source
+    }
 
     const orderedEffects = plan.map(step => step.id)
     const entry = this.entryFor(layerId, sourceIdentity, orderedEffects, width, height)
@@ -258,7 +304,16 @@ export class CanvasLayerEffectRuntime {
           renderGlitch(outputContext, input, width, height, step.amount, step.variation, context)
           break
         case 'melt':
-          renderMelt(outputContext, input, width, height, step.amount, step.variation, context)
+          renderMelt(
+            outputContext,
+            input,
+            width,
+            height,
+            step.amount,
+            step.variation,
+            context,
+            this.meltSampleCanvas(entry),
+          )
           break
         case 'stutter':
           renderStutter(
@@ -267,9 +322,10 @@ export class CanvasLayerEffectRuntime {
             width,
             height,
             mediaType,
+            step.amount,
             step.stutterBucket,
             entry,
-            this.temporalCanvas(entry, 'stutter'),
+            step.amount > 0.04 ? this.temporalCanvas(entry, 'stutter') : null,
           )
           break
       }
@@ -383,24 +439,74 @@ function renderMelt(
   amount: number,
   variation: number,
   frame: CanvasLayerEffectFrameContext,
+  sampleCanvas: RuntimeCanvas | null,
 ): void {
   drawFull(context, source, width, height)
-  const columns = 12
-  const columnWidth = width / columns
-  const phase = frame.audioTimeSec * (0.45 + amount * 0.35) + variation * Math.PI * 2
+  if (!sampleCanvas) return
 
-  for (let index = 0; index < columns; index += 1) {
-    const wave = (Math.sin(phase + index * 0.91) + 1) * 0.5
-    const drop = Math.round((4 + wave * 28) * amount)
-    context.save()
-    context.beginPath()
-    context.rect(index * columnWidth, 0, Math.ceil(columnWidth + 1), height)
-    context.clip()
-    context.globalCompositeOperation = 'screen'
-    context.globalAlpha = 0.08 + amount * 0.2
-    context.filter = `blur(${(1.2 + amount * 4.2).toFixed(2)}px) brightness(${(1.12 + amount * 0.42).toFixed(3)}) contrast(${(1.02 + amount * 0.18).toFixed(3)})`
-    context.drawImage(source, 0, drop, width, height)
-    context.restore()
+  const sampleContext = sampleCanvas.getContext('2d', { alpha: true, willReadFrequently: true })
+  if (!sampleContext) return
+  sampleContext.setTransform(1, 0, 0, 1, 0, 0)
+  sampleContext.clearRect(0, 0, MELT_SAMPLE_COLUMNS, MELT_SAMPLE_ROWS)
+  sampleContext.globalCompositeOperation = 'source-over'
+  sampleContext.globalAlpha = 1
+  sampleContext.filter = 'none'
+  sampleContext.drawImage(source, 0, 0, MELT_SAMPLE_COLUMNS, MELT_SAMPLE_ROWS)
+
+  let pixels: Uint8ClampedArray
+  try {
+    pixels = sampleContext.getImageData(0, 0, MELT_SAMPLE_COLUMNS, MELT_SAMPLE_ROWS).data
+  } catch {
+    return
+  }
+
+  const phase = frame.audioTimeSec * (0.45 + amount * 0.35) + variation * Math.PI * 2
+  for (let row = 0; row < MELT_SAMPLE_ROWS; row += 1) {
+    const sourceY = Math.floor(row * height / MELT_SAMPLE_ROWS)
+    const nextY = Math.floor((row + 1) * height / MELT_SAMPLE_ROWS)
+    const sourceHeight = Math.max(1, nextY - sourceY)
+    for (let column = 0; column < MELT_SAMPLE_COLUMNS; column += 1) {
+      const pixelIndex = (row * MELT_SAMPLE_COLUMNS + column) * 4
+      const alpha = pixels[pixelIndex + 3] / 255
+      if (alpha <= 0.01) continue
+      const luminance = (
+        pixels[pixelIndex] * 0.2126
+        + pixels[pixelIndex + 1] * 0.7152
+        + pixels[pixelIndex + 2] * 0.0722
+      ) / 255 * alpha
+      const luminanceWeight = clamp01((luminance - 0.1) / 0.9)
+      if (luminanceWeight <= 0.025) continue
+
+      const sourceX = Math.floor(column * width / MELT_SAMPLE_COLUMNS)
+      const nextX = Math.floor((column + 1) * width / MELT_SAMPLE_COLUMNS)
+      const sourceWidth = Math.max(1, nextX - sourceX)
+      const wave = (Math.sin(phase + column * 0.83 + row * 0.47) + 1) * 0.5
+      const maxDrop = Math.max(2, height * (0.018 + amount * 0.09))
+      const drop = Math.max(1, Math.round(maxDrop * luminanceWeight * (0.7 + wave * 0.55)))
+      const destinationY = Math.min(height - 1, sourceY + Math.round(drop * 0.16))
+      const destinationHeight = Math.min(height - destinationY, sourceHeight + drop)
+      if (destinationHeight <= 0) continue
+
+      context.save()
+      context.beginPath()
+      context.rect(sourceX, sourceY, sourceWidth + 1, Math.min(height - sourceY, sourceHeight + drop))
+      context.clip()
+      context.globalCompositeOperation = 'source-over'
+      context.globalAlpha = Math.min(0.9, 0.16 + amount * luminanceWeight * 0.68)
+      context.filter = `blur(${(0.35 + amount * luminanceWeight * 2.4).toFixed(2)}px)`
+      context.drawImage(
+        source,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        sourceX,
+        destinationY,
+        sourceWidth,
+        destinationHeight,
+      )
+      context.restore()
+    }
   }
 }
 
@@ -410,11 +516,12 @@ function renderStutter(
   width: number,
   height: number,
   mediaType: 'image' | 'video' | 'svg',
+  amount: number,
   bucket: number | null,
   entry: RuntimeEntry,
   held: RuntimeCanvas | null,
 ): void {
-  if (!held) {
+  if (!held || amount <= 0.04) {
     drawFull(context, source, width, height)
     return
   }
@@ -440,7 +547,17 @@ function renderStutter(
     entry.stutterBucket = bucket
   }
 
-  drawFull(context, held, width, height)
+  if (bucket === null || mediaType !== 'video') {
+    drawFull(context, source, width, height)
+    return
+  }
+
+  drawFull(context, source, width, height)
+  context.save()
+  context.globalCompositeOperation = 'source-over'
+  context.globalAlpha = clamp01(0.12 + amount * 0.88)
+  context.drawImage(held, 0, 0, width, height)
+  context.restore()
 }
 
 export function canvasLayerHasTemporalEffects(effects: readonly CanvasLayerEffectId[] | undefined): boolean {
