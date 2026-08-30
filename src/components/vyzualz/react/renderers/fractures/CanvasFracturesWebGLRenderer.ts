@@ -27,6 +27,7 @@ import type {
   CanvasFracturesResolvedEffectSettings,
   CanvasFracturesResolvedFragmentEffects,
   CanvasFracturesResolvedPalette,
+  CanvasFracturesSourceElement,
 } from './CanvasFracturesTypes'
 
 const VERTEX_SHADER = `#version 300 es
@@ -367,9 +368,12 @@ function createProgram(gl: WebGL2RenderingContext): WebGLProgram {
   return program
 }
 
-function sourceSize(source: HTMLVideoElement | HTMLImageElement): { width: number; height: number } {
+function sourceSize(source: CanvasFracturesSourceElement): { width: number; height: number } {
   if (typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement) {
     return { width: Math.max(1, source.videoWidth), height: Math.max(1, source.videoHeight) }
+  }
+  if (typeof HTMLCanvasElement !== 'undefined' && source instanceof HTMLCanvasElement) {
+    return { width: Math.max(1, source.width), height: Math.max(1, source.height) }
   }
   const image = source as HTMLImageElement
   return { width: Math.max(1, image.naturalWidth), height: Math.max(1, image.naturalHeight) }
@@ -815,7 +819,7 @@ export class CanvasFracturesWebGLRenderer {
     }
   }
 
-  private uploadSource(source: HTMLVideoElement | HTMLImageElement, width: number, height: number): boolean {
+  private uploadSource(source: CanvasFracturesSourceElement, width: number, height: number): boolean {
     if (!this.texture || !this.plan) return false
     const identity = `${this.plan.sourceIdentity}|${this.plan.mediaRevision}|${width}x${height}`
     const isVideo = typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement

@@ -104,6 +104,7 @@ import { validateCanvasShowManagerShow, type CanvasShowManagerShow } from '../sh
 import {
   CANVAS_PRESET_BY_ID,
   canvasPresetSupportsControl,
+  isCanvasLegacyEffectPresetId,
   DEFAULT_CANVAS_PRESET_ID,
   DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS,
   type CanvasFitMode,
@@ -4071,6 +4072,8 @@ function CanvasPresetControls() {
   const activeItem = useMemo(() => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null, [activeCanvasMediaId, mediaItems])
   const customized = canvasPresetOverride?.source === 'manual' && canvasPresetOverride.label === 'User-adjusted preset'
 
+  if (isCanvasLegacyEffectPresetId(selectedCanvasPresetId)) return null
+
   if (selectedPreset.rendererKind === 'fragmentCollage') {
     return (
       <CanvasFracturesControls
@@ -4202,7 +4205,9 @@ export function CanvasEnginePanel() {
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const activeItem = mediaItems.find(item => item.id === activeCanvasMediaId) ?? null
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
-  const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
+  const selectedPreset = isCanvasLegacyEffectPresetId(selectedCanvasPresetId)
+    ? null
+    : CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
   return (
     <>
       <div className="rv-canvas-engine-panel">
@@ -4225,7 +4230,7 @@ export function CanvasEnginePanel() {
         </div>
         <div className="rv-canvas-panel-status">
           <span>Preset</span>
-          <strong>{selectedPreset.name}</strong>
+          <strong>{selectedPreset?.name ?? 'CANVAS'}</strong>
         </div>
       </div>
     </>

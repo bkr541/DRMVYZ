@@ -80,7 +80,7 @@ describe('CANVAS final-pass store and workspace contract', () => {
 
   it('keeps manual preset override in control while Auto Select may still update unlocked media', () => {
     useReactStore.getState().setCanvasAutoSelectEnabled(true)
-    useReactStore.getState().selectCanvasPreset('canvas-ghost-echo')
+    useReactStore.getState().selectCanvasPreset('canvas-particle-aura')
 
     useReactStore.getState().applyCanvasAutoSelection({
       mediaId: 'library-video-1',
@@ -88,13 +88,37 @@ describe('CANVAS final-pass store and workspace contract', () => {
       label: 'Auto: drop section',
     })
 
-    expect(useReactStore.getState().selectedCanvasPresetId).toBe('canvas-ghost-echo')
+    expect(useReactStore.getState().selectedCanvasPresetId).toBe('canvas-particle-aura')
     expect(useReactStore.getState().canvasPresetOverride).toMatchObject({
       source: 'manual',
-      presetId: 'canvas-ghost-echo',
+      presetId: 'canvas-particle-aura',
       label: 'User-selected preset',
     })
     expect(useReactStore.getState().activeCanvasMediaId).toBe('library-video-1')
+  })
+
+  it('keeps legacy effect preset IDs internal to compatibility and automation paths', () => {
+    useReactStore.getState().selectCanvasPreset('canvas-clean-playback')
+    useReactStore.getState().selectCanvasPreset('canvas-bass-bloom')
+
+    expect(useReactStore.getState().selectedCanvasPresetId).toBe('canvas-clean-playback')
+    expect(useReactStore.getState().canvasPresetOverride).toMatchObject({
+      source: 'manual',
+      presetId: 'canvas-clean-playback',
+    })
+
+    useReactStore.getState().setCanvasAutoSelectEnabled(true)
+    useReactStore.getState().applyCanvasAutoSelection({
+      presetId: 'canvas-bass-bloom',
+      label: 'Auto: compatibility recipe',
+    })
+
+    expect(useReactStore.getState().selectedCanvasPresetId).toBe('canvas-bass-bloom')
+    expect(useReactStore.getState().canvasPresetOverride).toMatchObject({
+      source: 'auto',
+      presetId: 'canvas-bass-bloom',
+      label: 'Auto: compatibility recipe',
+    })
   })
 
   it('applies presets as parameter bundles and preserves user-adjusted overrides', () => {

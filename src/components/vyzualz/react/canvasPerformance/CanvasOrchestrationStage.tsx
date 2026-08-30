@@ -467,6 +467,18 @@ function authoredSourceIdentity(media: CanvasMediaItem): string {
   return `${media.id}:${media.type}:${media.mediaRevision ?? 0}:${media.objectUrl}`
 }
 
+function authoredCompositionSourceIdentity(frame: CanvasResolvedPerformanceFrame): string {
+  const identity = frame.layers
+    .filter(layer => layer.enabled)
+    .map(layer => [
+      layer.id,
+      layer.source ? authoredSourceIdentity(layer.source) : layer.sourceMediaId ?? 'pending',
+      ...(layer.userEffects ?? []),
+    ].join(':'))
+    .join('|')
+  return identity || 'canvas-authored:empty'
+}
+
 function CanvasGenericOrchestrationStage({
   frame,
   preloadManager,
@@ -476,13 +488,19 @@ function CanvasGenericOrchestrationStage({
   isPaused,
   motionIntensity,
   selectedPresetId,
+  trackIdentity,
+  trackAnalysis,
+  trackSections,
+  getAudioTime,
+  analyser,
+  brandKit,
   onCanvasReady,
   onLiveFps,
   showStatus,
 }: CanvasOrchestrationStageProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const shellRef = useRef<HTMLDivElement | null>(null)
-  const compositionCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const compositionCanvasRef = useRef<HTMLCanvasElement | null>(makeScratchCanvas())
   const previousCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const transitionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const layerCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -503,15 +521,20 @@ function CanvasGenericOrchestrationStage({
   const mediaSummary = useMemo(() => activeMedia(frame), [frame])
   const mediaErrors = frame.mediaErrors ?? []
   const selectedRendererKind = resolveCanvasPresetRendererKind(selectedPresetId)
+  const authoredFracturesActive = frame.runtimeMode === 'authored' && selectedRendererKind === 'fragmentCollage'
+  const authoredFracturesIdentity = useMemo(() => authoredCompositionSourceIdentity(frame), [frame])
+  const performanceContextRef = useRef<SharedPerformanceContext | null>(frame.context)
+  performanceContextRef.current = frame.context
   const outputContract = useMemo(() => resolveCanvasOutputContract({
     canvasOutputOpacity: engineSettings.opacity,
     presetSettings,
   }), [engineSettings.opacity, presetSettings])
 
   useEffect(() => {
+    if (authoredFracturesActive) return
     onCanvasReady?.(canvasRef.current)
     return () => onCanvasReady?.(null)
-  }, [onCanvasReady])
+  }, [authoredFracturesActive, onCanvasReady])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -788,7 +811,9 @@ function CanvasGenericOrchestrationStage({
         const nowSec = liveFrame.context.audioTimeSec > 0
           ? liveFrame.context.audioTimeSec
           : now / 1000
-        if (selectedRendererKind === 'laserImageFx') {
+        if (selectedRendererKind === 'fragmentCollage') {
+          // Final output is owned by the Fractures renderer mounted below.
+        } else if (selectedRendererKind === 'laserImageFx') {
           const dryAlpha = liveOutputContract.drySourceMix * liveOutputContract.canvasOutputOpacity
           let renderedLaser = false
           if (laserRenderer && laserCanvas) {
@@ -861,7 +886,9 @@ function CanvasGenericOrchestrationStage({
 
       fpsFrames += 1
       if (now - fpsStartedAt >= 1000) {
-        onLiveFps?.(fpsFrames * 1000 / (now - fpsStartedAt))
+        if (!(liveFrame.runtimeMode === 'authored' && selectedRendererKind === 'fragmentCollage')) {
+          onLiveFps?.(fpsFrames * 1000 / (now - fpsStartedAt))
+        }
         fpsFrames = 0
         fpsStartedAt = now
       }
@@ -928,7 +955,40 @@ function CanvasGenericOrchestrationStage({
         ref={canvasRef}
         className="rv-canvas-orchestration-canvas"
         data-output-opacity={outputContract.canvasOutputOpacity.toFixed(3)}
+        style={authoredFracturesActive ? { visibility: 'hidden' } : undefined}
       />
+      {authoredFracturesActive && (
+        <CanvasFracturesRendererLayer
+          active
+          sourceRef={compositionCanvasRef}
+          sourceIdentity={authoredFracturesIdentity}
+          mediaType="image"
+          mediaRevision={0}
+          trackIdentity={trackIdentity}
+          trackAnalysis={trackAnalysis}
+          trackSections={trackSections}
+          getAudioTime={getAudioTime}
+          analyser={analyser}
+          performanceContextRef={performanceContextRef}
+          isPlaying={isPlaying}
+          analysisActive={isPlaying}
+          isPaused={isPaused}
+          fitMode={engineSettings.fitMode}
+          sourceTransform={{
+            scale: engineSettings.scale,
+            positionX: engineSettings.positionX,
+            positionY: engineSettings.positionY,
+            rotation: engineSettings.rotation,
+          }}
+          settings={presetSettings}
+          brandKit={brandKit}
+          outputOpacity={engineSettings.opacity}
+          orchestrationIdentity={authoredFracturesIdentity}
+          sourcePlayback={null}
+          onCanvasReady={onCanvasReady}
+          onLiveFps={onLiveFps}
+        />
+      )}
       {showStatus !== false && <div className="rv-canvas-orchestration-status" role="status">
         <strong>{frame.showLabel} · {frame.template.label}</strong>
         <span>{frame.layers.filter(layer => layer.enabled).length} layers · {frame.decoderCount} video decoders · {mediaSummary.length} sources</span>

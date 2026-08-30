@@ -67,25 +67,42 @@ describe('CANVAS right-panel control contract', () => {
     expect(host.textContent).not.toContain('Clear Override')
     expect(host.textContent).not.toContain('Resume Auto Select')
 
-    act(() => useReactStore.getState().selectCanvasPreset('canvas-ghost-echo'))
+    act(() => useReactStore.getState().selectCanvasPreset('canvas-particle-aura'))
     expect(useReactStore.getState().canvasPresetOverride).toMatchObject({
       source: 'manual',
-      presetId: 'canvas-ghost-echo',
+      presetId: 'canvas-particle-aura',
     })
 
     act(() => useReactStore.getState().applyCanvasAutoSelection({
       presetId: 'canvas-glitch-pulse',
       label: 'Auto: contract check',
     }))
-    expect(useReactStore.getState().selectedCanvasPresetId).toBe('canvas-ghost-echo')
+    expect(useReactStore.getState().selectedCanvasPresetId).toBe('canvas-particle-aura')
     expect(useReactStore.getState().canvasPresetOverride).toMatchObject({
       source: 'manual',
-      presetId: 'canvas-ghost-echo',
+      presetId: 'canvas-particle-aura',
     })
 
     act(() => useReactStore.getState().setCanvasAutoSelectEnabled(false))
     act(() => useReactStore.getState().setCanvasAutoSelectEnabled(true))
     expect(useReactStore.getState().canvasPresetOverride).toBeNull()
+  })
+
+  it('does not expose legacy compatibility recipe controls as manually selectable preset controls', () => {
+    useReactStore.setState({
+      selectedCanvasPresetId: 'canvas-bass-bloom',
+      canvasPresetOverride: {
+        source: 'auto',
+        presetId: 'canvas-bass-bloom',
+        label: 'Auto: compatibility recipe',
+      },
+    })
+
+    act(() => root.render(<CanvasEngineFxPanel />))
+
+    expect(host.textContent).not.toContain('Bass Bloom')
+    expect(host.textContent).not.toContain('Reset Bass Bloom recipe')
+    expect(host.textContent).not.toContain('CANVAS React Controls')
   })
 
   it('keeps Media Lock visible independently of the removed preset override card', () => {

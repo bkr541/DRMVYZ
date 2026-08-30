@@ -38,6 +38,7 @@ import {
   DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
   DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS,
   CANVAS_PRESET_BY_ID,
+  isCanvasLegacyEffectPresetId,
   DEFAULT_BEAM_MOTION,
   DEFAULT_BEAM_SEQUENCE,
   DEFAULT_LAUNCH_SETTINGS,
@@ -7981,6 +7982,7 @@ export const useReactStore = create<ReactStoreState>()(
       })),
 
       selectCanvasPreset: (id) => set(() => {
+        if (isCanvasLegacyEffectPresetId(id)) return {}
         const preset = CANVAS_PRESET_BY_ID[id] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
         return {
           selectedCanvasPresetId: preset.id,

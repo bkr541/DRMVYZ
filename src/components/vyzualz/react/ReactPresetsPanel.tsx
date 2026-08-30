@@ -13,6 +13,7 @@ import {
   type CanvasPresetDefinition,
   type CanvasPresetId,
   CANVAS_PRESETS,
+  CANVAS_VISIBLE_PRESETS,
   DEFAULT_CANVAS_PRESET_SETTINGS,
 } from './ReactTypes'
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
@@ -55,18 +56,6 @@ import {
 } from './reactPresetLibraryState'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import { Collapsible } from './ReactControlRows'
-
-const CANVAS_LEGACY_EFFECT_PRESET_IDS = new Set<CanvasPresetId>([
-  'canvas-bass-bloom',
-  'canvas-ghost-echo',
-  'canvas-glitch-pulse',
-  'canvas-luma-melt',
-  'canvas-frame-stutter',
-])
-
-export const CANVAS_VISIBLE_PRESETS = CANVAS_PRESETS.filter(
-  preset => !CANVAS_LEGACY_EFFECT_PRESET_IDS.has(preset.id),
-)
 
 function getModeHint(preset: ReactPreset): string | null {
   if (preset.engine === 'cinematicPortal') {
@@ -621,7 +610,7 @@ export function ReactPresetsPanel() {
   const activeEngine = REACT_ENGINE_CATALOG[activeReactEngineId]
   const isLaserDmxCurrentLibrary = activeReactEngineId === 'laserDmx'
   const isCanvasCurrentLibrary = activeReactEngineId === 'canvas'
-  const selectedCanvasPreset = CANVAS_PRESETS.find(preset => preset.id === selectedCanvasPresetId) ?? CANVAS_PRESETS[0]
+  const selectedCanvasPreset = CANVAS_VISIBLE_PRESETS.find(preset => preset.id === selectedCanvasPresetId) ?? null
   const laserDmxPresetCount = laserDmxBeamMatrixAuthoringMode === 'showDirector'
     ? LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.length + LASER_DMX_SHOW_DIRECTOR_TEMPLATES.length
     : LASER_DMX_BEAM_MATRIX_PRESETS.length
@@ -716,7 +705,7 @@ export function ReactPresetsPanel() {
           {presetLibraryContent}
           <HelpInfoTrigger
             helpId="react.canvas.presetLibrary"
-            currentValue={`${selectedCanvasPreset?.name ?? 'No CANVAS preset selected'} · ${CANVAS_VISIBLE_PRESETS.length} CANVAS presets`}
+            currentValue={selectedCanvasPreset ? `${selectedCanvasPreset.name} · ${CANVAS_VISIBLE_PRESETS.length} CANVAS presets` : `${CANVAS_VISIBLE_PRESETS.length} CANVAS presets`}
             currentValueTone={selectedCanvasPreset ? 'accent' : 'default'}
             placement="left"
           />

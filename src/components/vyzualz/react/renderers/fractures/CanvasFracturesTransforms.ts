@@ -33,12 +33,16 @@ export function isCanvasFracturesSourceReady(source: CanvasFracturesSourceElemen
   if (source instanceof HTMLVideoElement) {
     return source.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && source.videoWidth > 0 && source.videoHeight > 0
   }
+  if (source instanceof HTMLCanvasElement) return source.width > 0 && source.height > 0
   return source.complete && source.naturalWidth > 0 && source.naturalHeight > 0
 }
 
 export function getCanvasFracturesSourceSize(source: CanvasFracturesSourceElement): { width: number; height: number } {
   if (source instanceof HTMLVideoElement) {
     return { width: Math.max(1, source.videoWidth), height: Math.max(1, source.videoHeight) }
+  }
+  if (source instanceof HTMLCanvasElement) {
+    return { width: Math.max(1, source.width), height: Math.max(1, source.height) }
   }
   return { width: Math.max(1, source.naturalWidth), height: Math.max(1, source.naturalHeight) }
 }

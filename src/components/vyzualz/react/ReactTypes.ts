@@ -840,6 +840,24 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
 ]
 
 
+export const CANVAS_LEGACY_EFFECT_PRESET_IDS = [
+  'canvas-bass-bloom',
+  'canvas-ghost-echo',
+  'canvas-glitch-pulse',
+  'canvas-luma-melt',
+  'canvas-frame-stutter',
+] as const satisfies readonly CanvasPresetId[]
+
+const CANVAS_LEGACY_EFFECT_PRESET_ID_SET = new Set<CanvasPresetId>(CANVAS_LEGACY_EFFECT_PRESET_IDS)
+
+export function isCanvasLegacyEffectPresetId(id: CanvasPresetId): boolean {
+  return CANVAS_LEGACY_EFFECT_PRESET_ID_SET.has(id)
+}
+
+export const CANVAS_VISIBLE_PRESETS = CANVAS_PRESETS.filter(
+  preset => !isCanvasLegacyEffectPresetId(preset.id),
+)
+
 export const CANVAS_PRESET_BY_ID: Record<CanvasPresetId, CanvasPresetDefinition> = CANVAS_PRESETS.reduce((acc, preset) => {
   acc[preset.id] = preset
   return acc

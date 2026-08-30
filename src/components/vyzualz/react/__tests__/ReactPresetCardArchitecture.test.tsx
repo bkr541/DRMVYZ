@@ -177,7 +177,14 @@ describe('canonical React preset card architecture', () => {
   it('keeps legacy CANVAS effect recipes available internally but removes them from the visible preset catalog', async () => {
     await act(async () => {
       useReactStore.getState().selectReactEngine('canvas')
-      useReactStore.getState().selectCanvasPreset('canvas-bass-bloom')
+      useReactStore.setState({
+        selectedCanvasPresetId: 'canvas-bass-bloom',
+        canvasPresetOverride: {
+          source: 'auto',
+          presetId: 'canvas-bass-bloom',
+          label: 'Auto: compatibility recipe',
+        },
+      })
     })
     await render(<ReactPresetsPanel />)
 
@@ -190,6 +197,7 @@ describe('canonical React preset card architecture', () => {
 
     expect(useReactStore.getState().selectedCanvasPresetId).toBe('canvas-bass-bloom')
     expect(container.textContent).toContain('CANVAS Media Presets')
+    expect(container.textContent).not.toContain('Bass Bloom')
   })
 
   it('renders Show Director templates through the shared card with persistent selected and modified state', async () => {

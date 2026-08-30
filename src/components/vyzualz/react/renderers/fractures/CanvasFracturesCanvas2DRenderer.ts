@@ -25,6 +25,7 @@ import type {
   CanvasFracturesResolvedEffectSettings,
   CanvasFracturesResolvedFragmentEffects,
   CanvasFracturesResolvedPalette,
+  CanvasFracturesSourceElement,
 } from './CanvasFracturesTypes'
 
 interface FragmentDrawGeometry {
@@ -53,9 +54,12 @@ function clamp01(value: number): number {
   return Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0))
 }
 
-function sourceSize(source: HTMLVideoElement | HTMLImageElement): { width: number; height: number } {
+function sourceSize(source: CanvasFracturesSourceElement): { width: number; height: number } {
   if (typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement) {
     return { width: Math.max(1, source.videoWidth), height: Math.max(1, source.videoHeight) }
+  }
+  if (typeof HTMLCanvasElement !== 'undefined' && source instanceof HTMLCanvasElement) {
+    return { width: Math.max(1, source.width), height: Math.max(1, source.height) }
   }
   const image = source as HTMLImageElement
   return { width: Math.max(1, image.naturalWidth), height: Math.max(1, image.naturalHeight) }
@@ -399,7 +403,7 @@ export class CanvasFracturesCanvas2DRenderer {
   private drawFragment(
     fragment: CanvasFractureFragment,
     ordinal: number,
-    source: HTMLVideoElement | HTMLImageElement,
+    source: CanvasFracturesSourceElement,
     sourceWidth: number,
     sourceHeight: number,
     fitRect: { x: number; y: number; width: number; height: number },

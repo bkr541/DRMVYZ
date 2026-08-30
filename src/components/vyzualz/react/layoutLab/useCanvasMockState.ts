@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import {
   CANVAS_PRESETS,
+  CANVAS_VISIBLE_PRESETS,
+  isCanvasLegacyEffectPresetId,
   DEFAULT_CANVAS_ENGINE_SETTINGS,
   DEFAULT_CANVAS_PRESET_SETTINGS,
   DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS,
@@ -237,7 +239,7 @@ export function useCanvasMockState(): CanvasMockState {
   const [orchestration, setOrchestration] = useState<CanvasMockOrchestrationSettings>(DEFAULT_ORCHESTRATION)
   const [activePoolMediaId, setActivePoolMediaId] = useState<string | null>(INITIAL_MEDIA[0].id)
   const [activePresetId, setActivePresetId] = useState<CanvasPresetId>('canvas-clean-playback')
-  const [favoritePresetIds, setFavoritePresetIds] = useState<CanvasPresetId[]>(['canvas-bass-bloom'])
+  const [favoritePresetIds, setFavoritePresetIds] = useState<CanvasPresetId[]>(['canvas-particle-aura'])
   const [modifiedPresetIds, setModifiedPresetIds] = useState<CanvasPresetId[]>([])
   const [presetSettings, setPresetSettings] = useState<CanvasPresetSettings>(() => settingsForPreset('canvas-clean-playback'))
   const [presetOverride, setPresetOverride] = useState<CanvasMockPresetOverride | null>(null)
@@ -261,7 +263,7 @@ export function useCanvasMockState(): CanvasMockState {
     () => mediaItems.find(item => item.id === activePoolMediaId && orchestration.mediaPoolIds.includes(item.id)) ?? null,
     [activePoolMediaId, mediaItems, orchestration.mediaPoolIds],
   )
-  const presets = useMemo<CanvasMockPreset[]>(() => CANVAS_PRESETS.map(preset => ({
+  const presets = useMemo<CanvasMockPreset[]>(() => CANVAS_VISIBLE_PRESETS.map(preset => ({
     id: preset.id,
     name: preset.name,
     description: preset.description,
@@ -270,7 +272,12 @@ export function useCanvasMockState(): CanvasMockState {
     favorite: favoritePresetIds.includes(preset.id),
     modified: modifiedPresetIds.includes(preset.id),
   })), [favoritePresetIds, modifiedPresetIds])
-  const activePreset = presets.find(preset => preset.id === activePresetId) ?? presets[0]
+  const activePreset = presets.find(preset => preset.id === activePresetId) ?? {
+    ...presets[0],
+    id: activePresetId,
+    name: isCanvasLegacyEffectPresetId(activePresetId) ? 'CANVAS' : presets[0].name,
+    modified: modifiedPresetIds.includes(activePresetId),
+  }
   const activeVideoTiming = activeMedia?.type === 'video'
     ? videoTimingById[activeMedia.id] ?? DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS
     : DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS
@@ -368,7 +375,7 @@ export function useCanvasMockState(): CanvasMockState {
   }
 
   const selectPreset = (id: CanvasPresetId) => {
-    if (!CANVAS_PRESETS.some(preset => preset.id === id)) return
+    if (!CANVAS_VISIBLE_PRESETS.some(preset => preset.id === id)) return
     setActivePresetId(id)
     setPresetSettings(settingsForPreset(id))
     setPresetOverride({ source: 'manual', label: `${CANVAS_PRESETS.find(preset => preset.id === id)?.name ?? 'CANVAS preset'} is selected` })
@@ -398,10 +405,9 @@ export function useCanvasMockState(): CanvasMockState {
       return
     }
     const presetId: CanvasPresetId = autoPreviewRevision % 2 === 0 ? 'canvas-bass-bloom' : 'canvas-glitch-pulse'
-    const preset = CANVAS_PRESETS.find(candidate => candidate.id === presetId) ?? CANVAS_PRESETS[0]
     setActivePresetId(presetId)
     setPresetSettings(settingsForPreset(presetId))
-    setPresetOverride({ source: 'auto', label: `${preset.name} is selected from the static Drop fixture` })
+    setPresetOverride({ source: 'auto', label: 'Auto Select preview is active' })
     if (!manualMediaOverrideId) {
       const video = mediaItems.find(item => item.type === 'video') ?? mediaItems[0]
       setActiveMediaId(video?.id ?? null)

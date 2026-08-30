@@ -594,6 +594,9 @@ function sourceDimensions(source: CanvasFracturesSourceElement): { width: number
   if (typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement) {
     return { width: source.videoWidth, height: source.videoHeight }
   }
+  if (typeof HTMLCanvasElement !== 'undefined' && source instanceof HTMLCanvasElement) {
+    return { width: source.width, height: source.height }
+  }
   const image = source as HTMLImageElement
   return { width: image.naturalWidth, height: image.naturalHeight }
 }

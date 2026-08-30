@@ -29,9 +29,17 @@ import { OutputCastControl } from '../output/OutputCastControl'
 vi.mock('../renderers/CanvasFracturesRendererLayer', () => ({
   CanvasFracturesRendererLayer: ({
     onCanvasReady,
+    sourceRef,
   }: {
     onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
-  }) => <canvas data-testid="fractures-renderer" ref={onCanvasReady} />,
+    sourceRef?: { current: unknown }
+  }) => (
+    <canvas
+      data-testid="fractures-renderer"
+      data-source-kind={sourceRef?.current instanceof HTMLCanvasElement ? 'canvas' : 'media'}
+      ref={onCanvasReady}
+    />
+  ),
 }))
 
 import { CanvasEngineSurface } from '../ReactCanvasEngineShell'
@@ -528,6 +536,37 @@ describe('CanvasEngineSurface Performance Show routing', () => {
 
     expect(host?.querySelector('.rv-canvas-orchestration-stage')).toBeNull()
     expect(host?.querySelector('[data-testid="fractures-renderer"]')).not.toBeNull()
+  })
+
+  it('routes the full authored layer composition through the selected Fractures renderer', async () => {
+    const second: CanvasMediaItem = {
+      ...media,
+      id: 'routing-authored-fractures-second',
+      name: 'Second Fractures Layer',
+      objectUrl: 'media://routing-authored-fractures-second',
+    }
+    useReactStore.getState().selectCanvasPreset('canvas-fractures')
+    useReactStore.setState({
+      canvasMediaItems: [media, second],
+      selectedCanvasMediaId: second.id,
+      activeCanvasMediaId: media.id,
+      canvasOrchestrationSettings: {
+        ...DEFAULT_CANVAS_ORCHESTRATION_SETTINGS,
+        renderMode: 'layers',
+        authoredLayers: [
+          { id: 'fractures-layer-top', mediaId: second.id, effects: ['bloom'], order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
+          { id: 'fractures-layer-bottom', mediaId: media.id, effects: ['echo'], order: 1, enabled: true, solo: false, ownership: 'manual', pinned: true },
+        ],
+      },
+    })
+
+    await renderSurface()
+
+    const stage = host?.querySelector<HTMLElement>('[aria-label="CANVAS orchestrated media surface"]')
+    const fractures = host?.querySelector<HTMLElement>('[data-testid="fractures-renderer"]')
+    expect(stage?.dataset.authoredPresetRenderer).toBe('fragmentCollage')
+    expect(fractures).not.toBeNull()
+    expect(fractures?.dataset.sourceKind).toBe('canvas')
   })
 
   it('routes the full authored layer composition through the selected Laser Image FX renderer', async () => {

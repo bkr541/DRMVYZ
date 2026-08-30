@@ -17,7 +17,7 @@ import type {
 } from '../../ReactTypes'
 import type { BarMarkerMI } from '../../../../../features/musicIntelligence/types'
 
-export type CanvasFracturesSourceElement = HTMLVideoElement | HTMLImageElement
+export type CanvasFracturesSourceElement = HTMLVideoElement | HTMLImageElement | HTMLCanvasElement
 export type CanvasFractureShapeFamily = Exclude<CanvasFractureMode, 'mixed'>
 export type CanvasFractureAnchorRole = 'focus' | 'fragment'
 export type CanvasFracturesRendererBackend = 'webgl2' | 'canvas2d'
