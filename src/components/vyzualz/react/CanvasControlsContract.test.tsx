@@ -40,6 +40,74 @@ afterEach(() => {
 })
 
 describe('CANVAS right-panel control contract', () => {
+  it('keeps manual preset protection without showing the routine Manual Override card', () => {
+    useReactStore.getState().selectCanvasPreset('canvas-clean-playback')
+    useReactStore.getState().setCanvasPresetSettings({ intensity: 0.75 })
+    useReactStore.getState().resetCanvasPresetSettings()
+
+    act(() => root.render(
+      <>
+        <CanvasEngineSurface isPlaying={false} isPaused />
+        <CanvasEngineFxPanel />
+      </>,
+    ))
+
+    expect(useReactStore.getState().canvasPresetOverride).toMatchObject({
+      source: 'manual',
+      presetId: 'canvas-clean-playback',
+    })
+    expect(host.textContent).not.toContain('Manual Override')
+    expect(host.textContent).not.toContain('Clear Override')
+    expect(host.textContent).not.toContain('Resume Auto Select')
+
+    act(() => useReactStore.getState().setCanvasAutoSelectEnabled(true))
+
+    expect(useReactStore.getState().canvasPresetOverride).toBeNull()
+    expect(host.textContent).not.toContain('Manual Override')
+    expect(host.textContent).not.toContain('Clear Override')
+    expect(host.textContent).not.toContain('Resume Auto Select')
+
+    act(() => useReactStore.getState().selectCanvasPreset('canvas-ghost-echo'))
+    expect(useReactStore.getState().canvasPresetOverride).toMatchObject({
+      source: 'manual',
+      presetId: 'canvas-ghost-echo',
+    })
+
+    act(() => useReactStore.getState().applyCanvasAutoSelection({
+      presetId: 'canvas-glitch-pulse',
+      label: 'Auto: contract check',
+    }))
+    expect(useReactStore.getState().selectedCanvasPresetId).toBe('canvas-ghost-echo')
+    expect(useReactStore.getState().canvasPresetOverride).toMatchObject({
+      source: 'manual',
+      presetId: 'canvas-ghost-echo',
+    })
+
+    act(() => useReactStore.getState().setCanvasAutoSelectEnabled(false))
+    act(() => useReactStore.getState().setCanvasAutoSelectEnabled(true))
+    expect(useReactStore.getState().canvasPresetOverride).toBeNull()
+  })
+
+  it('keeps Media Lock visible independently of the removed preset override card', () => {
+    useReactStore.setState({
+      canvasMediaItems: [{
+        id: 'media-lock-contract-image',
+        name: 'Media Lock Contract Image',
+        type: 'image',
+        objectUrl: 'data:image/png;base64,AA==',
+        createdAt: '2026-08-29T00:00:00.000Z',
+      }],
+      activeCanvasMediaId: 'media-lock-contract-image',
+    })
+    useReactStore.getState().setCanvasAutoSelectEnabled(true)
+    useReactStore.getState().selectCanvasMediaItem('media-lock-contract-image')
+
+    act(() => root.render(<CanvasEngineSurface isPlaying={false} isPaused />))
+
+    expect(host.textContent).toContain('Media Lock')
+    expect(host.textContent).toContain('Auto Select can change presets, but this source stays selected.')
+  })
+
   it('exposes and activates the hybrid Pool automation controls with all required triggers', () => {
     act(() => root.render(<CanvasEngineFxPanel />))
 

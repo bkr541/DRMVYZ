@@ -228,39 +228,21 @@ function CanvasOverrideStatus({
 
 function CanvasVisualizerOverrideNotices() {
   const settings = useReactStore(s => s.canvasEngineSettings)
-  const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
-  const canvasPresetOverride = useReactStore(s => s.canvasPresetOverride)
   const mediaItems = useCanvasRuntimeMediaItems()
-  const clearCanvasPresetOverride = useReactStore(s => s.clearCanvasPresetOverride)
   const clearCanvasMediaOverride = useReactStore(s => s.clearCanvasMediaOverride)
-  const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
-  const manualPresetOverrideActive = canvasPresetOverride?.source === 'manual'
   const manualMediaOverrideActive = Boolean(
     settings.manualMediaOverrideId && mediaItems.some(item => item.id === settings.manualMediaOverrideId),
   )
 
-  return (
-    <>
-      {manualPresetOverrideActive && (
-        <CanvasOverrideStatus
-          title="Manual Override"
-          message={`${selectedPreset.name} is selected.`}
-          clearLabel="Clear Override"
-          clearAriaLabel={`Clear ${selectedPreset.name} manual preset override`}
-          onClear={clearCanvasPresetOverride}
-        />
-      )}
-      {settings.autoSelectEnabled && manualMediaOverrideActive && (
-        <CanvasOverrideStatus
-          title="Media Lock"
-          message="Auto Select can change presets, but this source stays selected."
-          clearLabel="Clear"
-          clearAriaLabel="Clear CANVAS media lock"
-          onClear={clearCanvasMediaOverride}
-        />
-      )}
-    </>
-  )
+  return settings.autoSelectEnabled && manualMediaOverrideActive ? (
+    <CanvasOverrideStatus
+      title="Media Lock"
+      message="Auto Select can change presets, but this source stays selected."
+      clearLabel="Clear"
+      clearAriaLabel="Clear CANVAS media lock"
+      onClear={clearCanvasMediaOverride}
+    />
+  ) : null
 }
 
 function getCanvasLibraryUrl(media: UploadedMedia): string {
@@ -3021,8 +3003,8 @@ function CanvasAutoSelectControl() {
 
   const description = mediaCount === 0
     ? `Select saved media from your library first. ${autoDataDescription}`
-    : manualOverrideActive
-      ? `Auto Select can stay on, but it will not replace the manually selected preset until the override is cleared. ${autoDataDescription}`
+    : settings.autoSelectEnabled && manualOverrideActive
+      ? `Auto Select is paused for the manually selected preset. Turn Auto Select off and back on to resume automatic preset selection. ${autoDataDescription}`
       : manualMediaOverrideActive
         ? `${autoDataDescription} Lock Active Media keeps the manually selected source protected.`
         : `${autoDataDescription} Auto Select can choose CANVAS presets and unlocked media.`

@@ -7646,15 +7646,20 @@ export const useReactStore = create<ReactStoreState>()(
         }
       }),
 
-      setCanvasAutoSelectEnabled: (enabled) => set((state) => ({
-        canvasEngineSettings: normalizeCanvasEngineSettings({
-          ...state.canvasEngineSettings,
-          autoSelectEnabled: enabled,
-        }),
-        canvasPresetOverride: !enabled && state.canvasPresetOverride?.source === 'auto'
-          ? null
-          : state.canvasPresetOverride,
-      })),
+      setCanvasAutoSelectEnabled: (enabled) => set((state) => {
+        const enablingAutoSelect = enabled && !state.canvasEngineSettings.autoSelectEnabled
+        return {
+          canvasEngineSettings: normalizeCanvasEngineSettings({
+            ...state.canvasEngineSettings,
+            autoSelectEnabled: enabled,
+          }),
+          canvasPresetOverride: enablingAutoSelect && state.canvasPresetOverride?.source === 'manual'
+            ? null
+            : !enabled && state.canvasPresetOverride?.source === 'auto'
+              ? null
+              : state.canvasPresetOverride,
+        }
+      }),
 
       applyCanvasAutoSelection: ({ presetId, mediaId, label }) => set((state) => {
         if (!state.canvasEngineSettings.autoSelectEnabled) return {}

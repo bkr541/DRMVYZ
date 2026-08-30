@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { MediaMutationOperation } from '../../../stores/mediaStore'
@@ -13,10 +12,8 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
     deleteError,
     authRequired,
     storageAvailable,
-    lastRestored,
     clearLoadError,
     clearDeleteError,
-    clearRestored,
     mutationStates = {},
     collectionOrderMutations = {},
     deletionStates = {},
@@ -34,10 +31,8 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
     deleteError: state.deleteError,
     authRequired: state.authRequired,
     storageAvailable: state.storageAvailable,
-    lastRestored: state.lastRestored,
     clearLoadError: state.clearLoadError,
     clearDeleteError: state.clearDeleteError,
-    clearRestored: state.clearRestored,
     mutationStates: state.mutationStates,
     collectionOrderMutations: state.collectionOrderMutations,
     deletionStates: state.deletionStates,
@@ -72,12 +67,6 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
     .sort((a, b) => b.updatedAt - a.updatedAt)[0]
   const uploadCleanupState = Object.values(uploadCleanupStates)
     .sort((a, b) => b.updatedAt - a.updatedAt)[0]
-
-  useEffect(() => {
-    if (lastRestored === null || lastRestored === 0) return
-    const id = setTimeout(() => clearRestored(), 4000)
-    return () => clearTimeout(id)
-  }, [lastRestored, clearRestored])
 
   if (loading) return (
     <NoticeCard tone="info" role="status" title="Media library refresh">
@@ -161,12 +150,6 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
   if (authRequired) return (
     <NoticeCard tone="info" role="status" title="Cloud sync unavailable">
       Sign in to sync media to cloud
-    </NoticeCard>
-  )
-
-  if (lastRestored !== null && lastRestored > 0) return (
-    <NoticeCard tone="success" role="status" title="Media restored">
-      Restored {lastRestored} media item{lastRestored !== 1 ? 's' : ''}
     </NoticeCard>
   )
 

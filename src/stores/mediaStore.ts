@@ -1089,7 +1089,6 @@ interface MediaState {
   pendingDeletionWarning: MediaDeletionWarning | null
   authRequired: boolean
   storageAvailable: boolean
-  lastRestored: number | null
   activeFilter: MediaFilter
   mutationStates: Record<string, MediaMutationState>
   collectionOrderMutations: Record<string, CollectionOrderMutationState>
@@ -1184,7 +1183,6 @@ interface MediaState {
   // Error / status
   clearLoadError(): void
   clearDeleteError(): void
-  clearRestored(): void
   clear(): void
 }
 
@@ -1211,7 +1209,6 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   pendingDeletionWarning: null,
   authRequired: false,
   storageAvailable: supabaseConfigured,
-  lastRestored: null,
   activeFilter: 'all',
   mutationStates: {},
   collectionOrderMutations: {},
@@ -1862,7 +1859,6 @@ export const useMediaStore = create<MediaState>((set, get) => ({
             collections,
             deletionStates,
             uploadCleanupStates: uploadCleanupStatesFromRows(cleanupResult.rows),
-            lastRestored: pageItems.length,
             lastSuccessfulLoad: Date.now(),
             invalidated: false,
             queryError: null,
@@ -2667,7 +2663,6 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
   clearLoadError()   { set({ loadError: null }) },
   clearDeleteError() { set({ deleteError: null, pendingDeletionWarning: null }) },
-  clearRestored()    { set({ lastRestored: null }) },
 
   clear() {
     const current = get()
@@ -2697,7 +2692,6 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       deleteError: null,
       pendingDeletionWarning: null,
       authRequired: false,
-      lastRestored: null,
       lastSuccessfulLoad: null,
       invalidated: true,
       accountId: null,

@@ -26,8 +26,8 @@ beforeEach(() => {
   root = createRoot(container)
   mocks.mediaState = {
     loading: false, loadError: null, deleteError: null, authRequired: false,
-    storageAvailable: true, lastRestored: null,
-    clearLoadError: vi.fn(), clearDeleteError: vi.fn(), clearRestored: vi.fn(),
+    storageAvailable: true,
+    clearLoadError: vi.fn(), clearDeleteError: vi.fn(),
     mutationStates: {}, collectionOrderMutations: {},
     retryMediaMutation: vi.fn(), reapplyMediaMutation: vi.fn(), clearMediaMutation: vi.fn(),
     retryCollectionReorder: vi.fn(), clearCollectionReorderError: vi.fn(),
@@ -40,6 +40,13 @@ afterEach(() => {
 })
 
 describe('MediaStatusBar mutation recovery', () => {
+
+  it('does not show a success card for an ordinary successful library state', () => {
+    act(() => root.render(<MediaStatusBar />))
+
+    expect(container.textContent).toBe('')
+    expect(container.querySelector('[role="status"]')).toBeNull()
+  })
   it('shows a revision conflict and deliberately reapplies the preserved operation', () => {
     mocks.mediaState.mutationStates = {
       'db-media-1:edit': {

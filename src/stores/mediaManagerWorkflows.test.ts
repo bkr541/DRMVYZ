@@ -151,7 +151,7 @@ function resetStore() {
     libraryQueryKey: JSON.stringify({ search: '', filter: 'all', scope: 'all', collectionId: null, sort: 'created_desc' }),
     queryError: null, lastSuccessfulLoad: null, invalidated: true, accountId: null, collectionsLoading: false,
     loadError: null, deleteError: null, pendingDeletionWarning: null, authRequired: false, storageAvailable: true,
-    lastRestored: null, activeFilter: 'all', mutationStates: {}, collectionOrderMutations: {}, deletionStates: {}, uploadCleanupStates: {},
+    activeFilter: 'all', mutationStates: {}, collectionOrderMutations: {}, deletionStates: {}, uploadCleanupStates: {},
     importModalOpen: false, uploadQueue: [],
     uploadDrafts: {}, activeUploadDraftKey: null, analyzingAudioTempIds: new Set(),
   })
