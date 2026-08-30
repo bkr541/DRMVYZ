@@ -6,6 +6,7 @@ import { MediaLibraryBrowser } from '../../components/vyzualz/media/MediaLibrary
 import { MediaManagerStage } from '../../components/vyzualz/media/MediaManagerStage'
 import { MediaManagerInspector } from '../../components/vyzualz/media/MediaManagerInspector'
 import { MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
+import { IconChipButton } from '../../components/vyzualz/react/controls/IconChipButton'
 import type { LyricManagerNavigationIntent } from '../lyrics/lyricNavigation'
 
 interface MediaManagerViewProps {
@@ -18,6 +19,8 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
   const trackCount = useAudioStore(state => state.savedTracks.length)
   const mediaItems = useMediaStore(state => state.items)
   const savedTracks = useAudioStore(state => state.savedTracks)
+  const openCollectionEditor = useMediaStore(state => state.openCollectionEditor)
+  const openImportMediaModal = useMediaStore(state => state.openImportMediaModal)
 
   const [leftCollapsed, setLeftCollapsed] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
@@ -42,6 +45,18 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
           <span><strong>{mediaCount}</strong> visual {mediaCount === 1 ? 'asset' : 'assets'}</span>
           <span><strong>{trackCount}</strong> audio {trackCount === 1 ? 'track' : 'tracks'}</span>
           <span><strong>{collectionCount}</strong> {collectionCount === 1 ? 'collection' : 'collections'}</span>
+          <IconChipButton onClick={() => openCollectionEditor()}>New Collection</IconChipButton>
+          <IconChipButton
+            tone="primary"
+            onClick={() => openImportMediaModal()}
+            icon={
+              <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+              </svg>
+            }
+          >
+            New Media
+          </IconChipButton>
         </div>
       </header>
 

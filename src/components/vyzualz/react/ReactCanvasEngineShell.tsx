@@ -4013,7 +4013,7 @@ const CANVAS_LAYER_EFFECT_OPTIONS = CANVAS_LAYER_EFFECT_IDS.map(effectId => ({
   label: CANVAS_LAYER_EFFECT_LABELS[effectId],
 }))
 
-function CanvasAddEffectsControls() {
+export function CanvasAddEffectsControls() {
   const orchestration = useReactStore(s => s.canvasOrchestrationSettings)
   const addCanvasLayerEffect = useReactStore(s => s.addCanvasLayerEffect)
   const setCanvasLayerEffect = useReactStore(s => s.setCanvasLayerEffect)
@@ -4356,8 +4356,6 @@ export function CanvasEngineFxPanel() {
 
 
       <CanvasOrchestrationControls />
-
-      <CanvasAddEffectsControls />
 
       <CanvasPresetControls />
 

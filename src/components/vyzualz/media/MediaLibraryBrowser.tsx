@@ -61,12 +61,9 @@ export function computeVirtualMediaWindow(input: {
   compact?: boolean
   overscanRows?: number
 }): VirtualMediaWindow {
-  const width = Math.max(240, input.width || (input.manager ? 900 : 320))
   const height = Math.max(240, input.height || 600)
-  const columns = input.viewMode === 'list'
-    ? 1
-    : input.manager ? Math.max(1, Math.floor((width - 8 + 10) / 200)) : 2
-  const rowHeight = input.viewMode === 'list' ? 58 : input.manager ? 190 : input.compact ? 100 : 150
+  const columns = input.viewMode === 'list' ? 1 : 2
+  const rowHeight = input.viewMode === 'list' ? 58 : input.manager ? 145 : input.compact ? 100 : 150
   const totalRows = Math.ceil(input.itemCount / columns)
   const overscan = input.overscanRows ?? 3
   const firstVisibleRow = Math.max(0, Math.floor(Math.max(0, input.scrollTop) / rowHeight))
@@ -725,6 +722,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     ensureMediaSigned, retryMediaAsset, markMediaAssetLoaded, loading, nextPageLoading, refreshing, hasMore, queryError, invalidated,
     collections, collectionsLoading, loadCollections, removeCollection,
     importModalOpen, openImportMediaModal, closeImportMediaModal,
+    collectionEditorOpen, collectionEditorTarget, openCollectionEditor, closeCollectionEditor,
     mutationStates = {},
   } = useMediaStore(useShallow(state => ({
     items: state.items,
@@ -755,6 +753,10 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     importModalOpen: state.importModalOpen,
     openImportMediaModal: state.openImportMediaModal,
     closeImportMediaModal: state.closeImportMediaModal,
+    collectionEditorOpen: state.collectionEditorOpen,
+    collectionEditorTarget: state.collectionEditorTarget,
+    openCollectionEditor: state.openCollectionEditor,
+    closeCollectionEditor: state.closeCollectionEditor,
     mutationStates: state.mutationStates,
   })))
 
@@ -770,8 +772,6 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [dragOver, setDragOver]       = useState(false)
   const [previewItem, setPreviewItem] = useState<UploadedMedia | null>(null)
-  const [editCollection, setEditCollection] = useState<MediaCollection | undefined>(undefined)
-  const [collectionEditorOpen, setCollectionEditorOpen] = useState(false)
   const [preserveQueuedFiles, setPreserveQueuedFiles] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -1164,7 +1164,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             items={itemsByCollection.get(c.id) ?? []}
             viewMode={viewMode}
             onClick={() => setOpenCollectionId(c.id)}
-            onEdit={isManager ? () => { setEditCollection(c); setCollectionEditorOpen(true) } : undefined}
+            onEdit={isManager ? () => openCollectionEditor(c) : undefined}
             onRemove={isManager ? () => {
               if (window.confirm(`Delete collection “${c.name}”? Media files will remain in the library.`)) void removeCollection(c.id)
             } : undefined}
@@ -1293,7 +1293,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     <>
       {canUpload && importModalOpen && <MediaUploadModal preserveQueuedFiles={preserveQueuedFiles} onClose={() => { setPreserveQueuedFiles(false); closeImportMediaModal() }} />}
       {canPreview && !isManager && previewItem && <MediaPreviewModal media={previewItem} onClose={() => setPreviewItem(null)} />}
-      {isManager && collectionEditorOpen && <CollectionEditorModal collection={editCollection} onClose={() => { setCollectionEditorOpen(false); setEditCollection(undefined) }} />}
+      {isManager && collectionEditorOpen && <CollectionEditorModal collection={collectionEditorTarget ?? undefined} onClose={closeCollectionEditor} />}
       <div
         className={`vz-panel vz-media-browser${isManager ? ' vz-media-browser--manager' : ''}`}
         style={{ flex: 1, minHeight: 0 }}
@@ -1310,27 +1310,13 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             <div className="vz-panel-header">
               <Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
               <span className="vz-panel-title" title={title}>{title}</span>
-              {isManager && canBrowseCollections && (
-                <IconChipButton onClick={() => { setEditCollection(undefined); setCollectionEditorOpen(true) }}>New Collection</IconChipButton>
-              )}
-              <IconChipButton
-                onClick={() => { void refreshLibrary?.() }}
-                disabled={refreshing}
-                title="Refresh media library"
-              >
-                {refreshing ? 'Refreshing…' : 'Refresh'}
-              </IconChipButton>
-              {canUpload && (
+              {!isManager && (
                 <IconChipButton
-                  tone="primary"
-                  onClick={() => { setPreserveQueuedFiles(false); openImportMediaModal() }}
-                  icon={
-                    <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
-                      <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                    </svg>
-                  }
+                  onClick={() => { void refreshLibrary?.() }}
+                  disabled={refreshing}
+                  title="Refresh media library"
                 >
-                  Import
+                  {refreshing ? 'Refreshing…' : 'Refresh'}
                 </IconChipButton>
               )}
             </div>

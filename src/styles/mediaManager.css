@@ -329,9 +329,51 @@
   padding-top: 4px;
 }
 
-.vz-media-browser--manager .vz-filter-tabs,
 .vz-media-browser--manager .vz-md-search-row {
   padding-inline: 14px;
+}
+
+/* CANVAS's tab row sits inside a Collapsible body (10px margin-top + 10px
+   padding-top on .drc-body) before the tabs' own 5px padding-top, so the
+   header border to tab-text gap there is 10+10+5 = 25px. Manager renders the
+   tabs directly under its own .vz-panel-header with no such wrapper, so match
+   that total here instead of inheriting the bare 5px. */
+.vz-media-browser--manager .vz-filter-tabs {
+  padding: 25px 14px 0;
+}
+
+/* Match the CANVAS media library's seamless search pill: the input itself
+   (dv-text-input) carries the border/background/radius, so the wrap just
+   positions the icon and clear button over it instead of drawing its own box. */
+.vz-media-browser--manager .vz-md-search-wrap {
+  border: 0;
+  background: none;
+  padding: 0;
+  position: relative;
+}
+
+.vz-media-browser--manager .vz-md-search-wrap:focus-within {
+  border: 0;
+  background: none;
+}
+
+.vz-media-browser--manager .vz-md-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+}
+
+.vz-media-browser--manager .vz-md-search-input.dv-text-input {
+  padding-left: 28px !important;
+}
+
+.vz-media-browser--manager .vz-md-search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .vz-media-browser--manager .vz-media-scroll {
@@ -339,7 +381,7 @@
 }
 
 .vz-media-browser--manager .vz-media-grid {
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   padding: 4px;
 }
@@ -425,9 +467,10 @@
 }
 
 .vz-media-browser--manager .vz-media-virtual > .vz-media-grid {
-  grid-auto-rows: 180px;
+  grid-auto-rows: auto;
 }
 
 .vz-media-browser--manager .vz-media-virtual > .vz-media-grid > .vz-media-card {
-  height: 180px;
+  height: auto;
+  min-height: 0;
 }

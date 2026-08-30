@@ -23,6 +23,7 @@ import { TRIGGER_TIMING_EVENT_SOURCES } from './renderers/LaserDmxModulationEngi
 import { laserDmxRouteConsumesCurve, laserDmxRouteConsumesSmoothing } from './laserDmxBeamMatrixParameterCapabilities'
 import { getUnifiedSvgPointCount, resolveSvgUiCapabilities, resolveUnifiedSvgSource } from './svgSourceLifecycle'
 import { resolveSoundDrawingControlCapabilities } from './soundDrawing/SoundDrawingControlVisibility'
+import { CanvasAddEffectsControls } from './ReactCanvasEngineShell'
 
 // ── Source / target option lists ──────────────────────────────────────────────
 
@@ -709,8 +710,10 @@ export function ReactModulationPanel() {
 
   // ── Non-oscilloscope engines: no per-frequency routing exists yet ──────────
   if (!isSoundDrawing) {
+    const isCanvas = activeReactEngineId === 'canvas'
     return (
       <div className="rv-ctrl-group">
+        {isCanvas && <CanvasAddEffectsControls />}
         <Collapsible label="Audio Routing" defaultOpen>
           <div className="rv-ctrl-info">
             This engine currently uses global intensity/motion controls only.

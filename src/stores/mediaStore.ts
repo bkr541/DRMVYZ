@@ -1100,6 +1100,13 @@ interface MediaState {
   openImportMediaModal(): void
   closeImportMediaModal(): void
 
+  // Collection editor modal (open state must be reachable from outside the
+  // media library panel, e.g. a "New Collection" action in a page header).
+  collectionEditorOpen: boolean
+  collectionEditorTarget: MediaCollection | null
+  openCollectionEditor(collection?: MediaCollection | null): void
+  closeCollectionEditor(): void
+
   // Upload queue
   uploadQueue: UploadQueueItem[]
   addFilesToUploadQueue(files: File[]): number
@@ -1220,6 +1227,11 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   importModalOpen: false,
   openImportMediaModal()  { set({ importModalOpen: true }) },
   closeImportMediaModal() { set({ importModalOpen: false }) },
+
+  collectionEditorOpen: false,
+  collectionEditorTarget: null,
+  openCollectionEditor(collection) { set({ collectionEditorOpen: true, collectionEditorTarget: collection ?? null }) },
+  closeCollectionEditor() { set({ collectionEditorOpen: false, collectionEditorTarget: null }) },
 
   // ── Upload queue ──────────────────────────────────────────────────────────
 

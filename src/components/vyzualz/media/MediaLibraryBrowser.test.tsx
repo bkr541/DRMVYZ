@@ -338,8 +338,11 @@ describe('MediaLibraryBrowser capability boundaries', () => {
       capabilities: MEDIA_MANAGER_CAPABILITIES,
     })
 
-    expect(findButton('Import')).not.toBeNull()
-    expect(findButton('New Collection')).not.toBeNull()
+    // New Collection, New Media, and Refresh now live in MediaManagerView's own
+    // page header (to the right of the collections count), not this panel header.
+    expect(findButton('Import')).toBeNull()
+    expect(findButton('New Collection')).toBeNull()
+    expect(findButton('Refresh')).toBeNull()
     // The pencil/eye quick-action icons are gone in Media Manager — selecting
     // the card itself now drives the middle/right panels instead.
     expect(container?.querySelector('[title="Edit media"]')).toBeNull()

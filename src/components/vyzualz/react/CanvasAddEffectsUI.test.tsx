@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { CanvasLayerEffectId } from './canvasPerformance'
-import { CanvasEngineFxPanel } from './ReactCanvasEngineShell'
+import { CanvasAddEffectsControls } from './ReactCanvasEngineShell'
 
 vi.mock('../../../context/AudioEngineContext', () => ({
   useSharedAudio: () => ({
@@ -88,7 +88,7 @@ describe('CANVAS Add Effects UI', () => {
     const primary = useReactStore.getState().getCanvasPrimaryLayer()
     if (!primary) throw new Error('Expected detached CANVAS primary owner')
 
-    act(() => root.render(<CanvasEngineFxPanel />))
+    act(() => root.render(<CanvasAddEffectsControls />))
 
     expect(host.textContent).toContain('Add Effects')
     expect(host.textContent).toContain('Active Media 1 — single-source.png')
@@ -120,7 +120,7 @@ describe('CANVAS Add Effects UI', () => {
     const layerIds: string[] = []
     for (const [index, mediaId] of ['media-a', 'media-b', 'media-c', 'media-d'].entries()) {
       layerIds.push(addLayer(mediaId))
-      act(() => root.render(<CanvasEngineFxPanel />))
+      act(() => root.render(<CanvasAddEffectsControls />))
       expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(index + 1)
     }
 
@@ -172,7 +172,7 @@ describe('CANVAS Add Effects UI', () => {
       useReactStore.getState().addCanvasLayerEffect(hiddenId, 'echo')
       useReactStore.getState().addCanvasLayerEffect(thirdId, 'melt')
       useReactStore.getState().updateCanvasAuthoredLayer(hiddenId, { enabled: false })
-      root.render(<CanvasEngineFxPanel />)
+      root.render(<CanvasAddEffectsControls />)
     })
 
     expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(2)
@@ -208,7 +208,7 @@ describe('CANVAS Add Effects UI', () => {
       useReactStore.getState().addCanvasLayerEffect(thirdId, 'stutter')
       const soloed = useReactStore.getState().setCanvasAuthoredLayerSolo(thirdId, true)
       if (!soloed.ok) throw new Error(soloed.message)
-      root.render(<CanvasEngineFxPanel />)
+      root.render(<CanvasAddEffectsControls />)
     })
 
     expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(1)
@@ -238,7 +238,7 @@ describe('CANVAS Add Effects UI', () => {
     act(() => {
       useReactStore.getState().addCanvasLayerEffect(firstId, 'bloom')
       useReactStore.getState().addCanvasLayerEffect(firstId, 'echo')
-      root.render(<CanvasEngineFxPanel />)
+      root.render(<CanvasAddEffectsControls />)
     })
 
     const addFirst = comboboxByAriaLabel('Add effect to Active Media 1 — Filter A.png')
@@ -266,7 +266,7 @@ describe('CANVAS Add Effects UI', () => {
     const effects: CanvasLayerEffectId[] = ['bloom', 'echo', 'glitch', 'melt', 'stutter']
     act(() => {
       for (const effectId of effects) useReactStore.getState().addCanvasLayerEffect(layerId, effectId)
-      root.render(<CanvasEngineFxPanel />)
+      root.render(<CanvasAddEffectsControls />)
     })
 
     const stack = host.querySelector(`[data-canvas-effect-layer-id="${layerId}"]`)
@@ -290,7 +290,7 @@ describe('CANVAS Add Effects UI', () => {
     useReactStore.setState({ canvasMediaItems: [media('collapse-media', 'Collapse.png')] })
     const layerId = addLayer('collapse-media')
     useReactStore.getState().addCanvasLayerEffect(layerId, 'glitch')
-    act(() => root.render(<CanvasEngineFxPanel />))
+    act(() => root.render(<CanvasAddEffectsControls />))
 
     const header = parentButton('Active Media 1 — Collapse.png')
     expect(header.getAttribute('aria-expanded')).toBe('true')
