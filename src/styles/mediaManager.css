@@ -104,6 +104,19 @@
   overflow: hidden;
 }
 
+/* Match the REACT view's left/right rail widths and outer rail padding
+   (.rv-layout / .rv-layout > .vz-inspector > .vz-inspector-inner) instead of
+   the narrower, symmetric defaults .vz-content otherwise ships with. */
+.mmv-content {
+  --vz-left-width: 330px;
+  --vz-right-width: 400px;
+}
+
+.mmv-content > .vz-inspector > .vz-inspector-inner {
+  padding: 8px 12px;
+  box-sizing: border-box;
+}
+
 .vz-media-browser--manager {
   min-width: 0;
   border-radius: 9px;
@@ -304,6 +317,31 @@
   font-family: inherit;
 }
 
+/* Title, Description, and Tags match the borderless bottom-line treatment
+   the Media Role dropdown above them already uses (the canonical Underline
+   dropdown look from canonicalControls.css), instead of .dv-text-input's
+   default bordered box. */
+#mmi-title,
+#mmi-description,
+#mmi-tags {
+  border: 0 !important;
+  border-radius: 0 !important;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.22) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 4px 2px 8px !important;
+}
+
+#mmi-title:hover:not(:disabled),
+#mmi-description:hover:not(:disabled),
+#mmi-tags:hover:not(:disabled),
+#mmi-title:focus-visible,
+#mmi-description:focus-visible,
+#mmi-tags:focus-visible {
+  border-bottom-color: #4ac7db !important;
+  box-shadow: none !important;
+}
+
 .mmi-readonly {
   color: rgba(196,207,211,0.6);
   font-size: 11px;
@@ -325,8 +363,12 @@
 
 .mmi-actions {
   display: flex;
-  justify-content: flex-end;
   padding-top: 4px;
+}
+
+.mmi-actions .dv-icon-chip {
+  width: 100%;
+  justify-content: center;
 }
 
 .vz-media-browser--manager .vz-md-search-row {

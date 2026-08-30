@@ -62,7 +62,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
 
       <section className="mmv-workspace" aria-label="Media management workspace">
         <div
-          className="vz-content"
+          className="vz-content mmv-content"
           data-left-collapsed={leftCollapsed ? 'true' : 'false'}
           data-right-collapsed={rightCollapsed ? 'true' : 'false'}
         >
