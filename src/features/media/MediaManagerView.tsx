@@ -7,6 +7,7 @@ import { MediaManagerStage } from '../../components/vyzualz/media/MediaManagerSt
 import { MediaManagerInspector } from '../../components/vyzualz/media/MediaManagerInspector'
 import { MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
 import { IconChipButton } from '../../components/vyzualz/react/controls/IconChipButton'
+import { VyzualzHeaderActions } from '../../components/vyzualz/shared/VyzualzHeaderActions'
 import type { LyricManagerNavigationIntent } from '../lyrics/lyricNavigation'
 
 interface MediaManagerViewProps {
@@ -57,6 +58,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
           >
             New Media
           </IconChipButton>
+          <VyzualzHeaderActions />
         </div>
       </header>
 

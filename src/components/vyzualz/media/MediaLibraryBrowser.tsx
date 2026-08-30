@@ -16,7 +16,6 @@ import {
   GridViewIcon,
   ListViewIcon,
   PropertyViewIcon,
-  MusicNote01Icon,
   Refresh01Icon,
 } from 'hugeicons-react'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -35,6 +34,7 @@ import { isUnifiedSvgMediaItem } from '../../../lib/svgMediaEligibility'
 import type { MediaLibraryCapability, MediaLibraryContext } from './mediaLibraryCapabilities'
 import { loadSavedTrackIntoEngine } from '../../../audio/savedTrackLoader'
 import { ContextActionMenu } from '../context-menu/ContextActionMenu'
+import { AudioTrackCard } from './AudioTrackCard'
 import { createLyricManagerNavigationIntent } from '../../../features/lyrics/lyricNavigation'
 import type { LyricManagerNavigationIntent } from '../../../features/lyrics/lyricNavigation'
 
@@ -265,13 +265,6 @@ function matchesMediaLibraryFilter(m: UploadedMedia, f: MediaLibraryFilter): boo
   }
 }
 
-function fmtDur(s: number | null): string {
-  if (!s) return ''
-  const m = Math.floor(s / 60)
-  const sec = Math.floor(s % 60)
-  return `${m}:${sec.toString().padStart(2, '0')}`
-}
-
 // ── Collection folder card ─────────────────────────────────────────────────
 
 function CollectionFolder({
@@ -325,130 +318,6 @@ function CollectionFolder({
           {count > 4 && <div className="vz-coll-thumb vz-coll-thumb-more">+{count - 4}</div>}
         </div>
       ) : <div className="vz-coll-empty-strip">No media in this collection</div>}
-    </div>
-  )
-}
-
-// ── Audio track row ────────────────────────────────────────────────────────
-
-function AudioTrackRow({
-  track,
-  onLoad,
-  onRemove,
-  loading,
-  loaded,
-  playing,
-  loadError,
-  canLoad,
-  canOpenLyrics,
-  canRemove,
-  isActive,
-  onSelect,
-  onOpenTimeline,
-  onOpenActiveLyrics,
-  onOpenAiExtract,
-}: {
-  track: SavedAudioTrack
-  onLoad: () => void
-  onRemove?: () => void
-  loading: boolean
-  loaded: boolean
-  playing: boolean
-  loadError?: string | null
-  canLoad: boolean
-  canOpenLyrics: boolean
-  canRemove: boolean
-  isActive?: boolean
-  onSelect?: () => void
-  onOpenTimeline?: () => void
-  onOpenActiveLyrics?: () => void
-  onOpenAiExtract?: () => void
-}) {
-  const [lyricsMenu, setLyricsMenu] = useState<{ x: number; y: number } | null>(null)
-  const meta: string[] = []
-  if (track.durationSec) meta.push(fmtDur(track.durationSec))
-  if (track.bpm)         meta.push(`${track.bpm} BPM`)
-  if (track.musicalKey)  meta.push(track.musicalKey)
-
-  return (
-    <div
-      className={`vz-track-row${loaded ? ' vz-track-row--loaded' : ''}${playing ? ' vz-track-row--playing' : ''}${isActive ? ' vz-track-row--active' : ''}`}
-      onClick={onSelect}
-      role={onSelect ? 'button' : undefined}
-      tabIndex={onSelect ? 0 : undefined}
-      onKeyDown={onSelect ? event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect() } } : undefined}
-    >
-      <div className="vz-track-row-icon">
-        <MusicNote01Icon size={14} color="currentColor" />
-      </div>
-      <div className="vz-track-row-info">
-        <div className="vz-track-row-title-line">
-          <span className="vz-track-row-title">{track.title}</span>
-          <span className="vz-track-row-state-badges">
-            {loaded && <span className="lmv-loaded-badge">Loaded</span>}
-            {playing && <span className="lmv-playing-badge">Playing</span>}
-          </span>
-        </div>
-        <div className="vz-track-row-meta">
-          {track.artist && <span className="vz-track-row-artist">{track.artist}</span>}
-          {meta.length > 0 && <span>{meta.join(' · ')}</span>}
-        </div>
-        {loadError && <div className="vz-track-row-error" role="alert">{loadError}</div>}
-      </div>
-      <div className="vz-track-row-actions">
-        {canLoad && (
-          <IconChipButton
-            onClick={event => { event.stopPropagation(); onLoad() }}
-            disabled={loading}
-            title="Load this saved track without starting playback"
-          >
-            {loading ? 'Loading…' : loaded ? 'Reload' : 'Load Track'}
-          </IconChipButton>
-        )}
-        {canOpenLyrics && (
-          <IconChipButton
-            aria-haspopup="menu"
-            onClick={event => {
-              event.stopPropagation()
-              const rect = event.currentTarget.getBoundingClientRect()
-              setLyricsMenu({ x: rect.right, y: rect.bottom + 4 })
-            }}
-          >
-            Lyrics ▾
-          </IconChipButton>
-        )}
-        {canRemove && onRemove && (
-          <button
-            type="button"
-            className="vz-track-remove-btn"
-            onClick={event => {
-              event.stopPropagation()
-              const confirmed = window.confirm(
-                `Delete “${track.title}”? This also deletes its saved lyric versions and transcription jobs.`,
-              )
-              if (confirmed) onRemove()
-            }}
-            title="Delete track and linked lyric data"
-            aria-label={`Delete ${track.title} and linked lyric data`}
-          >
-            <Delete02Icon size={12} color="currentColor" />
-          </button>
-        )}
-      </div>
-      {lyricsMenu && (
-        <ContextActionMenu
-          x={lyricsMenu.x}
-          y={lyricsMenu.y}
-          ariaLabel={`Lyric actions for ${track.title}`}
-          header={{ title: track.title, subtitle: track.artist || 'Unknown artist' }}
-          onClose={() => setLyricsMenu(null)}
-          items={[
-            { id: 'timeline', label: 'Open in Lyric Manager', onSelect: () => onOpenTimeline?.() },
-            { id: 'active', label: 'Open Active Lyrics', onSelect: () => onOpenActiveLyrics?.() },
-            { id: 'extract', label: 'AI Extract Lyrics', onSelect: () => onOpenAiExtract?.() },
-          ]}
-        />
-      )}
     </div>
   )
 }
@@ -627,26 +496,6 @@ function MediaCard({
         {badge}
         {canRetry && (m.uploadError || (m.derivativeWarning && m.uploadSourceFile)) && <IconChipButton className="vz-media-retry" onClick={e => { e.stopPropagation(); onRetry() }}>{m.derivativeWarning ? 'Retry derivative' : 'Retry upload'}</IconChipButton>}
         {disabledReason && <div className="vz-media-disabled-reason vz-media-disabled-reason--overlay">{disabledReason}</div>}
-        {canFavorite && (
-          <button
-            className={`vz-media-star ${m.favorite ? 'vz-media-star--active' : ''}`}
-            onClick={e => { e.stopPropagation(); onToggleFavorite() }}
-            disabled={favoritePending}
-            aria-busy={favoritePending}
-            title={favoritePending ? 'Saving favorite…' : m.favorite ? 'Unfavourite' : 'Favourite'}
-          >
-            <FavouriteIcon size={17} color="currentColor" />
-          </button>
-        )}
-        {canRemove && onRemove && (
-          <button
-            className="vz-media-remove"
-            onClick={e => { e.stopPropagation(); onRemove() }}
-            title="Remove"
-          >
-            <Delete02Icon size={15} color="currentColor" />
-          </button>
-        )}
         {canPreview && (
           <button
             className="vz-media-preview-btn"
@@ -670,6 +519,32 @@ function MediaCard({
               <span key={t} className="vz-media-tag">{t}</span>
             ))}
             {m.tags.length > 3 && <span className="vz-media-tag vz-media-tag--more">+{m.tags.length - 3}</span>}
+          </div>
+        )}
+        {(canFavorite || (canRemove && onRemove)) && (
+          <div className="vz-media-card-actions">
+            {canFavorite && (
+              <button
+                className={`vz-media-star ${m.favorite ? 'vz-media-star--active' : ''}`}
+                onClick={e => { e.stopPropagation(); onToggleFavorite() }}
+                disabled={favoritePending}
+                aria-busy={favoritePending}
+                title={favoritePending ? 'Saving favorite…' : m.favorite ? 'Unfavourite' : 'Favourite'}
+                style={{ position: 'static' }}
+              >
+                <FavouriteIcon size={15} color="currentColor" />
+              </button>
+            )}
+            {canRemove && onRemove && (
+              <button
+                className="vz-media-remove"
+                onClick={e => { e.stopPropagation(); onRemove() }}
+                title="Remove"
+                style={{ position: 'static' }}
+              >
+                <Delete02Icon size={13} color="currentColor" />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -1033,7 +908,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         <div className="vz-track-list">
           {[0, 1, 2].map(i => (
             <div key={i} className="vz-track-row" style={{ opacity: 0.4, pointerEvents: 'none' }}>
-              <div className="vz-track-row-icon" />
+              <div className="vz-track-row-art" />
               <div className="vz-track-row-info">
                 <div style={{ width: '60%', height: 9, background: '#0a1420', borderRadius: 3 }} />
                 <div style={{ width: '40%', height: 7, background: '#0a1420', borderRadius: 3, marginTop: 4 }} />
@@ -1066,7 +941,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     return (
       <div className="vz-track-list">
         {filteredTracks.map(t => (
-          <AudioTrackRow
+          <AudioTrackCard
             key={t.id}
             track={t}
             onLoad={() => handleLoadTrack(t)}

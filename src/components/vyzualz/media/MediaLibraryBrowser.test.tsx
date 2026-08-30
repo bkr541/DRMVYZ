@@ -157,6 +157,10 @@ function findButton(text: string): HTMLButtonElement | null {
     .find(button => button.textContent?.trim() === text) as HTMLButtonElement | undefined) ?? null
 }
 
+function findButtonByTitle(title: string): HTMLButtonElement | null {
+  return container?.querySelector<HTMLButtonElement>(`[title="${title}"]`) ?? null
+}
+
 beforeEach(() => {
   resetMocks()
 })
@@ -252,7 +256,7 @@ describe('MediaLibraryBrowser capability boundaries', () => {
     expect(container?.querySelector('.vz-track-remove-btn')).toBeNull()
 
     await act(async () => {
-      findButton('Load Track')?.click()
+      findButtonByTitle('Load this saved track without starting playback')?.click()
       await Promise.resolve()
       await Promise.resolve()
     })
@@ -282,7 +286,7 @@ describe('MediaLibraryBrowser capability boundaries', () => {
     expect(container?.textContent).toContain('Performance Track')
 
     await act(async () => {
-      findButton('Load Track')?.click()
+      findButtonByTitle('Load this saved track without starting playback')?.click()
       await Promise.resolve()
       await Promise.resolve()
     })
@@ -436,7 +440,7 @@ describe('MediaLibraryBrowser virtualization', () => {
     })
 
     act(() => findButton('Tracks')?.click())
-    await act(async () => findButton('Lyrics ▾')?.click())
+    await act(async () => findButtonByTitle('Lyrics')?.click())
     const menuItem = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
       .find(button => button.textContent === label)!
 
@@ -446,7 +450,7 @@ describe('MediaLibraryBrowser virtualization', () => {
       workflow: 'timeline',
     }))
 
-    await act(async () => findButton('Lyrics ▾')?.click())
+    await act(async () => findButtonByTitle('Lyrics')?.click())
     await act(async () => menuItem('AI Extract Lyrics').click())
     expect(onOpenLyricManager).toHaveBeenLastCalledWith(expect.objectContaining({
       targetAudioTrackId: 'track-1',

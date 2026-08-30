@@ -11,11 +11,9 @@ import type { UploadedMedia } from '../../../stores/mediaStore'
 import { useAudioStore } from '../../../stores/audioStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
 import {
-  ENERGY_LABELS,
   MEDIA_ROLE_LABELS,
   MUSICAL_KEYS,
   VISUAL_MEDIA_ROLES,
-  type MediaEnergy,
   type MediaRole,
 } from '../../../lib/mediaRoles'
 
@@ -28,6 +26,15 @@ function VisualMediaInspector({ media }: { media: UploadedMedia }) {
     createCollection: state.createCollection,
   })))
 
+  // Additional Info fields only make sense for certain media types: FPS and
+  // Loopable describe video playback, so images and SVGs never show them.
+  // Has Alpha describes a raster/video transparency channel, which doesn't
+  // apply to vector SVGs. BPM/Key/Energy describe audio and never applied to
+  // any visual media type in the first place — saved tracks get their own
+  // Track Details editor (see AudioTrackInspector below) instead.
+  const isVideo = media.type === 'video'
+  const isSvg = media.mediaRole === 'svg'
+
   const [role, setRole] = useState<MediaRole>(media.mediaRole)
   const [title, setTitle] = useState(media.title ?? '')
   const [description, setDescription] = useState(media.description ?? '')
@@ -36,9 +43,6 @@ function VisualMediaInspector({ media }: { media: UploadedMedia }) {
   const [collectionIds, setCollectionIds] = useState<string[]>(media.collectionIds)
   const [collInput, setCollInput] = useState('')
   const [fps, setFps] = useState<string>(media.metadata.fps != null ? String(media.metadata.fps) : '')
-  const [bpm, setBpm] = useState<string>(media.metadata.bpm != null ? String(media.metadata.bpm) : '')
-  const [musicalKey, setMusicalKey] = useState(media.metadata.key ?? '')
-  const [energy, setEnergy] = useState<MediaEnergy | ''>(media.metadata.energy ?? '')
   const [loopable, setLoopable] = useState(media.metadata.loopable ?? false)
   const [hasAlpha, setHasAlpha] = useState(media.metadata.hasAlpha ?? false)
   const [saving, setSaving] = useState(false)
@@ -53,9 +57,6 @@ function VisualMediaInspector({ media }: { media: UploadedMedia }) {
     setCollectionIds(media.collectionIds)
     setCollInput('')
     setFps(media.metadata.fps != null ? String(media.metadata.fps) : '')
-    setBpm(media.metadata.bpm != null ? String(media.metadata.bpm) : '')
-    setMusicalKey(media.metadata.key ?? '')
-    setEnergy(media.metadata.energy ?? '')
     setLoopable(media.metadata.loopable ?? false)
     setHasAlpha(media.metadata.hasAlpha ?? false)
     setError(null)
@@ -87,7 +88,6 @@ function VisualMediaInspector({ media }: { media: UploadedMedia }) {
     setSaving(true)
     setError(null)
     const parsedFps = fps.trim() ? Number(fps) : undefined
-    const parsedBpm = bpm.trim() ? Number(bpm) : undefined
     const saved = await saveMediaEdits(media.id, {
       role,
       title: title.trim(),
@@ -97,9 +97,6 @@ function VisualMediaInspector({ media }: { media: UploadedMedia }) {
       metadata: {
         ...media.metadata,
         fps: parsedFps,
-        bpm: parsedBpm,
-        key: musicalKey || undefined,
-        energy: energy || undefined,
         loopable,
         hasAlpha,
       },
@@ -188,14 +185,19 @@ function VisualMediaInspector({ media }: { media: UploadedMedia }) {
       </Collapsible>
 
       <Collapsible label="Additional Info" defaultOpen={false}>
-        <div className="rv-ctrl-row"><span className="rv-ctrl-label-cluster"><span className="rv-ctrl-label">Duration</span></span><span className="mmi-readonly">{media.metadata.duration != null ? `${media.metadata.duration.toFixed(2)}s` : '—'}</span></div>
+        {isVideo && (
+          <div className="rv-ctrl-row"><span className="rv-ctrl-label-cluster"><span className="rv-ctrl-label">Duration</span></span><span className="mmi-readonly">{media.metadata.duration != null ? `${media.metadata.duration.toFixed(2)}s` : '—'}</span></div>
+        )}
         <div className="rv-ctrl-row"><span className="rv-ctrl-label-cluster"><span className="rv-ctrl-label">Resolution</span></span><span className="mmi-readonly">{media.metadata.width && media.metadata.height ? `${media.metadata.width} × ${media.metadata.height}` : '—'}</span></div>
-        <NumberInputRow id="mmi-fps" label="FPS" value={fps === '' ? '' : Number(fps)} min={1} max={240} step={1} placeholder="e.g. 30" onChange={value => setFps(String(value))} onEmpty={() => setFps('')} />
-        <NumberInputRow id="mmi-bpm" label="BPM" value={bpm === '' ? '' : Number(bpm)} min={20} max={300} step={1} placeholder="e.g. 128" onChange={value => setBpm(String(value))} onEmpty={() => setBpm('')} />
-        <SelectRow id="mmi-key" label="Key" value={musicalKey} options={[{ value: '', label: '—' }, ...MUSICAL_KEYS.map(k => ({ value: k, label: k }))]} onChange={setMusicalKey} />
-        <SelectRow id="mmi-energy" label="Energy" value={energy} options={[{ value: '', label: '—' }, ...(Object.keys(ENERGY_LABELS) as MediaEnergy[]).map(k => ({ value: k, label: ENERGY_LABELS[k] }))]} onChange={value => setEnergy(value as MediaEnergy | '')} />
-        <ToggleRow id="mmi-loopable" label="Loopable" value={loopable} onChange={setLoopable} />
-        <ToggleRow id="mmi-alpha" label="Has Alpha" value={hasAlpha} onChange={setHasAlpha} />
+        {isVideo && (
+          <NumberInputRow id="mmi-fps" label="FPS" value={fps === '' ? '' : Number(fps)} min={1} max={240} step={1} placeholder="e.g. 30" onChange={value => setFps(String(value))} onEmpty={() => setFps('')} />
+        )}
+        {isVideo && (
+          <ToggleRow id="mmi-loopable" label="Loopable" value={loopable} onChange={setLoopable} />
+        )}
+        {!isSvg && (
+          <ToggleRow id="mmi-alpha" label="Has Alpha" value={hasAlpha} onChange={setHasAlpha} />
+        )}
       </Collapsible>
 
       {error && <NoticeCard tone="error" role="alert" title="Save failed">{error}</NoticeCard>}
