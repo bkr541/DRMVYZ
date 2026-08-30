@@ -174,6 +174,24 @@ describe('canonical React preset card architecture', () => {
     expect(filtered.every(preset => preset.category === 'drop' && preset.tags.includes('volumetric'))).toBe(true)
   })
 
+  it('keeps legacy CANVAS effect recipes available internally but removes them from the visible preset catalog', async () => {
+    await act(async () => {
+      useReactStore.getState().selectReactEngine('canvas')
+      useReactStore.getState().selectCanvasPreset('canvas-bass-bloom')
+    })
+    await render(<ReactPresetsPanel />)
+
+    for (const hidden of ['Bass Bloom', 'Ghost Echo', 'Glitch Pulse', 'Luma Melt', 'Frame Stutter']) {
+      expect(container.querySelector(`[aria-label="Load ${hidden}"]`)).toBeNull()
+    }
+    for (const retained of ['Clean Playback', 'Particle Aura', 'Fractures', 'Laser Image FX']) {
+      expect(container.querySelector(`[aria-label="Load ${retained}"]`)).not.toBeNull()
+    }
+
+    expect(useReactStore.getState().selectedCanvasPresetId).toBe('canvas-bass-bloom')
+    expect(container.textContent).toContain('CANVAS Media Presets')
+  })
+
   it('renders Show Director templates through the shared card with persistent selected and modified state', async () => {
     await act(async () => {
       useReactStore.setState({

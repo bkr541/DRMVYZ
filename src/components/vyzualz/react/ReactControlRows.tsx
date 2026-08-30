@@ -134,14 +134,16 @@ export interface SelectRowProps {
   disabled?: boolean
   id?: string
   description?: string
+  placeholder?: string
+  labelHidden?: boolean
 }
 
-export function SelectRow({ label, value, onChange, options, disabled, id, description }: SelectRowProps) {
+export function SelectRow({ label, value, onChange, options, disabled, id, description, placeholder, labelHidden = false }: SelectRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
   return (
     <div className="rv-ctrl-row">
-      <span className="rv-ctrl-label-cluster">
+      <span className={`rv-ctrl-label-cluster${labelHidden ? ' sr-only' : ''}`}>
         <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
       </span>
       <UnderlineDropdown
@@ -151,6 +153,7 @@ export function SelectRow({ label, value, onChange, options, disabled, id, descr
         onChange={onChange}
         options={options}
         disabled={disabled}
+        placeholder={placeholder}
         ariaLabel={label}
         ariaDescribedBy={description ? `${inputId}-description` : undefined}
         menuLabel={label}

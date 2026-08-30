@@ -18769,3 +18769,44 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   font-size: 8.5px;
   line-height: 1.4;
 }
+
+/* CANVAS per-layer Add Effects rows. */
+.rv-canvas-layer-effects-body {
+  padding-top: 6px;
+}
+
+.rv-canvas-layer-effects-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.rv-canvas-layer-effect-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+  min-width: 0;
+}
+
+.rv-canvas-layer-effect-row > .rv-ctrl-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.rv-canvas-layer-effect-remove.dv-icon-chip {
+  flex: 0 0 28px;
+  width: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-color: rgba(255, 96, 112, 0.34);
+  background: rgba(255, 72, 92, 0.08);
+  color: rgba(255, 174, 184, 0.9);
+}
+
+.rv-canvas-layer-effect-remove.dv-icon-chip:hover:not(:disabled),
+.rv-canvas-layer-effect-remove.dv-icon-chip:focus-visible {
+  border-color: rgba(255, 96, 112, 0.56);
+  background: rgba(255, 72, 92, 0.16);
+  color: #ff9eab;
+}

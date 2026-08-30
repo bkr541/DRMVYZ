@@ -71,8 +71,10 @@ import {
   CanvasOrchestrationStage,
   CanvasPreloadManager,
   isCanvasPreloadHandleDrawable,
+  CANVAS_LAYER_EFFECT_IDS,
   MAX_CANVAS_AUTHORED_LAYERS,
   MAX_CANVAS_ACTIVE_VIDEO_DECODERS,
+  MAX_CANVAS_LAYER_EFFECTS,
   MAX_CANVAS_SHOW_VIDEO_DECODERS,
   getCanvasShowRuntimePoolRevision,
   getCanvasShowRuntimeUpcomingElements,
@@ -88,6 +90,7 @@ import {
   resolveCanvasPerformanceFrame,
   resolveCanvasPoolAutomationRuntime,
   type CanvasCompositionPreference,
+  type CanvasLayerEffectId,
   type CanvasLayerRole,
   type CanvasMediaRole,
   type CanvasPerformanceShowId,
@@ -3973,6 +3976,87 @@ function CanvasLaserImageFxControls({
   )
 }
 
+const CANVAS_LAYER_EFFECT_LABELS: Record<CanvasLayerEffectId, string> = {
+  bloom: 'Bloom',
+  echo: 'Echo',
+  glitch: 'Glitch',
+  melt: 'Melt',
+  stutter: 'Stutter',
+}
+
+const CANVAS_LAYER_EFFECT_OPTIONS = CANVAS_LAYER_EFFECT_IDS.map(effectId => ({
+  value: effectId,
+  label: CANVAS_LAYER_EFFECT_LABELS[effectId],
+}))
+
+function CanvasAddEffectsControls() {
+  const orchestration = useReactStore(s => s.canvasOrchestrationSettings)
+  const addCanvasLayerEffect = useReactStore(s => s.addCanvasLayerEffect)
+  const setCanvasLayerEffect = useReactStore(s => s.setCanvasLayerEffect)
+  const removeCanvasLayerEffectAt = useReactStore(s => s.removeCanvasLayerEffectAt)
+  const mediaItems = useCanvasRuntimeMediaItems()
+  const primaryLayer = useReactStore(s => {
+    const primary = s.canvasOrchestrationSettings.primaryLayer
+    if (!primary) return null
+    return primary.kind === 'authored'
+      ? s.canvasOrchestrationSettings.authoredLayers.find(layer => layer.id === primary.layerId) ?? null
+      : primary.layer
+  })
+  const layers = orchestration.renderMode === 'single'
+    ? primaryLayer ? [primaryLayer] : []
+    : orchestration.authoredLayers
+
+  return (
+    <Collapsible label="Add Effects" defaultOpen>
+      {layers.map((layer, layerIndex) => {
+        const mediaName = mediaItems.find(item => item.id === layer.mediaId)?.name ?? layer.mediaId
+        const parentLabel = `Active Media ${layerIndex + 1} — ${mediaName}`
+        const selectedEffects = new Set(layer.effects)
+        return (
+          <Collapsible key={layer.id} label={parentLabel} defaultOpen bodyClassName="rv-canvas-layer-effects-body">
+            <div className="rv-canvas-layer-effects-stack" data-canvas-effect-layer-id={layer.id}>
+              {layer.effects.map((effectId, effectIndex) => {
+                const options = CANVAS_LAYER_EFFECT_OPTIONS.filter(option => (
+                  option.value === effectId || !selectedEffects.has(option.value)
+                ))
+                return (
+                  <div className="rv-canvas-layer-effect-row" key={`${layer.id}:${effectIndex}`}>
+                    <CanvasSelectRow
+                      label={`Effect ${effectIndex + 1} for ${parentLabel}`}
+                      labelHidden
+                      value={effectId}
+                      onChange={value => setCanvasLayerEffect(layer.id, effectIndex, value)}
+                      options={options}
+                    />
+                    <IconChipButton
+                      className="rv-canvas-layer-effect-remove"
+                      aria-label={`Remove ${CANVAS_LAYER_EFFECT_LABELS[effectId]} from ${parentLabel}`}
+                      icon={<Delete02Icon size={12} color="currentColor" />}
+                      onClick={() => removeCanvasLayerEffectAt(layer.id, effectIndex)}
+                    />
+                  </div>
+                )
+              })}
+              {layer.effects.length < MAX_CANVAS_LAYER_EFFECTS && (
+                <div className="rv-canvas-layer-effect-row rv-canvas-layer-effect-row--empty">
+                  <CanvasSelectRow
+                    label={`Add effect to ${parentLabel}`}
+                    labelHidden
+                    value=""
+                    placeholder="Select Effect…"
+                    onChange={value => addCanvasLayerEffect(layer.id, value)}
+                    options={CANVAS_LAYER_EFFECT_OPTIONS.filter(option => !selectedEffects.has(option.value))}
+                  />
+                </div>
+              )}
+            </div>
+          </Collapsible>
+        )
+      })}
+    </Collapsible>
+  )
+}
+
 function CanvasPresetControls() {
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const canvasPresetSettings = useReactStore(s => s.canvasPresetSettings)
@@ -4244,6 +4328,8 @@ export function CanvasEngineFxPanel() {
 
 
       <CanvasOrchestrationControls />
+
+      <CanvasAddEffectsControls />
 
       <CanvasPresetControls />
 

@@ -56,6 +56,18 @@ import {
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import { Collapsible } from './ReactControlRows'
 
+const CANVAS_LEGACY_EFFECT_PRESET_IDS = new Set<CanvasPresetId>([
+  'canvas-bass-bloom',
+  'canvas-ghost-echo',
+  'canvas-glitch-pulse',
+  'canvas-luma-melt',
+  'canvas-frame-stutter',
+])
+
+export const CANVAS_VISIBLE_PRESETS = CANVAS_PRESETS.filter(
+  preset => !CANVAS_LEGACY_EFFECT_PRESET_IDS.has(preset.id),
+)
+
 function getModeHint(preset: ReactPreset): string | null {
   if (preset.engine === 'cinematicPortal') {
     const mode = preset.cinematicConfig?.worldMode ?? 'legacyPortal'
@@ -309,17 +321,17 @@ function CanvasPresetCollection({ thumbnailGenerationKey }: { thumbnailGeneratio
   const selectedCanvasPresetId = useReactStore(state => state.selectedCanvasPresetId)
   const selectCanvasPreset = useReactStore(state => state.selectCanvasPreset)
   const canvasPresetSettings = useReactStore(state => state.canvasPresetSettings)
-  const cardPresets = useMemo(() => CANVAS_PRESETS.map(createCanvasPresetCardPreset), [])
+  const cardPresets = useMemo(() => CANVAS_VISIBLE_PRESETS.map(createCanvasPresetCardPreset), [])
   const cardById = useMemo(() => new Map(cardPresets.map(preset => [preset.id, preset])), [cardPresets])
   const canvasThumbnailGenerationKey = useMemo(
-    () => `${thumbnailGenerationKey}:canvas:${CANVAS_PRESETS.map(item => item.id).join('|')}`,
+    () => `${thumbnailGenerationKey}:canvas:${CANVAS_VISIBLE_PRESETS.map(item => item.id).join('|')}`,
     [thumbnailGenerationKey],
   )
 
   return (
     <Collapsible label="CANVAS Media Presets" defaultOpen>
       <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>
-        {CANVAS_PRESETS.map(canvasPreset => {
+        {CANVAS_VISIBLE_PRESETS.map(canvasPreset => {
           const cardPreset = cardById.get(canvasPreset.id)
           if (!cardPreset) return null
           return (
@@ -704,7 +716,7 @@ export function ReactPresetsPanel() {
           {presetLibraryContent}
           <HelpInfoTrigger
             helpId="react.canvas.presetLibrary"
-            currentValue={`${selectedCanvasPreset?.name ?? 'No CANVAS preset selected'} · ${CANVAS_PRESETS.length} CANVAS presets`}
+            currentValue={`${selectedCanvasPreset?.name ?? 'No CANVAS preset selected'} · ${CANVAS_VISIBLE_PRESETS.length} CANVAS presets`}
             currentValueTone={selectedCanvasPreset ? 'accent' : 'default'}
             placement="left"
           />
