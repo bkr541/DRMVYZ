@@ -1611,6 +1611,17 @@ export function CanvasEngineSurface({
   const fragmentCollageActive = rendererKind === 'fragmentCollage'
   const laserImageFxActive = rendererKind === 'laserImageFx'
   const effectPassActive = rendererKind === 'standard' && hasCanvasEffectPass(canvasPresetSettings)
+  const singleLayerEffectOwner = useMemo(() => {
+    if (orchestrationSettings.renderMode !== 'single') return null
+    const primary = orchestrationSettings.primaryLayer
+    if (!primary) return null
+    return primary.kind === 'authored'
+      ? orchestrationSettings.authoredLayers.find(layer => layer.id === primary.layerId) ?? null
+      : primary.layer
+  }, [orchestrationSettings])
+  const singleLayerEffectRuntime = rendererKind === 'standard'
+    && Boolean(singleLayerEffectOwner?.effects.length)
+    && singleLayerEffectOwner?.mediaId === activeItem?.id
   const activeVideo = activeItem?.type === 'video'
   const activeMediaTransparencyKey = activeItem ? getCanvasMediaTransparencyKey(activeItem) : null
   const activeMediaTransparencyKeyRef = useRef<string | null>(activeMediaTransparencyKey)
@@ -1644,10 +1655,15 @@ export function CanvasEngineSurface({
 
   useEffect(() => {
     const authoredLayerRuntime = !runtimeCanvasShow && orchestrationSettings.renderMode === 'layers'
+    const singleEffectLayerRuntime = !runtimeCanvasShow && singleLayerEffectRuntime
+    const compositedAuthoredRuntime = authoredLayerRuntime || singleEffectLayerRuntime
+    const authoredRuntimeLayers = singleEffectLayerRuntime && singleLayerEffectOwner
+      ? [singleLayerEffectOwner]
+      : orchestrationSettings.authoredLayers
     const performanceRuntime = !runtimeCanvasShow
       && orchestrationSettings.renderMode === 'performance'
       && orchestrationSettings.enabled
-    if (!runtimeCanvasShow && (showPreviewMode || (!authoredLayerRuntime && !performanceRuntime))) {
+    if (!runtimeCanvasShow && (showPreviewMode || (!compositedAuthoredRuntime && !performanceRuntime))) {
       orchestrationPreloadManager.releaseAll()
       orchestrationMediaRetryRef.current.clear()
       previousOrchestrationContextRef.current = null
@@ -1672,8 +1688,8 @@ export function CanvasEngineSurface({
     // compositor before resolving its first frame. Without this handoff the UI
     // can enter Layers mode while the old single-source renderer remains visible
     // behind a second preload gate, making Solo/Add/Reorder appear non-functional.
-    if (authoredLayerRuntime && activeItem
-      && orchestrationSettings.authoredLayers.some(layer => layer.enabled && layer.mediaId === activeItem.id)) {
+    if (compositedAuthoredRuntime && activeItem
+      && authoredRuntimeLayers.some(layer => layer.enabled && layer.mediaId === activeItem.id)) {
       const mountedHandle = activeItem.type === 'video' ? videoRef.current : imageRef.current
       const cachedDirect = lastDirectDrawableRef.current
       const cachedHandle = cachedDirect
@@ -1728,10 +1744,13 @@ export function CanvasEngineSurface({
           })
         : showPreviewMode
           ? null
-          : authoredLayerRuntime
+          : compositedAuthoredRuntime
             ? resolveCanvasAuthoredLayerFrame({
                 context,
-                settings: orchestrationSettings,
+                settings: {
+                  ...orchestrationSettings,
+                  authoredLayers: authoredRuntimeLayers,
+                },
                 mediaItems,
                 fitMode: settings.fitMode,
                 isMediaReady: mediaId => orchestrationPreloadManager.isReady(mediaId),
@@ -1778,7 +1797,9 @@ export function CanvasEngineSurface({
       const candidateMediaIds = runtimeCanvasShow
         ? upcomingShowMedia.map(media => media.id)
         : nextFrame.runtimeMode === 'authored'
-          ? getCanvasPoolAutomationPreloadCandidates(orchestrationSettings, mediaItems, activeMediaIds)
+          ? authoredLayerRuntime
+            ? getCanvasPoolAutomationPreloadCandidates(orchestrationSettings, mediaItems, activeMediaIds)
+            : []
           : getCanvasPerformancePreloadCandidates(nextFrame, orchestrationSettings, mediaItems)
       const requestMediaItems = runtimeCanvasShow
         ? [
@@ -1849,7 +1870,7 @@ export function CanvasEngineSurface({
     resolveFrame()
     const intervalId = window.setInterval(resolveFrame, 80)
     return () => window.clearInterval(intervalId)
-  }, [activeAudioTrackId, activeItem, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, settings.fitMode, showPreviewMode])
+  }, [activeAudioTrackId, activeItem, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, settings.fitMode, showPreviewMode, singleLayerEffectOwner, singleLayerEffectRuntime])
 
   useEffect(() => () => {
     orchestrationPreloadManager.dispose()
@@ -1896,7 +1917,7 @@ export function CanvasEngineSurface({
   const orchestrationRenderable = orchestrationFrame?.runtimeMode === 'show'
     ? true
     : orchestrationFrame?.runtimeMode === 'authored'
-      ? orchestrationSettings.renderMode === 'layers'
+      ? (orchestrationSettings.renderMode === 'layers' || singleLayerEffectRuntime)
         && canRenderCanvasAuthoredLayerFrame(orchestrationFrame, Boolean(activeItem))
       : canRenderCanvasOrchestrationFrame(orchestrationSettings, orchestrationFrame)
   const outputCapability = useMemo(() => resolveCanvasOutputCapability({

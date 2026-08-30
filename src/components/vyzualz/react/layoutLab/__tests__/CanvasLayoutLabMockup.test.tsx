@@ -98,8 +98,11 @@ describe('Canvas Layout Lab through the real shell', () => {
     await selectEngine('CANVAS')
     await act(async () => exactButton('PRESETS').click())
 
-    for (const preset of ['Clean Playback', 'Bass Bloom', 'Ghost Echo', 'Glitch Pulse', 'Luma Melt', 'Frame Stutter', 'Particle Aura', 'Fractures']) {
+    for (const preset of ['Clean Playback', 'Particle Aura', 'Fractures', 'Laser Image FX']) {
       expect(container.textContent).toContain(preset)
+    }
+    for (const retired of ['Bass Bloom', 'Ghost Echo', 'Glitch Pulse', 'Luma Melt', 'Frame Stutter']) {
+      expect(container.querySelector(`[aria-label="Load ${retired}"]`)).toBeNull()
     }
     await act(async () => exactButton('All Engines').click())
     for (const engine of ['Cinema', 'Sound Drawing', 'LaserDMX', 'PixGrid']) {
@@ -120,7 +123,7 @@ describe('Canvas Layout Lab through the real shell', () => {
     expect(exactButton('Recording unavailable').disabled).toBe(true)
 
     await act(async () => exactButton('PRESETS').click())
-    await act(async () => buttonByLabel('Load Bass Bloom').click())
+    await act(async () => buttonByLabel('Load Clean Playback').click())
     await act(async () => exactButton('OUTPUT').click())
     expect(container.textContent).toContain('Start Recording Mock')
     expect(container.textContent).not.toContain('Fractures recording is unavailable')

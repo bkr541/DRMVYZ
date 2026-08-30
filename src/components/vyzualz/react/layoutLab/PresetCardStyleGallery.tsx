@@ -19,10 +19,10 @@ interface PresetSample {
 }
 
 const PRESET_SAMPLES: PresetSample[] = [
-  { name: 'Bass Bloom', chips: ['Reactive', 'Bloom'], tone: '#4ac7db', active: true, favorite: true },
-  { name: 'Ghost Echo', chips: ['Trails'], tone: '#6b4cff', modified: true },
-  { name: 'Glitch Pulse', chips: ['Glitch', 'Strobe'], tone: '#ff6b6b' },
-  { name: 'Luma Melt', chips: ['Luma'], tone: '#d8b95a', favorite: true },
+  { name: 'Clean Playback', chips: ['Source'], tone: '#e8f4f8', active: true, favorite: true },
+  { name: 'Particle Aura', chips: ['Particles'], tone: '#4ac7db', modified: true },
+  { name: 'Fractures', chips: ['Fragments'], tone: '#8de7ff' },
+  { name: 'Laser Image FX', chips: ['Laser'], tone: '#72fff0', favorite: true },
 ]
 
 function PresetChips({ preset }: { preset: PresetSample }) {

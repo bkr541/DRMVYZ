@@ -311,6 +311,53 @@ afterEach(async () => {
 })
 
 describe('CanvasEngineSurface Performance Show routing', () => {
+  it('renders single-media layer effects through the authored compositor and preserves them across specialized renderers', async () => {
+    useReactStore.setState({
+      canvasMediaItems: [media],
+      selectedCanvasMediaId: media.id,
+      activeCanvasMediaId: media.id,
+    })
+    useReactStore.getState().selectCanvasMediaItem(media.id)
+    const primary = useReactStore.getState().getCanvasPrimaryLayer()
+    if (!primary) throw new Error('Expected a primary Canvas layer')
+    expect(useReactStore.getState().addCanvasLayerEffect(primary.id, 'echo').ok).toBe(true)
+
+    expect(useReactStore.getState().canvasOrchestrationSettings).toMatchObject({
+      renderMode: 'single',
+      authoredLayers: [],
+    })
+
+    await renderSurface()
+
+    expect(host?.querySelector('[aria-label="CANVAS orchestrated media surface"]')).not.toBeNull()
+    expect(useReactStore.getState().getCanvasPrimaryLayer()).toMatchObject({
+      id: primary.id,
+      effects: ['echo'],
+    })
+
+    await act(async () => {
+      useReactStore.getState().selectCanvasPreset('canvas-fractures')
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(host?.querySelector('[aria-label="CANVAS orchestrated media surface"]')).toBeNull()
+    expect(host?.querySelector('[data-testid="fractures-renderer"]')).not.toBeNull()
+    expect(useReactStore.getState().getCanvasPrimaryLayer()).toMatchObject({
+      id: primary.id,
+      effects: ['echo'],
+    })
+
+    await act(async () => {
+      useReactStore.getState().selectCanvasPreset('canvas-clean-playback')
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(host?.querySelector('[aria-label="CANVAS orchestrated media surface"]')).not.toBeNull()
+    expect(useReactStore.getState().canvasOrchestrationSettings.renderMode).toBe('single')
+  })
+
   it('selects a valid active saved Canvas Show through the real production surface before orchestration fallback', async () => {
     setCanvasRoutingState({
       presetId: 'canvas-clean-playback',

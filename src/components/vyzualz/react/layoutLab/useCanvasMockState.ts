@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import {
   CANVAS_PRESETS,
   CANVAS_VISIBLE_PRESETS,
-  isCanvasLegacyEffectPresetId,
   DEFAULT_CANVAS_ENGINE_SETTINGS,
   DEFAULT_CANVAS_PRESET_SETTINGS,
   DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS,
@@ -275,7 +274,7 @@ export function useCanvasMockState(): CanvasMockState {
   const activePreset = presets.find(preset => preset.id === activePresetId) ?? {
     ...presets[0],
     id: activePresetId,
-    name: isCanvasLegacyEffectPresetId(activePresetId) ? 'CANVAS' : presets[0].name,
+    name: presets[0].name,
     modified: modifiedPresetIds.includes(activePresetId),
   }
   const activeVideoTiming = activeMedia?.type === 'video'
@@ -404,7 +403,7 @@ export function useCanvasMockState(): CanvasMockState {
       setMediaNotice('Auto Select preview is waiting for saved CANVAS media.')
       return
     }
-    const presetId: CanvasPresetId = autoPreviewRevision % 2 === 0 ? 'canvas-bass-bloom' : 'canvas-glitch-pulse'
+    const presetId: CanvasPresetId = autoPreviewRevision % 2 === 0 ? 'canvas-clean-playback' : 'canvas-particle-aura'
     setActivePresetId(presetId)
     setPresetSettings(settingsForPreset(presetId))
     setPresetOverride({ source: 'auto', label: 'Auto Select preview is active' })

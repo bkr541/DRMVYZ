@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { CANVAS_PRESETS } from '../../ReactTypes'
+import { CANVAS_VISIBLE_PRESETS } from '../../ReactTypes'
 
 const FILES = [
   '../CanvasMockup.tsx',
@@ -116,15 +116,11 @@ describe('Canvas Layout Lab import boundary', () => {
   it('retains the required production-visible Canvas control and capability inventory', () => {
     const source = FILES.map(file => readFileSync(file, 'utf8')).join('\n')
     for (const label of REQUIRED_LABELS) expect(source, `Missing Canvas label: ${label}`).toContain(label)
-    expect(CANVAS_PRESETS.map(preset => preset.name)).toEqual([
+    expect(CANVAS_VISIBLE_PRESETS.map(preset => preset.name)).toEqual([
       'Clean Playback',
-      'Bass Bloom',
-      'Ghost Echo',
-      'Glitch Pulse',
-      'Luma Melt',
-      'Frame Stutter',
       'Particle Aura',
       'Fractures',
+      'Laser Image FX',
     ])
   })
 })

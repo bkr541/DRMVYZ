@@ -2319,7 +2319,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "componentType": "selection",
     "summary": "Loads a CANVAS visual recipe that transforms the active media without replacing the media itself.",
     "whatItDoes": [
-      "Selects a built-in CANVAS recipe such as clean playback, bass bloom, trails, glitch, luma treatment, stutter, or particles.",
+      "Selects a built-in CANVAS recipe such as clean playback, particles, fractures, or laser image treatment.",
       "Updates the CANVAS React Controls to the selected recipe values."
     ],
     "whenToUse": "Choose a preset after selecting media, then refine the recipe in the React tab.",

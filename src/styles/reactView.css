@@ -18799,14 +18799,14 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   min-width: 28px;
   min-height: 28px;
   padding: 0;
-  border-color: rgba(255, 96, 112, 0.34);
-  background: rgba(255, 72, 92, 0.08);
-  color: rgba(255, 174, 184, 0.9);
+  border-color: rgba(255, 48, 48, 0.46);
+  background: rgba(255, 32, 32, 0.1);
+  color: #ff3b3b;
 }
 
 .rv-canvas-layer-effect-remove.dv-icon-chip:hover:not(:disabled),
 .rv-canvas-layer-effect-remove.dv-icon-chip:focus-visible {
-  border-color: rgba(255, 96, 112, 0.56);
-  background: rgba(255, 72, 92, 0.16);
-  color: #ff9eab;
+  border-color: rgba(255, 56, 56, 0.72);
+  background: rgba(255, 32, 32, 0.2);
+  color: #ff1f1f;
 }

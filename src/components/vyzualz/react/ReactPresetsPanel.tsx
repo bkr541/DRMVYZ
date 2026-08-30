@@ -93,13 +93,8 @@ const FIXTURE_BADGE_LABELS: Record<ProductionFixtureKind, string> = {
   strobe: 'Strobe', blinder: 'Blinder', ledBar: 'LED Bar', hazer: 'Haze', fogger: 'Fog', cryoJet: 'Cryo',
 }
 
-const CANVAS_PRESET_CHIP_LABELS: Record<CanvasPresetId, string> = {
+const CANVAS_PRESET_CHIP_LABELS: Partial<Record<CanvasPresetId, string>> = {
   'canvas-clean-playback': 'Clean Source',
-  'canvas-bass-bloom': 'Bass Reactive',
-  'canvas-ghost-echo': 'Trail Layer',
-  'canvas-glitch-pulse': 'Beat Glitch',
-  'canvas-luma-melt': 'Luma Treatment',
-  'canvas-frame-stutter': 'Rhythm Stutter',
   'canvas-particle-aura': 'Particle System',
   'canvas-fractures': 'Fragment Collage',
   'canvas-laser-image-fx': 'GPU Laser FX',
@@ -126,7 +121,7 @@ function createCanvasPresetCardPreset(preset: CanvasPresetDefinition): ReactPres
   const bassReactivity = Math.max(
     preset.settings.bassReactivity ?? preset.settings.bassBurst ?? 0,
     preset.settings.beatPulse ?? 0,
-    preset.id === 'canvas-bass-bloom' ? 0.75 : 0.45,
+    0.45,
   )
 
   return {
