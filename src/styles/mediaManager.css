@@ -325,10 +325,17 @@
 /* Title, Description, and Tags match the borderless bottom-line treatment
    the Media Role dropdown above them already uses (the canonical Underline
    dropdown look from canonicalControls.css), instead of .dv-text-input's
-   default bordered box. */
+   default bordered box. The Audio Track editor's Title/Artist/Genre/BPM
+   fields sit in the same inspector and get the identical treatment next to
+   its own underline Musical Key dropdown — this list must stay in sync
+   with every text/number field id added to either editor. */
 #mmi-title,
 #mmi-description,
-#mmi-tags {
+#mmi-tags,
+#mmi-track-title,
+#mmi-track-artist,
+#mmi-track-genre,
+#mmi-track-bpm {
   border: 0 !important;
   border-radius: 0 !important;
   border-bottom: 1px solid rgba(154, 178, 188, 0.22) !important;
@@ -340,9 +347,17 @@
 #mmi-title:hover:not(:disabled),
 #mmi-description:hover:not(:disabled),
 #mmi-tags:hover:not(:disabled),
+#mmi-track-title:hover:not(:disabled),
+#mmi-track-artist:hover:not(:disabled),
+#mmi-track-genre:hover:not(:disabled),
+#mmi-track-bpm:hover:not(:disabled),
 #mmi-title:focus-visible,
 #mmi-description:focus-visible,
-#mmi-tags:focus-visible {
+#mmi-tags:focus-visible,
+#mmi-track-title:focus-visible,
+#mmi-track-artist:focus-visible,
+#mmi-track-genre:focus-visible,
+#mmi-track-bpm:focus-visible {
   border-bottom-color: #4ac7db !important;
   box-shadow: none !important;
 }
