@@ -377,6 +377,8 @@ export interface CanvasResolvedLayer {
   y: number
   scaleX: number
   scaleY: number
+  /** Fit the source inside scaleX/scaleY bounds before transform scaling. Runtime-only authored layout geometry. */
+  fitWithinTransformBounds?: boolean
   rotation: number
   crop: CanvasCropRect
   aspectBehavior: CanvasAspectBehavior

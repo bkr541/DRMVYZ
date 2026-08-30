@@ -263,12 +263,17 @@ function drawSource(
   const sy = Math.max(0, Math.min(size.height - 1, crop.y * size.height))
   const sw = Math.max(1, Math.min(size.width - sx, crop.width * size.width))
   const sh = Math.max(1, Math.min(size.height - sy, crop.height * size.height))
-  const fitted = fitRect(sw, sh, width, height, layer.aspectBehavior)
+  const fitWithinTransformBounds = layer.fitWithinTransformBounds === true
+  const fitTargetWidth = fitWithinTransformBounds ? width * Math.abs(layer.scaleX) : width
+  const fitTargetHeight = fitWithinTransformBounds ? height * Math.abs(layer.scaleY) : height
+  const fitted = fitRect(sw, sh, fitTargetWidth, fitTargetHeight, layer.aspectBehavior)
   const effects = resolveCanvasEffectVisualState(layer.effectChain, motionIntensity)
   const x = width * (0.5 + layer.x * 0.5) + globalOffsetX * width
   const y = height * (0.5 + layer.y * 0.5) + globalOffsetY * height
-  const scaleX = layer.scaleX * globalScale * (1 + effects.scaleBoost) * (layer.mirrorX ? -1 : 1)
-  const scaleY = layer.scaleY * globalScale * (1 + effects.scaleBoost) * (layer.mirrorY ? -1 : 1)
+  const layoutScaleX = fitWithinTransformBounds ? 1 : layer.scaleX
+  const layoutScaleY = fitWithinTransformBounds ? 1 : layer.scaleY
+  const scaleX = layoutScaleX * globalScale * (1 + effects.scaleBoost) * (layer.mirrorX ? -1 : 1)
+  const scaleY = layoutScaleY * globalScale * (1 + effects.scaleBoost) * (layer.mirrorY ? -1 : 1)
 
   context.save()
   context.globalCompositeOperation = layer.blendMode

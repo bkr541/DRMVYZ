@@ -1,5 +1,6 @@
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
 import type { CanvasFitMode, CanvasMediaItem } from '../ReactTypes'
+import { resolveCanvasAuthoredLayerLayout } from './CanvasAuthoredLayerLayout'
 import { getCanvasCompositionTemplate } from './CanvasCompositionTemplates'
 import { resolveCanvasPlayback } from './CanvasPlayback'
 import { resolveCanvasExplicitTransition } from './CanvasTransitions'
@@ -56,8 +57,7 @@ export function resolveCanvasAuthoredLayerFrame({
   const soloLayer = authoredLayers.find(layer => layer.solo && layer.enabled) ?? null
   const activeVideoIds = new Set<string>()
   const diagnostics: string[] = [...automationDiagnostics]
-
-  const layers: CanvasResolvedLayer[] = authoredLayers.map((authored, index) => {
+  const renderableLayers = authoredLayers.map(authored => {
     const source = mediaById.get(authored.mediaId) ?? null
     let enabled = authored.enabled && (!soloLayer || soloLayer.id === authored.id) && source != null
 
@@ -70,6 +70,20 @@ export function resolveCanvasAuthoredLayerFrame({
       }
     }
 
+    return { authored, source, enabled }
+  })
+  const visibleLayerIds = renderableLayers
+    .filter(candidate => candidate.enabled && candidate.source)
+    .map(candidate => candidate.authored.id)
+  const visibleLayerIndex = new Map(visibleLayerIds.map((id, index) => [id, index]))
+  const visibleLayerCount = visibleLayerIds.length
+
+  const layers: CanvasResolvedLayer[] = renderableLayers.map(({ authored, source, enabled }, index) => {
+    const layoutIndex = visibleLayerIndex.get(authored.id)
+    const layout = layoutIndex == null
+      ? null
+      : resolveCanvasAuthoredLayerLayout(visibleLayerCount, layoutIndex)
+
     return {
       id: authored.id,
       role: 'hero',
@@ -78,13 +92,17 @@ export function resolveCanvasAuthoredLayerFrame({
       enabled,
       opacity: 1,
       blendMode: 'source-over',
-      x: 0,
-      y: 0,
-      scaleX: 1,
-      scaleY: 1,
+      x: layout?.x ?? 0,
+      y: layout?.y ?? 0,
+      scaleX: layout?.scaleX ?? 1,
+      scaleY: layout?.scaleY ?? 1,
+      fitWithinTransformBounds: Boolean(layout && visibleLayerCount > 1),
       rotation: 0,
       crop: FULL_CROP,
-      aspectBehavior: fitMode,
+      // Multi-layer authored layouts use contain so every source remains
+      // proportionally intact inside its deterministic slot. A single layer
+      // keeps the user's existing Canvas fit behavior unchanged.
+      aspectBehavior: layout && visibleLayerCount > 1 ? 'contain' : fitMode,
       // CanvasOrchestrationStage paints ascending z-index. Reverse canonical
       // order so row 0 is painted last and is therefore visually topmost.
       zIndex: MAX_CANVAS_AUTHORED_LAYERS - index,

@@ -82,6 +82,188 @@ describe('CANVAS authored multi-layer runtime adapter', () => {
     expect(frame.layers.every(candidate => candidate.userLocked)).toBe(true)
   })
 
+  it('resolves four visible authored layers into canonical quadrants without changing stable identities', () => {
+    const mediaItems = ['one', 'two', 'three', 'four'].map(id => media(id))
+    const authoredLayers = mediaItems.map((item, index) => layer(`stable-${index + 1}`, item.id, index))
+    const frame = resolveCanvasAuthoredLayerFrame({
+      context: context(),
+      settings: { programId: DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId, authoredLayers },
+      mediaItems,
+      fitMode: 'cover',
+      isMediaReady: () => true,
+    })
+
+    expect(frame.layers.map(candidate => candidate.id)).toEqual(authoredLayers.map(candidate => candidate.id))
+    expect(frame.layers.map(({ x, y }) => ({ x, y }))).toEqual([
+      { x: -0.5, y: -0.5 },
+      { x: 0.5, y: -0.5 },
+      { x: -0.5, y: 0.5 },
+      { x: 0.5, y: 0.5 },
+    ])
+    expect(frame.layers.every(candidate => candidate.scaleX === candidate.scaleY)).toBe(true)
+    expect(frame.layers.every(candidate => Math.abs(candidate.scaleX - 0.46) < 1e-10)).toBe(true)
+    expect(frame.layers.every(candidate => candidate.aspectBehavior === 'contain')).toBe(true)
+  })
+
+  it('compacts visible ordinals after middle removal while preserving the remaining stable layer IDs', () => {
+    const mediaItems = ['one', 'two', 'three', 'four'].map(id => media(id))
+    const authoredLayers = mediaItems.map((item, index) => layer(`stable-${index + 1}`, item.id, index))
+    const before = resolveCanvasAuthoredLayerFrame({
+      context: context(),
+      settings: { programId: DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId, authoredLayers },
+      mediaItems,
+      fitMode: 'contain',
+      isMediaReady: () => true,
+    })
+    const remaining = authoredLayers
+      .filter(candidate => candidate.id !== 'stable-2')
+      .map((candidate, index) => ({ ...candidate, order: index }))
+    const after = resolveCanvasAuthoredLayerFrame({
+      context: context(),
+      settings: { programId: DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId, authoredLayers: remaining },
+      mediaItems,
+      fitMode: 'contain',
+      isMediaReady: () => true,
+    })
+
+    expect(before.layers.map(candidate => candidate.id)).toEqual(['stable-1', 'stable-2', 'stable-3', 'stable-4'])
+    expect(after.layers.map(candidate => candidate.id)).toEqual(['stable-1', 'stable-3', 'stable-4'])
+    expect(after.layers.map(({ x, y }) => ({ x, y }))).toEqual([
+      { x: -2 / 3, y: 0 },
+      { x: 0, y: 0 },
+      { x: 2 / 3, y: 0 },
+    ])
+    expect(after.layers.every(candidate => Math.abs(candidate.scaleX - (0.92 / 3)) < 1e-10)).toBe(true)
+    expect(after.layers.every(candidate => Math.abs(candidate.scaleY - 0.92) < 1e-10)).toBe(true)
+  })
+
+  it('derives layout participation from visible enabled/solo state without deleting retained authored state', () => {
+    const mediaItems = ['one', 'two', 'three'].map(id => media(id))
+    const authoredLayers = [
+      layer('stable-1', 'one', 0),
+      layer('stable-2', 'two', 1, { enabled: false }),
+      layer('stable-3', 'three', 2),
+    ]
+    const frame = resolveCanvasAuthoredLayerFrame({
+      context: context(),
+      settings: { programId: DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId, authoredLayers },
+      mediaItems,
+      fitMode: 'contain',
+      isMediaReady: () => true,
+    })
+
+    expect(frame.layers).toHaveLength(3)
+    expect(frame.layers[1]).toMatchObject({ id: 'stable-2', enabled: false })
+    expect(frame.layers.filter(candidate => candidate.enabled).map(({ id, x, y }) => ({ id, x, y }))).toEqual([
+      { id: 'stable-1', x: -0.5, y: -0.5 },
+      { id: 'stable-3', x: 0.5, y: 0.5 },
+    ])
+
+    const soloFrame = resolveCanvasAuthoredLayerFrame({
+      context: context(),
+      settings: {
+        programId: DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId,
+        authoredLayers: authoredLayers.map(candidate => ({ ...candidate, enabled: true, solo: candidate.id === 'stable-3' })),
+      },
+      mediaItems,
+      fitMode: 'cover',
+      isMediaReady: () => true,
+    })
+    const visible = soloFrame.layers.filter(candidate => candidate.enabled)
+    expect(visible).toHaveLength(1)
+    expect(visible[0]).toMatchObject({ id: 'stable-3', x: 0, y: 0, scaleX: 1, scaleY: 1, aspectBehavior: 'cover' })
+  })
+
+  it('keeps alpha-capable PNG sources as dry source-over layers with no mask or opaque slot treatment', () => {
+    const transparent = media('transparent-png')
+    transparent.hasAlpha = true
+    transparent.mimeType = 'image/png'
+    transparent.width = 420
+    transparent.height = 960
+    const primary = media('primary-video', 'video')
+    const frame = resolveCanvasAuthoredLayerFrame({
+      context: context(),
+      settings: {
+        programId: DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId,
+        authoredLayers: [layer('primary-layer', primary.id, 0), layer('alpha-layer', transparent.id, 1)],
+      },
+      mediaItems: [primary, transparent],
+      fitMode: 'cover',
+      isMediaReady: () => true,
+    })
+
+    const alphaLayer = frame.layers.find(candidate => candidate.id === 'alpha-layer')
+    expect(alphaLayer?.source).toMatchObject({ id: transparent.id, hasAlpha: true, mimeType: 'image/png' })
+    expect(alphaLayer).toMatchObject({
+      enabled: true,
+      blendMode: 'source-over',
+      opacity: 1,
+      maskMode: null,
+      aspectBehavior: 'contain',
+      fitWithinTransformBounds: true,
+      x: 0.5,
+      y: 0.5,
+    })
+    expect(alphaLayer?.scaleX).toBe(alphaLayer?.scaleY)
+  })
+
+  it('preserves the existing single-media fit mode and full-canvas transform', () => {
+    const source = media('single')
+    const frame = resolveCanvasAuthoredLayerFrame({
+      context: context(),
+      settings: {
+        programId: DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId,
+        authoredLayers: [layer('single-layer', source.id, 0)],
+      },
+      mediaItems: [source],
+      fitMode: 'cover',
+      isMediaReady: () => true,
+    })
+
+    expect(frame.layers[0]).toMatchObject({
+      id: 'single-layer',
+      x: 0,
+      y: 0,
+      scaleX: 1,
+      scaleY: 1,
+      fitWithinTransformBounds: false,
+      aspectBehavior: 'cover',
+    })
+  })
+
+  it('reconstructs identical layout from persisted order and appends automatic layers after manual ordinals', () => {
+    const mediaItems = ['manual-a', 'manual-b', 'auto-a', 'auto-b'].map(id => media(id))
+    const persisted = [
+      layer('manual-b-layer', 'manual-b', 1),
+      layer('manual-a-layer', 'manual-a', 0),
+    ]
+    const automaticLayers = [
+      layer('auto-a-layer', 'auto-a', 0, { ownership: 'automatic', pinned: false }),
+      layer('auto-b-layer', 'auto-b', 1, { ownership: 'automatic', pinned: false }),
+    ]
+    const frame = resolveCanvasAuthoredLayerFrame({
+      context: context(),
+      settings: { programId: DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.programId, authoredLayers: persisted },
+      mediaItems,
+      fitMode: 'contain',
+      automaticLayers,
+      isMediaReady: () => true,
+    })
+
+    expect(frame.layers.map(candidate => candidate.id)).toEqual([
+      'manual-a-layer',
+      'manual-b-layer',
+      'auto-a-layer',
+      'auto-b-layer',
+    ])
+    expect(frame.layers.map(({ x, y }) => ({ x, y }))).toEqual([
+      { x: -0.5, y: -0.5 },
+      { x: 0.5, y: -0.5 },
+      { x: -0.5, y: 0.5 },
+      { x: 0.5, y: 0.5 },
+    ])
+  })
+
   it('keeps a raster Image at the top/front of a mixed Image + SVG + SVG authored stack', () => {
     const image = media('image-c', 'image')
     const svgB = media('svg-b', 'svg')
