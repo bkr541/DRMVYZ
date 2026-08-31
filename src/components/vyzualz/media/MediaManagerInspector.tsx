@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Delete02Icon } from 'hugeicons-react'
 import { useShallow } from 'zustand/react/shallow'
 import { Collapsible, NumberInputRow, SelectRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
@@ -10,6 +11,7 @@ import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { useAudioStore } from '../../../stores/audioStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
+import { MediaDeleteConfirmDialog } from './MediaDeleteConfirmDialog'
 import {
   MEDIA_ROLE_LABELS,
   MUSICAL_KEYS,
@@ -20,11 +22,14 @@ import {
 // ── Visual media editor ──────────────────────────────────────────────────────
 
 function VisualMediaInspector({ media }: { media: UploadedMedia }) {
-  const { saveMediaEdits, collections, createCollection } = useMediaStore(useShallow(state => ({
+  const { saveMediaEdits, removeItem, collections, createCollection } = useMediaStore(useShallow(state => ({
     saveMediaEdits: state.saveMediaEdits,
+    removeItem: state.removeItem,
     collections: state.collections,
     createCollection: state.createCollection,
   })))
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // Additional Info fields only make sense for certain media types: FPS and
   // Loopable describe video playback, so images and SVGs never show them.
@@ -60,6 +65,8 @@ function VisualMediaInspector({ media }: { media: UploadedMedia }) {
     setLoopable(media.metadata.loopable ?? false)
     setHasAlpha(media.metadata.hasAlpha ?? false)
     setError(null)
+    setConfirmingDelete(false)
+    setDeleting(false)
   }, [media.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const addTag = (value: string) => {
@@ -103,6 +110,14 @@ function VisualMediaInspector({ media }: { media: UploadedMedia }) {
     })
     setSaving(false)
     if (!saved) setError('Could not save changes. Try again.')
+  }
+
+  const handleConfirmDelete = async () => {
+    setDeleting(true)
+    const deleted = await removeItem(media.id)
+    setDeleting(false)
+    setConfirmingDelete(false)
+    if (!deleted) setError('Could not delete this media item. Try again.')
   }
 
   return (
@@ -206,7 +221,24 @@ function VisualMediaInspector({ media }: { media: UploadedMedia }) {
         <IconChipButton tone="primary" onClick={() => { void handleSave() }} disabled={saving}>
           {saving ? 'Saving…' : 'Save Changes'}
         </IconChipButton>
+        <IconChipButton
+          className="dv-icon-chip--danger"
+          icon={<Delete02Icon size={13} color="currentColor" />}
+          onClick={() => setConfirmingDelete(true)}
+          disabled={deleting}
+        >
+          Delete Media
+        </IconChipButton>
       </div>
+
+      {confirmingDelete && (
+        <MediaDeleteConfirmDialog
+          count={1}
+          busy={deleting}
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={() => { void handleConfirmDelete() }}
+        />
+      )}
     </div>
   )
 }

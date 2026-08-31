@@ -11,6 +11,10 @@ export type MediaLibraryCapability =
   | 'remove'
   | 'collections'
   | 'drag-media'
+  /** Shift-click / selection-circle multi-select plus the right-click
+   * Edit/Download/Delete menu. Destructive and bulk actions stay exclusive
+   * to Media Manager, same as 'remove'. */
+  | 'multi-select'
 
 /**
  * Performance views can browse, preview, favorite, select, and load media, but
@@ -41,6 +45,7 @@ export const MEDIA_MANAGER_CAPABILITIES = [
   'remove',
   'collections',
   'drag-media',
+  'multi-select',
 ] as const satisfies readonly MediaLibraryCapability[]
 
 

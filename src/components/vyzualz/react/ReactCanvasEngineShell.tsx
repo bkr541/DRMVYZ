@@ -4465,10 +4465,6 @@ export function CanvasEngineFxPanel() {
 
   return (
     <div className="rv-ctrl-group">
-      <Collapsible label="CANVAS Source Link" defaultOpen>
-        <div className="rv-canvas-panel-copy">Source selection lives in the left SOURCE panel so the center visualizer stays render-only. Auto Select — CANVAS's automatic preset/media selection — lives in the React tab's Automation group.</div>
-      </Collapsible>
-
       <Collapsible label="Display" defaultOpen>
         <CanvasHelpControl
           helpId="react.canvas.sourceAndDisplay.display.fitMode"

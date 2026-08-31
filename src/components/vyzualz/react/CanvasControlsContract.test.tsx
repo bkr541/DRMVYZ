@@ -685,14 +685,12 @@ describe('CANVAS right-panel control contract', () => {
     act(() => root.render(<CanvasEngineFxPanel />))
     const labels = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
       .map(collapsibleLabelText)
-    const sourceIndex = labels.indexOf('CANVAS Source Link')
     const displayIndex = labels.indexOf('Display')
     const compositionIndex = labels.indexOf('Composition')
     const sourceReactivityIndex = labels.indexOf('Source + Reactivity')
     const timingIndex = labels.indexOf('Video Timing')
 
-    expect(sourceIndex).toBeGreaterThanOrEqual(0)
-    expect(displayIndex).toBeGreaterThan(sourceIndex)
+    expect(displayIndex).toBe(0)
     expect(compositionIndex).toBeGreaterThan(displayIndex)
     expect(sourceReactivityIndex).toBeGreaterThan(compositionIndex)
     expect(timingIndex).toBeGreaterThan(sourceReactivityIndex)
@@ -721,9 +719,10 @@ describe('CANVAS right-panel control contract', () => {
     expect(controlLabels()).not.toContain('Layer Complexity')
     expect(controlLabels()).not.toContain('Transition Density')
     expect(controlLabels()).not.toContain('Cut Density')
-    // Auto Select is automation and moved to React; "CANVAS Source Link"
-    // remains in Design as informational context for manual source selection.
-    expect(labels).toContain('CANVAS Source Link')
+    // Auto Select is automation and moved to React; the purely informational
+    // "CANVAS Source Link" group was removed from Design entirely rather than
+    // kept as a static note with no controls.
+    expect(labels).not.toContain('CANVAS Source Link')
     expect(controlLabels()).not.toContain('Auto Select')
   })
 

@@ -103,11 +103,13 @@
   overflow: hidden;
 }
 
-/* Match the REACT view's left/right rail widths and outer rail padding
+/* Match the REACT view's outer rail padding
    (.rv-layout / .rv-layout > .vz-inspector > .vz-inspector-inner) instead of
-   the narrower, symmetric defaults .vz-content otherwise ships with. */
+   the narrower, symmetric defaults .vz-content otherwise ships with. Left and
+   right rails are kept equal width — Media Manager has no reason to favor
+   one side the way REACT's view does. */
 .mmv-content {
-  --vz-left-width: 330px;
+  --vz-left-width: 400px;
   --vz-right-width: 400px;
 }
 
@@ -383,12 +385,114 @@
 
 .mmi-actions {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding-top: 4px;
 }
 
 .mmi-actions .dv-icon-chip {
   width: 100%;
   justify-content: center;
+}
+
+/* Same danger-tone treatment as the canonical delete-confirmation dialog
+   (.mmv-confirm-actions below) — used here for the standalone Delete Media
+   button since it isn't inside a dialog. */
+.mmi-actions .dv-icon-chip--danger,
+.mmv-confirm-actions .dv-icon-chip--danger {
+  border-color: rgba(255, 96, 112, 0.34);
+  background: rgba(255, 72, 92, 0.08);
+  color: rgba(255, 174, 184, 0.9);
+}
+.mmi-actions .dv-icon-chip--danger:hover:not(:disabled),
+.mmv-confirm-actions .dv-icon-chip--danger:hover:not(:disabled) {
+  background: rgba(255, 72, 92, 0.16);
+  color: rgba(255, 174, 184, 0.9);
+}
+
+/* ── Delete confirmation dialog (media library right-click Delete + the
+   inspector's Delete Media button) — same chrome as Show Manager's
+   canonical in-app confirm dialog. ────────────────────────────────────── */
+.mmv-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 6, 8, 0.6);
+}
+
+.mmv-confirm-dialog {
+  width: min(380px, calc(100vw - 32px));
+  padding: 20px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(103, 247, 255, 0.28);
+  border-radius: 9px;
+  background: var(--color-panel-alt, #0b1115);
+  font-family: var(--az-font, Inter, system-ui, sans-serif);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.55);
+}
+
+.mmv-confirm-dialog h2 {
+  margin: 0;
+  color: rgba(240, 247, 249, 0.94);
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.mmv-confirm-dialog > p {
+  margin: 0 0 4px;
+  color: rgba(196, 212, 220, 0.66);
+  font-size: 11px;
+}
+
+.mmv-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 4px;
+}
+
+/* ── Media selection circle (top-right of the thumbnail) — Manager only.
+   Unselected: outline only. Selected: filled with the app's canonical
+   accent blue. ──────────────────────────────────────────────────────── */
+.vz-media-select-toggle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  background: rgba(6, 10, 14, 0.55);
+  padding: 0;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.vz-media-select-toggle:hover {
+  border-color: rgba(255, 255, 255, 0.85);
+}
+.vz-media-select-toggle--active {
+  background: var(--az-cyan, #4ac7db);
+  border-color: var(--az-cyan, #4ac7db);
+}
+
+.vz-media-row-thumb .vz-media-select-toggle {
+  top: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  border-width: 1px;
+}
+
+.vz-media-bulk-error-toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1000;
+  width: min(340px, calc(100vw - 40px));
 }
 
 .vz-media-browser--manager .vz-md-search-row {
@@ -440,6 +544,10 @@
 
 .vz-media-browser--manager .vz-media-scroll {
   padding: 10px;
+  /* Same barely-there light tint the Canvas Engine's Media Library uses
+     behind its thumbnail grid (.rv-canvas-library-shell .vz-media-scroll). */
+  background: rgba(255, 255, 255, 0.012);
+  border-radius: 6px;
 }
 
 .vz-media-browser--manager .vz-media-grid {

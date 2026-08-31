@@ -29,6 +29,7 @@ import { MediaUploadModal } from '../MediaUploadModal'
 import { MediaPreviewModal } from './MediaPreviewModal'
 import { MediaStatusBar } from './MediaStatusBar'
 import { CollectionEditorModal } from './CollectionEditorModal'
+import { MediaDeleteConfirmDialog } from './MediaDeleteConfirmDialog'
 import { MEDIA_ROLE_BADGE_LABELS, MEDIA_ROLE_LABELS } from '../../../lib/mediaRoles'
 import { isUnifiedSvgMediaItem } from '../../../lib/svgMediaEligibility'
 import type { MediaLibraryCapability, MediaLibraryContext } from './mediaLibraryCapabilities'
@@ -344,6 +345,9 @@ function MediaCard({
   mutationStates,
   onThumbnailError,
   onThumbnailLoad,
+  canMultiSelect,
+  isBulkSelected,
+  onToggleBulkSelect,
 }: {
   m: UploadedMedia
   isActive: boolean
@@ -364,6 +368,11 @@ function MediaCard({
   mutationStates: MediaMutationState[]
   onThumbnailError: () => void
   onThumbnailLoad: () => void
+  /** Manager-only: shift-click and the selection circle add this card to a
+   * bulk selection used by the right-click Download/Delete actions. */
+  canMultiSelect: boolean
+  isBulkSelected: boolean
+  onToggleBulkSelect: () => void
 }) {
   const isList = viewMode === 'list'
   const disabled = Boolean(disabledReason)
@@ -400,7 +409,9 @@ function MediaCard({
       <div
         className={`vz-media-row ${isActive ? 'vz-media-row--active' : ''}${disabled ? ' vz-media-row--disabled' : ''}`}
         onClick={event => {
-          if (!canSelect || disabled || m.uploading) return
+          if (disabled || m.uploading) return
+          if (canMultiSelect && event.shiftKey) { onToggleBulkSelect(); return }
+          if (!canSelect) return
           const rect = event.currentTarget.getBoundingClientRect()
           onSelect({ x: rect.right, y: rect.top })
         }}
@@ -424,6 +435,16 @@ function MediaCard({
             </div>
           )}
           {badge}
+          {canMultiSelect && (
+            <button
+              type="button"
+              className={`vz-media-select-toggle${isBulkSelected ? ' vz-media-select-toggle--active' : ''}`}
+              onPointerDown={e => e.stopPropagation()}
+              onClick={e => { e.stopPropagation(); onToggleBulkSelect() }}
+              aria-pressed={isBulkSelected}
+              aria-label={isBulkSelected ? 'Deselect media' : 'Select media'}
+            />
+          )}
           {canPreview && (
             <button
               className="vz-media-preview-btn"
@@ -474,7 +495,9 @@ function MediaCard({
     <div
       className={`vz-media-card ${isActive ? 'vz-media-card--active' : ''}${disabled ? ' vz-media-card--disabled' : ''}`}
       onClick={event => {
-        if (!canSelect || disabled || m.uploading) return
+        if (disabled || m.uploading) return
+        if (canMultiSelect && event.shiftKey) { onToggleBulkSelect(); return }
+        if (!canSelect) return
         const rect = event.currentTarget.getBoundingClientRect()
         onSelect({ x: rect.right, y: rect.top })
       }}
@@ -506,6 +529,16 @@ function MediaCard({
           </div>
         )}
         {badge}
+        {canMultiSelect && (
+          <button
+            type="button"
+            className={`vz-media-select-toggle${isBulkSelected ? ' vz-media-select-toggle--active' : ''}`}
+            onPointerDown={e => e.stopPropagation()}
+            onClick={e => { e.stopPropagation(); onToggleBulkSelect() }}
+            aria-pressed={isBulkSelected}
+            aria-label={isBulkSelected ? 'Deselect media' : 'Select media'}
+          />
+        )}
         {canRetry && (m.uploadError || (m.derivativeWarning && m.uploadSourceFile)) && <IconChipButton className="vz-media-retry" onClick={e => { e.stopPropagation(); onRetry() }}>{m.derivativeWarning ? 'Retry derivative' : 'Retry upload'}</IconChipButton>}
         {disabledReason && <div className="vz-media-disabled-reason vz-media-disabled-reason--overlay">{disabledReason}</div>}
         {canPreview && (
@@ -662,6 +695,13 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const [preserveQueuedFiles, setPreserveQueuedFiles] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  // ── Manager-only: multi-select + right-click Edit/Download/Delete ────────
+  const [selectedForBulk, setSelectedForBulk] = useState<Set<string>>(new Set())
+  const [cardContextMenu, setCardContextMenu] = useState<{ mediaId: string } & MediaLibraryCardActionAnchor | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<{ ids: string[] } | null>(null)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkActionError, setBulkActionError] = useState<string | null>(null)
+
   const searchActive = searchQuery.length > 0
   const searchLower  = searchQuery.toLowerCase()
   const serverManaged = Array.isArray(queryItemIds)
@@ -684,6 +724,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const canRemove = isManager && capabilitySet.has('remove')
   const canBrowseCollections = capabilitySet.has('collections')
   const canDragMedia = capabilitySet.has('drag-media')
+  const canMultiSelect = isManager && capabilitySet.has('multi-select')
 
   const isReactMode = context === 'react'
   const availableFilters = useMemo(() => {
@@ -860,6 +901,71 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     setPreviewItem(current)
   }, [ensureMediaSigned, items])
 
+  const toggleBulkSelect = useCallback((mediaId: string) => {
+    setSelectedForBulk(prev => {
+      const next = new Set(prev)
+      if (next.has(mediaId)) next.delete(mediaId)
+      else next.add(mediaId)
+      return next
+    })
+  }, [])
+
+  const handleCardContextMenu = useCallback((media: UploadedMedia, anchor: MediaLibraryCardActionAnchor) => {
+    setBulkActionError(null)
+    setCardContextMenu({ mediaId: media.id, ...anchor })
+  }, [])
+
+  // Right-clicking an item that's part of a >1-item selection acts on the
+  // whole selection; right-clicking anything else (including a single
+  // selected item) acts on just that one card — the same convention as
+  // Finder/Explorer multi-select context menus.
+  const contextMenuTargetIds = useMemo(() => {
+    if (!cardContextMenu) return []
+    return selectedForBulk.has(cardContextMenu.mediaId) && selectedForBulk.size > 1
+      ? [...selectedForBulk]
+      : [cardContextMenu.mediaId]
+  }, [cardContextMenu, selectedForBulk])
+
+  const handleDownloadMedia = useCallback(async (ids: string[]) => {
+    setBulkActionError(null)
+    if (typeof ensureMediaSigned === 'function') await ensureMediaSigned(ids, 'visible')
+    const freshItems = useMediaStore.getState().items
+    for (const id of ids) {
+      const media = freshItems.find(item => item.id === id)
+      if (!media) continue
+      try {
+        const response = await fetch(media.url, { mode: 'cors' })
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        const blob = await response.blob()
+        const objectUrl = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = objectUrl
+        anchor.download = media.title?.trim() || media.name
+        document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 4000)
+      } catch {
+        setBulkActionError(`Could not download "${media.title ?? media.name}".`)
+      }
+      // Small gap between triggers — most browsers block/prompt when a page
+      // fires several downloads in the same tick.
+      if (ids.length > 1) await new Promise(resolve => window.setTimeout(resolve, 300))
+    }
+  }, [ensureMediaSigned])
+
+  const handleConfirmBulkDelete = useCallback(async (ids: string[]) => {
+    setBulkDeleting(true)
+    for (const id of ids) await removeItem(id)
+    setBulkDeleting(false)
+    setDeleteConfirm(null)
+    setSelectedForBulk(prev => {
+      const next = new Set(prev)
+      ids.forEach(id => next.delete(id))
+      return next
+    })
+  }, [removeItem])
+
   const renderMediaCard = useCallback((media: UploadedMedia) => {
     const disabledReason = getDisabledReason?.(media) ?? null
     return (
@@ -869,7 +975,13 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         isActive={activeMediaId === media.id}
         viewMode={viewMode}
         onSelect={anchor => handleMediaCardAction(media, anchor)}
-        onContextMenu={onCardActionRequest ? anchor => onCardActionRequest(media.id, anchor) : undefined}
+        onContextMenu={
+          onCardActionRequest
+            ? anchor => onCardActionRequest(media.id, anchor)
+            : canMultiSelect
+              ? anchor => handleCardContextMenu(media, anchor)
+              : undefined
+        }
         onRemove={canRemove ? () => {
           if (window.confirm(`Delete “${media.title ?? media.name}”? It will disappear immediately, while exact storage cleanup remains recoverable until finalized.`)) void removeItem(media.id)
         } : undefined}
@@ -886,9 +998,12 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         disabledReason={disabledReason}
         onThumbnailError={() => { void retryMediaAsset?.(media.id, 'thumbnail') }}
         onThumbnailLoad={() => { markMediaAssetLoaded?.(media.id, 'thumbnail') }}
+        canMultiSelect={canMultiSelect}
+        isBulkSelected={selectedForBulk.has(media.id)}
+        onToggleBulkSelect={() => toggleBulkSelect(media.id)}
       />
     )
-  }, [activeMediaId, canDragMedia, canFavorite, canPreview, canRemove, canSelect, context, getDisabledReason, handleMediaCardAction, handlePreviewMedia, isManager, markMediaAssetLoaded, mutationStates, onCardActionRequest, removeItem, retryMediaAsset, retryUpload, toggleFavorite, viewMode])
+  }, [activeMediaId, canDragMedia, canFavorite, canMultiSelect, canPreview, canRemove, canSelect, context, getDisabledReason, handleCardContextMenu, handleMediaCardAction, handlePreviewMedia, isManager, markMediaAssetLoaded, mutationStates, onCardActionRequest, removeItem, retryMediaAsset, retryUpload, selectedForBulk, toggleBulkSelect, toggleFavorite, viewMode])
 
   const handleEnsureSigned = useCallback((visibleIds: string[], nearIds: string[]) => {
     void ensureMediaSigned?.(visibleIds, 'visible')
@@ -1182,6 +1297,52 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
       {canUpload && importModalOpen && <MediaUploadModal preserveQueuedFiles={preserveQueuedFiles} onClose={() => { setPreserveQueuedFiles(false); closeImportMediaModal() }} />}
       {canPreview && !isManager && previewItem && <MediaPreviewModal media={previewItem} onClose={() => setPreviewItem(null)} />}
       {isManager && collectionEditorOpen && <CollectionEditorModal collection={collectionEditorTarget ?? undefined} onClose={closeCollectionEditor} />}
+      {cardContextMenu && (
+        <ContextActionMenu
+          x={cardContextMenu.x}
+          y={cardContextMenu.y}
+          ariaLabel="Media actions"
+          onClose={() => setCardContextMenu(null)}
+          items={[
+            {
+              id: 'edit',
+              label: 'Edit',
+              disabled: contextMenuTargetIds.length > 1,
+              onSelect: () => {
+                const media = items.find(item => item.id === cardContextMenu.mediaId)
+                if (media) void handleSelectMedia(media)
+              },
+            },
+            {
+              id: 'download',
+              label: 'Download',
+              onSelect: () => { void handleDownloadMedia(contextMenuTargetIds) },
+            },
+            {
+              id: 'delete',
+              label: 'Delete',
+              danger: true,
+              dividerBefore: true,
+              onSelect: () => setDeleteConfirm({ ids: contextMenuTargetIds }),
+            },
+          ]}
+        />
+      )}
+      {bulkActionError && (
+        <div className="vz-media-bulk-error-toast" role="alert">
+          <NoticeCard tone="error" role="alert" title="Media action failed" onDismiss={() => setBulkActionError(null)}>
+            {bulkActionError}
+          </NoticeCard>
+        </div>
+      )}
+      {deleteConfirm && (
+        <MediaDeleteConfirmDialog
+          count={deleteConfirm.ids.length}
+          busy={bulkDeleting}
+          onCancel={() => setDeleteConfirm(null)}
+          onConfirm={() => { void handleConfirmBulkDelete(deleteConfirm.ids) }}
+        />
+      )}
       <div
         className={`vz-panel vz-media-browser${isManager ? ' vz-media-browser--manager' : ''}`}
         style={{ flex: 1, minHeight: 0 }}
