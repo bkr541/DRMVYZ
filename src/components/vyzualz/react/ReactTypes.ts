@@ -597,6 +597,24 @@ const CANVAS_STANDARD_RUNTIME_CONTROLS: CanvasPresetControlKey[] = [
   'particleDensity',
 ]
 
+// Clean Playback is intentionally minimal: it stays source-forward with only
+// the Source + Reactivity and FX controls exposed. Motion and Particle Aura
+// behavior are not part of this recipe, so those controls are left out of its
+// supported-control list entirely (see canvasPresetSupportsControl) rather
+// than shown disabled or defaulted to zero.
+const CANVAS_CLEAN_PLAYBACK_CONTROLS: CanvasPresetControlKey[] = [
+  'drySourceMix',
+  'intensity',
+  'bassReactivity',
+  'beatPulse',
+  'glow',
+  'trailAmount',
+  'rgbSplit',
+  'glitchAmount',
+  'stutterRate',
+  'lumaThreshold',
+]
+
 const CANVAS_PARTICLE_AURA_RUNTIME_CONTROLS: CanvasPresetControlKey[] = [
   ...CANVAS_STANDARD_RUNTIME_CONTROLS,
   'particleSize',
@@ -627,7 +645,7 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       turbulence: 0,
       particleDensity: 0,
     },
-    controls: [...CANVAS_STANDARD_RUNTIME_CONTROLS],
+    controls: [...CANVAS_CLEAN_PLAYBACK_CONTROLS],
   },
   {
     id: 'canvas-bass-bloom',

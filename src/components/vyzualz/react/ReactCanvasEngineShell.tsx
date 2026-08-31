@@ -4096,6 +4096,83 @@ export function CanvasAddEffectsControls() {
   )
 }
 
+// Shared renderer for a single CANVAS preset control (Source + Reactivity, FX,
+// or Motion + Particles). Used by both the Design-tab recipe groups and the
+// React-tab Preset FX group so the two workspaces stay pixel-for-pixel
+// consistent without duplicating the control markup.
+function renderCanvasPresetControl(
+  control: CanvasPresetControlKey,
+  canvasPresetSettings: CanvasPresetSettings,
+  setCanvasPresetSettings: (patch: Partial<CanvasPresetSettings>) => void,
+): ReactNode {
+  if (control === 'particleColorMode') {
+    return (
+      <CanvasHelpControl
+        key={control}
+        helpId={CANVAS_REACT_CONTROL_HELP_IDS[control]}
+        currentValue={CANVAS_PARTICLE_COLOR_MODE_OPTIONS.find(option => option.value === canvasPresetSettings.particleColorMode)?.label ?? 'Original'}
+        currentValueTone="accent"
+        className="rv-canvas-react-control-help"
+      >
+        <CanvasSelectRow
+          label="Particle Color Mode"
+          value={canvasPresetSettings.particleColorMode}
+          onChange={value => setCanvasPresetSettings({ particleColorMode: value as CanvasPresetColorMode })}
+          options={CANVAS_PARTICLE_COLOR_MODE_OPTIONS}
+          description="Original samples source color, Palette uses the DRMVYZ cyan/emerald palette, and Audio Reactive lets highs and bass recolor the particles."
+        />
+      </CanvasHelpControl>
+    )
+  }
+
+  if (control === 'particleQuality') {
+    return (
+      <CanvasHelpControl
+        key={control}
+        helpId={CANVAS_REACT_CONTROL_HELP_IDS[control]}
+        currentValue={CANVAS_PARTICLE_QUALITY_OPTIONS.find(option => option.value === canvasPresetSettings.particleQuality)?.label ?? 'Balanced'}
+        currentValueTone="accent"
+        className="rv-canvas-react-control-help"
+      >
+        <CanvasSelectRow
+          label="Particle Quality"
+          value={canvasPresetSettings.particleQuality}
+          onChange={value => setCanvasPresetSettings({ particleQuality: value as CanvasParticleQuality })}
+          options={CANVAS_PARTICLE_QUALITY_OPTIONS}
+          description="Controls hologram grid resolution, render scale, and compatibility sampling. Adaptive quality can recover after temporary slowdowns."
+        />
+      </CanvasHelpControl>
+    )
+  }
+
+  if (!isCanvasPresetSliderControlKey(control)) return null
+  const meta = CANVAS_PRESET_CONTROL_META[control]
+  return (
+    <CanvasHelpControl
+      key={control}
+      helpId={CANVAS_REACT_CONTROL_HELP_IDS[control]}
+      currentValue={formatCanvasReactControlValue(control, canvasPresetSettings[control])}
+      className="rv-canvas-react-control-help"
+    >
+      <SliderRow
+        label={meta.label}
+        value={canvasPresetSettings[control]}
+        onChange={value => setCanvasPresetSettings({ [control]: value } as Partial<CanvasPresetSettings>)}
+        min={meta.min}
+        max={meta.max}
+        step={meta.step}
+        color={meta.color}
+        description={meta.description}
+      />
+    </CanvasHelpControl>
+  )
+}
+
+// Design tab: what the recipe looks like. Holds the recipe status/reset row
+// and the Source + Reactivity / Motion + Particles groups as their own
+// top-level sections — no more single "CANVAS React Controls" group mixing
+// source, FX, motion, and particle parameters together. FX controls (the
+// group titled "FX") live in the React tab instead — see CanvasPresetFxControls.
 function CanvasPresetControls() {
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const canvasPresetSettings = useReactStore(s => s.canvasPresetSettings)
@@ -4103,7 +4180,10 @@ function CanvasPresetControls() {
   const setCanvasPresetSettings = useReactStore(s => s.setCanvasPresetSettings)
   const resetCanvasPresetSettings = useReactStore(s => s.resetCanvasPresetSettings)
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
-  const visibleControlGroups = useMemo(() => resolveCanvasPresetControlGroups(selectedPreset), [selectedPreset])
+  const designControlGroups = useMemo(
+    () => resolveCanvasPresetControlGroups(selectedPreset).filter(group => group.title !== 'FX'),
+    [selectedPreset],
+  )
 
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const mediaItems = useCanvasRuntimeMediaItems()
@@ -4134,74 +4214,8 @@ function CanvasPresetControls() {
     )
   }
 
-  const renderControl = (control: CanvasPresetControlKey) => {
-    if (control === 'particleColorMode') {
-      return (
-        <CanvasHelpControl
-          key={control}
-          helpId={CANVAS_REACT_CONTROL_HELP_IDS[control]}
-          currentValue={CANVAS_PARTICLE_COLOR_MODE_OPTIONS.find(option => option.value === canvasPresetSettings.particleColorMode)?.label ?? 'Original'}
-          currentValueTone="accent"
-          className="rv-canvas-react-control-help"
-        >
-          <CanvasSelectRow
-            label="Particle Color Mode"
-            value={canvasPresetSettings.particleColorMode}
-            onChange={value => setCanvasPresetSettings({ particleColorMode: value as CanvasPresetColorMode })}
-            options={CANVAS_PARTICLE_COLOR_MODE_OPTIONS}
-            description="Original samples source color, Palette uses the DRMVYZ cyan/emerald palette, and Audio Reactive lets highs and bass recolor the particles."
-          />
-        </CanvasHelpControl>
-      )
-    }
-
-
-
-    if (control === 'particleQuality') {
-      return (
-        <CanvasHelpControl
-          key={control}
-          helpId={CANVAS_REACT_CONTROL_HELP_IDS[control]}
-          currentValue={CANVAS_PARTICLE_QUALITY_OPTIONS.find(option => option.value === canvasPresetSettings.particleQuality)?.label ?? 'Balanced'}
-          currentValueTone="accent"
-          className="rv-canvas-react-control-help"
-        >
-          <CanvasSelectRow
-            label="Particle Quality"
-            value={canvasPresetSettings.particleQuality}
-            onChange={value => setCanvasPresetSettings({ particleQuality: value as CanvasParticleQuality })}
-            options={CANVAS_PARTICLE_QUALITY_OPTIONS}
-            description="Controls hologram grid resolution, render scale, and compatibility sampling. Adaptive quality can recover after temporary slowdowns."
-          />
-        </CanvasHelpControl>
-      )
-    }
-
-    if (!isCanvasPresetSliderControlKey(control)) return null
-    const meta = CANVAS_PRESET_CONTROL_META[control]
-    return (
-      <CanvasHelpControl
-        key={control}
-        helpId={CANVAS_REACT_CONTROL_HELP_IDS[control]}
-        currentValue={formatCanvasReactControlValue(control, canvasPresetSettings[control])}
-        className="rv-canvas-react-control-help"
-      >
-        <SliderRow
-          label={meta.label}
-          value={canvasPresetSettings[control]}
-          onChange={value => setCanvasPresetSettings({ [control]: value } as Partial<CanvasPresetSettings>)}
-          min={meta.min}
-          max={meta.max}
-          step={meta.step}
-          color={meta.color}
-          description={meta.description}
-        />
-      </CanvasHelpControl>
-    )
-  }
-
   return (
-    <Collapsible label="CANVAS React Controls" defaultOpen>
+    <>
       <div className="rv-ctrl-toggle-row rv-canvas-recipe-status">
         <div className="rv-ctrl-toggle-line">
           <span className="rv-ctrl-label">{selectedPreset.name}</span>
@@ -4221,9 +4235,9 @@ function CanvasPresetControls() {
           Particles need an active CANVAS library media item before they can sample pixels and emit from the source.
         </NoticeCard>
       )}
-      {visibleControlGroups.map(group => (
+      {designControlGroups.map(group => (
         <Collapsible key={group.title} label={group.title} defaultOpen={group.title !== 'Motion + Particles'}>
-          {group.controls.map(renderControl)}
+          {group.controls.map(control => renderCanvasPresetControl(control, canvasPresetSettings, setCanvasPresetSettings))}
         </Collapsible>
       ))}
       {canvasPresetOverride?.source === 'auto' && (
@@ -4231,6 +4245,30 @@ function CanvasPresetControls() {
           {canvasPresetOverride.label ?? 'Auto-selected preset'}.
         </div>
       )}
+    </>
+  )
+}
+
+// React tab: what the recipe does to the image. The generic Preset FX group
+// (Glow, Trail Amount, RGB Split, Glitch Amount, Stutter Rate, Luma Threshold)
+// used to live under Design's mixed "CANVAS React Controls" group; it now
+// lives here alongside Add Effects, and only renders when the active preset
+// actually supports FX (Fractures and Laser Image FX do not).
+export function CanvasPresetFxControls() {
+  const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
+  const canvasPresetSettings = useReactStore(s => s.canvasPresetSettings)
+  const setCanvasPresetSettings = useReactStore(s => s.setCanvasPresetSettings)
+  const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
+  const fxGroup = useMemo(
+    () => resolveCanvasPresetControlGroups(selectedPreset).find(group => group.title === 'FX') ?? null,
+    [selectedPreset],
+  )
+
+  if (isCanvasLegacyEffectPresetId(selectedCanvasPresetId) || !fxGroup) return null
+
+  return (
+    <Collapsible label="Preset FX" defaultOpen>
+      {fxGroup.controls.map(control => renderCanvasPresetControl(control, canvasPresetSettings, setCanvasPresetSettings))}
     </Collapsible>
   )
 }

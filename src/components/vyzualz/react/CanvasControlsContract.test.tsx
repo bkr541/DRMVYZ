@@ -8,9 +8,17 @@ import { useReactStore } from '../../../stores/reactStore'
 import { useContextualHelpStore } from '../../../features/contextualHelp/contextualHelpStore'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import type { BrandKit } from '../../../features/personalization/BrandKitTypes'
-import { CANVAS_REACT_CONTROL_GROUPS, CanvasEngineFxPanel, CanvasEngineSurface, resolveCanvasPresetControlGroups } from './ReactCanvasEngineShell'
+import { CANVAS_REACT_CONTROL_GROUPS, CanvasEngineFxPanel, CanvasEngineSurface, CanvasPresetFxControls, resolveCanvasPresetControlGroups } from './ReactCanvasEngineShell'
 import { CanvasFracturesRenderer } from './renderers/fractures/CanvasFracturesRenderer'
 import { LaserImageFxRenderer } from './renderers/laserImageFx/LaserImageFxRenderer'
+
+// DualRailCollapsible's header button includes the label span plus a
+// trailing disclosure arrow glyph in its textContent ("Display\u25be"),
+// so group-label assertions read just the first (label) span instead of
+// the whole button text.
+function collapsibleLabelText(button: HTMLButtonElement): string | undefined {
+  return button.querySelector('span')?.textContent?.trim()
+}
 
 vi.mock('../../../context/AudioEngineContext', () => ({
   useSharedAudio: () => ({
@@ -272,30 +280,38 @@ describe('CANVAS right-panel control contract', () => {
   it('keeps the production controls committed across renderer-kind changes', () => {
     act(() => root.render(<CanvasEngineFxPanel />))
 
-    const labels = () => [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
-      .map(button => button.textContent?.trim())
+    const labels = () => [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
+      .map(collapsibleLabelText)
 
-    expect(labels()).toContain('CANVAS React Controls')
+    // "CANVAS React Controls" no longer exists as a single mixed group — Design
+    // shows the Source + Reactivity / Motion + Particles groups directly, and FX
+    // now lives in the React tab (see CanvasPresetFxControls elsewhere).
+    expect(labels()).not.toContain('CANVAS React Controls')
+    expect(labels()).toContain('Source + Reactivity')
+    expect(labels()).not.toContain('FX')
 
     act(() => useReactStore.getState().selectCanvasPreset('canvas-fractures'))
     expect(labels()).toEqual(expect.arrayContaining(['Fractures Controls', 'Structure', 'Motion', 'Effects', 'Audio']))
 
     act(() => useReactStore.getState().selectCanvasPreset('canvas-particle-aura'))
-    expect(labels()).toContain('CANVAS React Controls')
+    expect(labels()).not.toContain('CANVAS React Controls')
+    expect(labels()).toEqual(expect.arrayContaining(['Source + Reactivity', 'Motion + Particles']))
 
     act(() => useReactStore.getState().selectCanvasPreset('canvas-laser-image-fx'))
     expect(labels()).toContain('Laser Image FX Controls')
 
     act(() => useReactStore.getState().selectCanvasPreset('canvas-clean-playback'))
-    expect(labels()).toContain('CANVAS React Controls')
+    expect(labels()).not.toContain('CANVAS React Controls')
+    expect(labels()).toContain('Source + Reactivity')
+    expect(labels()).not.toContain('Motion + Particles')
   })
 
   it('exposes the production Laser Image FX control contract when selected', () => {
     useReactStore.getState().selectCanvasPreset('canvas-laser-image-fx')
     act(() => root.render(<CanvasEngineFxPanel />))
 
-    const groupLabels = [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
-      .map(button => button.textContent?.trim())
+    const groupLabels = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
+      .map(collapsibleLabelText)
     expect(groupLabels).toContain('Laser Image FX Controls')
     expect(groupLabels).not.toContain('Fractures Controls')
 
@@ -390,17 +406,41 @@ describe('CANVAS right-panel control contract', () => {
     useReactStore.getState().setCanvasPresetSettings({ particleQuality: 'low' })
     act(() => root.render(<CanvasEngineFxPanel />))
 
-    const groupLabels = () => [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
-      .map(button => button.textContent?.trim())
+    const groupLabels = () => [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
+      .map(collapsibleLabelText)
     const controlLabels = () => [...host.querySelectorAll<HTMLElement>('.rv-canvas-react-control-help .rv-ctrl-label')]
       .map(node => node.textContent?.trim())
 
-    expect(groupLabels()).toEqual(expect.arrayContaining(['Source + Reactivity', 'FX', 'Motion + Particles']))
+    // Design (CanvasEngineFxPanel): Clean Playback shows Source + Reactivity only.
+    // FX now lives in the React tab; Clean Playback does not support Motion or
+    // Particle controls at all, so that group is absent rather than empty/disabled.
+    expect(groupLabels()).toEqual(expect.arrayContaining(['Source + Reactivity']))
+    expect(groupLabels()).not.toContain('FX')
+    expect(groupLabels()).not.toContain('Motion + Particles')
     expect(controlLabels()).toEqual(expect.arrayContaining([
       'Dry Source Mix',
       'Visual Intensity',
       'Bass Reactivity',
       'Beat Pulse',
+    ]))
+    expect(controlLabels()).not.toContain('Glow Amount')
+    expect(controlLabels()).not.toContain('Trail Amount')
+    expect(controlLabels()).not.toContain('RGB Split')
+    expect(controlLabels()).not.toContain('Glitch Amount')
+    expect(controlLabels()).not.toContain('Stutter Rate')
+    expect(controlLabels()).not.toContain('Luma Threshold')
+    expect(controlLabels()).not.toContain('Motion Amount')
+    expect(controlLabels()).not.toContain('Turbulence')
+    expect(controlLabels()).not.toContain('Particle Density')
+    expect(controlLabels()).not.toContain('Particle Size')
+    expect(controlLabels()).not.toContain('Particle Color Mode')
+    expect(controlLabels()).not.toContain('Particle Quality')
+    expect(useReactStore.getState().canvasPresetSettings.particleQuality).toBe('low')
+
+    // React (CanvasPresetFxControls): Clean Playback's FX controls live here instead.
+    act(() => root.render(<CanvasPresetFxControls />))
+    expect(groupLabels()).toContain('Preset FX')
+    expect(controlLabels()).toEqual(expect.arrayContaining([
       'Glow Amount',
       'Trail Amount',
       'RGB Split',
@@ -408,22 +448,13 @@ describe('CANVAS right-panel control contract', () => {
       'Stutter Rate',
       'Luma Threshold',
     ]))
-    expect(controlLabels()).not.toContain('Particle Size')
-    expect(controlLabels()).not.toContain('Particle Color Mode')
-    expect(controlLabels()).not.toContain('Particle Quality')
-    expect(useReactStore.getState().canvasPresetSettings.particleQuality).toBe('low')
-
-    const cleanMotionGroup = [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
-      .find(button => button.textContent?.trim() === 'Motion + Particles')
-    act(() => cleanMotionGroup?.click())
-    expect(controlLabels()).toEqual(expect.arrayContaining(['Motion Amount', 'Turbulence', 'Particle Density']))
-    expect(controlLabels()).not.toContain('Particle Size')
-    expect(controlLabels()).not.toContain('Particle Color Mode')
-    expect(controlLabels()).not.toContain('Particle Quality')
+    expect(controlLabels()).not.toContain('Motion Amount')
+    expect(controlLabels()).not.toContain('Particle Density')
 
     act(() => useReactStore.getState().selectCanvasPreset('canvas-particle-aura'))
-    const particleMotionGroup = [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
-      .find(button => button.textContent?.trim() === 'Motion + Particles')
+    act(() => root.render(<CanvasEngineFxPanel />))
+    const particleMotionGroup = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
+      .find(button => collapsibleLabelText(button) === 'Motion + Particles')
     expect(particleMotionGroup).toBeDefined()
     if (particleMotionGroup?.getAttribute('aria-expanded') !== 'true') act(() => particleMotionGroup?.click())
     expect(controlLabels()).toEqual(expect.arrayContaining([
@@ -434,9 +465,31 @@ describe('CANVAS right-panel control contract', () => {
     ]))
 
     act(() => useReactStore.getState().selectCanvasPreset('canvas-clean-playback'))
+    act(() => root.render(<CanvasEngineFxPanel />))
+    expect(groupLabels()).not.toContain('Motion + Particles')
     expect(controlLabels()).not.toContain('Particle Size')
     expect(controlLabels()).not.toContain('Particle Color Mode')
     expect(controlLabels()).not.toContain('Particle Quality')
+  })
+
+  it('never renders Motion or Particle controls for Clean Playback, in Design or React', () => {
+    useReactStore.getState().selectCanvasPreset('canvas-clean-playback')
+    act(() => root.render(
+      <>
+        <CanvasEngineFxPanel />
+        <CanvasPresetFxControls />
+      </>,
+    ))
+
+    const groupLabels = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
+      .map(collapsibleLabelText)
+    const controlLabels = [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
+      .map(node => node.textContent?.trim())
+
+    expect(groupLabels).not.toContain('Motion + Particles')
+    for (const label of ['Motion Amount', 'Turbulence', 'Particle Density', 'Particle Size', 'Particle Color Mode', 'Particle Quality']) {
+      expect(controlLabels).not.toContain(label)
+    }
   })
 
   it('removes control groups that become empty after capability filtering', () => {
@@ -464,29 +517,31 @@ describe('CANVAS right-panel control contract', () => {
     expect(useReactStore.getState().canvasOrchestrationSettings.compositionPreference).toBe('fourPanelGrid')
   })
 
-  it('renders Display before orchestration and CANVAS React Controls', () => {
+  it('renders Display before orchestration and the recipe groups, with no mixed CANVAS React Controls group', () => {
     act(() => root.render(<CanvasEngineFxPanel />))
-    const labels = [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
-      .map(button => button.textContent?.trim())
+    const labels = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
+      .map(collapsibleLabelText)
     const sourceIndex = labels.indexOf('CANVAS Source Link')
     const displayIndex = labels.indexOf('Display')
     const orchestrationIndex = labels.indexOf('Performance Orchestration')
-    const reactControlsIndex = labels.indexOf('CANVAS React Controls')
+    const sourceReactivityIndex = labels.indexOf('Source + Reactivity')
     const timingIndex = labels.indexOf('Video Timing')
 
     expect(sourceIndex).toBeGreaterThanOrEqual(0)
     expect(displayIndex).toBeGreaterThan(sourceIndex)
     expect(orchestrationIndex).toBeGreaterThan(displayIndex)
-    expect(reactControlsIndex).toBeGreaterThan(orchestrationIndex)
-    expect(timingIndex).toBeGreaterThan(reactControlsIndex)
+    expect(sourceReactivityIndex).toBeGreaterThan(orchestrationIndex)
+    expect(timingIndex).toBeGreaterThan(sourceReactivityIndex)
+    expect(labels).not.toContain('CANVAS React Controls')
+    expect(labels).not.toContain('FX')
   })
 
   it('shows the Fractures-only groups, canonical controls, and help ownership only when selected', () => {
     useReactStore.getState().selectCanvasPreset('canvas-fractures')
     act(() => root.render(<CanvasEngineFxPanel />))
 
-    const labels = [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
-      .map(button => button.textContent?.trim())
+    const labels = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
+      .map(collapsibleLabelText)
     expect(labels).toEqual(expect.arrayContaining([
       'Fractures Controls',
       'Structure',
@@ -496,8 +551,8 @@ describe('CANVAS right-panel control contract', () => {
     ]))
     expect(labels).not.toContain('CANVAS React Controls')
 
-    const effectsGroup = [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
-      .find(button => button.textContent?.trim() === 'Effects')
+    const effectsGroup = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
+      .find(button => collapsibleLabelText(button) === 'Effects')
     act(() => effectsGroup?.click())
 
     const helpIds = [...host.querySelectorAll<HTMLButtonElement>('.drm-help-info-trigger')]
@@ -548,9 +603,10 @@ describe('CANVAS right-panel control contract', () => {
     act(() => {
       useReactStore.getState().selectCanvasPreset('canvas-clean-playback')
     })
-    const standardLabels = [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
-      .map(button => button.textContent?.trim())
-    expect(standardLabels).toContain('CANVAS React Controls')
+    const standardLabels = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
+      .map(collapsibleLabelText)
+    expect(standardLabels).not.toContain('CANVAS React Controls')
+    expect(standardLabels).toContain('Source + Reactivity')
     expect(standardLabels).not.toContain('Fractures Controls')
   })
 
@@ -645,12 +701,6 @@ describe('CANVAS right-panel control contract', () => {
       'react.canvas.reactControls.sourceAndReactivity.visualIntensity',
       'react.canvas.reactControls.sourceAndReactivity.bassReactivity',
       'react.canvas.reactControls.sourceAndReactivity.beatPulse',
-      'react.canvas.reactControls.fx.glowAmount',
-      'react.canvas.reactControls.fx.trailAmount',
-      'react.canvas.reactControls.fx.rgbSplit',
-      'react.canvas.reactControls.fx.glitchAmount',
-      'react.canvas.reactControls.fx.stutterRate',
-      'react.canvas.reactControls.fx.lumaThreshold',
       'react.canvas.videoTiming.triggerOn',
       'react.canvas.videoTiming.clipStartSeconds',
       'react.canvas.videoTiming.clipEndSeconds',
@@ -661,11 +711,32 @@ describe('CANVAS right-panel control contract', () => {
       'react.canvas.videoTiming.restartOnManualPresetChange',
       'react.canvas.videoTiming.sectionTriggerMapping.overview',
     ]))
+    // FX and Motion + Particles help triggers no longer render in Design at all
+    // for Clean Playback: FX moved to the React tab, and Clean Playback does not
+    // support Motion + Particles.
+    expect(helpIds()).not.toContain('react.canvas.reactControls.fx.glowAmount')
+    expect(helpIds()).not.toContain('react.canvas.reactControls.fx.trailAmount')
+    expect(helpIds()).not.toContain('react.canvas.reactControls.fx.rgbSplit')
+    expect(helpIds()).not.toContain('react.canvas.reactControls.fx.glitchAmount')
+    expect(helpIds()).not.toContain('react.canvas.reactControls.fx.stutterRate')
+    expect(helpIds()).not.toContain('react.canvas.reactControls.fx.lumaThreshold')
     expect(helpIds()).not.toContain('react.canvas.reactControls.motionAndParticles.particleQuality')
 
+    // React tab (CanvasPresetFxControls): Clean Playback's FX help triggers live here.
+    act(() => root.render(<CanvasPresetFxControls />))
+    expect(helpIds()).toEqual(expect.arrayContaining([
+      'react.canvas.reactControls.fx.glowAmount',
+      'react.canvas.reactControls.fx.trailAmount',
+      'react.canvas.reactControls.fx.rgbSplit',
+      'react.canvas.reactControls.fx.glitchAmount',
+      'react.canvas.reactControls.fx.stutterRate',
+      'react.canvas.reactControls.fx.lumaThreshold',
+    ]))
+
     act(() => useReactStore.getState().selectCanvasPreset('canvas-particle-aura'))
-    const motionGroup = [...host.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
-      .find(button => button.textContent?.includes('Motion + Particles'))
+    act(() => root.render(<CanvasEngineFxPanel />))
+    const motionGroup = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
+      .find(button => collapsibleLabelText(button)?.includes('Motion + Particles'))
     expect(motionGroup).toBeDefined()
     act(() => motionGroup?.click())
 
