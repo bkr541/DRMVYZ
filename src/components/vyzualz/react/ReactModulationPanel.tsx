@@ -23,7 +23,7 @@ import { TRIGGER_TIMING_EVENT_SOURCES } from './renderers/LaserDmxModulationEngi
 import { laserDmxRouteConsumesCurve, laserDmxRouteConsumesSmoothing } from './laserDmxBeamMatrixParameterCapabilities'
 import { getUnifiedSvgPointCount, resolveSvgUiCapabilities, resolveUnifiedSvgSource } from './svgSourceLifecycle'
 import { resolveSoundDrawingControlCapabilities } from './soundDrawing/SoundDrawingControlVisibility'
-import { CanvasAddEffectsControls, CanvasPerformanceAutomationControls, CanvasPresetFxControls, CanvasPresetMotionControls, CanvasPresetParticleControls } from './ReactCanvasEngineShell'
+import { CanvasAddEffectsControls, CanvasPerformanceAutomationControls, CanvasPresetFxControls, CanvasPresetMotionControls, CanvasPresetParticleControls, FracturesReactControls, LaserImageFxReactControls } from './ReactCanvasEngineShell'
 
 // ── Source / target option lists ──────────────────────────────────────────────
 
@@ -716,6 +716,8 @@ export function ReactModulationPanel() {
         {isCanvas && (
           <>
             <CanvasPerformanceAutomationControls />
+            <FracturesReactControls />
+            <LaserImageFxReactControls />
             <CanvasPresetMotionControls />
             <CanvasPresetParticleControls />
             <CanvasPresetFxControls />

@@ -8,7 +8,7 @@ import { useReactStore } from '../../../stores/reactStore'
 import { useContextualHelpStore } from '../../../features/contextualHelp/contextualHelpStore'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import type { BrandKit } from '../../../features/personalization/BrandKitTypes'
-import { CANVAS_REACT_CONTROL_GROUPS, CanvasEngineFxPanel, CanvasEngineSurface, CanvasPerformanceAutomationControls, CanvasPresetFxControls, CanvasPresetMotionControls, CanvasPresetParticleControls, resolveCanvasPresetControlGroups } from './ReactCanvasEngineShell'
+import { CANVAS_REACT_CONTROL_GROUPS, CanvasEngineFxPanel, CanvasEngineSurface, CanvasPerformanceAutomationControls, CanvasPresetFxControls, CanvasPresetMotionControls, CanvasPresetParticleControls, FracturesReactControls, LaserImageFxReactControls, resolveCanvasPresetControlGroups } from './ReactCanvasEngineShell'
 import type { CanvasPresetId } from './ReactTypes'
 import { CanvasFracturesRenderer } from './renderers/fractures/CanvasFracturesRenderer'
 import { LaserImageFxRenderer } from './renderers/laserImageFx/LaserImageFxRenderer'
@@ -19,6 +19,18 @@ import { LaserImageFxRenderer } from './renderers/laserImageFx/LaserImageFxRende
 // the whole button text.
 function collapsibleLabelText(button: HTMLButtonElement): string | undefined {
   return button.querySelector('span')?.textContent?.trim()
+}
+
+// React tracks a controlled <input>'s last-known value via an internal
+// value tracker set through the native property setter. Assigning
+// `input.value = x` directly bypasses that tracker in this environment, so a
+// dispatched 'input' event is silently ignored — the DOM shows the new value
+// but onChange never fires. Using the native setter keeps the tracker in
+// sync, which is what actually makes the dispatched event register.
+function setControlledInputValue(input: HTMLInputElement, value: string): void {
+  const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+  nativeSetter?.call(input, value)
+  input.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
 // A store update after the shared `root` has already rendered once is not
@@ -356,41 +368,81 @@ describe('CANVAS right-panel control contract', () => {
     snapshot.unmount()
   })
 
-  it('exposes the production Laser Image FX control contract when selected', () => {
+  it('exposes the production Laser Image FX control contract split across Design and React', () => {
     useReactStore.getState().selectCanvasPreset('canvas-laser-image-fx')
-    act(() => root.render(<CanvasEngineFxPanel />))
 
-    const groupLabels = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
-      .map(collapsibleLabelText)
-    expect(groupLabels).toContain('Laser Image FX Controls')
-    expect(groupLabels).not.toContain('Fractures Controls')
-
-    const controlLabels = [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
-      .map(node => node.textContent?.trim())
-    expect(controlLabels).toEqual(expect.arrayContaining([
-      'Image Effect',
-      'Color Effect',
-      'Intensity',
-      'Speed',
-      'Warp Amount',
-      'Perspective',
-      'Color Amount',
-      'Bloom',
-      'BPM Sync',
-      'Laserize',
-      'Dry Source Mix',
+    // Design: static source geometry/construction only. Perspective renders
+    // because the default image effect (3D Spin) is one of the four that
+    // actually consume it.
+    const designSnapshot = renderSnapshot(<CanvasEngineFxPanel />)
+    expect(groupLabelsIn(designSnapshot.host)).toContain('Laser Image FX Controls')
+    expect(groupLabelsIn(designSnapshot.host)).not.toContain('Fractures Controls')
+    const designControls = controlLabelsIn(designSnapshot.host)
+    expect(designControls).toEqual(expect.arrayContaining([
+      'Image Effect', 'Warp Amount', 'Perspective', 'Dry Source Mix',
     ]))
+    for (const label of ['Color Effect', 'Intensity', 'Speed', 'Color Amount', 'Bloom', 'BPM Sync', 'Laserize']) {
+      expect(designControls).not.toContain(label)
+    }
+    designSnapshot.unmount()
+
+    // React: animation and FX. Color Amount is absent because the default
+    // Color Effect (Source / Original) does not consume it.
+    const reactSnapshot = renderSnapshot(<LaserImageFxReactControls />)
+    expect(groupLabelsIn(reactSnapshot.host)).toEqual(expect.arrayContaining(['Animation', 'Laser FX']))
+    const reactControls = controlLabelsIn(reactSnapshot.host)
+    expect(reactControls).toEqual(expect.arrayContaining([
+      'Intensity', 'Speed', 'BPM Sync', 'Color Effect', 'Bloom', 'Laserize',
+    ]))
+    expect(reactControls).not.toContain('Color Amount')
+    for (const label of ['Image Effect', 'Warp Amount', 'Perspective', 'Dry Source Mix']) {
+      expect(reactControls).not.toContain(label)
+    }
+    reactSnapshot.unmount()
 
     // Laser Image FX has its own animation controls (Speed, Warp Amount,
     // Perspective, BPM Sync, …) and must not inherit the generic Motion or
     // Particle Aura controls just because they exist in shared Canvas state.
-    const laserHost = document.createElement('div')
-    document.body.appendChild(laserHost)
-    const laserRoot = createRoot(laserHost)
-    act(() => laserRoot.render(<><CanvasPresetMotionControls /><CanvasPresetParticleControls /></>))
-    expect(laserHost.textContent).toBe('')
-    act(() => laserRoot.unmount())
-    laserHost.remove()
+    const genericSnapshot = renderSnapshot(<><CanvasPresetMotionControls /><CanvasPresetParticleControls /></>)
+    expect(genericSnapshot.host.textContent).toBe('')
+    genericSnapshot.unmount()
+  })
+
+  it('hides Color Amount when Color Effect is Source / Original', () => {
+    // Verified against the renderer: uColorEffect === 0 returns the source
+    // color untouched, so Color Amount cannot affect the output.
+    useReactStore.getState().selectCanvasPreset('canvas-laser-image-fx')
+    useReactStore.getState().setCanvasPresetSettings({ laserColorEffect: 'source' })
+    const snapshot = renderSnapshot(<LaserImageFxReactControls />)
+    expect(controlLabelsIn(snapshot.host)).not.toContain('Color Amount')
+    snapshot.unmount()
+  })
+
+  it('shows Color Amount when Color Effect actually consumes it', () => {
+    useReactStore.getState().selectCanvasPreset('canvas-laser-image-fx')
+    useReactStore.getState().setCanvasPresetSettings({ laserColorEffect: 'beatSaturateA' })
+    const snapshot = renderSnapshot(<LaserImageFxReactControls />)
+    expect(controlLabelsIn(snapshot.host)).toContain('Color Amount')
+    snapshot.unmount()
+  })
+
+  it('hides Perspective for image effects with no Z displacement', () => {
+    // Verified against the renderer's vertex shader: only uImageEffect 1-4
+    // (Cube A, Flip B, 3D Spin, Twist B) ever assign a non-zero p.z, which is
+    // the only thing Perspective scales. Vignette leaves p.z at 0.
+    useReactStore.getState().selectCanvasPreset('canvas-laser-image-fx')
+    useReactStore.getState().setCanvasPresetSettings({ laserImageEffect: 'vignette' })
+    const snapshot = renderSnapshot(<CanvasEngineFxPanel />)
+    expect(controlLabelsIn(snapshot.host)).not.toContain('Perspective')
+    snapshot.unmount()
+  })
+
+  it('shows Perspective for image effects that assign a Z displacement', () => {
+    useReactStore.getState().selectCanvasPreset('canvas-laser-image-fx')
+    useReactStore.getState().setCanvasPresetSettings({ laserImageEffect: 'spin3d' })
+    const snapshot = renderSnapshot(<CanvasEngineFxPanel />)
+    expect(controlLabelsIn(snapshot.host)).toContain('Perspective')
+    snapshot.unmount()
   })
 
   it('passes the canonical active Brand Kit into the real Fractures render path', () => {
@@ -669,6 +721,10 @@ describe('CANVAS right-panel control contract', () => {
     expect(controlLabels()).not.toContain('Layer Complexity')
     expect(controlLabels()).not.toContain('Transition Density')
     expect(controlLabels()).not.toContain('Cut Density')
+    // Auto Select is automation and moved to React; "CANVAS Source Link"
+    // remains in Design as informational context for manual source selection.
+    expect(labels).toContain('CANVAS Source Link')
+    expect(controlLabels()).not.toContain('Auto Select')
   })
 
   it('moves Performance Automation controls to React and keeps them out of Design', () => {
@@ -678,7 +734,7 @@ describe('CANVAS right-panel control contract', () => {
 
     expect(groupLabels).toContain('Performance Automation')
     expect(controlLabels).toEqual(expect.arrayContaining([
-      'Auto Performance', 'Pool Automation', 'Performance Show',
+      'Auto Select', 'Auto Performance', 'Pool Automation', 'Performance Show',
       'Layer Complexity', 'Transition Density', 'Effect Intensity', 'Motion Intensity', 'Cut Density',
     ]))
     // Composition/Locks controls are Design-only and must not be duplicated here.
@@ -688,43 +744,56 @@ describe('CANVAS right-panel control contract', () => {
     snapshot.unmount()
   })
 
-  it('shows the Fractures-only groups, canonical controls, and help ownership only when selected', () => {
+  it('shows the Fractures-only groups split across Design and React, with help ownership only when selected', () => {
     useReactStore.getState().selectCanvasPreset('canvas-fractures')
-    act(() => root.render(<CanvasEngineFxPanel />))
 
-    const labels = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
-      .map(collapsibleLabelText)
-    expect(labels).toEqual(expect.arrayContaining([
-      'Fractures Controls',
-      'Structure',
-      'Motion',
-      'Effects',
-      'Audio',
-    ]))
-    expect(labels).not.toContain('CANVAS React Controls')
+    // Design: static structure only.
+    const designSnapshot = renderSnapshot(<CanvasEngineFxPanel />)
+    const designLabels = groupLabelsIn(designSnapshot.host)
+    expect(designLabels).toEqual(expect.arrayContaining(['Fractures Controls', 'Structure']))
+    expect(designLabels).not.toContain('CANVAS React Controls')
+    expect(designLabels).not.toContain('Motion / Evolution')
+    expect(designLabels).not.toContain('Fractures FX')
+    expect(designLabels).not.toContain('Audio Reactivity')
 
-    // Fractures' own "Motion" subgroup (its dedicated transition/refracture
-    // controls) is not the generic Canvas Motion section — the generic
-    // Motion and Particles React components render nothing for Fractures,
-    // since Fractures declares no generic controls at all.
-    const fracturesHost = document.createElement('div')
-    document.body.appendChild(fracturesHost)
-    const fracturesRoot = createRoot(fracturesHost)
-    act(() => fracturesRoot.render(<><CanvasPresetMotionControls /><CanvasPresetParticleControls /></>))
-    expect(fracturesHost.textContent).toBe('')
-    act(() => fracturesRoot.unmount())
-    fracturesHost.remove()
-
-    const effectsGroup = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
-      .find(button => collapsibleLabelText(button) === 'Effects')
-    act(() => effectsGroup?.click())
-
-    const helpIds = [...host.querySelectorAll<HTMLButtonElement>('.drm-help-info-trigger')]
-      .map(button => button.dataset.helpId)
-    expect(helpIds).toEqual(expect.arrayContaining([
+    const designHelpIds = helpIdsIn(designSnapshot.host)
+    expect(designHelpIds).toEqual(expect.arrayContaining([
       'react.canvas.fractures.structure.intensity',
       'react.canvas.fractures.structure.mode',
       'react.canvas.fractures.structure.anchorMode',
+    ]))
+    expect(designHelpIds).not.toContain('react.canvas.fractures.motion.transition')
+    expect(designHelpIds).not.toContain('react.canvas.fractures.effects.glow')
+
+    // Scoped to designSnapshot.host rather than the global document: with
+    // multiple fresh roots mounted at once (Design + React snapshots),
+    // React's per-root useId() disambiguation can still collide, and
+    // document.getElementById would silently grab the wrong root's input.
+    const intensityLabel = [...designSnapshot.host.querySelectorAll<HTMLLabelElement>('label')]
+      .find(label => label.textContent === 'Fracture Intensity')
+    const intensityInput = intensityLabel?.closest('.rv-ctrl-row')?.querySelector<HTMLInputElement>('input') ?? null
+    expect(intensityInput).not.toBeNull()
+    act(() => {
+      if (!intensityInput) return
+      setControlledInputValue(intensityInput, '0.73')
+    })
+    expect(useReactStore.getState().canvasPresetSettings.fractureIntensity).toBe(0.73)
+    designSnapshot.unmount()
+
+    // React: motion/evolution, Fractures FX, and audio reactivity — not the
+    // static structure controls, and not the generic Canvas Motion/Particles
+    // sections (Fractures declares no generic controls at all).
+    const reactSnapshot = renderSnapshot(<FracturesReactControls />)
+    const reactLabels = groupLabelsIn(reactSnapshot.host)
+    expect(reactLabels).toEqual(expect.arrayContaining(['Fractures Controls', 'Motion / Evolution', 'Fractures FX', 'Audio Reactivity']))
+    expect(reactLabels).not.toContain('Structure')
+
+    const effectsGroup = [...reactSnapshot.host.querySelectorAll<HTMLButtonElement>('.drc-header')]
+      .find(button => collapsibleLabelText(button) === 'Fractures FX')
+    act(() => effectsGroup?.click())
+
+    const reactHelpIds = helpIdsIn(reactSnapshot.host)
+    expect(reactHelpIds).toEqual(expect.arrayContaining([
       'react.canvas.fractures.structure.topologyInterval',
       'react.canvas.fractures.motion.transition',
       'react.canvas.fractures.motion.refracture',
@@ -737,49 +806,69 @@ describe('CANVAS right-panel control contract', () => {
       'react.canvas.fractures.effects.roleWeight.clean',
       'react.canvas.fractures.effects.roleWeight.texture',
     ]))
+    expect(reactHelpIds).not.toContain('react.canvas.fractures.structure.intensity')
+    expect(reactHelpIds).not.toContain('react.canvas.fractures.structure.mode')
 
-    const intensityLabel = [...host.querySelectorAll<HTMLLabelElement>('label')]
-      .find(label => label.textContent === 'Fracture Intensity')
-    const intensityInput = intensityLabel?.htmlFor
-      ? host.ownerDocument.getElementById(intensityLabel.htmlFor) as HTMLInputElement | null
-      : null
-    expect(intensityInput).not.toBeNull()
-    act(() => {
-      if (!intensityInput) return
-      intensityInput.value = '0.73'
-      intensityInput.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-    expect(useReactStore.getState().canvasPresetSettings.fractureIntensity).toBe(0.73)
-
-    const cleanRoleLabel = [...host.querySelectorAll<HTMLLabelElement>('label')]
+    const cleanRoleLabel = [...reactSnapshot.host.querySelectorAll<HTMLLabelElement>('label')]
       .find(label => label.textContent === 'Clean Role')
-    const cleanRoleInput = cleanRoleLabel?.htmlFor
-      ? host.ownerDocument.getElementById(cleanRoleLabel.htmlFor) as HTMLInputElement | null
-      : null
+    const cleanRoleInput = cleanRoleLabel?.closest('.rv-ctrl-row')?.querySelector<HTMLInputElement>('input') ?? null
     expect(cleanRoleInput).not.toBeNull()
     act(() => {
       if (!cleanRoleInput) return
-      cleanRoleInput.value = '0.61'
-      cleanRoleInput.dispatchEvent(new Event('input', { bubbles: true }))
+      setControlledInputValue(cleanRoleInput, '0.61')
     })
     expect(useReactStore.getState().canvasPresetSettings.fractureEffectRoleWeights.clean).toBe(0.61)
+    reactSnapshot.unmount()
 
-    act(() => {
-      useReactStore.getState().selectCanvasPreset('canvas-clean-playback')
-    })
-    const standardLabels = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
-      .map(collapsibleLabelText)
+    // Generic Motion/Particles render nothing for Fractures.
+    const genericSnapshot = renderSnapshot(<><CanvasPresetMotionControls /><CanvasPresetParticleControls /></>)
+    expect(genericSnapshot.host.textContent).toBe('')
+    genericSnapshot.unmount()
+  })
+
+  it('removes stale Fractures Design and React sections after switching away to Clean Playback', () => {
+    useReactStore.getState().selectCanvasPreset('canvas-fractures')
+    act(() => useReactStore.getState().selectCanvasPreset('canvas-clean-playback'))
+    const standardSnapshot = renderSnapshot(<><CanvasEngineFxPanel /><FracturesReactControls /></>)
+    const standardLabels = groupLabelsIn(standardSnapshot.host)
     expect(standardLabels).not.toContain('CANVAS React Controls')
     expect(standardLabels).toContain('Source + Reactivity')
     expect(standardLabels).not.toContain('Fractures Controls')
     expect(standardLabels).not.toContain('Motion + Particles')
     expect(standardLabels).not.toContain('Motion')
     expect(standardLabels).not.toContain('Particles')
+    standardSnapshot.unmount()
+  })
+
+  it('hides Fractures manual color controls when Color Source is not Manual Override', () => {
+    useReactStore.getState().selectCanvasPreset('canvas-fractures')
+    useReactStore.getState().setCanvasPresetSettings({ fractureColorSourceMode: 'imageSampled' })
+    const snapshot = renderSnapshot(<FracturesReactControls />)
+    const effectsGroup = [...snapshot.host.querySelectorAll<HTMLButtonElement>('.drc-header')]
+      .find(button => collapsibleLabelText(button) === 'Fractures FX')
+    act(() => effectsGroup?.click())
+    expect(controlLabelsIn(snapshot.host)).not.toContain('Manual Primary Color')
+    expect(controlLabelsIn(snapshot.host)).not.toContain('Manual Supporting Color')
+    snapshot.unmount()
+  })
+
+  it('shows Fractures manual color controls when Color Source is Manual Override', () => {
+    useReactStore.getState().selectCanvasPreset('canvas-fractures')
+    useReactStore.getState().setCanvasPresetSettings({ fractureColorSourceMode: 'manualOverride' })
+    const snapshot = renderSnapshot(<FracturesReactControls />)
+    const effectsGroup = [...snapshot.host.querySelectorAll<HTMLButtonElement>('.drc-header')]
+      .find(button => collapsibleLabelText(button) === 'Fractures FX')
+    act(() => effectsGroup?.click())
+    expect(controlLabelsIn(snapshot.host)).toContain('Manual Primary Color')
+    expect(controlLabelsIn(snapshot.host)).toContain('Manual Supporting Color')
+    snapshot.unmount()
   })
 
   it('wires Fractures manual commands into persisted canonical state', () => {
+    // Refracture / Shuffle Layout / Freeze Layout / Return to Anchor are all
+    // Motion / Evolution controls now, in the React tab.
     useReactStore.getState().selectCanvasPreset('canvas-fractures')
-    act(() => root.render(<CanvasEngineFxPanel />))
+    act(() => root.render(<FracturesReactControls />))
 
     const findAction = (label: string) => {
       const labelNode = [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
@@ -842,28 +931,18 @@ describe('CANVAS right-panel control contract', () => {
   })
 
   it('places info triggers only beside controls supported by the active preset', () => {
-    act(() => root.render(<CanvasEngineFxPanel />))
+    const designSnapshot = renderSnapshot(<CanvasEngineFxPanel />)
+    const designHelpIds = helpIdsIn(designSnapshot.host)
 
-    const helpIds = () => [...host.querySelectorAll<HTMLButtonElement>('.drm-help-info-trigger')]
-      .map(button => button.dataset.helpId)
-
-    expect(helpIds()).toEqual(expect.arrayContaining([
-      'react.canvas.sourceAndDisplay.sourceLink.autoSelect',
+    expect(designHelpIds).toEqual(expect.arrayContaining([
       'react.canvas.sourceAndDisplay.display.fitMode',
       'react.canvas.sourceAndDisplay.display.scale',
       'react.canvas.sourceAndDisplay.display.positionX',
       'react.canvas.sourceAndDisplay.display.positionY',
       'react.canvas.sourceAndDisplay.display.rotation',
       'react.canvas.sourceAndDisplay.display.outputOpacity',
-      'react.canvas.performanceOrchestration.autoPerformance',
-      'react.canvas.performanceOrchestration.performanceShow',
       'react.canvas.performanceOrchestration.autoRole',
       'react.canvas.performanceOrchestration.composition',
-      'react.canvas.performanceOrchestration.layerComplexity',
-      'react.canvas.performanceOrchestration.transitionDensity',
-      'react.canvas.performanceOrchestration.effectIntensity',
-      'react.canvas.performanceOrchestration.motionIntensity',
-      'react.canvas.performanceOrchestration.cutDensity',
       'react.canvas.reactControls.sourceAndReactivity.drySourceMix',
       'react.canvas.reactControls.sourceAndReactivity.visualIntensity',
       'react.canvas.reactControls.sourceAndReactivity.bassReactivity',
@@ -880,18 +959,28 @@ describe('CANVAS right-panel control contract', () => {
     ]))
     // FX and Motion + Particles help triggers no longer render in Design at all
     // for Clean Playback: FX moved to the React tab, and Clean Playback does not
-    // support Motion + Particles.
-    expect(helpIds()).not.toContain('react.canvas.reactControls.fx.glowAmount')
-    expect(helpIds()).not.toContain('react.canvas.reactControls.fx.trailAmount')
-    expect(helpIds()).not.toContain('react.canvas.reactControls.fx.rgbSplit')
-    expect(helpIds()).not.toContain('react.canvas.reactControls.fx.glitchAmount')
-    expect(helpIds()).not.toContain('react.canvas.reactControls.fx.stutterRate')
-    expect(helpIds()).not.toContain('react.canvas.reactControls.fx.lumaThreshold')
-    expect(helpIds()).not.toContain('react.canvas.reactControls.motionAndParticles.particleQuality')
+    // support Motion + Particles. Auto Performance / Pool Automation / Performance
+    // Show / the automation sliders moved to React's Performance Automation.
+    expect(designHelpIds).not.toContain('react.canvas.reactControls.fx.glowAmount')
+    expect(designHelpIds).not.toContain('react.canvas.reactControls.fx.trailAmount')
+    expect(designHelpIds).not.toContain('react.canvas.reactControls.fx.rgbSplit')
+    expect(designHelpIds).not.toContain('react.canvas.reactControls.fx.glitchAmount')
+    expect(designHelpIds).not.toContain('react.canvas.reactControls.fx.stutterRate')
+    expect(designHelpIds).not.toContain('react.canvas.reactControls.fx.lumaThreshold')
+    expect(designHelpIds).not.toContain('react.canvas.reactControls.motionAndParticles.particleQuality')
+    expect(designHelpIds).not.toContain('react.canvas.performanceOrchestration.autoPerformance')
+    expect(designHelpIds).not.toContain('react.canvas.performanceOrchestration.performanceShow')
+    expect(designHelpIds).not.toContain('react.canvas.performanceOrchestration.layerComplexity')
+    expect(designHelpIds).not.toContain('react.canvas.performanceOrchestration.cutDensity')
+    // Auto Select is automation (automatic preset/media selection) and moved
+    // to React's Performance Automation group.
+    expect(designHelpIds).not.toContain('react.canvas.sourceAndDisplay.sourceLink.autoSelect')
+    expect(controlLabelsIn(designSnapshot.host)).not.toContain('Auto Select')
+    designSnapshot.unmount()
 
     // React tab (CanvasPresetFxControls): Clean Playback's FX help triggers live here.
-    act(() => root.render(<CanvasPresetFxControls />))
-    expect(helpIds()).toEqual(expect.arrayContaining([
+    const fxSnapshot = renderSnapshot(<CanvasPresetFxControls />)
+    expect(helpIdsIn(fxSnapshot.host)).toEqual(expect.arrayContaining([
       'react.canvas.reactControls.fx.glowAmount',
       'react.canvas.reactControls.fx.trailAmount',
       'react.canvas.reactControls.fx.rgbSplit',
@@ -899,18 +988,85 @@ describe('CANVAS right-panel control contract', () => {
       'react.canvas.reactControls.fx.stutterRate',
       'react.canvas.reactControls.fx.lumaThreshold',
     ]))
+    fxSnapshot.unmount()
 
+    // React tab (CanvasPerformanceAutomationControls): the automation half of
+    // the former "Performance Orchestration" group lives here now, alongside
+    // Auto Select (automatic preset/media selection is automation too).
+    const automationSnapshot = renderSnapshot(<CanvasPerformanceAutomationControls />)
+    expect(helpIdsIn(automationSnapshot.host)).toEqual(expect.arrayContaining([
+      'react.canvas.sourceAndDisplay.sourceLink.autoSelect',
+      'react.canvas.performanceOrchestration.autoPerformance',
+      'react.canvas.performanceOrchestration.performanceShow',
+      'react.canvas.performanceOrchestration.layerComplexity',
+      'react.canvas.performanceOrchestration.transitionDensity',
+      'react.canvas.performanceOrchestration.effectIntensity',
+      'react.canvas.performanceOrchestration.motionIntensity',
+      'react.canvas.performanceOrchestration.cutDensity',
+    ]))
+    expect(controlLabelsIn(automationSnapshot.host)).toContain('Auto Select')
+    expect(helpIdsIn(automationSnapshot.host)).not.toContain('react.canvas.performanceOrchestration.autoRole')
+    expect(helpIdsIn(automationSnapshot.host)).not.toContain('react.canvas.performanceOrchestration.composition')
+    automationSnapshot.unmount()
+  })
+
+  it('disables Performance Show and the tuning sliders while Auto Performance is off', () => {
+    // Verified against CanvasPerformanceEngine.ts: resolveCanvasPerformanceFrame
+    // is the only consumer of programId/complexity/transitionDensity/
+    // effectIntensity/motionIntensity/cutDensity, and it only runs when
+    // Auto Performance is active — so these controls are inert (not hidden,
+    // matching Pool Trigger/Pool Transition's existing disabled treatment)
+    // until Auto Performance is turned on.
+    useReactStore.getState().setCanvasOrchestrationSettings({ enabled: false, renderMode: 'single' })
+    const offSnapshot = renderSnapshot(<CanvasPerformanceAutomationControls />)
+    const findInput = (label: string) => [...offSnapshot.host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
+      .find(node => node.textContent?.trim() === label)
+      ?.closest('.rv-ctrl-row')
+      ?.querySelector<HTMLButtonElement | HTMLInputElement>('input, button[role="combobox"]') ?? null
+    for (const label of ['Performance Show', 'Layer Complexity', 'Transition Density', 'Effect Intensity', 'Motion Intensity', 'Cut Density']) {
+      const input = findInput(label)
+      expect(input, `${label} should exist`).not.toBeNull()
+      expect((input as HTMLInputElement | HTMLButtonElement)?.disabled, `${label} should be disabled`).toBe(true)
+    }
+    offSnapshot.unmount()
+  })
+
+  it('enables Performance Show and the tuning sliders while Auto Performance is on', () => {
+    useReactStore.getState().setCanvasOrchestrationSettings({ enabled: true, renderMode: 'performance' })
+    const onSnapshot = renderSnapshot(<CanvasPerformanceAutomationControls />)
+    const findInput = (label: string) => [...onSnapshot.host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
+      .find(node => node.textContent?.trim() === label)
+      ?.closest('.rv-ctrl-row')
+      ?.querySelector<HTMLButtonElement | HTMLInputElement>('input, button[role="combobox"]') ?? null
+    for (const label of ['Performance Show', 'Layer Complexity', 'Transition Density', 'Effect Intensity', 'Motion Intensity', 'Cut Density']) {
+      const input = findInput(label)
+      expect(input, `${label} should exist`).not.toBeNull()
+      expect((input as HTMLInputElement | HTMLButtonElement)?.disabled, `${label} should be enabled`).toBe(false)
+    }
+    onSnapshot.unmount()
+  })
+
+  it('keeps Pool Trigger/Pool Transition disabled until Pool Automation is enabled', () => {
+    useReactStore.getState().setCanvasOrchestrationSettings({ poolAutomationEnabled: false })
+    const snapshot = renderSnapshot(<CanvasPerformanceAutomationControls />)
+    const trigger = snapshot.host.querySelector<HTMLButtonElement>('button[role="combobox"][aria-label="Pool Trigger"]')
+    const transition = snapshot.host.querySelector<HTMLButtonElement>('button[role="combobox"][aria-label="Pool Transition"]')
+    expect(trigger?.disabled).toBe(true)
+    expect(transition?.disabled).toBe(true)
+    snapshot.unmount()
+  })
+
+  it('places Particle Aura Motion/Particles info triggers as independent sections', () => {
     // React tab (CanvasPresetMotionControls / CanvasPresetParticleControls):
     // Particle Aura's Motion and Particles help triggers live here, as two
     // independent sections rather than one combined "Motion + Particles" group.
-    act(() => useReactStore.getState().selectCanvasPreset('canvas-particle-aura'))
-    act(() => root.render(<><CanvasPresetMotionControls /><CanvasPresetParticleControls /></>))
-    const groupLabels = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
-      .map(collapsibleLabelText)
+    useReactStore.getState().selectCanvasPreset('canvas-particle-aura')
+    const snapshot = renderSnapshot(<><CanvasPresetMotionControls /><CanvasPresetParticleControls /></>)
+    const groupLabels = groupLabelsIn(snapshot.host)
     expect(groupLabels).toEqual(expect.arrayContaining(['Motion', 'Particles']))
     expect(groupLabels).not.toContain('Motion + Particles')
 
-    expect(helpIds()).toEqual(expect.arrayContaining([
+    expect(helpIdsIn(snapshot.host)).toEqual(expect.arrayContaining([
       'react.canvas.reactControls.motionAndParticles.motionAmount',
       'react.canvas.reactControls.motionAndParticles.turbulence',
       'react.canvas.reactControls.motionAndParticles.particleDensity',
@@ -918,5 +1074,6 @@ describe('CANVAS right-panel control contract', () => {
       'react.canvas.reactControls.motionAndParticles.particleColorMode',
       'react.canvas.reactControls.motionAndParticles.particleQuality',
     ]))
+    snapshot.unmount()
   })
 })

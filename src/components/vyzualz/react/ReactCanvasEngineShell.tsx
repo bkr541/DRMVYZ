@@ -2747,6 +2747,14 @@ const CANVAS_LASER_IMAGE_EFFECT_OPTIONS: Array<{ value: CanvasLaserImageEffect; 
   { value: 'warpSquare', label: 'Warp Square' },
 ]
 
+// Verified against LaserImageFxRenderer's geometry vertex shader: only these
+// four image effects (uImageEffect 1-4) ever assign a non-zero p.z, which is
+// the only thing uPerspective (Perspective) scales. Every other image effect
+// leaves p.z at 0, so Perspective has no visible effect there and is hidden.
+const CANVAS_LASER_PERSPECTIVE_IMAGE_EFFECTS = new Set<CanvasLaserImageEffect>([
+  'cubeA', 'flipB', 'spin3d', 'twistB',
+])
+
 const CANVAS_LASER_COLOR_EFFECT_OPTIONS: Array<{ value: CanvasLaserColorEffect; label: string }> = [
   { value: 'source', label: 'Source / Original' },
   { value: 'beatSaturateA', label: 'Color Beat Saturate A' },
@@ -3464,12 +3472,20 @@ function CanvasCompositionControls() {
   )
 }
 
-// React tab: the Shared Performance Core automation that changes the
-// composition over time — whether it's on, what triggers/transitions it
-// uses, which scripted show it runs, and how aggressively it arranges things.
+// React tab: everything that automatically changes CANVAS over time — which
+// preset/media Auto Select chooses, the Shared Performance Core automation
+// that arranges the pool (whether it's on, what triggers/transitions it
+// uses, which scripted show it runs, how aggressively it arranges things).
 // None of this describes the current composition; it describes how the
 // composition changes on its own, so it belongs in React alongside Motion,
-// Particles, and FX.
+// Particles, and FX. Performance Show and the five tuning sliders are
+// disabled (not hidden) while Auto Performance is off, matching the existing
+// Pool Trigger/Pool Transition treatment: verified against
+// CanvasPerformanceEngine.ts — resolveCanvasPerformanceFrame (the only
+// consumer of settings.programId/complexity/transitionDensity/
+// effectIntensity/motionIntensity/cutDensity) only runs when
+// orchestrationSettings.enabled && renderMode === 'performance', i.e.
+// autoPerformanceActive.
 export function CanvasPerformanceAutomationControls() {
   const settings = useReactStore(s => s.canvasOrchestrationSettings)
   const setSettings = useReactStore(s => s.setCanvasOrchestrationSettings)
@@ -3482,6 +3498,8 @@ export function CanvasPerformanceAutomationControls() {
 
   return (
     <Collapsible label="Performance Automation" defaultOpen>
+      <CanvasAutoSelectControl />
+
       <CanvasHelpControl
         helpId="react.canvas.performanceOrchestration.autoPerformance"
         currentValue={autoPerformanceActive ? 'On' : 'Off'}
@@ -3539,22 +3557,23 @@ export function CanvasPerformanceAutomationControls() {
           onChange={value => setSettings({ programId: value as CanvasPerformanceShowId })}
           options={CANVAS_PERFORMANCE_SHOW_OPTIONS}
           description={selectedShow.description}
+          disabled={!autoPerformanceActive}
         />
       </CanvasHelpControl>
       <CanvasHelpControl helpId="react.canvas.performanceOrchestration.layerComplexity" currentValue={formatCanvasPercentage(settings.complexity)}>
-        <SliderRow label="Layer Complexity" value={settings.complexity} onChange={complexity => setSettings({ complexity })} min={0} max={1} step={0.01} color="#61d6aa" />
+        <SliderRow label="Layer Complexity" value={settings.complexity} onChange={complexity => setSettings({ complexity })} min={0} max={1} step={0.01} color="#61d6aa" disabled={!autoPerformanceActive} />
       </CanvasHelpControl>
       <CanvasHelpControl helpId="react.canvas.performanceOrchestration.transitionDensity" currentValue={formatCanvasPercentage(settings.transitionDensity)}>
-        <SliderRow label="Transition Density" value={settings.transitionDensity} onChange={transitionDensity => setSettings({ transitionDensity })} min={0} max={1} step={0.01} color="#4ac7db" />
+        <SliderRow label="Transition Density" value={settings.transitionDensity} onChange={transitionDensity => setSettings({ transitionDensity })} min={0} max={1} step={0.01} color="#4ac7db" disabled={!autoPerformanceActive} />
       </CanvasHelpControl>
       <CanvasHelpControl helpId="react.canvas.performanceOrchestration.effectIntensity" currentValue={formatCanvasPercentage(settings.effectIntensity)}>
-        <SliderRow label="Effect Intensity" value={settings.effectIntensity} onChange={effectIntensity => setSettings({ effectIntensity })} min={0} max={1} step={0.01} color="#ff4fd8" />
+        <SliderRow label="Effect Intensity" value={settings.effectIntensity} onChange={effectIntensity => setSettings({ effectIntensity })} min={0} max={1} step={0.01} color="#ff4fd8" disabled={!autoPerformanceActive} />
       </CanvasHelpControl>
       <CanvasHelpControl helpId="react.canvas.performanceOrchestration.motionIntensity" currentValue={formatCanvasPercentage(settings.motionIntensity)}>
-        <SliderRow label="Motion Intensity" value={settings.motionIntensity} onChange={motionIntensity => setSettings({ motionIntensity })} min={0} max={1} step={0.01} color="#d8b95a" />
+        <SliderRow label="Motion Intensity" value={settings.motionIntensity} onChange={motionIntensity => setSettings({ motionIntensity })} min={0} max={1} step={0.01} color="#d8b95a" disabled={!autoPerformanceActive} />
       </CanvasHelpControl>
       <CanvasHelpControl helpId="react.canvas.performanceOrchestration.cutDensity" currentValue={formatCanvasPercentage(settings.cutDensity)}>
-        <SliderRow label="Cut Density" value={settings.cutDensity} onChange={cutDensity => setSettings({ cutDensity })} min={0} max={1} step={0.01} color="#f09c5a" />
+        <SliderRow label="Cut Density" value={settings.cutDensity} onChange={cutDensity => setSettings({ cutDensity })} min={0} max={1} step={0.01} color="#f09c5a" disabled={!autoPerformanceActive} />
       </CanvasHelpControl>
     </Collapsible>
   )
@@ -3726,7 +3745,12 @@ function CanvasFracturesActionControl({
   )
 }
 
-function CanvasFracturesControls({
+// Design tab: Fractures' static structure and composition — what the current
+// fragment layout looks like, not how it changes over time. Topology Change
+// and Layout Change moved to React's Motion / Evolution section even though
+// they're structural, because they define WHEN the structure changes rather
+// than what it currently is.
+function FracturesDesignControls({
   settings,
   setSettings,
   resetSettings,
@@ -3737,15 +3761,6 @@ function CanvasFracturesControls({
   resetSettings: () => void
   customized: boolean
 }) {
-  const audioEngine = useSharedAudio()
-  const manualColorsEnabled = settings.fractureColorSourceMode === 'manualOverride'
-  const getActionPositionSec = () => {
-    const direct = audioEngine.getCurrentTime?.()
-    if (typeof direct === 'number' && Number.isFinite(direct)) return Math.max(0, direct)
-    return typeof audioEngine.currentTime === 'number' && Number.isFinite(audioEngine.currentTime)
-      ? Math.max(0, audioEngine.currentTime)
-      : 0
-  }
   return (
     <Collapsible label="Fractures Controls" defaultOpen>
       <div className="rv-ctrl-toggle-row rv-canvas-recipe-status">
@@ -3788,12 +3803,6 @@ function CanvasFracturesControls({
         <CanvasHelpControl helpId="react.canvas.fractures.structure.placementMode" currentValue={CANVAS_FRACTURE_PLACEMENT_OPTIONS.find(option => option.value === settings.fracturePlacementMode)?.label ?? 'Balanced'} currentValueTone="accent" className="rv-canvas-react-control-help">
           <CanvasSelectRow label="Placement Mode" value={settings.fracturePlacementMode} onChange={value => setSettings({ fracturePlacementMode: value as CanvasFracturePlacementMode })} options={CANVAS_FRACTURE_PLACEMENT_OPTIONS} />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.topologyInterval" currentValue={CANVAS_FRACTURE_TOPOLOGY_INTERVAL_OPTIONS.find(option => option.value === settings.fractureTopologyInterval)?.label ?? 'Every 4 Bars'} currentValueTone="accent" className="rv-canvas-react-control-help">
-          <CanvasSelectRow label="Topology Change" value={settings.fractureTopologyInterval} onChange={value => setSettings({ fractureTopologyInterval: value as CanvasFractureQuantizeInterval })} options={CANVAS_FRACTURE_TOPOLOGY_INTERVAL_OPTIONS} />
-        </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.layoutInterval" currentValue={CANVAS_FRACTURE_LAYOUT_INTERVAL_OPTIONS.find(option => option.value === settings.fractureLayoutInterval)?.label ?? 'Every Bar'} currentValueTone="accent" className="rv-canvas-react-control-help">
-          <CanvasSelectRow label="Layout Change" value={settings.fractureLayoutInterval} onChange={value => setSettings({ fractureLayoutInterval: value as CanvasFractureQuantizeInterval })} options={CANVAS_FRACTURE_LAYOUT_INTERVAL_OPTIONS} />
-        </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.fractures.structure.variationSeed" currentValue={settings.fractureVariationSeed} className="rv-canvas-react-control-help">
           <NumberInputRow label="Variation Seed" value={settings.fractureVariationSeed} onChange={fractureVariationSeed => setSettings({ fractureVariationSeed })} min={0} max={999999} step={1} />
         </CanvasHelpControl>
@@ -3801,8 +3810,34 @@ function CanvasFracturesControls({
           <CanvasSelectRow label="Quality" value={settings.fractureQuality} onChange={value => setSettings({ fractureQuality: value as CanvasFractureQualityMode })} options={CANVAS_FRACTURE_QUALITY_OPTIONS} />
         </CanvasHelpControl>
       </Collapsible>
+    </Collapsible>
+  )
+}
 
-      <Collapsible label="Motion" defaultOpen>
+// React tab: everything about Fractures that changes over time or reacts to
+// audio — motion/evolution (including the two timed structural-change
+// intervals), the Fractures-native FX parameters, and audio reactivity.
+// Renders only while Fractures is the active preset.
+export function FracturesReactControls() {
+  const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
+  const settings = useReactStore(s => s.canvasPresetSettings)
+  const setSettings = useReactStore(s => s.setCanvasPresetSettings)
+  const audioEngine = useSharedAudio()
+
+  if (selectedCanvasPresetId !== 'canvas-fractures') return null
+
+  const manualColorsEnabled = settings.fractureColorSourceMode === 'manualOverride'
+  const getActionPositionSec = () => {
+    const direct = audioEngine.getCurrentTime?.()
+    if (typeof direct === 'number' && Number.isFinite(direct)) return Math.max(0, direct)
+    return typeof audioEngine.currentTime === 'number' && Number.isFinite(audioEngine.currentTime)
+      ? Math.max(0, audioEngine.currentTime)
+      : 0
+  }
+
+  return (
+    <Collapsible label="Fractures Controls" defaultOpen>
+      <Collapsible label="Motion / Evolution" defaultOpen>
         <CanvasHelpControl helpId="react.canvas.fractures.motion.amount" currentValue={formatCanvasPercentage(settings.fractureMotionAmount)} className="rv-canvas-react-control-help">
           <SliderRow label="Motion" value={settings.fractureMotionAmount} onChange={fractureMotionAmount => setSettings({ fractureMotionAmount })} min={0} max={1} step={0.01} color="#61d6aa" />
         </CanvasHelpControl>
@@ -3823,6 +3858,12 @@ function CanvasFracturesControls({
         </CanvasHelpControl>
         <CanvasHelpControl helpId="react.canvas.fractures.motion.zoom" currentValue={formatCanvasPercentage(settings.fractureZoomAmount)} className="rv-canvas-react-control-help">
           <SliderRow label="Zoom" value={settings.fractureZoomAmount} onChange={fractureZoomAmount => setSettings({ fractureZoomAmount })} min={0} max={1} step={0.01} color="#ff4fd8" />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.topologyInterval" currentValue={CANVAS_FRACTURE_TOPOLOGY_INTERVAL_OPTIONS.find(option => option.value === settings.fractureTopologyInterval)?.label ?? 'Every 4 Bars'} currentValueTone="accent" className="rv-canvas-react-control-help">
+          <CanvasSelectRow label="Topology Change" value={settings.fractureTopologyInterval} onChange={value => setSettings({ fractureTopologyInterval: value as CanvasFractureQuantizeInterval })} options={CANVAS_FRACTURE_TOPOLOGY_INTERVAL_OPTIONS} />
+        </CanvasHelpControl>
+        <CanvasHelpControl helpId="react.canvas.fractures.structure.layoutInterval" currentValue={CANVAS_FRACTURE_LAYOUT_INTERVAL_OPTIONS.find(option => option.value === settings.fractureLayoutInterval)?.label ?? 'Every Bar'} currentValueTone="accent" className="rv-canvas-react-control-help">
+          <CanvasSelectRow label="Layout Change" value={settings.fractureLayoutInterval} onChange={value => setSettings({ fractureLayoutInterval: value as CanvasFractureQuantizeInterval })} options={CANVAS_FRACTURE_LAYOUT_INTERVAL_OPTIONS} />
         </CanvasHelpControl>
         <CanvasFracturesActionControl
           helpId="react.canvas.fractures.motion.refracture"
@@ -3879,7 +3920,7 @@ function CanvasFracturesControls({
         />
       </Collapsible>
 
-      <Collapsible label="Effects" defaultOpen={false}>
+      <Collapsible label="Fractures FX" defaultOpen={false}>
         <CanvasHelpControl helpId="react.canvas.fractures.effects.intensity" currentValue={formatCanvasPercentage(settings.fractureEffectsIntensity)} className="rv-canvas-react-control-help">
           <SliderRow label="Effects Intensity" value={settings.fractureEffectsIntensity} onChange={fractureEffectsIntensity => setSettings({ fractureEffectsIntensity })} min={0} max={1} step={0.01} color="#ff4fd8" />
         </CanvasHelpControl>
@@ -3907,12 +3948,16 @@ function CanvasFracturesControls({
         <CanvasHelpControl helpId="react.canvas.fractures.effects.colorSource" currentValue={CANVAS_FRACTURE_COLOR_SOURCE_OPTIONS.find(option => option.value === settings.fractureColorSourceMode)?.label ?? 'Image Sampled'} currentValueTone="accent" className="rv-canvas-react-control-help">
           <CanvasSelectRow label="Color Source" value={settings.fractureColorSourceMode} onChange={value => setSettings({ fractureColorSourceMode: value as CanvasFractureColorSourceMode })} options={CANVAS_FRACTURE_COLOR_SOURCE_OPTIONS} />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.manualPrimaryColor" currentValue={settings.fractureManualPrimaryColor} className="rv-canvas-react-control-help">
-          <ColorRow label="Manual Primary Color" value={settings.fractureManualPrimaryColor} onChange={fractureManualPrimaryColor => setSettings({ fractureManualPrimaryColor })} disabled={!manualColorsEnabled} />
-        </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.manualSupportingColor" currentValue={settings.fractureManualSupportingColor} className="rv-canvas-react-control-help">
-          <ColorRow label="Manual Supporting Color" value={settings.fractureManualSupportingColor} onChange={fractureManualSupportingColor => setSettings({ fractureManualSupportingColor })} disabled={!manualColorsEnabled} />
-        </CanvasHelpControl>
+        {manualColorsEnabled && (
+          <>
+            <CanvasHelpControl helpId="react.canvas.fractures.effects.manualPrimaryColor" currentValue={settings.fractureManualPrimaryColor} className="rv-canvas-react-control-help">
+              <ColorRow label="Manual Primary Color" value={settings.fractureManualPrimaryColor} onChange={fractureManualPrimaryColor => setSettings({ fractureManualPrimaryColor })} />
+            </CanvasHelpControl>
+            <CanvasHelpControl helpId="react.canvas.fractures.effects.manualSupportingColor" currentValue={settings.fractureManualSupportingColor} className="rv-canvas-react-control-help">
+              <ColorRow label="Manual Supporting Color" value={settings.fractureManualSupportingColor} onChange={fractureManualSupportingColor => setSettings({ fractureManualSupportingColor })} />
+            </CanvasHelpControl>
+          </>
+        )}
         {CANVAS_FRACTURE_EFFECT_ROLE_OPTIONS.map(role => (
           <CanvasHelpControl
             key={role.value}
@@ -3939,7 +3984,7 @@ function CanvasFracturesControls({
         ))}
       </Collapsible>
 
-      <Collapsible label="Audio" defaultOpen={false}>
+      <Collapsible label="Audio Reactivity" defaultOpen={false}>
         <CanvasHelpControl helpId="react.canvas.fractures.audio.response" currentValue={formatCanvasPercentage(settings.fractureAudioResponse)} className="rv-canvas-react-control-help">
           <SliderRow label="Audio Response" value={settings.fractureAudioResponse} onChange={fractureAudioResponse => setSettings({ fractureAudioResponse })} min={0} max={1} step={0.01} color="#d8b95a" />
         </CanvasHelpControl>
@@ -3961,7 +4006,11 @@ function CanvasFracturesControls({
   )
 }
 
-function CanvasLaserImageFxControls({
+// Design tab: Laser Image FX's static source geometry and construction —
+// which deformation is applied, how warped/perspective-shifted it is, and how
+// much dry source participates. Perspective only renders for the image
+// effects that actually consume it (see CANVAS_LASER_PERSPECTIVE_IMAGE_EFFECTS).
+function LaserImageFxDesignControls({
   settings,
   setSettings,
   resetSettings,
@@ -3972,6 +4021,8 @@ function CanvasLaserImageFxControls({
   resetSettings: () => void
   customized: boolean
 }) {
+  const supportsPerspective = CANVAS_LASER_PERSPECTIVE_IMAGE_EFFECTS.has(settings.laserImageEffect)
+
   return (
     <Collapsible label="Laser Image FX Controls" defaultOpen>
       <div className="rv-ctrl-toggle-row rv-canvas-recipe-status">
@@ -3996,35 +4047,10 @@ function CanvasLaserImageFxControls({
         options={CANVAS_LASER_IMAGE_EFFECT_OPTIONS}
         description="Geometry and UV deformation are GPU-driven; perspective modes use a subdivided mesh."
       />
-      <CanvasSelectRow
-        label="Color Effect"
-        value={settings.laserColorEffect}
-        onChange={value => setSettings({ laserColorEffect: value as CanvasLaserColorEffect })}
-        options={CANVAS_LASER_COLOR_EFFECT_OPTIONS}
-        description="Color modes are independent of the selected image deformation."
-      />
-      <SliderRow label="Intensity" value={settings.intensity} onChange={intensity => setSettings({ intensity })} min={0} max={1} step={0.01} color="#72fff0" />
-      <SliderRow label="Speed" value={settings.laserSpeed} onChange={laserSpeed => setSettings({ laserSpeed })} min={0} max={4} step={0.01} color="#9ddcff" />
       <SliderRow label="Warp Amount" value={settings.laserWarpAmount} onChange={laserWarpAmount => setSettings({ laserWarpAmount })} min={0} max={1} step={0.01} color="#61d6aa" />
-      <SliderRow label="Perspective" value={settings.laserPerspective} onChange={laserPerspective => setSettings({ laserPerspective })} min={0} max={1} step={0.01} color="#8de7ff" />
-      <SliderRow label="Color Amount" value={settings.laserColorAmount} onChange={laserColorAmount => setSettings({ laserColorAmount })} min={0} max={1} step={0.01} color="#ff4fd8" />
-      <SliderRow label="Bloom" value={settings.laserBloom} onChange={laserBloom => setSettings({ laserBloom })} min={0} max={1} step={0.01} color="#dffcff" />
-      <ToggleRow
-        label="BPM Sync"
-        value={settings.laserBpmSync}
-        onChange={laserBpmSync => setSettings({ laserBpmSync })}
-        description="Uses the canonical musical beat grid when available; otherwise animation uses deterministic transport time."
-      />
-      <SliderRow
-        label="Laserize"
-        value={settings.laserize}
-        onChange={laserize => setSettings({ laserize })}
-        min={0}
-        max={1}
-        step={0.01}
-        color="#e8f4f8"
-        description="Blends the source mask toward GPU edge extraction for line-like raster and video treatment."
-      />
+      {supportsPerspective && (
+        <SliderRow label="Perspective" value={settings.laserPerspective} onChange={laserPerspective => setSettings({ laserPerspective })} min={0} max={1} step={0.01} color="#8de7ff" />
+      )}
       <SliderRow
         label="Dry Source Mix"
         value={settings.drySourceMix}
@@ -4035,6 +4061,59 @@ function CanvasLaserImageFxControls({
         color="#61d6aa"
         description="Controls only the untreated source beneath the laser renderer."
       />
+    </Collapsible>
+  )
+}
+
+// React tab: Laser Image FX's active animation and FX treatment. Color
+// Amount only renders when the selected Color Effect actually consumes it —
+// "Source / Original" returns the source color untouched in the shader.
+// Renders only while Laser Image FX is the active preset.
+export function LaserImageFxReactControls() {
+  const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
+  const settings = useReactStore(s => s.canvasPresetSettings)
+  const setSettings = useReactStore(s => s.setCanvasPresetSettings)
+
+  if (selectedCanvasPresetId !== 'canvas-laser-image-fx') return null
+
+  const supportsColorAmount = settings.laserColorEffect !== 'source'
+
+  return (
+    <Collapsible label="Laser Image FX Controls" defaultOpen>
+      <Collapsible label="Animation" defaultOpen>
+        <SliderRow label="Intensity" value={settings.intensity} onChange={intensity => setSettings({ intensity })} min={0} max={1} step={0.01} color="#72fff0" />
+        <SliderRow label="Speed" value={settings.laserSpeed} onChange={laserSpeed => setSettings({ laserSpeed })} min={0} max={4} step={0.01} color="#9ddcff" />
+        <ToggleRow
+          label="BPM Sync"
+          value={settings.laserBpmSync}
+          onChange={laserBpmSync => setSettings({ laserBpmSync })}
+          description="Uses the canonical musical beat grid when available; otherwise animation uses deterministic transport time."
+        />
+      </Collapsible>
+
+      <Collapsible label="Laser FX" defaultOpen>
+        <CanvasSelectRow
+          label="Color Effect"
+          value={settings.laserColorEffect}
+          onChange={value => setSettings({ laserColorEffect: value as CanvasLaserColorEffect })}
+          options={CANVAS_LASER_COLOR_EFFECT_OPTIONS}
+          description="Color modes are independent of the selected image deformation."
+        />
+        {supportsColorAmount && (
+          <SliderRow label="Color Amount" value={settings.laserColorAmount} onChange={laserColorAmount => setSettings({ laserColorAmount })} min={0} max={1} step={0.01} color="#ff4fd8" />
+        )}
+        <SliderRow label="Bloom" value={settings.laserBloom} onChange={laserBloom => setSettings({ laserBloom })} min={0} max={1} step={0.01} color="#dffcff" />
+        <SliderRow
+          label="Laserize"
+          value={settings.laserize}
+          onChange={laserize => setSettings({ laserize })}
+          min={0}
+          max={1}
+          step={0.01}
+          color="#e8f4f8"
+          description="Blends the source mask toward GPU edge extraction for line-like raster and video treatment."
+        />
+      </Collapsible>
     </Collapsible>
   )
 }
@@ -4228,7 +4307,7 @@ function CanvasPresetControls() {
 
   if (selectedPreset.rendererKind === 'fragmentCollage') {
     return (
-      <CanvasFracturesControls
+      <FracturesDesignControls
         settings={canvasPresetSettings}
         setSettings={setCanvasPresetSettings}
         resetSettings={resetCanvasPresetSettings}
@@ -4239,7 +4318,7 @@ function CanvasPresetControls() {
 
   if (selectedPreset.rendererKind === 'laserImageFx') {
     return (
-      <CanvasLaserImageFxControls
+      <LaserImageFxDesignControls
         settings={canvasPresetSettings}
         setSettings={setCanvasPresetSettings}
         resetSettings={resetCanvasPresetSettings}
@@ -4387,8 +4466,7 @@ export function CanvasEngineFxPanel() {
   return (
     <div className="rv-ctrl-group">
       <Collapsible label="CANVAS Source Link" defaultOpen>
-        <div className="rv-canvas-panel-copy">Source selection lives in the left SOURCE panel so the center visualizer stays render-only.</div>
-        <CanvasAutoSelectControl />
+        <div className="rv-canvas-panel-copy">Source selection lives in the left SOURCE panel so the center visualizer stays render-only. Auto Select — CANVAS's automatic preset/media selection — lives in the React tab's Automation group.</div>
       </Collapsible>
 
       <Collapsible label="Display" defaultOpen>
