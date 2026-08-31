@@ -581,19 +581,56 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
 
 export const DEFAULT_CANVAS_PRESET_OVERRIDE_STATE: CanvasPresetOverrideState | null = null
 
-const CANVAS_STANDARD_RUNTIME_CONTROLS: CanvasPresetControlKey[] = [
+// Generic (non-preset-specific) CANVAS control families. A preset declares
+// exactly the families it supports by spreading them into its `controls`
+// list — see canvasPresetSupportsControl. Keeping these as independent
+// building blocks (rather than one broad "standard runtime controls" list)
+// is what keeps Motion and Particle Aura capability from blurring together:
+// a preset that should not support Motion or Particles simply never spreads
+// those arrays in, so the controls are absent from the UI rather than merely
+// hidden or defaulted to zero.
+const CANVAS_REACTIVITY_CONTROLS: CanvasPresetControlKey[] = [
   'drySourceMix',
   'intensity',
   'bassReactivity',
   'beatPulse',
+]
+
+const CANVAS_FX_CONTROLS: CanvasPresetControlKey[] = [
   'glow',
   'trailAmount',
   'rgbSplit',
   'glitchAmount',
   'stutterRate',
   'lumaThreshold',
+]
+
+// Generic Motion (Motion Amount, Turbulence). Fractures and Laser Image FX
+// have their own dedicated motion/animation systems and must not inherit
+// these — only Particle Aura currently uses the generic parameters.
+const CANVAS_MOTION_CONTROLS: CanvasPresetControlKey[] = [
   'motionAmount',
   'turbulence',
+]
+
+// Particle Aura's own controls. Exclusive to Particle Aura — no other preset
+// declares these.
+const CANVAS_PARTICLE_AURA_CONTROLS: CanvasPresetControlKey[] = [
+  'particleDensity',
+  'particleSize',
+  'particleColorMode',
+  'particleQuality',
+]
+
+// Legacy compatibility-recipe presets (hidden from the preset picker, see
+// CANVAS_LEGACY_EFFECT_PRESET_IDS below) keep the original combined control
+// set. They are inert for UI purposes — CanvasPresetControls returns null
+// for them entirely — so this list only matters for canvasPresetSupportsControl
+// bookkeeping, not for anything a user can see.
+const CANVAS_STANDARD_RUNTIME_CONTROLS: CanvasPresetControlKey[] = [
+  ...CANVAS_REACTIVITY_CONTROLS,
+  ...CANVAS_FX_CONTROLS,
+  ...CANVAS_MOTION_CONTROLS,
   'particleDensity',
 ]
 
@@ -603,23 +640,18 @@ const CANVAS_STANDARD_RUNTIME_CONTROLS: CanvasPresetControlKey[] = [
 // supported-control list entirely (see canvasPresetSupportsControl) rather
 // than shown disabled or defaulted to zero.
 const CANVAS_CLEAN_PLAYBACK_CONTROLS: CanvasPresetControlKey[] = [
-  'drySourceMix',
-  'intensity',
-  'bassReactivity',
-  'beatPulse',
-  'glow',
-  'trailAmount',
-  'rgbSplit',
-  'glitchAmount',
-  'stutterRate',
-  'lumaThreshold',
+  ...CANVAS_REACTIVITY_CONTROLS,
+  ...CANVAS_FX_CONTROLS,
 ]
 
+// Particle Aura is the only preset that declares the generic Motion controls
+// alongside its own Particle Aura controls — that combination is what makes
+// both the React "Motion" and "Particles" sections appear only for it.
 const CANVAS_PARTICLE_AURA_RUNTIME_CONTROLS: CanvasPresetControlKey[] = [
-  ...CANVAS_STANDARD_RUNTIME_CONTROLS,
-  'particleSize',
-  'particleColorMode',
-  'particleQuality',
+  ...CANVAS_REACTIVITY_CONTROLS,
+  ...CANVAS_FX_CONTROLS,
+  ...CANVAS_MOTION_CONTROLS,
+  ...CANVAS_PARTICLE_AURA_CONTROLS,
 ]
 
 export const CANVAS_PRESETS: CanvasPresetDefinition[] = [

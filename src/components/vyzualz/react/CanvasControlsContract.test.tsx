@@ -8,7 +8,8 @@ import { useReactStore } from '../../../stores/reactStore'
 import { useContextualHelpStore } from '../../../features/contextualHelp/contextualHelpStore'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import type { BrandKit } from '../../../features/personalization/BrandKitTypes'
-import { CANVAS_REACT_CONTROL_GROUPS, CanvasEngineFxPanel, CanvasEngineSurface, CanvasPresetFxControls, resolveCanvasPresetControlGroups } from './ReactCanvasEngineShell'
+import { CANVAS_REACT_CONTROL_GROUPS, CanvasEngineFxPanel, CanvasEngineSurface, CanvasPresetFxControls, CanvasPresetMotionControls, CanvasPresetParticleControls, resolveCanvasPresetControlGroups } from './ReactCanvasEngineShell'
+import type { CanvasPresetId } from './ReactTypes'
 import { CanvasFracturesRenderer } from './renderers/fractures/CanvasFracturesRenderer'
 import { LaserImageFxRenderer } from './renderers/laserImageFx/LaserImageFxRenderer'
 
@@ -18,6 +19,38 @@ import { LaserImageFxRenderer } from './renderers/laserImageFx/LaserImageFxRende
 // the whole button text.
 function collapsibleLabelText(button: HTMLButtonElement): string | undefined {
   return button.querySelector('span')?.textContent?.trim()
+}
+
+// A store update after the shared `root` has already rendered once is not
+// reliably reflected by calling `root.render()` again in this test
+// environment (jsdom + threaded Vitest workers). Mounting a fresh root per
+// snapshot sidesteps that and reads the current store state directly, which
+// is what every assertion here actually needs — a true-at-call-time snapshot
+// of what the component renders for the active preset.
+function renderSnapshot(node: React.ReactElement): { host: HTMLDivElement; unmount: () => void } {
+  const snapshotHost = document.createElement('div')
+  document.body.appendChild(snapshotHost)
+  const snapshotRoot = createRoot(snapshotHost)
+  act(() => snapshotRoot.render(node))
+  return {
+    host: snapshotHost,
+    unmount: () => {
+      act(() => snapshotRoot.unmount())
+      snapshotHost.remove()
+    },
+  }
+}
+
+function groupLabelsIn(container: HTMLElement): Array<string | undefined> {
+  return [...container.querySelectorAll<HTMLButtonElement>('.drc-header')].map(collapsibleLabelText)
+}
+
+function controlLabelsIn(container: HTMLElement): Array<string | undefined> {
+  return [...container.querySelectorAll<HTMLElement>('.rv-ctrl-label')].map(node => node.textContent?.trim())
+}
+
+function helpIdsIn(container: HTMLElement): Array<string | undefined> {
+  return [...container.querySelectorAll<HTMLButtonElement>('.drm-help-info-trigger')].map(button => button.dataset.helpId)
 }
 
 vi.mock('../../../context/AudioEngineContext', () => ({
@@ -278,32 +311,47 @@ describe('CANVAS right-panel control contract', () => {
   })
 
   it('keeps the production controls committed across renderer-kind changes', () => {
-    act(() => root.render(<CanvasEngineFxPanel />))
-
-    const labels = () => [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
-      .map(collapsibleLabelText)
+    useReactStore.getState().selectCanvasPreset('canvas-clean-playback')
+    let snapshot = renderSnapshot(<CanvasEngineFxPanel />)
 
     // "CANVAS React Controls" no longer exists as a single mixed group — Design
-    // shows the Source + Reactivity / Motion + Particles groups directly, and FX
-    // now lives in the React tab (see CanvasPresetFxControls elsewhere).
-    expect(labels()).not.toContain('CANVAS React Controls')
-    expect(labels()).toContain('Source + Reactivity')
-    expect(labels()).not.toContain('FX')
+    // shows the Source + Reactivity group only. FX, Motion, and Particles all
+    // live in the React tab instead (see CanvasPresetFxControls /
+    // CanvasPresetMotionControls / CanvasPresetParticleControls elsewhere).
+    expect(groupLabelsIn(snapshot.host)).not.toContain('CANVAS React Controls')
+    expect(groupLabelsIn(snapshot.host)).toContain('Source + Reactivity')
+    expect(groupLabelsIn(snapshot.host)).not.toContain('FX')
+    expect(groupLabelsIn(snapshot.host)).not.toContain('Motion + Particles')
+    expect(groupLabelsIn(snapshot.host)).not.toContain('Particles')
+    snapshot.unmount()
 
     act(() => useReactStore.getState().selectCanvasPreset('canvas-fractures'))
-    expect(labels()).toEqual(expect.arrayContaining(['Fractures Controls', 'Structure', 'Motion', 'Effects', 'Audio']))
+    snapshot = renderSnapshot(<CanvasEngineFxPanel />)
+    expect(groupLabelsIn(snapshot.host)).toEqual(expect.arrayContaining(['Fractures Controls', 'Structure', 'Motion', 'Effects', 'Audio']))
+    snapshot.unmount()
 
     act(() => useReactStore.getState().selectCanvasPreset('canvas-particle-aura'))
-    expect(labels()).not.toContain('CANVAS React Controls')
-    expect(labels()).toEqual(expect.arrayContaining(['Source + Reactivity', 'Motion + Particles']))
+    snapshot = renderSnapshot(<CanvasEngineFxPanel />)
+    expect(groupLabelsIn(snapshot.host)).not.toContain('CANVAS React Controls')
+    expect(groupLabelsIn(snapshot.host)).toEqual(expect.arrayContaining(['Source + Reactivity']))
+    // Motion and Particles are React-tab concepts now — Design never shows them,
+    // even for Particle Aura, which is the only preset that supports either.
+    expect(groupLabelsIn(snapshot.host)).not.toContain('Motion + Particles')
+    expect(groupLabelsIn(snapshot.host)).not.toContain('Particles')
+    snapshot.unmount()
 
     act(() => useReactStore.getState().selectCanvasPreset('canvas-laser-image-fx'))
-    expect(labels()).toContain('Laser Image FX Controls')
+    snapshot = renderSnapshot(<CanvasEngineFxPanel />)
+    expect(groupLabelsIn(snapshot.host)).toContain('Laser Image FX Controls')
+    snapshot.unmount()
 
     act(() => useReactStore.getState().selectCanvasPreset('canvas-clean-playback'))
-    expect(labels()).not.toContain('CANVAS React Controls')
-    expect(labels()).toContain('Source + Reactivity')
-    expect(labels()).not.toContain('Motion + Particles')
+    snapshot = renderSnapshot(<CanvasEngineFxPanel />)
+    expect(groupLabelsIn(snapshot.host)).not.toContain('CANVAS React Controls')
+    expect(groupLabelsIn(snapshot.host)).toContain('Source + Reactivity')
+    expect(groupLabelsIn(snapshot.host)).not.toContain('Motion + Particles')
+    expect(groupLabelsIn(snapshot.host)).not.toContain('Particles')
+    snapshot.unmount()
   })
 
   it('exposes the production Laser Image FX control contract when selected', () => {
@@ -330,6 +378,17 @@ describe('CANVAS right-panel control contract', () => {
       'Laserize',
       'Dry Source Mix',
     ]))
+
+    // Laser Image FX has its own animation controls (Speed, Warp Amount,
+    // Perspective, BPM Sync, …) and must not inherit the generic Motion or
+    // Particle Aura controls just because they exist in shared Canvas state.
+    const laserHost = document.createElement('div')
+    document.body.appendChild(laserHost)
+    const laserRoot = createRoot(laserHost)
+    act(() => laserRoot.render(<><CanvasPresetMotionControls /><CanvasPresetParticleControls /></>))
+    expect(laserHost.textContent).toBe('')
+    act(() => laserRoot.unmount())
+    laserHost.remove()
   })
 
   it('passes the canonical active Brand Kit into the real Fractures render path', () => {
@@ -390,8 +449,9 @@ describe('CANVAS right-panel control contract', () => {
     }
   })
 
-  it('exposes Particle Quality with the other particle controls', () => {
-    const particleGroup = CANVAS_REACT_CONTROL_GROUPS.find(group => group.title === 'Motion + Particles')
+  it('exposes Particle Quality with the other particle controls, and keeps Motion separate', () => {
+    const particleGroup = CANVAS_REACT_CONTROL_GROUPS.find(group => group.title === 'Particles')
+    const motionGroup = CANVAS_REACT_CONTROL_GROUPS.find(group => group.title === 'Motion')
 
     expect(particleGroup?.controls).toEqual(expect.arrayContaining([
       'particleDensity',
@@ -399,48 +459,44 @@ describe('CANVAS right-panel control contract', () => {
       'particleColorMode',
       'particleQuality',
     ]))
+    expect(particleGroup?.controls).not.toContain('motionAmount')
+    expect(motionGroup?.controls).toEqual(['motionAmount', 'turbulence'])
+    expect(CANVAS_REACT_CONTROL_GROUPS.some(group => group.title === 'Motion + Particles')).toBe(false)
   })
 
   it('filters renderer-specific unconsumed controls while preserving supported conditional controls and saved values', () => {
     useReactStore.getState().selectCanvasPreset('canvas-clean-playback')
     useReactStore.getState().setCanvasPresetSettings({ particleQuality: 'low' })
-    act(() => root.render(<CanvasEngineFxPanel />))
-
-    const groupLabels = () => [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
-      .map(collapsibleLabelText)
-    const controlLabels = () => [...host.querySelectorAll<HTMLElement>('.rv-canvas-react-control-help .rv-ctrl-label')]
-      .map(node => node.textContent?.trim())
 
     // Design (CanvasEngineFxPanel): Clean Playback shows Source + Reactivity only.
     // FX now lives in the React tab; Clean Playback does not support Motion or
-    // Particle controls at all, so that group is absent rather than empty/disabled.
-    expect(groupLabels()).toEqual(expect.arrayContaining(['Source + Reactivity']))
-    expect(groupLabels()).not.toContain('FX')
-    expect(groupLabels()).not.toContain('Motion + Particles')
-    expect(controlLabels()).toEqual(expect.arrayContaining([
+    // Particle controls at all, so those groups are absent rather than
+    // empty/disabled.
+    let snapshot = renderSnapshot(<CanvasEngineFxPanel />)
+    expect(groupLabelsIn(snapshot.host)).toEqual(expect.arrayContaining(['Source + Reactivity']))
+    expect(groupLabelsIn(snapshot.host)).not.toContain('FX')
+    expect(groupLabelsIn(snapshot.host)).not.toContain('Motion + Particles')
+    const cleanPlaybackControls = controlLabelsIn(snapshot.host)
+    expect(cleanPlaybackControls).toEqual(expect.arrayContaining([
       'Dry Source Mix',
       'Visual Intensity',
       'Bass Reactivity',
       'Beat Pulse',
     ]))
-    expect(controlLabels()).not.toContain('Glow Amount')
-    expect(controlLabels()).not.toContain('Trail Amount')
-    expect(controlLabels()).not.toContain('RGB Split')
-    expect(controlLabels()).not.toContain('Glitch Amount')
-    expect(controlLabels()).not.toContain('Stutter Rate')
-    expect(controlLabels()).not.toContain('Luma Threshold')
-    expect(controlLabels()).not.toContain('Motion Amount')
-    expect(controlLabels()).not.toContain('Turbulence')
-    expect(controlLabels()).not.toContain('Particle Density')
-    expect(controlLabels()).not.toContain('Particle Size')
-    expect(controlLabels()).not.toContain('Particle Color Mode')
-    expect(controlLabels()).not.toContain('Particle Quality')
+    for (const label of [
+      'Glow Amount', 'Trail Amount', 'RGB Split', 'Glitch Amount', 'Stutter Rate', 'Luma Threshold',
+      'Motion Amount', 'Turbulence',
+      'Particle Density', 'Particle Size', 'Particle Color Mode', 'Particle Quality',
+    ]) {
+      expect(cleanPlaybackControls).not.toContain(label)
+    }
     expect(useReactStore.getState().canvasPresetSettings.particleQuality).toBe('low')
+    snapshot.unmount()
 
     // React (CanvasPresetFxControls): Clean Playback's FX controls live here instead.
-    act(() => root.render(<CanvasPresetFxControls />))
-    expect(groupLabels()).toContain('Preset FX')
-    expect(controlLabels()).toEqual(expect.arrayContaining([
+    snapshot = renderSnapshot(<CanvasPresetFxControls />)
+    expect(groupLabelsIn(snapshot.host)).toContain('Preset FX')
+    expect(controlLabelsIn(snapshot.host)).toEqual(expect.arrayContaining([
       'Glow Amount',
       'Trail Amount',
       'RGB Split',
@@ -448,28 +504,45 @@ describe('CANVAS right-panel control contract', () => {
       'Stutter Rate',
       'Luma Threshold',
     ]))
-    expect(controlLabels()).not.toContain('Motion Amount')
-    expect(controlLabels()).not.toContain('Particle Density')
+    expect(controlLabelsIn(snapshot.host)).not.toContain('Motion Amount')
+    expect(controlLabelsIn(snapshot.host)).not.toContain('Particle Density')
+    snapshot.unmount()
 
+    // React (CanvasPresetMotionControls / CanvasPresetParticleControls): Particle
+    // Aura is the only preset that supports Motion and Particles, and they now
+    // resolve as independent sections rather than one combined group.
     act(() => useReactStore.getState().selectCanvasPreset('canvas-particle-aura'))
-    act(() => root.render(<CanvasEngineFxPanel />))
-    const particleMotionGroup = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
-      .find(button => collapsibleLabelText(button) === 'Motion + Particles')
-    expect(particleMotionGroup).toBeDefined()
-    if (particleMotionGroup?.getAttribute('aria-expanded') !== 'true') act(() => particleMotionGroup?.click())
-    expect(controlLabels()).toEqual(expect.arrayContaining([
+    snapshot = renderSnapshot(<><CanvasPresetMotionControls /><CanvasPresetParticleControls /></>)
+    expect(groupLabelsIn(snapshot.host)).not.toContain('Motion + Particles')
+    expect(groupLabelsIn(snapshot.host)).toContain('Motion')
+    expect(groupLabelsIn(snapshot.host)).toContain('Particles')
+    expect(controlLabelsIn(snapshot.host)).toEqual(expect.arrayContaining([
+      'Motion Amount',
+      'Turbulence',
       'Particle Density',
       'Particle Size',
       'Particle Color Mode',
       'Particle Quality',
     ]))
+    snapshot.unmount()
+
+    // Design (CanvasEngineFxPanel) never shows Motion or Particles, even for
+    // Particle Aura — those sections are React-tab only.
+    snapshot = renderSnapshot(<CanvasEngineFxPanel />)
+    expect(groupLabelsIn(snapshot.host)).not.toContain('Motion')
+    expect(groupLabelsIn(snapshot.host)).not.toContain('Particles')
+    expect(controlLabelsIn(snapshot.host)).not.toContain('Particle Size')
+    snapshot.unmount()
 
     act(() => useReactStore.getState().selectCanvasPreset('canvas-clean-playback'))
-    act(() => root.render(<CanvasEngineFxPanel />))
-    expect(groupLabels()).not.toContain('Motion + Particles')
-    expect(controlLabels()).not.toContain('Particle Size')
-    expect(controlLabels()).not.toContain('Particle Color Mode')
-    expect(controlLabels()).not.toContain('Particle Quality')
+    snapshot = renderSnapshot(<><CanvasPresetMotionControls /><CanvasPresetParticleControls /></>)
+    expect(groupLabelsIn(snapshot.host)).not.toContain('Motion + Particles')
+    expect(groupLabelsIn(snapshot.host)).not.toContain('Motion')
+    expect(groupLabelsIn(snapshot.host)).not.toContain('Particles')
+    for (const label of ['Motion Amount', 'Turbulence', 'Particle Density', 'Particle Size', 'Particle Color Mode', 'Particle Quality']) {
+      expect(controlLabelsIn(snapshot.host)).not.toContain(label)
+    }
+    snapshot.unmount()
   })
 
   it('never renders Motion or Particle controls for Clean Playback, in Design or React', () => {
@@ -478,6 +551,8 @@ describe('CANVAS right-panel control contract', () => {
       <>
         <CanvasEngineFxPanel />
         <CanvasPresetFxControls />
+        <CanvasPresetMotionControls />
+        <CanvasPresetParticleControls />
       </>,
     ))
 
@@ -487,8 +562,43 @@ describe('CANVAS right-panel control contract', () => {
       .map(node => node.textContent?.trim())
 
     expect(groupLabels).not.toContain('Motion + Particles')
+    expect(groupLabels).not.toContain('Motion')
+    expect(groupLabels).not.toContain('Particles')
     for (const label of ['Motion Amount', 'Turbulence', 'Particle Density', 'Particle Size', 'Particle Color Mode', 'Particle Quality']) {
       expect(controlLabels).not.toContain(label)
+    }
+  })
+
+  it('shows Motion and Particles as independent React sections for Particle Aura, and clears them on every other preset', () => {
+    const presetSequence: CanvasPresetId[] = [
+      'canvas-clean-playback',
+      'canvas-particle-aura',
+      'canvas-fractures',
+      'canvas-laser-image-fx',
+      'canvas-clean-playback',
+    ]
+
+    for (const presetId of presetSequence) {
+      act(() => useReactStore.getState().selectCanvasPreset(presetId))
+      act(() => root.render(<><CanvasPresetMotionControls /><CanvasPresetParticleControls /></>))
+
+      const groupLabels = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
+        .map(collapsibleLabelText)
+      const controlLabels = [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
+        .map(node => node.textContent?.trim())
+
+      if (presetId === 'canvas-particle-aura') {
+        expect(groupLabels).toEqual(['Motion', 'Particles'])
+        expect(controlLabels).toEqual(expect.arrayContaining([
+          'Motion Amount', 'Turbulence', 'Particle Density', 'Particle Size', 'Particle Color Mode', 'Particle Quality',
+        ]))
+      } else {
+        // No stale Motion or Particle controls survive a preset switch away
+        // from Particle Aura — the sections are absent entirely, not merely
+        // empty or disabled.
+        expect(groupLabels).toEqual([])
+        expect(controlLabels).toEqual([])
+      }
     }
   })
 
@@ -534,6 +644,9 @@ describe('CANVAS right-panel control contract', () => {
     expect(timingIndex).toBeGreaterThan(sourceReactivityIndex)
     expect(labels).not.toContain('CANVAS React Controls')
     expect(labels).not.toContain('FX')
+    expect(labels).not.toContain('Motion + Particles')
+    expect(labels).not.toContain('Motion')
+    expect(labels).not.toContain('Particles')
   })
 
   it('shows the Fractures-only groups, canonical controls, and help ownership only when selected', () => {
@@ -550,6 +663,18 @@ describe('CANVAS right-panel control contract', () => {
       'Audio',
     ]))
     expect(labels).not.toContain('CANVAS React Controls')
+
+    // Fractures' own "Motion" subgroup (its dedicated transition/refracture
+    // controls) is not the generic Canvas Motion section — the generic
+    // Motion and Particles React components render nothing for Fractures,
+    // since Fractures declares no generic controls at all.
+    const fracturesHost = document.createElement('div')
+    document.body.appendChild(fracturesHost)
+    const fracturesRoot = createRoot(fracturesHost)
+    act(() => fracturesRoot.render(<><CanvasPresetMotionControls /><CanvasPresetParticleControls /></>))
+    expect(fracturesHost.textContent).toBe('')
+    act(() => fracturesRoot.unmount())
+    fracturesHost.remove()
 
     const effectsGroup = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
       .find(button => collapsibleLabelText(button) === 'Effects')
@@ -608,6 +733,9 @@ describe('CANVAS right-panel control contract', () => {
     expect(standardLabels).not.toContain('CANVAS React Controls')
     expect(standardLabels).toContain('Source + Reactivity')
     expect(standardLabels).not.toContain('Fractures Controls')
+    expect(standardLabels).not.toContain('Motion + Particles')
+    expect(standardLabels).not.toContain('Motion')
+    expect(standardLabels).not.toContain('Particles')
   })
 
   it('wires Fractures manual commands into persisted canonical state', () => {
@@ -733,12 +861,15 @@ describe('CANVAS right-panel control contract', () => {
       'react.canvas.reactControls.fx.lumaThreshold',
     ]))
 
+    // React tab (CanvasPresetMotionControls / CanvasPresetParticleControls):
+    // Particle Aura's Motion and Particles help triggers live here, as two
+    // independent sections rather than one combined "Motion + Particles" group.
     act(() => useReactStore.getState().selectCanvasPreset('canvas-particle-aura'))
-    act(() => root.render(<CanvasEngineFxPanel />))
-    const motionGroup = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
-      .find(button => collapsibleLabelText(button)?.includes('Motion + Particles'))
-    expect(motionGroup).toBeDefined()
-    act(() => motionGroup?.click())
+    act(() => root.render(<><CanvasPresetMotionControls /><CanvasPresetParticleControls /></>))
+    const groupLabels = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
+      .map(collapsibleLabelText)
+    expect(groupLabels).toEqual(expect.arrayContaining(['Motion', 'Particles']))
+    expect(groupLabels).not.toContain('Motion + Particles')
 
     expect(helpIds()).toEqual(expect.arrayContaining([
       'react.canvas.reactControls.motionAndParticles.motionAmount',

@@ -2955,6 +2955,11 @@ const CANVAS_PRESET_CONTROL_META: Record<CanvasPresetSliderControlKey, {
   },
 }
 
+// "Motion + Particles" no longer exists as a combined group: Motion (generic
+// motionAmount/turbulence) and Particles (Particle Aura's own controls) are
+// independent capabilities with different applicability, so they resolve and
+// render as separate sections. In practice only Particle Aura currently
+// declares both — see CANVAS_PARTICLE_AURA_RUNTIME_CONTROLS in ReactTypes.ts.
 export const CANVAS_REACT_CONTROL_GROUPS: Array<{
   title: string
   controls: CanvasPresetControlKey[]
@@ -2968,8 +2973,12 @@ export const CANVAS_REACT_CONTROL_GROUPS: Array<{
     controls: ['glow', 'trailAmount', 'rgbSplit', 'glitchAmount', 'stutterRate', 'lumaThreshold'],
   },
   {
-    title: 'Motion + Particles',
-    controls: ['motionAmount', 'turbulence', 'particleDensity', 'particleSize', 'particleColorMode', 'particleQuality'],
+    title: 'Motion',
+    controls: ['motionAmount', 'turbulence'],
+  },
+  {
+    title: 'Particles',
+    controls: ['particleDensity', 'particleSize', 'particleColorMode', 'particleQuality'],
   },
 ]
 
@@ -4169,10 +4178,11 @@ function renderCanvasPresetControl(
 }
 
 // Design tab: what the recipe looks like. Holds the recipe status/reset row
-// and the Source + Reactivity / Motion + Particles groups as their own
-// top-level sections — no more single "CANVAS React Controls" group mixing
-// source, FX, motion, and particle parameters together. FX controls (the
-// group titled "FX") live in the React tab instead — see CanvasPresetFxControls.
+// and the Source + Reactivity group only — no more single "CANVAS React
+// Controls" group mixing source, FX, motion, and particle parameters
+// together. FX, Motion, and Particles each live in the React tab instead —
+// see CanvasPresetFxControls / CanvasPresetMotionControls /
+// CanvasPresetParticleControls below.
 function CanvasPresetControls() {
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const canvasPresetSettings = useReactStore(s => s.canvasPresetSettings)
@@ -4181,13 +4191,10 @@ function CanvasPresetControls() {
   const resetCanvasPresetSettings = useReactStore(s => s.resetCanvasPresetSettings)
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
   const designControlGroups = useMemo(
-    () => resolveCanvasPresetControlGroups(selectedPreset).filter(group => group.title !== 'FX'),
+    () => resolveCanvasPresetControlGroups(selectedPreset).filter(group => group.title === 'Source + Reactivity'),
     [selectedPreset],
   )
 
-  const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
-  const mediaItems = useCanvasRuntimeMediaItems()
-  const activeItem = useMemo(() => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null, [activeCanvasMediaId, mediaItems])
   const customized = canvasPresetOverride?.source === 'manual' && canvasPresetOverride.label === 'User-adjusted preset'
 
   if (isCanvasLegacyEffectPresetId(selectedCanvasPresetId)) return null
@@ -4230,13 +4237,8 @@ function CanvasPresetControls() {
         </div>
         {customized && <span className="rv-ctrl-description">Customized recipe active.</span>}
       </div>
-      {canvasPresetSettings.particleDensity > 0.02 && !activeItem && (
-        <NoticeCard tone="warning" role="status" title="Active media required">
-          Particles need an active CANVAS library media item before they can sample pixels and emit from the source.
-        </NoticeCard>
-      )}
       {designControlGroups.map(group => (
-        <Collapsible key={group.title} label={group.title} defaultOpen={group.title !== 'Motion + Particles'}>
+        <Collapsible key={group.title} label={group.title} defaultOpen>
           {group.controls.map(control => renderCanvasPresetControl(control, canvasPresetSettings, setCanvasPresetSettings))}
         </Collapsible>
       ))}
@@ -4249,28 +4251,62 @@ function CanvasPresetControls() {
   )
 }
 
-// React tab: what the recipe does to the image. The generic Preset FX group
-// (Glow, Trail Amount, RGB Split, Glitch Amount, Stutter Rate, Luma Threshold)
-// used to live under Design's mixed "CANVAS React Controls" group; it now
-// lives here alongside Add Effects, and only renders when the active preset
-// actually supports FX (Fractures and Laser Image FX do not).
-export function CanvasPresetFxControls() {
+// React tab: what the recipe does to the image/over time. Each of FX, Motion,
+// and Particles is its own independent section resolved from the active
+// preset's declared capabilities (see canvasPresetSupportsControl) — a
+// section simply does not render when the preset does not declare any of its
+// controls, rather than rendering disabled or defaulted-to-zero controls.
+// "Motion + Particles" no longer exists as a combined concept: Particle Aura
+// is currently the only preset that declares both families, but they resolve
+// independently so a future preset could support one without the other.
+function CanvasPresetControlGroupSection({ title, label = title }: { title: string; label?: string }) {
   const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const canvasPresetSettings = useReactStore(s => s.canvasPresetSettings)
   const setCanvasPresetSettings = useReactStore(s => s.setCanvasPresetSettings)
+  const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
+  const mediaItems = useCanvasRuntimeMediaItems()
+  const activeItem = useMemo(() => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null, [activeCanvasMediaId, mediaItems])
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
-  const fxGroup = useMemo(
-    () => resolveCanvasPresetControlGroups(selectedPreset).find(group => group.title === 'FX') ?? null,
-    [selectedPreset],
+  const group = useMemo(
+    () => resolveCanvasPresetControlGroups(selectedPreset).find(candidate => candidate.title === title) ?? null,
+    [selectedPreset, title],
   )
 
-  if (isCanvasLegacyEffectPresetId(selectedCanvasPresetId) || !fxGroup) return null
+  if (isCanvasLegacyEffectPresetId(selectedCanvasPresetId) || !group) return null
 
   return (
-    <Collapsible label="Preset FX" defaultOpen>
-      {fxGroup.controls.map(control => renderCanvasPresetControl(control, canvasPresetSettings, setCanvasPresetSettings))}
+    <Collapsible label={label} defaultOpen>
+      {title === 'Particles' && canvasPresetSettings.particleDensity > 0.02 && !activeItem && (
+        <NoticeCard tone="warning" role="status" title="Active media required">
+          Particles need an active CANVAS library media item before they can sample pixels and emit from the source.
+        </NoticeCard>
+      )}
+      {group.controls.map(control => renderCanvasPresetControl(control, canvasPresetSettings, setCanvasPresetSettings))}
     </Collapsible>
   )
+}
+
+// The generic Preset FX group (Glow, Trail Amount, RGB Split, Glitch Amount,
+// Stutter Rate, Luma Threshold) — renders only when the active preset
+// supports FX (Fractures and Laser Image FX do not). Displayed as "Preset FX"
+// to stay distinct from the "Add Effects" section beside it.
+export function CanvasPresetFxControls() {
+  return <CanvasPresetControlGroupSection title="FX" label="Preset FX" />
+}
+
+// Generic Motion (Motion Amount, Turbulence) — renders only when the active
+// preset genuinely supports these parameters. Clean Playback does not;
+// Fractures and Laser Image FX use their own dedicated motion/animation
+// systems instead of these generic parameters.
+export function CanvasPresetMotionControls() {
+  return <CanvasPresetControlGroupSection title="Motion" />
+}
+
+// Particle Aura's own controls (Particle Density, Particle Size, Particle
+// Color Mode, Particle Quality) — exclusive to Particle Aura. No other
+// preset declares these controls, so this section is absent everywhere else.
+export function CanvasPresetParticleControls() {
+  return <CanvasPresetControlGroupSection title="Particles" />
 }
 
 
