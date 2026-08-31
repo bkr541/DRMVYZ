@@ -9,7 +9,7 @@ import { ReactModulationPanel } from '../ReactModulationPanel'
 import { ReactAudioPanel } from '../ReactAudioPanel'
 import { ReactRecordingPanel } from '../ReactRecordingPanel'
 import { CinemaRenderedDiagnostics } from '../CinemaWorkspace'
-import { CinemaInspectorPanel } from '../CinemaInspectorPanel'
+import { CinemaInspectorPanel, CinemaSelectedLayerSummary } from '../CinemaInspectorPanel'
 import { CinemaComposerStage19Panel } from '../CinemaComposerStage19Panel'
 import type { CinemaWorkspaceFrameBridgeResult } from '../CinemaWorkspaceFrameBridge'
 import { isCinemaBuiltInComposition, useCinemaStore, type CinemaRuntimeSnapshot } from '../../cinema'
@@ -51,7 +51,24 @@ export function ReactDesignWorkspacePanel({ hasSelection }: { hasSelection: bool
   }, [hasSelection])
 
   if (cinemaDesign) {
-    return <div className="rv-workspace-panel"><div className="rv-workspace-panel-body"><div className="rv-inspector rv-inspector-scroll"><CinemaInspectorPanel /></div></div></div>
+    return (
+      <div className="rv-workspace-panel">
+        <PanelSubtabs
+          value={surface}
+          onChange={value => setSurface(value)}
+          ariaLabel="Design surfaces"
+          options={[
+            { id: 'engine', label: 'ENGINE' },
+            { id: 'selection', label: 'SELECTION', disabled: !hasSelection },
+          ]}
+        />
+        <div className="rv-workspace-panel-body">
+          <div className="rv-inspector rv-inspector-scroll">
+            {surface === 'selection' && hasSelection ? <CinemaSelectedLayerSummary /> : <CinemaInspectorPanel />}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (pixGridDesign) {

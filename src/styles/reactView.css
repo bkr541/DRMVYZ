@@ -16646,14 +16646,11 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
    Wireless Displays (OS-picker rows with explanatory copy), Local Displays,
    and DRMVYZ Receivers — the latter two as square tiles. */
 
+/* Degrouped — no background/border box, just a plain flex row. */
 .llcm-rail-bar {
   display: flex;
   align-items: stretch;
   gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid rgba(154, 178, 188, 0.16);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.02);
   flex-wrap: wrap;
 }
 .llcm-rail-section { display: flex; flex-direction: column; gap: 6px; }
@@ -16758,10 +16755,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 /* Window mode, then Aspect Ratio + resolution, then everything else
    (fps/bitrate/latency) each get their own row instead of one long
    bullet-joined line — window/aspect ratio/other are shown as separate
-   rows on purpose so a glance answers "what mode/shape/health". 24px
-   between name and pill per request; the name's larger size (up from 10px)
-   is what actually makes the pill read as vertically centered against it. */
-.llcm-cast-session-name-row { display: flex; align-items: center; gap: 24px; }
+   rows on purpose so a glance answers "what mode/shape/health". The name's
+   larger size (up from 10px) is what actually makes the pill read as
+   vertically centered against it. */
+.llcm-cast-session-name-row { display: flex; align-items: center; gap: 12px; }
 .llcm-cast-session strong { color: rgba(232, 244, 248, 0.92); font: 700 13px/1.3 var(--az-font, Inter, system-ui, sans-serif); }
 .llcm-cast-session small { color: rgba(196, 207, 211, 0.5); font: 600 9.5px/1.3 var(--az-font-data, Inter, system-ui, sans-serif); }
 /* Field name to the left of its value (e.g. "WINDOW  Full Screen") — dim
@@ -16773,13 +16770,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
-/* Show/Hide Error toggle — replaces the old bare error text row. Clicking
-   it expands the record to reveal the real NoticeCard component (reused,
-   not a bespoke error box) with the same slide-down entrance the Google
-   Cast setup notice uses. */
+/* Show/Hide Error toggle — replaces the old bare error text row. Sits as
+   its own row-level flex item (like the status pill used to) so it floats
+   vertically centered in the middle of the record, between the info column
+   and the Stop button, rather than stacked under Aspect Ratio. Clicking it
+   expands the record to reveal the real NoticeCard component (reused, not
+   a bespoke error box) with the same slide-down entrance the Google Cast
+   setup notice uses. */
 .llcm-cast-session-error-toggle {
-  align-self: flex-start;
-  margin-top: 1px;
+  flex-shrink: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -16787,6 +16786,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   font: 700 9px/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
   text-decoration: underline;
   text-underline-offset: 2px;
+  white-space: nowrap;
   cursor: pointer;
 }
 .llcm-cast-session-error-toggle:hover { color: #ffa8b0; }

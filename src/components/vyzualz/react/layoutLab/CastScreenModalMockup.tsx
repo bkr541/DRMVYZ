@@ -256,19 +256,6 @@ function AvailableDevicesIcon() {
     </svg>
   )
 }
-// Three slider tracks with knobs — labels the Mode/Window/Aspect Ratio
-// group as one "Output Settings" block, distinct from the Cast Output
-// panel icon above it and the device icons below it.
-function OutputSettingsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M3 6h18M3 12h18M3 18h18" />
-      <circle cx="9" cy="6" r="2" />
-      <circle cx="15" cy="12" r="2" />
-      <circle cx="7" cy="18" r="2" />
-    </svg>
-  )
-}
 // Activity/pulse line — labels the Current Devices status log, distinct
 // from Available Devices' circle-and-people glyph.
 function CurrentDevicesIcon() {
@@ -349,49 +336,43 @@ function IconRailBarModal() {
         <HeaderActions />
       </header>
 
-      <div className="llcm-rail-section">
-        {/* A parent label ties Mode/Window/Aspect Ratio together as one
-            "Output Settings" block — without it the three groups had
-            nothing framing them as a set, and blended into the panel. */}
-        <span className="llcm-rail-section-hdr llcm-devices-heading-title">
-          <OutputSettingsIcon />
-          <span>Output Settings</span>
-        </span>
-        <div className="llcm-rail-bar">
-          <div className="llcm-rail-section">
-            <span className="llcm-rail-section-hdr">Mode</span>
-            <div className="llcm-rail-group">
-              {(['visualizer', 'app'] as const).map(id => (
-                <button key={id} type="button" className={scope === id ? 'is-selected' : ''} title={id === 'visualizer' ? 'Visualizer Only' : 'Whole App'} onClick={() => setScope(id)}>
-                  <ScopeIcon scope={id} />
-                  <span className="llcm-rail-option-label">{id === 'visualizer' ? 'Visualizer' : 'App'}</span>
-                </button>
-              ))}
-            </div>
+      {/* Degrouped — no enclosing background/border box and no parent
+          "Output Settings" label; Mode/Window/Aspect Ratio sit directly in
+          one plain row. */}
+      <div className="llcm-rail-bar">
+        <div className="llcm-rail-section">
+          <span className="llcm-rail-section-hdr">Mode</span>
+          <div className="llcm-rail-group">
+            {(['visualizer', 'app'] as const).map(id => (
+              <button key={id} type="button" className={scope === id ? 'is-selected' : ''} title={id === 'visualizer' ? 'Visualizer Only' : 'Whole App'} onClick={() => setScope(id)}>
+                <ScopeIcon scope={id} />
+                <span className="llcm-rail-option-label">{id === 'visualizer' ? 'Visualizer' : 'App'}</span>
+              </button>
+            ))}
           </div>
-          <span className="llcm-rail-divider" aria-hidden="true" />
-          <div className="llcm-rail-section">
-            <span className="llcm-rail-section-hdr">Window</span>
-            <div className="llcm-rail-group">
-              {WINDOW_OPTIONS.map(option => (
-                <button key={option.id} type="button" className={windowMode === option.id ? 'is-selected' : ''} title={option.label} onClick={() => setWindowMode(option.id)}>
-                  <WindowModeIcon mode={option.id} />
-                  <span className="llcm-rail-option-label">{option.oneWord}</span>
-                </button>
-              ))}
-            </div>
+        </div>
+        <span className="llcm-rail-divider" aria-hidden="true" />
+        <div className="llcm-rail-section">
+          <span className="llcm-rail-section-hdr">Window</span>
+          <div className="llcm-rail-group">
+            {WINDOW_OPTIONS.map(option => (
+              <button key={option.id} type="button" className={windowMode === option.id ? 'is-selected' : ''} title={option.label} onClick={() => setWindowMode(option.id)}>
+                <WindowModeIcon mode={option.id} />
+                <span className="llcm-rail-option-label">{option.oneWord}</span>
+              </button>
+            ))}
           </div>
-          <span className="llcm-rail-divider" aria-hidden="true" />
-          <div className="llcm-rail-section">
-            <span className="llcm-rail-section-hdr">Aspect Ratio</span>
-            <div className="llcm-rail-group llcm-rail-group--aspect">
-              {ASPECT_OPTIONS.map(option => (
-                <button key={option} type="button" className={aspect === option ? 'is-selected' : ''} title={option} onClick={() => setAspect(option)}>
-                  <AspectRatioIcon ratio={option} />
-                  <span className="llcm-rail-option-label">{option}</span>
-                </button>
-              ))}
-            </div>
+        </div>
+        <span className="llcm-rail-divider" aria-hidden="true" />
+        <div className="llcm-rail-section">
+          <span className="llcm-rail-section-hdr">Aspect Ratio</span>
+          <div className="llcm-rail-group llcm-rail-group--aspect">
+            {ASPECT_OPTIONS.map(option => (
+              <button key={option} type="button" className={aspect === option ? 'is-selected' : ''} title={option} onClick={() => setAspect(option)}>
+                <AspectRatioIcon ratio={option} />
+                <span className="llcm-rail-option-label">{option}</span>
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -444,20 +425,20 @@ function IconRailBarModal() {
             </div>
             <SessionField label="Window">Full Screen</SessionField>
             <SessionField label="Aspect Ratio">16:9</SessionField>
-            <button
-              type="button"
-              className="llcm-cast-session-error-toggle"
-              aria-expanded={errorExpanded}
-              onClick={() => setErrorExpanded(value => !value)}
-            >
-              {errorExpanded ? 'Hide Error' : 'Show Error'}
-            </button>
             {errorExpanded && (
               <NoticeCard tone="error" role="alert" title="Output failed" className="llcm-wireless-notice-drop">
                 The output receiver connection was lost and did not recover.
               </NoticeCard>
             )}
           </div>
+          <button
+            type="button"
+            className="llcm-cast-session-error-toggle"
+            aria-expanded={errorExpanded}
+            onClick={() => setErrorExpanded(value => !value)}
+          >
+            {errorExpanded ? 'Hide Error' : 'Show Error'}
+          </button>
           <button type="button" className="llcm-cast-stop">Stop Output</button>
         </div>
 

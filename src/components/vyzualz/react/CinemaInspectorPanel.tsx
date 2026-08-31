@@ -20,8 +20,9 @@ import {
   type CinemaParameterId,
   type CinemaParameterValue,
 } from '../cinema'
-import { Collapsible, ColorRow, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
+import { Collapsible, ColorRow, CtrlSection, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
+import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import {
   getCinemaLiveInstance,
   resetCinemaLiveOverrides,
@@ -228,6 +229,101 @@ export function CinemaInspectorPanel() {
   )
 }
 
+/** Cinema's SELECTION tab — mirrors the canvas engine's SELECTION tab shape
+ * exactly (an Engine Summary rv-ctrl-group, then a read-only rv-ctrl-group
+ * of KvRow-style pairs for the selected object) instead of the editable
+ * Collapsible/SchemaControl form CinemaInspectorPanel uses for the same
+ * layer under ENGINE. Re-derives the same selected-node/descriptor data
+ * CinemaInspectorPanel computes rather than sharing state with it, so
+ * editing on the ENGINE tab can't be disturbed by this read-only view. */
+export function CinemaSelectedLayerSummary() {
+  const state = useCinemaStore(useShallow(store => ({
+    activeCompositionId: store.activeCompositionId,
+    compositions: store.compositions,
+    definitions: store.definitions,
+    instances: store.instances,
+    editorMetadata: store.editorMetadata,
+  })))
+  const mediaItems = useMediaStore(store => store.items)
+  const mediaAssets = useMemo(() => createCinemaMediaLibrarySnapshot(mediaItems), [mediaItems])
+  const assetOptions = useMemo(
+    () => mediaAssets.filter(asset => !asset.deleted).map(asset => ({ id: String(asset.assetId), label: asset.name })),
+    [mediaAssets],
+  )
+  const composition = state.compositions.find(candidate => candidate.id === state.activeCompositionId) ?? null
+
+  const engineSummary = (
+    <div className="rv-ctrl-group">
+      <CtrlSection label="Engine Summary" />
+      <InspectorKv label="Engine" value={REACT_ENGINE_CATALOG.cinema.label} />
+      <InspectorKv label="Active Preset" value={composition?.metadata.name ?? 'None'} />
+    </div>
+  )
+
+  if (!composition) {
+    return (
+      <>
+        {engineSummary}
+        <div className="rv-ctrl-group">
+          <div className="rv-ctrl-info">Select a Cinema preset to inspect its layers.</div>
+        </div>
+      </>
+    )
+  }
+
+  const selectedNodeId = getCinemaEditorSelection(state.editorMetadata, composition.id)
+  const selectedNode = composition.nodes.find(node => node.id === selectedNodeId) ?? null
+  const liveInstance = getCinemaLiveInstance(composition.id, state.instances)
+  const persistedDefinition = selectedNode
+    ? state.definitions.find(definition => definition.id === selectedNode.typeId) ?? null
+    : null
+  const selectedBinding = selectedNode?.assetBindingIds?.[0]
+    ? composition.assetBindings.find(binding => binding.id === selectedNode.assetBindingIds?.[0]) ?? null
+    : null
+  const assetName = selectedBinding
+    ? assetOptions.find(option => option.id === selectedBinding.assetId)?.label ?? 'Unknown asset'
+    : 'No asset'
+
+  const supportedNodeSchemas = !persistedDefinition || !selectedNode
+    ? []
+    : persistedDefinition.definition.metadata?.adapter === 'CinematicWorldNodeAdapter'
+      ? getCinemaCinematicWorldSupportedParameterSchemasForNode(persistedDefinition.definition, selectedNode)
+      : getCinemaSupportedParameterSchemas(persistedDefinition.definition)
+  const nodeDescriptors = selectedNode && persistedDefinition
+    ? createCinemaControlDescriptors({
+        namespace: selectedNode.family === 'effect' ? 'effects' : 'nodes',
+        ownerId: selectedNode.id,
+        schemas: supportedNodeSchemas,
+        values: {
+          ...selectedNode.parameterValues,
+          ...(liveInstance?.nodeOverrides.find(override => override.nodeId === selectedNode.id)?.values ?? {}),
+        },
+      }).descriptors
+    : []
+
+  return (
+    <>
+      {engineSummary}
+      <div className="rv-ctrl-group">
+        <CtrlSection label={selectedNode?.family === 'effect' ? 'Cinema Effect' : 'Cinema Layer'} />
+        {!selectedNode || !persistedDefinition ? (
+          <div className="rv-ctrl-info">Select a layer or effect in Layers to inspect it.</div>
+        ) : (
+          <>
+            <InspectorKv label="Stable ID" value={String(selectedNode.id)} />
+            <InspectorKv label="Type" value={persistedDefinition.definition.label} />
+            <InspectorKv label="Asset source" value={assetName} />
+            {nodeDescriptors.map(descriptor => (
+              <InspectorKv key={descriptor.path} label={descriptor.label} value={formatCinemaDescriptorValue(descriptor, assetOptions)} />
+            ))}
+            {nodeDescriptors.length === 0 && <div className="rv-ctrl-info">This layer has no additional appearance controls.</div>}
+          </>
+        )}
+      </div>
+    </>
+  )
+}
+
 function CinemaEffectBrowser() {
   const [query, setQuery] = useState('')
   const definitions = useCinemaStore(store => store.definitions)
@@ -322,5 +418,29 @@ function numberValue(value: CinemaParameterValue): number { return typeof value 
 function numberBound(value: number | readonly number[] | undefined, fallback?: number): number | undefined { return typeof value === 'number' ? value : fallback }
 function vectorBound(value: number | readonly number[] | undefined, index: number, fallback?: number): number | undefined { return Array.isArray(value) ? Number(value[index] ?? fallback) : typeof value === 'number' ? value : fallback }
 function isAssetReference(value: CinemaParameterValue): value is CinemaAssetReference { return value != null && typeof value === 'object' && !Array.isArray(value) && 'assetId' in value }
+// Read-only counterpart to SchemaControl for CinemaSelectedLayerSummary — a
+// display string per descriptor type instead of an editable input.
+function formatCinemaDescriptorValue(descriptor: CinemaControlDescriptor, assetOptions: readonly { id: string; label: string }[]): string {
+  const value = descriptor.value
+  if (descriptor.type === 'float') return numberValue(value).toFixed(2)
+  if (descriptor.type === 'integer') return `${numberValue(value)}${descriptor.unit ? ` ${descriptor.unit}` : ''}`
+  if (descriptor.type === 'boolean') return value ? 'Yes' : 'No'
+  if (descriptor.type === 'enum') {
+    const option = descriptor.options?.find(candidate => candidate.id === value)
+    return option?.label ?? String(value ?? '—')
+  }
+  if (descriptor.type === 'string') return String(value ?? '') || '—'
+  if (descriptor.type === 'color') return rgbaToHex(Array.isArray(value) ? value : [1, 1, 1, 1])
+  if (descriptor.type === 'vector2' || descriptor.type === 'vector3') {
+    const values = Array.isArray(value) ? value as number[] : descriptor.type === 'vector2' ? [0, 0] : [0, 0, 0]
+    return values.map(component => Number(component).toFixed(2)).join(', ')
+  }
+  if (descriptor.type === 'asset' || descriptor.type === 'asset-reference' || descriptor.type === 'texture') {
+    const reference = isAssetReference(value) ? value : null
+    const asset = reference ? assetOptions.find(option => option.id === reference.assetId) : null
+    return asset?.label ?? 'No asset'
+  }
+  return '—'
+}
 function rgbaToHex(value: readonly unknown[]): string { return `#${[0, 1, 2].map(index => Math.round(Math.max(0, Math.min(1, Number(value[index] ?? 1))) * 255).toString(16).padStart(2, '0')).join('')}` }
 function hexToRgba(value: string, alpha: number): readonly [number, number, number, number] { const clean = value.replace('#', ''); return [parseInt(clean.slice(0, 2), 16) / 255, parseInt(clean.slice(2, 4), 16) / 255, parseInt(clean.slice(4, 6), 16) / 255, alpha] }

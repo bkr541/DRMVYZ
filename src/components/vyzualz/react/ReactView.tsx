@@ -57,6 +57,7 @@ import { createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
 import { buildCinemaWorkspaceFrameBridge } from './CinemaWorkspaceFrameBridge'
 import type { CinemaWorkspaceRuntimeFrameConfig } from './CinemaWorkspaceRuntimeFrameSource'
 import type { CinemaFrameBuilderState, CinemaRuntimeSnapshot } from '../cinema'
+import { getCinemaEditorSelection, useCinemaStore } from '../cinema'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import { isCinemaLegacyEngineId } from '../cinema/CinemaLegacyRetirement'
 import { useCinemaLegacyRetirement } from './useCinemaLegacyRetirement'
@@ -457,6 +458,13 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     [activeReactEngineId, activeReactPresetId, reactPresets],
   )
 
+  const cinemaActiveCompositionId = useCinemaStore(state => state.activeCompositionId)
+  const cinemaEditorMetadata = useCinemaStore(state => state.editorMetadata)
+  const cinemaSelectedNodeId = useMemo(
+    () => cinemaActiveCompositionId ? getCinemaEditorSelection(cinemaEditorMetadata, cinemaActiveCompositionId) : null,
+    [cinemaActiveCompositionId, cinemaEditorMetadata],
+  )
+
   const inspectableSelection = useMemo(
     () =>
       resolveReactInspectorSelection({
@@ -464,10 +472,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
       activeShaderId,
       oscillatorSettings,
       selectedCanvasLayerId,
+      cinemaSelectedNodeId,
         laserDmxWorkspaceMode,
       laserDmxBeamMatrix,
     }),
-    [activeReactEngineId, activeShaderId, oscillatorSettings, selectedCanvasLayerId, laserDmxWorkspaceMode, laserDmxBeamMatrix],
+    [activeReactEngineId, activeShaderId, oscillatorSettings, selectedCanvasLayerId, cinemaSelectedNodeId, laserDmxWorkspaceMode, laserDmxBeamMatrix],
   )
 
   const rightTabs = useMemo<RailTabOption<ReactRightPanel>[]>(
