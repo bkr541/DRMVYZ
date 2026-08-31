@@ -16536,6 +16536,416 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   cursor: pointer;
 }
 
+/* ── Cast Screen Modal Mockup (Layout Lab / Template, middle visualizer) ──── */
+/* Three from-scratch concepts for the real Cast Output popover
+   (OutputCastControl.tsx), stacked in the middle visualizer's otherwise-
+   empty canvas area for the Template engine. Wide, short panels — each
+   uses horizontal space instead of one tall stacked column, and each
+   places its Google Cast configuration notice differently (inline next to
+   the affected tile, a footer bar, or a badge-triggered popover) instead
+   of one shared banner position. Shares the .lldd-gallery-* scaffold. */
+
+.llcm-stage-gallery {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+}
+
+.llcm-gallery {
+  padding: 20px 20px 40px;
+}
+
+.llcm-panel {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(74, 199, 219, 0.2);
+  border-radius: 12px;
+  background: rgba(6, 12, 17, 0.98);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+}
+
+.llcm-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.llcm-hdr-icon { display: flex; width: 16px; height: 16px; color: #67f7ff; flex-shrink: 0; }
+.llcm-hdr-icon svg, .llcm-icon-btn svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.llcm-hdr-icon svg { width: 100%; height: 100%; }
+.llcm-hdr h2 {
+  flex: 1;
+  margin: 0;
+  color: rgba(232, 244, 248, 0.94);
+  font: 800 11px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.04em;
+}
+
+.llcm-hdr-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.llcm-icon-btn {
+  display: flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(154, 178, 188, 0.18);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(196, 207, 211, 0.6);
+  cursor: pointer;
+}
+.llcm-icon-btn svg { width: 12px; height: 12px; }
+.llcm-icon-btn:hover { border-color: rgba(74, 199, 219, 0.4); color: #67f7ff; }
+.llcm-icon-btn--close:hover { border-color: rgba(255, 139, 148, 0.4); color: #ff8b94; }
+
+.llcm-field-label {
+  color: rgba(196, 207, 211, 0.5);
+  font: 800 8px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Shared device action button, reused across all three concepts' tiles/cards/chips */
+.llcm-tile-action, .llcm-device-card-action {
+  flex-shrink: 0;
+  padding: 5px 10px;
+  border: 1px solid rgba(74, 199, 219, 0.35);
+  border-radius: 6px;
+  background: rgba(74, 199, 219, 0.12);
+  color: #67f7ff;
+  font: 800 8px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.llcm-tile-action.is-muted, .llcm-device-card-action.is-muted {
+  border-color: rgba(154, 178, 188, 0.2);
+  background: transparent;
+  color: rgba(196, 207, 211, 0.55);
+}
+
+/* ── Concept 1: Icon Rail Bar ──────────────────────────────────────────── */
+/* Same command-bar-over-grid skeleton as Concept 3, kept fully expanded:
+   larger square icon buttons for Scope/Window, the whole Aspect Ratio row
+   always visible instead of a popover, and wide two-column device tiles
+   (icon beside text) instead of centered cards. */
+
+.llcm-rail-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid rgba(154, 178, 188, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  flex-wrap: wrap;
+}
+.llcm-rail-group { display: flex; gap: 4px; }
+.llcm-rail-group button {
+  display: flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(154, 178, 188, 0.18);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(196, 207, 211, 0.6);
+  cursor: pointer;
+}
+.llcm-rail-group button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.llcm-rail-group button.is-selected { border-color: rgba(74, 199, 219, 0.5); background: rgba(74, 199, 219, 0.14); color: #67f7ff; }
+.llcm-rail-group--aspect button { width: 26px; height: 26px; }
+.llcm-rail-group--aspect svg { width: 15px; height: 15px; fill: rgba(255, 255, 255, 0.08); stroke: currentColor; stroke-width: 1.4; }
+.llcm-rail-divider { width: 1px; height: 24px; background: rgba(154, 178, 188, 0.16); }
+
+.llcm-card-grid--rail { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.llcm-rail-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(154, 178, 188, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.llcm-rail-tile-icon {
+  display: flex;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(74, 199, 219, 0.12);
+  color: #67f7ff;
+}
+.llcm-rail-tile-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.llcm-rail-tile-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.llcm-rail-tile-copy strong { color: rgba(232, 244, 248, 0.9); font: 700 9.5px/1.25 var(--az-font, Inter, system-ui, sans-serif); }
+.llcm-rail-tile-copy small { color: rgba(196, 207, 211, 0.42); font: 600 8px/1.25 var(--az-font-data, Inter, system-ui, sans-serif); }
+
+/* ── Concept 2: Pill Toggle Bar ────────────────────────────────────────── */
+/* Same skeleton a third way — Scope is one sliding two-sided pill, Window
+   is a labeled icon+text pill row, Aspect Ratio collapses into a dropdown
+   whose popover lays every option out in one horizontal strip. Devices sit
+   in a denser four-column grid of small square tiles. */
+
+.llcm-pill-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.llcm-scope-pill {
+  display: flex;
+  padding: 2px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(154, 178, 188, 0.16);
+}
+.llcm-scope-pill button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 18px;
+  background: transparent;
+  color: rgba(196, 207, 211, 0.6);
+  font: 700 8.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  cursor: pointer;
+}
+.llcm-scope-pill button svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.llcm-scope-pill button.is-selected { background: rgba(74, 199, 219, 0.16); color: #67f7ff; }
+
+.llcm-window-pills { display: flex; gap: 4px; }
+.llcm-window-pills button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border: 1px solid rgba(154, 178, 188, 0.18);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(196, 207, 211, 0.6);
+  font: 700 8.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  cursor: pointer;
+}
+.llcm-window-pills button svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.llcm-window-pills button.is-selected { border-color: rgba(74, 199, 219, 0.5); background: rgba(74, 199, 219, 0.14); color: #67f7ff; }
+
+.llcm-aspect-pill-trigger {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border: 1px solid rgba(154, 178, 188, 0.18);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(196, 207, 211, 0.6);
+  font: 700 8.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  cursor: pointer;
+}
+.llcm-aspect-pill-trigger svg:first-child { width: 12px; height: 12px; fill: rgba(255, 255, 255, 0.1); stroke: currentColor; stroke-width: 1.6; }
+.llcm-aspect-pill-trigger svg:last-child { width: 9px; height: 9px; fill: none; stroke: currentColor; stroke-width: 2; }
+
+.llcm-aspect-strip-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid rgba(74, 199, 219, 0.25);
+  border-radius: 10px;
+  background: rgba(6, 12, 17, 0.98);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.5);
+}
+.llcm-aspect-strip-popover button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 34px;
+  padding: 5px 2px;
+  border: 1px solid rgba(154, 178, 188, 0.16);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(196, 207, 211, 0.6);
+  font: 700 6.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  cursor: pointer;
+}
+.llcm-aspect-strip-popover svg { width: 16px; height: 16px; fill: rgba(255, 255, 255, 0.08); stroke: currentColor; stroke-width: 1.4; }
+.llcm-aspect-strip-popover button.is-selected { border-color: rgba(74, 199, 219, 0.5); background: rgba(74, 199, 219, 0.14); color: #67f7ff; }
+
+.llcm-card-grid--4col { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.llcm-device-card--sm { padding: 9px 6px; gap: 3px; }
+.llcm-device-card--sm strong { font-size: 7.8px; }
+.llcm-device-card--sm small { display: none; }
+.llcm-device-card-icon--sm { width: 22px; height: 22px; }
+.llcm-device-card-icon--sm svg { width: 12px; height: 12px; }
+.llcm-device-card--sm .llcm-device-card-action { font-size: 7px; padding: 4px 0; }
+
+/* ── Concept 3: Command Bar + Grid ────────────────────────────────────── */
+
+.llcm-command-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid rgba(154, 178, 188, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.llcm-command-group { display: flex; gap: 3px; }
+.llcm-command-group button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(196, 207, 211, 0.55);
+  font: 700 8px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  cursor: pointer;
+}
+.llcm-command-group button svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.llcm-command-group button.is-selected { border-color: rgba(74, 199, 219, 0.4); background: rgba(74, 199, 219, 0.14); color: #67f7ff; }
+.llcm-command-divider { width: 1px; height: 18px; background: rgba(154, 178, 188, 0.16); }
+
+.llcm-command-aspect { position: relative; }
+.llcm-command-aspect-trigger {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(196, 207, 211, 0.6);
+  font: 700 8.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  cursor: pointer;
+}
+.llcm-command-aspect-trigger svg:first-child { width: 12px; height: 12px; fill: rgba(255, 255, 255, 0.1); stroke: currentColor; stroke-width: 1.6; }
+.llcm-command-aspect-trigger svg:last-child { width: 9px; height: 9px; fill: none; stroke: currentColor; stroke-width: 2; }
+.llcm-command-aspect-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid rgba(74, 199, 219, 0.25);
+  border-radius: 8px;
+  background: rgba(6, 12, 17, 0.98);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.5);
+}
+.llcm-command-aspect-popover button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px;
+  border: 1px solid rgba(154, 178, 188, 0.16);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(196, 207, 211, 0.6);
+  font: 700 8px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  cursor: pointer;
+}
+.llcm-command-aspect-popover svg { width: 15px; height: 15px; fill: rgba(255, 255, 255, 0.08); stroke: currentColor; stroke-width: 1.4; }
+.llcm-command-aspect-popover button.is-selected { border-color: rgba(74, 199, 219, 0.5); background: rgba(74, 199, 219, 0.14); color: #67f7ff; }
+
+.llcm-card-grid--3col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.llcm-device-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border: 1px solid rgba(154, 178, 188, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.llcm-device-card-icon {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(74, 199, 219, 0.14);
+  color: #67f7ff;
+  margin-bottom: 2px;
+}
+.llcm-device-card-icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.llcm-device-card strong { color: rgba(232, 244, 248, 0.9); font: 700 8.5px/1.25 var(--az-font, Inter, system-ui, sans-serif); }
+.llcm-device-card small { color: rgba(196, 207, 211, 0.42); font: 600 7.5px/1.25 var(--az-font-data, Inter, system-ui, sans-serif); }
+.llcm-device-card .llcm-device-card-action { margin-top: 4px; width: 100%; }
+
+/* Icon stays fixed at top, this body centers in whatever space is left
+   between icon and action button, and the button stays pinned to the
+   card's bottom — so a one-line name and a two-line name still leave the
+   button sitting at the same height across a row. */
+.llcm-device-card-body {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+/* Same warning tone as .dv-notice[data-tone="warning"] (#d8b95a) in
+   canonicalControls.css, so this badge reads as the same "warning" color
+   the rest of the app uses instead of an invented orange. */
+.llcm-card-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(216, 185, 90, 0.16);
+  color: #d8b95a;
+  cursor: pointer;
+}
+.llcm-card-badge svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.llcm-card-popover {
+  position: absolute;
+  top: 26px;
+  right: 4px;
+  z-index: 2;
+  width: 168px;
+  padding: 8px;
+  border-left: 2px solid #d8b95a;
+  border-radius: 0 8px 8px 0;
+  background: rgba(16, 24, 28, 0.96);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.5);
+  color: rgba(232, 244, 248, 0.8);
+  font: 600 8px/1.4 var(--az-font-data, Inter, system-ui, sans-serif);
+  text-align: left;
+}
+.llcm-card-popover code { padding: 0 3px; border-radius: 3px; background: rgba(255, 255, 255, 0.06); }
+
 /* ── Media Library Style Gallery (Layout Lab / Template) ──────────────────── */
 /* Cards carry a --llml-tone custom property per media kind (purple SVG,
    cyan video) so one set of rules drives every kind's distinct color. */

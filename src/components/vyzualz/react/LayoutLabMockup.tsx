@@ -10,6 +10,7 @@ import { TabStyleGallery } from './layoutLab/TabStyleGallery'
 import { EngineDropdownStyleGallery } from './layoutLab/EngineDropdownStyleGallery'
 import { NoticeStyleGallery } from './layoutLab/NoticeStyleGallery'
 import { NotificationsModalMockup } from './layoutLab/NotificationsModalMockup'
+import { CastScreenModalMockup } from './layoutLab/CastScreenModalMockup'
 import { MediaLibraryStyleGallery } from './layoutLab/MediaLibraryStyleGallery'
 import { ButtonStyleGallery } from './layoutLab/ButtonStyleGallery'
 import { PaletteGroupStyleGallery } from './layoutLab/PaletteGroupStyleGallery'
@@ -268,6 +269,11 @@ export function LayoutLabMockup() {
             {engineId === 'pixGrid' && <PixGridCanvasMockup state={pixGridState} />}
             {engineId === 'laserDmx' && <LaserDmxCanvasMockup state={laserDmxState} />}
             {engineId === 'canvas' && <CanvasCanvasMockup state={canvasState} />}
+            {engineId === 'template' && (
+              <div className="llcm-stage-gallery">
+                <CastScreenModalMockup />
+              </div>
+            )}
           </div>
 
           {composition && <section className="rv-lower-workspace" data-collapsed={dockCollapsed ? 'true' : undefined}>
