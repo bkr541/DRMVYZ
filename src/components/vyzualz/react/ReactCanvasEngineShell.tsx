@@ -3368,7 +3368,13 @@ const CANVAS_POOL_AUTOMATION_TRANSITION_OPTIONS: Array<{ value: CanvasTransition
 // Same accent palette as the LayerRow canonical component's Layout Lab gallery.
 const CANVAS_LAYER_ROW_TONES = ['#4ac7db', '#67f7ff', '#6b4cff', '#b84fc9', '#d8b95a', '#61d6aa', '#ff6b6b']
 
-function CanvasOrchestrationControls() {
+// Design tab: the authored composition itself — which media occupies which
+// layer, how those layers are locked, and (when the active Performance Show
+// supports it) the static composition template. This used to share one
+// "Performance Orchestration" group with the automation controls below;
+// splitting it keeps Design limited to controls that describe the current
+// composition rather than ones that change it over time.
+function CanvasCompositionControls() {
   const settings = useReactStore(s => s.canvasOrchestrationSettings)
   const setSettings = useReactStore(s => s.setCanvasOrchestrationSettings)
   const setCanvasLayerLock = useReactStore(s => s.setCanvasLayerLock)
@@ -3383,10 +3389,99 @@ function CanvasOrchestrationControls() {
     .filter((item): item is CanvasMediaItem => item !== null)
   const lockedMediaId = settings.mediaLocksByLayer[lockLayerRole] ?? ''
   const selectedShow = getCanvasPerformanceShow(settings.programId)
+
+  return (
+    <Collapsible label="Composition" defaultOpen>
+      <CanvasHelpControl
+        helpId="react.canvas.performanceOrchestration.autoRole"
+        currentValue={settings.autoRoleEnabled ? 'On' : 'Off'}
+        currentValueLabel="Status"
+        currentValueTone={settings.autoRoleEnabled ? 'accent' : 'default'}
+      >
+        <ToggleRow
+          label="Auto Role"
+          value={settings.autoRoleEnabled}
+          onChange={autoRoleEnabled => setSettings({ autoRoleEnabled })}
+          description="Derives conservative roles from type, alpha, duration, aspect, tags, and media-library organization when no explicit role exists."
+        />
+      </CanvasHelpControl>
+      <div className="rv-canvas-orchestration-summary" role="status">
+        <span>{poolItems.length} pooled source{poolItems.length === 1 ? '' : 's'}</span>
+        <span>{selectedShow.label}</span>
+        <span>{selectedShow.supportsCompositionPreference
+          ? (settings.compositionPreference === 'auto' ? 'Section-aware templates' : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label)
+          : 'Fixed Fractures composition'}</span>
+      </div>
+      {selectedShow.supportsCompositionPreference && (
+        <CanvasHelpControl
+          helpId="react.canvas.performanceOrchestration.composition"
+          currentValue={settings.compositionPreference === 'auto'
+            ? 'Auto · Section Aware'
+            : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label ?? settings.compositionPreference}
+          currentValueTone="accent"
+        >
+          <CanvasSelectRow
+            label="Composition"
+            value={settings.compositionPreference}
+            onChange={value => setSettings({ compositionPreference: value as CanvasCompositionPreference })}
+            options={[
+              { value: 'auto', label: 'Auto · Section Aware' },
+              ...CANVAS_COMPOSITION_TEMPLATE_OPTIONS,
+            ]}
+          />
+        </CanvasHelpControl>
+      )}
+      <Collapsible label="Locks" defaultOpen={false}>
+        <ToggleRow
+          label="Media Lock"
+          value={settings.globalLocks.media === true}
+          onChange={locked => setCanvasOrchestrationLock('media', locked)}
+          description="Keeps current deterministic choices while other orchestration continues."
+        />
+        <CanvasSelectRow
+          label="Layer"
+          value={lockLayerRole}
+          onChange={value => setLockLayerRole(value as CanvasLayerRole)}
+          options={CANVAS_LAYER_ROLE_OPTIONS}
+        />
+        <ToggleRow
+          label="Lock Layer State"
+          value={settings.layerLocks[lockLayerRole] === true}
+          onChange={locked => setCanvasLayerLock(lockLayerRole, locked)}
+        />
+        <CanvasSelectRow
+          label="Locked Media"
+          value={lockedMediaId}
+          onChange={value => setCanvasMediaLock(lockLayerRole, value || null)}
+          options={[
+            { value: '', label: 'Deterministic Auto' },
+            ...poolItems.map(item => ({ value: item.id, label: item.name })),
+          ]}
+        />
+      </Collapsible>
+      <IconChipButton className="rv-canvas-restart-btn" onClick={resetCanvasOrchestration}>Reset Authored State</IconChipButton>
+    </Collapsible>
+  )
+}
+
+// React tab: the Shared Performance Core automation that changes the
+// composition over time — whether it's on, what triggers/transitions it
+// uses, which scripted show it runs, and how aggressively it arranges things.
+// None of this describes the current composition; it describes how the
+// composition changes on its own, so it belongs in React alongside Motion,
+// Particles, and FX.
+export function CanvasPerformanceAutomationControls() {
+  const settings = useReactStore(s => s.canvasOrchestrationSettings)
+  const setSettings = useReactStore(s => s.setCanvasOrchestrationSettings)
+  const mediaItems = useCanvasRuntimeMediaItems()
+  const poolItems = settings.mediaPoolIds
+    .map(id => mediaItems.find(item => item.id === id) ?? null)
+    .filter((item): item is CanvasMediaItem => item !== null)
+  const selectedShow = getCanvasPerformanceShow(settings.programId)
   const autoPerformanceActive = settings.enabled && settings.renderMode === 'performance'
 
   return (
-    <Collapsible label="Performance Orchestration" defaultOpen>
+    <Collapsible label="Performance Automation" defaultOpen>
       <CanvasHelpControl
         helpId="react.canvas.performanceOrchestration.autoPerformance"
         currentValue={autoPerformanceActive ? 'On' : 'Off'}
@@ -3430,13 +3525,6 @@ function CanvasOrchestrationControls() {
       {settings.poolAutomationEnabled && !settings.activeMediaPoolId && (
         <NoticeCard tone="warning" role="status" title="No active Media Pool">Activate a Media Pool to start automatic CANVAS rotation.</NoticeCard>
       )}
-      <div className="rv-canvas-orchestration-summary" role="status">
-        <span>{poolItems.length} pooled source{poolItems.length === 1 ? '' : 's'}</span>
-        <span>{selectedShow.label}</span>
-        <span>{selectedShow.supportsCompositionPreference
-          ? (settings.compositionPreference === 'auto' ? 'Section-aware templates' : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label)
-          : 'Fixed Fractures composition'}</span>
-      </div>
       {autoPerformanceActive && poolItems.length === 0 && (
         <NoticeCard tone="warning" role="status" title="Performance pool is empty">Select media in the left SOURCE panel to build the performance pool.</NoticeCard>
       )}
@@ -3453,38 +3541,6 @@ function CanvasOrchestrationControls() {
           description={selectedShow.description}
         />
       </CanvasHelpControl>
-      <CanvasHelpControl
-        helpId="react.canvas.performanceOrchestration.autoRole"
-        currentValue={settings.autoRoleEnabled ? 'On' : 'Off'}
-        currentValueLabel="Status"
-        currentValueTone={settings.autoRoleEnabled ? 'accent' : 'default'}
-      >
-        <ToggleRow
-          label="Auto Role"
-          value={settings.autoRoleEnabled}
-          onChange={autoRoleEnabled => setSettings({ autoRoleEnabled })}
-          description="Derives conservative roles from type, alpha, duration, aspect, tags, and media-library organization when no explicit role exists."
-        />
-      </CanvasHelpControl>
-      {selectedShow.supportsCompositionPreference && (
-        <CanvasHelpControl
-          helpId="react.canvas.performanceOrchestration.composition"
-          currentValue={settings.compositionPreference === 'auto'
-            ? 'Auto · Section Aware'
-            : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label ?? settings.compositionPreference}
-          currentValueTone="accent"
-        >
-          <CanvasSelectRow
-            label="Composition"
-            value={settings.compositionPreference}
-            onChange={value => setSettings({ compositionPreference: value as CanvasCompositionPreference })}
-            options={[
-              { value: 'auto', label: 'Auto · Section Aware' },
-              ...CANVAS_COMPOSITION_TEMPLATE_OPTIONS,
-            ]}
-          />
-        </CanvasHelpControl>
-      )}
       <CanvasHelpControl helpId="react.canvas.performanceOrchestration.layerComplexity" currentValue={formatCanvasPercentage(settings.complexity)}>
         <SliderRow label="Layer Complexity" value={settings.complexity} onChange={complexity => setSettings({ complexity })} min={0} max={1} step={0.01} color="#61d6aa" />
       </CanvasHelpControl>
@@ -3500,35 +3556,6 @@ function CanvasOrchestrationControls() {
       <CanvasHelpControl helpId="react.canvas.performanceOrchestration.cutDensity" currentValue={formatCanvasPercentage(settings.cutDensity)}>
         <SliderRow label="Cut Density" value={settings.cutDensity} onChange={cutDensity => setSettings({ cutDensity })} min={0} max={1} step={0.01} color="#f09c5a" />
       </CanvasHelpControl>
-      <Collapsible label="Locks" defaultOpen={false}>
-        <ToggleRow
-          label="Media Lock"
-          value={settings.globalLocks.media === true}
-          onChange={locked => setCanvasOrchestrationLock('media', locked)}
-          description="Keeps current deterministic choices while other orchestration continues."
-        />
-        <CanvasSelectRow
-          label="Layer"
-          value={lockLayerRole}
-          onChange={value => setLockLayerRole(value as CanvasLayerRole)}
-          options={CANVAS_LAYER_ROLE_OPTIONS}
-        />
-        <ToggleRow
-          label="Lock Layer State"
-          value={settings.layerLocks[lockLayerRole] === true}
-          onChange={locked => setCanvasLayerLock(lockLayerRole, locked)}
-        />
-        <CanvasSelectRow
-          label="Locked Media"
-          value={lockedMediaId}
-          onChange={value => setCanvasMediaLock(lockLayerRole, value || null)}
-          options={[
-            { value: '', label: 'Deterministic Auto' },
-            ...poolItems.map(item => ({ value: item.id, label: item.name })),
-          ]}
-        />
-      </Collapsible>
-      <IconChipButton className="rv-canvas-restart-btn" onClick={resetCanvasOrchestration}>Reset Authored State</IconChipButton>
     </Collapsible>
   )
 }
@@ -4444,7 +4471,7 @@ export function CanvasEngineFxPanel() {
       </Collapsible>
 
 
-      <CanvasOrchestrationControls />
+      <CanvasCompositionControls />
 
       <CanvasPresetControls />
 

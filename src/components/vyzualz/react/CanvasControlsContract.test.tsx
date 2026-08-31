@@ -8,7 +8,7 @@ import { useReactStore } from '../../../stores/reactStore'
 import { useContextualHelpStore } from '../../../features/contextualHelp/contextualHelpStore'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import type { BrandKit } from '../../../features/personalization/BrandKitTypes'
-import { CANVAS_REACT_CONTROL_GROUPS, CanvasEngineFxPanel, CanvasEngineSurface, CanvasPresetFxControls, CanvasPresetMotionControls, CanvasPresetParticleControls, resolveCanvasPresetControlGroups } from './ReactCanvasEngineShell'
+import { CANVAS_REACT_CONTROL_GROUPS, CanvasEngineFxPanel, CanvasEngineSurface, CanvasPerformanceAutomationControls, CanvasPresetFxControls, CanvasPresetMotionControls, CanvasPresetParticleControls, resolveCanvasPresetControlGroups } from './ReactCanvasEngineShell'
 import type { CanvasPresetId } from './ReactTypes'
 import { CanvasFracturesRenderer } from './renderers/fractures/CanvasFracturesRenderer'
 import { LaserImageFxRenderer } from './renderers/laserImageFx/LaserImageFxRenderer'
@@ -167,7 +167,9 @@ describe('CANVAS right-panel control contract', () => {
   })
 
   it('exposes and activates the hybrid Pool automation controls with all required triggers', () => {
-    act(() => root.render(<CanvasEngineFxPanel />))
+    // Pool Automation is a Performance Automation (React tab) control now —
+    // it changes the composition over time, so it moved out of Design.
+    act(() => root.render(<CanvasPerformanceAutomationControls />))
 
     const poolLabel = [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
       .find(element => element.textContent?.trim() === 'Pool Automation')
@@ -613,40 +615,77 @@ describe('CANVAS right-panel control contract', () => {
       programId: 'canvas-fractures-performance',
       compositionPreference: 'fourPanelGrid',
     })
-    act(() => root.render(<CanvasEngineFxPanel />))
+    let snapshot = renderSnapshot(<CanvasEngineFxPanel />)
 
-    const controlLabels = () => [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
-      .map(node => node.textContent?.trim())
-
-    expect(controlLabels()).not.toContain('Composition')
-    expect(host.querySelector('.rv-canvas-orchestration-summary')?.textContent).toContain('Fixed Fractures composition')
+    expect(controlLabelsIn(snapshot.host)).not.toContain('Composition')
+    expect(snapshot.host.querySelector('.rv-canvas-orchestration-summary')?.textContent).toContain('Fixed Fractures composition')
     expect(useReactStore.getState().canvasOrchestrationSettings.compositionPreference).toBe('fourPanelGrid')
+    snapshot.unmount()
 
     act(() => useReactStore.getState().setCanvasOrchestrationSettings({ programId: 'canvas-cinematic-bass-editor' }))
-    expect(controlLabels()).toContain('Composition')
+    snapshot = renderSnapshot(<CanvasEngineFxPanel />)
+    expect(controlLabelsIn(snapshot.host)).toContain('Composition')
     expect(useReactStore.getState().canvasOrchestrationSettings.compositionPreference).toBe('fourPanelGrid')
+    snapshot.unmount()
   })
 
-  it('renders Display before orchestration and the recipe groups, with no mixed CANVAS React Controls group', () => {
+  it('renders Display before composition and the recipe groups, with no mixed CANVAS React Controls group', () => {
     act(() => root.render(<CanvasEngineFxPanel />))
     const labels = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
       .map(collapsibleLabelText)
     const sourceIndex = labels.indexOf('CANVAS Source Link')
     const displayIndex = labels.indexOf('Display')
-    const orchestrationIndex = labels.indexOf('Performance Orchestration')
+    const compositionIndex = labels.indexOf('Composition')
     const sourceReactivityIndex = labels.indexOf('Source + Reactivity')
     const timingIndex = labels.indexOf('Video Timing')
 
     expect(sourceIndex).toBeGreaterThanOrEqual(0)
     expect(displayIndex).toBeGreaterThan(sourceIndex)
-    expect(orchestrationIndex).toBeGreaterThan(displayIndex)
-    expect(sourceReactivityIndex).toBeGreaterThan(orchestrationIndex)
+    expect(compositionIndex).toBeGreaterThan(displayIndex)
+    expect(sourceReactivityIndex).toBeGreaterThan(compositionIndex)
     expect(timingIndex).toBeGreaterThan(sourceReactivityIndex)
     expect(labels).not.toContain('CANVAS React Controls')
+    expect(labels).not.toContain('Performance Orchestration')
+    expect(labels).not.toContain('Performance Automation')
     expect(labels).not.toContain('FX')
     expect(labels).not.toContain('Motion + Particles')
     expect(labels).not.toContain('Motion')
     expect(labels).not.toContain('Particles')
+
+    // Composition-only controls stay in Design; automation controls that used
+    // to share the "Performance Orchestration" group with them do not.
+    const controlLabels = () => [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')].map(node => node.textContent?.trim())
+    expect(controlLabels()).toContain('Auto Role')
+
+    // "Locks" (Media Lock, Layer, Lock Layer State, Locked Media) starts
+    // collapsed — open it to confirm its controls are actually present.
+    const locksGroup = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
+      .find(button => collapsibleLabelText(button) === 'Locks')
+    act(() => locksGroup?.click())
+    expect(controlLabels()).toContain('Media Lock')
+    expect(controlLabels()).not.toContain('Auto Performance')
+    expect(controlLabels()).not.toContain('Pool Automation')
+    expect(controlLabels()).not.toContain('Performance Show')
+    expect(controlLabels()).not.toContain('Layer Complexity')
+    expect(controlLabels()).not.toContain('Transition Density')
+    expect(controlLabels()).not.toContain('Cut Density')
+  })
+
+  it('moves Performance Automation controls to React and keeps them out of Design', () => {
+    const snapshot = renderSnapshot(<CanvasPerformanceAutomationControls />)
+    const groupLabels = groupLabelsIn(snapshot.host)
+    const controlLabels = controlLabelsIn(snapshot.host)
+
+    expect(groupLabels).toContain('Performance Automation')
+    expect(controlLabels).toEqual(expect.arrayContaining([
+      'Auto Performance', 'Pool Automation', 'Performance Show',
+      'Layer Complexity', 'Transition Density', 'Effect Intensity', 'Motion Intensity', 'Cut Density',
+    ]))
+    // Composition/Locks controls are Design-only and must not be duplicated here.
+    expect(controlLabels).not.toContain('Auto Role')
+    expect(controlLabels).not.toContain('Media Lock')
+    expect(controlLabels).not.toContain('Composition')
+    snapshot.unmount()
   })
 
   it('shows the Fractures-only groups, canonical controls, and help ownership only when selected', () => {
