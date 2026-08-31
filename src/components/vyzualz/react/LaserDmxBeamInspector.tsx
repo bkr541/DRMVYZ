@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { SliderRow, ToggleRow, TextInputRow, CtrlSection, Collapsible, SelectRow } from './ReactControlRows'
 import { IconChipButton } from './controls/IconChipButton'
+import { ConfirmDialog } from './controls/ConfirmDialog'
 import type {
   LaserDmxMatrixBeam, LaserDmxReactionGroup,
   LaserDmxMatrixBeamGeometry, LaserDmxMatrixTarget,
@@ -41,6 +42,7 @@ function SingleBeamInspector({ beam, groups }: SingleBeamProps) {
 
   const bid = beam.id
   const upd = (patch: Partial<LaserDmxMatrixBeam>) => updateLaserDmxMatrixBeam(bid, patch)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const groupOptions = [
     { value: '', label: 'None' },
@@ -148,11 +150,20 @@ function SingleBeamInspector({ beam, groups }: SingleBeamProps) {
         <IconChipButton onClick={() => duplicateLaserDmxMatrixBeam(bid)}>⧉ Dupe</IconChipButton>
         <IconChipButton
           className="rv-glyph-upload-btn--danger"
-          onClick={() => { if (window.confirm(`Delete beam "${beam.name}"?`)) removeLaserDmxMatrixBeam(bid) }}
+          onClick={() => setConfirmDelete(true)}
         >
           × Delete
         </IconChipButton>
       </div>
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Delete Beam"
+          message={`Delete beam "${beam.name}"?`}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={() => { removeLaserDmxMatrixBeam(bid); setConfirmDelete(false) }}
+        />
+      )}
     </>
   )
 }
@@ -182,6 +193,7 @@ function MultiBeamBulkEditor({ beams, groups, maxBeams }: MultiBeamProps) {
   const [rowOff, setRowOff] = useState(0)
   const [preserveGrp, setPreserveGrp] = useState(true)
   const [lastDupeMsg, setLastDupeMsg] = useState<string | null>(null)
+  const [confirmDeleteSelected, setConfirmDeleteSelected] = useState(false)
 
   const groupOptions = [
     { value: '', label: 'None' },
@@ -221,7 +233,7 @@ function MultiBeamBulkEditor({ beams, groups, maxBeams }: MultiBeamProps) {
         <IconChipButton
           className="rv-glyph-upload-btn--danger"
           aria-label="Delete selected beams"
-          onClick={() => { if (window.confirm(`Delete ${beams.length} selected beams?`)) removeSelectedLaserDmxMatrixBeams() }}
+          onClick={() => setConfirmDeleteSelected(true)}
         >
           × Delete
         </IconChipButton>
@@ -253,6 +265,15 @@ function MultiBeamBulkEditor({ beams, groups, maxBeams }: MultiBeamProps) {
       >
         Clear Selection
       </IconChipButton>
+
+      {confirmDeleteSelected && (
+        <ConfirmDialog
+          title="Delete Beams"
+          message={`Delete ${beams.length} selected beams?`}
+          onCancel={() => setConfirmDeleteSelected(false)}
+          onConfirm={() => { removeSelectedLaserDmxMatrixBeams(); setConfirmDeleteSelected(false) }}
+        />
+      )}
     </>
   )
 }

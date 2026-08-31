@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { AudioWave02Icon, Download01Icon, SubtitleIcon, Delete02Icon } from 'hugeicons-react'
 import { ContextActionMenu } from '../context-menu/ContextActionMenu'
+import { ConfirmDialog } from '../react/controls/ConfirmDialog'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
 
 export interface AudioTrackCardProps {
@@ -67,6 +68,7 @@ export function AudioTrackCard({
   onOpenAiExtract,
 }: AudioTrackCardProps) {
   const [lyricsMenu, setLyricsMenu] = useState<{ x: number; y: number } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const details: string[] = []
   if (track.durationSec) details.push(fmtDuration(track.durationSec))
   if (track.bpm)         details.push(`${track.bpm} BPM`)
@@ -131,10 +133,7 @@ export function AudioTrackCard({
             className="vz-track-remove-btn"
             onClick={event => {
               event.stopPropagation()
-              const confirmed = window.confirm(
-                `Delete “${track.title}”? This also deletes its saved lyric versions and transcription jobs.`,
-              )
-              if (confirmed) onRemove()
+              setConfirmDelete(true)
             }}
             title="Delete track and linked lyric data"
             aria-label={`Delete ${track.title} and linked lyric data`}
@@ -155,6 +154,14 @@ export function AudioTrackCard({
             { id: 'active', label: 'Open Active Lyrics', onSelect: () => onOpenActiveLyrics?.() },
             { id: 'extract', label: 'AI Extract Lyrics', onSelect: () => onOpenAiExtract?.() },
           ]}
+        />
+      )}
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Delete Track"
+          message={`Delete “${track.title}”? This also deletes its saved lyric versions and transcription jobs.`}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={() => { setConfirmDelete(false); onRemove?.() }}
         />
       )}
     </div>

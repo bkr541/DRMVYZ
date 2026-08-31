@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { SliderRow, ToggleRow, TextInputRow, CtrlSection, Collapsible } from './ReactControlRows'
 import { IconChipButton } from './controls/IconChipButton'
+import { ConfirmDialog } from './controls/ConfirmDialog'
 import { LaserDmxGroupSequencerControls } from './LaserDmxGroupSequencerControls'
 import { LaserDmxTimingStatus } from './LaserDmxTimingStatus'
 import { LaserDmxLaunchControls } from './LaserDmxLaunchControls'
@@ -34,6 +36,7 @@ export function LaserDmxReactionGroupInspector() {
   const { groups, beams, selectedGroupId } = laserDmxBeamMatrix
   const group = groups.find(g => g.id === selectedGroupId) ?? null
   const assignedCount = group ? beams.filter(b => b.groupId === group.id).length : 0
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   return (
     <>
@@ -100,7 +103,7 @@ export function LaserDmxReactionGroupInspector() {
             <IconChipButton
               className="rv-glyph-upload-btn--danger"
               aria-label={`Delete group ${group.name}`}
-              onClick={() => { if (window.confirm(`Delete group "${group.name}"?`)) removeLaserDmxReactionGroup(group.id) }}
+              onClick={() => setConfirmDelete(true)}
             >
               × Delete
             </IconChipButton>
@@ -165,6 +168,15 @@ export function LaserDmxReactionGroupInspector() {
             <LaserDmxTimingStatus sequencingActive={group.sequence.enabled} />
           </Collapsible>
         </>
+      )}
+
+      {confirmDelete && group && (
+        <ConfirmDialog
+          title="Delete Group"
+          message={`Delete group "${group.name}"?`}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={() => { removeLaserDmxReactionGroup(group.id); setConfirmDelete(false) }}
+        />
       )}
     </>
   )

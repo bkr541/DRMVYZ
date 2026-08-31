@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { Collapsible, CtrlSection, SliderRow, ToggleRow } from './ReactControlRows'
 import { IconChipButton } from './controls/IconChipButton'
+import { ConfirmDialog } from './controls/ConfirmDialog'
 import { LaserDmxReactionGroupInspector } from './LaserDmxReactionGroupInspector'
 import { LASER_DMX_MATRIX_MAX_BEAMS } from './ReactTypes'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
@@ -29,6 +30,7 @@ export function LaserDmxBeamMatrixPanel() {
   })))
 
   const [confirmReset, setConfirmReset] = useState(false)
+  const [confirmDeleteSelected, setConfirmDeleteSelected] = useState(false)
 
   const { beams, groups, selectedBeamIds, editor } = laserDmxBeamMatrix
   const beamCount  = beams.length
@@ -81,7 +83,7 @@ export function LaserDmxBeamMatrixPanel() {
                 <IconChipButton
                   className="rv-glyph-upload-btn--danger"
                   aria-label={`Delete ${selCount} selected beam${selCount !== 1 ? 's' : ''}`}
-                  onClick={() => { if (window.confirm(`Delete ${selCount} beam${selCount !== 1 ? 's' : ''}?`)) removeSelectedLaserDmxMatrixBeams() }}
+                  onClick={() => setConfirmDeleteSelected(true)}
                 >
                   × Del
                 </IconChipButton>
@@ -241,6 +243,15 @@ export function LaserDmxBeamMatrixPanel() {
           placement="right"
         />
       </div>
+
+      {confirmDeleteSelected && (
+        <ConfirmDialog
+          title="Delete Beams"
+          message={`Delete ${selCount} beam${selCount !== 1 ? 's' : ''}?`}
+          onCancel={() => setConfirmDeleteSelected(false)}
+          onConfirm={() => { removeSelectedLaserDmxMatrixBeams(); setConfirmDeleteSelected(false) }}
+        />
+      )}
     </>
   )
 }

@@ -358,7 +358,6 @@ describe('MediaLibraryBrowser capability boundaries', () => {
   })
 
   it('retains upload, select, delete, and drop workflows in Media Manager', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const onSelect = vi.fn()
     const onSelectTrack = vi.fn()
     await renderBrowser({
@@ -389,10 +388,22 @@ describe('MediaLibraryBrowser capability boundaries', () => {
     })
     expect(onSelect).toHaveBeenCalledWith('media-1')
 
+    // Deleting a media card now opens the shared ConfirmDialog instead of
+    // calling window.confirm — removeItem only fires once Delete is clicked.
     act(() => {
       container?.querySelector<HTMLButtonElement>('.vz-media-remove')?.click()
     })
+    expect(mocks.mediaState.removeItem).not.toHaveBeenCalled()
+    const confirmDialog = container?.querySelector<HTMLElement>('.dv-confirm-dialog[role="alertdialog"]')
+    expect(confirmDialog).not.toBeNull()
+    await act(async () => {
+      const buttons = [...(confirmDialog?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      buttons.find(button => button.textContent === 'Delete')?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
     expect(mocks.mediaState.removeItem).toHaveBeenCalledWith('media-1')
+    expect(container?.querySelector('.dv-confirm-dialog[role="alertdialog"]')).toBeNull()
 
     const dropEvent = new Event('drop', { bubbles: true, cancelable: true })
     Object.defineProperty(dropEvent, 'dataTransfer', {
@@ -415,8 +426,17 @@ describe('MediaLibraryBrowser capability boundaries', () => {
     })
     expect(onSelectTrack).toHaveBeenCalledWith(expect.objectContaining({ id: 'audio-track-1' }))
 
-    await act(async () => {
+    // Deleting a track card now opens the shared ConfirmDialog instead of
+    // calling window.confirm — removeSavedTrack only fires once Delete is clicked.
+    act(() => {
       container?.querySelector<HTMLButtonElement>('.vz-track-remove-btn')?.click()
+    })
+    expect(mocks.audioState.removeSavedTrack).not.toHaveBeenCalled()
+    const trackConfirmDialog = container?.querySelector<HTMLElement>('.dv-confirm-dialog[role="alertdialog"]')
+    expect(trackConfirmDialog).not.toBeNull()
+    await act(async () => {
+      const buttons = [...(trackConfirmDialog?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      buttons.find(button => button.textContent === 'Delete')?.click()
       await Promise.resolve()
       await Promise.resolve()
     })

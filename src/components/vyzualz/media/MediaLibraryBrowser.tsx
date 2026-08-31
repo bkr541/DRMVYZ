@@ -30,6 +30,7 @@ import { MediaPreviewModal } from './MediaPreviewModal'
 import { MediaStatusBar } from './MediaStatusBar'
 import { CollectionEditorModal } from './CollectionEditorModal'
 import { MediaDeleteConfirmDialog } from './MediaDeleteConfirmDialog'
+import { ConfirmDialog } from '../react/controls/ConfirmDialog'
 import { MEDIA_ROLE_BADGE_LABELS, MEDIA_ROLE_LABELS } from '../../../lib/mediaRoles'
 import { isUnifiedSvgMediaItem } from '../../../lib/svgMediaEligibility'
 import type { MediaLibraryCapability, MediaLibraryContext } from './mediaLibraryCapabilities'
@@ -701,6 +702,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const [deleteConfirm, setDeleteConfirm] = useState<{ ids: string[] } | null>(null)
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkActionError, setBulkActionError] = useState<string | null>(null)
+  const [deleteCollectionConfirm, setDeleteCollectionConfirm] = useState<{ id: string; name: string } | null>(null)
+  const [deletingCollection, setDeletingCollection] = useState(false)
 
   const searchActive = searchQuery.length > 0
   const searchLower  = searchQuery.toLowerCase()
@@ -966,6 +969,13 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     })
   }, [removeItem])
 
+  const handleConfirmDeleteCollection = useCallback(async (id: string) => {
+    setDeletingCollection(true)
+    await removeCollection(id)
+    setDeletingCollection(false)
+    setDeleteCollectionConfirm(null)
+  }, [removeCollection])
+
   const renderMediaCard = useCallback((media: UploadedMedia) => {
     const disabledReason = getDisabledReason?.(media) ?? null
     return (
@@ -982,9 +992,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
               ? anchor => handleCardContextMenu(media, anchor)
               : undefined
         }
-        onRemove={canRemove ? () => {
-          if (window.confirm(`Delete “${media.title ?? media.name}”? It will disappear immediately, while exact storage cleanup remains recoverable until finalized.`)) void removeItem(media.id)
-        } : undefined}
+        onRemove={canRemove ? () => setDeleteConfirm({ ids: [media.id] }) : undefined}
         onToggleFavorite={() => { void toggleFavorite(media.id) }}
         onPreview={() => { void handlePreviewMedia(media) }}
         canSelect={canSelect && !disabledReason}
@@ -1003,7 +1011,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         onToggleBulkSelect={() => toggleBulkSelect(media.id)}
       />
     )
-  }, [activeMediaId, canDragMedia, canFavorite, canMultiSelect, canPreview, canRemove, canSelect, context, getDisabledReason, handleCardContextMenu, handleMediaCardAction, handlePreviewMedia, isManager, markMediaAssetLoaded, mutationStates, onCardActionRequest, removeItem, retryMediaAsset, retryUpload, selectedForBulk, toggleBulkSelect, toggleFavorite, viewMode])
+  }, [activeMediaId, canDragMedia, canFavorite, canMultiSelect, canPreview, canRemove, canSelect, context, getDisabledReason, handleCardContextMenu, handleMediaCardAction, handlePreviewMedia, isManager, markMediaAssetLoaded, mutationStates, onCardActionRequest, retryMediaAsset, retryUpload, selectedForBulk, toggleBulkSelect, toggleFavorite, viewMode])
 
   const handleEnsureSigned = useCallback((visibleIds: string[], nearIds: string[]) => {
     void ensureMediaSigned?.(visibleIds, 'visible')
@@ -1168,9 +1176,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             viewMode={viewMode}
             onClick={() => setOpenCollectionId(c.id)}
             onEdit={isManager ? () => openCollectionEditor(c) : undefined}
-            onRemove={isManager ? () => {
-              if (window.confirm(`Delete collection “${c.name}”? Media files will remain in the library.`)) void removeCollection(c.id)
-            } : undefined}
+            onRemove={isManager ? () => setDeleteCollectionConfirm({ id: c.id, name: c.name }) : undefined}
           />
         ))}
       </div>
@@ -1341,6 +1347,15 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           busy={bulkDeleting}
           onCancel={() => setDeleteConfirm(null)}
           onConfirm={() => { void handleConfirmBulkDelete(deleteConfirm.ids) }}
+        />
+      )}
+      {deleteCollectionConfirm && (
+        <ConfirmDialog
+          title="Delete Collection"
+          message={`Delete collection “${deleteCollectionConfirm.name}”? Media files will remain in the library.`}
+          busy={deletingCollection}
+          onCancel={() => setDeleteCollectionConfirm(null)}
+          onConfirm={() => { void handleConfirmDeleteCollection(deleteCollectionConfirm.id) }}
         />
       )}
       <div

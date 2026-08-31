@@ -561,11 +561,73 @@
   color: rgba(232, 244, 248, 0.9);
 }
 
+/* Destructive-action tone — the canonical DRMVYZ delete/danger button
+   treatment, used by ConfirmDialog's confirm button and anywhere else a
+   standalone destructive action needs the same red. Two classes chained
+   (.dv-icon-chip.dv-icon-chip--danger) so this reliably outranks the
+   :not(--primary) hover rule above regardless of source order. */
+.dv-icon-chip.dv-icon-chip--danger {
+  border-color: rgba(255, 96, 112, 0.34);
+  background: rgba(255, 72, 92, 0.08);
+  color: rgba(255, 174, 184, 0.9);
+}
+
+.dv-icon-chip.dv-icon-chip--danger:hover:not(:disabled) {
+  background: rgba(255, 72, 92, 0.16);
+  color: rgba(255, 174, 184, 0.9);
+}
+
 .dv-icon-chip:disabled {
   border-color: rgba(154, 178, 188, 0.08);
   background: rgba(255, 255, 255, 0.015);
   color: rgba(196, 207, 211, 0.28);
   cursor: not-allowed;
+}
+
+/* Canonical DRMVYZ confirmation dialog (ConfirmDialog). One backdrop +
+   centered card + Cancel/danger-action button pair, used anywhere the app
+   needs to confirm a destructive or consequential action. */
+.dv-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  /* Show Manager launches this dialog from on top of its Open Show browser
+     modal (z-index 1100) — stay above every known modal/menu layer. */
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 6, 8, 0.6);
+}
+
+.dv-confirm-dialog {
+  width: min(380px, calc(100vw - 32px));
+  padding: 20px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(103, 247, 255, 0.28);
+  border-radius: 9px;
+  background: var(--color-panel-alt, #0b1115);
+  font-family: var(--az-font, Inter, system-ui, sans-serif);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.55);
+}
+
+.dv-confirm-dialog h2 {
+  margin: 0;
+  color: rgba(240, 247, 249, 0.94);
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.dv-confirm-dialog > p {
+  margin: 0 0 4px;
+  color: rgba(196, 212, 220, 0.66);
+  font-size: 11px;
+}
+
+.dv-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 4px;
 }
 
 /* Canonical DRMVYZ tag/genre label from Layout Lab's "Removable Capsule" winner. */

@@ -1211,7 +1211,7 @@ describe('ShowManagerView production shell', () => {
       deleteButton.click()
       await Promise.resolve()
     })
-    const confirmDialog = container.querySelector<HTMLElement>('.sm-canvas-dialog[role="alertdialog"]')!
+    const confirmDialog = container.querySelector<HTMLElement>('.dv-confirm-dialog[role="alertdialog"]')!
     expect(confirmDialog.textContent).toContain('Delete Candidate')
     expect(fixture.state.deleteShowManagerShow).not.toHaveBeenCalled()
     expect(fixture.loadSavedTrackIntoEngine).not.toHaveBeenCalled()
@@ -1221,14 +1221,14 @@ describe('ShowManagerView production shell', () => {
       cancelButton.click()
       await Promise.resolve()
     })
-    expect(container.querySelector('.sm-canvas-dialog[role="alertdialog"]')).toBeNull()
+    expect(container.querySelector('.dv-confirm-dialog[role="alertdialog"]')).toBeNull()
     expect(fixture.state.deleteShowManagerShow).not.toHaveBeenCalled()
 
     await act(async () => {
       deleteButton.click()
       await Promise.resolve()
     })
-    const reopenedDialog = container.querySelector<HTMLElement>('.sm-canvas-dialog[role="alertdialog"]')!
+    const reopenedDialog = container.querySelector<HTMLElement>('.dv-confirm-dialog[role="alertdialog"]')!
     const confirmDeleteButton = [...reopenedDialog.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === 'Delete')!
     await act(async () => {
       confirmDeleteButton.click()

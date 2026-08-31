@@ -395,64 +395,10 @@
   justify-content: center;
 }
 
-/* Same danger-tone treatment as the canonical delete-confirmation dialog
-   (.mmv-confirm-actions below) — used here for the standalone Delete Media
-   button since it isn't inside a dialog. */
-.mmi-actions .dv-icon-chip--danger,
-.mmv-confirm-actions .dv-icon-chip--danger {
-  border-color: rgba(255, 96, 112, 0.34);
-  background: rgba(255, 72, 92, 0.08);
-  color: rgba(255, 174, 184, 0.9);
-}
-.mmi-actions .dv-icon-chip--danger:hover:not(:disabled),
-.mmv-confirm-actions .dv-icon-chip--danger:hover:not(:disabled) {
-  background: rgba(255, 72, 92, 0.16);
-  color: rgba(255, 174, 184, 0.9);
-}
-
-/* ── Delete confirmation dialog (media library right-click Delete + the
-   inspector's Delete Media button) — same chrome as Show Manager's
-   canonical in-app confirm dialog. ────────────────────────────────────── */
-.mmv-confirm-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: grid;
-  place-items: center;
-  background: rgba(4, 6, 8, 0.6);
-}
-
-.mmv-confirm-dialog {
-  width: min(380px, calc(100vw - 32px));
-  padding: 20px;
-  display: grid;
-  gap: 10px;
-  border: 1px solid rgba(103, 247, 255, 0.28);
-  border-radius: 9px;
-  background: var(--color-panel-alt, #0b1115);
-  font-family: var(--az-font, Inter, system-ui, sans-serif);
-  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.55);
-}
-
-.mmv-confirm-dialog h2 {
-  margin: 0;
-  color: rgba(240, 247, 249, 0.94);
-  font-size: 15px;
-  font-family: inherit;
-}
-
-.mmv-confirm-dialog > p {
-  margin: 0 0 4px;
-  color: rgba(196, 212, 220, 0.66);
-  font-size: 11px;
-}
-
-.mmv-confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 7px;
-  margin-top: 4px;
-}
+/* Delete confirmation dialogs (the library's right-click Delete and the
+   inspector's Delete Media button, both via MediaDeleteConfirmDialog) and
+   the standalone Delete Media button's danger tone now come from the
+   canonical ConfirmDialog / .dv-icon-chip--danger in canonicalControls.css. */
 
 /* ── Media selection circle (top-right of the thumbnail) — Manager only.
    Unselected: outline only. Selected: filled with the app's canonical

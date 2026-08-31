@@ -1,5 +1,6 @@
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { IconChipButton } from '../react/controls/IconChipButton'
+import { ConfirmDialog } from '../react/controls/ConfirmDialog'
 import { Badge } from '../react/controls/Badge'
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../../audio/savedTrackLoader'
@@ -204,54 +205,6 @@ type PendingSectionEngineReplacement = {
     | { type: 'canvasMedia'; mediaId: string; layer: CanvasShowManagerLayer }
 }
 
-/** In-app replacement for window.confirm() — matches the canonical NewShowDialog chrome. */
-function ConfirmDeleteDialog({
-  title = 'Delete Show',
-  message,
-  busy = false,
-  confirmLabel = 'Delete',
-  busyLabel = 'Deleting…',
-  onCancel,
-  onConfirm,
-}: {
-  title?: string
-  message: string
-  busy?: boolean
-  confirmLabel?: string
-  busyLabel?: string
-  onCancel: () => void
-  onConfirm: () => void
-}) {
-  const headingId = useId()
-  return (
-    <div
-      className="sm-canvas-dialog-backdrop"
-      role="presentation"
-      onMouseDown={event => {
-        if (event.target === event.currentTarget && !busy) onCancel()
-      }}
-    >
-      <div
-        className="sm-canvas-dialog"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby={headingId}
-        onKeyDown={event => {
-          if (event.key === 'Escape' && !busy) onCancel()
-        }}
-      >
-        <h2 id={headingId}>{title}</h2>
-        <p>{message}</p>
-        <div className="sm-canvas-dialog-actions">
-          <IconChipButton type="button" onClick={onCancel} disabled={busy}>Cancel</IconChipButton>
-          <IconChipButton type="button" className="dv-icon-chip--danger" onClick={onConfirm} disabled={busy}>
-            {busy ? busyLabel : confirmLabel}
-          </IconChipButton>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 interface ShowBrowserDialogProps {
   shows: readonly ShowBrowserEntry[]
@@ -485,7 +438,8 @@ function ShowBrowserDialog({
       </section>
     </div>
     {pendingDeleteShow && (
-      <ConfirmDeleteDialog
+      <ConfirmDialog
+        title="Delete Show"
         message={`Delete Show “${pendingDeleteShow.name}”? This removes only the Show and its authored data. Linked media and audio remain in the library.`}
         busy={busyShowId === pendingDeleteShow.id}
         onCancel={() => setPendingDeleteShow(null)}
@@ -988,6 +942,7 @@ export function ShowManagerView() {
   const [pendingSectionEngineReplacement, setPendingSectionEngineReplacement] = useState<PendingSectionEngineReplacement | null>(null)
   const [pendingDeleteCanvasShow, setPendingDeleteCanvasShow] = useState<{ id: string; name: string } | null>(null)
   const [deletingCanvasShow, setDeletingCanvasShow] = useState(false)
+  const [pendingDeleteDeck, setPendingDeleteDeck] = useState<{ id: string } | null>(null)
   const [canvasPlayheadSec, setCanvasPlayheadSec] = useState(0)
   const [linkedAudioLoadError, setLinkedAudioLoadError] = useState<string | null>(null)
   const showOpenOperationRef = useRef(0)
@@ -1758,6 +1713,18 @@ export function ShowManagerView() {
     } finally {
       setDeletingCanvasShow(false)
     }
+  }
+
+  const confirmDeleteDeck = () => {
+    const deck = pendingDeleteDeck
+    setPendingDeleteDeck(null)
+    if (!deck) return
+    const result = deletePixGridDeck(deck.id)
+    if (!result.ok) {
+      setUploadState(current => ({ ...current, error: result.error.message }))
+      return
+    }
+    exitDeckBuilder()
   }
 
   const saveEngineId = activeSectionEngineId === 'canvas' || activeSectionEngineId === 'laserDmx'
@@ -2700,13 +2667,7 @@ export function ShowManagerView() {
               }}
               onDelete={() => {
                 if (!editingDeck) return
-                if (!window.confirm('Deleting this Deck will delete the Preset too. Are you sure?')) return
-                const result = deletePixGridDeck(editingDeck.id)
-                if (!result.ok) {
-                  setUploadState(current => ({ ...current, error: result.error.message }))
-                  return
-                }
-                exitDeckBuilder()
+                setPendingDeleteDeck({ id: editingDeck.id })
               }}
             />
           </aside>
@@ -3029,7 +2990,7 @@ export function ShowManagerView() {
         />
       )}
       {pendingSectionEngineReplacement && (
-        <ConfirmDeleteDialog
+        <ConfirmDialog
           title="Change Section Engine?"
           message={`“${pendingSectionEngineReplacement.sectionLabel}” is already used by ${REACT_ENGINE_CATALOG[pendingSectionEngineReplacement.currentEngineId].label}. Using ${REACT_ENGINE_CATALOG[pendingSectionEngineReplacement.targetEngineId].label} here will clear the existing elements and settings from this section.`}
           confirmLabel={`Clear Section & Use ${REACT_ENGINE_CATALOG[pendingSectionEngineReplacement.targetEngineId].label}`}
@@ -3038,11 +2999,20 @@ export function ShowManagerView() {
         />
       )}
       {pendingDeleteCanvasShow && (
-        <ConfirmDeleteDialog
+        <ConfirmDialog
+          title="Delete Show"
           message={`Delete Show “${pendingDeleteCanvasShow.name}”? This removes only the Show and its authored data. Linked media and audio remain in the library.`}
           busy={deletingCanvasShow}
           onCancel={() => setPendingDeleteCanvasShow(null)}
           onConfirm={() => void confirmDeleteCanvasShow()}
+        />
+      )}
+      {pendingDeleteDeck && (
+        <ConfirmDialog
+          title="Delete Deck"
+          message="Deleting this Deck will delete the Preset too. Are you sure?"
+          onCancel={() => setPendingDeleteDeck(null)}
+          onConfirm={confirmDeleteDeck}
         />
       )}
     </section>
