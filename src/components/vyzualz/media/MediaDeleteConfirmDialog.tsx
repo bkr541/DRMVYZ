@@ -20,6 +20,7 @@ export function MediaDeleteConfirmDialog({ count, busy = false, onCancel, onConf
     <ConfirmDialog
       title={count > 1 ? 'Delete Media Items' : 'Delete Media Item'}
       message={message}
+      notice="Deleted media will not be available to use within DRMVYZ."
       busy={busy}
       busyLabel="Deleting…"
       onCancel={onCancel}

@@ -160,6 +160,7 @@ export function AudioTrackCard({
         <ConfirmDialog
           title="Delete Track"
           message={`Delete “${track.title}”? This also deletes its saved lyric versions and transcription jobs.`}
+          notice="Deleted audio tracks will not be available to use within specific areas within React Shows, Lyrics, etc. The same deleted audio track will still be available to be used when loaded in the Audio Dock."
           onCancel={() => setConfirmDelete(false)}
           onConfirm={() => { setConfirmDelete(false); onRemove?.() }}
         />

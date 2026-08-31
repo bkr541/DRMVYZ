@@ -16555,6 +16555,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   padding: 20px 20px 40px;
 }
 
+.llcm-stage-section-hdr {
+  margin: 4px 20px 0;
+  padding-top: 24px;
+  border-top: 1px solid rgba(103, 247, 255, 0.14);
+  color: #67f7ff;
+  font: 800 11px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
 .llcm-panel {
   width: 100%;
   max-width: 640px;
@@ -16608,20 +16618,20 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   text-transform: uppercase;
 }
 
-/* Shared device action button, reused across all three concepts' tiles/cards/chips */
-.llcm-tile-action, .llcm-device-card-action {
+/* Shared device action button, reused across all three concepts' cards/chips */
+.llcm-device-card-action {
   flex-shrink: 0;
   padding: 5px 10px;
   border: 1px solid rgba(74, 199, 219, 0.35);
   border-radius: 6px;
   background: rgba(74, 199, 219, 0.12);
   color: #67f7ff;
-  font: 800 8px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  font: 800 7.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
 }
-.llcm-tile-action.is-muted, .llcm-device-card-action.is-muted {
+.llcm-device-card-action.is-muted {
   border-color: rgba(154, 178, 188, 0.2);
   background: transparent;
   color: rgba(196, 207, 211, 0.55);
@@ -16630,64 +16640,216 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 /* ── Concept 1: Icon Rail Bar ──────────────────────────────────────────── */
 /* Same command-bar-over-grid skeleton as Concept 3, kept fully expanded:
    larger square icon buttons for Scope/Window, the whole Aspect Ratio row
-   always visible instead of a popover, and wide two-column device tiles
-   (icon beside text) instead of centered cards. */
+   always visible instead of a popover. Below it, the device area models
+   everything the real OutputCastControl.tsx popover needs: an Available
+   Devices heading + refresh, a live session banner, provider notices, then
+   Wireless Displays (OS-picker rows with explanatory copy), Local Displays,
+   and DRMVYZ Receivers — the latter two as square tiles. */
 
 .llcm-rail-bar {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px;
+  align-items: stretch;
+  gap: 12px;
+  padding: 10px 12px;
   border: 1px solid rgba(154, 178, 188, 0.16);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.02);
   flex-wrap: wrap;
 }
-.llcm-rail-group { display: flex; gap: 4px; }
+.llcm-rail-section { display: flex; flex-direction: column; gap: 6px; }
+/* Matches .rv-ctrl-label — the label styling above every reusable input
+   control (DreamVizTextInput, SliderRow, etc.) — so these section headers
+   read as the same field-label language used everywhere else in the app. */
+.llcm-rail-section-hdr {
+  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: normal;
+  text-transform: none;
+  color: rgba(245, 248, 250, 0.7);
+}
+.llcm-rail-group { display: flex; gap: 5px; }
 .llcm-rail-group button {
   display: flex;
-  width: 30px;
-  height: 30px;
+  flex-direction: column;
+  width: auto;
+  min-width: 40px;
+  height: auto;
   align-items: center;
   justify-content: center;
+  gap: 4px;
+  padding: 7px 6px 6px;
   border: 1px solid rgba(154, 178, 188, 0.18);
-  border-radius: 7px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.02);
   color: rgba(196, 207, 211, 0.6);
   cursor: pointer;
 }
-.llcm-rail-group button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.llcm-rail-group button svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .llcm-rail-group button.is-selected { border-color: rgba(74, 199, 219, 0.5); background: rgba(74, 199, 219, 0.14); color: #67f7ff; }
-.llcm-rail-group--aspect button { width: 26px; height: 26px; }
-.llcm-rail-group--aspect svg { width: 15px; height: 15px; fill: rgba(255, 255, 255, 0.08); stroke: currentColor; stroke-width: 1.4; }
-.llcm-rail-divider { width: 1px; height: 24px; background: rgba(154, 178, 188, 0.16); }
+/* Aspect ratio icons are drawn as small filled rects (to read as a scaled
+   shape), unlike the outline-stroke icons Scope/Window use. */
+.llcm-rail-group--aspect svg { fill: rgba(255, 255, 255, 0.08); stroke-width: 1.4; }
+.llcm-rail-option-label {
+  color: inherit;
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.02em;
+}
+.llcm-rail-divider { align-self: stretch; width: 1px; background: rgba(154, 178, 188, 0.16); }
 
-.llcm-card-grid--rail { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.llcm-rail-tile {
-  position: relative;
+.llcm-devices-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.llcm-devices-heading-title { display: flex; align-items: center; gap: 6px; }
+.llcm-devices-heading-title svg {
+  width: 15px;
+  height: 15px;
+  color: #67f7ff;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Styled like a record in a list — a standalone colored bar (its own
+   rounded-capsule element, inset from the row's corners) instead of a
+   border-left riding the card's own border-radius, so it reads as a
+   distinct status mark rather than a re-shaped card edge. Background is the
+   same flat tone every state shares — matches .vz-track-row, the user's
+   Audio Track card background in Media Manager — so state is communicated
+   entirely through the bar/pill/border color, not a tinted card fill. */
+.llcm-cast-session {
+  --llcm-session-color: #67f7ff;
+  --llcm-session-pill-bg: rgba(74, 199, 219, 0.16);
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px;
-  border: 1px solid rgba(154, 178, 188, 0.14);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.02);
-}
-.llcm-rail-tile-icon {
-  display: flex;
-  flex-shrink: 0;
-  width: 30px;
-  height: 30px;
-  align-items: center;
-  justify-content: center;
+  padding: 10px 12px;
+  /* Same neutral gray for every state — matches Stopping Output's border;
+     state is communicated through the bar/pill/dot color instead. */
+  border: 1px solid rgba(154, 178, 188, 0.22);
   border-radius: 8px;
-  background: rgba(74, 199, 219, 0.12);
-  color: #67f7ff;
+  background: rgba(6, 10, 14, 0.85);
 }
-.llcm-rail-tile-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.llcm-rail-tile-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.llcm-rail-tile-copy strong { color: rgba(232, 244, 248, 0.9); font: 700 9.5px/1.25 var(--az-font, Inter, system-ui, sans-serif); }
-.llcm-rail-tile-copy small { color: rgba(196, 207, 211, 0.42); font: 600 8px/1.25 var(--az-font-data, Inter, system-ui, sans-serif); }
+.llcm-cast-session-bar {
+  flex-shrink: 0;
+  width: 3px;
+  align-self: stretch;
+  margin: 2px 0;
+  border-radius: 999px;
+  background: var(--llcm-session-color);
+}
+/* Connecting/failed/disconnecting — the other three states the real
+   session banner can be in, alongside the default connected (cyan) tone. */
+.llcm-cast-session--connecting {
+  --llcm-session-color: #d8b95a;
+  --llcm-session-pill-bg: rgba(216, 185, 90, 0.16);
+}
+.llcm-cast-session--failed {
+  --llcm-session-color: #ff8b94;
+  --llcm-session-pill-bg: rgba(192, 49, 74, 0.18);
+}
+.llcm-cast-session--disconnecting {
+  --llcm-session-color: rgba(196, 207, 211, 0.65);
+  --llcm-session-pill-bg: rgba(154, 178, 188, 0.14);
+}
+.llcm-cast-session-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+/* Window mode, then Aspect Ratio + resolution, then everything else
+   (fps/bitrate/latency) each get their own row instead of one long
+   bullet-joined line — window/aspect ratio/other are shown as separate
+   rows on purpose so a glance answers "what mode/shape/health". 24px
+   between name and pill per request; the name's larger size (up from 10px)
+   is what actually makes the pill read as vertically centered against it. */
+.llcm-cast-session-name-row { display: flex; align-items: center; gap: 24px; }
+.llcm-cast-session strong { color: rgba(232, 244, 248, 0.92); font: 700 13px/1.3 var(--az-font, Inter, system-ui, sans-serif); }
+.llcm-cast-session small { color: rgba(196, 207, 211, 0.5); font: 600 9.5px/1.3 var(--az-font-data, Inter, system-ui, sans-serif); }
+/* Field name to the left of its value (e.g. "WINDOW  Full Screen") — dim
+   and uppercase so the value, not the label, stays the visual focus. */
+.llcm-cast-session-field-label {
+  margin-right: 6px;
+  color: rgba(196, 207, 211, 0.32);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+/* Show/Hide Error toggle — replaces the old bare error text row. Clicking
+   it expands the record to reveal the real NoticeCard component (reused,
+   not a bespoke error box) with the same slide-down entrance the Google
+   Cast setup notice uses. */
+.llcm-cast-session-error-toggle {
+  align-self: flex-start;
+  margin-top: 1px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #ff8b94;
+  font: 700 9px/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.llcm-cast-session-error-toggle:hover { color: #ffa8b0; }
+
+/* Status pill sits inline to the right of the display name now, not
+   floating centered in the banner. */
+.llcm-cast-session-status {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--llcm-session-pill-bg);
+  color: var(--llcm-session-color);
+  font: 800 6px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.llcm-cast-session-status-dot {
+  flex-shrink: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+}
+.llcm-cast-stop {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 96, 112, 0.34);
+  border-radius: 6px;
+  background: rgba(255, 72, 92, 0.08);
+  color: rgba(255, 174, 184, 0.9);
+  font: 800 7.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.llcm-cast-stop:hover { background: rgba(255, 72, 92, 0.16); }
+
+.llcm-device-subsection { display: flex; flex-direction: column; gap: 8px; }
+
+/* Notice slides down from under the option row when the selected provider
+   needs setup (e.g. Google Cast) — mount-only entrance, matches the ask for
+   a downward reveal rather than an instant pop-in. */
+@keyframes llcm-wireless-notice-drop {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.llcm-wireless-notice-drop { animation: llcm-wireless-notice-drop 200ms ease-out; }
+
+.llcm-device-note {
+  margin: 0;
+  color: rgba(196, 207, 211, 0.4);
+  font: 600 8px/1.5 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.llcm-device-card-action.is-live {
+  border-color: rgba(97, 214, 170, 0.4);
+  background: rgba(97, 214, 170, 0.14);
+  color: #61d6aa;
+}
 
 /* ── Concept 2: Pill Toggle Bar ────────────────────────────────────────── */
 /* Same skeleton a third way — Scope is one sliding two-sided pill, Window
@@ -16787,11 +16949,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .llcm-card-grid--4col { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .llcm-device-card--sm { padding: 9px 6px; gap: 3px; }
-.llcm-device-card--sm strong { font-size: 7.8px; }
 .llcm-device-card--sm small { display: none; }
 .llcm-device-card-icon--sm { width: 22px; height: 22px; }
 .llcm-device-card-icon--sm svg { width: 12px; height: 12px; }
-.llcm-device-card--sm .llcm-device-card-action { font-size: 7px; padding: 4px 0; }
+.llcm-device-card--sm .llcm-device-card-action { padding: 4px 0; }
 
 /* ── Concept 3: Command Bar + Grid ────────────────────────────────────── */
 
@@ -17246,6 +17407,25 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* ── Delete Confirm Dialog Style Gallery (Layout Lab / Template) ─────────── */
+/* The winning "Centered Icon Focus" treatment now lives on the real
+   ConfirmDialog component as .dv-confirm-dialog / .dv-confirm-icon /
+   .dv-confirm-actions in controls/canonicalControls.css. This gallery
+   entry reuses those exact classes (plus the real NoticeCard and
+   IconChipButton) so it renders pixel-identical to production; only
+   gallery scaffolding remains here. The four runner-up concepts (Danger
+   Header Band, Side Accent Split, Minimal Inline, and the pre-promotion
+   Canonical Card) were removed once Concept 03 was promoted. */
+
+.lldcd-gallery {
+  padding: 18px 16px 32px;
+}
+
+.lldcd-gallery .lldd-gallery-sample {
+  display: flex;
+  justify-content: center;
 }
 
 /* ── Preset Card Style Gallery (Layout Lab / Template) ────────────────────── */

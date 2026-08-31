@@ -19,6 +19,7 @@ import { LayerRowStyleGallery } from './layoutLab/LayerRowStyleGallery'
 import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { TrackLibraryRowStyleGallery } from './layoutLab/TrackLibraryRowStyleGallery'
+import { DeleteConfirmDialogStyleGallery } from './layoutLab/DeleteConfirmDialogStyleGallery'
 import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
 import { LaserDjBeamBuilderMockup } from './layoutLab/LaserDjBeamBuilderMockup'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
@@ -272,6 +273,8 @@ export function LayoutLabMockup() {
             {engineId === 'template' && (
               <div className="llcm-stage-gallery">
                 <CastScreenModalMockup />
+                <div className="llcm-stage-section-hdr">Delete Confirmation Dialog</div>
+                <DeleteConfirmDialogStyleGallery />
               </div>
             )}
           </div>
