@@ -13,7 +13,7 @@
 
 /* ── Header ──────────────────────────────────────────────────────────── */
 .vz-header {
-  height: 54px;
+  height: 60px;
   background: rgba(12,16,19,0.96);
   border-bottom: 1px solid rgba(154,178,188,0.14);
   display: flex;
@@ -30,7 +30,7 @@
 .vz-header-title-group {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 7px;
   flex-shrink: 0;
 }
 

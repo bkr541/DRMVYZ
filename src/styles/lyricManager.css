@@ -24,7 +24,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  height: 54px;
+  height: 60px;
   flex-shrink: 0;
   background: rgba(12,16,19,0.96);
   border-bottom: 1px solid rgba(154,178,188,0.14);
@@ -57,7 +57,7 @@
   background: rgba(74,199,219,0.06);
 }
 
-.lmv-header-title-group { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.lmv-header-title-group { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 .lmv-header-title {
   font-size: 13px;
   font-weight: 700;
@@ -1494,7 +1494,7 @@
 }
 
 .lmv-header {
-  height: 54px;
+  height: 60px;
   padding: 0 20px;
   background: rgba(12,16,19,0.96);
   box-shadow: none;

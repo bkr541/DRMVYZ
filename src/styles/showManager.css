@@ -19,8 +19,8 @@
 .sm-root *::after { box-sizing: border-box; }
 
 .sm-topbar {
-  height: 54px;
-  flex: 0 0 54px;
+  height: 60px;
+  flex: 0 0 60px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -33,7 +33,7 @@
   min-width: 190px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 9px;
 }
 
 .sm-title-block strong {
