@@ -6898,8 +6898,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   grid-column: 1;
   grid-row: 2;
   /* Overrides the base rule's fixed 32px so CUE can shrink to half the
-     stacked column's height instead of overflowing it. */
-  height: 100%;
+     stacked column's height instead of overflowing it. The 6px shave (vs.
+     TAP/SYNC's plain 100%) leaves a bottom margin that roughly matches the
+     6px half of the 12px horizontal inset every button already gets from
+     width: calc(100% - 12px) — without it CUE sits flush against the dock's
+     bottom edge while SYNC/blank sit inset from the right, so the block's
+     bottom-right corner reads uneven. */
+  height: calc(100% - 6px);
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-sync-master-btn {
@@ -6913,7 +6918,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   grid-column: 2;
   grid-row: 2;
   width: calc(100% - 12px);
-  height: 100%;
+  /* Matches CUE's height so the block's bottom edge is even across both
+     columns — see the comment on .vz-dock-cue-btn. */
+  height: calc(100% - 6px);
   justify-self: center;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);

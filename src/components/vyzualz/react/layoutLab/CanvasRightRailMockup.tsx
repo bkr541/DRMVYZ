@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react'
+import { Delete02Icon } from 'hugeicons-react'
 import { RailTabs } from '../../layout/RailTabs'
 import { PanelSubtabs } from '../PanelSubtabs'
 import { ReactPresetCard } from '../ReactPresetCard'
@@ -10,6 +11,7 @@ import {
   SliderRow,
   ToggleRow,
 } from '../ReactControlRows'
+import { CANVAS_LAYER_EFFECT_IDS, MAX_CANVAS_LAYER_EFFECTS, type CanvasLayerEffectId } from '../canvasPerformance/CanvasPerformanceTypes'
 import type {
   CanvasFitMode,
   CanvasFractureAnchorMode,
@@ -25,6 +27,19 @@ import type {
   ReactEngineId,
 } from '../ReactTypes'
 import type { CanvasMockLayerRole, CanvasMockState } from './useCanvasMockState'
+
+const CANVAS_LAYER_EFFECT_LABELS: Record<CanvasLayerEffectId, string> = {
+  bloom: 'Bloom',
+  echo: 'Echo',
+  glitch: 'Glitch',
+  melt: 'Melt',
+  stutter: 'Stutter',
+}
+
+const CANVAS_LAYER_EFFECT_OPTIONS = CANVAS_LAYER_EFFECT_IDS.map(effectId => ({
+  value: effectId,
+  label: CANVAS_LAYER_EFFECT_LABELS[effectId],
+}))
 
 const RIGHT_TABS = [
   { id: 'presets' as const, label: 'PRESETS' },
@@ -401,12 +416,80 @@ function AnalysisMockup() {
   return <div className="rv-layout-lab-canvas-analysis">{sections.map(([title, value]) => <section key={title}><strong>{title}</strong><span>{value}</span></section>)}</div>
 }
 
+function AddEffectsControls({ state }: { state: CanvasMockState }) {
+  return (
+    <Collapsible label="Add Effects" defaultOpen>
+      {state.addEffectsLayers.length === 0 && (
+        <div className="rv-canvas-engine-note">Add media to the Performance Pool (Design tab) or select an active media item to author effects on it here.</div>
+      )}
+      {state.addEffectsLayers.map((layer, layerIndex) => {
+        const parentLabel = `Active Media ${layerIndex + 1}`
+        const selectedEffects = new Set(layer.effects)
+        return (
+          <div key={layer.mediaId} className="rv-canvas-layer-effects-group">
+            {/* Which media occupies this slot is decided in the Media Library
+                (Performance Pool / active selection) — display-only, styled
+                like a real input field for consistency, matching the
+                production Add Effects group. */}
+            <SelectRow
+              label={parentLabel}
+              value={layer.mediaId}
+              onChange={() => {}}
+              options={[{ value: layer.mediaId, label: layer.mediaName }]}
+            />
+            <div className="rv-canvas-layer-effects-stack" data-canvas-effect-layer-id={layer.mediaId}>
+              {layer.effects.map((effectId, effectIndex) => {
+                const options = CANVAS_LAYER_EFFECT_OPTIONS.filter(option => (
+                  option.value === effectId || !selectedEffects.has(option.value)
+                ))
+                return (
+                  <div className="rv-canvas-layer-effect-row" key={`${layer.mediaId}:${effectIndex}`}>
+                    <SelectRow
+                      label={`Effect ${effectIndex + 1} for ${parentLabel}`}
+                      labelHidden
+                      value={effectId}
+                      onChange={value => state.setCanvasLayerEffect(layer.mediaId, effectIndex, value as CanvasLayerEffectId)}
+                      options={options}
+                    />
+                    <button
+                      type="button"
+                      className="vz-media-remove rv-canvas-layer-effect-remove"
+                      style={{ position: 'static' }}
+                      aria-label={`Remove ${CANVAS_LAYER_EFFECT_LABELS[effectId]} from ${parentLabel}`}
+                      onClick={() => state.removeCanvasLayerEffectAt(layer.mediaId, effectIndex)}
+                    >
+                      <Delete02Icon size={13} color="currentColor" />
+                    </button>
+                  </div>
+                )
+              })}
+              {layer.effects.length < MAX_CANVAS_LAYER_EFFECTS && (
+                <div className="rv-canvas-layer-effect-row rv-canvas-layer-effect-row--empty">
+                  <SelectRow
+                    label={`Add effect to ${parentLabel}`}
+                    labelHidden
+                    value=""
+                    placeholder="Select Effect…"
+                    onChange={value => state.addCanvasLayerEffect(layer.mediaId, value as CanvasLayerEffectId)}
+                    options={CANVAS_LAYER_EFFECT_OPTIONS.filter(option => !selectedEffects.has(option.value))}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </Collapsible>
+  )
+}
+
 function ReactMockup({ state }: { state: CanvasMockState }) {
   return (
     <WorkspaceBody>
       <PanelSubtabs value={state.reactSurface} options={[{ id: 'routing', label: 'ROUTING' }, { id: 'analysis', label: 'ANALYSIS' }]} onChange={state.setReactSurface} ariaLabel="Canvas react surfaces" />
       {state.reactSurface === 'routing' ? (
         <div className="rv-ctrl-group" data-layout-lab-canvas="routing">
+          <AddEffectsControls state={state} />
           <Collapsible label="Audio Routing" defaultOpen>
             <div className="rv-canvas-engine-note">This engine currently uses global intensity/motion controls only. Adjust Bass React and Motion in the FX tab for broad audio response.</div>
           </Collapsible>

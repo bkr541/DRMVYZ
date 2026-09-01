@@ -12,6 +12,11 @@ import {
   type CanvasSectionTriggerType,
   type CanvasVideoTimingSettings,
 } from '../ReactTypes'
+import {
+  MAX_CANVAS_AUTHORED_LAYERS,
+  MAX_CANVAS_LAYER_EFFECTS,
+  type CanvasLayerEffectId,
+} from '../canvasPerformance/CanvasPerformanceTypes'
 
 export type CanvasMockRightTab = 'presets' | 'design' | 'react' | 'output'
 export type CanvasMockDesignSurface = 'engine' | 'selection'
@@ -78,6 +83,16 @@ export interface CanvasMockPresetOverride {
   label: string
 }
 
+/** One "Active Media N" slot in the Add Effects group — derived from the
+ * Performance Pool (or the single active media when the pool is empty), not
+ * a separate authored-layer system. Effect chains are still keyed and edited
+ * per media ID like the production authored layers are. */
+export interface CanvasMockAddEffectsLayer {
+  mediaId: string
+  mediaName: string
+  effects: CanvasLayerEffectId[]
+}
+
 export interface CanvasMockState {
   rightTab: CanvasMockRightTab
   designSurface: CanvasMockDesignSurface
@@ -96,6 +111,7 @@ export interface CanvasMockState {
   manualMediaOverrideActive: boolean
   engineSettings: CanvasEngineSettings
   orchestration: CanvasMockOrchestrationSettings
+  addEffectsLayers: CanvasMockAddEffectsLayer[]
   activePoolMedia: CanvasMockMediaItem | null
   presets: CanvasMockPreset[]
   activePresetId: CanvasPresetId
@@ -133,6 +149,9 @@ export interface CanvasMockState {
   updateOrchestration: (patch: Partial<CanvasMockOrchestrationSettings>) => void
   setLayerLock: (role: CanvasMockLayerRole, locked: boolean) => void
   setLockedMedia: (role: CanvasMockLayerRole, mediaId: string | null) => void
+  addCanvasLayerEffect: (mediaId: string, effectId: CanvasLayerEffectId) => void
+  setCanvasLayerEffect: (mediaId: string, effectIndex: number, effectId: CanvasLayerEffectId) => void
+  removeCanvasLayerEffectAt: (mediaId: string, effectIndex: number) => void
   resetOrchestration: () => void
   updatePresetSettings: (patch: Partial<CanvasPresetSettings>) => void
   resetPresetSettings: () => void
@@ -236,6 +255,7 @@ export function useCanvasMockState(): CanvasMockState {
   const [manualMediaOverrideId, setManualMediaOverrideId] = useState<string | null>(null)
   const [engineSettings, setEngineSettings] = useState<CanvasEngineSettings>({ ...DEFAULT_CANVAS_ENGINE_SETTINGS })
   const [orchestration, setOrchestration] = useState<CanvasMockOrchestrationSettings>(DEFAULT_ORCHESTRATION)
+  const [layerEffectsByMediaId, setLayerEffectsByMediaId] = useState<Record<string, CanvasLayerEffectId[]>>({})
   const [activePoolMediaId, setActivePoolMediaId] = useState<string | null>(INITIAL_MEDIA[0].id)
   const [activePresetId, setActivePresetId] = useState<CanvasPresetId>('canvas-clean-playback')
   const [favoritePresetIds, setFavoritePresetIds] = useState<CanvasPresetId[]>(['canvas-particle-aura'])
@@ -262,6 +282,16 @@ export function useCanvasMockState(): CanvasMockState {
     () => mediaItems.find(item => item.id === activePoolMediaId && orchestration.mediaPoolIds.includes(item.id)) ?? null,
     [activePoolMediaId, mediaItems, orchestration.mediaPoolIds],
   )
+  const addEffectsLayers = useMemo<CanvasMockAddEffectsLayer[]>(() => {
+    const ids = orchestration.mediaPoolIds.length > 0
+      ? orchestration.mediaPoolIds
+      : activeMedia ? [activeMedia.id] : []
+    return ids.slice(0, MAX_CANVAS_AUTHORED_LAYERS).map(id => ({
+      mediaId: id,
+      mediaName: mediaItems.find(item => item.id === id)?.name ?? id,
+      effects: layerEffectsByMediaId[id] ?? [],
+    }))
+  }, [orchestration.mediaPoolIds, activeMedia, mediaItems, layerEffectsByMediaId])
   const presets = useMemo<CanvasMockPreset[]>(() => CANVAS_VISIBLE_PRESETS.map(preset => ({
     id: preset.id,
     name: preset.name,
@@ -305,6 +335,12 @@ export function useCanvasMockState(): CanvasMockState {
     setManualMediaOverrideId(current => current === id ? null : current)
     setActivePoolMediaId(current => current === id ? null : current)
     setVideoTimingById(current => {
+      const next = { ...current }
+      delete next[id]
+      return next
+    })
+    setLayerEffectsByMediaId(current => {
+      if (!(id in current)) return current
       const next = { ...current }
       delete next[id]
       return next
@@ -437,6 +473,32 @@ export function useCanvasMockState(): CanvasMockState {
     })
   }
 
+  const addCanvasLayerEffect = (mediaId: string, effectId: CanvasLayerEffectId) => {
+    setLayerEffectsByMediaId(current => {
+      const existing = current[mediaId] ?? []
+      if (existing.includes(effectId) || existing.length >= MAX_CANVAS_LAYER_EFFECTS) return current
+      return { ...current, [mediaId]: [...existing, effectId] }
+    })
+  }
+
+  const setCanvasLayerEffect = (mediaId: string, effectIndex: number, effectId: CanvasLayerEffectId) => {
+    setLayerEffectsByMediaId(current => {
+      const existing = current[mediaId] ?? []
+      if (effectIndex < 0 || effectIndex >= existing.length) return current
+      const next = [...existing]
+      next[effectIndex] = effectId
+      return { ...current, [mediaId]: next }
+    })
+  }
+
+  const removeCanvasLayerEffectAt = (mediaId: string, effectIndex: number) => {
+    setLayerEffectsByMediaId(current => {
+      const existing = current[mediaId] ?? []
+      if (effectIndex < 0 || effectIndex >= existing.length) return current
+      return { ...current, [mediaId]: existing.filter((_, index) => index !== effectIndex) }
+    })
+  }
+
   const resetOrchestration = () => {
     const availableIds = mediaItems.filter(item => item.source === 'library').slice(0, 2).map(item => item.id)
     setOrchestration({ ...DEFAULT_ORCHESTRATION, mediaPoolIds: libraryEmpty ? [] : availableIds })
@@ -511,6 +573,7 @@ export function useCanvasMockState(): CanvasMockState {
     manualMediaOverrideActive: Boolean(manualMediaOverrideId && mediaItems.some(item => item.id === manualMediaOverrideId)),
     engineSettings,
     orchestration,
+    addEffectsLayers,
     activePoolMedia,
     presets,
     activePresetId,
@@ -548,6 +611,9 @@ export function useCanvasMockState(): CanvasMockState {
     updateOrchestration,
     setLayerLock,
     setLockedMedia,
+    addCanvasLayerEffect,
+    setCanvasLayerEffect,
+    removeCanvasLayerEffectAt,
     resetOrchestration,
     updatePresetSettings,
     resetPresetSettings,

@@ -715,13 +715,13 @@ export function ReactModulationPanel() {
       <div className="rv-ctrl-group">
         {isCanvas && (
           <>
+            <CanvasAddEffectsControls />
             <CanvasPerformanceAutomationControls />
             <FracturesReactControls />
             <LaserImageFxReactControls />
             <CanvasPresetMotionControls />
             <CanvasPresetParticleControls />
             <CanvasPresetFxControls />
-            <CanvasAddEffectsControls />
           </>
         )}
         <Collapsible label="Audio Routing" defaultOpen>
