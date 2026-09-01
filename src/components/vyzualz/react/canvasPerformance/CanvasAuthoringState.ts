@@ -1,3 +1,4 @@
+import type { CanvasFitMode } from '../ReactTypes'
 import {
   CANVAS_LAYER_EFFECT_IDS,
   MAX_CANVAS_AUTHORED_LAYERS,
@@ -5,8 +6,11 @@ import {
   MAX_CANVAS_STORED_AUTHORED_LAYERS,
   type CanvasAuthoredLayer,
   type CanvasAuthoredLayerOwnership,
+  type CanvasControlScope,
   type CanvasLayerEffectId,
   type CanvasLayerEffectMutationFailureCode,
+  type CanvasLayerEngineOverrides,
+  type CanvasLayerMutationFailureCode,
   type CanvasMediaPool,
   type CanvasPrimaryLayerState,
   type CanvasRenderMode,
@@ -85,6 +89,39 @@ export function normalizeCanvasMediaIds(value: unknown): string[] {
   return normalized
 }
 
+const CANVAS_ENGINE_OVERRIDE_FIT_MODES = new Set<CanvasFitMode>(['contain', 'cover', 'stretch'])
+
+function clampFiniteCanvasOverrideNumber(value: unknown, min: number, max: number): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
+  return Math.max(min, Math.min(max, value))
+}
+
+/**
+ * Validates a persisted/patched engine-overrides record field by field so a
+ * single corrupt or out-of-range value can't poison the rest, and keeps the
+ * result sparse -- an empty result normalizes to `undefined` rather than an
+ * empty object, matching the "absence means inherit" contract. Ranges mirror
+ * normalizeCanvasEngineSettings' bounds for the same Display fields.
+ */
+export function normalizeCanvasLayerEngineOverrides(value: unknown): CanvasLayerEngineOverrides | undefined {
+  if (!isRecord(value)) return undefined
+  const overrides: CanvasLayerEngineOverrides = {}
+  if (typeof value.fitMode === 'string' && CANVAS_ENGINE_OVERRIDE_FIT_MODES.has(value.fitMode as CanvasFitMode)) {
+    overrides.fitMode = value.fitMode as CanvasFitMode
+  }
+  const scale = clampFiniteCanvasOverrideNumber(value.scale, 0.1, 4)
+  if (scale !== undefined) overrides.scale = scale
+  const positionX = clampFiniteCanvasOverrideNumber(value.positionX, -100, 100)
+  if (positionX !== undefined) overrides.positionX = positionX
+  const positionY = clampFiniteCanvasOverrideNumber(value.positionY, -100, 100)
+  if (positionY !== undefined) overrides.positionY = positionY
+  const rotation = clampFiniteCanvasOverrideNumber(value.rotation, -180, 180)
+  if (rotation !== undefined) overrides.rotation = rotation
+  const opacity = clampFiniteCanvasOverrideNumber(value.opacity, 0, 1)
+  if (opacity !== undefined) overrides.opacity = opacity
+  return Object.keys(overrides).length > 0 ? overrides : undefined
+}
+
 export function normalizeCanvasAuthoredLayers(value: unknown): CanvasAuthoredLayer[] {
   if (!Array.isArray(value)) return []
   const seenIds = new Set<string>()
@@ -107,6 +144,7 @@ export function normalizeCanvasAuthoredLayers(value: unknown): CanvasAuthoredLay
       solo: raw.solo === true,
       ownership,
       pinned: typeof raw.pinned === 'boolean' ? raw.pinned : ownership === 'manual',
+      engineOverrides: normalizeCanvasLayerEngineOverrides(raw.engineOverrides),
       sourceIndex,
     })
   }
@@ -448,6 +486,108 @@ export function isCanvasAuthoredLayerRenderEligible(
   layerId: string,
 ): boolean {
   return resolveCanvasEffectiveAuthoredLayers(layers).some(layer => layer.id === layerId)
+}
+
+/**
+ * Authored layers considered "active" for Layers-tab/Engine-scope structural
+ * decisions (e.g. whether the CANVAS row shows, or a layer scope is valid) --
+ * enabled state only, unlike resolveCanvasEffectiveAuthoredLayers, which also
+ * narrows by Solo for the live renderer. Solo affects preview/output, not the
+ * editing surface: soloing a layer must not restructure the Layers tab.
+ */
+export function resolveCanvasEnabledAuthoredLayers(
+  layers: readonly CanvasAuthoredLayer[],
+): CanvasAuthoredLayer[] {
+  return normalizeCanvasAuthoredLayers(layers).filter(layer => layer.enabled)
+}
+
+/** True once any authored layer carries at least one Engine Display override. */
+export function hasAnyCanvasLayerEngineOverrides(
+  layers: readonly Pick<CanvasAuthoredLayer, 'engineOverrides'>[],
+): boolean {
+  return layers.some(layer => (
+    layer.engineOverrides != null && Object.keys(layer.engineOverrides).length > 0
+  ))
+}
+
+/**
+ * Validates a requested Engine control scope against the current authored
+ * layers. Layer scope requires the referenced layer to actually exist and
+ * requires at least two enabled authored layers -- with fewer, CANVAS is not
+ * shown as a selectable row at all, so layer scope has no meaning and Engine
+ * editing stays Canvas/global (see Single-Layer Behavior).
+ */
+export function normalizeCanvasControlScope(
+  value: unknown,
+  authoredLayers: readonly CanvasAuthoredLayer[],
+): CanvasControlScope {
+  if (isRecord(value) && value.kind === 'layer') {
+    const layerId = typeof value.layerId === 'string' ? value.layerId.trim() : ''
+    if (
+      layerId
+      && resolveCanvasEnabledAuthoredLayers(authoredLayers).length >= 2
+      && normalizeCanvasAuthoredLayers(authoredLayers).some(layer => layer.id === layerId)
+    ) {
+      return { kind: 'layer', layerId }
+    }
+  }
+  return { kind: 'canvas' }
+}
+
+export type CanvasLayerEngineOverrideMutationResult =
+  | { ok: true; layer: CanvasAuthoredLayer; authoredLayers: CanvasAuthoredLayer[] }
+  | { ok: false; code: CanvasLayerMutationFailureCode }
+
+/**
+ * Merges a sparse patch into one layer's engineOverrides. Explicitly passing
+ * `undefined` for a key clears just that field (back to inheriting the
+ * Canvas baseline) without disturbing the layer's other overrides. Refuses
+ * to create the layer's first override while fewer than two authored layers
+ * are enabled, so Phase 2's editing UI cannot silently create an invisible
+ * per-layer override in single-layer mode.
+ */
+export function updateCanvasLayerEngineOverridesState(
+  layers: readonly CanvasAuthoredLayer[],
+  layerId: string,
+  patch: Partial<CanvasLayerEngineOverrides>,
+): CanvasLayerEngineOverrideMutationResult {
+  const normalized = normalizeCanvasAuthoredLayers(layers)
+  const index = normalized.findIndex(layer => layer.id === layerId)
+  if (index < 0) return { ok: false, code: 'layer-not-found' }
+  if (resolveCanvasEnabledAuthoredLayers(normalized).length < 2) {
+    return { ok: false, code: 'layer-scope-unavailable' }
+  }
+  const merged = normalizeCanvasLayerEngineOverrides({ ...normalized[index].engineOverrides, ...patch })
+  const authoredLayers = [...normalized]
+  authoredLayers[index] = { ...authoredLayers[index], engineOverrides: merged }
+  return { ok: true, layer: authoredLayers[index], authoredLayers }
+}
+
+/** Clears one layer's Engine overrides, returning it to full inheritance. */
+export function resetCanvasLayerEngineOverridesState(
+  layers: readonly CanvasAuthoredLayer[],
+  layerId: string,
+): CanvasLayerEngineOverrideMutationResult {
+  const normalized = normalizeCanvasAuthoredLayers(layers)
+  const index = normalized.findIndex(layer => layer.id === layerId)
+  if (index < 0) return { ok: false, code: 'layer-not-found' }
+  if (!normalized[index].engineOverrides) return { ok: true, layer: normalized[index], authoredLayers: normalized }
+  const authoredLayers = [...normalized]
+  authoredLayers[index] = { ...authoredLayers[index], engineOverrides: undefined }
+  return { ok: true, layer: authoredLayers[index], authoredLayers }
+}
+
+/**
+ * Clears Engine overrides from every authored layer -- the CANVAS row's
+ * reset/unlock action. The Canvas baseline (`canvasEngineSettings`) is never
+ * touched; every layer simply goes back to inheriting it.
+ */
+export function resetAllCanvasLayerEngineOverridesState(
+  layers: readonly CanvasAuthoredLayer[],
+): CanvasAuthoredLayer[] {
+  return normalizeCanvasAuthoredLayers(layers).map(layer => (
+    layer.engineOverrides ? { ...layer, engineOverrides: undefined } : layer
+  ))
 }
 
 export function upsertCanvasCompatibilityPool(

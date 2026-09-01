@@ -615,4 +615,118 @@ describe('CANVAS orchestration persistence and compatibility', () => {
     expect(repaired.canvasOrchestrationSettings.poolAutomationTransitionId).toBe('crossfade')
   })
 
+  it('sets Canvas Engine control scope from a click on either the CANVAS row or an individual layer, independent of selectedCanvasLayerId', () => {
+    const a = useReactStore.getState().addCanvasAuthoredLayer('scope-media-a')
+    const b = useReactStore.getState().addCanvasAuthoredLayer('scope-media-b')
+    if (!a.ok || !b.ok) throw new Error('Expected two CANVAS layers')
+
+    useReactStore.getState().setCanvasControlScope({ kind: 'layer', layerId: a.layer.id })
+    expect(useReactStore.getState().canvasControlScope).toEqual({ kind: 'layer', layerId: a.layer.id })
+
+    useReactStore.getState().setCanvasControlScope({ kind: 'canvas' })
+    expect(useReactStore.getState().canvasControlScope).toEqual({ kind: 'canvas' })
+
+    // An invalid/removed layer id can never become the live scope.
+    useReactStore.getState().setCanvasControlScope({ kind: 'layer', layerId: 'not-a-real-layer' })
+    expect(useReactStore.getState().canvasControlScope).toEqual({ kind: 'canvas' })
+  })
+
+  it('keeps Engine scope on Canvas with only one enabled authored layer even if a layer id is requested', () => {
+    const only = useReactStore.getState().addCanvasAuthoredLayer('solo-authored-media')
+    if (!only.ok) throw new Error('Expected one CANVAS layer')
+
+    useReactStore.getState().setCanvasControlScope({ kind: 'layer', layerId: only.layer.id })
+    expect(useReactStore.getState().canvasControlScope).toEqual({ kind: 'canvas' })
+  })
+
+  it('stores per-layer Engine overrides sparsely through the store action, resets one layer without disturbing another, and resets all layers together', () => {
+    const a = useReactStore.getState().addCanvasAuthoredLayer('override-media-a')
+    const b = useReactStore.getState().addCanvasAuthoredLayer('override-media-b')
+    if (!a.ok || !b.ok) throw new Error('Expected two CANVAS layers')
+
+    const rotated = useReactStore.getState().updateCanvasLayerEngineOverrides(b.layer.id, { rotation: 25 })
+    expect(rotated.ok).toBe(true)
+    const findLayer = (layerId: string) => useReactStore.getState().canvasOrchestrationSettings.authoredLayers.find(layer => layer.id === layerId)
+    expect(findLayer(b.layer.id)?.engineOverrides).toEqual({ rotation: 25 })
+    expect(findLayer(a.layer.id)?.engineOverrides).toBeUndefined()
+
+    const resetB = useReactStore.getState().resetCanvasLayerEngineOverrides(b.layer.id)
+    expect(resetB.ok).toBe(true)
+    expect(findLayer(b.layer.id)?.engineOverrides).toBeUndefined()
+
+    useReactStore.getState().updateCanvasLayerEngineOverrides(a.layer.id, { scale: 0.5 })
+    useReactStore.getState().updateCanvasLayerEngineOverrides(b.layer.id, { opacity: 0.4 })
+    expect(findLayer(a.layer.id)?.engineOverrides).toEqual({ scale: 0.5 })
+    expect(findLayer(b.layer.id)?.engineOverrides).toEqual({ opacity: 0.4 })
+
+    useReactStore.getState().resetAllCanvasLayerEngineOverrides()
+    expect(findLayer(a.layer.id)?.engineOverrides).toBeUndefined()
+    expect(findLayer(b.layer.id)?.engineOverrides).toBeUndefined()
+
+    const invalid = useReactStore.getState().updateCanvasLayerEngineOverrides('missing-layer', { rotation: 1 })
+    expect(invalid.ok).toBe(false)
+  })
+
+  it('locks Canvas scope selection while any layer holds an Engine override, and unlocks once the final override clears', () => {
+    const a = useReactStore.getState().addCanvasAuthoredLayer('lock-media-a')
+    const b = useReactStore.getState().addCanvasAuthoredLayer('lock-media-b')
+    if (!a.ok || !b.ok) throw new Error('Expected two CANVAS layers')
+    useReactStore.getState().setCanvasControlScope({ kind: 'layer', layerId: b.layer.id })
+
+    useReactStore.getState().updateCanvasLayerEngineOverrides(b.layer.id, { rotation: 25 })
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.some(layer => (
+      layer.engineOverrides != null && Object.keys(layer.engineOverrides).length > 0
+    ))).toBe(true)
+
+    // The store refuses to select Canvas scope while locked -- it stays on
+    // the layer rather than silently normalizing the request away.
+    useReactStore.getState().setCanvasControlScope({ kind: 'canvas' })
+    expect(useReactStore.getState().canvasControlScope).toEqual({ kind: 'layer', layerId: b.layer.id })
+
+    useReactStore.getState().resetCanvasLayerEngineOverrides(b.layer.id)
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.some(layer => layer.engineOverrides)).toBe(false)
+
+    // Now that the last override is gone, Canvas scope becomes selectable again.
+    useReactStore.getState().setCanvasControlScope({ kind: 'canvas' })
+    expect(useReactStore.getState().canvasControlScope).toEqual({ kind: 'canvas' })
+  })
+
+  it('persists per-layer Engine overrides through a real JSON round-trip, and leaves old persisted layers without overrides valid', () => {
+    const a = useReactStore.getState().addCanvasAuthoredLayer('persist-override-media-a')
+    const b = useReactStore.getState().addCanvasAuthoredLayer('persist-override-media-b')
+    if (!a.ok || !b.ok) throw new Error('Expected two CANVAS layers')
+    useReactStore.getState().updateCanvasLayerEngineOverrides(a.layer.id, { rotation: 12, fitMode: 'cover' })
+
+    const persisted = JSON.parse(JSON.stringify(reactStorePartialize(useReactStore.getState()))) as ReturnType<typeof reactStorePartialize>
+    const restored = mergeReactStoreState(persisted, useReactStore.getState())
+    const restoredA = restored.canvasOrchestrationSettings.authoredLayers.find(layer => layer.id === a.layer.id)
+    const restoredB = restored.canvasOrchestrationSettings.authoredLayers.find(layer => layer.id === b.layer.id)
+    expect(restoredA?.engineOverrides).toEqual({ rotation: 12, fitMode: 'cover' })
+    // A sibling layer with no overrides at all -- omitted by JSON, per the
+    // sparse contract -- still loads as a fully valid layer.
+    expect(restoredB?.engineOverrides).toBeUndefined()
+    expect(restoredB?.mediaId).toBe('persist-override-media-b')
+
+    // Simulate genuinely old saved state that predates engineOverrides
+    // entirely (the key is absent from the object, not merely undefined).
+    const legacy = JSON.parse(JSON.stringify(persisted)) as typeof persisted
+    const legacyLayers = (legacy.canvasOrchestrationSettings as unknown as { authoredLayers: Array<Record<string, unknown>> }).authoredLayers
+    for (const layer of legacyLayers) delete layer.engineOverrides
+    const migrated = mergeReactStoreState(legacy, useReactStore.getState())
+    expect(migrated.canvasOrchestrationSettings.authoredLayers).toHaveLength(2)
+    expect(migrated.canvasOrchestrationSettings.authoredLayers.every(layer => layer.engineOverrides === undefined)).toBe(true)
+    // Layer identity/effects (Add Effects) are unrelated to overrides and
+    // still round-trip normally.
+    expect(migrated.canvasOrchestrationSettings.authoredLayers.map(layer => layer.id).sort())
+      .toEqual([a.layer.id, b.layer.id].sort())
+
+    // Engine control scope is runtime-only (like selectedCanvasLayerId) and
+    // is never restored from a persisted session.
+    useReactStore.getState().setCanvasControlScope({ kind: 'layer', layerId: a.layer.id })
+    const scopedPersisted = JSON.parse(JSON.stringify(reactStorePartialize(useReactStore.getState()))) as ReturnType<typeof reactStorePartialize>
+    expect(scopedPersisted).not.toHaveProperty('canvasControlScope')
+    const rehydratedScope = mergeReactStoreState(scopedPersisted, useReactStore.getState())
+    expect(rehydratedScope.canvasControlScope).toEqual({ kind: 'canvas' })
+  })
+
 })

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react'
-import { Delete02Icon } from 'hugeicons-react'
+import { ReloadIcon, Delete02Icon } from 'hugeicons-react'
 import { NoticeCard } from './controls/NoticeCard'
 import { IconChipButton } from './controls/IconChipButton'
 import { LayerRow } from './controls/LayerRow'
@@ -89,9 +89,11 @@ import {
   canRenderCanvasOrchestrationFrame,
   resolveCanvasAuthoredLayerFrame,
   resolveCanvasEffectiveAuthoredLayers,
+  resolveCanvasEnabledAuthoredLayers,
   resolveCanvasMediaRoles,
   resolveCanvasPerformanceFrame,
   resolveCanvasPoolAutomationRuntime,
+  hasAnyCanvasLayerEngineOverrides,
   type CanvasCompositionPreference,
   type CanvasLayerEffectId,
   type CanvasLayerRole,
@@ -3591,6 +3593,10 @@ export function CanvasLayersPanel() {
   const settings = useReactStore(s => s.canvasOrchestrationSettings)
   const selectedLayerId = useReactStore(s => s.selectedCanvasLayerId)
   const setSelectedCanvasLayer = useReactStore(s => s.setSelectedCanvasLayer)
+  const controlScope = useReactStore(s => s.canvasControlScope)
+  const setCanvasControlScope = useReactStore(s => s.setCanvasControlScope)
+  const resetCanvasLayerEngineOverrides = useReactStore(s => s.resetCanvasLayerEngineOverrides)
+  const resetAllCanvasLayerEngineOverrides = useReactStore(s => s.resetAllCanvasLayerEngineOverrides)
   const reorderCanvasAuthoredLayer = useReactStore(s => s.reorderCanvasAuthoredLayer)
   const setCanvasAuthoredLayerSolo = useReactStore(s => s.setCanvasAuthoredLayerSolo)
   const duplicateCanvasAuthoredLayer = useReactStore(s => s.duplicateCanvasAuthoredLayer)
@@ -3602,6 +3608,13 @@ export function CanvasLayersPanel() {
 
   const layers = settings.authoredLayers
   const activeLayerCount = Math.min(MAX_CANVAS_AUTHORED_LAYERS, resolveCanvasEffectiveAuthoredLayers(layers).length)
+  // Canvas-row visibility/eligibility is based on the authored enabled-layer
+  // collection, not the Solo-narrowed effective render count -- soloing a
+  // layer must not restructure this editing surface (see Enabled Layer
+  // Count vs. Solo State).
+  const showCanvasRow = resolveCanvasEnabledAuthoredLayers(layers).length >= 2
+  const canvasScopeLocked = hasAnyCanvasLayerEngineOverrides(layers)
+  const canvasScopeActive = controlScope.kind === 'canvas'
 
   const handleDragStart = (event: DragEvent<HTMLDivElement>, layerId: string) => {
     setDraggedLayerId(layerId)
@@ -3650,11 +3663,42 @@ export function CanvasLayersPanel() {
       <p className="rv-cinema-panel-list__hint">Top rows render above lower rows. Select a layer for Selection context, or drag a row to change stack order.</p>
       {actionFeedback && <NoticeCard tone="error" role="status" title="Layer action failed">{actionFeedback}</NoticeCard>}
       <div className="rv-cinema-layer-tree">
+        {showCanvasRow && (
+          <div className="rv-canvas-scope-row-wrap">
+            <button
+              type="button"
+              className={`rv-canvas-scope-row${canvasScopeActive ? ' is-active' : ''}`}
+              disabled={canvasScopeLocked}
+              aria-pressed={canvasScopeActive}
+              aria-label="Select CANVAS Engine scope"
+              onClick={() => {
+                setCanvasControlScope({ kind: 'canvas' })
+                setSelectedCanvasLayer(null)
+              }}
+            >
+              <span className="rv-canvas-scope-row-icon" aria-hidden="true">▣</span>
+              <span className="rv-canvas-scope-row-label">CANVAS</span>
+            </button>
+            {canvasScopeLocked && (
+              <IconChipButton
+                className="rv-canvas-layer-row-action rv-canvas-scope-row-reset"
+                title="Reset all layer Engine overrides"
+                aria-label="Reset all CANVAS layer Engine overrides and unlock Canvas selection"
+                icon={<ReloadIcon size={12} color="currentColor" />}
+                onClick={() => resetAllCanvasLayerEngineOverrides()}
+              />
+            )}
+          </div>
+        )}
+        {showCanvasRow && canvasScopeLocked && (
+          <div className="rv-canvas-layer-tree-section-label">Customized layers</div>
+        )}
         {layers.map((layer, index) => {
           const media = mediaItems.find(item => item.id === layer.mediaId) ?? null
           const ownership = layer.ownership === 'manual' ? 'Manual' : 'Automatic'
           const state = !layer.enabled ? 'Off' : layer.solo ? 'Solo' : layer.pinned ? 'Pinned' : 'Available'
           const label = media?.name ?? `Missing media · ${layer.mediaId}`
+          const hasEngineOverrides = Boolean(layer.engineOverrides && Object.keys(layer.engineOverrides).length > 0)
           return (
             <div
               key={layer.id}
@@ -3677,8 +3721,12 @@ export function CanvasLayersPanel() {
                 aria-pressed={selectedLayerId === layer.id}
                 aria-label={`Select CANVAS layer ${index + 1}: ${label}`}
                 title="Drag to reorder"
-                onClick={() => setSelectedCanvasLayer(layer.id)}
+                onClick={() => {
+                  setSelectedCanvasLayer(layer.id)
+                  setCanvasControlScope({ kind: 'layer', layerId: layer.id })
+                }}
               />
+              {hasEngineOverrides && <span className="rv-canvas-layer-override-dot" aria-hidden="true" title="Has Engine overrides" />}
               <div className="rv-canvas-layer-row-actions" aria-label={`Actions for ${label}`}>
                 <IconChipButton
                   className={`rv-canvas-layer-row-action${layer.solo ? ' is-active' : ''}`}
@@ -3698,6 +3746,20 @@ export function CanvasLayersPanel() {
                   aria-label={`Duplicate CANVAS layer ${label}`}
                   onClick={event => { event.stopPropagation(); duplicateLayer(layer.id) }}
                 >⧉</IconChipButton>
+                {hasEngineOverrides && (
+                  <IconChipButton
+                    className="rv-canvas-layer-row-action"
+                    title="Reset layer Engine overrides"
+                    aria-label={`Reset Engine overrides for CANVAS layer ${label}`}
+                    icon={<ReloadIcon size={12} color="currentColor" />}
+                    onClick={event => {
+                      event.stopPropagation()
+                      const result = resetCanvasLayerEngineOverrides(layer.id)
+                      if (!result.ok) setActionFeedback(result.message)
+                      else setActionFeedback(null)
+                    }}
+                  />
+                )}
                 <IconChipButton
                   className="rv-canvas-layer-row-action rv-canvas-layer-row-action--delete"
                   title="Delete layer"

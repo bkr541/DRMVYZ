@@ -197,8 +197,11 @@ import {
   MAX_CANVAS_AUTHORED_LAYERS,
   MAX_CANVAS_STORED_AUTHORED_LAYERS,
   type CanvasAuthoredLayer,
+  type CanvasControlScope,
   type CanvasLayerEffectId,
   type CanvasLayerEffectMutationResult,
+  type CanvasLayerEngineOverrides,
+  type CanvasLayerMutationFailureCode,
   type CanvasLayerMutationResult,
   type CanvasLayerRole,
   type CanvasMediaPoolMutationResult,
@@ -223,13 +226,18 @@ import {
   normalizeCanvasMediaPoolName,
   removeCanvasLayerEffectAtState,
   removeCanvasLayerEffectState,
+  hasAnyCanvasLayerEngineOverrides,
   isCanvasMediaPoolNameAvailable,
+  normalizeCanvasControlScope,
   reorderCanvasAuthoredLayers,
+  resetAllCanvasLayerEngineOverridesState,
+  resetCanvasLayerEngineOverridesState,
   resolveCanvasEffectiveAuthoredLayers,
   resolveCanvasPrimaryLayer,
   retargetCanvasPrimaryLayerState,
   setCanvasLayerEffectState,
   setCanvasAuthoredLayerSoloState,
+  updateCanvasLayerEngineOverridesState,
   upsertCanvasCompatibilityPool,
 } from '../components/vyzualz/react/canvasPerformance/CanvasAuthoringState'
 import { CANVAS_COMPOSITION_TEMPLATES } from '../components/vyzualz/react/canvasPerformance/CanvasCompositionTemplates'
@@ -2583,6 +2591,10 @@ interface ReactStoreState {
   canvasOrchestrationSettings: CanvasOrchestrationSettings
   /** Runtime-only authoring selection. Layer identity is independent of media identity. */
   selectedCanvasLayerId: string | null
+  /** Runtime-only Engine tab editing target: the whole Canvas, or one
+   * authored layer. Related to, but independent of, selectedCanvasLayerId --
+   * see CanvasControlScope. */
+  canvasControlScope: CanvasControlScope
   // Performance Orchestration lock-editor role. This remains independent of
   // the canonical authored-layer selection used by the Layers/Selection UI.
   canvasOrchestrationEditingLayerRole: CanvasLayerRole
@@ -2639,6 +2651,10 @@ interface ReactStoreState {
   removeCanvasAuthoredLayer: (layerId: string) => CanvasLayerMutationResult
   setSelectedCanvasLayer: (layerId: string | null) => void
   setCanvasAuthoredLayerSolo: (layerId: string, solo: boolean) => CanvasLayerMutationResult
+  setCanvasControlScope: (scope: CanvasControlScope) => void
+  updateCanvasLayerEngineOverrides: (layerId: string, patch: Partial<CanvasLayerEngineOverrides>) => CanvasLayerMutationResult
+  resetCanvasLayerEngineOverrides: (layerId: string) => CanvasLayerMutationResult
+  resetAllCanvasLayerEngineOverrides: () => void
   createCanvasMediaPool: (name: string) => CanvasMediaPoolMutationResult
   renameCanvasMediaPool: (poolId: string, name: string) => CanvasMediaPoolMutationResult
   deleteCanvasMediaPool: (poolId: string) => CanvasMediaPoolMutationResult
@@ -4501,6 +4517,15 @@ function retargetCanvasPrimaryLayerForMedia(
 }
 
 
+function canvasLayerEngineOverrideFailureMessage(code: CanvasLayerMutationFailureCode): string {
+  switch (code) {
+    case 'layer-scope-unavailable':
+      return 'CANVAS needs at least two enabled layers before an individual layer can have its own Engine overrides.'
+    default:
+      return 'That CANVAS layer is no longer available.'
+  }
+}
+
 function normalizeCanvasPresetId(value: unknown): CanvasPresetId {
   return typeof value === 'string' && value in CANVAS_PRESET_BY_ID
     ? value as CanvasPresetId
@@ -6346,6 +6371,7 @@ export function mergeReactStoreState(
     activeCanvasMediaId,
     canvasVideoRestartRevision: currentState.canvasVideoRestartRevision,
     selectedCanvasLayerId: null,
+    canvasControlScope: { kind: 'canvas' },
     canvasShowManagerEditingShowId: null,
     showManagerEditingShowId: null,
     canvasShowManagerEditingSectionId: null,
@@ -6557,6 +6583,7 @@ export const useReactStore = create<ReactStoreState>()(
       canvasVideoRestartRevision: 0,
       canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
       selectedCanvasLayerId: null,
+      canvasControlScope: { kind: 'canvas' },
       canvasOrchestrationEditingLayerRole: 'hero',
       showManagerShows: [],
       showManagerEditingShowId: null,
@@ -7113,6 +7140,7 @@ export const useReactStore = create<ReactStoreState>()(
           selectedCanvasLayerId: canvasOrchestrationSettings.authoredLayers.some(layer => layer.id === state.selectedCanvasLayerId)
             ? state.selectedCanvasLayerId
             : null,
+          canvasControlScope: normalizeCanvasControlScope(state.canvasControlScope, canvasOrchestrationSettings.authoredLayers),
         }
       }),
 
@@ -7202,6 +7230,7 @@ export const useReactStore = create<ReactStoreState>()(
                 : state.canvasOrchestrationSettings.primaryLayer,
             }),
             selectedCanvasLayerId: layer.id,
+            canvasControlScope: normalizeCanvasControlScope({ kind: 'layer', layerId: layer.id }, nextLayers),
           }
         })
         return result
@@ -7404,6 +7433,10 @@ export const useReactStore = create<ReactStoreState>()(
               renderMode: 'layers',
               authoredLayers,
             }),
+            // `enabled` toggling can cross the two-enabled-layer threshold that
+            // gates layer Engine scope -- re-validate rather than leave a stale
+            // scope pointed at a target that's no longer eligible.
+            canvasControlScope: normalizeCanvasControlScope(state.canvasControlScope, authoredLayers),
           }
         })
         return result
@@ -7489,6 +7522,7 @@ export const useReactStore = create<ReactStoreState>()(
               authoredLayers: canonicalLayers,
             }),
             selectedCanvasLayerId: duplicate.id,
+            canvasControlScope: normalizeCanvasControlScope({ kind: 'layer', layerId: duplicate.id }, canonicalLayers),
           }
         })
         return result
@@ -7524,11 +7558,21 @@ export const useReactStore = create<ReactStoreState>()(
               primaryLayer: retargetCanvasPrimaryLayerForMedia(canvasOrchestrationSettings, state.activeCanvasMediaId),
             })
           }
+          const nextSelectedCanvasLayerId = state.selectedCanvasLayerId === layerId
+            ? fallbackSelection
+            : state.selectedCanvasLayerId
           return {
             canvasOrchestrationSettings,
-            selectedCanvasLayerId: state.selectedCanvasLayerId === layerId
-              ? fallbackSelection
-              : state.selectedCanvasLayerId,
+            selectedCanvasLayerId: nextSelectedCanvasLayerId,
+            // If the removed layer was the scope target, follow the same
+            // fallback selection uses; otherwise just re-validate the
+            // existing scope against the now-smaller layer collection.
+            canvasControlScope: normalizeCanvasControlScope(
+              state.canvasControlScope.kind === 'layer' && state.canvasControlScope.layerId === layerId
+                ? (nextSelectedCanvasLayerId ? { kind: 'layer', layerId: nextSelectedCanvasLayerId } : { kind: 'canvas' })
+                : state.canvasControlScope,
+              authoredLayers,
+            ),
           }
         })
         return result
@@ -7586,6 +7630,73 @@ export const useReactStore = create<ReactStoreState>()(
         })
         return result
       },
+
+      setCanvasControlScope: (scope) => set((state) => {
+        const authoredLayers = state.canvasOrchestrationSettings.authoredLayers
+        // Canvas becomes locked/disabled from selection while any layer
+        // carries an Engine override -- reject the transition rather than
+        // silently normalizing it away, so a caller can tell the difference
+        // between "already canvas" and "refused because locked".
+        if (scope.kind === 'canvas' && hasAnyCanvasLayerEngineOverrides(authoredLayers)) return {}
+        return { canvasControlScope: normalizeCanvasControlScope(scope, authoredLayers) }
+      }),
+
+      updateCanvasLayerEngineOverrides: (layerId, patch) => {
+        let result: CanvasLayerMutationResult = {
+          ok: false,
+          code: 'layer-not-found',
+          message: 'That CANVAS layer is no longer available.',
+        }
+        set((state) => {
+          const mutation = updateCanvasLayerEngineOverridesState(
+            state.canvasOrchestrationSettings.authoredLayers,
+            layerId,
+            patch,
+          )
+          if (!mutation.ok) {
+            result = { ok: false, code: mutation.code, message: canvasLayerEngineOverrideFailureMessage(mutation.code) }
+            return {}
+          }
+          result = { ok: true, layer: mutation.layer }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              authoredLayers: mutation.authoredLayers,
+            }),
+          }
+        })
+        return result
+      },
+
+      resetCanvasLayerEngineOverrides: (layerId) => {
+        let result: CanvasLayerMutationResult = {
+          ok: false,
+          code: 'layer-not-found',
+          message: 'That CANVAS layer is no longer available.',
+        }
+        set((state) => {
+          const mutation = resetCanvasLayerEngineOverridesState(state.canvasOrchestrationSettings.authoredLayers, layerId)
+          if (!mutation.ok) {
+            result = { ok: false, code: mutation.code, message: canvasLayerEngineOverrideFailureMessage(mutation.code) }
+            return {}
+          }
+          result = { ok: true, layer: mutation.layer }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              authoredLayers: mutation.authoredLayers,
+            }),
+          }
+        })
+        return result
+      },
+
+      resetAllCanvasLayerEngineOverrides: () => set((state) => ({
+        canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+          ...state.canvasOrchestrationSettings,
+          authoredLayers: resetAllCanvasLayerEngineOverridesState(state.canvasOrchestrationSettings.authoredLayers),
+        }),
+      })),
 
       createCanvasMediaPool: (name) => {
         let result: CanvasMediaPoolMutationResult = {
@@ -7909,6 +8020,7 @@ export const useReactStore = create<ReactStoreState>()(
           canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
           canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
           selectedCanvasLayerId: null,
+          canvasControlScope: { kind: 'canvas' },
           canvasOrchestrationEditingLayerRole: 'hero',
           canvasVideoRestartRevision: state.canvasVideoRestartRevision + 1,
         }
@@ -12559,6 +12671,7 @@ export const useReactStore = create<ReactStoreState>()(
               canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
               canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
               selectedCanvasLayerId: null,
+              canvasControlScope: { kind: 'canvas' },
               canvasOrchestrationEditingLayerRole: 'hero',
               canvasVideoRestartRevision: s.canvasVideoRestartRevision + 1,
             }
@@ -12654,6 +12767,7 @@ export const useReactStore = create<ReactStoreState>()(
             canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
             selectedCanvasLayerId: null,
+            canvasControlScope: { kind: 'canvas' },
             canvasOrchestrationEditingLayerRole: 'hero',
             canvasVideoRestartRevision: s.canvasVideoRestartRevision + 1,
             showManagerShows: [],

@@ -961,6 +961,90 @@
   color: #ff8e8e;
 }
 
+/* CANVAS Engine control scope row -- selects the complete Canvas output as
+   the Engine tab's editing target, sitting above the numbered authored
+   layers it composites. Mirrors dv-layer-row's bordered/rounded treatment
+   without the ghost index/status line, since Canvas isn't "a layer". */
+.rv-canvas-scope-row-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rv-canvas-scope-row {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 5px;
+  background: rgba(6, 10, 14, 0.7);
+  padding: 9px 12px;
+  color: #cdd8dd;
+  font: 800 11px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rv-canvas-scope-row-icon {
+  font-size: 11px;
+  color: rgba(196, 207, 211, 0.5);
+}
+
+.rv-canvas-scope-row.is-active {
+  border-color: rgba(74, 199, 219, 0.4);
+  background: rgba(74, 199, 219, 0.07);
+  box-shadow: 0 0 20px rgba(74, 199, 219, 0.08);
+  color: #e8fcff;
+}
+
+.rv-canvas-scope-row.is-active .rv-canvas-scope-row-icon {
+  color: #4ac7db;
+}
+
+.rv-canvas-scope-row:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.rv-canvas-scope-row-reset {
+  flex-shrink: 0;
+}
+
+/* Mini section divider between the CANVAS row and the authored layers when
+   any layer holds an Engine override -- matches rv-cinema-panel-list__hint's
+   muted register, just smaller, since it labels a subsection rather than
+   the whole panel. */
+.rv-canvas-layer-tree-section-label {
+  margin: 2px 0 -2px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  color: rgba(196, 207, 211, 0.4);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Persistent (not hover-gated) indicator that an authored layer carries its
+   own Engine overrides -- sits beside the row rather than inside the hover-
+   reveal actions group, since it's a status, not an action. */
+.rv-canvas-layer-override-dot {
+  position: absolute;
+  top: 3px;
+  right: 8px;
+  z-index: 2;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #d8b95a;
+  box-shadow: 0 0 6px rgba(216, 185, 90, 0.6);
+  pointer-events: none;
+}
+
 /* Canonical DRMVYZ numeric input from Layout Lab's "Drag Scrubber" winner. */
 
 .dv-scrub-field-label {

@@ -8,6 +8,7 @@ import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
 import { useReactStore } from '../../../stores/reactStore'
 import { CanvasEngineSurface, CanvasLayersPanel } from './ReactCanvasEngineShell'
 import { ReactInspectorPanel } from './ReactInspectorPanel'
+import type { CanvasLayerMutationResult } from './canvasPerformance'
 
 const mediaBase: UploadedMedia = {
   id: 'canvas-layer-media-a',
@@ -192,5 +193,100 @@ describe('CANVAS Stage 3 layer stack UI', () => {
     expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers).toHaveLength(3)
     expect(useMediaStore.getState().items).toHaveLength(sourceMediaCount)
     expect(useReactStore.getState().selectedCanvasLayerId).not.toBe(selectedId)
+  })
+
+  it('shows no CANVAS row for a single enabled layer, but shows and selects it once a second layer exists', () => {
+    const a = useReactStore.getState().addCanvasAuthoredLayer(mediaItems[0].id)
+    if (!a.ok) throw new Error('Expected first CANVAS layer')
+    renderStageAndLayers()
+    expect(host.querySelector('[aria-label="Select CANVAS Engine scope"]')).toBeNull()
+    // Single-Layer Behavior: with only one enabled layer, Engine scope stays Canvas.
+    expect(useReactStore.getState().canvasControlScope).toEqual({ kind: 'canvas' })
+
+    const bRef: { current: CanvasLayerMutationResult | null } = { current: null }
+    act(() => { bRef.current = useReactStore.getState().addCanvasAuthoredLayer(mediaItems[1].id) })
+    if (!bRef.current || !bRef.current.ok) throw new Error('Expected second CANVAS layer')
+    const canvasRow = host.querySelector<HTMLButtonElement>('[aria-label="Select CANVAS Engine scope"]')
+    expect(canvasRow).not.toBeNull()
+  })
+
+  it('routes clicks on the CANVAS row and on a layer row to distinct Engine control scopes', () => {
+    const a = useReactStore.getState().addCanvasAuthoredLayer(mediaItems[0].id)
+    const b = useReactStore.getState().addCanvasAuthoredLayer(mediaItems[1].id)
+    if (!a.ok || !b.ok) throw new Error('Expected two CANVAS layers')
+    renderStageAndLayers()
+
+    const layerBSelect = host.querySelector<HTMLButtonElement>('[aria-label="Select CANVAS layer 2: Layer B"]')
+    if (!layerBSelect) throw new Error('Expected Layer B selection row')
+    act(() => layerBSelect.click())
+    expect(useReactStore.getState().canvasControlScope).toEqual({ kind: 'layer', layerId: b.layer.id })
+    expect(useReactStore.getState().selectedCanvasLayerId).toBe(b.layer.id)
+
+    const canvasRow = host.querySelector<HTMLButtonElement>('[aria-label="Select CANVAS Engine scope"]')
+    if (!canvasRow) throw new Error('Expected CANVAS scope row')
+    expect(canvasRow.disabled).toBe(false)
+    act(() => canvasRow.click())
+    expect(useReactStore.getState().canvasControlScope).toEqual({ kind: 'canvas' })
+    expect(useReactStore.getState().selectedCanvasLayerId).toBeNull()
+  })
+
+  it('soloing a layer keeps the CANVAS row present even though the effective renderer narrows to one layer', () => {
+    const a = useReactStore.getState().addCanvasAuthoredLayer(mediaItems[0].id)
+    const b = useReactStore.getState().addCanvasAuthoredLayer(mediaItems[1].id)
+    if (!a.ok || !b.ok) throw new Error('Expected two CANVAS layers')
+    renderStageAndLayers()
+    expect(host.querySelector('[aria-label="Select CANVAS Engine scope"]')).not.toBeNull()
+
+    const soloA = host.querySelector<HTMLButtonElement>('[aria-label="Solo CANVAS layer Layer A"]')
+    if (!soloA) throw new Error('Expected Layer A solo action')
+    act(() => soloA.click())
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.filter(layer => layer.solo)).toHaveLength(1)
+
+    renderStageAndLayers()
+    expect(host.querySelector('[aria-label="Select CANVAS Engine scope"]')).not.toBeNull()
+  })
+
+  it('locks the CANVAS row once a layer holds an Engine override, shows a reset action that stays usable while locked, and unlocks on reset', () => {
+    const a = useReactStore.getState().addCanvasAuthoredLayer(mediaItems[0].id)
+    const b = useReactStore.getState().addCanvasAuthoredLayer(mediaItems[1].id)
+    if (!a.ok || !b.ok) throw new Error('Expected two CANVAS layers')
+    useReactStore.getState().setCanvasControlScope({ kind: 'layer', layerId: b.layer.id })
+    useReactStore.getState().updateCanvasLayerEngineOverrides(b.layer.id, { rotation: 25 })
+    renderStageAndLayers()
+
+    const canvasRow = host.querySelector<HTMLButtonElement>('[aria-label="Select CANVAS Engine scope"]')
+    if (!canvasRow) throw new Error('Expected CANVAS scope row')
+    expect(canvasRow.disabled).toBe(true)
+
+    const unlockAll = host.querySelector<HTMLButtonElement>('[aria-label="Reset all CANVAS layer Engine overrides and unlock Canvas selection"]')
+    if (!unlockAll) throw new Error('Expected the always-usable Canvas unlock action')
+    expect(unlockAll.disabled).toBeFalsy()
+
+    const layerBRow = host.querySelector<HTMLElement>(`[data-canvas-layer-id="${b.layer.id}"]`)
+    expect(layerBRow?.querySelector('.rv-canvas-layer-override-dot')).not.toBeNull()
+    const layerARow = host.querySelector<HTMLElement>(`[data-canvas-layer-id="${a.layer.id}"]`)
+    expect(layerARow?.querySelector('.rv-canvas-layer-override-dot')).toBeNull()
+
+    act(() => unlockAll.click())
+    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.some(layer => layer.engineOverrides)).toBe(false)
+    renderStageAndLayers()
+    expect(host.querySelector<HTMLButtonElement>('[aria-label="Select CANVAS Engine scope"]')?.disabled).toBe(false)
+  })
+
+  it('exposes a per-layer reset action that clears only that layer\'s override', () => {
+    const a = useReactStore.getState().addCanvasAuthoredLayer(mediaItems[0].id)
+    const b = useReactStore.getState().addCanvasAuthoredLayer(mediaItems[1].id)
+    if (!a.ok || !b.ok) throw new Error('Expected two CANVAS layers')
+    useReactStore.getState().updateCanvasLayerEngineOverrides(a.layer.id, { scale: 0.6 })
+    useReactStore.getState().updateCanvasLayerEngineOverrides(b.layer.id, { opacity: 0.4 })
+    renderStageAndLayers()
+
+    const resetA = host.querySelector<HTMLButtonElement>('[aria-label="Reset Engine overrides for CANVAS layer Layer A"]')
+    if (!resetA) throw new Error('Expected Layer A reset action')
+    act(() => resetA.click())
+
+    const layers = useReactStore.getState().canvasOrchestrationSettings.authoredLayers
+    expect(layers.find(layer => layer.id === a.layer.id)?.engineOverrides).toBeUndefined()
+    expect(layers.find(layer => layer.id === b.layer.id)?.engineOverrides).toEqual({ opacity: 0.4 })
   })
 })

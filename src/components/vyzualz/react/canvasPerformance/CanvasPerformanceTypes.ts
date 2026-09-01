@@ -453,6 +453,23 @@ export const CANVAS_POOL_AUTOMATION_TRIGGER_OPTIONS: readonly { value: CanvasPoo
   { value: 'snareHit', label: 'Snare Hit' },
 ]
 
+/**
+ * Sparse per-layer overrides of the Canvas Engine baseline (`CanvasEngineSettings`'s
+ * Display-only fields). A key's absence means the layer inherits that value
+ * from the Canvas baseline rather than storing a redundant copy of it -- only
+ * fields the user has actually customized for this layer are populated. This
+ * is a distinct concept from layer `effects` (Add Effects) and must not be
+ * merged into that array.
+ */
+export interface CanvasLayerEngineOverrides {
+  fitMode?: CanvasFitMode
+  scale?: number
+  positionX?: number
+  positionY?: number
+  rotation?: number
+  opacity?: number
+}
+
 export interface CanvasAuthoredLayer {
   /** Stable instance identity. Multiple instances may reference the same mediaId. */
   id: string
@@ -465,7 +482,21 @@ export interface CanvasAuthoredLayer {
   solo: boolean
   ownership: CanvasAuthoredLayerOwnership
   pinned: boolean
+  /** Present only once at least one Engine Display field has been overridden
+   * for this layer specifically (see CanvasLayerEngineOverrides). */
+  engineOverrides?: CanvasLayerEngineOverrides
 }
+
+/**
+ * Which target the right-side Engine tab currently edits: the complete
+ * Canvas composition, or one individual authored layer. Deliberately kept
+ * separate from `selectedCanvasLayerId` (the Selection-tab/inspector target)
+ * -- the two are related through normal UI flows but are not the same
+ * concept, and neither should be inferred from the other being null.
+ */
+export type CanvasControlScope =
+  | { kind: 'canvas' }
+  | { kind: 'layer'; layerId: string }
 
 
 export type CanvasPrimaryLayerState =
@@ -494,6 +525,10 @@ export type CanvasLayerMutationFailureCode =
   | 'layer-limit-reached'
   | 'layer-not-found'
   | 'invalid-order'
+  /** Per-layer Engine overrides require at least two enabled authored layers
+   * -- with only one, Engine settings remain the Canvas baseline (see
+   * CanvasControlScope / Single-Layer Behavior). */
+  | 'layer-scope-unavailable'
 
 export type CanvasLayerMutationResult =
   | { ok: true; layer: CanvasAuthoredLayer }

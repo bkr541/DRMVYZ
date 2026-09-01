@@ -2,16 +2,34 @@ import { describe, expect, it } from 'vitest'
 import { createCanvasAuthoringMediaDeletionGuard } from './CanvasAuthoringMediaDeletion'
 import {
   CANVAS_LEGACY_COMPATIBILITY_POOL_ID,
+  hasAnyCanvasLayerEngineOverrides,
   normalizeCanvasAuthoringState,
   normalizeCanvasAuthoredLayers,
+  normalizeCanvasControlScope,
   isCanvasMediaPoolNameAvailable,
+  resetAllCanvasLayerEngineOverridesState,
+  resetCanvasLayerEngineOverridesState,
   resolveActiveCanvasMediaPool,
+  resolveCanvasEnabledAuthoredLayers,
   reorderCanvasAuthoredLayers,
   isCanvasAuthoredLayerRenderEligible,
   resolveCanvasEffectiveAuthoredLayers,
   setCanvasAuthoredLayerSoloState,
+  updateCanvasLayerEngineOverridesState,
 } from './CanvasAuthoringState'
-import { MAX_CANVAS_AUTHORED_LAYERS, MAX_CANVAS_PERFORMANCE_LAYERS } from './CanvasPerformanceTypes'
+import { MAX_CANVAS_AUTHORED_LAYERS, MAX_CANVAS_PERFORMANCE_LAYERS, type CanvasAuthoredLayer } from './CanvasPerformanceTypes'
+
+function makeLayer(overrides: Partial<CanvasAuthoredLayer> & { id: string; mediaId: string }): CanvasAuthoredLayer {
+  return {
+    effects: [],
+    order: 0,
+    enabled: true,
+    solo: false,
+    ownership: 'manual',
+    pinned: true,
+    ...overrides,
+  }
+}
 
 describe('CANVAS canonical authoring state', () => {
   it('normalizes stored authored layer identity, duplicate media references, and canonical order independently of the four-active-media cap', () => {
@@ -154,5 +172,127 @@ describe('CANVAS canonical authoring state', () => {
     })
     expect(intentionallyEmptyCanonical.mediaPools).toEqual([])
     expect(intentionallyEmptyCanonical.mediaPoolIds).toEqual([])
+  })
+
+  it('normalizes engineOverrides sparsely, dropping invalid fields and empty results while preserving effects', () => {
+    const layers = normalizeCanvasAuthoredLayers([
+      {
+        ...makeLayer({ id: 'layer-a', mediaId: 'media-a', effects: ['bloom', 'echo'] }),
+        // Deliberately malformed like corrupt persisted data -- `scale`
+        // should be dropped without poisoning the sibling valid fields.
+        engineOverrides: { rotation: 25, scale: 'not-a-number', fitMode: 'contain' },
+      },
+      makeLayer({ id: 'layer-b', mediaId: 'media-b', engineOverrides: {} }),
+      makeLayer({ id: 'layer-c', mediaId: 'media-c', engineOverrides: { scale: 999, positionX: -500, opacity: 2 } }),
+      makeLayer({ id: 'layer-d', mediaId: 'media-d' }),
+    ])
+
+    const a = layers.find(layer => layer.id === 'layer-a')
+    // Only the valid keys survive; invalid `scale` is dropped without
+    // poisoning the rest of the record, and effects are untouched.
+    expect(a?.engineOverrides).toEqual({ rotation: 25, fitMode: 'contain' })
+    expect(a?.effects).toEqual(['bloom', 'echo'])
+
+    // An empty overrides object normalizes to undefined, not `{}`.
+    expect(layers.find(layer => layer.id === 'layer-b')?.engineOverrides).toBeUndefined()
+
+    // Out-of-range numeric overrides clamp to the same bounds as the Canvas
+    // baseline (CanvasEngineSettings) rather than being silently accepted.
+    expect(layers.find(layer => layer.id === 'layer-c')?.engineOverrides).toEqual({ scale: 4, positionX: -100, opacity: 1 })
+
+    // Layers with no override data at all remain valid with the field absent.
+    expect(layers.find(layer => layer.id === 'layer-d')?.engineOverrides).toBeUndefined()
+
+    expect(hasAnyCanvasLayerEngineOverrides(layers)).toBe(true)
+    expect(hasAnyCanvasLayerEngineOverrides(layers.filter(layer => layer.id !== 'layer-a' && layer.id !== 'layer-c'))).toBe(false)
+  })
+
+  it('keeps enabled-layer counting independent of Solo for Canvas-row/scope eligibility', () => {
+    const layers = normalizeCanvasAuthoredLayers([
+      makeLayer({ id: 'layer-a', mediaId: 'media-a', solo: true }),
+      makeLayer({ id: 'layer-b', mediaId: 'media-b' }),
+      makeLayer({ id: 'layer-c', mediaId: 'media-c', enabled: false }),
+    ])
+
+    // Soloing layer-a narrows the effective renderer to one layer...
+    expect(resolveCanvasEffectiveAuthoredLayers(layers).map(layer => layer.id)).toEqual(['layer-a'])
+    // ...but both enabled layers still count for the editing surface.
+    expect(resolveCanvasEnabledAuthoredLayers(layers).map(layer => layer.id)).toEqual(['layer-a', 'layer-b'])
+  })
+
+  it('validates control scope: requires the target layer to exist and at least two enabled layers', () => {
+    const twoLayers = normalizeCanvasAuthoredLayers([
+      makeLayer({ id: 'layer-a', mediaId: 'media-a' }),
+      makeLayer({ id: 'layer-b', mediaId: 'media-b' }),
+    ])
+    const oneLayer = normalizeCanvasAuthoredLayers([makeLayer({ id: 'layer-a', mediaId: 'media-a' })])
+
+    expect(normalizeCanvasControlScope({ kind: 'layer', layerId: 'layer-a' }, twoLayers)).toEqual({ kind: 'layer', layerId: 'layer-a' })
+    expect(normalizeCanvasControlScope({ kind: 'layer', layerId: 'missing' }, twoLayers)).toEqual({ kind: 'canvas' })
+    // Single-Layer Behavior: with fewer than two enabled layers, layer scope
+    // is not a real concept even if the layer id itself is valid.
+    expect(normalizeCanvasControlScope({ kind: 'layer', layerId: 'layer-a' }, oneLayer)).toEqual({ kind: 'canvas' })
+    expect(normalizeCanvasControlScope({ kind: 'canvas' }, twoLayers)).toEqual({ kind: 'canvas' })
+    expect(normalizeCanvasControlScope(null, twoLayers)).toEqual({ kind: 'canvas' })
+    expect(normalizeCanvasControlScope('garbage', twoLayers)).toEqual({ kind: 'canvas' })
+  })
+
+  it('merges sparse per-layer overrides, supports single-field clearing, and isolates other layers', () => {
+    const layers = normalizeCanvasAuthoredLayers([
+      makeLayer({ id: 'layer-a', mediaId: 'media-a' }),
+      makeLayer({ id: 'layer-b', mediaId: 'media-b' }),
+    ])
+
+    const rotated = updateCanvasLayerEngineOverridesState(layers, 'layer-b', { rotation: 25 })
+    if (!rotated.ok) throw new Error('Expected override update to succeed')
+    expect(rotated.layer.engineOverrides).toEqual({ rotation: 25 })
+    // Do NOT populate redundant copies of the other Display fields.
+    expect(Object.keys(rotated.layer.engineOverrides ?? {})).toEqual(['rotation'])
+    expect(rotated.authoredLayers.find(layer => layer.id === 'layer-a')?.engineOverrides).toBeUndefined()
+
+    const scaled = updateCanvasLayerEngineOverridesState(rotated.authoredLayers, 'layer-b', { scale: 0.6 })
+    if (!scaled.ok) throw new Error('Expected second override update to succeed')
+    expect(scaled.layer.engineOverrides).toEqual({ rotation: 25, scale: 0.6 })
+
+    // Explicitly clearing one field (undefined) removes just that key.
+    const clearedRotation = updateCanvasLayerEngineOverridesState(scaled.authoredLayers, 'layer-b', { rotation: undefined })
+    if (!clearedRotation.ok) throw new Error('Expected field-clear update to succeed')
+    expect(clearedRotation.layer.engineOverrides).toEqual({ scale: 0.6 })
+
+    expect(updateCanvasLayerEngineOverridesState(layers, 'missing-layer', { rotation: 1 })).toEqual({ ok: false, code: 'layer-not-found' })
+  })
+
+  it('refuses to create an override while fewer than two layers are enabled', () => {
+    const oneLayer = normalizeCanvasAuthoredLayers([makeLayer({ id: 'layer-a', mediaId: 'media-a' })])
+    expect(updateCanvasLayerEngineOverridesState(oneLayer, 'layer-a', { rotation: 10 })).toEqual({
+      ok: false,
+      code: 'layer-scope-unavailable',
+    })
+  })
+
+  it('resets one layer without disturbing another, and resets all layers together', () => {
+    const initial = normalizeCanvasAuthoredLayers([
+      makeLayer({ id: 'layer-a', mediaId: 'media-a', effects: ['glitch'] }),
+      makeLayer({ id: 'layer-b', mediaId: 'media-b' }),
+    ])
+    const afterA = updateCanvasLayerEngineOverridesState(initial, 'layer-a', { rotation: 10 })
+    if (!afterA.ok) throw new Error('Expected layer-a override to succeed')
+    const afterB = updateCanvasLayerEngineOverridesState(afterA.authoredLayers, 'layer-b', { scale: 0.5 })
+    if (!afterB.ok) throw new Error('Expected layer-b override to succeed')
+    const layers = afterB.authoredLayers
+    expect(hasAnyCanvasLayerEngineOverrides(layers)).toBe(true)
+
+    const resetA = resetCanvasLayerEngineOverridesState(layers, 'layer-a')
+    if (!resetA.ok) throw new Error('Expected reset to succeed')
+    expect(resetA.layer.engineOverrides).toBeUndefined()
+    expect(resetA.layer.effects).toEqual(['glitch']) // effects (Add Effects) are untouched by Engine override resets
+    expect(resetA.authoredLayers.find(layer => layer.id === 'layer-b')?.engineOverrides).toEqual({ scale: 0.5 })
+    expect(hasAnyCanvasLayerEngineOverrides(resetA.authoredLayers)).toBe(true)
+
+    const resetAll = resetAllCanvasLayerEngineOverridesState(resetA.authoredLayers)
+    expect(hasAnyCanvasLayerEngineOverrides(resetAll)).toBe(false)
+    expect(resetAll.every(layer => layer.engineOverrides === undefined)).toBe(true)
+
+    expect(resetCanvasLayerEngineOverridesState(layers, 'missing-layer')).toEqual({ ok: false, code: 'layer-not-found' })
   })
 })
