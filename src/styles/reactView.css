@@ -13703,7 +13703,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-cast-popover {
   position: fixed;
   z-index: 2147483002;
-  width: min(820px, calc(100vw - 24px));
+  width: min(440px, calc(100vw - 24px));
   color: #e8f4f8;
 }
 
@@ -13733,7 +13733,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-cast-popover-surface {
-  max-height: min(430px, calc(100vh - 24px));
+  max-height: min(580px, calc(100vh - 24px));
   overflow: auto;
   border: 1px solid rgba(103, 247, 255, 0.3);
   border-radius: 12px;
@@ -13748,27 +13748,29 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-cast-popover-surface::-webkit-scrollbar-track { background: transparent; }
 .rv-cast-popover-surface::-webkit-scrollbar-thumb { background: rgba(74, 199, 219, 0.22); border-radius: 4px; }
 
-.rv-cast-popover-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 0.96fr) minmax(0, 1.04fr);
-  min-height: 276px;
-}
+/* Production port of Layout Lab / Template's "Icon Rail Bar" mockup
+   (CastScreenModalMockup.tsx, Concept 01) — single vertical stack instead
+   of the old two-column grid. Behavior/data are untouched (see
+   OutputCastControl.tsx); only the visual layer changed. Two deliberate
+   departures from the mockup, both to preserve existing tested behavior:
+   (1) no device-category tabs — Wireless/Local/Receivers all stay
+   simultaneously visible, since hiding two of three behind tabs would be a
+   real functional regression, not just a style change; (2) the section
+   keeps its real "DRMVYZ Receivers" label rather than the mockup's "App
+   Receivers" rename. */
 
-.rv-cast-config-panel,
-.rv-cast-devices-panel {
-  min-width: 0;
-  padding: 18px 20px 17px;
-}
-
-.rv-cast-config-panel {
-  border-right: 1px solid rgba(255, 255, 255, 0.075);
+.rv-cast-panel-body {
+  padding: 16px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .rv-cast-compact-title {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 0 0 18px;
+  margin: 0;
 }
 
 .rv-cast-compact-title-icon {
@@ -13777,6 +13779,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: grid;
   place-items: center;
   color: #67f7ff;
+  flex-shrink: 0;
 }
 
 .rv-cast-compact-title-icon svg,
@@ -13792,6 +13795,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-cast-compact-title h2 {
+  flex: 1;
   margin: 0;
   color: #f2fbfd;
   font: 800 12px/1 var(--az-font);
@@ -13800,14 +13804,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-cast-icon-btn {
-  width: 31px;
-  min-width: 31px;
-  height: 31px;
+  flex-shrink: 0;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
   padding: 0;
   display: grid;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 7px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.025);
   color: rgba(232, 244, 248, 0.62);
   cursor: pointer;
@@ -13821,9 +13826,86 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   outline: none;
 }
 
+.rv-cast-icon-btn--close:hover,
+.rv-cast-icon-btn--close:focus-visible {
+  color: #ff8b94;
+  border-color: rgba(255, 139, 148, 0.4);
+  background: rgba(255, 72, 92, 0.08);
+}
+
 .rv-cast-icon-btn svg {
-  width: 17px;
-  height: 17px;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Window / Aspect Ratio — degrouped, no enclosing box, just a plain row
+   (matches the mockup's finalized "Icon Rail Bar" treatment). */
+.rv-cast-settings-bar {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.rv-cast-rail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* Matches .rv-ctrl-label — the label styling above every reusable input
+   control — so these read as the same field-label language used
+   everywhere else in the app, not a bespoke uppercase legend. */
+.rv-cast-rail-section legend,
+.rv-cast-rail-section-hdr {
+  padding: 0;
+  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: normal;
+  text-transform: none;
+  color: rgba(245, 248, 250, 0.7);
+}
+
+.rv-cast-rail-divider {
+  align-self: stretch;
+  width: 1px;
+  background: rgba(154, 178, 188, 0.16);
+}
+
+.rv-cast-rail-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.rv-cast-rail-group button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 40px;
+  height: auto;
+  gap: 4px;
+  padding: 7px 6px 6px;
+  border: 1px solid rgba(154, 178, 188, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(196, 207, 211, 0.6);
+  cursor: pointer;
+}
+
+.rv-cast-rail-group button svg {
+  width: 21px;
+  height: 21px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.7;
@@ -13831,222 +13913,220 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   stroke-linejoin: round;
 }
 
-.rv-cast-fieldset {
-  margin: 0 0 15px;
-  padding: 0;
-  border: 0;
+/* Aspect ratio icons are drawn as small filled rects (to read as a scaled
+   shape), unlike the outline-stroke icons Window uses. */
+.rv-cast-rail-group--aspect svg {
+  fill: rgba(255, 255, 255, 0.08);
+  stroke-width: 1.4;
 }
 
-.rv-cast-fieldset--aspect {
-  margin-bottom: 0;
-  padding-top: 13px;
-  border-top: 1px solid rgba(255, 255, 255, 0.065);
-}
-
-.rv-cast-fieldset legend,
-.rv-cast-device-group h3 {
-  margin: 0 0 9px;
-  color: rgba(232, 244, 248, 0.62);
-  font: 800 8px/1 var(--az-font);
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-}
-
-.rv-cast-option-grid {
-  display: grid;
-  gap: 7px;
-}
-
-.rv-cast-option-grid--window {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.rv-cast-option-grid--aspect {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 5px;
-}
-
-.rv-cast-option-grid button {
-  min-width: 0;
-  padding: 0;
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-  border: 0;
-  background: transparent;
-  color: rgba(232, 244, 248, 0.58);
-  cursor: pointer;
-}
-
-.rv-cast-option-grid button strong {
-  color: inherit;
-  font: 700 8px/1 var(--az-font);
-  white-space: nowrap;
-}
-
-.rv-cast-option-icon,
-.rv-cast-aspect-icon {
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(74, 199, 219, 0.22);
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.018);
-  transition: border-color 120ms ease, background 120ms ease, color 120ms ease, box-shadow 120ms ease;
-}
-
-.rv-cast-option-icon {
-  width: 48px;
-  height: 44px;
-}
-
-.rv-cast-aspect-icon {
-  width: 43px;
-  max-width: 100%;
-  height: 37px;
-}
-
-.rv-cast-option-icon svg,
-.rv-cast-aspect-icon svg {
-  width: 28px;
-  height: 23px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.45;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.rv-cast-aspect-icon svg {
-  width: 29px;
-  height: 22px;
-}
-
-.rv-cast-option-grid button:hover,
-.rv-cast-option-grid button:focus-visible {
-  color: rgba(232, 244, 248, 0.9);
+.rv-cast-rail-group button:hover:not(:disabled),
+.rv-cast-rail-group button:focus-visible {
+  border-color: rgba(74, 199, 219, 0.35);
+  background: rgba(74, 199, 219, 0.06);
   outline: none;
 }
 
-.rv-cast-option-grid button:hover .rv-cast-option-icon,
-.rv-cast-option-grid button:hover .rv-cast-aspect-icon,
-.rv-cast-option-grid button:focus-visible .rv-cast-option-icon,
-.rv-cast-option-grid button:focus-visible .rv-cast-aspect-icon {
-  border-color: rgba(74, 199, 219, 0.46);
-  background: rgba(74, 199, 219, 0.07);
-}
-
-.rv-cast-option-grid button.is-selected {
+.rv-cast-rail-group button.is-selected {
+  border-color: rgba(74, 199, 219, 0.5);
+  background: rgba(74, 199, 219, 0.14);
   color: #67f7ff;
 }
 
-.rv-cast-option-grid button.is-selected .rv-cast-option-icon,
-.rv-cast-option-grid button.is-selected .rv-cast-aspect-icon {
-  border-color: rgba(103, 247, 255, 0.72);
-  background: rgba(74, 199, 219, 0.13);
-  box-shadow: inset 0 0 15px rgba(74, 199, 219, 0.08), 0 0 13px rgba(74, 199, 219, 0.16);
+.rv-cast-rail-option-label {
+  color: inherit;
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.02em;
 }
 
-.rv-cast-device-heading {
+/* Current Devices — the live session record. Styled like a record in a
+   list: a standalone colored bar (its own rounded-capsule element) instead
+   of a border-left riding the card's own border-radius, a flat background
+   matching .vz-track-row (the user's Audio Track card background in Media
+   Manager) so state reads through the bar/pill/border color alone, and one
+   neutral gray border shared by every state. */
+.rv-cast-status-section {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.rv-cast-device-heading > div {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.rv-cast-device-heading-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: rgba(232, 244, 248, 0.78);
-  font: 800 9px/1 var(--az-font);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.rv-cast-device-heading-title > svg {
-  width: 19px;
-  height: 19px;
-  color: #67f7ff;
-}
-
-.rv-cast-device-heading small {
-  color: rgba(232, 244, 248, 0.38);
-  font: 600 8px/1.3 var(--az-font);
+  flex-direction: column;
+  gap: 6px;
 }
 
 .rv-cast-session {
-  margin: 12px 0 0;
-  padding: 10px 11px;
+  --rv-cast-session-color: #67f7ff;
+  --rv-cast-session-pill-bg: rgba(74, 199, 219, 0.16);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border: 1px solid rgba(103, 247, 255, 0.22);
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(154, 178, 188, 0.22);
   border-radius: 8px;
-  background: rgba(74, 199, 219, 0.065);
+  background: rgba(6, 10, 14, 0.85);
 }
 
-.rv-cast-session > div {
+.rv-cast-session--connecting {
+  --rv-cast-session-color: #d8b95a;
+  --rv-cast-session-pill-bg: rgba(216, 185, 90, 0.16);
+}
+
+.rv-cast-session--failed {
+  --rv-cast-session-color: #ff8b94;
+  --rv-cast-session-pill-bg: rgba(192, 49, 74, 0.18);
+}
+
+.rv-cast-session--disconnecting {
+  --rv-cast-session-color: rgba(196, 207, 211, 0.65);
+  --rv-cast-session-pill-bg: rgba(154, 178, 188, 0.14);
+}
+
+.rv-cast-session-bar {
+  flex-shrink: 0;
+  width: 3px;
+  align-self: stretch;
+  margin: 2px 0;
+  border-radius: 999px;
+  background: var(--rv-cast-session-color);
+}
+
+.rv-cast-session-info {
+  flex: 1;
   min-width: 0;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 2px;
 }
 
-.rv-cast-session span,
-.rv-cast-session small {
-  color: rgba(232, 244, 248, 0.48);
-  font: 700 7px/1.35 var(--az-font);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.rv-cast-session-name-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .rv-cast-session strong {
   overflow: hidden;
-  color: #dffcff;
-  font: 800 10px/1.25 var(--az-font);
+  color: rgba(232, 244, 248, 0.92);
+  font: 700 13px/1.3 var(--az-font);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.rv-cast-session--error {
-  border-color: rgba(255, 116, 126, 0.35);
-  background: rgba(255, 72, 88, 0.07);
+.rv-cast-session small {
+  color: rgba(196, 207, 211, 0.5);
+  font: 600 9.5px/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+/* Field name to the left of its value (e.g. "WINDOW  Full Screen") — dim
+   and uppercase so the value, not the label, stays the visual focus. */
+.rv-cast-session-field-label {
+  margin-right: 6px;
+  color: rgba(196, 207, 211, 0.32);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.rv-cast-session-status {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--rv-cast-session-pill-bg);
+  color: var(--rv-cast-session-color);
+  font: 800 6px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.rv-cast-session-status-dot {
+  flex-shrink: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+/* Show/Hide Error toggle — replaces the old always-visible error line.
+   Clicking it expands the record to reveal the real NoticeCard component
+   with the session's error message. */
+.rv-cast-session-error-toggle {
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #ff8b94;
+  font: 700 9px/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rv-cast-session-error-toggle:hover {
+  color: #ffa8b0;
+}
+
+@keyframes rv-cast-notice-drop {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.rv-cast-notice-drop {
+  animation: rv-cast-notice-drop 200ms ease-out;
 }
 
 .rv-cast-stop {
-  flex: 0 0 auto;
-  min-height: 29px;
-  padding: 6px 9px;
-  border: 1px solid rgba(255, 116, 126, 0.34);
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 96, 112, 0.34);
   border-radius: 6px;
-  background: rgba(255, 72, 88, 0.06);
-  color: #ff9ca4;
-  font: 800 7px/1 var(--az-font);
-  letter-spacing: 0.08em;
+  background: rgba(255, 72, 92, 0.08);
+  color: rgba(255, 174, 184, 0.9);
+  font: 800 7.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
 }
 
 .rv-cast-stop:hover,
 .rv-cast-stop:focus-visible {
-  border-color: rgba(255, 116, 126, 0.58);
-  background: rgba(255, 72, 88, 0.12);
+  background: rgba(255, 72, 92, 0.16);
   outline: none;
 }
 
-.rv-cast-notice,
-.rv-cast-error {
-  margin-top: 10px;
+/* Available Devices heading — unchanged shape, just the "Select both
+   options…" subtext removed to match the finalized mockup. */
+.rv-cast-devices-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rv-cast-device-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rv-cast-device-heading-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: normal;
+  text-transform: none;
+  color: rgba(245, 248, 250, 0.7);
+}
+
+.rv-cast-device-heading-title > svg {
+  width: 15px;
+  height: 15px;
+  color: #67f7ff;
 }
 
 .rv-cast-empty {
-  margin-top: 10px;
   padding: 9px 10px;
   border: 1px solid rgba(255, 255, 255, 0.075);
   border-radius: 7px;
@@ -14055,156 +14135,130 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   font: 600 8px/1.4 var(--az-font);
 }
 
-.rv-cast-device-group {
-  margin-top: 14px;
+/* Wireless Displays / Local Displays / DRMVYZ Receivers — each its own
+   labeled group (no tabs: all three stay visible at once, unlike the
+   mockup's tabbed version, since hiding two of three behind tabs would be
+   a real functional regression) with a dense square-tile grid. */
+.rv-cast-device-category {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.rv-cast-device-group + .rv-cast-device-group {
-  padding-top: 13px;
-  border-top: 1px solid rgba(255, 255, 255, 0.065);
+.rv-cast-device-category-hdr {
+  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: normal;
+  text-transform: none;
+  color: rgba(245, 248, 250, 0.7);
 }
 
-.rv-cast-device-group h3 {
-  margin-bottom: 7px;
-  color: rgba(232, 244, 248, 0.48);
-  font-size: 7px;
-}
-
-.rv-cast-device-group > p {
-  margin: 7px 2px 0;
-  color: rgba(232, 244, 248, 0.31);
-  font: 600 7px/1.42 var(--az-font);
-}
-
-.rv-cast-device-list {
+.rv-cast-tile-grid {
   display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
 }
 
-.rv-cast-provider-action {
-  width: 100%;
-  min-height: 52px;
-  padding: 8px 10px;
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
+.rv-cast-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  border: 1px solid rgba(103, 247, 255, 0.2);
-  border-radius: 7px;
-  background: rgba(74, 199, 219, 0.045);
-  color: rgba(232, 244, 248, 0.7);
-  text-align: left;
+  text-align: center;
+  gap: 3px;
+  padding: 9px 6px;
+  border: 1px solid rgba(154, 178, 188, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(232, 244, 248, 0.9);
   cursor: pointer;
 }
 
-.rv-cast-provider-action:hover:not(:disabled),
-.rv-cast-provider-action:focus-visible:not(:disabled) {
-  color: #e8f4f8;
-  border-color: rgba(74, 199, 219, 0.42);
-  background: rgba(74, 199, 219, 0.08);
-  outline: none;
-}
-
-.rv-cast-provider-action:disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
-}
-
-.rv-cast-device {
-  width: 100%;
-  min-height: 52px;
-  padding: 8px 10px;
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.075);
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.018);
-  color: rgba(232, 244, 248, 0.66);
-  text-align: left;
-  cursor: pointer;
-}
-
-.rv-cast-device:hover:not(:disabled),
-.rv-cast-device:focus-visible:not(:disabled) {
-  color: #e8f4f8;
+.rv-cast-tile:hover:not(:disabled),
+.rv-cast-tile:focus-visible {
   border-color: rgba(74, 199, 219, 0.34);
   background: rgba(74, 199, 219, 0.055);
   outline: none;
 }
 
-.rv-cast-device.is-active {
+.rv-cast-tile.is-active {
   border-color: rgba(103, 247, 255, 0.48);
   background: rgba(74, 199, 219, 0.095);
 }
 
-.rv-cast-device:disabled {
+.rv-cast-tile:disabled {
   cursor: not-allowed;
   opacity: 0.48;
 }
 
-.rv-cast-device-icon {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(74, 199, 219, 0.16);
-  border-radius: 6px;
-  background: rgba(2, 9, 13, 0.62);
-  color: rgba(103, 247, 255, 0.67);
+.rv-cast-tile-icon {
+  display: flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(74, 199, 219, 0.14);
+  color: #67f7ff;
+  margin-bottom: 2px;
 }
 
-.rv-cast-device-icon svg {
-  width: 19px;
-  height: 19px;
+.rv-cast-tile-icon svg {
+  width: 12px;
+  height: 12px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.45;
+  stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-.rv-cast-device-copy {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.rv-cast-device-copy strong {
-  overflow: hidden;
+.rv-cast-tile strong {
   color: inherit;
-  font: 800 9px/1.2 var(--az-font);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font: 700 7.8px/1.25 var(--az-font, Inter, system-ui, sans-serif);
 }
 
-.rv-cast-device-copy span {
-  overflow: hidden;
-  color: rgba(232, 244, 248, 0.36);
-  font: 600 7px/1.2 var(--az-font);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* Wireless Displays tiles keep one line of real, tested explanatory copy
+   (e.g. Google Cast's configuration requirement) — Local Displays and
+   DRMVYZ Receivers tiles stay description-free, matching the mockup's
+   denser square-tile look exactly. */
+.rv-cast-tile-detail {
+  color: rgba(196, 207, 211, 0.42);
+  font: 600 7px/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
 }
 
-.rv-cast-device-state {
-  color: rgba(103, 247, 255, 0.7);
-  font: 800 7px/1 var(--az-font);
-  letter-spacing: 0.08em;
+.rv-cast-tile-pill {
+  margin-top: 4px;
+  width: 100%;
+  padding: 4px 0;
+  border: 1px solid rgba(74, 199, 219, 0.35);
+  border-radius: 6px;
+  background: rgba(74, 199, 219, 0.12);
+  color: #67f7ff;
+  font: 800 7.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-@media (max-width: 760px) {
-  .rv-cast-popover { width: min(430px, calc(100vw - 20px)); }
-  .rv-cast-popover-surface { max-height: calc(100vh - 20px); }
-  .rv-cast-popover-grid { grid-template-columns: 1fr; }
-  .rv-cast-config-panel { border-right: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.075); }
+.rv-cast-tile-pill.is-muted {
+  border-color: rgba(154, 178, 188, 0.2);
+  background: transparent;
+  color: rgba(196, 207, 211, 0.55);
+}
+
+.rv-cast-tile-pill.is-live {
+  border-color: rgba(97, 214, 170, 0.4);
+  background: rgba(97, 214, 170, 0.14);
+  color: #61d6aa;
+}
+
+.rv-cast-device-note {
+  margin: 0;
+  color: rgba(196, 207, 211, 0.4);
+  font: 600 8px/1.5 var(--az-font-data, Inter, system-ui, sans-serif);
 }
 
 @media (max-width: 430px) {
-  .rv-cast-config-panel,
-  .rv-cast-devices-panel { padding: 16px; }
-  .rv-cast-option-grid--aspect { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 10px; }
+  .rv-cast-tile-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 /* Layout Lab: disconnected PixGrid production-parity mock surfaces. */

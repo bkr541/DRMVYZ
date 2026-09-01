@@ -126,6 +126,75 @@ function DisplayIcon({ network }: { network: boolean }) {
   )
 }
 
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  )
+}
+
+// Activity/pulse line — labels the Current Devices status record, distinct
+// from Available Devices' circle-and-people glyph.
+function CurrentDevicesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M2 12h4l2-7 4 14 3-10 2 3h5" />
+    </svg>
+  )
+}
+
+// Simplified, single-tone brand marks (fill, not outline, like real logos)
+// so the wireless-provider tiles read as macOS/Windows/Google Cast at a
+// glance — currentColor throughout so they pick up the same hover tinting
+// as every other icon in this popover.
+function AppleLogoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        stroke="none"
+        d="M16.7 12.6c0-2.5 2-3.9 2.1-4-1.1-1.7-2.9-1.9-3.5-2-1.5-.2-2.9.9-3.7.9-.8 0-2-.8-3.2-.8-1.7 0-3.2 1-4.1 2.5-1.7 3-.5 7.5 1.3 9.9.8 1.2 1.8 2.6 3.1 2.5 1.2 0 1.7-.8 3.2-.8s1.9.8 3.2.8c1.3 0 2.2-1.2 3-2.4.7-.9 1-1.9 1.3-2.9-1.7-.7-2.7-2.4-2.7-3.7Z"
+      />
+      <path
+        fill="currentColor"
+        stroke="none"
+        d="M14.2 5.2c.6-.8 1.1-1.9 1-3-.9.1-2.1.7-2.8 1.5-.6.7-1.1 1.8-1 2.9 1.1.1 2.2-.5 2.8-1.4Z"
+      />
+    </svg>
+  )
+}
+
+function WindowsLogoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect fill="currentColor" stroke="none" x="3" y="3" width="8" height="8" />
+      <rect fill="currentColor" stroke="none" x="13" y="3" width="8" height="8" />
+      <rect fill="currentColor" stroke="none" x="3" y="13" width="8" height="8" />
+      <rect fill="currentColor" stroke="none" x="13" y="13" width="8" height="8" />
+    </svg>
+  )
+}
+
+// A "C" with an open right side plus a crossbar reaching to center — the
+// same simplified shorthand most monochrome renderings of the Google "G"
+// use, since the full four-color mark doesn't work as a single-tone icon.
+function GoogleLogoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" d="M18.1 6.9A8 8 0 1 0 18.1 17.1" />
+      <path fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" d="M19 12h-7" />
+    </svg>
+  )
+}
+
+// Wider gap around each "·" separator in session detail lines than a plain
+// space allows — browsers collapse consecutive regular spaces, so this
+// joins with non-breaking spaces to actually render the extra padding.
+function joinWithDot(parts: readonly string[]): string {
+  return parts.join('  ·  ')
+}
+
 function waitForIceGatheringComplete(peer: RTCPeerConnection): Promise<void> {
   if (peer.iceGatheringState === 'complete') return Promise.resolve()
   return new Promise(resolve => {
@@ -653,6 +722,7 @@ function OutputCastPopover({
   const [aspectRatio, setAspectRatio] = useState<OutputAspectRatio | null>(null)
   const [pendingTargetId, setPendingTargetId] = useState<string | null>(null)
   const [pendingProviderAction, setPendingProviderAction] = useState<string | null>(null)
+  const [errorExpanded, setErrorExpanded] = useState(false)
   const [position, setPosition] = useState<CastPopoverPosition | null>(null)
   const popoverRef = useRef<HTMLElement | null>(null)
   const titleId = 'rv-output-cast-title'
@@ -680,6 +750,10 @@ function OutputCastPopover({
   useEffect(() => {
     if (!session || session.state === 'connected' || session.state === 'failed' || error) setPendingTargetId(null)
   }, [error, session])
+
+  useEffect(() => {
+    if (!session?.error) setErrorExpanded(false)
+  }, [session?.error])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -758,32 +832,30 @@ function OutputCastPopover({
     if (loading) return <div className="rv-cast-empty">Searching for output devices…</div>
     if (items.length === 0) return <div className="rv-cast-empty">{emptyCopy}</div>
     return (
-      <div className="rv-cast-device-list">
+      <div className="rv-cast-tile-grid">
         {items.map(target => {
           const active = session?.targetId === target.id
           const pending = pendingTargetId === target.id && session?.state !== 'connected'
+          const isLive = active && session?.state === 'connected'
+          const stateLabel = isLive
+            ? 'Live'
+            : pending
+              ? 'Connecting…'
+              : target.kind === 'network' && target.receiverPaired === false
+                ? 'Pair & Cast'
+                : 'Cast'
           return (
             <button
               key={target.id}
               type="button"
-              className={`rv-cast-device${active ? ' is-active' : ''}`}
+              className={`rv-cast-tile${active ? ' is-active' : ''}`}
               disabled={!readyToCast || !target.available || Boolean(pendingTargetId && !active)}
+              title={target.detail}
               onClick={() => start(target)}
             >
-              <span className="rv-cast-device-icon"><DisplayIcon network={target.kind === 'network'} /></span>
-              <span className="rv-cast-device-copy">
-                <strong>{target.name}</strong>
-                <span>{target.detail}</span>
-              </span>
-              <span className="rv-cast-device-state">
-                {active && session?.state === 'connected'
-                  ? 'Live'
-                  : pending
-                    ? 'Connecting…'
-                    : target.kind === 'network' && target.receiverPaired === false
-                      ? 'Pair & Cast'
-                      : 'Cast'}
-              </span>
+              <span className="rv-cast-tile-icon"><DisplayIcon network={target.kind === 'network'} /></span>
+              <strong>{target.name}</strong>
+              <span className={`rv-cast-tile-pill${isLive ? ' is-live' : ''}`}>{stateLabel}</span>
             </button>
           )
         })}
@@ -799,6 +871,26 @@ function OutputCastPopover({
   } as CSSProperties
   const placement = position?.placement ?? 'top'
 
+  const sessionResolutionLabel = session?.stats?.width && session.stats?.height
+    ? `${Math.round(session.stats.width)}×${Math.round(session.stats.height)}`
+    : null
+  const sessionStatsParts = session?.stats
+    ? [
+        session.stats.framesPerSecond !== null ? `${Math.round(session.stats.framesPerSecond)} fps` : null,
+        session.stats.bitrateKbps !== null ? `${(session.stats.bitrateKbps / 1000).toFixed(1)} Mbps` : null,
+        session.stats.roundTripTimeMs !== null ? `${Math.round(session.stats.roundTripTimeMs)} ms` : null,
+      ].filter((part): part is string => Boolean(part))
+    : []
+  const sessionWindowModeLabel = session
+    ? WINDOW_OPTIONS.find(option => option.id === session.windowMode)?.label ?? session.windowMode
+    : null
+  const sessionStatusLabel = session
+    ? session.state === 'connected' ? 'Now casting'
+      : session.state === 'failed' ? 'Output failed'
+      : session.state === 'disconnecting' ? 'Stopping output'
+      : 'Connecting output'
+    : null
+
   return createPortal(
     <section
       ref={popoverRef}
@@ -808,16 +900,21 @@ function OutputCastPopover({
       aria-labelledby={titleId}
     >
       <div className="rv-cast-popover-surface">
-        <div className="rv-cast-popover-grid">
-          <div className="rv-cast-config-panel">
-            <header className="rv-cast-compact-title">
-              <span className="rv-cast-compact-title-icon"><CastIcon /></span>
-              <h2 id={titleId}>Cast Output</h2>
-            </header>
+        <div className="rv-cast-panel-body">
+          <header className="rv-cast-compact-title">
+            <span className="rv-cast-compact-title-icon"><CastIcon /></span>
+            <h2 id={titleId}>Cast Output</h2>
+            <button type="button" className="rv-cast-icon-btn rv-cast-icon-btn--close" onClick={onClose} aria-label="Close cast panel">
+              <CloseIcon />
+            </button>
+          </header>
 
-            <fieldset className="rv-cast-fieldset">
+          {/* Degrouped — no enclosing background/border box; Window and
+              Aspect Ratio sit directly in one plain row. */}
+          <div className="rv-cast-settings-bar">
+            <fieldset className="rv-cast-rail-section">
               <legend>Window</legend>
-              <div className="rv-cast-option-grid rv-cast-option-grid--window">
+              <div className="rv-cast-rail-group">
                 {WINDOW_OPTIONS.map(option => (
                   <button
                     key={option.id}
@@ -828,16 +925,16 @@ function OutputCastPopover({
                     title={option.description}
                     onClick={() => setWindowMode(option.id)}
                   >
-                    <span className="rv-cast-option-icon"><WindowModeIcon mode={option.id} /></span>
-                    <strong>{option.label}</strong>
+                    <WindowModeIcon mode={option.id} />
+                    <span className="rv-cast-rail-option-label">{option.label}</span>
                   </button>
                 ))}
               </div>
             </fieldset>
-
-            <fieldset className="rv-cast-fieldset rv-cast-fieldset--aspect">
+            <span className="rv-cast-rail-divider" aria-hidden="true" />
+            <fieldset className="rv-cast-rail-section">
               <legend>Aspect Ratio</legend>
-              <div className="rv-cast-option-grid rv-cast-option-grid--aspect">
+              <div className="rv-cast-rail-group rv-cast-rail-group--aspect">
                 {ASPECT_OPTIONS.map(option => (
                   <button
                     key={option}
@@ -846,49 +943,76 @@ function OutputCastPopover({
                     aria-pressed={aspectRatio === option}
                     onClick={() => setAspectRatio(option)}
                   >
-                    <span className="rv-cast-aspect-icon"><AspectRatioIcon ratio={option} /></span>
-                    <strong>{option}</strong>
+                    <AspectRatioIcon ratio={option} />
+                    <span className="rv-cast-rail-option-label">{option}</span>
                   </button>
                 ))}
               </div>
             </fieldset>
           </div>
 
-          <div className="rv-cast-devices-panel">
-            <div className="rv-cast-device-heading">
-              <div>
-                <span className="rv-cast-device-heading-title">
-                  <AvailableDevicesIcon />
-                  <span>Available Devices</span>
-                </span>
-                <small>Select both options, then choose a device.</small>
+          {/* Current status — devices already in use or being negotiated,
+              not "available" ones, so this sits above (not under) Available
+              Devices. Styled like a record in a list: a standalone colored
+              bar, a flat background matching .vz-track-row (the user's
+              Audio Track card background in Media Manager), and one
+              neutral gray border shared by every state — state reads
+              through the bar/pill color alone. */}
+          {session && (
+            <div className="rv-cast-status-section">
+              <span className="rv-cast-device-heading-title">
+                <CurrentDevicesIcon />
+                <span>Current Devices</span>
+              </span>
+              <div className={`rv-cast-session rv-cast-session--${session.state}`}>
+                <span className="rv-cast-session-bar" aria-hidden="true" />
+                <div className="rv-cast-session-info">
+                  <div className="rv-cast-session-name-row">
+                    <strong>{session.targetName}</strong>
+                    <span className="rv-cast-session-status">
+                      <span className="rv-cast-session-status-dot" aria-hidden="true" />
+                      {sessionStatusLabel}
+                    </span>
+                  </div>
+                  <small><span className="rv-cast-session-field-label">Window</span>{sessionWindowModeLabel}</small>
+                  <small>
+                    <span className="rv-cast-session-field-label">Aspect Ratio</span>
+                    {sessionResolutionLabel ? joinWithDot([session.aspectRatio, sessionResolutionLabel]) : session.aspectRatio}
+                  </small>
+                  {sessionStatsParts.length > 0 && (
+                    <small><span className="rv-cast-session-field-label">Stats</span>{joinWithDot(sessionStatsParts)}</small>
+                  )}
+                  {session.error && errorExpanded && (
+                    <NoticeCard tone="error" role="alert" title={sessionStatusLabel ?? 'Output failed'} className="rv-cast-notice-drop">
+                      {session.error}
+                    </NoticeCard>
+                  )}
+                </div>
+                {session.error && (
+                  <button
+                    type="button"
+                    className="rv-cast-session-error-toggle"
+                    aria-expanded={errorExpanded}
+                    onClick={() => setErrorExpanded(value => !value)}
+                  >
+                    {errorExpanded ? 'Hide Error' : 'Show Error'}
+                  </button>
+                )}
+                <button type="button" className="rv-cast-stop" onClick={onStop}>Stop Output</button>
               </div>
+            </div>
+          )}
+
+          <div className="rv-cast-devices-section">
+            <div className="rv-cast-device-heading">
+              <span className="rv-cast-device-heading-title">
+                <AvailableDevicesIcon />
+                <span>Available Devices</span>
+              </span>
               <button type="button" className="rv-cast-icon-btn" onClick={onRefresh} aria-label="Refresh output devices">
                 <RefreshIcon />
               </button>
             </div>
-
-            {session && (
-              <div className={`rv-cast-session rv-cast-session--${session.state}`}>
-                <div>
-                  <span>{session.state === 'connected' ? 'Now casting' : session.state === 'failed' ? 'Output failed' : session.state === 'disconnecting' ? 'Stopping output' : 'Connecting output'}</span>
-                  <strong>{session.targetName}</strong>
-                  <small>{session.windowMode} · {session.aspectRatio}</small>
-                  {session.error && <small role="alert">{session.error}</small>}
-                  {session.stats && (
-                    <small>
-                      {[session.stats.width && session.stats.height ? `${Math.round(session.stats.width)}×${Math.round(session.stats.height)}` : null,
-                        session.stats.framesPerSecond !== null ? `${Math.round(session.stats.framesPerSecond)} fps` : null,
-                        session.stats.bitrateKbps !== null ? `${(session.stats.bitrateKbps / 1000).toFixed(1)} Mbps` : null,
-                        session.stats.roundTripTimeMs !== null ? `${Math.round(session.stats.roundTripTimeMs)} ms` : null]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </small>
-                  )}
-                </div>
-                <button type="button" className="rv-cast-stop" onClick={onStop}>Stop Output</button>
-              </div>
-            )}
 
             {!bridge && (
               <NoticeCard tone="info" role="status" title="Desktop app required">Casting is available in the DRMVYZ desktop app. Browser builds keep the visualizer local.</NoticeCard>
@@ -904,84 +1028,71 @@ function OutputCastPopover({
             ))}
 
             {showWirelessDisplays && (
-              <section className="rv-cast-device-group" aria-label="Wireless displays">
-                <h3>Wireless Displays</h3>
-                {airplayProvider && airplayProvider.state !== 'unsupported' && (
-                  <>
+              <section className="rv-cast-device-category" aria-label="Wireless displays">
+                <span className="rv-cast-device-category-hdr">Wireless Displays</span>
+                <div className="rv-cast-tile-grid">
+                  {airplayProvider && airplayProvider.state !== 'unsupported' && (
                     <button
                       type="button"
-                      className="rv-cast-provider-action"
+                      className="rv-cast-tile"
                       disabled={!bridge?.performProviderAction || !airplayAction || !airplayActionAvailable || Boolean(pendingProviderAction)}
                       onClick={() => airplayAction && void performProviderAction('airplay', airplayAction)}
                     >
-                      <span className="rv-cast-device-icon"><DisplayIcon network /></span>
-                      <span className="rv-cast-device-copy">
-                        <strong>Open macOS Displays</strong>
-                        <span>Open macOS Displays to mirror or extend to an AirPlay display.</span>
-                      </span>
-                      <span className="rv-cast-device-state">
+                      <span className="rv-cast-tile-icon"><AppleLogoIcon /></span>
+                      <strong>Open macOS Displays</strong>
+                      <span className="rv-cast-tile-detail">Mirror or extend to an AirPlay display.</span>
+                      <span className="rv-cast-tile-pill">
                         {pendingProviderAction === 'airplay:open-system-picker' ? 'Opening…' : 'Open'}
                       </span>
                     </button>
-                    <p>macOS owns AirPlay screen-mirroring selection. Once macOS connects a wireless display, DRMVYZ exposes it once under Local Displays and uses the canonical output-window path.</p>
-                  </>
-                )}
+                  )}
 
-                {miracastProvider && miracastProvider.state !== 'unsupported' && (
-                  <>
+                  {miracastProvider && miracastProvider.state !== 'unsupported' && (
                     <button
                       type="button"
-                      className="rv-cast-provider-action"
+                      className="rv-cast-tile"
                       disabled={!bridge?.performProviderAction || !miracastAction || !miracastActionAvailable || Boolean(pendingProviderAction)}
                       onClick={() => miracastAction && void performProviderAction('miracast', miracastAction)}
                     >
-                      <span className="rv-cast-device-icon"><DisplayIcon network /></span>
-                      <span className="rv-cast-device-copy">
-                        <strong>Open Windows Displays</strong>
-                        <span>Open Windows Displays and use Connect under Multiple displays.</span>
-                      </span>
-                      <span className="rv-cast-device-state">
+                      <span className="rv-cast-tile-icon"><WindowsLogoIcon /></span>
+                      <strong>Open Windows Displays</strong>
+                      <span className="rv-cast-tile-detail">Use Connect under Multiple displays.</span>
+                      <span className="rv-cast-tile-pill">
                         {pendingProviderAction === 'miracast:open-system-picker' ? 'Opening…' : 'Open'}
                       </span>
                     </button>
-                    <p>Windows owns Miracast negotiation. After Windows connects or extends the wireless display, DRMVYZ exposes that OS display once under Local Displays.</p>
-                  </>
-                )}
+                  )}
 
-                {googleCastProvider && (
-                  <>
+                  {googleCastProvider && (
                     <button
                       type="button"
-                      className="rv-cast-provider-action"
+                      className="rv-cast-tile"
                       disabled={!bridge?.performProviderAction || !googleCastAction || !googleCastActionAvailable || !readyToCast || Boolean(pendingProviderAction) || Boolean(session)}
                       onClick={() => googleCastAction && void performProviderAction('google-cast', googleCastAction, { windowMode, aspectRatio })}
                     >
-                      <span className="rv-cast-device-icon"><DisplayIcon network /></span>
-                      <span className="rv-cast-device-copy">
-                        <strong>Choose Google Cast Device</strong>
-                        <span>{googleCastProvider.state === 'configuration-required'
-                          ? 'Configure the Cast receiver app ID and HTTPS sender companion first.'
-                          : 'Choose a Cast device in the supported browser Web Sender companion.'}</span>
-                      </span>
-                      <span className="rv-cast-device-state">
+                      <span className="rv-cast-tile-icon"><GoogleLogoIcon /></span>
+                      <strong>Choose Google Cast Device</strong>
+                      <span className="rv-cast-tile-detail">{googleCastProvider.state === 'configuration-required'
+                        ? 'Configure the Cast receiver app ID and HTTPS sender companion first.'
+                        : 'Choose a Cast device in the supported browser Web Sender companion.'}</span>
+                      <span className={`rv-cast-tile-pill${googleCastProvider.state === 'available' || googleCastProvider.state === 'initialization-failed' ? '' : ' is-muted'}`}>
                         {pendingProviderAction === 'google-cast:open-picker' ? 'Opening…' : googleCastProvider.state === 'available' || googleCastProvider.state === 'initialization-failed' ? 'Choose' : 'Setup'}
                       </span>
                     </button>
-                    <p>Google Cast stays distinct from OS wireless-display mirroring: the official Web Sender companion owns the Cast session while DRMVYZ serves the tokenized canonical live output stream.</p>
-                  </>
-                )}
+                  )}
+                </div>
               </section>
             )}
 
-            <section className="rv-cast-device-group" aria-label="Local displays">
-              <h3>Local Displays</h3>
+            <section className="rv-cast-device-category" aria-label="Local displays">
+              <span className="rv-cast-device-category-hdr">Local Displays</span>
               {renderTargets(groups.displays, 'No local displays are currently available.')}
             </section>
 
-            <section className="rv-cast-device-group" aria-label="DRMVYZ receivers">
-              <h3>DRMVYZ Receivers</h3>
+            <section className="rv-cast-device-category" aria-label="DRMVYZ receivers">
+              <span className="rv-cast-device-category-hdr">DRMVYZ Receivers</span>
               {renderTargets(groups.network, 'No DRMVYZ receivers were found on this network.')}
-              <p>Open DRMVYZ on another computer to make it discoverable. Each Receiver V2 display is selectable independently; first use asks the receiving computer to approve pairing.</p>
+              <p className="rv-cast-device-note">Open DRMVYZ on another computer to make it discoverable. Each Receiver V2 display is selectable independently; first use asks the receiving computer to approve pairing.</p>
             </section>
           </div>
         </div>
