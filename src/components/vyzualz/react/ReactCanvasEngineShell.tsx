@@ -3410,77 +3410,72 @@ function CanvasCompositionControls() {
   const selectedShow = getCanvasPerformanceShow(settings.programId)
 
   return (
-    <>
-      <Collapsible
-        label="Auto Role"
-        headerAccessory={
-          <span className={`dv-icon-morph-toggle${settings.autoRoleEnabled ? ' is-on' : ''}`} aria-hidden="true">
-            <ToggleGlyph checked={settings.autoRoleEnabled} />
-          </span>
-        }
-        open={settings.autoRoleEnabled}
-        onOpenChange={autoRoleEnabled => setSettings({ autoRoleEnabled })}
-      >
-        <p className="rv-ctrl-description">Derives conservative roles from type, alpha, duration, aspect, tags, and media-library organization when no explicit role exists.</p>
-      </Collapsible>
-      <Collapsible label="Composition" defaultOpen>
-        <div className="rv-canvas-orchestration-summary" role="status">
-          <span>{poolItems.length} pooled source{poolItems.length === 1 ? '' : 's'}</span>
-          <span>{selectedShow.label}</span>
-          <span>{selectedShow.supportsCompositionPreference
-            ? (settings.compositionPreference === 'auto' ? 'Section-aware templates' : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label)
-            : 'Fixed Fractures composition'}</span>
-        </div>
-        {selectedShow.supportsCompositionPreference && (
-          <CanvasHelpControl
-            helpId="react.canvas.performanceOrchestration.composition"
-            currentValue={settings.compositionPreference === 'auto'
-              ? 'Auto · Section Aware'
-              : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label ?? settings.compositionPreference}
-            currentValueTone="accent"
-          >
-            <CanvasSelectRow
-              label="Composition"
-              value={settings.compositionPreference}
-              onChange={value => setSettings({ compositionPreference: value as CanvasCompositionPreference })}
-              options={[
-                { value: 'auto', label: 'Auto · Section Aware' },
-                ...CANVAS_COMPOSITION_TEMPLATE_OPTIONS,
-              ]}
-            />
-          </CanvasHelpControl>
-        )}
-        <Collapsible label="Locks" defaultOpen={false}>
-          <ToggleRow
-            label="Media Lock"
-            value={settings.globalLocks.media === true}
-            onChange={locked => setCanvasOrchestrationLock('media', locked)}
-            description="Keeps current deterministic choices while other orchestration continues."
-          />
+    <Collapsible
+      label="Auto Role"
+      headerAccessory={
+        <span className={`dv-icon-morph-toggle${settings.autoRoleEnabled ? ' is-on' : ''}`} aria-hidden="true">
+          <ToggleGlyph checked={settings.autoRoleEnabled} />
+        </span>
+      }
+      open={settings.autoRoleEnabled}
+      onOpenChange={autoRoleEnabled => setSettings({ autoRoleEnabled })}
+    >
+      <div className="rv-canvas-orchestration-summary" role="status">
+        <span>{poolItems.length} pooled source{poolItems.length === 1 ? '' : 's'}</span>
+        <span>{selectedShow.label}</span>
+        <span>{selectedShow.supportsCompositionPreference
+          ? (settings.compositionPreference === 'auto' ? 'Section-aware templates' : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label)
+          : 'Fixed Fractures composition'}</span>
+      </div>
+      {selectedShow.supportsCompositionPreference && (
+        <CanvasHelpControl
+          helpId="react.canvas.performanceOrchestration.composition"
+          currentValue={settings.compositionPreference === 'auto'
+            ? 'Auto · Section Aware'
+            : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label ?? settings.compositionPreference}
+          currentValueTone="accent"
+        >
           <CanvasSelectRow
-            label="Layer"
-            value={lockLayerRole}
-            onChange={value => setLockLayerRole(value as CanvasLayerRole)}
-            options={CANVAS_LAYER_ROLE_OPTIONS}
-          />
-          <ToggleRow
-            label="Lock Layer State"
-            value={settings.layerLocks[lockLayerRole] === true}
-            onChange={locked => setCanvasLayerLock(lockLayerRole, locked)}
-          />
-          <CanvasSelectRow
-            label="Locked Media"
-            value={lockedMediaId}
-            onChange={value => setCanvasMediaLock(lockLayerRole, value || null)}
+            label="Composition"
+            value={settings.compositionPreference}
+            onChange={value => setSettings({ compositionPreference: value as CanvasCompositionPreference })}
             options={[
-              { value: '', label: 'Deterministic Auto' },
-              ...poolItems.map(item => ({ value: item.id, label: item.name })),
+              { value: 'auto', label: 'Auto · Section Aware' },
+              ...CANVAS_COMPOSITION_TEMPLATE_OPTIONS,
             ]}
           />
-        </Collapsible>
-        <IconChipButton className="rv-canvas-restart-btn" onClick={resetCanvasOrchestration}>Reset Authored State</IconChipButton>
+        </CanvasHelpControl>
+      )}
+      <Collapsible label="Locks" defaultOpen={false}>
+        <ToggleRow
+          label="Media Lock"
+          value={settings.globalLocks.media === true}
+          onChange={locked => setCanvasOrchestrationLock('media', locked)}
+          description="Keeps current deterministic choices while other orchestration continues."
+        />
+        <CanvasSelectRow
+          label="Layer"
+          value={lockLayerRole}
+          onChange={value => setLockLayerRole(value as CanvasLayerRole)}
+          options={CANVAS_LAYER_ROLE_OPTIONS}
+        />
+        <ToggleRow
+          label="Lock Layer State"
+          value={settings.layerLocks[lockLayerRole] === true}
+          onChange={locked => setCanvasLayerLock(lockLayerRole, locked)}
+        />
+        <CanvasSelectRow
+          label="Locked Media"
+          value={lockedMediaId}
+          onChange={value => setCanvasMediaLock(lockLayerRole, value || null)}
+          options={[
+            { value: '', label: 'Deterministic Auto' },
+            ...poolItems.map(item => ({ value: item.id, label: item.name })),
+          ]}
+        />
       </Collapsible>
-    </>
+      <IconChipButton className="rv-canvas-restart-btn" onClick={resetCanvasOrchestration}>Reset Authored State</IconChipButton>
+    </Collapsible>
   )
 }
 

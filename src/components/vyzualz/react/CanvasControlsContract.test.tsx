@@ -687,18 +687,17 @@ describe('CANVAS right-panel control contract', () => {
       .map(collapsibleLabelText)
     const displayIndex = labels.indexOf('Display')
     const autoRoleIndex = labels.indexOf('Auto Role')
-    const compositionIndex = labels.indexOf('Composition')
     const sourceReactivityIndex = labels.indexOf('Source + Reactivity')
     const timingIndex = labels.indexOf('Video Timing')
 
     expect(displayIndex).toBe(0)
-    // Auto Role is its own toggle-headed group (replacing a plain "Composition"
-    // label + inline toggle row) directly ahead of the always-visible
-    // Composition group, so Locks/the template picker/Reset stay reachable
-    // regardless of whether Auto Role is on.
+    // Auto Role is the sole toggle-headed group covering what used to be a
+    // separate plain "Composition" group -- the pooled-source summary,
+    // Composition template picker, Locks, and Reset Authored State all live
+    // directly in its body now; "Composition" is not its own group.
+    expect(labels).not.toContain('Composition')
     expect(autoRoleIndex).toBeGreaterThan(displayIndex)
-    expect(compositionIndex).toBeGreaterThan(autoRoleIndex)
-    expect(sourceReactivityIndex).toBeGreaterThan(compositionIndex)
+    expect(sourceReactivityIndex).toBeGreaterThan(autoRoleIndex)
     expect(timingIndex).toBeGreaterThan(sourceReactivityIndex)
     expect(labels).not.toContain('CANVAS React Controls')
     expect(labels).not.toContain('Performance Orchestration')
@@ -1170,7 +1169,7 @@ describe('CANVAS right-panel control contract', () => {
       snapshot.unmount()
     })
 
-    it('hides Canvas-only groups (Composition/Auto Role, Source + Reactivity) while Layer scope is active, and restores them for Canvas scope', () => {
+    it('hides Canvas-only groups (Auto Role, Source + Reactivity) while Layer scope is active, and restores them for Canvas scope', () => {
       const a = useReactStore.getState().addCanvasAuthoredLayer('scope-media-a')
       const b = useReactStore.getState().addCanvasAuthoredLayer('scope-media-b')
       if (!a.ok || !b.ok) throw new Error('Expected two CANVAS layers')
@@ -1178,14 +1177,12 @@ describe('CANVAS right-panel control contract', () => {
 
       const canvasSnapshot = renderSnapshot(<CanvasEngineFxPanel />)
       const canvasGroupLabels = groupLabelsIn(canvasSnapshot.host)
-      expect(canvasGroupLabels).toContain('Composition')
       expect(canvasGroupLabels).toContain('Auto Role')
       canvasSnapshot.unmount()
 
       useReactStore.getState().setCanvasControlScope({ kind: 'layer', layerId: b.layer.id })
       const layerSnapshot = renderSnapshot(<CanvasEngineFxPanel />)
       const layerGroupLabels = groupLabelsIn(layerSnapshot.host)
-      expect(layerGroupLabels).not.toContain('Composition')
       expect(layerGroupLabels).not.toContain('Auto Role')
       // Display itself (the layer-scoped controls) stays.
       expect(layerGroupLabels).toContain('Display')

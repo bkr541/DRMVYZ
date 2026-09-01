@@ -368,11 +368,15 @@ describe('MediaLibraryBrowser capability boundaries', () => {
       capabilities: MEDIA_MANAGER_CAPABILITIES,
     })
 
-    // New Collection, New Media, and Refresh now live in MediaManagerView's own
-    // page header (to the right of the collections count), not this panel header.
+    // New Collection and New Media live on this panel's own header row, right
+    // justified next to the "Media Library" title -- icon-only, so they carry
+    // no visible text (findButton) but are reachable via their aria-label/title.
+    // Refresh (visualizer-only) does not show here.
     expect(findButton('Import')).toBeNull()
     expect(findButton('New Collection')).toBeNull()
     expect(findButton('Refresh')).toBeNull()
+    expect(findButtonByTitle('New Collection')).not.toBeNull()
+    expect(findButtonByTitle('New Media')).not.toBeNull()
     // The pencil/eye quick-action icons are gone in Media Manager — selecting
     // the card itself now drives the middle/right panels instead.
     expect(container?.querySelector('[title="Edit media"]')).toBeNull()
@@ -442,6 +446,77 @@ describe('MediaLibraryBrowser capability boundaries', () => {
     })
     expect(mocks.audioState.removeSavedTrack).toHaveBeenCalledWith('audio-track-1')
     expect(mocks.engine.removeTrack).toHaveBeenCalledWith('audio-track-1')
+  })
+
+  it('shift-clicking a second card range-selects every card in between, and a later plain shift-click re-ranges from the same anchor', async () => {
+    const media = Array.from({ length: 5 }, (_, index) => ({
+      ...visual,
+      id: `media-${index + 1}`,
+      dbId: `db-media-${index + 1}`,
+      storagePath: `user/media-${index + 1}/image.png`,
+      name: `image-${index + 1}.png`,
+      title: `Stage Image ${index + 1}`,
+    }))
+    mocks.mediaState.items = media
+    await renderBrowser({
+      activeMediaId: null,
+      onSelect: vi.fn(),
+      context: 'manager',
+      capabilities: MEDIA_MANAGER_CAPABILITIES,
+    })
+
+    const cards = () => [...(container?.querySelectorAll<HTMLElement>('.vz-media-card') ?? [])]
+    const activeToggleIndexes = () => cards()
+      .map((card, index) => card.querySelector('.vz-media-select-toggle--active') ? index : -1)
+      .filter(index => index >= 0)
+
+    expect(cards()).toHaveLength(5)
+    expect(activeToggleIndexes()).toEqual([])
+
+    // Plain click on card 1 selects it (and becomes the range anchor) without
+    // checking its bulk-select circle.
+    act(() => cards()[0].dispatchEvent(new MouseEvent('click', { bubbles: true })))
+    expect(activeToggleIndexes()).toEqual([])
+
+    // Shift-click card 4: cards 1-4 (inclusive) become bulk-selected; card 5 does not.
+    act(() => cards()[3].dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })))
+    expect(activeToggleIndexes()).toEqual([0, 1, 2, 3])
+
+    // A further shift-click on card 2 re-ranges from the SAME anchor (card 1),
+    // shrinking the selection rather than extending from card 4.
+    act(() => cards()[1].dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })))
+    expect(activeToggleIndexes()).toEqual([0, 1])
+  })
+
+  it('falls back to a plain toggle when shift-clicking with nothing already selected, and that card becomes the next anchor', async () => {
+    const media = Array.from({ length: 3 }, (_, index) => ({
+      ...visual,
+      id: `media-${index + 1}`,
+      dbId: `db-media-${index + 1}`,
+      storagePath: `user/media-${index + 1}/image.png`,
+      name: `image-${index + 1}.png`,
+      title: `Stage Image ${index + 1}`,
+    }))
+    mocks.mediaState.items = media
+    await renderBrowser({
+      activeMediaId: null,
+      onSelect: vi.fn(),
+      context: 'manager',
+      capabilities: MEDIA_MANAGER_CAPABILITIES,
+    })
+
+    const cards = () => [...(container?.querySelectorAll<HTMLElement>('.vz-media-card') ?? [])]
+    const activeToggleIndexes = () => cards()
+      .map((card, index) => card.querySelector('.vz-media-select-toggle--active') ? index : -1)
+      .filter(index => index >= 0)
+
+    // No anchor yet -- shift-click on card 2 just toggles card 2 on.
+    act(() => cards()[1].dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })))
+    expect(activeToggleIndexes()).toEqual([1])
+
+    // That toggle became the anchor: shift-clicking card 3 now ranges 2-3.
+    act(() => cards()[2].dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })))
+    expect(activeToggleIndexes()).toEqual([1, 2])
   })
 
   it('navigates to Media Manager from the performance empty state', async () => {

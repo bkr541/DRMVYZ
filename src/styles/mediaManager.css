@@ -134,6 +134,17 @@
   padding-inline: 14px;
 }
 
+/* Icon-only New Collection/New Media actions on the Media Library header
+   row (moved here from the top mmv-header row). Square, no text label. */
+.vz-panel-header-icon-btn.dv-icon-chip {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
 /* ── Middle stage: plain media preview (no live effects) ────────────────── */
 .mmv-stage-area {
   position: relative;

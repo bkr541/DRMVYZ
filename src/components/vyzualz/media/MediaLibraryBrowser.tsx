@@ -349,6 +349,7 @@ function MediaCard({
   canMultiSelect,
   isBulkSelected,
   onToggleBulkSelect,
+  onShiftSelect,
 }: {
   m: UploadedMedia
   isActive: boolean
@@ -369,11 +370,14 @@ function MediaCard({
   mutationStates: MediaMutationState[]
   onThumbnailError: () => void
   onThumbnailLoad: () => void
-  /** Manager-only: shift-click and the selection circle add this card to a
-   * bulk selection used by the right-click Download/Delete actions. */
+  /** Manager-only: the selection circle adds this one card to a bulk
+   * selection used by the right-click Download/Delete actions. */
   canMultiSelect: boolean
   isBulkSelected: boolean
   onToggleBulkSelect: () => void
+  /** Shift-click: extends the bulk selection to every card between the last
+   * selected card and this one, inclusive (standard range-select). */
+  onShiftSelect: () => void
 }) {
   const isList = viewMode === 'list'
   const disabled = Boolean(disabledReason)
@@ -411,7 +415,7 @@ function MediaCard({
         className={`vz-media-row ${isActive ? 'vz-media-row--active' : ''}${disabled ? ' vz-media-row--disabled' : ''}`}
         onClick={event => {
           if (disabled || m.uploading) return
-          if (canMultiSelect && event.shiftKey) { onToggleBulkSelect(); return }
+          if (canMultiSelect && event.shiftKey) { onShiftSelect(); return }
           if (!canSelect) return
           const rect = event.currentTarget.getBoundingClientRect()
           onSelect({ x: rect.right, y: rect.top })
@@ -497,7 +501,7 @@ function MediaCard({
       className={`vz-media-card ${isActive ? 'vz-media-card--active' : ''}${disabled ? ' vz-media-card--disabled' : ''}`}
       onClick={event => {
         if (disabled || m.uploading) return
-        if (canMultiSelect && event.shiftKey) { onToggleBulkSelect(); return }
+        if (canMultiSelect && event.shiftKey) { onShiftSelect(); return }
         if (!canSelect) return
         const rect = event.currentTarget.getBoundingClientRect()
         onSelect({ x: rect.right, y: rect.top })
@@ -624,6 +628,24 @@ export interface MediaLibraryCardActionAnchor {
   y: number
 }
 
+function AddCollectionIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M10 14H12M12 14H14M12 14V16M12 14V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M2 6.94975C2 6.06722 2 5.62595 2.06935 5.25839C2.37464 3.64031 3.64031 2.37464 5.25839 2.06935C5.62595 2 6.06722 2 6.94975 2C7.33642 2 7.52976 2 7.71557 2.01738C8.51665 2.09229 9.27652 2.40704 9.89594 2.92051C10.0396 3.03961 10.1763 3.17633 10.4497 3.44975L11 4C11.8158 4.81578 12.2237 5.22367 12.7121 5.49543C12.9804 5.64471 13.2651 5.7626 13.5604 5.84678C14.0979 6 14.6747 6 15.8284 6H16.2021C18.8345 6 20.1506 6 21.0062 6.76946C21.0849 6.84024 21.1598 6.91514 21.2305 6.99383C22 7.84935 22 9.16554 22 11.7979V14C22 17.7712 22 19.6569 20.8284 20.8284C19.6569 22 17.7712 22 14 22H10C6.22876 22 4.34315 22 3.17157 20.8284C2 19.6569 2 17.7712 2 14V6.94975Z" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  )
+}
+
+function AddMediaIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M11 8C11 7.44772 11.4477 7 12 7C12.5523 7 13 7.44771 13 8V11H16C16.5523 11 17 11.4477 17 12C17 12.5523 16.5523 13 16 13H13V16C13 16.5523 12.5523 17 12 17C11.4477 17 11 16.5523 11 16V13H8C7.44772 13 7 12.5523 7 12C7 11.4477 7.44771 11 8 11H11V8Z" fill="currentColor" />
+      <path fillRule="evenodd" clipRule="evenodd" d="M23 4C23 2.34315 21.6569 1 20 1H4C2.34315 1 1 2.34315 1 4V20C1 21.6569 2.34315 23 4 23H20C21.6569 23 23 21.6569 23 20V4ZM21 4C21 3.44772 20.5523 3 20 3H4C3.44772 3 3 3.44772 3 4V20C3 20.5523 3.44772 21 4 21H20C20.5523 21 21 20.5523 21 20V4Z" fill="currentColor" />
+    </svg>
+  )
+}
+
 export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   activeMediaId,
   onSelect,
@@ -699,6 +721,19 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   // ── Manager-only: multi-select + right-click Edit/Download/Delete ────────
   const [selectedForBulk, setSelectedForBulk] = useState<Set<string>>(new Set())
   const [cardContextMenu, setCardContextMenu] = useState<{ mediaId: string } & MediaLibraryCardActionAnchor | null>(null)
+  // Range-select (shift-click) anchors. Refs, not state: they're read only
+  // from click handlers, never drive a render, and visibleOrderedIdsRef is
+  // written synchronously during render (see renderGrid) rather than through
+  // a dependency, so it always reflects whatever order the user is currently
+  // looking at (flat filtered list or one expanded collection) without
+  // forcing renderMediaCard to re-memoize per list.
+  const bulkSelectAnchorRef = useRef<string | null>(null)
+  const visibleOrderedIdsRef = useRef<string[]>([])
+  // The exact set of ids the most recent shift-click range added, so the
+  // next shift-click from the same anchor can shrink the range back down
+  // (drop ids that fall outside the new, smaller range) without touching
+  // anything selected through an unrelated explicit toggle.
+  const lastShiftRangeIdsRef = useRef<Set<string>>(new Set())
   const [deleteConfirm, setDeleteConfirm] = useState<{ ids: string[] } | null>(null)
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkActionError, setBulkActionError] = useState<string | null>(null)
@@ -913,6 +948,48 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     })
   }, [])
 
+  // Shift-click range-select: extends the bulk selection to every card
+  // between the last selected/toggled card (the anchor) and this one,
+  // inclusive, in the order currently on screen. Adds to the existing
+  // selection rather than replacing it, so an earlier, unrelated pick isn't
+  // silently lost. The anchor deliberately does NOT move to the shift-
+  // clicked card -- it stays put across repeated shift-clicks (matching
+  // Finder/Explorer) so the range can be freely grown or shrunk from the
+  // same starting point. With no usable anchor (nothing selected yet, or the
+  // anchor scrolled out of the current list), it falls back to a plain
+  // single toggle -- exactly what a non-shift click on this card would do --
+  // and that card becomes the anchor for the next shift-click.
+  const handleShiftSelect = useCallback((mediaId: string) => {
+    const orderedIds = visibleOrderedIdsRef.current
+    const anchorId = bulkSelectAnchorRef.current
+    const targetIndex = orderedIds.indexOf(mediaId)
+    const anchorIndex = anchorId ? orderedIds.indexOf(anchorId) : -1
+    if (targetIndex < 0 || anchorIndex < 0) {
+      toggleBulkSelect(mediaId)
+      bulkSelectAnchorRef.current = mediaId
+      lastShiftRangeIdsRef.current = new Set()
+      return
+    }
+    const [start, end] = anchorIndex <= targetIndex ? [anchorIndex, targetIndex] : [targetIndex, anchorIndex]
+    const rangeIds = new Set(orderedIds.slice(start, end + 1))
+    // Captured before the setSelectedForBulk call, not read from the ref
+    // inside the updater -- the updater can run after the `lastShiftRangeIdsRef
+    // .current = rangeIds` assignment below, which would otherwise make this
+    // loop compare the new range against itself and never shrink anything.
+    const previousRangeIds = lastShiftRangeIdsRef.current
+    setSelectedForBulk(prev => {
+      const next = new Set(prev)
+      // Drop ids that were part of the previous shift-range but have now
+      // fallen outside the new range -- lets a closer shift-click shrink the
+      // selection back down, matching Finder/Explorer, without touching
+      // anything selected through an unrelated explicit toggle.
+      for (const id of previousRangeIds) if (!rangeIds.has(id)) next.delete(id)
+      for (const id of rangeIds) next.add(id)
+      return next
+    })
+    lastShiftRangeIdsRef.current = rangeIds
+  }, [toggleBulkSelect])
+
   const handleCardContextMenu = useCallback((media: UploadedMedia, anchor: MediaLibraryCardActionAnchor) => {
     setBulkActionError(null)
     setCardContextMenu({ mediaId: media.id, ...anchor })
@@ -984,7 +1061,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         m={media}
         isActive={activeMediaId === media.id}
         viewMode={viewMode}
-        onSelect={anchor => handleMediaCardAction(media, anchor)}
+        onSelect={anchor => { bulkSelectAnchorRef.current = media.id; lastShiftRangeIdsRef.current = new Set(); handleMediaCardAction(media, anchor) }}
         onContextMenu={
           onCardActionRequest
             ? anchor => onCardActionRequest(media.id, anchor)
@@ -1008,10 +1085,11 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         onThumbnailLoad={() => { markMediaAssetLoaded?.(media.id, 'thumbnail') }}
         canMultiSelect={canMultiSelect}
         isBulkSelected={selectedForBulk.has(media.id)}
-        onToggleBulkSelect={() => toggleBulkSelect(media.id)}
+        onToggleBulkSelect={() => { toggleBulkSelect(media.id); bulkSelectAnchorRef.current = media.id; lastShiftRangeIdsRef.current = new Set() }}
+        onShiftSelect={() => handleShiftSelect(media.id)}
       />
     )
-  }, [activeMediaId, canDragMedia, canFavorite, canMultiSelect, canPreview, canRemove, canSelect, context, getDisabledReason, handleCardContextMenu, handleMediaCardAction, handlePreviewMedia, isManager, markMediaAssetLoaded, mutationStates, onCardActionRequest, retryMediaAsset, retryUpload, selectedForBulk, toggleBulkSelect, toggleFavorite, viewMode])
+  }, [activeMediaId, canDragMedia, canFavorite, canMultiSelect, canPreview, canRemove, canSelect, context, getDisabledReason, handleCardContextMenu, handleMediaCardAction, handlePreviewMedia, handleShiftSelect, isManager, markMediaAssetLoaded, mutationStates, onCardActionRequest, retryMediaAsset, retryUpload, selectedForBulk, toggleBulkSelect, toggleFavorite, viewMode])
 
   const handleEnsureSigned = useCallback((visibleIds: string[], nearIds: string[]) => {
     void ensureMediaSigned?.(visibleIds, 'visible')
@@ -1023,20 +1101,28 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     void loadNextPage?.()
   }, [loadNextPage])
 
-  const renderGrid = (mediaList: UploadedMedia[]) => (
-    <VirtualizedMediaCards
-      items={mediaList}
-      viewMode={viewMode}
-      manager={isManager}
-      compact={isCanvasMode}
-      scrollRef={scrollRef}
-      renderCard={renderMediaCard}
-      ensureSigned={handleEnsureSigned}
-      onNearEnd={handleNearEnd}
-      hasMore={hasMore ?? false}
-      loadingMore={nextPageLoading ?? false}
-    />
-  )
+  const renderGrid = (mediaList: UploadedMedia[]) => {
+    // Written directly during render (not a dependency-tracked effect) so
+    // shift-click range-select always resolves against whichever list is
+    // actually on screen right now -- the flat filtered grid or one expanded
+    // collection -- without giving renderMediaCard's memoization a reason to
+    // recompute per list.
+    visibleOrderedIdsRef.current = mediaList.map(item => item.id)
+    return (
+      <VirtualizedMediaCards
+        items={mediaList}
+        viewMode={viewMode}
+        manager={isManager}
+        compact={isCanvasMode}
+        scrollRef={scrollRef}
+        renderCard={renderMediaCard}
+        ensureSigned={handleEnsureSigned}
+        onNearEnd={handleNearEnd}
+        hasMore={hasMore ?? false}
+        loadingMore={nextPageLoading ?? false}
+      />
+    )
+  }
 
   const renderTracksView = () => {
     if (tracksLoading && savedTracks.length === 0) {
@@ -1374,6 +1460,25 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             <div className="vz-panel-header">
               <Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
               <span className="vz-panel-title" title={title}>{title}</span>
+              {isManager && (
+                <>
+                  <IconChipButton
+                    className="vz-panel-header-icon-btn"
+                    icon={<AddCollectionIcon size={14} />}
+                    onClick={() => openCollectionEditor()}
+                    title="New Collection"
+                    aria-label="New Collection"
+                  />
+                  <IconChipButton
+                    className="vz-panel-header-icon-btn"
+                    tone="primary"
+                    icon={<AddMediaIcon size={14} />}
+                    onClick={() => openImportMediaModal()}
+                    title="New Media"
+                    aria-label="New Media"
+                  />
+                </>
+              )}
               {!isManager && (
                 <IconChipButton
                   onClick={() => { void refreshLibrary?.() }}
