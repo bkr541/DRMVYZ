@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type * as opentype from 'opentype.js'
 
-import { createDefaultCinema3DObjectDefinition } from '../Cinema3DObjectState'
+import { createDefaultCinema3DObjectDefinition, serializeCinema3DObjectDefinition } from '../Cinema3DObjectState'
 import { cinemaStableId, type CinemaAssetId, type CinemaCameraId } from '../CinemaIdentifiers'
 import { CinemaRuntime } from '../runtime/CinemaRuntime'
 import { createCinemaMockWebGL } from './CinemaWebGLTestUtils'
@@ -45,7 +45,7 @@ describe('Cinema reusable 3D object runtime', () => {
       transform: { ...authored.transform, position: [2, 3, 4] as const },
       appearance: { ...authored.appearance, emissiveIntensity: 0.8 },
     }
-    expect(object.setDefinition(transformed)).toBe('transform')
+    expect(object.setResolvedParameterValues(serializeCinema3DObjectDefinition(transformed))).toBe('transform')
     expect(object.getSnapshot().status).toBe('ready')
     expect(runtime.webgl.objects3d.getDiagnostics().gpuUploadCount).toBe(1)
     expect(object.draw({ width: 640, height: 360, dpr: 1 }, camera())).toBe(true)

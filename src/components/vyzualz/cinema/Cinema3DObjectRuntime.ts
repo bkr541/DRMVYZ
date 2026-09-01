@@ -1,6 +1,6 @@
 import type * as opentype from 'opentype.js'
 
-import type { CinemaVector3 } from './CinemaDomain'
+import type { CinemaParameterValues, CinemaVector3 } from './CinemaDomain'
 import type { CinemaAssetId } from './CinemaIdentifiers'
 import {
   CinemaOpenTypeTextMeshCache,
@@ -83,12 +83,12 @@ export class Cinema3DObjectRuntime {
 
   setDefinition(definition: Readonly<Cinema3DObjectDefinition>): Cinema3DObjectInvalidation {
     this.assertActive()
-    const canonical = canonicalDefinition(definition)
-    const invalidation = classifyCinema3DObjectInvalidation(this.definition, canonical)
-    this.definition = canonical
-    this.lastInvalidation = invalidation
-    if (invalidation === 'source' || invalidation === 'geometry') this.clearMesh()
-    return invalidation
+    return this.applyDefinition(canonicalDefinition(definition))
+  }
+
+  setResolvedParameterValues(values: Readonly<CinemaParameterValues>): Cinema3DObjectInvalidation {
+    this.assertActive()
+    return this.applyDefinition(hydrateCinema3DObjectDefinition(values))
   }
 
   prepareText(source: Readonly<Cinema3DObjectTextRuntimeSource>): Readonly<Cinema3DObjectRuntimeSnapshot> {
@@ -205,6 +205,14 @@ export class Cinema3DObjectRuntime {
     this.disposed = true
     this.clearMesh()
     this.onDispose(this)
+  }
+
+  private applyDefinition(definition: Cinema3DObjectDefinition): Cinema3DObjectInvalidation {
+    const invalidation = classifyCinema3DObjectInvalidation(this.definition, definition)
+    this.definition = definition
+    this.lastInvalidation = invalidation
+    if (invalidation === 'source' || invalidation === 'geometry') this.clearMesh()
+    return invalidation
   }
 
   private adoptMesh(
