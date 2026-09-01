@@ -261,4 +261,46 @@ describe('CinemaAssetManager', () => {
     manager.dispose()
   })
 
+  it('loads and revision-invalidates raw SVG source through the canonical Cinema asset identity path', async () => {
+    const gl = createCinemaMockWebGL()
+    const svgAssetId = stable<CinemaAssetId>('media-asset-manager-svg', 'asset')
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => new Response(
+      String(input).includes('revision-2') ? '<svg><circle r="2" /></svg>' : '<svg><rect width="1" height="1" /></svg>',
+      { status: 200, headers: { 'content-type': 'image/svg+xml' } },
+    )) as unknown as typeof fetch
+    const manager = new CinemaAssetManager(gl, { report: vi.fn() }, {
+      fetch: fetchMock,
+      createImage: () => { throw new Error('image decode not expected') },
+      createVideo: () => { throw new Error('video decode not expected') },
+      createObjectUrl: () => { throw new Error('object URL not expected') },
+      revokeObjectUrl: vi.fn(),
+    })
+    const svgSource = (revision: number): CinemaExternalAssetSnapshot => ({
+      assetId: svgAssetId,
+      revision,
+      name: 'Vector Logo',
+      mimeType: 'image/svg+xml',
+      mediaKind: 'svg',
+      runtimeUrl: `https://signed.example/revision-${revision}.svg`,
+    })
+
+    manager.setSources([svgSource(1)])
+    const first = await manager.loadRawSource(svgAssetId)
+    const shared = await manager.loadRawSource(svgAssetId)
+    expect(first).toMatchObject({ assetId: svgAssetId, revision: 1, mediaKind: 'svg' })
+    expect(first?.text).toContain('<rect')
+    expect(shared).toBe(first)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    manager.setSources([svgSource(2)])
+    const second = await manager.loadRawSource(svgAssetId)
+    expect(second).toMatchObject({ revision: 2 })
+    expect(second?.text).toContain('<circle')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    manager.setSources([{ ...svgSource(2), deleted: true }])
+    expect(await manager.loadRawSource(svgAssetId)).toBeNull()
+    manager.dispose()
+  })
+
 })

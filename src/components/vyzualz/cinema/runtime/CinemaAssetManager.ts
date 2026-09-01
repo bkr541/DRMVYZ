@@ -18,10 +18,17 @@ import type { CinemaAssetBindingId, CinemaAssetId } from '../CinemaIdentifiers'
 import type {
   CinemaAssetRuntimeService,
   CinemaRuntimeAssetView,
+  CinemaRawAssetSourceView,
   CinemaRuntimeDiagnosticSink,
   CinemaTransportFrame,
   CinemaVideoSyncOptions,
 } from '../CinemaRendererContracts'
+
+interface RuntimeRawSourceRecord {
+  sourceKey: string
+  abortController: AbortController
+  promise: Promise<Readonly<CinemaRawAssetSourceView> | null>
+}
 
 interface RuntimeAssetRecord {
   source: Readonly<CinemaExternalAssetSnapshot>
@@ -62,6 +69,7 @@ const DEFAULT_DEPENDENCIES: CinemaAssetManagerDependencies = {
 export class CinemaAssetManager implements CinemaAssetRuntimeService {
   private readonly records = new Map<CinemaAssetId, RuntimeAssetRecord>()
   private readonly sources = new Map<CinemaAssetId, Readonly<CinemaExternalAssetSnapshot>>()
+  private readonly rawSources = new Map<CinemaAssetId, RuntimeRawSourceRecord>()
   private contextAvailable = true
   private disposed = false
 
@@ -81,6 +89,13 @@ export class CinemaAssetManager implements CinemaAssetRuntimeService {
       if (!source || source.deleted || sourceKey(source) !== record.sourceKey) {
         this.releaseRecord(record, source?.deleted === true ? 'deleted' : 'replaced')
         this.records.delete(assetId)
+      }
+    }
+    for (const [assetId, record] of this.rawSources) {
+      const source = next.get(assetId)
+      if (!source || source.deleted || sourceKey(source) !== record.sourceKey) {
+        record.abortController.abort()
+        this.rawSources.delete(assetId)
       }
     }
     this.sources.clear()
@@ -171,6 +186,36 @@ export class CinemaAssetManager implements CinemaAssetRuntimeService {
     return this.isCurrentRecord(preparingRecord)
       ? this.view(binding, preparingRecord)
       : fallbackView(binding, 'unavailable')
+  }
+
+  async loadRawSource(assetId: CinemaAssetId, signal?: AbortSignal): Promise<Readonly<CinemaRawAssetSourceView> | null> {
+    this.assertActive()
+    const source = this.sources.get(assetId)
+    if (!source || source.deleted || source.mediaKind !== 'svg' || !source.runtimeUrl) return null
+    const key = sourceKey(source)
+    const existing = this.rawSources.get(assetId)
+    if (existing && existing.sourceKey === key) return await awaitWithSignal(existing.promise, signal)
+    if (existing) existing.abortController.abort()
+
+    const abortController = new AbortController()
+    const promise = this.fetchRawSource(source, abortController.signal)
+    this.rawSources.set(assetId, { sourceKey: key, abortController, promise })
+    try {
+      const result = await awaitWithSignal(promise, signal)
+      const current = this.rawSources.get(assetId)
+      return current?.sourceKey === key ? result : null
+    } catch (error) {
+      if (isAbortError(error)) throw error
+      if (this.rawSources.get(assetId)?.sourceKey === key) this.rawSources.delete(assetId)
+      this.diagnostics.report(createCinemaDiagnostic({
+        code: 'CINEMA_MEDIA_DECODE_FAILED',
+        severity: 'warning',
+        message: `Cinema could not load raw source for asset "${assetId}".`,
+        attribution: { assetId, stage: 'asset-manager' },
+        details: { reason: error instanceof Error ? error.message : String(error) },
+      }))
+      return null
+    }
   }
 
   validateAuthoredBindings(
@@ -268,6 +313,11 @@ export class CinemaAssetManager implements CinemaAssetRuntimeService {
   }
 
   releaseAsset(assetId: CinemaAssetId): void {
+    const raw = this.rawSources.get(assetId)
+    if (raw) {
+      raw.abortController.abort()
+      this.rawSources.delete(assetId)
+    }
     const record = this.records.get(assetId)
     if (!record) return
     this.releaseRecord(record, 'released')
@@ -292,6 +342,8 @@ export class CinemaAssetManager implements CinemaAssetRuntimeService {
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
+    for (const raw of this.rawSources.values()) raw.abortController.abort()
+    this.rawSources.clear()
     for (const record of this.records.values()) this.releaseRecord(record, 'disposed')
     this.records.clear()
     this.sources.clear()
@@ -301,6 +353,24 @@ export class CinemaAssetManager implements CinemaAssetRuntimeService {
     let readyCount = 0
     for (const record of this.records.values()) if (record.status === 'ready') readyCount += 1
     return Object.freeze({ sourceCount: this.sources.size, resourceCount: this.records.size, readyCount })
+  }
+
+  private async fetchRawSource(
+    source: Readonly<CinemaExternalAssetSnapshot>,
+    signal: AbortSignal,
+  ): Promise<Readonly<CinemaRawAssetSourceView> | null> {
+    if (!source.runtimeUrl || source.mediaKind !== 'svg') return null
+    const response = await this.dependencies.fetch(source.runtimeUrl, { signal })
+    if (!response.ok) throw new Error(`Asset source request failed with ${response.status}`)
+    const text = await response.text()
+    if (signal.aborted) throw abortError()
+    return Object.freeze({
+      assetId: source.assetId,
+      revision: source.revision,
+      mediaKind: source.mediaKind,
+      mimeType: source.mimeType,
+      text,
+    })
   }
 
   private async prepareRecord(

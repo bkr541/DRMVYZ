@@ -86,12 +86,13 @@ export function isSvgContent(rawSvg: unknown): rawSvg is string {
 // ── 2D affine matrix [a, b, c, d, e, f] ──────────────────────────────────────
 // Transforms a point:  x' = a·x + c·y + e,  y' = b·x + d·y + f
 
-type M2D = [number, number, number, number, number, number]
+export type SvgAffineMatrix = [number, number, number, number, number, number]
+type M2D = SvgAffineMatrix
 
 function identity(): M2D { return [1, 0, 0, 1, 0, 0] }
 
 /** Compose two matrices: A × B (A is outer/parent, B is inner/child). */
-function composeM2D(a: M2D, b: M2D): M2D {
+export function composeSvgAffineMatrices(a: M2D, b: M2D): M2D {
   return [
     a[0] * b[0] + a[2] * b[1],
     a[1] * b[0] + a[3] * b[1],
@@ -102,7 +103,7 @@ function composeM2D(a: M2D, b: M2D): M2D {
   ]
 }
 
-function applyM2D(m: M2D, x: number, y: number): [number, number] {
+export function applySvgAffineMatrix(m: M2D, x: number, y: number): [number, number] {
   return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]
 }
 
@@ -115,7 +116,7 @@ function isIdentityM2D(m: M2D): boolean {
  * Handles translate, scale, rotate, matrix, skewX, skewY.
  * Multiple transform functions are composed left-to-right (SVG spec order).
  */
-function parseTransformAttr(attr: string): M2D {
+export function parseSvgTransformAttribute(attr: string): M2D {
   let result: M2D = identity()
   const re = /(\w+)\s*\(([^)]*)\)/g
   let m: RegExpExecArray | null
@@ -160,7 +161,7 @@ function parseTransformAttr(attr: string): M2D {
         break
       }
     }
-    result = composeM2D(result, t)
+    result = composeSvgAffineMatrices(result, t)
   }
   return result
 }
@@ -169,7 +170,7 @@ function parseTransformAttr(attr: string): M2D {
 
 interface RectAttrs { x: number; y: number; width: number; height: number; rx: number; ry: number }
 
-function rectToPathData({ x, y, width: w, height: h, rx: rxR, ry: ryR }: RectAttrs): string | null {
+export function svgRectToPathData({ x, y, width: w, height: h, rx: rxR, ry: ryR }: RectAttrs): string | null {
   if (!w || !h || w <= 0 || h <= 0) return null
   const rx = Math.min(rxR, w / 2)
   const ry = Math.min(ryR, h / 2)
@@ -187,7 +188,7 @@ function rectToPathData({ x, y, width: w, height: h, rx: rxR, ry: ryR }: RectAtt
   )
 }
 
-function circleToPathData(cx: number, cy: number, r: number): string | null {
+export function svgCircleToPathData(cx: number, cy: number, r: number): string | null {
   if (r <= 0) return null
   return (
     `M ${cx - r} ${cy} ` +
@@ -196,7 +197,7 @@ function circleToPathData(cx: number, cy: number, r: number): string | null {
   )
 }
 
-function ellipseToPathData(cx: number, cy: number, rx: number, ry: number): string | null {
+export function svgEllipseToPathData(cx: number, cy: number, rx: number, ry: number): string | null {
   if (rx <= 0 || ry <= 0) return null
   return (
     `M ${cx - rx} ${cy} ` +
@@ -205,14 +206,14 @@ function ellipseToPathData(cx: number, cy: number, rx: number, ry: number): stri
   )
 }
 
-function parsePointsAttr(s: string): Array<[number, number]> {
+export function parseSvgPointsAttribute(s: string): Array<[number, number]> {
   const nums = s.trim().split(/[\s,]+/).map(Number).filter(v => !Number.isNaN(v))
   const pts: Array<[number, number]> = []
   for (let i = 0; i + 1 < nums.length; i += 2) pts.push([nums[i], nums[i + 1]])
   return pts
 }
 
-function pointsToPathData(pts: Array<[number, number]>, close: boolean): string | null {
+export function svgPointsToPathData(pts: Array<[number, number]>, close: boolean): string | null {
   if (pts.length < 2) return null
   const parts = [`M ${pts[0][0]} ${pts[0][1]}`]
   for (let i = 1; i < pts.length; i++) parts.push(`L ${pts[i][0]} ${pts[i][1]}`)
@@ -232,7 +233,7 @@ function pointsToPathData(pts: Array<[number, number]>, close: boolean): string 
  * - Handles multiple coordinate pairs after M/m (implicit lineto).
  * - Does not throw on malformed input — returns whatever was parsed successfully.
  */
-function splitCompoundPath(d: string): string[] {
+export function splitSvgCompoundPath(d: string): string[] {
   if (!d || !d.trim()) return []
 
   // Tokenize: find command letter positions, extract numeric args between them.
@@ -368,16 +369,16 @@ function getElementCTM(el: Element, svgRoot: Element): M2D {
   let cur: Element | null = el
   while (cur && cur !== svgRoot) {
     const t = cur.getAttribute('transform')
-    if (t) stack.push(parseTransformAttr(t))
+    if (t) stack.push(parseSvgTransformAttribute(t))
     cur = cur.parentElement
   }
   // stack[0] = element's own transform, stack[last] = outermost child of SVG root
   // Compose outermost first: reverse and fold left
-  return stack.reverse().reduce((acc, m) => composeM2D(acc, m), identity())
+  return stack.reverse().reduce((acc, m) => composeSvgAffineMatrices(acc, m), identity())
 }
 
 function pushSubpaths(result: RawSubpath[], pathData: string, ctm: M2D): void {
-  for (const seg of splitCompoundPath(pathData)) result.push({ data: seg, ctm })
+  for (const seg of splitSvgCompoundPath(pathData)) result.push({ data: seg, ctm })
 }
 
 function compileSubpathsBrowser(rawSvg: string): RawSubpath[] {
@@ -398,7 +399,7 @@ function compileSubpathsBrowser(rawSvg: string): RawSubpath[] {
     if (d) pushSubpaths(result, d, ctm(el))
   }
   for (const el of Array.from(doc.querySelectorAll('rect'))) {
-    const d = rectToPathData({
+    const d = svgRectToPathData({
       x: f(el.getAttribute('x') ?? '0'),
       y: f(el.getAttribute('y') ?? '0'),
       width: f(el.getAttribute('width') ?? '0'),
@@ -409,7 +410,7 @@ function compileSubpathsBrowser(rawSvg: string): RawSubpath[] {
     if (d) pushSubpaths(result, d, ctm(el))
   }
   for (const el of Array.from(doc.querySelectorAll('circle'))) {
-    const d = circleToPathData(
+    const d = svgCircleToPathData(
       f(el.getAttribute('cx') ?? '0'),
       f(el.getAttribute('cy') ?? '0'),
       f(el.getAttribute('r') ?? '0'),
@@ -417,7 +418,7 @@ function compileSubpathsBrowser(rawSvg: string): RawSubpath[] {
     if (d) pushSubpaths(result, d, ctm(el))
   }
   for (const el of Array.from(doc.querySelectorAll('ellipse'))) {
-    const d = ellipseToPathData(
+    const d = svgEllipseToPathData(
       f(el.getAttribute('cx') ?? '0'),
       f(el.getAttribute('cy') ?? '0'),
       f(el.getAttribute('rx') ?? '0'),
@@ -432,11 +433,11 @@ function compileSubpathsBrowser(rawSvg: string): RawSubpath[] {
   }
   for (const el of Array.from(doc.querySelectorAll('polyline'))) {
     const ps = el.getAttribute('points')
-    if (ps) { const d = pointsToPathData(parsePointsAttr(ps), false); if (d) pushSubpaths(result, d, ctm(el)) }
+    if (ps) { const d = svgPointsToPathData(parseSvgPointsAttribute(ps), false); if (d) pushSubpaths(result, d, ctm(el)) }
   }
   for (const el of Array.from(doc.querySelectorAll('polygon'))) {
     const ps = el.getAttribute('points')
-    if (ps) { const d = pointsToPathData(parsePointsAttr(ps), true); if (d) pushSubpaths(result, d, ctm(el)) }
+    if (ps) { const d = svgPointsToPathData(parseSvgPointsAttribute(ps), true); if (d) pushSubpaths(result, d, ctm(el)) }
   }
   return result
 }
@@ -469,7 +470,7 @@ function compileSubpathsRegex(rawSvg: string): RawSubpath[] {
   const rectRe = /<rect\b[^/>]*\/?>/gi
   while ((m = rectRe.exec(stripped)) !== null) {
     const tag = m[0]
-    const d = rectToPathData({
+    const d = svgRectToPathData({
       x:      getAttrNum(tag, 'x'),
       y:      getAttrNum(tag, 'y'),
       width:  getAttrNum(tag, 'width'),
@@ -484,7 +485,7 @@ function compileSubpathsRegex(rawSvg: string): RawSubpath[] {
   const circleRe = /<circle\b[^/>]*\/?>/gi
   while ((m = circleRe.exec(stripped)) !== null) {
     const tag = m[0]
-    const d = circleToPathData(getAttrNum(tag, 'cx'), getAttrNum(tag, 'cy'), getAttrNum(tag, 'r'))
+    const d = svgCircleToPathData(getAttrNum(tag, 'cx'), getAttrNum(tag, 'cy'), getAttrNum(tag, 'r'))
     if (d) result.push({ data: d, ctm: idm })
   }
 
@@ -492,7 +493,7 @@ function compileSubpathsRegex(rawSvg: string): RawSubpath[] {
   const ellipseRe = /<ellipse\b[^/>]*\/?>/gi
   while ((m = ellipseRe.exec(stripped)) !== null) {
     const tag = m[0]
-    const d = ellipseToPathData(
+    const d = svgEllipseToPathData(
       getAttrNum(tag, 'cx'), getAttrNum(tag, 'cy'),
       getAttrNum(tag, 'rx'), getAttrNum(tag, 'ry'),
     )
@@ -512,14 +513,14 @@ function compileSubpathsRegex(rawSvg: string): RawSubpath[] {
   const polylineRe = /<polyline\b[^/>]*\/?>/gi
   while ((m = polylineRe.exec(stripped)) !== null) {
     const ps = getAttrStr(m[0], 'points')
-    if (ps) { const d = pointsToPathData(parsePointsAttr(ps), false); if (d) result.push({ data: d, ctm: idm }) }
+    if (ps) { const d = svgPointsToPathData(parseSvgPointsAttribute(ps), false); if (d) result.push({ data: d, ctm: idm }) }
   }
 
   // <polygon>
   const polygonRe = /<polygon\b[^/>]*\/?>/gi
   while ((m = polygonRe.exec(stripped)) !== null) {
     const ps = getAttrStr(m[0], 'points')
-    if (ps) { const d = pointsToPathData(parsePointsAttr(ps), true); if (d) result.push({ data: d, ctm: idm }) }
+    if (ps) { const d = svgPointsToPathData(parseSvgPointsAttribute(ps), true); if (d) result.push({ data: d, ctm: idm }) }
   }
 
   return result
@@ -842,7 +843,7 @@ export function compileSvgToGlyphResult(
         const progress = count > 1 ? k / (count - 1) : 0
         const pt = props.getPropertiesAtLength(progress * length)
         let x = pt.x, y = pt.y
-        if (hasCTM) { const [tx, ty] = applyM2D(ctm, x, y); x = tx; y = ty }
+        if (hasCTM) { const [tx, ty] = applySvgAffineMatrix(ctm, x, y); x = tx; y = ty }
         raw.push({ x, y, pathIndex: j, progress })
       }
     }
@@ -1016,7 +1017,7 @@ export function parseSvgToGlyphPoints(
         const progress = count > 1 ? k / (count - 1) : 0
         const pt = props.getPropertiesAtLength(progress * length)
         let x = pt.x, y = pt.y
-        if (hasCTM) { const [tx, ty] = applyM2D(ctm, x, y); x = tx; y = ty }
+        if (hasCTM) { const [tx, ty] = applySvgAffineMatrix(ctm, x, y); x = tx; y = ty }
         raw.push({ x, y, pathIndex: j, progress })
       }
     }

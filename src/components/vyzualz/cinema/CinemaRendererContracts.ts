@@ -697,6 +697,14 @@ export interface CinemaRuntimeAssetView {
   error?: string
 }
 
+export interface CinemaRawAssetSourceView {
+  assetId: CinemaAssetId
+  revision: string | number
+  mediaKind: CinemaAssetMediaKind
+  mimeType: string | null
+  text: string
+}
+
 export interface CinemaVideoSyncOptions {
   offsetSec?: number
   loop?: boolean
@@ -706,6 +714,7 @@ export interface CinemaVideoSyncOptions {
 export interface CinemaAssetRuntimeService {
   resolve(binding: Readonly<CinemaAssetBindingDefinition>): Readonly<CinemaRuntimeAssetView>
   prepare(binding: Readonly<CinemaAssetBindingDefinition>, signal?: AbortSignal): Promise<Readonly<CinemaRuntimeAssetView>>
+  loadRawSource?(assetId: CinemaAssetId, signal?: AbortSignal): Promise<Readonly<CinemaRawAssetSourceView> | null>
   synchronizeVideo?(
     binding: Readonly<CinemaAssetBindingDefinition>,
     transport: Readonly<CinemaTransportFrame>,
