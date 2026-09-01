@@ -90,12 +90,15 @@ import {
   resolveCanvasAuthoredLayerFrame,
   resolveCanvasEffectiveAuthoredLayers,
   resolveCanvasEnabledAuthoredLayers,
+  resolveCanvasLayerEffectiveEngineSettings,
   resolveCanvasMediaRoles,
   resolveCanvasPerformanceFrame,
   resolveCanvasPoolAutomationRuntime,
   hasAnyCanvasLayerEngineOverrides,
   type CanvasCompositionPreference,
+  type CanvasControlScope,
   type CanvasLayerEffectId,
+  type CanvasLayerEngineBaseline,
   type CanvasLayerRole,
   type CanvasMediaRole,
   type CanvasPerformanceShowId,
@@ -1759,6 +1762,11 @@ export function CanvasEngineSurface({
                 },
                 mediaItems,
                 fitMode: settings.fitMode,
+                scale: settings.scale,
+                positionX: settings.positionX,
+                positionY: settings.positionY,
+                rotation: settings.rotation,
+                opacity: settings.opacity,
                 isMediaReady: mediaId => orchestrationPreloadManager.isReady(mediaId),
                 getMediaError: mediaId => {
                   const readiness = orchestrationPreloadManager.getReadiness(mediaId)
@@ -1876,7 +1884,7 @@ export function CanvasEngineSurface({
     resolveFrame()
     const intervalId = window.setInterval(resolveFrame, 80)
     return () => window.clearInterval(intervalId)
-  }, [activeAudioTrackId, activeItem, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, settings.fitMode, showPreviewMode, singleLayerEffectOwner, singleLayerEffectRuntime])
+  }, [activeAudioTrackId, activeItem, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, settings.fitMode, settings.scale, settings.positionX, settings.positionY, settings.rotation, settings.opacity, showPreviewMode, singleLayerEffectOwner, singleLayerEffectRuntime])
 
   useEffect(() => () => {
     orchestrationPreloadManager.dispose()
@@ -4519,12 +4527,48 @@ export function CanvasEnginePanel() {
   )
 }
 
-export function CanvasEngineFxPanel() {
-  const settings = useReactStore(s => s.canvasEngineSettings)
+/**
+ * Scope-aware Engine Display settings. Canvas scope reads/writes the global
+ * canvasEngineSettings baseline exactly as the Engine tab always has; Layer
+ * scope reads/writes that one authored layer's sparse engineOverrides
+ * (Phase 1), resolved against the same baseline for any field it hasn't
+ * customized (resolveCanvasLayerEffectiveEngineSettings). This is the single
+ * abstraction the Engine UI goes through so Canvas and Layer controls can
+ * never drift into two implementations.
+ */
+export function useCanvasScopedEngineSettings(): {
+  settings: CanvasLayerEngineBaseline
+  updateSettings: (patch: Partial<CanvasLayerEngineBaseline>) => void
+  scope: CanvasControlScope
+} {
+  const canvasSettings = useReactStore(s => s.canvasEngineSettings)
   const setCanvasEngineSettings = useReactStore(s => s.setCanvasEngineSettings)
+  const scope = useReactStore(s => s.canvasControlScope)
+  const authoredLayers = useReactStore(s => s.canvasOrchestrationSettings.authoredLayers)
+  const updateCanvasLayerEngineOverrides = useReactStore(s => s.updateCanvasLayerEngineOverrides)
 
-  const setSettings = (patch: Partial<typeof settings>) => {
-    setCanvasEngineSettings(patch)
+  const scopedLayer = scope.kind === 'layer' ? authoredLayers.find(layer => layer.id === scope.layerId) ?? null : null
+
+  if (scopedLayer) {
+    return {
+      settings: resolveCanvasLayerEffectiveEngineSettings(canvasSettings, scopedLayer.engineOverrides),
+      updateSettings: patch => { updateCanvasLayerEngineOverrides(scopedLayer.id, patch) },
+      scope,
+    }
+  }
+  return {
+    settings: canvasSettings,
+    updateSettings: patch => setCanvasEngineSettings(patch),
+    scope: { kind: 'canvas' },
+  }
+}
+
+export function CanvasEngineFxPanel() {
+  const { settings, updateSettings, scope } = useCanvasScopedEngineSettings()
+  const layerScopeActive = scope.kind === 'layer'
+
+  const setSettings = (patch: Partial<CanvasLayerEngineBaseline>) => {
+    updateSettings(patch)
   }
 
   return (
@@ -4608,10 +4652,15 @@ export function CanvasEngineFxPanel() {
         </CanvasHelpControl>
       </Collapsible>
 
+      {/* Composition/Auto Role/Locks and Source + Reactivity describe the
+          Canvas composition as a whole (or relationships among layers) --
+          not this phase's scope. Hide rather than show them disabled, since
+          nothing in either group is consumed per-layer. Video Timing is
+          scoped to the active media item, not to Canvas-vs-layer, so it
+          stays visible either way. */}
+      {!layerScopeActive && <CanvasCompositionControls />}
 
-      <CanvasCompositionControls />
-
-      <CanvasPresetControls />
+      {!layerScopeActive && <CanvasPresetControls />}
 
       <CanvasTimingControls />
     </div>

@@ -1,7 +1,7 @@
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
 import type { CanvasFitMode, CanvasMediaItem } from '../ReactTypes'
 import { resolveCanvasAuthoredLayerLayout } from './CanvasAuthoredLayerLayout'
-import { resolveCanvasEffectiveAuthoredLayers } from './CanvasAuthoringState'
+import { resolveCanvasEffectiveAuthoredLayers, resolveCanvasLayerEffectiveEngineSettings } from './CanvasAuthoringState'
 import { getCanvasCompositionTemplate } from './CanvasCompositionTemplates'
 import { resolveCanvasPlayback } from './CanvasPlayback'
 import { resolveCanvasExplicitTransition } from './CanvasTransitions'
@@ -28,6 +28,11 @@ export function resolveCanvasAuthoredLayerFrame({
   settings,
   mediaItems,
   fitMode,
+  scale = 1,
+  positionX = 0,
+  positionY = 0,
+  rotation = 0,
+  opacity = 1,
   isMediaReady,
   getMediaError,
   automaticLayers = [],
@@ -40,6 +45,16 @@ export function resolveCanvasAuthoredLayerFrame({
   settings: Pick<CanvasOrchestrationSettings, 'authoredLayers' | 'programId'>
   mediaItems: readonly CanvasMediaItem[]
   fitMode: CanvasFitMode
+  /** Canvas baseline Display settings (canvasEngineSettings). Each authored
+   * layer's own engineOverrides (Phase 1) take precedence per-field over
+   * these; layers with no override inherit them exactly. Defaults are the
+   * transform identity so existing callers that only pass `fitMode` are
+   * unaffected. */
+  scale?: number
+  positionX?: number
+  positionY?: number
+  rotation?: number
+  opacity?: number
   isMediaReady?: (mediaId: string) => boolean
   getMediaError?: (mediaId: string) => string | null
   automaticLayers?: readonly CanvasAuthoredLayer[]
@@ -48,6 +63,7 @@ export function resolveCanvasAuthoredLayerFrame({
   automationTransitionId?: CanvasTransitionId | null
   automationDiagnostics?: readonly string[]
 }): CanvasResolvedPerformanceFrame {
+  const engineBaseline = { fitMode, scale, positionX, positionY, rotation, opacity }
   const mediaById = new Map(mediaItems.map(item => [item.id, item]))
   const manualLayers = [...settings.authoredLayers]
     .sort((left, right) => left.order - right.order || left.id.localeCompare(right.id))
@@ -87,6 +103,11 @@ export function resolveCanvasAuthoredLayerFrame({
     const layout = layoutIndex == null
       ? null
       : resolveCanvasAuthoredLayerLayout(visibleLayerCount, layoutIndex)
+    // Phase 2: each authored layer resolves its own Engine Display settings
+    // (its sparse engineOverrides over the Canvas baseline) independently, so
+    // a layer-scoped Scale/Position/Rotation/Opacity/Fit Mode edit affects
+    // only that layer -- see resolveCanvasLayerEffectiveEngineSettings.
+    const effective = resolveCanvasLayerEffectiveEngineSettings(engineBaseline, authored.engineOverrides)
 
     return {
       id: authored.id,
@@ -94,19 +115,23 @@ export function resolveCanvasAuthoredLayerFrame({
       sourceMediaId: source?.id ?? null,
       source,
       enabled,
-      opacity: 1,
+      opacity: effective.opacity,
       blendMode: 'source-over',
-      x: layout?.x ?? 0,
-      y: layout?.y ?? 0,
-      scaleX: layout?.scaleX ?? 1,
-      scaleY: layout?.scaleY ?? 1,
+      x: (layout?.x ?? 0) + effective.positionX / 100,
+      y: (layout?.y ?? 0) + effective.positionY / 100,
+      scaleX: (layout?.scaleX ?? 1) * effective.scale,
+      scaleY: (layout?.scaleY ?? 1) * effective.scale,
       fitWithinTransformBounds: Boolean(layout && visibleLayerCount > 1),
-      rotation: 0,
+      rotation: effective.rotation,
       crop: FULL_CROP,
-      // Multi-layer authored layouts use contain so every source remains
-      // proportionally intact inside its deterministic slot. A single layer
-      // keeps the user's existing Canvas fit behavior unchanged.
-      aspectBehavior: layout && visibleLayerCount > 1 ? 'contain' : fitMode,
+      // Multi-layer authored layouts default to contain so every source
+      // remains proportionally intact inside its deterministic slot, exactly
+      // as before -- but an authored layer's own explicit Fit Mode override
+      // is a deliberate per-layer choice and takes precedence over that
+      // default. A single layer keeps the user's existing Canvas fit
+      // behavior unchanged.
+      aspectBehavior: authored.engineOverrides?.fitMode
+        ?? (layout && visibleLayerCount > 1 ? 'contain' : effective.fitMode),
       // CanvasOrchestrationStage paints ascending z-index. Reverse canonical
       // order so row 0 is painted last and is therefore visually topmost.
       zIndex: MAX_CANVAS_AUTHORED_LAYERS - index,

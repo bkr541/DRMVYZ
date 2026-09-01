@@ -1080,4 +1080,116 @@ describe('CANVAS right-panel control contract', () => {
     ]))
     snapshot.unmount()
   })
+
+  describe('Phase 2: scope-aware Engine Display controls', () => {
+    function findSliderInput(container: HTMLElement, label: string): HTMLInputElement | null {
+      return [...container.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
+        .find(node => node.textContent?.trim() === label)
+        ?.closest('.rv-ctrl-row')
+        ?.querySelector<HTMLInputElement>('input[type="range"]') ?? null
+    }
+
+    // SliderRow's own always-visible live readout (not the help-popover
+    // "current value" badge, which only renders once its popover is open).
+    function currentValueText(container: HTMLElement, label: string): string | undefined {
+      return [...container.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
+        .find(node => node.textContent?.trim() === label)
+        ?.closest('.rv-ctrl-row')
+        ?.querySelector<HTMLElement>('.rv-ctrl-val')?.textContent ?? undefined
+    }
+
+    it('Canvas scope: Display sliders write to the global canvasEngineSettings baseline and create no layer overrides', () => {
+      const a = useReactStore.getState().addCanvasAuthoredLayer('scope-media-a')
+      const b = useReactStore.getState().addCanvasAuthoredLayer('scope-media-b')
+      if (!a.ok || !b.ok) throw new Error('Expected two CANVAS layers')
+      // Adding a layer auto-follows Engine scope onto it (Phase 1); explicitly
+      // return to Canvas scope for this test's precondition.
+      useReactStore.getState().setCanvasControlScope({ kind: 'canvas' })
+      expect(useReactStore.getState().canvasControlScope).toEqual({ kind: 'canvas' })
+
+      const snapshot = renderSnapshot(<CanvasEngineFxPanel />)
+      const scaleInput = findSliderInput(snapshot.host, 'Scale')
+      if (!scaleInput) throw new Error('Expected Scale slider')
+      act(() => setControlledInputValue(scaleInput, '1.75'))
+
+      expect(useReactStore.getState().canvasEngineSettings.scale).toBe(1.75)
+      expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.every(layer => !layer.engineOverrides)).toBe(true)
+      snapshot.unmount()
+    })
+
+    it('Layer scope: Display sliders write only to the scoped layer\'s engineOverrides, leaving the Canvas baseline and sibling layers untouched', () => {
+      const a = useReactStore.getState().addCanvasAuthoredLayer('scope-media-a')
+      const b = useReactStore.getState().addCanvasAuthoredLayer('scope-media-b')
+      if (!a.ok || !b.ok) throw new Error('Expected two CANVAS layers')
+      const originalCanvasScale = useReactStore.getState().canvasEngineSettings.scale
+      useReactStore.getState().setCanvasControlScope({ kind: 'layer', layerId: b.layer.id })
+
+      const snapshot = renderSnapshot(<CanvasEngineFxPanel />)
+      const scaleInput = findSliderInput(snapshot.host, 'Scale')
+      if (!scaleInput) throw new Error('Expected Scale slider')
+      act(() => setControlledInputValue(scaleInput, '0.6'))
+
+      const layers = useReactStore.getState().canvasOrchestrationSettings.authoredLayers
+      expect(layers.find(layer => layer.id === b.layer.id)?.engineOverrides).toEqual({ scale: 0.6 })
+      expect(layers.find(layer => layer.id === a.layer.id)?.engineOverrides).toBeUndefined()
+      expect(useReactStore.getState().canvasEngineSettings.scale).toBe(originalCanvasScale)
+      snapshot.unmount()
+    })
+
+    it('Layer scope: displays the Canvas baseline for un-overridden fields and the override for changed ones (inheritance)', () => {
+      useReactStore.getState().setCanvasEngineSettings({ rotation: 25 })
+      const a = useReactStore.getState().addCanvasAuthoredLayer('scope-media-a')
+      const b = useReactStore.getState().addCanvasAuthoredLayer('scope-media-b')
+      if (!a.ok || !b.ok) throw new Error('Expected two CANVAS layers')
+      useReactStore.getState().updateCanvasLayerEngineOverrides(b.layer.id, { scale: 0.6 })
+      useReactStore.getState().setCanvasControlScope({ kind: 'layer', layerId: b.layer.id })
+
+      const snapshot = renderSnapshot(<CanvasEngineFxPanel />)
+      // Scale is the layer's own override...
+      expect(currentValueText(snapshot.host, 'Scale')).toBe('0.60')
+      // ...Rotation was never overridden on this layer, so it still shows
+      // the Canvas baseline value inherited from canvasEngineSettings.
+      expect(currentValueText(snapshot.host, 'Rotation')).toBe('25')
+      snapshot.unmount()
+    })
+
+    it('Layer scope resolves back to plain Canvas-baseline inheritance once the layer\'s overrides are reset', () => {
+      const a = useReactStore.getState().addCanvasAuthoredLayer('scope-media-a')
+      const b = useReactStore.getState().addCanvasAuthoredLayer('scope-media-b')
+      if (!a.ok || !b.ok) throw new Error('Expected two CANVAS layers')
+      useReactStore.getState().updateCanvasLayerEngineOverrides(b.layer.id, { scale: 0.6 })
+      useReactStore.getState().setCanvasControlScope({ kind: 'layer', layerId: b.layer.id })
+
+      let snapshot = renderSnapshot(<CanvasEngineFxPanel />)
+      expect(currentValueText(snapshot.host, 'Scale')).toBe('0.60')
+      snapshot.unmount()
+
+      useReactStore.getState().resetCanvasLayerEngineOverrides(b.layer.id)
+      snapshot = renderSnapshot(<CanvasEngineFxPanel />)
+      expect(currentValueText(snapshot.host, 'Scale')).toBe('1.00')
+      snapshot.unmount()
+    })
+
+    it('hides Canvas-only groups (Composition/Auto Role, Source + Reactivity) while Layer scope is active, and restores them for Canvas scope', () => {
+      const a = useReactStore.getState().addCanvasAuthoredLayer('scope-media-a')
+      const b = useReactStore.getState().addCanvasAuthoredLayer('scope-media-b')
+      if (!a.ok || !b.ok) throw new Error('Expected two CANVAS layers')
+      useReactStore.getState().setCanvasControlScope({ kind: 'canvas' })
+
+      const canvasSnapshot = renderSnapshot(<CanvasEngineFxPanel />)
+      const canvasGroupLabels = groupLabelsIn(canvasSnapshot.host)
+      expect(canvasGroupLabels).toContain('Composition')
+      expect(canvasGroupLabels).toContain('Auto Role')
+      canvasSnapshot.unmount()
+
+      useReactStore.getState().setCanvasControlScope({ kind: 'layer', layerId: b.layer.id })
+      const layerSnapshot = renderSnapshot(<CanvasEngineFxPanel />)
+      const layerGroupLabels = groupLabelsIn(layerSnapshot.host)
+      expect(layerGroupLabels).not.toContain('Composition')
+      expect(layerGroupLabels).not.toContain('Auto Role')
+      // Display itself (the layer-scoped controls) stays.
+      expect(layerGroupLabels).toContain('Display')
+      layerSnapshot.unmount()
+    })
+  })
 })

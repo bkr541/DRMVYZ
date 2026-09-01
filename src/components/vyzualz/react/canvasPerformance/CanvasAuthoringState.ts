@@ -1,4 +1,4 @@
-import type { CanvasFitMode } from '../ReactTypes'
+import type { CanvasEngineSettings, CanvasFitMode } from '../ReactTypes'
 import {
   CANVAS_LAYER_EFFECT_IDS,
   MAX_CANVAS_AUTHORED_LAYERS,
@@ -120,6 +120,34 @@ export function normalizeCanvasLayerEngineOverrides(value: unknown): CanvasLayer
   const opacity = clampFiniteCanvasOverrideNumber(value.opacity, 0, 1)
   if (opacity !== undefined) overrides.opacity = opacity
   return Object.keys(overrides).length > 0 ? overrides : undefined
+}
+
+/** The six Engine Display fields a layer can override, and the shape the
+ * Canvas baseline (`canvasEngineSettings`) must supply them in. */
+export type CanvasLayerEngineBaseline = Pick<
+  CanvasEngineSettings,
+  'fitMode' | 'scale' | 'positionX' | 'positionY' | 'rotation' | 'opacity'
+>
+
+/**
+ * Resolves the effective Display settings a layer should render/display
+ * with: its own override where present, the Canvas baseline otherwise. This
+ * is the single inheritance rule shared by the authored-layer runtime (what
+ * actually renders) and the scope-aware Engine UI (what the Layer scope
+ * controls display) so the two can never disagree.
+ */
+export function resolveCanvasLayerEffectiveEngineSettings(
+  baseline: CanvasLayerEngineBaseline,
+  overrides: CanvasLayerEngineOverrides | undefined,
+): CanvasLayerEngineBaseline {
+  return {
+    fitMode: overrides?.fitMode ?? baseline.fitMode,
+    scale: overrides?.scale ?? baseline.scale,
+    positionX: overrides?.positionX ?? baseline.positionX,
+    positionY: overrides?.positionY ?? baseline.positionY,
+    rotation: overrides?.rotation ?? baseline.rotation,
+    opacity: overrides?.opacity ?? baseline.opacity,
+  }
 }
 
 export function normalizeCanvasAuthoredLayers(value: unknown): CanvasAuthoredLayer[] {

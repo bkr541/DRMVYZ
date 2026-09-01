@@ -11,6 +11,7 @@ import {
   resetCanvasLayerEngineOverridesState,
   resolveActiveCanvasMediaPool,
   resolveCanvasEnabledAuthoredLayers,
+  resolveCanvasLayerEffectiveEngineSettings,
   reorderCanvasAuthoredLayers,
   isCanvasAuthoredLayerRenderEligible,
   resolveCanvasEffectiveAuthoredLayers,
@@ -294,5 +295,29 @@ describe('CANVAS canonical authoring state', () => {
     expect(resetAll.every(layer => layer.engineOverrides === undefined)).toBe(true)
 
     expect(resetCanvasLayerEngineOverridesState(layers, 'missing-layer')).toEqual({ ok: false, code: 'layer-not-found' })
+  })
+
+  it('resolves per-layer effective Engine settings: baseline when no override exists, per-field override otherwise (Phase 2 inheritance)', () => {
+    const baseline = { fitMode: 'contain' as const, scale: 1, positionX: 0, positionY: 0, rotation: 0, opacity: 1 }
+
+    // No override at all -- every field inherits the Canvas baseline exactly.
+    expect(resolveCanvasLayerEffectiveEngineSettings(baseline, undefined)).toEqual(baseline)
+
+    // A sparse override supplies only the fields it customizes; the rest
+    // still resolve straight from the baseline.
+    const partial = resolveCanvasLayerEffectiveEngineSettings(baseline, { scale: 0.65, rotation: 25 })
+    expect(partial).toEqual({ fitMode: 'contain', scale: 0.65, positionX: 0, positionY: 0, rotation: 25, opacity: 1 })
+
+    // A non-default Canvas baseline still shows through for every
+    // non-overridden field.
+    const customBaseline = { fitMode: 'cover' as const, scale: 1.4, positionX: -20, positionY: 10, rotation: 5, opacity: 0.8 }
+    expect(resolveCanvasLayerEffectiveEngineSettings(customBaseline, { opacity: 0.3 })).toEqual({
+      ...customBaseline,
+      opacity: 0.3,
+    })
+
+    // A full override on every field ignores the baseline entirely.
+    const fullOverride = { fitMode: 'stretch' as const, scale: 0.5, positionX: 30, positionY: -30, rotation: 90, opacity: 0.2 }
+    expect(resolveCanvasLayerEffectiveEngineSettings(baseline, fullOverride)).toEqual(fullOverride)
   })
 })
