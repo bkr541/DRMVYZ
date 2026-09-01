@@ -204,6 +204,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
       this.contextLost = true
       this.phase = 'context-lost'
       this.cancelScheduledFrame()
+      this.webgl.handleContextLost()
       this.executor.handleContextLost()
       disposeCinemaShaderProgramCache(this.gl)
       this.gpuTimer.dispose()
@@ -233,6 +234,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
         this.observedGpuSampleCount = 0
         this.targets.rebuildAfterContextRestore()
         this.assets.rebuildAfterContextRestore()
+        this.webgl.rebuildAfterContextRestore()
         if (this.lastResolution) this.applyResolution(this.lastResolution)
         this.executor.rebuildAfterContextRestore()
         this.report(createCinemaDiagnostic({
@@ -252,6 +254,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
         const message = errorMessage(error)
         this.runningRequested = false
         this.cancelScheduledFrame()
+        try { this.webgl.dispose() } catch { /* Retire any shared 3D GPU resources rebuilt before the failure. */ }
         try { this.executor.handleContextLost() } catch { /* Keep recovery failure cleanup best-effort and bounded. */ }
         try { this.assets.dispose() } catch { /* Retire any media/GPU resources rebuilt before the failure. */ }
         try { this.targets.dispose() } catch { /* Retire any target attachments rebuilt before the failure. */ }
@@ -449,6 +452,7 @@ export class CinemaRuntime implements CinemaRuntimeDiagnosticSink {
     this.canvas.removeEventListener('webglcontextlost', this.onContextLostHandler)
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestoredHandler)
     try { this.executor.dispose() } catch { /* Continue deterministic cleanup. */ }
+    try { this.webgl.dispose() } catch { /* Continue deterministic cleanup. */ }
     try { disposeCinemaShaderProgramCache(this.gl) } catch { /* Continue deterministic cleanup. */ }
     try { this.gpuTimer.dispose() } catch { /* Continue deterministic cleanup. */ }
     try { this.assets.dispose() } catch { /* Continue deterministic cleanup. */ }

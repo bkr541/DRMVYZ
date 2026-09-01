@@ -7,14 +7,19 @@ import type {
 } from '../CinemaRendererContracts'
 import { CinemaRenderTargetPool } from './CinemaRenderTargetPool'
 import { CinemaTextureManager } from './CinemaTextureManager'
+import { CinemaObject3DRenderer } from '../CinemaObject3DRenderer'
 
 /** WebGL2 facade that preserves Cinema's context, target, and texture ownership. */
 export class CinemaWebGLRenderServiceImpl implements CinemaWebGLRenderServiceContract {
+  readonly objects3d: CinemaObject3DRenderer
+
   constructor(
     readonly gl: WebGL2RenderingContext,
     private readonly targets: CinemaRenderTargetPool,
     private readonly textures: CinemaTextureManager,
-  ) {}
+  ) {
+    this.objects3d = new CinemaObject3DRenderer(gl)
+  }
 
   bindTarget(lease: CinemaRenderTargetLease): Readonly<CinemaWebGLTargetBinding> {
     return this.targets.bindDrawTarget(lease)
@@ -27,6 +32,18 @@ export class CinemaWebGLRenderServiceImpl implements CinemaWebGLRenderServiceCon
 
   resolveTexture(view: CinemaTextureView): WebGLTexture | null {
     return this.textures.resolveRuntimeTexture(view)
+  }
+
+  handleContextLost(): void {
+    this.objects3d.handleContextLost()
+  }
+
+  rebuildAfterContextRestore(): void {
+    this.objects3d.rebuildAfterContextRestore()
+  }
+
+  dispose(): void {
+    this.objects3d.dispose()
   }
 
   resetState(): void {

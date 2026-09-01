@@ -111,6 +111,7 @@ export interface CinemaWebGLTargetBinding {
 
 export interface CinemaWebGLRenderService {
   readonly gl: WebGL2RenderingContext
+  readonly objects3d: import('./CinemaObject3DRenderer').CinemaObject3DRenderService
   bindTarget(lease: CinemaRenderTargetLease): Readonly<CinemaWebGLTargetBinding>
   bindDefaultFramebuffer(viewport: CinemaViewport): void
   resolveTexture(view: CinemaTextureView): WebGLTexture | null

@@ -97,6 +97,7 @@ export function createCinemaMockWebGL(): CinemaMockWebGL {
     TRIANGLES: 0x0004,
     TRIANGLE_STRIP: 0x0005,
     ARRAY_BUFFER: 0x8892,
+    ELEMENT_ARRAY_BUFFER: 0x8893,
     STATIC_DRAW: 0x88e4,
     DYNAMIC_DRAW: 0x88e8,
     CULL_FACE: 0x0b44,
@@ -126,6 +127,7 @@ export function createCinemaMockWebGL(): CinemaMockWebGL {
     uniform3f: vi.fn(),
     uniform4f: vi.fn(),
     uniformMatrix4fv: vi.fn(),
+    uniformMatrix3fv: vi.fn(),
     uniform1f: vi.fn(),
     uniform1i: vi.fn(),
     useProgram: vi.fn(),
@@ -148,6 +150,7 @@ export function createCinemaMockWebGL(): CinemaMockWebGL {
     vertexAttribPointer: vi.fn(),
     vertexAttribDivisor: vi.fn(),
     drawArrays: vi.fn(() => { calls.drawCount += 1 }),
+    drawElements: vi.fn(() => { calls.drawCount += 1 }),
     drawArraysInstanced: vi.fn(() => { calls.drawInstancedCount += 1 }),
     createFramebuffer: vi.fn(() => {
       calls.createdFramebuffers += 1
