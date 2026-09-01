@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Delete02Icon } from 'hugeicons-react'
+import { Delete02Icon, Layers01Icon } from 'hugeicons-react'
 import { useShallow } from 'zustand/react/shallow'
 import { Collapsible, NumberInputRow, SelectRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
@@ -313,11 +313,21 @@ export function MediaManagerInspector({
   media: UploadedMedia | null
   track: SavedAudioTrack | null
 }) {
-  if (media) return <VisualMediaInspector key={media.id} media={media} />
-  if (track) return <AudioTrackInspector key={track.id} track={track} />
   return (
-    <div className="mmi-empty">
-      <p>Select media from the library to view and edit its details.</p>
-    </div>
+    <>
+      <div className="vz-panel-header">
+        <Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
+        <span className="vz-panel-title" title="Media Details">Media Details</span>
+      </div>
+      {media ? (
+        <VisualMediaInspector key={media.id} media={media} />
+      ) : track ? (
+        <AudioTrackInspector key={track.id} track={track} />
+      ) : (
+        <div className="mmi-empty">
+          <p>Select media from the library to view and edit its details.</p>
+        </div>
+      )}
+    </>
   )
 }

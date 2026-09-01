@@ -134,6 +134,14 @@
   padding-inline: 14px;
 }
 
+/* Media Details header on the right rail mirrors the Media Library header
+   on the left (same icon/title row, minus the add buttons) — match its
+   sizing here too. */
+.mmv-content .vz-inspector--right .vz-panel-header {
+  min-height: 42px;
+  padding-inline: 14px;
+}
+
 /* Icon-only New Collection/New Media actions on the Media Library header
    row (moved here from the top mmv-header row). Square, no text label. */
 .vz-panel-header-icon-btn.dv-icon-chip {
@@ -454,6 +462,9 @@
 
 .vz-media-browser--manager .vz-md-search-row {
   padding-inline: 14px;
+  /* +6px over the base 5px so the search/view-toggle row isn't crowded
+     against the filter tab row above it. */
+  padding-top: 11px;
 }
 
 /* CANVAS's tab row sits inside a Collapsible body (10px margin-top + 10px
