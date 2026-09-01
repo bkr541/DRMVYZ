@@ -6831,15 +6831,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   backdrop-filter: blur(4px);
 }
 
-/* Expanded right wing mirrors the left wing: BPM + Rekordbox above, three equal
-   performance actions below. */
+/* Expanded right wing: three columns side by side — BPM (+ Rekordbox),
+   TAP stacked over CUE, and SYNC at full column height. */
 .rv-shell > .vz-transport-dock .vz-dock-right {
   position: relative;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 32px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
   align-items: stretch;
   padding: 9px 11px;
-  gap: 7px;
+  gap: 10px;
   overflow: hidden;
 }
 
@@ -6871,7 +6871,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-tap-btn {
-  width: 100%;
+  width: calc(100% - 12px);
+  justify-self: center;
+  grid-column: 1;
+  grid-row: 1;
   height: 100%;
   min-width: 0;
   border-width: 1px;
@@ -6880,10 +6883,54 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   letter-spacing: 0.13em;
 }
 
+/* CUE and SYNC share TAP's 12px-narrower treatment, scoped to React's
+   transport dock only — the shared base rule in vyzualz.css (used by the
+   main Vyzualz view and Show Manager's dock) stays untouched. TAP sits
+   directly above CUE in column 1; SYNC sits above a blank placeholder in
+   column 2, so both columns keep the same two-row rhythm. */
+.rv-shell > .vz-transport-dock .vz-dock-cue-btn,
+.rv-shell > .vz-transport-dock .vz-dock-sync-master-btn {
+  width: calc(100% - 12px);
+  justify-self: center;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-cue-btn {
+  grid-column: 1;
+  grid-row: 2;
+  /* Overrides the base rule's fixed 32px so CUE can shrink to half the
+     stacked column's height instead of overflowing it. */
+  height: 100%;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-sync-master-btn {
+  grid-column: 2;
+  grid-row: 1;
+  /* Overrides the base rule's fixed 36px for the same reason as CUE above. */
+  height: 100%;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-blank-btn {
+  grid-column: 2;
+  grid-row: 2;
+  width: calc(100% - 12px);
+  height: 100%;
+  justify-self: center;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
 .rv-shell > .vz-transport-dock .vz-dock-right-btns {
+  /* Now its own full-height column beside BPM (was previously a fixed
+     32px row underneath it) — TAP/CUE get the whole card's height to
+     split between them instead of squeezing into 32px. */
   flex-basis: auto;
-  height: 32px;
-  gap: 6px;
+  height: 100%;
+  column-gap: 6px;
+  row-gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-right-btns > button {

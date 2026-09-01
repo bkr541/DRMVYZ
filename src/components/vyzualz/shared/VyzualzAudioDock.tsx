@@ -972,6 +972,9 @@ export function VyzualzAudioDock({
             </svg>
             <span className="vz-dock-sync-master-label">SYNC</span>
           </button>
+          {/* Blank placeholder so SYNC's column keeps the same two-row rhythm
+              as TAP/CUE's column instead of standing alone at full height. */}
+          <div className="vz-dock-blank-btn" aria-hidden="true" />
         </div>
       </div>
       <HelpInfoTrigger
