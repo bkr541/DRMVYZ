@@ -1,3 +1,4 @@
+import type { CinemaWorld3DObjectAnchor } from '../../../../cinema/CinemaWorld3DObject'
 import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type {
   CinematicFrameContext,
@@ -51,6 +52,20 @@ export interface OrbitalPrismComposition {
   shardCount: number
   particleCount: number
 }
+
+
+export const ORBITAL_PRISM_ARRAY_OBJECT_ANCHOR: Readonly<CinemaWorld3DObjectAnchor> = Object.freeze({
+  id: 'centerpiece',
+  visible: true,
+  transform: Object.freeze({
+    position: Object.freeze([0, 0, 0] as const),
+    rotation: Object.freeze([0, 0, 0] as const),
+    scale: Object.freeze([1, 1, 1] as const),
+  }),
+  normalization: Object.freeze({ mode: 'fit-max-dimension' as const, size: 1.55 }),
+  focusAnchor: Object.freeze([0, 0, 0] as const),
+  framingPadding: 1.25,
+})
 
 export const ORBITAL_PRISM_RING_COUNT = 3
 export const ORBITAL_PRISM_MAX_SHARDS = 18
@@ -770,6 +785,10 @@ export class OrbitalPrismArrayWorld implements CinematicWebGLWorldRenderer {
     gl.bindVertexArray(this.crystalResource.vao)
     gl.drawArraysInstanced(gl.TRIANGLES, 0, this.crystalResource.vertexCount, quality.shardCount + 1)
 
+    const embeddedObject = this.services.object3d?.draw(ORBITAL_PRISM_ARRAY_OBJECT_ANCHOR)
+    if (embeddedObject?.error) this.diagnostic = embeddedObject.error
+    if (embeddedObject?.drawn) this.program.activate()
+
     gl.disable(gl.CULL_FACE)
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE)
@@ -874,10 +893,12 @@ export class OrbitalPrismArrayWorld implements CinematicWebGLWorldRenderer {
 }
 
 const orbitalPrismArrayDirection = defineCinematicWorldDirection({
-  supportedCameraRigs: ['locked', 'dolly', 'orbit', 'handheld', 'autoDirector'],
+  supportedCameraRigs: ['locked', 'dolly', 'orbit', 'flyThrough', 'handheld', 'autoDirector'],
   safeCameraRange: {
     minDistance: 2.2,
     maxDistance: 6.4,
+    minDepth: -6.4,
+    maxDepth: 6.4,
     maxLateral: 1.3,
     minElevation: -0.85,
     maxElevation: 1.15,
@@ -886,13 +907,21 @@ const orbitalPrismArrayDirection = defineCinematicWorldDirection({
   },
   shots: [
     { id: 'orbital-prism-establish', rig: 'locked', sections: ['intro', 'breakdown', 'outro'], action: 'establish', pose: { position: { z: 4.7 }, fieldOfView: 62 } },
-    { id: 'orbital-prism-orbit', rig: 'orbit', sections: ['verse', 'build', 'bridge', 'drop'], action: 'orbit', weight: 1.4, pose: { position: { z: 4.15 }, fieldOfView: 56 } },
+    { id: 'orbital-prism-orbit', rig: 'orbit', sections: ['verse', 'build', 'drop'], action: 'orbit', weight: 1.4, pose: { position: { z: 4.15 }, fieldOfView: 56 } },
+    { id: 'orbital-prism-fly-through', rig: 'flyThrough', sections: ['bridge'], action: 'travel', weight: 1.2, pose: { position: { z: 4.6 }, fieldOfView: 56 } },
     { id: 'orbital-prism-focus', rig: 'dolly', sections: ['preDrop'], action: 'focus', pose: { position: { z: 3.35 }, fieldOfView: 48 } },
     { id: 'orbital-prism-hold', rig: 'locked', sections: ['unknown'], action: 'hold', pose: { position: { z: 4.4 }, fieldOfView: 58 } },
   ],
   dropActions: ['impact', 'orbit'],
   revealActions: ['reveal', 'orbit'],
   retreatActions: ['retreat', 'hold'],
+  flyThroughPaths: [[
+    { position: { x: 0, y: 0.15, z: 4.6 }, fieldOfView: 58 },
+    { position: { x: 3.2, y: 0.45, z: 1.2 }, fieldOfView: 54 },
+    { position: { x: 0, y: 0.1, z: -4.6 }, rotation: { y: Math.PI }, fieldOfView: 56 },
+    { position: { x: -3.2, y: -0.2, z: -1.1 }, rotation: { y: Math.PI * 0.5 }, fieldOfView: 54 },
+    { position: { x: 0, y: 0.15, z: 4.6 }, fieldOfView: 58 },
+  ]],
 })
 
 export const orbitalPrismArrayWorldDefinition: CinematicWebGLWorldDefinition = {
@@ -900,9 +929,11 @@ export const orbitalPrismArrayWorldDefinition: CinematicWebGLWorldDefinition = {
   label: 'Orbital Prism Array',
   backend: 'webgl2',
   direction: orbitalPrismArrayDirection,
+  object3dSlots: [ORBITAL_PRISM_ARRAY_OBJECT_ANCHOR],
+  ownsTargetClear: true,
   capabilities: {
     backend: 'webgl2',
-    cameraRigs: ['locked', 'dolly', 'orbit', 'handheld', 'autoDirector'],
+    cameraRigs: ['locked', 'dolly', 'orbit', 'flyThrough', 'handheld', 'autoDirector'],
     modulationTargets: ['geometryRotation', 'environmentBrightness', 'nodeScale', 'edgeBrightness', 'particleEmission', 'impact', 'burstImpulse', 'bloom'],
     paletteRoles: ['primary', 'secondary', 'accent', 'background'],
     supportsGeometryPasses: true,

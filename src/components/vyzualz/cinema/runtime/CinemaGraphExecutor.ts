@@ -771,13 +771,13 @@ export class CinemaGraphExecutor {
       this.ensureFeedbackLeases(feedback, descriptor, qualityDecision?.feedbackHistoryScale ?? 1)
       feedback.cursor = (feedback.cursor + 1) % feedback.leases.length
       const lease = feedback.leases[feedback.cursor]
-      this.targets.clear(lease)
+      if (!rendererOwnsTargetClear(record)) this.targets.clear(lease)
       return lease
     }
 
     const lease = this.targets.acquire(record.authored.id, descriptor, 'frame')
     leases.push(lease)
-    this.targets.clear(lease)
+    if (!rendererOwnsTargetClear(record)) this.targets.clear(lease)
     return lease
   }
 
@@ -1385,6 +1385,11 @@ function hasDynamicBrandParameters(
     ...Object.values(cameraSchemas).flat(),
   ]
   return schemas.some(schema => schema.type === 'color' && schema.brandRole != null && schema.brandPolicy !== 'free')
+}
+
+
+function rendererOwnsTargetClear(record: RuntimeNodeRecord): boolean {
+  return record.registryEntry.definition.metadata?.rendererOwnsTargetClear === true
 }
 
 function positiveModulo(value: number, divisor: number): number {

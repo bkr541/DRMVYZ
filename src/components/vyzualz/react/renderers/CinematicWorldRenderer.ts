@@ -1,3 +1,6 @@
+import type { CinemaVector3 } from '../../cinema/CinemaDomain'
+import type { CinemaBounds3D } from '../../cinema/CinemaVectorGeometry'
+import type { CinemaWorld3DObjectAnchor } from '../../cinema/CinemaWorld3DObject'
 import type { MusicIntelligenceFrame, SectionSource } from '../../../../features/musicIntelligence/types'
 import type {
   CinematicAudioTarget,
@@ -163,6 +166,23 @@ export interface CinematicWorldRenderTarget {
   height: number
 }
 
+export interface CinematicWorldObject3DSnapshot {
+  status: 'unavailable' | 'ready' | 'error'
+  error: string | null
+  worldBounds: Readonly<CinemaBounds3D> | null
+  focusAnchor: CinemaVector3
+}
+
+export interface CinematicWorldObject3DDrawResult extends CinematicWorldObject3DSnapshot {
+  drawn: boolean
+}
+
+/** Optional Cinema bridge. Standalone Cinematic Worlds runtimes may omit it. */
+export interface CinematicWorldObject3DService {
+  draw(anchor: Readonly<CinemaWorld3DObjectAnchor>): Readonly<CinematicWorldObject3DDrawResult>
+  getSnapshot(anchor: Readonly<CinemaWorld3DObjectAnchor>): Readonly<CinematicWorldObject3DSnapshot>
+}
+
 /** Reusable WebGL services owned by the dedicated cinematic runtime. */
 export interface CinematicWebGLServices {
   gl: WebGL2RenderingContext
@@ -172,6 +192,7 @@ export interface CinematicWebGLServices {
   compileProgram(descriptor: ShaderProgramDescriptor): ShaderProgram
   createFramebuffer(descriptor?: FramebufferDescriptor): ShaderFramebuffer
   createTexture(descriptor?: TextureDescriptor): ShaderTexture
+  object3d?: CinematicWorldObject3DService
 }
 
 export interface CinematicWebGLWorldInitializeInput {
@@ -222,6 +243,10 @@ export interface CinematicCanvasWorldDefinition extends CinematicWorldDefinition
 
 export interface CinematicWebGLWorldDefinition extends CinematicWorldDefinitionBase {
   backend: 'webgl2'
+  /** Optional shared 3D object anchors exposed by this world. */
+  object3dSlots?: readonly Readonly<CinemaWorld3DObjectAnchor>[]
+  /** True when the world clears its bound Cinema target before drawing. */
+  ownsTargetClear?: boolean
   create: () => CinematicWebGLWorldRenderer
 }
 

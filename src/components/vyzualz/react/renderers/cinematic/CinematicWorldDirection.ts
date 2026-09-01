@@ -52,6 +52,8 @@ export interface CinematicFlyThroughPathPoint {
 export interface CinematicWorldSafeCameraRange {
   minDistance: number
   maxDistance: number
+  minDepth?: number
+  maxDepth?: number
   maxLateral: number
   minElevation: number
   maxElevation: number

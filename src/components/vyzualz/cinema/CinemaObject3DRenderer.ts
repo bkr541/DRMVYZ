@@ -44,6 +44,8 @@ export interface CinemaObject3DDrawRequest {
   viewport: Readonly<CinemaViewport>
   camera: Readonly<CinemaCameraUniformSnapshot> | null
   transform?: Readonly<CinemaObject3DTransform>
+  /** Precomposed world model matrix. When provided it is authoritative over transform. */
+  modelMatrix?: ArrayLike<number>
   material?: Readonly<CinemaObject3DMaterial>
 }
 
@@ -216,12 +218,14 @@ export class CinemaObject3DRenderer implements CinemaObject3DRenderService {
     const program = this.ensureProgram()
     const transform = request.transform ?? {}
     const material = request.material ?? {}
-    const model = createCinemaObjectModelMatrix({
-      position: transform.position ?? DEFAULT_POSITION,
-      rotation: transform.rotation ?? DEFAULT_ROTATION,
-      scale: transform.scale ?? DEFAULT_SCALE,
-      pivot: transform.pivot ?? entry.mesh.pivot ?? DEFAULT_PIVOT,
-    })
+    const model = request.modelMatrix
+      ? copyCinemaModelMatrix(request.modelMatrix)
+      : createCinemaObjectModelMatrix({
+          position: transform.position ?? DEFAULT_POSITION,
+          rotation: transform.rotation ?? DEFAULT_ROTATION,
+          scale: transform.scale ?? DEFAULT_SCALE,
+          pivot: transform.pivot ?? entry.mesh.pivot ?? DEFAULT_PIVOT,
+        })
     const normalMatrix = createCinemaObjectNormalMatrix(model)
     const view = createCinemaObjectViewMatrix(request.camera)
     const projection = createCinemaObjectProjectionMatrix(request.camera, request.viewport)
@@ -433,6 +437,18 @@ export class CinemaObject3DRenderer implements CinemaObject3DRenderService {
   private assertActive(): void {
     if (this.disposed) throw new Error('Cinema 3D object renderer is disposed.')
   }
+}
+
+
+function copyCinemaModelMatrix(matrix: ArrayLike<number>): Float32Array {
+  if (matrix.length !== 16) throw new Error('Cinema 3D model matrix must contain exactly 16 values.')
+  const copy = new Float32Array(16)
+  for (let index = 0; index < 16; index += 1) {
+    const value = Number(matrix[index])
+    if (!Number.isFinite(value)) throw new Error('Cinema 3D model matrix contains a non-finite value.')
+    copy[index] = value
+  }
+  return copy
 }
 
 export function createCinemaObjectModelMatrix(transform: Required<CinemaObject3DTransform>): Float32Array {

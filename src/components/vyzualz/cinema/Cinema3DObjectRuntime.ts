@@ -7,7 +7,6 @@ import {
   type CinemaOpenTypeGlyphMetadata,
 } from './CinemaOpenTypeTextGeometry'
 import {
-  createCinemaObjectModelMatrix,
   type CinemaGpuMeshLease,
   type CinemaObject3DRenderService,
 } from './CinemaObject3DRenderer'
@@ -20,6 +19,10 @@ import {
   CinemaSvgVectorMeshCache,
   compileCinemaSvgAssetSource,
 } from './CinemaSvgVectorGeometry'
+import {
+  resolveCinemaWorld3DObjectPlacement,
+  type CinemaWorld3DObjectAnchor,
+} from './CinemaWorld3DObject'
 import type {
   CinemaBounds3D,
   CinemaVectorMeshComponentRanges,
@@ -36,6 +39,11 @@ import {
 } from './Cinema3DObjectState'
 
 export type Cinema3DObjectRuntimeStatus = 'unavailable' | 'ready' | 'error'
+
+const IDENTITY_WORLD_ANCHOR: Readonly<CinemaWorld3DObjectAnchor> = Object.freeze({
+  id: 'object-local',
+  normalization: Object.freeze({ mode: 'none' as const }),
+})
 
 export interface Cinema3DObjectComponentMetadata {
   components: readonly Readonly<CinemaVectorMeshComponentRanges>[]
@@ -69,6 +77,7 @@ export class Cinema3DObjectRuntime {
   private localBounds: CinemaBounds3D | null = null
   private glyphs: readonly Readonly<CinemaOpenTypeGlyphMetadata>[] = Object.freeze([])
   private lastInvalidation: Cinema3DObjectInvalidation = 'none'
+  private preparationGeneration = 0
   private disposed = false
 
   constructor(
@@ -93,6 +102,7 @@ export class Cinema3DObjectRuntime {
 
   prepareText(source: Readonly<Cinema3DObjectTextRuntimeSource>): Readonly<Cinema3DObjectRuntimeSnapshot> {
     this.assertActive()
+    this.preparationGeneration += 1
     if (this.definition.source.type !== 'text') return this.fail('Cinema 3D object is not authored with a text source.')
     const authoredIdentity = this.definition.source.fontIdentity.trim() || source.fontIdentity?.trim() || ''
     const assetIdentity = this.definition.source.font?.assetId ?? ''
@@ -130,14 +140,17 @@ export class Cinema3DObjectRuntime {
     if (this.definition.source.type !== 'svg') return this.fail('Cinema 3D object is not authored with an SVG source.')
     const asset = this.definition.source.asset
     if (!asset) return this.fail('Cinema 3D SVG source asset is missing or unavailable.')
+    const generation = ++this.preparationGeneration
+    const geometryQuality = this.definition.geometry.quality
     try {
       const result = await compileCinemaSvgAssetSource(
         assetManager,
         this.svgCache,
         asset.assetId as CinemaAssetId,
-        { curveTolerance: getCinema3DObjectSvgCurveTolerance(this.definition.geometry.quality) },
+        { curveTolerance: getCinema3DObjectSvgCurveTolerance(geometryQuality) },
         signal,
       )
+      if (this.disposed || generation !== this.preparationGeneration) return this.getSnapshot()
       if (!result.ok) return this.fail(result.error.message)
       try {
         return this.adoptMesh(result.value.cacheKey, result.value.mesh, Object.freeze([]))
@@ -146,6 +159,7 @@ export class Cinema3DObjectRuntime {
       }
     } catch (error) {
       if (signal?.aborted) throw error
+      if (this.disposed || generation !== this.preparationGeneration) return this.getSnapshot()
       return this.fail(`Cinema 3D SVG source preparation failed: ${errorMessage(error)}`)
     }
   }
@@ -153,23 +167,30 @@ export class Cinema3DObjectRuntime {
   draw(
     viewport: Readonly<CinemaViewport>,
     camera: Readonly<CinemaCameraUniformSnapshot> | null,
+    anchor?: Readonly<CinemaWorld3DObjectAnchor>,
   ): boolean {
     if (this.disposed || this.status !== 'ready' || !this.lease) return false
     const scale = this.definition.transform.scale
+    const placement = anchor && this.localBounds
+      ? resolveCinemaWorld3DObjectPlacement(this.definition, this.localBounds, anchor)
+      : null
     try {
       return this.renderer.draw({
         mesh: this.lease,
         viewport,
         camera,
-        transform: {
-          position: this.definition.transform.position,
-          rotation: this.definition.transform.rotation,
-          scale: [scale[0], scale[1], scale[2] * this.definition.geometry.extrusionDepth],
-          pivot: this.definition.geometry.pivotPolicy === 'center'
-            ? this.localBounds?.center ?? [0, 0, 0]
-            : [0, 0, 0],
-        },
+        ...(placement ? { modelMatrix: placement.modelMatrix } : {
+          transform: {
+            position: this.definition.transform.position,
+            rotation: this.definition.transform.rotation,
+            scale: [scale[0], scale[1], scale[2] * this.definition.geometry.extrusionDepth] as CinemaVector3,
+            pivot: this.definition.geometry.pivotPolicy === 'center'
+              ? this.localBounds?.center ?? [0, 0, 0]
+              : [0, 0, 0],
+          },
+        }),
         material: {
+          ...anchor?.materialDefaults,
           frontColor: this.definition.appearance.frontColor,
           sideColor: this.definition.appearance.sideColor,
           emissiveIntensity: this.definition.appearance.emissiveIntensity,
@@ -181,16 +202,19 @@ export class Cinema3DObjectRuntime {
     }
   }
 
-  getSnapshot(): Readonly<Cinema3DObjectRuntimeSnapshot> {
+  getSnapshot(anchor?: Readonly<CinemaWorld3DObjectAnchor>): Readonly<Cinema3DObjectRuntimeSnapshot> {
     const localBounds = this.localBounds ? freezeBounds(this.localBounds) : null
-    const worldBounds = localBounds ? transformBounds(localBounds, this.definition) : null
+    const placement = localBounds
+      ? resolveCinemaWorld3DObjectPlacement(this.definition, localBounds, anchor ?? IDENTITY_WORLD_ANCHOR)
+      : null
+    const worldBounds = placement?.worldBounds ?? null
     return Object.freeze({
       status: this.status,
       error: this.error,
       meshKey: this.meshKey,
       localBounds,
       worldBounds,
-      focusAnchor: worldBounds?.center ?? this.definition.transform.position,
+      focusAnchor: placement?.focusAnchor ?? worldBounds?.center ?? this.definition.transform.position,
       metadata: Object.freeze({
         components: Object.freeze(this.lease?.components.map(freezeComponent) ?? []),
         regions: Object.freeze(this.lease?.regions.map(freezeRegion) ?? []),
@@ -203,6 +227,7 @@ export class Cinema3DObjectRuntime {
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
+    this.preparationGeneration += 1
     this.clearMesh()
     this.onDispose(this)
   }
@@ -211,7 +236,10 @@ export class Cinema3DObjectRuntime {
     const invalidation = classifyCinema3DObjectInvalidation(this.definition, definition)
     this.definition = definition
     this.lastInvalidation = invalidation
-    if (invalidation === 'source' || invalidation === 'geometry') this.clearMesh()
+    if (invalidation === 'source' || invalidation === 'geometry') {
+      this.preparationGeneration += 1
+      this.clearMesh()
+    }
     return invalidation
   }
 
@@ -343,45 +371,4 @@ function freezeRegion(region: Readonly<CinemaVectorMeshRegionRanges>): Readonly<
     back: Object.freeze({ ...region.back }),
     sides: Object.freeze({ ...region.sides }),
   })
-}
-
-function transformBounds(bounds: Readonly<CinemaBounds3D>, definition: Readonly<Cinema3DObjectDefinition>): Readonly<CinemaBounds3D> {
-  const scale = definition.transform.scale
-  const pivot = definition.geometry.pivotPolicy === 'center' ? bounds.center : ([0, 0, 0] as const)
-  const matrix = createCinemaObjectModelMatrix({
-    position: definition.transform.position,
-    rotation: definition.transform.rotation,
-    scale: [scale[0], scale[1], scale[2] * definition.geometry.extrusionDepth],
-    pivot,
-  })
-  const points: CinemaVector3[] = []
-  for (const x of [bounds.min[0], bounds.max[0]]) {
-    for (const y of [bounds.min[1], bounds.max[1]]) {
-      for (const z of [bounds.min[2], bounds.max[2]]) points.push(transformPoint(matrix, [x, y, z]))
-    }
-  }
-  const min: CinemaVector3 = [
-    Math.min(...points.map(point => point[0])),
-    Math.min(...points.map(point => point[1])),
-    Math.min(...points.map(point => point[2])),
-  ]
-  const max: CinemaVector3 = [
-    Math.max(...points.map(point => point[0])),
-    Math.max(...points.map(point => point[1])),
-    Math.max(...points.map(point => point[2])),
-  ]
-  return freezeBounds({
-    min,
-    max,
-    size: [max[0] - min[0], max[1] - min[1], max[2] - min[2]],
-    center: [(min[0] + max[0]) * 0.5, (min[1] + max[1]) * 0.5, (min[2] + max[2]) * 0.5],
-  })
-}
-
-function transformPoint(matrix: ArrayLike<number>, point: CinemaVector3): CinemaVector3 {
-  return [
-    matrix[0] * point[0] + matrix[4] * point[1] + matrix[8] * point[2] + matrix[12],
-    matrix[1] * point[0] + matrix[5] * point[1] + matrix[9] * point[2] + matrix[13],
-    matrix[2] * point[0] + matrix[6] * point[1] + matrix[10] * point[2] + matrix[14],
-  ]
 }

@@ -9,6 +9,8 @@ import {
   type CinemaNodeDefinition,
   type CinemaParameterDefinition,
   type CinemaParameterValue,
+  type CinemaParameterValues,
+  type CinemaVector3,
 } from './CinemaDomain'
 import { createCinemaDiagnostic } from './CinemaDiagnostics'
 import {
@@ -25,6 +27,15 @@ import {
   type CinemaRendererPluginId,
 } from './CinemaIdentifiers'
 import type { CinemaPersistedDefinition } from './CinemaPersistence'
+import { Cinema3DObjectRuntime, type Cinema3DObjectRuntimeService } from './Cinema3DObjectRuntime'
+import {
+  CINEMA_3D_OBJECT_PARAMETER_CAPABILITIES,
+  CINEMA_3D_OBJECT_PARAMETER_SCHEMAS,
+  hydrateCinema3DObjectDefinition,
+} from './Cinema3DObjectState'
+import {
+  type CinemaWorld3DObjectAnchor,
+} from './CinemaWorld3DObject'
 import type {
   CinemaCameraControl,
   CinemaFrameContext,
@@ -38,6 +49,9 @@ import type {
   CinemaParameterCapabilityDescriptor,
   CinemaRenderNode,
   CinemaStateResetActionId,
+  CinemaAssetRuntimeService,
+  CinemaCameraUniformSnapshot,
+  CinemaViewport,
 } from './CinemaRendererContracts'
 import { CINEMA_STATE_RESET_ACTION_IDS } from './CinemaRendererContracts'
 import type { CinemaRuntimeNodeRegistration } from './CinemaRuntimeNodeRegistry'
@@ -74,6 +88,9 @@ import type {
   CinematicWebGLWorldRenderer,
   CinematicWorldDefinition,
   CinematicWorldRenderer,
+  CinematicWorldObject3DDrawResult,
+  CinematicWorldObject3DService,
+  CinematicWorldObject3DSnapshot,
 } from '../react/renderers/CinematicWorldRenderer'
 import {
   CinematicModulationEngine,
@@ -139,6 +156,10 @@ const CINEMATIC_WORLD_COMMON_PARAMETER_IDS = Object.freeze([
   FOG_DENSITY_PARAMETER_ID,
   PARTICLE_DENSITY_PARAMETER_ID,
 ] as const)
+
+const CINEMA_3D_OBJECT_PARAMETER_ID_SET = new Set<CinemaParameterId>(
+  CINEMA_3D_OBJECT_PARAMETER_SCHEMAS.map(parameter => parameter.id),
+)
 
 /**
  * Common React parameters that the world renderer itself reads after the
@@ -440,10 +461,19 @@ function createCinemaCameraResources(
   if (!definition?.direction) return []
   const defaults = authoredConfig ? normalizeCinematicWorldConfig(authoredConfig) : createBaseConfig(worldId)
   const direction = definition.direction
+  const minDepth = direction.safeCameraRange.minDepth ?? direction.safeCameraRange.minDistance
+  const maxDepth = direction.safeCameraRange.maxDepth ?? direction.safeCameraRange.maxDistance
+  const flyThroughPath = direction.flyThroughPaths?.[0]?.map(point => ({
+    position: [point.position.x, point.position.y, point.position.z] as const,
+    ...(point.rotation
+      ? { rotation: [point.rotation.x ?? 0, point.rotation.y ?? 0, point.rotation.z ?? 0] as const }
+      : {}),
+    ...(point.fieldOfView != null ? { fovDegrees: point.fieldOfView } : {}),
+  }))
   const safePosition = {
     x: clampToRange(defaults.camera.locked.position.x, -direction.safeCameraRange.maxLateral, direction.safeCameraRange.maxLateral),
     y: clampToRange(defaults.camera.locked.position.y, direction.safeCameraRange.minElevation, direction.safeCameraRange.maxElevation),
-    z: clampToRange(defaults.camera.locked.position.z, direction.safeCameraRange.minDistance, direction.safeCameraRange.maxDistance),
+    z: clampToRange(defaults.camera.locked.position.z, minDepth, maxDepth),
   }
   const cameraId = cinemaStableId<CinemaCameraId>(stableSegment(`${worldId}-shared-camera`), 'camera')
   return [deepFreeze({
@@ -481,9 +511,10 @@ function createCinemaCameraResources(
       [cinemaCinematicWorldParameterId('focus-distance')]: 4,
       [cinemaCinematicWorldParameterId('aperture')]: 0,
     },
+    ...(flyThroughPath ? { path: flyThroughPath } : {}),
     safeRange: {
-      minPosition: [-direction.safeCameraRange.maxLateral, direction.safeCameraRange.minElevation, direction.safeCameraRange.minDistance],
-      maxPosition: [direction.safeCameraRange.maxLateral, direction.safeCameraRange.maxElevation, direction.safeCameraRange.maxDistance],
+      minPosition: [-direction.safeCameraRange.maxLateral, direction.safeCameraRange.minElevation, minDepth],
+      maxPosition: [direction.safeCameraRange.maxLateral, direction.safeCameraRange.maxElevation, maxDepth],
       minFovDegrees: direction.safeCameraRange.minFieldOfView,
       maxFovDegrees: direction.safeCameraRange.maxFieldOfView,
       minNear: 0.01,
@@ -496,15 +527,7 @@ function createCinemaCameraResources(
       const rotation = shot.pose?.rotation
         ? [shot.pose.rotation.x ?? defaults.camera.locked.rotation.x, shot.pose.rotation.y ?? defaults.camera.locked.rotation.y, shot.pose.rotation.z ?? defaults.camera.locked.rotation.z] as const
         : null
-      const path = shot.rig === 'flyThrough'
-        ? direction.flyThroughPaths?.[0]?.map(point => ({
-            position: [point.position.x, point.position.y, point.position.z] as const,
-            ...(point.rotation
-              ? { rotation: [point.rotation.x ?? 0, point.rotation.y ?? 0, point.rotation.z ?? 0] as const }
-              : {}),
-            ...(point.fieldOfView != null ? { fovDegrees: point.fieldOfView } : {}),
-          }))
-        : null
+      const path = shot.rig === 'flyThrough' ? flyThroughPath : null
       return {
         id: shot.id,
         mode: cinemaCameraModeForRig(shot.rig),
@@ -621,7 +644,13 @@ function createNodeDefinition(
 ): Readonly<CinemaNodeTypeDefinition> {
   const specialized = definition.id === 'reactiveConstellation'
   const direction = definition.direction
-  const parameters = createParameterDefinitions(definition.id as CinematicWorldMode)
+  const object3dSlots = backend === 'webgl2' && definition.backend === 'webgl2'
+    ? definition.object3dSlots ?? []
+    : []
+  const parameters = [
+    ...createParameterDefinitions(definition.id as CinematicWorldMode),
+    ...(object3dSlots.length > 0 ? CINEMA_3D_OBJECT_PARAMETER_SCHEMAS : []),
+  ]
   const outputDescriptor = {
     ...OUTPUT_DESCRIPTOR,
     hasDepth: definition.capabilities.supportsGeometryPasses,
@@ -642,7 +671,14 @@ function createNodeDefinition(
       dataType: 'color-texture',
     }],
     parameters,
-    parameterCapabilities: createCinematicWorldParameterCapabilities(definition, parameters, backend),
+    parameterCapabilities: [
+      ...createCinematicWorldParameterCapabilities(
+        definition,
+        parameters.filter(parameter => !CINEMA_3D_OBJECT_PARAMETER_ID_SET.has(parameter.id)),
+        backend,
+      ),
+      ...(object3dSlots.length > 0 ? CINEMA_3D_OBJECT_PARAMETER_CAPABILITIES : []),
+    ],
     capabilities: {
       backends: backend === 'canvas2d' ? ['webgl2', 'canvas2d'] : ['webgl2'],
       canvas2d: {
@@ -693,6 +729,9 @@ function createNodeDefinition(
       authoredShots: cloneJson(direction?.shots ?? []) as unknown as CinemaJsonObject,
       postStackInputsRetained: definition.capabilities.supportsPostProcessing,
       standaloneEngineRetained: true,
+      object3dSlotIds: object3dSlots.map(slot => slot.id),
+      object3dControlsExposed: false,
+      rendererOwnsTargetClear: backend === 'webgl2' && definition.backend === 'webgl2' && definition.ownsTargetClear === true,
     },
   })
 }
@@ -828,7 +867,11 @@ export function getCinemaCinematicWorldSupportedParameterSchemasForNode(
 ): readonly CinemaParameterDefinition[] {
   if (definition.metadata?.adapter !== 'CinematicWorldNodeAdapter') return Object.freeze([])
   const declared = new Map((definition.parameterCapabilities ?? []).map(capability => [capability.parameterId, capability]))
-  const staticallySupported = definition.parameters.filter(parameter => declared.get(parameter.id)?.support !== 'unsupported')
+  const hideObjectControls = definition.metadata?.object3dControlsExposed === false
+  const staticallySupported = definition.parameters.filter(parameter => (
+    declared.get(parameter.id)?.support !== 'unsupported'
+    && (!hideObjectControls || !CINEMA_3D_OBJECT_PARAMETER_ID_SET.has(parameter.id))
+  ))
   const sourcePreset = readLegacyCinematicPreset(node)
   if (!sourcePreset?.cinematicConfig?.audioMapping.enabled) return Object.freeze(staticallySupported)
 
@@ -968,6 +1011,7 @@ export class CinematicWorldNodeAdapter implements CinemaRenderNode {
   readonly typeId: CinemaNodeTypeId
   private renderer: CinematicWebGLWorldRenderer | null = null
   private scope: CinematicWebGLServiceScope | null = null
+  private object3dBridge: CinemaCinematicWorldObject3DBridge | null = null
   private configKey = ''
   private disposed = false
   private readonly modulationEngine = new CinematicModulationEngine()
@@ -982,11 +1026,24 @@ export class CinematicWorldNodeAdapter implements CinemaRenderNode {
     this.typeId = definition.typeId
   }
 
-  initialize(context: CinemaNodeInitializeContext): void {
+  initialize(context: CinemaNodeInitializeContext): void | Promise<void> {
     if (context.signal.aborted) throw new DOMException('Cinema node initialization was cancelled.', 'AbortError')
     this.disposed = false
     const config = this.sourcePreset?.cinematicConfig ?? createBaseConfig(this.legacyDefinition.id as CinematicWorldMode)
+    const object3dSlots = this.legacyDefinition.object3dSlots ?? []
+    if (object3dSlots.length === 0) {
+      this.replaceRenderer(context.webgl.gl, context.viewport, config)
+      return
+    }
+    this.object3dBridge?.dispose()
+    this.object3dBridge = new CinemaCinematicWorldObject3DBridge(
+      context.webgl.objectInstances,
+      context.node.parameterValues,
+      context.assetManager,
+      object3dSlots,
+    )
     this.replaceRenderer(context.webgl.gl, context.viewport, config)
+    return this.object3dBridge.initialize(context.signal)
   }
 
   resize(context: CinemaNodeResizeContext): void {
@@ -1008,6 +1065,7 @@ export class CinematicWorldNodeAdapter implements CinemaRenderNode {
     }
     const target = context.webgl.bindTarget(context.target)
     context.webgl.resetState()
+    this.object3dBridge?.updateFrame(runtimeValues, context.viewport, context.frame.camera, context.assetManager)
     const frame = adaptCinemaFrame(
       context.frame,
       nextConfig,
@@ -1058,7 +1116,7 @@ export class CinematicWorldNodeAdapter implements CinemaRenderNode {
     this.scope?.dispose()
     this.scope = null
 
-    const scope = new CinematicWebGLServiceScope(gl)
+    const scope = new CinematicWebGLServiceScope(gl, this.object3dBridge ?? undefined)
     const renderer = this.legacyDefinition.create()
     try {
       renderer.initialize({ services: scope.services, config, presetId: this.sourcePreset?.id ?? this.nodeId })
@@ -1082,6 +1140,8 @@ export class CinematicWorldNodeAdapter implements CinemaRenderNode {
     this.renderer = null
     this.scope?.dispose()
     this.scope = null
+    this.object3dBridge?.dispose()
+    this.object3dBridge = null
   }
 }
 
@@ -1252,6 +1312,118 @@ export class CinemaCanvas2DNodeAdapter implements CinemaRenderNode {
   }
 }
 
+
+class CinemaCinematicWorldObject3DBridge implements CinematicWorldObject3DService {
+  private readonly object: Cinema3DObjectRuntime
+  private readonly allowedAnchors: ReadonlySet<string>
+  private values: Readonly<CinemaParameterValues>
+  private viewport: Readonly<CinemaViewport> = Object.freeze({ width: 1, height: 1, dpr: 1 })
+  private camera: Readonly<CinemaCameraUniformSnapshot> | null = null
+  private assetManager: CinemaAssetRuntimeService
+  private preparationController: AbortController | null = null
+  private preparationGeneration = 0
+  private disposed = false
+
+  constructor(
+    objectInstances: Cinema3DObjectRuntimeService,
+    initialValues: Readonly<CinemaParameterValues>,
+    assetManager: CinemaAssetRuntimeService,
+    anchors: readonly Readonly<CinemaWorld3DObjectAnchor>[],
+  ) {
+    this.values = initialValues
+    this.assetManager = assetManager
+    this.allowedAnchors = new Set(anchors.map(anchor => anchor.id))
+    this.object = objectInstances.createObject(hydrateCinema3DObjectDefinition(initialValues))
+  }
+
+  async initialize(signal: AbortSignal): Promise<void> {
+    if (this.disposed || signal.aborted) return
+    await this.prepareCurrent(signal)
+  }
+
+  updateFrame(
+    values: Readonly<CinemaParameterValues>,
+    viewport: Readonly<CinemaViewport>,
+    camera: Readonly<CinemaCameraUniformSnapshot> | null,
+    assetManager: CinemaAssetRuntimeService,
+  ): void {
+    if (this.disposed) return
+    this.values = values
+    this.viewport = viewport
+    this.camera = camera
+    this.assetManager = assetManager
+    const invalidation = this.object.setResolvedParameterValues(values)
+    if (invalidation === 'source' || invalidation === 'geometry') this.schedulePreparation()
+  }
+
+  draw(anchor: Readonly<CinemaWorld3DObjectAnchor>): Readonly<CinematicWorldObject3DDrawResult> {
+    const validated = this.snapshotFor(anchor)
+    if (validated.error || anchor.visible === false || validated.status !== 'ready' || !this.camera) {
+      return Object.freeze({ ...validated, drawn: false })
+    }
+    const drawn = this.object.draw(this.viewport, this.camera, anchor)
+    return Object.freeze({ ...this.snapshotFor(anchor), drawn })
+  }
+
+  getSnapshot(anchor: Readonly<CinemaWorld3DObjectAnchor>): Readonly<CinematicWorldObject3DSnapshot> {
+    return this.snapshotFor(anchor)
+  }
+
+  dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
+    this.preparationGeneration += 1
+    this.preparationController?.abort()
+    this.preparationController = null
+    this.object.dispose()
+  }
+
+  private snapshotFor(anchor: Readonly<CinemaWorld3DObjectAnchor>): Readonly<CinematicWorldObject3DSnapshot> {
+    if (!this.allowedAnchors.has(anchor.id)) {
+      return Object.freeze({
+        status: 'error' as const,
+        error: `Cinematic World requested undeclared 3D object anchor "${anchor.id}".`,
+        worldBounds: null,
+        focusAnchor: Object.freeze([0, 0, 0]) as CinemaVector3,
+      })
+    }
+    const snapshot = this.object.getSnapshot(anchor)
+    const definition = hydrateCinema3DObjectDefinition(this.values)
+    const unsupportedText = definition.source.type === 'text' && definition.source.text.trim().length > 0
+      ? 'Embedded Cinema world text requires a resolved OpenType runtime source before it can be drawn.'
+      : null
+    return Object.freeze({
+      status: unsupportedText ? 'unavailable' as const : snapshot.status,
+      error: unsupportedText ?? snapshot.error,
+      worldBounds: snapshot.worldBounds,
+      focusAnchor: snapshot.focusAnchor,
+    })
+  }
+
+  private schedulePreparation(): void {
+    this.preparationController?.abort()
+    const controller = new AbortController()
+    this.preparationController = controller
+    const generation = ++this.preparationGeneration
+    void this.prepareCurrent(controller.signal).finally(() => {
+      if (this.preparationGeneration === generation && this.preparationController === controller) {
+        this.preparationController = null
+      }
+    })
+  }
+
+  private async prepareCurrent(signal: AbortSignal): Promise<void> {
+    if (this.disposed || signal.aborted) return
+    const definition = hydrateCinema3DObjectDefinition(this.values)
+    if (definition.source.type !== 'svg' || !definition.source.asset) return
+    try {
+      await this.object.prepareSvg(this.assetManager, signal)
+    } catch (error) {
+      if (signal.aborted || this.disposed || isAbortLike(error)) return
+    }
+  }
+}
+
 class CinematicWebGLServiceScope {
   readonly services: CinematicWebGLServices
   private readonly programs = new Set<ShaderProgram>()
@@ -1261,7 +1433,7 @@ class CinematicWebGLServiceScope {
   private readonly resources: ShaderResourceManager
   private disposed = false
 
-  constructor(gl: WebGL2RenderingContext) {
+  constructor(gl: WebGL2RenderingContext, object3d?: CinematicWorldObject3DService) {
     const compiler = new ShaderCompiler(gl)
     this.fullscreenPass = new FullscreenPass(gl)
     this.resources = new ShaderResourceManager(gl)
@@ -1286,6 +1458,7 @@ class CinematicWebGLServiceScope {
         this.textures.add(texture)
         return texture
       },
+      ...(object3d ? { object3d } : {}),
     }
   }
 
@@ -1303,6 +1476,12 @@ class CinematicWebGLServiceScope {
   }
 }
 
+
+function isAbortLike(error: unknown): boolean {
+  return error instanceof DOMException
+    ? error.name === 'AbortError'
+    : error instanceof Error && error.name === 'AbortError'
+}
 
 function cinematicAudioResetReason(reason: CinematicRendererResetReason): Parameters<CinematicModulationEngine['reset']>[0] {
   switch (reason) {
