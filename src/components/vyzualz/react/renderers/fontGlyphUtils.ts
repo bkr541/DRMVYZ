@@ -1,5 +1,6 @@
 import * as opentype from 'opentype.js'
 import type { OscillatorGlyphPoint, OscillatorFontAsset } from '../ReactTypes'
+import { layoutOpenTypeText } from '../../shared/OpenTypeTextLayout'
 import {
   computePathNormals,
   resamplePointsWithVelocity,
@@ -274,53 +275,6 @@ export interface TextGlyphOptions {
   alignment?:     'left' | 'center' | 'right'
 }
 
-// ── Per-line contour sampling helper ─────────────────────────────────────────
-
-interface LineContourResult {
-  contours:   RawContourMeta[]
-  lineWidth:  number   // cursor position at end of line (advance width in pixels)
-  charCount:  number   // character count including spaces
-  nextPathIdx: number
-}
-
-function sampleLineContours(
-  font:          opentype.Font,
-  lineText:      string,
-  fontSize:      number,
-  scale:         number,
-  letterSpacing: number,
-  charIdxOffset: number,
-  pathIdxStart:  number,
-): LineContourResult {
-  const chars = Array.from(lineText)
-  let cursorX       = 0
-  let nextPathIndex = pathIdxStart
-  const contours: RawContourMeta[] = []
-
-  for (let ci = 0; ci < chars.length; ci++) {
-    const charIdx = charIdxOffset + ci
-    const glyph   = font.charToGlyph(chars[ci])
-    const path    = glyph.getPath(cursorX, 0, fontSize)
-    const raw     = sampleGlyphPaths([path])
-
-    for (const contour of raw) {
-      contours.push({
-        pts:            contour.pts,
-        characterIndex: charIdx,
-        glyphFontIndex: glyph.index,
-        pathIndex:      nextPathIndex++,
-      })
-    }
-
-    const nextChar  = ci + 1 < chars.length ? chars[ci + 1] : null
-    const nextGlyph = nextChar ? font.charToGlyph(nextChar) : null
-    const kern      = nextGlyph ? font.getKerningValue(glyph, nextGlyph) * scale : 0
-    cursorX += (glyph.advanceWidth ?? 0) * scale + kern + letterSpacing
-  }
-
-  return { contours, lineWidth: cursorX, charCount: chars.length, nextPathIdx: nextPathIndex }
-}
-
 // ── Shared point assembly (centering + normalization + normals) ───────────────
 
 function finalizePoints(
@@ -384,54 +338,20 @@ export function textToOpenTypeGlyphPoints(
   if (rawLines.length === 0) return generateBuiltinShapePoints('circle', n)
 
   try {
-    const scale = fontSize / (font.unitsPerEm || 1000)
-
-    // ── Per-line contour sampling ─────────────────────────────────────────────
-    let charIdxOffset = 0
-    let pathIdxOffset = 0
-    const lineResults: LineContourResult[] = []
-
-    for (const lineText of rawLines) {
-      const lr = sampleLineContours(font, lineText, fontSize, scale, letterSpacing, charIdxOffset, pathIdxOffset)
-      lineResults.push(lr)
-      charIdxOffset += lr.charCount
-      pathIdxOffset  = lr.nextPathIdx
-    }
-
-    const hasContours = lineResults.some(lr => lr.contours.length > 0)
-    if (!hasContours) return generateBuiltinShapePoints('circle', n)
-
-    // ── Alignment X offset per line ───────────────────────────────────────────
-    const maxLineWidth = Math.max(...lineResults.map(lr => lr.lineWidth))
-    const lineXOffsets = lineResults.map(lr => {
-      switch (alignment) {
-        case 'left':   return 0
-        case 'right':  return maxLineWidth - lr.lineWidth
-        default:       return (maxLineWidth - lr.lineWidth) / 2  // center
-      }
-    })
-
-    // ── Vertical offset per line (using ascender as cap-height proxy) ─────────
-    // Guard: real fonts always have ascender, but test stubs may not.
-    const fontAscender = (typeof (font as unknown as { ascender?: unknown }).ascender === 'number')
-      ? (font as unknown as { ascender: number }).ascender
-      : (font.unitsPerEm ?? 1000)
-    const lineStep = (fontAscender / (font.unitsPerEm || 1000)) * fontSize * lineHeight
-
-    // ── Merge all contours with position offsets applied ──────────────────────
+    const layout = layoutOpenTypeText(font, text, fontSize, { letterSpacing, lineHeight, alignment })
     const charToLine = new Map<number, number>()
-    const allContours: (RawContourMeta & { li: number })[] = []
+    const allContours: RawContourMeta[] = []
+    let pathIndex = 0
 
-    for (let li = 0; li < lineResults.length; li++) {
-      const xOff = lineXOffsets[li]
-      const yOff = li * lineStep
-      for (const rc of lineResults[li].contours) {
-        // Track characterIndex → lineIndex for assignment after resample
-        charToLine.set(rc.characterIndex, li)
+    for (const laidOutGlyph of layout.glyphs) {
+      charToLine.set(laidOutGlyph.characterIndex, laidOutGlyph.lineIndex)
+      const path = laidOutGlyph.glyph.getPath(laidOutGlyph.x, laidOutGlyph.y, fontSize)
+      for (const contour of sampleGlyphPaths([path])) {
         allContours.push({
-          ...rc,
-          pts: rc.pts.map(p => ({ x: p.x + xOff, y: p.y + yOff })),
-          li,
+          pts: contour.pts,
+          characterIndex: laidOutGlyph.characterIndex,
+          glyphFontIndex: laidOutGlyph.glyphIndex,
+          pathIndex: pathIndex++,
         })
       }
     }
