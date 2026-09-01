@@ -3,11 +3,13 @@
 ════════════════════════════════════════════════════════════════════════ */
 
 /* ── Backdrop ─────────────────────────────────────────────────────────── */
+/* Background color, modal card border/background, and header/footer text
+   match the reusable Delete confirmation dialog (ConfirmDialog / dv-confirm-*
+   in canonicalControls.css) so every DRMVYZ overlay reads as one family. */
 .mum-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(4px);
+  background: rgba(4, 6, 8, 0.6);
   /* Media Upload can be launched from inside other dialogs (Show Manager's
      New Show dialog at z-index 1200, Lyric Manager's dialog at 1300, etc.) —
      stay above every known dialog tier so it never renders behind its own
@@ -24,13 +26,13 @@
   width: 100%;
   max-width: 960px;
   max-height: 90vh;
-  background: #0a0f1a;
-  border: 1px solid rgba(25, 191, 242, 0.15);
-  border-radius: 10px;
+  background: var(--color-panel-alt, #0b1115);
+  border: 1px solid rgba(103, 247, 255, 0.28);
+  border-radius: 9px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(74,199,219,0.08);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.55);
 }
 
 /* ── Header ───────────────────────────────────────────────────────────── */
@@ -39,19 +41,19 @@
   align-items: flex-start;
   justify-content: space-between;
   padding: 20px 24px 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(103, 247, 255, 0.16);
   flex-shrink: 0;
 }
 .mum-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.12em;
-  color: rgba(245,248,250,0.92);
+  color: #e8f4f8;
   font-family: var(--az-font);
 }
 .mum-subtitle {
   font-size: 11px;
-  color: rgba(245,248,250,0.4);
+  color: rgba(196, 212, 220, 0.66);
   font-family: var(--az-font);
   margin-top: 3px;
 }
@@ -502,7 +504,7 @@
   justify-content: center;
   gap: 10px;
   padding: 14px 24px;
-  border-top: 1px solid rgba(255,255,255,0.06);
+  border-top: 1px solid rgba(103, 247, 255, 0.16);
   flex-shrink: 0;
 }
 .mum-footer--edit { justify-content: flex-end; }
