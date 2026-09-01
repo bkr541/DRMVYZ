@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Delete02Icon, Layers01Icon } from 'hugeicons-react'
+import { Delete02Icon, InformationCircleIcon } from 'hugeicons-react'
 import { useShallow } from 'zustand/react/shallow'
 import { Collapsible, NumberInputRow, SelectRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
@@ -316,7 +316,7 @@ export function MediaManagerInspector({
   return (
     <>
       <div className="vz-panel-header">
-        <Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
+        <InformationCircleIcon size={14} color="currentColor" style={{ flexShrink: 0 }} />
         <span className="vz-panel-title" title="Media Details">Media Details</span>
       </div>
       {media ? (

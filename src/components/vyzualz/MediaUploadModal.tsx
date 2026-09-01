@@ -261,7 +261,6 @@ export function MediaUploadModal({
   const [dragOver,  setDragOver]  = useState(false)
   const [uploading, setUploading] = useState(false)
   const [saving,    setSaving]    = useState(false)
-  const [uploadAnother, setUploadAnother] = useState(false)
   const [bpmError,  setBpmError]  = useState('')
   const [batchError, setBatchError] = useState<string | null>(null)
   const [selectionError, setSelectionError] = useState<string | null>(null)
@@ -565,13 +564,7 @@ export function MediaUploadModal({
         return
       }
 
-      if (uploadAnother) {
-        setDisplayMeta(new Map())
-        setProgress({ completed: 0, total: 0 })
-        resetUploadDraft()
-      } else {
-        onClose()
-      }
+      onClose()
     } catch (error) {
       setBatchError(error instanceof Error ? error.message : 'The upload workflow stopped unexpectedly. Retry the remaining queued files.')
     } finally {
@@ -791,6 +784,10 @@ export function MediaUploadModal({
         <div className="mum-header">
           <div>
             <div className="mum-title">
+              <svg className="mum-title-icon" viewBox="-4 -8 72 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M48 32a8 8 0 0 0-8-8h-1.28A18 18 0 1 0 14 32" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M32 38V20M26 26l6-6 6 6" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
               {isEdit ? 'EDIT MEDIA' : (audioOnly || isAudioQueue) ? 'AUDIO UPLOAD' : 'MEDIA UPLOAD'}
             </div>
             <div className="mum-subtitle">
@@ -816,10 +813,6 @@ export function MediaUploadModal({
               onDragLeave={() => setDragOver(false)}
               onDrop={onDrop}
             >
-              <svg className="mum-cloud-icon" viewBox="-4 -8 72 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M48 32a8 8 0 0 0-8-8h-1.28A18 18 0 1 0 14 32" stroke="#19bff2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M32 38V20M26 26l6-6 6 6" stroke="#19bff2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
               <div className="mum-drop-label">Drag &amp; drop media here</div>
               <div className="mum-drop-or">or</div>
               <label htmlFor={fileInputId} className="mum-browse-btn">Browse Files</label>
@@ -831,8 +824,6 @@ export function MediaUploadModal({
                 style={{ display: 'none' }}
                 onChange={e => { addFiles(Array.from(e.target.files ?? [])); e.target.value = '' }}
               />
-              {!audioOnly && <div className="mum-drop-hint">Supports: MP4, MOV, WEBM, PNG, JPG, GIF, WEBP, SVG</div>}
-              <div className="mum-drop-hint">Audio: MP3, WAV, AIFF, M4A, OGG, FLAC</div>
               <div className="mum-drop-hint">Max file size: {MAX_FILE_LABEL}</div>
             </div>
 
@@ -1143,15 +1134,6 @@ export function MediaUploadModal({
           >
             {uploading ? 'Cancel Upload' : 'Cancel'}
           </IconChipButton>
-          {!isEdit && uploadQueue.length > 0 && (
-            <label className="mum-upload-another">
-              <IconMorphCheckbox
-                checked={uploadAnother}
-                onChange={e => setUploadAnother(e.target.checked)}
-              />
-              Upload another
-            </label>
-          )}
           {isEdit ? (
             <IconChipButton
               tone="primary"

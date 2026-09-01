@@ -45,11 +45,23 @@
   flex-shrink: 0;
 }
 .mum-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.12em;
   color: #e8f4f8;
   font-family: var(--az-font);
+}
+/* Same cloud-upload glyph that used to sit inside the drop zone, now to the
+   left of the header title instead — scaled down, stroke widened to match. */
+.mum-title-icon {
+  width: 20px;
+  height: 17px;
+  flex-shrink: 0;
+  color: #19bff2;
+  overflow: visible;
 }
 .mum-subtitle {
   font-size: 11px;
@@ -108,13 +120,6 @@
 .mum-dropzone--over {
   border-color: #4ac7db;
   background: rgba(74,199,219,0.05);
-}
-.mum-cloud-icon {
-  width: 80px;
-  height: 62px;
-  margin-bottom: 6px;
-  opacity: 0.8;
-  overflow: visible;
 }
 .mum-drop-label {
   font-size: 14px;
@@ -219,14 +224,14 @@
   justify-content: center;
   background: none;
   border: none;
-  color: rgba(245,248,250,0.3);
+  color: #f87171;
   cursor: pointer;
   padding: 2px 4px;
   line-height: 1;
   flex-shrink: 0;
   transition: color 0.12s;
 }
-.mum-file-remove:hover { color: #f87171; }
+.mum-file-remove:hover { color: #fca5a5; }
 
 /* Status badges */
 .mum-badge {
@@ -496,8 +501,9 @@
 .mum-toggle input:checked ~ .mum-toggle-track .mum-toggle-thumb { transform: translateX(16px); }
 
 /* ── Footer ───────────────────────────────────────────────────────────── */
-/* Upload-mode footer centers Cancel / Upload another / Upload as one
-   cluster; edit mode (Cancel + Save Changes only) stays right-aligned. */
+/* Upload-mode footer centers Cancel / Upload as one cluster; edit mode
+   (Cancel + Save Changes only) stays right-aligned. Both buttons share a
+   min-width so Cancel isn't narrower than the primary action next to it. */
 .mum-footer {
   display: flex;
   align-items: center;
@@ -508,21 +514,9 @@
   flex-shrink: 0;
 }
 .mum-footer--edit { justify-content: flex-end; }
-.mum-upload-another {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: rgba(245,248,250,0.45);
-  font-family: var(--az-font);
-  cursor: pointer;
-  user-select: none;
-}
-.mum-upload-another input[type="checkbox"] {
-  accent-color: #4ac7db;
-  width: 13px;
-  height: 13px;
-  cursor: pointer;
+.mum-footer .dv-icon-chip {
+  min-width: 150px;
+  justify-content: center;
 }
 /* ── Scrollbar ────────────────────────────────────────────────────────── */
 .mum-body::-webkit-scrollbar { width: 4px; }
@@ -548,7 +542,6 @@
   }
 
   /* Hide decorative / verbose elements in compact mode */
-  .mum-cloud-icon,
   .mum-drop-or,
   .mum-drop-hint { display: none; }
 
