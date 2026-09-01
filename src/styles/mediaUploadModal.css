@@ -146,6 +146,7 @@
   color: rgba(245,248,250,0.3);
   font-family: var(--az-font);
   text-align: center;
+  white-space: nowrap;
 }
 
 /* File list — scrolls with the rest of .mum-body rather than independently */
@@ -211,10 +212,12 @@
   margin-top: 2px;
 }
 .mum-file-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   color: rgba(245,248,250,0.3);
-  font-size: 14px;
   cursor: pointer;
   padding: 2px 4px;
   line-height: 1;
@@ -273,20 +276,10 @@
   font-family: var(--az-font);
 }
 .mum-req { color: #4ac7db; margin-left: 2px; }
-.mum-opt { font-weight: 400; opacity: 0.6; }
-.mum-field-hint {
-  font-size: 10px;
-  color: rgba(245,248,250,0.3);
-  font-family: var(--az-font);
-  margin-top: -3px;
-}
+/* Marks an optional field — was "(OPTIONAL)" text, now a red asterisk. */
+.mum-opt { color: #f87171; margin-left: 2px; font-weight: 700; }
 
 /* Select */
-.mum-select-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
 .mum-select-wrap--sm { max-width: 140px; }
 
 /* Input / textarea */
@@ -389,6 +382,12 @@
 }
 .mum-collections-dropdown .drm-dropdown__search-trigger {
   min-height: 36px;
+}
+/* Dropdown.css's generic .drm-dropdown__search-input.dv-text-input rule sets
+   a bigger, bolder font (700 13px) than the plain .dv-text-input every other
+   field in this modal uses (600 11px) — match this one back to that. */
+.mum-collections-dropdown .drm-dropdown__search-input.dv-text-input {
+  font: 600 11px/1.2 var(--az-font-data, Inter, system-ui, sans-serif) !important;
 }
 /* Collection dropdown */
 .mum-coll-dropdown {

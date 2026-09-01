@@ -1,5 +1,7 @@
+import { Delete02Icon } from 'hugeicons-react'
 import { IconMorphCheckbox } from './react/controls/IconMorphToggle'
 import { DreamVizTextInput } from './react/controls/DreamVizTextInput'
+import { UnderlineDropdown } from './react/controls/UnderlineDropdown'
 import { NoticeCard } from './react/controls/NoticeCard'
 import { IconChipButton } from './react/controls/IconChipButton'
 import { Badge } from './react/controls/Badge'
@@ -10,19 +12,20 @@ import type { MediaCollection, UploadedMedia, UploadWorkflowPhase } from '../../
 import {
   VISUAL_MEDIA_ROLES,
   MEDIA_ROLE_LABELS,
-  MEDIA_ROLE_ICONS,
   ENERGY_LABELS,
   MUSICAL_KEYS,
   suggestMediaRole,
   roleImpliesAlpha,
   isAudioFile,
   isSvgFilename,
+  getMediaFormatInfo,
+  getCompatibleMediaRoles,
 } from '../../lib/mediaRoles'
 import type { MediaRole, MediaEnergy } from '../../lib/mediaRoles'
 import { useAudioStore } from '../../stores/audioStore'
 import type { SavedAudioTrack } from '../../stores/audioStore'
 import { analyzeSvgCapabilities } from './react/renderers/svgCapabilityAnalysis'
-import { Dropdown, DropdownSelect } from '../shared/Dropdown/Dropdown'
+import { Dropdown } from '../shared/Dropdown/Dropdown'
 
 // ── Local display metadata ────────────────────────────────────────────────────
 // Separate from store queue — purely for thumbnail/dims display in modal file list
@@ -658,33 +661,67 @@ export function MediaUploadModal({
   const bpmContent    = <DreamVizTextInput id="mum-bpm" className="mum-addinfo-input" type="number" min="20" max="300" placeholder="e.g. 128" value={uploadDraft.metadata.bpm ?? ''} onChange={e => setUploadDraftMetadata({ bpm: parseFloat(e.target.value) || undefined })} />
   const loopContent   = <label className="mum-toggle"><IconMorphCheckbox checked={uploadDraft.metadata.loopable ?? false} onChange={e => setUploadDraftMetadata({ loopable: e.target.checked })} /></label>
   const alphaContent  = <label className="mum-toggle"><IconMorphCheckbox checked={uploadDraft.metadata.hasAlpha ?? false} onChange={e => setUploadDraftMetadata({ hasAlpha: e.target.checked })} /></label>
-  const keyContent    = <div className="mum-select-wrap mum-select-wrap--sm"><DropdownSelect className="dv-underline-dropdown" value={uploadDraft.metadata.key ?? ''} onChange={e => setUploadDraftMetadata({ key: e.target.value || undefined })}><option value="">—</option>{MUSICAL_KEYS.map(k => <option key={k} value={k}>{k}</option>)}</DropdownSelect></div>
-  const energyContent = <div className="mum-select-wrap mum-select-wrap--sm"><DropdownSelect className="dv-underline-dropdown" value={uploadDraft.metadata.energy ?? ''} onChange={e => setUploadDraftMetadata({ energy: (e.target.value as MediaEnergy) || undefined })}><option value="">—</option>{(Object.keys(ENERGY_LABELS) as MediaEnergy[]).map(k => <option key={k} value={k}>{ENERGY_LABELS[k]}</option>)}</DropdownSelect></div>
+  const keyContent    = (
+    <div className="mum-select-wrap--sm">
+      <UnderlineDropdown
+        triggerId="mum-key"
+        value={uploadDraft.metadata.key ?? ''}
+        onChange={value => setUploadDraftMetadata({ key: value || undefined })}
+        options={[{ value: '', label: '—' }, ...MUSICAL_KEYS.map(k => ({ value: k, label: k }))]}
+        ariaLabel="Key"
+        menuLabel="Key"
+        size="compact"
+        showDescriptions={false}
+      />
+    </div>
+  )
+  const energyContent = (
+    <div className="mum-select-wrap--sm">
+      <UnderlineDropdown
+        triggerId="mum-energy"
+        value={uploadDraft.metadata.energy ?? ''}
+        onChange={value => setUploadDraftMetadata({ energy: (value as MediaEnergy) || undefined })}
+        options={[{ value: '', label: '—' }, ...(Object.keys(ENERGY_LABELS) as MediaEnergy[]).map(k => ({ value: k, label: ENERGY_LABELS[k] }))]}
+        ariaLabel="Energy"
+        menuLabel="Energy"
+        size="compact"
+        showDescriptions={false}
+      />
+    </div>
+  )
+
+  // Which Media Role options could ever actually apply to the file being
+  // uploaded/edited — e.g. a PNG can never be "Background Video" and a JPEG
+  // can never be "Transparent Element" (no alpha channel). Falls back to the
+  // full list before any file is queued, since there's nothing yet to check
+  // against.
+  const roleFormat = editItem
+    ? { ...getMediaFormatInfo(editItem.mimeType ?? '', editItem.name), isVideo: editItem.type === 'video' }
+    : activeQueueItem
+      ? getMediaFormatInfo(activeQueueItem.file.type, activeQueueItem.file.name)
+      : null
+  const compatibleRoles = roleFormat ? getCompatibleMediaRoles(roleFormat) : VISUAL_MEDIA_ROLES
 
   // ── Role / Title fields — shared between the edit-mode (stacked) and
   // upload-mode (side-by-side row) layouts below ────────────────────────
   const roleField = (
     <div className="mum-field">
       <label className="mum-field-label" htmlFor="mum-role">MEDIA ROLE<span className="mum-req">*</span></label>
-      <div className="mum-select-wrap">
-        <DropdownSelect
-          id="mum-role"
-          className="dv-underline-dropdown"
-          value={uploadDraft.role}
-          onChange={e => handleRoleChange(e.target.value as MediaRole)}
-        >
-          {VISUAL_MEDIA_ROLES.map(r => (
-            <option key={r} value={r}>
-              {MEDIA_ROLE_ICONS[r]}  {MEDIA_ROLE_LABELS[r]}
-            </option>
-          ))}
-        </DropdownSelect>
-      </div>
+      <UnderlineDropdown
+        triggerId="mum-role"
+        value={uploadDraft.role}
+        onChange={value => handleRoleChange(value as MediaRole)}
+        options={compatibleRoles.map(r => ({ value: r, label: MEDIA_ROLE_LABELS[r] }))}
+        ariaLabel="Media Role"
+        menuLabel="Media Role"
+        size="compact"
+        showDescriptions={false}
+      />
     </div>
   )
   const titleField = (
     <div className="mum-field">
-      <label className="mum-field-label" htmlFor="mum-title">TITLE <span className="mum-opt">(OPTIONAL)</span></label>
+      <label className="mum-field-label" htmlFor="mum-title">TITLE <span className="mum-opt">*</span></label>
       <DreamVizTextInput
         id="mum-title"
         className="mum-input"
@@ -848,7 +885,9 @@ export function MediaUploadModal({
                           onClick={e => { e.stopPropagation(); removeEntry(q.tempId) }}
                           disabled={uploading}
                           aria-label={`Remove ${q.file.name}`}
-                        >×</button>
+                        >
+                          <Delete02Icon size={13} color="currentColor" />
+                        </button>
                       </div>
                     )
                   })}
@@ -880,7 +919,7 @@ export function MediaUploadModal({
 
                 {/* Track title */}
                 <div className="mum-field">
-                  <label className="mum-field-label" htmlFor="mum-track-title">TRACK TITLE <span className="mum-opt">(OPTIONAL)</span></label>
+                  <label className="mum-field-label" htmlFor="mum-track-title">TRACK TITLE <span className="mum-opt">*</span></label>
                   <DreamVizTextInput
                     id="mum-track-title"
                     className="mum-input"
@@ -899,7 +938,7 @@ export function MediaUploadModal({
                   </label>
                   <div className="mum-track-details">
                     <div className="mum-track-detail-field">
-                      <label className="mum-track-detail-label" htmlFor="mum-track-artist">ARTIST <span className="mum-opt">(OPTIONAL)</span></label>
+                      <label className="mum-track-detail-label" htmlFor="mum-track-artist">ARTIST <span className="mum-opt">*</span></label>
                       <DreamVizTextInput
                         id="mum-track-artist"
                         className="mum-input mum-input--sm"
@@ -909,7 +948,7 @@ export function MediaUploadModal({
                       />
                     </div>
                     <div className="mum-track-detail-field">
-                      <label className="mum-track-detail-label" htmlFor="mum-track-genre">GENRE <span className="mum-opt">(OPTIONAL)</span></label>
+                      <label className="mum-track-detail-label" htmlFor="mum-track-genre">GENRE <span className="mum-opt">*</span></label>
                       <DreamVizTextInput
                         id="mum-track-genre"
                         className="mum-input mum-input--sm"
@@ -919,7 +958,7 @@ export function MediaUploadModal({
                       />
                     </div>
                     <div className="mum-track-detail-field">
-                      <label className="mum-track-detail-label" htmlFor="mum-track-bpm">BPM <span className="mum-opt">(OPTIONAL)</span></label>
+                      <label className="mum-track-detail-label" htmlFor="mum-track-bpm">BPM <span className="mum-opt">*</span></label>
                       <div className="mum-track-detail-control">
                         <DreamVizTextInput
                           id="mum-track-bpm"
@@ -936,17 +975,18 @@ export function MediaUploadModal({
                       </div>
                     </div>
                     <div className="mum-track-detail-field">
-                      <label className="mum-track-detail-label" htmlFor="mum-track-key">KEY <span className="mum-opt">(OPTIONAL)</span></label>
-                      <div className="mum-select-wrap mum-track-detail-control">
-                        <DropdownSelect
-                          id="mum-track-key"
-                          className="dv-underline-dropdown"
+                      <label className="mum-track-detail-label" htmlFor="mum-track-key">KEY <span className="mum-opt">*</span></label>
+                      <div className="mum-track-detail-control">
+                        <UnderlineDropdown
+                          triggerId="mum-track-key"
                           value={uploadDraft.audioMusicalKey}
-                          onChange={e => setUploadDraftAudioMusicalKey(e.target.value)}
-                        >
-                          <option value="">—</option>
-                          {MUSICAL_KEYS.map(k => <option key={k} value={k}>{k}</option>)}
-                        </DropdownSelect>
+                          onChange={value => setUploadDraftAudioMusicalKey(value)}
+                          options={[{ value: '', label: '—' }, ...MUSICAL_KEYS.map(k => ({ value: k, label: k }))]}
+                          ariaLabel="Key"
+                          menuLabel="Key"
+                          size="compact"
+                          showDescriptions={false}
+                        />
                       </div>
                     </div>
                   </div>
@@ -971,7 +1011,7 @@ export function MediaUploadModal({
 
                 {/* Description */}
                 <div className="mum-field">
-                  <label className="mum-field-label" htmlFor="mum-description">DESCRIPTION <span className="mum-opt">(OPTIONAL)</span></label>
+                  <label className="mum-field-label" htmlFor="mum-description">DESCRIPTION <span className="mum-opt">*</span></label>
                   <textarea
                     id="mum-description"
                     className="dv-text-input mum-textarea"
@@ -986,7 +1026,6 @@ export function MediaUploadModal({
                 <div className="mum-fields-row">
                   <div className="mum-field">
                     <label className="mum-field-label" htmlFor="mum-tags-input">TAGS</label>
-                    <div className="mum-field-hint">Add or create tags to describe this media.</div>
                     <div className="mum-chip-field">
                       <TagChips tags={uploadDraft.tags} onRemove={removeTag} />
                       <DreamVizTextInput
@@ -1003,7 +1042,6 @@ export function MediaUploadModal({
 
                   <div className="mum-field">
                     <label className="mum-field-label">COLLECTIONS</label>
-                    <div className="mum-field-hint">Add this media to one or more collections.</div>
                     <div className="mum-collection-dropdown-field">
                       <CollectionChips
                         ids={uploadDraft.collectionIds}
@@ -1041,21 +1079,21 @@ export function MediaUploadModal({
                       <div className="mum-addinfo-grid">
                         {adItem('DURATION (SEC)', durContent)}
                         {adItem('RESOLUTION', resContent)}
-                        {adItem(<>FPS <span className="mum-opt">(OPTIONAL)</span></>, fpsContent)}
+                        {adItem(<>FPS <span className="mum-opt">*</span></>, fpsContent)}
                         {adItem('LOOPABLE', loopContent)}
                         {adItem('HAS ALPHA', alphaContent)}
-                        {adItem(<>BPM <span className="mum-opt">(OPTIONAL)</span></>, bpmContent)}
-                        {adItem(<>KEY <span className="mum-opt">(OPTIONAL)</span></>, keyContent)}
+                        {adItem(<>BPM <span className="mum-opt">*</span></>, bpmContent)}
+                        {adItem(<>KEY <span className="mum-opt">*</span></>, keyContent)}
                         {adItem('ENERGY', energyContent)}
                       </div>
                     ) : (
                       <div className="mum-addinfo-grid mum-addinfo-grid--edit">
                         {adItem('DURATION (SEC)', durContent, true)}
                         {adItem('RESOLUTION', resContent, true)}
-                        {adItem(<>FPS <span className="mum-opt">(OPTIONAL)</span></>, fpsContent, true)}
-                        {adItem(<>BPM <span className="mum-opt">(OPTIONAL)</span></>, bpmContent, true)}
+                        {adItem(<>FPS <span className="mum-opt">*</span></>, fpsContent, true)}
+                        {adItem(<>BPM <span className="mum-opt">*</span></>, bpmContent, true)}
                         {adItem('HAS ALPHA', alphaContent)}
-                        {adItem(<>KEY <span className="mum-opt">(OPTIONAL)</span></>, keyContent)}
+                        {adItem(<>KEY <span className="mum-opt">*</span></>, keyContent)}
                         {adItem('LOOPABLE', loopContent)}
                         {adItem('ENERGY', energyContent)}
                       </div>
