@@ -207,6 +207,7 @@ describe('CinematicWorldRendererRegistry', () => {
       'mirrorDimension',
       'ancientMachine',
       'stormGateway',
+      'orbitalPrismArray',
       'reactiveConstellation',
     ])
   })
@@ -259,6 +260,7 @@ describe('CinematicWorldRendererHost', () => {
       'mirrorDimension',
       'ancientMachine',
       'stormGateway',
+      'orbitalPrismArray',
       'reactiveConstellation',
     ]
 
@@ -274,9 +276,26 @@ describe('CinematicWorldRendererHost', () => {
       'mirrorDimension',
       'ancientMachine',
       'stormGateway',
+      'orbitalPrismArray',
       'reactiveConstellation',
     ])
     expect(runtime.disposed).toBe(0)
+    host.dispose()
+    expect(runtime.disposed).toBe(1)
+  })
+
+  it('routes the production Orbital Prism Array preset through the canonical registry and shared runtime', () => {
+    const preset = DEFAULT_REACT_PRESETS.find(item => item.id === 'preset-orbital-prism-array')
+    expect(preset?.cinematicConfig?.worldMode).toBe('orbitalPrismArray')
+
+    const runtime = new RecordingWebGLRuntime()
+    const host = new CinematicWorldRendererHost(makeContext(), cinematicWorldRendererRegistry, 'legacyPortal', () => runtime)
+    host.render(makeInput('preset-orbital-prism-array'))
+
+    expect(runtime.renders).toHaveLength(1)
+    expect(runtime.renders[0].definition).toBe(cinematicWorldRendererRegistry.resolve('orbitalPrismArray'))
+    expect(runtime.renders[0].frame.preset.id).toBe('preset-orbital-prism-array')
+
     host.dispose()
     expect(runtime.disposed).toBe(1)
   })
@@ -288,6 +307,7 @@ describe('CinematicWorldRendererHost', () => {
       setVec3: vi.fn(),
       setVec4: vi.fn(),
       setFloat: vi.fn(),
+      setInt: vi.fn(),
       setMat4: vi.fn(),
     }
     const run = vi.fn()
@@ -306,8 +326,10 @@ describe('CinematicWorldRendererHost', () => {
       BACK: 0x0405,
       BLEND: 0x0be2,
       SRC_ALPHA: 0x0302,
+      ONE: 1,
       ONE_MINUS_SRC_ALPHA: 0x0303,
       TRIANGLES: 0x0004,
+      POINTS: 0x0000,
       createVertexArray: vi.fn(() => ({} as WebGLVertexArrayObject)),
       createBuffer: vi.fn(() => ({} as WebGLBuffer)),
       bindVertexArray: vi.fn(),
@@ -362,13 +384,13 @@ describe('CinematicWorldRendererHost', () => {
       expect(drawArraysInstanced.mock.calls.length, `${definition.id} geometry`).toBe(geometryCallsBeforeDispose)
     }
 
-    // Reactive Constellation owns separate node and beam programs plus four
-    // shape VAOs, one network-beam VAO, and one background-curtain VAO.
+    // Reactive Constellation owns a second beam program; Orbital Prism Array
+    // uses one shared program for crystals, rings, and particles.
     expect(services.compileProgram).toHaveBeenCalledTimes(cinematicWorldDefinitions.length + 1)
     expect(run).toHaveBeenCalledTimes(cinematicWorldDefinitions.filter(definition => definition.capabilities.supportsFullscreenPasses).length)
     expect(drawArraysInstanced).toHaveBeenCalled()
-    expect(resources.trackVAO).toHaveBeenCalledTimes(6)
-    expect(resources.untrackVAO).toHaveBeenCalledTimes(6)
+    expect(resources.trackVAO).toHaveBeenCalledTimes(9)
+    expect(resources.untrackVAO).toHaveBeenCalledTimes(9)
   })
 
   it('lazily initializes, resizes, renders, resets, and disposes the legacy renderer', () => {

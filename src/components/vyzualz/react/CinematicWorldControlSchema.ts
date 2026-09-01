@@ -200,7 +200,7 @@ function createNumericControlSchema<Mode extends CinematicWorldMode>(input: {
   }
 }
 
-const EMPTY_SCHEMA = <Mode extends 'legacyPortal'>(mode: Mode): CinematicWorldControlSchema<Mode> => ({ mode, groups: [] })
+const EMPTY_SCHEMA = <Mode extends CinematicWorldMode>(mode: Mode): CinematicWorldControlSchema<Mode> => ({ mode, groups: [] })
 
 const EVENT_HORIZON_CONTROLS = createNumericControlSchema({
   mode: 'eventHorizon', groupLabel: 'Event Horizon Controls', defaults: EVENT_HORIZON_DEFAULTS, bounds: EVENT_HORIZON_BOUNDS,
@@ -238,6 +238,8 @@ const STORM_GATEWAY_CONTROLS = createNumericControlSchema({
   mode: 'stormGateway', groupLabel: 'Storm Gateway Controls', defaults: STORM_GATEWAY_DEFAULTS, bounds: STORM_GATEWAY_BOUNDS,
   integerKeys: ['cloudLayers'],
 })
+
+const ORBITAL_PRISM_ARRAY_CONTROLS = EMPTY_SCHEMA('orbitalPrismArray')
 
 const REACTIVE_CONSTELLATION_CONTROLS = {
   mode: 'reactiveConstellation',
@@ -386,6 +388,7 @@ export const CINEMATIC_WORLD_CATALOG: CinematicWorldCatalog = {
   celestialCathedral: { id: 'celestialCathedral', label: 'Celestial Cathedral', category: 'Architectural', description: 'Cosmic arches, pillars, stars and deep light shafts.', cameraRigs: ['locked', 'dolly', 'flyThrough', 'autoDirector'], modulationTargets: ['depth', 'cameraTravel', 'fogDensity', 'particleEmission', 'environmentBrightness', 'bloom', 'impact'], supportsPortalShape: false, controls: CELESTIAL_CATHEDRAL_CONTROLS },
   mirrorDimension: { id: 'mirrorDimension', label: 'Mirror Dimension', category: 'Cosmic', description: 'Symmetrical mirrored chambers with controlled recursive depth.', cameraRigs: ['locked', 'orbit', 'autoDirector'], modulationTargets: ['depth', 'geometryRotation', 'feedback', 'distortion', 'chromaticAberration', 'environmentBrightness', 'bloom', 'impact'], supportsPortalShape: false, controls: MIRROR_DIMENSION_CONTROLS },
   ancientMachine: { id: 'ancientMachine', label: 'Ancient Machine', category: 'Mechanical', description: 'Interlocking rings, gears, glyphs and a mechanical unlock sequence.', cameraRigs: ['locked', 'dolly', 'orbit', 'autoDirector'], modulationTargets: ['portalAperture', 'depth', 'geometryRotation', 'cameraPunch', 'cameraTravel', 'environmentBrightness', 'bloom', 'impact'], supportsPortalShape: true, controls: ANCIENT_MACHINE_CONTROLS },
+  orbitalPrismArray: { id: 'orbitalPrismArray', label: 'Orbital Prism Array', category: 'Cosmic', description: 'Central faceted prism with three orbital rings, deterministic depth shards, and a lightweight star field.', cameraRigs: ['locked', 'dolly', 'orbit', 'handheld', 'autoDirector'], modulationTargets: ['geometryRotation', 'environmentBrightness'], supportsPortalShape: false, controls: ORBITAL_PRISM_ARRAY_CONTROLS },
   reactiveConstellation: { id: 'reactiveConstellation', label: 'Reactive Constellation', category: 'Cosmic', description: 'A true 3D faceted crystal network with palette-derived emissive beams, crystalline materials, and bounded temporal beam fans.', cameraRigs: ['locked', 'dolly', 'orbit', 'handheld', 'autoDirector'], modulationTargets: ['networkSpread', 'nodeScale', 'nodeSpin', 'edgeBrightness', 'edgeWidth', 'trailLength', 'topologyMorph', 'collapseForce', 'burstImpulse', 'facetOpacity', 'depth', 'geometryRotation', 'environmentBrightness', 'cameraPunch', 'bloom', 'impact'], supportsPortalShape: false, controls: REACTIVE_CONSTELLATION_CONTROLS },
   stormGateway: { id: 'stormGateway', label: 'Storm Gateway', category: 'Storm', description: 'Cloud vortex, debris, turbulence and branching lightning.', cameraRigs: ['locked', 'orbit', 'handheld', 'autoDirector'], modulationTargets: ['portalAperture', 'depth', 'cameraPunch', 'fogDensity', 'particleEmission', 'lightning', 'environmentBrightness', 'distortion', 'bloom', 'chromaticAberration', 'impact'], supportsPortalShape: true, controls: STORM_GATEWAY_CONTROLS },
   legacyPortal: { id: 'legacyPortal', label: 'Legacy Portal', category: 'Legacy', description: 'Compatibility renderer for projects created before Cinematic Worlds.', cameraRigs: ['locked'], modulationTargets: ['portalAperture', 'cameraPunch', 'fogDensity', 'particleEmission', 'environmentBrightness', 'impact', 'fog', 'debris', 'atmosphere', 'glow', 'cameraMotion', 'portalPulse'], rendererModulationTargets: ['portalAperture', 'cameraPunch', 'fogDensity', 'particleEmission', 'environmentBrightness', 'impact'], supportsPortalShape: true, controls: EMPTY_SCHEMA('legacyPortal') },
@@ -401,6 +404,7 @@ export const CINEMATIC_WORLD_CATALOG_LIST: readonly AnyCinematicWorldCatalogEntr
   CINEMATIC_WORLD_CATALOG.mirrorDimension,
   CINEMATIC_WORLD_CATALOG.ancientMachine,
   CINEMATIC_WORLD_CATALOG.stormGateway,
+  CINEMATIC_WORLD_CATALOG.orbitalPrismArray,
   CINEMATIC_WORLD_CATALOG.reactiveConstellation,
   CINEMATIC_WORLD_CATALOG.legacyPortal,
 ]

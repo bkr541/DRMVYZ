@@ -15,7 +15,7 @@ export const PACK_B_CINEMATIC_WORLD_MODES = [
   'stormGateway',
 ] as const
 
-export const GEOMETRY_CINEMATIC_WORLD_MODES = ['reactiveConstellation'] as const
+export const GEOMETRY_CINEMATIC_WORLD_MODES = ['orbitalPrismArray', 'reactiveConstellation'] as const
 
 export const IMPLEMENTED_CINEMATIC_WORLD_MODES = [
   ...PACK_A_CINEMATIC_WORLD_MODES,
@@ -236,6 +236,7 @@ export interface CinematicWorldSettingsByMode {
   mirrorDimension: MirrorDimensionSettings
   ancientMachine: AncientMachineSettings
   stormGateway: StormGatewaySettings
+  orbitalPrismArray: EmptyCinematicWorldSettings
   reactiveConstellation: ReactiveConstellationSettings
 }
 
@@ -791,6 +792,7 @@ export function createDefaultCinematicWorldSettings(mode: CinematicWorldMode): C
     case 'mirrorDimension': return { mode, settings: { ...MIRROR_DIMENSION_DEFAULTS } }
     case 'ancientMachine': return { mode, settings: { ...ANCIENT_MACHINE_DEFAULTS } }
     case 'stormGateway': return { mode, settings: { ...STORM_GATEWAY_DEFAULTS } }
+    case 'orbitalPrismArray': return { mode, settings: {} }
     case 'reactiveConstellation': return { mode, settings: { ...REACTIVE_CONSTELLATION_DEFAULTS } }
     default: return { mode, settings: {} } as CinematicWorldSpecificConfig
   }
@@ -857,6 +859,7 @@ export function normalizeCinematicWorldSettings(
         mode,
         settings: normalizeNumericSettings(payload, STORM_GATEWAY_DEFAULTS, STORM_GATEWAY_BOUNDS, ['cloudLayers']),
       }
+    case 'orbitalPrismArray': return { mode, settings: {} }
     case 'reactiveConstellation': return { mode, settings: normalizeReactiveConstellationSettings(value) }
     default:
       return { mode, settings: {} } as CinematicWorldSpecificConfig

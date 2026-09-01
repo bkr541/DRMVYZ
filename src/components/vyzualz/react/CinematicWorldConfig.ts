@@ -23,6 +23,7 @@ export const CINEMATIC_WORLD_MODES = [
   'mirrorDimension',
   'ancientMachine',
   'stormGateway',
+  'orbitalPrismArray',
   'reactiveConstellation',
 ] as const
 
@@ -534,6 +535,10 @@ const WORLD_DEFAULT_AUDIO_ROUTES: Readonly<Record<CinematicWorldMode, readonly C
     route('machine-drop-aperture', 'dropState', 'portalAperture', { amount: 0.8, attackMs: 120, releaseMs: 500 }),
     route('machine-high-glyphs', 'highs', 'environmentBrightness', { amount: 0.46, attackMs: 26, releaseMs: 210 }),
   ],
+  orbitalPrismArray: [
+    route('orbital-prism-energy-light', 'overallEnergy', 'environmentBrightness', { amount: 0.18, attackMs: 140, releaseMs: 520 }),
+    route('orbital-prism-phase-rotation', 'beatPhase', 'geometryRotation', { amount: 0.12, attackMs: 0, releaseMs: 0 }),
+  ],
   reactiveConstellation: [
     route('constellation-sub-breath', 'subBass', 'networkSpread', { amount: 0.34, attackMs: 150, releaseMs: 440, smoothingMs: 90, responseCurve: 'smoothstep', sectionScale: { intro: 0.55, build: 1.2, preDrop: 0.45, drop: 1.15, breakdown: 0.55, outro: 0.35 } }),
     route('constellation-bass-scale', 'bass', 'nodeScale', { amount: 0.28, attackMs: 45, releaseMs: 260, smoothingMs: 35, threshold: 0.06, responseCurve: 'easeOut' }),
@@ -649,6 +654,7 @@ const CINEMATIC_WORLD_MODE_ALIASES: Record<string, CinematicWorldMode> = {
   mirrordimension: 'mirrorDimension',
   ancientmachine: 'ancientMachine',
   stormgateway: 'stormGateway',
+  orbitalprismarray: 'orbitalPrismArray',
   reactiveconstellation: 'reactiveConstellation',
   constellation: 'reactiveConstellation',
   // Media Portal projects are no longer supported as a selectable world;

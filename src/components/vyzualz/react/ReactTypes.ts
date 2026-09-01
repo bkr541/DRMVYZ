@@ -4222,6 +4222,27 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     scenes: makeScenes('sgac', 'cinematicPortal'), sectionMappings: makeMappings('sgac'),
   },
 
+  // Cinematic Worlds: Orbital Prism Array
+  {
+    id: 'preset-orbital-prism-array',
+    name: 'Orbital Prism Array',
+    description: 'Central faceted prism with three orbital rings, deterministic depth shards, and a lightweight star field.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#21d8e8', secondary: '#ef4aa8', accent: '#d8ad55', background: '#01040b', highlight: '#e8fbff', text: DVYDRM_WHITE },
+    params: { intensity: 0.82, motion: 0.52, glow: 0.84, bassReactivity: 0.58 },
+    renderSettings: { trailDecay: 0.03, fogDensity: 0.24, particleDensity: 0.5 },
+    cinematicConfig: createCinematicWorldConfig('orbitalPrismArray', {}, {
+      cameraRig: 'orbit', seed: 49001, qualityTier: 'high',
+      camera: {
+        orbit: { radius: 4.25, elevation: 0.2, angularSpeed: 0.08, direction: 1, sectionAware: true, safeMargin: 0.16 },
+      },
+      environment: { depth: 0.86, architecture: 0.04, fog: 0.24, debris: 0.06, stars: 0.72, atmosphere: 0.52 },
+      material: { distortion: 0.02, refraction: 0, bloom: 0.82, chromaticAberration: 0.025, feedback: 0, glow: 0.9 },
+    }),
+    scenes: makeScenes('opa', 'cinematicPortal'),
+    sectionMappings: makeMappings('opa'),
+  },
+
   // Cinematic Worlds: Reactive Constellation curated library
   ...REACTIVE_CONSTELLATION_CURATED_PRESETS,
 

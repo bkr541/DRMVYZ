@@ -293,7 +293,7 @@ describe('world-specific cinematic configuration', () => {
         expect(presets, mode).toEqual([])
         continue
       }
-      expect(presets, mode).toHaveLength(mode === 'reactiveConstellation' ? 11 : 3)
+      expect(presets, mode).toHaveLength(mode === 'reactiveConstellation' ? 11 : mode === 'orbitalPrismArray' ? 1 : 3)
       const structuralSignatures = presets.map(preset => JSON.stringify({
         settings: preset.cinematicConfig?.worldSettings,
         cameraRig: preset.cinematicConfig?.cameraRig,
