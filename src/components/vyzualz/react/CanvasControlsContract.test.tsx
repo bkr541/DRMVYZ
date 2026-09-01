@@ -686,12 +686,18 @@ describe('CANVAS right-panel control contract', () => {
     const labels = [...host.querySelectorAll<HTMLButtonElement>('.drc-header')]
       .map(collapsibleLabelText)
     const displayIndex = labels.indexOf('Display')
+    const autoRoleIndex = labels.indexOf('Auto Role')
     const compositionIndex = labels.indexOf('Composition')
     const sourceReactivityIndex = labels.indexOf('Source + Reactivity')
     const timingIndex = labels.indexOf('Video Timing')
 
     expect(displayIndex).toBe(0)
-    expect(compositionIndex).toBeGreaterThan(displayIndex)
+    // Auto Role is its own toggle-headed group (replacing a plain "Composition"
+    // label + inline toggle row) directly ahead of the always-visible
+    // Composition group, so Locks/the template picker/Reset stay reachable
+    // regardless of whether Auto Role is on.
+    expect(autoRoleIndex).toBeGreaterThan(displayIndex)
+    expect(compositionIndex).toBeGreaterThan(autoRoleIndex)
     expect(sourceReactivityIndex).toBeGreaterThan(compositionIndex)
     expect(timingIndex).toBeGreaterThan(sourceReactivityIndex)
     expect(labels).not.toContain('CANVAS React Controls')
@@ -705,7 +711,6 @@ describe('CANVAS right-panel control contract', () => {
     // Composition-only controls stay in Design; automation controls that used
     // to share the "Performance Orchestration" group with them do not.
     const controlLabels = () => [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')].map(node => node.textContent?.trim())
-    expect(controlLabels()).toContain('Auto Role')
 
     // "Locks" (Media Lock, Layer, Lock Layer State, Locked Media) starts
     // collapsed — open it to confirm its controls are actually present.

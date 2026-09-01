@@ -6,7 +6,7 @@ export interface IconMorphToggleProps extends Omit<ButtonHTMLAttributes<HTMLButt
   onCheckedChange: (checked: boolean) => void
 }
 
-function ToggleGlyph({ checked }: { checked: boolean }) {
+export function ToggleGlyph({ checked }: { checked: boolean }) {
   return (
     <svg viewBox="0 0 20 20" className="dv-icon-morph-toggle__icon" aria-hidden="true">
       <circle cx="10" cy="10" r="8" className="dv-icon-morph-toggle__ring" />
