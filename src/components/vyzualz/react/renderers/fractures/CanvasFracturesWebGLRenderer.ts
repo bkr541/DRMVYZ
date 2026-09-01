@@ -1015,7 +1015,13 @@ export class CanvasFracturesWebGLRenderer {
       this.vertexData[offset] = transformed.x / this.cssWidth * 2 - 1
       this.vertexData[offset + 1] = 1 - transformed.y / this.cssHeight * 2
       this.vertexData[offset + 2] = input.crop.x + uv.x * input.crop.width
-      this.vertexData[offset + 3] = input.crop.y + uv.y * input.crop.height
+      // The source texture is uploaded with UNPACK_FLIP_Y_WEBGL so v=0 lands on
+      // the image's bottom row (see initializeResources/uploadSource) -- the
+      // same convention LaserImageFxRenderer/CanvasParticleAuraRenderer use.
+      // crop.y/uv.y are authored top-down (0 = image top), so the sample V
+      // needs the matching invert; without it every fragment (and therefore
+      // the whole reconstructed image) samples upside down.
+      this.vertexData[offset + 3] = 1 - (input.crop.y + uv.y * input.crop.height)
       this.vertexData[offset + 4] = corner.x
       this.vertexData[offset + 5] = corner.y
     }
@@ -1085,8 +1091,11 @@ export class CanvasFracturesWebGLRenderer {
     const uniforms = this.uniforms!
     gl.uniform1i(uniforms.passMode, 0)
     gl.uniform1i(uniforms.shadowOnly, shadowOnly ? 1 : 0)
-    gl.uniform2f(uniforms.cropMin, crop.x, crop.y)
-    gl.uniform2f(uniforms.cropMax, crop.x + crop.width, crop.y + crop.height)
+    // uCropMin/uCropMax bound vUv in the shader (safeUv), so they must be
+    // expressed in the same flipped-V space as the vertex UV computed above
+    // (crop.y is authored top-down; flipping reverses which bound is min/max).
+    gl.uniform2f(uniforms.cropMin, crop.x, 1 - (crop.y + crop.height))
+    gl.uniform2f(uniforms.cropMax, crop.x + crop.width, 1 - crop.y)
     gl.uniform2f(uniforms.direction, packed.directionX, packed.directionY)
     gl.uniform1f(uniforms.phase, packed.phase)
     gl.uniform1f(uniforms.opacity, clamp01(opacity))

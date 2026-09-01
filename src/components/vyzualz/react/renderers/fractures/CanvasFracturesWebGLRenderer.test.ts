@@ -97,6 +97,7 @@ function makeGl() {
     bindFramebuffer: ReturnType<typeof vi.fn>
     blendEquationSeparate: ReturnType<typeof vi.fn>
     blendFuncSeparate: ReturnType<typeof vi.fn>
+    bufferSubData: ReturnType<typeof vi.fn>
     clear: ReturnType<typeof vi.fn>
     createBuffer: ReturnType<typeof vi.fn>
     createFramebuffer: ReturnType<typeof vi.fn>
@@ -208,6 +209,57 @@ describe('Canvas Fractures WebGL2 renderer', () => {
     expect(result.renderer.render(params)).toBe(true)
     expect(gl.texImage2D).toHaveBeenCalledTimes(1)
     expect(gl.drawArrays).toHaveBeenCalledTimes(plan.fragments.length * 2)
+  })
+
+  it('samples the source texture right-side up: a shape\'s top corner reads a higher V than its bottom corner (regression: media rendered upside down)', () => {
+    const canvas = document.createElement('canvas')
+    const gl = makeGl()
+    canvas.getContext = vi.fn((kind: string) => kind === 'webgl2' ? gl : null) as typeof canvas.getContext
+    const result = CanvasFracturesRenderer.create(canvas)
+    if (!result.renderer) throw new Error(result.error)
+
+    const capturedVertexBuffers: Float32Array[] = []
+    gl.bufferSubData.mockImplementation((_target: number, _offset: number, data: Float32Array) => {
+      capturedVertexBuffers.push(data.slice())
+    })
+
+    // makePlan()'s default 'mixed' mode never enables the deliberate
+    // mirrorY effect (that requires 'mirrorFlip'), so every fragment here
+    // should read top-to-bottom without exception.
+    const plan = makePlan()
+    result.renderer.setPlan(plan)
+    result.renderer.resize(1280, 720, 1)
+    const params: CanvasFracturesRenderParams = {
+      source: makeImage(),
+      fitMode: 'cover',
+      sourceTransform: { scale: 1, positionX: 0, positionY: 0, rotation: 0 },
+      effects: makeEffects(),
+    }
+    expect(result.renderer.render(params)).toBe(true)
+
+    // Each drawQuad call writes 6 vertices * 6 floats (clipX, clipY, uvX,
+    // uvY, localX, localY) via one bufferSubData call.
+    const quadBuffers = capturedVertexBuffers.filter(buffer => buffer.length === 36)
+    expect(quadBuffers.length).toBeGreaterThan(0)
+
+    for (const buffer of quadBuffers) {
+      // aLocal.y (offset+5) is the untransformed ground-truth corner.y (0 =
+      // shape top, 1 = shape bottom, per RECT_CORNERS/makeLocalCorners).
+      // aUv.y (offset+3) is the V coordinate actually sampled from the
+      // uploaded (UNPACK_FLIP_Y_WEBGL) source texture.
+      const points = Array.from({ length: 6 }, (_unused, vertex) => ({
+        localY: buffer[vertex * 6 + 5],
+        sampledV: buffer[vertex * 6 + 3],
+      }))
+      const top = points.reduce((min, point) => point.localY < min.localY ? point : min)
+      const bottom = points.reduce((max, point) => point.localY > max.localY ? point : max)
+      if (top.localY === bottom.localY) continue
+      // The shape's top edge must sample nearer the source image's top
+      // (higher V, since flipY uploads put the image's top row at V=1) than
+      // its bottom edge -- otherwise the reconstructed image renders
+      // upside down, requiring a manual -180 deg Rotation to compensate.
+      expect(top.sampledV).toBeGreaterThan(bottom.sampledV)
+    }
   })
 
   it('allocates bounded feedback resources and clears them on explicit, resize, and topology invalidation', () => {
