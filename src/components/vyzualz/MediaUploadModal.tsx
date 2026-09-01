@@ -1006,8 +1006,11 @@ export function MediaUploadModal({
                   </div>
                 </div>
 
-                {/* Additional Info — hidden for SVG-only queues (duration/fps/energy don't apply to vector glyphs) */}
-                {!isSvgQueue && (
+                {/* Additional Info — hidden until a file is actually queued (nothing to
+                    detect duration/resolution/etc. from yet) or we're editing an already-
+                    uploaded item, and hidden for SVG-only queues (duration/fps/energy
+                    don't apply to vector glyphs) */}
+                {!isSvgQueue && (isEdit || uploadQueue.length > 0) && (
                   <div className="mum-field">
                     <label className="mum-field-label">ADDITIONAL INFO</label>
                     {!isEdit ? (
