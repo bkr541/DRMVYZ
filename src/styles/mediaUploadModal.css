@@ -98,7 +98,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 32px 20px;
+  padding: 20px 20px;
   gap: 6px;
   transition: border-color 0.15s, background 0.15s;
   cursor: default;
@@ -288,29 +288,6 @@
   align-items: center;
 }
 .mum-select-wrap--sm { max-width: 140px; }
-.mum-select {
-  width: 100%;
-  appearance: none;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 6px;
-  color: rgba(245,248,250,0.85);
-  font-size: 12px;
-  font-family: var(--az-font);
-  padding: 7px 30px 7px 10px;
-  cursor: pointer;
-  outline: none;
-  transition: border-color 0.12s;
-}
-.mum-select:focus { border-color: rgba(74,199,219,0.4); }
-.mum-select-caret {
-  position: absolute;
-  right: 10px;
-  width: 8px;
-  height: 6px;
-  color: rgba(245,248,250,0.35);
-  pointer-events: none;
-}
 
 /* Input / textarea */
 .mum-input, .mum-textarea {
@@ -328,6 +305,62 @@
   transition: border-color 0.12s;
 }
 .mum-input:focus, .mum-textarea:focus { border-color: rgba(74,199,219,0.4); }
+
+/* Title, Description, Tags, Additional Info, and Track Details text fields
+   match the borderless bottom-line treatment the dv-underline-dropdown-based
+   Media Role / Key / Energy / Track Key dropdowns already use — the same
+   canonical Underline look, mirroring mediaManager.css's #mmi-* convention —
+   instead of .dv-text-input's default bordered box. Every text/number field
+   id added to this modal must stay in sync with this list. */
+#mum-title,
+#mum-description,
+#mum-tags-input,
+#mum-duration,
+#mum-resolution,
+#mum-fps,
+#mum-bpm,
+#mum-track-title,
+#mum-track-artist,
+#mum-track-genre,
+#mum-track-bpm {
+  border: 0 !important;
+  border-radius: 0 !important;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.22) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 4px 2px 8px !important;
+}
+
+#mum-title:hover:not(:disabled),
+#mum-description:hover:not(:disabled),
+#mum-tags-input:hover:not(:disabled),
+#mum-duration:hover:not(:disabled),
+#mum-resolution:hover:not(:disabled),
+#mum-fps:hover:not(:disabled),
+#mum-bpm:hover:not(:disabled),
+#mum-track-title:hover:not(:disabled),
+#mum-track-artist:hover:not(:disabled),
+#mum-track-genre:hover:not(:disabled),
+#mum-track-bpm:hover:not(:disabled),
+#mum-title:focus-visible,
+#mum-description:focus-visible,
+#mum-tags-input:focus-visible,
+#mum-duration:focus-visible,
+#mum-resolution:focus-visible,
+#mum-fps:focus-visible,
+#mum-bpm:focus-visible,
+#mum-track-title:focus-visible,
+#mum-track-artist:focus-visible,
+#mum-track-genre:focus-visible,
+#mum-track-bpm:focus-visible {
+  border-bottom-color: #4ac7db !important;
+  box-shadow: none !important;
+}
+
+/* BPM validation error must still show through the underline treatment. */
+#mum-track-bpm.mum-input--error {
+  border-bottom-color: #f87171 !important;
+}
 
 /* Chip input — matches the Media Manager inspector's Tags & Collections
    field (.mmi-chip-field / .mmi-chip-input in mediaManager.css): a plain
