@@ -964,19 +964,16 @@ export function MediaUploadModal({
                   <div className="mum-field">
                     <label className="mum-field-label">TAGS</label>
                     <div className="mum-field-hint">Add or create tags to describe this media.</div>
-                    <div className="mum-chip-input">
+                    <div className="mum-chip-field">
                       <TagChips tags={uploadDraft.tags} onRemove={removeTag} />
                       <DreamVizTextInput
-                        className="mum-chip-text"
+                        className="mum-chip-input"
                         placeholder="Type to add tags…"
                         value={tagInput}
                         onChange={e => setTagInput(e.target.value)}
                         onKeyDown={handleTagKey}
                         onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
                       />
-                      <svg className="mum-chip-caret" viewBox="0 0 10 6" fill="currentColor">
-                        <path d="M0 0l5 6 5-6z"/>
-                      </svg>
                     </div>
                   </div>
 

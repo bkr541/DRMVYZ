@@ -334,22 +334,21 @@
 }
 .mum-input:focus, .mum-textarea:focus { border-color: rgba(74,199,219,0.4); }
 
-/* Chip input */
-.mum-chip-input {
+/* Chip input — matches the Media Manager inspector's Tags & Collections
+   field (.mmi-chip-field / .mmi-chip-input in mediaManager.css): a plain
+   flex-wrap of pills followed by a small boxed text input, rather than one
+   bordered field enclosing everything. */
+.mum-chip-field {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 5px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 6px;
-  padding: 5px 28px 5px 8px;
-  min-height: 36px;
-  position: relative;
-  cursor: text;
-  transition: border-color 0.12s;
+  margin-bottom: 6px;
 }
-.mum-chip-input:focus-within { border-color: rgba(74,199,219,0.4); }
+.mum-chip-input {
+  flex: 1;
+  min-width: 90px;
+}
 .mum-collection-dropdown-field {
   display: flex;
   flex-wrap: wrap;
@@ -363,28 +362,6 @@
 .mum-collections-dropdown .drm-dropdown__search-trigger {
   min-height: 36px;
 }
-.mum-chip-text {
-  background: transparent;
-  border: none;
-  outline: none;
-  color: rgba(245,248,250,0.65);
-  font-size: 11px;
-  font-family: var(--az-font);
-  flex: 1;
-  min-width: 80px;
-  padding: 2px 0;
-}
-.mum-chip-caret {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 8px;
-  height: 6px;
-  color: rgba(245,248,250,0.3);
-  pointer-events: none;
-}
-
 /* Collection dropdown */
 .mum-coll-dropdown {
   position: absolute;
