@@ -69,22 +69,23 @@
 .mum-close:hover { color: rgba(245,248,250,0.85); }
 
 /* ── Body ─────────────────────────────────────────────────────────────── */
+/* Single stacked column: drop zone on top, form fields below, both
+   scrolling together as one region. */
 .mum-body {
   display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
-/* ── Left panel ───────────────────────────────────────────────────────── */
+/* ── Drop zone panel ──────────────────────────────────────────────────── */
 .mum-left {
-  width: 42%;
-  min-width: 280px;
-  max-width: 420px;
-  border-right: 1px solid rgba(255,255,255,0.06);
+  width: 100%;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  flex-shrink: 0;
 }
 
 /* Drop zone */
@@ -147,13 +148,10 @@
   text-align: center;
 }
 
-/* File list */
+/* File list — scrolls with the rest of .mum-body rather than independently */
 .mum-filelist {
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   margin: 0 16px 16px;
 }
 .mum-filelist-header {
@@ -166,7 +164,6 @@
   margin-bottom: 8px;
 }
 .mum-filelist-items {
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -242,11 +239,9 @@
 .mum-badge--done      { background: rgba(52,211,153,0.12);  color: #34d399; }
 .mum-badge--error     { background: rgba(248,113,113,0.12); color: #f87171; }
 
-/* ── Right panel ──────────────────────────────────────────────────────── */
+/* ── Fields panel ─────────────────────────────────────────────────────── */
 .mum-right {
-  flex: 1;
-  min-width: 0;
-  overflow-y: auto;
+  width: 100%;
   padding: 16px 20px;
   display: flex;
   flex-direction: column;
@@ -404,11 +399,6 @@
 .mum-addinfo-item--span2 { grid-column: span 2; }
 .mum-addinfo-item { display: flex; flex-direction: column; gap: 4px; }
 
-.mum-fields-col {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
 .mum-fields-row {
   display: flex;
   gap: 12px;
@@ -472,9 +462,12 @@
 .mum-toggle input:checked ~ .mum-toggle-track .mum-toggle-thumb { transform: translateX(16px); }
 
 /* ── Footer ───────────────────────────────────────────────────────────── */
+/* Upload-mode footer centers Cancel / Upload another / Upload as one
+   cluster; edit mode (Cancel + Save Changes only) stays right-aligned. */
 .mum-footer {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   padding: 14px 24px;
   border-top: 1px solid rgba(255,255,255,0.06);
@@ -490,7 +483,6 @@
   font-family: var(--az-font);
   cursor: pointer;
   user-select: none;
-  margin-left: auto;
 }
 .mum-upload-another input[type="checkbox"] {
   accent-color: #4ac7db;
@@ -499,32 +491,16 @@
   cursor: pointer;
 }
 /* ── Scrollbar ────────────────────────────────────────────────────────── */
-.mum-right::-webkit-scrollbar,
-.mum-filelist-items::-webkit-scrollbar { width: 4px; }
-.mum-right::-webkit-scrollbar-track,
-.mum-filelist-items::-webkit-scrollbar-track { background: transparent; }
-.mum-right::-webkit-scrollbar-thumb,
-.mum-filelist-items::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+.mum-body::-webkit-scrollbar { width: 4px; }
+.mum-body::-webkit-scrollbar-track { background: transparent; }
+.mum-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
 /* ── Mobile layout ────────────────────────────────────────────────────── */
+/* .mum-body / .mum-left / .mum-right are already a single stacked column
+   at every width — only the drop zone itself needs to shrink further here. */
 @media (max-width: 600px) {
   .mum-modal {
     max-height: 95vh;
-  }
-
-  /* Stack: drop zone on top, form fields below */
-  .mum-body {
-    flex-direction: column;
-  }
-
-  /* Drop zone panel: full width, no side border */
-  .mum-left {
-    width: 100%;
-    min-width: 0;
-    max-width: none;
-    border-right: none;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-    flex-shrink: 0;
   }
 
   /* Compact drop zone: slim horizontal strip */
@@ -560,9 +536,8 @@
     margin: 0 12px 10px;
   }
 
-  /* Form fields panel: full width, scrollable */
+  /* Form fields panel: tighter padding */
   .mum-right {
-    width: 100%;
     padding: 14px 16px;
   }
 }

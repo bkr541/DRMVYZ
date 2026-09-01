@@ -661,6 +661,40 @@ export function MediaUploadModal({
   const keyContent    = <div className="mum-select-wrap mum-select-wrap--sm"><DropdownSelect className="mum-select" value={uploadDraft.metadata.key ?? ''} onChange={e => setUploadDraftMetadata({ key: e.target.value || undefined })}><option value="">—</option>{MUSICAL_KEYS.map(k => <option key={k} value={k}>{k}</option>)}</DropdownSelect></div>
   const energyContent = <div className="mum-select-wrap mum-select-wrap--sm"><DropdownSelect className="mum-select" value={uploadDraft.metadata.energy ?? ''} onChange={e => setUploadDraftMetadata({ energy: (e.target.value as MediaEnergy) || undefined })}><option value="">—</option>{(Object.keys(ENERGY_LABELS) as MediaEnergy[]).map(k => <option key={k} value={k}>{ENERGY_LABELS[k]}</option>)}</DropdownSelect></div>
 
+  // ── Role / Title fields — shared between the edit-mode (stacked) and
+  // upload-mode (side-by-side row) layouts below ────────────────────────
+  const roleField = (
+    <div className="mum-field">
+      <label className="mum-field-label">MEDIA ROLE<span className="mum-req">*</span></label>
+      <div className="mum-select-wrap">
+        <DropdownSelect
+          className="mum-select"
+          value={uploadDraft.role}
+          onChange={e => handleRoleChange(e.target.value as MediaRole)}
+        >
+          {VISUAL_MEDIA_ROLES.map(r => (
+            <option key={r} value={r}>
+              {MEDIA_ROLE_ICONS[r]}  {MEDIA_ROLE_LABELS[r]}
+            </option>
+          ))}
+        </DropdownSelect>
+      </div>
+      <div className="mum-field-hint">Role affects placement and visual behavior. You can change it later in the Clip Inspector.</div>
+    </div>
+  )
+  const titleField = (
+    <div className="mum-field">
+      <label className="mum-field-label">TITLE <span className="mum-opt">(OPTIONAL)</span></label>
+      <DreamVizTextInput
+        className="mum-input"
+        placeholder="e.g. Portal Loop Alpha"
+        maxLength={160}
+        value={uploadDraft.title}
+        onChange={e => setUploadDraftTitle(e.target.value)}
+      />
+    </div>
+  )
+
   // ── Raster SVG warning handler ──────────────────────────────────────────────
   const handleRasterSvgContinue = useCallback(async () => {
     if (!rasterSvgWarning) return
@@ -916,36 +950,18 @@ export function MediaUploadModal({
               <>
                 {/* ── Visual media fields (existing) ─────────────── */}
 
-                {/* Media Role */}
-                <div className="mum-field">
-                  <label className="mum-field-label">MEDIA ROLE<span className="mum-req">*</span></label>
-                  <div className="mum-select-wrap">
-                    <DropdownSelect
-                      className="mum-select"
-                      value={uploadDraft.role}
-                      onChange={e => handleRoleChange(e.target.value as MediaRole)}
-                    >
-                      {VISUAL_MEDIA_ROLES.map(r => (
-                        <option key={r} value={r}>
-                          {MEDIA_ROLE_ICONS[r]}  {MEDIA_ROLE_LABELS[r]}
-                        </option>
-                      ))}
-                    </DropdownSelect>
+                {/* Media Role + Title: side-by-side row in upload mode, stacked in edit mode */}
+                {isEdit ? (
+                  <>
+                    {roleField}
+                    {titleField}
+                  </>
+                ) : (
+                  <div className="mum-fields-row">
+                    {roleField}
+                    {titleField}
                   </div>
-                  <div className="mum-field-hint">Role affects placement and visual behavior. You can change it later in the Clip Inspector.</div>
-                </div>
-
-                {/* Title */}
-                <div className="mum-field">
-                  <label className="mum-field-label">TITLE <span className="mum-opt">(OPTIONAL)</span></label>
-                  <DreamVizTextInput
-                    className="mum-input"
-                    placeholder="e.g. Portal Loop Alpha"
-                    maxLength={160}
-                    value={uploadDraft.title}
-                    onChange={e => setUploadDraftTitle(e.target.value)}
-                  />
-                </div>
+                )}
 
                 {/* Description */}
                 <div className="mum-field">
@@ -959,8 +975,8 @@ export function MediaUploadModal({
                   />
                 </div>
 
-                {/* Tags + Collections (side-by-side in edit mode) */}
-                <div className={isEdit ? 'mum-fields-row' : 'mum-fields-col'}>
+                {/* Tags + Collections: always side-by-side */}
+                <div className="mum-fields-row">
                   <div className="mum-field">
                     <label className="mum-field-label">TAGS</label>
                     <div className="mum-field-hint">Add or create tags to describe this media.</div>
@@ -1081,7 +1097,7 @@ export function MediaUploadModal({
           >
             {uploading ? 'Cancel Upload' : 'Cancel'}
           </IconChipButton>
-          {!isEdit && (
+          {!isEdit && uploadQueue.length > 0 && (
             <label className="mum-upload-another">
               <IconMorphCheckbox
                 checked={uploadAnother}
