@@ -614,7 +614,12 @@ function quantizeAndClamp(value: number, min: number, max: number, step?: number
 
 function roundFloating(value: number): number {
   if (!Number.isFinite(value)) return value
-  return Number(value.toPrecision(14))
+  // 14 significant digits left enough of the drift from quantizeAndClamp's
+  // origin-relative rounding (e.g. min=-1000, step=0.01) uncleaned that a
+  // value like 0.1 could come back as 0.10000000000002. 12 digits is still
+  // far more precision than any Cinema parameter needs (picometer-scale for
+  // a value near 1) while reliably absorbing that drift.
+  return Number(value.toPrecision(12))
 }
 
 function clampNumber(value: number, min: number, max: number): number {
