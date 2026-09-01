@@ -30,12 +30,24 @@ export interface CanvasLayerEffectRuntimeDescriptor {
 
 type RuntimeCanvas = HTMLCanvasElement
 
+/**
+ * Bounded multi-tap delay line for Add Effects -> Echo. Slots are captured at
+ * a decimated rate (not every frame) so a handful of reused canvases can span
+ * a useful temporal window instead of storing an unbounded frame list.
+ */
+type EchoRingState = {
+  slots: (RuntimeCanvas | null)[]
+  filled: number
+  writeIndex: number
+  frameCounter: number
+}
+
 type RuntimeEntry = {
   sourceIdentity: string
   effectSignature: string
   width: number
   height: number
-  echoHistory: RuntimeCanvas | null
+  echoHistory: EchoRingState | null
   stutterFrame: RuntimeCanvas | null
   meltSample: RuntimeCanvas | null
   stutterBucket: number | null
@@ -46,6 +58,8 @@ const EFFECT_ID_SET = new Set<string>(CANVAS_LAYER_EFFECT_IDS)
 const TEMPORAL_EFFECTS = new Set<CanvasLayerEffectId>(['echo', 'stutter'])
 const MELT_SAMPLE_COLUMNS = 16
 const MELT_SAMPLE_ROWS = 6
+const ECHO_RING_SIZE = 4
+const ECHO_CAPTURE_STRIDE = 4
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
@@ -103,7 +117,7 @@ export function resolveCanvasLayerEffectRenderPlan(
       case 'bloom':
         return { id, amount: clamp01(0.55 + bass * 0.35 + beat * 0.1), variation, stutterBucket: null }
       case 'echo':
-        return { id, amount: clamp01(0.48 + bass * 0.16), variation, stutterBucket: null }
+        return { id, amount: clamp01(0.5 + bass * 0.34 + beat * 0.1), variation, stutterBucket: null }
       case 'glitch':
         return { id, amount: clamp01(0.34 + beat * 0.38 + transient * 0.2 + high * 0.08), variation, stutterBucket: null }
       case 'melt':
@@ -142,6 +156,11 @@ function releaseRuntimeCanvas(canvas: RuntimeCanvas | null): void {
   if (!canvas) return
   canvas.width = 0
   canvas.height = 0
+}
+
+function releaseEchoRing(ring: EchoRingState | null): void {
+  if (!ring) return
+  for (const slot of ring.slots) releaseRuntimeCanvas(slot)
 }
 
 /**
@@ -186,7 +205,7 @@ export class CanvasLayerEffectRuntime {
   private releaseEntry(layerId: string): void {
     const entry = this.entries.get(layerId)
     if (!entry) return
-    releaseRuntimeCanvas(entry.echoHistory)
+    releaseEchoRing(entry.echoHistory)
     releaseRuntimeCanvas(entry.stutterFrame)
     releaseRuntimeCanvas(entry.meltSample)
     this.entries.delete(layerId)
@@ -225,8 +244,8 @@ export class CanvasLayerEffectRuntime {
     return next
   }
 
-  private temporalCanvas(entry: RuntimeEntry, kind: 'echo' | 'stutter'): RuntimeCanvas | null {
-    const existing = kind === 'echo' ? entry.echoHistory : entry.stutterFrame
+  private temporalCanvas(entry: RuntimeEntry): RuntimeCanvas | null {
+    const existing = entry.stutterFrame
     if (existing) {
       resizeRuntimeCanvas(existing, entry.width, entry.height)
       return existing
@@ -234,8 +253,32 @@ export class CanvasLayerEffectRuntime {
     const canvas = this.createCanvas()
     if (!canvas) return null
     resizeRuntimeCanvas(canvas, entry.width, entry.height)
-    if (kind === 'echo') entry.echoHistory = canvas
-    else entry.stutterFrame = canvas
+    entry.stutterFrame = canvas
+    return canvas
+  }
+
+  private echoRingFor(entry: RuntimeEntry): EchoRingState {
+    if (!entry.echoHistory) {
+      entry.echoHistory = {
+        slots: new Array<RuntimeCanvas | null>(ECHO_RING_SIZE).fill(null),
+        filled: 0,
+        writeIndex: 0,
+        frameCounter: 0,
+      }
+    }
+    return entry.echoHistory
+  }
+
+  private allocateEchoSlot(ring: EchoRingState, index: number, width: number, height: number): RuntimeCanvas | null {
+    const existing = ring.slots[index]
+    if (existing) {
+      resizeRuntimeCanvas(existing, width, height)
+      return existing
+    }
+    const canvas = this.createCanvas()
+    if (!canvas) return null
+    resizeRuntimeCanvas(canvas, width, height)
+    ring.slots[index] = canvas
     return canvas
   }
 
@@ -297,9 +340,20 @@ export class CanvasLayerEffectRuntime {
         case 'bloom':
           renderBloom(outputContext, input, width, height, step.amount)
           break
-        case 'echo':
-          renderEcho(outputContext, input, width, height, step.amount, this.temporalCanvas(entry, 'echo'))
+        case 'echo': {
+          const ring = this.echoRingFor(entry)
+          renderEcho(
+            outputContext,
+            input,
+            width,
+            height,
+            step.amount,
+            ring,
+            layerId,
+            index => this.allocateEchoSlot(ring, index, width, height),
+          )
           break
+        }
         case 'glitch':
           renderGlitch(outputContext, input, width, height, step.amount, step.variation, context)
           break
@@ -325,7 +379,7 @@ export class CanvasLayerEffectRuntime {
             step.amount,
             step.stutterBucket,
             entry,
-            step.amount > 0.04 ? this.temporalCanvas(entry, 'stutter') : null,
+            step.amount > 0.04 ? this.temporalCanvas(entry) : null,
           )
           break
       }
@@ -361,36 +415,73 @@ function renderBloom(
   context.restore()
 }
 
+/**
+ * Add Effects -> Echo: a multi-tap temporal ghost. Unlike the preset-native
+ * trail/feedback systems, this owns a small non-recursive delay line per
+ * layer: a handful of historical copies of this layer's own pre-Echo source
+ * are captured at a decimated rate and redrawn with progressively stronger
+ * scale/offset/opacity so the separation reads clearly even on static media,
+ * where adjacent source frames are identical.
+ */
 function renderEcho(
   context: CanvasRenderingContext2D,
   source: RuntimeCanvas,
   width: number,
   height: number,
   amount: number,
-  history: RuntimeCanvas | null,
+  ring: EchoRingState,
+  layerId: string,
+  allocateSlot: (index: number) => RuntimeCanvas | null,
 ): void {
   drawFull(context, source, width, height)
-  if (!history) return
 
-  const historyContext = history.getContext('2d', { alpha: true })
-  if (!historyContext) return
-  context.save()
-  context.globalCompositeOperation = 'screen'
-  context.globalAlpha = 0.18 + amount * 0.34
-  context.filter = `blur(${(0.8 + amount * 2.4).toFixed(2)}px)`
-  context.translate(width / 2, height / 2)
-  const echoScale = 1 + amount * 0.012
-  context.scale(echoScale, echoScale)
-  context.drawImage(history, -width / 2, -height / 2, width, height)
-  context.restore()
+  if (ring.frameCounter % ECHO_CAPTURE_STRIDE === 0) {
+    const slot = allocateSlot(ring.writeIndex)
+    if (slot) {
+      const slotContext = slot.getContext('2d', { alpha: true })
+      if (slotContext) {
+        slotContext.setTransform(1, 0, 0, 1, 0, 0)
+        slotContext.clearRect(0, 0, width, height)
+        slotContext.globalCompositeOperation = 'source-over'
+        slotContext.globalAlpha = 1
+        slotContext.filter = 'none'
+        slotContext.drawImage(source, 0, 0, width, height)
+      }
+      ring.writeIndex = (ring.writeIndex + 1) % ECHO_RING_SIZE
+      ring.filled = Math.min(ECHO_RING_SIZE, ring.filled + 1)
+    }
+  }
+  ring.frameCounter += 1
 
-  historyContext.setTransform(1, 0, 0, 1, 0, 0)
-  historyContext.clearRect(0, 0, width, height)
-  historyContext.globalCompositeOperation = 'source-over'
-  historyContext.globalAlpha = 0.82
-  historyContext.filter = 'none'
-  historyContext.drawImage(context.canvas, 0, 0, width, height)
-  historyContext.globalAlpha = 1
+  // A fourth ghost only unlocks on stronger audio energy so the resting
+  // state stays tasteful while bass pulses read as a clear expansion.
+  const maxTaps = amount > 0.72 ? ECHO_RING_SIZE : ECHO_RING_SIZE - 1
+  const tapCount = Math.min(maxTaps, ring.filled)
+  if (tapCount <= 0) return
+
+  const minSpan = Math.min(width, height)
+  for (let tap = 0; tap < tapCount; tap += 1) {
+    const slotIndex = (ring.writeIndex - 1 - tap + ECHO_RING_SIZE * 4) % ECHO_RING_SIZE
+    const slot = ring.slots[slotIndex]
+    if (!slot) continue
+
+    const t = tap / (ECHO_RING_SIZE - 1)
+    // Stable per-layer, per-tap direction so drift reads as a trail rather
+    // than jitter; audio only modulates how far each tap travels.
+    const angle = (stableHash(`${layerId}:echo-tap:${tap}`) / 4294967295) * Math.PI * 2
+    const scale = 1.018 + t * 0.085 + amount * 0.05 * (tap + 1)
+    const opacity = clamp01((0.52 - t * 0.4) * (0.7 + amount * 0.55))
+    const offsetMag = (0.007 + t * 0.026) * (1 + amount * 0.9) * minSpan
+
+    context.save()
+    context.globalCompositeOperation = 'source-over'
+    context.globalAlpha = opacity
+    context.filter = `blur(${(0.5 + t * 1.6).toFixed(2)}px)`
+    context.translate(width / 2 + Math.cos(angle) * offsetMag, height / 2 + Math.sin(angle) * offsetMag)
+    context.scale(scale, scale)
+    context.drawImage(slot, -width / 2, -height / 2, width, height)
+    context.restore()
+  }
 }
 
 function renderGlitch(

@@ -330,9 +330,11 @@ describe('CANVAS per-layer effect rendering runtime', () => {
     const historyA = created[0]
     const historyB = created[1]
     expect(historyA).not.toBe(historyB)
-    expect(historyA?.context.drawCalls.some(call => call.source === echoA1)).toBe(true)
-    expect(historyA?.context.drawCalls.some(call => call.source === echoB1)).toBe(false)
-    expect(historyB?.context.drawCalls.some(call => call.source === echoB1)).toBe(true)
+    // Echo captures each layer's own pre-Echo source into its ring (a clean
+    // multi-tap delay line), not the composited scratch output.
+    expect(historyA?.context.drawCalls.some(call => call.source === echoSourceA)).toBe(true)
+    expect(historyA?.context.drawCalls.some(call => call.source === echoSourceB)).toBe(false)
+    expect(historyB?.context.drawCalls.some(call => call.source === echoSourceB)).toBe(true)
   })
 
   it('clears obsolete runtime resources on effect removal/order changes and never transfers them after layer compaction', () => {
@@ -461,5 +463,90 @@ describe('CANVAS per-layer effect rendering runtime', () => {
       [640, 360],
     ])
     expect(runtime.getTemporalAllocationCount('layer-all')).toBe(2)
+  })
+
+  it('renders multiple distinct Echo ghost taps with increasing separation once history fills, bounded by a fixed ring', () => {
+    const created: FakeCanvas[] = []
+    const runtime = new CanvasLayerEffectRuntime(() => {
+      const canvas = new FakeCanvas(`echo-ring-${created.length}`)
+      created.push(canvas)
+      return canvas as unknown as HTMLCanvasElement
+    })
+    const source = new FakeCanvas('static-source')
+    const scratchA = new FakeCanvas('scratch-a')
+    const scratchB = new FakeCanvas('scratch-b')
+
+    // Drive enough frames for the decimated capture stride to fill every
+    // ring slot; the source never changes, modeling a static SVG/PNG layer.
+    let lastOutput: HTMLCanvasElement = source as unknown as HTMLCanvasElement
+    for (let i = 0; i < 20; i += 1) {
+      lastOutput = render(runtime, 'echo-static', 'static-source', ['echo'], source, scratchA, scratchB)
+    }
+
+    // Bounded: history never grows past a small fixed number of reused canvases.
+    expect(created.length).toBeLessThanOrEqual(4)
+
+    const finalOutput = lastOutput === (scratchA as unknown as HTMLCanvasElement) ? scratchA : scratchB
+    const ghostDraws = finalOutput.context.drawCalls.filter(call => call.source !== source)
+    // Multiple taps rendered, each transformed against a static source.
+    expect(ghostDraws.length).toBeGreaterThanOrEqual(2)
+    // Each tap carries a distinct opacity (decay) and blur (age), proving the
+    // taps are independently transformed rather than one flat duplicate --
+    // this is what makes a static SVG/PNG visibly echo.
+    const opacities = ghostDraws.map(call => call.alpha)
+    expect(new Set(opacities).size).toBeGreaterThan(1)
+    expect(Math.min(...opacities)).toBeLessThan(Math.max(...opacities))
+    for (const opacity of opacities) expect(opacity).toBeLessThan(1)
+    const filters = ghostDraws.map(call => call.filter)
+    expect(new Set(filters).size).toBeGreaterThan(1)
+  })
+
+  it('gives each Echo-bearing layer an independent ring that resets cleanly on removal and never grows unbounded', () => {
+    let currentTag = 'init'
+    const createdByTag = new Map<string, FakeCanvas[]>()
+    const runtime = new CanvasLayerEffectRuntime(() => {
+      const bucket = createdByTag.get(currentTag) ?? []
+      const canvas = new FakeCanvas(`${currentTag}-${bucket.length}`)
+      bucket.push(canvas)
+      createdByTag.set(currentTag, bucket)
+      return canvas as unknown as HTMLCanvasElement
+    })
+    const sourceA = new FakeCanvas('layer-a-source')
+    const sourceB = new FakeCanvas('layer-b-source')
+    const scratchA = new FakeCanvas('scratch-a')
+    const scratchB = new FakeCanvas('scratch-b')
+
+    for (let i = 0; i < 12; i += 1) {
+      currentTag = 'layer-a'
+      render(runtime, 'layer-a', 'layer-a-source', ['echo'], sourceA, scratchA, scratchB)
+      currentTag = 'layer-b'
+      render(runtime, 'layer-b', 'layer-b-source', ['echo'], sourceB, scratchA, scratchB)
+    }
+
+    const layerACanvases = createdByTag.get('layer-a') ?? []
+    const layerBCanvases = createdByTag.get('layer-b') ?? []
+    // Bounded: the ring never grows past its fixed size for either layer.
+    expect(layerACanvases.length).toBeLessThanOrEqual(4)
+    expect(layerBCanvases.length).toBeLessThanOrEqual(4)
+    expect(runtime.getTemporalAllocationCount('layer-a')).toBe(1)
+    expect(runtime.getTemporalAllocationCount('layer-b')).toBe(1)
+
+    // Removing Echo from layer A releases its ring; layer B's is untouched.
+    currentTag = 'layer-a'
+    render(runtime, 'layer-a', 'layer-a-source', [], sourceA, scratchA, scratchB)
+    expect(runtime.getTemporalAllocationCount('layer-a')).toBe(0)
+    expect(runtime.getTemporalAllocationCount('layer-b')).toBe(1)
+    expect(layerACanvases.every(canvas => canvas.width === 0 && canvas.height === 0)).toBe(true)
+    expect(layerBCanvases.some(canvas => canvas.width === 0 && canvas.height === 0)).toBe(false)
+
+    // Re-adding Echo on layer A starts a fresh ring; its own lifetime still
+    // stays within the fixed bound rather than growing without limit.
+    const beforeReactivation = layerACanvases.length
+    for (let i = 0; i < 12; i += 1) {
+      render(runtime, 'layer-a', 'layer-a-source', ['echo'], sourceA, scratchA, scratchB)
+    }
+    const afterReactivation = (createdByTag.get('layer-a') ?? []).length
+    expect(afterReactivation - beforeReactivation).toBeLessThanOrEqual(4)
+    expect(runtime.getTemporalAllocationCount('layer-a')).toBe(1)
   })
 })
