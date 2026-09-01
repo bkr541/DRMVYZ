@@ -295,6 +295,12 @@ describe('CinematicWorldRendererHost', () => {
     expect(runtime.renders).toHaveLength(1)
     expect(runtime.renders[0].definition).toBe(cinematicWorldRendererRegistry.resolve('orbitalPrismArray'))
     expect(runtime.renders[0].frame.preset.id).toBe('preset-orbital-prism-array')
+    expect(runtime.renders[0].frame.musicalAudio?.values).toMatchObject({ bass: 0.4, mid: 0.3, highs: 0.2 })
+    expect(runtime.renders[0].frame.modulation?.values.nodeScale).toBeGreaterThan(0)
+    expect(runtime.renders[0].frame.modulation?.values.geometryRotation).toBeGreaterThan(0)
+    expect(runtime.renders[0].frame.modulation?.values.edgeBrightness).toBeGreaterThan(0)
+    expect(runtime.renders[0].frame.modulation?.values.impact).toBe(0)
+    expect(runtime.renders[0].frame.modulation?.values.burstImpulse).toBe(0)
 
     host.dispose()
     expect(runtime.disposed).toBe(1)

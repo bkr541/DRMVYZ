@@ -73,7 +73,8 @@ const ATTRIBUTES = {
 const REQUIRED_UNIFORMS = [
   'uViewProjection', 'uCameraPosition', 'uTime', 'uPointMode', 'uPointSize', 'uRole',
   'uPrimary', 'uSecondary', 'uAccent', 'uFogColor', 'uFogAmount', 'uFogDepth',
-  'uIntensity', 'uGlow', 'uOpacity', 'uBrightness',
+  'uIntensity', 'uGlow', 'uOpacity', 'uBrightness', 'uPrismScale', 'uPrismEnergy',
+  'uRingMotion', 'uHighEnergy', 'uParticleEnergy', 'uBeatPulse', 'uDropPulse', 'uShardExpansion',
 ] as const
 
 const VERTEX_SOURCE = `#version 300 es
@@ -90,11 +91,17 @@ uniform mat4 uViewProjection;
 uniform float uTime;
 uniform int uPointMode;
 uniform float uPointSize;
+uniform float uRole;
+uniform float uPrismScale;
+uniform float uRingMotion;
+uniform float uHighEnergy;
+uniform float uShardExpansion;
 out vec3 vNormal;
 out vec3 vBarycentric;
 out vec3 vWorldPosition;
 out float vTint;
 flat out int vPointMode;
+flat out int vShard;
 
 vec3 rotateX(vec3 p, float a) {
   float c = cos(a), s = sin(a);
@@ -119,20 +126,40 @@ void main() {
     vNormal = vec3(0.0, 0.0, 1.0);
     vBarycentric = vec3(1.0);
     vTint = aInstanceTint;
+    vShard = 0;
     vec4 clip = uViewProjection * vec4(aPosition, 1.0);
     gl_Position = clip;
     gl_PointSize = uPointSize * clamp(3.6 / max(0.65, clip.w), 0.55, 1.5);
     return;
   }
 
-  vec3 angles = aInstanceRotation + aInstanceSpin * uTime;
+  float phase = uTime;
+  bool shard = uRole < 0.5 && gl_InstanceID > 0;
+  if (uRole > 0.5) {
+    phase += sin(uTime * 1.35 + float(gl_InstanceID) * 1.91) * uRingMotion * 0.30;
+  } else if (shard) {
+    phase += sin(uTime * 1.9 + float(gl_InstanceID) * 0.61) * uHighEnergy * 0.18;
+  }
+
+  vec3 angles = aInstanceRotation + aInstanceSpin * phase;
   vec3 local = aPosition * aInstanceScale;
-  vec3 world = rotateEuler(local, angles) + aInstancePosition;
+  vec3 instancePosition = aInstancePosition;
+  if (uRole < 0.5 && gl_InstanceID == 0) {
+    local *= uPrismScale;
+  } else if (shard) {
+    instancePosition.xy *= 1.0 + uShardExpansion;
+    float baseZ = instancePosition.z;
+    instancePosition.z = baseZ >= 0.0
+      ? baseZ * (1.0 - uShardExpansion * 0.45)
+      : baseZ * (1.0 + uShardExpansion * 0.25);
+  }
+  vec3 world = rotateEuler(local, angles) + instancePosition;
   vec3 normal = normalize(rotateEuler(aNormal, angles));
   vWorldPosition = world;
   vNormal = normal;
   vBarycentric = aBarycentric;
   vTint = aInstanceTint;
+  vShard = shard ? 1 : 0;
   gl_Position = uViewProjection * vec4(world, 1.0);
 }
 `
@@ -151,11 +178,18 @@ uniform float uGlow;
 uniform float uOpacity;
 uniform float uBrightness;
 uniform float uRole;
+uniform float uPrismEnergy;
+uniform float uRingMotion;
+uniform float uHighEnergy;
+uniform float uParticleEnergy;
+uniform float uBeatPulse;
+uniform float uDropPulse;
 in vec3 vNormal;
 in vec3 vBarycentric;
 in vec3 vWorldPosition;
 in float vTint;
 flat in int vPointMode;
+flat in int vShard;
 out vec4 outColor;
 
 vec3 palette(float t) {
@@ -172,8 +206,9 @@ void main() {
   if (vPointMode == 1) {
     vec2 p = gl_PointCoord * 2.0 - 1.0;
     float radius = length(p);
-    float alpha = (1.0 - smoothstep(0.12, 1.0, radius)) * uOpacity;
-    vec3 sparkle = mix(base, vec3(1.0), 0.28) * (0.7 + uGlow * 0.5 + uBrightness * 0.2);
+    float particleBoost = 1.0 + uParticleEnergy * 0.62 + uBeatPulse * 0.16 + uDropPulse * 0.12;
+    float alpha = (1.0 - smoothstep(0.12, 1.0, radius)) * uOpacity * (0.88 + uParticleEnergy * 0.12);
+    vec3 sparkle = mix(base, vec3(1.0), 0.28) * (0.7 + uGlow * 0.5 + uBrightness * 0.2) * particleBoost;
     outColor = vec4(mix(sparkle, uFogColor, fog), alpha * (1.0 - fog * 0.7));
     return;
   }
@@ -186,10 +221,15 @@ void main() {
   float edgeDistance = min(vBarycentric.x, min(vBarycentric.y, vBarycentric.z));
   float edge = 1.0 - smoothstep(0.018, 0.075, edgeDistance);
   float ringBoost = mix(1.0, 1.36, clamp(uRole, 0.0, 1.0));
+  float reactiveGlow = uRole > 0.5
+    ? uRingMotion * 0.08 + uBeatPulse * 0.22 + uDropPulse * 0.22
+    : (vShard == 1
+      ? uHighEnergy * 0.46 + uBeatPulse * 0.07 + uDropPulse * 0.18
+      : uPrismEnergy * 0.52 + uBeatPulse * 0.24 + uDropPulse * 0.16);
   vec3 lit = base * (diffuse * (0.68 + uIntensity * 0.42) + 0.13);
   lit += mix(base, uAccent, 0.32) * rim * (0.34 + uGlow * 0.7);
   lit += mix(base, vec3(1.0), 0.46) * edge * (0.22 + uGlow * 0.52);
-  lit *= ringBoost * (1.0 + max(0.0, uBrightness) * 0.35);
+  lit *= ringBoost * (1.0 + max(0.0, uBrightness) * 0.35 + reactiveGlow);
   vec3 color = mix(lit, uFogColor, fog);
   outColor = vec4(color, uOpacity * (1.0 - fog * 0.58));
 }
@@ -418,6 +458,47 @@ export function resolveOrbitalPrismQualityCounts(
   }
 }
 
+export interface OrbitalPrismReactivity {
+  prismScale: number
+  prismEnergy: number
+  ringMotion: number
+  highEnergy: number
+  particleEnergy: number
+  beatPulse: number
+  dropPulse: number
+  shardExpansion: number
+}
+
+function clampFinite(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min
+  return Math.min(max, Math.max(min, value))
+}
+
+export function resolveOrbitalPrismReactivity(
+  modulation: CinematicFrameContext['modulation'],
+  output: OrbitalPrismReactivity = {
+    prismScale: 1, prismEnergy: 0, ringMotion: 0, highEnergy: 0,
+    particleEnergy: 0, beatPulse: 0, dropPulse: 0, shardExpansion: 0,
+  },
+): OrbitalPrismReactivity {
+  const bass = clampFinite(cinematicModulationValue(modulation, 'nodeScale'), 0, 1)
+  const ringMotion = clampFinite(cinematicModulationValue(modulation, 'geometryRotation'), 0, 1)
+  const highEnergy = clampFinite(cinematicModulationValue(modulation, 'edgeBrightness'), 0, 1)
+  const particleEnergy = clampFinite(cinematicModulationValue(modulation, 'particleEmission'), 0, 1)
+  const beatPulse = clampFinite(cinematicModulationValue(modulation, 'impact'), 0, 1)
+  const dropPulse = clampFinite(cinematicModulationValue(modulation, 'burstImpulse'), 0, 1)
+
+  output.prismScale = clampFinite(1 + bass * 0.085 + beatPulse * 0.022 + dropPulse * 0.014, 1, 1.12)
+  output.prismEnergy = clampFinite(bass * 0.72 + beatPulse * 0.25 + dropPulse * 0.16, 0, 1)
+  output.ringMotion = ringMotion
+  output.highEnergy = highEnergy
+  output.particleEnergy = clampFinite(Math.max(particleEnergy, highEnergy * 0.65), 0, 1)
+  output.beatPulse = beatPulse
+  output.dropPulse = dropPulse
+  output.shardExpansion = clampFinite(dropPulse * 0.14, 0, 0.14)
+  return output
+}
+
 function identityMatrix(): Float32Array {
   return new Float32Array([
     1, 0, 0, 0,
@@ -573,6 +654,10 @@ export class OrbitalPrismArrayWorld implements CinematicWebGLWorldRenderer {
   private ringResource: MeshResource | null = null
   private particleResource: ParticleResource | null = null
   private composition: OrbitalPrismComposition | null = null
+  private readonly reactivity: OrbitalPrismReactivity = {
+    prismScale: 1, prismEnergy: 0, ringMotion: 0, highEnergy: 0,
+    particleEnergy: 0, beatPulse: 0, dropPulse: 0, shardExpansion: 0,
+  }
   private diagnostic: string | null = null
   private disposed = false
 
@@ -640,9 +725,9 @@ export class OrbitalPrismArrayWorld implements CinematicWebGLWorldRenderer {
     const motion = Math.min(1, Math.max(0, frame.params.motion))
     const intensity = Math.min(1, Math.max(0, frame.params.intensity))
     const glow = Math.min(1.5, Math.max(0, frame.params.glow * frame.config.material.glow))
-    const geometryModulation = cinematicModulationValue(frame.modulation, 'geometryRotation')
     const brightness = cinematicModulationValue(frame.modulation, 'environmentBrightness')
-    const time = frame.elapsedTimeSec * (0.32 + motion * 0.68) + geometryModulation * 0.8
+    const reactivity = resolveOrbitalPrismReactivity(frame.modulation, this.reactivity)
+    const time = frame.elapsedTimeSec * (0.32 + motion * 0.68)
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer)
     gl.viewport(0, 0, target.width, target.height)
@@ -665,6 +750,14 @@ export class OrbitalPrismArrayWorld implements CinematicWebGLWorldRenderer {
     this.program.setFloat('uIntensity', intensity)
     this.program.setFloat('uGlow', glow)
     this.program.setFloat('uBrightness', brightness)
+    this.program.setFloat('uPrismScale', reactivity.prismScale)
+    this.program.setFloat('uPrismEnergy', reactivity.prismEnergy)
+    this.program.setFloat('uRingMotion', reactivity.ringMotion)
+    this.program.setFloat('uHighEnergy', reactivity.highEnergy)
+    this.program.setFloat('uParticleEnergy', reactivity.particleEnergy)
+    this.program.setFloat('uBeatPulse', reactivity.beatPulse)
+    this.program.setFloat('uDropPulse', reactivity.dropPulse)
+    this.program.setFloat('uShardExpansion', reactivity.shardExpansion)
     this.program.setFloat('uPointSize', 2.4)
 
     gl.enable(gl.CULL_FACE)
@@ -810,7 +903,7 @@ export const orbitalPrismArrayWorldDefinition: CinematicWebGLWorldDefinition = {
   capabilities: {
     backend: 'webgl2',
     cameraRigs: ['locked', 'dolly', 'orbit', 'handheld', 'autoDirector'],
-    modulationTargets: ['geometryRotation', 'environmentBrightness'],
+    modulationTargets: ['geometryRotation', 'environmentBrightness', 'nodeScale', 'edgeBrightness', 'particleEmission', 'impact', 'burstImpulse', 'bloom'],
     paletteRoles: ['primary', 'secondary', 'accent', 'background'],
     supportsGeometryPasses: true,
     supportsFullscreenPasses: false,

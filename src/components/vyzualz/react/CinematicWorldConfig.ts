@@ -536,8 +536,13 @@ const WORLD_DEFAULT_AUDIO_ROUTES: Readonly<Record<CinematicWorldMode, readonly C
     route('machine-high-glyphs', 'highs', 'environmentBrightness', { amount: 0.46, attackMs: 26, releaseMs: 210 }),
   ],
   orbitalPrismArray: [
-    route('orbital-prism-energy-light', 'overallEnergy', 'environmentBrightness', { amount: 0.18, attackMs: 140, releaseMs: 520 }),
-    route('orbital-prism-phase-rotation', 'beatPhase', 'geometryRotation', { amount: 0.12, attackMs: 0, releaseMs: 0 }),
+    route('orbital-prism-bass-scale', 'bass', 'nodeScale', { amount: 0.82, attackMs: 45, releaseMs: 300, smoothingMs: 35, threshold: 0.04, responseCurve: 'easeOut' }),
+    route('orbital-prism-mid-orbit', 'mid', 'geometryRotation', { amount: 0.68, attackMs: 90, releaseMs: 380, smoothingMs: 70, threshold: 0.03, responseCurve: 'smoothstep' }),
+    route('orbital-prism-high-shards', 'highs', 'edgeBrightness', { amount: 0.72, attackMs: 24, releaseMs: 190, smoothingMs: 20, threshold: 0.04, responseCurve: 'easeOut' }),
+    route('orbital-prism-high-particles', 'highs', 'particleEmission', { amount: 0.58, attackMs: 28, releaseMs: 220, smoothingMs: 24, threshold: 0.05 }),
+    route('orbital-prism-beat-accent', 'beat', 'impact', { amount: 0.74, attackMs: 0, releaseMs: 150, beatHoldMs: 14, decayMs: 185 }),
+    route('orbital-prism-drop-expand', 'dropEntry', 'burstImpulse', { amount: 1, attackMs: 0, releaseMs: 520, beatHoldMs: 80, decayMs: 640 }),
+    route('orbital-prism-drop-bloom', 'dropEntry', 'bloom', { amount: 0.24, attackMs: 0, releaseMs: 420, beatHoldMs: 65, decayMs: 520 }),
   ],
   reactiveConstellation: [
     route('constellation-sub-breath', 'subBass', 'networkSpread', { amount: 0.34, attackMs: 150, releaseMs: 440, smoothingMs: 90, responseCurve: 'smoothstep', sectionScale: { intro: 0.55, build: 1.2, preDrop: 0.45, drop: 1.15, breakdown: 0.55, outro: 0.35 } }),
