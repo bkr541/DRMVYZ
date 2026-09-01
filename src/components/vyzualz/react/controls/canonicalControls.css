@@ -647,6 +647,13 @@
   font-size: 11px;
 }
 
+/* Same red as the dialog's own warning icon — used to call out a count
+   (e.g. "all 6 media items") inline within the otherwise muted message. */
+.dv-confirm-count-danger {
+  color: #e0687d;
+  font-weight: 700;
+}
+
 /* The standard NoticeCard is always left-aligned copy — override the
    dialog's centered text-align just for it so it renders as it does
    everywhere else in the app instead of centering its title/body too. */
