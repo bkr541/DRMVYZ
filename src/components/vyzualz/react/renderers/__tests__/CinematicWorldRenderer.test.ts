@@ -207,6 +207,7 @@ describe('CinematicWorldRendererRegistry', () => {
       'mirrorDimension',
       'ancientMachine',
       'stormGateway',
+      'electricStorm',
       'orbitalPrismArray',
       'reactiveConstellation',
     ])
@@ -260,6 +261,7 @@ describe('CinematicWorldRendererHost', () => {
       'mirrorDimension',
       'ancientMachine',
       'stormGateway',
+      'electricStorm',
       'orbitalPrismArray',
       'reactiveConstellation',
     ]
@@ -276,6 +278,7 @@ describe('CinematicWorldRendererHost', () => {
       'mirrorDimension',
       'ancientMachine',
       'stormGateway',
+      'electricStorm',
       'orbitalPrismArray',
       'reactiveConstellation',
     ])

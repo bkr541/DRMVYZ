@@ -315,6 +315,9 @@ describe('Cinema Cinematic World adapters', () => {
     harness.executor.setGraph({ composition, instance: null, definitions: state.definitions })
     expect(harness.executor.render(frame(0))).toBe(true)
     expect(harness.executor.render(frame(1))).toBe(true)
+    expect(vi.mocked(harness.gl.getUniformLocation).mock.calls.map(([, name]) => name)).toEqual(expect.arrayContaining([
+      'uStrikeStyle0', 'uStrikeStyle1', 'uStrikeStyle2',
+    ]))
     expect(harness.gl.__calls.drawCount).toBeGreaterThan(0)
     expect(harness.executor.getSnapshot().failedNodeCount).toBe(0)
     expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
