@@ -306,6 +306,47 @@ describe('CinematicWorldRendererHost', () => {
     expect(runtime.disposed).toBe(1)
   })
 
+  it('uploads background palette edits to every preset-backed fullscreen world shader', () => {
+    const worldIds = [
+      'eventHorizon',
+      'infiniteCorridor',
+      'fractureRift',
+      'mirrorDimension',
+      'ancientMachine',
+      'stormGateway',
+    ] as const
+
+    for (const worldId of worldIds) {
+      const program = {
+        activate: vi.fn(),
+        setVec2: vi.fn(),
+        setVec3: vi.fn(),
+        setVec4: vi.fn(),
+        setFloat: vi.fn(),
+        setInt: vi.fn(),
+        setMat4: vi.fn(),
+      }
+      const services = {
+        fullscreenPass: { run: vi.fn() },
+        compileProgram: vi.fn(() => program),
+      } as unknown as CinematicWebGLServices
+      const definition = cinematicWorldDefinitions.find(candidate => candidate.id === worldId)
+      expect(definition, worldId).toBeDefined()
+      const frame = makeWorldInput(worldId)
+      frame.preset = {
+        ...frame.preset,
+        palette: { ...frame.preset.palette, background: '#ff0000' },
+      }
+      const world = definition!.create()
+      world.initialize({ services, config: frame.config, presetId: frame.preset.id })
+      world.resize({ width: 640, height: 360, dpr: 1 })
+      world.render(frame, { framebuffer: null, texture: null, width: 640, height: 360 })
+
+      expect(program.setVec3, worldId).toHaveBeenCalledWith('uBackground', 1, 0, 0)
+      world.dispose()
+    }
+  })
+
   it('disposes fullscreen and geometry worlds without allowing released resources to draw again', () => {
     const program = {
       activate: vi.fn(),

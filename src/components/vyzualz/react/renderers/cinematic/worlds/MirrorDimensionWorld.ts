@@ -63,7 +63,7 @@ export const mirrorDimensionWorldDefinition: CinematicWebGLWorldDefinition = {
     backend: 'webgl2',
     cameraRigs: ['locked', 'orbit', 'autoDirector'],
     modulationTargets: ['depth', 'geometryRotation', 'feedback', 'distortion', 'chromaticAberration', 'environmentBrightness', 'bloom', 'impact'],
-    paletteRoles: ['primary', 'secondary', 'accent'],
+    paletteRoles: ['primary', 'secondary', 'accent', 'background'],
     supportsGeometryPasses: true,
     supportsFullscreenPasses: true,
     supportsTextureInputs: false,

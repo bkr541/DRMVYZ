@@ -67,7 +67,7 @@ export const infiniteCorridorWorldDefinition: CinematicWebGLWorldDefinition = {
     backend: 'webgl2',
     cameraRigs: ['dolly', 'flyThrough', 'handheld', 'autoDirector'],
     modulationTargets: ['depth', 'cameraPunch', 'cameraTravel', 'fogDensity', 'environmentBrightness', 'bloom', 'impact'],
-    paletteRoles: ['primary', 'secondary', 'accent'],
+    paletteRoles: ['primary', 'secondary', 'accent', 'background'],
     supportsGeometryPasses: true,
     supportsFullscreenPasses: true,
     supportsTextureInputs: false,

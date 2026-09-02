@@ -58,6 +58,7 @@ export abstract class FullscreenCinematicWorld implements CinematicWebGLWorldRen
   private primary: RgbColor = { r: 0.05, g: 0.86, b: 0.95 }
   private secondary: RgbColor = { r: 0.42, g: 0.16, b: 0.96 }
   private accent: RgbColor = { r: 1, g: 0.68, b: 0.22 }
+  private background: RgbColor = { r: 0.002, g: 0.004, b: 0.01 }
 
   protected constructor(
     private readonly worldId: CinematicWorldMode,
@@ -87,12 +88,13 @@ export abstract class FullscreenCinematicWorld implements CinematicWebGLWorldRen
     if (frame.beat.downbeat) this.downbeatAge = 0
     else this.downbeatAge = Math.min(8, this.downbeatAge + frame.deltaTimeSec)
 
-    const paletteKey = `${frame.preset.palette.primary}|${frame.preset.palette.secondary}|${frame.preset.palette.accent}`
+    const paletteKey = `${frame.preset.palette.primary}|${frame.preset.palette.secondary}|${frame.preset.palette.accent}|${frame.preset.palette.background}`
     if (paletteKey !== this.paletteKey) {
       this.paletteKey = paletteKey
       this.primary = parseHexColor(frame.preset.palette.primary, this.primary)
       this.secondary = parseHexColor(frame.preset.palette.secondary, this.secondary)
       this.accent = parseHexColor(frame.preset.palette.accent, this.accent)
+      this.background = parseHexColor(frame.preset.palette.background, this.background)
     }
     const musical = frame.musicalAudio?.values
     const drop = musical?.dropState ?? (frame.section.type === 'drop' ? 1 : 0)
@@ -134,6 +136,7 @@ export abstract class FullscreenCinematicWorld implements CinematicWebGLWorldRen
     this.program.setVec3('uPrimary', this.primary.r, this.primary.g, this.primary.b)
     this.program.setVec3('uSecondary', this.secondary.r, this.secondary.g, this.secondary.b)
     this.program.setVec3('uAccent', this.accent.r, this.accent.g, this.accent.b)
+    this.program.setVec3('uBackground', this.background.r, this.background.g, this.background.b)
     const camera = frame.camera
     this.program.setVec3(
       'uCameraPosition',

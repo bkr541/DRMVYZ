@@ -42,7 +42,7 @@ void main() {
   vec2 warped = p * (1.0 + lens * 0.12);
   warped += normalize(p + vec2(0.0001)) * sin(rawRadius * 22.0 - uTime * 1.7) * lens * 0.008;
 
-  vec3 color = vec3(0.0015, 0.0025, 0.008);
+  vec3 color = cinematicBackground(0.008);
   int maxLayers = int(mix(2.0, 7.0, uQuality / 3.0));
   for (int i = 0; i < 7; i++) {
     if (i >= maxLayers || float(i) >= uDepthLayers) break;
@@ -116,7 +116,7 @@ void main() {
   vec2 vanish = vec2(uVanishingOffset + sway, sin(uTime * 0.23) * uCameraSway * 0.28);
   vec2 ray = (p - vanish) / (1.0 + uBass * 0.055);
 
-  vec3 color = vec3(0.002, 0.004, 0.009);
+  vec3 color = cinematicBackground(0.009);
   float travel = uTransportTime * uTravelSpeed * 0.18 + uTime * uTravelSpeed * 0.035;
   int steps = int(mix(18.0, 48.0, uQuality / 3.0));
   float density = mix(0.45, 1.35, uCorridorDensity);
@@ -203,7 +203,7 @@ void main() {
   float opening = smoothstep(radius + 0.025, radius - 0.035, metric);
   float edge = smoothstep(0.050, 0.0, abs(metric - radius));
 
-  vec3 color = vec3(0.003, 0.004, 0.010);
+  vec3 color = cinematicBackground(0.010);
   vec2 innerUv = displaced / max(0.12, radius);
   innerUv *= 1.0 + uInnerDepth * (0.15 + length(innerUv) * 0.22);
   float innerPattern;

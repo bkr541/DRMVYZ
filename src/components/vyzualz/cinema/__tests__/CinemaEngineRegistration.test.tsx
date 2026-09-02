@@ -328,7 +328,7 @@ describe('Cinema production engine registration', () => {
     expect(host?.textContent).not.toContain('Camera resources (')
   })
 
-  it('shows semantic Background only for a consuming world and hot-applies it without rebuilding renderer resources', async () => {
+  it('shows semantic Background for Event Horizon and hot-applies it without rebuilding renderer resources', async () => {
     const gl = createCinemaMockWebGL()
     const callbacks = new Map<number, FrameRequestCallback>()
     let nextRaf = 1
@@ -357,25 +357,6 @@ describe('Cinema production engine registration', () => {
     expect(host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-swatch[aria-label="Primary"]')).not.toBeNull()
     expect(host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-swatch[aria-label="Secondary"]')).not.toBeNull()
     expect(host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-swatch[aria-label="Accent"]')).not.toBeNull()
-    expect(host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-swatch[aria-label="Background"]')).toBeNull()
-
-    const reactive = createCinemaCinematicWorldComposition(
-      'reactiveConstellation',
-      CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
-      CINEMA_FOUNDATION_INPUT_PORT_ID,
-    )
-    const reactiveNode = reactive.nodes.find(node => node.family === 'procedural')
-    expect(reactiveNode).toBeDefined()
-    const persisted = createCinemaFoundationPersistedState()
-    await act(async () => {
-      useCinemaStore.getState().hydrateCinemaState({
-        ...persisted,
-        compositions: [...persisted.compositions, reactive],
-      })
-      expect(useCinemaStore.getState().setActiveCinemaComposition(reactive.id).ok).toBe(true)
-      expect(useCinemaStore.getState().setCinemaEditorSelection(reactive.id, reactiveNode!.id).ok).toBe(true)
-    })
-
     const background = host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-swatch[aria-label="Background"]')
     expect(background).not.toBeNull()
     expect(host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-swatch[aria-label="Highlight"]')).toBeNull()
@@ -393,24 +374,23 @@ describe('Cinema production engine registration', () => {
     expect(gl.__calls.createdPrograms).toBe(programsBeforeEdit)
 
     const backgroundSchema = useCinemaStore.getState().definitions
-      .find(definition => definition.id === reactiveNode!.typeId)
+      .find(definition => definition.id === eventHorizonNode!.typeId)
       ?.definition.parameters.find(parameter => parameter.label === 'Background Color')
     const activeInstanceId = useCinemaStore.getState().activeInstanceId
     const activeInstance = useCinemaStore.getState().instances.find(instance => instance.id === activeInstanceId)
-    const reactiveOverride = activeInstance?.nodeOverrides.find(override => override.nodeId === reactiveNode!.id)
-    expect(backgroundSchema && reactiveOverride?.values[backgroundSchema.id]).toEqual([1, 0, 0, 1])
+    const eventHorizonOverride = activeInstance?.nodeOverrides.find(override => override.nodeId === eventHorizonNode!.id)
+    expect(backgroundSchema && eventHorizonOverride?.values[backgroundSchema.id]).toEqual([1, 0, 0, 1])
 
     const scheduled = [...callbacks.entries()][0]
     expect(scheduled).toBeDefined()
-    const clearCallsBeforeFrame = vi.mocked(gl.clearColor).mock.calls.length
+    const uniformCallsBeforeFrame = vi.mocked(gl.uniform3f).mock.calls.length
     callbacks.delete(scheduled[0])
     await act(async () => scheduled[1](16.67))
-    const newClearCalls = vi.mocked(gl.clearColor).mock.calls.slice(clearCallsBeforeFrame)
-    expect(newClearCalls.some(([red, green, blue, alpha]) => (
-      Math.abs(red - 0.055) < 0.0001
-      && Math.abs(green - 0.0015) < 0.0001
-      && Math.abs(blue - 0.0025) < 0.0001
-      && alpha === 1
+    const newUniformCalls = vi.mocked(gl.uniform3f).mock.calls.slice(uniformCallsBeforeFrame)
+    expect(newUniformCalls.some(([, red, green, blue]) => (
+      Math.abs(red - 1) < 0.0001
+      && Math.abs(green) < 0.0001
+      && Math.abs(blue) < 0.0001
     ))).toBe(true)
     expect(gl.__calls.createdPrograms).toBe(programsBeforeEdit)
   })

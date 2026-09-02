@@ -198,7 +198,7 @@ void main() {
 
   vec2 q = rotate2d(rotation) * p;
   q = mirrorFold(q, uSymmetryCount);
-  vec3 color = vec3(0.002, 0.003, 0.008);
+  vec3 color = cinematicBackground(0.008);
   float accumulated = 0.0;
 
   for (int i = 0; i < 8; i++) {
@@ -265,7 +265,7 @@ void main() {
   int gearBudget = int(mix(4.0, 14.0, qualityMix));
   int gears = int(min(uGearCount, float(gearBudget)));
 
-  vec3 color = vec3(0.0025, 0.003, 0.0045);
+  vec3 color = cinematicBackground(0.0045);
   float progression = uMechanicalProgress;
   float unlock = clamp(uUnlockState + uBass * uUnlockResponse * 0.10 + uDrop * 0.24, 0.0, 1.0);
   float baseRotation = uTime * uRotationSpeed * 0.35 + progression * 6.2831853;
@@ -361,7 +361,7 @@ void main() {
   vec2 vortexUv = vec2(cos(swirl), sin(swirl)) * radius;
   vortexUv += vec2(time * 0.16, -time * 0.09);
 
-  vec3 color = vec3(0.002, 0.004, 0.008);
+  vec3 color = cinematicBackground(0.008);
   float cloud = 0.0;
   float depthWeight = 0.0;
   for (int i = 0; i < 8; i++) {

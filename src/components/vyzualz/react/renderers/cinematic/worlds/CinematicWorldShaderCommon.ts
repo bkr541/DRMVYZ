@@ -22,6 +22,7 @@ export const CINEMATIC_WORLD_COMMON_UNIFORMS = [
   'uPrimary',
   'uSecondary',
   'uAccent',
+  'uBackground',
   'uCameraPosition',
   'uCameraRotation',
   'uCameraFieldOfView',
@@ -56,11 +57,18 @@ uniform vec4 uVariation;
 uniform vec3 uPrimary;
 uniform vec3 uSecondary;
 uniform vec3 uAccent;
+uniform vec3 uBackground;
 uniform vec3 uCameraPosition;
 uniform vec3 uCameraRotation;
 uniform float uCameraFieldOfView;
 uniform float uCameraRoute;
 uniform float uCameraAction;
+
+vec3 cinematicBackground(float peak) {
+  float maxChannel = max(max(uBackground.r, uBackground.g), max(uBackground.b, 0.0001));
+  float scale = min(1.0, peak / maxChannel);
+  return uBackground * scale;
+}
 
 float hash11(float p) {
   return fract(sin(p * 127.1 + uSeed * 0.0137) * 43758.5453123);
