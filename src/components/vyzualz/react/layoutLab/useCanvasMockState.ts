@@ -116,6 +116,17 @@ export interface CanvasMockAudioIntelligenceParameter {
   label: string
 }
 
+/** One Audio Intelligence parameter routed to an effect, plus the master
+ * intensity (0..1) for that specific effect + parameter combination. An
+ * effect can carry several of these at once. UI groundwork only — Layout Lab
+ * runs no audio analysis or modulation behind it. */
+export interface CanvasMockEffectAudioRoute {
+  parameterId: CanvasMockAudioIntelligenceParameterId
+  intensity: number
+}
+
+export const DEFAULT_CANVAS_ROUTE_INTENSITY = 0.6
+
 export const CANVAS_AUDIO_INTELLIGENCE_PARAMETERS: CanvasMockAudioIntelligenceParameter[] = [
   { id: 'kick', label: 'Kick' },
   { id: 'snare', label: 'Snare' },
@@ -157,7 +168,7 @@ export interface CanvasMockState {
   engineSettings: CanvasEngineSettings
   orchestration: CanvasMockOrchestrationSettings
   addEffectsLayers: CanvasMockAddEffectsLayer[]
-  effectAudioLinks: Record<string, CanvasMockAudioIntelligenceParameterId>
+  effectAudioLinks: Record<string, CanvasMockEffectAudioRoute[]>
   activePoolMedia: CanvasMockMediaItem | null
   presets: CanvasMockPreset[]
   activePresetId: CanvasPresetId
@@ -198,8 +209,10 @@ export interface CanvasMockState {
   addCanvasLayerEffect: (mediaId: string, effectId: CanvasLayerEffectId) => void
   setCanvasLayerEffect: (mediaId: string, effectIndex: number, effectId: CanvasLayerEffectId) => void
   removeCanvasLayerEffectAt: (mediaId: string, effectIndex: number) => void
-  setEffectAudioLink: (mediaId: string, effectId: CanvasLayerEffectId, parameterId: CanvasMockAudioIntelligenceParameterId) => void
-  unlinkEffectAudioParameter: (mediaId: string, effectId: CanvasLayerEffectId) => void
+  addEffectAudioParameter: (mediaId: string, effectId: CanvasLayerEffectId, parameterId: CanvasMockAudioIntelligenceParameterId) => void
+  removeEffectAudioParameter: (mediaId: string, effectId: CanvasLayerEffectId, parameterId: CanvasMockAudioIntelligenceParameterId) => void
+  setEffectAudioParameterIntensity: (mediaId: string, effectId: CanvasLayerEffectId, parameterId: CanvasMockAudioIntelligenceParameterId, intensity: number) => void
+  clearEffectAudioParameters: (mediaId: string, effectId: CanvasLayerEffectId) => void
   resetOrchestration: () => void
   updatePresetSettings: (patch: Partial<CanvasPresetSettings>) => void
   resetPresetSettings: () => void
@@ -304,7 +317,7 @@ export function useCanvasMockState(): CanvasMockState {
   const [engineSettings, setEngineSettings] = useState<CanvasEngineSettings>({ ...DEFAULT_CANVAS_ENGINE_SETTINGS })
   const [orchestration, setOrchestration] = useState<CanvasMockOrchestrationSettings>(DEFAULT_ORCHESTRATION)
   const [layerEffectsByMediaId, setLayerEffectsByMediaId] = useState<Record<string, CanvasLayerEffectId[]>>({})
-  const [effectAudioLinks, setEffectAudioLinks] = useState<Record<string, CanvasMockAudioIntelligenceParameterId>>({})
+  const [effectAudioLinks, setEffectAudioLinks] = useState<Record<string, CanvasMockEffectAudioRoute[]>>({})
   const [activePoolMediaId, setActivePoolMediaId] = useState<string | null>(INITIAL_MEDIA[0].id)
   const [activePresetId, setActivePresetId] = useState<CanvasPresetId>('canvas-clean-playback')
   const [favoritePresetIds, setFavoritePresetIds] = useState<CanvasPresetId[]>(['canvas-particle-aura'])
@@ -396,7 +409,7 @@ export function useCanvasMockState(): CanvasMockState {
     })
     setEffectAudioLinks(current => Object.fromEntries(
       Object.entries(current).filter(([key]) => !key.startsWith(`${id}:`)),
-    ) as Record<string, CanvasMockAudioIntelligenceParameterId>)
+    ) as Record<string, CanvasMockEffectAudioRoute[]>)
     setMediaNotice('The sample item was removed from Layout Lab only.')
   }
 
@@ -533,12 +546,46 @@ export function useCanvasMockState(): CanvasMockState {
     })
   }
 
-  const setEffectAudioLink = (mediaId: string, effectId: CanvasLayerEffectId, parameterId: CanvasMockAudioIntelligenceParameterId) => {
+  const addEffectAudioParameter = (mediaId: string, effectId: CanvasLayerEffectId, parameterId: CanvasMockAudioIntelligenceParameterId) => {
     const key = canvasEffectAudioLinkKey(mediaId, effectId)
-    setEffectAudioLinks(current => ({ ...current, [key]: parameterId }))
+    setEffectAudioLinks(current => {
+      const existing = current[key] ?? []
+      if (existing.some(route => route.parameterId === parameterId)) return current
+      return { ...current, [key]: [...existing, { parameterId, intensity: DEFAULT_CANVAS_ROUTE_INTENSITY }] }
+    })
   }
 
-  const unlinkEffectAudioParameter = (mediaId: string, effectId: CanvasLayerEffectId) => {
+  const removeEffectAudioParameter = (mediaId: string, effectId: CanvasLayerEffectId, parameterId: CanvasMockAudioIntelligenceParameterId) => {
+    const key = canvasEffectAudioLinkKey(mediaId, effectId)
+    setEffectAudioLinks(current => {
+      const existing = current[key]
+      if (!existing) return current
+      const next = existing.filter(route => route.parameterId !== parameterId)
+      const copy = { ...current }
+      if (next.length > 0) copy[key] = next
+      else delete copy[key]
+      return copy
+    })
+  }
+
+  const setEffectAudioParameterIntensity = (
+    mediaId: string,
+    effectId: CanvasLayerEffectId,
+    parameterId: CanvasMockAudioIntelligenceParameterId,
+    intensity: number,
+  ) => {
+    const key = canvasEffectAudioLinkKey(mediaId, effectId)
+    setEffectAudioLinks(current => {
+      const existing = current[key]
+      if (!existing) return current
+      return {
+        ...current,
+        [key]: existing.map(route => route.parameterId === parameterId ? { ...route, intensity } : route),
+      }
+    })
+  }
+
+  const clearEffectAudioParameters = (mediaId: string, effectId: CanvasLayerEffectId) => {
     const key = canvasEffectAudioLinkKey(mediaId, effectId)
     setEffectAudioLinks(current => {
       if (!(key in current)) return current
@@ -560,7 +607,7 @@ export function useCanvasMockState(): CanvasMockState {
     // Swapping an effect's type invalidates any Audio Intelligence link the
     // previous effect at this slot had — the link key is keyed by effect
     // type, so it would otherwise point at an effect no longer configured.
-    if (previousEffectId && previousEffectId !== effectId) unlinkEffectAudioParameter(mediaId, previousEffectId)
+    if (previousEffectId && previousEffectId !== effectId) clearEffectAudioParameters(mediaId, previousEffectId)
   }
 
   const removeCanvasLayerEffectAt = (mediaId: string, effectIndex: number) => {
@@ -570,7 +617,7 @@ export function useCanvasMockState(): CanvasMockState {
       if (effectIndex < 0 || effectIndex >= existing.length) return current
       return { ...current, [mediaId]: existing.filter((_, index) => index !== effectIndex) }
     })
-    if (removedEffectId) unlinkEffectAudioParameter(mediaId, removedEffectId)
+    if (removedEffectId) clearEffectAudioParameters(mediaId, removedEffectId)
   }
 
   const resetOrchestration = () => {
@@ -689,8 +736,10 @@ export function useCanvasMockState(): CanvasMockState {
     addCanvasLayerEffect,
     setCanvasLayerEffect,
     removeCanvasLayerEffectAt,
-    setEffectAudioLink,
-    unlinkEffectAudioParameter,
+    addEffectAudioParameter,
+    removeEffectAudioParameter,
+    setEffectAudioParameterIntensity,
+    clearEffectAudioParameters,
     resetOrchestration,
     updatePresetSettings,
     resetPresetSettings,

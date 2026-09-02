@@ -117,7 +117,6 @@ const REQUIRED_LABELS = [
   'Downbeat',
   'Section Change',
   'Add Effects — Floating Route Orb',
-  'Add Effects — Outline Glow',
   'Add Effects — Connector Line',
   'Add Effects — Highlight Wash',
   '+ Route',
