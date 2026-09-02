@@ -21,6 +21,7 @@ type WithViewport<T> = T & { viewport?: TrackTimelineViewport }
 export type TrackTimelineCanvasSpec =
   | WithViewport<{ kind: 'waveform' }>
   | WithViewport<{ kind: 'beatGrid' }>
+  | WithViewport<{ kind: 'timeRuler' }>
   | WithViewport<{ kind: 'detailRuler' }>
   | WithViewport<{ kind: 'sections'; sections: TrackTimelineSection[] }>
   | WithViewport<{ kind: 'line'; points: TrackTimelinePoint[]; color: PaletteKey; curveName: string; fill: boolean }>
@@ -205,6 +206,9 @@ export function drawTrackTimelineCanvas(
     case 'beatGrid':
       drawBeatGrid(draw)
       break
+    case 'timeRuler':
+      drawTimeRuler(draw)
+      break
     case 'detailRuler':
       drawDetailRuler(draw)
       break
@@ -326,7 +330,6 @@ function drawWaveform(draw: DrawContext) {
     }
   })
 
-  drawTimeLabels(draw, 11)
   hits.push({
     x1: 0,
     x2: width,
@@ -585,9 +588,46 @@ function drawTimeLabels(draw: DrawContext, y: number) {
   ctx.textBaseline = 'alphabetic'
 }
 
+// Dedicated time row — a 1:1 port of drawTimelineRuler in ReactTrackMapStrip:
+// a flat dark strip (no grid, no horizontal rules), six even divisions, 10px
+// system font, faint cyan 5px ticks anchored to the bottom edge, non-padded
+// M:SS labels vertically centered, first/last labels aligned to the edges.
+function drawTimeRuler(draw: DrawContext) {
+  const { ctx, width, height, viewport } = draw
+  ctx.fillStyle = 'rgba(4, 10, 15, 0.9)'
+  ctx.fillRect(0, 0, width, height)
+
+  const span = viewport.endSec - viewport.startSec
+  if (!(span > 0) || width <= 0 || height <= 0) return
+
+  ctx.font = TRACK_MAP_RULER_FONT
+  ctx.fillStyle = TRACK_MAP_RULER_TEXT
+  ctx.strokeStyle = TRACK_MAP_RULER_LINE
+  ctx.lineWidth = 1
+  ctx.textBaseline = 'middle'
+
+  const count = Math.max(2, Math.floor(TRACK_MAP_RULER_DIVISIONS))
+  for (let i = 0; i <= count; i += 1) {
+    const ratio = i / count
+    const x = Math.round(ratio * width) + 0.5
+    ctx.beginPath()
+    ctx.moveTo(x, height - 5)
+    ctx.lineTo(x, height)
+    ctx.stroke()
+
+    ctx.textAlign = i === 0 ? 'left' : i === count ? 'right' : 'center'
+    ctx.fillText(formatRulerTime(viewport.startSec + ratio * span), clamp(x, 1, width - 1), height / 2)
+  }
+  ctx.textAlign = 'start'
+  ctx.textBaseline = 'alphabetic'
+}
+
 function drawSections(draw: DrawContext, sections: TrackTimelineSection[]) {
-  const { ctx, width, height, fonts, hits, viewport } = draw
-  drawBackground(draw)
+  const { ctx, width, height, palette, fonts, hits, viewport } = draw
+  // Flat fill only — no drawBackground horizontal rules (RTM's section lane
+  // has none, and one landed exactly between the label and the colour pill).
+  ctx.fillStyle = palette.background
+  ctx.fillRect(0, 0, width, height)
   if (!sections.length) {
     drawCenteredMessage(draw, 'Section data unavailable')
     return
@@ -595,9 +635,11 @@ function drawSections(draw: DrawContext, sections: TrackTimelineSection[]) {
 
   // React Track Map section treatment: no region fill and no divider — a
   // centered glowing UPPERCASE label sitting over a thin rounded colour pill
-  // that spans the section's range.
+  // that spans the section's range. Bar bottom-anchored (RTM top:25 of 38 =
+  // height − 13); label centered in the space above it.
   const barH = 5
-  const barY = Math.min(25, height - barH - 1)
+  const barY = height - 13
+  const labelY = Math.round((height - 13) / 2)
 
   sections.forEach(section => {
     if (!overlapsViewport(section.start, section.end, viewport)) return
@@ -627,7 +669,7 @@ function drawSections(draw: DrawContext, sections: TrackTimelineSection[]) {
       ctx.shadowBlur = 7
       ctx.fillStyle = color
       const label = fitText(ctx, String(section.label || section.type || 'Section').toUpperCase(), available)
-      ctx.fillText(label, (x1 + x2) / 2, 10)
+      ctx.fillText(label, (x1 + x2) / 2, labelY)
       ctx.restore()
     }
 

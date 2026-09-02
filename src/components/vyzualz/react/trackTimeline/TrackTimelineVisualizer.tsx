@@ -966,13 +966,18 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                 />
                 <OverviewTimelineRow
                   model={model}
-                  height={38}
+                  height={48}
                   spec={{ kind: 'sections', sections: model.sections }}
                 />
                 <OverviewTimelineRow
                   model={model}
                   height={72}
                   spec={{ kind: 'waveform' }}
+                />
+                <OverviewTimelineRow
+                  model={model}
+                  height={26}
+                  spec={{ kind: 'timeRuler' }}
                 />
                 <OverviewViewportNavigator
                   viewport={viewport}
