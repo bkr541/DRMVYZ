@@ -18,6 +18,7 @@ import type {
 import {
   getCueIssues,
   LOW_LYRIC_CONFIDENCE,
+  normalizeLyricCueTiming,
   retainLyricGroupsForWords,
   validateWordTiming,
 } from './lyricCueEditorModel'
@@ -177,9 +178,27 @@ function WordTimingEditor({
         <strong>Word timing</strong>
         {invalidWords.length > 0 && (
           <IconChipButton
-            onClick={() => commitWords(words.map(word => invalidIds.has(word.id)
-              ? { ...word, startMs: undefined, endMs: undefined }
-              : word))}
+            onClick={() => {
+              // Drop the malformed timing, then route through canonical repair
+              // so the word ends re-timed inside a valid cue rather than left
+              // indefinitely untimed. Preserves lyric text and stays a single
+              // undo entry.
+              const cleared: LyricCue = {
+                ...cue,
+                words: words.map(word => invalidIds.has(word.id)
+                  ? { ...word, startMs: undefined, endMs: undefined }
+                  : word),
+              }
+              const repaired = normalizeLyricCueTiming([cleared]).cues[0] ?? cleared
+              const nextWords = repaired.words ?? []
+              const groups = retainLyricGroupsForWords(cue.groups, nextWords)
+              onUpdateCue(cue.id, {
+                words: nextWords.length ? nextWords : undefined,
+                groups: groups?.length ? groups : undefined,
+                startMs: repaired.startMs,
+                endMs: repaired.endMs,
+              })
+            }}
           >
             Remove invalid timing
           </IconChipButton>

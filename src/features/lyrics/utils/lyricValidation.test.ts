@@ -65,15 +65,15 @@ describe('validateLyricCues structured issue navigation', () => {
     expect(validateLyricCues([malformed]).valid).toBe(true)
   })
 
-  it('treats explicitly cleared word timing as a warning rather than invalid bounds', () => {
+  it('flags an untimed word as an error — a canonical document must carry no untimed words', () => {
     const result = validateLyricCues([
       cue({ words: [{ id: 'word-1', text: 'Hold' }] }),
     ])
 
-    expect(result.valid).toBe(true)
+    expect(result.valid).toBe(false)
     expect(result.issues).toContainEqual(expect.objectContaining({
       code: 'missing_word_timing',
-      severity: 'warning',
+      severity: 'error',
       wordId: 'word-1',
     }))
     expect(result.issues.some(issue => issue.code === 'invalid_word_bounds')).toBe(false)

@@ -27,7 +27,7 @@ describe('canonical lyric millisecond imports', () => {
     expect(imported.cues[0].words?.[0]).toMatchObject({ startMs: 100, endMs: 451 })
   })
 
-  it('drops malformed words and marks the cue for review instead of importing unsafe timing', () => {
+  it('keeps a malformed word and normalizes it to valid timing instead of dropping lyric text', () => {
     const [cue] = parseLyricCueJson(JSON.stringify([{
       startMs: 0,
       endMs: 1_000,
@@ -38,8 +38,19 @@ describe('canonical lyric millisecond imports', () => {
       ],
     }]))
 
-    expect(cue.words).toHaveLength(1)
-    expect(cue.warnings).toContain('missing_word_timing')
+    // No lyric text is lost, order is preserved, and every word ends validly
+    // timed and inside the cue.
+    expect(cue.words?.map(word => word.text)).toEqual(['Review', 'missing end'])
+    for (const word of cue.words ?? []) {
+      expect(Number.isFinite(word.startMs)).toBe(true)
+      expect(Number.isFinite(word.endMs)).toBe(true)
+      expect(word.endMs as number).toBeGreaterThan(word.startMs as number)
+      expect(word.startMs as number).toBeGreaterThanOrEqual(cue.startMs)
+      expect(word.endMs as number).toBeLessThanOrEqual(cue.endMs)
+    }
+    // The repaired word starts where the prior word ended.
+    expect(cue.words?.[1]).toMatchObject({ startMs: 400 })
+    expect(cue.warnings ?? []).not.toContain('missing_word_timing')
   })
 
   it('sanitizes imported groups and drops unusable group entries', () => {

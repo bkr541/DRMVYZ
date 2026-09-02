@@ -134,7 +134,10 @@ export function validateLyricCues(cues: LyricCue[]): LyricValidationResult {
         const explicitlyUntimed = word.startMs === undefined && word.endMs === undefined
         const hasUsableTiming = hasUsableLyricWordTiming(word)
         if (explicitlyUntimed) {
-          issues.push(makeIssue('warning', 'missing_word_timing', `Cue ${idx}, word ${wi + 1}: timing is missing`, cue, i, word.id, wi))
+          // A canonical document must carry no untimed words — normalization
+          // repairs them at every ingestion boundary, so any that survive
+          // here mean the invariant was bypassed.
+          issues.push(makeIssue('error', 'missing_word_timing', `Cue ${idx}, word ${wi + 1}: timing is missing`, cue, i, word.id, wi))
         } else if (!hasUsableTiming) {
           issues.push(makeIssue('error', 'invalid_word_bounds', `Cue ${idx}, word ${wi + 1}: timing is invalid`, cue, i, word.id, wi))
         }

@@ -237,7 +237,7 @@ describe('LyricCueEditor selection synchronization', () => {
     expect(useLyricsStore.getState().cueHistoryPast).toHaveLength(2)
   })
 
-  it('removes invalid timing without deleting the word or its group membership and allows retiming', async () => {
+  it('repairs invalid timing in place — keeps the word, its group, and gives it valid timing, and still allows retiming', async () => {
     useLyricsStore.setState({
       cues: [{
         id: 'cue-1',
@@ -280,10 +280,14 @@ describe('LyricCueEditor selection synchronization', () => {
       warnings: ['needs_review'],
       analysisMetadata: { token: 'preserve' },
     })
-    expect(cleared.words?.[0].startMs).toBeUndefined()
-    expect(cleared.words?.[0].endMs).toBeUndefined()
+    // The word is left with valid forward timing inside the cue, not untimed.
+    const repairedWord = cleared.words![0]
+    expect(Number.isFinite(repairedWord.startMs)).toBe(true)
+    expect(Number.isFinite(repairedWord.endMs)).toBe(true)
+    expect(repairedWord.endMs as number).toBeGreaterThan(repairedWord.startMs as number)
+    expect(repairedWord.startMs as number).toBeGreaterThanOrEqual(cleared.startMs)
+    expect(repairedWord.endMs as number).toBeLessThanOrEqual(cleared.endMs)
     expect(cleared.groups).toEqual([{ id: 'group-1', wordIds: ['word-1'] }])
-    expect(container.querySelector('[data-testid="lyric-word-word-1"]')).toBeNull()
 
     const startInput = container.querySelector<HTMLInputElement>('[aria-label="Word 1 start milliseconds"]')!
     const endInput = container.querySelector<HTMLInputElement>('[aria-label="Word 1 end milliseconds"]')!

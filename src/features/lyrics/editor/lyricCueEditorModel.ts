@@ -12,6 +12,15 @@ export const MIN_LYRIC_CUE_DURATION_MS = 1
 export const DEFAULT_NEW_CUE_DURATION_MS = 2_000
 export const LOW_LYRIC_CONFIDENCE = 0.7
 
+/**
+ * Deterministic width for a repaired word that has no bounded gap to
+ * interpolate into (a one-sided neighbour, or a degenerate gap). Consecutive
+ * repaired words chain off each other, so they still get ordered,
+ * non-identical ranges. Kept small so an appended repair rarely needs to push
+ * the destination cue's bounds outward by much.
+ */
+export const GENERATED_WORD_MIN_DURATION_MS = 60
+
 export type LyricSnapMode =
   | 'none'
   | 'millisecond'
@@ -312,7 +321,7 @@ export function getCueIssues(
     })
   }
 
-  const { invalidWords } = validateWordTiming(cue)
+  const { invalidWords, untimedWords } = validateWordTiming(cue)
   for (const word of invalidWords) {
     const timingFinite = hasUsableLyricWordTiming(word)
     issues.push({
@@ -320,6 +329,17 @@ export function getCueIssues(
       cueId: cue.id,
       wordId: word.id,
       message: timingFinite ? `Word “${word.text}” falls outside the cue.` : `Word “${word.text}” has invalid timing.`,
+    })
+  }
+  // Untimed words are a repair-required state, not a healthy one — surface
+  // them with the same code so a bypassed/legacy document never validates as
+  // clean while carrying words that normalization should have retimed.
+  for (const word of untimedWords) {
+    issues.push({
+      code: 'invalid_word_timing',
+      cueId: cue.id,
+      wordId: word.id,
+      message: `Word “${word.text}” has no timing.`,
     })
   }
   return issues
@@ -376,37 +396,53 @@ export function splitCue(
   if (point <= cue.startMs || point >= cue.endMs) return null
 
   const words = cue.words ?? []
+  const tokens = cue.text.trim().split(/\s+/)
+
+  const timedWordSide = (word: LyricWord & { startMs: number; endMs: number }): 'left' | 'right' => {
+    if (word.endMs <= point) return 'left'
+    if (word.startMs >= point) return 'right'
+    const midpoint = word.startMs + (word.endMs - word.startMs) / 2
+    return midpoint <= point ? 'left' : 'right'
+  }
+
+  // Text split still follows how many usable-timed words land on the left.
+  let leftTimedCount = 0
+  for (const word of words) {
+    if (hasUsableLyricWordTiming(word) && timedWordSide(word) === 'left') leftTimedCount += 1
+  }
+  const textSplit = Math.max(1, Math.min(tokens.length - 1, leftTimedCount || Math.ceil(tokens.length / 2)))
+
+  // Words that carry no usable timing are assigned by their stable source
+  // order against the same proportional boundary — never all dumped left —
+  // then given real timing by normalization below.
+  const untimedBoundary = tokens.length > 1
+    ? Math.round(words.length * (textSplit / tokens.length))
+    : Math.ceil(words.length / 2)
+
   const leftWords: LyricWord[] = []
   const rightWords: LyricWord[] = []
-  for (const word of words) {
+  words.forEach((word, index) => {
     if (!hasUsableLyricWordTiming(word)) {
-      leftWords.push({ ...word })
-      continue
+      ;(index < untimedBoundary ? leftWords : rightWords).push({ ...word })
+      return
     }
-    if (word.endMs <= point) {
-      leftWords.push({ ...word })
-    } else if (word.startMs >= point) {
-      rightWords.push({ ...word })
-    } else {
-      const midpoint = word.startMs + (word.endMs - word.startMs) / 2
-      if (midpoint <= point) {
-        leftWords.push({ ...word, endMs: point })
-      } else {
-        rightWords.push({ ...word, startMs: point })
-      }
-    }
-  }
-  const tokens = cue.text.trim().split(/\s+/)
-  const textSplit = Math.max(1, Math.min(tokens.length - 1, leftWords.length || Math.ceil(tokens.length / 2)))
+    const side = timedWordSide(word)
+    if (side === 'left') leftWords.push(word.endMs <= point ? { ...word } : { ...word, endMs: point })
+    else rightWords.push(word.startMs >= point ? { ...word } : { ...word, startMs: point })
+  })
+
   const leftText = tokens.length > 1 ? tokens.slice(0, textSplit).join(' ') : cue.text
   const rightText = tokens.length > 1 ? tokens.slice(textSplit).join(' ') : cue.text
   const left = cloneWithId(cue, leftId, leftWords)
   const right = cloneWithId(cue, rightId, rightWords)
 
-  return [
+  const pair: [LyricCue, LyricCue] = [
     { ...left, endMs: point, text: leftText },
     { ...right, startMs: point, text: rightText },
   ]
+  return hasRepairableWordTiming(pair)
+    ? (normalizeLyricCueTiming(pair).cues as [LyricCue, LyricCue])
+    : pair
 }
 
 export function mergeCues(primary: LyricCue, secondary: LyricCue, id = primary.id): LyricCue {
@@ -495,6 +531,205 @@ export function isIntentionalCueOverlap(
     || cue.analysisMetadata?.vocalRole === 'adlib'
     || cue.analysisMetadata?.vocalRole === 'double'
     || cue.analysisMetadata?.allowOverlap === true
+}
+
+// ── Canonical word-timing normalization ──────────────────────────────────────
+//
+// A usable Lyric Manager document contains no untimed words and no invalid
+// word timing. When extraction / import / legacy load / editor recovery
+// produces a word without usable timing, it is rolled into the nearest
+// eligible cue (ties → left / prior), given deterministic generated timing,
+// and the destination cue's bounds are expanded to contain it. This is the
+// single deterministic repair used at every canonical ingestion boundary.
+
+export interface LyricTimingNormalizationResult {
+  cues: LyricCue[]
+  /** Words that received freshly generated timing. */
+  repairedWordCount: number
+  /** Words that changed cue ownership as part of the repair. */
+  movedWordCount: number
+  /**
+   * True when the document has lyric words but no usable cue timing or timed
+   * word anywhere to anchor a repair against. Callers must surface this
+   * through the existing validation/error path — text is never discarded.
+   */
+  unrepairable: boolean
+}
+
+/** Fast check so healthy documents skip the full normalization pass. */
+export function hasRepairableWordTiming(cues: readonly LyricCue[]): boolean {
+  return cues.some(cue => (cue.words ?? []).some(word => !hasUsableLyricWordTiming(word)))
+}
+
+function cueBoundsEligible(cue: LyricCue | undefined): boolean {
+  return !!cue
+    && Number.isFinite(cue.startMs)
+    && Number.isFinite(cue.endMs)
+    && cue.endMs > cue.startMs
+}
+
+export function normalizeLyricCueTiming(
+  cues: readonly LyricCue[],
+  trackDurationMs?: number | null,
+): LyricTimingNormalizationResult {
+  const work: LyricCue[] = cues.map(cue => ({
+    ...cue,
+    words: cue.words ? cue.words.map(word => ({ ...word })) : undefined,
+    groups: cue.groups ? cue.groups.map(group => ({ ...group })) : undefined,
+  }))
+
+  if (!hasRepairableWordTiming(work)) {
+    return { cues: work, repairedWordCount: 0, movedWordCount: 0, unrepairable: false }
+  }
+
+  // Pass 1 — expand every cue's bounds around its own usable-timed words so a
+  // cue that carries any valid word becomes an eligible destination.
+  for (const cue of work) {
+    for (const word of cue.words ?? []) {
+      if (!hasUsableLyricWordTiming(word)) continue
+      cue.startMs = Number.isFinite(cue.startMs) ? Math.min(cue.startMs, word.startMs) : word.startMs
+      cue.endMs = Number.isFinite(cue.endMs) ? Math.max(cue.endMs, word.endMs) : word.endMs
+    }
+  }
+
+  const anyEligibleCue = work.some(cueBoundsEligible)
+  const anyTimedWord = work.some(cue => (cue.words ?? []).some(hasUsableLyricWordTiming))
+  if (!anyEligibleCue && !anyTimedWord) {
+    return { cues: work, repairedWordCount: 0, movedWordCount: 0, unrepairable: true }
+  }
+
+  // Document-order positions of usable-timed words — the deterministic context
+  // used to pick a side for a word that carries no finite anchor at all.
+  const timedWordPositions: number[] = []
+  {
+    let position = 0
+    for (const cue of work) {
+      for (const word of cue.words ?? []) {
+        if (hasUsableLyricWordTiming(word)) timedWordPositions.push(position)
+        position += 1
+      }
+    }
+  }
+
+  interface RepairTarget { cueIndex: number; wordId: string; anchorMs: number | null; position: number }
+  const targets: RepairTarget[] = []
+  {
+    let position = 0
+    work.forEach((cue, cueIndex) => {
+      for (const word of cue.words ?? []) {
+        if (!hasUsableLyricWordTiming(word)) {
+          const anchorMs = Number.isFinite(word.startMs as number)
+            ? (word.startMs as number)
+            : Number.isFinite(word.endMs as number)
+              ? (word.endMs as number)
+              : null
+          targets.push({ cueIndex, wordId: word.id, anchorMs, position })
+        }
+        position += 1
+      }
+    })
+  }
+
+  const nearestEligibleCue = (fromIndex: number, direction: -1 | 1): number | null => {
+    for (let index = fromIndex; index >= 0 && index < work.length; index += direction) {
+      if (cueBoundsEligible(work[index])) return index
+    }
+    return null
+  }
+
+  let repairedWordCount = 0
+  let movedWordCount = 0
+
+  for (const target of targets) {
+    const sourceIndex = target.cueIndex
+    const sourceCue = work[sourceIndex]
+    const wordIndex = (sourceCue.words ?? []).findIndex(candidate => candidate.id === target.wordId)
+    if (wordIndex < 0) continue
+    const word = sourceCue.words![wordIndex]
+
+    const leftCue = nearestEligibleCue(sourceIndex, -1)
+    const rightCue = nearestEligibleCue(sourceIndex, 1)
+
+    let destIndex: number
+    if (leftCue === sourceIndex || rightCue === sourceIndex) {
+      destIndex = sourceIndex
+    } else if (leftCue === null && rightCue === null) {
+      destIndex = sourceIndex
+    } else if (leftCue === null) {
+      destIndex = rightCue!
+    } else if (rightCue === null) {
+      destIndex = leftCue
+    } else {
+      let distanceLeft: number
+      let distanceRight: number
+      if (target.anchorMs !== null) {
+        distanceLeft = Math.abs(target.anchorMs - work[leftCue].endMs)
+        distanceRight = Math.abs(target.anchorMs - work[rightCue].startMs)
+      } else {
+        const leftContext = timedWordPositions.filter(position => position < target.position).pop()
+        const rightContext = timedWordPositions.find(position => position > target.position)
+        distanceLeft = leftContext === undefined ? Number.POSITIVE_INFINITY : target.position - leftContext
+        distanceRight = rightContext === undefined ? Number.POSITIVE_INFINITY : rightContext - target.position
+      }
+      // Ties, ambiguity, or "no provable side" all resolve to the left / prior cue.
+      destIndex = distanceLeft <= distanceRight ? leftCue : rightCue
+    }
+
+    sourceCue.words!.splice(wordIndex, 1)
+    if (sourceCue.words!.length === 0) sourceCue.words = undefined
+
+    const destCue = work[destIndex]
+    if (!destCue.words) destCue.words = []
+    const insertAt = destIndex === sourceIndex
+      ? Math.min(wordIndex, destCue.words.length)
+      : destIndex < sourceIndex
+        ? destCue.words.length
+        : 0
+    destCue.words.splice(insertAt, 0, word)
+    if (destIndex !== sourceIndex) {
+      movedWordCount += 1
+      // Ownership changed: the source cue's groups stop referencing this word.
+      // A word retimed inside its own cue keeps its group membership.
+      sourceCue.groups = retainLyricGroupsForWords(sourceCue.groups, sourceCue.words ?? [])
+    }
+
+    // Generate timing between the nearest usable-timed neighbours in the
+    // destination cue. Consecutive repairs chain off each other.
+    const placedIndex = destCue.words.findIndex(candidate => candidate.id === word.id)
+    let previousEndMs: number | null = null
+    for (let index = placedIndex - 1; index >= 0; index -= 1) {
+      const neighbour = destCue.words[index]
+      if (hasUsableLyricWordTiming(neighbour)) { previousEndMs = neighbour.endMs; break }
+    }
+    let nextStartMs: number | null = null
+    for (let index = placedIndex + 1; index < destCue.words.length; index += 1) {
+      const neighbour = destCue.words[index]
+      if (hasUsableLyricWordTiming(neighbour)) { nextStartMs = neighbour.startMs; break }
+    }
+    const lowerMs = previousEndMs ?? (Number.isFinite(destCue.startMs) ? destCue.startMs : 0)
+    const upperMs = nextStartMs ?? (Number.isFinite(destCue.endMs)
+      ? destCue.endMs
+      : lowerMs + GENERATED_WORD_MIN_DURATION_MS)
+
+    let startMs = Math.round(lowerMs)
+    let endMs: number
+    const gapMs = upperMs - lowerMs
+    if (nextStartMs !== null && gapMs >= 2 * MIN_LYRIC_CUE_DURATION_MS) {
+      endMs = Math.round(lowerMs + Math.min(GENERATED_WORD_MIN_DURATION_MS, Math.max(MIN_LYRIC_CUE_DURATION_MS, gapMs / 2)))
+    } else {
+      endMs = startMs + GENERATED_WORD_MIN_DURATION_MS
+    }
+    if (endMs <= startMs) endMs = startMs + MIN_LYRIC_CUE_DURATION_MS
+    word.startMs = startMs
+    word.endMs = endMs
+    repairedWordCount += 1
+
+    destCue.startMs = Math.min(Number.isFinite(destCue.startMs) ? destCue.startMs : startMs, startMs)
+    destCue.endMs = Math.max(Number.isFinite(destCue.endMs) ? destCue.endMs : endMs, endMs)
+  }
+
+  const normalized = work.map(cue => ({ ...cue, ...normalizeCueBounds(cue.startMs, cue.endMs, trackDurationMs) }))
+  return { cues: normalized, repairedWordCount, movedWordCount, unrepairable: false }
 }
 
 export type LyricWordBoundaryEdge = 'start' | 'end'

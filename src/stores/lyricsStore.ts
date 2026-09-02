@@ -11,8 +11,10 @@ import {
   saveLyricDocumentAtomic,
 } from '../lib/lyricsDb'
 import {
+  hasRepairableWordTiming,
   normalizeCue,
   normalizeCueBounds,
+  normalizeLyricCueTiming,
   shiftCue,
 } from '../features/lyrics/editor/lyricCueEditorModel'
 import type {
@@ -264,11 +266,17 @@ function documentInputFromCanonical(
 
 function editorDocumentState(
   document: LyricDocument | null,
-  cues: LyricCue[] = [],
+  rawCues: LyricCue[] = [],
   activeAudioTrackId: string | null = document?.audioTrackId ?? null,
   selectedCueId: string | null = null,
   logicalDocumentId = logicalIdForDocument(document, activeAudioTrackId),
 ): Partial<LyricsState> {
+  // Hydration boundary: a loaded/legacy document is brought to the canonical
+  // word-timing invariant before it becomes editor state. History is reset
+  // here anyway, so this pollutes no undo entries.
+  const cues = hasRepairableWordTiming(rawCues)
+    ? normalizeLyricCueTiming(rawCues).cues
+    : rawCues
   return {
     editorDocument:        document,
     editorDocumentId:      document?.id ?? null,
@@ -1340,7 +1348,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       set({ error: 'Save the lyric document first before replacing cues.' })
       return null
     }
-    const cues = inputs.map((input, index) => normalizeCue({
+    const builtCues = inputs.map((input, index) => normalizeCue({
       id: input.lyricDocumentId && input.lyricDocumentId !== state.editorDocumentId
         ? input.lyricDocumentId
         : uniqueId(`replacement-cue-${index}`),
@@ -1361,6 +1369,11 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       analysisMetadata: input.analysisMetadata,
       originalTranscriptionText: input.originalTranscriptionText,
     }))
+    // Extraction/replace boundary: repaired words carry deterministic timing
+    // into canonical state; nothing is dropped for lacking it.
+    const cues = hasRepairableWordTiming(builtCues)
+      ? normalizeLyricCueTiming(builtCues).cues
+      : builtCues
     const queue = ensureQueue(state, state.activeLogicalDocumentId, state.editorDocument, state.cues)
     return new Promise<SaveLyricDocumentResult | null>(resolve => {
       const job: AtomicJob = {

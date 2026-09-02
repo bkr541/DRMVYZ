@@ -221,6 +221,9 @@ export function LyricCueTimeline({
     Math.min(MAX_VISIBLE_CUE_LANES, laneLayout.laneCount || 1),
   );
   const selectedCue = cues.find((cue) => cue.id === selectedCueId) ?? null;
+  // Canonical cues carry no untimed words (they are repaired at every
+  // ingestion boundary); this filter is now only a defensive guard against a
+  // legacy/bypassed cue reaching the word lane with malformed timing.
   const selectedWords = (
     liveWords?.cueId === selectedCueId
       ? liveWords.words

@@ -992,6 +992,7 @@ function TimelineLyricCueInspector({
     lyricTimingDirty,
     setCues,
     updateCue,
+    updateCueWord,
     setCueBounds,
     deleteCue,
     selectCue,
@@ -1004,6 +1005,7 @@ function TimelineLyricCueInspector({
     lyricTimingDirty: state.lyricTimingDirty,
     setCues: state.setCues,
     updateCue: state.updateCue,
+    updateCueWord: state.updateCueWord,
     setCueBounds: state.setCueBounds,
     deleteCue: state.deleteCue,
     selectCue: state.selectCue,
@@ -1087,6 +1089,7 @@ function TimelineLyricCueInspector({
         canMergePrevious={selectedIndex > 0}
         canMergeNext={selectedIndex >= 0 && selectedIndex < ordered.length - 1}
         onUpdateCue={commitPatch}
+        onUpdateWord={updateCueWord}
         actions={{
           setStartToPlayhead: () => {
             const bounds = resizeCueStart(cue, canonicalPlayheadMs, durationMs)

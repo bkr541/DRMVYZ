@@ -20,6 +20,10 @@ import {
   normalizeLyricWarnings,
   toCanonicalLyricMs,
 } from '../types/lyrics'
+import {
+  hasRepairableWordTiming,
+  normalizeLyricCueTiming,
+} from '../features/lyrics/editor/lyricCueEditorModel'
 
 // ── Formatting ────────────────────────────────────────────────────────────────
 
@@ -151,12 +155,20 @@ function parseImportedWord(
   if (!isPlainObject(raw)) return null
 
   const text = typeof raw.text === 'string' ? raw.text.trim() : ''
-  if (!text || typeof raw.startMs !== 'number' || typeof raw.endMs !== 'number') return null
-  if (!Number.isFinite(raw.startMs) || !Number.isFinite(raw.endMs)) return null
+  if (!text) return null
 
-  const startMs = toCanonicalLyricMs(raw.startMs)
-  const endMs = toCanonicalLyricMs(raw.endMs)
-  if (startMs < 0 || endMs <= startMs) return null
+  // A word with text is always preserved — canonical normalization repairs
+  // missing or malformed timing rather than discarding lyric text. Finite
+  // fields are kept as anchors; a negative start or a non-forward pair is
+  // left for the repair pass to resolve.
+  const finiteStart = typeof raw.startMs === 'number' && Number.isFinite(raw.startMs)
+    ? toCanonicalLyricMs(raw.startMs)
+    : undefined
+  const finiteEnd = typeof raw.endMs === 'number' && Number.isFinite(raw.endMs)
+    ? toCanonicalLyricMs(raw.endMs)
+    : undefined
+  const startMs = finiteStart !== undefined && finiteStart >= 0 ? finiteStart : undefined
+  const endMs = finiteEnd !== undefined && finiteEnd >= 0 ? finiteEnd : undefined
 
   const confidenceResult = normalizeImportedConfidence(raw.confidence)
   const sourceResult = normalizeImportedSource(raw.source, inferredSource)
@@ -173,8 +185,8 @@ function parseImportedWord(
       ? raw.id.trim()
       : `word_${String(fallbackIndex + 1).padStart(3, '0')}`,
     text,
-    startMs,
-    endMs,
+    ...(startMs !== undefined ? { startMs } : {}),
+    ...(endMs !== undefined ? { endMs } : {}),
     style: isPlainObject(raw.style) ? raw.style as Partial<LyricStyle> : undefined,
     animation: isPlainObject(raw.animation) ? raw.animation as Partial<LyricAnimation> : undefined,
     effects: isPlainObject(raw.effects) ? raw.effects as Partial<LyricEffects> : undefined,
@@ -327,5 +339,13 @@ export function parseLyricCueJson(input: string): LyricCue[] {
   // Sort by startMs; DB sort_order is assigned by the persistence layer.
   cues.sort((a, b) => a.startMs - b.startMs)
 
-  return cues
+  // Canonical invariant: an imported document carries no untimed / invalid
+  // words. Any word kept with missing or malformed timing is rolled into the
+  // nearest cue and given deterministic generated timing here.
+  if (!hasRepairableWordTiming(cues)) return cues
+  const normalized = normalizeLyricCueTiming(cues)
+  if (normalized.unrepairable) {
+    throw new LyricParseError('This document has lyric words but no usable timing anywhere to anchor them.')
+  }
+  return normalized.cues
 }
