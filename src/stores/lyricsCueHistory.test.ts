@@ -85,6 +85,110 @@ describe('lyricsStore cue history', () => {
     expect(useLyricsStore.getState().cues.map(cue => cue.id)).toEqual([SECOND.id, FIRST.id])
   })
 
+  it('merges rapid word patches into live state with separate undo and redo entries', () => {
+    const words = [
+      {
+        id: 'word-1',
+        text: 'First',
+        startMs: 1_100,
+        endMs: 1_500,
+        confidence: 0.8,
+        source: 'transcription' as const,
+        reviewStatus: 'corrected' as const,
+        warnings: ['needs_review' as const],
+        analysisMetadata: { token: 'preserve' },
+      },
+      { id: 'word-2', text: 'Second', startMs: 1_550, endMs: 1_900, confidence: 0.6 },
+    ]
+    useLyricsStore.setState({
+      cues: [{ ...FIRST, words, groups: [{ id: 'group-1', wordIds: ['word-1', 'word-2'] }] }, SECOND],
+      cueHistoryPast: [],
+      cueHistoryFuture: [],
+    })
+
+    useLyricsStore.getState().updateCueWord(FIRST.id, 'word-1', { startMs: 1_200 })
+    useLyricsStore.getState().updateCueWord(FIRST.id, 'word-1', { endMs: 1_600 })
+
+    expect(useLyricsStore.getState().cues[0]).toMatchObject({
+      words: [
+        {
+          id: 'word-1',
+          text: 'First',
+          startMs: 1_200,
+          endMs: 1_600,
+          confidence: 0.8,
+          source: 'transcription',
+          reviewStatus: 'corrected',
+          warnings: ['needs_review'],
+          analysisMetadata: { token: 'preserve' },
+        },
+        { id: 'word-2', text: 'Second', startMs: 1_550, endMs: 1_900, confidence: 0.6 },
+      ],
+      groups: [{ id: 'group-1', wordIds: ['word-1', 'word-2'] }],
+    })
+    expect(useLyricsStore.getState().cueHistoryPast).toHaveLength(2)
+
+    useLyricsStore.getState().undoCueEdit()
+    expect(useLyricsStore.getState().cues[0].words?.[0]).toMatchObject({ startMs: 1_200, endMs: 1_500 })
+    useLyricsStore.getState().undoCueEdit()
+    expect(useLyricsStore.getState().cues[0].words?.[0]).toMatchObject({ startMs: 1_100, endMs: 1_500 })
+    useLyricsStore.getState().redoCueEdit()
+    expect(useLyricsStore.getState().cues[0].words?.[0]).toMatchObject({ startMs: 1_200, endMs: 1_500 })
+    useLyricsStore.getState().redoCueEdit()
+    expect(useLyricsStore.getState().cues[0].words?.[0]).toMatchObject({ startMs: 1_200, endMs: 1_600 })
+  })
+
+  it('preserves a prior end edit when start is committed second', () => {
+    useLyricsStore.setState({
+      cues: [{ ...FIRST, words: [{ id: 'word-1', text: 'First', startMs: 1_100, endMs: 1_500 }] }, SECOND],
+      cueHistoryPast: [],
+      cueHistoryFuture: [],
+    })
+
+    useLyricsStore.getState().updateCueWord(FIRST.id, 'word-1', { endMs: 1_650 })
+    useLyricsStore.getState().updateCueWord(FIRST.id, 'word-1', { startMs: 1_250 })
+
+    expect(useLyricsStore.getState().cues[0].words?.[0]).toMatchObject({ startMs: 1_250, endMs: 1_650 })
+    expect(useLyricsStore.getState().cueHistoryPast).toHaveLength(2)
+  })
+
+  it('preserves a newer edit to another word in the same cue', () => {
+    useLyricsStore.setState({
+      cues: [{
+        ...FIRST,
+        words: [
+          { id: 'word-1', text: 'First', startMs: 1_100, endMs: 1_500 },
+          { id: 'word-2', text: 'Second', startMs: 1_550, endMs: 1_900 },
+        ],
+      }, SECOND],
+      cueHistoryPast: [],
+      cueHistoryFuture: [],
+    })
+
+    useLyricsStore.getState().updateCueWord(FIRST.id, 'word-2', { text: 'Newer second' })
+    useLyricsStore.getState().updateCueWord(FIRST.id, 'word-1', { startMs: 1_200 })
+
+    expect(useLyricsStore.getState().cues[0].words).toEqual([
+      { id: 'word-1', text: 'First', startMs: 1_200, endMs: 1_500 },
+      { id: 'word-2', text: 'Newer second', startMs: 1_550, endMs: 1_900 },
+    ])
+  })
+
+  it('does not create state or history when a cue or word is missing', () => {
+    useLyricsStore.setState({
+      cues: [{ ...FIRST, words: [{ id: 'word-1', text: 'First', startMs: 1_100, endMs: 1_500 }] }, SECOND],
+      cueHistoryPast: [],
+      cueHistoryFuture: [],
+    })
+    const before = useLyricsStore.getState().cues
+
+    useLyricsStore.getState().updateCueWord('missing-cue', 'word-1', { startMs: 1_200 })
+    useLyricsStore.getState().updateCueWord(FIRST.id, 'missing-word', { startMs: 1_200 })
+
+    expect(useLyricsStore.getState().cues).toBe(before)
+    expect(useLyricsStore.getState().cueHistoryPast).toHaveLength(0)
+  })
+
   it('keeps history bounded during repeated edits', () => {
     for (let index = 0; index < 75; index += 1) {
       useLyricsStore.getState().setCueBounds(FIRST.id, 1_000 + index, 2_000 + index)

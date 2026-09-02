@@ -54,6 +54,7 @@ interface Props {
   canMergePrevious: boolean
   canMergeNext: boolean
   onUpdateCue: (cueId: string, patch: Partial<Omit<LyricCue, 'id'>>) => void
+  onUpdateWord: (cueId: string, wordId: string, patch: Partial<Omit<LyricWord, 'id'>>) => void
   focusWordId?: string | null
 }
 
@@ -130,10 +131,12 @@ function JsonMetadataField({
 function WordTimingEditor({
   cue,
   onUpdateCue,
+  onUpdateWord,
   focusWordId,
 }: {
   cue: LyricCue
   onUpdateCue: Props['onUpdateCue']
+  onUpdateWord: Props['onUpdateWord']
   focusWordId?: string | null
 }) {
   const words = cue.words ?? []
@@ -147,10 +150,6 @@ function WordTimingEditor({
       words: nextWords.length ? nextWords : undefined,
       groups: groups?.length ? groups : undefined,
     })
-  }
-
-  const updateWord = (wordId: string, patch: Partial<LyricWord>) => {
-    commitWords(words.map(word => word.id === wordId ? { ...word, ...patch } : word))
   }
 
   useEffect(() => {
@@ -202,7 +201,7 @@ function WordTimingEditor({
                 aria-label={`Word ${index + 1} text`}
                 defaultValue={word.text}
                 key={`${word.id}-text-${word.text}`}
-                onBlur={event => updateWord(word.id, { text: event.target.value })}
+                onBlur={event => onUpdateWord(cue.id, word.id, { text: event.target.value })}
               />
               <input
                 className="lmv-num"
@@ -213,7 +212,7 @@ function WordTimingEditor({
                 key={`${word.id}-start-${word.startMs}`}
                 onBlur={event => {
                   const value = parseFiniteInteger(event.target.value)
-                  if (value !== null) updateWord(word.id, { startMs: value })
+                  if (value !== null) onUpdateWord(cue.id, word.id, { startMs: value })
                 }}
               />
               <input
@@ -225,7 +224,7 @@ function WordTimingEditor({
                 key={`${word.id}-end-${word.endMs}`}
                 onBlur={event => {
                   const value = parseFiniteInteger(event.target.value)
-                  if (value !== null) updateWord(word.id, { endMs: value })
+                  if (value !== null) onUpdateWord(cue.id, word.id, { endMs: value })
                 }}
               />
               <span className="lyric-word-editor__confidence">
@@ -260,6 +259,7 @@ export function LyricCueInspector({
   canMergePrevious,
   canMergeNext,
   onUpdateCue,
+  onUpdateWord,
   focusWordId = null,
 }: Props) {
   const [text, setText] = useState(cue.text)
@@ -458,7 +458,7 @@ export function LyricCueInspector({
         <JsonMetadataField label="Analysis metadata JSON" value={cue.analysisMetadata} onCommit={value => onUpdateCue(cue.id, { analysisMetadata: value })} />
       </DualRailCollapsible>
 
-      <WordTimingEditor cue={cue} onUpdateCue={onUpdateCue} focusWordId={focusWordId} />
+      <WordTimingEditor cue={cue} onUpdateCue={onUpdateCue} onUpdateWord={onUpdateWord} focusWordId={focusWordId} />
     </section>
   )
 }

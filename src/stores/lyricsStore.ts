@@ -18,6 +18,7 @@ import {
 import type {
   LyricDocument,
   LyricCue,
+  LyricWord,
   LyricStyle,
   LyricAnimation,
   LyricEffects,
@@ -124,6 +125,7 @@ export interface LyricsState {
   setActiveDocument(document: LyricDocument | null, cues?: LyricCue[], activeAudioTrackId?: string | null): void
   setCues(cues: LyricCue[]): void
   updateCue(cueId: string, patch: Partial<Omit<LyricCue, 'id'>>): void
+  updateCueWord(cueId: string, wordId: string, patch: Partial<Omit<LyricWord, 'id'>>): void
   setGlobalOffsetMs(offsetMs: number): void
   updateDraftDefaultStyle(patch: Partial<LyricStyle>): void
   updateDraftDefaultAnimation(patch: Partial<LyricAnimation>): void
@@ -934,6 +936,18 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     const cue = state.cues.find(item => item.id === cueId)
     if (!cue) return {}
     const nextCue = normalizeCue({ ...cue, ...patch, id: cue.id })
+    return commitCueCollection(state, state.cues.map(item => item.id === cueId ? nextCue : item), cueId)
+  }),
+  updateCueWord: (cueId, wordId, patch) => set(state => {
+    const cue = state.cues.find(item => item.id === cueId)
+    const words = cue?.words
+    if (!cue || !words) return {}
+    const wordIndex = words.findIndex(word => word.id === wordId)
+    if (wordIndex < 0) return {}
+    const currentWord = words[wordIndex]
+    const nextWord: LyricWord = { ...currentWord, ...patch, id: currentWord.id }
+    const nextWords = words.map((word, index) => index === wordIndex ? nextWord : word)
+    const nextCue = normalizeCue({ ...cue, words: nextWords, id: cue.id })
     return commitCueCollection(state, state.cues.map(item => item.id === cueId ? nextCue : item), cueId)
   }),
   setGlobalOffsetMs: (offsetMs) => set(state => ({ globalOffsetMs: toCanonicalLyricMs(offsetMs), ...nextUnsavedState(state) })),

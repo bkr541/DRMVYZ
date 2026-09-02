@@ -115,6 +115,7 @@ export function LyricCueEditor({
     selectCue,
     setCues,
     updateCue,
+    updateCueWord,
     setCueBounds,
     deleteCue,
     undoCueEdit,
@@ -127,6 +128,7 @@ export function LyricCueEditor({
     selectCue: state.selectCue,
     setCues: state.setCues,
     updateCue: state.updateCue,
+    updateCueWord: state.updateCueWord,
     setCueBounds: state.setCueBounds,
     deleteCue: state.deleteCue,
     undoCueEdit: state.undoCueEdit,
@@ -489,6 +491,7 @@ export function LyricCueEditor({
             canMergePrevious={selectedIndex > 0}
             canMergeNext={selectedIndex >= 0 && selectedIndex < orderedCues.length - 1}
             onUpdateCue={commitCuePatch}
+            onUpdateWord={updateCueWord}
             focusWordId={navigationTarget?.cueId === selectedCue.id ? navigationTarget.wordId : null}
           />
         ) : (

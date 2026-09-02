@@ -178,6 +178,65 @@ describe('LyricCueEditor selection synchronization', () => {
     expect(useLyricsStore.getState().cueHistoryPast).toHaveLength(1)
   })
 
+  it('preserves rapid start and end word commits made before a React rerender', async () => {
+    useLyricsStore.setState({
+      cues: [{
+        id: 'cue-1',
+        startMs: 1_000,
+        endMs: 2_000,
+        text: 'Rapid edit',
+        words: [
+          {
+            id: 'word-1',
+            text: 'Rapid',
+            startMs: 1_100,
+            endMs: 1_500,
+            confidence: 0.73,
+            source: 'transcription',
+            reviewStatus: 'corrected',
+            warnings: ['needs_review'],
+            analysisMetadata: { token: 'preserve' },
+          },
+          { id: 'word-2', text: 'edit', startMs: 1_550, endMs: 1_900, confidence: 0.64 },
+        ],
+        groups: [{ id: 'group-1', wordIds: ['word-1', 'word-2'] }],
+      }],
+      selectedCueId: 'cue-1',
+      cueHistoryPast: [],
+      cueHistoryFuture: [],
+    })
+    await renderEditor()
+
+    const startInput = container.querySelector<HTMLInputElement>('[aria-label="Word 1 start milliseconds"]')!
+    const endInput = container.querySelector<HTMLInputElement>('[aria-label="Word 1 end milliseconds"]')!
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      valueSetter?.call(startInput, '1200')
+      startInput.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+      valueSetter?.call(endInput, '1600')
+      endInput.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+    })
+
+    expect(useLyricsStore.getState().cues[0]).toMatchObject({
+      words: [
+        {
+          id: 'word-1',
+          text: 'Rapid',
+          startMs: 1_200,
+          endMs: 1_600,
+          confidence: 0.73,
+          source: 'transcription',
+          reviewStatus: 'corrected',
+          warnings: ['needs_review'],
+          analysisMetadata: { token: 'preserve' },
+        },
+        { id: 'word-2', text: 'edit', startMs: 1_550, endMs: 1_900, confidence: 0.64 },
+      ],
+      groups: [{ id: 'group-1', wordIds: ['word-1', 'word-2'] }],
+    })
+    expect(useLyricsStore.getState().cueHistoryPast).toHaveLength(2)
+  })
+
   it('removes invalid timing without deleting the word or its group membership and allows retiming', async () => {
     useLyricsStore.setState({
       cues: [{
