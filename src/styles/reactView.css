@@ -20067,3 +20067,336 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   background: var(--dot-color);
 }
 
+/* ── Concept: Blueprint Bus ──────────────────────────────────────────────── */
+
+.rv-ae-bus-entry {
+  position: relative;
+  padding: 6px 8px 8px;
+  border-radius: 6px;
+  background-image: radial-gradient(rgba(74, 199, 219, 0.14) 1px, transparent 1.4px);
+  background-size: 11px 11px;
+}
+
+.rv-ae-bus-entry.is-linked {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bus-color) 30%, transparent);
+}
+
+.rv-ae-bus-rail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-left: 34px;
+}
+
+.rv-ae-bus-track {
+  position: absolute;
+  left: 10px;
+  top: -10px;
+  width: 18px;
+  bottom: calc(100% - 32px);
+}
+
+.rv-ae-bus-wire {
+  position: absolute;
+  inset: 4px 0 3px 0;
+  border-left: 2px solid rgba(74, 199, 219, 0.75);
+  border-bottom: 2px solid rgba(74, 199, 219, 0.75);
+  border-bottom-left-radius: 9px;
+}
+
+.rv-ae-bus-dot {
+  position: absolute;
+  left: -4px;
+  bottom: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #4ac7db;
+  box-shadow: 0 0 6px rgba(74, 199, 219, 0.7);
+}
+
+.rv-ae-bus-entry.is-linked .rv-ae-bus-wire { border-color: var(--bus-color); }
+.rv-ae-bus-entry.is-linked .rv-ae-bus-dot {
+  background: var(--bus-color);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--bus-color) 70%, transparent);
+}
+
+.rv-ae-bus-node {
+  position: relative;
+  z-index: 1;
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 2px solid #4ac7db;
+  background: rgba(10, 20, 24, 0.9);
+  color: #8fe3f0;
+  font: 800 12px/1 var(--az-font);
+  box-shadow: 0 0 10px rgba(74, 199, 219, 0.45), inset 0 0 6px rgba(74, 199, 219, 0.25);
+  cursor: pointer;
+}
+
+.rv-ae-bus-node:hover,
+.rv-ae-bus-node:focus-visible {
+  box-shadow: 0 0 14px rgba(141, 231, 255, 0.7);
+}
+
+.rv-ae-bus-entry.is-linked .rv-ae-bus-node {
+  border-color: var(--bus-color);
+  color: var(--bus-color);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--bus-color) 45%, transparent);
+}
+
+.rv-ae-bus-editor {
+  align-self: stretch;
+  margin-top: 2px;
+}
+
+/* ── Concept: Signal Break ───────────────────────────────────────────────── */
+
+.rv-ae-break-entry {
+  padding: 7px 9px 9px;
+  border: 1px solid rgba(154, 178, 188, 0.2);
+  border-radius: 14px;
+  transition: border-color 0.15s;
+}
+
+.rv-ae-break-entry.is-linked {
+  border-color: var(--break-color);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--break-color) 25%, transparent);
+}
+
+.rv-ae-break-route {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.rv-ae-break-head {
+  display: flex;
+  align-items: center;
+}
+
+.rv-ae-break-badge {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(154, 178, 188, 0.28);
+  color: #0a1418;
+  font: 800 11px/1 var(--az-font);
+  cursor: pointer;
+}
+
+.rv-ae-break-badge.is-linked {
+  background: var(--break-color);
+  color: #180a0a;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--break-color) 40%, transparent);
+}
+
+.rv-ae-break-cable {
+  position: relative;
+  flex: 1;
+  height: 2px;
+  margin-left: 8px;
+  background-image: linear-gradient(to right, rgba(154, 178, 188, 0.5) 0 6px, transparent 6px 12px);
+  background-size: 12px 2px;
+  background-repeat: repeat-x;
+}
+
+.rv-ae-break-entry.is-linked .rv-ae-break-cable {
+  background-image: linear-gradient(to right, var(--break-color) 0 6px, transparent 6px 12px);
+}
+
+.rv-ae-break-slash {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 12px;
+  background: currentColor;
+  color: rgba(154, 178, 188, 0.75);
+  transform: translate(-50%, -50%) rotate(24deg);
+}
+
+.rv-ae-break-entry.is-linked .rv-ae-break-slash { color: var(--break-color); }
+
+.rv-ae-break-editor { margin-top: 6px; }
+
+/* ── Concept: Preview Deck ───────────────────────────────────────────────── */
+
+.rv-ae-deck-entry {
+  padding: 8px;
+  border: 1px solid rgba(154, 178, 188, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: 0 3px 12px -6px rgba(0, 0, 0, 0.55);
+}
+
+.rv-ae-deck-entry.is-linked {
+  border-color: color-mix(in srgb, var(--deck-color) 45%, rgba(154, 178, 188, 0.18));
+}
+
+.rv-ae-deck-grip {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 12px;
+  height: 16px;
+  color: rgba(196, 207, 211, 0.5);
+  background-image: radial-gradient(currentColor 1px, transparent 1.4px);
+  background-size: 4px 4px;
+}
+
+.rv-ae-deck-footer { margin-top: 6px; }
+
+.rv-ae-deck-bar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: rgba(154, 178, 188, 0.1);
+  color: rgba(232, 244, 248, 0.8);
+  font: 700 8px/1 var(--az-font);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.rv-ae-deck-bar:hover { background: rgba(154, 178, 188, 0.16); }
+
+.rv-ae-deck-bar-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(196, 207, 211, 0.6);
+}
+
+.rv-ae-deck-chevron {
+  display: inline-flex;
+  transition: transform 0.15s ease;
+}
+
+.rv-ae-deck-bar-icons.is-open .rv-ae-deck-chevron { transform: rotate(180deg); }
+
+.rv-ae-deck-body { margin-top: 8px; }
+
+/* ── Concept: Accent Stack ───────────────────────────────────────────────── */
+
+.rv-ae-accent-entry {
+  position: relative;
+  padding: 8px 8px 8px 12px;
+  border-radius: 8px;
+  border-left: 3px solid rgba(154, 178, 188, 0.3);
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: 0 2px 10px -5px rgba(0, 0, 0, 0.5);
+}
+
+.rv-ae-accent-entry.is-linked { border-left-color: var(--accent-c); }
+
+.rv-ae-accent-badge {
+  position: absolute;
+  left: -9px;
+  top: -9px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #0e1417;
+  border-radius: 999px;
+  background: rgba(154, 178, 188, 0.4);
+  color: #0a1418;
+  font: 800 10px/1 var(--az-font);
+  cursor: pointer;
+}
+
+.rv-ae-accent-badge.is-linked { background: var(--accent-c); }
+
+.rv-ae-accent-footer { margin-top: 6px; }
+
+.rv-ae-accent-sub {
+  font: 600 8px/1.3 var(--az-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(196, 207, 211, 0.55);
+}
+
+.rv-ae-accent-body { margin-top: 8px; }
+
+/* ── Concept: Rack Group ─────────────────────────────────────────────────── */
+
+.rv-ae-rack-header {
+  padding: 6px 8px;
+  border: 1px solid rgba(154, 178, 188, 0.14);
+  border-radius: 8px;
+  background: rgba(6, 10, 13, 0.6);
+}
+
+.rv-ae-rack-row {
+  position: relative;
+  padding: 8px 9px 9px;
+  border: 1px solid var(--rack-color);
+  border-radius: 8px;
+  background: rgba(8, 12, 15, 0.55);
+}
+
+.rv-ae-rack-row.is-linked {
+  box-shadow: 0 0 0 1px var(--rack-color);
+}
+
+.rv-ae-rack-badge {
+  position: absolute;
+  left: -8px;
+  top: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #0e1417;
+  border-radius: 999px;
+  background: var(--rack-color);
+  color: #0a0f12;
+  font: 800 9px/1 var(--az-font);
+  cursor: pointer;
+}
+
+.rv-ae-rack-foot { margin-top: 6px; }
+
+.rv-ae-rack-meta {
+  font: 500 7.5px/1.3 var(--az-font);
+  letter-spacing: 0.08em;
+  color: rgba(196, 207, 211, 0.45);
+}
+
+.rv-ae-rack-body {
+  position: relative;
+  margin-top: 8px;
+  padding-left: 12px;
+}
+
+.rv-ae-rack-connector {
+  position: absolute;
+  left: 2px;
+  top: -8px;
+  width: 2px;
+  height: 20px;
+  background: #f0883e;
+}
+

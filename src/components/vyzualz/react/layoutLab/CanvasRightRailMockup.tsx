@@ -960,6 +960,380 @@ function AddEffectsHighlightWashConcept({ state }: { state: CanvasMockState }) {
   )
 }
 
+/** Shared local route state for the alternate concepts below: which Audio
+ * Intelligence parameters are routed to each effect, whether that effect's
+ * editor is expanded, and the add/remove/intensity handlers the shared
+ * AddEffectsRouteEditor needs. */
+function useConceptRoutes() {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [links, setLinks] = useState<MockRouteMap>({})
+  const routesFor = (linkKey: string): CanvasMockEffectAudioRoute[] => links[linkKey] ?? []
+  const isOpenFor = (linkKey: string) => expanded[linkKey] ?? routesFor(linkKey).length > 0
+  const toggle = (linkKey: string) => {
+    const next = !isOpenFor(linkKey)
+    setExpanded(current => ({ ...current, [linkKey]: next }))
+  }
+  const editorHandlers = (linkKey: string) => ({
+    onAddParameter: (id: CanvasMockAudioIntelligenceParameterId) => setLinks(current => withRouteParam(current, linkKey, id)),
+    onRemoveParameter: (id: CanvasMockAudioIntelligenceParameterId) => setLinks(current => withoutRouteParam(current, linkKey, id)),
+    onSetIntensity: (id: CanvasMockAudioIntelligenceParameterId, value: number) => setLinks(current => withRouteIntensity(current, linkKey, id, value)),
+  })
+  return { links, routesFor, isOpenFor, toggle, editorHandlers }
+}
+
+/** Collapsible + intro note + per-layer map shell shared by the concepts. */
+function ConceptGroup({
+  state,
+  label,
+  note,
+  children,
+}: {
+  state: CanvasMockState
+  label: string
+  note: string
+  children: (layer: CanvasMockState['addEffectsLayers'][number], layerIndex: number) => ReactNode
+}) {
+  return (
+    <Collapsible label={label} defaultOpen={false}>
+      <div className="rv-canvas-engine-note">{note}</div>
+      {state.addEffectsLayers.length === 0 && (
+        <div className="rv-canvas-engine-note">Add media to the Performance Pool (Design tab) or select an active media item to preview this concept.</div>
+      )}
+      {state.addEffectsLayers.map((layer, layerIndex) => children(layer, layerIndex))}
+    </Collapsible>
+  )
+}
+
+function DeckExpandGlyph({ size = 11 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" />
+    </svg>
+  )
+}
+
+function DeckPlayGlyph({ size = 11 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  )
+}
+
+function DeckChevronGlyph({ size = 11 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  )
+}
+
+/** Deterministic red / amber / green / cyan / violet outline per stacked row,
+ * used by Rack Group until a routed parameter supplies its own color. */
+const RACK_FALLBACK_COLORS = ['#ff5f6d', '#ffd75f', '#8dff5f', '#5fe0ff', '#c95fff']
+
+function rackReqId(linkKey: string): string {
+  let hash = 7
+  for (const character of linkKey) hash = (hash * 31 + character.charCodeAt(0)) | 0
+  return `REQ-OPE-${Math.abs(hash) % 90_000_000 + 10_000_000}`
+}
+
+/** Concept — "Blueprint Bus." A circuit-board treatment: a right-angle bus
+ * wire runs from the effect input to a glowing ring node over a dotted grid.
+ * The ring carries the routed-parameter count and opens the shared editor
+ * below it. Local route state, comparison only. */
+function AddEffectsBlueprintBusConcept({ state }: { state: CanvasMockState }) {
+  const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Blueprint Bus"
+      note="A schematic bus wire runs at a right angle from the effect input to a glowing ring node. Click the node to open the parameter editor; the ring carries the routed-parameter count. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getEntryExtra={({ linkKey }) => {
+            const color = firstRouteColor(links[linkKey])
+            return {
+              className: `rv-ae-bus-entry${color ? ' is-linked' : ''}`,
+              style: color ? ({ '--bus-color': color } as CSSProperties) : undefined,
+            }
+          }}
+          renderRoute={({ effectLabel, parentLabel, linkKey }) => {
+            const routes = routesFor(linkKey)
+            const open = isOpenFor(linkKey)
+            return (
+              <div className="rv-ae-bus-rail">
+                <div className="rv-ae-bus-track" aria-hidden="true">
+                  <span className="rv-ae-bus-dot" />
+                  <span className="rv-ae-bus-wire" />
+                </div>
+                <button
+                  type="button"
+                  className="rv-ae-bus-node"
+                  aria-expanded={open}
+                  aria-label={`${routes.length ? 'Edit' : 'Add'} routes for ${effectLabel} on ${parentLabel}`}
+                  onClick={() => toggle(linkKey)}
+                >
+                  {routes.length ? routes.length : '+'}
+                </button>
+                {open && (
+                  <div className="rv-ae-bus-editor">
+                    <AddEffectsRouteEditor routes={routes} effectLabel={effectLabel} parentLabel={parentLabel} showDots {...editorHandlers(linkKey)} />
+                  </div>
+                )}
+              </div>
+            )
+          }}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
+/** Concept — "Signal Break." The routed entry gets a colored outline in the
+ * first parameter's hue and a status badge on its edge; a dashed patch cable
+ * with a diagonal break mark leads down to the editor. Local route state. */
+function AddEffectsSignalBreakConcept({ state }: { state: CanvasMockState }) {
+  const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Signal Break"
+      note="Routing outlines the whole effect entry in the first parameter's color and puts a status badge on its edge. A dashed patch cable with a diagonal break drops to the editor. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getEntryExtra={({ linkKey }) => {
+            const color = firstRouteColor(links[linkKey])
+            return {
+              className: `rv-ae-break-entry${color ? ' is-linked' : ''}`,
+              style: color ? ({ '--break-color': color } as CSSProperties) : undefined,
+            }
+          }}
+          renderRoute={({ effectLabel, parentLabel, linkKey }) => {
+            const routes = routesFor(linkKey)
+            const open = isOpenFor(linkKey)
+            return (
+              <div className="rv-ae-break-route">
+                <div className="rv-ae-break-head">
+                  <button
+                    type="button"
+                    className={`rv-ae-break-badge${routes.length ? ' is-linked' : ''}`}
+                    aria-expanded={open}
+                    aria-label={`${routes.length ? 'Edit' : 'Add'} routes for ${effectLabel} on ${parentLabel}`}
+                    onClick={() => toggle(linkKey)}
+                  >
+                    {routes.length ? '!' : '+'}
+                  </button>
+                  <span className="rv-ae-break-cable" aria-hidden="true">
+                    <span className="rv-ae-break-slash" />
+                  </span>
+                </div>
+                {open && (
+                  <div className="rv-ae-break-editor">
+                    <AddEffectsRouteEditor routes={routes} effectLabel={effectLabel} parentLabel={parentLabel} showDots {...editorHandlers(linkKey)} />
+                  </div>
+                )}
+              </div>
+            )
+          }}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
+/** Concept — "Preview Deck." Each effect entry reads as a card: a grip handle
+ * before the dropdown and a full-width footer bar (expand / preview / chevron)
+ * that toggles the route editor. Local route state, comparison only. */
+function AddEffectsPreviewDeckConcept({ state }: { state: CanvasMockState }) {
+  const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Preview Deck"
+      note="Each effect entry is a card with a grip handle and a footer action bar. The bar toggles the route editor and shows how many parameters are routed. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getEntryExtra={({ linkKey }) => {
+            const color = firstRouteColor(links[linkKey])
+            return {
+              className: `rv-ae-deck-entry${color ? ' is-linked' : ''}`,
+              style: color ? ({ '--deck-color': color } as CSSProperties) : undefined,
+            }
+          }}
+          renderLeading={() => <span className="rv-ae-deck-grip" aria-hidden="true" />}
+          renderRoute={({ effectLabel, parentLabel, linkKey }) => {
+            const routes = routesFor(linkKey)
+            const open = isOpenFor(linkKey)
+            return (
+              <div className="rv-ae-deck-footer">
+                <button
+                  type="button"
+                  className="rv-ae-deck-bar"
+                  aria-expanded={open}
+                  aria-label={`${routes.length ? 'Edit' : 'Add'} routes for ${effectLabel} on ${parentLabel}`}
+                  onClick={() => toggle(linkKey)}
+                >
+                  <span className="rv-ae-deck-bar-label">Route{routes.length ? ` · ${routes.length}` : ''}</span>
+                  <span className={`rv-ae-deck-bar-icons${open ? ' is-open' : ''}`}>
+                    <DeckExpandGlyph />
+                    <DeckPlayGlyph />
+                    <span className="rv-ae-deck-chevron"><DeckChevronGlyph /></span>
+                  </span>
+                </button>
+                {open && (
+                  <div className="rv-ae-deck-body">
+                    <AddEffectsRouteEditor routes={routes} effectLabel={effectLabel} parentLabel={parentLabel} showDots {...editorHandlers(linkKey)} />
+                  </div>
+                )}
+              </div>
+            )
+          }}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
+/** Concept — "Accent Stack." A colored left accent rail plus a colored round
+ * "+" badge on the entry's top-left corner (both in the first routed
+ * parameter's color), with a category-style subtitle. The badge toggles the
+ * editor. Local route state, comparison only. */
+function AddEffectsAccentStackConcept({ state }: { state: CanvasMockState }) {
+  const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Accent Stack"
+      note="A colored left accent rail and a round corner badge, both in the first routed parameter's color, mark a routed effect. The badge toggles the editor. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getEntryExtra={({ linkKey }) => {
+            const color = firstRouteColor(links[linkKey])
+            return {
+              className: `rv-ae-accent-entry${color ? ' is-linked' : ''}`,
+              style: color ? ({ '--accent-c': color } as CSSProperties) : undefined,
+            }
+          }}
+          renderLeading={({ effectLabel, parentLabel, linkKey }) => {
+            const routes = routesFor(linkKey)
+            const open = isOpenFor(linkKey)
+            return (
+              <button
+                type="button"
+                className={`rv-ae-accent-badge${routes.length ? ' is-linked' : ''}`}
+                aria-expanded={open}
+                aria-label={`${routes.length ? 'Edit' : 'Add'} routes for ${effectLabel} on ${parentLabel}`}
+                onClick={() => toggle(linkKey)}
+              >
+                {routes.length ? routes.length : '+'}
+              </button>
+            )
+          }}
+          renderRoute={({ effectLabel, parentLabel, linkKey }) => {
+            const routes = routesFor(linkKey)
+            const open = isOpenFor(linkKey)
+            return (
+              <div className="rv-ae-accent-footer">
+                <div className="rv-ae-accent-sub">
+                  {routes.length ? `${routes.length} route${routes.length === 1 ? '' : 's'} · Audio Intelligence` : 'No routes yet'}
+                </div>
+                {open && (
+                  <div className="rv-ae-accent-body">
+                    <AddEffectsRouteEditor routes={routes} effectLabel={effectLabel} parentLabel={parentLabel} showDots {...editorHandlers(linkKey)} />
+                  </div>
+                )}
+              </div>
+            )
+          }}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
+/** Concept — "Rack Group." The Active Media row becomes a dark rack header and
+ * every effect sits in its own outlined rack row with a "+" badge and a faux
+ * request id; an orange typed connector links the row to its editor. Local
+ * route state, comparison only. */
+function AddEffectsRackGroupConcept({ state }: { state: CanvasMockState }) {
+  const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Rack Group"
+      note="The Active Media row is a dark rack header; each effect is an outlined rack row with a badge and a request id, linked to its editor by an orange typed connector. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getMediaRowExtra={() => ({ className: 'rv-ae-rack-header' })}
+          getEntryExtra={({ effectIndex, linkKey }) => {
+            const color = firstRouteColor(links[linkKey]) ?? RACK_FALLBACK_COLORS[effectIndex % RACK_FALLBACK_COLORS.length]
+            return {
+              className: `rv-ae-rack-row${firstRouteColor(links[linkKey]) ? ' is-linked' : ''}`,
+              style: { '--rack-color': color } as CSSProperties,
+            }
+          }}
+          renderLeading={({ effectLabel, parentLabel, linkKey }) => {
+            const routes = routesFor(linkKey)
+            const open = isOpenFor(linkKey)
+            return (
+              <button
+                type="button"
+                className="rv-ae-rack-badge"
+                aria-expanded={open}
+                aria-label={`${routes.length ? 'Edit' : 'Add'} routes for ${effectLabel} on ${parentLabel}`}
+                onClick={() => toggle(linkKey)}
+              >
+                {routes.length ? routes.length : '+'}
+              </button>
+            )
+          }}
+          renderRoute={({ effectLabel, parentLabel, linkKey }) => {
+            const routes = routesFor(linkKey)
+            const open = isOpenFor(linkKey)
+            return (
+              <div className="rv-ae-rack-foot">
+                <div className="rv-ae-rack-meta">{rackReqId(linkKey)}</div>
+                {open && (
+                  <div className="rv-ae-rack-body">
+                    <span className="rv-ae-rack-connector" aria-hidden="true" />
+                    <AddEffectsRouteEditor routes={routes} effectLabel={effectLabel} parentLabel={parentLabel} showDots {...editorHandlers(linkKey)} />
+                  </div>
+                )}
+              </div>
+            )
+          }}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
 function ReactMockup({ state }: { state: CanvasMockState }) {
   return (
     <WorkspaceBody>
@@ -970,6 +1344,11 @@ function ReactMockup({ state }: { state: CanvasMockState }) {
           <AddEffectsFloatingOrbConcept state={state} />
           <AddEffectsConnectorLineConcept state={state} />
           <AddEffectsHighlightWashConcept state={state} />
+          <AddEffectsBlueprintBusConcept state={state} />
+          <AddEffectsSignalBreakConcept state={state} />
+          <AddEffectsPreviewDeckConcept state={state} />
+          <AddEffectsAccentStackConcept state={state} />
+          <AddEffectsRackGroupConcept state={state} />
         </div>
       ) : <AnalysisMockup />}
     </WorkspaceBody>
