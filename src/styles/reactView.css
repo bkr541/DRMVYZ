@@ -19738,7 +19738,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-line-route {
   display: flex;
   align-items: center;
-  gap: 0;
+  justify-content: center;
 }
 
 .rv-ae-line-trigger {
@@ -19758,14 +19758,18 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   color: #8de7ff;
 }
 
-.rv-ae-line-tag-wrap {
+/* Centered under the trigger: a vertical line down to the linked tag,
+   instead of a horizontal line beside it. */
+.rv-ae-line-tag-stack {
   display: flex;
+  flex-direction: column;
   align-items: center;
+  gap: 0;
 }
 
 .rv-ae-line-connector {
-  width: 14px;
-  height: 2px;
+  width: 2px;
+  height: 14px;
   background: var(--line-color);
 }
 
@@ -19779,26 +19783,30 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   white-space: nowrap;
 }
 
-.rv-ae-line-grid {
-  display: grid;
-  grid-template-columns: repeat(6, 24px);
+/* Parameter picker: a centered column at 60% of the row's width, each
+   option stacked on top of the next, instead of a horizontal swatch grid. */
+.rv-ae-line-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 4px;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
-.rv-ae-line-swatch {
-  width: 24px;
-  height: 22px;
+.rv-ae-line-option {
+  width: 60%;
+  padding: 5px 10px;
   border: 1px solid var(--swatch-color);
   border-radius: 4px;
   background: color-mix(in srgb, var(--swatch-color) 14%, transparent);
   color: var(--swatch-color);
-  font: 800 7.5px/1 var(--az-font);
+  font: 700 7.5px/1 var(--az-font);
+  text-align: center;
   cursor: pointer;
 }
 
-.rv-ae-line-swatch:hover,
-.rv-ae-line-swatch.is-active {
+.rv-ae-line-option:hover,
+.rv-ae-line-option.is-active {
   background: var(--swatch-color);
   color: #04090b;
 }
@@ -19816,6 +19824,24 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   background: color-mix(in srgb, var(--wash-color) 16%, transparent);
 }
 
+/* Active Media select for this layer: bottom border switches to the linked
+   parameter's color once any of its effects is routed. !important matches
+   the specificity the underline dropdown's own trigger border already uses. */
+.rv-ae-wash-media-row.is-linked .dv-underline-dropdown .drm-dropdown__trigger {
+  border-bottom-color: var(--wash-color) !important;
+}
+
+/* A short vertical line dropping from whatever sits above this entry (the
+   Active Media select, or a preceding linked effect) down into the trigger
+   — a schematic connector, not a pixel-measured one. */
+.rv-ae-wash-connector {
+  flex: 0 0 auto;
+  width: 2px;
+  align-self: stretch;
+  margin: -9px 2px -1px 0;
+  background: var(--wash-color);
+}
+
 .rv-ae-wash-trigger {
   flex: 0 0 auto;
   align-self: center;
@@ -19829,12 +19855,25 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   background: rgba(0, 0, 0, 0.25);
   color: rgba(232, 244, 248, 0.72);
   cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 
 .rv-ae-wash-trigger:hover,
 .rv-ae-wash-trigger:focus-visible {
   border-color: rgba(141, 231, 255, 0.6);
   color: #8de7ff;
+}
+
+.rv-ae-wash-trigger.is-linked {
+  border-color: var(--wash-color);
+  background: color-mix(in srgb, var(--wash-color) 18%, transparent);
+  color: var(--wash-color);
+}
+
+.rv-ae-wash-trigger.is-linked:hover,
+.rv-ae-wash-trigger.is-linked:focus-visible {
+  border-color: var(--wash-color);
+  color: var(--wash-color);
 }
 
 .rv-ae-wash-segmented {

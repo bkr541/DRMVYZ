@@ -136,6 +136,17 @@ function RouteWaveGlyphIcon({ size = 12 }: { size?: number }) {
   )
 }
 
+/** Checkmark glyph — replaces RouteWaveGlyphIcon on the "Highlight Wash"
+ * concept's trigger once a parameter is linked, so the trigger itself
+ * confirms the route instead of only implying "listens to audio." */
+function RouteCheckGlyphIcon({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 12.5 9.5 18 20 6" />
+    </svg>
+  )
+}
+
 const RIGHT_TABS = [
   { id: 'presets' as const, label: 'PRESETS' },
   { id: 'design' as const, label: 'DESIGN' },
@@ -538,6 +549,7 @@ function AddEffectsLayerGroup({
   renderRoute,
   renderLeading,
   getEntryExtra,
+  getMediaRowExtra,
 }: {
   state: CanvasMockState
   layer: CanvasMockState['addEffectsLayers'][number]
@@ -545,21 +557,26 @@ function AddEffectsLayerGroup({
   renderRoute: (ctx: AddEffectsRouteContext) => ReactNode
   renderLeading?: (ctx: AddEffectsRouteContext) => ReactNode
   getEntryExtra?: (ctx: AddEffectsRouteContext) => { className?: string; style?: CSSProperties }
+  getMediaRowExtra?: (layer: CanvasMockState['addEffectsLayers'][number]) => { className?: string; style?: CSSProperties } | undefined
 }) {
   const parentLabel = `Active Media ${layerIndex + 1}`
   const selectedEffects = new Set(layer.effects)
+  const mediaRow = (
+    <SelectRow
+      label={parentLabel}
+      value={layer.mediaId}
+      onChange={() => {}}
+      options={[{ value: layer.mediaId, label: layer.mediaName }]}
+    />
+  )
+  const mediaRowExtra = getMediaRowExtra?.(layer)
   return (
     <div className="rv-canvas-layer-effects-group">
       {/* Which media occupies this slot is decided in the Media Library
           (Performance Pool / active selection) — display-only, styled
           like a real input field for consistency, matching the
           production Add Effects group. */}
-      <SelectRow
-        label={parentLabel}
-        value={layer.mediaId}
-        onChange={() => {}}
-        options={[{ value: layer.mediaId, label: layer.mediaName }]}
-      />
+      {mediaRowExtra ? <div className={mediaRowExtra.className} style={mediaRowExtra.style}>{mediaRow}</div> : mediaRow}
       <div className="rv-canvas-layer-effects-stack" data-canvas-effect-layer-id={layer.mediaId}>
         {layer.effects.map((effectId, effectIndex) => {
           const options = CANVAS_LAYER_EFFECT_OPTIONS.filter(option => (
@@ -839,7 +856,7 @@ function AddEffectsConnectorLineConcept({ state }: { state: CanvasMockState }) {
 
   return (
     <Collapsible label="Add Effects — Connector Line" defaultOpen={false}>
-      <div className="rv-canvas-engine-note">"+ Route" opens a small grid of colored parameter pads. A short colored line draws the effect straight to its linked parameter's tag. Concept only.</div>
+      <div className="rv-canvas-engine-note">"+ Route" sits centered on the row. Picking a parameter from the column below draws a short vertical line down to its tag. Concept only.</div>
       {state.addEffectsLayers.length === 0 && (
         <div className="rv-canvas-engine-note">Add media to the Performance Pool (Design tab) or select an active media item to preview this concept.</div>
       )}
@@ -863,31 +880,29 @@ function AddEffectsConnectorLineConcept({ state }: { state: CanvasMockState }) {
                   >
                     {linkedId ? 'Change Route' : '+ Route'}
                   </button>
-                  {linkedId && (
-                    <span className="rv-ae-line-tag-wrap">
-                      <span className="rv-ae-line-connector" style={{ '--line-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] } as CSSProperties} aria-hidden="true" />
-                      <span className="rv-ae-line-tag" style={{ '--tag-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] } as CSSProperties}>
-                        {CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[linkedId]}
-                      </span>
-                    </span>
-                  )}
                 </div>
+                {linkedId && (
+                  <div className="rv-ae-line-tag-stack">
+                    <span className="rv-ae-line-connector" style={{ '--line-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] } as CSSProperties} aria-hidden="true" />
+                    <span className="rv-ae-line-tag" style={{ '--tag-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] } as CSSProperties}>
+                      {CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[linkedId]}
+                    </span>
+                  </div>
+                )}
                 {isOpen && (
-                  <div className="rv-ae-line-grid">
+                  <div className="rv-ae-line-column">
                     {CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.map(param => (
                       <button
                         key={param.id}
                         type="button"
-                        className={`rv-ae-line-swatch${linkedId === param.id ? ' is-active' : ''}`}
+                        className={`rv-ae-line-option${linkedId === param.id ? ' is-active' : ''}`}
                         style={{ '--swatch-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[param.id] } as CSSProperties}
-                        title={param.label}
-                        aria-label={param.label}
                         onClick={() => {
                           setLinks(current => ({ ...current, [linkKey]: param.id }))
                           setExpanded(current => ({ ...current, [linkKey]: false }))
                         }}
                       >
-                        {param.label.slice(0, 2).toUpperCase()}
+                        {param.label}
                       </button>
                     ))}
                   </div>
@@ -914,7 +929,7 @@ function AddEffectsHighlightWashConcept({ state }: { state: CanvasMockState }) {
 
   return (
     <Collapsible label="Add Effects — Highlight Wash" defaultOpen={false}>
-      <div className="rv-canvas-engine-note">A leading waveform icon opens a segmented row of parameter chips. Linking one washes the entire effect entry in a soft tint of that color. Concept only.</div>
+      <div className="rv-canvas-engine-note">Linking a parameter washes the entry, colors the Active Media select's bottom border to match, drops a vertical line down to it, and swaps the trigger for a matching checkmark. Concept only.</div>
       {state.addEffectsLayers.length === 0 && (
         <div className="rv-canvas-engine-note">Add media to the Performance Pool (Design tab) or select an active media item to preview this concept.</div>
       )}
@@ -924,6 +939,19 @@ function AddEffectsHighlightWashConcept({ state }: { state: CanvasMockState }) {
           state={state}
           layer={layer}
           layerIndex={layerIndex}
+          getMediaRowExtra={mediaLayer => {
+            // First linked effect under this media item sets the Active
+            // Media border color — a layer usually carries one linked
+            // effect in this demo, and "first found" is a reasonable,
+            // simple tie-break when it carries more.
+            const linkedId = mediaLayer.effects
+              .map(effectId => links[canvasEffectAudioLinkKey(mediaLayer.mediaId, effectId)])
+              .find((value): value is CanvasMockAudioIntelligenceParameterId => Boolean(value))
+            return {
+              className: `rv-ae-wash-media-row${linkedId ? ' is-linked' : ''}`,
+              style: linkedId ? ({ '--wash-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] } as CSSProperties) : undefined,
+            }
+          }}
           getEntryExtra={({ linkKey }) => {
             const linkedId = links[linkKey]
             return {
@@ -931,17 +959,25 @@ function AddEffectsHighlightWashConcept({ state }: { state: CanvasMockState }) {
               style: linkedId ? ({ '--wash-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] } as CSSProperties) : undefined,
             }
           }}
-          renderLeading={({ effectLabel, parentLabel, linkKey }) => (
-            <button
-              type="button"
-              className="rv-ae-wash-trigger"
-              aria-expanded={Boolean(expanded[linkKey])}
-              aria-label={`${links[linkKey] ? 'Change' : 'Add'} route for ${effectLabel} on ${parentLabel}`}
-              onClick={() => setExpanded(current => ({ ...current, [linkKey]: !current[linkKey] }))}
-            >
-              <RouteWaveGlyphIcon />
-            </button>
-          )}
+          renderLeading={({ effectLabel, parentLabel, linkKey }) => {
+            const linkedId = links[linkKey]
+            const color = linkedId ? CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] : undefined
+            return (
+              <>
+                {linkedId && <span className="rv-ae-wash-connector" style={{ '--wash-color': color } as CSSProperties} aria-hidden="true" />}
+                <button
+                  type="button"
+                  className={`rv-ae-wash-trigger${linkedId ? ' is-linked' : ''}`}
+                  style={color ? ({ '--wash-color': color } as CSSProperties) : undefined}
+                  aria-expanded={Boolean(expanded[linkKey])}
+                  aria-label={`${linkedId ? 'Change' : 'Add'} route for ${effectLabel} on ${parentLabel}`}
+                  onClick={() => setExpanded(current => ({ ...current, [linkKey]: !current[linkKey] }))}
+                >
+                  {linkedId ? <RouteCheckGlyphIcon /> : <RouteWaveGlyphIcon />}
+                </button>
+              </>
+            )
+          }}
           renderRoute={({ linkKey }) => {
             if (!expanded[linkKey]) return null
             const linkedId = links[linkKey]
