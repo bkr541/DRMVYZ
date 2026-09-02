@@ -268,6 +268,24 @@ export class CinematicWorldRendererRegistry {
     if (definition.capabilities.backend !== definition.backend) {
       throw new Error(`Cinematic world "${definition.id}" capability backend does not match its renderer backend`)
     }
+    if (definition.backend === 'webgl2') {
+      const object3dSlots = definition.object3dSlots ?? []
+      // Only one embedded 3D object anchor per world is implemented today —
+      // CinematicWorldNodeAdapter creates a single Cinema3DObjectRuntime per
+      // node and shares it across every declared anchor, so a second anchor
+      // would silently render the same object twice rather than an
+      // independent one. Reject it here instead of shipping that surprise.
+      if (object3dSlots.length > 1) {
+        throw new Error(`Cinematic world "${definition.id}" declares ${object3dSlots.length} object3dSlots; only a single embedded 3D object anchor is supported per world.`)
+      }
+      // A world that embeds a 3D object into its own render target must also
+      // own that target's clear, or the shared executor's pre-clear and the
+      // world's own clear both land on the same framebuffer — see the
+      // Reactive Constellation "second target clear" regression.
+      if (object3dSlots.length > 0 && definition.ownsTargetClear !== true) {
+        throw new Error(`Cinematic world "${definition.id}" declares an object3dSlot but does not set ownsTargetClear: true, which will double-clear its render target.`)
+      }
+    }
     if (this.validateSharedCatalog && !definition.internal && definition.id !== CINEMATIC_DIAGNOSTIC_WORLD_ID) {
       const catalog = CINEMATIC_WORLD_CATALOG[definition.id]
       if (definition.label !== catalog.label) {
