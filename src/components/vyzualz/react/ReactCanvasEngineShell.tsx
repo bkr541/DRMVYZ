@@ -91,6 +91,7 @@ import {
   resolveCanvasEffectiveAuthoredLayers,
   resolveCanvasEnabledAuthoredLayers,
   resolveCanvasLayerEffectiveEngineSettings,
+  resolveCanvasPrimaryLayer,
   resolveCanvasMediaRoles,
   resolveCanvasPerformanceFrame,
   resolveCanvasPoolAutomationRuntime,
@@ -3202,6 +3203,11 @@ function CanvasTimingControls() {
     ? `Audio Intelligence sections detected: ${detectedSectionLabels.join(', ')}.`
     : 'Map section-trigger restarts to Audio Intelligence sections after a track has been loaded and analyzed.'
 
+  // Video Timing only has meaning for an active video media item -- with no
+  // active video there is nothing to time, so hide the group rather than
+  // showing every control inert.
+  if (!hasActiveVideo) return null
+
   return (
     <Collapsible label="Video Timing" defaultOpen>
       <div className="rv-canvas-engine-note">{timingDescription}</div>
@@ -3610,7 +3616,19 @@ export function CanvasLayersPanel() {
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
 
   const layers = settings.authoredLayers
-  const activeLayerCount = Math.min(MAX_CANVAS_AUTHORED_LAYERS, resolveCanvasEffectiveAuthoredLayers(layers).length)
+  // Single render mode keeps `authoredLayers` empty and owns the one live
+  // media through `primaryLayer` instead. Surface that as a read-only row so
+  // the tab always reflects what the visualizer is actually showing -- not
+  // only once a second layer promotes the stack to `layers` mode.
+  const singlePrimaryLayer = useMemo(
+    () => (layers.length === 0 && settings.renderMode !== 'performance'
+      ? resolveCanvasPrimaryLayer(settings.primaryLayer, layers)
+      : null),
+    [layers, settings.primaryLayer, settings.renderMode],
+  )
+  const activeLayerCount = singlePrimaryLayer
+    ? 1
+    : Math.min(MAX_CANVAS_AUTHORED_LAYERS, resolveCanvasEffectiveAuthoredLayers(layers).length)
   // Canvas-row visibility/eligibility is based on the authored enabled-layer
   // collection, not the Solo-narrowed effective render count -- soloing a
   // layer must not restructure this editing surface (see Enabled Layer
@@ -3774,7 +3792,27 @@ export function CanvasLayersPanel() {
             </div>
           )
         })}
-        {layers.length === 0 && <div className="rv-ctrl-info">No CANVAS layers yet. Use Add as Layer from the Media Library.</div>}
+        {singlePrimaryLayer && (() => {
+          const media = mediaItems.find(item => item.id === singlePrimaryLayer.mediaId) ?? null
+          const label = media?.name ?? `Missing media · ${singlePrimaryLayer.mediaId}`
+          return (
+            <div
+              className="rv-canvas-layer-stack-row rv-canvas-layer-stack-row--single-primary"
+              data-canvas-layer-id={singlePrimaryLayer.id}
+            >
+              <LayerRow
+                index={1}
+                label={label}
+                status="Manual · Pinned"
+                tone={CANVAS_LAYER_ROW_TONES[0]}
+                aria-label={`CANVAS layer 1: ${label}`}
+                title="Add a second media item to reorder, solo, duplicate, or override this layer"
+                style={{ cursor: 'default' }}
+              />
+            </div>
+          )
+        })()}
+        {layers.length === 0 && !singlePrimaryLayer && <div className="rv-ctrl-info">No CANVAS layers yet. Use Add as Layer from the Media Library.</div>}
       </div>
     </section>
   )
@@ -4651,8 +4689,9 @@ export function CanvasEngineFxPanel() {
           Canvas composition as a whole (or relationships among layers) --
           not this phase's scope. Hide rather than show them disabled, since
           nothing in either group is consumed per-layer. Video Timing is
-          scoped to the active media item, not to Canvas-vs-layer, so it
-          stays visible either way. */}
+          scoped to the active media item, not to Canvas-vs-layer, so it is
+          shown in both scopes -- but it renders nothing unless the active
+          media is a video (see CanvasTimingControls). */}
       {!layerScopeActive && <CanvasCompositionControls />}
 
       {!layerScopeActive && <CanvasPresetControls />}

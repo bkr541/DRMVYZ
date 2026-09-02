@@ -117,7 +117,9 @@ export function resolveCanvasLayerEffectRenderPlan(
       case 'bloom':
         return { id, amount: clamp01(0.55 + bass * 0.35 + beat * 0.1), variation, stutterBucket: null }
       case 'echo':
-        return { id, amount: clamp01(0.5 + bass * 0.34 + beat * 0.1), variation, stutterBucket: null }
+        // Quiet at rest so a static layer is not permanently smeared; bass
+        // and beat drive it up to a strong expansion.
+        return { id, amount: clamp01(0.14 + bass * 0.5 + beat * 0.22), variation, stutterBucket: null }
       case 'glitch':
         return { id, amount: clamp01(0.34 + beat * 0.38 + transient * 0.2 + high * 0.08), variation, stutterBucket: null }
       case 'melt':
@@ -460,17 +462,21 @@ function renderEcho(
   if (tapCount <= 0) return
 
   const minSpan = Math.min(width, height)
+  // One stable per-layer rotation; taps are then fanned evenly around the
+  // full circle so the echo expands in all directions from the media rather
+  // than piling up toward one corner. Audio only modulates travel distance.
+  const baseAngle = (stableHash(`${layerId}:echo`) / 4294967295) * Math.PI * 2
   for (let tap = 0; tap < tapCount; tap += 1) {
     const slotIndex = (ring.writeIndex - 1 - tap + ECHO_RING_SIZE * 4) % ECHO_RING_SIZE
     const slot = ring.slots[slotIndex]
     if (!slot) continue
 
     const t = tap / (ECHO_RING_SIZE - 1)
-    // Stable per-layer, per-tap direction so drift reads as a trail rather
-    // than jitter; audio only modulates how far each tap travels.
-    const angle = (stableHash(`${layerId}:echo-tap:${tap}`) / 4294967295) * Math.PI * 2
+    const angle = baseAngle + tap * ((Math.PI * 2) / ECHO_RING_SIZE)
     const scale = 1.018 + t * 0.085 + amount * 0.05 * (tap + 1)
-    const opacity = clamp01((0.52 - t * 0.4) * (0.7 + amount * 0.55))
+    // Opacity tracks the audio-driven amount instead of sitting on a high
+    // floor, so the resting echo is a faint ghost, not a full-strength one.
+    const opacity = clamp01((0.44 - t * 0.34) * (0.22 + amount))
     const offsetMag = (0.007 + t * 0.026) * (1 + amount * 0.9) * minSpan
 
     context.save()
