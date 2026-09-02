@@ -74,7 +74,10 @@ export function CinemaInspectorPanel() {
     const schemas = persistedDefinition.definition.metadata?.adapter === 'CinematicWorldNodeAdapter'
       ? getCinemaCinematicWorldSupportedParameterSchemasForNode(persistedDefinition.definition, selectedNode)
       : getCinemaSupportedParameterSchemas(persistedDefinition.definition)
-    return filterCinema3DObjectParameterSchemasForSource(schemas, selectedNodeValues)
+    return filterCinema3DObjectParameterSchemasForSource(
+      schemas.filter(schema => schema.group !== 'React'),
+      selectedNodeValues,
+    )
   }, [persistedDefinition, selectedNode, selectedNodeValues])
   const supportedCameraSchemas: Readonly<Record<string, readonly Readonly<CinemaParameterDefinition>[]>> =
     appearanceCapabilities?.cameraParameterSchemas ?? Object.freeze({})
@@ -341,9 +344,10 @@ export function CinemaSelectedLayerSummary() {
   const supportedNodeSchemas = !persistedDefinition || !selectedNode
     ? []
     : filterCinema3DObjectParameterSchemasForSource(
-        persistedDefinition.definition.metadata?.adapter === 'CinematicWorldNodeAdapter'
+        (persistedDefinition.definition.metadata?.adapter === 'CinematicWorldNodeAdapter'
           ? getCinemaCinematicWorldSupportedParameterSchemasForNode(persistedDefinition.definition, selectedNode)
-          : getCinemaSupportedParameterSchemas(persistedDefinition.definition),
+          : getCinemaSupportedParameterSchemas(persistedDefinition.definition))
+          .filter(schema => schema.group !== 'React'),
         selectedNodeValues,
       )
   const nodeDescriptors = selectedNode && persistedDefinition

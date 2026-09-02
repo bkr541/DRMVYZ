@@ -303,16 +303,35 @@ describe('Cinema Cinematic World adapters', () => {
     const masterId = cinemaCinematicWorldParameterId('world-master-intensity')
     const impactShakeId = cinemaCinematicWorldParameterId('world-impact-shake')
     const zoomPunchId = cinemaCinematicWorldParameterId('world-zoom-punch')
+    const thunderTriggerId = cinemaCinematicWorldParameterId('world-thunder-trigger')
+    const flashIntensityId = cinemaCinematicWorldParameterId('world-flash-intensity')
+    const flashDurationId = cinemaCinematicWorldParameterId('world-flash-duration')
+    const flashDecayId = cinemaCinematicWorldParameterId('world-flash-decay')
     expect(node?.parameterValues[backgroundId]).toEqual([0, 0, 0, 1])
     expect(node?.parameterValues[lightningId]).toEqual([74 / 255, 167 / 255, 1, 1])
     expect(node?.parameterValues[masterId]).toBe(0.5)
     expect(node?.parameterValues[impactShakeId]).toBe(0.5)
     expect(node?.parameterValues[zoomPunchId]).toBe(0.5)
+    expect(node?.parameterValues[flashIntensityId]).toBe(0.5)
+    expect(node?.parameterValues[flashDurationId]).toBe(0.5)
+    expect(node?.parameterValues[flashDecayId]).toBe(0.5)
+    const thunderTriggerSchema = electricStorm!.definition.parameters.find(parameter => parameter.id === thunderTriggerId)
+    expect(thunderTriggerSchema?.type).toBe('enum')
+    if (thunderTriggerSchema?.type !== 'enum') throw new Error('Expected Electric Storm thunder trigger enum schema.')
+    expect(node?.parameterValues[thunderTriggerId]).toBe(thunderTriggerSchema.default)
+    expect(thunderTriggerSchema.options.map(option => option.label)).toEqual([
+      'Energy', 'Beat', 'Downbeat', '2 Beats', '4 Beats', 'Bar', '4 Bars', '8 Bars', 'Phrase', 'Drop',
+    ])
 
-    const supportedLabels = getCinemaCinematicWorldSupportedParameterSchemasForNode(electricStorm!.definition, node!).map(parameter => parameter.label)
+    const supportedSchemas = getCinemaCinematicWorldSupportedParameterSchemasForNode(electricStorm!.definition, node!)
+    const supportedLabels = supportedSchemas.map(parameter => parameter.label)
     expect(supportedLabels).toEqual(expect.arrayContaining([
       'Background Color', 'Lightning Color', 'Master Intensity', 'Strike Rate', 'Branching', 'Thickness', 'Glow', 'Impact Shake', 'Zoom Punch',
+      'Thunder Trigger', 'Flash Intensity', 'Flash Duration', 'Flash Decay',
     ]))
+    expect(supportedSchemas.filter(parameter => parameter.group === 'React').map(parameter => parameter.label)).toEqual([
+      'Thunder Trigger', 'Flash Intensity', 'Flash Duration', 'Flash Decay',
+    ])
 
     const state = createCinemaFoundationPersistedState()
     const harness = createExecutorHarness(CINEMA_PRODUCTION_RUNTIME_REGISTRY, state.definitions, false)
@@ -322,10 +341,11 @@ describe('Cinema Cinematic World adapters', () => {
     expect(harness.executor.render(frame(1))).toBe(true)
     expect(harness.executor.render(frame(2, false, true))).toBe(true)
     expect(harness.executor.render(frame(3))).toBe(true)
+    expect(harness.executor.render(frame(4, false, false, { bar4: true }))).toBe(true)
     const uniformLocationCalls = vi.mocked(harness.gl.getUniformLocation).mock.calls as unknown as Array<[WebGLProgram, string]>
     expect(uniformLocationCalls.map(([, name]) => name)).toEqual(expect.arrayContaining([
       'uStrikeStyle0', 'uStrikeStyle1', 'uStrikeStyle2',
-      'uImpactShake', 'uZoomPunch', 'uImpactStrength', 'uAudioDetail',
+      'uImpactShake', 'uZoomPunch', 'uImpactStrength', 'uAudioDetail', 'uThunderFlash',
     ]))
     const strikeMetaCalls = (vi.mocked(harness.gl.uniform4f).mock.calls as unknown as Array<[WebGLUniformLocation, number, number, number, number]>).filter(([location]) => (
       typeof location === 'object' && location !== null && String((location as unknown as { name?: string }).name).startsWith('uStrikeMeta')
@@ -335,6 +355,10 @@ describe('Cinema Cinematic World adapters', () => {
       typeof location === 'object' && location !== null && (location as unknown as { name?: string }).name === 'uImpactStrength'
     ))
     expect(impactCalls.some(([, value]) => Number(value) > 0)).toBe(true)
+    const thunderCalls = (vi.mocked(harness.gl.uniform1f).mock.calls as unknown as Array<[WebGLUniformLocation, number]>).filter(([location]) => (
+      typeof location === 'object' && location !== null && (location as unknown as { name?: string }).name === 'uThunderFlash'
+    ))
+    expect(thunderCalls.some(([, value]) => Number(value) > 0)).toBe(true)
     expect(harness.gl.__calls.drawCount).toBeGreaterThan(0)
     expect(harness.executor.getSnapshot().failedNodeCount).toBe(0)
     expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
@@ -682,9 +706,9 @@ function frame(
   generation: number,
   reset = false,
   dropStart = false,
-  events: Partial<{ beat: boolean; kick: boolean; snare: boolean }> = {},
+  events: Partial<{ beat: boolean; kick: boolean; snare: boolean; bar4: boolean }> = {},
 ): Readonly<CinemaFrameContext> {
-  const clock = (spanBeats: number) => ({ available: true, spanBeats, index: 0, phase: 0.25, hit: false, eventId: null })
+  const clock = (spanBeats: number, hit = false, eventId: CinemaEventId | null = null) => ({ available: true, spanBeats, index: generation, phase: 0.25, hit, eventId })
   const beat = events.beat ?? generation === 0
   const kick = events.kick ?? generation === 0
   const snare = events.snare ?? false
@@ -754,7 +778,7 @@ function frame(
         beat2: false,
         beat4: false,
         bar: false,
-        bar4: false,
+        bar4: events.bar4 ?? false,
         bar8: false,
         phrase: false,
         states: {
@@ -762,7 +786,7 @@ function frame(
           beat2: clock(2),
           beat4: clock(4),
           bar: clock(4),
-          bar4: clock(16),
+          bar4: clock(16, events.bar4 ?? false, events.bar4 ? `music:bar4:${generation}` as CinemaEventId : null),
           bar8: clock(32),
           phrase: clock(32),
         },

@@ -147,6 +147,11 @@ export interface StormGatewaySettings {
   lightningResponse: number
 }
 
+export const ELECTRIC_STORM_THUNDER_TRIGGERS = [
+  'energy', 'beat', 'downbeat', 'beat2', 'beat4', 'bar', 'bar4', 'bar8', 'phrase', 'drop',
+] as const
+export type ElectricStormThunderTrigger = typeof ELECTRIC_STORM_THUNDER_TRIGGERS[number]
+
 export interface ElectricStormSettings {
   backgroundColor: string
   lightningColor: string
@@ -157,6 +162,10 @@ export interface ElectricStormSettings {
   glow: number
   impactShake: number
   zoomPunch: number
+  thunderTrigger: ElectricStormThunderTrigger
+  flashIntensity: number
+  flashDuration: number
+  flashDecay: number
 }
 
 export type ElectricStormNumericSettings = Pick<
@@ -583,6 +592,10 @@ export const ELECTRIC_STORM_DEFAULTS: ElectricStormSettings = {
   glow: 0.5,
   impactShake: 0.5,
   zoomPunch: 0.5,
+  thunderTrigger: 'bar4',
+  flashIntensity: 0.5,
+  flashDuration: 0.5,
+  flashDecay: 0.5,
 }
 
 export const ELECTRIC_STORM_BOUNDS: NumericBounds<ElectricStormNumericSettings> = {
@@ -653,10 +666,18 @@ function normalizeElectricStormSettings(raw: unknown): ElectricStormSettings {
     },
     ELECTRIC_STORM_BOUNDS,
   )
+  const thunderTrigger = typeof source.thunderTrigger === 'string'
+    && ELECTRIC_STORM_THUNDER_TRIGGERS.includes(source.thunderTrigger as ElectricStormThunderTrigger)
+    ? source.thunderTrigger as ElectricStormThunderTrigger
+    : ELECTRIC_STORM_DEFAULTS.thunderTrigger
   return {
     backgroundColor: normalizeHexColor(source.backgroundColor, ELECTRIC_STORM_DEFAULTS.backgroundColor),
     lightningColor: normalizeHexColor(source.lightningColor, ELECTRIC_STORM_DEFAULTS.lightningColor),
     ...numeric,
+    thunderTrigger,
+    flashIntensity: clampNumber(source.flashIntensity, ELECTRIC_STORM_DEFAULTS.flashIntensity, [0, 1]),
+    flashDuration: clampNumber(source.flashDuration, ELECTRIC_STORM_DEFAULTS.flashDuration, [0, 1]),
+    flashDecay: clampNumber(source.flashDecay, ELECTRIC_STORM_DEFAULTS.flashDecay, [0, 1]),
   }
 }
 

@@ -37,6 +37,7 @@ import {
   type CinemaControlPointId,
   type CinemaModulationSourceId,
   type CinemaNodeId,
+  type CinemaParameterDefinition,
   type CinemaParameterPath,
   type CinemaParameterValue,
   type CinemaPerformanceAction,
@@ -45,7 +46,8 @@ import {
   type CinemaPersistedDefinition,
 } from '../cinema'
 import type { CinemaWorkspaceFrameBridgeResult } from './CinemaWorkspaceFrameBridge'
-import { Collapsible, NumberInputRow, SelectRow, TextInputRow, ToggleRow } from './ReactControlRows'
+import { Collapsible, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
+import { getCinemaLiveInstance, setCinemaLiveNodeOverride } from './CinemaLiveOverrides'
 
 const CAMERA_MODES: readonly CinemaCameraMode[] = ['locked', 'dolly', 'orbit', 'fly', 'handheld', 'path', 'auto-director']
 const MODULATION_MODES: readonly CinemaModulationMode[] = ['add', 'multiply', 'replace', 'trigger']
@@ -126,6 +128,7 @@ export function CinemaComposerStage19Panel({
   return (
     <div className="rv-cinema-stage19" aria-label="Cinema modulation performance camera and timeline authoring">
       {readOnly && <ComposerNotice>Preset structure is read-only in Cinema Engine. Cinema route and performance structure cannot currently be authored in Show Manager.</ComposerNotice>}
+      {surface === 'performance' && <ElectricStormReactControls composition={composition} definitions={definitions} />}
       {(surface === 'all' || surface === 'routing') && (readOnly ? (
         <ReadOnlyRoutingPresentation composition={composition} destinations={destinations} />
       ) : (
@@ -257,6 +260,79 @@ export function CinemaComposerStage19Panel({
       </Collapsible>
       )}
       </fieldset>
+    </div>
+  )
+}
+
+
+export function ElectricStormReactControls({
+  composition,
+  definitions,
+}: {
+  composition: Readonly<CinemaCompositionDefinition>
+  definitions: readonly Readonly<CinemaPersistedDefinition>[]
+}) {
+  const instances = useCinemaStore(store => store.instances)
+  const target = useMemo(() => {
+    for (const node of composition.nodes) {
+      const persisted = definitions.find(candidate => candidate.id === node.typeId)
+      if (persisted?.definition.metadata?.adapter !== 'CinematicWorldNodeAdapter') continue
+      if (persisted.definition.metadata?.worldId !== 'electricStorm') continue
+      return { node, definition: persisted.definition }
+    }
+    return null
+  }, [composition.nodes, definitions])
+
+  if (!target) return null
+  const schemas = target.definition.parameters
+    .filter(schema => schema.group === 'React')
+    .sort((left, right) => (left.ui?.order ?? 0) - (right.ui?.order ?? 0))
+  if (schemas.length === 0) return null
+
+  const live = getCinemaLiveInstance(composition.id, instances)
+  const liveValues = live?.nodeOverrides.find(override => override.nodeId === target.node.id)?.values ?? {}
+  const valueFor = (schema: Readonly<CinemaParameterDefinition>): CinemaParameterValue => {
+    const persisted = liveValues[schema.id] ?? target.node.parameterValues[schema.id]
+    if (persisted !== undefined) return persisted
+    return 'default' in schema ? schema.default : false
+  }
+  const commit = (schema: Readonly<CinemaParameterDefinition>, value: CinemaParameterValue) => {
+    setCinemaLiveNodeOverride(composition, target.node.id, schema, value)
+  }
+
+  return (
+    <div className="rv-ctrl-group" data-cinema-electric-storm-react-controls="true">
+      <Collapsible label="Electric Storm">
+        {schemas.map(schema => {
+          const value = valueFor(schema)
+          if (schema.type === 'enum') {
+            return (
+              <SelectRow
+                key={schema.id}
+                label={schema.label}
+                value={String(value)}
+                onChange={next => commit(schema, next)}
+                options={schema.options.map(option => ({ value: String(option.id), label: option.label }))}
+              />
+            )
+          }
+          if (schema.type === 'float') {
+            return (
+              <SliderRow
+                key={schema.id}
+                label={schema.label}
+                value={typeof value === 'number' ? value : Number(schema.default)}
+                min={schema.min}
+                max={schema.max}
+                step={schema.step}
+                resetValue={Number(schema.default)}
+                onChange={next => commit(schema, next)}
+              />
+            )
+          }
+          return null
+        })}
+      </Collapsible>
     </div>
   )
 }

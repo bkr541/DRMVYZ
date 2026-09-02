@@ -164,5 +164,9 @@ function updateLiveInstance(
   }
   const next = update(baseline)
   const result = state.upsertCinemaInstance(next)
-  if (result.ok) useCinemaStore.getState().setActiveCinemaComposition(composition.id, id)
+  // Activating the just-written live instance is a side effect of this
+  // edit, not a separate user action — it must not cost its own undo step
+  // (which would otherwise happen only on the first live edit, since later
+  // edits find activation already a no-op and skip recording entirely).
+  if (result.ok) useCinemaStore.getState().setActiveCinemaComposition(composition.id, id, { recordHistory: false })
 }

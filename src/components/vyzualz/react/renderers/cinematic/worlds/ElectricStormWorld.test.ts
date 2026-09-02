@@ -90,6 +90,13 @@ function choreographyFrame(input: {
 }
 
 describe('Electric Storm Stage 3 world', () => {
+  it('adds thunder as haze-shaped atmospheric illumination independent of strike rendering', () => {
+    expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('uniform float uThunderFlash;')
+    expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('float thunderAtmosphere = 0.28 + haze * 0.82 + hazeB * 0.22;')
+    expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('color += thunderTint * thunderAtmosphere * thunderFlash;')
+    expect(ELECTRIC_STORM_FRAGMENT_SOURCE.indexOf('thunderAtmosphere')).toBeLessThan(ELECTRIC_STORM_FRAGMENT_SOURCE.indexOf('vec3 strike0 = renderStrike'))
+  })
+
   it('derives bounded hue-aware body, glow, branch, and partially white-hot core colors', () => {
     for (const color of ['#4aa7ff', '#ff365f', '#39e68d', '#b45cff']) {
       const derived = deriveElectricStormColors(color)

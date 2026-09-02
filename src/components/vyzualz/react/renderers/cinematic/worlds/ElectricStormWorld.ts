@@ -8,6 +8,7 @@ import type {
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
 import { ElectricStormAudioChoreographer } from './ElectricStormAudioChoreography'
 import { ELECTRIC_STORM_FRAGMENT_SOURCE } from './ElectricStormShader'
+import { ElectricStormThunderController } from './ElectricStormThunder'
 import {
   ELECTRIC_STORM_MAX_ACTIVE_STRIKES,
   ElectricStormStrikeGenerator,
@@ -35,6 +36,7 @@ const UNIFORMS = [
   'uImpactShake',
   'uZoomPunch',
   'uImpactStrength',
+  'uThunderFlash',
   'uStrikeLine0',
   'uStrikeMeta0',
   'uStrikeStyle0',
@@ -95,6 +97,7 @@ function setStrikeUniforms(
 class ElectricStormWorld extends FullscreenCinematicWorld {
   private readonly strikeGenerator = new ElectricStormStrikeGenerator()
   private readonly audioChoreographer = new ElectricStormAudioChoreographer()
+  private readonly thunderController = new ElectricStormThunderController()
 
   constructor() {
     super('electricStorm', ELECTRIC_STORM_FRAGMENT_SOURCE, UNIFORMS)
@@ -104,17 +107,20 @@ class ElectricStormWorld extends FullscreenCinematicWorld {
     super.reset(reason)
     this.strikeGenerator.reset()
     this.audioChoreographer.reset()
+    this.thunderController.reset()
   }
 
   override onContextLost(): void {
     this.strikeGenerator.reset()
     this.audioChoreographer.reset()
+    this.thunderController.reset()
     super.onContextLost()
   }
 
   override dispose(): void {
     this.strikeGenerator.reset()
     this.audioChoreographer.reset()
+    this.thunderController.reset()
     super.dispose()
   }
 
@@ -133,6 +139,7 @@ class ElectricStormWorld extends FullscreenCinematicWorld {
     program.setFloat('uGlowAmount', settings.glow)
     program.setFloat('uImpactShake', settings.impactShake)
     program.setFloat('uZoomPunch', settings.zoomPunch)
+    program.setFloat('uThunderFlash', this.thunderController.update(frame, settings).illumination)
 
     const choreography = this.audioChoreographer.update(frame, settings)
     for (const intent of choreography.intents) this.strikeGenerator.request(intent)

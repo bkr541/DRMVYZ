@@ -159,6 +159,10 @@ describe('world-specific cinematic configuration', () => {
       glow: 1,
       impactShake: 0,
       zoomPunch: 1,
+      thunderTrigger: 'bar4',
+      flashIntensity: 0.5,
+      flashDuration: 0.5,
+      flashDecay: 0.5,
     })
 
     const constellation = createCinematicWorldConfig('reactiveConstellation', {
@@ -244,6 +248,10 @@ describe('world-specific cinematic configuration', () => {
       glow: 0.67,
       impactShake: 0.42,
       zoomPunch: 0.81,
+      thunderTrigger: 'drop',
+      flashIntensity: 0.76,
+      flashDuration: 0.31,
+      flashDecay: 0.64,
     })
     const reloaded = normalizeCinematicWorldConfig(JSON.parse(JSON.stringify(authored)))
     expect(reloaded.worldMode).toBe('electricStorm')
@@ -258,6 +266,10 @@ describe('world-specific cinematic configuration', () => {
       glow: 0.67,
       impactShake: 0.42,
       zoomPunch: 0.81,
+      thunderTrigger: 'drop',
+      flashIntensity: 0.76,
+      flashDuration: 0.31,
+      flashDecay: 0.64,
     })
   })
 

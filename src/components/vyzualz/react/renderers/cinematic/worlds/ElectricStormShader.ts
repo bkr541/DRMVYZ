@@ -14,6 +14,7 @@ uniform float uAudioDetail;
 uniform float uImpactShake;
 uniform float uZoomPunch;
 uniform float uImpactStrength;
+uniform float uThunderFlash;
 uniform vec4 uStrikeLine0;
 uniform vec4 uStrikeMeta0;
 uniform vec4 uStrikeStyle0;
@@ -135,6 +136,11 @@ void main() {
   float hazePresence = haze * (0.035 + uMasterIntensity * 0.095);
   vec3 color = uStormBackground;
   color += mix(uStormBackground, uLightningGlowColor, 0.22) * hazePresence;
+
+  float thunderFlash = clamp(uThunderFlash, 0.0, 1.0);
+  float thunderAtmosphere = 0.28 + haze * 0.82 + hazeB * 0.22;
+  vec3 thunderTint = mix(max(uStormBackground, vec3(0.008)), mix(vec3(1.0), uLightningGlowColor, 0.42), 0.78);
+  color += thunderTint * thunderAtmosphere * thunderFlash;
 
   vec3 strike0 = renderStrike(p, uStrikeLine0, uStrikeMeta0, uStrikeStyle0, 0.0);
   vec3 strike1 = renderStrike(p, uStrikeLine1, uStrikeMeta1, uStrikeStyle1, 1.0);

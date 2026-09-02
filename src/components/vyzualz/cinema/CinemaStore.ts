@@ -164,6 +164,9 @@ export interface CinemaStoreState extends CinemaPersistedState {
   setActiveCinemaComposition: (
     compositionId: CinemaCompositionId | null,
     instanceId?: CinemaCompositionInstanceId | null,
+    /** Internal callers (e.g. activating a just-written live-override instance)
+     * can opt out of recording a separate undo step for pure selection. */
+    options?: { recordHistory?: boolean },
   ) => CinemaStoreOperationResult
 
   beginCinemaHistoryTransaction: (label?: string) => CinemaStoreOperationResult
@@ -634,16 +637,23 @@ function createCinemaStoreInitializer(
         collections: current.collections.filter(collection => collection.id !== collectionId),
       })),
 
-      setActiveCinemaComposition: (compositionId, instanceId = null) => {
-        const previousCompositionId = get().activeCompositionId
-        const result = mutateDocument(
-          'Select active Cinema composition',
-          current => ({
-            ...current,
-            activeCompositionId: compositionId,
-            activeInstanceId: compositionId == null ? null : instanceId,
-          }),
-        )
+      setActiveCinemaComposition: (compositionId, instanceId = null, options) => {
+        const current = get()
+        const previousCompositionId = current.activeCompositionId
+        const result = options?.recordHistory === false
+          ? applyDocument({
+              ...snapshotCinemaPersistedState(current),
+              activeCompositionId: compositionId,
+              activeInstanceId: compositionId == null ? null : instanceId,
+            }, 'Select active Cinema composition', { recordHistory: false })
+          : mutateDocument(
+              'Select active Cinema composition',
+              snapshot => ({
+                ...snapshot,
+                activeCompositionId: compositionId,
+                activeInstanceId: compositionId == null ? null : instanceId,
+              }),
+            )
         if (result.ok && previousCompositionId !== compositionId) set({ composerRuntimePreview: EMPTY_CINEMA_COMPOSER_RUNTIME_PREVIEW })
         return result
       },

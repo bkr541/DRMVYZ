@@ -245,11 +245,16 @@ const WORLD_COLOR_SETTING_KEYS: Readonly<Partial<Record<CinematicWorldMode, read
   electricStorm: Object.freeze(['backgroundColor', 'lightningColor']),
 })
 
-const REACTIVE_ENUMS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+const WORLD_ENUMS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   visualDnaProfile: WorldSettings.REACTIVE_CONSTELLATION_VISUAL_DNA_PROFILES,
   choreographyProfile: WorldSettings.REACTIVE_CONSTELLATION_CHOREOGRAPHY_PROFILES,
   topologyStyle: WorldSettings.REACTIVE_CONSTELLATION_TOPOLOGIES,
   polyhedronStyle: WorldSettings.REACTIVE_CONSTELLATION_POLYHEDRA,
+  thunderTrigger: WorldSettings.ELECTRIC_STORM_THUNDER_TRIGGERS,
+})
+
+const WORLD_REACT_SETTING_KEYS: Readonly<Partial<Record<CinematicWorldMode, readonly string[]>>> = Object.freeze({
+  electricStorm: Object.freeze(['thunderTrigger', 'flashIntensity', 'flashDuration', 'flashDecay']),
 })
 
 const OUTPUT_DESCRIPTOR = Object.freeze({
@@ -991,6 +996,7 @@ function createParameterDefinitions(worldId: CinematicWorldMode): readonly Cinem
       common.push(integer ? {
         id,
         label: titleCase(key),
+        ...(isWorldReactSetting(worldId, key) ? { group: 'React' } : {}),
         type: 'integer',
         default: value,
         min: range[0],
@@ -998,7 +1004,10 @@ function createParameterDefinitions(worldId: CinematicWorldMode): readonly Cinem
         step: 1,
         modulatable: true,
         ui: { control: 'number', order: order++ },
-      } : floatParameter(id, titleCase(key), value, range[0], range[1], order++))
+      } : {
+        ...floatParameter(id, titleCase(key), value, range[0], range[1], order++),
+        ...(isWorldReactSetting(worldId, key) ? { group: 'React' } : {}),
+      })
       continue
     }
     if (typeof value === 'string') {
@@ -1017,13 +1026,14 @@ function createParameterDefinitions(worldId: CinematicWorldMode): readonly Cinem
         })
         continue
       }
-      const options = REACTIVE_ENUMS[key] ?? [value]
+      const options = WORLD_ENUMS[key] ?? [value]
       common.push({
         id,
         label: titleCase(key),
+        ...(isWorldReactSetting(worldId, key) ? { group: 'React' } : {}),
         type: 'enum',
         default: worldEnumOptionId(key, value),
-        options: options.map(option => ({ id: worldEnumOptionId(key, option), label: titleCase(option) })),
+        options: options.map(option => ({ id: worldEnumOptionId(key, option), label: worldEnumLabel(key, option) })),
         modulatable: false,
         ui: { control: 'select', order: order++ },
       })
@@ -2090,6 +2100,10 @@ function isWorldColorSetting(worldId: CinematicWorldMode, key: string): boolean 
   return WORLD_COLOR_SETTING_KEYS[worldId]?.includes(key) ?? false
 }
 
+function isWorldReactSetting(worldId: CinematicWorldMode, key: string): boolean {
+  return WORLD_REACT_SETTING_KEYS[worldId]?.includes(key) ?? false
+}
+
 function worldEnumOptionId(key: string, value: string): CinemaEnumOptionId {
   return cinemaStableId<CinemaEnumOptionId>(stableSegment(`${key}-${value}`), 'enum option')
 }
@@ -2100,8 +2114,25 @@ function readQuality(value: unknown, fallback: CinematicQualityTier): CinematicQ
 }
 
 function readWorldEnum(key: string, value: unknown, fallback: string): string {
-  const options = REACTIVE_ENUMS[key] ?? [fallback]
+  const options = WORLD_ENUMS[key] ?? [fallback]
   return options.find(candidate => value === worldEnumOptionId(key, candidate)) ?? fallback
+}
+
+function worldEnumLabel(key: string, value: string): string {
+  if (key !== 'thunderTrigger') return titleCase(value)
+  switch (value) {
+    case 'energy': return 'Energy'
+    case 'beat': return 'Beat'
+    case 'downbeat': return 'Downbeat'
+    case 'beat2': return '2 Beats'
+    case 'beat4': return '4 Beats'
+    case 'bar': return 'Bar'
+    case 'bar4': return '4 Bars'
+    case 'bar8': return '8 Bars'
+    case 'phrase': return 'Phrase'
+    case 'drop': return 'Drop'
+    default: return titleCase(value)
+  }
 }
 
 function numberValue(value: unknown, fallback: number): number {
