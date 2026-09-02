@@ -19655,20 +19655,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   box-shadow: 0 0 0 1px rgba(141, 231, 255, 0.75);
 }
 
-/* Parameter field: same SelectRow styling as the canonical Add Effects
-   group's own picker, capped to 80% width and centered under the orb
-   instead of running the row's full width. Lays out as a row so the red
-   trash-can can sit to the right of the parameter field once linked. */
+/* The shared route editor, centered under the orb at 80% of the group width
+   — wide enough that the parameter rows and their intensity sliders are not
+   cramped in the middle of the panel. */
 .rv-ae-orb-picker {
-  display: flex;
-  align-items: flex-end;
-  gap: 7px;
-  max-width: 80%;
+  width: 80%;
+  margin-top: 4px;
 }
 
-.rv-ae-orb-picker > .rv-ctrl-row {
-  flex: 1;
-  min-width: 0;
+.rv-ae-orb-picker > .rv-ae-route-editor {
+  width: 100%;
 }
 
 /* Shared red trash-can affordance for removing a parameter link across the
@@ -20089,13 +20085,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  margin-top: 8px;
+  gap: 2px;
+  margin-top: 6px;
 }
 
+/* Short connector segments: one from the effect input's colored border down
+   to the node, one from the node down into the editor. */
 .rv-ae-bus-stem {
   width: 2px;
-  height: 12px;
+  height: 7px;
   background: rgba(74, 199, 219, 0.75);
 }
 
@@ -20105,32 +20103,50 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 20px;
+  height: 20px;
   border-radius: 999px;
   border: 2px solid #4ac7db;
   background: rgba(10, 20, 24, 0.9);
   color: #8fe3f0;
-  font: 800 12px/1 var(--az-font);
-  box-shadow: 0 0 10px rgba(74, 199, 219, 0.45), inset 0 0 6px rgba(74, 199, 219, 0.25);
+  font: 800 10px/1 var(--az-font);
+  box-shadow: 0 0 8px rgba(74, 199, 219, 0.4), inset 0 0 5px rgba(74, 199, 219, 0.22);
   cursor: pointer;
 }
 
 .rv-ae-bus-node:hover,
 .rv-ae-bus-node:focus-visible {
-  box-shadow: 0 0 14px rgba(141, 231, 255, 0.7);
+  box-shadow: 0 0 12px rgba(141, 231, 255, 0.7);
 }
 
 .rv-ae-bus-entry.is-linked .rv-ae-bus-node {
   border-color: var(--bus-color);
   color: var(--bus-color);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--bus-color) 45%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--bus-color) 42%, transparent);
 }
 
 .rv-ae-bus-editor {
   align-self: stretch;
   width: 100%;
-  margin-top: 2px;
+  margin-top: 1px;
+}
+
+/* Keep the spine going through the parameter stack: a centered connector in
+   the empty gap above every parameter after the first, so the node and each
+   stacked parameter read as links on one bus. */
+.rv-ae-bus-editor .rv-ae-route-param + .rv-ae-route-param {
+  position: relative;
+}
+
+.rv-ae-bus-editor .rv-ae-route-param + .rv-ae-route-param::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -9px;
+  width: 2px;
+  height: 10px;
+  transform: translateX(-50%);
+  background: color-mix(in srgb, var(--bus-color, #4ac7db) 55%, rgba(74, 199, 219, 0.55));
 }
 
 /* ── Concept: Signal Break ───────────────────────────────────────────────── */
