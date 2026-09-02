@@ -20089,8 +20089,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   margin-top: 6px;
 }
 
-/* Short connector segments: one from the effect input's colored border down
-   to the node, one from the node down into the editor. */
+/* Short connector from the effect input's colored border down to the node.
+   The node-to-parameters run is the continuous spine on .rv-ae-bus-editor. */
 .rv-ae-bus-stem {
   width: 2px;
   height: 7px;
@@ -20128,25 +20128,36 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-bus-editor {
   align-self: stretch;
   width: 100%;
-  margin-top: 1px;
+  margin-top: 0;
 }
 
-/* Keep the spine going through the parameter stack: a centered connector in
-   the empty gap above every parameter after the first, so the node and each
-   stacked parameter read as links on one bus. */
-.rv-ae-bus-editor .rv-ae-route-param + .rv-ae-route-param {
+/* One continuous connector spine, centered under the node. Each routed
+   parameter contributes a segment that covers the gap above it and its own
+   height, so the segments tile into a single line: node → parameter →
+   parameter → … They sit behind the row content and show through the gaps.
+   The "Add another parameter" row carries no segment, so the spine ends at
+   the last routed parameter. */
+.rv-ae-bus-editor .rv-ae-route-param {
   position: relative;
+  border-bottom: 0;
+  padding-bottom: 4px;
 }
 
-.rv-ae-bus-editor .rv-ae-route-param + .rv-ae-route-param::before {
+.rv-ae-bus-editor .rv-ae-route-param::before {
   content: '';
   position: absolute;
   left: 50%;
-  top: -9px;
+  top: -13px;
+  bottom: 0;
   width: 2px;
-  height: 10px;
   transform: translateX(-50%);
-  background: color-mix(in srgb, var(--bus-color, #4ac7db) 55%, rgba(74, 199, 219, 0.55));
+  background: color-mix(in srgb, var(--bus-color, #4ac7db) 70%, transparent);
+  z-index: 0;
+}
+
+.rv-ae-bus-editor .rv-ae-route-param > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* ── Concept: Signal Break ───────────────────────────────────────────────── */

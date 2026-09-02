@@ -1079,12 +1079,9 @@ function AddEffectsBlueprintBusConcept({ state }: { state: CanvasMockState }) {
                   {routes.length ? routes.length : '+'}
                 </button>
                 {open && (
-                  <>
-                    <span className="rv-ae-bus-stem" aria-hidden="true" />
-                    <div className="rv-ae-bus-editor">
-                      <AddEffectsRouteEditor routes={routes} effectLabel={effectLabel} parentLabel={parentLabel} showDots {...editorHandlers(linkKey)} />
-                    </div>
-                  </>
+                  <div className="rv-ae-bus-editor">
+                    <AddEffectsRouteEditor routes={routes} effectLabel={effectLabel} parentLabel={parentLabel} showDots {...editorHandlers(linkKey)} />
+                  </div>
                 )}
               </div>
             )
