@@ -19606,7 +19606,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* The orb's own row, in normal flow below the effect input — no negative
-   margin, so it never overlaps or "floats" onto the row above it. */
+   margin, so it never overlaps or "floats" onto the row above it. 6px of
+   breathing room above and below the round add-route button. */
 .rv-ae-orb-row {
   position: relative;
   display: flex;
@@ -19614,6 +19615,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   align-items: center;
   min-height: 18px;
   margin-top: 2px;
+  padding: 6px 0;
 }
 
 /* A schematic vertical line — not pixel-measured — that runs from just
@@ -19654,14 +19656,54 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* Parameter field: same SelectRow styling as the canonical Add Effects
-   group's own picker, capped to half width and centered under the orb
-   instead of running the row's full width. */
+   group's own picker, capped to 80% width and centered under the orb
+   instead of running the row's full width. Lays out as a row so the red
+   trash-can can sit to the right of the parameter field once linked. */
 .rv-ae-orb-picker {
-  max-width: 50%;
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+  max-width: 80%;
 }
 
 .rv-ae-orb-picker > .rv-ctrl-row {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Shared red trash-can affordance for removing a parameter link across the
+   alternate Add Effects concepts — same red as the canonical group's
+   route-remove button. */
+.rv-ae-param-trash {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  padding: 2px;
+  color: rgba(248, 113, 113, 0.75);
+  cursor: pointer;
+  transition: color 0.12s;
+}
+
+.rv-ae-param-trash:hover,
+.rv-ae-param-trash:focus-visible {
+  color: #f87171;
+}
+
+/* Colored dot beside each Audio Intelligence parameter inside a SelectRow's
+   portaled option menu. Scoped by the menuClassName the concept passes, so
+   other SelectRow menus are untouched. The per-option color arrives as the
+   --ai-param-dot custom property on .drm-dropdown__option-label. */
+.rv-ae-param-menu .drm-dropdown__option-label::before {
+  content: '';
+  display: inline-block;
+  vertical-align: middle;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 999px;
+  background: var(--ai-param-dot, transparent);
 }
 
 /* Once linked, this field gets a border on all sides (not just the
@@ -19759,6 +19801,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border-bottom-color: var(--line-color) !important;
 }
 
+/* Once linked, the effect dropdown's selected value text takes the linked
+   parameter's color too, so the whole field reads as belonging to it. */
+.rv-ae-line-entry.is-linked .rv-canvas-layer-effect-row .dv-underline-dropdown .drm-dropdown__value {
+  color: var(--line-color) !important;
+}
+
 .rv-ae-line-footer {
   display: flex;
   flex-direction: column;
@@ -19770,6 +19818,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 6px 0;
 }
 
 .rv-ae-line-trigger {
@@ -19831,7 +19880,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* Same red as .vz-media-remove's trashcan, for visual consistency with the
    other Add Effects concepts' remove affordances. Floats to the right of
-   the tag and stays invisible until the tag is hovered or focused. */
+   the tag and stays visible at all times (no hover reveal). */
 .rv-ae-line-tag-remove {
   position: absolute;
   left: 100%;
@@ -19842,18 +19891,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   align-items: center;
   background: none;
   border: none;
-  color: rgba(248, 113, 113, 0.7);
+  color: rgba(248, 113, 113, 0.75);
   cursor: pointer;
   padding: 2px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.12s, color 0.12s;
-}
-
-.rv-ae-line-tag-row:hover .rv-ae-line-tag-remove,
-.rv-ae-line-tag-row:focus-within .rv-ae-line-tag-remove {
   opacity: 1;
   pointer-events: auto;
+  transition: color 0.12s;
 }
 
 .rv-ae-line-tag-remove:hover,
@@ -19873,12 +19916,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-line-option {
   width: 60%;
-  padding: 5px 10px;
+  padding: 8px 10px;
   border: 1px solid var(--swatch-color);
   border-radius: 4px;
-  background: color-mix(in srgb, var(--swatch-color) 14%, transparent);
+  background: transparent;
   color: var(--swatch-color);
-  font: 700 7.5px/1 var(--az-font);
+  font: 700 9px/1.25 var(--az-font);
   text-align: center;
   cursor: pointer;
 }
@@ -19909,15 +19952,54 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border-bottom-color: var(--wash-color) !important;
 }
 
-/* A short vertical line dropping from whatever sits above this entry (the
-   Active Media select, or a preceding linked effect) down into the trigger
-   — a schematic connector, not a pixel-measured one. */
-.rv-ae-wash-connector {
-  flex: 0 0 auto;
-  width: 2px;
-  align-self: stretch;
-  margin: -9px 2px -1px 0;
-  background: var(--wash-color);
+/* Everything the linked state renders below the effect row: a persistent
+   parameter pill (kept visible even when the picker is collapsed) and,
+   when expanded, the full parameter chip set. Left edge aligns with the
+   effect input dropdown — 22px trigger + 7px row gap in from the entry. */
+.rv-ae-wash-route {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rv-ae-wash-pill-row {
+  position: relative;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  margin-left: 29px;
+}
+
+/* Schematic L-connector: a vertical bar dropping from directly below the
+   add-route icon, then a horizontal bar branching across to the parameter
+   pill. Not pixel-measured — the offsets just place it under the icon
+   (~11px in from the entry) and reach the pill's left edge. */
+.rv-ae-wash-branch {
+  position: absolute;
+  left: -18px;
+  top: -8px;
+  width: 18px;
+  height: calc(50% + 8px);
+  border-left: 2px solid var(--wash-color);
+  border-bottom: 2px solid var(--wash-color);
+  border-bottom-left-radius: 4px;
+}
+
+/* The persistent selected-parameter pill: same treatment as an active chip
+   — gray-to-color border, tinted fill, muted label, leading color dot. */
+.rv-ae-wash-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--wash-color);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--wash-color) 18%, transparent);
+  color: rgba(232, 244, 248, 0.92);
+  font: 700 8px/1 var(--az-font);
+  white-space: nowrap;
 }
 
 .rv-ae-wash-trigger {
@@ -19959,21 +20041,41 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   flex-wrap: wrap;
   gap: 5px;
   margin-top: 6px;
+  /* Left edge lines up with the effect input dropdown: 22px trigger +
+     7px row gap in from the entry's content edge. */
+  margin-left: 29px;
 }
 
+/* Border matches the effects dropdown's bottom border (the same neutral
+   gray) and the label matches the effects option-menu font color; the
+   parameter's own vivid hue is carried only by the leading dot. */
 .rv-ae-wash-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 9px;
-  border: 1px solid var(--chip-color);
+  border: 1px solid rgba(154, 178, 188, 0.22);
   border-radius: 999px;
   background: transparent;
-  color: var(--chip-color);
+  color: rgba(196, 207, 211, 0.65);
   font: 700 7.5px/1 var(--az-font);
   cursor: pointer;
 }
 
 .rv-ae-wash-chip:hover,
 .rv-ae-wash-chip.is-active {
-  background: var(--chip-color);
-  color: #04090b;
+  border-color: var(--chip-color);
+  background: color-mix(in srgb, var(--chip-color) 18%, transparent);
+  color: rgba(232, 244, 248, 0.92);
+}
+
+/* Leading color dot — the parameter's specific hue — on both the chip set
+   and the persistent pill. */
+.rv-ae-wash-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--dot-color);
 }
 

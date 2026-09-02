@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
@@ -124,7 +124,7 @@ export function NumberInputRow({
 
 // ── Select row ────────────────────────────────────────────────────────────────
 
-export interface SelectOption { value: string; label: string; disabled?: boolean }
+export interface SelectOption { value: string; label: string; disabled?: boolean; style?: CSSProperties }
 
 export interface SelectRowProps {
   label: string
@@ -136,9 +136,13 @@ export interface SelectRowProps {
   description?: string
   placeholder?: string
   labelHidden?: boolean
+  /** Extra class on the portaled option menu — lets a call site scope
+   *  per-option adornments (e.g. a colored dot) without touching other
+   *  SelectRow menus. */
+  menuClassName?: string
 }
 
-export function SelectRow({ label, value, onChange, options, disabled, id, description, placeholder, labelHidden = false }: SelectRowProps) {
+export function SelectRow({ label, value, onChange, options, disabled, id, description, placeholder, labelHidden = false, menuClassName }: SelectRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
   return (
@@ -160,6 +164,7 @@ export function SelectRow({ label, value, onChange, options, disabled, id, descr
         size="compact"
         showDescriptions={false}
         className="rv-ctrl-dropdown"
+        menuClassName={menuClassName}
       />
       {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>

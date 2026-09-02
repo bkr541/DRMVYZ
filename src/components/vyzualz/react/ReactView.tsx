@@ -931,6 +931,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 onCanvasReady={setOutputCanvas}
                 onOutputCapabilityChange={handleCanvasOutputCapabilityChange}
                 onLiveFps={setLiveFps}
+                showRuntimeStatus={false}
               />
             ) : activeReactEngineId === 'pixGrid' ? (
               <PixGridSurface

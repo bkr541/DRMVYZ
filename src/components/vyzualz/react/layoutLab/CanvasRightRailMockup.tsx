@@ -112,6 +112,15 @@ const CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS: Record<CanvasMockAudioIntellig
   sectionChange: '#5fffe0',
 }
 
+/** Same options as CANVAS_AUDIO_INTELLIGENCE_PARAMETER_OPTIONS, but each
+ * carries a per-option CSS custom property so a SelectRow's portaled menu
+ * can render a colored dot beside each label (scoped via menuClassName). */
+const CANVAS_AUDIO_INTELLIGENCE_PARAMETER_DOT_OPTIONS = CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.map(param => ({
+  value: param.id,
+  label: param.label,
+  style: { '--ai-param-dot': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[param.id] } as CSSProperties,
+}))
+
 /** Small neutral chain-link glyph for the "Outline Glow" concept's route
  * trigger — distinct from RouteRemoveIcon (which is specifically the red
  * "break this link" affordance). Two offset rounded links, currentColor. */
@@ -745,15 +754,30 @@ function AddEffectsFloatingOrbConcept({ state }: { state: CanvasMockState }) {
                     {linkedId ? '' : '+'}
                   </button>
                 </div>
-                {isOpen && (
+                {(isOpen || linkedId) && (
                   <div className="rv-ae-orb-picker">
                     <SelectRow
                       label="Audio Intelligence Parameter"
                       value={linkedId ?? ''}
                       placeholder="Select Parameter…"
                       onChange={value => setLinks(current => ({ ...current, [linkKey]: value as CanvasMockAudioIntelligenceParameterId }))}
-                      options={CANVAS_AUDIO_INTELLIGENCE_PARAMETER_OPTIONS}
+                      options={CANVAS_AUDIO_INTELLIGENCE_PARAMETER_DOT_OPTIONS}
+                      menuClassName="rv-ae-param-menu"
                     />
+                    {linkedId && (
+                      <button
+                        type="button"
+                        className="rv-ae-param-trash"
+                        aria-label={`Remove the route for ${effectLabel} on ${parentLabel}`}
+                        onClick={() => setLinks(current => {
+                          const next = { ...current }
+                          delete next[linkKey]
+                          return next
+                        })}
+                      >
+                        <Delete02Icon size={13} color="currentColor" />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -907,7 +931,7 @@ function AddEffectsConnectorLineConcept({ state }: { state: CanvasMockState }) {
                           setExpanded(current => ({ ...current, [linkKey]: false }))
                         }}
                       >
-                        <RouteRemoveIcon size={12} />
+                        <Delete02Icon size={12} color="currentColor" />
                       </button>
                     </div>
                   </div>
@@ -986,40 +1010,68 @@ function AddEffectsHighlightWashConcept({ state }: { state: CanvasMockState }) {
             const linkedId = links[linkKey]
             const color = linkedId ? CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] : undefined
             return (
-              <>
-                {linkedId && <span className="rv-ae-wash-connector" style={{ '--wash-color': color } as CSSProperties} aria-hidden="true" />}
-                <button
-                  type="button"
-                  className={`rv-ae-wash-trigger${linkedId ? ' is-linked' : ''}`}
-                  style={color ? ({ '--wash-color': color } as CSSProperties) : undefined}
-                  aria-expanded={Boolean(expanded[linkKey])}
-                  aria-label={`${linkedId ? 'Change' : 'Add'} route for ${effectLabel} on ${parentLabel}`}
-                  onClick={() => setExpanded(current => ({ ...current, [linkKey]: !current[linkKey] }))}
-                >
-                  {linkedId ? <RouteCheckGlyphIcon /> : <RouteWaveGlyphIcon />}
-                </button>
-              </>
+              <button
+                type="button"
+                className={`rv-ae-wash-trigger${linkedId ? ' is-linked' : ''}`}
+                style={color ? ({ '--wash-color': color } as CSSProperties) : undefined}
+                aria-expanded={Boolean(expanded[linkKey])}
+                aria-label={`${linkedId ? 'Change' : 'Add'} route for ${effectLabel} on ${parentLabel}`}
+                onClick={() => setExpanded(current => ({ ...current, [linkKey]: !current[linkKey] }))}
+              >
+                {linkedId ? <RouteCheckGlyphIcon /> : <RouteWaveGlyphIcon />}
+              </button>
             )
           }}
-          renderRoute={({ linkKey }) => {
-            if (!expanded[linkKey]) return null
+          renderRoute={({ effectLabel, parentLabel, linkKey }) => {
             const linkedId = links[linkKey]
+            const isExpanded = Boolean(expanded[linkKey])
+            if (!linkedId && !isExpanded) return null
+            const linkedColor = linkedId ? CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] : undefined
             return (
-              <div className="rv-ae-wash-segmented">
-                {CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.map(param => (
-                  <button
-                    key={param.id}
-                    type="button"
-                    className={`rv-ae-wash-chip${linkedId === param.id ? ' is-active' : ''}`}
-                    style={{ '--chip-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[param.id] } as CSSProperties}
-                    onClick={() => {
-                      setLinks(current => ({ ...current, [linkKey]: param.id }))
-                      setExpanded(current => ({ ...current, [linkKey]: false }))
-                    }}
-                  >
-                    {param.label}
-                  </button>
-                ))}
+              <div className="rv-ae-wash-route">
+                {linkedId && (
+                  <div className="rv-ae-wash-pill-row" style={{ '--wash-color': linkedColor } as CSSProperties}>
+                    <span className="rv-ae-wash-branch" aria-hidden="true" />
+                    <span className="rv-ae-wash-pill">
+                      <span className="rv-ae-wash-dot" style={{ '--dot-color': linkedColor } as CSSProperties} />
+                      {CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[linkedId]}
+                    </span>
+                    <button
+                      type="button"
+                      className="rv-ae-param-trash"
+                      aria-label={`Remove the route for ${effectLabel} on ${parentLabel}`}
+                      onClick={() => {
+                        setLinks(current => {
+                          const next = { ...current }
+                          delete next[linkKey]
+                          return next
+                        })
+                        setExpanded(current => ({ ...current, [linkKey]: false }))
+                      }}
+                    >
+                      <Delete02Icon size={12} color="currentColor" />
+                    </button>
+                  </div>
+                )}
+                {isExpanded && (
+                  <div className="rv-ae-wash-segmented">
+                    {CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.map(param => (
+                      <button
+                        key={param.id}
+                        type="button"
+                        className={`rv-ae-wash-chip${linkedId === param.id ? ' is-active' : ''}`}
+                        style={{ '--chip-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[param.id] } as CSSProperties}
+                        onClick={() => {
+                          setLinks(current => ({ ...current, [linkKey]: param.id }))
+                          setExpanded(current => ({ ...current, [linkKey]: false }))
+                        }}
+                      >
+                        <span className="rv-ae-wash-dot" style={{ '--dot-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[param.id] } as CSSProperties} />
+                        {param.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           }}
