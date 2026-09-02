@@ -133,7 +133,7 @@ export const CANVAS_AUDIO_INTELLIGENCE_PARAMETERS: CanvasMockAudioIntelligencePa
 
 /** An effect type can only appear once per media (the Add Effects picker
  * already enforces that), so `mediaId:effectId` is a stable, unique key for
- * both bulk-selection and the resulting Audio Intelligence link. */
+ * the Audio Intelligence link attached to that specific effect. */
 export function canvasEffectAudioLinkKey(mediaId: string, effectId: CanvasLayerEffectId): string {
   return `${mediaId}:${effectId}`
 }
@@ -158,7 +158,6 @@ export interface CanvasMockState {
   orchestration: CanvasMockOrchestrationSettings
   addEffectsLayers: CanvasMockAddEffectsLayer[]
   effectAudioLinks: Record<string, CanvasMockAudioIntelligenceParameterId>
-  selectedEffectKeys: string[]
   activePoolMedia: CanvasMockMediaItem | null
   presets: CanvasMockPreset[]
   activePresetId: CanvasPresetId
@@ -199,9 +198,7 @@ export interface CanvasMockState {
   addCanvasLayerEffect: (mediaId: string, effectId: CanvasLayerEffectId) => void
   setCanvasLayerEffect: (mediaId: string, effectIndex: number, effectId: CanvasLayerEffectId) => void
   removeCanvasLayerEffectAt: (mediaId: string, effectIndex: number) => void
-  toggleEffectSelection: (mediaId: string, effectId: CanvasLayerEffectId) => void
-  clearEffectSelection: () => void
-  linkSelectedEffectsToParameter: (parameterId: CanvasMockAudioIntelligenceParameterId) => void
+  setEffectAudioLink: (mediaId: string, effectId: CanvasLayerEffectId, parameterId: CanvasMockAudioIntelligenceParameterId) => void
   unlinkEffectAudioParameter: (mediaId: string, effectId: CanvasLayerEffectId) => void
   resetOrchestration: () => void
   updatePresetSettings: (patch: Partial<CanvasPresetSettings>) => void
@@ -308,7 +305,6 @@ export function useCanvasMockState(): CanvasMockState {
   const [orchestration, setOrchestration] = useState<CanvasMockOrchestrationSettings>(DEFAULT_ORCHESTRATION)
   const [layerEffectsByMediaId, setLayerEffectsByMediaId] = useState<Record<string, CanvasLayerEffectId[]>>({})
   const [effectAudioLinks, setEffectAudioLinks] = useState<Record<string, CanvasMockAudioIntelligenceParameterId>>({})
-  const [selectedEffectKeys, setSelectedEffectKeys] = useState<string[]>([])
   const [activePoolMediaId, setActivePoolMediaId] = useState<string | null>(INITIAL_MEDIA[0].id)
   const [activePresetId, setActivePresetId] = useState<CanvasPresetId>('canvas-clean-playback')
   const [favoritePresetIds, setFavoritePresetIds] = useState<CanvasPresetId[]>(['canvas-particle-aura'])
@@ -401,7 +397,6 @@ export function useCanvasMockState(): CanvasMockState {
     setEffectAudioLinks(current => Object.fromEntries(
       Object.entries(current).filter(([key]) => !key.startsWith(`${id}:`)),
     ) as Record<string, CanvasMockAudioIntelligenceParameterId>)
-    setSelectedEffectKeys(current => current.filter(key => !key.startsWith(`${id}:`)))
     setMediaNotice('The sample item was removed from Layout Lab only.')
   }
 
@@ -538,23 +533,9 @@ export function useCanvasMockState(): CanvasMockState {
     })
   }
 
-  const toggleEffectSelection = (mediaId: string, effectId: CanvasLayerEffectId) => {
+  const setEffectAudioLink = (mediaId: string, effectId: CanvasLayerEffectId, parameterId: CanvasMockAudioIntelligenceParameterId) => {
     const key = canvasEffectAudioLinkKey(mediaId, effectId)
-    setSelectedEffectKeys(current => current.includes(key)
-      ? current.filter(candidate => candidate !== key)
-      : [...current, key])
-  }
-
-  const clearEffectSelection = () => setSelectedEffectKeys([])
-
-  const linkSelectedEffectsToParameter = (parameterId: CanvasMockAudioIntelligenceParameterId) => {
-    if (selectedEffectKeys.length === 0) return
-    setEffectAudioLinks(current => {
-      const next = { ...current }
-      for (const key of selectedEffectKeys) next[key] = parameterId
-      return next
-    })
-    setSelectedEffectKeys([])
+    setEffectAudioLinks(current => ({ ...current, [key]: parameterId }))
   }
 
   const unlinkEffectAudioParameter = (mediaId: string, effectId: CanvasLayerEffectId) => {
@@ -565,7 +546,6 @@ export function useCanvasMockState(): CanvasMockState {
       delete next[key]
       return next
     })
-    setSelectedEffectKeys(current => current.filter(candidate => candidate !== key))
   }
 
   const setCanvasLayerEffect = (mediaId: string, effectIndex: number, effectId: CanvasLayerEffectId) => {
@@ -669,7 +649,6 @@ export function useCanvasMockState(): CanvasMockState {
     orchestration,
     addEffectsLayers,
     effectAudioLinks,
-    selectedEffectKeys,
     activePoolMedia,
     presets,
     activePresetId,
@@ -710,9 +689,7 @@ export function useCanvasMockState(): CanvasMockState {
     addCanvasLayerEffect,
     setCanvasLayerEffect,
     removeCanvasLayerEffectAt,
-    toggleEffectSelection,
-    clearEffectSelection,
-    linkSelectedEffectsToParameter,
+    setEffectAudioLink,
     unlinkEffectAudioParameter,
     resetOrchestration,
     updatePresetSettings,

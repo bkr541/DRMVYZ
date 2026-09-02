@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { Delete02Icon } from 'hugeicons-react'
 import { RailTabs } from '../../layout/RailTabs'
 import { PanelSubtabs } from '../PanelSubtabs'
@@ -34,6 +34,42 @@ import {
   type CanvasMockState,
 } from './useCanvasMockState'
 
+/** "Remove route" icon — a broken chain link with a no-entry badge, matching
+ * the placement/sizing of the trashcan used to remove an effect. Rendered
+ * inline (rather than pulled from hugeicons-react) since it's a one-off
+ * user-supplied glyph; fill is currentColor so its button controls the tint. */
+function RouteRemoveIcon({ size = 13 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 512 512" fill="currentColor" aria-hidden="true">
+      <path d="M275.084,157.24c0.109,0.031,0.219,0.109,0.375,0.156l83.063-83.109c5.141-5.063,10.922-8.844,17.156-11.344
+		c9.328-3.781,19.641-4.797,29.438-2.844c9.859,1.906,19.094,6.563,26.75,14.188c5.125,5.141,8.875,10.953,11.422,17.188
+		c3.75,9.313,4.734,19.625,2.828,29.453c-1.922,9.813-6.578,19.078-14.25,26.75L315.74,263.803
+		c-5.125,5.125-10.938,8.875-17.125,11.422c-9.344,3.766-19.672,4.703-29.484,2.813c-9.828-1.922-19.078-6.578-26.734-14.234
+		c-4.156-4.172-7.391-8.75-9.813-13.672c-0.266-0.047-0.531-0.141-0.781-0.172c-5.719-1.078-11.828-0.469-17.172,1.75
+		c-3.734,1.547-7.063,3.781-9.984,6.719l-1.656,1.688c-8.688,10.531-15.5,25.406-1.828,44.984
+		c10.688,10.703,23.172,18.797,36.438,24.172c19.938,8.094,41.672,10.078,62.5,6.047c20.797-4,40.828-14.172,56.922-30.281
+		l116.109-116.109c10.703-10.703,18.828-23.172,24.203-36.453c8.078-19.953,10.094-41.672,6.078-62.5
+		c-4.031-20.797-14.203-40.844-30.281-56.922c-10.719-10.688-23.172-18.813-36.469-24.172c-19.938-8.109-41.672-10.094-62.5-6.078
+		c-20.797,4.016-40.828,14.172-56.891,30.25L201.131,149.209c-0.438,0.406-0.828,0.859-1.266,1.328
+		c0.141-0.047,0.328-0.094,0.469-0.094C225.443,145.412,251.287,147.756,275.084,157.24z" />
+      <path d="M230.35,349.74c-0.125-0.078-0.25-0.109-0.391-0.172l-83.063,83.078c-5.141,5.125-10.922,8.891-17.156,11.375
+		c-9.328,3.797-19.641,4.797-29.453,2.875c-9.844-1.922-19.094-6.594-26.75-14.25c-5.125-5.109-8.875-10.922-11.406-17.141
+		c-3.75-9.297-4.75-19.656-2.828-29.438c1.922-9.844,6.594-19.094,14.234-26.734l116.141-116.172
+		c5.125-5.109,10.922-8.844,17.125-11.375c9.313-3.828,19.656-4.75,29.484-2.859c9.828,1.938,19.047,6.594,26.734,14.234
+		c4.156,4.141,7.391,8.781,9.813,13.703c0.266,0.047,0.531,0.109,0.781,0.172c5.703,1.047,11.844,0.438,17.156-1.766
+		c3.734-1.563,7.078-3.828,9.969-6.75l1.688-1.672c8.641-10.516,15.484-25.422,1.828-44.984
+		c-10.719-10.672-23.172-18.766-36.469-24.172c-19.922-8.063-41.641-10.063-62.469-6.063c-20.797,4.031-40.844,14.219-56.922,30.297
+		L32.271,318.053c-10.719,10.703-18.813,23.156-24.188,36.438c-8.109,20-10.094,41.688-6.078,62.516
+		c4.016,20.797,14.203,40.844,30.266,56.922C42.99,484.6,55.443,492.725,68.74,498.131c19.953,8.063,41.656,10.109,62.5,6.063
+		c20.797-4,40.844-14.188,56.891-30.266l116.156-116.172c0.406-0.406,0.813-0.875,1.25-1.266c-0.156,0-0.328,0.047-0.469,0.047
+		C279.959,361.537,254.131,359.225,230.35,349.74z" />
+      <path d="M416.365,319.912c-52.797,0-95.609,42.844-95.609,95.625c0,52.813,42.813,95.672,95.609,95.672
+		c52.813,0,95.641-42.859,95.641-95.672C512.006,362.756,469.178,319.912,416.365,319.912z M464.99,430.131h-97.234v-29.156h97.234
+		V430.131z" />
+    </svg>
+  )
+}
+
 const CANVAS_LAYER_EFFECT_LABELS: Record<CanvasLayerEffectId, string> = {
   bloom: 'Bloom',
   echo: 'Echo',
@@ -56,9 +92,11 @@ const CANVAS_AUDIO_INTELLIGENCE_PARAMETER_OPTIONS = CANVAS_AUDIO_INTELLIGENCE_PA
   label: param.label,
 }))
 
-// A distinct, vivid hue per Audio Intelligence parameter — reused across all
-// five linking concepts below so the same parameter always reads as the same
-// color no matter which layout metaphor (cable, matrix, chip, LED) is showing it.
+// A distinct, vivid hue per Audio Intelligence parameter — used only by the
+// alternate Add Effects concepts below, where color is the whole point of
+// showing an effect is linked to a parameter (same fill, same outline, same
+// connector line). The canonical group above doesn't need this; it says the
+// parameter's name in words instead.
 const CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS: Record<CanvasMockAudioIntelligenceParameterId, string> = {
   kick: '#ff5f6d',
   snare: '#ff9f5f',
@@ -83,8 +121,8 @@ interface CanvasEffectInstanceRef {
 }
 
 /** Flattens the Add Effects group's per-media layers into one ordered list
- * of effect instances — shared by all four alternate linking concepts below
- * so each one shows exactly the same effects as the primary panel above. */
+ * of effect instances — shared by the four alternate concepts below so each
+ * one shows exactly the same effects as the canonical group above. */
 function flattenCanvasEffectInstances(layers: CanvasMockState['addEffectsLayers']): CanvasEffectInstanceRef[] {
   return layers.flatMap(layer => layer.effects.map(effectId => ({
     key: canvasEffectAudioLinkKey(layer.mediaId, effectId),
@@ -93,6 +131,30 @@ function flattenCanvasEffectInstances(layers: CanvasMockState['addEffectsLayers'
     effectLabel: CANVAS_LAYER_EFFECT_LABELS[effectId],
     mediaName: layer.mediaName,
   })))
+}
+
+/** Small neutral chain-link glyph for the "Outline Glow" concept's route
+ * trigger — distinct from RouteRemoveIcon (which is specifically the red
+ * "break this link" affordance). Two offset rounded links, currentColor. */
+function RouteLinkGlyphIcon({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.1} strokeLinecap="round" aria-hidden="true">
+      <path d="M10 14a5 5 0 0 0 7.07 0l2.12-2.12a5 5 0 0 0-7.07-7.07L10.6 6.34" />
+      <path d="M14 10a5 5 0 0 0-7.07 0L4.81 12.1a5 5 0 0 0 7.07 7.07L13.4 17.66" />
+    </svg>
+  )
+}
+
+/** Small equalizer-bars glyph for the "Highlight Wash" concept's leading
+ * route trigger — a VJ-flavored stand-in for "this effect listens to audio." */
+function RouteWaveGlyphIcon({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.1} strokeLinecap="round" aria-hidden="true">
+      <path d="M5 16V8" />
+      <path d="M12 19V5" />
+      <path d="M19 13v6" />
+    </svg>
+  )
 }
 
 const RIGHT_TABS = [
@@ -470,344 +532,15 @@ function AnalysisMockup() {
   return <div className="rv-layout-lab-canvas-analysis">{sections.map(([title, value]) => <section key={title}><strong>{title}</strong><span>{value}</span></section>)}</div>
 }
 
-/** Lets the user select one or many configured effects (across any media
- * layer) and link them to an Audio Intelligence parameter — the UI
- * groundwork for the upcoming per-effect modulation feature. This only
- * records which parameter is associated with which effect; nothing here
- * analyzes audio or modulates a running effect. */
-function AudioIntelligenceLinkPanel({ state }: { state: CanvasMockState }) {
-  const [pendingParameterId, setPendingParameterId] = useState<CanvasMockAudioIntelligenceParameterId | ''>('')
-  const hasAnyEffects = state.addEffectsLayers.some(layer => layer.effects.length > 0)
-  if (!hasAnyEffects) return null
-  const selectedCount = state.selectedEffectKeys.length
-  return (
-    <div className="rv-canvas-effect-audio-link-panel">
-      <div className="rv-ctrl-section-label">Link Audio Intelligence</div>
-      <div className="rv-canvas-engine-note">Select one or many effects above, choose a parameter, then link them. UI selection only — no audio is analyzed here.</div>
-      <div className="rv-canvas-effect-audio-link-status" role="status">{selectedCount === 0 ? 'No effects selected' : `${selectedCount} effect${selectedCount === 1 ? '' : 's'} selected`}</div>
-      <SelectRow
-        label="Audio Intelligence Parameter"
-        value={pendingParameterId}
-        placeholder="Select Parameter…"
-        onChange={value => setPendingParameterId(value as CanvasMockAudioIntelligenceParameterId)}
-        options={CANVAS_AUDIO_INTELLIGENCE_PARAMETER_OPTIONS}
-      />
-      <div className="rv-layout-lab-canvas-command-grid">
-        <button
-          type="button"
-          className="rv-layout-lab-canvas-command"
-          disabled={selectedCount === 0 || pendingParameterId === ''}
-          onClick={() => {
-            if (pendingParameterId === '') return
-            state.linkSelectedEffectsToParameter(pendingParameterId)
-            setPendingParameterId('')
-          }}
-        >
-          Link Selected
-        </button>
-        <button type="button" className="rv-layout-lab-canvas-command" disabled={selectedCount === 0} onClick={state.clearEffectSelection}>Clear Selection</button>
-      </div>
-    </div>
-  )
-}
-
-const CANVAS_PATCH_BAY_ROW_HEIGHT = 22
-
-/** Concept 2 — modular-synth patch bay. Click a parameter jack to arm it,
- * then click an effect jack to plug a cable (or click a plugged effect jack
- * to unplug it). Purely visual — coordinates are computed analytically from
- * row index rather than measured, since every row has a fixed height. */
-function AudioLinkPatchBayConcept({ state }: { state: CanvasMockState }) {
-  const effects = useMemo(() => flattenCanvasEffectInstances(state.addEffectsLayers), [state.addEffectsLayers])
-  const [armedParameterId, setArmedParameterId] = useState<CanvasMockAudioIntelligenceParameterId | null>(null)
-  const [links, setLinks] = useState<Record<string, CanvasMockAudioIntelligenceParameterId>>({})
-
-  if (effects.length === 0) {
-    return (
-      <Collapsible label="Audio Link — Cable Patch Bay" defaultOpen={false}>
-        <div className="rv-canvas-engine-note">Add effects above to preview this concept.</div>
-      </Collapsible>
-    )
-  }
-
-  const plugEffect = (effectKey: string) => {
-    if (armedParameterId) {
-      setLinks(current => ({ ...current, [effectKey]: armedParameterId }))
-      setArmedParameterId(null)
-    } else if (links[effectKey]) {
-      setLinks(current => {
-        const next = { ...current }
-        delete next[effectKey]
-        return next
-      })
-    }
-  }
-
-  const rows = Math.max(CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.length, effects.length, 1)
-  const height = rows * CANVAS_PATCH_BAY_ROW_HEIGHT
-
-  return (
-    <Collapsible label="Audio Link — Cable Patch Bay" defaultOpen={false}>
-      <div className="rv-canvas-engine-note">Modular-style patching: click a parameter jack, then click an effect jack to plug a cable. Click a plugged effect jack to unplug it. Concept only — separate from the panel above.</div>
-      <div className="rv-canvas-patchbay" style={{ height }}>
-        <svg className="rv-canvas-patchbay-cables" viewBox={`0 0 100 ${height}`} preserveAspectRatio="none" aria-hidden="true">
-          {effects.map((effect, index) => {
-            const paramId = links[effect.key]
-            if (!paramId) return null
-            const paramIndex = CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.findIndex(param => param.id === paramId)
-            const y1 = paramIndex * CANVAS_PATCH_BAY_ROW_HEIGHT + CANVAS_PATCH_BAY_ROW_HEIGHT / 2
-            const y2 = index * CANVAS_PATCH_BAY_ROW_HEIGHT + CANVAS_PATCH_BAY_ROW_HEIGHT / 2
-            return (
-              <path
-                key={effect.key}
-                d={`M 4,${y1} C 50,${y1} 50,${y2} 96,${y2}`}
-                stroke={CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[paramId]}
-                strokeWidth={1.4}
-                fill="none"
-              />
-            )
-          })}
-        </svg>
-        <div className="rv-canvas-patchbay-column">
-          {CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.map(param => (
-            <button
-              key={param.id}
-              type="button"
-              className={`rv-canvas-patchbay-jack${armedParameterId === param.id ? ' is-armed' : ''}`}
-              style={{ '--jack-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[param.id] } as CSSProperties}
-              aria-pressed={armedParameterId === param.id}
-              onClick={() => setArmedParameterId(current => current === param.id ? null : param.id)}
-            >
-              <span className="rv-canvas-patchbay-jack-dot" aria-hidden="true" />
-              {param.label}
-            </button>
-          ))}
-        </div>
-        <div className="rv-canvas-patchbay-column rv-canvas-patchbay-column--right">
-          {effects.map(effect => {
-            const paramId = links[effect.key]
-            return (
-              <button
-                key={effect.key}
-                type="button"
-                className={`rv-canvas-patchbay-jack rv-canvas-patchbay-jack--effect${paramId ? ' is-linked' : ''}`}
-                style={paramId ? ({ '--jack-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[paramId] } as CSSProperties) : undefined}
-                onClick={() => plugEffect(effect.key)}
-              >
-                <span className="rv-canvas-patchbay-jack-dot" aria-hidden="true" />
-                {effect.effectLabel} <small>{effect.mediaName}</small>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-    </Collapsible>
-  )
-}
-
-/** Concept 3 — modulation matrix, mixing-console style. Any effect can link
- * to any number of parameters; clicking an intersection toggles that link. */
-function AudioLinkMatrixConcept({ state }: { state: CanvasMockState }) {
-  const effects = useMemo(() => flattenCanvasEffectInstances(state.addEffectsLayers), [state.addEffectsLayers])
-  const [activeCells, setActiveCells] = useState<Record<string, boolean>>({})
-
-  if (effects.length === 0) {
-    return (
-      <Collapsible label="Audio Link — Modulation Matrix" defaultOpen={false}>
-        <div className="rv-canvas-engine-note">Add effects above to preview this concept.</div>
-      </Collapsible>
-    )
-  }
-
-  const toggleCell = (cellKey: string) => {
-    setActiveCells(current => ({ ...current, [cellKey]: !current[cellKey] }))
-  }
-
-  return (
-    <Collapsible label="Audio Link — Modulation Matrix" defaultOpen={false}>
-      <div className="rv-canvas-engine-note">Routing-grid style: click any intersection to link that effect to that parameter. An effect can link to more than one parameter. Concept only.</div>
-      <div className="rv-canvas-matrix-scroll">
-        <div className="rv-canvas-matrix" style={{ '--matrix-cols': CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.length } as CSSProperties}>
-          <div className="rv-canvas-matrix-corner" aria-hidden="true" />
-          {CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.map(param => (
-            <div
-              key={param.id}
-              className="rv-canvas-matrix-col-header"
-              title={param.label}
-              style={{ '--cell-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[param.id] } as CSSProperties}
-            >
-              {param.label.slice(0, 3).toUpperCase()}
-            </div>
-          ))}
-          {effects.map(effect => (
-            <Fragment key={effect.key}>
-              <div className="rv-canvas-matrix-row-header">{effect.effectLabel} <small>{effect.mediaName}</small></div>
-              {CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.map(param => {
-                const cellKey = `${effect.key}::${param.id}`
-                const active = Boolean(activeCells[cellKey])
-                return (
-                  <button
-                    key={cellKey}
-                    type="button"
-                    className={`rv-canvas-matrix-cell${active ? ' is-active' : ''}`}
-                    style={active ? ({ '--cell-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[param.id] } as CSSProperties) : undefined}
-                    aria-pressed={active}
-                    aria-label={`${effect.effectLabel} on ${effect.mediaName} linked to ${param.label}`}
-                    onClick={() => toggleCell(cellKey)}
-                  />
-                )
-              })}
-            </Fragment>
-          ))}
-        </div>
-      </div>
-    </Collapsible>
-  )
-}
-
-/** Concept 4 — drag-and-drop chip tokens onto effect cards, dribbble-card
- * styled. A click-to-arm / click-to-assign fallback covers non-drag input. */
-function AudioLinkDragChipsConcept({ state }: { state: CanvasMockState }) {
-  const effects = useMemo(() => flattenCanvasEffectInstances(state.addEffectsLayers), [state.addEffectsLayers])
-  const [links, setLinks] = useState<Record<string, CanvasMockAudioIntelligenceParameterId>>({})
-  const [armedParameterId, setArmedParameterId] = useState<CanvasMockAudioIntelligenceParameterId | null>(null)
-  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
-
-  if (effects.length === 0) {
-    return (
-      <Collapsible label="Audio Link — Drag & Drop Chips" defaultOpen={false}>
-        <div className="rv-canvas-engine-note">Add effects above to preview this concept.</div>
-      </Collapsible>
-    )
-  }
-
-  const assign = (effectKey: string, paramId: CanvasMockAudioIntelligenceParameterId) => {
-    setLinks(current => ({ ...current, [effectKey]: paramId }))
-  }
-
-  return (
-    <Collapsible label="Audio Link — Drag & Drop Chips" defaultOpen={false}>
-      <div className="rv-canvas-engine-note">Drag a parameter chip onto an effect card to assign it — or click a chip, then click a card. Concept only.</div>
-      <div className="rv-canvas-chip-palette">
-        {CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.map(param => (
-          <button
-            key={param.id}
-            type="button"
-            draggable
-            className={`rv-canvas-chip-token${armedParameterId === param.id ? ' is-armed' : ''}`}
-            style={{ '--chip-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[param.id] } as CSSProperties}
-            onDragStart={event => {
-              event.dataTransfer.setData('text/plain', param.id)
-              event.dataTransfer.effectAllowed = 'copy'
-            }}
-            onClick={() => setArmedParameterId(current => current === param.id ? null : param.id)}
-          >
-            {param.label}
-          </button>
-        ))}
-      </div>
-      <div className="rv-canvas-chip-cards">
-        {effects.map(effect => {
-          const linkedId = links[effect.key]
-          return (
-            <div
-              key={effect.key}
-              className={`rv-canvas-chip-card${dragOverKey === effect.key ? ' is-drag-over' : ''}`}
-              onDragOver={event => { event.preventDefault(); setDragOverKey(effect.key) }}
-              onDragLeave={() => setDragOverKey(current => current === effect.key ? null : current)}
-              onDrop={event => {
-                event.preventDefault()
-                setDragOverKey(null)
-                const paramId = event.dataTransfer.getData('text/plain') as CanvasMockAudioIntelligenceParameterId
-                if (paramId) assign(effect.key, paramId)
-              }}
-              onClick={() => {
-                if (!armedParameterId) return
-                assign(effect.key, armedParameterId)
-                setArmedParameterId(null)
-              }}
-            >
-              <strong>{effect.effectLabel}</strong>
-              <small>{effect.mediaName}</small>
-              {linkedId ? (
-                <span className="rv-canvas-chip-card-assigned" style={{ '--chip-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] } as CSSProperties}>
-                  {CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[linkedId]}
-                  <button
-                    type="button"
-                    aria-label={`Remove ${CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[linkedId]} from ${effect.effectLabel}`}
-                    onClick={event => {
-                      event.stopPropagation()
-                      setLinks(current => {
-                        const next = { ...current }
-                        delete next[effect.key]
-                        return next
-                      })
-                    }}
-                  >
-                    ×
-                  </button>
-                </span>
-              ) : (
-                <span className="rv-canvas-chip-card-empty">Drop a parameter here</span>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </Collapsible>
-  )
-}
-
-/** Concept 5 — hardware mixing-console channel strips: one strip per effect
- * with an LED tinted to its assigned parameter, an LCD-style readout select,
- * and a decorative static meter (index-derived, not audio-reactive). */
-function AudioLinkChannelStripConcept({ state }: { state: CanvasMockState }) {
-  const effects = useMemo(() => flattenCanvasEffectInstances(state.addEffectsLayers), [state.addEffectsLayers])
-  const [links, setLinks] = useState<Record<string, CanvasMockAudioIntelligenceParameterId | ''>>({})
-
-  if (effects.length === 0) {
-    return (
-      <Collapsible label="Audio Link — Channel Strip" defaultOpen={false}>
-        <div className="rv-canvas-engine-note">Add effects above to preview this concept.</div>
-      </Collapsible>
-    )
-  }
-
-  return (
-    <Collapsible label="Audio Link — Channel Strip" defaultOpen={false}>
-      <div className="rv-canvas-engine-note">Hardware-mixer-style strips: one channel per effect, with a source LED and an LCD-style readout. Concept only.</div>
-      <div className="rv-canvas-strip-rack">
-        {effects.map((effect, index) => {
-          const linkedId = links[effect.key] || ''
-          const meterHeight = 28 + ((index * 37) % 52)
-          return (
-            <div className="rv-canvas-strip" key={effect.key}>
-              <span
-                className={`rv-canvas-strip-led${linkedId ? ' is-lit' : ''}`}
-                style={linkedId ? ({ '--led-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] } as CSSProperties) : undefined}
-                aria-hidden="true"
-              />
-              <div className="rv-canvas-strip-name" title={`${effect.effectLabel} · ${effect.mediaName}`}>{effect.effectLabel}</div>
-              <div className="rv-canvas-strip-media">{effect.mediaName}</div>
-              <select
-                className="rv-canvas-strip-select"
-                value={linkedId}
-                aria-label={`Audio Intelligence source for ${effect.effectLabel} on ${effect.mediaName}`}
-                onChange={event => setLinks(current => ({ ...current, [effect.key]: event.target.value as CanvasMockAudioIntelligenceParameterId }))}
-              >
-                <option value="">— Source —</option>
-                {CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.map(param => <option key={param.id} value={param.id}>{param.label}</option>)}
-              </select>
-              <div className="rv-canvas-strip-meter" aria-hidden="true"><span style={{ height: `${meterHeight}%` }} /></div>
-            </div>
-          )
-        })}
-      </div>
-    </Collapsible>
-  )
-}
-
+/** Add Effects group. Each configured effect gets its own "Route Effect"
+ * toggle, right-justified directly under that effect's dropdown. Expanding
+ * it reveals an indented Audio Intelligence parameter picker nested under
+ * that specific effect — so the routing UI never leaves this group, and
+ * which effect a route belongs to is always visually unambiguous. */
 function AddEffectsControls({ state }: { state: CanvasMockState }) {
+  const [expandedRoutes, setExpandedRoutes] = useState<Record<string, boolean>>({})
+  const toggleRoute = (key: string) => setExpandedRoutes(current => ({ ...current, [key]: !current[key] }))
+
   return (
     <Collapsible label="Add Effects" defaultOpen>
       {state.addEffectsLayers.length === 0 && (
@@ -835,46 +568,61 @@ function AddEffectsControls({ state }: { state: CanvasMockState }) {
                 ))
                 const linkKey = canvasEffectAudioLinkKey(layer.mediaId, effectId)
                 const linkedParameterId = state.effectAudioLinks[linkKey]
-                const isSelectedForLinking = state.selectedEffectKeys.includes(linkKey)
                 const effectLabel = CANVAS_LAYER_EFFECT_LABELS[effectId]
+                const routeExpanded = Boolean(expandedRoutes[linkKey])
                 return (
-                  <div className="rv-canvas-layer-effect-row" key={`${layer.mediaId}:${effectIndex}`}>
-                    <label className="rv-canvas-layer-effect-select">
-                      <input
-                        type="checkbox"
-                        checked={isSelectedForLinking}
-                        onChange={() => state.toggleEffectSelection(layer.mediaId, effectId)}
-                        aria-label={`Select ${effectLabel} on ${parentLabel} for Audio Intelligence linking`}
+                  <div className="rv-canvas-layer-effect-entry" key={`${layer.mediaId}:${effectIndex}`}>
+                    <div className="rv-canvas-layer-effect-row">
+                      <SelectRow
+                        label={`Effect ${effectIndex + 1} for ${parentLabel}`}
+                        labelHidden
+                        value={effectId}
+                        onChange={value => state.setCanvasLayerEffect(layer.mediaId, effectIndex, value as CanvasLayerEffectId)}
+                        options={options}
                       />
-                    </label>
-                    <SelectRow
-                      label={`Effect ${effectIndex + 1} for ${parentLabel}`}
-                      labelHidden
-                      value={effectId}
-                      onChange={value => state.setCanvasLayerEffect(layer.mediaId, effectIndex, value as CanvasLayerEffectId)}
-                      options={options}
-                    />
-                    {linkedParameterId && (
-                      <span className="rv-canvas-effect-audio-link-chip">
-                        <span>⚡ {CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[linkedParameterId]}</span>
-                        <button
-                          type="button"
-                          aria-label={`Unlink ${CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[linkedParameterId]} from ${effectLabel} on ${parentLabel}`}
-                          onClick={() => state.unlinkEffectAudioParameter(layer.mediaId, effectId)}
-                        >
-                          ×
-                        </button>
-                      </span>
+                      <button
+                        type="button"
+                        className="vz-media-remove rv-canvas-layer-effect-remove"
+                        style={{ position: 'static' }}
+                        aria-label={`Remove ${effectLabel} from ${parentLabel}`}
+                        onClick={() => state.removeCanvasLayerEffectAt(layer.mediaId, effectIndex)}
+                      >
+                        <Delete02Icon size={13} color="currentColor" />
+                      </button>
+                    </div>
+                    <div className="rv-canvas-effect-route-row">
+                      <button
+                        type="button"
+                        className="rv-canvas-effect-route-toggle"
+                        aria-expanded={routeExpanded}
+                        onClick={() => toggleRoute(linkKey)}
+                      >
+                        {linkedParameterId ? `Route Effect: ${CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[linkedParameterId]}` : 'Route Effect'}
+                      </button>
+                    </div>
+                    {routeExpanded && (
+                      <div className="rv-canvas-effect-route-panel">
+                        <div className="rv-canvas-effect-route-picker-row">
+                          <SelectRow
+                            label="Audio Intelligence Parameter"
+                            value={linkedParameterId ?? ''}
+                            placeholder="Select Parameter…"
+                            onChange={value => state.setEffectAudioLink(layer.mediaId, effectId, value as CanvasMockAudioIntelligenceParameterId)}
+                            options={CANVAS_AUDIO_INTELLIGENCE_PARAMETER_OPTIONS}
+                          />
+                          {linkedParameterId && (
+                            <button
+                              type="button"
+                              className="rv-canvas-effect-route-remove"
+                              aria-label={`Remove the route for ${effectLabel} on ${parentLabel}`}
+                              onClick={() => state.unlinkEffectAudioParameter(layer.mediaId, effectId)}
+                            >
+                              <RouteRemoveIcon size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     )}
-                    <button
-                      type="button"
-                      className="vz-media-remove rv-canvas-layer-effect-remove"
-                      style={{ position: 'static' }}
-                      aria-label={`Remove ${effectLabel} from ${parentLabel}`}
-                      onClick={() => state.removeCanvasLayerEffectAt(layer.mediaId, effectIndex)}
-                    >
-                      <Delete02Icon size={13} color="currentColor" />
-                    </button>
                   </div>
                 )
               })}
@@ -894,7 +642,258 @@ function AddEffectsControls({ state }: { state: CanvasMockState }) {
           </div>
         )
       })}
-      <AudioIntelligenceLinkPanel state={state} />
+    </Collapsible>
+  )
+}
+
+/** Concept — "Floating Route Orb." A small round trigger floats centered on
+ * the bottom edge of each effect row (a classic FAB treatment). Clicking it
+ * reveals a horizontal, scrollable strip of colored parameter pills instead
+ * of a dropdown — tap a color, done. Once linked, the orb itself fills solid
+ * with that parameter's color and the row grows a matching underline, so the
+ * orb and the row edge visibly read as "the same thing." Independent local
+ * state — a design comparison, not wired to the canonical group above. */
+function AddEffectsFloatingOrbConcept({ state }: { state: CanvasMockState }) {
+  const effects = flattenCanvasEffectInstances(state.addEffectsLayers)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [links, setLinks] = useState<Record<string, CanvasMockAudioIntelligenceParameterId>>({})
+
+  return (
+    <Collapsible label="Add Effects — Floating Route Orb" defaultOpen={false}>
+      <div className="rv-canvas-engine-note">A route orb floats on the center of each effect row. Click it for a strip of colored parameters — picking one fills the orb and underlines the row to match. Concept only.</div>
+      {effects.length === 0 && <div className="rv-canvas-engine-note">Add effects above to preview this concept.</div>}
+      {effects.map(effect => {
+        const linkedId = links[effect.key]
+        const isOpen = Boolean(expanded[effect.key])
+        const color = linkedId ? CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] : undefined
+        return (
+          <div key={effect.key} className="rv-ae-orb-entry" data-linked={Boolean(linkedId)} style={color ? ({ '--orb-color': color } as CSSProperties) : undefined}>
+            <div className="rv-ae-orb-row">
+              <strong>{effect.effectLabel}</strong>
+              <small>{effect.mediaName}{linkedId ? ` · ${CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[linkedId]}` : ''}</small>
+            </div>
+            <div className="rv-ae-orb-anchor">
+              <button
+                type="button"
+                className="rv-ae-orb-trigger"
+                aria-expanded={isOpen}
+                aria-label={`${linkedId ? 'Change' : 'Add'} route for ${effect.effectLabel} on ${effect.mediaName}`}
+                onClick={() => setExpanded(current => ({ ...current, [effect.key]: !current[effect.key] }))}
+              >
+                {linkedId ? '' : '+'}
+              </button>
+            </div>
+            {isOpen && (
+              <div className="rv-ae-orb-strip">
+                {CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.map(param => (
+                  <button
+                    key={param.id}
+                    type="button"
+                    className={`rv-ae-orb-pill${linkedId === param.id ? ' is-active' : ''}`}
+                    style={{ '--pill-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[param.id] } as CSSProperties}
+                    onClick={() => {
+                      setLinks(current => ({ ...current, [effect.key]: param.id }))
+                      setExpanded(current => ({ ...current, [effect.key]: false }))
+                    }}
+                  >
+                    {param.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </Collapsible>
+  )
+}
+
+/** Concept — "Outline Glow." A neutral chain-link button beside each effect
+ * opens a vertical list of parameters, each with its own color dot. Linking
+ * one wraps the *whole effect row* in a soft glowing outline tinted to that
+ * exact color — the link reads as "this row belongs to that color," not just
+ * a small badge. Independent local state, comparison only. */
+function AddEffectsOutlineGlowConcept({ state }: { state: CanvasMockState }) {
+  const effects = flattenCanvasEffectInstances(state.addEffectsLayers)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [links, setLinks] = useState<Record<string, CanvasMockAudioIntelligenceParameterId>>({})
+
+  return (
+    <Collapsible label="Add Effects — Outline Glow" defaultOpen={false}>
+      <div className="rv-canvas-engine-note">A chain-link button opens a parameter list. Linking one wraps that effect's whole row in a soft glowing outline in the parameter's color. Concept only.</div>
+      {effects.length === 0 && <div className="rv-canvas-engine-note">Add effects above to preview this concept.</div>}
+      {effects.map(effect => {
+        const linkedId = links[effect.key]
+        const isOpen = Boolean(expanded[effect.key])
+        const color = linkedId ? CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] : undefined
+        return (
+          <div key={effect.key} className="rv-ae-glow-entry" data-linked={Boolean(linkedId)} style={color ? ({ '--glow-color': color } as CSSProperties) : undefined}>
+            <div className="rv-ae-glow-row">
+              <div className="rv-ae-glow-copy">
+                <strong>{effect.effectLabel}</strong>
+                <small>{effect.mediaName}</small>
+              </div>
+              <button
+                type="button"
+                className="rv-ae-glow-link-btn"
+                aria-expanded={isOpen}
+                aria-label={`${linkedId ? 'Change' : 'Add'} route for ${effect.effectLabel} on ${effect.mediaName}`}
+                onClick={() => setExpanded(current => ({ ...current, [effect.key]: !current[effect.key] }))}
+              >
+                <RouteLinkGlyphIcon />
+              </button>
+            </div>
+            {isOpen && (
+              <div className="rv-ae-glow-list">
+                {CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.map(param => (
+                  <button
+                    key={param.id}
+                    type="button"
+                    className="rv-ae-glow-option"
+                    aria-pressed={linkedId === param.id}
+                    onClick={() => {
+                      setLinks(current => ({ ...current, [effect.key]: param.id }))
+                      setExpanded(current => ({ ...current, [effect.key]: false }))
+                    }}
+                  >
+                    <span className="rv-ae-glow-dot" style={{ '--dot-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[param.id] } as CSSProperties} />
+                    {param.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </Collapsible>
+  )
+}
+
+/** Concept — "Connector Line." A text "+ Route" trigger opens a tight grid
+ * of colored pads (VJ pad-grid styling). Once linked, a short colored line
+ * literally draws from the trigger to a tag chip carrying the parameter's
+ * name — a miniature patch cable rather than a badge or an outline.
+ * Independent local state, comparison only. */
+function AddEffectsConnectorLineConcept({ state }: { state: CanvasMockState }) {
+  const effects = flattenCanvasEffectInstances(state.addEffectsLayers)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [links, setLinks] = useState<Record<string, CanvasMockAudioIntelligenceParameterId>>({})
+
+  return (
+    <Collapsible label="Add Effects — Connector Line" defaultOpen={false}>
+      <div className="rv-canvas-engine-note">"+ Route" opens a small grid of colored parameter pads. A short colored line draws the effect straight to its linked parameter's tag. Concept only.</div>
+      {effects.length === 0 && <div className="rv-canvas-engine-note">Add effects above to preview this concept.</div>}
+      {effects.map(effect => {
+        const linkedId = links[effect.key]
+        const isOpen = Boolean(expanded[effect.key])
+        return (
+          <div key={effect.key} className="rv-ae-line-entry">
+            <div className="rv-ae-line-row">
+              <strong>{effect.effectLabel}</strong>
+              <small>{effect.mediaName}</small>
+            </div>
+            <div className="rv-ae-line-route">
+              <button
+                type="button"
+                className="rv-ae-line-trigger"
+                aria-expanded={isOpen}
+                onClick={() => setExpanded(current => ({ ...current, [effect.key]: !current[effect.key] }))}
+              >
+                {linkedId ? 'Change Route' : '+ Route'}
+              </button>
+              {linkedId && (
+                <span className="rv-ae-line-tag-wrap">
+                  <span className="rv-ae-line-connector" style={{ '--line-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] } as CSSProperties} aria-hidden="true" />
+                  <span className="rv-ae-line-tag" style={{ '--tag-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] } as CSSProperties}>
+                    {CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[linkedId]}
+                  </span>
+                </span>
+              )}
+            </div>
+            {isOpen && (
+              <div className="rv-ae-line-grid">
+                {CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.map(param => (
+                  <button
+                    key={param.id}
+                    type="button"
+                    className={`rv-ae-line-swatch${linkedId === param.id ? ' is-active' : ''}`}
+                    style={{ '--swatch-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[param.id] } as CSSProperties}
+                    title={param.label}
+                    aria-label={param.label}
+                    onClick={() => {
+                      setLinks(current => ({ ...current, [effect.key]: param.id }))
+                      setExpanded(current => ({ ...current, [effect.key]: false }))
+                    }}
+                  >
+                    {param.label.slice(0, 2).toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </Collapsible>
+  )
+}
+
+/** Concept — "Highlight Wash." A leading equalizer-bars icon (before the
+ * effect name, not after — the odd one out on purpose) opens a segmented row
+ * of parameter chips. Linking one washes the *entire row's background* in a
+ * soft tint of that color — the boldest of the four link treatments, meant
+ * for scanning a long list of effects at a glance. Independent local state,
+ * comparison only. */
+function AddEffectsHighlightWashConcept({ state }: { state: CanvasMockState }) {
+  const effects = flattenCanvasEffectInstances(state.addEffectsLayers)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [links, setLinks] = useState<Record<string, CanvasMockAudioIntelligenceParameterId>>({})
+
+  return (
+    <Collapsible label="Add Effects — Highlight Wash" defaultOpen={false}>
+      <div className="rv-canvas-engine-note">A leading waveform icon opens a segmented row of parameter chips. Linking one washes the entire effect row in a soft tint of that color. Concept only.</div>
+      {effects.length === 0 && <div className="rv-canvas-engine-note">Add effects above to preview this concept.</div>}
+      {effects.map(effect => {
+        const linkedId = links[effect.key]
+        const isOpen = Boolean(expanded[effect.key])
+        const color = linkedId ? CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] : undefined
+        return (
+          <div key={effect.key} className="rv-ae-wash-entry" data-linked={Boolean(linkedId)} style={color ? ({ '--wash-color': color } as CSSProperties) : undefined}>
+            <div className="rv-ae-wash-row">
+              <button
+                type="button"
+                className="rv-ae-wash-trigger"
+                aria-expanded={isOpen}
+                aria-label={`${linkedId ? 'Change' : 'Add'} route for ${effect.effectLabel} on ${effect.mediaName}`}
+                onClick={() => setExpanded(current => ({ ...current, [effect.key]: !current[effect.key] }))}
+              >
+                <RouteWaveGlyphIcon />
+              </button>
+              <div className="rv-ae-wash-copy">
+                <strong>{effect.effectLabel}</strong>
+                <small>{effect.mediaName}</small>
+              </div>
+            </div>
+            {isOpen && (
+              <div className="rv-ae-wash-segmented">
+                {CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.map(param => (
+                  <button
+                    key={param.id}
+                    type="button"
+                    className={`rv-ae-wash-chip${linkedId === param.id ? ' is-active' : ''}`}
+                    style={{ '--chip-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[param.id] } as CSSProperties}
+                    onClick={() => {
+                      setLinks(current => ({ ...current, [effect.key]: param.id }))
+                      setExpanded(current => ({ ...current, [effect.key]: false }))
+                    }}
+                  >
+                    {param.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </Collapsible>
   )
 }
@@ -906,13 +905,10 @@ function ReactMockup({ state }: { state: CanvasMockState }) {
       {state.reactSurface === 'routing' ? (
         <div className="rv-ctrl-group" data-layout-lab-canvas="routing">
           <AddEffectsControls state={state} />
-          <AudioLinkPatchBayConcept state={state} />
-          <AudioLinkMatrixConcept state={state} />
-          <AudioLinkDragChipsConcept state={state} />
-          <AudioLinkChannelStripConcept state={state} />
-          <Collapsible label="Audio Routing" defaultOpen>
-            <div className="rv-canvas-engine-note">This engine currently uses global intensity/motion controls only. Adjust Bass React and Motion in the FX tab for broad audio response.</div>
-          </Collapsible>
+          <AddEffectsFloatingOrbConcept state={state} />
+          <AddEffectsOutlineGlowConcept state={state} />
+          <AddEffectsConnectorLineConcept state={state} />
+          <AddEffectsHighlightWashConcept state={state} />
         </div>
       ) : <AnalysisMockup />}
     </WorkspaceBody>

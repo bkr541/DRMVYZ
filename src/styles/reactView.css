@@ -19510,433 +19510,435 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   align-self: center;
 }
 
-/* Bulk-select checkbox + resulting link chip for the Add Effects group's
-   Audio Intelligence linking panel below — UI-only, no audio behind it. */
-.rv-canvas-layer-effect-select {
+/* One authored effect, plus its own "Route Effect" toggle and (when
+   expanded) its Audio Intelligence parameter picker — all nested directly
+   under that effect so a route's ownership is never ambiguous, and nothing
+   about parameter linking lives outside the Add Effects group. */
+.rv-canvas-layer-effect-entry {
   display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  align-self: center;
-}
-
-.rv-canvas-layer-effect-select input {
-  width: 12px;
-  height: 12px;
-  accent-color: #b088ff;
-  cursor: pointer;
-}
-
-.rv-canvas-effect-audio-link-chip {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
+  flex-direction: column;
   gap: 3px;
-  max-width: 120px;
-  overflow: hidden;
-  border: 1px solid rgba(176, 136, 255, 0.32);
-  border-radius: 999px;
-  background: rgba(176, 136, 255, 0.1);
-  color: rgba(216, 197, 255, 0.92);
-  font-size: 8px;
-  font-weight: 600;
-  white-space: nowrap;
 }
 
-.rv-canvas-effect-audio-link-chip span {
-  overflow: hidden;
-  padding: 4px 2px 4px 7px;
-  text-overflow: ellipsis;
+.rv-canvas-effect-route-row {
+  display: flex;
+  justify-content: flex-end;
 }
 
-.rv-canvas-effect-audio-link-chip button {
-  padding: 4px 6px 4px 2px;
+.rv-canvas-effect-route-toggle {
+  padding: 2px 0;
   border: 0;
   background: transparent;
-  color: rgba(216, 197, 255, 0.72);
-  font-size: 11px;
-  line-height: 1;
+  color: rgba(74, 199, 219, 0.82);
+  font: 700 8px/1.3 var(--az-font);
+  letter-spacing: 0.02em;
+  text-decoration: underline;
+  text-decoration-color: rgba(74, 199, 219, 0.32);
+  text-underline-offset: 2px;
   cursor: pointer;
 }
 
-.rv-canvas-effect-audio-link-chip button:hover,
-.rv-canvas-effect-audio-link-chip button:focus-visible {
-  color: rgba(232, 244, 248, 0.95);
+.rv-canvas-effect-route-toggle:hover,
+.rv-canvas-effect-route-toggle:focus-visible {
+  color: #8de7ff;
+  text-decoration-color: rgba(141, 231, 255, 0.6);
 }
 
-.rv-canvas-effect-audio-link-panel {
+.rv-canvas-effect-route-panel {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: 4px;
-  padding-top: 9px;
-  border-top: 1px dashed rgba(232, 244, 248, 0.1);
+  margin-left: 14px;
+  padding: 7px 0 2px 10px;
+  border-left: 1px solid rgba(74, 199, 219, 0.22);
 }
 
-.rv-canvas-effect-audio-link-status {
-  color: rgba(232, 244, 248, 0.55);
-  font-size: 8.5px;
-}
-
-/* ── Concept 2 — Cable Patch Bay ─────────────────────────────────────────
-   Eurorack/modular-synth panel language: two jack columns on a faint dotted
-   grid, connected by SVG bezier cables tinted per parameter. */
-
-.rv-canvas-patchbay {
-  position: relative;
+/* Mirrors .rv-canvas-layer-effect-row's layout so the remove icon sits in
+   the same place, at the same size, as the effect row's trashcan. */
+.rv-canvas-effect-route-picker-row {
   display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 8px 6px;
-  border: 1px solid rgba(103, 247, 255, 0.14);
-  border-radius: 6px;
-  background:
-    radial-gradient(rgba(103, 247, 255, 0.14) 1px, transparent 1px) 0 0 / 10px 10px,
-    rgba(2, 10, 14, 0.92);
-}
-
-.rv-canvas-patchbay-cables {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.rv-canvas-patchbay-column {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
   min-width: 0;
 }
 
-.rv-canvas-patchbay-column--right {
-  align-items: flex-end;
-  text-align: right;
+.rv-canvas-effect-route-picker-row > .rv-ctrl-row {
+  flex: 1;
+  min-width: 0;
 }
 
-.rv-canvas-patchbay-jack {
+/* Same red as .vz-media-remove's trashcan, for visual consistency between
+   the two "remove" affordances in this group. */
+.rv-canvas-effect-route-remove {
+  flex: 0 0 auto;
+  align-self: center;
   display: flex;
-  height: 22px;
   align-items: center;
+  background: none;
+  border: none;
+  color: rgba(248, 113, 113, 0.7);
+  cursor: pointer;
+  padding: 2px;
+  transition: color 0.12s;
+}
+
+.rv-canvas-effect-route-remove:hover,
+.rv-canvas-effect-route-remove:focus-visible {
+  color: #f87171;
+}
+
+/* ── Concept: Floating Route Orb ─────────────────────────────────────────── */
+
+.rv-ae-orb-entry {
+  padding-bottom: 12px;
+  border-bottom: 2px solid transparent;
+  transition: border-color 0.15s;
+}
+
+.rv-ae-orb-entry[data-linked='true'] {
+  border-bottom-color: var(--orb-color, transparent);
+}
+
+.rv-ae-orb-entry + .rv-ae-orb-entry {
+  margin-top: 10px;
+}
+
+.rv-ae-orb-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.rv-ae-orb-row strong {
+  color: rgba(232, 244, 248, 0.92);
+  font-size: 9.5px;
+}
+
+.rv-ae-orb-row small {
+  color: rgba(220, 241, 244, 0.5);
+  font-size: 7.5px;
+}
+
+.rv-ae-orb-anchor {
+  display: flex;
+  justify-content: center;
+  margin-top: -9px;
+}
+
+.rv-ae-orb-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #0a1418;
+  border-radius: 999px;
+  background: var(--orb-color, #143039);
+  box-shadow: 0 0 0 1px rgba(74, 199, 219, 0.4);
+  color: rgba(232, 244, 248, 0.85);
+  font: 800 11px/1 var(--az-font);
+  cursor: pointer;
+}
+
+.rv-ae-orb-trigger:hover,
+.rv-ae-orb-trigger:focus-visible {
+  box-shadow: 0 0 0 1px rgba(141, 231, 255, 0.75);
+}
+
+.rv-ae-orb-strip {
+  display: flex;
   gap: 5px;
-  overflow: hidden;
-  border: 0;
+  overflow-x: auto;
+  padding: 9px 1px 2px;
+}
+
+.rv-ae-orb-pill {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  border: 1px solid var(--pill-color);
+  border-radius: 999px;
   background: transparent;
-  color: rgba(225, 245, 247, 0.75);
-  font: 700 8px/1 var(--az-font);
-  text-overflow: ellipsis;
+  color: var(--pill-color);
+  font: 700 7.5px/1 var(--az-font);
   white-space: nowrap;
   cursor: pointer;
 }
 
-.rv-canvas-patchbay-column--right .rv-canvas-patchbay-jack {
-  flex-direction: row-reverse;
+.rv-ae-orb-pill:hover,
+.rv-ae-orb-pill.is-active {
+  background: var(--pill-color);
+  color: #04090b;
 }
 
-.rv-canvas-patchbay-jack small {
-  color: rgba(225, 245, 247, 0.4);
-  font-weight: 500;
-  text-transform: none;
+/* ── Concept: Outline Glow ────────────────────────────────────────────────── */
+
+.rv-ae-glow-entry {
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.rv-canvas-patchbay-jack-dot {
+.rv-ae-glow-entry[data-linked='true'] {
+  border-color: var(--glow-color);
+  box-shadow: 0 0 12px -2px var(--glow-color);
+}
+
+.rv-ae-glow-entry + .rv-ae-glow-entry {
+  margin-top: 6px;
+}
+
+.rv-ae-glow-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rv-ae-glow-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.rv-ae-glow-copy strong {
+  color: rgba(232, 244, 248, 0.92);
+  font-size: 9.5px;
+}
+
+.rv-ae-glow-copy small {
+  color: rgba(220, 241, 244, 0.5);
+  font-size: 7.5px;
+}
+
+.rv-ae-glow-link-btn {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border: 1px solid rgba(74, 199, 219, 0.28);
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(141, 231, 255, 0.82);
+  cursor: pointer;
+}
+
+.rv-ae-glow-link-btn:hover,
+.rv-ae-glow-link-btn:focus-visible {
+  border-color: rgba(141, 231, 255, 0.7);
+  color: #8de7ff;
+}
+
+.rv-ae-glow-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 7px;
+}
+
+.rv-ae-glow-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(232, 244, 248, 0.75);
+  font: 600 8px/1 var(--az-font);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rv-ae-glow-option:hover,
+.rv-ae-glow-option[aria-pressed='true'] {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8f4f8;
+}
+
+.rv-ae-glow-dot {
   flex: 0 0 auto;
   width: 7px;
   height: 7px;
-  border: 1px solid rgba(225, 245, 247, 0.32);
-  border-radius: 50%;
-  background: rgba(3, 16, 22, 0.9);
+  border-radius: 999px;
+  background: var(--dot-color);
 }
 
-.rv-canvas-patchbay-jack:hover,
-.rv-canvas-patchbay-jack:focus-visible {
-  color: #e1f5f7;
-}
+/* ── Concept: Connector Line ──────────────────────────────────────────────── */
 
-.rv-canvas-patchbay-jack:hover .rv-canvas-patchbay-jack-dot,
-.rv-canvas-patchbay-jack:focus-visible .rv-canvas-patchbay-jack-dot {
-  border-color: var(--jack-color, rgba(103, 247, 255, 0.7));
-}
-
-.rv-canvas-patchbay-jack.is-armed .rv-canvas-patchbay-jack-dot {
-  border-color: var(--jack-color);
-  background: var(--jack-color);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jack-color) 35%, transparent);
-}
-
-.rv-canvas-patchbay-jack--effect.is-linked .rv-canvas-patchbay-jack-dot {
-  border-color: var(--jack-color);
-  background: var(--jack-color);
-}
-
-/* ── Concept 3 — Modulation Matrix ───────────────────────────────────────
-   Mixing-console routing grid: fixed row-header column, one square cell per
-   effect × parameter intersection, horizontally scrollable. */
-
-.rv-canvas-matrix-scroll {
-  overflow-x: auto;
-  border: 1px solid rgba(103, 247, 255, 0.12);
-  border-radius: 6px;
-}
-
-.rv-canvas-matrix {
-  display: grid;
-  grid-template-columns: 118px repeat(var(--matrix-cols), 24px);
-  background: rgba(2, 10, 14, 0.92);
-}
-
-.rv-canvas-matrix-corner {
-  position: sticky;
-  left: 0;
-  z-index: 2;
-  border-bottom: 1px solid rgba(103, 247, 255, 0.14);
-  background: rgba(2, 10, 14, 0.98);
-}
-
-.rv-canvas-matrix-col-header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-bottom: 1px solid rgba(103, 247, 255, 0.14);
-  border-left: 1px solid rgba(103, 247, 255, 0.08);
-  color: var(--cell-color);
-  font: 800 6.5px/1 var(--az-font);
-  letter-spacing: 0.03em;
-}
-
-.rv-canvas-matrix-row-header {
-  position: sticky;
-  left: 0;
-  z-index: 1;
+.rv-ae-line-entry {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  overflow: hidden;
-  padding: 3px 8px;
-  border-top: 1px solid rgba(103, 247, 255, 0.08);
-  background: rgba(2, 10, 14, 0.98);
-  color: rgba(225, 245, 247, 0.8);
-  font-size: 8px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  gap: 4px;
 }
 
-.rv-canvas-matrix-row-header small {
-  color: rgba(225, 245, 247, 0.4);
-  font-weight: 500;
+.rv-ae-line-entry + .rv-ae-line-entry {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.rv-canvas-matrix-cell {
-  position: relative;
-  height: 24px;
-  border-top: 1px solid rgba(103, 247, 255, 0.08);
-  border-left: 1px solid rgba(103, 247, 255, 0.08);
+.rv-ae-line-row strong {
+  color: rgba(232, 244, 248, 0.92);
+  font-size: 9.5px;
+}
+
+.rv-ae-line-row small {
+  margin-left: 5px;
+  color: rgba(220, 241, 244, 0.5);
+  font-size: 7.5px;
+}
+
+.rv-ae-line-route {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.rv-ae-line-trigger {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border: 1px dashed rgba(74, 199, 219, 0.4);
+  border-radius: 4px;
   background: transparent;
+  color: rgba(141, 231, 255, 0.82);
+  font: 700 7.5px/1 var(--az-font);
   cursor: pointer;
 }
 
-.rv-canvas-matrix-cell:hover {
-  background: rgba(103, 247, 255, 0.08);
+.rv-ae-line-trigger:hover,
+.rv-ae-line-trigger:focus-visible {
+  border-color: rgba(141, 231, 255, 0.75);
+  color: #8de7ff;
 }
 
-.rv-canvas-matrix-cell.is-active::after {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 8px;
-  height: 8px;
-  transform: translate(-50%, -50%) rotate(45deg);
-  background: var(--cell-color);
-  content: '';
+.rv-ae-line-tag-wrap {
+  display: flex;
+  align-items: center;
 }
 
-/* ── Concept 4 — Drag & Drop Chips ───────────────────────────────────────
-   Modern card layout: rounded glass cards as drop targets, pill tokens as
-   draggable parameter chips. */
+.rv-ae-line-connector {
+  width: 14px;
+  height: 2px;
+  background: var(--line-color);
+}
 
-.rv-canvas-chip-palette {
+.rv-ae-line-tag {
+  padding: 3px 8px;
+  border: 1px solid var(--tag-color);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--tag-color) 16%, transparent);
+  color: var(--tag-color);
+  font: 700 7.5px/1 var(--az-font);
+  white-space: nowrap;
+}
+
+.rv-ae-line-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 24px);
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.rv-ae-line-swatch {
+  width: 24px;
+  height: 22px;
+  border: 1px solid var(--swatch-color);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--swatch-color) 14%, transparent);
+  color: var(--swatch-color);
+  font: 800 7.5px/1 var(--az-font);
+  cursor: pointer;
+}
+
+.rv-ae-line-swatch:hover,
+.rv-ae-line-swatch.is-active {
+  background: var(--swatch-color);
+  color: #04090b;
+}
+
+/* ── Concept: Highlight Wash ──────────────────────────────────────────────── */
+
+.rv-ae-wash-entry {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.rv-ae-wash-entry[data-linked='true'] {
+  background: color-mix(in srgb, var(--wash-color) 16%, transparent);
+}
+
+.rv-ae-wash-entry + .rv-ae-wash-entry {
+  margin-top: 4px;
+}
+
+.rv-ae-wash-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rv-ae-wash-trigger {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(232, 244, 248, 0.72);
+  cursor: pointer;
+}
+
+.rv-ae-wash-trigger:hover,
+.rv-ae-wash-trigger:focus-visible {
+  border-color: rgba(141, 231, 255, 0.6);
+  color: #8de7ff;
+}
+
+.rv-ae-wash-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.rv-ae-wash-copy strong {
+  color: rgba(232, 244, 248, 0.92);
+  font-size: 9.5px;
+}
+
+.rv-ae-wash-copy small {
+  color: rgba(220, 241, 244, 0.5);
+  font-size: 7.5px;
+}
+
+.rv-ae-wash-segmented {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  margin-bottom: 8px;
+  margin-top: 7px;
+  padding-left: 30px;
 }
 
-.rv-canvas-chip-token {
-  border: 1px solid color-mix(in srgb, var(--chip-color) 45%, transparent);
+.rv-ae-wash-chip {
+  padding: 4px 9px;
+  border: 1px solid var(--chip-color);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--chip-color) 16%, rgba(2, 10, 14, 0.9));
-  color: color-mix(in srgb, var(--chip-color) 70%, white);
-  cursor: grab;
-  font: 800 8px/1 var(--az-font);
-  padding: 5px 10px;
-}
-
-.rv-canvas-chip-token:active {
-  cursor: grabbing;
-}
-
-.rv-canvas-chip-token.is-armed {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chip-color) 55%, transparent);
-}
-
-.rv-canvas-chip-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 7px;
-}
-
-.rv-canvas-chip-card {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 8px 9px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.035);
-  backdrop-filter: blur(6px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
-  cursor: pointer;
-}
-
-.rv-canvas-chip-card.is-drag-over {
-  border-color: rgba(103, 247, 255, 0.5);
-  background: rgba(103, 247, 255, 0.08);
-}
-
-.rv-canvas-chip-card strong {
-  color: rgba(232, 249, 250, 0.94);
-  font-size: 9px;
-}
-
-.rv-canvas-chip-card small {
-  color: rgba(220, 241, 244, 0.46);
-  font-size: 7px;
-}
-
-.rv-canvas-chip-card-empty {
-  margin-top: 3px;
-  padding: 4px 0;
-  border: 1px dashed rgba(255, 255, 255, 0.16);
-  border-radius: 6px;
-  color: rgba(225, 245, 247, 0.34);
-  font-size: 7.5px;
-  text-align: center;
-}
-
-.rv-canvas-chip-card-assigned {
-  display: inline-flex;
-  align-self: flex-start;
-  align-items: center;
-  gap: 4px;
-  margin-top: 3px;
-  border: 1px solid color-mix(in srgb, var(--chip-color) 45%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--chip-color) 18%, rgba(2, 10, 14, 0.9));
-  color: color-mix(in srgb, var(--chip-color) 70%, white);
-  font: 800 7.5px/1 var(--az-font);
-  padding: 4px 4px 4px 9px;
-}
-
-.rv-canvas-chip-card-assigned button {
-  border: 0;
   background: transparent;
-  color: inherit;
+  color: var(--chip-color);
+  font: 700 7.5px/1 var(--az-font);
   cursor: pointer;
-  font-size: 10px;
-  line-height: 1;
-  opacity: 0.75;
 }
 
-.rv-canvas-chip-card-assigned button:hover {
-  opacity: 1;
+.rv-ae-wash-chip:hover,
+.rv-ae-wash-chip.is-active {
+  background: var(--chip-color);
+  color: #04090b;
 }
 
-/* ── Concept 5 — Channel Strip Rack ──────────────────────────────────────
-   Hardware mixing-console language: a horizontally scrollable rack of
-   narrow strips, each with an LED, an LCD-style source readout, and a
-   decorative static meter. */
-
-.rv-canvas-strip-rack {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-
-.rv-canvas-strip {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  align-items: center;
-  width: 58px;
-  gap: 5px;
-  padding: 8px 5px 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.2));
-}
-
-.rv-canvas-strip-led {
-  width: 7px;
-  height: 7px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.4);
-}
-
-.rv-canvas-strip-led.is-lit {
-  border-color: var(--led-color);
-  background: var(--led-color);
-  box-shadow: 0 0 6px 1px var(--led-color);
-}
-
-.rv-canvas-strip-name {
-  width: 100%;
-  overflow: hidden;
-  color: rgba(232, 249, 250, 0.92);
-  font: 800 7.5px/1.2 var(--az-font);
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.rv-canvas-strip-media {
-  width: 100%;
-  overflow: hidden;
-  color: rgba(220, 241, 244, 0.42);
-  font-size: 6.5px;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.rv-canvas-strip-select {
-  width: 100%;
-  border: 1px solid rgba(103, 247, 255, 0.22);
-  border-radius: 3px;
-  background: #010b0d;
-  color: #8de7ff;
-  font: 700 7px/1.6 var(--az-font);
-  padding: 2px 1px;
-  text-align: center;
-}
-
-.rv-canvas-strip-meter {
-  display: flex;
-  align-items: flex-end;
-  width: 10px;
-  height: 40px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 2px;
-  background: rgba(0, 0, 0, 0.4);
-}
-
-.rv-canvas-strip-meter span {
-  width: 100%;
-  background: linear-gradient(180deg, #ff5f6d 0%, #ffd75f 45%, #61d6aa 100%);
-  display: block;
-}

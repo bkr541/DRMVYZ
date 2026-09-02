@@ -150,12 +150,13 @@ describe('Canvas Layout Lab through the real shell', () => {
     expect(container.textContent).toContain('Roles · Aurora Portrait.png')
   })
 
-  it('preserves Canvas routing copy and deterministic analysis without live audio', async () => {
+  it('shows only Add Effects under Routing and deterministic analysis without live audio', async () => {
     await selectEngine('CANVAS')
     await act(async () => exactButton('REACT').click())
 
     expect(tabLabels('Canvas react surfaces')).toEqual(['ROUTING', 'ANALYSIS'])
-    expect(container.textContent).toContain('This engine currently uses global intensity/motion controls only. Adjust Bass React and Motion in the FX tab for broad audio response.')
+    expect(container.textContent).toContain('Add Effects')
+    expect(container.textContent).not.toContain('Audio Routing')
 
     await act(async () => exactButton('ANALYSIS').click())
     for (const section of ['Audio Bands', 'Rhythm', 'Energy', 'Section', 'Harmonic', 'Stems', 'Lyrics', 'Semantic']) {
