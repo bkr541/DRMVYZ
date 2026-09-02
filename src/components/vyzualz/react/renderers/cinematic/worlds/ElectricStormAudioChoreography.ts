@@ -52,15 +52,7 @@ function freshSessionSeed(): number {
   return hash32(runtimeEntropy ^ Math.imul(runtimeSessionOrdinal, 0x9e3779b1))
 }
 
-function eventKey(
-  frame: CinematicFrameContext,
-  event: 'kick' | 'dropStart' | 'transient',
-): string {
-  const canonical = frame.canonicalMusic?.impulses[event]
-  if (canonical?.eventId) return `${event}:${canonical.eventId}`
-  const track = frame.musicalAudio?.trackId ?? frame.presetId
-  return `${event}:${track}:${frame.beat.barIndex}:${frame.beat.beatIndex}`
-}
+type ElectricStormDiscreteEvent = 'kick' | 'dropStart' | 'transient'
 
 function continuousBucket(timeSec: number, intervalSec: number): number {
   return Math.floor(Math.max(0, timeSec) / Math.max(0.08, intervalSec))
@@ -78,6 +70,8 @@ export class ElectricStormAudioChoreographer {
   private mediumBucket = Number.NaN
   private microBucket = Number.NaN
   private transientActive = false
+  private readonly fallbackEventOrdinals: Record<ElectricStormDiscreteEvent, number> = { kick: 0, dropStart: 0, transient: 0 }
+  private readonly fallbackEventActive: Record<ElectricStormDiscreteEvent, boolean> = { kick: false, dropStart: false, transient: false }
 
   constructor(options: ElectricStormAudioChoreographerOptions = {}) {
     this.sessionSeed = options.sessionSeed === undefined ? freshSessionSeed() : options.sessionSeed >>> 0
@@ -87,6 +81,9 @@ export class ElectricStormAudioChoreographer {
     const audio = frame.musicalAudio
     if (!audio || !audio.isPlaying) {
       this.transientActive = false
+      this.fallbackEventActive.kick = false
+      this.fallbackEventActive.dropStart = false
+      this.fallbackEventActive.transient = false
       return { strikeRate: settings.strikeRate, audioDetail: 0, intents: [] }
     }
 
@@ -102,39 +99,36 @@ export class ElectricStormAudioChoreographer {
     const audioDetail = clamp01(highs * 0.48 + build * 0.38 + energy * 0.14)
     const intents: ElectricStormStrikeIntent[] = []
 
-    if (audio.events.kick) {
-      const key = eventKey(frame, 'kick')
-      if (this.consumeEvent(key)) {
-        const probability = clamp01((0.12 + settings.strikeRate * 0.42 + settings.masterIntensity * 0.18 + energy * 0.18) * mix(0.45, 1, authority))
-        const gate = random01(this.sessionSeed ^ hashString(key) ^ 0x63d83595)
-        if (gate < probability) {
-          intents.push({
-            tier: 'strong',
-            power: clamp01(0.28 + bass * 0.58 + energy * 0.14),
-            detail: clamp01(0.35 + highs * 0.35 + build * 0.3),
-          })
-        }
-      }
-    }
-
-    const dropActive = audio.events.dropEntry || frame.canonicalMusic?.impulses.dropStart.active === true
-    if (dropActive) {
-      const key = eventKey(frame, 'dropStart')
-      if (this.consumeEvent(key)) {
-        const count = authority > 0.72 && (energy > 0.68 || build > 0.76) ? 3 : authority > 0.34 ? 2 : 1
+    const kickActive = audio.events.kick || frame.canonicalMusic?.impulses.kick.active === true
+    const kickKey = this.resolveEventKey(frame, 'kick', kickActive)
+    if (kickKey && this.consumeEvent(kickKey)) {
+      const probability = clamp01((0.12 + settings.strikeRate * 0.42 + settings.masterIntensity * 0.18 + energy * 0.18) * mix(0.45, 1, authority))
+      const gate = random01(this.sessionSeed ^ hashString(kickKey) ^ 0x63d83595)
+      if (gate < probability) {
         intents.push({
-          tier: 'hero',
-          power: clamp01(0.5 + bass * 0.3 + Math.max(dropState, energy) * 0.2),
-          detail: clamp01(0.58 + highs * 0.2 + build * 0.22),
-          count,
+          tier: 'strong',
+          power: clamp01(0.28 + bass * 0.58 + energy * 0.14),
+          detail: clamp01(0.35 + highs * 0.35 + build * 0.3),
         })
       }
     }
 
+    const dropActive = audio.events.dropEntry || frame.canonicalMusic?.impulses.dropStart.active === true
+    const dropKey = this.resolveEventKey(frame, 'dropStart', dropActive)
+    if (dropKey && this.consumeEvent(dropKey)) {
+      const count = authority > 0.72 && (energy > 0.68 || build > 0.76) ? 3 : authority > 0.34 ? 2 : 1
+      intents.push({
+        tier: 'hero',
+        power: clamp01(0.5 + bass * 0.3 + Math.max(dropState, energy) * 0.2),
+        detail: clamp01(0.58 + highs * 0.2 + build * 0.22),
+        count,
+      })
+    }
+
     const transientNow = frame.canonicalMusic?.impulses.transient.active === true || transient > 0.72
-    if (transientNow && !this.transientActive && authority > 0.08) {
-      const key = eventKey(frame, 'transient')
-      if (this.consumeEvent(key)) {
+    const transientKey = this.resolveEventKey(frame, 'transient', transientNow)
+    if (transientNow && !this.transientActive && transientKey && authority > 0.08) {
+      if (this.consumeEvent(transientKey)) {
         intents.push({
           tier: transient > 0.9 && mids > 0.62 ? 'medium' : 'micro',
           power: clamp01(0.28 + transient * 0.52 + highs * 0.2),
@@ -189,6 +183,32 @@ export class ElectricStormAudioChoreographer {
     this.mediumBucket = Number.NaN
     this.microBucket = Number.NaN
     this.transientActive = false
+    this.fallbackEventOrdinals.kick = 0
+    this.fallbackEventOrdinals.dropStart = 0
+    this.fallbackEventOrdinals.transient = 0
+    this.fallbackEventActive.kick = false
+    this.fallbackEventActive.dropStart = false
+    this.fallbackEventActive.transient = false
+  }
+
+  private resolveEventKey(
+    frame: CinematicFrameContext,
+    event: ElectricStormDiscreteEvent,
+    active: boolean,
+  ): string | null {
+    const canonical = frame.canonicalMusic?.impulses[event]
+    if (!active) {
+      this.fallbackEventActive[event] = false
+      return null
+    }
+    if (canonical?.eventId) {
+      this.fallbackEventActive[event] = true
+      return `${event}:${canonical.eventId}`
+    }
+    if (!this.fallbackEventActive[event]) this.fallbackEventOrdinals[event] += 1
+    this.fallbackEventActive[event] = true
+    const track = frame.musicalAudio?.trackId ?? frame.presetId
+    return `${event}:${track}:pulse:${this.fallbackEventOrdinals[event]}`
   }
 
   private consumeEvent(key: string): boolean {

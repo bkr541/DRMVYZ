@@ -349,7 +349,7 @@ export class ElectricStormStrikeGenerator {
     const bucket = Math.floor(safeTime / intervalSec)
     const sequenceSeed = this.sessionSeed
 
-    this.active = this.active.filter(strike => safeTime <= strike.startedAtSec + strike.durationSec)
+    this.pruneExpired(safeTime)
     this.drainPending(safeTime, rate, sequenceSeed)
 
     if (bucket !== this.bucket) {
@@ -357,9 +357,7 @@ export class ElectricStormStrikeGenerator {
       const available = Math.max(0, ELECTRIC_STORM_MAX_ACTIVE_STRIKES - this.active.length)
       if (available > 0) {
         const generated = this.generateBucket(bucket, intervalSec, rate, sequenceSeed, available)
-        this.active = [...this.active, ...generated]
-          .sort((a, b) => a.startedAtSec - b.startedAtSec)
-          .slice(-ELECTRIC_STORM_MAX_ACTIVE_STRIKES)
+        this.appendActive(generated)
       }
     }
 
@@ -382,9 +380,30 @@ export class ElectricStormStrikeGenerator {
     }
   }
 
+  private pruneExpired(timeSec: number): void {
+    let writeIndex = 0
+    for (let readIndex = 0; readIndex < this.active.length; readIndex += 1) {
+      const strike = this.active[readIndex]
+      if (timeSec > strike.startedAtSec + strike.durationSec) continue
+      if (writeIndex !== readIndex) this.active[writeIndex] = strike
+      writeIndex += 1
+    }
+    this.active.length = writeIndex
+  }
+
+  private appendActive(generated: readonly ElectricStormStrikeDescriptor[]): void {
+    if (generated.length === 0) return
+    this.active.push(...generated)
+    this.active.sort((a, b) => a.startedAtSec - b.startedAtSec)
+    if (this.active.length > ELECTRIC_STORM_MAX_ACTIVE_STRIKES) {
+      this.active.splice(0, this.active.length - ELECTRIC_STORM_MAX_ACTIVE_STRIKES)
+    }
+  }
+
   private drainPending(timeSec: number, rate: number, sequenceSeed: number): void {
-    const requested = this.pending.splice(0)
-    for (const intent of requested) {
+    const requestedCount = this.pending.length
+    for (let requestIndex = 0; requestIndex < requestedCount; requestIndex += 1) {
+      const intent = this.pending[requestIndex]
       const available = ELECTRIC_STORM_MAX_ACTIVE_STRIKES - this.active.length
       if (available <= 0) continue
       const count = Math.min(intent.count ?? 1, available)
@@ -404,10 +423,9 @@ export class ElectricStormStrikeGenerator {
         }))
       }
       this.eventOrdinal += 1
-      this.active = [...this.active, ...generated]
-        .sort((a, b) => a.startedAtSec - b.startedAtSec)
-        .slice(-ELECTRIC_STORM_MAX_ACTIVE_STRIKES)
+      this.appendActive(generated)
     }
+    if (requestedCount > 0) this.pending.splice(0, requestedCount)
   }
 
   private generateBucket(

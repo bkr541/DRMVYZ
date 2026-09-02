@@ -154,8 +154,20 @@ async function run(): Promise<void> {
   const legacyPortalPixel = [...centerPixel]
   const legacyPortalFailedNodeCount = runtime.getSnapshot().graph.failedNodeCount
 
+  const electricStormEntry = CINEMA_LEGACY_PRESET_CATALOG.manifest.find(entry => (
+    entry.sourceKind === 'cinematic-preset' && entry.worldId === 'electricStorm'
+  ))
+  const electricStormComposition = CINEMA_LEGACY_PRESET_CATALOG.compositions.find(composition => composition.id === electricStormEntry?.compositionId)
+  if (!electricStormComposition) throw new Error('Electric Storm catalog composition is unavailable.')
+  const beforeElectricStormFrame = runtime.getSnapshot().frameCount
+  runtime.setGraph(electricStormComposition, null, foundation.definitions)
+  runtime.setFrame(createFrame(960, 540, 5))
+  await waitFor(() => runtime.getSnapshot().frameCount >= beforeElectricStormFrame + 2 && runtime.getSnapshot().graph.outputRendered)
+  const electricStormPixel = [...centerPixel]
+  const electricStormFailedNodeCount = runtime.getSnapshot().graph.failedNodeCount
+
   const beforeResetFrame = runtime.getSnapshot().frameCount
-  runtime.setFrame(createFrame(960, 540, 5, true))
+  runtime.setFrame(createFrame(960, 540, 6, true))
   await waitFor(() => runtime.getSnapshot().frameCount > beforeResetFrame && runtime.getSnapshot().graph.outputRendered)
 
   const loseContext = gl.getExtension('WEBGL_lose_context')
@@ -165,13 +177,14 @@ async function run(): Promise<void> {
   loseContext.restoreContext()
   await waitFor(() => runtime.getSnapshot().phase === 'running' && runtime.getSnapshot().contextGeneration === 2)
   const beforeRestoredFrame = runtime.getSnapshot().frameCount
-  runtime.setFrame(createFrame(960, 540, 6))
+  runtime.setFrame(createFrame(960, 540, 7))
   await waitFor(() => runtime.getSnapshot().frameCount > beforeRestoredFrame && runtime.getSnapshot().graph.outputRendered)
   const postRestorePixel = [...centerPixel]
+  const electricStormPostRestoreFailedNodeCount = runtime.getSnapshot().graph.failedNodeCount
 
   const beforeReferenceReturn = runtime.getSnapshot().frameCount
   runtime.setGraph(CINEMA_SHADER_REFERENCE_COMPOSITION, null, foundation.definitions)
-  runtime.setFrame(createFrame(960, 540, 7))
+  runtime.setFrame(createFrame(960, 540, 8))
   await waitFor(() => runtime.getSnapshot().frameCount > beforeReferenceReturn && runtime.getSnapshot().graph.outputRendered)
 
   const owner = 'cinema.node.browser-runtime' as CinemaNodeId
@@ -210,7 +223,10 @@ async function run(): Promise<void> {
     reactiveConstellationFailedNodeCount,
     legacyPortalPixel,
     legacyPortalFailedNodeCount,
+    electricStormPixel,
+    electricStormFailedNodeCount,
     postRestorePixel,
+    electricStormPostRestoreFailedNodeCount,
     webgl2GetContextCount,
     maximumPendingRuntimeFrames,
     pendingRuntimeFrameCountAfterDispose: pendingRuntimeFrames.size,

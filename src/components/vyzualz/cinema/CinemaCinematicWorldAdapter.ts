@@ -822,7 +822,16 @@ function createCinematicWorldParameterCapabilities(
         ...(!supported ? { reason: `This Cinematic World does not consume the ${paletteRole} palette role.` } : {}),
       }
     }
-    if (parameter.id === SEED_PARAMETER_ID) return { parameterId: parameter.id, support: 'structural' as const }
+    if (parameter.id === SEED_PARAMETER_ID) {
+      if (worldId === 'electricStorm') {
+        return {
+          parameterId: parameter.id,
+          support: 'unsupported' as const,
+          reason: 'Electric Storm varies runtime strike sessions internally and does not expose a user-authored seed.',
+        }
+      }
+      return { parameterId: parameter.id, support: 'structural' as const }
+    }
     if (parameter.id === QUALITY_PARAMETER_ID) {
       const supported = backend === 'webgl2'
       return {

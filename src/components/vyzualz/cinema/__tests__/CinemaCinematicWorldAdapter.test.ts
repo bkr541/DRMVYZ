@@ -329,6 +329,7 @@ describe('Cinema Cinematic World adapters', () => {
       'Background Color', 'Lightning Color', 'Master Intensity', 'Strike Rate', 'Branching', 'Thickness', 'Glow', 'Impact Shake', 'Zoom Punch',
       'Thunder Trigger', 'Flash Intensity', 'Flash Duration', 'Flash Decay',
     ]))
+    expect(supportedLabels).not.toContain('Seed')
     expect(supportedSchemas.filter(parameter => parameter.group === 'React').map(parameter => parameter.label)).toEqual([
       'Thunder Trigger', 'Flash Intensity', 'Flash Duration', 'Flash Decay',
     ])

@@ -315,10 +315,11 @@ function WorldStatus({ presetName, worldMode, modified }: { presetName: string; 
   )
 }
 
-function VariationControls({ config, presetId, locked, onChange, onLock, onResetWorld, onResetCamera, onResetAudio }: {
+function VariationControls({ config, presetId, locked, showSeedControls = true, onChange, onLock, onResetWorld, onResetCamera, onResetAudio }: {
   config: CinematicWorldConfig
   presetId: string
   locked: boolean
+  showSeedControls?: boolean
   onChange: (config: CinematicWorldConfig) => void
   onLock: (locked: boolean) => void
   onResetWorld: () => void
@@ -328,16 +329,20 @@ function VariationControls({ config, presetId, locked, onChange, onLock, onReset
   const setSeed = (seed: number) => onChange(updateConfig(config, { seed }))
   return (
     <>
-      <CtrlSection label="Variation" />
-      <div className="rv-cinematic-seed-readout" aria-live="polite">
-        <span>Seed</span><output id={`cinematic-seed-${presetId}`}>{config.seed >>> 0}</output>
-      </div>
-      <div className="rv-cinematic-action-grid">
-        <button type="button" aria-label="Previous cinematic variation" disabled={locked} onClick={() => setSeed(nextCinematicVariationSeed(config.seed, -1))}>Previous</button>
-        <button type="button" aria-label="Randomize cinematic variation" disabled={locked} onClick={() => setSeed(randomizeCinematicVariationSeed(config.seed))}>Randomize</button>
-        <button type="button" aria-label="Next cinematic variation" disabled={locked} onClick={() => setSeed(nextCinematicVariationSeed(config.seed, 1))}>Next</button>
-      </div>
-      <ToggleRow id="cinematic-seed-lock" label="Lock Seed" value={locked} onChange={onLock} description="Prevents live variation buttons from changing the saved seed." />
+      {showSeedControls && (
+        <>
+          <CtrlSection label="Variation" />
+          <div className="rv-cinematic-seed-readout" aria-live="polite">
+            <span>Seed</span><output id={`cinematic-seed-${presetId}`}>{config.seed >>> 0}</output>
+          </div>
+          <div className="rv-cinematic-action-grid">
+            <button type="button" aria-label="Previous cinematic variation" disabled={locked} onClick={() => setSeed(nextCinematicVariationSeed(config.seed, -1))}>Previous</button>
+            <button type="button" aria-label="Randomize cinematic variation" disabled={locked} onClick={() => setSeed(randomizeCinematicVariationSeed(config.seed))}>Randomize</button>
+            <button type="button" aria-label="Next cinematic variation" disabled={locked} onClick={() => setSeed(nextCinematicVariationSeed(config.seed, 1))}>Next</button>
+          </div>
+          <ToggleRow id="cinematic-seed-lock" label="Lock Seed" value={locked} onChange={onLock} description="Prevents live variation buttons from changing the saved seed." />
+        </>
+      )}
       <div className="rv-cinematic-action-grid rv-cinematic-action-grid--resets">
         <button type="button" onClick={onResetWorld}>Reset World</button>
         <button type="button" onClick={onResetCamera}>Reset Camera</button>
@@ -451,6 +456,7 @@ export function CinematicWorldsDesignControls() {
         config={config}
         presetId={preset.id}
         locked={seedLocked}
+        showSeedControls={config.worldMode !== 'electricStorm'}
         onChange={save}
         onLock={locked => setSeedLocked(preset.id, locked)}
         onResetWorld={() => clearConfig(preset.id)}

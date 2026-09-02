@@ -48,13 +48,29 @@ float segmentDistance(vec2 p, vec2 a, vec2 b, float seed, float jaggedness) {
   return length(p - nearest);
 }
 
+float stormQualityDetailScale() {
+  if (uQuality < 0.5) return 0.46;
+  if (uQuality < 1.5) return 0.68;
+  if (uQuality < 2.5) return 0.88;
+  return 1.0;
+}
+
+int stormQualityBranchCap() {
+  if (uQuality < 0.5) return 1;
+  if (uQuality < 1.5) return 2;
+  if (uQuality < 2.5) return 3;
+  return 4;
+}
+
 float strikeEnvelope(float age, float duration) {
   if (age < 0.0 || age > duration || duration <= 0.0) return 0.0;
   float normalizedAge = age / duration;
   float attack = smoothstep(0.0, 0.055, normalizedAge);
   float decay = exp(-normalizedAge * 2.8);
-  float flickerAmount = mix(0.08, 0.18, clamp(uAudioDetail, 0.0, 1.0));
-  float flicker = (1.0 - flickerAmount) + flickerAmount * sin(age * mix(390.0, 540.0, clamp(uAudioDetail, 0.0, 1.0)));
+  float qualityDetail = stormQualityDetailScale();
+  float flickerDetail = clamp(uAudioDetail, 0.0, 1.0) * qualityDetail;
+  float flickerAmount = mix(0.06, 0.18, flickerDetail);
+  float flicker = (1.0 - flickerAmount) + flickerAmount * sin(age * mix(360.0, 540.0, flickerDetail));
   return attack * decay * flicker;
 }
 
@@ -64,7 +80,8 @@ vec3 renderStrike(vec2 p, vec4 line, vec4 meta, vec4 style, float slot) {
   float strength = meta.z;
   float seed = meta.w + slot * 17.0;
   float branchSeed = style.x + slot * 29.0;
-  float branchDetail = clamp(style.y * mix(0.82, 1.2, clamp(uAudioDetail, 0.0, 1.0)), 0.0, 1.0);
+  float qualityDetail = stormQualityDetailScale();
+  float branchDetail = clamp(style.y * mix(0.82, 1.2, clamp(uAudioDetail, 0.0, 1.0)) * qualityDetail, 0.0, 1.0);
   float thicknessMultiplier = max(0.35, style.z);
   float glowMultiplier = max(0.35, style.w);
   float envelope = strikeEnvelope(age, duration) * strength * uMasterIntensity;
@@ -77,7 +94,8 @@ vec3 renderStrike(vec2 p, vec4 line, vec4 meta, vec4 style, float slot) {
   float masterGeometry = mix(0.72, 1.18, uMasterIntensity);
   float coreWidth = mix(0.0018, 0.0085, uThickness) * masterGeometry * thicknessMultiplier;
   float bodyWidth = coreWidth * mix(2.4, 3.6, uThickness);
-  float haloWidth = bodyWidth * mix(4.5, 12.0, uGlowAmount) * glowMultiplier;
+  float haloQuality = mix(0.72, 1.0, qualityDetail);
+  float haloWidth = bodyWidth * mix(4.5, 12.0, uGlowAmount) * glowMultiplier * haloQuality;
 
   float core = exp(-distanceToBolt * distanceToBolt / max(coreWidth * coreWidth, 0.000001));
   float body = exp(-distanceToBolt * distanceToBolt / max(bodyWidth * bodyWidth, 0.000001));
@@ -90,7 +108,9 @@ vec3 renderStrike(vec2 p, vec4 line, vec4 meta, vec4 style, float slot) {
   vec2 mainDelta = b - a;
   vec2 mainTangent = normalize(mainDelta + vec2(0.00001, 0.0));
   float mainLength = length(mainDelta);
+  int branchCap = stormQualityBranchCap();
   for (int branchIndex = 0; branchIndex < 4; branchIndex++) {
+    if (branchIndex >= branchCap) continue;
     float fi = float(branchIndex);
     float effectiveBranching = clamp(uBranching * mix(0.62, 1.0, uMasterIntensity) * mix(0.72, 1.22, branchDetail), 0.0, 1.0);
     float branchGate = step((fi + 0.45) / 4.0, effectiveBranching);
@@ -128,7 +148,7 @@ void main() {
   vec2 p = uv * 2.0 - 1.0;
   p.x *= uResolution.x / max(1.0, uResolution.y);
 
-  int hazeOctaves = uQuality >= 2.5 ? 6 : (uQuality >= 1.5 ? 5 : 4);
+  int hazeOctaves = uQuality >= 2.5 ? 6 : (uQuality >= 1.5 ? 5 : (uQuality >= 0.5 ? 4 : 3));
   vec2 hazeUv = uv * vec2(3.1, 2.2) + vec2(uTime * 0.012, -uTime * 0.008);
   float hazeA = fbm21(hazeUv + uVariation.xy * 2.7, hazeOctaves);
   float hazeB = fbm21(hazeUv * 1.7 - vec2(4.1, 1.8), max(3, hazeOctaves - 1));

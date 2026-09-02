@@ -151,6 +151,20 @@ describe('Cinematic Worlds engine controls', () => {
     expect(buttonWithText('Reset Audio Mappings')).toBeTruthy()
   })
 
+  it('keeps Electric Storm runtime variation internal while retaining reset actions', async () => {
+    activateLegacyCinematicPreset(presetFor('electricStorm'))
+    await render(<CinematicWorldsDesignControls />)
+
+    expect(container.querySelector('[id^="cinematic-seed-"]')).toBeNull()
+    expect(container.querySelector('#cinematic-seed-lock')).toBeNull()
+    expect(container.querySelector('[aria-label="Previous cinematic variation"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Randomize cinematic variation"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Next cinematic variation"]')).toBeNull()
+    expect(buttonWithText('Reset World')).toBeTruthy()
+    expect(buttonWithText('Reset Camera')).toBeTruthy()
+    expect(buttonWithText('Reset Audio Mappings')).toBeTruthy()
+  })
+
   it('applies Visual DNA through the shared labeled dropdown and preserves scoped reset behavior', async () => {
     const preset = presetFor('reactiveConstellation')
     const base = resolveCinematicConfigForPreset(preset, {})!

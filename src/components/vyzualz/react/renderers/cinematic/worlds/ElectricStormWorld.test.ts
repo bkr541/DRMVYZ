@@ -51,9 +51,9 @@ function choreographyFrame(input: {
   energy?: number
   kick?: boolean
   drop?: boolean
-  kickEventId?: string
-  dropEventId?: string
-  transientEventId?: string
+  kickEventId?: string | null
+  dropEventId?: string | null
+  transientEventId?: string | null
 } = {}): CinematicFrameContext {
   const frameIndex = input.frameIndex ?? 0
   const beatIndex = input.beatIndex ?? frameIndex
@@ -81,9 +81,18 @@ function choreographyFrame(input: {
     },
     canonicalMusic: {
       impulses: {
-        kick: { active: kick, eventId: input.kickEventId ?? (kick ? `kick-${beatIndex}` : null) },
-        dropStart: { active: drop, eventId: input.dropEventId ?? (drop ? `drop-${beatIndex}` : null) },
-        transient: { active: transientActive, eventId: input.transientEventId ?? (transientActive ? `transient-${beatIndex}` : null) },
+        kick: {
+          active: kick,
+          eventId: Object.prototype.hasOwnProperty.call(input, 'kickEventId') ? input.kickEventId ?? null : (kick ? `kick-${beatIndex}` : null),
+        },
+        dropStart: {
+          active: drop,
+          eventId: Object.prototype.hasOwnProperty.call(input, 'dropEventId') ? input.dropEventId ?? null : (drop ? `drop-${beatIndex}` : null),
+        },
+        transient: {
+          active: transientActive,
+          eventId: Object.prototype.hasOwnProperty.call(input, 'transientEventId') ? input.transientEventId ?? null : (transientActive ? `transient-${beatIndex}` : null),
+        },
       },
     },
   } as unknown as CinematicFrameContext
@@ -197,6 +206,36 @@ describe('Electric Storm Stage 3 world', () => {
     expect(strikes.length).toBeGreaterThan(80)
     const adjacentRepeats = strikes.slice(1).filter((strike, index) => strike.signature === strikes[index]?.signature)
     expect(adjacentRepeats.length).toBe(0)
+  })
+
+  it('deduplicates no-id event pulses across render frames without collapsing a later pulse in the same beat', () => {
+    const choreographer = new ElectricStormAudioChoreographer({ sessionSeed: 0x7001 })
+    const settings = { ...ELECTRIC_STORM_DEFAULTS, masterIntensity: 1, strikeRate: 1 }
+    const heroCount = (frame: CinematicFrameContext) => choreographer.update(frame, settings).intents
+      .filter(intent => intent.tier === 'hero').length
+
+    expect(heroCount(choreographyFrame({ frameIndex: 1, beatIndex: 8, drop: true, dropEventId: null }))).toBe(1)
+    expect(heroCount(choreographyFrame({ frameIndex: 2, beatIndex: 8, drop: true, dropEventId: null }))).toBe(0)
+    expect(heroCount(choreographyFrame({ frameIndex: 3, beatIndex: 8, drop: false, dropEventId: null }))).toBe(0)
+    expect(heroCount(choreographyFrame({ frameIndex: 4, beatIndex: 8, drop: true, dropEventId: null }))).toBe(1)
+  })
+
+  it('bounds pending strike work before sustained activity reaches the render update', () => {
+    const generator = new ElectricStormStrikeGenerator({ sessionSeed: 0x7002 })
+    for (let index = 0; index < 32; index += 1) generator.request({ tier: 'hero', power: 1, count: 3 })
+    expect(generator.getDiagnostics().pendingRequestCount).toBe(4)
+    generator.update(12, 1)
+    expect(generator.getDiagnostics().pendingRequestCount).toBe(0)
+    expect(generator.getDiagnostics().activeCount).toBeLessThanOrEqual(ELECTRIC_STORM_MAX_ACTIVE_STRIKES)
+  })
+
+  it('uses the shared quality uniform to reduce secondary storm detail before the primary bolt path', () => {
+    expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('int branchCap = stormQualityBranchCap();')
+    expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('if (branchIndex >= branchCap) continue;')
+    expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('(uQuality >= 0.5 ? 4 : 3)')
+    expect(ELECTRIC_STORM_FRAGMENT_SOURCE.indexOf('float distanceToBolt = segmentDistance')).toBeLessThan(
+      ELECTRIC_STORM_FRAGMENT_SOURCE.indexOf('int branchCap = stormQualityBranchCap();'),
+    )
   })
 
   it('uses deterministic bounded kick probability with both strike and no-strike outcomes', () => {

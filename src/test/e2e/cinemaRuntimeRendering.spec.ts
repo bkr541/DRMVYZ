@@ -24,7 +24,10 @@ test('Cinema owns one real WebGL2 runtime and recovers its target pool', async (
     reactiveConstellationFailedNodeCount?: number
     legacyPortalPixel?: number[]
     legacyPortalFailedNodeCount?: number
+    electricStormPixel?: number[]
+    electricStormFailedNodeCount?: number
     postRestorePixel?: number[]
+    electricStormPostRestoreFailedNodeCount?: number
     webgl2GetContextCount?: number
     maximumPendingRuntimeFrames?: number
     pendingRuntimeFrameCountAfterDispose?: number
@@ -59,8 +62,12 @@ test('Cinema owns one real WebGL2 runtime and recovers its target pool', async (
   expect(payload.reactiveConstellationFailedNodeCount).toBe(0)
   expect(payload.legacyPortalPixel?.[3]).toBeGreaterThan(0)
   expect(payload.legacyPortalFailedNodeCount).toBe(0)
+  expect(payload.electricStormPixel?.[3]).toBeGreaterThan(0)
+  expect((payload.electricStormPixel?.[0] ?? 0) + (payload.electricStormPixel?.[1] ?? 0) + (payload.electricStormPixel?.[2] ?? 0)).toBeGreaterThan(0)
+  expect(payload.electricStormFailedNodeCount).toBe(0)
   expect(payload.postRestorePixel?.[3]).toBeGreaterThan(0)
   expect((payload.postRestorePixel?.[0] ?? 0) + (payload.postRestorePixel?.[1] ?? 0) + (payload.postRestorePixel?.[2] ?? 0)).toBeGreaterThan(0)
+  expect(payload.electricStormPostRestoreFailedNodeCount).toBe(0)
   expect(payload.webgl2GetContextCount).toBe(1)
   expect(payload.maximumPendingRuntimeFrames).toBe(1)
   expect(payload.pendingRuntimeFrameCountAfterDispose).toBe(0)
