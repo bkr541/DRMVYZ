@@ -19509,3 +19509,434 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   flex: 0 0 auto;
   align-self: center;
 }
+
+/* Bulk-select checkbox + resulting link chip for the Add Effects group's
+   Audio Intelligence linking panel below — UI-only, no audio behind it. */
+.rv-canvas-layer-effect-select {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  align-self: center;
+}
+
+.rv-canvas-layer-effect-select input {
+  width: 12px;
+  height: 12px;
+  accent-color: #b088ff;
+  cursor: pointer;
+}
+
+.rv-canvas-effect-audio-link-chip {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  max-width: 120px;
+  overflow: hidden;
+  border: 1px solid rgba(176, 136, 255, 0.32);
+  border-radius: 999px;
+  background: rgba(176, 136, 255, 0.1);
+  color: rgba(216, 197, 255, 0.92);
+  font-size: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.rv-canvas-effect-audio-link-chip span {
+  overflow: hidden;
+  padding: 4px 2px 4px 7px;
+  text-overflow: ellipsis;
+}
+
+.rv-canvas-effect-audio-link-chip button {
+  padding: 4px 6px 4px 2px;
+  border: 0;
+  background: transparent;
+  color: rgba(216, 197, 255, 0.72);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.rv-canvas-effect-audio-link-chip button:hover,
+.rv-canvas-effect-audio-link-chip button:focus-visible {
+  color: rgba(232, 244, 248, 0.95);
+}
+
+.rv-canvas-effect-audio-link-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 9px;
+  border-top: 1px dashed rgba(232, 244, 248, 0.1);
+}
+
+.rv-canvas-effect-audio-link-status {
+  color: rgba(232, 244, 248, 0.55);
+  font-size: 8.5px;
+}
+
+/* ── Concept 2 — Cable Patch Bay ─────────────────────────────────────────
+   Eurorack/modular-synth panel language: two jack columns on a faint dotted
+   grid, connected by SVG bezier cables tinted per parameter. */
+
+.rv-canvas-patchbay {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 8px 6px;
+  border: 1px solid rgba(103, 247, 255, 0.14);
+  border-radius: 6px;
+  background:
+    radial-gradient(rgba(103, 247, 255, 0.14) 1px, transparent 1px) 0 0 / 10px 10px,
+    rgba(2, 10, 14, 0.92);
+}
+
+.rv-canvas-patchbay-cables {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.rv-canvas-patchbay-column {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rv-canvas-patchbay-column--right {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.rv-canvas-patchbay-jack {
+  display: flex;
+  height: 22px;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: rgba(225, 245, 247, 0.75);
+  font: 700 8px/1 var(--az-font);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rv-canvas-patchbay-column--right .rv-canvas-patchbay-jack {
+  flex-direction: row-reverse;
+}
+
+.rv-canvas-patchbay-jack small {
+  color: rgba(225, 245, 247, 0.4);
+  font-weight: 500;
+  text-transform: none;
+}
+
+.rv-canvas-patchbay-jack-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border: 1px solid rgba(225, 245, 247, 0.32);
+  border-radius: 50%;
+  background: rgba(3, 16, 22, 0.9);
+}
+
+.rv-canvas-patchbay-jack:hover,
+.rv-canvas-patchbay-jack:focus-visible {
+  color: #e1f5f7;
+}
+
+.rv-canvas-patchbay-jack:hover .rv-canvas-patchbay-jack-dot,
+.rv-canvas-patchbay-jack:focus-visible .rv-canvas-patchbay-jack-dot {
+  border-color: var(--jack-color, rgba(103, 247, 255, 0.7));
+}
+
+.rv-canvas-patchbay-jack.is-armed .rv-canvas-patchbay-jack-dot {
+  border-color: var(--jack-color);
+  background: var(--jack-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jack-color) 35%, transparent);
+}
+
+.rv-canvas-patchbay-jack--effect.is-linked .rv-canvas-patchbay-jack-dot {
+  border-color: var(--jack-color);
+  background: var(--jack-color);
+}
+
+/* ── Concept 3 — Modulation Matrix ───────────────────────────────────────
+   Mixing-console routing grid: fixed row-header column, one square cell per
+   effect × parameter intersection, horizontally scrollable. */
+
+.rv-canvas-matrix-scroll {
+  overflow-x: auto;
+  border: 1px solid rgba(103, 247, 255, 0.12);
+  border-radius: 6px;
+}
+
+.rv-canvas-matrix {
+  display: grid;
+  grid-template-columns: 118px repeat(var(--matrix-cols), 24px);
+  background: rgba(2, 10, 14, 0.92);
+}
+
+.rv-canvas-matrix-corner {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  border-bottom: 1px solid rgba(103, 247, 255, 0.14);
+  background: rgba(2, 10, 14, 0.98);
+}
+
+.rv-canvas-matrix-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid rgba(103, 247, 255, 0.14);
+  border-left: 1px solid rgba(103, 247, 255, 0.08);
+  color: var(--cell-color);
+  font: 800 6.5px/1 var(--az-font);
+  letter-spacing: 0.03em;
+}
+
+.rv-canvas-matrix-row-header {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  padding: 3px 8px;
+  border-top: 1px solid rgba(103, 247, 255, 0.08);
+  background: rgba(2, 10, 14, 0.98);
+  color: rgba(225, 245, 247, 0.8);
+  font-size: 8px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-canvas-matrix-row-header small {
+  color: rgba(225, 245, 247, 0.4);
+  font-weight: 500;
+}
+
+.rv-canvas-matrix-cell {
+  position: relative;
+  height: 24px;
+  border-top: 1px solid rgba(103, 247, 255, 0.08);
+  border-left: 1px solid rgba(103, 247, 255, 0.08);
+  background: transparent;
+  cursor: pointer;
+}
+
+.rv-canvas-matrix-cell:hover {
+  background: rgba(103, 247, 255, 0.08);
+}
+
+.rv-canvas-matrix-cell.is-active::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: var(--cell-color);
+  content: '';
+}
+
+/* ── Concept 4 — Drag & Drop Chips ───────────────────────────────────────
+   Modern card layout: rounded glass cards as drop targets, pill tokens as
+   draggable parameter chips. */
+
+.rv-canvas-chip-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.rv-canvas-chip-token {
+  border: 1px solid color-mix(in srgb, var(--chip-color) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--chip-color) 16%, rgba(2, 10, 14, 0.9));
+  color: color-mix(in srgb, var(--chip-color) 70%, white);
+  cursor: grab;
+  font: 800 8px/1 var(--az-font);
+  padding: 5px 10px;
+}
+
+.rv-canvas-chip-token:active {
+  cursor: grabbing;
+}
+
+.rv-canvas-chip-token.is-armed {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chip-color) 55%, transparent);
+}
+
+.rv-canvas-chip-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 7px;
+}
+
+.rv-canvas-chip-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+}
+
+.rv-canvas-chip-card.is-drag-over {
+  border-color: rgba(103, 247, 255, 0.5);
+  background: rgba(103, 247, 255, 0.08);
+}
+
+.rv-canvas-chip-card strong {
+  color: rgba(232, 249, 250, 0.94);
+  font-size: 9px;
+}
+
+.rv-canvas-chip-card small {
+  color: rgba(220, 241, 244, 0.46);
+  font-size: 7px;
+}
+
+.rv-canvas-chip-card-empty {
+  margin-top: 3px;
+  padding: 4px 0;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  color: rgba(225, 245, 247, 0.34);
+  font-size: 7.5px;
+  text-align: center;
+}
+
+.rv-canvas-chip-card-assigned {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  border: 1px solid color-mix(in srgb, var(--chip-color) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--chip-color) 18%, rgba(2, 10, 14, 0.9));
+  color: color-mix(in srgb, var(--chip-color) 70%, white);
+  font: 800 7.5px/1 var(--az-font);
+  padding: 4px 4px 4px 9px;
+}
+
+.rv-canvas-chip-card-assigned button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.75;
+}
+
+.rv-canvas-chip-card-assigned button:hover {
+  opacity: 1;
+}
+
+/* ── Concept 5 — Channel Strip Rack ──────────────────────────────────────
+   Hardware mixing-console language: a horizontally scrollable rack of
+   narrow strips, each with an LED, an LCD-style source readout, and a
+   decorative static meter. */
+
+.rv-canvas-strip-rack {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.rv-canvas-strip {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  width: 58px;
+  gap: 5px;
+  padding: 8px 5px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.2));
+}
+
+.rv-canvas-strip-led {
+  width: 7px;
+  height: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.rv-canvas-strip-led.is-lit {
+  border-color: var(--led-color);
+  background: var(--led-color);
+  box-shadow: 0 0 6px 1px var(--led-color);
+}
+
+.rv-canvas-strip-name {
+  width: 100%;
+  overflow: hidden;
+  color: rgba(232, 249, 250, 0.92);
+  font: 800 7.5px/1.2 var(--az-font);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-canvas-strip-media {
+  width: 100%;
+  overflow: hidden;
+  color: rgba(220, 241, 244, 0.42);
+  font-size: 6.5px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-canvas-strip-select {
+  width: 100%;
+  border: 1px solid rgba(103, 247, 255, 0.22);
+  border-radius: 3px;
+  background: #010b0d;
+  color: #8de7ff;
+  font: 700 7px/1.6 var(--az-font);
+  padding: 2px 1px;
+  text-align: center;
+}
+
+.rv-canvas-strip-meter {
+  display: flex;
+  align-items: flex-end;
+  width: 10px;
+  height: 40px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.rv-canvas-strip-meter span {
+  width: 100%;
+  background: linear-gradient(180deg, #ff5f6d 0%, #ffd75f 45%, #61d6aa 100%);
+  display: block;
+}
