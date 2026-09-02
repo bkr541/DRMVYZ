@@ -960,13 +960,13 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
               <div className="ttv-overview-stack">
                 <OverviewTimelineRow
                   model={model}
-                  height={86}
+                  height={38}
                   spec={{ kind: 'beatGrid' }}
                   playheadAnchor
                 />
                 <OverviewTimelineRow
                   model={model}
-                  height={44}
+                  height={38}
                   spec={{ kind: 'sections', sections: model.sections }}
                 />
                 <OverviewTimelineRow

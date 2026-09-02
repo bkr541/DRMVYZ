@@ -1,4 +1,5 @@
 import type {
+  TrackTimelineBeat,
   TrackTimelineEvent,
   TrackTimelineModel,
   TrackTimelinePoint,
@@ -274,13 +275,12 @@ function pointsInViewport(points: TrackTimelinePoint[], viewport: TrackTimelineV
 }
 
 function drawSectionContext(draw: DrawContext) {
-  const { ctx, width, height, model, palette, viewport } = draw
-  model.sections.forEach((section, index) => {
+  const { ctx, width, height, model, viewport } = draw
+  model.sections.forEach(section => {
     if (!overlapsViewport(section.start, section.end, viewport)) return
     const x1 = timeToX(section.start, width, viewport)
     const x2 = Math.max(x1 + 1, timeToX(section.end, width, viewport))
-    const color = sectionColor(palette, section.type, index)
-    ctx.fillStyle = rgba(color, 0.055)
+    ctx.fillStyle = rgba(sectionColor(section.type), 0.055)
     ctx.fillRect(x1, 0, x2 - x1, height)
   })
 }
@@ -385,41 +385,85 @@ function dominantBandColor(draw: DrawContext, low: number, mid: number, high: nu
   return rgba(draw.palette.magenta, alpha)
 }
 
+// ── React Track Map beat-grid treatment ────────────────────────────────────
+// Mirrors drawBeatGridCanvas in ReactTrackMapStrip: three top-anchored tiers —
+// short cyan regular beats, taller green downbeats, tallest red every-fourth-
+// downbeat markers — with no bar or time labels, and density reduction so
+// regular ticks never crowd below ~3px apart.
+const TRACK_MAP_BEAT_COLOR = 'rgba(74, 199, 219, 0.45)'
+const TRACK_MAP_DOWNBEAT_COLOR = 'rgba(97, 214, 170, 0.85)'
+const TRACK_MAP_FOUR_BAR_COLOR = 'rgba(192, 49, 74, 0.96)'
+const TRACK_MAP_BEAT_TICK_H = 5
+const TRACK_MAP_DOWNBEAT_TICK_H = 13
+const TRACK_MAP_FOUR_BAR_TICK_H = 20
+
 function drawBeatGrid(draw: DrawContext) {
-  const { ctx, width, height, model, palette, fonts, hits, viewport } = draw
+  const { ctx, width, height, model, hits, viewport } = draw
   drawBackground(draw)
   if (!model.beats.length) {
-    drawTimeLabels(draw, 13)
     drawCenteredMessage(draw, 'Beat-grid data unavailable')
     return
   }
 
-  const labelY = height - 7
-  let lastLabelX = -100
-  model.beats.forEach((beat, index) => {
-    if (beat.time < viewport.startSec || beat.time > viewport.endSec) return
-    const x = timeToX(beat.time, width, viewport) + 0.5
-    const isAccent = beat.beatWithinBar === Math.max(0, (model.meta.timeSignature ?? 4) - 1)
-    const tickHeight = beat.isDownbeat ? 31 : isAccent ? 23 : 17
-    ctx.strokeStyle = beat.isDownbeat ? palette.cyan : isAccent ? palette.red : palette.teal
-    ctx.globalAlpha = beat.isDownbeat ? 0.95 : 0.74
-    ctx.lineWidth = beat.isDownbeat ? 1.5 : 1
-    ctx.beginPath()
-    ctx.moveTo(x, 3)
-    ctx.lineTo(x, 3 + tickHeight)
-    ctx.stroke()
-    ctx.globalAlpha = 1
-
-    if (beat.isDownbeat && x - lastLabelX > 46) {
-      lastLabelX = x
-      ctx.fillStyle = palette.muted
-      ctx.font = `9px ${fonts.data}`
-      ctx.fillText(`BAR ${beat.barIndex + 1}`, x + 4, labelY)
-    }
-    void index
+  // Promote every fourth downbeat to a four-bar marker, counted across the full
+  // grid so panning/zooming never resets the cadence at the visible edge.
+  const fourBarBeats = new Set<TrackTimelineBeat>()
+  let downbeatCount = 0
+  model.beats.forEach(beat => {
+    if (!beat.isDownbeat) return
+    downbeatCount += 1
+    if (downbeatCount % 4 === 0) fourBarBeats.add(beat)
   })
 
-  drawTimeLabels(draw, 13)
+  const visibleBeats = model.beats.filter(
+    beat => beat.time >= viewport.startSec - 0.01 && beat.time <= viewport.endSec + 0.01,
+  )
+  const regularCount = visibleBeats.reduce((total, beat) => total + (beat.isDownbeat ? 0 : 1), 0)
+  const pxPerBeat = regularCount > 0 ? width / regularCount : width
+  const stride = pxPerBeat < 3 ? Math.max(1, Math.ceil(3 / pxPerBeat)) : 1
+
+  const tickX = (time: number) => Math.floor(timeToX(time, width, viewport)) + 0.5
+
+  // Regular beats — short cyan ruler marks, density-reduced.
+  ctx.strokeStyle = TRACK_MAP_BEAT_COLOR
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  let regularIndex = 0
+  visibleBeats.forEach(beat => {
+    if (beat.isDownbeat) return
+    if (regularIndex % stride === 0) {
+      const x = tickX(beat.time)
+      ctx.moveTo(x, 0)
+      ctx.lineTo(x, Math.min(height, TRACK_MAP_BEAT_TICK_H))
+    }
+    regularIndex += 1
+  })
+  ctx.stroke()
+
+  // Downbeats — taller, thicker, green (four-bar markers excluded here).
+  ctx.strokeStyle = TRACK_MAP_DOWNBEAT_COLOR
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  visibleBeats.forEach(beat => {
+    if (!beat.isDownbeat || fourBarBeats.has(beat)) return
+    const x = tickX(beat.time)
+    ctx.moveTo(x, 0)
+    ctx.lineTo(x, Math.min(height, TRACK_MAP_DOWNBEAT_TICK_H))
+  })
+  ctx.stroke()
+
+  // Four-bar boundaries — the tallest, strongest divider.
+  ctx.strokeStyle = TRACK_MAP_FOUR_BAR_COLOR
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  visibleBeats.forEach(beat => {
+    if (!fourBarBeats.has(beat)) return
+    const x = tickX(beat.time)
+    ctx.moveTo(x, 0)
+    ctx.lineTo(x, Math.min(height, TRACK_MAP_FOUR_BAR_TICK_H))
+  })
+  ctx.stroke()
+
   hits.push({
     x1: 0,
     x2: width,
@@ -430,12 +474,13 @@ function drawBeatGrid(draw: DrawContext) {
 }
 
 function drawDetailRuler(draw: DrawContext) {
-  const { ctx, width, height, model, palette, fonts, hits, viewport } = draw
+  const { ctx, width, height, model, hits, viewport } = draw
   drawBackground(draw)
   drawSectionContext(draw)
 
+  // React Track Map ruler treatment: faint cyan hairlines + 10px system font.
   const dividerY = Math.round(height * 0.54) + 0.5
-  ctx.strokeStyle = rgba(palette.border, 0.52)
+  ctx.strokeStyle = TRACK_MAP_RULER_LINE
   ctx.lineWidth = 1
   ctx.beginPath()
   ctx.moveTo(0, dividerY)
@@ -449,12 +494,13 @@ function drawDetailRuler(draw: DrawContext) {
   }
 
   const visibleBars = model.bars.filter(bar => overlapsViewport(bar.start, bar.end, viewport))
+  ctx.font = TRACK_MAP_RULER_FONT
   ctx.textBaseline = 'top'
 
   visibleBars.forEach(bar => {
     const x1 = timeToX(bar.start, width, viewport)
     const x2 = timeToX(bar.end, width, viewport)
-    ctx.strokeStyle = rgba(palette.cyan, 0.35)
+    ctx.strokeStyle = TRACK_MAP_RULER_LINE
     ctx.lineWidth = 1
     ctx.beginPath()
     ctx.moveTo(x1 + 0.5, 0)
@@ -462,8 +508,7 @@ function drawDetailRuler(draw: DrawContext) {
     ctx.stroke()
 
     if (x2 - x1 > 20) {
-      ctx.fillStyle = rgba(palette.text, 0.86)
-      ctx.font = `700 9px ${fonts.data}`
+      ctx.fillStyle = TRACK_MAP_RULER_TEXT
       ctx.fillText(String(bar.barNumber), x1 + 6, 7)
     }
   })
@@ -472,19 +517,16 @@ function drawDetailRuler(draw: DrawContext) {
   model.beats.forEach(beat => {
     if (beat.time < viewport.startSec || beat.time > viewport.endSec) return
     const x = timeToX(beat.time, width, viewport)
-    ctx.strokeStyle = beat.isDownbeat
-      ? rgba(palette.cyan, 0.42)
-      : rgba(palette.border, 0.26)
+    ctx.strokeStyle = TRACK_MAP_RULER_LINE
     ctx.lineWidth = beat.isDownbeat ? 1 : 0.8
     ctx.beginPath()
     ctx.moveTo(x + 0.5, dividerY)
     ctx.lineTo(x + 0.5, height)
     ctx.stroke()
 
-    if (x - lastBeatLabelX > 10) {
+    if (x - lastBeatLabelX > 14) {
       lastBeatLabelX = x
-      ctx.fillStyle = beat.isDownbeat ? rgba(palette.cyan, 0.85) : rgba(palette.muted, 0.66)
-      ctx.font = `8px ${fonts.data}`
+      ctx.fillStyle = TRACK_MAP_RULER_TEXT
       ctx.fillText(String(beat.beatWithinBar + 1), x + 3, dividerY + 7)
     }
   })
@@ -499,59 +541,95 @@ function drawDetailRuler(draw: DrawContext) {
   })
 }
 
+// ── React Track Map ruler treatment ──────────────────────────────────────
+// Mirrors drawTimelineRuler in ReactTrackMapStrip: six even divisions across
+// the visible range, a 10px system font, faint cyan 5px ticks, non-padded
+// M:SS labels, first/last labels aligned to the edges.
+const TRACK_MAP_RULER_DIVISIONS = 6
+const TRACK_MAP_RULER_FONT = '10px sans-serif'
+const TRACK_MAP_RULER_TEXT = 'rgba(232, 244, 248, 0.42)'
+const TRACK_MAP_RULER_LINE = 'rgba(74, 199, 219, 0.12)'
+
+function formatRulerTime(seconds: number): string {
+  const safe = Math.max(0, finite(seconds))
+  const minutes = Math.floor(safe / 60)
+  const wholeSeconds = Math.floor(safe % 60)
+  return `${minutes}:${String(wholeSeconds).padStart(2, '0')}`
+}
+
 function drawTimeLabels(draw: DrawContext, y: number) {
-  const { ctx, width, palette, fonts, viewport } = draw
-  const step = niceTimeStep(viewport.endSec - viewport.startSec, width)
-  const first = Math.ceil(viewport.startSec / step) * step
-  ctx.font = `9px ${fonts.data}`
-  ctx.fillStyle = rgba(palette.muted, 0.8)
+  const { ctx, width, viewport } = draw
+  const span = viewport.endSec - viewport.startSec
+  if (!(span > 0) || width <= 0) return
+
+  ctx.font = TRACK_MAP_RULER_FONT
+  ctx.fillStyle = TRACK_MAP_RULER_TEXT
+  ctx.strokeStyle = TRACK_MAP_RULER_LINE
+  ctx.lineWidth = 1
   ctx.textBaseline = 'top'
-  for (let time = first; time <= viewport.endSec + 0.001; time += step) {
-    const x = timeToX(time, width, viewport)
-    const label = formatTime(time, false)
-    const textWidth = ctx.measureText(label).width
-    ctx.fillText(label, clamp(x + 3, 2, width - textWidth - 2), y)
+
+  const count = Math.max(2, Math.floor(TRACK_MAP_RULER_DIVISIONS))
+  const tickTop = y + 11
+  for (let i = 0; i <= count; i += 1) {
+    const ratio = i / count
+    const x = Math.round(ratio * width) + 0.5
+    ctx.beginPath()
+    ctx.moveTo(x, tickTop)
+    ctx.lineTo(x, tickTop + 5)
+    ctx.stroke()
+
+    ctx.textAlign = i === 0 ? 'left' : i === count ? 'right' : 'center'
+    ctx.fillText(formatRulerTime(viewport.startSec + ratio * span), clamp(x, 1, width - 1), y)
   }
+  ctx.textAlign = 'start'
   ctx.textBaseline = 'alphabetic'
 }
 
-function niceTimeStep(duration: number, width: number): number {
-  const targetLabels = Math.max(3, Math.floor(width / 110))
-  const raw = duration / targetLabels
-  return [1, 2, 5, 10, 15, 30, 60, 120, 300, 600].find(choice => choice >= raw) ?? 600
-}
-
 function drawSections(draw: DrawContext, sections: TrackTimelineSection[]) {
-  const { ctx, width, height, palette, fonts, hits, viewport } = draw
+  const { ctx, width, height, fonts, hits, viewport } = draw
   drawBackground(draw)
   if (!sections.length) {
     drawCenteredMessage(draw, 'Section data unavailable')
     return
   }
 
-  sections.forEach((section, index) => {
+  // React Track Map section treatment: no region fill and no divider — a
+  // centered glowing UPPERCASE label sitting over a thin rounded colour pill
+  // that spans the section's range.
+  const barH = 5
+  const barY = Math.min(25, height - barH - 1)
+
+  sections.forEach(section => {
     if (!overlapsViewport(section.start, section.end, viewport)) return
     const x1 = timeToX(section.start, width, viewport)
     const x2 = Math.max(x1 + 1, timeToX(section.end, width, viewport))
-    const color = sectionColor(palette, section.type, index)
-    const barY = height - 18
-    const intensity = clamp(finite(section.intensity, 0.5), 0, 1)
+    const color = sectionColor(section.type)
+    const spanW = x2 - x1
 
-    ctx.fillStyle = rgba(color, 0.05 + intensity * 0.06)
-    ctx.fillRect(x1, 0, x2 - x1, height)
-    ctx.fillStyle = rgba(color, 0.76)
-    ctx.fillRect(x1 + 5, barY, Math.max(1, x2 - x1 - 10), 6)
-    ctx.fillStyle = rgba(color, 0.98)
-    ctx.font = `700 10px ${fonts.ui}`
-    ctx.textBaseline = 'top'
-    const available = Math.max(0, x2 - x1 - 12)
-    const label = fitText(ctx, String(section.label || section.type || 'Section').toUpperCase(), available)
-    if (available > 18) ctx.fillText(label, x1 + 6, 14)
-    ctx.strokeStyle = rgba(palette.border, 0.55)
-    ctx.beginPath()
-    ctx.moveTo(x1 + 0.5, 0)
-    ctx.lineTo(x1 + 0.5, height)
-    ctx.stroke()
+    // Colour pill (rounded, soft glow), inset 2px like .rv-section-color-bar.
+    ctx.save()
+    ctx.shadowColor = rgba(color, 0.25)
+    ctx.shadowBlur = 6
+    ctx.fillStyle = rgba(color, 0.9)
+    roundedRect(ctx, x1 + 2, barY, Math.max(1, spanW - 4), barH, 1)
+    ctx.fill()
+    ctx.restore()
+
+    // Centered label with a soft colour glow.
+    const available = Math.max(0, spanW - 8)
+    if (available > 18) {
+      ctx.save()
+      ctx.font = `700 9px ${fonts.ui}`
+      ctx.letterSpacing = '0.4px'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.shadowColor = rgba(color, 0.24)
+      ctx.shadowBlur = 7
+      ctx.fillStyle = color
+      const label = fitText(ctx, String(section.label || section.type || 'Section').toUpperCase(), available)
+      ctx.fillText(label, (x1 + x2) / 2, 10)
+      ctx.restore()
+    }
 
     hits.push({
       x1,
@@ -561,18 +639,37 @@ function drawSections(draw: DrawContext, sections: TrackTimelineSection[]) {
       text: `${section.label}\n${formatTime(section.start)} → ${formatTime(section.end)}\nType: ${section.type} · Intensity: ${formatValue(section.intensity)}${section.confidence !== null ? ` · Confidence: ${formatValue(section.confidence)}` : ''}`,
     })
   })
+  ctx.textAlign = 'start'
   ctx.textBaseline = 'alphabetic'
 }
 
-function sectionColor(palette: TrackTimelinePalette, type: string, index: number): string {
-  const normalized = type.toLowerCase()
-  if (normalized.includes('intro')) return palette.teal
-  if (normalized.includes('outro')) return palette.green
-  if (normalized.includes('drop')) return palette.red
-  if (normalized.includes('break')) return palette.orange
-  if (normalized.includes('verse')) return palette.cyan
-  if (normalized.includes('build')) return palette.yellow
-  return [palette.slate, palette.cyan, palette.teal][index % 3]!
+// React Track Map SECTION_COLORS (ReactTrackMapStrip). Free-form analysis
+// section types are normalised onto the same enum palette; anything
+// unrecognised falls back to the RTM "unknown" grey (no index cycling).
+const TRACK_MAP_SECTION_COLORS: Record<string, string> = {
+  intro: '#61d6aa',
+  verse: '#4ac7db',
+  build: '#d8b95a',
+  predrop: '#f0a060',
+  drop: '#c0314a',
+  breakdown: '#b84fc9',
+  bridge: '#5b8def',
+  outro: '#80dfc0',
+  unknown: '#6a7a8a',
+}
+
+function sectionColor(type: string): string {
+  const key = type.toLowerCase().replace(/[^a-z]/g, '')
+  if (TRACK_MAP_SECTION_COLORS[key]) return TRACK_MAP_SECTION_COLORS[key]!
+  if (key.includes('predrop') || key.includes('prebuild')) return TRACK_MAP_SECTION_COLORS.predrop!
+  if (key.includes('break')) return TRACK_MAP_SECTION_COLORS.breakdown!
+  if (key.includes('drop')) return TRACK_MAP_SECTION_COLORS.drop!
+  if (key.includes('build') || key.includes('rise')) return TRACK_MAP_SECTION_COLORS.build!
+  if (key.includes('intro')) return TRACK_MAP_SECTION_COLORS.intro!
+  if (key.includes('outro')) return TRACK_MAP_SECTION_COLORS.outro!
+  if (key.includes('bridge')) return TRACK_MAP_SECTION_COLORS.bridge!
+  if (key.includes('verse') || key.includes('chorus') || key.includes('hook')) return TRACK_MAP_SECTION_COLORS.verse!
+  return TRACK_MAP_SECTION_COLORS.unknown!
 }
 
 function drawLineRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, { kind: 'line' }>) {
