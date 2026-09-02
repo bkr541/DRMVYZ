@@ -27,7 +27,7 @@ describe('Cinematic Worlds Patch 8 metadata and compatibility', () => {
     expect(eventHorizon.engine).toBe('cinematicPortal')
     expect(CINEMATIC_WORLD_UI.map(world => world.id)).toEqual([
       'eventHorizon', 'infiniteCorridor', 'fractureRift', 'monolithGate', 'liquidMembrane',
-      'celestialCathedral', 'mirrorDimension', 'ancientMachine', 'stormGateway', 'orbitalPrismArray', 'reactiveConstellation', 'legacyPortal',
+      'celestialCathedral', 'mirrorDimension', 'ancientMachine', 'stormGateway', 'electricStorm', 'orbitalPrismArray', 'reactiveConstellation', 'legacyPortal',
     ])
     expect(CINEMATIC_WORLD_UI.every(world => world.label && world.description && world.category)).toBe(true)
   })

@@ -23,6 +23,7 @@ export const CINEMATIC_WORLD_MODES = [
   'mirrorDimension',
   'ancientMachine',
   'stormGateway',
+  'electricStorm',
   'orbitalPrismArray',
   'reactiveConstellation',
 ] as const
@@ -572,6 +573,9 @@ const WORLD_DEFAULT_AUDIO_ROUTES: Readonly<Record<CinematicWorldMode, readonly C
     route('storm-bass-vortex', 'bass', 'portalAperture', { amount: 0.55, attackMs: 30, releaseMs: 280 }),
     route('storm-high-debris', 'highs', 'particleEmission', { amount: 0.5, attackMs: 24, releaseMs: 180 }),
   ],
+  // Stage 1 intentionally has no audio choreography. Stage 3 will add the
+  // Electric Storm-specific mappings without changing this public control contract.
+  electricStorm: [],
 }
 
 export function createDefaultCinematicAudioRoutes(mode: CinematicWorldMode): CinematicAudioRoute[] {
@@ -659,6 +663,7 @@ const CINEMATIC_WORLD_MODE_ALIASES: Record<string, CinematicWorldMode> = {
   mirrordimension: 'mirrorDimension',
   ancientmachine: 'ancientMachine',
   stormgateway: 'stormGateway',
+  electricstorm: 'electricStorm',
   orbitalprismarray: 'orbitalPrismArray',
   reactiveconstellation: 'reactiveConstellation',
   constellation: 'reactiveConstellation',

@@ -6,6 +6,7 @@ import {
   normalizeCinematicWorldConfig,
 } from '../CinematicWorldConfig'
 import {
+  ELECTRIC_STORM_DEFAULTS,
   EVENT_HORIZON_DEFAULTS,
   GEOMETRY_CINEMATIC_WORLD_MODES,
   IMPLEMENTED_CINEMATIC_WORLD_MODES,
@@ -16,6 +17,7 @@ import {
   createCinematicSeededVariation,
   resolveAncientMachineSettings,
   resolveCelestialCathedralSettings,
+  resolveElectricStormSettings,
   resolveEventHorizonSettings,
   resolveFractureRiftSettings,
   resolveInfiniteCorridorSettings,
@@ -79,6 +81,7 @@ describe('world-specific cinematic configuration', () => {
     const mirror = createCinematicWorldConfig('mirrorDimension', {})
     const machine = createCinematicWorldConfig('ancientMachine', {})
     const storm = createCinematicWorldConfig('stormGateway', {})
+    const electricStorm = createCinematicWorldConfig('electricStorm', {})
     const constellation = createCinematicWorldConfig('reactiveConstellation', {})
 
     expect(resolveEventHorizonSettings(event.worldSettings)).toEqual(EVENT_HORIZON_DEFAULTS)
@@ -90,10 +93,12 @@ describe('world-specific cinematic configuration', () => {
     expect(resolveMirrorDimensionSettings(mirror.worldSettings).symmetryCount).toBeGreaterThanOrEqual(3)
     expect(resolveAncientMachineSettings(machine.worldSettings).ringCount).toBeGreaterThanOrEqual(2)
     expect(resolveStormGatewaySettings(storm.worldSettings).cloudLayers).toBeGreaterThanOrEqual(2)
+    expect(resolveElectricStormSettings(electricStorm.worldSettings)).toEqual(ELECTRIC_STORM_DEFAULTS)
     expect(resolveReactiveConstellationSettings(constellation.worldSettings)).toEqual(REACTIVE_CONSTELLATION_DEFAULTS)
     expect(IMPLEMENTED_CINEMATIC_WORLD_MODES).toEqual([
       ...PACK_A_CINEMATIC_WORLD_MODES,
       ...PACK_B_CINEMATIC_WORLD_MODES,
+      'electricStorm',
       ...GEOMETRY_CINEMATIC_WORLD_MODES,
     ])
   })
@@ -131,6 +136,25 @@ describe('world-specific cinematic configuration', () => {
       cloudLayers: 8,
       debrisDensity: 0,
       lightningResponse: 1.5,
+    })
+
+    const electricStorm = createCinematicWorldConfig('electricStorm', {
+      backgroundColor: '#ABC',
+      lightningColor: 'not-a-color',
+      masterIntensity: -4,
+      strikeRate: 9,
+      branching: 0.25,
+      thickness: Number.NaN,
+      glow: 1.5,
+    })
+    expect(resolveElectricStormSettings(electricStorm.worldSettings)).toEqual({
+      backgroundColor: '#aabbcc',
+      lightningColor: ELECTRIC_STORM_DEFAULTS.lightningColor,
+      masterIntensity: 0,
+      strikeRate: 1,
+      branching: 0.25,
+      thickness: ELECTRIC_STORM_DEFAULTS.thickness,
+      glow: 1,
     })
 
     const constellation = createCinematicWorldConfig('reactiveConstellation', {
@@ -202,6 +226,30 @@ describe('world-specific cinematic configuration', () => {
       radialStaggerSec: 1.5,
       expansionBurstImpulse: 2.5,
       reseedEveryBars: 18,
+    })
+  })
+
+  it('round-trips Electric Storm authored controls through canonical config normalization', () => {
+    const authored = createCinematicWorldConfig('electricStorm', {
+      backgroundColor: '#102030',
+      lightningColor: '#f04ac8',
+      masterIntensity: 0.73,
+      strikeRate: 0.21,
+      branching: 0.84,
+      thickness: 0.36,
+      glow: 0.67,
+    })
+    const reloaded = normalizeCinematicWorldConfig(JSON.parse(JSON.stringify(authored)))
+    expect(reloaded.worldMode).toBe('electricStorm')
+    expect(reloaded.worldSettings.mode).toBe('electricStorm')
+    expect(resolveElectricStormSettings(reloaded.worldSettings)).toEqual({
+      backgroundColor: '#102030',
+      lightningColor: '#f04ac8',
+      masterIntensity: 0.73,
+      strikeRate: 0.21,
+      branching: 0.84,
+      thickness: 0.36,
+      glow: 0.67,
     })
   })
 
@@ -293,7 +341,10 @@ describe('world-specific cinematic configuration', () => {
         expect(presets, mode).toEqual([])
         continue
       }
-      expect(presets, mode).toHaveLength(mode === 'reactiveConstellation' ? 11 : mode === 'orbitalPrismArray' ? 1 : 3)
+      // Electric Storm Stage 1 (Preset Foundation) intentionally ships only
+      // its one foundational preset; later stages add the rest, same as
+      // orbitalPrismArray's existing single-preset allowance.
+      expect(presets, mode).toHaveLength(mode === 'reactiveConstellation' ? 11 : mode === 'orbitalPrismArray' || mode === 'electricStorm' ? 1 : 3)
       const structuralSignatures = presets.map(preset => JSON.stringify({
         settings: preset.cinematicConfig?.worldSettings,
         cameraRig: preset.cinematicConfig?.cameraRig,
@@ -307,7 +358,10 @@ describe('world-specific cinematic configuration', () => {
         const normalized = normalizeCinematicWorldConfig(preset.cinematicConfig)
         expect(normalized).toEqual(preset.cinematicConfig)
         expect(normalized.worldSettings.mode).toBe(mode)
-        expect(normalized.audioMapping.routes.length).toBeGreaterThan(0)
+        // Electric Storm Stage 1 intentionally ships with no audio
+        // choreography yet (see WORLD_DEFAULT_AUDIO_ROUTES.electricStorm);
+        // a later stage adds routes the same way it adds the other presets.
+        if (mode !== 'electricStorm') expect(normalized.audioMapping.routes.length).toBeGreaterThan(0)
       }
     }
   })

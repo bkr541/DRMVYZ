@@ -23,6 +23,8 @@ import {
 import {
   ANCIENT_MACHINE_BOUNDS,
   CELESTIAL_CATHEDRAL_BOUNDS,
+  ELECTRIC_STORM_BOUNDS,
+  ELECTRIC_STORM_DEFAULTS,
   EVENT_HORIZON_BOUNDS,
   FRACTURE_RIFT_BOUNDS,
   INFINITE_CORRIDOR_BOUNDS,
@@ -119,6 +121,38 @@ describe('Cinematic World control schema', () => {
         if (control.kind === 'integer') expect(Number.isInteger(value), `${mode}.${control.setting}`).toBe(true)
       }
     }
+  })
+
+  it('exposes the Electric Storm Design controls with canonical midpoint defaults and existing color inputs', async () => {
+    const schema = CINEMATIC_WORLD_CATALOG.electricStorm.controls
+    const controls = schema.groups.flatMap(group => group.controls)
+    expect(controls.map(control => control.setting)).toEqual([
+      'backgroundColor', 'lightningColor', 'masterIntensity', 'strikeRate', 'branching', 'thickness', 'glow',
+    ])
+    expect(controls.filter(control => control.kind === 'color').map(control => control.setting)).toEqual(['backgroundColor', 'lightningColor'])
+    expect(controls.filter(control => control.kind === 'slider')).toHaveLength(Object.keys(ELECTRIC_STORM_BOUNDS).length)
+
+    const config = createCinematicWorldConfig('electricStorm', {})
+    expect(config.worldSettings.settings).toEqual(ELECTRIC_STORM_DEFAULTS)
+    const onChange = vi.fn()
+    await render(
+      <CinematicWorldControlSchemaRenderer
+        config={config}
+        schema={schema}
+        uiMode="simple"
+        onChange={onChange}
+      />,
+    )
+
+    const background = container.querySelector('#electric-storm-background-color') as HTMLInputElement
+    const lightning = container.querySelector('#electric-storm-lightning-color') as HTMLInputElement
+    const intensity = container.querySelector('#electric-storm-master-intensity') as HTMLInputElement
+    expect(background.type).toBe('color')
+    expect(background.value).toBe('#000000')
+    expect(lightning.type).toBe('color')
+    expect(lightning.value).toBe(ELECTRIC_STORM_DEFAULTS.lightningColor)
+    expect(intensity.type).toBe('range')
+    expect(intensity.value).toBe('0.5')
   })
 
   it('renders slider, integer, and select controls with labels, descriptions, and stable IDs', async () => {

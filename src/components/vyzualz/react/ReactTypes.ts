@@ -4222,6 +4222,25 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     scenes: makeScenes('sgac', 'cinematicPortal'), sectionMappings: makeMappings('sgac'),
   },
 
+  // Cinematic Worlds: Electric Storm
+  {
+    id: 'preset-electric-storm',
+    name: 'Electric Storm',
+    description: 'Screen-space procedural lightning cuts through a configurable abstract haze with a bright hue-preserving core.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#4aa7ff', secondary: '#735cff', accent: '#c9e7ff', background: '#000000', highlight: '#edf7ff', text: DVYDRM_WHITE },
+    params: { intensity: 0.72, motion: 0.5, glow: 0.68, bassReactivity: 0 },
+    renderSettings: { trailDecay: 0.035, fogDensity: 0.38, particleDensity: 0 },
+    cinematicConfig: createCinematicWorldConfig('electricStorm', {}, {
+      cameraRig: 'locked', seed: 47001, qualityTier: 'high',
+      environment: { depth: 0.4, architecture: 0, fog: 0.42, debris: 0, stars: 0, atmosphere: 0.62 },
+      material: { distortion: 0, refraction: 0, bloom: 0.68, chromaticAberration: 0.02, feedback: 0, glow: 0.72 },
+      audioMapping: { enabled: false, smoothingMs: 80, routes: [] },
+    }),
+    scenes: makeScenes('es', 'cinematicPortal'),
+    sectionMappings: makeMappings('es'),
+  },
+
   // Cinematic Worlds: Orbital Prism Array
   {
     id: 'preset-orbital-prism-array',

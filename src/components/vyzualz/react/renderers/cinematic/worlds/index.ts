@@ -2,6 +2,7 @@ import type { CinematicWebGLWorldDefinition } from '../../CinematicWorldRenderer
 import { ancientMachineWorldDefinition } from './AncientMachineWorld'
 import { celestialCathedralWorldDefinition } from './CelestialCathedralWorld'
 import { eventHorizonWorldDefinition } from './EventHorizonWorld'
+import { electricStormWorldDefinition } from './ElectricStormWorld'
 import { fractureRiftWorldDefinition } from './FractureRiftWorld'
 import { infiniteCorridorWorldDefinition } from './InfiniteCorridorWorld'
 import { liquidMembraneWorldDefinition } from './LiquidMembraneWorld'
@@ -15,6 +16,7 @@ export {
   ancientMachineWorldDefinition,
   celestialCathedralWorldDefinition,
   eventHorizonWorldDefinition,
+  electricStormWorldDefinition,
   fractureRiftWorldDefinition,
   infiniteCorridorWorldDefinition,
   liquidMembraneWorldDefinition,
@@ -35,6 +37,7 @@ export const cinematicWorldDefinitions: readonly CinematicWebGLWorldDefinition[]
   mirrorDimensionWorldDefinition,
   ancientMachineWorldDefinition,
   stormGatewayWorldDefinition,
+  electricStormWorldDefinition,
   orbitalPrismArrayWorldDefinition,
   reactiveConstellationWorldDefinition,
 ]

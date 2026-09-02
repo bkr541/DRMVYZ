@@ -6,6 +6,7 @@ import {
   MIRROR_DIMENSION_FRAGMENT_SOURCE,
   STORM_GATEWAY_FRAGMENT_SOURCE,
 } from './CinematicWorldPackBShaders'
+import { ELECTRIC_STORM_FRAGMENT_SOURCE } from './ElectricStormShader'
 
 export { CINEMATIC_WORLD_COMMON_UNIFORMS } from './CinematicWorldShaderCommon'
 
@@ -359,4 +360,5 @@ export const CINEMATIC_WORLD_SHADER_SOURCES = {
   mirrorDimension: MIRROR_DIMENSION_FRAGMENT_SOURCE,
   ancientMachine: ANCIENT_MACHINE_FRAGMENT_SOURCE,
   stormGateway: STORM_GATEWAY_FRAGMENT_SOURCE,
+  electricStorm: ELECTRIC_STORM_FRAGMENT_SOURCE,
 } as const

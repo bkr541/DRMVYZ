@@ -284,6 +284,43 @@ describe('Cinema Cinematic World adapters', () => {
     expect(getCinemaSupportedPaletteRoles(legacy!.definition)).toEqual(['primary', 'secondary', 'accent', 'background'])
   })
 
+  it('hydrates Electric Storm through the production Cinema preset path and renders its WebGL world', () => {
+    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'preset-electric-storm')
+    const electricStorm = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'electricStorm')
+    expect(preset).toBeDefined()
+    expect(electricStorm).toBeDefined()
+
+    const composition = createCinemaCinematicPresetComposition(
+      preset!,
+      CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+      CINEMA_FOUNDATION_INPUT_PORT_ID,
+      { compositionId: cinemaStableId<CinemaCompositionId>('electric-storm-production-test', 'composition') },
+    )
+    const node = composition.nodes.find(candidate => candidate.family === 'procedural')
+    expect(node).toBeDefined()
+    const backgroundId = cinemaCinematicWorldParameterId('world-background-color')
+    const lightningId = cinemaCinematicWorldParameterId('world-lightning-color')
+    const masterId = cinemaCinematicWorldParameterId('world-master-intensity')
+    expect(node?.parameterValues[backgroundId]).toEqual([0, 0, 0, 1])
+    expect(node?.parameterValues[lightningId]).toEqual([74 / 255, 167 / 255, 1, 1])
+    expect(node?.parameterValues[masterId]).toBe(0.5)
+
+    const supportedLabels = getCinemaCinematicWorldSupportedParameterSchemasForNode(electricStorm!.definition, node!).map(parameter => parameter.label)
+    expect(supportedLabels).toEqual(expect.arrayContaining([
+      'Background Color', 'Lightning Color', 'Master Intensity', 'Strike Rate', 'Branching', 'Thickness', 'Glow',
+    ]))
+
+    const state = createCinemaFoundationPersistedState()
+    const harness = createExecutorHarness(CINEMA_PRODUCTION_RUNTIME_REGISTRY, state.definitions, false)
+    harness.executor.setGraph({ composition, instance: null, definitions: state.definitions })
+    expect(harness.executor.render(frame(0))).toBe(true)
+    expect(harness.executor.render(frame(1))).toBe(true)
+    expect(harness.gl.__calls.drawCount).toBeGreaterThan(0)
+    expect(harness.executor.getSnapshot().failedNodeCount).toBe(0)
+    expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
+    harness.dispose()
+  })
+
   it('retains Reactive Constellation as a specialized deterministic procedural plugin', () => {
     const entry = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(candidate => candidate.worldId === 'reactiveConstellation')
     expect(entry?.definition.family).toBe('procedural')

@@ -237,7 +237,12 @@ const WORLD_BOUNDS: Readonly<Record<string, Readonly<Record<string, readonly [nu
   mirrorDimension: WorldSettings.MIRROR_DIMENSION_BOUNDS,
   ancientMachine: WorldSettings.ANCIENT_MACHINE_BOUNDS,
   stormGateway: WorldSettings.STORM_GATEWAY_BOUNDS,
+  electricStorm: WorldSettings.ELECTRIC_STORM_BOUNDS,
   reactiveConstellation: WorldSettings.REACTIVE_CONSTELLATION_BOUNDS,
+})
+
+const WORLD_COLOR_SETTING_KEYS: Readonly<Partial<Record<CinematicWorldMode, readonly string[]>>> = Object.freeze({
+  electricStorm: Object.freeze(['backgroundColor', 'lightningColor']),
 })
 
 const REACTIVE_ENUMS: Readonly<Record<string, readonly string[]>> = Object.freeze({
@@ -588,7 +593,11 @@ function createCinematicPresetParameterValues(
   for (const [key] of MATERIAL_PARAMETER_SPECS) values[cinemaCinematicWorldParameterId(`material-${key}`)] = config.material[key]
   for (const [key, value] of Object.entries(config.worldSettings.settings as Record<string, unknown>)) {
     if (typeof value === 'number') values[worldParameterId(key)] = value
-    else if (typeof value === 'string') values[worldParameterId(key)] = worldEnumOptionId(key, value)
+    else if (typeof value === 'string') {
+      values[worldParameterId(key)] = isWorldColorSetting(config.worldMode, key)
+        ? hexToCinemaColor(value)
+        : worldEnumOptionId(key, value)
+    }
   }
   return values
 }
@@ -993,6 +1002,21 @@ function createParameterDefinitions(worldId: CinematicWorldMode): readonly Cinem
       continue
     }
     if (typeof value === 'string') {
+      if (isWorldColorSetting(worldId, key)) {
+        // No brandPolicy/brandRole here: unlike the palette-role common
+        // colors above, these are world-authored colors with no Brand Kit
+        // semantic role, and the shared parameter-schema validator rejects
+        // a brandPolicy declared without a matching brandRole.
+        common.push({
+          id,
+          label: titleCase(key),
+          type: 'color',
+          default: hexToCinemaColor(value),
+          modulatable: false,
+          ui: { control: 'color', order: order++ },
+        })
+        continue
+      }
       const options = REACTIVE_ENUMS[key] ?? [value]
       common.push({
         id,
@@ -1848,7 +1872,11 @@ function resolveConfig(
   for (const [key, defaultValue] of Object.entries(settings)) {
     const value = values[worldParameterId(key)]
     if (typeof defaultValue === 'number') settings[key] = numberValue(value, defaultValue)
-    else if (typeof defaultValue === 'string') settings[key] = readWorldEnum(key, value, defaultValue)
+    else if (typeof defaultValue === 'string') {
+      settings[key] = isWorldColorSetting(worldId, key) && Array.isArray(value)
+        ? colorHex(value as unknown as CinemaColor, defaultValue)
+        : readWorldEnum(key, value, defaultValue)
+    }
   }
   if (authoredConfig) {
     return normalizeCinematicWorldConfig({
@@ -2021,6 +2049,10 @@ function qualityOptionId(value: CinematicQualityTier): CinemaEnumOptionId {
 
 function worldParameterId(key: string): CinemaParameterId {
   return cinemaCinematicWorldParameterId(`world-${key}`)
+}
+
+function isWorldColorSetting(worldId: CinematicWorldMode, key: string): boolean {
+  return WORLD_COLOR_SETTING_KEYS[worldId]?.includes(key) ?? false
 }
 
 function worldEnumOptionId(key: string, value: string): CinemaEnumOptionId {

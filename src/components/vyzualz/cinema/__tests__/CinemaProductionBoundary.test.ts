@@ -24,7 +24,7 @@ describe('Cinema production boundary through Stage 23', () => {
         + Cinema.CINEMA_COMPOSITOR_RUNTIME_REGISTRATIONS.length,
     )
     expect(Cinema.CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries).toHaveLength(9)
-    expect(Cinema.CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries).toHaveLength(11)
+    expect(Cinema.CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries).toHaveLength(12)
     expect(typeof Cinema.createCinemaShaderSceneComposition).toBe('function')
     expect(typeof Cinema.createCinemaCinematicWorldComposition).toBe('function')
     expect(typeof Cinema.createCinemaCinematicPresetComposition).toBe('function')

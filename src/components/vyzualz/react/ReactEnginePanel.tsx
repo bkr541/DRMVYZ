@@ -217,6 +217,13 @@ function CinematicWorldIcon({ mode }: { mode: CinematicWorldMode }) {
       </svg>
     )
   }
+  if (mode === 'electricStorm') {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M19 3 8 17h7l-3 12 12-16h-7z" />
+      </svg>
+    )
+  }
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true">
       <circle cx="16" cy="16" r="11" />

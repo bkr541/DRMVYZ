@@ -48,7 +48,7 @@ import {
 import {
   diagnoseCinematicMusicIntelligenceInputs,
 } from './CinematicMusicIntelligenceDiagnostics'
-import { Collapsible, CtrlSection, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { Collapsible, ColorRow, CtrlSection, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import { NoticeCard } from './controls/NoticeCard'
 
 const PORTAL_SHAPE_LABELS: Record<CinematicPortalShape, string> = {
@@ -140,6 +140,18 @@ export function CinematicWorldControlSchemaRenderer({
                     disabled: option.disabled,
                   }))}
                   onChange={value => commit(control.options.find(option => String(option.value) === value)?.value)}
+                />
+              )
+            }
+            if (control.kind === 'color') {
+              return (
+                <ColorRow
+                  key={control.id}
+                  id={control.id}
+                  label={control.label}
+                  description={control.description}
+                  value={typeof current === 'string' ? current : '#000000'}
+                  onChange={commit}
                 />
               )
             }

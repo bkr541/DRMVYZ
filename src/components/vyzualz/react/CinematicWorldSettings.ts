@@ -20,6 +20,7 @@ export const GEOMETRY_CINEMATIC_WORLD_MODES = ['orbitalPrismArray', 'reactiveCon
 export const IMPLEMENTED_CINEMATIC_WORLD_MODES = [
   ...PACK_A_CINEMATIC_WORLD_MODES,
   ...PACK_B_CINEMATIC_WORLD_MODES,
+  'electricStorm',
   ...GEOMETRY_CINEMATIC_WORLD_MODES,
 ] as const
 
@@ -146,6 +147,21 @@ export interface StormGatewaySettings {
   lightningResponse: number
 }
 
+export interface ElectricStormSettings {
+  backgroundColor: string
+  lightningColor: string
+  masterIntensity: number
+  strikeRate: number
+  branching: number
+  thickness: number
+  glow: number
+}
+
+export type ElectricStormNumericSettings = Pick<
+  ElectricStormSettings,
+  'masterIntensity' | 'strikeRate' | 'branching' | 'thickness' | 'glow'
+>
+
 export const REACTIVE_CONSTELLATION_TOPOLOGIES = ['cluster', 'chain', 'triangulated', 'starburst', 'branching', 'ring', 'splitClusters'] as const
 export type ReactiveConstellationTopologyStyle = typeof REACTIVE_CONSTELLATION_TOPOLOGIES[number]
 
@@ -236,6 +252,7 @@ export interface CinematicWorldSettingsByMode {
   mirrorDimension: MirrorDimensionSettings
   ancientMachine: AncientMachineSettings
   stormGateway: StormGatewaySettings
+  electricStorm: ElectricStormSettings
   orbitalPrismArray: EmptyCinematicWorldSettings
   reactiveConstellation: ReactiveConstellationSettings
 }
@@ -554,6 +571,24 @@ export const STORM_GATEWAY_BOUNDS: NumericBounds<StormGatewaySettings> = {
   lightningResponse: [0, 1.5],
 }
 
+export const ELECTRIC_STORM_DEFAULTS: ElectricStormSettings = {
+  backgroundColor: '#000000',
+  lightningColor: '#4aa7ff',
+  masterIntensity: 0.5,
+  strikeRate: 0.5,
+  branching: 0.5,
+  thickness: 0.5,
+  glow: 0.5,
+}
+
+export const ELECTRIC_STORM_BOUNDS: NumericBounds<ElectricStormNumericSettings> = {
+  masterIntensity: [0, 1],
+  strikeRate: [0, 1],
+  branching: [0, 1],
+  thickness: [0, 1],
+  glow: [0, 1],
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -561,6 +596,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function clampNumber(value: unknown, fallback: number, bounds: readonly [number, number]): number {
   const number = typeof value === 'number' && Number.isFinite(value) ? value : fallback
   return Math.min(bounds[1], Math.max(bounds[0], number))
+}
+
+function normalizeHexColor(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') return fallback
+  const trimmed = value.trim()
+  const short = /^#([0-9a-f]{3})$/i.exec(trimmed)
+  if (short) {
+    return `#${short[1].split('').map(character => `${character}${character}`).join('')}`.toLowerCase()
+  }
+  return /^#[0-9a-f]{6}$/i.test(trimmed) ? trimmed.toLowerCase() : fallback
 }
 
 function normalizeNumericSettings<T extends object>(
@@ -584,6 +629,27 @@ function settingsPayload(value: unknown, mode: CinematicWorldMode): unknown {
   if (!isRecord(value)) return value
   if ('mode' in value && value.mode !== mode) return undefined
   return 'settings' in value ? value.settings : value
+}
+
+function normalizeElectricStormSettings(raw: unknown): ElectricStormSettings {
+  const payload = settingsPayload(raw, 'electricStorm')
+  const source = isRecord(payload) ? payload : {}
+  const numeric = normalizeNumericSettings(
+    source,
+    {
+      masterIntensity: ELECTRIC_STORM_DEFAULTS.masterIntensity,
+      strikeRate: ELECTRIC_STORM_DEFAULTS.strikeRate,
+      branching: ELECTRIC_STORM_DEFAULTS.branching,
+      thickness: ELECTRIC_STORM_DEFAULTS.thickness,
+      glow: ELECTRIC_STORM_DEFAULTS.glow,
+    },
+    ELECTRIC_STORM_BOUNDS,
+  )
+  return {
+    backgroundColor: normalizeHexColor(source.backgroundColor, ELECTRIC_STORM_DEFAULTS.backgroundColor),
+    lightningColor: normalizeHexColor(source.lightningColor, ELECTRIC_STORM_DEFAULTS.lightningColor),
+    ...numeric,
+  }
 }
 
 export const REACTIVE_CONSTELLATION_DEFAULTS: ReactiveConstellationSettings = {
@@ -792,6 +858,7 @@ export function createDefaultCinematicWorldSettings(mode: CinematicWorldMode): C
     case 'mirrorDimension': return { mode, settings: { ...MIRROR_DIMENSION_DEFAULTS } }
     case 'ancientMachine': return { mode, settings: { ...ANCIENT_MACHINE_DEFAULTS } }
     case 'stormGateway': return { mode, settings: { ...STORM_GATEWAY_DEFAULTS } }
+    case 'electricStorm': return { mode, settings: { ...ELECTRIC_STORM_DEFAULTS } }
     case 'orbitalPrismArray': return { mode, settings: {} }
     case 'reactiveConstellation': return { mode, settings: { ...REACTIVE_CONSTELLATION_DEFAULTS } }
     default: return { mode, settings: {} } as CinematicWorldSpecificConfig
@@ -859,6 +926,8 @@ export function normalizeCinematicWorldSettings(
         mode,
         settings: normalizeNumericSettings(payload, STORM_GATEWAY_DEFAULTS, STORM_GATEWAY_BOUNDS, ['cloudLayers']),
       }
+    case 'electricStorm':
+      return { mode, settings: normalizeElectricStormSettings(value) }
     case 'orbitalPrismArray': return { mode, settings: {} }
     case 'reactiveConstellation': return { mode, settings: normalizeReactiveConstellationSettings(value) }
     default:
@@ -900,6 +969,10 @@ export function resolveAncientMachineSettings(value: CinematicWorldSpecificConfi
 
 export function resolveStormGatewaySettings(value: CinematicWorldSpecificConfig): StormGatewaySettings {
   return normalizeCinematicWorldSettings('stormGateway', value).settings as StormGatewaySettings
+}
+
+export function resolveElectricStormSettings(value: CinematicWorldSpecificConfig): ElectricStormSettings {
+  return normalizeCinematicWorldSettings('electricStorm', value).settings as ElectricStormSettings
 }
 
 export function resolveReactiveConstellationSettings(value: CinematicWorldSpecificConfig): ReactiveConstellationSettings {
