@@ -19589,23 +19589,51 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* ── Concept: Floating Route Orb ─────────────────────────────────────────── */
 
-.rv-ae-orb-entry {
-  padding-bottom: 12px;
-  border-bottom: 2px solid transparent;
-  transition: border-color 0.15s;
+/* Effect input's own bottom border switches to the linked parameter's color
+   — matches the same treatment used by the Connector Line and Highlight
+   Wash concepts, so the line below reads as continuing out of it.
+   !important matches the specificity the underline dropdown's own border
+   already uses. */
+.rv-ae-orb-entry.is-linked .rv-canvas-layer-effect-row .dv-underline-dropdown .drm-dropdown__trigger {
+  border-bottom-color: var(--orb-color) !important;
 }
 
-.rv-ae-orb-entry.is-linked {
-  border-bottom-color: var(--orb-color, transparent);
+.rv-ae-orb-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 
-.rv-ae-orb-anchor {
+/* The orb's own row, in normal flow below the effect input — no negative
+   margin, so it never overlaps or "floats" onto the row above it. */
+.rv-ae-orb-row {
+  position: relative;
   display: flex;
   justify-content: center;
-  margin-top: -9px;
+  align-items: center;
+  min-height: 18px;
+  margin-top: 2px;
+}
+
+/* A schematic vertical line — not pixel-measured — that runs from just
+   above the orb (bridging into the effect input's colored border) down
+   through the orb and into the picker field below it. */
+.rv-ae-orb-entry.is-linked .rv-ae-orb-row::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  bottom: -6px;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--orb-color);
+  z-index: 0;
 }
 
 .rv-ae-orb-trigger {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -19625,29 +19653,25 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   box-shadow: 0 0 0 1px rgba(141, 231, 255, 0.75);
 }
 
-.rv-ae-orb-strip {
-  display: flex;
-  gap: 5px;
-  overflow-x: auto;
-  padding: 9px 1px 2px;
+/* Parameter field: same SelectRow styling as the canonical Add Effects
+   group's own picker, capped to half width and centered under the orb
+   instead of running the row's full width. */
+.rv-ae-orb-picker {
+  max-width: 50%;
 }
 
-.rv-ae-orb-pill {
-  flex: 0 0 auto;
-  padding: 4px 9px;
-  border: 1px solid var(--pill-color);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--pill-color);
-  font: 700 7.5px/1 var(--az-font);
-  white-space: nowrap;
-  cursor: pointer;
+.rv-ae-orb-picker > .rv-ctrl-row {
+  width: 100%;
 }
 
-.rv-ae-orb-pill:hover,
-.rv-ae-orb-pill.is-active {
-  background: var(--pill-color);
-  color: #04090b;
+/* Once linked, this field gets a border on all sides (not just the
+   bottom-only underline treatment) so it visually reads as the line's
+   destination. */
+.rv-ae-orb-entry.is-linked .rv-ae-orb-picker .dv-underline-dropdown .drm-dropdown__trigger {
+  border: 1px solid var(--orb-color) !important;
+  border-radius: 4px !important;
+  background: color-mix(in srgb, var(--orb-color) 12%, transparent) !important;
+  padding: 4px 8px 4px 8px !important;
 }
 
 /* ── Concept: Outline Glow ────────────────────────────────────────────────── */
@@ -19728,11 +19752,18 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* ── Concept: Connector Line ──────────────────────────────────────────────── */
 
+/* Effect input's own bottom border switches to the linked parameter's color
+   — the line below reads as continuing directly out of it. !important
+   matches the specificity the underline dropdown's own border already uses. */
+.rv-ae-line-entry.is-linked .rv-canvas-layer-effect-row .dv-underline-dropdown .drm-dropdown__trigger {
+  border-bottom-color: var(--line-color) !important;
+}
+
 .rv-ae-line-footer {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-top: 2px;
+  margin-top: 0;
 }
 
 .rv-ae-line-route {
@@ -19769,8 +19800,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-line-connector {
   width: 2px;
-  height: 14px;
+  height: 12px;
   background: var(--line-color);
+}
+
+/* Positioning context for the hover-revealed delete icon, which floats
+   outside the tag's own box rather than taking up row width. */
+.rv-ae-line-tag-row {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
 }
 
 .rv-ae-line-tag {
@@ -19781,6 +19820,45 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   color: var(--tag-color);
   font: 700 7.5px/1 var(--az-font);
   white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.rv-ae-line-tag:hover,
+.rv-ae-line-tag:focus-visible {
+  background: color-mix(in srgb, var(--tag-color) 30%, transparent);
+}
+
+/* Same red as .vz-media-remove's trashcan, for visual consistency with the
+   other Add Effects concepts' remove affordances. Floats to the right of
+   the tag and stays invisible until the tag is hovered or focused. */
+.rv-ae-line-tag-remove {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 4px;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: rgba(248, 113, 113, 0.7);
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s, color 0.12s;
+}
+
+.rv-ae-line-tag-row:hover .rv-ae-line-tag-remove,
+.rv-ae-line-tag-row:focus-within .rv-ae-line-tag-remove {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.rv-ae-line-tag-remove:hover,
+.rv-ae-line-tag-remove:focus-visible {
+  color: #f87171;
 }
 
 /* Parameter picker: a centered column at 60% of the row's width, each

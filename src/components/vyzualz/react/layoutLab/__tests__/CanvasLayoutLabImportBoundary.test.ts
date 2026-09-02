@@ -121,7 +121,6 @@ const REQUIRED_LABELS = [
   'Add Effects — Connector Line',
   'Add Effects — Highlight Wash',
   '+ Route',
-  'Change Route',
   'Fractures recording is unavailable',
   'Recording unavailable',
 ]

@@ -712,7 +712,7 @@ function AddEffectsFloatingOrbConcept({ state }: { state: CanvasMockState }) {
 
   return (
     <Collapsible label="Add Effects — Floating Route Orb" defaultOpen={false}>
-      <div className="rv-canvas-engine-note">A route orb floats on the bottom edge of each effect entry. Click it for a strip of colored parameters — picking one fills the orb and underlines the whole entry to match. Concept only.</div>
+      <div className="rv-canvas-engine-note">The route orb sits on its own row below the effect input, not floating on it. Click it to reveal an Audio Intelligence Parameter field styled like the canonical group's — once linked, a line runs from the effect input's colored bottom border, through the orb, down to the bordered parameter field. Concept only.</div>
       {state.addEffectsLayers.length === 0 && (
         <div className="rv-canvas-engine-note">Add media to the Performance Pool (Design tab) or select an active media item to preview this concept.</div>
       )}
@@ -733,8 +733,8 @@ function AddEffectsFloatingOrbConcept({ state }: { state: CanvasMockState }) {
             const linkedId = links[linkKey]
             const isOpen = Boolean(expanded[linkKey])
             return (
-              <>
-                <div className="rv-ae-orb-anchor">
+              <div className="rv-ae-orb-footer">
+                <div className="rv-ae-orb-row">
                   <button
                     type="button"
                     className="rv-ae-orb-trigger"
@@ -746,24 +746,17 @@ function AddEffectsFloatingOrbConcept({ state }: { state: CanvasMockState }) {
                   </button>
                 </div>
                 {isOpen && (
-                  <div className="rv-ae-orb-strip">
-                    {CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.map(param => (
-                      <button
-                        key={param.id}
-                        type="button"
-                        className={`rv-ae-orb-pill${linkedId === param.id ? ' is-active' : ''}`}
-                        style={{ '--pill-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[param.id] } as CSSProperties}
-                        onClick={() => {
-                          setLinks(current => ({ ...current, [linkKey]: param.id }))
-                          setExpanded(current => ({ ...current, [linkKey]: false }))
-                        }}
-                      >
-                        {param.label}
-                      </button>
-                    ))}
+                  <div className="rv-ae-orb-picker">
+                    <SelectRow
+                      label="Audio Intelligence Parameter"
+                      value={linkedId ?? ''}
+                      placeholder="Select Parameter…"
+                      onChange={value => setLinks(current => ({ ...current, [linkKey]: value as CanvasMockAudioIntelligenceParameterId }))}
+                      options={CANVAS_AUDIO_INTELLIGENCE_PARAMETER_OPTIONS}
+                    />
                   </div>
                 )}
-              </>
+              </div>
             )
           }}
         />
@@ -856,7 +849,7 @@ function AddEffectsConnectorLineConcept({ state }: { state: CanvasMockState }) {
 
   return (
     <Collapsible label="Add Effects — Connector Line" defaultOpen={false}>
-      <div className="rv-canvas-engine-note">"+ Route" sits centered on the row. Picking a parameter from the column below draws a short vertical line down to its tag. Concept only.</div>
+      <div className="rv-canvas-engine-note">"+ Route" sits centered on the row. Once linked, a smooth vertical line drops from the effect input's matching-colored bottom border to the parameter tag — click the tag to change it, hover it to reveal delete. Concept only.</div>
       {state.addEffectsLayers.length === 0 && (
         <div className="rv-canvas-engine-note">Add media to the Performance Pool (Design tab) or select an active media item to preview this concept.</div>
       )}
@@ -866,27 +859,57 @@ function AddEffectsConnectorLineConcept({ state }: { state: CanvasMockState }) {
           state={state}
           layer={layer}
           layerIndex={layerIndex}
-          renderRoute={({ linkKey }) => {
+          getEntryExtra={({ linkKey }) => {
+            const linkedId = links[linkKey]
+            return {
+              className: `rv-ae-line-entry${linkedId ? ' is-linked' : ''}`,
+              style: linkedId ? ({ '--line-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] } as CSSProperties) : undefined,
+            }
+          }}
+          renderRoute={({ effectLabel, parentLabel, linkKey }) => {
             const linkedId = links[linkKey]
             const isOpen = Boolean(expanded[linkKey])
+            const color = linkedId ? CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] : undefined
+            const toggleOpen = () => setExpanded(current => ({ ...current, [linkKey]: !current[linkKey] }))
             return (
               <div className="rv-ae-line-footer">
-                <div className="rv-ae-line-route">
-                  <button
-                    type="button"
-                    className="rv-ae-line-trigger"
-                    aria-expanded={isOpen}
-                    onClick={() => setExpanded(current => ({ ...current, [linkKey]: !current[linkKey] }))}
-                  >
-                    {linkedId ? 'Change Route' : '+ Route'}
-                  </button>
-                </div>
+                {!linkedId && (
+                  <div className="rv-ae-line-route">
+                    <button type="button" className="rv-ae-line-trigger" aria-expanded={isOpen} onClick={toggleOpen}>
+                      + Route
+                    </button>
+                  </div>
+                )}
                 {linkedId && (
                   <div className="rv-ae-line-tag-stack">
-                    <span className="rv-ae-line-connector" style={{ '--line-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] } as CSSProperties} aria-hidden="true" />
-                    <span className="rv-ae-line-tag" style={{ '--tag-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[linkedId] } as CSSProperties}>
-                      {CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[linkedId]}
-                    </span>
+                    <span className="rv-ae-line-connector" style={{ '--line-color': color } as CSSProperties} aria-hidden="true" />
+                    <div className="rv-ae-line-tag-row">
+                      <button
+                        type="button"
+                        className="rv-ae-line-tag"
+                        style={{ '--tag-color': color } as CSSProperties}
+                        aria-expanded={isOpen}
+                        aria-label={`Change the route for ${effectLabel} on ${parentLabel} (currently ${CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[linkedId]})`}
+                        onClick={toggleOpen}
+                      >
+                        {CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[linkedId]}
+                      </button>
+                      <button
+                        type="button"
+                        className="rv-ae-line-tag-remove"
+                        aria-label={`Remove the route for ${effectLabel} on ${parentLabel}`}
+                        onClick={() => {
+                          setLinks(current => {
+                            const next = { ...current }
+                            delete next[linkKey]
+                            return next
+                          })
+                          setExpanded(current => ({ ...current, [linkKey]: false }))
+                        }}
+                      >
+                        <RouteRemoveIcon size={12} />
+                      </button>
+                    </div>
                   </div>
                 )}
                 {isOpen && (
