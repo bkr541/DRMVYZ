@@ -4,7 +4,11 @@ import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
 } from "react";
-import type { LyricCue, LyricWord } from "../../../types/lyrics";
+import {
+  hasUsableLyricWordTiming,
+  type LyricCue,
+  type LyricWord,
+} from "../../../types/lyrics";
 import {
   assignCueOverlapLanes,
   getCueIssues,
@@ -217,10 +221,11 @@ export function LyricCueTimeline({
     Math.min(MAX_VISIBLE_CUE_LANES, laneLayout.laneCount || 1),
   );
   const selectedCue = cues.find((cue) => cue.id === selectedCueId) ?? null;
-  const selectedWords =
+  const selectedWords = (
     liveWords?.cueId === selectedCueId
       ? liveWords.words
-      : (selectedCue?.words ?? []);
+      : (selectedCue?.words ?? [])
+  ).filter(hasUsableLyricWordTiming);
   const hasWordLane =
     !compact && Boolean(selectedCue && selectedWords.length > 0);
   const cueAreaTop = compact ? 2 : hasWordLane ? 140 : 108;
@@ -408,7 +413,7 @@ export function LyricCueTimeline({
       const originalWord = drag.originalWords.find(
         (word) => word.id === drag.wordId,
       );
-      if (!originalWord) return;
+      if (!originalWord || !hasUsableLyricWordTiming(originalWord)) return;
       const base =
         drag.edge === "start" ? originalWord.startMs : originalWord.endMs;
       const syntheticCue = { ...drag.cue, words: drag.originalWords };

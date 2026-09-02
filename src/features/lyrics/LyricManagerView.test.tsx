@@ -97,6 +97,12 @@ vi.mock('../../components/vyzualz/MediaUploadModal', () => ({
   MediaUploadModal: () => <div data-testid="audio-upload-modal" />,
 }))
 
+vi.mock('./components/AiLyricExtractor', () => ({
+  AiLyricExtractor: ({ onActivateCompletedDraft }: { onActivateCompletedDraft: (documentId: string) => void }) => (
+    <button type="button" onClick={() => onActivateCompletedDraft('doc-a2')}>Activate completed AI draft</button>
+  ),
+}))
+
 import { useLyricsStore } from '../../stores/lyricsStore'
 import { LyricManagerView } from './LyricManagerView'
 import { clearSavedTrackSignedUrlCache } from '../../audio/savedTrackLoader'
@@ -426,6 +432,12 @@ describe('LyricManagerView track-first workflow', () => {
     expect(input.documentId).toBeNull()
     expect(input.document.audioTrackId).toBe('track-b')
     expect(useLyricsStore.getState().activeDocument?.audioTrackId).toBe('track-b')
+
+    mocks.saveLyricDocumentAtomic.mockClear()
+    await act(async () => buttonWithText('Save + Make Active').click())
+    await flush()
+    expect(mocks.saveLyricDocumentAtomic).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('No cues in document')
   })
 
   it('duplicates a version as a dirty draft and activates another version transactionally', async () => {
@@ -454,6 +466,86 @@ describe('LyricManagerView track-first workflow', () => {
     await act(async () => buttonWithText('Make Active', container.querySelector('[role="alertdialog"]') as HTMLElement).click())
     await waitFor(() => expect(mocks.activateLyricDocument).toHaveBeenCalledWith('doc-a2', 1))
     expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2')
+  })
+
+  it('blocks hard validation errors from Save and preserves the dirty editor state', async () => {
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+    mocks.saveLyricDocumentAtomic.mockClear()
+
+    await act(async () => useLyricsStore.getState().setCues([{
+      ...cue('invalid-save'),
+      text: '',
+    }]))
+    expect(useLyricsStore.getState().editorDirty).toBe(true)
+
+    await act(async () => buttonWithText('Save').click())
+    await flush()
+
+    expect(mocks.saveLyricDocumentAtomic).not.toHaveBeenCalled()
+    expect(useLyricsStore.getState().editorDirty).toBe(true)
+    expect(useLyricsStore.getState().cues[0].text).toBe('')
+    expect(container.textContent).toContain('before saving')
+  })
+
+  it('allows warnings to save but blocks Save + Make Active on hard errors', async () => {
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+    mocks.saveLyricDocumentAtomic.mockClear()
+
+    await act(async () => useLyricsStore.getState().setCues([{
+      ...cue('warning-save'),
+      words: [{ id: 'word-warning', text: 'Lay', startMs: -50, endMs: 100 }],
+    }]))
+    await act(async () => buttonWithText('Save').click())
+    await waitFor(() => expect(mocks.saveLyricDocumentAtomic).toHaveBeenCalledTimes(1))
+
+    mocks.saveLyricDocumentAtomic.mockClear()
+    await act(async () => useLyricsStore.getState().setCues([{
+      ...cue('invalid-active'),
+      text: '',
+    }]))
+    await act(async () => buttonWithText('Save + Make Active').click())
+    await flush()
+
+    expect(mocks.saveLyricDocumentAtomic).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('before saving and activating')
+  })
+
+  it('validates the target persisted version before activation', async () => {
+    cuesByDocument.set('doc-a2', [{ ...cue('invalid-target'), text: '' }])
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+
+    await act(async () => buttonWithText('Make Active', documentCard('Alternate Lyrics')).click())
+    await act(async () => buttonWithText('Make Active', container.querySelector('[role="alertdialog"]') as HTMLElement).click())
+    await flush()
+
+    expect(mocks.getFullLyricDocument).toHaveBeenCalledWith('doc-a2')
+    expect(mocks.activateLyricDocument).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('before activation')
+    expect(documentById.get('doc-a1')?.isActive).toBe(true)
+  })
+
+  it('routes completed AI draft activation through the same validation gate', async () => {
+    cuesByDocument.set('doc-a2', [])
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+
+    const aiTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+      .find(button => button.textContent?.includes('AI Extract'))!
+    await act(async () => aiTab.click())
+    await act(async () => buttonWithText('Activate completed AI draft').click())
+    await act(async () => buttonWithText('Make Active', container.querySelector('[role="alertdialog"]') as HTMLElement).click())
+    await flush()
+
+    expect(mocks.getFullLyricDocument).toHaveBeenCalledWith('doc-a2')
+    expect(mocks.activateLyricDocument).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('No cues in document')
   })
 
   it('guards track changes and document changes with Save, Discard, and Cancel choices', async () => {

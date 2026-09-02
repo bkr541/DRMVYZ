@@ -31,6 +31,7 @@ import type {
   SaveLyricDocumentResult,
 } from '../types/lyrics'
 import { createLyricCueInputFromCue, toCanonicalLyricMs } from '../types/lyrics'
+import { validateLyricCues } from '../features/lyrics/utils/lyricValidation'
 import type { LyricRecoveryRecord } from '../lib/lyricDraftRecovery'
 
 export type LyricWriteStatus = 'unsaved' | 'queued' | 'saving' | 'saved' | 'conflict' | 'failed'
@@ -558,12 +559,20 @@ async function reconcileUnknownDraftCreate(logicalDocumentId: string): Promise<S
 async function executeWriteJob(queue: DocumentWriteQueue, job: WriteJob): Promise<AnyWriteResult> {
   if (job.kind === 'activate') {
     const documentId = queue.canonicalDocumentId ?? job.documentId
-    if (!queue.canonicalDocument || queue.canonicalDocument.id !== documentId) {
-      const full = await getFullLyricDocument(documentId)
-      queue.canonicalDocumentId = full.document.id
-      queue.revision = full.document.revision
-      queue.canonicalDocument = full.document
-      queue.canonicalCues = full.cues
+    const full = await getFullLyricDocument(documentId)
+    queue.canonicalDocumentId = full.document.id
+    queue.revision = full.document.revision
+    queue.canonicalDocument = full.document
+    queue.canonicalCues = full.cues
+
+    const validation = validateLyricCues(full.cues)
+    if (validation.errors.length > 0) {
+      return {
+        ok: false,
+        kind: 'validation',
+        code: validation.issues.find(issue => issue.severity === 'error')?.code,
+        message: `Fix lyric validation before activation (${validation.errors.length} error${validation.errors.length === 1 ? '' : 's'}). ${validation.errors[0]}`,
+      }
     }
     return activateLyricDocumentRpc(documentId, queue.revision)
   }
@@ -591,6 +600,20 @@ async function executeWriteJob(queue: DocumentWriteQueue, job: WriteJob): Promis
       cues: cueInputs(queue.canonicalCues, current.id),
       activate: job.patch.isActive ?? current.isActive,
     })
+  }
+
+  const validation = validateLyricCues(job.cues)
+  const blockingErrors = validation.issues.filter(issue => (
+    issue.severity === 'error'
+    && !(issue.code === 'empty_document' && job.activate === false)
+  ))
+  if (blockingErrors.length > 0) {
+    return {
+      ok: false,
+      kind: 'validation',
+      code: blockingErrors[0].code,
+      message: `Fix lyric validation before ${job.activate ? 'saving and activation' : 'saving'} (${blockingErrors.length} error${blockingErrors.length === 1 ? '' : 's'}). ${blockingErrors[0].message}`,
+    }
   }
 
   const documentId = queue.canonicalDocumentId

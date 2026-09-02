@@ -23,6 +23,7 @@ import {
   normalizeCue,
   resizeCueEnd,
   resizeCueStart,
+  retainLyricGroupsForWords,
   sortLyricCues,
   splitCue,
   type LyricSnapMode,
@@ -289,10 +290,7 @@ export function LyricCueEditor({
   const commitWords = useCallback((cueId: string, words: LyricWord[]) => {
     const cue = cues.find(item => item.id === cueId)
     if (!cue) return
-    const wordIds = new Set(words.map(word => word.id))
-    const groups = cue.groups
-      ?.map(group => ({ ...group, wordIds: group.wordIds.filter(wordId => wordIds.has(wordId)) }))
-      .filter(group => group.wordIds.length > 0)
+    const groups = retainLyricGroupsForWords(cue.groups, words)
     updateCue(cueId, { words, groups: groups?.length ? groups : undefined })
   }, [cues, updateCue])
 
@@ -309,8 +307,7 @@ export function LyricCueEditor({
     },
     moveToPlayhead: () => {
       if (canonicalPlayheadMs === null) return
-      const bounds = moveCueToStart(selectedCue, canonicalPlayheadMs, durationMs)
-      setCueBounds(selectedCue.id, bounds.startMs, bounds.endMs)
+      commitCuePatch(selectedCue.id, moveCueToStart(selectedCue, canonicalPlayheadMs, durationMs))
     },
     addAtPlayhead,
     duplicate: duplicateSelected,
@@ -412,7 +409,7 @@ export function LyricCueEditor({
         onSelectCue={selectCue}
         onSeek={onSeek}
         onAddCueAt={addAtTimelineTime}
-        onCommitCue={(cueId, bounds) => setCueBounds(cueId, bounds.startMs, bounds.endMs)}
+        onCommitCue={commitCuePatch}
         onCommitWords={commitWords}
         onCueContextAction={handleCueContextAction}
         onDeleteCue={cueId => {

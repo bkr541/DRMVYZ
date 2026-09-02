@@ -189,6 +189,26 @@ function parseImportedWord(
   }
 }
 
+function parseImportedGroup(raw: unknown, fallbackIndex: number): LyricGroup | null {
+  if (!isPlainObject(raw) || !Array.isArray(raw.wordIds)) return null
+
+  const wordIds = [...new Set(raw.wordIds
+    .filter((wordId): wordId is string => typeof wordId === 'string')
+    .map(wordId => wordId.trim())
+    .filter(Boolean))]
+  if (wordIds.length === 0) return null
+
+  return {
+    id: typeof raw.id === 'string' && raw.id.trim()
+      ? raw.id.trim()
+      : `group_${String(fallbackIndex + 1).padStart(3, '0')}`,
+    wordIds,
+    style: isPlainObject(raw.style) ? raw.style as Partial<LyricStyle> : undefined,
+    animation: isPlainObject(raw.animation) ? raw.animation as Partial<LyricAnimation> : undefined,
+    effects: isPlainObject(raw.effects) ? raw.effects as Partial<LyricEffects> : undefined,
+  }
+}
+
 function parseRawCue(raw: RawCue, fallbackIndex: number): LyricCue {
   const idx = fallbackIndex + 1
 
@@ -221,6 +241,10 @@ function parseRawCue(raw: RawCue, fallbackIndex: number): LyricCue {
   const words = rawWords
     .map((word, wordIndex) => parseImportedWord(word, inferredSource, wordIndex))
     .filter((word): word is LyricWord => word !== null)
+  const rawGroups = Array.isArray(raw.groups) ? raw.groups : []
+  const groups = rawGroups
+    .map((group, groupIndex) => parseImportedGroup(group, groupIndex))
+    .filter((group): group is LyricGroup => group !== null)
   const invalidWordWarnings: LyricWarning[] = words.length < rawWords.length
     ? ['missing_word_timing']
     : []
@@ -246,7 +270,7 @@ function parseRawCue(raw: RawCue, fallbackIndex: number): LyricCue {
     animation: isPlainObject(raw.animation) ? (raw.animation as Partial<LyricAnimation>) : undefined,
     effects:   isPlainObject(raw.effects)   ? (raw.effects   as Partial<LyricEffects>)    : undefined,
     words:     words.length > 0 ? words : undefined,
-    groups:    Array.isArray(raw.groups) ? (raw.groups as LyricGroup[]) : undefined,
+    groups:    groups.length > 0 ? groups : undefined,
     confidence,
     source: inferredSource,
     reviewStatus: reviewResult.reviewStatus,

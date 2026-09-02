@@ -1,5 +1,9 @@
 import type { LyricCue } from '../../../types/lyrics'
-import { isValidLyricConfidence } from '../../../types/lyrics'
+import {
+  getSafeLyricGroupWordIds,
+  hasUsableLyricWordTiming,
+  isValidLyricConfidence,
+} from '../../../types/lyrics'
 
 export type LyricValidationSeverity = 'error' | 'warning'
 
@@ -14,6 +18,7 @@ export interface LyricValidationIssue {
     | 'invalid_confidence'
     | 'cue_overlap'
     | 'invalid_word_bounds'
+    | 'missing_word_timing'
     | 'invalid_word_confidence'
     | 'word_outside_cue'
     | 'unknown_group_word'
@@ -77,12 +82,12 @@ export function validateLyricCues(cues: LyricCue[]): LyricValidationResult {
   const issues: LyricValidationIssue[] = []
 
   if (cues.length === 0) {
-    const issue = makeIssue('warning', 'empty_document', 'No cues in document', null, null)
+    const issue = makeIssue('error', 'empty_document', 'No cues in document', null, null)
     return {
-      valid: true,
+      valid: false,
       cueCount: 0, wordCount: 0, groupCount: 0,
       earliestStartMs: null, latestEndMs: null, totalDurationMs: null,
-      errors: [], warnings: [issue.message], issues: [issue],
+      errors: [issue.message], warnings: [], issues: [issue],
     }
   }
 
@@ -126,13 +131,17 @@ export function validateLyricCues(cues: LyricCue[]): LyricValidationResult {
       wordCount += cue.words.length
       for (let wi = 0; wi < cue.words.length; wi++) {
         const word = cue.words[wi]
-        if (word.endMs <= word.startMs) {
-          issues.push(makeIssue('error', 'invalid_word_bounds', `Cue ${idx}, word ${wi + 1}: endMs <= startMs`, cue, i, word.id, wi))
+        const explicitlyUntimed = word.startMs === undefined && word.endMs === undefined
+        const hasUsableTiming = hasUsableLyricWordTiming(word)
+        if (explicitlyUntimed) {
+          issues.push(makeIssue('warning', 'missing_word_timing', `Cue ${idx}, word ${wi + 1}: timing is missing`, cue, i, word.id, wi))
+        } else if (!hasUsableTiming) {
+          issues.push(makeIssue('error', 'invalid_word_bounds', `Cue ${idx}, word ${wi + 1}: timing is invalid`, cue, i, word.id, wi))
         }
         if (word.confidence !== undefined && !isValidLyricConfidence(word.confidence)) {
           issues.push(makeIssue('error', 'invalid_word_confidence', `Cue ${idx}, word ${wi + 1}: confidence must be between 0 and 1`, cue, i, word.id, wi))
         }
-        if (Number.isFinite(cue.startMs) && Number.isFinite(cue.endMs)) {
+        if (hasUsableTiming && Number.isFinite(cue.startMs) && Number.isFinite(cue.endMs)) {
           if (word.startMs < cue.startMs || word.endMs > cue.endMs) {
             issues.push(makeIssue('warning', 'word_outside_cue', `Cue ${idx}, word ${wi + 1} timing outside cue range`, cue, i, word.id, wi))
           }
@@ -144,8 +153,9 @@ export function validateLyricCues(cues: LyricCue[]): LyricValidationResult {
       groupCount += cue.groups.length
       const wordIds = new Set((cue.words ?? []).map(w => w.id))
       for (const grp of cue.groups) {
+        if (typeof grp !== 'object' || grp === null || Array.isArray(grp)) continue
         if (wordIds.size > 0) {
-          for (const wid of grp.wordIds) {
+          for (const wid of getSafeLyricGroupWordIds(grp)) {
             if (!wordIds.has(wid)) {
               issues.push(makeIssue('warning', 'unknown_group_word', `Cue ${idx}, group "${grp.id}" references unknown word "${wid}"`, cue, i, wid))
             }

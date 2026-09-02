@@ -270,8 +270,8 @@ export interface LyricEffects {
 export interface LyricWord {
   id:         string
   text:       string
-  startMs:    number
-  endMs:      number
+  startMs?:   number
+  endMs?:     number
   style?:     Partial<LyricStyle>
   animation?: Partial<LyricAnimation>
   effects?:   Partial<LyricEffects>
@@ -285,12 +285,42 @@ export interface LyricWord {
   analysisMetadata?:           LyricAnalysisMetadata
 }
 
+export type TimedLyricWord = LyricWord & {
+  startMs: number
+  endMs: number
+}
+
+/** True when both timing fields are present and finite, even if their ordering is invalid. */
+export function hasFiniteLyricWordTiming(word: LyricWord): word is TimedLyricWord {
+  const { startMs, endMs } = word
+  return typeof startMs === 'number'
+    && typeof endMs === 'number'
+    && Number.isFinite(startMs)
+    && Number.isFinite(endMs)
+}
+
+/** True only when a word currently has usable finite forward timing. */
+export function hasUsableLyricWordTiming(word: LyricWord): word is TimedLyricWord {
+  return hasFiniteLyricWordTiming(word) && word.endMs > word.startMs
+}
+
 export interface LyricGroup {
   id:         string
   wordIds:    string[]
   style?:     Partial<LyricStyle>
   animation?: Partial<LyricAnimation>
   effects?:   Partial<LyricEffects>
+}
+
+/** Defensive accessor for legacy/bypassed group payloads; the LyricGroup contract remains strict. */
+export function getSafeLyricGroupWordIds(group: unknown): string[] {
+  if (typeof group !== 'object' || group === null || Array.isArray(group)) return []
+  const rawWordIds = (group as { wordIds?: unknown }).wordIds
+  if (!Array.isArray(rawWordIds)) return []
+  return [...new Set(rawWordIds
+    .filter((wordId): wordId is string => typeof wordId === 'string')
+    .map(wordId => wordId.trim())
+    .filter(Boolean))]
 }
 
 export interface LyricCue {
@@ -444,8 +474,8 @@ export function normalizeLyricWordMetadata(
 
   return {
     ...base,
-    startMs: toCanonicalLyricMs(base.startMs),
-    endMs: toCanonicalLyricMs(base.endMs),
+    ...(base.startMs !== undefined ? { startMs: toCanonicalLyricMs(base.startMs) } : {}),
+    ...(base.endMs !== undefined ? { endMs: toCanonicalLyricMs(base.endMs) } : {}),
     ...(confidence !== undefined ? { confidence } : {}),
     ...(source !== undefined ? { source } : {}),
     ...(reviewStatus !== undefined ? { reviewStatus } : {}),

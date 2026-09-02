@@ -15,7 +15,12 @@ import type {
   LyricWarning,
   LyricWord,
 } from '../../../types/lyrics'
-import { getCueIssues, LOW_LYRIC_CONFIDENCE, validateWordTiming } from './lyricCueEditorModel'
+import {
+  getCueIssues,
+  LOW_LYRIC_CONFIDENCE,
+  retainLyricGroupsForWords,
+  validateWordTiming,
+} from './lyricCueEditorModel'
 import { LyricPresentationControls } from '../components/LyricPresentationControls'
 import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
 
@@ -137,10 +142,7 @@ function WordTimingEditor({
   const invalidIds = useMemo(() => new Set(invalidWords.map(word => word.id)), [invalidWords])
 
   const commitWords = (nextWords: LyricWord[]) => {
-    const wordIds = new Set(nextWords.map(word => word.id))
-    const groups = cue.groups
-      ?.map(group => ({ ...group, wordIds: group.wordIds.filter(wordId => wordIds.has(wordId)) }))
-      .filter(group => group.wordIds.length > 0)
+    const groups = retainLyricGroupsForWords(cue.groups, nextWords)
     onUpdateCue(cue.id, {
       words: nextWords.length ? nextWords : undefined,
       groups: groups?.length ? groups : undefined,
@@ -176,7 +178,9 @@ function WordTimingEditor({
         <strong>Word timing</strong>
         {invalidWords.length > 0 && (
           <IconChipButton
-            onClick={() => commitWords(words.filter(word => !invalidIds.has(word.id)))}
+            onClick={() => commitWords(words.map(word => invalidIds.has(word.id)
+              ? { ...word, startMs: undefined, endMs: undefined }
+              : word))}
           >
             Remove invalid timing
           </IconChipButton>
@@ -205,7 +209,7 @@ function WordTimingEditor({
                 type="number"
                 step={1}
                 aria-label={`Word ${index + 1} start milliseconds`}
-                defaultValue={word.startMs}
+                defaultValue={word.startMs ?? ''}
                 key={`${word.id}-start-${word.startMs}`}
                 onBlur={event => {
                   const value = parseFiniteInteger(event.target.value)
@@ -217,7 +221,7 @@ function WordTimingEditor({
                 type="number"
                 step={1}
                 aria-label={`Word ${index + 1} end milliseconds`}
-                defaultValue={word.endMs}
+                defaultValue={word.endMs ?? ''}
                 key={`${word.id}-end-${word.endMs}`}
                 onBlur={event => {
                   const value = parseFiniteInteger(event.target.value)

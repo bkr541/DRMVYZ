@@ -53,7 +53,7 @@ import { findSavedTrackLinkCandidates, type SavedTrackLinkCandidate } from './se
 import { LinkSavedTrackDialog } from './components/LinkSavedTrackDialog'
 import type { LyricSnapMode } from './editor/lyricCueEditorModel'
 import { getRecentLyricTranscriptionJobs } from './services/lyricExtraction'
-import type { LyricValidationIssue } from './utils/lyricValidation'
+import { validateLyricCues, type LyricValidationIssue } from './utils/lyricValidation'
 import { toEffectiveLyricTimeMs } from './runtime/lyricPlaybackResolver'
 import {
   cleanupObsoleteLyricRecoveries,
@@ -992,6 +992,18 @@ export function LyricManagerView({
 
   const doSave = useCallback(async (makeActive?: boolean): Promise<boolean> => {
     setError(null)
+    const validation = validateLyricCues(storeCues)
+    const allowEmptyInactiveDraft = !makeActive && editorDocument?.isActive !== true
+    const blockingIssues = validation.issues.filter(issue => (
+      issue.severity === 'error'
+      && !(allowEmptyInactiveDraft && issue.code === 'empty_document')
+    ))
+    if (blockingIssues.length > 0) {
+      const first = blockingIssues[0]
+      const action = makeActive ? 'saving and activating' : 'saving'
+      setError(`Fix ${blockingIssues.length} lyric validation error${blockingIssues.length === 1 ? '' : 's'} before ${action}. ${first.message}`)
+      return false
+    }
     const result = await saveActiveLyricDocument(
       storeCues,
       makeActive === undefined ? undefined : { makeActive },
@@ -1002,6 +1014,7 @@ export function LyricManagerView({
     return true
   }, [
     storeCues,
+    editorDocument?.isActive,
     refreshDocuments,
     saveActiveLyricDocument,
     selectedTrack,
@@ -1251,6 +1264,22 @@ export function LyricManagerView({
 
   const performVersionActivation = useCallback(async (documentId: string, openAfter: boolean) => {
     clearStatus()
+    setError(null)
+    let targetCues: LyricCue[]
+    try {
+      const full = await getFullLyricDocument(documentId)
+      targetCues = full.cues
+    } catch (activationReadError) {
+      setError(activationReadError instanceof Error
+        ? `Lyric version could not be validated before activation: ${activationReadError.message}`
+        : 'Lyric version could not be validated before activation.')
+      return false
+    }
+    const validation = validateLyricCues(targetCues)
+    if (validation.errors.length > 0) {
+      setError(`Fix ${validation.errors.length} lyric validation error${validation.errors.length === 1 ? '' : 's'} before activation. ${validation.errors[0]}`)
+      return false
+    }
     const result = await activateLyricDocument(documentId)
     if (!result?.ok) return false
     if (selectedTrack) await refreshDocuments(selectedTrack)
@@ -1261,7 +1290,7 @@ export function LyricManagerView({
     }
     showStatus('Active lyric version updated')
     return true
-  }, [activateLyricDocument, clearStatus, loadLyricDocument, refreshDocuments, selectedTrack, showStatus])
+  }, [activateLyricDocument, clearStatus, loadLyricDocument, refreshDocuments, selectedTrack, setError, showStatus])
 
   const handleActivateDocument = useCallback(
     (document: LyricDocumentVersion) => {

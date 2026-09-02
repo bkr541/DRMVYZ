@@ -59,9 +59,13 @@ afterEach(async () => {
 })
 
 describe('LyricCueTimeline', () => {
-  it('commits one move at pointer release instead of on every pointer move', async () => {
+  it('commits one move with translated word timing at pointer release instead of on every pointer move', async () => {
     const onCommitCue = vi.fn()
-    const { timeline } = await renderTimeline({ onCommitCue })
+    const cueWithWords: LyricCue = {
+      ...CUES[0],
+      words: [{ id: 'word-1', text: 'First', startMs: 1_100, endMs: 1_500 }],
+    }
+    const { timeline } = await renderTimeline({ cues: [cueWithWords, CUES[1]], onCommitCue })
     const block = container.querySelector<HTMLElement>('[data-testid="lyric-cue-cue-1"]')!
 
     await act(async () => {
@@ -73,7 +77,11 @@ describe('LyricCueTimeline', () => {
 
     await act(async () => { timeline.dispatchEvent(pointer('pointerup', 150, 0)) })
     expect(onCommitCue).toHaveBeenCalledTimes(1)
-    expect(onCommitCue).toHaveBeenCalledWith('cue-1', { startMs: 1_500, endMs: 2_500 })
+    expect(onCommitCue).toHaveBeenCalledWith('cue-1', {
+      startMs: 1_500,
+      endMs: 2_500,
+      words: [{ id: 'word-1', text: 'First', startMs: 1_600, endMs: 2_000 }],
+    })
   })
 
   it('resizes start and end handles with integer millisecond precision', async () => {
@@ -98,16 +106,24 @@ describe('LyricCueTimeline', () => {
     expect(onCommitCue).toHaveBeenLastCalledWith('cue-1', { startMs: 1_000, endMs: 2_400 })
   })
 
-  it('supports keyboard movement and keyboard-operable handles', async () => {
+  it('supports keyboard movement with translated words and keyboard-operable resize handles', async () => {
     const onCommitCue = vi.fn()
-    await renderTimeline({ onCommitCue })
+    const cueWithWords: LyricCue = {
+      ...CUES[0],
+      words: [{ id: 'word-1', text: 'First', startMs: 1_100, endMs: 1_500 }],
+    }
+    await renderTimeline({ cues: [cueWithWords, CUES[1]], onCommitCue })
     const block = container.querySelector<HTMLElement>('[data-testid="lyric-cue-cue-1"]')!
     const startHandle = block.querySelector<HTMLElement>('.lyric-cue-handle--start')!
 
     await act(async () => {
       block.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
     })
-    expect(onCommitCue).toHaveBeenLastCalledWith('cue-1', { startMs: 1_010, endMs: 2_010 })
+    expect(onCommitCue).toHaveBeenLastCalledWith('cue-1', {
+      startMs: 1_010,
+      endMs: 2_010,
+      words: [{ id: 'word-1', text: 'First', startMs: 1_110, endMs: 1_510 }],
+    })
 
     await act(async () => {
       startHandle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', shiftKey: true, bubbles: true }))

@@ -383,6 +383,10 @@ describe('lyricsStore scoped ownership and serialized writes', () => {
       kind: 'success',
       document: lyricDocument('document-1', 3, 'Edited'),
     })
+    lyricDbMocks.getFullLyricDocument.mockResolvedValue({
+      document: lyricDocument('document-1', 2, 'Edited'),
+      cues: [cue()],
+    })
 
     useLyricsStore.getState().setDraftTitle('Edited')
     const savePromise = useLyricsStore.getState().saveActiveLyricDocument()

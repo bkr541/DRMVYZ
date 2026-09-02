@@ -1097,8 +1097,7 @@ function TimelineLyricCueInspector({
             setCueBounds(cue.id, bounds.startMs, bounds.endMs)
           },
           moveToPlayhead: () => {
-            const bounds = moveCueToStart(cue, canonicalPlayheadMs, durationMs)
-            setCueBounds(cue.id, bounds.startMs, bounds.endMs)
+            commitPatch(cue.id, moveCueToStart(cue, canonicalPlayheadMs, durationMs))
           },
           addAtPlayhead,
           duplicate,
@@ -1411,7 +1410,7 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
     globalOffsetMs,
     selectedCueId: storeSelectedCueId,
     selectCue,
-    setCueBounds,
+    updateCue,
     deleteCue,
     clearCues,
   } = useLyricsStore(useShallow(s => ({
@@ -1419,7 +1418,7 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
     globalOffsetMs: s.globalOffsetMs,
     selectedCueId: s.selectedCueId,
     selectCue: s.selectCue,
-    setCueBounds: s.setCueBounds,
+    updateCue: s.updateCue,
     deleteCue: s.deleteCue,
     clearCues: s.clearCues,
   })))
@@ -1455,6 +1454,14 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
     : 0
   const totalDuration = Math.max(audioDur, visualDur, lyricEndSec, 10)
   const contentWidth  = Math.max(600, timeToPx(totalDuration, pxPerSec) + 120)
+
+  const commitLyricCuePatch = (cueId: string, patch: Partial<Omit<LyricCue, 'id'>>) => {
+    const current = lyricCues.find(cue => cue.id === cueId)
+    if (!current) return
+    const normalized = normalizeCue({ ...current, ...patch, id: cueId }, Math.round(totalDuration * 1000))
+    const { id: _id, ...nextPatch } = normalized
+    updateCue(cueId, nextPatch)
+  }
 
   // ── Selection ──────────────────────────────────────────────────────────
   const selected    = selectedTimelineEntity as SelectedEntity
@@ -1846,7 +1853,7 @@ export function TimelinePanel({ onScrub, onAddCue }: TimelinePanelProps) {
                   setSelected(cueId ? { kind: 'lyric', id: cueId } : null)
                 }}
                 onSeek={(timeMs) => handleScrub(timeMs / 1000)}
-                onCommitCue={(cueId, bounds) => setCueBounds(cueId, bounds.startMs, bounds.endMs)}
+                onCommitCue={commitLyricCuePatch}
                 onDeleteCue={(cueId) => {
                   deleteCue(cueId)
                   if (selected?.kind === 'lyric' && selected.id === cueId) setSelected(null)

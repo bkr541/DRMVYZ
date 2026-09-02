@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LyricDocument } from '../types/lyrics'
+import type { LyricCue, LyricDocument } from '../types/lyrics'
 
 const lyricDbMocks = vi.hoisted(() => ({
   getLyricDocumentById: vi.fn(),
@@ -37,6 +37,16 @@ function document(revision = 1): LyricDocument {
     revision,
     createdAt: '2026-06-29T12:00:00.000Z',
     updatedAt: '2026-06-29T12:00:00.000Z',
+  }
+}
+
+function cue(id = 'cue-1'): LyricCue {
+  return {
+    id,
+    text: 'Lyric line',
+    startMs: 0,
+    endMs: 1200,
+    reviewStatus: 'unreviewed',
   }
 }
 
@@ -81,15 +91,15 @@ describe('lyricsStore transactional save behavior', () => {
   it('preserves activation when ordinary Save updates the currently active version', async () => {
     const current = document(2)
     const saved = document(3)
-    useLyricsStore.getState().setEditorDocument(current, [])
+    useLyricsStore.getState().setEditorDocument(current, [cue()])
     lyricDbMocks.saveLyricDocumentAtomic.mockResolvedValue({
       ok: true,
       kind: 'success',
       document: saved,
-      cues: [],
+      cues: [cue()],
     })
 
-    await useLyricsStore.getState().saveActiveLyricDocument([])
+    await useLyricsStore.getState().saveActiveLyricDocument([cue()])
 
     expect(lyricDbMocks.saveLyricDocumentAtomic).toHaveBeenCalledWith(
       expect.objectContaining({ activate: true }),
@@ -98,7 +108,7 @@ describe('lyricsStore transactional save behavior', () => {
 
   it('passes the loaded revision and exposes a typed conflict for future UI handling', async () => {
     const current = document(4)
-    useLyricsStore.getState().setActiveDocument(current, [])
+    useLyricsStore.getState().setActiveDocument(current, [cue()])
     lyricDbMocks.saveLyricDocumentAtomic.mockResolvedValue({
       ok: false,
       kind: 'conflict',
@@ -106,7 +116,7 @@ describe('lyricsStore transactional save behavior', () => {
       currentRevision: 5,
     })
 
-    const result = await useLyricsStore.getState().saveActiveLyricDocument([])
+    const result = await useLyricsStore.getState().saveActiveLyricDocument([cue()])
 
     expect(result).toMatchObject({ ok: false, kind: 'conflict', currentRevision: 5 })
     expect(lyricDbMocks.saveLyricDocumentAtomic).toHaveBeenCalledWith(
@@ -124,7 +134,7 @@ describe('lyricsStore transactional save behavior', () => {
 
   it('uses transactional activation and refreshes cues for a newly selected version', async () => {
     const activated = document(7)
-    lyricDbMocks.getFullLyricDocument.mockResolvedValue({ document: document(6), cues: [] })
+    lyricDbMocks.getFullLyricDocument.mockResolvedValue({ document: document(6), cues: [cue()] })
     lyricDbMocks.activateLyricDocument.mockResolvedValue({
       ok: true,
       kind: 'success',
@@ -140,7 +150,7 @@ describe('lyricsStore transactional save behavior', () => {
   })
 
   it('keeps a legacy document unattached even if a persisted track ID is present elsewhere in state', async () => {
-    const legacy = { ...document(2), id: 'legacy-document', audioTrackId: null }
+    const legacy = { ...document(2), id: 'legacy-document', audioTrackId: null, isActive: false }
     useLyricsStore.getState().setActiveDocument(legacy, [])
     useLyricsStore.setState({ activeAudioTrackId: 'track-1' })
     lyricDbMocks.saveLyricDocumentAtomic.mockResolvedValue({
@@ -179,19 +189,60 @@ describe('lyricsStore transactional save behavior', () => {
   it('supports an explicit Save + Make Active transaction without changing ordinary Save semantics', async () => {
     const inactive = { ...document(2), isActive: false }
     const activated = { ...document(3), isActive: true }
-    useLyricsStore.getState().setEditorDocument(inactive, [])
+    useLyricsStore.getState().setEditorDocument(inactive, [cue()])
     lyricDbMocks.saveLyricDocumentAtomic.mockResolvedValue({
       ok: true,
       kind: 'success',
       document: activated,
-      cues: [],
+      cues: [cue()],
     })
 
-    await useLyricsStore.getState().saveActiveLyricDocument([], { makeActive: true })
+    await useLyricsStore.getState().saveActiveLyricDocument([cue()], { makeActive: true })
 
     expect(lyricDbMocks.saveLyricDocumentAtomic).toHaveBeenCalledWith(
       expect.objectContaining({ activate: true }),
     )
+  })
+
+  it('blocks hard validation errors at the persistence boundary', async () => {
+    const inactive = { ...document(2), isActive: false }
+    const invalidCue = { ...cue(), endMs: 0 }
+    useLyricsStore.getState().setEditorDocument(inactive, [invalidCue])
+
+    const result = await useLyricsStore.getState().saveActiveLyricDocument([invalidCue])
+
+    expect(result).toMatchObject({ ok: false, kind: 'validation', code: 'invalid_end' })
+    expect(lyricDbMocks.saveLyricDocumentAtomic).not.toHaveBeenCalled()
+  })
+
+  it('blocks ordinary empty saves for a version that is already active', async () => {
+    const active = document(2)
+    useLyricsStore.getState().setEditorDocument(active, [])
+
+    const result = await useLyricsStore.getState().saveActiveLyricDocument([])
+
+    expect(result).toMatchObject({ ok: false, kind: 'validation', code: 'empty_document' })
+    expect(lyricDbMocks.saveLyricDocumentAtomic).not.toHaveBeenCalled()
+  })
+
+  it('blocks empty Save + Make Active while retaining inactive blank-draft persistence', async () => {
+    const inactive = { ...document(2), isActive: false }
+    useLyricsStore.getState().setEditorDocument(inactive, [])
+
+    const result = await useLyricsStore.getState().saveActiveLyricDocument([], { makeActive: true })
+
+    expect(result).toMatchObject({ ok: false, kind: 'validation', code: 'empty_document' })
+    expect(lyricDbMocks.saveLyricDocumentAtomic).not.toHaveBeenCalled()
+  })
+
+  it('blocks activation when the canonical persisted target is empty', async () => {
+    const target = { ...document(6), id: 'empty-target', isActive: false }
+    lyricDbMocks.getFullLyricDocument.mockResolvedValue({ document: target, cues: [] })
+
+    const result = await useLyricsStore.getState().activateLyricDocument(target.id)
+
+    expect(result).toMatchObject({ ok: false, kind: 'validation', code: 'empty_document' })
+    expect(lyricDbMocks.activateLyricDocument).not.toHaveBeenCalled()
   })
 
 })

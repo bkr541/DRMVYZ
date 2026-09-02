@@ -249,6 +249,18 @@ describe('prepared timeline lookup', () => {
     }
   })
 
+  it('keeps explicitly untimed words out of playback without counting them as malformed timing', () => {
+    const current = cue('line', 0, 2_000, 'timing', [
+      word('timed', 200, 600, 'timed'),
+      { id: 'untimed', text: 'untimed' },
+    ])
+    const timeline = prepareLyricTimeline([current])
+
+    expect(timeline.invalidWordCount).toBe(0)
+    expect(resolveLyricPlayback({ timeline, currentAudioMs: 300 }).activeWord?.id).toBe('timed')
+    expect(resolveLyricPlayback({ timeline, currentAudioMs: 1_000 }).activeWord).toBeNull()
+  })
+
   it('does not rebuild the prepared index for offset-only source updates', () => {
     const cues = [cue('a', 1_000, 2_000)]
     const tracker = new ActiveLyricTracker()

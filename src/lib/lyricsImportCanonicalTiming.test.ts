@@ -42,6 +42,30 @@ describe('canonical lyric millisecond imports', () => {
     expect(cue.warnings).toContain('missing_word_timing')
   })
 
+  it('sanitizes imported groups and drops unusable group entries', () => {
+    const [cue] = parseLyricCueJson(JSON.stringify([{
+      startMs: 0,
+      endMs: 1_000,
+      text: 'Grouped words',
+      words: [
+        { id: 'word-1', startMs: 0, endMs: 400, text: 'Grouped' },
+        { id: 'word-2', startMs: 400, endMs: 800, text: 'words' },
+      ],
+      groups: [
+        { id: 'missing-word-ids' },
+        { id: 'non-array-word-ids', wordIds: 'word-1' },
+        { id: 'mixed', wordIds: ['word-1', null, '', 42, 'word-1', ' word-2 '] },
+        { id: 'empty-after-sanitize', wordIds: [null, '', 42] },
+        { id: 'valid', wordIds: ['word-2'], style: { fill: '#fff' } },
+      ],
+    }]))
+
+    expect(cue.groups).toEqual([
+      expect.objectContaining({ id: 'mixed', wordIds: ['word-1', 'word-2'] }),
+      expect.objectContaining({ id: 'valid', wordIds: ['word-2'], style: { fill: '#fff' } }),
+    ])
+  })
+
   it('rejects timings that collapse after canonical rounding', () => {
     expect(() => parseLyricCueJson(JSON.stringify([{
       startMs: 100.1,

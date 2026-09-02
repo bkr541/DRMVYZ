@@ -3,6 +3,7 @@ import type { LyricCue } from '../../../types/lyrics'
 import {
   addCueAtPlayhead,
   assignCueOverlapLanes,
+  cueWordBoundaries,
   duplicateCue,
   findCueOverlaps,
   getCueIssues,
@@ -13,6 +14,8 @@ import {
   resizeCueEnd,
   resizeCueStart,
   resizeLyricWordBoundary,
+  retainLyricGroupsForWords,
+  shiftCue,
   snapTimeMs,
   splitCue,
   validateWordTiming,
@@ -40,6 +43,63 @@ describe('lyric cue timing model', () => {
       startMs: 0,
       endMs: 1_500,
     })
+  })
+
+  it('moves every timed word by the exact final applied cue delta', () => {
+    const source: LyricCue = {
+      ...cue('move', 1_000, 2_000),
+      words: [
+        {
+          id: 'word-1',
+          text: 'move',
+          startMs: 1_100,
+          endMs: 1_400,
+          confidence: 0.91,
+          source: 'manual',
+          reviewStatus: 'reviewed',
+          style: { color: '#fff' },
+        },
+        { id: 'word-2', text: 'me', startMs: 1_500, endMs: 1_900 },
+      ],
+      groups: [{ id: 'group-1', wordIds: ['word-1', 'word-2'] }],
+    }
+
+    expect(moveCueToStart(source, 2_000, 5_000)).toMatchObject({
+      startMs: 2_000,
+      endMs: 3_000,
+      words: [
+        expect.objectContaining({ id: 'word-1', startMs: 2_100, endMs: 2_400, confidence: 0.91, source: 'manual', reviewStatus: 'reviewed', style: { color: '#fff' } }),
+        expect.objectContaining({ id: 'word-2', startMs: 2_500, endMs: 2_900 }),
+      ],
+    })
+    expect(shiftCue(source, -500, 5_000)).toMatchObject({
+      startMs: 500,
+      endMs: 1_500,
+      words: [
+        expect.objectContaining({ id: 'word-1', startMs: 600, endMs: 900 }),
+        expect.objectContaining({ id: 'word-2', startMs: 1_000, endMs: 1_400 }),
+      ],
+    })
+    expect(moveCueToStart(source, -500, 5_000)).toMatchObject({
+      startMs: 0,
+      endMs: 1_000,
+      words: [
+        expect.objectContaining({ id: 'word-1', startMs: 100, endMs: 400 }),
+        expect.objectContaining({ id: 'word-2', startMs: 500, endMs: 900 }),
+      ],
+    })
+    expect(moveCueToStart(source, 4_800, 5_000)).toMatchObject({
+      startMs: 4_000,
+      endMs: 5_000,
+      words: [
+        expect.objectContaining({ id: 'word-1', startMs: 4_100, endMs: 4_400 }),
+        expect.objectContaining({ id: 'word-2', startMs: 4_500, endMs: 4_900 }),
+      ],
+    })
+    expect(source.words?.[0]).toMatchObject({ id: 'word-1', startMs: 1_100, endMs: 1_400 })
+    expect(source.groups).toEqual([{ id: 'group-1', wordIds: ['word-1', 'word-2'] }])
+    expect(resizeCueStart(source, 1_200, 5_000).words).toBeUndefined()
+    expect(resizeCueEnd(source, 2_200, 5_000).words).toBeUndefined()
   })
 
   it('resizes start and end with one millisecond minimum duration', () => {
@@ -99,11 +159,36 @@ describe('lyric cue timing model', () => {
     }
     const copy = duplicateCue(grouped, 'copy', 3_400)
     expect(copy).toMatchObject({ id: 'copy', startMs: 2_400, endMs: 3_400, reviewStatus: 'unreviewed' })
-    expect(copy.words?.[0].id).toBe('copy-word')
+    expect(copy.words?.[0]).toMatchObject({ id: 'copy-word', startMs: 2_400, endMs: 3_400 })
     expect(copy.groups?.[0]).toMatchObject({ id: 'copy-group', wordIds: ['copy-word'] })
+    expect(grouped.words?.[0]).toMatchObject({ id: 'word', startMs: 2_000, endMs: 3_000 })
 
     const added = addCueAtPlayhead('new', 9_999, 10_000)
     expect(added).toMatchObject({ startMs: 9_999, endMs: 10_000 })
+  })
+
+  it('duplicates multiple words using the final clamped start and survives malformed legacy groups', () => {
+    const source: LyricCue = {
+      ...cue('source', 2_000, 3_000),
+      words: [
+        { id: 'one', text: 'one', startMs: 2_050, endMs: 2_250 },
+        { id: 'two', text: 'two', startMs: 2_500, endMs: 2_900 },
+      ],
+      groups: [
+        { id: 'valid', wordIds: ['one', 'two'] },
+        { id: 'legacy-bad', wordIds: null as unknown as string[] },
+      ],
+    }
+
+    expect(() => duplicateCue(source, 'copy', 3_400)).not.toThrow()
+    const copy = duplicateCue(source, 'copy', 3_400)
+    expect(copy.words).toEqual([
+      expect.objectContaining({ id: 'copy-one', startMs: 2_450, endMs: 2_650 }),
+      expect.objectContaining({ id: 'copy-two', startMs: 2_900, endMs: 3_300 }),
+    ])
+    expect(copy.groups).toEqual([
+      expect.objectContaining({ id: 'copy-valid', wordIds: ['copy-one', 'copy-two'] }),
+    ])
   })
 
   it('detects overlaps without silently changing imported timing', () => {
@@ -143,6 +228,32 @@ describe('lyric cue timing model', () => {
     expect(getCueIssues(current, [current], 3_000).map(issue => issue.code)).toEqual(
       expect.arrayContaining(['word_outside_cue', 'invalid_word_timing']),
     )
+  })
+
+  it('treats intentionally cleared word timing as untimed and excludes it from word snapping', () => {
+    const current: LyricCue = {
+      ...cue('a', 1_000, 2_000),
+      words: [
+        { id: 'timed', text: 'timed', startMs: 1_100, endMs: 1_400 },
+        { id: 'untimed', text: 'untimed' },
+      ],
+    }
+    const result = validateWordTiming(current)
+    expect(result.validWords.map(word => word.id)).toEqual(['timed'])
+    expect(result.invalidWords).toEqual([])
+    expect(result.untimedWords.map(word => word.id)).toEqual(['untimed'])
+    expect(cueWordBoundaries(current)).toEqual([1_100, 1_400])
+  })
+
+  it('cleans legacy malformed groups without throwing during word-list edits', () => {
+    const groups = [
+      { id: 'bad', wordIds: null as unknown as string[] },
+      { id: 'mixed', wordIds: ['keep', 'remove'] },
+    ]
+    expect(() => retainLyricGroupsForWords(groups, [{ id: 'keep' }])).not.toThrow()
+    expect(retainLyricGroupsForWords(groups, [{ id: 'keep' }])).toEqual([
+      { id: 'mixed', wordIds: ['keep'] },
+    ])
   })
 
   it('assigns deterministic minimum overlap lanes', () => {
@@ -186,7 +297,7 @@ describe('lyric cue timing model', () => {
 
     const end = resizeLyricWordBoundary({ ...current, words: start }, 'two', 'end', 3_500)
     expect(end[1].endMs).toBe(2_200)
-    expect(end[1].endMs).toBeGreaterThan(end[1].startMs)
+    expect(end[1].endMs).toBeGreaterThan(end[1].startMs!)
   })
 
 })

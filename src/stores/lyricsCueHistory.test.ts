@@ -45,6 +45,31 @@ describe('lyricsStore cue history', () => {
     expect(useLyricsStore.getState().cues[0]).toMatchObject({ startMs: 1_250, endMs: 2_250 })
   })
 
+  it('moves cue words atomically through the store move path', () => {
+    useLyricsStore.setState({
+      cues: [{
+        ...FIRST,
+        words: [{ id: 'word-1', text: 'First', startMs: 1_100, endMs: 1_500, confidence: 0.8 }],
+        groups: [{ id: 'group-1', wordIds: ['word-1'] }],
+      }, SECOND],
+      cueHistoryPast: [],
+      cueHistoryFuture: [],
+    })
+
+    useLyricsStore.getState().moveCue(FIRST.id, 500)
+
+    expect(useLyricsStore.getState().cues[0]).toMatchObject({
+      startMs: 1_500,
+      endMs: 2_500,
+      words: [expect.objectContaining({ id: 'word-1', startMs: 1_600, endMs: 2_000, confidence: 0.8 })],
+      groups: [{ id: 'group-1', wordIds: ['word-1'] }],
+    })
+    expect(useLyricsStore.getState().cueHistoryPast).toHaveLength(1)
+
+    useLyricsStore.getState().undoCueEdit()
+    expect(useLyricsStore.getState().cues[0].words?.[0]).toMatchObject({ startMs: 1_100, endMs: 1_500 })
+  })
+
   it('undoes and redoes metadata-only and reordered cue collections', () => {
     useLyricsStore.getState().updateCue(FIRST.id, { reviewStatus: 'reviewed', confidence: 0.92 })
     useLyricsStore.getState().setCues([SECOND, { ...FIRST, reviewStatus: 'reviewed', confidence: 0.92 }])

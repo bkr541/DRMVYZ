@@ -5,7 +5,7 @@ import { IconChipButton } from '../../../components/vyzualz/react/controls/IconC
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { LyricCue, LyricDocument, LyricTranscriptionJob } from '../../../types/lyrics'
 import { getFullLyricDocument, saveLyricDocumentAtomic } from '../../../lib/lyricsDb'
-import { createLyricCueInputFromCue } from '../../../types/lyrics'
+import { createLyricCueInputFromCue, hasUsableLyricWordTiming } from '../../../types/lyrics'
 import { LYRIC_CUE_STYLE_LABELS, segmentTimedWords, segmentationProvenance, type LyricCueStyle } from '../../../../supabase/functions/_shared/lyricCueSegmentation'
 import {
   assessVocalReferenceCompatibility,
@@ -737,7 +737,7 @@ export function AiLyricExtractor({
 
   const previewReformat = useCallback(() => {
     if (!document) return
-    const words = cues.flatMap(cue => cue.words ?? [])
+    const words = cues.flatMap(cue => cue.words ?? []).filter(hasUsableLyricWordTiming)
     const segmented = segmentTimedWords(words, reformatStyle, selectedTrack?.analysisPayload ?? null).map((cue, index): LyricCue => ({
       id: `reformat-preview-${index}`, startMs: cue.startMs, endMs: cue.endMs, text: cue.text, words: cue.words,
       source: 'transcription', reviewStatus: 'unreviewed', analysisMetadata: { boundaryReason: cue.boundaryReason },

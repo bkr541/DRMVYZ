@@ -11,6 +11,18 @@ const cue = (overrides: Partial<LyricCue> = {}): LyricCue => ({
 })
 
 describe('validateLyricCues structured issue navigation', () => {
+  it('treats an empty lyric document as a hard validation error', () => {
+    const result = validateLyricCues([])
+
+    expect(result.valid).toBe(false)
+    expect(result.errors).toEqual(['No cues in document'])
+    expect(result.warnings).toEqual([])
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      code: 'empty_document',
+      severity: 'error',
+    }))
+  })
+
   it('keeps cue and word identities on actionable validation issues', () => {
     const result = validateLyricCues([
       cue({
@@ -41,5 +53,29 @@ describe('validateLyricCues structured issue navigation', () => {
     expect(result.warnings.some(message => message.includes('overlaps'))).toBe(true)
     expect(result.issues.some(issue => issue.severity === 'error')).toBe(true)
     expect(result.issues.some(issue => issue.severity === 'warning')).toBe(true)
+  })
+
+  it('does not throw on malformed legacy group wordIds', () => {
+    const malformed = cue({
+      words: [{ id: 'word-1', text: 'Hold', startMs: 1_000, endMs: 1_200 }],
+      groups: [{ id: 'legacy-bad', wordIds: null as unknown as string[] }],
+    })
+
+    expect(() => validateLyricCues([malformed])).not.toThrow()
+    expect(validateLyricCues([malformed]).valid).toBe(true)
+  })
+
+  it('treats explicitly cleared word timing as a warning rather than invalid bounds', () => {
+    const result = validateLyricCues([
+      cue({ words: [{ id: 'word-1', text: 'Hold' }] }),
+    ])
+
+    expect(result.valid).toBe(true)
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      code: 'missing_word_timing',
+      severity: 'warning',
+      wordId: 'word-1',
+    }))
+    expect(result.issues.some(issue => issue.code === 'invalid_word_bounds')).toBe(false)
   })
 })

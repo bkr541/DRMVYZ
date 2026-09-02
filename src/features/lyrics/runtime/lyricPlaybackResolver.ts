@@ -1,9 +1,14 @@
-import type { LyricCue, LyricWord } from '../../../types/lyrics'
+import {
+  hasUsableLyricWordTiming,
+  type LyricCue,
+  type LyricWord,
+  type TimedLyricWord,
+} from '../../../types/lyrics'
 
 export type LyricPlaybackTransitionMode = 'continuous' | 'discontinuous'
 
 interface PreparedWordTimeline {
-  words: readonly LyricWord[]
+  words: readonly TimedLyricWord[]
   prefixMaxEndMs: readonly number[]
 }
 
@@ -75,10 +80,11 @@ function prepareWords(words: readonly LyricWord[] | undefined): {
   const sorted = (words ?? [])
     .map((word, originalIndex) => ({ word, originalIndex }))
     .filter(({ word }) => {
-      const valid = isValidBounds(word.startMs, word.endMs)
-      if (!valid) invalidCount += 1
+      const valid = hasUsableLyricWordTiming(word)
+      if (!valid && !(word.startMs === undefined && word.endMs === undefined)) invalidCount += 1
       return valid
     })
+    .map(({ word, originalIndex }) => ({ word: word as TimedLyricWord, originalIndex }))
     .sort((left, right) => (
       left.word.startMs - right.word.startMs ||
       left.word.endMs - right.word.endMs ||
@@ -233,7 +239,7 @@ export function resolveLyricPlayback(input: ResolveLyricPlaybackInput): LyricPla
   }
   const nextCue = timeline.cues[insertionIndex] ?? null
 
-  let activeWord: LyricWord | null = null
+  let activeWord: TimedLyricWord | null = null
   let activeWordIndex = -1
   let wordProgress = 0
   let effectiveWordStartMs: number | null = null

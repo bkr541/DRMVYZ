@@ -2,6 +2,7 @@ import type {
   SoundDrawingLyricGapBehavior,
   SoundDrawingTextSource,
 } from '../../../components/vyzualz/react/ReactTypes'
+import { hasUsableLyricWordTiming } from '../../../types/lyrics'
 import type { LyricPlaybackState } from './lyricPlaybackResolver'
 
 export interface SoundDrawingTextResolutionInput {
@@ -82,11 +83,7 @@ function resolution(
 }
 
 function cueHasTimedWords(playback: LyricPlaybackState): boolean {
-  return Boolean(playback.activeCue?.words?.some(word => (
-    Number.isFinite(word.startMs) &&
-    Number.isFinite(word.endMs) &&
-    word.endMs > word.startMs
-  )))
+  return Boolean(playback.activeCue?.words?.some(hasUsableLyricWordTiming))
 }
 
 /**

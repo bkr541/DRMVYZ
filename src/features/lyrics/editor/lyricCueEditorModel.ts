@@ -1,4 +1,12 @@
-import type { LyricCue, LyricWarning, LyricWord } from '../../../types/lyrics'
+import {
+  hasFiniteLyricWordTiming,
+  hasUsableLyricWordTiming,
+  getSafeLyricGroupWordIds,
+  type LyricCue,
+  type LyricGroup,
+  type LyricWarning,
+  type LyricWord,
+} from '../../../types/lyrics'
 
 export const MIN_LYRIC_CUE_DURATION_MS = 1
 export const DEFAULT_NEW_CUE_DURATION_MS = 2_000
@@ -41,6 +49,22 @@ export interface LyricCueIssue {
 export interface CueBounds {
   startMs: number
   endMs: number
+  words?: LyricWord[]
+}
+
+export function retainLyricGroupsForWords(
+  groups: readonly LyricGroup[] | undefined,
+  words: readonly Pick<LyricWord, 'id'>[],
+): LyricGroup[] | undefined {
+  if (!groups?.length) return undefined
+  const wordIds = new Set(words.map(word => word.id))
+  const next = groups
+    .flatMap(group => {
+      if (typeof group !== 'object' || group === null || Array.isArray(group)) return []
+      const nextWordIds = getSafeLyricGroupWordIds(group).filter(wordId => wordIds.has(wordId))
+      return nextWordIds.length > 0 ? [{ ...group, wordIds: nextWordIds }] : []
+    })
+  return next.length > 0 ? next : undefined
 }
 
 function finiteInteger(value: number, fallback: number): number {
@@ -82,7 +106,7 @@ export function isCueActive(cue: Pick<LyricCue, 'startMs' | 'endMs'>, currentTim
 }
 
 export function moveCueToStart(
-  cue: Pick<LyricCue, 'startMs' | 'endMs'>,
+  cue: Pick<LyricCue, 'startMs' | 'endMs' | 'words'>,
   targetStartMs: number,
   trackDurationMs?: number | null,
 ): CueBounds {
@@ -90,11 +114,26 @@ export function moveCueToStart(
   const trackDuration = normalizeTrackDurationMs(trackDurationMs)
   let startMs = Math.max(0, finiteInteger(targetStartMs, cue.startMs))
   if (trackDuration !== null) startMs = Math.min(startMs, Math.max(0, trackDuration - durationMs))
-  return normalizeCueBounds(startMs, startMs + durationMs, trackDuration)
+  const bounds = normalizeCueBounds(startMs, startMs + durationMs, trackDuration)
+  const appliedDeltaMs = bounds.startMs - cue.startMs
+  return {
+    ...bounds,
+    ...(cue.words
+      ? {
+          words: cue.words.map(word => hasFiniteLyricWordTiming(word)
+            ? {
+                ...word,
+                startMs: word.startMs + appliedDeltaMs,
+                endMs: word.endMs + appliedDeltaMs,
+              }
+            : { ...word }),
+        }
+      : {}),
+  }
 }
 
 export function shiftCue(
-  cue: Pick<LyricCue, 'startMs' | 'endMs'>,
+  cue: Pick<LyricCue, 'startMs' | 'endMs' | 'words'>,
   deltaMs: number,
   trackDurationMs?: number | null,
 ): CueBounds {
@@ -194,7 +233,10 @@ export function snapTimeMs(valueMs: number, context: LyricSnapContext): number {
 
 export function cueWordBoundaries(cue?: Pick<LyricCue, 'words'> | null): number[] {
   if (!cue?.words) return []
-  return [...new Set(cue.words.flatMap(word => [word.startMs, word.endMs]).filter(Number.isFinite).map(Math.round))]
+  return [...new Set(cue.words
+    .filter(hasUsableLyricWordTiming)
+    .flatMap(word => [word.startMs, word.endMs])
+    .map(Math.round))]
     .sort((a, b) => a - b)
 }
 
@@ -218,18 +260,22 @@ export function findCueOverlaps(cues: readonly LyricCue[]): Map<string, string[]
 export function validateWordTiming(cue: Pick<LyricCue, 'startMs' | 'endMs' | 'words'>): {
   validWords: LyricWord[]
   invalidWords: LyricWord[]
+  untimedWords: LyricWord[]
 } {
   const validWords: LyricWord[] = []
   const invalidWords: LyricWord[] = []
+  const untimedWords: LyricWord[] = []
   for (const word of cue.words ?? []) {
-    const valid = Number.isFinite(word.startMs)
-      && Number.isFinite(word.endMs)
+    if (word.startMs === undefined && word.endMs === undefined) {
+      untimedWords.push(word)
+      continue
+    }
+    const valid = hasUsableLyricWordTiming(word)
       && word.startMs >= cue.startMs
       && word.endMs <= cue.endMs
-      && word.endMs > word.startMs
     ;(valid ? validWords : invalidWords).push(word)
   }
-  return { validWords, invalidWords }
+  return { validWords, invalidWords, untimedWords }
 }
 
 export function getCueIssues(
@@ -268,7 +314,7 @@ export function getCueIssues(
 
   const { invalidWords } = validateWordTiming(cue)
   for (const word of invalidWords) {
-    const timingFinite = Number.isFinite(word.startMs) && Number.isFinite(word.endMs) && word.endMs > word.startMs
+    const timingFinite = hasUsableLyricWordTiming(word)
     issues.push({
       code: timingFinite ? 'word_outside_cue' : 'invalid_word_timing',
       cueId: cue.id,
@@ -287,15 +333,17 @@ function cloneWithId(cue: LyricCue, id: string, sourceWords = cue.words): LyricC
     return { ...word, id: wordId }
   })
   const groups = cue.groups
-    ?.map(group => ({
-      ...group,
-      id: `${id}-${group.id}`,
-      wordIds: group.wordIds.flatMap(wordId => {
+    ?.flatMap((group, groupIndex) => {
+      if (typeof group !== 'object' || group === null || Array.isArray(group)) return []
+      const groupId = typeof group.id === 'string' && group.id.trim()
+        ? group.id.trim()
+        : `group_${String(groupIndex + 1).padStart(3, '0')}`
+      const wordIds = getSafeLyricGroupWordIds(group).flatMap(wordId => {
         const mapped = wordIdMap.get(wordId)
         return mapped ? [mapped] : []
-      }),
-    }))
-    .filter(group => group.wordIds.length > 0)
+      })
+      return wordIds.length > 0 ? [{ ...group, id: `${id}-${groupId}`, wordIds }] : []
+    })
 
   return {
     ...cue,
@@ -310,13 +358,10 @@ export function duplicateCue(
   id: string,
   trackDurationMs?: number | null,
 ): LyricCue {
-  const duration = cue.endMs - cue.startMs
-  const bounds = moveCueToStart(cue, cue.endMs, trackDurationMs)
-  const copy = cloneWithId(cue, id)
+  const movePatch = moveCueToStart(cue, cue.endMs, trackDurationMs)
+  const copy = cloneWithId({ ...cue, ...movePatch }, id)
   return {
     ...copy,
-    ...bounds,
-    endMs: Math.max(bounds.startMs + MIN_LYRIC_CUE_DURATION_MS, Math.min(bounds.endMs, bounds.startMs + duration)),
     reviewStatus: 'unreviewed',
   }
 }
@@ -334,6 +379,10 @@ export function splitCue(
   const leftWords: LyricWord[] = []
   const rightWords: LyricWord[] = []
   for (const word of words) {
+    if (!hasUsableLyricWordTiming(word)) {
+      leftWords.push({ ...word })
+      continue
+    }
     if (word.endMs <= point) {
       leftWords.push({ ...word })
     } else if (word.startMs >= point) {
@@ -371,7 +420,11 @@ export function mergeCues(primary: LyricCue, secondary: LyricCue, id = primary.i
     startMs: Math.min(primary.startMs, secondary.startMs),
     endMs: Math.max(primary.endMs, secondary.endMs),
     text: [primary.text.trim(), secondary.text.trim()].filter(Boolean).join(' '),
-    words: [...(primary.words ?? []), ...(secondary.words ?? [])].sort((a, b) => a.startMs - b.startMs),
+    words: [...(primary.words ?? []), ...(secondary.words ?? [])].sort((a, b) => {
+      const aStart = hasUsableLyricWordTiming(a) ? a.startMs : Number.POSITIVE_INFINITY
+      const bStart = hasUsableLyricWordTiming(b) ? b.startMs : Number.POSITIVE_INFINITY
+      return aStart - bStart
+    }),
     groups: [...(primary.groups ?? []), ...(secondary.groups ?? [])],
     confidence: confidences.length ? confidences.reduce((sum, value) => sum + value, 0) / confidences.length : undefined,
     warnings: warnings.length ? warnings : undefined,
@@ -460,17 +513,20 @@ export function resizeLyricWordBoundary(
   const index = words.findIndex(word => word.id === wordId)
   if (index < 0) return words
   const word = words[index]
+  if (!hasUsableLyricWordTiming(word)) return words
   const previous = words[index - 1]
   const next = words[index + 1]
+  const previousEndMs = previous && hasUsableLyricWordTiming(previous) ? previous.endMs : cue.startMs
+  const nextStartMs = next && hasUsableLyricWordTiming(next) ? next.startMs : cue.endMs
   const target = finiteInteger(targetMs, edge === 'start' ? word.startMs : word.endMs)
 
   if (edge === 'start') {
-    const min = Math.max(cue.startMs, previous?.endMs ?? cue.startMs)
+    const min = Math.max(cue.startMs, previousEndMs)
     const max = word.endMs - MIN_LYRIC_CUE_DURATION_MS
     word.startMs = Math.max(min, Math.min(max, target))
   } else {
     const min = word.startMs + MIN_LYRIC_CUE_DURATION_MS
-    const max = Math.min(cue.endMs, next?.startMs ?? cue.endMs)
+    const max = Math.min(cue.endMs, nextStartMs)
     word.endMs = Math.max(min, Math.min(max, target))
   }
   return words
