@@ -258,12 +258,19 @@ export function Dropdown({
   const updateMenuPosition = useCallback(() => {
     const trigger = searchable ? searchTriggerRef.current : triggerRef.current
     const menu = menuRef.current
-    if (!trigger || !menu || typeof window === 'undefined') return
+    if (!trigger || !menu) return
+    // Use the trigger's own window rather than the bare global — when this
+    // component is portaled into a foreign window (Layout Lab opens in a
+    // real popup window via window.open), the global `window` is still the
+    // opener's, and its innerWidth/innerHeight would size the menu for the
+    // wrong viewport entirely.
+    const ownerWindow = trigger.ownerDocument.defaultView
+    if (!ownerWindow) return
 
     const triggerRect = trigger.getBoundingClientRect()
     const menuRect = menu.getBoundingClientRect()
-    const viewportWidth = window.innerWidth
-    const viewportHeight = window.innerHeight
+    const viewportWidth = ownerWindow.innerWidth
+    const viewportHeight = ownerWindow.innerHeight
     const requestedWidth = menuWidth === 'trigger' ? triggerRect.width : menuWidth
     const width = Math.max(
       0,
@@ -335,24 +342,30 @@ export function Dropdown({
       return
     }
 
+    const trigger = searchable ? searchTriggerRef.current : triggerRef.current
+    const ownerWindow = trigger?.ownerDocument.defaultView
+    if (!ownerWindow) return
+
     updateMenuPosition()
     const handleViewportChange = () => updateMenuPosition()
-    window.addEventListener('resize', handleViewportChange)
-    window.addEventListener('scroll', handleViewportChange, true)
+    // Bound to the trigger's own window, not the bare global — see the
+    // ownerWindow note in updateMenuPosition above.
+    ownerWindow.addEventListener('resize', handleViewportChange)
+    ownerWindow.addEventListener('scroll', handleViewportChange, true)
 
-    const resizeObserver = typeof ResizeObserver === 'undefined'
+    const resizeObserver = typeof ownerWindow.ResizeObserver === 'undefined'
       ? null
-      : new ResizeObserver(handleViewportChange)
+      : new ownerWindow.ResizeObserver(handleViewportChange)
     if (searchable && searchTriggerRef.current) resizeObserver?.observe(searchTriggerRef.current)
     if (!searchable && triggerRef.current) resizeObserver?.observe(triggerRef.current)
     if (menuRef.current) resizeObserver?.observe(menuRef.current)
 
     return () => {
-      window.removeEventListener('resize', handleViewportChange)
-      window.removeEventListener('scroll', handleViewportChange, true)
+      ownerWindow.removeEventListener('resize', handleViewportChange)
+      ownerWindow.removeEventListener('scroll', handleViewportChange, true)
       resizeObserver?.disconnect()
     }
-  }, [isOpen, options.length, showDescriptions, updateMenuPosition])
+  }, [isOpen, options.length, searchable, showDescriptions, updateMenuPosition])
 
   useEffect(() => {
     if (!isOpen) return
@@ -368,9 +381,13 @@ export function Dropdown({
       closeMenu(false)
     }
 
-    document.addEventListener('pointerdown', handlePointerDown)
-    return () => document.removeEventListener('pointerdown', handlePointerDown)
-  }, [closeMenu, isOpen])
+    // Listen on the trigger's own document — a foreign-window portal (see
+    // ownerWindow note above) never receives pointer events from a
+    // document-level listener bound to the wrong window's document.
+    const ownerDocument = (searchable ? searchTriggerRef.current : triggerRef.current)?.ownerDocument ?? document
+    ownerDocument.addEventListener('pointerdown', handlePointerDown)
+    return () => ownerDocument.removeEventListener('pointerdown', handlePointerDown)
+  }, [closeMenu, isOpen, searchable])
 
   useEffect(() => {
     if (!disabled) return
@@ -530,6 +547,13 @@ export function Dropdown({
         visibility: 'hidden',
       }
   const optionRuns = useMemo(() => buildOptionRuns(options), [options])
+  // Portal into the trigger's own document, not the bare global `document`
+  // — when this component renders inside a foreign window (Layout Lab opens
+  // in a real popup via window.open), the global reference is still the
+  // opener window's document, so the menu would render invisibly there
+  // instead of in the window the user is actually looking at.
+  const portalDocument = (searchable ? searchTriggerRef.current : triggerRef.current)?.ownerDocument
+    ?? (typeof document === 'undefined' ? null : document)
 
   const renderOption = (option: DropdownOption, index: number) => {
     const selected = option.value === selectedValue
@@ -667,7 +691,7 @@ export function Dropdown({
 
       {name && <input type="hidden" name={name} value={selectedValue ?? ''} />}
 
-      {isOpen && typeof document !== 'undefined' && createPortal((
+      {isOpen && portalDocument && createPortal((
         <div
           ref={menuRef}
           id={listboxId}
@@ -714,7 +738,7 @@ export function Dropdown({
             })}
           </div>
         </div>
-      ), document.body)}
+      ), portalDocument.body)}
     </div>
   )
 }

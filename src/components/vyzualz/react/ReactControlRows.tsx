@@ -389,13 +389,20 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
       if (swatchRef.current?.contains(target) || popoverRef.current?.contains(target)) return
       setOpen(false)
     }
-    window.addEventListener('pointerdown', onPointerDown)
-    window.addEventListener('resize', updatePosition)
-    window.addEventListener('scroll', updatePosition, true)
+    // Bound to the swatch's own window/document rather than the bare
+    // globals — a foreign-window portal (this popover can be opened from
+    // inside Layout Lab's popup window) never receives events routed to the
+    // wrong window, and window.innerWidth/innerHeight below would otherwise
+    // measure the wrong viewport entirely.
+    const ownerDocument = swatchRef.current?.ownerDocument ?? document
+    const ownerWindow = ownerDocument.defaultView ?? window
+    ownerDocument.addEventListener('pointerdown', onPointerDown)
+    ownerWindow.addEventListener('resize', updatePosition)
+    ownerWindow.addEventListener('scroll', updatePosition, true)
     return () => {
-      window.removeEventListener('pointerdown', onPointerDown)
-      window.removeEventListener('resize', updatePosition)
-      window.removeEventListener('scroll', updatePosition, true)
+      ownerDocument.removeEventListener('pointerdown', onPointerDown)
+      ownerWindow.removeEventListener('resize', updatePosition)
+      ownerWindow.removeEventListener('scroll', updatePosition, true)
     }
   }, [open, updatePosition])
 
@@ -408,9 +415,10 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
     const swatchRect = swatchRef.current?.getBoundingClientRect()
     const popoverRect = popoverRef.current?.getBoundingClientRect()
     if (!swatchRect || !popoverRect) return
+    const ownerWindow = swatchRef.current?.ownerDocument.defaultView ?? window
     const margin = 8
-    const nextLeft = Math.min(swatchRect.left, Math.max(margin, window.innerWidth - margin - popoverRect.width))
-    const nextTop = (swatchRect.bottom + 6 + popoverRect.height > window.innerHeight - margin)
+    const nextLeft = Math.min(swatchRect.left, Math.max(margin, ownerWindow.innerWidth - margin - popoverRect.width))
+    const nextTop = (swatchRect.bottom + 6 + popoverRect.height > ownerWindow.innerHeight - margin)
       ? Math.max(margin, swatchRect.top - popoverRect.height - 6)
       : swatchRect.bottom + 6
     setPosition(current => (current && current.left === nextLeft && current.top === nextTop) ? current : { left: nextLeft, top: nextTop })
@@ -434,7 +442,7 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
         aria-describedby={description ? `${inputId}-description` : undefined}
         onClick={() => setOpen(current => !current)}
       />
-      {open && !disabled && position && typeof document !== 'undefined' && createPortal(
+      {open && !disabled && position && swatchRef.current && createPortal(
         <div ref={popoverRef} className="rv-ctrl-palette-popover" style={{ top: position.top, left: position.left }}>
           <div
             className="rv-ctrl-palette-gradient-square"
@@ -447,10 +455,12 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
                 setHsl(h, x * 100, (1 - y) * 100)
               }
               move(event.clientX, event.clientY)
+              // The drag target's own window — see the ownerDocument note above.
+              const ownerWindow = event.currentTarget.ownerDocument.defaultView ?? window
               const onMove = (moveEvent: PointerEvent) => move(moveEvent.clientX, moveEvent.clientY)
-              const onUp = () => window.removeEventListener('pointermove', onMove)
-              window.addEventListener('pointermove', onMove)
-              window.addEventListener('pointerup', onUp, { once: true })
+              const onUp = () => ownerWindow.removeEventListener('pointermove', onMove)
+              ownerWindow.addEventListener('pointermove', onMove)
+              ownerWindow.addEventListener('pointerup', onUp, { once: true })
             }}
           >
             <span className="rv-ctrl-palette-gradient-thumb" style={{ left: `${s}%`, top: `${100 - l}%` }} aria-hidden="true" />
@@ -470,7 +480,9 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
             />
           </div>
         </div>,
-        document.body,
+        // Portal into the swatch's own document, not the bare global — see
+        // the ownerDocument note in the effect above.
+        swatchRef.current.ownerDocument.body,
       )}
       {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>
