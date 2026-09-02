@@ -88,6 +88,38 @@ export interface CinematicTransitionState {
   toWorld: CinematicWorldId
 }
 
+export interface CinematicCanonicalEventIdentity {
+  active: boolean
+  eventId: string | null
+}
+
+export interface CinematicCanonicalClockIdentity {
+  available: boolean
+  spanBeats: number
+  index: number | null
+  phase: number
+  hit: boolean
+  eventId: string | null
+}
+
+export interface CinematicCanonicalMusicContext {
+  impulses: Readonly<{
+    beat: CinematicCanonicalEventIdentity
+    downbeat: CinematicCanonicalEventIdentity
+    kick: CinematicCanonicalEventIdentity
+    snare: CinematicCanonicalEventIdentity
+    transient: CinematicCanonicalEventIdentity
+    sectionStart: CinematicCanonicalEventIdentity
+    dropStart: CinematicCanonicalEventIdentity
+  }>
+  clocks: Readonly<Record<'beat' | 'beat2' | 'beat4' | 'bar' | 'bar4' | 'bar8' | 'phrase', CinematicCanonicalClockIdentity>>
+  section: Readonly<{
+    id: string | null
+    type: string | null
+    progress: number
+  }>
+}
+
 /**
  * One normalized, renderer-agnostic frame object supplied to every Cinematic
  * World. Future worlds must consume this contract rather than reaching back
@@ -112,6 +144,8 @@ export interface CinematicFrameContext {
   beat: CinematicBeatState
   /** Capability-safe, analyzer-backed musical values prepared by the host. */
   musicalAudio?: CinematicNormalizedAudioFrame
+  /** Canonical Cinema event/clock identities, when this world is hosted by Cinema. */
+  canonicalMusic?: CinematicCanonicalMusicContext
   /** Bounded source-to-target modulation values prepared once per frame. */
   modulation?: CinematicModulationSnapshot
   /** Reusable camera/director output. Only Cinematic Worlds consume this field. */

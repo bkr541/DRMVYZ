@@ -1603,6 +1603,7 @@ function adaptCinemaFrame(
       downbeat: frame.impulses.downbeat,
     },
     musicalAudio,
+    canonicalMusic: createCanonicalMusicContext(frame),
     modulation,
     camera,
     section: {
@@ -1777,6 +1778,40 @@ function createMusicalAudioFrame(
       vocalEnergy: frame.capabilities.musicIntelligence,
     },
     resetReasons: frame.transport.reset.reasons.map(reason => reason === 'track-change' ? 'trackReplacement' : reason === 'seek' ? 'seek' : 'manual'),
+  }
+}
+
+function createCanonicalMusicContext(
+  frame: Readonly<CinemaFrameContext>,
+): NonNullable<CinematicFrameContext['canonicalMusic']> {
+  const impulse = (key: keyof Pick<CinemaFrameContext['impulses'], 'beat' | 'downbeat' | 'kick' | 'snare' | 'transient' | 'sectionStart' | 'dropStart'>) => ({
+    active: frame.impulses[key],
+    eventId: frame.impulses.eventIds[key],
+  })
+  return {
+    impulses: {
+      beat: impulse('beat'),
+      downbeat: impulse('downbeat'),
+      kick: impulse('kick'),
+      snare: impulse('snare'),
+      transient: impulse('transient'),
+      sectionStart: impulse('sectionStart'),
+      dropStart: impulse('dropStart'),
+    },
+    clocks: {
+      beat: { ...frame.music.clocks.states.beat },
+      beat2: { ...frame.music.clocks.states.beat2 },
+      beat4: { ...frame.music.clocks.states.beat4 },
+      bar: { ...frame.music.clocks.states.bar },
+      bar4: { ...frame.music.clocks.states.bar4 },
+      bar8: { ...frame.music.clocks.states.bar8 },
+      phrase: { ...frame.music.clocks.states.phrase },
+    },
+    section: {
+      id: frame.music.sectionId,
+      type: frame.music.sectionType,
+      progress: frame.music.sectionProgress,
+    },
   }
 }
 

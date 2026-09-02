@@ -155,11 +155,13 @@ export interface ElectricStormSettings {
   branching: number
   thickness: number
   glow: number
+  impactShake: number
+  zoomPunch: number
 }
 
 export type ElectricStormNumericSettings = Pick<
   ElectricStormSettings,
-  'masterIntensity' | 'strikeRate' | 'branching' | 'thickness' | 'glow'
+  'masterIntensity' | 'strikeRate' | 'branching' | 'thickness' | 'glow' | 'impactShake' | 'zoomPunch'
 >
 
 export const REACTIVE_CONSTELLATION_TOPOLOGIES = ['cluster', 'chain', 'triangulated', 'starburst', 'branching', 'ring', 'splitClusters'] as const
@@ -579,6 +581,8 @@ export const ELECTRIC_STORM_DEFAULTS: ElectricStormSettings = {
   branching: 0.5,
   thickness: 0.5,
   glow: 0.5,
+  impactShake: 0.5,
+  zoomPunch: 0.5,
 }
 
 export const ELECTRIC_STORM_BOUNDS: NumericBounds<ElectricStormNumericSettings> = {
@@ -587,6 +591,8 @@ export const ELECTRIC_STORM_BOUNDS: NumericBounds<ElectricStormNumericSettings> 
   branching: [0, 1],
   thickness: [0, 1],
   glow: [0, 1],
+  impactShake: [0, 1],
+  zoomPunch: [0, 1],
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -642,6 +648,8 @@ function normalizeElectricStormSettings(raw: unknown): ElectricStormSettings {
       branching: ELECTRIC_STORM_DEFAULTS.branching,
       thickness: ELECTRIC_STORM_DEFAULTS.thickness,
       glow: ELECTRIC_STORM_DEFAULTS.glow,
+      impactShake: ELECTRIC_STORM_DEFAULTS.impactShake,
+      zoomPunch: ELECTRIC_STORM_DEFAULTS.zoomPunch,
     },
     ELECTRIC_STORM_BOUNDS,
   )

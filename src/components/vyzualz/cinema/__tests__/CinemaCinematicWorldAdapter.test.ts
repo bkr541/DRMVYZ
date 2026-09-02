@@ -301,23 +301,40 @@ describe('Cinema Cinematic World adapters', () => {
     const backgroundId = cinemaCinematicWorldParameterId('world-background-color')
     const lightningId = cinemaCinematicWorldParameterId('world-lightning-color')
     const masterId = cinemaCinematicWorldParameterId('world-master-intensity')
+    const impactShakeId = cinemaCinematicWorldParameterId('world-impact-shake')
+    const zoomPunchId = cinemaCinematicWorldParameterId('world-zoom-punch')
     expect(node?.parameterValues[backgroundId]).toEqual([0, 0, 0, 1])
     expect(node?.parameterValues[lightningId]).toEqual([74 / 255, 167 / 255, 1, 1])
     expect(node?.parameterValues[masterId]).toBe(0.5)
+    expect(node?.parameterValues[impactShakeId]).toBe(0.5)
+    expect(node?.parameterValues[zoomPunchId]).toBe(0.5)
 
     const supportedLabels = getCinemaCinematicWorldSupportedParameterSchemasForNode(electricStorm!.definition, node!).map(parameter => parameter.label)
     expect(supportedLabels).toEqual(expect.arrayContaining([
-      'Background Color', 'Lightning Color', 'Master Intensity', 'Strike Rate', 'Branching', 'Thickness', 'Glow',
+      'Background Color', 'Lightning Color', 'Master Intensity', 'Strike Rate', 'Branching', 'Thickness', 'Glow', 'Impact Shake', 'Zoom Punch',
     ]))
 
     const state = createCinemaFoundationPersistedState()
     const harness = createExecutorHarness(CINEMA_PRODUCTION_RUNTIME_REGISTRY, state.definitions, false)
+    vi.mocked(harness.gl.getUniformLocation).mockImplementation((_program: WebGLProgram, name: string) => ({ name } as unknown as WebGLUniformLocation))
     harness.executor.setGraph({ composition, instance: null, definitions: state.definitions })
     expect(harness.executor.render(frame(0))).toBe(true)
     expect(harness.executor.render(frame(1))).toBe(true)
-    expect(vi.mocked(harness.gl.getUniformLocation).mock.calls.map(([, name]) => name)).toEqual(expect.arrayContaining([
+    expect(harness.executor.render(frame(2, false, true))).toBe(true)
+    expect(harness.executor.render(frame(3))).toBe(true)
+    const uniformLocationCalls = vi.mocked(harness.gl.getUniformLocation).mock.calls as unknown as Array<[WebGLProgram, string]>
+    expect(uniformLocationCalls.map(([, name]) => name)).toEqual(expect.arrayContaining([
       'uStrikeStyle0', 'uStrikeStyle1', 'uStrikeStyle2',
+      'uImpactShake', 'uZoomPunch', 'uImpactStrength', 'uAudioDetail',
     ]))
+    const strikeMetaCalls = (vi.mocked(harness.gl.uniform4f).mock.calls as unknown as Array<[WebGLUniformLocation, number, number, number, number]>).filter(([location]) => (
+      typeof location === 'object' && location !== null && String((location as unknown as { name?: string }).name).startsWith('uStrikeMeta')
+    ))
+    expect(strikeMetaCalls.some(([, age, duration, intensity]) => Number(age) >= 0 && Number(duration) > 0 && Number(intensity) > 0)).toBe(true)
+    const impactCalls = (vi.mocked(harness.gl.uniform1f).mock.calls as unknown as Array<[WebGLUniformLocation, number]>).filter(([location]) => (
+      typeof location === 'object' && location !== null && (location as unknown as { name?: string }).name === 'uImpactStrength'
+    ))
+    expect(impactCalls.some(([, value]) => Number(value) > 0)).toBe(true)
     expect(harness.gl.__calls.drawCount).toBeGreaterThan(0)
     expect(harness.executor.getSnapshot().failedNodeCount).toBe(0)
     expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')

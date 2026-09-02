@@ -146,6 +146,8 @@ describe('world-specific cinematic configuration', () => {
       branching: 0.25,
       thickness: Number.NaN,
       glow: 1.5,
+      impactShake: -2,
+      zoomPunch: 4,
     })
     expect(resolveElectricStormSettings(electricStorm.worldSettings)).toEqual({
       backgroundColor: '#aabbcc',
@@ -155,6 +157,8 @@ describe('world-specific cinematic configuration', () => {
       branching: 0.25,
       thickness: ELECTRIC_STORM_DEFAULTS.thickness,
       glow: 1,
+      impactShake: 0,
+      zoomPunch: 1,
     })
 
     const constellation = createCinematicWorldConfig('reactiveConstellation', {
@@ -238,6 +242,8 @@ describe('world-specific cinematic configuration', () => {
       branching: 0.84,
       thickness: 0.36,
       glow: 0.67,
+      impactShake: 0.42,
+      zoomPunch: 0.81,
     })
     const reloaded = normalizeCinematicWorldConfig(JSON.parse(JSON.stringify(authored)))
     expect(reloaded.worldMode).toBe('electricStorm')
@@ -250,6 +256,8 @@ describe('world-specific cinematic configuration', () => {
       branching: 0.84,
       thickness: 0.36,
       glow: 0.67,
+      impactShake: 0.42,
+      zoomPunch: 0.81,
     })
   })
 
@@ -358,9 +366,9 @@ describe('world-specific cinematic configuration', () => {
         const normalized = normalizeCinematicWorldConfig(preset.cinematicConfig)
         expect(normalized).toEqual(preset.cinematicConfig)
         expect(normalized.worldSettings.mode).toBe(mode)
-        // Electric Storm Stage 1 intentionally ships with no audio
-        // choreography yet (see WORLD_DEFAULT_AUDIO_ROUTES.electricStorm);
-        // a later stage adds routes the same way it adds the other presets.
+        // Electric Storm Stage 3 consumes the canonical host musical frame
+        // directly in its world renderer, so generic route mappings remain
+        // intentionally empty rather than duplicating the analysis owner.
         if (mode !== 'electricStorm') expect(normalized.audioMapping.routes.length).toBeGreaterThan(0)
       }
     }

@@ -265,6 +265,8 @@ const ELECTRIC_STORM_CONTROLS = {
       { kind: 'slider', id: 'electric-storm-branching', setting: 'branching', label: 'Branching', min: ELECTRIC_STORM_BOUNDS.branching[0], max: ELECTRIC_STORM_BOUNDS.branching[1], step: 0.01, visibility: 'all' },
       { kind: 'slider', id: 'electric-storm-thickness', setting: 'thickness', label: 'Thickness', min: ELECTRIC_STORM_BOUNDS.thickness[0], max: ELECTRIC_STORM_BOUNDS.thickness[1], step: 0.01, visibility: 'all' },
       { kind: 'slider', id: 'electric-storm-glow', setting: 'glow', label: 'Glow', min: ELECTRIC_STORM_BOUNDS.glow[0], max: ELECTRIC_STORM_BOUNDS.glow[1], step: 0.01, visibility: 'all' },
+      { kind: 'slider', id: 'electric-storm-impact-shake', setting: 'impactShake', label: 'Impact Shake', min: ELECTRIC_STORM_BOUNDS.impactShake[0], max: ELECTRIC_STORM_BOUNDS.impactShake[1], step: 0.01, visibility: 'all' },
+      { kind: 'slider', id: 'electric-storm-zoom-punch', setting: 'zoomPunch', label: 'Zoom Punch', min: ELECTRIC_STORM_BOUNDS.zoomPunch[0], max: ELECTRIC_STORM_BOUNDS.zoomPunch[1], step: 0.01, visibility: 'all' },
     ],
   }],
 } as const satisfies CinematicWorldControlSchema<'electricStorm'>

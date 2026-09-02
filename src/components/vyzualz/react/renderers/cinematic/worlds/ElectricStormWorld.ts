@@ -6,6 +6,7 @@ import type {
   CinematicWebGLWorldDefinition,
 } from '../../CinematicWorldRenderer'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
+import { ElectricStormAudioChoreographer } from './ElectricStormAudioChoreography'
 import { ELECTRIC_STORM_FRAGMENT_SOURCE } from './ElectricStormShader'
 import {
   ELECTRIC_STORM_MAX_ACTIVE_STRIKES,
@@ -30,6 +31,10 @@ const UNIFORMS = [
   'uBranching',
   'uThickness',
   'uGlowAmount',
+  'uAudioDetail',
+  'uImpactShake',
+  'uZoomPunch',
+  'uImpactStrength',
   'uStrikeLine0',
   'uStrikeMeta0',
   'uStrikeStyle0',
@@ -40,6 +45,16 @@ const UNIFORMS = [
   'uStrikeMeta2',
   'uStrikeStyle2',
 ] as const
+
+function strikeImpactStrength(strike: ElectricStormStrikeDescriptor, timeSec: number): number {
+  const age = timeSec - strike.startedAtSec
+  if (age < 0 || age > strike.durationSec || strike.durationSec <= 0) return 0
+  const normalizedAge = age / strike.durationSec
+  const attack = Math.min(1, normalizedAge / 0.055)
+  const decay = Math.exp(-normalizedAge * 3.4)
+  const tier = strike.tier === 'hero' ? 1 : strike.tier === 'strong' ? 0.78 : strike.tier === 'medium' ? 0.34 : 0.16
+  return Math.max(0, Math.min(1, attack * decay * tier * (0.55 + strike.power * 0.45)))
+}
 
 function setRgb(program: ShaderProgram, uniform: string, color: ElectricStormRgbColor): void {
   program.setVec3(uniform, color.r, color.g, color.b)
@@ -79,6 +94,7 @@ function setStrikeUniforms(
 
 class ElectricStormWorld extends FullscreenCinematicWorld {
   private readonly strikeGenerator = new ElectricStormStrikeGenerator()
+  private readonly audioChoreographer = new ElectricStormAudioChoreographer()
 
   constructor() {
     super('electricStorm', ELECTRIC_STORM_FRAGMENT_SOURCE, UNIFORMS)
@@ -87,15 +103,18 @@ class ElectricStormWorld extends FullscreenCinematicWorld {
   override reset(reason: CinematicRendererResetReason): void {
     super.reset(reason)
     this.strikeGenerator.reset()
+    this.audioChoreographer.reset()
   }
 
   override onContextLost(): void {
     this.strikeGenerator.reset()
+    this.audioChoreographer.reset()
     super.onContextLost()
   }
 
   override dispose(): void {
     this.strikeGenerator.reset()
+    this.audioChoreographer.reset()
     super.dispose()
   }
 
@@ -112,8 +131,17 @@ class ElectricStormWorld extends FullscreenCinematicWorld {
     program.setFloat('uBranching', settings.branching)
     program.setFloat('uThickness', settings.thickness)
     program.setFloat('uGlowAmount', settings.glow)
+    program.setFloat('uImpactShake', settings.impactShake)
+    program.setFloat('uZoomPunch', settings.zoomPunch)
 
-    const strikes = this.strikeGenerator.update(frame.transportTimeSec, settings.strikeRate)
+    const choreography = this.audioChoreographer.update(frame, settings)
+    for (const intent of choreography.intents) this.strikeGenerator.request(intent)
+    const strikes = this.strikeGenerator.update(frame.transportTimeSec, choreography.strikeRate)
+    program.setFloat('uAudioDetail', choreography.audioDetail)
+    program.setFloat(
+      'uImpactStrength',
+      strikes.reduce((maximum, strike) => Math.max(maximum, strikeImpactStrength(strike, frame.transportTimeSec)), 0),
+    )
     for (let index = 0; index < ELECTRIC_STORM_MAX_ACTIVE_STRIKES; index += 1) {
       setStrikeUniforms(program, index, strikes[index], frame.transportTimeSec)
     }

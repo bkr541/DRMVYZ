@@ -38,6 +38,8 @@ export interface ElectricStormStrikeIntent {
   tier: ElectricStormStrikeTier
   power?: number
   count?: number
+  detail?: number
+  durationScale?: number
 }
 
 export interface ElectricStormStrikeGeneratorOptions {
@@ -61,6 +63,8 @@ interface StrikeCandidateInput {
   tier: ElectricStormStrikeTier
   power: number
   groupId: number | null
+  detail?: number
+  durationScale?: number
 }
 
 interface BoundaryDistances {
@@ -186,6 +190,7 @@ function endpointsFor(
   orientation: ElectricStormStrikeOrientation,
   placement: ElectricStormStrikePlacement,
   tier: ElectricStormStrikeTier,
+  power: number,
 ): { start: ElectricStormPoint; end: ElectricStormPoint } {
   const angle = angleFor(seed, orientation)
   const directionSign = random01(seed ^ 0x53a9b4fb) < 0.5 ? -1 : 1
@@ -197,8 +202,9 @@ function endpointsFor(
   const distances = boundaryDistances(midpoint, direction)
   const interiorMin = tier === 'micro' ? 0.2 : 0.42
   const interiorMax = tier === 'micro' ? 0.58 : 0.82
-  const startFraction = mix(interiorMin, interiorMax, random01(seed ^ 0xc2b2ae35))
-  const endFraction = mix(interiorMin, interiorMax, random01(seed ^ 0x27d4eb2f))
+  const traversalBoost = mix(0.78, 1.08, clamp01(power))
+  const startFraction = clamp(mix(interiorMin, interiorMax, random01(seed ^ 0xc2b2ae35)) * traversalBoost, 0.12, 0.96)
+  const endFraction = clamp(mix(interiorMin, interiorMax, random01(seed ^ 0x27d4eb2f)) * traversalBoost, 0.12, 0.96)
   const negativeBoundary = linePoint(midpoint, direction, -distances.negative)
   const positiveBoundary = linePoint(midpoint, direction, distances.positive)
   const negativeInterior = linePoint(midpoint, direction, -distances.negative * startFraction)
@@ -226,11 +232,12 @@ function lengthClassFor(start: ElectricStormPoint, end: ElectricStormPoint): Ele
   return 'long'
 }
 
-function tierDuration(seed: number, tier: ElectricStormStrikeTier, rate: number, power: number): number {
+function tierDuration(seed: number, tier: ElectricStormStrikeTier, rate: number, power: number, durationScale = 1): number {
   const random = random01(seed ^ 0x85ebca6b)
-  if (tier === 'micro') return mix(0.08, 0.2, random) * mix(0.88, 1.08, power)
-  if (tier === 'strong' || tier === 'hero') return mix(0.22, 0.46, random) * mix(0.94, 1.16, rate) * mix(0.94, 1.12, power)
-  return mix(0.15, 0.36, random) * mix(0.92, 1.12, rate) * mix(0.92, 1.08, power)
+  const boundedScale = clamp(durationScale, 0.4, 1.35)
+  if (tier === 'micro') return mix(0.08, 0.2, random) * mix(0.88, 1.08, power) * boundedScale
+  if (tier === 'strong' || tier === 'hero') return mix(0.22, 0.46, random) * mix(0.94, 1.16, rate) * mix(0.94, 1.12, power) * boundedScale
+  return mix(0.15, 0.36, random) * mix(0.92, 1.12, rate) * mix(0.92, 1.08, power) * boundedScale
 }
 
 function tierIntensity(seed: number, tier: ElectricStormStrikeTier, power: number): number {
@@ -246,19 +253,22 @@ function tierIntensity(seed: number, tier: ElectricStormStrikeTier, power: numbe
 function createCandidate(input: StrikeCandidateInput): ElectricStormStrikeDescriptor {
   const orientation = orientationFor(input.seed ^ 0x8da6b343)
   const placement = placementFor(input.seed ^ 0xd8163841, input.tier)
-  const endpoints = endpointsFor(input.seed ^ 0xa511e9b3, orientation, placement, input.tier)
+  const endpoints = endpointsFor(input.seed ^ 0xa511e9b3, orientation, placement, input.tier, input.power)
   const startRegion = pointRegion(endpoints.start)
   const endRegion = pointRegion(endpoints.end)
   const lengthClass = lengthClassFor(endpoints.start, endpoints.end)
   const branchSeed = hash32(input.seed ^ 0x63d83595)
-  const branchDetail = mix(0.34, 1, random01(input.seed ^ 0x9e3779b9))
+  const randomBranchDetail = mix(0.34, 1, random01(input.seed ^ 0x9e3779b9))
+  const branchDetail = input.detail === undefined
+    ? randomBranchDetail
+    : clamp01(mix(randomBranchDetail, clamp01(input.detail), 0.68))
   const thicknessBase = input.tier === 'micro' ? 0.64 : input.tier === 'medium' ? 0.9 : 1.08
   const glowBase = input.tier === 'micro' ? 0.62 : input.tier === 'medium' ? 0.9 : 1.12
   const signature = `${placement}|${orientation}|${startRegion}>${endRegion}|${lengthClass}`
   return {
     ...endpoints,
     startedAtSec: input.startedAtSec,
-    durationSec: tierDuration(input.seed, input.tier, input.rate, input.power),
+    durationSec: tierDuration(input.seed, input.tier, input.rate, input.power, input.durationScale),
     intensity: tierIntensity(input.seed, input.tier, input.power),
     seed: input.seed >>> 0,
     branchSeed,
@@ -327,6 +337,8 @@ export class ElectricStormStrikeGenerator {
       tier: intent.tier,
       power: clamp(intent.power ?? 1, 0, 1),
       count: Math.max(1, Math.min(ELECTRIC_STORM_MAX_ACTIVE_STRIKES, Math.floor(intent.count ?? (intent.tier === 'hero' ? 2 : 1)))),
+      detail: intent.detail === undefined ? undefined : clamp01(intent.detail),
+      durationScale: intent.durationScale === undefined ? undefined : clamp(intent.durationScale, 0.4, 1.35),
     })
   }
 
@@ -387,6 +399,8 @@ export class ElectricStormStrikeGenerator {
           tier: intent.tier,
           power: intent.power ?? 1,
           groupId,
+          detail: intent.detail,
+          durationScale: intent.durationScale,
         }))
       }
       this.eventOrdinal += 1

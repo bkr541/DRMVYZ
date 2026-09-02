@@ -10,6 +10,10 @@ uniform float uMasterIntensity;
 uniform float uBranching;
 uniform float uThickness;
 uniform float uGlowAmount;
+uniform float uAudioDetail;
+uniform float uImpactShake;
+uniform float uZoomPunch;
+uniform float uImpactStrength;
 uniform vec4 uStrikeLine0;
 uniform vec4 uStrikeMeta0;
 uniform vec4 uStrikeStyle0;
@@ -48,7 +52,8 @@ float strikeEnvelope(float age, float duration) {
   float normalizedAge = age / duration;
   float attack = smoothstep(0.0, 0.055, normalizedAge);
   float decay = exp(-normalizedAge * 2.8);
-  float flicker = 0.88 + 0.12 * sin(age * 460.0);
+  float flickerAmount = mix(0.08, 0.18, clamp(uAudioDetail, 0.0, 1.0));
+  float flicker = (1.0 - flickerAmount) + flickerAmount * sin(age * mix(390.0, 540.0, clamp(uAudioDetail, 0.0, 1.0)));
   return attack * decay * flicker;
 }
 
@@ -58,7 +63,7 @@ vec3 renderStrike(vec2 p, vec4 line, vec4 meta, vec4 style, float slot) {
   float strength = meta.z;
   float seed = meta.w + slot * 17.0;
   float branchSeed = style.x + slot * 29.0;
-  float branchDetail = clamp(style.y, 0.0, 1.0);
+  float branchDetail = clamp(style.y * mix(0.82, 1.2, clamp(uAudioDetail, 0.0, 1.0)), 0.0, 1.0);
   float thicknessMultiplier = max(0.35, style.z);
   float glowMultiplier = max(0.35, style.w);
   float envelope = strikeEnvelope(age, duration) * strength * uMasterIntensity;
@@ -111,6 +116,14 @@ vec3 renderStrike(vec2 p, vec4 line, vec4 meta, vec4 style, float slot) {
 
 void main() {
   vec2 uv = v_uv;
+  float impact = clamp(uImpactStrength, 0.0, 1.0);
+  float shakeAmount = clamp(uImpactShake, 0.0, 1.0) * impact * 0.012;
+  vec2 shake = vec2(
+    sin(uTime * 91.0 + 0.7) + sin(uTime * 137.0 + 2.1) * 0.45,
+    cos(uTime * 103.0 + 1.3) + cos(uTime * 149.0 + 0.4) * 0.45
+  ) * shakeAmount;
+  float zoomScale = 1.0 - clamp(uZoomPunch, 0.0, 1.0) * impact * 0.075;
+  uv = vec2(0.5) + (uv - vec2(0.5)) * zoomScale + shake;
   vec2 p = uv * 2.0 - 1.0;
   p.x *= uResolution.x / max(1.0, uResolution.y);
 

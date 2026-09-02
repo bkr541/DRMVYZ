@@ -127,7 +127,7 @@ describe('Cinematic World control schema', () => {
     const schema = CINEMATIC_WORLD_CATALOG.electricStorm.controls
     const controls = schema.groups.flatMap(group => group.controls)
     expect(controls.map(control => control.setting)).toEqual([
-      'backgroundColor', 'lightningColor', 'masterIntensity', 'strikeRate', 'branching', 'thickness', 'glow',
+      'backgroundColor', 'lightningColor', 'masterIntensity', 'strikeRate', 'branching', 'thickness', 'glow', 'impactShake', 'zoomPunch',
     ])
     expect(controls.filter(control => control.kind === 'color').map(control => control.setting)).toEqual(['backgroundColor', 'lightningColor'])
     expect(controls.filter(control => control.kind === 'slider')).toHaveLength(Object.keys(ELECTRIC_STORM_BOUNDS).length)
@@ -147,12 +147,16 @@ describe('Cinematic World control schema', () => {
     const background = container.querySelector('#electric-storm-background-color') as HTMLInputElement
     const lightning = container.querySelector('#electric-storm-lightning-color') as HTMLInputElement
     const intensity = container.querySelector('#electric-storm-master-intensity') as HTMLInputElement
+    const impactShake = container.querySelector('#electric-storm-impact-shake') as HTMLInputElement
+    const zoomPunch = container.querySelector('#electric-storm-zoom-punch') as HTMLInputElement
     expect(background.type).toBe('color')
     expect(background.value).toBe('#000000')
     expect(lightning.type).toBe('color')
     expect(lightning.value).toBe(ELECTRIC_STORM_DEFAULTS.lightningColor)
     expect(intensity.type).toBe('range')
     expect(intensity.value).toBe('0.5')
+    expect(impactShake.value).toBe('0.5')
+    expect(zoomPunch.value).toBe('0.5')
   })
 
   it('renders slider, integer, and select controls with labels, descriptions, and stable IDs', async () => {

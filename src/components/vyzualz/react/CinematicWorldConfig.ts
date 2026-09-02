@@ -573,8 +573,8 @@ const WORLD_DEFAULT_AUDIO_ROUTES: Readonly<Record<CinematicWorldMode, readonly C
     route('storm-bass-vortex', 'bass', 'portalAperture', { amount: 0.55, attackMs: 30, releaseMs: 280 }),
     route('storm-high-debris', 'highs', 'particleEmission', { amount: 0.5, attackMs: 24, releaseMs: 180 }),
   ],
-  // Stage 1 intentionally has no audio choreography. Stage 3 will add the
-  // Electric Storm-specific mappings without changing this public control contract.
+  // Electric Storm consumes the canonical host musical frame directly in its
+  // world renderer, so it intentionally has no generic route-based mappings.
   electricStorm: [],
 }
 
