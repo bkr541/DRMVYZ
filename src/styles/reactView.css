@@ -20067,10 +20067,14 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   background: var(--dot-color);
 }
 
+/* Every concept below adds only decorative chrome to the shared
+   .rv-canvas-layer-effect-entry / -row; the route trigger is always an
+   in-flow, plainly-clickable button that opens .rv-ae-route-editor. No
+   negative offsets (the inspector panel scrolls and would clip them). */
+
 /* ── Concept: Blueprint Bus ──────────────────────────────────────────────── */
 
 .rv-ae-bus-entry {
-  position: relative;
   padding: 6px 8px 8px;
   border-radius: 6px;
   background-image: radial-gradient(rgba(74, 199, 219, 0.14) 1px, transparent 1.4px);
@@ -20082,51 +20086,22 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-ae-bus-rail {
-  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-  padding-left: 34px;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
 }
 
-.rv-ae-bus-track {
-  position: absolute;
-  left: 10px;
-  top: -10px;
-  width: 18px;
-  bottom: calc(100% - 32px);
+.rv-ae-bus-stem {
+  width: 2px;
+  height: 12px;
+  background: rgba(74, 199, 219, 0.75);
 }
 
-.rv-ae-bus-wire {
-  position: absolute;
-  inset: 4px 0 3px 0;
-  border-left: 2px solid rgba(74, 199, 219, 0.75);
-  border-bottom: 2px solid rgba(74, 199, 219, 0.75);
-  border-bottom-left-radius: 9px;
-}
-
-.rv-ae-bus-dot {
-  position: absolute;
-  left: -4px;
-  bottom: 0;
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: #4ac7db;
-  box-shadow: 0 0 6px rgba(74, 199, 219, 0.7);
-}
-
-.rv-ae-bus-entry.is-linked .rv-ae-bus-wire { border-color: var(--bus-color); }
-.rv-ae-bus-entry.is-linked .rv-ae-bus-dot {
-  background: var(--bus-color);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--bus-color) 70%, transparent);
-}
+.rv-ae-bus-entry.is-linked .rv-ae-bus-stem { background: var(--bus-color); }
 
 .rv-ae-bus-node {
-  position: relative;
-  z-index: 1;
-  align-self: flex-start;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -20154,6 +20129,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-bus-editor {
   align-self: stretch;
+  width: 100%;
   margin-top: 2px;
 }
 
@@ -20162,76 +20138,57 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-break-entry {
   padding: 7px 9px 9px;
   border: 1px solid rgba(154, 178, 188, 0.2);
-  border-radius: 14px;
+  border-radius: 12px;
   transition: border-color 0.15s;
 }
 
-.rv-ae-break-entry.is-linked {
-  border-color: var(--break-color);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--break-color) 25%, transparent);
-}
+.rv-ae-break-entry.is-linked { border-color: var(--break-color); }
 
-.rv-ae-break-route {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 6px;
-}
+.rv-ae-break-route { margin-top: 6px; }
 
-.rv-ae-break-head {
-  display: flex;
+.rv-ae-break-trigger {
+  display: inline-flex;
   align-items: center;
-}
-
-.rv-ae-break-badge {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border: 0;
+  gap: 7px;
+  padding: 4px 10px 4px 8px;
+  border: 1px solid rgba(154, 178, 188, 0.3);
   border-radius: 999px;
-  background: rgba(154, 178, 188, 0.28);
-  color: #0a1418;
-  font: 800 11px/1 var(--az-font);
+  background: transparent;
+  color: rgba(232, 244, 248, 0.82);
+  font: 700 8px/1 var(--az-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   cursor: pointer;
 }
 
-.rv-ae-break-badge.is-linked {
-  background: var(--break-color);
-  color: #180a0a;
-  box-shadow: 0 0 10px color-mix(in srgb, var(--break-color) 40%, transparent);
+.rv-ae-break-trigger:hover,
+.rv-ae-break-trigger:focus-visible {
+  border-color: rgba(141, 231, 255, 0.6);
+  color: #8de7ff;
 }
 
-.rv-ae-break-cable {
-  position: relative;
-  flex: 1;
-  height: 2px;
-  margin-left: 8px;
-  background-image: linear-gradient(to right, rgba(154, 178, 188, 0.5) 0 6px, transparent 6px 12px);
-  background-size: 12px 2px;
-  background-repeat: repeat-x;
+.rv-ae-break-trigger.is-linked {
+  border-color: var(--break-color);
+  color: var(--break-color);
 }
 
-.rv-ae-break-entry.is-linked .rv-ae-break-cable {
-  background-image: linear-gradient(to right, var(--break-color) 0 6px, transparent 6px 12px);
-}
-
-.rv-ae-break-slash {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 2px;
-  height: 12px;
+.rv-ae-break-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
   background: currentColor;
-  color: rgba(154, 178, 188, 0.75);
-  transform: translate(-50%, -50%) rotate(24deg);
 }
 
-.rv-ae-break-entry.is-linked .rv-ae-break-slash { color: var(--break-color); }
+.rv-ae-break-tail {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 2px;
+  background-image: linear-gradient(to right, currentColor 0 4px, transparent 4px 8px);
+  background-size: 8px 2px;
+}
 
-.rv-ae-break-editor { margin-top: 6px; }
+.rv-ae-break-editor { margin-top: 8px; }
 
 /* ── Concept: Preview Deck ───────────────────────────────────────────────── */
 
@@ -20297,8 +20254,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 /* ── Concept: Accent Stack ───────────────────────────────────────────────── */
 
 .rv-ae-accent-entry {
-  position: relative;
-  padding: 8px 8px 8px 12px;
+  padding: 8px 8px 8px 10px;
   border-radius: 8px;
   border-left: 3px solid rgba(154, 178, 188, 0.3);
   background: rgba(255, 255, 255, 0.02);
@@ -20307,33 +20263,41 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-accent-entry.is-linked { border-left-color: var(--accent-c); }
 
+.rv-ae-accent-footer { margin-top: 6px; }
+
+.rv-ae-accent-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px 3px 3px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(154, 178, 188, 0.1);
+  cursor: pointer;
+}
+
+.rv-ae-accent-trigger:hover { background: rgba(154, 178, 188, 0.18); }
+
 .rv-ae-accent-badge {
-  position: absolute;
-  left: -9px;
-  top: -9px;
-  z-index: 2;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 18px;
   height: 18px;
-  border: 2px solid #0e1417;
-  border-radius: 999px;
-  background: rgba(154, 178, 188, 0.4);
+  border-radius: 5px;
+  background: rgba(154, 178, 188, 0.45);
   color: #0a1418;
   font: 800 10px/1 var(--az-font);
-  cursor: pointer;
 }
 
-.rv-ae-accent-badge.is-linked { background: var(--accent-c); }
-
-.rv-ae-accent-footer { margin-top: 6px; }
+.rv-ae-accent-trigger.is-linked .rv-ae-accent-badge { background: var(--accent-c); }
 
 .rv-ae-accent-sub {
   font: 600 8px/1.3 var(--az-font);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(196, 207, 211, 0.55);
+  color: rgba(196, 207, 211, 0.6);
 }
 
 .rv-ae-accent-body { margin-top: 8px; }
@@ -20348,41 +20312,46 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-ae-rack-row {
-  position: relative;
   padding: 8px 9px 9px;
   border: 1px solid var(--rack-color);
   border-radius: 8px;
   background: rgba(8, 12, 15, 0.55);
 }
 
-.rv-ae-rack-row.is-linked {
-  box-shadow: 0 0 0 1px var(--rack-color);
+.rv-ae-rack-row.is-linked { box-shadow: 0 0 0 1px var(--rack-color); }
+
+.rv-ae-rack-foot { margin-top: 6px; }
+
+.rv-ae-rack-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 9px 3px 3px;
+  border: 1px solid color-mix(in srgb, var(--rack-color) 45%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
 }
 
+.rv-ae-rack-trigger:hover { border-color: var(--rack-color); }
+
 .rv-ae-rack-badge {
-  position: absolute;
-  left: -8px;
-  top: 16px;
-  z-index: 2;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 16px;
   height: 16px;
-  border: 2px solid #0e1417;
   border-radius: 999px;
   background: var(--rack-color);
   color: #0a0f12;
   font: 800 9px/1 var(--az-font);
-  cursor: pointer;
 }
-
-.rv-ae-rack-foot { margin-top: 6px; }
 
 .rv-ae-rack-meta {
   font: 500 7.5px/1.3 var(--az-font);
   letter-spacing: 0.08em;
-  color: rgba(196, 207, 211, 0.45);
+  color: rgba(196, 207, 211, 0.5);
 }
 
 .rv-ae-rack-body {
