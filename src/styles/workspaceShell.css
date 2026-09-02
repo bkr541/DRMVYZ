@@ -1,0 +1,71 @@
+/* ════════════════════════════════════════════════════════════════════════
+   DRMVYZ — WorkspaceShell
+
+   Canonical "app view" chrome: a fixed-height header over a symmetric
+   three-pane body (collapsible left rail · center stage · collapsible right
+   rail). Sizing, padding and colours are lifted verbatim from the Media
+   Manager view (mediaManager.css `mmv-*`) and the Lyric Manager header
+   (lyricManager.css `.lmv-header`) so any new full-view surface matches them
+   without copy-pasting numbers.
+
+   Reuses the shared `.vz-content` grid + `.vz-inspector` rail primitives.
+════════════════════════════════════════════════════════════════════════ */
+
+.ws-shell {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(74, 199, 219, 0.07), transparent 28%),
+    var(--az-bg, #090d0f);
+  color: var(--az-text, rgba(232, 238, 240, 0.88));
+  font-family: var(--az-font, 'Inter', system-ui, sans-serif);
+}
+
+/* Same box as .mmv-header / .lmv-header — the feature supplies the inner
+   left-group / right-group markup and its own control styling. */
+.ws-shell-header {
+  height: 60px;
+  min-height: 60px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 20px;
+  background: rgba(12, 16, 19, 0.96);
+  border-bottom: 1px solid rgba(154, 178, 188, 0.14);
+}
+
+/* The three-pane grid. Composed with `.vz-content`, which owns the grid
+   template and the data-*-collapsed transitions; this only pins the symmetric
+   rail widths Media Manager settled on (vs. `.vz-content`'s narrower REACT
+   defaults). */
+.ws-shell-body {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ws-shell-body.vz-content {
+  --vz-left-width: 400px;
+  --vz-right-width: 400px;
+}
+
+.ws-shell-body > .vz-inspector > .vz-inspector-inner {
+  padding: 8px 12px;
+  box-sizing: border-box;
+}
+
+/* Center stage — plain surface, no live-render chrome (matches .mmv-stage-area). */
+.ws-shell-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  background: #070c14;
+}

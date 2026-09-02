@@ -118,9 +118,11 @@ function createMainWindow() {
   window.webContents.setWindowOpenHandler(({ url, frameName }) => {
     const popupConfig = frameName === 'drmvyz-layout-lab'
       ? { title: 'DRMVYZ — Layout Lab', backgroundColor: '#060d10' }
-      : frameName === 'drmvyz-track-timeline'
-        ? { title: 'DRMVYZ — Track Timeline Visualizer', backgroundColor: '#090d0f' }
-        : null
+      : frameName === 'drmvyz-lyric-manager-layout'
+        ? { title: 'DRMVYZ — Lyric Manager Layout', backgroundColor: '#060d10' }
+        : frameName === 'drmvyz-track-timeline'
+          ? { title: 'DRMVYZ — Track Timeline Visualizer', backgroundColor: '#090d0f' }
+          : null
 
     if (popupConfig) {
       return {

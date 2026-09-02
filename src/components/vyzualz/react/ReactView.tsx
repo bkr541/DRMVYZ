@@ -42,6 +42,7 @@ import {
   createLaserDmxShowManagerRuntimeSectionPrograms,
 } from '../showManager/LaserDmxShowManagerDomain'
 import { LayoutLabModal } from './LayoutLabModal'
+import { LyricManagerLayoutModal } from './LyricManagerLayoutModal'
 import { useRgbWaveformStore } from '../../../features/waveform/rgbWaveformStorage'
 import { TrackTimelineIcon } from './trackTimeline/TrackTimelineIcon'
 import { resolveTrackTimelineAvailability } from './trackTimeline/trackTimelineAvailability'
@@ -340,6 +341,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const leftTab = isReactLeftTabAvailable(preferredLeftTab, workspaceComposition) ? preferredLeftTab : defaultLeftTab
   const [stageFocus, setStageFocus] = useState(false)
   const [layoutLabOpen, setLayoutLabOpen] = useState(false)
+  const [lyricManagerLayoutOpen, setLyricManagerLayoutOpen] = useState(false)
   const [trackTimelineOpen, setTrackTimelineOpen] = useState(false)
   const mediaSourceCapability = getReactMediaSourceCapability(activeReactEngineId)
   const activeMediaId = getReactMediaSourceId(mediaSourceCapability, oscillatorSettings, pixGridState)
@@ -785,6 +787,18 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
         <button
           type="button"
           className="vsm-settings-btn"
+          title="Lyric Manager Layout"
+          aria-label="Lyric Manager Layout"
+          onClick={() => setLyricManagerLayoutOpen(true)}
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M7 8h7M7 12h10M7 16h6" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="vsm-settings-btn"
           title="Layout Lab"
           aria-label="Layout Lab"
           onClick={() => setLayoutLabOpen(true)}
@@ -814,6 +828,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           </Suspense>
         )}
       {layoutLabOpen && <LayoutLabModal onClose={() => setLayoutLabOpen(false)} />}
+      {lyricManagerLayoutOpen && <LyricManagerLayoutModal onClose={() => setLyricManagerLayoutOpen(false)} />}
       <div
         className="rv-layout"
         data-left-collapsed={leftCollapsed ? 'true' : undefined}
