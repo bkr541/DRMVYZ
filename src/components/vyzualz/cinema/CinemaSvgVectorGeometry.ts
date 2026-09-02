@@ -30,6 +30,7 @@ import {
 export const CINEMA_SVG_VECTOR_COMPILER_VERSION = 1
 
 export interface CinemaSvgVectorLimits {
+  maxSourceCharacters?: number
   maxElements?: number
   maxContours?: number
   maxPointsPerContour?: number
@@ -101,6 +102,7 @@ interface BoundaryContour extends RawContour {
 const IDENTITY: SvgAffineMatrix = [1, 0, 0, 1, 0, 0]
 const DEFAULT_CURVE_TOLERANCE = 2
 const DEFAULT_LIMITS: Required<CinemaSvgVectorLimits> = {
+  maxSourceCharacters: 524_288,
   maxElements: 512,
   maxContours: 128,
   maxPointsPerContour: 512,
@@ -118,6 +120,7 @@ export function createCinemaSvgVectorMeshKey(request: CinemaSvgVectorRequest): s
   const assetId = String(request.assetId).trim()
   if (!assetId) throw new Error('Cinema SVG vector source requires a non-empty asset identity')
   const options = resolveOptions(request.options)
+  validateSourceLength(request.rawSvg, options.limits.maxSourceCharacters)
   return JSON.stringify([
     'cinema-svg-vector',
     CINEMA_SVG_VECTOR_COMPILER_VERSION,
@@ -125,6 +128,7 @@ export function createCinemaSvgVectorMeshKey(request: CinemaSvgVectorRequest): s
     String(request.revision),
     getSvgContentHash(request.rawSvg),
     canonicalNumber(options.curveTolerance),
+    options.limits.maxSourceCharacters,
     options.limits.maxElements,
     options.limits.maxContours,
     options.limits.maxPointsPerContour,
@@ -137,12 +141,18 @@ export function createCinemaSvgVectorMeshKey(request: CinemaSvgVectorRequest): s
 export function compileCinemaSvgVector(request: CinemaSvgVectorRequest): CinemaSvgVectorResult {
   const assetId = String(request.assetId).trim()
   if (!assetId) return failure('malformed-svg', 'Cinema SVG vector source requires a non-empty asset identity')
-  if (!request.rawSvg.trim()) return failure('malformed-svg', 'Cinema SVG vector source is empty')
 
   let options: ResolvedOptions
-  let cacheKey: string
   try {
     options = resolveOptions(request.options)
+    validateSourceLength(request.rawSvg, options.limits.maxSourceCharacters)
+  } catch (error) {
+    return failure('too-complex', errorMessage(error))
+  }
+  if (!request.rawSvg.trim()) return failure('malformed-svg', 'Cinema SVG vector source is empty')
+
+  let cacheKey: string
+  try {
     cacheKey = createCinemaSvgVectorMeshKey(request)
   } catch (error) {
     return failure('too-complex', errorMessage(error))
@@ -313,6 +323,12 @@ function resolveOptions(options: CinemaSvgVectorOptions | undefined): ResolvedOp
     if (!Number.isInteger(value) || value <= 0) throw new Error(`Cinema SVG ${name} limit must be a positive integer`)
   }
   return { curveTolerance, limits }
+}
+
+function validateSourceLength(rawSvg: string, maximumCharacters: number): void {
+  if (rawSvg.length > maximumCharacters) {
+    throw new Error(`Cinema SVG source exceeds the ${maximumCharacters}-character live geometry limit`)
+  }
 }
 
 function collectSvgContours(rawSvg: string, options: ResolvedOptions):

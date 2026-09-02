@@ -185,6 +185,43 @@ describe('CinemaObject3DRenderer', () => {
     renderer.dispose()
   })
 
+  it('detects WebGL out-of-memory during upload and releases every partial handle', () => {
+    const gl = createCinemaMockWebGL()
+    const renderer = new CinemaObject3DRenderer(gl)
+    vi.mocked(gl.getError).mockReturnValueOnce(gl.OUT_OF_MEMORY).mockReturnValue(gl.NO_ERROR)
+
+    expect(() => renderer.acquireMesh('oom-failure', syntheticMesh())).toThrow(/GPU memory/)
+    expect(renderer.getDiagnostics()).toMatchObject({ cachedMeshCount: 0, activeLeaseCount: 0, gpuUploadCount: 0 })
+    expect(gl.__calls.deletedVertexArrays).toBe(1)
+    expect(gl.__calls.deletedBuffers).toBe(3)
+
+    const lease = renderer.acquireMesh('oom-recovery', syntheticMesh())
+    expect(renderer.getDiagnostics()).toMatchObject({ cachedMeshCount: 1, activeLeaseCount: 1, gpuUploadCount: 1 })
+    lease.release()
+    renderer.dispose()
+  })
+
+  it('keeps GPU resource counts bounded across repeated acquire/release cycles', () => {
+    const gl = createCinemaMockWebGL()
+    const renderer = new CinemaObject3DRenderer(gl, 4)
+    const mesh = syntheticMesh()
+
+    for (let index = 0; index < 24; index += 1) {
+      const lease = renderer.acquireMesh(`cycle-${index}`, mesh)
+      lease.release()
+    }
+
+    expect(renderer.getDiagnostics()).toMatchObject({
+      cachedMeshCount: 0,
+      activeLeaseCount: 0,
+      gpuUploadCount: 24,
+      gpuDeleteCount: 24,
+    })
+    expect(gl.__calls.createdBuffers).toBe(gl.__calls.deletedBuffers)
+    expect(gl.__calls.createdVertexArrays).toBe(gl.__calls.deletedVertexArrays)
+    renderer.dispose()
+  })
+
   it('rejects malformed meshes and stable-key collisions without corrupting the cache', () => {
     const gl = createCinemaMockWebGL()
     const renderer = new CinemaObject3DRenderer(gl)

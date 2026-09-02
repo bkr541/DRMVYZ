@@ -316,6 +316,7 @@ export function getCinema3DObjectSvgCurveTolerance(quality: Cinema3DObjectGeomet
 }
 
 export function getCinema3DObjectSvgComplexityLimits(quality: Cinema3DObjectGeometryQuality): Readonly<{
+  maxSourceCharacters: number
   maxElements: number
   maxContours: number
   maxPointsPerContour: number
@@ -323,9 +324,9 @@ export function getCinema3DObjectSvgComplexityLimits(quality: Cinema3DObjectGeom
   maxOutputIndices: number
   maxTraversalDepth: number
 }> {
-  if (quality === 'draft') return Object.freeze({ maxElements: 256, maxContours: 64, maxPointsPerContour: 384, maxTotalPoints: 4_096, maxOutputIndices: 98_304, maxTraversalDepth: 24 })
-  if (quality === 'high') return Object.freeze({ maxElements: 512, maxContours: 128, maxPointsPerContour: 512, maxTotalPoints: 8_192, maxOutputIndices: 196_608, maxTraversalDepth: 32 })
-  return Object.freeze({ maxElements: 384, maxContours: 96, maxPointsPerContour: 448, maxTotalPoints: 6_144, maxOutputIndices: 147_456, maxTraversalDepth: 28 })
+  if (quality === 'draft') return Object.freeze({ maxSourceCharacters: 131_072, maxElements: 256, maxContours: 64, maxPointsPerContour: 384, maxTotalPoints: 4_096, maxOutputIndices: 98_304, maxTraversalDepth: 24 })
+  if (quality === 'high') return Object.freeze({ maxSourceCharacters: 524_288, maxElements: 512, maxContours: 128, maxPointsPerContour: 512, maxTotalPoints: 8_192, maxOutputIndices: 196_608, maxTraversalDepth: 32 })
+  return Object.freeze({ maxSourceCharacters: 262_144, maxElements: 384, maxContours: 96, maxPointsPerContour: 448, maxTotalPoints: 6_144, maxOutputIndices: 147_456, maxTraversalDepth: 28 })
 }
 
 export function applyCinema3DObjectRuntimeQuality(

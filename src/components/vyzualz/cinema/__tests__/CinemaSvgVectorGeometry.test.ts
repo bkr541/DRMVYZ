@@ -63,6 +63,21 @@ describe('Cinema SVG true 3D vector compiler', () => {
   })
 
   it('enforces deterministic complexity budgets before mesh allocation', () => {
+    const legalSource = `<svg><rect width="10" height="10" /></svg>`
+    const legal = compileCinemaSvgVector({
+      assetId,
+      revision: 1,
+      rawSvg: legalSource,
+      options: { limits: { maxSourceCharacters: legalSource.length } },
+    })
+    expect(legal.ok).toBe(true)
+    expect(compileCinemaSvgVector({
+      assetId,
+      revision: 1,
+      rawSvg: legalSource,
+      options: { limits: { maxSourceCharacters: legalSource.length - 1 } },
+    })).toMatchObject({ ok: false, error: { code: 'too-complex' } })
+
     const result = compileCinemaSvgVector({
       assetId,
       revision: 1,

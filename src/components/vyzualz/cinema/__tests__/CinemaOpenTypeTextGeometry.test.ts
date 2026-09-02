@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type * as opentype from 'opentype.js'
 
 import {
+  CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS,
   CinemaOpenTypeTextMeshCache,
   compileCinemaOpenTypeText,
   createCinemaOpenTypeTextMeshKey,
@@ -38,7 +39,7 @@ function triangle(points: readonly [number, number][]): Command[] {
   ]
 }
 
-function fixtureFont(): opentype.Font {
+function fixtureFont(commandOverrides: Partial<Record<string, Command[]>> = {}): opentype.Font {
   const donut = [...rectangle(0, 0, 600, 1000), ...rectangle(180, 220, 420, 780)]
   const glyphs: Record<string, GlyphFixture> = {
     '.notdef': { index: 0, advanceWidth: 600, commands: rectangle(0, 0, 500, 1000) },
@@ -78,6 +79,9 @@ function fixtureFont(): opentype.Font {
         { type: 'Z' },
       ],
     },
+  }
+  for (const [character, commands] of Object.entries(commandOverrides)) {
+    if (commands && glyphs[character]) glyphs[character] = { ...glyphs[character], commands }
   }
 
   const makeGlyph = (fixture: GlyphFixture) => ({
@@ -140,9 +144,28 @@ function compile(text: string, overrides: Partial<Parameters<typeof compileCinem
 
 describe('Cinema OpenType true 3D text compiler', () => {
   it('rejects over-complex live text deterministically before glyph tessellation', () => {
+    expect(compile(' '.repeat(CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS.maxCharacters)).ok).toBe(true)
     const result = compile('A'.repeat(257))
     expect(result).toMatchObject({ ok: false, error: { code: 'too-complex' } })
     expect(() => createCinemaOpenTypeTextMeshKey({ font: fixtureFont(), fontIdentity: 'fixture-font', text: 'A'.repeat(257) })).toThrow(/256-character/)
+  })
+
+  it('rejects a pathological glyph contour while flattening before it can grow without bound', () => {
+    const commands: Command[] = [
+      { type: 'M', x: 0, y: 0 },
+      ...Array.from({ length: CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS.maxPointsPerRing }, (_, index) => ({
+        type: 'L' as const,
+        x: index + 1,
+        y: index % 2,
+      })),
+      { type: 'Z' },
+    ]
+    const result = compileCinemaOpenTypeText({
+      font: fixtureFont({ A: commands }),
+      fontIdentity: 'pathological-font',
+      text: 'A',
+    })
+    expect(result).toMatchObject({ ok: false, error: { code: 'too-complex' } })
   })
 
   it('compiles DROP into real indexed solid glyph geometry with front, back, and side surfaces', () => {
@@ -264,11 +287,13 @@ describe('Cinema OpenType CPU mesh cache', () => {
     expect(cache.getStats()).toEqual({ entries: 1, buildCount: 1, hitCount: 1 })
 
     expect(cache.getOrCompile({ ...base, text: 'DROPS' }).ok).toBe(true)
-    expect(cache.getOrCompile({ ...base, fontRevision: 8 }).ok).toBe(true)
-    expect(cache.getOrCompile({ ...base, letterSpacing: 5 }).ok).toBe(true)
-    expect(cache.getOrCompile({ ...base, tessellation: { curveTolerance: 0.2 } }).ok).toBe(true)
+    const revised = { ...base, fontRevision: 8 }
+    expect(cache.getOrCompile(revised).ok).toBe(true)
+    expect(cache.getStats().entries).toBe(1)
+    expect(cache.getOrCompile({ ...revised, letterSpacing: 5 }).ok).toBe(true)
+    expect(cache.getOrCompile({ ...revised, tessellation: { curveTolerance: 0.2 } }).ok).toBe(true)
     expect(cache.getStats().buildCount).toBe(5)
-    expect(cache.getStats().entries).toBe(5)
+    expect(cache.getStats().entries).toBe(3)
   })
 
   it('bounds cache entries and reports over-complex requests without retaining them', () => {

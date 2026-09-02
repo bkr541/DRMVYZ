@@ -109,6 +109,8 @@ export function createCinemaMockWebGL(): CinemaMockWebGL {
     FRAMEBUFFER_BINDING: 0x8ca6,
     UNPACK_PREMULTIPLY_ALPHA_WEBGL: 0x9241,
     UNPACK_FLIP_Y_WEBGL: 0x9240,
+    NO_ERROR: 0,
+    OUT_OF_MEMORY: 0x0505,
     createShader: vi.fn(() => { calls.createdShaders += 1; return { id: objectId++ } as unknown as WebGLShader }),
     deleteShader: vi.fn(() => { calls.deletedShaders += 1 }),
     shaderSource: vi.fn(),

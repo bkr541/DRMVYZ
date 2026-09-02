@@ -23,6 +23,7 @@ const POINT_EPSILON = 1e-8
 export const CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS = Object.freeze({
   maxCharacters: 256,
   maxComponents: 256,
+  maxPathCommands: 65_536,
   maxRegions: 1024,
   maxRings: 2048,
   maxPointsPerRing: 2048,
@@ -107,6 +108,8 @@ interface PendingGlyph {
   sourceOrigin: CinemaVectorPoint
   advanceWidth: number
 }
+
+class CinemaOpenTypeTextComplexityError extends Error {}
 
 type OpenTypePathCommand =
   | { type: 'M' | 'L'; x: number; y: number }
@@ -199,6 +202,9 @@ export function compileCinemaOpenTypeText(request: CinemaOpenTypeTextRequest): C
   const components: CinemaVectorShapeInput['components'][number][] = []
   const pendingGlyphs: PendingGlyph[] = []
   const allGeometryBounds: CinemaBounds2D[] = []
+  let pathCommandCount = 0
+  let flattenedRingCount = 0
+  let flattenedPointCount = 0
 
   for (const laidOutGlyph of layout.glyphs) {
     const glyphId = `glyph:${laidOutGlyph.characterIndex}:font:${laidOutGlyph.glyphIndex}`
@@ -209,9 +215,24 @@ export function compileCinemaOpenTypeText(request: CinemaOpenTypeTextRequest): C
         laidOutGlyph.y,
         CINEMA_OPENTYPE_TEXT_INTERNAL_FONT_SIZE,
       )
+      pathCommandCount += path.commands.length
+      if (pathCommandCount > CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS.maxPathCommands) {
+        throw new CinemaOpenTypeTextComplexityError(`Cinema 3D text exceeds the ${CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS.maxPathCommands}-command live geometry limit`)
+      }
       contours = flattenGlyphPath(path, tessellation)
+      flattenedRingCount += contours.length
+      flattenedPointCount += contours.reduce((sum, contour) => sum + contour.points.length, 0)
+      if (flattenedRingCount > CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS.maxRings) {
+        throw new CinemaOpenTypeTextComplexityError(`Cinema 3D text exceeds the ${CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS.maxRings}-contour live geometry limit`)
+      }
+      if (flattenedPointCount > CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS.maxInputPoints) {
+        throw new CinemaOpenTypeTextComplexityError(`Cinema 3D text exceeds the ${CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS.maxInputPoints}-point live geometry limit`)
+      }
       assignContourHierarchy(contours)
     } catch (error) {
+      if (error instanceof CinemaOpenTypeTextComplexityError) {
+        return failure('too-complex', error.message, laidOutGlyph.characterIndex, laidOutGlyph.glyphIndex)
+      }
       return failure(
         'invalid-glyph-topology',
         `Cinema could not compile glyph ${laidOutGlyph.glyphIndex}: ${errorMessage(error)}`,
@@ -308,6 +329,8 @@ export function compileCinemaOpenTypeText(request: CinemaOpenTypeTextRequest): C
 
 export class CinemaOpenTypeTextMeshCache {
   private readonly entries = new Map<string, CinemaOpenTypeTextCompilation>()
+  private readonly fontIdentityByKey = new Map<string, string>()
+  private readonly latestRevisionByFont = new Map<string, string>()
   private buildCount = 0
   private hitCount = 0
 
@@ -318,6 +341,11 @@ export class CinemaOpenTypeTextMeshCache {
   }
 
   getOrCompile(request: CinemaOpenTypeTextRequest): CinemaOpenTypeTextResult {
+    const fontIdentity = request.fontIdentity.trim()
+    const revision = String(request.fontRevision ?? 'unversioned')
+    const previousRevision = this.latestRevisionByFont.get(fontIdentity)
+    if (fontIdentity && previousRevision !== undefined && previousRevision !== revision) this.invalidateFont(fontIdentity)
+    if (fontIdentity) this.latestRevisionByFont.set(fontIdentity, revision)
     let key: string
     try {
       key = createCinemaOpenTypeTextMeshKey(request)
@@ -344,16 +372,31 @@ export class CinemaOpenTypeTextMeshCache {
     this.buildCount += 1
     if (!result.ok) return result
     this.entries.set(key, result.value)
+    this.fontIdentityByKey.set(key, fontIdentity)
     while (this.entries.size > this.maximumEntries) {
       const oldest = this.entries.keys().next().value as string | undefined
       if (oldest == null) break
       this.entries.delete(oldest)
+      this.fontIdentityByKey.delete(oldest)
     }
     return result
   }
 
+  invalidateFont(fontIdentity: string): void {
+    const normalized = fontIdentity.trim()
+    if (!normalized) return
+    this.latestRevisionByFont.delete(normalized)
+    for (const [key, identity] of this.fontIdentityByKey) {
+      if (identity !== normalized) continue
+      this.entries.delete(key)
+      this.fontIdentityByKey.delete(key)
+    }
+  }
+
   clear(): void {
     this.entries.clear()
+    this.fontIdentityByKey.clear()
+    this.latestRevisionByFont.clear()
   }
 
   getStats(): Readonly<{ entries: number; buildCount: number; hitCount: number }> {
@@ -373,7 +416,12 @@ function flattenGlyphPath(
   const finishCurrent = () => {
     if (!current) return
     const points = dedupeContour(current)
-    if (points.length >= 3) rawContours.push(points)
+    if (points.length >= 3) {
+      if (rawContours.length >= CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS.maxRings) {
+        throw new CinemaOpenTypeTextComplexityError(`Cinema 3D text exceeds the ${CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS.maxRings}-contour live geometry limit`)
+      }
+      rawContours.push(points)
+    }
     current = null
   }
 
@@ -386,7 +434,7 @@ function flattenGlyphPath(
         break
       case 'L': {
         cursor = [command.x, command.y]
-        current?.push(cursor)
+        if (current) pushFlattenedPoint(current, cursor)
         break
       }
       case 'Q': {
@@ -474,7 +522,7 @@ function flattenQuadratic(
   output: CinemaVectorPoint[],
 ): void {
   if (depth >= tessellation.maxCurveDepth || pointLineDistance(control, start, end) <= tessellation.curveTolerance) {
-    output.push(end)
+    pushFlattenedPoint(output, end)
     return
   }
   const startControl = midpoint(start, control)
@@ -498,7 +546,7 @@ function flattenCubic(
     pointLineDistance(control2, start, end),
   )
   if (depth >= tessellation.maxCurveDepth || flatness <= tessellation.curveTolerance) {
-    output.push(end)
+    pushFlattenedPoint(output, end)
     return
   }
   const p01 = midpoint(start, control1)
@@ -509,6 +557,13 @@ function flattenCubic(
   const center = midpoint(p012, p123)
   flattenCubic(start, p01, p012, center, tessellation, depth + 1, output)
   flattenCubic(center, p123, p23, end, tessellation, depth + 1, output)
+}
+
+function pushFlattenedPoint(output: CinemaVectorPoint[], point: CinemaVectorPoint): void {
+  if (output.length >= CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS.maxPointsPerRing) {
+    throw new CinemaOpenTypeTextComplexityError(`Cinema 3D text exceeds the ${CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS.maxPointsPerRing}-point contour live geometry limit`)
+  }
+  output.push(point)
 }
 
 function resolveTessellation(

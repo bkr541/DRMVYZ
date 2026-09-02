@@ -1,3 +1,4 @@
+import type { CinemaWorld3DObjectAnchor } from '../../../../cinema/CinemaWorld3DObject'
 import {
   resolveReactiveConstellationSettings,
   type ReactiveConstellationSettings,
@@ -62,6 +63,19 @@ interface MeshGpuResource {
   vertexCount: number
   instanceCount: number
 }
+
+export const REACTIVE_CONSTELLATION_OBJECT_ANCHOR: Readonly<CinemaWorld3DObjectAnchor> = Object.freeze({
+  id: 'centerpiece',
+  visible: true,
+  transform: Object.freeze({
+    position: Object.freeze([0, 0, 0] as const),
+    rotation: Object.freeze([0, 0, 0] as const),
+    scale: Object.freeze([1, 1, 1] as const),
+  }),
+  normalization: Object.freeze({ mode: 'fit-max-dimension' as const, size: 1.35 }),
+  focusAnchor: Object.freeze([0, 0, 0] as const),
+  framingPadding: 1.3,
+})
 
 interface BeamGpuResource {
   vao: WebGLVertexArrayObject
@@ -570,6 +584,18 @@ export class ReactiveConstellationWorld implements CinematicWebGLWorldRenderer {
         gl.bindVertexArray(resource.vao)
         gl.drawArraysInstanced(gl.TRIANGLES, 0, resource.vertexCount, resource.instanceCount)
       }
+    }
+
+    const embeddedObject = cameraConstraint.active
+      ? null
+      : this.services.object3d?.draw(REACTIVE_CONSTELLATION_OBJECT_ANCHOR)
+    if (embeddedObject?.error) this.diagnostic = embeddedObject.error
+    if (embeddedObject?.drawn) {
+      this.nodeProgram.activate()
+      gl.enable(gl.CULL_FACE)
+      gl.cullFace(gl.BACK)
+      gl.disable(gl.BLEND)
+      gl.depthMask(true)
     }
 
     if (!performance.edgesOnly && (settings.wireframeAmount > 0 || this.heldRimIntensity > 0 || this.heldInternalGlow > 0)) {
@@ -1097,6 +1123,8 @@ export const reactiveConstellationWorldDefinition: CinematicWebGLWorldDefinition
   label: 'Reactive Constellation',
   backend: 'webgl2',
   direction: reactiveConstellationDirection,
+  ownsTargetClear: true,
+  object3dSlots: [REACTIVE_CONSTELLATION_OBJECT_ANCHOR],
   capabilities: {
     backend: 'webgl2',
     cameraRigs: ['locked', 'dolly', 'orbit', 'handheld', 'autoDirector'],

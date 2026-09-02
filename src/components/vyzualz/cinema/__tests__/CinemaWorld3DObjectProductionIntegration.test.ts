@@ -30,6 +30,10 @@ import {
   ORBITAL_PRISM_ARRAY_OBJECT_ANCHOR,
   orbitalPrismArrayWorldDefinition,
 } from '../../react/renderers/cinematic/worlds/OrbitalPrismArrayWorld'
+import {
+  REACTIVE_CONSTELLATION_OBJECT_ANCHOR,
+  reactiveConstellationWorldDefinition,
+} from '../../react/renderers/cinematic/worlds/ReactiveConstellationWorld'
 import { createCinemaMockWebGL } from './CinemaWebGLTestUtils'
 
 const SVG = '<svg><path d="M0 0 L120 0 L120 70 L0 70 Z M25 20 L95 20 L95 50 L25 50 Z" fill-rule="evenodd"/></svg>'
@@ -40,7 +44,7 @@ afterEach(() => {
 })
 
 describe('Cinema world 3D object production integration', () => {
-  it('keeps Orbital Prism Array camera capabilities registry-safe and exposes Stage 8 object controls only on the adopting world', async () => {
+  it('keeps adopting-world camera capabilities registry-safe and exposes Stage 8 object controls only on intentional adopters', async () => {
     await expect(import('../index')).resolves.toBeDefined()
 
     const rendererRigs = new Set(orbitalPrismArrayWorldDefinition.capabilities.cameraRigs)
@@ -60,6 +64,28 @@ describe('Cinema world 3D object production integration', () => {
     const orbitalEntry = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'orbitalPrismArray')
     expect(orbitalEntry).toBeDefined()
     expect(getCinemaCinematicWorldSupportedParameterSchemasForNode(orbitalEntry!.definition, worldNode!).map(parameter => parameter.id))
+      .toContain(CINEMA_3D_OBJECT_PARAMETER_IDS.extrusionDepth)
+
+    const reactiveRigs = new Set(reactiveConstellationWorldDefinition.capabilities.cameraRigs)
+    const reactiveCatalogRigs = new Set(CINEMATIC_WORLD_CATALOG.reactiveConstellation.cameraRigs)
+    expect(reactiveRigs).toEqual(reactiveCatalogRigs)
+    expect(reactiveRigs.has('orbit')).toBe(true)
+    expect(reactiveConstellationWorldDefinition.object3dSlots).toEqual([REACTIVE_CONSTELLATION_OBJECT_ANCHOR])
+    expect(REACTIVE_CONSTELLATION_OBJECT_ANCHOR.focusAnchor).toEqual([0, 0, 0])
+    const reactiveComposition = createCinemaCinematicWorldComposition(
+      'reactiveConstellation',
+      CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+      CINEMA_FOUNDATION_INPUT_PORT_ID,
+    )
+    const reactiveCamera = reactiveComposition.cameras[0]
+    expect(reactiveCamera?.parameterValues[CINEMA_CAMERA_PARAMETER_IDS.target]).toEqual(REACTIVE_CONSTELLATION_OBJECT_ANCHOR.focusAnchor)
+    expect(reactiveCamera?.safeRange?.minPosition[0]).toBeLessThan(0)
+    expect(reactiveCamera?.safeRange?.maxPosition[0]).toBeGreaterThan(0)
+    const reactiveNode = reactiveComposition.nodes.find(node => node.family === 'procedural')
+    expect(reactiveNode?.parameterValues).toHaveProperty(CINEMA_3D_OBJECT_PARAMETER_IDS.extrusionDepth)
+    const reactiveEntry = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'reactiveConstellation')
+    expect(reactiveEntry).toBeDefined()
+    expect(getCinemaCinematicWorldSupportedParameterSchemasForNode(reactiveEntry!.definition, reactiveNode!).map(parameter => parameter.id))
       .toContain(CINEMA_3D_OBJECT_PARAMETER_IDS.extrusionDepth)
 
     const eventHorizon = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'eventHorizon')
@@ -162,7 +188,94 @@ describe('Cinema world 3D object production integration', () => {
     ), null, state.definitions)
     expect(runtime.webgl.objectInstances.getDiagnostics().activeObjectCount).toBe(0)
     expect(runtime.webgl.objects3d.getDiagnostics()).toMatchObject({ cachedMeshCount: 0, activeLeaseCount: 0 })
+
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      runtime.setGraph(orbitalComposition(assetId, 3 + cycle), null, state.definitions)
+      await waitForInitialized(runtime, 2)
+      runtime.setFrame(frame(640, 360, 3 + cycle, 0.35))
+      runNextFrame(callbacks, 50.01 + cycle * 16.67)
+      await waitForGpuUploads(runtime, 3 + cycle)
+      expect(runtime.webgl.objects3d.getDiagnostics()).toMatchObject({ cachedMeshCount: 1, activeLeaseCount: 1 })
+
+      runtime.setGraph(createCinemaCinematicWorldComposition(
+        'eventHorizon',
+        CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+        CINEMA_FOUNDATION_INPUT_PORT_ID,
+      ), null, state.definitions)
+      expect(runtime.webgl.objectInstances.getDiagnostics().activeObjectCount).toBe(0)
+      expect(runtime.webgl.objects3d.getDiagnostics()).toMatchObject({ cachedMeshCount: 0, activeLeaseCount: 0 })
+    }
+    expect(runtime.webgl.objectInstances.getDiagnostics().svgCache).toMatchObject({ entries: 1, buildCount: 2 })
     runtime.dispose()
+    expect(runtime.webgl.objectInstances.getDiagnostics()).toMatchObject({ activeObjectCount: 0, svgCache: { entries: 0 } })
+  })
+
+  it('renders the shared SVG object inside Reactive Constellation without a second target clear', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(SVG, {
+      status: 200,
+      headers: { 'content-type': 'image/svg+xml' },
+    })))
+    const canvas = document.createElement('canvas')
+    const gl = createCinemaMockWebGL()
+    vi.spyOn(canvas, 'getContext').mockReturnValue(gl)
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextFrameId = 1
+    const events: Array<{ type: 'clear' | 'world' | 'object'; framebuffer: WebGLFramebuffer | null }> = []
+    vi.mocked(gl.clear).mockImplementation(() => {
+      gl.__calls.clearCount += 1
+      events.push({ type: 'clear', framebuffer: gl.getParameter(gl.FRAMEBUFFER_BINDING) as WebGLFramebuffer | null })
+    })
+    vi.mocked(gl.drawArraysInstanced).mockImplementation(() => {
+      gl.__calls.drawInstancedCount += 1
+      events.push({ type: 'world', framebuffer: gl.getParameter(gl.FRAMEBUFFER_BINDING) as WebGLFramebuffer | null })
+    })
+    vi.mocked(gl.drawElements).mockImplementation(() => {
+      gl.__calls.drawCount += 1
+      events.push({ type: 'object', framebuffer: gl.getParameter(gl.FRAMEBUFFER_BINDING) as WebGLFramebuffer | null })
+    })
+
+    const created = CinemaRuntime.create(canvas, {
+      requestAnimationFrame: callback => {
+        const id = nextFrameId++
+        callbacks.set(id, callback)
+        return id
+      },
+      cancelAnimationFrame: id => { callbacks.delete(id) },
+    })
+    const runtime = created.runtime
+    expect(runtime).not.toBeNull()
+    if (!runtime) return
+
+    const assetId = cinemaStableId<CinemaAssetId>('stage8b-reactive-embedded-svg', 'asset')
+    runtime.setAssetSources([{
+      assetId,
+      revision: 1,
+      name: 'Stage 8B Reactive Embedded SVG',
+      mimeType: 'image/svg+xml',
+      mediaKind: 'svg',
+      runtimeUrl: 'https://signed.example/stage8b-reactive.svg',
+    }])
+    const state = createCinemaFoundationPersistedState()
+    runtime.resize(resolution(640, 360))
+    runtime.setGraph(reactiveCompositionWithObject(assetId, 1), null, state.definitions)
+    await waitForInitialized(runtime, 2)
+    runtime.setFrame(frame(640, 360, 1, 0.45))
+    runtime.start()
+    runNextFrame(callbacks, 16.67)
+
+    expect(runtime.webgl.objectInstances.getDiagnostics().activeObjectCount).toBe(1)
+    expect(runtime.webgl.objects3d.getDiagnostics()).toMatchObject({ cachedMeshCount: 1, activeLeaseCount: 1, drawCount: 1 })
+    expect(runtime.getSnapshot().graph.failedNodeCount).toBe(0)
+
+    const firstObjectIndex = events.findIndex(event => event.type === 'object')
+    expect(firstObjectIndex).toBeGreaterThan(0)
+    const objectTarget = events[firstObjectIndex]?.framebuffer ?? null
+    expect(events.slice(0, firstObjectIndex).some(event => event.type === 'world' && event.framebuffer === objectTarget)).toBe(true)
+    expect(events.filter(event => event.type === 'clear' && event.framebuffer === objectTarget)).toHaveLength(1)
+
+    runtime.dispose()
+    expect(runtime.webgl.objectInstances.getDiagnostics().activeObjectCount).toBe(0)
+    expect(runtime.webgl.objects3d.getDiagnostics()).toMatchObject({ cachedMeshCount: 0, activeLeaseCount: 0 })
   })
 
   it('uses the existing Cinema camera runtime for orbit, dolly, and fly travel around the embedded anchor', () => {
@@ -271,6 +384,26 @@ function orbitalComposition(assetId: CinemaAssetId, revision: number): CinemaCom
       amount: 0.43,
       enabled: true,
     }],
+  }
+}
+
+function reactiveCompositionWithObject(assetId: CinemaAssetId, revision: number): CinemaCompositionDefinition {
+  const base = createCinemaCinematicWorldComposition(
+    'reactiveConstellation',
+    CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+    CINEMA_FOUNDATION_INPUT_PORT_ID,
+  )
+  const worldNode = base.nodes.find(node => node.family === 'procedural')
+  if (!worldNode) throw new Error('Reactive Constellation procedural node unavailable.')
+  const defaults = createDefaultCinema3DObjectDefinition()
+  const objectValues = serializeCinema3DObjectDefinition({
+    ...defaults,
+    source: { type: 'svg', asset: { assetId, role: 'logo' } },
+  }, worldNode.parameterValues)
+  return {
+    ...base,
+    revision,
+    nodes: base.nodes.map(node => node.id === worldNode.id ? { ...node, parameterValues: objectValues } : node),
   }
 }
 

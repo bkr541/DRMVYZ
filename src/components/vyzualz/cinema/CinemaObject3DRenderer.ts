@@ -373,6 +373,13 @@ export class CinemaObject3DRenderer implements CinemaObject3DRenderService {
       gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0)
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer)
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.indices, gl.STATIC_DRAW)
+      const allocationError = gl.getError()
+      if (allocationError === gl.OUT_OF_MEMORY) {
+        throw new Error('Cinema could not allocate GPU memory for a 3D mesh.')
+      }
+      if (gl.isContextLost()) {
+        throw new Error('Cinema lost the WebGL context while allocating a 3D mesh.')
+      }
       gl.bindVertexArray(null)
       this.gpuUploadCount += 1
       return { vao, positionBuffer, normalBuffer, indexBuffer, contextGeneration: this.contextGeneration }
