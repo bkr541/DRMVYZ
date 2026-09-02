@@ -1,18 +1,23 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { IconChipButton } from './controls/IconChipButton'
 import { useShallow } from 'zustand/react/shallow'
 import { useMediaStore } from '../../../stores/mediaStore'
-import { createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
+import { useReactStore } from '../../../stores/reactStore'
+import { createCinemaFontLibrarySnapshot, createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
 import {
+  CINEMA_3D_OBJECT_PARAMETER_IDS,
   createCinemaInspectorAppearanceCapabilities,
   createCinemaControlDescriptors,
   buildCinemaComposerLibraryItems,
   CINEMA_PRODUCTION_RUNTIME_REGISTRY,
+  filterCinema3DObjectParameterSchemasForSource,
   getCinemaEditorSelection,
   getCinemaCinematicWorldSupportedParameterSchemasForNode,
   getCinemaSupportedPaletteRoles,
   getCinemaSupportedParameterSchemas,
+  isCinemaAssetRoleCompatible,
   useCinemaStore,
+  type CinemaAssetMediaKind,
   type CinemaAssetReference,
   type CinemaControlDescriptor,
   type CinemaNodeId,
@@ -42,9 +47,18 @@ export function CinemaInspectorPanel() {
   const composition = state.compositions.find(candidate => candidate.id === state.activeCompositionId) ?? null
   const mediaItems = useMediaStore(store => store.items)
   const mediaAssets = useMemo(() => createCinemaMediaLibrarySnapshot(mediaItems), [mediaItems])
+  const fontAssets = useReactStore(store => store.oscillatorFontAssets)
+  const cinemaAssets = useMemo(() => Object.freeze([
+    ...mediaAssets,
+    ...createCinemaFontLibrarySnapshot(fontAssets),
+  ]), [fontAssets, mediaAssets])
   const selectedNodeId = composition ? getCinemaEditorSelection(state.editorMetadata, composition.id) : null
   const selectedNode = composition?.nodes.find(node => node.id === selectedNodeId) ?? null
   const liveInstance = composition ? getCinemaLiveInstance(composition.id, state.instances) : null
+  const selectedNodeValues = useMemo(() => selectedNode ? {
+    ...selectedNode.parameterValues,
+    ...(liveInstance?.nodeOverrides.find(override => override.nodeId === selectedNode.id)?.values ?? {}),
+  } : {}, [liveInstance, selectedNode])
   const persistedDefinition = selectedNode ? state.definitions.find(definition => definition.id === selectedNode.typeId) ?? null : null
 
   const selectedBinding = selectedNode?.assetBindingIds?.[0]
@@ -57,10 +71,11 @@ export function CinemaInspectorPanel() {
   const supportedMasterSchemas = appearanceCapabilities?.masterParameters ?? []
   const supportedNodeSchemas = useMemo(() => {
     if (!persistedDefinition || !selectedNode) return []
-    return persistedDefinition.definition.metadata?.adapter === 'CinematicWorldNodeAdapter'
+    const schemas = persistedDefinition.definition.metadata?.adapter === 'CinematicWorldNodeAdapter'
       ? getCinemaCinematicWorldSupportedParameterSchemasForNode(persistedDefinition.definition, selectedNode)
       : getCinemaSupportedParameterSchemas(persistedDefinition.definition)
-  }, [persistedDefinition, selectedNode])
+    return filterCinema3DObjectParameterSchemasForSource(schemas, selectedNodeValues)
+  }, [persistedDefinition, selectedNode, selectedNodeValues])
   const supportedCameraSchemas: Readonly<Record<string, readonly Readonly<CinemaParameterDefinition>[]>> =
     appearanceCapabilities?.cameraParameterSchemas ?? Object.freeze({})
   const masterDescriptors = useMemo(() => composition
@@ -71,16 +86,16 @@ export function CinemaInspectorPanel() {
         namespace: selectedNode.family === 'effect' ? 'effects' : 'nodes',
         ownerId: selectedNode.id,
         schemas: supportedNodeSchemas,
-        values: { ...selectedNode.parameterValues, ...(liveInstance?.nodeOverrides.find(override => override.nodeId === selectedNode.id)?.values ?? {}) },
+        values: selectedNodeValues,
       }).descriptors
-    : [], [liveInstance, persistedDefinition, selectedNode, supportedNodeSchemas])
+    : [], [persistedDefinition, selectedNode, selectedNodeValues, supportedNodeSchemas])
   const paletteOrder = ['background', 'primary', 'secondary', 'accent', 'foreground', 'highlight']
   const supportedPaletteRoles = persistedDefinition ? getCinemaSupportedPaletteRoles(persistedDefinition.definition) : []
   const roleForDescriptor = (id: typeof nodeDescriptors[number]['id']) => {
     const schema = persistedDefinition?.definition.parameters.find(parameter => parameter.id === id)
     return schema?.type === 'color' ? schema.brandRole : undefined
   }
-  const colorDescriptors = nodeDescriptors.filter(descriptor => descriptor.type === 'color')
+  const colorDescriptors = nodeDescriptors.filter(descriptor => descriptor.type === 'color' && !isCinema3DObjectDescriptor(descriptor))
   const semanticColorDescriptors = colorDescriptors.filter(descriptor => roleForDescriptor(descriptor.id) !== undefined)
   const brandDescriptors = semanticColorDescriptors.filter(descriptor => {
     const role = roleForDescriptor(descriptor.id)
@@ -97,12 +112,19 @@ export function CinemaInspectorPanel() {
     ? [...brandDescriptors].sort((left, right) => paletteOrder.indexOf(roleForDescriptor(left.id) as string) - paletteOrder.indexOf(roleForDescriptor(right.id) as string))
     : colorDescriptors
   const detailDescriptors = nodeDescriptors.filter(descriptor => !paletteDescriptors.includes(descriptor))
+  const object3dDescriptors = detailDescriptors.filter(isCinema3DObjectDescriptor)
+  const regularDetailDescriptors = detailDescriptors.filter(descriptor => !isCinema3DObjectDescriptor(descriptor))
 
   if (!composition) {
     return <div className="rv-ctrl-group"><div className="rv-ctrl-info">Select a Cinema preset to edit its live appearance.</div></div>
   }
 
-  const assetOptions = mediaAssets.filter(asset => !asset.deleted).map(asset => ({ id: String(asset.assetId), label: asset.name }))
+  const assetOptions = cinemaAssets.filter(asset => !asset.deleted).map(asset => ({
+    id: String(asset.assetId),
+    label: asset.name,
+    mediaKind: asset.mediaKind,
+    mimeType: asset.mimeType,
+  }))
 
   return (
     <>
@@ -168,7 +190,7 @@ export function CinemaInspectorPanel() {
                 options={[{ value: '', label: 'No asset' }, ...mediaAssets.filter(asset => !asset.deleted).map(asset => ({ value: String(asset.assetId), label: asset.name }))]}
                 description="Assign media and change preset structure in Show Manager."
               />
-              {detailDescriptors.map(descriptor => (
+              {regularDetailDescriptors.map(descriptor => (
                 <SchemaControl
                   key={descriptor.path}
                   descriptor={descriptor}
@@ -181,6 +203,29 @@ export function CinemaInspectorPanel() {
                   onInteractionEnd={() => {}}
                 />
               ))}
+              {object3dDescriptors.length > 0 && <CtrlSection label="3D Object" />}
+              {['Source', 'Geometry', 'Transform', 'Appearance'].map(group => {
+                const descriptors = object3dDescriptors.filter(descriptor => descriptor.group === group)
+                if (descriptors.length === 0) return null
+                return (
+                  <Fragment key={group}>
+                    <CtrlSection label={group} />
+                    {descriptors.map(descriptor => (
+                      <SchemaControl
+                        key={descriptor.path}
+                        descriptor={descriptor}
+                        assetOptions={assetOptions}
+                        onChange={value => {
+                          const schema = persistedDefinition.definition.parameters.find(candidate => candidate.id === descriptor.id)
+                          if (schema) setCinemaLiveNodeOverride(composition, selectedNode.id, schema, value)
+                        }}
+                        onInteractionStart={() => {}}
+                        onInteractionEnd={() => {}}
+                      />
+                    ))}
+                  </Fragment>
+                )
+              })}
               {detailDescriptors.length === 0 && <div className="rv-ctrl-info">This layer has no additional appearance controls.</div>}
             </>
           )}
@@ -246,9 +291,14 @@ export function CinemaSelectedLayerSummary() {
   })))
   const mediaItems = useMediaStore(store => store.items)
   const mediaAssets = useMemo(() => createCinemaMediaLibrarySnapshot(mediaItems), [mediaItems])
+  const fontAssets = useReactStore(store => store.oscillatorFontAssets)
+  const cinemaAssets = useMemo(() => Object.freeze([
+    ...mediaAssets,
+    ...createCinemaFontLibrarySnapshot(fontAssets),
+  ]), [fontAssets, mediaAssets])
   const assetOptions = useMemo(
-    () => mediaAssets.filter(asset => !asset.deleted).map(asset => ({ id: String(asset.assetId), label: asset.name })),
-    [mediaAssets],
+    () => cinemaAssets.filter(asset => !asset.deleted).map(asset => ({ id: String(asset.assetId), label: asset.name, mediaKind: asset.mediaKind, mimeType: asset.mimeType })),
+    [cinemaAssets],
   )
   const composition = state.compositions.find(candidate => candidate.id === state.activeCompositionId) ?? null
 
@@ -284,20 +334,24 @@ export function CinemaSelectedLayerSummary() {
     ? assetOptions.find(option => option.id === selectedBinding.assetId)?.label ?? 'Unknown asset'
     : 'No asset'
 
+  const selectedNodeValues = selectedNode ? {
+    ...selectedNode.parameterValues,
+    ...(liveInstance?.nodeOverrides.find(override => override.nodeId === selectedNode.id)?.values ?? {}),
+  } : {}
   const supportedNodeSchemas = !persistedDefinition || !selectedNode
     ? []
-    : persistedDefinition.definition.metadata?.adapter === 'CinematicWorldNodeAdapter'
-      ? getCinemaCinematicWorldSupportedParameterSchemasForNode(persistedDefinition.definition, selectedNode)
-      : getCinemaSupportedParameterSchemas(persistedDefinition.definition)
+    : filterCinema3DObjectParameterSchemasForSource(
+        persistedDefinition.definition.metadata?.adapter === 'CinematicWorldNodeAdapter'
+          ? getCinemaCinematicWorldSupportedParameterSchemasForNode(persistedDefinition.definition, selectedNode)
+          : getCinemaSupportedParameterSchemas(persistedDefinition.definition),
+        selectedNodeValues,
+      )
   const nodeDescriptors = selectedNode && persistedDefinition
     ? createCinemaControlDescriptors({
         namespace: selectedNode.family === 'effect' ? 'effects' : 'nodes',
         ownerId: selectedNode.id,
         schemas: supportedNodeSchemas,
-        values: {
-          ...selectedNode.parameterValues,
-          ...(liveInstance?.nodeOverrides.find(override => override.nodeId === selectedNode.id)?.values ?? {}),
-        },
+        values: selectedNodeValues,
       }).descriptors
     : []
 
@@ -365,7 +419,7 @@ function SchemaControl({
   onInteractionEnd,
 }: {
   descriptor: CinemaControlDescriptor
-  assetOptions: readonly { id: string; label: string }[]
+  assetOptions: readonly CinemaInspectorAssetOption[]
   onChange: (value: CinemaParameterValue) => void
   onInteractionStart: () => void
   onInteractionEnd: () => void
@@ -401,7 +455,8 @@ function SchemaControl({
   }
   if (descriptor.type === 'asset' || descriptor.type === 'asset-reference' || descriptor.type === 'texture') {
     const reference = isAssetReference(descriptor.value) ? descriptor.value : null
-    return <SelectRow label={descriptor.label} value={reference?.assetId ?? ''} disabled={descriptor.disabled} description={description} options={[{ value: '', label: 'No asset' }, ...assetOptions.map(option => ({ value: option.id, label: option.label }))]} onChange={assetId => onChange(assetId ? { assetId, role: descriptor.acceptedRoles?.[0] ?? 'image' } as CinemaParameterValue : null)} />
+    const eligibleAssets = getEligibleCinemaAssetOptions(descriptor, assetOptions)
+    return <SelectRow label={descriptor.label} value={reference?.assetId ?? ''} disabled={descriptor.disabled} description={description} options={[{ value: '', label: 'No asset' }, ...eligibleAssets.map(option => ({ value: option.id, label: option.label }))]} onChange={assetId => onChange(assetId ? { assetId, role: descriptor.acceptedRoles?.[0] ?? 'image' } as CinemaParameterValue : null)} />
   }
   return (
     <div className="rv-ctrl-info" role="note">
@@ -420,7 +475,23 @@ function vectorBound(value: number | readonly number[] | undefined, index: numbe
 function isAssetReference(value: CinemaParameterValue): value is CinemaAssetReference { return value != null && typeof value === 'object' && !Array.isArray(value) && 'assetId' in value }
 // Read-only counterpart to SchemaControl for CinemaSelectedLayerSummary — a
 // display string per descriptor type instead of an editable input.
-function formatCinemaDescriptorValue(descriptor: CinemaControlDescriptor, assetOptions: readonly { id: string; label: string }[]): string {
+type CinemaInspectorAssetOption = { id: string; label: string; mediaKind: CinemaAssetMediaKind; mimeType: string | null }
+
+const CINEMA_3D_OBJECT_PARAMETER_ID_SET = new Set<string>(Object.values(CINEMA_3D_OBJECT_PARAMETER_IDS))
+function isCinema3DObjectDescriptor(descriptor: Pick<CinemaControlDescriptor, 'id'>): boolean { return CINEMA_3D_OBJECT_PARAMETER_ID_SET.has(descriptor.id) }
+
+function getEligibleCinemaAssetOptions(
+  descriptor: CinemaControlDescriptor,
+  assetOptions: readonly CinemaInspectorAssetOption[],
+): readonly CinemaInspectorAssetOption[] {
+  if (descriptor.id === CINEMA_3D_OBJECT_PARAMETER_IDS.font) return assetOptions.filter(option => option.mediaKind === 'font')
+  if (descriptor.id === CINEMA_3D_OBJECT_PARAMETER_IDS.svgAsset) return assetOptions.filter(option => option.mediaKind === 'svg')
+  const acceptedRoles = descriptor.acceptedRoles ?? []
+  if (acceptedRoles.length === 0) return assetOptions
+  return assetOptions.filter(option => acceptedRoles.some(role => isCinemaAssetRoleCompatible(role, option.mediaKind, option.mimeType)))
+}
+
+function formatCinemaDescriptorValue(descriptor: CinemaControlDescriptor, assetOptions: readonly CinemaInspectorAssetOption[]): string {
   const value = descriptor.value
   if (descriptor.type === 'float') return numberValue(value).toFixed(2)
   if (descriptor.type === 'integer') return `${numberValue(value)}${descriptor.unit ? ` ${descriptor.unit}` : ''}`

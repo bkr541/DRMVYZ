@@ -40,7 +40,7 @@ afterEach(() => {
 })
 
 describe('Cinema world 3D object production integration', () => {
-  it('keeps Orbital Prism Array camera capabilities registry-safe and Stage 8 controls hidden', async () => {
+  it('keeps Orbital Prism Array camera capabilities registry-safe and exposes Stage 8 object controls only on the adopting world', async () => {
     await expect(import('../index')).resolves.toBeDefined()
 
     const rendererRigs = new Set(orbitalPrismArrayWorldDefinition.capabilities.cameraRigs)
@@ -60,7 +60,7 @@ describe('Cinema world 3D object production integration', () => {
     const orbitalEntry = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'orbitalPrismArray')
     expect(orbitalEntry).toBeDefined()
     expect(getCinemaCinematicWorldSupportedParameterSchemasForNode(orbitalEntry!.definition, worldNode!).map(parameter => parameter.id))
-      .not.toContain(CINEMA_3D_OBJECT_PARAMETER_IDS.extrusionDepth)
+      .toContain(CINEMA_3D_OBJECT_PARAMETER_IDS.extrusionDepth)
 
     const eventHorizon = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'eventHorizon')
     expect(eventHorizon?.definition.metadata?.object3dSlotIds).toEqual([])
@@ -144,13 +144,14 @@ describe('Cinema world 3D object production integration', () => {
     runtime.setAssetSources([{
       assetId,
       revision: 2,
-      name: 'Stage 7 Embedded SVG',
+      name: 'Stage 8 Replaced SVG',
       mimeType: 'image/svg+xml',
       mediaKind: 'svg',
-      runtimeUrl: 'https://signed.example/stage7-orbital-v2.svg',
+      runtimeUrl: 'https://signed.example/stage8-orbital-v2.svg',
     }])
-    runtime.setGraph({ ...composition, revision: 2 }, null, state.definitions)
-    await waitForInitialized(runtime, 2)
+    runtime.setFrame(frame(640, 360, 2, 0.4))
+    runNextFrame(callbacks, 33.34)
+    await waitForGpuUploads(runtime, 2)
     expect(runtime.webgl.objectInstances.getDiagnostics().activeObjectCount).toBe(1)
     expect(runtime.webgl.objects3d.getDiagnostics()).toMatchObject({ cachedMeshCount: 1, activeLeaseCount: 1, gpuUploadCount: 2 })
 
@@ -279,6 +280,14 @@ async function waitForInitialized(runtime: CinemaRuntime, expectedCount: number)
     await new Promise(resolve => setTimeout(resolve, 0))
   }
   expect(runtime.getSnapshot().graph.initializedNodeCount).toBeGreaterThanOrEqual(expectedCount)
+}
+
+async function waitForGpuUploads(runtime: CinemaRuntime, expectedCount: number): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (runtime.webgl.objects3d.getDiagnostics().gpuUploadCount >= expectedCount) return
+    await new Promise(resolve => setTimeout(resolve, 0))
+  }
+  expect(runtime.webgl.objects3d.getDiagnostics().gpuUploadCount).toBeGreaterThanOrEqual(expectedCount)
 }
 
 function runNextFrame(callbacks: Map<number, FrameRequestCallback>, timestamp: number): void {

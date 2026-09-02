@@ -161,6 +161,36 @@ describe('Cinema reusable 3D object runtime', () => {
     runtime.dispose()
   })
 
+  it('fails malformed Font Library source safely without allocating a GPU mesh', async () => {
+    const gl = createCinemaMockWebGL()
+    const canvas = document.createElement('canvas')
+    vi.spyOn(canvas, 'getContext').mockReturnValue(gl)
+    const created = CinemaRuntime.create(canvas, { requestAnimationFrame: vi.fn(() => 1), cancelAnimationFrame: vi.fn() })
+    const runtime = created.runtime
+    expect(runtime).not.toBeNull()
+    if (!runtime) return
+
+    const fontAssetId = cinemaStableId<CinemaAssetId>('stage8-malformed-font', 'asset')
+    runtime.setAssetSources([{
+      assetId: fontAssetId,
+      revision: 1,
+      name: 'Malformed Font',
+      mimeType: 'font/ttf',
+      mediaKind: 'font',
+      runtimeUrl: null,
+      loadRawData: async () => new Uint8Array([0, 1, 2, 3]).buffer,
+    }])
+    const object = runtime.webgl.objectInstances.createObject({
+      ...createDefaultCinema3DObjectDefinition(),
+      source: { type: 'text', text: 'O', fontIdentity: '', font: { assetId: fontAssetId, role: 'font' } },
+    })
+    const snapshot = await object.prepareTextAsset(runtime.assets)
+    expect(snapshot.status).toBe('error')
+    expect(snapshot.error).toMatch(/font could not be parsed/i)
+    expect(runtime.webgl.objects3d.getDiagnostics()).toMatchObject({ cachedMeshCount: 0, activeLeaseCount: 0 })
+    runtime.dispose()
+  })
+
   it('keeps a missing SVG authored object valid while exposing a safe runtime error', async () => {
     const gl = createCinemaMockWebGL()
     const canvas = document.createElement('canvas')

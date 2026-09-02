@@ -303,4 +303,39 @@ describe('CinemaAssetManager', () => {
     manager.dispose()
   })
 
+  it('loads Font Library binary source through the same revision-aware raw asset path', async () => {
+    const gl = createCinemaMockWebGL()
+    const fontAssetId = stable<CinemaAssetId>('font-asset-manager-outline', 'asset')
+    const loadRawData = vi.fn(async () => new Uint8Array([0, 1, 2, 3]).buffer)
+    const manager = new CinemaAssetManager(gl, { report: vi.fn() }, {
+      fetch: vi.fn() as unknown as typeof fetch,
+      createImage: () => { throw new Error('image decode not expected') },
+      createVideo: () => { throw new Error('video decode not expected') },
+      createObjectUrl: () => { throw new Error('object URL not expected') },
+      revokeObjectUrl: vi.fn(),
+    })
+    manager.setSources([{
+      assetId: fontAssetId,
+      revision: 'font-v1',
+      name: 'Outline Font',
+      mimeType: 'font/ttf',
+      mediaKind: 'font',
+      runtimeUrl: null,
+      loadRawData,
+    }])
+
+    const source = await manager.loadRawSource(fontAssetId)
+    expect(source).toMatchObject({ assetId: fontAssetId, revision: 'font-v1', mediaKind: 'font', text: null })
+    expect(Array.from(new Uint8Array(source?.bytes ?? new ArrayBuffer(0)))).toEqual([0, 1, 2, 3])
+    expect(manager.getSourceRevision(fontAssetId)).toBe('font-v1')
+    expect(loadRawData).toHaveBeenCalledTimes(1)
+    expect(await manager.loadRawSource(fontAssetId)).toBe(source)
+    expect(loadRawData).toHaveBeenCalledTimes(1)
+
+    manager.setSources([])
+    expect(manager.getSourceRevision(fontAssetId)).toBeNull()
+    expect(await manager.loadRawSource(fontAssetId)).toBeNull()
+    manager.dispose()
+  })
+
 })

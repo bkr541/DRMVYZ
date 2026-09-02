@@ -191,7 +191,8 @@ export class CinemaAssetManager implements CinemaAssetRuntimeService {
   async loadRawSource(assetId: CinemaAssetId, signal?: AbortSignal): Promise<Readonly<CinemaRawAssetSourceView> | null> {
     this.assertActive()
     const source = this.sources.get(assetId)
-    if (!source || source.deleted || source.mediaKind !== 'svg' || !source.runtimeUrl) return null
+    if (!source || source.deleted || (source.mediaKind !== 'svg' && source.mediaKind !== 'font')) return null
+    if (!source.runtimeUrl && !source.loadRawData) return null
     const key = sourceKey(source)
     const existing = this.rawSources.get(assetId)
     if (existing && existing.sourceKey === key) return await awaitWithSignal(existing.promise, signal)
@@ -216,6 +217,11 @@ export class CinemaAssetManager implements CinemaAssetRuntimeService {
       }))
       return null
     }
+  }
+
+  getSourceRevision(assetId: CinemaAssetId): string | number | null {
+    const source = this.sources.get(assetId)
+    return !source || source.deleted ? null : source.revision
   }
 
   validateAuthoredBindings(
@@ -359,17 +365,29 @@ export class CinemaAssetManager implements CinemaAssetRuntimeService {
     source: Readonly<CinemaExternalAssetSnapshot>,
     signal: AbortSignal,
   ): Promise<Readonly<CinemaRawAssetSourceView> | null> {
-    if (!source.runtimeUrl || source.mediaKind !== 'svg') return null
-    const response = await this.dependencies.fetch(source.runtimeUrl, { signal })
-    if (!response.ok) throw new Error(`Asset source request failed with ${response.status}`)
-    const text = await response.text()
+    if (source.mediaKind !== 'svg' && source.mediaKind !== 'font') return null
+    let raw: string | ArrayBuffer | null
+    if (source.loadRawData) {
+      raw = await source.loadRawData(signal)
+    } else {
+      if (!source.runtimeUrl) return null
+      const response = await this.dependencies.fetch(source.runtimeUrl, { signal })
+      if (!response.ok) throw new Error(`Asset source request failed with ${response.status}`)
+      raw = source.mediaKind === 'font' ? await response.arrayBuffer() : await response.text()
+    }
     if (signal.aborted) throw abortError()
+    if (raw == null) return null
+    const text = typeof raw === 'string' ? raw : null
+    const bytes = raw instanceof ArrayBuffer ? raw : null
+    if (source.mediaKind === 'svg' && text == null) throw new Error('Cinema SVG raw source loader did not return text.')
+    if (source.mediaKind === 'font' && bytes == null) throw new Error('Cinema font raw source loader did not return binary data.')
     return Object.freeze({
       assetId: source.assetId,
       revision: source.revision,
       mediaKind: source.mediaKind,
       mimeType: source.mimeType,
       text,
+      bytes,
     })
   }
 

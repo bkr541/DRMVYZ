@@ -59,6 +59,7 @@ export interface CinemaObject3DRendererDiagnostics {
   contextGeneration: number
   contextLost: boolean
   cachedMeshCount: number
+  meshCapacity: number
   activeLeaseCount: number
   gpuUploadCount: number
   gpuDeleteCount: number
@@ -105,6 +106,7 @@ const DEFAULT_FRONT_COLOR: CinemaColor = Object.freeze([1, 1, 1, 1])
 const DEFAULT_SIDE_COLOR: CinemaColor = Object.freeze([0.42, 0.46, 0.52, 1])
 const DEFAULT_LIGHT_DIRECTION: CinemaVector3 = Object.freeze([0.35, 0.72, 0.6])
 const DEFAULT_AMBIENT_INTENSITY = 0.28
+export const CINEMA_OBJECT_3D_DEFAULT_GPU_MESH_CAPACITY = 64
 
 const VERTEX_SHADER = `#version 300 es
 precision highp float;
@@ -153,7 +155,14 @@ export class CinemaObject3DRenderer implements CinemaObject3DRenderService {
   private programDeleteCount = 0
   private drawCount = 0
 
-  constructor(private readonly gl: WebGL2RenderingContext) {}
+  constructor(
+    private readonly gl: WebGL2RenderingContext,
+    private readonly maximumMeshEntries = CINEMA_OBJECT_3D_DEFAULT_GPU_MESH_CAPACITY,
+  ) {
+    if (!Number.isInteger(maximumMeshEntries) || maximumMeshEntries <= 0) {
+      throw new RangeError('Cinema 3D GPU mesh capacity must be a positive integer.')
+    }
+  }
 
   acquireMesh(meshKey: CinemaCpuMeshKey, mesh: Readonly<CinemaVectorCpuMesh>): CinemaGpuMeshLease {
     this.assertActive()
@@ -167,6 +176,9 @@ export class CinemaObject3DRenderer implements CinemaObject3DRenderService {
       throw new Error(`Cinema 3D CPU mesh key collision for "${key}".`)
     }
     if (!entry) {
+      if (this.entries.size >= this.maximumMeshEntries) {
+        throw new Error(`Cinema 3D GPU mesh capacity (${this.maximumMeshEntries}) is exhausted.`)
+      }
       entry = { key, fingerprint, mesh, resource: this.uploadMesh(mesh), referenceCount: 0 }
       this.entries.set(key, entry)
     } else if (!entry.resource) {
@@ -314,6 +326,7 @@ export class CinemaObject3DRenderer implements CinemaObject3DRenderService {
       contextGeneration: this.contextGeneration,
       contextLost: this.contextLost,
       cachedMeshCount: this.entries.size,
+      meshCapacity: this.maximumMeshEntries,
       activeLeaseCount,
       gpuUploadCount: this.gpuUploadCount,
       gpuDeleteCount: this.gpuDeleteCount,

@@ -34,6 +34,7 @@ import {
 } from '../../react/shaders/runtime/WebGLContextLifecycle'
 import { useCinemaStore } from '../CinemaStore'
 import { createCinemaCinematicWorldComposition } from '../CinemaCinematicWorldAdapter'
+import { CINEMA_3D_OBJECT_PARAMETER_IDS } from '../Cinema3DObjectState'
 
 let root: Root | null = null
 let host: HTMLDivElement | null = null
@@ -767,6 +768,49 @@ describe('Cinema production engine registration', () => {
     const singularityAfterSwitch = useCinemaStore.getState().compositions.find(composition => composition.metadata.name === 'Singularity Crown')
       ?.nodes.find(node => node.family === 'procedural')
     expect(singularityAfterSwitch?.parameterValues).toEqual(preservedValues)
+  })
+
+  it('configures the adopting world 3D object through the real Cinema preset and Inspector path', async () => {
+    await act(async () => root?.render(<ComposerSelectionHarness />))
+    const engineTrigger = host?.querySelector<HTMLButtonElement>('.rv-engine-dropdown-trigger')
+    await act(async () => engineTrigger?.click())
+    const cinemaOption = [...(host?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])]
+      .find(option => option.textContent?.includes('Cinema'))
+    await act(async () => cinemaOption?.click())
+
+    const orbital = [...(host?.querySelectorAll<HTMLButtonElement>('.rv-cinema-preset-tile') ?? [])]
+      .find(button => button.querySelector('.rv-cinema-preset-tile-name')?.textContent === 'Orbital Prism Array')
+    expect(orbital).toBeDefined()
+    await act(async () => orbital?.click())
+
+    const selectedLayer = [...(host?.querySelectorAll<HTMLButtonElement>('.drc-header') ?? [])]
+      .find(button => button.textContent?.includes('Selected Layer'))
+      ?.closest<HTMLElement>('.drc-group') ?? null
+    expect(selectedLayer?.textContent).toContain('3D Object')
+    expect(selectedLayer?.textContent).toContain('Source')
+    expect(selectedLayer?.textContent).toContain('Geometry')
+    expect(selectedLayer?.textContent).toContain('Transform')
+    expect(selectedLayer?.textContent).toContain('Appearance')
+    expect(selectedLayer?.textContent).toContain('Source Type')
+    expect(selectedLayer?.textContent).toContain('Text')
+    expect(selectedLayer?.textContent).toContain('Font')
+    expect(selectedLayer?.textContent).not.toContain('SVG Source')
+
+    const sourceType = selectedLayer?.querySelector<HTMLButtonElement>('[role="combobox"][aria-label="Source Type"]')
+    expect(sourceType).not.toBeNull()
+    await act(async () => sourceType?.click())
+    const svgOption = [...document.body.querySelectorAll<HTMLButtonElement>('[role="option"]')]
+      .find(option => option.textContent?.trim() === 'SVG')
+    expect(svgOption).toBeDefined()
+    await act(async () => svgOption?.click())
+
+    expect(selectedLayer?.textContent).toContain('SVG Source')
+    expect(selectedLayer?.textContent).not.toContain('Font')
+    const activeComposition = useCinemaStore.getState().compositions.find(composition => composition.metadata.name === 'Orbital Prism Array')
+    const worldNode = activeComposition?.nodes.find(node => node.family === 'procedural')
+    const liveInstance = useCinemaStore.getState().instances.find(instance => instance.compositionId === activeComposition?.id && instance.metadata?.reactLiveOverride === true)
+    const sourceOverride = liveInstance?.nodeOverrides.find(override => override.nodeId === worldNode?.id)?.values[CINEMA_3D_OBJECT_PARAMETER_IDS.sourceType]
+    expect(sourceOverride).toBeTruthy()
   })
 
   it('does not render an empty Palette group when the selected production node exposes no consumed colors', async () => {

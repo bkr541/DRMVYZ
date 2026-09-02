@@ -4,8 +4,10 @@ import {
   CINEMA_3D_OBJECT_PARAMETER_CAPABILITIES,
   CINEMA_3D_OBJECT_PARAMETER_IDS,
   CINEMA_3D_OBJECT_PARAMETER_SCHEMAS,
+  applyCinema3DObjectRuntimeQuality,
   classifyCinema3DObjectInvalidation,
   createDefaultCinema3DObjectDefinition,
+  getVisibleCinema3DObjectParameterSchemas,
   hydrateCinema3DObjectDefinition,
   serializeCinema3DObjectDefinition,
 } from '../Cinema3DObjectState'
@@ -74,6 +76,31 @@ describe('Cinema reusable 3D object authored state', () => {
     expect(hydrateCinema3DObjectDefinition({
       [CINEMA_3D_OBJECT_PARAMETER_IDS.sideColor]: [0.2, 0.3, 0.4, 0.1],
     }).appearance.sideColor).toEqual([0.2, 0.3, 0.4, 1])
+  })
+
+  it('shows only source-relevant production controls and caps authored geometry quality to the runtime tier', () => {
+    const textValues = serializeCinema3DObjectDefinition({
+      ...createDefaultCinema3DObjectDefinition(),
+      source: { type: 'text', text: 'LIVE', fontIdentity: '', font: null },
+      geometry: { ...createDefaultCinema3DObjectDefinition().geometry, quality: 'high' },
+    })
+    const textIds = getVisibleCinema3DObjectParameterSchemas(textValues).map(schema => schema.id)
+    expect(textIds).toContain(CINEMA_3D_OBJECT_PARAMETER_IDS.text)
+    expect(textIds).toContain(CINEMA_3D_OBJECT_PARAMETER_IDS.font)
+    expect(textIds).not.toContain(CINEMA_3D_OBJECT_PARAMETER_IDS.fontIdentity)
+    expect(textIds).not.toContain(CINEMA_3D_OBJECT_PARAMETER_IDS.svgAsset)
+    expect(hydrateCinema3DObjectDefinition(applyCinema3DObjectRuntimeQuality(textValues, 'low')).geometry.quality).toBe('draft')
+    expect(hydrateCinema3DObjectDefinition(applyCinema3DObjectRuntimeQuality(textValues, 'medium')).geometry.quality).toBe('balanced')
+    expect(hydrateCinema3DObjectDefinition(applyCinema3DObjectRuntimeQuality(textValues, 'ultra')).geometry.quality).toBe('high')
+
+    const svgValues = serializeCinema3DObjectDefinition({
+      ...createDefaultCinema3DObjectDefinition(),
+      source: { type: 'svg', asset: null },
+    })
+    const svgIds = getVisibleCinema3DObjectParameterSchemas(svgValues).map(schema => schema.id)
+    expect(svgIds).toContain(CINEMA_3D_OBJECT_PARAMETER_IDS.svgAsset)
+    expect(svgIds).not.toContain(CINEMA_3D_OBJECT_PARAMETER_IDS.text)
+    expect(svgIds).not.toContain(CINEMA_3D_OBJECT_PARAMETER_IDS.font)
   })
 
   it('classifies structural, transform, and material invalidation boundaries', () => {

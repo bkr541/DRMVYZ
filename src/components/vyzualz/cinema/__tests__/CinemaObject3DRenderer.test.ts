@@ -21,6 +21,20 @@ const CAMERA: CinemaCameraUniformSnapshot = {
 }
 
 describe('CinemaObject3DRenderer', () => {
+  it('bounds the context-owned GPU mesh cache and still reuses duplicate leases at capacity', () => {
+    const gl = createCinemaMockWebGL()
+    const renderer = new CinemaObject3DRenderer(gl, 1)
+    const mesh = syntheticMesh()
+    const first = renderer.acquireMesh('capacity-a', mesh)
+    const duplicate = renderer.acquireMesh('capacity-a', mesh)
+    expect(renderer.getDiagnostics()).toMatchObject({ cachedMeshCount: 1, meshCapacity: 1, activeLeaseCount: 2 })
+    expect(() => renderer.acquireMesh('capacity-b', mesh)).toThrow(/capacity \(1\) is exhausted/)
+    expect(renderer.getDiagnostics()).toMatchObject({ cachedMeshCount: 1, activeLeaseCount: 2, gpuUploadCount: 1 })
+    first.release()
+    duplicate.release()
+    renderer.dispose()
+  })
+
   it('shares one GPU mesh across leases and evicts it when the final lease releases', () => {
     const gl = createCinemaMockWebGL()
     const renderer = new CinemaObject3DRenderer(gl)

@@ -139,6 +139,12 @@ function compile(text: string, overrides: Partial<Parameters<typeof compileCinem
 }
 
 describe('Cinema OpenType true 3D text compiler', () => {
+  it('rejects over-complex live text deterministically before glyph tessellation', () => {
+    const result = compile('A'.repeat(257))
+    expect(result).toMatchObject({ ok: false, error: { code: 'too-complex' } })
+    expect(() => createCinemaOpenTypeTextMeshKey({ font: fixtureFont(), fontIdentity: 'fixture-font', text: 'A'.repeat(257) })).toThrow(/256-character/)
+  })
+
   it('compiles DROP into real indexed solid glyph geometry with front, back, and side surfaces', () => {
     const result = compile('DROP')
     expect(result.ok).toBe(true)
@@ -263,6 +269,21 @@ describe('Cinema OpenType CPU mesh cache', () => {
     expect(cache.getOrCompile({ ...base, tessellation: { curveTolerance: 0.2 } }).ok).toBe(true)
     expect(cache.getStats().buildCount).toBe(5)
     expect(cache.getStats().entries).toBe(5)
+  })
+
+  it('bounds cache entries and reports over-complex requests without retaining them', () => {
+    const font = fixtureFont()
+    const cache = new CinemaOpenTypeTextMeshCache(1)
+    expect(cache.getOrCompile({ font, fontIdentity: 'font-asset-1', text: 'A' }).ok).toBe(true)
+    expect(cache.getOrCompile({ font, fontIdentity: 'font-asset-1', text: 'B' }).ok).toBe(true)
+    expect(cache.getStats()).toEqual({ entries: 1, buildCount: 2, hitCount: 0 })
+    expect(cache.getOrCompile({ font, fontIdentity: 'font-asset-1', text: 'A' }).ok).toBe(true)
+    expect(cache.getStats()).toEqual({ entries: 1, buildCount: 3, hitCount: 0 })
+    expect(cache.getOrCompile({ font, fontIdentity: 'font-asset-1', text: 'A'.repeat(257) })).toMatchObject({
+      ok: false,
+      error: { code: 'too-complex' },
+    })
+    expect(cache.getStats()).toEqual({ entries: 1, buildCount: 3, hitCount: 0 })
   })
 
   it('does not encode runtime transform or material state into topology identity', () => {

@@ -703,7 +703,8 @@ export interface CinemaRawAssetSourceView {
   revision: string | number
   mediaKind: CinemaAssetMediaKind
   mimeType: string | null
-  text: string
+  text: string | null
+  bytes: ArrayBuffer | null
 }
 
 export interface CinemaVideoSyncOptions {
@@ -716,6 +717,7 @@ export interface CinemaAssetRuntimeService {
   resolve(binding: Readonly<CinemaAssetBindingDefinition>): Readonly<CinemaRuntimeAssetView>
   prepare(binding: Readonly<CinemaAssetBindingDefinition>, signal?: AbortSignal): Promise<Readonly<CinemaRuntimeAssetView>>
   loadRawSource?(assetId: CinemaAssetId, signal?: AbortSignal): Promise<Readonly<CinemaRawAssetSourceView> | null>
+  getSourceRevision?(assetId: CinemaAssetId): string | number | null
   synchronizeVideo?(
     binding: Readonly<CinemaAssetBindingDefinition>,
     transport: Readonly<CinemaTransportFrame>,

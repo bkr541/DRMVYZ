@@ -8,6 +8,7 @@ import {
 } from './CinemaDomain'
 import { cinemaStableId, type CinemaEnumOptionId, type CinemaParameterId } from './CinemaIdentifiers'
 import { normalizeCinemaParameterValue } from './CinemaParameterSchema'
+import type { CinemaQualityTier } from './CinemaNodeRegistry'
 
 export type Cinema3DObjectSourceType = 'text' | 'svg'
 export type Cinema3DObjectGeometryQuality = 'draft' | 'balanced' | 'high'
@@ -81,7 +82,7 @@ export const CINEMA_3D_OBJECT_PARAMETER_SCHEMAS: readonly CinemaParameterDefinit
     default: SOURCE_TEXT,
     options: [{ id: SOURCE_TEXT, label: 'Text' }, { id: SOURCE_SVG, label: 'SVG' }],
     modulatable: false,
-    ui: { control: 'select' },
+    ui: { control: 'select', order: 0 },
   },
   {
     id: CINEMA_3D_OBJECT_PARAMETER_IDS.text,
@@ -91,7 +92,7 @@ export const CINEMA_3D_OBJECT_PARAMETER_SCHEMAS: readonly CinemaParameterDefinit
     default: '',
     maxLength: 2048,
     modulatable: false,
-    ui: { control: 'text' },
+    ui: { control: 'text', order: 1 },
   },
   {
     id: CINEMA_3D_OBJECT_PARAMETER_IDS.fontIdentity,
@@ -101,7 +102,7 @@ export const CINEMA_3D_OBJECT_PARAMETER_SCHEMAS: readonly CinemaParameterDefinit
     default: '',
     maxLength: 512,
     modulatable: false,
-    ui: { control: 'text' },
+    ui: { control: 'text', order: 2 },
   },
   {
     id: CINEMA_3D_OBJECT_PARAMETER_IDS.font,
@@ -111,7 +112,7 @@ export const CINEMA_3D_OBJECT_PARAMETER_SCHEMAS: readonly CinemaParameterDefinit
     default: null,
     acceptedRoles: ['font'],
     modulatable: false,
-    ui: { control: 'asset-picker' },
+    ui: { control: 'asset-picker', order: 2 },
   },
   {
     id: CINEMA_3D_OBJECT_PARAMETER_IDS.svgAsset,
@@ -121,7 +122,7 @@ export const CINEMA_3D_OBJECT_PARAMETER_SCHEMAS: readonly CinemaParameterDefinit
     default: null,
     acceptedRoles: ['logo', 'image'],
     modulatable: false,
-    ui: { control: 'asset-picker' },
+    ui: { control: 'asset-picker', order: 2 },
   },
   {
     id: CINEMA_3D_OBJECT_PARAMETER_IDS.geometryQuality,
@@ -135,7 +136,7 @@ export const CINEMA_3D_OBJECT_PARAMETER_SCHEMAS: readonly CinemaParameterDefinit
       { id: QUALITY_HIGH, label: 'High' },
     ],
     modulatable: false,
-    ui: { control: 'select' },
+    ui: { control: 'select', order: 10 },
   },
   {
     id: CINEMA_3D_OBJECT_PARAMETER_IDS.extrusionDepth,
@@ -147,7 +148,7 @@ export const CINEMA_3D_OBJECT_PARAMETER_SCHEMAS: readonly CinemaParameterDefinit
     max: 8,
     step: 0.01,
     modulatable: true,
-    ui: { control: 'slider', precision: 2 },
+    ui: { control: 'slider', precision: 2, order: 11 },
   },
   {
     id: CINEMA_3D_OBJECT_PARAMETER_IDS.pivotPolicy,
@@ -157,11 +158,11 @@ export const CINEMA_3D_OBJECT_PARAMETER_SCHEMAS: readonly CinemaParameterDefinit
     default: PIVOT_CENTER,
     options: [{ id: PIVOT_CENTER, label: 'Center' }, { id: PIVOT_SOURCE, label: 'Source Origin' }],
     modulatable: false,
-    ui: { control: 'select' },
+    ui: { control: 'select', order: 12 },
   },
-  vectorParameter(CINEMA_3D_OBJECT_PARAMETER_IDS.position, 'Position', 'Transform', [0, 0, 0], [-100, -100, -100], [100, 100, 100], true),
-  vectorParameter(CINEMA_3D_OBJECT_PARAMETER_IDS.rotation, 'Rotation', 'Transform', [0, 0, 0], [-1000, -1000, -1000], [1000, 1000, 1000], true),
-  vectorParameter(CINEMA_3D_OBJECT_PARAMETER_IDS.scale, 'Scale', 'Transform', [1, 1, 1], [-100, -100, -100], [100, 100, 100], true),
+  vectorParameter(CINEMA_3D_OBJECT_PARAMETER_IDS.position, 'Position', 'Transform', [0, 0, 0], [-100, -100, -100], [100, 100, 100], true, 20),
+  vectorParameter(CINEMA_3D_OBJECT_PARAMETER_IDS.rotation, 'Rotation', 'Transform', [0, 0, 0], [-1000, -1000, -1000], [1000, 1000, 1000], true, 21),
+  vectorParameter(CINEMA_3D_OBJECT_PARAMETER_IDS.scale, 'Scale', 'Transform', [1, 1, 1], [-100, -100, -100], [100, 100, 100], true, 22),
   {
     id: CINEMA_3D_OBJECT_PARAMETER_IDS.frontColor,
     label: 'Front Color',
@@ -169,7 +170,7 @@ export const CINEMA_3D_OBJECT_PARAMETER_SCHEMAS: readonly CinemaParameterDefinit
     type: 'color',
     default: [1, 1, 1, 1],
     modulatable: true,
-    ui: { control: 'color' },
+    ui: { control: 'color', order: 30 },
   },
   {
     id: CINEMA_3D_OBJECT_PARAMETER_IDS.sideColor,
@@ -178,7 +179,7 @@ export const CINEMA_3D_OBJECT_PARAMETER_SCHEMAS: readonly CinemaParameterDefinit
     type: 'color',
     default: [0.42, 0.46, 0.52, 1],
     modulatable: true,
-    ui: { control: 'color' },
+    ui: { control: 'color', order: 31 },
   },
   {
     id: CINEMA_3D_OBJECT_PARAMETER_IDS.emissiveIntensity,
@@ -190,7 +191,7 @@ export const CINEMA_3D_OBJECT_PARAMETER_SCHEMAS: readonly CinemaParameterDefinit
     max: 8,
     step: 0.01,
     modulatable: true,
-    ui: { control: 'slider', precision: 2 },
+    ui: { control: 'slider', precision: 2, order: 32 },
   },
 ])
 
@@ -314,6 +315,54 @@ export function getCinema3DObjectSvgCurveTolerance(quality: Cinema3DObjectGeomet
   return 2
 }
 
+export function getCinema3DObjectSvgComplexityLimits(quality: Cinema3DObjectGeometryQuality): Readonly<{
+  maxElements: number
+  maxContours: number
+  maxPointsPerContour: number
+  maxTotalPoints: number
+  maxOutputIndices: number
+  maxTraversalDepth: number
+}> {
+  if (quality === 'draft') return Object.freeze({ maxElements: 256, maxContours: 64, maxPointsPerContour: 384, maxTotalPoints: 4_096, maxOutputIndices: 98_304, maxTraversalDepth: 24 })
+  if (quality === 'high') return Object.freeze({ maxElements: 512, maxContours: 128, maxPointsPerContour: 512, maxTotalPoints: 8_192, maxOutputIndices: 196_608, maxTraversalDepth: 32 })
+  return Object.freeze({ maxElements: 384, maxContours: 96, maxPointsPerContour: 448, maxTotalPoints: 6_144, maxOutputIndices: 147_456, maxTraversalDepth: 28 })
+}
+
+export function applyCinema3DObjectRuntimeQuality(
+  values: Readonly<CinemaParameterValues>,
+  runtimeTier: CinemaQualityTier | undefined,
+): Readonly<CinemaParameterValues> {
+  if (!runtimeTier) return values
+  const definition = hydrateCinema3DObjectDefinition(values)
+  const qualityRank: Readonly<Record<Cinema3DObjectGeometryQuality, number>> = { draft: 0, balanced: 1, high: 2 }
+  const maximum = runtimeTier === 'low' ? 'draft' : runtimeTier === 'medium' ? 'balanced' : 'high'
+  if (qualityRank[definition.geometry.quality] <= qualityRank[maximum]) return values
+  return serializeCinema3DObjectDefinition({
+    ...definition,
+    geometry: { ...definition.geometry, quality: maximum },
+  }, values)
+}
+
+export function getVisibleCinema3DObjectParameterSchemas(
+  values: Readonly<CinemaParameterValues>,
+): readonly CinemaParameterDefinition[] {
+  const sourceType = hydrateCinema3DObjectDefinition(values).source.type
+  return Object.freeze(CINEMA_3D_OBJECT_PARAMETER_SCHEMAS.filter(schema => {
+    if (schema.id === CINEMA_3D_OBJECT_PARAMETER_IDS.fontIdentity) return false
+    if (schema.id === CINEMA_3D_OBJECT_PARAMETER_IDS.text || schema.id === CINEMA_3D_OBJECT_PARAMETER_IDS.font) return sourceType === 'text'
+    if (schema.id === CINEMA_3D_OBJECT_PARAMETER_IDS.svgAsset) return sourceType === 'svg'
+    return true
+  }))
+}
+
+export function filterCinema3DObjectParameterSchemasForSource(
+  schemas: readonly CinemaParameterDefinition[],
+  values: Readonly<CinemaParameterValues>,
+): readonly CinemaParameterDefinition[] {
+  const visible = new Set(getVisibleCinema3DObjectParameterSchemas(values).map(schema => schema.id))
+  return Object.freeze(schemas.filter(schema => !SCHEMA_BY_ID.has(schema.id) || visible.has(schema.id)))
+}
+
 function vectorParameter(
   id: CinemaParameterId,
   label: string,
@@ -322,8 +371,9 @@ function vectorParameter(
   min: CinemaVector3,
   max: CinemaVector3,
   modulatable: boolean,
+  order = 0,
 ): CinemaParameterDefinition {
-  return { id, label, group, type: 'vector3', default: defaultValue, min, max, step: [0.01, 0.01, 0.01], modulatable, ui: { control: 'vector', precision: 2 } }
+  return { id, label, group, type: 'vector3', default: defaultValue, min, max, step: [0.01, 0.01, 0.01], modulatable, ui: { control: 'vector', precision: 2, order } }
 }
 
 function normalizedValue(values: Readonly<CinemaParameterValues>, id: CinemaParameterId) {

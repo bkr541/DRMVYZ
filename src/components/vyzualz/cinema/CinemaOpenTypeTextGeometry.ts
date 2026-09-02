@@ -20,6 +20,17 @@ const DEFAULT_MAX_CURVE_DEPTH = 12
 const DEFAULT_CACHE_ENTRIES = 32
 const POINT_EPSILON = 1e-8
 
+export const CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS = Object.freeze({
+  maxCharacters: 256,
+  maxComponents: 256,
+  maxRegions: 1024,
+  maxRings: 2048,
+  maxPointsPerRing: 2048,
+  maxInputPoints: 32_768,
+  maxOutputVertices: 131_072,
+  maxOutputIndices: 393_216,
+})
+
 export interface CinemaOpenTypeTextTessellation {
   curveTolerance?: number
   maxCurveDepth?: number
@@ -62,6 +73,7 @@ export type CinemaOpenTypeTextErrorCode =
   | 'invalid-layout'
   | 'invalid-tessellation'
   | 'invalid-glyph-topology'
+  | 'too-complex'
   | 'vector-geometry-failed'
 
 export interface CinemaOpenTypeTextError {
@@ -105,6 +117,7 @@ type OpenTypePathCommand =
 export function createCinemaOpenTypeTextMeshKey(request: CinemaOpenTypeTextRequest): string {
   const identity = request.fontIdentity.trim()
   if (!identity) throw new Error('Cinema OpenType text requires a non-empty font identity')
+  validateTextComplexity(request.text)
   const tessellation = resolveTessellation(request.tessellation)
   const letterSpacing = request.letterSpacing ?? 0
   const lineHeight = request.lineHeight ?? 1.2
@@ -127,6 +140,11 @@ export function createCinemaOpenTypeTextMeshKey(request: CinemaOpenTypeTextReque
 export function compileCinemaOpenTypeText(request: CinemaOpenTypeTextRequest): CinemaOpenTypeTextResult {
   const fontIdentity = request.fontIdentity.trim()
   if (!fontIdentity) return failure('invalid-font-identity', 'Cinema OpenType text requires a non-empty font identity')
+  try {
+    validateTextComplexity(request.text)
+  } catch (error) {
+    return failure('too-complex', errorMessage(error))
+  }
 
   let tessellation: Required<CinemaOpenTypeTextTessellation>
   try {
@@ -162,6 +180,9 @@ export function compileCinemaOpenTypeText(request: CinemaOpenTypeTextRequest): C
     })
   } catch (error) {
     return failure('invalid-layout', `Cinema could not lay out OpenType text: ${errorMessage(error)}`)
+  }
+  if (layout.glyphs.length > CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS.maxComponents) {
+    return failure('too-complex', `Cinema 3D text exceeds the ${CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS.maxComponents}-glyph live geometry limit`)
   }
 
   if (layout.glyphs.length === 0) {
@@ -253,13 +274,19 @@ export function compileCinemaOpenTypeText(request: CinemaOpenTypeTextRequest): C
     fillRule: 'evenodd',
     components: transformedComponents,
     sourceBounds,
-  })
+  }, { limits: CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS })
   if (!shapeResult.ok) {
-    return failure('vector-geometry-failed', `Cinema text vector normalization failed: ${shapeResult.error.message}`)
+    return failure(
+      shapeResult.error.code === 'limit-exceeded' ? 'too-complex' : 'vector-geometry-failed',
+      `Cinema text vector normalization failed: ${shapeResult.error.message}`,
+    )
   }
-  const meshResult = extrudeCinemaVectorShape(shapeResult.value)
+  const meshResult = extrudeCinemaVectorShape(shapeResult.value, { limits: CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS })
   if (!meshResult.ok) {
-    return failure('vector-geometry-failed', `Cinema text extrusion failed: ${meshResult.error.message}`)
+    return failure(
+      meshResult.error.code === 'limit-exceeded' ? 'too-complex' : 'vector-geometry-failed',
+      `Cinema text extrusion failed: ${meshResult.error.message}`,
+    )
   }
 
   const glyphs = pendingGlyphs.map(glyph => freezeGlyphMetadata({
@@ -298,9 +325,11 @@ export class CinemaOpenTypeTextMeshCache {
       const message = errorMessage(error)
       const code: CinemaOpenTypeTextErrorCode = message.includes('font identity')
         ? 'invalid-font-identity'
-        : message.includes('curve tolerance') || message.includes('curve depth')
-          ? 'invalid-tessellation'
-          : 'invalid-layout'
+        : message.includes('live geometry limit')
+          ? 'too-complex'
+          : message.includes('curve tolerance') || message.includes('curve depth')
+            ? 'invalid-tessellation'
+            : 'invalid-layout'
       return failure(code, message)
     }
     const cached = this.entries.get(key)
@@ -665,4 +694,11 @@ function failure(
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function validateTextComplexity(text: string): void {
+  const characterCount = Array.from(text).length
+  if (characterCount > CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS.maxCharacters) {
+    throw new Error(`Cinema 3D text exceeds the ${CINEMA_OPENTYPE_TEXT_COMPLEXITY_LIMITS.maxCharacters}-character live geometry limit`)
+  }
 }

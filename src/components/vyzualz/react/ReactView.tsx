@@ -53,7 +53,7 @@ import { FontLibraryPanel } from './FontLibraryPanel'
 import { ReactEngineBrowser } from './ReactEngineBrowser'
 import { CinemaWorkspace } from './CinemaWorkspace'
 import { CinemaLayersPanel, CinemaPresetsPanel } from './CinemaWorkspacePanels'
-import { createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
+import { createCinemaFontLibrarySnapshot, createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
 import { buildCinemaWorkspaceFrameBridge } from './CinemaWorkspaceFrameBridge'
 import type { CinemaWorkspaceRuntimeFrameConfig } from './CinemaWorkspaceRuntimeFrameSource'
 import type { CinemaFrameBuilderState, CinemaRuntimeSnapshot } from '../cinema'
@@ -278,7 +278,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const activeShaderId = useShaderPanelStore((s) => s.activeShaderId)
   const activeBrandKit = useBrandKitStore((s) => s.activeKit)
   const mediaAssets = useMediaStore((s) => s.items)
-  const cinemaAssetSources = useMemo(() => createCinemaMediaLibrarySnapshot(mediaAssets), [mediaAssets])
+  const cinemaAssetSources = useMemo(() => Object.freeze([
+    ...createCinemaMediaLibrarySnapshot(mediaAssets),
+    ...createCinemaFontLibrarySnapshot(oscillatorFontAssets),
+  ]), [mediaAssets, oscillatorFontAssets])
   const lyricPlayback = useLyricPlaybackSelector((state) => state)
   const runtimeLyricCues = useLyricsStore((state) => state.runtimeCues)
   const runtimeLyricGlobalOffsetMs = useLyricsStore((state) => state.runtimeGlobalOffsetMs)

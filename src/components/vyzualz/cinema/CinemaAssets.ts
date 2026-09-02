@@ -45,6 +45,8 @@ export interface CinemaExternalAssetSnapshot {
   mimeType: string | null
   mediaKind: CinemaAssetMediaKind
   runtimeUrl: string | null
+  /** Runtime-only raw source loader for assets whose canonical library does not expose a public URL. */
+  loadRawData?: (signal?: AbortSignal) => Promise<string | ArrayBuffer | null>
   width?: number
   height?: number
   durationSec?: number

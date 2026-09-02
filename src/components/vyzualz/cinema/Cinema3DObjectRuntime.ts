@@ -1,4 +1,4 @@
-import type * as opentype from 'opentype.js'
+import * as opentype from 'opentype.js'
 
 import type { CinemaParameterValues, CinemaVector3 } from './CinemaDomain'
 import type { CinemaAssetId } from './CinemaIdentifiers'
@@ -32,6 +32,7 @@ import {
   classifyCinema3DObjectInvalidation,
   hydrateCinema3DObjectDefinition,
   serializeCinema3DObjectDefinition,
+  getCinema3DObjectSvgComplexityLimits,
   getCinema3DObjectSvgCurveTolerance,
   getCinema3DObjectTextTessellation,
   type Cinema3DObjectDefinition,
@@ -132,6 +133,44 @@ export class Cinema3DObjectRuntime {
     }
   }
 
+  async prepareTextAsset(
+    assetManager: CinemaAssetRuntimeService,
+    signal?: AbortSignal,
+  ): Promise<Readonly<Cinema3DObjectRuntimeSnapshot>> {
+    this.assertActive()
+    if (this.definition.source.type !== 'text') return this.fail('Cinema 3D object is not authored with a text source.')
+    if (!this.definition.source.text.trim()) {
+      this.clearMesh()
+      return this.getSnapshot()
+    }
+    const asset = this.definition.source.font
+    if (!asset) return this.fail('Cinema 3D text source font is missing or unavailable.')
+    if (!assetManager.loadRawSource) return this.fail('Cinema asset runtime cannot load outline font source data.')
+    const generation = ++this.preparationGeneration
+    try {
+      const source = await assetManager.loadRawSource(asset.assetId as CinemaAssetId, signal)
+      if (this.disposed || generation !== this.preparationGeneration) return this.getSnapshot()
+      if (!source || source.mediaKind !== 'font' || !source.bytes) {
+        return this.fail('Cinema 3D text source font is missing, deleted, or unavailable.')
+      }
+      let font: opentype.Font
+      try {
+        font = opentype.parse(source.bytes)
+      } catch (error) {
+        return this.fail(`Cinema 3D text font could not be parsed: ${errorMessage(error)}`)
+      }
+      return this.prepareText({
+        font,
+        fontIdentity: this.definition.source.fontIdentity || String(asset.assetId),
+        fontRevision: source.revision,
+      })
+    } catch (error) {
+      if (signal?.aborted) throw error
+      if (this.disposed || generation !== this.preparationGeneration) return this.getSnapshot()
+      return this.fail(`Cinema 3D text source preparation failed: ${errorMessage(error)}`)
+    }
+  }
+
   async prepareSvg(
     assetManager: CinemaAssetRuntimeService,
     signal?: AbortSignal,
@@ -147,7 +186,10 @@ export class Cinema3DObjectRuntime {
         assetManager,
         this.svgCache,
         asset.assetId as CinemaAssetId,
-        { curveTolerance: getCinema3DObjectSvgCurveTolerance(geometryQuality) },
+        {
+          curveTolerance: getCinema3DObjectSvgCurveTolerance(geometryQuality),
+          limits: getCinema3DObjectSvgComplexityLimits(geometryQuality),
+        },
         signal,
       )
       if (this.disposed || generation !== this.preparationGeneration) return this.getSnapshot()

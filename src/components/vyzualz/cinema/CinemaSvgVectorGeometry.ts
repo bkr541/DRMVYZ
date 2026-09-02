@@ -291,7 +291,7 @@ export async function compileCinemaSvgAssetSource(
     return failure('unsupported-svg', 'Cinema asset runtime does not expose raw SVG source loading')
   }
   const source = await assetManager.loadRawSource(assetId, signal)
-  if (!source || source.mediaKind !== 'svg') {
+  if (!source || source.mediaKind !== 'svg' || source.text == null) {
     cache.invalidateAsset(assetId)
     return failure('unsupported-svg', 'Cinema SVG asset is missing, deleted, or unavailable')
   }

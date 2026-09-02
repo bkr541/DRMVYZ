@@ -29,6 +29,7 @@ import {
 import type { CinemaPersistedDefinition } from './CinemaPersistence'
 import { Cinema3DObjectRuntime, type Cinema3DObjectRuntimeService } from './Cinema3DObjectRuntime'
 import {
+  applyCinema3DObjectRuntimeQuality,
   CINEMA_3D_OBJECT_PARAMETER_CAPABILITIES,
   CINEMA_3D_OBJECT_PARAMETER_SCHEMAS,
   hydrateCinema3DObjectDefinition,
@@ -730,7 +731,7 @@ function createNodeDefinition(
       postStackInputsRetained: definition.capabilities.supportsPostProcessing,
       standaloneEngineRetained: true,
       object3dSlotIds: object3dSlots.map(slot => slot.id),
-      object3dControlsExposed: false,
+      object3dControlsExposed: object3dSlots.length > 0,
       rendererOwnsTargetClear: backend === 'webgl2' && definition.backend === 'webgl2' && definition.ownsTargetClear === true,
     },
   })
@@ -1065,7 +1066,8 @@ export class CinematicWorldNodeAdapter implements CinemaRenderNode {
     }
     const target = context.webgl.bindTarget(context.target)
     context.webgl.resetState()
-    this.object3dBridge?.updateFrame(runtimeValues, context.viewport, context.frame.camera, context.assetManager)
+    const object3dValues = applyCinema3DObjectRuntimeQuality(runtimeValues, context.quality?.tier)
+    this.object3dBridge?.updateFrame(object3dValues, context.viewport, context.frame.camera, context.assetManager)
     const frame = adaptCinemaFrame(
       context.frame,
       nextConfig,
@@ -1322,6 +1324,7 @@ class CinemaCinematicWorldObject3DBridge implements CinematicWorldObject3DServic
   private assetManager: CinemaAssetRuntimeService
   private preparationController: AbortController | null = null
   private preparationGeneration = 0
+  private sourceRevisionKey: string | null = null
   private disposed = false
 
   constructor(
@@ -1353,7 +1356,10 @@ class CinemaCinematicWorldObject3DBridge implements CinematicWorldObject3DServic
     this.camera = camera
     this.assetManager = assetManager
     const invalidation = this.object.setResolvedParameterValues(values)
-    if (invalidation === 'source' || invalidation === 'geometry') this.schedulePreparation()
+    const revisionKey = this.resolveSourceRevisionKey()
+    const sourceRevisionChanged = revisionKey !== this.sourceRevisionKey
+    this.sourceRevisionKey = revisionKey
+    if (invalidation === 'source' || invalidation === 'geometry' || sourceRevisionChanged) this.schedulePreparation()
   }
 
   draw(anchor: Readonly<CinemaWorld3DObjectAnchor>): Readonly<CinematicWorldObject3DDrawResult> {
@@ -1388,13 +1394,9 @@ class CinemaCinematicWorldObject3DBridge implements CinematicWorldObject3DServic
       })
     }
     const snapshot = this.object.getSnapshot(anchor)
-    const definition = hydrateCinema3DObjectDefinition(this.values)
-    const unsupportedText = definition.source.type === 'text' && definition.source.text.trim().length > 0
-      ? 'Embedded Cinema world text requires a resolved OpenType runtime source before it can be drawn.'
-      : null
     return Object.freeze({
-      status: unsupportedText ? 'unavailable' as const : snapshot.status,
-      error: unsupportedText ?? snapshot.error,
+      status: snapshot.status,
+      error: snapshot.error,
       worldBounds: snapshot.worldBounds,
       focusAnchor: snapshot.focusAnchor,
     })
@@ -1415,12 +1417,21 @@ class CinemaCinematicWorldObject3DBridge implements CinematicWorldObject3DServic
   private async prepareCurrent(signal: AbortSignal): Promise<void> {
     if (this.disposed || signal.aborted) return
     const definition = hydrateCinema3DObjectDefinition(this.values)
-    if (definition.source.type !== 'svg' || !definition.source.asset) return
+    this.sourceRevisionKey = this.resolveSourceRevisionKey()
     try {
-      await this.object.prepareSvg(this.assetManager, signal)
+      if (definition.source.type === 'text') await this.object.prepareTextAsset(this.assetManager, signal)
+      else await this.object.prepareSvg(this.assetManager, signal)
     } catch (error) {
       if (signal.aborted || this.disposed || isAbortLike(error)) return
     }
+  }
+
+  private resolveSourceRevisionKey(): string {
+    const definition = hydrateCinema3DObjectDefinition(this.values)
+    const asset = definition.source.type === 'text' ? definition.source.font : definition.source.asset
+    if (!asset) return `${definition.source.type}:none`
+    const revision = this.assetManager.getSourceRevision?.(asset.assetId) ?? null
+    return `${definition.source.type}:${asset.assetId}:${revision == null ? 'missing' : String(revision)}`
   }
 }
 
