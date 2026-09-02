@@ -147,7 +147,7 @@ function isBrowserCodecFallbackError(error: unknown): boolean {
 
 function formatTrackDuration(durationSec: number | null): string {
   if (!durationSec || !Number.isFinite(durationSec)) return 'Duration unknown'
-  return `${Math.floor(durationSec / 60)}:${String(Math.round(durationSec % 60)).padStart(2, '0')}`
+  return `${String(Math.floor(durationSec / 60)).padStart(2, '0')}:${String(Math.round(durationSec % 60)).padStart(2, '0')}`
 }
 
 function formatDurationDifference(durationDifferenceMs: number | null): string {
@@ -854,6 +854,16 @@ export function AiLyricExtractor({
             onChange={event => {
               const mode = event.target.value as LyricExtractionSourceMode
               setExtractionSourceMode(mode)
+              if (mode === 'full_mix') {
+                // Leaving Vocal Reference drops the reference selection and its
+                // reference-only derived state so returning to the mode requires
+                // choosing a track again. This is selection lifecycle only — it
+                // must not touch operationGenerationRef, the preparation abort
+                // controller, or any other owned-extraction state.
+                setVocalReferenceTrackId(null)
+                setVocalReferenceOffsetMs(0)
+                setResolvedVocalReferenceTrack(null)
+              }
               setError(null)
               setNotice(null)
               setSignificantMismatchConfirmed(false)

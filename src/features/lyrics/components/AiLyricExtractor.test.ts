@@ -560,7 +560,7 @@ describe('AI lyric vocal-reference source selection', () => {
     await renderExtractor(selectedTrack(), null, { availableTracks: [selectedTrack(), vocalTrack] })
 
     await selectDropdownOption('lyric-extraction-source-mode', 'Vocal Reference')
-    await selectDropdownOption('lyric-vocal-reference-track', 'Reverie Vocals · 03:00')
+    await selectDropdownOption('lyric-vocal-reference-track', 'Reverie Vocals · DVYDRM · 03:00')
 
     expect(container!.textContent).toContain('Lyrics belong to')
     expect(container!.textContent).toContain('Reverie Vocals')
@@ -592,7 +592,7 @@ describe('AI lyric vocal-reference source selection', () => {
     await renderExtractor(selectedTrack(), null, { availableTracks: [selectedTrack(), alternateVocal] })
 
     await selectDropdownOption('lyric-extraction-source-mode', 'Vocal Reference')
-    await selectDropdownOption('lyric-vocal-reference-track', 'Reverie Vocals Alt · 02:30')
+    await selectDropdownOption('lyric-vocal-reference-track', 'Reverie Vocals Alt · DVYDRM · 02:30')
 
     expect(container!.textContent).toContain('Significant mismatch')
     expect(buttonByText('Start Automatic Extraction').disabled).toBe(true)
@@ -602,6 +602,104 @@ describe('AI lyric vocal-reference source selection', () => {
       confirmation.click()
     })
     expect(buttonByText('Start Automatic Extraction').disabled).toBe(false)
+  })
+
+  async function openDropdownOptionLabels(id: string): Promise<string[]> {
+    const trigger = container!.querySelector<HTMLButtonElement>(`#${id}`)!
+    await act(async () => trigger.click())
+    const labels = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')]
+      .map(option => option.textContent?.trim() ?? '')
+    await act(async () => trigger.click())
+    return labels
+  }
+
+  it('renders selectable saved-track options with the artist label and the concise missing-artist fallback', async () => {
+    const withArtist: LyricManagerTrack = {
+      ...selectedTrack(),
+      id: 'audio-vocals-artist',
+      dbId: 'vocals-artist',
+      title: 'Reverie Vocals',
+    }
+    const withoutArtist: LyricManagerTrack = {
+      ...selectedTrack(),
+      id: 'audio-vocals-plain',
+      dbId: 'vocals-plain',
+      title: 'Reverie Clean Vocal',
+      artist: null,
+    }
+    await renderExtractor(selectedTrack(), null, { availableTracks: [selectedTrack(), withArtist, withoutArtist] })
+    await selectDropdownOption('lyric-extraction-source-mode', 'Vocal Reference')
+
+    const labels = await openDropdownOptionLabels('lyric-vocal-reference-track')
+
+    expect(labels).toContain('Reverie Vocals · DVYDRM · 03:00')
+    expect(labels).toContain('Reverie Clean Vocal · 03:00')
+    // The concise fallback never invents artist text.
+    expect(labels).not.toContain('Reverie Clean Vocal · DVYDRM · 03:00')
+  })
+
+  it('excludes the canonical main track from the Vocal Reference options', async () => {
+    const vocalTrack: LyricManagerTrack = {
+      ...selectedTrack(),
+      id: 'audio-vocals-2',
+      dbId: 'vocals-2',
+      title: 'Reverie Vocals',
+    }
+    await renderExtractor(selectedTrack(), null, { availableTracks: [selectedTrack(), vocalTrack] })
+    await selectDropdownOption('lyric-extraction-source-mode', 'Vocal Reference')
+
+    const labels = await openDropdownOptionLabels('lyric-vocal-reference-track')
+
+    expect(labels).toEqual(['Choose a saved audio track…', 'Reverie Vocals · DVYDRM · 03:00'])
+    expect(labels.some(label => label.startsWith('Reverie · '))).toBe(false)
+  })
+
+  it('clears the Vocal Reference selection when leaving the mode and requires reselection on return', async () => {
+    const vocalTrack: LyricManagerTrack = {
+      ...selectedTrack(),
+      id: 'audio-vocals-3',
+      dbId: 'vocals-3',
+      title: 'Reverie Vocals',
+    }
+    await renderExtractor(selectedTrack(), null, { availableTracks: [selectedTrack(), vocalTrack] })
+
+    await selectDropdownOption('lyric-extraction-source-mode', 'Vocal Reference')
+    await selectDropdownOption('lyric-vocal-reference-track', 'Reverie Vocals · DVYDRM · 03:00')
+    expect(container!.textContent).toContain('Compatible duration')
+    expect(buttonByText('Start Automatic Extraction').disabled).toBe(false)
+
+    await selectDropdownOption('lyric-extraction-source-mode', 'Full Mix')
+    await selectDropdownOption('lyric-extraction-source-mode', 'Vocal Reference')
+
+    expect(container!.querySelector('#lyric-vocal-reference-track')!.textContent).toContain('Choose a saved audio track…')
+    expect(container!.textContent).not.toContain('Compatible duration')
+    expect(buttonByText('Start Automatic Extraction').disabled).toBe(true)
+  })
+
+  it('keeps the main track and uses no stale reference source after a Full Mix round trip', async () => {
+    const vocalTrack: LyricManagerTrack = {
+      ...selectedTrack(),
+      id: 'audio-vocals-4',
+      dbId: 'vocals-4',
+      title: 'Reverie Vocals',
+    }
+    await renderExtractor(selectedTrack(), null, { availableTracks: [selectedTrack(), vocalTrack] })
+
+    await selectDropdownOption('lyric-extraction-source-mode', 'Vocal Reference')
+    await selectDropdownOption('lyric-vocal-reference-track', 'Reverie Vocals · DVYDRM · 03:00')
+    await selectDropdownOption('lyric-extraction-source-mode', 'Full Mix')
+
+    await act(async () => buttonByText('Start Automatic Extraction').click())
+    await flush()
+
+    expect(mocks.functionsInvoke).toHaveBeenCalledWith('lyric-transcription', {
+      body: expect.objectContaining({
+        action: 'start',
+        audioTrackId: 'track-1',
+        sourceMode: 'full_mix',
+        analysisSourceAudioTrackId: null,
+      }),
+    })
   })
 })
 
