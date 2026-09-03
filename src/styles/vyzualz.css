@@ -560,20 +560,18 @@
   flex-shrink: 0;
 }
 
+/* The inner .dv-text-input now carries the underline treatment itself, so the
+   wrap only lays out the icon + clear button beside it. */
 .vz-md-search-wrap {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 5px;
-  padding: 0 8px;
-  transition: border-color 0.12s;
-}
-.vz-md-search-wrap:focus-within {
-  border-color: rgba(74,199,219,0.35);
-  background: rgba(74,199,219,0.04);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
 }
 
 .vz-md-search-icon {

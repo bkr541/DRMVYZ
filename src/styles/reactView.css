@@ -3543,9 +3543,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-ctrl-text-input--sm {
-  font-size: 10px;
-  padding: 2px 6px;
-  height: 24px;
   width: 150px;
 }
 
@@ -7372,7 +7369,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-ctrl-number-field--with-unit .rv-ctrl-text-input {
-  padding-right: 48px;
+  padding-right: 48px !important;
 }
 
 .rv-ctrl-number-unit {

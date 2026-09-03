@@ -1515,7 +1515,7 @@ button.sm-library-section-toggle:focus-visible {
 
 .sm-show-browser-search { width: min(230px, 48%); height: 32px; position: relative; display: flex; align-items: center; }
 .sm-show-browser-search > svg { position: absolute; z-index: 1; left: 10px; width: 13px; height: 13px; fill: none; stroke: rgba(196, 212, 220, 0.42); stroke-width: 1.7; stroke-linecap: round; pointer-events: none; }
-.sm-show-browser-search .dv-text-input { width: 100%; height: 32px; padding-left: 31px; border-color: rgba(154, 178, 188, 0.14); background: rgba(255, 255, 255, 0.035); font-size: 8.5px; }
+.sm-show-browser-search .dv-text-input { width: 100%; height: 32px; padding-left: 31px !important; }
 
 .sm-show-browser-list-header {
   height: 28px;
