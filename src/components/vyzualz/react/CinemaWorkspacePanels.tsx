@@ -11,9 +11,9 @@ import {
   type CinemaNodeDefinition,
   type CinemaNodeId,
 } from '../cinema'
-import { GridViewIcon, ListViewIcon } from 'hugeicons-react'
 import { isCinemaLiveInstance } from './CinemaLiveOverrides'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
+import { PresetSearchRow } from './controls/PresetSearchRow'
 import { LayerRow } from './controls/LayerRow'
 import { Badge } from './controls/Badge'
 
@@ -53,54 +53,13 @@ export function CinemaPresetsPanel() {
 
   return (
     <section className="rv-cinema-panel-list" aria-label="Cinema presets">
-      <div className="vz-md-search-row rv-cinema-preset-search-row">
-        <div className="vz-md-search-wrap">
-          <svg className="vz-md-search-icon" viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
-            <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
-          </svg>
-          <DreamVizTextInput
-            className="vz-md-search-input"
-            type="text"
-            value={query}
-            onChange={event => setQuery(event.target.value)}
-            placeholder="Search presets…"
-            aria-label="Search Cinema presets"
-          />
-          {query.length > 0 && (
-            <button
-              type="button"
-              className="vz-md-search-clear"
-              onClick={() => setQuery('')}
-              title="Clear search"
-              aria-label="Clear search"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-        <div className="vz-md-view-toggles">
-          <button
-            type="button"
-            className={`vz-md-view-btn${viewMode === 'grid' ? ' vz-md-view-btn--active' : ''}`}
-            onClick={() => setViewMode('grid')}
-            title="Grid view"
-            aria-label="Grid view"
-            aria-pressed={viewMode === 'grid'}
-          >
-            <GridViewIcon size={13} color="currentColor" />
-          </button>
-          <button
-            type="button"
-            className={`vz-md-view-btn${viewMode === 'list' ? ' vz-md-view-btn--active' : ''}`}
-            onClick={() => setViewMode('list')}
-            title="List view"
-            aria-label="List view"
-            aria-pressed={viewMode === 'list'}
-          >
-            <ListViewIcon size={13} color="currentColor" />
-          </button>
-        </div>
-      </div>
+      <PresetSearchRow
+        query={query}
+        onQueryChange={setQuery}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        ariaLabel="Search Cinema presets"
+      />
       <div className={`rv-cinema-preset-grid${viewMode === 'list' ? ' rv-cinema-preset-grid--list' : ''}`}>
         {presets.map((candidate, index) => {
           const variations = state.instances.filter(instance => instance.compositionId === candidate.id && !isCinemaLiveInstance(instance))

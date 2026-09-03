@@ -87,9 +87,10 @@
 /* Cinema presets tab — two-column preview tile grid, ported from Layout
    Lab's "Preview Tile Grid" preset-card mockup (PresetCardStyleGallery). */
 
-/* Reuses the Media Library search-row classes; the panel already provides its
-   own outer padding + row gap, so drop the shared row's inset + divider. */
-.rv-cinema-preset-search-row {
+/* Canonical preset-tab search header (PresetSearchRow). Reuses the Media
+   Library search-row classes; the panel supplies its own outer padding + row
+   gap, so drop the shared row's inset + divider. */
+.rv-preset-search-row {
   padding: 0;
   border-bottom: 0;
 }
@@ -97,22 +98,39 @@
 /* Put the magnifier inside the field: the wrap carries the single bottom rule
    (matching the underline text-input treatment) so it spans the icon + input,
    and the inner input drops its own underline. */
-.rv-cinema-preset-search-row .vz-md-search-wrap {
+.rv-preset-search-row .vz-md-search-wrap {
   border-bottom: 1px solid rgba(154, 178, 188, 0.22);
   transition: border-color 140ms ease;
 }
 
-.rv-cinema-preset-search-row .vz-md-search-wrap:focus-within {
+.rv-preset-search-row .vz-md-search-wrap:focus-within {
   border-bottom-color: #4ac7db;
 }
 
-.rv-cinema-preset-search-row .vz-md-search-input.dv-text-input {
+.rv-preset-search-row .vz-md-search-input.dv-text-input {
   border-bottom: 0 !important;
 }
 
-.rv-cinema-preset-search-row .vz-md-search-icon {
+.rv-preset-search-row .vz-md-search-icon {
   width: 15px;
   height: 15px;
+}
+
+/* Universal list view: the ReactPresetsPanel cards are inherently wide
+   (thumb + content row), so "list" = a denser variant — smaller thumbnail,
+   tighter padding, collapsed min-heights. "grid" keeps the roomy default. */
+.rv-presets-panel[data-preset-view='list'] .rv-preset-group-cards {
+  gap: 4px;
+}
+
+.rv-presets-panel[data-preset-view='list'] .rv-preset-card--with-thumb .rv-preset-card-layout {
+  grid-template-columns: 68px minmax(0, 1fr);
+  min-height: 0;
+}
+
+.rv-presets-panel[data-preset-view='list'] .rv-preset-card-content {
+  min-height: 0;
+  padding: 7px 10px;
 }
 
 .rv-cinema-preset-grid {
