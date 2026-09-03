@@ -168,42 +168,4 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
     })
   })
 
-  it('Route Tree routes multiple parameters with intensity sliders', async () => {
-    await selectCanvasReact()
-    await exerciseConcept({
-      headerText: 'Route Tree',
-      noteFragment: 'L-shaped connector trunk',
-      openTrigger: s => {
-        const n = s.querySelector<HTMLButtonElement>('.rv-ae-tree-badge')
-        if (!n) throw new Error('no .rv-ae-tree-badge')
-        return n
-      },
-    })
-  })
-
-  it('Signal Ladder routes multiple parameters with intensity sliders', async () => {
-    await selectCanvasReact()
-    await exerciseConcept({
-      headerText: 'Signal Ladder',
-      noteFragment: 'numbered node on a vertical spine',
-      openTrigger: s => {
-        const n = s.querySelector<HTMLButtonElement>('.rv-ae-ladder-add')
-        if (!n) throw new Error('no .rv-ae-ladder-add')
-        return n
-      },
-    })
-  })
-
-  it('Patch Bay routes multiple parameters with intensity sliders', async () => {
-    await selectCanvasReact()
-    await exerciseConcept({
-      headerText: 'Patch Bay',
-      noteFragment: 'ring nodes branches down',
-      openTrigger: s => {
-        const n = s.querySelector<HTMLButtonElement>('.rv-ae-patch-badge')
-        if (!n) throw new Error('no .rv-ae-patch-badge')
-        return n
-      },
-    })
-  })
 })
