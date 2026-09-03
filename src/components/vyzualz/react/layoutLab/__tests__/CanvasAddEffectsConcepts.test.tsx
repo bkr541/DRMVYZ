@@ -107,7 +107,7 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
     await selectCanvasReact()
     await exerciseConcept({
       headerText: 'Blueprint Bus',
-      noteFragment: 'glowing ring node over a dotted grid',
+      noteFragment: 'indented under the Active Media dropdown',
       openTrigger: s => {
         const n = s.querySelector<HTMLButtonElement>('.rv-ae-bus-node')
         if (!n) throw new Error('no .rv-ae-bus-node')
@@ -120,7 +120,7 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
     await selectCanvasReact()
     await exerciseConcept({
       headerText: 'Signal Break',
-      noteFragment: 'pill trigger with a dashed, broken tail',
+      noteFragment: 'single framed panel wraps the Active Media dropdown',
       openTrigger: s => {
         const n = s.querySelector<HTMLButtonElement>('.rv-ae-break-trigger')
         if (!n) throw new Error('no .rv-ae-break-trigger')

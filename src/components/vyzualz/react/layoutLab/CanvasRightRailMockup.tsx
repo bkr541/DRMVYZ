@@ -113,6 +113,7 @@ function AddEffectsRouteEditor({
   effectLabel,
   parentLabel,
   showDots = false,
+  bareIntensityLabel = false,
   onAddParameter,
   onRemoveParameter,
   onSetIntensity,
@@ -121,6 +122,9 @@ function AddEffectsRouteEditor({
   effectLabel: string
   parentLabel: string
   showDots?: boolean
+  /** Label the slider just "Intensity" instead of "<Parameter> Intensity"
+   *  (the parameter name is already shown in the row head). */
+  bareIntensityLabel?: boolean
   onAddParameter: (parameterId: CanvasMockAudioIntelligenceParameterId) => void
   onRemoveParameter: (parameterId: CanvasMockAudioIntelligenceParameterId) => void
   onSetIntensity: (parameterId: CanvasMockAudioIntelligenceParameterId, intensity: number) => void
@@ -160,7 +164,7 @@ function AddEffectsRouteEditor({
               </button>
             </div>
             <SliderRow
-              label={`${label} Intensity`}
+              label={bareIntensityLabel ? 'Intensity' : `${label} Intensity`}
               value={route.intensity}
               min={0}
               max={1}
@@ -612,6 +616,7 @@ function AddEffectsLayerGroup({
   renderLeading,
   getEntryExtra,
   getMediaRowExtra,
+  getGroupExtra,
 }: {
   state: CanvasMockState
   layer: CanvasMockState['addEffectsLayers'][number]
@@ -620,6 +625,9 @@ function AddEffectsLayerGroup({
   renderLeading?: (ctx: AddEffectsRouteContext) => ReactNode
   getEntryExtra?: (ctx: AddEffectsRouteContext) => { className?: string; style?: CSSProperties }
   getMediaRowExtra?: (layer: CanvasMockState['addEffectsLayers'][number]) => { className?: string; style?: CSSProperties } | undefined
+  /** Style the outer wrapper that holds the Active Media select, the effect
+   *  dropdowns, and the add-effect row (e.g. a single framed panel). */
+  getGroupExtra?: (layer: CanvasMockState['addEffectsLayers'][number]) => { className?: string; style?: CSSProperties } | undefined
 }) {
   const parentLabel = `Active Media ${layerIndex + 1}`
   const selectedEffects = new Set(layer.effects)
@@ -632,8 +640,12 @@ function AddEffectsLayerGroup({
     />
   )
   const mediaRowExtra = getMediaRowExtra?.(layer)
+  const groupExtra = getGroupExtra?.(layer)
   return (
-    <div className="rv-canvas-layer-effects-group">
+    <div
+      className={groupExtra?.className ? `rv-canvas-layer-effects-group ${groupExtra.className}` : 'rv-canvas-layer-effects-group'}
+      style={groupExtra?.style}
+    >
       {/* Which media occupies this slot is decided in the Media Library
           (Performance Pool / active selection) — display-only, styled
           like a real input field for consistency, matching the
@@ -1038,17 +1050,17 @@ function rackReqId(linkKey: string): string {
   return `REQ-OPE-${Math.abs(hash) % 90_000_000 + 10_000_000}`
 }
 
-/** Concept — "Blueprint Bus." A circuit-board treatment over a dotted grid:
- * a short vertical stem drops from the effect input to a glowing ring node
- * that carries the routed-parameter count and toggles the shared editor.
- * Local route state, comparison only. */
+/** Concept — "Blueprint Bus." The effect dropdowns indent under the Active
+ * Media dropdown; a filled add-route button drops into the gutter where each
+ * effect field used to start, with a neutral-gray bus line running down to
+ * the indented Audio Intelligence parameters. Local route state. */
 function AddEffectsBlueprintBusConcept({ state }: { state: CanvasMockState }) {
   const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
   return (
     <ConceptGroup
       state={state}
       label="Add Effects — Blueprint Bus"
-      note="A stem drops from the effect input to a glowing ring node over a dotted grid. Click the node to open the parameter editor; the ring carries the routed-parameter count. Concept only."
+      note="The effect dropdowns are indented under the Active Media dropdown; a filled add-route button sits in the gutter where each effect field used to start, and a gray bus line runs down to the indented Audio Intelligence parameters. Concept only."
     >
       {(layer, layerIndex) => (
         <AddEffectsLayerGroup
@@ -1056,6 +1068,7 @@ function AddEffectsBlueprintBusConcept({ state }: { state: CanvasMockState }) {
           state={state}
           layer={layer}
           layerIndex={layerIndex}
+          getGroupExtra={() => ({ className: 'rv-ae-bus-group' })}
           getEntryExtra={({ linkKey }) => {
             const color = firstRouteColor(links[linkKey])
             return {
@@ -1067,8 +1080,7 @@ function AddEffectsBlueprintBusConcept({ state }: { state: CanvasMockState }) {
             const routes = routesFor(linkKey)
             const open = isOpenFor(linkKey)
             return (
-              <div className="rv-ae-bus-rail">
-                <span className="rv-ae-bus-stem" aria-hidden="true" />
+              <>
                 <button
                   type="button"
                   className="rv-ae-bus-node"
@@ -1078,12 +1090,13 @@ function AddEffectsBlueprintBusConcept({ state }: { state: CanvasMockState }) {
                 >
                   {routes.length ? routes.length : '+'}
                 </button>
+                {(open || routes.length > 0) && <span className="rv-ae-bus-line" aria-hidden="true" />}
                 {open && (
                   <div className="rv-ae-bus-editor">
-                    <AddEffectsRouteEditor routes={routes} effectLabel={effectLabel} parentLabel={parentLabel} showDots {...editorHandlers(linkKey)} />
+                    <AddEffectsRouteEditor routes={routes} effectLabel={effectLabel} parentLabel={parentLabel} showDots bareIntensityLabel {...editorHandlers(linkKey)} />
                   </div>
                 )}
-              </div>
+              </>
             )
           }}
         />
@@ -1092,16 +1105,16 @@ function AddEffectsBlueprintBusConcept({ state }: { state: CanvasMockState }) {
   )
 }
 
-/** Concept — "Signal Break." A pill trigger with a dashed, broken tail; once
- * routed the whole effect entry takes the first parameter's outline color.
- * Local route state, comparison only. */
+/** Concept — "Signal Break." One framed panel wraps the Active Media and
+ * Select Effect dropdowns; picking an effect grows it downward to reveal the
+ * broken-tail pill route trigger and its editor. Local route state. */
 function AddEffectsSignalBreakConcept({ state }: { state: CanvasMockState }) {
   const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
   return (
     <ConceptGroup
       state={state}
       label="Add Effects — Signal Break"
-      note="A pill trigger with a dashed, broken tail opens the editor; once routed the whole effect entry takes the first parameter's outline color. Concept only."
+      note="A single framed panel wraps the Active Media dropdown and the Select Effect dropdown; picking an effect expands the panel downward to reveal a broken-tail pill route trigger and, once opened, the parameter editor. Concept only."
     >
       {(layer, layerIndex) => (
         <AddEffectsLayerGroup
@@ -1109,6 +1122,15 @@ function AddEffectsSignalBreakConcept({ state }: { state: CanvasMockState }) {
           state={state}
           layer={layer}
           layerIndex={layerIndex}
+          getGroupExtra={groupLayer => {
+            const linkedColor = groupLayer.effects
+              .map(effectId => firstRouteColor(links[canvasEffectAudioLinkKey(groupLayer.mediaId, effectId)]))
+              .find((candidate): candidate is string => Boolean(candidate))
+            return {
+              className: `rv-ae-break-group${linkedColor ? ' is-linked' : ''}`,
+              style: linkedColor ? ({ '--break-color': linkedColor } as CSSProperties) : undefined,
+            }
+          }}
           getEntryExtra={({ linkKey }) => {
             const color = firstRouteColor(links[linkKey])
             return {

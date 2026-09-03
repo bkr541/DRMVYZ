@@ -20142,106 +20142,106 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* ── Concept: Blueprint Bus ──────────────────────────────────────────────── */
 
+/* Effect dropdowns (and the add-effect row) indent under the Active Media
+   dropdown; the add-route button drops into the gutter at the old field
+   start, with a neutral-gray bus line down to the indented parameters. */
+.rv-ae-bus-group .rv-canvas-layer-effect-row--empty {
+  padding-left: 30px;
+}
+
 .rv-ae-bus-entry {
-  padding: 6px 8px 8px;
+  position: relative;
+  padding: 2px 0 6px 30px;
   border-radius: 6px;
-  background-image: radial-gradient(rgba(74, 199, 219, 0.14) 1px, transparent 1.4px);
-  background-size: 11px 11px;
 }
 
 .rv-ae-bus-entry.is-linked {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bus-color) 30%, transparent);
 }
 
-.rv-ae-bus-rail {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  margin-top: 6px;
+/* Trash moves inside the effect field, just left of the chevron. */
+.rv-ae-bus-entry .rv-canvas-layer-effect-row { position: relative; }
+
+.rv-ae-bus-entry .rv-canvas-layer-effect-remove {
+  position: absolute;
+  right: 19px;
+  bottom: 6px;
+  align-self: auto;
+  z-index: 2;
 }
 
-/* Short connector from the effect input's colored border down to the node.
-   The node-to-parameters run is the continuous spine on .rv-ae-bus-editor. */
-.rv-ae-bus-stem {
-  width: 2px;
-  height: 7px;
-  background: rgba(74, 199, 219, 0.75);
+.rv-ae-bus-entry .rv-canvas-layer-effect-row .drm-dropdown__value {
+  padding-right: 22px;
 }
 
-.rv-ae-bus-entry.is-linked .rv-ae-bus-stem { background: var(--bus-color); }
-
+/* Filled gray add-route button, white glyph, in the gutter where the effect
+   field used to start. Same neutral gray as the dropdown's resting border. */
 .rv-ae-bus-node {
+  position: absolute;
+  left: 3px;
+  top: 15px;
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 20px;
   height: 20px;
+  border: 0;
   border-radius: 999px;
-  border: 2px solid #4ac7db;
-  background: rgba(10, 20, 24, 0.9);
-  color: #8fe3f0;
-  font: 800 10px/1 var(--az-font);
-  box-shadow: 0 0 8px rgba(74, 199, 219, 0.4), inset 0 0 5px rgba(74, 199, 219, 0.22);
+  background: rgba(154, 178, 188, 0.4);
+  color: #fff;
+  font: 800 11px/1 var(--az-font);
   cursor: pointer;
 }
 
 .rv-ae-bus-node:hover,
 .rv-ae-bus-node:focus-visible {
-  box-shadow: 0 0 12px rgba(141, 231, 255, 0.7);
+  background: rgba(154, 178, 188, 0.62);
 }
 
-.rv-ae-bus-entry.is-linked .rv-ae-bus-node {
-  border-color: var(--bus-color);
-  color: var(--bus-color);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--bus-color) 42%, transparent);
+/* Vertical bus line — same neutral gray — from under the button past the
+   parameters; grows with the entry as the editor opens. */
+.rv-ae-bus-line {
+  position: absolute;
+  left: 12px;
+  top: 34px;
+  bottom: 8px;
+  width: 2px;
+  background: rgba(154, 178, 188, 0.4);
 }
 
+/* Audio Intelligence parameters sit indented below the effect field. */
 .rv-ae-bus-editor {
-  align-self: stretch;
-  width: 100%;
-  margin-top: 0;
+  margin-top: 6px;
+  padding-left: 14px;
 }
 
-/* One continuous connector spine, centered under the node. Each routed
-   parameter contributes a segment that covers the gap above it and its own
-   height, so the segments tile into a single line: node → parameter →
-   parameter → … They sit behind the row content and show through the gaps.
-   The "Add another parameter" row carries no segment, so the spine ends at
-   the last routed parameter. */
 .rv-ae-bus-editor .rv-ae-route-param {
-  position: relative;
   border-bottom: 0;
   padding-bottom: 4px;
 }
 
-.rv-ae-bus-editor .rv-ae-route-param::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: -13px;
-  bottom: 0;
-  width: 2px;
-  transform: translateX(-50%);
-  background: color-mix(in srgb, var(--bus-color, #4ac7db) 70%, transparent);
-  z-index: 0;
-}
-
-.rv-ae-bus-editor .rv-ae-route-param > * {
-  position: relative;
-  z-index: 1;
-}
-
 /* ── Concept: Signal Break ───────────────────────────────────────────────── */
 
-.rv-ae-break-entry {
-  padding: 7px 9px 9px;
-  border: 1px solid rgba(154, 178, 188, 0.2);
+/* One framed dark panel around the whole authoring surface — the Active Media
+   dropdown, the Select Effect dropdown, and whatever flows in below once an
+   effect is picked (the route trigger + editor). It simply grows downward as
+   that content appears. */
+.rv-ae-break-group {
+  padding: 9px 10px 10px;
+  border: 1px solid rgba(154, 178, 188, 0.18);
   border-radius: 12px;
+  background: rgba(4, 8, 11, 0.6);
   transition: border-color 0.15s;
 }
 
-.rv-ae-break-entry.is-linked { border-color: var(--break-color); }
+.rv-ae-break-group.is-linked { border-color: var(--break-color); }
+
+/* No per-effect box now — just a thin accent bar once that effect is routed. */
+.rv-ae-break-entry.is-linked {
+  padding-left: 8px;
+  box-shadow: inset 2px 0 0 var(--break-color);
+}
 
 .rv-ae-break-route { margin-top: 6px; }
 
