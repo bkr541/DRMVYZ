@@ -100,11 +100,12 @@ class FakeAudio {
   loop = false
   src = ''
   readonly playMock = vi.fn(() => Promise.resolve())
+  readonly loadMock = vi.fn()
 
   constructor() { fakeAudioInstances.push(this) }
   addEventListener(): void {}
   removeEventListener(): void {}
-  load(): void {}
+  load(): void { this.loadMock() }
   pause(): void {}
   play(): Promise<void> { return this.playMock() }
 }
@@ -248,6 +249,43 @@ describe('useAudioEngine track loading', () => {
 
     expect(engine?.currentAudioTrackId).toBe('track-b')
     expect(engine?.tracks[0]?.dbId).toBe('track-b')
+  })
+
+  it('resets reported position to 0 when the active source is replaced while paused', () => {
+    act(() => {
+      engine?.replaceTrackUrls([{
+        name: 'a.wav', url: 'https://signed.test/a.wav', dbId: 'track-a', storagePath: 'user/track-a/a.wav',
+      }])
+    })
+    act(() => engine?.seek(90))
+    expect(engine?.currentTime).toBe(90)
+
+    act(() => {
+      engine?.replaceTrackUrls([{
+        name: 'b.wav', url: 'https://signed.test/b.wav', dbId: 'track-b', storagePath: 'user/track-b/b.wav',
+      }])
+    })
+
+    expect(engine?.currentAudioTrackId).toBe('track-b')
+    expect(engine?.currentTime).toBe(0)
+  })
+
+  it('does not re-enter the media load path when analysis rebuilds the playlist for the same track', () => {
+    act(() => {
+      engine?.replaceTrackUrls([{
+        name: 'a.wav', url: 'https://signed.test/a.wav', dbId: 'track-a', storagePath: 'user/track-a/a.wav',
+      }])
+    })
+    const el = fakeAudioInstances[0]
+    const loadsAfterInitial = el?.loadMock.mock.calls.length ?? 0
+    act(() => engine?.seek(42))
+
+    // A per-track analysis runtime patch rebuilds the `tracks` array reference.
+    act(() => engine?.setBpmOverride('track-a', 128))
+
+    expect(el?.loadMock.mock.calls.length).toBe(loadsAfterInitial)
+    expect(el?.src).toBe('https://signed.test/a.wav')
+    expect(engine?.currentTime).toBe(42)
   })
 
   it('permits linked-track transport but refuses play and seek against an unrelated active source', async () => {

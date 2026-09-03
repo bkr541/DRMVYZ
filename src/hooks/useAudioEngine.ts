@@ -348,6 +348,10 @@ export function useAudioEngine(): AudioEngine {
   useEffect(() => { currentTimeRef.current = currentTime }, [currentTime])
   const isPlayingRef = useRef(false)
   useEffect(() => { isPlayingRef.current = isPlaying }, [isPlaying])
+  // URL currently loaded into the main media element. Guards the track-load
+  // effect against analysis-driven `tracks` identity churn: only a genuine
+  // source change may re-enter `el.src` / `el.load()`.
+  const loadedTrackKeyRef = useRef<string | null>(null)
 
   // ── Track analysis coordinator refs ──────────────────────────────────────────
   // Stable mutable callbacks so the coordinator never holds stale React closure refs.
@@ -907,10 +911,23 @@ export function useAudioEngine(): AudioEngine {
   }, [disconnectSource])
 
   // ── Track load ───────────────────────────────────────────────────────────────
+  // Fires on playlist-position or active-track change. Analysis runtime patches
+  // (decoding progress, BPM, waveform, duration) rebuild the `tracks` array on
+  // every tick; without the URL guard each rebuild would re-run the media element
+  // load algorithm, aborting playback and snapping the position back toward 0.
   useEffect(() => {
     const el = audioRef.current
     if (!el || currentIndex < 0 || currentIndex >= tracks.length) return
-    el.src = tracks[currentIndex].url; el.load()
+    const track = tracks[currentIndex]
+    if (loadedTrackKeyRef.current === track.url) return
+    loadedTrackKeyRef.current = track.url
+    el.src = track.url; el.load()
+    // The previous track's position must not survive into the new one. load()
+    // resets the media element, but React state only catches up on the next
+    // timeupdate/durationchange — which never fires while paused.
+    setCurrentTime(0)
+    currentTimeRef.current = 0
+    setDuration(track.duration ?? 0)
     if (isPlaying && source === 'file') {
       connectFileSource()
       const ctx = ensureContext()
@@ -1365,6 +1382,10 @@ export function useAudioEngine(): AudioEngine {
     if (el.src !== track.url) {
       el.src = track.url
       el.load()
+      loadedTrackKeyRef.current = track.url
+      setCurrentTime(0)
+      currentTimeRef.current = 0
+      setDuration(track.duration ?? 0)
     }
     connectFileSource()
     const ctx = ensureContext()

@@ -110,6 +110,14 @@ The coordinator owns both decode and CPU-analysis cancellation. One `AbortSignal
 
 Generation checks, active-track checks, and atomic publication provide a second guard. A late result from an old track cannot overwrite the newly selected track.
 
+## Transport on track load and replacement
+
+Selecting, replacing, or advancing to a track resets transport position. Loading a new source starts at 0; the previous track's playback position, reported `currentTime`, and reported `duration` never carry into it.
+
+The media element load path is entered only on a genuine source change. `useAudioEngine` keys the load effect on the active track's URL, not on the `tracks` array identity. Analysis runtime patches (decoding progress, stage, BPM override, per-bar features, waveform, resolved duration) rebuild the `tracks` array on every tick; these rebuilds must not re-enter `HTMLMediaElement.src` / `load()`, because that algorithm aborts playback and snaps position back toward 0.
+
+Because `timeupdate` and `durationchange` only fire once the new element plays or is seeked, a track loaded while paused would otherwise leave the transport UI, Track Map cursor, waveform playhead, and lyric resolver reading the previous track's time. The load path therefore resets `currentTime` and `duration` React state explicitly at the moment of change rather than waiting for a media event.
+
 ## Performance safeguards
 
 - One decode and one shared feature-extraction pass per cache miss
