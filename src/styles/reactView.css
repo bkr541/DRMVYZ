@@ -19696,6 +19696,78 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* ── Concept: Floating Route Orb ─────────────────────────────────────────── */
 
+/* Square media thumbnail flush to the left of the Active Media select + label.
+   `align-self: stretch` + `aspect-ratio: 1` size it to that field's full
+   height, so width == height == (dropdown + label) height. */
+.rv-canvas-layer-media-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.rv-canvas-layer-media-row__field {
+  flex: 1;
+  min-width: 0;
+}
+
+.rv-ae-orb-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  align-self: stretch;
+  aspect-ratio: 1;
+  border-radius: 5px;
+  border: 1px solid rgba(154, 178, 188, 0.2);
+  background:
+    radial-gradient(circle at 32% 24%, rgba(74, 199, 219, 0.32), transparent 62%),
+    linear-gradient(158deg, #1b2731, #0a1016);
+}
+
+.rv-ae-orb-thumb[data-media-type='video']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 5px 0 5px 8px;
+  border-color: transparent transparent transparent rgba(232, 244, 248, 0.85);
+}
+
+/* Circular add/plus icon on its own centered row between the media dropdown
+   and the effect dropdown — transparent fill, standard light-blue outline. */
+.rv-ae-orb-add-row {
+  display: flex;
+  justify-content: center;
+}
+
+.rv-ae-orb-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid #4ac7db;
+  background: transparent;
+  color: #4ac7db;
+  font: 700 11px/1 var(--az-font);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.rv-ae-orb-add:hover:not(.is-active),
+.rv-ae-orb-add:focus-visible:not(.is-active) {
+  background: rgba(74, 199, 219, 0.12);
+}
+
+/* An effect is chosen in the dropdown below — the toggle fills in. */
+.rv-ae-orb-add.is-active {
+  background: #4ac7db;
+  border-color: #4ac7db;
+  color: #fff;
+}
+
 /* Effect input's own bottom border switches to the linked parameter's color
    — matches the same treatment used by the Connector Line and Highlight
    Wash concepts, so the line below reads as continuing out of it.

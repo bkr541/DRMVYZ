@@ -617,6 +617,9 @@ function AddEffectsLayerGroup({
   getEntryExtra,
   getMediaRowExtra,
   getGroupExtra,
+  renderMediaRowLeading,
+  renderAfterMediaRow,
+  showEffects = true,
 }: {
   state: CanvasMockState
   layer: CanvasMockState['addEffectsLayers'][number]
@@ -628,6 +631,14 @@ function AddEffectsLayerGroup({
   /** Style the outer wrapper that holds the Active Media select, the effect
    *  dropdowns, and the add-effect row (e.g. a single framed panel). */
   getGroupExtra?: (layer: CanvasMockState['addEffectsLayers'][number]) => { className?: string; style?: CSSProperties } | undefined
+  /** Content placed to the left of the Active Media select + label, stretched
+   *  to that field's height (e.g. a square media thumbnail). */
+  renderMediaRowLeading?: (layer: CanvasMockState['addEffectsLayers'][number]) => ReactNode
+  /** Content placed between the Active Media select and the effect stack. */
+  renderAfterMediaRow?: (layer: CanvasMockState['addEffectsLayers'][number]) => ReactNode
+  /** When false, the effect-dropdown stack is hidden (a concept can gate it
+   *  behind a disclosure control). Defaults to shown. */
+  showEffects?: boolean
 }) {
   const parentLabel = `Active Media ${layerIndex + 1}`
   const selectedEffects = new Set(layer.effects)
@@ -641,6 +652,10 @@ function AddEffectsLayerGroup({
   )
   const mediaRowExtra = getMediaRowExtra?.(layer)
   const groupExtra = getGroupExtra?.(layer)
+  const mediaRowNode = mediaRowExtra
+    ? <div className={mediaRowExtra.className} style={mediaRowExtra.style}>{mediaRow}</div>
+    : mediaRow
+  const mediaRowLeading = renderMediaRowLeading?.(layer)
   return (
     <div
       className={groupExtra?.className ? `rv-canvas-layer-effects-group ${groupExtra.className}` : 'rv-canvas-layer-effects-group'}
@@ -650,7 +665,14 @@ function AddEffectsLayerGroup({
           (Performance Pool / active selection) — display-only, styled
           like a real input field for consistency, matching the
           production Add Effects group. */}
-      {mediaRowExtra ? <div className={mediaRowExtra.className} style={mediaRowExtra.style}>{mediaRow}</div> : mediaRow}
+      {mediaRowLeading != null ? (
+        <div className="rv-canvas-layer-media-row">
+          {mediaRowLeading}
+          <div className="rv-canvas-layer-media-row__field">{mediaRowNode}</div>
+        </div>
+      ) : mediaRowNode}
+      {renderAfterMediaRow?.(layer)}
+      {showEffects && (
       <div className="rv-canvas-layer-effects-stack" data-canvas-effect-layer-id={layer.mediaId}>
         {layer.effects.map((effectId, effectIndex) => {
           const options = CANVAS_LAYER_EFFECT_OPTIONS.filter(option => (
@@ -698,6 +720,7 @@ function AddEffectsLayerGroup({
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }
@@ -767,6 +790,7 @@ function AddEffectsControls({ state }: { state: CanvasMockState }) {
  * the first parameter's color. Local route state, a styling comparison only. */
 function AddEffectsFloatingOrbConcept({ state }: { state: CanvasMockState }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [effectsShown, setEffectsShown] = useState<Record<string, boolean>>({})
   const [links, setLinks] = useState<MockRouteMap>({})
 
   return (
@@ -775,12 +799,43 @@ function AddEffectsFloatingOrbConcept({ state }: { state: CanvasMockState }) {
       {state.addEffectsLayers.length === 0 && (
         <div className="rv-canvas-engine-note">Add media to the Performance Pool (Design tab) or select an active media item to preview this concept.</div>
       )}
-      {state.addEffectsLayers.map((layer, layerIndex) => (
+      {state.addEffectsLayers.map((layer, layerIndex) => {
+        const effectsVisible = effectsShown[layer.mediaId] ?? layer.effects.length > 0
+        return (
         <AddEffectsLayerGroup
           key={layer.mediaId}
           state={state}
           layer={layer}
           layerIndex={layerIndex}
+          showEffects={effectsVisible}
+          renderMediaRowLeading={mediaLayer => {
+            const media = state.mediaItems.find(item => item.id === mediaLayer.mediaId)
+            return (
+              <span
+                className="rv-ae-orb-thumb"
+                data-media-type={media?.type ?? 'image'}
+                role="img"
+                aria-label={`${mediaLayer.mediaName} thumbnail`}
+                title={mediaLayer.mediaName}
+              />
+            )
+          }}
+          renderAfterMediaRow={mediaLayer => {
+            const hasEffect = mediaLayer.effects.length > 0
+            return (
+              <div className="rv-ae-orb-add-row">
+                <button
+                  type="button"
+                  className={`rv-ae-orb-add${hasEffect ? ' is-active' : ''}`}
+                  aria-expanded={effectsVisible}
+                  aria-label={`${effectsVisible ? 'Hide' : 'Show'} the effect selector for ${mediaLayer.mediaName}`}
+                  onClick={() => setEffectsShown(current => ({ ...current, [mediaLayer.mediaId]: !effectsVisible }))}
+                >
+                  +
+                </button>
+              </div>
+            )
+          }}
           getEntryExtra={({ linkKey }) => {
             const color = firstRouteColor(links[linkKey])
             return {
@@ -821,7 +876,8 @@ function AddEffectsFloatingOrbConcept({ state }: { state: CanvasMockState }) {
             )
           }}
         />
-      ))}
+        )
+      })}
     </Collapsible>
   )
 }
