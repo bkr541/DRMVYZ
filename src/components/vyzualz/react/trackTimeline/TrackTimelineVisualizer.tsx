@@ -951,6 +951,15 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
         viewport={viewport}
       />
 
+      <header className="ttv-view-header">
+        <div className="ttv-view-header-title-group">
+          <span className="ttv-view-header-title">Track Timeline Visualizer</span>
+          <span className="ttv-view-header-subtitle" title={model.meta.filename}>
+            Beat grid, sections, waveform, and analysis timeline for {model.meta.filename}
+          </span>
+        </div>
+      </header>
+
       <div className="ttv-body">
         <TrackTimelineRail
           onOverview={scrollToOverview}
