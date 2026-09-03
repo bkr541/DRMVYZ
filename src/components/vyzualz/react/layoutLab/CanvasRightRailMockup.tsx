@@ -836,14 +836,6 @@ function AddEffectsFloatingOrbConcept({ state }: { state: CanvasMockState }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [effectsShown, setEffectsShown] = useState<Record<string, boolean>>({})
   const [links, setLinks] = useState<MockRouteMap>({})
-  // Only the first loaded media shows by default; the user adds more via the
-  // Add Media control, which reveals an empty media dropdown to pick from.
-  const [extraMediaIds, setExtraMediaIds] = useState<string[]>([])
-  const [pickerOpen, setPickerOpen] = useState(false)
-
-  const firstLayer = state.addEffectsLayers[0] ?? null
-  const shownMediaIds = new Set<string>([firstLayer?.mediaId, ...extraMediaIds].filter((id): id is string => Boolean(id)))
-  const pickableMedia = state.mediaItems.filter(item => !shownMediaIds.has(item.id))
 
   const renderLayerGroup = (layer: CanvasMockState['addEffectsLayers'][number], layerIndex: number) => {
     const effectsVisible = effectsShown[layer.mediaId] ?? layer.effects.length > 0
@@ -925,53 +917,11 @@ function AddEffectsFloatingOrbConcept({ state }: { state: CanvasMockState }) {
 
   return (
     <Collapsible label="Add Effects — Floating Route Orb" defaultOpen={false}>
-      <div className="rv-canvas-engine-note">Only the first loaded media shows by default. Use “Add Media” to reveal an empty media dropdown and pick another. The route orb sits on its own row below the effect input; click it to open the parameter editor. Concept only.</div>
-      {!firstLayer && (
+      <div className="rv-canvas-engine-note">The route orb sits on its own row below the effect input. Click it to open the parameter editor — add several Audio Intelligence parameters, each with a master-intensity slider for that effect + parameter combination. Concept only.</div>
+      {state.addEffectsLayers.length === 0 && (
         <div className="rv-canvas-engine-note">Add media to the Performance Pool (Design tab) or select an active media item to preview this concept.</div>
       )}
-      {firstLayer && renderLayerGroup(firstLayer, 0)}
-      {extraMediaIds.map((mediaId, index) => {
-        const existing = state.addEffectsLayers.find(candidate => candidate.mediaId === mediaId)
-        const media = state.mediaItems.find(item => item.id === mediaId)
-        const layer = existing ?? { mediaId, mediaName: media?.name ?? mediaId, effects: [] }
-        return (
-          <div className="rv-ae-orb-extra-media" key={mediaId}>
-            <button
-              type="button"
-              className="rv-ae-orb-remove-media"
-              aria-label={`Remove ${layer.mediaName}`}
-              onClick={() => setExtraMediaIds(current => current.filter(id => id !== mediaId))}
-            >
-              <Delete02Icon size={13} color="currentColor" />
-            </button>
-            {renderLayerGroup(layer, index + 1)}
-          </div>
-        )
-      })}
-      {pickerOpen && (
-        <div className="rv-ae-orb-media-picker">
-          <SelectRow
-            label="Select media"
-            labelHidden
-            value=""
-            placeholder={pickableMedia.length ? 'Select media…' : 'No more media available'}
-            options={pickableMedia.map(item => ({ value: item.id, label: item.name }))}
-            onChange={value => {
-              if (!value) return
-              setExtraMediaIds(current => (current.includes(value) ? current : [...current, value]))
-              setPickerOpen(false)
-            }}
-          />
-        </div>
-      )}
-      <button
-        type="button"
-        className="rv-ae-orb-add-media"
-        aria-expanded={pickerOpen}
-        onClick={() => setPickerOpen(open => !open)}
-      >
-        + Add Media
-      </button>
+      {state.addEffectsLayers.map((layer, layerIndex) => renderLayerGroup(layer, layerIndex))}
     </Collapsible>
   )
 }
