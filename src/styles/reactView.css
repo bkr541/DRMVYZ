@@ -138,11 +138,6 @@
   min-width: 0;
 }
 
-.rv-cinema-preset-grid--list .rv-cinema-preset-tile-chips {
-  flex: 0 0 auto;
-  flex-wrap: nowrap;
-}
-
 .rv-cinema-preset-tile {
   display: flex;
   flex-direction: column;
@@ -182,12 +177,6 @@
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.rv-cinema-preset-tile-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
 }
 
 .rv-shell:has(> .vz-transport-dock--collapsed) {

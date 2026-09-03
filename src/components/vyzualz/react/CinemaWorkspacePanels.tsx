@@ -5,18 +5,15 @@ import {
   buildCinemaComposerLibraryItems,
   getCinemaComposerLayers,
   getCinemaEditorSelection,
-  isCinemaBuiltInComposition,
   useCinemaStore,
   type CinemaComposerLibraryItem,
   type CinemaNodeDefinition,
   type CinemaNodeId,
 } from '../cinema'
-import { isCinemaLiveInstance } from './CinemaLiveOverrides'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { PresetSearchRow } from './controls/PresetSearchRow'
 import { PanelSubtabs } from './PanelSubtabs'
 import { LayerRow } from './controls/LayerRow'
-import { Badge } from './controls/Badge'
 
 // Same accent palette as the LayerRow canonical component's Layout Lab gallery.
 const CINEMA_LAYER_ROW_TONES = ['#4ac7db', '#67f7ff', '#6b4cff', '#b84fc9', '#d8b95a', '#61d6aa', '#ff6b6b']
@@ -26,7 +23,6 @@ function useCinemaPanelState() {
     activeCompositionId: store.activeCompositionId,
     activeInstanceId: store.activeInstanceId,
     compositions: store.compositions,
-    instances: store.instances,
     definitions: store.definitions,
     editorMetadata: store.editorMetadata,
   })))
@@ -71,11 +67,8 @@ export function CinemaPresetsPanel() {
       {scope === 'system' && (
       <div className={`rv-cinema-preset-grid${viewMode === 'list' ? ' rv-cinema-preset-grid--list' : ''}`}>
         {presets.map((candidate, index) => {
-          const variations = state.instances.filter(instance => instance.compositionId === candidate.id && !isCinemaLiveInstance(instance))
           const isActive = candidate.id === preset?.id
           const tone = CINEMA_LAYER_ROW_TONES[index % CINEMA_LAYER_ROW_TONES.length]
-          const originLabel = `${isCinemaBuiltInComposition(candidate) ? 'Built-in' : 'Show Manager'}${variations.length ? ` · ${variations.length} variation${variations.length === 1 ? '' : 's'}` : ''}`
-          const firstTag = candidate.metadata.tags?.[0]
           return (
             <button
               type="button"
@@ -87,10 +80,6 @@ export function CinemaPresetsPanel() {
             >
               <span className="rv-cinema-preset-tile-thumb" style={{ '--rv-preset-tone': tone } as CSSProperties} aria-hidden="true" />
               <span className="rv-cinema-preset-tile-name">{candidate.metadata.name}</span>
-              <span className="rv-cinema-preset-tile-chips">
-                <Badge label={originLabel} tone={tone} />
-                {firstTag && <Badge label={firstTag} tone={tone} />}
-              </span>
             </button>
           )
         })}

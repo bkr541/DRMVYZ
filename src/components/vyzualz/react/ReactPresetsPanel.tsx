@@ -95,13 +95,6 @@ const FIXTURE_BADGE_LABELS: Record<ProductionFixtureKind, string> = {
   strobe: 'Strobe', blinder: 'Blinder', ledBar: 'LED Bar', hazer: 'Haze', fogger: 'Fog', cryoJet: 'Cryo',
 }
 
-const CANVAS_PRESET_CHIP_LABELS: Partial<Record<CanvasPresetId, string>> = {
-  'canvas-clean-playback': 'Clean Source',
-  'canvas-particle-aura': 'Particle System',
-  'canvas-fractures': 'Fragment Collage',
-  'canvas-laser-image-fx': 'GPU Laser FX',
-}
-
 function createCanvasPresetCardPreset(preset: CanvasPresetDefinition): ReactPreset {
   const intensity = preset.rendererKind === 'fragmentCollage'
     ? preset.settings.fractureIntensity ?? DEFAULT_CANVAS_PRESET_SETTINGS.fractureIntensity
@@ -344,7 +337,7 @@ function CanvasPresetCollection({ thumbnailGenerationKey, query }: { thumbnailGe
               activeEngineId="canvas"
               onSelect={id => selectCanvasPreset(id as CanvasPresetId)}
               thumbnailGenerationKey={canvasThumbnailGenerationKey}
-              modeHintOverride={CANVAS_PRESET_CHIP_LABELS[canvasPreset.id]}
+              modeHintOverride={null}
               showMore={false}
             />
           )
