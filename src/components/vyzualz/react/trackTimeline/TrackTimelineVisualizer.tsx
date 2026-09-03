@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
@@ -459,6 +460,15 @@ function RailIcon({ name }: { name: RailIconName }) {
   )
 }
 
+function NotificationBellIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M18 8.5a6 6 0 0 0-12 0c0 6.5-2.5 8.5-2.5 8.5h17S18 15 18 8.5" />
+      <path d="M13.7 20.5a2 2 0 0 1-3.4 0" />
+    </svg>
+  )
+}
+
 function TrackTimelineRail({
   onOverview,
   onDetail,
@@ -796,6 +806,7 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   const minimumViewportDuration = Math.min(model.durationSec || 1, Math.max(1, barDuration * 4))
   const [activeZoom, setActiveZoom] = useState<TrackTimelineZoomPreset | 'custom'>(32)
   const [analysisPanelOpen, setAnalysisPanelOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [viewport, setViewport] = useState<TrackTimelineViewport>(() => createTrackTimelineViewport(
     model.durationSec,
     model.bars,
@@ -880,6 +891,35 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
     : 'Downbeat unavailable'
   const analysisHasWarning = !downbeatAvailable || model.warnings.length > 0
 
+  // The notification-drawer feed: the Analysis Status summary followed by each
+  // distinct analysis warning, reusing the same NoticeCard treatment shown
+  // inline elsewhere in the visualizer.
+  const notificationCards: Array<{ id: string; tone: 'warning' | 'success'; title: string; body: string }> = [
+    {
+      id: 'analysis-status',
+      tone: analysisHasWarning ? 'warning' : 'success',
+      title: 'Analysis Status',
+      body: analysisStatusText,
+    },
+    ...model.warnings
+      .filter(warning => warning !== analysisStatusText)
+      .map((warning, index) => ({
+        id: `analysis-warning-${index}`,
+        tone: 'warning' as const,
+        title: 'Analysis warning',
+        body: warning,
+      })),
+  ]
+
+  useEffect(() => {
+    if (!notificationsOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setNotificationsOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [notificationsOpen])
+
   const scrollToOverview = useCallback(() => {
     overviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
@@ -921,6 +961,18 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                   <small>Drag the cyan viewport or its handles to change the detail range.</small>
                 </div>
                 <div className="ttv-overview-actions">
+                  <button
+                    type="button"
+                    className="ttv-icon-btn ttv-notifications-trigger"
+                    onClick={() => setNotificationsOpen(true)}
+                    aria-haspopup="dialog"
+                    aria-expanded={notificationsOpen}
+                    aria-label="Open notifications"
+                    title="Notifications"
+                  >
+                    <NotificationBellIcon />
+                    {analysisHasWarning && <span className="ttv-notifications-dot" aria-hidden="true" />}
+                  </button>
                   <button
                     type="button"
                     className="ttv-icon-btn"
@@ -1076,6 +1128,41 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
           )}
         </section>
       </div>
+
+      {notificationsOpen && (
+        <div className="ttv-notifications-overlay">
+          <button
+            type="button"
+            className="ttv-notifications-scrim"
+            aria-label="Close notifications"
+            onClick={() => setNotificationsOpen(false)}
+          />
+          <aside className="ttv-notifications-drawer" role="dialog" aria-label="Notifications">
+            <header className="ttv-notifications-header">
+              <span>Notifications</span>
+              <button
+                type="button"
+                className="ttv-icon-btn"
+                onClick={() => setNotificationsOpen(false)}
+                aria-label="Close notifications"
+              >
+                ×
+              </button>
+            </header>
+            <div className="ttv-notifications-list">
+              {notificationCards.map((card, index) => (
+                <div
+                  key={card.id}
+                  className="ttv-notifications-card"
+                  style={{ '--ttv-notif-index': index } as CSSProperties}
+                >
+                  <NoticeCard tone={card.tone} role="status" title={card.title}>{card.body}</NoticeCard>
+                </div>
+              ))}
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   )
 }

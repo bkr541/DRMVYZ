@@ -1,5 +1,6 @@
 .ttv-popup-root,
 .ttv-app-shell {
+  position: relative;
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -955,5 +956,116 @@ summary.ttv-icon-btn::-webkit-details-marker {
 
   .ttv-row-label--nested::after {
     left: 13px;
+  }
+}
+
+/* ── Notifications overlay ─────────────────────────────────────────────────
+   Bell trigger sits left of the Analysis Settings icon; pressing it drops a
+   dark gradient scrim over the whole visualizer and slides a right-edge
+   drawer of NoticeCards in, staggered. */
+
+.ttv-notifications-trigger {
+  position: relative;
+}
+
+.ttv-notifications-dot {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--az-yellow, #d8b95a);
+  box-shadow: 0 0 0 2px rgba(12, 16, 19, 0.92);
+}
+
+.ttv-notifications-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.ttv-notifications-scrim {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  background:
+    radial-gradient(circle at 82% 8%, rgba(0, 0, 0, 0.32), transparent 44%),
+    linear-gradient(210deg, rgba(4, 7, 9, 0.68) 0%, rgba(3, 5, 7, 0.9) 55%, rgba(2, 3, 4, 0.96) 100%);
+  animation: ttv-notifications-scrim-in 180ms ease-out both;
+}
+
+@keyframes ttv-notifications-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.ttv-notifications-drawer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(380px, calc(100% - 40px));
+  height: 100%;
+  border-left: 1px solid rgba(154, 178, 188, 0.16);
+  background: linear-gradient(180deg, rgba(14, 19, 23, 0.97), rgba(9, 13, 15, 0.97));
+  box-shadow: -30px 0 64px rgba(0, 0, 0, 0.5);
+  animation: ttv-notifications-drawer-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes ttv-notifications-drawer-in {
+  from { transform: translateX(28px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.ttv-notifications-header {
+  flex: 0 0 auto;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 8px 0 16px;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.14);
+}
+
+.ttv-notifications-header span {
+  color: var(--color-text-strong, rgba(245, 248, 250, 0.94));
+  font: 800 12px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ttv-notifications-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  overflow-y: auto;
+}
+
+.ttv-notifications-card {
+  animation: ttv-notifications-card-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(140ms + var(--ttv-notif-index, 0) * 70ms);
+}
+
+@keyframes ttv-notifications-card-in {
+  from { transform: translateX(30px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ttv-notifications-scrim,
+  .ttv-notifications-drawer,
+  .ttv-notifications-card {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
   }
 }
