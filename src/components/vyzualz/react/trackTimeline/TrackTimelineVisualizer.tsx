@@ -807,6 +807,7 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   const [activeZoom, setActiveZoom] = useState<TrackTimelineZoomPreset | 'custom'>(32)
   const [analysisPanelOpen, setAnalysisPanelOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [notificationsClosing, setNotificationsClosing] = useState(false)
   const [viewport, setViewport] = useState<TrackTimelineViewport>(() => createTrackTimelineViewport(
     model.durationSec,
     model.bars,
@@ -911,10 +912,18 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
       })),
   ]
 
+  // Closing runs a reverse animation: flag `closing`, then unmount only once
+  // the drawer's slide-out animation reports done (onAnimationEnd below).
+  const openNotifications = useCallback(() => {
+    setNotificationsClosing(false)
+    setNotificationsOpen(true)
+  }, [])
+  const requestCloseNotifications = useCallback(() => setNotificationsClosing(true), [])
+
   useEffect(() => {
     if (!notificationsOpen) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setNotificationsOpen(false)
+      if (event.key === 'Escape') setNotificationsClosing(true)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -964,7 +973,7 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                   <button
                     type="button"
                     className="ttv-icon-btn ttv-notifications-trigger"
-                    onClick={() => setNotificationsOpen(true)}
+                    onClick={openNotifications}
                     aria-haspopup="dialog"
                     aria-expanded={notificationsOpen}
                     aria-label="Open notifications"
@@ -1130,20 +1139,30 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
       </div>
 
       {notificationsOpen && (
-        <div className="ttv-notifications-overlay">
+        <div className={`ttv-notifications-overlay${notificationsClosing ? ' is-closing' : ''}`}>
           <button
             type="button"
             className="ttv-notifications-scrim"
             aria-label="Close notifications"
-            onClick={() => setNotificationsOpen(false)}
+            onClick={requestCloseNotifications}
           />
-          <aside className="ttv-notifications-drawer" role="dialog" aria-label="Notifications">
+          <aside
+            className="ttv-notifications-drawer"
+            role="dialog"
+            aria-label="Notifications"
+            onAnimationEnd={event => {
+              if (event.target === event.currentTarget && notificationsClosing) {
+                setNotificationsOpen(false)
+                setNotificationsClosing(false)
+              }
+            }}
+          >
             <header className="ttv-notifications-header">
               <span>Notifications</span>
               <button
                 type="button"
                 className="ttv-icon-btn"
-                onClick={() => setNotificationsOpen(false)}
+                onClick={requestCloseNotifications}
                 aria-label="Close notifications"
               >
                 ×

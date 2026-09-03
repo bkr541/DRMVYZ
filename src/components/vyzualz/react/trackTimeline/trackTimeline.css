@@ -1061,10 +1061,36 @@ summary.ttv-icon-btn::-webkit-details-marker {
   to { transform: translateX(0); opacity: 1; }
 }
 
+/* Closing: reverse the scrim fade and drawer slide, then the drawer's
+   onAnimationEnd unmounts the overlay. */
+.ttv-notifications-overlay.is-closing .ttv-notifications-scrim {
+  animation: ttv-notifications-scrim-out 180ms ease-in both;
+}
+
+.ttv-notifications-overlay.is-closing .ttv-notifications-drawer {
+  animation: ttv-notifications-drawer-out 200ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.ttv-notifications-overlay.is-closing .ttv-notifications-card {
+  animation: none;
+}
+
+@keyframes ttv-notifications-scrim-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes ttv-notifications-drawer-out {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(28px); opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ttv-notifications-scrim,
   .ttv-notifications-drawer,
-  .ttv-notifications-card {
+  .ttv-notifications-card,
+  .ttv-notifications-overlay.is-closing .ttv-notifications-scrim,
+  .ttv-notifications-overlay.is-closing .ttv-notifications-drawer {
     animation-duration: 1ms;
     animation-delay: 0ms;
   }
