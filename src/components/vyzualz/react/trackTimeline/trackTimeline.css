@@ -210,46 +210,10 @@
   gap: 8px;
 }
 
-.ttv-analysis-status {
-  min-height: 32px;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border: 1px solid rgba(var(--color-secondary-rgb, 97, 214, 170), 0.24);
-  border-radius: 7px;
-  background: rgba(var(--color-secondary-rgb, 97, 214, 170), 0.055);
-  color: var(--color-secondary, #61d6aa);
-  cursor: pointer;
-}
-
-.ttv-analysis-status--warning {
-  border-color: rgba(216, 185, 90, 0.32);
-  background: rgba(216, 185, 90, 0.045);
-  color: var(--az-yellow, #d8b95a);
-}
-
-.ttv-analysis-status:hover {
-  filter: brightness(1.12);
-}
-
-.ttv-analysis-status-label {
-  color: currentColor;
-  font: 700 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
-  letter-spacing: 0.02em;
-}
-
-.ttv-analysis-status-value {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font: 600 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
-  white-space: nowrap;
-}
-
-.ttv-warning-icon {
-  font-size: 14px;
-  line-height: 1;
+/* Analysis Status is the canonical NoticeCard (.dv-notice); this only places
+   it as a full-width banner between the overview heading and the timeline. */
+.ttv-overview-notice {
+  margin: 10px 0 2px;
 }
 
 .ttv-icon-btn {
@@ -308,14 +272,9 @@ summary.ttv-icon-btn::-webkit-details-marker {
   text-transform: uppercase;
 }
 
-.ttv-menu-warning {
+/* Canonical NoticeCard (.dv-notice); this only adds top spacing in the menu. */
+.ttv-menu-notice {
   margin-top: 9px;
-  padding: 8px 9px;
-  border: 1px solid rgba(216, 185, 90, 0.25);
-  border-radius: 6px;
-  background: rgba(216, 185, 90, 0.06);
-  color: var(--az-yellow, #d8b95a);
-  font: 500 9px/1.4 var(--az-font-data, Inter, system-ui, sans-serif);
 }
 
 .ttv-overview-stack {
@@ -936,10 +895,6 @@ summary.ttv-icon-btn::-webkit-details-marker {
     display: none;
   }
 
-  .ttv-analysis-status-label {
-    display: none;
-  }
-
   .ttv-detail-header {
     align-items: flex-start;
   }
@@ -967,10 +922,6 @@ summary.ttv-icon-btn::-webkit-details-marker {
 
   .ttv-overview-heading {
     padding-left: 10px;
-  }
-
-  .ttv-analysis-status {
-    display: none;
   }
 
   .ttv-detail-header {

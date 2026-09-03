@@ -923,18 +923,6 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                 <div className="ttv-overview-actions">
                   <button
                     type="button"
-                    className={`ttv-analysis-status${analysisHasWarning ? ' ttv-analysis-status--warning' : ''}`}
-                    onClick={() => setAnalysisPanelOpen(value => !value)}
-                    title={model.warnings.length ? model.warnings.join('\n') : analysisStatusText}
-                  >
-                    <span className="ttv-analysis-status-label">Analysis Status</span>
-                    <span className="ttv-analysis-status-value">
-                      {analysisHasWarning && <span className="ttv-warning-icon" aria-hidden="true">△</span>}
-                      {analysisStatusText}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
                     className="ttv-icon-btn"
                     onClick={() => setAnalysisPanelOpen(value => !value)}
                     aria-label="Open analysis settings"
@@ -950,12 +938,23 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                         {metaValues.map(value => <span key={value} className="ttv-meta-pill">{value}</span>)}
                       </div>
                       {model.warnings.length > 0 && (
-                        <div className="ttv-menu-warning">{model.warnings.slice(0, 3).join(' ')}</div>
+                        <NoticeCard className="ttv-menu-notice" tone="warning" role="status" title="Analysis warnings">
+                          {model.warnings.slice(0, 3).join(' ')}
+                        </NoticeCard>
                       )}
                     </div>
                   </details>
                 </div>
               </div>
+
+              <NoticeCard
+                className="ttv-overview-notice"
+                tone={analysisHasWarning ? 'warning' : 'success'}
+                role="status"
+                title="Analysis Status"
+              >
+                {analysisStatusText}
+              </NoticeCard>
 
               <div className="ttv-overview-stack">
                 <OverviewTimelineRow
