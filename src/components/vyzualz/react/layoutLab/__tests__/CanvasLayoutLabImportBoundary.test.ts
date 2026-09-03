@@ -122,8 +122,6 @@ const REQUIRED_LABELS = [
   'Add Effects — Blueprint Bus',
   'Add Effects — Signal Break',
   'Add Effects — Preview Deck',
-  'Add Effects — Accent Stack',
-  'Add Effects — Rack Group',
   '+ Route',
   'Fractures recording is unavailable',
   'Recording unavailable',

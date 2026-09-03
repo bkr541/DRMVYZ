@@ -19582,6 +19582,33 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   align-self: center;
 }
 
+/* Layout Lab only: the Effect field's red trash sits inside the dropdown,
+   immediately left of the chevron, matched to the chevron's 14px size and
+   ~2px edge gap. */
+[data-layout-lab-canvas='routing'] .rv-canvas-layer-effect-row {
+  position: relative;
+}
+
+[data-layout-lab-canvas='routing'] .rv-canvas-layer-effect-remove {
+  position: absolute;
+  right: 18px;
+  bottom: 8px;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  align-self: auto;
+  z-index: 2;
+}
+
+[data-layout-lab-canvas='routing'] .rv-canvas-layer-effect-remove svg {
+  width: 14px;
+  height: 14px;
+}
+
+[data-layout-lab-canvas='routing'] .rv-canvas-layer-effect-row .drm-dropdown__value {
+  padding-right: 18px;
+}
+
 /* One authored effect, plus its own "Route Effect" toggle and (when
    expanded) its Audio Intelligence parameter picker — all nested directly
    under that effect so a route's ownership is never ambiguous, and nothing
@@ -20159,21 +20186,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bus-color) 30%, transparent);
 }
 
-/* Trash moves inside the effect field, just left of the chevron. */
-.rv-ae-bus-entry .rv-canvas-layer-effect-row { position: relative; }
-
-.rv-ae-bus-entry .rv-canvas-layer-effect-remove {
-  position: absolute;
-  right: 19px;
-  bottom: 6px;
-  align-self: auto;
-  z-index: 2;
-}
-
-.rv-ae-bus-entry .rv-canvas-layer-effect-row .drm-dropdown__value {
-  padding-right: 22px;
-}
-
 /* Filled gray add-route button, white glyph, in the gutter where the effect
    field used to start. Same neutral gray as the dropdown's resting border. */
 .rv-ae-bus-node {
@@ -20349,121 +20361,3 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-deck-bar-icons.is-open .rv-ae-deck-chevron { transform: rotate(180deg); }
 
 .rv-ae-deck-body { margin-top: 8px; }
-
-/* ── Concept: Accent Stack ───────────────────────────────────────────────── */
-
-.rv-ae-accent-entry {
-  padding: 8px 8px 8px 10px;
-  border-radius: 8px;
-  border-left: 3px solid rgba(154, 178, 188, 0.3);
-  background: rgba(255, 255, 255, 0.02);
-  box-shadow: 0 2px 10px -5px rgba(0, 0, 0, 0.5);
-}
-
-.rv-ae-accent-entry.is-linked { border-left-color: var(--accent-c); }
-
-.rv-ae-accent-footer { margin-top: 6px; }
-
-.rv-ae-accent-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 8px 3px 3px;
-  border: 0;
-  border-radius: 6px;
-  background: rgba(154, 178, 188, 0.1);
-  cursor: pointer;
-}
-
-.rv-ae-accent-trigger:hover { background: rgba(154, 178, 188, 0.18); }
-
-.rv-ae-accent-badge {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  background: rgba(154, 178, 188, 0.45);
-  color: #0a1418;
-  font: 800 10px/1 var(--az-font);
-}
-
-.rv-ae-accent-trigger.is-linked .rv-ae-accent-badge { background: var(--accent-c); }
-
-.rv-ae-accent-sub {
-  font: 600 8px/1.3 var(--az-font);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(196, 207, 211, 0.6);
-}
-
-.rv-ae-accent-body { margin-top: 8px; }
-
-/* ── Concept: Rack Group ─────────────────────────────────────────────────── */
-
-.rv-ae-rack-header {
-  padding: 6px 8px;
-  border: 1px solid rgba(154, 178, 188, 0.14);
-  border-radius: 8px;
-  background: rgba(6, 10, 13, 0.6);
-}
-
-.rv-ae-rack-row {
-  padding: 8px 9px 9px;
-  border: 1px solid var(--rack-color);
-  border-radius: 8px;
-  background: rgba(8, 12, 15, 0.55);
-}
-
-.rv-ae-rack-row.is-linked { box-shadow: 0 0 0 1px var(--rack-color); }
-
-.rv-ae-rack-foot { margin-top: 6px; }
-
-.rv-ae-rack-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 3px 9px 3px 3px;
-  border: 1px solid color-mix(in srgb, var(--rack-color) 45%, transparent);
-  border-radius: 999px;
-  background: transparent;
-  cursor: pointer;
-}
-
-.rv-ae-rack-trigger:hover { border-color: var(--rack-color); }
-
-.rv-ae-rack-badge {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  background: var(--rack-color);
-  color: #0a0f12;
-  font: 800 9px/1 var(--az-font);
-}
-
-.rv-ae-rack-meta {
-  font: 500 7.5px/1.3 var(--az-font);
-  letter-spacing: 0.08em;
-  color: rgba(196, 207, 211, 0.5);
-}
-
-.rv-ae-rack-body {
-  position: relative;
-  margin-top: 8px;
-  padding-left: 12px;
-}
-
-.rv-ae-rack-connector {
-  position: absolute;
-  left: 2px;
-  top: -8px;
-  width: 2px;
-  height: 20px;
-  background: #f0883e;
-}

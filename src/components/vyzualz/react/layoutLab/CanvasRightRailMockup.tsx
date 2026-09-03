@@ -675,11 +675,10 @@ function AddEffectsLayerGroup({
                 <button
                   type="button"
                   className="vz-media-remove rv-canvas-layer-effect-remove"
-                  style={{ position: 'static' }}
                   aria-label={`Remove ${effectLabel} from ${parentLabel}`}
                   onClick={() => state.removeCanvasLayerEffectAt(layer.mediaId, effectIndex)}
                 >
-                  <Delete02Icon size={13} color="currentColor" />
+                  <Delete02Icon size={14} color="currentColor" />
                 </button>
               </div>
               {renderRoute(ctx)}
@@ -1040,16 +1039,6 @@ function DeckChevronGlyph({ size = 11 }: { size?: number }) {
   )
 }
 
-/** Deterministic red / amber / green / cyan / violet outline per stacked row,
- * used by Rack Group until a routed parameter supplies its own color. */
-const RACK_FALLBACK_COLORS = ['#ff5f6d', '#ffd75f', '#8dff5f', '#5fe0ff', '#c95fff']
-
-function rackReqId(linkKey: string): string {
-  let hash = 7
-  for (const character of linkKey) hash = (hash * 31 + character.charCodeAt(0)) | 0
-  return `REQ-OPE-${Math.abs(hash) % 90_000_000 + 10_000_000}`
-}
-
 /** Concept — "Blueprint Bus." The effect dropdowns indent under the Active
  * Media dropdown; a filled add-route button drops into the gutter where each
  * effect field used to start, with a neutral-gray bus line running down to
@@ -1226,117 +1215,6 @@ function AddEffectsPreviewDeckConcept({ state }: { state: CanvasMockState }) {
   )
 }
 
-/** Concept — "Accent Stack." A colored left accent rail marks a routed effect;
- * a square badge trigger opens the editor and a category-style subtitle
- * summarises it. Local route state, comparison only. */
-function AddEffectsAccentStackConcept({ state }: { state: CanvasMockState }) {
-  const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
-  return (
-    <ConceptGroup
-      state={state}
-      label="Add Effects — Accent Stack"
-      note="A colored left accent rail marks a routed effect. The square badge opens the editor; a subtitle summarises how many parameters are routed. Concept only."
-    >
-      {(layer, layerIndex) => (
-        <AddEffectsLayerGroup
-          key={layer.mediaId}
-          state={state}
-          layer={layer}
-          layerIndex={layerIndex}
-          getEntryExtra={({ linkKey }) => {
-            const color = firstRouteColor(links[linkKey])
-            return {
-              className: `rv-ae-accent-entry${color ? ' is-linked' : ''}`,
-              style: color ? ({ '--accent-c': color } as CSSProperties) : undefined,
-            }
-          }}
-          renderRoute={({ effectLabel, parentLabel, linkKey }) => {
-            const routes = routesFor(linkKey)
-            const open = isOpenFor(linkKey)
-            return (
-              <div className="rv-ae-accent-footer">
-                <button
-                  type="button"
-                  className={`rv-ae-accent-trigger${routes.length ? ' is-linked' : ''}`}
-                  aria-expanded={open}
-                  aria-label={`${routes.length ? 'Edit' : 'Add'} routes for ${effectLabel} on ${parentLabel}`}
-                  onClick={() => toggle(linkKey)}
-                >
-                  <span className="rv-ae-accent-badge" aria-hidden="true">{routes.length ? routes.length : '+'}</span>
-                  <span className="rv-ae-accent-sub">
-                    {routes.length ? `${routes.length} route${routes.length === 1 ? '' : 's'} · Audio Intelligence` : 'Route Audio Intelligence'}
-                  </span>
-                </button>
-                {open && (
-                  <div className="rv-ae-accent-body">
-                    <AddEffectsRouteEditor routes={routes} effectLabel={effectLabel} parentLabel={parentLabel} showDots {...editorHandlers(linkKey)} />
-                  </div>
-                )}
-              </div>
-            )
-          }}
-        />
-      )}
-    </ConceptGroup>
-  )
-}
-
-/** Concept — "Rack Group." The Active Media row becomes a dark rack header and
- * each effect sits in its own outlined rack row with a request-id pill trigger
- * and an orange typed connector into its editor. Local route state. */
-function AddEffectsRackGroupConcept({ state }: { state: CanvasMockState }) {
-  const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
-  return (
-    <ConceptGroup
-      state={state}
-      label="Add Effects — Rack Group"
-      note="The Active Media row is a dark rack header; each effect is an outlined rack row with a request-id pill trigger and an orange typed connector into its editor. Concept only."
-    >
-      {(layer, layerIndex) => (
-        <AddEffectsLayerGroup
-          key={layer.mediaId}
-          state={state}
-          layer={layer}
-          layerIndex={layerIndex}
-          getMediaRowExtra={() => ({ className: 'rv-ae-rack-header' })}
-          getEntryExtra={({ effectIndex, linkKey }) => {
-            const routed = firstRouteColor(links[linkKey])
-            const color = routed ?? RACK_FALLBACK_COLORS[effectIndex % RACK_FALLBACK_COLORS.length]
-            return {
-              className: `rv-ae-rack-row${routed ? ' is-linked' : ''}`,
-              style: { '--rack-color': color } as CSSProperties,
-            }
-          }}
-          renderRoute={({ effectLabel, parentLabel, linkKey }) => {
-            const routes = routesFor(linkKey)
-            const open = isOpenFor(linkKey)
-            return (
-              <div className="rv-ae-rack-foot">
-                <button
-                  type="button"
-                  className={`rv-ae-rack-trigger${routes.length ? ' is-linked' : ''}`}
-                  aria-expanded={open}
-                  aria-label={`${routes.length ? 'Edit' : 'Add'} routes for ${effectLabel} on ${parentLabel}`}
-                  onClick={() => toggle(linkKey)}
-                >
-                  <span className="rv-ae-rack-badge" aria-hidden="true">{routes.length ? routes.length : '+'}</span>
-                  <span className="rv-ae-rack-meta">{rackReqId(linkKey)}</span>
-                </button>
-                {open && (
-                  <div className="rv-ae-rack-body">
-                    <span className="rv-ae-rack-connector" aria-hidden="true" />
-                    <AddEffectsRouteEditor routes={routes} effectLabel={effectLabel} parentLabel={parentLabel} showDots {...editorHandlers(linkKey)} />
-                  </div>
-                )}
-              </div>
-            )
-          }}
-        />
-      )}
-    </ConceptGroup>
-  )
-}
-
 function ReactMockup({ state }: { state: CanvasMockState }) {
   return (
     <WorkspaceBody>
@@ -1350,8 +1228,6 @@ function ReactMockup({ state }: { state: CanvasMockState }) {
           <AddEffectsBlueprintBusConcept state={state} />
           <AddEffectsSignalBreakConcept state={state} />
           <AddEffectsPreviewDeckConcept state={state} />
-          <AddEffectsAccentStackConcept state={state} />
-          <AddEffectsRackGroupConcept state={state} />
         </div>
       ) : <AnalysisMockup />}
     </WorkspaceBody>

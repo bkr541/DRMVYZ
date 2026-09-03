@@ -370,23 +370,40 @@ export function Dropdown({
   useEffect(() => {
     if (!isOpen) return
 
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target instanceof Node ? event.target : null
-      if (!target) return
+    const handleOutsidePointer = (event: Event) => {
+      // `composedPath()` returns the real node chain the event travelled and
+      // is realm-safe — `event.target instanceof Node` is false for a
+      // foreign-window portal (Layout Lab / Track Timeline open in a real
+      // window.open popup whose `Node` constructor differs from this bundle's),
+      // which used to make outside clicks never close the menu there.
+      const path = typeof event.composedPath === 'function' ? event.composedPath() : null
+      const isInside = (node: Node | null) => {
+        if (!node) return false
+        if (path) return path.includes(node)
+        const target = event.target
+        return target != null
+          && typeof (target as Node).nodeType === 'number'
+          && node.contains(target as Node)
+      }
       if (
-        triggerRef.current?.contains(target)
-        || searchTriggerRef.current?.contains(target)
-        || menuRef.current?.contains(target)
+        isInside(triggerRef.current)
+        || isInside(searchTriggerRef.current)
+        || isInside(menuRef.current)
       ) return
       closeMenu(false)
     }
 
     // Listen on the trigger's own document — a foreign-window portal (see
     // ownerWindow note above) never receives pointer events from a
-    // document-level listener bound to the wrong window's document.
+    // document-level listener bound to the wrong window's document. Bind both
+    // pointerdown and mousedown so a suppressed pointer event still closes it.
     const ownerDocument = (searchable ? searchTriggerRef.current : triggerRef.current)?.ownerDocument ?? document
-    ownerDocument.addEventListener('pointerdown', handlePointerDown)
-    return () => ownerDocument.removeEventListener('pointerdown', handlePointerDown)
+    ownerDocument.addEventListener('pointerdown', handleOutsidePointer, true)
+    ownerDocument.addEventListener('mousedown', handleOutsidePointer, true)
+    return () => {
+      ownerDocument.removeEventListener('pointerdown', handleOutsidePointer, true)
+      ownerDocument.removeEventListener('mousedown', handleOutsidePointer, true)
+    }
   }, [closeMenu, isOpen, searchable])
 
   useEffect(() => {

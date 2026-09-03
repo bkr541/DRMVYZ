@@ -142,30 +142,4 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
     })
   })
 
-  it('Accent Stack routes multiple parameters with intensity sliders', async () => {
-    await selectCanvasReact()
-    await exerciseConcept({
-      headerText: 'Accent Stack',
-      noteFragment: 'colored left accent rail',
-      openTrigger: s => {
-        const n = s.querySelector<HTMLButtonElement>('.rv-ae-accent-trigger')
-        if (!n) throw new Error('no .rv-ae-accent-trigger')
-        return n
-      },
-    })
-  })
-
-  it('Rack Group routes multiple parameters with intensity sliders', async () => {
-    await selectCanvasReact()
-    await exerciseConcept({
-      headerText: 'Rack Group',
-      noteFragment: 'dark rack header',
-      openTrigger: s => {
-        const n = s.querySelector<HTMLButtonElement>('.rv-ae-rack-trigger')
-        if (!n) throw new Error('no .rv-ae-rack-trigger')
-        return n
-      },
-    })
-  })
-
 })

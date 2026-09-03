@@ -148,6 +148,53 @@ describe('Dropdown', () => {
     expect(document.body.querySelector('[role="listbox"]')).toBeNull()
   })
 
+  it('closes the menu when a pointer lands outside the trigger and listbox', () => {
+    renderDropdown(
+      <Dropdown
+        ariaLabel="Camera mode"
+        menuLabel="Camera Modes"
+        defaultValue="orbit"
+        options={OPTIONS}
+      />,
+    )
+
+    const trigger = container?.querySelector('[role="combobox"]') as Element
+    click(trigger)
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
+    expect(document.body.querySelector('[role="listbox"]')).not.toBeNull()
+
+    const outside = document.createElement('button')
+    document.body.appendChild(outside)
+    act(() => {
+      outside.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    })
+
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    expect(document.body.querySelector('[role="listbox"]')).toBeNull()
+  })
+
+  it('keeps the menu open when the pointer lands on the listbox', () => {
+    renderDropdown(
+      <Dropdown
+        ariaLabel="Camera mode"
+        defaultValue="orbit"
+        options={OPTIONS}
+      />,
+    )
+
+    const trigger = container?.querySelector('[role="combobox"]') as Element
+    click(trigger)
+    const listbox = document.body.querySelector('[role="listbox"]') as Element
+    expect(listbox).not.toBeNull()
+
+    act(() => {
+      listbox.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    })
+
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
+    expect(document.body.querySelector('[role="listbox"]')).not.toBeNull()
+  })
+
   it('closes without firing onChange when the selected option is chosen again', () => {
     const onChange = vi.fn()
     renderDropdown(
