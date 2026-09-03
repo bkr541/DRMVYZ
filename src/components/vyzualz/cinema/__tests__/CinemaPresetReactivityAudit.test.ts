@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CINEMA_CINEMATIC_PRESET_CATALOG_EXCLUSIONS,
   CINEMA_LEGACY_PRESET_CATALOG,
   compileCinemaCompositionGraph,
   createCinemaCameraParameterSchemaMap,
@@ -38,34 +39,12 @@ interface PresetAuditSpec {
 
 const CINEMATIC_AUDIT: Readonly<Record<string, PresetAuditSpec>> = {
   'preset-singularity-crown': { class: 'transient', requiredSources: ['kick', 'dropEntry'] },
-  'preset-quasar-maw': { class: 'transient', requiredSources: ['kick', 'dropEntry'] },
-  'preset-binary-collapse': { class: 'section', requiredSources: ['subBass', 'dropEntry'] },
-  'preset-cathedral-run': { class: 'transient', requiredSources: ['kick', 'snare'] },
   'preset-neon-transit': { class: 'transient', requiredSources: ['kick', 'snare'] },
-  'preset-obsidian-vault': { class: 'groove', requiredSources: ['beatPhase', 'overallEnergy'] },
   'preset-glass-wound': { class: 'transient', requiredSources: ['transientIntensity', 'dropEntry'] },
-  'preset-wildspace-tear': { class: 'transient', requiredSources: ['transientIntensity', 'dropEntry'] },
-  'preset-prismatic-fault': { class: 'transient', requiredSources: ['transientIntensity', 'dropEntry'] },
   'preset-sixfold-chamber': { class: 'transient', requiredSources: ['beat', 'high'] },
-  'preset-crystal-mandala': { class: 'transient', requiredSources: ['beat', 'high'] },
-  'preset-infinite-gallery': { class: 'groove', requiredSources: ['volume', 'beat'] },
   'preset-oracle-lock': { class: 'groove', requiredSources: ['barStart', 'high'] },
-  'preset-gear-sun': { class: 'transient', requiredSources: ['beat', 'kick', 'dropEntry'], minimumRouteAmount: 0.7 },
-  'preset-epoch-engine': { class: 'section', requiredSources: ['sectionEnergy', 'volume'] },
   'preset-tempest-eye': { class: 'transient', requiredSources: ['snare', 'bass'] },
-  'preset-electric-front': { class: 'transient', requiredSources: ['snare', 'high'] },
-  'preset-ashen-cyclone': { class: 'section', requiredSources: ['bass', 'volume'] },
-  'preset-crimson-collapse': { class: 'transient', requiredSources: ['kick', 'snare', 'dropEntry'] },
-  'preset-cyan-reverie': { class: 'section', requiredSources: ['phraseProgress', 'buildProgress', 'dropEntry'] },
-  'preset-monolith-breaker': { class: 'transient', requiredSources: ['kick', 'snare', 'dropEntry'], minimumRouteAmount: 0.55 },
-  'preset-trapwire': { class: 'transient', requiredSources: ['kick', 'snare', 'barStart', 'dropEntry'], minimumRouteAmount: 0.7 },
-  'preset-prism-house': { class: 'groove', requiredSources: ['barStart', 'phraseProgress', 'dropEntry'] },
-  'preset-industrial-lattice': { class: 'groove', requiredSources: ['kick', 'barStart', 'buildProgress', 'dropEntry'] },
-  'preset-aurora-bloom': { class: 'section', requiredSources: ['phraseProgress', 'buildProgress', 'dropEntry'] },
   'preset-minimal-skeleton': { class: 'minimal', requiredSources: ['beat', 'barStart', 'dropEntry'] },
-  'preset-crystal-synapse': { class: 'transient', requiredSources: ['kick', 'snare', 'barStart', 'dropEntry'], strategy: 'world-default' },
-  'preset-helix-reliquary': { class: 'groove', requiredSources: ['barStart', 'phraseProgress'], strategy: 'world-default' },
-  'preset-polyhedral-supernova': { class: 'transient', requiredSources: ['kick', 'snare', 'dropEntry'], strategy: 'world-default' },
 }
 
 const SHADER_AUDIT: Readonly<Record<string, ReactivityClass>> = {
@@ -103,7 +82,10 @@ const FULL_CAPABILITIES: CinematicNormalizedAudioFrame['capabilities'] = {
   vocalEnergy: true,
 }
 
-const cinematicPresets = DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'cinematicPortal')
+const cinematicPresets = DEFAULT_REACT_PRESETS.filter(preset => (
+  preset.engine === 'cinematicPortal'
+  && !(preset.id in CINEMA_CINEMATIC_PRESET_CATALOG_EXCLUSIONS)
+))
 const worldTargets = new Map(cinematicWorldDefinitions.map(definition => [definition.id, definition.capabilities.modulationTargets]))
 
 describe('Cinema Stage 4 built-in schema and reactivity audit', () => {
@@ -268,7 +250,6 @@ describe('Cinema Stage 4 built-in schema and reactivity audit', () => {
     expect(Math.max(...minimal.audioMapping.routes.map(route => Math.abs(route.amount)))).toBeLessThanOrEqual(0.38)
 
     const crystal = cinematicPreset('preset-crystal-synapse').cinematicConfig!
-    expect(CINEMATIC_AUDIT['preset-crystal-synapse'].strategy).toBe('world-default')
     expect(crystal.audioMapping.routes.map(route => route.id))
       .toEqual(createDefaultCinematicAudioRoutes('reactiveConstellation').map(route => route.id))
   })
@@ -311,7 +292,10 @@ describe('Cinema Stage 4 built-in schema and reactivity audit', () => {
 })
 
 function cinematicPreset(id: string) {
-  const preset = cinematicPresets.find(candidate => candidate.id === id)
+  // Resolve from the full preset library, not the catalog-filtered list: these
+  // targeted audits check preset definitions that survive catalog exclusion for
+  // restore/import compatibility.
+  const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === id && candidate.engine === 'cinematicPortal')
   expect(preset, id).toBeDefined()
   return preset!
 }

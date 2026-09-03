@@ -523,10 +523,48 @@ export function reconcileCinemaBuiltInState(
     ...state.definitions.filter(definition => !canonicalDefinitionIds.has(String(definition.id))),
     ...CINEMA_PRODUCTION_PERSISTED_DEFINITIONS,
   ]
+  // Legacy-preset-catalog built-ins (Stage 21) that a prior, larger catalog
+  // wrote into persisted state but the current catalog no longer publishes —
+  // e.g. Cinematic Worlds presets since removed via
+  // CINEMA_CINEMATIC_PRESET_CATALOG_EXCLUSIONS. Drop them and repair every
+  // reference so the reconciled document still validates.
+  const retiredCatalogCompositionIds = new Set(
+    state.compositions
+      .filter(composition => (
+        !canonicalBuiltInCompositionIds.has(String(composition.id))
+        && isRetiredLegacyCatalogComposition(composition)
+      ))
+      .map(composition => String(composition.id)),
+  )
   const compositions = [
-    ...state.compositions.filter(composition => !canonicalBuiltInCompositionIds.has(String(composition.id))),
+    ...state.compositions.filter(composition => (
+      !canonicalBuiltInCompositionIds.has(String(composition.id))
+      && !retiredCatalogCompositionIds.has(String(composition.id))
+    )),
     ...CINEMA_CANONICAL_BUILT_IN_COMPOSITIONS,
   ]
+
+  let activeCompositionId = state.activeCompositionId
+  let activeInstanceId = state.activeInstanceId
+  let instances = state.instances
+  let collections = state.collections
+  if (retiredCatalogCompositionIds.size > 0) {
+    const survivingCompositionIds = new Set(compositions.map(composition => String(composition.id)))
+    instances = state.instances.filter(instance => survivingCompositionIds.has(String(instance.compositionId)))
+    const survivingInstanceIds = new Set(instances.map(instance => String(instance.id)))
+    collections = state.collections.map(collection => ({
+      ...collection,
+      compositionIds: collection.compositionIds.filter(id => survivingCompositionIds.has(String(id))),
+    }))
+    if (activeCompositionId != null && !survivingCompositionIds.has(String(activeCompositionId))) {
+      activeCompositionId = CINEMA_SHADER_REFERENCE_COMPOSITION.id
+      activeInstanceId = null
+    }
+    if (activeInstanceId != null && !survivingInstanceIds.has(String(activeInstanceId))) {
+      activeInstanceId = null
+    }
+  }
+
   const normalizedEditorMetadata = normalizeCinemaGraphEditorMetadata({
     ...state.editorMetadata,
     foundationInitialized: true,
@@ -541,8 +579,24 @@ export function reconcileCinemaBuiltInState(
     ...state,
     definitions,
     compositions,
+    instances,
+    collections,
+    activeCompositionId,
+    activeInstanceId,
     editorMetadata: normalizedEditorMetadata,
   })) as CinemaPersistedState
+}
+
+/**
+ * A persisted composition that was authored by the Stage 21 legacy preset
+ * catalog (Shader Pads / Cinematic Worlds projection). Used to prune entries a
+ * shrunk catalog no longer publishes; canonical current-catalog compositions
+ * are filtered out separately before this check runs.
+ */
+function isRetiredLegacyCatalogComposition(composition: CinemaCompositionDefinition): boolean {
+  const provenance = composition.metadata?.provenance as Record<string, unknown> | undefined
+  if (!provenance || provenance.stage !== 21) return false
+  return provenance.sourceEngine === 'shaderPads' || provenance.sourceEngine === 'cinematicPortal'
 }
 
 export function createCinemaDefinitionRegistryFromPersisted(

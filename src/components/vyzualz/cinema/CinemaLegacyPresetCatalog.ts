@@ -22,6 +22,37 @@ import type { CinematicWorldMode } from '../react/CinematicWorldConfig'
 
 export const CINEMA_LEGACY_PRESET_CATALOG_VERSION = 1 as const
 
+/**
+ * Cinematic Worlds preset ids intentionally NOT projected into the Cinema
+ * preset catalog. The `ReactPreset` objects stay in `DEFAULT_REACT_PRESETS` for
+ * legacy restore/import compatibility, but they are no longer surfaced as Cinema
+ * compositions. Mirrors `SHADER_SCENE_REGISTRY_AUDIT` for shader scenes.
+ */
+export const CINEMA_CINEMATIC_PRESET_CATALOG_EXCLUSIONS: Readonly<Record<string, string>> = Object.freeze({
+  'preset-quasar-maw': 'Event Horizon family trimmed to Singularity Crown',
+  'preset-binary-collapse': 'Event Horizon family trimmed to Singularity Crown',
+  'preset-cathedral-run': 'Infinite Corridor family trimmed to Prism Transit',
+  'preset-obsidian-vault': 'Infinite Corridor family trimmed to Prism Transit',
+  'preset-wildspace-tear': 'Fracture Rift family trimmed to Glass Wound',
+  'preset-prismatic-fault': 'Fracture Rift family trimmed to Glass Wound',
+  'preset-crystal-mandala': 'Mirror Dimension family trimmed to Sixfold Chamber',
+  'preset-infinite-gallery': 'Mirror Dimension family trimmed to Sixfold Chamber',
+  'preset-gear-sun': 'Ancient Machine family trimmed to Oracle Lock',
+  'preset-epoch-engine': 'Ancient Machine family trimmed to Oracle Lock',
+  'preset-electric-front': 'Storm Gateway family trimmed to Tempest Eye',
+  'preset-ashen-cyclone': 'Storm Gateway family trimmed to Tempest Eye',
+  'preset-crimson-collapse': 'Reactive Constellation family trimmed to Minimal Skeleton',
+  'preset-cyan-reverie': 'Reactive Constellation family trimmed to Minimal Skeleton',
+  'preset-monolith-breaker': 'Reactive Constellation family trimmed to Minimal Skeleton',
+  'preset-trapwire': 'Reactive Constellation family trimmed to Minimal Skeleton',
+  'preset-prism-house': 'Reactive Constellation family trimmed to Minimal Skeleton',
+  'preset-industrial-lattice': 'Reactive Constellation family trimmed to Minimal Skeleton',
+  'preset-aurora-bloom': 'Reactive Constellation family trimmed to Minimal Skeleton',
+  'preset-crystal-synapse': 'Reactive Constellation family trimmed to Minimal Skeleton',
+  'preset-helix-reliquary': 'Reactive Constellation family trimmed to Minimal Skeleton',
+  'preset-polyhedral-supernova': 'Reactive Constellation family trimmed to Minimal Skeleton',
+})
+
 export type CinemaLegacyPresetSourceKind = 'shader-scene' | 'cinematic-preset'
 
 export interface CinemaLegacyPresetManifestEntry {
@@ -39,6 +70,7 @@ export interface CinemaLegacyPresetCatalog {
   compositions: readonly CinemaCompositionDefinition[]
   audit: {
     shaderSceneExclusions: Readonly<Record<string, string>>
+    cinematicPresetExclusions: Readonly<Record<string, string>>
     cinematicPresetCount: number
   }
 }
@@ -104,7 +136,10 @@ export function createCinemaLegacyPresetCatalog(
     }))
   }
 
-  const cinematicPresets = DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'cinematicPortal')
+  const cinematicPresets = DEFAULT_REACT_PRESETS.filter(preset => (
+    preset.engine === 'cinematicPortal'
+    && !(preset.id in CINEMA_CINEMATIC_PRESET_CATALOG_EXCLUSIONS)
+  ))
   for (const preset of cinematicPresets) {
     const config = preset.cinematicConfig
     if (!config) throw new Error(`Active Cinematic Worlds preset "${preset.id}" is missing cinematicConfig.`)
@@ -131,6 +166,7 @@ export function createCinemaLegacyPresetCatalog(
     compositions,
     audit: {
       shaderSceneExclusions: { ...SHADER_SCENE_REGISTRY_AUDIT },
+      cinematicPresetExclusions: { ...CINEMA_CINEMATIC_PRESET_CATALOG_EXCLUSIONS },
       cinematicPresetCount: cinematicPresets.length,
     },
   })

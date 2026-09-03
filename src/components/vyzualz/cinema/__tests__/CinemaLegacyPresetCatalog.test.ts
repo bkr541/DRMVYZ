@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CINEMA_CINEMATIC_PRESET_CATALOG_EXCLUSIONS,
   CINEMA_LEGACY_PRESET_CATALOG,
   CINEMA_LEGACY_PRESET_CATALOG_VERSION,
   cinemaCinematicWorldParameterId,
@@ -19,7 +20,10 @@ import { DEFAULT_REACT_PRESETS } from '../../react/ReactTypes'
 import { REACT_ENGINE_CATALOG, isSelectableReactEngineId } from '../../react/reactEngineCatalog'
 import { PRODUCTION_SCENES, REACTOR_SCENE_ID, SHADER_SCENE_REGISTRY_AUDIT } from '../../react/shaders/scenes'
 
-const cinematicPresets = DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'cinematicPortal')
+const cinematicPresets = DEFAULT_REACT_PRESETS.filter(preset => (
+  preset.engine === 'cinematicPortal'
+  && !(preset.id in CINEMA_CINEMATIC_PRESET_CATALOG_EXCLUSIONS)
+))
 
 describe('Cinema Stage 21 legacy preset catalog', () => {
   it('discovers a one-to-one stable mapping for every active production Shader scene and Cinematic Worlds preset', () => {

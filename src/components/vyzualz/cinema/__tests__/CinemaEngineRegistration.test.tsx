@@ -717,7 +717,7 @@ describe('Cinema production engine registration', () => {
     expect(selectedLayerText()).not.toContain('Environment Depth')
     expect(selectedLayerText()).not.toContain('Bloom Boost')
 
-    const crystal = presetButton('Crystal Synapse')
+    const crystal = presetButton('Minimal Skeleton')
     expect(crystal).toBeDefined()
     await act(async () => crystal?.click())
     expect(selectedLayerText()).toContain('Intensity')
