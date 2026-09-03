@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useMemo } from 'react'
 import { IconChipButton } from './controls/IconChipButton'
 import { useShallow } from 'zustand/react/shallow'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -8,8 +8,6 @@ import {
   CINEMA_3D_OBJECT_PARAMETER_IDS,
   createCinemaInspectorAppearanceCapabilities,
   createCinemaControlDescriptors,
-  buildCinemaComposerLibraryItems,
-  CINEMA_PRODUCTION_RUNTIME_REGISTRY,
   filterCinema3DObjectParameterSchemasForSource,
   getCinemaEditorSelection,
   getCinemaCinematicWorldSupportedParameterSchemasForNode,
@@ -26,7 +24,6 @@ import {
   type CinemaParameterValue,
 } from '../cinema'
 import { Collapsible, ColorRow, CtrlSection, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
-import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import {
   getCinemaLiveInstance,
@@ -235,8 +232,6 @@ export function CinemaInspectorPanel() {
         </Collapsible>
       </div>
 
-      <CinemaEffectBrowser />
-
       {appearanceCapabilities?.showCameraResources && (
         <div className="rv-ctrl-group">
           <Collapsible label={`Camera resources (${composition.cameras.length})`} defaultOpen={false}>
@@ -379,39 +374,6 @@ export function CinemaSelectedLayerSummary() {
         )}
       </div>
     </>
-  )
-}
-
-function CinemaEffectBrowser() {
-  const [query, setQuery] = useState('')
-  const definitions = useCinemaStore(store => store.definitions)
-  const normalizedQuery = query.trim().toLowerCase()
-  const effects = useMemo(() => buildCinemaComposerLibraryItems(definitions, CINEMA_PRODUCTION_RUNTIME_REGISTRY)
-    .filter(item => item.category === 'Effects' && `${item.label} ${item.description}`.toLowerCase().includes(normalizedQuery)), [definitions, normalizedQuery])
-  return (
-    <div className="rv-ctrl-group">
-      <Collapsible label="Find Effects" defaultOpen={false}>
-        <div className="rv-cinema-effect-browser-status" role="note" data-cinema-effect-browser-mode="browse-only">
-          <strong>Browse only</strong>
-          <span>These cards are reference entries. They do not add, select, or remove effects. Cinema effect structure cannot currently be authored in Show Manager.</span>
-        </div>
-        <DreamVizTextInput value={query} onChange={event => setQuery(event.target.value)} placeholder="Search by look or parameter…" aria-label="Search Cinema effects" />
-        <div className="rv-cinema-effect-results" role="list" aria-label="Cinema effect reference catalog">
-          {effects.map(effect => (
-            <article
-              key={effect.id}
-              className="rv-cinema-effect-result"
-              role="listitem"
-              data-cinema-effect-reference="true"
-            >
-              <strong>{effect.label}</strong>
-              <small>{effect.description}</small>
-            </article>
-          ))}
-          {effects.length === 0 && <div className="rv-cinema-effect-empty" role="status">No effects match this search.</div>}
-        </div>
-      </Collapsible>
-    </div>
   )
 }
 
