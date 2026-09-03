@@ -664,7 +664,7 @@ describe('Cinema production engine registration', () => {
     await act(async () => cinemaOption?.click())
 
     expect(useReactStore.getState().activeReactEngineId).toBe('cinema')
-    expect(host?.textContent).toContain('Presets')
+    expect(host?.querySelector('[aria-label="Cinema presets"]')).not.toBeNull()
     expect(host?.textContent).toContain('Layers')
     expect(host?.textContent).toContain('Master Appearance')
     expect(host?.textContent).toContain('Find Effects')

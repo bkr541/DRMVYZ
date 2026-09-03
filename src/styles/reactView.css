@@ -87,10 +87,67 @@
 /* Cinema presets tab — two-column preview tile grid, ported from Layout
    Lab's "Preview Tile Grid" preset-card mockup (PresetCardStyleGallery). */
 
+/* Reuses the Media Library search-row classes; the panel already provides its
+   own outer padding + row gap, so drop the shared row's inset + divider. */
+.rv-cinema-preset-search-row {
+  padding: 0;
+  border-bottom: 0;
+}
+
+/* Put the magnifier inside the field: the wrap carries the single bottom rule
+   (matching the underline text-input treatment) so it spans the icon + input,
+   and the inner input drops its own underline. */
+.rv-cinema-preset-search-row .vz-md-search-wrap {
+  border-bottom: 1px solid rgba(154, 178, 188, 0.22);
+  transition: border-color 140ms ease;
+}
+
+.rv-cinema-preset-search-row .vz-md-search-wrap:focus-within {
+  border-bottom-color: #4ac7db;
+}
+
+.rv-cinema-preset-search-row .vz-md-search-input.dv-text-input {
+  border-bottom: 0 !important;
+}
+
+.rv-cinema-preset-search-row .vz-md-search-icon {
+  width: 15px;
+  height: 15px;
+}
+
 .rv-cinema-preset-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.rv-cinema-preset-grid--list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rv-cinema-preset-grid--list .rv-cinema-preset-tile {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+}
+
+.rv-cinema-preset-grid--list .rv-cinema-preset-tile-thumb {
+  flex: 0 0 46px;
+  width: 46px;
+  height: 30px;
+}
+
+.rv-cinema-preset-grid--list .rv-cinema-preset-tile-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.rv-cinema-preset-grid--list .rv-cinema-preset-tile-chips {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
 }
 
 .rv-cinema-preset-tile {
