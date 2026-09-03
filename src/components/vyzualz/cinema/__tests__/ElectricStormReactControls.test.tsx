@@ -61,7 +61,11 @@ describe('Electric Storm React-tab controls', () => {
     installElectricStormComposition()
     await act(async () => root?.render(<ReactReactivityWorkspacePanel />))
 
-    expect(host?.textContent).not.toContain('Thunder Trigger')
+    // Electric Storm is a zero-route built-in, so its Routing sub-tab is
+    // dropped; the required controls live on the PERFORMANCE surface.
+    const tabLabels = [...(host?.querySelectorAll('[aria-label="Reactivity surfaces"] [role="tab"]') ?? [])]
+      .map(tab => tab.textContent?.trim())
+    expect(tabLabels).not.toContain('ROUTING')
     const performance = [...(host?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
       .find(button => button.textContent?.trim() === 'PERFORMANCE')
     expect(performance).toBeDefined()

@@ -48,16 +48,17 @@ function createUserComposition() {
 }
 
 describe('Cinema routing read-only authoring UX', () => {
-  it('replaces the built-in zero-route disabled editor with a truthful static empty state on the production reactivity panel', async () => {
+  it('drops the Routing sub-tab and its read-only notices for a built-in preset with no authored modulation routes', async () => {
     expect(useCinemaStore.getState().setActiveCinemaComposition(CINEMA_FOUNDATION_COMPOSITION.id).ok).toBe(true)
     await act(async () => root?.render(<ReactReactivityWorkspacePanel />))
 
-    const routing = host?.querySelector<HTMLElement>('[data-cinema-routing-mode="read-only"]') ?? null
     expect(useReactStore.getState().activeReactEngineId).toBe('cinema')
-    expect(routing).not.toBeNull()
-    expect(routing?.textContent).toContain('No modulation routes are authored for this built-in preset.')
-    expect(routing?.textContent).toContain('Cinema route structure cannot currently be authored in Show Manager.')
-    expect(routing?.querySelector('select, input, button')).toBeNull()
+    const tabLabels = [...(host?.querySelectorAll('[aria-label="Reactivity surfaces"] [role="tab"]') ?? [])]
+      .map(tab => tab.textContent?.trim())
+    expect(tabLabels).not.toContain('ROUTING')
+    expect(tabLabels).toEqual(['PERFORMANCE', 'ANALYSIS'])
+    expect(host?.querySelector('[data-cinema-routing-mode="read-only"]')).toBeNull()
+    expect(host?.textContent).not.toContain('No modulation routes are authored for this built-in preset.')
     expect(host?.textContent).not.toContain('Add Route')
   })
 
@@ -94,16 +95,19 @@ describe('Cinema routing read-only authoring UX', () => {
     expect(routing?.querySelector('select, input, button')).toBeNull()
   })
 
-  it('re-enters the production reactivity panel without reviving the disabled built-in route editor', async () => {
+  it('re-enters the production reactivity panel without a Routing sub-tab for a zero-route built-in preset', async () => {
     expect(useCinemaStore.getState().setActiveCinemaComposition(CINEMA_FOUNDATION_COMPOSITION.id).ok).toBe(true)
     await act(async () => root?.render(<ReactReactivityWorkspacePanel />))
-    expect(host?.querySelector('[data-cinema-routing-mode="read-only"]')).not.toBeNull()
+    expect(host?.querySelector('[data-cinema-routing-mode="read-only"]')).toBeNull()
 
     await act(async () => root?.unmount())
     root = host ? createRoot(host) : null
     await act(async () => root?.render(<ReactReactivityWorkspacePanel />))
 
-    expect(host?.querySelector('[data-cinema-routing-mode="read-only"]')).not.toBeNull()
+    const tabLabels = [...(host?.querySelectorAll('[aria-label="Reactivity surfaces"] [role="tab"]') ?? [])]
+      .map(tab => tab.textContent?.trim())
+    expect(tabLabels).not.toContain('ROUTING')
+    expect(host?.querySelector('[data-cinema-routing-mode="read-only"]')).toBeNull()
     expect(host?.textContent).not.toContain('Add Route')
     expect(host?.querySelector('.rv-cinema-stage19__fieldset:disabled select')).toBeNull()
   })
@@ -125,7 +129,10 @@ describe('Cinema routing read-only authoring UX', () => {
     await act(async () => {
       expect(useCinemaStore.getState().setActiveCinemaComposition(CINEMA_FOUNDATION_COMPOSITION.id).ok).toBe(true)
     })
-    expect(host?.querySelector('[data-cinema-routing-mode="read-only"]')).not.toBeNull()
+    // Foundation is a zero-route built-in — its Routing sub-tab is dropped.
+    expect([...(host?.querySelectorAll('[aria-label="Reactivity surfaces"] [role="tab"]') ?? [])]
+      .map(tab => tab.textContent?.trim())).not.toContain('ROUTING')
+    expect(host?.querySelector('[data-cinema-routing-mode="read-only"]')).toBeNull()
     expect(host?.textContent).not.toContain('Add Route')
 
     await act(async () => {

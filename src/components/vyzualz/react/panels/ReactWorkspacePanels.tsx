@@ -130,6 +130,19 @@ export function ReactReactivityWorkspacePanel({ cinemaFrameBridge = null }: { ci
     if (!cinemaActive && surface === 'performance') setSurface('routing')
   }, [cinemaActive, surface])
 
+  // A built-in Cinema preset with no authored modulation routes has nothing to
+  // show or edit under Routing — only the read-only notices. Drop the whole
+  // Routing sub-tab (and its contents) for those presets. `surface` is left as
+  // the user's preferred tab so switching back to a routable preset returns to
+  // Routing; only the rendered `effectiveSurface` is redirected.
+  const cinemaRoutingHidden =
+    cinemaActive &&
+    cinemaPreset != null &&
+    isCinemaBuiltInComposition(cinemaPreset) &&
+    cinemaPreset.modulationRoutes.length === 0
+  const effectiveSurface: ReactivitySurface =
+    cinemaRoutingHidden && surface === 'routing' ? 'performance' : surface
+
   if (pixGridActive) {
     return (
       <div className="rv-workspace-panel">
@@ -165,11 +178,11 @@ export function ReactReactivityWorkspacePanel({ cinemaFrameBridge = null }: { ci
   return (
     <div className="rv-workspace-panel">
       <PanelSubtabs
-        value={surface}
+        value={effectiveSurface}
         onChange={value => setSurface(value)}
         ariaLabel="Reactivity surfaces"
         options={[
-          { id: 'routing', label: 'ROUTING' },
+          ...(cinemaRoutingHidden ? [] : [{ id: 'routing' as const, label: 'ROUTING' }]),
           ...(cinemaActive ? [{ id: 'performance' as const, label: 'PERFORMANCE' }] : []),
           { id: 'analysis', label: 'ANALYSIS' },
         ]}
@@ -177,17 +190,17 @@ export function ReactReactivityWorkspacePanel({ cinemaFrameBridge = null }: { ci
       <div className="rv-workspace-panel-body">
         <div className="rv-inspector rv-inspector-scroll">
           {cinemaActive ? (
-            surface === 'analysis' ? <ReactAudioPanel /> : cinemaPreset ? (
+            effectiveSurface === 'analysis' ? <ReactAudioPanel /> : cinemaPreset ? (
               <CinemaComposerStage19Panel
                 composition={cinemaPreset}
                 definitions={cinemaState.definitions}
                 frameBridge={cinemaFrameBridge}
                 edit={editCinema}
-                surface={surface}
+                surface={effectiveSurface}
                 readOnly={isCinemaBuiltInComposition(cinemaPreset)}
               />
             ) : <div className="rv-ctrl-info">Select a Cinema preset to configure reactivity.</div>
-          ) : surface === 'analysis' ? <ReactAudioPanel /> : <ReactModulationPanel />}
+          ) : effectiveSurface === 'analysis' ? <ReactAudioPanel /> : <ReactModulationPanel />}
         </div>
       </div>
     </div>
