@@ -19667,6 +19667,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* ── Concept: Floating Route Orb ─────────────────────────────────────────── */
 
+/* Divider between consecutive media entries. */
+.rv-ae-orb-media-separator {
+  height: 1px;
+  background: rgba(154, 178, 188, 0.16);
+}
+
 /* Square media thumbnail flush to the left of the Active Media select + label.
    Its width/height are set inline (in px) by MediaThumbBox, measured from the
    sibling field's rendered height, so width === height === (label + dropdown)

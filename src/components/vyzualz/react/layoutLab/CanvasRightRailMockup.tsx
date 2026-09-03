@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Delete02Icon } from 'hugeicons-react'
 import { RailTabs } from '../../layout/RailTabs'
 import { PanelSubtabs } from '../PanelSubtabs'
@@ -917,11 +917,15 @@ function AddEffectsFloatingOrbConcept({ state }: { state: CanvasMockState }) {
 
   return (
     <Collapsible label="Add Effects — Floating Route Orb" defaultOpen={false}>
-      <div className="rv-canvas-engine-note">The route orb sits on its own row below the effect input. Click it to open the parameter editor — add several Audio Intelligence parameters, each with a master-intensity slider for that effect + parameter combination. Concept only.</div>
       {state.addEffectsLayers.length === 0 && (
         <div className="rv-canvas-engine-note">Add media to the Performance Pool (Design tab) or select an active media item to preview this concept.</div>
       )}
-      {state.addEffectsLayers.map((layer, layerIndex) => renderLayerGroup(layer, layerIndex))}
+      {state.addEffectsLayers.map((layer, layerIndex) => (
+        <Fragment key={layer.mediaId}>
+          {layerIndex > 0 && <div className="rv-ae-orb-media-separator" aria-hidden="true" />}
+          {renderLayerGroup(layer, layerIndex)}
+        </Fragment>
+      ))}
     </Collapsible>
   )
 }
