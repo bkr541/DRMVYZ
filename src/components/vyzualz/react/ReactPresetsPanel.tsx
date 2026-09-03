@@ -19,6 +19,7 @@ import {
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
 import { Badge } from './controls/Badge'
 import { PresetSearchRow } from './controls/PresetSearchRow'
+import { PanelSubtabs } from './PanelSubtabs'
 import {
   ReactPresetCard,
   type ReactPresetCardChip,
@@ -558,6 +559,7 @@ export function ReactPresetsPanel() {
   const [favoritePresetIds, setFavoritePresetIds] = useState<string[]>(readReactPresetFavorites)
   const [presetQuery, setPresetQuery] = useState('')
   const [presetViewMode, setPresetViewMode] = useState<'grid' | 'list'>('grid')
+  const [presetScope, setPresetScope] = useState<'system' | 'user'>('system')
 
   const displayPresets = useMemo(
     () => reactPresets.filter(preset => isSelectableReactEngineId(preset.engine)).map(preset => resolveBrandedReactPreset(
@@ -697,7 +699,13 @@ export function ReactPresetsPanel() {
   )
 
   return (
-    <div className="rv-presets-panel" data-preset-view={presetViewMode}>
+    <div className="rv-presets-panel" data-preset-view={presetViewMode} data-preset-scope={presetScope}>
+      <PanelSubtabs
+        value={presetScope}
+        options={[{ id: 'system', label: 'SYSTEM' }, { id: 'user', label: 'USER' }]}
+        onChange={setPresetScope}
+        ariaLabel="Preset scope"
+      />
       <PresetSearchRow
         query={presetQuery}
         onQueryChange={setPresetQuery}
@@ -705,7 +713,7 @@ export function ReactPresetsPanel() {
         onViewModeChange={setPresetViewMode}
         ariaLabel={`Search ${activeEngine.label} presets`}
       />
-      {activeReactEngineId === 'oscilloscope' ? (
+      {presetScope === 'user' ? null : activeReactEngineId === 'oscilloscope' ? (
         <div className="rv-sound-drawing-presets-help drm-help-overlay-anchor">
           {presetLibraryContent}
           <HelpInfoTrigger

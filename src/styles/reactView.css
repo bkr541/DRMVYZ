@@ -31,6 +31,10 @@
 
 /* Cinema workspace hierarchy */
 .rv-cinema-panel-list { display: flex; min-height: 0; height: 100%; flex-direction: column; gap: 10px; padding: 12px; }
+/* The Presets list carries the nested SYSTEM/USER strip. Drop the top padding
+   so that strip sits the same distance below the main tab underline as the
+   Design tab's ENGINE/SELECTION strip (whose .rv-workspace-panel has none). */
+.rv-cinema-panel-list[data-preset-scope] { padding-top: 0; }
 .rv-cinema-panel-list__header { display: flex; align-items: center; justify-content: space-between; color: var(--text-primary, #f3f7fb); text-transform: uppercase; letter-spacing: .08em; }
 .rv-cinema-panel-list__header span { color: var(--text-muted, #83909e); font-size: 10px; }
 .rv-cinema-panel-list__hint { margin: 0; color: var(--text-muted, #83909e); font-size: 11px; line-height: 1.45; }

@@ -14,6 +14,7 @@ import {
 import { isCinemaLiveInstance } from './CinemaLiveOverrides'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { PresetSearchRow } from './controls/PresetSearchRow'
+import { PanelSubtabs } from './PanelSubtabs'
 import { LayerRow } from './controls/LayerRow'
 import { Badge } from './controls/Badge'
 
@@ -37,6 +38,7 @@ export function CinemaPresetsPanel() {
   const { state, preset } = useCinemaPanelState()
   const [query, setQuery] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [scope, setScope] = useState<'system' | 'user'>('system')
   const needle = query.trim().toLowerCase()
   const presets = state.compositions.filter(candidate => {
     const text = `${candidate.metadata.name} ${candidate.metadata.description ?? ''} ${(candidate.metadata.tags ?? []).join(' ')}`.toLowerCase()
@@ -52,7 +54,13 @@ export function CinemaPresetsPanel() {
   }
 
   return (
-    <section className="rv-cinema-panel-list" aria-label="Cinema presets">
+    <section className="rv-cinema-panel-list" aria-label="Cinema presets" data-preset-scope={scope}>
+      <PanelSubtabs
+        value={scope}
+        options={[{ id: 'system', label: 'SYSTEM' }, { id: 'user', label: 'USER' }]}
+        onChange={setScope}
+        ariaLabel="Preset scope"
+      />
       <PresetSearchRow
         query={query}
         onQueryChange={setQuery}
@@ -60,6 +68,7 @@ export function CinemaPresetsPanel() {
         onViewModeChange={setViewMode}
         ariaLabel="Search Cinema presets"
       />
+      {scope === 'system' && (
       <div className={`rv-cinema-preset-grid${viewMode === 'list' ? ' rv-cinema-preset-grid--list' : ''}`}>
         {presets.map((candidate, index) => {
           const variations = state.instances.filter(instance => instance.compositionId === candidate.id && !isCinemaLiveInstance(instance))
@@ -87,6 +96,7 @@ export function CinemaPresetsPanel() {
         })}
         {presets.length === 0 && <div className="rv-ctrl-info">No presets match “{query}”.</div>}
       </div>
+      )}
     </section>
   )
 }
