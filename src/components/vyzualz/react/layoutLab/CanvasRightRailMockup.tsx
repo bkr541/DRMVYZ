@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Delete02Icon } from 'hugeicons-react'
 import { RailTabs } from '../../layout/RailTabs'
 import { PanelSubtabs } from '../PanelSubtabs'
@@ -788,96 +788,190 @@ function AddEffectsControls({ state }: { state: CanvasMockState }) {
  * or more Audio Intelligence parameters, each with its own master-intensity
  * slider. Once routed, the orb shows the parameter count and the entry takes
  * the first parameter's color. Local route state, a styling comparison only. */
+/** Stand-in thumbnail image for the mock (no real media assets exist here) —
+ *  the DRMVYZ logo, resolved against the app root so it also loads from the
+ *  Layout Lab popup document. */
+const MEDIA_THUMB_TEST_IMAGE = (() => {
+  try { return new URL('/drmvyz_logo_icon.png', document.baseURI).href }
+  catch { return '/drmvyz_logo_icon.png' }
+})()
+
+/** Square media thumbnail whose width and height exactly track the rendered
+ *  height of the sibling media dropdown + label. Pure CSS can't derive one
+ *  axis' length from a flex/grid sibling's content height, so measure it. */
+function MediaThumbBox({ mediaName, mediaType }: { mediaName: string; mediaType: string }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [size, setSize] = useState(46)
+  useEffect(() => {
+    const element = ref.current
+    const field = element?.parentElement?.querySelector<HTMLElement>('.rv-canvas-layer-media-row__field')
+    if (!element || !field || typeof ResizeObserver === 'undefined') return
+    const measure = () => setSize(field.offsetHeight)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(field)
+    return () => observer.disconnect()
+  }, [])
+  return (
+    <span
+      ref={ref}
+      className="rv-ae-orb-thumb"
+      data-media-type={mediaType}
+      role="img"
+      aria-label={`${mediaName} thumbnail`}
+      title={mediaName}
+      style={{ width: size, height: size }}
+    >
+      <img
+        className="rv-ae-orb-thumb-img"
+        src={MEDIA_THUMB_TEST_IMAGE}
+        alt=""
+        onError={event => { event.currentTarget.style.display = 'none' }}
+      />
+    </span>
+  )
+}
+
 function AddEffectsFloatingOrbConcept({ state }: { state: CanvasMockState }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [effectsShown, setEffectsShown] = useState<Record<string, boolean>>({})
   const [links, setLinks] = useState<MockRouteMap>({})
+  // Only the first loaded media shows by default; the user adds more via the
+  // Add Media control, which reveals an empty media dropdown to pick from.
+  const [extraMediaIds, setExtraMediaIds] = useState<string[]>([])
+  const [pickerOpen, setPickerOpen] = useState(false)
+
+  const firstLayer = state.addEffectsLayers[0] ?? null
+  const shownMediaIds = new Set<string>([firstLayer?.mediaId, ...extraMediaIds].filter((id): id is string => Boolean(id)))
+  const pickableMedia = state.mediaItems.filter(item => !shownMediaIds.has(item.id))
+
+  const renderLayerGroup = (layer: CanvasMockState['addEffectsLayers'][number], layerIndex: number) => {
+    const effectsVisible = effectsShown[layer.mediaId] ?? layer.effects.length > 0
+    return (
+      <AddEffectsLayerGroup
+        key={layer.mediaId}
+        state={state}
+        layer={layer}
+        layerIndex={layerIndex}
+        showEffects={effectsVisible}
+        renderMediaRowLeading={mediaLayer => {
+          const media = state.mediaItems.find(item => item.id === mediaLayer.mediaId)
+          return (
+            <MediaThumbBox
+              key={mediaLayer.mediaId}
+              mediaName={mediaLayer.mediaName}
+              mediaType={media?.type ?? 'image'}
+            />
+          )
+        }}
+        renderAfterMediaRow={mediaLayer => {
+          const hasEffect = mediaLayer.effects.length > 0
+          return (
+            <div className="rv-ae-orb-add-row">
+              <button
+                type="button"
+                className={`rv-ae-orb-add${hasEffect ? ' is-active' : ''}`}
+                aria-expanded={effectsVisible}
+                aria-label={`${effectsVisible ? 'Hide' : 'Show'} the effect selector for ${mediaLayer.mediaName}`}
+                onClick={() => setEffectsShown(current => ({ ...current, [mediaLayer.mediaId]: !effectsVisible }))}
+              >
+                +
+              </button>
+            </div>
+          )
+        }}
+        getEntryExtra={({ linkKey }) => {
+          const color = firstRouteColor(links[linkKey])
+          return {
+            className: `rv-ae-orb-entry${color ? ' is-linked' : ''}`,
+            style: color ? ({ '--orb-color': color } as CSSProperties) : undefined,
+          }
+        }}
+        renderRoute={({ effectLabel, parentLabel, linkKey }) => {
+          const routes = links[linkKey] ?? []
+          const isOpen = expanded[linkKey] ?? routes.length > 0
+          return (
+            <div className="rv-ae-orb-footer">
+              <div className="rv-ae-orb-row">
+                <button
+                  type="button"
+                  className="rv-ae-orb-trigger"
+                  aria-expanded={isOpen}
+                  aria-label={`${routes.length ? 'Edit' : 'Add'} routes for ${effectLabel} on ${parentLabel}`}
+                  onClick={() => setExpanded(current => ({ ...current, [linkKey]: !isOpen }))}
+                >
+                  {routes.length ? routes.length : '+'}
+                </button>
+              </div>
+              {isOpen && (
+                <div className="rv-ae-orb-picker">
+                  <AddEffectsRouteEditor
+                    routes={routes}
+                    effectLabel={effectLabel}
+                    parentLabel={parentLabel}
+                    showDots
+                    onAddParameter={id => setLinks(current => withRouteParam(current, linkKey, id))}
+                    onRemoveParameter={id => setLinks(current => withoutRouteParam(current, linkKey, id))}
+                    onSetIntensity={(id, value) => setLinks(current => withRouteIntensity(current, linkKey, id, value))}
+                  />
+                </div>
+              )}
+            </div>
+          )
+        }}
+      />
+    )
+  }
 
   return (
     <Collapsible label="Add Effects — Floating Route Orb" defaultOpen={false}>
-      <div className="rv-canvas-engine-note">The route orb sits on its own row below the effect input. Click it to open the parameter editor — add several Audio Intelligence parameters, each with a master-intensity slider for that effect + parameter combination. Concept only.</div>
-      {state.addEffectsLayers.length === 0 && (
+      <div className="rv-canvas-engine-note">Only the first loaded media shows by default. Use “Add Media” to reveal an empty media dropdown and pick another. The route orb sits on its own row below the effect input; click it to open the parameter editor. Concept only.</div>
+      {!firstLayer && (
         <div className="rv-canvas-engine-note">Add media to the Performance Pool (Design tab) or select an active media item to preview this concept.</div>
       )}
-      {state.addEffectsLayers.map((layer, layerIndex) => {
-        const effectsVisible = effectsShown[layer.mediaId] ?? layer.effects.length > 0
+      {firstLayer && renderLayerGroup(firstLayer, 0)}
+      {extraMediaIds.map((mediaId, index) => {
+        const existing = state.addEffectsLayers.find(candidate => candidate.mediaId === mediaId)
+        const media = state.mediaItems.find(item => item.id === mediaId)
+        const layer = existing ?? { mediaId, mediaName: media?.name ?? mediaId, effects: [] }
         return (
-        <AddEffectsLayerGroup
-          key={layer.mediaId}
-          state={state}
-          layer={layer}
-          layerIndex={layerIndex}
-          showEffects={effectsVisible}
-          renderMediaRowLeading={mediaLayer => {
-            const media = state.mediaItems.find(item => item.id === mediaLayer.mediaId)
-            return (
-              <span
-                className="rv-ae-orb-thumb"
-                data-media-type={media?.type ?? 'image'}
-                role="img"
-                aria-label={`${mediaLayer.mediaName} thumbnail`}
-                title={mediaLayer.mediaName}
-              />
-            )
-          }}
-          renderAfterMediaRow={mediaLayer => {
-            const hasEffect = mediaLayer.effects.length > 0
-            return (
-              <div className="rv-ae-orb-add-row">
-                <button
-                  type="button"
-                  className={`rv-ae-orb-add${hasEffect ? ' is-active' : ''}`}
-                  aria-expanded={effectsVisible}
-                  aria-label={`${effectsVisible ? 'Hide' : 'Show'} the effect selector for ${mediaLayer.mediaName}`}
-                  onClick={() => setEffectsShown(current => ({ ...current, [mediaLayer.mediaId]: !effectsVisible }))}
-                >
-                  +
-                </button>
-              </div>
-            )
-          }}
-          getEntryExtra={({ linkKey }) => {
-            const color = firstRouteColor(links[linkKey])
-            return {
-              className: `rv-ae-orb-entry${color ? ' is-linked' : ''}`,
-              style: color ? ({ '--orb-color': color } as CSSProperties) : undefined,
-            }
-          }}
-          renderRoute={({ effectLabel, parentLabel, linkKey }) => {
-            const routes = links[linkKey] ?? []
-            const isOpen = expanded[linkKey] ?? routes.length > 0
-            return (
-              <div className="rv-ae-orb-footer">
-                <div className="rv-ae-orb-row">
-                  <button
-                    type="button"
-                    className="rv-ae-orb-trigger"
-                    aria-expanded={isOpen}
-                    aria-label={`${routes.length ? 'Edit' : 'Add'} routes for ${effectLabel} on ${parentLabel}`}
-                    onClick={() => setExpanded(current => ({ ...current, [linkKey]: !isOpen }))}
-                  >
-                    {routes.length ? routes.length : '+'}
-                  </button>
-                </div>
-                {isOpen && (
-                  <div className="rv-ae-orb-picker">
-                    <AddEffectsRouteEditor
-                      routes={routes}
-                      effectLabel={effectLabel}
-                      parentLabel={parentLabel}
-                      showDots
-                      onAddParameter={id => setLinks(current => withRouteParam(current, linkKey, id))}
-                      onRemoveParameter={id => setLinks(current => withoutRouteParam(current, linkKey, id))}
-                      onSetIntensity={(id, value) => setLinks(current => withRouteIntensity(current, linkKey, id, value))}
-                    />
-                  </div>
-                )}
-              </div>
-            )
-          }}
-        />
+          <div className="rv-ae-orb-extra-media" key={mediaId}>
+            <button
+              type="button"
+              className="rv-ae-orb-remove-media"
+              aria-label={`Remove ${layer.mediaName}`}
+              onClick={() => setExtraMediaIds(current => current.filter(id => id !== mediaId))}
+            >
+              <Delete02Icon size={13} color="currentColor" />
+            </button>
+            {renderLayerGroup(layer, index + 1)}
+          </div>
         )
       })}
+      {pickerOpen && (
+        <div className="rv-ae-orb-media-picker">
+          <SelectRow
+            label="Select media"
+            labelHidden
+            value=""
+            placeholder={pickableMedia.length ? 'Select media…' : 'No more media available'}
+            options={pickableMedia.map(item => ({ value: item.id, label: item.name }))}
+            onChange={value => {
+              if (!value) return
+              setExtraMediaIds(current => (current.includes(value) ? current : [...current, value]))
+              setPickerOpen(false)
+            }}
+          />
+        </div>
+      )}
+      <button
+        type="button"
+        className="rv-ae-orb-add-media"
+        aria-expanded={pickerOpen}
+        onClick={() => setPickerOpen(open => !open)}
+      >
+        + Add Media
+      </button>
     </Collapsible>
   )
 }

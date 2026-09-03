@@ -19697,11 +19697,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 /* ── Concept: Floating Route Orb ─────────────────────────────────────────── */
 
 /* Square media thumbnail flush to the left of the Active Media select + label.
-   `align-self: stretch` + `aspect-ratio: 1` size it to that field's full
-   height, so width == height == (dropdown + label) height. */
+   Its width/height are set inline (in px) by MediaThumbBox, measured from the
+   sibling field's rendered height, so width === height === (label + dropdown)
+   height exactly. */
 .rv-canvas-layer-media-row {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 8px;
 }
 
@@ -19713,13 +19714,20 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-orb-thumb {
   position: relative;
   flex: 0 0 auto;
-  align-self: stretch;
-  aspect-ratio: 1;
+  display: block;
+  overflow: hidden;
   border-radius: 5px;
   border: 1px solid rgba(154, 178, 188, 0.2);
   background:
     radial-gradient(circle at 32% 24%, rgba(74, 199, 219, 0.32), transparent 62%),
     linear-gradient(158deg, #1b2731, #0a1016);
+}
+
+.rv-ae-orb-thumb-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .rv-ae-orb-thumb[data-media-type='video']::after {
@@ -19766,6 +19774,52 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   background: #4ac7db;
   border-color: #4ac7db;
   color: #fff;
+}
+
+/* "Add Media" reveals an empty media dropdown to pick another source. Only
+   the first loaded media shows without it. */
+.rv-ae-orb-add-media {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border: 1px solid rgba(74, 199, 219, 0.4);
+  border-radius: 6px;
+  background: transparent;
+  color: #4ac7db;
+  font: 700 9px/1 var(--az-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.rv-ae-orb-add-media:hover,
+.rv-ae-orb-add-media:focus-visible,
+.rv-ae-orb-add-media[aria-expanded='true'] {
+  background: rgba(74, 199, 219, 0.12);
+  border-color: #4ac7db;
+}
+
+.rv-ae-orb-extra-media {
+  position: relative;
+  padding-top: 10px;
+  border-top: 1px solid rgba(154, 178, 188, 0.14);
+}
+
+.rv-ae-orb-remove-media {
+  position: absolute;
+  top: 8px;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: rgba(248, 113, 113, 0.7);
+  cursor: pointer;
+}
+
+.rv-ae-orb-remove-media:hover {
+  color: #f87171;
 }
 
 /* Effect input's own bottom border switches to the linked parameter's color
