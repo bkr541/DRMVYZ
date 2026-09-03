@@ -19584,29 +19584,37 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* Layout Lab only: the Effect field's red trash sits inside the dropdown,
    immediately left of the chevron, matched to the chevron's 14px size and
-   ~2px edge gap. */
+   ~2px edge gap. It overlays the dropdown trigger <button>, so it needs an
+   explicit stacking context + z-index to stay the hit-test target, and the
+   icon must not intercept the pointer itself. */
 [data-layout-lab-canvas='routing'] .rv-canvas-layer-effect-row {
   position: relative;
+  isolation: isolate;
 }
 
 [data-layout-lab-canvas='routing'] .rv-canvas-layer-effect-remove {
   position: absolute;
-  right: 18px;
-  bottom: 8px;
-  width: 14px;
-  height: 14px;
+  right: 16px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
   padding: 0;
   align-self: auto;
-  z-index: 2;
+  z-index: 5;
+  pointer-events: auto;
 }
 
 [data-layout-lab-canvas='routing'] .rv-canvas-layer-effect-remove svg {
   width: 14px;
   height: 14px;
+  pointer-events: none;
 }
 
 [data-layout-lab-canvas='routing'] .rv-canvas-layer-effect-row .drm-dropdown__value {
-  padding-right: 18px;
+  padding-right: 22px;
 }
 
 /* One authored effect, plus its own "Route Effect" toggle and (when
