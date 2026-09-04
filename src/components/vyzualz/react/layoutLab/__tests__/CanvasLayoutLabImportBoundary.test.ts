@@ -129,6 +129,10 @@ const REQUIRED_LABELS = [
   'Add Effects — Nested Cards',
   'Add Effects — Ledger Card',
   'Add Effects — Thumb Card',
+  'Add Effects — Reaction Strip',
+  'Add Effects — Sidecar Routing',
+  'Add Effects — Colored Effect Spine',
+  'Add Effects — Reactive Matrix',
   'Fractures recording is unavailable',
   'Recording unavailable',
 ]

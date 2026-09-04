@@ -160,4 +160,60 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
     })
   }
 
+  // Round four — bespoke editors (chips / matrix nodes / always-on spine).
+  async function openConceptWithBloom(headerText: string, noteFragment: string) {
+    await act(async () => buttonContaining(headerText).click())
+    const section = conceptSection(noteFragment)
+    const addEffect = [...section.querySelectorAll<HTMLElement>('[role="combobox"]')]
+      .find(c => (c.getAttribute('aria-label') || '').startsWith('Add effect'))
+    if (!addEffect) throw new Error(`${headerText}: no "Add effect" combobox`)
+    await pickOption(addEffect, 'Bloom')
+    return section
+  }
+
+  async function addTwoSignals(section: HTMLElement, match: (label: string) => boolean) {
+    const adder = () => [...section.querySelectorAll<HTMLElement>('[role="combobox"]')]
+      .find(c => match(c.getAttribute('aria-label') || ''))
+    const first = adder()
+    if (!first) throw new Error('no signal adder')
+    await pickOption(first, 'Kick')
+    const second = adder()
+    if (!second) throw new Error('signal adder gone after first add')
+    await pickOption(second, 'Snare')
+  }
+
+  it('Sidecar Routing routes multiple parameters with intensity sliders', async () => {
+    await selectCanvasReact()
+    await exerciseConcept({
+      headerText: 'Sidecar Routing',
+      noteFragment: 'its dedicated Audio Intelligence sidecar',
+      openTrigger: s => {
+        const n = s.querySelector<HTMLButtonElement>('.rv-ae-sc-add')
+        if (!n) throw new Error('no .rv-ae-sc-add')
+        return n
+      },
+    })
+  })
+
+  it('Reaction Strip attaches routed signals as chips', async () => {
+    await selectCanvasReact()
+    const section = await openConceptWithBloom('Reaction Strip', 'thin full-width strip beneath it')
+    await addTwoSignals(section, label => label.startsWith('Add route to'))
+    expect(section.querySelectorAll('.rv-ae-rs-chip').length).toBe(2)
+  })
+
+  it('Colored Effect Spine lists routed signals under each effect', async () => {
+    await selectCanvasReact()
+    const section = await openConceptWithBloom('Colored Effect Spine', 'own tiny isolated spine')
+    await addTwoSignals(section, label => label === 'Audio Intelligence Parameter' || label === 'Add another parameter')
+    expect(section.querySelectorAll('.rv-ae-es-body .rv-ae-route-param').length).toBe(2)
+  })
+
+  it('Reactive Matrix lights a node per routed signal', async () => {
+    await selectCanvasReact()
+    const section = await openConceptWithBloom('Reactive Matrix', 'small modulation matrix')
+    await addTwoSignals(section, label => label.startsWith('Add a signal to'))
+    expect(section.querySelectorAll('.rv-ae-mx-node.is-on').length).toBe(2)
+  })
+
 })

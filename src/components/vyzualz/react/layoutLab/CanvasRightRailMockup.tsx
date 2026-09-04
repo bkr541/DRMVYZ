@@ -1810,6 +1810,360 @@ function AddEffectsThumbCardConcept({ state }: { state: CanvasMockState }) {
   )
 }
 
+/* ───────────────────────────────────────────────────────────────────────────
+   Round four — from the user's written briefs. Reaction Strip, Sidecar,
+   Colored Effect Spine, Reactive Matrix. Each keeps routing physically
+   attached to its effect; connectors, where present, are a single container
+   edge (a border) with row-centred ticks.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/** Compact "add a signal" picker used by the round-four concepts — the
+ *  canonical underline dropdown, label hidden, showing a short placeholder. */
+function AESignalPicker({ label, placeholder, taken, onAdd, className }: {
+  label: string
+  placeholder: string
+  taken: ReadonlySet<CanvasMockAudioIntelligenceParameterId>
+  onAdd: (id: CanvasMockAudioIntelligenceParameterId) => void
+  className?: string
+}) {
+  const available = CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.filter(param => !taken.has(param.id))
+  if (available.length === 0) return null
+  return (
+    <div className={className}>
+      <SelectRow
+        label={label}
+        labelHidden
+        value=""
+        placeholder={placeholder}
+        options={available.map(param => ({ value: param.id, label: param.label }))}
+        onChange={value => { if (value) onAdd(value as CanvasMockAudioIntelligenceParameterId) }}
+      />
+    </div>
+  )
+}
+
+/** Concept — "Effect Rail + Reaction Strip." Each effect is one clean row; a
+ * thin full-width strip beneath it holds the routed Audio Intelligence
+ * parameters as compact colored chips. Clicking a chip expands just that chip
+ * into an inline intensity slider. Physical nesting carries ownership — no
+ * connector lines. */
+function AddEffectsReactionStripConcept({ state }: { state: CanvasMockState }) {
+  const { routesFor, editorHandlers } = useConceptRoutes()
+  const [openChip, setOpenChip] = useState<Record<string, boolean>>({})
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Reaction Strip"
+      note="Each effect is one clean row; a thin full-width strip beneath it holds its routed Audio Intelligence parameters as compact colored chips. Click a chip to expand just it into an inline slider. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getGroupExtra={() => ({ className: 'rv-ae-rs-group' })}
+          getMediaRowExtra={() => ({ className: 'rv-ae-rs-head' })}
+          getEntryExtra={() => ({ className: 'rv-ae-rs-entry' })}
+          renderRoute={ctx => {
+            const routes = routesFor(ctx.linkKey)
+            const { onAddParameter, onRemoveParameter, onSetIntensity } = editorHandlers(ctx.linkKey)
+            const taken = new Set(routes.map(route => route.parameterId))
+            return (
+              <div className="rv-ae-rs-strip">
+                <div className="rv-ae-rs-chips">
+                  {routes.length === 0 && <span className="rv-ae-rs-empty">No Audio Intelligence routed</span>}
+                  {routes.map(route => {
+                    const paramLabel = CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[route.parameterId]
+                    const color = CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[route.parameterId]
+                    const pct = Math.round(route.intensity * 100)
+                    const key = `${ctx.linkKey}::${route.parameterId}`
+                    const chipOpen = openChip[key] ?? false
+                    return (
+                      <div
+                        key={route.parameterId}
+                        className={`rv-ae-rs-chipwrap${chipOpen ? ' is-open' : ''}`}
+                        style={{ '--rs-chip': color } as CSSProperties}
+                      >
+                        <button
+                          type="button"
+                          className="rv-ae-rs-chip"
+                          aria-expanded={chipOpen}
+                          aria-label={`${chipOpen ? 'Collapse' : 'Adjust'} ${paramLabel} on ${ctx.effectLabel}`}
+                          onClick={() => setOpenChip(current => ({ ...current, [key]: !chipOpen }))}
+                        >
+                          <span className="rv-ae-rs-chip-dot" aria-hidden="true" />
+                          <span className="rv-ae-rs-chip-name">{paramLabel}</span>
+                          <span className="rv-ae-rs-chip-val">{pct}</span>
+                        </button>
+                        {chipOpen && (
+                          <div className="rv-ae-rs-chip-editor">
+                            <BubbleRevealSlider
+                              className="rv-ae-rs-chip-slider"
+                              min={0}
+                              max={1}
+                              step={0.01}
+                              value={route.intensity}
+                              bubbleLabel={`${pct}%`}
+                              revealOnHover
+                              style={{ '--accent': color } as CSSProperties}
+                              onChange={event => onSetIntensity(route.parameterId, parseFloat(event.target.value))}
+                              aria-label={`${paramLabel} intensity on ${ctx.effectLabel}`}
+                            />
+                            <button
+                              type="button"
+                              className="rv-ae-rs-chip-remove"
+                              aria-label={`Remove ${paramLabel} from ${ctx.effectLabel}`}
+                              onClick={() => {
+                                onRemoveParameter(route.parameterId)
+                                setOpenChip(current => ({ ...current, [key]: false }))
+                              }}
+                            >
+                              <CircleXIcon size={12} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+                <AESignalPicker
+                  className="rv-ae-rs-add"
+                  label={`Add route to ${ctx.effectLabel}`}
+                  placeholder="+ Route"
+                  taken={taken}
+                  onAdd={onAddParameter}
+                />
+              </div>
+            )
+          }}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
+/** Concept — "Sidecar Routing." Each effect entry is split into two columns:
+ * the effect on the left, a dedicated modulation sidecar on the right. With no
+ * routes the sidecar is a single "+ Add Routing" button; once routing exists
+ * the parameters stack in the sidecar beside their effect. */
+function AddEffectsSidecarConcept({ state }: { state: CanvasMockState }) {
+  const { routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Sidecar Routing"
+      note="Each effect entry splits into two columns — the effect on the left, its dedicated Audio Intelligence sidecar on the right. No routes: a single '+ Add Routing'. Routed: the parameters stack in the sidecar beside their effect. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getGroupExtra={() => ({ className: 'rv-ae-sc-group' })}
+          getMediaRowExtra={() => ({ className: 'rv-ae-sc-head' })}
+          getEntryExtra={() => ({ className: 'rv-ae-sc-entry' })}
+          renderRoute={ctx => {
+            const routes = routesFor(ctx.linkKey)
+            const open = isOpenFor(ctx.linkKey)
+            return (
+              <div className="rv-ae-sc-side">
+                {routes.length === 0 && !open ? (
+                  <button
+                    type="button"
+                    className="rv-ae-sc-add"
+                    aria-label={`Add Audio Intelligence routing to ${ctx.effectLabel} on ${ctx.parentLabel}`}
+                    onClick={() => toggle(ctx.linkKey)}
+                  >
+                    + Add Routing
+                  </button>
+                ) : (
+                  <AddEffectsRouteEditor
+                    routes={routes}
+                    effectLabel={ctx.effectLabel}
+                    parentLabel={ctx.parentLabel}
+                    showDots
+                    inlineParamRow
+                    {...editorHandlers(ctx.linkKey)}
+                  />
+                )}
+              </div>
+            )
+          }}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
+const EFFECT_SPINE_ACCENT: Record<CanvasLayerEffectId, string> = {
+  bloom: '#4ac7db',
+  echo: '#8d5fff',
+  glitch: '#ff5fd7',
+  melt: '#ff9f5f',
+  stutter: '#5fffb0',
+}
+
+/** Concept — "Colored Effect Spine." Every effect gets its own accent color
+ * and its own tiny isolated spine (a left border spanning just that effect).
+ * There is no media-level trunk. The accent carries into the border, the
+ * parameter dots and the slider fills. */
+function AddEffectsColoredSpineConcept({ state }: { state: CanvasMockState }) {
+  const { routesFor, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Colored Effect Spine"
+      note="Every effect gets its own accent color and its own tiny isolated spine — a left border spanning just that effect. No media-level trunk. The accent carries into the border, the parameter dots and the slider fills. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getGroupExtra={() => ({ className: 'rv-ae-es-group' })}
+          getEntryExtra={({ effectId }) => ({
+            className: 'rv-ae-es-entry',
+            style: { '--es': EFFECT_SPINE_ACCENT[effectId] } as CSSProperties,
+          })}
+          renderLeading={() => <span className="rv-ae-es-dot" aria-hidden="true" />}
+          renderRoute={ctx => {
+            const routes = routesFor(ctx.linkKey)
+            return (
+              <div className="rv-ae-es-body">
+                <div className="rv-ae-es-strength">
+                  <span className="rv-ae-es-strength-label">Strength</span>
+                  <BubbleRevealSlider
+                    className="rv-ae-es-strength-slider"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    defaultValue={0.78}
+                    bubbleLabel="78%"
+                    revealOnHover
+                    style={{ '--accent': EFFECT_SPINE_ACCENT[ctx.effectId] } as CSSProperties}
+                    aria-label={`${ctx.effectLabel} strength`}
+                  />
+                </div>
+                <AddEffectsRouteEditor
+                  routes={routes}
+                  effectLabel={ctx.effectLabel}
+                  parentLabel={ctx.parentLabel}
+                  showDots
+                  inlineParamRow
+                  {...editorHandlers(ctx.linkKey)}
+                />
+              </div>
+            )
+          }}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
+/** Concept — "Reactive Matrix Cards." Each effect is a small, constrained
+ * modulation matrix: the routed signals show as lit nodes ("this effect
+ * listens to Kick, Bass, Drop"). Clicking a node reveals its amount slider
+ * right below it; a "+" node adds another signal. */
+function AddEffectsReactiveMatrixConcept({ state }: { state: CanvasMockState }) {
+  const { routesFor, editorHandlers } = useConceptRoutes()
+  const [openNode, setOpenNode] = useState<Record<string, boolean>>({})
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Reactive Matrix"
+      note="Each effect is a small modulation matrix: the routed signals show as lit nodes — this effect listens to Kick, Bass, Drop. Click a node for its amount slider; the '+' node adds another signal. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getGroupExtra={() => ({ className: 'rv-ae-mx-group' })}
+          getMediaRowExtra={() => ({ className: 'rv-ae-mx-head' })}
+          getEntryExtra={() => ({ className: 'rv-ae-mx-entry' })}
+          renderRoute={ctx => {
+            const routes = routesFor(ctx.linkKey)
+            const { onAddParameter, onRemoveParameter, onSetIntensity } = editorHandlers(ctx.linkKey)
+            const taken = new Set(routes.map(route => route.parameterId))
+            return (
+              <div className="rv-ae-mx-matrix">
+                <div className="rv-ae-mx-nodes">
+                  {routes.length === 0 && <span className="rv-ae-mx-hint">No signals — this effect ignores the music</span>}
+                  {routes.map(route => {
+                    const paramLabel = CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[route.parameterId]
+                    const color = CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[route.parameterId]
+                    const pct = Math.round(route.intensity * 100)
+                    const key = `${ctx.linkKey}::${route.parameterId}`
+                    const nodeOpen = openNode[key] ?? false
+                    return (
+                      <div
+                        key={route.parameterId}
+                        className={`rv-ae-mx-node is-on${nodeOpen ? ' is-active' : ''}`}
+                        style={{ '--mx': color } as CSSProperties}
+                      >
+                        <button
+                          type="button"
+                          className="rv-ae-mx-node-btn"
+                          aria-pressed={nodeOpen}
+                          aria-label={`${nodeOpen ? 'Hide' : 'Show'} amount for ${paramLabel} on ${ctx.effectLabel}`}
+                          onClick={() => setOpenNode(current => ({ ...current, [key]: !nodeOpen }))}
+                        >
+                          <span className="rv-ae-mx-node-dot" aria-hidden="true" />
+                          <span className="rv-ae-mx-node-name">{paramLabel}</span>
+                          <span className="rv-ae-mx-node-val">{pct}</span>
+                        </button>
+                        {nodeOpen && (
+                          <div className="rv-ae-mx-amount">
+                            <BubbleRevealSlider
+                              className="rv-ae-mx-amount-slider"
+                              min={0}
+                              max={1}
+                              step={0.01}
+                              value={route.intensity}
+                              bubbleLabel={`${pct}%`}
+                              revealOnHover
+                              style={{ '--accent': color } as CSSProperties}
+                              onChange={event => onSetIntensity(route.parameterId, parseFloat(event.target.value))}
+                              aria-label={`${paramLabel} amount on ${ctx.effectLabel}`}
+                            />
+                            <button
+                              type="button"
+                              className="rv-ae-mx-amount-remove"
+                              aria-label={`Stop ${paramLabel} reacting on ${ctx.effectLabel}`}
+                              onClick={() => {
+                                onRemoveParameter(route.parameterId)
+                                setOpenNode(current => ({ ...current, [key]: false }))
+                              }}
+                            >
+                              <CircleXIcon size={11} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  <AESignalPicker
+                    className="rv-ae-mx-add"
+                    label={`Add a signal to ${ctx.effectLabel}`}
+                    placeholder="+"
+                    taken={taken}
+                    onAdd={onAddParameter}
+                  />
+                </div>
+              </div>
+            )
+          }}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
 function ReactMockup({ state }: { state: CanvasMockState }) {
   return (
     <WorkspaceBody>
@@ -1830,6 +2184,10 @@ function ReactMockup({ state }: { state: CanvasMockState }) {
           <AddEffectsNestedCardsConcept state={state} />
           <AddEffectsLedgerCardConcept state={state} />
           <AddEffectsThumbCardConcept state={state} />
+          <AddEffectsReactionStripConcept state={state} />
+          <AddEffectsSidecarConcept state={state} />
+          <AddEffectsColoredSpineConcept state={state} />
+          <AddEffectsReactiveMatrixConcept state={state} />
         </div>
       ) : <AnalysisMockup />}
     </WorkspaceBody>

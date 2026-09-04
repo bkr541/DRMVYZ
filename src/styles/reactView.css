@@ -21094,3 +21094,393 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-tc-group .rv-canvas-layer-effect-row--empty {
   padding-top: var(--ae2-pad);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Add Effects — round-four concepts from written briefs: Reaction Strip,
+   Sidecar Routing, Colored Effect Spine, Reactive Matrix.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.rv-ae-rs-group,
+.rv-ae-sc-group,
+.rv-ae-es-group,
+.rv-ae-mx-group {
+  gap: var(--ae2-gap);
+  padding: var(--ae2-pad);
+  border: 1px solid rgba(154, 178, 188, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.rv-ae-rs-head,
+.rv-ae-sc-head,
+.rv-ae-mx-head,
+.rv-ae-es-group > .rv-ctrl-row {
+  padding-bottom: var(--ae2-pad);
+  border-bottom: 1px solid rgba(154, 178, 188, 0.18);
+}
+
+.rv-ae-rs-group .rv-canvas-layer-effect-row--empty,
+.rv-ae-sc-group .rv-canvas-layer-effect-row--empty,
+.rv-ae-es-group .rv-canvas-layer-effect-row--empty,
+.rv-ae-mx-group .rv-canvas-layer-effect-row--empty {
+  padding-top: var(--ae2-pad);
+}
+
+.rv-ae-es-group .rv-canvas-layer-effect-row--empty {
+  padding-left: var(--ae2-step);
+}
+
+/* ── Reaction Strip ──────────────────────────────────────────────────────── */
+
+.rv-ae-rs-group .rv-canvas-layer-effects-stack {
+  gap: 0;
+}
+
+.rv-ae-rs-entry {
+  gap: 6px;
+  padding: var(--ae2-pad) 0;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.08);
+}
+
+.rv-ae-rs-group .rv-canvas-layer-effects-stack > .rv-ae-rs-entry:last-of-type {
+  border-bottom: 0;
+  padding-bottom: 2px;
+}
+
+.rv-ae-rs-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(154, 178, 188, 0.12);
+}
+
+.rv-ae-rs-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rv-ae-rs-empty {
+  font: 600 8px/1.4 var(--az-font);
+  color: rgba(196, 207, 211, 0.5);
+}
+
+.rv-ae-rs-chipwrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rv-ae-rs-chipwrap.is-open {
+  flex: 1 1 100%;
+}
+
+.rv-ae-rs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--rs-chip) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--rs-chip) 12%, transparent);
+  color: rgba(232, 244, 248, 0.92);
+  font: 700 8px/1 var(--az-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.rv-ae-rs-chipwrap.is-open .rv-ae-rs-chip {
+  border-color: var(--rs-chip);
+}
+
+.rv-ae-rs-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rs-chip);
+}
+
+.rv-ae-rs-chip-val {
+  font-variant-numeric: tabular-nums;
+  color: rgba(196, 207, 211, 0.7);
+}
+
+.rv-ae-rs-chip-editor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 2px 2px;
+}
+
+.rv-ae-rs-chip-slider {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rv-ae-rs-chip-remove,
+.rv-ae-mx-amount-remove {
+  flex: 0 0 auto;
+  display: inline-flex;
+  border: 0;
+  background: none;
+  color: rgba(248, 113, 113, 0.75);
+  cursor: pointer;
+  padding: 2px;
+  transition: color 0.12s;
+}
+
+.rv-ae-rs-chip-remove:hover,
+.rv-ae-mx-amount-remove:hover {
+  color: #f87171;
+}
+
+.rv-ae-rs-add {
+  flex: 0 0 auto;
+  margin-left: auto;
+  max-width: 120px;
+}
+
+/* ── Sidecar Routing ─────────────────────────────────────────────────────── */
+
+.rv-ae-sc-group .rv-canvas-layer-effects-stack {
+  gap: var(--ae2-gap);
+}
+
+.rv-ae-sc-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 0;
+  align-items: stretch;
+  padding: var(--ae2-gap) 0;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.1);
+}
+
+.rv-ae-sc-group .rv-canvas-layer-effects-stack > .rv-ae-sc-entry:last-of-type {
+  border-bottom: 0;
+}
+
+.rv-ae-sc-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--ae2-gap);
+  margin-left: var(--ae2-pad);
+  padding-left: var(--ae2-pad);
+  border-left: 1px solid rgba(154, 178, 188, 0.16);
+}
+
+.rv-ae-sc-add {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border: 1px dashed rgba(154, 178, 188, 0.4);
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(232, 244, 248, 0.8);
+  font: 700 8px/1 var(--az-font);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.rv-ae-sc-add:hover,
+.rv-ae-sc-add:focus-visible {
+  border-color: #8de7ff;
+  color: #8de7ff;
+}
+
+/* ── Colored Effect Spine ────────────────────────────────────────────────── */
+
+.rv-ae-es-group .rv-canvas-layer-effects-stack {
+  gap: var(--ae2-gap);
+}
+
+.rv-ae-es-entry {
+  gap: 6px;
+  padding: 2px 0 var(--ae2-gap) var(--ae2-step);
+  border-left: 2px solid var(--es);
+}
+
+.rv-ae-es-entry > .rv-canvas-layer-effect-row {
+  position: relative;
+}
+
+.rv-ae-es-dot {
+  position: absolute;
+  top: 50%;
+  left: calc(-1 * var(--ae2-step) - 1px);
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--es);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--es) 18%, transparent);
+}
+
+.rv-ae-es-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ae2-gap);
+}
+
+.rv-ae-es-strength {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.rv-ae-es-strength-label {
+  font: 600 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  color: rgba(245, 248, 250, 0.7);
+}
+
+.rv-ae-es-strength-slider {
+  min-width: 0;
+}
+
+.rv-ae-es-body .rv-ae-route-param--inline {
+  position: relative;
+}
+
+.rv-ae-es-body .rv-ae-route-param--inline::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: calc(-1 * var(--ae2-step) - 2px);
+  width: calc(var(--ae2-step) + 2px);
+  height: 1px;
+  background: var(--es);
+  opacity: 0.55;
+}
+
+.rv-ae-es-body .rv-ae-route-dot {
+  background: var(--es);
+}
+
+.rv-ae-es-body .rv-ae-route-inline-slider.dv-bubble-slider,
+.rv-ae-es-strength-slider.dv-bubble-slider {
+  background: linear-gradient(to right, var(--es) var(--dv-slider-pct, 50%), rgba(255, 255, 255, 0.08) var(--dv-slider-pct, 50%)) !important;
+}
+
+.rv-ae-es-body .rv-ae-route-inline-slider.dv-bubble-slider::-webkit-slider-thumb,
+.rv-ae-es-strength-slider.dv-bubble-slider::-webkit-slider-thumb {
+  background: var(--es) !important;
+  box-shadow: 0 0 8px var(--es), 0 0 0 2px rgba(0, 0, 0, 0.4) !important;
+}
+
+.rv-ae-es-body .rv-ae-route-inline-slider.dv-bubble-slider::-moz-range-thumb,
+.rv-ae-es-strength-slider.dv-bubble-slider::-moz-range-thumb {
+  background: var(--es) !important;
+  box-shadow: 0 0 8px var(--es) !important;
+}
+
+/* ── Reactive Matrix ─────────────────────────────────────────────────────── */
+
+.rv-ae-mx-group .rv-canvas-layer-effects-stack {
+  gap: 0;
+}
+
+.rv-ae-mx-entry {
+  gap: 6px;
+  padding: var(--ae2-pad) 0;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.08);
+}
+
+.rv-ae-mx-group .rv-canvas-layer-effects-stack > .rv-ae-mx-entry:last-of-type {
+  border-bottom: 0;
+  padding-bottom: 2px;
+}
+
+.rv-ae-mx-matrix {
+  padding-top: 6px;
+  border-top: 1px solid rgba(154, 178, 188, 0.12);
+}
+
+.rv-ae-mx-nodes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.rv-ae-mx-hint {
+  font: 600 8px/1.4 var(--az-font);
+  color: rgba(196, 207, 211, 0.5);
+}
+
+.rv-ae-mx-node {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rv-ae-mx-node.is-active {
+  flex: 1 1 100%;
+}
+
+.rv-ae-mx-node-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--mx) 40%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--mx) 12%, transparent);
+  color: rgba(232, 244, 248, 0.9);
+  font: 700 8px/1 var(--az-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.rv-ae-mx-node.is-active .rv-ae-mx-node-btn {
+  border-color: var(--mx);
+}
+
+.rv-ae-mx-node-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mx);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--mx) 60%, transparent);
+  animation: rv-ae-mx-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes rv-ae-mx-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rv-ae-mx-node-dot { animation: none; opacity: 1; }
+}
+
+.rv-ae-mx-node-val {
+  font-variant-numeric: tabular-nums;
+  color: rgba(196, 207, 211, 0.7);
+}
+
+.rv-ae-mx-amount {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 2px 2px 2px 4px;
+}
+
+.rv-ae-mx-amount-slider {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rv-ae-mx-add {
+  flex: 0 0 auto;
+  max-width: 84px;
+}
