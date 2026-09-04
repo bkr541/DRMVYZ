@@ -227,9 +227,14 @@ const drawPixGrid: SceneFn = (ctx, w, h, s, alpha) => {
 }
 
 const SCENES: SceneFn[] = [drawScope, drawConstellation, drawTunnel, drawBeams, drawPixGrid]
+const SCENE_NAMES = ['Sound Drawing', 'Cinematic Worlds', 'Shader Pads', 'LaserDMX', 'PixGrid']
+const LABEL_IN_MS = 620
+
+const easeOut = (v: number) => 1 - (1 - v) * (1 - v)
 
 export function AuthVisualizer() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const labelRef = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -255,9 +260,11 @@ export function AuthVisualizer() {
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null
     observer?.observe(parent)
 
+    const label = labelRef.current
     let raf = 0
     let prev = performance.now()
     let beatEnv = 0
+    let lastIdx = -1
     const started = prev
 
     const frame = (now: number) => {
@@ -300,6 +307,21 @@ export function AuthVisualizer() {
         SCENES[nextIdx](ctx, width, height, s, k * k)
       }
 
+      if (label) {
+        if (idx !== lastIdx) {
+          label.textContent = SCENE_NAMES[idx]
+          lastIdx = idx
+        }
+        const inN = easeOut(clamp01(into / LABEL_IN_MS))
+        const outN = into > SCENE_MS - FADE_MS
+          ? easeOut(clamp01((into - (SCENE_MS - FADE_MS)) / FADE_MS))
+          : 0
+        const vis = Math.min(inN, 1 - outN)
+        const y = (1 - inN) * 14 - outN * 14
+        label.style.opacity = String(vis)
+        label.style.transform = `translate(-50%, ${y.toFixed(2)}px)`
+      }
+
       raf = requestAnimationFrame(frame)
     }
 
@@ -315,6 +337,11 @@ export function AuthVisualizer() {
         drawConstellation(ctx, width, height, {
           t: 0.6, beat: 0, energy: 0.5, low: 0.5, mid: 0.6, high: 0.5,
         }, 1)
+        if (label) {
+          label.textContent = SCENE_NAMES[1]
+          label.style.opacity = '1'
+          label.style.transform = 'translate(-50%, 0)'
+        }
       }
       raf = requestAnimationFrame(paintStatic)
     } else {
@@ -339,5 +366,10 @@ export function AuthVisualizer() {
     }
   }, [])
 
-  return <canvas ref={canvasRef} className="auth-visualizer" aria-hidden="true" />
+  return (
+    <>
+      <canvas ref={canvasRef} className="auth-visualizer" aria-hidden="true" />
+      <span ref={labelRef} className="auth-visualizer-label" aria-hidden="true" />
+    </>
+  )
 }
