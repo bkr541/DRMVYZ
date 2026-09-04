@@ -1354,10 +1354,10 @@ function AddEffectsTierChipsConcept({ state }: { state: CanvasMockState }) {
                   type="button"
                   className={`rv-ae-chip rv-ae-chip--ai rv-ae-chip-toggle${open ? ' is-open' : ''}`}
                   aria-expanded={open}
-                  aria-label={`${routes.length ? 'Edit' : 'Add'} Audio Intelligence routes for ${ctx.effectLabel} on ${ctx.parentLabel}`}
+                  aria-label={`${open ? 'Hide' : routes.length ? 'Edit' : 'Add'} Audio Intelligence routes for ${ctx.effectLabel} on ${ctx.parentLabel}`}
                   onClick={() => toggle(ctx.linkKey)}
                 >
-                  AI{routes.length ? ` · ${routes.length}` : ' +'}
+                  AI{routes.length ? ` · ${routes.length}` : (open ? ' –' : ' +')}
                 </button>
                 {open && (
                   <div className="rv-ae-chip-panel">
@@ -1380,18 +1380,18 @@ function AddEffectsTierChipsConcept({ state }: { state: CanvasMockState }) {
   )
 }
 
-/** Concept — "Trunk Line." A two-level tree whose every trunk is a real
- * container border, so it always spans exactly its children: the group's
- * left border carries the effects; an open effect's left border carries its
- * parameters. Each child row ticks off its trunk at the row's vertical
- * centre. Nothing is positioned by a guessed offset. */
+/** Concept — "Trunk Line." One trunk — the effects list's own left border —
+ * drops from Active Media and carries every effect; each effect ticks off it
+ * at the row's centre. An open effect's parameters simply step in beneath it.
+ * Only one vertical line, and it is a real container edge, so it always spans
+ * exactly its children. */
 function AddEffectsTrunkLineConcept({ state }: { state: CanvasMockState }) {
   const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
   return (
     <ConceptGroup
       state={state}
       label="Add Effects — Trunk Line"
-      note="A two-level tree where every trunk is a real container edge — the group border carries the effects, an open effect's border carries its parameters — so a trunk always spans exactly its children. Each row ticks off its trunk at the row's centre. Concept only."
+      note="One trunk — the effects list's own left border — drops from Active Media and carries every effect; each effect ticks off it at the row's centre. An open effect's parameters step in beneath it. One line, and it is a real container edge. Concept only."
     >
       {(layer, layerIndex) => (
         <AddEffectsLayerGroup
@@ -1411,7 +1411,7 @@ function AddEffectsTrunkLineConcept({ state }: { state: CanvasMockState }) {
             const routes = routesFor(ctx.linkKey)
             const open = isOpenFor(ctx.linkKey)
             return (
-              <div className={`rv-ae-trunk-route${open ? ' is-open' : ''}`}>
+              <div className="rv-ae-trunk-route">
                 <AE2RouteToggle
                   className="rv-ae-trunk-toggle"
                   open={open}

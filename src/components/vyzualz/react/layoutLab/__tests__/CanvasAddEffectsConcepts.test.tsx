@@ -132,7 +132,7 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
   const roundTwo: Array<{ headerText: string; noteFragment: string; toggle: string }> = [
     { headerText: 'Nested Trays', noteFragment: 'three nested trays', toggle: '.rv-ae-tray-toggle' },
     { headerText: 'Tier Chips', noteFragment: 'fixed-width tier chip', toggle: '.rv-ae-chip-toggle' },
-    { headerText: 'Trunk Line', noteFragment: 'every trunk is a real container edge', toggle: '.rv-ae-trunk-toggle' },
+    { headerText: 'Trunk Line', noteFragment: 'drops from Active Media and carries every effect', toggle: '.rv-ae-trunk-toggle' },
     { headerText: 'Spine & Dots', noteFragment: 'One spine spans the full group height', toggle: '.rv-ae-spine-toggle' },
     { headerText: 'Numbered Steps', noteFragment: 'left gutter numbers each effect', toggle: '.rv-ae-steps-toggle' },
   ]

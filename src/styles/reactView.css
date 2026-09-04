@@ -20615,8 +20615,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   margin-left: var(--ae2-step);
 }
 
+/* The empty "Select Effect…" row carries no FX chip, so match the populated
+   effect fields' left edge directly: step + chip width + the row gap. */
 .rv-ae-chip-group .rv-canvas-layer-effect-row--empty {
-  margin-left: var(--ae2-step);
+  margin-left: calc(var(--ae2-step) + var(--ae2-chip-w) + var(--ae2-gap));
 }
 
 .rv-ae-chip--ai.rv-ae-chip-toggle {
@@ -20643,28 +20645,25 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* ── Concept: Trunk Line ─────────────────────────────────────────────────── */
 
-/* Group trunk = the group's own left border. Spans exactly media + effects. */
 .rv-ae-trunk-group {
+  gap: var(--ae2-gap);
+}
+
+/* The one trunk: the effects list's own left border. It starts right under
+   Active Media and spans exactly the effect entries + the add-effect row. */
+.rv-ae-trunk-group .rv-canvas-layer-effects-stack {
   gap: var(--ae2-gap);
   padding-left: var(--ae2-step);
   border-left: 2px solid var(--ae2-tier1);
 }
 
-.rv-ae-trunk-group .rv-canvas-layer-effects-stack {
+.rv-ae-trunk-entry {
   gap: var(--ae2-gap);
 }
 
-/* Active Media is the trunk's head — pulled flush over the border. */
-.rv-ae-trunk-group > .rv-ctrl-row {
-  margin-left: calc(-1 * var(--ae2-step) - 2px);
-}
-
-.rv-ae-trunk-entry {
-  gap: 0;
-}
-
-/* Each effect row ticks off the group trunk at the row's centre. */
-.rv-ae-trunk-entry > .rv-canvas-layer-effect-row::before {
+/* Every effect (and the add-effect row) ticks off the trunk at its centre. */
+.rv-ae-trunk-entry > .rv-canvas-layer-effect-row::before,
+.rv-ae-trunk-group .rv-canvas-layer-effect-row--empty::before {
   content: '';
   position: absolute;
   top: 50%;
@@ -20674,46 +20673,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   background: var(--ae2-tier2-strong);
 }
 
+.rv-ae-trunk-entry.is-linked > .rv-canvas-layer-effect-row::before {
+  background: var(--trunk-color);
+}
+
+/* Under an open effect the parameters just step in — no second line. */
 .rv-ae-trunk-route {
   display: flex;
   flex-direction: column;
-}
-
-.rv-ae-trunk-toggle {
-  margin-top: var(--ae2-gap);
-}
-
-/* Open: the toggle and the parameter panel share one continuous left border —
-   the sub-trunk — dropping straight from the effect row's bottom-left. */
-.rv-ae-trunk-route.is-open .rv-ae-trunk-toggle {
-  align-self: stretch;
-  margin-top: 0;
-  padding: var(--ae2-gap) 0 var(--ae2-gap) var(--ae2-step);
-  border: 0;
-  border-left: 2px solid var(--trunk-color, var(--ae2-tier2-strong));
-  border-radius: 0;
-  text-align: left;
-}
-
-.rv-ae-trunk-panel {
+  gap: var(--ae2-gap);
   padding-left: var(--ae2-step);
-  border-left: 2px solid var(--trunk-color, var(--ae2-tier2-strong));
-}
-
-.rv-ae-trunk-panel .rv-ae-route-param--inline,
-.rv-ae-trunk-panel .rv-ae-route-editor > .rv-ctrl-row {
-  position: relative;
-}
-
-.rv-ae-trunk-panel .rv-ae-route-param--inline::before,
-.rv-ae-trunk-panel .rv-ae-route-editor > .rv-ctrl-row::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: calc(-1 * var(--ae2-step) - 2px);
-  width: calc(var(--ae2-step) + 2px);
-  height: 2px;
-  background: var(--trunk-color, var(--ae2-tier2));
 }
 
 /* ── Concept: Spine & Dots ───────────────────────────────────────────────── */
