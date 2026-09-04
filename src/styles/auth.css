@@ -110,36 +110,6 @@
   z-index: 1;
 }
 
-/* Engine name — position + spacing here; opacity/translate driven per frame
-   from AuthVisualizer so it fades and lifts in/out with each scene. */
-.auth-visualizer-label {
-  position: absolute;
-  left: 50%;
-  top: 56%;
-  z-index: 3;
-  transform: translate(-50%, 14px);
-  opacity: 0;
-  pointer-events: none;
-  white-space: nowrap;
-  font: 800 14px/1 var(--az-font-data, 'Inter', 'Helvetica Neue', system-ui, sans-serif);
-  letter-spacing: 0.34em;
-  margin-right: -0.34em;
-  text-transform: uppercase;
-  color: rgba(142, 244, 255, 0.92);
-  text-shadow: 0 0 20px rgba(74, 199, 219, 0.55), 0 0 4px rgba(74, 199, 219, 0.4);
-  will-change: opacity, transform;
-}
-
-.auth-visualizer-label::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -8px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(74, 199, 219, 0.7), transparent);
-}
-
 .auth-logo-wordmark {
   font-size: 30px;
   font-weight: 900;
