@@ -3,9 +3,9 @@ import { useEffect, useRef } from 'react'
 /**
  * Pre-auth ambient visualizer for the login / signup emblem panel. A
  * self-driven 2D-canvas animation that cycles through stylized takes on the
- * React engines' signature looks — Sound Drawing scope, Cinematic Worlds
- * constellation, Shader Pads prism tunnel, LaserDMX beam matrix, PixGrid —
- * on a synthetic 124 BPM pulse. No audio, no engine runtime.
+ * React engines' signature looks — Sound Drawing scope, Cinema constellation,
+ * CANVAS depth field, LaserDMX beam matrix, PixGrid — on a synthetic 124 BPM
+ * pulse. No audio, no engine runtime.
  */
 
 const ICE = '142, 244, 255'
@@ -49,68 +49,37 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
 }
 
 const easeOut = (v: number) => 1 - (1 - v) * (1 - v)
-
-// ── Engine-name typography ───────────────────────────────────────────────────
-// The label keeps one position, but each scene renders the name in its own
-// letterform mode with a matched reveal. Sampled modes (constellation dots,
-// PixGrid cells) rasterize the name once to an offscreen canvas and cache the
-// lit-cell grid; text modes draw live.
-
-const DISPLAY_FONT = 'Inter, "Exo 2", system-ui, sans-serif'
-const MONO_FONT = '"JetBrains Mono", ui-monospace, "Courier New", monospace'
-
-interface SampledText {
-  cells: Array<{ x: number; y: number }>
-  w: number
-  h: number
-  step: number
+const easeIn = (v: number) => v * v
+const TAU = Math.PI * 2
+function hash01(n: number): number {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453
+  return x - Math.floor(x)
 }
 
-const TEXT_SAMPLE_CACHE = new Map<string, SampledText | null>()
+// ── Engine name — decode / glitch transition ───────────────────────────────
+// The word scrambles in and out per-letter (staggered L→R), always ending
+// locked and legible. Each engine flavours the unresolved glyphs: Sound
+// Drawing warbles them through waveform noise, Cinema gathers particles into
+// each letter, CANVAS shimmers them into focus through refraction blur,
+// LaserDMX runs a beat-quantised scanline strobe, PixGrid does a mosaic
+// block-dissolve.
 
-function sampleText(name: string, fontPx: number, step: number): SampledText | null {
-  const key = `${name}|${fontPx}|${step}`
-  const cached = TEXT_SAMPLE_CACHE.get(key)
-  if (cached !== undefined) return cached
-  if (typeof document === 'undefined') return null
-  const off = document.createElement('canvas')
-  const octx = off.getContext('2d')
-  if (!octx) {
-    TEXT_SAMPLE_CACHE.set(key, null)
-    return null
-  }
-  const font = `800 ${fontPx}px ${DISPLAY_FONT}`
-  octx.font = font
-  try { octx.letterSpacing = `${Math.round(fontPx * 0.16)}px` } catch { /* older engines */ }
-  const pad = 6
-  const w = Math.ceil(octx.measureText(name).width) + pad * 2
-  const h = Math.ceil(fontPx * 1.5) + pad * 2
-  off.width = w
-  off.height = h
-  octx.font = font
-  try { octx.letterSpacing = `${Math.round(fontPx * 0.16)}px` } catch { /* older engines */ }
-  octx.textAlign = 'center'
-  octx.textBaseline = 'middle'
-  octx.fillStyle = '#fff'
-  octx.fillText(name, w / 2, h / 2)
-  const data = octx.getImageData(0, 0, w, h).data
-  const cells: Array<{ x: number; y: number }> = []
-  for (let y = step / 2; y < h; y += step) {
-    for (let x = step / 2; x < w; x += step) {
-      if (data[(((y | 0) * w + (x | 0)) * 4) + 3] > 96) {
-        cells.push({ x: x - w / 2, y: y - h / 2 })
-      }
-    }
-  }
-  const result: SampledText = { cells, w, h, step }
-  TEXT_SAMPLE_CACHE.set(key, result)
-  return result
+const DISPLAY_FONT = 'Inter, "Exo 2", system-ui, sans-serif'
+const LABEL_FONT = `700 22px ${DISPLAY_FONT}`
+const GLYPHS = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789<>/\\|=+*#%&$'
+
+/** Soft dark vignette so the label reads over a busy scene. */
+function labelBacking(ctx: CanvasRenderingContext2D, cx: number, cy: number, tw: number, a: number) {
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, tw * 0.75 + 40)
+  g.addColorStop(0, `rgba(2, 4, 7, ${0.62 * a})`)
+  g.addColorStop(1, 'rgba(2, 4, 7, 0)')
+  ctx.fillStyle = g
+  ctx.fillRect(cx - tw, cy - 42, tw * 2, 84)
 }
 
 /**
- * Draw the engine name at a fixed anchor in the mode for the given scene.
- * `reveal` 0..1 is the entrance progress; `vis` 0..1 the overall opacity
- * (drops to 0 as the scene crossfades out).
+ * The engine name, decoding in / out per-letter. `reveal` / `exit` 0..1 are
+ * the scene-window in / out progress.
  */
 function drawEngineLabel(
   ctx: CanvasRenderingContext2D,
@@ -120,155 +89,129 @@ function drawEngineLabel(
   mode: number,
   s: Signal,
   reveal: number,
-  vis: number,
+  exit: number,
 ) {
-  if (vis <= 0.002) return
-  const eased = easeOut(reveal)
+  const mIn = clamp01(reveal)
+  const mOut = clamp01(exit)
+  if (mIn <= 0.001 || mOut >= 0.999) return
   const cx = w / 2
-  const cy = h * 0.58 - (1 - vis) * 10
+  const cy = h * 0.56
   ctx.save()
+  ctx.font = LABEL_FONT
+  try { ctx.letterSpacing = '0px' } catch { /* older engines */ }
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
 
-  if (mode === 0) {
-    // Sound Drawing — hollow outline that traces on, plotter style.
-    ctx.font = `800 22px ${DISPLAY_FONT}`
-    try { ctx.letterSpacing = '5px' } catch { /* */ }
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'middle'
-    const tw = ctx.measureText(name).width
-    const x0 = cx - tw / 2
+  // decode progress: 0 = fully scrambled, 1 = fully locked
+  const prog = mOut > 0 ? 1 - easeIn(mOut) : easeOut(mIn)
+  const fade = mOut > 0 ? clamp01(prog * 1.6) : 1
+  const idleY = Math.sin(s.t * 0.8) * 1.6
+  const beatSlot = Math.floor(s.t * (BPM / 60) * 2)
+
+  const GAP = 4
+  const chars = [...name]
+  const widths = chars.map(c => ctx.measureText(c === ' ' ? 'M' : c).width + GAP)
+  const total = widths.reduce((a, b) => a + b, 0) - GAP
+  labelBacking(ctx, cx, cy + idleY, total / 2 + 30, fade)
+
+  let pen = cx - total / 2
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i]
+    const lx = pen + widths[i] / 2
+    pen += widths[i]
+    if (ch === ' ') continue
+    const lp = clamp01((prog - (i / chars.length) * 0.5) / 0.5)
+
     ctx.save()
-    ctx.beginPath()
-    ctx.rect(x0 - 6, cy - 24, (tw + 12) * eased, 48)
-    ctx.clip()
-    ctx.lineWidth = 1.4
-    ctx.lineJoin = 'round'
-    ctx.strokeStyle = `rgba(${ICE}, ${0.92 * vis})`
-    ctx.shadowBlur = 12
-    ctx.shadowColor = `rgba(${CYAN}, ${0.6 * vis})`
-    ctx.strokeText(name, x0, cy)
-    if (reveal >= 1) {
-      ctx.fillStyle = `rgba(${ICE}, ${0.12 * vis})`
-      ctx.fillText(name, x0, cy)
-    }
-    ctx.restore()
-    if (reveal < 1) {
-      const ex = x0 - 6 + (tw + 12) * eased
-      ctx.shadowBlur = 16
-      ctx.shadowColor = `rgba(${ICE}, ${vis})`
-      ctx.fillStyle = `rgba(${ICE}, ${0.55 * vis})`
-      ctx.fillRect(ex - 1, cy - 15, 2, 30)
-    }
-  } else if (mode === 1) {
-    // Cinematic Worlds — letters as connected dot-nodes, twinkling in L→R.
-    const st = sampleText(name, 30, 5)
-    if (st) {
-      ctx.translate(cx, cy)
-      ctx.scale(0.72, 0.72)
-      const pv = (c: { x: number }) => clamp01((eased - ((c.x + st.w / 2) / st.w) * 0.72) / 0.3)
-      ctx.strokeStyle = `rgba(${CYAN}, ${0.3 * vis})`
-      ctx.lineWidth = 0.6
-      for (let i = 0; i + 1 < st.cells.length; i += 2) {
-        const a = st.cells[i]
-        const b = st.cells[i + 1]
-        if (Math.hypot(a.x - b.x, a.y - b.y) > st.step * 2.4) continue
-        const k = Math.min(pv(a), pv(b))
-        if (k <= 0) continue
-        ctx.globalAlpha = 0.3 * k * vis
+    ctx.translate(lx, cy + idleY)
+
+    if (lp >= 1) {
+      ctx.shadowBlur = 10
+      ctx.shadowColor = `rgba(${CYAN}, ${0.6 * fade})`
+      ctx.fillStyle = `rgba(${ICE}, ${0.97 * fade})`
+      ctx.fillText(ch, 0, 0)
+    } else if (mode === 0) {
+      // Sound Drawing — glyph warbles through waveform noise.
+      const g = GLYPHS[(beatSlot * 3 + i * 7 + Math.floor(s.t * 22)) % GLYPHS.length]
+      const wob = Math.sin(s.t * 26 + i * 2) * (1 - lp) * 5
+        + (hash01(i + Math.floor(s.t * 30)) - 0.5) * (1 - lp) * 5
+      ctx.translate(0, wob)
+      ctx.scale(1, 0.7 + hash01(i * 5 + Math.floor(s.t * 18)) * 0.7)
+      ctx.shadowBlur = 8
+      ctx.shadowColor = `rgba(${CYAN}, ${0.5 * fade})`
+      ctx.fillStyle = `rgba(${CYAN}, ${(0.35 + lp * 0.55) * fade})`
+      ctx.fillText(g, 0, 0)
+    } else if (mode === 1) {
+      // Cinema — particles gather into the letter.
+      const spread = (1 - lp) * 22
+      ctx.shadowBlur = 5
+      ctx.shadowColor = `rgba(${ICE}, ${0.6 * fade})`
+      for (let k = 0; k < 7; k++) {
+        const a = hash01(i * 13 + k) * TAU + s.t * 1.6
+        const rr = spread * (0.35 + hash01(i * 7 + k * 3) * 0.65)
+        ctx.fillStyle = `rgba(${ICE}, ${(0.3 + lp * 0.5) * fade})`
         ctx.beginPath()
-        ctx.moveTo(a.x, a.y)
-        ctx.lineTo(b.x, b.y)
-        ctx.stroke()
-      }
-      ctx.globalAlpha = 1
-      ctx.shadowColor = `rgba(${ICE}, ${0.6 * vis})`
-      ctx.shadowBlur = 6
-      for (let i = 0; i < st.cells.length; i++) {
-        const c = st.cells[i]
-        const k = pv(c)
-        if (k <= 0) continue
-        const jx = Math.sin(s.t * 3 + i) * 0.6 * s.high
-        const jy = Math.cos(s.t * 2.4 + i * 1.7) * 0.6 * s.high
-        ctx.fillStyle = `rgba(${ICE}, ${0.85 * k * vis})`
-        ctx.beginPath()
-        ctx.arc(c.x + jx, c.y + jy, 1.15 * k, 0, Math.PI * 2)
+        ctx.arc(Math.cos(a) * rr, Math.sin(a) * rr * 0.7, 1.2, 0, TAU)
         ctx.fill()
       }
-    }
-  } else if (mode === 2) {
-    // Shader Pads — neon fill, rolling gradient sweep and bloom, wipe reveal.
-    ctx.font = `800 23px ${DISPLAY_FONT}`
-    try { ctx.letterSpacing = '6px' } catch { /* */ }
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'middle'
-    const tw = ctx.measureText(name).width
-    const x0 = cx - tw / 2
-    const slide = Math.sin(s.t * 1.1) * tw * 0.5
-    const grad = ctx.createLinearGradient(x0 - tw + slide, 0, x0 + tw + slide, 0)
-    grad.addColorStop(0, `rgba(${DEEP}, ${vis})`)
-    grad.addColorStop(0.5, `rgba(${ICE}, ${vis})`)
-    grad.addColorStop(1, `rgba(${DEEP}, ${vis})`)
-    ctx.save()
-    ctx.beginPath()
-    ctx.rect(x0 - 8, cy - 24, (tw + 16) * eased, 48)
-    ctx.clip()
-    ctx.shadowBlur = 22
-    ctx.shadowColor = `rgba(${CYAN}, ${0.7 * vis})`
-    ctx.fillStyle = grad
-    ctx.fillText(name, x0, cy)
-    ctx.restore()
-    if (reveal < 1) {
-      const ex = x0 - 8 + (tw + 16) * eased
+      ctx.fillStyle = `rgba(${ICE}, ${lp * 0.45 * fade})`
+      ctx.fillText(ch, 0, 0)
+    } else if (mode === 2) {
+      // CANVAS — refraction / zoom-blur shimmer resolving into focus.
+      const blur = 1 - lp
       ctx.globalCompositeOperation = 'lighter'
-      ctx.shadowBlur = 24
-      ctx.shadowColor = `rgba(${ICE}, ${vis})`
-      ctx.fillStyle = `rgba(${ICE}, ${0.5 * vis})`
-      ctx.fillRect(ex - 2, cy - 18, 4, 36)
-    }
-  } else if (mode === 3) {
-    // LaserDMX — hard mono weight, RGB fringing, strobe flicker, char step-in.
-    ctx.font = `700 21px ${MONO_FONT}`
-    try { ctx.letterSpacing = '3px' } catch { /* */ }
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'middle'
-    const tw = ctx.measureText(name).width
-    const x0 = cx - tw / 2
-    const shown = Math.ceil(eased * name.length)
-    const partial = name.slice(0, shown)
-    const flick = reveal < 1
-      ? (Math.sin(s.t * 46 + shown * 1.7) > -0.35 ? 1 : 0.2)
-      : 0.8 + 0.2 * Math.abs(Math.sin(s.t * 11))
-    const o = 1.2 + s.beat * 2 + (1 - eased) * 3.5
-    ctx.globalCompositeOperation = 'lighter'
-    ctx.shadowBlur = 5
-    const pass = (dx: number, col: string) => {
-      ctx.fillStyle = `rgba(${col}, ${0.5 * flick * vis})`
-      ctx.shadowColor = `rgba(${col}, ${0.45 * vis})`
-      ctx.fillText(partial, x0 + dx, cy)
-    }
-    pass(-o, '255, 64, 92')
-    pass(o, '64, 132, 255')
-    pass(0, ICE)
-  } else {
-    // PixGrid — blocky bitmap cells populating in L→R with a pop.
-    const st = sampleText(name, 28, 4)
-    if (st) {
-      ctx.translate(cx, cy)
-      ctx.scale(0.74, 0.74)
-      const cell = st.step * 0.8
-      for (let i = 0; i < st.cells.length; i++) {
-        const c = st.cells[i]
-        const delay = ((c.x + st.w / 2) / st.w) * 0.76
-        const k = clamp01((eased - delay) / 0.16)
-        if (k <= 0) continue
-        const sz = cell * (k < 1 ? 1 + (1 - k) * 0.7 : 1)
-        const fresh = k < 0.5
-        ctx.shadowBlur = fresh ? 8 : 0
-        ctx.shadowColor = `rgba(${ICE}, ${0.5 * vis})`
-        ctx.fillStyle = `rgba(${fresh ? ICE : CYAN}, ${(0.24 + 0.66 * k) * vis})`
-        roundRectPath(ctx, c.x - sz / 2, c.y - sz / 2, sz, sz, sz * 0.24)
-        ctx.fill()
+      ctx.fillStyle = `rgba(255, 64, 92, ${(0.28 * blur + 0.04) * fade})`
+      ctx.fillText(ch, -blur * 6, 0)
+      ctx.fillStyle = `rgba(64, 132, 255, ${(0.28 * blur + 0.04) * fade})`
+      ctx.fillText(ch, blur * 6, 0)
+      ctx.globalCompositeOperation = 'source-over'
+      for (let k = 2; k >= 0; k--) {
+        const sc = 1 + blur * 0.06 * k
+        ctx.save()
+        ctx.scale(sc, sc)
+        ctx.shadowBlur = 6
+        ctx.shadowColor = `rgba(${CYAN}, ${0.5 * fade})`
+        ctx.fillStyle = `rgba(${ICE}, ${(k === 0 ? 0.4 + lp * 0.55 : 0.14 * blur) * fade})`
+        ctx.fillText(ch, 0, 0)
+        ctx.restore()
+      }
+    } else if (mode === 3) {
+      // LaserDMX — beat-quantised glyph strobe with scanline gaps.
+      const g = GLYPHS[(beatSlot * 5 + i * 11) % GLYPHS.length]
+      const strobe = beatSlot % 2 === 0 ? 1 : 0.45
+      const skip = ((beatSlot * 4 + i) % 5) - 2
+      ctx.beginPath()
+      for (let b = -2; b <= 2; b++) {
+        if (b === skip) continue
+        ctx.rect(-15, b * 6 - 2.5, 30, 5)
+      }
+      ctx.clip()
+      ctx.globalCompositeOperation = 'lighter'
+      ctx.shadowBlur = 6
+      ctx.shadowColor = `rgba(${ICE}, ${0.6 * fade})`
+      ctx.fillStyle = `rgba(${ICE}, ${(0.4 + lp * 0.5) * strobe * fade})`
+      ctx.fillText(g, 0, 0)
+    } else {
+      // PixGrid — mosaic block-dissolve.
+      ctx.shadowBlur = 4
+      ctx.shadowColor = `rgba(${CYAN}, ${0.5 * fade})`
+      ctx.fillStyle = `rgba(${ICE}, ${(0.35 + lp * 0.6) * fade})`
+      ctx.fillText(ch, 0, 0)
+      const cols = 4
+      const rows = 5
+      const cw = widths[i] / cols
+      const chh = 28 / rows
+      ctx.fillStyle = 'rgba(3, 5, 8, 0.96)'
+      for (let ty = 0; ty < rows; ty++) {
+        for (let tx = 0; tx < cols; tx++) {
+          if (hash01(i * 40 + ty * 7 + tx * 13) > lp) {
+            ctx.fillRect(-widths[i] / 2 + tx * cw, -14 + ty * chh, cw + 0.6, chh + 0.6)
+          }
+        }
       }
     }
+
+    ctx.restore()
   }
 
   ctx.restore()
@@ -453,7 +396,7 @@ const drawPixGrid: SceneFn = (ctx, w, h, s, alpha) => {
 }
 
 const SCENES: SceneFn[] = [drawScope, drawConstellation, drawTunnel, drawBeams, drawPixGrid]
-const SCENE_NAMES = ['Sound Drawing', 'Cinematic Worlds', 'Shader Pads', 'LaserDMX', 'PixGrid']
+const SCENE_NAMES = ['Sound Drawing', 'Cinema', 'CANVAS', 'LaserDMX', 'PixGrid']
 const LABEL_IN_MS = 900
 
 export function AuthVisualizer() {
@@ -532,7 +475,7 @@ export function AuthVisualizer() {
       const exit = into > SCENE_MS - FADE_MS
         ? clamp01((into - (SCENE_MS - FADE_MS)) / FADE_MS)
         : 0
-      drawEngineLabel(ctx, width, height, SCENE_NAMES[idx], idx, s, reveal, 1 - exit)
+      drawEngineLabel(ctx, width, height, SCENE_NAMES[idx], idx, s, reveal, exit)
 
       raf = requestAnimationFrame(frame)
     }
@@ -548,7 +491,7 @@ export function AuthVisualizer() {
         ctx.fillStyle = '#030508'
         ctx.fillRect(0, 0, width, height)
         drawConstellation(ctx, width, height, staticSig, 1)
-        drawEngineLabel(ctx, width, height, SCENE_NAMES[1], 1, staticSig, 1, 1)
+        drawEngineLabel(ctx, width, height, SCENE_NAMES[1], 1, staticSig, 1, 0)
       }
       raf = requestAnimationFrame(paintStatic)
     } else {
