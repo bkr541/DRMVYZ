@@ -1224,6 +1224,345 @@ function AddEffectsPreviewDeckConcept({ state }: { state: CanvasMockState }) {
   )
 }
 
+/* ───────────────────────────────────────────────────────────────────────────
+   Round two of the Add Effects concept mock-ups. All five share ONE spacing
+   scale (the --ae2-* custom properties set on the routing panel) and the same
+   three-tier read: Active Media → Effect → Audio Intelligence parameter. They
+   differ only in how that hierarchy — and the connection between the tiers —
+   is drawn. Every connector below is correct by construction: it is a real
+   container edge (a border that spans exactly its content), an element pinned
+   to inset:0 of a positioned ancestor, or a tick pinned to top:50% of the row
+   it points at. No connector uses a hand-tuned pixel offset.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/** Open/close control shared by the round-two concepts. */
+function AE2RouteToggle({ className, open, count, effectLabel, parentLabel, onToggle }: {
+  className: string
+  open: boolean
+  count: number
+  effectLabel: string
+  parentLabel: string
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={className}
+      aria-expanded={open}
+      aria-label={`${count ? 'Edit' : 'Add'} Audio Intelligence routes for ${effectLabel} on ${parentLabel}`}
+      onClick={onToggle}
+    >
+      {count ? `Audio Intelligence · ${count}` : 'Add Audio Intelligence'}
+    </button>
+  )
+}
+
+/** Concept — "Nested Trays." Pure containment: Active Media, each Effect, and
+ * that effect's Audio Intelligence parameters are three nested trays — each
+ * one indent step deeper, one shade lighter, the same inner padding, a
+ * tier-colored left bar. No connector lines, so nothing can misalign. */
+function AddEffectsNestedTraysConcept({ state }: { state: CanvasMockState }) {
+  const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Nested Trays"
+      note="Active Media, Effect, and Audio Intelligence are three nested trays — each one step deeper, one shade lighter, the same 10px inner padding, a tier-colored left bar. Hierarchy is carried entirely by containment. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getGroupExtra={() => ({ className: 'rv-ae-tray-group' })}
+          getEntryExtra={({ linkKey }) => {
+            const color = firstRouteColor(links[linkKey])
+            return {
+              className: `rv-ae-tray-entry${color ? ' is-linked' : ''}`,
+              style: color ? ({ '--tray-color': color } as CSSProperties) : undefined,
+            }
+          }}
+          renderRoute={ctx => {
+            const routes = routesFor(ctx.linkKey)
+            const open = isOpenFor(ctx.linkKey)
+            return (
+              <>
+                <AE2RouteToggle
+                  className="rv-ae-tray-toggle"
+                  open={open}
+                  count={routes.length}
+                  effectLabel={ctx.effectLabel}
+                  parentLabel={ctx.parentLabel}
+                  onToggle={() => toggle(ctx.linkKey)}
+                />
+                {open && (
+                  <div className="rv-ae-tray-panel">
+                    <AddEffectsRouteEditor
+                      routes={routes}
+                      effectLabel={ctx.effectLabel}
+                      parentLabel={ctx.parentLabel}
+                      showDots
+                      inlineParamRow
+                      {...editorHandlers(ctx.linkKey)}
+                    />
+                  </div>
+                )}
+              </>
+            )
+          }}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
+/** Concept — "Tier Chips." No boxes and no lines. Every row carries a
+ * fixed-width uppercase tier chip on the left — MEDIA, FX, AI — in the tier
+ * color, and each tier steps one indent further right. The chip column keeps
+ * the hierarchy legible while scanning a long effect list. */
+function AddEffectsTierChipsConcept({ state }: { state: CanvasMockState }) {
+  const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Tier Chips"
+      note="No boxes, no lines. Each row gets a fixed-width tier chip on the left — MEDIA, FX, AI — in the tier color, and each tier steps one indent right. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getGroupExtra={() => ({ className: 'rv-ae-chip-group' })}
+          renderMediaRowLeading={() => <span className="rv-ae-chip rv-ae-chip--media" aria-hidden="true">Media</span>}
+          renderLeading={() => <span className="rv-ae-chip rv-ae-chip--fx" aria-hidden="true">FX</span>}
+          getEntryExtra={({ linkKey }) => {
+            const color = firstRouteColor(links[linkKey])
+            return {
+              className: `rv-ae-chip-entry${color ? ' is-linked' : ''}`,
+              style: color ? ({ '--chip-color': color } as CSSProperties) : undefined,
+            }
+          }}
+          renderRoute={ctx => {
+            const routes = routesFor(ctx.linkKey)
+            const open = isOpenFor(ctx.linkKey)
+            return (
+              <>
+                <button
+                  type="button"
+                  className={`rv-ae-chip rv-ae-chip--ai rv-ae-chip-toggle${open ? ' is-open' : ''}`}
+                  aria-expanded={open}
+                  aria-label={`${routes.length ? 'Edit' : 'Add'} Audio Intelligence routes for ${ctx.effectLabel} on ${ctx.parentLabel}`}
+                  onClick={() => toggle(ctx.linkKey)}
+                >
+                  AI{routes.length ? ` · ${routes.length}` : ' +'}
+                </button>
+                {open && (
+                  <div className="rv-ae-chip-panel">
+                    <AddEffectsRouteEditor
+                      routes={routes}
+                      effectLabel={ctx.effectLabel}
+                      parentLabel={ctx.parentLabel}
+                      showDots
+                      inlineParamRow
+                      {...editorHandlers(ctx.linkKey)}
+                    />
+                  </div>
+                )}
+              </>
+            )
+          }}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
+/** Concept — "Trunk Line." A two-level tree whose every trunk is a real
+ * container border, so it always spans exactly its children: the group's
+ * left border carries the effects; an open effect's left border carries its
+ * parameters. Each child row ticks off its trunk at the row's vertical
+ * centre. Nothing is positioned by a guessed offset. */
+function AddEffectsTrunkLineConcept({ state }: { state: CanvasMockState }) {
+  const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Trunk Line"
+      note="A two-level tree where every trunk is a real container edge — the group border carries the effects, an open effect's border carries its parameters — so a trunk always spans exactly its children. Each row ticks off its trunk at the row's centre. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getGroupExtra={() => ({ className: 'rv-ae-trunk-group' })}
+          getEntryExtra={({ linkKey }) => {
+            const color = firstRouteColor(links[linkKey])
+            return {
+              className: `rv-ae-trunk-entry${color ? ' is-linked' : ''}`,
+              style: color ? ({ '--trunk-color': color } as CSSProperties) : undefined,
+            }
+          }}
+          renderRoute={ctx => {
+            const routes = routesFor(ctx.linkKey)
+            const open = isOpenFor(ctx.linkKey)
+            return (
+              <div className={`rv-ae-trunk-route${open ? ' is-open' : ''}`}>
+                <AE2RouteToggle
+                  className="rv-ae-trunk-toggle"
+                  open={open}
+                  count={routes.length}
+                  effectLabel={ctx.effectLabel}
+                  parentLabel={ctx.parentLabel}
+                  onToggle={() => toggle(ctx.linkKey)}
+                />
+                {open && (
+                  <div className="rv-ae-trunk-panel">
+                    <AddEffectsRouteEditor
+                      routes={routes}
+                      effectLabel={ctx.effectLabel}
+                      parentLabel={ctx.parentLabel}
+                      showDots
+                      inlineParamRow
+                      {...editorHandlers(ctx.linkKey)}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          }}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
+/** Concept — "Spine & Dots." One spine runs the full height of the group
+ * (pinned to its top and bottom, so it can never fall short). Active Media
+ * and each Effect ride the spine as a dot pinned to their row's centre — big
+ * filled for media, medium for an effect. Parameters sit indented off the
+ * spine as small leaf bullets. No branching lines. */
+function AddEffectsSpineDotsConcept({ state }: { state: CanvasMockState }) {
+  const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Spine & Dots"
+      note="One spine spans the full group height (pinned top-to-bottom). Active Media and each Effect ride it as a dot pinned to their row's centre; parameters sit indented as leaf bullets. No branching lines. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getGroupExtra={() => ({ className: 'rv-ae-spine-group' })}
+          getMediaRowExtra={() => ({ className: 'rv-ae-spine-row rv-ae-spine-row--media' })}
+          getEntryExtra={({ linkKey }) => {
+            const color = firstRouteColor(links[linkKey])
+            return {
+              className: `rv-ae-spine-entry${color ? ' is-linked' : ''}`,
+              style: color ? ({ '--spine-color': color } as CSSProperties) : undefined,
+            }
+          }}
+          renderRoute={ctx => {
+            const routes = routesFor(ctx.linkKey)
+            const open = isOpenFor(ctx.linkKey)
+            return (
+              <>
+                <AE2RouteToggle
+                  className="rv-ae-spine-toggle"
+                  open={open}
+                  count={routes.length}
+                  effectLabel={ctx.effectLabel}
+                  parentLabel={ctx.parentLabel}
+                  onToggle={() => toggle(ctx.linkKey)}
+                />
+                {open && (
+                  <div className="rv-ae-spine-panel">
+                    <AddEffectsRouteEditor
+                      routes={routes}
+                      effectLabel={ctx.effectLabel}
+                      parentLabel={ctx.parentLabel}
+                      inlineParamRow
+                      {...editorHandlers(ctx.linkKey)}
+                    />
+                  </div>
+                )}
+              </>
+            )
+          }}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
+/** Concept — "Numbered Steps." A left gutter numbers each effect 1, 2, 3…
+ * The number sits at a shared offset (--ae2-num-top) and the connecting line
+ * is capped to that same offset, so the line always meets the number. An
+ * open effect's line runs on down beside its parameter list. */
+function AddEffectsNumberedStepsConcept({ state }: { state: CanvasMockState }) {
+  const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Numbered Steps"
+      note="A left gutter numbers each effect. The number and the connecting line share one offset constant, so the line always meets the number; an open effect's line continues beside its parameter list. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getGroupExtra={() => ({ className: 'rv-ae-steps-group' })}
+          getEntryExtra={({ linkKey }) => {
+            const color = firstRouteColor(links[linkKey])
+            const open = isOpenFor(linkKey)
+            return {
+              className: `rv-ae-steps-entry${open ? ' is-open' : ''}${color ? ' is-linked' : ''}`,
+              style: color ? ({ '--steps-color': color } as CSSProperties) : undefined,
+            }
+          }}
+          renderLeading={ctx => <span className="rv-ae-steps-num" aria-hidden="true">{ctx.effectIndex + 1}</span>}
+          renderRoute={ctx => {
+            const routes = routesFor(ctx.linkKey)
+            const open = isOpenFor(ctx.linkKey)
+            return (
+              <>
+                <AE2RouteToggle
+                  className="rv-ae-steps-toggle"
+                  open={open}
+                  count={routes.length}
+                  effectLabel={ctx.effectLabel}
+                  parentLabel={ctx.parentLabel}
+                  onToggle={() => toggle(ctx.linkKey)}
+                />
+                {open && (
+                  <div className="rv-ae-steps-panel">
+                    <AddEffectsRouteEditor
+                      routes={routes}
+                      effectLabel={ctx.effectLabel}
+                      parentLabel={ctx.parentLabel}
+                      showDots
+                      {...editorHandlers(ctx.linkKey)}
+                    />
+                  </div>
+                )}
+              </>
+            )
+          }}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
 function ReactMockup({ state }: { state: CanvasMockState }) {
   return (
     <WorkspaceBody>
@@ -1234,6 +1573,11 @@ function ReactMockup({ state }: { state: CanvasMockState }) {
           <AddEffectsHighlightWashConcept state={state} />
           <AddEffectsBlueprintBusConcept state={state} />
           <AddEffectsPreviewDeckConcept state={state} />
+          <AddEffectsNestedTraysConcept state={state} />
+          <AddEffectsTierChipsConcept state={state} />
+          <AddEffectsTrunkLineConcept state={state} />
+          <AddEffectsSpineDotsConcept state={state} />
+          <AddEffectsNumberedStepsConcept state={state} />
         </div>
       ) : <AnalysisMockup />}
     </WorkspaceBody>

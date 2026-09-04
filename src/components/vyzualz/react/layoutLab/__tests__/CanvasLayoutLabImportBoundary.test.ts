@@ -119,6 +119,11 @@ const REQUIRED_LABELS = [
   'Add Effects — Highlight Wash',
   'Add Effects — Blueprint Bus',
   'Add Effects — Preview Deck',
+  'Add Effects — Nested Trays',
+  'Add Effects — Tier Chips',
+  'Add Effects — Trunk Line',
+  'Add Effects — Spine & Dots',
+  'Add Effects — Numbered Steps',
   'Fractures recording is unavailable',
   'Recording unavailable',
 ]

@@ -20499,3 +20499,370 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-deck-bar-icons.is-open .rv-ae-deck-chevron { transform: rotate(180deg); }
 
 .rv-ae-deck-body { margin-top: 8px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Add Effects — round-two concept mock-ups (Nested Trays, Tier Chips, Trunk
+   Line, Spine & Dots, Numbered Steps). One shared spacing scale; every
+   connector is a real container edge or is pinned to inset:0 / top:50% of a
+   positioned ancestor, never a hand-tuned offset.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+[data-layout-lab-canvas='routing'] {
+  --ae2-pad: 10px;
+  --ae2-gap: 8px;
+  --ae2-step: 16px;
+  --ae2-chip-w: 34px;
+  --ae2-num: 18px;
+  --ae2-num-top: 16px;
+  --ae2-tier1: #4ac7db;
+  --ae2-tier2: rgba(154, 178, 188, 0.4);
+  --ae2-tier2-strong: rgba(154, 178, 188, 0.72);
+}
+
+/* Shared small toggle look (Nested Trays / Trunk Line / Spine & Dots /
+   Numbered Steps use the same pill so the family reads as one set). */
+.rv-ae-tray-toggle,
+.rv-ae-trunk-toggle,
+.rv-ae-spine-toggle,
+.rv-ae-steps-toggle {
+  align-self: flex-start;
+  padding: 3px 9px;
+  border: 1px solid rgba(154, 178, 188, 0.28);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(232, 244, 248, 0.82);
+  font: 700 8px/1 var(--az-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.rv-ae-tray-toggle:hover,
+.rv-ae-tray-toggle:focus-visible,
+.rv-ae-trunk-toggle:hover,
+.rv-ae-trunk-toggle:focus-visible,
+.rv-ae-spine-toggle:hover,
+.rv-ae-spine-toggle:focus-visible,
+.rv-ae-steps-toggle:hover,
+.rv-ae-steps-toggle:focus-visible {
+  border-color: #8de7ff;
+  color: #8de7ff;
+}
+
+/* ── Concept: Nested Trays ───────────────────────────────────────────────── */
+
+.rv-ae-tray-group {
+  gap: var(--ae2-gap);
+  padding: var(--ae2-pad);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 2px solid var(--ae2-tier1);
+}
+
+.rv-ae-tray-group .rv-canvas-layer-effects-stack {
+  gap: var(--ae2-gap);
+}
+
+.rv-ae-tray-entry {
+  gap: var(--ae2-gap);
+  padding: var(--ae2-pad);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 2px solid var(--ae2-tier2-strong);
+}
+
+.rv-ae-tray-entry.is-linked {
+  border-left-color: var(--tray-color);
+}
+
+.rv-ae-tray-panel {
+  padding: var(--ae2-pad);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.065);
+  border-left: 2px solid var(--tray-color, var(--ae2-tier2-strong));
+}
+
+/* ── Concept: Tier Chips ─────────────────────────────────────────────────── */
+
+.rv-ae-chip-group {
+  gap: var(--ae2-gap);
+}
+
+.rv-ae-chip-group .rv-canvas-layer-effects-stack {
+  gap: var(--ae2-gap);
+}
+
+.rv-ae-chip {
+  flex: 0 0 auto;
+  align-self: center;
+  box-sizing: border-box;
+  min-width: var(--ae2-chip-w);
+  padding: 3px 6px;
+  border-radius: 4px;
+  font: 800 7.5px/1 var(--az-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  color: #060d10;
+}
+
+.rv-ae-chip--media { background: var(--ae2-tier1); }
+.rv-ae-chip--fx { background: var(--ae2-tier2-strong); }
+
+.rv-ae-chip-entry {
+  gap: var(--ae2-gap);
+  margin-left: var(--ae2-step);
+}
+
+.rv-ae-chip-group .rv-canvas-layer-effect-row--empty {
+  margin-left: var(--ae2-step);
+}
+
+.rv-ae-chip--ai.rv-ae-chip-toggle {
+  align-self: flex-start;
+  margin-left: calc(var(--ae2-chip-w) + var(--ae2-gap));
+  border: 1px solid var(--chip-color, rgba(154, 178, 188, 0.35));
+  background: color-mix(in srgb, var(--chip-color, rgba(154, 178, 188, 0.5)) 14%, transparent);
+  color: rgba(232, 244, 248, 0.9);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.rv-ae-chip--ai.rv-ae-chip-toggle.is-open,
+.rv-ae-chip--ai.rv-ae-chip-toggle:hover,
+.rv-ae-chip--ai.rv-ae-chip-toggle:focus-visible {
+  border-color: #8de7ff;
+  color: #8de7ff;
+}
+
+.rv-ae-chip-panel {
+  margin-left: calc(var(--ae2-chip-w) + var(--ae2-gap));
+  margin-top: 2px;
+}
+
+/* ── Concept: Trunk Line ─────────────────────────────────────────────────── */
+
+/* Group trunk = the group's own left border. Spans exactly media + effects. */
+.rv-ae-trunk-group {
+  gap: var(--ae2-gap);
+  padding-left: var(--ae2-step);
+  border-left: 2px solid var(--ae2-tier1);
+}
+
+.rv-ae-trunk-group .rv-canvas-layer-effects-stack {
+  gap: var(--ae2-gap);
+}
+
+/* Active Media is the trunk's head — pulled flush over the border. */
+.rv-ae-trunk-group > .rv-ctrl-row {
+  margin-left: calc(-1 * var(--ae2-step) - 2px);
+}
+
+.rv-ae-trunk-entry {
+  gap: 0;
+}
+
+/* Each effect row ticks off the group trunk at the row's centre. */
+.rv-ae-trunk-entry > .rv-canvas-layer-effect-row::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: calc(-1 * var(--ae2-step) - 2px);
+  width: calc(var(--ae2-step) + 2px);
+  height: 2px;
+  background: var(--ae2-tier2-strong);
+}
+
+.rv-ae-trunk-route {
+  display: flex;
+  flex-direction: column;
+}
+
+.rv-ae-trunk-toggle {
+  margin-top: var(--ae2-gap);
+}
+
+/* Open: the toggle and the parameter panel share one continuous left border —
+   the sub-trunk — dropping straight from the effect row's bottom-left. */
+.rv-ae-trunk-route.is-open .rv-ae-trunk-toggle {
+  align-self: stretch;
+  margin-top: 0;
+  padding: var(--ae2-gap) 0 var(--ae2-gap) var(--ae2-step);
+  border: 0;
+  border-left: 2px solid var(--trunk-color, var(--ae2-tier2-strong));
+  border-radius: 0;
+  text-align: left;
+}
+
+.rv-ae-trunk-panel {
+  padding-left: var(--ae2-step);
+  border-left: 2px solid var(--trunk-color, var(--ae2-tier2-strong));
+}
+
+.rv-ae-trunk-panel .rv-ae-route-param--inline,
+.rv-ae-trunk-panel .rv-ae-route-editor > .rv-ctrl-row {
+  position: relative;
+}
+
+.rv-ae-trunk-panel .rv-ae-route-param--inline::before,
+.rv-ae-trunk-panel .rv-ae-route-editor > .rv-ctrl-row::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: calc(-1 * var(--ae2-step) - 2px);
+  width: calc(var(--ae2-step) + 2px);
+  height: 2px;
+  background: var(--trunk-color, var(--ae2-tier2));
+}
+
+/* ── Concept: Spine & Dots ───────────────────────────────────────────────── */
+
+.rv-ae-spine-group {
+  position: relative;
+  gap: var(--ae2-gap);
+  padding-left: var(--ae2-step);
+}
+
+.rv-ae-spine-group .rv-canvas-layer-effects-stack {
+  gap: var(--ae2-gap);
+}
+
+/* One spine, pinned top-to-bottom of the group — cannot fall short. */
+.rv-ae-spine-group::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--ae2-tier2);
+}
+
+.rv-ae-spine-row--media,
+.rv-ae-spine-entry > .rv-canvas-layer-effect-row {
+  position: relative;
+}
+
+/* Media + effect dots ride the spine, pinned to their row's centre. */
+.rv-ae-spine-row--media::before,
+.rv-ae-spine-entry > .rv-canvas-layer-effect-row::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: calc(6px - var(--ae2-step));
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--spine-color, var(--ae2-tier2-strong));
+}
+
+.rv-ae-spine-row--media::before {
+  width: 11px;
+  height: 11px;
+  background: var(--ae2-tier1);
+  box-shadow: 0 0 0 3px rgba(74, 199, 219, 0.14);
+}
+
+.rv-ae-spine-entry > .rv-canvas-layer-effect-row::before {
+  width: 8px;
+  height: 8px;
+}
+
+.rv-ae-spine-panel {
+  margin-top: var(--ae2-gap);
+  margin-left: var(--ae2-step);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ae2-gap);
+}
+
+/* Parameters sit off the spine as leaf bullets. */
+.rv-ae-spine-panel .rv-ae-route-param--inline {
+  position: relative;
+  padding-left: 12px;
+}
+
+.rv-ae-spine-panel .rv-ae-route-param--inline::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  transform: translate(-50%, -50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ae2-tier2-strong);
+}
+
+/* ── Concept: Numbered Steps ─────────────────────────────────────────────── */
+
+.rv-ae-steps-group {
+  gap: var(--ae2-gap);
+}
+
+.rv-ae-steps-group .rv-canvas-layer-effects-stack {
+  gap: var(--ae2-gap);
+}
+
+.rv-ae-steps-num {
+  flex: 0 0 auto;
+  align-self: center;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ae2-num);
+  height: var(--ae2-num);
+  border-radius: 50%;
+  border: 1.5px solid var(--ae2-tier2-strong);
+  background: rgba(9, 14, 19, 0.92);
+  color: rgba(232, 244, 248, 0.85);
+  font: 800 9px/1 var(--az-font);
+}
+
+.rv-ae-steps-entry {
+  position: relative;
+  gap: var(--ae2-gap);
+  padding-left: calc(var(--ae2-step) + 12px);
+}
+
+/* Number pinned into the left gutter; connector capped to the same
+   --ae2-num-top (+ half the number) so it always meets the number's centre. */
+.rv-ae-steps-entry > .rv-canvas-layer-effect-row > .rv-ae-steps-num {
+  position: absolute;
+  left: calc(-1 * var(--ae2-step) - 12px + 4px);
+  top: var(--ae2-num-top);
+}
+
+.rv-ae-steps-entry.is-linked > .rv-canvas-layer-effect-row > .rv-ae-steps-num {
+  border-color: var(--steps-color);
+  color: var(--steps-color);
+}
+
+.rv-ae-steps-entry::before {
+  content: '';
+  position: absolute;
+  left: calc(-1 * var(--ae2-step) - 12px + 4px + var(--ae2-num) / 2 - 1px);
+  top: calc(var(--ae2-num-top) + var(--ae2-num) / 2);
+  bottom: 0;
+  width: 2px;
+  background: var(--ae2-tier2);
+}
+
+.rv-ae-steps-entry:not(:last-child)::before {
+  bottom: calc(-1 * var(--ae2-gap) - var(--ae2-num-top) - var(--ae2-num) / 2);
+}
+
+.rv-ae-steps-entry:last-child:not(.is-open)::before {
+  display: none;
+}
+
+.rv-ae-steps-group .rv-canvas-layer-effect-row--empty {
+  padding-left: calc(var(--ae2-step) + 12px);
+}
+
+.rv-ae-steps-panel {
+  margin-top: var(--ae2-gap);
+  padding-left: var(--ae2-step);
+}
