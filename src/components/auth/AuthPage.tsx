@@ -1,4 +1,5 @@
 import { DreamVizTextInput } from '../vyzualz/react/controls/DreamVizTextInput'
+import { AuthVisualizer } from './AuthVisualizer'
 import { useState } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
 import '../../styles/auth.css'
@@ -115,13 +116,7 @@ function EmblemPanel() {
     <div className="auth-emblem-panel">
       <div className="auth-emblem-glow-outer"/>
       <div className="auth-emblem-glow-inner"/>
-      <img
-        src="/drmvyz_logo2.png"
-        alt=""
-        aria-hidden="true"
-        className="auth-emblem-logo-img"
-        style={{ width: 380, height: 380, objectFit: 'contain', opacity: 0.92 }}
-      />
+      <AuthVisualizer />
       <div className="auth-emblem-mist"/>
     </div>
   )
