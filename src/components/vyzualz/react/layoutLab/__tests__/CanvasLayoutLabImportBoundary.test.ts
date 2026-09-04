@@ -124,6 +124,11 @@ const REQUIRED_LABELS = [
   'Add Effects — Trunk Line',
   'Add Effects — Spine & Dots',
   'Add Effects — Numbered Steps',
+  'Add Effects — Media Card',
+  'Add Effects — Header Strip',
+  'Add Effects — Nested Cards',
+  'Add Effects — Ledger Card',
+  'Add Effects — Thumb Card',
   'Fractures recording is unavailable',
   'Recording unavailable',
 ]

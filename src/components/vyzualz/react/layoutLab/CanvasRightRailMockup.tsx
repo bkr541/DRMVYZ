@@ -1563,6 +1563,253 @@ function AddEffectsNumberedStepsConcept({ state }: { state: CanvasMockState }) {
   )
 }
 
+/* ───────────────────────────────────────────────────────────────────────────
+   Round three — "card" family. Each mock-up is ONE card per media layer: the
+   Active Media dropdown is the card's own header, and that media's effects and
+   their Audio Intelligence routes live inside the same card. The five differ
+   only in how the card is dressed. No free-floating connector lines — only
+   full-width dividers and container edges.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/** Disclosure toggle shared by the card mock-ups: a caret that rotates open
+ *  and the "Audio Intelligence" label with a routed count. */
+function AECardToggle({ className, open, count, effectLabel, parentLabel, onToggle }: {
+  className: string
+  open: boolean
+  count: number
+  effectLabel: string
+  parentLabel: string
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={`${className}${open ? ' is-open' : ''}`}
+      aria-expanded={open}
+      aria-label={`${open ? 'Hide' : count ? 'Edit' : 'Add'} Audio Intelligence routes for ${effectLabel} on ${parentLabel}`}
+      onClick={onToggle}
+    >
+      <span className="rv-ae-card-caret" aria-hidden="true"><DeckChevronGlyph size={10} /></span>
+      {count ? `Audio Intelligence · ${count}` : 'Audio Intelligence'}
+    </button>
+  )
+}
+
+/** Shared per-effect route slot for the card mock-ups: the disclosure toggle
+ *  plus, when open, the compact parameter editor. `classPrefix` scopes the
+ *  toggle / panel classes to one concept. */
+function AECardRoute({
+  ctx,
+  classPrefix,
+  routesFor,
+  isOpenFor,
+  toggle,
+  editorHandlers,
+}: {
+  ctx: AddEffectsRouteContext
+  classPrefix: string
+  routesFor: (linkKey: string) => CanvasMockEffectAudioRoute[]
+  isOpenFor: (linkKey: string) => boolean
+  toggle: (linkKey: string) => void
+  editorHandlers: (linkKey: string) => {
+    onAddParameter: (id: CanvasMockAudioIntelligenceParameterId) => void
+    onRemoveParameter: (id: CanvasMockAudioIntelligenceParameterId) => void
+    onSetIntensity: (id: CanvasMockAudioIntelligenceParameterId, value: number) => void
+  }
+}) {
+  const routes = routesFor(ctx.linkKey)
+  const open = isOpenFor(ctx.linkKey)
+  return (
+    <>
+      <AECardToggle
+        className={`${classPrefix}-toggle`}
+        open={open}
+        count={routes.length}
+        effectLabel={ctx.effectLabel}
+        parentLabel={ctx.parentLabel}
+        onToggle={() => toggle(ctx.linkKey)}
+      />
+      {open && (
+        <div className={`${classPrefix}-panel`}>
+          <AddEffectsRouteEditor
+            routes={routes}
+            effectLabel={ctx.effectLabel}
+            parentLabel={ctx.parentLabel}
+            showDots
+            inlineParamRow
+            {...editorHandlers(ctx.linkKey)}
+          />
+        </div>
+      )}
+    </>
+  )
+}
+
+/** Concept — "Media Card." One plain card per media layer. The Active Media
+ * dropdown is the card header, separated by a full-width rule; each effect is
+ * a divider-separated row beneath it, with its routes on a disclosure. */
+function AddEffectsMediaCardConcept({ state }: { state: CanvasMockState }) {
+  const { routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Media Card"
+      note="One plain card per media layer. Active Media is the card header above a full-width rule; each effect is a divider-separated row, routes on a disclosure. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getGroupExtra={() => ({ className: 'rv-ae-mc-group' })}
+          getMediaRowExtra={() => ({ className: 'rv-ae-mc-head' })}
+          getEntryExtra={() => ({ className: 'rv-ae-mc-entry' })}
+          renderRoute={ctx => (
+            <AECardRoute ctx={ctx} classPrefix="rv-ae-mc" routesFor={routesFor} isOpenFor={isOpenFor} toggle={toggle} editorHandlers={editorHandlers} />
+          )}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
+/** Concept — "Header Strip Card." The card's media header is a full-bleed
+ * tinted band; the effects sit in a plain body below it. A routed effect
+ * takes a left accent bar in the first parameter's color. */
+function AddEffectsHeaderStripConcept({ state }: { state: CanvasMockState }) {
+  const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Header Strip"
+      note="The card's Active Media header is a full-bleed tinted band; effects sit in the body below. A routed effect takes a colored left accent. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getGroupExtra={() => ({ className: 'rv-ae-hs-group' })}
+          getMediaRowExtra={() => ({ className: 'rv-ae-hs-head' })}
+          getEntryExtra={({ linkKey }) => {
+            const color = firstRouteColor(links[linkKey])
+            return {
+              className: `rv-ae-hs-entry${color ? ' is-linked' : ''}`,
+              style: color ? ({ '--hs-color': color } as CSSProperties) : undefined,
+            }
+          }}
+          renderRoute={ctx => (
+            <AECardRoute ctx={ctx} classPrefix="rv-ae-hs" routesFor={routesFor} isOpenFor={isOpenFor} toggle={toggle} editorHandlers={editorHandlers} />
+          )}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
+/** Concept — "Nested Cards." The media card contains one inset mini-card per
+ * effect; that effect's parameters live inside its own mini-card, under a
+ * dashed divider. */
+function AddEffectsNestedCardsConcept({ state }: { state: CanvasMockState }) {
+  const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Nested Cards"
+      note="The media card holds one inset mini-card per effect; that effect's parameters live inside its own mini-card under a dashed divider. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getGroupExtra={() => ({ className: 'rv-ae-nc-group' })}
+          getMediaRowExtra={() => ({ className: 'rv-ae-nc-head' })}
+          getEntryExtra={({ linkKey }) => {
+            const color = firstRouteColor(links[linkKey])
+            return {
+              className: `rv-ae-nc-entry${color ? ' is-linked' : ''}`,
+              style: color ? ({ '--nc-color': color } as CSSProperties) : undefined,
+            }
+          }}
+          renderRoute={ctx => (
+            <AECardRoute ctx={ctx} classPrefix="rv-ae-nc" routesFor={routesFor} isOpenFor={isOpenFor} toggle={toggle} editorHandlers={editorHandlers} />
+          )}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
+/** Concept — "Ledger Card." The card is a two-rail table: a label rail and a
+ * control rail. Active Media is the title row; every effect and parameter row
+ * aligns to the same two columns, separated by hairline rules. */
+function AddEffectsLedgerCardConcept({ state }: { state: CanvasMockState }) {
+  const { routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Ledger Card"
+      note="The card is a two-rail table — a label rail and a control rail. Active Media is the title row; every effect and parameter row aligns to the same two columns, split by hairline rules. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getGroupExtra={() => ({ className: 'rv-ae-lc-group' })}
+          getMediaRowExtra={() => ({ className: 'rv-ae-lc-title' })}
+          getEntryExtra={() => ({ className: 'rv-ae-lc-entry' })}
+          renderRoute={ctx => (
+            <AECardRoute ctx={ctx} classPrefix="rv-ae-lc" routesFor={routesFor} isOpenFor={isOpenFor} toggle={toggle} editorHandlers={editorHandlers} />
+          )}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
+/** Concept — "Thumb Card." The card header pairs the media's square thumbnail
+ * with its name; effects are line items below a rule, routes on a disclosure. */
+function AddEffectsThumbCardConcept({ state }: { state: CanvasMockState }) {
+  const { routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Thumb Card"
+      note="The card header pairs the media's square thumbnail with its name; effects are line items below a rule, routes on a disclosure. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getGroupExtra={() => ({ className: 'rv-ae-tc-group' })}
+          renderMediaRowLeading={mediaLayer => {
+            const media = state.mediaItems.find(item => item.id === mediaLayer.mediaId)
+            return (
+              <MediaThumbBox
+                key={mediaLayer.mediaId}
+                mediaName={mediaLayer.mediaName}
+                mediaType={media?.type ?? 'image'}
+              />
+            )
+          }}
+          getEntryExtra={() => ({ className: 'rv-ae-tc-entry' })}
+          renderRoute={ctx => (
+            <AECardRoute ctx={ctx} classPrefix="rv-ae-tc" routesFor={routesFor} isOpenFor={isOpenFor} toggle={toggle} editorHandlers={editorHandlers} />
+          )}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
 function ReactMockup({ state }: { state: CanvasMockState }) {
   return (
     <WorkspaceBody>
@@ -1578,6 +1825,11 @@ function ReactMockup({ state }: { state: CanvasMockState }) {
           <AddEffectsTrunkLineConcept state={state} />
           <AddEffectsSpineDotsConcept state={state} />
           <AddEffectsNumberedStepsConcept state={state} />
+          <AddEffectsMediaCardConcept state={state} />
+          <AddEffectsHeaderStripConcept state={state} />
+          <AddEffectsNestedCardsConcept state={state} />
+          <AddEffectsLedgerCardConcept state={state} />
+          <AddEffectsThumbCardConcept state={state} />
         </div>
       ) : <AnalysisMockup />}
     </WorkspaceBody>

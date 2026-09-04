@@ -20835,3 +20835,262 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   margin-top: var(--ae2-gap);
   padding-left: var(--ae2-step);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Add Effects — round-three "card" family. One card per media layer; the
+   Active Media dropdown is the card's own header. Dividers and container
+   edges only — no free-floating connectors.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.rv-ae-mc-group,
+.rv-ae-hs-group,
+.rv-ae-nc-group,
+.rv-ae-lc-group,
+.rv-ae-tc-group {
+  gap: var(--ae2-gap);
+  padding: var(--ae2-pad);
+  border: 1px solid rgba(154, 178, 188, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.rv-ae-mc-toggle,
+.rv-ae-hs-toggle,
+.rv-ae-nc-toggle,
+.rv-ae-lc-toggle,
+.rv-ae-tc-toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 7px;
+  border: 1px solid rgba(154, 178, 188, 0.28);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(232, 244, 248, 0.82);
+  font: 700 8px/1 var(--az-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.rv-ae-mc-toggle:hover, .rv-ae-mc-toggle:focus-visible, .rv-ae-mc-toggle.is-open,
+.rv-ae-hs-toggle:hover, .rv-ae-hs-toggle:focus-visible, .rv-ae-hs-toggle.is-open,
+.rv-ae-nc-toggle:hover, .rv-ae-nc-toggle:focus-visible, .rv-ae-nc-toggle.is-open,
+.rv-ae-lc-toggle:hover, .rv-ae-lc-toggle:focus-visible, .rv-ae-lc-toggle.is-open,
+.rv-ae-tc-toggle:hover, .rv-ae-tc-toggle:focus-visible, .rv-ae-tc-toggle.is-open {
+  border-color: #8de7ff;
+  color: #8de7ff;
+}
+
+.rv-ae-card-caret {
+  display: inline-flex;
+  color: rgba(196, 207, 211, 0.6);
+  transition: transform 0.15s ease;
+}
+
+.is-open > .rv-ae-card-caret {
+  transform: rotate(180deg);
+}
+
+/* ── Concept: Media Card ─────────────────────────────────────────────────── */
+
+.rv-ae-mc-group .rv-canvas-layer-effects-stack {
+  gap: 0;
+}
+
+.rv-ae-mc-head {
+  padding-bottom: var(--ae2-pad);
+  border-bottom: 1px solid rgba(154, 178, 188, 0.18);
+}
+
+.rv-ae-mc-entry {
+  gap: var(--ae2-gap);
+  padding: var(--ae2-pad) 0;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.08);
+}
+
+.rv-ae-mc-group .rv-canvas-layer-effects-stack > .rv-ae-mc-entry:last-of-type {
+  border-bottom: 0;
+  padding-bottom: 2px;
+}
+
+.rv-ae-mc-toggle {
+  margin-left: var(--ae2-step);
+}
+
+.rv-ae-mc-panel {
+  margin: 2px 0 0 var(--ae2-step);
+  padding-left: var(--ae2-step);
+}
+
+.rv-ae-mc-group .rv-canvas-layer-effect-row--empty {
+  padding-top: var(--ae2-pad);
+}
+
+/* ── Concept: Header Strip ───────────────────────────────────────────────── */
+
+.rv-ae-hs-group {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.rv-ae-hs-head {
+  padding: var(--ae2-pad);
+  background: color-mix(in srgb, var(--ae2-tier1) 9%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--ae2-tier1) 28%, transparent);
+}
+
+.rv-ae-hs-group .rv-canvas-layer-effects-stack {
+  padding: var(--ae2-pad);
+  gap: var(--ae2-gap);
+}
+
+.rv-ae-hs-entry {
+  gap: var(--ae2-gap);
+}
+
+.rv-ae-hs-entry.is-linked {
+  box-shadow: inset 2px 0 0 var(--hs-color);
+  padding-left: var(--ae2-gap);
+}
+
+.rv-ae-hs-toggle {
+  margin-left: var(--ae2-step);
+}
+
+.rv-ae-hs-panel {
+  margin: 2px 0 0 var(--ae2-step);
+  padding: var(--ae2-pad);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+/* ── Concept: Nested Cards ───────────────────────────────────────────────── */
+
+.rv-ae-nc-group .rv-canvas-layer-effects-stack {
+  gap: var(--ae2-gap);
+}
+
+.rv-ae-nc-head {
+  padding-bottom: var(--ae2-pad);
+  border-bottom: 1px solid rgba(154, 178, 188, 0.18);
+}
+
+.rv-ae-nc-entry {
+  gap: var(--ae2-gap);
+  padding: var(--ae2-pad);
+  border: 1px solid rgba(154, 178, 188, 0.16);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.rv-ae-nc-entry.is-linked {
+  border-color: color-mix(in srgb, var(--nc-color) 45%, rgba(154, 178, 188, 0.16));
+}
+
+.rv-ae-nc-panel {
+  margin-top: 2px;
+  padding-top: var(--ae2-gap);
+  border-top: 1px dashed rgba(154, 178, 188, 0.22);
+}
+
+.rv-ae-nc-group .rv-canvas-layer-effect-row--empty {
+  padding: 6px 4px;
+  border: 1px dashed rgba(154, 178, 188, 0.18);
+  border-radius: 6px;
+}
+
+/* ── Concept: Ledger Card ────────────────────────────────────────────────── */
+
+.rv-ae-lc-group {
+  gap: 0;
+}
+
+.rv-ae-lc-title {
+  padding: 2px 0 var(--ae2-pad);
+  border-bottom: 1px solid rgba(154, 178, 188, 0.22);
+}
+
+.rv-ae-lc-group .rv-canvas-layer-effects-stack {
+  gap: 0;
+}
+
+.rv-ae-lc-entry {
+  gap: 4px;
+  padding: var(--ae2-gap) 0;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.1);
+}
+
+.rv-ae-lc-group .rv-canvas-layer-effects-stack > .rv-ae-lc-entry:last-of-type {
+  border-bottom: 0;
+}
+
+/* Two rails: a fixed label column and a flexible control column. */
+.rv-ae-lc-title > .rv-ctrl-row,
+.rv-ae-lc-entry > .rv-canvas-layer-effect-row > .rv-ctrl-row,
+.rv-ae-lc-group .rv-canvas-layer-effect-row--empty > .rv-ctrl-row {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.rv-ae-lc-group .rv-ctrl-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rv-ae-lc-toggle {
+  margin-left: calc(78px + 8px);
+}
+
+.rv-ae-lc-panel {
+  padding: 4px 0 4px calc(78px + 8px);
+}
+
+.rv-ae-lc-group .rv-canvas-layer-effect-row--empty {
+  padding: var(--ae2-gap) 0 2px;
+}
+
+/* ── Concept: Thumb Card ─────────────────────────────────────────────────── */
+
+.rv-ae-tc-group .rv-canvas-layer-effects-stack {
+  gap: 0;
+}
+
+.rv-ae-tc-group > .rv-canvas-layer-media-row {
+  align-items: center;
+  gap: var(--ae2-gap);
+  padding-bottom: var(--ae2-pad);
+  border-bottom: 1px solid rgba(154, 178, 188, 0.18);
+}
+
+.rv-ae-tc-entry {
+  gap: var(--ae2-gap);
+  padding: var(--ae2-pad) 0;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.08);
+}
+
+.rv-ae-tc-group .rv-canvas-layer-effects-stack > .rv-ae-tc-entry:last-of-type {
+  border-bottom: 0;
+  padding-bottom: 2px;
+}
+
+.rv-ae-tc-toggle {
+  margin-left: var(--ae2-step);
+}
+
+.rv-ae-tc-panel {
+  margin: 2px 0 0 var(--ae2-step);
+  padding: var(--ae2-gap);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.rv-ae-tc-group .rv-canvas-layer-effect-row--empty {
+  padding-top: var(--ae2-pad);
+}
