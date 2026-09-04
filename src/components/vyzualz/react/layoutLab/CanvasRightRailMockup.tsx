@@ -733,6 +733,8 @@ function AddEffectsLayerGroup({
   getGroupExtra,
   renderMediaRowLeading,
   renderAfterMediaRow,
+  renderEmptyLeading,
+  showEmptyEffectLabel = false,
   showEffects = true,
 }: {
   state: CanvasMockState
@@ -750,6 +752,14 @@ function AddEffectsLayerGroup({
   renderMediaRowLeading?: (layer: CanvasMockState['addEffectsLayers'][number]) => ReactNode
   /** Content placed between the Active Media select and the effect stack. */
   renderAfterMediaRow?: (layer: CanvasMockState['addEffectsLayers'][number]) => ReactNode
+  /** Content placed to the left of the "Select Effect…" add row — the one
+   *  effect dropdown in this group that never holds a value. */
+  renderEmptyLeading?: (parentLabel: string) => ReactNode
+  /** Show a visible "Effect" label above the "Select Effect…" add row,
+   *  matching the label a populated effect's own dropdown shows. Defaults to
+   *  hidden (screen-reader only), the shared behavior every other concept
+   *  keeps. */
+  showEmptyEffectLabel?: boolean
   /** When false, the effect-dropdown stack is hidden (a concept can gate it
    *  behind a disclosure control). Defaults to shown. */
   showEffects?: boolean
@@ -823,9 +833,10 @@ function AddEffectsLayerGroup({
         })}
         {layer.effects.length < MAX_CANVAS_LAYER_EFFECTS && (
           <div className="rv-canvas-layer-effect-row rv-canvas-layer-effect-row--empty">
+            {renderEmptyLeading?.(parentLabel)}
             <SelectRow
               label={`Add effect to ${parentLabel}`}
-              labelHidden
+              labelHidden={!showEmptyEffectLabel}
               value=""
               placeholder="Select Effect…"
               onChange={value => state.addCanvasLayerEffect(layer.mediaId, value as CanvasLayerEffectId)}
@@ -1585,20 +1596,36 @@ function AddEffectsNumberedStepsConcept({ state }: { state: CanvasMockState }) {
 
 /** Disclosure toggle shared by the card mock-ups: a caret that rotates open
  *  and the "Audio Intelligence" label with a routed count. */
-function AECardToggle({ className, open, count, effectLabel, parentLabel, onToggle }: {
+function AECardToggle({ className, open, count, effectLabel, parentLabel, onToggle, variant = 'chevron' }: {
   className: string
   open: boolean
   count: number
   effectLabel: string
   parentLabel: string
   onToggle: () => void
+  variant?: 'chevron' | 'dashed-trigger'
 }) {
+  const label = `${open ? 'Hide' : count ? 'Edit' : 'Add'} Audio Intelligence routes for ${effectLabel} on ${parentLabel}`
+  if (variant === 'dashed-trigger') {
+    return (
+      <button
+        type="button"
+        className={`${className}${open ? ' is-open' : ''}${count ? ' is-active' : ''}`}
+        aria-expanded={open}
+        aria-label={label}
+        onClick={onToggle}
+      >
+        <PlusGlyphIcon size={10} />
+        {!count && 'Trigger'}
+      </button>
+    )
+  }
   return (
     <button
       type="button"
       className={`${className}${open ? ' is-open' : ''}`}
       aria-expanded={open}
-      aria-label={`${open ? 'Hide' : count ? 'Edit' : 'Add'} Audio Intelligence routes for ${effectLabel} on ${parentLabel}`}
+      aria-label={label}
       onClick={onToggle}
     >
       <span className="rv-ae-card-caret" aria-hidden="true"><DeckChevronGlyph size={10} /></span>
@@ -1617,6 +1644,7 @@ function AECardRoute({
   isOpenFor,
   toggle,
   editorHandlers,
+  toggleVariant,
 }: {
   ctx: AddEffectsRouteContext
   classPrefix: string
@@ -1628,6 +1656,7 @@ function AECardRoute({
     onRemoveParameter: (id: CanvasMockAudioIntelligenceParameterId) => void
     onSetIntensity: (id: CanvasMockAudioIntelligenceParameterId, value: number) => void
   }
+  toggleVariant?: 'chevron' | 'dashed-trigger'
 }) {
   const routes = routesFor(ctx.linkKey)
   const open = isOpenFor(ctx.linkKey)
@@ -1640,6 +1669,7 @@ function AECardRoute({
         effectLabel={ctx.effectLabel}
         parentLabel={ctx.parentLabel}
         onToggle={() => toggle(ctx.linkKey)}
+        variant={toggleVariant}
       />
       {open && (
         <div className={`${classPrefix}-panel`}>
@@ -1654,6 +1684,33 @@ function AECardRoute({
         </div>
       )}
     </>
+  )
+}
+
+/** FX icon — sits left of an Effect dropdown. Light gray while that dropdown
+ *  has no value (the "Select Effect…" add row); the standard light blue once
+ *  it does (an already-chosen effect). */
+function EffectFxIcon({ size = 14, color = 'currentColor', className }: { size?: number; color?: string; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <path d="M2 15V9C2 5.68629 4.68629 3 8 3H16C19.3137 3 22 5.68629 22 9V15C22 18.3137 19.3137 21 16 21H8C4.68629 21 2 18.3137 2 15Z" />
+      <path d="M6 15V9L11 9" />
+      <path d="M5.99998 12H9.57141" />
+      <path d="M13 15L15.5 12M15.5 12L18 9M15.5 12L13 9M15.5 12L18 15" />
+    </svg>
+  )
+}
+
+/** Sparkle-cluster badge glyph — overlaid on the FX icon's bottom-right
+ *  corner while an effect has no Audio Triggers routed yet (the "Add
+ *  Trigger" state), signalling it isn't reactive yet. */
+function EffectSparkleIcon({ size = 10, color = 'currentColor' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill={color} aria-hidden="true">
+      <path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z" />
+      <path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z" />
+      <path d="M28,17a1,1,0,0,1-1,1,4,4,0,0,0-4,4,1,1,0,0,1-2,0,4,4,0,0,0-4-4,1,1,0,0,1,0-2,4,4,0,0,0,4-4,1,1,0,0,1,2,0,4,4,0,0,0,4,4A1,1,0,0,1,28,17Z" />
+    </svg>
   )
 }
 
@@ -1753,16 +1810,32 @@ function AddEffectsHeaderStripConcept({ state }: { state: CanvasMockState }) {
   )
 }
 
-/** Concept — "Nested Cards." The media card contains one inset mini-card per
- * effect; that effect's parameters live inside its own mini-card, under a
- * dashed divider. */
+/** Concept — "Nested Cards." One card per media layer; each effect and its
+ * Audio Triggers are plain, unboxed rows inside it.
+ *
+ * Every position here is derived from a fixed geometry, not measured from a
+ * sibling's rendered content, so nothing shifts when an effect is selected,
+ * a trigger is added, or a label appears/disappears:
+ *  - the FX icon is a fixed 22x22 box; its footprint never depends on
+ *    "Bloom" vs. "Echo" or on the badge in its corner being present;
+ *  - ADD TRIGGER and the trigger list share one margin-left
+ *    (22px FX icon + 7px row gap), so they always line up with the Effect
+ *    dropdown and with each other — not because two numbers happen to
+ *    match, but because they're the same expression;
+ *  - the trigger list is a CSS grid whose trunk column is exactly ADD
+ *    TRIGGER's own dashed-circle diameter (20px); the trunk itself spans
+ *    grid-row: 1 / -1, so it always covers exactly its own rows — growing
+ *    and shrinking automatically as triggers are added or removed, with no
+ *    measured height or clipping trick;
+ *  - each trigger's branch is pinned to that row's own top: 50%, so it is
+ *    always centred on that row regardless of the row above or below it. */
 function AddEffectsNestedCardsConcept({ state }: { state: CanvasMockState }) {
   const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
   return (
     <ConceptGroup
       state={state}
       label="Add Effects — Nested Cards"
-      note="The media card holds one inset mini-card per effect; that effect's parameters live inside its own mini-card under a dashed divider. Concept only."
+      note="One card per media layer. Each effect and its Audio Triggers are plain, unboxed rows — the FX icon's fixed size and one shared indent keep everything aligned no matter what's selected or added. Concept only."
     >
       {(layer, layerIndex) => (
         <AddEffectsLayerGroup
@@ -1775,13 +1848,38 @@ function AddEffectsNestedCardsConcept({ state }: { state: CanvasMockState }) {
           getEntryExtra={({ linkKey }) => {
             const color = firstRouteColor(links[linkKey])
             return {
-              className: `rv-ae-nc-entry${color ? ' is-linked' : ''}`,
+              className: 'rv-ae-nc-effect',
               style: color ? ({ '--nc-color': color } as CSSProperties) : undefined,
             }
           }}
+          renderLeading={ctx => {
+            const routes = routesFor(ctx.linkKey)
+            return (
+              <span className="rv-ae-nc-fx" style={{ '--fx-color': '#8de7ff' } as CSSProperties} aria-hidden="true">
+                <EffectFxIcon size={18} />
+                {routes.length === 0 && (
+                  <span className="rv-ae-nc-fx-add">
+                    <EffectSparkleIcon size={7} />
+                  </span>
+                )}
+              </span>
+            )
+          }}
+          renderEmptyLeading={() => (
+            <span className="rv-ae-nc-fx" style={{ '--fx-color': 'rgba(154, 178, 188, 0.6)' } as CSSProperties} aria-hidden="true">
+              <EffectFxIcon size={18} />
+              <span className="rv-ae-nc-fx-add">
+                <PlusGlyphIcon size={7} />
+              </span>
+            </span>
+          )}
+          showEmptyEffectLabel
           renderRoute={ctx => {
             const routes = routesFor(ctx.linkKey)
             const open = isOpenFor(ctx.linkKey)
+            const { onAddParameter, onRemoveParameter, onSetIntensity } = editorHandlers(ctx.linkKey)
+            const taken = new Set(routes.map(route => route.parameterId))
+            const available = CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.filter(param => !taken.has(param.id))
             return (
               <>
                 <NestedCardsAddButton
@@ -1792,15 +1890,55 @@ function AddEffectsNestedCardsConcept({ state }: { state: CanvasMockState }) {
                   onToggle={() => toggle(ctx.linkKey)}
                 />
                 {open && (
-                  <div className="rv-ae-nc-panel">
-                    <AddEffectsRouteEditor
-                      routes={routes}
-                      effectLabel={ctx.effectLabel}
-                      parentLabel={ctx.parentLabel}
-                      showDots
-                      inlineParamRow
-                      {...editorHandlers(ctx.linkKey)}
-                    />
+                  <div className="rv-ae-nc-triggers">
+                    <span className="rv-ae-nc-trunk" aria-hidden="true" />
+                    {routes.map(route => {
+                      const label = CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[route.parameterId]
+                      const color = CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[route.parameterId]
+                      const pct = Math.round(route.intensity * 100)
+                      return (
+                        <div className="rv-ae-nc-trigger" key={route.parameterId}>
+                          <span className="rv-ae-nc-trigger-dot" style={{ '--dot': color } as CSSProperties} aria-hidden="true" />
+                          <span className="rv-ae-nc-trigger-name">{label}</span>
+                          <BubbleRevealSlider
+                            className="rv-ae-nc-trigger-slider"
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            value={route.intensity}
+                            bubbleLabel={`${pct}%`}
+                            revealOnHover
+                            style={{ '--accent': color } as CSSProperties}
+                            onChange={event => onSetIntensity(route.parameterId, parseFloat(event.target.value))}
+                            aria-label={`${label} intensity · ${ctx.effectLabel} on ${ctx.parentLabel}`}
+                          />
+                          <button
+                            type="button"
+                            className="rv-ae-nc-trigger-remove"
+                            aria-label={`Remove ${label} from ${ctx.effectLabel} on ${ctx.parentLabel}`}
+                            onClick={() => onRemoveParameter(route.parameterId)}
+                          >
+                            <CircleXIcon size={12} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                    {available.length > 0 && (
+                      <div className="rv-ae-nc-trigger">
+                        <SelectRow
+                          label={routes.length > 0 ? 'Add another Audio Trigger' : 'Audio Trigger'}
+                          value=""
+                          placeholder="Select Parameter…"
+                          onChange={value => { if (value) onAddParameter(value as CanvasMockAudioIntelligenceParameterId) }}
+                          options={available.map(param => ({
+                            value: param.id,
+                            label: param.label,
+                            style: { '--ai-param-dot': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[param.id] } as CSSProperties,
+                          }))}
+                          menuClassName="rv-ae-param-menu"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </>
@@ -1869,8 +2007,19 @@ function AddEffectsThumbCardConcept({ state }: { state: CanvasMockState }) {
             )
           }}
           getEntryExtra={() => ({ className: 'rv-ae-tc-entry' })}
+          renderLeading={() => (
+            <span className="rv-ae-tc-fx" aria-hidden="true">
+              <EffectFxIcon className="rv-ae-tc-fx-icon" />
+            </span>
+          )}
+          renderEmptyLeading={() => (
+            <span className="rv-ae-tc-fx" aria-hidden="true">
+              <EffectFxIcon className="rv-ae-tc-fx-icon" />
+            </span>
+          )}
+          showEmptyEffectLabel
           renderRoute={ctx => (
-            <AECardRoute ctx={ctx} classPrefix="rv-ae-tc" routesFor={routesFor} isOpenFor={isOpenFor} toggle={toggle} editorHandlers={editorHandlers} />
+            <AECardRoute ctx={ctx} classPrefix="rv-ae-tc" routesFor={routesFor} isOpenFor={isOpenFor} toggle={toggle} editorHandlers={editorHandlers} toggleVariant="dashed-trigger" />
           )}
         />
       )}

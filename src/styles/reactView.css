@@ -20880,8 +20880,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-mc-toggle,
 .rv-ae-hs-toggle,
-.rv-ae-lc-toggle,
-.rv-ae-tc-toggle {
+.rv-ae-lc-toggle {
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
@@ -20900,8 +20899,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-mc-toggle:hover, .rv-ae-mc-toggle:focus-visible, .rv-ae-mc-toggle.is-open,
 .rv-ae-hs-toggle:hover, .rv-ae-hs-toggle:focus-visible, .rv-ae-hs-toggle.is-open,
-.rv-ae-lc-toggle:hover, .rv-ae-lc-toggle:focus-visible, .rv-ae-lc-toggle.is-open,
-.rv-ae-tc-toggle:hover, .rv-ae-tc-toggle:focus-visible, .rv-ae-tc-toggle.is-open {
+.rv-ae-lc-toggle:hover, .rv-ae-lc-toggle:focus-visible, .rv-ae-lc-toggle.is-open {
   border-color: #8de7ff;
   color: #8de7ff;
 }
@@ -20992,29 +20990,81 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* ── Concept: Nested Cards ───────────────────────────────────────────────── */
 
+.rv-ae-nc-group {
+  gap: 2px;
+}
+
 .rv-ae-nc-group .rv-canvas-layer-effects-stack {
   gap: var(--ae2-gap);
 }
 
 .rv-ae-nc-head {
-  padding-bottom: var(--ae2-pad);
+  padding-bottom: 2px;
 }
 
-.rv-ae-nc-entry {
+/* No box around an effect + its trigger — just a plain flex-column stack
+   (the effect row, the ADD TRIGGER control, and its trigger grid when
+   open). */
+.rv-ae-nc-effect {
   gap: var(--ae2-gap);
-  padding: var(--ae2-pad);
-  border: 1px solid rgba(154, 178, 188, 0.16);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.03);
 }
 
-.rv-ae-nc-entry.is-linked {
-  border-color: color-mix(in srgb, var(--nc-color) 45%, rgba(154, 178, 188, 0.16));
+/* FX icon, left of every Effect dropdown — populated or the "Select
+   Effect…" add row. No swatch/background — just the glyph, sized to fill
+   the same 22px footprint Highlight Wash's route trigger occupies, so
+   spacing against the dropdown still lines up. --fx-color is set
+   per-instance (blue when the dropdown holds a value, gray while it
+   doesn't) by whichever render prop places it. Fixed 22x22, so its
+   footprint never depends on which effect is selected or on the corner
+   badge being present. Centred against the row's full height — the
+   "Effect"/"Add effect to…" label plus the dropdown together, which are
+   always both present now (see showEmptyEffectLabel), so that height is
+   itself constant across every state. */
+.rv-ae-nc-fx {
+  position: relative;
+  flex: 0 0 auto;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: var(--fx-color, rgba(232, 244, 248, 0.72));
 }
 
-/* "Add Trigger": a dashed gray circle holding a plus glyph, then the label. */
+/* "Add" badge on the empty-row FX icon: a circle overlapping its bottom-
+   right corner, as if it sits on top — filled with the card's own
+   background (so the glyph strokes underneath don't show through) and
+   ringed in the same gray as the FX icon itself. */
+.rv-ae-nc-fx-add {
+  position: absolute;
+  right: -3px;
+  bottom: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--fx-color, rgba(154, 178, 188, 0.6));
+  border-radius: 50%;
+  /* .rv-ae-nc-group's own background (rgba(255,255,255,0.022)) is a
+     translucent tint, not a solid fill — used directly here it barely dims
+     the FX icon strokes sitting underneath instead of covering them. #0d1117
+     is that tint composited over the real ancestor stack it renders on
+     (.rv-shell #060d10 -> .vz-inspector-inner rgba(8,12,18,.96) -> the
+     group's own 2.2% white), as a solid color, so the badge actually
+     occludes the icon behind it while still reading as "the group's
+     background showing through". */
+  background: #0d1117;
+  color: var(--fx-color, rgba(154, 178, 188, 0.6));
+}
+
+/* "Add Trigger": a dashed gray circle holding a plus glyph, then the label.
+   Left edge lines up with "Effect"'s own left edge — the Effect dropdown
+   sits past the FX icon (22px) + the effect row's own gap (7px). */
 .rv-ae-nc-add {
   align-self: flex-start;
+  margin-left: calc(22px + 7px);
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -21054,16 +21104,100 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   color: #8de7ff;
 }
 
-.rv-ae-nc-panel {
-  margin-top: 2px;
-  padding-top: var(--ae2-gap);
-  border-top: 1px dashed rgba(154, 178, 188, 0.22);
+/* Trigger list: a 2-column CSS grid — [trunk column, content]. The trunk
+   column is exactly ADD TRIGGER's own dashed-circle diameter (20px), and
+   this whole grid shares that button's margin-left (22px FX icon + 7px row
+   gap). Same expression, not two numbers a human kept in sync by hand — so
+   the trunk's centre and the circle's centre are the same x by
+   construction. */
+.rv-ae-nc-triggers {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  column-gap: 9px;
+  row-gap: var(--ae2-gap);
+  margin-left: calc(22px + 7px);
+  margin-top: var(--ae2-gap);
+}
+
+/* One real element spanning every row in this grid (grid-row: 1 / -1) — it
+   covers exactly its own rows and grows or shrinks automatically as
+   triggers are added or removed. No clipping trick, no measured height.
+   margin-top bridges the row-gap up to ADD TRIGGER's own circle directly
+   above — a known, fixed distance, not an estimate. */
+.rv-ae-nc-trunk {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  justify-self: center;
+  width: 2px;
+  margin-top: calc(-1 * var(--ae2-gap));
+  background: var(--nc-color, rgba(154, 178, 188, 0.4));
+}
+
+.rv-ae-nc-trigger {
+  grid-column: 2;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Branch: pinned to top: 50% of THIS row, so it is always centred on it
+   regardless of what's above or below — reaching back 19px (the trunk
+   column's half-width, 10px, plus the column-gap, 9px) to the trunk's own
+   centre. */
+.rv-ae-nc-trigger::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -19px;
+  width: 19px;
+  height: 2px;
+  background: var(--nc-color, rgba(154, 178, 188, 0.4));
+}
+
+.rv-ae-nc-trigger-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--dot);
+}
+
+.rv-ae-nc-trigger-name {
+  flex: 0 0 auto;
+  font: 700 8px/1.3 var(--az-font);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(232, 244, 248, 0.9);
+  white-space: nowrap;
+}
+
+.rv-ae-nc-trigger-slider {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rv-ae-nc-trigger-remove {
+  flex: 0 0 auto;
+  display: inline-flex;
+  border: 0;
+  background: none;
+  color: rgba(248, 113, 113, 0.75);
+  cursor: pointer;
+  padding: 2px;
+  transition: color 0.12s;
+}
+
+.rv-ae-nc-trigger-remove:hover,
+.rv-ae-nc-trigger-remove:focus-visible {
+  color: #f87171;
 }
 
 .rv-ae-nc-group .rv-canvas-layer-effect-row--empty {
   padding: 6px 4px;
-  border: 1px dashed rgba(154, 178, 188, 0.18);
-  border-radius: 6px;
+  gap: 14px;
 }
 
 /* ── Concept: Ledger Card ────────────────────────────────────────────────── */
@@ -21143,8 +21277,107 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   padding-bottom: 2px;
 }
 
+/* Trigger toggle — a plus icon and "Trigger" wrapped in one dashed pill,
+   centred under the effect dropdown above it (not indented like the other
+   card concepts' left-aligned toggle). Once at least one trigger is routed,
+   the label drops and the pill collapses into a solid filled circle — a
+   compact "add another" affordance instead of a redundant "N Triggers"
+   caption, since the routed triggers are already visible in the open panel
+   below it. */
 .rv-ae-tc-toggle {
-  margin-left: var(--ae2-step);
+  position: relative;
+  align-self: center;
+  margin-top: var(--ae2-gap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 10px;
+  border: 1px dashed rgba(154, 178, 188, 0.45);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(196, 207, 211, 0.8);
+  font: 700 8px/1 var(--az-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, color 0.12s, padding 0.12s, width 0.12s;
+}
+
+/* The connecting line, shown only while open (the toggle's own is-open
+   class). Two segments, not one: the toggle sits physically between the
+   dropdown and the panel, so the line has to reach around it rather than
+   through it. Each segment's reach is the exact flex gap it crosses — the
+   dropdown-to-toggle gap is the flex column's own gap plus this toggle's
+   margin-top (both var(--ae2-gap)); the toggle-to-panel gap is that same
+   flex gap plus the panel's own 2px margin-top — so the line can never drift
+   out of sync with the spacing that actually separates these elements. */
+.rv-ae-tc-toggle.is-open::before,
+.rv-ae-tc-toggle.is-open::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 0;
+  border-left: 1px dashed rgba(154, 178, 188, 0.45);
+}
+
+.rv-ae-tc-toggle.is-open::before {
+  top: calc(-2 * var(--ae2-gap));
+  height: calc(2 * var(--ae2-gap));
+}
+
+.rv-ae-tc-toggle.is-open::after {
+  top: 100%;
+  height: calc(var(--ae2-gap) + 2px);
+}
+
+.rv-ae-tc-toggle:hover,
+.rv-ae-tc-toggle:focus-visible,
+.rv-ae-tc-toggle.is-open {
+  border-color: #8de7ff;
+  color: #8de7ff;
+}
+
+.rv-ae-tc-toggle.is-active {
+  width: 22px;
+  padding: 0;
+  border: none;
+  background: #8de7ff;
+  color: #fff;
+}
+
+.rv-ae-tc-toggle.is-active:hover,
+.rv-ae-tc-toggle.is-active:focus-visible,
+.rv-ae-tc-toggle.is-active.is-open {
+  background: #79d6ef;
+  color: #fff;
+}
+
+/* FX icon — its own column to the left of the Effect label/dropdown. 42.6px
+   is that column's real, fixed height by construction: the "Effect" label
+   is 11px (font 11px/1) + 3px (.rv-ctrl-row's own column gap) + the
+   underline dropdown trigger's 28.6px (4px top padding + 13px/1.2 value
+   line-height + 8px bottom padding + 1px border-bottom) — always the same,
+   since none of those are dynamic. Sized directly instead of via
+   align-self: stretch + aspect-ratio: that pairing depends on the flex
+   cross size being resolved before the aspect-ratio's width derivation runs,
+   which this engine's flexbox implementation doesn't do — the icon fell
+   back to its own tiny intrinsic size instead of filling the column. */
+.rv-ae-tc-fx {
+  flex: 0 0 auto;
+  width: 42.6px;
+  height: 42.6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(232, 244, 248, 0.72);
+}
+
+.rv-ae-tc-fx-icon {
+  width: 100%;
+  height: 100%;
 }
 
 .rv-ae-tc-panel {
@@ -21156,6 +21389,19 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-tc-group .rv-canvas-layer-effect-row--empty {
   padding-top: var(--ae2-pad);
+}
+
+/* Effect dropdown's remove icon: hidden until the row is hovered/focused, so
+   the row reads clean until the user means to remove something. Scoped to
+   Thumb Card only — every other concept keeps it always visible. */
+.rv-ae-tc-group .rv-canvas-layer-effect-remove {
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.rv-ae-tc-group .rv-canvas-layer-effect-row:hover .rv-canvas-layer-effect-remove,
+.rv-ae-tc-group .rv-canvas-layer-effect-remove:focus-visible {
+  opacity: 1;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

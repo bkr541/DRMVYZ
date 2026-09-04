@@ -84,12 +84,10 @@ async function exerciseConcept(opts: {
   const editor = section.querySelector('.rv-ae-route-editor')
   expect(editor, `${opts.headerText}: route editor should open`).not.toBeNull()
 
-  // Add two Audio Intelligence parameters.
-  const paramCombo = () => [...section.querySelectorAll<HTMLElement>('[role="combobox"]')]
-    .find(c => {
-      const l = c.getAttribute('aria-label') || ''
-      return l === 'Audio Intelligence Parameter' || l === 'Add another parameter'
-    })
+  // Add two Audio Intelligence parameters. The picker is the only combobox
+  // inside .rv-ae-route-editor, so this holds regardless of a concept's own
+  // picker label wording (e.g. Nested Cards' "Audio Trigger").
+  const paramCombo = () => section.querySelector('.rv-ae-route-editor')?.querySelector<HTMLElement>('[role="combobox"]') ?? undefined
   const first = paramCombo()
   if (!first) throw new Error(`${opts.headerText}: no parameter combobox`)
   await pickOption(first, 'Kick')
@@ -140,7 +138,6 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
   const roundThree: Array<{ headerText: string; noteFragment: string; toggle: string }> = [
     { headerText: 'Media Card', noteFragment: 'One plain card per media layer', toggle: '.rv-ae-mc-toggle' },
     { headerText: 'Header Strip', noteFragment: 'full-bleed tinted band', toggle: '.rv-ae-hs-toggle' },
-    { headerText: 'Nested Cards', noteFragment: 'one inset mini-card per effect', toggle: '.rv-ae-nc-add' },
     { headerText: 'Ledger Card', noteFragment: 'two-rail table', toggle: '.rv-ae-lc-toggle' },
     { headerText: 'Thumb Card', noteFragment: "media's square thumbnail with its name", toggle: '.rv-ae-tc-toggle' },
   ]
@@ -214,6 +211,24 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
     const section = await openConceptWithBloom('Reactive Matrix', 'small modulation matrix')
     await addTwoSignals(section, label => label.startsWith('Add a signal to'))
     expect(section.querySelectorAll('.rv-ae-mx-node.is-on').length).toBe(2)
+  })
+
+  it('Nested Cards adds triggers under an effect via the trunk-connected trigger grid', async () => {
+    await selectCanvasReact()
+    const section = await openConceptWithBloom('Nested Cards', 'plain, unboxed rows')
+
+    // ADD TRIGGER opens the trigger grid.
+    const addTrigger = section.querySelector<HTMLButtonElement>('.rv-ae-nc-add')
+    if (!addTrigger) throw new Error('no .rv-ae-nc-add')
+    await act(async () => addTrigger.click())
+
+    expect(section.querySelector('.rv-ae-nc-triggers'), 'trigger grid should open').not.toBeNull()
+    expect(section.querySelector('.rv-ae-nc-trunk'), 'trunk connector should render').not.toBeNull()
+
+    await addTwoSignals(section, label => label === 'Audio Trigger' || label === 'Add another Audio Trigger')
+
+    expect(section.querySelectorAll('.rv-ae-nc-trigger-dot').length, 'two routed triggers').toBe(2)
+    expect(section.querySelectorAll('.dv-bubble-slider').length, 'two intensity sliders').toBe(2)
   })
 
 })
