@@ -15,6 +15,9 @@ import './canonicalControls.css'
 export interface BubbleRevealSliderProps extends InputHTMLAttributes<HTMLInputElement> {
   bubbleLabel?: ReactNode | ((value: number, percent: number) => ReactNode)
   showBubble?: boolean
+  /** Also reveal the value bubble on pointer hover, not only during a
+   *  drag/focus interaction. Opt-in — off by default. */
+  revealOnHover?: boolean
 }
 
 interface BubblePosition {
@@ -45,6 +48,7 @@ export const BubbleRevealSlider = forwardRef<HTMLInputElement, BubbleRevealSlide
   style,
   bubbleLabel,
   showBubble = true,
+  revealOnHover = false,
   disabled,
   onChange,
   onInput,
@@ -52,12 +56,15 @@ export const BubbleRevealSlider = forwardRef<HTMLInputElement, BubbleRevealSlide
   onPointerMove,
   onPointerUp,
   onPointerCancel,
+  onPointerEnter,
+  onPointerLeave,
   onFocus,
   onBlur,
   ...rest
 }, forwardedRef) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [active, setActive] = useState(false)
+  const [hovering, setHovering] = useState(false)
   const [bubblePosition, setBubblePosition] = useState<BubblePosition | null>(null)
   useImperativeHandle(forwardedRef, () => inputRef.current as HTMLInputElement)
 
@@ -78,8 +85,10 @@ export const BubbleRevealSlider = forwardRef<HTMLInputElement, BubbleRevealSlide
     setBubblePosition({ left: x, top: rect.top - 8 })
   }, [percent])
 
+  const bubbleVisible = (active || hovering) && showBubble
+
   useEffect(() => {
-    if (!active || !showBubble || typeof window === 'undefined') return
+    if (!bubbleVisible || typeof window === 'undefined') return
     updateBubblePosition()
     const update = () => updateBubblePosition()
     window.addEventListener('resize', update)
@@ -88,7 +97,7 @@ export const BubbleRevealSlider = forwardRef<HTMLInputElement, BubbleRevealSlide
       window.removeEventListener('resize', update)
       window.removeEventListener('scroll', update, true)
     }
-  }, [active, showBubble, updateBubblePosition])
+  }, [bubbleVisible, updateBubblePosition])
 
   const resolvedBubbleLabel = typeof bubbleLabel === 'function'
     ? bubbleLabel(currentValue, percent)
@@ -137,6 +146,17 @@ export const BubbleRevealSlider = forwardRef<HTMLInputElement, BubbleRevealSlide
           onPointerCancel?.(event)
           setActive(false)
         }}
+        onPointerEnter={event => {
+          if (revealOnHover && !disabled) {
+            setHovering(true)
+            requestAnimationFrame(updateBubblePosition)
+          }
+          onPointerEnter?.(event)
+        }}
+        onPointerLeave={event => {
+          setHovering(false)
+          onPointerLeave?.(event)
+        }}
         onFocus={event => {
           if (!disabled) setActive(true)
           onFocus?.(event)
@@ -147,7 +167,7 @@ export const BubbleRevealSlider = forwardRef<HTMLInputElement, BubbleRevealSlide
           setActive(false)
         }}
       />
-      {active && showBubble && bubblePosition && typeof document !== 'undefined' && createPortal(
+      {bubbleVisible && bubblePosition && typeof document !== 'undefined' && createPortal(
         <span
           className="dv-bubble-slider__popover"
           style={{ left: bubblePosition.left, top: bubblePosition.top }}

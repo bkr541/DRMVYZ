@@ -116,19 +116,6 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
     })
   })
 
-  it('Signal Break routes multiple parameters with intensity sliders', async () => {
-    await selectCanvasReact()
-    await exerciseConcept({
-      headerText: 'Signal Break',
-      noteFragment: 'single framed panel wraps the Active Media dropdown',
-      openTrigger: s => {
-        const n = s.querySelector<HTMLButtonElement>('.rv-ae-break-trigger')
-        if (!n) throw new Error('no .rv-ae-break-trigger')
-        return n
-      },
-    })
-  })
-
   it('Preview Deck routes multiple parameters with intensity sliders', async () => {
     await selectCanvasReact()
     await exerciseConcept({

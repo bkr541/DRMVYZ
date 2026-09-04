@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { Delete02Icon } from 'hugeicons-react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { RailTabs } from '../../layout/RailTabs'
 import { PanelSubtabs } from '../PanelSubtabs'
 import { ReactPresetCard } from '../ReactPresetCard'
+import { BubbleRevealSlider } from '../controls/BubbleRevealSlider'
 import {
   Collapsible,
   ColorRow,
@@ -35,6 +35,62 @@ import {
   type CanvasMockLayerRole,
   type CanvasMockState,
 } from './useCanvasMockState'
+
+/** Backspace / delete-key glyph — the remove affordance used across the
+ *  Canvas Layout Lab routing rows (replaces the trashcan). */
+function BackspaceIcon({ size = 14, color = 'currentColor' }: { size?: number; color?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M10 5a2 2 0 0 0-1.344.519l-6.328 5.74a1 1 0 0 0 0 1.481l6.328 5.741A2 2 0 0 0 10 19h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z" />
+      <path d="m12 9 6 6" />
+      <path d="m18 9-6 6" />
+    </svg>
+  )
+}
+
+/** Circular X — the hover-revealed remove affordance on Highlight Wash's
+ *  inline parameter rows. */
+function CircleXIcon({ size = 13 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="m15 9-6 6" />
+      <path d="m9 9 6 6" />
+    </svg>
+  )
+}
+
+/** Blueprint Bus junction node — the terminal the bus line branches into,
+ *  sitting flush-left of the Audio Intelligence parameter picker. Mirrors the
+ *  gutter add-route button (gray disc, white centre) at a smaller size. */
+function BusJunctionIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="5.5" fill="rgba(154, 178, 188, 0.4)" />
+      <circle cx="8" cy="8" r="2" fill="#fff" />
+    </svg>
+  )
+}
 
 const CANVAS_LAYER_EFFECT_LABELS: Record<CanvasLayerEffectId, string> = {
   bloom: 'Bloom',
@@ -114,6 +170,8 @@ function AddEffectsRouteEditor({
   parentLabel,
   showDots = false,
   bareIntensityLabel = false,
+  inlineParamRow = false,
+  pickerLeading,
   onAddParameter,
   onRemoveParameter,
   onSetIntensity,
@@ -125,6 +183,13 @@ function AddEffectsRouteEditor({
   /** Label the slider just "Intensity" instead of "<Parameter> Intensity"
    *  (the parameter name is already shown in the row head). */
   bareIntensityLabel?: boolean
+  /** Collapse each routed parameter onto one row — dot, name, intensity
+   *  slider, remove — with no "<Parameter> Intensity" label and no trailing
+   *  percentage (the value shows in the slider's hover bubble instead). */
+  inlineParamRow?: boolean
+  /** Adornment rendered flush-left of the "Add parameter" picker row (e.g. a
+   *  bus-junction node a concept's connector line terminates on). */
+  pickerLeading?: ReactNode
   onAddParameter: (parameterId: CanvasMockAudioIntelligenceParameterId) => void
   onRemoveParameter: (parameterId: CanvasMockAudioIntelligenceParameterId) => void
   onSetIntensity: (parameterId: CanvasMockAudioIntelligenceParameterId, intensity: number) => void
@@ -143,24 +208,53 @@ function AddEffectsRouteEditor({
     <div className="rv-ae-route-editor">
       {routes.map(route => {
         const label = CANVAS_AUDIO_INTELLIGENCE_PARAMETER_LABELS[route.parameterId]
+        const dot = showDots ? (
+          <span
+            className="rv-ae-route-dot"
+            style={{ '--dot-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[route.parameterId] } as CSSProperties}
+            aria-hidden="true"
+          />
+        ) : null
+        const removeLabel = `Remove the route for ${label} · ${effectLabel} on ${parentLabel}`
+        if (inlineParamRow) {
+          return (
+            <div className="rv-ae-route-param rv-ae-route-param--inline" key={route.parameterId}>
+              {dot}
+              <span className="rv-ae-route-param-name">{label}</span>
+              <BubbleRevealSlider
+                className="rv-ae-route-inline-slider"
+                min={0}
+                max={1}
+                step={0.01}
+                value={route.intensity}
+                onChange={event => onSetIntensity(route.parameterId, parseFloat(event.target.value))}
+                bubbleLabel={`${Math.round(route.intensity * 100)}%`}
+                revealOnHover
+                aria-label={`${label} intensity · ${effectLabel} on ${parentLabel}`}
+              />
+              <button
+                type="button"
+                className="rv-ae-param-trash rv-ae-param-trash--hover"
+                aria-label={removeLabel}
+                onClick={() => onRemoveParameter(route.parameterId)}
+              >
+                <CircleXIcon size={13} />
+              </button>
+            </div>
+          )
+        }
         return (
           <div className="rv-ae-route-param" key={route.parameterId}>
             <div className="rv-ae-route-param-head">
-              {showDots && (
-                <span
-                  className="rv-ae-route-dot"
-                  style={{ '--dot-color': CANVAS_AUDIO_INTELLIGENCE_PARAMETER_COLORS[route.parameterId] } as CSSProperties}
-                  aria-hidden="true"
-                />
-              )}
+              {dot}
               <span className="rv-ae-route-param-name">{label}</span>
               <button
                 type="button"
                 className="rv-ae-param-trash"
-                aria-label={`Remove the route for ${label} · ${effectLabel} on ${parentLabel}`}
+                aria-label={removeLabel}
                 onClick={() => onRemoveParameter(route.parameterId)}
               >
-                <Delete02Icon size={12} color="currentColor" />
+                <BackspaceIcon size={12} />
               </button>
             </div>
             <SliderRow
@@ -175,14 +269,28 @@ function AddEffectsRouteEditor({
         )
       })}
       {available.length > 0 ? (
-        <SelectRow
-          label={routes.length > 0 ? 'Add another parameter' : 'Audio Intelligence Parameter'}
-          value=""
-          placeholder="Select Parameter…"
-          onChange={value => { if (value) onAddParameter(value as CanvasMockAudioIntelligenceParameterId) }}
-          options={addOptions}
-          menuClassName={showDots ? 'rv-ae-param-menu' : undefined}
-        />
+        pickerLeading != null ? (
+          <div className="rv-ae-route-picker-row">
+            {pickerLeading}
+            <SelectRow
+              label={routes.length > 0 ? 'Add another parameter' : 'Audio Intelligence Parameter'}
+              value=""
+              placeholder="Select Parameter…"
+              onChange={value => { if (value) onAddParameter(value as CanvasMockAudioIntelligenceParameterId) }}
+              options={addOptions}
+              menuClassName={showDots ? 'rv-ae-param-menu' : undefined}
+            />
+          </div>
+        ) : (
+          <SelectRow
+            label={routes.length > 0 ? 'Add another parameter' : 'Audio Intelligence Parameter'}
+            value=""
+            placeholder="Select Parameter…"
+            onChange={value => { if (value) onAddParameter(value as CanvasMockAudioIntelligenceParameterId) }}
+            options={addOptions}
+            menuClassName={showDots ? 'rv-ae-param-menu' : undefined}
+          />
+        )
       ) : (
         <div className="rv-ae-route-editor-note">Every Audio Intelligence parameter is routed to this effect.</div>
       )}
@@ -700,7 +808,7 @@ function AddEffectsLayerGroup({
                   aria-label={`Remove ${effectLabel} from ${parentLabel}`}
                   onClick={() => state.removeCanvasLayerEffectAt(layer.mediaId, effectIndex)}
                 >
-                  <Delete02Icon size={14} color="currentColor" />
+                  <BackspaceIcon size={14} />
                 </button>
               </div>
               {renderRoute(ctx)}
@@ -783,11 +891,6 @@ function AddEffectsControls({ state }: { state: CanvasMockState }) {
   )
 }
 
-/** Concept — "Floating Route Orb." A small round trigger sits on its own row
- * below the effect input. Clicking it opens the shared route editor: add one
- * or more Audio Intelligence parameters, each with its own master-intensity
- * slider. Once routed, the orb shows the parameter count and the entry takes
- * the first parameter's color. Local route state, a styling comparison only. */
 /** Stand-in thumbnail image for the mock (no real media assets exist here) —
  *  the DRMVYZ logo, resolved against the app root so it also loads from the
  *  Layout Lab popup document. */
@@ -832,181 +935,19 @@ function MediaThumbBox({ mediaName, mediaType }: { mediaName: string; mediaType:
   )
 }
 
-function AddEffectsFloatingOrbConcept({ state }: { state: CanvasMockState }) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  const [effectsShown, setEffectsShown] = useState<Record<string, boolean>>({})
-  const [links, setLinks] = useState<MockRouteMap>({})
-
-  const renderLayerGroup = (layer: CanvasMockState['addEffectsLayers'][number], layerIndex: number) => {
-    const effectsVisible = effectsShown[layer.mediaId] ?? layer.effects.length > 0
-    return (
-      <AddEffectsLayerGroup
-        key={layer.mediaId}
-        state={state}
-        layer={layer}
-        layerIndex={layerIndex}
-        showEffects={effectsVisible}
-        renderMediaRowLeading={mediaLayer => {
-          const media = state.mediaItems.find(item => item.id === mediaLayer.mediaId)
-          return (
-            <MediaThumbBox
-              key={mediaLayer.mediaId}
-              mediaName={mediaLayer.mediaName}
-              mediaType={media?.type ?? 'image'}
-            />
-          )
-        }}
-        renderAfterMediaRow={mediaLayer => {
-          const hasEffect = mediaLayer.effects.length > 0
-          return (
-            <div className="rv-ae-orb-add-row">
-              <button
-                type="button"
-                className={`rv-ae-orb-add${hasEffect ? ' is-active' : ''}`}
-                aria-expanded={effectsVisible}
-                aria-label={`${effectsVisible ? 'Hide' : 'Show'} the effect selector for ${mediaLayer.mediaName}`}
-                onClick={() => setEffectsShown(current => ({ ...current, [mediaLayer.mediaId]: !effectsVisible }))}
-              >
-                +
-              </button>
-            </div>
-          )
-        }}
-        getEntryExtra={({ linkKey }) => {
-          const color = firstRouteColor(links[linkKey])
-          return {
-            className: `rv-ae-orb-entry${color ? ' is-linked' : ''}`,
-            style: color ? ({ '--orb-color': color } as CSSProperties) : undefined,
-          }
-        }}
-        renderRoute={({ effectLabel, parentLabel, linkKey }) => {
-          const routes = links[linkKey] ?? []
-          const isOpen = expanded[linkKey] ?? routes.length > 0
-          return (
-            <div className="rv-ae-orb-footer">
-              <div className="rv-ae-orb-row">
-                <button
-                  type="button"
-                  className="rv-ae-orb-trigger"
-                  aria-expanded={isOpen}
-                  aria-label={`${routes.length ? 'Edit' : 'Add'} routes for ${effectLabel} on ${parentLabel}`}
-                  onClick={() => setExpanded(current => ({ ...current, [linkKey]: !isOpen }))}
-                >
-                  {routes.length ? routes.length : '+'}
-                </button>
-              </div>
-              {isOpen && (
-                <div className="rv-ae-orb-picker">
-                  <AddEffectsRouteEditor
-                    routes={routes}
-                    effectLabel={effectLabel}
-                    parentLabel={parentLabel}
-                    showDots
-                    onAddParameter={id => setLinks(current => withRouteParam(current, linkKey, id))}
-                    onRemoveParameter={id => setLinks(current => withoutRouteParam(current, linkKey, id))}
-                    onSetIntensity={(id, value) => setLinks(current => withRouteIntensity(current, linkKey, id, value))}
-                  />
-                </div>
-              )}
-            </div>
-          )
-        }}
-      />
-    )
-  }
-
-  return (
-    <Collapsible label="Add Effects — Floating Route Orb" defaultOpen={false}>
-      {state.addEffectsLayers.length === 0 && (
-        <div className="rv-canvas-engine-note">Add media to the Performance Pool (Design tab) or select an active media item to preview this concept.</div>
-      )}
-      {state.addEffectsLayers.map((layer, layerIndex) => (
-        <Fragment key={layer.mediaId}>
-          {layerIndex > 0 && <div className="rv-ae-orb-media-separator" aria-hidden="true" />}
-          {renderLayerGroup(layer, layerIndex)}
-        </Fragment>
-      ))}
-    </Collapsible>
-  )
-}
-
-/** Concept — "Connector Line." A dashed "+ Route" trigger opens the shared
- * route editor. Routing keeps its patch-cable identity through the effect
- * input's own bottom border and value text taking the first parameter's
- * color; the editor holds the multi-parameter list and per-parameter
- * master-intensity sliders. Local route state, comparison only. */
-function AddEffectsConnectorLineConcept({ state }: { state: CanvasMockState }) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  const [links, setLinks] = useState<MockRouteMap>({})
-
-  return (
-    <Collapsible label="Add Effects — Connector Line" defaultOpen={false}>
-      <div className="rv-canvas-engine-note">"+ Route" sits centered on the row. Once routed, the effect input's bottom border and value text take the first parameter's color and the editor drops in below — add parameters, set a master-intensity slider per effect + parameter combination. Concept only.</div>
-      {state.addEffectsLayers.length === 0 && (
-        <div className="rv-canvas-engine-note">Add media to the Performance Pool (Design tab) or select an active media item to preview this concept.</div>
-      )}
-      {state.addEffectsLayers.map((layer, layerIndex) => (
-        <AddEffectsLayerGroup
-          key={layer.mediaId}
-          state={state}
-          layer={layer}
-          layerIndex={layerIndex}
-          getEntryExtra={({ linkKey }) => {
-            const color = firstRouteColor(links[linkKey])
-            return {
-              className: `rv-ae-line-entry${color ? ' is-linked' : ''}`,
-              style: color ? ({ '--line-color': color } as CSSProperties) : undefined,
-            }
-          }}
-          renderRoute={({ effectLabel, parentLabel, linkKey }) => {
-            const routes = links[linkKey] ?? []
-            const isOpen = expanded[linkKey] ?? routes.length > 0
-            return (
-              <div className="rv-ae-line-footer">
-                <div className="rv-ae-line-route">
-                  <button
-                    type="button"
-                    className="rv-ae-line-trigger"
-                    aria-expanded={isOpen}
-                    onClick={() => setExpanded(current => ({ ...current, [linkKey]: !isOpen }))}
-                  >
-                    {routes.length ? `Routes · ${routes.length}` : '+ Route'}
-                  </button>
-                </div>
-                {isOpen && (
-                  <div className="rv-ae-line-body">
-                    <AddEffectsRouteEditor
-                      routes={routes}
-                      effectLabel={effectLabel}
-                      parentLabel={parentLabel}
-                      showDots
-                      onAddParameter={id => setLinks(current => withRouteParam(current, linkKey, id))}
-                      onRemoveParameter={id => setLinks(current => withoutRouteParam(current, linkKey, id))}
-                      onSetIntensity={(id, value) => setLinks(current => withRouteIntensity(current, linkKey, id, value))}
-                    />
-                  </div>
-                )}
-              </div>
-            )
-          }}
-        />
-      ))}
-    </Collapsible>
-  )
-}
-
 /** Concept — "Highlight Wash." A leading equalizer-bars icon (before the
- * effect dropdown) toggles the shared route editor. Routing washes the whole
- * entry's background in the first parameter's color and tints the Active
- * Media select's bottom border to match — the boldest treatment, for
- * scanning a long effect list. Local route state, comparison only. */
+ * effect dropdown) toggles the shared route editor. Routing tints the Active
+ * Media select's bottom border to the first parameter's color and swaps the
+ * leading trigger for a checkmark; the parameter list is indented under the
+ * effect dropdown, one compact row per parameter. Local route state,
+ * comparison only. */
 function AddEffectsHighlightWashConcept({ state }: { state: CanvasMockState }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [links, setLinks] = useState<MockRouteMap>({})
 
   return (
     <Collapsible label="Add Effects — Highlight Wash" defaultOpen={false}>
-      <div className="rv-canvas-engine-note">Routing a parameter washes the entry, colors the Active Media select's bottom border to match, and swaps the leading trigger for a checkmark. The editor holds the multi-parameter list and a master-intensity slider per effect + parameter combination. Concept only.</div>
+      <div className="rv-canvas-engine-note">Routing a parameter colors the Active Media select's bottom border to match and swaps the leading trigger for a checkmark. The parameter list is indented under the effect dropdown — one compact row each: color dot, parameter, intensity slider (value on hover), remove. Concept only.</div>
       {state.addEffectsLayers.length === 0 && (
         <div className="rv-canvas-engine-note">Add media to the Performance Pool (Design tab) or select an active media item to preview this concept.</div>
       )}
@@ -1062,6 +1003,7 @@ function AddEffectsHighlightWashConcept({ state }: { state: CanvasMockState }) {
                   effectLabel={effectLabel}
                   parentLabel={parentLabel}
                   showDots
+                  inlineParamRow
                   onAddParameter={id => setLinks(current => withRouteParam(current, linkKey, id))}
                   onRemoveParameter={id => setLinks(current => withoutRouteParam(current, linkKey, id))}
                   onSetIntensity={(id, value) => setLinks(current => withRouteIntensity(current, linkKey, id, value))}
@@ -1162,6 +1104,16 @@ function AddEffectsBlueprintBusConcept({ state }: { state: CanvasMockState }) {
           layer={layer}
           layerIndex={layerIndex}
           getGroupExtra={() => ({ className: 'rv-ae-bus-group' })}
+          renderMediaRowLeading={mediaLayer => {
+            const media = state.mediaItems.find(item => item.id === mediaLayer.mediaId)
+            return (
+              <MediaThumbBox
+                key={mediaLayer.mediaId}
+                mediaName={mediaLayer.mediaName}
+                mediaType={media?.type ?? 'image'}
+              />
+            )
+          }}
           getEntryExtra={({ linkKey }) => {
             const color = firstRouteColor(links[linkKey])
             return {
@@ -1169,90 +1121,43 @@ function AddEffectsBlueprintBusConcept({ state }: { state: CanvasMockState }) {
               style: color ? ({ '--bus-color': color } as CSSProperties) : undefined,
             }
           }}
+          renderLeading={({ effectLabel, parentLabel, linkKey }) => {
+            const routes = routesFor(linkKey)
+            const open = isOpenFor(linkKey)
+            return (
+              <button
+                type="button"
+                className="rv-ae-bus-node"
+                aria-expanded={open}
+                aria-label={`${routes.length ? 'Edit' : 'Add'} routes for ${effectLabel} on ${parentLabel}`}
+                onClick={() => toggle(linkKey)}
+              >
+                {routes.length ? routes.length : '+'}
+              </button>
+            )
+          }}
           renderRoute={({ effectLabel, parentLabel, linkKey }) => {
             const routes = routesFor(linkKey)
             const open = isOpenFor(linkKey)
             return (
               <>
-                <button
-                  type="button"
-                  className="rv-ae-bus-node"
-                  aria-expanded={open}
-                  aria-label={`${routes.length ? 'Edit' : 'Add'} routes for ${effectLabel} on ${parentLabel}`}
-                  onClick={() => toggle(linkKey)}
-                >
-                  {routes.length ? routes.length : '+'}
-                </button>
-                {(open || routes.length > 0) && <span className="rv-ae-bus-line" aria-hidden="true" />}
+                {(open || routes.length > 0) && (
+                  <span className={`rv-ae-bus-line${open ? ' is-open' : ''}`} aria-hidden="true" />
+                )}
                 {open && (
                   <div className="rv-ae-bus-editor">
-                    <AddEffectsRouteEditor routes={routes} effectLabel={effectLabel} parentLabel={parentLabel} showDots bareIntensityLabel {...editorHandlers(linkKey)} />
+                    <AddEffectsRouteEditor
+                      routes={routes}
+                      effectLabel={effectLabel}
+                      parentLabel={parentLabel}
+                      showDots
+                      bareIntensityLabel
+                      pickerLeading={<BusJunctionIcon />}
+                      {...editorHandlers(linkKey)}
+                    />
                   </div>
                 )}
               </>
-            )
-          }}
-        />
-      )}
-    </ConceptGroup>
-  )
-}
-
-/** Concept — "Signal Break." One framed panel wraps the Active Media and
- * Select Effect dropdowns; picking an effect grows it downward to reveal the
- * broken-tail pill route trigger and its editor. Local route state. */
-function AddEffectsSignalBreakConcept({ state }: { state: CanvasMockState }) {
-  const { links, routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
-  return (
-    <ConceptGroup
-      state={state}
-      label="Add Effects — Signal Break"
-      note="A single framed panel wraps the Active Media dropdown and the Select Effect dropdown; picking an effect expands the panel downward to reveal a broken-tail pill route trigger and, once opened, the parameter editor. Concept only."
-    >
-      {(layer, layerIndex) => (
-        <AddEffectsLayerGroup
-          key={layer.mediaId}
-          state={state}
-          layer={layer}
-          layerIndex={layerIndex}
-          getGroupExtra={groupLayer => {
-            const linkedColor = groupLayer.effects
-              .map(effectId => firstRouteColor(links[canvasEffectAudioLinkKey(groupLayer.mediaId, effectId)]))
-              .find((candidate): candidate is string => Boolean(candidate))
-            return {
-              className: `rv-ae-break-group${linkedColor ? ' is-linked' : ''}`,
-              style: linkedColor ? ({ '--break-color': linkedColor } as CSSProperties) : undefined,
-            }
-          }}
-          getEntryExtra={({ linkKey }) => {
-            const color = firstRouteColor(links[linkKey])
-            return {
-              className: `rv-ae-break-entry${color ? ' is-linked' : ''}`,
-              style: color ? ({ '--break-color': color } as CSSProperties) : undefined,
-            }
-          }}
-          renderRoute={({ effectLabel, parentLabel, linkKey }) => {
-            const routes = routesFor(linkKey)
-            const open = isOpenFor(linkKey)
-            return (
-              <div className="rv-ae-break-route">
-                <button
-                  type="button"
-                  className={`rv-ae-break-trigger${routes.length ? ' is-linked' : ''}`}
-                  aria-expanded={open}
-                  aria-label={`${routes.length ? 'Edit' : 'Add'} routes for ${effectLabel} on ${parentLabel}`}
-                  onClick={() => toggle(linkKey)}
-                >
-                  <span className="rv-ae-break-dot" aria-hidden="true" />
-                  {routes.length ? `Signal · ${routes.length} route${routes.length === 1 ? '' : 's'}` : '+ Route signal'}
-                  <span className="rv-ae-break-tail" aria-hidden="true" />
-                </button>
-                {open && (
-                  <div className="rv-ae-break-editor">
-                    <AddEffectsRouteEditor routes={routes} effectLabel={effectLabel} parentLabel={parentLabel} showDots {...editorHandlers(linkKey)} />
-                  </div>
-                )}
-              </div>
             )
           }}
         />
@@ -1326,11 +1231,8 @@ function ReactMockup({ state }: { state: CanvasMockState }) {
       {state.reactSurface === 'routing' ? (
         <div className="rv-ctrl-group" data-layout-lab-canvas="routing">
           <AddEffectsControls state={state} />
-          <AddEffectsFloatingOrbConcept state={state} />
-          <AddEffectsConnectorLineConcept state={state} />
           <AddEffectsHighlightWashConcept state={state} />
           <AddEffectsBlueprintBusConcept state={state} />
-          <AddEffectsSignalBreakConcept state={state} />
           <AddEffectsPreviewDeckConcept state={state} />
         </div>
       ) : <AnalysisMockup />}

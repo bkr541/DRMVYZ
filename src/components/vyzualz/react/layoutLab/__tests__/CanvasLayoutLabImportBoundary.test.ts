@@ -116,13 +116,9 @@ const REQUIRED_LABELS = [
   'Hi-Hat',
   'Downbeat',
   'Section Change',
-  'Add Effects — Floating Route Orb',
-  'Add Effects — Connector Line',
   'Add Effects — Highlight Wash',
   'Add Effects — Blueprint Bus',
-  'Add Effects — Signal Break',
   'Add Effects — Preview Deck',
-  '+ Route',
   'Fractures recording is unavailable',
   'Recording unavailable',
 ]
