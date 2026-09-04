@@ -172,6 +172,8 @@ function AddEffectsRouteEditor({
   bareIntensityLabel = false,
   inlineParamRow = false,
   pickerLeading,
+  emptyPickerLabel = 'Audio Intelligence Parameter',
+  filledPickerLabel = 'Add another parameter',
   onAddParameter,
   onRemoveParameter,
   onSetIntensity,
@@ -190,6 +192,10 @@ function AddEffectsRouteEditor({
   /** Adornment rendered flush-left of the "Add parameter" picker row (e.g. a
    *  bus-junction node a concept's connector line terminates on). */
   pickerLeading?: ReactNode
+  /** Picker label shown above the dropdown before anything is routed. */
+  emptyPickerLabel?: string
+  /** Picker label shown above the dropdown once at least one route exists. */
+  filledPickerLabel?: string
   onAddParameter: (parameterId: CanvasMockAudioIntelligenceParameterId) => void
   onRemoveParameter: (parameterId: CanvasMockAudioIntelligenceParameterId) => void
   onSetIntensity: (parameterId: CanvasMockAudioIntelligenceParameterId, intensity: number) => void
@@ -273,7 +279,7 @@ function AddEffectsRouteEditor({
           <div className="rv-ae-route-picker-row">
             {pickerLeading}
             <SelectRow
-              label={routes.length > 0 ? 'Add another parameter' : 'Audio Intelligence Parameter'}
+              label={routes.length > 0 ? filledPickerLabel : emptyPickerLabel}
               value=""
               placeholder="Select Parameter…"
               onChange={value => { if (value) onAddParameter(value as CanvasMockAudioIntelligenceParameterId) }}
@@ -283,7 +289,7 @@ function AddEffectsRouteEditor({
           </div>
         ) : (
           <SelectRow
-            label={routes.length > 0 ? 'Add another parameter' : 'Audio Intelligence Parameter'}
+            label={routes.length > 0 ? filledPickerLabel : emptyPickerLabel}
             value=""
             placeholder="Select Parameter…"
             onChange={value => { if (value) onAddParameter(value as CanvasMockAudioIntelligenceParameterId) }}
@@ -1004,6 +1010,8 @@ function AddEffectsHighlightWashConcept({ state }: { state: CanvasMockState }) {
                   parentLabel={parentLabel}
                   showDots
                   inlineParamRow
+                  emptyPickerLabel="Trigger"
+                  filledPickerLabel="Add Trigger"
                   onAddParameter={id => setLinks(current => withRouteParam(current, linkKey, id))}
                   onRemoveParameter={id => setLinks(current => withoutRouteParam(current, linkKey, id))}
                   onSetIntensity={(id, value) => setLinks(current => withRouteIntensity(current, linkKey, id, value))}
@@ -1235,14 +1243,17 @@ function AddEffectsPreviewDeckConcept({ state }: { state: CanvasMockState }) {
    it points at. No connector uses a hand-tuned pixel offset.
    ─────────────────────────────────────────────────────────────────────────── */
 
-/** Open/close control shared by the round-two concepts. */
-function AE2RouteToggle({ className, open, count, effectLabel, parentLabel, onToggle }: {
+/** Open/close control shared by the round-two concepts. `label` overrides the
+ *  default "Audio Intelligence · N" / "Add Audio Intelligence" text for a
+ *  concept that wants its own wording. */
+function AE2RouteToggle({ className, open, count, effectLabel, parentLabel, onToggle, label }: {
   className: string
   open: boolean
   count: number
   effectLabel: string
   parentLabel: string
   onToggle: () => void
+  label?: string
 }) {
   return (
     <button
@@ -1252,7 +1263,7 @@ function AE2RouteToggle({ className, open, count, effectLabel, parentLabel, onTo
       aria-label={`${count ? 'Edit' : 'Add'} Audio Intelligence routes for ${effectLabel} on ${parentLabel}`}
       onClick={onToggle}
     >
-      {count ? `Audio Intelligence · ${count}` : 'Add Audio Intelligence'}
+      {label ?? (count ? `Audio Intelligence · ${count}` : 'Add Audio Intelligence')}
     </button>
   )
 }
@@ -1481,6 +1492,7 @@ function AddEffectsSpineDotsConcept({ state }: { state: CanvasMockState }) {
                   effectLabel={ctx.effectLabel}
                   parentLabel={ctx.parentLabel}
                   onToggle={() => toggle(ctx.linkKey)}
+                  label={`Add ${ctx.effectLabel} Triggers`}
                 />
                 {open && (
                   <div className="rv-ae-spine-panel">
@@ -1645,6 +1657,38 @@ function AECardRoute({
   )
 }
 
+/** Plus glyph — the "add" affordance inside Nested Cards' dashed circle. */
+function PlusGlyphIcon({ size = 10 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  )
+}
+
+/** Nested Cards' own "add" trigger: a dashed gray circle holding a plus glyph,
+ *  followed by "Add Trigger" (or the routed count once triggers exist). */
+function NestedCardsAddButton({ open, count, effectLabel, parentLabel, onToggle }: {
+  open: boolean
+  count: number
+  effectLabel: string
+  parentLabel: string
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={`rv-ae-nc-add${open ? ' is-open' : ''}`}
+      aria-expanded={open}
+      aria-label={`${open ? 'Hide' : count ? 'Edit' : 'Add'} Audio Intelligence triggers for ${effectLabel} on ${parentLabel}`}
+      onClick={onToggle}
+    >
+      <span className="rv-ae-nc-add-circle" aria-hidden="true"><PlusGlyphIcon size={10} /></span>
+      {count ? `${count} Trigger${count === 1 ? '' : 's'}` : 'Add Trigger'}
+    </button>
+  )
+}
+
 /** Concept — "Media Card." One plain card per media layer. The Active Media
  * dropdown is the card header, separated by a full-width rule; each effect is
  * a divider-separated row beneath it, with its routes on a disclosure. */
@@ -1735,9 +1779,33 @@ function AddEffectsNestedCardsConcept({ state }: { state: CanvasMockState }) {
               style: color ? ({ '--nc-color': color } as CSSProperties) : undefined,
             }
           }}
-          renderRoute={ctx => (
-            <AECardRoute ctx={ctx} classPrefix="rv-ae-nc" routesFor={routesFor} isOpenFor={isOpenFor} toggle={toggle} editorHandlers={editorHandlers} />
-          )}
+          renderRoute={ctx => {
+            const routes = routesFor(ctx.linkKey)
+            const open = isOpenFor(ctx.linkKey)
+            return (
+              <>
+                <NestedCardsAddButton
+                  open={open}
+                  count={routes.length}
+                  effectLabel={ctx.effectLabel}
+                  parentLabel={ctx.parentLabel}
+                  onToggle={() => toggle(ctx.linkKey)}
+                />
+                {open && (
+                  <div className="rv-ae-nc-panel">
+                    <AddEffectsRouteEditor
+                      routes={routes}
+                      effectLabel={ctx.effectLabel}
+                      parentLabel={ctx.parentLabel}
+                      showDots
+                      inlineParamRow
+                      {...editorHandlers(ctx.linkKey)}
+                    />
+                  </div>
+                )}
+              </>
+            )
+          }}
         />
       )}
     </ConceptGroup>

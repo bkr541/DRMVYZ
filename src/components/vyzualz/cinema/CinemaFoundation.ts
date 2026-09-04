@@ -472,6 +472,50 @@ const CINEMA_CANONICAL_BUILT_IN_COMPOSITIONS: readonly CinemaCompositionDefiniti
   ...CINEMA_LEGACY_PRESET_CATALOG.compositions,
 ])
 
+/**
+ * Stage 8-16 engineering reference/QA compositions — CINEMA_FOUNDATION_COMPOSITION,
+ * CINEMA_SHADER_REFERENCE_COMPOSITION, CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
+ * CINEMA_STAGE15_REFERENCE_COMPOSITION, CINEMA_STAGE16_REFERENCE_COMPOSITION.
+ *
+ * Each exists solely so the test suite and CinemaRuntimeBrowserHarness can
+ * exercise a render-graph adapter against the real production executor as it
+ * shipped — their names say "Reference," their descriptions say "Stage N
+ * reference composition," and several drive hardcoded debug text (e.g.
+ * "CINEMA · LAYERS · EFFECTS") straight from the node under test. They were
+ * never authored, curated, or QA'd as something a user should see or pick.
+ *
+ * They still need to live in CINEMA_CANONICAL_BUILT_IN_COMPOSITIONS above —
+ * removing them there breaks every test/harness that activates one to
+ * exercise its adapter — so instead of hiding them from the store, they are
+ * hidden from the *user-facing preset list* only: CinemaPresetsPanel (and any
+ * future composition picker) MUST filter through isCinemaEngineeringOnlyComposition
+ * before rendering a composition as a pickable tile.
+ *
+ * IMPORTANT — read this before adding a new "reference"/"stage"/"demo"
+ * composition constant anywhere in Cinema: if it goes into
+ * CINEMA_CANONICAL_BUILT_IN_COMPOSITIONS (which every hydrated Cinema
+ * document force-merges), its id belongs in this set too, or it will reach
+ * the production Presets tab exactly like these five did. `CinemaFoundation.test.ts`
+ * asserts every entry in CINEMA_CANONICAL_BUILT_IN_COMPOSITIONS is either a
+ * real Stage 21 catalog preset or listed here, so a new engineering-only
+ * composition that skips this set fails CI instead of silently shipping.
+ */
+export const CINEMA_ENGINEERING_ONLY_COMPOSITION_IDS: ReadonlySet<string> = new Set([
+  String(CINEMA_FOUNDATION_COMPOSITION.id),
+  String(CINEMA_SHADER_REFERENCE_COMPOSITION.id),
+  String(CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION.id),
+  String(CINEMA_STAGE15_REFERENCE_COMPOSITION.id),
+  String(CINEMA_STAGE16_REFERENCE_COMPOSITION.id),
+])
+
+/** True for a composition that exists only to exercise a render-graph adapter
+ *  in tests/CinemaRuntimeBrowserHarness — never something a user should be
+ *  able to browse or select as a preset. Every user-facing composition picker
+ *  must filter these out. See CINEMA_ENGINEERING_ONLY_COMPOSITION_IDS above. */
+export function isCinemaEngineeringOnlyComposition(composition: Pick<CinemaCompositionDefinition, 'id'>): boolean {
+  return CINEMA_ENGINEERING_ONLY_COMPOSITION_IDS.has(String(composition.id))
+}
+
 export interface CinemaBuiltInReconciliationOptions {
   /**
    * Promote a valid pre-foundation Cinema document into the current built-in

@@ -140,7 +140,7 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
   const roundThree: Array<{ headerText: string; noteFragment: string; toggle: string }> = [
     { headerText: 'Media Card', noteFragment: 'One plain card per media layer', toggle: '.rv-ae-mc-toggle' },
     { headerText: 'Header Strip', noteFragment: 'full-bleed tinted band', toggle: '.rv-ae-hs-toggle' },
-    { headerText: 'Nested Cards', noteFragment: 'one inset mini-card per effect', toggle: '.rv-ae-nc-toggle' },
+    { headerText: 'Nested Cards', noteFragment: 'one inset mini-card per effect', toggle: '.rv-ae-nc-add' },
     { headerText: 'Ledger Card', noteFragment: 'two-rail table', toggle: '.rv-ae-lc-toggle' },
     { headerText: 'Thumb Card', noteFragment: "media's square thumbnail with its name", toggle: '.rv-ae-tc-toggle' },
   ]

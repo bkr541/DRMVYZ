@@ -20519,11 +20519,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   --ae2-tier2-strong: rgba(154, 178, 188, 0.72);
 }
 
-/* Shared small toggle look (Nested Trays / Trunk Line / Spine & Dots /
-   Numbered Steps use the same pill so the family reads as one set). */
+/* Shared small toggle look (Nested Trays / Trunk Line / Numbered Steps use the
+   same pill so the family reads as one set — Spine & Dots has its own). */
 .rv-ae-tray-toggle,
 .rv-ae-trunk-toggle,
-.rv-ae-spine-toggle,
 .rv-ae-steps-toggle {
   align-self: flex-start;
   padding: 3px 9px;
@@ -20542,8 +20541,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-tray-toggle:focus-visible,
 .rv-ae-trunk-toggle:hover,
 .rv-ae-trunk-toggle:focus-visible,
-.rv-ae-spine-toggle:hover,
-.rv-ae-spine-toggle:focus-visible,
 .rv-ae-steps-toggle:hover,
 .rv-ae-steps-toggle:focus-visible {
   border-color: #8de7ff;
@@ -20695,6 +20692,33 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-spine-group .rv-canvas-layer-effects-stack {
   gap: var(--ae2-gap);
+}
+
+/* Styled like the canonical group's "Route Effect" link (underlined cyan
+   text), wrapped in a dashed outline, with extra breathing room above and
+   below so it reads as its own step rather than crowding the effect row. */
+.rv-ae-spine-toggle {
+  align-self: flex-start;
+  margin: 12px 0;
+  padding: 4px 10px;
+  border: 1px dashed rgba(154, 178, 188, 0.4);
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(74, 199, 219, 0.82);
+  font: 700 8px/1.3 var(--az-font);
+  letter-spacing: 0.02em;
+  text-decoration: underline;
+  text-decoration-color: rgba(74, 199, 219, 0.32);
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, text-decoration-color 0.12s;
+}
+
+.rv-ae-spine-toggle:hover,
+.rv-ae-spine-toggle:focus-visible {
+  color: #8de7ff;
+  text-decoration-color: rgba(141, 231, 255, 0.6);
+  border-color: rgba(141, 231, 255, 0.5);
 }
 
 /* One spine, pinned top-to-bottom of the group — cannot fall short. */
@@ -20856,7 +20880,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-mc-toggle,
 .rv-ae-hs-toggle,
-.rv-ae-nc-toggle,
 .rv-ae-lc-toggle,
 .rv-ae-tc-toggle {
   align-self: flex-start;
@@ -20877,7 +20900,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-mc-toggle:hover, .rv-ae-mc-toggle:focus-visible, .rv-ae-mc-toggle.is-open,
 .rv-ae-hs-toggle:hover, .rv-ae-hs-toggle:focus-visible, .rv-ae-hs-toggle.is-open,
-.rv-ae-nc-toggle:hover, .rv-ae-nc-toggle:focus-visible, .rv-ae-nc-toggle.is-open,
 .rv-ae-lc-toggle:hover, .rv-ae-lc-toggle:focus-visible, .rv-ae-lc-toggle.is-open,
 .rv-ae-tc-toggle:hover, .rv-ae-tc-toggle:focus-visible, .rv-ae-tc-toggle.is-open {
   border-color: #8de7ff;
@@ -20976,7 +20998,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-nc-head {
   padding-bottom: var(--ae2-pad);
-  border-bottom: 1px solid rgba(154, 178, 188, 0.18);
 }
 
 .rv-ae-nc-entry {
@@ -20989,6 +21010,48 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-nc-entry.is-linked {
   border-color: color-mix(in srgb, var(--nc-color) 45%, rgba(154, 178, 188, 0.16));
+}
+
+/* "Add Trigger": a dashed gray circle holding a plus glyph, then the label. */
+.rv-ae-nc-add {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: rgba(232, 244, 248, 0.82);
+  font: 700 8px/1 var(--az-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.rv-ae-nc-add-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(154, 178, 188, 0.55);
+  color: rgba(196, 207, 211, 0.75);
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.rv-ae-nc-add:hover .rv-ae-nc-add-circle,
+.rv-ae-nc-add:focus-visible .rv-ae-nc-add-circle,
+.rv-ae-nc-add.is-open .rv-ae-nc-add-circle {
+  border-color: #8de7ff;
+  color: #8de7ff;
+}
+
+.rv-ae-nc-add:hover,
+.rv-ae-nc-add:focus-visible,
+.rv-ae-nc-add.is-open {
+  color: #8de7ff;
 }
 
 .rv-ae-nc-panel {

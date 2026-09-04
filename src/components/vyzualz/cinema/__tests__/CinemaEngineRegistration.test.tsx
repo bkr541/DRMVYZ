@@ -21,6 +21,8 @@ import {
   CINEMA_FOUNDATION_COMPOSITION,
   CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
   CINEMA_SHADER_REFERENCE_COMPOSITION,
+  CINEMA_STAGE15_REFERENCE_COMPOSITION,
+  CINEMA_STAGE16_REFERENCE_COMPOSITION,
   CINEMA_FOUNDATION_GRADIENT_NODE_ID,
   CINEMA_FOUNDATION_INPUT_PORT_ID,
   CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
@@ -671,7 +673,12 @@ describe('Cinema production engine registration', () => {
     expect(host?.textContent).not.toContain('New Composition')
     expect(host?.textContent).not.toContain('Cinema Composer')
 
-    const presetButton = host?.querySelector<HTMLButtonElement>('.rv-cinema-preset-tile')
+    // A named, real preset — not the first tile positionally, since
+    // CinemaPresetsPanel now filters engineering reference compositions out
+    // of the picker (see isCinemaEngineeringOnlyComposition).
+    const presetButton = [...(host?.querySelectorAll<HTMLButtonElement>('.rv-cinema-preset-tile') ?? [])]
+      .find(button => button.querySelector('.rv-cinema-preset-tile-name')?.textContent === 'Singularity Crown')
+    expect(presetButton).toBeDefined()
     await act(async () => presetButton?.click())
     const layerButton = host?.querySelector<HTMLButtonElement>('.rv-cinema-layer-tree button')
     await act(async () => layerButton?.click())
@@ -864,5 +871,37 @@ describe('Cinema production engine registration', () => {
     expect(model.diagnostics.diagnostics.some(diagnostic => (
       diagnostic.code === 'CINEMA_SAFE_OUTPUT_ACTIVE'
     ))).toBe(false)
+  })
+
+  it('never surfaces an engineering reference composition as a pickable preset, while keeping it fully activatable', async () => {
+    await act(async () => root?.render(<ComposerSelectionHarness />))
+    const trigger = host?.querySelector<HTMLButtonElement>('.rv-engine-dropdown-trigger')
+    await act(async () => trigger?.click())
+    const cinemaOption = [...(host?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])]
+      .find(option => option.textContent?.includes('Cinema'))
+    await act(async () => cinemaOption?.click())
+
+    const engineeringOnlyCompositions = [
+      CINEMA_FOUNDATION_COMPOSITION,
+      CINEMA_SHADER_REFERENCE_COMPOSITION,
+      CINEMA_CINEMATIC_WORLD_REFERENCE_COMPOSITION,
+      CINEMA_STAGE15_REFERENCE_COMPOSITION,
+      CINEMA_STAGE16_REFERENCE_COMPOSITION,
+    ]
+
+    const tileNames = new Set(
+      [...(host?.querySelectorAll<HTMLElement>('.rv-cinema-preset-tile-name') ?? [])]
+        .map(node => node.textContent),
+    )
+    for (const composition of engineeringOnlyCompositions) {
+      expect(tileNames.has(composition.metadata.name), `"${composition.metadata.name}" must not appear as a Presets tab tile`).toBe(false)
+    }
+
+    // Hidden from the picker, but still real, activatable store compositions —
+    // the test suite and CinemaRuntimeBrowserHarness keep exercising them.
+    const storeCompositionIds = new Set(useCinemaStore.getState().compositions.map(composition => String(composition.id)))
+    for (const composition of engineeringOnlyCompositions) {
+      expect(storeCompositionIds.has(String(composition.id)), `"${composition.metadata.name}" should remain in the store for test/harness fixtures`).toBe(true)
+    }
   })
 })

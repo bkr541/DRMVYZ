@@ -5,6 +5,7 @@ import {
   buildCinemaComposerLibraryItems,
   getCinemaComposerLayers,
   getCinemaEditorSelection,
+  isCinemaEngineeringOnlyComposition,
   useCinemaStore,
   type CinemaComposerLibraryItem,
   type CinemaNodeDefinition,
@@ -37,6 +38,7 @@ export function CinemaPresetsPanel() {
   const [scope, setScope] = useState<'system' | 'user'>('system')
   const needle = query.trim().toLowerCase()
   const presets = state.compositions.filter(candidate => {
+    if (isCinemaEngineeringOnlyComposition(candidate)) return false
     const text = `${candidate.metadata.name} ${candidate.metadata.description ?? ''} ${(candidate.metadata.tags ?? []).join(' ')}`.toLowerCase()
     return text.includes(needle)
   })
