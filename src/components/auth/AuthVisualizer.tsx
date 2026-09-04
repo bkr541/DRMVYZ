@@ -64,11 +64,13 @@ function hash01(n: number): number {
 // LaserDMX runs a beat-quantised scanline strobe, PixGrid does a mosaic
 // block-dissolve.
 
-// Matches the React main-engine dropdown label (inherits body's Zen Dots stack).
-const DISPLAY_FONT = '"Zen Dots", "Exo 2", system-ui, sans-serif'
-const LABEL_PX = 34
+// Exo 2 (the app's data font, loaded via index.html at 300–600) — lighter and
+// less blocky than the Zen Dots display face, so a low weight actually reads
+// as thin over the animation.
+const DISPLAY_FONT = '"Exo 2", Inter, system-ui, sans-serif'
+const LABEL_PX = 28
 const LABEL_K = LABEL_PX / 22 // decode-geometry scale vs the base 22px tuning
-const LABEL_FONT = `700 ${LABEL_PX}px ${DISPLAY_FONT}`
+const LABEL_FONT = `400 ${LABEL_PX}px ${DISPLAY_FONT}`
 const GLYPHS = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789<>/\\|=+*#%&$'
 
 /**
