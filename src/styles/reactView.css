@@ -21262,14 +21262,22 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-tc-group > .rv-canvas-layer-media-row {
   align-items: center;
   gap: var(--ae2-gap);
-  padding-bottom: var(--ae2-pad);
-  border-bottom: 1px solid rgba(154, 178, 188, 0.18);
+  padding-bottom: 2px;
+}
+
+/* Match the media row's thumbnail-to-field gap exactly. */
+.rv-ae-tc-group .rv-canvas-layer-effect-row {
+  gap: var(--ae2-gap);
 }
 
 .rv-ae-tc-entry {
   gap: var(--ae2-gap);
   padding: var(--ae2-pad) 0;
   border-bottom: 1px solid rgba(154, 178, 188, 0.08);
+}
+
+.rv-ae-tc-group .rv-canvas-layer-effects-stack > .rv-ae-tc-entry:first-of-type {
+  padding-top: 0;
 }
 
 .rv-ae-tc-group .rv-canvas-layer-effects-stack > .rv-ae-tc-entry:last-of-type {
@@ -21306,15 +21314,17 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   transition: border-color 0.12s, background 0.12s, color 0.12s, padding 0.12s, width 0.12s;
 }
 
-/* The connecting line, shown only while open (the toggle's own is-open
-   class). Two segments, not one: the toggle sits physically between the
-   dropdown and the panel, so the line has to reach around it rather than
-   through it. Each segment's reach is the exact flex gap it crosses — the
-   dropdown-to-toggle gap is the flex column's own gap plus this toggle's
-   margin-top (both var(--ae2-gap)); the toggle-to-panel gap is that same
-   flex gap plus the panel's own 2px margin-top — so the line can never drift
-   out of sync with the spacing that actually separates these elements. */
-.rv-ae-tc-toggle.is-open::before,
+/* Connecting lines around the ADD TRIGGER button. Two segments, not one: the
+   toggle sits physically between the dropdown and the panel, so the line has
+   to reach around it rather than through it. Each segment's reach is the
+   exact flex gap it crosses — the dropdown-to-toggle gap is the flex column's
+   own gap plus this toggle's margin-top (both var(--ae2-gap)); the
+   toggle-to-panel gap is that same flex gap plus the panel's own 2px
+   margin-top — so the lines can never drift out of sync with the spacing
+   that actually separates these elements. The upper segment (dropdown -> add
+   trigger button) is always shown; the lower segment only exists once the
+   panel is open below it. */
+.rv-ae-tc-toggle::before,
 .rv-ae-tc-toggle.is-open::after {
   content: '';
   position: absolute;
@@ -21323,7 +21333,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border-left: 1px dashed rgba(154, 178, 188, 0.45);
 }
 
-.rv-ae-tc-toggle.is-open::before {
+.rv-ae-tc-toggle::before {
   top: calc(-2 * var(--ae2-gap));
   height: calc(2 * var(--ae2-gap));
 }
@@ -21331,6 +21341,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-tc-toggle.is-open::after {
   top: 100%;
   height: calc(var(--ae2-gap) + 2px);
+}
+
+/* Once a trigger is routed, both connector segments join the blue active
+   state of the button and the triggers group. */
+.rv-ae-tc-toggle.is-active::before,
+.rv-ae-tc-toggle.is-active.is-open::after {
+  border-left-color: #8de7ff;
 }
 
 .rv-ae-tc-toggle:hover,
@@ -21367,7 +21384,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
    back to its own tiny intrinsic size instead of filling the column. */
 .rv-ae-tc-fx {
   flex: 0 0 auto;
-  width: 42.6px;
+  /* Start under the Active Media dropdown's left edge: the media row's
+     thumbnail is a 42.6px square (it tracks the field's own fixed row
+     height — 11px label + 3px gap + 28.6px underline trigger) followed by
+     the row's var(--ae2-gap). */
+  margin-left: calc(42.6px + var(--ae2-gap));
+  /* Shrink-wrap the glyph so there is no dead space padding it away from the
+     dropdown — the flex gap alone then matches the media row's
+     thumbnail-to-field spacing. Height still spans the label+dropdown column
+     so the glyph sits centred against it. */
+  width: auto;
   height: 42.6px;
   display: flex;
   align-items: center;
@@ -21376,19 +21402,26 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-ae-tc-fx-icon {
-  width: 100%;
-  height: 100%;
+  width: 21px;
+  height: 21px;
 }
 
 .rv-ae-tc-panel {
   margin: 2px 0 0 var(--ae2-step);
   padding: var(--ae2-gap);
+  border: 1px solid transparent;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.035);
 }
 
+/* At least one trigger routed -> the triggers group gets a blue outline,
+   matching the button and its connector lines. */
+.rv-ae-tc-toggle.is-active + .rv-ae-tc-panel {
+  border-color: #8de7ff;
+}
+
 .rv-ae-tc-group .rv-canvas-layer-effect-row--empty {
-  padding-top: var(--ae2-pad);
+  padding-top: 0;
 }
 
 /* Effect dropdown's remove icon: hidden until the row is hovered/focused, so

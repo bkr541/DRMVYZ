@@ -735,6 +735,7 @@ function AddEffectsLayerGroup({
   renderAfterMediaRow,
   renderEmptyLeading,
   showEmptyEffectLabel = false,
+  emptyEffectLabelText,
   showEffects = true,
 }: {
   state: CanvasMockState
@@ -760,6 +761,11 @@ function AddEffectsLayerGroup({
    *  hidden (screen-reader only), the shared behavior every other concept
    *  keeps. */
   showEmptyEffectLabel?: boolean
+  /** Visible label text for the "Select Effect…" add row when
+   *  showEmptyEffectLabel is set. The dropdown keeps its descriptive
+   *  "Add effect to …" accessible name regardless. Defaults to that same
+   *  descriptive string. */
+  emptyEffectLabelText?: string
   /** When false, the effect-dropdown stack is hidden (a concept can gate it
    *  behind a disclosure control). Defaults to shown. */
   showEffects?: boolean
@@ -835,7 +841,8 @@ function AddEffectsLayerGroup({
           <div className="rv-canvas-layer-effect-row rv-canvas-layer-effect-row--empty">
             {renderEmptyLeading?.(parentLabel)}
             <SelectRow
-              label={`Add effect to ${parentLabel}`}
+              label={emptyEffectLabelText ?? `Add effect to ${parentLabel}`}
+              ariaLabel={`Add effect to ${parentLabel}`}
               labelHidden={!showEmptyEffectLabel}
               value=""
               placeholder="Select Effect…"
@@ -2018,6 +2025,7 @@ function AddEffectsThumbCardConcept({ state }: { state: CanvasMockState }) {
             </span>
           )}
           showEmptyEffectLabel
+          emptyEffectLabelText="Effect"
           renderRoute={ctx => (
             <AECardRoute ctx={ctx} classPrefix="rv-ae-tc" routesFor={routesFor} isOpenFor={isOpenFor} toggle={toggle} editorHandlers={editorHandlers} toggleVariant="dashed-trigger" />
           )}

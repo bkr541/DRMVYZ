@@ -136,13 +136,17 @@ export interface SelectRowProps {
   description?: string
   placeholder?: string
   labelHidden?: boolean
+  /** Accessible name for the dropdown when it must differ from the visible
+   *  label text (e.g. a short visible "Effect" label but a descriptive
+   *  "Add effect to Active Media 1" accessible name). Defaults to `label`. */
+  ariaLabel?: string
   /** Extra class on the portaled option menu — lets a call site scope
    *  per-option adornments (e.g. a colored dot) without touching other
    *  SelectRow menus. */
   menuClassName?: string
 }
 
-export function SelectRow({ label, value, onChange, options, disabled, id, description, placeholder, labelHidden = false, menuClassName }: SelectRowProps) {
+export function SelectRow({ label, value, onChange, options, disabled, id, description, placeholder, labelHidden = false, ariaLabel, menuClassName }: SelectRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
   return (
@@ -158,7 +162,7 @@ export function SelectRow({ label, value, onChange, options, disabled, id, descr
         options={options}
         disabled={disabled}
         placeholder={placeholder}
-        ariaLabel={label}
+        ariaLabel={ariaLabel ?? label}
         ariaDescribedBy={description ? `${inputId}-description` : undefined}
         menuLabel={label}
         size="compact"
