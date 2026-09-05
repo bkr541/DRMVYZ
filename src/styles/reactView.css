@@ -21437,6 +21437,174 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   opacity: 1;
 }
 
+/* ── Concept: Thumb Card B ──────────────────────────────────────────────────
+   Thumb Card, re-dressed: a single coloured left rule instead of the full
+   card border; an icon-only ADD TRIGGER pulled left so its plus sits under
+   the FX-icon column; and an Audio Intelligence parameter icon that lines up
+   under that same column. */
+
+.rv-ae-tcb-group {
+  gap: var(--ae2-gap);
+  padding: var(--ae2-pad);
+  border: 0;
+  border-left: 3px solid #8de7ff;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.rv-ae-tcb-group .rv-canvas-layer-effects-stack {
+  gap: 0;
+}
+
+.rv-ae-tcb-group > .rv-canvas-layer-media-row {
+  align-items: center;
+  gap: var(--ae2-gap);
+  padding-bottom: 2px;
+}
+
+.rv-ae-tcb-group .rv-canvas-layer-effect-row {
+  gap: var(--ae2-gap);
+}
+
+.rv-ae-tcb-entry {
+  gap: var(--ae2-gap);
+  padding: var(--ae2-pad) 0;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.08);
+}
+
+.rv-ae-tcb-group .rv-canvas-layer-effects-stack > .rv-ae-tcb-entry:first-of-type {
+  padding-top: 0;
+}
+
+.rv-ae-tcb-group .rv-canvas-layer-effects-stack > .rv-ae-tcb-entry:last-of-type {
+  border-bottom: 0;
+  padding-bottom: 2px;
+}
+
+/* ADD TRIGGER — icon only, left-aligned with the same margin-left as the FX
+   icon so the plus sits directly beneath it. */
+.rv-ae-tcb-toggle {
+  position: relative;
+  align-self: flex-start;
+  margin-left: calc(42.6px + var(--ae2-gap));
+  margin-top: var(--ae2-gap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px dashed rgba(154, 178, 188, 0.45);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(196, 207, 211, 0.8);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+
+.rv-ae-tcb-toggle::before,
+.rv-ae-tcb-toggle.is-open::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 0;
+  border-left: 1px dashed rgba(154, 178, 188, 0.45);
+}
+
+.rv-ae-tcb-toggle::before {
+  top: calc(-2 * var(--ae2-gap));
+  height: calc(2 * var(--ae2-gap));
+}
+
+.rv-ae-tcb-toggle.is-open::after {
+  top: 100%;
+  height: calc(var(--ae2-gap) + 2px);
+}
+
+.rv-ae-tcb-toggle.is-active::before,
+.rv-ae-tcb-toggle.is-active.is-open::after {
+  border-left-color: #8de7ff;
+}
+
+.rv-ae-tcb-toggle:hover,
+.rv-ae-tcb-toggle:focus-visible,
+.rv-ae-tcb-toggle.is-open {
+  border-color: #8de7ff;
+  color: #8de7ff;
+}
+
+.rv-ae-tcb-toggle.is-active {
+  border: none;
+  background: #8de7ff;
+  color: #fff;
+}
+
+.rv-ae-tcb-toggle.is-active:hover,
+.rv-ae-tcb-toggle.is-active:focus-visible,
+.rv-ae-tcb-toggle.is-active.is-open {
+  background: #79d6ef;
+  color: #fff;
+}
+
+/* FX icon — identical treatment to Thumb Card. */
+.rv-ae-tcb-fx {
+  flex: 0 0 auto;
+  margin-left: calc(42.6px + var(--ae2-gap));
+  width: auto;
+  height: 42.6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(232, 244, 248, 0.72);
+}
+
+.rv-ae-tcb-fx-icon {
+  width: 21px;
+  height: 21px;
+}
+
+/* Panel indented so its content column lines up under the FX icon: the
+   margin (42.6px) plus the panel's own var(--ae2-gap) padding equals the FX
+   icon's calc(42.6px + var(--ae2-gap)) offset. */
+.rv-ae-tcb-panel {
+  margin: 2px 0 0 42.6px;
+  padding: var(--ae2-gap);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.rv-ae-tcb-toggle.is-active + .rv-ae-tcb-panel {
+  border-color: #8de7ff;
+}
+
+/* Audio Intelligence parameter icon — mirrors the FX icon's shrink-wrapped,
+   column-height treatment so it reads the same way left of its label and
+   dropdown; the picker row's own 8px gap matches the FX-to-dropdown gap. */
+.rv-ae-tcb-param-icon {
+  flex: 0 0 auto;
+  width: auto;
+  height: 42.6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(232, 244, 248, 0.72);
+}
+
+.rv-ae-tcb-group .rv-canvas-layer-effect-row--empty {
+  padding-top: 0;
+}
+
+.rv-ae-tcb-group .rv-canvas-layer-effect-remove {
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.rv-ae-tcb-group .rv-canvas-layer-effect-row:hover .rv-canvas-layer-effect-remove,
+.rv-ae-tcb-group .rv-canvas-layer-effect-remove:focus-visible {
+  opacity: 1;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    Add Effects — round-four concepts from written briefs: Reaction Strip,
    Sidecar Routing, Colored Effect Spine, Reactive Matrix.

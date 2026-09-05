@@ -1610,10 +1610,10 @@ function AECardToggle({ className, open, count, effectLabel, parentLabel, onTogg
   effectLabel: string
   parentLabel: string
   onToggle: () => void
-  variant?: 'chevron' | 'dashed-trigger'
+  variant?: 'chevron' | 'dashed-trigger' | 'plus-only'
 }) {
   const label = `${open ? 'Hide' : count ? 'Edit' : 'Add'} Audio Intelligence routes for ${effectLabel} on ${parentLabel}`
-  if (variant === 'dashed-trigger') {
+  if (variant === 'dashed-trigger' || variant === 'plus-only') {
     return (
       <button
         type="button"
@@ -1623,7 +1623,7 @@ function AECardToggle({ className, open, count, effectLabel, parentLabel, onTogg
         onClick={onToggle}
       >
         <PlusGlyphIcon size={10} />
-        {!count && 'Trigger'}
+        {variant === 'dashed-trigger' && !count && 'Trigger'}
       </button>
     )
   }
@@ -1652,6 +1652,7 @@ function AECardRoute({
   toggle,
   editorHandlers,
   toggleVariant,
+  pickerLeading,
 }: {
   ctx: AddEffectsRouteContext
   classPrefix: string
@@ -1663,7 +1664,8 @@ function AECardRoute({
     onRemoveParameter: (id: CanvasMockAudioIntelligenceParameterId) => void
     onSetIntensity: (id: CanvasMockAudioIntelligenceParameterId, value: number) => void
   }
-  toggleVariant?: 'chevron' | 'dashed-trigger'
+  toggleVariant?: 'chevron' | 'dashed-trigger' | 'plus-only'
+  pickerLeading?: ReactNode
 }) {
   const routes = routesFor(ctx.linkKey)
   const open = isOpenFor(ctx.linkKey)
@@ -1686,6 +1688,7 @@ function AECardRoute({
             parentLabel={ctx.parentLabel}
             showDots
             inlineParamRow
+            pickerLeading={pickerLeading}
             {...editorHandlers(ctx.linkKey)}
           />
         </div>
@@ -2028,6 +2031,70 @@ function AddEffectsThumbCardConcept({ state }: { state: CanvasMockState }) {
           emptyEffectLabelText="Effect"
           renderRoute={ctx => (
             <AECardRoute ctx={ctx} classPrefix="rv-ae-tc" routesFor={routesFor} isOpenFor={isOpenFor} toggle={toggle} editorHandlers={editorHandlers} toggleVariant="dashed-trigger" />
+          )}
+        />
+      )}
+    </ConceptGroup>
+  )
+}
+
+/** Concept — "Thumb Card B." Thumb Card with a single coloured left rule
+ * instead of the full card border, an icon-only ADD TRIGGER pulled left under
+ * the FX-icon column, and an Audio Intelligence parameter icon that lines up
+ * under that same column. */
+function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
+  const { routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  return (
+    <ConceptGroup
+      state={state}
+      label="Add Effects — Thumb Card B"
+      note="Thumb Card with a coloured left rule, an icon-only Add Trigger under the FX-icon column, and the Audio Intelligence parameter picker aligned to that same column. Concept only."
+    >
+      {(layer, layerIndex) => (
+        <AddEffectsLayerGroup
+          key={layer.mediaId}
+          state={state}
+          layer={layer}
+          layerIndex={layerIndex}
+          getGroupExtra={() => ({ className: 'rv-ae-tcb-group' })}
+          renderMediaRowLeading={mediaLayer => {
+            const media = state.mediaItems.find(item => item.id === mediaLayer.mediaId)
+            return (
+              <MediaThumbBox
+                key={mediaLayer.mediaId}
+                mediaName={mediaLayer.mediaName}
+                mediaType={media?.type ?? 'image'}
+              />
+            )
+          }}
+          getEntryExtra={() => ({ className: 'rv-ae-tcb-entry' })}
+          renderLeading={() => (
+            <span className="rv-ae-tcb-fx" aria-hidden="true">
+              <EffectFxIcon className="rv-ae-tcb-fx-icon" />
+            </span>
+          )}
+          renderEmptyLeading={() => (
+            <span className="rv-ae-tcb-fx" aria-hidden="true">
+              <EffectFxIcon className="rv-ae-tcb-fx-icon" />
+            </span>
+          )}
+          showEmptyEffectLabel
+          emptyEffectLabelText="Effect"
+          renderRoute={ctx => (
+            <AECardRoute
+              ctx={ctx}
+              classPrefix="rv-ae-tcb"
+              routesFor={routesFor}
+              isOpenFor={isOpenFor}
+              toggle={toggle}
+              editorHandlers={editorHandlers}
+              toggleVariant="plus-only"
+              pickerLeading={(
+                <span className="rv-ae-tcb-param-icon" aria-hidden="true">
+                  <EffectSparkleIcon size={21} />
+                </span>
+              )}
+            />
           )}
         />
       )}
@@ -2409,6 +2476,7 @@ function ReactMockup({ state }: { state: CanvasMockState }) {
           <AddEffectsNestedCardsConcept state={state} />
           <AddEffectsLedgerCardConcept state={state} />
           <AddEffectsThumbCardConcept state={state} />
+          <AddEffectsThumbCardBConcept state={state} />
           <AddEffectsReactionStripConcept state={state} />
           <AddEffectsSidecarConcept state={state} />
           <AddEffectsColoredSpineConcept state={state} />

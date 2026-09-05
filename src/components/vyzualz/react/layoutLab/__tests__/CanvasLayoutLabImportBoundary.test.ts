@@ -129,6 +129,7 @@ const REQUIRED_LABELS = [
   'Add Effects — Nested Cards',
   'Add Effects — Ledger Card',
   'Add Effects — Thumb Card',
+  'Add Effects — Thumb Card B',
   'Add Effects — Reaction Strip',
   'Add Effects — Sidecar Routing',
   'Add Effects — Colored Effect Spine',

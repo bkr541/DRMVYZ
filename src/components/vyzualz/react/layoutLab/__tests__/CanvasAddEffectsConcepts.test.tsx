@@ -140,6 +140,7 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
     { headerText: 'Header Strip', noteFragment: 'full-bleed tinted band', toggle: '.rv-ae-hs-toggle' },
     { headerText: 'Ledger Card', noteFragment: 'two-rail table', toggle: '.rv-ae-lc-toggle' },
     { headerText: 'Thumb Card', noteFragment: "media's square thumbnail with its name", toggle: '.rv-ae-tc-toggle' },
+    { headerText: 'Thumb Card B', noteFragment: 'coloured left rule', toggle: '.rv-ae-tcb-toggle' },
   ]
 
   for (const concept of [...roundTwo, ...roundThree]) {
