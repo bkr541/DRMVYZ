@@ -1653,6 +1653,7 @@ function AECardRoute({
   editorHandlers,
   toggleVariant,
   pickerLeading,
+  routeClassName,
 }: {
   ctx: AddEffectsRouteContext
   classPrefix: string
@@ -1666,10 +1667,13 @@ function AECardRoute({
   }
   toggleVariant?: 'chevron' | 'dashed-trigger' | 'plus-only'
   pickerLeading?: ReactNode
+  /** When set, wrap the toggle + panel in one element so a concept can lay
+   *  them out together (e.g. side by side instead of stacked). */
+  routeClassName?: string
 }) {
   const routes = routesFor(ctx.linkKey)
   const open = isOpenFor(ctx.linkKey)
-  return (
+  const body = (
     <>
       <AECardToggle
         className={`${classPrefix}-toggle`}
@@ -1695,6 +1699,7 @@ function AECardRoute({
       )}
     </>
   )
+  return routeClassName ? <div className={routeClassName}>{body}</div> : body
 }
 
 /** FX icon — sits left of an Effect dropdown. Light gray while that dropdown
@@ -2089,6 +2094,7 @@ function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
               toggle={toggle}
               editorHandlers={editorHandlers}
               toggleVariant="plus-only"
+              routeClassName="rv-ae-tcb-route"
               pickerLeading={(
                 <span className="rv-ae-tcb-param-icon" aria-hidden="true">
                   <EffectSparkleIcon size={21} />
