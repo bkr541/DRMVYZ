@@ -437,8 +437,11 @@ export class ElectricStormStrikeGenerator {
   ): ElectricStormStrikeDescriptor[] {
     const bucketSeed = hash32(seed ^ Math.imul(bucket + 29, 0x9e3779b1))
     const opportunity = random01(bucketSeed ^ 0x68bc21eb)
-    const probability = mix(0.18, 0.88, rate)
-    if (opportunity > probability) return []
+    // Floor is 0 (not a fixed baseline) so Strike Rate 0% truly stops autonomous
+    // strikes instead of retaining a minimum chance; the low end still yields
+    // genuinely rare strikes since probability scales continuously from zero.
+    const probability = mix(0, 0.88, rate)
+    if (rate <= 0 || opportunity > probability) return []
 
     let count = 1
     if (rate > 0.55 && random01(bucketSeed ^ 0x02e5be93) < (rate - 0.45) * 0.65) count += 1

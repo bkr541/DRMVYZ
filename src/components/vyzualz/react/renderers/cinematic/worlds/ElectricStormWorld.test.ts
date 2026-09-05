@@ -298,6 +298,56 @@ describe('Electric Storm Stage 3 world', () => {
     expect(transientIntent?.durationScale).toBeLessThan(1)
   })
 
+  it('produces zero foreground-strike intents at Strike Rate 0% even with every audio-reactive path active at once', () => {
+    const zeroRate = { ...ELECTRIC_STORM_DEFAULTS, strikeRate: 0, masterIntensity: 1 }
+    for (let seed = 0; seed < 8; seed += 1) {
+      const choreographer = new ElectricStormAudioChoreographer({ sessionSeed: 0x9000 + seed })
+      for (let index = 0; index < 24; index += 1) {
+        const result = choreographer.update(choreographyFrame({
+          frameIndex: index,
+          beatIndex: index,
+          timeSec: index * 0.1,
+          kick: true,
+          kickEventId: `zero-kick-${seed}-${index}`,
+          drop: index === 12,
+          dropEventId: index === 12 ? `zero-drop-${seed}` : null,
+          bass: 1,
+          mid: 1,
+          highs: 1,
+          transient: 1,
+          transientEventId: `zero-transient-${seed}-${index}`,
+          build: 1,
+          energy: 1,
+        }), zeroRate)
+        expect(result.intents).toHaveLength(0)
+      }
+    }
+  })
+
+  it('scales autonomous strike probability continuously from zero (no dead zone) up to full aggression at 100%', () => {
+    const activeAt = (rate: number, seedBase: number, steps = 400): number => {
+      let activeSteps = 0
+      const generator = new ElectricStormStrikeGenerator({ sessionSeed: seedBase })
+      for (let step = 0; step < steps; step += 1) {
+        if (generator.update(step * 0.43, rate).length > 0) activeSteps += 1
+      }
+      return activeSteps
+    }
+
+    for (let seedBase = 1; seedBase <= 4; seedBase += 1) {
+      expect(activeAt(0, seedBase)).toBe(0)
+    }
+
+    const lowRateActivity = [1, 2, 3, 4].map(seedBase => activeAt(0.03, seedBase))
+    const totalLowRateActivity = lowRateActivity.reduce((sum, value) => sum + value, 0)
+    // Rare, not zero, and not anywhere near the fully-aggressive baseline.
+    expect(totalLowRateActivity).toBeGreaterThan(0)
+
+    const fullRateActivity = [1, 2, 3, 4].map(seedBase => activeAt(1, seedBase))
+    const totalFullRateActivity = fullRateActivity.reduce((sum, value) => sum + value, 0)
+    expect(totalFullRateActivity).toBeGreaterThan(totalLowRateActivity * 5)
+  })
+
   it('increases storm activity/detail through build progression and caps drop hero groups', () => {
     const lowBuild = new ElectricStormAudioChoreographer({ sessionSeed: 91 }).update(choreographyFrame({ build: 0, highs: 0.65, energy: 0.6 }), ELECTRIC_STORM_DEFAULTS)
     const highBuild = new ElectricStormAudioChoreographer({ sessionSeed: 91 }).update(choreographyFrame({ build: 1, highs: 0.65, energy: 0.6 }), ELECTRIC_STORM_DEFAULTS)
@@ -319,10 +369,37 @@ describe('Electric Storm Stage 3 world', () => {
     expect(hero?.power).toBeLessThanOrEqual(1)
   })
 
-  it('implements Impact Shake and Zoom Punch as bounded shader-space UV transforms', () => {
-    expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('clamp(uImpactShake, 0.0, 1.0) * impact * 0.012')
-    expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('clamp(uZoomPunch, 0.0, 1.0) * impact * 0.075')
+  it('implements Impact Shake and Zoom Punch as bounded, nonlinear shader-space UV transforms', () => {
+    expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('float stormImpactCurve(float value) {')
+    expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('stormImpactCurve(uImpactShake) * impact * 0.05')
+    expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('stormImpactCurve(uZoomPunch) * impact * 0.16')
     expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('uv = vec2(0.5) + (uv - vec2(0.5)) * zoomScale + shake;')
+  })
+
+  it('gives Impact Shake and Zoom Punch a nonlinear response so 100% is meaningfully stronger than a linear scale', () => {
+    // Mirrors the shader's stormImpactCurve(t) = t*t and the constants above,
+    // so a change to either side of this relationship is caught here.
+    const stormImpactCurve = (t: number) => Math.max(0, Math.min(1, t)) ** 2
+    const shakeDisplacement = (slider: number, impact: number) => stormImpactCurve(slider) * impact * 0.05
+    const zoomAmount = (slider: number, impact: number) => stormImpactCurve(slider) * impact * 0.16
+
+    const heroImpactPeak = 0.82 // ~ strikeImpactStrength() ceiling for a full-power hero strike
+    const progression = [0, 0.25, 0.5, 0.75, 1].map(slider => shakeDisplacement(slider, heroImpactPeak))
+    expect(progression[0]).toBe(0)
+    for (let index = 1; index < progression.length; index += 1) {
+      expect(progression[index]).toBeGreaterThan(progression[index - 1])
+    }
+    // Upper-quarter ramp: the last step must grow more than the first step,
+    // proving the curve is not linear (a linear scale would make every step equal).
+    expect(progression[4] - progression[3]).toBeGreaterThan(progression[1] - progression[0])
+
+    const oldMaxShake = 1 * heroImpactPeak * 0.012
+    const oldMaxZoom = 1 * heroImpactPeak * 0.075
+    expect(shakeDisplacement(1, heroImpactPeak)).toBeGreaterThan(oldMaxShake * 3)
+    expect(zoomAmount(1, heroImpactPeak)).toBeGreaterThan(oldMaxZoom * 1.5)
+
+    // Zoom must never invert or exceed a safe bound, even at the theoretical max.
+    expect(1 - zoomAmount(1, 1)).toBeGreaterThan(0.8)
   })
 
   it('uses the real fullscreen WebGL production definition with no 3D or generic route-modulation contract', () => {

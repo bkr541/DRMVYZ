@@ -506,7 +506,7 @@ export function CinematicWorldsFxControls() {
 
       {config.worldMode === 'reactiveConstellation' && uiMode === 'simple' && <ReactiveConstellationMacroControls config={config} onChange={save} />}
 
-      {uiMode === 'advanced' && (
+      {uiMode === 'advanced' && config.worldMode !== 'electricStorm' && (
         <>
           <Collapsible label="Environment" defaultOpen>
             {Object.entries(config.environment).map(([key, value]) => {

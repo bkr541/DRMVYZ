@@ -343,6 +343,15 @@ describe('Cinema Cinematic World adapters', () => {
     expect(harness.executor.render(frame(2, false, true))).toBe(true)
     expect(harness.executor.render(frame(3))).toBe(true)
     expect(harness.executor.render(frame(4, false, false, { bar4: true }))).toBe(true)
+    // Strike Rate now genuinely gates kick-driven strikes (Issue 1 fix), so a
+    // single forced kick is an intentionally uncertain trial at this preset's
+    // default 50% Strike Rate. Render many independent kick onsets (kick must
+    // toggle off between them — ElectricStormAudioChoreographer dedupes a
+    // sustained "active" kick to one event) so at least one real strike is
+    // certain regardless of this run's random strike-generator session seed.
+    for (let generation = 5; generation < 125; generation += 1) {
+      expect(harness.executor.render(frame(generation, false, false, { kick: generation % 2 === 1 }))).toBe(true)
+    }
     const uniformLocationCalls = vi.mocked(harness.gl.getUniformLocation).mock.calls as unknown as Array<[WebGLProgram, string]>
     expect(uniformLocationCalls.map(([, name]) => name)).toEqual(expect.arrayContaining([
       'uStrikeStyle0', 'uStrikeStyle1', 'uStrikeStyle2',

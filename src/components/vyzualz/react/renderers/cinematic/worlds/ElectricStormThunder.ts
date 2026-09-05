@@ -25,10 +25,20 @@ export interface ElectricStormThunderFrame {
   eventKey: string | null
 }
 
+/** Retriggering never lets the flash occupy more of the gap since the last
+ *  trigger than this fraction, so a pulse always visibly returns most of the
+ *  way toward dark before the next one starts — even at a fast, steady
+ *  cadence like Beat. */
+const RETRIGGER_RECOVERY_FRACTION = 0.85
+const RETRIGGER_MIN_ENVELOPE_SEC = 0.03
+
 export class ElectricStormThunderController {
   private elapsedSec = Number.POSITIVE_INFINITY
   private active = false
   private energyArmed = true
+  private lastTriggerAtSec: number | null = null
+  private currentHoldSec = 0
+  private currentDecaySec = 0
   private readonly recentEventKeys = new Set<string>()
   private readonly recentEventOrder: string[] = []
 
@@ -41,6 +51,12 @@ export class ElectricStormThunderController {
     const eventKey = frame.isPlaying === false ? null : this.resolveEventKey(frame, settings.thunderTrigger)
     const started = eventKey !== null && this.consume(eventKey)
     if (started) {
+      const nowSec = Number.isFinite(frame.transportTimeSec) ? frame.transportTimeSec : 0
+      const sinceLastSec = this.lastTriggerAtSec === null ? Number.POSITIVE_INFINITY : Math.max(0, nowSec - this.lastTriggerAtSec)
+      this.lastTriggerAtSec = nowSec
+      const envelope = this.retriggerEnvelope(settings, sinceLastSec)
+      this.currentHoldSec = envelope.holdSec
+      this.currentDecaySec = envelope.decaySec
       this.active = true
       this.elapsedSec = 0
     }
@@ -54,6 +70,9 @@ export class ElectricStormThunderController {
     this.elapsedSec = Number.POSITIVE_INFINITY
     this.active = false
     this.energyArmed = true
+    this.lastTriggerAtSec = null
+    this.currentHoldSec = 0
+    this.currentDecaySec = 0
     this.recentEventKeys.clear()
     this.recentEventOrder.length = 0
   }
@@ -92,11 +111,36 @@ export class ElectricStormThunderController {
     return true
   }
 
+  /**
+   * Compresses the authored hold+decay to fit within the gap since the
+   * previous trigger, so a fast, steady cadence (e.g. Beat) always produces a
+   * pulse that finishes — rather than being restarted by the next trigger
+   * before it can decay, which is what previously pinned the illumination
+   * near its peak. A slow cadence (4 Bars, Phrase, Drop, or the very first
+   * trigger) has far more gap than the desired envelope needs, so the
+   * authored Duration/Decay pass through unchanged and long flashes stay
+   * long.
+   */
+  private retriggerEnvelope(
+    settings: Readonly<ElectricStormSettings>,
+    sinceLastSec: number,
+  ): { holdSec: number; decaySec: number } {
+    const desiredHoldSec = mix(0.035, 0.28, clamp01(settings.flashDuration))
+    const desiredDecaySec = mix(0.08, 0.9, clamp01(settings.flashDecay))
+    const desiredTotalSec = desiredHoldSec + desiredDecaySec
+    if (!Number.isFinite(sinceLastSec)) return { holdSec: desiredHoldSec, decaySec: desiredDecaySec }
+    const budgetSec = Math.max(RETRIGGER_MIN_ENVELOPE_SEC, sinceLastSec * RETRIGGER_RECOVERY_FRACTION)
+    if (desiredTotalSec <= budgetSec) return { holdSec: desiredHoldSec, decaySec: desiredDecaySec }
+    const scale = budgetSec / desiredTotalSec
+    return { holdSec: desiredHoldSec * scale, decaySec: desiredDecaySec * scale }
+  }
+
   private envelope(settings: Readonly<ElectricStormSettings>): number {
     const intensity = clamp01(settings.flashIntensity)
-    const holdSec = mix(0.035, 0.28, clamp01(settings.flashDuration))
-    const decaySec = mix(0.08, 0.9, clamp01(settings.flashDecay))
+    const holdSec = this.currentHoldSec
+    const decaySec = this.currentDecaySec
     if (this.elapsedSec <= holdSec) return intensity
+    if (decaySec <= 0) return 0
     const decayProgress = (this.elapsedSec - holdSec) / decaySec
     if (decayProgress >= 1) return 0
     return intensity * Math.pow(1 - Math.max(0, decayProgress), 2)

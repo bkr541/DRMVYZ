@@ -135,15 +135,24 @@ vec3 renderStrike(vec2 p, vec4 line, vec4 meta, vec4 style, float slot) {
   return color * envelope;
 }
 
+// Nonlinear slider response for Impact Shake / Zoom Punch: the lower half
+// stays controlled while the upper 25-30% ramps considerably harder, giving
+// the top of the slider real headroom instead of a linear scale that makes
+// 100% barely stronger than 50%.
+float stormImpactCurve(float value) {
+  float t = clamp(value, 0.0, 1.0);
+  return t * t;
+}
+
 void main() {
   vec2 uv = v_uv;
   float impact = clamp(uImpactStrength, 0.0, 1.0);
-  float shakeAmount = clamp(uImpactShake, 0.0, 1.0) * impact * 0.012;
+  float shakeAmount = stormImpactCurve(uImpactShake) * impact * 0.05;
   vec2 shake = vec2(
     sin(uTime * 91.0 + 0.7) + sin(uTime * 137.0 + 2.1) * 0.45,
     cos(uTime * 103.0 + 1.3) + cos(uTime * 149.0 + 0.4) * 0.45
   ) * shakeAmount;
-  float zoomScale = 1.0 - clamp(uZoomPunch, 0.0, 1.0) * impact * 0.075;
+  float zoomScale = 1.0 - stormImpactCurve(uZoomPunch) * impact * 0.16;
   uv = vec2(0.5) + (uv - vec2(0.5)) * zoomScale + shake;
   vec2 p = uv * 2.0 - 1.0;
   p.x *= uResolution.x / max(1.0, uResolution.y);

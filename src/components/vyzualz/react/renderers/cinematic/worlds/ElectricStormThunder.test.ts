@@ -12,6 +12,7 @@ type ClockName = keyof NonNullable<CinematicFrameContext['canonicalMusic']>['clo
 function thunderFrame(input: {
   frameIndex?: number
   deltaTimeSec?: number
+  transportTimeSec?: number
   clock?: ClockName
   clockHit?: boolean
   clockEventId?: string
@@ -34,6 +35,7 @@ function thunderFrame(input: {
   return {
     frameIndex,
     deltaTimeSec: input.deltaTimeSec ?? 1 / 60,
+    transportTimeSec: input.transportTimeSec ?? 0,
     presetId: 'preset-electric-storm',
     isPlaying: input.playing ?? true,
     audio: { smoothed: { volume: input.energy ?? 0.4 } },
@@ -135,5 +137,57 @@ describe('Electric Storm thunder controller', () => {
     const quickAtPoint = quickDecay.update(thunderFrame({ frameIndex: 3, deltaTimeSec: 0.1 }), settings({ flashDuration: 0, flashDecay: 0 })).illumination
     const slowAtPoint = slowDecay.update(thunderFrame({ frameIndex: 3, deltaTimeSec: 0.1 }), settings({ flashDuration: 0, flashDecay: 1 })).illumination
     expect(slowAtPoint).toBeGreaterThan(quickAtPoint)
+  })
+
+  it('compresses the envelope on a fast, steady cadence so illumination fully recovers between pulses instead of staying near peak (Beat + max Duration/Decay)', () => {
+    const controller = new ElectricStormThunderController()
+    const maxFlash = settings({ thunderTrigger: 'beat', flashIntensity: 1, flashDuration: 1, flashDecay: 1 })
+    const beatIntervalSec = 0.5
+
+    // First beat: nothing to compress against yet, full authored envelope plays.
+    controller.update(thunderFrame({ frameIndex: 0, transportTimeSec: 0, clock: 'beat', clockEventId: 'beat-0' }), maxFlash)
+    // Second beat retriggers before the first's 1.18s (0.28 hold + 0.9 decay) envelope would have finished.
+    const secondStart = controller.update(thunderFrame({ frameIndex: 1, transportTimeSec: beatIntervalSec, clock: 'beat', clockEventId: 'beat-1' }), maxFlash)
+    expect(secondStart.illumination).toBeCloseTo(1, 5)
+
+    // Sampled just before the third beat would arrive: a real thunder pulse
+    // must have visibly returned toward dark by now, not stayed near peak.
+    // Stepped in small increments since update() clamps deltaTimeSec to 0.25s.
+    const stepSec = 0.05
+    let justBeforeThirdBeat = secondStart
+    for (let elapsed = stepSec; elapsed < beatIntervalSec - 0.01; elapsed += stepSec) {
+      justBeforeThirdBeat = controller.update(
+        thunderFrame({ frameIndex: 2, transportTimeSec: beatIntervalSec + elapsed, deltaTimeSec: stepSec }),
+        maxFlash,
+      )
+    }
+    expect(justBeforeThirdBeat.started).toBe(false)
+    expect(justBeforeThirdBeat.illumination).toBeLessThan(0.05)
+  })
+
+  it('leaves the authored envelope uncompressed on a slow cadence (8+ second gap), so long Duration/Decay still produce long flashes', () => {
+    const controller = new ElectricStormThunderController()
+    const maxFlash = settings({ thunderTrigger: 'beat', flashIntensity: 1, flashDuration: 1, flashDecay: 1 })
+    const slowGapSec = 8
+
+    controller.update(thunderFrame({ frameIndex: 0, transportTimeSec: 0, clock: 'beat', clockEventId: 'slow-0' }), maxFlash)
+    controller.update(thunderFrame({ frameIndex: 1, transportTimeSec: slowGapSec, clock: 'beat', clockEventId: 'slow-1' }), maxFlash)
+
+    // Authored hold is 0.28s; well within that after the second (retriggered)
+    // pulse, illumination should still be sitting at full intensity, proving
+    // the hold/decay were not scaled down just because a retrigger occurred.
+    const withinHold = controller.update(
+      thunderFrame({ frameIndex: 2, transportTimeSec: slowGapSec + 0.25, deltaTimeSec: 0.25 }),
+      maxFlash,
+    )
+    expect(withinHold.illumination).toBeCloseTo(1, 5)
+
+    // Still well inside the authored 0.9s decay tail (started at hold end,
+    // 0.28s after the trigger) — a compressed envelope would already be dark.
+    const midDecay = controller.update(
+      thunderFrame({ frameIndex: 3, transportTimeSec: slowGapSec + 0.28 + 0.4, deltaTimeSec: 0.4 }),
+      maxFlash,
+    )
+    expect(midDecay.illumination).toBeGreaterThan(0.1)
   })
 })

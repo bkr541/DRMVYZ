@@ -1,0 +1,437 @@
+diff --git a/src/components/vyzualz/cinema/__tests__/CinemaCinematicWorldAdapter.test.ts b/src/components/vyzualz/cinema/__tests__/CinemaCinematicWorldAdapter.test.ts
+index 1c609072..57f82125 100644
+--- a/src/components/vyzualz/cinema/__tests__/CinemaCinematicWorldAdapter.test.ts
++++ b/src/components/vyzualz/cinema/__tests__/CinemaCinematicWorldAdapter.test.ts
+@@ -343,6 +343,15 @@ describe('Cinema Cinematic World adapters', () => {
+     expect(harness.executor.render(frame(2, false, true))).toBe(true)
+     expect(harness.executor.render(frame(3))).toBe(true)
+     expect(harness.executor.render(frame(4, false, false, { bar4: true }))).toBe(true)
++    // Strike Rate now genuinely gates kick-driven strikes (Issue 1 fix), so a
++    // single forced kick is an intentionally uncertain trial at this preset's
++    // default 50% Strike Rate. Render many independent kick onsets (kick must
++    // toggle off between them — ElectricStormAudioChoreographer dedupes a
++    // sustained "active" kick to one event) so at least one real strike is
++    // certain regardless of this run's random strike-generator session seed.
++    for (let generation = 5; generation < 125; generation += 1) {
++      expect(harness.executor.render(frame(generation, false, false, { kick: generation % 2 === 1 }))).toBe(true)
++    }
+     const uniformLocationCalls = vi.mocked(harness.gl.getUniformLocation).mock.calls as unknown as Array<[WebGLProgram, string]>
+     expect(uniformLocationCalls.map(([, name]) => name)).toEqual(expect.arrayContaining([
+       'uStrikeStyle0', 'uStrikeStyle1', 'uStrikeStyle2',
+diff --git a/src/components/vyzualz/react/CinematicWorldsControls.tsx b/src/components/vyzualz/react/CinematicWorldsControls.tsx
+index 007ffc31..36c75b0f 100644
+--- a/src/components/vyzualz/react/CinematicWorldsControls.tsx
++++ b/src/components/vyzualz/react/CinematicWorldsControls.tsx
+@@ -506,7 +506,7 @@ export function CinematicWorldsFxControls() {
+ 
+       {config.worldMode === 'reactiveConstellation' && uiMode === 'simple' && <ReactiveConstellationMacroControls config={config} onChange={save} />}
+ 
+-      {uiMode === 'advanced' && (
++      {uiMode === 'advanced' && config.worldMode !== 'electricStorm' && (
+         <>
+           <Collapsible label="Environment" defaultOpen>
+             {Object.entries(config.environment).map(([key, value]) => {
+diff --git a/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormAudioChoreography.ts b/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormAudioChoreography.ts
+index b09e6728..2c4a4fc4 100644
+--- a/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormAudioChoreography.ts
++++ b/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormAudioChoreography.ts
+@@ -97,12 +97,18 @@ export class ElectricStormAudioChoreographer {
+     const authority = clamp01(settings.masterIntensity * 0.42 + settings.strikeRate * 0.58)
+     const strikeRate = clamp01(settings.strikeRate * (0.72 + energy * 0.22 + build * 0.3))
+     const audioDetail = clamp01(highs * 0.48 + build * 0.38 + energy * 0.14)
++    // Every automatic foreground-strike path below is additionally gated by
++    // this factor so Strike Rate 0% suppresses audio-reactive strikes too
++    // (each path previously kept a non-zero probability floor of its own),
++    // while a full-rate slider leaves each path's existing probability
++    // unchanged (multiplying by 1 is a no-op).
++    const rateGate = clamp01(settings.strikeRate)
+     const intents: ElectricStormStrikeIntent[] = []
+ 
+     const kickActive = audio.events.kick || frame.canonicalMusic?.impulses.kick.active === true
+     const kickKey = this.resolveEventKey(frame, 'kick', kickActive)
+     if (kickKey && this.consumeEvent(kickKey)) {
+-      const probability = clamp01((0.12 + settings.strikeRate * 0.42 + settings.masterIntensity * 0.18 + energy * 0.18) * mix(0.45, 1, authority))
++      const probability = clamp01((0.12 + settings.strikeRate * 0.42 + settings.masterIntensity * 0.18 + energy * 0.18) * mix(0.45, 1, authority)) * rateGate
+       const gate = random01(this.sessionSeed ^ hashString(kickKey) ^ 0x63d83595)
+       if (gate < probability) {
+         intents.push({
+@@ -116,25 +122,31 @@ export class ElectricStormAudioChoreographer {
+     const dropActive = audio.events.dropEntry || frame.canonicalMusic?.impulses.dropStart.active === true
+     const dropKey = this.resolveEventKey(frame, 'dropStart', dropActive)
+     if (dropKey && this.consumeEvent(dropKey)) {
+-      const count = authority > 0.72 && (energy > 0.68 || build > 0.76) ? 3 : authority > 0.34 ? 2 : 1
+-      intents.push({
+-        tier: 'hero',
+-        power: clamp01(0.5 + bass * 0.3 + Math.max(dropState, energy) * 0.2),
+-        detail: clamp01(0.58 + highs * 0.2 + build * 0.22),
+-        count,
+-      })
++      const dropGate = random01(this.sessionSeed ^ hashString(dropKey) ^ 0x2545f491)
++      if (dropGate < rateGate) {
++        const count = authority > 0.72 && (energy > 0.68 || build > 0.76) ? 3 : authority > 0.34 ? 2 : 1
++        intents.push({
++          tier: 'hero',
++          power: clamp01(0.5 + bass * 0.3 + Math.max(dropState, energy) * 0.2),
++          detail: clamp01(0.58 + highs * 0.2 + build * 0.22),
++          count,
++        })
++      }
+     }
+ 
+     const transientNow = frame.canonicalMusic?.impulses.transient.active === true || transient > 0.72
+     const transientKey = this.resolveEventKey(frame, 'transient', transientNow)
+     if (transientNow && !this.transientActive && transientKey && authority > 0.08) {
+       if (this.consumeEvent(transientKey)) {
+-        intents.push({
+-          tier: transient > 0.9 && mids > 0.62 ? 'medium' : 'micro',
+-          power: clamp01(0.28 + transient * 0.52 + highs * 0.2),
+-          detail: clamp01(0.5 + highs * 0.5),
+-          durationScale: 0.58,
+-        })
++        const transientGate = random01(this.sessionSeed ^ hashString(transientKey) ^ 0x9e3779b1)
++        if (transientGate < rateGate) {
++          intents.push({
++            tier: transient > 0.9 && mids > 0.62 ? 'medium' : 'micro',
++            power: clamp01(0.28 + transient * 0.52 + highs * 0.2),
++            detail: clamp01(0.5 + highs * 0.5),
++            durationScale: 0.58,
++          })
++        }
+       }
+     }
+     this.transientActive = transientNow
+@@ -145,7 +157,7 @@ export class ElectricStormAudioChoreographer {
+       if (bucket !== this.mediumBucket) {
+         this.mediumBucket = bucket
+         const gate = random01(this.sessionSeed ^ hash32(bucket + 0x51ed270b))
+-        const probability = clamp01((mids - 0.36) * (0.42 + settings.strikeRate * 0.45 + build * 0.28))
++        const probability = clamp01((mids - 0.36) * (0.42 + settings.strikeRate * 0.45 + build * 0.28)) * rateGate
+         if (gate < probability) {
+           intents.push({
+             tier: 'medium',
+@@ -162,7 +174,7 @@ export class ElectricStormAudioChoreographer {
+       if (bucket !== this.microBucket) {
+         this.microBucket = bucket
+         const gate = random01(this.sessionSeed ^ hash32(bucket + 0x94d049bb))
+-        const probability = clamp01((highs - 0.4) * (0.55 + settings.strikeRate * 0.35 + build * 0.4))
++        const probability = clamp01((highs - 0.4) * (0.55 + settings.strikeRate * 0.35 + build * 0.4)) * rateGate
+         if (gate < probability) {
+           intents.push({
+             tier: 'micro',
+diff --git a/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormShader.ts b/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormShader.ts
+index e9d773cf..2f4b1f17 100644
+--- a/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormShader.ts
++++ b/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormShader.ts
+@@ -135,15 +135,24 @@ vec3 renderStrike(vec2 p, vec4 line, vec4 meta, vec4 style, float slot) {
+   return color * envelope;
+ }
+ 
++// Nonlinear slider response for Impact Shake / Zoom Punch: the lower half
++// stays controlled while the upper 25-30% ramps considerably harder, giving
++// the top of the slider real headroom instead of a linear scale that makes
++// 100% barely stronger than 50%.
++float stormImpactCurve(float value) {
++  float t = clamp(value, 0.0, 1.0);
++  return t * t;
++}
++
+ void main() {
+   vec2 uv = v_uv;
+   float impact = clamp(uImpactStrength, 0.0, 1.0);
+-  float shakeAmount = clamp(uImpactShake, 0.0, 1.0) * impact * 0.012;
++  float shakeAmount = stormImpactCurve(uImpactShake) * impact * 0.05;
+   vec2 shake = vec2(
+     sin(uTime * 91.0 + 0.7) + sin(uTime * 137.0 + 2.1) * 0.45,
+     cos(uTime * 103.0 + 1.3) + cos(uTime * 149.0 + 0.4) * 0.45
+   ) * shakeAmount;
+-  float zoomScale = 1.0 - clamp(uZoomPunch, 0.0, 1.0) * impact * 0.075;
++  float zoomScale = 1.0 - stormImpactCurve(uZoomPunch) * impact * 0.16;
+   uv = vec2(0.5) + (uv - vec2(0.5)) * zoomScale + shake;
+   vec2 p = uv * 2.0 - 1.0;
+   p.x *= uResolution.x / max(1.0, uResolution.y);
+diff --git a/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormStrikeGenerator.ts b/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormStrikeGenerator.ts
+index 259f93e2..8e7cdc4e 100644
+--- a/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormStrikeGenerator.ts
++++ b/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormStrikeGenerator.ts
+@@ -437,8 +437,11 @@ export class ElectricStormStrikeGenerator {
+   ): ElectricStormStrikeDescriptor[] {
+     const bucketSeed = hash32(seed ^ Math.imul(bucket + 29, 0x9e3779b1))
+     const opportunity = random01(bucketSeed ^ 0x68bc21eb)
+-    const probability = mix(0.18, 0.88, rate)
+-    if (opportunity > probability) return []
++    // Floor is 0 (not a fixed baseline) so Strike Rate 0% truly stops autonomous
++    // strikes instead of retaining a minimum chance; the low end still yields
++    // genuinely rare strikes since probability scales continuously from zero.
++    const probability = mix(0, 0.88, rate)
++    if (rate <= 0 || opportunity > probability) return []
+ 
+     let count = 1
+     if (rate > 0.55 && random01(bucketSeed ^ 0x02e5be93) < (rate - 0.45) * 0.65) count += 1
+diff --git a/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormThunder.test.ts b/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormThunder.test.ts
+index 1ae878fb..dc54bd3c 100644
+--- a/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormThunder.test.ts
++++ b/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormThunder.test.ts
+@@ -12,6 +12,7 @@ type ClockName = keyof NonNullable<CinematicFrameContext['canonicalMusic']>['clo
+ function thunderFrame(input: {
+   frameIndex?: number
+   deltaTimeSec?: number
++  transportTimeSec?: number
+   clock?: ClockName
+   clockHit?: boolean
+   clockEventId?: string
+@@ -34,6 +35,7 @@ function thunderFrame(input: {
+   return {
+     frameIndex,
+     deltaTimeSec: input.deltaTimeSec ?? 1 / 60,
++    transportTimeSec: input.transportTimeSec ?? 0,
+     presetId: 'preset-electric-storm',
+     isPlaying: input.playing ?? true,
+     audio: { smoothed: { volume: input.energy ?? 0.4 } },
+@@ -136,4 +138,56 @@ describe('Electric Storm thunder controller', () => {
+     const slowAtPoint = slowDecay.update(thunderFrame({ frameIndex: 3, deltaTimeSec: 0.1 }), settings({ flashDuration: 0, flashDecay: 1 })).illumination
+     expect(slowAtPoint).toBeGreaterThan(quickAtPoint)
+   })
++
++  it('compresses the envelope on a fast, steady cadence so illumination fully recovers between pulses instead of staying near peak (Beat + max Duration/Decay)', () => {
++    const controller = new ElectricStormThunderController()
++    const maxFlash = settings({ thunderTrigger: 'beat', flashIntensity: 1, flashDuration: 1, flashDecay: 1 })
++    const beatIntervalSec = 0.5
++
++    // First beat: nothing to compress against yet, full authored envelope plays.
++    controller.update(thunderFrame({ frameIndex: 0, transportTimeSec: 0, clock: 'beat', clockEventId: 'beat-0' }), maxFlash)
++    // Second beat retriggers before the first's 1.18s (0.28 hold + 0.9 decay) envelope would have finished.
++    const secondStart = controller.update(thunderFrame({ frameIndex: 1, transportTimeSec: beatIntervalSec, clock: 'beat', clockEventId: 'beat-1' }), maxFlash)
++    expect(secondStart.illumination).toBeCloseTo(1, 5)
++
++    // Sampled just before the third beat would arrive: a real thunder pulse
++    // must have visibly returned toward dark by now, not stayed near peak.
++    // Stepped in small increments since update() clamps deltaTimeSec to 0.25s.
++    const stepSec = 0.05
++    let justBeforeThirdBeat = secondStart
++    for (let elapsed = stepSec; elapsed < beatIntervalSec - 0.01; elapsed += stepSec) {
++      justBeforeThirdBeat = controller.update(
++        thunderFrame({ frameIndex: 2, transportTimeSec: beatIntervalSec + elapsed, deltaTimeSec: stepSec }),
++        maxFlash,
++      )
++    }
++    expect(justBeforeThirdBeat.started).toBe(false)
++    expect(justBeforeThirdBeat.illumination).toBeLessThan(0.05)
++  })
++
++  it('leaves the authored envelope uncompressed on a slow cadence (8+ second gap), so long Duration/Decay still produce long flashes', () => {
++    const controller = new ElectricStormThunderController()
++    const maxFlash = settings({ thunderTrigger: 'beat', flashIntensity: 1, flashDuration: 1, flashDecay: 1 })
++    const slowGapSec = 8
++
++    controller.update(thunderFrame({ frameIndex: 0, transportTimeSec: 0, clock: 'beat', clockEventId: 'slow-0' }), maxFlash)
++    controller.update(thunderFrame({ frameIndex: 1, transportTimeSec: slowGapSec, clock: 'beat', clockEventId: 'slow-1' }), maxFlash)
++
++    // Authored hold is 0.28s; well within that after the second (retriggered)
++    // pulse, illumination should still be sitting at full intensity, proving
++    // the hold/decay were not scaled down just because a retrigger occurred.
++    const withinHold = controller.update(
++      thunderFrame({ frameIndex: 2, transportTimeSec: slowGapSec + 0.25, deltaTimeSec: 0.25 }),
++      maxFlash,
++    )
++    expect(withinHold.illumination).toBeCloseTo(1, 5)
++
++    // Still well inside the authored 0.9s decay tail (started at hold end,
++    // 0.28s after the trigger) — a compressed envelope would already be dark.
++    const midDecay = controller.update(
++      thunderFrame({ frameIndex: 3, transportTimeSec: slowGapSec + 0.28 + 0.4, deltaTimeSec: 0.4 }),
++      maxFlash,
++    )
++    expect(midDecay.illumination).toBeGreaterThan(0.1)
++  })
+ })
+diff --git a/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormThunder.ts b/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormThunder.ts
+index 10d23dd0..d74c288f 100644
+--- a/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormThunder.ts
++++ b/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormThunder.ts
+@@ -25,10 +25,20 @@ export interface ElectricStormThunderFrame {
+   eventKey: string | null
+ }
+ 
++/** Retriggering never lets the flash occupy more of the gap since the last
++ *  trigger than this fraction, so a pulse always visibly returns most of the
++ *  way toward dark before the next one starts — even at a fast, steady
++ *  cadence like Beat. */
++const RETRIGGER_RECOVERY_FRACTION = 0.85
++const RETRIGGER_MIN_ENVELOPE_SEC = 0.03
++
+ export class ElectricStormThunderController {
+   private elapsedSec = Number.POSITIVE_INFINITY
+   private active = false
+   private energyArmed = true
++  private lastTriggerAtSec: number | null = null
++  private currentHoldSec = 0
++  private currentDecaySec = 0
+   private readonly recentEventKeys = new Set<string>()
+   private readonly recentEventOrder: string[] = []
+ 
+@@ -41,6 +51,12 @@ export class ElectricStormThunderController {
+     const eventKey = frame.isPlaying === false ? null : this.resolveEventKey(frame, settings.thunderTrigger)
+     const started = eventKey !== null && this.consume(eventKey)
+     if (started) {
++      const nowSec = Number.isFinite(frame.transportTimeSec) ? frame.transportTimeSec : 0
++      const sinceLastSec = this.lastTriggerAtSec === null ? Number.POSITIVE_INFINITY : Math.max(0, nowSec - this.lastTriggerAtSec)
++      this.lastTriggerAtSec = nowSec
++      const envelope = this.retriggerEnvelope(settings, sinceLastSec)
++      this.currentHoldSec = envelope.holdSec
++      this.currentDecaySec = envelope.decaySec
+       this.active = true
+       this.elapsedSec = 0
+     }
+@@ -54,6 +70,9 @@ export class ElectricStormThunderController {
+     this.elapsedSec = Number.POSITIVE_INFINITY
+     this.active = false
+     this.energyArmed = true
++    this.lastTriggerAtSec = null
++    this.currentHoldSec = 0
++    this.currentDecaySec = 0
+     this.recentEventKeys.clear()
+     this.recentEventOrder.length = 0
+   }
+@@ -92,11 +111,36 @@ export class ElectricStormThunderController {
+     return true
+   }
+ 
++  /**
++   * Compresses the authored hold+decay to fit within the gap since the
++   * previous trigger, so a fast, steady cadence (e.g. Beat) always produces a
++   * pulse that finishes — rather than being restarted by the next trigger
++   * before it can decay, which is what previously pinned the illumination
++   * near its peak. A slow cadence (4 Bars, Phrase, Drop, or the very first
++   * trigger) has far more gap than the desired envelope needs, so the
++   * authored Duration/Decay pass through unchanged and long flashes stay
++   * long.
++   */
++  private retriggerEnvelope(
++    settings: Readonly<ElectricStormSettings>,
++    sinceLastSec: number,
++  ): { holdSec: number; decaySec: number } {
++    const desiredHoldSec = mix(0.035, 0.28, clamp01(settings.flashDuration))
++    const desiredDecaySec = mix(0.08, 0.9, clamp01(settings.flashDecay))
++    const desiredTotalSec = desiredHoldSec + desiredDecaySec
++    if (!Number.isFinite(sinceLastSec)) return { holdSec: desiredHoldSec, decaySec: desiredDecaySec }
++    const budgetSec = Math.max(RETRIGGER_MIN_ENVELOPE_SEC, sinceLastSec * RETRIGGER_RECOVERY_FRACTION)
++    if (desiredTotalSec <= budgetSec) return { holdSec: desiredHoldSec, decaySec: desiredDecaySec }
++    const scale = budgetSec / desiredTotalSec
++    return { holdSec: desiredHoldSec * scale, decaySec: desiredDecaySec * scale }
++  }
++
+   private envelope(settings: Readonly<ElectricStormSettings>): number {
+     const intensity = clamp01(settings.flashIntensity)
+-    const holdSec = mix(0.035, 0.28, clamp01(settings.flashDuration))
+-    const decaySec = mix(0.08, 0.9, clamp01(settings.flashDecay))
++    const holdSec = this.currentHoldSec
++    const decaySec = this.currentDecaySec
+     if (this.elapsedSec <= holdSec) return intensity
++    if (decaySec <= 0) return 0
+     const decayProgress = (this.elapsedSec - holdSec) / decaySec
+     if (decayProgress >= 1) return 0
+     return intensity * Math.pow(1 - Math.max(0, decayProgress), 2)
+diff --git a/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormWorld.test.ts b/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormWorld.test.ts
+index a82287ab..032bc7d5 100644
+--- a/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormWorld.test.ts
++++ b/src/components/vyzualz/react/renderers/cinematic/worlds/ElectricStormWorld.test.ts
+@@ -298,6 +298,56 @@ describe('Electric Storm Stage 3 world', () => {
+     expect(transientIntent?.durationScale).toBeLessThan(1)
+   })
+ 
++  it('produces zero foreground-strike intents at Strike Rate 0% even with every audio-reactive path active at once', () => {
++    const zeroRate = { ...ELECTRIC_STORM_DEFAULTS, strikeRate: 0, masterIntensity: 1 }
++    for (let seed = 0; seed < 8; seed += 1) {
++      const choreographer = new ElectricStormAudioChoreographer({ sessionSeed: 0x9000 + seed })
++      for (let index = 0; index < 24; index += 1) {
++        const result = choreographer.update(choreographyFrame({
++          frameIndex: index,
++          beatIndex: index,
++          timeSec: index * 0.1,
++          kick: true,
++          kickEventId: `zero-kick-${seed}-${index}`,
++          drop: index === 12,
++          dropEventId: index === 12 ? `zero-drop-${seed}` : null,
++          bass: 1,
++          mid: 1,
++          highs: 1,
++          transient: 1,
++          transientEventId: `zero-transient-${seed}-${index}`,
++          build: 1,
++          energy: 1,
++        }), zeroRate)
++        expect(result.intents).toHaveLength(0)
++      }
++    }
++  })
++
++  it('scales autonomous strike probability continuously from zero (no dead zone) up to full aggression at 100%', () => {
++    const activeAt = (rate: number, seedBase: number, steps = 400): number => {
++      let activeSteps = 0
++      const generator = new ElectricStormStrikeGenerator({ sessionSeed: seedBase })
++      for (let step = 0; step < steps; step += 1) {
++        if (generator.update(step * 0.43, rate).length > 0) activeSteps += 1
++      }
++      return activeSteps
++    }
++
++    for (let seedBase = 1; seedBase <= 4; seedBase += 1) {
++      expect(activeAt(0, seedBase)).toBe(0)
++    }
++
++    const lowRateActivity = [1, 2, 3, 4].map(seedBase => activeAt(0.03, seedBase))
++    const totalLowRateActivity = lowRateActivity.reduce((sum, value) => sum + value, 0)
++    // Rare, not zero, and not anywhere near the fully-aggressive baseline.
++    expect(totalLowRateActivity).toBeGreaterThan(0)
++
++    const fullRateActivity = [1, 2, 3, 4].map(seedBase => activeAt(1, seedBase))
++    const totalFullRateActivity = fullRateActivity.reduce((sum, value) => sum + value, 0)
++    expect(totalFullRateActivity).toBeGreaterThan(totalLowRateActivity * 5)
++  })
++
+   it('increases storm activity/detail through build progression and caps drop hero groups', () => {
+     const lowBuild = new ElectricStormAudioChoreographer({ sessionSeed: 91 }).update(choreographyFrame({ build: 0, highs: 0.65, energy: 0.6 }), ELECTRIC_STORM_DEFAULTS)
+     const highBuild = new ElectricStormAudioChoreographer({ sessionSeed: 91 }).update(choreographyFrame({ build: 1, highs: 0.65, energy: 0.6 }), ELECTRIC_STORM_DEFAULTS)
+@@ -319,12 +369,39 @@ describe('Electric Storm Stage 3 world', () => {
+     expect(hero?.power).toBeLessThanOrEqual(1)
+   })
+ 
+-  it('implements Impact Shake and Zoom Punch as bounded shader-space UV transforms', () => {
+-    expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('clamp(uImpactShake, 0.0, 1.0) * impact * 0.012')
+-    expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('clamp(uZoomPunch, 0.0, 1.0) * impact * 0.075')
++  it('implements Impact Shake and Zoom Punch as bounded, nonlinear shader-space UV transforms', () => {
++    expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('float stormImpactCurve(float value) {')
++    expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('stormImpactCurve(uImpactShake) * impact * 0.05')
++    expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('stormImpactCurve(uZoomPunch) * impact * 0.16')
+     expect(ELECTRIC_STORM_FRAGMENT_SOURCE).toContain('uv = vec2(0.5) + (uv - vec2(0.5)) * zoomScale + shake;')
+   })
+ 
++  it('gives Impact Shake and Zoom Punch a nonlinear response so 100% is meaningfully stronger than a linear scale', () => {
++    // Mirrors the shader's stormImpactCurve(t) = t*t and the constants above,
++    // so a change to either side of this relationship is caught here.
++    const stormImpactCurve = (t: number) => Math.max(0, Math.min(1, t)) ** 2
++    const shakeDisplacement = (slider: number, impact: number) => stormImpactCurve(slider) * impact * 0.05
++    const zoomAmount = (slider: number, impact: number) => stormImpactCurve(slider) * impact * 0.16
++
++    const heroImpactPeak = 0.82 // ~ strikeImpactStrength() ceiling for a full-power hero strike
++    const progression = [0, 0.25, 0.5, 0.75, 1].map(slider => shakeDisplacement(slider, heroImpactPeak))
++    expect(progression[0]).toBe(0)
++    for (let index = 1; index < progression.length; index += 1) {
++      expect(progression[index]).toBeGreaterThan(progression[index - 1])
++    }
++    // Upper-quarter ramp: the last step must grow more than the first step,
++    // proving the curve is not linear (a linear scale would make every step equal).
++    expect(progression[4] - progression[3]).toBeGreaterThan(progression[1] - progression[0])
++
++    const oldMaxShake = 1 * heroImpactPeak * 0.012
++    const oldMaxZoom = 1 * heroImpactPeak * 0.075
++    expect(shakeDisplacement(1, heroImpactPeak)).toBeGreaterThan(oldMaxShake * 3)
++    expect(zoomAmount(1, heroImpactPeak)).toBeGreaterThan(oldMaxZoom * 1.5)
++
++    // Zoom must never invert or exceed a safe bound, even at the theoretical max.
++    expect(1 - zoomAmount(1, 1)).toBeGreaterThan(0.8)
++  })
++
+   it('uses the real fullscreen WebGL production definition with no 3D or generic route-modulation contract', () => {
+     expect(electricStormWorldDefinition.id).toBe('electricStorm')
+     expect(electricStormWorldDefinition.backend).toBe('webgl2')
