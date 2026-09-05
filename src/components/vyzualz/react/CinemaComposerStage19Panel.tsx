@@ -127,7 +127,6 @@ export function CinemaComposerStage19Panel({
 
   return (
     <div className="rv-cinema-stage19" aria-label="Cinema modulation performance camera and timeline authoring">
-      {readOnly && <ComposerNotice>Preset structure is read-only in Cinema Engine. Cinema route and performance structure cannot currently be authored in Show Manager.</ComposerNotice>}
       {surface === 'performance' && <ElectricStormReactControls composition={composition} definitions={definitions} />}
       {(surface === 'all' || surface === 'routing') && (readOnly ? (
         <ReadOnlyRoutingPresentation composition={composition} destinations={destinations} />
