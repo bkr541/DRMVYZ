@@ -1,10 +1,11 @@
 import type { ShaderDefinition } from '../registry/shaderRegistryTypes'
+import { PRISM_RADIAL_TOPOLOGY_GLSL, PRISM_RADIAL_TOPOLOGY_LIMITS } from './prismRadialTopology'
 
 export const PRISM_TUNNEL: ShaderDefinition = {
   id: 'shader-neon-tunnel',
   name: 'Prism Tunnel',
-  description: 'Ray-marched tunnel with cyan-emerald lighting, beat pulse, and bass wall deformation.',
-  category: 'raymarch',
+  description: 'Radial prismatic field with addressable facets, luminous arcs, beat pulse, and bass-reactive curvature.',
+  category: 'generator',
   version: 1,
 
   fragSrc: `#version 300 es
@@ -37,119 +38,82 @@ uniform float uMasterFogDensity;
 
 out vec4 fragColor;
 
-// Simple hash for noise
-float hash(float n) { return fract(sin(n) * 43758.5453); }
-float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+${PRISM_RADIAL_TOPOLOGY_GLSL}
 
-float noise(vec2 p) {
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  float a = hash2(i);
-  float b = hash2(i + vec2(1.0, 0.0));
-  float c = hash2(i + vec2(0.0, 1.0));
-  float d = hash2(i + vec2(1.0, 1.0));
-  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-}
+float saturate(float value) { return clamp(value, 0.0, 1.0); }
 
-// Distance to tunnel
-float tunnel(vec3 p, float r, float warpAmt) {
-  float ang = atan(p.y, p.x);
-  float wave = sin(ang * 6.0 + p.z * 0.8 + uTime * 1.5) * warpAmt;
-  float dist = length(p.xy) - r + wave;
-  return dist;
-}
-
-// Hex-grid segment markers
-float hexGrid(vec3 p) {
-  float z = mod(p.z, 4.0);
-  float ring = abs(length(p.xy) - uTunnelRadius * 0.95);
-  return ring < 0.04 && z < 0.08 ? 1.0 : 0.0;
+float radialBand(float radius, float center, float width) {
+  return 1.0 - smoothstep(width, width * 2.1, abs(radius - center));
 }
 
 void main() {
   vec2 uv = (gl_FragCoord.xy / uResolution.xy) * 2.0 - 1.0;
   uv.x *= uAspect;
 
-  // Beat pulse on brightness
   float beat = uBeatHit * 0.4 + uKickHit * 0.3 + uSnareHit * 0.15;
   float bass = uBass * uMasterBassReactivity;
-  float speed = uSpeed * uMasterMotion * (1.0 + bass * 0.5);
+  float motion = uSpeed * uMasterMotion;
   float rotAng = uRotation + uTime * 0.15 * uMasterMotion;
+  float cs = cos(rotAng);
+  float sn = sin(rotAng);
+  vec2 radialUv = vec2(uv.x * cs - uv.y * sn, uv.x * sn + uv.y * cs);
 
-  // Rotate UV
-  float cs = cos(rotAng); float sn = sin(rotAng);
-  uv = vec2(uv.x * cs - uv.y * sn, uv.x * sn + uv.y * cs);
+  // uTunnelRadius remains the persisted compatibility id, but now owns the
+  // canonical center-anchored radial scale rather than corridor depth.
+  float baseRadius = uTunnelRadius * (1.0 + uKickHit * 0.045);
+  PrismRadialElement element = prismTopologyAt(radialUv, baseRadius, uWarp);
 
-  // Ray origin and direction
-  vec3 ro = vec3(0.0, 0.0, uTime * speed);
-  vec3 rd = normalize(vec3(uv * 0.85, 1.0));
+  float sectorAngle = PRISM_TOPOLOGY_TAU / float(PRISM_TOPOLOGY_ELEMENT_COUNT);
+  float local = element.localAngle / (sectorAngle * 0.5);
+  float angularCore = 1.0 - smoothstep(0.58, 1.0, abs(local));
+  float angularEdge = smoothstep(0.72, 0.96, abs(local)) * (1.0 - smoothstep(0.96, 1.0, abs(local)));
 
-  float warpAmt = uWarp * (0.08 + bass * 0.12);
-  float radius = uTunnelRadius * (1.0 + uKickHit * 0.06);
+  float radius = length(radialUv);
+  float curveWave = sin(local * 1.57079632679) * uWarp * 0.055;
+  float bassBend = sin(local * 3.14159265359 + element.normalizedIndex * 6.28318530718) * bass * 0.035;
+  float shapedRadius = radius + curveWave + bassBend + element.curvature * 0.014;
 
-  // March
-  float t = 0.0;
-  float maxT = 28.0;
-  float closest = 1e5;
-  bool hit = false;
-  int steps = 0;
+  float innerFeather = max(0.012, baseRadius * 0.035);
+  float outerFeather = max(0.02, baseRadius * 0.05);
+  float insideOuter = 1.0 - smoothstep(element.outerRadius - outerFeather, element.outerRadius + outerFeather, shapedRadius);
+  float outsideInner = smoothstep(element.innerRadius - innerFeather, element.innerRadius + innerFeather, shapedRadius);
+  float facetMask = insideOuter * outsideInner * angularCore;
 
-  for (int i = 0; i < 80; i++) {
-    vec3 p = ro + rd * t;
-    float d = -tunnel(p, radius, warpAmt); // inside tunnel: negative → we flip
-    // inside: distance to wall = -tunnel(p) when inside
-    float wallD = abs(length(p.xy) - radius - sin(atan(p.y,p.x)*6.0+p.z*0.8+uTime*1.5)*warpAmt);
-    if (wallD < 0.005) { hit = true; closest = t; break; }
-    if (t > maxT) break;
-    t += max(wallD * 0.5, 0.01);
-    steps++;
-  }
+  // Surface motion travels across the radial field, not through camera depth.
+  float span = max(element.outerRadius - element.innerRadius, 0.001);
+  float radialT = saturate((shapedRadius - element.innerRadius) / span);
+  float phase = radialT * 12.0 - uTime * motion * 1.9 + element.normalizedIndex * 7.0;
+  float arcA = 0.5 + 0.5 * sin(phase);
+  float arcB = radialBand(radialT, 0.34 + sin(uTime * motion * 0.32 + element.index) * 0.025, 0.035);
+  float arcC = radialBand(radialT, 0.71 + cos(uTime * motion * 0.24 - element.index) * 0.02, 0.028);
+  float arcGlow = max(pow(arcA, 8.0), max(arcB, arcC));
 
-  vec3 col = vec3(0.0);
+  vec3 primary = uPrimaryColor.rgb;
+  vec3 secondary = uSecondaryColor.rgb;
+  float paletteMix = 0.5 + 0.5 * sin(element.normalizedIndex * PRISM_TOPOLOGY_TAU * 2.0 + radialT * 3.0);
+  vec3 facetColor = mix(primary, secondary, paletteMix);
 
-  if (hit) {
-    vec3 hp = ro + rd * closest;
-    float ang = atan(hp.y, hp.x);
-    float z = hp.z;
+  float facetLight = facetMask * (0.32 + arcA * 0.48 + arcGlow * (0.65 + beat * 1.35));
+  float rimLight = angularEdge * insideOuter * outsideInner * (0.4 + uGlow * 0.35);
+  vec3 col = facetColor * (facetLight + rimLight);
 
-    // Wall color from angular position + time
-    float stripe = sin(ang * 8.0 + z * 1.2) * 0.5 + 0.5;
-    vec3 primary   = uPrimaryColor.rgb;
-    vec3 secondary = uSecondaryColor.rgb;
-    col = mix(primary, secondary, stripe);
+  // Center aperture glow and broad haze preserve the luminous Prism DNA while
+  // keeping the composition center-anchored instead of a vanishing-point view.
+  float apertureGlow = exp(-radius * (5.8 / max(baseRadius, 0.15))) * (0.22 + uGlow * 0.75) * (0.9 + uEnergy * 0.25);
+  float halo = exp(-abs(radius - element.innerRadius) * (14.0 / max(baseRadius, 0.2))) * 0.42;
+  col += mix(primary, secondary, 0.5) * (apertureGlow + halo * facetMask);
 
-    // Segment line glow
-    float seg = hexGrid(hp);
-    col += seg * (primary * 0.8 + beat * 1.5);
+  float hazeAmount = uFogDensity * uMasterFogDensity;
+  float haze = exp(-radius * 1.35) * hazeAmount * 0.11;
+  col += mix(primary, secondary, 0.35) * haze;
 
-    // Beat flash
-    col += beat * secondary * 1.2;
+  col *= 1.0 + bass * 0.34;
+  col += beat * secondary * (0.18 + facetMask * 0.42);
+  col = mix(col, vec3(1.0), uSnareHit * 0.28);
+  col *= uMasterIntensity;
 
-    // Bass deformation glow
-    col *= 1.0 + bass * 0.4;
-
-    // Snare flash: white-out flash
-    col = mix(col, vec3(1.0), uSnareHit * 0.5);
-
-    // Fog / depth fade
-    float fog = 1.0 - exp(-closest * uFogDensity * uMasterFogDensity * 0.12);
-    col *= (1.0 - fog * 0.85);
-
-    // Glow bloom at tunnel entrance
-    float centerGlow = exp(-closest * 0.18) * uGlow * uMasterIntensity;
-    col += centerGlow * secondary;
-  } else {
-    // Looking down the infinite tunnel — deep glow
-    float depth = exp(-maxT * 0.06) * uGlow;
-    col = uPrimaryColor.rgb * depth * (0.3 + uEnergy * 0.6 + beat * 0.4) * uMasterIntensity;
-  }
-
-  // Vignette
-  float vignette = 1.0 - dot(uv * 0.4, uv * 0.4);
+  float vignette = saturate(1.08 - dot(uv * 0.36, uv * 0.36));
   col *= vignette;
-
-  // Gamma
   col = pow(max(col, 0.0), vec3(0.454));
 
   fragColor = vec4(col, 1.0);
@@ -169,10 +133,12 @@ void main() {
     {
       id: 'tunnelRadius',
       type: 'float',
-      label: 'Tunnel Radius',
+      label: 'Radial Scale',
       uniformName: 'uTunnelRadius',
-      min: 0.3, max: 2.0, step: 0.05,
-      default: 0.9,
+      min: PRISM_RADIAL_TOPOLOGY_LIMITS.baseRadius.min,
+      max: PRISM_RADIAL_TOPOLOGY_LIMITS.baseRadius.max,
+      step: 0.05,
+      default: PRISM_RADIAL_TOPOLOGY_LIMITS.baseRadius.default,
       modulatable: true,
     },
     {
@@ -180,8 +146,10 @@ void main() {
       type: 'float',
       label: 'Warp',
       uniformName: 'uWarp',
-      min: 0.0, max: 2.0, step: 0.05,
-      default: 0.6,
+      min: PRISM_RADIAL_TOPOLOGY_LIMITS.curvature.min,
+      max: PRISM_RADIAL_TOPOLOGY_LIMITS.curvature.max,
+      step: 0.05,
+      default: PRISM_RADIAL_TOPOLOGY_LIMITS.curvature.default,
       modulatable: true,
     },
     {
@@ -231,8 +199,8 @@ void main() {
 
   defaults: {
     speed:         1.2,
-    tunnelRadius:  0.9,
-    warp:          0.6,
+    tunnelRadius:  PRISM_RADIAL_TOPOLOGY_LIMITS.baseRadius.default,
+    warp:          PRISM_RADIAL_TOPOLOGY_LIMITS.curvature.default,
     fogDensity:    1.0,
     glow:          1.0,
     primaryColor:  [0.0, 0.9, 0.85, 1.0],
@@ -248,5 +216,5 @@ void main() {
 
   thumbnail: { color: '#063333' },
 
-  tags: ['tunnel', 'prism', 'raymarch'],
+  tags: ['prism', 'radial', 'facets'],
 }

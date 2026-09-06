@@ -174,6 +174,39 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     harness.dispose()
   })
 
+  it('keeps non-Prism Shader scenes outside the Prism radial topology path', () => {
+    const liquid = CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries.find(entry => entry.sceneId === 'shader-liquid-metaballs')
+    expect(liquid).toBeDefined()
+    const fragmentSource = liquid?.definition.shaderPasses?.[0]?.fragment.source ?? ''
+    expect(fragmentSource).not.toContain('PrismRadialElement')
+    expect(fragmentSource).not.toContain('prismTopologyAt')
+  })
+
+  it('routes the production Prism Tunnel preset through the radial topology shader path', () => {
+    const state = createCinemaFoundationPersistedState()
+    const preset = CINEMA_LEGACY_PRESET_CATALOG.manifest.find(entry => entry.legacySourceId === PRISM_TUNNEL.id)
+    expect(preset).toBeDefined()
+    const composition = CINEMA_LEGACY_PRESET_CATALOG.compositions.find(candidate => candidate.id === preset?.compositionId)
+    expect(composition).toBeDefined()
+    expect(composition?.nodes.some(node => node.typeId === cinemaShaderSceneTypeId(PRISM_TUNNEL.id))).toBe(true)
+
+    const prismAdapter = CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries.find(entry => entry.sceneId === PRISM_TUNNEL.id)
+    const fragmentSource = prismAdapter?.definition.shaderPasses?.[0]?.fragment.source ?? ''
+    expect(fragmentSource).toContain('PrismRadialElement prismTopologyAt')
+    expect(fragmentSource).toContain('prismTopologyAt(radialUv, baseRadius, uWarp)')
+    expect(fragmentSource).not.toContain('vec3 ro =')
+
+    const harness = createExecutorHarness()
+    harness.executor.resize({ width: 1, height: 1, dpr: 1 }, harness.viewport)
+    harness.executor.setGraph({ composition: composition!, instance: null, definitions: state.definitions })
+
+    expect(harness.executor.render(frame(0))).toBe(true)
+    expect(harness.gl.__calls.drawCount).toBeGreaterThanOrEqual(2)
+    expect(harness.diagnostics).not.toContain('CINEMA_NODE_INITIALIZE_FAILED')
+    expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
+    harness.dispose()
+  })
+
   it('reuses identical Shader programs when a same-context preset is activated again', () => {
     const state = createCinemaFoundationPersistedState()
     const harness = createExecutorHarness()

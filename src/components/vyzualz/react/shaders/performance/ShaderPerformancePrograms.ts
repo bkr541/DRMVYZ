@@ -303,8 +303,8 @@ const PROGRAMS: readonly ShaderPerformanceProgram[] = [
   buildProgram({
     shaderId: 'shader-neon-tunnel',
     name: 'Prism Tunnel',
-    description: 'Directs travel, twist, depth emphasis, glow impacts, and phrase-scale tunnel evolution.',
-    visualIdentity: 'vanishing-point tunnel travel with controlled geometric acceleration',
+    description: 'Directs radial motion, curvature, scale emphasis, glow impacts, and phrase-scale prism evolution.',
+    visualIdentity: 'center-anchored radial prism field with controlled geometric acceleration',
     targets: { motion: 'speed', bass: 'tunnelRadius', impact: 'glow', accent: 'warp', build: 'speed', recruit: 'warp', evolution: 'rotation', phrase: 'rotation' },
     routeSpecs: [
       { key: 'kick-depth', source: 'kick', target: 'tunnelRadius', amount: 0.08, mode: 'trigger', holdMs: 35, releaseMs: 180, fallbackSources: ['bass'] },
