@@ -10,6 +10,8 @@ import type {
 } from '../textures/shaderTextureInputTypes'
 import { shaderRegistry } from '../registry'
 import { DEFAULT_SHADER_SCENE_ID } from '../scenes'
+import { PRISM_TUNNEL } from '../scenes/prismTunnel'
+import { PRISM_APERTURE_LIMITS, PRISM_APERTURE_PARAMETER_ID } from '../scenes/prismApertureController'
 import type { ShaderCompileStatus } from '../editor/ShaderCompilePanel'
 import type { PerformanceMetrics } from '../performance/shaderPerformanceTypes'
 import type { QualityTier } from '../registry/shaderRegistryTypes'
@@ -195,6 +197,17 @@ export function migrateShaderPanelPersistedState(
   const textureSelectionsByShaderId = removeRetiredShaderRecords(
     migrateLegacyReactorTextureSelections(persisted.textureSelectionsByShaderId),
   )
+
+  // Stage 2 adds Prism aperture as canonical authored state. Older Shader Pads
+  // saves legitimately lack it, so hydrate that one missing field to the
+  // production default without disturbing any existing authored values.
+  const prismValues = paramValuesByShaderId[PRISM_TUNNEL.id]
+  if (prismValues && !Object.prototype.hasOwnProperty.call(prismValues, PRISM_APERTURE_PARAMETER_ID)) {
+    paramValuesByShaderId[PRISM_TUNNEL.id] = {
+      ...prismValues,
+      [PRISM_APERTURE_PARAMETER_ID]: PRISM_APERTURE_LIMITS.default,
+    }
+  }
 
   if (persistedActiveShaderId && getLegacyReactorRecipe(persistedActiveShaderId)) {
     paramValuesByShaderId[REACTOR_SCENE_ID] = migrateLegacyReactorParamValues(

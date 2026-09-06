@@ -17,6 +17,7 @@ import { PRODUCTION_SCENES } from '../../scenes'
 import { migrateShaderPanelPersistedState } from '../../ui/shaderPanelStore'
 import { ShaderSectionChoreography } from '../../transitions/ShaderSectionChoreography'
 import { ShaderPerformanceRuntime } from '../ShaderPerformanceRuntime'
+import { ShaderPerformanceProgramExecutor } from '../ShaderPerformanceProgramExecutor'
 import {
   markShaderRouteModified,
   resolveShaderRoutesForDefinition,
@@ -204,6 +205,45 @@ describe('Shader native show director programs', () => {
     )
     expect(evaluated.activeRouteCount).toBeGreaterThan(0)
     expect(evaluated.params.tunnelRadius.effectiveValue).not.toEqual(programFrame.paramValues.tunnelRadius)
+  })
+
+  it('runs Prism aperture through the shared production runtime controller without mutating authored state', () => {
+    const definition = PRODUCTION_SCENES.find(candidate => candidate.id === 'shader-neon-tunnel')!
+    const executor = new ShaderPerformanceProgramExecutor()
+    const context = contextAt(12)
+    const authored = { ...definition.defaults, aperture: 1 }
+    const baseInput = {
+      definition,
+      sceneId: definition.id,
+      manualValues: authored,
+      routes: [],
+      context,
+      audio: NEUTRAL_AUDIO_FRAME,
+      timing: { ...NEUTRAL_TIMING_FRAME, playbackTime: 12 },
+      musicIntelligence: frameAt(12),
+      deltaTimeSec: 1 / 60,
+    }
+
+    const first = executor.resolve(baseInput)
+    expect(first.effectiveValues.aperture).toBe(1)
+
+    const movedAuthored = { ...authored, aperture: 2 }
+    const moved = executor.resolve({ ...baseInput, manualValues: movedAuthored, deltaTimeSec: 0.06 })
+    expect(moved.effectiveValues.aperture as number).toBeGreaterThan(1)
+    expect(moved.effectiveValues.aperture as number).toBeLessThan(2)
+    expect(movedAuthored.aperture).toBe(2)
+
+    executor.setTemporaryParameterOffset('aperture', -1)
+    const offset = executor.resolve({ ...baseInput, manualValues: movedAuthored, deltaTimeSec: 0.12 })
+    expect(offset.effectiveValues.aperture as number).toBeLessThan(moved.effectiveValues.aperture as number)
+    expect(movedAuthored.aperture).toBe(2)
+
+    const reconstructed = executor.resolve({
+      ...baseInput,
+      manualValues: { ...authored, aperture: 1.35 },
+      reconstruct: true,
+    })
+    expect(reconstructed.effectiveValues.aperture).toBe(1.35)
   })
 
   it('uses a declared target capability fallback when a preferred target is unavailable', () => {

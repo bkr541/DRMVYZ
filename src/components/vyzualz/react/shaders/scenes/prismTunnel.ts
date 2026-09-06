@@ -1,12 +1,17 @@
 import type { ShaderDefinition } from '../registry/shaderRegistryTypes'
 import { PRISM_RADIAL_TOPOLOGY_GLSL, PRISM_RADIAL_TOPOLOGY_LIMITS } from './prismRadialTopology'
+import {
+  PRISM_APERTURE_GLSL,
+  PRISM_APERTURE_LIMITS,
+  createPrismApertureController,
+} from './prismApertureController'
 
 export const PRISM_TUNNEL: ShaderDefinition = {
   id: 'shader-neon-tunnel',
   name: 'Prism Tunnel',
   description: 'Radial prismatic field with addressable facets, luminous arcs, beat pulse, and bass-reactive curvature.',
   category: 'generator',
-  version: 1,
+  version: 2,
 
   fragSrc: `#version 300 es
 precision highp float;
@@ -23,6 +28,7 @@ uniform float uAspect;
 
 uniform float uSpeed;
 uniform float uTunnelRadius;
+uniform float uAperture;
 uniform float uWarp;
 uniform float uFogDensity;
 uniform float uGlow;
@@ -39,6 +45,7 @@ uniform float uMasterFogDensity;
 out vec4 fragColor;
 
 ${PRISM_RADIAL_TOPOLOGY_GLSL}
+${PRISM_APERTURE_GLSL}
 
 float saturate(float value) { return clamp(value, 0.0, 1.0); }
 
@@ -61,7 +68,8 @@ void main() {
   // uTunnelRadius remains the persisted compatibility id, but now owns the
   // canonical center-anchored radial scale rather than corridor depth.
   float baseRadius = uTunnelRadius * (1.0 + uKickHit * 0.045);
-  PrismRadialElement element = prismTopologyAt(radialUv, baseRadius, uWarp);
+  PrismRadialElement topologyElement = prismTopologyAt(radialUv, baseRadius, uWarp);
+  PrismRadialElement element = prismApplyAperture(topologyElement, baseRadius, uAperture);
 
   float sectorAngle = PRISM_TOPOLOGY_TAU / float(PRISM_TOPOLOGY_ELEMENT_COUNT);
   float local = element.localAngle / (sectorAngle * 0.5);
@@ -142,6 +150,17 @@ void main() {
       modulatable: true,
     },
     {
+      id: 'aperture',
+      type: 'float',
+      label: 'Aperture',
+      uniformName: 'uAperture',
+      min: PRISM_APERTURE_LIMITS.min,
+      max: PRISM_APERTURE_LIMITS.max,
+      step: 0.01,
+      default: PRISM_APERTURE_LIMITS.default,
+      modulatable: true,
+    },
+    {
       id: 'warp',
       type: 'float',
       label: 'Warp',
@@ -200,6 +219,7 @@ void main() {
   defaults: {
     speed:         1.2,
     tunnelRadius:  PRISM_RADIAL_TOPOLOGY_LIMITS.baseRadius.default,
+    aperture:      PRISM_APERTURE_LIMITS.default,
     warp:          PRISM_RADIAL_TOPOLOGY_LIMITS.curvature.default,
     fogDensity:    1.0,
     glow:          1.0,
@@ -217,4 +237,6 @@ void main() {
   thumbnail: { color: '#063333' },
 
   tags: ['prism', 'radial', 'facets'],
+
+  createRuntimeParameterController: createPrismApertureController,
 }

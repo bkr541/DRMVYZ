@@ -341,6 +341,28 @@ export interface ShaderMasterCapabilities {
   bassReactivity: boolean
 }
 
+/** Input passed to an optional per-scene runtime parameter controller. */
+export interface ShaderRuntimeParameterControllerInput {
+  /** Post-performance/post-modulation values for the current frame. */
+  values: Readonly<Record<string, ShaderParamValue>>
+  /** Frame delta used for deterministic smoothing. */
+  deltaTimeSec: number
+  /** True when runtime-only state must be reconstructed from canonical values. */
+  reconstruct: boolean
+}
+
+/**
+ * CPU-only derived-parameter seam for specialized scene systems. Controllers
+ * may smooth or temporarily offset values, but must never mutate authored
+ * settings or persist their own runtime state.
+ */
+export interface ShaderRuntimeParameterController {
+  reset(): void
+  resolve(input: ShaderRuntimeParameterControllerInput): Record<string, ShaderParamValue>
+  setTemporaryOffset?(parameterId: string, offset: number): void
+  clearTemporaryOffset?(parameterId: string): void
+}
+
 // ── ShaderDefinition ──────────────────────────────────────────────────────────
 
 /**
@@ -406,6 +428,13 @@ export interface ShaderDefinition {
 
   /** Native authored show program resolved by Shared Performance Core. */
   performanceProgram?: ShaderPerformanceProgram
+
+  /**
+   * Optional per-renderer CPU controller for derived runtime parameter values.
+   * The factory is invoked once per active renderer/node, keeping runtime-only
+   * envelopes and smoothing outside persisted ShaderDefinition data.
+   */
+  createRuntimeParameterController?: () => ShaderRuntimeParameterController
 }
 
 // ── Validation types ──────────────────────────────────────────────────────────

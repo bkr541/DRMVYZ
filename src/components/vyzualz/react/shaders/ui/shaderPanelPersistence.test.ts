@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SHADER_SCENE_ID } from '../scenes'
+import { PRISM_APERTURE_LIMITS } from '../scenes/prismApertureController'
 import { shaderRegistry } from '../registry'
 import {
   mergeShaderPanelState,
@@ -53,10 +54,28 @@ describe('Shader panel persistence', () => {
     })
 
     expect(merged.activeShaderId).toBe(DEFAULT_SHADER_SCENE_ID)
-    expect(merged.paramValues).toEqual({ speed: 0.75 })
+    expect(merged.paramValues).toEqual({ speed: 0.75, aperture: PRISM_APERTURE_LIMITS.default })
     expect(merged.audioFrame).toBeNull()
     expect(merged.evaluationFrame).toBeNull()
     expect(merged.compileError).toBe('runtime-only')
+  })
+
+  it('persists and reloads authored Prism aperture and restores the default on reset', () => {
+    const original = useShaderPanelStore.getState()
+    try {
+      useShaderPanelStore.getState().setActiveShaderId(DEFAULT_SHADER_SCENE_ID)
+      useShaderPanelStore.getState().setParamValue('aperture', 1.67)
+      const persisted = shaderPanelPartialize(useShaderPanelStore.getState())
+      expect(persisted.paramValuesByShaderId[DEFAULT_SHADER_SCENE_ID].aperture).toBe(1.67)
+
+      const merged = mergeShaderPanelState(persisted, useShaderPanelStore.getState())
+      expect(merged.paramValues.aperture).toBe(1.67)
+
+      useShaderPanelStore.getState().resetParams()
+      expect(useShaderPanelStore.getState().paramValues.aperture).toBe(PRISM_APERTURE_LIMITS.default)
+    } finally {
+      useShaderPanelStore.setState(original)
+    }
   })
 
   it.each(['shader-spectrum-cathedral', 'shader-dreamstate-mycelium'])(

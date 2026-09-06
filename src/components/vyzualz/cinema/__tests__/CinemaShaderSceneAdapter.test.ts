@@ -19,10 +19,12 @@ import {
   CINEMA_SHADER_SCENE_ADAPTER_BUNDLE,
   CINEMA_SHADER_SCENE_COLOR_OUTPUT_PORT_ID,
   cinemaShaderBrandTexturePortId,
+  cinemaShaderParameterId,
   cinemaShaderSceneTypeId,
   cinemaShaderTextureInputPortId,
   createCinemaShaderSceneAdapterBundle,
   createCinemaShaderSceneComposition,
+  createCinemaShaderSceneParameterValues,
 } from '../CinemaShaderSceneAdapter'
 import {
   cinemaStableId,
@@ -89,6 +91,23 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     expect(capabilities.get(byLabel.get('Master Trail Decay')!.id)?.support).toBe('unsupported')
     expect(capabilities.get(byLabel.get('Master Particle Density')!.id)?.support).toBe('unsupported')
     expect(getCinemaSupportedParameterSchemas(prism!.definition).map(parameter => parameter.label)).toContain('Glow')
+  })
+
+  it('exposes one persisted Prism Aperture control and safely defaults old state that lacks it', () => {
+    const prism = CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries.find(entry => entry.sceneId === PRISM_TUNNEL.id)
+    const aperture = prism?.definition.parameters.find(parameter => parameter.label === 'Aperture')
+    expect(aperture).toMatchObject({
+      id: cinemaShaderParameterId('aperture'),
+      type: 'float',
+      default: 1,
+      min: 0,
+      max: 2,
+      ui: { control: 'slider' },
+    })
+
+    const oldStateValues = createCinemaShaderSceneParameterValues(PRISM_TUNNEL.id, { speed: 0.75 })
+    expect(oldStateValues[cinemaShaderParameterId('aperture')]).toBe(1)
+    expect(oldStateValues[cinemaShaderParameterId('speed')]).toBe(0.75)
   })
 
   it('publishes shader semantic palette roles from verified Brand Kit uniform consumers', () => {
@@ -180,6 +199,7 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     const fragmentSource = liquid?.definition.shaderPasses?.[0]?.fragment.source ?? ''
     expect(fragmentSource).not.toContain('PrismRadialElement')
     expect(fragmentSource).not.toContain('prismTopologyAt')
+    expect(fragmentSource).not.toContain('prismApplyAperture')
   })
 
   it('routes the production Prism Tunnel preset through the radial topology shader path', () => {
@@ -193,7 +213,9 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     const prismAdapter = CINEMA_SHADER_SCENE_ADAPTER_BUNDLE.entries.find(entry => entry.sceneId === PRISM_TUNNEL.id)
     const fragmentSource = prismAdapter?.definition.shaderPasses?.[0]?.fragment.source ?? ''
     expect(fragmentSource).toContain('PrismRadialElement prismTopologyAt')
-    expect(fragmentSource).toContain('prismTopologyAt(radialUv, baseRadius, uWarp)')
+    expect(fragmentSource).toContain('PrismRadialElement prismApplyAperture')
+    expect(fragmentSource).toContain('PrismRadialElement topologyElement = prismTopologyAt(radialUv, baseRadius, uWarp)')
+    expect(fragmentSource).toContain('prismApplyAperture(topologyElement, baseRadius, uAperture)')
     expect(fragmentSource).not.toContain('vec3 ro =')
 
     const harness = createExecutorHarness()

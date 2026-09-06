@@ -12,6 +12,7 @@ import type {
   ShaderDefinition,
   ShaderParamValue,
   ShaderParamValues,
+  ShaderRuntimeParameterController,
 } from '../registry/shaderRegistryTypes'
 import { ShaderSectionChoreography, type ShaderSectionAction } from '../transitions/ShaderSectionChoreography'
 import type { ShaderPerformanceFrameResolution } from './ShaderPerformanceProgramTypes'
@@ -49,6 +50,7 @@ export class ShaderPerformanceProgramExecutor {
   private readonly modulationEvaluator = new ShaderModulationEvaluator()
   private readonly modulationMatrix = new ShaderModulationMatrix()
   private readonly choreography = new ShaderSectionChoreography()
+  private runtimeParameterController: ShaderRuntimeParameterController | null = null
   private activeDefinition: ShaderDefinition | null = null
   private activeSceneId: string | null = null
 
@@ -56,17 +58,30 @@ export class ShaderPerformanceProgramExecutor {
     this.performanceRuntime.reset()
     this.modulationEvaluator.reset()
     this.choreography.reset()
+    this.runtimeParameterController?.reset()
   }
 
   setDefinition(definition: ShaderDefinition, sceneId = definition.id): void {
     const changed = this.activeDefinition !== definition || this.activeSceneId !== sceneId
     this.activeDefinition = definition
     this.activeSceneId = sceneId
+    if (changed) {
+      this.runtimeParameterController = definition.createRuntimeParameterController?.() ?? null
+    }
     this.modulationMatrix.setDefinition(definition)
     this.choreography.enabled = Boolean(definition.performanceProgram)
     this.choreography.setRules([...(definition.performanceProgram?.sectionChoreography ?? [])])
     this.choreography.setCurrentScene(sceneId)
     if (changed) this.reset()
+  }
+
+  /** Runtime-only extension point for later scene choreography systems. */
+  setTemporaryParameterOffset(parameterId: string, offset: number): void {
+    this.runtimeParameterController?.setTemporaryOffset?.(parameterId, offset)
+  }
+
+  clearTemporaryParameterOffset(parameterId: string): void {
+    this.runtimeParameterController?.clearTemporaryOffset?.(parameterId)
   }
 
   resolve(input: ShaderPerformanceProgramExecutorInput): ShaderPerformanceProgramExecutorResult {
@@ -113,6 +128,11 @@ export class ShaderPerformanceProgramExecutor {
     for (const [parameterId, result] of Object.entries(modulation.params)) {
       effectiveValues[parameterId] = result.effectiveValue
     }
+    const resolvedRuntimeValues = this.runtimeParameterController?.resolve({
+      values: effectiveValues,
+      deltaTimeSec: input.deltaTimeSec,
+      reconstruct: reconstructed,
+    }) ?? effectiveValues
 
     return {
       performance: {
@@ -120,7 +140,7 @@ export class ShaderPerformanceProgramExecutor {
         snapshot: { ...performance.snapshot, activeRouteCount: modulation.activeRouteCount },
       },
       modulation,
-      effectiveValues,
+      effectiveValues: resolvedRuntimeValues,
       choreography,
       choreographyAction,
       invalidRoutes,
