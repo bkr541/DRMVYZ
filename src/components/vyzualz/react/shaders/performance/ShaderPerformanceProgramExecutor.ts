@@ -12,6 +12,7 @@ import type {
   ShaderDefinition,
   ShaderParamValue,
   ShaderParamValues,
+  QualityTier,
   ShaderRuntimeFloatUniformValues,
   ShaderRuntimeParameterController,
 } from '../registry/shaderRegistryTypes'
@@ -30,6 +31,7 @@ export interface ShaderPerformanceProgramExecutorInput {
   musicIntelligence: MusicIntelligenceFrame | null
   deltaTimeSec: number
   reconstruct?: boolean
+  qualityTier?: QualityTier
 }
 
 export interface ShaderPerformanceProgramExecutorResult {
@@ -141,6 +143,7 @@ export class ShaderPerformanceProgramExecutor {
       reconstruct: reconstructed,
       audio: input.audio,
       timing: input.timing,
+      qualityTier: input.qualityTier,
     }) ?? effectiveValues
     const runtimeFloatUniforms = this.runtimeParameterController?.getRuntimeFloatUniformValues?.() ?? {}
 

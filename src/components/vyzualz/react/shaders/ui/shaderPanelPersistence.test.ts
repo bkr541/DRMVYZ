@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SHADER_SCENE_ID } from '../scenes'
 import { PRISM_APERTURE_LIMITS } from '../scenes/prismApertureController'
+import { PRISM_ECHO_LIMITS } from '../scenes/prismEchoSystem'
 import { shaderRegistry } from '../registry'
 import {
   mergeShaderPanelState,
@@ -54,25 +55,54 @@ describe('Shader panel persistence', () => {
     })
 
     expect(merged.activeShaderId).toBe(DEFAULT_SHADER_SCENE_ID)
-    expect(merged.paramValues).toEqual({ speed: 0.75, aperture: PRISM_APERTURE_LIMITS.default })
+    expect(merged.paramValues).toEqual({
+      speed: 0.75,
+      aperture: PRISM_APERTURE_LIMITS.default,
+      echoAmount: PRISM_ECHO_LIMITS.amount.default,
+      echoCount: PRISM_ECHO_LIMITS.count.default,
+      echoSpacing: PRISM_ECHO_LIMITS.spacing.default,
+      echoDecay: PRISM_ECHO_LIMITS.decay.default,
+    })
     expect(merged.audioFrame).toBeNull()
     expect(merged.evaluationFrame).toBeNull()
     expect(merged.compileError).toBe('runtime-only')
   })
 
-  it('persists and reloads authored Prism aperture and restores the default on reset', () => {
+  it('persists and reloads authored Prism aperture and echo settings and restores defaults on reset', () => {
     const original = useShaderPanelStore.getState()
     try {
       useShaderPanelStore.getState().setActiveShaderId(DEFAULT_SHADER_SCENE_ID)
       useShaderPanelStore.getState().setParamValue('aperture', 1.67)
+      useShaderPanelStore.getState().setParamValue('echoAmount', 0.58)
+      useShaderPanelStore.getState().setParamValue('echoCount', 4)
+      useShaderPanelStore.getState().setParamValue('echoSpacing', 0.21)
+      useShaderPanelStore.getState().setParamValue('echoDecay', 0.74)
       const persisted = shaderPanelPartialize(useShaderPanelStore.getState())
-      expect(persisted.paramValuesByShaderId[DEFAULT_SHADER_SCENE_ID].aperture).toBe(1.67)
+      expect(persisted.paramValuesByShaderId[DEFAULT_SHADER_SCENE_ID]).toMatchObject({
+        aperture: 1.67,
+        echoAmount: 0.58,
+        echoCount: 4,
+        echoSpacing: 0.21,
+        echoDecay: 0.74,
+      })
 
       const merged = mergeShaderPanelState(persisted, useShaderPanelStore.getState())
-      expect(merged.paramValues.aperture).toBe(1.67)
+      expect(merged.paramValues).toMatchObject({
+        aperture: 1.67,
+        echoAmount: 0.58,
+        echoCount: 4,
+        echoSpacing: 0.21,
+        echoDecay: 0.74,
+      })
 
       useShaderPanelStore.getState().resetParams()
-      expect(useShaderPanelStore.getState().paramValues.aperture).toBe(PRISM_APERTURE_LIMITS.default)
+      expect(useShaderPanelStore.getState().paramValues).toMatchObject({
+        aperture: PRISM_APERTURE_LIMITS.default,
+        echoAmount: PRISM_ECHO_LIMITS.amount.default,
+        echoCount: PRISM_ECHO_LIMITS.count.default,
+        echoSpacing: PRISM_ECHO_LIMITS.spacing.default,
+        echoDecay: PRISM_ECHO_LIMITS.decay.default,
+      })
     } finally {
       useShaderPanelStore.setState(original)
     }

@@ -816,7 +816,7 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
       const raw = context.values[mapping.cinemaId]
       values[mapping.shader.id] = cinemaValueToShaderValue(mapping, raw)
     }
-    const resolution = this.performance.resolve(context.frame, values)
+    const resolution = this.performance.resolve(context.frame, values, context.quality?.tier)
     if (resolution.feedbackResetRequested) this.clearState()
     for (const [routeId, diagnostic] of Object.entries(resolution.invalidRoutes)) {
       this.reportPerformanceDiagnostic(

@@ -5,6 +5,14 @@ import {
   PRISM_APERTURE_LIMITS,
 } from './prismApertureController'
 import {
+  PRISM_ECHO_AMOUNT_PARAMETER_ID,
+  PRISM_ECHO_COUNT_PARAMETER_ID,
+  PRISM_ECHO_DECAY_PARAMETER_ID,
+  PRISM_ECHO_GLSL,
+  PRISM_ECHO_LIMITS,
+  PRISM_ECHO_SPACING_PARAMETER_ID,
+} from './prismEchoSystem'
+import {
   PRISM_FACET_CHOREOGRAPHY_LIMITS,
   PRISM_FACET_CHOREOGRAPHY_PARAMETER_ID,
   PRISM_FACET_ILLUMINATION_GLSL,
@@ -22,7 +30,7 @@ export const PRISM_TUNNEL: ShaderDefinition = {
   name: 'Prism Tunnel',
   description: 'Radial prismatic field with addressable facets, luminous arcs, beat pulse, and bass-reactive curvature.',
   category: 'generator',
-  version: 4,
+  version: 5,
 
   fragSrc: `#version 300 es
 precision highp float;
@@ -55,6 +63,10 @@ uniform float uFacetChaseStrength;
 uniform float uFacetAlternate;
 uniform float uFacetOpposing;
 uniform float uFacetFlare;
+uniform float uEchoAmount;
+uniform float uEchoCount;
+uniform float uEchoSpacing;
+uniform float uEchoDecay;
 
 // master controls
 uniform float uMasterIntensity;
@@ -67,6 +79,7 @@ out vec4 fragColor;
 ${PRISM_RADIAL_TOPOLOGY_GLSL}
 ${PRISM_APERTURE_GLSL}
 ${PRISM_FACET_ILLUMINATION_GLSL}
+${PRISM_ECHO_GLSL}
 
 float saturate(float value) { return clamp(value, 0.0, 1.0); }
 
@@ -148,6 +161,13 @@ void main() {
   col *= 1.0 + bass * 0.34;
   col += beat * secondary * (0.18 + facetMask * 0.42);
   col = mix(col, vec3(1.0), uSnareHit * 0.28);
+
+  // Stage 5 structural echoes reconstruct bounded prior radial descriptors.
+  // They are not framebuffer feedback and never sample a previous image.
+  col += prismStructuralEcho(uv, uPrismEchoOpacity0, uPrismEchoRotation0, uPrismEchoRotationMotion0, uPrismEchoAperture0, uPrismEchoBaseRadius0, uPrismEchoCurvature0, uPrismEchoFacetAmount0, uPrismEchoChaseIndex0, uPrismEchoChaseStrength0, uPrismEchoAlternate0, uPrismEchoOpposing0, uPrismEchoFlare0, primary, secondary);
+  col += prismStructuralEcho(uv, uPrismEchoOpacity1, uPrismEchoRotation1, uPrismEchoRotationMotion1, uPrismEchoAperture1, uPrismEchoBaseRadius1, uPrismEchoCurvature1, uPrismEchoFacetAmount1, uPrismEchoChaseIndex1, uPrismEchoChaseStrength1, uPrismEchoAlternate1, uPrismEchoOpposing1, uPrismEchoFlare1, primary, secondary);
+  col += prismStructuralEcho(uv, uPrismEchoOpacity2, uPrismEchoRotation2, uPrismEchoRotationMotion2, uPrismEchoAperture2, uPrismEchoBaseRadius2, uPrismEchoCurvature2, uPrismEchoFacetAmount2, uPrismEchoChaseIndex2, uPrismEchoChaseStrength2, uPrismEchoAlternate2, uPrismEchoOpposing2, uPrismEchoFlare2, primary, secondary);
+  col += prismStructuralEcho(uv, uPrismEchoOpacity3, uPrismEchoRotation3, uPrismEchoRotationMotion3, uPrismEchoAperture3, uPrismEchoBaseRadius3, uPrismEchoCurvature3, uPrismEchoFacetAmount3, uPrismEchoChaseIndex3, uPrismEchoChaseStrength3, uPrismEchoAlternate3, uPrismEchoOpposing3, uPrismEchoFlare3, primary, secondary);
   col *= uMasterIntensity;
 
   float vignette = saturate(1.08 - dot(uv * 0.36, uv * 0.36));
@@ -289,6 +309,55 @@ void main() {
       default: PRISM_FACET_CHOREOGRAPHY_LIMITS.default,
       modulatable: true,
     },
+    {
+      id: PRISM_ECHO_AMOUNT_PARAMETER_ID,
+      type: 'float',
+      label: 'Echo Amount',
+      uniformName: 'uEchoAmount',
+      group: 'React',
+      min: PRISM_ECHO_LIMITS.amount.min,
+      max: PRISM_ECHO_LIMITS.amount.max,
+      step: 0.01,
+      default: PRISM_ECHO_LIMITS.amount.default,
+      modulatable: true,
+    },
+    {
+      id: PRISM_ECHO_COUNT_PARAMETER_ID,
+      type: 'float',
+      label: 'Echo Count',
+      uniformName: 'uEchoCount',
+      group: 'React',
+      min: PRISM_ECHO_LIMITS.count.min,
+      max: PRISM_ECHO_LIMITS.count.max,
+      step: 1,
+      default: PRISM_ECHO_LIMITS.count.default,
+      modulatable: false,
+    },
+    {
+      id: PRISM_ECHO_SPACING_PARAMETER_ID,
+      type: 'float',
+      label: 'Echo Spacing',
+      uniformName: 'uEchoSpacing',
+      group: 'React',
+      min: PRISM_ECHO_LIMITS.spacing.min,
+      max: PRISM_ECHO_LIMITS.spacing.max,
+      step: 0.01,
+      default: PRISM_ECHO_LIMITS.spacing.default,
+      unit: 's',
+      modulatable: false,
+    },
+    {
+      id: PRISM_ECHO_DECAY_PARAMETER_ID,
+      type: 'float',
+      label: 'Echo Decay',
+      uniformName: 'uEchoDecay',
+      group: 'React',
+      min: PRISM_ECHO_LIMITS.decay.min,
+      max: PRISM_ECHO_LIMITS.decay.max,
+      step: 0.01,
+      default: PRISM_ECHO_LIMITS.decay.default,
+      modulatable: false,
+    },
   ],
 
   defaults: {
@@ -305,6 +374,10 @@ void main() {
     [PRISM_ROTATION_TORQUE_PARAMETER_ID]: PRISM_ROTATION_LIMITS.torque.default,
     [PRISM_ROTATION_DRAG_PARAMETER_ID]: PRISM_ROTATION_LIMITS.drag.default,
     [PRISM_FACET_CHOREOGRAPHY_PARAMETER_ID]: PRISM_FACET_CHOREOGRAPHY_LIMITS.default,
+    [PRISM_ECHO_AMOUNT_PARAMETER_ID]: PRISM_ECHO_LIMITS.amount.default,
+    [PRISM_ECHO_COUNT_PARAMETER_ID]: PRISM_ECHO_LIMITS.count.default,
+    [PRISM_ECHO_SPACING_PARAMETER_ID]: PRISM_ECHO_LIMITS.spacing.default,
+    [PRISM_ECHO_DECAY_PARAMETER_ID]: PRISM_ECHO_LIMITS.decay.default,
   },
 
   quality: {

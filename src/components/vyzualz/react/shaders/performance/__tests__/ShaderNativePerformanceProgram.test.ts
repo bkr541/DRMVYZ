@@ -15,6 +15,11 @@ import { shaderRegistry } from '../../registry'
 import { ShaderDefinitionValidator } from '../../registry/ShaderDefinitionValidator'
 import { PRODUCTION_SCENES } from '../../scenes'
 import { PRISM_FACET_FLARE_RUNTIME_COMMAND_ID, PRISM_FACET_RUNTIME_UNIFORMS } from '../../scenes/prismFacetIlluminationChoreographer'
+import {
+  PRISM_ECHO_BURST_RUNTIME_COMMAND_ID,
+  PRISM_ECHO_RUNTIME_AMOUNT_UNIFORM,
+  prismEchoRuntimeUniformName,
+} from '../../scenes/prismEchoSystem'
 import { migrateShaderPanelPersistedState } from '../../ui/shaderPanelStore'
 import { ShaderSectionChoreography } from '../../transitions/ShaderSectionChoreography'
 import { ShaderPerformanceRuntime } from '../ShaderPerformanceRuntime'
@@ -279,6 +284,57 @@ describe('Shader native show director programs', () => {
     expect(reentered.effectiveValues.rotationDrive).toBe(0)
     expect(reentered.runtimeFloatUniforms[PRISM_FACET_RUNTIME_UNIFORMS.flare]).toBe(0)
     expect(manualValues.rotationDrive).toBe(0)
+  })
+
+  it('keeps Prism echo history runtime-only, quality-bounded, and clean across scene re-entry', () => {
+    const prism = PRODUCTION_SCENES.find(candidate => candidate.id === 'shader-neon-tunnel')!
+    const other = PRODUCTION_SCENES.find(candidate => candidate.id !== prism.id)!
+    const executor = new ShaderPerformanceProgramExecutor()
+    const context = contextAt(12)
+    const authored = {
+      ...prism.defaults,
+      echoAmount: 1,
+      echoCount: 4,
+      echoSpacing: 0.03,
+      echoDecay: 0.6,
+      rotationDrive: 0.8,
+    }
+    const input = {
+      definition: prism,
+      sceneId: prism.id,
+      manualValues: authored,
+      routes: [],
+      context,
+      audio: NEUTRAL_AUDIO_FRAME,
+      timing: { ...NEUTRAL_TIMING_FRAME, playbackTime: 12 },
+      musicIntelligence: frameAt(12),
+      deltaTimeSec: 0.04,
+      qualityTier: 'ultra' as const,
+    }
+
+    executor.resolve({ ...input, reconstruct: true })
+    for (let index = 0; index < 5; index += 1) executor.resolve(input)
+    const echoed = executor.resolve({ ...input, deltaTimeSec: 0 })
+    expect(echoed.runtimeFloatUniforms[PRISM_ECHO_RUNTIME_AMOUNT_UNIFORM]).toBe(1)
+    expect(echoed.runtimeFloatUniforms[prismEchoRuntimeUniformName(0, 'Opacity')]).toBeGreaterThan(0)
+    expect(echoed.runtimeFloatUniforms[prismEchoRuntimeUniformName(3, 'Opacity')]).toBeGreaterThan(0)
+    const lowQuality = executor.resolve({ ...input, deltaTimeSec: 0, qualityTier: 'low' as const })
+    expect(lowQuality.runtimeFloatUniforms[prismEchoRuntimeUniformName(0, 'Opacity')]).toBeGreaterThan(0)
+    expect(lowQuality.runtimeFloatUniforms[prismEchoRuntimeUniformName(1, 'Opacity')]).toBe(0)
+    expect(authored.echoAmount).toBe(1)
+
+    executor.setDefinition(other, other.id)
+    executor.setDefinition(prism, prism.id)
+    const reentered = executor.resolve({ ...input, reconstruct: true })
+    expect(reentered.runtimeFloatUniforms[PRISM_ECHO_RUNTIME_AMOUNT_UNIFORM]).toBe(1)
+    expect(reentered.runtimeFloatUniforms[prismEchoRuntimeUniformName(0, 'Opacity')]).toBe(0)
+
+    const burstAuthored = { ...authored, echoAmount: 0 }
+    executor.applyRuntimeParameterImpulse(PRISM_ECHO_BURST_RUNTIME_COMMAND_ID, 1)
+    executor.resolve({ ...input, manualValues: burstAuthored })
+    const burst = executor.resolve({ ...input, manualValues: burstAuthored })
+    expect(burst.runtimeFloatUniforms[PRISM_ECHO_RUNTIME_AMOUNT_UNIFORM]).toBeGreaterThan(0)
+    expect(burstAuthored.echoAmount).toBe(0)
   })
 
   it('uses a declared target capability fallback when a preferred target is unavailable', () => {

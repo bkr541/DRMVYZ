@@ -121,6 +121,18 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
       modulatable: true,
       ui: { control: 'slider' },
     })
+
+    expect(oldStateValues[cinemaShaderParameterId('echoAmount')]).toBe(0)
+    expect(oldStateValues[cinemaShaderParameterId('echoCount')]).toBe(3)
+    expect(oldStateValues[cinemaShaderParameterId('echoSpacing')]).toBe(0.12)
+    expect(oldStateValues[cinemaShaderParameterId('echoDecay')]).toBe(0.62)
+    expect(prism?.definition.parameters.find(parameter => parameter.label === 'Echo Amount')).toMatchObject({
+      id: cinemaShaderParameterId('echoAmount'),
+      type: 'float',
+      default: 0,
+      group: 'React',
+      ui: { control: 'slider' },
+    })
   })
 
   it('publishes shader semantic palette roles from verified Brand Kit uniform consumers', () => {
@@ -215,6 +227,8 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     expect(fragmentSource).not.toContain('prismApplyAperture')
     expect(fragmentSource).not.toContain('prismFacetIlluminationWeight')
     expect(fragmentSource).not.toContain('uFacetChoreography')
+    expect(fragmentSource).not.toContain('prismStructuralEcho')
+    expect(fragmentSource).not.toContain('uPrismEchoRuntimeAmount')
   })
 
   it('routes the production Prism Tunnel preset through the radial topology shader path', () => {
@@ -230,6 +244,8 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     expect(fragmentSource).toContain('PrismRadialElement prismTopologyAt')
     expect(fragmentSource).toContain('PrismRadialElement prismApplyAperture')
     expect(fragmentSource).toContain('float prismFacetIlluminationWeight(')
+    expect(fragmentSource).toContain('vec3 prismStructuralEcho(')
+    expect(fragmentSource).toContain('uPrismEchoRuntimeAmount')
     expect(fragmentSource).toContain('PrismRadialElement topologyElement = prismTopologyAt(radialUv, baseRadius, uWarp)')
     expect(fragmentSource).toContain('prismApplyAperture(topologyElement, baseRadius, uAperture)')
     expect(fragmentSource).toContain('float facetIllumination = prismFacetIlluminationWeight(')
@@ -323,6 +339,71 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     expect(lastUniformValue('uFacetChaseIndex')).toBe(1)
     expect(lastUniformValue('uFacetChaseStrength')).toBeGreaterThan(0)
     expect(lastUniformValue('uFacetAlternate')).toBeGreaterThan(0.9)
+    expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
+    harness.dispose()
+  })
+
+  it('renders bounded Prism structural echoes from prior resolved states through the real Cinema production path', () => {
+    const state = createCinemaFoundationPersistedState()
+    const preset = CINEMA_LEGACY_PRESET_CATALOG.manifest.find(entry => entry.legacySourceId === PRISM_TUNNEL.id)
+    const baseComposition = CINEMA_LEGACY_PRESET_CATALOG.compositions.find(candidate => candidate.id === preset?.compositionId)
+    expect(baseComposition).toBeDefined()
+    if (!baseComposition) return
+
+    const prismNodeTypeId = cinemaShaderSceneTypeId(PRISM_TUNNEL.id)
+    const composition: CinemaCompositionDefinition = {
+      ...baseComposition,
+      nodes: baseComposition.nodes.map(node => node.typeId === prismNodeTypeId ? {
+        ...node,
+        parameterValues: {
+          ...node.parameterValues,
+          [cinemaShaderParameterId('rotationDrive')]: 1,
+          [cinemaShaderParameterId('facetChoreography')]: 1,
+          [cinemaShaderParameterId('echoAmount')]: 1,
+          [cinemaShaderParameterId('echoCount')]: 4,
+          [cinemaShaderParameterId('echoSpacing')]: 0.03,
+          [cinemaShaderParameterId('echoDecay')]: 0.6,
+        },
+      } : node),
+    }
+
+    const harness = createExecutorHarness()
+    vi.mocked(harness.gl.getUniformLocation).mockImplementation((_program, name) => (
+      { name } as unknown as WebGLUniformLocation
+    ))
+    harness.executor.resize({ width: 1, height: 1, dpr: 1 }, harness.viewport)
+    harness.executor.setGraph({ composition, instance: null, definitions: state.definitions })
+
+    const continuousFrame = (frameIndex: number): Readonly<CinemaFrameContext> => {
+      const next = frame(frameIndex)
+      return {
+        ...next,
+        // reset.generation is a discontinuity generation, not a frame counter.
+        // Production keeps it stable until a real reset occurs.
+        transport: {
+          ...next.transport,
+          reset: { ...next.transport.reset, generation: 0 },
+        },
+      }
+    }
+
+    expect(harness.executor.render(continuousFrame(0))).toBe(true)
+    expect(harness.executor.render(continuousFrame(1))).toBe(true)
+    expect(harness.executor.render(continuousFrame(2))).toBe(true)
+
+    const uniformValues = (name: string) => vi.mocked(harness.gl.uniform1f).mock.calls
+      .filter(([location]) => (location as unknown as { name?: string })?.name === name)
+      .map(([, value]) => value)
+    const lastUniformValue = (name: string) => {
+      const values = uniformValues(name)
+      return values[values.length - 1]
+    }
+
+    expect(lastUniformValue('uPrismEchoRuntimeAmount')).toBe(1)
+    expect(lastUniformValue('uPrismEchoOpacity0')).toBeGreaterThan(0)
+    expect(lastUniformValue('uPrismEchoAperture0')).toBeGreaterThan(0)
+    expect(lastUniformValue('uPrismEchoFacetAmount0')).toBe(1)
+    expect(lastUniformValue('uPrismEchoRotationMotion0')).not.toBe(lastUniformValue('uRotationMotion'))
     expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
     harness.dispose()
   })

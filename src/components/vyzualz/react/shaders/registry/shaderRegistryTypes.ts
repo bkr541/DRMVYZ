@@ -354,6 +354,8 @@ export interface ShaderRuntimeParameterControllerInput {
   audio?: Readonly<ShaderAudioUniformFrame>
   /** Shared musical timing frame; specialized controllers may consume existing event pulses. */
   timing?: Readonly<ShaderTimingUniformFrame>
+  /** Active renderer quality tier for bounded scene-specific runtime budgets. */
+  qualityTier?: QualityTier
 }
 
 /**

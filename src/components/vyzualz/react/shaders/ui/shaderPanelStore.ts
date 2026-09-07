@@ -12,6 +12,13 @@ import { shaderRegistry } from '../registry'
 import { DEFAULT_SHADER_SCENE_ID } from '../scenes'
 import { PRISM_TUNNEL } from '../scenes/prismTunnel'
 import { PRISM_APERTURE_LIMITS, PRISM_APERTURE_PARAMETER_ID } from '../scenes/prismApertureController'
+import {
+  PRISM_ECHO_AMOUNT_PARAMETER_ID,
+  PRISM_ECHO_COUNT_PARAMETER_ID,
+  PRISM_ECHO_DECAY_PARAMETER_ID,
+  PRISM_ECHO_LIMITS,
+  PRISM_ECHO_SPACING_PARAMETER_ID,
+} from '../scenes/prismEchoSystem'
 import type { ShaderCompileStatus } from '../editor/ShaderCompilePanel'
 import type { PerformanceMetrics } from '../performance/shaderPerformanceTypes'
 import type { QualityTier } from '../registry/shaderRegistryTypes'
@@ -198,15 +205,25 @@ export function migrateShaderPanelPersistedState(
     migrateLegacyReactorTextureSelections(persisted.textureSelectionsByShaderId),
   )
 
-  // Stage 2 adds Prism aperture as canonical authored state. Older Shader Pads
-  // saves legitimately lack it, so hydrate that one missing field to the
-  // production default without disturbing any existing authored values.
+  // Staged Prism features add canonical authored fields over time. Older Shader
+  // Pad saves legitimately lack them, so hydrate only missing fields to their
+  // production defaults without disturbing any existing authored values.
   const prismValues = paramValuesByShaderId[PRISM_TUNNEL.id]
-  if (prismValues && !Object.prototype.hasOwnProperty.call(prismValues, PRISM_APERTURE_PARAMETER_ID)) {
-    paramValuesByShaderId[PRISM_TUNNEL.id] = {
-      ...prismValues,
-      [PRISM_APERTURE_PARAMETER_ID]: PRISM_APERTURE_LIMITS.default,
+  if (prismValues) {
+    const prismDefaults: Array<readonly [string, ShaderParamValue]> = [
+      [PRISM_APERTURE_PARAMETER_ID, PRISM_APERTURE_LIMITS.default],
+      [PRISM_ECHO_AMOUNT_PARAMETER_ID, PRISM_ECHO_LIMITS.amount.default],
+      [PRISM_ECHO_COUNT_PARAMETER_ID, PRISM_ECHO_LIMITS.count.default],
+      [PRISM_ECHO_SPACING_PARAMETER_ID, PRISM_ECHO_LIMITS.spacing.default],
+      [PRISM_ECHO_DECAY_PARAMETER_ID, PRISM_ECHO_LIMITS.decay.default],
+    ]
+    let nextPrismValues = prismValues
+    for (const [parameterId, defaultValue] of prismDefaults) {
+      if (Object.prototype.hasOwnProperty.call(nextPrismValues, parameterId)) continue
+      if (nextPrismValues === prismValues) nextPrismValues = { ...prismValues }
+      nextPrismValues[parameterId] = defaultValue
     }
+    paramValuesByShaderId[PRISM_TUNNEL.id] = nextPrismValues
   }
 
   if (persistedActiveShaderId && getLegacyReactorRecipe(persistedActiveShaderId)) {

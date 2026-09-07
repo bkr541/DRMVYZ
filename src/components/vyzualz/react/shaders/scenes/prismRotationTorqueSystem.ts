@@ -4,7 +4,16 @@ import type {
   ShaderRuntimeParameterControllerInput,
   ShaderRuntimeFloatUniformValues,
 } from '../registry/shaderRegistryTypes'
-import { PrismApertureController } from './prismApertureController'
+import { PRISM_APERTURE_PARAMETER_ID, PrismApertureController } from './prismApertureController'
+import {
+  PRISM_ECHO_AMOUNT_PARAMETER_ID,
+  PRISM_ECHO_BURST_RUNTIME_COMMAND_ID,
+  PRISM_ECHO_COUNT_PARAMETER_ID,
+  PRISM_ECHO_DECAY_PARAMETER_ID,
+  PRISM_ECHO_LIMITS,
+  PRISM_ECHO_SPACING_PARAMETER_ID,
+  PrismEchoSystem,
+} from './prismEchoSystem'
 import {
   PRISM_FACET_CHOREOGRAPHY_LIMITS,
   PRISM_FACET_CHOREOGRAPHY_PARAMETER_ID,
@@ -170,18 +179,22 @@ export class PrismRotationTorqueSystem {
 
 /**
  * Prism's single runtime-parameter owner composes Stage 2 aperture smoothing,
- * Stage 3 rotational physics, and Stage 4 facet illumination choreography. No
+ * Stage 3 rotational physics, Stage 4 facet illumination choreography, and
+ * Stage 5 structural echo history. No
  * runtime state is written back to the authored parameter object.
  */
 export class PrismRuntimeParameterController implements ShaderRuntimeParameterController {
   readonly rotation = new PrismRotationTorqueSystem()
   readonly illumination = new PrismFacetIlluminationChoreographer()
+  readonly echoes = new PrismEchoSystem()
   private readonly aperture = new PrismApertureController()
+  private readonly runtimeFloatUniforms: Record<string, number> = {}
 
   reset(): void {
     this.aperture.reset()
     this.rotation.reset()
     this.illumination.reset()
+    this.echoes.reset()
   }
 
   setTemporaryOffset(parameterId: string, offset: number): void {
@@ -193,6 +206,10 @@ export class PrismRuntimeParameterController implements ShaderRuntimeParameterCo
   }
 
   applyImpulse(parameterId: string, amount: number): void {
+    if (parameterId === PRISM_ECHO_BURST_RUNTIME_COMMAND_ID) {
+      this.echoes.requestBurst(amount)
+      return
+    }
     if (parameterId === PRISM_FACET_FLARE_RUNTIME_COMMAND_ID) {
       this.illumination.requestAllFacetFlare(amount)
       return
@@ -202,7 +219,12 @@ export class PrismRuntimeParameterController implements ShaderRuntimeParameterCo
   }
 
   getRuntimeFloatUniformValues(): ShaderRuntimeFloatUniformValues {
-    return this.illumination.getRuntimeFloatUniformValues()
+    Object.assign(
+      this.runtimeFloatUniforms,
+      this.illumination.getRuntimeFloatUniformValues(),
+      this.echoes.getRuntimeFloatUniformValues(),
+    )
+    return this.runtimeFloatUniforms
   }
 
   resolve(input: ShaderRuntimeParameterControllerInput): Record<string, ShaderParamValue> {
@@ -222,13 +244,36 @@ export class PrismRuntimeParameterController implements ShaderRuntimeParameterCo
       apertureValues[PRISM_FACET_CHOREOGRAPHY_PARAMETER_ID],
       PRISM_FACET_CHOREOGRAPHY_LIMITS.default,
     )
-    this.illumination.step({
+    const illumination = this.illumination.step({
       amount: choreographyAmount,
       audio: input.audio,
       timing: input.timing,
       deltaTimeSec: input.deltaTimeSec,
       rotationDirection: motion.direction,
       reconstruct: input.reconstruct,
+    })
+
+    this.echoes.step({
+      amount: numericValue(apertureValues[PRISM_ECHO_AMOUNT_PARAMETER_ID], PRISM_ECHO_LIMITS.amount.default),
+      count: numericValue(apertureValues[PRISM_ECHO_COUNT_PARAMETER_ID], PRISM_ECHO_LIMITS.count.default),
+      spacingSec: numericValue(apertureValues[PRISM_ECHO_SPACING_PARAMETER_ID], PRISM_ECHO_LIMITS.spacing.default),
+      decay: numericValue(apertureValues[PRISM_ECHO_DECAY_PARAMETER_ID], PRISM_ECHO_LIMITS.decay.default),
+      qualityTier: input.qualityTier,
+      deltaTimeSec: input.deltaTimeSec,
+      reconstruct: input.reconstruct,
+      state: {
+        rotation: numericValue(apertureValues[PRISM_ROTATION_PARAMETER_ID], 0),
+        rotationMotion: motion.angle,
+        aperture: numericValue(apertureValues[PRISM_APERTURE_PARAMETER_ID], 1),
+        baseRadius: numericValue(apertureValues.tunnelRadius, 0.9),
+        curvature: numericValue(apertureValues.warp, 0.6),
+        facetAmount: choreographyAmount,
+        chaseIndex: illumination.chaseIndex,
+        chaseStrength: illumination.chaseStrength,
+        alternate: illumination.alternate,
+        opposing: illumination.opposing,
+        flare: illumination.flare,
+      },
     })
 
     return {

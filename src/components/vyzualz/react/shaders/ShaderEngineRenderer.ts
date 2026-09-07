@@ -387,6 +387,7 @@ export class ShaderEngineRenderer {
       musicIntelligence: frame.musicIntelligence,
       deltaTimeSec: frameState.deltaTime,
       reconstruct: reconstructed,
+      qualityTier: this._qualCtrl.effectiveTier,
     })
     const sectionTransitionRequest = resolveShaderRendererSectionTransitionRequest(
       performanceFrame.choreography,

@@ -12,6 +12,7 @@ import { ShaderPerformanceProgramExecutor } from '../react/shaders/performance/S
 import { resolveShaderRoutesForDefinition } from '../react/shaders/performance/ShaderPerformanceRoutes'
 import type { ShaderPerformanceRuntimeSnapshot } from '../react/shaders/performance/ShaderPerformanceProgramTypes'
 import type {
+  QualityTier,
   ShaderDefinition,
   ShaderParamValue,
   ShaderParamValues,
@@ -51,6 +52,7 @@ export class CinemaShaderPerformanceBridge {
   resolve(
     frame: Readonly<CinemaFrameContext>,
     manualValues: ShaderParamValues,
+    qualityTier?: QualityTier,
   ): CinemaShaderPerformanceResolution {
     const resetGenerationChanged = frame.transport.reset.required
       && frame.transport.reset.generation !== this.lastResetGeneration
@@ -90,6 +92,7 @@ export class CinemaShaderPerformanceBridge {
       musicIntelligence,
       deltaTimeSec: frame.timing.deltaTimeSec,
       reconstruct,
+      qualityTier,
     })
 
     const policyReset = this.feedbackResetTracker.update({

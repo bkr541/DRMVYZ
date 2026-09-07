@@ -57,7 +57,7 @@ function installPrismTunnelComposition() {
 }
 
 describe('Prism Tunnel React-tab controls', () => {
-  it('surfaces Facet Choreography on PERFORMANCE using the shared slider control', async () => {
+  it('surfaces Prism choreography and echo controls on PERFORMANCE using shared slider controls', async () => {
     installPrismTunnelComposition()
     await act(async () => root?.render(<ReactReactivityWorkspacePanel />))
 
@@ -69,12 +69,20 @@ describe('Prism Tunnel React-tab controls', () => {
     const controls = host?.querySelector<HTMLElement>('[data-cinema-prism-react-controls="true"]') ?? null
     expect(controls).not.toBeNull()
     expect(controls?.textContent).toContain('Facet Choreography')
-    expect(controls?.querySelector('input[type="range"]')).not.toBeNull()
+    expect(controls?.textContent).toContain('Echo Amount')
+    expect(controls?.textContent).toContain('Echo Count')
+    expect(controls?.textContent).toContain('Echo Spacing')
+    expect(controls?.textContent).toContain('Echo Decay')
+    expect(controls?.querySelectorAll('input[type="range"]')).toHaveLength(5)
   })
 
-  it('keeps the React-only choreography amount out of the Cinema Design inspector', async () => {
+  it('keeps React-only Prism choreography and echo settings out of the Cinema Design inspector', async () => {
     installPrismTunnelComposition()
     await act(async () => root?.render(<CinemaInspectorPanel />))
     expect(host?.textContent).not.toContain('Facet Choreography')
+    expect(host?.textContent).not.toContain('Echo Amount')
+    expect(host?.textContent).not.toContain('Echo Count')
+    expect(host?.textContent).not.toContain('Echo Spacing')
+    expect(host?.textContent).not.toContain('Echo Decay')
   })
 })
