@@ -1,4 +1,4 @@
-import type { AfterhoursColorMode } from '../../../CinematicWorldSettings'
+import { AFTERHOURS_DEFAULTS, type AfterhoursColorMode } from '../../../CinematicWorldSettings'
 
 /**
  * Afterhours Stage 3 — deterministic laser colour resolution.
@@ -16,9 +16,20 @@ export interface AfterhoursRgb {
   b: number
 }
 
-export const AFTERHOURS_DEFAULT_PRIMARY: AfterhoursRgb = Object.freeze({ r: 116 / 255, g: 245 / 255, b: 1 })
-export const AFTERHOURS_DEFAULT_ACCENT: AfterhoursRgb = Object.freeze({ r: 1, g: 1, b: 1 })
-export const AFTERHOURS_DEFAULT_BACKGROUND: AfterhoursRgb = Object.freeze({ r: 0, g: 0, b: 0 })
+/** Ultimate fallback only if a persisted default is ever malformed (it is not). */
+const AFTERHOURS_SAFE_BLACK: AfterhoursRgb = Object.freeze({ r: 0, g: 0, b: 0 })
+
+// Derived from the one persisted-settings source of truth so the default hues
+// can never drift from AFTERHOURS_DEFAULTS.
+export const AFTERHOURS_DEFAULT_PRIMARY: AfterhoursRgb = Object.freeze(
+  parseAfterhoursHexColor(AFTERHOURS_DEFAULTS.primaryColor, AFTERHOURS_SAFE_BLACK),
+)
+export const AFTERHOURS_DEFAULT_ACCENT: AfterhoursRgb = Object.freeze(
+  parseAfterhoursHexColor(AFTERHOURS_DEFAULTS.accentColor, AFTERHOURS_SAFE_BLACK),
+)
+export const AFTERHOURS_DEFAULT_BACKGROUND: AfterhoursRgb = Object.freeze(
+  parseAfterhoursHexColor(AFTERHOURS_DEFAULTS.backgroundColor, AFTERHOURS_SAFE_BLACK),
+)
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))

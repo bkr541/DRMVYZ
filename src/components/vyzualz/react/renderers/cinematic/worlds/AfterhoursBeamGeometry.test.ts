@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { AFTERHOURS_DEFAULTS, type AfterhoursPattern } from '../../../CinematicWorldSettings'
+import { AFTERHOURS_DEFAULTS, AFTERHOURS_PATTERNS, type AfterhoursPattern } from '../../../CinematicWorldSettings'
 import {
   AFTERHOURS_BOTTOM_EMITTERS,
   AFTERHOURS_LEFT_EMITTERS,
   AFTERHOURS_MAX_BEAMS,
+  AFTERHOURS_PATTERN_IDS,
   AFTERHOURS_RIGHT_EMITTERS,
   AFTERHOURS_TOP_EMITTERS,
   type AfterhoursBeamGenerationSettings,
@@ -27,6 +28,11 @@ const active = (overrides: Partial<AfterhoursBeamGenerationSettings> = {}, varia
   gen(overrides, variation).filter(beam => beam.active)
 
 describe('Afterhours Stage 2 — canonical emitter banks', () => {
+  it('reuses the persisted pattern union as its only pattern-id source of truth', () => {
+    expect(AFTERHOURS_PATTERN_IDS).toBe(AFTERHOURS_PATTERNS)
+    expect([...AFTERHOURS_PATTERN_IDS]).toEqual(['random', 'xWall', 'cross', 'fan', 'split'])
+  })
+
   it('owns exactly 10 fixed frozen bottom origins plus fixed side/top banks', () => {
     expect(AFTERHOURS_BOTTOM_EMITTERS).toHaveLength(10)
     expect(AFTERHOURS_BOTTOM_EMITTERS.map(e => e.x)).toEqual([0.07, 0.165, 0.26, 0.355, 0.45, 0.55, 0.645, 0.74, 0.835, 0.93])
@@ -165,6 +171,19 @@ describe('Afterhours Stage 2 — determinism and variation', () => {
     const a = active({ pattern: 'random' }, 0).map(b => b.target)
     const b = active({ pattern: 'random' }, 1).map(b => b.target)
     expect(a).not.toEqual(b)
+  })
+
+  it('folds config.seed in deterministically: absent/0 is a no-op, a nonzero seed differentiates', () => {
+    const noSeed = generateAfterhoursBeams({ ...BASE, pattern: 'fan', beamCount: 16 }, { variation: 2 })
+    // Absent and explicit-0 reproduce the original seedless output exactly.
+    expect(generateAfterhoursBeams({ ...BASE, pattern: 'fan', beamCount: 16 }, { variation: 2, seed: 0 })).toEqual(noSeed)
+    // A nonzero seed perturbs the geometry but stays reproducible for that seed.
+    const seeded = generateAfterhoursBeams({ ...BASE, pattern: 'fan', beamCount: 16 }, { variation: 2, seed: 48001 })
+    expect(generateAfterhoursBeams({ ...BASE, pattern: 'fan', beamCount: 16 }, { variation: 2, seed: 48001 })).toEqual(seeded)
+    expect(seeded.filter(b => b.active).map(b => b.target)).not.toEqual(noSeed.filter(b => b.active).map(b => b.target))
+    // Two different seeds diverge.
+    const other = generateAfterhoursBeams({ ...BASE, pattern: 'fan', beamCount: 16 }, { variation: 2, seed: 1337 })
+    expect(other.filter(b => b.active).map(b => b.target)).not.toEqual(seeded.filter(b => b.active).map(b => b.target))
   })
 
   it('stays valid across many variation ordinals with no degenerate output', () => {

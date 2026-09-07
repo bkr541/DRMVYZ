@@ -1,4 +1,4 @@
-import type { AfterhoursPattern } from '../../../CinematicWorldSettings'
+import { AFTERHOURS_PATTERNS, type AfterhoursPattern } from '../../../CinematicWorldSettings'
 
 /**
  * Afterhours Stage 2 — canonical procedural beam domain.
@@ -57,7 +57,8 @@ export const AFTERHOURS_TOP_EMITTERS = Object.freeze([
 export const AFTERHOURS_MAX_BEAMS = 16
 export const AFTERHOURS_MIN_BEAMS = 2
 
-export const AFTERHOURS_PATTERN_IDS: readonly AfterhoursPattern[] = Object.freeze(['random', 'xWall', 'cross', 'fan', 'split'])
+/** Alias of the persisted-settings pattern union — single source of truth. */
+export const AFTERHOURS_PATTERN_IDS: readonly AfterhoursPattern[] = AFTERHOURS_PATTERNS
 
 export interface AfterhoursBeamDescriptor {
   readonly active: boolean
@@ -87,6 +88,13 @@ export interface AfterhoursBeamGenerationOptions {
    * variations of the selected pattern family; here it just seeds the RNG.
    */
   variation?: number
+  /**
+   * The Cinematic World's deterministic `config.seed`. Folded into the RNG so
+   * two instances with identical settings + variation still differ, while a
+   * given seed + settings + variation always reproduces the same geometry.
+   * `0` / absent is a no-op, so seedless callers get the original output.
+   */
+  seed?: number
   /**
    * Stage 4 reactive motion. `motionPhase` is a deterministic scalar (musical
    * time when BPM Sync is on, else continuous transport time); `motionAuthority`
@@ -317,7 +325,10 @@ export function generateAfterhoursBeams(
   const variation = Math.trunc(Number.isFinite(options.variation ?? 0) ? (options.variation ?? 0) : 0)
   const motionPhase = Number.isFinite(options.motionPhase ?? 0) ? (options.motionPhase ?? 0) : 0
   const motionAuthority = clamp01(options.motionAuthority ?? 0)
-  const baseSeed = hash32((hash32(variation >>> 0) ^ Math.imul(count, 0x9e3779b1) ^ Math.imul(pattern.length, 0x85ebca77)) >>> 0)
+  // `config.seed` folded in, guarded so 0/absent reproduces the seedless output.
+  const seedInput = Math.trunc(Number.isFinite(options.seed ?? 0) ? (options.seed ?? 0) : 0) >>> 0
+  const seedMix = seedInput !== 0 ? hash32(seedInput) : 0
+  const baseSeed = hash32((hash32(variation >>> 0) ^ seedMix ^ Math.imul(count, 0x9e3779b1) ^ Math.imul(pattern.length, 0x85ebca77)) >>> 0)
 
   const origins = activeOrigins(pattern, settings)
   const symmetry = pattern === 'random' && settings.symmetry === true
@@ -356,7 +367,9 @@ export function generateAfterhoursBeams(
 
   if (symmetry) {
     for (let index = primaryCount; index < count; index += 1) {
-      const source = beams[count - 1 - index] ?? beams[beams.length - 1]
+      // `count - 1 - index` is provably in [0, primaryCount) for the whole loop
+      // (count is clamped >= 2), so every source beam already exists.
+      const source = beams[count - 1 - index]
       beams.push(Object.freeze({
         active: true,
         bank: mirrorBank(source.bank),

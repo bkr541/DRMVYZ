@@ -36,8 +36,6 @@ export interface AfterhoursDirectorState {
   transition: number
   /** 0..1 laser-authority reduction. 0 = full lasers, 1 = full blackout. */
   blackout: number
-  /** True only on the frame a fresh variation boundary was consumed. */
-  changed: boolean
 }
 
 /** Which canonical clock a Pattern Change cadence schedules against. */
@@ -134,12 +132,10 @@ export class AfterhoursPatternDirector {
       this.blackoutEnvelope = 0
     }
 
-    let changed = false
     if (musicPlaying && patternChange !== 'off' && this.consume(frame, patternChange)) {
       this.previousVariation = this.variation
       this.variation = (this.variation + 1) % VARIATION_MODULO
       this.transition = 0
-      changed = true
     } else {
       // The boundary frame itself sits at transition 0; the morph advances from
       // the next frame on. Interval is musical when BPM Sync is on, else fixed.
@@ -177,7 +173,6 @@ export class AfterhoursPatternDirector {
       previousVariation: this.previousVariation,
       transition,
       blackout,
-      changed,
     }
   }
 

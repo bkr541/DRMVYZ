@@ -95,7 +95,7 @@ describe('Afterhours Stage 5 — Pattern Change scheduler', () => {
     for (let i = 1; i < 8; i += 1) {
       const state = director.update({ frame: directorFrame({ frameIndex: i, clock: 'bar', clockEventId: `bar-${i}` }), settings: s })
       expect(state.variation).toBe(0)
-      expect(state.changed).toBe(false)
+      expect(state.transition).toBe(1) // never enters a morph
     }
   })
 
@@ -113,12 +113,12 @@ describe('Afterhours Stage 5 — Pattern Change scheduler', () => {
       const director = new AfterhoursPatternDirector()
       const s = cfg(cadence)
       const first = director.update({ frame: directorFrame({ frameIndex: 1, clock, clockEventId: `${clock}-a` }), settings: s })
-      expect(first.changed).toBe(true)
       expect(first.variation).toBe(1)
-      // Same identity on the next frame -> no second advance.
+      expect(first.transition).toBe(0) // a boundary just started a morph
+      // Same identity on the next frame -> no second advance, morph advancing.
       const held = director.update({ frame: directorFrame({ frameIndex: 2, clock, clockEventId: `${clock}-a` }), settings: s })
-      expect(held.changed).toBe(false)
       expect(held.variation).toBe(1)
+      expect(held.transition).toBeGreaterThan(0)
       // Fresh identity -> next variation.
       const next = director.update({ frame: directorFrame({ frameIndex: 3, clock, clockEventId: `${clock}-b` }), settings: s })
       expect(next.variation).toBe(2)
@@ -128,8 +128,8 @@ describe('Afterhours Stage 5 — Pattern Change scheduler', () => {
   it('Drop cadence advances on the canonical drop-start impulse identity', () => {
     const director = new AfterhoursPatternDirector()
     const s = cfg('drop')
-    expect(director.update({ frame: directorFrame({ frameIndex: 1, drop: true, dropEventId: 'd1' }), settings: s }).changed).toBe(true)
-    expect(director.update({ frame: directorFrame({ frameIndex: 2, drop: true, dropEventId: 'd1' }), settings: s }).changed).toBe(false)
+    expect(director.update({ frame: directorFrame({ frameIndex: 1, drop: true, dropEventId: 'd1' }), settings: s }).variation).toBe(1)
+    expect(director.update({ frame: directorFrame({ frameIndex: 2, drop: true, dropEventId: 'd1' }), settings: s }).variation).toBe(1)
     expect(director.update({ frame: directorFrame({ frameIndex: 3, drop: true, dropEventId: 'd2' }), settings: s }).variation).toBe(2)
   })
 
@@ -156,7 +156,7 @@ describe('Afterhours Stage 5 — Pattern Change scheduler', () => {
     const s = cfg('bar')
     const state = director.update({ frame: directorFrame({ frameIndex: 1, playing: false, clock: 'bar', clockEventId: 'bar-1' }), settings: s })
     expect(state.variation).toBe(0)
-    expect(state.changed).toBe(false)
+    expect(state.transition).toBe(1) // stopped transport never enters a morph
   })
 })
 

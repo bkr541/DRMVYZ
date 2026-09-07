@@ -64,6 +64,14 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
     this.slotWeight.fill(0)
   }
 
+  // Afterhours computes every animated value on the CPU (trigger reaction,
+  // pattern morph, blackout, per-slot fade) and pushes its own uAfterhours*
+  // uniforms; its shader declares none of the shared time/audio/palette/camera
+  // uniforms, so the base class should not spend the per-frame work setting them.
+  protected override consumesSharedFrameUniforms(): boolean {
+    return false
+  }
+
   override reset(reason: CinematicRendererResetReason): void {
     super.reset(reason)
     this.triggers.reset()
@@ -142,7 +150,13 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
       beamCount: activeCount,
       spread: Math.max(0, Math.min(1, settings.spread + reaction.spreadDelta)),
     }
-    const genOptions = { motionPhase: reaction.motionPhase, motionAuthority: reaction.motionAuthority }
+    // The world's deterministic seed differentiates otherwise-identical instances
+    // without exposing a user control; determinism is preserved per seed.
+    const genOptions = {
+      seed: frame.randomSeed,
+      motionPhase: reaction.motionPhase,
+      motionAuthority: reaction.motionAuthority,
+    }
 
     // Settled: one generation (meta.x targets 1 for active slots). Mid-morph:
     // blend the previous and next variation of the *same* family — fixed emitter

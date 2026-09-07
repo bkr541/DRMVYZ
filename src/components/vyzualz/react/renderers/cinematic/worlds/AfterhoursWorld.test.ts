@@ -116,7 +116,9 @@ describe('Afterhours Stage 2 world integration', () => {
     }
     harness.world.render(frame(settings), { framebuffer: null, texture: null, width: 1280, height: 720 })
 
-    const expected = generateAfterhoursBeams({ ...AFTERHOURS_DEFAULTS, ...settings })
+    // The world folds config.seed into the generator; match it here.
+    const seed = createCinematicWorldConfig('afterhours', settings).seed
+    const expected = generateAfterhoursBeams({ ...AFTERHOURS_DEFAULTS, ...settings }, { seed })
     for (let index = 0; index < AFTERHOURS_MAX_BEAMS; index += 1) {
       const beam = expected[index]
       if (beam.active) {
@@ -151,6 +153,18 @@ describe('Afterhours Stage 2 world integration', () => {
     harness.world.render(frame({ backgroundColor: '#000000', atmosphere: 0.1 }), { framebuffer: null, texture: null, width: 1280, height: 720 })
     expect(last(harness.calls, 'uAfterhoursBackground')).toEqual([0, 0, 0])
     expect(last(harness.calls, 'uAfterhoursAtmosphere')).toEqual([0.1])
+    harness.world.dispose()
+  })
+
+  it('is fully self-driven: it sets uResolution + its own uAfterhours* uniforms and none of the shared frame uniforms', () => {
+    const harness = createWorldHarness()
+    harness.world.render(frame({}, { frameIndex: 3, beatEventId: 'b1' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    const names = [...harness.calls.keys()]
+    expect(names).toContain('uResolution')
+    expect(names.some(name => name.startsWith('uAfterhours'))).toBe(true)
+    for (const shared of ['uTime', 'uTransportTime', 'uBass', 'uMid', 'uHigh', 'uVolume', 'uBeat', 'uKick', 'uSnare', 'uSeed', 'uVariation', 'uPrimary', 'uSecondary', 'uAccent', 'uBackground', 'uCameraPosition']) {
+      expect(names, `${shared} should not be set`).not.toContain(shared)
+    }
     harness.world.dispose()
   })
 

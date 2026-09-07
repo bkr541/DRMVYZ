@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { AFTERHOURS_DEFAULTS } from '../../../CinematicWorldSettings'
 import {
   AFTERHOURS_DEFAULT_ACCENT,
+  AFTERHOURS_DEFAULT_BACKGROUND,
   AFTERHOURS_DEFAULT_PRIMARY,
   type AfterhoursColorInput,
   parseAfterhoursHexColor,
@@ -16,6 +18,16 @@ const finite = (c: { r: number; g: number; b: number }) =>
   [c.r, c.g, c.b].every(v => Number.isFinite(v) && v >= 0 && v <= 1)
 
 describe('Afterhours Stage 3 — colour parsing', () => {
+  it('derives the default hues from AFTERHOURS_DEFAULTS, not a hand-copied literal', () => {
+    expect(AFTERHOURS_DEFAULT_PRIMARY).toEqual(parseAfterhoursHexColor(AFTERHOURS_DEFAULTS.primaryColor, { r: 0, g: 0, b: 0 }))
+    expect(AFTERHOURS_DEFAULT_ACCENT).toEqual(parseAfterhoursHexColor(AFTERHOURS_DEFAULTS.accentColor, { r: 0, g: 0, b: 0 }))
+    expect(AFTERHOURS_DEFAULT_BACKGROUND).toEqual(parseAfterhoursHexColor(AFTERHOURS_DEFAULTS.backgroundColor, { r: 0, g: 0, b: 0 }))
+    // Unchanged concrete values (regression guard).
+    expect(AFTERHOURS_DEFAULT_PRIMARY).toEqual({ r: 116 / 255, g: 245 / 255, b: 1 })
+    expect(AFTERHOURS_DEFAULT_ACCENT).toEqual({ r: 1, g: 1, b: 1 })
+    expect(AFTERHOURS_DEFAULT_BACKGROUND).toEqual({ r: 0, g: 0, b: 0 })
+  })
+
   it('parses #rrggbb, #rgb, and bare hex; falls back on malformed input', () => {
     expect(parseAfterhoursHexColor('#ff8000', AFTERHOURS_DEFAULT_PRIMARY)).toEqual({ r: 1, g: 128 / 255, b: 0 })
     expect(parseAfterhoursHexColor('0f0', AFTERHOURS_DEFAULT_PRIMARY)).toEqual({ r: 0, g: 1, b: 0 })
