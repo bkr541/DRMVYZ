@@ -68,17 +68,19 @@ describe('Prism Tunnel React-tab controls', () => {
 
     const controls = host?.querySelector<HTMLElement>('[data-cinema-prism-react-controls="true"]') ?? null
     expect(controls).not.toBeNull()
+    expect(controls?.textContent).toContain('Drop Transformation')
     expect(controls?.textContent).toContain('Facet Choreography')
     expect(controls?.textContent).toContain('Echo Amount')
     expect(controls?.textContent).toContain('Echo Count')
     expect(controls?.textContent).toContain('Echo Spacing')
     expect(controls?.textContent).toContain('Echo Decay')
-    expect(controls?.querySelectorAll('input[type="range"]')).toHaveLength(5)
+    expect(controls?.querySelectorAll('input[type="range"]')).toHaveLength(6)
   })
 
   it('keeps React-only Prism choreography and echo settings out of the Cinema Design inspector', async () => {
     installPrismTunnelComposition()
     await act(async () => root?.render(<CinemaInspectorPanel />))
+    expect(host?.textContent).not.toContain('Drop Transformation')
     expect(host?.textContent).not.toContain('Facet Choreography')
     expect(host?.textContent).not.toContain('Echo Amount')
     expect(host?.textContent).not.toContain('Echo Count')

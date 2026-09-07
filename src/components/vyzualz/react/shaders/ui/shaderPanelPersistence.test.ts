@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SHADER_SCENE_ID } from '../scenes'
 import { PRISM_APERTURE_LIMITS } from '../scenes/prismApertureController'
+import { PRISM_DROP_TRANSFORMATION_LIMITS } from '../scenes/prismDropTransformationDirector'
 import { PRISM_ECHO_LIMITS } from '../scenes/prismEchoSystem'
 import { shaderRegistry } from '../registry'
 import {
@@ -58,6 +59,7 @@ describe('Shader panel persistence', () => {
     expect(merged.paramValues).toEqual({
       speed: 0.75,
       aperture: PRISM_APERTURE_LIMITS.default,
+      dropTransformation: PRISM_DROP_TRANSFORMATION_LIMITS.default,
       echoAmount: PRISM_ECHO_LIMITS.amount.default,
       echoCount: PRISM_ECHO_LIMITS.count.default,
       echoSpacing: PRISM_ECHO_LIMITS.spacing.default,
@@ -73,6 +75,7 @@ describe('Shader panel persistence', () => {
     try {
       useShaderPanelStore.getState().setActiveShaderId(DEFAULT_SHADER_SCENE_ID)
       useShaderPanelStore.getState().setParamValue('aperture', 1.67)
+      useShaderPanelStore.getState().setParamValue('dropTransformation', 0.72)
       useShaderPanelStore.getState().setParamValue('echoAmount', 0.58)
       useShaderPanelStore.getState().setParamValue('echoCount', 4)
       useShaderPanelStore.getState().setParamValue('echoSpacing', 0.21)
@@ -80,6 +83,7 @@ describe('Shader panel persistence', () => {
       const persisted = shaderPanelPartialize(useShaderPanelStore.getState())
       expect(persisted.paramValuesByShaderId[DEFAULT_SHADER_SCENE_ID]).toMatchObject({
         aperture: 1.67,
+        dropTransformation: 0.72,
         echoAmount: 0.58,
         echoCount: 4,
         echoSpacing: 0.21,
@@ -89,6 +93,7 @@ describe('Shader panel persistence', () => {
       const merged = mergeShaderPanelState(persisted, useShaderPanelStore.getState())
       expect(merged.paramValues).toMatchObject({
         aperture: 1.67,
+        dropTransformation: 0.72,
         echoAmount: 0.58,
         echoCount: 4,
         echoSpacing: 0.21,
@@ -98,6 +103,7 @@ describe('Shader panel persistence', () => {
       useShaderPanelStore.getState().resetParams()
       expect(useShaderPanelStore.getState().paramValues).toMatchObject({
         aperture: PRISM_APERTURE_LIMITS.default,
+        dropTransformation: PRISM_DROP_TRANSFORMATION_LIMITS.default,
         echoAmount: PRISM_ECHO_LIMITS.amount.default,
         echoCount: PRISM_ECHO_LIMITS.count.default,
         echoSpacing: PRISM_ECHO_LIMITS.spacing.default,

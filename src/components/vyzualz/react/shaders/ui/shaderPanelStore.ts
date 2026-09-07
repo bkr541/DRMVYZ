@@ -13,6 +13,10 @@ import { DEFAULT_SHADER_SCENE_ID } from '../scenes'
 import { PRISM_TUNNEL } from '../scenes/prismTunnel'
 import { PRISM_APERTURE_LIMITS, PRISM_APERTURE_PARAMETER_ID } from '../scenes/prismApertureController'
 import {
+  PRISM_DROP_TRANSFORMATION_LIMITS,
+  PRISM_DROP_TRANSFORMATION_PARAMETER_ID,
+} from '../scenes/prismDropTransformationDirector'
+import {
   PRISM_ECHO_AMOUNT_PARAMETER_ID,
   PRISM_ECHO_COUNT_PARAMETER_ID,
   PRISM_ECHO_DECAY_PARAMETER_ID,
@@ -212,6 +216,7 @@ export function migrateShaderPanelPersistedState(
   if (prismValues) {
     const prismDefaults: Array<readonly [string, ShaderParamValue]> = [
       [PRISM_APERTURE_PARAMETER_ID, PRISM_APERTURE_LIMITS.default],
+      [PRISM_DROP_TRANSFORMATION_PARAMETER_ID, PRISM_DROP_TRANSFORMATION_LIMITS.default],
       [PRISM_ECHO_AMOUNT_PARAMETER_ID, PRISM_ECHO_LIMITS.amount.default],
       [PRISM_ECHO_COUNT_PARAMETER_ID, PRISM_ECHO_LIMITS.count.default],
       [PRISM_ECHO_SPACING_PARAMETER_ID, PRISM_ECHO_LIMITS.spacing.default],

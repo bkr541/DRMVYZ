@@ -342,6 +342,15 @@ export interface ShaderMasterCapabilities {
   bassReactivity: boolean
 }
 
+export interface ShaderRuntimeEventPulse {
+  active: boolean
+  eventId: string | null
+}
+
+export interface ShaderRuntimeEventFrame {
+  dropStart: ShaderRuntimeEventPulse
+}
+
 /** Input passed to an optional per-scene runtime parameter controller. */
 export interface ShaderRuntimeParameterControllerInput {
   /** Post-performance/post-modulation values for the current frame. */
@@ -356,6 +365,8 @@ export interface ShaderRuntimeParameterControllerInput {
   timing?: Readonly<ShaderTimingUniformFrame>
   /** Active renderer quality tier for bounded scene-specific runtime budgets. */
   qualityTier?: QualityTier
+  /** Canonical discrete event identities when the host runtime exposes them. */
+  events?: Readonly<ShaderRuntimeEventFrame>
 }
 
 /**

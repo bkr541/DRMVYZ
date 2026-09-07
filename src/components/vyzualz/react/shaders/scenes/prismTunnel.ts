@@ -5,6 +5,10 @@ import {
   PRISM_APERTURE_LIMITS,
 } from './prismApertureController'
 import {
+  PRISM_DROP_TRANSFORMATION_LIMITS,
+  PRISM_DROP_TRANSFORMATION_PARAMETER_ID,
+} from './prismDropTransformationDirector'
+import {
   PRISM_ECHO_AMOUNT_PARAMETER_ID,
   PRISM_ECHO_COUNT_PARAMETER_ID,
   PRISM_ECHO_DECAY_PARAMETER_ID,
@@ -30,7 +34,7 @@ export const PRISM_TUNNEL: ShaderDefinition = {
   name: 'Prism Tunnel',
   description: 'Radial prismatic field with addressable facets, luminous arcs, beat pulse, and bass-reactive curvature.',
   category: 'generator',
-  version: 5,
+  version: 6,
 
   fragSrc: `#version 300 es
 precision highp float;
@@ -67,6 +71,7 @@ uniform float uEchoAmount;
 uniform float uEchoCount;
 uniform float uEchoSpacing;
 uniform float uEchoDecay;
+uniform float uDropTransformation;
 
 // master controls
 uniform float uMasterIntensity;
@@ -298,6 +303,18 @@ void main() {
       modulatable: false,
     },
     {
+      id: PRISM_DROP_TRANSFORMATION_PARAMETER_ID,
+      type: 'float',
+      label: 'Drop Transformation',
+      uniformName: 'uDropTransformation',
+      group: 'React',
+      min: PRISM_DROP_TRANSFORMATION_LIMITS.min,
+      max: PRISM_DROP_TRANSFORMATION_LIMITS.max,
+      step: 0.01,
+      default: PRISM_DROP_TRANSFORMATION_LIMITS.default,
+      modulatable: false,
+    },
+    {
       id: PRISM_FACET_CHOREOGRAPHY_PARAMETER_ID,
       type: 'float',
       label: 'Facet Choreography',
@@ -373,6 +390,7 @@ void main() {
     [PRISM_ROTATION_DRIVE_PARAMETER_ID]: PRISM_ROTATION_LIMITS.drive.default,
     [PRISM_ROTATION_TORQUE_PARAMETER_ID]: PRISM_ROTATION_LIMITS.torque.default,
     [PRISM_ROTATION_DRAG_PARAMETER_ID]: PRISM_ROTATION_LIMITS.drag.default,
+    [PRISM_DROP_TRANSFORMATION_PARAMETER_ID]: PRISM_DROP_TRANSFORMATION_LIMITS.default,
     [PRISM_FACET_CHOREOGRAPHY_PARAMETER_ID]: PRISM_FACET_CHOREOGRAPHY_LIMITS.default,
     [PRISM_ECHO_AMOUNT_PARAMETER_ID]: PRISM_ECHO_LIMITS.amount.default,
     [PRISM_ECHO_COUNT_PARAMETER_ID]: PRISM_ECHO_LIMITS.count.default,

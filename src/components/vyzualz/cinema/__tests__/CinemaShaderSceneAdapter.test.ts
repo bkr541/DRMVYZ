@@ -108,7 +108,20 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     const oldStateValues = createCinemaShaderSceneParameterValues(PRISM_TUNNEL.id, { speed: 0.75 })
     expect(oldStateValues[cinemaShaderParameterId('aperture')]).toBe(1)
     expect(oldStateValues[cinemaShaderParameterId('speed')]).toBe(0.75)
+    expect(oldStateValues[cinemaShaderParameterId('dropTransformation')]).toBe(1)
     expect(oldStateValues[cinemaShaderParameterId('facetChoreography')]).toBe(0)
+
+    const dropTransformation = prism?.definition.parameters.find(parameter => parameter.label === 'Drop Transformation')
+    expect(dropTransformation).toMatchObject({
+      id: cinemaShaderParameterId('dropTransformation'),
+      type: 'float',
+      default: 1,
+      min: 0,
+      max: 1,
+      group: 'React',
+      modulatable: false,
+      ui: { control: 'slider' },
+    })
 
     const facetChoreography = prism?.definition.parameters.find(parameter => parameter.label === 'Facet Choreography')
     expect(facetChoreography).toMatchObject({
@@ -404,6 +417,85 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     expect(lastUniformValue('uPrismEchoAperture0')).toBeGreaterThan(0)
     expect(lastUniformValue('uPrismEchoFacetAmount0')).toBe(1)
     expect(lastUniformValue('uPrismEchoRotationMotion0')).not.toBe(lastUniformValue('uRotationMotion'))
+    expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
+    harness.dispose()
+  })
+
+  it('orchestrates a canonical dropStart through Prism aperture, torque, facet flare, and echo on the real Cinema production path', () => {
+    const state = createCinemaFoundationPersistedState()
+    const preset = CINEMA_LEGACY_PRESET_CATALOG.manifest.find(entry => entry.legacySourceId === PRISM_TUNNEL.id)
+    const baseComposition = CINEMA_LEGACY_PRESET_CATALOG.compositions.find(candidate => candidate.id === preset?.compositionId)
+    expect(baseComposition).toBeDefined()
+    if (!baseComposition) return
+
+    const prismNodeTypeId = cinemaShaderSceneTypeId(PRISM_TUNNEL.id)
+    const composition: CinemaCompositionDefinition = {
+      ...baseComposition,
+      nodes: baseComposition.nodes.map(node => node.typeId === prismNodeTypeId ? {
+        ...node,
+        parameterValues: {
+          ...node.parameterValues,
+          [cinemaShaderParameterId('dropTransformation')]: 1,
+          [cinemaShaderParameterId('aperture')]: 1,
+          [cinemaShaderParameterId('rotationDrive')]: 0.35,
+          [cinemaShaderParameterId('rotationTorque')]: 1,
+          [cinemaShaderParameterId('facetChoreography')]: 0,
+          [cinemaShaderParameterId('echoAmount')]: 0,
+          [cinemaShaderParameterId('echoCount')]: 3,
+          [cinemaShaderParameterId('echoSpacing')]: 0.03,
+        },
+      } : node),
+    }
+    const authoredNode = composition.nodes.find(node => node.typeId === prismNodeTypeId)!
+    const authoredValuesBefore = { ...authoredNode.parameterValues }
+
+    const harness = createExecutorHarness()
+    vi.mocked(harness.gl.getUniformLocation).mockImplementation((_program, name) => (
+      { name } as unknown as WebGLUniformLocation
+    ))
+    harness.executor.resize({ width: 1, height: 1, dpr: 1 }, harness.viewport)
+    harness.executor.setGraph({ composition, instance: null, definitions: state.definitions })
+
+    const continuousFrame = (frameIndex: number, dropStart = false): Readonly<CinemaFrameContext> => {
+      const next = frame(frameIndex, false, dropStart)
+      return {
+        ...next,
+        transport: {
+          ...next.transport,
+          reset: { ...next.transport.reset, generation: 0 },
+        },
+        impulses: {
+          ...next.impulses,
+          dropStart,
+          sectionStart: dropStart,
+          eventIds: {
+            ...next.impulses.eventIds,
+            dropStart: dropStart ? 'music:prism-drop-1' as CinemaEventId : null,
+            sectionStart: dropStart ? 'music:prism-drop-1' as CinemaEventId : null,
+          },
+        },
+      }
+    }
+
+    expect(harness.executor.render(continuousFrame(0))).toBe(true)
+    expect(harness.executor.render(continuousFrame(1, true))).toBe(true)
+    for (let frameIndex = 2; frameIndex <= 9; frameIndex += 1) {
+      expect(harness.executor.render(continuousFrame(frameIndex))).toBe(true)
+    }
+
+    const uniformValues = (name: string) => vi.mocked(harness.gl.uniform1f).mock.calls
+      .filter(([location]) => (location as unknown as { name?: string })?.name === name)
+      .map(([, value]) => value)
+    const lastUniformValue = (name: string) => uniformValues(name).at(-1)
+
+    expect(Math.max(...uniformValues('uAperture'))).toBeGreaterThan(1)
+    expect(Math.max(...uniformValues('uRotationMotion').map(value => Math.abs(value)))).toBeGreaterThan(0)
+    expect(Math.max(...uniformValues('uFacetChoreography'))).toBeGreaterThan(0)
+    expect(Math.max(...uniformValues('uFacetFlare'))).toBeGreaterThan(0)
+    expect(Math.max(...uniformValues('uPrismEchoRuntimeAmount'))).toBeGreaterThan(0)
+    expect(Math.max(...uniformValues('uPrismEchoOpacity0'))).toBeGreaterThan(0)
+    expect(lastUniformValue('uPrismEchoRuntimeAmount')).toBeGreaterThan(0)
+    expect(authoredNode.parameterValues).toEqual(authoredValuesBefore)
     expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
     harness.dispose()
   })

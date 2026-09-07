@@ -93,6 +93,12 @@ export class CinemaShaderPerformanceBridge {
       deltaTimeSec: frame.timing.deltaTimeSec,
       reconstruct,
       qualityTier,
+      runtimeEvents: {
+        dropStart: {
+          active: frame.impulses.dropStart,
+          eventId: frame.impulses.eventIds.dropStart,
+        },
+      },
     })
 
     const policyReset = this.feedbackResetTracker.update({

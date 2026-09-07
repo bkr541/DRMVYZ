@@ -6,6 +6,11 @@ import type {
 } from '../registry/shaderRegistryTypes'
 import { PRISM_APERTURE_PARAMETER_ID, PrismApertureController } from './prismApertureController'
 import {
+  PRISM_DROP_TRANSFORMATION_LIMITS,
+  PRISM_DROP_TRANSFORMATION_PARAMETER_ID,
+  PrismDropTransformationDirector,
+} from './prismDropTransformationDirector'
+import {
   PRISM_ECHO_AMOUNT_PARAMETER_ID,
   PRISM_ECHO_BURST_RUNTIME_COMMAND_ID,
   PRISM_ECHO_COUNT_PARAMETER_ID,
@@ -180,13 +185,14 @@ export class PrismRotationTorqueSystem {
 /**
  * Prism's single runtime-parameter owner composes Stage 2 aperture smoothing,
  * Stage 3 rotational physics, Stage 4 facet illumination choreography, and
- * Stage 5 structural echo history. No
+ * Stage 5 structural echo history, and Stage 6 drop orchestration. No
  * runtime state is written back to the authored parameter object.
  */
 export class PrismRuntimeParameterController implements ShaderRuntimeParameterController {
   readonly rotation = new PrismRotationTorqueSystem()
   readonly illumination = new PrismFacetIlluminationChoreographer()
   readonly echoes = new PrismEchoSystem()
+  readonly dropTransformation = new PrismDropTransformationDirector()
   private readonly aperture = new PrismApertureController()
   private readonly runtimeFloatUniforms: Record<string, number> = {}
 
@@ -195,6 +201,7 @@ export class PrismRuntimeParameterController implements ShaderRuntimeParameterCo
     this.rotation.reset()
     this.illumination.reset()
     this.echoes.reset()
+    this.dropTransformation.reset()
   }
 
   setTemporaryOffset(parameterId: string, offset: number): void {
@@ -228,6 +235,25 @@ export class PrismRuntimeParameterController implements ShaderRuntimeParameterCo
   }
 
   resolve(input: ShaderRuntimeParameterControllerInput): Record<string, ShaderParamValue> {
+    const authoredDrive = numericValue(input.values[PRISM_ROTATION_DRIVE_PARAMETER_ID], PRISM_ROTATION_LIMITS.drive.default)
+    const directorIntensity = numericValue(
+      input.values[PRISM_DROP_TRANSFORMATION_PARAMETER_ID],
+      PRISM_DROP_TRANSFORMATION_LIMITS.default,
+    )
+    const dropTransformation = this.dropTransformation.step({
+      intensity: directorIntensity,
+      deltaTimeSec: input.deltaTimeSec,
+      reconstruct: input.reconstruct,
+      dropStart: input.events?.dropStart,
+    }, {
+      setApertureOffset: offset => this.aperture.setTemporaryOffset(PRISM_APERTURE_PARAMETER_ID, offset),
+      applyTorqueImpulse: amount => this.rotation.applyTorqueImpulse(
+        amount * signedDirection(authoredDrive, this.rotation.getSnapshot().angularVelocity),
+      ),
+      requestFacetFlare: amount => this.illumination.requestAllFacetFlare(amount),
+      requestEchoBurst: amount => this.echoes.requestBurst(amount),
+    })
+
     const apertureValues = this.aperture.resolve(input)
     const drive = numericValue(apertureValues[PRISM_ROTATION_DRIVE_PARAMETER_ID], PRISM_ROTATION_LIMITS.drive.default)
     const torque = numericValue(apertureValues[PRISM_ROTATION_TORQUE_PARAMETER_ID], PRISM_ROTATION_LIMITS.torque.default)
@@ -240,9 +266,12 @@ export class PrismRuntimeParameterController implements ShaderRuntimeParameterCo
         reconstruct: input.reconstruct,
       },
     )
-    const choreographyAmount = numericValue(
-      apertureValues[PRISM_FACET_CHOREOGRAPHY_PARAMETER_ID],
-      PRISM_FACET_CHOREOGRAPHY_LIMITS.default,
+    const choreographyAmount = Math.max(
+      numericValue(
+        apertureValues[PRISM_FACET_CHOREOGRAPHY_PARAMETER_ID],
+        PRISM_FACET_CHOREOGRAPHY_LIMITS.default,
+      ),
+      dropTransformation.facetAmountFloor,
     )
     const illumination = this.illumination.step({
       amount: choreographyAmount,
@@ -278,6 +307,7 @@ export class PrismRuntimeParameterController implements ShaderRuntimeParameterCo
 
     return {
       ...apertureValues,
+      [PRISM_FACET_CHOREOGRAPHY_PARAMETER_ID]: choreographyAmount,
       // rotationDrive remains the persisted signed drive before this seam. Its
       // effective GPU value becomes only the runtime motion angle.
       [PRISM_ROTATION_DRIVE_PARAMETER_ID]: motion.angle,

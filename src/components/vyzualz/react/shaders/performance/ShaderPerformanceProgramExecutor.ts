@@ -13,6 +13,7 @@ import type {
   ShaderParamValue,
   ShaderParamValues,
   QualityTier,
+  ShaderRuntimeEventFrame,
   ShaderRuntimeFloatUniformValues,
   ShaderRuntimeParameterController,
 } from '../registry/shaderRegistryTypes'
@@ -32,6 +33,7 @@ export interface ShaderPerformanceProgramExecutorInput {
   deltaTimeSec: number
   reconstruct?: boolean
   qualityTier?: QualityTier
+  runtimeEvents?: Readonly<ShaderRuntimeEventFrame>
 }
 
 export interface ShaderPerformanceProgramExecutorResult {
@@ -137,6 +139,14 @@ export class ShaderPerformanceProgramExecutor {
     for (const [parameterId, result] of Object.entries(modulation.params)) {
       effectiveValues[parameterId] = result.effectiveValue
     }
+    const fallbackDropEntry = input.context.macroSectionType === 'drop'
+      && input.context.boundaries.macroSectionEntry
+    const runtimeEvents = input.runtimeEvents ?? {
+      dropStart: {
+        active: fallbackDropEntry,
+        eventId: fallbackDropEntry ? `section:${input.context.macroSectionIdentity}` : null,
+      },
+    }
     const resolvedRuntimeValues = this.runtimeParameterController?.resolve({
       values: effectiveValues,
       deltaTimeSec: input.deltaTimeSec,
@@ -144,6 +154,7 @@ export class ShaderPerformanceProgramExecutor {
       audio: input.audio,
       timing: input.timing,
       qualityTier: input.qualityTier,
+      events: runtimeEvents,
     }) ?? effectiveValues
     const runtimeFloatUniforms = this.runtimeParameterController?.getRuntimeFloatUniformValues?.() ?? {}
 
