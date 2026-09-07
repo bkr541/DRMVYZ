@@ -22,6 +22,8 @@ export interface AfterhoursPatternDirectorInput {
   settings: Readonly<{
     patternChange: AfterhoursPatternChange
     blackoutAmount: number
+    /** When on and a tempo is known, the morph interval is scaled to musical time. */
+    bpmSync: boolean
   }>
 }
 
@@ -47,10 +49,15 @@ const SCHEDULE_CLOCK: Partial<Record<AfterhoursPatternChange, 'bar' | 'bar4' | '
 }
 
 /**
- * Wall-clock morph length. Short and bounded so a variation change reads as a
- * deliberate re-aim rather than a teleport, without accumulating history.
+ * Morph length. BPM Sync OFF (or no tempo): a fixed short wall-clock ramp. BPM
+ * Sync ON: the ramp is expressed in beats and clamped, so the re-aim tracks the
+ * tempo instead of running a tempo-blind 0.5 s every time. Short and bounded
+ * either way so a variation change reads as a deliberate re-aim, not a teleport.
  */
-const TRANSITION_SEC = 0.5
+const MORPH_SEC = 0.5
+const MORPH_BEATS = 2
+const MIN_MORPH_SEC = 0.18
+const MAX_MORPH_SEC = 1.2
 /** Keeps the ordinal bounded; the generator hashes it, so the exact value is immaterial. */
 const VARIATION_MODULO = 0x40000000
 
@@ -78,7 +85,8 @@ function normalizePatternChange(value: AfterhoursPatternChange): AfterhoursPatte
 export class AfterhoursPatternDirector {
   private variation = 0
   private previousVariation = 0
-  private transitionElapsed = TRANSITION_SEC
+  /** 0..1 morph progress. 1 = settled. */
+  private transition = 1
   private lastEventId: string | null = null
   private edgeActive = false
   private lastPatternChange: AfterhoursPatternChange | null = null
@@ -87,7 +95,7 @@ export class AfterhoursPatternDirector {
   reset(): void {
     this.variation = 0
     this.previousVariation = 0
-    this.transitionElapsed = TRANSITION_SEC
+    this.transition = 1
     this.lastEventId = null
     this.edgeActive = false
     this.lastPatternChange = null
@@ -98,8 +106,15 @@ export class AfterhoursPatternDirector {
     const { frame } = input
     const patternChange = normalizePatternChange(input.settings.patternChange)
     const blackoutAmount = clamp01(input.settings.blackoutAmount)
+    const bpmSync = input.settings.bpmSync !== false
     const dt = clamp(frame.deltaTimeSec, 0, 0.1)
     const musicPlaying = frame.musicalAudio ? frame.musicalAudio.isPlaying !== false : true
+
+    // BPM Sync ON + a known tempo -> the morph spans MORPH_BEATS beats, clamped;
+    // otherwise the fixed wall-clock ramp. Musical-time quantisation of the
+    // choreography cadence, without snapping the interpolation to beat edges.
+    const bpm = bpmSync && Number.isFinite(frame.beat?.bpm) && (frame.beat?.bpm ?? 0) > 0 ? (frame.beat as { bpm: number }).bpm : 0
+    const morphSec = bpm > 0 ? clamp((MORPH_BEATS * 60) / bpm, MIN_MORPH_SEC, MAX_MORPH_SEC) : MORPH_SEC
 
     // Switching the scheduler cadence invalidates the consumed identity so the
     // next boundary on the new cadence is honoured; the current variation stays.
@@ -113,7 +128,7 @@ export class AfterhoursPatternDirector {
     // release the blackout — no stale director state survives a discontinuity.
     if (frame.timingDiscontinuity) {
       this.previousVariation = this.variation
-      this.transitionElapsed = TRANSITION_SEC
+      this.transition = 1
       this.lastEventId = null
       this.edgeActive = false
       this.blackoutEnvelope = 0
@@ -123,25 +138,21 @@ export class AfterhoursPatternDirector {
     if (musicPlaying && patternChange !== 'off' && this.consume(frame, patternChange)) {
       this.previousVariation = this.variation
       this.variation = (this.variation + 1) % VARIATION_MODULO
-      this.transitionElapsed = 0
+      this.transition = 0
       changed = true
     } else {
       // The boundary frame itself sits at transition 0; the morph advances from
-      // the next frame on so the interval stays a bounded, deterministic ramp.
-      this.transitionElapsed = Math.min(TRANSITION_SEC, this.transitionElapsed + dt)
+      // the next frame on. Interval is musical when BPM Sync is on, else fixed.
+      this.transition = Math.min(1, this.transition + dt / morphSec)
     }
-    const transition = TRANSITION_SEC <= 0 ? 1 : clamp01(this.transitionElapsed / TRANSITION_SEC)
+    const transition = this.transition
 
-    // Blackout: one short deterministic negative-space window at the tail of the
-    // active musical cycle. It keys on the *scheduler* clock's phase when a
-    // cadence is selected, so the room goes dark just before each variation
-    // change; otherwise it keys on the bar clock as a plain lighting cue. With
-    // no canonical clock at all there is no automatic blackout.
-    const scheduleKey = SCHEDULE_CLOCK[patternChange] ?? 'bar'
-    const clocks = frame.canonicalMusic?.clocks
-    const blackoutClock = clocks
-      ? (clocks[scheduleKey].available ? clocks[scheduleKey] : (clocks.bar.available ? clocks.bar : null))
-      : null
+    // Blackout: one short deterministic negative-space window at the tail of
+    // every bar. It always keys on the bar clock — never on the Pattern Change
+    // cadence — so Blackout Amount behaves predictably regardless of the
+    // selected pattern-change interval. No bar clock -> no automatic blackout.
+    const barClock = frame.canonicalMusic?.clocks.bar
+    const blackoutClock = barClock?.available ? barClock : null
     let blackoutTarget = 0
     if (musicPlaying && !frame.timingDiscontinuity && blackoutAmount > 0 && blackoutClock) {
       const windowFraction = mix(0.04, 0.18, blackoutAmount)

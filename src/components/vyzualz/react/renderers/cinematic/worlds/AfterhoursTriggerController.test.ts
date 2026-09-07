@@ -20,12 +20,15 @@ function reactionFrame(input: {
   impulseEventId?: string
   hasCanonical?: boolean
   beatHit?: boolean
+  /** All canonical clocks report unavailable — simulates "no beat grid". */
+  gridUnavailable?: boolean
+  energy?: number
 } = {}): CinematicFrameContext {
   const frameIndex = input.frameIndex ?? 0
   const clockEntry = (name: ClockName, spanBeats: number) => {
     const isTarget = input.clock === name
     return {
-      available: true,
+      available: input.gridUnavailable !== true,
       spanBeats,
       index: name === 'bar' ? (input.clockIndex ?? 0) : (isTarget ? frameIndex : 0),
       phase: name === 'bar' ? (input.clockPhase ?? 0) : 0,
@@ -44,7 +47,7 @@ function reactionFrame(input: {
     timingDiscontinuity: input.timingDiscontinuity ?? false,
     isPlaying: input.playing ?? true,
     beat: { hit: input.beatHit ?? false, downbeat: false, barIndex: -1, barProgress: 0 },
-    musicalAudio: { isPlaying: input.playing ?? true, values: { overallEnergy: 0.4 } },
+    musicalAudio: { isPlaying: input.playing ?? true, values: { overallEnergy: input.energy ?? 0.4 } },
   }
   if (input.hasCanonical !== false) {
     frame.canonicalMusic = {
@@ -254,5 +257,51 @@ describe('Afterhours Stage 4 — reset / replay / no-music', () => {
     expect(out.fired).toBe(false)
     expect(out.envelope).toBe(0)
     expect(Number.isFinite(out.intensity) && Number.isFinite(out.motionPhase)).toBe(true)
+  })
+})
+
+describe('Afterhours Stage 4 — energy-onset fallback with no beat grid', () => {
+  it('fires on an energy swell when the selected clock trigger has no canonical grid', () => {
+    const controller = new AfterhoursTriggerController()
+    const s = cfg({ trigger: 'beat' })
+    // Quiet -> no fire even though the grid is gone.
+    expect(controller.update({ frame: reactionFrame({ frameIndex: 1, gridUnavailable: true, energy: 0.4 }), settings: s }).fired).toBe(false)
+    // Swell past the fire threshold -> one fire.
+    expect(controller.update({ frame: reactionFrame({ frameIndex: 2, gridUnavailable: true, energy: 0.8 }), settings: s }).fired).toBe(true)
+    // Held high -> does not re-fire (arm hysteresis is the de-dup).
+    expect(controller.update({ frame: reactionFrame({ frameIndex: 3, gridUnavailable: true, energy: 0.85 }), settings: s }).fired).toBe(false)
+    // Drop below the rearm threshold, then swell again -> fires again.
+    expect(controller.update({ frame: reactionFrame({ frameIndex: 4, gridUnavailable: true, energy: 0.5 }), settings: s }).fired).toBe(false)
+    expect(controller.update({ frame: reactionFrame({ frameIndex: 5, gridUnavailable: true, energy: 0.9 }), settings: s }).fired).toBe(true)
+  })
+
+  it('never uses the energy fallback while the canonical clock IS available', () => {
+    const controller = new AfterhoursTriggerController()
+    const s = cfg({ trigger: 'beat' })
+    // Grid present, loud energy, but no beat-clock hit -> stays quiet (no double path).
+    for (let i = 1; i < 8; i += 1) {
+      expect(controller.update({ frame: reactionFrame({ frameIndex: i, energy: 0.95 }), settings: s }).fired).toBe(false)
+    }
+    // The real clock identity still fires normally.
+    expect(controller.update({ frame: reactionFrame({ frameIndex: 8, clock: 'beat', clockEventId: 'b1', energy: 0.95 }), settings: s }).fired).toBe(true)
+  })
+
+  it('impulse triggers (Kick/Snare) stay quiet without onsets — the fallback only covers clock triggers', () => {
+    const controller = new AfterhoursTriggerController()
+    const s = cfg({ trigger: 'kick' })
+    for (let i = 1; i < 6; i += 1) {
+      expect(controller.update({ frame: reactionFrame({ frameIndex: i, gridUnavailable: true, energy: 0.95 }), settings: s }).fired).toBe(false)
+    }
+  })
+
+  it('re-arms the energy fallback on reset and on a timing discontinuity', () => {
+    const controller = new AfterhoursTriggerController()
+    const s = cfg({ trigger: 'beat' })
+    expect(controller.update({ frame: reactionFrame({ frameIndex: 1, gridUnavailable: true, energy: 0.9 }), settings: s }).fired).toBe(true)
+    controller.reset()
+    expect(controller.update({ frame: reactionFrame({ frameIndex: 2, gridUnavailable: true, energy: 0.9 }), settings: s }).fired).toBe(true)
+    // Held high across a seek -> the discontinuity re-arms so it fires again.
+    controller.update({ frame: reactionFrame({ frameIndex: 3, gridUnavailable: true, energy: 0.9 }), settings: s })
+    expect(controller.update({ frame: reactionFrame({ frameIndex: 4, gridUnavailable: true, energy: 0.9, timingDiscontinuity: true }), settings: s }).fired).toBe(true)
   })
 })

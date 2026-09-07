@@ -133,10 +133,13 @@ describe('Afterhours Stage 2 world integration', () => {
   it('re-clears slots that were active on a previous frame and compiles once per lifecycle', () => {
     const harness = createWorldHarness()
     harness.world.render(frame({ beamCount: 16, pattern: 'fan' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
-    harness.world.render(frame({ beamCount: 3, pattern: 'fan' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    // Drop to 3 beams and let the retiring slots fade out over a few frames.
+    for (let i = 0; i < 20; i += 1) {
+      harness.world.render(frame({ beamCount: 3, pattern: 'fan' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    }
 
     expect(harness.compileProgram).toHaveBeenCalledTimes(1)
-    expect(harness.run).toHaveBeenCalledTimes(2)
+    expect(harness.run).toHaveBeenCalledTimes(21)
     expect(last(harness.calls, 'uAfterhoursBeamMeta15')).toEqual([0, 0])
     expect(last(harness.calls, 'uAfterhoursBeam15')).toEqual([0, 0, 0, 0])
     expect(last(harness.calls, 'uAfterhoursBeamMeta2')).toEqual([1, 0])
@@ -284,7 +287,10 @@ describe('Afterhours Stage 2 world integration', () => {
 })
 
 describe('Afterhours Stage 5 world integration — pattern director and blackouts', () => {
-  const STILL = { motionAmount: 0, pulseAmount: 0 } as const
+  // bpmSync off -> the pattern morph uses the fixed 0.5 s ramp, so these
+  // wiring tests settle in a known frame budget. Musical-time morph scaling has
+  // its own dedicated coverage in AfterhoursPatternDirector.test.ts.
+  const STILL = { motionAmount: 0, pulseAmount: 0, bpmSync: false } as const
   const bottomXs = new Set<number>(AFTERHOURS_BOTTOM_EMITTERS.map(e => e.x))
 
   it('defaults uAfterhoursBlackout to 0 and keeps it 0 at Blackout Amount 0', () => {
@@ -380,6 +386,38 @@ describe('Afterhours Stage 5 world integration — pattern director and blackout
     for (const [name, values] of harness.calls) {
       for (const row of values) for (const v of row) expect(Number.isFinite(v), `${name} finite`).toBe(true)
     }
+    harness.world.dispose()
+  })
+
+  it('fades a beam out through intermediate weights when the reactive budget shrinks, instead of popping', () => {
+    const harness = createWorldHarness()
+    // First frame primes the full rig; a trigger hit lifts the active budget.
+    const s = { pattern: 'fan' as const, beamCount: 16, bpmSync: false, trigger: 'beat' as const, masterIntensity: 0.4, pulseAmount: 1, pulseDecay: 0.2 }
+    harness.world.render(frame(s, { frameIndex: 1, beatEventId: 'b1' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    const hitOn = Array.from({ length: 16 }, (_, i) => last(harness.calls, `uAfterhoursBeamMeta${i}`)[0] ?? 0).filter(w => w > 0).length
+
+    // Let the envelope decay: the budget shrinks and the retiring slots must
+    // pass through 0 < weight < 1 rather than jumping straight to 0.
+    const sawIntermediate = new Set<number>()
+    let restOn = hitOn
+    for (let i = 2; i < 90; i += 1) {
+      harness.world.render(frame(s, { frameIndex: i }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+      for (let slot = 0; slot < 16; slot += 1) {
+        const w = last(harness.calls, `uAfterhoursBeamMeta${slot}`)[0] ?? 0
+        if (w > 0.02 && w < 0.98) sawIntermediate.add(slot)
+      }
+      restOn = Array.from({ length: 16 }, (_, slot) => last(harness.calls, `uAfterhoursBeamMeta${slot}`)[0] ?? 0).filter(w => w > 0).length
+    }
+
+    expect(hitOn).toBeGreaterThan(restOn) // the budget really did shrink
+    expect(sawIntermediate.size).toBeGreaterThan(0) // and it faded, not popped
+    // Fully settled: weights are back to a clean 0 / 1 split, bounded by 16.
+    for (let slot = 0; slot < 16; slot += 1) {
+      const w = last(harness.calls, `uAfterhoursBeamMeta${slot}`)[0] ?? 0
+      expect(w === 0 || w === 1).toBe(true)
+    }
+    expect(restOn).toBeGreaterThanOrEqual(2)
+    expect(restOn).toBeLessThanOrEqual(16)
     harness.world.dispose()
   })
 })

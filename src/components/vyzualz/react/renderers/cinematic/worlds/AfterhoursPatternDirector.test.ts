@@ -21,6 +21,7 @@ function directorFrame(input: {
   drop?: boolean
   dropEventId?: string
   hasCanonical?: boolean
+  bpm?: number
 } = {}): CinematicFrameContext {
   const frameIndex = input.frameIndex ?? 0
   const clockEntry = (name: ScheduleClock) => {
@@ -40,7 +41,7 @@ function directorFrame(input: {
     transportTimeSec: frameIndex / 60,
     timingDiscontinuity: input.timingDiscontinuity ?? false,
     isPlaying: input.playing ?? true,
-    beat: { hit: false, downbeat: false, barIndex: -1, barProgress: 0 },
+    beat: { hit: false, downbeat: false, barIndex: -1, barProgress: 0, bpm: input.bpm ?? 0 },
     musicalAudio: { isPlaying: input.playing ?? true, values: { overallEnergy: 0.4 } },
   }
   if (input.hasCanonical !== false) {
@@ -70,7 +71,7 @@ function directorFrame(input: {
   return frame as unknown as CinematicFrameContext
 }
 
-const cfg = (patternChange: AfterhoursPatternChange, blackoutAmount = 0) => ({ patternChange, blackoutAmount })
+const cfg = (patternChange: AfterhoursPatternChange, blackoutAmount = 0, bpmSync = false) => ({ patternChange, blackoutAmount, bpmSync })
 
 const BEAM_BASE: AfterhoursBeamGenerationSettings = {
   pattern: 'fan',
@@ -221,6 +222,44 @@ describe('Afterhours Stage 5 — transition interpolation', () => {
     expect(seeked.transition).toBe(1)
     expect(seeked.previousVariation).toBe(seeked.variation)
   })
+
+  it('BPM Sync ON scales the morph interval to musical time; a faster tempo settles in fewer seconds', () => {
+    const settleFrames = (bpmSync: boolean, bpm: number) => {
+      const director = new AfterhoursPatternDirector()
+      const s = { patternChange: 'bar' as AfterhoursPatternChange, blackoutAmount: 0, bpmSync }
+      director.update({ frame: directorFrame({ frameIndex: 1, clock: 'bar', clockEventId: 'bar-1', bpm }), settings: s })
+      let frames = 0
+      for (let i = 2; i < 400; i += 1) {
+        frames += 1
+        if (director.update({ frame: directorFrame({ frameIndex: i, bpm }), settings: s }).transition >= 1) break
+      }
+      return frames
+    }
+    // OFF -> the fixed 0.5 s ramp regardless of tempo.
+    expect(settleFrames(false, 120)).toBe(settleFrames(false, 174))
+    // ON -> a fast tempo makes MORPH_BEATS elapse sooner, so it settles quicker.
+    expect(settleFrames(true, 174)).toBeLessThan(settleFrames(true, 90))
+    // Still bounded: an extreme tempo can't collapse or stretch the morph away.
+    const fast = settleFrames(true, 300) / 60
+    const slow = settleFrames(true, 30) / 60
+    expect(fast).toBeGreaterThanOrEqual(0.18 - 1 / 60)
+    expect(slow).toBeLessThanOrEqual(1.2 + 1 / 60)
+  })
+
+  it('with no tempo available, BPM Sync ON falls back to the fixed wall-clock ramp', () => {
+    const withGrid = new AfterhoursPatternDirector()
+    const withoutGrid = new AfterhoursPatternDirector()
+    const on = { patternChange: 'bar' as AfterhoursPatternChange, blackoutAmount: 0, bpmSync: true }
+    withGrid.update({ frame: directorFrame({ frameIndex: 1, clock: 'bar', clockEventId: 'b1', bpm: 0 }), settings: on })
+    withoutGrid.update({ frame: directorFrame({ frameIndex: 1, clock: 'bar', clockEventId: 'b1', bpm: 0 }), settings: { ...on, bpmSync: false } })
+    let a = 0
+    let b = 0
+    for (let i = 2; i < 60; i += 1) {
+      a = withGrid.update({ frame: directorFrame({ frameIndex: i, bpm: 0 }), settings: on }).transition
+      b = withoutGrid.update({ frame: directorFrame({ frameIndex: i, bpm: 0 }), settings: { ...on, bpmSync: false } }).transition
+    }
+    expect(a).toBeCloseTo(b, 9)
+  })
 })
 
 describe('Afterhours Stage 5 — blendAfterhoursBeamFrames', () => {
@@ -334,6 +373,25 @@ describe('Afterhours Stage 5 — deliberate blackouts', () => {
     const noMusic = director.update({ frame: directorFrame({ frameIndex: 119, hasCanonical: false }), settings: s })
     expect(Number.isFinite(noMusic.blackout)).toBe(true)
     expect(noMusic.blackout).toBe(0)
+  })
+
+  it('places the blackout window on the bar clock regardless of the Pattern Change cadence', () => {
+    const envelope = (patternChange: AfterhoursPatternChange) => {
+      const director = new AfterhoursPatternDirector()
+      const s = cfg(patternChange, 0.7)
+      const samples: number[] = []
+      for (let i = 0; i < 120; i += 1) {
+        samples.push(director.update({ frame: directorFrame({ frameIndex: i, barPhase: i / 120 }), settings: s }).blackout)
+      }
+      return samples
+    }
+    // Off, Bar, 4 Bars, 8 Bars, Phrase, Drop — all drive an identical
+    // end-of-bar blackout; Blackout Amount no longer rides the cadence selector.
+    const off = envelope('off')
+    expect(Math.max(...off)).toBeGreaterThan(0.3)
+    for (const cadence of ['bar', 'bar4', 'bar8', 'phrase', 'drop'] as const) {
+      expect(envelope(cadence)).toEqual(off)
+    }
   })
 })
 

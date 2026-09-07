@@ -33,6 +33,9 @@ const UNIFORMS = [
   ...Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, index) => `uAfterhoursBeamMeta${index}`),
 ] as const
 
+/** Per-slot fade rate (1/e per this many seconds) for membership changes. */
+const SLOT_FADE_HZ = 30
+
 function setRgb(program: ShaderProgram, uniform: string, color: AfterhoursRgb): void {
   program.setVec3(uniform, color.r, color.g, color.b)
 }
@@ -40,26 +43,45 @@ function setRgb(program: ShaderProgram, uniform: string, color: AfterhoursRgb): 
 class AfterhoursWorld extends FullscreenCinematicWorld {
   private readonly triggers = new AfterhoursTriggerController()
   private readonly director = new AfterhoursPatternDirector()
+  // Per-slot render weight + last-known geometry. Eases each slot toward its
+  // target weight so a beam entering/leaving the active budget (reaction
+  // envelope, pattern morph) fades instead of popping. Fixed-size, no churn.
+  // Plain f64 arrays: geometry is forwarded verbatim, not pre-quantised.
+  private primed = false
+  private readonly slotWeight = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
+  private readonly slotOriginX = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
+  private readonly slotOriginY = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
+  private readonly slotTargetX = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
+  private readonly slotTargetY = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
+  private readonly slotAccent = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
 
   constructor() {
     super('afterhours', AFTERHOURS_FRAGMENT_SOURCE, UNIFORMS)
+  }
+
+  private resetSlots(): void {
+    this.primed = false
+    this.slotWeight.fill(0)
   }
 
   override reset(reason: CinematicRendererResetReason): void {
     super.reset(reason)
     this.triggers.reset()
     this.director.reset()
+    this.resetSlots()
   }
 
   override onContextLost(): void {
     this.triggers.reset()
     this.director.reset()
+    this.resetSlots()
     super.onContextLost()
   }
 
   override dispose(): void {
     this.triggers.reset()
     this.director.reset()
+    this.resetSlots()
     super.dispose()
   }
 
@@ -102,7 +124,11 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
     // and writes nothing persisted.
     const direction = this.director.update({
       frame,
-      settings: { patternChange: settings.patternChange, blackoutAmount: settings.blackoutAmount },
+      settings: {
+        patternChange: settings.patternChange,
+        blackoutAmount: settings.blackoutAmount,
+        bpmSync: settings.bpmSync,
+      },
     })
     program.setFloat('uAfterhoursBlackout', direction.blackout)
 
@@ -118,40 +144,57 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
     }
     const genOptions = { motionPhase: reaction.motionPhase, motionAuthority: reaction.motionAuthority }
 
-    if (direction.transition >= 1) {
-      // Settled: single generation, meta.x is exactly 1 for active slots.
-      const beams = generateAfterhoursBeams(genSettings, { ...genOptions, variation: direction.variation })
-      for (let index = 0; index < AFTERHOURS_MAX_BEAMS; index += 1) {
-        const beam = beams[index]
-        if (!beam.active) {
-          program.setVec4(`uAfterhoursBeam${index}`, 0, 0, 0, 0)
-          program.setVec2(`uAfterhoursBeamMeta${index}`, 0, 0)
-          continue
-        }
-        program.setVec4(`uAfterhoursBeam${index}`, beam.origin.x, beam.origin.y, beam.target.x, beam.target.y)
-        program.setVec2(`uAfterhoursBeamMeta${index}`, 1, beam.accent ? 1 : 0)
-      }
-      return
-    }
+    // Settled: one generation (meta.x targets 1 for active slots). Mid-morph:
+    // blend the previous and next variation of the *same* family — fixed emitter
+    // origins never interpolate, only targets lerp.
+    const settled = direction.transition >= 1
+    const nextBeams = generateAfterhoursBeams(genSettings, { ...genOptions, variation: direction.variation })
+    const blended = settled
+      ? null
+      : blendAfterhoursBeamFrames(
+        generateAfterhoursBeams(genSettings, { ...genOptions, variation: direction.previousVariation }),
+        nextBeams,
+        direction.transition,
+      )
 
-    // Mid-morph: blend the previous and next variation of the *same* family.
-    // Fixed emitter origins never interpolate; only targets lerp, and slots that
-    // exist in only one frame fade by weight rather than teleporting.
-    const blended = blendAfterhoursBeamFrames(
-      generateAfterhoursBeams(genSettings, { ...genOptions, variation: direction.previousVariation }),
-      generateAfterhoursBeams(genSettings, { ...genOptions, variation: direction.variation }),
-      direction.transition,
-    )
+    const dt = Math.max(0, Math.min(0.1, Number.isFinite(frame.deltaTimeSec) ? frame.deltaTimeSec : 1 / 60))
+    const fade = 1 - Math.exp(-SLOT_FADE_HZ * dt)
+
     for (let index = 0; index < AFTERHOURS_MAX_BEAMS; index += 1) {
-      const beam = blended[index]
-      if (!beam.active || beam.weight <= 0) {
+      const morphBeam = blended?.[index]
+      const beam = morphBeam ?? nextBeams[index]
+      const rawWeight = morphBeam ? morphBeam.weight : 1
+      const active = beam.active && rawWeight > 0
+      const targetWeight = active ? Math.max(0, Math.min(1, rawWeight)) : 0
+      // Refresh the remembered geometry only while the slot is real, so a slot
+      // that is fading OUT dims from its last position rather than the origin.
+      if (active) {
+        this.slotOriginX[index] = beam.origin.x
+        this.slotOriginY[index] = beam.origin.y
+        this.slotTargetX[index] = beam.target.x
+        this.slotTargetY[index] = beam.target.y
+        this.slotAccent[index] = beam.accent ? 1 : 0
+      }
+      // First frame after (re)start shows the full rig; only *changes* fade.
+      let weight = this.primed
+        ? this.slotWeight[index] + (targetWeight - this.slotWeight[index]) * fade
+        : targetWeight
+      if (Math.abs(weight - targetWeight) < 1e-3) weight = targetWeight
+      this.slotWeight[index] = weight
+
+      if (weight <= 0) {
         program.setVec4(`uAfterhoursBeam${index}`, 0, 0, 0, 0)
         program.setVec2(`uAfterhoursBeamMeta${index}`, 0, 0)
-        continue
+      } else {
+        program.setVec4(
+          `uAfterhoursBeam${index}`,
+          this.slotOriginX[index], this.slotOriginY[index],
+          this.slotTargetX[index], this.slotTargetY[index],
+        )
+        program.setVec2(`uAfterhoursBeamMeta${index}`, weight, this.slotAccent[index])
       }
-      program.setVec4(`uAfterhoursBeam${index}`, beam.origin.x, beam.origin.y, beam.target.x, beam.target.y)
-      program.setVec2(`uAfterhoursBeamMeta${index}`, Math.max(0, Math.min(1, beam.weight)), beam.accent ? 1 : 0)
     }
+    this.primed = true
   }
 }
 

@@ -74,6 +74,14 @@ function normalizeTrigger(value: AfterhoursTrigger): AfterhoursTrigger {
   return (AFTERHOURS_TRIGGERS as readonly string[]).includes(value) ? value : 'beat'
 }
 
+/**
+ * Energy-onset fallback thresholds. Only used when the selected clock trigger has
+ * no canonical beat grid at all — arm/rearm hysteresis makes it fire once per
+ * swell rather than every frame. Not a user-selectable trigger.
+ */
+const ENERGY_FALLBACK_FIRE = 0.72
+const ENERGY_FALLBACK_REARM = 0.56
+
 export class AfterhoursTriggerController {
   private envelope = 0
   private dropWeight = 0
@@ -81,6 +89,7 @@ export class AfterhoursTriggerController {
   private lastTrigger: AfterhoursTrigger | null = null
   private edgeActive = false
   private continuousPhase = 0
+  private energyArmed = true
 
   reset(): void {
     this.envelope = 0
@@ -89,6 +98,7 @@ export class AfterhoursTriggerController {
     this.lastTrigger = null
     this.edgeActive = false
     this.continuousPhase = 0
+    this.energyArmed = true
   }
 
   update(input: AfterhoursTriggerControllerInput): AfterhoursReactionState {
@@ -114,6 +124,7 @@ export class AfterhoursTriggerController {
         this.dropWeight = 0
         this.lastEventId = null
         this.edgeActive = false
+        this.energyArmed = true
       }
       this.lastTrigger = trigger
     }
@@ -180,7 +191,9 @@ export class AfterhoursTriggerController {
   /**
    * Fire once per canonical event identity. Prefers the canonical `eventId`;
    * falls back to a rising-edge on `active`/`hit` only when no identity exists
-   * (mirrors Electric Storm's fallback boundary).
+   * (mirrors Electric Storm's fallback boundary). When a selected clock trigger
+   * has no canonical beat grid at all, degrades to an energy-onset fallback so
+   * the world still reacts to loud material instead of sitting inert.
    */
   private consume(frame: Readonly<CinematicFrameContext>, trigger: AfterhoursTrigger): boolean {
     const canonical = frame.canonicalMusic
@@ -191,7 +204,8 @@ export class AfterhoursTriggerController {
     let eventId: string | null = null
     if (canonical && clockKey) {
       const clock = canonical.clocks[clockKey]
-      active = clock.available && clock.hit
+      if (!clock.available) return this.consumeEnergyOnset(frame)
+      active = clock.hit
       eventId = clock.eventId
     } else if (canonical && impulseKey) {
       const impulse = canonical.impulses[impulseKey]
@@ -212,5 +226,23 @@ export class AfterhoursTriggerController {
     const rising = active && !this.edgeActive
     this.edgeActive = active
     return rising
+  }
+
+  /**
+   * No canonical beat grid for the selected clock trigger: fire on a rising
+   * swell of host `overallEnergy`, with arm/rearm hysteresis so it fires once
+   * per swell rather than continuously. The hysteresis *is* the de-duplication
+   * (energy onsets carry no event id).
+   */
+  private consumeEnergyOnset(frame: Readonly<CinematicFrameContext>): boolean {
+    const energy = clamp01(
+      frame.musicalAudio?.values.overallEnergy
+      ?? frame.audio?.smoothed?.volume
+      ?? 0,
+    )
+    if (energy <= ENERGY_FALLBACK_REARM) this.energyArmed = true
+    if (!this.energyArmed || energy < ENERGY_FALLBACK_FIRE) return false
+    this.energyArmed = false
+    return true
   }
 }
