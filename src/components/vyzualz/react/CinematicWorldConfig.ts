@@ -12,6 +12,7 @@ import {
   type CinematicWorldSpecificConfig,
 } from './CinematicWorldSettings'
 
+/** Renderer-backed Cinematic Worlds that are currently live/selectable. */
 export const CINEMATIC_WORLD_MODES = [
   'legacyPortal',
   'eventHorizon',
@@ -28,7 +29,19 @@ export const CINEMATIC_WORLD_MODES = [
   'reactiveConstellation',
 ] as const
 
-export type CinematicWorldMode = typeof CINEMATIC_WORLD_MODES[number]
+export type CinematicWorldLiveMode = typeof CINEMATIC_WORLD_MODES[number]
+
+/**
+ * Domain-valid Cinematic World identities. A mode may exist here before its
+ * renderer/preset is registered so staged features can establish persistence
+ * and adapter contracts without creating a broken selectable world.
+ */
+export const CINEMATIC_WORLD_DOMAIN_MODES = [
+  ...CINEMATIC_WORLD_MODES,
+  'afterhours',
+] as const
+
+export type CinematicWorldMode = typeof CINEMATIC_WORLD_DOMAIN_MODES[number]
 
 export const CINEMATIC_PORTAL_SHAPES = [
   'rectangle',
@@ -576,6 +589,8 @@ const WORLD_DEFAULT_AUDIO_ROUTES: Readonly<Record<CinematicWorldMode, readonly C
   // Electric Storm consumes the canonical host musical frame directly in its
   // world renderer, so it intentionally has no generic route-based mappings.
   electricStorm: [],
+  // Afterhours consumes canonical Music Intelligence directly once its runtime lands.
+  afterhours: [],
 }
 
 export function createDefaultCinematicAudioRoutes(mode: CinematicWorldMode): CinematicAudioRoute[] {
@@ -664,6 +679,7 @@ const CINEMATIC_WORLD_MODE_ALIASES: Record<string, CinematicWorldMode> = {
   ancientmachine: 'ancientMachine',
   stormgateway: 'stormGateway',
   electricstorm: 'electricStorm',
+  afterhours: 'afterhours',
   orbitalprismarray: 'orbitalPrismArray',
   reactiveconstellation: 'reactiveConstellation',
   constellation: 'reactiveConstellation',
@@ -686,7 +702,7 @@ const CINEMATIC_CAMERA_RIG_ALIASES: Record<string, CinematicCameraRig> = {
 }
 
 function normalizeWorldMode(value: unknown, fallback: CinematicWorldMode): CinematicWorldMode {
-  const exact = enumValue(value, CINEMATIC_WORLD_MODES, fallback)
+  const exact = enumValue(value, CINEMATIC_WORLD_DOMAIN_MODES, fallback)
   if (exact !== fallback || value === fallback) return exact
   return CINEMATIC_WORLD_MODE_ALIASES[normalizedIdentifier(value)] ?? fallback
 }
@@ -714,6 +730,10 @@ function collectUnknown(
       .filter(([key]) => !known.has(key))
       .map(([key, value]) => [`${prefix}${key}`, value]),
   )
+}
+
+function defaultAudioMappingEnabled(mode: CinematicWorldMode): boolean {
+  return mode !== 'afterhours'
 }
 
 function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
@@ -969,7 +989,7 @@ export function normalizeCinematicWorldConfig(
       glow: clampRange(material.glow, CINEMATIC_NUMERIC_RANGES.material.glow),
     },
     audioMapping: {
-      enabled: typeof audioMapping.enabled === 'boolean' ? audioMapping.enabled : defaults.audioMapping.enabled,
+      enabled: typeof audioMapping.enabled === 'boolean' ? audioMapping.enabled : defaultAudioMappingEnabled(worldMode),
       smoothingMs: clampRange(audioMapping.smoothingMs, CINEMATIC_NUMERIC_RANGES.audioSmoothingMs),
       routes: normalizeAudioRoutes(audioMapping.routes, extensions, worldMode),
     },
@@ -1043,6 +1063,7 @@ export function createCinematicWorldConfig<Mode extends CinematicWorldMode>(
     },
     audioMapping: {
       ...defaults.audioMapping,
+      enabled: defaultAudioMappingEnabled(mode),
       ...overrides.audioMapping,
       routes: overrides.audioMapping?.routes ?? createDefaultCinematicAudioRoutes(mode),
     },

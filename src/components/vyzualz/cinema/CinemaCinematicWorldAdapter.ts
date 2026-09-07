@@ -238,11 +238,13 @@ const WORLD_BOUNDS: Readonly<Record<string, Readonly<Record<string, readonly [nu
   ancientMachine: WorldSettings.ANCIENT_MACHINE_BOUNDS,
   stormGateway: WorldSettings.STORM_GATEWAY_BOUNDS,
   electricStorm: WorldSettings.ELECTRIC_STORM_BOUNDS,
+  afterhours: WorldSettings.AFTERHOURS_BOUNDS,
   reactiveConstellation: WorldSettings.REACTIVE_CONSTELLATION_BOUNDS,
 })
 
 const WORLD_COLOR_SETTING_KEYS: Readonly<Partial<Record<CinematicWorldMode, readonly string[]>>> = Object.freeze({
   electricStorm: Object.freeze(['backgroundColor', 'lightningColor']),
+  afterhours: Object.freeze(['backgroundColor', 'primaryColor', 'accentColor']),
 })
 
 const WORLD_ENUMS: Readonly<Record<string, readonly string[]>> = Object.freeze({
@@ -251,10 +253,15 @@ const WORLD_ENUMS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   topologyStyle: WorldSettings.REACTIVE_CONSTELLATION_TOPOLOGIES,
   polyhedronStyle: WorldSettings.REACTIVE_CONSTELLATION_POLYHEDRA,
   thunderTrigger: WorldSettings.ELECTRIC_STORM_THUNDER_TRIGGERS,
+  colorMode: WorldSettings.AFTERHOURS_COLOR_MODES,
+  pattern: WorldSettings.AFTERHOURS_PATTERNS,
+  trigger: WorldSettings.AFTERHOURS_TRIGGERS,
+  patternChange: WorldSettings.AFTERHOURS_PATTERN_CHANGES,
 })
 
 const WORLD_REACT_SETTING_KEYS: Readonly<Partial<Record<CinematicWorldMode, readonly string[]>>> = Object.freeze({
   electricStorm: Object.freeze(['thunderTrigger', 'flashIntensity', 'flashDuration', 'flashDecay']),
+  afterhours: Object.freeze(['bpmSync', 'masterIntensity', 'trigger', 'pulseAmount', 'pulseDecay', 'motionAmount', 'patternChange', 'blackoutAmount']),
 })
 
 const OUTPUT_DESCRIPTOR = Object.freeze({
@@ -580,7 +587,7 @@ function createCinematicPresetParameterValues(
   preset: ReactPreset,
   config: CinematicWorldConfig,
 ): Record<CinemaParameterId, CinemaParameterValue> {
-  const values = Object.fromEntries(definitions.filter(parameter => 'default' in parameter).map(parameter => [parameter.id, parameter.default])) as Record<CinemaParameterId, CinemaParameterValue>
+  const values = { ...createCinemaCinematicWorldParameterValues(config, definitions) }
   const renderSettings = { ...DEFAULT_REACT_PRESET_RENDER_SETTINGS, ...preset.renderSettings }
   values[INTENSITY_PARAMETER_ID] = preset.params.intensity
   values[MOTION_PARAMETER_ID] = preset.params.motion
@@ -589,22 +596,56 @@ function createCinematicPresetParameterValues(
   values[TRAIL_DECAY_PARAMETER_ID] = renderSettings.trailDecay
   values[FOG_DENSITY_PARAMETER_ID] = renderSettings.fogDensity
   values[PARTICLE_DENSITY_PARAMETER_ID] = renderSettings.particleDensity
-  values[SEED_PARAMETER_ID] = config.seed
-  values[QUALITY_PARAMETER_ID] = qualityOptionId(config.qualityTier)
   for (const [role] of CINEMATIC_PALETTE_SPECS) {
     values[cinemaCinematicWorldParameterId(`palette-${role}`)] = hexToCinemaColor(preset.palette[role])
   }
-  for (const [key] of ENVIRONMENT_PARAMETER_SPECS) values[cinemaCinematicWorldParameterId(`environment-${key}`)] = config.environment[key]
-  for (const [key] of MATERIAL_PARAMETER_SPECS) values[cinemaCinematicWorldParameterId(`material-${key}`)] = config.material[key]
-  for (const [key, value] of Object.entries(config.worldSettings.settings as Record<string, unknown>)) {
-    if (typeof value === 'number') values[worldParameterId(key)] = value
+  return values
+}
+
+/**
+ * Builds the canonical Cinema parameter schema for a domain-valid Cinematic
+ * World without registering a renderer. Stage-gated worlds can use this to
+ * establish persistence/adapter contracts before becoming live-selectable.
+ */
+export function createCinemaCinematicWorldParameterSchemas(
+  worldId: CinematicWorldMode,
+): readonly CinemaParameterDefinition[] {
+  return createParameterDefinitions(worldId)
+}
+
+export function createCinemaCinematicWorldParameterValues(
+  config: CinematicWorldConfig,
+  definitions: readonly CinemaParameterDefinition[] = createCinemaCinematicWorldParameterSchemas(config.worldMode),
+): Record<CinemaParameterId, CinemaParameterValue> {
+  const normalized = normalizeCinematicWorldConfig(config)
+  const values = Object.fromEntries(
+    definitions.filter(parameter => 'default' in parameter).map(parameter => [parameter.id, parameter.default]),
+  ) as Record<CinemaParameterId, CinemaParameterValue>
+  values[SEED_PARAMETER_ID] = normalized.seed
+  values[QUALITY_PARAMETER_ID] = qualityOptionId(normalized.qualityTier)
+  for (const [key] of ENVIRONMENT_PARAMETER_SPECS) {
+    values[cinemaCinematicWorldParameterId(`environment-${key}`)] = normalized.environment[key]
+  }
+  for (const [key] of MATERIAL_PARAMETER_SPECS) {
+    values[cinemaCinematicWorldParameterId(`material-${key}`)] = normalized.material[key]
+  }
+  for (const [key, value] of Object.entries(normalized.worldSettings.settings as Record<string, unknown>)) {
+    if (typeof value === 'number' || typeof value === 'boolean') values[worldParameterId(key)] = value
     else if (typeof value === 'string') {
-      values[worldParameterId(key)] = isWorldColorSetting(config.worldMode, key)
+      values[worldParameterId(key)] = isWorldColorSetting(normalized.worldMode, key)
         ? hexToCinemaColor(value)
         : worldEnumOptionId(key, value)
     }
   }
   return values
+}
+
+export function hydrateCinemaCinematicWorldConfigFromParameterValues(
+  worldId: CinematicWorldMode,
+  values: Readonly<Partial<Record<CinemaParameterId, CinemaParameterValue>>>,
+  authoredConfig?: CinematicWorldConfig,
+): CinematicWorldConfig {
+  return resolveConfig(worldId, values, authoredConfig)
 }
 
 function createWebGLAdapterEntry(definition: CinematicWebGLWorldDefinition): CinemaCinematicWorldAdapterEntry {
@@ -823,11 +864,11 @@ function createCinematicWorldParameterCapabilities(
       }
     }
     if (parameter.id === SEED_PARAMETER_ID) {
-      if (worldId === 'electricStorm') {
+      if (worldId === 'electricStorm' || worldId === 'afterhours') {
         return {
           parameterId: parameter.id,
           support: 'unsupported' as const,
-          reason: 'Electric Storm varies runtime strike sessions internally and does not expose a user-authored seed.',
+          reason: `${worldId === 'electricStorm' ? 'Electric Storm' : 'Afterhours'} does not expose its deterministic runtime seed as a user control.`,
         }
       }
       return { parameterId: parameter.id, support: 'structural' as const }
@@ -1004,7 +1045,7 @@ function createParameterDefinitions(worldId: CinematicWorldMode): readonly Cinem
       const integer = Number.isInteger(value) && Number.isInteger(range[0]) && Number.isInteger(range[1])
       common.push(integer ? {
         id,
-        label: titleCase(key),
+        label: worldSettingLabel(key),
         ...(isWorldReactSetting(worldId, key) ? { group: 'React' } : {}),
         type: 'integer',
         default: value,
@@ -1014,8 +1055,20 @@ function createParameterDefinitions(worldId: CinematicWorldMode): readonly Cinem
         modulatable: true,
         ui: { control: 'number', order: order++ },
       } : {
-        ...floatParameter(id, titleCase(key), value, range[0], range[1], order++),
+        ...floatParameter(id, worldSettingLabel(key), value, range[0], range[1], order++),
         ...(isWorldReactSetting(worldId, key) ? { group: 'React' } : {}),
+      })
+      continue
+    }
+    if (typeof value === 'boolean') {
+      common.push({
+        id,
+        label: worldSettingLabel(key),
+        ...(isWorldReactSetting(worldId, key) ? { group: 'React' } : {}),
+        type: 'boolean',
+        default: value,
+        modulatable: false,
+        ui: { control: 'toggle', order: order++ },
       })
       continue
     }
@@ -1027,7 +1080,7 @@ function createParameterDefinitions(worldId: CinematicWorldMode): readonly Cinem
         // a brandPolicy declared without a matching brandRole.
         common.push({
           id,
-          label: titleCase(key),
+          label: worldSettingLabel(key),
           type: 'color',
           default: hexToCinemaColor(value),
           modulatable: false,
@@ -1038,7 +1091,7 @@ function createParameterDefinitions(worldId: CinematicWorldMode): readonly Cinem
       const options = WORLD_ENUMS[key] ?? [value]
       common.push({
         id,
-        label: titleCase(key),
+        label: worldSettingLabel(key),
         ...(isWorldReactSetting(worldId, key) ? { group: 'React' } : {}),
         type: 'enum',
         default: worldEnumOptionId(key, value),
@@ -1926,6 +1979,7 @@ function resolveConfig(
   for (const [key, defaultValue] of Object.entries(settings)) {
     const value = values[worldParameterId(key)]
     if (typeof defaultValue === 'number') settings[key] = numberValue(value, defaultValue)
+    else if (typeof defaultValue === 'boolean') settings[key] = typeof value === 'boolean' ? value : defaultValue
     else if (typeof defaultValue === 'string') {
       settings[key] = isWorldColorSetting(worldId, key) && Array.isArray(value)
         ? colorHex(value as unknown as CinemaColor, defaultValue)
@@ -2127,11 +2181,20 @@ function readWorldEnum(key: string, value: unknown, fallback: string): string {
   return options.find(candidate => value === worldEnumOptionId(key, candidate)) ?? fallback
 }
 
+function worldSettingLabel(key: string): string {
+  return key === 'bpmSync' ? 'BPM Sync' : titleCase(key)
+}
+
 function worldEnumLabel(key: string, value: string): string {
-  if (key !== 'thunderTrigger') return titleCase(value)
+  if (key === 'pattern' && value === 'xWall') return 'X Wall'
+  if (key === 'colorMode') return value === 'manual' ? 'Manual' : 'Auto'
+  if (key === 'patternChange' && value === 'off') return 'Off'
+  if (key !== 'thunderTrigger' && key !== 'trigger' && key !== 'patternChange') return titleCase(value)
   switch (value) {
     case 'energy': return 'Energy'
     case 'beat': return 'Beat'
+    case 'kick': return 'Kick'
+    case 'snare': return 'Snare'
     case 'downbeat': return 'Downbeat'
     case 'beat2': return '2 Beats'
     case 'beat4': return '4 Beats'

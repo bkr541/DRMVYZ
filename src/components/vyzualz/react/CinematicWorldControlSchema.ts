@@ -3,6 +3,7 @@ import {
   type CinematicAudioTarget,
   type CinematicCameraRig,
   type CinematicWorldConfig,
+  type CinematicWorldLiveMode,
   type CinematicWorldMode,
 } from './CinematicWorldConfig'
 import {
@@ -154,12 +155,12 @@ export interface AnyCinematicWorldControlSchema {
 }
 
 export type CinematicWorldCatalog = {
-  [Mode in CinematicWorldMode]: CinematicWorldCatalogEntry<Mode>
+  [Mode in CinematicWorldLiveMode]: CinematicWorldCatalogEntry<Mode>
 }
 
 export type AnyCinematicWorldCatalogEntry = {
-  [Mode in CinematicWorldMode]: CinematicWorldCatalogEntry<Mode>
-}[CinematicWorldMode]
+  [Mode in CinematicWorldLiveMode]: CinematicWorldCatalogEntry<Mode>
+}[CinematicWorldLiveMode]
 
 const SAFE_CONTROL_ID = /^[A-Za-z][A-Za-z0-9_-]*$/
 

@@ -173,6 +173,48 @@ export type ElectricStormNumericSettings = Pick<
   'masterIntensity' | 'strikeRate' | 'branching' | 'thickness' | 'glow' | 'impactShake' | 'zoomPunch'
 >
 
+export const AFTERHOURS_COLOR_MODES = ['manual', 'auto'] as const
+export type AfterhoursColorMode = typeof AFTERHOURS_COLOR_MODES[number]
+
+export const AFTERHOURS_PATTERNS = ['random', 'xWall', 'cross', 'fan', 'split'] as const
+export type AfterhoursPattern = typeof AFTERHOURS_PATTERNS[number]
+
+export const AFTERHOURS_TRIGGERS = [
+  'beat', 'kick', 'snare', 'downbeat', 'beat2', 'beat4', 'bar', 'bar4', 'bar8', 'phrase', 'drop',
+] as const
+export type AfterhoursTrigger = typeof AFTERHOURS_TRIGGERS[number]
+
+export const AFTERHOURS_PATTERN_CHANGES = ['off', 'bar', 'bar4', 'bar8', 'phrase', 'drop'] as const
+export type AfterhoursPatternChange = typeof AFTERHOURS_PATTERN_CHANGES[number]
+
+export interface AfterhoursSettings {
+  backgroundColor: string
+  colorMode: AfterhoursColorMode
+  primaryColor: string
+  accentColor: string
+  accentMix: number
+  pattern: AfterhoursPattern
+  symmetry: boolean
+  sideLasers: boolean
+  topLasers: boolean
+  beamCount: number
+  spread: number
+  atmosphere: number
+  bpmSync: boolean
+  masterIntensity: number
+  trigger: AfterhoursTrigger
+  pulseAmount: number
+  pulseDecay: number
+  motionAmount: number
+  patternChange: AfterhoursPatternChange
+  blackoutAmount: number
+}
+
+export type AfterhoursNumericSettings = Pick<
+  AfterhoursSettings,
+  'accentMix' | 'beamCount' | 'spread' | 'atmosphere' | 'masterIntensity' | 'pulseAmount' | 'pulseDecay' | 'motionAmount' | 'blackoutAmount'
+>
+
 export const REACTIVE_CONSTELLATION_TOPOLOGIES = ['cluster', 'chain', 'triangulated', 'starburst', 'branching', 'ring', 'splitClusters'] as const
 export type ReactiveConstellationTopologyStyle = typeof REACTIVE_CONSTELLATION_TOPOLOGIES[number]
 
@@ -264,6 +306,7 @@ export interface CinematicWorldSettingsByMode {
   ancientMachine: AncientMachineSettings
   stormGateway: StormGatewaySettings
   electricStorm: ElectricStormSettings
+  afterhours: AfterhoursSettings
   orbitalPrismArray: EmptyCinematicWorldSettings
   reactiveConstellation: ReactiveConstellationSettings
 }
@@ -608,6 +651,41 @@ export const ELECTRIC_STORM_BOUNDS: NumericBounds<ElectricStormNumericSettings> 
   zoomPunch: [0, 1],
 }
 
+export const AFTERHOURS_DEFAULTS: AfterhoursSettings = {
+  backgroundColor: '#000000',
+  colorMode: 'manual',
+  primaryColor: '#74f5ff',
+  accentColor: '#ffffff',
+  accentMix: 0.25,
+  pattern: 'fan',
+  symmetry: true,
+  sideLasers: false,
+  topLasers: false,
+  beamCount: 8,
+  spread: 0.65,
+  atmosphere: 0.55,
+  bpmSync: true,
+  masterIntensity: 0.75,
+  trigger: 'beat',
+  pulseAmount: 0.65,
+  pulseDecay: 0.45,
+  motionAmount: 0.55,
+  patternChange: 'off',
+  blackoutAmount: 0.25,
+}
+
+export const AFTERHOURS_BOUNDS: NumericBounds<AfterhoursNumericSettings> = {
+  accentMix: [0, 1],
+  beamCount: [2, 16],
+  spread: [0, 1],
+  atmosphere: [0, 1],
+  masterIntensity: [0, 1],
+  pulseAmount: [0, 1],
+  pulseDecay: [0, 1],
+  motionAmount: [0, 1],
+  blackoutAmount: [0, 1],
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -793,6 +871,52 @@ export const REACTIVE_CONSTELLATION_BOUNDS = {
   reseedEveryBars: [0, 64],
 } as const satisfies NumericBounds<Omit<ReactiveConstellationSettings, 'visualDnaProfile' | 'choreographyProfile' | 'topologyStyle' | 'polyhedronStyle'>>
 
+function normalizeAfterhoursSettings(raw: unknown): AfterhoursSettings {
+  const payload = settingsPayload(raw, 'afterhours')
+  const source = isRecord(payload) ? payload : {}
+  const numeric = normalizeNumericSettings(
+    source,
+    {
+      accentMix: AFTERHOURS_DEFAULTS.accentMix,
+      beamCount: AFTERHOURS_DEFAULTS.beamCount,
+      spread: AFTERHOURS_DEFAULTS.spread,
+      atmosphere: AFTERHOURS_DEFAULTS.atmosphere,
+      masterIntensity: AFTERHOURS_DEFAULTS.masterIntensity,
+      pulseAmount: AFTERHOURS_DEFAULTS.pulseAmount,
+      pulseDecay: AFTERHOURS_DEFAULTS.pulseDecay,
+      motionAmount: AFTERHOURS_DEFAULTS.motionAmount,
+      blackoutAmount: AFTERHOURS_DEFAULTS.blackoutAmount,
+    },
+    AFTERHOURS_BOUNDS,
+    ['beamCount'],
+  )
+  const enumValue = <T extends readonly string[]>(value: unknown, options: T, fallback: T[number]): T[number] => (
+    typeof value === 'string' && options.includes(value as T[number]) ? value as T[number] : fallback
+  )
+  return {
+    backgroundColor: normalizeHexColor(source.backgroundColor, AFTERHOURS_DEFAULTS.backgroundColor),
+    colorMode: enumValue(source.colorMode, AFTERHOURS_COLOR_MODES, AFTERHOURS_DEFAULTS.colorMode),
+    primaryColor: normalizeHexColor(source.primaryColor, AFTERHOURS_DEFAULTS.primaryColor),
+    accentColor: normalizeHexColor(source.accentColor, AFTERHOURS_DEFAULTS.accentColor),
+    accentMix: numeric.accentMix,
+    pattern: enumValue(source.pattern, AFTERHOURS_PATTERNS, AFTERHOURS_DEFAULTS.pattern),
+    symmetry: typeof source.symmetry === 'boolean' ? source.symmetry : AFTERHOURS_DEFAULTS.symmetry,
+    sideLasers: typeof source.sideLasers === 'boolean' ? source.sideLasers : AFTERHOURS_DEFAULTS.sideLasers,
+    topLasers: typeof source.topLasers === 'boolean' ? source.topLasers : AFTERHOURS_DEFAULTS.topLasers,
+    beamCount: numeric.beamCount,
+    spread: numeric.spread,
+    atmosphere: numeric.atmosphere,
+    bpmSync: typeof source.bpmSync === 'boolean' ? source.bpmSync : AFTERHOURS_DEFAULTS.bpmSync,
+    masterIntensity: numeric.masterIntensity,
+    trigger: enumValue(source.trigger, AFTERHOURS_TRIGGERS, AFTERHOURS_DEFAULTS.trigger),
+    pulseAmount: numeric.pulseAmount,
+    pulseDecay: numeric.pulseDecay,
+    motionAmount: numeric.motionAmount,
+    patternChange: enumValue(source.patternChange, AFTERHOURS_PATTERN_CHANGES, AFTERHOURS_DEFAULTS.patternChange),
+    blackoutAmount: numeric.blackoutAmount,
+  }
+}
+
 function normalizeReactiveConstellationSettings(raw: unknown): ReactiveConstellationSettings {
   const payload = settingsPayload(raw, 'reactiveConstellation')
   const source = isRecord(payload) ? payload : {}
@@ -888,6 +1012,7 @@ export function createDefaultCinematicWorldSettings(mode: CinematicWorldMode): C
     case 'ancientMachine': return { mode, settings: { ...ANCIENT_MACHINE_DEFAULTS } }
     case 'stormGateway': return { mode, settings: { ...STORM_GATEWAY_DEFAULTS } }
     case 'electricStorm': return { mode, settings: { ...ELECTRIC_STORM_DEFAULTS } }
+    case 'afterhours': return { mode, settings: { ...AFTERHOURS_DEFAULTS } }
     case 'orbitalPrismArray': return { mode, settings: {} }
     case 'reactiveConstellation': return { mode, settings: { ...REACTIVE_CONSTELLATION_DEFAULTS } }
     default: return { mode, settings: {} } as CinematicWorldSpecificConfig
@@ -957,6 +1082,8 @@ export function normalizeCinematicWorldSettings(
       }
     case 'electricStorm':
       return { mode, settings: normalizeElectricStormSettings(value) }
+    case 'afterhours':
+      return { mode, settings: normalizeAfterhoursSettings(value) }
     case 'orbitalPrismArray': return { mode, settings: {} }
     case 'reactiveConstellation': return { mode, settings: normalizeReactiveConstellationSettings(value) }
     default:
@@ -1002,6 +1129,10 @@ export function resolveStormGatewaySettings(value: CinematicWorldSpecificConfig)
 
 export function resolveElectricStormSettings(value: CinematicWorldSpecificConfig): ElectricStormSettings {
   return normalizeCinematicWorldSettings('electricStorm', value).settings as ElectricStormSettings
+}
+
+export function resolveAfterhoursSettings(value: CinematicWorldSpecificConfig): AfterhoursSettings {
+  return normalizeCinematicWorldSettings('afterhours', value).settings as AfterhoursSettings
 }
 
 export function resolveReactiveConstellationSettings(value: CinematicWorldSpecificConfig): ReactiveConstellationSettings {
