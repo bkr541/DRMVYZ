@@ -6,7 +6,11 @@ import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type { CinematicFrameContext } from '../../CinematicWorldRenderer'
 import { DEFAULT_REACT_RENDER_PARAMS } from '../../reactRenderUtils'
 import { AFTERHOURS_BOTTOM_EMITTERS, AFTERHOURS_MAX_BEAMS, generateAfterhoursBeams } from './AfterhoursBeamGeometry'
+import { parseAfterhoursHexColor, resolveAfterhoursPalette } from './AfterhoursColor'
+import { AFTERHOURS_FRAGMENT_SOURCE } from './AfterhoursShader'
 import { afterhoursWorldDefinition } from './AfterhoursWorld'
+
+const AFTERHOURS_PRESET = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'preset-afterhours')!
 
 function frame(settings: Partial<typeof AFTERHOURS_DEFAULTS> = {}): CinematicFrameContext {
   const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'preset-afterhours')!
@@ -108,6 +112,57 @@ describe('Afterhours Stage 2 world integration', () => {
     expect(last(harness.calls, 'uAfterhoursBackground')).toEqual([0, 0, 0])
     expect(last(harness.calls, 'uAfterhoursAtmosphere')).toEqual([0.1])
     harness.world.dispose()
+  })
+
+  it('Manual color mode sends the persisted Primary/Accent hues to the shader', () => {
+    const harness = createWorldHarness()
+    harness.world.render(frame({ colorMode: 'manual', primaryColor: '#204060', accentColor: '#a0c0e0' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    expect(last(harness.calls, 'uAfterhoursPrimary')).toEqual([0x20 / 255, 0x40 / 255, 0x60 / 255])
+    expect(last(harness.calls, 'uAfterhoursAccent')).toEqual([0xa0 / 255, 0xc0 / 255, 0xe0 / 255])
+    harness.world.dispose()
+  })
+
+  it('Auto color mode derives from the Cinema preset palette and ignores persisted Primary/Accent', () => {
+    const harness = createWorldHarness()
+    harness.world.render(frame({ colorMode: 'auto', primaryColor: '#111111', accentColor: '#222222' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    const expected = resolveAfterhoursPalette(
+      { colorMode: 'auto', primaryColor: '#111111', accentColor: '#222222' },
+      { primary: AFTERHOURS_PRESET.palette.primary, accent: AFTERHOURS_PRESET.palette.accent, secondary: AFTERHOURS_PRESET.palette.secondary },
+    )
+    expect(last(harness.calls, 'uAfterhoursPrimary')).toEqual([expected.primary.r, expected.primary.g, expected.primary.b])
+    expect(last(harness.calls, 'uAfterhoursPrimary')).not.toEqual([0x11 / 255, 0x11 / 255, 0x11 / 255])
+    // Background is unaffected by Color Mode.
+    harness.world.render(frame({ colorMode: 'auto', backgroundColor: '#0a0b0c' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    expect(last(harness.calls, 'uAfterhoursBackground')).toEqual([parseAfterhoursHexColor('#0a0b0c', { r: 0, g: 0, b: 0 })].flatMap(c => [c.r, c.g, c.b]))
+    harness.world.dispose()
+  })
+
+  it('clamps Atmosphere to 0..1 and never emits a non-finite uniform', () => {
+    const harness = createWorldHarness()
+    harness.world.render(frame({ atmosphere: 5 }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    expect(last(harness.calls, 'uAfterhoursAtmosphere')).toEqual([1])
+    harness.world.render(frame({ atmosphere: -3 }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    expect(last(harness.calls, 'uAfterhoursAtmosphere')).toEqual([0])
+    for (const [name, values] of harness.calls) {
+      for (const row of values) for (const v of row) expect(Number.isFinite(v), `${name} finite`).toBe(true)
+    }
+    harness.world.dispose()
+  })
+
+  it('renders a layered laser model with a bounded, tone-mapped haze floor', () => {
+    // Distinguishable core / body / envelope / scatter layers + emitter bloom.
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('float core = exp(')
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('float body = exp(')
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('float envelope = exp(')
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('float sourceBloom = exp(')
+    // Haze is a low-frequency field, not a flat overlay, and Atmosphere-gated.
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('valueNoise(')
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('atmosphere * atmosphere')
+    // Output is tone-mapped and clamped so Atmosphere 1 cannot wash to solid.
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('color = color / (color + vec3(0.85))')
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('clamp(color, vec3(0.0), vec3(1.0))')
+    // Inactive slots contribute exactly zero.
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('if (meta.x <= 0.0) return vec3(0.0)')
   })
 
   it('bottom-emitter contract stays the single source of truth', () => {

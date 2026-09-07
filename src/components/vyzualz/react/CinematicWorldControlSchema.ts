@@ -292,6 +292,13 @@ const AFTERHOURS_CONTROLS = {
     visibility: 'all',
     controls: [
       { kind: 'color', id: 'afterhours-background-color', setting: 'backgroundColor', label: 'Background Color', visibility: 'all' },
+      {
+        kind: 'select', id: 'afterhours-color-mode', setting: 'colorMode', label: 'Color Mode', visibility: 'all',
+        options: [
+          { value: 'manual', label: 'Manual' },
+          { value: 'auto', label: 'Auto' },
+        ],
+      },
       { kind: 'color', id: 'afterhours-primary-color', setting: 'primaryColor', label: 'Primary Color', visibility: 'all' },
       { kind: 'color', id: 'afterhours-accent-color', setting: 'accentColor', label: 'Accent Color', visibility: 'all' },
       { kind: 'slider', id: 'afterhours-accent-mix', setting: 'accentMix', label: 'Accent Mix', min: AFTERHOURS_BOUNDS.accentMix[0], max: AFTERHOURS_BOUNDS.accentMix[1], step: 0.01, visibility: 'all' },

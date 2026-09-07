@@ -225,9 +225,8 @@ const DIRECT_COMMON_MODULATION_TARGET_USAGE: Readonly<Partial<Record<CinematicWo
 const UNCONSUMED_WORLD_SETTING_KEYS: Readonly<Partial<Record<CinematicWorldMode, readonly string[]>>> = Object.freeze({
   eventHorizon: Object.freeze(['bloomBoost', 'chromaticAberrationBoost']),
   afterhours: Object.freeze([
-    // Stage 2 consumes Pattern, Symmetry, Side Lasers, Top Lasers. Color Mode
-    // and the React parameters remain persisted-only until their stages.
-    'colorMode',
+    // Stage 2 consumes Pattern / Symmetry / Side / Top; Stage 3 consumes Color
+    // Mode. The React parameters remain persisted-only until their stages.
     'bpmSync', 'masterIntensity', 'trigger', 'pulseAmount', 'pulseDecay', 'motionAmount', 'patternChange', 'blackoutAmount',
   ]),
   reactiveConstellation: Object.freeze(['visualDnaProfile']),

@@ -161,13 +161,17 @@ describe('Cinematic World control schema', () => {
     expect(zoomPunch.value).toBe('0.5')
   })
 
-  it('exposes the Stage 2 Afterhours Design controls, with Symmetry conditional on the Random pattern', async () => {
+  it('exposes the Stage 2/3 Afterhours Design controls, with Symmetry conditional on the Random pattern', async () => {
     const schema = CINEMATIC_WORLD_CATALOG.afterhours.controls
     const controls = schema.groups.flatMap(group => group.controls)
     expect(controls.map(control => control.setting)).toEqual([
-      'backgroundColor', 'primaryColor', 'accentColor', 'accentMix',
+      'backgroundColor', 'colorMode', 'primaryColor', 'accentColor', 'accentMix',
       'pattern', 'symmetry', 'sideLasers', 'topLasers', 'beamCount', 'spread', 'atmosphere',
     ])
+    expect(controls.find(control => control.setting === 'colorMode')).toMatchObject({
+      kind: 'select',
+      options: [{ value: 'manual', label: 'Manual' }, { value: 'auto', label: 'Auto' }],
+    })
     expect(controls.find(control => control.setting === 'pattern')).toMatchObject({
       kind: 'select',
       options: [
@@ -185,9 +189,9 @@ describe('Cinematic World control schema', () => {
     expect(controls.find(control => control.setting === 'beamCount')).toMatchObject({
       kind: 'integer', min: AFTERHOURS_BOUNDS.beamCount[0], max: AFTERHOURS_BOUNDS.beamCount[1], step: 1,
     })
-    // Not exposed until their stages.
+    // React controls are not exposed until their stages.
     expect(controls.map(control => control.setting)).not.toEqual(expect.arrayContaining([
-      'colorMode', 'bpmSync', 'masterIntensity', 'trigger', 'pulseAmount', 'pulseDecay', 'motionAmount', 'patternChange', 'blackoutAmount',
+      'bpmSync', 'masterIntensity', 'trigger', 'pulseAmount', 'pulseDecay', 'motionAmount', 'patternChange', 'blackoutAmount',
     ]))
 
     // Default pattern is Fan -> Symmetry absent from the DOM, no stale duplicate.
@@ -198,6 +202,7 @@ describe('Cinematic World control schema', () => {
     expect(container.querySelector('#afterhours-symmetry')).toBeNull()
     expect((container.querySelector('#afterhours-beam-count') as HTMLInputElement).value).toBe('8')
     expect((container.querySelector('#afterhours-atmosphere') as HTMLInputElement).value).toBe('0.55')
+    expect((container.querySelector('#afterhours-color-mode') as HTMLButtonElement).textContent).toContain('Manual')
 
     // Switching to Random reveals exactly one Symmetry control at its persisted value.
     const randomConfig = createCinematicWorldConfig('afterhours', { pattern: 'random', symmetry: false })

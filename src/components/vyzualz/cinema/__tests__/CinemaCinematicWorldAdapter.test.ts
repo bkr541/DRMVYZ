@@ -375,7 +375,7 @@ describe('Cinema Cinematic World adapters', () => {
     harness.dispose()
   })
 
-  it('hydrates Afterhours from the live preset and renders its Stage 2 Design controls through the production Cinema executor', () => {
+  it('hydrates Afterhours from the live preset and renders its Stage 2/3 Design controls through the production Cinema executor', () => {
     const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'preset-afterhours')
     const afterhours = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'afterhours')
     expect(preset?.cinematicConfig?.worldMode).toBe('afterhours')
@@ -422,14 +422,14 @@ describe('Cinema Cinematic World adapters', () => {
     const afterhoursNode = composition.nodes.find(node => node.id === worldNode.id)!
     const supportedLabels = getCinemaCinematicWorldSupportedParameterSchemasForNode(afterhours!.definition, afterhoursNode)
       .map(parameter => parameter.label)
-    // Stage 2 exposes Pattern / Side Lasers / Top Lasers alongside the Stage-1 set.
+    // Stage 2 exposes Pattern / Side Lasers / Top Lasers; Stage 3 adds Color Mode.
     expect(supportedLabels).toEqual(expect.arrayContaining([
-      'Background Color', 'Primary Color', 'Accent Color', 'Accent Mix',
+      'Background Color', 'Color Mode', 'Primary Color', 'Accent Color', 'Accent Mix',
       'Pattern', 'Side Lasers', 'Top Lasers', 'Beam Count', 'Spread', 'Atmosphere',
     ]))
-    // Symmetry stays hidden while Pattern is not Random; Color Mode and every
-    // React control remain persisted-only until their stages.
-    for (const hidden of ['Symmetry', 'Color Mode', 'BPM Sync', 'Master Intensity', 'Trigger', 'Pulse Amount', 'Pulse Decay', 'Motion Amount', 'Pattern Change', 'Blackout Amount', 'Seed']) {
+    // Symmetry stays hidden while Pattern is not Random; every React control
+    // remains persisted-only until its stage.
+    for (const hidden of ['Symmetry', 'BPM Sync', 'Master Intensity', 'Trigger', 'Pulse Amount', 'Pulse Decay', 'Motion Amount', 'Pattern Change', 'Blackout Amount', 'Seed']) {
       expect(supportedLabels).not.toContain(hidden)
     }
 
