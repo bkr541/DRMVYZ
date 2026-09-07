@@ -216,7 +216,14 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     expect(fragmentSource).toContain('PrismRadialElement prismApplyAperture')
     expect(fragmentSource).toContain('PrismRadialElement topologyElement = prismTopologyAt(radialUv, baseRadius, uWarp)')
     expect(fragmentSource).toContain('prismApplyAperture(topologyElement, baseRadius, uAperture)')
+    expect(fragmentSource).toContain('uniform float uRotationMotion;')
+    expect(fragmentSource).toContain('float rotAng = uRotation + uRotationMotion * uMasterMotion;')
+    expect(fragmentSource).not.toContain('uTime * 0.15 * uMasterMotion')
     expect(fragmentSource).not.toContain('vec3 ro =')
+
+    expect(prismAdapter?.definition.parameters.some(parameter => parameter.id === cinemaShaderParameterId('rotationDrive'))).toBe(true)
+    expect(prismAdapter?.definition.parameters.some(parameter => parameter.id === cinemaShaderParameterId('rotationTorque'))).toBe(true)
+    expect(prismAdapter?.definition.parameters.some(parameter => parameter.id === cinemaShaderParameterId('rotationDrag'))).toBe(true)
 
     const harness = createExecutorHarness()
     harness.executor.resize({ width: 1, height: 1, dpr: 1 }, harness.viewport)

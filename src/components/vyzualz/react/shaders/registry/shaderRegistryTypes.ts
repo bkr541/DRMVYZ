@@ -1,5 +1,6 @@
 import type { BrandPaletteRole } from '../../../../../features/personalization/BrandKitTypes'
 import type { ShaderPerformanceProgram } from '../performance/ShaderPerformanceProgramTypes'
+import type { ShaderAudioUniformFrame, ShaderTimingUniformFrame } from '../audio/shaderAudioTypes'
 import type { TextureFormat } from '../runtime/shaderRuntimeTypes'
 
 // ── Categories ────────────────────────────────────────────────────────────────
@@ -349,6 +350,10 @@ export interface ShaderRuntimeParameterControllerInput {
   deltaTimeSec: number
   /** True when runtime-only state must be reconstructed from canonical values. */
   reconstruct: boolean
+  /** Shared normalized audio frame; specialized controllers may consume existing signals. */
+  audio?: Readonly<ShaderAudioUniformFrame>
+  /** Shared musical timing frame; specialized controllers may consume existing event pulses. */
+  timing?: Readonly<ShaderTimingUniformFrame>
 }
 
 /**
@@ -361,6 +366,8 @@ export interface ShaderRuntimeParameterController {
   resolve(input: ShaderRuntimeParameterControllerInput): Record<string, ShaderParamValue>
   setTemporaryOffset?(parameterId: string, offset: number): void
   clearTemporaryOffset?(parameterId: string): void
+  /** One-shot runtime impulse hook for specialized physical/choreography systems. */
+  applyImpulse?(parameterId: string, amount: number): void
 }
 
 // ── ShaderDefinition ──────────────────────────────────────────────────────────

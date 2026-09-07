@@ -246,6 +246,37 @@ describe('Shader native show director programs', () => {
     expect(reconstructed.effectiveValues.aperture).toBe(1.35)
   })
 
+  it('runs Prism torque through the shared executor and resets motion on re-entry', () => {
+    const prism = PRODUCTION_SCENES.find(candidate => candidate.id === 'shader-neon-tunnel')!
+    const other = PRODUCTION_SCENES.find(candidate => candidate.id !== prism.id)!
+    const executor = new ShaderPerformanceProgramExecutor()
+    const context = contextAt(12)
+    const manualValues = { ...prism.defaults, rotationDrive: 0, rotationTorque: 1, rotationDrag: 0.4 }
+    const input = {
+      definition: prism,
+      sceneId: prism.id,
+      manualValues,
+      routes: [],
+      context,
+      audio: NEUTRAL_AUDIO_FRAME,
+      timing: { ...NEUTRAL_TIMING_FRAME, playbackTime: 12 },
+      musicIntelligence: frameAt(12),
+      deltaTimeSec: 1 / 60,
+    }
+
+    executor.resolve({ ...input, reconstruct: true })
+    executor.applyRuntimeParameterImpulse('rotationDrive', 1)
+    const kicked = executor.resolve(input)
+    expect(Math.abs(kicked.effectiveValues.rotationDrive as number)).toBeGreaterThan(0)
+    expect(manualValues.rotationDrive).toBe(0)
+
+    executor.setDefinition(other, other.id)
+    executor.setDefinition(prism, prism.id)
+    const reentered = executor.resolve({ ...input, reconstruct: true })
+    expect(reentered.effectiveValues.rotationDrive).toBe(0)
+    expect(manualValues.rotationDrive).toBe(0)
+  })
+
   it('uses a declared target capability fallback when a preferred target is unavailable', () => {
     const definition = PRODUCTION_SCENES.find(candidate => candidate.id === 'shader-neon-tunnel')!
     const original = resolveShaderRoutesForDefinition(definition, [])[0]

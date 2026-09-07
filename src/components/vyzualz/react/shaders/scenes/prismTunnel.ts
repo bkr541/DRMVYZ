@@ -3,15 +3,21 @@ import { PRISM_RADIAL_TOPOLOGY_GLSL, PRISM_RADIAL_TOPOLOGY_LIMITS } from './pris
 import {
   PRISM_APERTURE_GLSL,
   PRISM_APERTURE_LIMITS,
-  createPrismApertureController,
 } from './prismApertureController'
+import {
+  PRISM_ROTATION_DRAG_PARAMETER_ID,
+  PRISM_ROTATION_DRIVE_PARAMETER_ID,
+  PRISM_ROTATION_LIMITS,
+  PRISM_ROTATION_TORQUE_PARAMETER_ID,
+  createPrismRuntimeParameterController,
+} from './prismRotationTorqueSystem'
 
 export const PRISM_TUNNEL: ShaderDefinition = {
   id: 'shader-neon-tunnel',
   name: 'Prism Tunnel',
   description: 'Radial prismatic field with addressable facets, luminous arcs, beat pulse, and bass-reactive curvature.',
   category: 'generator',
-  version: 2,
+  version: 3,
 
   fragSrc: `#version 300 es
 precision highp float;
@@ -35,6 +41,9 @@ uniform float uGlow;
 uniform vec4  uPrimaryColor;
 uniform vec4  uSecondaryColor;
 uniform float uRotation;
+uniform float uRotationMotion;
+uniform float uRotationTorque;
+uniform float uRotationDrag;
 
 // master controls
 uniform float uMasterIntensity;
@@ -60,7 +69,7 @@ void main() {
   float beat = uBeatHit * 0.4 + uKickHit * 0.3 + uSnareHit * 0.15;
   float bass = uBass * uMasterBassReactivity;
   float motion = uSpeed * uMasterMotion;
-  float rotAng = uRotation + uTime * 0.15 * uMasterMotion;
+  float rotAng = uRotation + uRotationMotion * uMasterMotion;
   float cs = cos(rotAng);
   float sn = sin(rotAng);
   vec2 radialUv = vec2(uv.x * cs - uv.y * sn, uv.x * sn + uv.y * cs);
@@ -214,6 +223,39 @@ void main() {
       default: 0.0,
       modulatable: true,
     },
+    {
+      id: PRISM_ROTATION_DRIVE_PARAMETER_ID,
+      type: 'float',
+      label: 'Rotation Drive',
+      uniformName: 'uRotationMotion',
+      min: PRISM_ROTATION_LIMITS.drive.min,
+      max: PRISM_ROTATION_LIMITS.drive.max,
+      step: 0.01,
+      default: PRISM_ROTATION_LIMITS.drive.default,
+      modulatable: true,
+    },
+    {
+      id: PRISM_ROTATION_TORQUE_PARAMETER_ID,
+      type: 'float',
+      label: 'Torque',
+      uniformName: 'uRotationTorque',
+      min: PRISM_ROTATION_LIMITS.torque.min,
+      max: PRISM_ROTATION_LIMITS.torque.max,
+      step: 0.01,
+      default: PRISM_ROTATION_LIMITS.torque.default,
+      modulatable: false,
+    },
+    {
+      id: PRISM_ROTATION_DRAG_PARAMETER_ID,
+      type: 'float',
+      label: 'Drag',
+      uniformName: 'uRotationDrag',
+      min: PRISM_ROTATION_LIMITS.drag.min,
+      max: PRISM_ROTATION_LIMITS.drag.max,
+      step: 0.01,
+      default: PRISM_ROTATION_LIMITS.drag.default,
+      modulatable: false,
+    },
   ],
 
   defaults: {
@@ -226,6 +268,9 @@ void main() {
     primaryColor:  [0.0, 0.9, 0.85, 1.0],
     secondaryColor:[0.1, 0.9, 0.3,  1.0],
     rotation:      0.0,
+    [PRISM_ROTATION_DRIVE_PARAMETER_ID]: PRISM_ROTATION_LIMITS.drive.default,
+    [PRISM_ROTATION_TORQUE_PARAMETER_ID]: PRISM_ROTATION_LIMITS.torque.default,
+    [PRISM_ROTATION_DRAG_PARAMETER_ID]: PRISM_ROTATION_LIMITS.drag.default,
   },
 
   quality: {
@@ -238,5 +283,5 @@ void main() {
 
   tags: ['prism', 'radial', 'facets'],
 
-  createRuntimeParameterController: createPrismApertureController,
+  createRuntimeParameterController: createPrismRuntimeParameterController,
 }

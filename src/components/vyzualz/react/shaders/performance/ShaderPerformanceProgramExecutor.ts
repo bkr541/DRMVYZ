@@ -84,6 +84,11 @@ export class ShaderPerformanceProgramExecutor {
     this.runtimeParameterController?.clearTemporaryOffset?.(parameterId)
   }
 
+  /** Runtime-only one-shot impulse seam for scene-specific choreography systems. */
+  applyRuntimeParameterImpulse(parameterId: string, amount: number): void {
+    this.runtimeParameterController?.applyImpulse?.(parameterId, amount)
+  }
+
   resolve(input: ShaderPerformanceProgramExecutorInput): ShaderPerformanceProgramExecutorResult {
     if (this.activeDefinition !== input.definition || this.activeSceneId !== input.sceneId) {
       this.setDefinition(input.definition, input.sceneId)
@@ -132,6 +137,8 @@ export class ShaderPerformanceProgramExecutor {
       values: effectiveValues,
       deltaTimeSec: input.deltaTimeSec,
       reconstruct: reconstructed,
+      audio: input.audio,
+      timing: input.timing,
     }) ?? effectiveValues
 
     return {
