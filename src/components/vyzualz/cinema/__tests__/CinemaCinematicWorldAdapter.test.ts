@@ -24,10 +24,13 @@ import {
   getCinemaSupportedParameterSchemas,
   type CinemaActionId,
   type CinemaCompositionDefinition,
+  type CinemaCompositionInstance,
   type CinemaEventId,
+  type CinemaParameterId,
+  type CinemaParameterValue,
   type CinemaPerformanceRuleId,
 } from '..'
-import { cinemaStableId, type CinemaCompositionId, type CinemaNodeId } from '../CinemaIdentifiers'
+import { cinemaStableId, type CinemaCompositionId, type CinemaCompositionInstanceId, type CinemaNodeId } from '../CinemaIdentifiers'
 import type { CinemaFrameContext } from '../CinemaRendererContracts'
 import { createCinemaRuntimeNodeRegistry } from '../CinemaRuntimeNodeRegistry'
 import { CinemaGraphExecutor } from '../runtime/CinemaGraphExecutor'
@@ -512,6 +515,212 @@ describe('Cinema Cinematic World adapters', () => {
     harness.dispose()
   })
 
+  // Stage 6 — production hardening. One end-to-end regression per critical
+  // contract: real preset -> real Cinema composition -> live instance overrides
+  // -> production executor -> registered Afterhours world -> shader uniforms,
+  // driven by canonical music frames.
+  function buildAfterhoursExecutorFixture(overrides: Record<string, CinemaParameterValue>) {
+    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'preset-afterhours')
+    const afterhours = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'afterhours')
+    if (!preset || !afterhours) throw new Error('Afterhours preset + adapter entry are required.')
+    const composition = createCinemaCinematicPresetComposition(
+      preset,
+      CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+      CINEMA_FOUNDATION_INPUT_PORT_ID,
+      { compositionId: cinemaStableId<CinemaCompositionId>('afterhours-stage6', 'composition') },
+    )
+    const worldNode = composition.nodes.find(node => node.family === 'procedural')
+    if (!worldNode) throw new Error('Afterhours procedural node is required.')
+
+    const def = afterhours.definition
+    const schemaFor = (label: string) => {
+      const schema = def.parameters.find(parameter => parameter.label === label)
+      if (!schema) throw new Error(`Afterhours "${label}" schema is required.`)
+      return schema
+    }
+    const optionId = (label: string, optionLabel: string) => {
+      const schema = schemaFor(label)
+      if (schema.type !== 'enum') throw new Error(`"${label}" is not an enum schema.`)
+      const option = schema.options.find(candidate => candidate.label === optionLabel)
+      if (!option) throw new Error(`"${label}" has no option "${optionLabel}".`)
+      return option.id
+    }
+    const values: Record<CinemaParameterId, CinemaParameterValue> = {}
+    for (const [label, value] of Object.entries(overrides)) values[schemaFor(label).id] = value
+
+    const instance: CinemaCompositionInstance = {
+      id: 'afterhours-stage6-live' as CinemaCompositionInstanceId,
+      compositionId: composition.id,
+      label: 'Afterhours Stage 6 Live',
+      revision: 1,
+      masterOverrides: {},
+      nodeOverrides: [{ nodeId: worldNode.id, values }],
+      cameraOverrides: [],
+      assetBindingOverrides: [],
+    }
+
+    const state = createCinemaFoundationPersistedState()
+    const harness = createExecutorHarness(CINEMA_PRODUCTION_RUNTIME_REGISTRY, state.definitions, false)
+    vi.mocked(harness.gl.getUniformLocation).mockImplementation((_program: WebGLProgram, name: string) => ({ name } as unknown as WebGLUniformLocation))
+    harness.executor.setGraph({ composition, instance, definitions: state.definitions })
+
+    const named = (mockCalls: unknown, uniformName: string) => (mockCalls as Array<[WebGLUniformLocation, ...number[]]>)
+      .filter(([location]) => typeof location === 'object' && location !== null && (location as unknown as { name?: string }).name === uniformName)
+      .map(call => call.slice(1) as number[])
+    const lastFloat = (uniformName: string) => {
+      const calls = named(vi.mocked(harness.gl.uniform1f).mock.calls, uniformName)
+      return calls[calls.length - 1]?.[0]
+    }
+    const activeBeamCount = () => {
+      const latest = new Map<string, number>()
+      for (const [location, x] of vi.mocked(harness.gl.uniform2f).mock.calls as unknown as Array<[WebGLUniformLocation, number, number]>) {
+        const name = typeof location === 'object' && location !== null ? (location as unknown as { name?: string }).name : undefined
+        if (name?.startsWith('uAfterhoursBeamMeta')) latest.set(name, x)
+      }
+      return { total: latest.size, on: [...latest.values()].filter(weight => weight > 0.5).length }
+    }
+    const everyAfterhoursUniformFinite = () => {
+      for (const [fn] of [[harness.gl.uniform1f], [harness.gl.uniform2f], [harness.gl.uniform3f], [harness.gl.uniform4f]] as const) {
+        for (const call of vi.mocked(fn).mock.calls as unknown as Array<[WebGLUniformLocation, ...number[]]>) {
+          const name = typeof call[0] === 'object' && call[0] !== null ? (call[0] as unknown as { name?: string }).name : undefined
+          if (!name?.startsWith('uAfterhours')) continue
+          for (const value of call.slice(1) as number[]) if (!Number.isFinite(value)) return false
+        }
+      }
+      return true
+    }
+    return { harness, composition, optionId, lastFloat, activeBeamCount, everyAfterhoursUniformFinite }
+  }
+
+  it('turns canonical music into nonzero, React-parameter-dependent Afterhours shader input through the production executor with live overrides', () => {
+    const enumIds = buildAfterhoursExecutorFixture({})
+    const fanId = enumIds.optionId('Pattern', 'Fan')
+    const bar4TriggerId = enumIds.optionId('Trigger', '4 Bars')
+    const patternChangeOffId = enumIds.optionId('Pattern Change', 'Off')
+    enumIds.harness.dispose()
+
+    const make = (masterIntensity: number) => buildAfterhoursExecutorFixture({
+      Pattern: fanId,
+      'Beam Count': 16,
+      Trigger: bar4TriggerId,
+      'Master Intensity': masterIntensity,
+      'Pulse Amount': 1,
+      'Pulse Decay': 0.2,
+      'Pattern Change': patternChangeOffId,
+      'Blackout Amount': 0,
+    })
+
+    const low = make(0.3)
+    expect(low.harness.executor.render(frame(0))).toBe(true)
+    expect(low.harness.executor.render(frame(1))).toBe(true)
+    const lowRest = low.lastFloat('uAfterhoursIntensity') ?? 0
+    expect(low.harness.executor.render(frame(2, false, false, { bar4: true }))).toBe(true)
+    const lowHit = low.lastFloat('uAfterhoursIntensity') ?? 0
+    for (let generation = 3; generation < 40; generation += 1) {
+      expect(low.harness.executor.render(frame(generation))).toBe(true)
+    }
+    const lowDecayed = low.lastFloat('uAfterhoursIntensity') ?? 0
+    const lowBeams = low.activeBeamCount()
+
+    // Canonical Trigger event creates a real, non-default reaction that decays.
+    expect(lowHit).toBeGreaterThan(lowRest)
+    expect(lowDecayed).toBeLessThan(lowHit)
+    expect(lowRest).toBeGreaterThan(0)
+    // Active-beam budget honours the live Beam Count override (16), bounded.
+    expect(lowBeams.total).toBe(16)
+    expect(lowBeams.on).toBeGreaterThanOrEqual(2)
+    expect(lowBeams.on).toBeLessThanOrEqual(16)
+    expect(low.everyAfterhoursUniformFinite()).toBe(true)
+    expect(low.harness.executor.getSnapshot().failedNodeCount).toBe(0)
+
+    // The React Master Intensity value genuinely flows through the adapter: a
+    // higher live override raises the resting laser authority. Not stuck at default.
+    const high = make(1)
+    expect(high.harness.executor.render(frame(0))).toBe(true)
+    expect(high.harness.executor.render(frame(1))).toBe(true)
+    const highRest = high.lastFloat('uAfterhoursIntensity') ?? 0
+    expect(highRest).toBeGreaterThan(lowRest)
+
+    low.harness.dispose()
+    high.harness.dispose()
+  })
+
+  it('re-arms the Afterhours trigger envelope after a production seek/reset with no stale state', () => {
+    const probe = buildAfterhoursExecutorFixture({})
+    const bar4TriggerId = probe.optionId('Trigger', '4 Bars')
+    probe.harness.dispose()
+
+    const fixture = buildAfterhoursExecutorFixture({
+      Trigger: bar4TriggerId,
+      'Master Intensity': 0.3,
+      'Pulse Amount': 1,
+      'Pulse Decay': 0.3,
+    })
+    const intensity = () => fixture.lastFloat('uAfterhoursIntensity') ?? 0
+
+    expect(fixture.harness.executor.render(frame(0))).toBe(true)
+    expect(fixture.harness.executor.render(frame(1))).toBe(true)
+    const rest = intensity()
+    expect(fixture.harness.executor.render(frame(2, false, false, { bar4: true }))).toBe(true)
+    const firstHit = intensity()
+    expect(firstHit).toBeGreaterThan(rest)
+    for (let generation = 3; generation < 8; generation += 1) {
+      expect(fixture.harness.executor.render(frame(generation))).toBe(true)
+    }
+    const partlyDecayed = intensity()
+    expect(partlyDecayed).toBeLessThan(firstHit)
+    expect(partlyDecayed).toBeGreaterThan(rest)
+
+    // Seek: the trigger controller must drop its envelope, not carry it over.
+    expect(fixture.harness.executor.render(frame(9, true))).toBe(true)
+    const afterSeek = intensity()
+    expect(afterSeek).toBeLessThan(partlyDecayed)
+
+    // A fresh canonical event after the seek still fires — no stale consumed id.
+    expect(fixture.harness.executor.render(frame(10, false, false, { bar4: true }))).toBe(true)
+    const secondHit = intensity()
+    expect(secondHit).toBeGreaterThan(afterSeek)
+    expect(secondHit).toBeCloseTo(firstHit, 5)
+    expect(fixture.everyAfterhoursUniformFinite()).toBe(true)
+    fixture.harness.dispose()
+  })
+
+  it('drives bounded, musically placed Afterhours blackouts through the production executor and never NaNs a uniform', () => {
+    const probe = buildAfterhoursExecutorFixture({})
+    const offId = probe.optionId('Pattern Change', 'Off')
+    probe.harness.dispose()
+
+    const dark = buildAfterhoursExecutorFixture({ 'Pattern Change': offId, 'Blackout Amount': 1 })
+    // Mid-cycle bar phase -> full laser authority.
+    for (let generation = 0; generation < 12; generation += 1) {
+      expect(dark.harness.executor.render(frame(generation, false, false, { barPhase: 0.2 }))).toBe(true)
+    }
+    expect(dark.lastFloat('uAfterhoursBlackout') ?? -1).toBe(0)
+    // End-of-cycle bar phase -> a deliberate blackout window opens, bounded 0..1.
+    let peak = 0
+    for (let generation = 12; generation < 34; generation += 1) {
+      expect(dark.harness.executor.render(frame(generation, false, false, { barPhase: 0.99 }))).toBe(true)
+      peak = Math.max(peak, dark.lastFloat('uAfterhoursBlackout') ?? 0)
+    }
+    expect(peak).toBeGreaterThan(0.3)
+    expect(peak).toBeLessThanOrEqual(1)
+    // Returns to lit — never latches dark.
+    for (let generation = 34; generation < 60; generation += 1) {
+      expect(dark.harness.executor.render(frame(generation, false, false, { barPhase: 0.1 }))).toBe(true)
+    }
+    expect(dark.lastFloat('uAfterhoursBlackout') ?? 1).toBeLessThan(0.1)
+    expect(dark.everyAfterhoursUniformFinite()).toBe(true)
+    dark.harness.dispose()
+
+    // Blackout Amount 0 disables automatic blackouts at any phase.
+    const lit = buildAfterhoursExecutorFixture({ 'Pattern Change': offId, 'Blackout Amount': 0 })
+    for (const [generation, barPhase] of [[0, 0.5], [1, 0.97], [2, 0.999], [3, 0.85]] as const) {
+      expect(lit.harness.executor.render(frame(generation, false, false, { barPhase }))).toBe(true)
+      expect(lit.lastFloat('uAfterhoursBlackout') ?? -1).toBe(0)
+    }
+    lit.harness.dispose()
+  })
+
   it('retains Reactive Constellation as a specialized deterministic procedural plugin', () => {
     const entry = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(candidate => candidate.worldId === 'reactiveConstellation')
     expect(entry?.definition.family).toBe('procedural')
@@ -853,9 +1062,9 @@ function frame(
   generation: number,
   reset = false,
   dropStart = false,
-  events: Partial<{ beat: boolean; kick: boolean; snare: boolean; bar4: boolean }> = {},
+  events: Partial<{ beat: boolean; kick: boolean; snare: boolean; bar4: boolean; barPhase: number }> = {},
 ): Readonly<CinemaFrameContext> {
-  const clock = (spanBeats: number, hit = false, eventId: CinemaEventId | null = null) => ({ available: true, spanBeats, index: generation, phase: 0.25, hit, eventId })
+  const clock = (spanBeats: number, hit = false, eventId: CinemaEventId | null = null, phase = 0.25) => ({ available: true, spanBeats, index: generation, phase, hit, eventId })
   const beat = events.beat ?? generation === 0
   const kick = events.kick ?? generation === 0
   const snare = events.snare ?? false
@@ -932,7 +1141,7 @@ function frame(
           beat: clock(1),
           beat2: clock(2),
           beat4: clock(4),
-          bar: clock(4),
+          bar: clock(4, false, null, events.barPhase ?? 0.25),
           bar4: clock(16, events.bar4 ?? false, events.bar4 ? `music:bar4:${generation}` as CinemaEventId : null),
           bar8: clock(32),
           phrase: clock(32),
