@@ -418,6 +418,7 @@ export class ShaderEngineRenderer {
     store.setPerformanceSnapshot(performanceResolution.snapshot)
 
     const effectiveValues = performanceFrame.effectiveValues
+    const runtimeFloatUniforms = performanceFrame.runtimeFloatUniforms
     const numericModulatedValues: Record<string, number> = {}
     for (const [pid, result] of Object.entries(evalFrame.params)) {
       if (typeof result.effectiveValue === 'number') {
@@ -491,6 +492,7 @@ export class ShaderEngineRenderer {
       program.setFloat('uMasterParticleDensity', master.particleDensity)
 
       _applyParamUniforms(program, this._gl as WebGL2RenderingContext, def, store.paramValues, effectiveValues, consumed, gradientUnits, brandContext)
+      _applyRuntimeFloatUniforms(program, runtimeFloatUniforms)
       _applyTextureMetaUniforms(program, def, texMeta)
     }
 
@@ -978,6 +980,15 @@ export class ShaderEngineRenderer {
 }
 
 // ── Uniform helpers ───────────────────────────────────────────────────────────
+
+function _applyRuntimeFloatUniforms(
+  program: ShaderProgram,
+  values: Readonly<Record<string, number>>,
+): void {
+  for (const [uniformName, value] of Object.entries(values)) {
+    if (Number.isFinite(value)) program.setFloat(uniformName, value)
+  }
+}
 
 function _applyMasterUniforms(program: ShaderProgram, master: ShaderMasterParams): void {
   program.setFloat('uMasterIntensity',      master.intensity)

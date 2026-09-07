@@ -12,6 +12,7 @@ import type {
   ShaderDefinition,
   ShaderParamValue,
   ShaderParamValues,
+  ShaderRuntimeFloatUniformValues,
   ShaderRuntimeParameterController,
 } from '../registry/shaderRegistryTypes'
 import { ShaderSectionChoreography, type ShaderSectionAction } from '../transitions/ShaderSectionChoreography'
@@ -35,6 +36,7 @@ export interface ShaderPerformanceProgramExecutorResult {
   performance: ShaderPerformanceFrameResolution
   modulation: ModulationEvaluationFrame
   effectiveValues: Record<string, ShaderParamValue>
+  runtimeFloatUniforms: ShaderRuntimeFloatUniformValues
   choreography: ShaderSectionAction | null
   choreographyAction: string | null
   invalidRoutes: Readonly<Record<string, ModulationValidationError>>
@@ -140,6 +142,7 @@ export class ShaderPerformanceProgramExecutor {
       audio: input.audio,
       timing: input.timing,
     }) ?? effectiveValues
+    const runtimeFloatUniforms = this.runtimeParameterController?.getRuntimeFloatUniformValues?.() ?? {}
 
     return {
       performance: {
@@ -148,6 +151,7 @@ export class ShaderPerformanceProgramExecutor {
       },
       modulation,
       effectiveValues: resolvedRuntimeValues,
+      runtimeFloatUniforms,
       choreography,
       choreographyAction,
       invalidRoutes,

@@ -128,6 +128,7 @@ export function CinemaComposerStage19Panel({
   return (
     <div className="rv-cinema-stage19" aria-label="Cinema modulation performance camera and timeline authoring">
       {surface === 'performance' && <ElectricStormReactControls composition={composition} definitions={definitions} />}
+      {surface === 'performance' && <PrismTunnelReactControls composition={composition} definitions={definitions} />}
       {(surface === 'all' || surface === 'routing') && (readOnly ? (
         <ReadOnlyRoutingPresentation composition={composition} destinations={destinations} />
       ) : (
@@ -263,6 +264,63 @@ export function CinemaComposerStage19Panel({
   )
 }
 
+
+export function PrismTunnelReactControls({
+  composition,
+  definitions,
+}: {
+  composition: Readonly<CinemaCompositionDefinition>
+  definitions: readonly Readonly<CinemaPersistedDefinition>[]
+}) {
+  const instances = useCinemaStore(store => store.instances)
+  const target = useMemo(() => {
+    for (const node of composition.nodes) {
+      const persisted = definitions.find(candidate => candidate.id === node.typeId)
+      if (persisted?.definition.metadata?.adapter !== 'shader-scene') continue
+      if (persisted.definition.metadata?.shaderSceneId !== 'shader-neon-tunnel') continue
+      return { node, definition: persisted.definition }
+    }
+    return null
+  }, [composition.nodes, definitions])
+
+  if (!target) return null
+  const schemas = target.definition.parameters.filter(schema => schema.group === 'React')
+  if (schemas.length === 0) return null
+
+  const live = getCinemaLiveInstance(composition.id, instances)
+  const liveValues = live?.nodeOverrides.find(override => override.nodeId === target.node.id)?.values ?? {}
+  const valueFor = (schema: Readonly<CinemaParameterDefinition>): CinemaParameterValue => {
+    const persisted = liveValues[schema.id] ?? target.node.parameterValues[schema.id]
+    if (persisted !== undefined) return persisted
+    return 'default' in schema ? schema.default : false
+  }
+  const commit = (schema: Readonly<CinemaParameterDefinition>, value: CinemaParameterValue) => {
+    setCinemaLiveNodeOverride(composition, target.node.id, schema, value)
+  }
+
+  return (
+    <div className="rv-ctrl-group" data-cinema-prism-react-controls="true">
+      <Collapsible label="Prism Tunnel">
+        {schemas.map(schema => {
+          const value = valueFor(schema)
+          if (schema.type !== 'float') return null
+          return (
+            <SliderRow
+              key={schema.id}
+              label={schema.label}
+              value={typeof value === 'number' ? value : Number(schema.default)}
+              min={schema.min}
+              max={schema.max}
+              step={schema.step}
+              resetValue={Number(schema.default)}
+              onChange={next => commit(schema, next)}
+            />
+          )
+        })}
+      </Collapsible>
+    </div>
+  )
+}
 
 export function ElectricStormReactControls({
   composition,

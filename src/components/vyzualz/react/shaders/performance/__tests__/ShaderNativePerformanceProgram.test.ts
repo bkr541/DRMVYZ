@@ -14,6 +14,7 @@ import { createModulationRoute } from '../../modulation/shaderModulationTypes'
 import { shaderRegistry } from '../../registry'
 import { ShaderDefinitionValidator } from '../../registry/ShaderDefinitionValidator'
 import { PRODUCTION_SCENES } from '../../scenes'
+import { PRISM_FACET_FLARE_RUNTIME_COMMAND_ID, PRISM_FACET_RUNTIME_UNIFORMS } from '../../scenes/prismFacetIlluminationChoreographer'
 import { migrateShaderPanelPersistedState } from '../../ui/shaderPanelStore'
 import { ShaderSectionChoreography } from '../../transitions/ShaderSectionChoreography'
 import { ShaderPerformanceRuntime } from '../ShaderPerformanceRuntime'
@@ -266,14 +267,17 @@ describe('Shader native show director programs', () => {
 
     executor.resolve({ ...input, reconstruct: true })
     executor.applyRuntimeParameterImpulse('rotationDrive', 1)
+    executor.applyRuntimeParameterImpulse(PRISM_FACET_FLARE_RUNTIME_COMMAND_ID, 1)
     const kicked = executor.resolve(input)
     expect(Math.abs(kicked.effectiveValues.rotationDrive as number)).toBeGreaterThan(0)
+    expect(kicked.runtimeFloatUniforms[PRISM_FACET_RUNTIME_UNIFORMS.flare]).toBe(1)
     expect(manualValues.rotationDrive).toBe(0)
 
     executor.setDefinition(other, other.id)
     executor.setDefinition(prism, prism.id)
     const reentered = executor.resolve({ ...input, reconstruct: true })
     expect(reentered.effectiveValues.rotationDrive).toBe(0)
+    expect(reentered.runtimeFloatUniforms[PRISM_FACET_RUNTIME_UNIFORMS.flare]).toBe(0)
     expect(manualValues.rotationDrive).toBe(0)
   })
 

@@ -2,8 +2,15 @@ import type {
   ShaderParamValue,
   ShaderRuntimeParameterController,
   ShaderRuntimeParameterControllerInput,
+  ShaderRuntimeFloatUniformValues,
 } from '../registry/shaderRegistryTypes'
 import { PrismApertureController } from './prismApertureController'
+import {
+  PRISM_FACET_CHOREOGRAPHY_LIMITS,
+  PRISM_FACET_CHOREOGRAPHY_PARAMETER_ID,
+  PRISM_FACET_FLARE_RUNTIME_COMMAND_ID,
+  PrismFacetIlluminationChoreographer,
+} from './prismFacetIlluminationChoreographer'
 
 export const PRISM_ROTATION_PARAMETER_ID = 'rotation' as const
 export const PRISM_ROTATION_DRIVE_PARAMETER_ID = 'rotationDrive' as const
@@ -162,17 +169,19 @@ export class PrismRotationTorqueSystem {
 }
 
 /**
- * Prism's single runtime-parameter owner composes Stage 2 aperture smoothing
- * with Stage 3 rotational physics. No runtime state is written back to the
- * authored parameter object.
+ * Prism's single runtime-parameter owner composes Stage 2 aperture smoothing,
+ * Stage 3 rotational physics, and Stage 4 facet illumination choreography. No
+ * runtime state is written back to the authored parameter object.
  */
 export class PrismRuntimeParameterController implements ShaderRuntimeParameterController {
   readonly rotation = new PrismRotationTorqueSystem()
+  readonly illumination = new PrismFacetIlluminationChoreographer()
   private readonly aperture = new PrismApertureController()
 
   reset(): void {
     this.aperture.reset()
     this.rotation.reset()
+    this.illumination.reset()
   }
 
   setTemporaryOffset(parameterId: string, offset: number): void {
@@ -184,8 +193,16 @@ export class PrismRuntimeParameterController implements ShaderRuntimeParameterCo
   }
 
   applyImpulse(parameterId: string, amount: number): void {
+    if (parameterId === PRISM_FACET_FLARE_RUNTIME_COMMAND_ID) {
+      this.illumination.requestAllFacetFlare(amount)
+      return
+    }
     if (parameterId !== PRISM_ROTATION_PARAMETER_ID && parameterId !== PRISM_ROTATION_DRIVE_PARAMETER_ID) return
     this.rotation.applyTorqueImpulse(amount)
+  }
+
+  getRuntimeFloatUniformValues(): ShaderRuntimeFloatUniformValues {
+    return this.illumination.getRuntimeFloatUniformValues()
   }
 
   resolve(input: ShaderRuntimeParameterControllerInput): Record<string, ShaderParamValue> {
@@ -201,6 +218,18 @@ export class PrismRuntimeParameterController implements ShaderRuntimeParameterCo
         reconstruct: input.reconstruct,
       },
     )
+    const choreographyAmount = numericValue(
+      apertureValues[PRISM_FACET_CHOREOGRAPHY_PARAMETER_ID],
+      PRISM_FACET_CHOREOGRAPHY_LIMITS.default,
+    )
+    this.illumination.step({
+      amount: choreographyAmount,
+      audio: input.audio,
+      timing: input.timing,
+      deltaTimeSec: input.deltaTimeSec,
+      rotationDirection: motion.direction,
+      reconstruct: input.reconstruct,
+    })
 
     return {
       ...apertureValues,

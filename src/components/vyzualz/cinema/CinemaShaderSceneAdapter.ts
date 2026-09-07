@@ -56,6 +56,7 @@ import type {
   ShaderDefinition,
   ShaderParamDef,
   ShaderParamValue,
+  ShaderRuntimeFloatUniformValues,
   TextureInputDef,
   TextureSourceType,
   Vec2,
@@ -144,6 +145,11 @@ interface PassTargetResolution {
   width: number
   height: number
   framebuffer: WebGLFramebuffer | null
+}
+
+interface ResolvedShaderFrameValues {
+  values: Record<string, ShaderParamValue>
+  runtimeFloatUniforms: ShaderRuntimeFloatUniformValues
 }
 
 const BRAND_TEXTURE_INPUT_SPECS = Object.freeze([
@@ -605,7 +611,8 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
     this.spectrum.update(context.frame.audio.fft)
     this.waveform.update(context.frame.audio.waveform)
 
-    const shaderValues = this.resolveShaderValues(context)
+    const resolvedShaderFrame = this.resolveShaderValues(context)
+    const shaderValues = resolvedShaderFrame.values
     const reservedUnits = getShaderReservedTextureUnits(this.gl)
     const firstGradientUnit = maximumPassInputCount(this.graph)
     const gradientUnits = this.gradients.buildUnitMap(
@@ -632,7 +639,15 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
           target.width,
           target.height,
           bindings,
-          program => this.applyUniforms(program, context, shaderValues, gradientUnits, target.width, target.height),
+          program => this.applyUniforms(
+            program,
+            context,
+            shaderValues,
+            resolvedShaderFrame.runtimeFloatUniforms,
+            gradientUnits,
+            target.width,
+            target.height,
+          ),
         )
         if (compiled.outputName) {
           const view = context.targets.getReadTexture(target.lease)
@@ -795,7 +810,7 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
     return target && this.targets ? this.targets.getReadTexture(target.lease) : null
   }
 
-  private resolveShaderValues(context: CinemaNodeRenderContext): Record<string, ShaderParamValue> {
+  private resolveShaderValues(context: CinemaNodeRenderContext): ResolvedShaderFrameValues {
     const values: Record<string, ShaderParamValue> = { ...this.shader.defaults }
     for (const mapping of this.parameterMappings) {
       const raw = context.values[mapping.cinemaId]
@@ -821,7 +836,7 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
         { sceneId: this.shader.id, targetId },
       )
     }
-    return resolution.values
+    return { values: resolution.values, runtimeFloatUniforms: resolution.runtimeFloatUniforms }
   }
 
   private reportPerformanceDiagnostic(
@@ -846,6 +861,7 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
     program: ShaderProgram,
     context: CinemaNodeRenderContext,
     values: Record<string, ShaderParamValue>,
+    runtimeFloatUniforms: ShaderRuntimeFloatUniformValues,
     gradientUnits: ReadonlyMap<string, number>,
     width: number,
     height: number,
@@ -1023,6 +1039,10 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
         frame.brand.available ? frame.brand.colors : {},
         frame.performance.actionIds,
       )
+    }
+
+    for (const [uniformName, value] of Object.entries(runtimeFloatUniforms)) {
+      if (Number.isFinite(value)) program.setFloat(uniformName, value)
     }
 
     for (const mapping of this.textureInputs) {

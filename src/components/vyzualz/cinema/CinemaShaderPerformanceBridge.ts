@@ -15,12 +15,14 @@ import type {
   ShaderDefinition,
   ShaderParamValue,
   ShaderParamValues,
+  ShaderRuntimeFloatUniformValues,
 } from '../react/shaders/registry/shaderRegistryTypes'
 import { REACTOR_SCENE_ID } from '../react/shaders/scenes/reactor'
 import type { CinemaFrameContext } from './CinemaRendererContracts'
 
 export interface CinemaShaderPerformanceResolution {
   values: Record<string, ShaderParamValue>
+  runtimeFloatUniforms: ShaderRuntimeFloatUniformValues
   snapshot: ShaderPerformanceRuntimeSnapshot
   feedbackResetRequested: boolean
   choreographyAction: string | null
@@ -114,6 +116,7 @@ export class CinemaShaderPerformanceBridge {
 
     return {
       values: result.effectiveValues,
+      runtimeFloatUniforms: result.runtimeFloatUniforms,
       snapshot: result.performance.snapshot,
       feedbackResetRequested: policyReset
         || namedRecipeChanged

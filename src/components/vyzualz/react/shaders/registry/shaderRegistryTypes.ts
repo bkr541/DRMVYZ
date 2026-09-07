@@ -361,9 +361,13 @@ export interface ShaderRuntimeParameterControllerInput {
  * may smooth or temporarily offset values, but must never mutate authored
  * settings or persist their own runtime state.
  */
+export type ShaderRuntimeFloatUniformValues = Readonly<Record<string, number>>
+
 export interface ShaderRuntimeParameterController {
   reset(): void
   resolve(input: ShaderRuntimeParameterControllerInput): Record<string, ShaderParamValue>
+  /** Runtime-only scalar uniforms that are intentionally absent from persisted parameter state. */
+  getRuntimeFloatUniformValues?(): ShaderRuntimeFloatUniformValues
   setTemporaryOffset?(parameterId: string, offset: number): void
   clearTemporaryOffset?(parameterId: string): void
   /** One-shot runtime impulse hook for specialized physical/choreography systems. */

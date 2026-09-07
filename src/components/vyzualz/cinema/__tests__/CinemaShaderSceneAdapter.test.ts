@@ -108,6 +108,19 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     const oldStateValues = createCinemaShaderSceneParameterValues(PRISM_TUNNEL.id, { speed: 0.75 })
     expect(oldStateValues[cinemaShaderParameterId('aperture')]).toBe(1)
     expect(oldStateValues[cinemaShaderParameterId('speed')]).toBe(0.75)
+    expect(oldStateValues[cinemaShaderParameterId('facetChoreography')]).toBe(0)
+
+    const facetChoreography = prism?.definition.parameters.find(parameter => parameter.label === 'Facet Choreography')
+    expect(facetChoreography).toMatchObject({
+      id: cinemaShaderParameterId('facetChoreography'),
+      type: 'float',
+      default: 0,
+      min: 0,
+      max: 1,
+      group: 'React',
+      modulatable: true,
+      ui: { control: 'slider' },
+    })
   })
 
   it('publishes shader semantic palette roles from verified Brand Kit uniform consumers', () => {
@@ -200,6 +213,8 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     expect(fragmentSource).not.toContain('PrismRadialElement')
     expect(fragmentSource).not.toContain('prismTopologyAt')
     expect(fragmentSource).not.toContain('prismApplyAperture')
+    expect(fragmentSource).not.toContain('prismFacetIlluminationWeight')
+    expect(fragmentSource).not.toContain('uFacetChoreography')
   })
 
   it('routes the production Prism Tunnel preset through the radial topology shader path', () => {
@@ -214,8 +229,16 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     const fragmentSource = prismAdapter?.definition.shaderPasses?.[0]?.fragment.source ?? ''
     expect(fragmentSource).toContain('PrismRadialElement prismTopologyAt')
     expect(fragmentSource).toContain('PrismRadialElement prismApplyAperture')
+    expect(fragmentSource).toContain('float prismFacetIlluminationWeight(')
     expect(fragmentSource).toContain('PrismRadialElement topologyElement = prismTopologyAt(radialUv, baseRadius, uWarp)')
     expect(fragmentSource).toContain('prismApplyAperture(topologyElement, baseRadius, uAperture)')
+    expect(fragmentSource).toContain('float facetIllumination = prismFacetIlluminationWeight(')
+    const rotationAddressIndex = fragmentSource.indexOf('vec2 radialUv =')
+    const topologyAddressIndex = fragmentSource.indexOf('PrismRadialElement topologyElement = prismTopologyAt')
+    const illuminationAddressIndex = fragmentSource.indexOf('float facetIllumination = prismFacetIlluminationWeight(')
+    expect(rotationAddressIndex).toBeGreaterThanOrEqual(0)
+    expect(topologyAddressIndex).toBeGreaterThan(rotationAddressIndex)
+    expect(illuminationAddressIndex).toBeGreaterThan(topologyAddressIndex)
     expect(fragmentSource).toContain('uniform float uRotationMotion;')
     expect(fragmentSource).toContain('float rotAng = uRotation + uRotationMotion * uMasterMotion;')
     expect(fragmentSource).not.toContain('uTime * 0.15 * uMasterMotion')
@@ -232,6 +255,74 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     expect(harness.executor.render(frame(0))).toBe(true)
     expect(harness.gl.__calls.drawCount).toBeGreaterThanOrEqual(2)
     expect(harness.diagnostics).not.toContain('CINEMA_NODE_INITIALIZE_FAILED')
+    expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
+    harness.dispose()
+  })
+
+  it('drives Prism facet choreography from shared Music Intelligence through the real Cinema production path', () => {
+    const state = createCinemaFoundationPersistedState()
+    const preset = CINEMA_LEGACY_PRESET_CATALOG.manifest.find(entry => entry.legacySourceId === PRISM_TUNNEL.id)
+    const baseComposition = CINEMA_LEGACY_PRESET_CATALOG.compositions.find(candidate => candidate.id === preset?.compositionId)
+    expect(baseComposition).toBeDefined()
+    if (!baseComposition) return
+
+    const prismNodeTypeId = cinemaShaderSceneTypeId(PRISM_TUNNEL.id)
+    const composition: CinemaCompositionDefinition = {
+      ...baseComposition,
+      nodes: baseComposition.nodes.map(node => node.typeId === prismNodeTypeId ? {
+        ...node,
+        parameterValues: {
+          ...node.parameterValues,
+          [cinemaShaderParameterId('facetChoreography')]: 1,
+        },
+      } : node),
+    }
+
+    const harness = createExecutorHarness()
+    vi.mocked(harness.gl.getUniformLocation).mockImplementation((_program, name) => (
+      { name } as unknown as WebGLUniformLocation
+    ))
+    harness.executor.resize({ width: 1, height: 1, dpr: 1 }, harness.viewport)
+    harness.executor.setGraph({ composition, instance: null, definitions: state.definitions })
+
+    expect(harness.executor.render(frame(0))).toBe(true)
+    const base = frame(1)
+    const musicalFrame: Readonly<CinemaFrameContext> = {
+      ...base,
+      // This is the next ordinary render frame, not a transport reset. The
+      // shared fixture's first argument also seeds reset.generation, so keep
+      // that generation stable across this production-path sequence.
+      transport: {
+        ...base.transport,
+        reset: { ...base.transport.reset, generation: 0 },
+      },
+      music: { ...base.music, beatIndex: 1, beatPhase: 0.02 },
+      impulses: {
+        ...base.impulses,
+        beat: true,
+        snare: true,
+        transient: true,
+        eventIds: {
+          ...base.impulses.eventIds,
+          beat: 'prism-beat-1' as CinemaEventId,
+          snare: 'prism-snare-1' as CinemaEventId,
+          transient: 'prism-transient-1' as CinemaEventId,
+        },
+      },
+    }
+    expect(harness.executor.render(musicalFrame)).toBe(true)
+
+    const uniformValues = (name: string) => vi.mocked(harness.gl.uniform1f).mock.calls
+      .filter(([location]) => (location as unknown as { name?: string })?.name === name)
+      .map(([, value]) => value)
+    const lastUniformValue = (name: string) => {
+      const values = uniformValues(name)
+      return values[values.length - 1]
+    }
+    expect(lastUniformValue('uFacetChoreography')).toBe(1)
+    expect(lastUniformValue('uFacetChaseIndex')).toBe(1)
+    expect(lastUniformValue('uFacetChaseStrength')).toBeGreaterThan(0)
+    expect(lastUniformValue('uFacetAlternate')).toBeGreaterThan(0.9)
     expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
     harness.dispose()
   })

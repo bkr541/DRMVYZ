@@ -5,6 +5,11 @@ import {
   PRISM_APERTURE_LIMITS,
 } from './prismApertureController'
 import {
+  PRISM_FACET_CHOREOGRAPHY_LIMITS,
+  PRISM_FACET_CHOREOGRAPHY_PARAMETER_ID,
+  PRISM_FACET_ILLUMINATION_GLSL,
+} from './prismFacetIlluminationChoreographer'
+import {
   PRISM_ROTATION_DRAG_PARAMETER_ID,
   PRISM_ROTATION_DRIVE_PARAMETER_ID,
   PRISM_ROTATION_LIMITS,
@@ -17,7 +22,7 @@ export const PRISM_TUNNEL: ShaderDefinition = {
   name: 'Prism Tunnel',
   description: 'Radial prismatic field with addressable facets, luminous arcs, beat pulse, and bass-reactive curvature.',
   category: 'generator',
-  version: 3,
+  version: 4,
 
   fragSrc: `#version 300 es
 precision highp float;
@@ -44,6 +49,12 @@ uniform float uRotation;
 uniform float uRotationMotion;
 uniform float uRotationTorque;
 uniform float uRotationDrag;
+uniform float uFacetChoreography;
+uniform float uFacetChaseIndex;
+uniform float uFacetChaseStrength;
+uniform float uFacetAlternate;
+uniform float uFacetOpposing;
+uniform float uFacetFlare;
 
 // master controls
 uniform float uMasterIntensity;
@@ -55,6 +66,7 @@ out vec4 fragColor;
 
 ${PRISM_RADIAL_TOPOLOGY_GLSL}
 ${PRISM_APERTURE_GLSL}
+${PRISM_FACET_ILLUMINATION_GLSL}
 
 float saturate(float value) { return clamp(value, 0.0, 1.0); }
 
@@ -79,6 +91,15 @@ void main() {
   float baseRadius = uTunnelRadius * (1.0 + uKickHit * 0.045);
   PrismRadialElement topologyElement = prismTopologyAt(radialUv, baseRadius, uWarp);
   PrismRadialElement element = prismApplyAperture(topologyElement, baseRadius, uAperture);
+  float facetIllumination = prismFacetIlluminationWeight(
+    element,
+    uFacetChoreography,
+    uFacetChaseIndex,
+    uFacetChaseStrength,
+    uFacetAlternate,
+    uFacetOpposing,
+    uFacetFlare
+  );
 
   float sectorAngle = PRISM_TOPOLOGY_TAU / float(PRISM_TOPOLOGY_ELEMENT_COUNT);
   float local = element.localAngle / (sectorAngle * 0.5);
@@ -112,13 +133,13 @@ void main() {
 
   float facetLight = facetMask * (0.32 + arcA * 0.48 + arcGlow * (0.65 + beat * 1.35));
   float rimLight = angularEdge * insideOuter * outsideInner * (0.4 + uGlow * 0.35);
-  vec3 col = facetColor * (facetLight + rimLight);
+  vec3 col = facetColor * (facetLight + rimLight) * facetIllumination;
 
   // Center aperture glow and broad haze preserve the luminous Prism DNA while
   // keeping the composition center-anchored instead of a vanishing-point view.
   float apertureGlow = exp(-radius * (5.8 / max(baseRadius, 0.15))) * (0.22 + uGlow * 0.75) * (0.9 + uEnergy * 0.25);
   float halo = exp(-abs(radius - element.innerRadius) * (14.0 / max(baseRadius, 0.2))) * 0.42;
-  col += mix(primary, secondary, 0.5) * (apertureGlow + halo * facetMask);
+  col += mix(primary, secondary, 0.5) * (apertureGlow + halo * facetMask * facetIllumination);
 
   float hazeAmount = uFogDensity * uMasterFogDensity;
   float haze = exp(-radius * 1.35) * hazeAmount * 0.11;
@@ -256,6 +277,18 @@ void main() {
       default: PRISM_ROTATION_LIMITS.drag.default,
       modulatable: false,
     },
+    {
+      id: PRISM_FACET_CHOREOGRAPHY_PARAMETER_ID,
+      type: 'float',
+      label: 'Facet Choreography',
+      uniformName: 'uFacetChoreography',
+      group: 'React',
+      min: PRISM_FACET_CHOREOGRAPHY_LIMITS.min,
+      max: PRISM_FACET_CHOREOGRAPHY_LIMITS.max,
+      step: 0.01,
+      default: PRISM_FACET_CHOREOGRAPHY_LIMITS.default,
+      modulatable: true,
+    },
   ],
 
   defaults: {
@@ -271,6 +304,7 @@ void main() {
     [PRISM_ROTATION_DRIVE_PARAMETER_ID]: PRISM_ROTATION_LIMITS.drive.default,
     [PRISM_ROTATION_TORQUE_PARAMETER_ID]: PRISM_ROTATION_LIMITS.torque.default,
     [PRISM_ROTATION_DRAG_PARAMETER_ID]: PRISM_ROTATION_LIMITS.drag.default,
+    [PRISM_FACET_CHOREOGRAPHY_PARAMETER_ID]: PRISM_FACET_CHOREOGRAPHY_LIMITS.default,
   },
 
   quality: {
