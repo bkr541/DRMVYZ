@@ -21,12 +21,12 @@ import { DEFAULT_REACT_PRESETS } from '../../react/ReactTypes'
 import { cinematicWorldDefinitions } from '../../react/renderers/cinematic/worlds'
 
 describe('Afterhours Stage 1A contract and adapter foundation', () => {
-  it('recognizes Afterhours in the domain while keeping it out of live preset and renderer registries', () => {
+  it('recognizes Afterhours in the domain and Stage 1B live registries', () => {
     expect(CINEMATIC_WORLD_DOMAIN_MODES).toContain('afterhours')
-    expect(CINEMATIC_WORLD_MODES).not.toContain('afterhours')
-    expect(DEFAULT_REACT_PRESETS.some(preset => preset.id === 'preset-afterhours')).toBe(false)
-    expect(cinematicWorldDefinitions.some(definition => definition.id === 'afterhours')).toBe(false)
-    expect(CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.some(entry => entry.worldId === 'afterhours')).toBe(false)
+    expect(CINEMATIC_WORLD_MODES).toContain('afterhours')
+    expect(DEFAULT_REACT_PRESETS.some(preset => preset.id === 'preset-afterhours')).toBe(true)
+    expect(cinematicWorldDefinitions.some(definition => definition.id === 'afterhours')).toBe(true)
+    expect(CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.some(entry => entry.worldId === 'afterhours')).toBe(true)
   })
 
   it('owns the complete final MVP defaults and disables generic audio routing', () => {

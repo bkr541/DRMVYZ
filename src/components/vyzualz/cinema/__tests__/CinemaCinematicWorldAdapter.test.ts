@@ -375,6 +375,106 @@ describe('Cinema Cinematic World adapters', () => {
     harness.dispose()
   })
 
+  it('hydrates Afterhours from the live preset and renders its seven Stage 1B controls through the production Cinema executor', () => {
+    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'preset-afterhours')
+    const afterhours = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'afterhours')
+    expect(preset?.cinematicConfig?.worldMode).toBe('afterhours')
+    expect(preset?.cinematicConfig?.audioMapping).toMatchObject({ enabled: false, routes: [] })
+    expect(afterhours?.backend).toBe('webgl2')
+    expect(afterhours?.definition.metadata?.worldId).toBe('afterhours')
+
+    const base = createCinemaCinematicPresetComposition(
+      preset!,
+      CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+      CINEMA_FOUNDATION_INPUT_PORT_ID,
+      { compositionId: cinemaStableId<CinemaCompositionId>('afterhours-production-test', 'composition') },
+    )
+    const worldNode = base.nodes.find(node => node.family === 'procedural')
+    expect(worldNode).toBeDefined()
+    if (!worldNode) return
+
+    const backgroundId = cinemaCinematicWorldParameterId('world-background-color')
+    const primaryId = cinemaCinematicWorldParameterId('world-primary-color')
+    const accentId = cinemaCinematicWorldParameterId('world-accent-color')
+    const accentMixId = cinemaCinematicWorldParameterId('world-accent-mix')
+    const beamCountId = cinemaCinematicWorldParameterId('world-beam-count')
+    const spreadId = cinemaCinematicWorldParameterId('world-spread')
+    const atmosphereId = cinemaCinematicWorldParameterId('world-atmosphere')
+    const composition: CinemaCompositionDefinition = {
+      ...base,
+      nodes: base.nodes.map(node => node.id === worldNode.id ? {
+        ...node,
+        parameterValues: {
+          ...node.parameterValues,
+          [backgroundId]: [16 / 255, 32 / 255, 48 / 255, 1],
+          [primaryId]: [0.2, 0.4, 0.6, 1],
+          // 179/255 rather than 0.7: the color round-trips through 8-bit hex
+          // storage, so the authored value must land on an exact 1/255 step.
+          [accentId]: [204 / 255, 179 / 255, 153 / 255, 1],
+          [accentMixId]: 1,
+          [beamCountId]: 12,
+          [spreadId]: 1,
+          [atmosphereId]: 0.9,
+        },
+      } : node),
+    }
+
+    const supported = getCinemaCinematicWorldSupportedParameterSchemasForNode(afterhours!.definition, composition.nodes.find(node => node.id === worldNode.id)!)
+    const supportedLabels = supported.map(parameter => parameter.label)
+    expect(supportedLabels).toEqual(expect.arrayContaining([
+      'Background Color', 'Primary Color', 'Accent Color', 'Accent Mix', 'Beam Count', 'Spread', 'Atmosphere',
+    ]))
+    expect(supportedLabels).not.toEqual(expect.arrayContaining([
+      'Color Mode', 'Pattern', 'Symmetry', 'Side Lasers', 'Top Lasers', 'BPM Sync', 'Master Intensity', 'Trigger',
+      'Pulse Amount', 'Pulse Decay', 'Motion Amount', 'Pattern Change', 'Blackout Amount', 'Seed',
+    ]))
+
+    const state = createCinemaFoundationPersistedState()
+    const harness = createExecutorHarness(CINEMA_PRODUCTION_RUNTIME_REGISTRY, state.definitions, false)
+    vi.mocked(harness.gl.getUniformLocation).mockImplementation((_program: WebGLProgram, name: string) => ({ name } as unknown as WebGLUniformLocation))
+    harness.executor.setGraph({ composition, instance: null, definitions: state.definitions })
+    expect(harness.executor.render(frame(0))).toBe(true)
+    const programsAfterFirstRender = harness.gl.__calls.createdPrograms
+    expect(harness.executor.render(frame(1))).toBe(true)
+    expect(harness.gl.__calls.createdPrograms).toBe(programsAfterFirstRender)
+
+    const uniform3Calls = vi.mocked(harness.gl.uniform3f).mock.calls as unknown as Array<[WebGLUniformLocation, number, number, number]>
+    const namedVec3 = (name: string) => uniform3Calls.filter(([location]) => (
+      typeof location === 'object' && location !== null && (location as unknown as { name?: string }).name === name
+    ))
+    { const calls = namedVec3('uAfterhoursBackground'); expect(calls[calls.length - 1]?.slice(1)).toEqual([16 / 255, 32 / 255, 48 / 255]) }
+    { const calls = namedVec3('uAfterhoursPrimary'); expect(calls[calls.length - 1]?.slice(1)).toEqual([0.2, 0.4, 0.6]) }
+    { const calls = namedVec3('uAfterhoursAccent'); expect(calls[calls.length - 1]?.slice(1)).toEqual([204 / 255, 179 / 255, 153 / 255]) }
+
+    const uniform1Calls = vi.mocked(harness.gl.uniform1f).mock.calls as unknown as Array<[WebGLUniformLocation, number]>
+    const atmosphereCalls = uniform1Calls.filter(([location]) => (
+      typeof location === 'object' && location !== null && (location as unknown as { name?: string }).name === 'uAfterhoursAtmosphere'
+    ))
+    expect(atmosphereCalls[atmosphereCalls.length - 1]?.[1]).toBe(0.9)
+
+    const uniform2Calls = vi.mocked(harness.gl.uniform2f).mock.calls as unknown as Array<[WebGLUniformLocation, number, number]>
+    const latestMeta = new Map<string, [number, number]>()
+    for (const [location, active, accent] of uniform2Calls) {
+      const name = typeof location === 'object' && location !== null ? (location as unknown as { name?: string }).name : undefined
+      if (name?.startsWith('uAfterhoursBeamMeta')) latestMeta.set(name, [active, accent])
+    }
+    expect([...latestMeta.values()].filter(([active]) => active === 1)).toHaveLength(12)
+    expect([...latestMeta.values()].filter(([active]) => active === 0)).toHaveLength(4)
+    expect([...latestMeta.values()].filter(([active]) => active === 1).every(([, accent]) => accent === 1)).toBe(true)
+
+    const uniform4Calls = vi.mocked(harness.gl.uniform4f).mock.calls as unknown as Array<[WebGLUniformLocation, number, number, number, number]>
+    for (const index of [12, 13, 14, 15]) {
+      const calls = uniform4Calls.filter(([location]) => (
+        typeof location === 'object' && location !== null && (location as unknown as { name?: string }).name === `uAfterhoursBeam${index}`
+      ))
+      expect(calls[calls.length - 1]?.slice(1)).toEqual([0, 0, 0, 0])
+    }
+    expect(harness.gl.__calls.drawCount).toBeGreaterThan(0)
+    expect(harness.executor.getSnapshot().failedNodeCount).toBe(0)
+    expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
+    harness.dispose()
+  })
+
   it('retains Reactive Constellation as a specialized deterministic procedural plugin', () => {
     const entry = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(candidate => candidate.worldId === 'reactiveConstellation')
     expect(entry?.definition.family).toBe('procedural')

@@ -63,9 +63,9 @@ function frameFor(presetId = liveCinematicPreset.id): CinematicFrameContext {
 }
 
 describe('Cinematic Worlds final preset and feature audit', () => {
-  it('keeps twelve WebGL worlds plus the legacy compatibility renderer', () => {
-    expect(CINEMATIC_WORLD_MODES).toHaveLength(13)
-    expect(CINEMATIC_WORLD_MODES.filter(mode => mode !== 'legacyPortal')).toHaveLength(12)
+  it('keeps thirteen WebGL worlds plus the legacy compatibility renderer', () => {
+    expect(CINEMATIC_WORLD_MODES).toHaveLength(14)
+    expect(CINEMATIC_WORLD_MODES.filter(mode => mode !== 'legacyPortal')).toHaveLength(13)
     expect(cinematicWorldRendererRegistry.list().map(definition => definition.id)).toEqual(CINEMATIC_WORLD_MODES)
   })
 

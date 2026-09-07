@@ -21,6 +21,8 @@ import {
   type CinematicWorldMode,
 } from '../CinematicWorldConfig'
 import {
+  AFTERHOURS_BOUNDS,
+  AFTERHOURS_DEFAULTS,
   ANCIENT_MACHINE_BOUNDS,
   CELESTIAL_CATHEDRAL_BOUNDS,
   ELECTRIC_STORM_BOUNDS,
@@ -157,6 +159,48 @@ describe('Cinematic World control schema', () => {
     expect(intensity.value).toBe('0.5')
     expect(impactShake.value).toBe('0.5')
     expect(zoomPunch.value).toBe('0.5')
+  })
+
+  it('exposes exactly the seven Stage 1B Afterhours Design controls with canonical defaults and bounds', async () => {
+    const schema = CINEMATIC_WORLD_CATALOG.afterhours.controls
+    const controls = schema.groups.flatMap(group => group.controls)
+    expect(controls.map(control => control.setting)).toEqual([
+      'backgroundColor', 'primaryColor', 'accentColor', 'accentMix', 'beamCount', 'spread', 'atmosphere',
+    ])
+    expect(controls.filter(control => control.kind === 'color').map(control => control.setting)).toEqual([
+      'backgroundColor', 'primaryColor', 'accentColor',
+    ])
+    expect(controls.find(control => control.setting === 'beamCount')).toMatchObject({
+      kind: 'integer', min: AFTERHOURS_BOUNDS.beamCount[0], max: AFTERHOURS_BOUNDS.beamCount[1], step: 1,
+    })
+    for (const setting of ['accentMix', 'spread', 'atmosphere'] as const) {
+      expect(controls.find(control => control.setting === setting)).toMatchObject({
+        kind: 'slider', min: AFTERHOURS_BOUNDS[setting][0], max: AFTERHOURS_BOUNDS[setting][1],
+      })
+    }
+    expect(controls.map(control => control.setting)).not.toEqual(expect.arrayContaining([
+      'colorMode', 'pattern', 'symmetry', 'sideLasers', 'topLasers', 'bpmSync', 'masterIntensity', 'trigger',
+      'pulseAmount', 'pulseDecay', 'motionAmount', 'patternChange', 'blackoutAmount',
+    ]))
+
+    const config = createCinematicWorldConfig('afterhours', {})
+    expect(config.worldSettings.settings).toEqual(AFTERHOURS_DEFAULTS)
+    const onChange = vi.fn()
+    await render(
+      <CinematicWorldControlSchemaRenderer
+        config={config}
+        schema={schema}
+        uiMode="simple"
+        onChange={onChange}
+      />,
+    )
+    expect((container.querySelector('#afterhours-background-color') as HTMLInputElement).value).toBe('#000000')
+    expect((container.querySelector('#afterhours-primary-color') as HTMLInputElement).value).toBe('#74f5ff')
+    expect((container.querySelector('#afterhours-accent-color') as HTMLInputElement).value).toBe('#ffffff')
+    expect((container.querySelector('#afterhours-accent-mix') as HTMLInputElement).value).toBe('0.25')
+    expect((container.querySelector('#afterhours-beam-count') as HTMLInputElement).value).toBe('8')
+    expect((container.querySelector('#afterhours-spread') as HTMLInputElement).value).toBe('0.65')
+    expect((container.querySelector('#afterhours-atmosphere') as HTMLInputElement).value).toBe('0.55')
   })
 
   it('renders slider, integer, and select controls with labels, descriptions, and stable IDs', async () => {

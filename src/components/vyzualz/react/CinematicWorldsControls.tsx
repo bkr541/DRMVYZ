@@ -456,7 +456,7 @@ export function CinematicWorldsDesignControls() {
         config={config}
         presetId={preset.id}
         locked={seedLocked}
-        showSeedControls={config.worldMode !== 'electricStorm'}
+        showSeedControls={config.worldMode !== 'electricStorm' && config.worldMode !== 'afterhours'}
         onChange={save}
         onLock={locked => setSeedLocked(preset.id, locked)}
         onResetWorld={() => clearConfig(preset.id)}
@@ -506,7 +506,7 @@ export function CinematicWorldsFxControls() {
 
       {config.worldMode === 'reactiveConstellation' && uiMode === 'simple' && <ReactiveConstellationMacroControls config={config} onChange={save} />}
 
-      {uiMode === 'advanced' && config.worldMode !== 'electricStorm' && (
+      {uiMode === 'advanced' && config.worldMode !== 'electricStorm' && config.worldMode !== 'afterhours' && (
         <>
           <Collapsible label="Environment" defaultOpen>
             {Object.entries(config.environment).map(([key, value]) => {

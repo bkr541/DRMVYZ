@@ -208,6 +208,7 @@ describe('CinematicWorldRendererRegistry', () => {
       'ancientMachine',
       'stormGateway',
       'electricStorm',
+      'afterhours',
       'orbitalPrismArray',
       'reactiveConstellation',
     ])
@@ -262,6 +263,7 @@ describe('CinematicWorldRendererHost', () => {
       'ancientMachine',
       'stormGateway',
       'electricStorm',
+      'afterhours',
       'orbitalPrismArray',
       'reactiveConstellation',
     ]
@@ -279,6 +281,7 @@ describe('CinematicWorldRendererHost', () => {
       'ancientMachine',
       'stormGateway',
       'electricStorm',
+      'afterhours',
       'orbitalPrismArray',
       'reactiveConstellation',
     ])

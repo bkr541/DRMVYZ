@@ -6,6 +6,7 @@ import {
   normalizeCinematicWorldConfig,
 } from '../CinematicWorldConfig'
 import {
+  AFTERHOURS_DEFAULTS,
   ELECTRIC_STORM_DEFAULTS,
   EVENT_HORIZON_DEFAULTS,
   GEOMETRY_CINEMATIC_WORLD_MODES,
@@ -15,6 +16,7 @@ import {
   REACTIVE_CONSTELLATION_DEFAULTS,
   cinematicQualityProfile,
   createCinematicSeededVariation,
+  resolveAfterhoursSettings,
   resolveAncientMachineSettings,
   resolveCelestialCathedralSettings,
   resolveElectricStormSettings,
@@ -94,11 +96,13 @@ describe('world-specific cinematic configuration', () => {
     expect(resolveAncientMachineSettings(machine.worldSettings).ringCount).toBeGreaterThanOrEqual(2)
     expect(resolveStormGatewaySettings(storm.worldSettings).cloudLayers).toBeGreaterThanOrEqual(2)
     expect(resolveElectricStormSettings(electricStorm.worldSettings)).toEqual(ELECTRIC_STORM_DEFAULTS)
+    expect(resolveAfterhoursSettings(createCinematicWorldConfig('afterhours', {}).worldSettings)).toEqual(AFTERHOURS_DEFAULTS)
     expect(resolveReactiveConstellationSettings(constellation.worldSettings)).toEqual(REACTIVE_CONSTELLATION_DEFAULTS)
     expect(IMPLEMENTED_CINEMATIC_WORLD_MODES).toEqual([
       ...PACK_A_CINEMATIC_WORLD_MODES,
       ...PACK_B_CINEMATIC_WORLD_MODES,
       'electricStorm',
+      'afterhours',
       ...GEOMETRY_CINEMATIC_WORLD_MODES,
     ])
   })
@@ -361,10 +365,9 @@ describe('world-specific cinematic configuration', () => {
         expect(presets, mode).toEqual([])
         continue
       }
-      // Electric Storm Stage 1 (Preset Foundation) intentionally ships only
-      // its one foundational preset; later stages add the rest, same as
-      // orbitalPrismArray's existing single-preset allowance.
-      expect(presets, mode).toHaveLength(mode === 'reactiveConstellation' ? 11 : mode === 'orbitalPrismArray' || mode === 'electricStorm' ? 1 : 3)
+      // Electric Storm and Afterhours intentionally ship one foundational preset
+      // at this stage, matching orbitalPrismArray's existing single-preset allowance.
+      expect(presets, mode).toHaveLength(mode === 'reactiveConstellation' ? 11 : mode === 'orbitalPrismArray' || mode === 'electricStorm' || mode === 'afterhours' ? 1 : 3)
       const structuralSignatures = presets.map(preset => JSON.stringify({
         settings: preset.cinematicConfig?.worldSettings,
         cameraRig: preset.cinematicConfig?.cameraRig,
@@ -378,10 +381,11 @@ describe('world-specific cinematic configuration', () => {
         const normalized = normalizeCinematicWorldConfig(preset.cinematicConfig)
         expect(normalized).toEqual(preset.cinematicConfig)
         expect(normalized.worldSettings.mode).toBe(mode)
-        // Electric Storm Stage 3 consumes the canonical host musical frame
-        // directly in its world renderer, so generic route mappings remain
-        // intentionally empty rather than duplicating the analysis owner.
-        if (mode !== 'electricStorm') expect(normalized.audioMapping.routes.length).toBeGreaterThan(0)
+        // Electric Storm consumes canonical host music directly, while Afterhours
+        // intentionally has no music reactivity yet. Both therefore keep
+        // generic route mappings empty rather than creating duplicate routing.
+        if (mode !== 'electricStorm' && mode !== 'afterhours') expect(normalized.audioMapping.routes.length).toBeGreaterThan(0)
+        else expect(normalized.audioMapping).toMatchObject({ enabled: false, routes: [] })
       }
     }
   })

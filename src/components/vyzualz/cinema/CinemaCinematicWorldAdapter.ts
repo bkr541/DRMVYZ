@@ -224,6 +224,10 @@ const DIRECT_COMMON_MODULATION_TARGET_USAGE: Readonly<Partial<Record<CinematicWo
  */
 const UNCONSUMED_WORLD_SETTING_KEYS: Readonly<Partial<Record<CinematicWorldMode, readonly string[]>>> = Object.freeze({
   eventHorizon: Object.freeze(['bloomBoost', 'chromaticAberrationBoost']),
+  afterhours: Object.freeze([
+    'colorMode', 'pattern', 'symmetry', 'sideLasers', 'topLasers',
+    'bpmSync', 'masterIntensity', 'trigger', 'pulseAmount', 'pulseDecay', 'motionAmount', 'patternChange', 'blackoutAmount',
+  ]),
   reactiveConstellation: Object.freeze(['visualDnaProfile']),
 })
 

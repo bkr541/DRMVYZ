@@ -1,4 +1,5 @@
 import type { CinematicWebGLWorldDefinition } from '../../CinematicWorldRenderer'
+import { afterhoursWorldDefinition } from './AfterhoursWorld'
 import { ancientMachineWorldDefinition } from './AncientMachineWorld'
 import { celestialCathedralWorldDefinition } from './CelestialCathedralWorld'
 import { eventHorizonWorldDefinition } from './EventHorizonWorld'
@@ -13,6 +14,7 @@ import { reactiveConstellationWorldDefinition } from './ReactiveConstellationWor
 import { stormGatewayWorldDefinition } from './StormGatewayWorld'
 
 export {
+  afterhoursWorldDefinition,
   ancientMachineWorldDefinition,
   celestialCathedralWorldDefinition,
   eventHorizonWorldDefinition,
@@ -38,6 +40,7 @@ export const cinematicWorldDefinitions: readonly CinematicWebGLWorldDefinition[]
   ancientMachineWorldDefinition,
   stormGatewayWorldDefinition,
   electricStormWorldDefinition,
+  afterhoursWorldDefinition,
   orbitalPrismArrayWorldDefinition,
   reactiveConstellationWorldDefinition,
 ]

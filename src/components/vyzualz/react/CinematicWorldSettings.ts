@@ -21,6 +21,7 @@ export const IMPLEMENTED_CINEMATIC_WORLD_MODES = [
   ...PACK_A_CINEMATIC_WORLD_MODES,
   ...PACK_B_CINEMATIC_WORLD_MODES,
   'electricStorm',
+  'afterhours',
   ...GEOMETRY_CINEMATIC_WORLD_MODES,
 ] as const
 

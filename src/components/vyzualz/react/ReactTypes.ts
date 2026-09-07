@@ -4241,6 +4241,25 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     sectionMappings: makeMappings('es'),
   },
 
+  // Cinematic Worlds: Afterhours
+  {
+    id: 'preset-afterhours',
+    name: 'Afterhours',
+    description: 'Minimal fullscreen bottom-up DJ laser fan with deterministic fixed emitters and atmospheric glow.',
+    engine: 'cinematicPortal',
+    palette: { primary: '#74f5ff', secondary: '#74f5ff', accent: '#ffffff', background: '#000000', highlight: '#ffffff', text: DVYDRM_WHITE },
+    params: { intensity: 0.75, motion: 0, glow: 0.55, bassReactivity: 0 },
+    renderSettings: { trailDecay: 0, fogDensity: 0.55, particleDensity: 0 },
+    cinematicConfig: createCinematicWorldConfig('afterhours', {}, {
+      cameraRig: 'locked', seed: 48001, qualityTier: 'high',
+      environment: { depth: 0.2, architecture: 0, fog: 0, debris: 0, stars: 0, atmosphere: 0 },
+      material: { distortion: 0, refraction: 0, bloom: 0, chromaticAberration: 0, feedback: 0, glow: 0 },
+      audioMapping: { enabled: false, smoothingMs: 80, routes: [] },
+    }),
+    scenes: makeScenes('ah', 'cinematicPortal'),
+    sectionMappings: makeMappings('ah'),
+  },
+
   // Cinematic Worlds: Orbital Prism Array
   {
     id: 'preset-orbital-prism-array',

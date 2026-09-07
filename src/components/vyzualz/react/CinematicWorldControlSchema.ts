@@ -7,6 +7,7 @@ import {
   type CinematicWorldMode,
 } from './CinematicWorldConfig'
 import {
+  AFTERHOURS_BOUNDS,
   ANCIENT_MACHINE_BOUNDS,
   ANCIENT_MACHINE_DEFAULTS,
   CELESTIAL_CATHEDRAL_BOUNDS,
@@ -272,6 +273,24 @@ const ELECTRIC_STORM_CONTROLS = {
   }],
 } as const satisfies CinematicWorldControlSchema<'electricStorm'>
 
+const AFTERHOURS_CONTROLS = {
+  mode: 'afterhours',
+  groups: [{
+    id: 'afterhours-design-controls',
+    label: 'Afterhours Controls',
+    visibility: 'all',
+    controls: [
+      { kind: 'color', id: 'afterhours-background-color', setting: 'backgroundColor', label: 'Background Color', visibility: 'all' },
+      { kind: 'color', id: 'afterhours-primary-color', setting: 'primaryColor', label: 'Primary Color', visibility: 'all' },
+      { kind: 'color', id: 'afterhours-accent-color', setting: 'accentColor', label: 'Accent Color', visibility: 'all' },
+      { kind: 'slider', id: 'afterhours-accent-mix', setting: 'accentMix', label: 'Accent Mix', min: AFTERHOURS_BOUNDS.accentMix[0], max: AFTERHOURS_BOUNDS.accentMix[1], step: 0.01, visibility: 'all' },
+      { kind: 'integer', id: 'afterhours-beam-count', setting: 'beamCount', label: 'Beam Count', min: AFTERHOURS_BOUNDS.beamCount[0], max: AFTERHOURS_BOUNDS.beamCount[1], step: 1, visibility: 'all' },
+      { kind: 'slider', id: 'afterhours-spread', setting: 'spread', label: 'Spread', min: AFTERHOURS_BOUNDS.spread[0], max: AFTERHOURS_BOUNDS.spread[1], step: 0.01, visibility: 'all' },
+      { kind: 'slider', id: 'afterhours-atmosphere', setting: 'atmosphere', label: 'Atmosphere', min: AFTERHOURS_BOUNDS.atmosphere[0], max: AFTERHOURS_BOUNDS.atmosphere[1], step: 0.01, visibility: 'all' },
+    ],
+  }],
+} as const satisfies CinematicWorldControlSchema<'afterhours'>
+
 const ORBITAL_PRISM_ARRAY_CONTROLS = EMPTY_SCHEMA('orbitalPrismArray')
 
 const REACTIVE_CONSTELLATION_CONTROLS = {
@@ -423,6 +442,7 @@ export const CINEMATIC_WORLD_CATALOG: CinematicWorldCatalog = {
   ancientMachine: { id: 'ancientMachine', label: 'Ancient Machine', category: 'Mechanical', description: 'Interlocking rings, gears, glyphs and a mechanical unlock sequence.', cameraRigs: ['locked', 'dolly', 'orbit', 'autoDirector'], modulationTargets: ['portalAperture', 'depth', 'geometryRotation', 'cameraPunch', 'cameraTravel', 'environmentBrightness', 'bloom', 'impact'], supportsPortalShape: true, controls: ANCIENT_MACHINE_CONTROLS },
   stormGateway: { id: 'stormGateway', label: 'Storm Gateway', category: 'Storm', description: 'Cloud vortex, debris, turbulence and branching lightning.', cameraRigs: ['locked', 'orbit', 'handheld', 'autoDirector'], modulationTargets: ['portalAperture', 'depth', 'cameraPunch', 'fogDensity', 'particleEmission', 'lightning', 'environmentBrightness', 'distortion', 'bloom', 'chromaticAberration', 'impact'], supportsPortalShape: true, controls: STORM_GATEWAY_CONTROLS },
   electricStorm: { id: 'electricStorm', label: 'Electric Storm', category: 'Storm', description: 'Screen-space procedural lightning over a configurable abstract storm atmosphere.', cameraRigs: ['locked'], modulationTargets: [], supportsPortalShape: false, controls: ELECTRIC_STORM_CONTROLS },
+  afterhours: { id: 'afterhours', label: 'Afterhours', category: 'Architectural', description: 'Fullscreen bottom-up DJ laser fan with fixed emitters, deterministic beam allocation, and atmospheric glow.', cameraRigs: ['locked'], modulationTargets: [], supportsPortalShape: false, controls: AFTERHOURS_CONTROLS },
   orbitalPrismArray: { id: 'orbitalPrismArray', label: 'Orbital Prism Array', category: 'Cosmic', description: 'Central faceted prism with three orbital rings, deterministic depth shards, and a lightweight star field.', cameraRigs: ['locked', 'dolly', 'orbit', 'flyThrough', 'handheld', 'autoDirector'], modulationTargets: ['geometryRotation', 'environmentBrightness', 'nodeScale', 'edgeBrightness', 'particleEmission', 'impact', 'burstImpulse', 'bloom'], supportsPortalShape: false, controls: ORBITAL_PRISM_ARRAY_CONTROLS },
   reactiveConstellation: { id: 'reactiveConstellation', label: 'Reactive Constellation', category: 'Cosmic', description: 'A true 3D faceted crystal network with palette-derived emissive beams, crystalline materials, and bounded temporal beam fans.', cameraRigs: ['locked', 'dolly', 'orbit', 'handheld', 'autoDirector'], modulationTargets: ['networkSpread', 'nodeScale', 'nodeSpin', 'edgeBrightness', 'edgeWidth', 'trailLength', 'topologyMorph', 'collapseForce', 'burstImpulse', 'facetOpacity', 'depth', 'geometryRotation', 'environmentBrightness', 'cameraPunch', 'bloom', 'impact'], supportsPortalShape: false, controls: REACTIVE_CONSTELLATION_CONTROLS },
   legacyPortal: { id: 'legacyPortal', label: 'Legacy Portal', category: 'Legacy', description: 'Compatibility renderer for projects created before Cinematic Worlds.', cameraRigs: ['locked'], modulationTargets: ['portalAperture', 'cameraPunch', 'fogDensity', 'particleEmission', 'environmentBrightness', 'impact', 'fog', 'debris', 'atmosphere', 'glow', 'cameraMotion', 'portalPulse'], rendererModulationTargets: ['portalAperture', 'cameraPunch', 'fogDensity', 'particleEmission', 'environmentBrightness', 'impact'], supportsPortalShape: true, controls: EMPTY_SCHEMA('legacyPortal') },
@@ -439,6 +459,7 @@ export const CINEMATIC_WORLD_CATALOG_LIST: readonly AnyCinematicWorldCatalogEntr
   CINEMATIC_WORLD_CATALOG.ancientMachine,
   CINEMATIC_WORLD_CATALOG.stormGateway,
   CINEMATIC_WORLD_CATALOG.electricStorm,
+  CINEMATIC_WORLD_CATALOG.afterhours,
   CINEMATIC_WORLD_CATALOG.orbitalPrismArray,
   CINEMATIC_WORLD_CATALOG.reactiveConstellation,
   CINEMATIC_WORLD_CATALOG.legacyPortal,

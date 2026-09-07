@@ -25,6 +25,7 @@ export const CINEMATIC_WORLD_MODES = [
   'ancientMachine',
   'stormGateway',
   'electricStorm',
+  'afterhours',
   'orbitalPrismArray',
   'reactiveConstellation',
 ] as const
@@ -38,7 +39,6 @@ export type CinematicWorldLiveMode = typeof CINEMATIC_WORLD_MODES[number]
  */
 export const CINEMATIC_WORLD_DOMAIN_MODES = [
   ...CINEMATIC_WORLD_MODES,
-  'afterhours',
 ] as const
 
 export type CinematicWorldMode = typeof CINEMATIC_WORLD_DOMAIN_MODES[number]
