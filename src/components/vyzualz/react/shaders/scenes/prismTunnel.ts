@@ -34,7 +34,7 @@ export const PRISM_TUNNEL: ShaderDefinition = {
   name: 'Prism Tunnel',
   description: 'Radial prismatic field with addressable facets, luminous arcs, beat pulse, and bass-reactive curvature.',
   category: 'generator',
-  version: 6,
+  version: 7,
 
   fragSrc: `#version 300 es
 precision highp float;
@@ -245,11 +245,14 @@ void main() {
       modulatable: true,
     },
     {
+      // No brandRole: Prism Tunnel consumes plain uPrimaryColor/uSecondaryColor,
+      // not the uBrand* palette uniforms. Tagging these with a brandRole made the
+      // Cinema shader adapter overwrite the authored Design-tab value with the
+      // node's brand-palette colour every frame, so the control did nothing.
       id: 'primaryColor',
       type: 'color',
       label: 'Primary Color',
       uniformName: 'uPrimaryColor',
-      brandRole: 'primary',
       default: [0.0, 0.9, 0.85, 1.0],
     },
     {
@@ -257,7 +260,6 @@ void main() {
       type: 'color',
       label: 'Secondary Color',
       uniformName: 'uSecondaryColor',
-      brandRole: 'secondary',
       default: [0.1, 0.9, 0.3, 1.0],
     },
     {

@@ -356,6 +356,48 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     harness.dispose()
   })
 
+  it('sends the authored Prism primary/secondary colors straight to uPrimaryColor/uSecondaryColor', () => {
+    const state = createCinemaFoundationPersistedState()
+    const preset = CINEMA_LEGACY_PRESET_CATALOG.manifest.find(entry => entry.legacySourceId === PRISM_TUNNEL.id)
+    const baseComposition = CINEMA_LEGACY_PRESET_CATALOG.compositions.find(candidate => candidate.id === preset?.compositionId)
+    expect(baseComposition).toBeDefined()
+    if (!baseComposition) return
+
+    const authoredPrimary = [0.87, 0.12, 0.44, 1] as const
+    const authoredSecondary = [0.05, 0.63, 0.94, 1] as const
+    const prismNodeTypeId = cinemaShaderSceneTypeId(PRISM_TUNNEL.id)
+    const composition: CinemaCompositionDefinition = {
+      ...baseComposition,
+      nodes: baseComposition.nodes.map(node => node.typeId === prismNodeTypeId ? {
+        ...node,
+        parameterValues: {
+          ...node.parameterValues,
+          [cinemaShaderParameterId('primaryColor')]: [...authoredPrimary],
+          [cinemaShaderParameterId('secondaryColor')]: [...authoredSecondary],
+        },
+      } : node),
+    }
+
+    const harness = createExecutorHarness()
+    vi.mocked(harness.gl.getUniformLocation).mockImplementation((_program, name) => (
+      { name } as unknown as WebGLUniformLocation
+    ))
+    harness.executor.resize({ width: 1, height: 1, dpr: 1 }, harness.viewport)
+    harness.executor.setGraph({ composition, instance: null, definitions: state.definitions })
+    expect(harness.executor.render(frame(0))).toBe(true)
+
+    const lastVec4 = (name: string) => {
+      const calls = vi.mocked(harness.gl.uniform4f).mock.calls
+        .filter(([location]) => (location as unknown as { name?: string })?.name === name)
+      const last = calls[calls.length - 1]
+      return last ? [last[1], last[2], last[3], last[4]] : undefined
+    }
+    expect(lastVec4('uPrimaryColor')).toEqual([...authoredPrimary])
+    expect(lastVec4('uSecondaryColor')).toEqual([...authoredSecondary])
+    expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
+    harness.dispose()
+  })
+
   it('renders bounded Prism structural echoes from prior resolved states through the real Cinema production path', () => {
     const state = createCinemaFoundationPersistedState()
     const preset = CINEMA_LEGACY_PRESET_CATALOG.manifest.find(entry => entry.legacySourceId === PRISM_TUNNEL.id)
