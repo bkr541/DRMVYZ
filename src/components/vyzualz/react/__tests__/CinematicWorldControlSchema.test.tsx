@@ -161,46 +161,54 @@ describe('Cinematic World control schema', () => {
     expect(zoomPunch.value).toBe('0.5')
   })
 
-  it('exposes exactly the seven Stage 1B Afterhours Design controls with canonical defaults and bounds', async () => {
+  it('exposes the Stage 2 Afterhours Design controls, with Symmetry conditional on the Random pattern', async () => {
     const schema = CINEMATIC_WORLD_CATALOG.afterhours.controls
     const controls = schema.groups.flatMap(group => group.controls)
     expect(controls.map(control => control.setting)).toEqual([
-      'backgroundColor', 'primaryColor', 'accentColor', 'accentMix', 'beamCount', 'spread', 'atmosphere',
+      'backgroundColor', 'primaryColor', 'accentColor', 'accentMix',
+      'pattern', 'symmetry', 'sideLasers', 'topLasers', 'beamCount', 'spread', 'atmosphere',
     ])
-    expect(controls.filter(control => control.kind === 'color').map(control => control.setting)).toEqual([
-      'backgroundColor', 'primaryColor', 'accentColor',
-    ])
+    expect(controls.find(control => control.setting === 'pattern')).toMatchObject({
+      kind: 'select',
+      options: [
+        { value: 'random', label: 'Random' }, { value: 'xWall', label: 'X Wall' }, { value: 'cross', label: 'Cross' },
+        { value: 'fan', label: 'Fan' }, { value: 'split', label: 'Split' },
+      ],
+    })
+    expect(controls.find(control => control.setting === 'symmetry')).toMatchObject({
+      kind: 'toggle', visibleWhen: { setting: 'pattern', equals: 'random' },
+    })
+    for (const setting of ['sideLasers', 'topLasers'] as const) {
+      expect(controls.find(control => control.setting === setting)?.kind).toBe('toggle')
+      expect(controls.find(control => control.setting === setting)?.visibleWhen).toBeUndefined()
+    }
     expect(controls.find(control => control.setting === 'beamCount')).toMatchObject({
       kind: 'integer', min: AFTERHOURS_BOUNDS.beamCount[0], max: AFTERHOURS_BOUNDS.beamCount[1], step: 1,
     })
-    for (const setting of ['accentMix', 'spread', 'atmosphere'] as const) {
-      expect(controls.find(control => control.setting === setting)).toMatchObject({
-        kind: 'slider', min: AFTERHOURS_BOUNDS[setting][0], max: AFTERHOURS_BOUNDS[setting][1],
-      })
-    }
+    // Not exposed until their stages.
     expect(controls.map(control => control.setting)).not.toEqual(expect.arrayContaining([
-      'colorMode', 'pattern', 'symmetry', 'sideLasers', 'topLasers', 'bpmSync', 'masterIntensity', 'trigger',
-      'pulseAmount', 'pulseDecay', 'motionAmount', 'patternChange', 'blackoutAmount',
+      'colorMode', 'bpmSync', 'masterIntensity', 'trigger', 'pulseAmount', 'pulseDecay', 'motionAmount', 'patternChange', 'blackoutAmount',
     ]))
 
-    const config = createCinematicWorldConfig('afterhours', {})
-    expect(config.worldSettings.settings).toEqual(AFTERHOURS_DEFAULTS)
-    const onChange = vi.fn()
-    await render(
-      <CinematicWorldControlSchemaRenderer
-        config={config}
-        schema={schema}
-        uiMode="simple"
-        onChange={onChange}
-      />,
-    )
-    expect((container.querySelector('#afterhours-background-color') as HTMLInputElement).value).toBe('#000000')
-    expect((container.querySelector('#afterhours-primary-color') as HTMLInputElement).value).toBe('#74f5ff')
-    expect((container.querySelector('#afterhours-accent-color') as HTMLInputElement).value).toBe('#ffffff')
-    expect((container.querySelector('#afterhours-accent-mix') as HTMLInputElement).value).toBe('0.25')
+    // Default pattern is Fan -> Symmetry absent from the DOM, no stale duplicate.
+    const fanConfig = createCinematicWorldConfig('afterhours', {})
+    expect(fanConfig.worldSettings.settings).toEqual(AFTERHOURS_DEFAULTS)
+    await render(<CinematicWorldControlSchemaRenderer config={fanConfig} schema={schema} uiMode="simple" onChange={vi.fn()} />)
+    expect((container.querySelector('#afterhours-pattern') as HTMLButtonElement).textContent).toContain('Fan')
+    expect(container.querySelector('#afterhours-symmetry')).toBeNull()
     expect((container.querySelector('#afterhours-beam-count') as HTMLInputElement).value).toBe('8')
-    expect((container.querySelector('#afterhours-spread') as HTMLInputElement).value).toBe('0.65')
     expect((container.querySelector('#afterhours-atmosphere') as HTMLInputElement).value).toBe('0.55')
+
+    // Switching to Random reveals exactly one Symmetry control at its persisted value.
+    const randomConfig = createCinematicWorldConfig('afterhours', { pattern: 'random', symmetry: false })
+    await render(<CinematicWorldControlSchemaRenderer config={randomConfig} schema={schema} uiMode="simple" onChange={vi.fn()} />)
+    const symmetryInputs = container.querySelectorAll('#afterhours-symmetry')
+    expect(symmetryInputs).toHaveLength(1)
+    expect(symmetryInputs[0].getAttribute('data-state')).toBe('off')
+
+    // Switching away preserves the persisted value and removes the control again.
+    await render(<CinematicWorldControlSchemaRenderer config={createCinematicWorldConfig('afterhours', { pattern: 'fan', symmetry: false })} schema={schema} uiMode="simple" onChange={vi.fn()} />)
+    expect(container.querySelector('#afterhours-symmetry')).toBeNull()
   })
 
   it('renders slider, integer, and select controls with labels, descriptions, and stable IDs', async () => {

@@ -3,9 +3,9 @@ import { createCinematicWorldConfig } from '../../../CinematicWorldConfig'
 import { AFTERHOURS_DEFAULTS } from '../../../CinematicWorldSettings'
 import { DEFAULT_REACT_PRESETS } from '../../../ReactTypes'
 import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
-import type { CinematicFrameContext, CinematicWebGLServices } from '../../CinematicWorldRenderer'
+import type { CinematicFrameContext } from '../../CinematicWorldRenderer'
 import { DEFAULT_REACT_RENDER_PARAMS } from '../../reactRenderUtils'
-import { AFTERHOURS_BOTTOM_EMITTERS, AFTERHOURS_MAX_BEAMS, buildAfterhoursBeamSlots } from './AfterhoursBeamGeometry'
+import { AFTERHOURS_BOTTOM_EMITTERS, AFTERHOURS_MAX_BEAMS, generateAfterhoursBeams } from './AfterhoursBeamGeometry'
 import { afterhoursWorldDefinition } from './AfterhoursWorld'
 
 function frame(settings: Partial<typeof AFTERHOURS_DEFAULTS> = {}): CinematicFrameContext {
@@ -50,7 +50,7 @@ function createWorldHarness() {
   const services = {
     compileProgram,
     fullscreenPass: { run },
-  } as unknown as CinematicWebGLServices
+  } as unknown as Parameters<ReturnType<typeof afterhoursWorldDefinition.create>['initialize']>[0]['services']
   const world = afterhoursWorldDefinition.create()
   world.initialize({ services, config: createCinematicWorldConfig('afterhours', {}), presetId: 'preset-afterhours' })
   world.resize({ width: 1280, height: 720, dpr: 1 })
@@ -62,76 +62,57 @@ function last(calls: Map<string, number[][]>, name: string): number[] {
   return values[values.length - 1] ?? []
 }
 
-describe('Afterhours Stage 1B world foundation', () => {
-  it('owns exactly 10 stable fixed bottom emitters and deterministically reuses them above 10 beams', () => {
-    expect(AFTERHOURS_BOTTOM_EMITTERS).toHaveLength(10)
-    expect(Object.isFrozen(AFTERHOURS_BOTTOM_EMITTERS)).toBe(true)
-    expect(AFTERHOURS_BOTTOM_EMITTERS.map(origin => origin.x)).toEqual([0.07, 0.165, 0.26, 0.355, 0.45, 0.55, 0.645, 0.74, 0.835, 0.93])
-    expect(AFTERHOURS_BOTTOM_EMITTERS.every(origin => origin.y === 0.025 && Object.isFrozen(origin))).toBe(true)
-
-    for (const beamCount of [2, 8, 10, 16]) {
-      const slots = buildAfterhoursBeamSlots({ beamCount, spread: 0.65, accentMix: 0.25 })
-      expect(slots).toHaveLength(AFTERHOURS_MAX_BEAMS)
-      expect(slots.filter(slot => slot.active)).toHaveLength(beamCount)
-      expect(slots.slice(beamCount).every(slot => !slot.active)).toBe(true)
-    }
-    const sixteen = buildAfterhoursBeamSlots({ beamCount: 16, spread: 0.65, accentMix: 0.25 })
-    expect(sixteen[10].origin).toEqual(AFTERHOURS_BOTTOM_EMITTERS[0])
-    expect(sixteen[15].origin).toEqual(AFTERHOURS_BOTTOM_EMITTERS[5])
-    expect(buildAfterhoursBeamSlots({ beamCount: 16, spread: 0.65, accentMix: 0.25 })).toEqual(sixteen)
-  })
-
-  it('keeps Spread 0 and 1 bounded, upward, finite, and nondegenerate', () => {
-    const compact = buildAfterhoursBeamSlots({ beamCount: 16, spread: 0, accentMix: 0.25 }).filter(slot => slot.active)
-    const wide = buildAfterhoursBeamSlots({ beamCount: 16, spread: 1, accentMix: 0.25 }).filter(slot => slot.active)
-    for (const slot of [...compact, ...wide]) {
-      expect(Number.isFinite(slot.target.x) && Number.isFinite(slot.target.y)).toBe(true)
-      expect(slot.target.x).toBeGreaterThanOrEqual(0)
-      expect(slot.target.x).toBeLessThanOrEqual(1)
-      expect(slot.target.y).toBeGreaterThan(slot.origin.y)
-      expect(slot.target.y).toBeLessThanOrEqual(1)
-      expect(Math.hypot(slot.target.x - slot.origin.x, slot.target.y - slot.origin.y)).toBeGreaterThan(0.1)
-    }
-    const width = (slots: typeof compact) => Math.max(...slots.map(slot => slot.target.x)) - Math.min(...slots.map(slot => slot.target.x))
-    expect(width(wide)).toBeGreaterThan(width(compact))
-  })
-
-  it('maps Accent Mix 0 and 1 to deterministic all-primary and all-accent roles', () => {
-    expect(buildAfterhoursBeamSlots({ beamCount: 16, spread: 0.65, accentMix: 0 }).filter(slot => slot.active).every(slot => !slot.accent)).toBe(true)
-    expect(buildAfterhoursBeamSlots({ beamCount: 16, spread: 0.65, accentMix: 1 }).filter(slot => slot.active).every(slot => slot.accent)).toBe(true)
-  })
-
-  it('writes parameter-dependent production uniforms, clears inactive slots, and compiles once per lifecycle', () => {
-    const harness = createWorldHarness()
-    harness.world.render(frame({
-      backgroundColor: '#102030',
-      primaryColor: '#204060',
-      accentColor: '#80a0c0',
-      accentMix: 1,
-      beamCount: 2,
-      spread: 1,
-      atmosphere: 0.9,
-    }), { framebuffer: null, texture: null, width: 1280, height: 720 })
-    harness.world.render(frame({ beamCount: 16, spread: 0, accentMix: 0, atmosphere: 0.1 }), { framebuffer: null, texture: null, width: 1280, height: 720 })
-
-    expect(harness.compileProgram).toHaveBeenCalledTimes(1)
-    expect(harness.run).toHaveBeenCalledTimes(2)
-    expect(last(harness.calls, 'uAfterhoursBackground')).toEqual([0, 0, 0])
-    expect(last(harness.calls, 'uAfterhoursAtmosphere')).toEqual([0.1])
-    expect(last(harness.calls, 'uAfterhoursBeamMeta0')).toEqual([1, 0])
-    expect(last(harness.calls, 'uAfterhoursBeamMeta15')).toEqual([1, 0])
-
-    const firstPassMeta15 = harness.calls.get('uAfterhoursBeamMeta15')?.[0]
-    const firstPassBeam15 = harness.calls.get('uAfterhoursBeam15')?.[0]
-    expect(firstPassMeta15).toEqual([0, 0])
-    expect(firstPassBeam15).toEqual([0, 0, 0, 0])
-    harness.world.dispose()
-  })
-
+describe('Afterhours Stage 2 world integration', () => {
   it('registers a real WebGL2 fullscreen world with no generic modulation or LaserDMX dependency contract', () => {
     expect(afterhoursWorldDefinition).toMatchObject({ id: 'afterhours', label: 'Afterhours', backend: 'webgl2' })
     expect(afterhoursWorldDefinition.capabilities).toMatchObject({
       cameraRigs: ['locked'], modulationTargets: [], supportsFullscreenPasses: true, supportsGeometryPasses: false,
     })
+  })
+
+  it('writes exactly the generator output into beam uniforms and zeroes inactive slots', () => {
+    const harness = createWorldHarness()
+    const settings = { pattern: 'cross' as const, sideLasers: true, beamCount: 6, spread: 0.4, accentMix: 1, atmosphere: 0.8 }
+    harness.world.render(frame(settings), { framebuffer: null, texture: null, width: 1280, height: 720 })
+
+    const expected = generateAfterhoursBeams({ ...AFTERHOURS_DEFAULTS, ...settings })
+    for (let index = 0; index < AFTERHOURS_MAX_BEAMS; index += 1) {
+      const beam = expected[index]
+      if (beam.active) {
+        expect(last(harness.calls, `uAfterhoursBeam${index}`)).toEqual([beam.origin.x, beam.origin.y, beam.target.x, beam.target.y])
+        expect(last(harness.calls, `uAfterhoursBeamMeta${index}`)).toEqual([1, beam.accent ? 1 : 0])
+      } else {
+        expect(last(harness.calls, `uAfterhoursBeam${index}`)).toEqual([0, 0, 0, 0])
+        expect(last(harness.calls, `uAfterhoursBeamMeta${index}`)).toEqual([0, 0])
+      }
+    }
+    harness.world.dispose()
+  })
+
+  it('re-clears slots that were active on a previous frame and compiles once per lifecycle', () => {
+    const harness = createWorldHarness()
+    harness.world.render(frame({ beamCount: 16, pattern: 'fan' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    harness.world.render(frame({ beamCount: 3, pattern: 'fan' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+
+    expect(harness.compileProgram).toHaveBeenCalledTimes(1)
+    expect(harness.run).toHaveBeenCalledTimes(2)
+    expect(last(harness.calls, 'uAfterhoursBeamMeta15')).toEqual([0, 0])
+    expect(last(harness.calls, 'uAfterhoursBeam15')).toEqual([0, 0, 0, 0])
+    expect(last(harness.calls, 'uAfterhoursBeamMeta2')).toEqual([1, 0])
+    harness.world.dispose()
+  })
+
+  it('keeps Stage-1 color and atmosphere uniforms working', () => {
+    const harness = createWorldHarness()
+    harness.world.render(frame({ backgroundColor: '#000000', atmosphere: 0.1 }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    expect(last(harness.calls, 'uAfterhoursBackground')).toEqual([0, 0, 0])
+    expect(last(harness.calls, 'uAfterhoursAtmosphere')).toEqual([0.1])
+    harness.world.dispose()
+  })
+
+  it('bottom-emitter contract stays the single source of truth', () => {
+    expect(AFTERHOURS_BOTTOM_EMITTERS).toHaveLength(10)
+    const beams = generateAfterhoursBeams({ ...AFTERHOURS_DEFAULTS, pattern: 'fan', beamCount: 10 }).filter(b => b.active)
+    expect(beams.map(b => b.origin)).toEqual([...AFTERHOURS_BOTTOM_EMITTERS])
   })
 })

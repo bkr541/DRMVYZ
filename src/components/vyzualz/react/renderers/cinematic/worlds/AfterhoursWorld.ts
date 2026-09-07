@@ -2,7 +2,7 @@ import { resolveAfterhoursSettings } from '../../../CinematicWorldSettings'
 import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type { CinematicFrameContext, CinematicWebGLWorldDefinition } from '../../CinematicWorldRenderer'
 import { defineCinematicWorldDirection } from '../CinematicWorldDirection'
-import { AFTERHOURS_MAX_BEAMS, buildAfterhoursBeamSlots } from './AfterhoursBeamGeometry'
+import { AFTERHOURS_MAX_BEAMS, generateAfterhoursBeams } from './AfterhoursBeamGeometry'
 import { AFTERHOURS_FRAGMENT_SOURCE } from './AfterhoursShader'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
 
@@ -43,7 +43,10 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
     setRgb(program, 'uAfterhoursAccent', parseHexColor(settings.accentColor, { r: 1, g: 1, b: 1 }))
     program.setFloat('uAfterhoursAtmosphere', settings.atmosphere)
 
-    const beams = buildAfterhoursBeamSlots(settings)
+    // Stage 2: one canonical procedural generator replaces the Stage-1 ad hoc
+    // placement. `variation` stays 0 here; Stage 5 will cycle it on musical
+    // boundaries. Inactive slots are always explicitly zeroed.
+    const beams = generateAfterhoursBeams(settings)
     for (let index = 0; index < AFTERHOURS_MAX_BEAMS; index += 1) {
       const beam = beams[index]
       if (!beam.active) {

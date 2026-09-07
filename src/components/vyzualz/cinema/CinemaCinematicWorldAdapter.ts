@@ -225,7 +225,9 @@ const DIRECT_COMMON_MODULATION_TARGET_USAGE: Readonly<Partial<Record<CinematicWo
 const UNCONSUMED_WORLD_SETTING_KEYS: Readonly<Partial<Record<CinematicWorldMode, readonly string[]>>> = Object.freeze({
   eventHorizon: Object.freeze(['bloomBoost', 'chromaticAberrationBoost']),
   afterhours: Object.freeze([
-    'colorMode', 'pattern', 'symmetry', 'sideLasers', 'topLasers',
+    // Stage 2 consumes Pattern, Symmetry, Side Lasers, Top Lasers. Color Mode
+    // and the React parameters remain persisted-only until their stages.
+    'colorMode',
     'bpmSync', 'masterIntensity', 'trigger', 'pulseAmount', 'pulseDecay', 'motionAmount', 'patternChange', 'blackoutAmount',
   ]),
   reactiveConstellation: Object.freeze(['visualDnaProfile']),
@@ -941,13 +943,25 @@ export function getCinemaCinematicWorldSupportedParameterSchemasForNode(
     declared.get(parameter.id)?.support !== 'unsupported'
     && (!hideObjectControls || !CINEMA_3D_OBJECT_PARAMETER_ID_SET.has(parameter.id))
   ))
+  // Afterhours: Symmetry is only meaningful for the Random pattern. Hide the
+  // control (and its Cinema parameter) whenever the node's live Pattern value
+  // is not Random; the persisted value itself is untouched, so switching back
+  // to Random restores it.
+  const conditionallyFiltered = definition.metadata?.worldId === 'afterhours'
+    ? staticallySupported.filter(parameter => {
+        if (parameter.id !== worldParameterId('symmetry')) return true
+        const patternValue = node.parameterValues?.[worldParameterId('pattern')]
+        return readWorldEnum('pattern', patternValue, WorldSettings.AFTERHOURS_DEFAULTS.pattern) === 'random'
+      })
+    : staticallySupported
+
   const sourcePreset = readLegacyCinematicPreset(node)
-  if (!sourcePreset?.cinematicConfig?.audioMapping.enabled) return Object.freeze(staticallySupported)
+  if (!sourcePreset?.cinematicConfig?.audioMapping.enabled) return Object.freeze(conditionallyFiltered)
 
   const worldId = sourcePreset.cinematicConfig.worldMode
   const directCommon = new Set(DIRECT_COMMON_PARAMETER_USAGE[worldId] ?? [])
   const commonIds = new Set<CinemaParameterId>(CINEMATIC_WORLD_COMMON_PARAMETER_IDS)
-  return Object.freeze(staticallySupported.filter(parameter => (
+  return Object.freeze(conditionallyFiltered.filter(parameter => (
     !commonIds.has(parameter.id) || directCommon.has(parameter.id)
   )))
 }

@@ -55,12 +55,23 @@ type SelectSettingKey<Mode extends CinematicWorldMode> = {
 type SelectValue<Mode extends CinematicWorldMode, Key extends SelectSettingKey<Mode>> =
   Extract<CinematicWorldSettingsByMode[Mode][Key], string | number>
 
+/**
+ * Declarative conditional visibility. When present, the control is shown only
+ * while another setting in the same world equals `equals`. Used for Afterhours'
+ * Symmetry control, which is relevant only to the Random pattern.
+ */
+export interface CinematicWorldControlCondition {
+  setting: string
+  equals: string | number | boolean
+}
+
 interface CinematicWorldControlBase<Key extends string> {
   id: string
   setting: Key
   label: string
   description?: string
   visibility?: CinematicWorldControlVisibility
+  visibleWhen?: CinematicWorldControlCondition
 }
 
 export type CinematicWorldSliderControl<Mode extends CinematicWorldMode> = {
@@ -284,6 +295,19 @@ const AFTERHOURS_CONTROLS = {
       { kind: 'color', id: 'afterhours-primary-color', setting: 'primaryColor', label: 'Primary Color', visibility: 'all' },
       { kind: 'color', id: 'afterhours-accent-color', setting: 'accentColor', label: 'Accent Color', visibility: 'all' },
       { kind: 'slider', id: 'afterhours-accent-mix', setting: 'accentMix', label: 'Accent Mix', min: AFTERHOURS_BOUNDS.accentMix[0], max: AFTERHOURS_BOUNDS.accentMix[1], step: 0.01, visibility: 'all' },
+      {
+        kind: 'select', id: 'afterhours-pattern', setting: 'pattern', label: 'Pattern', visibility: 'all',
+        options: [
+          { value: 'random', label: 'Random' },
+          { value: 'xWall', label: 'X Wall' },
+          { value: 'cross', label: 'Cross' },
+          { value: 'fan', label: 'Fan' },
+          { value: 'split', label: 'Split' },
+        ],
+      },
+      { kind: 'toggle', id: 'afterhours-symmetry', setting: 'symmetry', label: 'Symmetry', visibility: 'all', visibleWhen: { setting: 'pattern', equals: 'random' } },
+      { kind: 'toggle', id: 'afterhours-side-lasers', setting: 'sideLasers', label: 'Side Lasers', visibility: 'all' },
+      { kind: 'toggle', id: 'afterhours-top-lasers', setting: 'topLasers', label: 'Top Lasers', visibility: 'all' },
       { kind: 'integer', id: 'afterhours-beam-count', setting: 'beamCount', label: 'Beam Count', min: AFTERHOURS_BOUNDS.beamCount[0], max: AFTERHOURS_BOUNDS.beamCount[1], step: 1, visibility: 'all' },
       { kind: 'slider', id: 'afterhours-spread', setting: 'spread', label: 'Spread', min: AFTERHOURS_BOUNDS.spread[0], max: AFTERHOURS_BOUNDS.spread[1], step: 0.01, visibility: 'all' },
       { kind: 'slider', id: 'afterhours-atmosphere', setting: 'atmosphere', label: 'Atmosphere', min: AFTERHOURS_BOUNDS.atmosphere[0], max: AFTERHOURS_BOUNDS.atmosphere[1], step: 0.01, visibility: 'all' },
@@ -483,6 +507,21 @@ export function getVisibleCinematicWorldControlGroups(
       controls: group.controls.filter(control => controlVisibilityMatches(control.visibility, uiMode)),
     }))
     .filter(group => group.controls.length > 0)
+}
+
+/**
+ * Evaluate a control's declarative `visibleWhen` condition against a plain
+ * settings record. Controls with no condition are always visible. Callers on
+ * the Cinema production path pass the node's live parameter values (already
+ * mapped back to setting keys); the React panel passes the world settings.
+ */
+export function isCinematicWorldControlConditionMet(
+  control: Pick<AnyCinematicWorldControlDefinition, 'visibleWhen'>,
+  settings: Readonly<Record<string, unknown>>,
+): boolean {
+  const condition = control.visibleWhen
+  if (!condition) return true
+  return Object.is(settings[condition.setting], condition.equals)
 }
 
 function settingsRecord(settings: object): Record<string, unknown> {

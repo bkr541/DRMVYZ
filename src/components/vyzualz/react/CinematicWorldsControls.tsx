@@ -102,7 +102,10 @@ export function CinematicWorldControlSchemaRenderer({
       {groups.map(group => (
         <Collapsible key={group.id} label={group.label} defaultOpen>
           {group.description && <div className="rv-ctrl-info">{group.description}</div>}
-          {group.controls.map(control => {
+          {group.controls.filter(control => {
+            const condition = control.visibleWhen
+            return !condition || Object.is(readCinematicWorldSetting(config, condition.setting), condition.equals)
+          }).map(control => {
             const current = readCinematicWorldSetting(config, control.setting)
             const commit = (value: unknown) => {
               const updated = updateCinematicWorldConfigSetting(config, schema, control, value)

@@ -375,7 +375,7 @@ describe('Cinema Cinematic World adapters', () => {
     harness.dispose()
   })
 
-  it('hydrates Afterhours from the live preset and renders its seven Stage 1B controls through the production Cinema executor', () => {
+  it('hydrates Afterhours from the live preset and renders its Stage 2 Design controls through the production Cinema executor', () => {
     const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'preset-afterhours')
     const afterhours = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'afterhours')
     expect(preset?.cinematicConfig?.worldMode).toBe('afterhours')
@@ -419,15 +419,27 @@ describe('Cinema Cinematic World adapters', () => {
       } : node),
     }
 
-    const supported = getCinemaCinematicWorldSupportedParameterSchemasForNode(afterhours!.definition, composition.nodes.find(node => node.id === worldNode.id)!)
-    const supportedLabels = supported.map(parameter => parameter.label)
+    const afterhoursNode = composition.nodes.find(node => node.id === worldNode.id)!
+    const supportedLabels = getCinemaCinematicWorldSupportedParameterSchemasForNode(afterhours!.definition, afterhoursNode)
+      .map(parameter => parameter.label)
+    // Stage 2 exposes Pattern / Side Lasers / Top Lasers alongside the Stage-1 set.
     expect(supportedLabels).toEqual(expect.arrayContaining([
-      'Background Color', 'Primary Color', 'Accent Color', 'Accent Mix', 'Beam Count', 'Spread', 'Atmosphere',
+      'Background Color', 'Primary Color', 'Accent Color', 'Accent Mix',
+      'Pattern', 'Side Lasers', 'Top Lasers', 'Beam Count', 'Spread', 'Atmosphere',
     ]))
-    expect(supportedLabels).not.toEqual(expect.arrayContaining([
-      'Color Mode', 'Pattern', 'Symmetry', 'Side Lasers', 'Top Lasers', 'BPM Sync', 'Master Intensity', 'Trigger',
-      'Pulse Amount', 'Pulse Decay', 'Motion Amount', 'Pattern Change', 'Blackout Amount', 'Seed',
-    ]))
+    // Symmetry stays hidden while Pattern is not Random; Color Mode and every
+    // React control remain persisted-only until their stages.
+    for (const hidden of ['Symmetry', 'Color Mode', 'BPM Sync', 'Master Intensity', 'Trigger', 'Pulse Amount', 'Pulse Decay', 'Motion Amount', 'Pattern Change', 'Blackout Amount', 'Seed']) {
+      expect(supportedLabels).not.toContain(hidden)
+    }
+
+    // Switching the live Pattern value to Random reveals exactly the Symmetry control.
+    const patternParam = afterhours!.definition.parameters.find(parameter => parameter.label === 'Pattern') as { id: string; options: readonly { id: string; label: string }[] }
+    const randomOptionId = patternParam.options.find(option => option.label === 'Random')!.id
+    const randomNode = { ...afterhoursNode, parameterValues: { ...afterhoursNode.parameterValues, [patternParam.id]: randomOptionId } }
+    const randomLabels = getCinemaCinematicWorldSupportedParameterSchemasForNode(afterhours!.definition, randomNode)
+      .map(parameter => parameter.label)
+    expect(randomLabels).toContain('Symmetry')
 
     const state = createCinemaFoundationPersistedState()
     const harness = createExecutorHarness(CINEMA_PRODUCTION_RUNTIME_REGISTRY, state.definitions, false)
