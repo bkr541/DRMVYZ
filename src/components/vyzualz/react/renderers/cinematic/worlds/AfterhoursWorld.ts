@@ -1,8 +1,16 @@
 import { resolveAfterhoursSettings } from '../../../CinematicWorldSettings'
 import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
-import type { CinematicFrameContext, CinematicWebGLWorldDefinition } from '../../CinematicWorldRenderer'
+import type {
+  CinematicFrameContext,
+  CinematicRendererResetReason,
+  CinematicWebGLWorldDefinition,
+} from '../../CinematicWorldRenderer'
 import { defineCinematicWorldDirection } from '../CinematicWorldDirection'
-import { AFTERHOURS_MAX_BEAMS, generateAfterhoursBeams } from './AfterhoursBeamGeometry'
+import {
+  AFTERHOURS_MAX_BEAMS,
+  generateAfterhoursBeams,
+  resolveAfterhoursBeamCount,
+} from './AfterhoursBeamGeometry'
 import {
   AFTERHOURS_DEFAULT_BACKGROUND,
   type AfterhoursRgb,
@@ -10,6 +18,7 @@ import {
   resolveAfterhoursPalette,
 } from './AfterhoursColor'
 import { AFTERHOURS_FRAGMENT_SOURCE } from './AfterhoursShader'
+import { AfterhoursTriggerController } from './AfterhoursTriggerController'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
 
 const UNIFORMS = [
@@ -17,6 +26,7 @@ const UNIFORMS = [
   'uAfterhoursPrimary',
   'uAfterhoursAccent',
   'uAfterhoursAtmosphere',
+  'uAfterhoursIntensity',
   ...Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, index) => `uAfterhoursBeam${index}`),
   ...Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, index) => `uAfterhoursBeamMeta${index}`),
 ] as const
@@ -26,8 +36,25 @@ function setRgb(program: ShaderProgram, uniform: string, color: AfterhoursRgb): 
 }
 
 class AfterhoursWorld extends FullscreenCinematicWorld {
+  private readonly triggers = new AfterhoursTriggerController()
+
   constructor() {
     super('afterhours', AFTERHOURS_FRAGMENT_SOURCE, UNIFORMS)
+  }
+
+  override reset(reason: CinematicRendererResetReason): void {
+    super.reset(reason)
+    this.triggers.reset()
+  }
+
+  override onContextLost(): void {
+    this.triggers.reset()
+    super.onContextLost()
+  }
+
+  override dispose(): void {
+    this.triggers.reset()
+    super.dispose()
   }
 
   protected setWorldUniforms(program: ShaderProgram, frame: CinematicFrameContext): void {
@@ -48,10 +75,34 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
     setRgb(program, 'uAfterhoursAccent', palette.accent)
     program.setFloat('uAfterhoursAtmosphere', Math.max(0, Math.min(1, Number.isFinite(settings.atmosphere) ? settings.atmosphere : 0)))
 
-    // Stage 2: one canonical procedural generator replaces the Stage-1 ad hoc
-    // placement. `variation` stays 0 here; Stage 5 will cycle it on musical
-    // boundaries. Inactive slots are always explicitly zeroed.
-    const beams = generateAfterhoursBeams(settings)
+    // Stage 4: one canonical Trigger drives the whole reaction. The controller
+    // owns no clock/FFT — it consumes frame.canonicalMusic / musicalAudio only.
+    const reaction = this.triggers.update({
+      frame,
+      settings: {
+        trigger: settings.trigger,
+        bpmSync: settings.bpmSync,
+        masterIntensity: settings.masterIntensity,
+        pulseAmount: settings.pulseAmount,
+        pulseDecay: settings.pulseDecay,
+        motionAmount: settings.motionAmount,
+      },
+    })
+    program.setFloat('uAfterhoursIntensity', reaction.intensity)
+
+    // Reaction modifiers are derived, never written back to persisted settings.
+    // Active-beam utilisation is bounded by the user's global Beam Count and the
+    // 16-slot cap; Drop biases it toward the full budget without exceeding it.
+    const beamCount = resolveAfterhoursBeamCount(settings.beamCount)
+    const activeCount = Math.max(2, Math.min(beamCount, Math.round(beamCount * reaction.beamUtilization)))
+    const beams = generateAfterhoursBeams(
+      {
+        ...settings,
+        beamCount: activeCount,
+        spread: Math.max(0, Math.min(1, settings.spread + reaction.spreadDelta)),
+      },
+      { motionPhase: reaction.motionPhase, motionAuthority: reaction.motionAuthority },
+    )
     for (let index = 0; index < AFTERHOURS_MAX_BEAMS; index += 1) {
       const beam = beams[index]
       if (!beam.active) {

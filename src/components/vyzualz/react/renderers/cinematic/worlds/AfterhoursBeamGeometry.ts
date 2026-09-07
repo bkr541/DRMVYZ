@@ -87,6 +87,14 @@ export interface AfterhoursBeamGenerationOptions {
    * variations of the selected pattern family; here it just seeds the RNG.
    */
   variation?: number
+  /**
+   * Stage 4 reactive motion. `motionPhase` is a deterministic scalar (musical
+   * time when BPM Sync is on, else continuous transport time); `motionAuthority`
+   * (0..1) scales a small bounded per-beam target sweep. Authority 0 leaves the
+   * static Stage 2/3 geometry exactly unchanged.
+   */
+  motionPhase?: number
+  motionAuthority?: number
 }
 
 const SAFE_MARGIN = 0.06
@@ -247,6 +255,28 @@ function randomTarget(
   return { x: repairX, y: repairY }
 }
 
+const SWEEP_TAU = Math.PI * 2
+
+/**
+ * Stage 4 reactive sweep — a small, bounded, deterministic displacement of a
+ * beam's target. Re-clamped to the same safe frame margins, so guardrails still
+ * hold. Authority 0 is an exact no-op.
+ */
+function sweepTarget(
+  target: AfterhoursEmitter,
+  motionPhase: number,
+  motionAuthority: number,
+  beamPhase: number,
+): AfterhoursEmitter {
+  if (motionAuthority <= 0) return target
+  const a = clamp01(motionAuthority)
+  const angle = motionPhase * SWEEP_TAU + beamPhase * SWEEP_TAU
+  return {
+    x: safeX(target.x + Math.sin(angle) * a * 0.055),
+    y: safeY(target.y + Math.cos(angle * 0.5 + beamPhase) * a * 0.03),
+  }
+}
+
 function mirrorBank(bank: AfterhoursBank): AfterhoursBank {
   if (bank === 'left') return 'right'
   if (bank === 'right') return 'left'
@@ -285,6 +315,8 @@ export function generateAfterhoursBeams(
   const spread = clamp01(settings.spread)
   const accentMix = clamp01(settings.accentMix)
   const variation = Math.trunc(Number.isFinite(options.variation ?? 0) ? (options.variation ?? 0) : 0)
+  const motionPhase = Number.isFinite(options.motionPhase ?? 0) ? (options.motionPhase ?? 0) : 0
+  const motionAuthority = clamp01(options.motionAuthority ?? 0)
   const baseSeed = hash32((hash32(variation >>> 0) ^ Math.imul(count, 0x9e3779b1) ^ Math.imul(pattern.length, 0x85ebca77)) >>> 0)
 
   const origins = activeOrigins(pattern, settings)
@@ -308,15 +340,17 @@ export function generateAfterhoursBeams(
       case 'fan':
       default: target = fanTarget(ref.emitter, ordinal, spread, seed); break
     }
-    claimedTargets.push(target)
+    const beamPhase = unit(seed ^ 0x9e3779b9)
+    const swept = sweepTarget(target, motionPhase, motionAuthority, beamPhase)
+    claimedTargets.push(swept)
     beams.push(Object.freeze({
       active: true,
       bank: ref.bank,
       emitterIndex: ref.emitterIndex,
       origin: ref.emitter,
-      target: Object.freeze(target),
+      target: Object.freeze(swept),
       accent: accentMix >= 1 || (accentMix > 0 && unit(seed ^ 0x63d83595) < accentMix),
-      phase: unit(seed ^ 0x9e3779b9),
+      phase: beamPhase,
     }))
   }
 

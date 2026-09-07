@@ -230,3 +230,36 @@ describe('Afterhours Stage 2 — settings shape', () => {
     expect(beams.filter(b => b.active)).toHaveLength(AFTERHOURS_DEFAULTS.beamCount)
   })
 })
+
+describe('Afterhours Stage 4 — reactive motion sweep', () => {
+  it('is an exact no-op at motionAuthority 0', () => {
+    const still = active({ pattern: 'fan', beamCount: 16 })
+    const swept0 = gen({ pattern: 'fan', beamCount: 16 }, 0)
+    expect(gen({ pattern: 'fan', beamCount: 16 }, 0)).toEqual(swept0)
+    const withPhaseNoAuthority = generateAfterhoursBeams({ ...BASE, pattern: 'fan', beamCount: 16 }, { motionPhase: 4.2, motionAuthority: 0 }).filter(b => b.active)
+    expect(withPhaseNoAuthority.map(b => b.target)).toEqual(still.map(b => b.target))
+  })
+
+  it('displaces targets deterministically and keeps them inside safe bounds', () => {
+    const still = active({ pattern: 'random', spread: 0.8, symmetry: false, beamCount: 16 })
+    const swept = generateAfterhoursBeams({ ...BASE, pattern: 'random', spread: 0.8, symmetry: false, beamCount: 16 }, { motionPhase: 1.37, motionAuthority: 1 }).filter(b => b.active)
+    const sweptAgain = generateAfterhoursBeams({ ...BASE, pattern: 'random', spread: 0.8, symmetry: false, beamCount: 16 }, { motionPhase: 1.37, motionAuthority: 1 }).filter(b => b.active)
+    expect(swept.map(b => b.target)).toEqual(sweptAgain.map(b => b.target))
+    expect(swept.map(b => b.target)).not.toEqual(still.map(b => b.target))
+    for (const beam of swept) {
+      expect(beam.target.x).toBeGreaterThanOrEqual(0)
+      expect(beam.target.x).toBeLessThanOrEqual(1)
+      expect(beam.target.y).toBeGreaterThanOrEqual(0)
+      expect(beam.target.y).toBeLessThanOrEqual(1)
+      expect(Math.hypot(beam.target.x - beam.origin.x, beam.target.y - beam.origin.y)).toBeGreaterThan(0.1)
+    }
+  })
+
+  it('keeps a Random symmetry mirror mirrored while sweeping', () => {
+    const swept = generateAfterhoursBeams({ ...BASE, pattern: 'random', symmetry: true, beamCount: 8 }, { motionPhase: 0.9, motionAuthority: 1 }).filter(b => b.active)
+    const half = Math.ceil(8 / 2)
+    for (let i = half; i < 8; i += 1) {
+      expect(swept[i].target.x).toBeCloseTo(1 - swept[8 - 1 - i].target.x, 6)
+    }
+  })
+})

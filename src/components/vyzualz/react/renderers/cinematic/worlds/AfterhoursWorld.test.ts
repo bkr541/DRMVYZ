@@ -12,14 +12,22 @@ import { afterhoursWorldDefinition } from './AfterhoursWorld'
 
 const AFTERHOURS_PRESET = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'preset-afterhours')!
 
-function frame(settings: Partial<typeof AFTERHOURS_DEFAULTS> = {}): CinematicFrameContext {
+interface FrameMusic {
+  frameIndex?: number
+  transportTimeSec?: number
+  beatEventId?: string
+  dropEventId?: string
+  playing?: boolean
+}
+
+function frame(settings: Partial<typeof AFTERHOURS_DEFAULTS> = {}, music?: FrameMusic): CinematicFrameContext {
   const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'preset-afterhours')!
   const config = createCinematicWorldConfig('afterhours', settings)
-  return {
+  const base: Record<string, unknown> = {
     elapsedTimeSec: 2,
     deltaTimeSec: 1 / 60,
-    transportTimeSec: 12,
-    frameIndex: 120,
+    transportTimeSec: music?.transportTimeSec ?? 12,
+    frameIndex: music?.frameIndex ?? 120,
     resolution: { width: 1280, height: 720 },
     devicePixelRatio: 1,
     audio: {
@@ -37,6 +45,24 @@ function frame(settings: Partial<typeof AFTERHOURS_DEFAULTS> = {}): CinematicFra
     presetId: preset.id,
     params: DEFAULT_REACT_RENDER_PARAMS,
   }
+  if (music) {
+    base.isPlaying = music.playing ?? true
+    base.musicalAudio = { isPlaying: music.playing ?? true, values: { overallEnergy: 0.5 } }
+    const impulse = (id?: string) => ({ active: id != null, eventId: id ?? null })
+    const clock = (id?: string) => ({ available: true, spanBeats: 1, index: 0, phase: 0.5, hit: id != null, eventId: id ?? null })
+    base.canonicalMusic = {
+      impulses: {
+        beat: impulse(music.beatEventId), downbeat: impulse(), kick: impulse(), snare: impulse(),
+        transient: impulse(), sectionStart: impulse(), dropStart: impulse(music.dropEventId),
+      },
+      clocks: {
+        beat: clock(music.beatEventId), beat2: clock(), beat4: clock(), bar: { available: true, spanBeats: 4, index: 2, phase: 0.5, hit: false, eventId: null },
+        bar4: clock(), bar8: clock(), phrase: clock(),
+      },
+      section: { id: 'section-a', type: 'drop', progress: 0.3 },
+    }
+  }
+  return base as unknown as CinematicFrameContext
 }
 
 function createWorldHarness() {
@@ -76,7 +102,12 @@ describe('Afterhours Stage 2 world integration', () => {
 
   it('writes exactly the generator output into beam uniforms and zeroes inactive slots', () => {
     const harness = createWorldHarness()
-    const settings = { pattern: 'cross' as const, sideLasers: true, beamCount: 6, spread: 0.4, accentMix: 1, atmosphere: 0.8 }
+    // Neutral React settings (full authority, no pulse, no motion) so the world's
+    // reaction path is a pass-through of the pure generator.
+    const settings = {
+      pattern: 'cross' as const, sideLasers: true, beamCount: 6, spread: 0.4, accentMix: 1, atmosphere: 0.8,
+      masterIntensity: 1, pulseAmount: 0, motionAmount: 0,
+    }
     harness.world.render(frame(settings), { framebuffer: null, texture: null, width: 1280, height: 720 })
 
     const expected = generateAfterhoursBeams({ ...AFTERHOURS_DEFAULTS, ...settings })
@@ -143,6 +174,76 @@ describe('Afterhours Stage 2 world integration', () => {
     expect(last(harness.calls, 'uAfterhoursAtmosphere')).toEqual([1])
     harness.world.render(frame({ atmosphere: -3 }), { framebuffer: null, texture: null, width: 1280, height: 720 })
     expect(last(harness.calls, 'uAfterhoursAtmosphere')).toEqual([0])
+    for (const [name, values] of harness.calls) {
+      for (const row of values) for (const v of row) expect(Number.isFinite(v), `${name} finite`).toBe(true)
+    }
+    harness.world.dispose()
+  })
+
+  it('drives uAfterhoursIntensity from the canonical Trigger reaction', () => {
+    const harness = createWorldHarness()
+    const s = { trigger: 'beat' as const, masterIntensity: 0.5, pulseAmount: 0.8, pulseDecay: 0.6 }
+    harness.world.render(frame(s, { frameIndex: 1, beatEventId: 'b1' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    const hitIntensity = last(harness.calls, 'uAfterhoursIntensity')[0]
+    for (let i = 2; i < 40; i += 1) {
+      harness.world.render(frame(s, { frameIndex: i }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    }
+    const restIntensity = last(harness.calls, 'uAfterhoursIntensity')[0]
+    expect(hitIntensity).toBeGreaterThan(restIntensity)
+    expect(restIntensity).toBeGreaterThan(0)
+    harness.world.dispose()
+  })
+
+  it('Drop uses more of the Beam Count budget than an ordinary trigger, never exceeding it', () => {
+    const activeCount = (worldSettings: Partial<typeof AFTERHOURS_DEFAULTS>, music: Parameters<typeof frame>[1]) => {
+      const harness = createWorldHarness()
+      harness.world.render(frame({ beamCount: 16, pattern: 'fan', masterIntensity: 0.3, ...worldSettings }, music), { framebuffer: null, texture: null, width: 1280, height: 720 })
+      let count = 0
+      for (let i = 0; i < AFTERHOURS_MAX_BEAMS; i += 1) {
+        if ((last(harness.calls, `uAfterhoursBeamMeta${i}`)[0] ?? 0) > 0) count += 1
+      }
+      harness.world.dispose()
+      return count
+    }
+    const beatCount = activeCount({ trigger: 'beat' }, { frameIndex: 1, beatEventId: 'b1' })
+    const dropCount = activeCount({ trigger: 'drop' }, { frameIndex: 1, dropEventId: 'd1' })
+    expect(dropCount).toBeGreaterThan(beatCount)
+    expect(dropCount).toBeLessThanOrEqual(16)
+  })
+
+  it('Motion Amount 0 holds geometry still; Motion Amount 1 sweeps targets over musical time', () => {
+    const targetsAt = (motionAmount: number, phaseFrame: number) => {
+      const harness = createWorldHarness()
+      harness.world.render(
+        frame({ pattern: 'fan', beamCount: 8, motionAmount, pulseAmount: 0, bpmSync: false, trigger: 'beat' }, { frameIndex: phaseFrame, transportTimeSec: phaseFrame }),
+        { framebuffer: null, texture: null, width: 1280, height: 720 },
+      )
+      const rows: number[][] = []
+      for (let i = 0; i < 8; i += 1) rows.push(last(harness.calls, `uAfterhoursBeam${i}`))
+      harness.world.dispose()
+      return rows
+    }
+    expect(targetsAt(0, 2)).toEqual(targetsAt(0, 40))
+    expect(targetsAt(1, 2)).not.toEqual(targetsAt(1, 40))
+  })
+
+  it('reset() re-arms the trigger so a repeated canonical id fires again', () => {
+    const harness = createWorldHarness()
+    const s = { trigger: 'beat' as const, masterIntensity: 0.4, pulseAmount: 0.9 }
+    harness.world.render(frame(s, { frameIndex: 1, beatEventId: 'b1' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    const firstHit = last(harness.calls, 'uAfterhoursIntensity')[0]
+    harness.world.render(frame(s, { frameIndex: 2, beatEventId: 'b1' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    const noRefire = last(harness.calls, 'uAfterhoursIntensity')[0]
+    expect(noRefire).toBeLessThan(firstHit)
+    harness.world.reset('worldChanged')
+    harness.world.render(frame(s, { frameIndex: 3, beatEventId: 'b1' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    expect(last(harness.calls, 'uAfterhoursIntensity')[0]).toBeCloseTo(firstHit, 6)
+    harness.world.dispose()
+  })
+
+  it('degrades to stable rendering when musical intelligence is unavailable', () => {
+    const harness = createWorldHarness()
+    harness.world.render(frame({ trigger: 'drop' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
     for (const [name, values] of harness.calls) {
       for (const row of values) for (const v of row) expect(Number.isFinite(v), `${name} finite`).toBe(true)
     }

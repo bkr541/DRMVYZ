@@ -5,7 +5,7 @@ uniform vec4 uAfterhoursBeam${index};
 uniform vec2 uAfterhoursBeamMeta${index};`).join('')
 
 const BEAM_ACCUMULATION = Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, index) => `
-  color += renderBeam(fieldPoint, uAfterhoursBeam${index}, uAfterhoursBeamMeta${index}, haze);`).join('')
+  beams += renderBeam(fieldPoint, uAfterhoursBeam${index}, uAfterhoursBeamMeta${index}, haze);`).join('')
 
 /**
  * Afterhours Stage 3 laser rendering. Single WebGL2 fullscreen pass, no
@@ -30,6 +30,7 @@ uniform vec3 uAfterhoursBackground;
 uniform vec3 uAfterhoursPrimary;
 uniform vec3 uAfterhoursAccent;
 uniform float uAfterhoursAtmosphere;
+uniform float uAfterhoursIntensity;
 ${BEAM_UNIFORMS}
 out vec4 outColor;
 
@@ -108,12 +109,17 @@ void main() {
   float verticalBias = mix(1.0, 0.35, smoothstep(0.15, 0.95, uv.y));
   float haze = atmosphere * atmosphere * (0.22 + 0.78 * hazeField) * verticalBias;
 
-  vec3 color = uAfterhoursBackground;
-  color += mix(uAfterhoursPrimary, uAfterhoursAccent, 0.2) * haze * 0.05;
+  vec3 beams = vec3(0.0);
 ${BEAM_ACCUMULATION}
 
-  // Tone-map so strong Atmosphere still resolves to bright rays in haze rather
-  // than a solid wash, and nothing exceeds displayable range.
+  // Master Intensity + the reaction envelope scale the laser authority only —
+  // the background and haze floor keep the scene readable at any intensity.
+  vec3 color = uAfterhoursBackground
+    + mix(uAfterhoursPrimary, uAfterhoursAccent, 0.2) * haze * 0.05
+    + beams * clamp(uAfterhoursIntensity, 0.0, 4.0);
+
+  // Tone-map so strong Atmosphere / intensity still resolves to bright rays in
+  // haze rather than a solid wash, and nothing exceeds displayable range.
   color = color / (color + vec3(0.85));
   outColor = vec4(clamp(color, vec3(0.0), vec3(1.0)), 1.0);
 }

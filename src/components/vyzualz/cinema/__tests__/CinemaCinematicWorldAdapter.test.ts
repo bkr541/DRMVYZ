@@ -422,14 +422,21 @@ describe('Cinema Cinematic World adapters', () => {
     const afterhoursNode = composition.nodes.find(node => node.id === worldNode.id)!
     const supportedLabels = getCinemaCinematicWorldSupportedParameterSchemasForNode(afterhours!.definition, afterhoursNode)
       .map(parameter => parameter.label)
-    // Stage 2 exposes Pattern / Side Lasers / Top Lasers; Stage 3 adds Color Mode.
+    // Stage 2: Pattern / Side / Top. Stage 3: Color Mode. Stage 4: the six React
+    // controls (materialised as group === 'React' parameters).
     expect(supportedLabels).toEqual(expect.arrayContaining([
       'Background Color', 'Color Mode', 'Primary Color', 'Accent Color', 'Accent Mix',
       'Pattern', 'Side Lasers', 'Top Lasers', 'Beam Count', 'Spread', 'Atmosphere',
+      'BPM Sync', 'Master Intensity', 'Trigger', 'Pulse Amount', 'Pulse Decay', 'Motion Amount',
     ]))
-    // Symmetry stays hidden while Pattern is not Random; every React control
-    // remains persisted-only until its stage.
-    for (const hidden of ['Symmetry', 'BPM Sync', 'Master Intensity', 'Trigger', 'Pulse Amount', 'Pulse Decay', 'Motion Amount', 'Pattern Change', 'Blackout Amount', 'Seed']) {
+    for (const reactSchema of ['BPM Sync', 'Master Intensity', 'Trigger', 'Pulse Amount', 'Pulse Decay', 'Motion Amount']) {
+      const schema = getCinemaCinematicWorldSupportedParameterSchemasForNode(afterhours!.definition, afterhoursNode)
+        .find(parameter => parameter.label === reactSchema)
+      expect(schema?.group).toBe('React')
+    }
+    // Symmetry stays hidden while Pattern is not Random; Pattern Change / Blackout
+    // Amount / the internal Seed remain persisted-only until Stage 5.
+    for (const hidden of ['Symmetry', 'Pattern Change', 'Blackout Amount', 'Seed']) {
       expect(supportedLabels).not.toContain(hidden)
     }
 
@@ -470,9 +477,15 @@ describe('Cinema Cinematic World adapters', () => {
       const name = typeof location === 'object' && location !== null ? (location as unknown as { name?: string }).name : undefined
       if (name?.startsWith('uAfterhoursBeamMeta')) latestMeta.set(name, [active, accent])
     }
-    expect([...latestMeta.values()].filter(([active]) => active === 1)).toHaveLength(12)
-    expect([...latestMeta.values()].filter(([active]) => active === 0)).toHaveLength(4)
-    expect([...latestMeta.values()].filter(([active]) => active === 1).every(([, accent]) => accent === 1)).toBe(true)
+    // Stage 4: active-beam utilisation is a bounded reactive fraction of the
+    // user's Beam Count (12 here), never above it, always leaving the full
+    // 16-slot set accounted for.
+    const activeMeta = [...latestMeta.values()].filter(([active]) => active === 1)
+    expect(latestMeta.size).toBe(16)
+    expect(activeMeta.length).toBeGreaterThanOrEqual(2)
+    expect(activeMeta.length).toBeLessThanOrEqual(12)
+    expect([...latestMeta.values()].filter(([active]) => active === 0).length).toBe(16 - activeMeta.length)
+    expect(activeMeta.every(([, accent]) => accent === 1)).toBe(true)
 
     const uniform4Calls = vi.mocked(harness.gl.uniform4f).mock.calls as unknown as Array<[WebGLUniformLocation, number, number, number, number]>
     for (const index of [12, 13, 14, 15]) {

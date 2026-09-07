@@ -225,9 +225,11 @@ const DIRECT_COMMON_MODULATION_TARGET_USAGE: Readonly<Partial<Record<CinematicWo
 const UNCONSUMED_WORLD_SETTING_KEYS: Readonly<Partial<Record<CinematicWorldMode, readonly string[]>>> = Object.freeze({
   eventHorizon: Object.freeze(['bloomBoost', 'chromaticAberrationBoost']),
   afterhours: Object.freeze([
-    // Stage 2 consumes Pattern / Symmetry / Side / Top; Stage 3 consumes Color
-    // Mode. The React parameters remain persisted-only until their stages.
-    'bpmSync', 'masterIntensity', 'trigger', 'pulseAmount', 'pulseDecay', 'motionAmount', 'patternChange', 'blackoutAmount',
+    // Stage 2: Pattern / Symmetry / Side / Top. Stage 3: Color Mode. Stage 4:
+    // BPM Sync / Master Intensity / Trigger / Pulse Amount / Pulse Decay /
+    // Motion Amount. Pattern Change and Blackout Amount stay persisted-only
+    // until Stage 5.
+    'patternChange', 'blackoutAmount',
   ]),
   reactiveConstellation: Object.freeze(['visualDnaProfile']),
 })
@@ -266,7 +268,9 @@ const WORLD_ENUMS: Readonly<Record<string, readonly string[]>> = Object.freeze({
 
 const WORLD_REACT_SETTING_KEYS: Readonly<Partial<Record<CinematicWorldMode, readonly string[]>>> = Object.freeze({
   electricStorm: Object.freeze(['thunderTrigger', 'flashIntensity', 'flashDuration', 'flashDecay']),
-  afterhours: Object.freeze(['bpmSync', 'masterIntensity', 'trigger', 'pulseAmount', 'pulseDecay', 'motionAmount', 'patternChange', 'blackoutAmount']),
+  // Stage 4 React parameters. patternChange / blackoutAmount become React
+  // parameters in Stage 5, when their runtime effect exists.
+  afterhours: Object.freeze(['bpmSync', 'masterIntensity', 'trigger', 'pulseAmount', 'pulseDecay', 'motionAmount']),
 })
 
 const OUTPUT_DESCRIPTOR = Object.freeze({
