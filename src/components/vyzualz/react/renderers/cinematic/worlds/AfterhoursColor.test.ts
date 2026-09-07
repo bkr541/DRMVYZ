@@ -92,7 +92,10 @@ describe('Afterhours Stage 3 — Manual <-> Auto <-> Manual', () => {
 
 describe('Afterhours Stage 3 — no LaserDMX runtime coupling', () => {
   it('the Afterhours world/shader/colour modules never reference LaserDMX', () => {
-    for (const name of ['AfterhoursColor.ts', 'AfterhoursShader.ts', 'AfterhoursWorld.ts', 'AfterhoursBeamGeometry.ts']) {
+    for (const name of [
+      'AfterhoursColor.ts', 'AfterhoursShader.ts', 'AfterhoursWorld.ts', 'AfterhoursBeamGeometry.ts',
+      'AfterhoursTriggerController.ts', 'AfterhoursPatternDirector.ts',
+    ]) {
       const source = readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8')
       expect(/laser[-_ ]?dmx/i.test(source)).toBe(false)
     }

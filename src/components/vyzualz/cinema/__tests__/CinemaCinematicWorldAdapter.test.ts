@@ -375,7 +375,7 @@ describe('Cinema Cinematic World adapters', () => {
     harness.dispose()
   })
 
-  it('hydrates Afterhours from the live preset and renders its Stage 2/3 Design controls through the production Cinema executor', () => {
+  it('hydrates Afterhours from the live preset and renders its Stage 2/3/4/5 Design and React controls through the production Cinema executor', () => {
     const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'preset-afterhours')
     const afterhours = CINEMA_CINEMATIC_WORLD_ADAPTER_BUNDLE.entries.find(entry => entry.worldId === 'afterhours')
     expect(preset?.cinematicConfig?.worldMode).toBe('afterhours')
@@ -422,21 +422,33 @@ describe('Cinema Cinematic World adapters', () => {
     const afterhoursNode = composition.nodes.find(node => node.id === worldNode.id)!
     const supportedLabels = getCinemaCinematicWorldSupportedParameterSchemasForNode(afterhours!.definition, afterhoursNode)
       .map(parameter => parameter.label)
-    // Stage 2: Pattern / Side / Top. Stage 3: Color Mode. Stage 4: the six React
-    // controls (materialised as group === 'React' parameters).
+    // Stage 2: Pattern / Side / Top. Stage 3: Color Mode. Stage 4/5: the eight
+    // React controls (materialised as group === 'React' parameters).
     expect(supportedLabels).toEqual(expect.arrayContaining([
       'Background Color', 'Color Mode', 'Primary Color', 'Accent Color', 'Accent Mix',
       'Pattern', 'Side Lasers', 'Top Lasers', 'Beam Count', 'Spread', 'Atmosphere',
       'BPM Sync', 'Master Intensity', 'Trigger', 'Pulse Amount', 'Pulse Decay', 'Motion Amount',
+      'Pattern Change', 'Blackout Amount',
     ]))
-    for (const reactSchema of ['BPM Sync', 'Master Intensity', 'Trigger', 'Pulse Amount', 'Pulse Decay', 'Motion Amount']) {
+    for (const reactSchema of [
+      'BPM Sync', 'Master Intensity', 'Trigger', 'Pulse Amount', 'Pulse Decay', 'Motion Amount',
+      'Pattern Change', 'Blackout Amount',
+    ]) {
       const schema = getCinemaCinematicWorldSupportedParameterSchemasForNode(afterhours!.definition, afterhoursNode)
         .find(parameter => parameter.label === reactSchema)
       expect(schema?.group).toBe('React')
     }
-    // Symmetry stays hidden while Pattern is not Random; Pattern Change / Blackout
-    // Amount / the internal Seed remain persisted-only until Stage 5.
-    for (const hidden of ['Symmetry', 'Pattern Change', 'Blackout Amount', 'Seed']) {
+    const patternChangeSchema = getCinemaCinematicWorldSupportedParameterSchemasForNode(afterhours!.definition, afterhoursNode)
+      .find(parameter => parameter.label === 'Pattern Change')
+    expect(patternChangeSchema?.type).toBe('enum')
+    if (patternChangeSchema?.type === 'enum') {
+      expect(patternChangeSchema.options.map(option => option.label)).toEqual([
+        'Off', 'Bar', '4 Bars', '8 Bars', 'Phrase', 'Drop',
+      ])
+    }
+    // Symmetry stays hidden while Pattern is not Random; the internal Seed is
+    // never a user control.
+    for (const hidden of ['Symmetry', 'Seed']) {
       expect(supportedLabels).not.toContain(hidden)
     }
 

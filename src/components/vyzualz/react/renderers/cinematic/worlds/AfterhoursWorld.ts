@@ -11,6 +11,7 @@ import {
   generateAfterhoursBeams,
   resolveAfterhoursBeamCount,
 } from './AfterhoursBeamGeometry'
+import { AfterhoursPatternDirector, blendAfterhoursBeamFrames } from './AfterhoursPatternDirector'
 import {
   AFTERHOURS_DEFAULT_BACKGROUND,
   type AfterhoursRgb,
@@ -27,6 +28,7 @@ const UNIFORMS = [
   'uAfterhoursAccent',
   'uAfterhoursAtmosphere',
   'uAfterhoursIntensity',
+  'uAfterhoursBlackout',
   ...Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, index) => `uAfterhoursBeam${index}`),
   ...Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, index) => `uAfterhoursBeamMeta${index}`),
 ] as const
@@ -37,6 +39,7 @@ function setRgb(program: ShaderProgram, uniform: string, color: AfterhoursRgb): 
 
 class AfterhoursWorld extends FullscreenCinematicWorld {
   private readonly triggers = new AfterhoursTriggerController()
+  private readonly director = new AfterhoursPatternDirector()
 
   constructor() {
     super('afterhours', AFTERHOURS_FRAGMENT_SOURCE, UNIFORMS)
@@ -45,15 +48,18 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
   override reset(reason: CinematicRendererResetReason): void {
     super.reset(reason)
     this.triggers.reset()
+    this.director.reset()
   }
 
   override onContextLost(): void {
     this.triggers.reset()
+    this.director.reset()
     super.onContextLost()
   }
 
   override dispose(): void {
     this.triggers.reset()
+    this.director.reset()
     super.dispose()
   }
 
@@ -90,28 +96,61 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
     })
     program.setFloat('uAfterhoursIntensity', reaction.intensity)
 
+    // Stage 5: the pattern director cycles deterministic variations of the
+    // selected family at the chosen Pattern Change boundary, morphs between
+    // them, and schedules deliberate musical blackouts. It owns no clock/analysis
+    // and writes nothing persisted.
+    const direction = this.director.update({
+      frame,
+      settings: { patternChange: settings.patternChange, blackoutAmount: settings.blackoutAmount },
+    })
+    program.setFloat('uAfterhoursBlackout', direction.blackout)
+
     // Reaction modifiers are derived, never written back to persisted settings.
     // Active-beam utilisation is bounded by the user's global Beam Count and the
     // 16-slot cap; Drop biases it toward the full budget without exceeding it.
     const beamCount = resolveAfterhoursBeamCount(settings.beamCount)
     const activeCount = Math.max(2, Math.min(beamCount, Math.round(beamCount * reaction.beamUtilization)))
-    const beams = generateAfterhoursBeams(
-      {
-        ...settings,
-        beamCount: activeCount,
-        spread: Math.max(0, Math.min(1, settings.spread + reaction.spreadDelta)),
-      },
-      { motionPhase: reaction.motionPhase, motionAuthority: reaction.motionAuthority },
+    const genSettings = {
+      ...settings,
+      beamCount: activeCount,
+      spread: Math.max(0, Math.min(1, settings.spread + reaction.spreadDelta)),
+    }
+    const genOptions = { motionPhase: reaction.motionPhase, motionAuthority: reaction.motionAuthority }
+
+    if (direction.transition >= 1) {
+      // Settled: single generation, meta.x is exactly 1 for active slots.
+      const beams = generateAfterhoursBeams(genSettings, { ...genOptions, variation: direction.variation })
+      for (let index = 0; index < AFTERHOURS_MAX_BEAMS; index += 1) {
+        const beam = beams[index]
+        if (!beam.active) {
+          program.setVec4(`uAfterhoursBeam${index}`, 0, 0, 0, 0)
+          program.setVec2(`uAfterhoursBeamMeta${index}`, 0, 0)
+          continue
+        }
+        program.setVec4(`uAfterhoursBeam${index}`, beam.origin.x, beam.origin.y, beam.target.x, beam.target.y)
+        program.setVec2(`uAfterhoursBeamMeta${index}`, 1, beam.accent ? 1 : 0)
+      }
+      return
+    }
+
+    // Mid-morph: blend the previous and next variation of the *same* family.
+    // Fixed emitter origins never interpolate; only targets lerp, and slots that
+    // exist in only one frame fade by weight rather than teleporting.
+    const blended = blendAfterhoursBeamFrames(
+      generateAfterhoursBeams(genSettings, { ...genOptions, variation: direction.previousVariation }),
+      generateAfterhoursBeams(genSettings, { ...genOptions, variation: direction.variation }),
+      direction.transition,
     )
     for (let index = 0; index < AFTERHOURS_MAX_BEAMS; index += 1) {
-      const beam = beams[index]
-      if (!beam.active) {
+      const beam = blended[index]
+      if (!beam.active || beam.weight <= 0) {
         program.setVec4(`uAfterhoursBeam${index}`, 0, 0, 0, 0)
         program.setVec2(`uAfterhoursBeamMeta${index}`, 0, 0)
         continue
       }
       program.setVec4(`uAfterhoursBeam${index}`, beam.origin.x, beam.origin.y, beam.target.x, beam.target.y)
-      program.setVec2(`uAfterhoursBeamMeta${index}`, 1, beam.accent ? 1 : 0)
+      program.setVec2(`uAfterhoursBeamMeta${index}`, Math.max(0, Math.min(1, beam.weight)), beam.accent ? 1 : 0)
     }
   }
 }

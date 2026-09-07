@@ -17,6 +17,8 @@ interface FrameMusic {
   transportTimeSec?: number
   beatEventId?: string
   dropEventId?: string
+  barEventId?: string
+  barPhase?: number
   playing?: boolean
 }
 
@@ -56,7 +58,11 @@ function frame(settings: Partial<typeof AFTERHOURS_DEFAULTS> = {}, music?: Frame
         transient: impulse(), sectionStart: impulse(), dropStart: impulse(music.dropEventId),
       },
       clocks: {
-        beat: clock(music.beatEventId), beat2: clock(), beat4: clock(), bar: { available: true, spanBeats: 4, index: 2, phase: 0.5, hit: false, eventId: null },
+        beat: clock(music.beatEventId), beat2: clock(), beat4: clock(),
+        bar: {
+          available: true, spanBeats: 4, index: music.frameIndex ?? 2,
+          phase: music.barPhase ?? 0.5, hit: music.barEventId != null, eventId: music.barEventId ?? null,
+        },
         bar4: clock(), bar8: clock(), phrase: clock(),
       },
       section: { id: 'section-a', type: 'drop', progress: 0.3 },
@@ -262,13 +268,118 @@ describe('Afterhours Stage 2 world integration', () => {
     // Output is tone-mapped and clamped so Atmosphere 1 cannot wash to solid.
     expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('color = color / (color + vec3(0.85))')
     expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('clamp(color, vec3(0.0), vec3(1.0))')
-    // Inactive slots contribute exactly zero.
-    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('if (meta.x <= 0.0) return vec3(0.0)')
+    // meta.x is a 0..1 render weight (Stage 5 fades); weight <= 0 contributes zero.
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('float weight = clamp(meta.x, 0.0, 1.0)')
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('if (weight <= 0.0) return vec3(0.0)')
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('return lit * weight')
+    // A deliberate blackout scales total laser authority to zero, background kept.
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('(1.0 - clamp(uAfterhoursBlackout, 0.0, 1.0))')
   })
 
   it('bottom-emitter contract stays the single source of truth', () => {
     expect(AFTERHOURS_BOTTOM_EMITTERS).toHaveLength(10)
     const beams = generateAfterhoursBeams({ ...AFTERHOURS_DEFAULTS, pattern: 'fan', beamCount: 10 }).filter(b => b.active)
     expect(beams.map(b => b.origin)).toEqual([...AFTERHOURS_BOTTOM_EMITTERS])
+  })
+})
+
+describe('Afterhours Stage 5 world integration — pattern director and blackouts', () => {
+  const STILL = { motionAmount: 0, pulseAmount: 0 } as const
+  const bottomXs = new Set<number>(AFTERHOURS_BOTTOM_EMITTERS.map(e => e.x))
+
+  it('defaults uAfterhoursBlackout to 0 and keeps it 0 at Blackout Amount 0', () => {
+    const harness = createWorldHarness()
+    harness.world.render(frame({ ...STILL }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    expect(last(harness.calls, 'uAfterhoursBlackout')).toEqual([0])
+    harness.world.render(
+      frame({ ...STILL, blackoutAmount: 0 }, { frameIndex: 5, barPhase: 0.99 }),
+      { framebuffer: null, texture: null, width: 1280, height: 720 },
+    )
+    expect(last(harness.calls, 'uAfterhoursBlackout')).toEqual([0])
+    harness.world.dispose()
+  })
+
+  it('opens a bounded blackout window near the end of the musical cycle and recovers', () => {
+    const harness = createWorldHarness()
+    const s = { ...STILL, blackoutAmount: 0.9, patternChange: 'off' as const }
+    let peak = 0
+    for (let i = 1; i < 24; i += 1) {
+      harness.world.render(frame(s, { frameIndex: i, barPhase: 0.6 }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+      peak = Math.max(peak, last(harness.calls, 'uAfterhoursBlackout')[0])
+    }
+    expect(peak).toBe(0) // mid-cycle stays fully lit
+    for (let i = 24; i < 48; i += 1) {
+      harness.world.render(frame(s, { frameIndex: i, barPhase: 0.985 }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+      peak = Math.max(peak, last(harness.calls, 'uAfterhoursBlackout')[0])
+    }
+    expect(peak).toBeGreaterThan(0.3)
+    expect(peak).toBeLessThanOrEqual(1)
+    // Back to an early phase -> the room comes back.
+    for (let i = 48; i < 70; i += 1) {
+      harness.world.render(frame(s, { frameIndex: i, barPhase: 0.05 }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    }
+    expect(last(harness.calls, 'uAfterhoursBlackout')[0]).toBeLessThan(0.05)
+    harness.world.dispose()
+  })
+
+  it('advances to a new deterministic variation of the same family at a Pattern Change boundary', () => {
+    const settle = (harness: ReturnType<typeof createWorldHarness>, s: Partial<typeof AFTERHOURS_DEFAULTS>, music: (i: number) => Parameters<typeof frame>[1]) => {
+      for (let i = 1; i < 60; i += 1) {
+        harness.world.render(frame(s, music(i)), { framebuffer: null, texture: null, width: 1280, height: 720 })
+      }
+      return Array.from({ length: 8 }, (_, i) => last(harness.calls, `uAfterhoursBeam${i}`))
+    }
+    const base = { ...STILL, pattern: 'fan' as const, beamCount: 8 }
+
+    const held = createWorldHarness()
+    const heldRows = settle(held, { ...base, patternChange: 'off' }, i => ({ frameIndex: i }))
+    held.world.dispose()
+
+    const cycled = createWorldHarness()
+    const cycledRows = settle(cycled, { ...base, patternChange: 'bar' }, i => (i === 2 ? { frameIndex: i, barEventId: 'bar-1' } : { frameIndex: i }))
+    cycled.world.dispose()
+
+    // The cycled run landed on a different variation -> geometry differs...
+    expect(cycledRows).not.toEqual(heldRows)
+    // ...but the family is unchanged: every active Fan beam still originates from
+    // a fixed bottom emitter.
+    for (const row of cycledRows) {
+      if (row[3] === 0 && row[2] === 0) continue // inactive slot
+      expect(bottomXs.has(row[0])).toBe(true)
+      expect(row[1]).toBe(AFTERHOURS_BOTTOM_EMITTERS[0].y)
+    }
+  })
+
+  it('reset() re-arms the pattern director so a previously consumed bar identity advances again', () => {
+    const harness = createWorldHarness()
+    const s = { ...STILL, pattern: 'fan' as const, beamCount: 8, patternChange: 'bar' as const }
+    const settleWith = (startId: number, barId?: string) => {
+      for (let i = startId; i < startId + 45; i += 1) {
+        harness.world.render(frame(s, i === startId && barId ? { frameIndex: i, barEventId: barId } : { frameIndex: i }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+      }
+      return Array.from({ length: 8 }, (_, i) => last(harness.calls, `uAfterhoursBeam${i}`))
+    }
+    settleWith(2, 'bar-1') // -> variation 1
+    const afterTwo = settleWith(50, 'bar-2') // -> variation 2
+    // Same canonical id again -> no advance (dedup).
+    harness.world.render(frame(s, { frameIndex: 100, barEventId: 'bar-2' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    const noRefire = Array.from({ length: 8 }, (_, i) => last(harness.calls, `uAfterhoursBeam${i}`))
+    expect(noRefire).toEqual(afterTwo)
+    // After a lifecycle reset the consumed id is cleared: feeding it advances
+    // from the re-armed variation 0, landing on a different variation than before.
+    harness.world.reset('worldChanged')
+    const afterReset = settleWith(110, 'bar-2') // re-armed 0 -> variation 1
+    expect(afterReset).not.toEqual(afterTwo)
+    harness.world.dispose()
+  })
+
+  it('holds uAfterhoursBlackout finite and at 0 when canonical music is unavailable', () => {
+    const harness = createWorldHarness()
+    harness.world.render(frame({ ...STILL, blackoutAmount: 1, patternChange: 'bar' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    expect(last(harness.calls, 'uAfterhoursBlackout')).toEqual([0])
+    for (const [name, values] of harness.calls) {
+      for (const row of values) for (const v of row) expect(Number.isFinite(v), `${name} finite`).toBe(true)
+    }
+    harness.world.dispose()
   })
 })

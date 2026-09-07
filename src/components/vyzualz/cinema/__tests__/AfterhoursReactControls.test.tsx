@@ -55,33 +55,51 @@ function installAfterhoursComposition() {
 }
 
 describe('Afterhours React-tab controls', () => {
-  it('shows only the Stage-4 React controls on the Cinema PERFORMANCE surface with the exact Trigger labels', async () => {
+  async function openPerformanceControls() {
     installAfterhoursComposition()
     await act(async () => root?.render(<ReactReactivityWorkspacePanel />))
-
     const performance = [...(host?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
       .find(button => button.textContent?.trim() === 'PERFORMANCE')
     expect(performance).toBeDefined()
     await act(async () => performance?.click())
-
     const controls = host?.querySelector<HTMLElement>('[data-cinema-afterhours-react-controls="true"]') ?? null
     expect(controls).not.toBeNull()
-    for (const label of ['BPM Sync', 'Master Intensity', 'Trigger', 'Pulse Amount', 'Pulse Decay', 'Motion Amount']) {
-      expect(controls?.textContent).toContain(label)
-    }
-    // Stage-5 controls are not exposed yet.
-    expect(controls?.textContent).not.toContain('Pattern Change')
-    expect(controls?.textContent).not.toContain('Blackout Amount')
+    return controls as HTMLElement
+  }
 
-    const trigger = controls?.querySelector<HTMLButtonElement>('button[role="combobox"][aria-label="Trigger"]') ?? null
-    expect(trigger?.textContent).toContain('Beat')
+  async function optionLabels(controls: HTMLElement, ariaLabel: string) {
+    const combobox = controls.querySelector<HTMLButtonElement>(`button[role="combobox"][aria-label="${ariaLabel}"]`)
+    expect(combobox).not.toBeNull()
     await act(async () => {
-      trigger?.click()
+      combobox?.click()
       await Promise.resolve()
     })
-    const labels = [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
+    return [...document.body.querySelectorAll<HTMLElement>('.drm-dropdown__menu [role="option"]')]
       .map(option => option.textContent?.trim())
-    expect(labels).toEqual(['Beat', 'Kick', 'Snare', 'Downbeat', '2 Beats', '4 Beats', 'Bar', '4 Bars', '8 Bars', 'Phrase', 'Drop'])
+  }
+
+  it('shows the Stage-4 + Stage-5 React controls on the Cinema PERFORMANCE surface', async () => {
+    const controls = await openPerformanceControls()
+    for (const label of [
+      'BPM Sync', 'Master Intensity', 'Trigger', 'Pulse Amount', 'Pulse Decay', 'Motion Amount',
+      'Pattern Change', 'Blackout Amount',
+    ]) {
+      expect(controls.textContent).toContain(label)
+    }
+  })
+
+  it('renders the exact Trigger enum labels', async () => {
+    const controls = await openPerformanceControls()
+    expect(controls.querySelector('button[role="combobox"][aria-label="Trigger"]')?.textContent).toContain('Beat')
+    expect(await optionLabels(controls, 'Trigger')).toEqual(
+      ['Beat', 'Kick', 'Snare', 'Downbeat', '2 Beats', '4 Beats', 'Bar', '4 Bars', '8 Bars', 'Phrase', 'Drop'],
+    )
+  })
+
+  it('renders the exact Pattern Change enum labels', async () => {
+    const controls = await openPerformanceControls()
+    expect(controls.querySelector('button[role="combobox"][aria-label="Pattern Change"]')?.textContent).toContain('Off')
+    expect(await optionLabels(controls, 'Pattern Change')).toEqual(['Off', 'Bar', '4 Bars', '8 Bars', 'Phrase', 'Drop'])
   })
 
   it('routes live React edits to the same production node parameter values the renderer reads', async () => {
@@ -100,6 +118,7 @@ describe('Afterhours React-tab controls', () => {
       ['Pulse Amount', 0.9],
       ['Pulse Decay', 0.2],
       ['Motion Amount', 0.15],
+      ['Blackout Amount', 0.8],
     ])
     for (const [label, value] of numeric) {
       const schema = definition.parameters.find(parameter => parameter.label === label)
@@ -110,6 +129,12 @@ describe('Afterhours React-tab controls', () => {
     if (!bpmSchema) throw new Error('BPM Sync schema is required.')
     setCinemaLiveNodeOverride(composition, node.id, bpmSchema, false)
 
+    const patternChangeSchema = definition.parameters.find(parameter => parameter.label === 'Pattern Change')
+    if (!patternChangeSchema || patternChangeSchema.type !== 'enum') throw new Error('Pattern Change schema is required.')
+    const barId = patternChangeSchema.options.find(option => option.label === 'Bar')?.id
+    expect(barId).toBeDefined()
+    setCinemaLiveNodeOverride(composition, node.id, patternChangeSchema, barId as string)
+
     // The renderer resolves these exact node parameter values via resolveConfig
     // (same mechanism Electric Storm uses), so proving the live override map
     // holds every edited field proves the production wiring.
@@ -117,6 +142,7 @@ describe('Afterhours React-tab controls', () => {
     const values = live?.nodeOverrides.find(override => override.nodeId === node.id)?.values ?? {}
     expect(values[triggerSchema.id]).toBe(dropId)
     expect(values[bpmSchema.id]).toBe(false)
+    expect(values[patternChangeSchema.id]).toBe(barId)
     for (const [label, value] of numeric) {
       const schema = definition.parameters.find(parameter => parameter.label === label)!
       expect(values[schema.id]).toBe(value)

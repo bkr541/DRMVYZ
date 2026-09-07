@@ -19,8 +19,10 @@ const BEAM_ACCUMULATION = Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, index
  *
  * Atmosphere raises both the per-beam volumetric glow and a low-frequency haze
  * floor, but the final image is tone-mapped so Atmosphere 1 stays luminous
- * rather than washing the frame to a flat solid. Inactive slots (meta.x <= 0)
- * contribute exactly zero.
+ * rather than washing the frame to a flat solid. meta.x is a 0..1 render weight
+ * (Stage 5 fades beams in/out across a variation morph); a slot at weight <= 0
+ * contributes exactly zero. uAfterhoursBlackout scales total laser authority to
+ * zero during a deliberate blackout window while the background/haze stay.
  */
 export const AFTERHOURS_FRAGMENT_SOURCE = `#version 300 es
 precision highp float;
@@ -31,6 +33,7 @@ uniform vec3 uAfterhoursPrimary;
 uniform vec3 uAfterhoursAccent;
 uniform float uAfterhoursAtmosphere;
 uniform float uAfterhoursIntensity;
+uniform float uAfterhoursBlackout;
 ${BEAM_UNIFORMS}
 out vec4 outColor;
 
@@ -62,7 +65,8 @@ float valueNoise(vec2 p) {
 }
 
 vec3 renderBeam(vec2 p, vec4 line, vec2 meta, float haze) {
-  if (meta.x <= 0.0) return vec3(0.0);
+  float weight = clamp(meta.x, 0.0, 1.0);
+  if (weight <= 0.0) return vec3(0.0);
   float aspect = uResolution.x / max(1.0, uResolution.y);
   vec2 a = (line.xy - vec2(0.5)) * vec2(aspect, 1.0);
   vec2 b = (line.zw - vec2(0.5)) * vec2(aspect, 1.0);
@@ -92,7 +96,7 @@ vec3 renderBeam(vec2 p, vec4 line, vec2 meta, float haze) {
     + bodyColor * envelope * 0.30
     + bodyColor * scatter * 0.16
     + coreColor * sourceBloom * 0.12;
-  return lit;
+  return lit * weight;
 }
 
 void main() {
@@ -113,10 +117,13 @@ void main() {
 ${BEAM_ACCUMULATION}
 
   // Master Intensity + the reaction envelope scale the laser authority only —
-  // the background and haze floor keep the scene readable at any intensity.
+  // the background and haze floor keep the scene readable at any intensity. A
+  // deliberate blackout (Stage 5) drives that authority to zero for a short
+  // window; the background and haze terms are untouched so the room stays alive.
+  float laserAuthority = clamp(uAfterhoursIntensity, 0.0, 4.0) * (1.0 - clamp(uAfterhoursBlackout, 0.0, 1.0));
   vec3 color = uAfterhoursBackground
     + mix(uAfterhoursPrimary, uAfterhoursAccent, 0.2) * haze * 0.05
-    + beams * clamp(uAfterhoursIntensity, 0.0, 4.0);
+    + beams * laserAuthority;
 
   // Tone-map so strong Atmosphere / intensity still resolves to bright rays in
   // haze rather than a solid wash, and nothing exceeds displayable range.
