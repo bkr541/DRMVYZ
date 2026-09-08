@@ -67,7 +67,8 @@
     "audio:golden:verify": "node scripts/browser-audio-intelligence-golden.mjs verify",
     "audio:batch": "node scripts/browser-audio-intelligence-batch.mjs",
     "test:audio:batch": "node --test scripts/audio-intelligence-batch-core.test.mjs",
-    "visual:afterhours": "node scripts/run-afterhours-visual-acceptance.mjs"
+    "visual:afterhours": "node scripts/run-afterhours-visual-acceptance.mjs",
+    "test:afterhours:perceptual": "node scripts/run-afterhours-visual-acceptance.mjs --perceptual-regression"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.0",

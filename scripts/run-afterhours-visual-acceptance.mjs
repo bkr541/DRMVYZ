@@ -10,6 +10,10 @@ const viteCli = path.join(root, 'node_modules/vite/bin/vite.js')
 const systemChromium = ['/usr/bin/chromium', '/usr/bin/chromium-browser'].find(existsSync)
 const port = 46000 + (process.pid % 1000)
 const baseUrl = `http://127.0.0.1:${port}`
+const perceptualRegression = process.argv.includes('--perceptual-regression')
+const specFile = perceptualRegression
+  ? 'src/test/e2e/afterhoursPerceptualRegression.spec.ts'
+  : 'src/test/e2e/afterhoursVisualAcceptance.spec.ts'
 
 function requireDependency(file, installHint) {
   if (!existsSync(file)) throw new Error(`${path.relative(root, file)} is missing. ${installHint}`)
@@ -64,6 +68,7 @@ try {
   const env = {
     ...process.env,
     DRMVYZ_AFTERHOURS_VISUAL_ACCEPTANCE: '1',
+    ...(perceptualRegression ? { DRMVYZ_AFTERHOURS_PERCEPTUAL_REGRESSION: '1' } : {}),
     DRMVYZ_AFTERHOURS_VISUAL_ACCEPTANCE_PAGE: pagePath,
     PLAYWRIGHT_BASE_URL: baseUrl,
     ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
@@ -72,7 +77,7 @@ try {
   }
   server = spawn(process.execPath, [viteCli, output, '--host', '127.0.0.1', '--port', String(port), '--strictPort'], { cwd: root, env, stdio: 'inherit' })
   await waitForServer(`${baseUrl}${pagePath}`)
-  const result = spawnSync(process.execPath, [playwrightCli, 'test', 'src/test/e2e/afterhoursVisualAcceptance.spec.ts', '--project=chromium'], { cwd: root, env, stdio: 'inherit' })
+  const result = spawnSync(process.execPath, [playwrightCli, 'test', specFile, '--project=chromium'], { cwd: root, env, stdio: 'inherit' })
   status = result.status ?? 1
 } finally {
   if (server && server.exitCode == null) {
@@ -86,4 +91,6 @@ try {
 }
 
 if (status !== 0) process.exit(status)
-console.log('Afterhours deterministic visual acceptance passed. Screenshots are in artifacts/afterhours-visual-acceptance/.')
+console.log(perceptualRegression
+  ? 'Afterhours Stage 8 perceptual regression passed.'
+  : 'Afterhours deterministic visual acceptance passed. Screenshots are in artifacts/afterhours-visual-acceptance/.')

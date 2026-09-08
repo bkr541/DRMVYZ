@@ -12,11 +12,13 @@ import type { CinemaParameterValue } from '../../components/vyzualz/cinema/Cinem
 import type { CinemaFrameContext } from '../../components/vyzualz/cinema/CinemaRendererContracts'
 import { CinemaRuntime } from '../../components/vyzualz/cinema/runtime/CinemaRuntime'
 import { createCinematicWorldConfig } from '../../components/vyzualz/react/CinematicWorldConfig'
+import type { AfterhoursSettings } from '../../components/vyzualz/react/CinematicWorldSettings'
 import {
   AFTERHOURS_VISUAL_ACCEPTANCE_CHECKPOINTS,
   getAfterhoursVisualAcceptanceCheckpoint,
   type AfterhoursVisualAcceptanceCheckpoint,
   type AfterhoursVisualAcceptanceCheckpointId,
+  type AfterhoursVisualAcceptanceMusicState,
 } from '../../components/vyzualz/react/renderers/cinematic/worlds/AfterhoursVisualAcceptanceHarness'
 import {
   setAfterhoursVisualAcceptanceObserver,
@@ -24,9 +26,36 @@ import {
 } from '../../components/vyzualz/react/renderers/cinematic/worlds/AfterhoursVisualAcceptanceDiagnostics'
 
 interface BrowserReport {
-  readonly checkpointId: AfterhoursVisualAcceptanceCheckpointId
+  readonly checkpointId: string
   readonly metadata: Readonly<AfterhoursVisualAcceptanceMetadata>
   readonly graph: ReturnType<CinemaRuntime['getSnapshot']>['graph']
+}
+
+type MusicOverride = Partial<Omit<AfterhoursVisualAcceptanceMusicState, 'impulses'>> & Readonly<{
+  impulses?: Partial<AfterhoursVisualAcceptanceMusicState['impulses']>
+}>
+
+interface BrowserScenario {
+  readonly id: string
+  readonly checkpointId: AfterhoursVisualAcceptanceCheckpointId
+  readonly settings?: Partial<AfterhoursSettings>
+  readonly music?: MusicOverride
+  readonly clockHits?: Partial<Record<'bar' | 'bar4' | 'bar8' | 'phrase', boolean>>
+  readonly transport?: Readonly<{
+    discontinuity?: boolean
+    seeking?: boolean
+    looped?: boolean
+  }>
+  /** Keep the current production graph/world instance and only advance the frame. */
+  readonly reuseGraph?: boolean
+}
+
+interface BrowserPixelSample {
+  readonly width: number
+  readonly height: number
+  readonly maxRgb: number
+  readonly meanRgb: number
+  readonly litPixelRatio: number
 }
 
 declare global {
@@ -34,6 +63,8 @@ declare global {
     __DRMVYZ_AFTERHOURS_VISUAL_ACCEPTANCE__?: {
       readonly checkpointIds: readonly AfterhoursVisualAcceptanceCheckpointId[]
       renderCheckpoint(id: AfterhoursVisualAcceptanceCheckpointId): Promise<BrowserReport>
+      renderScenario(scenario: BrowserScenario): Promise<BrowserReport>
+      sampleCanvasPixels(): Promise<BrowserPixelSample>
       resize(width: number, height: number): void
       getLatest(): BrowserReport | null
     }
@@ -88,7 +119,7 @@ function waitFor(predicate: () => boolean, timeoutMs = 15_000): Promise<void> {
   })
 }
 
-function compositionFor(checkpoint: AfterhoursVisualAcceptanceCheckpoint) {
+function compositionFor(checkpoint: AfterhoursVisualAcceptanceCheckpoint, identity: string) {
   const config = createCinematicWorldConfig('afterhours', checkpoint.settings, {
     seed: 0x7a71cafe,
     audioMapping: { enabled: false },
@@ -97,7 +128,7 @@ function compositionFor(checkpoint: AfterhoursVisualAcceptanceCheckpoint) {
     'afterhours',
     CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
     CINEMA_FOUNDATION_INPUT_PORT_ID,
-    { compositionId: cinemaStableId<CinemaCompositionId>(`afterhours-acceptance-${checkpoint.id}`, 'composition') },
+    { compositionId: cinemaStableId<CinemaCompositionId>(`afterhours-acceptance-${identity}`, 'composition') },
   )
   const values = createCinemaCinematicWorldParameterValues(config)
   return {
@@ -108,13 +139,39 @@ function compositionFor(checkpoint: AfterhoursVisualAcceptanceCheckpoint) {
   }
 }
 
-function frameFor(checkpoint: AfterhoursVisualAcceptanceCheckpoint): Readonly<CinemaFrameContext> {
+function scenarioCheckpoint(scenario: BrowserScenario): AfterhoursVisualAcceptanceCheckpoint {
+  const base = getAfterhoursVisualAcceptanceCheckpoint(scenario.checkpointId)
+  const musicOverrides = scenario.music ?? {}
+  return Object.freeze({
+    ...base,
+    settings: Object.freeze({ ...base.settings, ...scenario.settings }),
+    music: Object.freeze({
+      ...base.music,
+      ...musicOverrides,
+      impulses: Object.freeze({ ...base.music.impulses, ...musicOverrides.impulses }),
+    }),
+  })
+}
+
+function frameFor(
+  checkpoint: AfterhoursVisualAcceptanceCheckpoint,
+  identity: string,
+  clockHits: BrowserScenario['clockHits'] = {},
+  transportOptions: BrowserScenario['transport'] = {},
+): Readonly<CinemaFrameContext> {
   const m = checkpoint.music
-  const eventId = (name: string, active: boolean): CinemaEventId | null => active ? `afterhours-acceptance:${checkpoint.id}:${name}` as CinemaEventId : null
+  const eventId = (name: string, active: boolean): CinemaEventId | null => active ? `afterhours-acceptance:${identity}:${name}` as CinemaEventId : null
   const clock = (spanBeats: number, index: number, phase: number, hit = false, id: CinemaEventId | null = null) => ({ available: true, spanBeats, index, phase, hit, eventId: id })
   const bar4Index = Math.floor(m.barIndex / 4)
   const bar8Index = Math.floor(m.barIndex / 8)
   const phraseIndex = Math.floor(m.barIndex / 8)
+  const barHit = clockHits.bar ?? m.impulses.downbeat
+  const bar4Hit = clockHits.bar4 ?? false
+  const bar8Hit = clockHits.bar8 ?? false
+  const phraseHit = clockHits.phrase ?? false
+  const discontinuity = transportOptions.discontinuity ?? true
+  const seeking = transportOptions.seeking ?? discontinuity
+  const looped = transportOptions.looped ?? false
   generation += 1
   return {
     version: 1,
@@ -131,18 +188,18 @@ function frameFor(checkpoint: AfterhoursVisualAcceptanceCheckpoint): Readonly<Ci
       durationSec: 120,
       playing: true,
       paused: false,
-      seeking: true,
-      looped: false,
+      seeking,
+      looped,
       visibilitySuspended: false,
-      discontinuity: true,
-      discontinuityReasons: ['seek'],
+      discontinuity,
+      discontinuityReasons: discontinuity ? ['seek'] : [],
       reset: {
-        required: true,
-        reconstruct: true,
+        required: discontinuity,
+        reconstruct: discontinuity,
         generation,
-        reasons: ['seek'],
-        actionIds: ['cinema.reset.seek'],
-        identity: `afterhours-acceptance:${checkpoint.id}`,
+        reasons: discontinuity ? ['seek'] : [],
+        actionIds: discontinuity ? ['cinema.reset.seek'] : [],
+        identity: `afterhours-acceptance:${identity}`,
       },
     },
     audio: {
@@ -181,18 +238,18 @@ function frameFor(checkpoint: AfterhoursVisualAcceptanceCheckpoint): Readonly<Ci
         beat: m.impulses.beat,
         beat2: false,
         beat4: false,
-        bar: m.impulses.downbeat,
-        bar4: false,
-        bar8: false,
-        phrase: false,
+        bar: barHit,
+        bar4: bar4Hit,
+        bar8: bar8Hit,
+        phrase: phraseHit,
         states: {
           beat: clock(1, m.beatIndex, m.beatPhase, m.impulses.beat, eventId('beat', m.impulses.beat)),
           beat2: clock(2, Math.floor(m.beatIndex / 2), (m.beatIndex % 2 + m.beatPhase) / 2),
           beat4: clock(4, Math.floor(m.beatIndex / 4), (m.beatIndex % 4 + m.beatPhase) / 4),
-          bar: clock(4, m.barIndex, m.barPhase, m.impulses.downbeat, eventId('bar', m.impulses.downbeat)),
-          bar4: clock(16, bar4Index, (m.barIndex % 4 + m.barPhase) / 4),
-          bar8: clock(32, bar8Index, (m.barIndex % 8 + m.barPhase) / 8),
-          phrase: clock(32, phraseIndex, (m.barIndex % 8 + m.barPhase) / 8),
+          bar: clock(4, m.barIndex, m.barPhase, barHit, eventId('bar', barHit)),
+          bar4: clock(16, bar4Index, (m.barIndex % 4 + m.barPhase) / 4, bar4Hit, eventId('bar4', bar4Hit)),
+          bar8: clock(32, bar8Index, (m.barIndex % 8 + m.barPhase) / 8, bar8Hit, eventId('bar8', bar8Hit)),
+          phrase: clock(32, phraseIndex, (m.barIndex % 8 + m.barPhase) / 8, phraseHit, eventId('phrase', phraseHit)),
         },
       },
     },
@@ -252,30 +309,70 @@ function frameFor(checkpoint: AfterhoursVisualAcceptanceCheckpoint): Readonly<Ci
   }
 }
 
-async function renderCheckpoint(id: AfterhoursVisualAcceptanceCheckpointId): Promise<BrowserReport> {
-  const checkpoint = getAfterhoursVisualAcceptanceCheckpoint(id)
+async function renderScenario(scenario: BrowserScenario): Promise<BrowserReport> {
+  const checkpoint = scenarioCheckpoint(scenario)
   latestMetadata = null
   latestReport = null
   status.dataset.result = 'rendering'
-  status.dataset.checkpoint = id
-  status.textContent = `rendering ${id}`
-  runtime.setGraph(compositionFor(checkpoint), null, foundation.definitions)
+  status.dataset.checkpoint = scenario.id
+  status.textContent = `rendering ${scenario.id}`
+  if (!scenario.reuseGraph) runtime.setGraph(compositionFor(checkpoint, scenario.id), null, foundation.definitions)
   const before = runtime.getSnapshot().frameCount
-  runtime.setFrame(frameFor(checkpoint))
+  runtime.setFrame(frameFor(checkpoint, scenario.id, scenario.clockHits, scenario.transport))
   await waitFor(() => runtime.getSnapshot().frameCount > before && runtime.getSnapshot().graph.outputRendered && latestMetadata != null)
   const snapshot = runtime.getSnapshot()
-  if (snapshot.graph.failedNodeCount !== 0) throw new Error(`Afterhours checkpoint ${id} failed in the production graph.`)
-  latestReport = { checkpointId: id, metadata: latestMetadata!, graph: snapshot.graph }
-  select.value = id
+  if (snapshot.graph.failedNodeCount !== 0) throw new Error(`Afterhours scenario ${scenario.id} failed in the production graph.`)
+  latestReport = { checkpointId: scenario.id, metadata: latestMetadata!, graph: snapshot.graph }
+  select.value = scenario.checkpointId
   status.dataset.result = 'ready'
-  status.dataset.checkpoint = id
+  status.dataset.checkpoint = scenario.id
   status.textContent = JSON.stringify(latestReport, null, 2)
   return latestReport
+}
+
+async function renderCheckpoint(id: AfterhoursVisualAcceptanceCheckpointId): Promise<BrowserReport> {
+  return renderScenario({ id, checkpointId: id })
+}
+
+async function sampleCanvasPixels(): Promise<BrowserPixelSample> {
+  // Sample on the next animation frame so CinemaRuntime has rendered the live
+  // production framebuffer immediately before readPixels, even when the WebGL
+  // context does not preserve its drawing buffer between composites.
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+  const gl = canvas.getContext('webgl2')
+  if (!gl) throw new Error('WebGL2 is unavailable for Afterhours pixel sampling.')
+  const width = canvas.width
+  const height = canvas.height
+  const pixels = new Uint8Array(width * height * 4)
+  gl.finish()
+  gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels)
+  let maxRgb = 0
+  let sumRgb = 0
+  let litPixels = 0
+  const pixelCount = Math.max(1, width * height)
+  for (let index = 0; index < pixels.length; index += 4) {
+    const r = pixels[index] ?? 0
+    const g = pixels[index + 1] ?? 0
+    const b = pixels[index + 2] ?? 0
+    const localMax = Math.max(r, g, b)
+    maxRgb = Math.max(maxRgb, localMax)
+    sumRgb += r + g + b
+    if (localMax > 4) litPixels += 1
+  }
+  return Object.freeze({
+    width,
+    height,
+    maxRgb,
+    meanRgb: sumRgb / (pixelCount * 3),
+    litPixelRatio: litPixels / pixelCount,
+  })
 }
 
 window.__DRMVYZ_AFTERHOURS_VISUAL_ACCEPTANCE__ = {
   checkpointIds: AFTERHOURS_VISUAL_ACCEPTANCE_CHECKPOINTS.map(checkpoint => checkpoint.id),
   renderCheckpoint,
+  renderScenario,
+  sampleCanvasPixels,
   resize(width, height) {
     const safeWidth = Math.max(1, Math.round(width))
     const safeHeight = Math.max(1, Math.round(height))

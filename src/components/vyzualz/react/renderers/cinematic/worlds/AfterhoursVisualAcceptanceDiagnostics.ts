@@ -10,6 +10,19 @@ export interface AfterhoursVisualAcceptanceSymmetryPair {
   readonly rightFixtureId: string | null
 }
 
+export interface AfterhoursVisualAcceptanceBeamMetadata {
+  readonly slot: number
+  readonly fixtureId: string
+  readonly fixtureRole: AfterhoursBeamDescriptor['fixtureRole']
+  readonly bank: AfterhoursBeamDescriptor['bank']
+  readonly role: AfterhoursBeamDescriptor['role']
+  readonly blanked: boolean
+  readonly origin: Readonly<{ x: number; y: number }>
+  readonly direction: Readonly<{ x: number; y: number }>
+  readonly endpoint: Readonly<{ x: number; y: number }>
+  readonly symmetry: Readonly<{ pairId: string; side: string }> | null
+}
+
 export interface AfterhoursVisualAcceptanceMetadata {
   readonly version: typeof AFTERHOURS_VISUAL_ACCEPTANCE_METADATA_VERSION
   readonly sceneId: string
@@ -22,6 +35,7 @@ export interface AfterhoursVisualAcceptanceMetadata {
   readonly requestedBeamCount: number
   readonly resolvedBeamCount: number
   readonly visibleBeamCount: number
+  readonly beams: readonly AfterhoursVisualAcceptanceBeamMetadata[]
   readonly symmetryPairs: readonly AfterhoursVisualAcceptanceSymmetryPair[]
   readonly centerAperture: Readonly<{ minX: number; maxX: number }>
   readonly endpointBounds: Readonly<{ minX: number; maxX: number; minY: number; maxY: number }>
@@ -37,6 +51,7 @@ export interface AfterhoursVisualAcceptanceMetadata {
   }>
   readonly masterIntensity: number
   readonly resolvedIntensity: number
+  readonly laserAuthority: number
   readonly bankWeights: Readonly<{ bottom: number; left: number; right: number; top: number }>
   readonly cue: Readonly<{
     sceneScale: string
@@ -109,6 +124,26 @@ function angularSpanDeg(beams: readonly AfterhoursBeamDescriptor[]): number {
   return rounded(360 - largestGap, 4)
 }
 
+function beamMetadata(beams: readonly AfterhoursBeamDescriptor[]): readonly AfterhoursVisualAcceptanceBeamMetadata[] {
+  return Object.freeze(beams.flatMap((beam, slot) => {
+    if (!beam.active) return []
+    return [Object.freeze({
+      slot,
+      fixtureId: beam.fixtureId,
+      fixtureRole: beam.fixtureRole,
+      bank: beam.bank,
+      role: beam.role,
+      blanked: beam.blanked,
+      origin: Object.freeze({ x: rounded(beam.origin.x), y: rounded(beam.origin.y) }),
+      direction: Object.freeze({ x: rounded(beam.direction.x), y: rounded(beam.direction.y) }),
+      endpoint: Object.freeze({ x: rounded(beam.endpoint.x), y: rounded(beam.endpoint.y) }),
+      symmetry: beam.symmetry
+        ? Object.freeze({ pairId: beam.symmetry.pairId, side: beam.symmetry.side })
+        : null,
+    })]
+  }))
+}
+
 function symmetryPairs(beams: readonly AfterhoursBeamDescriptor[]): readonly AfterhoursVisualAcceptanceSymmetryPair[] {
   const pairs = new Map<string, { leftFixtureId: string | null; rightFixtureId: string | null }>()
   for (const beam of beams) {
@@ -134,7 +169,7 @@ export function createAfterhoursVisualAcceptanceMetadata(
         maxY: rounded(Math.max(...visible.map(beam => beam.endpoint.y))),
       }
     : { minX: 0, maxX: 0, minY: 0, maxY: 0 }
-  const modes = Object.freeze([...new Set(visible.map(beam => beam.motion?.mode).filter((mode): mode is string => typeof mode === 'string'))].sort())
+  const modes = Object.freeze([...new Set(visible.flatMap(beam => beam.motion ? [beam.motion.mode] : []))].sort())
   const d = input.direction
   return Object.freeze({
     version: AFTERHOURS_VISUAL_ACCEPTANCE_METADATA_VERSION,
@@ -148,6 +183,7 @@ export function createAfterhoursVisualAcceptanceMetadata(
     requestedBeamCount: input.requestedBeamCount,
     resolvedBeamCount: d.beamCount,
     visibleBeamCount: visible.length,
+    beams: beamMetadata(input.beams),
     symmetryPairs: symmetryPairs(active),
     centerAperture: AFTERHOURS_VIRTUAL_STAGE_RIG.centerAperture,
     endpointBounds: Object.freeze(endpointBounds),
@@ -160,6 +196,7 @@ export function createAfterhoursVisualAcceptanceMetadata(
     blackout: Object.freeze({ amount: rounded(d.blackout), multiplier: rounded(1 - d.blackout) }),
     masterIntensity: rounded(input.masterIntensity),
     resolvedIntensity: rounded(d.intensity),
+    laserAuthority: rounded(Math.max(0, d.intensity) * Math.max(0, 1 - d.blackout)),
     bankWeights: Object.freeze({
       bottom: rounded(d.bankWeights.bottom),
       left: rounded(d.bankWeights.left),
