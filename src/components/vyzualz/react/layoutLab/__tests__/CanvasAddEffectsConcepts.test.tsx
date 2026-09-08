@@ -138,7 +138,7 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
   const roundThree: Array<{ headerText: string; noteFragment: string; toggle: string }> = [
     { headerText: 'Media Card', noteFragment: 'One plain card per media layer', toggle: '.rv-ae-mc-toggle' },
     { headerText: 'Header Strip', noteFragment: 'full-bleed tinted band', toggle: '.rv-ae-hs-toggle' },
-    { headerText: 'Ledger Card', noteFragment: 'two-rail table', toggle: '.rv-ae-lc-toggle' },
+    { headerText: 'Ledger Card', noteFragment: 'two-rail table', toggle: '.rv-ae-tc-toggle' },
     { headerText: 'Thumb Card', noteFragment: "media's square thumbnail with its name", toggle: '.rv-ae-tc-toggle' },
     { headerText: 'Thumb Card B', noteFragment: 'coloured left rule', toggle: '.rv-ae-tcb-toggle' },
   ]
@@ -203,6 +203,10 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
   it('Colored Effect Spine lists routed signals under each effect', async () => {
     await selectCanvasReact()
     const section = await openConceptWithBloom('Colored Effect Spine', 'own tiny isolated spine')
+    // The routed signals now live behind Thumb Card's dashed Trigger toggle.
+    const trigger = section.querySelector<HTMLButtonElement>('.rv-ae-tc-toggle')
+    if (!trigger) throw new Error('Colored Effect Spine: no .rv-ae-tc-toggle')
+    await act(async () => trigger.click())
     await addTwoSignals(section, label => label === 'Audio Intelligence Parameter' || label === 'Add another parameter')
     expect(section.querySelectorAll('.rv-ae-es-body .rv-ae-route-param').length).toBe(2)
   })

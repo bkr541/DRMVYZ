@@ -20682,6 +20682,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   padding-left: var(--ae2-step);
 }
 
+/* Reuse Thumb Card's FX-icon column left of the Effect label + dropdown, minus
+   its thumbnail offset (this group has no leading thumbnail). */
+.rv-ae-trunk-group .rv-ae-tc-fx {
+  margin-left: 0;
+}
+
 /* ── Concept: Spine & Dots ───────────────────────────────────────────────── */
 
 .rv-ae-spine-group {
@@ -20879,8 +20885,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-ae-mc-toggle,
-.rv-ae-hs-toggle,
-.rv-ae-lc-toggle {
+.rv-ae-hs-toggle {
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
@@ -20898,8 +20903,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-ae-mc-toggle:hover, .rv-ae-mc-toggle:focus-visible, .rv-ae-mc-toggle.is-open,
-.rv-ae-hs-toggle:hover, .rv-ae-hs-toggle:focus-visible, .rv-ae-hs-toggle.is-open,
-.rv-ae-lc-toggle:hover, .rv-ae-lc-toggle:focus-visible, .rv-ae-lc-toggle.is-open {
+.rv-ae-hs-toggle:hover, .rv-ae-hs-toggle:focus-visible, .rv-ae-hs-toggle.is-open {
   border-color: #8de7ff;
   color: #8de7ff;
 }
@@ -21216,7 +21220,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-ae-lc-entry {
-  gap: 4px;
+  /* Matches Thumb Card's entry gap so the reused Trigger toggle's connector
+     lines land on the dropdown above and the panel below. */
+  gap: var(--ae2-gap);
   padding: var(--ae2-gap) 0;
   border-bottom: 1px solid rgba(154, 178, 188, 0.1);
 }
@@ -21241,12 +21247,17 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   text-overflow: ellipsis;
 }
 
-.rv-ae-lc-toggle {
-  margin-left: calc(78px + 8px);
+/* Fixed-width FX-icon gutter left of the label rail. Every row carries it —
+   the title row gets an empty spacer of the same width — so the two rails
+   stay aligned across the title, effect, and add-effect rows. */
+.rv-ae-lc-group .rv-ae-tc-fx {
+  margin-left: 0;
+  width: 18px;
+  height: auto;
 }
 
-.rv-ae-lc-panel {
-  padding: 4px 0 4px calc(78px + 8px);
+.rv-ae-lc-group > .rv-canvas-layer-media-row {
+  gap: 7px;
 }
 
 .rv-ae-lc-group .rv-canvas-layer-effect-row--empty {
@@ -21257,28 +21268,25 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-tc-group .rv-canvas-layer-effects-stack {
   gap: 0;
-  /* Clearance band so the FX toggle floating on the media row's bottom border
-     has room below it before the effect picker / first effect entry. */
-  margin-top: 14px;
 }
 
 .rv-ae-tc-group > .rv-canvas-layer-media-row {
-  position: relative; /* positioning context for the floating FX toggle */
   align-items: center;
   gap: var(--ae2-gap);
   padding-bottom: 2px;
 }
 
 /* FX toggle — the one control that stands in for the always-open effect
-   picker. It floats centred on the Active Media row's bottom border; clicking
+   picker. It sits centred on its own row below the Active Media row; clicking
    it reveals the picker, and clicking it again while the picker still holds no
    value collapses it back. */
+.rv-ae-tc-fx-row {
+  display: flex;
+  justify-content: center;
+  padding: var(--ae2-gap) 0 2px;
+}
+
 .rv-ae-tc-fx-toggle {
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  transform: translate(-50%, 50%);
-  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -21287,7 +21295,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   padding: 0;
   border: 1px solid rgba(154, 178, 188, 0.4);
   border-radius: 999px;
-  background: #0f151a;
+  background: transparent;
   color: rgba(232, 244, 248, 0.72);
   cursor: pointer;
   transition: border-color 0.12s, color 0.12s, background 0.12s;
@@ -21925,6 +21933,24 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: flex;
   flex-direction: column;
   gap: var(--ae2-gap);
+}
+
+/* Reuse Thumb Card's FX-icon column left of the Effect dropdown, minus its
+   thumbnail offset (this group has no leading thumbnail). */
+.rv-ae-es-group .rv-ae-tc-fx {
+  margin-left: 0;
+}
+
+/* Reuse Thumb Card's dashed Trigger toggle for the routed signals. The
+   Strength slider sits directly above it here, not an effect dropdown, so
+   drop the upward connector and the extra top margin (the flex column's own
+   gap already spaces it). */
+.rv-ae-es-body .rv-ae-tc-toggle {
+  margin-top: 0;
+}
+
+.rv-ae-es-body .rv-ae-tc-toggle::before {
+  display: none;
 }
 
 .rv-ae-es-strength {
