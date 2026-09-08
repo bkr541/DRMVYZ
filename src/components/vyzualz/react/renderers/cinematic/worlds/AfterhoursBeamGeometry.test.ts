@@ -317,3 +317,100 @@ describe('Afterhours existing reactive motion — ray-safe compatibility', () =>
     for (const beam of swept) expectViewportRay(beam)
   })
 })
+
+describe('Afterhours Stage 5 — scanner motion authority and traversal', () => {
+  const angularDistanceDeg = (
+    a: Readonly<{ x: number; y: number }>,
+    b: Readonly<{ x: number; y: number }>,
+  ) => {
+    const dot = Math.max(-1, Math.min(1, a.x * b.x + a.y * b.y))
+    return Math.acos(dot) * 180 / Math.PI
+  }
+
+  const maximumAngularSpan = (motionAuthority: number) => {
+    const settings = { ...BASE, pattern: 'wideFan' as const, beamCount: 8, symmetry: true }
+    const baseline = generateAfterhoursBeams(settings, { motionPhase: 0, motionAuthority: 0 })[0]!
+    let maximum = 0
+    for (let phase = 0; phase <= 2; phase += 0.025) {
+      const moving = generateAfterhoursBeams(settings, { motionPhase: phase, motionAuthority })[0]!
+      maximum = Math.max(maximum, angularDistanceDeg(baseline.direction, moving.direction))
+    }
+    return maximum
+  }
+
+  it('maps Motion 0/25/50/75/100 to materially larger bounded stage-scale angular spans', () => {
+    const spans = [0, 0.25, 0.5, 0.75, 1].map(maximumAngularSpan)
+    expect(spans[0]).toBeLessThan(1e-7)
+    expect(spans[1]).toBeGreaterThan(6)
+    expect(spans[2]).toBeGreaterThan(15)
+    expect(spans[3]).toBeGreaterThan(30)
+    expect(spans[4]).toBeGreaterThan(45)
+    expect(spans[4]).toBeLessThanOrEqual(54.01)
+    for (let index = 1; index < spans.length; index += 1) expect(spans[index]).toBeGreaterThan(spans[index - 1]!)
+  })
+
+  it('preserves bilateral symmetry while every scene uses its intended scanner vocabulary', () => {
+    const expectedMode = new Map<AfterhoursPattern, string>([
+      ['wideFan', 'fanOpenClose'],
+      ['splitWings', 'opposingSweep'],
+      ['crossCanopy', 'centerOut'],
+      ['diamondStar', 'geometricTraversal'],
+      ['chevronRoof', 'topologyRotation'],
+      ['radialCrown', 'topologyRotation'],
+      ['sparseArchitecture', 'boundedHold'],
+      ['fullRig', 'bankChase'],
+    ])
+    for (const pattern of AFTERHOURS_PATTERNS) {
+      const beams = generateAfterhoursBeams(
+        { ...BASE, pattern, symmetry: true, sideLasers: true, topLasers: true, beamCount: 8 },
+        { variation: 0, motionPhase: 0.73, motionAuthority: 1 },
+      ).filter(beam => beam.active)
+      expect(beams[0]?.motion?.mode).toBe(expectedMode.get(pattern))
+      for (let index = 0; index + 1 < beams.length; index += 2) {
+        const left = beams[index]!
+        const right = beams[index + 1]!
+        expect(left.symmetry?.pairId).toBe(right.symmetry?.pairId)
+        expect(left.origin.x).toBeCloseTo(1 - right.origin.x, 8)
+        expect(left.origin.y).toBeCloseTo(right.origin.y, 8)
+        expect(left.direction.x).toBeCloseTo(-right.direction.x, 8)
+        expect(left.direction.y).toBeCloseTo(right.direction.y, 8)
+        expect(left.endpoint.x).toBeCloseTo(1 - right.endpoint.x, 8)
+        expect(left.endpoint.y).toBeCloseTo(right.endpoint.y, 8)
+      }
+    }
+  })
+
+  it('is deterministic and keeps shared-scanner velocity/acceleration diagnostics bounded', () => {
+    for (const authority of [0.25, 0.5, 0.75, 1]) {
+      const settings = { ...BASE, pattern: 'fullRig' as const, sideLasers: true, topLasers: true, beamCount: 16 }
+      const first = generateAfterhoursBeams(settings, { variation: 3, motionPhase: 0.37, motionAuthority: authority })
+      const again = generateAfterhoursBeams(settings, { variation: 3, motionPhase: 0.37, motionAuthority: authority })
+      expect(again).toEqual(first)
+      for (const beam of first.filter(candidate => candidate.active)) {
+        expect(beam.motion).not.toBeNull()
+        expect(beam.motion!.velocityRatio).toBeGreaterThanOrEqual(0)
+        expect(beam.motion!.velocityRatio).toBeLessThanOrEqual(1)
+        expect(beam.motion!.accelerationRatio).toBeGreaterThanOrEqual(0)
+        expect(beam.motion!.accelerationRatio).toBeLessThanOrEqual(1)
+      }
+    }
+  })
+
+  it('uses deterministic ping-pong traversal without retrace and blanks loop closure for geometric scans', () => {
+    const fanSettings = { ...BASE, pattern: 'wideFan' as const, beamCount: 8 }
+    for (let phase = 0; phase <= 2; phase += 0.02) {
+      const fan = generateAfterhoursBeams(fanSettings, { motionPhase: phase, motionAuthority: 1 })
+      expect(fan.filter(beam => beam.active).every(beam => beam.motion?.retrace === false && beam.blanked === false)).toBe(true)
+    }
+
+    const diamondSettings = { ...BASE, pattern: 'diamondStar' as const, sideLasers: true, topLasers: true, beamCount: 8 }
+    let sawBlankedRetrace = false
+    for (let phase = 0; phase <= 4; phase += 0.01) {
+      const first = generateAfterhoursBeams(diamondSettings, { motionPhase: phase, motionAuthority: 1 })
+      const again = generateAfterhoursBeams(diamondSettings, { motionPhase: phase, motionAuthority: 1 })
+      expect(again).toEqual(first)
+      if (first.some(beam => beam.active && beam.blanked && beam.motion?.retrace)) sawBlankedRetrace = true
+    }
+    expect(sawBlankedRetrace).toBe(true)
+  })
+})

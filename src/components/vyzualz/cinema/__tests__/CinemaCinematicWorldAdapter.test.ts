@@ -595,7 +595,16 @@ describe('Cinema Cinematic World adapters', () => {
       }
       return [...latest.entries()].sort(([a], [b]) => a - b).map(([, row]) => row)
     }
-    return { harness, composition, optionId, lastFloat, activeBeamCount, everyAfterhoursUniformFinite, latestBeamRows }
+    const latestBeamHistoryRows = () => {
+      const latest = new Map<number, [number, number, number, number]>()
+      for (const [location, x, y, z, w] of vi.mocked(harness.gl.uniform4f).mock.calls as unknown as Array<[WebGLUniformLocation, number, number, number, number]>) {
+        const name = typeof location === 'object' && location !== null ? (location as unknown as { name?: string }).name : undefined
+        const match = name?.match(/^uAfterhoursBeamHistory(\d+)$/)
+        if (match) latest.set(Number(match[1]), [x, y, z, w])
+      }
+      return [...latest.entries()].sort(([a], [b]) => a - b).map(([, row]) => row)
+    }
+    return { harness, composition, optionId, lastFloat, activeBeamCount, everyAfterhoursUniformFinite, latestBeamRows, latestBeamHistoryRows }
   }
 
   it('turns canonical music into nonzero, React-parameter-dependent Afterhours shader input through the production executor with live overrides', () => {
@@ -648,6 +657,50 @@ describe('Cinema Cinematic World adapters', () => {
 
     low.harness.dispose()
     high.harness.dispose()
+  })
+
+  it('drives Stage 5 scanner-scale movement and bounded exposure through the real Cinema Afterhours production path', () => {
+    const probe = buildAfterhoursExecutorFixture({})
+    const changeOffId = probe.optionId('Pattern Change', 'Off')
+    probe.harness.dispose()
+
+    const make = (motionAmount: number) => buildAfterhoursExecutorFixture({
+      'Side Lasers': true,
+      'Top Lasers': true,
+      'Beam Count': 8,
+      'BPM Sync': false,
+      'Motion Amount': motionAmount,
+      'Pulse Amount': 0,
+      'Pattern Change': changeOffId,
+      'Blackout Amount': 0,
+    })
+
+    const still = make(0)
+    expect(still.harness.executor.render(frame(0))).toBe(true)
+    const stillAtStart = still.latestBeamRows()
+    expect(still.harness.executor.render(frame(30))).toBe(true)
+    expect(still.latestBeamRows()).toEqual(stillAtStart)
+    const stillHistory = still.latestBeamHistoryRows()
+    expect(stillHistory).toHaveLength(16)
+    expect(stillHistory.every(([, , mix]) => mix === 0)).toBe(true)
+
+    const moving = make(1)
+    expect(moving.harness.executor.render(frame(0))).toBe(true)
+    const movingAtStart = moving.latestBeamRows()
+    expect(moving.harness.executor.render(frame(3))).toBe(true)
+    expect(moving.harness.executor.render(frame(6))).toBe(true)
+    const movingExposure = moving.latestBeamHistoryRows()
+    expect(movingExposure).toHaveLength(16)
+    expect(movingExposure.some(([, , mix]) => mix > 0 && mix <= 0.24)).toBe(true)
+    expect(moving.harness.executor.render(frame(30))).toBe(true)
+    const movingLater = moving.latestBeamRows()
+    expect(movingLater).not.toEqual(movingAtStart)
+    expect(moving.everyAfterhoursUniformFinite()).toBe(true)
+    expect(moving.harness.executor.getSnapshot().failedNodeCount).toBe(0)
+    expect(moving.harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
+
+    still.harness.dispose()
+    moving.harness.dispose()
   })
 
   it('enforces Stage 3 rig allocation and literal Beam Count through the real Afterhours production path', () => {

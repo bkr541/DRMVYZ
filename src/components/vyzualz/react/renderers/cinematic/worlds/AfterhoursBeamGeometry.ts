@@ -1,5 +1,6 @@
 import { AFTERHOURS_PATTERNS, type AfterhoursPattern } from '../../../CinematicWorldSettings'
 import { getAfterhoursSceneDefinition } from './AfterhoursSceneCatalog'
+import { resolveAfterhoursScannerMotion, type AfterhoursScannerMotionMode } from './AfterhoursScannerMotion'
 import {
   AFTERHOURS_VIRTUAL_STAGE_RIG,
   allocateAfterhoursRigFixtures,
@@ -80,8 +81,17 @@ export interface AfterhoursBeamDescriptor {
   readonly role: AfterhoursBeamRole
   readonly symmetry: AfterhoursBeamSymmetry | null
   readonly accent: boolean
-  /** Bounded 0..1 per-beam variation metadata for later reactive motion. */
+  /** Bounded 0..1 per-beam variation metadata for deterministic allocation. */
   readonly phase: number
+  /** True only while the scanner domain is traversing a deliberately blanked retrace. */
+  readonly blanked: boolean
+  /** Stage 5 scanner diagnostics stay derived/runtime-only and are never persisted. */
+  readonly motion: Readonly<{
+    mode: AfterhoursScannerMotionMode
+    velocityRatio: number
+    accelerationRatio: number
+    retrace: boolean
+  }> | null
 }
 
 export interface AfterhoursBeamGenerationSettings {
@@ -116,7 +126,6 @@ const MAX_VIEWPORT_ASPECT = 4
 const MIN_VISIBLE_FIELD_LENGTH = 0.30
 const DIRECTION_EPSILON = 1e-8
 const EDGE_EPSILON = 1e-9
-const SWEEP_TAU = Math.PI * 2
 
 const ZERO_POINT: AfterhoursEmitter = Object.freeze({ x: 0, y: 0 })
 const ZERO_DIRECTION: AfterhoursRayDirection = Object.freeze({ x: 0, y: 0 })
@@ -377,24 +386,32 @@ function structuredDirection(
   }
 }
 
-/** Existing reactive motion now rotates a ray, then re-projects it to the edge. */
-function sweepDirection(
+/**
+ * Stage 5 scanner motion delegates temporal traversal to the shared Laser/DMX
+ * scanner domain, then converts the evaluated scanner aim back into Afterhours'
+ * canonical ray direction. Endpoints remain viewport intersections downstream.
+ */
+function scannerDirection(
+  pattern: AfterhoursPattern,
+  origin: OriginRef,
   direction: AfterhoursRayDirection,
   motionPhase: number,
   motionAuthority: number,
-  beamPhase: number,
+  aspect: number,
+  slot: number,
   symmetrySide: AfterhoursSymmetrySide | null,
-): AfterhoursRayDirection {
-  if (motionAuthority <= 0) return direction
-  const authority = clamp01(motionAuthority)
-  const baseAngle = Math.sin(motionPhase * SWEEP_TAU + beamPhase * SWEEP_TAU) * authority * (7 * Math.PI / 180)
-  const angle = symmetrySide === 'right' ? -baseAngle : baseAngle
-  const c = Math.cos(angle)
-  const s = Math.sin(angle)
-  return normalizeAfterhoursRayDirection({
-    x: direction.x * c - direction.y * s,
-    y: direction.x * s + direction.y * c,
-  }, direction)
+): ReturnType<typeof resolveAfterhoursScannerMotion> {
+  return resolveAfterhoursScannerMotion({
+    pattern,
+    origin: origin.emitter,
+    baseDirection: direction,
+    aspect,
+    motionPhase,
+    motionAuthority,
+    symmetrySide,
+    bank: origin.bank,
+    slot,
+  })
 }
 
 function projectRay(
@@ -429,6 +446,8 @@ function inactiveBeam(index: number): AfterhoursBeamDescriptor {
     symmetry: null,
     accent: false,
     phase: 0,
+    blanked: false,
+    motion: null,
   })
 }
 
@@ -449,8 +468,17 @@ interface CreateBeamInput {
 function createBeam(input: CreateBeamInput): AfterhoursBeamDescriptor {
   const phase = unit(input.seed ^ 0x9e3779b9)
   const baseDirection = structuredDirection(input.pattern, input.origin, input.spread, input.structureScale, input.aspect)
-  const sweptDirection = sweepDirection(baseDirection, input.motionPhase, input.motionAuthority, phase, input.symmetry?.side ?? null)
-  const projected = projectRay(input.origin, sweptDirection, input.aspect)
+  const scanner = scannerDirection(
+    input.pattern,
+    input.origin,
+    baseDirection,
+    input.motionPhase,
+    input.motionAuthority,
+    input.aspect,
+    input.slot,
+    input.symmetry?.side ?? null,
+  )
+  const projected = projectRay(input.origin, scanner.direction, input.aspect)
   const endpoint = projected.endpoint
   return Object.freeze({
     active: true,
@@ -469,6 +497,13 @@ function createBeam(input: CreateBeamInput): AfterhoursBeamDescriptor {
     symmetry: input.symmetry,
     accent: input.accentMix >= 1 || (input.accentMix > 0 && unit(input.seed ^ 0x63d83595) < input.accentMix),
     phase,
+    blanked: scanner.blanked,
+    motion: Object.freeze({
+      mode: scanner.mode,
+      velocityRatio: scanner.velocityRatio,
+      accelerationRatio: scanner.accelerationRatio,
+      retrace: scanner.retrace,
+    }),
   })
 }
 

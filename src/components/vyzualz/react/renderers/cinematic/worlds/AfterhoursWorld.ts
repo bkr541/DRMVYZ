@@ -3,6 +3,7 @@ import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type {
   CinematicFrameContext,
   CinematicRendererResetReason,
+  CinematicViewport,
   CinematicWebGLWorldDefinition,
 } from '../../CinematicWorldRenderer'
 import { defineCinematicWorldDirection } from '../CinematicWorldDirection'
@@ -31,10 +32,23 @@ const UNIFORMS = [
   'uAfterhoursBlackout',
   ...Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, index) => `uAfterhoursBeam${index}`),
   ...Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, index) => `uAfterhoursBeamMeta${index}`),
+  ...Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, index) => `uAfterhoursBeamHistory${index}`),
 ] as const
 
 /** Per-slot fade rate (1/e per this many seconds) for membership changes. */
 const SLOT_FADE_HZ = 30
+const TEMPORAL_EXPOSURE_SEC = 0.075
+const TEMPORAL_HISTORY_WINDOW_SEC = 0.12
+const TEMPORAL_HISTORY_MAX_SAMPLES = 10
+const TEMPORAL_MAX_MIX = 0.24
+
+interface AfterhoursTemporalSample {
+  readonly timeSec: number
+  readonly originX: number
+  readonly originY: number
+  readonly endpointX: number
+  readonly endpointY: number
+}
 
 function setRgb(program: ShaderProgram, uniform: string, color: AfterhoursRgb): void {
   program.setVec3(uniform, color.r, color.g, color.b)
@@ -54,14 +68,70 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
   private readonly slotEndpointX = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
   private readonly slotEndpointY = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
   private readonly slotAccent = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
+  private readonly temporalHistory = Array.from({ length: AFTERHOURS_MAX_BEAMS }, () => [] as AfterhoursTemporalSample[])
+  private lastTransportTimeSec: number | null = null
+  private lastTopologyIdentity: string | null = null
 
   constructor() {
     super('afterhours', AFTERHOURS_FRAGMENT_SOURCE, UNIFORMS)
   }
 
+  private resetTemporalHistory(): void {
+    for (const history of this.temporalHistory) history.length = 0
+    this.lastTransportTimeSec = null
+    this.lastTopologyIdentity = null
+  }
+
   private resetSlots(): void {
     this.primed = false
     this.slotWeight.fill(0)
+    this.resetTemporalHistory()
+  }
+
+  private resolveTemporalExposure(
+    index: number,
+    beam: Readonly<{ active: boolean; blanked: boolean; origin: { x: number; y: number }; endpoint: { x: number; y: number } }>,
+    timeSec: number,
+    motionAuthority: number,
+  ): { endpointX: number; endpointY: number; mix: number } {
+    const history = this.temporalHistory[index]
+    if (!beam.active || beam.blanked || motionAuthority <= 0) {
+      history.length = 0
+      return { endpointX: beam.endpoint.x, endpointY: beam.endpoint.y, mix: 0 }
+    }
+
+    const cutoff = timeSec - TEMPORAL_HISTORY_WINDOW_SEC
+    while (history.length > 0 && history[0]!.timeSec < cutoff) history.shift()
+    const compatible = history.filter(sample => (
+      Math.abs(sample.originX - beam.origin.x) <= 1e-7
+      && Math.abs(sample.originY - beam.origin.y) <= 1e-7
+      && sample.timeSec <= timeSec
+    ))
+    const targetAge = TEMPORAL_EXPOSURE_SEC
+    const historical = compatible.reduce<AfterhoursTemporalSample | null>((best, sample) => {
+      const age = timeSec - sample.timeSec
+      if (age <= 0) return best
+      if (best == null) return sample
+      return Math.abs(age - targetAge) < Math.abs((timeSec - best.timeSec) - targetAge) ? sample : best
+    }, null)
+
+    history.push({
+      timeSec,
+      originX: beam.origin.x,
+      originY: beam.origin.y,
+      endpointX: beam.endpoint.x,
+      endpointY: beam.endpoint.y,
+    })
+    if (history.length > TEMPORAL_HISTORY_MAX_SAMPLES) history.splice(0, history.length - TEMPORAL_HISTORY_MAX_SAMPLES)
+
+    if (!historical) return { endpointX: beam.endpoint.x, endpointY: beam.endpoint.y, mix: 0 }
+    const age = Math.max(0, timeSec - historical.timeSec)
+    const ageAuthority = Math.min(1, age / TEMPORAL_EXPOSURE_SEC)
+    return {
+      endpointX: historical.endpointX,
+      endpointY: historical.endpointY,
+      mix: Math.min(TEMPORAL_MAX_MIX, TEMPORAL_MAX_MIX * ageAuthority * Math.max(0, Math.min(1, motionAuthority))),
+    }
   }
 
   // Afterhours computes every animated value on the CPU (trigger reaction,
@@ -70,6 +140,13 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
   // uniforms, so the base class should not spend the per-frame work setting them.
   protected override consumesSharedFrameUniforms(): boolean {
     return false
+  }
+
+  override resize(viewport: CinematicViewport): void {
+    super.resize(viewport)
+    // Aspect changes invalidate stored viewport endpoints; never expose a stale
+    // pre-resize ray through the temporal shutter history.
+    this.resetTemporalHistory()
   }
 
   override reset(reason: CinematicRendererResetReason): void {
@@ -140,6 +217,19 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
     })
     program.setFloat('uAfterhoursBlackout', direction.blackout)
 
+    // Stage 5 temporal exposure is renderer-owned, bounded, and disposable. A
+    // seek/loop discontinuity, topology switch, backwards transport, long frame
+    // gap, world reset, or context reset must never smear stale rays forward.
+    const transportTimeSec = Number.isFinite(frame.transportTimeSec) ? frame.transportTimeSec : frame.elapsedTimeSec
+    const topologyIdentity = `${direction.pattern}:${direction.variation}`
+    const temporalDiscontinuity = frame.timingDiscontinuity
+      || (this.lastTransportTimeSec != null && (transportTimeSec < this.lastTransportTimeSec - 1e-6
+        || transportTimeSec - this.lastTransportTimeSec > 0.25))
+      || (this.lastTopologyIdentity != null && this.lastTopologyIdentity !== topologyIdentity)
+    if (temporalDiscontinuity) this.resetTemporalHistory()
+    this.lastTransportTimeSec = transportTimeSec
+    this.lastTopologyIdentity = topologyIdentity
+
     // Reaction modifiers are derived, never written back to persisted settings.
     // Beam Count is a literal active-ray budget in stable non-blackout states;
     // music reaction may reshape the rig but must not silently halve that budget.
@@ -185,8 +275,9 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
       const morphBeam = blended?.[index]
       const beam = morphBeam ?? nextBeams[index]
       const rawWeight = morphBeam ? morphBeam.weight : 1
-      const active = beam.active && rawWeight > 0
+      const active = beam.active && !beam.blanked && rawWeight > 0
       const targetWeight = active ? Math.max(0, Math.min(1, rawWeight)) : 0
+      const exposure = this.resolveTemporalExposure(index, beam, transportTimeSec, reaction.motionAuthority)
       // Refresh the remembered geometry only while the slot is real, so a slot
       // that is fading OUT dims from its last position rather than the origin.
       if (active) {
@@ -197,15 +288,18 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
         this.slotAccent[index] = beam.accent ? 1 : 0
       }
       // First frame after (re)start shows the full rig; only *changes* fade.
-      let weight = this.primed
-        ? this.slotWeight[index] + (targetWeight - this.slotWeight[index]) * fade
-        : targetWeight
+      let weight = beam.blanked
+        ? 0
+        : this.primed
+          ? this.slotWeight[index] + (targetWeight - this.slotWeight[index]) * fade
+          : targetWeight
       if (Math.abs(weight - targetWeight) < 1e-3) weight = targetWeight
       this.slotWeight[index] = weight
 
       if (weight <= 0) {
         program.setVec4(`uAfterhoursBeam${index}`, 0, 0, 0, 0)
         program.setVec2(`uAfterhoursBeamMeta${index}`, 0, 0)
+        program.setVec4(`uAfterhoursBeamHistory${index}`, 0, 0, 0, 0)
       } else {
         program.setVec4(
           `uAfterhoursBeam${index}`,
@@ -213,6 +307,10 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
           this.slotEndpointX[index], this.slotEndpointY[index],
         )
         program.setVec2(`uAfterhoursBeamMeta${index}`, weight, this.slotAccent[index])
+        program.setVec4(
+          `uAfterhoursBeamHistory${index}`,
+          exposure.endpointX, exposure.endpointY, exposure.mix, 0,
+        )
       }
     }
     this.primed = true

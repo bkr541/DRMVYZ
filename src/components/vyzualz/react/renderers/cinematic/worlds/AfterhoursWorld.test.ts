@@ -20,6 +20,7 @@ interface FrameMusic {
   barEventId?: string
   barPhase?: number
   playing?: boolean
+  timingDiscontinuity?: boolean
 }
 
 function frame(settings: Partial<typeof AFTERHOURS_DEFAULTS> = {}, music?: FrameMusic): CinematicFrameContext {
@@ -46,6 +47,7 @@ function frame(settings: Partial<typeof AFTERHOURS_DEFAULTS> = {}, music?: Frame
     preset,
     presetId: preset.id,
     params: DEFAULT_REACT_RENDER_PARAMS,
+    timingDiscontinuity: music?.timingDiscontinuity ?? false,
   }
   if (music) {
     base.isPlaying = music.playing ?? true
@@ -124,9 +126,11 @@ describe('Afterhours Stage 2 world integration', () => {
       if (beam.active) {
         expect(last(harness.calls, `uAfterhoursBeam${index}`)).toEqual([beam.origin.x, beam.origin.y, beam.endpoint.x, beam.endpoint.y])
         expect(last(harness.calls, `uAfterhoursBeamMeta${index}`)).toEqual([1, beam.accent ? 1 : 0])
+        expect(last(harness.calls, `uAfterhoursBeamHistory${index}`)).toEqual([beam.endpoint.x, beam.endpoint.y, 0, 0])
       } else {
         expect(last(harness.calls, `uAfterhoursBeam${index}`)).toEqual([0, 0, 0, 0])
         expect(last(harness.calls, `uAfterhoursBeamMeta${index}`)).toEqual([0, 0])
+        expect(last(harness.calls, `uAfterhoursBeamHistory${index}`)).toEqual([0, 0, 0, 0])
       }
     }
     harness.world.dispose()
@@ -256,7 +260,11 @@ describe('Afterhours Stage 2 world integration', () => {
       return rows
     }
     expect(targetsAt(0, 2)).toEqual(targetsAt(0, 40))
-    expect(targetsAt(1, 2)).not.toEqual(targetsAt(1, 40))
+    // transportTimeSec 2 and 40 both map to an integer motion phase (× 0.5 →
+    // 1.0 and 20.0), and the scanner sweep period is exactly 1.0 in that phase,
+    // so those two samples alias to identical geometry. Sample a time that
+    // lands mid-sweep instead so the motion is actually observable.
+    expect(targetsAt(1, 2)).not.toEqual(targetsAt(1, 41))
   })
 
   it('reset() re-arms the trigger so a repeated canonical id fires again', () => {
@@ -298,6 +306,10 @@ describe('Afterhours Stage 2 world integration', () => {
     expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('float weight = clamp(meta.x, 0.0, 1.0)')
     expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('if (weight <= 0.0) return vec3(0.0)')
     expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('return lit * weight')
+    // Stage 5 shutter exposure is bounded and energy-normalized rather than accumulated.
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('float historyMix = clamp(history.z, 0.0, 0.24)')
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('historyMix * 0.58')
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('historyMix * 0.42')
     // A deliberate blackout scales total laser authority to zero, background kept.
     expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('(1.0 - clamp(uAfterhoursBlackout, 0.0, 1.0))')
   })
@@ -417,6 +429,64 @@ describe('Afterhours Stage 5 world integration — pattern director and blackout
     }
     expect(sawIntermediate).toBe(true)
     expect(Array.from({ length: 16 }, (_, i) => last(harness.calls, `uAfterhoursBeamMeta${i}`)[0] ?? 0).filter(w => w > 0)).toHaveLength(8)
+    harness.world.dispose()
+  })
+})
+
+describe('Afterhours Stage 5 — temporal scanner presentation', () => {
+  const TARGET = { framebuffer: null, texture: null, width: 1280, height: 720 } as const
+  const MOVING = {
+    pattern: 'wideFan' as const,
+    patternChange: 'off' as const,
+    beamCount: 8,
+    motionAmount: 1,
+    pulseAmount: 0,
+    bpmSync: false,
+  }
+
+  it('keeps exposure history bounded and clears it on world reset and timing discontinuity', () => {
+    const harness = createWorldHarness()
+    harness.world.render(frame(MOVING, { frameIndex: 1, transportTimeSec: 1 }), TARGET)
+    expect(last(harness.calls, 'uAfterhoursBeamHistory0')[2]).toBe(0)
+    harness.world.render(frame(MOVING, { frameIndex: 2, transportTimeSec: 1.04 }), TARGET)
+    harness.world.render(frame(MOVING, { frameIndex: 3, transportTimeSec: 1.08 }), TARGET)
+    const exposed = last(harness.calls, 'uAfterhoursBeamHistory0')
+    expect(exposed[2]).toBeGreaterThan(0)
+    expect(exposed[2]).toBeLessThanOrEqual(0.24)
+
+    harness.world.reset('worldChanged')
+    harness.world.render(frame(MOVING, { frameIndex: 4, transportTimeSec: 1.12 }), TARGET)
+    expect(last(harness.calls, 'uAfterhoursBeamHistory0')[2]).toBe(0)
+
+    harness.world.render(frame(MOVING, { frameIndex: 5, transportTimeSec: 1.16 }), TARGET)
+    expect(last(harness.calls, 'uAfterhoursBeamHistory0')[2]).toBeGreaterThan(0)
+
+    harness.world.resize({ width: 1024, height: 768, dpr: 1 })
+    const resizedTarget = { framebuffer: null, texture: null, width: 1024, height: 768 } as const
+    harness.world.render(frame(MOVING, { frameIndex: 6, transportTimeSec: 1.18 }), resizedTarget)
+    expect(last(harness.calls, 'uAfterhoursBeamHistory0')[2]).toBe(0)
+    harness.world.render(frame(MOVING, { frameIndex: 7, transportTimeSec: 1.22 }), resizedTarget)
+    expect(last(harness.calls, 'uAfterhoursBeamHistory0')[2]).toBeGreaterThan(0)
+
+    harness.world.render(frame(MOVING, { frameIndex: 8, transportTimeSec: 1.24, timingDiscontinuity: true }), resizedTarget)
+    expect(last(harness.calls, 'uAfterhoursBeamHistory0')[2]).toBe(0)
+    harness.world.dispose()
+  })
+
+  it('hard-blanks geometric loop retrace so neither the current ray nor exposure history contributes', () => {
+    const harness = createWorldHarness()
+    const settings = {
+      ...MOVING,
+      pattern: 'diamondStar' as const,
+      sideLasers: true,
+      topLasers: true,
+    }
+    // BPM Sync off maps transport seconds to scanner phase at 0.5x. 1.68 s
+    // resolves to phase 0.84, inside the shared scanner's blanked loop closure.
+    harness.world.render(frame(settings, { frameIndex: 1, transportTimeSec: 1.68 }), TARGET)
+    expect(last(harness.calls, 'uAfterhoursBeamMeta0')).toEqual([0, 0])
+    expect(last(harness.calls, 'uAfterhoursBeam0')).toEqual([0, 0, 0, 0])
+    expect(last(harness.calls, 'uAfterhoursBeamHistory0')).toEqual([0, 0, 0, 0])
     harness.world.dispose()
   })
 })

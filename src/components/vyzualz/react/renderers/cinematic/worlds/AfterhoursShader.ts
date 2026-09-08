@@ -2,10 +2,11 @@ import { AFTERHOURS_MAX_BEAMS } from './AfterhoursBeamGeometry'
 
 const BEAM_UNIFORMS = Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, index) => `
 uniform vec4 uAfterhoursBeam${index};
-uniform vec2 uAfterhoursBeamMeta${index};`).join('')
+uniform vec2 uAfterhoursBeamMeta${index};
+uniform vec4 uAfterhoursBeamHistory${index};`).join('')
 
 const BEAM_ACCUMULATION = Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, index) => `
-  beams += renderBeam(fieldPoint, uAfterhoursBeam${index}, uAfterhoursBeamMeta${index}, haze);`).join('')
+  beams += renderBeam(fieldPoint, uAfterhoursBeam${index}, uAfterhoursBeamMeta${index}, uAfterhoursBeamHistory${index}, haze);`).join('')
 
 /**
  * Afterhours Stage 3 laser rendering. Single WebGL2 fullscreen pass, no
@@ -64,20 +65,13 @@ float valueNoise(vec2 p) {
   return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
-vec3 renderBeam(vec2 p, vec4 line, vec2 meta, float haze) {
-  float weight = clamp(meta.x, 0.0, 1.0);
-  if (weight <= 0.0) return vec3(0.0);
+vec3 renderBeamLine(vec2 p, vec4 line, vec3 bodyColor, vec3 coreColor, float haze) {
   float aspect = uResolution.x / max(1.0, uResolution.y);
   vec2 a = (line.xy - vec2(0.5)) * vec2(aspect, 1.0);
   vec2 b = (line.zw - vec2(0.5)) * vec2(aspect, 1.0);
 
   float along;
   float dist = segmentDistance(p, a, b, along);
-
-  // Laser body colour, plus a hot core that keeps a trace of the hue instead
-  // of blowing out to pure white everywhere.
-  vec3 bodyColor = mix(uAfterhoursPrimary, uAfterhoursAccent, clamp(meta.y, 0.0, 1.0));
-  vec3 coreColor = mix(bodyColor, vec3(1.0), 0.6);
 
   // Intensity tapers from the emitter toward the target so beams read as light
   // travelling through air rather than flat strokes.
@@ -91,11 +85,35 @@ vec3 renderBeam(vec2 p, vec4 line, vec2 meta, float haze) {
   // Restrained bloom at the fixed emitter origin only.
   float sourceBloom = exp(-length(p - a) * 30.0) * (0.18 + 0.55 * haze);
 
-  vec3 lit = coreColor * core * 1.35
+  return coreColor * core * 1.35
     + bodyColor * body * 0.85
     + bodyColor * envelope * 0.30
     + bodyColor * scatter * 0.16
     + coreColor * sourceBloom * 0.12;
+}
+
+vec3 renderBeam(vec2 p, vec4 line, vec2 meta, vec4 history, float haze) {
+  float weight = clamp(meta.x, 0.0, 1.0);
+  if (weight <= 0.0) return vec3(0.0);
+
+  // Laser body colour, plus a hot core that keeps a trace of the hue instead
+  // of blowing out to pure white everywhere.
+  vec3 bodyColor = mix(uAfterhoursPrimary, uAfterhoursAccent, clamp(meta.y, 0.0, 1.0));
+  vec3 coreColor = mix(bodyColor, vec3(1.0), 0.6);
+
+  // Stage 5 bounded shutter exposure. history.xy is an older endpoint selected
+  // from a fixed time window on the CPU. The three sample weights sum to one,
+  // so higher frame rates cannot accumulate extra brightness. Blanked retrace
+  // frames send history.z = 0 and never expose a travel streak.
+  float historyMix = clamp(history.z, 0.0, 0.24);
+  vec3 lit = renderBeamLine(p, line, bodyColor, coreColor, haze) * (1.0 - historyMix);
+  if (historyMix > 0.0) {
+    vec2 midpoint = mix(line.zw, history.xy, 0.5);
+    vec4 middleLine = vec4(line.xy, midpoint);
+    vec4 oldLine = vec4(line.xy, history.xy);
+    lit += renderBeamLine(p, middleLine, bodyColor, coreColor, haze) * (historyMix * 0.58);
+    lit += renderBeamLine(p, oldLine, bodyColor, coreColor, haze) * (historyMix * 0.42);
+  }
   return lit * weight;
 }
 

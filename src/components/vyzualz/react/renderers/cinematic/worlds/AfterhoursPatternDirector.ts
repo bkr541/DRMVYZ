@@ -273,6 +273,8 @@ export interface AfterhoursRenderBeam {
   /** Compatibility alias; always identical to the derived viewport-exit endpoint. */
   target: AfterhoursEmitter
   accent: boolean
+  /** Hard scanner blanking state; retrace must never become a visible morph segment. */
+  blanked: boolean
   /** 0..1 render weight — drives per-beam fade in/out across a variation morph. */
   weight: number
 }
@@ -308,14 +310,15 @@ export function blendAfterhoursBeamFrames(
         endpoint,
         target: endpoint,
         accent: b.accent,
+        blanked: a.blanked || b.blanked,
         weight: 1,
       })
     } else if (b.active) {
-      out.push({ active: true, origin: b.origin, direction: b.direction, endpoint: b.endpoint, target: b.endpoint, accent: b.accent, weight: k })
+      out.push({ active: true, origin: b.origin, direction: b.direction, endpoint: b.endpoint, target: b.endpoint, accent: b.accent, blanked: b.blanked, weight: k })
     } else if (a.active) {
-      out.push({ active: true, origin: a.origin, direction: a.direction, endpoint: a.endpoint, target: a.endpoint, accent: a.accent, weight: 1 - k })
+      out.push({ active: true, origin: a.origin, direction: a.direction, endpoint: a.endpoint, target: a.endpoint, accent: a.accent, blanked: a.blanked, weight: 1 - k })
     } else {
-      out.push({ active: false, origin: b.origin, direction: b.direction, endpoint: b.endpoint, target: b.endpoint, accent: false, weight: 0 })
+      out.push({ active: false, origin: b.origin, direction: b.direction, endpoint: b.endpoint, target: b.endpoint, accent: false, blanked: false, weight: 0 })
     }
   }
   return out
