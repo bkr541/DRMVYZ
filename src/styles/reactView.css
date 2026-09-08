@@ -20330,20 +20330,22 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-tc-group > .rv-canvas-layer-media-row {
   align-items: center;
   gap: var(--ae2-gap);
-  padding-bottom: 2px;
+  padding-bottom: 0;
 }
 
 /* FX toggle — the one control that stands in for the always-open effect
    picker. It sits centred on its own row below the Active Media row; clicking
    it reveals the picker, and clicking it again while the picker still holds no
-   value collapses it back. */
+   value collapses it back. A short dashed line above and below links the
+   Active Media dropdown and the first effect row to it. */
 .rv-ae-tc-fx-row {
   display: flex;
   justify-content: center;
-  padding: var(--ae2-gap) 0 2px;
+  padding: 5px 0;
 }
 
 .rv-ae-tc-fx-toggle {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -20356,6 +20358,24 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   color: rgba(232, 244, 248, 0.72);
   cursor: pointer;
   transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+
+.rv-ae-tc-fx-toggle::before,
+.rv-ae-tc-fx-toggle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 0;
+  height: 5px;
+  border-left: 1px dashed rgba(154, 178, 188, 0.4);
+}
+
+.rv-ae-tc-fx-toggle::before {
+  bottom: 100%;
+}
+
+.rv-ae-tc-fx-toggle::after {
+  top: 100%;
 }
 
 .rv-ae-tc-fx-toggle:hover,

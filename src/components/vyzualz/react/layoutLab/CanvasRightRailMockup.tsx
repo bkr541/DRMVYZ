@@ -1259,6 +1259,11 @@ function AddEffectsThumbCardConcept({ state }: { state: CanvasMockState }) {
                 <EffectFxIcon className="rv-ae-tc-fx-icon" />
               </span>
             )}
+            renderEmptyLeading={() => (
+              <span className="rv-ae-tc-fx" aria-hidden="true">
+                <EffectFxIcon className="rv-ae-tc-fx-icon" />
+              </span>
+            )}
             showEmptyEffectLabel
             emptyEffectLabelText="Effect"
             emptyRowCollapsed={!hasEffects && !pickerOpen}
