@@ -8,6 +8,7 @@ import type { ShaderParamValues } from '../../registry/shaderRegistryTypes'
 import {
   LEGACY_REACTOR_SCENE_IDS,
   REACTOR,
+  REACTOR_CHOREOGRAPHY_TRIGGERS,
   REACTOR_RAY_REROLL_CADENCES,
   REACTOR_RAY_STYLES,
   REACTOR_RECIPE_CONFIGS,
@@ -263,7 +264,7 @@ describe('Reactor generative ray field', () => {
   ] as const
 
   it('bumps the scene version and exposes the eight ray params in the Shrapnel group', () => {
-    expect(REACTOR.version).toBe(3)
+    expect(REACTOR.version).toBe(4)
     for (const id of RAY_PARAM_IDS) {
       const param = REACTOR.params.find(p => p.id === id)
       expect(param, `${id} param`).toBeDefined()
@@ -357,5 +358,92 @@ describe('Reactor generative ray field', () => {
     // Malformed inputs never produce NaN / negative epochs.
     expect(resolveReactorRayEpoch('bar', at(Number.NaN, null, 0))).toBe(0)
     expect(resolveReactorRayEpoch('bar', at(-7, null, 0))).toBe(0)
+  })
+})
+
+describe('Reactor procedural core module', () => {
+  const CORE_PARAM_IDS = ['coreComplexity', 'coreIrregularity', 'coreWobble'] as const
+
+  it('adds the Procedural Core module toggle, mix, and shape knobs', () => {
+    const toggle = REACTOR.params.find(p => p.id === 'coreModuleEnabled')
+    expect(toggle?.type).toBe('boolean')
+    expect(toggle?.group).toBe('Modules')
+    const mix = REACTOR.params.find(p => p.id === 'coreModuleMix')
+    expect(mix?.group).toBe('Modules')
+    for (const id of CORE_PARAM_IDS) {
+      const param = REACTOR.params.find(p => p.id === id)
+      expect(param, `${id} param`).toBeDefined()
+      expect(param?.group).toBe('Procedural Core')
+      expect(param?.type).toBe('float')
+    }
+  })
+
+  it('gates the core shape knobs on the Procedural Core module', () => {
+    const values = { ...applyReactorRecipe('hybrid'), coreModuleEnabled: false } as ShaderParamValues
+    for (const id of [...CORE_PARAM_IDS, 'coreModuleMix'] as const) {
+      expect(isReactorParamVisible(id, values), `${id} hidden`).toBe(false)
+      expect(isReactorParamVisible(id, applyReactorRecipe('hybrid')), `${id} shown`).toBe(true)
+    }
+  })
+
+  it('renders a seeded procedural core behind the other modules in GLSL', () => {
+    const source = REACTOR.passes?.map(pass => pass.fragSrc).join('\n') ?? ''
+    expect(source).toContain('ReactorLayer renderCoreModule(')
+    // Same generative epoch as the ray field.
+    expect(source).toMatch(/renderCoreModule[\s\S]*?float epoch = floor\(uRaySeed\) \+ floor\(uRayEpoch\)/)
+    // Seeded lobe count + animated wobble.
+    expect(source).toContain('float lobes = 3.0 + floor(complexity * 6.0 + seedA * 3.0)')
+    expect(source).toContain('wobbleNoise')
+    // Folded into the non-brand accumulator ahead of the semantic / shrapnel layers.
+    expect(source).toContain('vec3 nonBrandColor = coreLayer.color * coreWeight')
+  })
+
+  it('every shipped recipe enables the procedural core', () => {
+    for (const id of RECIPE_IDS) {
+      expect(REACTOR_RECIPE_CONFIGS[id].coreModuleEnabled, id).toBe(true)
+    }
+  })
+
+  it('legacy projects hydrate core params from the recipe and repair malformed values', () => {
+    const hydrated = normalizeReactorParamValues({ recipe: 'custom', coreModuleEnabled: true })
+    const hybrid = applyReactorRecipe('hybrid')
+    for (const id of CORE_PARAM_IDS) expect(hydrated[id]).toEqual(hybrid[id])
+    const repaired = normalizeReactorParamValues({
+      recipe: 'custom',
+      coreComplexity: 9 as never,
+      coreIrregularity: -3 as never,
+    })
+    expect(repaired.coreComplexity).toBe(1)
+    expect(repaired.coreIrregularity).toBe(0)
+  })
+})
+
+describe('Reactor choreography trigger param', () => {
+  it('exposes one canonical-music Trigger enum in its own group', () => {
+    const param = REACTOR.params.find(p => p.id === 'choreographyTrigger')
+    expect(param?.type).toBe('enum')
+    expect(param?.group).toBe('Choreography')
+    expect(param && param.type === 'enum' ? param.values.map(v => v.value) : []).toEqual([...REACTOR_CHOREOGRAPHY_TRIGGERS])
+    expect([...REACTOR_CHOREOGRAPHY_TRIGGERS]).toEqual(
+      ['off', 'energy', 'beat', 'beat2', 'beat4', 'bar', 'bar4', 'bar8', 'downbeat', 'phrase', 'drop'],
+    )
+  })
+
+  it('wires the choreography burst uniforms into the shockwave in GLSL', () => {
+    const source = REACTOR.passes?.map(pass => pass.fragSrc).join('\n') ?? ''
+    expect(source).toContain('uniform float uReactorBurst;')
+    expect(source).toContain('uniform float uReactorBurstPhase;')
+    expect(source).toContain('float burstRadius = clamp(uReactorBurstPhase, 0.0, 1.25)')
+    expect(source).toContain('shockShape += burstRing;')
+  })
+
+  it('recipes opt into a musical trigger; an unrecognized value repairs to off', () => {
+    expect(REACTOR_RECIPE_CONFIGS.singularity.choreographyTrigger).toBe('drop')
+    expect(REACTOR_RECIPE_CONFIGS.hybrid.choreographyTrigger).toBe('bar4')
+    const repaired = normalizeReactorParamValues({ recipe: 'custom', choreographyTrigger: 'every-drop' as never })
+    expect(repaired.choreographyTrigger).toBe('off')
+    // A missing value still hydrates from the recipe rather than the repair fallback.
+    const hydrated = normalizeReactorParamValues({ recipe: 'singularity' })
+    expect(hydrated.choreographyTrigger).toBe('drop')
   })
 })

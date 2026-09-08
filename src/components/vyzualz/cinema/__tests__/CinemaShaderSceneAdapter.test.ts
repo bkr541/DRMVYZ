@@ -730,6 +730,104 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     })
   })
 
+  describe('Reactor choreography trigger burst', () => {
+    const reactorComposition = (trigger: string) => {
+      const base = createCinemaShaderSceneComposition(
+        REACTOR_SCENE_ID,
+        CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+        CINEMA_FOUNDATION_INPUT_PORT_ID,
+        { compositionId: cinemaStableId<CinemaCompositionId>(`reactor-choreo-${trigger}`, 'composition') },
+      )
+      const typeId = cinemaShaderSceneTypeId(REACTOR_SCENE_ID)
+      return {
+        ...base,
+        nodes: base.nodes.map(node => node.typeId === typeId ? {
+          ...node,
+          parameterValues: {
+            ...node.parameterValues,
+            ...createCinemaShaderSceneParameterValues(REACTOR_SCENE_ID, {
+              rayRerollCadence: 'off',
+              choreographyTrigger: trigger,
+            }),
+          },
+        } : node),
+      }
+    }
+    const mount = (composition: CinemaCompositionDefinition) => {
+      const state = createCinemaFoundationPersistedState()
+      const harness = createExecutorHarness()
+      vi.mocked(harness.gl.getUniformLocation).mockImplementation((_program, name) => (
+        { name } as unknown as WebGLUniformLocation
+      ))
+      harness.executor.resize({ width: 1, height: 1, dpr: 1 }, harness.viewport)
+      harness.executor.setGraph({ composition, instance: null, definitions: state.definitions })
+      const lastUniform = (name: string) => {
+        const calls = vi.mocked(harness.gl.uniform1f).mock.calls
+          .filter(([location]) => (location as unknown as { name?: string })?.name === name)
+          .map(([, value]) => value)
+        return calls[calls.length - 1]
+      }
+      const bar4Hit = (generation: number, eventId: string | null, barIndex: number) => {
+        const base = frame(generation)
+        return {
+          ...base,
+          music: {
+            ...base.music,
+            barIndex,
+            clocks: {
+              ...base.music.clocks,
+              bar4: eventId !== null,
+              states: {
+                ...base.music.clocks.states,
+                bar4: {
+                  ...base.music.clocks.states.bar4,
+                  hit: eventId !== null,
+                  eventId: eventId as CinemaEventId | null,
+                },
+              },
+            },
+          },
+        } as Readonly<CinemaFrameContext>
+      }
+      return { harness, lastUniform, bar4Hit }
+    }
+
+    it('advances the epoch and flares the burst on a fresh 4-bar event, de-duped by id', () => {
+      const { harness, lastUniform, bar4Hit } = mount(reactorComposition('bar4'))
+
+      expect(harness.executor.render(bar4Hit(0, null, 8))).toBe(true)
+      expect(lastUniform('uRayEpoch')).toBe(0)          // Re-roll Cadence is Off
+      expect(lastUniform('uReactorBurst')).toBe(0)
+
+      expect(harness.executor.render(bar4Hit(1, 'b4:a', 8))).toBe(true)
+      expect(lastUniform('uRayEpoch')).toBe(1)          // choreography re-roll folded in
+      expect(lastUniform('uReactorBurst')).toBeGreaterThan(0.9)
+      expect(lastUniform('uReactorBurstPhase')).toBe(0)
+
+      // Same event id held across the next frame — no double count, burst decays.
+      expect(harness.executor.render(bar4Hit(2, 'b4:a', 8))).toBe(true)
+      expect(lastUniform('uRayEpoch')).toBe(1)
+      expect(lastUniform('uReactorBurst')).toBeLessThan(1)
+      expect(lastUniform('uReactorBurstPhase')).toBeGreaterThan(0)
+
+      // A fresh event id -> 2.
+      expect(harness.executor.render(bar4Hit(3, 'b4:b', 12))).toBe(true)
+      expect(lastUniform('uRayEpoch')).toBe(2)
+      harness.dispose()
+    })
+
+    it('never bursts or re-rolls when the trigger is Off', () => {
+      const { harness, lastUniform, bar4Hit } = mount(reactorComposition('off'))
+      for (let generation = 0; generation < 4; generation += 1) {
+        expect(harness.executor.render(bar4Hit(generation, `b4:${generation}`, 8 + generation))).toBe(true)
+      }
+      expect(lastUniform('uRayEpoch')).toBe(0)
+      expect(lastUniform('uReactorBurst')).toBe(0)
+      expect(lastUniform('uReactorBurstPhase')).toBe(0)
+      harness.dispose()
+    })
+  })
+
   it('executes Reactor feedback, resets both history targets, and reconstructs after context restoration', () => {
     const state = createCinemaFoundationPersistedState()
     const composition = createCinemaShaderSceneComposition(

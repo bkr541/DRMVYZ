@@ -69,7 +69,17 @@ import type { ShaderProgram } from '../react/shaders/runtime/ShaderProgram'
 import type { TextureBinding } from '../react/shaders/runtime/shaderRuntimeTypes'
 import { getShaderReservedTextureUnits } from '../react/shaders/runtime/shaderTextureUnits'
 import { ShaderGradientTextureCache } from '../react/shaders/textures/ShaderGradientTextureCache'
-import { REACTOR_SCENE_ID, resolveReactorRayEpoch, type ReactorRayRerollCadence } from '../react/shaders/scenes/reactor'
+import {
+  REACTOR_SCENE_ID,
+  resolveReactorRayEpoch,
+  type ReactorRayRerollCadence,
+  type ReactorChoreographyTrigger,
+} from '../react/shaders/scenes/reactor'
+import {
+  ReactorChoreographyController,
+  type ReactorChoreographyClockId,
+  type ReactorChoreographyMusicInput,
+} from '../react/shaders/scenes/reactorChoreography'
 import {
   migrateLegacyReactorParamValues,
   migrateLegacyReactorSceneId,
@@ -550,6 +560,11 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
   // re-roll cadence. Drop cadence counts fresh drop-start events (de-duped by id).
   private rayDropCount = 0
   private lastRayDropEventId: string | null = null
+  // Reactor choreography: one canonical-music trigger driving extra epoch
+  // re-rolls and shockwave bursts, independent of the re-roll cadence above.
+  // Ticked once per frame in render(); the passes read the cached result.
+  private readonly reactorChoreography = new ReactorChoreographyController()
+  private reactorRuntime: { rayEpoch: number; burst: number; burstPhase: number } | null = null
 
   constructor(
     readonly authoredNode: Readonly<CinemaNodeDefinition>,
@@ -618,6 +633,11 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
 
     const resolvedShaderFrame = this.resolveShaderValues(context)
     const shaderValues = resolvedShaderFrame.values
+    // Reactor runtime uniforms (epoch + choreography burst) are frame-scoped, so
+    // resolve them once here rather than per pass in applyUniforms().
+    this.reactorRuntime = this.shader.id === REACTOR_SCENE_ID
+      ? this.updateReactorRuntime(context, shaderValues)
+      : null
     const reservedUnits = getShaderReservedTextureUnits(this.gl)
     const firstGradientUnit = maximumPassInputCount(this.graph)
     const gradientUnits = this.gradients.buildUnitMap(
@@ -970,8 +990,10 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
     program.setFloat('uSectionChangePulse', impulses.sectionStart ? 1 : 0)
     program.setFloat('uDropStartPulse', impulses.dropStart ? 1 : 0)
 
-    if (this.shader.id === REACTOR_SCENE_ID) {
-      program.setFloat('uRayEpoch', this.resolveRayEpoch(context, values))
+    if (this.shader.id === REACTOR_SCENE_ID && this.reactorRuntime) {
+      program.setFloat('uRayEpoch', this.reactorRuntime.rayEpoch)
+      program.setFloat('uReactorBurst', this.reactorRuntime.burst)
+      program.setFloat('uReactorBurstPhase', this.reactorRuntime.burstPhase)
     }
 
     const lyrics = frame.lyrics
@@ -1091,31 +1113,75 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
   }
 
   /**
-   * The Reactor ray field's persistent re-roll epoch. Off freezes it; Bar / 4
-   * Bars / Phrase track the canonical musical index; Drop counts fresh
-   * drop-start events (de-duped by canonical event id, so a held drop or a
-   * repeated frame never double-advances). Reset with the rest of scene state.
+   * Reactor per-frame runtime uniforms.
+   *
+   * `rayEpoch` = the Re-roll Cadence epoch (Off freezes it; Bar / 4 Bars /
+   * Phrase track the canonical musical index; Drop counts fresh drop-start
+   * events, de-duped by canonical event id) plus the choreography controller's
+   * own re-roll count — the two systems coexist and both advance the layout.
+   * `burst` / `burstPhase` drive the choreography shockwave burst.
    */
-  private resolveRayEpoch(
+  private updateReactorRuntime(
     context: CinemaNodeRenderContext,
     values: Record<string, ShaderParamValue>,
-  ): number {
+  ): { rayEpoch: number; burst: number; burstPhase: number } {
     const frame = context.frame
     const dropEventId = frame.impulses.eventIds.dropStart
     if (dropEventId !== null && dropEventId !== this.lastRayDropEventId) {
       this.lastRayDropEventId = dropEventId
       this.rayDropCount += 1
     }
-    return resolveReactorRayEpoch(values.rayRerollCadence as ReactorRayRerollCadence, {
+    const cadenceEpoch = resolveReactorRayEpoch(values.rayRerollCadence as ReactorRayRerollCadence, {
       barIndex: frame.music.barIndex ?? 0,
       phraseIndex: frame.music.clocks.states.phrase.index,
       dropCount: this.rayDropCount,
     })
+    const choreography = this.reactorChoreography.update(
+      this.buildReactorChoreographyInput(context),
+      (values.choreographyTrigger as ReactorChoreographyTrigger | undefined) ?? 'off',
+    )
+    return {
+      rayEpoch: cadenceEpoch + choreography.rerollCount,
+      burst: choreography.burst,
+      burstPhase: choreography.burstPhase,
+    }
+  }
+
+  private buildReactorChoreographyInput(context: CinemaNodeRenderContext): ReactorChoreographyMusicInput {
+    const frame = context.frame
+    const states = frame.music.clocks.states
+    const clockIds: readonly ReactorChoreographyClockId[] = ['beat', 'beat2', 'beat4', 'bar', 'bar4', 'bar8', 'phrase']
+    const clocks: Partial<Record<ReactorChoreographyClockId, { hit: boolean; eventId: string | null; index: number | null }>> = {}
+    for (const id of clockIds) {
+      const state = states[id]
+      clocks[id] = { hit: state.hit, eventId: state.eventId, index: state.index }
+    }
+    return {
+      deltaSec: frame.timing.deltaTimeSec,
+      timingDiscontinuity: frame.transport.discontinuity,
+      isPlaying: frame.transport.playing,
+      energy: frame.audio.energy,
+      scope: frame.transport.trackId ?? this.shader.id,
+      frameOrdinal: frame.timing.frameIndex,
+      clocks,
+      downbeat: {
+        active: frame.impulses.downbeat,
+        eventId: frame.impulses.eventIds.downbeat,
+        index: frame.music.barIndex,
+      },
+      drop: {
+        active: frame.impulses.dropStart,
+        eventId: frame.impulses.eventIds.dropStart,
+        index: null,
+      },
+    }
   }
 
   private clearState(): void {
     this.rayDropCount = 0
     this.lastRayDropEventId = null
+    this.reactorChoreography.reset()
+    this.reactorRuntime = null
     if (!this.targets) return
     for (const target of this.persistentTargets.values()) {
       try {

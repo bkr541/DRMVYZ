@@ -25,12 +25,24 @@ export const REACTOR_RAY_STYLES: readonly ReactorRayStyle[] = ['spoke', 'lance',
 export type ReactorRayRerollCadence = 'off' | 'bar' | 'bar4' | 'phrase' | 'drop'
 export const REACTOR_RAY_REROLL_CADENCES: readonly ReactorRayRerollCadence[] = ['off', 'bar', 'bar4', 'phrase', 'drop']
 
+/**
+ * The single canonical-music trigger for the choreography controller. A fired
+ * event advances the generative re-roll epoch (ray field + procedural core) and
+ * kicks a one-shot shockwave burst. `off` disables it entirely; the Shrapnel
+ * group's Re-roll Cadence keeps running independently.
+ */
+export type ReactorChoreographyTrigger =
+  | 'off' | 'energy' | 'beat' | 'beat2' | 'beat4' | 'bar' | 'bar4' | 'bar8' | 'downbeat' | 'phrase' | 'drop'
+export const REACTOR_CHOREOGRAPHY_TRIGGERS: readonly ReactorChoreographyTrigger[] =
+  ['off', 'energy', 'beat', 'beat2', 'beat4', 'bar', 'bar4', 'bar8', 'downbeat', 'phrase', 'drop']
+
 export interface ReactorConfig {
   recipe: ReactorRecipe
 
   semanticGeometryEnabled: boolean
   shrapnelEnabled: boolean
   brandCoreEnabled: boolean
+  coreModuleEnabled: boolean
   shockwaveEnabled: boolean
   feedbackTrailsEnabled: boolean
   mediaRefractionEnabled: boolean
@@ -39,6 +51,7 @@ export interface ReactorConfig {
   semanticMix: number
   shrapnelMix: number
   brandMix: number
+  coreModuleMix: number
 
   coreSize: number
   coreIntensity: number
@@ -71,6 +84,17 @@ export interface ReactorConfig {
   rayDashDensity: number
   rayLengthVariation: number
 
+  /** Procedural core module — a seeded irregular silhouette that re-rolls on the
+   *  shared ray seed + epoch. Shape-amount only; scale / brightness / spin reuse
+   *  Core Size / Core Intensity / Rotation Speed. */
+  coreComplexity: number
+  coreIrregularity: number
+  coreWobble: number
+
+  /** Choreography controller: one canonical-music trigger driving epoch re-rolls
+   *  and shockwave bursts. Independent of Re-roll Cadence. */
+  choreographyTrigger: ReactorChoreographyTrigger
+
   brandInfluence: number
   logoScale: number
   refractionAmount: number
@@ -92,6 +116,7 @@ const REACTOR_RECIPE_VALUES: Readonly<Record<Exclude<ReactorRecipe, 'custom'>, R
     semanticGeometryEnabled: true,
     shrapnelEnabled: false,
     brandCoreEnabled: false,
+    coreModuleEnabled: true,
     shockwaveEnabled: true,
     feedbackTrailsEnabled: false,
     mediaRefractionEnabled: false,
@@ -99,6 +124,7 @@ const REACTOR_RECIPE_VALUES: Readonly<Record<Exclude<ReactorRecipe, 'custom'>, R
     semanticMix: 1,
     shrapnelMix: 0,
     brandMix: 0,
+    coreModuleMix: 1,
     coreSize: 0.52,
     coreIntensity: 1.05,
     rotationSpeed: 0.24,
@@ -125,6 +151,10 @@ const REACTOR_RECIPE_VALUES: Readonly<Record<Exclude<ReactorRecipe, 'custom'>, R
     rayForkAmount: 0.2,
     rayDashDensity: 0.35,
     rayLengthVariation: 0.4,
+    coreComplexity: 0.4,
+    coreIrregularity: 0.25,
+    coreWobble: 0.2,
+    choreographyTrigger: 'phrase',
     brandInfluence: 0.35,
     logoScale: 1,
     refractionAmount: 0.5,
@@ -141,6 +171,7 @@ const REACTOR_RECIPE_VALUES: Readonly<Record<Exclude<ReactorRecipe, 'custom'>, R
     semanticGeometryEnabled: false,
     shrapnelEnabled: true,
     brandCoreEnabled: false,
+    coreModuleEnabled: true,
     shockwaveEnabled: true,
     feedbackTrailsEnabled: true,
     mediaRefractionEnabled: false,
@@ -148,6 +179,7 @@ const REACTOR_RECIPE_VALUES: Readonly<Record<Exclude<ReactorRecipe, 'custom'>, R
     semanticMix: 0,
     shrapnelMix: 1,
     brandMix: 0,
+    coreModuleMix: 0.85,
     coreSize: 0.34,
     coreIntensity: 0.92,
     rotationSpeed: 0.22,
@@ -174,6 +206,10 @@ const REACTOR_RECIPE_VALUES: Readonly<Record<Exclude<ReactorRecipe, 'custom'>, R
     rayForkAmount: 0.45,
     rayDashDensity: 0.5,
     rayLengthVariation: 0.65,
+    coreComplexity: 0.7,
+    coreIrregularity: 0.6,
+    coreWobble: 0.55,
+    choreographyTrigger: 'bar4',
     brandInfluence: 0.42,
     logoScale: 0.82,
     refractionAmount: 0.35,
@@ -190,6 +226,7 @@ const REACTOR_RECIPE_VALUES: Readonly<Record<Exclude<ReactorRecipe, 'custom'>, R
     semanticGeometryEnabled: false,
     shrapnelEnabled: false,
     brandCoreEnabled: true,
+    coreModuleEnabled: true,
     shockwaveEnabled: true,
     feedbackTrailsEnabled: true,
     mediaRefractionEnabled: true,
@@ -197,6 +234,7 @@ const REACTOR_RECIPE_VALUES: Readonly<Record<Exclude<ReactorRecipe, 'custom'>, R
     semanticMix: 0,
     shrapnelMix: 0,
     brandMix: 1,
+    coreModuleMix: 0.7,
     coreSize: 0.48,
     coreIntensity: 1.18,
     rotationSpeed: 0.18,
@@ -223,6 +261,10 @@ const REACTOR_RECIPE_VALUES: Readonly<Record<Exclude<ReactorRecipe, 'custom'>, R
     rayForkAmount: 0.15,
     rayDashDensity: 0.25,
     rayLengthVariation: 0.45,
+    coreComplexity: 0.3,
+    coreIrregularity: 0.35,
+    coreWobble: 0.4,
+    choreographyTrigger: 'drop',
     brandInfluence: 1,
     logoScale: 1,
     refractionAmount: 1.25,
@@ -239,6 +281,7 @@ const REACTOR_RECIPE_VALUES: Readonly<Record<Exclude<ReactorRecipe, 'custom'>, R
     semanticGeometryEnabled: true,
     shrapnelEnabled: true,
     brandCoreEnabled: true,
+    coreModuleEnabled: true,
     shockwaveEnabled: true,
     feedbackTrailsEnabled: true,
     mediaRefractionEnabled: true,
@@ -246,6 +289,7 @@ const REACTOR_RECIPE_VALUES: Readonly<Record<Exclude<ReactorRecipe, 'custom'>, R
     semanticMix: 0.72,
     shrapnelMix: 0.78,
     brandMix: 0.9,
+    coreModuleMix: 0.8,
     coreSize: 0.46,
     coreIntensity: 1,
     rotationSpeed: 0.21,
@@ -272,6 +316,10 @@ const REACTOR_RECIPE_VALUES: Readonly<Record<Exclude<ReactorRecipe, 'custom'>, R
     rayForkAmount: 0.3,
     rayDashDensity: 0.4,
     rayLengthVariation: 0.5,
+    coreComplexity: 0.5,
+    coreIrregularity: 0.4,
+    coreWobble: 0.4,
+    choreographyTrigger: 'bar4',
     brandInfluence: 0.82,
     logoScale: 0.96,
     refractionAmount: 0.82,
@@ -338,6 +386,9 @@ export function normalizeReactorParamValues(
   if (authored.brandMix === undefined) {
     normalized.brandMix = authored.brandCoreEnabled === false ? 0 : 1
   }
+  if (authored.coreModuleMix === undefined) {
+    normalized.coreModuleMix = authored.coreModuleEnabled === false ? 0 : 1
+  }
 
   // Generative ray-field params: the recipe spread already supplies defaults for
   // legacy projects; here we only repair malformed persisted values.
@@ -353,6 +404,18 @@ export function normalizeReactorParamValues(
     normalized.raySeed = Math.min(9999, Math.max(0, Math.round(normalized.raySeed)))
   }
   for (const id of ['rayAngularIrregularity', 'rayCurvature', 'rayForkAmount', 'rayDashDensity', 'rayLengthVariation'] as const) {
+    const value = normalized[id]
+    if (typeof value !== 'number' || !Number.isFinite(value)) continue
+    normalized[id] = Math.min(1, Math.max(0, value))
+  }
+
+  // Procedural core + choreography params: recipe spread supplies legacy
+  // defaults; repair only malformed persisted values. An unrecognized trigger
+  // must fall back to `off` rather than silently starting to fire bursts.
+  if (!REACTOR_CHOREOGRAPHY_TRIGGERS.includes(normalized.choreographyTrigger as ReactorChoreographyTrigger)) {
+    normalized.choreographyTrigger = 'off'
+  }
+  for (const id of ['coreComplexity', 'coreIrregularity', 'coreWobble'] as const) {
     const value = normalized[id]
     if (typeof value !== 'number' || !Number.isFinite(value)) continue
     normalized[id] = Math.min(1, Math.max(0, value))
@@ -388,6 +451,10 @@ const REACTOR_PARAM_MODULE_DEPENDENCIES: Readonly<Record<string, keyof ReactorCo
   rayForkAmount: 'shrapnelEnabled',
   rayDashDensity: 'shrapnelEnabled',
   rayLengthVariation: 'shrapnelEnabled',
+  coreModuleMix: 'coreModuleEnabled',
+  coreComplexity: 'coreModuleEnabled',
+  coreIrregularity: 'coreModuleEnabled',
+  coreWobble: 'coreModuleEnabled',
   trailPersistence: 'feedbackTrailsEnabled',
   brandInfluence: 'brandCoreEnabled',
   logoScale: 'brandCoreEnabled',
@@ -732,6 +799,82 @@ ReactorLayer renderShrapnelModule(
 }
 `
 
+const REACTOR_CORE_MODULE_GLSL = String.raw`
+// Procedural core. A seeded irregular silhouette that re-rolls on the shared
+// generative epoch (floor(uRaySeed) + floor(uRayEpoch)) so the whole preset
+// re-rolls as one coherent look. Shape-amount comes from uCoreComplexity /
+// uCoreIrregularity / uCoreWobble; scale, brightness, and spin reuse
+// uCoreSize / uCoreIntensity / uRotationSpeed. Renders behind the other
+// modules, which keep their own centers but visually defer to it.
+ReactorLayer renderCoreModule(
+  vec2 point,
+  MusicSignals music,
+  float bass,
+  float buildAmount,
+  float dropAmount,
+  float contraction,
+  float sharedSpin
+) {
+  if (uCoreModuleEnabled < 0.001 || uCoreModuleMix < 0.001) {
+    return emptyReactorLayer();
+  }
+
+  float epoch = floor(uRaySeed) + floor(uRayEpoch);
+  float seedA = hash11(epoch * 1.917 + 3.11);
+  float seedB = hash11(epoch * 0.733 + 12.7);
+  float seedC = hash11(epoch * 2.531 + 27.9);
+
+  float complexity = saturate(uCoreComplexity);
+  float irregularity = saturate(uCoreIrregularity);
+  float wobble = saturate(uCoreWobble);
+
+  // Seeded lobe count 3..11 and a seeded static rotation so each epoch reads as
+  // a distinct form even before music moves it.
+  float lobes = 3.0 + floor(complexity * 6.0 + seedA * 3.0);
+  float coreSpin = sharedSpin + seedB * SHADER_TAU + uPhrase8Progress * 0.4;
+
+  vec2 spun = rotate2d(coreSpin) * point;
+  float angle = atan(spun.y, spun.x);
+  float radius = length(spun);
+
+  float baseRadius = uCoreSize * mix(0.34, 0.52, contraction)
+    * (1.0 + bass * uMasterBassReactivity * 0.22 + dropAmount * 0.12 + buildAmount * 0.08);
+
+  // Angular radius profile: seeded harmonics carve the silhouette, an animated
+  // noise term supplies the wobble.
+  float harmonics =
+      sin(angle * lobes + seedA * SHADER_TAU) * 0.6
+    + sin(angle * (lobes * 2.0 + 1.0) + seedC * SHADER_TAU) * 0.28
+    + sin(angle * 3.0 - seedB * SHADER_TAU) * 0.16;
+  float wobbleNoise = noise21(vec2(
+    angle * (1.0 + lobes * 0.35),
+    uTime * 0.35 + seedC * 10.0
+  )) - 0.5;
+  float rimRadius = baseRadius * (
+    1.0
+    + harmonics * irregularity * 0.32
+    + wobbleNoise * wobble * 0.4
+  );
+
+  float body = smoothstep(rimRadius + baseRadius * 0.12, rimRadius - baseRadius * 0.16, radius);
+  float rim = exp(-abs(radius - rimRadius) * (46.0 + (1.0 - wobble) * 42.0));
+  float innerGlow = exp(-radius * (4.6 - buildAmount * 1.6))
+    * (0.25 + bass * 0.4 + music.macro * 0.2);
+
+  float coreEnergy = uCoreIntensity
+    * (0.42 + bass * uMasterBassReactivity * 0.4 + music.micro * 0.24 + dropAmount * 0.16);
+
+  vec3 bodyColor = mix(uPrimaryColor.rgb, uSecondaryColor.rgb, 0.35 + seedA * 0.3);
+  vec3 color = bodyColor * body * coreEnergy * 0.5;
+  color += uAccentColor.rgb * rim
+    * (0.4 + music.rhythm * 0.5 + uSnareHit * 0.4 + buildAmount * 0.3);
+  color += uPrimaryColor.rgb * innerGlow * (0.4 + coreEnergy * 0.5);
+
+  float mask = saturate(body * 0.7 + rim * 0.6 + innerGlow * 0.3);
+  return ReactorLayer(color, mask, 0.0);
+}
+`
+
 const REACTOR_BRAND_MODULE_GLSL = String.raw`
 ReactorLayer renderBrandModule(
   vec2 uv,
@@ -882,6 +1025,14 @@ uniform float uRayCurvature;
 uniform float uRayForkAmount;
 uniform float uRayDashDensity;
 uniform float uRayLengthVariation;
+uniform float uCoreModuleEnabled;
+uniform float uCoreModuleMix;
+uniform float uCoreComplexity;
+uniform float uCoreIrregularity;
+uniform float uCoreWobble;
+uniform float uChoreographyTrigger;
+uniform float uReactorBurst;
+uniform float uReactorBurstPhase;
 uniform float uBrandInfluence;
 uniform float uLogoScale;
 uniform float uRefractionAmount;
@@ -899,6 +1050,7 @@ ${REACTOR_MODULE_TYPES_GLSL}
 ${REACTOR_MODULE_UTILS_GLSL}
 ${REACTOR_SEMANTIC_MODULE_GLSL}
 ${REACTOR_SHRAPNEL_MODULE_GLSL}
+${REACTOR_CORE_MODULE_GLSL}
 ${REACTOR_BRAND_MODULE_GLSL}
 
 void main() {
@@ -925,17 +1077,24 @@ void main() {
   ReactorLayer shrapnelLayer = renderShrapnelModule(
     point, music, bass, buildAmount, dropAmount, contraction, sharedSpin
   );
+  ReactorLayer coreLayer = renderCoreModule(
+    point, music, bass, buildAmount, dropAmount, contraction, sharedSpin
+  );
   ReactorLayer brandLayer = renderBrandModule(
     uv, point, music, bass, vocal, buildAmount, dropAmount, contraction, sharedSpin
   );
 
   float semanticWeight = uSemanticGeometryEnabled * max(0.0, uSemanticMix);
   float shrapnelWeight = uShrapnelEnabled * max(0.0, uShrapnelMix);
+  float coreWeight = uCoreModuleEnabled * max(0.0, uCoreModuleMix);
   float brandWeight = uBrandCoreEnabled * max(0.0, uBrandMix) * max(0.0, uBrandInfluence);
-  float weightSum = semanticWeight + shrapnelWeight + brandWeight;
+  float weightSum = semanticWeight + shrapnelWeight + coreWeight + brandWeight;
   float normalization = 1.0 / max(1.0, 1.0 + max(0.0, weightSum - 1.0) * 0.48);
 
-  vec3 nonBrandColor = semanticLayer.color * semanticWeight
+  // The procedural core renders behind the other modules: fold it into the
+  // non-brand accumulator so the logo still occludes it.
+  vec3 nonBrandColor = coreLayer.color * coreWeight
+    + semanticLayer.color * semanticWeight
     + shrapnelLayer.color * shrapnelWeight;
   float logoOcclusion = saturate(brandLayer.identityMask * brandWeight * 1.35);
   nonBrandColor *= mix(1.0, 0.16, logoOcclusion);
@@ -950,6 +1109,17 @@ void main() {
     * uShockwaveEnabled
     * uShockwaveIntensity
     * (dropAmount + uDownbeatHit * 0.55 + uSectionChangePulse * 0.18);
+
+  // Choreography burst: each fired trigger event resets uReactorBurstPhase to 0
+  // (an expanding ring) and uReactorBurst to 1 (a decaying brightness spike).
+  float burstRadius = clamp(uReactorBurstPhase, 0.0, 1.25) * (1.12 + uSpread * 0.2);
+  float burstRing = reactorRing(radius, burstRadius, shockWidth * 0.82)
+    * uShockwaveEnabled
+    * uShockwaveIntensity
+    * uReactorBurst
+    * (1.35 + dropAmount * 0.5);
+  shockShape += burstRing;
+
   vec3 shockColor = mix(uAccentColor.rgb, uBrandImpact.rgb, uBrandEnabled * brandWeight)
     * shockShape;
 
@@ -1059,6 +1229,8 @@ const REACTOR_PARAMS: ShaderParamDef[] = [
   { id: 'shrapnelMix', type: 'float', label: 'Shrapnel Mix', group: 'Modules', uniformName: 'uShrapnelMix', min: 0, max: 1.5, step: 0.01, default: 0.78, modulatable: true },
   { id: 'brandCoreEnabled', type: 'boolean', label: 'Brand Core', group: 'Modules', uniformName: 'uBrandCoreEnabled', default: true },
   { id: 'brandMix', type: 'float', label: 'Brand Mix', group: 'Modules', uniformName: 'uBrandMix', min: 0, max: 1.5, step: 0.01, default: 0.9, modulatable: true },
+  { id: 'coreModuleEnabled', type: 'boolean', label: 'Procedural Core', group: 'Modules', uniformName: 'uCoreModuleEnabled', default: true },
+  { id: 'coreModuleMix', type: 'float', label: 'Core Mix', group: 'Modules', uniformName: 'uCoreModuleMix', min: 0, max: 1.5, step: 0.01, default: 0.8, modulatable: true },
   { id: 'shockwaveEnabled', type: 'boolean', label: 'Shockwave', group: 'Modules', uniformName: 'uShockwaveEnabled', default: true },
   { id: 'feedbackTrailsEnabled', type: 'boolean', label: 'Feedback Trails', group: 'Modules', uniformName: 'uFeedbackTrailsEnabled', default: true },
   { id: 'mediaRefractionEnabled', type: 'boolean', label: 'Media Refraction', group: 'Modules', uniformName: 'uMediaRefractionEnabled', default: true },
@@ -1115,6 +1287,28 @@ const REACTOR_PARAMS: ShaderParamDef[] = [
   { id: 'rayDashDensity', type: 'float', label: 'Dash Density', group: 'Shrapnel', uniformName: 'uRayDashDensity', min: 0, max: 1, step: 0.01, default: 0.4, modulatable: true },
   { id: 'rayLengthVariation', type: 'float', label: 'Length Variation', group: 'Shrapnel', uniformName: 'uRayLengthVariation', min: 0, max: 1, step: 0.01, default: 0.5, modulatable: true },
 
+  { id: 'coreComplexity', type: 'float', label: 'Core Complexity', group: 'Procedural Core', uniformName: 'uCoreComplexity', min: 0, max: 1, step: 0.01, default: 0.5, modulatable: true },
+  { id: 'coreIrregularity', type: 'float', label: 'Core Irregularity', group: 'Procedural Core', uniformName: 'uCoreIrregularity', min: 0, max: 1, step: 0.01, default: 0.4, modulatable: true },
+  { id: 'coreWobble', type: 'float', label: 'Core Wobble', group: 'Procedural Core', uniformName: 'uCoreWobble', min: 0, max: 1, step: 0.01, default: 0.4, modulatable: true },
+
+  {
+    id: 'choreographyTrigger', type: 'enum', label: 'Choreography Trigger', group: 'Choreography', uniformName: 'uChoreographyTrigger',
+    values: [
+      { value: 'off', label: 'Off' },
+      { value: 'energy', label: 'Energy' },
+      { value: 'beat', label: 'Beat' },
+      { value: 'beat2', label: '2 Beats' },
+      { value: 'beat4', label: '4 Beats' },
+      { value: 'bar', label: 'Bar' },
+      { value: 'bar4', label: '4 Bars' },
+      { value: 'bar8', label: '8 Bars' },
+      { value: 'downbeat', label: 'Downbeat' },
+      { value: 'phrase', label: 'Phrase' },
+      { value: 'drop', label: 'Drop' },
+    ],
+    default: 'bar4',
+  },
+
   { id: 'brandInfluence', type: 'float', label: 'Brand Influence', group: 'Brand and Media', uniformName: 'uBrandInfluence', min: 0, max: 1.5, step: 0.01, default: 0.82, modulatable: true },
   { id: 'logoScale', type: 'float', label: 'Logo Scale', group: 'Brand and Media', uniformName: 'uLogoScale', min: 0.25, max: 2, step: 0.01, default: 0.96, modulatable: true },
   { id: 'refractionAmount', type: 'float', label: 'Refraction Amount', group: 'Brand and Media', uniformName: 'uRefractionAmount', min: 0, max: 3, step: 0.01, default: 0.82, modulatable: true },
@@ -1135,7 +1329,7 @@ export const REACTOR: ShaderDefinition = {
   name: 'Reactor',
   description: 'A composable semantic, shrapnel, and brand-reactive Shader scene with independently blendable modules.',
   category: 'feedback',
-  version: 3,
+  version: 4,
   passes: [
     {
       id: 'generator',

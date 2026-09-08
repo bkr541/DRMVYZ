@@ -18,7 +18,17 @@ import { shaderRegistry }              from './registry'
 import { useShaderPanelStore }         from './ui/shaderPanelStore'
 import { useShaderLibraryStore }       from './library/ShaderLibraryStore'
 import { DEFAULT_SHADER_SCENE_ID }     from './scenes'
-import { REACTOR_SCENE_ID, resolveReactorRayEpoch, type ReactorRayRerollCadence } from './scenes/reactor'
+import {
+  REACTOR_SCENE_ID,
+  resolveReactorRayEpoch,
+  type ReactorRayRerollCadence,
+  type ReactorChoreographyTrigger,
+} from './scenes/reactor'
+import {
+  ReactorChoreographyController,
+  type ReactorChoreographyClockId,
+  type ReactorChoreographyClockInput,
+} from './scenes/reactorChoreography'
 import { ShaderFeedbackResetTracker }  from './feedback/ShaderFeedbackResetTracker'
 import type { ReactFrameContext }      from '../renderers/reactRenderUtils'
 import type {
@@ -154,6 +164,16 @@ export class ShaderEngineRenderer {
   private _reactorRayEpoch = 0
   private _reactorRayDropCount = 0
   private _reactorRayDropArmed = true
+  // Reactor choreography: one canonical-music trigger driving extra epoch
+  // re-rolls and shockwave bursts, independent of the re-roll cadence. This
+  // path exposes fewer canonical clocks than Cinema, so Beat / 2 Beats / 4
+  // Beats degrade to no-ops; Bar / 4 Bars / 8 Bars / Downbeat / Phrase / Drop /
+  // Energy are derived from the timing frame and the drop-impact hysteresis.
+  private readonly _reactorChoreography = new ReactorChoreographyController()
+  private _reactorBurst = 0
+  private _reactorBurstPhase = 0
+  private _reactorPrevBarIndex = -1
+  private _reactorChoreoFrame = 0
 
   // Preview graph (kept alive while previewing, disposed on scene switch or reset)
   private _previewGraph:    CompiledGraph | null = null
@@ -472,19 +492,52 @@ export class ShaderEngineRenderer {
     if (this._activeSceneId === REACTOR_SCENE_ID) {
       // Drop-impact rising edge (armed below 0.35, fires above 0.6) stands in for
       // a drop event id, which this render path does not carry.
+      const dropRising = this._reactorRayDropArmed && audioFrame.dropImpact >= 0.6
       if (audioFrame.dropImpact <= 0.35) this._reactorRayDropArmed = true
-      else if (this._reactorRayDropArmed && audioFrame.dropImpact >= 0.6) {
+      else if (dropRising) {
         this._reactorRayDropArmed = false
         this._reactorRayDropCount += 1
       }
       const cadence = typeof store.paramValues.rayRerollCadence === 'string'
         ? store.paramValues.rayRerollCadence as ReactorRayRerollCadence
         : 'bar'
-      this._reactorRayEpoch = resolveReactorRayEpoch(cadence, {
+      const cadenceEpoch = resolveReactorRayEpoch(cadence, {
         barIndex: timingFrame.barIndex,
         phraseIndex: null,
         dropCount: this._reactorRayDropCount,
       })
+
+      // Canonical clocks this path can honour, all derived from the bar index.
+      const barIndex = Math.max(0, Math.floor(timingFrame.barIndex))
+      const barChanged = barIndex !== this._reactorPrevBarIndex
+      this._reactorPrevBarIndex = barIndex
+      const barClock = (span: number): ReactorChoreographyClockInput => ({
+        hit: barChanged && barIndex % span === 0,
+        eventId: null,
+        index: Math.floor(barIndex / span),
+      })
+      const trigger = typeof store.paramValues.choreographyTrigger === 'string'
+        ? store.paramValues.choreographyTrigger as ReactorChoreographyTrigger
+        : 'off'
+      const choreo = this._reactorChoreography.update({
+        deltaSec: frameState.deltaTime,
+        timingDiscontinuity: feedbackResetRequested,
+        isPlaying: true,
+        energy: audioFrame.energy,
+        scope: frame.trackKey ?? REACTOR_SCENE_ID,
+        frameOrdinal: this._reactorChoreoFrame++,
+        clocks: {
+          bar: barClock(1),
+          bar4: barClock(4),
+          bar8: barClock(8),
+          phrase: barClock(16),
+        } satisfies Partial<Record<ReactorChoreographyClockId, ReactorChoreographyClockInput>>,
+        downbeat: { active: barChanged, eventId: null, index: barIndex },
+        drop: { active: dropRising, eventId: null, index: this._reactorRayDropCount },
+      }, trigger)
+      this._reactorRayEpoch = cadenceEpoch + choreo.rerollCount
+      this._reactorBurst = choreo.burst
+      this._reactorBurstPhase = choreo.burstPhase
     }
     // Build texture metadata snapshot once per frame (not per program)
     const texMeta = this._texManager.getAllMetadata()
@@ -521,6 +574,8 @@ export class ShaderEngineRenderer {
       _applyTextureMetaUniforms(program, def, texMeta)
       if (this._activeSceneId === REACTOR_SCENE_ID) {
         program.setFloat('uRayEpoch', this._reactorRayEpoch)
+        program.setFloat('uReactorBurst', this._reactorBurst)
+        program.setFloat('uReactorBurstPhase', this._reactorBurstPhase)
       }
     }
 
@@ -919,6 +974,11 @@ export class ShaderEngineRenderer {
     this._reactorRayEpoch = 0
     this._reactorRayDropCount = 0
     this._reactorRayDropArmed = true
+    this._reactorChoreography.reset()
+    this._reactorBurst = 0
+    this._reactorBurstPhase = 0
+    this._reactorPrevBarIndex = -1
+    this._reactorChoreoFrame = 0
 
     // Clear previous scene's runtime texture bindings before applying the new
     // scene's selections.  Without this, two scenes sharing the same input name
