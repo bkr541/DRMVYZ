@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DRMVYZ Afterhours Visual Acceptance</title>
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #05070a; color: #e8fbff; font: 14px/1.4 system-ui, sans-serif; }
+    main { width: min(1120px, calc(100vw - 32px)); margin: 16px auto; }
+    header { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+    select { flex: 1; background: #10151b; color: inherit; border: 1px solid #34404b; border-radius: 6px; padding: 8px 10px; }
+    [data-afterhours-acceptance-host] { width: 960px; max-width: 100%; aspect-ratio: 16 / 9; background: #000; }
+    canvas { display: block; width: 100%; height: 100%; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #0b0f14; padding: 12px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <strong>Afterhours Stage 7</strong>
+    <select data-afterhours-acceptance-select aria-label="Afterhours acceptance checkpoint"></select>
+  </header>
+  <div data-afterhours-acceptance-host><canvas data-afterhours-acceptance-canvas></canvas></div>
+  <pre data-afterhours-acceptance-status data-result="pending">pending</pre>
+</main>
+<script type="module" src="./AfterhoursVisualAcceptanceBrowserHarness.ts"></script>
+</body>
+</html>

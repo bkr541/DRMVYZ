@@ -20,6 +20,7 @@ import {
   resolveAfterhoursPalette,
 } from './AfterhoursColor'
 import { AFTERHOURS_FRAGMENT_SOURCE } from './AfterhoursShader'
+import { publishAfterhoursVisualAcceptanceMetadata } from './AfterhoursVisualAcceptanceDiagnostics'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
 
 const UNIFORMS = [
@@ -255,6 +256,22 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
     // edge so no transition can create a floating finite segment.
     const settled = direction.transition >= 1
     const nextBeams = generateAfterhoursBeams(genSettings, { ...genOptions, variation: direction.variation })
+    publishAfterhoursVisualAcceptanceMetadata({
+      direction,
+      beams: nextBeams,
+      requestedBeamCount: settings.beamCount,
+      masterIntensity: settings.masterIntensity,
+      sectionId: frame.canonicalMusic?.section.id ?? null,
+      sectionType: frame.canonicalMusic?.section.type ?? null,
+      impulses: {
+        beat: frame.canonicalMusic?.impulses.beat.active ?? false,
+        downbeat: frame.canonicalMusic?.impulses.downbeat.active ?? false,
+        kick: frame.canonicalMusic?.impulses.kick.active ?? false,
+        snare: frame.canonicalMusic?.impulses.snare.active ?? false,
+        sectionStart: frame.canonicalMusic?.impulses.sectionStart.active ?? false,
+        dropStart: frame.canonicalMusic?.impulses.dropStart.active ?? false,
+      },
+    })
     const previousBeams = settled
       ? nextBeams
       : generateAfterhoursBeams(
