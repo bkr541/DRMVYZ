@@ -20212,6 +20212,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-lc-group {
   gap: 0;
+  padding: var(--ae2-step);
 }
 
 .rv-ae-lc-title {
@@ -20266,6 +20267,25 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-lc-group .rv-canvas-layer-effect-row--empty {
   padding: var(--ae2-gap) 0 2px;
+}
+
+/* The Trigger toggle and its panel form one block, indented under the effect
+   dropdown's control column (FX gutter 18px + row gap 7px + label rail 78px +
+   grid gap 8px = 111px), with clear vertical space above and below rather than
+   a connector line bridging them. */
+.rv-ae-lc-group .rv-ae-tc-toggle {
+  align-self: flex-start;
+  margin-top: var(--ae2-step);
+  margin-left: 111px;
+}
+
+.rv-ae-lc-group .rv-ae-tc-toggle::before,
+.rv-ae-lc-group .rv-ae-tc-toggle.is-open::after {
+  display: none;
+}
+
+.rv-ae-lc-group .rv-ae-tc-panel {
+  margin: var(--ae2-step) 0 2px 111px;
 }
 
 /* ── Concept: Thumb Card ─────────────────────────────────────────────────── */

@@ -1056,6 +1056,8 @@ function AECardRoute({
   toggleVariant,
   pickerLeading,
   routedHeading,
+  emptyPickerLabel,
+  filledPickerLabel,
   routeClassName,
 }: {
   ctx: AddEffectsRouteContext
@@ -1073,6 +1075,9 @@ function AECardRoute({
   /** Caption rendered at the top of the open panel, above the routed rows —
    *  only once at least one parameter is routed. */
   routedHeading?: ReactNode
+  /** Override the panel picker's label before / after anything is routed. */
+  emptyPickerLabel?: string
+  filledPickerLabel?: string
   /** When set, wrap the toggle + panel in one element so a concept can lay
    *  them out together (e.g. side by side instead of stacked). */
   routeClassName?: string
@@ -1100,6 +1105,8 @@ function AECardRoute({
             showDots
             inlineParamRow
             pickerLeading={pickerLeading}
+            emptyPickerLabel={emptyPickerLabel}
+            filledPickerLabel={filledPickerLabel}
             {...editorHandlers(ctx.linkKey)}
           />
         </div>
@@ -1179,7 +1186,17 @@ function AddEffectsLedgerCardConcept({ state }: { state: CanvasMockState }) {
           showEmptyEffectLabel
           emptyEffectLabelText="Effect"
           renderRoute={ctx => (
-            <AECardRoute ctx={ctx} classPrefix="rv-ae-tc" routesFor={routesFor} isOpenFor={isOpenFor} toggle={toggle} editorHandlers={editorHandlers} toggleVariant="dashed-trigger" />
+            <AECardRoute
+              ctx={ctx}
+              classPrefix="rv-ae-tc"
+              routesFor={routesFor}
+              isOpenFor={isOpenFor}
+              toggle={toggle}
+              editorHandlers={editorHandlers}
+              toggleVariant="dashed-trigger"
+              emptyPickerLabel="Add Trigger"
+              filledPickerLabel="Add Trigger"
+            />
           )}
         />
       )}
