@@ -4,6 +4,7 @@ import type { CinematicFrameContext } from '../../CinematicWorldRenderer'
 import {
   AFTERHOURS_MAX_BEAMS,
   generateAfterhoursBeams,
+  isAfterhoursViewportExit,
   type AfterhoursBeamGenerationSettings,
 } from './AfterhoursBeamGeometry'
 import { AfterhoursPatternDirector, blendAfterhoursBeamFrames } from './AfterhoursPatternDirector'
@@ -281,7 +282,7 @@ describe('Afterhours Stage 5 — blendAfterhoursBeamFrames', () => {
     }
   })
 
-  it('never interpolates a fixed emitter origin and keeps every target in-bounds mid-morph', () => {
+  it('never interpolates a fixed emitter origin and re-projects every mid-morph ray to the viewport edge', () => {
     for (const t of [0.15, 0.4, 0.6, 0.85]) {
       const blended = blendAfterhoursBeamFrames(genA, genB, t)
       for (let i = 0; i < AFTERHOURS_MAX_BEAMS; i += 1) {
@@ -289,10 +290,9 @@ describe('Afterhours Stage 5 — blendAfterhoursBeamFrames', () => {
         if (!beam.active) continue
         // Origin is one of the two frozen source origins, not a lerp of them.
         expect(beam.origin === genA[i].origin || beam.origin === genB[i].origin).toBe(true)
-        expect(beam.target.x).toBeGreaterThanOrEqual(0)
-        expect(beam.target.x).toBeLessThanOrEqual(1)
-        expect(beam.target.y).toBeGreaterThanOrEqual(0)
-        expect(beam.target.y).toBeLessThanOrEqual(1)
+        expect(beam.target).toBe(beam.endpoint)
+        expect(isAfterhoursViewportExit(beam.endpoint)).toBe(true)
+        expect(Math.hypot(beam.direction.x, beam.direction.y)).toBeCloseTo(1, 8)
         expect(beam.weight).toBeGreaterThan(0)
         expect(beam.weight).toBeLessThanOrEqual(1)
       }

@@ -5,7 +5,7 @@ import { DEFAULT_REACT_PRESETS } from '../../../ReactTypes'
 import type { ShaderProgram } from '../../../shaders/runtime/ShaderProgram'
 import type { CinematicFrameContext } from '../../CinematicWorldRenderer'
 import { DEFAULT_REACT_RENDER_PARAMS } from '../../reactRenderUtils'
-import { AFTERHOURS_BOTTOM_EMITTERS, AFTERHOURS_MAX_BEAMS, generateAfterhoursBeams } from './AfterhoursBeamGeometry'
+import { AFTERHOURS_BOTTOM_EMITTERS, AFTERHOURS_MAX_BEAMS, generateAfterhoursBeams, isAfterhoursViewportExit } from './AfterhoursBeamGeometry'
 import { parseAfterhoursHexColor, resolveAfterhoursPalette } from './AfterhoursColor'
 import { AFTERHOURS_FRAGMENT_SOURCE } from './AfterhoursShader'
 import { afterhoursWorldDefinition } from './AfterhoursWorld'
@@ -118,11 +118,11 @@ describe('Afterhours Stage 2 world integration', () => {
 
     // The world folds config.seed into the generator; match it here.
     const seed = createCinematicWorldConfig('afterhours', settings).seed
-    const expected = generateAfterhoursBeams({ ...AFTERHOURS_DEFAULTS, ...settings }, { seed })
+    const expected = generateAfterhoursBeams({ ...AFTERHOURS_DEFAULTS, ...settings }, { seed, viewportAspectRatio: 1280 / 720 })
     for (let index = 0; index < AFTERHOURS_MAX_BEAMS; index += 1) {
       const beam = expected[index]
       if (beam.active) {
-        expect(last(harness.calls, `uAfterhoursBeam${index}`)).toEqual([beam.origin.x, beam.origin.y, beam.target.x, beam.target.y])
+        expect(last(harness.calls, `uAfterhoursBeam${index}`)).toEqual([beam.origin.x, beam.origin.y, beam.endpoint.x, beam.endpoint.y])
         expect(last(harness.calls, `uAfterhoursBeamMeta${index}`)).toEqual([1, beam.accent ? 1 : 0])
       } else {
         expect(last(harness.calls, `uAfterhoursBeam${index}`)).toEqual([0, 0, 0, 0])
@@ -293,10 +293,11 @@ describe('Afterhours Stage 2 world integration', () => {
     expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('(1.0 - clamp(uAfterhoursBlackout, 0.0, 1.0))')
   })
 
-  it('bottom-emitter contract stays the single source of truth', () => {
+  it('bottom-emitter contract stays the physical source of truth while Fan allocates it bilaterally', () => {
     expect(AFTERHOURS_BOTTOM_EMITTERS).toHaveLength(10)
     const beams = generateAfterhoursBeams({ ...AFTERHOURS_DEFAULTS, pattern: 'fan', beamCount: 10 }).filter(b => b.active)
-    expect(beams.map(b => b.origin)).toEqual([...AFTERHOURS_BOTTOM_EMITTERS])
+    expect(new Set(beams.map(b => b.sourceId))).toEqual(new Set(AFTERHOURS_BOTTOM_EMITTERS.map((_, index) => `afterhours-bottom-${index}`)))
+    for (const beam of beams) expect(isAfterhoursViewportExit(beam.endpoint)).toBe(true)
   })
 })
 

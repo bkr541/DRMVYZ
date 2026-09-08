@@ -1,6 +1,13 @@
 import { AFTERHOURS_PATTERN_CHANGES, type AfterhoursPatternChange } from '../../../CinematicWorldSettings'
 import type { CinematicFrameContext } from '../../CinematicWorldRenderer'
-import { AFTERHOURS_MAX_BEAMS, type AfterhoursBeamDescriptor, type AfterhoursEmitter } from './AfterhoursBeamGeometry'
+import {
+  AFTERHOURS_MAX_BEAMS,
+  intersectAfterhoursRayWithViewport,
+  normalizeAfterhoursRayDirection,
+  type AfterhoursBeamDescriptor,
+  type AfterhoursEmitter,
+  type AfterhoursRayDirection,
+} from './AfterhoursBeamGeometry'
 
 /**
  * Afterhours Stage 5 — pattern variation director and blackouts.
@@ -212,6 +219,9 @@ export class AfterhoursPatternDirector {
 export interface AfterhoursRenderBeam {
   active: boolean
   origin: AfterhoursEmitter
+  direction: AfterhoursRayDirection
+  endpoint: AfterhoursEmitter
+  /** Compatibility alias; always identical to the derived viewport-exit endpoint. */
   target: AfterhoursEmitter
   accent: boolean
   /** 0..1 render weight — drives per-beam fade in/out across a variation morph. */
@@ -220,14 +230,16 @@ export interface AfterhoursRenderBeam {
 
 /**
  * Blend two generator frames for a pattern-variation morph. Emitter origins are
- * fixed and never interpolated; only target coordinates lerp. Slots active in
- * exactly one frame fade in / out by `weight` instead of teleporting an
- * unrelated beam. Bounded to AFTERHOURS_MAX_BEAMS, no history retained.
+ * fixed and never interpolated. The director interpolates the intentional ray
+ * direction and re-intersects it with the viewport, so an in-flight morph can
+ * never turn the new ray model back into a floating finite segment. Slots active
+ * in exactly one frame fade in / out by `weight`.
  */
 export function blendAfterhoursBeamFrames(
   previous: readonly AfterhoursBeamDescriptor[],
   next: readonly AfterhoursBeamDescriptor[],
   transition: number,
+  viewportAspectRatio = 16 / 9,
 ): readonly AfterhoursRenderBeam[] {
   const k = smooth(transition)
   const out: AfterhoursRenderBeam[] = []
@@ -235,19 +247,26 @@ export function blendAfterhoursBeamFrames(
     const a = previous[index]
     const b = next[index]
     if (a.active && b.active) {
+      const direction = normalizeAfterhoursRayDirection({
+        x: mix(a.direction.x, b.direction.x, k),
+        y: mix(a.direction.y, b.direction.y, k),
+      }, b.direction)
+      const endpoint = intersectAfterhoursRayWithViewport(b.origin, direction, viewportAspectRatio)
       out.push({
         active: true,
         origin: b.origin,
-        target: { x: mix(a.target.x, b.target.x, k), y: mix(a.target.y, b.target.y, k) },
+        direction,
+        endpoint,
+        target: endpoint,
         accent: b.accent,
         weight: 1,
       })
     } else if (b.active) {
-      out.push({ active: true, origin: b.origin, target: b.target, accent: b.accent, weight: k })
+      out.push({ active: true, origin: b.origin, direction: b.direction, endpoint: b.endpoint, target: b.endpoint, accent: b.accent, weight: k })
     } else if (a.active) {
-      out.push({ active: true, origin: a.origin, target: a.target, accent: a.accent, weight: 1 - k })
+      out.push({ active: true, origin: a.origin, direction: a.direction, endpoint: a.endpoint, target: a.endpoint, accent: a.accent, weight: 1 - k })
     } else {
-      out.push({ active: false, origin: b.origin, target: b.target, accent: false, weight: 0 })
+      out.push({ active: false, origin: b.origin, direction: b.direction, endpoint: b.endpoint, target: b.endpoint, accent: false, weight: 0 })
     }
   }
   return out

@@ -7,8 +7,11 @@ import {
   AFTERHOURS_PATTERN_IDS,
   AFTERHOURS_RIGHT_EMITTERS,
   AFTERHOURS_TOP_EMITTERS,
+  afterhoursRayFieldLength,
   type AfterhoursBeamGenerationSettings,
   generateAfterhoursBeams,
+  intersectAfterhoursRayWithViewport,
+  isAfterhoursViewportExit,
 } from './AfterhoursBeamGeometry'
 
 const BASE: AfterhoursBeamGenerationSettings = {
@@ -21,264 +24,266 @@ const BASE: AfterhoursBeamGenerationSettings = {
   accentMix: 0.25,
 }
 
-const gen = (overrides: Partial<AfterhoursBeamGenerationSettings> = {}, variation = 0) =>
-  generateAfterhoursBeams({ ...BASE, ...overrides }, { variation })
+const gen = (overrides: Partial<AfterhoursBeamGenerationSettings> = {}, variation = 0, viewportAspectRatio = 16 / 9) =>
+  generateAfterhoursBeams({ ...BASE, ...overrides }, { variation, viewportAspectRatio })
 
-const active = (overrides: Partial<AfterhoursBeamGenerationSettings> = {}, variation = 0) =>
-  gen(overrides, variation).filter(beam => beam.active)
+const active = (overrides: Partial<AfterhoursBeamGenerationSettings> = {}, variation = 0, viewportAspectRatio = 16 / 9) =>
+  gen(overrides, variation, viewportAspectRatio).filter(beam => beam.active)
 
-describe('Afterhours Stage 2 — canonical emitter banks', () => {
+function expectViewportRay(
+  beam: ReturnType<typeof active>[number],
+  aspect = 16 / 9,
+): void {
+  expect(Number.isFinite(beam.direction.x) && Number.isFinite(beam.direction.y)).toBe(true)
+  expect(Math.hypot(beam.direction.x, beam.direction.y)).toBeCloseTo(1, 8)
+  expect(beam.projection).toBe('viewportExit')
+  expect(beam.target).toBe(beam.endpoint)
+  expect(isAfterhoursViewportExit(beam.endpoint)).toBe(true)
+  expect(beam.endpoint.x).toBeGreaterThanOrEqual(0)
+  expect(beam.endpoint.x).toBeLessThanOrEqual(1)
+  expect(beam.endpoint.y).toBeGreaterThanOrEqual(0)
+  expect(beam.endpoint.y).toBeLessThanOrEqual(1)
+  expect(afterhoursRayFieldLength(beam.origin, beam.endpoint, aspect)).toBeGreaterThanOrEqual(0.29)
+}
+
+describe('Afterhours Stage 1 — canonical fixture banks and ray identity', () => {
   it('reuses the persisted pattern union as its only pattern-id source of truth', () => {
     expect(AFTERHOURS_PATTERN_IDS).toBe(AFTERHOURS_PATTERNS)
     expect([...AFTERHOURS_PATTERN_IDS]).toEqual(['random', 'xWall', 'cross', 'fan', 'split'])
   })
 
-  it('owns exactly 10 fixed frozen bottom origins plus fixed side/top banks', () => {
+  it('owns fixed frozen, deliberately mirrored fixture banks', () => {
     expect(AFTERHOURS_BOTTOM_EMITTERS).toHaveLength(10)
-    expect(AFTERHOURS_BOTTOM_EMITTERS.map(e => e.x)).toEqual([0.07, 0.165, 0.26, 0.355, 0.45, 0.55, 0.645, 0.74, 0.835, 0.93])
-    expect(AFTERHOURS_BOTTOM_EMITTERS.every(e => e.y === 0.025 && Object.isFrozen(e))).toBe(true)
     expect(AFTERHOURS_LEFT_EMITTERS).toHaveLength(3)
     expect(AFTERHOURS_RIGHT_EMITTERS).toHaveLength(3)
     expect(AFTERHOURS_TOP_EMITTERS).toHaveLength(6)
-    for (const bank of [AFTERHOURS_LEFT_EMITTERS, AFTERHOURS_RIGHT_EMITTERS, AFTERHOURS_TOP_EMITTERS]) {
+    for (const bank of [AFTERHOURS_BOTTOM_EMITTERS, AFTERHOURS_LEFT_EMITTERS, AFTERHOURS_RIGHT_EMITTERS, AFTERHOURS_TOP_EMITTERS]) {
       expect(Object.isFrozen(bank)).toBe(true)
-      expect(bank.every(e => Object.isFrozen(e))).toBe(true)
+      expect(bank.every(emitter => Object.isFrozen(emitter))).toBe(true)
     }
-    expect(AFTERHOURS_LEFT_EMITTERS.every(e => e.x < 0.05)).toBe(true)
-    expect(AFTERHOURS_RIGHT_EMITTERS.every(e => e.x > 0.95)).toBe(true)
-    expect(AFTERHOURS_TOP_EMITTERS.every(e => e.y > 0.95)).toBe(true)
+    for (let i = 0; i < AFTERHOURS_BOTTOM_EMITTERS.length / 2; i += 1) {
+      expect(AFTERHOURS_BOTTOM_EMITTERS[i].x + AFTERHOURS_BOTTOM_EMITTERS[AFTERHOURS_BOTTOM_EMITTERS.length - 1 - i].x).toBeCloseTo(1, 9)
+    }
+    for (let i = 0; i < AFTERHOURS_TOP_EMITTERS.length / 2; i += 1) {
+      expect(AFTERHOURS_TOP_EMITTERS[i].x + AFTERHOURS_TOP_EMITTERS[AFTERHOURS_TOP_EMITTERS.length - 1 - i].x).toBeCloseTo(1, 9)
+    }
+  })
+
+  it('gives every active slot stable beam/source identity and role metadata', () => {
+    const a = active({ pattern: 'cross', sideLasers: true, beamCount: 12 }, 0)
+    const b = active({ pattern: 'cross', sideLasers: true, beamCount: 12 }, 17)
+    expect(a.map(beam => beam.id)).toEqual(b.map(beam => beam.id))
+    expect(a.map(beam => beam.sourceId)).toEqual(b.map(beam => beam.sourceId))
+    for (const beam of a) {
+      expect(beam.id).toMatch(/^afterhours-beam-slot-\d+$/)
+      expect(beam.sourceId).toMatch(/^afterhours-(bottom|left|right|top)-\d+$/)
+      expect(beam.role).toBe('crossCanopy')
+      expect(beam.symmetry?.axis).toBe('vertical')
+    }
   })
 })
 
-describe('Afterhours Stage 2 — global beam allocation', () => {
-  it('always returns 16 slots with exactly beamCount active, clamped to 2..16', () => {
+describe('Afterhours Stage 1 — deterministic viewport intersection', () => {
+  it('projects horizontal and vertical rays to the exact viewport edge', () => {
+    expect(intersectAfterhoursRayWithViewport({ x: 0.5, y: 0.5 }, { x: 1, y: 0 }, 16 / 9)).toEqual({ x: 1, y: 0.5 })
+    expect(intersectAfterhoursRayWithViewport({ x: 0.5, y: 0.5 }, { x: -1, y: 0 }, 16 / 9)).toEqual({ x: 0, y: 0.5 })
+    expect(intersectAfterhoursRayWithViewport({ x: 0.5, y: 0.5 }, { x: 0, y: 1 }, 16 / 9)).toEqual({ x: 0.5, y: 1 })
+    expect(intersectAfterhoursRayWithViewport({ x: 0.5, y: 0.5 }, { x: 0, y: -1 }, 16 / 9)).toEqual({ x: 0.5, y: 0 })
+  })
+
+  it('stays finite for near-horizontal/vertical rays and extreme supported aspects', () => {
+    for (const aspect of [0.25, 0.5, 1, 16 / 9, 3, 4]) {
+      for (const direction of [{ x: 1, y: 1e-12 }, { x: 1e-12, y: 1 }, { x: -1, y: 1e-10 }, { x: 1e-10, y: -1 }]) {
+        const point = intersectAfterhoursRayWithViewport({ x: 0.37, y: 0.41 }, direction, aspect)
+        expect(Number.isFinite(point.x) && Number.isFinite(point.y)).toBe(true)
+        expect(isAfterhoursViewportExit(point)).toBe(true)
+      }
+    }
+  })
+})
+
+describe('Afterhours Stage 1 — global beam allocation', () => {
+  it('always returns 16 slots with exactly Beam Count active, clamped to 2..16', () => {
     for (const [request, expected] of [[-4, 2], [0, 2], [2, 2], [8, 8], [16, 16], [40, 16]] as const) {
       const beams = gen({ beamCount: request })
       expect(beams).toHaveLength(AFTERHOURS_MAX_BEAMS)
-      expect(beams.filter(b => b.active)).toHaveLength(expected)
-      expect(beams.slice(expected).every(b => !b.active)).toBe(true)
+      expect(beams.filter(beam => beam.active)).toHaveLength(expected)
+      expect(beams.slice(expected).every(beam => !beam.active)).toBe(true)
     }
   })
 
-  it('clears every inactive slot to zeroed origin/target/meta', () => {
+  it('clears every inactive slot while retaining a stable slot identity', () => {
     const beams = gen({ beamCount: 3 })
-    for (const beam of beams.slice(3)) {
+    for (let index = 3; index < beams.length; index += 1) {
+      const beam = beams[index]
       expect(beam.active).toBe(false)
-      expect(beam.target).toEqual({ x: 0, y: 0 })
+      expect(beam.id).toBe(`afterhours-beam-slot-${index}`)
+      expect(beam.endpoint).toEqual({ x: 0, y: 0 })
+      expect(beam.direction).toEqual({ x: 0, y: 0 })
       expect(beam.accent).toBe(false)
-      expect(beam.phase).toBe(0)
     }
   })
 
-  it('shares a bottom origin across multiple beams past 10 without exceeding the global count', () => {
+  it('may reuse a physical fixture above the fixed-bank count without exceeding 16 visible rays', () => {
     const beams = active({ pattern: 'fan', beamCount: 16 })
+    const perSource = new Map<string, number>()
+    for (const beam of beams) perSource.set(beam.sourceId, (perSource.get(beam.sourceId) ?? 0) + 1)
+    expect(Math.max(...perSource.values())).toBeGreaterThan(1)
     expect(beams).toHaveLength(16)
-    expect(beams.every(b => b.bank === 'bottom')).toBe(true)
-    // 16 beams over 10 bottom origins -> at least one origin reused.
-    const perOrigin = new Map<number, number>()
-    for (const b of beams) perOrigin.set(b.emitterIndex, (perOrigin.get(b.emitterIndex) ?? 0) + 1)
-    expect(Math.max(...perOrigin.values())).toBeGreaterThan(1)
-  })
-
-  it('never exceeds 16 visible beams even with Side and Top enabled', () => {
-    const beams = gen({ pattern: 'random', sideLasers: true, topLasers: true, beamCount: 16 })
-    expect(beams.filter(b => b.active)).toHaveLength(16)
   })
 })
 
-describe('Afterhours Stage 2 — geometry validity for every pattern family', () => {
+describe('Afterhours Stage 1 — visual-DNA regression: rays, not floating targets', () => {
   const patterns: readonly AfterhoursPattern[] = ['random', 'xWall', 'cross', 'fan', 'split']
 
   for (const pattern of patterns) {
     for (const spread of [0, 0.5, 1]) {
-      it(`${pattern} @ spread ${spread} stays finite, in-bounds, and non-degenerate`, () => {
+      it(`${pattern} @ spread ${spread} derives every visible endpoint from a substantial viewport-exit ray`, () => {
         const beams = active({ pattern, spread, sideLasers: true, topLasers: true, beamCount: 16 })
         expect(beams).toHaveLength(16)
-        for (const beam of beams) {
-          expect(Number.isFinite(beam.target.x) && Number.isFinite(beam.target.y)).toBe(true)
-          expect(beam.target.x).toBeGreaterThanOrEqual(0)
-          expect(beam.target.x).toBeLessThanOrEqual(1)
-          expect(beam.target.y).toBeGreaterThanOrEqual(0)
-          expect(beam.target.y).toBeLessThanOrEqual(1)
-          expect(Math.hypot(beam.target.x - beam.origin.x, beam.target.y - beam.origin.y)).toBeGreaterThan(0.1)
-          expect(beam.phase).toBeGreaterThanOrEqual(0)
-          expect(beam.phase).toBeLessThan(1)
-        }
+        for (const beam of beams) expectViewportRay(beam)
       })
     }
   }
 
-  it('Spread widens the fan target span', () => {
+  it('never uses an unconstrained interior point as an active beam endpoint', () => {
+    for (let variation = 0; variation < 48; variation += 1) {
+      for (const pattern of patterns) {
+        const beams = active({ pattern, symmetry: pattern === 'random', sideLasers: true, topLasers: true, beamCount: 16 }, variation)
+        expect(beams.every(beam => beam.projection === 'viewportExit' && isAfterhoursViewportExit(beam.endpoint))).toBe(true)
+      }
+    }
+  })
+
+  it('Spread visibly widens the static Fan arrangement while retaining an open centre structure', () => {
     const span = (spread: number) => {
-      const xs = active({ pattern: 'fan', spread, beamCount: 16 }).map(b => b.target.x)
+      const xs = active({ pattern: 'fan', spread, beamCount: 10 }).map(beam => beam.endpoint.x)
       return Math.max(...xs) - Math.min(...xs)
     }
     expect(span(1)).toBeGreaterThan(span(0))
+    const fan = active({ pattern: 'fan', spread: 0.8, beamCount: 10 })
+    expect(fan.some(beam => beam.endpoint.x === 0)).toBe(true)
+    expect(fan.some(beam => beam.endpoint.x === 1)).toBe(true)
   })
 
-  it('falls back to the default Fan family for an unknown pattern id', () => {
+  it('falls back to Fan for an unknown persisted pattern id', () => {
     const bogus = active({ pattern: 'spiral' as AfterhoursPattern, beamCount: 12 })
     const fan = active({ pattern: 'fan', beamCount: 12 })
-    expect(bogus.map(b => ({ o: b.origin, t: b.target }))).toEqual(fan.map(b => ({ o: b.origin, t: b.target })))
+    expect(bogus.map(beam => ({ source: beam.sourceId, direction: beam.direction, endpoint: beam.endpoint })))
+      .toEqual(fan.map(beam => ({ source: beam.sourceId, direction: beam.direction, endpoint: beam.endpoint })))
   })
 })
 
-describe('Afterhours Stage 2 — bank participation rules', () => {
-  it('never uses a disabled bank for any pattern', () => {
+describe('Afterhours Stage 1 — coherent bank participation', () => {
+  it('never uses a disabled optional bank', () => {
     for (const pattern of ['random', 'xWall', 'cross', 'fan', 'split'] as const) {
       const beams = active({ pattern, sideLasers: false, topLasers: false, beamCount: 16 })
-      expect(beams.every(b => b.bank === 'bottom')).toBe(true)
+      expect(beams.every(beam => beam.bank === 'bottom')).toBe(true)
     }
   })
 
-  it('Fan deliberately ignores enabled Side and Top banks (pattern-owned participation)', () => {
-    const beams = active({ pattern: 'fan', sideLasers: true, topLasers: true, beamCount: 16 })
-    expect(beams.every(b => b.bank === 'bottom')).toBe(true)
+  it('Fan and Split remain intentionally bottom-bank structures', () => {
+    for (const pattern of ['fan', 'split'] as const) {
+      const beams = active({ pattern, sideLasers: true, topLasers: true, beamCount: 16 })
+      expect(beams.every(beam => beam.bank === 'bottom')).toBe(true)
+    }
   })
 
-  it('Cross consumes enabled Side banks but not the Top bank', () => {
-    const beams = active({ pattern: 'cross', sideLasers: true, topLasers: true, beamCount: 16 })
-    const banks = new Set(beams.map(b => b.bank))
+  it('Cross uses enabled side fixtures early enough to read as a coherent source group', () => {
+    const banks = new Set(active({ pattern: 'cross', sideLasers: true, beamCount: 6 }).map(beam => beam.bank))
+    expect(banks.has('bottom')).toBe(true)
     expect(banks.has('left')).toBe(true)
     expect(banks.has('right')).toBe(true)
     expect(banks.has('top')).toBe(false)
   })
 
-  it('X Wall consumes the enabled Top bank but not Side banks', () => {
-    const beams = active({ pattern: 'xWall', sideLasers: true, topLasers: true, beamCount: 16 })
-    const banks = new Set(beams.map(b => b.bank))
+  it('X Wall uses enabled top fixtures early enough to produce opposing banks', () => {
+    const banks = new Set(active({ pattern: 'xWall', topLasers: true, beamCount: 6 }).map(beam => beam.bank))
+    expect(banks.has('bottom')).toBe(true)
     expect(banks.has('top')).toBe(true)
     expect(banks.has('left')).toBe(false)
     expect(banks.has('right')).toBe(false)
   })
 
-  it('Split is a left/right directional split from the bottom bank', () => {
+  it('Split preserves a deliberate left/right aperture', () => {
     const beams = active({ pattern: 'split', spread: 0.8, beamCount: 10 })
-    const left = beams.filter(b => b.origin.x < 0.5)
-    const right = beams.filter(b => b.origin.x > 0.5)
-    expect(left.every(b => b.target.x < 0.5)).toBe(true)
-    expect(right.every(b => b.target.x > 0.5)).toBe(true)
+    const left = beams.filter(beam => beam.origin.x < 0.5)
+    const right = beams.filter(beam => beam.origin.x > 0.5)
+    expect(left.every(beam => beam.direction.x < 0)).toBe(true)
+    expect(right.every(beam => beam.direction.x > 0)).toBe(true)
   })
 })
 
-describe('Afterhours Stage 2 — determinism and variation', () => {
-  it('produces identical geometry for identical settings + variation', () => {
-    expect(gen({ pattern: 'random' }, 3)).toEqual(gen({ pattern: 'random' }, 3))
-    expect(gen({ pattern: 'xWall', sideLasers: true })).toEqual(gen({ pattern: 'xWall', sideLasers: true }))
-  })
-
-  it('changes geometry when the deterministic variation ordinal changes', () => {
-    const a = active({ pattern: 'random' }, 0).map(b => b.target)
-    const b = active({ pattern: 'random' }, 1).map(b => b.target)
-    expect(a).not.toEqual(b)
-  })
-
-  it('folds config.seed in deterministically: absent/0 is a no-op, a nonzero seed differentiates', () => {
-    const noSeed = generateAfterhoursBeams({ ...BASE, pattern: 'fan', beamCount: 16 }, { variation: 2 })
-    // Absent and explicit-0 reproduce the original seedless output exactly.
-    expect(generateAfterhoursBeams({ ...BASE, pattern: 'fan', beamCount: 16 }, { variation: 2, seed: 0 })).toEqual(noSeed)
-    // A nonzero seed perturbs the geometry but stays reproducible for that seed.
-    const seeded = generateAfterhoursBeams({ ...BASE, pattern: 'fan', beamCount: 16 }, { variation: 2, seed: 48001 })
-    expect(generateAfterhoursBeams({ ...BASE, pattern: 'fan', beamCount: 16 }, { variation: 2, seed: 48001 })).toEqual(seeded)
-    expect(seeded.filter(b => b.active).map(b => b.target)).not.toEqual(noSeed.filter(b => b.active).map(b => b.target))
-    // Two different seeds diverge.
-    const other = generateAfterhoursBeams({ ...BASE, pattern: 'fan', beamCount: 16 }, { variation: 2, seed: 1337 })
-    expect(other.filter(b => b.active).map(b => b.target)).not.toEqual(seeded.filter(b => b.active).map(b => b.target))
-  })
-
-  it('stays valid across many variation ordinals with no degenerate output', () => {
-    for (let variation = 0; variation < 64; variation += 1) {
-      const beams = active({ pattern: 'random', spread: 0.9, sideLasers: true, topLasers: true, beamCount: 16 }, variation)
-      for (const beam of beams) {
-        expect(Math.hypot(beam.target.x - beam.origin.x, beam.target.y - beam.origin.y)).toBeGreaterThan(0.1)
-        expect(beam.target.x).toBeGreaterThanOrEqual(0)
-        expect(beam.target.x).toBeLessThanOrEqual(1)
+describe('Afterhours Stage 1 — symmetry, determinism, and seek/re-entry reconstruction', () => {
+  it('structured static families are numerically mirrored in adjacent pairs', () => {
+    for (const pattern of ['fan', 'split', 'xWall', 'cross'] as const) {
+      const beams = active({ pattern, sideLasers: true, topLasers: true, beamCount: 12, spread: 0.72 })
+      for (let index = 0; index + 1 < beams.length; index += 2) {
+        const left = beams[index]
+        const right = beams[index + 1]
+        expect(left.symmetry?.pairId).toBe(right.symmetry?.pairId)
+        expect(left.origin.x).toBeCloseTo(1 - right.origin.x, 8)
+        expect(left.origin.y).toBeCloseTo(right.origin.y, 8)
+        expect(left.endpoint.x).toBeCloseTo(1 - right.endpoint.x, 8)
+        expect(left.endpoint.y).toBeCloseTo(right.endpoint.y, 8)
+        expect(left.direction.x).toBeCloseTo(-right.direction.x, 8)
+        expect(left.direction.y).toBeCloseTo(right.direction.y, 8)
       }
-      // Not every target collapsed onto a single point.
-      const uniqueTargets = new Set(beams.map(b => `${b.target.x.toFixed(3)},${b.target.y.toFixed(3)}`))
-      expect(uniqueTargets.size).toBeGreaterThan(3)
     }
   })
-})
 
-describe('Afterhours Stage 2 — Random symmetry', () => {
-  it('mirrors beams across the vertical centre line when symmetry is ON', () => {
+  it('Random symmetry mirrors source fixtures, directions, and viewport exits', () => {
     for (const beamCount of [2, 6, 7, 16]) {
-      const beams = active({ pattern: 'random', symmetry: true, sideLasers: true, beamCount })
-      expect(beams).toHaveLength(beamCount)
+      const beams = active({ pattern: 'random', symmetry: true, sideLasers: true, topLasers: true, beamCount })
       const half = Math.ceil(beamCount / 2)
       for (let index = half; index < beamCount; index += 1) {
         const source = beams[beamCount - 1 - index]
         const mirror = beams[index]
-        expect(mirror.target.x).toBeCloseTo(1 - source.target.x, 6)
-        expect(mirror.target.y).toBeCloseTo(source.target.y, 6)
-        expect(mirror.origin.x).toBeCloseTo(1 - source.origin.x, 6)
+        expect(mirror.origin.x).toBeCloseTo(1 - source.origin.x, 8)
+        expect(mirror.origin.y).toBeCloseTo(source.origin.y, 8)
+        expect(mirror.direction.x).toBeCloseTo(-source.direction.x, 8)
+        expect(mirror.direction.y).toBeCloseTo(source.direction.y, 8)
+        expect(mirror.endpoint.x).toBeCloseTo(1 - source.endpoint.x, 8)
+        expect(mirror.endpoint.y).toBeCloseTo(source.endpoint.y, 8)
+        expect(mirror.symmetry?.pairId).toBe(source.symmetry?.pairId)
       }
     }
   })
 
-  it('allows bounded asymmetry when symmetry is OFF', () => {
-    const on = active({ pattern: 'random', symmetry: true, beamCount: 12 }).map(b => b.target.x)
-    const off = active({ pattern: 'random', symmetry: false, beamCount: 12 }).map(b => b.target.x)
-    expect(off).not.toEqual(on)
-  })
-})
-
-describe('Afterhours Stage 2 — Random guardrails', () => {
-  it('keeps targets inside safe frame margins and above a minimum beam length', () => {
-    const beams = active({ pattern: 'random', spread: 1, symmetry: false, sideLasers: true, topLasers: true, beamCount: 16 })
-    for (const beam of beams) {
-      expect(beam.target.x).toBeGreaterThanOrEqual(0.05)
-      expect(beam.target.x).toBeLessThanOrEqual(0.95)
-      expect(beam.target.y).toBeGreaterThanOrEqual(0.05)
-      expect(beam.target.y).toBeLessThanOrEqual(0.95)
-      expect(Math.hypot(beam.target.x - beam.origin.x, beam.target.y - beam.origin.y)).toBeGreaterThanOrEqual(0.18)
-    }
+  it('same settings/seed/variation reconstruct exactly; variation and seed can change aim without changing source identity', () => {
+    const settings = { ...BASE, pattern: 'fan' as const, beamCount: 16 }
+    const a = generateAfterhoursBeams(settings, { variation: 2, seed: 48001 })
+    const again = generateAfterhoursBeams(settings, { variation: 2, seed: 48001 })
+    const varied = generateAfterhoursBeams(settings, { variation: 3, seed: 48001 })
+    const otherSeed = generateAfterhoursBeams(settings, { variation: 2, seed: 1337 })
+    expect(again).toEqual(a)
+    expect(varied.filter(beam => beam.active).map(beam => beam.sourceId)).toEqual(a.filter(beam => beam.active).map(beam => beam.sourceId))
+    expect(otherSeed.filter(beam => beam.active).map(beam => beam.sourceId)).toEqual(a.filter(beam => beam.active).map(beam => beam.sourceId))
+    expect(varied.filter(beam => beam.active).map(beam => beam.direction)).not.toEqual(a.filter(beam => beam.active).map(beam => beam.direction))
+    expect(otherSeed.filter(beam => beam.active).map(beam => beam.direction)).not.toEqual(a.filter(beam => beam.active).map(beam => beam.direction))
   })
 
-  it('spreads targets rather than clustering them at Spread 0', () => {
-    const beams = active({ pattern: 'random', spread: 0, symmetry: false, beamCount: 12 })
-    const uniqueTargets = new Set(beams.map(b => `${b.target.x.toFixed(2)},${b.target.y.toFixed(2)}`))
-    expect(uniqueTargets.size).toBeGreaterThan(4)
-  })
-})
-
-describe('Afterhours Stage 2 — settings shape', () => {
-  it('accepts the persisted Afterhours defaults as generation input', () => {
+  it('accepts the persisted Afterhours defaults without introducing a new persistence owner', () => {
     const beams = generateAfterhoursBeams(AFTERHOURS_DEFAULTS)
-    expect(beams.filter(b => b.active)).toHaveLength(AFTERHOURS_DEFAULTS.beamCount)
+    expect(beams.filter(beam => beam.active)).toHaveLength(AFTERHOURS_DEFAULTS.beamCount)
+    for (const beam of beams.filter(beam => beam.active)) expectViewportRay(beam)
   })
 })
 
-describe('Afterhours Stage 4 — reactive motion sweep', () => {
+describe('Afterhours existing reactive motion — ray-safe compatibility', () => {
   it('is an exact no-op at motionAuthority 0', () => {
-    const still = active({ pattern: 'fan', beamCount: 16 })
-    const swept0 = gen({ pattern: 'fan', beamCount: 16 }, 0)
-    expect(gen({ pattern: 'fan', beamCount: 16 }, 0)).toEqual(swept0)
-    const withPhaseNoAuthority = generateAfterhoursBeams({ ...BASE, pattern: 'fan', beamCount: 16 }, { motionPhase: 4.2, motionAuthority: 0 }).filter(b => b.active)
-    expect(withPhaseNoAuthority.map(b => b.target)).toEqual(still.map(b => b.target))
+    const still = generateAfterhoursBeams({ ...BASE, pattern: 'fan', beamCount: 16 }, { motionPhase: 0, motionAuthority: 0 })
+    const phased = generateAfterhoursBeams({ ...BASE, pattern: 'fan', beamCount: 16 }, { motionPhase: 4.2, motionAuthority: 0 })
+    expect(phased).toEqual(still)
   })
 
-  it('displaces targets deterministically and keeps them inside safe bounds', () => {
-    const still = active({ pattern: 'random', spread: 0.8, symmetry: false, beamCount: 16 })
-    const swept = generateAfterhoursBeams({ ...BASE, pattern: 'random', spread: 0.8, symmetry: false, beamCount: 16 }, { motionPhase: 1.37, motionAuthority: 1 }).filter(b => b.active)
-    const sweptAgain = generateAfterhoursBeams({ ...BASE, pattern: 'random', spread: 0.8, symmetry: false, beamCount: 16 }, { motionPhase: 1.37, motionAuthority: 1 }).filter(b => b.active)
-    expect(swept.map(b => b.target)).toEqual(sweptAgain.map(b => b.target))
-    expect(swept.map(b => b.target)).not.toEqual(still.map(b => b.target))
-    for (const beam of swept) {
-      expect(beam.target.x).toBeGreaterThanOrEqual(0)
-      expect(beam.target.x).toBeLessThanOrEqual(1)
-      expect(beam.target.y).toBeGreaterThanOrEqual(0)
-      expect(beam.target.y).toBeLessThanOrEqual(1)
-      expect(Math.hypot(beam.target.x - beam.origin.x, beam.target.y - beam.origin.y)).toBeGreaterThan(0.1)
-    }
-  })
-
-  it('keeps a Random symmetry mirror mirrored while sweeping', () => {
-    const swept = generateAfterhoursBeams({ ...BASE, pattern: 'random', symmetry: true, beamCount: 8 }, { motionPhase: 0.9, motionAuthority: 1 }).filter(b => b.active)
-    const half = Math.ceil(8 / 2)
-    for (let i = half; i < 8; i += 1) {
-      expect(swept[i].target.x).toBeCloseTo(1 - swept[8 - 1 - i].target.x, 6)
-    }
+  it('rotates directions deterministically and re-intersects every swept ray with the viewport', () => {
+    const settings = { ...BASE, pattern: 'random' as const, spread: 0.8, symmetry: false, beamCount: 16 }
+    const still = generateAfterhoursBeams(settings, { motionPhase: 1.37, motionAuthority: 0 }).filter(beam => beam.active)
+    const swept = generateAfterhoursBeams(settings, { motionPhase: 1.37, motionAuthority: 1 }).filter(beam => beam.active)
+    const sweptAgain = generateAfterhoursBeams(settings, { motionPhase: 1.37, motionAuthority: 1 }).filter(beam => beam.active)
+    expect(swept.map(beam => beam.direction)).toEqual(sweptAgain.map(beam => beam.direction))
+    expect(swept.map(beam => beam.direction)).not.toEqual(still.map(beam => beam.direction))
+    for (const beam of swept) expectViewportRay(beam)
   })
 })

@@ -589,7 +589,16 @@ describe('Cinema Cinematic World adapters', () => {
       }
       return true
     }
-    return { harness, composition, optionId, lastFloat, activeBeamCount, everyAfterhoursUniformFinite }
+    const latestBeamRows = () => {
+      const latest = new Map<number, [number, number, number, number]>()
+      for (const [location, x, y, z, w] of vi.mocked(harness.gl.uniform4f).mock.calls as unknown as Array<[WebGLUniformLocation, number, number, number, number]>) {
+        const name = typeof location === 'object' && location !== null ? (location as unknown as { name?: string }).name : undefined
+        const match = name?.match(/^uAfterhoursBeam(\d+)$/)
+        if (match) latest.set(Number(match[1]), [x, y, z, w])
+      }
+      return [...latest.entries()].sort(([a], [b]) => a - b).map(([, row]) => row)
+    }
+    return { harness, composition, optionId, lastFloat, activeBeamCount, everyAfterhoursUniformFinite, latestBeamRows }
   }
 
   it('turns canonical music into nonzero, React-parameter-dependent Afterhours shader input through the production executor with live overrides', () => {
@@ -643,6 +652,38 @@ describe('Cinema Cinematic World adapters', () => {
 
     low.harness.dispose()
     high.harness.dispose()
+  })
+
+  it('feeds viewport-exit ray geometry through the real Cinema preset -> composition -> production renderer path', () => {
+    const probe = buildAfterhoursExecutorFixture({})
+    const fanId = probe.optionId('Pattern', 'Fan')
+    const changeOffId = probe.optionId('Pattern Change', 'Off')
+    probe.harness.dispose()
+
+    const fixture = buildAfterhoursExecutorFixture({
+      Pattern: fanId,
+      'Beam Count': 10,
+      'Motion Amount': 0,
+      'Pulse Amount': 0,
+      'Pattern Change': changeOffId,
+      'Blackout Amount': 0,
+    })
+    expect(fixture.harness.executor.render(frame(0))).toBe(true)
+    expect(fixture.harness.executor.render(frame(1))).toBe(true)
+
+    const activeRows = fixture.latestBeamRows().filter(([ox, oy, ex, ey]) => !(ox === 0 && oy === 0 && ex === 0 && ey === 0))
+    expect(activeRows.length).toBeGreaterThanOrEqual(2)
+    for (const [ox, oy, ex, ey] of activeRows) {
+      expect(ox).toBeGreaterThanOrEqual(0)
+      expect(ox).toBeLessThanOrEqual(1)
+      expect(oy).toBeGreaterThanOrEqual(0)
+      expect(oy).toBeLessThanOrEqual(1)
+      expect(Math.min(ex, 1 - ex, ey, 1 - ey)).toBeLessThanOrEqual(1e-6)
+      expect(Math.hypot(ex - ox, ey - oy)).toBeGreaterThan(0.2)
+    }
+    expect(fixture.harness.executor.getSnapshot().failedNodeCount).toBe(0)
+    expect(fixture.everyAfterhoursUniformFinite()).toBe(true)
+    fixture.harness.dispose()
   })
 
   it('re-arms the Afterhours trigger envelope after a production seek/reset with no stale state', () => {

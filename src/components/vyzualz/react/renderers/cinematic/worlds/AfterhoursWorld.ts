@@ -51,8 +51,8 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
   private readonly slotWeight = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
   private readonly slotOriginX = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
   private readonly slotOriginY = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
-  private readonly slotTargetX = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
-  private readonly slotTargetY = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
+  private readonly slotEndpointX = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
+  private readonly slotEndpointY = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
   private readonly slotAccent = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
 
   constructor() {
@@ -152,15 +152,18 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
     }
     // The world's deterministic seed differentiates otherwise-identical instances
     // without exposing a user control; determinism is preserved per seed.
+    const viewportAspectRatio = this.viewport.width / Math.max(1, this.viewport.height)
     const genOptions = {
       seed: frame.randomSeed,
       motionPhase: reaction.motionPhase,
       motionAuthority: reaction.motionAuthority,
+      viewportAspectRatio,
     }
 
     // Settled: one generation (meta.x targets 1 for active slots). Mid-morph:
-    // blend the previous and next variation of the *same* family — fixed emitter
-    // origins never interpolate, only targets lerp.
+    // blend the previous and next variation of the *same* family. Fixed emitter
+    // origins never interpolate; ray directions morph and are re-projected to
+    // the viewport edge so no transition can create a floating finite segment.
     const settled = direction.transition >= 1
     const nextBeams = generateAfterhoursBeams(genSettings, { ...genOptions, variation: direction.variation })
     const blended = settled
@@ -169,6 +172,7 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
         generateAfterhoursBeams(genSettings, { ...genOptions, variation: direction.previousVariation }),
         nextBeams,
         direction.transition,
+        viewportAspectRatio,
       )
 
     const dt = Math.max(0, Math.min(0.1, Number.isFinite(frame.deltaTimeSec) ? frame.deltaTimeSec : 1 / 60))
@@ -185,8 +189,8 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
       if (active) {
         this.slotOriginX[index] = beam.origin.x
         this.slotOriginY[index] = beam.origin.y
-        this.slotTargetX[index] = beam.target.x
-        this.slotTargetY[index] = beam.target.y
+        this.slotEndpointX[index] = beam.endpoint.x
+        this.slotEndpointY[index] = beam.endpoint.y
         this.slotAccent[index] = beam.accent ? 1 : 0
       }
       // First frame after (re)start shows the full rig; only *changes* fade.
@@ -203,7 +207,7 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
         program.setVec4(
           `uAfterhoursBeam${index}`,
           this.slotOriginX[index], this.slotOriginY[index],
-          this.slotTargetX[index], this.slotTargetY[index],
+          this.slotEndpointX[index], this.slotEndpointY[index],
         )
         program.setVec2(`uAfterhoursBeamMeta${index}`, weight, this.slotAccent[index])
       }
