@@ -69,6 +69,7 @@ import type { ShaderProgram } from '../react/shaders/runtime/ShaderProgram'
 import type { TextureBinding } from '../react/shaders/runtime/shaderRuntimeTypes'
 import { getShaderReservedTextureUnits } from '../react/shaders/runtime/shaderTextureUnits'
 import { ShaderGradientTextureCache } from '../react/shaders/textures/ShaderGradientTextureCache'
+import { REACTOR_SCENE_ID, resolveReactorRayEpoch, type ReactorRayRerollCadence } from '../react/shaders/scenes/reactor'
 import {
   migrateLegacyReactorParamValues,
   migrateLegacyReactorSceneId,
@@ -545,6 +546,10 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
   private initialized = false
   private readonly performance: CinemaShaderPerformanceBridge
   private readonly reportedPerformanceDiagnostics = new Set<string>()
+  // Reactor generative ray field: a persistent epoch advanced per the selected
+  // re-roll cadence. Drop cadence counts fresh drop-start events (de-duped by id).
+  private rayDropCount = 0
+  private lastRayDropEventId: string | null = null
 
   constructor(
     readonly authoredNode: Readonly<CinemaNodeDefinition>,
@@ -965,6 +970,10 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
     program.setFloat('uSectionChangePulse', impulses.sectionStart ? 1 : 0)
     program.setFloat('uDropStartPulse', impulses.dropStart ? 1 : 0)
 
+    if (this.shader.id === REACTOR_SCENE_ID) {
+      program.setFloat('uRayEpoch', this.resolveRayEpoch(context, values))
+    }
+
     const lyrics = frame.lyrics
     program.setFloat('uLyricActivity', lyrics.vocalsActive ? 1 : 0)
     program.setFloat('uLyricLineProgress', lyrics.lineProgress)
@@ -1081,7 +1090,32 @@ class ShaderSceneNodeAdapter implements CinemaRenderNode {
     program.setFloat('uWaveformAvailable', frame.audio.waveform ? 1 : 0)
   }
 
+  /**
+   * The Reactor ray field's persistent re-roll epoch. Off freezes it; Bar / 4
+   * Bars / Phrase track the canonical musical index; Drop counts fresh
+   * drop-start events (de-duped by canonical event id, so a held drop or a
+   * repeated frame never double-advances). Reset with the rest of scene state.
+   */
+  private resolveRayEpoch(
+    context: CinemaNodeRenderContext,
+    values: Record<string, ShaderParamValue>,
+  ): number {
+    const frame = context.frame
+    const dropEventId = frame.impulses.eventIds.dropStart
+    if (dropEventId !== null && dropEventId !== this.lastRayDropEventId) {
+      this.lastRayDropEventId = dropEventId
+      this.rayDropCount += 1
+    }
+    return resolveReactorRayEpoch(values.rayRerollCadence as ReactorRayRerollCadence, {
+      barIndex: frame.music.barIndex ?? 0,
+      phraseIndex: frame.music.clocks.states.phrase.index,
+      dropCount: this.rayDropCount,
+    })
+  }
+
   private clearState(): void {
+    this.rayDropCount = 0
+    this.lastRayDropEventId = null
     if (!this.targets) return
     for (const target of this.persistentTargets.values()) {
       try {

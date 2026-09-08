@@ -17,6 +17,14 @@ export const LEGACY_REACTOR_SCENE_IDS = {
 
 export type ReactorRecipe = 'semantic' | 'shrapnel' | 'singularity' | 'hybrid' | 'custom'
 
+/** Per-ray silhouette for the generative shrapnel field. `mixed` seeds each ray. */
+export type ReactorRayStyle = 'spoke' | 'lance' | 'tracer' | 'forked' | 'arc' | 'mixed'
+export const REACTOR_RAY_STYLES: readonly ReactorRayStyle[] = ['spoke', 'lance', 'tracer', 'forked', 'arc', 'mixed']
+
+/** When the whole ray field re-rolls to a fresh deterministic layout. */
+export type ReactorRayRerollCadence = 'off' | 'bar' | 'bar4' | 'phrase' | 'drop'
+export const REACTOR_RAY_REROLL_CADENCES: readonly ReactorRayRerollCadence[] = ['off', 'bar', 'bar4', 'phrase', 'drop']
+
 export interface ReactorConfig {
   recipe: ReactorRecipe
 
@@ -52,6 +60,16 @@ export interface ReactorConfig {
   spread: number
   turbulence: number
   trailPersistence: number
+
+  /** Generative ray-field controls (overhauled shrapnel module). */
+  rayStyle: ReactorRayStyle
+  raySeed: number
+  rayRerollCadence: ReactorRayRerollCadence
+  rayAngularIrregularity: number
+  rayCurvature: number
+  rayForkAmount: number
+  rayDashDensity: number
+  rayLengthVariation: number
 
   brandInfluence: number
   logoScale: number
@@ -99,6 +117,14 @@ const REACTOR_RECIPE_VALUES: Readonly<Record<Exclude<ReactorRecipe, 'custom'>, R
     spread: 0.85,
     turbulence: 0.45,
     trailPersistence: 0.72,
+    rayStyle: 'mixed',
+    raySeed: 7,
+    rayRerollCadence: 'phrase',
+    rayAngularIrregularity: 0.2,
+    rayCurvature: 0.3,
+    rayForkAmount: 0.2,
+    rayDashDensity: 0.35,
+    rayLengthVariation: 0.4,
     brandInfluence: 0.35,
     logoScale: 1,
     refractionAmount: 0.5,
@@ -140,6 +166,14 @@ const REACTOR_RECIPE_VALUES: Readonly<Record<Exclude<ReactorRecipe, 'custom'>, R
     spread: 1.35,
     turbulence: 1.15,
     trailPersistence: 0.9,
+    rayStyle: 'mixed',
+    raySeed: 3,
+    rayRerollCadence: 'bar',
+    rayAngularIrregularity: 0.55,
+    rayCurvature: 0.3,
+    rayForkAmount: 0.45,
+    rayDashDensity: 0.5,
+    rayLengthVariation: 0.65,
     brandInfluence: 0.42,
     logoScale: 0.82,
     refractionAmount: 0.35,
@@ -181,6 +215,14 @@ const REACTOR_RECIPE_VALUES: Readonly<Record<Exclude<ReactorRecipe, 'custom'>, R
     spread: 0.8,
     turbulence: 0.5,
     trailPersistence: 0.88,
+    rayStyle: 'arc',
+    raySeed: 11,
+    rayRerollCadence: 'phrase',
+    rayAngularIrregularity: 0.3,
+    rayCurvature: 0.6,
+    rayForkAmount: 0.15,
+    rayDashDensity: 0.25,
+    rayLengthVariation: 0.45,
     brandInfluence: 1,
     logoScale: 1,
     refractionAmount: 1.25,
@@ -222,6 +264,14 @@ const REACTOR_RECIPE_VALUES: Readonly<Record<Exclude<ReactorRecipe, 'custom'>, R
     spread: 1.05,
     turbulence: 0.82,
     trailPersistence: 0.84,
+    rayStyle: 'mixed',
+    raySeed: 1,
+    rayRerollCadence: 'bar',
+    rayAngularIrregularity: 0.35,
+    rayCurvature: 0.25,
+    rayForkAmount: 0.3,
+    rayDashDensity: 0.4,
+    rayLengthVariation: 0.5,
     brandInfluence: 0.82,
     logoScale: 0.96,
     refractionAmount: 0.82,
@@ -289,6 +339,25 @@ export function normalizeReactorParamValues(
     normalized.brandMix = authored.brandCoreEnabled === false ? 0 : 1
   }
 
+  // Generative ray-field params: the recipe spread already supplies defaults for
+  // legacy projects; here we only repair malformed persisted values.
+  if (!REACTOR_RAY_STYLES.includes(normalized.rayStyle as ReactorRayStyle)) {
+    normalized.rayStyle = 'mixed'
+  }
+  if (!REACTOR_RAY_REROLL_CADENCES.includes(normalized.rayRerollCadence as ReactorRayRerollCadence)) {
+    normalized.rayRerollCadence = 'bar'
+  }
+  if (typeof normalized.raySeed !== 'number' || !Number.isFinite(normalized.raySeed)) {
+    normalized.raySeed = 1
+  } else {
+    normalized.raySeed = Math.min(9999, Math.max(0, Math.round(normalized.raySeed)))
+  }
+  for (const id of ['rayAngularIrregularity', 'rayCurvature', 'rayForkAmount', 'rayDashDensity', 'rayLengthVariation'] as const) {
+    const value = normalized[id]
+    if (typeof value !== 'number' || !Number.isFinite(value)) continue
+    normalized[id] = Math.min(1, Math.max(0, value))
+  }
+
   for (const id of ['primaryColor', 'secondaryColor', 'accentColor', 'backgroundColor'] as const) {
     const value = normalized[id]
     if (Array.isArray(value)) normalized[id] = [...value] as RGBA
@@ -311,6 +380,14 @@ const REACTOR_PARAM_MODULE_DEPENDENCIES: Readonly<Record<string, keyof ReactorCo
   shardSpeed: 'shrapnelEnabled',
   spread: 'shrapnelEnabled',
   turbulence: 'shrapnelEnabled',
+  rayStyle: 'shrapnelEnabled',
+  rayRerollCadence: 'shrapnelEnabled',
+  raySeed: 'shrapnelEnabled',
+  rayAngularIrregularity: 'shrapnelEnabled',
+  rayCurvature: 'shrapnelEnabled',
+  rayForkAmount: 'shrapnelEnabled',
+  rayDashDensity: 'shrapnelEnabled',
+  rayLengthVariation: 'shrapnelEnabled',
   trailPersistence: 'feedbackTrailsEnabled',
   brandInfluence: 'brandCoreEnabled',
   logoScale: 'brandCoreEnabled',
@@ -326,6 +403,31 @@ export function isReactorParamVisible(
 ): boolean {
   const dependency = REACTOR_PARAM_MODULE_DEPENDENCIES[paramId]
   return dependency ? values[dependency] !== false : true
+}
+
+/**
+ * The generative ray field's persistent re-roll epoch (uniform `uRayEpoch`),
+ * shared by both render paths. `Off` freezes the layout; `Bar` / `4 Bars` /
+ * `Phrase` follow canonical musical position; `Drop` uses a caller-owned counter
+ * of consumed drop events (de-duped by the caller). `raySeed` is added on top in
+ * GLSL so a given (seed, epoch) always rebuilds the same field.
+ */
+export function resolveReactorRayEpoch(
+  cadence: ReactorRayRerollCadence,
+  input: { barIndex: number; phraseIndex: number | null; dropCount: number },
+): number {
+  const barIndex = Math.max(0, Math.floor(Number.isFinite(input.barIndex) ? input.barIndex : 0))
+  switch (cadence) {
+    case 'off': return 0
+    case 'bar4': return Math.floor(barIndex / 4)
+    case 'phrase':
+      return input.phraseIndex !== null && Number.isFinite(input.phraseIndex)
+        ? Math.max(0, Math.floor(input.phraseIndex))
+        : Math.floor(barIndex / 16)
+    case 'drop': return Math.max(0, Math.floor(input.dropCount))
+    case 'bar':
+    default: return barIndex
+  }
 }
 
 const REACTOR_MODULE_TYPES_GLSL = String.raw`
@@ -358,6 +460,25 @@ float reactorSegmentDistance(vec2 point, vec2 startPoint, vec2 endPoint) {
     1.0
   );
   return length(pointOffset - segment * position);
+}
+
+// Coarse distance to a quadratic bezier (start -> control -> end). Used only by
+// Arc-style rays; 5 chords keep it cheap inside the bounded ray loop.
+float reactorBezierDistance(vec2 point, vec2 startPoint, vec2 controlPoint, vec2 endPoint) {
+  float best = 1.0e9;
+  vec2 previous = startPoint;
+  for (int i = 1; i <= 5; i++) {
+    float t = float(i) / 5.0;
+    vec2 pointOnCurve = mix(mix(startPoint, controlPoint, t), mix(controlPoint, endPoint, t), t);
+    best = min(best, reactorSegmentDistance(point, previous, pointOnCurve));
+    previous = pointOnCurve;
+  }
+  return best;
+}
+
+// Deterministic golden-ratio angle — irregular placement that never clumps.
+float reactorGoldenAngle(float ordinal) {
+  return fract(ordinal * 0.61803398875) * SHADER_TAU;
 }
 
 vec3 reactorCompress(vec3 color, float amount) {
@@ -441,37 +562,61 @@ ReactorLayer renderShrapnelModule(
     return emptyReactorLayer();
   }
 
+  // Persistent deterministic layout key. uRayEpoch is advanced CPU-side per the
+  // selected re-roll cadence (Off / Bar / 4 Bars / Phrase / Drop); uRaySeed
+  // pins a particular look. A given (seed, epoch) always rebuilds the same field.
+  float epoch = floor(uRaySeed) + floor(uRayEpoch);
+  float epochHash = hash11(epoch * 1.713 + 4.27);
+
+  float irregularity = saturate(uRayAngularIrregularity);
+  float curvature = saturate(uRayCurvature);
+  float forkAmount = saturate(uRayForkAmount);
+  float dashDensity = saturate(uRayDashDensity);
+  float lengthVariation = saturate(uRayLengthVariation);
+  float styleSelector = clamp(uRayStyle, 0.0, 5.0);
+  float mixedStyle = step(4.5, styleSelector);
+
   float detonation = max(dropAmount, uDrumStemTransient * uHasStems * uDropForce);
-  float barSeed = hash11(floor(uBarIndex) * 1.713 + 4.27);
   float forceAngle = sharedSpin * 0.58
     + uPhrase4Progress * SHADER_TAU * 0.35
-    + (barSeed - 0.5) * 1.8;
+    + (epochHash - 0.5) * 1.8;
   vec2 forceDirection = vec2(cos(forceAngle), sin(forceAngle));
   vec2 impactOrigin = vec2(
-    hash11(floor(uBarIndex) * 2.31 + 1.7) - 0.5,
-    hash11(floor(uBarIndex) * 3.17 + 8.2) - 0.5
+    hash11(epoch * 2.31 + 1.7) - 0.5,
+    hash11(epoch * 3.17 + 8.2) - 0.5
   ) * uTurbulence * 0.22;
   impactOrigin += forceDirection * (music.fakeout - 0.35) * uTurbulence * 0.09;
 
   vec2 localPoint = rotate2d(sharedSpin * 0.42) * (point - impactOrigin);
   localPoint *= mix(1.0, contraction * 0.72, buildAmount * (1.0 - music.fakeout * 0.35));
 
-  float shardField = 0.0;
+  float rayFieldPrimary = 0.0;
+  float rayFieldSecondary = 0.0;
+  float rayFieldAccent = 0.0;
   float hotEdges = 0.0;
-  float shardMask = 0.0;
+  float rayMask = 0.0;
   float count = max(8.0, floor(uShardCount));
 
   for (int index = 0; index < 64; index++) {
-    float shardIndex = float(index);
-    if (shardIndex >= count) break;
+    float rayIndex = float(index);
+    if (rayIndex >= count) break;
 
-    float seed = hash11(shardIndex * 13.37 + floor(uBarIndex) * 0.73);
-    float radialAngle = shardIndex / count * SHADER_TAU
-      + seed * 0.92
+    // Decorrelated per-ray hashes, keyed on the persistent epoch.
+    float h0 = hash11(rayIndex * 13.37 + epoch * 0.618);       // placement / speed
+    float h1 = hash11(rayIndex * 7.91 + epoch * 1.231 + 2.0);  // style / colour role
+    float h2 = hash11(rayIndex * 21.13 + epoch * 0.417 + 5.0); // length / travel phase
+    float h3 = hash11(rayIndex * 3.77 + epoch * 2.909 + 9.0);  // fork / dash phase
+
+    // Angular placement: even fan <-> golden-angle scatter (irregular, no clumps).
+    float evenAngle = rayIndex / count * SHADER_TAU;
+    float scatterAngle = reactorGoldenAngle(rayIndex + epoch * 0.5)
+      + (h0 - 0.5) * (SHADER_TAU / count) * 1.5;
+    float radialAngle = mix(evenAngle, scatterAngle, irregularity)
+      + h0 * 0.35
       + uPhrase4Progress * 0.65;
     vec2 radialDirection = vec2(cos(radialAngle), sin(radialAngle));
     float directionalBias = clamp(
-      0.1 + uTurbulence * 0.16 + hash11(seed * 31.0) * 0.24,
+      0.1 + uTurbulence * 0.16 + hash11(h0 * 31.0) * 0.24,
       0.0,
       0.62
     );
@@ -480,41 +625,86 @@ ReactorLayer renderShrapnelModule(
     );
     vec2 tangent = vec2(-direction.y, direction.x);
 
-    float speed = 0.22 + seed * 0.78;
+    // Style: the enum pins every ray, or Mixed seeds one per ray (0..4).
+    float style = mix(styleSelector, floor(h1 * 5.0), mixedStyle);
+    float isLance = step(abs(style - 1.0), 0.5);
+    float isTracer = step(abs(style - 2.0), 0.5);
+    float isForked = step(abs(style - 3.0), 0.5);
+    float isArc = step(abs(style - 4.0), 0.5);
+
+    float speed = 0.22 + h0 * 0.78;
+    float phase = h2;
     float travel = fract(
       uPlaybackTime * (0.055 + speed * 0.095) * max(0.05, uShardSpeed)
-      + seed
+      + phase
       + detonation * (0.08 + speed * 0.16)
     );
     travel = mix(travel, 0.12 + travel * 0.2, buildAmount * music.fakeout);
 
     float distanceFromOrigin = uCoreSize * 0.18
       + travel * (0.34 + uSpread * 0.72 + detonation * speed * 0.22);
-    float turbulenceSample = waveformAt(fract(seed + uPhrase8Progress * 0.2));
-    turbulenceSample += noise21(vec2(seed * 17.0, uTime * 0.35)) - 0.5;
-    vec2 shardCenter = direction * distanceFromOrigin
+    float turbulenceSample = waveformAt(fract(phase + uPhrase8Progress * 0.2));
+    turbulenceSample += noise21(vec2(h0 * 17.0, uTime * 0.35)) - 0.5;
+    vec2 rayCenter = direction * distanceFromOrigin
       + tangent * turbulenceSample * uTurbulence * 0.14;
 
-    float shardLength = (0.045 + speed * 0.16)
+    // Seeded per-ray length.
+    float baseLength = (0.045 + speed * 0.16)
       * (0.5 + uSpread * 0.52)
       * (1.0 + uTransient * 0.45 + detonation * 0.3);
-    float shardWidth = 0.0045 + uHigh * 0.006 + uHatHit * 0.008;
-    float distanceToShard = reactorSegmentDistance(
-      localPoint,
-      shardCenter - direction * shardLength * 0.38,
-      shardCenter + direction * shardLength
+    float rayLength = max(0.02, baseLength * mix(1.0, 0.4 + h2 * 1.4, lengthVariation));
+    float rayWidth = 0.0045 + uHigh * 0.006 + uHatHit * 0.008;
+
+    vec2 tail = rayCenter - direction * rayLength * 0.38;
+    vec2 head = rayCenter + direction * rayLength;
+
+    // Style silhouette.
+    float distanceToRay;
+    if (isArc > 0.5) {
+      vec2 control = mix(tail, head, 0.5)
+        + tangent * curvature * rayLength * (h3 * 2.0 - 1.0);
+      distanceToRay = reactorBezierDistance(localPoint, tail, control, head);
+    } else {
+      distanceToRay = reactorSegmentDistance(localPoint, tail, head);
+    }
+    if (isForked > 0.5) {
+      vec2 forkStart = mix(tail, head, 0.62);
+      vec2 forkDirection = rotate2d(mix(0.12, 0.5, forkAmount) * (h3 * 2.0 - 1.0)) * direction;
+      distanceToRay = min(
+        distanceToRay,
+        reactorSegmentDistance(localPoint, forkStart, forkStart + forkDirection * rayLength * 0.5)
+      );
+    }
+
+    float ray = exp(-distanceToRay * (128.0 - rayWidth * 2200.0));
+
+    // Along-ray parameter for the Lance taper and the Tracer dash gate.
+    vec2 axis = head - tail;
+    float along = saturate(dot(localPoint - tail, axis) / max(dot(axis, axis), 0.0001));
+    float taper = 1.0 - isLance * along * 0.85;
+    float dashGate = mix(
+      1.0,
+      step(0.42, fract(along * mix(3.0, 14.0, dashDensity) - travel * 6.0 + h3)),
+      isTracer
     );
-    float shard = exp(-distanceToShard * (128.0 - shardWidth * 2200.0));
+    ray *= taper * dashGate;
+
     float travelEnvelope = smoothstep(0.0, 0.08, travel)
       * (1.0 - smoothstep(0.72, 1.0, travel));
-    float spectral = spectrumAt(fract(seed * 0.8 + shardIndex / count * 0.2));
-    float weightedShard = shard * travelEnvelope
+    float spectral = spectrumAt(fract(phase * 0.8 + rayIndex / count * 0.2));
+    float weightedRay = ray * travelEnvelope
       * (0.32 + spectral * 0.82)
       * (0.58 + travel + detonation * 0.38);
 
-    shardField += weightedShard;
-    shardMask += shard * travelEnvelope;
-    hotEdges += weightedShard * step(0.7, seed)
+    // Seeded colour role — mostly primary, some secondary, a few accent — so the
+    // field reads as one hue with variety rather than two flat colours.
+    float roleHash = h1;
+    rayFieldPrimary += weightedRay * step(roleHash, 0.68);
+    rayFieldSecondary += weightedRay * step(0.68, roleHash) * step(roleHash, 0.9);
+    rayFieldAccent += weightedRay * step(0.9, roleHash);
+
+    rayMask += ray * travelEnvelope;
+    hotEdges += weightedRay * step(0.7, h1)
       * (uSnareHit + uHatHit * 0.42 + uSpectralFlux * 0.32);
   }
 
@@ -527,13 +717,17 @@ ReactorLayer renderShrapnelModule(
     uSnareHit * 0.42
   );
 
-  vec3 color = uPrimaryColor.rgb * shardField * reverseCut
-    * (0.5 + uCoreIntensity * 0.45 + music.micro * 0.25);
+  float coreEnergy = 0.5 + uCoreIntensity * 0.45 + music.micro * 0.25;
+  vec3 color = (
+    uPrimaryColor.rgb * rayFieldPrimary
+    + uSecondaryColor.rgb * rayFieldSecondary
+    + uAccentColor.rgb * rayFieldAccent
+  ) * reverseCut * coreEnergy;
   color += uAccentColor.rgb * hotEdges;
   color += uSecondaryColor.rgb * angularCore
     * uCoreIntensity * (0.58 + buildAmount * 1.15);
 
-  float mask = saturate(shardMask * 0.42 + angularCore);
+  float mask = saturate(rayMask * 0.42 + angularCore);
   return ReactorLayer(color, mask, 0.0);
 }
 `
@@ -679,6 +873,15 @@ uniform float uShardSpeed;
 uniform float uSpread;
 uniform float uTurbulence;
 uniform float uTrailPersistence;
+uniform float uRayStyle;
+uniform float uRayRerollCadence;
+uniform float uRaySeed;
+uniform float uRayEpoch;
+uniform float uRayAngularIrregularity;
+uniform float uRayCurvature;
+uniform float uRayForkAmount;
+uniform float uRayDashDensity;
+uniform float uRayLengthVariation;
 uniform float uBrandInfluence;
 uniform float uLogoScale;
 uniform float uRefractionAmount;
@@ -882,6 +1085,36 @@ const REACTOR_PARAMS: ShaderParamDef[] = [
   { id: 'turbulence', type: 'float', label: 'Turbulence', group: 'Shrapnel', uniformName: 'uTurbulence', min: 0, max: 2.5, step: 0.01, default: 0.82, modulatable: true },
   { id: 'trailPersistence', type: 'float', label: 'Trail Persistence', group: 'Shrapnel', uniformName: 'uTrailPersistence', min: 0, max: 0.99, step: 0.01, default: 0.84, modulatable: true },
 
+  {
+    id: 'rayStyle', type: 'enum', label: 'Ray Style', group: 'Shrapnel', uniformName: 'uRayStyle',
+    values: [
+      { value: 'spoke', label: 'Spoke' },
+      { value: 'lance', label: 'Lance' },
+      { value: 'tracer', label: 'Tracer' },
+      { value: 'forked', label: 'Forked' },
+      { value: 'arc', label: 'Arc' },
+      { value: 'mixed', label: 'Mixed' },
+    ],
+    default: 'mixed',
+  },
+  {
+    id: 'rayRerollCadence', type: 'enum', label: 'Re-roll Cadence', group: 'Shrapnel', uniformName: 'uRayRerollCadence',
+    values: [
+      { value: 'off', label: 'Off' },
+      { value: 'bar', label: 'Bar' },
+      { value: 'bar4', label: '4 Bars' },
+      { value: 'phrase', label: 'Phrase' },
+      { value: 'drop', label: 'Drop' },
+    ],
+    default: 'bar',
+  },
+  { id: 'raySeed', type: 'integer', label: 'Ray Seed', group: 'Shrapnel', uniformName: 'uRaySeed', min: 0, max: 9999, step: 1, default: 1, modulatable: false },
+  { id: 'rayAngularIrregularity', type: 'float', label: 'Angular Irregularity', group: 'Shrapnel', uniformName: 'uRayAngularIrregularity', min: 0, max: 1, step: 0.01, default: 0.35, modulatable: true },
+  { id: 'rayCurvature', type: 'float', label: 'Ray Curvature', group: 'Shrapnel', uniformName: 'uRayCurvature', min: 0, max: 1, step: 0.01, default: 0.25, modulatable: true },
+  { id: 'rayForkAmount', type: 'float', label: 'Fork Amount', group: 'Shrapnel', uniformName: 'uRayForkAmount', min: 0, max: 1, step: 0.01, default: 0.3, modulatable: true },
+  { id: 'rayDashDensity', type: 'float', label: 'Dash Density', group: 'Shrapnel', uniformName: 'uRayDashDensity', min: 0, max: 1, step: 0.01, default: 0.4, modulatable: true },
+  { id: 'rayLengthVariation', type: 'float', label: 'Length Variation', group: 'Shrapnel', uniformName: 'uRayLengthVariation', min: 0, max: 1, step: 0.01, default: 0.5, modulatable: true },
+
   { id: 'brandInfluence', type: 'float', label: 'Brand Influence', group: 'Brand and Media', uniformName: 'uBrandInfluence', min: 0, max: 1.5, step: 0.01, default: 0.82, modulatable: true },
   { id: 'logoScale', type: 'float', label: 'Logo Scale', group: 'Brand and Media', uniformName: 'uLogoScale', min: 0.25, max: 2, step: 0.01, default: 0.96, modulatable: true },
   { id: 'refractionAmount', type: 'float', label: 'Refraction Amount', group: 'Brand and Media', uniformName: 'uRefractionAmount', min: 0, max: 3, step: 0.01, default: 0.82, modulatable: true },
@@ -902,7 +1135,7 @@ export const REACTOR: ShaderDefinition = {
   name: 'Reactor',
   description: 'A composable semantic, shrapnel, and brand-reactive Shader scene with independently blendable modules.',
   category: 'feedback',
-  version: 2,
+  version: 3,
   passes: [
     {
       id: 'generator',

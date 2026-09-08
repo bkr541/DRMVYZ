@@ -8,11 +8,14 @@ import type { ShaderParamValues } from '../../registry/shaderRegistryTypes'
 import {
   LEGACY_REACTOR_SCENE_IDS,
   REACTOR,
+  REACTOR_RAY_REROLL_CADENCES,
+  REACTOR_RAY_STYLES,
   REACTOR_RECIPE_CONFIGS,
   REACTOR_SCENE_ID,
   applyReactorRecipe,
   isReactorParamVisible,
   normalizeReactorParamValues,
+  resolveReactorRayEpoch,
 } from '../reactor'
 import {
   migrateLegacyReactorParamValues,
@@ -250,5 +253,109 @@ describe('Reactor unified Shader architecture', () => {
     expect(isReactorParamVisible('shardCount', values)).toBe(false)
     expect(isReactorParamVisible('brandInfluence', values)).toBe(false)
     expect(isReactorParamVisible('shockwaveWidth', values)).toBe(true)
+  })
+})
+
+describe('Reactor generative ray field', () => {
+  const RAY_PARAM_IDS = [
+    'rayStyle', 'rayRerollCadence', 'raySeed', 'rayAngularIrregularity',
+    'rayCurvature', 'rayForkAmount', 'rayDashDensity', 'rayLengthVariation',
+  ] as const
+
+  it('bumps the scene version and exposes the eight ray params in the Shrapnel group', () => {
+    expect(REACTOR.version).toBe(3)
+    for (const id of RAY_PARAM_IDS) {
+      const param = REACTOR.params.find(p => p.id === id)
+      expect(param, `${id} param`).toBeDefined()
+      expect(param?.group).toBe('Shrapnel')
+    }
+    const style = REACTOR.params.find(p => p.id === 'rayStyle')
+    expect(style?.type).toBe('enum')
+    expect(style && style.type === 'enum' ? style.values.map(v => v.value) : []).toEqual([...REACTOR_RAY_STYLES])
+    expect([...REACTOR_RAY_STYLES]).toEqual(['spoke', 'lance', 'tracer', 'forked', 'arc', 'mixed'])
+    const cadence = REACTOR.params.find(p => p.id === 'rayRerollCadence')
+    expect(cadence && cadence.type === 'enum' ? cadence.values.map(v => v.value) : []).toEqual([...REACTOR_RAY_REROLL_CADENCES])
+    expect([...REACTOR_RAY_REROLL_CADENCES]).toEqual(['off', 'bar', 'bar4', 'phrase', 'drop'])
+    const seed = REACTOR.params.find(p => p.id === 'raySeed')
+    expect(seed?.type).toBe('integer')
+    expect(seed?.modulatable).toBe(false)
+  })
+
+  it('gates every ray param on the Shrapnel module', () => {
+    const off = applyReactorRecipe('semantic')   // shrapnelEnabled: false
+    const on = applyReactorRecipe('shrapnel')    // shrapnelEnabled: true
+    for (const id of RAY_PARAM_IDS) {
+      expect(isReactorParamVisible(id, off), `${id} hidden when shrapnel off`).toBe(false)
+      expect(isReactorParamVisible(id, on), `${id} shown when shrapnel on`).toBe(true)
+    }
+  })
+
+  it('the GLSL shrapnel module is seed/epoch driven and carries every ray style branch', () => {
+    const source = REACTOR.passes?.map(pass => pass.fragSrc).join('\n') ?? ''
+    // Layout keyed on the persistent epoch, not a raw bar counter.
+    expect(source).toContain('float epoch = floor(uRaySeed) + floor(uRayEpoch)')
+    expect(source).not.toMatch(/renderShrapnelModule[\s\S]*?floor\(uBarIndex\)/)
+    // Irregular-but-non-clumping placement.
+    expect(source).toContain('reactorGoldenAngle(')
+    expect(source).toContain('mix(evenAngle, scatterAngle, irregularity)')
+    // Style silhouettes.
+    expect(source).toContain('reactorBezierDistance(')
+    expect(source).toContain('isArc')
+    expect(source).toContain('isForked')
+    expect(source).toContain('isLance')
+    expect(source).toContain('isTracer')
+    // Per-ray colour role.
+    expect(source).toContain('rayFieldPrimary')
+    expect(source).toContain('rayFieldAccent')
+  })
+
+  it('legacy projects hydrate ray params from the recipe defaults', () => {
+    const normalized = normalizeReactorParamValues({
+      recipe: 'custom',
+      shrapnelEnabled: true,
+      spread: 1.2,
+    })
+    const hybrid = applyReactorRecipe('hybrid')
+    for (const id of RAY_PARAM_IDS) {
+      expect(normalized[id], `${id} hydrated`).toEqual(hybrid[id])
+    }
+  })
+
+  it('repairs malformed persisted ray values', () => {
+    const normalized = normalizeReactorParamValues({
+      recipe: 'custom',
+      shrapnelEnabled: true,
+      rayStyle: 'triangle' as never,
+      rayRerollCadence: 'every-beat' as never,
+      raySeed: -40.7 as never,
+      rayAngularIrregularity: 5 as never,
+      rayCurvature: -2 as never,
+    })
+    expect(normalized.rayStyle).toBe('mixed')
+    expect(normalized.rayRerollCadence).toBe('bar')
+    expect(normalized.raySeed).toBe(0)
+    expect(normalized.rayAngularIrregularity).toBe(1)
+    expect(normalized.rayCurvature).toBe(0)
+  })
+
+  it('the Shrapnel recipe scatters harder than the Semantic recipe', () => {
+    expect(REACTOR_RECIPE_CONFIGS.shrapnel.rayAngularIrregularity)
+      .toBeGreaterThan(REACTOR_RECIPE_CONFIGS.semantic.rayAngularIrregularity)
+    expect(REACTOR_RECIPE_CONFIGS.singularity.rayStyle).toBe('arc')
+  })
+
+  it('resolveReactorRayEpoch maps each cadence to a deterministic epoch', () => {
+    const at = (barIndex: number, phraseIndex: number | null, dropCount: number) =>
+      ({ barIndex, phraseIndex, dropCount })
+    expect(resolveReactorRayEpoch('off', at(9, 2, 4))).toBe(0)
+    expect(resolveReactorRayEpoch('bar', at(9, 2, 4))).toBe(9)
+    expect(resolveReactorRayEpoch('bar4', at(9, 2, 4))).toBe(2)
+    expect(resolveReactorRayEpoch('bar4', at(12, null, 0))).toBe(3)
+    expect(resolveReactorRayEpoch('phrase', at(9, 2, 4))).toBe(2)          // real phrase index
+    expect(resolveReactorRayEpoch('phrase', at(40, null, 0))).toBe(2)      // 16-bar fallback
+    expect(resolveReactorRayEpoch('drop', at(9, 2, 4))).toBe(4)            // caller-owned count
+    // Malformed inputs never produce NaN / negative epochs.
+    expect(resolveReactorRayEpoch('bar', at(Number.NaN, null, 0))).toBe(0)
+    expect(resolveReactorRayEpoch('bar', at(-7, null, 0))).toBe(0)
   })
 })

@@ -18,7 +18,7 @@ import { shaderRegistry }              from './registry'
 import { useShaderPanelStore }         from './ui/shaderPanelStore'
 import { useShaderLibraryStore }       from './library/ShaderLibraryStore'
 import { DEFAULT_SHADER_SCENE_ID }     from './scenes'
-import { REACTOR_SCENE_ID }            from './scenes/reactor'
+import { REACTOR_SCENE_ID, resolveReactorRayEpoch, type ReactorRayRerollCadence } from './scenes/reactor'
 import { ShaderFeedbackResetTracker }  from './feedback/ShaderFeedbackResetTracker'
 import type { ReactFrameContext }      from '../renderers/reactRenderUtils'
 import type {
@@ -148,6 +148,12 @@ export class ShaderEngineRenderer {
   private readonly _feedbackResetTracker = new ShaderFeedbackResetTracker()
   private _pendingFeedbackReset = false
   private _lastReactorRecipe: string | null = null
+  // Reactor generative ray field: a persistent epoch advanced per the selected
+  // re-roll cadence. The Drop cadence rising-edges on the drop-impact envelope
+  // with arm/rearm hysteresis (this path carries no drop event id).
+  private _reactorRayEpoch = 0
+  private _reactorRayDropCount = 0
+  private _reactorRayDropArmed = true
 
   // Preview graph (kept alive while previewing, disposed on scene switch or reset)
   private _previewGraph:    CompiledGraph | null = null
@@ -462,6 +468,24 @@ export class ShaderEngineRenderer {
       if (this._graphLoaded) this._graph.clearFeedbackBuffers()
       else this._pendingFeedbackReset = true
     }
+
+    if (this._activeSceneId === REACTOR_SCENE_ID) {
+      // Drop-impact rising edge (armed below 0.35, fires above 0.6) stands in for
+      // a drop event id, which this render path does not carry.
+      if (audioFrame.dropImpact <= 0.35) this._reactorRayDropArmed = true
+      else if (this._reactorRayDropArmed && audioFrame.dropImpact >= 0.6) {
+        this._reactorRayDropArmed = false
+        this._reactorRayDropCount += 1
+      }
+      const cadence = typeof store.paramValues.rayRerollCadence === 'string'
+        ? store.paramValues.rayRerollCadence as ReactorRayRerollCadence
+        : 'bar'
+      this._reactorRayEpoch = resolveReactorRayEpoch(cadence, {
+        barIndex: timingFrame.barIndex,
+        phraseIndex: null,
+        dropCount: this._reactorRayDropCount,
+      })
+    }
     // Build texture metadata snapshot once per frame (not per program)
     const texMeta = this._texManager.getAllMetadata()
     const reservedUnits = getShaderReservedTextureUnits(this._gl)
@@ -495,6 +519,9 @@ export class ShaderEngineRenderer {
       _applyParamUniforms(program, this._gl as WebGL2RenderingContext, def, store.paramValues, effectiveValues, consumed, gradientUnits, brandContext)
       _applyRuntimeFloatUniforms(program, runtimeFloatUniforms)
       _applyTextureMetaUniforms(program, def, texMeta)
+      if (this._activeSceneId === REACTOR_SCENE_ID) {
+        program.setFloat('uRayEpoch', this._reactorRayEpoch)
+      }
     }
 
     // ── Transition tick ────────────────────────────────────────────────────
@@ -889,6 +916,9 @@ export class ShaderEngineRenderer {
       && typeof store.paramValues.recipe === 'string'
       ? store.paramValues.recipe
       : null
+    this._reactorRayEpoch = 0
+    this._reactorRayDropCount = 0
+    this._reactorRayDropArmed = true
 
     // Clear previous scene's runtime texture bindings before applying the new
     // scene's selections.  Without this, two scenes sharing the same input name

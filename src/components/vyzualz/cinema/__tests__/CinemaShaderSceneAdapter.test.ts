@@ -625,6 +625,111 @@ describe('Cinema ShaderSceneNodeAdapter', () => {
     harness.dispose()
   })
 
+  describe('Reactor generative ray-field re-roll epoch', () => {
+    const reactorComposition = (cadence?: string) => {
+      const base = createCinemaShaderSceneComposition(
+        REACTOR_SCENE_ID,
+        CINEMA_FOUNDATION_OUTPUT_TYPE_ID,
+        CINEMA_FOUNDATION_INPUT_PORT_ID,
+        { compositionId: cinemaStableId<CinemaCompositionId>(`reactor-ray-epoch-${cadence ?? 'default'}`, 'composition') },
+      )
+      if (!cadence) return base
+      const typeId = cinemaShaderSceneTypeId(REACTOR_SCENE_ID)
+      return {
+        ...base,
+        nodes: base.nodes.map(node => node.typeId === typeId ? {
+          ...node,
+          parameterValues: {
+            ...node.parameterValues,
+            ...createCinemaShaderSceneParameterValues(REACTOR_SCENE_ID, { rayRerollCadence: cadence }),
+          },
+        } : node),
+      }
+    }
+    const mount = (composition: CinemaCompositionDefinition) => {
+      const state = createCinemaFoundationPersistedState()
+      const harness = createExecutorHarness()
+      vi.mocked(harness.gl.getUniformLocation).mockImplementation((_program, name) => (
+        { name } as unknown as WebGLUniformLocation
+      ))
+      harness.executor.resize({ width: 1, height: 1, dpr: 1 }, harness.viewport)
+      harness.executor.setGraph({ composition, instance: null, definitions: state.definitions })
+      const lastRayEpoch = () => {
+        const calls = vi.mocked(harness.gl.uniform1f).mock.calls
+          .filter(([location]) => (location as unknown as { name?: string })?.name === 'uRayEpoch')
+          .map(([, value]) => value)
+        return calls[calls.length - 1]
+      }
+      const atBar = (generation: number, barIndex: number, extra: Partial<CinemaFrameContext> = {}) => {
+        const base = frame(generation)
+        return { ...base, music: { ...base.music, barIndex }, ...extra } as Readonly<CinemaFrameContext>
+      }
+      return { harness, lastRayEpoch, atBar }
+    }
+
+    it('tracks the canonical bar index on the default Bar cadence and never advances on a static bar', () => {
+      const { harness, lastRayEpoch, atBar } = mount(reactorComposition())
+      expect(harness.executor.render(atBar(0, 0))).toBe(true)
+      expect(lastRayEpoch()).toBe(0)
+      expect(harness.executor.render(atBar(1, 4))).toBe(true)
+      expect(lastRayEpoch()).toBe(4)
+      expect(harness.executor.render(atBar(2, 4))).toBe(true)
+      expect(lastRayEpoch()).toBe(4)
+      expect(harness.executor.render(atBar(3, 13))).toBe(true)
+      expect(lastRayEpoch()).toBe(13)
+      expect(harness.diagnostics).not.toContain('CINEMA_NODE_RENDER_FAILED')
+      harness.dispose()
+    })
+
+    it('divides the bar index by four on the 4 Bars cadence', () => {
+      const { harness, lastRayEpoch, atBar } = mount(reactorComposition('bar4'))
+      expect(harness.executor.render(atBar(0, 6))).toBe(true)
+      expect(lastRayEpoch()).toBe(1)
+      expect(harness.executor.render(atBar(1, 12))).toBe(true)
+      expect(lastRayEpoch()).toBe(3)
+      harness.dispose()
+    })
+
+    it('counts fresh drop-start events on the Drop cadence, de-duped by canonical event id', () => {
+      const { harness, lastRayEpoch, atBar } = mount(reactorComposition('drop'))
+      const withDrop = (generation: number, eventId: string | null) => {
+        const base = frame(generation)
+        return {
+          ...base,
+          impulses: {
+            ...base.impulses,
+            dropStart: eventId !== null,
+            eventIds: { ...base.impulses.eventIds, dropStart: eventId as CinemaEventId | null },
+          },
+        } as Readonly<CinemaFrameContext>
+      }
+      expect(harness.executor.render(withDrop(0, null))).toBe(true)
+      expect(lastRayEpoch()).toBe(0)
+      // Bar index alone does not move the Drop cadence.
+      expect(harness.executor.render(atBar(1, 9))).toBe(true)
+      expect(lastRayEpoch()).toBe(0)
+      // First drop -> 1; the same event id again -> still 1 (de-dup).
+      expect(harness.executor.render(withDrop(2, 'music:drop-a'))).toBe(true)
+      expect(lastRayEpoch()).toBe(1)
+      expect(harness.executor.render(withDrop(3, 'music:drop-a'))).toBe(true)
+      expect(lastRayEpoch()).toBe(1)
+      // A fresh event id -> 2.
+      expect(harness.executor.render(withDrop(4, 'music:drop-b'))).toBe(true)
+      expect(lastRayEpoch()).toBe(2)
+      harness.dispose()
+    })
+
+    it('freezes the epoch at zero on the Off cadence regardless of bars or drops', () => {
+      const { harness, lastRayEpoch, atBar } = mount(reactorComposition('off'))
+      expect(harness.executor.render(atBar(0, 0))).toBe(true)
+      expect(lastRayEpoch()).toBe(0)
+      const base = frame(1, false, true)
+      expect(harness.executor.render({ ...base, music: { ...base.music, barIndex: 20 } })).toBe(true)
+      expect(lastRayEpoch()).toBe(0)
+      harness.dispose()
+    })
+  })
+
   it('executes Reactor feedback, resets both history targets, and reconstructs after context restoration', () => {
     const state = createCinemaFoundationPersistedState()
     const composition = createCinemaShaderSceneComposition(
