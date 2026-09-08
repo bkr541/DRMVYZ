@@ -1161,7 +1161,7 @@ function AddEffectsLedgerCardConcept({ state }: { state: CanvasMockState }) {
     <ConceptGroup
       state={state}
       label="Add Effects — Ledger Card"
-      note="The card is a two-rail table — a label rail and a control rail. Active Media is the title row; every effect and parameter row aligns to the same two columns, split by hairline rules. An FX icon sits left of the label, and the routed signals live behind the same dashed Trigger toggle as Thumb Card. Concept only."
+      note="The card is a two-rail table — a label rail and a control rail. Active Media is the title row; every effect row aligns its FX icon under the Active Media label's left edge. The routed signals live behind the same dashed Trigger toggle as Thumb Card, centered under the effect dropdown. Concept only."
     >
       {(layer, layerIndex) => (
         <AddEffectsLayerGroup
@@ -1172,7 +1172,6 @@ function AddEffectsLedgerCardConcept({ state }: { state: CanvasMockState }) {
           getGroupExtra={() => ({ className: 'rv-ae-lc-group' })}
           getMediaRowExtra={() => ({ className: 'rv-ae-lc-title' })}
           getEntryExtra={() => ({ className: 'rv-ae-lc-entry' })}
-          renderMediaRowLeading={() => <span className="rv-ae-tc-fx" aria-hidden="true" />}
           renderLeading={() => (
             <span className="rv-ae-tc-fx" aria-hidden="true">
               <EffectFxIcon className="rv-ae-tc-fx-icon" />
@@ -1196,6 +1195,7 @@ function AddEffectsLedgerCardConcept({ state }: { state: CanvasMockState }) {
               toggleVariant="dashed-trigger"
               emptyPickerLabel="Add Trigger"
               filledPickerLabel="Add Trigger"
+              routeClassName="rv-ae-lc-route"
             />
           )}
         />

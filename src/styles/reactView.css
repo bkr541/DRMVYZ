@@ -20115,6 +20115,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
    in-flow, plainly-clickable button that opens .rv-ae-route-editor. No
    negative offsets (the inspector panel scrolls and would clip them). */
 
+/* Shared spacing scale for the Add Effects concept mock-ups. Every kept group
+   (Ledger Card, Thumb Card, Thumb Card B, Colored Effect Spine) derives its
+   padding, gaps, and indents from these tokens. */
+[data-layout-lab-canvas='routing'] {
+  --ae2-pad: 10px;
+  --ae2-gap: 8px;
+  --ae2-step: 16px;
+}
+
 /* ── Concept: Signal Break ───────────────────────────────────────────────── */
 
 /* One framed dark panel around the whole authoring surface — the Active Media
@@ -20252,40 +20261,64 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   text-overflow: ellipsis;
 }
 
-/* Fixed-width FX-icon gutter left of the label rail. Every row carries it —
-   the title row gets an empty spacer of the same width — so the two rails
-   stay aligned across the title, effect, and add-effect rows. */
+/* FX icon: leads each effect row at the group's left content edge, so its left
+   edge lines up exactly under the Active Media title's left edge (the title row
+   carries no leading gutter). The "Effect" label then follows after the icon. */
 .rv-ae-lc-group .rv-ae-tc-fx {
   margin-left: 0;
   width: 18px;
   height: auto;
 }
 
-.rv-ae-lc-group > .rv-canvas-layer-media-row {
-  gap: 7px;
+.rv-ae-lc-group .rv-ae-tc-fx-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .rv-ae-lc-group .rv-canvas-layer-effect-row--empty {
   padding: var(--ae2-gap) 0 2px;
 }
 
-/* The Trigger toggle and its panel form one block, indented under the effect
-   dropdown's control column (FX gutter 18px + row gap 7px + label rail 78px +
-   grid gap 8px = 111px), with clear vertical space above and below rather than
-   a connector line bridging them. */
-.rv-ae-lc-group .rv-ae-tc-toggle {
-  align-self: flex-start;
-  margin-top: var(--ae2-step);
+/* The Trigger toggle + panel sit under the effect dropdown's control column
+   (FX 18px + row gap 7px + label rail 78px + grid gap 8px = 111px). The pill
+   is smaller than the shared one and centred in that column, with a dashed
+   line dropping from the effect dropdown's bottom border to it. */
+.rv-ae-lc-route {
+  display: flex;
+  flex-direction: column;
   margin-left: 111px;
 }
 
-.rv-ae-lc-group .rv-ae-tc-toggle::before,
+.rv-ae-lc-group .rv-ae-tc-toggle {
+  align-self: center;
+  margin: var(--ae2-step) 0 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 8px;
+  gap: 5px;
+  font-size: 7px;
+}
+
+.rv-ae-lc-group .rv-ae-tc-toggle.is-active {
+  width: 18px;
+}
+
+.rv-ae-lc-group .rv-ae-tc-toggle::before {
+  display: block;
+  top: calc(-1 * (var(--ae2-gap) + var(--ae2-step)));
+  height: calc(var(--ae2-gap) + var(--ae2-step));
+}
+
+.rv-ae-lc-group .rv-ae-tc-toggle.is-active::before {
+  border-left-color: #8de7ff;
+}
+
 .rv-ae-lc-group .rv-ae-tc-toggle.is-open::after {
   display: none;
 }
 
 .rv-ae-lc-group .rv-ae-tc-panel {
-  margin: var(--ae2-step) 0 2px 111px;
+  margin: var(--ae2-step) 0 2px;
 }
 
 /* ── Concept: Thumb Card ─────────────────────────────────────────────────── */
