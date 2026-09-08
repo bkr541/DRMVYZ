@@ -1,4 +1,9 @@
-import { AFTERHOURS_PATTERN_CHANGES, type AfterhoursPatternChange } from '../../../CinematicWorldSettings'
+import {
+  AFTERHOURS_PATTERN_CHANGES,
+  AFTERHOURS_PATTERNS,
+  type AfterhoursPattern,
+  type AfterhoursPatternChange,
+} from '../../../CinematicWorldSettings'
 import type { CinematicFrameContext } from '../../CinematicWorldRenderer'
 import {
   AFTERHOURS_MAX_BEAMS,
@@ -10,23 +15,17 @@ import {
 } from './AfterhoursBeamGeometry'
 
 /**
- * Afterhours Stage 5 — pattern variation director and blackouts.
+ * Afterhours runtime topology/blackout director.
  *
- * Runtime-only. Owns the deterministic variation ordinal for the *currently
- * selected pattern family*, the previous/next rig state needed to morph between
- * variations, the consumed pattern-change event identity, and the blackout
- * envelope. It consumes the same host-prepared `canonicalMusic` clock/impulse
- * identities the trigger controller uses — it never fabricates a bar counter
- * from the frame rate, never runs analysis, and never writes persisted settings.
- *
- * The family itself is not owned here: the world passes `settings.pattern`
- * straight to the generator and this director only swaps the `variation` input,
- * so Fan stays Fan, Cross stays Cross, etc. by construction.
+ * Runtime-only. Persisted settings remain the user-intent owner; this class
+ * derives the active topology family, morph state, and event-aligned blackout
+ * window from the host-prepared canonical music clocks/impulses.
  */
 
 export interface AfterhoursPatternDirectorInput {
   frame: Readonly<CinematicFrameContext>
   settings: Readonly<{
+    pattern: AfterhoursPattern
     patternChange: AfterhoursPatternChange
     blackoutAmount: number
     /** When on and a tempo is known, the morph interval is scaled to musical time. */
@@ -35,11 +34,15 @@ export interface AfterhoursPatternDirectorInput {
 }
 
 export interface AfterhoursDirectorState {
+  /** Topology family rendered this frame. */
+  pattern: AfterhoursPattern
+  /** Topology family the current morph is coming from. */
+  previousPattern: AfterhoursPattern
   /** Deterministic ordinal to feed the beam generator this frame. */
   variation: number
-  /** Ordinal the current morph is coming *from* (=== variation once settled). */
+  /** Ordinal the current morph is coming from (=== variation once settled). */
   previousVariation: number
-  /** 0..1 morph progress. 1 means settled — the world can skip the blend. */
+  /** 0..1 morph progress. 1 means settled. */
   transition: number
   /** 0..1 laser-authority reduction. 0 = full lasers, 1 = full blackout. */
   blackout: number
@@ -53,18 +56,12 @@ const SCHEDULE_CLOCK: Partial<Record<AfterhoursPatternChange, 'bar' | 'bar4' | '
   phrase: 'phrase',
 }
 
-/**
- * Morph length. BPM Sync OFF (or no tempo): a fixed short wall-clock ramp. BPM
- * Sync ON: the ramp is expressed in beats and clamped, so the re-aim tracks the
- * tempo instead of running a tempo-blind 0.5 s every time. Short and bounded
- * either way so a variation change reads as a deliberate re-aim, not a teleport.
- */
 const MORPH_SEC = 0.5
 const MORPH_BEATS = 2
 const MIN_MORPH_SEC = 0.18
 const MAX_MORPH_SEC = 1.2
-/** Keeps the ordinal bounded; the generator hashes it, so the exact value is immaterial. */
 const VARIATION_MODULO = 0x40000000
+const BLACKOUT_RELEASE_HZ = 8
 
 function clamp(value: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, Number.isFinite(value) ? value : lo))
@@ -83,135 +80,183 @@ function smooth(t: number): number {
   return x * x * (3 - 2 * x)
 }
 
+function normalizePattern(value: AfterhoursPattern): AfterhoursPattern {
+  return (AFTERHOURS_PATTERNS as readonly string[]).includes(value) ? value : 'fan'
+}
+
 function normalizePatternChange(value: AfterhoursPatternChange): AfterhoursPatternChange {
   return (AFTERHOURS_PATTERN_CHANGES as readonly string[]).includes(value) ? value : 'off'
 }
 
+function nextPattern(pattern: AfterhoursPattern): AfterhoursPattern {
+  const index = AFTERHOURS_PATTERNS.indexOf(pattern)
+  return AFTERHOURS_PATTERNS[(Math.max(0, index) + 1) % AFTERHOURS_PATTERNS.length]
+}
+
 export class AfterhoursPatternDirector {
+  private pattern: AfterhoursPattern = 'fan'
+  private previousPattern: AfterhoursPattern = 'fan'
+  private selectedPattern: AfterhoursPattern | null = null
   private variation = 0
   private previousVariation = 0
-  /** 0..1 morph progress. 1 = settled. */
   private transition = 1
-  private lastEventId: string | null = null
-  private edgeActive = false
+  private lastPatternEventId: string | null = null
+  private patternEdgeActive = false
+  private lastBlackoutEventId: string | null = null
+  private blackoutEdgeActive = false
   private lastPatternChange: AfterhoursPatternChange | null = null
   private blackoutEnvelope = 0
+  private blackoutHoldSec = 0
 
   reset(): void {
+    this.pattern = this.selectedPattern ?? 'fan'
+    this.previousPattern = this.pattern
     this.variation = 0
     this.previousVariation = 0
     this.transition = 1
-    this.lastEventId = null
-    this.edgeActive = false
+    this.lastPatternEventId = null
+    this.patternEdgeActive = false
+    this.lastBlackoutEventId = null
+    this.blackoutEdgeActive = false
     this.lastPatternChange = null
     this.blackoutEnvelope = 0
+    this.blackoutHoldSec = 0
   }
 
   update(input: AfterhoursPatternDirectorInput): AfterhoursDirectorState {
     const { frame } = input
+    const selectedPattern = normalizePattern(input.settings.pattern)
     const patternChange = normalizePatternChange(input.settings.patternChange)
     const blackoutAmount = clamp01(input.settings.blackoutAmount)
     const bpmSync = input.settings.bpmSync !== false
     const dt = clamp(frame.deltaTimeSec, 0, 0.1)
     const musicPlaying = frame.musicalAudio ? frame.musicalAudio.isPlaying !== false : true
 
-    // BPM Sync ON + a known tempo -> the morph spans MORPH_BEATS beats, clamped;
-    // otherwise the fixed wall-clock ramp. Musical-time quantisation of the
-    // choreography cadence, without snapping the interpolation to beat edges.
-    const bpm = bpmSync && Number.isFinite(frame.beat?.bpm) && (frame.beat?.bpm ?? 0) > 0 ? (frame.beat as { bpm: number }).bpm : 0
+    const bpm = bpmSync && Number.isFinite(frame.beat?.bpm) && (frame.beat?.bpm ?? 0) > 0
+      ? (frame.beat as { bpm: number }).bpm
+      : 0
     const morphSec = bpm > 0 ? clamp((MORPH_BEATS * 60) / bpm, MIN_MORPH_SEC, MAX_MORPH_SEC) : MORPH_SEC
 
-    // Switching the scheduler cadence invalidates the consumed identity so the
-    // next boundary on the new cadence is honoured; the current variation stays.
+    // A direct Pattern edit immediately becomes the baseline family. Pattern
+    // Change can subsequently walk real topology families from that selection.
+    if (this.selectedPattern !== selectedPattern) {
+      this.selectedPattern = selectedPattern
+      this.pattern = selectedPattern
+      this.previousPattern = selectedPattern
+      this.variation = 0
+      this.previousVariation = 0
+      this.transition = 1
+      this.lastPatternEventId = null
+      this.patternEdgeActive = false
+    }
+
     if (this.lastPatternChange !== patternChange) {
-      this.lastEventId = null
-      this.edgeActive = false
+      this.lastPatternEventId = null
+      this.patternEdgeActive = false
+      this.lastBlackoutEventId = null
+      this.blackoutEdgeActive = false
+      if (patternChange === 'off') {
+        this.pattern = selectedPattern
+        this.previousPattern = selectedPattern
+        this.transition = 1
+      }
       this.lastPatternChange = patternChange
     }
 
-    // Seek / long suspension: drop any in-flight morph and consumed id, and
-    // release the blackout — no stale director state survives a discontinuity.
     if (frame.timingDiscontinuity) {
+      this.previousPattern = this.pattern
       this.previousVariation = this.variation
       this.transition = 1
-      this.lastEventId = null
-      this.edgeActive = false
+      this.lastPatternEventId = null
+      this.patternEdgeActive = false
+      this.lastBlackoutEventId = null
+      this.blackoutEdgeActive = false
       this.blackoutEnvelope = 0
+      this.blackoutHoldSec = 0
     }
 
-    if (musicPlaying && patternChange !== 'off' && this.consume(frame, patternChange)) {
+    const topologyBoundary = musicPlaying && patternChange !== 'off'
+      && this.consumeBoundary(frame, patternChange, 'pattern')
+    if (topologyBoundary) {
+      this.previousPattern = this.pattern
+      this.pattern = nextPattern(this.pattern)
       this.previousVariation = this.variation
       this.variation = (this.variation + 1) % VARIATION_MODULO
       this.transition = 0
     } else {
-      // The boundary frame itself sits at transition 0; the morph advances from
-      // the next frame on. Interval is musical when BPM Sync is on, else fixed.
       this.transition = Math.min(1, this.transition + dt / morphSec)
     }
-    const transition = this.transition
 
-    // Blackout: one short deterministic negative-space window at the tail of
-    // every bar. It always keys on the bar clock — never on the Pattern Change
-    // cadence — so Blackout Amount behaves predictably regardless of the
-    // selected pattern-change interval. No bar clock -> no automatic blackout.
-    const barClock = frame.canonicalMusic?.clocks.bar
-    const blackoutClock = barClock?.available ? barClock : null
-    let blackoutTarget = 0
-    if (musicPlaying && !frame.timingDiscontinuity && blackoutAmount > 0 && blackoutClock) {
-      const windowFraction = mix(0.04, 0.18, blackoutAmount)
-      const phase = clamp01(blackoutClock.phase)
-      if (phase >= 1 - windowFraction) {
-        const into = (phase - (1 - windowFraction)) / Math.max(windowFraction, 1e-6)
-        blackoutTarget = smooth(into) * mix(0.55, 1, blackoutAmount)
-      }
+    // Blackouts are attached to a real canonical event, not an arbitrary
+    // end-of-bar tail. When Pattern Change is enabled they share that cadence;
+    // otherwise a bar boundary is the conservative canonical fallback.
+    const blackoutCadence: AfterhoursPatternChange = patternChange === 'off' ? 'bar' : patternChange
+    const blackoutBoundary = musicPlaying && blackoutAmount > 0
+      && this.consumeBoundary(frame, blackoutCadence, 'blackout')
+    if (blackoutBoundary) {
+      // Exact control authority: 100% reaches an exact full blackout on the cue.
+      this.blackoutEnvelope = blackoutAmount
+      this.blackoutHoldSec = 0.06 + blackoutAmount * 0.18
+    } else if (this.blackoutHoldSec > 0) {
+      this.blackoutHoldSec = Math.max(0, this.blackoutHoldSec - dt)
+    } else if (this.blackoutEnvelope > 0) {
+      this.blackoutEnvelope *= Math.exp(-BLACKOUT_RELEASE_HZ * dt)
+      if (this.blackoutEnvelope < 1e-4) this.blackoutEnvelope = 0
     }
-    // Follow the target quickly but not instantly, so a blackout reads as a
-    // deliberate lighting cue rather than a 1-frame flicker. The release is a
-    // touch faster than the fall so the room comes back promptly after the
-    // boundary. The target returns to 0 every cycle, so this can never latch.
-    const rate = blackoutTarget >= this.blackoutEnvelope ? 26 : 55
-    const follow = clamp01(1 - Math.exp(-rate * dt))
-    this.blackoutEnvelope += (blackoutTarget - this.blackoutEnvelope) * follow
-    if (blackoutTarget <= 0 && this.blackoutEnvelope < 1e-4) this.blackoutEnvelope = 0
-    const blackout = clamp01(this.blackoutEnvelope)
+    if (blackoutAmount <= 0 || !musicPlaying) {
+      this.blackoutEnvelope = 0
+      this.blackoutHoldSec = 0
+    }
 
     return {
+      pattern: this.pattern,
+      previousPattern: this.previousPattern,
       variation: this.variation,
       previousVariation: this.previousVariation,
-      transition,
-      blackout,
+      transition: this.transition,
+      blackout: clamp01(this.blackoutEnvelope),
     }
   }
 
-  /**
-   * Fire once per canonical boundary identity. Prefers the canonical `eventId`;
-   * falls back to a rising edge on `hit`/`active` only when no identity exists.
-   * Returns false when the required canonical clock is unavailable rather than
-   * inventing a frame-rate bar counter.
-   */
-  private consume(frame: Readonly<CinematicFrameContext>, patternChange: AfterhoursPatternChange): boolean {
+  private consumeBoundary(
+    frame: Readonly<CinematicFrameContext>,
+    cadence: AfterhoursPatternChange,
+    channel: 'pattern' | 'blackout',
+  ): boolean {
     const canonical = frame.canonicalMusic
     let active = false
     let eventId: string | null = null
-    if (patternChange === 'drop') {
+    if (cadence === 'drop') {
       const impulse = canonical?.impulses.dropStart
       active = impulse?.active ?? false
       eventId = impulse?.eventId ?? null
     } else {
-      const clock = canonical?.clocks[SCHEDULE_CLOCK[patternChange] ?? 'bar']
+      const clock = canonical?.clocks[SCHEDULE_CLOCK[cadence] ?? 'bar']
       if (!clock?.available) return false
       active = clock.hit
       eventId = clock.eventId
     }
 
+    if (channel === 'pattern') {
+      if (eventId != null) {
+        if (eventId === this.lastPatternEventId) return false
+        this.lastPatternEventId = eventId
+        this.patternEdgeActive = active
+        return active
+      }
+      const rising = active && !this.patternEdgeActive
+      this.patternEdgeActive = active
+      return rising
+    }
+
     if (eventId != null) {
-      if (eventId === this.lastEventId) return false
-      this.lastEventId = eventId
-      this.edgeActive = active
+      if (eventId === this.lastBlackoutEventId) return false
+      this.lastBlackoutEventId = eventId
+      this.blackoutEdgeActive = active
       return active
     }
-    const rising = active && !this.edgeActive
-    this.edgeActive = active
+    const rising = active && !this.blackoutEdgeActive
+    this.blackoutEdgeActive = active
     return rising
   }
 }

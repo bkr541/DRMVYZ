@@ -8,7 +8,8 @@ import type { CinematicFrameContext } from '../../CinematicWorldRenderer'
  * `musicalAudio` from the Cinema frame; it never runs an FFT, a BPM detector, or
  * a second beat clock, and it never touches persisted settings. The single
  * selected Trigger drives one bounded reaction envelope that the world maps into
- * derived intensity / spread / motion / active-beam modifiers. Drop is weighted
+ * derived intensity / spread / motion modifiers. Beam Count remains a literal
+ * user-owned budget and is intentionally not reaction-scaled. Drop is weighted
  * harder but is still just one Trigger option — no separate hero subsystem.
  */
 
@@ -41,8 +42,6 @@ export interface AfterhoursReactionState {
   motionPhase: number
   /** 0..1 authority scaling geometry sweep amplitude (0 when Motion Amount = 0). */
   motionAuthority: number
-  /** 0..1 fraction of the user's Beam Count to show this frame. */
-  beamUtilization: number
 }
 
 const CLOCK_TRIGGERS: Partial<Record<AfterhoursTrigger, 'beat' | 'beat2' | 'beat4' | 'bar' | 'bar4' | 'bar8' | 'phrase'>> = {
@@ -161,20 +160,20 @@ export class AfterhoursTriggerController {
     const envelopeEff = this.envelope * pulseAmount
     const dropEff = this.dropWeight * pulseAmount
 
-    const intensity = clamp(
-      (0.6 + masterIntensity * 0.55) * (1 + envelopeEff * 0.55 + dropEff * 0.65),
-      0.32,
-      2.3,
+    // Master Intensity is literal authority: 0 is an exact laser-off state and
+    // 1 exposes the full resting authority. Trigger reactions can boost that
+    // authority, but they can never resurrect lasers when Master is zero.
+    const intensity = masterIntensity * clamp(
+      1 + envelopeEff * 0.55 + dropEff * 0.65,
+      1,
+      2.2,
     )
     const spreadDelta = clamp(envelopeEff * 0.16 + dropEff * 0.24, 0, 0.42)
-    const motionAuthority = motionAmount <= 0
-      ? 0
-      : clamp01(motionAmount * (0.28 + 0.72 * envelopeEff + 0.5 * dropEff))
-    // Rest sits below the user's full Beam Count so an ordinary trigger has room
-    // to grow and Drop can bias toward the full budget — never above it. At
-    // Master Intensity 1 the resting field already fills the budget.
-    const restUtilization = 0.5 + masterIntensity * 0.5
-    const beamUtilization = clamp(restUtilization + envelopeEff * 0.3 + dropEff * 0.55, 0.34, 1)
+
+    // Motion Amount is also literal. The geometry layer defines what its full
+    // normalized sweep means; this controller must not hide another attenuation
+    // curve behind the user's 0..1 control.
+    const motionAuthority = motionAmount
 
     return {
       envelope: this.envelope,
@@ -184,7 +183,6 @@ export class AfterhoursTriggerController {
       spreadDelta,
       motionPhase,
       motionAuthority,
-      beamUtilization,
     }
   }
 

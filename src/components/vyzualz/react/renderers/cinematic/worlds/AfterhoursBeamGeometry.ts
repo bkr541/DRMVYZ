@@ -301,34 +301,34 @@ function flattenPairs(pairs: readonly OriginPair[]): OriginRef[] {
 }
 
 /**
- * Minimal Stage-1 source allocation: keep every structured list pairwise and
- * interleave optional banks so enabling them is visually meaningful without
- * implementing the later final fixture-bank allocator.
+ * Stage-2 source allocation contract: Beam Count is literal, and optional banks
+ * are interleaved ahead of the budget cutoff so an enabled Side/Top bank can
+ * participate at ordinary counts such as 8. This is still the lightweight
+ * pre-rig allocator; later stages can replace fixture choreography without
+ * changing the user-facing budget semantics.
  */
-function activeOrigins(pattern: AfterhoursPattern, settings: AfterhoursBeamGenerationSettings): OriginRef[] {
-  switch (pattern) {
-    case 'fan':
-    case 'split':
-      return flattenPairs(BOTTOM_PAIRS)
-    case 'xWall':
-      return flattenPairs(settings.topLasers ? interleavePairs(BOTTOM_PAIRS, TOP_PAIRS) : BOTTOM_PAIRS)
-    case 'cross':
-      return flattenPairs(settings.sideLasers ? interleavePairs(BOTTOM_PAIRS, SIDE_PAIRS) : BOTTOM_PAIRS)
-    case 'random':
-    default: {
-      const groups: (readonly OriginPair[])[] = [BOTTOM_PAIRS]
-      if (settings.sideLasers) groups.push(SIDE_PAIRS)
-      if (settings.topLasers) groups.push(TOP_PAIRS)
-      return flattenPairs(interleavePairs(...groups))
-    }
+function activeOrigins(_pattern: AfterhoursPattern, settings: AfterhoursBeamGenerationSettings): OriginRef[] {
+  const groups: (readonly OriginPair[])[] = [BOTTOM_PAIRS]
+  if (settings.sideLasers) groups.push(SIDE_PAIRS)
+  if (settings.topLasers) groups.push(TOP_PAIRS)
+  return flattenPairs(interleavePairs(...groups))
+}
+
+function interleaveOrigins(...groups: readonly (readonly OriginRef[])[]): OriginRef[] {
+  const out: OriginRef[] = []
+  const max = Math.max(...groups.map(group => group.length))
+  for (let index = 0; index < max; index += 1) {
+    for (const group of groups) if (group[index]) out.push(group[index])
   }
+  return out
 }
 
 function randomSymmetryPrimaryOrigins(settings: AfterhoursBeamGenerationSettings): OriginRef[] {
-  const origins = [ref('bottom', 4), ref('bottom', 3), ref('bottom', 2), ref('bottom', 1), ref('bottom', 0)]
-  if (settings.sideLasers) origins.push(ref('left', 1), ref('left', 0), ref('left', 2))
-  if (settings.topLasers) origins.push(ref('top', 2), ref('top', 1), ref('top', 0))
-  return origins
+  const bottom = [ref('bottom', 4), ref('bottom', 3), ref('bottom', 2), ref('bottom', 1), ref('bottom', 0)]
+  const groups: OriginRef[][] = [bottom]
+  if (settings.sideLasers) groups.push([ref('left', 1), ref('left', 0), ref('left', 2)])
+  if (settings.topLasers) groups.push([ref('top', 2), ref('top', 1), ref('top', 0)])
+  return interleaveOrigins(...groups)
 }
 
 function mirrorRef(origin: OriginRef): OriginRef {
@@ -394,16 +394,34 @@ function structuredDirection(
   aspect: number,
 ): AfterhoursRayDirection {
   const xNorm = clamp((origin.emitter.x - 0.5) / 0.48, -1, 1)
+  const yNorm = clamp((origin.emitter.y - 0.5) / 0.48, -1, 1)
   switch (pattern) {
     case 'fan': {
       const halfAngle = mix(10, 58, spread) * structureScale
+      if (origin.bank === 'top') return directionFromAngleDeg(270 + xNorm * halfAngle)
+      if (origin.bank === 'left') return directionFromAngleDeg(-yNorm * halfAngle)
+      if (origin.bank === 'right') return directionFromAngleDeg(180 + yNorm * halfAngle)
       return directionFromAngleDeg(90 - xNorm * halfAngle)
     }
     case 'split': {
+      const radialX = mix(0.72, 1, Math.abs(xNorm))
+      const radialY = mix(0.72, 1, Math.abs(yNorm))
+      const halfAngleX = mix(26, 66, spread) * structureScale * radialX
+      const halfAngleY = mix(26, 66, spread) * structureScale * radialY
+      if (origin.bank === 'top') {
+        const side = origin.emitter.x < 0.5 ? -1 : 1
+        return directionFromAngleDeg(270 + side * halfAngleX)
+      }
+      if (origin.bank === 'left') {
+        const side = origin.emitter.y < 0.5 ? -1 : 1
+        return directionFromAngleDeg(side * halfAngleY)
+      }
+      if (origin.bank === 'right') {
+        const side = origin.emitter.y < 0.5 ? 1 : -1
+        return directionFromAngleDeg(180 + side * halfAngleY)
+      }
       const side = origin.emitter.x < 0.5 ? 1 : -1
-      const radial = mix(0.72, 1, Math.abs(xNorm))
-      const halfAngle = mix(26, 66, spread) * structureScale * radial
-      return directionFromAngleDeg(90 + side * halfAngle)
+      return directionFromAngleDeg(90 + side * halfAngleX)
     }
     case 'xWall': {
       const oppositeX = mix(0.5, 1 - origin.emitter.x, mix(0.62, 1.1, spread) * structureScale)

@@ -182,27 +182,26 @@ describe('Afterhours Stage 1 — coherent bank participation', () => {
     }
   })
 
-  it('Fan and Split remain intentionally bottom-bank structures', () => {
-    for (const pattern of ['fan', 'split'] as const) {
-      const beams = active({ pattern, sideLasers: true, topLasers: true, beamCount: 16 })
-      expect(beams.every(beam => beam.bank === 'bottom')).toBe(true)
+  it('recruits enabled Side and Top banks by Beam Count 8 for every current topology family', () => {
+    for (const pattern of ['random', 'xWall', 'cross', 'fan', 'split'] as const) {
+      const banks = new Set(active({ pattern, sideLasers: true, topLasers: true, beamCount: 8 }).map(beam => beam.bank))
+      expect(banks.has('bottom'), `${pattern} bottom`).toBe(true)
+      expect(banks.has('left'), `${pattern} left`).toBe(true)
+      expect(banks.has('right'), `${pattern} right`).toBe(true)
+      expect(banks.has('top'), `${pattern} top`).toBe(true)
     }
   })
 
-  it('Cross uses enabled side fixtures early enough to read as a coherent source group', () => {
-    const banks = new Set(active({ pattern: 'cross', sideLasers: true, beamCount: 6 }).map(beam => beam.bank))
-    expect(banks.has('bottom')).toBe(true)
-    expect(banks.has('left')).toBe(true)
-    expect(banks.has('right')).toBe(true)
-    expect(banks.has('top')).toBe(false)
-  })
+  it('a single enabled optional bank participates by Beam Count 8 without enabling the other bank', () => {
+    for (const pattern of ['random', 'xWall', 'cross', 'fan', 'split'] as const) {
+      const sideBanks = new Set(active({ pattern, sideLasers: true, topLasers: false, beamCount: 8 }).map(beam => beam.bank))
+      expect(sideBanks.has('left') && sideBanks.has('right'), `${pattern} side`).toBe(true)
+      expect(sideBanks.has('top')).toBe(false)
 
-  it('X Wall uses enabled top fixtures early enough to produce opposing banks', () => {
-    const banks = new Set(active({ pattern: 'xWall', topLasers: true, beamCount: 6 }).map(beam => beam.bank))
-    expect(banks.has('bottom')).toBe(true)
-    expect(banks.has('top')).toBe(true)
-    expect(banks.has('left')).toBe(false)
-    expect(banks.has('right')).toBe(false)
+      const topBanks = new Set(active({ pattern, sideLasers: false, topLasers: true, beamCount: 8 }).map(beam => beam.bank))
+      expect(topBanks.has('top'), `${pattern} top`).toBe(true)
+      expect(topBanks.has('left') || topBanks.has('right')).toBe(false)
+    }
   })
 
   it('Split preserves a deliberate left/right aperture', () => {

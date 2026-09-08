@@ -637,8 +637,7 @@ describe('Cinema Cinematic World adapters', () => {
     expect(lowRest).toBeGreaterThan(0)
     // Active-beam budget honours the live Beam Count override (16), bounded.
     expect(lowBeams.total).toBe(16)
-    expect(lowBeams.on).toBeGreaterThanOrEqual(2)
-    expect(lowBeams.on).toBeLessThanOrEqual(16)
+    expect(lowBeams.on).toBe(16)
     expect(low.everyAfterhoursUniformFinite()).toBe(true)
     expect(low.harness.executor.getSnapshot().failedNodeCount).toBe(0)
 
@@ -652,6 +651,37 @@ describe('Cinema Cinematic World adapters', () => {
 
     low.harness.dispose()
     high.harness.dispose()
+  })
+
+  it('enforces literal Stage 2 Master, Beam Count, and optional-bank contracts through the real production path', () => {
+    const probe = buildAfterhoursExecutorFixture({})
+    const randomId = probe.optionId('Pattern', 'Random')
+    const changeOffId = probe.optionId('Pattern Change', 'Off')
+    probe.harness.dispose()
+
+    const fixture = buildAfterhoursExecutorFixture({
+      Pattern: randomId,
+      'Side Lasers': true,
+      'Top Lasers': true,
+      'Beam Count': 8,
+      'Master Intensity': 0,
+      'Pulse Amount': 1,
+      'Motion Amount': 0,
+      'Pattern Change': changeOffId,
+      'Blackout Amount': 0,
+      Atmosphere: 1,
+    })
+    expect(fixture.harness.executor.render(frame(0, false, false, { beat: true }))).toBe(true)
+    expect(fixture.lastFloat('uAfterhoursIntensity')).toBe(0)
+    expect(fixture.activeBeamCount().on).toBe(8)
+
+    const activeRows = fixture.latestBeamRows().filter(([ox, oy, ex, ey]) => !(ox === 0 && oy === 0 && ex === 0 && ey === 0))
+    expect(activeRows).toHaveLength(8)
+    expect(activeRows.some(([ox]) => Math.abs(ox - 0.02) < 1e-9 || Math.abs(ox - 0.98) < 1e-9)).toBe(true)
+    expect(activeRows.some(([, oy]) => Math.abs(oy - 0.975) < 1e-9)).toBe(true)
+    expect(fixture.everyAfterhoursUniformFinite()).toBe(true)
+    expect(fixture.harness.executor.getSnapshot().failedNodeCount).toBe(0)
+    fixture.harness.dispose()
   })
 
   it('feeds viewport-exit ray geometry through the real Cinema preset -> composition -> production renderer path', () => {
@@ -726,39 +756,26 @@ describe('Cinema Cinematic World adapters', () => {
     fixture.harness.dispose()
   })
 
-  it('drives bounded, musically placed Afterhours blackouts through the production executor and never NaNs a uniform', () => {
+  it('drives exact event-aligned Afterhours blackouts through the production executor and never NaNs a uniform', () => {
     const probe = buildAfterhoursExecutorFixture({})
     const offId = probe.optionId('Pattern Change', 'Off')
     probe.harness.dispose()
 
     const dark = buildAfterhoursExecutorFixture({ 'Pattern Change': offId, 'Blackout Amount': 1 })
-    // Mid-cycle bar phase -> full laser authority.
-    for (let generation = 0; generation < 12; generation += 1) {
-      expect(dark.harness.executor.render(frame(generation, false, false, { barPhase: 0.2 }))).toBe(true)
-    }
+    expect(dark.harness.executor.render(frame(0))).toBe(true)
     expect(dark.lastFloat('uAfterhoursBlackout') ?? -1).toBe(0)
-    // End-of-cycle bar phase -> a deliberate blackout window opens, bounded 0..1.
-    let peak = 0
-    for (let generation = 12; generation < 34; generation += 1) {
-      expect(dark.harness.executor.render(frame(generation, false, false, { barPhase: 0.99 }))).toBe(true)
-      peak = Math.max(peak, dark.lastFloat('uAfterhoursBlackout') ?? 0)
-    }
-    expect(peak).toBeGreaterThan(0.3)
-    expect(peak).toBeLessThanOrEqual(1)
-    // Returns to lit — never latches dark.
-    for (let generation = 34; generation < 60; generation += 1) {
-      expect(dark.harness.executor.render(frame(generation, false, false, { barPhase: 0.1 }))).toBe(true)
+    expect(dark.harness.executor.render(frame(1, false, false, { bar: true }))).toBe(true)
+    expect(dark.lastFloat('uAfterhoursBlackout') ?? -1).toBe(1)
+    for (let generation = 2; generation < 90; generation += 1) {
+      expect(dark.harness.executor.render(frame(generation))).toBe(true)
     }
     expect(dark.lastFloat('uAfterhoursBlackout') ?? 1).toBeLessThan(0.1)
     expect(dark.everyAfterhoursUniformFinite()).toBe(true)
     dark.harness.dispose()
 
-    // Blackout Amount 0 disables automatic blackouts at any phase.
     const lit = buildAfterhoursExecutorFixture({ 'Pattern Change': offId, 'Blackout Amount': 0 })
-    for (const [generation, barPhase] of [[0, 0.5], [1, 0.97], [2, 0.999], [3, 0.85]] as const) {
-      expect(lit.harness.executor.render(frame(generation, false, false, { barPhase }))).toBe(true)
-      expect(lit.lastFloat('uAfterhoursBlackout') ?? -1).toBe(0)
-    }
+    expect(lit.harness.executor.render(frame(0, false, false, { bar: true }))).toBe(true)
+    expect(lit.lastFloat('uAfterhoursBlackout') ?? -1).toBe(0)
     lit.harness.dispose()
   })
 
@@ -1103,7 +1120,7 @@ function frame(
   generation: number,
   reset = false,
   dropStart = false,
-  events: Partial<{ beat: boolean; kick: boolean; snare: boolean; bar4: boolean; barPhase: number }> = {},
+  events: Partial<{ beat: boolean; kick: boolean; snare: boolean; bar: boolean; bar4: boolean; barPhase: number }> = {},
 ): Readonly<CinemaFrameContext> {
   const clock = (spanBeats: number, hit = false, eventId: CinemaEventId | null = null, phase = 0.25) => ({ available: true, spanBeats, index: generation, phase, hit, eventId })
   const beat = events.beat ?? generation === 0
@@ -1174,7 +1191,7 @@ function frame(
         beat: false,
         beat2: false,
         beat4: false,
-        bar: false,
+        bar: events.bar ?? false,
         bar4: events.bar4 ?? false,
         bar8: false,
         phrase: false,
@@ -1182,7 +1199,7 @@ function frame(
           beat: clock(1),
           beat2: clock(2),
           beat4: clock(4),
-          bar: clock(4, false, null, events.barPhase ?? 0.25),
+          bar: clock(4, events.bar ?? false, events.bar ? `music:bar:${generation}` as CinemaEventId : null, events.barPhase ?? 0.25),
           bar4: clock(16, events.bar4 ?? false, events.bar4 ? `music:bar4:${generation}` as CinemaEventId : null),
           bar8: clock(32),
           phrase: clock(32),

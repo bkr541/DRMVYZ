@@ -17,12 +17,12 @@ const BEAM_ACCUMULATION = Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, index
  *         -> very narrow high-luminance core
  *   + a restrained bloom at the fixed emitter origin
  *
- * Atmosphere raises both the per-beam volumetric glow and a low-frequency haze
- * floor, but the final image is tone-mapped so Atmosphere 1 stays luminous
- * rather than washing the frame to a flat solid. meta.x is a 0..1 render weight
- * (Stage 5 fades beams in/out across a variation morph); a slot at weight <= 0
- * contributes exactly zero. uAfterhoursBlackout scales total laser authority to
- * zero during a deliberate blackout window while the background/haze stay.
+ * Atmosphere raises both the per-beam volumetric glow and a low-frequency laser
+ * haze, but the final image is tone-mapped so Atmosphere 1 stays luminous rather
+ * than washing the frame to a flat solid. meta.x is a 0..1 render weight; a slot
+ * at weight <= 0 contributes exactly zero. Master Intensity and Blackout gate
+ * every Afterhours laser contribution, including the laser-tinted haze, while
+ * the authored background remains independent.
  */
 export const AFTERHOURS_FRAGMENT_SOURCE = `#version 300 es
 precision highp float;
@@ -106,9 +106,9 @@ void main() {
 
   float atmosphere = clamp(uAfterhoursAtmosphere, 0.0, 1.0);
 
-  // Low-frequency haze floor: never a flat grey overlay, always subtle, and it
-  // stays faintly present whenever Atmosphere > 0 so quiet states are not pure
-  // black. Weighted toward the lower half where the bottom bank lives.
+  // Low-frequency laser haze: never a flat grey overlay and always subtle. It is
+  // later multiplied by the same literal Master/Blackout authority as the rays.
+  // Weighted toward the lower half where the bottom bank lives.
   float hazeField = valueNoise(uv * vec2(3.0, 4.5)) * 0.6 + valueNoise(uv * vec2(9.0, 11.0)) * 0.4;
   float verticalBias = mix(1.0, 0.35, smoothstep(0.15, 0.95, uv.y));
   float haze = atmosphere * atmosphere * (0.22 + 0.78 * hazeField) * verticalBias;
@@ -116,14 +116,12 @@ void main() {
   vec3 beams = vec3(0.0);
 ${BEAM_ACCUMULATION}
 
-  // Master Intensity + the reaction envelope scale the laser authority only —
-  // the background and haze floor keep the scene readable at any intensity. A
-  // deliberate blackout (Stage 5) drives that authority to zero for a short
-  // window; the background and haze terms are untouched so the room stays alive.
+  // Master Intensity and Blackout are literal laser-authority gates. The haze
+  // tint is part of the Afterhours laser atmosphere, so it shares the same gate:
+  // Master 0 and Blackout 1 both leave only the authored background contribution.
   float laserAuthority = clamp(uAfterhoursIntensity, 0.0, 4.0) * (1.0 - clamp(uAfterhoursBlackout, 0.0, 1.0));
-  vec3 color = uAfterhoursBackground
-    + mix(uAfterhoursPrimary, uAfterhoursAccent, 0.2) * haze * 0.05
-    + beams * laserAuthority;
+  vec3 laserContribution = mix(uAfterhoursPrimary, uAfterhoursAccent, 0.2) * haze * 0.05 + beams;
+  vec3 color = uAfterhoursBackground + laserContribution * laserAuthority;
 
   // Tone-map so strong Atmosphere / intensity still resolves to bright rays in
   // haze rather than a solid wash, and nothing exceeds displayable range.

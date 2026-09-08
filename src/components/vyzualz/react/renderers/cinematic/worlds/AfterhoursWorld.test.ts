@@ -217,21 +217,30 @@ describe('Afterhours Stage 2 world integration', () => {
     harness.world.dispose()
   })
 
-  it('Drop uses more of the Beam Count budget than an ordinary trigger, never exceeding it', () => {
-    const activeCount = (worldSettings: Partial<typeof AFTERHOURS_DEFAULTS>, music: Parameters<typeof frame>[1]) => {
+  it('treats Beam Count as a literal visible-ray budget independent of Master and trigger type', () => {
+    const activeCount = (beamCount: number, worldSettings: Partial<typeof AFTERHOURS_DEFAULTS>, music?: Parameters<typeof frame>[1]) => {
       const harness = createWorldHarness()
-      harness.world.render(frame({ beamCount: 16, pattern: 'fan', masterIntensity: 0.3, ...worldSettings }, music), { framebuffer: null, texture: null, width: 1280, height: 720 })
-      let count = 0
-      for (let i = 0; i < AFTERHOURS_MAX_BEAMS; i += 1) {
-        if ((last(harness.calls, `uAfterhoursBeamMeta${i}`)[0] ?? 0) > 0) count += 1
-      }
+      harness.world.render(frame({ beamCount, pattern: 'fan', ...worldSettings }, music), { framebuffer: null, texture: null, width: 1280, height: 720 })
+      const count = Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, i) => last(harness.calls, `uAfterhoursBeamMeta${i}`)[0] ?? 0)
+        .filter(weight => weight > 0).length
       harness.world.dispose()
       return count
     }
-    const beatCount = activeCount({ trigger: 'beat' }, { frameIndex: 1, beatEventId: 'b1' })
-    const dropCount = activeCount({ trigger: 'drop' }, { frameIndex: 1, dropEventId: 'd1' })
-    expect(dropCount).toBeGreaterThan(beatCount)
-    expect(dropCount).toBeLessThanOrEqual(16)
+    for (const beamCount of [2, 8, 16]) {
+      expect(activeCount(beamCount, { masterIntensity: 0.1, trigger: 'beat' }, { frameIndex: 1, beatEventId: 'b1' })).toBe(beamCount)
+      expect(activeCount(beamCount, { masterIntensity: 1, trigger: 'drop' }, { frameIndex: 1, dropEventId: 'd1' })).toBe(beamCount)
+    }
+  })
+
+  it('Master Intensity 0 writes exact zero laser authority even with maximum Atmosphere and an active trigger', () => {
+    const harness = createWorldHarness()
+    harness.world.render(
+      frame({ masterIntensity: 0, atmosphere: 1, pulseAmount: 1, trigger: 'beat' }, { frameIndex: 1, beatEventId: 'b1' }),
+      { framebuffer: null, texture: null, width: 1280, height: 720 },
+    )
+    expect(last(harness.calls, 'uAfterhoursIntensity')).toEqual([0])
+    expect(AFTERHOURS_FRAGMENT_SOURCE).toContain('uAfterhoursBackground + laserContribution * laserAuthority')
+    harness.world.dispose()
   })
 
   it('Motion Amount 0 holds geometry still; Motion Amount 1 sweeps targets over musical time', () => {
@@ -306,7 +315,6 @@ describe('Afterhours Stage 5 world integration — pattern director and blackout
   // wiring tests settle in a known frame budget. Musical-time morph scaling has
   // its own dedicated coverage in AfterhoursPatternDirector.test.ts.
   const STILL = { motionAmount: 0, pulseAmount: 0, bpmSync: false } as const
-  const bottomXs = new Set<number>(AFTERHOURS_BOTTOM_EMITTERS.map(e => e.x))
 
   it('defaults uAfterhoursBlackout to 0 and keeps it 0 at Blackout Amount 0', () => {
     const harness = createWorldHarness()
@@ -320,55 +328,39 @@ describe('Afterhours Stage 5 world integration — pattern director and blackout
     harness.world.dispose()
   })
 
-  it('opens a bounded blackout window near the end of the musical cycle and recovers', () => {
+  it('opens an event-aligned blackout at the canonical bar boundary and recovers', () => {
     const harness = createWorldHarness()
-    const s = { ...STILL, blackoutAmount: 0.9, patternChange: 'off' as const }
-    let peak = 0
-    for (let i = 1; i < 24; i += 1) {
-      harness.world.render(frame(s, { frameIndex: i, barPhase: 0.6 }), { framebuffer: null, texture: null, width: 1280, height: 720 })
-      peak = Math.max(peak, last(harness.calls, 'uAfterhoursBlackout')[0])
-    }
-    expect(peak).toBe(0) // mid-cycle stays fully lit
-    for (let i = 24; i < 48; i += 1) {
-      harness.world.render(frame(s, { frameIndex: i, barPhase: 0.985 }), { framebuffer: null, texture: null, width: 1280, height: 720 })
-      peak = Math.max(peak, last(harness.calls, 'uAfterhoursBlackout')[0])
-    }
-    expect(peak).toBeGreaterThan(0.3)
-    expect(peak).toBeLessThanOrEqual(1)
-    // Back to an early phase -> the room comes back.
-    for (let i = 48; i < 70; i += 1) {
-      harness.world.render(frame(s, { frameIndex: i, barPhase: 0.05 }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    const s = { ...STILL, blackoutAmount: 1, patternChange: 'off' as const }
+    harness.world.render(frame(s, { frameIndex: 1 }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    expect(last(harness.calls, 'uAfterhoursBlackout')).toEqual([0])
+    harness.world.render(frame(s, { frameIndex: 2, barEventId: 'bar-1' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    expect(last(harness.calls, 'uAfterhoursBlackout')).toEqual([1])
+    for (let i = 3; i < 90; i += 1) {
+      harness.world.render(frame(s, { frameIndex: i }), { framebuffer: null, texture: null, width: 1280, height: 720 })
     }
     expect(last(harness.calls, 'uAfterhoursBlackout')[0]).toBeLessThan(0.05)
     harness.world.dispose()
   })
 
-  it('advances to a new deterministic variation of the same family at a Pattern Change boundary', () => {
-    const settle = (harness: ReturnType<typeof createWorldHarness>, s: Partial<typeof AFTERHOURS_DEFAULTS>, music: (i: number) => Parameters<typeof frame>[1]) => {
-      for (let i = 1; i < 60; i += 1) {
-        harness.world.render(frame(s, music(i)), { framebuffer: null, texture: null, width: 1280, height: 720 })
-      }
-      return Array.from({ length: 8 }, (_, i) => last(harness.calls, `uAfterhoursBeam${i}`))
+  it('changes the rendered topology family at a Pattern Change boundary, not only the variation seed', () => {
+    const harness = createWorldHarness()
+    const settings = { ...STILL, pattern: 'fan' as const, beamCount: 8, patternChange: 'bar' as const, blackoutAmount: 0 }
+    for (let i = 1; i < 60; i += 1) {
+      harness.world.render(
+        frame(settings, i === 2 ? { frameIndex: i, barEventId: 'bar-1' } : { frameIndex: i }),
+        { framebuffer: null, texture: null, width: 1280, height: 720 },
+      )
     }
-    const base = { ...STILL, pattern: 'fan' as const, beamCount: 8 }
-
-    const held = createWorldHarness()
-    const heldRows = settle(held, { ...base, patternChange: 'off' }, i => ({ frameIndex: i }))
-    held.world.dispose()
-
-    const cycled = createWorldHarness()
-    const cycledRows = settle(cycled, { ...base, patternChange: 'bar' }, i => (i === 2 ? { frameIndex: i, barEventId: 'bar-1' } : { frameIndex: i }))
-    cycled.world.dispose()
-
-    // The cycled run landed on a different variation -> geometry differs...
-    expect(cycledRows).not.toEqual(heldRows)
-    // ...but the family is unchanged: every active Fan beam still originates from
-    // a fixed bottom emitter.
-    for (const row of cycledRows) {
-      if (row[3] === 0 && row[2] === 0) continue // inactive slot
-      expect(bottomXs.has(row[0])).toBe(true)
-      expect(row[1]).toBe(AFTERHOURS_BOTTOM_EMITTERS[0].y)
+    const seed = createCinematicWorldConfig('afterhours', settings).seed
+    const expected = generateAfterhoursBeams(
+      { ...AFTERHOURS_DEFAULTS, ...settings, pattern: 'split' },
+      { seed, variation: 1, viewportAspectRatio: 1280 / 720 },
+    )
+    for (let index = 0; index < 8; index += 1) {
+      const beam = expected[index]
+      expect(last(harness.calls, `uAfterhoursBeam${index}`)).toEqual([beam.origin.x, beam.origin.y, beam.endpoint.x, beam.endpoint.y])
     }
+    harness.world.dispose()
   })
 
   it('reset() re-arms the pattern director so a previously consumed bar identity advances again', () => {
@@ -404,35 +396,27 @@ describe('Afterhours Stage 5 world integration — pattern director and blackout
     harness.world.dispose()
   })
 
-  it('fades a beam out through intermediate weights when the reactive budget shrinks, instead of popping', () => {
+  it('keeps trigger reaction from changing the literal budget while still fading explicit Beam Count edits', () => {
     const harness = createWorldHarness()
-    // First frame primes the full rig; a trigger hit lifts the active budget.
-    const s = { pattern: 'fan' as const, beamCount: 16, bpmSync: false, trigger: 'beat' as const, masterIntensity: 0.4, pulseAmount: 1, pulseDecay: 0.2 }
-    harness.world.render(frame(s, { frameIndex: 1, beatEventId: 'b1' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
-    const hitOn = Array.from({ length: 16 }, (_, i) => last(harness.calls, `uAfterhoursBeamMeta${i}`)[0] ?? 0).filter(w => w > 0).length
+    const base = { pattern: 'fan' as const, bpmSync: false, trigger: 'beat' as const, masterIntensity: 0.4, pulseAmount: 1, pulseDecay: 0.2 }
+    harness.world.render(frame({ ...base, beamCount: 16 }, { frameIndex: 1, beatEventId: 'b1' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    expect(Array.from({ length: 16 }, (_, i) => last(harness.calls, `uAfterhoursBeamMeta${i}`)[0] ?? 0).filter(w => w > 0)).toHaveLength(16)
 
-    // Let the envelope decay: the budget shrinks and the retiring slots must
-    // pass through 0 < weight < 1 rather than jumping straight to 0.
-    const sawIntermediate = new Set<number>()
-    let restOn = hitOn
-    for (let i = 2; i < 90; i += 1) {
-      harness.world.render(frame(s, { frameIndex: i }), { framebuffer: null, texture: null, width: 1280, height: 720 })
-      for (let slot = 0; slot < 16; slot += 1) {
+    for (let i = 2; i < 20; i += 1) {
+      harness.world.render(frame({ ...base, beamCount: 16 }, { frameIndex: i }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    }
+    expect(Array.from({ length: 16 }, (_, i) => last(harness.calls, `uAfterhoursBeamMeta${i}`)[0] ?? 0).filter(w => w > 0)).toHaveLength(16)
+
+    let sawIntermediate = false
+    for (let i = 20; i < 60; i += 1) {
+      harness.world.render(frame({ ...base, beamCount: 8 }, { frameIndex: i }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+      for (let slot = 8; slot < 16; slot += 1) {
         const w = last(harness.calls, `uAfterhoursBeamMeta${slot}`)[0] ?? 0
-        if (w > 0.02 && w < 0.98) sawIntermediate.add(slot)
+        if (w > 0.02 && w < 0.98) sawIntermediate = true
       }
-      restOn = Array.from({ length: 16 }, (_, slot) => last(harness.calls, `uAfterhoursBeamMeta${slot}`)[0] ?? 0).filter(w => w > 0).length
     }
-
-    expect(hitOn).toBeGreaterThan(restOn) // the budget really did shrink
-    expect(sawIntermediate.size).toBeGreaterThan(0) // and it faded, not popped
-    // Fully settled: weights are back to a clean 0 / 1 split, bounded by 16.
-    for (let slot = 0; slot < 16; slot += 1) {
-      const w = last(harness.calls, `uAfterhoursBeamMeta${slot}`)[0] ?? 0
-      expect(w === 0 || w === 1).toBe(true)
-    }
-    expect(restOn).toBeGreaterThanOrEqual(2)
-    expect(restOn).toBeLessThanOrEqual(16)
+    expect(sawIntermediate).toBe(true)
+    expect(Array.from({ length: 16 }, (_, i) => last(harness.calls, `uAfterhoursBeamMeta${i}`)[0] ?? 0).filter(w => w > 0)).toHaveLength(8)
     harness.world.dispose()
   })
 })

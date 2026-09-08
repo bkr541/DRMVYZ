@@ -72,7 +72,7 @@ function directorFrame(input: {
   return frame as unknown as CinematicFrameContext
 }
 
-const cfg = (patternChange: AfterhoursPatternChange, blackoutAmount = 0, bpmSync = false) => ({ patternChange, blackoutAmount, bpmSync })
+const cfg = (patternChange: AfterhoursPatternChange, blackoutAmount = 0, bpmSync = false) => ({ pattern: AFTERHOURS_DEFAULTS.pattern, patternChange, blackoutAmount, bpmSync })
 
 const BEAM_BASE: AfterhoursBeamGenerationSettings = {
   pattern: 'fan',
@@ -109,12 +109,14 @@ describe('Afterhours Stage 5 — Pattern Change scheduler', () => {
     expect(state.previousVariation).toBe(0)
   })
 
-  it('advances once per boundary for every cadence and stays inside the family', () => {
+  it('advances once per boundary for every cadence and changes the topology family', () => {
     for (const [cadence, clock] of [['bar', 'bar'], ['bar4', 'bar4'], ['bar8', 'bar8'], ['phrase', 'phrase']] as const) {
       const director = new AfterhoursPatternDirector()
       const s = cfg(cadence)
       const first = director.update({ frame: directorFrame({ frameIndex: 1, clock, clockEventId: `${clock}-a` }), settings: s })
       expect(first.variation).toBe(1)
+      expect(first.previousPattern).toBe('fan')
+      expect(first.pattern).toBe('split')
       expect(first.transition).toBe(0) // a boundary just started a morph
       // Same identity on the next frame -> no second advance, morph advancing.
       const held = director.update({ frame: directorFrame({ frameIndex: 2, clock, clockEventId: `${clock}-a` }), settings: s })
@@ -123,6 +125,8 @@ describe('Afterhours Stage 5 — Pattern Change scheduler', () => {
       // Fresh identity -> next variation.
       const next = director.update({ frame: directorFrame({ frameIndex: 3, clock, clockEventId: `${clock}-b` }), settings: s })
       expect(next.variation).toBe(2)
+      expect(next.previousPattern).toBe('split')
+      expect(next.pattern).toBe('random')
     }
   })
 
@@ -227,7 +231,7 @@ describe('Afterhours Stage 5 — transition interpolation', () => {
   it('BPM Sync ON scales the morph interval to musical time; a faster tempo settles in fewer seconds', () => {
     const settleFrames = (bpmSync: boolean, bpm: number) => {
       const director = new AfterhoursPatternDirector()
-      const s = { patternChange: 'bar' as AfterhoursPatternChange, blackoutAmount: 0, bpmSync }
+      const s = { pattern: AFTERHOURS_DEFAULTS.pattern, patternChange: 'bar' as AfterhoursPatternChange, blackoutAmount: 0, bpmSync }
       director.update({ frame: directorFrame({ frameIndex: 1, clock: 'bar', clockEventId: 'bar-1', bpm }), settings: s })
       let frames = 0
       for (let i = 2; i < 400; i += 1) {
@@ -250,7 +254,7 @@ describe('Afterhours Stage 5 — transition interpolation', () => {
   it('with no tempo available, BPM Sync ON falls back to the fixed wall-clock ramp', () => {
     const withGrid = new AfterhoursPatternDirector()
     const withoutGrid = new AfterhoursPatternDirector()
-    const on = { patternChange: 'bar' as AfterhoursPatternChange, blackoutAmount: 0, bpmSync: true }
+    const on = { pattern: AFTERHOURS_DEFAULTS.pattern, patternChange: 'bar' as AfterhoursPatternChange, blackoutAmount: 0, bpmSync: true }
     withGrid.update({ frame: directorFrame({ frameIndex: 1, clock: 'bar', clockEventId: 'b1', bpm: 0 }), settings: on })
     withoutGrid.update({ frame: directorFrame({ frameIndex: 1, clock: 'bar', clockEventId: 'b1', bpm: 0 }), settings: { ...on, bpmSync: false } })
     let a = 0
@@ -316,82 +320,64 @@ describe('Afterhours Stage 5 — blendAfterhoursBeamFrames', () => {
   })
 })
 
-describe('Afterhours Stage 5 — deliberate blackouts', () => {
-  it('Blackout Amount 0 produces no automatic blackout at any phase', () => {
+describe('Afterhours Stage 2 — deliberate blackouts', () => {
+  it('Blackout Amount 0 produces no blackout even on its canonical cue', () => {
     const director = new AfterhoursPatternDirector()
-    const s = cfg('bar', 0)
-    for (const barPhase of [0, 0.25, 0.5, 0.9, 0.98, 0.999]) {
-      const state = director.update({ frame: directorFrame({ frameIndex: 1, barPhase }), settings: s })
-      expect(state.blackout).toBe(0)
-    }
+    const state = director.update({
+      frame: directorFrame({ frameIndex: 1, clock: 'bar', clockEventId: 'bar-1' }),
+      settings: cfg('off', 0),
+    })
+    expect(state.blackout).toBe(0)
   })
 
-  it('opens a bounded deterministic negative-space window near the end of the cycle and never latches', () => {
-    const s = cfg('bar', 0.6)
-    const run = () => {
-      const director = new AfterhoursPatternDirector()
-      const samples: number[] = []
-      // Two full simulated bars: phase ramps 0..1, then wraps.
-      for (let i = 0; i < 240; i += 1) {
-        const barPhase = (i % 120) / 120
-        samples.push(director.update({ frame: directorFrame({ frameIndex: i, barPhase }), settings: s }).blackout)
-      }
-      return samples
-    }
-    const a = run()
-    const b = run()
-    expect(a).toEqual(b) // deterministic
-    expect(Math.max(...a)).toBeGreaterThan(0.2) // the window actually darkens
-    expect(Math.max(...a)).toBeLessThanOrEqual(1)
-    // Early-cycle frames stay lit; the window is confined to the tail.
-    expect(a[10]).toBe(0)
-    expect(a[70]).toBe(0)
-    // It recovers promptly after the boundary — never a permanent black.
-    expect(a[126]).toBeLessThan(0.1)
-    expect(a[a.length - 1]).toBeLessThanOrEqual(1)
+  it('maps blackout depth literally and reaches an exact full blackout at 100%', () => {
+    const partial = new AfterhoursPatternDirector().update({
+      frame: directorFrame({ frameIndex: 1, clock: 'bar', clockEventId: 'bar-1' }),
+      settings: cfg('off', 0.25),
+    })
+    const full = new AfterhoursPatternDirector().update({
+      frame: directorFrame({ frameIndex: 1, clock: 'bar', clockEventId: 'bar-1' }),
+      settings: cfg('off', 1),
+    })
+    expect(partial.blackout).toBe(0.25)
+    expect(full.blackout).toBe(1)
   })
 
-  it('deeper Blackout Amount widens and darkens the window', () => {
-    const peak = (blackoutAmount: number) => {
-      const director = new AfterhoursPatternDirector()
-      const s = cfg('bar', blackoutAmount)
-      let max = 0
-      for (let i = 0; i < 120; i += 1) {
-        max = Math.max(max, director.update({ frame: directorFrame({ frameIndex: i, barPhase: i / 120 }), settings: s }).blackout)
-      }
-      return max
+  it('holds briefly and then releases the event-aligned blackout without latching', () => {
+    const director = new AfterhoursPatternDirector()
+    const s = cfg('off', 1)
+    expect(director.update({ frame: directorFrame({ frameIndex: 1, clock: 'bar', clockEventId: 'bar-1' }), settings: s }).blackout).toBe(1)
+    let last = 1
+    for (let i = 2; i < 120; i += 1) {
+      last = director.update({ frame: directorFrame({ frameIndex: i }), settings: s }).blackout
     }
-    expect(peak(1)).toBeGreaterThan(peak(0.3))
+    expect(last).toBeLessThan(0.01)
+  })
+
+  it('uses Pattern Change cadence when enabled instead of a hard-coded bar-tail dip', () => {
+    const director = new AfterhoursPatternDirector()
+    const s = cfg('bar4', 1)
+    const ordinaryBar = director.update({
+      frame: directorFrame({ frameIndex: 1, clock: 'bar', clockEventId: 'bar-1' }),
+      settings: s,
+    })
+    expect(ordinaryBar.blackout).toBe(0)
+    const bar4 = director.update({
+      frame: directorFrame({ frameIndex: 2, clock: 'bar4', clockEventId: 'bar4-1' }),
+      settings: s,
+    })
+    expect(bar4.blackout).toBe(1)
   })
 
   it('releases the blackout on seek and stays finite when music is unavailable', () => {
     const director = new AfterhoursPatternDirector()
-    const s = cfg('bar', 1)
-    for (let i = 0; i < 118; i += 1) director.update({ frame: directorFrame({ frameIndex: i, barPhase: i / 120 }), settings: s })
-    const seeked = director.update({ frame: directorFrame({ frameIndex: 118, barPhase: 0.99, timingDiscontinuity: true }), settings: s })
+    const s = cfg('off', 1)
+    director.update({ frame: directorFrame({ frameIndex: 1, clock: 'bar', clockEventId: 'bar-1' }), settings: s })
+    const seeked = director.update({ frame: directorFrame({ frameIndex: 2, timingDiscontinuity: true }), settings: s })
     expect(seeked.blackout).toBe(0)
-    const noMusic = director.update({ frame: directorFrame({ frameIndex: 119, hasCanonical: false }), settings: s })
+    const noMusic = director.update({ frame: directorFrame({ frameIndex: 3, hasCanonical: false }), settings: s })
     expect(Number.isFinite(noMusic.blackout)).toBe(true)
     expect(noMusic.blackout).toBe(0)
-  })
-
-  it('places the blackout window on the bar clock regardless of the Pattern Change cadence', () => {
-    const envelope = (patternChange: AfterhoursPatternChange) => {
-      const director = new AfterhoursPatternDirector()
-      const s = cfg(patternChange, 0.7)
-      const samples: number[] = []
-      for (let i = 0; i < 120; i += 1) {
-        samples.push(director.update({ frame: directorFrame({ frameIndex: i, barPhase: i / 120 }), settings: s }).blackout)
-      }
-      return samples
-    }
-    // Off, Bar, 4 Bars, 8 Bars, Phrase, Drop — all drive an identical
-    // end-of-bar blackout; Blackout Amount no longer rides the cadence selector.
-    const off = envelope('off')
-    expect(Math.max(...off)).toBeGreaterThan(0.3)
-    for (const cadence of ['bar', 'bar4', 'bar8', 'phrase', 'drop'] as const) {
-      expect(envelope(cadence)).toEqual(off)
-    }
   })
 })
 

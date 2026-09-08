@@ -44,8 +44,8 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
   private readonly triggers = new AfterhoursTriggerController()
   private readonly director = new AfterhoursPatternDirector()
   // Per-slot render weight + last-known geometry. Eases each slot toward its
-  // target weight so a beam entering/leaving the active budget (reaction
-  // envelope, pattern morph) fades instead of popping. Fixed-size, no churn.
+  // target weight so a beam entering/leaving the authored budget or a topology
+  // morph fades instead of popping. Fixed-size, no churn.
   // Plain f64 arrays: geometry is forwarded verbatim, not pre-quantised.
   private primed = false
   private readonly slotWeight = new Array<number>(AFTERHOURS_MAX_BEAMS).fill(0)
@@ -126,13 +126,13 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
     })
     program.setFloat('uAfterhoursIntensity', reaction.intensity)
 
-    // Stage 5: the pattern director cycles deterministic variations of the
-    // selected family at the chosen Pattern Change boundary, morphs between
-    // them, and schedules deliberate musical blackouts. It owns no clock/analysis
-    // and writes nothing persisted.
+    // Stage 2 contract correction: Pattern Change advances deterministic topology
+    // families at canonical musical boundaries and schedules literal blackouts.
+    // The director owns derived runtime state only, never persisted user intent.
     const direction = this.director.update({
       frame,
       settings: {
+        pattern: settings.pattern,
         patternChange: settings.patternChange,
         blackoutAmount: settings.blackoutAmount,
         bpmSync: settings.bpmSync,
@@ -141,13 +141,13 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
     program.setFloat('uAfterhoursBlackout', direction.blackout)
 
     // Reaction modifiers are derived, never written back to persisted settings.
-    // Active-beam utilisation is bounded by the user's global Beam Count and the
-    // 16-slot cap; Drop biases it toward the full budget without exceeding it.
+    // Beam Count is a literal active-ray budget in stable non-blackout states;
+    // music reaction may reshape the rig but must not silently halve that budget.
     const beamCount = resolveAfterhoursBeamCount(settings.beamCount)
-    const activeCount = Math.max(2, Math.min(beamCount, Math.round(beamCount * reaction.beamUtilization)))
     const genSettings = {
       ...settings,
-      beamCount: activeCount,
+      pattern: direction.pattern,
+      beamCount,
       spread: Math.max(0, Math.min(1, settings.spread + reaction.spreadDelta)),
     }
     // The world's deterministic seed differentiates otherwise-identical instances
@@ -161,15 +161,18 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
     }
 
     // Settled: one generation (meta.x targets 1 for active slots). Mid-morph:
-    // blend the previous and next variation of the *same* family. Fixed emitter
-    // origins never interpolate; ray directions morph and are re-projected to
-    // the viewport edge so no transition can create a floating finite segment.
+    // blend the previous and next topology frames. Fixed emitter origins never
+    // interpolate; ray directions morph and are re-projected to the viewport
+    // edge so no transition can create a floating finite segment.
     const settled = direction.transition >= 1
     const nextBeams = generateAfterhoursBeams(genSettings, { ...genOptions, variation: direction.variation })
     const blended = settled
       ? null
       : blendAfterhoursBeamFrames(
-        generateAfterhoursBeams(genSettings, { ...genOptions, variation: direction.previousVariation }),
+        generateAfterhoursBeams(
+          { ...genSettings, pattern: direction.previousPattern },
+          { ...genOptions, variation: direction.previousVariation },
+        ),
         nextBeams,
         direction.transition,
         viewportAspectRatio,

@@ -174,22 +174,17 @@ describe('Afterhours Stage 4 — envelope bounds and Pulse Decay', () => {
     const hit = controller.update({ frame: reactionFrame({ frameIndex: 2, clock: 'beat', clockEventId: 'b1' }), settings: s })
     expect(hit.intensity).toBeCloseTo(rest.intensity, 6)
     expect(hit.spreadDelta).toBe(0)
-    expect(hit.beamUtilization).toBeCloseTo(rest.beamUtilization, 6)
     expect(rest.intensity).toBeGreaterThan(0)
   })
 })
 
 describe('Afterhours Stage 4 — Drop weighting', () => {
-  it('produces a stronger reaction and higher beam utilisation than an ordinary trigger', () => {
+  it('produces a stronger intensity reaction than an ordinary trigger without changing Beam Count authority', () => {
     const beat = new AfterhoursTriggerController()
     const drop = new AfterhoursTriggerController()
-    // Master Intensity below the ceiling so the resting field has room to grow
-    // and the Drop bias is numerically observable.
     const beatHit = beat.update({ frame: reactionFrame({ frameIndex: 1, clock: 'beat', clockEventId: 'b1' }), settings: cfg({ trigger: 'beat', masterIntensity: 0.3 }) })
     const dropHit = drop.update({ frame: reactionFrame({ frameIndex: 1, impulse: 'dropStart', impulseEventId: 'd1' }), settings: cfg({ trigger: 'drop', masterIntensity: 0.3 }) })
     expect(dropHit.intensity).toBeGreaterThan(beatHit.intensity)
-    expect(dropHit.beamUtilization).toBeGreaterThan(beatHit.beamUtilization)
-    expect(dropHit.beamUtilization).toBeLessThanOrEqual(1)
     expect(dropHit.dropWeight).toBeGreaterThan(0)
   })
 
@@ -197,8 +192,8 @@ describe('Afterhours Stage 4 — Drop weighting', () => {
     const controller = new AfterhoursTriggerController()
     const s = cfg({ trigger: 'drop' })
     controller.update({ frame: reactionFrame({ frameIndex: 1, impulse: 'dropStart', impulseEventId: 'd1' }), settings: s })
-    let out = { dropWeight: 1, beamUtilization: 1 }
-    for (let i = 2; i < 200; i += 1) out = controller.update({ frame: reactionFrame({ frameIndex: i }), settings: s })
+    let out = controller.update({ frame: reactionFrame({ frameIndex: 2 }), settings: s })
+    for (let i = 3; i < 200; i += 1) out = controller.update({ frame: reactionFrame({ frameIndex: i }), settings: s })
     expect(out.dropWeight).toBeLessThan(0.02)
   })
 })
@@ -229,6 +224,34 @@ describe('Afterhours Stage 4 — BPM Sync motion phase', () => {
     expect(rest.motionAuthority).toBe(0)
     expect(hit.motionAuthority).toBe(0)
     expect(hit.intensity).toBeGreaterThan(rest.intensity)
+  })
+})
+
+describe('Afterhours Stage 2 — literal control authority', () => {
+  it('Master Intensity 0 is exact zero even on a trigger hit, while 1 exposes full resting authority', () => {
+    const off = new AfterhoursTriggerController()
+    const offHit = off.update({
+      frame: reactionFrame({ frameIndex: 1, clock: 'beat', clockEventId: 'b1' }),
+      settings: cfg({ masterIntensity: 0, trigger: 'beat', pulseAmount: 1 }),
+    })
+    expect(offHit.intensity).toBe(0)
+
+    const full = new AfterhoursTriggerController()
+    const rest = full.update({ frame: reactionFrame({ frameIndex: 1 }), settings: cfg({ masterIntensity: 1, pulseAmount: 0 }) })
+    expect(rest.intensity).toBe(1)
+  })
+
+  it('Motion Amount maps exactly to normalized authority at both boundaries', () => {
+    const zero = new AfterhoursTriggerController().update({
+      frame: reactionFrame({ frameIndex: 1, clock: 'beat', clockEventId: 'b1' }),
+      settings: cfg({ motionAmount: 0, pulseAmount: 1 }),
+    })
+    const full = new AfterhoursTriggerController().update({
+      frame: reactionFrame({ frameIndex: 1 }),
+      settings: cfg({ motionAmount: 1, pulseAmount: 0 }),
+    })
+    expect(zero.motionAuthority).toBe(0)
+    expect(full.motionAuthority).toBe(1)
   })
 })
 
