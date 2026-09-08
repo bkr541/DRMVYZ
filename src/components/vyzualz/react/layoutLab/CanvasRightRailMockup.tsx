@@ -732,10 +732,12 @@ function AddEffectsLayerGroup({
   getMediaRowExtra,
   getGroupExtra,
   renderMediaRowLeading,
+  renderMediaRowOverlay,
   renderAfterMediaRow,
   renderEmptyLeading,
   showEmptyEffectLabel = false,
   emptyEffectLabelText,
+  emptyRowCollapsed,
   showEffects = true,
 }: {
   state: CanvasMockState
@@ -751,6 +753,10 @@ function AddEffectsLayerGroup({
   /** Content placed to the left of the Active Media select + label, stretched
    *  to that field's height (e.g. a square media thumbnail). */
   renderMediaRowLeading?: (layer: CanvasMockState['addEffectsLayers'][number]) => ReactNode
+  /** Content overlaid on the Active Media row itself — positioned by the
+   *  concept's own CSS relative to that row (e.g. a control floating on its
+   *  bottom border). The row becomes a positioning context when this is set. */
+  renderMediaRowOverlay?: (layer: CanvasMockState['addEffectsLayers'][number]) => ReactNode
   /** Content placed between the Active Media select and the effect stack. */
   renderAfterMediaRow?: (layer: CanvasMockState['addEffectsLayers'][number]) => ReactNode
   /** Content placed to the left of the "Select Effect…" add row — the one
@@ -766,6 +772,11 @@ function AddEffectsLayerGroup({
    *  "Add effect to …" accessible name regardless. Defaults to that same
    *  descriptive string. */
   emptyEffectLabelText?: string
+  /** Gate the "Select Effect…" add row behind an animated reveal. Leave
+   *  undefined for the shared always-shown behavior; pass a boolean and the
+   *  row is wrapped in a collapse/expand animator (true = collapsed). A
+   *  concept drives this from its own toggle. */
+  emptyRowCollapsed?: boolean
   /** When false, the effect-dropdown stack is hidden (a concept can gate it
    *  behind a disclosure control). Defaults to shown. */
   showEffects?: boolean
@@ -786,6 +797,7 @@ function AddEffectsLayerGroup({
     ? <div className={mediaRowExtra.className} style={mediaRowExtra.style}>{mediaRow}</div>
     : mediaRow
   const mediaRowLeading = renderMediaRowLeading?.(layer)
+  const mediaRowOverlay = renderMediaRowOverlay?.(layer)
   return (
     <div
       className={groupExtra?.className ? `rv-canvas-layer-effects-group ${groupExtra.className}` : 'rv-canvas-layer-effects-group'}
@@ -795,10 +807,11 @@ function AddEffectsLayerGroup({
           (Performance Pool / active selection) — display-only, styled
           like a real input field for consistency, matching the
           production Add Effects group. */}
-      {mediaRowLeading != null ? (
-        <div className="rv-canvas-layer-media-row">
+      {(mediaRowLeading != null || mediaRowOverlay != null) ? (
+        <div className={mediaRowOverlay != null ? 'rv-canvas-layer-media-row rv-canvas-layer-media-row--has-overlay' : 'rv-canvas-layer-media-row'}>
           {mediaRowLeading}
           <div className="rv-canvas-layer-media-row__field">{mediaRowNode}</div>
+          {mediaRowOverlay}
         </div>
       ) : mediaRowNode}
       {renderAfterMediaRow?.(layer)}
@@ -837,20 +850,33 @@ function AddEffectsLayerGroup({
             </div>
           )
         })}
-        {layer.effects.length < MAX_CANVAS_LAYER_EFFECTS && (
-          <div className="rv-canvas-layer-effect-row rv-canvas-layer-effect-row--empty">
-            {renderEmptyLeading?.(parentLabel)}
-            <SelectRow
-              label={emptyEffectLabelText ?? `Add effect to ${parentLabel}`}
-              ariaLabel={`Add effect to ${parentLabel}`}
-              labelHidden={!showEmptyEffectLabel}
-              value=""
-              placeholder="Select Effect…"
-              onChange={value => state.addCanvasLayerEffect(layer.mediaId, value as CanvasLayerEffectId)}
-              options={CANVAS_LAYER_EFFECT_OPTIONS.filter(option => !selectedEffects.has(option.value))}
-            />
-          </div>
-        )}
+        {layer.effects.length < MAX_CANVAS_LAYER_EFFECTS && (() => {
+          const emptyRow = (
+            <div className="rv-canvas-layer-effect-row rv-canvas-layer-effect-row--empty">
+              {renderEmptyLeading?.(parentLabel)}
+              <SelectRow
+                label={emptyEffectLabelText ?? `Add effect to ${parentLabel}`}
+                ariaLabel={`Add effect to ${parentLabel}`}
+                labelHidden={!showEmptyEffectLabel}
+                value=""
+                placeholder="Select Effect…"
+                onChange={value => state.addCanvasLayerEffect(layer.mediaId, value as CanvasLayerEffectId)}
+                options={CANVAS_LAYER_EFFECT_OPTIONS.filter(option => !selectedEffects.has(option.value))}
+              />
+            </div>
+          )
+          if (emptyRowCollapsed === undefined) return emptyRow
+          return (
+            <div
+              className={emptyRowCollapsed
+                ? 'rv-canvas-layer-effect-empty-collapse is-collapsed'
+                : 'rv-canvas-layer-effect-empty-collapse'}
+              aria-hidden={emptyRowCollapsed || undefined}
+            >
+              {emptyRow}
+            </div>
+          )
+        })()}
       </div>
       )}
     </div>
@@ -1653,6 +1679,7 @@ function AECardRoute({
   editorHandlers,
   toggleVariant,
   pickerLeading,
+  routedHeading,
   routeClassName,
 }: {
   ctx: AddEffectsRouteContext
@@ -1667,6 +1694,9 @@ function AECardRoute({
   }
   toggleVariant?: 'chevron' | 'dashed-trigger' | 'plus-only'
   pickerLeading?: ReactNode
+  /** Caption rendered at the top of the open panel, above the routed rows —
+   *  only once at least one parameter is routed. */
+  routedHeading?: ReactNode
   /** When set, wrap the toggle + panel in one element so a concept can lay
    *  them out together (e.g. side by side instead of stacked). */
   routeClassName?: string
@@ -1686,6 +1716,7 @@ function AECardRoute({
       />
       {open && (
         <div className={`${classPrefix}-panel`}>
+          {routes.length > 0 && routedHeading}
           <AddEffectsRouteEditor
             routes={routes}
             effectLabel={ctx.effectLabel}
@@ -1998,47 +2029,64 @@ function AddEffectsLedgerCardConcept({ state }: { state: CanvasMockState }) {
  * with its name; effects are line items below a rule, routes on a disclosure. */
 function AddEffectsThumbCardConcept({ state }: { state: CanvasMockState }) {
   const { routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  // The "Select Effect…" picker no longer shows on its own. A single FX icon
+  // floats on the Active Media row's bottom border; clicking it reveals the
+  // picker, and clicking it again while the picker still holds no value
+  // collapses it back.
+  const [fxOpen, setFxOpen] = useState<Record<string, boolean>>({})
   return (
     <ConceptGroup
       state={state}
       label="Add Effects — Thumb Card"
-      note="The card header pairs the media's square thumbnail with its name; effects are line items below a rule, routes on a disclosure. Concept only."
+      note="The card header pairs the media's square thumbnail with its name. An FX icon floats on the Active Media row's bottom border; it toggles the effect picker open, and closes it again while the picker is still empty. Concept only."
     >
-      {(layer, layerIndex) => (
-        <AddEffectsLayerGroup
-          key={layer.mediaId}
-          state={state}
-          layer={layer}
-          layerIndex={layerIndex}
-          getGroupExtra={() => ({ className: 'rv-ae-tc-group' })}
-          renderMediaRowLeading={mediaLayer => {
-            const media = state.mediaItems.find(item => item.id === mediaLayer.mediaId)
-            return (
-              <MediaThumbBox
-                key={mediaLayer.mediaId}
-                mediaName={mediaLayer.mediaName}
-                mediaType={media?.type ?? 'image'}
-              />
-            )
-          }}
-          getEntryExtra={() => ({ className: 'rv-ae-tc-entry' })}
-          renderLeading={() => (
-            <span className="rv-ae-tc-fx" aria-hidden="true">
-              <EffectFxIcon className="rv-ae-tc-fx-icon" />
-            </span>
-          )}
-          renderEmptyLeading={() => (
-            <span className="rv-ae-tc-fx" aria-hidden="true">
-              <EffectFxIcon className="rv-ae-tc-fx-icon" />
-            </span>
-          )}
-          showEmptyEffectLabel
-          emptyEffectLabelText="Effect"
-          renderRoute={ctx => (
-            <AECardRoute ctx={ctx} classPrefix="rv-ae-tc" routesFor={routesFor} isOpenFor={isOpenFor} toggle={toggle} editorHandlers={editorHandlers} toggleVariant="dashed-trigger" />
-          )}
-        />
-      )}
+      {(layer, layerIndex) => {
+        const hasEffects = layer.effects.length > 0
+        const pickerOpen = fxOpen[layer.mediaId] ?? false
+        const toggleFxPicker = () => setFxOpen(current => ({ ...current, [layer.mediaId]: !(current[layer.mediaId] ?? false) }))
+        return (
+          <AddEffectsLayerGroup
+            key={layer.mediaId}
+            state={state}
+            layer={layer}
+            layerIndex={layerIndex}
+            getGroupExtra={() => ({ className: 'rv-ae-tc-group' })}
+            renderMediaRowLeading={mediaLayer => {
+              const media = state.mediaItems.find(item => item.id === mediaLayer.mediaId)
+              return (
+                <MediaThumbBox
+                  key={mediaLayer.mediaId}
+                  mediaName={mediaLayer.mediaName}
+                  mediaType={media?.type ?? 'image'}
+                />
+              )
+            }}
+            renderMediaRowOverlay={mediaLayer => (
+              <button
+                type="button"
+                className={pickerOpen ? 'rv-ae-tc-fx-toggle is-open' : 'rv-ae-tc-fx-toggle'}
+                aria-expanded={pickerOpen}
+                aria-label={`${pickerOpen ? 'Hide' : 'Add'} an effect for ${mediaLayer.mediaName}`}
+                onClick={toggleFxPicker}
+              >
+                <EffectFxIcon className="rv-ae-tc-fx-icon" />
+              </button>
+            )}
+            getEntryExtra={() => ({ className: 'rv-ae-tc-entry' })}
+            renderLeading={() => (
+              <span className="rv-ae-tc-fx" aria-hidden="true">
+                <EffectFxIcon className="rv-ae-tc-fx-icon" />
+              </span>
+            )}
+            showEmptyEffectLabel
+            emptyEffectLabelText="Effect"
+            emptyRowCollapsed={!hasEffects && !pickerOpen}
+            renderRoute={ctx => (
+              <AECardRoute ctx={ctx} classPrefix="rv-ae-tc" routesFor={routesFor} isOpenFor={isOpenFor} toggle={toggle} editorHandlers={editorHandlers} toggleVariant="dashed-trigger" />
+            )}
+          />
+        )
+      }}
     </ConceptGroup>
   )
 }
@@ -2095,6 +2143,7 @@ function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
               editorHandlers={editorHandlers}
               toggleVariant="plus-only"
               routeClassName="rv-ae-tcb-route"
+              routedHeading={<span className="rv-ae-tcb-trigger-label">Trigger</span>}
               pickerLeading={(
                 <span className="rv-ae-tcb-param-icon" aria-hidden="true">
                   <EffectSparkleIcon size={21} />

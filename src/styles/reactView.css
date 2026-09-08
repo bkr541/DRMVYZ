@@ -21257,12 +21257,72 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-tc-group .rv-canvas-layer-effects-stack {
   gap: 0;
+  /* Clearance band so the FX toggle floating on the media row's bottom border
+     has room below it before the effect picker / first effect entry. */
+  margin-top: 14px;
 }
 
 .rv-ae-tc-group > .rv-canvas-layer-media-row {
+  position: relative; /* positioning context for the floating FX toggle */
   align-items: center;
   gap: var(--ae2-gap);
   padding-bottom: 2px;
+}
+
+/* FX toggle — the one control that stands in for the always-open effect
+   picker. It floats centred on the Active Media row's bottom border; clicking
+   it reveals the picker, and clicking it again while the picker still holds no
+   value collapses it back. */
+.rv-ae-tc-fx-toggle {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 50%);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(154, 178, 188, 0.4);
+  border-radius: 999px;
+  background: #0f151a;
+  color: rgba(232, 244, 248, 0.72);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+
+.rv-ae-tc-fx-toggle:hover,
+.rv-ae-tc-fx-toggle:focus-visible,
+.rv-ae-tc-fx-toggle.is-open {
+  border-color: #8de7ff;
+  color: #8de7ff;
+}
+
+.rv-ae-tc-fx-toggle .rv-ae-tc-fx-icon {
+  width: 15px;
+  height: 15px;
+}
+
+/* Animated reveal for the "Select Effect…" picker: 0fr -> 1fr grid row so it
+   slides open and closed without a fixed max-height guess. */
+.rv-canvas-layer-effect-empty-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows 0.22s ease, opacity 0.16s ease;
+}
+
+.rv-canvas-layer-effect-empty-collapse > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rv-canvas-layer-effect-empty-collapse.is-collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Match the media row's thumbnail-to-field gap exactly. */
@@ -21607,6 +21667,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   align-items: center;
   justify-content: center;
   color: rgba(232, 244, 248, 0.72);
+}
+
+/* Caption above the routed trigger rows, shown once at least one trigger is
+   selected. Matches the picker's own field label so the open panel reads as
+   Trigger / <routed rows> / Add Trigger. */
+.rv-ae-tcb-trigger-label {
+  display: block;
+  margin-bottom: var(--ae2-gap);
+  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  color: rgba(245, 248, 250, 0.7);
 }
 
 .rv-ae-tcb-group .rv-canvas-layer-effect-row--empty {
