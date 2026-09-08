@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { AFTERHOURS_DEFAULTS, AFTERHOURS_PATTERNS, type AfterhoursPattern } from '../../../CinematicWorldSettings'
+import { AFTERHOURS_VIRTUAL_STAGE_RIG } from './AfterhoursVirtualStageRig'
 import {
   AFTERHOURS_BOTTOM_EMITTERS,
   AFTERHOURS_LEFT_EMITTERS,
@@ -77,6 +78,8 @@ describe('Afterhours Stage 1 — canonical fixture banks and ray identity', () =
     for (const beam of a) {
       expect(beam.id).toMatch(/^afterhours-beam-slot-\d+$/)
       expect(beam.sourceId).toMatch(/^afterhours-(bottom|left|right|top)-\d+$/)
+      expect(beam.fixtureId).toBe(beam.sourceId)
+      expect(AFTERHOURS_VIRTUAL_STAGE_RIG.fixtures.some(fixture => fixture.id === beam.fixtureId)).toBe(true)
       expect(beam.role).toBe('crossCanopy')
       expect(beam.symmetry?.axis).toBe('vertical')
     }
@@ -192,6 +195,20 @@ describe('Afterhours Stage 1 — coherent bank participation', () => {
     }
   })
 
+  it('derives every production beam origin from its stable rig fixture rather than pattern-local coordinates', () => {
+    const fixtures = new Map(AFTERHOURS_VIRTUAL_STAGE_RIG.fixtures.map(fixture => [fixture.id, fixture]))
+    for (const pattern of ['random', 'xWall', 'cross', 'fan', 'split'] as const) {
+      const beams = active({ pattern, sideLasers: true, topLasers: true, beamCount: 16 })
+      for (const beam of beams) {
+        const fixture = fixtures.get(beam.fixtureId)
+        expect(fixture, `${pattern}:${beam.fixtureId}`).toBeDefined()
+        expect(beam.origin).toBe(fixture?.position)
+        expect(beam.bank).toBe(fixture?.bank)
+        expect(beam.fixtureRole).toBe(fixture?.role)
+      }
+    }
+  })
+
   it('a single enabled optional bank participates by Beam Count 8 without enabling the other bank', () => {
     for (const pattern of ['random', 'xWall', 'cross', 'fan', 'split'] as const) {
       const sideBanks = new Set(active({ pattern, sideLasers: true, topLasers: false, beamCount: 8 }).map(beam => beam.bank))
@@ -231,13 +248,13 @@ describe('Afterhours Stage 1 — symmetry, determinism, and seek/re-entry recons
     }
   })
 
-  it('Random symmetry mirrors source fixtures, directions, and viewport exits', () => {
+  it('Random symmetry mirrors each complete rig pair while retaining an explicit odd-count singleton', () => {
     for (const beamCount of [2, 6, 7, 16]) {
       const beams = active({ pattern: 'random', symmetry: true, sideLasers: true, topLasers: true, beamCount })
-      const half = Math.ceil(beamCount / 2)
-      for (let index = half; index < beamCount; index += 1) {
-        const source = beams[beamCount - 1 - index]
-        const mirror = beams[index]
+      const pairedCount = beamCount - (beamCount % 2)
+      for (let index = 0; index < pairedCount; index += 2) {
+        const source = beams[index]
+        const mirror = beams[index + 1]
         expect(mirror.origin.x).toBeCloseTo(1 - source.origin.x, 8)
         expect(mirror.origin.y).toBeCloseTo(source.origin.y, 8)
         expect(mirror.direction.x).toBeCloseTo(-source.direction.x, 8)
@@ -246,7 +263,21 @@ describe('Afterhours Stage 1 — symmetry, determinism, and seek/re-entry recons
         expect(mirror.endpoint.y).toBeCloseTo(source.endpoint.y, 8)
         expect(mirror.symmetry?.pairId).toBe(source.symmetry?.pairId)
       }
+      if (beamCount % 2 === 1) {
+        expect(beams[beamCount - 1].fixtureRole).toBe('lower')
+        expect(beams[beamCount - 1].symmetry).toBeNull()
+      }
     }
+  })
+
+  it('keeps the same rig source allocation across pattern changes and viewport resizes', () => {
+    const settings = { ...BASE, sideLasers: true, topLasers: true, beamCount: 10 }
+    const expectedIds = active({ ...settings, pattern: 'fan' }, 0, 16 / 9).map(beam => beam.fixtureId)
+    for (const pattern of ['split', 'xWall', 'cross', 'random'] as const) {
+      expect(active({ ...settings, pattern }, 0, 16 / 9).map(beam => beam.fixtureId)).toEqual(expectedIds)
+    }
+    expect(active({ ...settings, pattern: 'fan' }, 0, 4 / 3).map(beam => beam.fixtureId)).toEqual(expectedIds)
+    expect(active({ ...settings, pattern: 'fan' }, 0, 21 / 9).map(beam => beam.fixtureId)).toEqual(expectedIds)
   })
 
   it('same settings/seed/variation reconstruct exactly; variation and seed can change aim without changing source identity', () => {

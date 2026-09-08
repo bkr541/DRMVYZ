@@ -1,4 +1,11 @@
 import { AFTERHOURS_PATTERNS, type AfterhoursPattern } from '../../../CinematicWorldSettings'
+import {
+  AFTERHOURS_VIRTUAL_STAGE_RIG,
+  allocateAfterhoursRigFixtures,
+  type AfterhoursRigBank,
+  type AfterhoursRigFixture,
+  type AfterhoursRigRole,
+} from './AfterhoursVirtualStageRig'
 
 /**
  * Afterhours visual-DNA / ray-geometry foundation.
@@ -21,7 +28,7 @@ export interface AfterhoursRayDirection {
   readonly y: number
 }
 
-export type AfterhoursBank = 'bottom' | 'left' | 'right' | 'top'
+export type AfterhoursBank = AfterhoursRigBank
 export type AfterhoursBeamRole = 'fan' | 'splitWing' | 'xWall' | 'crossCanopy' | 'randomLane'
 export type AfterhoursSymmetrySide = 'left' | 'right' | 'center'
 
@@ -31,42 +38,14 @@ export interface AfterhoursBeamSymmetry {
   readonly side: AfterhoursSymmetrySide
 }
 
-/** Bottom bank: exactly 10 fixed origins, paired about the stage centre. */
-export const AFTERHOURS_BOTTOM_EMITTERS = Object.freeze([
-  Object.freeze({ x: 0.07, y: 0.025 }),
-  Object.freeze({ x: 0.165, y: 0.025 }),
-  Object.freeze({ x: 0.26, y: 0.025 }),
-  Object.freeze({ x: 0.355, y: 0.025 }),
-  Object.freeze({ x: 0.45, y: 0.025 }),
-  Object.freeze({ x: 0.55, y: 0.025 }),
-  Object.freeze({ x: 0.645, y: 0.025 }),
-  Object.freeze({ x: 0.74, y: 0.025 }),
-  Object.freeze({ x: 0.835, y: 0.025 }),
-  Object.freeze({ x: 0.93, y: 0.025 }),
-] as const)
-
-/** Left / right side banks — one user toggle enables both together. */
-export const AFTERHOURS_LEFT_EMITTERS = Object.freeze([
-  Object.freeze({ x: 0.02, y: 0.30 }),
-  Object.freeze({ x: 0.02, y: 0.52 }),
-  Object.freeze({ x: 0.02, y: 0.74 }),
-] as const)
-
-export const AFTERHOURS_RIGHT_EMITTERS = Object.freeze([
-  Object.freeze({ x: 0.98, y: 0.30 }),
-  Object.freeze({ x: 0.98, y: 0.52 }),
-  Object.freeze({ x: 0.98, y: 0.74 }),
-] as const)
-
-/** Top bank: six origins, numerically mirrored around x=0.5. */
-export const AFTERHOURS_TOP_EMITTERS = Object.freeze([
-  Object.freeze({ x: 0.12, y: 0.975 }),
-  Object.freeze({ x: 0.264, y: 0.975 }),
-  Object.freeze({ x: 0.408, y: 0.975 }),
-  Object.freeze({ x: 0.592, y: 0.975 }),
-  Object.freeze({ x: 0.736, y: 0.975 }),
-  Object.freeze({ x: 0.88, y: 0.975 }),
-] as const)
+/**
+ * Compatibility position views retained for existing renderer/tests. Physical
+ * identity and placement are owned by AFTERHOURS_VIRTUAL_STAGE_RIG.
+ */
+export const AFTERHOURS_BOTTOM_EMITTERS = Object.freeze(AFTERHOURS_VIRTUAL_STAGE_RIG.banks.lower.map(fixture => fixture.position))
+export const AFTERHOURS_LEFT_EMITTERS = Object.freeze(AFTERHOURS_VIRTUAL_STAGE_RIG.banks.leftWing.map(fixture => fixture.position))
+export const AFTERHOURS_RIGHT_EMITTERS = Object.freeze(AFTERHOURS_VIRTUAL_STAGE_RIG.banks.rightWing.map(fixture => fixture.position))
+export const AFTERHOURS_TOP_EMITTERS = Object.freeze(AFTERHOURS_VIRTUAL_STAGE_RIG.banks.overhead.map(fixture => fixture.position))
 
 export const AFTERHOURS_MAX_BEAMS = 16
 export const AFTERHOURS_MIN_BEAMS = 2
@@ -80,6 +59,9 @@ export interface AfterhoursBeamDescriptor {
   readonly id: string
   /** Stable physical/source identity for the selected fixed fixture. */
   readonly sourceId: string
+  /** Explicit Stage 3 rig identity; sourceId remains an exact compatibility alias. */
+  readonly fixtureId: string
+  readonly fixtureRole: AfterhoursRigRole
   readonly bank: AfterhoursBank
   /** Index into that bank's fixed origin list. */
   readonly emitterIndex: number
@@ -139,12 +121,11 @@ const ZERO_POINT: AfterhoursEmitter = Object.freeze({ x: 0, y: 0 })
 const ZERO_DIRECTION: AfterhoursRayDirection = Object.freeze({ x: 0, y: 0 })
 
 interface OriginRef {
+  readonly fixture: AfterhoursRigFixture
   readonly bank: AfterhoursBank
   readonly emitterIndex: number
   readonly emitter: AfterhoursEmitter
 }
-
-type OriginPair = readonly [OriginRef, OriginRef]
 
 function clamp(value: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, Number.isFinite(value) ? value : lo))
@@ -252,96 +233,29 @@ export function afterhoursRayFieldLength(
   return Math.hypot((endpoint.x - origin.x) * aspect, endpoint.y - origin.y)
 }
 
-function ref(bank: AfterhoursBank, emitterIndex: number): OriginRef {
-  const emitters = bank === 'bottom'
-    ? AFTERHOURS_BOTTOM_EMITTERS
-    : bank === 'top'
-      ? AFTERHOURS_TOP_EMITTERS
-      : bank === 'left'
-        ? AFTERHOURS_LEFT_EMITTERS
-        : AFTERHOURS_RIGHT_EMITTERS
-  return { bank, emitterIndex, emitter: emitters[emitterIndex] }
-}
-
-function pair(left: OriginRef, right: OriginRef): OriginPair {
-  return Object.freeze([left, right]) as OriginPair
-}
-
-const BOTTOM_PAIRS: readonly OriginPair[] = Object.freeze([
-  pair(ref('bottom', 4), ref('bottom', 5)),
-  pair(ref('bottom', 3), ref('bottom', 6)),
-  pair(ref('bottom', 2), ref('bottom', 7)),
-  pair(ref('bottom', 1), ref('bottom', 8)),
-  pair(ref('bottom', 0), ref('bottom', 9)),
-])
-
-const TOP_PAIRS: readonly OriginPair[] = Object.freeze([
-  pair(ref('top', 2), ref('top', 3)),
-  pair(ref('top', 1), ref('top', 4)),
-  pair(ref('top', 0), ref('top', 5)),
-])
-
-const SIDE_PAIRS: readonly OriginPair[] = Object.freeze([
-  pair(ref('left', 1), ref('right', 1)),
-  pair(ref('left', 0), ref('right', 0)),
-  pair(ref('left', 2), ref('right', 2)),
-])
-
-function interleavePairs(...groups: readonly (readonly OriginPair[])[]): OriginPair[] {
-  const out: OriginPair[] = []
-  const max = Math.max(...groups.map(group => group.length))
-  for (let index = 0; index < max; index += 1) {
-    for (const group of groups) if (group[index]) out.push(group[index])
+function originRef(fixture: AfterhoursRigFixture): OriginRef {
+  return {
+    fixture,
+    bank: fixture.bank,
+    emitterIndex: fixture.emitterIndex,
+    emitter: fixture.position,
   }
-  return out
-}
-
-function flattenPairs(pairs: readonly OriginPair[]): OriginRef[] {
-  return pairs.flatMap(pair => [pair[0], pair[1]])
 }
 
 /**
- * Stage-2 source allocation contract: Beam Count is literal, and optional banks
- * are interleaved ahead of the budget cutoff so an enabled Side/Top bank can
- * participate at ordinary counts such as 8. This is still the lightweight
- * pre-rig allocator; later stages can replace fixture choreography without
- * changing the user-facing budget semantics.
+ * Stage 3 allocation delegates to the virtual rig. Geometry never chooses the
+ * "first N" fixtures or authors source coordinates independently.
  */
-function activeOrigins(_pattern: AfterhoursPattern, settings: AfterhoursBeamGenerationSettings): OriginRef[] {
-  const groups: (readonly OriginPair[])[] = [BOTTOM_PAIRS]
-  if (settings.sideLasers) groups.push(SIDE_PAIRS)
-  if (settings.topLasers) groups.push(TOP_PAIRS)
-  return flattenPairs(interleavePairs(...groups))
-}
-
-function interleaveOrigins(...groups: readonly (readonly OriginRef[])[]): OriginRef[] {
-  const out: OriginRef[] = []
-  const max = Math.max(...groups.map(group => group.length))
-  for (let index = 0; index < max; index += 1) {
-    for (const group of groups) if (group[index]) out.push(group[index])
-  }
-  return out
-}
-
-function randomSymmetryPrimaryOrigins(settings: AfterhoursBeamGenerationSettings): OriginRef[] {
-  const bottom = [ref('bottom', 4), ref('bottom', 3), ref('bottom', 2), ref('bottom', 1), ref('bottom', 0)]
-  const groups: OriginRef[][] = [bottom]
-  if (settings.sideLasers) groups.push([ref('left', 1), ref('left', 0), ref('left', 2)])
-  if (settings.topLasers) groups.push([ref('top', 2), ref('top', 1), ref('top', 0)])
-  return interleaveOrigins(...groups)
-}
-
-function mirrorRef(origin: OriginRef): OriginRef {
-  switch (origin.bank) {
-    case 'bottom': return ref('bottom', AFTERHOURS_BOTTOM_EMITTERS.length - 1 - origin.emitterIndex)
-    case 'top': return ref('top', AFTERHOURS_TOP_EMITTERS.length - 1 - origin.emitterIndex)
-    case 'left': return ref('right', origin.emitterIndex)
-    case 'right': return ref('left', origin.emitterIndex)
-  }
+function activeOrigins(settings: AfterhoursBeamGenerationSettings, count: number): OriginRef[] {
+  return allocateAfterhoursRigFixtures({
+    beamCount: count,
+    sideLasers: settings.sideLasers,
+    topLasers: settings.topLasers,
+  }).map(originRef)
 }
 
 function sourceId(origin: OriginRef): string {
-  return `afterhours-${origin.bank}-${origin.emitterIndex}`
+  return origin.fixture.id
 }
 
 function roleForPattern(pattern: AfterhoursPattern): AfterhoursBeamRole {
@@ -376,14 +290,8 @@ function directionToward(
   })
 }
 
-function fallbackDirection(origin: OriginRef, aspect: number): AfterhoursRayDirection {
-  switch (origin.bank) {
-    case 'top': return directionToward(origin.emitter, { x: 0.5, y: -0.2 }, aspect)
-    case 'left': return directionToward(origin.emitter, { x: 1.2, y: 0.5 }, aspect)
-    case 'right': return directionToward(origin.emitter, { x: -0.2, y: 0.5 }, aspect)
-    case 'bottom':
-    default: return directionToward(origin.emitter, { x: 0.5, y: 1.2 }, aspect)
-  }
+function fallbackDirection(origin: OriginRef, _aspect: number): AfterhoursRayDirection {
+  return directionFromAngleDeg(origin.fixture.homeHeadingDeg)
 }
 
 function structuredDirection(
@@ -398,10 +306,14 @@ function structuredDirection(
   switch (pattern) {
     case 'fan': {
       const halfAngle = mix(10, 58, spread) * structureScale
-      if (origin.bank === 'top') return directionFromAngleDeg(270 + xNorm * halfAngle)
-      if (origin.bank === 'left') return directionFromAngleDeg(-yNorm * halfAngle)
-      if (origin.bank === 'right') return directionFromAngleDeg(180 + yNorm * halfAngle)
-      return directionFromAngleDeg(90 - xNorm * halfAngle)
+      const roleOffset = origin.fixture.role === 'overhead'
+        ? xNorm * halfAngle
+        : origin.fixture.role === 'leftWing'
+          ? -yNorm * halfAngle
+          : origin.fixture.role === 'rightWing'
+            ? yNorm * halfAngle
+            : -xNorm * halfAngle
+      return directionFromAngleDeg(origin.fixture.homeHeadingDeg + roleOffset)
     }
     case 'split': {
       const radialX = mix(0.72, 1, Math.abs(xNorm))
@@ -451,13 +363,7 @@ function randomLaneDirection(origin: OriginRef, spread: number, seed: number): A
   const jitter = (unit(seed ^ 0x7f4a7c15) - 0.5) * 0.14
   const lanePosition = clamp(lane + jitter, -1, 1)
   const halfAngle = mix(15, 52, spread)
-  switch (origin.bank) {
-    case 'top': return directionFromAngleDeg(270 + lanePosition * halfAngle)
-    case 'left': return directionFromAngleDeg(lanePosition * halfAngle)
-    case 'right': return directionFromAngleDeg(180 + lanePosition * halfAngle)
-    case 'bottom':
-    default: return directionFromAngleDeg(90 + lanePosition * halfAngle)
-  }
+  return directionFromAngleDeg(origin.fixture.homeHeadingDeg + lanePosition * halfAngle)
 }
 
 /** Existing reactive motion now rotates a ray, then re-projects it to the edge. */
@@ -499,6 +405,8 @@ function inactiveBeam(index: number): AfterhoursBeamDescriptor {
     active: false,
     id: `afterhours-beam-slot-${index}`,
     sourceId: 'afterhours-inactive',
+    fixtureId: 'afterhours-inactive',
+    fixtureRole: 'lower',
     bank: 'bottom',
     emitterIndex: 0,
     origin: AFTERHOURS_BOTTOM_EMITTERS[0],
@@ -539,6 +447,8 @@ function createBeam(input: CreateBeamInput): AfterhoursBeamDescriptor {
     active: true,
     id: `afterhours-beam-slot-${input.slot}`,
     sourceId: sourceId(input.origin),
+    fixtureId: input.origin.fixture.id,
+    fixtureRole: input.origin.fixture.role,
     bank: input.origin.bank,
     emitterIndex: input.origin.emitterIndex,
     origin: input.origin.emitter,
@@ -564,6 +474,8 @@ function mirrorBeam(
     ...source,
     id: `afterhours-beam-slot-${slot}`,
     sourceId: sourceId(origin),
+    fixtureId: origin.fixture.id,
+    fixtureRole: origin.fixture.role,
     bank: origin.bank,
     emitterIndex: origin.emitterIndex,
     origin: origin.emitter,
@@ -600,43 +512,69 @@ export function generateAfterhoursBeams(
   const beams: AfterhoursBeamDescriptor[] = []
   const randomSymmetry = pattern === 'random' && settings.symmetry === true
 
+  const origins = activeOrigins(settings, count)
+
   if (randomSymmetry) {
-    const origins = randomSymmetryPrimaryOrigins(settings)
-    const primaryCount = Math.ceil(count / 2)
-    for (let index = 0; index < primaryCount; index += 1) {
-      const origin = origins[index % origins.length]
-      const pairId = `afterhours-random-pair-${index}`
-      const seed = hash32((baseSeed ^ Math.imul(index + 1, 0x27d4eb2d) ^ Math.imul(origin.emitterIndex + 3, 0x165667b1)) >>> 0)
-      beams.push(createBeam({
-        slot: index,
-        pattern,
-        origin,
-        seed,
-        spread,
-        accentMix,
-        structureScale,
-        aspect,
-        motionPhase,
-        motionAuthority,
-        symmetry: Object.freeze({ axis: 'vertical', pairId, side: 'left' }),
-      }))
-    }
-    for (let index = primaryCount; index < count; index += 1) {
-      const sourceIndex = count - 1 - index
-      const source = beams[sourceIndex]
-      const origin = mirrorRef({ bank: source.bank, emitterIndex: source.emitterIndex, emitter: source.origin })
-      beams.push(mirrorBeam(source, origin, index, `afterhours-random-pair-${sourceIndex}`))
+    for (let index = 0; index < count; index += 2) {
+      const origin = origins[index]
+      const mirrorOrigin = origins[index + 1]
+      const pairOrdinal = Math.floor(index / 2)
+      const pairId = `afterhours-random-pair-${pairOrdinal}`
+      const seed = hash32((baseSeed ^ Math.imul(pairOrdinal + 1, 0x27d4eb2d) ^ Math.imul(origin.emitterIndex + 3, 0x165667b1)) >>> 0)
+
+      // Full pair allocations are always left/right mirrors supplied by the rig.
+      // Odd literal counts intentionally end with one deterministic lower source.
+      const hasMirror = mirrorOrigin?.fixture.id === origin.fixture.mirrorFixtureId
+      if (hasMirror) {
+        const primaryOrigin = origin.fixture.mirrorSide === 'left' ? origin : mirrorOrigin
+        const secondaryOrigin = primaryOrigin === origin ? mirrorOrigin : origin
+        const primarySlot = primaryOrigin === origin ? index : index + 1
+        const secondarySlot = primaryOrigin === origin ? index + 1 : index
+        const primary = createBeam({
+          slot: primarySlot,
+          pattern,
+          origin: primaryOrigin,
+          seed,
+          spread,
+          accentMix,
+          structureScale,
+          aspect,
+          motionPhase,
+          motionAuthority,
+          symmetry: Object.freeze({ axis: 'vertical', pairId, side: 'left' }),
+        })
+        const mirrored = mirrorBeam(primary, secondaryOrigin, secondarySlot, pairId)
+        if (primarySlot === index) beams.push(primary, mirrored)
+        else beams.push(mirrored, primary)
+      } else {
+        beams.push(createBeam({
+          slot: index,
+          pattern,
+          origin,
+          seed,
+          spread,
+          accentMix,
+          structureScale,
+          aspect,
+          motionPhase,
+          motionAuthority,
+          symmetry: null,
+        }))
+      }
     }
   } else {
-    const origins = activeOrigins(pattern, settings)
     for (let index = 0; index < count; index += 1) {
-      const origin = origins[index % origins.length]
-      // Structured lists are pairwise; using the same seed for each adjacent
-      // pair keeps variation/motion numerically mirrored. Random-with-symmetry
-      // has its own exact mirror path above.
+      const origin = origins[index]
+      // Structured lists are allocated pairwise by the rig; using the same seed
+      // for each adjacent pair keeps variation/motion numerically mirrored.
       const seedOrdinal = pattern === 'random' ? index : Math.floor(index / 2)
       const seed = hash32((baseSeed ^ Math.imul(seedOrdinal + 1, 0x27d4eb2d)) >>> 0)
-      const pairId = pattern === 'random' ? null : `afterhours-${pattern}-pair-${Math.floor(index / 2)}`
+      const hasMirror = index % 2 === 0
+        ? origins[index + 1]?.fixture.id === origin.fixture.mirrorFixtureId
+        : origins[index - 1]?.fixture.id === origin.fixture.mirrorFixtureId
+      const pairId = pattern === 'random' || !hasMirror
+        ? null
+        : `afterhours-${pattern}-pair-${Math.floor(index / 2)}`
       beams.push(createBeam({
         slot: index,
         pattern,
@@ -648,7 +586,9 @@ export function generateAfterhoursBeams(
         aspect,
         motionPhase,
         motionAuthority,
-        symmetry: pairId == null ? null : Object.freeze({ axis: 'vertical', pairId, side: sideForOrigin(origin.emitter) }),
+        symmetry: pairId == null
+          ? null
+          : Object.freeze({ axis: 'vertical', pairId, side: sideForOrigin(origin.emitter) }),
       }))
     }
   }

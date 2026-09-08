@@ -39,6 +39,7 @@ import { CinemaTextureManager } from '../runtime/CinemaTextureManager'
 import { CinemaWebGLRenderServiceImpl } from '../runtime/CinemaWebGLRenderService'
 import { cinematicWorldRendererRegistry } from '../../react/renderers/CinematicPortalRenderer'
 import { cinematicWorldDefinitions } from '../../react/renderers/cinematic/worlds'
+import { AFTERHOURS_VIRTUAL_STAGE_RIG } from '../../react/renderers/cinematic/worlds/AfterhoursVirtualStageRig'
 import { DEFAULT_REACT_PRESETS } from '../../react/ReactTypes'
 import type { CinematicFrameContext as CinematicRenderFrame, CinematicWebGLWorldDefinition } from '../../react/renderers/CinematicWorldRenderer'
 import { createCinemaMockWebGL } from './CinemaWebGLTestUtils'
@@ -653,7 +654,7 @@ describe('Cinema Cinematic World adapters', () => {
     high.harness.dispose()
   })
 
-  it('enforces literal Stage 2 Master, Beam Count, and optional-bank contracts through the real production path', () => {
+  it('enforces Stage 3 rig allocation and literal Beam Count through the real Afterhours production path', () => {
     const probe = buildAfterhoursExecutorFixture({})
     const randomId = probe.optionId('Pattern', 'Random')
     const changeOffId = probe.optionId('Pattern Change', 'Off')
@@ -677,8 +678,15 @@ describe('Cinema Cinematic World adapters', () => {
 
     const activeRows = fixture.latestBeamRows().filter(([ox, oy, ex, ey]) => !(ox === 0 && oy === 0 && ex === 0 && ey === 0))
     expect(activeRows).toHaveLength(8)
-    expect(activeRows.some(([ox]) => Math.abs(ox - 0.02) < 1e-9 || Math.abs(ox - 0.98) < 1e-9)).toBe(true)
-    expect(activeRows.some(([, oy]) => Math.abs(oy - 0.975) < 1e-9)).toBe(true)
+    const rigBanks = new Set<string>()
+    for (const [ox, oy] of activeRows) {
+      const rigFixture = AFTERHOURS_VIRTUAL_STAGE_RIG.fixtures.find(candidate => (
+        Math.abs(candidate.position.x - ox) < 1e-9 && Math.abs(candidate.position.y - oy) < 1e-9
+      ))
+      expect(rigFixture, `production origin ${ox},${oy} must belong to the Afterhours rig`).toBeDefined()
+      if (rigFixture) rigBanks.add(rigFixture.bank)
+    }
+    expect(rigBanks).toEqual(new Set(['bottom', 'left', 'right', 'top']))
     expect(fixture.everyAfterhoursUniformFinite()).toBe(true)
     expect(fixture.harness.executor.getSnapshot().failedNodeCount).toBe(0)
     fixture.harness.dispose()
