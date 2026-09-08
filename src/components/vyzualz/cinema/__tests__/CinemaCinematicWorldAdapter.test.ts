@@ -576,6 +576,15 @@ describe('Cinema Cinematic World adapters', () => {
       }
       return { total: latest.size, on: [...latest.values()].filter(weight => weight > 0.5).length }
     }
+    const latestMetaWeights = () => {
+      const latest = new Map<number, number>()
+      for (const [location, x] of vi.mocked(harness.gl.uniform2f).mock.calls as unknown as Array<[WebGLUniformLocation, number, number]>) {
+        const name = typeof location === 'object' && location !== null ? (location as unknown as { name?: string }).name : undefined
+        const match = name?.match(/^uAfterhoursBeamMeta(\d+)$/)
+        if (match) latest.set(Number(match[1]), x)
+      }
+      return Array.from({ length: 16 }, (_, index) => latest.get(index) ?? 0)
+    }
     const everyAfterhoursUniformFinite = () => {
       for (const [fn] of [[harness.gl.uniform1f], [harness.gl.uniform2f], [harness.gl.uniform3f], [harness.gl.uniform4f]] as const) {
         for (const call of vi.mocked(fn).mock.calls as unknown as Array<[WebGLUniformLocation, ...number[]]>) {
@@ -604,12 +613,12 @@ describe('Cinema Cinematic World adapters', () => {
       }
       return [...latest.entries()].sort(([a], [b]) => a - b).map(([, row]) => row)
     }
-    return { harness, composition, optionId, lastFloat, activeBeamCount, everyAfterhoursUniformFinite, latestBeamRows, latestBeamHistoryRows }
+    return { harness, composition, optionId, lastFloat, activeBeamCount, latestMetaWeights, everyAfterhoursUniformFinite, latestBeamRows, latestBeamHistoryRows }
   }
 
   it('turns canonical music into nonzero, React-parameter-dependent Afterhours shader input through the production executor with live overrides', () => {
     const enumIds = buildAfterhoursExecutorFixture({})
-    const fanId = enumIds.optionId('Pattern', 'Fan')
+    const fanId = enumIds.optionId('Pattern', 'Wide Fan')
     const bar4TriggerId = enumIds.optionId('Trigger', '4 Bars')
     const patternChangeOffId = enumIds.optionId('Pattern Change', 'Off')
     enumIds.harness.dispose()
@@ -641,9 +650,11 @@ describe('Cinema Cinematic World adapters', () => {
     expect(lowHit).toBeGreaterThan(lowRest)
     expect(lowDecayed).toBeLessThan(lowHit)
     expect(lowRest).toBeGreaterThan(0)
-    // Active-beam budget honours the live Beam Count override (16), bounded.
+    // Beam Count remains a hard user ceiling while canonical energy/structure
+    // may recruit a smaller authored subset under Stage 6 choreography.
     expect(lowBeams.total).toBe(16)
-    expect(lowBeams.on).toBe(16)
+    expect(lowBeams.on).toBeGreaterThanOrEqual(2)
+    expect(lowBeams.on).toBeLessThanOrEqual(16)
     expect(low.everyAfterhoursUniformFinite()).toBe(true)
     expect(low.harness.executor.getSnapshot().failedNodeCount).toBe(0)
 
@@ -657,6 +668,39 @@ describe('Cinema Cinematic World adapters', () => {
 
     low.harness.dispose()
     high.harness.dispose()
+  })
+
+  it('routes canonical kick and snare into distinguishable fixture-bank responses through the live Afterhours renderer', () => {
+    const probe = buildAfterhoursExecutorFixture({})
+    const fullRigId = probe.optionId('Pattern', 'Full Rig')
+    const changeOffId = probe.optionId('Pattern Change', 'Off')
+    probe.harness.dispose()
+
+    const make = () => buildAfterhoursExecutorFixture({
+      Pattern: fullRigId,
+      'Side Lasers': true,
+      'Top Lasers': true,
+      'Beam Count': 8,
+      'Pulse Amount': 0,
+      'Motion Amount': 0,
+      'Pattern Change': changeOffId,
+      'Blackout Amount': 0,
+    })
+    const kick = make()
+    const snare = make()
+    expect(kick.harness.executor.render(frame(4, false, false, { kick: true }))).toBe(true)
+    expect(snare.harness.executor.render(frame(4, false, false, { snare: true }))).toBe(true)
+
+    const kickWeights = kick.latestMetaWeights()
+    const snareWeights = snare.latestMetaWeights()
+    expect(kickWeights).not.toEqual(snareWeights)
+    expect(kickWeights.some((weight, index) => Math.abs(weight - snareWeights[index]) > 0.05)).toBe(true)
+    expect(kick.everyAfterhoursUniformFinite()).toBe(true)
+    expect(snare.everyAfterhoursUniformFinite()).toBe(true)
+    expect(kick.harness.executor.getSnapshot().failedNodeCount).toBe(0)
+    expect(snare.harness.executor.getSnapshot().failedNodeCount).toBe(0)
+    kick.harness.dispose()
+    snare.harness.dispose()
   })
 
   it('drives Stage 5 scanner-scale movement and bounded exposure through the real Cinema Afterhours production path', () => {
@@ -705,12 +749,12 @@ describe('Cinema Cinematic World adapters', () => {
 
   it('enforces Stage 3 rig allocation and literal Beam Count through the real Afterhours production path', () => {
     const probe = buildAfterhoursExecutorFixture({})
-    const randomId = probe.optionId('Pattern', 'Random')
+    const fullRigId = probe.optionId('Pattern', 'Full Rig')
     const changeOffId = probe.optionId('Pattern Change', 'Off')
     probe.harness.dispose()
 
     const fixture = buildAfterhoursExecutorFixture({
-      Pattern: randomId,
+      Pattern: fullRigId,
       'Side Lasers': true,
       'Top Lasers': true,
       'Beam Count': 8,
@@ -743,7 +787,7 @@ describe('Cinema Cinematic World adapters', () => {
 
   it('feeds viewport-exit ray geometry through the real Cinema preset -> composition -> production renderer path', () => {
     const probe = buildAfterhoursExecutorFixture({})
-    const fanId = probe.optionId('Pattern', 'Fan')
+    const fanId = probe.optionId('Pattern', 'Wide Fan')
     const changeOffId = probe.optionId('Pattern Change', 'Off')
     probe.harness.dispose()
 
@@ -799,7 +843,7 @@ describe('Cinema Cinematic World adapters', () => {
     expect(partlyDecayed).toBeLessThan(firstHit)
     expect(partlyDecayed).toBeGreaterThan(rest)
 
-    // Seek: the trigger controller must drop its envelope, not carry it over.
+    // Seek: the hierarchy director must drop its event envelope, not carry it over.
     expect(fixture.harness.executor.render(frame(9, true))).toBe(true)
     const afterSeek = intensity()
     expect(afterSeek).toBeLessThan(partlyDecayed)
@@ -813,7 +857,7 @@ describe('Cinema Cinematic World adapters', () => {
     fixture.harness.dispose()
   })
 
-  it('drives exact event-aligned Afterhours blackouts through the production executor and never NaNs a uniform', () => {
+  it('drives meaningful event-aligned Afterhours blackouts through the production executor and never NaNs a uniform', () => {
     const probe = buildAfterhoursExecutorFixture({})
     const offId = probe.optionId('Pattern Change', 'Off')
     probe.harness.dispose()
@@ -822,8 +866,10 @@ describe('Cinema Cinematic World adapters', () => {
     expect(dark.harness.executor.render(frame(0))).toBe(true)
     expect(dark.lastFloat('uAfterhoursBlackout') ?? -1).toBe(0)
     expect(dark.harness.executor.render(frame(1, false, false, { bar: true }))).toBe(true)
+    expect(dark.lastFloat('uAfterhoursBlackout') ?? -1).toBe(0)
+    expect(dark.harness.executor.render(frame(2, false, true))).toBe(true)
     expect(dark.lastFloat('uAfterhoursBlackout') ?? -1).toBe(1)
-    for (let generation = 2; generation < 90; generation += 1) {
+    for (let generation = 3; generation < 90; generation += 1) {
       expect(dark.harness.executor.render(frame(generation))).toBe(true)
     }
     expect(dark.lastFloat('uAfterhoursBlackout') ?? 1).toBeLessThan(0.1)
@@ -831,7 +877,7 @@ describe('Cinema Cinematic World adapters', () => {
     dark.harness.dispose()
 
     const lit = buildAfterhoursExecutorFixture({ 'Pattern Change': offId, 'Blackout Amount': 0 })
-    expect(lit.harness.executor.render(frame(0, false, false, { bar: true }))).toBe(true)
+    expect(lit.harness.executor.render(frame(0, false, true))).toBe(true)
     expect(lit.lastFloat('uAfterhoursBlackout') ?? -1).toBe(0)
     lit.harness.dispose()
   })

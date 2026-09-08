@@ -107,6 +107,7 @@ describe('Afterhours Stage 3 — no LaserDMX runtime coupling', () => {
     for (const name of [
       'AfterhoursColor.ts', 'AfterhoursShader.ts', 'AfterhoursWorld.ts', 'AfterhoursBeamGeometry.ts',
       'AfterhoursTriggerController.ts', 'AfterhoursPatternDirector.ts',
+      'AfterhoursAudioIntelligenceDirector.ts', 'AfterhoursBeamMorph.ts',
     ]) {
       const source = readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8')
       expect(/laser[-_ ]?dmx/i.test(source)).toBe(false)

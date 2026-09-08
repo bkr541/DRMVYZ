@@ -225,8 +225,8 @@ const DIRECT_COMMON_MODULATION_TARGET_USAGE: Readonly<Partial<Record<CinematicWo
 const UNCONSUMED_WORLD_SETTING_KEYS: Readonly<Partial<Record<CinematicWorldMode, readonly string[]>>> = Object.freeze({
   eventHorizon: Object.freeze(['bloomBoost', 'chromaticAberrationBoost']),
   // Afterhours: every authored setting now has a reachable Cinema production
-  // consumer (Stage 5 wired Pattern Change and Blackout Amount into the
-  // AfterhoursPatternDirector), so nothing is retained-but-unconsumed here.
+  // consumer. Stage 6 routes the React controls through the hierarchical
+  // Afterhours Audio Intelligence director, so nothing is retained-but-unconsumed here.
   reactiveConstellation: Object.freeze(['visualDnaProfile']),
 })
 
@@ -264,8 +264,8 @@ const WORLD_ENUMS: Readonly<Record<string, readonly string[]>> = Object.freeze({
 
 const WORLD_REACT_SETTING_KEYS: Readonly<Partial<Record<CinematicWorldMode, readonly string[]>>> = Object.freeze({
   electricStorm: Object.freeze(['thunderTrigger', 'flashIntensity', 'flashDuration', 'flashDecay']),
-  // Stage 4 + Stage 5 React parameters. Pattern Change / Blackout Amount join
-  // now that the AfterhoursPatternDirector consumes them at runtime.
+  // Afterhours React parameters are consumed by the Stage 6 hierarchical
+  // Audio Intelligence director at runtime.
   afterhours: Object.freeze([
     'bpmSync', 'masterIntensity', 'trigger', 'pulseAmount', 'pulseDecay', 'motionAmount',
     'patternChange', 'blackoutAmount',

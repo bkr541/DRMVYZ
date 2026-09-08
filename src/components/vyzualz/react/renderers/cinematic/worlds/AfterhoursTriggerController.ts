@@ -2,7 +2,11 @@ import { AFTERHOURS_TRIGGERS, type AfterhoursTrigger } from '../../../CinematicW
 import type { CinematicFrameContext } from '../../CinematicWorldRenderer'
 
 /**
- * Afterhours Stage 4 — canonical music-reactivity owner.
+ * Stage 4 compatibility reaction controller.
+ *
+ * @deprecated Production Afterhours choreography is owned by
+ * AfterhoursAudioIntelligenceDirector as of Stage 6. This class remains only
+ * for compatibility with prior-stage callers/tests.
  *
  * Runtime-only. Consumes the host-prepared `canonicalMusic` impulses/clocks and
  * `musicalAudio` from the Cinema frame; it never runs an FFT, a BPM detector, or

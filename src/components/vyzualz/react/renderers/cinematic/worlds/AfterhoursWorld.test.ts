@@ -21,6 +21,8 @@ interface FrameMusic {
   barPhase?: number
   playing?: boolean
   timingDiscontinuity?: boolean
+  beatIndex?: number
+  barIndex?: number
 }
 
 function frame(settings: Partial<typeof AFTERHOURS_DEFAULTS> = {}, music?: FrameMusic): CinematicFrameContext {
@@ -39,7 +41,11 @@ function frame(settings: Partial<typeof AFTERHOURS_DEFAULTS> = {}, music?: Frame
       spectrum: null,
       waveform: null,
     },
-    beat: { hit: true, phase: 0.25, bpm: 142, kick: 1, snare: 1, transient: 1, beatIndex: 12, beatInBar: 0, barIndex: 3, barProgress: 0, downbeat: true },
+    beat: {
+      hit: true, phase: 0.25, bpm: 142, kick: 1, snare: 1, transient: 1,
+      beatIndex: music?.beatIndex ?? 12, beatInBar: (music?.beatIndex ?? 12) % 4,
+      barIndex: music?.barIndex ?? 3, barProgress: 0, downbeat: true,
+    },
     section: { type: 'drop', startSec: 8, endSec: 24, progress: 0.25, changed: false, analysis: null },
     config,
     transition: { mode: config.transition.mode, active: false, progress: 1, fromWorld: null, toWorld: 'afterhours' },
@@ -322,10 +328,10 @@ describe('Afterhours Stage 2 world integration', () => {
   })
 })
 
-describe('Afterhours Stage 5 world integration — pattern director and blackouts', () => {
+describe('Afterhours Stage 6 world integration — deterministic hierarchy and blackouts', () => {
   // bpmSync off -> the pattern morph uses the fixed 0.5 s ramp, so these
-  // wiring tests settle in a known frame budget. Musical-time morph scaling has
-  // its own dedicated coverage in AfterhoursPatternDirector.test.ts.
+  // wiring tests settle in a known frame budget. Stage 6 director tests cover
+  // musical-time reconstruction and hierarchy behavior separately.
   const STILL = { motionAmount: 0, pulseAmount: 0, bpmSync: false } as const
 
   it('defaults uAfterhoursBlackout to 0 and keeps it 0 at Blackout Amount 0', () => {
@@ -340,61 +346,81 @@ describe('Afterhours Stage 5 world integration — pattern director and blackout
     harness.world.dispose()
   })
 
-  it('opens an event-aligned blackout at the canonical bar boundary and recovers', () => {
+  it('uses blackouts as meaningful transition punctuation rather than blanking every ordinary bar', () => {
     const harness = createWorldHarness()
     const s = { ...STILL, blackoutAmount: 1, patternChange: 'off' as const }
     harness.world.render(frame(s, { frameIndex: 1 }), { framebuffer: null, texture: null, width: 1280, height: 720 })
     expect(last(harness.calls, 'uAfterhoursBlackout')).toEqual([0])
     harness.world.render(frame(s, { frameIndex: 2, barEventId: 'bar-1' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    expect(last(harness.calls, 'uAfterhoursBlackout')).toEqual([0])
+    harness.world.render(frame(s, { frameIndex: 3, dropEventId: 'drop-1' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
     expect(last(harness.calls, 'uAfterhoursBlackout')).toEqual([1])
-    for (let i = 3; i < 90; i += 1) {
+    for (let i = 4; i < 90; i += 1) {
       harness.world.render(frame(s, { frameIndex: i }), { framebuffer: null, texture: null, width: 1280, height: 720 })
     }
     expect(last(harness.calls, 'uAfterhoursBlackout')[0]).toBeLessThan(0.05)
     harness.world.dispose()
   })
 
-  it('changes the rendered topology family at a Pattern Change boundary, not only the variation seed', () => {
+  it('changes rendered topology from absolute bar position instead of replayed event history', () => {
     const harness = createWorldHarness()
     const settings = { ...STILL, pattern: 'wideFan' as const, beamCount: 8, patternChange: 'bar' as const, blackoutAmount: 0 }
-    for (let i = 1; i < 60; i += 1) {
-      harness.world.render(
-        frame(settings, i === 2 ? { frameIndex: i, barEventId: 'bar-1' } : { frameIndex: i }),
-        { framebuffer: null, texture: null, width: 1280, height: 720 },
-      )
+    harness.world.render(frame(settings, { frameIndex: 1, beatIndex: 0, barIndex: 0 }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    const first = Array.from({ length: 8 }, (_, i) => last(harness.calls, `uAfterhoursBeam${i}`))
+
+    harness.world.render(frame(settings, { frameIndex: 2, beatIndex: 4, barIndex: 1, barEventId: 'bar-1' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    for (let i = 3; i < 50; i += 1) {
+      harness.world.render(frame(settings, { frameIndex: i, beatIndex: 4, barIndex: 1 }), { framebuffer: null, texture: null, width: 1280, height: 720 })
     }
-    const seed = createCinematicWorldConfig('afterhours', settings).seed
-    const expected = generateAfterhoursBeams(
-      { ...AFTERHOURS_DEFAULTS, ...settings, pattern: 'splitWings' },
-      { seed, variation: 1, viewportAspectRatio: 1280 / 720 },
-    )
-    for (let index = 0; index < 8; index += 1) {
-      const beam = expected[index]
-      expect(last(harness.calls, `uAfterhoursBeam${index}`)).toEqual([beam.origin.x, beam.origin.y, beam.endpoint.x, beam.endpoint.y])
-    }
+    const second = Array.from({ length: 8 }, (_, i) => last(harness.calls, `uAfterhoursBeam${i}`))
+    expect(second).not.toEqual(first)
     harness.world.dispose()
   })
 
-  it('reset() re-arms the pattern director so a previously consumed bar identity advances again', () => {
+  it('does not let Cinema musical-position seed buckets randomize authored beam geometry', () => {
     const harness = createWorldHarness()
-    const s = { ...STILL, pattern: 'wideFan' as const, beamCount: 8, patternChange: 'bar' as const }
-    const settleWith = (startId: number, barId?: string) => {
-      for (let i = startId; i < startId + 45; i += 1) {
-        harness.world.render(frame(s, i === startId && barId ? { frameIndex: i, barEventId: barId } : { frameIndex: i }), { framebuffer: null, texture: null, width: 1280, height: 720 })
-      }
-      return Array.from({ length: 8 }, (_, i) => last(harness.calls, `uAfterhoursBeam${i}`))
-    }
-    settleWith(2, 'bar-1') // -> variation 1
-    const afterTwo = settleWith(50, 'bar-2') // -> variation 2
-    // Same canonical id again -> no advance (dedup).
-    harness.world.render(frame(s, { frameIndex: 100, barEventId: 'bar-2' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
-    const noRefire = Array.from({ length: 8 }, (_, i) => last(harness.calls, `uAfterhoursBeam${i}`))
-    expect(noRefire).toEqual(afterTwo)
-    // After a lifecycle reset the consumed id is cleared: feeding it advances
-    // from the re-armed variation 0, landing on a different variation than before.
-    harness.world.reset('worldChanged')
-    const afterReset = settleWith(110, 'bar-2') // re-armed 0 -> variation 1
-    expect(afterReset).not.toEqual(afterTwo)
+    const settings = { ...STILL, pattern: 'wideFan' as const, beamCount: 8, patternChange: 'off' as const, blackoutAmount: 0 }
+    const target = { framebuffer: null, texture: null, width: 1280, height: 720 } as const
+    const firstFrame = { ...frame(settings, { frameIndex: 10, beatIndex: 8, barIndex: 2 }), randomSeed: 111 } as CinematicFrameContext
+    const secondFrame = { ...frame(settings, { frameIndex: 11, beatIndex: 8, barIndex: 2 }), randomSeed: 0xf00dbabe } as CinematicFrameContext
+
+    harness.world.render(firstFrame, target)
+    const first = Array.from({ length: 8 }, (_, i) => last(harness.calls, `uAfterhoursBeam${i}`))
+    harness.world.render(secondFrame, target)
+    const second = Array.from({ length: 8 }, (_, i) => last(harness.calls, `uAfterhoursBeam${i}`))
+
+    expect(second).toEqual(first)
+    harness.world.dispose()
+  })
+
+  it('reconstructs the same rendered topology after a direct seek/reset to the same bar', () => {
+    const harness = createWorldHarness()
+    const settings = { ...STILL, pattern: 'wideFan' as const, beamCount: 8, patternChange: 'bar' as const, blackoutAmount: 0 }
+    const target = { framebuffer: null, texture: null, width: 1280, height: 720 } as const
+
+    harness.world.render(frame(settings, { frameIndex: 20, beatIndex: 8, barIndex: 2 }), target)
+    const direct = Array.from({ length: 8 }, (_, i) => last(harness.calls, `uAfterhoursBeam${i}`))
+    harness.world.render(frame(settings, { frameIndex: 40, beatIndex: 20, barIndex: 5, barEventId: 'bar-5' }), target)
+
+    harness.world.reset('timingDiscontinuity')
+    harness.world.render(frame(settings, { frameIndex: 50, beatIndex: 8, barIndex: 2, timingDiscontinuity: true }), target)
+    const reconstructed = Array.from({ length: 8 }, (_, i) => last(harness.calls, `uAfterhoursBeam${i}`))
+    expect(reconstructed).toEqual(direct)
+    harness.world.dispose()
+  })
+
+  it('clears retiring beam history on a timing-discontinuity frame even without an explicit world reset', () => {
+    const harness = createWorldHarness()
+    const settings = { ...STILL, pattern: 'fullRig' as const, beamCount: 12, patternChange: 'bar8' as const, blackoutAmount: 0 }
+    const target = { framebuffer: null, texture: null, width: 1280, height: 720 } as const
+
+    harness.world.render(frame(settings, { frameIndex: 20, beatIndex: 8, barIndex: 2, timingDiscontinuity: true }), target)
+    const first = Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, i) => last(harness.calls, `uAfterhoursBeam${i}`))
+    harness.world.render(frame(settings, { frameIndex: 40, beatIndex: 40, barIndex: 10, timingDiscontinuity: true }), target)
+    harness.world.render(frame(settings, { frameIndex: 50, beatIndex: 8, barIndex: 2, timingDiscontinuity: true }), target)
+    const reconstructed = Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, i) => last(harness.calls, `uAfterhoursBeam${i}`))
+
+    expect(reconstructed).toEqual(first)
     harness.world.dispose()
   })
 

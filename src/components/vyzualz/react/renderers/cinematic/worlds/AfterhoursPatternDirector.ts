@@ -5,17 +5,13 @@ import {
   type AfterhoursPatternChange,
 } from '../../../CinematicWorldSettings'
 import type { CinematicFrameContext } from '../../CinematicWorldRenderer'
-import {
-  AFTERHOURS_MAX_BEAMS,
-  intersectAfterhoursRayWithViewport,
-  normalizeAfterhoursRayDirection,
-  type AfterhoursBeamDescriptor,
-  type AfterhoursEmitter,
-  type AfterhoursRayDirection,
-} from './AfterhoursBeamGeometry'
 
 /**
- * Afterhours runtime topology/blackout director.
+ * Stage 5 compatibility topology/blackout director.
+ *
+ * @deprecated Production Afterhours choreography is owned by
+ * AfterhoursAudioIntelligenceDirector as of Stage 6. Keep this surface only for
+ * saved/test compatibility and the neutral beam-morph re-export below.
  *
  * Runtime-only. Persisted settings remain the user-intent owner; this class
  * derives the active topology family, morph state, and event-aligned blackout
@@ -69,15 +65,6 @@ function clamp(value: number, lo: number, hi: number): number {
 
 function clamp01(value: number): number {
   return clamp(value, 0, 1)
-}
-
-function mix(a: number, b: number, t: number): number {
-  return a + (b - a) * t
-}
-
-function smooth(t: number): number {
-  const x = clamp01(t)
-  return x * x * (3 - 2 * x)
 }
 
 function normalizePattern(value: AfterhoursPattern): AfterhoursPattern {
@@ -265,61 +252,8 @@ export class AfterhoursPatternDirector {
   }
 }
 
-export interface AfterhoursRenderBeam {
-  active: boolean
-  origin: AfterhoursEmitter
-  direction: AfterhoursRayDirection
-  endpoint: AfterhoursEmitter
-  /** Compatibility alias; always identical to the derived viewport-exit endpoint. */
-  target: AfterhoursEmitter
-  accent: boolean
-  /** Hard scanner blanking state; retrace must never become a visible morph segment. */
-  blanked: boolean
-  /** 0..1 render weight — drives per-beam fade in/out across a variation morph. */
-  weight: number
-}
 
-/**
- * Blend two generator frames for a pattern-variation morph. Emitter origins are
- * fixed and never interpolated. The director interpolates the intentional ray
- * direction and re-intersects it with the viewport, so an in-flight morph can
- * never turn the new ray model back into a floating finite segment. Slots active
- * in exactly one frame fade in / out by `weight`.
- */
-export function blendAfterhoursBeamFrames(
-  previous: readonly AfterhoursBeamDescriptor[],
-  next: readonly AfterhoursBeamDescriptor[],
-  transition: number,
-  viewportAspectRatio = 16 / 9,
-): readonly AfterhoursRenderBeam[] {
-  const k = smooth(transition)
-  const out: AfterhoursRenderBeam[] = []
-  for (let index = 0; index < AFTERHOURS_MAX_BEAMS; index += 1) {
-    const a = previous[index]
-    const b = next[index]
-    if (a.active && b.active) {
-      const direction = normalizeAfterhoursRayDirection({
-        x: mix(a.direction.x, b.direction.x, k),
-        y: mix(a.direction.y, b.direction.y, k),
-      }, b.direction)
-      const endpoint = intersectAfterhoursRayWithViewport(b.origin, direction, viewportAspectRatio)
-      out.push({
-        active: true,
-        origin: b.origin,
-        direction,
-        endpoint,
-        target: endpoint,
-        accent: b.accent,
-        blanked: a.blanked || b.blanked,
-        weight: 1,
-      })
-    } else if (b.active) {
-      out.push({ active: true, origin: b.origin, direction: b.direction, endpoint: b.endpoint, target: b.endpoint, accent: b.accent, blanked: b.blanked, weight: k })
-    } else if (a.active) {
-      out.push({ active: true, origin: a.origin, direction: a.direction, endpoint: a.endpoint, target: a.endpoint, accent: a.accent, blanked: a.blanked, weight: 1 - k })
-    } else {
-      out.push({ active: false, origin: b.origin, direction: b.direction, endpoint: b.endpoint, target: b.endpoint, accent: false, blanked: false, weight: 0 })
-    }
-  }
-  return out
-}
+// Compatibility export for Stage 5 callers/tests. Production Afterhours no longer
+// instantiates this director; Stage 6 owns choreography through
+// AfterhoursAudioIntelligenceDirector.
+export { blendAfterhoursBeamFrames, type AfterhoursRenderBeam } from './AfterhoursBeamMorph'

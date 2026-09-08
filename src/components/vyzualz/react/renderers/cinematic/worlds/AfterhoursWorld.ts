@@ -10,9 +10,9 @@ import { defineCinematicWorldDirection } from '../CinematicWorldDirection'
 import {
   AFTERHOURS_MAX_BEAMS,
   generateAfterhoursBeams,
-  resolveAfterhoursBeamCount,
 } from './AfterhoursBeamGeometry'
-import { AfterhoursPatternDirector, blendAfterhoursBeamFrames } from './AfterhoursPatternDirector'
+import { blendAfterhoursBeamFrames } from './AfterhoursBeamMorph'
+import { AfterhoursAudioIntelligenceDirector } from './AfterhoursAudioIntelligenceDirector'
 import {
   AFTERHOURS_DEFAULT_BACKGROUND,
   type AfterhoursRgb,
@@ -20,7 +20,6 @@ import {
   resolveAfterhoursPalette,
 } from './AfterhoursColor'
 import { AFTERHOURS_FRAGMENT_SOURCE } from './AfterhoursShader'
-import { AfterhoursTriggerController } from './AfterhoursTriggerController'
 import { FullscreenCinematicWorld } from './FullscreenCinematicWorld'
 
 const UNIFORMS = [
@@ -55,8 +54,7 @@ function setRgb(program: ShaderProgram, uniform: string, color: AfterhoursRgb): 
 }
 
 class AfterhoursWorld extends FullscreenCinematicWorld {
-  private readonly triggers = new AfterhoursTriggerController()
-  private readonly director = new AfterhoursPatternDirector()
+  private readonly director = new AfterhoursAudioIntelligenceDirector()
   // Per-slot render weight + last-known geometry. Eases each slot toward its
   // target weight so a beam entering/leaving the authored budget or a topology
   // morph fades instead of popping. Fixed-size, no churn.
@@ -134,8 +132,8 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
     }
   }
 
-  // Afterhours computes every animated value on the CPU (trigger reaction,
-  // pattern morph, blackout, per-slot fade) and pushes its own uAfterhours*
+  // Afterhours computes every animated value on the CPU (hierarchical reaction,
+  // topology morph, blackout, per-slot fade) and pushes its own uAfterhours*
   // uniforms; its shader declares none of the shared time/audio/palette/camera
   // uniforms, so the base class should not spend the per-frame work setting them.
   protected override consumesSharedFrameUniforms(): boolean {
@@ -151,20 +149,17 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
 
   override reset(reason: CinematicRendererResetReason): void {
     super.reset(reason)
-    this.triggers.reset()
     this.director.reset()
     this.resetSlots()
   }
 
   override onContextLost(): void {
-    this.triggers.reset()
     this.director.reset()
     this.resetSlots()
     super.onContextLost()
   }
 
   override dispose(): void {
-    this.triggers.reset()
     this.director.reset()
     this.resetSlots()
     super.dispose()
@@ -188,34 +183,35 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
     setRgb(program, 'uAfterhoursAccent', palette.accent)
     program.setFloat('uAfterhoursAtmosphere', Math.max(0, Math.min(1, Number.isFinite(settings.atmosphere) ? settings.atmosphere : 0)))
 
-    // Stage 4: one canonical Trigger drives the whole reaction. The controller
-    // owns no clock/FFT — it consumes frame.canonicalMusic / musicalAudio only.
-    const reaction = this.triggers.update({
+    // Stage 6: one hierarchy owner conducts the already-authored Stage 2-5
+    // rig/scenes/scanner from canonical Music Intelligence. It reconstructs
+    // scene + structure from absolute musical position, then layers bounded
+    // kick/snare/downbeat/Trigger accents without running a second analyzer.
+    const direction = this.director.update({
       frame,
       settings: {
+        pattern: settings.pattern,
+        patternChange: settings.patternChange,
         trigger: settings.trigger,
         bpmSync: settings.bpmSync,
         masterIntensity: settings.masterIntensity,
         pulseAmount: settings.pulseAmount,
         pulseDecay: settings.pulseDecay,
         motionAmount: settings.motionAmount,
-      },
-    })
-    program.setFloat('uAfterhoursIntensity', reaction.intensity)
-
-    // Stage 2 contract correction: Pattern Change advances deterministic topology
-    // families at canonical musical boundaries and schedules literal blackouts.
-    // The director owns derived runtime state only, never persisted user intent.
-    const direction = this.director.update({
-      frame,
-      settings: {
-        pattern: settings.pattern,
-        patternChange: settings.patternChange,
         blackoutAmount: settings.blackoutAmount,
-        bpmSync: settings.bpmSync,
+        beamCount: settings.beamCount,
+        spread: settings.spread,
+        sideLasers: settings.sideLasers,
+        topLasers: settings.topLasers,
       },
     })
+    program.setFloat('uAfterhoursIntensity', direction.intensity)
     program.setFloat('uAfterhoursBlackout', direction.blackout)
+
+    // A seek/loop discontinuity reconstructs a new authored cue immediately.
+    // Clear Stage 5 slot-fade/morph history as well as temporal exposure so no
+    // retiring beam from the previous song position can ghost into that cue.
+    if (frame.timingDiscontinuity) this.resetSlots()
 
     // Stage 5 temporal exposure is renderer-owned, bounded, and disposable. A
     // seek/loop discontinuity, topology switch, backwards transport, long frame
@@ -230,23 +226,26 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
     this.lastTransportTimeSec = transportTimeSec
     this.lastTopologyIdentity = topologyIdentity
 
-    // Reaction modifiers are derived, never written back to persisted settings.
-    // Beam Count is a literal active-ray budget in stable non-blackout states;
-    // music reaction may reshape the rig but must not silently halve that budget.
-    const beamCount = resolveAfterhoursBeamCount(settings.beamCount)
+    // Stage 6 modifiers are derived, never written back to persisted settings.
+    // Beam Count remains the user-owned maximum; the hierarchy may recruit a
+    // smaller authored subset for quiet/vocal passages, then return to that cap.
     const genSettings = {
       ...settings,
       pattern: direction.pattern,
-      beamCount,
-      spread: Math.max(0, Math.min(1, settings.spread + reaction.spreadDelta)),
+      beamCount: direction.beamCount,
+      spread: direction.spread,
+      sideLasers: direction.sideLasers,
+      topLasers: direction.topLasers,
     }
-    // The world's deterministic seed differentiates otherwise-identical instances
-    // without exposing a user control; determinism is preserved per seed.
+    // Use the persisted world seed, not Cinema's musical-position seed. The latter
+    // intentionally changes across beat-phase buckets and would turn authored scan
+    // motion into unrelated per-frame endpoint randomization.
     const viewportAspectRatio = this.viewport.width / Math.max(1, this.viewport.height)
+    const stableWorldSeed = Number.isFinite(frame.config.seed) ? frame.config.seed : frame.randomSeed
     const genOptions = {
-      seed: frame.randomSeed,
-      motionPhase: reaction.motionPhase,
-      motionAuthority: reaction.motionAuthority,
+      seed: stableWorldSeed,
+      motionPhase: direction.motionPhase,
+      motionAuthority: direction.motionAuthority,
       viewportAspectRatio,
     }
 
@@ -256,13 +255,16 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
     // edge so no transition can create a floating finite segment.
     const settled = direction.transition >= 1
     const nextBeams = generateAfterhoursBeams(genSettings, { ...genOptions, variation: direction.variation })
+    const previousBeams = settled
+      ? nextBeams
+      : generateAfterhoursBeams(
+        { ...genSettings, pattern: direction.previousPattern },
+        { ...genOptions, variation: direction.previousVariation },
+      )
     const blended = settled
       ? null
       : blendAfterhoursBeamFrames(
-        generateAfterhoursBeams(
-          { ...genSettings, pattern: direction.previousPattern },
-          { ...genOptions, variation: direction.previousVariation },
-        ),
+        previousBeams,
         nextBeams,
         direction.transition,
         viewportAspectRatio,
@@ -276,8 +278,16 @@ class AfterhoursWorld extends FullscreenCinematicWorld {
       const beam = morphBeam ?? nextBeams[index]
       const rawWeight = morphBeam ? morphBeam.weight : 1
       const active = beam.active && !beam.blanked && rawWeight > 0
-      const targetWeight = active ? Math.max(0, Math.min(1, rawWeight)) : 0
-      const exposure = this.resolveTemporalExposure(index, beam, transportTimeSec, reaction.motionAuthority)
+      const beamBank = nextBeams[index].active ? nextBeams[index].bank : previousBeams[index].bank
+      const bankWeight = beamBank === 'bottom'
+        ? direction.bankWeights.bottom
+        : beamBank === 'left'
+          ? direction.bankWeights.left
+          : beamBank === 'right'
+            ? direction.bankWeights.right
+            : direction.bankWeights.top
+      const targetWeight = active ? Math.max(0, Math.min(1, rawWeight * bankWeight)) : 0
+      const exposure = this.resolveTemporalExposure(index, beam, transportTimeSec, direction.motionAuthority)
       // Refresh the remembered geometry only while the slot is real, so a slot
       // that is fading OUT dims from its last position rather than the origin.
       if (active) {
