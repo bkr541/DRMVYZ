@@ -19,6 +19,8 @@ interface Props {
   onActivateDocument: (doc: LyricDocumentVersion) => void
   onDeleteDocument: (doc: LyricDocumentVersion) => void
   onImportDocument: () => void
+  /** Optional mockup/layout behavior: keep version actions collapsed until the version is open. */
+  actionsVisibleForOpenDocumentOnly?: boolean
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -77,6 +79,7 @@ function DocumentCard({
   onDuplicateDocument,
   onActivateDocument,
   onDeleteDocument,
+  showActions,
 }: {
   doc: LyricDocumentVersion
   openDocumentId: string | null
@@ -89,6 +92,7 @@ function DocumentCard({
   onDuplicateDocument: () => void
   onActivateDocument: () => void
   onDeleteDocument: () => void
+  showActions: boolean
 }) {
   const [renameValue, setRenameValue] = useState(doc.title)
 
@@ -134,7 +138,7 @@ function DocumentCard({
         <span className="lmv-doc-card-date">{fmtRelativeDate(doc.updatedAt)}</span>
       </div>
 
-      {!renaming && (
+      {!renaming && showActions && (
         <div className="lmv-doc-actions">
           <button className="lmv-doc-action" onClick={onStartRename}>Rename</button>
           {!legacy && <button className="lmv-doc-action" onClick={onDuplicateDocument}>Duplicate</button>}
@@ -159,6 +163,7 @@ export function LyricDocumentSidebar({
   onActivateDocument,
   onDeleteDocument,
   onImportDocument,
+  actionsVisibleForOpenDocumentOnly = false,
 }: Props) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<DocFilter>('all')
@@ -185,6 +190,7 @@ export function LyricDocumentSidebar({
       onDuplicateDocument={() => onDuplicateDocument(doc)}
       onActivateDocument={() => onActivateDocument(doc)}
       onDeleteDocument={() => onDeleteDocument(doc)}
+      showActions={!actionsVisibleForOpenDocumentOnly || doc.id === openDocumentId}
     />
   )
 

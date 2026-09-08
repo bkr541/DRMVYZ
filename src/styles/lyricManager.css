@@ -2716,3 +2716,136 @@
   width: 190px;
   max-width: min(190px, 42vw);
 }
+
+/* ── Lyric Manager layout mockup: Stage 1 left rail ---------------------
+   Fixture-backed only. Scoped beneath .lmv-mockup-left-rail so the
+   production Lyric Manager and Media Manager retain their existing layout. */
+.lmv-mockup-left-rail > .vz-inspector-inner {
+  padding: 0;
+}
+
+.lmv-mockup-left-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lmv-mockup-track-workspace,
+.lmv-mockup-lyric-management {
+  box-sizing: border-box;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lmv-mockup-track-workspace {
+  flex: 1 1 100%;
+  padding: 14px 12px 12px;
+}
+
+.lmv-mockup-left-shell[data-has-selected-track='true'] .lmv-mockup-track-workspace {
+  flex: 0 0 55%;
+  border-bottom: 1px solid rgba(126,218,232,0.12);
+}
+
+.lmv-mockup-lyric-management {
+  flex: 0 0 45%;
+  padding: 14px 12px 12px;
+}
+
+.lmv-mockup-rail-title {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  color: rgba(237,249,251,0.92);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.lmv-mockup-rail-title svg {
+  color: var(--az-cyan, #4ac7db);
+}
+
+.lmv-mockup-workspace-tabs.dv-underline-tabs {
+  flex: 0 0 auto;
+  margin-top: 8px;
+}
+
+.lmv-mockup-workspace-tabs .dv-underline-tab {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.lmv-mockup-track-panel {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  padding-top: 12px;
+  overflow: hidden;
+}
+
+.lmv-mockup-track-panel > .drc-group {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.drc-body.lmv-mockup-track-library-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 8px;
+  overflow: hidden;
+  padding-bottom: 8px;
+}
+
+.lmv-mockup-track-search {
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+.lmv-mockup-track-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 2px 0 0;
+}
+
+.lmv-mockup-track-list .vz-track-row {
+  flex: 0 0 auto;
+}
+
+.lmv-mockup-empty-state {
+  padding: 18px 8px;
+  color: rgba(196,207,211,0.36);
+  font-size: 10px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.lmv-mockup-empty-tab {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.lmv-mockup-lyric-management > .lmv-doc-sidebar {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 10px 0 0;
+  border: 0;
+  background: transparent;
+}
+
+.lmv-mockup-lyric-management .lmv-doc-list {
+  min-height: 0;
+  padding-inline: 0;
+}

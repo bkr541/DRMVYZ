@@ -79,6 +79,7 @@ export function AudioTrackCard({
       className={`vz-track-row${loaded ? ' vz-track-row--loaded' : ''}${playing ? ' vz-track-row--playing' : ''}${isActive ? ' vz-track-row--active' : ''}`}
       onClick={onSelect}
       role={onSelect ? 'button' : undefined}
+      aria-pressed={onSelect ? Boolean(isActive) : undefined}
       tabIndex={onSelect ? 0 : undefined}
       onKeyDown={onSelect ? event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect() } } : undefined}
     >

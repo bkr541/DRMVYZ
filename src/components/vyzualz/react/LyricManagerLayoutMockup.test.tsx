@@ -5,9 +5,28 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { LyricManagerLayoutMockup } from './LyricManagerLayoutMockup'
+import {
+  LYRIC_MANAGER_LAYOUT_CUE_FIXTURES,
+  LYRIC_MANAGER_LAYOUT_DOCUMENT_FIXTURES,
+  LYRIC_MANAGER_LAYOUT_TRACK_FIXTURES,
+} from './LyricManagerLayoutMockup.fixtures'
 
 let container: HTMLDivElement
 let root: ReturnType<typeof createRoot>
+
+function buttonWithText(scope: ParentNode, text: string): HTMLButtonElement {
+  const buttons = [...scope.querySelectorAll('button')]
+  const button = buttons.find(candidate => candidate.textContent?.trim() === text)
+    ?? buttons.find(candidate => candidate.textContent?.includes(text))
+  if (!button) throw new Error(`Button not found: ${text}`)
+  return button as HTMLButtonElement
+}
+
+async function click(element: Element) {
+  await act(async () => {
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  })
+}
 
 beforeEach(() => {
   container = document.createElement('div')
@@ -20,34 +39,96 @@ afterEach(async () => {
 })
 
 describe('LyricManagerLayoutMockup', () => {
-  it('renders the Lyric Manager header over an empty Media-Manager-shell body', async () => {
+  it('ships reusable fixture data for tracks, versions, and later-stage cue work', () => {
+    expect(LYRIC_MANAGER_LAYOUT_TRACK_FIXTURES).toHaveLength(4)
+    expect(LYRIC_MANAGER_LAYOUT_DOCUMENT_FIXTURES['track-pop']).toHaveLength(3)
+    expect(LYRIC_MANAGER_LAYOUT_DOCUMENT_FIXTURES['track-neon-static']).toHaveLength(0)
+    expect(LYRIC_MANAGER_LAYOUT_CUE_FIXTURES['pop-live'].length).toBeGreaterThan(0)
+  })
+
+  it('renders the Stage 1 Track Workspace in the Media Manager shell while center and right remain empty', async () => {
     await act(async () => root.render(<LyricManagerLayoutMockup />))
 
-    // Media Manager shell sizing/padding
     expect(container.querySelector('.mmv-root')).not.toBeNull()
     expect(container.querySelector('.mmv-workspace .vz-content.mmv-content')).not.toBeNull()
-    expect(container.querySelector('.mmv-stage-area')).not.toBeNull()
+    expect(container.querySelector('.mmv-stage-area')?.textContent?.trim()).toBe('')
 
-    // Lyric Manager header, not the Media Manager header
     expect(container.querySelector('.lmv-header')).not.toBeNull()
     expect(container.querySelector('.mmv-header')).toBeNull()
     expect(container.querySelector('.lmv-header-title')?.textContent).toBe('LYRIC MANAGER')
-    expect(container.querySelector('.lmv-header-left .lmv-header-subtitle')).not.toBeNull()
 
-    // Right-justified actions: Show Lyrics toggle, Save, Save + Make Active, Settings, avatar
     const right = container.querySelector('.lmv-header-right')!
     expect(right.querySelector('.lmv-toggle-row')?.textContent).toContain('Show Lyrics')
     const chips = [...right.querySelectorAll('.dv-icon-chip')].map(c => c.textContent?.trim())
     expect(chips).toEqual(['Save', 'Save + Make Active'])
     expect(right.querySelector('.vsm-settings-btn')).not.toBeNull()
 
-    // Both rails present and empty
     const rails = container.querySelectorAll('.vz-content .vz-inspector')
     expect(rails).toHaveLength(2)
-    for (const rail of rails) {
-      expect(rail.querySelector('.vz-inspector-inner')?.textContent?.trim()).toBe('')
-    }
-    // Empty visualizer
-    expect(container.querySelector('.mmv-stage-area')?.textContent?.trim()).toBe('')
+    expect(rails[0].textContent).toContain('Track Workspace')
+    expect(rails[1].querySelector('.vz-inspector-inner')?.textContent?.trim()).toBe('')
+
+    const tabs = [...rails[0].querySelectorAll('[role="tab"]')]
+    expect(tabs.map(tab => tab.textContent?.trim())).toEqual(['Tracks', 'Import', 'AI Extract'])
+    expect(rails[0].textContent).toContain('Track Library')
+    expect(rails[0].querySelectorAll('.vz-track-row')).toHaveLength(4)
+    expect(rails[0].textContent).not.toContain('Lyric Management')
+  })
+
+  it('selects tracks without load controls and preserves Lyric Management while upper tabs change', async () => {
+    await act(async () => root.render(<LyricManagerLayoutMockup />))
+
+    const firstTrack = container.querySelector('.vz-track-row') as HTMLElement
+    expect(firstTrack.getAttribute('role')).toBe('button')
+    expect(firstTrack.getAttribute('aria-pressed')).toBe('false')
+    expect(firstTrack.querySelector('.vz-track-action-btn')).toBeNull()
+
+    await click(firstTrack)
+
+    expect(firstTrack.getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('.lmv-mockup-left-shell')?.getAttribute('data-has-selected-track')).toBe('true')
+    expect(container.textContent).toContain('Lyric Management')
+    expect(container.textContent).toContain('Lyric Versions')
+    expect(container.querySelectorAll('.lmv-doc-card')).toHaveLength(3)
+
+    await click(buttonWithText(container, 'Import'))
+    expect(buttonWithText(container, 'Import').getAttribute('aria-selected')).toBe('true')
+    expect(container.textContent).toContain('Lyric Management')
+    expect(container.querySelectorAll('.lmv-doc-card')).toHaveLength(3)
+
+    await click(buttonWithText(container, 'AI Extract'))
+    expect(buttonWithText(container, 'AI Extract').getAttribute('aria-selected')).toBe('true')
+    expect(container.textContent).toContain('Lyric Management')
+  })
+
+  it('opens one version action area and keeps active state separate until Make Active is chosen', async () => {
+    await act(async () => root.render(<LyricManagerLayoutMockup />))
+    await click(container.querySelector('.vz-track-row')!)
+
+    const initialOpen = container.querySelector('.lmv-doc-card--open')!
+    expect(initialOpen.textContent).toContain('Festival Live')
+    expect(initialOpen.textContent).toContain('Open')
+    expect(initialOpen.textContent).toContain('Active')
+    expect(container.querySelectorAll('.lmv-doc-actions')).toHaveLength(1)
+
+    await click(buttonWithText(container, 'AI Transcription'))
+
+    const openAi = container.querySelector('.lmv-doc-card--open')!
+    expect(openAi.textContent).toContain('AI Transcription')
+    expect(openAi.textContent).toContain('Open')
+    expect(openAi.textContent).not.toContain('Active')
+    expect(container.querySelectorAll('.lmv-doc-actions')).toHaveLength(1)
+    expect(buttonWithText(openAi, 'Make Active')).not.toBeNull()
+
+    await click(buttonWithText(openAi, 'Make Active'))
+    expect(container.querySelector('.lmv-doc-card--open')?.textContent).toContain('Active')
+
+    const openAfterActivation = container.querySelector('.lmv-doc-card--open')!
+    await click(buttonWithText(openAfterActivation, 'Duplicate'))
+    expect(container.querySelectorAll('.lmv-doc-card')).toHaveLength(4)
+    expect(container.querySelector('.lmv-doc-card--open')?.textContent).toContain('AI Transcription Copy')
+
+    await click(buttonWithText(container.querySelector('.lmv-doc-card--open')!, 'Delete'))
+    expect(container.querySelectorAll('.lmv-doc-card')).toHaveLength(3)
   })
 })
