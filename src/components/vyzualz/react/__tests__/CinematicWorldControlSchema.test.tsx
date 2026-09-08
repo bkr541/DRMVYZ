@@ -194,26 +194,21 @@ describe('Cinematic World control schema', () => {
       'bpmSync', 'masterIntensity', 'trigger', 'pulseAmount', 'pulseDecay', 'motionAmount', 'patternChange', 'blackoutAmount',
     ]))
 
-    // Default pattern is Fan -> Symmetry absent from the DOM, no stale duplicate.
+    // Stage 4 defaults to Wide Fan and scene architecture owns symmetry.
     const fanConfig = createCinematicWorldConfig('afterhours', {})
     expect(fanConfig.worldSettings.settings).toEqual(AFTERHOURS_DEFAULTS)
     await render(<CinematicWorldControlSchemaRenderer config={fanConfig} schema={schema} uiMode="simple" onChange={vi.fn()} />)
-    expect((container.querySelector('#afterhours-pattern') as HTMLButtonElement).textContent).toContain('Fan')
+    expect((container.querySelector('#afterhours-pattern') as HTMLButtonElement).textContent).toContain('Wide Fan')
     expect(container.querySelector('#afterhours-symmetry')).toBeNull()
     expect((container.querySelector('#afterhours-beam-count') as HTMLInputElement).value).toBe('8')
     expect((container.querySelector('#afterhours-atmosphere') as HTMLInputElement).value).toBe('0.55')
     expect((container.querySelector('#afterhours-color-mode') as HTMLButtonElement).textContent).toContain('Manual')
 
-    // Switching to Random reveals exactly one Symmetry control at its persisted value.
-    const randomConfig = createCinematicWorldConfig('afterhours', { pattern: 'random', symmetry: false })
-    await render(<CinematicWorldControlSchemaRenderer config={randomConfig} schema={schema} uiMode="simple" onChange={vi.fn()} />)
-    const symmetryInputs = container.querySelectorAll('#afterhours-symmetry')
-    expect(symmetryInputs).toHaveLength(1)
-    expect(symmetryInputs[0].getAttribute('data-state')).toBe('off')
-
-    // Switching away preserves the persisted value and removes the control again.
-    await render(<CinematicWorldControlSchemaRenderer config={createCinematicWorldConfig('afterhours', { pattern: 'fan', symmetry: false })} schema={schema} uiMode="simple" onChange={vi.fn()} />)
+    const legacyConfig = createCinematicWorldConfig('afterhours', { pattern: 'random' as never, symmetry: false })
+    expect(legacyConfig.worldSettings.settings.pattern).toBe('radialCrown')
+    await render(<CinematicWorldControlSchemaRenderer config={legacyConfig} schema={schema} uiMode="simple" onChange={vi.fn()} />)
     expect(container.querySelector('#afterhours-symmetry')).toBeNull()
+
   })
 
   it('renders slider, integer, and select controls with labels, descriptions, and stable IDs', async () => {

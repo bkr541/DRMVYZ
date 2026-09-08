@@ -404,6 +404,14 @@ describe('Cinema Cinematic World adapters', () => {
     const beamCountId = cinemaCinematicWorldParameterId('world-beam-count')
     const spreadId = cinemaCinematicWorldParameterId('world-spread')
     const atmosphereId = cinemaCinematicWorldParameterId('world-atmosphere')
+    const patternParam = afterhours!.definition.parameters.find(parameter => parameter.label === 'Pattern')
+    if (!patternParam || patternParam.type !== 'enum') throw new Error('Afterhours Pattern enum is required.')
+    expect(patternParam.options.map(option => option.label)).toEqual([
+      'Wide Fan', 'Split Wings', 'Cross Canopy', 'Diamond / Star', 'Chevron / Roof',
+      'Radial Burst / Crown', 'Sparse Architecture', 'Full Rig',
+    ])
+    const fullRigId = patternParam.options.find(option => option.label === 'Full Rig')?.id
+    expect(fullRigId).toBeDefined()
     const composition: CinemaCompositionDefinition = {
       ...base,
       nodes: base.nodes.map(node => node.id === worldNode.id ? {
@@ -419,6 +427,7 @@ describe('Cinema Cinematic World adapters', () => {
           [beamCountId]: 12,
           [spreadId]: 1,
           [atmosphereId]: 0.9,
+          [patternParam.id]: fullRigId as string,
         },
       } : node),
     }
@@ -450,19 +459,9 @@ describe('Cinema Cinematic World adapters', () => {
         'Off', 'Bar', '4 Bars', '8 Bars', 'Phrase', 'Drop',
       ])
     }
-    // Symmetry stays hidden while Pattern is not Random; the internal Seed is
-    // never a user control.
-    for (const hidden of ['Symmetry', 'Seed']) {
-      expect(supportedLabels).not.toContain(hidden)
-    }
-
-    // Switching the live Pattern value to Random reveals exactly the Symmetry control.
-    const patternParam = afterhours!.definition.parameters.find(parameter => parameter.label === 'Pattern') as { id: string; options: readonly { id: string; label: string }[] }
-    const randomOptionId = patternParam.options.find(option => option.label === 'Random')!.id
-    const randomNode = { ...afterhoursNode, parameterValues: { ...afterhoursNode.parameterValues, [patternParam.id]: randomOptionId } }
-    const randomLabels = getCinemaCinematicWorldSupportedParameterSchemasForNode(afterhours!.definition, randomNode)
-      .map(parameter => parameter.label)
-    expect(randomLabels).toContain('Symmetry')
+    // Stage 4 scenes own their bilateral/radial architecture. The legacy Random-only
+    // Symmetry control stays hidden rather than creating a ninth pseudo-scene.
+    for (const hidden of ['Symmetry', 'Seed']) expect(supportedLabels).not.toContain(hidden)
 
     const state = createCinemaFoundationPersistedState()
     const harness = createExecutorHarness(CINEMA_PRODUCTION_RUNTIME_REGISTRY, state.definitions, false)
@@ -493,13 +492,10 @@ describe('Cinema Cinematic World adapters', () => {
       const name = typeof location === 'object' && location !== null ? (location as unknown as { name?: string }).name : undefined
       if (name?.startsWith('uAfterhoursBeamMeta')) latestMeta.set(name, [active, accent])
     }
-    // Stage 4: active-beam utilisation is a bounded reactive fraction of the
-    // user's Beam Count (12 here), never above it, always leaving the full
-    // 16-slot set accounted for.
+    // Stage 4 Full Rig preserves the authored 12-ray budget through the real Cinema executor.
     const activeMeta = [...latestMeta.values()].filter(([active]) => active === 1)
     expect(latestMeta.size).toBe(16)
-    expect(activeMeta.length).toBeGreaterThanOrEqual(2)
-    expect(activeMeta.length).toBeLessThanOrEqual(12)
+    expect(activeMeta.length).toBe(12)
     expect([...latestMeta.values()].filter(([active]) => active === 0).length).toBe(16 - activeMeta.length)
     expect(activeMeta.every(([, accent]) => accent === 1)).toBe(true)
 

@@ -113,7 +113,7 @@ describe('Afterhours Stage 1A contract and adapter foundation', () => {
       primaryColor: '#74f5ff',
       accentColor: '#fedcba',
       accentMix: 0.41,
-      pattern: 'xWall',
+      pattern: 'chevronRoof',
       symmetry: false,
       sideLasers: true,
       topLasers: true,

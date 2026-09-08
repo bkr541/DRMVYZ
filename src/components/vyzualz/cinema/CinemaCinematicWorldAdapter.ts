@@ -945,16 +945,11 @@ export function getCinemaCinematicWorldSupportedParameterSchemasForNode(
     declared.get(parameter.id)?.support !== 'unsupported'
     && (!hideObjectControls || !CINEMA_3D_OBJECT_PARAMETER_ID_SET.has(parameter.id))
   ))
-  // Afterhours: Symmetry is only meaningful for the Random pattern. Hide the
-  // control (and its Cinema parameter) whenever the node's live Pattern value
-  // is not Random; the persisted value itself is untouched, so switching back
-  // to Random restores it.
+  // Stage 4 scene families own their symmetry architecture. Keep the legacy
+  // persisted Symmetry field compatible, but do not expose it as a ninth
+  // pseudo-scene or let it rewrite authored scene topology.
   const conditionallyFiltered = definition.metadata?.worldId === 'afterhours'
-    ? staticallySupported.filter(parameter => {
-        if (parameter.id !== worldParameterId('symmetry')) return true
-        const patternValue = node.parameterValues?.[worldParameterId('pattern')]
-        return readWorldEnum('pattern', patternValue, WorldSettings.AFTERHOURS_DEFAULTS.pattern) === 'random'
-      })
+    ? staticallySupported.filter(parameter => parameter.id !== worldParameterId('symmetry'))
     : staticallySupported
 
   const sourcePreset = readLegacyCinematicPreset(node)
@@ -2206,7 +2201,19 @@ function worldSettingLabel(key: string): string {
 }
 
 function worldEnumLabel(key: string, value: string): string {
-  if (key === 'pattern' && value === 'xWall') return 'X Wall'
+  if (key === 'pattern') {
+    const labels: Readonly<Record<string, string>> = {
+      wideFan: 'Wide Fan',
+      splitWings: 'Split Wings',
+      crossCanopy: 'Cross Canopy',
+      diamondStar: 'Diamond / Star',
+      chevronRoof: 'Chevron / Roof',
+      radialCrown: 'Radial Burst / Crown',
+      sparseArchitecture: 'Sparse Architecture',
+      fullRig: 'Full Rig',
+    }
+    return labels[value] ?? titleCase(value)
+  }
   if (key === 'colorMode') return value === 'manual' ? 'Manual' : 'Auto'
   if (key === 'patternChange' && value === 'off') return 'Off'
   if (key !== 'thunderTrigger' && key !== 'trigger' && key !== 'patternChange') return titleCase(value)

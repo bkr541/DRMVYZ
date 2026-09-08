@@ -81,7 +81,11 @@ function smooth(t: number): number {
 }
 
 function normalizePattern(value: AfterhoursPattern): AfterhoursPattern {
-  return (AFTERHOURS_PATTERNS as readonly string[]).includes(value) ? value : 'fan'
+  const legacy: Readonly<Record<string, AfterhoursPattern>> = {
+    random: 'radialCrown', xWall: 'chevronRoof', cross: 'crossCanopy', fan: 'wideFan', split: 'splitWings',
+  }
+  const candidate = legacy[String(value)] ?? value
+  return (AFTERHOURS_PATTERNS as readonly string[]).includes(candidate) ? candidate : 'wideFan'
 }
 
 function normalizePatternChange(value: AfterhoursPatternChange): AfterhoursPatternChange {
@@ -94,8 +98,8 @@ function nextPattern(pattern: AfterhoursPattern): AfterhoursPattern {
 }
 
 export class AfterhoursPatternDirector {
-  private pattern: AfterhoursPattern = 'fan'
-  private previousPattern: AfterhoursPattern = 'fan'
+  private pattern: AfterhoursPattern = 'wideFan'
+  private previousPattern: AfterhoursPattern = 'wideFan'
   private selectedPattern: AfterhoursPattern | null = null
   private variation = 0
   private previousVariation = 0
@@ -109,7 +113,7 @@ export class AfterhoursPatternDirector {
   private blackoutHoldSec = 0
 
   reset(): void {
-    this.pattern = this.selectedPattern ?? 'fan'
+    this.pattern = this.selectedPattern ?? 'wideFan'
     this.previousPattern = this.pattern
     this.variation = 0
     this.previousVariation = 0

@@ -177,7 +177,7 @@ export type ElectricStormNumericSettings = Pick<
 export const AFTERHOURS_COLOR_MODES = ['manual', 'auto'] as const
 export type AfterhoursColorMode = typeof AFTERHOURS_COLOR_MODES[number]
 
-export const AFTERHOURS_PATTERNS = ['random', 'xWall', 'cross', 'fan', 'split'] as const
+export const AFTERHOURS_PATTERNS = ['wideFan', 'splitWings', 'crossCanopy', 'diamondStar', 'chevronRoof', 'radialCrown', 'sparseArchitecture', 'fullRig'] as const
 export type AfterhoursPattern = typeof AFTERHOURS_PATTERNS[number]
 
 export const AFTERHOURS_TRIGGERS = [
@@ -658,7 +658,7 @@ export const AFTERHOURS_DEFAULTS: AfterhoursSettings = {
   primaryColor: '#74f5ff',
   accentColor: '#ffffff',
   accentMix: 0.25,
-  pattern: 'fan',
+  pattern: 'wideFan',
   symmetry: true,
   sideLasers: false,
   topLasers: false,
@@ -894,13 +894,23 @@ function normalizeAfterhoursSettings(raw: unknown): AfterhoursSettings {
   const enumValue = <T extends readonly string[]>(value: unknown, options: T, fallback: T[number]): T[number] => (
     typeof value === 'string' && options.includes(value as T[number]) ? value as T[number] : fallback
   )
+  const legacyPatternMap: Readonly<Record<string, AfterhoursPattern>> = {
+    random: 'radialCrown',
+    xWall: 'chevronRoof',
+    cross: 'crossCanopy',
+    fan: 'wideFan',
+    split: 'splitWings',
+  }
+  const pattern = typeof source.pattern === 'string'
+    ? (legacyPatternMap[source.pattern] ?? enumValue(source.pattern, AFTERHOURS_PATTERNS, AFTERHOURS_DEFAULTS.pattern))
+    : AFTERHOURS_DEFAULTS.pattern
   return {
     backgroundColor: normalizeHexColor(source.backgroundColor, AFTERHOURS_DEFAULTS.backgroundColor),
     colorMode: enumValue(source.colorMode, AFTERHOURS_COLOR_MODES, AFTERHOURS_DEFAULTS.colorMode),
     primaryColor: normalizeHexColor(source.primaryColor, AFTERHOURS_DEFAULTS.primaryColor),
     accentColor: normalizeHexColor(source.accentColor, AFTERHOURS_DEFAULTS.accentColor),
     accentMix: numeric.accentMix,
-    pattern: enumValue(source.pattern, AFTERHOURS_PATTERNS, AFTERHOURS_DEFAULTS.pattern),
+    pattern,
     symmetry: typeof source.symmetry === 'boolean' ? source.symmetry : AFTERHOURS_DEFAULTS.symmetry,
     sideLasers: typeof source.sideLasers === 'boolean' ? source.sideLasers : AFTERHOURS_DEFAULTS.sideLasers,
     topLasers: typeof source.topLasers === 'boolean' ? source.topLasers : AFTERHOURS_DEFAULTS.topLasers,

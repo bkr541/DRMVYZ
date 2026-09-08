@@ -75,7 +75,7 @@ function directorFrame(input: {
 const cfg = (patternChange: AfterhoursPatternChange, blackoutAmount = 0, bpmSync = false) => ({ pattern: AFTERHOURS_DEFAULTS.pattern, patternChange, blackoutAmount, bpmSync })
 
 const BEAM_BASE: AfterhoursBeamGenerationSettings = {
-  pattern: 'fan',
+  pattern: 'wideFan',
   symmetry: true,
   sideLasers: false,
   topLasers: false,
@@ -115,8 +115,8 @@ describe('Afterhours Stage 5 — Pattern Change scheduler', () => {
       const s = cfg(cadence)
       const first = director.update({ frame: directorFrame({ frameIndex: 1, clock, clockEventId: `${clock}-a` }), settings: s })
       expect(first.variation).toBe(1)
-      expect(first.previousPattern).toBe('fan')
-      expect(first.pattern).toBe('split')
+      expect(first.previousPattern).toBe('wideFan')
+      expect(first.pattern).toBe('splitWings')
       expect(first.transition).toBe(0) // a boundary just started a morph
       // Same identity on the next frame -> no second advance, morph advancing.
       const held = director.update({ frame: directorFrame({ frameIndex: 2, clock, clockEventId: `${clock}-a` }), settings: s })
@@ -125,8 +125,8 @@ describe('Afterhours Stage 5 — Pattern Change scheduler', () => {
       // Fresh identity -> next variation.
       const next = director.update({ frame: directorFrame({ frameIndex: 3, clock, clockEventId: `${clock}-b` }), settings: s })
       expect(next.variation).toBe(2)
-      expect(next.previousPattern).toBe('split')
-      expect(next.pattern).toBe('random')
+      expect(next.previousPattern).toBe('splitWings')
+      expect(next.pattern).toBe('crossCanopy')
     }
   })
 
@@ -268,8 +268,8 @@ describe('Afterhours Stage 5 — transition interpolation', () => {
 })
 
 describe('Afterhours Stage 5 — blendAfterhoursBeamFrames', () => {
-  const genA = generateAfterhoursBeams({ ...BEAM_BASE, pattern: 'fan', beamCount: 8 }, { variation: 0 })
-  const genB = generateAfterhoursBeams({ ...BEAM_BASE, pattern: 'fan', beamCount: 8 }, { variation: 1 })
+  const genA = generateAfterhoursBeams({ ...BEAM_BASE, pattern: 'wideFan', beamCount: 8 }, { variation: 0 })
+  const genB = generateAfterhoursBeams({ ...BEAM_BASE, pattern: 'wideFan', beamCount: 8 }, { variation: 1 })
 
   it('returns the previous frame exactly at transition 0 and the next frame exactly at transition 1', () => {
     const at0 = blendAfterhoursBeamFrames(genA, genB, 0)
@@ -304,8 +304,8 @@ describe('Afterhours Stage 5 — blendAfterhoursBeamFrames', () => {
   })
 
   it('fades membership in and out by weight rather than teleporting a slot', () => {
-    const few = generateAfterhoursBeams({ ...BEAM_BASE, pattern: 'fan', beamCount: 4 }, { variation: 0 })
-    const many = generateAfterhoursBeams({ ...BEAM_BASE, pattern: 'fan', beamCount: 10 }, { variation: 0 })
+    const few = generateAfterhoursBeams({ ...BEAM_BASE, pattern: 'wideFan', beamCount: 4 }, { variation: 0 })
+    const many = generateAfterhoursBeams({ ...BEAM_BASE, pattern: 'wideFan', beamCount: 10 }, { variation: 0 })
     const midIn = blendAfterhoursBeamFrames(few, many, 0.5)
     const midOut = blendAfterhoursBeamFrames(many, few, 0.5)
     // A slot present only in `many` fades in (weight < 1); the same slot retiring fades out.

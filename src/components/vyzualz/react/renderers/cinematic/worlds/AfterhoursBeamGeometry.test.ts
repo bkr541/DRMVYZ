@@ -16,7 +16,7 @@ import {
 } from './AfterhoursBeamGeometry'
 
 const BASE: AfterhoursBeamGenerationSettings = {
-  pattern: 'fan',
+  pattern: 'wideFan',
   symmetry: true,
   sideLasers: false,
   topLasers: false,
@@ -50,7 +50,7 @@ function expectViewportRay(
 describe('Afterhours Stage 1 — canonical fixture banks and ray identity', () => {
   it('reuses the persisted pattern union as its only pattern-id source of truth', () => {
     expect(AFTERHOURS_PATTERN_IDS).toBe(AFTERHOURS_PATTERNS)
-    expect([...AFTERHOURS_PATTERN_IDS]).toEqual(['random', 'xWall', 'cross', 'fan', 'split'])
+    expect([...AFTERHOURS_PATTERN_IDS]).toEqual(['wideFan', 'splitWings', 'crossCanopy', 'diamondStar', 'chevronRoof', 'radialCrown', 'sparseArchitecture', 'fullRig'])
   })
 
   it('owns fixed frozen, deliberately mirrored fixture banks', () => {
@@ -71,8 +71,8 @@ describe('Afterhours Stage 1 — canonical fixture banks and ray identity', () =
   })
 
   it('gives every active slot stable beam/source identity and role metadata', () => {
-    const a = active({ pattern: 'cross', sideLasers: true, beamCount: 12 }, 0)
-    const b = active({ pattern: 'cross', sideLasers: true, beamCount: 12 }, 17)
+    const a = active({ pattern: 'crossCanopy', sideLasers: true, beamCount: 12 }, 0)
+    const b = active({ pattern: 'crossCanopy', sideLasers: true, beamCount: 12 }, 17)
     expect(a.map(beam => beam.id)).toEqual(b.map(beam => beam.id))
     expect(a.map(beam => beam.sourceId)).toEqual(b.map(beam => beam.sourceId))
     for (const beam of a) {
@@ -128,7 +128,7 @@ describe('Afterhours Stage 1 — global beam allocation', () => {
   })
 
   it('may reuse a physical fixture above the fixed-bank count without exceeding 16 visible rays', () => {
-    const beams = active({ pattern: 'fan', beamCount: 16 })
+    const beams = active({ pattern: 'wideFan', beamCount: 16 })
     const perSource = new Map<string, number>()
     for (const beam of beams) perSource.set(beam.sourceId, (perSource.get(beam.sourceId) ?? 0) + 1)
     expect(Math.max(...perSource.values())).toBeGreaterThan(1)
@@ -137,13 +137,13 @@ describe('Afterhours Stage 1 — global beam allocation', () => {
 })
 
 describe('Afterhours Stage 1 — visual-DNA regression: rays, not floating targets', () => {
-  const patterns: readonly AfterhoursPattern[] = ['random', 'xWall', 'cross', 'fan', 'split']
+  const patterns: readonly AfterhoursPattern[] = [...AFTERHOURS_PATTERNS]
 
   for (const pattern of patterns) {
     for (const spread of [0, 0.5, 1]) {
       it(`${pattern} @ spread ${spread} derives every visible endpoint from a substantial viewport-exit ray`, () => {
         const beams = active({ pattern, spread, sideLasers: true, topLasers: true, beamCount: 16 })
-        expect(beams).toHaveLength(16)
+        expect(beams).toHaveLength(pattern === 'sparseArchitecture' ? 4 : 16)
         for (const beam of beams) expectViewportRay(beam)
       })
     }
@@ -152,7 +152,7 @@ describe('Afterhours Stage 1 — visual-DNA regression: rays, not floating targe
   it('never uses an unconstrained interior point as an active beam endpoint', () => {
     for (let variation = 0; variation < 48; variation += 1) {
       for (const pattern of patterns) {
-        const beams = active({ pattern, symmetry: pattern === 'random', sideLasers: true, topLasers: true, beamCount: 16 }, variation)
+        const beams = active({ pattern, symmetry: pattern === 'radialCrown', sideLasers: true, topLasers: true, beamCount: 16 }, variation)
         expect(beams.every(beam => beam.projection === 'viewportExit' && isAfterhoursViewportExit(beam.endpoint))).toBe(true)
       }
     }
@@ -160,18 +160,18 @@ describe('Afterhours Stage 1 — visual-DNA regression: rays, not floating targe
 
   it('Spread visibly widens the static Fan arrangement while retaining an open centre structure', () => {
     const span = (spread: number) => {
-      const xs = active({ pattern: 'fan', spread, beamCount: 10 }).map(beam => beam.endpoint.x)
+      const xs = active({ pattern: 'wideFan', spread, beamCount: 10 }).map(beam => beam.endpoint.x)
       return Math.max(...xs) - Math.min(...xs)
     }
     expect(span(1)).toBeGreaterThan(span(0))
-    const fan = active({ pattern: 'fan', spread: 0.8, beamCount: 10 })
+    const fan = active({ pattern: 'wideFan', spread: 0.8, beamCount: 10 })
     expect(fan.some(beam => beam.endpoint.x === 0)).toBe(true)
     expect(fan.some(beam => beam.endpoint.x === 1)).toBe(true)
   })
 
   it('falls back to Fan for an unknown persisted pattern id', () => {
     const bogus = active({ pattern: 'spiral' as AfterhoursPattern, beamCount: 12 })
-    const fan = active({ pattern: 'fan', beamCount: 12 })
+    const fan = active({ pattern: 'wideFan', beamCount: 12 })
     expect(bogus.map(beam => ({ source: beam.sourceId, direction: beam.direction, endpoint: beam.endpoint })))
       .toEqual(fan.map(beam => ({ source: beam.sourceId, direction: beam.direction, endpoint: beam.endpoint })))
   })
@@ -179,14 +179,14 @@ describe('Afterhours Stage 1 — visual-DNA regression: rays, not floating targe
 
 describe('Afterhours Stage 1 — coherent bank participation', () => {
   it('never uses a disabled optional bank', () => {
-    for (const pattern of ['random', 'xWall', 'cross', 'fan', 'split'] as const) {
+    for (const pattern of ['radialCrown', 'chevronRoof', 'crossCanopy', 'wideFan', 'splitWings'] as const) {
       const beams = active({ pattern, sideLasers: false, topLasers: false, beamCount: 16 })
       expect(beams.every(beam => beam.bank === 'bottom')).toBe(true)
     }
   })
 
   it('recruits enabled Side and Top banks by Beam Count 8 for every current topology family', () => {
-    for (const pattern of ['random', 'xWall', 'cross', 'fan', 'split'] as const) {
+    for (const pattern of ['radialCrown', 'chevronRoof', 'crossCanopy', 'wideFan', 'splitWings'] as const) {
       const banks = new Set(active({ pattern, sideLasers: true, topLasers: true, beamCount: 8 }).map(beam => beam.bank))
       expect(banks.has('bottom'), `${pattern} bottom`).toBe(true)
       expect(banks.has('left'), `${pattern} left`).toBe(true)
@@ -197,7 +197,7 @@ describe('Afterhours Stage 1 — coherent bank participation', () => {
 
   it('derives every production beam origin from its stable rig fixture rather than pattern-local coordinates', () => {
     const fixtures = new Map(AFTERHOURS_VIRTUAL_STAGE_RIG.fixtures.map(fixture => [fixture.id, fixture]))
-    for (const pattern of ['random', 'xWall', 'cross', 'fan', 'split'] as const) {
+    for (const pattern of ['radialCrown', 'chevronRoof', 'crossCanopy', 'wideFan', 'splitWings'] as const) {
       const beams = active({ pattern, sideLasers: true, topLasers: true, beamCount: 16 })
       for (const beam of beams) {
         const fixture = fixtures.get(beam.fixtureId)
@@ -210,7 +210,7 @@ describe('Afterhours Stage 1 — coherent bank participation', () => {
   })
 
   it('a single enabled optional bank participates by Beam Count 8 without enabling the other bank', () => {
-    for (const pattern of ['random', 'xWall', 'cross', 'fan', 'split'] as const) {
+    for (const pattern of ['radialCrown', 'chevronRoof', 'crossCanopy', 'wideFan', 'splitWings'] as const) {
       const sideBanks = new Set(active({ pattern, sideLasers: true, topLasers: false, beamCount: 8 }).map(beam => beam.bank))
       expect(sideBanks.has('left') && sideBanks.has('right'), `${pattern} side`).toBe(true)
       expect(sideBanks.has('top')).toBe(false)
@@ -222,7 +222,7 @@ describe('Afterhours Stage 1 — coherent bank participation', () => {
   })
 
   it('Split preserves a deliberate left/right aperture', () => {
-    const beams = active({ pattern: 'split', spread: 0.8, beamCount: 10 })
+    const beams = active({ pattern: 'splitWings', spread: 0.8, beamCount: 10 })
     const left = beams.filter(beam => beam.origin.x < 0.5)
     const right = beams.filter(beam => beam.origin.x > 0.5)
     expect(left.every(beam => beam.direction.x < 0)).toBe(true)
@@ -232,7 +232,7 @@ describe('Afterhours Stage 1 — coherent bank participation', () => {
 
 describe('Afterhours Stage 1 — symmetry, determinism, and seek/re-entry reconstruction', () => {
   it('structured static families are numerically mirrored in adjacent pairs', () => {
-    for (const pattern of ['fan', 'split', 'xWall', 'cross'] as const) {
+    for (const pattern of ['wideFan', 'splitWings', 'chevronRoof', 'crossCanopy'] as const) {
       const beams = active({ pattern, sideLasers: true, topLasers: true, beamCount: 12, spread: 0.72 })
       for (let index = 0; index + 1 < beams.length; index += 2) {
         const left = beams[index]
@@ -248,9 +248,9 @@ describe('Afterhours Stage 1 — symmetry, determinism, and seek/re-entry recons
     }
   })
 
-  it('Random symmetry mirrors each complete rig pair while retaining an explicit odd-count singleton', () => {
+  it('Radial Crown retains bilateral rig-pair symmetry and an explicit odd-count singleton', () => {
     for (const beamCount of [2, 6, 7, 16]) {
-      const beams = active({ pattern: 'random', symmetry: true, sideLasers: true, topLasers: true, beamCount })
+      const beams = active({ pattern: 'radialCrown', symmetry: true, sideLasers: true, topLasers: true, beamCount })
       const pairedCount = beamCount - (beamCount % 2)
       for (let index = 0; index < pairedCount; index += 2) {
         const source = beams[index]
@@ -272,16 +272,16 @@ describe('Afterhours Stage 1 — symmetry, determinism, and seek/re-entry recons
 
   it('keeps the same rig source allocation across pattern changes and viewport resizes', () => {
     const settings = { ...BASE, sideLasers: true, topLasers: true, beamCount: 10 }
-    const expectedIds = active({ ...settings, pattern: 'fan' }, 0, 16 / 9).map(beam => beam.fixtureId)
-    for (const pattern of ['split', 'xWall', 'cross', 'random'] as const) {
+    const expectedIds = active({ ...settings, pattern: 'wideFan' }, 0, 16 / 9).map(beam => beam.fixtureId)
+    for (const pattern of ['splitWings', 'chevronRoof', 'crossCanopy', 'radialCrown'] as const) {
       expect(active({ ...settings, pattern }, 0, 16 / 9).map(beam => beam.fixtureId)).toEqual(expectedIds)
     }
-    expect(active({ ...settings, pattern: 'fan' }, 0, 4 / 3).map(beam => beam.fixtureId)).toEqual(expectedIds)
-    expect(active({ ...settings, pattern: 'fan' }, 0, 21 / 9).map(beam => beam.fixtureId)).toEqual(expectedIds)
+    expect(active({ ...settings, pattern: 'wideFan' }, 0, 4 / 3).map(beam => beam.fixtureId)).toEqual(expectedIds)
+    expect(active({ ...settings, pattern: 'wideFan' }, 0, 21 / 9).map(beam => beam.fixtureId)).toEqual(expectedIds)
   })
 
   it('same settings/seed/variation reconstruct exactly; variation and seed can change aim without changing source identity', () => {
-    const settings = { ...BASE, pattern: 'fan' as const, beamCount: 16 }
+    const settings = { ...BASE, pattern: 'wideFan' as const, beamCount: 16 }
     const a = generateAfterhoursBeams(settings, { variation: 2, seed: 48001 })
     const again = generateAfterhoursBeams(settings, { variation: 2, seed: 48001 })
     const varied = generateAfterhoursBeams(settings, { variation: 3, seed: 48001 })
@@ -302,13 +302,13 @@ describe('Afterhours Stage 1 — symmetry, determinism, and seek/re-entry recons
 
 describe('Afterhours existing reactive motion — ray-safe compatibility', () => {
   it('is an exact no-op at motionAuthority 0', () => {
-    const still = generateAfterhoursBeams({ ...BASE, pattern: 'fan', beamCount: 16 }, { motionPhase: 0, motionAuthority: 0 })
-    const phased = generateAfterhoursBeams({ ...BASE, pattern: 'fan', beamCount: 16 }, { motionPhase: 4.2, motionAuthority: 0 })
+    const still = generateAfterhoursBeams({ ...BASE, pattern: 'wideFan', beamCount: 16 }, { motionPhase: 0, motionAuthority: 0 })
+    const phased = generateAfterhoursBeams({ ...BASE, pattern: 'wideFan', beamCount: 16 }, { motionPhase: 4.2, motionAuthority: 0 })
     expect(phased).toEqual(still)
   })
 
   it('rotates directions deterministically and re-intersects every swept ray with the viewport', () => {
-    const settings = { ...BASE, pattern: 'random' as const, spread: 0.8, symmetry: false, beamCount: 16 }
+    const settings = { ...BASE, pattern: 'radialCrown' as const, spread: 0.8, symmetry: false, beamCount: 16 }
     const still = generateAfterhoursBeams(settings, { motionPhase: 1.37, motionAuthority: 0 }).filter(beam => beam.active)
     const swept = generateAfterhoursBeams(settings, { motionPhase: 1.37, motionAuthority: 1 }).filter(beam => beam.active)
     const sweptAgain = generateAfterhoursBeams(settings, { motionPhase: 1.37, motionAuthority: 1 }).filter(beam => beam.active)

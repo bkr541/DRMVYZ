@@ -1,4 +1,5 @@
 import { AFTERHOURS_PATTERNS, type AfterhoursPattern } from '../../../CinematicWorldSettings'
+import { getAfterhoursSceneDefinition } from './AfterhoursSceneCatalog'
 import {
   AFTERHOURS_VIRTUAL_STAGE_RIG,
   allocateAfterhoursRigFixtures,
@@ -29,7 +30,7 @@ export interface AfterhoursRayDirection {
 }
 
 export type AfterhoursBank = AfterhoursRigBank
-export type AfterhoursBeamRole = 'fan' | 'splitWing' | 'xWall' | 'crossCanopy' | 'randomLane'
+export type AfterhoursBeamRole = 'fan' | 'splitWing' | 'crossCanopy' | 'diamondStar' | 'chevronRoof' | 'radialCrown' | 'sparseHero' | 'fullRig'
 export type AfterhoursSymmetrySide = 'left' | 'right' | 'center'
 
 export interface AfterhoursBeamSymmetry {
@@ -152,7 +153,11 @@ function unit(seed: number): number {
 }
 
 function normalizePattern(pattern: AfterhoursPattern): AfterhoursPattern {
-  return AFTERHOURS_PATTERN_IDS.includes(pattern) ? pattern : 'fan'
+  const legacy: Readonly<Record<string, AfterhoursPattern>> = {
+    random: 'radialCrown', xWall: 'chevronRoof', cross: 'crossCanopy', fan: 'wideFan', split: 'splitWings',
+  }
+  const candidate = legacy[String(pattern)] ?? pattern
+  return AFTERHOURS_PATTERN_IDS.includes(candidate as AfterhoursPattern) ? candidate as AfterhoursPattern : 'wideFan'
 }
 
 function normalizeAspect(value: number | undefined): number {
@@ -260,11 +265,14 @@ function sourceId(origin: OriginRef): string {
 
 function roleForPattern(pattern: AfterhoursPattern): AfterhoursBeamRole {
   switch (pattern) {
-    case 'split': return 'splitWing'
-    case 'xWall': return 'xWall'
-    case 'cross': return 'crossCanopy'
-    case 'random': return 'randomLane'
-    case 'fan':
+    case 'splitWings': return 'splitWing'
+    case 'crossCanopy': return 'crossCanopy'
+    case 'diamondStar': return 'diamondStar'
+    case 'chevronRoof': return 'chevronRoof'
+    case 'radialCrown': return 'radialCrown'
+    case 'sparseArchitecture': return 'sparseHero'
+    case 'fullRig': return 'fullRig'
+    case 'wideFan':
     default: return 'fan'
   }
 }
@@ -295,7 +303,7 @@ function fallbackDirection(origin: OriginRef, _aspect: number): AfterhoursRayDir
 }
 
 function structuredDirection(
-  pattern: Exclude<AfterhoursPattern, 'random'>,
+  pattern: AfterhoursPattern,
   origin: OriginRef,
   spread: number,
   structureScale: number,
@@ -303,9 +311,10 @@ function structuredDirection(
 ): AfterhoursRayDirection {
   const xNorm = clamp((origin.emitter.x - 0.5) / 0.48, -1, 1)
   const yNorm = clamp((origin.emitter.y - 0.5) / 0.48, -1, 1)
+  const side = origin.emitter.x < 0.5 ? -1 : 1
   switch (pattern) {
-    case 'fan': {
-      const halfAngle = mix(10, 58, spread) * structureScale
+    case 'wideFan': {
+      const halfAngle = mix(18, 64, spread) * structureScale
       const roleOffset = origin.fixture.role === 'overhead'
         ? xNorm * halfAngle
         : origin.fixture.role === 'leftWing'
@@ -315,55 +324,57 @@ function structuredDirection(
             : -xNorm * halfAngle
       return directionFromAngleDeg(origin.fixture.homeHeadingDeg + roleOffset)
     }
-    case 'split': {
-      const radialX = mix(0.72, 1, Math.abs(xNorm))
-      const radialY = mix(0.72, 1, Math.abs(yNorm))
-      const halfAngleX = mix(26, 66, spread) * structureScale * radialX
-      const halfAngleY = mix(26, 66, spread) * structureScale * radialY
-      if (origin.bank === 'top') {
-        const side = origin.emitter.x < 0.5 ? -1 : 1
-        return directionFromAngleDeg(270 + side * halfAngleX)
-      }
-      if (origin.bank === 'left') {
-        const side = origin.emitter.y < 0.5 ? -1 : 1
-        return directionFromAngleDeg(side * halfAngleY)
-      }
-      if (origin.bank === 'right') {
-        const side = origin.emitter.y < 0.5 ? 1 : -1
-        return directionFromAngleDeg(180 + side * halfAngleY)
-      }
-      const side = origin.emitter.x < 0.5 ? 1 : -1
-      return directionFromAngleDeg(90 + side * halfAngleX)
+    case 'splitWings': {
+      const halfAngle = mix(30, 68, spread) * structureScale
+      if (origin.bank === 'top') return directionFromAngleDeg(270 + side * halfAngle)
+      if (origin.bank === 'left') return directionFromAngleDeg(-mix(10, 42, spread))
+      if (origin.bank === 'right') return directionFromAngleDeg(180 + mix(10, 42, spread))
+      return directionFromAngleDeg(90 + (origin.emitter.x < 0.5 ? -1 : 1) * halfAngle)
     }
-    case 'xWall': {
-      const oppositeX = mix(0.5, 1 - origin.emitter.x, mix(0.62, 1.1, spread) * structureScale)
-      const aim = origin.bank === 'top'
-        ? { x: oppositeX, y: -0.22 }
-        : { x: oppositeX, y: 1.22 }
-      return directionToward(origin.emitter, aim, aspect)
+    case 'crossCanopy': {
+      if (origin.bank === 'left') return directionToward(origin.emitter, { x: 1.18, y: 0.72 - yNorm * 0.12 }, aspect)
+      if (origin.bank === 'right') return directionToward(origin.emitter, { x: -0.18, y: 0.72 - yNorm * 0.12 }, aspect)
+      const oppositeX = mix(0.5, 1 - origin.emitter.x, mix(0.82, 1.08, spread) * structureScale)
+      return directionToward(origin.emitter, { x: oppositeX, y: origin.bank === 'top' ? -0.18 : 1.18 }, aspect)
     }
-    case 'cross':
+    case 'diamondStar': {
+      if (origin.bank === 'left') return directionToward(origin.emitter, { x: 0.72, y: origin.emitter.y < 0.52 ? 0.82 : 0.18 }, aspect)
+      if (origin.bank === 'right') return directionToward(origin.emitter, { x: 0.28, y: origin.emitter.y < 0.52 ? 0.82 : 0.18 }, aspect)
+      const inner = Math.abs(xNorm) < 0.42
+      const aimX = side < 0 ? (inner ? 0.72 : 0.64) : (inner ? 0.28 : 0.36)
+      const aimY = origin.bank === 'top' ? 0.16 : 0.84
+      return directionToward(origin.emitter, { x: aimX, y: aimY }, aspect)
+    }
+    case 'chevronRoof': {
+      if (origin.bank === 'left') return directionToward(origin.emitter, { x: 0.5, y: 0.9 }, aspect)
+      if (origin.bank === 'right') return directionToward(origin.emitter, { x: 0.5, y: 0.9 }, aspect)
+      if (origin.bank === 'top') return directionToward(origin.emitter, { x: 0.5 + side * 0.34, y: -0.12 }, aspect)
+      return directionToward(origin.emitter, { x: 0.5 + side * mix(0.1, 0.26, spread), y: 1.12 }, aspect)
+    }
+    case 'radialCrown': {
+      const crownCenter = { x: 0.5, y: 0.62 }
+      const dx = (origin.emitter.x - crownCenter.x) * aspect
+      const dy = origin.emitter.y - crownCenter.y
+      const outward = normalizeAfterhoursRayDirection({ x: dx, y: dy }, directionFromAngleDeg(origin.fixture.homeHeadingDeg))
+      const radialScale = mix(0.78, 1.18, spread) * structureScale
+      return normalizeAfterhoursRayDirection({ x: outward.x * radialScale, y: outward.y * radialScale }, outward)
+    }
+    case 'sparseArchitecture': {
+      if (origin.bank === 'left') return directionToward(origin.emitter, { x: 0.72, y: 0.86 }, aspect)
+      if (origin.bank === 'right') return directionToward(origin.emitter, { x: 0.28, y: 0.86 }, aspect)
+      if (origin.bank === 'top') return directionToward(origin.emitter, { x: 0.5 + side * 0.22, y: 0.08 }, aspect)
+      return directionToward(origin.emitter, { x: 0.5 + side * 0.26, y: 1.16 }, aspect)
+    }
+    case 'fullRig':
     default: {
-      if (origin.bank === 'left') {
-        return directionToward(origin.emitter, { x: 1.18, y: mix(0.5, 1 - origin.emitter.y, 0.88) }, aspect)
-      }
-      if (origin.bank === 'right') {
-        return directionToward(origin.emitter, { x: -0.18, y: mix(0.5, 1 - origin.emitter.y, 0.88) }, aspect)
-      }
-      const oppositeX = mix(0.5, 1 - origin.emitter.x, mix(0.72, 1.08, spread) * structureScale)
-      return directionToward(origin.emitter, { x: oppositeX, y: 1.18 }, aspect)
+      if (origin.bank === 'left') return directionToward(origin.emitter, { x: 1.14, y: 0.58 + yNorm * 0.2 }, aspect)
+      if (origin.bank === 'right') return directionToward(origin.emitter, { x: -0.14, y: 0.58 + yNorm * 0.2 }, aspect)
+      const angle = origin.bank === 'top'
+        ? 270 + xNorm * mix(28, 58, spread)
+        : 90 - xNorm * mix(24, 54, spread)
+      return directionFromAngleDeg(angle)
     }
   }
-}
-
-const RANDOM_LANES = Object.freeze([-1, -0.62, -0.28, 0.28, 0.62, 1] as const)
-
-function randomLaneDirection(origin: OriginRef, spread: number, seed: number): AfterhoursRayDirection {
-  const lane = RANDOM_LANES[Math.floor(unit(seed) * RANDOM_LANES.length) % RANDOM_LANES.length]
-  const jitter = (unit(seed ^ 0x7f4a7c15) - 0.5) * 0.14
-  const lanePosition = clamp(lane + jitter, -1, 1)
-  const halfAngle = mix(15, 52, spread)
-  return directionFromAngleDeg(origin.fixture.homeHeadingDeg + lanePosition * halfAngle)
 }
 
 /** Existing reactive motion now rotates a ray, then re-projects it to the edge. */
@@ -437,9 +448,7 @@ interface CreateBeamInput {
 
 function createBeam(input: CreateBeamInput): AfterhoursBeamDescriptor {
   const phase = unit(input.seed ^ 0x9e3779b9)
-  const baseDirection = input.pattern === 'random'
-    ? randomLaneDirection(input.origin, input.spread, input.seed)
-    : structuredDirection(input.pattern, input.origin, input.spread, input.structureScale, input.aspect)
+  const baseDirection = structuredDirection(input.pattern, input.origin, input.spread, input.structureScale, input.aspect)
   const sweptDirection = sweepDirection(baseDirection, input.motionPhase, input.motionAuthority, phase, input.symmetry?.side ?? null)
   const projected = projectRay(input.origin, sweptDirection, input.aspect)
   const endpoint = projected.endpoint
@@ -497,7 +506,9 @@ export function generateAfterhoursBeams(
   options: AfterhoursBeamGenerationOptions = {},
 ): readonly AfterhoursBeamDescriptor[] {
   const pattern = normalizePattern(settings.pattern)
-  const count = resolveAfterhoursBeamCount(settings.beamCount)
+  const requestedCount = resolveAfterhoursBeamCount(settings.beamCount)
+  const scene = getAfterhoursSceneDefinition(pattern)
+  const count = Math.min(requestedCount, scene.density.maxBeams)
   const spread = clamp01(settings.spread)
   const accentMix = clamp01(settings.accentMix)
   const variation = Math.trunc(Number.isFinite(options.variation ?? 0) ? (options.variation ?? 0) : 0)
@@ -510,7 +521,7 @@ export function generateAfterhoursBeams(
   const structureScale = mix(0.88, 1.12, unit(baseSeed ^ 0xa511e9b3))
 
   const beams: AfterhoursBeamDescriptor[] = []
-  const randomSymmetry = pattern === 'random' && settings.symmetry === true
+  const randomSymmetry = false
 
   const origins = activeOrigins(settings, count)
 
@@ -567,14 +578,12 @@ export function generateAfterhoursBeams(
       const origin = origins[index]
       // Structured lists are allocated pairwise by the rig; using the same seed
       // for each adjacent pair keeps variation/motion numerically mirrored.
-      const seedOrdinal = pattern === 'random' ? index : Math.floor(index / 2)
+      const seedOrdinal = Math.floor(index / 2)
       const seed = hash32((baseSeed ^ Math.imul(seedOrdinal + 1, 0x27d4eb2d)) >>> 0)
       const hasMirror = index % 2 === 0
         ? origins[index + 1]?.fixture.id === origin.fixture.mirrorFixtureId
         : origins[index - 1]?.fixture.id === origin.fixture.mirrorFixtureId
-      const pairId = pattern === 'random' || !hasMirror
-        ? null
-        : `afterhours-${pattern}-pair-${Math.floor(index / 2)}`
+      const pairId = !hasMirror ? null : `afterhours-${pattern}-pair-${Math.floor(index / 2)}`
       beams.push(createBeam({
         slot: index,
         pattern,

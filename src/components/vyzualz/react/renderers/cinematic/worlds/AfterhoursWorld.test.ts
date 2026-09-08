@@ -111,7 +111,7 @@ describe('Afterhours Stage 2 world integration', () => {
     // Neutral React settings (full authority, no pulse, no motion) so the world's
     // reaction path is a pass-through of the pure generator.
     const settings = {
-      pattern: 'cross' as const, sideLasers: true, beamCount: 6, spread: 0.4, accentMix: 1, atmosphere: 0.8,
+      pattern: 'crossCanopy' as const, sideLasers: true, beamCount: 6, spread: 0.4, accentMix: 1, atmosphere: 0.8,
       masterIntensity: 1, pulseAmount: 0, motionAmount: 0,
     }
     harness.world.render(frame(settings), { framebuffer: null, texture: null, width: 1280, height: 720 })
@@ -134,10 +134,10 @@ describe('Afterhours Stage 2 world integration', () => {
 
   it('re-clears slots that were active on a previous frame and compiles once per lifecycle', () => {
     const harness = createWorldHarness()
-    harness.world.render(frame({ beamCount: 16, pattern: 'fan' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+    harness.world.render(frame({ beamCount: 16, pattern: 'wideFan' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
     // Drop to 3 beams and let the retiring slots fade out over a few frames.
     for (let i = 0; i < 20; i += 1) {
-      harness.world.render(frame({ beamCount: 3, pattern: 'fan' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
+      harness.world.render(frame({ beamCount: 3, pattern: 'wideFan' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
     }
 
     expect(harness.compileProgram).toHaveBeenCalledTimes(1)
@@ -220,7 +220,7 @@ describe('Afterhours Stage 2 world integration', () => {
   it('treats Beam Count as a literal visible-ray budget independent of Master and trigger type', () => {
     const activeCount = (beamCount: number, worldSettings: Partial<typeof AFTERHOURS_DEFAULTS>, music?: Parameters<typeof frame>[1]) => {
       const harness = createWorldHarness()
-      harness.world.render(frame({ beamCount, pattern: 'fan', ...worldSettings }, music), { framebuffer: null, texture: null, width: 1280, height: 720 })
+      harness.world.render(frame({ beamCount, pattern: 'wideFan', ...worldSettings }, music), { framebuffer: null, texture: null, width: 1280, height: 720 })
       const count = Array.from({ length: AFTERHOURS_MAX_BEAMS }, (_, i) => last(harness.calls, `uAfterhoursBeamMeta${i}`)[0] ?? 0)
         .filter(weight => weight > 0).length
       harness.world.dispose()
@@ -247,7 +247,7 @@ describe('Afterhours Stage 2 world integration', () => {
     const targetsAt = (motionAmount: number, phaseFrame: number) => {
       const harness = createWorldHarness()
       harness.world.render(
-        frame({ pattern: 'fan', beamCount: 8, motionAmount, pulseAmount: 0, bpmSync: false, trigger: 'beat' }, { frameIndex: phaseFrame, transportTimeSec: phaseFrame }),
+        frame({ pattern: 'wideFan', beamCount: 8, motionAmount, pulseAmount: 0, bpmSync: false, trigger: 'beat' }, { frameIndex: phaseFrame, transportTimeSec: phaseFrame }),
         { framebuffer: null, texture: null, width: 1280, height: 720 },
       )
       const rows: number[][] = []
@@ -304,7 +304,7 @@ describe('Afterhours Stage 2 world integration', () => {
 
   it('bottom-emitter contract stays the physical source of truth while Fan allocates it bilaterally', () => {
     expect(AFTERHOURS_BOTTOM_EMITTERS).toHaveLength(10)
-    const beams = generateAfterhoursBeams({ ...AFTERHOURS_DEFAULTS, pattern: 'fan', beamCount: 10 }).filter(b => b.active)
+    const beams = generateAfterhoursBeams({ ...AFTERHOURS_DEFAULTS, pattern: 'wideFan', beamCount: 10 }).filter(b => b.active)
     expect(new Set(beams.map(b => b.sourceId))).toEqual(new Set(AFTERHOURS_BOTTOM_EMITTERS.map((_, index) => `afterhours-bottom-${index}`)))
     for (const beam of beams) expect(isAfterhoursViewportExit(beam.endpoint)).toBe(true)
   })
@@ -344,7 +344,7 @@ describe('Afterhours Stage 5 world integration — pattern director and blackout
 
   it('changes the rendered topology family at a Pattern Change boundary, not only the variation seed', () => {
     const harness = createWorldHarness()
-    const settings = { ...STILL, pattern: 'fan' as const, beamCount: 8, patternChange: 'bar' as const, blackoutAmount: 0 }
+    const settings = { ...STILL, pattern: 'wideFan' as const, beamCount: 8, patternChange: 'bar' as const, blackoutAmount: 0 }
     for (let i = 1; i < 60; i += 1) {
       harness.world.render(
         frame(settings, i === 2 ? { frameIndex: i, barEventId: 'bar-1' } : { frameIndex: i }),
@@ -353,7 +353,7 @@ describe('Afterhours Stage 5 world integration — pattern director and blackout
     }
     const seed = createCinematicWorldConfig('afterhours', settings).seed
     const expected = generateAfterhoursBeams(
-      { ...AFTERHOURS_DEFAULTS, ...settings, pattern: 'split' },
+      { ...AFTERHOURS_DEFAULTS, ...settings, pattern: 'splitWings' },
       { seed, variation: 1, viewportAspectRatio: 1280 / 720 },
     )
     for (let index = 0; index < 8; index += 1) {
@@ -365,7 +365,7 @@ describe('Afterhours Stage 5 world integration — pattern director and blackout
 
   it('reset() re-arms the pattern director so a previously consumed bar identity advances again', () => {
     const harness = createWorldHarness()
-    const s = { ...STILL, pattern: 'fan' as const, beamCount: 8, patternChange: 'bar' as const }
+    const s = { ...STILL, pattern: 'wideFan' as const, beamCount: 8, patternChange: 'bar' as const }
     const settleWith = (startId: number, barId?: string) => {
       for (let i = startId; i < startId + 45; i += 1) {
         harness.world.render(frame(s, i === startId && barId ? { frameIndex: i, barEventId: barId } : { frameIndex: i }), { framebuffer: null, texture: null, width: 1280, height: 720 })
@@ -398,7 +398,7 @@ describe('Afterhours Stage 5 world integration — pattern director and blackout
 
   it('keeps trigger reaction from changing the literal budget while still fading explicit Beam Count edits', () => {
     const harness = createWorldHarness()
-    const base = { pattern: 'fan' as const, bpmSync: false, trigger: 'beat' as const, masterIntensity: 0.4, pulseAmount: 1, pulseDecay: 0.2 }
+    const base = { pattern: 'wideFan' as const, bpmSync: false, trigger: 'beat' as const, masterIntensity: 0.4, pulseAmount: 1, pulseDecay: 0.2 }
     harness.world.render(frame({ ...base, beamCount: 16 }, { frameIndex: 1, beatEventId: 'b1' }), { framebuffer: null, texture: null, width: 1280, height: 720 })
     expect(Array.from({ length: 16 }, (_, i) => last(harness.calls, `uAfterhoursBeamMeta${i}`)[0] ?? 0).filter(w => w > 0)).toHaveLength(16)
 
