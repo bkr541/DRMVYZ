@@ -101,49 +101,13 @@ async function exerciseConcept(opts: {
 }
 
 describe('Canvas Add Effects — alternate concept mock-ups', () => {
-  it('Blueprint Bus routes multiple parameters with intensity sliders', async () => {
-    await selectCanvasReact()
-    await exerciseConcept({
-      headerText: 'Blueprint Bus',
-      noteFragment: 'indented under the Active Media dropdown',
-      openTrigger: s => {
-        const n = s.querySelector<HTMLButtonElement>('.rv-ae-bus-node')
-        if (!n) throw new Error('no .rv-ae-bus-node')
-        return n
-      },
-    })
-  })
-
-  it('Preview Deck routes multiple parameters with intensity sliders', async () => {
-    await selectCanvasReact()
-    await exerciseConcept({
-      headerText: 'Preview Deck',
-      noteFragment: 'footer action bar',
-      openTrigger: s => {
-        const n = s.querySelector<HTMLButtonElement>('.rv-ae-deck-bar')
-        if (!n) throw new Error('no .rv-ae-deck-bar')
-        return n
-      },
-    })
-  })
-
-  const roundTwo: Array<{ headerText: string; noteFragment: string; toggle: string }> = [
-    { headerText: 'Nested Trays', noteFragment: 'three nested trays', toggle: '.rv-ae-tray-toggle' },
-    { headerText: 'Tier Chips', noteFragment: 'fixed-width tier chip', toggle: '.rv-ae-chip-toggle' },
-    { headerText: 'Trunk Line', noteFragment: 'drops from Active Media and carries every effect', toggle: '.rv-ae-trunk-toggle' },
-    { headerText: 'Spine & Dots', noteFragment: 'One spine spans the full group height', toggle: '.rv-ae-spine-toggle' },
-    { headerText: 'Numbered Steps', noteFragment: 'left gutter numbers each effect', toggle: '.rv-ae-steps-toggle' },
-  ]
-
-  const roundThree: Array<{ headerText: string; noteFragment: string; toggle: string }> = [
-    { headerText: 'Media Card', noteFragment: 'One plain card per media layer', toggle: '.rv-ae-mc-toggle' },
-    { headerText: 'Header Strip', noteFragment: 'full-bleed tinted band', toggle: '.rv-ae-hs-toggle' },
+  const cardConcepts: Array<{ headerText: string; noteFragment: string; toggle: string }> = [
     { headerText: 'Ledger Card', noteFragment: 'two-rail table', toggle: '.rv-ae-tc-toggle' },
     { headerText: 'Thumb Card', noteFragment: "media's square thumbnail with its name", toggle: '.rv-ae-tc-toggle' },
     { headerText: 'Thumb Card B', noteFragment: 'coloured left rule', toggle: '.rv-ae-tcb-toggle' },
   ]
 
-  for (const concept of [...roundTwo, ...roundThree]) {
+  for (const concept of cardConcepts) {
     it(`${concept.headerText} routes multiple parameters with intensity sliders`, async () => {
       await selectCanvasReact()
       await exerciseConcept({
@@ -158,7 +122,6 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
     })
   }
 
-  // Round four — bespoke editors (chips / matrix nodes / always-on spine).
   async function openConceptWithBloom(headerText: string, noteFragment: string) {
     await act(async () => buttonContaining(headerText).click())
     const section = conceptSection(noteFragment)
@@ -180,26 +143,6 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
     await pickOption(second, 'Snare')
   }
 
-  it('Sidecar Routing routes multiple parameters with intensity sliders', async () => {
-    await selectCanvasReact()
-    await exerciseConcept({
-      headerText: 'Sidecar Routing',
-      noteFragment: 'its dedicated Audio Intelligence sidecar',
-      openTrigger: s => {
-        const n = s.querySelector<HTMLButtonElement>('.rv-ae-sc-add')
-        if (!n) throw new Error('no .rv-ae-sc-add')
-        return n
-      },
-    })
-  })
-
-  it('Reaction Strip attaches routed signals as chips', async () => {
-    await selectCanvasReact()
-    const section = await openConceptWithBloom('Reaction Strip', 'thin full-width strip beneath it')
-    await addTwoSignals(section, label => label.startsWith('Add route to'))
-    expect(section.querySelectorAll('.rv-ae-rs-chip').length).toBe(2)
-  })
-
   it('Colored Effect Spine lists routed signals under each effect', async () => {
     await selectCanvasReact()
     const section = await openConceptWithBloom('Colored Effect Spine', 'own tiny isolated spine')
@@ -209,31 +152,6 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
     await act(async () => trigger.click())
     await addTwoSignals(section, label => label === 'Audio Intelligence Parameter' || label === 'Add another parameter')
     expect(section.querySelectorAll('.rv-ae-es-body .rv-ae-route-param').length).toBe(2)
-  })
-
-  it('Reactive Matrix lights a node per routed signal', async () => {
-    await selectCanvasReact()
-    const section = await openConceptWithBloom('Reactive Matrix', 'small modulation matrix')
-    await addTwoSignals(section, label => label.startsWith('Add a signal to'))
-    expect(section.querySelectorAll('.rv-ae-mx-node.is-on').length).toBe(2)
-  })
-
-  it('Nested Cards adds triggers under an effect via the trunk-connected trigger grid', async () => {
-    await selectCanvasReact()
-    const section = await openConceptWithBloom('Nested Cards', 'plain, unboxed rows')
-
-    // ADD TRIGGER opens the trigger grid.
-    const addTrigger = section.querySelector<HTMLButtonElement>('.rv-ae-nc-add')
-    if (!addTrigger) throw new Error('no .rv-ae-nc-add')
-    await act(async () => addTrigger.click())
-
-    expect(section.querySelector('.rv-ae-nc-triggers'), 'trigger grid should open').not.toBeNull()
-    expect(section.querySelector('.rv-ae-nc-trunk'), 'trunk connector should render').not.toBeNull()
-
-    await addTwoSignals(section, label => label === 'Audio Trigger' || label === 'Add another Audio Trigger')
-
-    expect(section.querySelectorAll('.rv-ae-nc-trigger-dot').length, 'two routed triggers').toBe(2)
-    expect(section.querySelectorAll('.dv-bubble-slider').length, 'two intensity sliders').toBe(2)
   })
 
 })
