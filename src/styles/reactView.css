@@ -19961,6 +19961,23 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   color: rgba(196, 207, 211, 0.5);
 }
 
+/* "Add parameter" picker with a leading adornment: the icon sits flush-left,
+   the dropdown + label take the rest of the row. */
+.rv-ae-route-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rv-ae-route-picker-row > .rv-ctrl-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.rv-ae-route-picker-row > svg {
+  flex: 0 0 auto;
+}
+
 /* Connector Line: the route editor stacked directly under the "+ Route"
    trigger, with a little breathing room. */
 .rv-ae-line-body {
@@ -20607,6 +20624,53 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   padding-bottom: 2px;
 }
 
+/* Media thumbnail wrapper — a positioning context for the FX toggle that
+   floats on the thumbnail's bottom border, revealed on hover. */
+.rv-ae-tcb-thumb {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.rv-ae-tcb-fx-toggle {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 50%);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid rgba(154, 178, 188, 0.4);
+  border-radius: 999px;
+  background: #0f151a;
+  color: rgba(232, 244, 248, 0.72);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.14s, border-color 0.12s, color 0.12s;
+}
+
+.rv-ae-tcb-thumb:hover .rv-ae-tcb-fx-toggle,
+.rv-ae-tcb-fx-toggle:focus-visible,
+.rv-ae-tcb-fx-toggle.is-open {
+  opacity: 1;
+}
+
+.rv-ae-tcb-fx-toggle:hover,
+.rv-ae-tcb-fx-toggle:focus-visible,
+.rv-ae-tcb-fx-toggle.is-open {
+  border-color: #8de7ff;
+  color: #8de7ff;
+}
+
+.rv-ae-tcb-fx-toggle-icon {
+  width: 13px;
+  height: 13px;
+}
+
 .rv-ae-tcb-group .rv-canvas-layer-effect-row {
   gap: var(--ae2-gap);
 }
@@ -20634,12 +20698,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* ADD TRIGGER — icon only, left-aligned with the same margin-left as the FX
-   icon so the plus sits directly beneath it. */
+   icon so the plus sits directly beneath it. A small margin-top keeps it just
+   under the effect dropdown. */
 .rv-ae-tcb-toggle {
   position: relative;
   align-self: flex-start;
   margin-left: calc(42.6px + var(--ae2-gap));
-  margin-top: var(--ae2-gap);
+  margin-top: 4px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -20656,15 +20721,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* Upper segment: vertical dashed line from the effect dropdown down to the
-   plus button (its reach is the entry gap plus this button's margin-top,
-   both var(--ae2-gap)). */
+   plus button (its reach is the entry gap plus this button's margin-top:
+   var(--ae2-gap) + 4px). */
 .rv-ae-tcb-toggle::before {
   content: '';
   position: absolute;
   left: 50%;
-  top: calc(-2 * var(--ae2-gap));
+  top: calc(-1 * var(--ae2-gap) - 4px);
   width: 0;
-  height: calc(2 * var(--ae2-gap));
+  height: calc(var(--ae2-gap) + 4px);
   border-left: 1px dashed rgba(154, 178, 188, 0.45);
 }
 
@@ -20681,11 +20746,11 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-ae-tcb-toggle.is-active::before {
-  border-left-color: #8de7ff;
+  border-left-color: #67f7ff;
 }
 
 .rv-ae-tcb-toggle.is-active.is-open::after {
-  border-top-color: #8de7ff;
+  border-top-color: #67f7ff;
 }
 
 .rv-ae-tcb-toggle:hover,
@@ -20695,17 +20760,19 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   color: #8de7ff;
 }
 
+/* Filled state matches the selected inspector-tab pill (see .vz-panel-tabs
+   button.is-active): translucent cyan fill, cyan border, cyan glyph. */
 .rv-ae-tcb-toggle.is-active {
-  border: none;
-  background: #8de7ff;
-  color: #fff;
+  border: 1px solid rgba(103, 247, 255, 0.36);
+  background: rgba(103, 247, 255, 0.09);
+  color: #67f7ff;
 }
 
 .rv-ae-tcb-toggle.is-active:hover,
 .rv-ae-tcb-toggle.is-active:focus-visible,
 .rv-ae-tcb-toggle.is-active.is-open {
-  background: #79d6ef;
-  color: #fff;
+  background: rgba(103, 247, 255, 0.16);
+  color: #67f7ff;
 }
 
 /* FX icon — identical treatment to Thumb Card. */
@@ -20730,7 +20797,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-tcb-panel {
   flex: 1 1 auto;
   min-width: 0;
-  margin-top: var(--ae2-gap);
+  margin-top: 4px;
   padding: var(--ae2-gap);
   border: 1px solid transparent;
   border-radius: 6px;
@@ -20741,7 +20808,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border-color: #8de7ff;
 }
 
-/* Audio Intelligence parameter icon — mirrors the FX icon's shrink-wrapped,
+/* Each routed trigger row gets 6px of vertical breathing room. */
+.rv-ae-tcb-panel .rv-ae-route-param--inline {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+/* Add Trigger parameter icon — mirrors the FX icon's shrink-wrapped,
    column-height treatment so it reads the same way left of its label and
    dropdown; the picker row's own 8px gap matches the FX-to-dropdown gap. */
 .rv-ae-tcb-param-icon {
@@ -20752,16 +20825,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   align-items: center;
   justify-content: center;
   color: rgba(232, 244, 248, 0.72);
-}
-
-/* Caption above the routed trigger rows, shown once at least one trigger is
-   selected. Matches the picker's own field label so the open panel reads as
-   Trigger / <routed rows> / Add Trigger. */
-.rv-ae-tcb-trigger-label {
-  display: block;
-  margin-bottom: var(--ae2-gap);
-  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
-  color: rgba(245, 248, 250, 0.7);
 }
 
 .rv-ae-tcb-group .rv-canvas-layer-effect-row--empty {

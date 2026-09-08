@@ -915,7 +915,7 @@ function MediaThumbBox({ mediaName, mediaType }: { mediaName: string; mediaType:
   const [size, setSize] = useState(46)
   useEffect(() => {
     const element = ref.current
-    const field = element?.parentElement?.querySelector<HTMLElement>('.rv-canvas-layer-media-row__field')
+    const field = element?.closest('.rv-canvas-layer-media-row')?.querySelector<HTMLElement>('.rv-canvas-layer-media-row__field')
     if (!element || !field || typeof ResizeObserver === 'undefined') return
     const measure = () => setSize(field.offsetHeight)
     measure()
@@ -1055,7 +1055,6 @@ function AECardRoute({
   editorHandlers,
   toggleVariant,
   pickerLeading,
-  routedHeading,
   emptyPickerLabel,
   filledPickerLabel,
   routeClassName,
@@ -1072,9 +1071,6 @@ function AECardRoute({
   }
   toggleVariant?: 'chevron' | 'dashed-trigger' | 'plus-only'
   pickerLeading?: ReactNode
-  /** Caption rendered at the top of the open panel, above the routed rows —
-   *  only once at least one parameter is routed. */
-  routedHeading?: ReactNode
   /** Override the panel picker's label before / after anything is routed. */
   emptyPickerLabel?: string
   filledPickerLabel?: string
@@ -1097,7 +1093,6 @@ function AECardRoute({
       />
       {open && (
         <div className={`${classPrefix}-panel`}>
-          {routes.length > 0 && routedHeading}
           <AddEffectsRouteEditor
             routes={routes}
             effectLabel={ctx.effectLabel}
@@ -1283,62 +1278,83 @@ function AddEffectsThumbCardConcept({ state }: { state: CanvasMockState }) {
  * under that same column. */
 function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
   const { routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  // The effect picker stays hidden until the user hovers the media thumbnail
+  // and clicks the FX icon that floats on its bottom border.
+  const [fxOpen, setFxOpen] = useState<Record<string, boolean>>({})
   return (
     <ConceptGroup
       state={state}
       label="Add Effects — Thumb Card B"
-      note="Thumb Card with a coloured left rule, an icon-only Add Trigger under the FX-icon column, and the Audio Intelligence parameter picker aligned to that same column. Concept only."
+      note="Thumb Card with a coloured left rule. The effect picker is revealed by an FX icon that floats on the media thumbnail's bottom border, shown on hover. Add Trigger is icon-only under the FX-icon column; its picker sits on the same column. Concept only."
     >
-      {(layer, layerIndex) => (
-        <AddEffectsLayerGroup
-          key={layer.mediaId}
-          state={state}
-          layer={layer}
-          layerIndex={layerIndex}
-          getGroupExtra={() => ({ className: 'rv-ae-tcb-group' })}
-          renderMediaRowLeading={mediaLayer => {
-            const media = state.mediaItems.find(item => item.id === mediaLayer.mediaId)
-            return (
-              <MediaThumbBox
-                key={mediaLayer.mediaId}
-                mediaName={mediaLayer.mediaName}
-                mediaType={media?.type ?? 'image'}
-              />
-            )
-          }}
-          getEntryExtra={() => ({ className: 'rv-ae-tcb-entry' })}
-          renderLeading={() => (
-            <span className="rv-ae-tcb-fx" aria-hidden="true">
-              <EffectFxIcon className="rv-ae-tcb-fx-icon" />
-            </span>
-          )}
-          renderEmptyLeading={() => (
-            <span className="rv-ae-tcb-fx" aria-hidden="true">
-              <EffectFxIcon className="rv-ae-tcb-fx-icon" />
-            </span>
-          )}
-          showEmptyEffectLabel
-          emptyEffectLabelText="Effect"
-          renderRoute={ctx => (
-            <AECardRoute
-              ctx={ctx}
-              classPrefix="rv-ae-tcb"
-              routesFor={routesFor}
-              isOpenFor={isOpenFor}
-              toggle={toggle}
-              editorHandlers={editorHandlers}
-              toggleVariant="plus-only"
-              routeClassName="rv-ae-tcb-route"
-              routedHeading={<span className="rv-ae-tcb-trigger-label">Trigger</span>}
-              pickerLeading={(
-                <span className="rv-ae-tcb-param-icon" aria-hidden="true">
-                  <EffectSparkleIcon size={21} />
+      {(layer, layerIndex) => {
+        const hasEffects = layer.effects.length > 0
+        const pickerOpen = fxOpen[layer.mediaId] ?? false
+        const toggleFxPicker = () => setFxOpen(current => ({ ...current, [layer.mediaId]: !(current[layer.mediaId] ?? false) }))
+        return (
+          <AddEffectsLayerGroup
+            key={layer.mediaId}
+            state={state}
+            layer={layer}
+            layerIndex={layerIndex}
+            getGroupExtra={() => ({ className: 'rv-ae-tcb-group' })}
+            renderMediaRowLeading={mediaLayer => {
+              const media = state.mediaItems.find(item => item.id === mediaLayer.mediaId)
+              return (
+                <span className="rv-ae-tcb-thumb">
+                  <MediaThumbBox
+                    key={mediaLayer.mediaId}
+                    mediaName={mediaLayer.mediaName}
+                    mediaType={media?.type ?? 'image'}
+                  />
+                  <button
+                    type="button"
+                    className={pickerOpen ? 'rv-ae-tcb-fx-toggle is-open' : 'rv-ae-tcb-fx-toggle'}
+                    aria-expanded={pickerOpen}
+                    aria-label={`${pickerOpen ? 'Hide' : 'Add'} an effect for ${mediaLayer.mediaName}`}
+                    onClick={toggleFxPicker}
+                  >
+                    <EffectFxIcon className="rv-ae-tcb-fx-toggle-icon" />
+                  </button>
                 </span>
-              )}
-            />
-          )}
-        />
-      )}
+              )
+            }}
+            getEntryExtra={() => ({ className: 'rv-ae-tcb-entry' })}
+            renderLeading={() => (
+              <span className="rv-ae-tcb-fx" aria-hidden="true">
+                <EffectFxIcon className="rv-ae-tcb-fx-icon" />
+              </span>
+            )}
+            renderEmptyLeading={() => (
+              <span className="rv-ae-tcb-fx" aria-hidden="true">
+                <EffectFxIcon className="rv-ae-tcb-fx-icon" />
+              </span>
+            )}
+            showEmptyEffectLabel
+            emptyEffectLabelText="Effect"
+            emptyRowCollapsed={!hasEffects && !pickerOpen}
+            renderRoute={ctx => (
+              <AECardRoute
+                ctx={ctx}
+                classPrefix="rv-ae-tcb"
+                routesFor={routesFor}
+                isOpenFor={isOpenFor}
+                toggle={toggle}
+                editorHandlers={editorHandlers}
+                toggleVariant="plus-only"
+                routeClassName="rv-ae-tcb-route"
+                emptyPickerLabel="Add Trigger"
+                filledPickerLabel="Add Trigger"
+                pickerLeading={(
+                  <span className="rv-ae-tcb-param-icon" aria-hidden="true">
+                    <EffectSparkleIcon size={21} />
+                  </span>
+                )}
+              />
+            )}
+          />
+        )
+      }}
     </ConceptGroup>
   )
 }
