@@ -722,6 +722,7 @@ function AddEffectsLayerGroup({
   showEmptyEffectLabel = false,
   emptyEffectLabelText,
   emptyRowCollapsed,
+  showEmptyRow = true,
   showEffects = true,
 }: {
   state: CanvasMockState
@@ -763,6 +764,10 @@ function AddEffectsLayerGroup({
    *  row is wrapped in a collapse/expand animator (true = collapsed). A
    *  concept drives this from its own toggle. */
   emptyRowCollapsed?: boolean
+  /** When false, the built-in "Select Effect…" add row is not rendered at all —
+   *  a concept supplying its own add-effect affordance (e.g. via
+   *  renderAfterEffects) opts out here. Defaults to shown. */
+  showEmptyRow?: boolean
   /** When false, the effect-dropdown stack is hidden (a concept can gate it
    *  behind a disclosure control). Defaults to shown. */
   showEffects?: boolean
@@ -834,7 +839,7 @@ function AddEffectsLayerGroup({
             </div>
           )
         })}
-        {layer.effects.length < MAX_CANVAS_LAYER_EFFECTS && (() => {
+        {showEmptyRow && layer.effects.length < MAX_CANVAS_LAYER_EFFECTS && (() => {
           const emptyRow = (
             <div className="rv-canvas-layer-effect-row rv-canvas-layer-effect-row--empty">
               {renderEmptyLeading?.(parentLabel)}
@@ -1059,7 +1064,7 @@ function DeckChevronGlyph({ size = 11 }: { size?: number }) {
 
 /** Disclosure toggle shared by the card mock-ups: a caret that rotates open
  *  and the "Audio Intelligence" label with a routed count. */
-function AECardToggle({ className, open, count, effectLabel, parentLabel, onToggle, variant = 'chevron' }: {
+function AECardToggle({ className, open, count, effectLabel, parentLabel, onToggle, variant = 'chevron', glyph }: {
   className: string
   open: boolean
   count: number
@@ -1067,6 +1072,8 @@ function AECardToggle({ className, open, count, effectLabel, parentLabel, onTogg
   parentLabel: string
   onToggle: () => void
   variant?: 'chevron' | 'dashed-trigger' | 'plus-only'
+  /** Glyph shown in the dashed-trigger / plus-only variants. Defaults to a plus. */
+  glyph?: ReactNode
 }) {
   const label = `${open ? 'Hide' : count ? 'Edit' : 'Add'} Audio Intelligence routes for ${effectLabel} on ${parentLabel}`
   if (variant === 'dashed-trigger' || variant === 'plus-only') {
@@ -1078,7 +1085,7 @@ function AECardToggle({ className, open, count, effectLabel, parentLabel, onTogg
         aria-label={label}
         onClick={onToggle}
       >
-        <PlusGlyphIcon size={10} />
+        {glyph ?? <PlusGlyphIcon size={10} />}
         {variant === 'dashed-trigger' && !count && 'Trigger'}
       </button>
     )
@@ -1108,6 +1115,7 @@ function AECardRoute({
   toggle,
   editorHandlers,
   toggleVariant,
+  toggleGlyph,
   pickerLeading,
   emptyPickerLabel,
   filledPickerLabel,
@@ -1125,6 +1133,8 @@ function AECardRoute({
     onSetIntensity: (id: CanvasMockAudioIntelligenceParameterId, value: number) => void
   }
   toggleVariant?: 'chevron' | 'dashed-trigger' | 'plus-only'
+  /** Glyph for the dashed-trigger / plus-only toggle. Defaults to a plus. */
+  toggleGlyph?: ReactNode
   pickerLeading?: ReactNode
   /** Override the panel picker's label before / after anything is routed. */
   emptyPickerLabel?: string
@@ -1147,6 +1157,7 @@ function AECardRoute({
         parentLabel={ctx.parentLabel}
         onToggle={() => toggle(ctx.linkKey)}
         variant={toggleVariant}
+        glyph={toggleGlyph}
       />
       {open && (
         <div className={`${classPrefix}-panel`}>
@@ -1371,7 +1382,7 @@ function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
                     className={[
                       'rv-ae-tcb-fx-toggle',
                       pickerOpen && 'is-open',
-                      (hasEffects || pickerOpen) && 'is-linked',
+                      hasEffects && 'has-effect',
                     ].filter(Boolean).join(' ')}
                     aria-expanded={pickerOpen}
                     aria-label={`${pickerOpen ? 'Hide' : 'Add'} an effect for ${mediaLayer.mediaName}`}
@@ -1388,14 +1399,34 @@ function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
                 <EffectFxIcon className="rv-ae-tcb-fx-icon" />
               </span>
             )}
-            renderEmptyLeading={() => (
-              <span className="rv-ae-tcb-fx" aria-hidden="true">
-                <EffectFxIcon className="rv-ae-tcb-fx-icon" />
-              </span>
+            showEmptyRow={false}
+            renderAfterEffects={() => layer.effects.length >= MAX_CANVAS_LAYER_EFFECTS ? null : (
+              <div className={pickerOpen ? 'rv-ae-tcb-addfx is-open' : 'rv-ae-tcb-addfx'}>
+                <button
+                  type="button"
+                  className={pickerOpen ? 'rv-ae-tcb-fx-toggle has-effect is-open' : 'rv-ae-tcb-fx-toggle has-effect'}
+                  aria-expanded={pickerOpen}
+                  aria-label={`${pickerOpen ? 'Hide' : 'Add'} an effect for ${layer.mediaName}`}
+                  onClick={toggleFxPicker}
+                >
+                  <EffectFxIcon className="rv-ae-tcb-fx-toggle-icon" />
+                </button>
+                <div className={pickerOpen ? 'rv-ae-tcb-addfx-reveal' : 'rv-ae-tcb-addfx-reveal is-collapsed'}>
+                  <SelectRow
+                    label="Effect"
+                    ariaLabel={`Add effect to ${layer.mediaName}`}
+                    value=""
+                    placeholder="Select Effect…"
+                    onChange={value => {
+                      if (!value) return
+                      state.addCanvasLayerEffect(layer.mediaId, value as CanvasLayerEffectId)
+                      setFxOpen(current => ({ ...current, [layer.mediaId]: false }))
+                    }}
+                    options={CANVAS_LAYER_EFFECT_OPTIONS.filter(option => !layer.effects.includes(option.value))}
+                  />
+                </div>
+              </div>
             )}
-            showEmptyEffectLabel
-            emptyEffectLabelText="Effect"
-            emptyRowCollapsed={!hasEffects && !pickerOpen}
             renderRoute={ctx => (
               <AECardRoute
                 ctx={ctx}
@@ -1405,9 +1436,11 @@ function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
                 toggle={toggle}
                 editorHandlers={editorHandlers}
                 toggleVariant="plus-only"
+                toggleGlyph={<EffectSparkleIcon size={13} />}
                 routeClassName="rv-ae-tcb-route"
-                emptyPickerLabel="Add Trigger"
-                filledPickerLabel="Add Trigger"
+                emptyPickerLabel="Trigger"
+                filledPickerLabel="Trigger"
+                collapsedAddAnother
                 pickerLeading={(
                   <span className="rv-ae-tcb-param-icon" aria-hidden="true">
                     <EffectSparkleIcon size={21} />
@@ -1498,12 +1531,9 @@ function AddEffectsColoredSpineConcept({ state }: { state: CanvasMockState }) {
               <div className="rv-ae-es-fx-row is-adder">{fxButton}</div>
             ) : null}
             renderLeading={() => (
-              <>
-                <span className="rv-ae-es-dot" aria-hidden="true" />
-                <span className="rv-ae-tc-fx" aria-hidden="true">
-                  <EffectFxIcon className="rv-ae-tc-fx-icon" />
-                </span>
-              </>
+              <span className="rv-ae-tc-fx" aria-hidden="true">
+                <EffectFxIcon className="rv-ae-tc-fx-icon" />
+              </span>
             )}
             renderEmptyLeading={() => (
               <span className="rv-ae-tc-fx" aria-hidden="true">
