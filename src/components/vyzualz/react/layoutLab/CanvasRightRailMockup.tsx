@@ -1405,7 +1405,12 @@ const EFFECT_SPINE_ACCENT: Record<CanvasLayerEffectId, string> = {
  * Active Media dropdown. */
 function AddEffectsColoredSpineConcept({ state }: { state: CanvasMockState }) {
   const { routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
-  const [fxOpen, setFxOpen] = useState<Record<string, boolean>>({})
+  // Key = media id, value = the effect count at the moment the FX icon was
+  // clicked. The picker (one empty "Select Effect…" row) is open only while that
+  // stored count still matches the layer's current effect count — so choosing an
+  // effect closes it and a second empty row is never shown automatically.
+  // -1 = closed.
+  const [fxOpenAt, setFxOpenAt] = useState<Record<string, number>>({})
   return (
     <ConceptGroup
       state={state}
@@ -1413,9 +1418,12 @@ function AddEffectsColoredSpineConcept({ state }: { state: CanvasMockState }) {
       note="Every effect gets its own accent color and its own tiny isolated spine — a left border spanning just that effect. The effect picker is revealed by a gray FX icon shown on hover of the Active Media dropdown; the routed signals live behind the same dashed Trigger toggle as Thumb Card. Concept only."
     >
       {(layer, layerIndex) => {
-        const hasEffects = layer.effects.length > 0
-        const pickerOpen = fxOpen[layer.mediaId] ?? false
-        const toggleFxPicker = () => setFxOpen(current => ({ ...current, [layer.mediaId]: !(current[layer.mediaId] ?? false) }))
+        const effectCount = layer.effects.length
+        const pickerOpen = (fxOpenAt[layer.mediaId] ?? -1) === effectCount
+        const toggleFxPicker = () => setFxOpenAt(current => ({
+          ...current,
+          [layer.mediaId]: (current[layer.mediaId] ?? -1) === effectCount ? -1 : effectCount,
+        }))
         return (
           <AddEffectsLayerGroup
             key={layer.mediaId}
@@ -1428,7 +1436,7 @@ function AddEffectsColoredSpineConcept({ state }: { state: CanvasMockState }) {
               style: { '--es': EFFECT_SPINE_ACCENT[effectId] } as CSSProperties,
             })}
             removeIcon={<CircleXIcon size={13} />}
-            renderAfterMediaRow={() => hasEffects ? null : (
+            renderAfterMediaRow={() => (
               <div className={pickerOpen ? 'rv-ae-es-fx-row is-open' : 'rv-ae-es-fx-row'}>
                 <button
                   type="button"
@@ -1456,7 +1464,7 @@ function AddEffectsColoredSpineConcept({ state }: { state: CanvasMockState }) {
             )}
             showEmptyEffectLabel
             emptyEffectLabelText="Effect"
-            emptyRowCollapsed={!hasEffects && !pickerOpen}
+            emptyRowCollapsed={!pickerOpen}
             renderRoute={ctx => (
               <div className="rv-ae-es-body">
                 <div className="rv-ae-es-strength">

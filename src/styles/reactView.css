@@ -20905,13 +20905,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   background: rgba(255, 255, 255, 0.022);
 }
 
-.rv-ae-es-group > .rv-ctrl-row {
-  padding-bottom: 2px;
+.rv-ae-es-group .rv-canvas-layer-effect-row--empty {
+  padding-left: var(--ae2-step);
 }
 
-.rv-ae-es-group .rv-canvas-layer-effect-row--empty {
+/* Pad the "add another effect" row away from the effect above it only when there
+   IS an effect above it. When it is the lone row revealed under the FX icon
+   (no effects yet) it must sit exactly one group gap below that icon, matching
+   the gap above the icon. */
+.rv-ae-es-entry + .rv-canvas-layer-effect-empty-collapse .rv-canvas-layer-effect-row--empty {
   padding-top: var(--ae2-pad);
-  padding-left: var(--ae2-step);
 }
 
 /* ── Colored Effect Spine ────────────────────────────────────────────────── */
@@ -20925,6 +20928,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
    only takes space — and the group only grows — while the Active Media
    dropdown or this row is hovered, or the picker is open. */
 .rv-ae-es-fx-row {
+  position: relative;
   display: flex;
   justify-content: center;
   height: 0;
@@ -20935,13 +20939,51 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   transition: height 0.16s ease, margin 0.16s ease, padding 0.16s ease, opacity 0.14s ease;
 }
 
-.rv-ae-es-group > .rv-ctrl-row:hover + .rv-ae-es-fx-row,
+/* Revealed but the picker is not open (Active Media hovered, nothing below the
+   icon). The bottom side is trimmed to just var(--ae2-pad): no bottom padding,
+   and a negative margin-bottom cancels the trailing group flex gap, so the FX
+   icon sits the same 10px above the group's bottom border as the "Active Media"
+   label sits below its top border. The ancestor prefix is dropped from the
+   first selector so the .is-open override below can match its specificity and
+   win on source order. overflow is opened here too so the .is-open connector
+   lines are never clipped mid-transition. */
+.rv-ctrl-row:hover + .rv-ae-es-fx-row,
 .rv-ae-es-fx-row:hover,
 .rv-ae-es-fx-row.is-open {
-  height: 24px;
-  margin: 0;
-  padding: 2px 0;
+  height: 22px;
+  margin: 0 0 calc(-1 * var(--ae2-gap));
+  padding: 2px 0 0;
+  overflow: visible;
   opacity: 1;
+}
+
+/* Picker open: the effect row is expanded directly below. The row is exactly the
+   FX button's height with no padding, and both group flex gaps are left intact
+   (margin 0), so the icon sits one group gap (var(--ae2-gap)) below the Active
+   Media dropdown and the same gap above the effect row. A dashed connector fills
+   each of those two gaps. */
+.rv-ae-es-group > .rv-ae-es-fx-row.is-open {
+  height: 20px;
+  margin: 0;
+  padding: 0;
+}
+
+.rv-ae-es-fx-row.is-open::before,
+.rv-ae-es-fx-row.is-open::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  height: var(--ae2-gap);
+  border-left: 1px dashed rgba(154, 178, 188, 0.4);
+  transform: translateX(-0.5px);
+}
+
+.rv-ae-es-fx-row.is-open::before {
+  bottom: 100%;
+}
+
+.rv-ae-es-fx-row.is-open::after {
+  top: 100%;
 }
 
 .rv-ae-es-fx-toggle {
