@@ -24,6 +24,13 @@ function mix(a: number, b: number, amount: number): number {
   return a + (b - a) * amount
 }
 
+/** 0 at edge0, 1 at edge1, cubic ease between. */
+function smoothstep(edge0: number, edge1: number, value: number): number {
+  if (edge1 <= edge0) return value <= edge0 ? 0 : 1
+  const t = clamp01((value - edge0) / (edge1 - edge0))
+  return t * t * (3 - 2 * t)
+}
+
 function hash32(value: number): number {
   let x = value >>> 0
   x ^= x >>> 16
@@ -98,11 +105,12 @@ export class ElectricStormAudioChoreographer {
     const strikeRate = clamp01(settings.strikeRate * (0.72 + energy * 0.22 + build * 0.3))
     const audioDetail = clamp01(highs * 0.48 + build * 0.38 + energy * 0.14)
     // Every automatic foreground-strike path below is additionally gated by
-    // this factor so Strike Rate 0% suppresses audio-reactive strikes too
-    // (each path previously kept a non-zero probability floor of its own),
-    // while a full-rate slider leaves each path's existing probability
-    // unchanged (multiplying by 1 is a no-op).
-    const rateGate = clamp01(settings.strikeRate)
+    // this factor. Strike Rate 0% still fully suppresses audio-reactive strikes
+    // (smoothstep is exactly 0 at its low edge), but the gate now reaches full
+    // strength by ~60% of the slider instead of scaling linearly all the way to
+    // 100% — so a mid setting restores the busy-storm density this preset used
+    // to have rather than running at half rate.
+    const rateGate = smoothstep(0, 0.6, settings.strikeRate)
     const intents: ElectricStormStrikeIntent[] = []
 
     const kickActive = audio.events.kick || frame.canonicalMusic?.impulses.kick.active === true

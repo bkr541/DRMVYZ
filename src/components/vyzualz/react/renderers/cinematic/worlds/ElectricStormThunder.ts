@@ -29,7 +29,7 @@ export interface ElectricStormThunderFrame {
  *  trigger than this fraction, so a pulse always visibly returns most of the
  *  way toward dark before the next one starts — even at a fast, steady
  *  cadence like Beat. */
-const RETRIGGER_RECOVERY_FRACTION = 0.85
+const RETRIGGER_RECOVERY_FRACTION = 0.92
 const RETRIGGER_MIN_ENVELOPE_SEC = 0.03
 
 export class ElectricStormThunderController {
