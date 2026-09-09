@@ -28,6 +28,15 @@ async function click(element: Element) {
   })
 }
 
+async function setRangeValue(element: HTMLInputElement, value: string) {
+  await act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    setter?.call(element, value)
+    element.dispatchEvent(new Event('input', { bubbles: true }))
+    element.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+}
+
 beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -99,6 +108,40 @@ describe('LyricManagerLayoutMockup', () => {
     await click(buttonWithText(container, 'AI Extract'))
     expect(buttonWithText(container, 'AI Extract').getAttribute('aria-selected')).toBe('true')
     expect(container.textContent).toContain('Lyric Management')
+  })
+
+  it('renders selected track identity and drives the injected real lyric renderer from local fixture time', async () => {
+    await act(async () => root.render(<LyricManagerLayoutMockup />))
+    await click(container.querySelector('.vz-track-row')!)
+
+    const identity = container.querySelector('.lmv-mockup-track-identity')!
+    expect(identity.textContent).toContain('POP')
+    expect(identity.textContent).toContain('DVYDRM')
+    expect(identity.textContent).toContain('142 BPM')
+    expect(identity.textContent).toContain('E Minor')
+    expect(identity.textContent).toContain('Hybrid Trap')
+    expect(identity.textContent).toContain('3:18')
+
+    const surface = container.querySelector('.lmv-lyric-renderer-surface')!
+    expect(surface.getAttribute('data-document-id')).toBe('pop-live')
+    expect(surface.getAttribute('data-active-cue-id')).toBe('')
+
+    const scrubber = container.querySelector('[aria-label="Scrub fixture lyric preview"]') as HTMLInputElement
+    await setRangeValue(scrubber, '18.5')
+    expect(surface.getAttribute('data-active-cue-id')).toBe('pop-live-1')
+    expect(surface.textContent).toContain('I can feel it building')
+
+    await setRangeValue(scrubber, '21.2')
+    expect(surface.getAttribute('data-active-cue-id')).toBe('pop-live-2')
+    expect(surface.textContent).toContain('Right before we pop')
+
+    await click(buttonWithText(container, 'AI Transcription'))
+    expect(surface.getAttribute('data-document-id')).toBe('pop-transcription')
+    expect(surface.getAttribute('data-active-cue-id')).toBe('pop-ai-2')
+
+    await click(container.querySelector('[aria-label="Show Lyrics"]')!)
+    expect(surface.getAttribute('data-active-cue-id')).toBe('')
+    expect(surface.textContent?.trim()).toBe('')
   })
 
   it('opens one version action area and keeps active state separate until Make Active is chosen', async () => {

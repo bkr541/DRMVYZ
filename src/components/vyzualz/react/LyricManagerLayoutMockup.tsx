@@ -1,16 +1,19 @@
-import { useMemo, useState } from 'react'
-import { AudioWave02Icon, SubtitleIcon } from 'hugeicons-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { AudioWave02Icon, PauseIcon, PlayIcon, SubtitleIcon } from 'hugeicons-react'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { RailTabs } from '../layout/RailTabs'
 import { AudioTrackCard } from '../media/AudioTrackCard'
 import { LyricDocumentSidebar } from '../../../features/lyrics/components/LyricDocumentSidebar'
+import { LyricRendererSurface } from '../../../features/lyrics/components/LyricRendererSurface'
 import type { LyricDocumentVersion } from '../../../features/lyrics/lyricManagerTypes'
 import { Collapsible } from './ReactControlRows'
+import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { IconChipButton } from './controls/IconChipButton'
 import { IconMorphToggle } from './controls/IconMorphToggle'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 import {
+  LYRIC_MANAGER_LAYOUT_CUE_FIXTURES,
   createLyricManagerLayoutDocumentFixtures,
   createLyricManagerLayoutTrackFixtures,
 } from './LyricManagerLayoutMockup.fixtures'
@@ -22,6 +25,13 @@ const TRACK_WORKSPACE_TABS: Array<{ id: TrackWorkspaceTab; label: string }> = [
   { id: 'import', label: 'Import' },
   { id: 'ai-extract', label: 'AI Extract' },
 ]
+
+function formatFixtureTime(ms: number): string {
+  const safeSeconds = Math.max(0, Math.floor(ms / 1000))
+  const minutes = Math.floor(safeSeconds / 60)
+  const seconds = safeSeconds % 60
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
 
 function createFixtureVersion(trackId: string, index: number): LyricDocumentVersion {
   const now = new Date().toISOString()
@@ -52,8 +62,9 @@ function createFixtureVersion(trackId: string, index: number): LyricDocumentVers
 
 // ── LyricManagerLayoutMockup ───────────────────────────────────────────────
 //
-// A disconnected layout/interaction preview. Stage 1 intentionally populates
-// only the left rail. All track/version data and mutations stay component-local;
+// A disconnected layout/interaction preview. Track/version data, transport,
+// and mutations stay component-local. The center lyric preview deliberately
+// consumes the production-derived renderer through injected fixture data only;
 // no production stores, persistence, transcription, or audio-engine actions are
 // mounted here.
 
@@ -66,9 +77,19 @@ export function LyricManagerLayoutMockup() {
   const [documentsByTrackId, setDocumentsByTrackId] = useState(createLyricManagerLayoutDocumentFixtures)
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
   const [openDocumentId, setOpenDocumentId] = useState<string | null>(null)
+  const [showLyrics, setShowLyrics] = useState(true)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [playbackTimeMs, setPlaybackTimeMs] = useState(0)
+  const lastClockTickRef = useRef<number | null>(null)
 
   const selectedTrack = tracks.find(track => track.dbId === selectedTrackId) ?? null
   const selectedDocuments = selectedTrackId ? documentsByTrackId[selectedTrackId] ?? [] : []
+  const openDocument = selectedDocuments.find(document => document.id === openDocumentId) ?? null
+  const cueFixtureDocumentId = typeof openDocument?.metadata?.duplicatedFrom === 'string'
+    ? openDocument.metadata.duplicatedFrom
+    : openDocumentId
+  const openCues = cueFixtureDocumentId ? LYRIC_MANAGER_LAYOUT_CUE_FIXTURES[cueFixtureDocumentId] ?? [] : []
+  const durationMs = Math.max(0, (selectedTrack?.durationSec ?? 0) * 1000)
   const filteredTracks = useMemo(() => {
     const query = trackSearch.trim().toLocaleLowerCase()
     if (!query) return tracks
@@ -79,10 +100,39 @@ export function LyricManagerLayoutMockup() {
     ))
   }, [trackSearch, tracks])
 
+  useEffect(() => {
+    if (!isPlaying || !selectedTrack || durationMs <= 0) {
+      lastClockTickRef.current = null
+      return
+    }
+
+    lastClockTickRef.current = performance.now()
+    const timer = window.setInterval(() => {
+      const now = performance.now()
+      const previous = lastClockTickRef.current ?? now
+      lastClockTickRef.current = now
+      const deltaMs = Math.max(0, now - previous)
+
+      setPlaybackTimeMs(current => {
+        const next = Math.min(durationMs, current + deltaMs)
+        if (next >= durationMs) setIsPlaying(false)
+        return next
+      })
+    }, 50)
+
+    return () => window.clearInterval(timer)
+  }, [durationMs, isPlaying, selectedTrack])
+
+  useEffect(() => {
+    setPlaybackTimeMs(current => Math.min(durationMs, Math.max(0, current)))
+  }, [durationMs, openDocumentId])
+
   const selectTrack = (trackId: string) => {
     const documents = documentsByTrackId[trackId] ?? []
     setSelectedTrackId(trackId)
     setOpenDocumentId(documents.find(document => document.isActive)?.id ?? documents[0]?.id ?? null)
+    setPlaybackTimeMs(0)
+    setIsPlaying(false)
   }
 
   const updateDocuments = (
@@ -161,8 +211,8 @@ export function LyricManagerLayoutMockup() {
           <label className="lmv-toggle-row" title="Show or hide active lyrics in the visualizer">
             <span className="lmv-toggle-label">Show Lyrics</span>
             <IconMorphToggle
-              checked={false}
-              onCheckedChange={() => {}}
+              checked={showLyrics}
+              onCheckedChange={setShowLyrics}
               className="lmv-toggle-track"
               aria-label="Show Lyrics"
             />
@@ -211,7 +261,7 @@ export function LyricManagerLayoutMockup() {
                 <RailTabs
                   tabs={TRACK_WORKSPACE_TABS}
                   activeTab={workspaceTab}
-                  onChange={setWorkspaceTab}
+                  onChange={tab => setWorkspaceTab(tab)}
                   ariaLabel="Track Workspace"
                   className="lmv-mockup-workspace-tabs"
                   variant="underline"
@@ -285,7 +335,76 @@ export function LyricManagerLayoutMockup() {
             </div>
           </WorkspaceRail>
 
-          <div className="mmv-stage-area" aria-label="Lyric Manager layout — visualizer" />
+          <div className="mmv-stage-area" aria-label="Lyric Manager layout — visualizer">
+            <div
+              className="lmv-mockup-center"
+              data-has-selected-track={selectedTrack ? 'true' : 'false'}
+            >
+              {selectedTrack && (
+                <>
+                  <section className="lmv-mockup-track-identity" aria-label="Selected track metadata">
+                    <div className="vz-track-row-art lmv-mockup-track-identity-art" aria-hidden="true">
+                      <AudioWave02Icon size={20} color="currentColor" />
+                    </div>
+                    <div className="lmv-mockup-track-identity-copy">
+                      <div className="lmv-mockup-track-identity-title">{selectedTrack.title}</div>
+                      <div className="lmv-mockup-track-identity-artist">{selectedTrack.artist || 'Unknown artist'}</div>
+                    </div>
+                    <div className="lmv-mockup-track-identity-meta" aria-label="Track metadata values">
+                      {selectedTrack.bpm && <span>{selectedTrack.bpm} BPM</span>}
+                      {selectedTrack.musicalKey && <span>{selectedTrack.musicalKey}</span>}
+                      {selectedTrack.genre && <span>{selectedTrack.genre}</span>}
+                      {selectedTrack.durationSec && <span>{formatFixtureTime(selectedTrack.durationSec * 1000)}</span>}
+                    </div>
+                  </section>
+
+                  <section className="lmv-mockup-live-preview" aria-label="Real lyric renderer preview">
+                    <div className="lmv-mockup-preview-viewport">
+                      <div className="lmv-mockup-preview-kicker">
+                        <span>Live Lyric Preview</span>
+                        {openDocument && <strong>{openDocument.title}</strong>}
+                      </div>
+                      <LyricRendererSurface
+                        cues={openCues}
+                        document={openDocument}
+                        currentAudioTimeMs={playbackTimeMs}
+                        showLyrics={showLyrics}
+                        className="lmv-mockup-lyric-surface"
+                        ariaLabel="Fixture lyric renderer canvas"
+                      />
+                    </div>
+
+                    <div className="mms-controls lmv-mockup-preview-transport">
+                      <button
+                        type="button"
+                        className="mms-play-btn"
+                        onClick={() => setIsPlaying(value => !value)}
+                        aria-label={isPlaying ? 'Pause fixture preview' : 'Play fixture preview'}
+                        disabled={durationMs <= 0}
+                      >
+                        {isPlaying
+                          ? <PauseIcon size={13} color="currentColor" />
+                          : <PlayIcon size={13} color="currentColor" />}
+                      </button>
+                      <BubbleRevealSlider
+                        type="range"
+                        className="mms-scrubber"
+                        min={0}
+                        max={selectedTrack.durationSec ?? 0}
+                        step={0.05}
+                        value={playbackTimeMs / 1000}
+                        onChange={event => setPlaybackTimeMs(Math.min(durationMs, Math.max(0, Number(event.target.value) * 1000)))}
+                        aria-label="Scrub fixture lyric preview"
+                      />
+                      <span className="mms-time">
+                        {formatFixtureTime(playbackTimeMs)} / {formatFixtureTime(durationMs)}
+                      </span>
+                    </div>
+                  </section>
+                </>
+              )}
+            </div>
+          </div>
 
           <WorkspaceRail
             side="right"

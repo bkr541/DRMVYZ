@@ -157,16 +157,35 @@ export const LYRIC_MANAGER_LAYOUT_DOCUMENT_FIXTURES: Record<string, LyricDocumen
 export const LYRIC_MANAGER_LAYOUT_CUE_FIXTURES: Record<string, LyricCue[]> = {
   'pop-live': [
     { id: 'pop-live-1', startMs: 18_400, endMs: 21_100, text: 'I can feel it building', source: 'manual', reviewStatus: 'reviewed', sectionType: 'build' },
-    { id: 'pop-live-2', startMs: 21_180, endMs: 23_650, text: 'Right before we pop', source: 'manual', reviewStatus: 'reviewed', sectionType: 'build' },
+    {
+      id: 'pop-live-2',
+      startMs: 21_180,
+      endMs: 23_650,
+      text: 'Right before we pop',
+      source: 'manual',
+      reviewStatus: 'reviewed',
+      sectionType: 'build',
+      style: { color: '#7EDAE8', fontSize: 62 },
+      animation: { in: 'scalePop', inMs: 220, intensity: 0.75 },
+      effects: { glow: 0.45 },
+    },
     { id: 'pop-live-3', startMs: 24_000, endMs: 25_300, text: 'Pop', source: 'manual', reviewStatus: 'reviewed', sectionType: 'drop' },
   ],
   'pop-transcription': [
     { id: 'pop-ai-1', startMs: 18_360, endMs: 21_020, text: 'I can feel it building', source: 'transcription', reviewStatus: 'unreviewed', confidence: 0.91, sectionType: 'build' },
     { id: 'pop-ai-2', startMs: 21_130, endMs: 23_700, text: 'Right before we pop', source: 'transcription', reviewStatus: 'unreviewed', confidence: 0.86, sectionType: 'build' },
   ],
+  'pop-alt': [
+    { id: 'pop-alt-1', startMs: 18_400, endMs: 21_000, text: 'Pressure rising in the room', source: 'manual', reviewStatus: 'corrected', sectionType: 'build' },
+    { id: 'pop-alt-2', startMs: 21_180, endMs: 23_650, text: 'Watch the whole thing pop', source: 'manual', reviewStatus: 'corrected', sectionType: 'build', style: { color: '#FFA6CA' } },
+  ],
   'reverie-master': [
     { id: 'reverie-1', startMs: 12_000, endMs: 14_500, text: 'Lay your doubts down', source: 'manual', reviewStatus: 'reviewed', sectionType: 'verse' },
     { id: 'reverie-2', startMs: 14_650, endMs: 17_900, text: 'The best part starts from here', source: 'manual', reviewStatus: 'reviewed', sectionType: 'chorus' },
+  ],
+  'reverie-import': [
+    { id: 'reverie-import-1', startMs: 12_020, endMs: 14_520, text: 'Lay your doubts down', source: 'import', reviewStatus: 'corrected', sectionType: 'verse' },
+    { id: 'reverie-import-2', startMs: 14_680, endMs: 17_920, text: 'The best part starts from here', source: 'import', reviewStatus: 'corrected', sectionType: 'chorus' },
   ],
   'am-draft': [
     { id: 'am-1', startMs: 8_500, endMs: 11_200, text: 'Meet me in the A.M.', source: 'manual', reviewStatus: 'unreviewed', sectionType: 'verse' },

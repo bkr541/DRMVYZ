@@ -3,7 +3,7 @@ import { useVisualStore } from '../../../stores/visualStore'
 import type { VzEffects, Quality } from '../../../stores/visualStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { useLyricsStore } from '../../../stores/lyricsStore'
-import type { LyricCue, LyricDocument, LyricStyle, LyricAnimation, LyricEasingName } from '../../../types/lyrics'
+import type { LyricDocument } from '../../../types/lyrics'
 import { extractBandValues, applyModulatedEffects, gateAudioBands } from '../../../lib/audioModulation'
 import type { ModulationRoute, AudioBandValues } from '../../../lib/audioModulation'
 import {
@@ -49,177 +49,7 @@ import {
 import { renderReactEngine, reactFrameFromVz, DEFAULT_REACT_RENDER_PARAMS } from '../react/renderers/ReactEngineRenderer'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
-
-// ── Lyric rendering helpers ───────────────────────────────────────────────────
-
-const LYRIC_DEF_STYLE: LyricStyle = {
-  fontFamily: 'Inter, system-ui, sans-serif',
-  fontSize: 46, fontWeight: 700,
-  color: '#ffffff', opacity: 1,
-  strokeColor: '', strokeWidth: 0,
-  shadowColor: 'rgba(0,0,0,0.85)', shadowBlur: 14, shadowOffsetX: 0, shadowOffsetY: 2,
-  x: 0.5, y: 0.82, align: 'center', baseline: 'middle',
-  maxWidth: 0.88, letterSpacing: 0, lineHeight: 1.3,
-  textTransform: 'none', blendMode: 'source-over',
-}
-
-const LYRIC_DEF_ANIM: LyricAnimation = {
-  in: 'fade', out: 'fade', inMs: 280, outMs: 180,
-  easing: 'easeOut', delayMs: 0, staggerMs: 0,
-  direction: 'up', intensity: 1,
-}
-
-function lyricEase(name: LyricEasingName, t: number): number {
-  switch (name) {
-    case 'easeIn':          return t * t
-    case 'easeOut':         return 1 - (1 - t) * (1 - t)
-    case 'easeInOut':       return t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t)
-    case 'easeOutCubic':    return 1 - (1 - t) ** 3
-    case 'easeInCubic':     return t ** 3
-    case 'easeInOutCubic':  return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2
-    default:                return t
-  }
-}
-
-function lyricTextTransform(text: string, tf: LyricStyle['textTransform']): string {
-  switch (tf) {
-    case 'uppercase':  return text.toUpperCase()
-    case 'lowercase':  return text.toLowerCase()
-    case 'capitalize': return text.replace(/\b\w/g, c => c.toUpperCase())
-    default:           return text
-  }
-}
-
-function wrapLyricText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string[] {
-  const words = text.split(' ')
-  const lines: string[] = []
-  let line = ''
-  for (const word of words) {
-    const test = line ? `${line} ${word}` : word
-    if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = word }
-    else line = test
-  }
-  if (line) lines.push(line)
-  return lines
-}
-
-function drawLyricCue(
-  ctx: CanvasRenderingContext2D,
-  cue: LyricCue,
-  currentAudioMs: number,
-  effectiveStartMs: number,
-  effectiveEndMs: number,
-  doc: LyricDocument | null,
-  W: number, H: number, dpr: number,
-): void {
-  const style: LyricStyle = { ...LYRIC_DEF_STYLE, ...(doc?.defaultStyle ?? {}), ...(cue.style ?? {}) }
-  const anim: LyricAnimation = { ...LYRIC_DEF_ANIM, ...(doc?.defaultAnimation ?? {}), ...(cue.animation ?? {}) }
-
-  const elapsed = currentAudioMs - effectiveStartMs - anim.delayMs
-  const inT  = Math.max(0, Math.min(1, elapsed / Math.max(1, anim.inMs)))
-  const outT = Math.max(0, Math.min(1, (currentAudioMs - (effectiveEndMs - anim.outMs)) / Math.max(1, anim.outMs)))
-
-  const easedIn  = lyricEase(anim.easing, inT)
-  const easedOut = lyricEase(anim.easing, outT)
-  const visibility = Math.max(0, Math.min(1, easedIn * (1 - easedOut)))
-  if (visibility <= 0) return
-
-  let displayText = lyricTextTransform(cue.text, style.textTransform)
-  if (anim.in === 'typewriter' && inT < 1) {
-    displayText = displayText.slice(0, Math.max(1, Math.ceil(displayText.length * easedIn)))
-  } else if (anim.out === 'typewriter' && outT > 0) {
-    displayText = displayText.slice(0, Math.max(0, Math.ceil(displayText.length * (1 - easedOut))))
-  }
-
-  const fs     = style.fontSize * dpr
-  const shift  = 28 * dpr * anim.intensity
-  const maxW   = style.maxWidth > 0 ? style.maxWidth * W : W * 0.9
-  const lineH  = fs * style.lineHeight
-
-  let tx = 0, ty = 0, sc = 1, blurPx = 0
-
-  const ip = 1 - easedIn
-  switch (anim.in) {
-    case 'fadeUp':   ty -= shift * ip; break
-    case 'fadeDown': ty += shift * ip; break
-    case 'scale':    sc *= 0.8 + 0.2 * easedIn; break
-    case 'scalePop': sc *= 1 + 0.18 * (1 - easedIn) * Math.sin(easedIn * Math.PI); break
-    case 'slide': {
-      const d = anim.direction
-      if (d === 'up')    ty -= shift * ip
-      else if (d === 'down')  ty += shift * ip
-      else if (d === 'left')  tx -= shift * ip
-      else                    tx += shift * ip
-      break
-    }
-    case 'blurIn':  blurPx = Math.max(blurPx, (1 - easedIn) * 12 * anim.intensity); break
-    case 'glitch':
-    case 'glitchOut': tx += (Math.random() - 0.5) * shift * 0.4 * ip; break
-    default: break
-  }
-
-  const op = easedOut
-  switch (anim.out) {
-    case 'fadeUp':   ty -= shift * op; break
-    case 'fadeDown': ty += shift * op; break
-    case 'scale':    sc *= 1 - 0.2 * easedOut; break
-    case 'slide': {
-      const d = anim.direction
-      if (d === 'up')    ty -= shift * op
-      else if (d === 'down')  ty += shift * op
-      else if (d === 'left')  tx -= shift * op
-      else                    tx += shift * op
-      break
-    }
-    case 'blurOut': blurPx = Math.max(blurPx, easedOut * 12 * anim.intensity); break
-    case 'glitch':
-    case 'glitchOut': tx += (Math.random() - 0.5) * shift * 0.4 * op; break
-    default: break
-  }
-
-  ctx.save()
-  ctx.globalAlpha = Math.max(0, visibility * style.opacity)
-  ctx.globalCompositeOperation = style.blendMode
-  if (blurPx > 0) ctx.filter = `blur(${blurPx}px)`
-  ctx.font = `${style.fontWeight} ${fs}px ${style.fontFamily}`
-  ctx.textAlign = style.align
-  ctx.textBaseline = style.baseline
-  if (style.letterSpacing > 0) {
-    (ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${style.letterSpacing * dpr}px`
-  }
-  if (style.shadowBlur > 0 || style.shadowOffsetX !== 0 || style.shadowOffsetY !== 0) {
-    ctx.shadowColor   = style.shadowColor
-    ctx.shadowBlur    = style.shadowBlur * dpr
-    ctx.shadowOffsetX = style.shadowOffsetX * dpr
-    ctx.shadowOffsetY = style.shadowOffsetY * dpr
-  }
-
-  ctx.translate(style.x * W + tx, style.y * H + ty)
-  if (sc !== 1) ctx.scale(sc, sc)
-
-  const lines = wrapLyricText(ctx, displayText, maxW)
-  const totalH = lines.length * lineH
-  const startY = -totalH / 2 + lineH / 2
-
-  const drawLines = (stroke: boolean) => {
-    if (stroke) { ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0 }
-    lines.forEach((ln, i) => {
-      if (stroke) ctx.strokeText(ln, 0, startY + i * lineH)
-      else        ctx.fillText(ln,   0, startY + i * lineH)
-    })
-  }
-
-  ctx.fillStyle = style.color
-  drawLines(false)
-
-  if (style.strokeWidth > 0 && style.strokeColor) {
-    ctx.strokeStyle = style.strokeColor
-    ctx.lineWidth   = style.strokeWidth * dpr
-    drawLines(true)
-  }
-
-  ctx.restore()
-}
+import { drawLyricCue } from '../../../features/lyrics/runtime/lyricCanvasRenderer'
 
 // ── Quality render config ──────────────────────────────────────────────
 interface QualityConfig {
@@ -2576,17 +2406,17 @@ export function LiveVisualCanvas({ analyser, activeMedia, effects, enabledFx, is
         lyricPlayback.effectiveCueStartMs !== null &&
         lyricPlayback.effectiveCueEndMs !== null
       ) {
-        drawLyricCue(
+        drawLyricCue({
           ctx,
-          lyricPlayback.activeCue,
-          lyricPlayback.currentAudioMs,
-          lyricPlayback.effectiveCueStartMs,
-          lyricPlayback.effectiveCueEndMs,
-          lyricsDocRef.current,
-          W,
-          H,
+          cue: lyricPlayback.activeCue,
+          currentAudioMs: lyricPlayback.currentAudioMs,
+          effectiveStartMs: lyricPlayback.effectiveCueStartMs,
+          effectiveEndMs: lyricPlayback.effectiveCueEndMs,
+          document: lyricsDocRef.current,
+          width: W,
+          height: H,
           dpr,
-        )
+        })
       }
 
       // ── HUD corners ────────────────────────────────────────────────
