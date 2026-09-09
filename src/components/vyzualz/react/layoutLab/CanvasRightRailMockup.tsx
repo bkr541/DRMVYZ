@@ -152,6 +152,10 @@ function firstRouteColor(routes: readonly CanvasMockEffectAudioRoute[] | undefin
  * Intelligence parameters to this effect, each with its own master-intensity
  * slider for that effect + parameter combination, and a red remove control.
  * The concepts differ only in the trigger and entry styling around this. */
+/** How long a routed trigger row stays mounted (with .is-removing) to play its
+ *  exit animation before the route is actually dropped. Matches the CSS. */
+const ROUTE_ROW_EXIT_MS = 260
+
 function AddEffectsRouteEditor({
   routes,
   effectLabel,
@@ -194,6 +198,20 @@ function AddEffectsRouteEditor({
   onSetIntensity: (parameterId: CanvasMockAudioIntelligenceParameterId, intensity: number) => void
 }) {
   const [adderOpen, setAdderOpen] = useState(false)
+  // A routed row stays mounted with .is-removing for ROUTE_ROW_EXIT_MS after the
+  // red X is clicked, so it can animate out before the route actually leaves.
+  const [removingIds, setRemovingIds] = useState<readonly CanvasMockAudioIntelligenceParameterId[]>([])
+  const exitTimers = useRef<number[]>([])
+  useEffect(() => () => { exitTimers.current.forEach(clearTimeout); exitTimers.current = [] }, [])
+  const requestRemove = (parameterId: CanvasMockAudioIntelligenceParameterId) => {
+    if (removingIds.includes(parameterId)) return
+    setRemovingIds(current => [...current, parameterId])
+    const timer = window.setTimeout(() => {
+      onRemoveParameter(parameterId)
+      setRemovingIds(current => current.filter(id => id !== parameterId))
+    }, ROUTE_ROW_EXIT_MS)
+    exitTimers.current.push(timer)
+  }
   const routed = new Set(routes.map(route => route.parameterId))
   const available = CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.filter(param => !routed.has(param.id))
   const addOptions = available.map(param => showDots
@@ -217,8 +235,14 @@ function AddEffectsRouteEditor({
         ) : null
         const removeLabel = `Remove the route for ${label} · ${effectLabel} on ${parentLabel}`
         if (inlineParamRow) {
+          const isRemoving = removingIds.includes(route.parameterId)
           return (
-            <div className="rv-ae-route-param rv-ae-route-param--inline" key={route.parameterId}>
+            <div
+              className={isRemoving
+                ? 'rv-ae-route-param rv-ae-route-param--inline is-removing'
+                : 'rv-ae-route-param rv-ae-route-param--inline'}
+              key={route.parameterId}
+            >
               {dot}
               <span className="rv-ae-route-param-name">{label}</span>
               <BubbleRevealSlider
@@ -236,7 +260,7 @@ function AddEffectsRouteEditor({
                 type="button"
                 className="rv-ae-param-trash rv-ae-param-trash--hover"
                 aria-label={removeLabel}
-                onClick={() => onRemoveParameter(route.parameterId)}
+                onClick={() => requestRemove(route.parameterId)}
               >
                 <CircleXIcon size={13} />
               </button>

@@ -20713,13 +20713,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
    left = group padding + half the 42.6px thumbnail (toggle centre x)
    top  = group padding + thumbnail height (2px media-row pad) + group gap +
           half the 42.6px FX column = the first FX icon's centre
-   bottom = group padding + half the 22px add-effect button */
+   bottom = group padding + half the 26px add-effect button */
 .rv-ae-tcb-group.has-effects::before {
   content: '';
   position: absolute;
   left: calc(var(--ae2-pad) + 21.3px);
   top: calc(var(--ae2-pad) + 65.9px + var(--ae2-gap));
-  bottom: calc(var(--ae2-pad) + 11px);
+  bottom: calc(var(--ae2-pad) + 13px);
   border-left: 1px dashed rgba(154, 178, 188, 0.45);
   animation: rv-ae-tcb-spine-grow 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -20760,6 +20760,14 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   to   { opacity: 1; transform: translateX(0); }
 }
 
+/* Removing a routed trigger (red X): the row slides left, fades, and collapses,
+   with a negative bottom margin that eats the row gap so the rows below slide
+   up to close it. ROUTE_ROW_EXIT_MS in the mock-up matches this duration. */
+@keyframes rv-ae-tcb-trigger-row-out {
+  from { opacity: 1; transform: translateX(0); max-height: 24px; margin-bottom: 0; }
+  to   { opacity: 0; transform: translateX(-16px); max-height: 0; margin-bottom: -7px; }
+}
+
 .rv-ae-tcb-group .rv-canvas-layer-effects-stack {
   gap: 0;
 }
@@ -20789,8 +20797,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   border: 1px solid rgba(154, 178, 188, 0.4);
   border-radius: 999px;
@@ -20808,16 +20816,17 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* Once an effect is populated the add-FX toggle takes on the same dashed
-   circular look as the Add Trigger button; the dashed spine that drops from it
-   to each effect's FX icon is drawn per effect entry (see .rv-ae-tcb-entry). */
+   circular look as the Add Trigger button, and turns blue in step with the
+   effect row's FX icon and the solid-blue link between them. */
 .rv-ae-tcb-fx-toggle.has-effect {
   border-style: dashed;
-  border-color: rgba(154, 178, 188, 0.45);
+  border-color: #8de7ff;
+  color: #8de7ff;
 }
 
 .rv-ae-tcb-fx-toggle-icon {
-  width: 12px;
-  height: 12px;
+  width: 15px;
+  height: 15px;
 }
 
 .rv-ae-tcb-group .rv-canvas-layer-effect-row {
@@ -21017,6 +21026,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   animation: rv-ae-tcb-trigger-row-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
 }
 
+.rv-ae-tcb-panel .rv-ae-route-param--inline.is-removing {
+  overflow: hidden;
+  pointer-events: none;
+  animation: rv-ae-tcb-trigger-row-out 0.26s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
 /* The red circle-X stays in flow and always visible, so the intensity slider
    stops just before it rather than running underneath. */
 .rv-ae-tcb-panel .rv-ae-route-param--inline .rv-ae-param-trash {
@@ -21132,7 +21147,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   inset: auto;
   z-index: auto;
   flex: 0 0 auto;
-  margin-left: calc(21.3px - 11px);
+  margin-left: calc(21.3px - 13px);
 }
 
 /* Short dash off the add-effect button toward the revealed row. */
@@ -21174,10 +21189,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* Has-effects "add another": the reveal follows the spine button, so nudge it
-   10.3px right (button 22px + addfx gap short of the effect-icon column) so its
-   FX icon lands on the same column as the committed effect rows. */
+   right (button 26px + addfx gap short of the effect-icon column) so its FX
+   icon lands on the same column as the committed effect rows. */
 .rv-ae-tcb-addfx > .rv-ae-tcb-addfx-reveal {
-  margin-left: 10.3px;
+  margin-left: 8.3px;
 }
 
 .rv-ae-tcb-addfx-reveal.is-collapsed {
