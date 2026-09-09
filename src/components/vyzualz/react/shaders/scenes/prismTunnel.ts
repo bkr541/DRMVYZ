@@ -191,6 +191,13 @@ void main() {
   float bass = uBass * uMasterBassReactivity;
   float motion = uSpeed * uMasterMotion;
 
+  // Master Intensity is the whole composition's amount, not an output gain: it
+  // scales every discretionary layer (nebula, rings, petal swing, branches,
+  // arcs, rim, drop burst) around a thin always-present prism skeleton. 1.0 is
+  // the tuned look, 0.0 a bare wireframe, 2.0 fully cranked.
+  float ix = clamp(uMasterIntensity, 0.0, 2.0);
+  float ixCore = 0.4 + 0.6 * min(ix, 1.0) + max(ix - 1.0, 0.0) * 0.5;
+
   // ── Music Intelligence resolve (each term degrades to a compact fallback) ──
   float bSub  = max(uSub, uBass * 0.9);
   float bLow  = max(uLowMid, mix(uBass, uMid, 0.5));
@@ -245,7 +252,7 @@ void main() {
   neb = pow(clamp(neb, 0.0, 1.0), 1.7);
   float nebBreath = 0.55 + 0.45 * sin(uTime * 0.2 + phraseEvo * 6.28318530718);
   float nebAmt = (0.07 + otherDrive * 0.17 + slowEnergy * 0.05 + isDrop * 0.06)
-               * (0.55 + nebBreath * 0.45) * (0.35 + hazeAmount * 0.65);
+               * (0.55 + nebBreath * 0.45) * (0.35 + hazeAmount * 0.65) * ix;
   vec3 nebCol = prismHsv2rgb(vec3(fract(roomHue + neb * 0.14), 0.5 + build * 0.22, 1.0));
   vec3 col = nebCol * neb * nebAmt * smoothstep(0.12, 1.35, bgR);
 
@@ -254,7 +261,7 @@ void main() {
     float rf = float(ri);
     float ringT = fract(uTime * 0.19 + rf * 0.333);
     float ring = radialBand(bgR, ringT * 1.75, 0.013) * (1.0 - ringT);
-    col += prismHsv2rgb(vec3(fract(roomHue + 0.5 + rf * 0.06), 0.42, 1.0)) * ring * (0.045 + ringPulse * 0.5);
+    col += prismHsv2rgb(vec3(fract(roomHue + 0.5 + rf * 0.06), 0.42, 1.0)) * ring * (0.045 + ringPulse * 0.5) * ix;
   }
 
   // ═══ Layer 2 — the prism field ═══
@@ -305,10 +312,10 @@ void main() {
   float bandPos = fract(element.normalizedIndex + evoRot * 0.5);
   float bandEnergy = prismBand6(bandPos, bSub, bLow, bMid, bHiM, bHigh, bAir);
   float melodyCurl = (uPitchNormalized - 0.5) * uHasHarmonics;
-  float petalGrow = bandEnergy * (0.85 + uMasterBassReactivity * 0.3) + facetPunch * 0.42;
+  float petalGrow = (bandEnergy * (0.85 + uMasterBassReactivity * 0.3) + facetPunch * 0.42) * ixCore;
 
   float grownInner = max(element.innerRadius * (1.0 - petalGrow * 0.12), baseRadius * 0.012);
-  float grownOuter = element.outerRadius * (1.0 + petalGrow * 0.34 * (0.55 + uMasterIntensity * 0.45));
+  float grownOuter = element.outerRadius * (1.0 + petalGrow * 0.34);
   grownOuter += element.outerRadius * facetPunch * (1.0 - smoothstep(0.0, 0.34, abs(local))) * 0.2;
 
   float radius = length(radialUv);
@@ -337,13 +344,14 @@ void main() {
   vec3 facetColor = prismHsv2rgb(vec3(wheelHue, wheelSat, 1.0));
   facetColor = mix(facetColor, mix(primary, secondary, element.normalizedIndex), 0.26);
 
-  float facetLight = facetMask * (0.32 + arcA * 0.46 + arcGlow * (0.62 + beat * 1.3 + facetPunch * 0.9));
+  float facetLight = facetMask * (0.32 * (0.5 + 0.5 * min(ix, 1.0))
+    + (arcA * 0.46 + arcGlow * (0.62 + beat * 1.3 + facetPunch * 0.9)) * ix);
   vec3 iridescent = prismHsv2rgb(vec3(fract(0.55 + local * 0.5 + timbre * 0.22 + uTime * 0.02), 0.82, 1.0));
   float rimLight = angularEdge * insideOuter * outsideInner * (0.36 + uGlow * 0.34 + bHigh * 0.35);
-  vec3 col2 = facetColor * facetLight * facetIllumination + iridescent * rimLight;
+  vec3 col2 = facetColor * facetLight * facetIllumination + iridescent * rimLight * ix;
 
   vec3 arcColor = prismHsv2rgb(vec3(fract(keyHue + 0.5 + timbre * 0.35 + radialT * 0.1), 0.72, 1.0));
-  col2 += arcColor * arcGlow * facetMask * (0.4 + facetPunch * 0.8) * facetIllumination;
+  col2 += arcColor * arcGlow * facetMask * (0.4 + facetPunch * 0.8) * facetIllumination * ix;
 
   col += col2;
 
@@ -357,19 +365,21 @@ void main() {
     * (1.0 - smoothstep(grownOuter * 1.05, grownOuter * 1.32, shapedRadius));
   float branchGlow = branchLobe * branchBand * angularCore
     * (0.22 + flux * 0.7 + facetPunch * 0.5) * (1.0 - isCalm * 0.5);
-  col += prismHsv2rgb(vec3(fract(wheelHue + 0.12), 0.62, 1.0)) * (linkRing + branchGlow);
+  col += prismHsv2rgb(vec3(fract(wheelHue + 0.12), 0.62, 1.0)) * (linkRing + branchGlow) * ix;
 
   // Phrase-evolving detail ring — fades in and out across each 16-phrase window.
   float detailOpacity = smoothstep(0.05, 0.4, phraseEvo) * (1.0 - smoothstep(0.72, 1.0, phraseEvo));
   float detailRing = radialBand(shapedRadius, mix(grownInner, grownOuter, 0.86), 0.011);
-  col += prismHsv2rgb(vec3(fract(wheelHue + 0.2), 0.6, 1.0)) * detailRing * detailOpacity * facetMask * 0.45;
+  col += prismHsv2rgb(vec3(fract(wheelHue + 0.2), 0.6, 1.0)) * detailRing * detailOpacity * facetMask * 0.45 * ix;
 
-  // Center aperture glow + halo — vocal-lifted.
+  // Center aperture glow + halo — vocal-lifted. Keeps a floor so the core never
+  // goes fully dark, then swings with the master amount.
   float apertureGlow = exp(-radius * (5.8 / max(baseRadius, 0.15))) * (0.22 + uGlow * 0.75)
     * (0.9 + uEnergy * 0.25) * (1.0 + vocalDrive * 0.7);
   float halo = exp(-abs(radius - grownInner) * (14.0 / max(baseRadius, 0.2))) * 0.42;
   col += mix(prismHsv2rgb(vec3(keyHue, 0.5, 1.0)), facetColor, 0.4)
-    * (apertureGlow + halo * facetMask * facetIllumination + halo * vocalDrive * 0.5);
+    * (apertureGlow + halo * facetMask * facetIllumination + halo * vocalDrive * 0.5)
+    * ixCore;
 
   float haze = exp(-radius * 1.35) * hazeAmount * 0.09;
   col += prismHsv2rgb(vec3(fract(roomHue + 0.08), 0.4, 1.0)) * haze;
@@ -379,15 +389,21 @@ void main() {
   col = mix(col, vec3(1.0), uSnareHit * 0.26 + phraseAccent * 0.05 + sectionPulse * 0.12);
 
   // Drop burst.
-  col += prismHsv2rgb(vec3(fract(keyHue + 0.33), 0.58, 1.0)) * isDrop * (0.14 + facetMask * 0.5);
+  col += prismHsv2rgb(vec3(fract(keyHue + 0.33), 0.58, 1.0)) * isDrop * (0.14 + facetMask * 0.5) * ix;
 
   // Stage 5 structural echoes reconstruct bounded prior radial descriptors, now
   // hue-fanned per slot off the palette anchor. Not framebuffer feedback.
-  col += prismStructuralEcho(uv, uPrismEchoOpacity0, uPrismEchoRotation0, uPrismEchoRotationMotion0, uPrismEchoAperture0, uPrismEchoBaseRadius0, uPrismEchoCurvature0, uPrismEchoFacetAmount0, uPrismEchoChaseIndex0, uPrismEchoChaseStrength0, uPrismEchoAlternate0, uPrismEchoOpposing0, uPrismEchoFlare0, facetColor, arcColor);
-  col += prismStructuralEcho(uv, uPrismEchoOpacity1, uPrismEchoRotation1, uPrismEchoRotationMotion1, uPrismEchoAperture1, uPrismEchoBaseRadius1, uPrismEchoCurvature1, uPrismEchoFacetAmount1, uPrismEchoChaseIndex1, uPrismEchoChaseStrength1, uPrismEchoAlternate1, uPrismEchoOpposing1, uPrismEchoFlare1, prismHsv2rgb(vec3(fract(keyHue + 0.12), 0.55, 1.0)), arcColor);
-  col += prismStructuralEcho(uv, uPrismEchoOpacity2, uPrismEchoRotation2, uPrismEchoRotationMotion2, uPrismEchoAperture2, uPrismEchoBaseRadius2, uPrismEchoCurvature2, uPrismEchoFacetAmount2, uPrismEchoChaseIndex2, uPrismEchoChaseStrength2, uPrismEchoAlternate2, uPrismEchoOpposing2, uPrismEchoFlare2, prismHsv2rgb(vec3(fract(keyHue + 0.24), 0.5, 1.0)), arcColor);
-  col += prismStructuralEcho(uv, uPrismEchoOpacity3, uPrismEchoRotation3, uPrismEchoRotationMotion3, uPrismEchoAperture3, uPrismEchoBaseRadius3, uPrismEchoCurvature3, uPrismEchoFacetAmount3, uPrismEchoChaseIndex3, uPrismEchoChaseStrength3, uPrismEchoAlternate3, uPrismEchoOpposing3, uPrismEchoFlare3, prismHsv2rgb(vec3(fract(keyHue + 0.36), 0.46, 1.0)), arcColor);
-  col *= uMasterIntensity;
+  vec3 echoes = vec3(0.0);
+  echoes += prismStructuralEcho(uv, uPrismEchoOpacity0, uPrismEchoRotation0, uPrismEchoRotationMotion0, uPrismEchoAperture0, uPrismEchoBaseRadius0, uPrismEchoCurvature0, uPrismEchoFacetAmount0, uPrismEchoChaseIndex0, uPrismEchoChaseStrength0, uPrismEchoAlternate0, uPrismEchoOpposing0, uPrismEchoFlare0, facetColor, arcColor);
+  echoes += prismStructuralEcho(uv, uPrismEchoOpacity1, uPrismEchoRotation1, uPrismEchoRotationMotion1, uPrismEchoAperture1, uPrismEchoBaseRadius1, uPrismEchoCurvature1, uPrismEchoFacetAmount1, uPrismEchoChaseIndex1, uPrismEchoChaseStrength1, uPrismEchoAlternate1, uPrismEchoOpposing1, uPrismEchoFlare1, prismHsv2rgb(vec3(fract(keyHue + 0.12), 0.55, 1.0)), arcColor);
+  echoes += prismStructuralEcho(uv, uPrismEchoOpacity2, uPrismEchoRotation2, uPrismEchoRotationMotion2, uPrismEchoAperture2, uPrismEchoBaseRadius2, uPrismEchoCurvature2, uPrismEchoFacetAmount2, uPrismEchoChaseIndex2, uPrismEchoChaseStrength2, uPrismEchoAlternate2, uPrismEchoOpposing2, uPrismEchoFlare2, prismHsv2rgb(vec3(fract(keyHue + 0.24), 0.5, 1.0)), arcColor);
+  echoes += prismStructuralEcho(uv, uPrismEchoOpacity3, uPrismEchoRotation3, uPrismEchoRotationMotion3, uPrismEchoAperture3, uPrismEchoBaseRadius3, uPrismEchoCurvature3, uPrismEchoFacetAmount3, uPrismEchoChaseIndex3, uPrismEchoChaseStrength3, uPrismEchoAlternate3, uPrismEchoOpposing3, uPrismEchoFlare3, prismHsv2rgb(vec3(fract(keyHue + 0.36), 0.46, 1.0)), arcColor);
+  col += echoes * ixCore;
+
+  // Only a gentle exposure trim survives as a direct multiply — the amount work
+  // is done per-layer above so the slider reshapes the composition, not just
+  // its brightness.
+  col *= 0.72 + 0.28 * ix;
 
   // Tension / build chromatic stress at the frame edge.
   float caAmt = build * 0.5 + uTension * 0.3;
