@@ -1401,73 +1401,95 @@ const EFFECT_SPINE_ACCENT: Record<CanvasLayerEffectId, string> = {
 
 /** Concept — "Colored Effect Spine." Every effect gets its own accent color
  * and its own tiny isolated spine (a left border spanning just that effect).
- * There is no media-level trunk. The accent carries into the border, the
- * parameter dots and the slider fills. */
+ * The effect picker is revealed by a gray FX icon shown on hover of the
+ * Active Media dropdown. */
 function AddEffectsColoredSpineConcept({ state }: { state: CanvasMockState }) {
   const { routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  const [fxOpen, setFxOpen] = useState<Record<string, boolean>>({})
   return (
     <ConceptGroup
       state={state}
       label="Add Effects — Colored Effect Spine"
-      note="Every effect gets its own accent color and its own tiny isolated spine — a left border spanning just that effect. No media-level trunk. An FX icon sits left of the Effect dropdown, and the routed signals live behind the same dashed Trigger toggle as Thumb Card. Concept only."
+      note="Every effect gets its own accent color and its own tiny isolated spine — a left border spanning just that effect. The effect picker is revealed by a gray FX icon shown on hover of the Active Media dropdown; the routed signals live behind the same dashed Trigger toggle as Thumb Card. Concept only."
     >
-      {(layer, layerIndex) => (
-        <AddEffectsLayerGroup
-          key={layer.mediaId}
-          state={state}
-          layer={layer}
-          layerIndex={layerIndex}
-          getGroupExtra={() => ({ className: 'rv-ae-es-group' })}
-          getEntryExtra={({ effectId }) => ({
-            className: 'rv-ae-es-entry',
-            style: { '--es': EFFECT_SPINE_ACCENT[effectId] } as CSSProperties,
-          })}
-          removeIcon={<CircleXIcon size={13} />}
-          renderLeading={() => (
-            <>
-              <span className="rv-ae-es-dot" aria-hidden="true" />
+      {(layer, layerIndex) => {
+        const hasEffects = layer.effects.length > 0
+        const pickerOpen = fxOpen[layer.mediaId] ?? false
+        const toggleFxPicker = () => setFxOpen(current => ({ ...current, [layer.mediaId]: !(current[layer.mediaId] ?? false) }))
+        return (
+          <AddEffectsLayerGroup
+            key={layer.mediaId}
+            state={state}
+            layer={layer}
+            layerIndex={layerIndex}
+            getGroupExtra={() => ({ className: 'rv-ae-es-group' })}
+            getEntryExtra={({ effectId }) => ({
+              className: 'rv-ae-es-entry',
+              style: { '--es': EFFECT_SPINE_ACCENT[effectId] } as CSSProperties,
+            })}
+            removeIcon={<CircleXIcon size={13} />}
+            renderAfterMediaRow={() => hasEffects ? null : (
+              <div className={pickerOpen ? 'rv-ae-es-fx-row is-open' : 'rv-ae-es-fx-row'}>
+                <button
+                  type="button"
+                  className={pickerOpen ? 'rv-ae-es-fx-toggle is-open' : 'rv-ae-es-fx-toggle'}
+                  aria-expanded={pickerOpen}
+                  aria-label={`${pickerOpen ? 'Hide' : 'Add'} an effect for ${layer.mediaName}`}
+                  onClick={toggleFxPicker}
+                >
+                  <EffectFxIcon className="rv-ae-es-fx-toggle-icon" />
+                </button>
+              </div>
+            )}
+            renderLeading={() => (
+              <>
+                <span className="rv-ae-es-dot" aria-hidden="true" />
+                <span className="rv-ae-tc-fx" aria-hidden="true">
+                  <EffectFxIcon className="rv-ae-tc-fx-icon" />
+                </span>
+              </>
+            )}
+            renderEmptyLeading={() => (
               <span className="rv-ae-tc-fx" aria-hidden="true">
                 <EffectFxIcon className="rv-ae-tc-fx-icon" />
               </span>
-            </>
-          )}
-          renderEmptyLeading={() => (
-            <span className="rv-ae-tc-fx" aria-hidden="true">
-              <EffectFxIcon className="rv-ae-tc-fx-icon" />
-            </span>
-          )}
-          showEmptyEffectLabel
-          emptyEffectLabelText="Effect"
-          renderRoute={ctx => (
-            <div className="rv-ae-es-body">
-              <div className="rv-ae-es-strength">
-                <span className="rv-ae-es-strength-label">Intensity</span>
-                <BubbleRevealSlider
-                  className="rv-ae-es-strength-slider"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  defaultValue={0.78}
-                  bubbleLabel="78%"
-                  revealOnHover
-                  style={{ '--accent': EFFECT_SPINE_ACCENT[ctx.effectId] } as CSSProperties}
-                  aria-label={`${ctx.effectLabel} intensity`}
+            )}
+            showEmptyEffectLabel
+            emptyEffectLabelText="Effect"
+            emptyRowCollapsed={!hasEffects && !pickerOpen}
+            renderRoute={ctx => (
+              <div className="rv-ae-es-body">
+                <div className="rv-ae-es-strength">
+                  <span className="rv-ae-es-strength-label">Intensity</span>
+                  <BubbleRevealSlider
+                    className="rv-ae-es-strength-slider"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    defaultValue={0.78}
+                    bubbleLabel="78%"
+                    revealOnHover
+                    style={{ '--accent': EFFECT_SPINE_ACCENT[ctx.effectId] } as CSSProperties}
+                    aria-label={`${ctx.effectLabel} intensity`}
+                  />
+                </div>
+                <AECardRoute
+                  ctx={ctx}
+                  classPrefix="rv-ae-tc"
+                  routesFor={routesFor}
+                  isOpenFor={isOpenFor}
+                  toggle={toggle}
+                  editorHandlers={editorHandlers}
+                  toggleVariant="dashed-trigger"
+                  emptyPickerLabel="Add Trigger"
+                  filledPickerLabel="Add Trigger"
+                  collapsedAddAnother
                 />
               </div>
-              <AECardRoute
-                ctx={ctx}
-                classPrefix="rv-ae-tc"
-                routesFor={routesFor}
-                isOpenFor={isOpenFor}
-                toggle={toggle}
-                editorHandlers={editorHandlers}
-                toggleVariant="dashed-trigger"
-                collapsedAddAnother
-              />
-            </div>
-          )}
-        />
-      )}
+            )}
+          />
+        )
+      }}
     </ConceptGroup>
   )
 }

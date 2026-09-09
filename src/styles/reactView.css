@@ -20904,7 +20904,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-ae-es-group > .rv-ctrl-row {
-  padding-bottom: var(--ae2-pad);
+  padding-bottom: 2px;
 }
 
 .rv-ae-es-group .rv-canvas-layer-effect-row--empty {
@@ -20916,6 +20916,49 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-es-group .rv-canvas-layer-effects-stack {
   gap: var(--ae2-gap);
+}
+
+/* Gray FX icon on its own centred row, revealed while the Active Media
+   dropdown (or the row itself) is hovered, or while the picker is open. */
+.rv-ae-es-fx-row {
+  display: flex;
+  justify-content: center;
+  padding: 2px 0;
+  opacity: 0;
+  transition: opacity 0.14s;
+}
+
+.rv-ae-es-group > .rv-ctrl-row:hover + .rv-ae-es-fx-row,
+.rv-ae-es-fx-row:hover,
+.rv-ae-es-fx-row.is-open {
+  opacity: 1;
+}
+
+.rv-ae-es-fx-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px dashed rgba(154, 178, 188, 0.4);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(196, 207, 211, 0.75);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.rv-ae-es-fx-toggle:hover,
+.rv-ae-es-fx-toggle:focus-visible,
+.rv-ae-es-fx-toggle.is-open {
+  border-color: #8de7ff;
+  color: #8de7ff;
+}
+
+.rv-ae-es-fx-toggle-icon {
+  width: 13px;
+  height: 13px;
 }
 
 .rv-ae-es-entry {
@@ -20940,10 +20983,14 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--es) 18%, transparent);
 }
 
+/* The body is indented by the effect row's FX-icon column (icon 21px + row
+   gap 7px) so its rows begin at the effect dropdown's left edge, not the FX
+   icon's. */
 .rv-ae-es-body {
   display: flex;
   flex-direction: column;
   gap: var(--ae2-gap);
+  padding-left: 28px;
 }
 
 /* Reuse Thumb Card's FX-icon column left of the Effect dropdown, minus its
@@ -20953,7 +21000,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* Reuse Thumb Card's dashed Trigger toggle for the routed signals. The
-   Strength slider sits directly above it here, not an effect dropdown, so
+   Intensity slider sits directly above it here, not an effect dropdown, so
    drop the upward connector and the extra top margin (the flex column's own
    gap already spaces it). */
 .rv-ae-es-body .rv-ae-tc-toggle {
@@ -20964,11 +21011,27 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: none;
 }
 
+/* Active state matches Thumb Card B's Add Trigger (the selected inspector-tab
+   pill colours) instead of the shared solid-cyan fill. */
+.rv-ae-es-body .rv-ae-tc-toggle.is-active {
+  border: 1px solid rgba(103, 247, 255, 0.36);
+  background: rgba(103, 247, 255, 0.09);
+  color: #67f7ff;
+}
+
+.rv-ae-es-body .rv-ae-tc-toggle.is-active:hover,
+.rv-ae-es-body .rv-ae-tc-toggle.is-active:focus-visible,
+.rv-ae-es-body .rv-ae-tc-toggle.is-active.is-open {
+  background: rgba(103, 247, 255, 0.16);
+  color: #67f7ff;
+}
+
 .rv-ae-es-strength {
   display: grid;
   grid-template-columns: 54px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
+  padding: 6px 0;
 }
 
 .rv-ae-es-strength-label {
@@ -20990,20 +21053,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   background: transparent;
 }
 
+/* Each routed trigger row is pushed in so its colour dot lines up with the
+   start of the Intensity slider above (strength grid: 54px label col + 8px
+   gap). */
 .rv-ae-es-body .rv-ae-route-param--inline {
   position: relative;
-  padding-left: 14px;
-}
-
-.rv-ae-es-body .rv-ae-route-param--inline::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: calc(-1 * var(--ae2-step));
-  width: calc(var(--ae2-step) + 14px);
-  height: 1px;
-  background: var(--es);
-  opacity: 0.55;
+  padding-left: 62px;
 }
 
 /* Parameter name matches the effect dropdown's value type exactly. */
@@ -21018,9 +21073,11 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   background: var(--es);
 }
 
-/* The "add another" plus sits where the next parameter's dot would be. */
+/* The "add another" plus is centred, lining up with the dashed Trigger
+   toggle above it. */
 .rv-ae-es-body .rv-ae-route-add-another {
-  padding-left: 14px;
+  align-items: center;
+  padding-left: 0;
 }
 
 .rv-ae-es-body .rv-ae-route-inline-slider.dv-bubble-slider,

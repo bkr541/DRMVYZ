@@ -141,7 +141,7 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
     await act(async () => trigger.click())
 
     const firstAdder = [...section.querySelectorAll<HTMLElement>('[role="combobox"]')]
-      .find(c => (c.getAttribute('aria-label') || '') === 'Audio Intelligence Parameter')
+      .find(c => (c.getAttribute('aria-label') || '') === 'Add Trigger')
     if (!firstAdder) throw new Error('Colored Effect Spine: no first parameter picker')
     await pickOption(firstAdder, 'Kick')
 
@@ -150,7 +150,7 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
     if (!addPlus) throw new Error('Colored Effect Spine: no .rv-ae-route-add-plus')
     await act(async () => addPlus.click())
     const secondAdder = [...section.querySelectorAll<HTMLElement>('[role="combobox"]')]
-      .find(c => (c.getAttribute('aria-label') || '') === 'Add another parameter')
+      .find(c => (c.getAttribute('aria-label') || '') === 'Add Trigger')
     if (!secondAdder) throw new Error('Colored Effect Spine: no second parameter picker')
     await pickOption(secondAdder, 'Snare')
 
