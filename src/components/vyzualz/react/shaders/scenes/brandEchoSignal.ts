@@ -3,7 +3,7 @@ import type { ShaderDefinition } from '../registry/shaderRegistryTypes'
 export const BRAND_ECHO_SIGNAL: ShaderDefinition = {
   id: 'shader-brand-echo-signal',
   name: 'Brand Echo Signal',
-  description: 'Waveform ribbons refract through Brand Kit artwork while lyrics and harmonic changes steer the echo field.',
+  description: 'Waveform ribbons weave in a DNA braid and refract around a focal mask while lyrics and harmonic changes steer the echo field.',
   category: 'effect',
   version: 1,
 
@@ -20,12 +20,6 @@ uniform float uBrandLogoAvailable;
 uniform float uBrandLogoAspect;
 uniform float uBrandLogoScale;
 uniform float uBrandLogoOpacity;
-uniform sampler2D uBrandTexture;
-uniform float uBrandTextureAvailable;
-uniform float uBrandTextureOpacity;
-uniform sampler2D uBrandBackgroundTexture;
-uniform float uBrandBackgroundAvailable;
-uniform float uBrandBackgroundOpacity;
 
 uniform sampler2D uUserMedia;
 uniform float uUserMediaAvailable;
@@ -59,8 +53,6 @@ uniform vec4 uCoreColor;
 uniform vec4 uEchoColor;
 uniform vec4 uBackgroundColor;
 
-uniform vec4 uBrandHighlight;
-uniform vec4 uBrandImpact;
 uniform float uMasterIntensity;
 uniform float uMasterMotion;
 uniform float uMasterGlow;
@@ -68,12 +60,27 @@ uniform float uMasterBassReactivity;
 
 out vec4 fragColor;
 
-float wave(float x) {
+float rawWave(float x) {
   if (uWaveformAvailable < 0.5) return sin((x + uTime * 0.1) * 18.0) * 0.18;
   return texture(uWaveformTexture, vec2(clamp(x, 0.0, 1.0), 0.5)).r * 2.0 - 1.0;
 }
 
-float logoMask(vec2 p) {
+// A full-bandwidth audio waveform sampled 1:1 per screen column reads as vertical
+// hash. Resample it onto a coarse control grid and interpolate, so each ribbon
+// stays a readable curve. The grid gets finer with Wave Amount and Motion — turn
+// them down and the line just calms, it never scrambles.
+float wave(float x) {
+  if (uWaveformAvailable < 0.5) {
+    return sin((x + uTime * 0.1 * (0.25 + uMasterMotion * 0.75)) * 18.0) * 0.18;
+  }
+  float detail = mix(26.0, 210.0, clamp(uWaveAmount * (0.35 + uMasterMotion * 0.65), 0.0, 1.0));
+  float gx = x * detail;
+  float g0 = floor(gx);
+  float f = smoothstep(0.0, 1.0, gx - g0);
+  return mix(rawWave(g0 / detail), rawWave((g0 + 1.0) / detail), f);
+}
+
+float focusMask(vec2 p) {
   if (uBrandLogoAvailable < 0.5) return exp(-dot(p, p) * 4.0);
   vec2 uv = p / max(0.05, uBrandLogoScale) * 0.5 + 0.5;
   uv.x = (uv.x - 0.5) / max(0.1, uBrandLogoAspect) + 0.5;
@@ -87,9 +94,7 @@ void main() {
   vec2 p = uv * 2.0 - 1.0;
   p.x *= uAspect;
 
-  float logo = logoMask(p);
-  vec3 brandTexture = texture(uBrandTexture, uv).rgb * uBrandTextureOpacity * uBrandTextureAvailable;
-  vec3 brandBackground = texture(uBrandBackgroundTexture, uv).rgb * uBrandBackgroundOpacity * uBrandBackgroundAvailable;
+  float focus = focusMask(p);
   vec3 userMedia = texture(uUserMedia, uv).rgb * uUserMediaAvailable;
   vec3 album = texture(uAlbumArtwork, uv).rgb * uAlbumArtworkAvailable;
   vec3 mediaOutput = texture(uMediaOutput, uv).rgb * uMediaOutputAvailable;
@@ -99,28 +104,47 @@ void main() {
     : vec3(0.0);
   float lyric = mix(uVocalHookConfidence, max(uLyricActivity, uLyricLineProgress), uHasLyrics);
   float harmonic = mix(0.0, uPitchNormalized + uChordChangeHit * 0.35, uHasHarmonics);
-  float refract = logo * uLogoRefraction * (0.02 + uBass * uMasterBassReactivity * 0.04);
+  float refract = focus * uLogoRefraction * (0.02 + uBass * uMasterBassReactivity * 0.04);
+
   float ribbons = 0.0;
   float echoes = max(1.0, floor(uRibbonCount));
+
+  // Bass reaches the wave only through the Bass Reactivity master; Motion keeps a
+  // 40% floor so the wave still answers the music when calmed right down.
+  float bassReact = mix(1.0, 0.35 + uBass * 0.65, clamp(uMasterBassReactivity, 0.0, 1.0));
+  float motionAmp = 0.4 + uMasterMotion * 0.6;
+  float ampScale = 1.0 / (1.0 + (echoes - 1.0) * 0.14);
+
+  // Ribbons sit 1.5x further apart than the raw Echo Spread and each one weaves
+  // in counter-phase to its neighbour (a DNA braid), so they stay individually
+  // readable as the count grows. The stack is fitted to the viewport when the
+  // spread / count would push it off screen.
+  float spacing = uEchoSpread * 1.5;
+  float halfSpan = (echoes - 1.0) * 0.5 * spacing;
+  float fit = min(1.0, 0.82 / max(halfSpan, 0.0001));
+  float braidFreq = 5.0 + echoes * 0.4;
+  float braidAmp = spacing * fit * 0.45;
+  float braidTime = uTime * uMasterMotion * 1.2;
 
   for (int i = 0; i < 12; i++) {
     float fi = float(i);
     if (fi >= echoes) break;
-    float offset = (fi - (echoes - 1.0) * 0.5) * uEchoSpread;
-    float x = clamp(uv.x + refract * sin(p.y * 8.0 + fi), 0.0, 1.0);
-    float waveform = wave(x) * uWaveAmount * (0.45 + uBass * 0.55);
-    float y = p.y - offset - waveform;
-    float line = exp(-abs(y) * (65.0 - fi * 2.0));
-    ribbons += line * (1.0 - fi / max(echoes, 1.0) * 0.65);
+    float centre = (fi - (echoes - 1.0) * 0.5) * spacing * fit;
+    float braid = sin(uv.x * braidFreq + braidTime + fi * 3.14159265) * braidAmp;
+    float x = clamp(uv.x + fi * 0.013 + refract * sin(p.y * 8.0 + fi), 0.0, 1.0);
+    float waveform = wave(x) * uWaveAmount * bassReact * motionAmp * ampScale;
+    float y = p.y - centre - braid - waveform;
+    float falloff = 46.0 + fi * 4.0;
+    float line = exp(-abs(y) * falloff);
+    ribbons += line * (1.0 - fi / max(echoes, 1.0) * 0.55);
   }
 
   float wordSpark = uLyricWordHit + smoothstep(0.88, 1.0, uLyricWordProgress) * lyric;
   vec3 col = uBackgroundColor.rgb * (0.45 + uMid * 0.15);
   col = mix(col, media, clamp(mediaWeight, 0.0, 1.0) * (0.08 + uMid * 0.12));
-  col += brandBackground * 0.16 + brandTexture * (0.08 + ribbons * 0.08);
   col += mix(uCoreColor.rgb, uEchoColor.rgb, uPhrase8Progress) * ribbons;
-  col += uBrandHighlight.rgb * logo * (0.18 + lyric * 0.55 + harmonic * 0.18);
-  col += uBrandImpact.rgb * (uSnareHit * 0.4 + wordSpark * 0.45);
+  col += uCoreColor.rgb * focus * (0.18 + lyric * 0.55 + harmonic * 0.18);
+  col += vec3(1.0) * (uSnareHit * 0.4 + wordSpark * 0.45);
   col *= 1.0 + uKickHit * 0.25 + uHigh * 0.08;
   col *= uMasterIntensity * (0.8 + uMasterGlow * 0.22);
   col = pow(max(col, 0.0), vec3(0.4545));
@@ -147,15 +171,15 @@ void main() {
     },
     {
       id: 'coreColor', type: 'color', label: 'Core Color', uniformName: 'uCoreColor',
-      brandRole: 'primary', default: [0.0, 0.9, 1.0, 1],
+      default: [0.0, 0.9, 1.0, 1],
     },
     {
       id: 'echoColor', type: 'color', label: 'Echo Color', uniformName: 'uEchoColor',
-      brandRole: 'secondary', default: [0.65, 0.18, 1.0, 1],
+      default: [0.65, 0.18, 1.0, 1],
     },
     {
       id: 'backgroundColor', type: 'color', label: 'Background', uniformName: 'uBackgroundColor',
-      brandRole: 'background', default: [0.005, 0.008, 0.018, 1],
+      default: [0.005, 0.008, 0.018, 1],
     },
   ],
 
@@ -177,5 +201,5 @@ void main() {
 
   quality: { minimumTier: 'low', recommendedTier: 'medium', estimatedPassCount: 1 },
   thumbnail: { color: '#10072b' },
-  tags: ['waveform', 'brand-logo', 'lyrics', 'harmonic', 'ribbons'],
+  tags: ['waveform', 'lyrics', 'harmonic', 'ribbons'],
 }

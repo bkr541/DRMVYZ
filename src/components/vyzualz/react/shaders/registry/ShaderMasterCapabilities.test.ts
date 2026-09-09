@@ -21,8 +21,11 @@ describe('Shader master capability metadata', () => {
   it('keeps confirmed unsupported controls disabled without inventing shader behavior', () => {
     expect(shaderRegistry.get('shader-neon-tunnel')?.masterCapabilities?.glow).toBe(false)
     expect(shaderRegistry.get('shader-liquid-metaballs')?.masterCapabilities?.glow).toBe(false)
-    expect(shaderRegistry.get('shader-brand-echo-signal')?.masterCapabilities?.motion).toBe(false)
     expect(shaderRegistry.get('shader-laser-lattice-overdrive')?.masterCapabilities?.bassReactivity).toBe(false)
     expect(shaderRegistry.get('shader-melodic-rift-bloom')?.masterCapabilities?.bassReactivity).toBe(false)
+  })
+
+  it('enables Motion for Brand Echo Signal now that the braid animation uses it', () => {
+    expect(shaderRegistry.get('shader-brand-echo-signal')?.masterCapabilities?.motion).toBe(true)
   })
 })
