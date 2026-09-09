@@ -20946,9 +20946,37 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* No effects yet: the "Select Effect…" picker alone, lined up under where the
    effect dropdown will sit, revealed by the thumbnail's FX toggle. No second
-   FX icon and no spine until the first effect is chosen. */
+   FX icon and no persistent spine until the first effect is chosen — but while
+   the picker is open a dashed line still runs from the thumbnail FX toggle down
+   and branches right into it. */
 .rv-ae-tcb-addfx-first {
+  position: relative;
   margin-left: calc(64.6px + 2 * var(--ae2-gap));
+}
+
+/* Vertical: from the thumbnail FX toggle centre (2px media-row padding + two
+   group gaps above this row) down to this row's centre. x is pulled back to the
+   thumbnail centre: our left edge is 64.6px + 2 gaps in, the thumbnail centre
+   21.3px in, so 43.3px + 2 gaps to the left. */
+.rv-ae-tcb-addfx-first.is-open::before {
+  content: '';
+  position: absolute;
+  left: calc(-1 * (43.3px + 2 * var(--ae2-gap)));
+  top: calc(-1 * (2px + 2 * var(--ae2-gap)));
+  width: 0;
+  height: calc(2px + 2 * var(--ae2-gap) + 50%);
+  border-left: 1px dashed rgba(154, 178, 188, 0.45);
+}
+
+/* Right branch: from that vertical line across to the picker's left edge. */
+.rv-ae-tcb-addfx-first.is-open::after {
+  content: '';
+  position: absolute;
+  left: calc(-1 * (43.3px + 2 * var(--ae2-gap)));
+  top: 50%;
+  width: calc(43.3px + 2 * var(--ae2-gap));
+  height: 0;
+  border-top: 1px dashed rgba(154, 178, 188, 0.45);
 }
 
 /* One or more effects: a dashed FX circle on the spine's bottom end, with the
