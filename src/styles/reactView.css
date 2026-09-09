@@ -20676,7 +20676,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* Media thumbnail wrapper — a positioning context for the FX toggle that
-   floats on the thumbnail's bottom border, revealed on hover. */
+   floats on the thumbnail's bottom border (always visible), plus the dashed
+   connector that runs from it to the effect row's FX icon. Overflow is left
+   visible so that connector can reach past the thumbnail. */
 .rv-ae-tcb-thumb {
   position: relative;
   display: inline-flex;
@@ -20700,14 +20702,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   background: #0f151a;
   color: rgba(232, 244, 248, 0.72);
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.14s, border-color 0.12s, color 0.12s;
-}
-
-.rv-ae-tcb-thumb:hover .rv-ae-tcb-fx-toggle,
-.rv-ae-tcb-fx-toggle:focus-visible,
-.rv-ae-tcb-fx-toggle.is-open {
-  opacity: 1;
+  transition: border-color 0.12s, color 0.12s;
 }
 
 .rv-ae-tcb-fx-toggle:hover,
@@ -20715,6 +20710,34 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-tcb-fx-toggle.is-open {
   border-color: #8de7ff;
   color: #8de7ff;
+}
+
+/* Elbow connector: down from the add-FX toggle's centre, then a branch to the
+   right that meets the effect row's FX icon (.rv-ae-tcb-fx). Shown only while
+   an effect row is actually present (.is-linked = has effects or picker open).
+   Reaches: toggle centre sits at the thumbnail's bottom edge; drop to that FX
+   icon's centre is media-row padding-bottom (2px) + group gap + half the
+   42.6px FX-icon column (21.3px). The branch spans from the toggle centre
+   (half the 42.6px thumbnail = 21.3px) out to that icon's left edge
+   (margin-left 42.6px + gap). */
+.rv-ae-tcb-fx-toggle.is-linked::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: calc(23.3px + var(--ae2-gap));
+  border-left: 1px dashed rgba(154, 178, 188, 0.45);
+}
+
+.rv-ae-tcb-fx-toggle.is-linked::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 23.3px + var(--ae2-gap));
+  width: calc(21.3px + var(--ae2-gap));
+  height: 0;
+  border-top: 1px dashed rgba(154, 178, 188, 0.45);
 }
 
 .rv-ae-tcb-fx-toggle-icon {
@@ -20729,7 +20752,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-tcb-entry {
   gap: var(--ae2-gap);
   padding: var(--ae2-pad) 0;
-  border-bottom: 1px solid rgba(154, 178, 188, 0.08);
 }
 
 .rv-ae-tcb-group .rv-canvas-layer-effects-stack > .rv-ae-tcb-entry:first-of-type {
@@ -20737,7 +20759,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-ae-tcb-group .rv-canvas-layer-effects-stack > .rv-ae-tcb-entry:last-of-type {
-  border-bottom: 0;
   padding-bottom: 2px;
 }
 
