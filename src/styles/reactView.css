@@ -20707,10 +20707,11 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* Dashed "add more" spine down the FX-icon column — from the first effect's FX
-   icon down to the add-effect button below the last effect. The stretch from
-   the thumbnail toggle up to that first FX icon is drawn separately, as a solid
-   blue link (see :first-of-type below); this tail past the branch stays a faint
-   dashed "add more" cue while there is only one effect.
+   icon down to the add-effect button below the last effect. It always stays a
+   faint gray dashed "add more" cue: only the per-effect branches and FX icons
+   light up blue, never this spine. The stretch from the thumbnail toggle up to
+   that first FX icon is drawn separately, as a solid blue link (see
+   :first-of-type below).
    left = group padding + half the 42.6px thumbnail (toggle centre x)
    top  = group padding + thumbnail height (2px media-row pad) + group gap +
           half the 42.6px FX column = the first FX icon's centre
@@ -20723,15 +20724,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   bottom: calc(var(--ae2-pad) + 13px);
   border-left: 1px dashed rgba(154, 178, 188, 0.45);
   animation: rv-ae-tcb-spine-grow 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  transition: border-color 0.3s ease;
-}
-
-/* Once a second effect is committed in another Effect dropdown the spine past
-   the branch fills in too — solid blue at the same 2px weight as the first
-   effect's link — so the whole FX-icon column reads as one solid run down to
-   the bottom add-effect icon. */
-.rv-ae-tcb-group.has-effects:has(.rv-canvas-layer-effects-stack > .rv-ae-tcb-entry + .rv-ae-tcb-entry)::before {
-  border-left: 2px solid #8de7ff;
 }
 
 /* When the first effect is chosen the connector system draws itself on: the
@@ -20848,6 +20840,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-ae-tcb-entry {
+  position: relative;
   gap: var(--ae2-gap);
   padding: var(--ae2-pad) 0;
 }
@@ -20878,18 +20871,45 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   animation: rv-ae-tcb-branch-grow 0.28s cubic-bezier(0.4, 0, 0.2, 1) 0.05s both;
 }
 
-/* The first effect's link back to the thumbnail add-effect icon is a SOLID BLUE
-   L — vertical up to the toggle centre, then the branch across — and its FX
-   glyph turns blue too, marking it as the committed effect. The dashed spine
-   above only carries the "add more" tail below this point. */
-.rv-ae-tcb-group .rv-canvas-layer-effects-stack > .rv-ae-tcb-entry:first-of-type .rv-ae-tcb-fx {
+/* Every committed effect marks itself live: its FX glyph turns blue and its
+   horizontal branch back to the spine goes solid blue 2px. */
+.rv-ae-tcb-group .rv-canvas-layer-effects-stack > .rv-ae-tcb-entry .rv-ae-tcb-fx {
   color: #8de7ff;
 }
 
-.rv-ae-tcb-group .rv-canvas-layer-effects-stack > .rv-ae-tcb-entry:first-of-type .rv-ae-tcb-fx::before {
+.rv-ae-tcb-group .rv-canvas-layer-effects-stack > .rv-ae-tcb-entry .rv-ae-tcb-fx::before {
   border-top-style: solid;
   border-top-color: #8de7ff;
   border-top-width: 2px;
+}
+
+/* The vertical column is read in segments: the stretch between two consecutive
+   live effects is solid blue (both ends have a value); the stretch below the
+   LAST live effect down to the add-effect circle stays the gray dashed "add
+   more" cue. This blue segment runs from an effect's FX-icon centre straight
+   down into the next effect's FX-icon centre, laid over the gray spine. Both
+   FX centres sit var(--ae2-pad) + 21.3px below their entry's top (padding-top
+   + half the 42.6px FX row), so the segment is exactly one entry tall and the
+   -bottom offset drops it into the next entry's centre. */
+.rv-ae-tcb-group .rv-canvas-layer-effects-stack > .rv-ae-tcb-entry:not(:last-of-type)::after {
+  content: '';
+  position: absolute;
+  left: 21.3px;
+  top: calc(var(--ae2-pad) + 21.3px);
+  bottom: calc(-1 * (var(--ae2-pad) + 21.3px));
+  border-left: 2px solid #8de7ff;
+  animation: rv-ae-tcb-spine-grow 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* The first effect has no top padding, so its FX centre is 21.3px down. */
+.rv-ae-tcb-group .rv-canvas-layer-effects-stack > .rv-ae-tcb-entry:first-of-type:not(:last-of-type)::after {
+  top: 21.3px;
+}
+
+/* The first effect additionally carries a SOLID BLUE L up to the thumbnail
+   add-effect icon (the ::after vertical leg), and its branch waits for that leg
+   to draw first. */
+.rv-ae-tcb-group .rv-canvas-layer-effects-stack > .rv-ae-tcb-entry:first-of-type .rv-ae-tcb-fx::before {
   animation-delay: 0.3s;
 }
 
