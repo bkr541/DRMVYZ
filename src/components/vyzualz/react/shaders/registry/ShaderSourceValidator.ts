@@ -35,6 +35,13 @@ export const GLSL_ES_300_RESERVED_IDENTIFIERS = new Set([
   'input', 'output', 'hvec2', 'hvec3', 'hvec4', 'fvec2', 'fvec3', 'fvec4',
   'sampler3DRect', 'filter', 'sizeof', 'cast', 'namespace', 'using',
   'common', 'partition', 'active',
+  // Grammar keywords that are still illegal as identifiers: interpolation and
+  // memory qualifiers, plus other GLSL ES 3.00 reserved words. A `float
+  // centroid = …` local silently breaks the whole program on ANGLE/Chrome.
+  'centroid', 'flat', 'smooth', 'noperspective', 'invariant', 'precise',
+  'layout', 'patch', 'sample', 'subroutine', 'coherent', 'volatile',
+  'restrict', 'readonly', 'writeonly', 'atomic_uint', 'double',
+  'dvec2', 'dvec3', 'dvec4',
 ])
 
 const TYPE_PATTERN = [

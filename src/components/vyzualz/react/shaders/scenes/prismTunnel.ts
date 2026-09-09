@@ -198,7 +198,7 @@ void main() {
   float bHiM  = max(uHighMid, mix(uMid, uHigh, 0.5));
   float bHigh = max(uHigh, uSnareHit * 0.5);
   float bAir  = max(uAir, uHigh * 0.8 + uHatHit * 0.4);
-  float centroid = clamp(max(uSpectralCentroid, bHigh * 0.6 + bAir * 0.4), 0.0, 1.0);
+  float timbre = clamp(max(uSpectralCentroid, bHigh * 0.6 + bAir * 0.4), 0.0, 1.0);
   float flux = clamp(max(uSpectralFlux, beat * 0.5), 0.0, 1.0);
   float complexity = clamp(max(uComplexity, flux * 0.5 + bHigh * 0.35), 0.0, 1.0);
   float slowEnergy = clamp(max(uEnergyLong, uEnergy), 0.0, 1.0);
@@ -225,9 +225,9 @@ void main() {
   float bassBreath = mix(bass, clamp(uBassStemEnergy, 0.0, 1.0), uHasStems);
   float drumsDrive = mix(beat, clamp(uDrumEnergy + uSnareHit * 0.4, 0.0, 1.0), uHasStems);
   float vocalDrive = mix(bMid, clamp(uVocalEnergy, 0.0, 1.0), uHasStems);
-  float otherDrive = mix(centroid, clamp(uOtherStemEnergy + uInstrumentEnergy * 0.5, 0.0, 1.0), uHasStems);
+  float otherDrive = mix(timbre, clamp(uOtherStemEnergy + uInstrumentEnergy * 0.5, 0.0, 1.0), uHasStems);
 
-  float roomHue = fract(keyHue + evoRot + modeWarm + build * 0.16 + chordSweep * 0.1 - isCalm * 0.05 + centroid * 0.05);
+  float roomHue = fract(keyHue + evoRot + modeWarm + build * 0.16 + chordSweep * 0.1 - isCalm * 0.05 + timbre * 0.05);
   float hazeAmount = uFogDensity * uMasterFogDensity;
 
   vec3 primary = uPrimaryColor.rgb;
@@ -332,17 +332,17 @@ void main() {
 
   // ═══ Colour — prismatic hue wheel + harmony palette ═══
   float wheelHue = fract(keyHue + element.normalizedIndex + evoRot + radialT * 0.14
-    + centroid * 0.05 + chordSweep * 0.12);
+    + timbre * 0.05 + chordSweep * 0.12);
   float wheelSat = clamp(0.55 + complexity * 0.24 + harmonyConf * 0.16 - isCalm * 0.12, 0.32, 0.96);
   vec3 facetColor = prismHsv2rgb(vec3(wheelHue, wheelSat, 1.0));
   facetColor = mix(facetColor, mix(primary, secondary, element.normalizedIndex), 0.26);
 
   float facetLight = facetMask * (0.32 + arcA * 0.46 + arcGlow * (0.62 + beat * 1.3 + facetPunch * 0.9));
-  vec3 iridescent = prismHsv2rgb(vec3(fract(0.55 + local * 0.5 + centroid * 0.22 + uTime * 0.02), 0.82, 1.0));
+  vec3 iridescent = prismHsv2rgb(vec3(fract(0.55 + local * 0.5 + timbre * 0.22 + uTime * 0.02), 0.82, 1.0));
   float rimLight = angularEdge * insideOuter * outsideInner * (0.36 + uGlow * 0.34 + bHigh * 0.35);
   vec3 col2 = facetColor * facetLight * facetIllumination + iridescent * rimLight;
 
-  vec3 arcColor = prismHsv2rgb(vec3(fract(keyHue + 0.5 + centroid * 0.35 + radialT * 0.1), 0.72, 1.0));
+  vec3 arcColor = prismHsv2rgb(vec3(fract(keyHue + 0.5 + timbre * 0.35 + radialT * 0.1), 0.72, 1.0));
   col2 += arcColor * arcGlow * facetMask * (0.4 + facetPunch * 0.8) * facetIllumination;
 
   col += col2;
