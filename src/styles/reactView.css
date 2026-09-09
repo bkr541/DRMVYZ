@@ -20947,8 +20947,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
    first selector so the .is-open override below can match its specificity and
    win on source order. overflow is opened here too so the .is-open connector
    lines are never clipped mid-transition. */
-.rv-ctrl-row:hover + .rv-ae-es-fx-row,
-.rv-ae-es-fx-row:hover,
+.rv-ctrl-row:hover + .rv-ae-es-fx-row:not(.is-connector):not(.is-adder),
+.rv-ae-es-fx-row:not(.is-connector):not(.is-adder):hover,
 .rv-ae-es-fx-row.is-open {
   height: 22px;
   margin: 0 0 calc(-1 * var(--ae2-gap));
@@ -20984,6 +20984,38 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-ae-es-fx-row.is-open::after {
   top: 100%;
+}
+
+/* Effect(s) already added: the top slot carries no button — just a solid
+   connector spanning one group gap from the Active Media dropdown's bottom
+   edge down to the first effect row (the space the FX icon used on hover).
+   margin-top cancels the leading group gap so the total is exactly one gap. */
+.rv-ae-es-group > .rv-ae-es-fx-row.is-connector {
+  height: 0;
+  margin: calc(-1 * var(--ae2-gap)) 0 0;
+  padding: 0;
+  overflow: visible;
+  opacity: 1;
+}
+
+.rv-ae-es-fx-row.is-connector::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: var(--ae2-gap);
+  border-left: 1px solid rgba(154, 178, 188, 0.4);
+  transform: translateX(-0.5px);
+}
+
+/* "Add another effect": a persistent FX button on its own row directly below
+   the effect list, one group gap under the last effect. */
+.rv-ae-es-group > .rv-ae-es-fx-row.is-adder {
+  height: 22px;
+  margin: 0;
+  padding: 2px 0 0;
+  overflow: visible;
+  opacity: 1;
 }
 
 .rv-ae-es-fx-toggle {
@@ -21063,19 +21095,28 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: none;
 }
 
-/* Active state matches Thumb Card B's Add Trigger (the selected inspector-tab
-   pill colours) instead of the shared solid-cyan fill. */
+/* Once at least one trigger is routed the panel stays open on its own
+   (isOpenFor is true whenever routes exist), so the now-redundant "+" toggle
+   above the trigger rows is dropped entirely. */
 .rv-ae-es-body .rv-ae-tc-toggle.is-active {
-  border: 1px solid rgba(103, 247, 255, 0.36);
-  background: rgba(103, 247, 255, 0.09);
-  color: #67f7ff;
+  display: none;
 }
 
-.rv-ae-es-body .rv-ae-tc-toggle.is-active:hover,
-.rv-ae-es-body .rv-ae-tc-toggle.is-active:focus-visible,
-.rv-ae-es-body .rv-ae-tc-toggle.is-active.is-open {
-  background: rgba(103, 247, 255, 0.16);
-  color: #67f7ff;
+/* In its place, a cyan rule carries the eye from the left edge of the Intensity
+   slider (strength grid: 54px label column + 8px gap = 62px) straight down into
+   the trigger rows, whose colour dots sit at that same inset. */
+.rv-ae-es-body .rv-ae-tc-toggle.is-active + .rv-ae-tc-panel {
+  position: relative;
+}
+
+.rv-ae-es-body .rv-ae-tc-toggle.is-active + .rv-ae-tc-panel::before {
+  content: '';
+  position: absolute;
+  left: 62px;
+  bottom: 100%;
+  height: var(--ae2-gap);
+  border-left: 2px solid #67f7ff;
+  transform: translateX(-1px);
 }
 
 .rv-ae-es-strength {

@@ -716,6 +716,7 @@ function AddEffectsLayerGroup({
   getGroupExtra,
   renderMediaRowLeading,
   renderAfterMediaRow,
+  renderAfterEffects,
   renderEmptyLeading,
   removeIcon,
   showEmptyEffectLabel = false,
@@ -738,6 +739,9 @@ function AddEffectsLayerGroup({
   renderMediaRowLeading?: (layer: CanvasMockState['addEffectsLayers'][number]) => ReactNode
   /** Content placed between the Active Media select and the effect stack. */
   renderAfterMediaRow?: (layer: CanvasMockState['addEffectsLayers'][number]) => ReactNode
+  /** Content placed directly below the effect stack, still inside the group
+   *  frame (e.g. a persistent "add another effect" control). */
+  renderAfterEffects?: (layer: CanvasMockState['addEffectsLayers'][number]) => ReactNode
   /** Content placed to the left of the "Select Effect…" add row — the one
    *  effect dropdown in this group that never holds a value. */
   renderEmptyLeading?: (parentLabel: string) => ReactNode
@@ -859,6 +863,7 @@ function AddEffectsLayerGroup({
         })()}
       </div>
       )}
+      {renderAfterEffects?.(layer)}
     </div>
   )
 }
@@ -1419,11 +1424,23 @@ function AddEffectsColoredSpineConcept({ state }: { state: CanvasMockState }) {
     >
       {(layer, layerIndex) => {
         const effectCount = layer.effects.length
+        const hasEffects = effectCount > 0
         const pickerOpen = (fxOpenAt[layer.mediaId] ?? -1) === effectCount
         const toggleFxPicker = () => setFxOpenAt(current => ({
           ...current,
           [layer.mediaId]: (current[layer.mediaId] ?? -1) === effectCount ? -1 : effectCount,
         }))
+        const fxButton = (
+          <button
+            type="button"
+            className={pickerOpen ? 'rv-ae-es-fx-toggle is-open' : 'rv-ae-es-fx-toggle'}
+            aria-expanded={pickerOpen}
+            aria-label={`${pickerOpen ? 'Hide the' : hasEffects ? 'Add another' : 'Add an'} effect for ${layer.mediaName}`}
+            onClick={toggleFxPicker}
+          >
+            <EffectFxIcon className="rv-ae-es-fx-toggle-icon" />
+          </button>
+        )
         return (
           <AddEffectsLayerGroup
             key={layer.mediaId}
@@ -1436,19 +1453,19 @@ function AddEffectsColoredSpineConcept({ state }: { state: CanvasMockState }) {
               style: { '--es': EFFECT_SPINE_ACCENT[effectId] } as CSSProperties,
             })}
             removeIcon={<CircleXIcon size={13} />}
-            renderAfterMediaRow={() => (
+            renderAfterMediaRow={() => hasEffects ? (
+              // Effect(s) present: no button here — just a short connector from
+              // the Active Media dropdown's bottom edge down to the first effect.
+              <div className="rv-ae-es-fx-row is-connector" aria-hidden="true" />
+            ) : (
               <div className={pickerOpen ? 'rv-ae-es-fx-row is-open' : 'rv-ae-es-fx-row'}>
-                <button
-                  type="button"
-                  className={pickerOpen ? 'rv-ae-es-fx-toggle is-open' : 'rv-ae-es-fx-toggle'}
-                  aria-expanded={pickerOpen}
-                  aria-label={`${pickerOpen ? 'Hide' : 'Add'} an effect for ${layer.mediaName}`}
-                  onClick={toggleFxPicker}
-                >
-                  <EffectFxIcon className="rv-ae-es-fx-toggle-icon" />
-                </button>
+                {fxButton}
               </div>
             )}
+            renderAfterEffects={() => hasEffects ? (
+              // Persistent "add another effect" control on its own row.
+              <div className="rv-ae-es-fx-row is-adder">{fxButton}</div>
+            ) : null}
             renderLeading={() => (
               <>
                 <span className="rv-ae-es-dot" aria-hidden="true" />
