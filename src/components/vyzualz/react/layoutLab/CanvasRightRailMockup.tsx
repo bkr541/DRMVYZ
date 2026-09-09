@@ -1442,6 +1442,9 @@ function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
                     <EffectFxIcon className="rv-ae-tcb-fx-toggle-icon" />
                   </button>
                   <div className={pickerOpen ? 'rv-ae-tcb-addfx-reveal' : 'rv-ae-tcb-addfx-reveal is-collapsed'}>
+                    <span className="rv-ae-tcb-fx" aria-hidden="true">
+                      <EffectFxIcon className="rv-ae-tcb-fx-icon" />
+                    </span>
                     {effectPicker}
                   </div>
                 </div>

@@ -20761,9 +20761,11 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   padding-bottom: 2px;
 }
 
-/* Populated effect: the FX icon becomes the same dashed circle as the Add
-   Trigger button, centred in the row, with a dashed branch back to the spine. */
-.rv-ae-tcb-entry .rv-ae-tcb-fx {
+/* Populated effect (and the "add another effect" picker row) — the FX icon
+   becomes the same dashed circle as the Add Trigger button, centred in the row,
+   with a dashed branch back to the spine. */
+.rv-ae-tcb-entry .rv-ae-tcb-fx,
+.rv-ae-tcb-addfx-reveal .rv-ae-tcb-fx {
   position: relative;
   align-self: center;
   width: 22px;
@@ -20772,7 +20774,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border-radius: 999px;
 }
 
-.rv-ae-tcb-entry .rv-ae-tcb-fx-icon {
+.rv-ae-tcb-entry .rv-ae-tcb-fx-icon,
+.rv-ae-tcb-addfx-reveal .rv-ae-tcb-fx-icon {
   width: 13px;
   height: 13px;
 }
@@ -20996,6 +20999,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   margin-left: calc(21.3px - 11px);
 }
 
+/* Short dash off the add-effect button toward the revealed row. */
 .rv-ae-tcb-addfx.is-open > .rv-ae-tcb-fx-toggle::after {
   content: '';
   position: absolute;
@@ -21005,14 +21009,30 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border-top: 1px dashed rgba(154, 178, 188, 0.45);
 }
 
+/* The revealed "add another effect" row mirrors a committed effect row: FX icon
+   then the Effect dropdown, the icon nudged 10.3px right so it lands on the same
+   column as the effect rows above (their FX icon's margin-left of 42.6px + gap,
+   minus this reveal's own left offset = button 22px + the addfx flex gap). */
 .rv-ae-tcb-addfx-reveal {
   flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ae2-gap);
   overflow: hidden;
   max-width: 100%;
   max-height: 64px;
   opacity: 1;
   transition: max-width 0.22s ease, max-height 0.22s ease, opacity 0.16s ease;
+}
+
+.rv-ae-tcb-addfx-reveal .rv-ae-tcb-fx {
+  margin-left: 10.3px;
+}
+
+.rv-ae-tcb-addfx-reveal > .rv-ctrl-row {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .rv-ae-tcb-addfx-reveal.is-collapsed {
