@@ -9,6 +9,7 @@ import {
   LYRIC_MANAGER_LAYOUT_CUE_FIXTURES,
   LYRIC_MANAGER_LAYOUT_DOCUMENT_FIXTURES,
   LYRIC_MANAGER_LAYOUT_TRACK_FIXTURES,
+  createLyricManagerLayoutTimelineFixture,
 } from './LyricManagerLayoutMockup.fixtures'
 
 let container: HTMLDivElement
@@ -53,6 +54,19 @@ describe('LyricManagerLayoutMockup', () => {
     expect(LYRIC_MANAGER_LAYOUT_DOCUMENT_FIXTURES['track-pop']).toHaveLength(3)
     expect(LYRIC_MANAGER_LAYOUT_DOCUMENT_FIXTURES['track-neon-static']).toHaveLength(0)
     expect(LYRIC_MANAGER_LAYOUT_CUE_FIXTURES['pop-live'].length).toBeGreaterThan(0)
+  })
+
+  it('builds deterministic Track Timeline fixture analysis for the shared canvas renderer', () => {
+    const timeline = createLyricManagerLayoutTimelineFixture(LYRIC_MANAGER_LAYOUT_TRACK_FIXTURES[0]!)
+
+    expect(timeline.durationSec).toBe(198)
+    expect(timeline.meta.bpm).toBe(142)
+    expect(timeline.sections.map(section => section.label)).toEqual([
+      'Intro', 'Verse', 'Build', 'Drop', 'Breakdown', 'Verse', 'Build', 'Drop', 'Outro',
+    ])
+    expect(timeline.beats.length).toBeGreaterThan(400)
+    expect(timeline.beats.some(beat => beat.isDownbeat)).toBe(true)
+    expect(timeline.waveform.length).toBeGreaterThan(400)
   })
 
   it('renders the Stage 1 Track Workspace in the Media Manager shell while center and right remain empty', async () => {
@@ -142,6 +156,53 @@ describe('LyricManagerLayoutMockup', () => {
     await click(container.querySelector('[aria-label="Show Lyrics"]')!)
     expect(surface.getAttribute('data-active-cue-id')).toBe('')
     expect(surface.textContent?.trim()).toBe('')
+  })
+
+  it('renders four synchronized Track Timeline rows and seeks the same local preview clock', async () => {
+    await act(async () => root.render(<LyricManagerLayoutMockup />))
+    await click(container.querySelector('.vz-track-row')!)
+
+    const timeline = container.querySelector('[aria-label="Track Timeline"]')!
+    expect(timeline.getAttribute('data-viewport-start')).toBe('0')
+    expect(timeline.getAttribute('data-viewport-end')).toBe('198')
+
+    const rows = [...timeline.querySelectorAll('[data-timeline-row]')]
+    expect(rows.map(row => row.getAttribute('data-timeline-row'))).toEqual([
+      'Track Section', 'Waveform', 'Beat Grid', 'Timing',
+    ])
+    expect(rows.map(row => row.querySelector('canvas')?.getAttribute('data-canvas-kind'))).toEqual([
+      'sections', 'waveform', 'beatGrid', 'timeRuler',
+    ])
+    expect([...timeline.querySelectorAll('.lmv-mockup-timeline-plot')].every(plot => (
+      plot.getAttribute('data-viewport-start') === '0' && plot.getAttribute('data-viewport-end') === '198'
+    ))).toBe(true)
+
+    const firstPlot = timeline.querySelector('.lmv-mockup-timeline-plot') as HTMLDivElement
+    firstPlot.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 44,
+      width: 1000,
+      height: 44,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect)
+
+    await act(async () => {
+      firstPlot.dispatchEvent(new MouseEvent('pointerdown', {
+        bubbles: true,
+        button: 0,
+        clientX: 500,
+      }))
+    })
+
+    const scrubber = container.querySelector('[aria-label="Scrub fixture lyric preview"]') as HTMLInputElement
+    expect(Number(scrubber.value)).toBeCloseTo(99, 4)
+    expect(timeline.getAttribute('aria-valuenow')).toBe('99000')
+    expect([...timeline.querySelectorAll<HTMLElement>('.lmv-mockup-timeline-playhead')]
+      .every(playhead => playhead.style.left === '50%')).toBe(true)
   })
 
   it('opens one version action area and keeps active state separate until Make Active is chosen', async () => {

@@ -1,10 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
 import { AudioWave02Icon, PauseIcon, PlayIcon, SubtitleIcon } from 'hugeicons-react'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { RailTabs } from '../layout/RailTabs'
 import { AudioTrackCard } from '../media/AudioTrackCard'
 import { LyricDocumentSidebar } from '../../../features/lyrics/components/LyricDocumentSidebar'
 import { LyricRendererSurface } from '../../../features/lyrics/components/LyricRendererSurface'
+import {
+  clientXToTimelineTime,
+  timeToViewportRatio,
+  type TimelineViewport,
+} from '../../../features/timeline/timelineViewport'
 import type { LyricDocumentVersion } from '../../../features/lyrics/lyricManagerTypes'
 import { Collapsible } from './ReactControlRows'
 import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
@@ -12,9 +18,12 @@ import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { IconChipButton } from './controls/IconChipButton'
 import { IconMorphToggle } from './controls/IconMorphToggle'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
+import { drawTrackTimelineCanvas, type TrackTimelineCanvasSpec } from './trackTimeline/trackTimelineCanvas'
+import type { TrackTimelineModel } from './trackTimeline/trackTimelineModel'
 import {
   LYRIC_MANAGER_LAYOUT_CUE_FIXTURES,
   createLyricManagerLayoutDocumentFixtures,
+  createLyricManagerLayoutTimelineFixture,
   createLyricManagerLayoutTrackFixtures,
 } from './LyricManagerLayoutMockup.fixtures'
 
@@ -31,6 +40,141 @@ function formatFixtureTime(ms: number): string {
   const minutes = Math.floor(safeSeconds / 60)
   const seconds = safeSeconds % 60
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
+interface MockupTimelineRowDefinition {
+  label: 'Track Section' | 'Waveform' | 'Beat Grid' | 'Timing'
+  height: number
+  spec: TrackTimelineCanvasSpec
+}
+
+function MockupTimelineCanvas({
+  model,
+  spec,
+  height,
+}: {
+  model: TrackTimelineModel
+  spec: TrackTimelineCanvasSpec
+  height: number
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const draw = () => {
+      drawTrackTimelineCanvas(canvas, spec, model, height)
+    }
+
+    draw()
+    if (typeof ResizeObserver === 'undefined') return
+
+    const observer = new ResizeObserver(draw)
+    observer.observe(canvas)
+    return () => observer.disconnect()
+  }, [height, model, spec])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="lmv-mockup-timeline-canvas"
+      data-canvas-kind={spec.kind}
+      aria-hidden="true"
+    />
+  )
+}
+
+function MockupTrackTimeline({
+  model,
+  viewport,
+  currentTimeSec,
+  onSeek,
+}: {
+  model: TrackTimelineModel
+  viewport: TimelineViewport
+  currentTimeSec: number
+  onSeek: (timeSec: number) => void
+}) {
+  const rows = useMemo<MockupTimelineRowDefinition[]>(() => [
+    { label: 'Track Section', height: 44, spec: { kind: 'sections', sections: model.sections, viewport } },
+    { label: 'Waveform', height: 58, spec: { kind: 'waveform', viewport } },
+    { label: 'Beat Grid', height: 32, spec: { kind: 'beatGrid', viewport } },
+    { label: 'Timing', height: 28, spec: { kind: 'timeRuler', viewport } },
+  ], [model.sections, viewport])
+  const playheadRatio = Math.max(0, Math.min(1, timeToViewportRatio(currentTimeSec, viewport)))
+
+  const seekFromPointer = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    onSeek(clientXToTimelineTime(event.clientX, rect, viewport, model.durationSec))
+  }, [model.durationSec, onSeek, viewport])
+
+  const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    seekFromPointer(event)
+  }, [seekFromPointer])
+
+  const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if ((event.buttons & 1) !== 1) return
+    seekFromPointer(event)
+  }, [seekFromPointer])
+
+  const handleKeyDown = useCallback((event: ReactKeyboardEvent<HTMLElement>) => {
+    const stepSec = event.shiftKey ? 4 : 1
+    let nextTime = currentTimeSec
+    if (event.key === 'ArrowLeft') nextTime -= stepSec
+    else if (event.key === 'ArrowRight') nextTime += stepSec
+    else if (event.key === 'Home') nextTime = viewport.startSec
+    else if (event.key === 'End') nextTime = viewport.endSec
+    else return
+    event.preventDefault()
+    onSeek(Math.max(viewport.startSec, Math.min(viewport.endSec, nextTime)))
+  }, [currentTimeSec, onSeek, viewport.endSec, viewport.startSec])
+
+  return (
+    <section
+      className="lmv-mockup-track-timeline"
+      aria-label="Track Timeline"
+      role="slider"
+      tabIndex={0}
+      aria-valuemin={Math.round(viewport.startSec * 1000)}
+      aria-valuemax={Math.round(viewport.endSec * 1000)}
+      aria-valuenow={Math.round(currentTimeSec * 1000)}
+      aria-valuetext={`${formatFixtureTime(currentTimeSec * 1000)} of ${formatFixtureTime(model.durationSec * 1000)}`}
+      onKeyDown={handleKeyDown}
+      data-viewport-start={viewport.startSec}
+      data-viewport-end={viewport.endSec}
+    >
+      <div className="lmv-mockup-timeline-heading">
+        <span>Track Timeline</span>
+        <strong>{formatFixtureTime(currentTimeSec * 1000)}</strong>
+      </div>
+
+      <div className="lmv-mockup-timeline-rows">
+        {rows.map(row => (
+          <div className="lmv-mockup-timeline-row" key={row.label} data-timeline-row={row.label}>
+            <div className="lmv-mockup-timeline-label">{row.label}</div>
+            <div
+              className="lmv-mockup-timeline-plot"
+              style={{ height: row.height }}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              data-viewport-start={viewport.startSec}
+              data-viewport-end={viewport.endSec}
+            >
+              <MockupTimelineCanvas model={model} spec={row.spec} height={row.height} />
+              <span
+                className="lmv-mockup-timeline-playhead"
+                style={{ left: `${playheadRatio * 100}%` }}
+                aria-hidden="true"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
 }
 
 function createFixtureVersion(trackId: string, index: number): LyricDocumentVersion {
@@ -90,6 +234,14 @@ export function LyricManagerLayoutMockup() {
     : openDocumentId
   const openCues = cueFixtureDocumentId ? LYRIC_MANAGER_LAYOUT_CUE_FIXTURES[cueFixtureDocumentId] ?? [] : []
   const durationMs = Math.max(0, (selectedTrack?.durationSec ?? 0) * 1000)
+  const timelineModel = useMemo(
+    () => selectedTrack ? createLyricManagerLayoutTimelineFixture(selectedTrack) : null,
+    [selectedTrack],
+  )
+  const timelineViewport = useMemo<TimelineViewport>(
+    () => ({ startSec: 0, endSec: timelineModel?.durationSec ?? 0 }),
+    [timelineModel],
+  )
   const filteredTracks = useMemo(() => {
     const query = trackSearch.trim().toLocaleLowerCase()
     if (!query) return tracks
@@ -194,6 +346,11 @@ export function LyricManagerLayoutMockup() {
       setOpenDocumentId(remaining.find(candidate => candidate.isActive)?.id ?? remaining[0]?.id ?? null)
     }
   }
+
+  const seekFixtureTimeline = useCallback((timeSec: number) => {
+    const nextMs = Math.min(durationMs, Math.max(0, timeSec * 1000))
+    setPlaybackTimeMs(nextMs)
+  }, [durationMs])
 
   return (
     <main className="mmv-root" aria-label="Lyric Manager layout mockup">
@@ -358,6 +515,7 @@ export function LyricManagerLayoutMockup() {
                     </div>
                   </section>
 
+                  <div className="lmv-mockup-center-editor">
                   <section className="lmv-mockup-live-preview" aria-label="Real lyric renderer preview">
                     <div className="lmv-mockup-preview-viewport">
                       <div className="lmv-mockup-preview-kicker">
@@ -401,6 +559,16 @@ export function LyricManagerLayoutMockup() {
                       </span>
                     </div>
                   </section>
+
+                    {timelineModel && (
+                      <MockupTrackTimeline
+                        model={timelineModel}
+                        viewport={timelineViewport}
+                        currentTimeSec={playbackTimeMs / 1000}
+                        onSeek={seekFixtureTimeline}
+                      />
+                    )}
+                  </div>
                 </>
               )}
             </div>
