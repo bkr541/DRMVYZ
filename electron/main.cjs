@@ -3,6 +3,8 @@
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
 const { app, BrowserWindow, dialog, ipcMain, net, protocol, screen, session, shell } = require('electron')
+// Must load before the native bridges so console.* is redirected before they run.
+const log = require('./logging.cjs')
 const { installRekordboxUsbBridge } = require('../native/rekordbox/rekordboxUsbBridge.cjs')
 const { installOutputCastBridge } = require('../native/output/outputCastBridge.cjs')
 
@@ -92,6 +94,14 @@ function configureSessionSecurity() {
     const requestingUrl = details.requestingUrl || webContents.getURL()
     callback(permission === 'media' && isTrustedAppUrl(requestingUrl))
   })
+
+  // Record network failures for the app's own backends (Supabase, casting
+  // discovery, etc.) so issues like the auth-refresh ERR_TIMED_OUT leave a
+  // trace in the log file rather than only the renderer console.
+  appSession.webRequest.onErrorOccurred(
+    { urls: ['*://*.supabase.co/*', '*://*.supabase.io/*'] },
+    details => log.warn('net-error', { url: details.url, error: details.error }),
+  )
 }
 
 function createMainWindow() {
@@ -114,6 +124,14 @@ function createMainWindow() {
   })
 
   window.once('ready-to-show', () => window.show())
+
+  const wc = window.webContents
+  wc.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (errorCode === -3) return // ERR_ABORTED — navigation superseded, not a failure
+    log.warn('did-fail-load', { errorCode, errorDescription, validatedURL, isMainFrame })
+  })
+  wc.on('render-process-gone', (_event, details) => log.error('render-process-gone', details))
+  wc.on('unresponsive', () => log.warn('renderer unresponsive'))
 
   window.webContents.setWindowOpenHandler(({ url, frameName }) => {
     const popupConfig = frameName === 'drmvyz-layout-lab'
@@ -181,7 +199,10 @@ if (!app.requestSingleInstanceLock()) {
     mainWindow.focus()
   })
 
+  app.on('child-process-gone', (_event, details) => log.error('child-process-gone', details))
+
   app.whenReady().then(() => {
+    log.info(`app ready — v${app.getVersion()} electron ${process.versions.electron} ${process.platform}/${process.arch} devServer=${useDevServer}`)
     if (!useDevServer) registerAppProtocol()
     configureSessionSecurity()
     installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow })
@@ -191,7 +212,7 @@ if (!app.requestSingleInstanceLock()) {
     app.on('activate', () => {
       if (!mainWindow) createMainWindow()
     })
-  })
+  }).catch(error => log.error('app bootstrap failed', error))
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit()
