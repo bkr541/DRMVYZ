@@ -926,18 +926,48 @@ function AddEffectsControls({ state }: { state: CanvasMockState }) {
   )
 }
 
-/** Stand-in thumbnail image for the mock (no real media assets exist here) —
- *  the DRMVYZ logo, resolved against the app root so it also loads from the
- *  Layout Lab popup document. */
+/** Fallback thumbnail — the DRMVYZ logo, resolved against the app root so it
+ *  also loads from the Layout Lab popup document. */
 const MEDIA_THUMB_TEST_IMAGE = (() => {
   try { return new URL('/drmvyz_logo_icon.png', document.baseURI).href }
   catch { return '/drmvyz_logo_icon.png' }
 })()
 
+/** Sample images bundled under public/mockups/, used to give each Add Effects
+ *  mock thumbnail a different real picture. Static assets only — the Layout Lab
+ *  never touches the production media store. Resolved against the app root like
+ *  MEDIA_THUMB_TEST_IMAGE so they also load from the popup document. */
+const MOCK_THUMBNAILS: readonly string[] = [
+  'TheKodyRobinson_Neon_club_hallucination_with_massive_pink_han_52216af9-f4da-477c-97d5-c5e22d9c394d_0.png',
+  'TheKodyRobinson_WebGL_2D_visual_effect_for_dubstep_--ar_169_-_2e833dbc-ac56-4cf3-bbd5-f52f723ca89a_2.png',
+  'TheKodyRobinson_httpss.mj.runKIzAwl-Z0nk_httpss.mj.runJutC-sb_6911a2aa-3963-4872-8b0f-0f9adc3c3b19_3.png',
+  'TheKodyRobinson_httpss.mj.runihHjGuNDPTQ_DRMBOY_exact_referen_cca57693-7ed2-4d06-9a0f-30e2fdf5befd_1.png',
+  'TheKodyRobinson_httpss.mj.runmPX7kRIKVgk_Professional_geometr_8bede9e5-418f-4f7f-a209-fc026e25fa81_1.png',
+  'TheKodyRobinson_httpss.mj.runq2c4KU0Ceac_clear_cloud_outline__6fb1d72d-7cd1-4d9f-a49e-105faddd727b_2.png',
+].map(name => {
+  const path = `/mockups/${encodeURIComponent(name)}`
+  try { return new URL(path, document.baseURI).href }
+  catch { return path }
+})
+
+/** A once-per-mount shuffle of MOCK_THUMBNAILS so each concept's thumbnails are
+ *  a different random pick, stable across that concept's re-renders. */
+function useShuffledMockThumbnails(): string[] {
+  const [shuffled] = useState(() => {
+    const copy = [...MOCK_THUMBNAILS]
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[copy[i], copy[j]] = [copy[j], copy[i]]
+    }
+    return copy
+  })
+  return shuffled
+}
+
 /** Square media thumbnail whose width and height exactly track the rendered
  *  height of the sibling media dropdown + label. Pure CSS can't derive one
  *  axis' length from a flex/grid sibling's content height, so measure it. */
-function MediaThumbBox({ mediaName, mediaType }: { mediaName: string; mediaType: string }) {
+function MediaThumbBox({ mediaName, mediaType, src }: { mediaName: string; mediaType: string; src?: string }) {
   const ref = useRef<HTMLSpanElement>(null)
   const [size, setSize] = useState(46)
   useEffect(() => {
@@ -962,7 +992,7 @@ function MediaThumbBox({ mediaName, mediaType }: { mediaName: string; mediaType:
     >
       <img
         className="rv-ae-orb-thumb-img"
-        src={MEDIA_THUMB_TEST_IMAGE}
+        src={src || MEDIA_THUMB_TEST_IMAGE}
         alt=""
         onError={event => { event.currentTarget.style.display = 'none' }}
       />
@@ -995,17 +1025,14 @@ function useConceptRoutes() {
 function ConceptGroup({
   state,
   label,
-  note,
   children,
 }: {
   state: CanvasMockState
   label: string
-  note: string
   children: (layer: CanvasMockState['addEffectsLayers'][number], layerIndex: number) => ReactNode
 }) {
   return (
     <Collapsible label={label} defaultOpen={false}>
-      <div className="rv-canvas-engine-note">{note}</div>
       {state.addEffectsLayers.length === 0 && (
         <div className="rv-canvas-engine-note">Add media to the Performance Pool (Design tab) or select an active media item to preview this concept.</div>
       )}
@@ -1187,7 +1214,6 @@ function AddEffectsLedgerCardConcept({ state }: { state: CanvasMockState }) {
     <ConceptGroup
       state={state}
       label="Add Effects — Ledger Card"
-      note="The card is a two-rail table — a label rail and a control rail. Active Media is the title row; every effect row aligns its FX icon under the Active Media label's left edge. The routed signals live behind the same dashed Trigger toggle as Thumb Card, centered under the effect dropdown. Concept only."
     >
       {(layer, layerIndex) => (
         <AddEffectsLayerGroup
@@ -1234,6 +1260,7 @@ function AddEffectsLedgerCardConcept({ state }: { state: CanvasMockState }) {
  * with its name; effects are line items below a rule, routes on a disclosure. */
 function AddEffectsThumbCardConcept({ state }: { state: CanvasMockState }) {
   const { routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  const thumbs = useShuffledMockThumbnails()
   // The "Select Effect…" picker no longer shows on its own. A single FX icon
   // sits on its own row below the Active Media row; clicking it reveals the
   // picker, and clicking it again while the picker still holds no value
@@ -1243,7 +1270,6 @@ function AddEffectsThumbCardConcept({ state }: { state: CanvasMockState }) {
     <ConceptGroup
       state={state}
       label="Add Effects — Thumb Card"
-      note="The card header pairs the media's square thumbnail with its name. An FX icon on its own row below the Active Media row toggles the effect picker open, and closes it again while the picker is still empty. Concept only."
     >
       {(layer, layerIndex) => {
         const hasEffects = layer.effects.length > 0
@@ -1263,6 +1289,7 @@ function AddEffectsThumbCardConcept({ state }: { state: CanvasMockState }) {
                   key={mediaLayer.mediaId}
                   mediaName={mediaLayer.mediaName}
                   mediaType={media?.type ?? 'image'}
+                  src={thumbs[layerIndex % thumbs.length]}
                 />
               )
             }}
@@ -1309,6 +1336,7 @@ function AddEffectsThumbCardConcept({ state }: { state: CanvasMockState }) {
  * under that same column. */
 function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
   const { routesFor, isOpenFor, toggle, editorHandlers } = useConceptRoutes()
+  const thumbs = useShuffledMockThumbnails()
   // The effect picker stays hidden until the user hovers the media thumbnail
   // and clicks the FX icon that floats on its bottom border.
   const [fxOpen, setFxOpen] = useState<Record<string, boolean>>({})
@@ -1316,7 +1344,6 @@ function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
     <ConceptGroup
       state={state}
       label="Add Effects — Thumb Card B"
-      note="Thumb Card with a coloured left rule. The effect picker is revealed by an FX icon that floats on the media thumbnail's bottom border, shown on hover. Add Trigger is icon-only under the FX-icon column; its picker sits on the same column. Concept only."
     >
       {(layer, layerIndex) => {
         const hasEffects = layer.effects.length > 0
@@ -1337,6 +1364,7 @@ function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
                     key={mediaLayer.mediaId}
                     mediaName={mediaLayer.mediaName}
                     mediaType={media?.type ?? 'image'}
+                    src={thumbs[layerIndex % thumbs.length]}
                   />
                   <button
                     type="button"
@@ -1420,7 +1448,6 @@ function AddEffectsColoredSpineConcept({ state }: { state: CanvasMockState }) {
     <ConceptGroup
       state={state}
       label="Add Effects — Colored Effect Spine"
-      note="Every effect gets its own accent color and its own tiny isolated spine — a left border spanning just that effect. The effect picker is revealed by a gray FX icon shown on hover of the Active Media dropdown; the routed signals live behind the same dashed Trigger toggle as Thumb Card. Concept only."
     >
       {(layer, layerIndex) => {
         const effectCount = layer.effects.length

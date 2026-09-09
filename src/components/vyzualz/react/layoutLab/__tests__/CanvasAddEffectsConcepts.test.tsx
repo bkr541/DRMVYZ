@@ -50,25 +50,27 @@ async function pickOption(trigger: HTMLElement, label: string) {
   await act(async () => opt.click())
 }
 
-/** The collapsible section element for a concept, once its header is expanded. */
-function conceptSection(noteFragment: string): HTMLElement {
-  const note = [...container.querySelectorAll<HTMLElement>('.rv-canvas-engine-note')]
-    .find(n => n.textContent?.includes(noteFragment))
-  if (!note) throw new Error(`Concept note "${noteFragment}" not visible — is the group expanded?`)
-  // Walk up to the collapsible body that also holds the layer group markup.
-  let el: HTMLElement | null = note
-  while (el && !el.querySelector('.rv-canvas-layer-effects-group')) el = el.parentElement
-  if (!el) throw new Error(`No layer group under concept "${noteFragment}"`)
-  return el
+/** The expanded collapsible body for an Add Effects concept, located by its
+ *  header label (the concepts no longer render a description note). */
+function conceptSection(headerText: string): HTMLElement {
+  const label = `Add Effects — ${headerText}`
+  const header = [...container.querySelectorAll<HTMLButtonElement>('button.drc-header')]
+    .find(b => b.querySelector('span')?.textContent?.trim() === label)
+  if (!header) throw new Error(`Concept header "${label}" not found`)
+  const body = header.closest('.drc-group')?.querySelector<HTMLElement>('.drc-body')
+  if (!body) throw new Error(`Concept "${label}" is not expanded`)
+  if (!body.querySelector('.rv-canvas-layer-effects-group')) {
+    throw new Error(`No layer group under concept "${label}"`)
+  }
+  return body
 }
 
 async function exerciseConcept(opts: {
   headerText: string
-  noteFragment: string
   openTrigger: (section: HTMLElement) => HTMLElement
 }) {
   await act(async () => buttonContaining(opts.headerText).click())
-  const section = conceptSection(opts.noteFragment)
+  const section = conceptSection(opts.headerText)
 
   // Add an effect so a route row exists.
   const addEffect = [...section.querySelectorAll<HTMLElement>('[role="combobox"]')]
@@ -101,10 +103,10 @@ async function exerciseConcept(opts: {
 }
 
 describe('Canvas Add Effects — alternate concept mock-ups', () => {
-  const cardConcepts: Array<{ headerText: string; noteFragment: string; toggle: string }> = [
-    { headerText: 'Ledger Card', noteFragment: 'two-rail table', toggle: '.rv-ae-tc-toggle' },
-    { headerText: 'Thumb Card', noteFragment: "media's square thumbnail with its name", toggle: '.rv-ae-tc-toggle' },
-    { headerText: 'Thumb Card B', noteFragment: 'coloured left rule', toggle: '.rv-ae-tcb-toggle' },
+  const cardConcepts: Array<{ headerText: string; toggle: string }> = [
+    { headerText: 'Ledger Card', toggle: '.rv-ae-tc-toggle' },
+    { headerText: 'Thumb Card', toggle: '.rv-ae-tc-toggle' },
+    { headerText: 'Thumb Card B', toggle: '.rv-ae-tcb-toggle' },
   ]
 
   for (const concept of cardConcepts) {
@@ -112,7 +114,6 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
       await selectCanvasReact()
       await exerciseConcept({
         headerText: concept.headerText,
-        noteFragment: concept.noteFragment,
         openTrigger: s => {
           const n = s.querySelector<HTMLButtonElement>(concept.toggle)
           if (!n) throw new Error(`no ${concept.toggle}`)
@@ -122,9 +123,9 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
     })
   }
 
-  async function openConceptWithBloom(headerText: string, noteFragment: string) {
+  async function openConceptWithBloom(headerText: string) {
     await act(async () => buttonContaining(headerText).click())
-    const section = conceptSection(noteFragment)
+    const section = conceptSection(headerText)
     const addEffect = [...section.querySelectorAll<HTMLElement>('[role="combobox"]')]
       .find(c => (c.getAttribute('aria-label') || '').startsWith('Add effect'))
     if (!addEffect) throw new Error(`${headerText}: no "Add effect" combobox`)
@@ -134,7 +135,7 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
 
   it('Colored Effect Spine lists routed signals under each effect', async () => {
     await selectCanvasReact()
-    const section = await openConceptWithBloom('Colored Effect Spine', 'own tiny isolated spine')
+    const section = await openConceptWithBloom('Colored Effect Spine')
     // The routed signals now live behind Thumb Card's dashed Trigger toggle.
     const trigger = section.querySelector<HTMLButtonElement>('.rv-ae-tc-toggle')
     if (!trigger) throw new Error('Colored Effect Spine: no .rv-ae-tc-toggle')

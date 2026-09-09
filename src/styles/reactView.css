@@ -20661,7 +20661,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   gap: var(--ae2-gap);
   padding: var(--ae2-pad);
   border: 0;
-  border-left: 3px solid #8de7ff;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.022);
 }
