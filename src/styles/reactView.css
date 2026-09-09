@@ -19510,6 +19510,46 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   line-height: 1.4;
 }
 
+/* Concept-group body: transparent to layout (display: contents), so the
+   per-media groups inside stay direct flex children of .drc-body but can be
+   cascade-animated as the group expands and collapses. On expand they stagger
+   in top-to-bottom; on collapse (.is-closing, kept mounted by ConceptGroup for
+   CONCEPT_GROUP_EXIT_MS) they stagger out bottom-to-top. */
+.rv-cg-body {
+  display: contents;
+}
+
+@keyframes rv-cg-item-in {
+  from { opacity: 0; transform: translateY(-10px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes rv-cg-item-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(-10px) scale(0.985); }
+}
+
+.rv-cg-body > * {
+  animation: rv-cg-item-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.rv-cg-body > *:nth-child(1) { animation-delay: 0.03s; }
+.rv-cg-body > *:nth-child(2) { animation-delay: 0.1s; }
+.rv-cg-body > *:nth-child(3) { animation-delay: 0.17s; }
+.rv-cg-body > *:nth-child(4) { animation-delay: 0.24s; }
+.rv-cg-body > *:nth-child(n+5) { animation-delay: 0.31s; }
+
+.rv-cg-body.is-closing > * {
+  animation-name: rv-cg-item-out;
+  animation-duration: 0.22s;
+}
+
+.rv-cg-body.is-closing > *:nth-last-child(1) { animation-delay: 0s; }
+.rv-cg-body.is-closing > *:nth-last-child(2) { animation-delay: 0.06s; }
+.rv-cg-body.is-closing > *:nth-last-child(3) { animation-delay: 0.12s; }
+.rv-cg-body.is-closing > *:nth-last-child(4) { animation-delay: 0.18s; }
+.rv-cg-body.is-closing > *:nth-last-child(n+5) { animation-delay: 0.24s; }
+
 /* CANVAS per-layer Add Effects rows. Each media's own picker is a real
    dropdown field — the exact CanvasSelectRow used for Fit Mode/Scale/etc. —
    not an interactive collapsible header; there is nothing per-media to

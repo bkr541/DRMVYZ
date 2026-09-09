@@ -969,6 +969,10 @@ function useConceptRoutes() {
 }
 
 /** Collapsible + intro note + per-layer map shell shared by the concepts. */
+/** Longest close-cascade (last stagger delay + item duration); the body stays
+ *  mounted this long after the user collapses so the groups can animate out. */
+const CONCEPT_GROUP_EXIT_MS = 480
+
 function ConceptGroup({
   state,
   label,
@@ -978,12 +982,26 @@ function ConceptGroup({
   label: string
   children: (layer: CanvasMockState['addEffectsLayers'][number], layerIndex: number) => ReactNode
 }) {
+  const [wantOpen, setWantOpen] = useState(false)
+  const [renderOpen, setRenderOpen] = useState(false)
+
+  useEffect(() => {
+    if (wantOpen) {
+      setRenderOpen(true)
+      return
+    }
+    const timer = setTimeout(() => setRenderOpen(false), CONCEPT_GROUP_EXIT_MS)
+    return () => clearTimeout(timer)
+  }, [wantOpen])
+
   return (
-    <Collapsible label={label} defaultOpen={false}>
-      {state.addEffectsLayers.length === 0 && (
-        <div className="rv-canvas-engine-note">Add media to the Performance Pool (Design tab) or select an active media item to preview this concept.</div>
-      )}
-      {state.addEffectsLayers.map((layer, layerIndex) => children(layer, layerIndex))}
+    <Collapsible label={label} open={renderOpen} onOpenChange={() => setWantOpen(current => !current)}>
+      <div className={wantOpen ? 'rv-cg-body' : 'rv-cg-body is-closing'}>
+        {state.addEffectsLayers.length === 0 && (
+          <div className="rv-canvas-engine-note">Add media to the Performance Pool (Design tab) or select an active media item to preview this concept.</div>
+        )}
+        {state.addEffectsLayers.map((layer, layerIndex) => children(layer, layerIndex))}
+      </div>
     </Collapsible>
   )
 }
