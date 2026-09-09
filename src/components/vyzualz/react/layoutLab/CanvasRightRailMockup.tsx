@@ -162,6 +162,7 @@ function AddEffectsRouteEditor({
   pickerLeading,
   emptyPickerLabel = 'Audio Intelligence Parameter',
   filledPickerLabel = 'Add another parameter',
+  collapsedAddAnother = false,
   onAddParameter,
   onRemoveParameter,
   onSetIntensity,
@@ -184,10 +185,15 @@ function AddEffectsRouteEditor({
   emptyPickerLabel?: string
   /** Picker label shown above the dropdown once at least one route exists. */
   filledPickerLabel?: string
+  /** Once at least one parameter is routed, hide the "add another" picker
+   *  behind a dashed plus icon; clicking it animates the picker in, and
+   *  choosing a value collapses it again. */
+  collapsedAddAnother?: boolean
   onAddParameter: (parameterId: CanvasMockAudioIntelligenceParameterId) => void
   onRemoveParameter: (parameterId: CanvasMockAudioIntelligenceParameterId) => void
   onSetIntensity: (parameterId: CanvasMockAudioIntelligenceParameterId, intensity: number) => void
 }) {
+  const [adderOpen, setAdderOpen] = useState(false)
   const routed = new Set(routes.map(route => route.parameterId))
   const available = CANVAS_AUDIO_INTELLIGENCE_PARAMETERS.filter(param => !routed.has(param.id))
   const addOptions = available.map(param => showDots
@@ -262,30 +268,42 @@ function AddEffectsRouteEditor({
           </div>
         )
       })}
-      {available.length > 0 ? (
-        pickerLeading != null ? (
-          <div className="rv-ae-route-picker-row">
-            {pickerLeading}
+      {available.length > 0 ? (() => {
+        const picker = (label: string, onAdd: (id: CanvasMockAudioIntelligenceParameterId) => void) => {
+          const select = (
             <SelectRow
-              label={routes.length > 0 ? filledPickerLabel : emptyPickerLabel}
+              label={label}
               value=""
               placeholder="Select Parameter…"
-              onChange={value => { if (value) onAddParameter(value as CanvasMockAudioIntelligenceParameterId) }}
+              onChange={value => { if (value) onAdd(value as CanvasMockAudioIntelligenceParameterId) }}
               options={addOptions}
               menuClassName={showDots ? 'rv-ae-param-menu' : undefined}
             />
-          </div>
-        ) : (
-          <SelectRow
-            label={routes.length > 0 ? filledPickerLabel : emptyPickerLabel}
-            value=""
-            placeholder="Select Parameter…"
-            onChange={value => { if (value) onAddParameter(value as CanvasMockAudioIntelligenceParameterId) }}
-            options={addOptions}
-            menuClassName={showDots ? 'rv-ae-param-menu' : undefined}
-          />
-        )
-      ) : (
+          )
+          return pickerLeading != null
+            ? <div className="rv-ae-route-picker-row">{pickerLeading}{select}</div>
+            : select
+        }
+        if (collapsedAddAnother && routes.length > 0) {
+          return (
+            <div className="rv-ae-route-add-another">
+              <button
+                type="button"
+                className={adderOpen ? 'rv-ae-route-add-plus is-open' : 'rv-ae-route-add-plus'}
+                aria-expanded={adderOpen}
+                aria-label={`Add another ${filledPickerLabel ?? 'parameter'}`}
+                onClick={() => setAdderOpen(open => !open)}
+              >
+                <PlusGlyphIcon size={10} />
+              </button>
+              <div className={adderOpen ? 'rv-ae-route-add-reveal' : 'rv-ae-route-add-reveal is-collapsed'}>
+                {picker(filledPickerLabel, id => { onAddParameter(id); setAdderOpen(false) })}
+              </div>
+            </div>
+          )
+        }
+        return picker(routes.length > 0 ? filledPickerLabel : emptyPickerLabel, onAddParameter)
+      })() : (
         <div className="rv-ae-route-editor-note">Every Audio Intelligence parameter is routed to this effect.</div>
       )}
     </div>
@@ -699,6 +717,7 @@ function AddEffectsLayerGroup({
   renderMediaRowLeading,
   renderAfterMediaRow,
   renderEmptyLeading,
+  removeIcon,
   showEmptyEffectLabel = false,
   emptyEffectLabelText,
   emptyRowCollapsed,
@@ -722,6 +741,9 @@ function AddEffectsLayerGroup({
   /** Content placed to the left of the "Select Effect…" add row — the one
    *  effect dropdown in this group that never holds a value. */
   renderEmptyLeading?: (parentLabel: string) => ReactNode
+  /** Glyph for each configured effect's remove button. Defaults to the
+   *  backspace icon. */
+  removeIcon?: ReactNode
   /** Show a visible "Effect" label above the "Select Effect…" add row,
    *  matching the label a populated effect's own dropdown shows. Defaults to
    *  hidden (screen-reader only), the shared behavior every other concept
@@ -801,7 +823,7 @@ function AddEffectsLayerGroup({
                   aria-label={`Remove ${effectLabel} from ${parentLabel}`}
                   onClick={() => state.removeCanvasLayerEffectAt(layer.mediaId, effectIndex)}
                 >
-                  <BackspaceIcon size={14} />
+                  {removeIcon ?? <BackspaceIcon size={14} />}
                 </button>
               </div>
               {renderRoute(ctx)}
@@ -1057,6 +1079,7 @@ function AECardRoute({
   pickerLeading,
   emptyPickerLabel,
   filledPickerLabel,
+  collapsedAddAnother,
   routeClassName,
 }: {
   ctx: AddEffectsRouteContext
@@ -1074,6 +1097,8 @@ function AECardRoute({
   /** Override the panel picker's label before / after anything is routed. */
   emptyPickerLabel?: string
   filledPickerLabel?: string
+  /** Hide the "add another" picker behind a dashed plus once ≥1 route exists. */
+  collapsedAddAnother?: boolean
   /** When set, wrap the toggle + panel in one element so a concept can lay
    *  them out together (e.g. side by side instead of stacked). */
   routeClassName?: string
@@ -1102,6 +1127,7 @@ function AECardRoute({
             pickerLeading={pickerLeading}
             emptyPickerLabel={emptyPickerLabel}
             filledPickerLabel={filledPickerLabel}
+            collapsedAddAnother={collapsedAddAnother}
             {...editorHandlers(ctx.linkKey)}
           />
         </div>
@@ -1396,6 +1422,7 @@ function AddEffectsColoredSpineConcept({ state }: { state: CanvasMockState }) {
             className: 'rv-ae-es-entry',
             style: { '--es': EFFECT_SPINE_ACCENT[effectId] } as CSSProperties,
           })}
+          removeIcon={<CircleXIcon size={13} />}
           renderLeading={() => (
             <>
               <span className="rv-ae-es-dot" aria-hidden="true" />
@@ -1414,7 +1441,7 @@ function AddEffectsColoredSpineConcept({ state }: { state: CanvasMockState }) {
           renderRoute={ctx => (
             <div className="rv-ae-es-body">
               <div className="rv-ae-es-strength">
-                <span className="rv-ae-es-strength-label">Strength</span>
+                <span className="rv-ae-es-strength-label">Intensity</span>
                 <BubbleRevealSlider
                   className="rv-ae-es-strength-slider"
                   min={0}
@@ -1424,7 +1451,7 @@ function AddEffectsColoredSpineConcept({ state }: { state: CanvasMockState }) {
                   bubbleLabel="78%"
                   revealOnHover
                   style={{ '--accent': EFFECT_SPINE_ACCENT[ctx.effectId] } as CSSProperties}
-                  aria-label={`${ctx.effectLabel} strength`}
+                  aria-label={`${ctx.effectLabel} intensity`}
                 />
               </div>
               <AECardRoute
@@ -1435,6 +1462,7 @@ function AddEffectsColoredSpineConcept({ state }: { state: CanvasMockState }) {
                 toggle={toggle}
                 editorHandlers={editorHandlers}
                 toggleVariant="dashed-trigger"
+                collapsedAddAnother
               />
             </div>
           )}

@@ -132,17 +132,6 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
     return section
   }
 
-  async function addTwoSignals(section: HTMLElement, match: (label: string) => boolean) {
-    const adder = () => [...section.querySelectorAll<HTMLElement>('[role="combobox"]')]
-      .find(c => match(c.getAttribute('aria-label') || ''))
-    const first = adder()
-    if (!first) throw new Error('no signal adder')
-    await pickOption(first, 'Kick')
-    const second = adder()
-    if (!second) throw new Error('signal adder gone after first add')
-    await pickOption(second, 'Snare')
-  }
-
   it('Colored Effect Spine lists routed signals under each effect', async () => {
     await selectCanvasReact()
     const section = await openConceptWithBloom('Colored Effect Spine', 'own tiny isolated spine')
@@ -150,7 +139,21 @@ describe('Canvas Add Effects — alternate concept mock-ups', () => {
     const trigger = section.querySelector<HTMLButtonElement>('.rv-ae-tc-toggle')
     if (!trigger) throw new Error('Colored Effect Spine: no .rv-ae-tc-toggle')
     await act(async () => trigger.click())
-    await addTwoSignals(section, label => label === 'Audio Intelligence Parameter' || label === 'Add another parameter')
+
+    const firstAdder = [...section.querySelectorAll<HTMLElement>('[role="combobox"]')]
+      .find(c => (c.getAttribute('aria-label') || '') === 'Audio Intelligence Parameter')
+    if (!firstAdder) throw new Error('Colored Effect Spine: no first parameter picker')
+    await pickOption(firstAdder, 'Kick')
+
+    // With one routed, the "add another" picker is behind a dashed plus.
+    const addPlus = section.querySelector<HTMLButtonElement>('.rv-ae-route-add-plus')
+    if (!addPlus) throw new Error('Colored Effect Spine: no .rv-ae-route-add-plus')
+    await act(async () => addPlus.click())
+    const secondAdder = [...section.querySelectorAll<HTMLElement>('[role="combobox"]')]
+      .find(c => (c.getAttribute('aria-label') || '') === 'Add another parameter')
+    if (!secondAdder) throw new Error('Colored Effect Spine: no second parameter picker')
+    await pickOption(secondAdder, 'Snare')
+
     expect(section.querySelectorAll('.rv-ae-es-body .rv-ae-route-param').length).toBe(2)
   })
 
