@@ -20711,8 +20711,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border: 1px solid rgba(154, 178, 188, 0.4);
   border-radius: 999px;
@@ -20733,15 +20733,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
    circular look as the Add Trigger button; the dashed spine that drops from it
    to each effect's FX icon is drawn per effect entry (see .rv-ae-tcb-entry). */
 .rv-ae-tcb-fx-toggle.has-effect {
-  width: 22px;
-  height: 22px;
   border-style: dashed;
   border-color: rgba(154, 178, 188, 0.45);
 }
 
 .rv-ae-tcb-fx-toggle-icon {
-  width: 13px;
-  height: 13px;
+  width: 15px;
+  height: 15px;
 }
 
 .rv-ae-tcb-group .rv-canvas-layer-effect-row {
@@ -20780,11 +20778,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* Add Trigger sits centred under its effect row, with the trigger group
    stacked directly below it (not side by side). */
+/* The route is indented to the trigger group's column so the centred Add
+   Trigger button and its dashed connectors line up with the middle of that
+   group, not the middle of the whole parent group. */
 .rv-ae-tcb-route {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--ae2-gap);
+  margin-left: calc(64.6px + 2 * var(--ae2-gap));
 }
 
 .rv-ae-tcb-toggle {
@@ -20874,11 +20876,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* Triggers group — stacked below the centred Add Trigger button, its left edge
-   lined up under the effect dropdown above (FX-icon margin-left 42.6px + gap,
-   the 22px FX circle, then the row gap), extending to the group's right edge. */
+   lined up under the effect dropdown above; the enclosing .rv-ae-tcb-route
+   already carries that indent, so the panel just fills the route width. */
 .rv-ae-tcb-panel {
   align-self: stretch;
-  margin-left: calc(64.6px + 2 * var(--ae2-gap));
   min-width: 0;
   padding: var(--ae2-gap);
   border: 1px solid transparent;
@@ -20933,8 +20934,11 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   color: rgba(232, 244, 248, 0.72);
 }
 
+/* Remove control is a red circle-X (removeIcon={<CircleXIcon />}), revealed on
+   row hover. */
 .rv-ae-tcb-group .rv-canvas-layer-effect-remove {
   opacity: 0;
+  color: #f2555f;
   transition: opacity 0.12s;
 }
 
@@ -20953,17 +20957,18 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   margin-left: calc(42.6px + var(--ae2-gap));
 }
 
-/* Vertical: from the thumbnail FX toggle centre (2px media-row padding + two
-   group gaps above this row) down to this row's centre. x is pulled back to the
-   thumbnail centre: our left edge is 42.6px + one gap in, the thumbnail centre
-   21.3px in, so 21.3px + one gap to the left. */
+/* Vertical: from the thumbnail FX toggle centre down to this row's centre.
+   The empty-state stack isn't rendered (showEffects is off with no effects), so
+   this row sits one group gap + the 2px media-row padding below the media row,
+   the same as a first effect row. x is pulled back to the thumbnail centre: our
+   left edge is 42.6px + one gap in, the thumbnail centre 21.3px in. */
 .rv-ae-tcb-addfx-first.is-open::before {
   content: '';
   position: absolute;
   left: calc(-1 * (21.3px + var(--ae2-gap)));
-  top: calc(-1 * (2px + 2 * var(--ae2-gap)));
+  top: calc(-1 * (2px + var(--ae2-gap)));
   width: 0;
-  height: calc(2px + 2 * var(--ae2-gap) + 50%);
+  height: calc(2px + var(--ae2-gap) + 50%);
   border-left: 1px dashed rgba(154, 178, 188, 0.45);
 }
 

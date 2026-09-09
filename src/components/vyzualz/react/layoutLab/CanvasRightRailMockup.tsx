@@ -1136,6 +1136,19 @@ function EffectFxIcon({ size = 14, color = 'currentColor', className }: { size?:
   )
 }
 
+/** Stacked layers with a plus badge — the "add effect" affordance shown on the
+ *  media thumbnail and on the vertical connector. */
+function EffectLayersIcon({ size = 15, className }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="currentColor" className={className} aria-hidden="true">
+      <g transform="translate(36,-52)">
+        <path fillRule="evenodd" d="m -31,54 c -1.6447,0 -3,1.355301 -3,3 v 13.999997 c 0,1.6447 1.3553,3 3,3 h 1 v 1 c 0,1.6447 1.3553,3 3,3 h 1 v 1 c 0,1.6447 1.3553,3 3,3 h 14 c 1.6447,0 3,-1.3553 3,-3 V 65 c 0,-1.644699 -1.3553,-3 -3,-3 h -1 v -1 c 0,-1.644699 -1.3553,-3 -3,-3 h -1 v -1 c 0,-1.644699 -1.3553,-3 -3,-3 z m 0,2 h 14 c 0.57129,0 1,0.428706 1,1 v 1 h -11 c -1.6447,0 -3,1.355301 -3,3 v 10.999997 h -1 c -0.57129,0 -1,-0.4287 -1,-1 V 57 c 0,-0.571294 0.42871,-1 1,-1 z m 4,4 h 14 c 0.57129,0 1,0.428706 1,1 v 1 h -11 c -1.6447,0 -3,1.355301 -3,3 v 10.999997 h -1 c -0.57129,0 -1,-0.4287 -1,-1 V 61 c 0,-0.571294 0.42871,-1 1,-1 z m 4,4 c 4.66667,0 9.33333,0 14,0 0.5713,0 1,0.428704 1,1 v 13.999997 c 0,0.5713 -0.4287,1 -1,1 h -14 c -0.5713,0 -1,-0.4287 -1,-1 0,-4.66666 0,-9.33333 0,-13.999997 0,-0.571296 0.4287,-1 1,-1 z" />
+        <path fillRule="evenodd" d="m -16,66 a 1,1 0 0 0 -1,1 v 3.999997 h -4 a 1,1 0 0 0 -1,1 1,1 0 0 0 1,1 h 4 v 4 a 1,1 0 0 0 1,1 1,1 0 0 0 1,-1 v -4 h 4 a 1,1 0 0 0 1,-1 1,1 0 0 0 -1,-1 h -4 V 67 a 1,1 0 0 0 -1,-1 z" />
+      </g>
+    </svg>
+  )
+}
+
 /** Sparkle-cluster badge glyph — overlaid on the FX icon's bottom-right
  *  corner while an effect has no Audio Triggers routed yet (the "Add
  *  Trigger" state), signalling it isn't reactive yet. */
@@ -1197,6 +1210,8 @@ function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
             state={state}
             layer={layer}
             layerIndex={layerIndex}
+            showEffects={hasEffects}
+            removeIcon={<CircleXIcon size={14} />}
             getGroupExtra={() => ({ className: hasEffects ? 'rv-ae-tcb-group has-effects' : 'rv-ae-tcb-group' })}
             renderMediaRowLeading={mediaLayer => {
               const media = state.mediaItems.find(item => item.id === mediaLayer.mediaId)
@@ -1219,7 +1234,7 @@ function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
                     aria-label={`${pickerOpen ? 'Hide' : 'Add'} an effect for ${mediaLayer.mediaName}`}
                     onClick={toggleFxPicker}
                   >
-                    <EffectFxIcon className="rv-ae-tcb-fx-toggle-icon" />
+                    <EffectLayersIcon className="rv-ae-tcb-fx-toggle-icon" />
                   </button>
                 </span>
               )
@@ -1259,7 +1274,7 @@ function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
                     aria-label={`${pickerOpen ? 'Hide' : 'Add'} an effect for ${layer.mediaName}`}
                     onClick={toggleFxPicker}
                   >
-                    <EffectFxIcon className="rv-ae-tcb-fx-toggle-icon" />
+                    <EffectLayersIcon className="rv-ae-tcb-fx-toggle-icon" />
                   </button>
                   <div className={pickerOpen ? 'rv-ae-tcb-addfx-reveal' : 'rv-ae-tcb-addfx-reveal is-collapsed'}>
                     <span className="rv-ae-tcb-fx" aria-hidden="true">
