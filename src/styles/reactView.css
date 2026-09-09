@@ -20666,18 +20666,19 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   background: rgba(255, 255, 255, 0.022);
 }
 
-/* One continuous dashed spine down the FX-icon column, from the add-FX toggle
-   on the thumbnail to the add-effect button below the last effect. Drawn only
-   once at least one effect exists — before that, the thumbnail toggle is the
-   sole add-effect control.
-   left  = group padding + half the 42.6px thumbnail (toggle centre x)
-   top   = group padding + thumbnail height (toggle centre sits on its bottom)
+/* Dashed "add more" spine down the FX-icon column — from the first effect's FX
+   icon down to the add-effect button below the last effect. The stretch from
+   the thumbnail toggle to that first FX icon is drawn separately, as a solid
+   blue link (see :first-of-type below).
+   left = group padding + half the 42.6px thumbnail (toggle centre x)
+   top  = group padding + thumbnail height (2px media-row pad) + group gap +
+          half the 42.6px FX column = the first FX icon's centre
    bottom = group padding + half the 22px add-effect button */
 .rv-ae-tcb-group.has-effects::before {
   content: '';
   position: absolute;
   left: calc(var(--ae2-pad) + 21.3px);
-  top: calc(var(--ae2-pad) + 42.6px);
+  top: calc(var(--ae2-pad) + 65.9px + var(--ae2-gap));
   bottom: calc(var(--ae2-pad) + 11px);
   border-left: 1px dashed rgba(154, 178, 188, 0.45);
   animation: rv-ae-tcb-spine-grow 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -20799,6 +20800,31 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   width: calc(21.3px + var(--ae2-gap));
   border-top: 1px dashed rgba(154, 178, 188, 0.45);
   animation: rv-ae-tcb-branch-grow 0.28s cubic-bezier(0.4, 0, 0.2, 1) 0.05s both;
+}
+
+/* The first effect's link back to the thumbnail add-effect icon is a SOLID BLUE
+   L — vertical up to the toggle centre, then the branch across — and its FX
+   glyph turns blue too, marking it as the committed effect. The dashed spine
+   above only carries the "add more" tail below this point. */
+.rv-ae-tcb-group .rv-canvas-layer-effects-stack > .rv-ae-tcb-entry:first-of-type .rv-ae-tcb-fx {
+  color: #8de7ff;
+}
+
+.rv-ae-tcb-group .rv-canvas-layer-effects-stack > .rv-ae-tcb-entry:first-of-type .rv-ae-tcb-fx::before {
+  border-top-style: solid;
+  border-top-color: #8de7ff;
+  animation-delay: 0.3s;
+}
+
+.rv-ae-tcb-group .rv-canvas-layer-effects-stack > .rv-ae-tcb-entry:first-of-type .rv-ae-tcb-fx::after {
+  content: '';
+  position: absolute;
+  left: calc(-1 * (21.3px + var(--ae2-gap)));
+  top: calc(-1 * (var(--ae2-gap) + 2px));
+  width: 0;
+  height: calc(var(--ae2-gap) + 2px + 21.3px);
+  border-left: 1px solid #8de7ff;
+  animation: rv-ae-tcb-spine-grow 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Add Trigger sits centred under its effect row, with the trigger group
@@ -20924,10 +20950,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border-bottom-color: #8de7ff !important;
 }
 
-/* Each routed trigger row gets 6px of vertical breathing room. */
+/* Routed trigger rows sit close together — the row gap plus a 1px cushion
+   matches the var(--ae2-gap) that frames the Add Trigger button above. */
+.rv-ae-tcb-panel .rv-ae-route-editor {
+  gap: 6px;
+}
+
 .rv-ae-tcb-panel .rv-ae-route-param--inline {
-  padding-top: 6px;
-  padding-bottom: 6px;
+  padding-top: 1px;
+  padding-bottom: 1px;
 }
 
 /* The red circle-X stays in flow and always visible, so the intensity slider
@@ -20936,9 +20967,33 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   opacity: 1;
 }
 
-/* "Add another trigger" — a dashed-circle plus on its own row, centred. */
+/* "Add another trigger" — a dashed-circle plus on its own row, centred, framed
+   above and below by the same short dashed connectors as the Add Trigger
+   button below the effect dropdown. */
 .rv-ae-tcb-panel .rv-ae-route-add-another {
   align-items: center;
+}
+
+.rv-ae-tcb-panel .rv-ae-route-add-plus {
+  position: relative;
+}
+
+.rv-ae-tcb-panel .rv-ae-route-add-plus::before,
+.rv-ae-tcb-panel .rv-ae-route-add-plus.is-open::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 0;
+  height: var(--ae2-gap);
+  border-left: 1px dashed rgba(154, 178, 188, 0.45);
+}
+
+.rv-ae-tcb-panel .rv-ae-route-add-plus::before {
+  bottom: 100%;
+}
+
+.rv-ae-tcb-panel .rv-ae-route-add-plus.is-open::after {
+  top: 100%;
 }
 
 /* Add Trigger parameter icon — mirrors the FX icon's shrink-wrapped,
