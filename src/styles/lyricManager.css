@@ -2724,6 +2724,15 @@
   padding: 0;
 }
 
+/* Match the Media Manager window surface: its rail panels are the
+   var(--az-panel) card colour, not the darker default .vz-inspector-inner
+   fill. Scoped high enough (.mmv-content > .vz-inspector.<rail> >) to beat
+   both the base rule and the themed [data-theme] .vz-inspector-inner override. */
+.mmv-content > .vz-inspector.lmv-mockup-left-rail > .vz-inspector-inner,
+.mmv-content > .vz-inspector.lmv-mockup-right-rail > .vz-inspector-inner {
+  background: var(--az-panel);
+}
+
 .lmv-mockup-left-shell {
   display: flex;
   flex: 1;
@@ -2756,21 +2765,30 @@
   padding: 14px 12px 12px;
 }
 
+/* Window header — mirrors the Media Library panel header (.vz-panel-header +
+   .vz-panel-title in the Media Manager): a full-width row with a bottom
+   divider, an uppercase muted title, and a currentColor icon. The negative
+   margins pull it out of the section's 14px/12px padding so the divider spans
+   the whole window like the production panel does. */
 .lmv-mockup-rail-title {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 8px;
-  min-height: 24px;
-  color: rgba(237,249,251,0.92);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.09em;
+  margin: -14px -12px 0;
+  padding: 0 14px;
+  min-height: 42px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  color: var(--az-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
 }
 
 .lmv-mockup-rail-title svg {
-  color: var(--az-cyan, #4ac7db);
+  flex-shrink: 0;
+  color: currentColor;
 }
 
 .lmv-mockup-workspace-tabs.dv-underline-tabs {
@@ -2802,7 +2820,9 @@
 .drc-body.lmv-mockup-track-library-body {
   flex: 1 1 auto;
   min-height: 0;
-  gap: 8px;
+  /* Standard search-row -> records gap, matching the production Track Library
+     (.lmv-track-search-wrap { margin: 10px 0 }). */
+  gap: 10px;
   overflow: hidden;
   padding-bottom: 8px;
 }

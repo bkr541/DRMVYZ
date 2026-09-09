@@ -579,6 +579,7 @@ export function LyricManagerLayoutMockup() {
             label="Lyric Manager layout — right rail"
             collapsed={rightCollapsed}
             onToggleCollapsed={() => setRightCollapsed(value => !value)}
+            className="lmv-mockup-right-rail"
           >
             {null}
           </WorkspaceRail>
