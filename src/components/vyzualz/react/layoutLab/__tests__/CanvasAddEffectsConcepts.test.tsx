@@ -50,17 +50,15 @@ async function pickOption(trigger: HTMLElement, label: string) {
   await act(async () => opt.click())
 }
 
-/** The expanded collapsible body for an Add Effects concept, located by its
- *  header label (the concepts no longer render a description note). */
-function conceptSection(headerText: string): HTMLElement {
-  const label = `Add Effects — ${headerText}`
+/** The expanded collapsible body for a group, located by its header label. */
+function conceptSection(label: string): HTMLElement {
   const header = [...container.querySelectorAll<HTMLButtonElement>('button.drc-header')]
     .find(b => b.querySelector('span')?.textContent?.trim() === label)
-  if (!header) throw new Error(`Concept header "${label}" not found`)
+  if (!header) throw new Error(`Group header "${label}" not found`)
   const body = header.closest('.drc-group')?.querySelector<HTMLElement>('.drc-body')
-  if (!body) throw new Error(`Concept "${label}" is not expanded`)
+  if (!body) throw new Error(`Group "${label}" is not expanded`)
   if (!body.querySelector('.rv-canvas-layer-effects-group')) {
-    throw new Error(`No layer group under concept "${label}"`)
+    throw new Error(`No layer group under "${label}"`)
   }
   return body
 }
@@ -102,60 +100,16 @@ async function exerciseConcept(opts: {
   expect(section.querySelectorAll('.dv-bubble-slider').length, `${opts.headerText}: two intensity sliders`).toBe(2)
 }
 
-describe('Canvas Add Effects — alternate concept mock-ups', () => {
-  const cardConcepts: Array<{ headerText: string; toggle: string }> = [
-    { headerText: 'Ledger Card', toggle: '.rv-ae-tc-toggle' },
-    { headerText: 'Thumb Card', toggle: '.rv-ae-tc-toggle' },
-    { headerText: 'Thumb Card B', toggle: '.rv-ae-tcb-toggle' },
-  ]
-
-  for (const concept of cardConcepts) {
-    it(`${concept.headerText} routes multiple parameters with intensity sliders`, async () => {
-      await selectCanvasReact()
-      await exerciseConcept({
-        headerText: concept.headerText,
-        openTrigger: s => {
-          const n = s.querySelector<HTMLButtonElement>(concept.toggle)
-          if (!n) throw new Error(`no ${concept.toggle}`)
-          return n
-        },
-      })
-    })
-  }
-
-  async function openConceptWithBloom(headerText: string) {
-    await act(async () => buttonContaining(headerText).click())
-    const section = conceptSection(headerText)
-    const addEffect = [...section.querySelectorAll<HTMLElement>('[role="combobox"]')]
-      .find(c => (c.getAttribute('aria-label') || '').startsWith('Add effect'))
-    if (!addEffect) throw new Error(`${headerText}: no "Add effect" combobox`)
-    await pickOption(addEffect, 'Bloom')
-    return section
-  }
-
-  it('Colored Effect Spine lists routed signals under each effect', async () => {
+describe('Canvas Effects group mock-up', () => {
+  it('routes multiple parameters with intensity sliders', async () => {
     await selectCanvasReact()
-    const section = await openConceptWithBloom('Colored Effect Spine')
-    // The routed signals now live behind Thumb Card's dashed Trigger toggle.
-    const trigger = section.querySelector<HTMLButtonElement>('.rv-ae-tc-toggle')
-    if (!trigger) throw new Error('Colored Effect Spine: no .rv-ae-tc-toggle')
-    await act(async () => trigger.click())
-
-    const firstAdder = [...section.querySelectorAll<HTMLElement>('[role="combobox"]')]
-      .find(c => (c.getAttribute('aria-label') || '') === 'Add Trigger')
-    if (!firstAdder) throw new Error('Colored Effect Spine: no first parameter picker')
-    await pickOption(firstAdder, 'Kick')
-
-    // With one routed, the "add another" picker is behind a dashed plus.
-    const addPlus = section.querySelector<HTMLButtonElement>('.rv-ae-route-add-plus')
-    if (!addPlus) throw new Error('Colored Effect Spine: no .rv-ae-route-add-plus')
-    await act(async () => addPlus.click())
-    const secondAdder = [...section.querySelectorAll<HTMLElement>('[role="combobox"]')]
-      .find(c => (c.getAttribute('aria-label') || '') === 'Add Trigger')
-    if (!secondAdder) throw new Error('Colored Effect Spine: no second parameter picker')
-    await pickOption(secondAdder, 'Snare')
-
-    expect(section.querySelectorAll('.rv-ae-es-body .rv-ae-route-param').length).toBe(2)
+    await exerciseConcept({
+      headerText: 'Effects',
+      openTrigger: s => {
+        const n = s.querySelector<HTMLButtonElement>('.rv-ae-tcb-toggle')
+        if (!n) throw new Error('no .rv-ae-tcb-toggle')
+        return n
+      },
+    })
   })
-
 })

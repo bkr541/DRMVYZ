@@ -107,7 +107,6 @@ const REQUIRED_LABELS = [
   'Melt',
   'Stutter',
   'Select Effect',
-  'Route Effect',
   'Audio Intelligence Parameter',
   'Select Parameter',
   'Remove the route for',
@@ -116,10 +115,6 @@ const REQUIRED_LABELS = [
   'Hi-Hat',
   'Downbeat',
   'Section Change',
-  'Add Effects — Ledger Card',
-  'Add Effects — Thumb Card',
-  'Add Effects — Thumb Card B',
-  'Add Effects — Colored Effect Spine',
   'Fractures recording is unavailable',
   'Recording unavailable',
 ]

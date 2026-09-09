@@ -150,12 +150,12 @@ describe('Canvas Layout Lab through the real shell', () => {
     expect(container.textContent).toContain('Roles · Aurora Portrait.png')
   })
 
-  it('shows only Add Effects under Routing and deterministic analysis without live audio', async () => {
+  it('shows only the Effects group under Routing and deterministic analysis without live audio', async () => {
     await selectEngine('CANVAS')
     await act(async () => exactButton('REACT').click())
 
     expect(tabLabels('Canvas react surfaces')).toEqual(['ROUTING', 'ANALYSIS'])
-    expect(container.textContent).toContain('Add Effects')
+    expect(container.textContent).toContain('Effects')
     expect(container.textContent).not.toContain('Audio Routing')
 
     await act(async () => exactButton('ANALYSIS').click())

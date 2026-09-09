@@ -20761,23 +20761,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   padding-bottom: 2px;
 }
 
-/* Populated effect (and the "add another effect" picker row) — the FX icon
-   becomes the same dashed circle as the Add Trigger button, centred in the row,
-   with a dashed branch back to the spine. */
-.rv-ae-tcb-entry .rv-ae-tcb-fx,
-.rv-ae-tcb-addfx-reveal .rv-ae-tcb-fx {
+/* Populated effect (and the "add another effect" picker row) — a plain FX glyph
+   left of the Effect dropdown, same as Colored Effect Spine. No circle: only the
+   toggle icons on/under the spine carry a border. A dashed branch links it to
+   the spine. */
+.rv-ae-tcb-entry .rv-ae-tcb-fx {
   position: relative;
-  align-self: center;
-  width: 22px;
-  height: 22px;
-  border: 1px dashed rgba(154, 178, 188, 0.45);
-  border-radius: 999px;
-}
-
-.rv-ae-tcb-entry .rv-ae-tcb-fx-icon,
-.rv-ae-tcb-addfx-reveal .rv-ae-tcb-fx-icon {
-  width: 13px;
-  height: 13px;
 }
 
 .rv-ae-tcb-entry .rv-ae-tcb-fx::before {
@@ -20815,16 +20804,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   transition: border-color 0.12s, background 0.12s, color 0.12s;
 }
 
-/* Vertical dashed line above: from the Add Trigger button up to the bottom
-   border of the effect dropdown (the entry gap, plus a few px into the row to
-   meet the underline). */
+/* Vertical dashed line above: from the Add Trigger button up to — and no
+   further than — the bottom border of the effect dropdown. That underline sits
+   at the effect row's bottom edge, one entry gap above this button. */
 .rv-ae-tcb-toggle::before {
   content: '';
   position: absolute;
   left: 50%;
-  top: calc(-1 * var(--ae2-gap) - 4px);
+  top: calc(-1 * var(--ae2-gap));
   width: 0;
-  height: calc(var(--ae2-gap) + 4px);
+  height: var(--ae2-gap);
   border-left: 1px dashed rgba(154, 178, 188, 0.45);
 }
 
@@ -20901,6 +20890,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border-color: #8de7ff;
 }
 
+/* Once a trigger is routed the trigger group takes a blue border; carry that
+   same blue onto the effect dropdown's underline above it so the two read as
+   one linked unit. !important matches the underline dropdown's own specificity. */
+.rv-ae-tcb-entry:has(.rv-ae-tcb-toggle.is-active) .rv-canvas-layer-effect-row .dv-underline-dropdown .drm-dropdown__trigger {
+  border-bottom-color: #8de7ff !important;
+}
+
 /* Each routed trigger row gets 6px of vertical breathing room. The remove
    button is lifted out of flow so the slider spans the panel's full inner
    width — the row's content then sits the same var(--ae2-gap) inset from the
@@ -20947,37 +20943,38 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   opacity: 1;
 }
 
-/* No effects yet: the "Select Effect…" picker alone, lined up under where the
-   effect dropdown will sit, revealed by the thumbnail's FX toggle. No second
-   FX icon and no persistent spine until the first effect is chosen — but while
-   the picker is open a dashed line still runs from the thumbnail FX toggle down
-   and branches right into it. */
+/* No effects yet: the "Select Effect…" picker row (its own FX icon + the Effect
+   dropdown), placed on the effect-icon column and revealed by the thumbnail's
+   FX toggle. No persistent spine and no standalone add button until the first
+   effect is chosen — but while the picker is open a dashed line runs from the
+   thumbnail FX toggle down and branches right to this row's FX icon. */
 .rv-ae-tcb-addfx-first {
   position: relative;
-  margin-left: calc(64.6px + 2 * var(--ae2-gap));
+  margin-left: calc(42.6px + var(--ae2-gap));
 }
 
 /* Vertical: from the thumbnail FX toggle centre (2px media-row padding + two
    group gaps above this row) down to this row's centre. x is pulled back to the
-   thumbnail centre: our left edge is 64.6px + 2 gaps in, the thumbnail centre
-   21.3px in, so 43.3px + 2 gaps to the left. */
+   thumbnail centre: our left edge is 42.6px + one gap in, the thumbnail centre
+   21.3px in, so 21.3px + one gap to the left. */
 .rv-ae-tcb-addfx-first.is-open::before {
   content: '';
   position: absolute;
-  left: calc(-1 * (43.3px + 2 * var(--ae2-gap)));
+  left: calc(-1 * (21.3px + var(--ae2-gap)));
   top: calc(-1 * (2px + 2 * var(--ae2-gap)));
   width: 0;
   height: calc(2px + 2 * var(--ae2-gap) + 50%);
   border-left: 1px dashed rgba(154, 178, 188, 0.45);
 }
 
-/* Right branch: from that vertical line across to the picker's left edge. */
+/* Right branch: from that vertical line across to this row's FX icon (its left
+   edge = this container's left edge). */
 .rv-ae-tcb-addfx-first.is-open::after {
   content: '';
   position: absolute;
-  left: calc(-1 * (43.3px + 2 * var(--ae2-gap)));
+  left: calc(-1 * (21.3px + var(--ae2-gap)));
   top: 50%;
-  width: calc(43.3px + 2 * var(--ae2-gap));
+  width: calc(21.3px + var(--ae2-gap));
   height: 0;
   border-top: 1px dashed rgba(154, 178, 188, 0.45);
 }
@@ -21026,13 +21023,22 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   transition: max-width 0.22s ease, max-height 0.22s ease, opacity 0.16s ease;
 }
 
+/* FX icon sits flush at the reveal's left edge; the reveal itself is placed on
+   the effect-icon column per case below. */
 .rv-ae-tcb-addfx-reveal .rv-ae-tcb-fx {
-  margin-left: 10.3px;
+  margin-left: 0;
 }
 
 .rv-ae-tcb-addfx-reveal > .rv-ctrl-row {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* Has-effects "add another": the reveal follows the spine button, so nudge it
+   10.3px right (button 22px + addfx gap short of the effect-icon column) so its
+   FX icon lands on the same column as the committed effect rows. */
+.rv-ae-tcb-addfx > .rv-ae-tcb-addfx-reveal {
+  margin-left: 10.3px;
 }
 
 .rv-ae-tcb-addfx-reveal.is-collapsed {
