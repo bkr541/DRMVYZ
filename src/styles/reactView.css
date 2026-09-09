@@ -20462,8 +20462,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-canvas-layer-effect-empty-collapse {
   display: grid;
   grid-template-rows: 1fr;
+  max-height: 400px;
   opacity: 1;
-  transition: grid-template-rows 0.22s ease, opacity 0.16s ease;
+  transition: grid-template-rows 0.22s ease, max-height 0.22s ease, opacity 0.16s ease;
 }
 
 .rv-canvas-layer-effect-empty-collapse > * {
@@ -20473,6 +20474,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-canvas-layer-effect-empty-collapse.is-collapsed {
   grid-template-rows: 0fr;
+  max-height: 0;
   opacity: 0;
   pointer-events: none;
 }
@@ -20918,19 +20920,27 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   gap: var(--ae2-gap);
 }
 
-/* Gray FX icon on its own centred row, revealed while the Active Media
-   dropdown (or the row itself) is hovered, or while the picker is open. */
+/* Gray FX icon on its own centred row. Collapsed to zero height (and its two
+   flex gaps cancelled with negative margin) so the group stays compact; it
+   only takes space — and the group only grows — while the Active Media
+   dropdown or this row is hovered, or the picker is open. */
 .rv-ae-es-fx-row {
   display: flex;
   justify-content: center;
-  padding: 2px 0;
+  height: 0;
+  margin: calc(-1 * var(--ae2-gap)) 0;
+  padding: 0;
+  overflow: hidden;
   opacity: 0;
-  transition: opacity 0.14s;
+  transition: height 0.16s ease, margin 0.16s ease, padding 0.16s ease, opacity 0.14s ease;
 }
 
 .rv-ae-es-group > .rv-ctrl-row:hover + .rv-ae-es-fx-row,
 .rv-ae-es-fx-row:hover,
 .rv-ae-es-fx-row.is-open {
+  height: 24px;
+  margin: 0;
+  padding: 2px 0;
   opacity: 1;
 }
 
