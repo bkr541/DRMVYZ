@@ -20708,8 +20708,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* Dashed "add more" spine down the FX-icon column — from the first effect's FX
    icon down to the add-effect button below the last effect. The stretch from
-   the thumbnail toggle to that first FX icon is drawn separately, as a solid
-   blue link (see :first-of-type below).
+   the thumbnail toggle up to that first FX icon is drawn separately, as a solid
+   blue link (see :first-of-type below); this tail past the branch stays a faint
+   dashed "add more" cue while there is only one effect.
    left = group padding + half the 42.6px thumbnail (toggle centre x)
    top  = group padding + thumbnail height (2px media-row pad) + group gap +
           half the 42.6px FX column = the first FX icon's centre
@@ -20722,6 +20723,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   bottom: calc(var(--ae2-pad) + 13px);
   border-left: 1px dashed rgba(154, 178, 188, 0.45);
   animation: rv-ae-tcb-spine-grow 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color 0.3s ease;
+}
+
+/* Once a second effect is committed in another Effect dropdown the spine past
+   the branch fills in too — solid blue at the same 2px weight as the first
+   effect's link — so the whole FX-icon column reads as one solid run down to
+   the bottom add-effect icon. */
+.rv-ae-tcb-group.has-effects:has(.rv-canvas-layer-effects-stack > .rv-ae-tcb-entry + .rv-ae-tcb-entry)::before {
+  border-left: 2px solid #8de7ff;
 }
 
 /* When the first effect is chosen the connector system draws itself on: the
@@ -20800,7 +20810,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   width: 26px;
   height: 26px;
   padding: 0;
-  border: 1px solid rgba(154, 178, 188, 0.4);
+  border: 1px dashed rgba(154, 178, 188, 0.4);
   border-radius: 999px;
   background: #0f151a;
   color: rgba(232, 244, 248, 0.72);
@@ -20808,18 +20818,22 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   transition: border-color 0.12s, color 0.12s;
 }
 
+/* Hover/keyboard-focus are transient affordances only. Opening the picker does
+   NOT tint the toggle: it only reveals the row + extends the dashed line right.
+   Blue is reserved for "this add-FX icon's Effect dropdown has a value". */
 .rv-ae-tcb-fx-toggle:hover,
-.rv-ae-tcb-fx-toggle:focus-visible,
-.rv-ae-tcb-fx-toggle.is-open {
+.rv-ae-tcb-fx-toggle:focus-visible {
   border-color: #8de7ff;
   color: #8de7ff;
 }
 
-/* Once an effect is populated the add-FX toggle takes on the same dashed
-   circular look as the Add Trigger button, and turns blue in step with the
-   effect row's FX icon and the solid-blue link between them. */
+/* Only carried by the thumbnail toggle once the first effect has a value: its
+   ring goes solid blue at the same 2px weight as the vertical + branch link
+   down to that first effect. The bottom "add another" toggle never gets this —
+   its own revealed dropdown is always the empty adder. */
 .rv-ae-tcb-fx-toggle.has-effect {
-  border-style: dashed;
+  border-style: solid;
+  border-width: 2px;
   border-color: #8de7ff;
   color: #8de7ff;
 }
@@ -21132,9 +21146,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* One or more effects: a dashed FX circle on the spine's bottom end, with the
-   "Select Effect…" row revealing horizontally to its right when clicked. Fades
-   in behind the spine as it extends down to meet it. */
+   "Select Effect…" row revealing horizontally to its right when clicked. The row
+   itself stays exactly the 26px circle tall — the revealed picker is taken out
+   of flow (absolute, see below) so opening it never grows the row, never nudges
+   the circle down, and never lengthens the spine. */
 .rv-ae-tcb-addfx {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: var(--ae2-gap);
@@ -21150,13 +21167,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   margin-left: calc(21.3px - 13px);
 }
 
-/* Short dash off the add-effect button toward the revealed row. */
+/* Short dash off the add-effect button bridging the gap to the revealed row's
+   FX icon on the 42.6px column: circle right edge (8.3px margin + 26px) to that
+   column + one gap = 8.3px + one gap. */
 .rv-ae-tcb-addfx.is-open > .rv-ae-tcb-fx-toggle::after {
   content: '';
   position: absolute;
   left: 100%;
   top: 50%;
-  width: var(--ae2-gap);
+  width: calc(8.3px + var(--ae2-gap));
   border-top: 1px dashed rgba(154, 178, 188, 0.45);
 }
 
@@ -21174,7 +21193,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   max-width: 100%;
   max-height: 64px;
   opacity: 1;
-  transition: max-width 0.22s ease, max-height 0.22s ease, opacity 0.16s ease;
+  /* opacity resolves faster than the box so each newly unclipped strip is
+     already solid — the group wipes in with the growth instead of fading in
+     late once the line has finished extending. */
+  transition: max-width 0.2s ease, max-height 0.2s ease, opacity 0.13s ease;
 }
 
 /* FX icon sits flush at the reveal's left edge; the reveal itself is placed on
@@ -21188,11 +21210,20 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   min-width: 0;
 }
 
-/* Has-effects "add another": the reveal follows the spine button, so nudge it
-   right (button 26px + addfx gap short of the effect-icon column) so its FX
-   icon lands on the same column as the committed effect rows. */
+/* Has-effects "add another": the picker is pulled out of flow and pinned,
+   vertically centred on the add-effect circle (top:50% + translateY(-50%)) and
+   starting on the 42.6px FX-icon column so its FX icon lines up with the
+   committed effect rows above. Because it is absolute it can grow to its full
+   height without touching the row: the circle and the dashed spine hold still,
+   and the picker just wipes open from the circle — max-width from the left,
+   max-height symmetrically from the centred FX glyph outwards. */
 .rv-ae-tcb-addfx > .rv-ae-tcb-addfx-reveal {
-  margin-left: 8.3px;
+  position: absolute;
+  left: calc(42.6px + var(--ae2-gap));
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  align-items: center;
 }
 
 .rv-ae-tcb-addfx-reveal.is-collapsed {

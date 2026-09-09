@@ -1311,7 +1311,7 @@ function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
                 <div className={pickerOpen ? 'rv-ae-tcb-addfx is-open' : 'rv-ae-tcb-addfx'}>
                   <button
                     type="button"
-                    className={pickerOpen ? 'rv-ae-tcb-fx-toggle has-effect is-open' : 'rv-ae-tcb-fx-toggle has-effect'}
+                    className={pickerOpen ? 'rv-ae-tcb-fx-toggle is-open' : 'rv-ae-tcb-fx-toggle'}
                     aria-expanded={pickerOpen}
                     aria-label={`${pickerOpen ? 'Hide' : 'Add'} an effect for ${layer.mediaName}`}
                     onClick={toggleFxPicker}
