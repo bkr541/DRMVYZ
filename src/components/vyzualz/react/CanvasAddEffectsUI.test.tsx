@@ -87,7 +87,7 @@ describe('CANVAS Add Effects UI', () => {
 
     act(() => root.render(<CanvasAddEffectsControls />))
 
-    expect(host.textContent).toContain('Add Effects')
+    expect(host.textContent).toContain('Effects')
     expect(host.textContent).toContain('Active Media 1')
     expect(activeMediaCombobox(1).textContent).toContain('single-source.png')
     const addEffect = comboboxByAriaLabel('Add effect to Active Media 1')
@@ -101,7 +101,10 @@ describe('CANVAS Add Effects UI', () => {
       id: primary.id,
       effects: ['bloom'],
     })
-    expect(host.querySelectorAll('[data-canvas-effect-layer-id] button[role="combobox"]')).toHaveLength(2)
+    // The effect stack now holds only committed effects; the "Select Effect…"
+    // add picker lives in the sibling add-effect control below the connector.
+    expect(host.querySelectorAll('[data-canvas-effect-layer-id] button[role="combobox"]')).toHaveLength(1)
+    expect(comboboxByAriaLabel('Add effect to Active Media 1').textContent).toContain('Select Effect…')
     expect(host.querySelector('[aria-label^="Remove Bloom from Active Media 1"]')).not.toBeNull()
   })
 
@@ -119,7 +122,7 @@ describe('CANVAS Add Effects UI', () => {
     for (const [index, mediaId] of ['media-a', 'media-b', 'media-c', 'media-d'].entries()) {
       layerIds.push(addLayer(mediaId))
       act(() => root.render(<CanvasAddEffectsControls />))
-      expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(index + 1)
+      expect(host.querySelectorAll('.rv-canvas-layer-effects-group')).toHaveLength(index + 1)
     }
 
     act(() => {
@@ -139,7 +142,7 @@ describe('CANVAS Add Effects UI', () => {
       if (!removed.ok) throw new Error(removed.message)
     })
 
-    expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(3)
+    expect(host.querySelectorAll('.rv-canvas-layer-effects-group')).toHaveLength(3)
     expect(activeMediaCombobox(1).textContent).toContain('A.png')
     expect(activeMediaCombobox(2).textContent).toContain('C.png')
     expect(activeMediaCombobox(3).textContent).toContain('D.png')
@@ -173,7 +176,7 @@ describe('CANVAS Add Effects UI', () => {
       root.render(<CanvasAddEffectsControls />)
     })
 
-    expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(2)
+    expect(host.querySelectorAll('.rv-canvas-layer-effects-group')).toHaveLength(2)
     expect(activeMediaCombobox(1).textContent).toContain('A.png')
     expect(activeMediaCombobox(2).textContent).toContain('C.png')
     expect(host.textContent).not.toContain('B.png')
@@ -183,7 +186,7 @@ describe('CANVAS Add Effects UI', () => {
       const enabled = useReactStore.getState().updateCanvasAuthoredLayer(hiddenId, { enabled: true })
       if (!enabled.ok) throw new Error(enabled.message)
     })
-    expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(3)
+    expect(host.querySelectorAll('.rv-canvas-layer-effects-group')).toHaveLength(3)
     expect(activeMediaCombobox(2).textContent).toContain('B.png')
     expect(activeMediaCombobox(3).textContent).toContain('C.png')
     expect(host.querySelector('[aria-label="Effect 1 for Active Media 2"]')).not.toBeNull()
@@ -209,7 +212,7 @@ describe('CANVAS Add Effects UI', () => {
       root.render(<CanvasAddEffectsControls />)
     })
 
-    expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(1)
+    expect(host.querySelectorAll('.rv-canvas-layer-effects-group')).toHaveLength(1)
     expect(activeMediaCombobox(1).textContent).toContain('Solo C.png')
     expect(host.querySelector('[aria-label="Active Media 2"]')).toBeNull()
     expect(host.querySelector('[aria-label="Effect 1 for Active Media 1"]')).not.toBeNull()
@@ -218,7 +221,7 @@ describe('CANVAS Add Effects UI', () => {
       const unsoloed = useReactStore.getState().setCanvasAuthoredLayerSolo(thirdId, false)
       if (!unsoloed.ok) throw new Error(unsoloed.message)
     })
-    expect(host.querySelectorAll('[data-canvas-effect-layer-id]')).toHaveLength(3)
+    expect(host.querySelectorAll('.rv-canvas-layer-effects-group')).toHaveLength(3)
     expect(activeMediaCombobox(1).textContent).toContain('Solo A.png')
     expect(activeMediaCombobox(2).textContent).toContain('Solo B.png')
     expect(activeMediaCombobox(3).textContent).toContain('Solo C.png')
@@ -280,7 +283,10 @@ describe('CANVAS Add Effects UI', () => {
     ])
     const values = [...host.querySelectorAll<HTMLElement>(`[data-canvas-effect-layer-id="${layerId}"] .drm-dropdown__value`)]
       .map(element => element.textContent?.trim())
-    expect(values).toEqual(['Bloom', 'Glitch', 'Melt', 'Stutter', 'Select Effect…'])
+    expect(values).toEqual(['Bloom', 'Glitch', 'Melt', 'Stutter'])
+    // The add picker re-appears (below the connector) now that the stack is
+    // under the five-effect cap again.
+    expect(comboboxByAriaLabel('Add effect to Active Media 1').textContent).toContain('Select Effect…')
     expect(stack?.querySelectorAll('.rv-canvas-layer-effect-remove')).toHaveLength(4)
   })
 

@@ -14,6 +14,7 @@ import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIn
 import { buildSharedPerformanceContext, createSharedPerformanceDiagnostics, type SharedPerformanceContext } from '../../../features/performanceCore'
 import type { FeatureCurve, MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
 import { Collapsible, ColorRow, NumberInputRow, SelectRow as CanvasSelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
 import { HelpInfoTrigger, type HelpInfoTriggerProps } from '../../shared/InfoPopover'
 import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from './SharedPerformanceDiagnosticsStore'
 import { MediaLibraryBrowser, type MediaLibraryCardActionAnchor } from '../media/MediaLibraryBrowser'
@@ -4236,6 +4237,340 @@ const CANVAS_LAYER_EFFECT_OPTIONS = CANVAS_LAYER_EFFECT_IDS.map(effectId => ({
   label: CANVAS_LAYER_EFFECT_LABELS[effectId],
 }))
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Add Effects group — production build of the Layout Lab Canvas "Effects"
+// mock-up. The media thumbnail with its floating add-FX toggle, the connector
+// spine, the per-effect FX icon, and the per-effect "Trigger" group are all
+// rendered. Only the Active Media field (display-only) and the Effect dropdown /
+// value / add / remove are wired to the real store; the Audio Intelligence
+// "Trigger" UI is a local, non-persisted preview of the upcoming per-effect
+// modulation feature.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** FX icon left of an Effect dropdown — gray while empty, blue once the effect
+ *  is live (driven by CSS in the effects stack). */
+function EffectFxIcon({ size = 14, color = 'currentColor', className }: { size?: number; color?: string; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <path d="M2 15V9C2 5.68629 4.68629 3 8 3H16C19.3137 3 22 5.68629 22 9V15C22 18.3137 19.3137 21 16 21H8C4.68629 21 2 18.3137 2 15Z" />
+      <path d="M6 15V9L11 9" />
+      <path d="M5.99998 12H9.57141" />
+      <path d="M13 15L15.5 12M15.5 12L18 9M15.5 12L13 9M15.5 12L18 15" />
+    </svg>
+  )
+}
+
+/** Stacked layers + plus — the add-effect affordance on the media thumbnail and
+ *  at the bottom of the connector spine. */
+function EffectLayersIcon({ size = 15, className }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="currentColor" className={className} aria-hidden="true">
+      <g transform="translate(36,-52)">
+        <path fillRule="evenodd" d="m -31,54 c -1.6447,0 -3,1.355301 -3,3 v 13.999997 c 0,1.6447 1.3553,3 3,3 h 1 v 1 c 0,1.6447 1.3553,3 3,3 h 1 v 1 c 0,1.6447 1.3553,3 3,3 h 14 c 1.6447,0 3,-1.3553 3,-3 V 65 c 0,-1.644699 -1.3553,-3 -3,-3 h -1 v -1 c 0,-1.644699 -1.3553,-3 -3,-3 h -1 v -1 c 0,-1.644699 -1.3553,-3 -3,-3 z m 0,2 h 14 c 0.57129,0 1,0.428706 1,1 v 1 h -11 c -1.6447,0 -3,1.355301 -3,3 v 10.999997 h -1 c -0.57129,0 -1,-0.4287 -1,-1 V 57 c 0,-0.571294 0.42871,-1 1,-1 z m 4,4 h 14 c 0.57129,0 1,0.428706 1,1 v 1 h -11 c -1.6447,0 -3,1.355301 -3,3 v 10.999997 h -1 c -0.57129,0 -1,-0.4287 -1,-1 V 61 c 0,-0.571294 0.42871,-1 1,-1 z m 4,4 c 4.66667,0 9.33333,0 14,0 0.5713,0 1,0.428704 1,1 v 13.999997 c 0,0.5713 -0.4287,1 -1,1 h -14 c -0.5713,0 -1,-0.4287 -1,-1 0,-4.66666 0,-9.33333 0,-13.999997 0,-0.571296 0.4287,-1 1,-1 z" />
+        <path fillRule="evenodd" d="m -16,66 a 1,1 0 0 0 -1,1 v 3.999997 h -4 a 1,1 0 0 0 -1,1 1,1 0 0 0 1,1 h 4 v 4 a 1,1 0 0 0 1,1 1,1 0 0 0 1,-1 v -4 h 4 a 1,1 0 0 0 1,-1 1,1 0 0 0 -1,-1 h -4 V 67 a 1,1 0 0 0 -1,-1 z" />
+      </g>
+    </svg>
+  )
+}
+
+/** Sparkle cluster — the "Trigger" affordance beneath each effect row. */
+function EffectSparkleIcon({ size = 10, color = 'currentColor' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill={color} aria-hidden="true">
+      <path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z" />
+      <path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z" />
+      <path d="M28,17a1,1,0,0,1-1,1,4,4,0,0,0-4,4,1,1,0,0,1-2,0,4,4,0,0,0-4-4,1,1,0,0,1,0-2,4,4,0,0,0,4-4,1,1,0,0,1,2,0,4,4,0,0,0,4,4A1,1,0,0,1,28,17Z" />
+    </svg>
+  )
+}
+
+function EffectPlusGlyph({ size = 10 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  )
+}
+
+function EffectCircleXIcon({ size = 13 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="m15 9-6 6" />
+      <path d="m9 9 6 6" />
+    </svg>
+  )
+}
+
+/** Audio Intelligence parameters an effect's "Trigger" can bind to. UI
+ *  groundwork for the upcoming per-effect modulation feature — nothing here
+ *  reads audio or persists. */
+type CanvasEffectTriggerParamId =
+  | 'kick' | 'snare' | 'hiHat' | 'bass' | 'mid' | 'high'
+  | 'beat' | 'downbeat' | 'bar' | 'drop' | 'energy' | 'sectionChange'
+
+const CANVAS_EFFECT_TRIGGER_PARAMS: ReadonlyArray<{ id: CanvasEffectTriggerParamId; label: string }> = [
+  { id: 'kick', label: 'Kick' },
+  { id: 'snare', label: 'Snare' },
+  { id: 'hiHat', label: 'Hi-Hat' },
+  { id: 'bass', label: 'Bass' },
+  { id: 'mid', label: 'Mid' },
+  { id: 'high', label: 'High' },
+  { id: 'beat', label: 'Beat' },
+  { id: 'downbeat', label: 'Downbeat' },
+  { id: 'bar', label: 'Bar' },
+  { id: 'drop', label: 'Drop' },
+  { id: 'energy', label: 'Energy' },
+  { id: 'sectionChange', label: 'Section Change' },
+]
+
+const CANVAS_EFFECT_TRIGGER_PARAM_LABELS = Object.fromEntries(
+  CANVAS_EFFECT_TRIGGER_PARAMS.map(param => [param.id, param.label]),
+) as Record<CanvasEffectTriggerParamId, string>
+
+const CANVAS_EFFECT_TRIGGER_PARAM_COLORS: Record<CanvasEffectTriggerParamId, string> = {
+  kick: '#ff5f6d', snare: '#ff9f5f', hiHat: '#ffd75f', bass: '#8dff5f',
+  mid: '#5fffb0', high: '#5fe0ff', beat: '#5f9fff', downbeat: '#8d5fff',
+  bar: '#c95fff', drop: '#ff5fd7', energy: '#ff5f9f', sectionChange: '#5fffe0',
+}
+
+const DEFAULT_CANVAS_EFFECT_TRIGGER_INTENSITY = 0.6
+/** Trigger row stays mounted (with .is-removing) this long to play its exit
+ *  animation before the route is dropped. Matches the CSS. */
+const CANVAS_EFFECT_TRIGGER_ROW_EXIT_MS = 260
+/** How long the group body stays mounted after collapse so the per-layer
+ *  groups can run their close cascade. */
+const CANVAS_ADD_EFFECTS_EXIT_MS = 480
+
+interface CanvasEffectTriggerRoute {
+  parameterId: CanvasEffectTriggerParamId
+  intensity: number
+}
+
+/** Ephemeral (never persisted) trigger routes keyed by `${layerId}:${effectId}`
+ *  plus per-effect expand state — a local preview of the coming feature. */
+function useEphemeralEffectTriggers() {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [links, setLinks] = useState<Record<string, CanvasEffectTriggerRoute[]>>({})
+  const routesFor = (key: string): readonly CanvasEffectTriggerRoute[] => links[key] ?? []
+  const isOpenFor = (key: string) => expanded[key] ?? routesFor(key).length > 0
+  const toggle = (key: string) => {
+    const next = !isOpenFor(key)
+    setExpanded(current => ({ ...current, [key]: next }))
+  }
+  const editorHandlers = (key: string) => ({
+    onAddParameter: (id: CanvasEffectTriggerParamId) => setLinks(current => {
+      const existing = current[key] ?? []
+      if (existing.some(route => route.parameterId === id)) return current
+      return { ...current, [key]: [...existing, { parameterId: id, intensity: DEFAULT_CANVAS_EFFECT_TRIGGER_INTENSITY }] }
+    }),
+    onRemoveParameter: (id: CanvasEffectTriggerParamId) => setLinks(current => {
+      const existing = current[key]
+      if (!existing) return current
+      const next = existing.filter(route => route.parameterId !== id)
+      const copy = { ...current }
+      if (next.length > 0) copy[key] = next
+      else delete copy[key]
+      return copy
+    }),
+    onSetIntensity: (id: CanvasEffectTriggerParamId, intensity: number) => setLinks(current => {
+      const existing = current[key]
+      if (!existing) return current
+      return { ...current, [key]: existing.map(route => route.parameterId === id ? { ...route, intensity } : route) }
+    }),
+  })
+  return { routesFor, isOpenFor, toggle, editorHandlers }
+}
+
+/** Compact per-effect trigger editor: each routed parameter on one row (dot,
+ *  name, intensity slider, remove), plus a picker to add more. Local demo. */
+function CanvasEffectTriggerEditor({
+  routes, effectLabel, parentLabel, onAddParameter, onRemoveParameter, onSetIntensity,
+}: {
+  routes: readonly CanvasEffectTriggerRoute[]
+  effectLabel: string
+  parentLabel: string
+  onAddParameter: (id: CanvasEffectTriggerParamId) => void
+  onRemoveParameter: (id: CanvasEffectTriggerParamId) => void
+  onSetIntensity: (id: CanvasEffectTriggerParamId, intensity: number) => void
+}) {
+  const [adderOpen, setAdderOpen] = useState(false)
+  const [removingIds, setRemovingIds] = useState<readonly CanvasEffectTriggerParamId[]>([])
+  const exitTimers = useRef<number[]>([])
+  useEffect(() => () => { exitTimers.current.forEach(clearTimeout); exitTimers.current = [] }, [])
+  const requestRemove = (id: CanvasEffectTriggerParamId) => {
+    if (removingIds.includes(id)) return
+    setRemovingIds(current => [...current, id])
+    const timer = window.setTimeout(() => {
+      onRemoveParameter(id)
+      setRemovingIds(current => current.filter(other => other !== id))
+    }, CANVAS_EFFECT_TRIGGER_ROW_EXIT_MS)
+    exitTimers.current.push(timer)
+  }
+  const routed = new Set(routes.map(route => route.parameterId))
+  const available = CANVAS_EFFECT_TRIGGER_PARAMS.filter(param => !routed.has(param.id))
+  const addOptions = available.map(param => ({
+    value: param.id,
+    label: param.label,
+    style: { '--ai-param-dot': CANVAS_EFFECT_TRIGGER_PARAM_COLORS[param.id] } as CSSProperties,
+  }))
+  const picker = (onAdd: (id: CanvasEffectTriggerParamId) => void) => (
+    <div className="rv-ae-route-picker-row">
+      <span className="rv-ae-tcb-param-icon" aria-hidden="true"><EffectSparkleIcon size={21} /></span>
+      <CanvasSelectRow
+        label="Trigger"
+        value=""
+        placeholder="Select Parameter…"
+        onChange={value => { if (value) onAdd(value as CanvasEffectTriggerParamId) }}
+        options={addOptions}
+        menuClassName="rv-ae-param-menu"
+      />
+    </div>
+  )
+  return (
+    <div className="rv-ae-route-editor">
+      {routes.map(route => {
+        const label = CANVAS_EFFECT_TRIGGER_PARAM_LABELS[route.parameterId]
+        const isRemoving = removingIds.includes(route.parameterId)
+        return (
+          <div
+            className={isRemoving
+              ? 'rv-ae-route-param rv-ae-route-param--inline is-removing'
+              : 'rv-ae-route-param rv-ae-route-param--inline'}
+            key={route.parameterId}
+          >
+            <span
+              className="rv-ae-route-dot"
+              style={{ '--dot-color': CANVAS_EFFECT_TRIGGER_PARAM_COLORS[route.parameterId] } as CSSProperties}
+              aria-hidden="true"
+            />
+            <span className="rv-ae-route-param-name">{label}</span>
+            <BubbleRevealSlider
+              className="rv-ae-route-inline-slider"
+              min={0}
+              max={1}
+              step={0.01}
+              value={route.intensity}
+              onChange={event => onSetIntensity(route.parameterId, parseFloat(event.target.value))}
+              bubbleLabel={`${Math.round(route.intensity * 100)}%`}
+              revealOnHover
+              aria-label={`${label} intensity · ${effectLabel} on ${parentLabel}`}
+            />
+            <button
+              type="button"
+              className="rv-ae-param-trash rv-ae-param-trash--hover"
+              aria-label={`Remove the trigger for ${label} · ${effectLabel} on ${parentLabel}`}
+              onClick={() => requestRemove(route.parameterId)}
+            >
+              <EffectCircleXIcon size={13} />
+            </button>
+          </div>
+        )
+      })}
+      {available.length === 0 ? (
+        <div className="rv-ae-route-editor-note">Every trigger is routed to this effect.</div>
+      ) : routes.length === 0 ? (
+        picker(onAddParameter)
+      ) : (
+        <div className="rv-ae-route-add-another">
+          <button
+            type="button"
+            className={adderOpen ? 'rv-ae-route-add-plus is-open' : 'rv-ae-route-add-plus'}
+            aria-expanded={adderOpen}
+            aria-label="Add another Trigger"
+            onClick={() => setAdderOpen(open => !open)}
+          >
+            <EffectPlusGlyph size={10} />
+          </button>
+          <div className={adderOpen ? 'rv-ae-route-add-reveal' : 'rv-ae-route-add-reveal is-collapsed'}>
+            {picker(id => { onAddParameter(id); setAdderOpen(false) })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** The sparkle "Trigger" toggle under an effect row, and — when open — the
+ *  editor panel. Local demo only. */
+function CanvasEffectTriggerRoute({
+  effectLabel, parentLabel, routes, open, onToggle, onAddParameter, onRemoveParameter, onSetIntensity,
+}: {
+  effectLabel: string
+  parentLabel: string
+  routes: readonly CanvasEffectTriggerRoute[]
+  open: boolean
+  onToggle: () => void
+  onAddParameter: (id: CanvasEffectTriggerParamId) => void
+  onRemoveParameter: (id: CanvasEffectTriggerParamId) => void
+  onSetIntensity: (id: CanvasEffectTriggerParamId, intensity: number) => void
+}) {
+  const label = `${open ? 'Hide' : routes.length ? 'Edit' : 'Add'} Audio Intelligence triggers for ${effectLabel} on ${parentLabel}`
+  return (
+    <div className="rv-ae-tcb-route">
+      <button
+        type="button"
+        className={`rv-ae-tcb-toggle${open ? ' is-open' : ''}${routes.length ? ' is-active' : ''}`}
+        aria-expanded={open}
+        aria-label={label}
+        onClick={onToggle}
+      >
+        <EffectSparkleIcon size={13} />
+      </button>
+      {open && (
+        <div className="rv-ae-tcb-panel">
+          <CanvasEffectTriggerEditor
+            routes={routes}
+            effectLabel={effectLabel}
+            parentLabel={parentLabel}
+            onAddParameter={onAddParameter}
+            onRemoveParameter={onRemoveParameter}
+            onSetIntensity={onSetIntensity}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Square media thumbnail sized to track the sibling Active Media field's
+ *  rendered height (CSS can't derive one axis from a flex sibling). */
+function CanvasEffectMediaThumb({ media, mediaName }: { media: CanvasMediaItem | undefined; mediaName: string }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [size, setSize] = useState(46)
+  useEffect(() => {
+    const element = ref.current
+    const field = element?.closest('.rv-canvas-layer-media-row')?.querySelector<HTMLElement>('.rv-canvas-layer-media-row__field')
+    if (!element || !field || typeof ResizeObserver === 'undefined') return
+    const measure = () => setSize(field.offsetHeight || 46)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(field)
+    return () => observer.disconnect()
+  }, [])
+  const src = media?.thumbnailUrl ?? media?.objectUrl
+  return (
+    <span
+      ref={ref}
+      className="rv-ae-orb-thumb"
+      data-media-type={media?.type ?? 'image'}
+      role="img"
+      aria-label={`${mediaName} thumbnail`}
+      title={mediaName}
+      style={{ width: size, height: size }}
+    >
+      {src ? (
+        <img
+          className="rv-ae-orb-thumb-img"
+          src={src}
+          alt=""
+          onError={event => { event.currentTarget.style.display = 'none' }}
+        />
+      ) : null}
+    </span>
+  )
+}
+
 export function CanvasAddEffectsControls() {
   const orchestration = useReactStore(s => s.canvasOrchestrationSettings)
   const addCanvasLayerEffect = useReactStore(s => s.addCanvasLayerEffect)
@@ -4253,65 +4588,152 @@ export function CanvasAddEffectsControls() {
     ? primaryLayer ? [primaryLayer] : []
     : resolveCanvasEffectiveAuthoredLayers(orchestration.authoredLayers).slice(0, MAX_CANVAS_AUTHORED_LAYERS)
 
+  const triggers = useEphemeralEffectTriggers()
+  const [fxOpen, setFxOpen] = useState<Record<string, boolean>>({})
+
+  // Controlled open state so the body stays mounted through the per-layer close
+  // cascade (mirrors the Layout Lab ConceptGroup).
+  const [wantOpen, setWantOpen] = useState(true)
+  const [renderOpen, setRenderOpen] = useState(true)
+  useEffect(() => {
+    if (wantOpen) {
+      if (!renderOpen) setRenderOpen(true)
+      return
+    }
+    if (!renderOpen) return
+    const timer = window.setTimeout(() => setRenderOpen(false), CANVAS_ADD_EFFECTS_EXIT_MS)
+    return () => window.clearTimeout(timer)
+  }, [wantOpen, renderOpen])
+
   return (
-    <Collapsible label="Add Effects" defaultOpen>
-      {layers.map((layer, layerIndex) => {
-        const parentLabel = `Active Media ${layerIndex + 1}`
-        const mediaName = mediaItems.find(item => item.id === layer.mediaId)?.name ?? layer.mediaId
-        const selectedEffects = new Set(layer.effects)
-        return (
-          <div key={layer.id} className="rv-canvas-layer-effects-group">
-            {/* Which media occupies this slot is decided in the Media Library
-                (Make Active / Add as Layer) — this field is display-only, just
-                styled like a real input field (e.g. Fit Mode) for consistency. */}
+    <Collapsible label="Effects" open={renderOpen} onOpenChange={() => setWantOpen(current => !current)}>
+      <div className={wantOpen ? 'rv-cg-body' : 'rv-cg-body is-closing'} data-canvas-add-effects="routing">
+        {layers.map((layer, layerIndex) => {
+          const parentLabel = `Active Media ${layerIndex + 1}`
+          const media = mediaItems.find(item => item.id === layer.mediaId)
+          const mediaName = media?.name ?? layer.mediaId
+          const hasEffects = layer.effects.length > 0
+          const pickerOpen = fxOpen[layer.id] ?? false
+          const toggleFxPicker = () => setFxOpen(current => ({ ...current, [layer.id]: !(current[layer.id] ?? false) }))
+          const selectedEffects = new Set(layer.effects)
+          const effectPicker = (
             <CanvasSelectRow
-              label={parentLabel}
-              value={layer.mediaId}
-              onChange={() => {}}
-              options={[{ value: layer.mediaId, label: mediaName }]}
+              label="Effect"
+              ariaLabel={`Add effect to ${parentLabel}`}
+              value=""
+              placeholder="Select Effect…"
+              onChange={value => {
+                if (!value) return
+                addCanvasLayerEffect(layer.id, value as CanvasLayerEffectId)
+                setFxOpen(current => ({ ...current, [layer.id]: false }))
+              }}
+              options={CANVAS_LAYER_EFFECT_OPTIONS.filter(option => !layer.effects.includes(option.value))}
             />
-            <div className="rv-canvas-layer-effects-stack" data-canvas-effect-layer-id={layer.id}>
-              {layer.effects.map((effectId, effectIndex) => {
-                const options = CANVAS_LAYER_EFFECT_OPTIONS.filter(option => (
-                  option.value === effectId || !selectedEffects.has(option.value)
-                ))
-                return (
-                  <div className="rv-canvas-layer-effect-row" key={`${layer.id}:${effectIndex}`}>
-                    <CanvasSelectRow
-                      label={`Effect ${effectIndex + 1} for ${parentLabel}`}
-                      labelHidden
-                      value={effectId}
-                      onChange={value => setCanvasLayerEffect(layer.id, effectIndex, value)}
-                      options={options}
-                    />
-                    <button
-                      type="button"
-                      className="vz-media-remove rv-canvas-layer-effect-remove"
-                      style={{ position: 'static' }}
-                      aria-label={`Remove ${CANVAS_LAYER_EFFECT_LABELS[effectId]} from ${parentLabel}`}
-                      onClick={() => removeCanvasLayerEffectAt(layer.id, effectIndex)}
-                    >
-                      <Delete02Icon size={13} color="currentColor" />
-                    </button>
-                  </div>
-                )
-              })}
-              {layer.effects.length < MAX_CANVAS_LAYER_EFFECTS && (
-                <div className="rv-canvas-layer-effect-row rv-canvas-layer-effect-row--empty">
+          )
+          return (
+            <div
+              key={layer.id}
+              className={hasEffects
+                ? 'rv-canvas-layer-effects-group rv-ae-tcb-group has-effects'
+                : 'rv-canvas-layer-effects-group rv-ae-tcb-group'}
+            >
+              {/* Which media occupies this slot is decided in the Media Library
+                  (Make Active / Add as Layer) — this field is display-only, just
+                  styled like a real input field (e.g. Fit Mode) for consistency. */}
+              <div className="rv-canvas-layer-media-row">
+                <span className="rv-ae-tcb-thumb">
+                  <CanvasEffectMediaThumb media={media} mediaName={mediaName} />
+                  <button
+                    type="button"
+                    className={['rv-ae-tcb-fx-toggle', pickerOpen && 'is-open', hasEffects && 'has-effect'].filter(Boolean).join(' ')}
+                    aria-expanded={pickerOpen}
+                    aria-label={`${pickerOpen ? 'Hide' : 'Add'} an effect for ${mediaName}`}
+                    onClick={toggleFxPicker}
+                  >
+                    <EffectLayersIcon className="rv-ae-tcb-fx-toggle-icon" />
+                  </button>
+                </span>
+                <div className="rv-canvas-layer-media-row__field">
                   <CanvasSelectRow
-                    label={`Add effect to ${parentLabel}`}
-                    labelHidden
-                    value=""
-                    placeholder="Select Effect…"
-                    onChange={value => addCanvasLayerEffect(layer.id, value)}
-                    options={CANVAS_LAYER_EFFECT_OPTIONS.filter(option => !selectedEffects.has(option.value))}
+                    label={parentLabel}
+                    value={layer.mediaId}
+                    onChange={() => {}}
+                    options={[{ value: layer.mediaId, label: mediaName }]}
                   />
                 </div>
+              </div>
+
+              {hasEffects && (
+                <div className="rv-canvas-layer-effects-stack" data-canvas-effect-layer-id={layer.id}>
+                  {layer.effects.map((effectId, effectIndex) => {
+                    const options = CANVAS_LAYER_EFFECT_OPTIONS.filter(option => (
+                      option.value === effectId || !selectedEffects.has(option.value)
+                    ))
+                    const effectLabel = CANVAS_LAYER_EFFECT_LABELS[effectId]
+                    const linkKey = `${layer.id}:${effectId}`
+                    return (
+                      <div className="rv-canvas-layer-effect-entry rv-ae-tcb-entry" key={`${layer.id}:${effectIndex}`}>
+                        <div className="rv-canvas-layer-effect-row">
+                          <span className="rv-ae-tcb-fx" aria-hidden="true"><EffectFxIcon className="rv-ae-tcb-fx-icon" /></span>
+                          <CanvasSelectRow
+                            label="Effect"
+                            ariaLabel={`Effect ${effectIndex + 1} for ${parentLabel}`}
+                            id={`${layer.id}-effect-${effectIndex}`}
+                            value={effectId}
+                            onChange={value => setCanvasLayerEffect(layer.id, effectIndex, value)}
+                            options={options}
+                          />
+                          <button
+                            type="button"
+                            className="vz-media-remove rv-canvas-layer-effect-remove"
+                            aria-label={`Remove ${effectLabel} from ${parentLabel}`}
+                            onClick={() => removeCanvasLayerEffectAt(layer.id, effectIndex)}
+                          >
+                            <EffectCircleXIcon size={14} />
+                          </button>
+                        </div>
+                        <CanvasEffectTriggerRoute
+                          effectLabel={effectLabel}
+                          parentLabel={parentLabel}
+                          routes={triggers.routesFor(linkKey)}
+                          open={triggers.isOpenFor(linkKey)}
+                          onToggle={() => triggers.toggle(linkKey)}
+                          {...triggers.editorHandlers(linkKey)}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
               )}
+
+              {!hasEffects ? (
+                <div className={pickerOpen ? 'rv-ae-tcb-addfx-first is-open' : 'rv-ae-tcb-addfx-first'}>
+                  <div className={pickerOpen ? 'rv-ae-tcb-addfx-reveal' : 'rv-ae-tcb-addfx-reveal is-collapsed'}>
+                    <span className="rv-ae-tcb-fx" aria-hidden="true"><EffectFxIcon className="rv-ae-tcb-fx-icon" /></span>
+                    {effectPicker}
+                  </div>
+                </div>
+              ) : layer.effects.length < MAX_CANVAS_LAYER_EFFECTS ? (
+                <div className={pickerOpen ? 'rv-ae-tcb-addfx is-open' : 'rv-ae-tcb-addfx'}>
+                  <button
+                    type="button"
+                    className={pickerOpen ? 'rv-ae-tcb-fx-toggle is-open' : 'rv-ae-tcb-fx-toggle'}
+                    aria-expanded={pickerOpen}
+                    aria-label={`${pickerOpen ? 'Hide' : 'Add'} an effect for ${mediaName}`}
+                    onClick={toggleFxPicker}
+                  >
+                    <EffectLayersIcon className="rv-ae-tcb-fx-toggle-icon" />
+                  </button>
+                  <div className={pickerOpen ? 'rv-ae-tcb-addfx-reveal' : 'rv-ae-tcb-addfx-reveal is-collapsed'}>
+                    <span className="rv-ae-tcb-fx" aria-hidden="true"><EffectFxIcon className="rv-ae-tcb-fx-icon" /></span>
+                    {effectPicker}
+                  </div>
+                </div>
+              ) : null}
             </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
     </Collapsible>
   )
 }

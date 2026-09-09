@@ -19586,17 +19586,20 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   align-self: center;
 }
 
-/* Layout Lab only: the Effect field's red trash sits inside the dropdown,
-   immediately left of the chevron, matched to the chevron's 14px size and
-   ~2px edge gap. It overlays the dropdown trigger <button>, so it needs an
-   explicit stacking context + z-index to stay the hit-test target, and the
-   icon must not intercept the pointer itself. */
-[data-layout-lab-canvas='routing'] .rv-canvas-layer-effect-row {
+/* The Effect field's red trash sits inside the dropdown, immediately left of
+   the chevron, matched to the chevron's 14px size and ~2px edge gap. It
+   overlays the dropdown trigger <button>, so it needs an explicit stacking
+   context + z-index to stay the hit-test target, and the icon must not
+   intercept the pointer itself. Shared by the Layout Lab mock-up and the
+   production Add Effects ("Effects") group it was designed in. */
+[data-layout-lab-canvas='routing'] .rv-canvas-layer-effect-row,
+[data-canvas-add-effects='routing'] .rv-canvas-layer-effect-row {
   position: relative;
   isolation: isolate;
 }
 
-[data-layout-lab-canvas='routing'] .rv-canvas-layer-effect-remove {
+[data-layout-lab-canvas='routing'] .rv-canvas-layer-effect-remove,
+[data-canvas-add-effects='routing'] .rv-canvas-layer-effect-remove {
   position: absolute;
   right: 16px;
   bottom: 6px;
@@ -19611,13 +19614,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   pointer-events: auto;
 }
 
-[data-layout-lab-canvas='routing'] .rv-canvas-layer-effect-remove svg {
+[data-layout-lab-canvas='routing'] .rv-canvas-layer-effect-remove svg,
+[data-canvas-add-effects='routing'] .rv-canvas-layer-effect-remove svg {
   width: 14px;
   height: 14px;
   pointer-events: none;
 }
 
-[data-layout-lab-canvas='routing'] .rv-canvas-layer-effect-row .drm-dropdown__value {
+[data-layout-lab-canvas='routing'] .rv-canvas-layer-effect-row .drm-dropdown__value,
+[data-canvas-add-effects='routing'] .rv-canvas-layer-effect-row .drm-dropdown__value {
   padding-right: 22px;
 }
 
@@ -20222,10 +20227,11 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
    in-flow, plainly-clickable button that opens .rv-ae-route-editor. No
    negative offsets (the inspector panel scrolls and would clip them). */
 
-/* Shared spacing scale for the Add Effects concept mock-ups. Every kept group
-   (Ledger Card, Thumb Card, Thumb Card B, Colored Effect Spine) derives its
-   padding, gaps, and indents from these tokens. */
-[data-layout-lab-canvas='routing'] {
+/* Shared spacing scale for the Add Effects design — the Layout Lab "Effects"
+   mock-up and the production Add Effects group both derive their padding, gaps,
+   and connector-spine indents from these tokens. */
+[data-layout-lab-canvas='routing'],
+[data-canvas-add-effects='routing'] {
   --ae2-pad: 10px;
   --ae2-gap: 8px;
   --ae2-step: 16px;
