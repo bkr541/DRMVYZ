@@ -20747,6 +20747,19 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   to   { opacity: 1; }
 }
 
+/* Clicking Add Trigger opens the trigger group: the panel drops in, then each
+   routed trigger row (which replaces the "Select Parameter…" empty state as a
+   value is chosen) slides in from the left. */
+@keyframes rv-ae-tcb-panel-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes rv-ae-tcb-trigger-row-in {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
 .rv-ae-tcb-group .rv-canvas-layer-effects-stack {
   gap: 0;
 }
@@ -20853,6 +20866,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-tcb-group .rv-canvas-layer-effects-stack > .rv-ae-tcb-entry:first-of-type .rv-ae-tcb-fx::before {
   border-top-style: solid;
   border-top-color: #8de7ff;
+  border-top-width: 2px;
   animation-delay: 0.3s;
 }
 
@@ -20863,7 +20877,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   top: calc(-1 * (var(--ae2-gap) + 2px));
   width: 0;
   height: calc(var(--ae2-gap) + 2px + 21.3px);
-  border-left: 1px solid #8de7ff;
+  border-left: 2px solid #8de7ff;
   animation: rv-ae-tcb-spine-grow 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -20977,6 +20991,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border: 1px solid transparent;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.035);
+  animation: rv-ae-tcb-panel-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .rv-ae-tcb-toggle.is-active + .rv-ae-tcb-panel {
@@ -20999,6 +21014,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-tcb-panel .rv-ae-route-param--inline {
   padding-top: 1px;
   padding-bottom: 1px;
+  animation: rv-ae-tcb-trigger-row-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
 }
 
 /* The red circle-X stays in flow and always visible, so the intensity slider
@@ -21012,6 +21028,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
    button below the effect dropdown. */
 .rv-ae-tcb-panel .rv-ae-route-add-another {
   align-items: center;
+  animation: rv-ae-tcb-panel-in 0.26s ease 0.1s both;
 }
 
 .rv-ae-tcb-panel .rv-ae-route-add-plus {
