@@ -25,7 +25,7 @@ describe('Shader master capability metadata', () => {
     expect(shaderRegistry.get('shader-melodic-rift-bloom')?.masterCapabilities?.bassReactivity).toBe(false)
   })
 
-  it('enables Motion for Brand Echo Signal now that the braid animation uses it', () => {
+  it('enables Motion for Signal DNA now that the braid animation uses it', () => {
     expect(shaderRegistry.get('shader-brand-echo-signal')?.masterCapabilities?.motion).toBe(true)
   })
 })

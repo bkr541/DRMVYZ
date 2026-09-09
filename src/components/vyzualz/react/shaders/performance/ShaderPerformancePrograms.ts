@@ -333,7 +333,7 @@ const PROGRAMS: readonly ShaderPerformanceProgram[] = [
   }),
   buildProgram({
     shaderId: 'shader-brand-echo-signal',
-    name: 'Brand Echo Signal',
+    name: 'Signal DNA',
     description: 'Directs repetition count, scan rhythm, logo refraction, echo spacing, and vocal-led signal openings.',
     visualIdentity: 'branded signal ribbons with deliberate repetition and interruption',
     targets: { motion: 'waveAmount', bass: 'echoSpread', impact: 'logoRefraction', accent: 'waveAmount', build: 'echoSpread', recruit: 'ribbonCount', evolution: 'logoRefraction', phrase: 'echoSpread', vocal: 'logoRefraction' },

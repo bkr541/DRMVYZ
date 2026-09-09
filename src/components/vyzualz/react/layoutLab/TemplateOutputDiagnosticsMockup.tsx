@@ -25,11 +25,11 @@ export function TemplateOutputDiagnosticsMockup() {
         <div className="llcg-accent-body">
           <div className="lltd-effect-card">
             <div className="lltd-effect-header">
-              <span>Brand Echo Signal</span>
+              <span>Signal DNA</span>
               <span>Effect</span>
             </div>
             <p className="lltd-effect-desc">
-              Waveform ribbons refract through Brand Kit artwork while lyrics and harmonic changes steer the echo field.
+              Waveform ribbons weave in a DNA braid and refract around a focal mask while lyrics and harmonic changes steer the echo field.
             </p>
 
             <dl className="lltd-grid">
@@ -41,7 +41,7 @@ export function TemplateOutputDiagnosticsMockup() {
             <p className="lltd-note">No errors or warnings.</p>
 
             <dl className="lltd-grid">
-              <div><dt>Scene</dt><dd>Brand Echo Signal</dd></div>
+              <div><dt>Scene</dt><dd>Signal DNA</dd></div>
               <div><dt>Passes</dt><dd>1</dd></div>
               <div><dt>Frame</dt><dd>0.7 ms</dd></div>
               <div><dt>FPS</dt><dd>1428.6</dd></div>

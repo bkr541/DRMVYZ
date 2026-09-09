@@ -2,7 +2,7 @@ import type { ShaderDefinition } from '../registry/shaderRegistryTypes'
 
 export const BRAND_ECHO_SIGNAL: ShaderDefinition = {
   id: 'shader-brand-echo-signal',
-  name: 'Brand Echo Signal',
+  name: 'Signal DNA',
   description: 'Waveform ribbons weave in a DNA braid and refract around a focal mask while lyrics and harmonic changes steer the echo field.',
   category: 'effect',
   version: 1,

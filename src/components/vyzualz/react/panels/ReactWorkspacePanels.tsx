@@ -44,11 +44,20 @@ export function ReactDesignWorkspacePanel({ hasSelection }: { hasSelection: bool
   const showDirectorDesign = activeReactEngineId === 'laserDmx' && laserDmxBeamMatrixAuthoringMode === 'showDirector'
   const pixGridDesign = activeReactEngineId === 'pixGrid'
   const cinemaDesign = activeReactEngineId === 'cinema'
-  const [surface, setSurface] = useState<DesignSurface>(hasSelection ? 'selection' : 'engine')
+  // Cinema opens the Design tab on ENGINE and never auto-jumps to the per-layer
+  // SELECTION view the canvas engines switch to when something is selected.
+  const [surface, setSurface] = useState<DesignSurface>(
+    !cinemaDesign && hasSelection ? 'selection' : 'engine',
+  )
 
   useEffect(() => {
+    if (cinemaDesign) return
     setSurface(hasSelection ? 'selection' : 'engine')
-  }, [hasSelection])
+  }, [hasSelection, cinemaDesign])
+
+  useEffect(() => {
+    if (cinemaDesign) setSurface('engine')
+  }, [cinemaDesign])
 
   if (cinemaDesign) {
     return (
