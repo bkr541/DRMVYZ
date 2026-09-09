@@ -3,7 +3,7 @@ import type { ShaderDefinition } from '../registry/shaderRegistryTypes'
 export const BRAND_ECHO_SIGNAL: ShaderDefinition = {
   id: 'shader-brand-echo-signal',
   name: 'Signal DNA',
-  description: 'Waveform ribbons weave in a DNA braid and refract around a focal mask while lyrics and harmonic changes steer the echo field.',
+  description: 'Waveform ribbons weave in a DNA braid over an EQ-haze backdrop, refracting around a focal mask while harmonic pitch sways the strands and lyrics steer the echo field.',
   category: 'effect',
   version: 1,
 
@@ -58,11 +58,20 @@ uniform float uMasterMotion;
 uniform float uMasterGlow;
 uniform float uMasterBassReactivity;
 
+uniform float uHarmonicSway;
+uniform float uSpectrumBloom;
+
 out vec4 fragColor;
 
 float rawWave(float x) {
   if (uWaveformAvailable < 0.5) return sin((x + uTime * 0.1) * 18.0) * 0.18;
   return texture(uWaveformTexture, vec2(clamp(x, 0.0, 1.0), 0.5)).r * 2.0 - 1.0;
+}
+
+// Smooth gaussian lobe — the building block of the spectrum-bloom backdrop.
+float lobe(float x, float c, float w) {
+  float d = (x - c) / w;
+  return exp(-d * d);
 }
 
 // A full-bandwidth audio waveform sampled 1:1 per screen column reads as vertical
@@ -126,6 +135,17 @@ void main() {
   float braidAmp = spacing * fit * 0.45;
   float braidTime = uTime * uMasterMotion * 1.2;
 
+  // Harmonic standing waves: when harmonics are present the strands take on a
+  // fixed node/antinode ripple whose spatial frequency tracks the pitch, and a
+  // chord change launches a travelling ripple out from the centre. It is purely
+  // a modulation of the wave field and is gated to zero without harmonics.
+  float harmonicFreq = mix(6.0, 34.0, clamp(uPitchNormalized, 0.0, 1.0));
+  float standingAmp = uHasHarmonics * clamp(uHarmonicSway, 0.0, 1.0)
+    * (0.015 + uMid * 0.05) * (0.4 + uMasterMotion * 0.6);
+  float chordRipple = uHasHarmonics * uChordChangeHit * 0.05
+    * sin(abs(uv.x - 0.5) * 22.0 - uTime * 7.0)
+    * exp(-abs(uv.x - 0.5) * 2.4);
+
   for (int i = 0; i < 12; i++) {
     float fi = float(i);
     if (fi >= echoes) break;
@@ -133,14 +153,39 @@ void main() {
     float braid = sin(uv.x * braidFreq + braidTime + fi * 3.14159265) * braidAmp;
     float x = clamp(uv.x + fi * 0.013 + refract * sin(p.y * 8.0 + fi), 0.0, 1.0);
     float waveform = wave(x) * uWaveAmount * bassReact * motionAmp * ampScale;
-    float y = p.y - centre - braid - waveform;
+    float standing = sin(uv.x * harmonicFreq + fi * 0.6) * cos(uTime * 3.0 + fi * 0.4) * standingAmp;
+    float y = p.y - centre - braid - waveform - standing - chordRipple;
     float falloff = 46.0 + fi * 4.0;
     float line = exp(-abs(y) * falloff);
     ribbons += line * (1.0 - fi / max(echoes, 1.0) * 0.55);
   }
 
   float wordSpark = uLyricWordHit + smoothstep(0.88, 1.0, uLyricWordProgress) * lyric;
-  vec3 col = uBackgroundColor.rgb * (0.45 + uMid * 0.15);
+
+  // Spectrum-bloom backdrop: a soft EQ haze rising from the bottom — bass to the
+  // left, highs to the right — tinted from the background toward Core (and Echo
+  // in the highs), so the ribbons sit in the frequency content they're drawn
+  // from instead of on a flat field.
+  float fx = uv.x;
+  float spec = clamp(
+      uBass * lobe(fx, 0.16, 0.30)
+    + uMid  * lobe(fx, 0.50, 0.27)
+    + uHigh * lobe(fx, 0.84, 0.30), 0.0, 1.4);
+  float bloom = clamp(uSpectrumBloom, 0.0, 1.0);
+  float specDrift = sin(fx * 7.0 + uTime * (0.12 + uMasterMotion * 0.5)) * 0.04 * spec;
+  float crest = -0.94 + spec * 1.5 + specDrift;
+  // Manual smoothstep from the bottom (p.y = -1, haze = 1) up to the crest line
+  // (haze = 0). smoothstep() itself is undefined when edge0 >= edge1, which
+  // happens here whenever spec is near zero.
+  float ht = clamp((p.y + 1.0) / max(crest + 1.0, 0.001), 0.0, 1.0);
+  float haze = 1.0 - ht * ht * (3.0 - 2.0 * ht);
+  float rim = exp(-abs(p.y - crest) * 24.0) * spec;
+  vec3 hazeTint = mix(mix(uBackgroundColor.rgb, uCoreColor.rgb, 0.35),
+                      uEchoColor.rgb, smoothstep(0.55, 1.0, fx) * 0.4);
+
+  vec3 col = uBackgroundColor.rgb * (0.4 + uMid * 0.12);
+  col += hazeTint * haze * bloom * (0.12 + uMasterGlow * 0.06);
+  col += uCoreColor.rgb * rim * bloom * (0.14 + uMasterGlow * 0.08);
   col = mix(col, media, clamp(mediaWeight, 0.0, 1.0) * (0.08 + uMid * 0.12));
   col += mix(uCoreColor.rgb, uEchoColor.rgb, uPhrase8Progress) * ribbons;
   col += uCoreColor.rgb * focus * (0.18 + lyric * 0.55 + harmonic * 0.18);
@@ -170,6 +215,14 @@ void main() {
       min: 0, max: 3, step: 0.05, default: 1.1, modulatable: true,
     },
     {
+      id: 'harmonicSway', type: 'float', label: 'Harmonic Sway', uniformName: 'uHarmonicSway',
+      min: 0, max: 1, step: 0.01, default: 0.5, modulatable: true,
+    },
+    {
+      id: 'spectrumBloom', type: 'float', label: 'Spectrum Bloom', uniformName: 'uSpectrumBloom',
+      min: 0, max: 1, step: 0.01, default: 0.6, modulatable: true,
+    },
+    {
       id: 'coreColor', type: 'color', label: 'Core Color', uniformName: 'uCoreColor',
       default: [0.0, 0.9, 1.0, 1],
     },
@@ -188,6 +241,8 @@ void main() {
     waveAmount: 0.32,
     echoSpread: 0.11,
     logoRefraction: 1.1,
+    harmonicSway: 0.5,
+    spectrumBloom: 0.6,
     coreColor: [0.0, 0.9, 1.0, 1],
     echoColor: [0.65, 0.18, 1.0, 1],
     backgroundColor: [0.005, 0.008, 0.018, 1],
@@ -201,5 +256,5 @@ void main() {
 
   quality: { minimumTier: 'low', recommendedTier: 'medium', estimatedPassCount: 1 },
   thumbnail: { color: '#10072b' },
-  tags: ['waveform', 'lyrics', 'harmonic', 'ribbons'],
+  tags: ['waveform', 'lyrics', 'harmonic', 'ribbons', 'spectrum'],
 }
