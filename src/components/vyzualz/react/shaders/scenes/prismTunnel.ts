@@ -32,7 +32,7 @@ import {
 export const PRISM_TUNNEL: ShaderDefinition = {
   id: 'shader-neon-tunnel',
   name: 'Prism Tunnel',
-  description: 'Radial prismatic field with addressable facets, luminous arcs, beat pulse, and bass-reactive curvature.',
+  description: 'Layered radial prism: rotating nebula backdrop, per-facet spectral petals that grow, branch, and interconnect, a harmony-derived hue wheel, and section/phrase staging.',
   category: 'generator',
   version: 7,
 
@@ -79,6 +79,44 @@ uniform float uMasterMotion;
 uniform float uMasterBassReactivity;
 uniform float uMasterFogDensity;
 
+// Music Intelligence — all optional. Any uniform the current MI frame cannot
+// fill is uploaded as 0, so every reference below has a graceful fallback.
+uniform float uSub;
+uniform float uLowMid;
+uniform float uMid;
+uniform float uHighMid;
+uniform float uHigh;
+uniform float uAir;
+uniform float uHatHit;
+uniform float uDownbeatHit;
+uniform float uSpectralCentroid;
+uniform float uSpectralFlux;
+uniform float uComplexity;
+uniform float uEnergyLong;
+uniform float uEnergyDelta;
+uniform float uTension;
+uniform float uBuildProgress;
+uniform float uDropImpact;
+uniform float uPhrase8Hit;
+uniform float uPhrase16Hit;
+uniform float uPhrase16Progress;
+uniform float uSectionIntensity;
+uniform float uSectionChangePulse;
+uniform float uKeyCode;
+uniform float uModeCode;
+uniform float uKeyConfidence;
+uniform float uChordConfidence;
+uniform float uChordChangeHit;
+uniform float uPitchNormalized;
+uniform float uVocalEnergy;
+uniform float uDrumEnergy;
+uniform float uBassStemEnergy;
+uniform float uInstrumentEnergy;
+uniform float uOtherStemEnergy;
+uniform float uHasHarmonics;
+uniform float uHasSections;
+uniform float uHasStems;
+
 out vec4 fragColor;
 
 ${PRISM_RADIAL_TOPOLOGY_GLSL}
@@ -92,6 +130,59 @@ float radialBand(float radius, float center, float width) {
   return 1.0 - smoothstep(width, width * 2.1, abs(radius - center));
 }
 
+vec3 prismHsv2rgb(vec3 c) {
+  vec3 p = abs(fract(c.xxx + vec3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
+  return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y);
+}
+
+vec3 prismRgb2hsv(vec3 c) {
+  vec4 k = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+  vec4 p = mix(vec4(c.bg, k.wz), vec4(c.gb, k.xy), step(c.b, c.g));
+  vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+  float d = q.x - min(q.w, q.y);
+  return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 1.0e-10)), d / (q.x + 1.0e-10), q.x);
+}
+
+float prismHash21(vec2 p) {
+  p = fract(p * vec2(123.34, 345.45));
+  p += dot(p, p + 34.345);
+  return fract(p.x * p.y);
+}
+
+float prismValueNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  float a = prismHash21(i);
+  float b = prismHash21(i + vec2(1.0, 0.0));
+  float c = prismHash21(i + vec2(0.0, 1.0));
+  float d = prismHash21(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float prismFbm(vec2 p) {
+  float sum = 0.0;
+  float amp = 0.55;
+  for (int o = 0; o < 3; o++) {
+    sum += amp * prismValueNoise(p);
+    p = p * 2.03 + vec2(11.7, 5.3);
+    amp *= 0.5;
+  }
+  return sum;
+}
+
+// Branchless tent-filter read of a 6-band spectrum by a 0..1 position — keeps
+// the per-facet spectral mapping cheap and portable (no dynamic indexing).
+float prismBand6(float t, float b0, float b1, float b2, float b3, float b4, float b5) {
+  float x = clamp(t, 0.0, 1.0) * 5.0;
+  return b0 * clamp(1.0 - abs(x - 0.0), 0.0, 1.0)
+       + b1 * clamp(1.0 - abs(x - 1.0), 0.0, 1.0)
+       + b2 * clamp(1.0 - abs(x - 2.0), 0.0, 1.0)
+       + b3 * clamp(1.0 - abs(x - 3.0), 0.0, 1.0)
+       + b4 * clamp(1.0 - abs(x - 4.0), 0.0, 1.0)
+       + b5 * clamp(1.0 - abs(x - 5.0), 0.0, 1.0);
+}
+
 void main() {
   vec2 uv = (gl_FragCoord.xy / uResolution.xy) * 2.0 - 1.0;
   uv.x *= uAspect;
@@ -99,14 +190,82 @@ void main() {
   float beat = uBeatHit * 0.4 + uKickHit * 0.3 + uSnareHit * 0.15;
   float bass = uBass * uMasterBassReactivity;
   float motion = uSpeed * uMasterMotion;
+
+  // ── Music Intelligence resolve (each term degrades to a compact fallback) ──
+  float bSub  = max(uSub, uBass * 0.9);
+  float bLow  = max(uLowMid, mix(uBass, uMid, 0.5));
+  float bMid  = max(uMid, uEnergy * 0.4);
+  float bHiM  = max(uHighMid, mix(uMid, uHigh, 0.5));
+  float bHigh = max(uHigh, uSnareHit * 0.5);
+  float bAir  = max(uAir, uHigh * 0.8 + uHatHit * 0.4);
+  float centroid = clamp(max(uSpectralCentroid, bHigh * 0.6 + bAir * 0.4), 0.0, 1.0);
+  float flux = clamp(max(uSpectralFlux, beat * 0.5), 0.0, 1.0);
+  float complexity = clamp(max(uComplexity, flux * 0.5 + bHigh * 0.35), 0.0, 1.0);
+  float slowEnergy = clamp(max(uEnergyLong, uEnergy), 0.0, 1.0);
+
+  float build = clamp(max(uBuildProgress, uTension * 0.85), 0.0, 1.0);
+  float dropE = clamp(max(uDropImpact, max(uEnergyDelta, 0.0)), 0.0, 1.0);
+  float sectionEnergy = mix(clamp(uEnergy, 0.0, 1.0), clamp(uSectionIntensity, 0.0, 1.0), uHasSections);
+  float sectionPulse = clamp(uSectionChangePulse, 0.0, 1.0);
+  float isDrop = max(dropE, mix(0.0, step(0.62, sectionEnergy), uHasSections));
+  float isCalm = clamp((1.0 - sectionEnergy) * 0.8 - build * 0.4 - isDrop, 0.0, 1.0);
+
+  // Phrase evolution — a slow index that rotates the palette + band mapping.
+  float phraseEvo = mix(fract(uTime * 0.0125), uPhrase16Progress, uHasSections);
+  float evoRot = floor(phraseEvo * 4.0) * 0.19 + phraseEvo * 0.09;
+  float phraseAccent = max(uPhrase8Hit, uPhrase16Hit);
+
+  // Harmony-derived palette anchor.
+  float keyHue = mix(prismRgb2hsv(uPrimaryColor.rgb).x, fract(uKeyCode / 12.0 + 0.58), uHasHarmonics);
+  float modeWarm = mix(0.0, mix(-0.06, 0.05, clamp(uModeCode, 0.0, 1.0)), uHasHarmonics);
+  float harmonyConf = uHasHarmonics * max(uKeyConfidence, uChordConfidence * 0.8);
+  float chordSweep = clamp(uChordChangeHit * uHasHarmonics, 0.0, 1.0);
+
+  // Stem-split drives — each falls back to a full-mix source.
+  float bassBreath = mix(bass, clamp(uBassStemEnergy, 0.0, 1.0), uHasStems);
+  float drumsDrive = mix(beat, clamp(uDrumEnergy + uSnareHit * 0.4, 0.0, 1.0), uHasStems);
+  float vocalDrive = mix(bMid, clamp(uVocalEnergy, 0.0, 1.0), uHasStems);
+  float otherDrive = mix(centroid, clamp(uOtherStemEnergy + uInstrumentEnergy * 0.5, 0.0, 1.0), uHasStems);
+
+  float roomHue = fract(keyHue + evoRot + modeWarm + build * 0.16 + chordSweep * 0.1 - isCalm * 0.05 + centroid * 0.05);
+  float hazeAmount = uFogDensity * uMasterFogDensity;
+
+  vec3 primary = uPrimaryColor.rgb;
+  vec3 secondary = uSecondaryColor.rgb;
+
+  // ═══ Layer 1 — moving background: rotating nebula + sonar rings + room tint ═══
+  float bgR = length(uv);
+  float bgRot = -uRotation * 0.35 - uTime * motion * 0.05;
+  vec2 bgUv = vec2(uv.x * cos(bgRot) - uv.y * sin(bgRot), uv.x * sin(bgRot) + uv.y * cos(bgRot));
+  vec2 nebWarp = vec2(
+    prismFbm(bgUv * 1.7 + uTime * 0.03),
+    prismFbm(bgUv * 1.7 - uTime * 0.021 + 7.0)
+  );
+  float neb = prismFbm(bgUv * 2.3 + nebWarp * 1.4 + vec2(0.0, uTime * 0.04));
+  neb = pow(clamp(neb, 0.0, 1.0), 1.7);
+  float nebBreath = 0.55 + 0.45 * sin(uTime * 0.2 + phraseEvo * 6.28318530718);
+  float nebAmt = (0.07 + otherDrive * 0.17 + slowEnergy * 0.05 + isDrop * 0.06)
+               * (0.55 + nebBreath * 0.45) * (0.35 + hazeAmount * 0.65);
+  vec3 nebCol = prismHsv2rgb(vec3(fract(roomHue + neb * 0.14), 0.5 + build * 0.22, 1.0));
+  vec3 col = nebCol * neb * nebAmt * smoothstep(0.12, 1.35, bgR);
+
+  float ringPulse = max(uDownbeatHit, max(uPhrase8Hit, sectionPulse));
+  for (int ri = 0; ri < 3; ri++) {
+    float rf = float(ri);
+    float ringT = fract(uTime * 0.19 + rf * 0.333);
+    float ring = radialBand(bgR, ringT * 1.75, 0.013) * (1.0 - ringT);
+    col += prismHsv2rgb(vec3(fract(roomHue + 0.5 + rf * 0.06), 0.42, 1.0)) * ring * (0.045 + ringPulse * 0.5);
+  }
+
+  // ═══ Layer 2 — the prism field ═══
   float rotAng = uRotation + uRotationMotion * uMasterMotion;
   float cs = cos(rotAng);
   float sn = sin(rotAng);
   vec2 radialUv = vec2(uv.x * cs - uv.y * sn, uv.x * sn + uv.y * cs);
 
-  // uTunnelRadius remains the persisted compatibility id, but now owns the
-  // canonical center-anchored radial scale rather than corridor depth.
-  float baseRadius = uTunnelRadius * (1.0 + uKickHit * 0.045);
+  // uTunnelRadius stays the persisted compatibility id — it owns the
+  // center-anchored radial scale, breathing here with the (stem) bass.
+  float baseRadius = uTunnelRadius * (1.0 + uKickHit * 0.045 + bassBreath * 0.05 + isDrop * 0.05);
   PrismRadialElement topologyElement = prismTopologyAt(radialUv, baseRadius, uWarp);
   PrismRadialElement element = prismApplyAperture(topologyElement, baseRadius, uAperture);
   float facetIllumination = prismFacetIlluminationWeight(
@@ -121,59 +280,121 @@ void main() {
 
   float sectorAngle = PRISM_TOPOLOGY_TAU / float(PRISM_TOPOLOGY_ELEMENT_COUNT);
   float local = element.localAngle / (sectorAngle * 0.5);
-  float angularCore = 1.0 - smoothstep(0.58, 1.0, abs(local));
+  float angularCore = 1.0 - smoothstep(0.58, 1.0 - build * 0.18, abs(local));
   float angularEdge = smoothstep(0.72, 0.96, abs(local)) * (1.0 - smoothstep(0.96, 1.0, abs(local)));
 
+  // Per-facet reactivity from the live choreography uniforms — active even when
+  // the Facet Choreography amount is 0, so the petals move by default.
+  float chaseCenter = mod(floor(uFacetChaseIndex), float(PRISM_TOPOLOGY_ELEMENT_COUNT));
+  float chaseOpp = mod(chaseCenter + float(PRISM_TOPOLOGY_ELEMENT_COUNT) * 0.5, float(PRISM_TOPOLOGY_ELEMENT_COUNT));
+  float chaseProx = prismFacetPulse(element.index, chaseCenter);
+  float oppProx = prismFacetPulse(element.index, chaseOpp);
+  float altMask = 1.0 - step(1.0, mod(element.index + floor(chaseCenter), 2.0));
+  float facetPunch = clamp(
+    chaseProx * uFacetChaseStrength * 0.7
+    + altMask * uFacetAlternate * 0.5
+    + max(chaseProx, oppProx) * uFacetOpposing * 0.6
+    + uFacetFlare * 0.9
+    + drumsDrive * 0.35
+    + isDrop * 0.5,
+    0.0, 1.7
+  );
+
+  // Per-facet spectral height — each facet tracks a slice of the spectrum and
+  // the slice -> facet mapping rotates every phrase.
+  float bandPos = fract(element.normalizedIndex + evoRot * 0.5);
+  float bandEnergy = prismBand6(bandPos, bSub, bLow, bMid, bHiM, bHigh, bAir);
+  float melodyCurl = (uPitchNormalized - 0.5) * uHasHarmonics;
+  float petalGrow = bandEnergy * (0.85 + uMasterBassReactivity * 0.3) + facetPunch * 0.42;
+
+  float grownInner = max(element.innerRadius * (1.0 - petalGrow * 0.12), baseRadius * 0.012);
+  float grownOuter = element.outerRadius * (1.0 + petalGrow * 0.34 * (0.55 + uMasterIntensity * 0.45));
+  grownOuter += element.outerRadius * facetPunch * (1.0 - smoothstep(0.0, 0.34, abs(local))) * 0.2;
+
   float radius = length(radialUv);
-  float curveWave = sin(local * 1.57079632679) * uWarp * 0.055;
+  float curveWave = sin(local * 1.57079632679 + melodyCurl * 1.4) * uWarp * 0.055;
   float bassBend = sin(local * 3.14159265359 + element.normalizedIndex * 6.28318530718) * bass * 0.035;
   float shapedRadius = radius + curveWave + bassBend + element.curvature * 0.014;
 
   float innerFeather = max(0.012, baseRadius * 0.035);
   float outerFeather = max(0.02, baseRadius * 0.05);
-  float insideOuter = 1.0 - smoothstep(element.outerRadius - outerFeather, element.outerRadius + outerFeather, shapedRadius);
-  float outsideInner = smoothstep(element.innerRadius - innerFeather, element.innerRadius + innerFeather, shapedRadius);
+  float insideOuter = 1.0 - smoothstep(grownOuter - outerFeather, grownOuter + outerFeather, shapedRadius);
+  float outsideInner = smoothstep(grownInner - innerFeather, grownInner + innerFeather, shapedRadius);
   float facetMask = insideOuter * outsideInner * angularCore;
 
-  // Surface motion travels across the radial field, not through camera depth.
-  float span = max(element.outerRadius - element.innerRadius, 0.001);
-  float radialT = saturate((shapedRadius - element.innerRadius) / span);
+  float span = max(grownOuter - grownInner, 0.001);
+  float radialT = saturate((shapedRadius - grownInner) / span);
   float phase = radialT * 12.0 - uTime * motion * 1.9 + element.normalizedIndex * 7.0;
   float arcA = 0.5 + 0.5 * sin(phase);
   float arcB = radialBand(radialT, 0.34 + sin(uTime * motion * 0.32 + element.index) * 0.025, 0.035);
   float arcC = radialBand(radialT, 0.71 + cos(uTime * motion * 0.24 - element.index) * 0.02, 0.028);
   float arcGlow = max(pow(arcA, 8.0), max(arcB, arcC));
 
-  vec3 primary = uPrimaryColor.rgb;
-  vec3 secondary = uSecondaryColor.rgb;
-  float paletteMix = 0.5 + 0.5 * sin(element.normalizedIndex * PRISM_TOPOLOGY_TAU * 2.0 + radialT * 3.0);
-  vec3 facetColor = mix(primary, secondary, paletteMix);
+  // ═══ Colour — prismatic hue wheel + harmony palette ═══
+  float wheelHue = fract(keyHue + element.normalizedIndex + evoRot + radialT * 0.14
+    + centroid * 0.05 + chordSweep * 0.12);
+  float wheelSat = clamp(0.55 + complexity * 0.24 + harmonyConf * 0.16 - isCalm * 0.12, 0.32, 0.96);
+  vec3 facetColor = prismHsv2rgb(vec3(wheelHue, wheelSat, 1.0));
+  facetColor = mix(facetColor, mix(primary, secondary, element.normalizedIndex), 0.26);
 
-  float facetLight = facetMask * (0.32 + arcA * 0.48 + arcGlow * (0.65 + beat * 1.35));
-  float rimLight = angularEdge * insideOuter * outsideInner * (0.4 + uGlow * 0.35);
-  vec3 col = facetColor * (facetLight + rimLight) * facetIllumination;
+  float facetLight = facetMask * (0.32 + arcA * 0.46 + arcGlow * (0.62 + beat * 1.3 + facetPunch * 0.9));
+  vec3 iridescent = prismHsv2rgb(vec3(fract(0.55 + local * 0.5 + centroid * 0.22 + uTime * 0.02), 0.82, 1.0));
+  float rimLight = angularEdge * insideOuter * outsideInner * (0.36 + uGlow * 0.34 + bHigh * 0.35);
+  vec3 col2 = facetColor * facetLight * facetIllumination + iridescent * rimLight;
 
-  // Center aperture glow and broad haze preserve the luminous Prism DNA while
-  // keeping the composition center-anchored instead of a vanishing-point view.
-  float apertureGlow = exp(-radius * (5.8 / max(baseRadius, 0.15))) * (0.22 + uGlow * 0.75) * (0.9 + uEnergy * 0.25);
-  float halo = exp(-abs(radius - element.innerRadius) * (14.0 / max(baseRadius, 0.2))) * 0.42;
-  col += mix(primary, secondary, 0.5) * (apertureGlow + halo * facetMask * facetIllumination);
+  vec3 arcColor = prismHsv2rgb(vec3(fract(keyHue + 0.5 + centroid * 0.35 + radialT * 0.1), 0.72, 1.0));
+  col2 += arcColor * arcGlow * facetMask * (0.4 + facetPunch * 0.8) * facetIllumination;
 
-  float hazeAmount = uFogDensity * uMasterFogDensity;
-  float haze = exp(-radius * 1.35) * hazeAmount * 0.11;
-  col += mix(primary, secondary, 0.35) * haze;
+  col += col2;
+
+  // ═══ Interconnection + branching petals ═══
+  float linkRad = mix(grownInner, grownOuter, 0.52);
+  float linkRing = radialBand(shapedRadius, linkRad, 0.02)
+    * (0.1 + beat * 0.4 + uDownbeatHit * 0.5 + facetPunch * 0.35) * (1.0 - isCalm * 0.5);
+  float branchN = 2.0 + floor(complexity * 4.0);
+  float branchLobe = pow(0.5 + 0.5 * cos(local * branchN * 3.14159265359 + uTime * motion * 1.2), 3.0);
+  float branchBand = smoothstep(grownOuter * 0.78, grownOuter * 1.05, shapedRadius)
+    * (1.0 - smoothstep(grownOuter * 1.05, grownOuter * 1.32, shapedRadius));
+  float branchGlow = branchLobe * branchBand * angularCore
+    * (0.22 + flux * 0.7 + facetPunch * 0.5) * (1.0 - isCalm * 0.5);
+  col += prismHsv2rgb(vec3(fract(wheelHue + 0.12), 0.62, 1.0)) * (linkRing + branchGlow);
+
+  // Phrase-evolving detail ring — fades in and out across each 16-phrase window.
+  float detailOpacity = smoothstep(0.05, 0.4, phraseEvo) * (1.0 - smoothstep(0.72, 1.0, phraseEvo));
+  float detailRing = radialBand(shapedRadius, mix(grownInner, grownOuter, 0.86), 0.011);
+  col += prismHsv2rgb(vec3(fract(wheelHue + 0.2), 0.6, 1.0)) * detailRing * detailOpacity * facetMask * 0.45;
+
+  // Center aperture glow + halo — vocal-lifted.
+  float apertureGlow = exp(-radius * (5.8 / max(baseRadius, 0.15))) * (0.22 + uGlow * 0.75)
+    * (0.9 + uEnergy * 0.25) * (1.0 + vocalDrive * 0.7);
+  float halo = exp(-abs(radius - grownInner) * (14.0 / max(baseRadius, 0.2))) * 0.42;
+  col += mix(prismHsv2rgb(vec3(keyHue, 0.5, 1.0)), facetColor, 0.4)
+    * (apertureGlow + halo * facetMask * facetIllumination + halo * vocalDrive * 0.5);
+
+  float haze = exp(-radius * 1.35) * hazeAmount * 0.09;
+  col += prismHsv2rgb(vec3(fract(roomHue + 0.08), 0.4, 1.0)) * haze;
 
   col *= 1.0 + bass * 0.34;
-  col += beat * secondary * (0.18 + facetMask * 0.42);
-  col = mix(col, vec3(1.0), uSnareHit * 0.28);
+  col += beat * facetColor * (0.16 + facetMask * 0.4);
+  col = mix(col, vec3(1.0), uSnareHit * 0.26 + phraseAccent * 0.05 + sectionPulse * 0.12);
 
-  // Stage 5 structural echoes reconstruct bounded prior radial descriptors.
-  // They are not framebuffer feedback and never sample a previous image.
-  col += prismStructuralEcho(uv, uPrismEchoOpacity0, uPrismEchoRotation0, uPrismEchoRotationMotion0, uPrismEchoAperture0, uPrismEchoBaseRadius0, uPrismEchoCurvature0, uPrismEchoFacetAmount0, uPrismEchoChaseIndex0, uPrismEchoChaseStrength0, uPrismEchoAlternate0, uPrismEchoOpposing0, uPrismEchoFlare0, primary, secondary);
-  col += prismStructuralEcho(uv, uPrismEchoOpacity1, uPrismEchoRotation1, uPrismEchoRotationMotion1, uPrismEchoAperture1, uPrismEchoBaseRadius1, uPrismEchoCurvature1, uPrismEchoFacetAmount1, uPrismEchoChaseIndex1, uPrismEchoChaseStrength1, uPrismEchoAlternate1, uPrismEchoOpposing1, uPrismEchoFlare1, primary, secondary);
-  col += prismStructuralEcho(uv, uPrismEchoOpacity2, uPrismEchoRotation2, uPrismEchoRotationMotion2, uPrismEchoAperture2, uPrismEchoBaseRadius2, uPrismEchoCurvature2, uPrismEchoFacetAmount2, uPrismEchoChaseIndex2, uPrismEchoChaseStrength2, uPrismEchoAlternate2, uPrismEchoOpposing2, uPrismEchoFlare2, primary, secondary);
-  col += prismStructuralEcho(uv, uPrismEchoOpacity3, uPrismEchoRotation3, uPrismEchoRotationMotion3, uPrismEchoAperture3, uPrismEchoBaseRadius3, uPrismEchoCurvature3, uPrismEchoFacetAmount3, uPrismEchoChaseIndex3, uPrismEchoChaseStrength3, uPrismEchoAlternate3, uPrismEchoOpposing3, uPrismEchoFlare3, primary, secondary);
+  // Drop burst.
+  col += prismHsv2rgb(vec3(fract(keyHue + 0.33), 0.58, 1.0)) * isDrop * (0.14 + facetMask * 0.5);
+
+  // Stage 5 structural echoes reconstruct bounded prior radial descriptors, now
+  // hue-fanned per slot off the palette anchor. Not framebuffer feedback.
+  col += prismStructuralEcho(uv, uPrismEchoOpacity0, uPrismEchoRotation0, uPrismEchoRotationMotion0, uPrismEchoAperture0, uPrismEchoBaseRadius0, uPrismEchoCurvature0, uPrismEchoFacetAmount0, uPrismEchoChaseIndex0, uPrismEchoChaseStrength0, uPrismEchoAlternate0, uPrismEchoOpposing0, uPrismEchoFlare0, facetColor, arcColor);
+  col += prismStructuralEcho(uv, uPrismEchoOpacity1, uPrismEchoRotation1, uPrismEchoRotationMotion1, uPrismEchoAperture1, uPrismEchoBaseRadius1, uPrismEchoCurvature1, uPrismEchoFacetAmount1, uPrismEchoChaseIndex1, uPrismEchoChaseStrength1, uPrismEchoAlternate1, uPrismEchoOpposing1, uPrismEchoFlare1, prismHsv2rgb(vec3(fract(keyHue + 0.12), 0.55, 1.0)), arcColor);
+  col += prismStructuralEcho(uv, uPrismEchoOpacity2, uPrismEchoRotation2, uPrismEchoRotationMotion2, uPrismEchoAperture2, uPrismEchoBaseRadius2, uPrismEchoCurvature2, uPrismEchoFacetAmount2, uPrismEchoChaseIndex2, uPrismEchoChaseStrength2, uPrismEchoAlternate2, uPrismEchoOpposing2, uPrismEchoFlare2, prismHsv2rgb(vec3(fract(keyHue + 0.24), 0.5, 1.0)), arcColor);
+  col += prismStructuralEcho(uv, uPrismEchoOpacity3, uPrismEchoRotation3, uPrismEchoRotationMotion3, uPrismEchoAperture3, uPrismEchoBaseRadius3, uPrismEchoCurvature3, uPrismEchoFacetAmount3, uPrismEchoChaseIndex3, uPrismEchoChaseStrength3, uPrismEchoAlternate3, uPrismEchoOpposing3, uPrismEchoFlare3, prismHsv2rgb(vec3(fract(keyHue + 0.36), 0.46, 1.0)), arcColor);
   col *= uMasterIntensity;
+
+  // Tension / build chromatic stress at the frame edge.
+  float caAmt = build * 0.5 + uTension * 0.3;
+  float edgeAmt = smoothstep(0.5, 1.25, length(uv));
+  col.r *= 1.0 + caAmt * edgeAmt * 0.22;
+  col.b *= 1.0 + caAmt * edgeAmt * 0.22;
+  col.g *= 1.0 - caAmt * edgeAmt * 0.1;
 
   float vignette = saturate(1.08 - dot(uv * 0.36, uv * 0.36));
   col *= vignette;
@@ -408,7 +629,7 @@ void main() {
 
   thumbnail: { color: '#063333' },
 
-  tags: ['prism', 'radial', 'facets'],
+  tags: ['prism', 'radial', 'facets', 'spectral', 'harmonic', 'nebula'],
 
   createRuntimeParameterController: createPrismRuntimeParameterController,
 }
