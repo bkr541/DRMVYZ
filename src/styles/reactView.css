@@ -20667,13 +20667,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* One continuous dashed spine down the FX-icon column, from the add-FX toggle
-   on the thumbnail to the add-effect button below the last effect. It is drawn
-   whenever the group renders (not only once an effect exists), so revealing the
-   "Select Effect…" row shows it and its branch straight away.
+   on the thumbnail to the add-effect button below the last effect. Drawn only
+   once at least one effect exists — before that, the thumbnail toggle is the
+   sole add-effect control.
    left  = group padding + half the 42.6px thumbnail (toggle centre x)
    top   = group padding + thumbnail height (toggle centre sits on its bottom)
    bottom = group padding + half the 22px add-effect button */
-.rv-ae-tcb-group::before {
+.rv-ae-tcb-group.has-effects::before {
   content: '';
   position: absolute;
   left: calc(var(--ae2-pad) + 21.3px);
@@ -20881,10 +20881,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   height: 21px;
 }
 
-/* Triggers group — stacked directly below the centred Add Trigger button,
-   spanning the full entry width. */
+/* Triggers group — stacked below the centred Add Trigger button, its left edge
+   lined up under the effect dropdown above (FX-icon margin-left 42.6px + gap,
+   the 22px FX circle, then the row gap), extending to the group's right edge. */
 .rv-ae-tcb-panel {
   align-self: stretch;
+  margin-left: calc(64.6px + 2 * var(--ae2-gap));
   min-width: 0;
   padding: var(--ae2-gap);
   border: 1px solid transparent;
@@ -20942,9 +20944,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   opacity: 1;
 }
 
-/* Add-effect control at the bottom end of the spine: a dashed FX circle whose
-   centre sits on the spine (thumbnail-centre x), with the "Select Effect…" row
-   revealing horizontally to its right when the circle is clicked. */
+/* No effects yet: the "Select Effect…" picker alone, lined up under where the
+   effect dropdown will sit, revealed by the thumbnail's FX toggle. No second
+   FX icon and no spine until the first effect is chosen. */
+.rv-ae-tcb-addfx-first {
+  margin-left: calc(64.6px + 2 * var(--ae2-gap));
+}
+
+/* One or more effects: a dashed FX circle on the spine's bottom end, with the
+   "Select Effect…" row revealing horizontally to its right when clicked. */
 .rv-ae-tcb-addfx {
   display: flex;
   align-items: flex-end;
@@ -20972,19 +20980,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ae-tcb-addfx-reveal {
   flex: 1 1 auto;
   min-width: 0;
-  display: grid;
-  grid-template-columns: 1fr;
-  opacity: 1;
-  transition: grid-template-columns 0.22s ease, opacity 0.16s ease;
-}
-
-.rv-ae-tcb-addfx-reveal > * {
-  min-width: 0;
   overflow: hidden;
+  max-width: 100%;
+  max-height: 64px;
+  opacity: 1;
+  transition: max-width 0.22s ease, max-height 0.22s ease, opacity 0.16s ease;
 }
 
 .rv-ae-tcb-addfx-reveal.is-collapsed {
-  grid-template-columns: 0fr;
+  max-width: 0;
+  max-height: 0;
   opacity: 0;
   pointer-events: none;
 }

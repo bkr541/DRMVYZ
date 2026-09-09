@@ -1360,13 +1360,27 @@ function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
         const hasEffects = layer.effects.length > 0
         const pickerOpen = fxOpen[layer.mediaId] ?? false
         const toggleFxPicker = () => setFxOpen(current => ({ ...current, [layer.mediaId]: !(current[layer.mediaId] ?? false) }))
+        const effectPicker = (
+          <SelectRow
+            label="Effect"
+            ariaLabel={`Add effect to ${layer.mediaName}`}
+            value=""
+            placeholder="Select Effect…"
+            onChange={value => {
+              if (!value) return
+              state.addCanvasLayerEffect(layer.mediaId, value as CanvasLayerEffectId)
+              setFxOpen(current => ({ ...current, [layer.mediaId]: false }))
+            }}
+            options={CANVAS_LAYER_EFFECT_OPTIONS.filter(option => !layer.effects.includes(option.value))}
+          />
+        )
         return (
           <AddEffectsLayerGroup
             key={layer.mediaId}
             state={state}
             layer={layer}
             layerIndex={layerIndex}
-            getGroupExtra={() => ({ className: 'rv-ae-tcb-group' })}
+            getGroupExtra={() => ({ className: hasEffects ? 'rv-ae-tcb-group has-effects' : 'rv-ae-tcb-group' })}
             renderMediaRowLeading={mediaLayer => {
               const media = state.mediaItems.find(item => item.id === mediaLayer.mediaId)
               return (
@@ -1400,33 +1414,39 @@ function AddEffectsThumbCardBConcept({ state }: { state: CanvasMockState }) {
               </span>
             )}
             showEmptyRow={false}
-            renderAfterEffects={() => layer.effects.length >= MAX_CANVAS_LAYER_EFFECTS ? null : (
-              <div className={pickerOpen ? 'rv-ae-tcb-addfx is-open' : 'rv-ae-tcb-addfx'}>
-                <button
-                  type="button"
-                  className={pickerOpen ? 'rv-ae-tcb-fx-toggle has-effect is-open' : 'rv-ae-tcb-fx-toggle has-effect'}
-                  aria-expanded={pickerOpen}
-                  aria-label={`${pickerOpen ? 'Hide' : 'Add'} an effect for ${layer.mediaName}`}
-                  onClick={toggleFxPicker}
-                >
-                  <EffectFxIcon className="rv-ae-tcb-fx-toggle-icon" />
-                </button>
-                <div className={pickerOpen ? 'rv-ae-tcb-addfx-reveal' : 'rv-ae-tcb-addfx-reveal is-collapsed'}>
-                  <SelectRow
-                    label="Effect"
-                    ariaLabel={`Add effect to ${layer.mediaName}`}
-                    value=""
-                    placeholder="Select Effect…"
-                    onChange={value => {
-                      if (!value) return
-                      state.addCanvasLayerEffect(layer.mediaId, value as CanvasLayerEffectId)
-                      setFxOpen(current => ({ ...current, [layer.mediaId]: false }))
-                    }}
-                    options={CANVAS_LAYER_EFFECT_OPTIONS.filter(option => !layer.effects.includes(option.value))}
-                  />
+            renderAfterEffects={() => {
+              // No effects yet: the thumbnail FX toggle alone drives the first
+              // pick — just reveal the picker, with no second FX icon and no
+              // spine (those appear only once an effect exists).
+              if (!hasEffects) {
+                return (
+                  <div className={pickerOpen ? 'rv-ae-tcb-addfx-first is-open' : 'rv-ae-tcb-addfx-first'}>
+                    <div className={pickerOpen ? 'rv-ae-tcb-addfx-reveal' : 'rv-ae-tcb-addfx-reveal is-collapsed'}>
+                      {effectPicker}
+                    </div>
+                  </div>
+                )
+              }
+              if (layer.effects.length >= MAX_CANVAS_LAYER_EFFECTS) return null
+              // One or more effects: a dashed FX circle on the spine's bottom
+              // end that reveals the picker to its right for adding another.
+              return (
+                <div className={pickerOpen ? 'rv-ae-tcb-addfx is-open' : 'rv-ae-tcb-addfx'}>
+                  <button
+                    type="button"
+                    className={pickerOpen ? 'rv-ae-tcb-fx-toggle has-effect is-open' : 'rv-ae-tcb-fx-toggle has-effect'}
+                    aria-expanded={pickerOpen}
+                    aria-label={`${pickerOpen ? 'Hide' : 'Add'} an effect for ${layer.mediaName}`}
+                    onClick={toggleFxPicker}
+                  >
+                    <EffectFxIcon className="rv-ae-tcb-fx-toggle-icon" />
+                  </button>
+                  <div className={pickerOpen ? 'rv-ae-tcb-addfx-reveal' : 'rv-ae-tcb-addfx-reveal is-collapsed'}>
+                    {effectPicker}
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            }}
             renderRoute={ctx => (
               <AECardRoute
                 ctx={ctx}
