@@ -5,6 +5,9 @@
 
 .drc-group {
   position: relative;
+  /* Reserve 12px above the heading so every group that uses this reusable
+     component gets consistent breathing room from whatever sits above it. */
+  padding-top: 12px;
 }
 
 .drc-header {
