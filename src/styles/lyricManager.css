@@ -876,49 +876,6 @@
   overflow-y: auto;
   padding-right: 3px;
 }
-.lmv-track-card-wrap {
-  position: relative;
-}
-.lmv-track-card {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 9px 28px 9px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.07);
-  background: rgba(255,255,255,0.025);
-  color: inherit;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-}
-.lmv-track-card:hover { border-color: rgba(74,199,219,0.22); background: rgba(74,199,219,0.04); }
-.lmv-track-card--selected { border-color: rgba(74,199,219,0.48); background: rgba(74,199,219,0.08); }
-.lmv-track-delete-btn {
-  position: absolute;
-  top: 7px;
-  right: 7px;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  border-radius: 3px;
-  color: rgba(196,207,211,0.3);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.12s, background 0.12s;
-  z-index: 1;
-}
-.lmv-track-card-wrap:hover .lmv-track-delete-btn,
-.lmv-track-delete-btn:focus-visible {
-  opacity: 1;
-}
-.lmv-track-delete-btn:hover {
-  color: #f87171;
-  background: rgba(248,113,113,0.1);
-}
 .lmv-track-card-topline,
 .lmv-track-lyrics-row,
 .lmv-track-control-strip,
@@ -935,11 +892,7 @@
 .lmv-track-card-topline { justify-content: space-between; }
 .lmv-track-title { font-weight: 700; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lmv-track-artist { margin-top: 2px; font-size: 10px; color: rgba(196,207,211,0.5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lmv-track-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 7px; font-size: 9px; color: rgba(196,207,211,0.38); }
 .lmv-track-lyrics-row { justify-content: space-between; margin-top: 7px; font-size: 9px; }
-.lmv-track-has-lyrics { color: #61d6aa; }
-.lmv-track-no-lyrics { color: rgba(196,207,211,0.35); }
-.lmv-track-active-doc { color: rgba(196,207,211,0.45); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 55%; }
 .lmv-track-state { padding: 14px 8px; color: rgba(196,207,211,0.42); text-align: center; }
 .lmv-load-more { display: block; margin: 8px auto 0; }
 
@@ -1032,7 +985,6 @@
   .lmv-header-right .lmv-btn--ghost { display: none; }
   .lmv-track-browser { padding: 10px; }
   .lmv-track-grid { display: flex; overflow-x: auto; overflow-y: hidden; max-height: none; }
-  .lmv-track-card { min-width: 245px; }
   .lmv-track-control-strip { flex-wrap: wrap; }
   .lmv-body { overflow-y: auto; display: grid; grid-template-columns: 1fr; }
   .lmv-doc-sidebar,
@@ -1650,24 +1602,6 @@
   padding-right: 2px;
 }
 
-.lmv-track-card {
-  display: grid;
-  grid-template-columns: 60px minmax(0, 1fr);
-  gap: 10px;
-  min-height: 74px;
-  padding: 8px 28px 8px 8px;
-  border-radius: 7px;
-  background: rgba(11,21,25,0.8);
-  border-color: rgba(126,218,232,0.08);
-}
-
-.lmv-track-card--selected {
-  background: linear-gradient(90deg, rgba(74,199,219,0.18), rgba(74,199,219,0.05));
-  border-color: rgba(74,199,219,0.56);
-  box-shadow: inset 3px 0 0 #20d7ef, 0 0 24px rgba(74,199,219,0.08);
-}
-
-.lmv-track-card-art,
 .lmv-track-art {
   display: grid;
   place-items: center;
@@ -1690,9 +1624,7 @@
   flex-direction: column;
 }
 
-.lmv-track-card-topline,
-.lmv-track-lyrics-row,
-.lmv-track-meta {
+.lmv-track-card-topline {
   min-width: 0;
 }
 
@@ -1704,23 +1636,6 @@
 .lmv-track-artist {
   display: block;
   color: rgba(196,207,211,0.58);
-}
-
-.lmv-track-meta {
-  gap: 5px;
-  margin-top: 6px;
-}
-
-.lmv-track-meta span {
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: rgba(255,255,255,0.035);
-  border: 1px solid rgba(255,255,255,0.045);
-  color: rgba(196,207,211,0.56);
-}
-
-.lmv-track-lyrics-row {
-  display: none;
 }
 
 .lmv-doc-sidebar {
@@ -2719,6 +2634,13 @@
 .lmv-track-filter-dropdown {
   width: 142px;
   max-width: min(142px, 42vw);
+}
+
+/* UnderlineDropdown already matches .dv-text-input's padding/border-bottom; pin
+   the trigger to the search input's height (.lmv-track-search { height: 32px })
+   so, centered in the flex row, the two underlines land on the same line. */
+.lmv-track-search-row .lmv-track-filter-dropdown .drm-dropdown__trigger {
+  min-height: 32px !important;
 }
 
 /* Track Library search + filter on one row: the search input grows, the filter

@@ -3,9 +3,8 @@ import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCar
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
 import { useMemo, useState } from 'react'
-import { Delete02Icon } from 'hugeicons-react'
-import { Dropdown } from '../../../components/shared/Dropdown/Dropdown'
-import { ContextActionMenu } from '../../../components/vyzualz/context-menu/ContextActionMenu'
+import { UnderlineDropdown } from '../../../components/vyzualz/react/controls/UnderlineDropdown'
+import { AudioTrackCard } from '../../../components/vyzualz/media/AudioTrackCard'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
 
 
@@ -66,35 +65,6 @@ interface Props {
   onRetry: () => void
 }
 
-interface TrackMenuState {
-  track: LyricManagerTrack
-  x: number
-  y: number
-}
-
-function formatDuration(seconds: number | null): string {
-  if (seconds === null || !Number.isFinite(seconds)) return '—'
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
-  return `${mins}:${secs.toString().padStart(2, '0')}`
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString()
-}
-
-function trackInitials(track: LyricManagerTrack): string {
-  const source = `${track.title || track.fileName || ''} ${track.artist || ''}`.trim()
-  const initials = source
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(part => part[0]?.toUpperCase() ?? '')
-    .join('')
-  return initials || '♪'
-}
-
 export function LyricTrackBrowser({
   tracks,
   selectedTrackId,
@@ -115,16 +85,11 @@ export function LyricTrackBrowser({
   onLoadMore,
   onRetry,
 }: Props) {
-  const [menu, setMenu] = useState<TrackMenuState | null>(null)
   const [filter, setFilter] = useState<LyricTrackFilter>('all')
   const visibleTracks = useMemo(
     () => filterLyricManagerTracks(tracks, filter, loadedAudioTrackId, search),
     [filter, loadedAudioTrackId, search, tracks],
   )
-
-  const openMenu = (track: LyricManagerTrack, x: number, y: number) => {
-    setMenu({ track, x, y })
-  }
 
   return (
     <section className="lmv-track-browser" aria-label="Stored audio tracks">
@@ -143,7 +108,7 @@ export function LyricTrackBrowser({
             aria-label="Search tracks by title or artist"
           />
         </div>
-        <Dropdown
+        <UnderlineDropdown
           id="lyric-track-filter"
           value={filter}
           options={(Object.entries(TRACK_FILTER_LABELS) as Array<[LyricTrackFilter, string]>).map(([value, label]) => ({ value, label }))}
@@ -176,71 +141,28 @@ export function LyricTrackBrowser({
       )}
 
       <div className="lmv-track-grid">
-        {visibleTracks.map(track => {
-          const selected = selectedTrackId === track.dbId
-          const loaded = loadedAudioTrackId === track.dbId
-          const playing = playingAudioTrackId === track.dbId
-          return (
-            <div key={track.dbId} className="lmv-track-card-wrap">
-              <button
-                type="button"
-                className={`lmv-track-card${selected ? ' lmv-track-card--selected' : ''}`}
-                onClick={() => onSelectTrack(track)}
-                onDoubleClick={() => onLoadTrack(track, false)}
-                onContextMenu={event => {
-                  event.preventDefault()
-                  openMenu(track, event.clientX, event.clientY)
-                }}
-                onKeyDown={event => {
-                  if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return
-                  event.preventDefault()
-                  const rect = event.currentTarget.getBoundingClientRect()
-                  openMenu(track, rect.left + 24, rect.top + 24)
-                }}
-                aria-pressed={selected}
-                aria-haspopup="menu"
-              >
-                <span className="lmv-track-card-art" aria-hidden="true">{trackInitials(track)}</span>
-                <span className="lmv-track-card-main">
-                  <span className="lmv-track-card-topline">
-                    <span className="lmv-track-title">{track.title || track.fileName}</span>
-                    <span className="lmv-track-state-badges">
-                      {selected && <span className="lmv-selected-badge">Selected</span>}
-                      {loaded && <span className="lmv-loaded-badge">Loaded</span>}
-                      {playing && <span className="lmv-playing-badge">Playing</span>}
-                    </span>
-                  </span>
-                  <span className="lmv-track-artist">{track.artist || 'Unknown artist'}</span>
-                  <span className="lmv-track-meta">
-                    <span>{formatDuration(track.durationSec)}</span>
-                    <span>{track.bpm ? `${Math.round(track.bpm)} BPM` : 'BPM —'}</span>
-                    <span>{track.musicalKey || 'Key —'}</span>
-                    <span>{formatDate(track.createdAt)}</span>
-                  </span>
-                  <span className="lmv-track-lyrics-row">
-                    <span className={track.lyricVersionCount > 0 ? 'lmv-track-has-lyrics' : 'lmv-track-no-lyrics'}>
-                      {track.lyricVersionCount > 0
-                        ? `${track.lyricVersionCount} lyric version${track.lyricVersionCount === 1 ? '' : 's'}`
-                        : 'No lyrics'}
-                    </span>
-                    <span className="lmv-track-active-doc">
-                      {track.activeLyricDocumentName ? `Active: ${track.activeLyricDocumentName}` : 'No active version'}
-                    </span>
-                  </span>
-                </span>
-              </button>
-              <button
-                type="button"
-                className="lmv-track-delete-btn"
-                onClick={() => onDeleteTrack(track)}
-                title="Delete track and all lyric versions"
-                aria-label={`Delete ${track.title || track.fileName} and all lyric versions`}
-              >
-                <Delete02Icon size={12} color="currentColor" />
-              </button>
-            </div>
-          )
-        })}
+        {visibleTracks.map(track => (
+          <AudioTrackCard
+            key={track.dbId}
+            track={track}
+            onSelect={() => onSelectTrack(track)}
+            onLoad={() => onLoadTrack(track, false)}
+            onLoadAndPlay={() => onLoadTrack(track, true)}
+            onRemove={() => onDeleteTrack(track)}
+            confirmRemove={false}
+            loading={false}
+            loaded={loadedAudioTrackId === track.dbId}
+            playing={playingAudioTrackId === track.dbId}
+            canLoad
+            canOpenLyrics
+            canRemove
+            isActive={selectedTrackId === track.dbId}
+            selectedBadge
+            onOpenActiveLyrics={() => onOpenActiveLyrics(track)}
+            onOpenAiExtract={() => onOpenAiExtract(track)}
+            onMakeActiveVersion={canMakeOpenVersionActive(track) ? () => onMakeOpenVersionActive(track) : undefined}
+          />
+        ))}
       </div>
 
       {loading && <div className="lmv-track-state">Loading tracks…</div>}
@@ -248,41 +170,6 @@ export function LyricTrackBrowser({
         <IconChipButton className="lmv-load-more" onClick={onLoadMore}>Load More</IconChipButton>
       )}
       </Collapsible>
-
-      {menu && (
-        <ContextActionMenu
-          x={menu.x}
-          y={menu.y}
-          ariaLabel={`Actions for ${menu.track.title || menu.track.fileName}`}
-          header={{
-            title: menu.track.title || menu.track.fileName,
-            subtitle: menu.track.artist || 'Unknown artist',
-          }}
-          onClose={() => setMenu(null)}
-          items={[
-            { id: 'load', label: 'Load Track', onSelect: () => onLoadTrack(menu.track, false) },
-            { id: 'load-play', label: 'Load and Play', onSelect: () => onLoadTrack(menu.track, true) },
-            {
-              id: 'open-active',
-              label: 'Open Active Lyrics',
-              onSelect: () => onOpenActiveLyrics(menu.track),
-            },
-            { id: 'extract', label: 'AI Extract Lyrics', onSelect: () => onOpenAiExtract(menu.track) },
-            ...(canMakeOpenVersionActive(menu.track) ? [{
-              id: 'make-active',
-              label: 'Make Active Version',
-              onSelect: () => onMakeOpenVersionActive(menu.track),
-            }] : []),
-            {
-              id: 'delete',
-              label: 'Delete Track',
-              dividerBefore: true,
-              danger: true,
-              onSelect: () => onDeleteTrack(menu.track),
-            },
-          ]}
-        />
-      )}
     </section>
   )
 }

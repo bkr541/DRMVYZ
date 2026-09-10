@@ -20,6 +20,15 @@ export interface AudioTrackCardProps {
   onOpenTimeline?: () => void
   onOpenActiveLyrics?: () => void
   onOpenAiExtract?: () => void
+  /** Show a "Selected" text badge when `isActive` (Media Library relies on the ring alone). */
+  selectedBadge?: boolean
+  /** Adds a "Load and Play" item to the lyric actions menu. */
+  onLoadAndPlay?: () => void
+  /** Adds a "Make Active Version" item to the lyric actions menu. */
+  onMakeActiveVersion?: () => void
+  /** When false, Delete calls `onRemove` immediately and the caller owns the
+   *  confirmation dialog. Defaults to true (this card shows its own). */
+  confirmRemove?: boolean
 }
 
 function fmtDuration(s: number | null): string {
@@ -66,9 +75,20 @@ export function AudioTrackCard({
   onOpenTimeline,
   onOpenActiveLyrics,
   onOpenAiExtract,
+  selectedBadge,
+  onLoadAndPlay,
+  onMakeActiveVersion,
+  confirmRemove = true,
 }: AudioTrackCardProps) {
   const [lyricsMenu, setLyricsMenu] = useState<{ x: number; y: number } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const lyricsMenuItems = [
+    ...(onLoadAndPlay ? [{ id: 'load-play', label: 'Load and Play', onSelect: onLoadAndPlay }] : []),
+    ...(onOpenTimeline ? [{ id: 'timeline', label: 'Open in Lyric Manager', onSelect: onOpenTimeline }] : []),
+    ...(onOpenActiveLyrics ? [{ id: 'active', label: 'Open Active Lyrics', onSelect: onOpenActiveLyrics }] : []),
+    ...(onOpenAiExtract ? [{ id: 'extract', label: 'AI Extract Lyrics', onSelect: onOpenAiExtract }] : []),
+    ...(onMakeActiveVersion ? [{ id: 'make-active', label: 'Make Active Version', onSelect: onMakeActiveVersion }] : []),
+  ]
   const details: string[] = []
   if (track.durationSec) details.push(fmtDuration(track.durationSec))
   if (track.bpm)         details.push(`${track.bpm} BPM`)
@@ -91,6 +111,7 @@ export function AudioTrackCard({
         <div className="vz-track-row-title-line">
           <span className="vz-track-row-title">{track.title}</span>
           <span className="vz-track-row-state-badges">
+            {selectedBadge && isActive && <span className="lmv-selected-badge">Selected</span>}
             {loaded && <span className="lmv-loaded-badge">Loaded</span>}
             {playing && <span className="lmv-playing-badge">Playing</span>}
           </span>
@@ -112,7 +133,7 @@ export function AudioTrackCard({
             <Download01Icon size={13} color="currentColor" />
           </button>
         )}
-        {canOpenLyrics && (
+        {canOpenLyrics && lyricsMenuItems.length > 0 && (
           <button
             type="button"
             className="vz-track-action-btn"
@@ -134,7 +155,8 @@ export function AudioTrackCard({
             className="vz-track-remove-btn"
             onClick={event => {
               event.stopPropagation()
-              setConfirmDelete(true)
+              if (confirmRemove) setConfirmDelete(true)
+              else onRemove()
             }}
             title="Delete track and linked lyric data"
             aria-label={`Delete ${track.title} and linked lyric data`}
@@ -150,11 +172,7 @@ export function AudioTrackCard({
           ariaLabel={`Lyric actions for ${track.title}`}
           header={{ title: track.title, subtitle: track.artist || 'Unknown artist' }}
           onClose={() => setLyricsMenu(null)}
-          items={[
-            { id: 'timeline', label: 'Open in Lyric Manager', onSelect: () => onOpenTimeline?.() },
-            { id: 'active', label: 'Open Active Lyrics', onSelect: () => onOpenActiveLyrics?.() },
-            { id: 'extract', label: 'AI Extract Lyrics', onSelect: () => onOpenAiExtract?.() },
-          ]}
+          items={lyricsMenuItems}
         />
       )}
       {confirmDelete && (

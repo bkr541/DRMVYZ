@@ -352,8 +352,8 @@ async function render(onBack = vi.fn()) {
   return onBack
 }
 
-function trackCard(title: string): HTMLButtonElement {
-  const card = [...container.querySelectorAll<HTMLButtonElement>('.lmv-track-card')]
+function trackCard(title: string): HTMLElement {
+  const card = [...container.querySelectorAll<HTMLElement>('.vz-track-row')]
     .find(candidate => candidate.textContent?.includes(title))
   if (!card) throw new Error(`Track card not found: ${title}`)
   return card
@@ -376,7 +376,7 @@ function buttonWithText(text: string, rootElement: ParentNode = container): HTML
 describe('LyricManagerView track-first workflow', () => {
   it('routes track deletion through the same canonical audio-store operation used by other audio surfaces', async () => {
     await render()
-    const deleteButton = container.querySelector<HTMLButtonElement>('[aria-label="Delete Reverie and all lyric versions"]')
+    const deleteButton = container.querySelector<HTMLButtonElement>('[aria-label="Delete Reverie and linked lyric data"]')
     expect(deleteButton).not.toBeNull()
 
     await act(async () => deleteButton!.click())

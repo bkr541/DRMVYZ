@@ -74,7 +74,7 @@ async function render(props: Partial<React.ComponentProps<typeof LyricTrackBrows
 }
 
 describe('LyricTrackBrowser', () => {
-  it('renders practical track and lyric metadata and selects a track without starting playback', async () => {
+  it('renders practical track metadata via the shared AudioTrackCard and selects a track without starting playback', async () => {
     const onSelectTrack = vi.fn()
     await render({ onSelectTrack, loadedAudioTrackId: 'track-a' })
 
@@ -83,11 +83,9 @@ describe('LyricTrackBrowser', () => {
     expect(container.textContent).toContain('3:13')
     expect(container.textContent).toContain('150 BPM')
     expect(container.textContent).toContain('Bb Major')
-    expect(container.textContent).toContain('2 lyric versions')
-    expect(container.textContent).toContain('Active: Approved Lyrics')
     expect(container.textContent).toContain('Loaded')
 
-    const card = container.querySelector('.lmv-track-card') as HTMLButtonElement
+    const card = container.querySelector('.vz-track-row') as HTMLElement
     await act(async () => card.click())
     expect(onSelectTrack).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }))
     expect(baseProps.onLoadTrack).not.toHaveBeenCalled()
@@ -113,18 +111,16 @@ describe('LyricTrackBrowser', () => {
     const onDeleteTrack = vi.fn()
     await render({ onSelectTrack, onDeleteTrack })
 
-    const deleteBtn = container.querySelector('.lmv-track-delete-btn') as HTMLButtonElement
+    // confirmRemove={false}: the Lyric Manager owns the confirmation dialog, so
+    // the card's Delete button calls onRemove straight through.
+    const deleteBtn = container.querySelector('.vz-track-remove-btn') as HTMLButtonElement
     expect(deleteBtn).toBeTruthy()
     await act(async () => deleteBtn.click())
     expect(onDeleteTrack).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }))
     expect(onSelectTrack).not.toHaveBeenCalled()
   })
 
-  it('shows no-lyrics, empty-search, loading, and recoverable error states', async () => {
-    await render({ tracks: [track({ lyricVersionCount: 0, activeLyricDocumentName: null })] })
-    expect(container.textContent).toContain('No lyrics')
-    expect(container.textContent).toContain('No active version')
-
+  it('shows empty-search, loading, and recoverable error states', async () => {
     await render({ tracks: [], search: 'missing' })
     expect(container.textContent).toContain('No stored tracks match the current search and filter.')
 
@@ -138,43 +134,40 @@ describe('LyricTrackBrowser', () => {
     expect(onRetry).toHaveBeenCalledOnce()
   })
 
-  it('double-click loads the saved track without automatically playing', async () => {
+  it('loads the saved track without automatically playing from the card action button', async () => {
     const onLoadTrack = vi.fn()
     const onSelectTrack = vi.fn()
     await render({ onLoadTrack, onSelectTrack })
 
-    const card = container.querySelector('.lmv-track-card') as HTMLButtonElement
-    await act(async () => card.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })))
+    const loadBtn = [...container.querySelectorAll<HTMLButtonElement>('.vz-track-action-btn')]
+      .find(button => button.getAttribute('aria-label') === 'Load Reverie')!
+    await act(async () => loadBtn.click())
 
     expect(onLoadTrack).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }), false)
+    expect(onSelectTrack).not.toHaveBeenCalled()
   })
 
-  it('offers load, load-and-play, active lyric, and AI actions from the accessible context menu', async () => {
+  it('offers load-and-play, active lyric, and AI actions from the card lyric menu', async () => {
     const onLoadTrack = vi.fn()
     const onOpenActiveLyrics = vi.fn()
     const onOpenAiExtract = vi.fn()
     await render({ onLoadTrack, onOpenActiveLyrics, onOpenAiExtract })
 
-    const card = container.querySelector('.lmv-track-card') as HTMLButtonElement
-    await act(async () => card.dispatchEvent(new MouseEvent('contextmenu', {
-      bubbles: true,
-      cancelable: true,
-      clientX: 40,
-      clientY: 60,
-    })))
+    const lyricsBtn = () => [...container.querySelectorAll<HTMLButtonElement>('.vz-track-action-btn')]
+      .find(button => button.getAttribute('aria-label') === 'Lyric actions for Reverie')!
+    await act(async () => lyricsBtn().click())
     expect(document.querySelector('[role="menu"]')).not.toBeNull()
-    expect((document.activeElement as HTMLElement)?.textContent).toBe('Load Track')
 
     const menuButton = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
       .find(button => button.textContent === label)!
     await act(async () => menuButton('Load and Play').click())
     expect(onLoadTrack).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }), true)
 
-    await act(async () => card.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))
+    await act(async () => lyricsBtn().click())
     await act(async () => menuButton('Open Active Lyrics').click())
     expect(onOpenActiveLyrics).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }))
 
-    await act(async () => card.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))
+    await act(async () => lyricsBtn().click())
     await act(async () => menuButton('AI Extract Lyrics').click())
     expect(onOpenAiExtract).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }))
   })
@@ -198,7 +191,7 @@ describe('LyricTrackBrowser', () => {
       playingAudioTrackId: 'track-a',
     })
 
-    const badges = [...container.querySelectorAll('.lmv-track-state-badges span')].map(node => node.textContent)
+    const badges = [...container.querySelectorAll('.vz-track-row-state-badges span')].map(node => node.textContent)
     expect(badges).toEqual(['Selected', 'Loaded', 'Playing'])
   })
 
