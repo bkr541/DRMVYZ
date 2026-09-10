@@ -4572,6 +4572,7 @@ function CanvasEffectMediaThumb({ media, mediaName }: { media: CanvasMediaItem |
 }
 
 export function CanvasAddEffectsControls() {
+  const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
   const orchestration = useReactStore(s => s.canvasOrchestrationSettings)
   const addCanvasLayerEffect = useReactStore(s => s.addCanvasLayerEffect)
   const setCanvasLayerEffect = useReactStore(s => s.setCanvasLayerEffect)
@@ -4604,6 +4605,14 @@ export function CanvasAddEffectsControls() {
     const timer = window.setTimeout(() => setRenderOpen(false), CANVAS_ADD_EFFECTS_EXIT_MS)
     return () => window.clearTimeout(timer)
   }, [wantOpen, renderOpen])
+
+  // Add Effects composites a 2D layer-effect pass inside the authored-layer
+  // pipeline; only `standard` renderers run through it. Particle Aura,
+  // Fractures, and Laser Image FX each own a bespoke renderer the effect pass
+  // is never wired into, so the group would configure effects that never draw —
+  // don't show it for those presets.
+  const rendererKind = (CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]).rendererKind
+  if (rendererKind !== 'standard') return null
 
   return (
     <Collapsible label="Effects" open={renderOpen} onOpenChange={() => setWantOpen(current => !current)}>

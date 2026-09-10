@@ -14,6 +14,7 @@ import {
   type CanvasPresetId,
   CANVAS_PRESETS,
   CANVAS_VISIBLE_PRESETS,
+  DEFAULT_CANVAS_PRESET_ID,
   DEFAULT_CANVAS_PRESET_SETTINGS,
 } from './ReactTypes'
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
@@ -58,6 +59,11 @@ import {
 } from './reactPresetLibraryState'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import { Collapsible } from './ReactControlRows'
+
+// Clean Playback is the implicit base look CANVAS always starts on (see
+// selectReactEngine), not a preset the user picks — so it is never carded in
+// the presets tab. The header status can still read "Clean Playback".
+const CANVAS_TAB_PRESETS = CANVAS_VISIBLE_PRESETS.filter(preset => preset.id !== DEFAULT_CANVAS_PRESET_ID)
 
 function getModeHint(preset: ReactPreset): string | null {
   if (preset.engine === 'cinematicPortal') {
@@ -308,13 +314,13 @@ function CanvasPresetCollection({ thumbnailGenerationKey, query }: { thumbnailGe
   const selectedCanvasPresetId = useReactStore(state => state.selectedCanvasPresetId)
   const selectCanvasPreset = useReactStore(state => state.selectCanvasPreset)
   const canvasPresetSettings = useReactStore(state => state.canvasPresetSettings)
-  const cardPresets = useMemo(() => CANVAS_VISIBLE_PRESETS.map(createCanvasPresetCardPreset), [])
+  const cardPresets = useMemo(() => CANVAS_TAB_PRESETS.map(createCanvasPresetCardPreset), [])
   const cardById = useMemo(() => new Map(cardPresets.map(preset => [preset.id, preset])), [cardPresets])
   const canvasThumbnailGenerationKey = useMemo(
-    () => `${thumbnailGenerationKey}:canvas:${CANVAS_VISIBLE_PRESETS.map(item => item.id).join('|')}`,
+    () => `${thumbnailGenerationKey}:canvas:${CANVAS_TAB_PRESETS.map(item => item.id).join('|')}`,
     [thumbnailGenerationKey],
   )
-  const visibleCanvasPresets = CANVAS_VISIBLE_PRESETS.filter(canvasPreset =>
+  const visibleCanvasPresets = CANVAS_TAB_PRESETS.filter(canvasPreset =>
     presetMatchesQuery(query, canvasPreset.name, cardById.get(canvasPreset.id)?.description),
   )
 
@@ -741,7 +747,7 @@ export function ReactPresetsPanel() {
           {presetLibraryContent}
           <HelpInfoTrigger
             helpId="react.canvas.presetLibrary"
-            currentValue={selectedCanvasPreset ? `${selectedCanvasPreset.name} · ${CANVAS_VISIBLE_PRESETS.length} CANVAS presets` : `${CANVAS_VISIBLE_PRESETS.length} CANVAS presets`}
+            currentValue={selectedCanvasPreset ? `${selectedCanvasPreset.name} · ${CANVAS_TAB_PRESETS.length} CANVAS presets` : `${CANVAS_TAB_PRESETS.length} CANVAS presets`}
             currentValueTone={selectedCanvasPreset ? 'accent' : 'default'}
             placement="left"
           />

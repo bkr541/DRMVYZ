@@ -708,28 +708,22 @@ export function ReactModulationPanel() {
     return <div className="rv-ctrl-group"><LaserDmxBeamMatrixModPanel /></div>
   }
 
-  // ── Non-oscilloscope engines: no per-frequency routing exists yet ──────────
+  // ── CANVAS: preset control groups only (this branch is CANVAS-only in
+  //    practice; every other non-oscilloscope engine is handled upstream). ────
   if (!isSoundDrawing) {
-    const isCanvas = activeReactEngineId === 'canvas'
+    if (activeReactEngineId !== 'canvas') return null
     return (
       <div className="rv-ctrl-group">
-        {isCanvas && (
-          <>
-            <CanvasAddEffectsControls />
-            <CanvasPerformanceAutomationControls />
-            <FracturesReactControls />
-            <LaserImageFxReactControls />
-            <CanvasPresetMotionControls />
-            <CanvasPresetParticleControls />
-            <CanvasPresetFxControls />
-          </>
-        )}
-        <Collapsible label="Audio Routing" defaultOpen>
-          <div className="rv-ctrl-info">
-            This engine currently uses global intensity/motion controls only.
-            Adjust Bass React and Motion in the FX tab for broad audio response.
-          </div>
-        </Collapsible>
+        {/* Preset-specific control groups lead Routing for Particle Aura /
+            Fractures / Laser Image FX. Each self-gates to its own preset and
+            renders nothing for the base Clean Playback look. */}
+        <FracturesReactControls />
+        <LaserImageFxReactControls />
+        <CanvasPresetParticleControls />
+        <CanvasAddEffectsControls />
+        <CanvasPerformanceAutomationControls />
+        <CanvasPresetMotionControls />
+        <CanvasPresetFxControls />
       </div>
     )
   }

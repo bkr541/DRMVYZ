@@ -188,10 +188,12 @@ describe('canonical React preset card architecture', () => {
     })
     await render(<ReactPresetsPanel />)
 
-    for (const hidden of ['Bass Bloom', 'Ghost Echo', 'Glitch Pulse', 'Luma Melt', 'Frame Stutter']) {
+    // Legacy effect recipes are hidden; Clean Playback is also uncarded — it is
+    // the implicit base look CANVAS always starts on, not a preset the user picks.
+    for (const hidden of ['Bass Bloom', 'Ghost Echo', 'Glitch Pulse', 'Luma Melt', 'Frame Stutter', 'Clean Playback']) {
       expect(container.querySelector(`[aria-label="Load ${hidden}"]`)).toBeNull()
     }
-    for (const retained of ['Clean Playback', 'Particle Aura', 'Fractures', 'Laser Image FX']) {
+    for (const retained of ['Particle Aura', 'Fractures', 'Laser Image FX']) {
       expect(container.querySelector(`[aria-label="Load ${retained}"]`)).not.toBeNull()
     }
 

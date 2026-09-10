@@ -9276,6 +9276,16 @@ export const useReactStore = create<ReactStoreState>()(
               activeReactEngineId: engineId,
               activeReactPresetId: null,
               performancePadTransition: null,
+              // Navigating to CANVAS always starts from Clean Playback — the
+              // preset-free base look — so every active media begins unprocessed
+              // and the user opts in to Particle Aura / Fractures / Laser Image FX.
+              ...(engineId === 'canvas'
+                ? {
+                    selectedCanvasPresetId: DEFAULT_CANVAS_PRESET_ID,
+                    canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
+                    canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
+                  }
+                : {}),
               ...clearPerformanceActionPatch(),
               ...pixGridCleanup,
             }
