@@ -2793,7 +2793,9 @@
 
 .lmv-mockup-workspace-tabs.dv-underline-tabs {
   flex: 0 0 auto;
-  margin-top: 8px;
+  /* Space above the tab row — matches the Media Manager library
+     (.vz-media-browser--manager .vz-filter-tabs { padding-top: 25px }). */
+  margin-top: 25px;
 }
 
 .lmv-mockup-workspace-tabs .dv-underline-tab {
@@ -2806,8 +2808,18 @@
   flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
-  padding-top: 12px;
+  /* Space between the tab row and the first parent group heading — matches the
+     Canvas/Cinema engine panel, where the same gap is the top padding of
+     .rv-context-workspace > .rv-left-tab-body > .rv-engine-viewport
+       > .rv-ctrl-group { padding: 8px 10px 12px }. */
+  padding-top: 8px;
   overflow: hidden;
+}
+
+/* Keep the "Track Library" group header on the same left edge as the tabs and
+   the search row instead of the heavier default .drc-header. */
+.lmv-mockup-track-panel .drc-header {
+  font-weight: 700;
 }
 
 .lmv-mockup-track-panel > .drc-group {
@@ -2817,19 +2829,51 @@
   flex-direction: column;
 }
 
+/* No inset card, no side padding: the search row and the track records line up
+   flush with the "Track Library" header and the tabs above. */
 .drc-body.lmv-mockup-track-library-body {
   flex: 1 1 auto;
   min-height: 0;
+  margin-top: 12px;
+  padding: 0 0 8px;
   /* Standard search-row -> records gap, matching the production Track Library
      (.lmv-track-search-wrap { margin: 10px 0 }). */
   gap: 10px;
+  background: transparent;
+  border-radius: 0;
   overflow: hidden;
-  padding-bottom: 8px;
 }
 
-.lmv-mockup-track-search {
-  width: 100%;
-  flex: 0 0 auto;
+/* Search row mirrors the Media Manager library search
+   (.vz-media-browser--manager .vz-md-search-*): magnifier icon overlaid inside
+   the bare underline input, optional clear button, grid/list view toggles — all
+   flush with the "Track Library" header and tabs above. */
+.lmv-mockup-track-search-row.vz-md-search-row {
+  padding: 0;
+  border-bottom: 0;
+}
+
+.lmv-mockup-track-search-row .vz-md-search-wrap {
+  position: relative;
+}
+
+.lmv-mockup-track-search-row .vz-md-search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+}
+
+.lmv-mockup-track-search.dv-text-input {
+  padding-left: 24px !important;
+}
+
+.lmv-mockup-track-search-row .vz-md-search-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .lmv-mockup-track-list {
@@ -2837,6 +2881,13 @@
   min-height: 0;
   overflow-y: auto;
   padding: 0 2px 0 0;
+}
+
+.lmv-mockup-track-list[data-track-view='grid'] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-content: start;
 }
 
 .lmv-mockup-track-list .vz-track-row {

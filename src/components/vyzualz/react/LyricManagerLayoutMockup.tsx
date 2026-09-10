@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
-import { AudioWave02Icon, PauseIcon, PlayIcon, SubtitleIcon } from 'hugeicons-react'
+import { AudioWave02Icon, GridViewIcon, ListViewIcon, PauseIcon, PlayIcon, SubtitleIcon } from 'hugeicons-react'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { RailTabs } from '../layout/RailTabs'
 import { AudioTrackCard } from '../media/AudioTrackCard'
@@ -217,6 +217,7 @@ export function LyricManagerLayoutMockup() {
   const [rightCollapsed, setRightCollapsed] = useState(false)
   const [workspaceTab, setWorkspaceTab] = useState<TrackWorkspaceTab>('tracks')
   const [trackSearch, setTrackSearch] = useState('')
+  const [trackView, setTrackView] = useState<'grid' | 'list'>('list')
   const [tracks] = useState(createLyricManagerLayoutTrackFixtures)
   const [documentsByTrackId, setDocumentsByTrackId] = useState(createLyricManagerLayoutDocumentFixtures)
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
@@ -431,16 +432,56 @@ export function LyricManagerLayoutMockup() {
                 >
                   {workspaceTab === 'tracks' && (
                     <Collapsible label="Track Library" defaultOpen bodyClassName="lmv-mockup-track-library-body">
-                      <DreamVizTextInput
-                        className="lmv-input lmv-mockup-track-search"
-                        type="search"
-                        value={trackSearch}
-                        onChange={event => setTrackSearch(event.target.value)}
-                        placeholder="Search title, artist, genre…"
-                        aria-label="Search fixture tracks"
-                      />
+                      <div className="vz-md-search-row lmv-mockup-track-search-row">
+                        <div className="vz-md-search-wrap">
+                          <svg className="vz-md-search-icon" viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
+                            <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                          </svg>
+                          <DreamVizTextInput
+                            className="vz-md-search-input lmv-mockup-track-search"
+                            type="text"
+                            value={trackSearch}
+                            onChange={event => setTrackSearch(event.target.value)}
+                            placeholder="Search title, artist, genre…"
+                            aria-label="Search fixture tracks"
+                          />
+                          {trackSearch.length > 0 && (
+                            <button
+                              type="button"
+                              className="vz-md-search-clear"
+                              onClick={() => setTrackSearch('')}
+                              title="Clear search"
+                              aria-label="Clear search"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                        <div className="vz-md-view-toggles">
+                          <button
+                            type="button"
+                            className={`vz-md-view-btn${trackView === 'grid' ? ' vz-md-view-btn--active' : ''}`}
+                            onClick={() => setTrackView('grid')}
+                            title="Grid view"
+                            aria-label="Grid view"
+                            aria-pressed={trackView === 'grid'}
+                          >
+                            <GridViewIcon size={13} color="currentColor" />
+                          </button>
+                          <button
+                            type="button"
+                            className={`vz-md-view-btn${trackView === 'list' ? ' vz-md-view-btn--active' : ''}`}
+                            onClick={() => setTrackView('list')}
+                            title="List view"
+                            aria-label="List view"
+                            aria-pressed={trackView === 'list'}
+                          >
+                            <ListViewIcon size={13} color="currentColor" />
+                          </button>
+                        </div>
+                      </div>
 
-                      <div className="vz-track-list lmv-mockup-track-list">
+                      <div className="vz-track-list lmv-mockup-track-list" data-track-view={trackView}>
                         {filteredTracks.map(track => (
                           <AudioTrackCard
                             key={track.id}
