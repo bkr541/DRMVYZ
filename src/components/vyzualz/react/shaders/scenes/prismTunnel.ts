@@ -32,7 +32,7 @@ import {
 export const PRISM_TUNNEL: ShaderDefinition = {
   id: 'shader-neon-tunnel',
   name: 'Prism Tunnel',
-  description: 'Layered radial prism: rotating nebula backdrop, per-facet spectral petals that grow, branch, and interconnect, a harmony-derived hue wheel, and section/phrase staging.',
+  description: 'Layered radial prism: rotating nebula backdrop, per-facet spectral petals that grow, branch, and interconnect, and section/phrase staging. Five authored colours drive the petals (Primary→Secondary gradient), backdrop, accents, and rim; harmony only drifts their hue.',
   category: 'generator',
   version: 7,
 
@@ -57,6 +57,9 @@ uniform float uFogDensity;
 uniform float uGlow;
 uniform vec4  uPrimaryColor;
 uniform vec4  uSecondaryColor;
+uniform vec4  uBackgroundColor;
+uniform vec4  uAccentColor;
+uniform vec4  uRimColor;
 uniform float uRotation;
 uniform float uRotationMotion;
 uniform float uRotationTorque;
@@ -143,6 +146,12 @@ vec3 prismRgb2hsv(vec3 c) {
   return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 1.0e-10)), d / (q.x + 1.0e-10), q.x);
 }
 
+/* Rotate a colour hue by deltaHue turns, keeping its saturation and value:
+   harmony / per-facet variation TINTS the authored palette, never replaces it. */
+vec3 prismHsvShift(vec3 hsv, float deltaHue) {
+  return prismHsv2rgb(vec3(fract(hsv.x + deltaHue), hsv.y, hsv.z));
+}
+
 float prismHash21(vec2 p) {
   p = fract(p * vec2(123.34, 345.45));
   p += dot(p, p + 34.345);
@@ -222,11 +231,14 @@ void main() {
   float evoRot = floor(phraseEvo * 4.0) * 0.19 + phraseEvo * 0.09;
   float phraseAccent = max(uPhrase8Hit, uPhrase16Hit);
 
-  // Harmony-derived palette anchor.
-  float keyHue = mix(prismRgb2hsv(uPrimaryColor.rgb).x, fract(uKeyCode / 12.0 + 0.58), uHasHarmonics);
-  float modeWarm = mix(0.0, mix(-0.06, 0.05, clamp(uModeCode, 0.0, 1.0)), uHasHarmonics);
-  float harmonyConf = uHasHarmonics * max(uKeyConfidence, uChordConfidence * 0.8);
+  // A small, bounded hue drift the authored palette is nudged by — evolves
+  // with phrases, warms/cools with mode, kicks on chord changes. The authored
+  // colours below stay dominant; this only tints them.
+  float modeWarm = mix(0.0, mix(-0.05, 0.05, clamp(uModeCode, 0.0, 1.0)), uHasHarmonics);
   float chordSweep = clamp(uChordChangeHit * uHasHarmonics, 0.0, 1.0);
+  float keyTint = mix(0.0, (fract(uKeyCode / 12.0) - 0.5) * 0.10, uHasHarmonics);
+  float hueDrift = evoRot * 0.5 + modeWarm + chordSweep * 0.12 + build * 0.06
+    + timbre * 0.03 - isCalm * 0.03 + keyTint;
 
   // Stem-split drives — each falls back to a full-mix source.
   float bassBreath = mix(bass, clamp(uBassStemEnergy, 0.0, 1.0), uHasStems);
@@ -234,11 +246,13 @@ void main() {
   float vocalDrive = mix(bMid, clamp(uVocalEnergy, 0.0, 1.0), uHasStems);
   float otherDrive = mix(timbre, clamp(uOtherStemEnergy + uInstrumentEnergy * 0.5, 0.0, 1.0), uHasStems);
 
-  float roomHue = fract(keyHue + evoRot + modeWarm + build * 0.16 + chordSweep * 0.1 - isCalm * 0.05 + timbre * 0.05);
   float hazeAmount = uFogDensity * uMasterFogDensity;
 
   vec3 primary = uPrimaryColor.rgb;
   vec3 secondary = uSecondaryColor.rgb;
+  vec3 bgHsv = prismRgb2hsv(uBackgroundColor.rgb);
+  vec3 accentHsv = prismRgb2hsv(uAccentColor.rgb);
+  vec3 rimHsv = prismRgb2hsv(uRimColor.rgb);
 
   // ═══ Layer 1 — moving background: rotating nebula + sonar rings + room tint ═══
   float bgR = length(uv);
@@ -253,7 +267,7 @@ void main() {
   float nebBreath = 0.55 + 0.45 * sin(uTime * 0.2 + phraseEvo * 6.28318530718);
   float nebAmt = (0.07 + otherDrive * 0.17 + slowEnergy * 0.05 + isDrop * 0.06)
                * (0.55 + nebBreath * 0.45) * (0.35 + hazeAmount * 0.65) * ix;
-  vec3 nebCol = prismHsv2rgb(vec3(fract(roomHue + neb * 0.14), 0.5 + build * 0.22, 1.0));
+  vec3 nebCol = prismHsvShift(bgHsv, hueDrift * 0.5 + neb * 0.1) * (0.8 + build * 0.4);
   vec3 col = nebCol * neb * nebAmt * smoothstep(0.12, 1.35, bgR);
 
   float ringPulse = max(uDownbeatHit, max(uPhrase8Hit, sectionPulse));
@@ -261,7 +275,7 @@ void main() {
     float rf = float(ri);
     float ringT = fract(uTime * 0.19 + rf * 0.333);
     float ring = radialBand(bgR, ringT * 1.75, 0.013) * (1.0 - ringT);
-    col += prismHsv2rgb(vec3(fract(roomHue + 0.5 + rf * 0.06), 0.42, 1.0)) * ring * (0.045 + ringPulse * 0.5) * ix;
+    col += prismHsvShift(accentHsv, hueDrift * 0.4 + rf * 0.05) * ring * (0.045 + ringPulse * 0.5) * ix;
   }
 
   // ═══ Layer 2 — the prism field ═══
@@ -337,20 +351,18 @@ void main() {
   float arcC = radialBand(radialT, 0.71 + cos(uTime * motion * 0.24 - element.index) * 0.02, 0.028);
   float arcGlow = max(pow(arcA, 8.0), max(arcB, arcC));
 
-  // ═══ Colour — prismatic hue wheel + harmony palette ═══
-  float wheelHue = fract(keyHue + element.normalizedIndex + evoRot + radialT * 0.14
-    + timbre * 0.05 + chordSweep * 0.12);
-  float wheelSat = clamp(0.55 + complexity * 0.24 + harmonyConf * 0.16 - isCalm * 0.12, 0.32, 0.96);
-  vec3 facetColor = prismHsv2rgb(vec3(wheelHue, wheelSat, 1.0));
-  facetColor = mix(facetColor, mix(primary, secondary, element.normalizedIndex), 0.26);
+  // ═══ Colour — the authored Primary→Secondary gradient IS the petal
+  //    colour; harmony + per-facet position only drift its hue slightly. ═══
+  vec3 facetBase = mix(primary, secondary, clamp(element.normalizedIndex * 0.85 + radialT * 0.15, 0.0, 1.0));
+  vec3 facetColor = prismHsvShift(prismRgb2hsv(facetBase), hueDrift + element.normalizedIndex * 0.05 + radialT * 0.04);
 
   float facetLight = facetMask * (0.32 * (0.5 + 0.5 * min(ix, 1.0))
     + (arcA * 0.46 + arcGlow * (0.62 + beat * 1.3 + facetPunch * 0.9)) * ix);
-  vec3 iridescent = prismHsv2rgb(vec3(fract(0.55 + local * 0.5 + timbre * 0.22 + uTime * 0.02), 0.82, 1.0));
+  vec3 iridescent = prismHsvShift(rimHsv, local * 0.5 + timbre * 0.22 + uTime * 0.02);
   float rimLight = angularEdge * insideOuter * outsideInner * (0.36 + uGlow * 0.34 + bHigh * 0.35);
   vec3 col2 = facetColor * facetLight * facetIllumination + iridescent * rimLight * ix;
 
-  vec3 arcColor = prismHsv2rgb(vec3(fract(keyHue + 0.5 + timbre * 0.35 + radialT * 0.1), 0.72, 1.0));
+  vec3 arcColor = prismHsvShift(accentHsv, hueDrift * 0.6 + timbre * 0.2 + radialT * 0.08);
   col2 += arcColor * arcGlow * facetMask * (0.4 + facetPunch * 0.8) * facetIllumination * ix;
 
   col += col2;
@@ -365,39 +377,39 @@ void main() {
     * (1.0 - smoothstep(grownOuter * 1.05, grownOuter * 1.32, shapedRadius));
   float branchGlow = branchLobe * branchBand * angularCore
     * (0.22 + flux * 0.7 + facetPunch * 0.5) * (1.0 - isCalm * 0.5);
-  col += prismHsv2rgb(vec3(fract(wheelHue + 0.12), 0.62, 1.0)) * (linkRing + branchGlow) * ix;
+  col += prismHsvShift(accentHsv, hueDrift + 0.12) * (linkRing + branchGlow) * ix;
 
   // Phrase-evolving detail ring — fades in and out across each 16-phrase window.
   float detailOpacity = smoothstep(0.05, 0.4, phraseEvo) * (1.0 - smoothstep(0.72, 1.0, phraseEvo));
   float detailRing = radialBand(shapedRadius, mix(grownInner, grownOuter, 0.86), 0.011);
-  col += prismHsv2rgb(vec3(fract(wheelHue + 0.2), 0.6, 1.0)) * detailRing * detailOpacity * facetMask * 0.45 * ix;
+  col += prismHsvShift(accentHsv, hueDrift + 0.2) * detailRing * detailOpacity * facetMask * 0.45 * ix;
 
   // Center aperture glow + halo — vocal-lifted. Keeps a floor so the core never
   // goes fully dark, then swings with the master amount.
   float apertureGlow = exp(-radius * (5.8 / max(baseRadius, 0.15))) * (0.22 + uGlow * 0.75)
     * (0.9 + uEnergy * 0.25) * (1.0 + vocalDrive * 0.7);
   float halo = exp(-abs(radius - grownInner) * (14.0 / max(baseRadius, 0.2))) * 0.42;
-  col += mix(prismHsv2rgb(vec3(keyHue, 0.5, 1.0)), facetColor, 0.4)
+  col += mix(uRimColor.rgb, facetColor, 0.4)
     * (apertureGlow + halo * facetMask * facetIllumination + halo * vocalDrive * 0.5)
     * ixCore;
 
   float haze = exp(-radius * 1.35) * hazeAmount * 0.09;
-  col += prismHsv2rgb(vec3(fract(roomHue + 0.08), 0.4, 1.0)) * haze;
+  col += prismHsvShift(bgHsv, 0.08) * haze;
 
   col *= 1.0 + bass * 0.34;
   col += beat * facetColor * (0.16 + facetMask * 0.4);
   col = mix(col, vec3(1.0), uSnareHit * 0.26 + phraseAccent * 0.05 + sectionPulse * 0.12);
 
   // Drop burst.
-  col += prismHsv2rgb(vec3(fract(keyHue + 0.33), 0.58, 1.0)) * isDrop * (0.14 + facetMask * 0.5) * ix;
+  col += prismHsvShift(rimHsv, 0.33) * isDrop * (0.14 + facetMask * 0.5) * ix;
 
   // Stage 5 structural echoes reconstruct bounded prior radial descriptors, now
   // hue-fanned per slot off the palette anchor. Not framebuffer feedback.
   vec3 echoes = vec3(0.0);
   echoes += prismStructuralEcho(uv, uPrismEchoOpacity0, uPrismEchoRotation0, uPrismEchoRotationMotion0, uPrismEchoAperture0, uPrismEchoBaseRadius0, uPrismEchoCurvature0, uPrismEchoFacetAmount0, uPrismEchoChaseIndex0, uPrismEchoChaseStrength0, uPrismEchoAlternate0, uPrismEchoOpposing0, uPrismEchoFlare0, facetColor, arcColor);
-  echoes += prismStructuralEcho(uv, uPrismEchoOpacity1, uPrismEchoRotation1, uPrismEchoRotationMotion1, uPrismEchoAperture1, uPrismEchoBaseRadius1, uPrismEchoCurvature1, uPrismEchoFacetAmount1, uPrismEchoChaseIndex1, uPrismEchoChaseStrength1, uPrismEchoAlternate1, uPrismEchoOpposing1, uPrismEchoFlare1, prismHsv2rgb(vec3(fract(keyHue + 0.12), 0.55, 1.0)), arcColor);
-  echoes += prismStructuralEcho(uv, uPrismEchoOpacity2, uPrismEchoRotation2, uPrismEchoRotationMotion2, uPrismEchoAperture2, uPrismEchoBaseRadius2, uPrismEchoCurvature2, uPrismEchoFacetAmount2, uPrismEchoChaseIndex2, uPrismEchoChaseStrength2, uPrismEchoAlternate2, uPrismEchoOpposing2, uPrismEchoFlare2, prismHsv2rgb(vec3(fract(keyHue + 0.24), 0.5, 1.0)), arcColor);
-  echoes += prismStructuralEcho(uv, uPrismEchoOpacity3, uPrismEchoRotation3, uPrismEchoRotationMotion3, uPrismEchoAperture3, uPrismEchoBaseRadius3, uPrismEchoCurvature3, uPrismEchoFacetAmount3, uPrismEchoChaseIndex3, uPrismEchoChaseStrength3, uPrismEchoAlternate3, uPrismEchoOpposing3, uPrismEchoFlare3, prismHsv2rgb(vec3(fract(keyHue + 0.36), 0.46, 1.0)), arcColor);
+  echoes += prismStructuralEcho(uv, uPrismEchoOpacity1, uPrismEchoRotation1, uPrismEchoRotationMotion1, uPrismEchoAperture1, uPrismEchoBaseRadius1, uPrismEchoCurvature1, uPrismEchoFacetAmount1, uPrismEchoChaseIndex1, uPrismEchoChaseStrength1, uPrismEchoAlternate1, uPrismEchoOpposing1, uPrismEchoFlare1, prismHsvShift(accentHsv, 0.12), arcColor);
+  echoes += prismStructuralEcho(uv, uPrismEchoOpacity2, uPrismEchoRotation2, uPrismEchoRotationMotion2, uPrismEchoAperture2, uPrismEchoBaseRadius2, uPrismEchoCurvature2, uPrismEchoFacetAmount2, uPrismEchoChaseIndex2, uPrismEchoChaseStrength2, uPrismEchoAlternate2, uPrismEchoOpposing2, uPrismEchoFlare2, prismHsvShift(accentHsv, 0.24), arcColor);
+  echoes += prismStructuralEcho(uv, uPrismEchoOpacity3, uPrismEchoRotation3, uPrismEchoRotationMotion3, uPrismEchoAperture3, uPrismEchoBaseRadius3, uPrismEchoCurvature3, uPrismEchoFacetAmount3, uPrismEchoChaseIndex3, uPrismEchoChaseStrength3, uPrismEchoAlternate3, uPrismEchoOpposing3, uPrismEchoFlare3, prismHsvShift(accentHsv, 0.36), arcColor);
   col += echoes * ixCore;
 
   // Only a gentle exposure trim survives as a direct multiply — the amount work
@@ -498,6 +510,31 @@ void main() {
       label: 'Secondary Color',
       uniformName: 'uSecondaryColor',
       default: [0.1, 0.9, 0.3, 1.0],
+    },
+    {
+      // Plain colour uniforms (no brandRole) — the adapter passes the authored
+      // Design-tab value straight through. Background drives the nebula backdrop
+      // + haze, Accent the travelling arcs + branch web + sonar rings, Rim the
+      // iridescent facet edge + centre glow + drop burst.
+      id: 'backgroundColor',
+      type: 'color',
+      label: 'Background Color',
+      uniformName: 'uBackgroundColor',
+      default: [0.02, 0.05, 0.12, 1.0],
+    },
+    {
+      id: 'accentColor',
+      type: 'color',
+      label: 'Accent Color',
+      uniformName: 'uAccentColor',
+      default: [0.55, 0.35, 1.0, 1.0],
+    },
+    {
+      id: 'rimColor',
+      type: 'color',
+      label: 'Rim Color',
+      uniformName: 'uRimColor',
+      default: [0.6, 0.95, 1.0, 1.0],
     },
     {
       id: 'rotation',
@@ -625,6 +662,9 @@ void main() {
     glow:          1.0,
     primaryColor:  [0.0, 0.9, 0.85, 1.0],
     secondaryColor:[0.1, 0.9, 0.3,  1.0],
+    backgroundColor:[0.02, 0.05, 0.12, 1.0],
+    accentColor:   [0.55, 0.35, 1.0,  1.0],
+    rimColor:      [0.6,  0.95, 1.0,  1.0],
     rotation:      0.0,
     [PRISM_ROTATION_DRIVE_PARAMETER_ID]: PRISM_ROTATION_LIMITS.drive.default,
     [PRISM_ROTATION_TORQUE_PARAMETER_ID]: PRISM_ROTATION_LIMITS.torque.default,
