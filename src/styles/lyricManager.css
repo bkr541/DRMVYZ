@@ -2808,11 +2808,6 @@
   flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
-  /* Space between the tab row and the first parent group heading — matches the
-     Canvas/Cinema engine panel, where the same gap is the top padding of
-     .rv-context-workspace > .rv-left-tab-body > .rv-engine-viewport
-       > .rv-ctrl-group { padding: 8px 10px 12px }. */
-  padding-top: 8px;
   overflow: hidden;
 }
 
@@ -2827,6 +2822,8 @@
   flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
+  /* Gap between the workspace tab row and the Track Library group heading. */
+  padding-top: 24px;
 }
 
 /* No inset card, no side padding: the search row and the track records line up
@@ -2911,9 +2908,15 @@
   width: 100%;
   flex: 1 1 auto;
   min-height: 0;
-  padding: 10px 0 0;
+  padding: 0;
   border: 0;
   background: transparent;
+}
+
+/* Gap between the "Lyric Management" window header and the Lyric Versions group
+   heading — same 24px the Track Library group carries above. */
+.lmv-mockup-lyric-management .lmv-doc-sidebar > .drc-group {
+  padding-top: 24px;
 }
 
 .lmv-mockup-lyric-management .lmv-doc-list {
