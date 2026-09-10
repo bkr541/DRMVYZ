@@ -1558,6 +1558,10 @@
 .lmv-left-rail .vz-inspector-inner,
 .lmv-right-rail .vz-inspector-inner {
   background: rgba(8,12,18,0.96);
+  /* Match the Media Manager's rail inset exactly
+     (.mmv-content > .vz-inspector > .vz-inspector-inner { padding: 8px 12px }). */
+  padding: 8px 12px;
+  box-sizing: border-box;
 }
 
 .lmv-left-rail .vz-inspector-inner {
