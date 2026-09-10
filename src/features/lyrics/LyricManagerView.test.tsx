@@ -374,19 +374,6 @@ function buttonWithText(text: string, rootElement: ParentNode = container): HTML
 }
 
 describe('LyricManagerView track-first workflow', () => {
-  it('routes track deletion through the same canonical audio-store operation used by other audio surfaces', async () => {
-    await render()
-    const deleteButton = container.querySelector<HTMLButtonElement>('[aria-label="Delete Reverie and linked lyric data"]')
-    expect(deleteButton).not.toBeNull()
-
-    await act(async () => deleteButton!.click())
-    expect(container.textContent).toContain('Delete track?')
-    await act(async () => buttonWithText('Delete Track').click())
-    await waitFor(() => expect(mocks.removeSavedTrackByDbId).toHaveBeenCalledWith('track-a'))
-
-    expect(container.textContent).not.toContain('Reverie')
-  })
-
   it('loads stored tracks, selects a track, loads all versions, and opens the active version without starting playback', async () => {
     await render()
 

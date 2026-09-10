@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { AudioWave02Icon, Download01Icon, SubtitleIcon, Delete02Icon } from 'hugeicons-react'
+import { Download01Icon, SubtitleIcon, MagicWand01Icon, Delete02Icon } from 'hugeicons-react'
 import { ContextActionMenu } from '../context-menu/ContextActionMenu'
 import { ConfirmDialog } from '../react/controls/ConfirmDialog'
+import { StatusBadge } from '../react/controls/StatusBadge'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
 
 export interface AudioTrackCardProps {
@@ -29,6 +30,9 @@ export interface AudioTrackCardProps {
   /** When false, Delete calls `onRemove` immediately and the caller owns the
    *  confirmation dialog. Defaults to true (this card shows its own). */
   confirmRemove?: boolean
+  /** Lyric Manager: replace the lyric-actions menu button with a single direct
+   *  "AI Extract" icon button (calls `onOpenAiExtract`). */
+  directAiExtract?: boolean
 }
 
 function fmtDuration(s: number | null): string {
@@ -38,26 +42,10 @@ function fmtDuration(s: number | null): string {
   return `${m}:${sec.toString().padStart(2, '0')}`
 }
 
-// Short format label for the art tile's corner badge, derived from the
-// track's own mime type (falling back to its file extension) — never
-// invented data.
-function formatLabel(track: SavedAudioTrack): string {
-  const mime = track.mimeType?.toLowerCase() ?? ''
-  if (mime.includes('wav')) return 'WAV'
-  if (mime.includes('mpeg') || mime.includes('mp3')) return 'MP3'
-  if (mime.includes('mp4') || mime.includes('m4a') || mime.includes('aac')) return 'M4A'
-  if (mime.includes('ogg')) return 'OGG'
-  if (mime.includes('flac')) return 'FLAC'
-  const ext = track.fileName.split('.').pop()
-  return ext ? ext.toUpperCase() : 'AUDIO'
-}
-
 /**
- * Reusable audio track card for the Media Library's Tracks list. Mirrors
- * the visual language of the non-audio media cards (art tile, corner
- * format badge, stacked title/artist/details, bare bottom-right icon
- * actions) instead of the flat, unshelled row it replaced — promoted from
- * the "Style 2" option in the AudioTrackStyleMockups review gallery.
+ * Reusable audio track card for the Media Library's Tracks list: stacked
+ * title/artist/details with bare icon actions — promoted from the "Style 2"
+ * option in the AudioTrackStyleMockups review gallery.
  */
 export function AudioTrackCard({
   track,
@@ -79,6 +67,7 @@ export function AudioTrackCard({
   onLoadAndPlay,
   onMakeActiveVersion,
   confirmRemove = true,
+  directAiExtract,
 }: AudioTrackCardProps) {
   const [lyricsMenu, setLyricsMenu] = useState<{ x: number; y: number } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -103,17 +92,13 @@ export function AudioTrackCard({
       tabIndex={onSelect ? 0 : undefined}
       onKeyDown={onSelect ? event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect() } } : undefined}
     >
-      <div className="vz-track-row-art">
-        <div className="vz-track-row-badge">{formatLabel(track)}</div>
-        <AudioWave02Icon size={20} color="currentColor" />
-      </div>
       <div className="vz-track-row-info">
         <div className="vz-track-row-title-line">
           <span className="vz-track-row-title">{track.title}</span>
           <span className="vz-track-row-state-badges">
-            {selectedBadge && isActive && <span className="lmv-selected-badge">Selected</span>}
-            {loaded && <span className="lmv-loaded-badge">Loaded</span>}
-            {playing && <span className="lmv-playing-badge">Playing</span>}
+            {selectedBadge && isActive && <StatusBadge tone="selected">Selected</StatusBadge>}
+            {loaded && <StatusBadge tone="loaded">Loaded</StatusBadge>}
+            {playing && <StatusBadge tone="playing">Playing</StatusBadge>}
           </span>
         </div>
         {track.artist && <div className="vz-track-row-artist">{track.artist}</div>}
@@ -133,7 +118,18 @@ export function AudioTrackCard({
             <Download01Icon size={13} color="currentColor" />
           </button>
         )}
-        {canOpenLyrics && lyricsMenuItems.length > 0 && (
+        {canOpenLyrics && directAiExtract && onOpenAiExtract && (
+          <button
+            type="button"
+            className="vz-track-action-btn"
+            title="AI extract lyrics from this track"
+            aria-label={`AI extract lyrics for ${track.title}`}
+            onClick={event => { event.stopPropagation(); onOpenAiExtract() }}
+          >
+            <MagicWand01Icon size={13} color="currentColor" />
+          </button>
+        )}
+        {canOpenLyrics && !directAiExtract && lyricsMenuItems.length > 0 && (
           <button
             type="button"
             className="vz-track-action-btn"

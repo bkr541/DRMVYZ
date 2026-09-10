@@ -844,8 +844,6 @@
 }
 .lmv-header-back:hover { border-color: rgba(74,199,219,0.35); color: #4ac7db; }
 .lmv-dirty-badge,
-.lmv-loaded-badge,
-.lmv-playing-badge,
 .lmv-legacy-badge {
   border-radius: 999px;
   padding: 2px 7px;
@@ -856,8 +854,6 @@
   white-space: nowrap;
 }
 .lmv-dirty-badge { background: rgba(216,185,90,0.14); color: #d8b95a; }
-.lmv-loaded-badge { background: rgba(74,199,219,0.12); color: #4ac7db; }
-.lmv-playing-badge { background: rgba(97,214,170,0.15); color: #61d6aa; }
 .lmv-legacy-badge { background: rgba(216,185,90,0.12); color: #d8b95a; }
 
 .lmv-track-browser {
@@ -2179,18 +2175,6 @@
 }
 
 /* Patch 2: explicit track identity and manual linking ---------------------- */
-.lmv-selected-badge {
-  border-radius: 999px;
-  padding: 2px 7px;
-  background: rgba(216,185,90,0.14);
-  color: #d8b95a;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
 .lmv-track-state-badges {
   display: inline-flex;
   align-items: center;

@@ -1,6 +1,7 @@
 import { BubbleRevealSlider } from '../../components/vyzualz/react/controls/BubbleRevealSlider'
 import { NoticeCard } from '../../components/vyzualz/react/controls/NoticeCard'
 import { IconChipButton } from '../../components/vyzualz/react/controls/IconChipButton'
+import { StatusBadge } from '../../components/vyzualz/react/controls/StatusBadge'
 import { Collapsible } from '../../components/vyzualz/react/ReactControlRows'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
@@ -246,9 +247,9 @@ function SelectedTrackHero({
                 <div className="lmv-track-card-topline">
                   <span className="lmv-track-title">{track.title || track.fileName}</span>
                   <span className="lmv-track-state-badges">
-                    <span className="lmv-selected-badge">Selected</span>
-                    {selectedTrackLoaded && <span className="lmv-loaded-badge">Loaded</span>}
-                    {selectedTrackPlaying && <span className="lmv-playing-badge">Playing</span>}
+                    <StatusBadge tone="selected">Selected</StatusBadge>
+                    {selectedTrackLoaded && <StatusBadge tone="loaded">Loaded</StatusBadge>}
+                    {selectedTrackPlaying && <StatusBadge tone="playing">Playing</StatusBadge>}
                   </span>
                 </div>
                 <span className="lmv-track-artist">{track.artist || 'Unknown artist'}</span>

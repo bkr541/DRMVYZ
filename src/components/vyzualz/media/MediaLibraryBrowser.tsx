@@ -1129,7 +1129,6 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         <div className="vz-track-list">
           {[0, 1, 2].map(i => (
             <div key={i} className="vz-track-row" style={{ opacity: 0.4, pointerEvents: 'none' }}>
-              <div className="vz-track-row-art" />
               <div className="vz-track-row-info">
                 <div style={{ width: '60%', height: 9, background: '#0a1420', borderRadius: 3 }} />
                 <div style={{ width: '40%', height: 7, background: '#0a1420', borderRadius: 3, marginTop: 4 }} />

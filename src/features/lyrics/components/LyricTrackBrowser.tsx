@@ -77,11 +77,7 @@ export function LyricTrackBrowser({
   onSearchChange,
   onSelectTrack,
   onLoadTrack,
-  onOpenActiveLyrics,
   onOpenAiExtract,
-  onMakeOpenVersionActive,
-  canMakeOpenVersionActive,
-  onDeleteTrack,
   onLoadMore,
   onRetry,
 }: Props) {
@@ -147,20 +143,16 @@ export function LyricTrackBrowser({
             track={track}
             onSelect={() => onSelectTrack(track)}
             onLoad={() => onLoadTrack(track, false)}
-            onLoadAndPlay={() => onLoadTrack(track, true)}
-            onRemove={() => onDeleteTrack(track)}
-            confirmRemove={false}
             loading={false}
             loaded={loadedAudioTrackId === track.dbId}
             playing={playingAudioTrackId === track.dbId}
             canLoad
             canOpenLyrics
-            canRemove
+            canRemove={false}
             isActive={selectedTrackId === track.dbId}
             selectedBadge
-            onOpenActiveLyrics={() => onOpenActiveLyrics(track)}
+            directAiExtract
             onOpenAiExtract={() => onOpenAiExtract(track)}
-            onMakeActiveVersion={canMakeOpenVersionActive(track) ? () => onMakeOpenVersionActive(track) : undefined}
           />
         ))}
       </div>
