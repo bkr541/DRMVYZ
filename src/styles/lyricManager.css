@@ -2713,8 +2713,47 @@
 
 /* Shared Dropdown replacement for the Track Library filter selector. */
 .lmv-track-filter-dropdown {
-  width: 190px;
-  max-width: min(190px, 42vw);
+  width: 142px;
+  max-width: min(142px, 42vw);
+}
+
+/* Track Library search + filter on one row: the search input grows, the filter
+   dropdown sits flush-right. The magnifier is an inline SVG inside the input,
+   left-justified, matching the Media Manager library search. */
+.lmv-track-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lmv-track-search-row .lmv-track-search-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.lmv-track-search-row .lmv-track-search-wrap::before {
+  content: none;
+}
+
+.lmv-track-search-row .lmv-track-filter-dropdown {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.lmv-track-search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  color: rgba(196, 207, 211, 0.4);
+  pointer-events: none;
+}
+
+.lmv-track-search-row .lmv-track-search.dv-text-input {
+  padding-left: 24px !important;
 }
 
 /* ── Lyric Manager layout mockup: Stage 1 left rail ---------------------
@@ -2797,6 +2836,26 @@
 .lmv-rail-title svg {
   flex-shrink: 0;
   color: currentColor;
+}
+
+/* Functional view: the label grows so a header action button (Add Tracks) sits
+   flush-right in the "Track Workspace" row — same pattern as the Media Manager
+   panel header's New Media chip. */
+.lmv-rail-title > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lmv-rail-title-action.dv-icon-chip {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  flex-shrink: 0;
 }
 
 .lmv-mockup-workspace-tabs.dv-underline-tabs,
@@ -2938,6 +2997,47 @@
 .lmv-lyric-management .lmv-doc-list {
   min-height: 0;
   padding-inline: 0;
+}
+
+/* ── Functional LyricManagerView: LyricTrackBrowser in the Track Workspace ──
+   The real browser wraps its Collapsible in an extra .lmv-track-browser section
+   with its own padding + tinted .drc-body card. Strip that so its Track Library
+   group lays out exactly like the Lyric Manager template: 24px above the
+   heading, search + track list grouped flush inside, no inset card. */
+.lmv-workspace-tab-panel .lmv-track-browser {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.lmv-workspace-tab-panel .lmv-track-browser > .drc-group {
+  padding-top: 24px;
+}
+
+.lmv-workspace-tab-panel .drc-body.lmv-track-library-body {
+  margin-top: 12px;
+  padding: 0 0 8px;
+  gap: 10px;
+  background: transparent;
+  border-radius: 0;
+}
+
+.lmv-workspace-tab-panel .lmv-track-browser-actions {
+  margin: 0;
+}
+
+.lmv-workspace-tab-panel .lmv-track-search-wrap {
+  margin: 0;
+  max-width: none;
+}
+
+.lmv-workspace-tab-panel .lmv-track-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
 }
 
 /* ── Lyric Manager layout mockup: Stage 2 center preview -----------------

@@ -45,7 +45,7 @@ import { LyricRecoveryDialog } from './components/LyricRecoveryDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import { RailTabs, type RailTabOption } from '../../components/vyzualz/layout/RailTabs'
-import { AudioWave02Icon, SubtitleIcon } from 'hugeicons-react'
+import { Add01Icon, AudioWave02Icon, SubtitleIcon } from 'hugeicons-react'
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
@@ -2021,6 +2021,17 @@ export function LyricManagerView({
             <div className="lmv-rail-title">
               <AudioWave02Icon size={15} color="currentColor" aria-hidden="true" />
               <span>Track Workspace</span>
+              <IconChipButton
+                className="lmv-rail-title-action"
+                tone="primary"
+                icon={<Add01Icon size={14} color="currentColor" />}
+                onClick={() => {
+                  setUploadPurpose('canonical')
+                  setUploadOpen(true)
+                }}
+                title="Add tracks"
+                aria-label="Add tracks"
+              />
             </div>
 
             <RailTabs
@@ -2059,10 +2070,6 @@ export function LyricManagerView({
             onDeleteTrack={handleRequestDeleteTrack}
             onLoadMore={() => {
               void loadTracks(false)
-            }}
-            onUpload={() => {
-              setUploadPurpose('canonical')
-              setUploadOpen(true)
             }}
             onRetry={() => {
               void loadTracks(true)
