@@ -2733,7 +2733,8 @@
   background: var(--az-panel);
 }
 
-.lmv-mockup-left-shell {
+.lmv-mockup-left-shell,
+.lmv-workspace-shell {
   display: flex;
   flex: 1;
   min-height: 0;
@@ -2742,7 +2743,9 @@
 }
 
 .lmv-mockup-track-workspace,
-.lmv-mockup-lyric-management {
+.lmv-mockup-lyric-management,
+.lmv-track-workspace,
+.lmv-lyric-management {
   box-sizing: border-box;
   min-height: 0;
   display: flex;
@@ -2750,17 +2753,20 @@
   overflow: hidden;
 }
 
-.lmv-mockup-track-workspace {
+.lmv-mockup-track-workspace,
+.lmv-track-workspace {
   flex: 1 1 100%;
   padding: 14px 12px 12px;
 }
 
-.lmv-mockup-left-shell[data-has-selected-track='true'] .lmv-mockup-track-workspace {
+.lmv-mockup-left-shell[data-has-selected-track='true'] .lmv-mockup-track-workspace,
+.lmv-workspace-shell[data-has-selected-track='true'] .lmv-track-workspace {
   flex: 0 0 55%;
   border-bottom: 1px solid rgba(126,218,232,0.12);
 }
 
-.lmv-mockup-lyric-management {
+.lmv-mockup-lyric-management,
+.lmv-lyric-management {
   flex: 0 0 45%;
   padding: 14px 12px 12px;
 }
@@ -2770,7 +2776,8 @@
    divider, an uppercase muted title, and a currentColor icon. The negative
    margins pull it out of the section's 14px/12px padding so the divider spans
    the whole window like the production panel does. */
-.lmv-mockup-rail-title {
+.lmv-mockup-rail-title,
+.lmv-rail-title {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
@@ -2786,24 +2793,28 @@
   text-transform: uppercase;
 }
 
-.lmv-mockup-rail-title svg {
+.lmv-mockup-rail-title svg,
+.lmv-rail-title svg {
   flex-shrink: 0;
   color: currentColor;
 }
 
-.lmv-mockup-workspace-tabs.dv-underline-tabs {
+.lmv-mockup-workspace-tabs.dv-underline-tabs,
+.lmv-workspace-tabs.dv-underline-tabs {
   flex: 0 0 auto;
   /* Space above the tab row — matches the Media Manager library
      (.vz-media-browser--manager .vz-filter-tabs { padding-top: 25px }). */
   margin-top: 25px;
 }
 
-.lmv-mockup-workspace-tabs .dv-underline-tab {
+.lmv-mockup-workspace-tabs .dv-underline-tab,
+.lmv-workspace-tabs .dv-underline-tab {
   flex: 1 1 0;
   min-width: 0;
 }
 
-.lmv-mockup-track-panel {
+.lmv-mockup-track-panel,
+.lmv-workspace-tab-panel {
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
@@ -2813,11 +2824,13 @@
 
 /* Keep the "Track Library" group header on the same left edge as the tabs and
    the search row instead of the heavier default .drc-header. */
-.lmv-mockup-track-panel .drc-header {
+.lmv-mockup-track-panel .drc-header,
+.lmv-workspace-tab-panel .drc-header {
   font-weight: 700;
 }
 
-.lmv-mockup-track-panel > .drc-group {
+.lmv-mockup-track-panel > .drc-group,
+.lmv-workspace-tab-panel > .drc-group {
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
@@ -2904,7 +2917,8 @@
   min-height: 0;
 }
 
-.lmv-mockup-lyric-management > .lmv-doc-sidebar {
+.lmv-mockup-lyric-management > .lmv-doc-sidebar,
+.lmv-lyric-management > .lmv-doc-sidebar {
   width: 100%;
   flex: 1 1 auto;
   min-height: 0;
@@ -2915,11 +2929,13 @@
 
 /* Gap between the "Lyric Management" window header and the Lyric Versions group
    heading — same 24px the Track Library group carries above. */
-.lmv-mockup-lyric-management .lmv-doc-sidebar > .drc-group {
+.lmv-mockup-lyric-management .lmv-doc-sidebar > .drc-group,
+.lmv-lyric-management .lmv-doc-sidebar > .drc-group {
   padding-top: 24px;
 }
 
-.lmv-mockup-lyric-management .lmv-doc-list {
+.lmv-mockup-lyric-management .lmv-doc-list,
+.lmv-lyric-management .lmv-doc-list {
   min-height: 0;
   padding-inline: 0;
 }

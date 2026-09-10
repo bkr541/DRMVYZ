@@ -44,7 +44,8 @@ import { LyricWorkflowStatus } from './components/LyricWorkflowStatus'
 import { LyricRecoveryDialog } from './components/LyricRecoveryDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
-import { UnderlineTabs } from '../../components/vyzualz/react/controls/UnderlineTabs'
+import { RailTabs, type RailTabOption } from '../../components/vyzualz/layout/RailTabs'
+import { AudioWave02Icon, SubtitleIcon } from 'hugeicons-react'
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
@@ -67,6 +68,7 @@ import {
 } from '../../lib/lyricDraftRecovery'
 
 type WorkflowTab = 'manual' | 'json' | 'ai'
+type WorkspaceTab = 'tracks' | 'import' | 'aiExtract'
 
 interface Props {
   onBack: () => void
@@ -77,11 +79,22 @@ interface Props {
 
 const PAGE_SIZE = 18
 
-const TAB_LABELS: { id: WorkflowTab; label: string }[] = [
-  { id: 'manual', label: 'Timeline' },
-  { id: 'json', label: 'Import' },
-  { id: 'ai', label: 'AI Extract' },
+// Left-rail Track Workspace tabs. 'import'/'aiExtract' surface the same JSON /
+// AI Extract flows that used to be center tabs; kept in sync with the legacy
+// `activeTab` state so the many setActiveTab('json'|'ai') call sites still work.
+const WORKSPACE_TABS: RailTabOption<WorkspaceTab>[] = [
+  { id: 'tracks', label: 'Tracks' },
+  { id: 'import', label: 'Import' },
+  { id: 'aiExtract', label: 'AI Extract' },
 ]
+
+function workspaceTabForWorkflow(tab: WorkflowTab): WorkspaceTab {
+  return tab === 'json' ? 'import' : tab === 'ai' ? 'aiExtract' : 'tracks'
+}
+
+function workflowTabForWorkspace(tab: WorkspaceTab): WorkflowTab {
+  return tab === 'import' ? 'json' : tab === 'aiExtract' ? 'ai' : 'manual'
+}
 
 function formatDuration(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return '—'
@@ -2000,6 +2013,27 @@ export function LyricManagerView({
           onToggleCollapsed={() => setLeftRailCollapsed(value => !value)}
           className="lmv-left-rail"
         >
+          <div
+            className="lmv-workspace-shell"
+            data-has-selected-track={selectedTrack ? 'true' : 'false'}
+          >
+          <section className="lmv-track-workspace" aria-label="Track Workspace">
+            <div className="lmv-rail-title">
+              <AudioWave02Icon size={15} color="currentColor" aria-hidden="true" />
+              <span>Track Workspace</span>
+            </div>
+
+            <RailTabs
+              tabs={WORKSPACE_TABS}
+              activeTab={workspaceTabForWorkflow(activeTab)}
+              onChange={(tab) => setActiveTab(workflowTabForWorkspace(tab))}
+              ariaLabel="Track Workspace"
+              className="lmv-workspace-tabs"
+              variant="underline"
+            />
+
+            <div className="lmv-workspace-tab-panel" role="tabpanel" aria-label="Track Workspace panel">
+            {workspaceTabForWorkflow(activeTab) === 'tracks' && (
           <LyricTrackBrowser
             tracks={tracks}
             selectedTrackId={selectedTrack?.dbId ?? null}
@@ -2034,6 +2068,36 @@ export function LyricManagerView({
               void loadTracks(true)
             }}
           />
+            )}
+            {workspaceTabForWorkflow(activeTab) === 'import' && (
+              <JsonLyricImporter onImportToDraft={handleImportToDraft} />
+            )}
+            {workspaceTabForWorkflow(activeTab) === 'aiExtract' && (
+              <AiLyricExtractor
+                selectedTrack={selectedTrack}
+                existingDocumentCount={documents.length}
+                activeVersionId={activeVersionForSelectedTrack?.id ?? null}
+                onCompletedDraftResolved={handleCompletedDraftResolved}
+                onOpenCompletedDraft={handleOpenCompletedDraft}
+                onActivateCompletedDraft={handleActivateCompletedDraft}
+                availableTracks={tracks}
+                uploadedVocalReferenceTrack={uploadedVocalReferenceTrack}
+                onRequestVocalReferenceUpload={() => {
+                  setUploadPurpose('vocal_reference')
+                  setUploadOpen(true)
+                }}
+                onResolveSavedTrack={resolveSavedTrackForAi}
+              />
+            )}
+            </div>
+          </section>
+
+          {selectedTrack && (
+          <section className="lmv-lyric-management" aria-label="Lyric Management">
+            <div className="lmv-rail-title">
+              <SubtitleIcon size={15} color="currentColor" aria-hidden="true" />
+              <span>Lyric Management</span>
+            </div>
 
           <LyricDocumentSidebar
             documents={documents}
@@ -2049,6 +2113,9 @@ export function LyricManagerView({
             onDeleteDocument={handleRequestDelete}
             onImportDocument={handleImportDocument}
           />
+          </section>
+          )}
+          </div>
         </WorkspaceRail>
 
         <main className="lmv-center" aria-label="Lyric editing workspace">
@@ -2075,28 +2142,8 @@ export function LyricManagerView({
             </section>
           )}
 
-          <UnderlineTabs
-            tabs={TAB_LABELS.map(tab => {
-              const disabled = tab.id === 'ai'
-                ? !selectedTrack
-                : (!selectedTrack && !editorDocument)
-              return {
-                id: tab.id,
-                label: tab.label,
-                disabled,
-                buttonId: `lyric-tab-${tab.id}`,
-                ariaControls: `lyric-panel-${tab.id}`,
-                title: tab.id === 'ai' && !selectedTrack ? 'Select a stored track first' : undefined,
-              }
-            })}
-            activeTab={activeTab}
-            onChange={setActiveTab}
-            ariaLabel="Lyric workflow"
-            className="lmv-tab-bar"
-          />
-
-          <div className="lmv-tab-content" id={`lyric-panel-${activeTab}`} role="tabpanel" aria-labelledby={`lyric-tab-${activeTab}`}>
-            {editorPlaceholder && activeTab === 'manual' ? (
+          <div className="lmv-tab-content" role="tabpanel" aria-label="Lyric editor">
+            {editorPlaceholder ? (
               <div className="lmv-editor-placeholder">
                 <div>{editorPlaceholder}</div>
                 {selectedTrack && (
@@ -2115,7 +2162,7 @@ export function LyricManagerView({
                   </div>
                 )}
               </div>
-            ) : activeTab === 'manual' ? (
+            ) : (
               <ManualLyricEditor
                 draftTitle={draftTitle}
                 draftArtist={draftArtist}
@@ -2153,24 +2200,6 @@ export function LyricManagerView({
                 onAnalyzeTrack={handleAnalyzeSelectedTrack}
                 analysisActionLabel={beatGridStatus === 'failed' ? 'Retry Track Analysis' : selectedTrackLoaded ? 'Analyze Track' : 'Load & Analyze Track'}
                 navigationTarget={navigationTarget}
-              />
-            ) : activeTab === 'json' ? (
-              <JsonLyricImporter onImportToDraft={handleImportToDraft} />
-            ) : (
-              <AiLyricExtractor
-                selectedTrack={selectedTrack}
-                existingDocumentCount={documents.length}
-                activeVersionId={activeVersionForSelectedTrack?.id ?? null}
-                onCompletedDraftResolved={handleCompletedDraftResolved}
-                onOpenCompletedDraft={handleOpenCompletedDraft}
-                onActivateCompletedDraft={handleActivateCompletedDraft}
-                availableTracks={tracks}
-                uploadedVocalReferenceTrack={uploadedVocalReferenceTrack}
-                onRequestVocalReferenceUpload={() => {
-                  setUploadPurpose('vocal_reference')
-                  setUploadOpen(true)
-                }}
-                onResolveSavedTrack={resolveSavedTrackForAi}
               />
             )}
           </div>
