@@ -79,15 +79,14 @@ void main() {
   float fakeoutVoid = mix(1.0, 0.16 + speaker * 0.35, music.fakeout);
   float structure = (arches * 1.2 + ribs * 0.55 + pillars * 0.72 + piston * 0.6) * fakeoutVoid;
   float spectralMetal = 0.65 + uSpectralFlatness * 0.22 + uComplexity * 0.18;
-  vec3 col = mix(uVoidColor.rgb, uBrandBackground.rgb, uBrandEnabled * uBrandStrength)
+  vec3 col = uVoidColor.rgb
     * (0.5 + uEnergyLongTerm * 0.26);
   col += mix(uStructureColor.rgb, uEdgeColor.rgb, depthCell) * structure * spectralMetal;
   col += uEdgeColor.rgb * speaker * (0.3 + stemBass * 1.1);
-  col += mix(uSparkColor.rgb, uBrandAccent.rgb, uBrandEnabled) * sparks;
-  col += mix(uSparkColor.rgb, uBrandImpact.rgb, music.drop) * ruptureWave;
-  col += uBrandImpact.rgb * snareBlade * (0.75 + guitar * 0.35);
+  col += uSparkColor.rgb * sparks;
+  col += uSparkColor.rgb * ruptureWave;
+  col += uEdgeColor.rgb * snareBlade * (0.75 + guitar * 0.35);
   col += uStructureColor.rgb * sectionOpen * lineGlow(abs(q.x) - 0.75, 28.0) * 0.3;
-  col = applyBrandAtmosphere(col, uv, 0.12 + music.expression * 0.12);
   col *= (0.78 + music.macro * 0.5 + music.rhythm * 0.18 + music.confidence * 0.08);
   col *= uMasterIntensity * (0.72 + uMasterGlow * 0.3);
   col *= 1.0 - dot(p * 0.27, p * 0.27);
@@ -102,10 +101,10 @@ void main() {
     { id: 'ribThickness', type: 'float', label: 'Rib Thickness', group: 'Structure', uniformName: 'uRibThickness', min: 0.02, max: 0.32, step: 0.01, default: 0.11, modulatable: true },
     { id: 'rupture', type: 'float', label: 'Drop Rupture', group: 'Impact', uniformName: 'uRupture', min: 0, max: 3, step: 0.05, default: 1.35, modulatable: true },
     { id: 'sparkDensity', type: 'float', label: 'Spark Density', group: 'Atmosphere', uniformName: 'uSparkDensity', min: 0, max: 1, step: 0.01, default: 0.48, modulatable: true },
-    { id: 'structureColor', type: 'color', label: 'Structure', group: 'Color', uniformName: 'uStructureColor', brandRole: 'primary', default: [0.72, 0.04, 0.02, 1] },
-    { id: 'edgeColor', type: 'color', label: 'Edge Light', group: 'Color', uniformName: 'uEdgeColor', brandRole: 'secondary', default: [1, 0.12, 0.025, 1] },
-    { id: 'sparkColor', type: 'color', label: 'Sparks', group: 'Color', uniformName: 'uSparkColor', brandRole: 'accent', default: [1, 0.52, 0.08, 1] },
-    { id: 'voidColor', type: 'color', label: 'Void', group: 'Color', uniformName: 'uVoidColor', brandRole: 'background', default: [0.004, 0.002, 0.002, 1] },
+    { id: 'structureColor', type: 'color', label: 'Structure', group: 'Color', uniformName: 'uStructureColor', default: [0.72, 0.04, 0.02, 1] },
+    { id: 'edgeColor', type: 'color', label: 'Edge Light', group: 'Color', uniformName: 'uEdgeColor', default: [1, 0.12, 0.025, 1] },
+    { id: 'sparkColor', type: 'color', label: 'Sparks', group: 'Color', uniformName: 'uSparkColor', default: [1, 0.52, 0.08, 1] },
+    { id: 'voidColor', type: 'color', label: 'Void', group: 'Color', uniformName: 'uVoidColor', default: [0.004, 0.002, 0.002, 1] },
   ],
 
   defaults: {

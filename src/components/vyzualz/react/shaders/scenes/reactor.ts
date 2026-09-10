@@ -950,12 +950,12 @@ ReactorLayer renderBrandModule(
     ) / mediaWeight;
   }
 
-  vec3 authoredCore = mix(uPrimaryColor.rgb, uBrandPrimary.rgb, uBrandEnabled);
-  vec3 authoredOrbit = mix(uSecondaryColor.rgb, uBrandSecondary.rgb, uBrandEnabled);
-  vec3 authoredImpact = mix(uAccentColor.rgb, uBrandImpact.rgb, uBrandEnabled);
+  vec3 authoredCore = uPrimaryColor.rgb;
+  vec3 authoredOrbit = uSecondaryColor.rgb;
+  vec3 authoredImpact = uAccentColor.rgb;
 
   vec3 logoColor = authoredCore * logoMask * (1.05 + identityEnergy * 0.82);
-  logoColor += uBrandHighlight.rgb * logoEdge * logoPresent
+  logoColor += uAccentColor.rgb * logoEdge * logoPresent
     * (0.42 + uSnareHit * 0.5
       + uChordChangeHit * uHasHarmonics * 0.32
       + lyricSignal * 0.22);
@@ -1120,17 +1120,12 @@ void main() {
     * (1.35 + dropAmount * 0.5);
   shockShape += burstRing;
 
-  vec3 shockColor = mix(uAccentColor.rgb, uBrandImpact.rgb, uBrandEnabled * brandWeight)
-    * shockShape;
+  vec3 shockColor = uAccentColor.rgb * shockShape;
 
-  vec3 background = mix(
-    uBackgroundColor.rgb,
-    uBrandBackground.rgb,
-    saturate(uBrandEnabled * brandWeight * 0.42)
-  ) * (0.52 + music.macro * 0.24 + uEnergyLongTerm * 0.12);
+  vec3 background = uBackgroundColor.rgb
+    * (0.52 + music.macro * 0.24 + uEnergyLongTerm * 0.12);
 
   vec3 color = background + moduleColor + shockColor;
-  color = applyBrandAtmosphere(color, uv, 0.08 + uMediaInfluence * brandWeight * 0.16);
   color *= 0.76 + uOverallGlow * 0.2 + uMasterGlow * 0.14;
   color = reactorCompress(color, 0.1 + weightSum * 0.035);
   fragColor = vec4(max(color, 0.0), 1.0);
@@ -1314,10 +1309,10 @@ const REACTOR_PARAMS: ShaderParamDef[] = [
   { id: 'refractionAmount', type: 'float', label: 'Refraction Amount', group: 'Brand and Media', uniformName: 'uRefractionAmount', min: 0, max: 3, step: 0.01, default: 0.82, modulatable: true },
   { id: 'orbitAmount', type: 'float', label: 'Orbit Amount', group: 'Brand and Media', uniformName: 'uOrbitAmount', min: 0, max: 2, step: 0.01, default: 0.58, modulatable: true },
   { id: 'mediaInfluence', type: 'float', label: 'Media Influence', group: 'Brand and Media', uniformName: 'uMediaInfluence', min: 0, max: 1, step: 0.01, default: 0.3, modulatable: true },
-  { id: 'primaryColor', type: 'color', label: 'Primary', group: 'Brand and Media', uniformName: 'uPrimaryColor', brandRole: 'primary', default: [0.05, 0.72, 1, 1] },
-  { id: 'secondaryColor', type: 'color', label: 'Secondary', group: 'Brand and Media', uniformName: 'uSecondaryColor', brandRole: 'secondary', default: [0.68, 0.08, 1, 1] },
-  { id: 'accentColor', type: 'color', label: 'Impact', group: 'Brand and Media', uniformName: 'uAccentColor', brandRole: 'accent', default: [1, 0.18, 0.28, 1] },
-  { id: 'backgroundColor', type: 'color', label: 'Background', group: 'Brand and Media', uniformName: 'uBackgroundColor', brandRole: 'background', default: [0.006, 0.004, 0.02, 1] },
+  { id: 'primaryColor', type: 'color', label: 'Primary', group: 'Color', uniformName: 'uPrimaryColor', default: [0.05, 0.72, 1, 1] },
+  { id: 'secondaryColor', type: 'color', label: 'Secondary', group: 'Color', uniformName: 'uSecondaryColor', default: [0.68, 0.08, 1, 1] },
+  { id: 'accentColor', type: 'color', label: 'Impact', group: 'Color', uniformName: 'uAccentColor', default: [1, 0.18, 0.28, 1] },
+  { id: 'backgroundColor', type: 'color', label: 'Background', group: 'Color', uniformName: 'uBackgroundColor', default: [0.006, 0.004, 0.02, 1] },
 
   { id: 'vocalLyricInfluence', type: 'float', label: 'Vocal / Lyric Influence', group: 'Reactivity', uniformName: 'uVocalLyricInfluence', min: 0, max: 2, step: 0.01, default: 0.72, modulatable: true },
 ]

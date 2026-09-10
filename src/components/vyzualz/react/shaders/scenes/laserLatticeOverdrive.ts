@@ -73,14 +73,13 @@ void main() {
   float spectrum = spectrumAt(fract(radius * 0.8 + atan(p.y, p.x) / SHADER_TAU));
   float latticeLight = rail * (0.45 + spectrum * 0.85 + music.rhythm * 0.22);
   float fakeoutHold = mix(1.0, 0.2 + tunnel * 0.5, music.fakeout);
-  vec3 col = mix(uBackgroundColor.rgb, uBrandBackground.rgb, uBrandEnabled * uBrandStrength)
+  vec3 col = uBackgroundColor.rgb
     * (0.55 + uEnergyLongTerm * 0.18);
   col += mix(uRailColor.rgb, uBladeColor.rgb, spectrum) * latticeLight * fakeoutHold;
   col += uPulseColor.rgb * tunnel * (0.35 + music.macro * 0.7);
-  col += mix(uBladeColor.rgb, uBrandImpact.rgb, uSnareHit) * snareSlash;
-  col += mix(uPulseColor.rgb, uBrandHighlight.rgb, music.drop) * kickLaunch;
+  col += uBladeColor.rgb * snareSlash;
+  col += uPulseColor.rgb * kickLaunch;
   col += uRailColor.rgb * hatScan * 0.22;
-  col = applyBrandAtmosphere(col, uv, 0.1 + music.expression * 0.1);
   col *= 0.75 + music.micro * 0.34 + music.macro * 0.38 + music.confidence * 0.08;
   col *= uMasterIntensity * (0.78 + uMasterGlow * 0.28);
   col *= 1.0 - dot(p * 0.24, p * 0.24);
@@ -95,10 +94,10 @@ void main() {
     { id: 'bladeWidth', type: 'float', label: 'Blade Width', group: 'Lattice', uniformName: 'uBladeWidth', min: 0.01, max: 0.2, step: 0.005, default: 0.055, modulatable: true },
     { id: 'rotation', type: 'float', label: 'Rotation', group: 'Motion', uniformName: 'uRotation', min: -3.14159, max: 3.14159, step: 0.01, default: 0.22, modulatable: true },
     { id: 'scatter', type: 'float', label: 'Drop Scatter', group: 'Impact', uniformName: 'uScatter', min: 0, max: 3, step: 0.05, default: 1.45, modulatable: true },
-    { id: 'railColor', type: 'color', label: 'Rails', group: 'Color', uniformName: 'uRailColor', brandRole: 'primary', default: [0.02, 0.32, 1, 1] },
-    { id: 'bladeColor', type: 'color', label: 'Blades', group: 'Color', uniformName: 'uBladeColor', brandRole: 'secondary', default: [0.95, 0.04, 0.82, 1] },
-    { id: 'pulseColor', type: 'color', label: 'Pulse', group: 'Color', uniformName: 'uPulseColor', brandRole: 'accent', default: [0.05, 1, 0.92, 1] },
-    { id: 'backgroundColor', type: 'color', label: 'Background', group: 'Color', uniformName: 'uBackgroundColor', brandRole: 'background', default: [0.003, 0.004, 0.018, 1] },
+    { id: 'railColor', type: 'color', label: 'Rails', group: 'Color', uniformName: 'uRailColor', default: [0.02, 0.32, 1, 1] },
+    { id: 'bladeColor', type: 'color', label: 'Blades', group: 'Color', uniformName: 'uBladeColor', default: [0.95, 0.04, 0.82, 1] },
+    { id: 'pulseColor', type: 'color', label: 'Pulse', group: 'Color', uniformName: 'uPulseColor', default: [0.05, 1, 0.92, 1] },
+    { id: 'backgroundColor', type: 'color', label: 'Background', group: 'Color', uniformName: 'uBackgroundColor', default: [0.003, 0.004, 0.018, 1] },
   ],
 
   defaults: {

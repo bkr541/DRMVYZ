@@ -75,16 +75,15 @@ void main() {
   float dropBloom = glowLine(radius - fract(uBarPhase + music.drop * 0.38) * 1.35, 36.0)
     * (music.drop + uDownbeatHit * 0.45);
   float fakeoutDim = mix(1.0, 0.28 + rift * 0.35, music.fakeout);
-  vec3 col = mix(uBackgroundColor.rgb, uBrandBackground.rgb, uBrandEnabled * uBrandStrength)
+  vec3 col = uBackgroundColor.rgb
     * (0.52 + uEnergyLongTerm * 0.22);
-  col += mix(uRiftColor.rgb, uBrandHighlight.rgb, uBrandEnabled) * (rift * 1.15 + core * 0.75);
+  col += uRiftColor.rgb * (rift * 1.15 + core * 0.75);
   col += mix(uPetalColor.rgb, uAuroraColor.rgb, harmonic) * petal * fakeoutDim;
   col += uPetalColor.rgb * shards * 0.9;
-  col += mix(uAuroraColor.rgb, uBrandAccent.rgb, uBrandEnabled) * (aurora + lyricRibbon * 0.7);
+  col += uAuroraColor.rgb * (aurora + lyricRibbon * 0.7);
   col += uAuroraColor.rgb * embers * 0.55;
-  col += mix(uPetalColor.rgb, uBrandImpact.rgb, music.drop) * dropBloom * 1.2;
-  col += uBrandImpact.rgb * uSnareHit * rift * 0.45;
-  col = applyBrandAtmosphere(col, uv, 0.14 + music.expression * 0.14);
+  col += uPetalColor.rgb * dropBloom * 1.2;
+  col += uRiftColor.rgb * uSnareHit * rift * 0.45;
   col *= 0.74 + music.micro * 0.24 + music.expression * 0.5 + music.confidence * 0.08;
   col *= uMasterIntensity * (0.75 + uMasterGlow * 0.31);
   col *= 1.0 - dot(p * 0.24, p * 0.24);
@@ -99,10 +98,10 @@ void main() {
     { id: 'bloomSpread', type: 'float', label: 'Bloom Spread', group: 'Bloom', uniformName: 'uBloomSpread', min: 0.2, max: 2.2, step: 0.05, default: 1.15, modulatable: true },
     { id: 'auroraFlow', type: 'float', label: 'Aurora Flow', group: 'Motion', uniformName: 'uAuroraFlow', min: 0, max: 2.5, step: 0.05, default: 1, modulatable: true },
     { id: 'emberDensity', type: 'float', label: 'Ember Density', group: 'Atmosphere', uniformName: 'uEmberDensity', min: 0, max: 1, step: 0.01, default: 0.45, modulatable: true },
-    { id: 'riftColor', type: 'color', label: 'Rift Core', group: 'Color', uniformName: 'uRiftColor', brandRole: 'highlight', default: [1, 0.72, 0.48, 1] },
-    { id: 'petalColor', type: 'color', label: 'Petals', group: 'Color', uniformName: 'uPetalColor', brandRole: 'primary', default: [0.62, 0.18, 1, 1] },
-    { id: 'auroraColor', type: 'color', label: 'Aurora', group: 'Color', uniformName: 'uAuroraColor', brandRole: 'secondary', default: [0.08, 0.72, 1, 1] },
-    { id: 'backgroundColor', type: 'color', label: 'Sky', group: 'Color', uniformName: 'uBackgroundColor', brandRole: 'background', default: [0.008, 0.008, 0.03, 1] },
+    { id: 'riftColor', type: 'color', label: 'Rift Core', group: 'Color', uniformName: 'uRiftColor', default: [1, 0.72, 0.48, 1] },
+    { id: 'petalColor', type: 'color', label: 'Petals', group: 'Color', uniformName: 'uPetalColor', default: [0.62, 0.18, 1, 1] },
+    { id: 'auroraColor', type: 'color', label: 'Aurora', group: 'Color', uniformName: 'uAuroraColor', default: [0.08, 0.72, 1, 1] },
+    { id: 'backgroundColor', type: 'color', label: 'Sky', group: 'Color', uniformName: 'uBackgroundColor', default: [0.008, 0.008, 0.03, 1] },
   ],
 
   defaults: {

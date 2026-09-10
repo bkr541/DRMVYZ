@@ -351,7 +351,7 @@ describe('I — development scene', () => {
     }
   })
 
-  it('ships production coverage for FFT, waveform, Brand roles, and media inputs', () => {
+  it('ships production coverage for FFT, waveform, authored color, and media inputs', () => {
     const reactor = shaderRegistry.get('shader-reactor')!
     const echo = shaderRegistry.get('shader-brand-echo-signal')!
     const reactorSource = [reactor.fragSrc ?? '', ...(reactor.passes ?? []).map(pass => pass.fragSrc)].join('\n')
@@ -361,9 +361,12 @@ describe('I — development scene', () => {
     expect(echo.textureInputs?.map(input => input.source)).toEqual([
       'uploaded-image', 'album-artwork', 'media-output',
     ])
+    // Production color params are authored pass-through — none carry a brandRole,
+    // so the Cinema adapter never swaps the Design-tab value for the brand palette.
+    expect(PRODUCTION_SCENES.some(scene => scene.params.some(param => param.type === 'color'))).toBe(true)
     expect(PRODUCTION_SCENES.some(scene => scene.params.some(param =>
-      param.type === 'color' && param.brandRole === 'primary'
-    ))).toBe(true)
+      param.type === 'color' && param.brandRole !== undefined
+    ))).toBe(false)
     expect(shaderRegistry.has('shader-spectrum-cathedral')).toBe(false)
     expect(shaderRegistry.has('shader-dreamstate-mycelium')).toBe(false)
     expect(shaderRegistry.has('shader-feedback-kaleidoscope')).toBe(false)

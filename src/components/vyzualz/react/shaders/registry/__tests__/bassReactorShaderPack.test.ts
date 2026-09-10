@@ -33,8 +33,10 @@ describe('bass-reactor shader pack', () => {
     for (const scene of PACK) {
       expect(ShaderDefinitionValidator.validate(scene)).toEqual({ valid: true, errors: [] })
       expect(scene.tags?.some(tag => tag === 'brand-kit' || tag === 'brand-logo')).toBe(true)
-      expect(scene.params.some(param => param.type === 'color' && param.brandRole === 'primary')).toBe(true)
-      expect(scene.params.some(param => param.type === 'color' && param.brandRole === 'background')).toBe(true)
+      // Color params are authored pass-through: no brandRole, so the Cinema
+      // adapter never overwrites the Design-tab value with the brand palette.
+      expect(scene.params.some(param => param.type === 'color')).toBe(true)
+      expect(scene.params.some(param => param.type === 'color' && param.brandRole !== undefined)).toBe(false)
       expect(scene.transitions?.supportsGpuTransitions).toBe(true)
     }
   })

@@ -170,7 +170,6 @@ void main() {
       type: 'color',
       label: 'Surface Color',
       uniformName: 'uSurfaceColor',
-      brandRole: 'primary',
       default: [0.1, 0.4, 0.9, 1.0],
     },
     {
@@ -178,7 +177,6 @@ void main() {
       type: 'color',
       label: 'Highlight Color',
       uniformName: 'uHighlightColor',
-      brandRole: 'highlight',
       default: [0.8, 0.95, 1.0, 1.0],
     },
     {

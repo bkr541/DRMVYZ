@@ -79,15 +79,14 @@ void main() {
   float phrasePulse = ring(radius, fract(uPhrase4Progress + uPhrase4Hit * 0.25) * 0.9, 48.0);
   float lyricAura = uHasLyrics * (uLyricLineEnter + uLyricLineExit + uLyricActivity * 0.25);
 
-  vec3 col = mix(uBackgroundColor.rgb, uBrandBackground.rgb, uBrandEnabled * uBrandStrength)
+  vec3 col = uBackgroundColor.rgb
     * (0.5 + uEnergyLongTerm * 0.2);
   col += mix(uBodyColor.rgb, uDetailColor.rgb, spectrum) * silhouette * (0.4 + music.macro * 0.5);
   col += uDetailColor.rgb * (silhouetteEdge * 1.2 + ornaments * 0.65 + innerRing * 0.28);
-  col += mix(uEyeColor.rgb, uBrandHighlight.rgb, uBrandEnabled) * (eye * 0.55 + pupil * 1.2 + mouth * 0.7);
+  col += uEyeColor.rgb * (eye * 0.55 + pupil * 1.2 + mouth * 0.7);
   col += uEyeColor.rgb * phrasePulse * (0.16 + music.rhythm * 0.32);
-  col += uBrandImpact.rgb * splitFlash * 0.75;
-  col += mix(uDetailColor.rgb, uBrandAccent.rgb, uBrandEnabled) * lyricAura * edge * 0.28;
-  col = applyBrandAtmosphere(col, uv, 0.1 + music.expression * 0.16);
+  col += uEyeColor.rgb * splitFlash * 0.75;
+  col += uDetailColor.rgb * lyricAura * edge * 0.28;
   col *= 0.74 + music.micro * 0.36 + music.expression * 0.34 + music.confidence * 0.08;
   col *= uMasterIntensity * (0.76 + uMasterGlow * 0.3);
   col *= 1.0 - dot(p * 0.22, p * 0.22);
@@ -102,10 +101,10 @@ void main() {
     { id: 'wobble', type: 'float', label: 'Waveform Wobble', group: 'Audio Shape', uniformName: 'uWobble', min: 0, max: 2.5, step: 0.05, default: 1.15, modulatable: true },
     { id: 'detail', type: 'float', label: 'Ornament Detail', group: 'Glyph', uniformName: 'uDetail', min: 0, max: 2, step: 0.05, default: 1.05, modulatable: true },
     { id: 'logoBlend', type: 'float', label: 'Brand Logo Blend', group: 'Brand', uniformName: 'uLogoBlend', min: 0, max: 1, step: 0.01, default: 0.45, modulatable: true },
-    { id: 'bodyColor', type: 'color', label: 'Body', group: 'Color', uniformName: 'uBodyColor', brandRole: 'primary', default: [0.08, 0.92, 0.55, 1] },
-    { id: 'detailColor', type: 'color', label: 'Detail', group: 'Color', uniformName: 'uDetailColor', brandRole: 'secondary', default: [0.56, 0.08, 1, 1] },
-    { id: 'eyeColor', type: 'color', label: 'Core', group: 'Color', uniformName: 'uEyeColor', brandRole: 'accent', default: [0.08, 1, 0.95, 1] },
-    { id: 'backgroundColor', type: 'color', label: 'Background', group: 'Color', uniformName: 'uBackgroundColor', brandRole: 'background', default: [0.003, 0.012, 0.012, 1] },
+    { id: 'bodyColor', type: 'color', label: 'Body', group: 'Color', uniformName: 'uBodyColor', default: [0.08, 0.92, 0.55, 1] },
+    { id: 'detailColor', type: 'color', label: 'Detail', group: 'Color', uniformName: 'uDetailColor', default: [0.56, 0.08, 1, 1] },
+    { id: 'eyeColor', type: 'color', label: 'Core', group: 'Color', uniformName: 'uEyeColor', default: [0.08, 1, 0.95, 1] },
+    { id: 'backgroundColor', type: 'color', label: 'Background', group: 'Color', uniformName: 'uBackgroundColor', default: [0.003, 0.012, 0.012, 1] },
   ],
 
   defaults: {
