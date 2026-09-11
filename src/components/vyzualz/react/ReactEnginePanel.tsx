@@ -4,6 +4,7 @@ import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { CanvasEnginePanel } from './ReactCanvasEngineShell'
 import { PixGridEnginePanel } from './pixGrid/PixGridEnginePanel'
 import { HeadlinerEnginePanel } from './headliner/HeadlinerWorkspace'
+import { Cinema2Placeholder } from './Cinema2Placeholder'
 import { CinemaWorkspace } from './CinemaWorkspace'
 import type { CinemaWorkspaceFrameBridgeResult } from './CinemaWorkspaceFrameBridge'
 import type { CinemaRuntimeSnapshot } from '../cinema'
@@ -496,6 +497,8 @@ export function ReactEnginePanel({
           runtimeSnapshot={cinemaRuntimeSnapshot}
         />
       )}
+
+      {activeReactEngineId === 'cinema2' && <Cinema2Placeholder area="Source" />}
 
       {/* Cinematic Worlds source selection lives in the left rail. */}
       {activeReactEngineId === 'cinematicPortal' && (

@@ -66,6 +66,12 @@ describe('React workspace composition', () => {
     expect(getReactPresetTabLabel(cinema)).toBe('PRESETS')
     expect(cinema.showPerformancePads).toBe(false)
 
+    const cinema2 = resolveReactWorkspaceComposition('cinema2', 'beamMatrix', false)
+    expect(cinema2.presetSurface).toBe('enginePresets')
+    expect(getReactPresetTabLabel(cinema2)).toBe('PRESETS')
+    expect(cinema2.showPerformancePads).toBe(false)
+    expect(cinema2.showTrackMap).toBe(true)
+
     for (const engine of ['cinematicPortal', 'oscilloscope', 'canvas', 'laserDmx', 'pixGrid'] as ReactEngineId[]) {
       const composition = resolveReactWorkspaceComposition(engine, 'beamMatrix', false)
       expect(composition.presetSurface).toBe('enginePresets')
@@ -100,6 +106,11 @@ describe('React workspace composition', () => {
     expect(getReactLeftTabs(cinema)).toEqual(['workspace', 'layers'])
     expect(getReactLeftTabLabel('workspace', cinema)).toBe('SOURCE')
     expect(getReactLeftTabLabel('layers', cinema)).toBe('LAYERS')
+
+    const cinema2 = resolveReactWorkspaceComposition('cinema2', 'beamMatrix', false)
+    expect(getReactLeftTabs(cinema2)).toEqual(['workspace', 'layers'])
+    expect(getReactLeftTabLabel('workspace', cinema2)).toBe('SOURCE')
+    expect(getReactLeftTabLabel('layers', cinema2)).toBe('LAYERS')
 
     const cinematic = resolveReactWorkspaceComposition('cinematicPortal', 'beamMatrix', false)
     expect(getReactLeftTabs(cinematic)).toEqual(['workspace'])

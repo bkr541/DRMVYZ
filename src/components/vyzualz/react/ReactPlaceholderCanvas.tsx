@@ -55,6 +55,7 @@ const ENGINE_ACCESSIBLE_LABELS: Record<ReactEngineId, string> = {
   shaderPads:      'Shader',
   cinematicPortal: 'Cinematic Worlds',
   cinema:          'Cinema',
+  cinema2:         'Cinema 2.0',
   oscilloscope:    'Sound Drawing',
   canvas:          'CANVAS',
   laserDmx:        'LaserDMX',

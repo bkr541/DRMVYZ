@@ -52,6 +52,7 @@ import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import { FontLibraryPanel } from './FontLibraryPanel'
 import { ReactEngineBrowser } from './ReactEngineBrowser'
+import { Cinema2Placeholder } from './Cinema2Placeholder'
 import { CinemaWorkspace } from './CinemaWorkspace'
 import { CinemaLayersPanel, CinemaPresetsPanel } from './CinemaWorkspacePanels'
 import { createCinemaFontLibrarySnapshot, createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
@@ -909,7 +910,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                       getDisabledReason={getMediaDisabledReason}
                     />
                   )}
-                  {leftTab === 'layers' && (activeReactEngineId === 'cinema' ? <CinemaLayersPanel /> : activeReactEngineId === 'canvas' ? <CanvasLayersPanel /> : workspaceComposition.showLaserLayersTab ? (
+                  {leftTab === 'layers' && (activeReactEngineId === 'cinema' ? <CinemaLayersPanel /> : activeReactEngineId === 'cinema2' ? <Cinema2Placeholder area="Layers" /> : activeReactEngineId === 'canvas' ? <CanvasLayersPanel /> : workspaceComposition.showLaserLayersTab ? (
                     <Suspense fallback={<LazyWorkspaceFallback label="LaserDMX layers" />}><LaserDmxLayersPanel /></Suspense>
                   ) : null)}
                   {leftTab === 'fonts' && <FontLibraryPanel />}
@@ -933,6 +934,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 onCanvasReady={setOutputCanvas}
                 onLiveFps={setLiveFps}
               />
+            ) : activeReactEngineId === 'cinema2' ? (
+              <Cinema2Placeholder area="Stage" />
             ) : activeReactEngineId === 'canvas' ? (
               <CanvasEngineSurface
                 isPlaying={engine.isPlaying}
@@ -1166,33 +1169,43 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   </Suspense>
               ) : activeReactEngineId === 'cinema' ? (
                 <CinemaPresetsPanel />
+              ) : activeReactEngineId === 'cinema2' ? (
+                <Cinema2Placeholder area="Presets" />
               ) : activeReactEngineId === 'headliner' ? (
                 <HeadlinerPresetsPanel />
               ) : (
                 <ReactPresetsPanel />
               ))}
             {activeRightPanel === 'design' && (
-              activeReactEngineId === 'headliner'
-                ? <HeadlinerDesignPanel />
-                : <ReactDesignWorkspacePanel hasSelection={inspectableSelection !== null} />
+              activeReactEngineId === 'cinema2'
+                ? <Cinema2Placeholder area="Design" />
+                : activeReactEngineId === 'headliner'
+                  ? <HeadlinerDesignPanel />
+                  : <ReactDesignWorkspacePanel hasSelection={inspectableSelection !== null} />
             )}
             {activeRightPanel === 'react' && (
-              activeReactEngineId === 'headliner'
-                ? <HeadlinerReactivityPanel />
-                : <ReactReactivityWorkspacePanel cinemaFrameBridge={cinemaFrameBridge} />
+              activeReactEngineId === 'cinema2'
+                ? <Cinema2Placeholder area="React" />
+                : activeReactEngineId === 'headliner'
+                  ? <HeadlinerReactivityPanel />
+                  : <ReactReactivityWorkspacePanel cinemaFrameBridge={cinemaFrameBridge} />
             )}
             {activeRightPanel === 'output' && (
-              <ReactOutputWorkspacePanel
-                canvas={outputCanvas}
-                outputCapability={outputCapability}
-                recorder={recorder}
-                liveFps={liveFps}
-                hasActiveProgramAudio={hasActiveProgramAudio}
-                onStartRecording={handleStartRecording}
-                cinemaFrameBridge={cinemaFrameBridge}
-                cinemaRuntimeSnapshot={cinemaRuntimeSnapshot}
-                showCastControl={activeReactEngineId === 'headliner'}
-              />
+              activeReactEngineId === 'cinema2' ? (
+                <Cinema2Placeholder area="Output" />
+              ) : (
+                <ReactOutputWorkspacePanel
+                  canvas={outputCanvas}
+                  outputCapability={outputCapability}
+                  recorder={recorder}
+                  liveFps={liveFps}
+                  hasActiveProgramAudio={hasActiveProgramAudio}
+                  onStartRecording={handleStartRecording}
+                  cinemaFrameBridge={cinemaFrameBridge}
+                  cinemaRuntimeSnapshot={cinemaRuntimeSnapshot}
+                  showCastControl={activeReactEngineId === 'headliner'}
+                />
+              )
             )}
           </div>
         </WorkspaceRail>

@@ -4185,7 +4185,7 @@ function normalizeLockedLaserDmxPadAssignments(pads: ReactPerformancePad[]): Rea
 
 const VALID_REACT_ENGINE_IDS = new Set<ReactEngineId>(REACT_ENGINE_IDS)
 
-const STANDALONE_REACT_ENGINE_IDS = new Set<ReactEngineId>(['canvas', 'cinema', 'headliner'])
+const STANDALONE_REACT_ENGINE_IDS = new Set<ReactEngineId>(['canvas', 'cinema', 'cinema2', 'headliner'])
 
 function isStandaloneReactEngineId(engineId: ReactEngineId): boolean {
   return STANDALONE_REACT_ENGINE_IDS.has(engineId)

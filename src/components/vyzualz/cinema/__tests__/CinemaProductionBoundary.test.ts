@@ -75,6 +75,7 @@ describe('Cinema production boundary through Stage 23', () => {
     ])
     expect(REACT_ENGINE_IDS).toEqual([
       'cinema',
+      'cinema2',
       'oscilloscope',
       'canvas',
       'laserDmx',

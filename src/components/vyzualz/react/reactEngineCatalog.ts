@@ -12,6 +12,7 @@ export const REACT_KNOWN_ENGINE_IDS: ReactEngineId[] = [
   'shaderPads',
   'cinematicPortal',
   'cinema',
+  'cinema2',
   'oscilloscope',
   'canvas',
   'laserDmx',
@@ -45,6 +46,13 @@ export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry
     shortLabel: 'Cinema',
     icon: '◇',
     description: 'Composition-native visual graphs with one canonical Cinema runtime.',
+  },
+  cinema2: {
+    id: 'cinema2',
+    label: 'Cinema 2.0',
+    shortLabel: 'Cinema 2',
+    icon: '◆',
+    description: 'Next-generation Cinema workspace (in progress).',
   },
   oscilloscope: {
     id: 'oscilloscope',

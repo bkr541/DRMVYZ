@@ -28,7 +28,7 @@ import type {
   ProductionTarget,
 } from './LaserDmxProductionRig'
 
-export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'cinema' | 'oscilloscope' | 'canvas' | 'laserDmx' | 'pixGrid' | 'headliner'
+export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'cinema' | 'cinema2' | 'oscilloscope' | 'canvas' | 'laserDmx' | 'pixGrid' | 'headliner'
 
 // ── Oscillator path/glyph types ───────────────────────────────────────────────
 
