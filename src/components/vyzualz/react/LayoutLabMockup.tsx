@@ -19,6 +19,7 @@ import { LayerRowStyleGallery } from './layoutLab/LayerRowStyleGallery'
 import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { TrackLibraryRowStyleGallery } from './layoutLab/TrackLibraryRowStyleGallery'
+import { TrackWorkspaceHeaderStyleGallery } from './layoutLab/TrackWorkspaceHeaderStyleGallery'
 import { DeleteConfirmDialogStyleGallery } from './layoutLab/DeleteConfirmDialogStyleGallery'
 import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
 import { LaserDjBeamBuilderMockup } from './layoutLab/LaserDjBeamBuilderMockup'
@@ -357,6 +358,11 @@ export function LayoutLabMockup() {
                 {templateRightTab === 'presets' && (
                   <div className="rv-inspector rv-inspector-scroll">
                     <PresetCardStyleGallery />
+                  </div>
+                )}
+                {templateRightTab === 'design' && (
+                  <div className="rv-inspector rv-inspector-scroll">
+                    <TrackWorkspaceHeaderStyleGallery />
                   </div>
                 )}
                 {templateRightTab === 'output' && (
