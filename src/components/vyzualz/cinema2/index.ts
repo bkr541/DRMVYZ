@@ -153,6 +153,23 @@ export {
   type Cinema2Viewport,
 } from './runtime/Cinema2Runtime'
 
+export {
+  Cinema2ResourceManager,
+  type Cinema2RenderTargetBinding,
+  type Cinema2RenderTargetColorFormat,
+  type Cinema2RenderTargetDepthFormat,
+  type Cinema2RenderTargetDescriptor,
+  type Cinema2RenderTargetFilter,
+  type Cinema2RenderTargetLease,
+  type Cinema2RenderTargetOwnershipClass,
+  type Cinema2RenderTargetSize,
+  type Cinema2RenderTargetSurfaceLayout,
+  type Cinema2RenderTargetWrap,
+  type Cinema2ResourceManagerOptions,
+  type Cinema2ResourceManagerSnapshot,
+  type Cinema2ResourceViewport,
+} from './runtime/Cinema2ResourceManager'
+
 
 export {
   CINEMA2_SCENE_GRAPH_PLAN_VERSION,

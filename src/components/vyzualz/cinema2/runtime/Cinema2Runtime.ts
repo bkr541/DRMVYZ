@@ -33,6 +33,10 @@ import {
   type Cinema2MediaSlotRuntimeSnapshot,
 } from '../media/Cinema2MediaSlotRuntime'
 import {
+  Cinema2ResourceManager,
+  type Cinema2ResourceManagerSnapshot,
+} from './Cinema2ResourceManager'
+import {
   registerDrmvyzWebGLContext,
   retireDrmvyzWebGLContext,
   type WebGLContextDiagnosticHandle,
@@ -236,6 +240,7 @@ export class Cinema2Runtime {
   private readonly targetResolver: Cinema2FinalValueResolver
   private readonly mediaSlotRuntime: Cinema2MediaSlotRuntime
   private readonly moduleRuntime: Cinema2ModuleRuntime
+  private readonly resourceManager: Cinema2ResourceManager
 
   private phase: Cinema2RuntimePhase = 'initializing'
   private viewport: Cinema2Viewport = { ...EMPTY_VIEWPORT }
@@ -270,6 +275,7 @@ export class Cinema2Runtime {
         ? target.authoredBaseValue
         : parameterState.getValue(target.parameterId),
     })
+    this.resourceManager = new Cinema2ResourceManager(gl)
     this.mediaSlotRuntime = new Cinema2MediaSlotRuntime(gl, compiledPresetPlan.manifest.mediaSlots ?? [], options.mediaLoader)
     this.moduleRuntime = new Cinema2ModuleRuntime(gl, compiledPresetPlan, this.targetResolver, moduleRegistry, this.mediaSlotRuntime)
     this.contextHandle = registerDrmvyzWebGLContext(gl, {
@@ -287,6 +293,7 @@ export class Cinema2Runtime {
       this.statusMessage = 'Cinema 2.0 paused because its WebGL2 context was lost.'
       this.moduleRuntime.handleContextLost()
       this.mediaSlotRuntime.handleContextLost()
+      this.resourceManager.handleContextLost()
       this.lastFrameTimestampMs = null
       this.cancelScheduledFrame()
       this.emitSnapshot()
@@ -298,6 +305,7 @@ export class Cinema2Runtime {
       this.contextGeneration += 1
       this.statusMessage = null
       try {
+        this.resourceManager.handleContextRestored()
         this.mediaSlotRuntime.handleContextRestored()
         this.moduleRuntime.handleContextRestored()
         this.gl.viewport(0, 0, this.viewport.width, this.viewport.height)
@@ -325,6 +333,7 @@ export class Cinema2Runtime {
       }
       this.moduleRuntime.dispose()
       this.mediaSlotRuntime.dispose()
+      this.resourceManager.dispose()
       retireDrmvyzWebGLContext(this.contextHandle, 'release-resources')
       throw error
     }
@@ -383,6 +392,7 @@ export class Cinema2Runtime {
     this.viewport = nextViewport
     this.canvas.width = nextViewport.width
     this.canvas.height = nextViewport.height
+    this.resourceManager.resize(nextViewport)
     if (!this.contextLost) {
       this.gl.viewport(0, 0, nextViewport.width, nextViewport.height)
       this.renderSafeFrame()
@@ -432,6 +442,15 @@ export class Cinema2Runtime {
     return this.mediaSlotRuntime.getSnapshot()
   }
 
+  /** Canonical Cinema 2.0 GPU render-target owner used by later render-graph stages. */
+  getResourceManager(): Cinema2ResourceManager {
+    return this.resourceManager
+  }
+
+  getResourceManagerSnapshot(): Readonly<Cinema2ResourceManagerSnapshot> {
+    return this.resourceManager.getSnapshot()
+  }
+
   /** Stage 07 consumes these providers; modules never own the frame scheduler. */
   getModuleRenderPassProviders(): readonly Readonly<Cinema2ModuleRenderPassProvider>[] {
     return this.moduleRuntime.getRenderPassProviders()
@@ -467,6 +486,7 @@ export class Cinema2Runtime {
 
     this.moduleRuntime.dispose()
     this.mediaSlotRuntime.dispose()
+    this.resourceManager.dispose()
 
     if (this.contextOwned) {
       retireDrmvyzWebGLContext(this.contextHandle, 'release-resources')

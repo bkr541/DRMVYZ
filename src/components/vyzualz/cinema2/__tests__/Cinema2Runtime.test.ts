@@ -171,6 +171,7 @@ describe('Cinema2Runtime sibling foundation', () => {
       contextGeneration: 1,
       resources: { activeAnimationFrameCount: 0 },
     })
+    expect(runtime.getResourceManagerSnapshot()).toMatchObject({ contextAvailable: false, activeLeaseCount: 0 })
     expect(raf.callbacks.size).toBe(0)
 
     canvas.dispatchEvent(new Event('webglcontextrestored'))
@@ -180,6 +181,7 @@ describe('Cinema2Runtime sibling foundation', () => {
       viewport: { width: 1280, height: 720, dpr: 1.5 },
       resources: { activeAnimationFrameCount: 1 },
     })
+    expect(runtime.getResourceManagerSnapshot()).toMatchObject({ contextAvailable: true, activeLeaseCount: 0 })
     expect(raf.callbacks.size).toBe(1)
 
     runtime.dispose()

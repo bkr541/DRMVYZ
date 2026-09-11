@@ -195,6 +195,21 @@ describe('Cinema 2.0 production sibling path', () => {
     })
     expect(activeCinema2Runtime?.getModuleRenderPassProviders()).toHaveLength(1)
 
+    const productionResourceManager = activeCinema2Runtime?.getResourceManager()
+    expect(productionResourceManager).toBeDefined()
+    const productionTarget = productionResourceManager!.acquireRenderTarget('production-path.validation', {
+      size: { kind: 'viewport', widthScale: 0.5, heightScale: 0.5 },
+      colorFormat: 'rgba8',
+      depthFormat: 'depth24',
+    }, 'persistent')
+    expect(productionResourceManager!.getRenderTargetBinding(productionTarget)).toMatchObject({ width: 480, height: 270 })
+    expect(productionResourceManager!.getSnapshot()).toMatchObject({
+      activeLeaseCount: 1,
+      activePersistentLeaseCount: 1,
+      activeLeaseCountByOwner: { 'production-path.validation': 1 },
+    })
+    const cinema2ContextWithTarget = contexts[contexts.length - 1]!
+
     for (let pass = 0; pass < 12; pass += 1) {
       await act(async () => useReactStore.getState().selectReactEngine('cinema'))
       expect(host?.querySelector('[data-cinema-output-canvas="true"]')).not.toBeNull()
@@ -206,6 +221,17 @@ describe('Cinema 2.0 production sibling path', () => {
         activeEventListenerCount: 0,
         activeWebGLContextCount: 0,
       })
+      if (pass === 0) {
+        expect(productionResourceManager!.getSnapshot()).toMatchObject({
+          disposed: true,
+          activeLeaseCount: 0,
+          pooledAllocationCount: 0,
+          estimatedGpuMemoryBytes: 0,
+        })
+        expect(cinema2ContextWithTarget.__calls.deletedTextures).toBeGreaterThanOrEqual(1)
+        expect(cinema2ContextWithTarget.__calls.deletedRenderbuffers).toBeGreaterThanOrEqual(1)
+        expect(cinema2ContextWithTarget.__calls.deletedFramebuffers).toBeGreaterThanOrEqual(1)
+      }
       expect(getDrmvyzWebGLContextDiagnosticsForTests()).toMatchObject({
         activeCount: 1,
         activeLiveByEngine: { cinema: 1 },
