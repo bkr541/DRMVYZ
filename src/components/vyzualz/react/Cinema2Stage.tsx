@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import {
-  Cinema2Runtime,
-  type Cinema2RuntimeSnapshot,
-} from '../cinema2'
+import { Cinema2Runtime, type Cinema2RuntimeSnapshot } from '../cinema2'
 import { acquireReactLiveEngineOwnership } from './renderers/ReactLiveEngineOwnership'
 import { resolveCanvasResolution, type CanvasResolution } from './rendering/canvasResolution'
 import { assertDrmvyzWebGLContextOwnershipBoundsForDevelopment } from './shaders/runtime/WebGLContextLifecycle'
 
 export interface Cinema2StageProps {
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
+  onRuntimeReady?: (runtime: Cinema2Runtime | null) => void
 }
 
 function statusCopy(snapshot: Cinema2RuntimeSnapshot | null): string | null {
@@ -22,11 +20,13 @@ function statusCopy(snapshot: Cinema2RuntimeSnapshot | null): string | null {
 }
 
 /** Production Stage host for the native Cinema 2.0 sibling runtime. */
-export function Cinema2Stage({ onCanvasReady }: Cinema2StageProps) {
+export function Cinema2Stage({ onCanvasReady, onRuntimeReady }: Cinema2StageProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const onCanvasReadyRef = useRef(onCanvasReady)
+  const onRuntimeReadyRef = useRef(onRuntimeReady)
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<Cinema2RuntimeSnapshot | null>(null)
   onCanvasReadyRef.current = onCanvasReady
+  onRuntimeReadyRef.current = onRuntimeReady
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -70,6 +70,7 @@ export function Cinema2Stage({ onCanvasReady }: Cinema2StageProps) {
       resizeObserver?.disconnect()
       window.removeEventListener('resize', resize)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      onRuntimeReadyRef.current?.(null)
       runtime?.dispose()
       runtime = null
       onCanvasReadyRef.current?.(null)
@@ -88,12 +89,14 @@ export function Cinema2Stage({ onCanvasReady }: Cinema2StageProps) {
       const created = Cinema2Runtime.create(canvas, { onSnapshot: reportSnapshot })
       reportSnapshot(created.snapshot)
       if (!created.runtime) {
+        onRuntimeReadyRef.current?.(null)
         onCanvasReadyRef.current?.(canvas)
         ownership.markStable()
         return () => ownership.retire('unmount')
       }
 
       runtime = created.runtime
+      onRuntimeReadyRef.current?.(runtime)
       resize()
       runtime.setSuspended(document.visibilityState === 'hidden')
       runtime.start()
@@ -114,6 +117,7 @@ export function Cinema2Stage({ onCanvasReady }: Cinema2StageProps) {
           activeWebGLContextCount: 0,
         },
       })
+      onRuntimeReadyRef.current?.(null)
       ownership.retire('setup-failed')
       if (import.meta.env.DEV) console.error('[Cinema2Stage] setup failed:', error)
       return

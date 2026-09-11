@@ -21624,3 +21624,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   font-size: 10px;
   line-height: 1.45;
 }
+
+.rv-cinema2-textarea {
+  min-height: 64px;
+  padding-block: 6px;
+  resize: vertical;
+}
+
+.rv-cinema2-vector-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

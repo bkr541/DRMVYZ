@@ -94,6 +94,15 @@ export {
   type Cinema2ParameterValueNormalizationResult,
 } from './parameters/Cinema2ParameterSchema'
 
+
+export {
+  createCinema2InspectorModel,
+  type Cinema2InspectorControlModel,
+  type Cinema2InspectorGroupModel,
+  type Cinema2InspectorSectionModel,
+  type Cinema2InspectorSurface,
+} from './parameters/Cinema2InspectorModel'
+
 export {
   CINEMA2_PARAMETER_STATE_SCHEMA_ID,
   CINEMA2_PARAMETER_STATE_SCHEMA_VERSION,

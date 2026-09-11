@@ -53,6 +53,7 @@ import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import { FontLibraryPanel } from './FontLibraryPanel'
 import { ReactEngineBrowser } from './ReactEngineBrowser'
 import { Cinema2Placeholder } from './Cinema2Placeholder'
+import { Cinema2InspectorPanel } from './Cinema2InspectorPanel'
 import { Cinema2Stage } from './Cinema2Stage'
 import { CinemaWorkspace } from './CinemaWorkspace'
 import { CinemaLayersPanel, CinemaPresetsPanel } from './CinemaWorkspacePanels'
@@ -60,6 +61,7 @@ import { createCinemaFontLibrarySnapshot, createCinemaMediaLibrarySnapshot } fro
 import { buildCinemaWorkspaceFrameBridge } from './CinemaWorkspaceFrameBridge'
 import type { CinemaWorkspaceRuntimeFrameConfig } from './CinemaWorkspaceRuntimeFrameSource'
 import type { CinemaFrameBuilderState, CinemaRuntimeSnapshot } from '../cinema'
+import type { Cinema2Runtime } from '../cinema2'
 import { getCinemaEditorSelection, useCinemaStore } from '../cinema'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import { isCinemaLegacyEngineId } from '../cinema/CinemaLegacyRetirement'
@@ -381,6 +383,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const { hasActiveProgramAudio, getRecordingStream } = engine
   const [rekordboxHeaderSlot, setRekordboxHeaderSlot] = useState<HTMLDivElement | null>(null)
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
+  const [cinema2Runtime, setCinema2Runtime] = useState<Cinema2Runtime | null>(null)
   const [canvasOutputCapability, setCanvasOutputCapability] = useState<CanvasOutputCapability>(CANVAS_OUTPUT_AVAILABLE)
   const outputCapability = activeReactEngineId === 'canvas'
     ? canvasOutputCapability
@@ -936,7 +939,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 onLiveFps={setLiveFps}
               />
             ) : activeReactEngineId === 'cinema2' ? (
-              <Cinema2Stage onCanvasReady={setOutputCanvas} />
+              <Cinema2Stage onCanvasReady={setOutputCanvas} onRuntimeReady={setCinema2Runtime} />
             ) : activeReactEngineId === 'canvas' ? (
               <CanvasEngineSurface
                 isPlaying={engine.isPlaying}
@@ -1179,14 +1182,14 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               ))}
             {activeRightPanel === 'design' && (
               activeReactEngineId === 'cinema2'
-                ? <Cinema2Placeholder area="Design" />
+                ? <Cinema2InspectorPanel runtime={cinema2Runtime} surface="design" />
                 : activeReactEngineId === 'headliner'
                   ? <HeadlinerDesignPanel />
                   : <ReactDesignWorkspacePanel hasSelection={inspectableSelection !== null} />
             )}
             {activeRightPanel === 'react' && (
               activeReactEngineId === 'cinema2'
-                ? <Cinema2Placeholder area="React" />
+                ? <Cinema2InspectorPanel runtime={cinema2Runtime} surface="react" />
                 : activeReactEngineId === 'headliner'
                   ? <HeadlinerReactivityPanel />
                   : <ReactReactivityWorkspacePanel cinemaFrameBridge={cinemaFrameBridge} />
