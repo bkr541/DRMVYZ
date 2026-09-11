@@ -53,6 +53,7 @@ import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import { FontLibraryPanel } from './FontLibraryPanel'
 import { ReactEngineBrowser } from './ReactEngineBrowser'
 import { Cinema2Placeholder } from './Cinema2Placeholder'
+import { Cinema2Stage } from './Cinema2Stage'
 import { CinemaWorkspace } from './CinemaWorkspace'
 import { CinemaLayersPanel, CinemaPresetsPanel } from './CinemaWorkspacePanels'
 import { createCinemaFontLibrarySnapshot, createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
@@ -935,7 +936,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 onLiveFps={setLiveFps}
               />
             ) : activeReactEngineId === 'cinema2' ? (
-              <Cinema2Placeholder area="Stage" />
+              <Cinema2Stage onCanvasReady={setOutputCanvas} />
             ) : activeReactEngineId === 'canvas' ? (
               <CanvasEngineSurface
                 isPlaying={engine.isPlaying}
