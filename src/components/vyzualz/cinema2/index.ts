@@ -33,6 +33,7 @@ export {
   isCinema2StableId,
   validateCinema2NativePresetManifestIdentity,
   type Cinema2CameraId,
+  type Cinema2CoordinateSpace,
   type Cinema2CameraManifest,
   type Cinema2CapabilityId,
   type Cinema2CapabilityRequirement,
@@ -47,6 +48,8 @@ export {
   type Cinema2EnvironmentManifest,
   type Cinema2JsonObject,
   type Cinema2JsonValue,
+  type Cinema2LayerBlendMode,
+  type Cinema2LayerDepthPolicy,
   type Cinema2LayerId,
   type Cinema2LayerManifest,
   type Cinema2LightId,
@@ -78,6 +81,8 @@ export {
   type Cinema2SceneManifest,
   type Cinema2SceneNodeId,
   type Cinema2SceneNodeManifest,
+  type Cinema2TransformManifest,
+  type Cinema2Vector3,
   type Cinema2StableId,
   type Cinema2VariationId,
   type Cinema2VariationManifest,
@@ -147,6 +152,19 @@ export {
   type Cinema2RuntimeSnapshot,
   type Cinema2Viewport,
 } from './runtime/Cinema2Runtime'
+
+
+export {
+  CINEMA2_SCENE_GRAPH_PLAN_VERSION,
+  type Cinema2CompiledLayerDefinition,
+  type Cinema2CompiledSceneGraph,
+  type Cinema2CompiledSceneNode,
+  type Cinema2LocalTransform,
+  type Cinema2Matrix4,
+  type Cinema2ResolvedTransform,
+  type Cinema2SceneGraphCompilationResult,
+  type Cinema2SceneGraphDiagnostic,
+} from './scene/Cinema2SceneGraph'
 
 export {
   CINEMA2_COMPILED_PRESET_PLAN_VERSION,

@@ -41,13 +41,18 @@ describe('Cinema 2.0 native preset manifest contract', () => {
     expect(JSON.parse(JSON.stringify(manifest))).toEqual(manifest)
   })
 
-  it('keeps the production foundation manifest minimal and free of legacy preset-family discrimination', () => {
+  it('keeps the production foundation manifest neutral, scene-reachable and free of legacy preset-family discrimination', () => {
     expect(validateCinema2NativePresetManifestIdentity(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST).ok).toBe(true)
     expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST).not.toHaveProperty('sourceKind')
     expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST).not.toHaveProperty('shaderScene')
     expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST).not.toHaveProperty('cinematicWorld')
     expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST).not.toHaveProperty('render')
-    expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST).not.toHaveProperty('scene')
+    expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST.scene?.nodes).toHaveLength(1)
+    expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST.layers).toHaveLength(1)
+    expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST.scene?.nodes[0]).toMatchObject({
+      kind: 'group',
+      coordinateSpace: 'normalized-screen',
+    })
   })
 
   it('rejects unsupported schema identity and malformed minimum envelope fields with actionable paths', () => {

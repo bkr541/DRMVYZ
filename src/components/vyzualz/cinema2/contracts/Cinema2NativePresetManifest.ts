@@ -56,9 +56,23 @@ export type Cinema2Vector3 = readonly [number, number, number]
 export type Cinema2Vector4 = readonly [number, number, number, number]
 export type Cinema2Color = Cinema2Vector4
 
+/** Spatial vocabulary shared by all Cinema 2.0 scene nodes.
+ *
+ * - `screen`: positions are expressed in output pixels.
+ * - `normalized-screen`: positions are dimensionless normalized output coordinates.
+ * - `world`: positions are renderer-independent world units reserved for native 3D.
+ *
+ * Child nodes inherit their parent's space when omitted. Cross-space parent-child
+ * composition is invalid until an explicit conversion boundary exists.
+ */
+export type Cinema2CoordinateSpace = 'screen' | 'normalized-screen' | 'world'
+
 export interface Cinema2TransformManifest {
+  /** Position units are defined by the owning node's coordinate space. */
   position?: Cinema2Vector3
+  /** Euler rotation in radians, applied X then Y then Z. */
   rotation?: Cinema2Vector3
+  /** Unitless local scale. */
   scale?: Cinema2Vector3
 }
 
@@ -220,6 +234,8 @@ export interface Cinema2SceneNodeManifest {
   parent?: Cinema2SceneNodeRef
   module?: Cinema2ModuleRef
   media?: Cinema2MediaSlotRef
+  /** Root default is normalized-screen; children inherit the parent when omitted. */
+  coordinateSpace?: Cinema2CoordinateSpace
   transform?: Cinema2TransformManifest
   visible?: boolean
   config?: Cinema2JsonObject
@@ -232,14 +248,19 @@ export interface Cinema2SceneManifest {
 }
 
 export type Cinema2LayerBlendMode = 'normal' | 'add' | 'screen' | 'multiply'
+export type Cinema2LayerDepthPolicy = 'disabled' | 'read-only' | 'read-write'
 
 export interface Cinema2LayerManifest {
   id: Cinema2LayerId
   label: string
   source: Cinema2SceneNodeRef
-  enabled?: boolean
+  /** Optional semantic hint. Roles never define mandatory engine slots. */
+  role?: string
+  visible?: boolean
   opacity?: number
   blendMode?: Cinema2LayerBlendMode
+  /** Declarative depth metadata only; Stage 05 does not execute depth/framebuffer policy. */
+  depthPolicy?: Cinema2LayerDepthPolicy
   order?: number
   metadata?: Cinema2JsonObject
 }
@@ -252,6 +273,8 @@ export interface Cinema2CameraManifest {
   projection: Cinema2CameraProjection
   transform?: Cinema2TransformManifest
   target?: Cinema2Vector3
+  /** Optional scene-node target; mutually exclusive with authored target coordinates. */
+  targetNode?: Cinema2SceneNodeRef
   fovDegrees?: number
   near?: number
   far?: number
@@ -266,6 +289,8 @@ export interface Cinema2LightManifest {
   color?: Cinema2Color
   intensity?: number
   transform?: Cinema2TransformManifest
+  /** Optional scene-node target for directional/spot-style orientation consumers. */
+  targetNode?: Cinema2SceneNodeRef
   config?: Cinema2JsonObject
 }
 
@@ -542,10 +567,31 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * path until keeper presets are registered in a later stage. It intentionally
  * carries no creative preset behavior or future subsystem requirements.
  */
+const CINEMA2_FOUNDATION_ROOT_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('foundation-root')
+const CINEMA2_FOUNDATION_LAYER_ID = cinema2StableId<Cinema2LayerId>('foundation-layer')
+
 export const CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.foundation'),
   revision: 1,
   metadata: Object.freeze({ name: 'Cinema 2.0 Foundation' }),
+  scene: Object.freeze({
+    nodes: Object.freeze([{
+      id: CINEMA2_FOUNDATION_ROOT_NODE_ID,
+      kind: 'group' as const,
+      coordinateSpace: 'normalized-screen' as const,
+      visible: true,
+    }]),
+  }),
+  layers: Object.freeze([{
+    id: CINEMA2_FOUNDATION_LAYER_ID,
+    label: 'Foundation',
+    source: cinema2Ref(CINEMA2_FOUNDATION_ROOT_NODE_ID),
+    visible: true,
+    opacity: 1,
+    blendMode: 'normal' as const,
+    depthPolicy: 'disabled' as const,
+    order: 0,
+  }]),
 })

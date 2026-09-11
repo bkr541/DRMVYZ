@@ -5,6 +5,7 @@ import {
   type Cinema2AudioIntelligenceFrame,
 } from '../audio/Cinema2AudioIntelligenceBridge'
 import type { Cinema2CompiledPresetPlan } from '../presets/Cinema2PresetCompiler'
+import type { Cinema2CompiledSceneGraph } from '../scene/Cinema2SceneGraph'
 import {
   Cinema2ParameterState,
   type Cinema2SerializedParameterState,
@@ -351,6 +352,11 @@ export class Cinema2Runtime {
 
   getCompiledPresetPlan(): Readonly<Cinema2CompiledPresetPlan> {
     return this.compiledPresetPlan
+  }
+
+  /** Immutable renderer-independent Scene Graph compiled at preset activation. */
+  getSceneGraph(): Readonly<Cinema2CompiledSceneGraph> {
+    return this.compiledPresetPlan.scene
   }
 
   /** Canonical authored/user parameter state owned by this preset runtime. */

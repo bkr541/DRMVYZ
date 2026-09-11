@@ -25,7 +25,7 @@ import {
 import { useCinemaStore } from '../../cinema/CinemaStore'
 import { CinemaResizeObserverMock, createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
 import { getCinema2AudioIntelligenceBridgeDiagnostics } from '../audio/Cinema2AudioIntelligenceBridge'
-import { getCinema2RuntimeDiagnostics } from '../runtime/Cinema2Runtime'
+import { getCinema2RuntimeDiagnostics, type Cinema2Runtime } from '../runtime/Cinema2Runtime'
 
 let root: Root | null = null
 let host: HTMLDivElement | null = null
@@ -43,7 +43,7 @@ const productionFrameBridge = buildCinemaWorkspaceFrameBridge({
   musicIntelligence: DEFAULT_MI_FRAME,
 })
 
-function ProductionSiblingHarness() {
+function ProductionSiblingHarness({ onCinema2RuntimeReady }: { onCinema2RuntimeReady?: (runtime: Cinema2Runtime | null) => void } = {}) {
   const engineId = useReactStore(state => state.activeReactEngineId)
   return (
     <>
@@ -51,7 +51,7 @@ function ProductionSiblingHarness() {
       {engineId === 'cinema' ? (
         <CinemaWorkspace surface="stage" frameBridge={productionFrameBridge} />
       ) : engineId === 'cinema2' ? (
-        <Cinema2Stage />
+        <Cinema2Stage onRuntimeReady={onCinema2RuntimeReady} />
       ) : (
         <div data-production-engine={engineId} />
       )}
@@ -100,6 +100,7 @@ describe('Cinema 2.0 production sibling path', () => {
       callbacks.delete(id)
     }))
     const contexts = [] as ReturnType<typeof createCinemaMockWebGL>[]
+    let activeCinema2Runtime: Cinema2Runtime | null = null
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => {
       if (kind !== 'webgl2') return null
       const gl = createCinemaMockWebGL()
@@ -118,7 +119,7 @@ describe('Cinema 2.0 production sibling path', () => {
       toJSON: () => ({}),
     })
 
-    await act(async () => root?.render(<ProductionSiblingHarness />))
+    await act(async () => root?.render(<ProductionSiblingHarness onCinema2RuntimeReady={runtime => { activeCinema2Runtime = runtime }} />))
     expect(useReactStore.getState().activeReactEngineId).toBe('cinema')
     expect(host?.querySelector('[data-cinema-output-canvas="true"]')).not.toBeNull()
     expect(callbacks.size).toBe(1)
@@ -149,6 +150,22 @@ describe('Cinema 2.0 production sibling path', () => {
       nativePresetManifestValidationCount: initialDiagnostics.nativePresetManifestValidationCount + 1,
       nativePresetCompilationCount: initialDiagnostics.nativePresetCompilationCount + 1,
       targetResolverCreationCount: initialDiagnostics.targetResolverCreationCount + 1,
+    })
+    const productionScene = activeCinema2Runtime?.getSceneGraph()
+    expect(productionScene?.rootNodeIds).toEqual(['foundation-root'])
+    expect(productionScene?.traversalOrder).toEqual(['foundation-root'])
+    expect(productionScene?.layerOrder).toEqual(['foundation-layer'])
+    expect(productionScene?.nodes[0]).toMatchObject({
+      coordinateSpace: 'normalized-screen',
+      effectiveVisible: true,
+      layerIds: ['foundation-layer'],
+    })
+    expect(productionScene?.layers[0]).toMatchObject({
+      sourceNodeId: 'foundation-root',
+      visible: true,
+      opacity: 1,
+      blendMode: 'normal',
+      depthPolicy: 'disabled',
     })
 
     for (let pass = 0; pass < 12; pass += 1) {

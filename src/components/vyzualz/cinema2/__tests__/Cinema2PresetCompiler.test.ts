@@ -45,7 +45,14 @@ describe('Cinema 2.0 native preset compiler', () => {
       passOrder: [],
       outputPassId: null,
     })
-    expect(result.plan.scene).toEqual({ rootNodeIds: [], nodeIds: [], layerOrder: [] })
+    expect(result.plan.scene).toMatchObject({
+      rootNodeIds: [],
+      traversalOrder: [],
+      nodeIds: [],
+      nodes: [],
+      layerOrder: [],
+      layers: [],
+    })
     expect(result.plan.capabilities.availabilityResolved).toBe(false)
     expect(Object.isFrozen(result.plan)).toBe(true)
     expect(Object.isFrozen(result.plan.manifest)).toBe(true)

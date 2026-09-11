@@ -191,8 +191,8 @@ describe('Cinema 2.0 target registry and final value resolver', () => {
     const unknown = `${presetId}/target/module/missing/property/gain` as Cinema2TargetId
     expect(resolver.resolve(unknown).diagnostics[0]?.code).toBe('CINEMA2_TARGET_UNKNOWN')
 
-    const enabled = target(plan.targets, layerId, 'enabled')
-    const incompatible = resolver.resolve(enabled.id, [{ contributorId: 'bad', operation: 'add', value: 1 }])
+    const visible = target(plan.targets, layerId, 'visible')
+    const incompatible = resolver.resolve(visible.id, [{ contributorId: 'bad', operation: 'add', value: 1 }])
     expect(incompatible.ok).toBe(false)
     expect(incompatible.value).toBe(true)
     expect(incompatible.diagnostics[0]?.code).toBe('CINEMA2_TARGET_COMPOSITION_INCOMPATIBLE')

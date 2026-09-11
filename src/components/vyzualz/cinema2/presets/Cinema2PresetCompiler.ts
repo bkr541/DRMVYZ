@@ -27,8 +27,12 @@ import {
   compileCinema2TargetPlan,
   type Cinema2CompiledTargetPlan,
 } from '../parameters/Cinema2TargetRuntime'
+import {
+  compileCinema2SceneGraph,
+  type Cinema2CompiledSceneGraph,
+} from '../scene/Cinema2SceneGraph'
 
-export const CINEMA2_COMPILED_PRESET_PLAN_VERSION = 3 as const
+export const CINEMA2_COMPILED_PRESET_PLAN_VERSION = 4 as const
 
 export type Cinema2PresetDiagnosticSeverity = 'warning' | 'error'
 
@@ -65,11 +69,8 @@ export interface Cinema2CompiledRenderPlan {
   outputPassId: Cinema2RenderPassId | null
 }
 
-export interface Cinema2CompiledScenePlan {
-  rootNodeIds: readonly Cinema2SceneNodeId[]
-  nodeIds: readonly Cinema2SceneNodeId[]
-  layerOrder: readonly Cinema2LayerId[]
-}
+/** Backward-facing name for the native Stage 05 compiled scene view. */
+export type Cinema2CompiledScenePlan = Cinema2CompiledSceneGraph
 
 export interface Cinema2CompiledPresetPlan {
   version: typeof CINEMA2_COMPILED_PRESET_PLAN_VERSION
@@ -159,9 +160,10 @@ export function compileCinema2NativePreset(
   validateCapabilities(manifest, compileOptions, diagnostics)
   diagnostics.push(...validateCinema2ParameterDefinitions(manifest).map(diagnostic => ({ ...diagnostic, severity: 'error' as const })))
   validateReferencesAndCombinations(manifest, index, diagnostics)
-  validateSceneParentCycles(manifest, index, diagnostics)
+  const sceneCompilation = compileCinema2SceneGraph(manifest)
+  diagnostics.push(...sceneCompilation.diagnostics.map(diagnostic => ({ ...diagnostic, severity: 'error' as const })))
 
-  if (hasErrors(diagnostics)) {
+  if (hasErrors(diagnostics) || !sceneCompilation.ok) {
     return { ok: false, plan: null, diagnostics: freezeDiagnostics(diagnostics) }
   }
 
@@ -187,7 +189,7 @@ export function compileCinema2NativePreset(
     capabilities: compileCapabilityPlan(clonedManifest, compileOptions),
     parameters: parameterPlan,
     targets: targetCompilation.plan,
-    scene: compileScenePlan(clonedManifest),
+    scene: sceneCompilation.plan,
     render: renderPlan,
   }) as Readonly<Cinema2CompiledPresetPlan>
 
@@ -489,35 +491,6 @@ function validateReferencesAndCombinations(
     }
   }
 
-  for (const [nodeIndex, node] of readArray(manifest.scene?.nodes, '$.scene.nodes', diagnostics).entries()) {
-    const base = `$.scene.nodes[${nodeIndex}]`
-    if (node.parent != null) validateRef(node.parent, index.sceneNodes.ids, `${base}.parent`, 'scene node', diagnostics)
-    if (node.module != null) validateRef(node.module, index.modules.ids, `${base}.module`, 'module', diagnostics)
-    if (node.media != null) validateRef(node.media, index.mediaSlots.ids, `${base}.media`, 'media slot', diagnostics)
-
-    if (node.kind === 'module') {
-      if (node.module == null) diagnostics.push(error('CINEMA2_PRESET_COMBINATION_INVALID', 'A module scene node must reference a module.', `${base}.module`))
-      if (node.media != null) diagnostics.push(error('CINEMA2_PRESET_COMBINATION_INVALID', 'A module scene node cannot also reference media.', `${base}.media`))
-    } else if (node.kind === 'media') {
-      if (node.media == null) diagnostics.push(error('CINEMA2_PRESET_COMBINATION_INVALID', 'A media scene node must reference a media slot.', `${base}.media`))
-      if (node.module != null) diagnostics.push(error('CINEMA2_PRESET_COMBINATION_INVALID', 'A media scene node cannot also reference a module.', `${base}.module`))
-    } else if (node.kind === 'group' || node.kind === 'primitive') {
-      if (node.module != null || node.media != null) {
-        diagnostics.push(error('CINEMA2_PRESET_COMBINATION_INVALID', `${node.kind} scene nodes cannot reference modules or media slots.`, base))
-      }
-    } else {
-      diagnostics.push(error('CINEMA2_PRESET_COMBINATION_INVALID', `Unsupported scene node kind "${String(node.kind)}".`, `${base}.kind`))
-    }
-  }
-
-  for (const [rootIndex, ref] of readArray(manifest.scene?.roots, '$.scene.roots', diagnostics).entries()) {
-    validateRef(ref, index.sceneNodes.ids, `$.scene.roots[${rootIndex}]`, 'scene node', diagnostics)
-  }
-
-  for (const [layerIndex, layer] of readArray(manifest.layers, '$.layers', diagnostics).entries()) {
-    validateRef(layer.source, index.sceneNodes.ids, `$.layers[${layerIndex}].source`, 'scene node', diagnostics)
-  }
-
   for (const [cameraIndex, camera] of readArray(manifest.cameras, '$.cameras', diagnostics).entries()) {
     if (camera.projection !== 'perspective' && camera.projection !== 'orthographic') {
       diagnostics.push(error('CINEMA2_PRESET_COMBINATION_INVALID', `Unsupported camera projection "${String(camera.projection)}".`, `$.cameras[${cameraIndex}].projection`))
@@ -677,30 +650,6 @@ function validateRef(
   return value.$ref
 }
 
-function validateSceneParentCycles(
-  manifest: Cinema2NativePresetManifest,
-  index: ManifestIndex,
-  diagnostics: Cinema2PresetDiagnostic[],
-): void {
-  const parentById = new Map<string, string>()
-  for (const node of readArray(manifest.scene?.nodes, '$.scene.nodes', diagnostics)) {
-    const parentId = isPlainObject(node.parent) && typeof node.parent.$ref === 'string' ? node.parent.$ref : null
-    if (index.sceneNodes.ids.has(node.id) && parentId && index.sceneNodes.ids.has(parentId)) parentById.set(node.id, parentId)
-  }
-  for (const nodeId of index.sceneNodes.ids) {
-    const visited = new Set<string>()
-    let current: string | undefined = nodeId
-    while (current != null) {
-      if (visited.has(current)) {
-        diagnostics.push(error('CINEMA2_PRESET_SCENE_CYCLE', `Scene parent hierarchy contains a cycle involving "${current}".`, '$.scene.nodes'))
-        return
-      }
-      visited.add(current)
-      current = parentById.get(current)
-    }
-  }
-}
-
 function compileRenderPlan(
   manifest: Cinema2NativePresetManifest,
   index: ManifestIndex,
@@ -780,16 +729,6 @@ function compileRenderPlan(
     passOrder: order,
     outputPassId,
   })
-}
-
-function compileScenePlan(manifest: Readonly<Cinema2NativePresetManifest>): Cinema2CompiledScenePlan {
-  const nodeIds = (manifest.scene?.nodes ?? []).map(node => node.id)
-  const rootNodeIds = manifest.scene?.roots?.map(ref => ref.$ref)
-    ?? (manifest.scene?.nodes ?? []).filter(node => node.parent == null).map(node => node.id)
-  const layerOrder = [...(manifest.layers ?? [])]
-    .sort((left, right) => (left.order ?? 0) - (right.order ?? 0) || compareStrings(left.id, right.id))
-    .map(layer => layer.id)
-  return { rootNodeIds, nodeIds, layerOrder }
 }
 
 function readArray<T>(

@@ -220,7 +220,7 @@ export function compileCinema2TargetPlan(
 
   for (const layer of manifest.layers ?? []) {
     const entity = addEntity('layer', layer.id)
-    addTarget(entity, 'enabled', 'boolean', layer.enabled ?? true)
+    addTarget(entity, 'visible', 'boolean', layer.visible ?? true)
     addTarget(entity, 'opacity', 'number', layer.opacity ?? 1, { min: 0, max: 1 })
   }
 
