@@ -1,23 +1,24 @@
-export type Cinema2RenderTargetColorFormat = 'rgba8' | 'rgba16f' | 'rgba32f' | 'r8' | 'rg8'
-export type Cinema2RenderTargetDepthFormat = 'none' | 'depth16' | 'depth24'
-export type Cinema2RenderTargetFilter = 'linear' | 'nearest'
-export type Cinema2RenderTargetWrap = 'clamp' | 'repeat' | 'mirror'
-export type Cinema2RenderTargetOwnershipClass = 'transient' | 'persistent'
-export type Cinema2RenderTargetSurfaceLayout = 'single' | 'paired'
+import type {
+  Cinema2RenderTargetColorFormat,
+  Cinema2RenderTargetDepthFormat,
+  Cinema2RenderTargetDescriptor,
+  Cinema2RenderTargetFilter,
+  Cinema2RenderTargetOwnershipClass,
+  Cinema2RenderTargetSize,
+  Cinema2RenderTargetSurfaceLayout,
+  Cinema2RenderTargetWrap,
+} from '../contracts/Cinema2RenderTargets'
 
-export type Cinema2RenderTargetSize =
-  | Readonly<{ kind: 'viewport'; widthScale?: number; heightScale?: number }>
-  | Readonly<{ kind: 'fixed'; width: number; height: number }>
-
-export interface Cinema2RenderTargetDescriptor {
-  size: Cinema2RenderTargetSize
-  colorFormat: Cinema2RenderTargetColorFormat
-  depthFormat?: Cinema2RenderTargetDepthFormat
-  filter?: Cinema2RenderTargetFilter
-  wrap?: Cinema2RenderTargetWrap
-  /** A pair is only a storage primitive. History/ping-pong semantics belong to later render-graph stages. */
-  surfaceLayout?: Cinema2RenderTargetSurfaceLayout
-}
+export type {
+  Cinema2RenderTargetColorFormat,
+  Cinema2RenderTargetDepthFormat,
+  Cinema2RenderTargetDescriptor,
+  Cinema2RenderTargetFilter,
+  Cinema2RenderTargetOwnershipClass,
+  Cinema2RenderTargetSize,
+  Cinema2RenderTargetSurfaceLayout,
+  Cinema2RenderTargetWrap,
+} from '../contracts/Cinema2RenderTargets'
 
 export interface Cinema2RenderTargetLease {
   readonly leaseId: string

@@ -201,6 +201,18 @@ describe('Cinema 2.0 production sibling path', () => {
       })],
     })
     expect(activeCinema2RuntimeRef.current?.getModuleRenderPassProviders()).toHaveLength(1)
+    expect(activeCinema2RuntimeRef.current?.getRenderGraph()).toMatchObject({
+      version: 1,
+      intent: 'scene-output',
+      synthesized: true,
+      passOrder: ['auto-scene-output'],
+      outputPassId: 'auto-scene-output',
+      passes: [expect.objectContaining({
+        id: 'auto-scene-output',
+        kind: 'scene',
+        layers: [expect.objectContaining({ id: 'foundation-layer', index: 0 })],
+      })],
+    })
 
     const productionResourceManager = activeCinema2RuntimeRef.current?.getResourceManager()
     expect(productionResourceManager).toBeDefined()

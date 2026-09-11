@@ -31,8 +31,17 @@ import {
   compileCinema2SceneGraph,
   type Cinema2CompiledSceneGraph,
 } from '../scene/Cinema2SceneGraph'
+import {
+  compileCinema2RenderGraph,
+  type Cinema2CompiledRenderPlan,
+} from '../render/Cinema2RenderGraph'
 
-export const CINEMA2_COMPILED_PRESET_PLAN_VERSION = 4 as const
+export type {
+  Cinema2CompiledRenderIntent,
+  Cinema2CompiledRenderPlan,
+} from '../render/Cinema2RenderGraph'
+
+export const CINEMA2_COMPILED_PRESET_PLAN_VERSION = 5 as const
 
 export type Cinema2PresetDiagnosticSeverity = 'warning' | 'error'
 
@@ -58,15 +67,6 @@ export interface Cinema2CompiledCapabilityPlan {
   available: readonly Cinema2CapabilityId[]
   unavailableOptional: readonly Cinema2CapabilityId[]
   availabilityResolved: boolean
-}
-
-export type Cinema2CompiledRenderIntent = 'safe-clear' | 'scene-output' | 'authored-render-graph'
-
-export interface Cinema2CompiledRenderPlan {
-  intent: Cinema2CompiledRenderIntent
-  synthesized: boolean
-  passOrder: readonly Cinema2RenderPassId[]
-  outputPassId: Cinema2RenderPassId | null
 }
 
 /** Backward-facing name for the native Stage 05 compiled scene view. */
@@ -162,13 +162,10 @@ export function compileCinema2NativePreset(
   validateReferencesAndCombinations(manifest, index, diagnostics)
   const sceneCompilation = compileCinema2SceneGraph(manifest)
   diagnostics.push(...sceneCompilation.diagnostics.map(diagnostic => ({ ...diagnostic, severity: 'error' as const })))
+  const renderCompilation = compileCinema2RenderGraph(manifest)
+  diagnostics.push(...renderCompilation.diagnostics.map(diagnostic => ({ ...diagnostic, severity: 'error' as const })))
 
-  if (hasErrors(diagnostics) || !sceneCompilation.ok) {
-    return { ok: false, plan: null, diagnostics: freezeDiagnostics(diagnostics) }
-  }
-
-  const renderPlan = compileRenderPlan(manifest, index, diagnostics)
-  if (hasErrors(diagnostics)) {
+  if (hasErrors(diagnostics) || !sceneCompilation.ok || !renderCompilation.ok) {
     return { ok: false, plan: null, diagnostics: freezeDiagnostics(diagnostics) }
   }
 
@@ -190,7 +187,7 @@ export function compileCinema2NativePreset(
     parameters: parameterPlan,
     targets: targetCompilation.plan,
     scene: sceneCompilation.plan,
-    render: renderPlan,
+    render: renderCompilation.plan,
   }) as Readonly<Cinema2CompiledPresetPlan>
 
   return {
@@ -497,26 +494,6 @@ function validateReferencesAndCombinations(
     }
   }
 
-  for (const [passIndex, pass] of readArray(manifest.render?.passes, '$.render.passes', diagnostics).entries()) {
-    const base = `$.render.passes[${passIndex}]`
-    for (const [depIndex, ref] of readArray(pass.dependsOn, `${base}.dependsOn`, diagnostics).entries()) {
-      validateRef(ref, index.renderPasses.ids, `${base}.dependsOn[${depIndex}]`, 'render pass', diagnostics)
-    }
-    if (pass.scene != null) validateRef(pass.scene, index.sceneNodes.ids, `${base}.scene`, 'scene node', diagnostics)
-    for (const [layerIndex, ref] of readArray(pass.layers, `${base}.layers`, diagnostics).entries()) {
-      validateRef(ref, index.layers.ids, `${base}.layers[${layerIndex}]`, 'layer', diagnostics)
-    }
-    if (pass.effect != null) validateRef(pass.effect, index.effects.ids, `${base}.effect`, 'effect', diagnostics)
-    if (pass.kind === 'effect' && pass.effect == null) {
-      diagnostics.push(error('CINEMA2_PRESET_COMBINATION_INVALID', 'An effect render pass must reference an effect.', `${base}.effect`))
-    }
-    if (!['scene', 'effect', 'composite', 'output'].includes(String(pass.kind))) {
-      diagnostics.push(error('CINEMA2_PRESET_COMBINATION_INVALID', `Unsupported render pass kind "${String(pass.kind)}".`, `${base}.kind`))
-    }
-  }
-  if (manifest.render?.outputPass != null) {
-    validateRef(manifest.render.outputPass, index.renderPasses.ids, '$.render.outputPass', 'render pass', diagnostics)
-  }
 
   const lightTypes = new Set(['ambient', 'directional', 'point', 'spot'])
   for (const [lightIndex, light] of readArray(manifest.lighting?.lights, '$.lighting.lights', diagnostics).entries()) {
@@ -648,87 +625,6 @@ function validateRef(
     return null
   }
   return value.$ref
-}
-
-function compileRenderPlan(
-  manifest: Cinema2NativePresetManifest,
-  index: ManifestIndex,
-  diagnostics: Cinema2PresetDiagnostic[],
-): Cinema2CompiledRenderPlan {
-  const passes = manifest.render?.passes ?? []
-  if (manifest.render == null || passes.length === 0) {
-    const hasSceneIntent = (manifest.scene?.nodes.length ?? 0) > 0 || (manifest.layers?.length ?? 0) > 0
-    return deepFreeze({
-      intent: hasSceneIntent ? 'scene-output' : 'safe-clear',
-      synthesized: true,
-      passOrder: [],
-      outputPassId: null,
-    })
-  }
-
-  const byId = new Map<string, typeof passes[number]>()
-  for (const pass of passes) {
-    if (index.renderPasses.ids.has(pass.id)) byId.set(pass.id, pass)
-  }
-
-  const dependencies = new Map<string, Set<string>>()
-  const dependents = new Map<string, Set<string>>()
-  for (const id of index.renderPasses.ids) {
-    dependencies.set(id, new Set())
-    dependents.set(id, new Set())
-  }
-  for (const pass of passes) {
-    if (!index.renderPasses.ids.has(pass.id)) continue
-    for (const ref of pass.dependsOn ?? []) {
-      const dependency = isPlainObject(ref) && typeof ref.$ref === 'string' ? ref.$ref : null
-      if (!dependency || !index.renderPasses.ids.has(dependency)) continue
-      dependencies.get(pass.id)?.add(dependency)
-      dependents.get(dependency)?.add(pass.id)
-    }
-  }
-
-  const ready = [...index.renderPasses.ids].filter(id => (dependencies.get(id)?.size ?? 0) === 0).sort(compareStrings)
-  const order: Cinema2RenderPassId[] = []
-  while (ready.length > 0) {
-    const id = ready.shift() as Cinema2RenderPassId
-    order.push(id)
-    for (const dependent of [...(dependents.get(id) ?? [])].sort(compareStrings)) {
-      dependencies.get(dependent)?.delete(id)
-      if (dependencies.get(dependent)?.size === 0 && !order.includes(dependent as Cinema2RenderPassId) && !ready.includes(dependent)) {
-        ready.push(dependent)
-        ready.sort(compareStrings)
-      }
-    }
-  }
-  if (order.length !== index.renderPasses.ids.size) {
-    diagnostics.push(error('CINEMA2_PRESET_RENDER_CYCLE', 'Render pass dependency graph contains a cycle.', '$.render.passes'))
-  }
-
-  let outputPassId: Cinema2RenderPassId | null = null
-  const explicit = isPlainObject(manifest.render.outputPass) && typeof manifest.render.outputPass.$ref === 'string'
-    ? manifest.render.outputPass.$ref
-    : null
-  if (explicit && index.renderPasses.ids.has(explicit)) {
-    outputPassId = explicit as Cinema2RenderPassId
-  } else if (manifest.output?.renderPass && isPlainObject(manifest.output.renderPass) && typeof manifest.output.renderPass.$ref === 'string' && index.renderPasses.ids.has(manifest.output.renderPass.$ref)) {
-    outputPassId = manifest.output.renderPass.$ref as Cinema2RenderPassId
-  } else {
-    const authoredOutputs = passes.filter(pass => pass.kind === 'output' && index.renderPasses.ids.has(pass.id))
-    if (authoredOutputs.length === 1) outputPassId = authoredOutputs[0].id
-    else if (passes.length === 1 && index.renderPasses.ids.has(passes[0].id)) outputPassId = passes[0].id
-    else if (authoredOutputs.length > 1) {
-      diagnostics.push(error('CINEMA2_PRESET_RENDER_OUTPUT_AMBIGUOUS', 'Multiple output render passes exist; author render.outputPass explicitly.', '$.render.outputPass'))
-    } else {
-      diagnostics.push(error('CINEMA2_PRESET_RENDER_OUTPUT_MISSING', 'Authored render graph needs a deterministic output pass.', '$.render.outputPass'))
-    }
-  }
-
-  return deepFreeze({
-    intent: 'authored-render-graph' as const,
-    synthesized: false,
-    passOrder: order,
-    outputPassId,
-  })
 }
 
 function readArray<T>(

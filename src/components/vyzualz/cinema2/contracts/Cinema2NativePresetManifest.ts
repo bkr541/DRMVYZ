@@ -1,3 +1,5 @@
+import type { Cinema2RenderTargetDescriptor, Cinema2RenderTargetOwnershipClass } from './Cinema2RenderTargets'
+
 /**
  * Native authored preset contract for the Cinema 2.0 sibling engine.
  *
@@ -25,6 +27,8 @@ export type Cinema2LayerId = Cinema2StableId<'layer'>
 export type Cinema2CameraId = Cinema2StableId<'camera'>
 export type Cinema2LightId = Cinema2StableId<'light'>
 export type Cinema2RenderPassId = Cinema2StableId<'render-pass'>
+export type Cinema2RenderTargetId = Cinema2StableId<'render-target'>
+export type Cinema2RenderSlotId = Cinema2StableId<'render-slot'>
 export type Cinema2EffectId = Cinema2StableId<'effect'>
 export type Cinema2EffectTypeId = Cinema2StableId<'effect-type'>
 export type Cinema2ChoreographyRuleId = Cinema2StableId<'choreography-rule'>
@@ -44,6 +48,7 @@ export type Cinema2LayerRef = Cinema2Reference<'layer'>
 export type Cinema2CameraRef = Cinema2Reference<'camera'>
 export type Cinema2LightRef = Cinema2Reference<'light'>
 export type Cinema2RenderPassRef = Cinema2Reference<'render-pass'>
+export type Cinema2RenderTargetRef = Cinema2Reference<'render-target'>
 export type Cinema2EffectRef = Cinema2Reference<'effect'>
 export type Cinema2VariationRef = Cinema2Reference<'variation'>
 
@@ -314,24 +319,60 @@ export interface Cinema2EnvironmentManifest {
   config?: Cinema2JsonObject
 }
 
-export type Cinema2RenderPassKind = 'scene' | 'effect' | 'composite' | 'output'
+export type Cinema2RenderPassKind = 'module' | 'scene' | 'fullscreen' | 'composite' | 'output'
+export type Cinema2RenderAttachment = 'color' | 'depth'
+export type Cinema2RenderQualityLevel = 'low' | 'medium' | 'high'
+
+export interface Cinema2RenderQualityGateManifest {
+  min?: Cinema2RenderQualityLevel
+  max?: Cinema2RenderQualityLevel
+}
+
+export interface Cinema2RenderTargetManifest {
+  id: Cinema2RenderTargetId
+  descriptor: Cinema2RenderTargetDescriptor
+  ownership?: Cinema2RenderTargetOwnershipClass
+}
+
+export interface Cinema2RenderPassInputManifest {
+  id: Cinema2RenderSlotId
+  source: {
+    pass: Cinema2RenderPassRef
+    output: Cinema2RenderSlotId
+  }
+  attachment?: Cinema2RenderAttachment
+  optional?: boolean
+}
+
+export interface Cinema2RenderPassOutputManifest {
+  id: Cinema2RenderSlotId
+  target?: Cinema2RenderTargetRef
+  attachment?: Cinema2RenderAttachment
+}
 
 export interface Cinema2RenderPassManifest {
   id: Cinema2RenderPassId
   kind: Cinema2RenderPassKind
   dependsOn?: readonly Cinema2RenderPassRef[]
+  inputs?: readonly Cinema2RenderPassInputManifest[]
+  outputs?: readonly Cinema2RenderPassOutputManifest[]
+  module?: Cinema2ModuleRef
   scene?: Cinema2SceneNodeRef
   layers?: readonly Cinema2LayerRef[]
+  /** Effect-ready extension point. Fullscreen effect execution is implemented in a later stage. */
   effect?: Cinema2EffectRef
+  enabledWhen?: readonly Cinema2ParameterConditionManifest[]
+  quality?: Cinema2RenderQualityGateManifest
   config?: Cinema2JsonObject
 }
 
 /**
  * Render Graph: authored frame-production topology only. It is intentionally
  * separate from Cinema2SceneManifest. A preset may omit this entire object and
- * let a future compiler synthesize the trivial topology.
+ * let the compiler synthesize one deterministic pass.
  */
 export interface Cinema2RenderManifest {
+  targets?: readonly Cinema2RenderTargetManifest[]
   passes: readonly Cinema2RenderPassManifest[]
   outputPass?: Cinema2RenderPassRef
   config?: Cinema2JsonObject

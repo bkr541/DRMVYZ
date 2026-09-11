@@ -7,8 +7,13 @@ import {
   Cinema2PresetRegistry,
   Cinema2Runtime,
   cinema2NamespacedId,
+  cinema2Ref,
+  cinema2StableId,
   getCinema2RuntimeDiagnostics,
   type Cinema2NativePresetManifest,
+  type Cinema2RenderPassId,
+  type Cinema2RenderSlotId,
+  type Cinema2SceneNodeId,
   type Cinema2PresetId,
 } from '..'
 
@@ -119,6 +124,49 @@ describe('Cinema2Runtime sibling foundation', () => {
       activeEventListenerCount: before.activeEventListenerCount,
       activeWebGLContextCount: before.activeWebGLContextCount,
     })
+  })
+
+  it('reaches the compiled render graph through registry activation and the real runtime creation path', () => {
+    const registry = new Cinema2PresetRegistry()
+    const presetId = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.render-production-path')
+    const nodeId = cinema2StableId<Cinema2SceneNodeId>('render-node')
+    const scenePassId = cinema2StableId<Cinema2RenderPassId>('scene-pass')
+    const outputPassId = cinema2StableId<Cinema2RenderPassId>('output-pass')
+    const colorOutputId = cinema2StableId<Cinema2RenderSlotId>('color-output')
+    const colorInputId = cinema2StableId<Cinema2RenderSlotId>('color-input')
+    const manifest: Cinema2NativePresetManifest = {
+      schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
+      schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
+      id: presetId,
+      revision: 1,
+      metadata: { name: 'Render Production Path' },
+      scene: { nodes: [{ id: nodeId, kind: 'primitive' }] },
+      render: {
+        passes: [
+          { id: scenePassId, kind: 'scene', scene: cinema2Ref(nodeId), outputs: [{ id: colorOutputId }] },
+          { id: outputPassId, kind: 'output', inputs: [{ id: colorInputId, source: { pass: cinema2Ref(scenePassId), output: colorOutputId } }] },
+        ],
+      },
+    }
+    expect(registry.register(manifest).ok).toBe(true)
+    const raf = createRafHarness()
+    const canvas = new FakeCanvas(createMockWebGL())
+    const result = Cinema2Runtime.create(canvas as unknown as HTMLCanvasElement, {
+      presetId,
+      presetRegistry: registry,
+      requestAnimationFrame: raf.requestAnimationFrame,
+      cancelAnimationFrame: raf.cancelAnimationFrame,
+    })
+    if (!result.runtime) throw new Error(result.error)
+
+    expect(result.runtime.getRenderGraph()).toMatchObject({
+      version: 1,
+      synthesized: false,
+      passOrder: [scenePassId, outputPassId],
+      outputPassId,
+    })
+    expect(Object.isFrozen(result.runtime.getRenderGraph())).toBe(true)
+    result.runtime.dispose()
   })
 
   it('keeps exactly one scheduled animation frame across repeated start calls and frame execution', () => {

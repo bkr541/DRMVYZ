@@ -39,12 +39,15 @@ describe('Cinema 2.0 native preset compiler', () => {
 
     expect(result.ok).toBe(true)
     if (!result.ok) throw new Error('Expected compile success')
-    expect(result.plan.render).toEqual({
+    expect(result.plan.render).toMatchObject({
+      version: 1,
       intent: 'safe-clear',
       synthesized: true,
-      passOrder: [],
-      outputPassId: null,
+      passOrder: ['auto-safe-clear'],
+      outputPassId: 'auto-safe-clear',
+      targets: [],
     })
+    expect(result.plan.render.passes).toHaveLength(1)
     expect(result.plan.scene).toMatchObject({
       rootNodeIds: [],
       traversalOrder: [],
@@ -135,7 +138,7 @@ describe('Cinema 2.0 native preset compiler', () => {
       render: {
         passes: [{
           id: passId,
-          kind: 'effect',
+          kind: 'fullscreen',
           layers: [cinema2Ref(missingLayer)],
           effect: cinema2Ref(missingEffect),
         }],
@@ -161,7 +164,9 @@ describe('Cinema 2.0 native preset compiler', () => {
     })
 
     expect(result.ok).toBe(false)
-    const missingDiagnostics = result.diagnostics.filter(diagnostic => diagnostic.code === 'CINEMA2_PRESET_REFERENCE_MISSING')
+    const missingDiagnostics = result.diagnostics.filter(diagnostic =>
+      diagnostic.code === 'CINEMA2_PRESET_REFERENCE_MISSING' || diagnostic.code === 'CINEMA2_RENDER_REFERENCE_MISSING',
+    )
     expect(missingDiagnostics.length).toBeGreaterThanOrEqual(8)
     expect(missingDiagnostics.map(diagnostic => diagnostic.path)).toEqual(expect.arrayContaining([
       '$.modules[0].media.source',
@@ -268,12 +273,14 @@ describe('Cinema 2.0 native preset compiler', () => {
     expect(first.ok).toBe(true)
     expect(second.ok).toBe(true)
     if (!first.ok || !second.ok) throw new Error('Expected compile success')
-    expect(first.plan.render).toEqual({
+    expect(first.plan.render).toMatchObject({
+      version: 1,
       intent: 'authored-render-graph',
       synthesized: false,
       passOrder: [scenePassId, outputPassId],
       outputPassId,
     })
+    expect(first.plan.render.passes.map(pass => pass.id)).toEqual([scenePassId, outputPassId])
     expect(JSON.stringify(first.plan)).toBe(JSON.stringify(second.plan))
   })
 

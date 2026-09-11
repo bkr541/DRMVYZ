@@ -75,9 +75,19 @@ export {
   type Cinema2PresetId,
   type Cinema2PresetMetadataManifest,
   type Cinema2Reference,
+  type Cinema2RenderAttachment,
   type Cinema2RenderManifest,
   type Cinema2RenderPassId,
+  type Cinema2RenderPassInputManifest,
+  type Cinema2RenderPassKind,
   type Cinema2RenderPassManifest,
+  type Cinema2RenderPassOutputManifest,
+  type Cinema2RenderQualityGateManifest,
+  type Cinema2RenderQualityLevel,
+  type Cinema2RenderSlotId,
+  type Cinema2RenderTargetId,
+  type Cinema2RenderTargetManifest,
+  type Cinema2RenderTargetRef,
   type Cinema2SceneManifest,
   type Cinema2SceneNodeId,
   type Cinema2SceneNodeManifest,
@@ -154,22 +164,41 @@ export {
 } from './runtime/Cinema2Runtime'
 
 export {
-  Cinema2ResourceManager,
-  type Cinema2RenderTargetBinding,
+  validateCinema2RenderTargetDescriptor,
   type Cinema2RenderTargetColorFormat,
   type Cinema2RenderTargetDepthFormat,
   type Cinema2RenderTargetDescriptor,
+  type Cinema2RenderTargetDescriptorDiagnostic,
   type Cinema2RenderTargetFilter,
-  type Cinema2RenderTargetLease,
   type Cinema2RenderTargetOwnershipClass,
   type Cinema2RenderTargetSize,
   type Cinema2RenderTargetSurfaceLayout,
   type Cinema2RenderTargetWrap,
+} from './contracts/Cinema2RenderTargets'
+
+export {
+  Cinema2ResourceManager,
+  type Cinema2RenderTargetBinding,
+  type Cinema2RenderTargetLease,
   type Cinema2ResourceManagerOptions,
   type Cinema2ResourceManagerSnapshot,
   type Cinema2ResourceViewport,
 } from './runtime/Cinema2ResourceManager'
 
+
+export {
+  CINEMA2_RENDER_GRAPH_PLAN_VERSION,
+  compileCinema2RenderGraph,
+  type Cinema2CompiledEntityHandle,
+  type Cinema2CompiledRenderInput,
+  type Cinema2CompiledRenderIntent,
+  type Cinema2CompiledRenderOutput,
+  type Cinema2CompiledRenderPass,
+  type Cinema2CompiledRenderPlan,
+  type Cinema2CompiledRenderTargetHandle,
+  type Cinema2RenderGraphCompilationResult,
+  type Cinema2RenderGraphDiagnostic,
+} from './render/Cinema2RenderGraph'
 
 export {
   CINEMA2_SCENE_GRAPH_PLAN_VERSION,
@@ -188,8 +217,6 @@ export {
   compileCinema2NativePreset,
   type Cinema2CompiledCapabilityPlan,
   type Cinema2CompiledPresetPlan,
-  type Cinema2CompiledRenderIntent,
-  type Cinema2CompiledRenderPlan,
   type Cinema2CompiledScenePlan,
   type Cinema2PresetCompilationResult,
   type Cinema2PresetCompileOptions,
