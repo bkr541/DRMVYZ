@@ -1,4 +1,8 @@
 import {
+  CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST,
+  validateCinema2NativePresetManifestIdentity,
+} from '../contracts/Cinema2NativePresetManifest'
+import {
   registerDrmvyzWebGLContext,
   retireDrmvyzWebGLContext,
   type WebGLContextDiagnosticHandle,
@@ -40,6 +44,7 @@ export interface Cinema2RuntimeDiagnostics {
   activeAnimationFrameCount: number
   activeEventListenerCount: number
   activeWebGLContextCount: number
+  nativePresetManifestValidationCount: number
 }
 
 export interface Cinema2RuntimeCreateOptions {
@@ -59,6 +64,7 @@ const diagnostics: Cinema2RuntimeDiagnostics = {
   activeAnimationFrameCount: 0,
   activeEventListenerCount: 0,
   activeWebGLContextCount: 0,
+  nativePresetManifestValidationCount: 0,
 }
 
 const EMPTY_VIEWPORT: Cinema2Viewport = { width: 1, height: 1, dpr: 1 }
@@ -108,6 +114,13 @@ export class Cinema2Runtime {
     canvas: HTMLCanvasElement,
     options: Cinema2RuntimeCreateOptions = {},
   ): Cinema2RuntimeCreateResult {
+    diagnostics.nativePresetManifestValidationCount += 1
+    const contractValidation = validateCinema2NativePresetManifestIdentity(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST)
+    if (!contractValidation.ok) {
+      const message = `Cinema 2.0 native preset contract is invalid: ${contractValidation.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`
+      return { runtime: null, error: message, snapshot: unavailableSnapshot(message) }
+    }
+
     let gl: WebGL2RenderingContext | null = null
     try {
       gl = canvas.getContext('webgl2', {

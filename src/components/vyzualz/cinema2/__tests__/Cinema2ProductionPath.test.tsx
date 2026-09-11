@@ -84,6 +84,7 @@ afterEach(async () => {
 
 describe('Cinema 2.0 production sibling path', () => {
   it('enters through the real engine selector and survives 24 Cinema 1 <-> Cinema 2.0 switches without resource growth', async () => {
+    const initialManifestValidationCount = getCinema2RuntimeDiagnostics().nativePresetManifestValidationCount
     const callbacks = new Map<number, FrameRequestCallback>()
     let nextRaf = 1
     vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
@@ -140,6 +141,7 @@ describe('Cinema 2.0 production sibling path', () => {
       activeAnimationFrameCount: 1,
       activeEventListenerCount: 2,
       activeWebGLContextCount: 1,
+      nativePresetManifestValidationCount: initialManifestValidationCount + 1,
     })
 
     for (let pass = 0; pass < 12; pass += 1) {
