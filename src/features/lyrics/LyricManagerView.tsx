@@ -46,7 +46,7 @@ import { LyricRecoveryDialog } from './components/LyricRecoveryDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import { RailTabs, type RailTabOption } from '../../components/vyzualz/layout/RailTabs'
-import { Add01Icon, AudioWave02Icon, File02Icon, SubtitleIcon } from 'hugeicons-react'
+import { Add01Icon, AudioWave02Icon, File02Icon, FileAddIcon, FileImportIcon, SubtitleIcon } from 'hugeicons-react'
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
@@ -2105,6 +2105,20 @@ export function LyricManagerView({
             <div className="lmv-rail-title">
               <SubtitleIcon size={15} color="currentColor" aria-hidden="true" />
               <span>Lyric Management</span>
+              <IconChipButton
+                className="lmv-rail-title-action"
+                icon={<FileAddIcon size={14} color="currentColor" />}
+                onClick={handleNewDocument}
+                title="New version"
+                aria-label="New lyric version"
+              />
+              <IconChipButton
+                className="lmv-rail-title-action"
+                icon={<FileImportIcon size={14} color="currentColor" />}
+                onClick={handleImportDocument}
+                title="Import version"
+                aria-label="Import lyric version"
+              />
             </div>
 
           <LyricDocumentSidebar
@@ -2114,12 +2128,10 @@ export function LyricManagerView({
             openDocumentId={editorDocumentId}
             hasSelectedTrack={!!selectedTrack}
             onSelectDocument={handleSelectDocument}
-            onNewDocument={handleNewDocument}
             onDuplicateDocument={handleDuplicateDocument}
             onRenameDocument={handleRenameDocument}
             onActivateDocument={handleActivateDocument}
             onDeleteDocument={handleRequestDelete}
-            onImportDocument={handleImportDocument}
           />
           </section>
           )}

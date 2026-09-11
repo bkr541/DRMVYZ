@@ -177,35 +177,6 @@
 
 .lmv-doc-new-btn { width: 100%; justify-content: center; font-size: 11px; }
 
-.lmv-doc-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 8px 12px;
-  border-bottom: 1px solid rgba(154,178,188,0.08);
-}
-.lmv-filter-chip {
-  padding: 3px 8px;
-  border-radius: 20px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  color: rgba(196,207,211,0.5);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.lmv-filter-chip--active {
-  background: rgba(74,199,219,0.12);
-  border-color: rgba(74,199,219,0.4);
-  color: var(--az-cyan, #4ac7db);
-}
-.lmv-filter-chip:hover:not(.lmv-filter-chip--active) {
-  color: rgba(196,207,211,0.8);
-  border-color: rgba(255,255,255,0.15);
-}
-
 .lmv-doc-list {
   flex: 1;
   overflow-y: auto;
@@ -876,7 +847,6 @@
 .lmv-track-lyrics-row,
 .lmv-track-control-strip,
 .lmv-track-identity-status,
-.lmv-doc-primary-actions,
 .lmv-doc-rename-row,
 .lmv-doc-actions,
 .lmv-dialog-actions,
@@ -904,7 +874,6 @@
 .lmv-track-identity-status { flex: 1; flex-wrap: wrap; color: rgba(196,207,211,0.42); font-size: 9px; }
 .lmv-track-identity-status span { border-right: 1px solid rgba(255,255,255,0.08); padding-right: 7px; }
 
-.lmv-doc-primary-actions > .lmv-btn { flex: 1; justify-content: center; }
 .lmv-doc-card { cursor: default; }
 .lmv-doc-card-main { width: 100%; background: none; border: 0; color: inherit; text-align: left; padding: 0; cursor: pointer; }
 .lmv-doc-card-main:focus-visible { outline: 1px solid #4ac7db; outline-offset: 2px; }
@@ -1792,15 +1761,6 @@
    ungrouped. */
 .lmv-doc-sidebar > .drc-group {
   flex-shrink: 0;
-}
-
-.lmv-doc-primary-actions {
-  margin-top: 10px;
-}
-
-.lmv-doc-filters {
-  padding: 10px 0 8px;
-  border-bottom-color: rgba(126,218,232,0.09);
 }
 
 .lmv-doc-list {
@@ -2816,6 +2776,41 @@
 
 .lmv-track-search-row .lmv-track-search.dv-text-input {
   padding-left: 24px !important;
+}
+
+/* Lyric Versions search + filter row: same "search grows, filter dropdown sits
+   flush-right" treatment as Track Library's .lmv-track-search-row, styled
+   exactly like that dropdown (same width, dense size, trigger height pinned
+   to the search input's own height so both underlines land on one line). */
+.lmv-doc-filter-dropdown {
+  width: 142px;
+  max-width: min(142px, 42vw);
+}
+
+.lmv-doc-search-row .lmv-doc-filter-dropdown .drm-dropdown__trigger {
+  min-height: 32px !important;
+}
+
+.lmv-doc-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.lmv-doc-search-row .lmv-doc-search-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.lmv-doc-search-row .lmv-doc-search {
+  margin: 0;
+}
+
+.lmv-doc-search-row .lmv-doc-filter-dropdown {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 /* ── Lyric Manager layout mockup: Stage 1 left rail ---------------------

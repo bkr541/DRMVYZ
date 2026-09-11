@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
-import { AudioWave02Icon, GridViewIcon, ListViewIcon, PauseIcon, PlayIcon, SubtitleIcon } from 'hugeicons-react'
+import { AudioWave02Icon, FileAddIcon, FileImportIcon, GridViewIcon, ListViewIcon, PauseIcon, PlayIcon, SubtitleIcon } from 'hugeicons-react'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { RailTabs } from '../layout/RailTabs'
 import { AudioTrackCard } from '../media/AudioTrackCard'
@@ -512,6 +512,20 @@ export function LyricManagerLayoutMockup() {
                   <div className="lmv-mockup-rail-title">
                     <SubtitleIcon size={15} color="currentColor" aria-hidden="true" />
                     <span>Lyric Management</span>
+                    <IconChipButton
+                      className="lmv-rail-title-action"
+                      icon={<FileAddIcon size={14} color="currentColor" />}
+                      onClick={handleNewDocument}
+                      title="New version"
+                      aria-label="New lyric version"
+                    />
+                    <IconChipButton
+                      className="lmv-rail-title-action"
+                      icon={<FileImportIcon size={14} color="currentColor" />}
+                      onClick={() => setWorkspaceTab('import')}
+                      title="Import version"
+                      aria-label="Import lyric version"
+                    />
                   </div>
 
                   <LyricDocumentSidebar
@@ -521,12 +535,10 @@ export function LyricManagerLayoutMockup() {
                     hasSelectedTrack
                     actionsVisibleForOpenDocumentOnly
                     onSelectDocument={document => setOpenDocumentId(document.id)}
-                    onNewDocument={handleNewDocument}
                     onDuplicateDocument={handleDuplicateDocument}
                     onRenameDocument={handleRenameDocument}
                     onActivateDocument={handleActivateDocument}
                     onDeleteDocument={handleDeleteDocument}
-                    onImportDocument={() => setWorkspaceTab('import')}
                   />
                 </section>
               )}

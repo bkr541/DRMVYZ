@@ -1,6 +1,6 @@
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
-import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
+import { UnderlineDropdown } from '../../../components/vyzualz/react/controls/UnderlineDropdown'
 import { useEffect, useState } from 'react'
 import type { LyricDocumentVersion } from '../lyricManagerTypes'
 
@@ -13,12 +13,10 @@ interface Props {
   openDocumentId: string | null
   hasSelectedTrack: boolean
   onSelectDocument: (doc: LyricDocumentVersion) => void
-  onNewDocument: () => void
   onDuplicateDocument: (doc: LyricDocumentVersion) => void
   onRenameDocument: (doc: LyricDocumentVersion, title: string) => void
   onActivateDocument: (doc: LyricDocumentVersion) => void
   onDeleteDocument: (doc: LyricDocumentVersion) => void
-  onImportDocument: () => void
   /** Optional mockup/layout behavior: keep version actions collapsed until the version is open. */
   actionsVisibleForOpenDocumentOnly?: boolean
 }
@@ -157,12 +155,10 @@ export function LyricDocumentSidebar({
   openDocumentId,
   hasSelectedTrack,
   onSelectDocument,
-  onNewDocument,
   onDuplicateDocument,
   onRenameDocument,
   onActivateDocument,
   onDeleteDocument,
-  onImportDocument,
   actionsVisibleForOpenDocumentOnly = false,
 }: Props) {
   const [search, setSearch] = useState('')
@@ -197,31 +193,29 @@ export function LyricDocumentSidebar({
   return (
     <aside className="lmv-doc-sidebar">
       <Collapsible label="Lyric Versions" defaultOpen bodyClassName="lmv-lyric-versions-body">
-        <div className="lmv-doc-search-wrap">
-          <DreamVizTextInput
-            className="lmv-doc-search"
-            placeholder="Search versions…"
-            aria-label="Search lyric versions"
-            value={search}
-            onChange={event => setSearch(event.target.value)}
+        <div className="lmv-doc-search-row">
+          <div className="lmv-doc-search-wrap">
+            <DreamVizTextInput
+              className="lmv-doc-search"
+              placeholder="Search versions…"
+              aria-label="Search lyric versions"
+              value={search}
+              onChange={event => setSearch(event.target.value)}
+            />
+          </div>
+          <UnderlineDropdown
+            id="lyric-version-filter"
+            value={filter}
+            options={FILTERS.map(item => ({ value: item.id, label: item.label }))}
+            onChange={value => setFilter(value as DocFilter)}
+            ariaLabel={`Filter versions: ${FILTERS.find(item => item.id === filter)?.label ?? 'All'}`}
+            menuLabel="Lyric Version Filters"
+            title={`Filter versions: ${FILTERS.find(item => item.id === filter)?.label ?? 'All'}`}
+            size="dense"
+            menuWidth={180}
+            showDescriptions={false}
+            className="lmv-doc-filter-dropdown"
           />
-        </div>
-        <div className="lmv-doc-primary-actions">
-          <IconChipButton onClick={onNewDocument} disabled={!hasSelectedTrack}>+ New Version</IconChipButton>
-          <IconChipButton onClick={onImportDocument} disabled={!hasSelectedTrack}>Import</IconChipButton>
-        </div>
-
-        <div className="lmv-doc-filters">
-          {FILTERS.map(item => (
-            <button
-              key={item.id}
-              className={`lmv-filter-chip${filter === item.id ? ' lmv-filter-chip--active' : ''}`}
-              onClick={() => setFilter(item.id)}
-              aria-pressed={filter === item.id}
-            >
-              {item.label}
-            </button>
-          ))}
         </div>
       </Collapsible>
 
