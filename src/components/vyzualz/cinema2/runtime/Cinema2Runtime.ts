@@ -1,4 +1,9 @@
-import type { Cinema2PresetId } from '../contracts/Cinema2NativePresetManifest'
+import type { Cinema2CapabilityId, Cinema2PresetId } from '../contracts/Cinema2NativePresetManifest'
+import {
+  CINEMA2_AUDIO_INTELLIGENCE_RUNTIME_CAPABILITIES,
+  Cinema2AudioIntelligenceBridge,
+  type Cinema2AudioIntelligenceFrame,
+} from '../audio/Cinema2AudioIntelligenceBridge'
 import type { Cinema2CompiledPresetPlan } from '../presets/Cinema2PresetCompiler'
 import {
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
@@ -57,6 +62,7 @@ export interface Cinema2RuntimeCreateOptions {
   onSnapshot?: (snapshot: Cinema2RuntimeSnapshot) => void
   presetId?: Cinema2PresetId
   presetRegistry?: Cinema2PresetRegistry
+  audioIntelligenceBridge?: Cinema2AudioIntelligenceBridge
 }
 
 export type Cinema2RuntimeCreateResult =
@@ -75,6 +81,10 @@ const diagnostics: Cinema2RuntimeDiagnostics = {
 }
 
 const EMPTY_VIEWPORT: Cinema2Viewport = { width: 1, height: 1, dpr: 1 }
+const CINEMA2_RUNTIME_AVAILABLE_CAPABILITIES = Object.freeze([
+  'render.webgl2',
+  ...CINEMA2_AUDIO_INTELLIGENCE_RUNTIME_CAPABILITIES,
+] satisfies readonly Cinema2CapabilityId[])
 
 function unavailableSnapshot(message: string): Cinema2RuntimeSnapshot {
   return {
@@ -112,9 +122,10 @@ export function getCinema2RuntimeDiagnostics(): Readonly<Cinema2RuntimeDiagnosti
  * Minimal native Cinema 2.0 runtime foundation.
  *
  * This runtime deliberately owns only lifecycle, one WebGL2 context, one RAF
- * loop, a deterministic safe frame, resize state and context recovery. Native
- * preset registration/compilation now gates activation; render-graph execution,
- * audio intelligence and creative modules remain later Cinema 2.0 stages.
+ * loop, a deterministic safe frame, resize state, context recovery and the
+ * canonical read-only Audio Intelligence bridge. Native preset registration/
+ * compilation gates activation; render-graph execution and creative modules
+ * remain later Cinema 2.0 stages.
  */
 export class Cinema2Runtime {
   static create(
@@ -126,7 +137,7 @@ export class Cinema2Runtime {
     const presetRegistry = options.presetRegistry ?? cinema2NativePresetRegistry
     const presetId = options.presetId ?? CINEMA2_RUNTIME_FOUNDATION_PRESET_ID
     const compilation = presetRegistry.compile(presetId, {
-      availableCapabilities: ['render.webgl2'],
+      availableCapabilities: CINEMA2_RUNTIME_AVAILABLE_CAPABILITIES,
     })
     if (!compilation.ok) {
       const message = `Cinema 2.0 preset activation was rejected before runtime setup: ${compilation.diagnostics.map(diagnostic => `${diagnostic.path}: ${diagnostic.message}`).join('; ')}`
@@ -173,6 +184,7 @@ export class Cinema2Runtime {
   private readonly contextHandle: WebGLContextDiagnosticHandle | null
   private readonly onContextLostHandler: (event: Event) => void
   private readonly onContextRestoredHandler: () => void
+  private readonly audioIntelligenceBridge: Cinema2AudioIntelligenceBridge
 
   private phase: Cinema2RuntimePhase = 'initializing'
   private viewport: Cinema2Viewport = { ...EMPTY_VIEWPORT }
@@ -184,6 +196,7 @@ export class Cinema2Runtime {
   private suspended = false
   private contextLost = false
   private disposed = false
+  private audioIntelligenceFrame: Readonly<Cinema2AudioIntelligenceFrame> | null = null
   private listenersAttached = false
   private contextOwned = false
 
@@ -196,6 +209,7 @@ export class Cinema2Runtime {
     this.requestFrame = options.requestAnimationFrame ?? (callback => window.requestAnimationFrame(callback))
     this.cancelFrame = options.cancelAnimationFrame ?? (handle => window.cancelAnimationFrame(handle))
     this.onSnapshot = options.onSnapshot ?? null
+    this.audioIntelligenceBridge = options.audioIntelligenceBridge ?? new Cinema2AudioIntelligenceBridge()
     this.contextHandle = registerDrmvyzWebGLContext(gl, {
       lifetime: 'live-reusable',
       role: 'react-live-canvas',
@@ -309,6 +323,11 @@ export class Cinema2Runtime {
     return this.compiledPresetPlan
   }
 
+  /** Most recent immutable Audio Intelligence snapshot captured for a visual frame. */
+  getAudioIntelligenceFrame(): Readonly<Cinema2AudioIntelligenceFrame> | null {
+    return this.audioIntelligenceFrame
+  }
+
   getSnapshot(): Cinema2RuntimeSnapshot {
     return {
       phase: this.phase,
@@ -384,8 +403,10 @@ export class Cinema2Runtime {
     if (this.disposed || !this.runningRequested || this.suspended || this.contextLost || this.phase === 'unavailable') return
 
     try {
+      const visualFrameId = this.frameCount + 1
+      this.audioIntelligenceFrame = this.audioIntelligenceBridge.capture(visualFrameId)
       this.renderSafeFrame()
-      this.frameCount += 1
+      this.frameCount = visualFrameId
     } catch (error) {
       this.runningRequested = false
       this.phase = 'unavailable'

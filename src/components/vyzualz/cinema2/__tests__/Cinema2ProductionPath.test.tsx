@@ -3,6 +3,7 @@
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
 import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
 import { useReactStore } from '../../../../stores/reactStore'
 import { Cinema2Stage } from '../../react/Cinema2Stage'
@@ -23,6 +24,7 @@ import {
 } from '../../cinema/CinemaFoundation'
 import { useCinemaStore } from '../../cinema/CinemaStore'
 import { CinemaResizeObserverMock, createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { getCinema2AudioIntelligenceBridgeDiagnostics } from '../audio/Cinema2AudioIntelligenceBridge'
 import { getCinema2RuntimeDiagnostics } from '../runtime/Cinema2Runtime'
 
 let root: Root | null = null
@@ -63,6 +65,7 @@ beforeEach(() => {
   vi.stubGlobal('ResizeObserver', CinemaResizeObserverMock)
   resetReactLiveEngineOwnershipForTests()
   resetDrmvyzWebGLContextDiagnosticsForTests()
+  AudioFeatureBus.reset()
   useReactStore.getState().resetReactView()
   useCinemaStore.getState().hydrateCinemaState(createCinemaFoundationPersistedState())
   expect(useCinemaStore.getState().setActiveCinemaComposition(CINEMA_FOUNDATION_COMPOSITION.id).ok).toBe(true)
@@ -78,6 +81,7 @@ afterEach(async () => {
   host = null
   resetReactLiveEngineOwnershipForTests()
   resetDrmvyzWebGLContextDiagnosticsForTests()
+  AudioFeatureBus.reset()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
@@ -200,6 +204,56 @@ describe('Cinema 2.0 production sibling path', () => {
     expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({ activeOwnerCount: 0 })
     expect(getDrmvyzWebGLContextDiagnosticsForTests()).toMatchObject({ activeCount: 0 })
   }, 20_000)
+
+  it('captures canonical Music Intelligence through the real Cinema 2.0 Stage runtime path', async () => {
+    const audioDiagnosticsBefore = getCinema2AudioIntelligenceBridgeDiagnostics()
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+      const id = nextRaf++
+      callbacks.set(id, callback)
+      return id
+    }))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn((id: number) => callbacks.delete(id)))
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => (
+      kind === 'webgl2' ? createCinemaMockWebGL() as unknown as RenderingContext : null
+    ))
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 960,
+      height: 540,
+      top: 0,
+      left: 0,
+      right: 960,
+      bottom: 540,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    })
+    AudioFeatureBus.setFrame({
+      ...DEFAULT_MI_FRAME,
+      frameId: 314,
+      sourceId: 'production-audio-source',
+      bands: { ...DEFAULT_MI_FRAME.bands, normalizedBass: 0 },
+      capabilities: { ...DEFAULT_MI_FRAME.capabilities!, liveBands: true },
+      confidence: { ...DEFAULT_MI_FRAME.confidence, overall: 0.07 },
+    }, 'production-audio-publisher')
+    useReactStore.getState().selectReactEngine('cinema2')
+
+    await act(async () => root?.render(<ProductionSiblingHarness />))
+    expect(host?.querySelector('[data-cinema2-stage="runtime"]')).not.toBeNull()
+    expect(callbacks.size).toBe(1)
+
+    const scheduled = [...callbacks.entries()][0]
+    expect(scheduled).toBeDefined()
+    callbacks.delete(scheduled![0])
+    await act(async () => scheduled![1](16.67))
+
+    expect(getCinema2AudioIntelligenceBridgeDiagnostics()).toMatchObject({
+      captureCount: audioDiagnosticsBefore.captureCount + 1,
+      lastCapturedSourceFrameId: 314,
+    })
+    expect(callbacks.size).toBe(1)
+  })
 
   it('shows a concise safe Stage status when WebGL2 initialization is unavailable', async () => {
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))

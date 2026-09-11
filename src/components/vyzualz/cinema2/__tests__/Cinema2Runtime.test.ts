@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
+import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
+  Cinema2AudioIntelligenceBridge,
   Cinema2PresetRegistry,
   Cinema2Runtime,
   cinema2NamespacedId,
@@ -65,11 +67,16 @@ class FakeCanvas extends EventTarget {
   }
 }
 
-function createRuntime(gl = createMockWebGL(), raf: RafHarness = createRafHarness()) {
+function createRuntime(
+  gl = createMockWebGL(),
+  raf: RafHarness = createRafHarness(),
+  audioIntelligenceBridge?: Cinema2AudioIntelligenceBridge,
+) {
   const canvas = new FakeCanvas(gl)
   const result = Cinema2Runtime.create(canvas as unknown as HTMLCanvasElement, {
     requestAnimationFrame: raf.requestAnimationFrame,
     cancelAnimationFrame: raf.cancelAnimationFrame,
+    audioIntelligenceBridge,
   })
   if (!result.runtime) throw new Error(result.error)
   return { canvas, gl, raf, runtime: result.runtime }
@@ -178,16 +185,83 @@ describe('Cinema2Runtime sibling foundation', () => {
     runtime.dispose()
   })
 
-  it('rejects a registered preset with unavailable required capabilities before acquiring WebGL2', () => {
+  it('captures the canonical Audio Intelligence bridge exactly once for each scheduled visual frame', () => {
+    const audioFrame = {
+      ...DEFAULT_MI_FRAME,
+      frameId: 42,
+      sourceId: 'runtime-audio',
+      bands: { ...DEFAULT_MI_FRAME.bands, normalizedBass: 0 },
+      capabilities: { ...DEFAULT_MI_FRAME.capabilities!, liveBands: true },
+      confidence: { ...DEFAULT_MI_FRAME.confidence, overall: 0.12 },
+    }
+    const getFrame = vi.fn(() => audioFrame)
+    const getPublicationMeta = vi.fn(() => ({
+      sequence: 9,
+      publishedAtMs: 100,
+      publisherId: 'runtime-test',
+      kind: 'frame' as const,
+    }))
+    const bridge = new Cinema2AudioIntelligenceBridge({ getFrame, getPublicationMeta })
+    const { runtime, raf } = createRuntime(createMockWebGL(), createRafHarness(), bridge)
+
+    expect(runtime.getAudioIntelligenceFrame()).toBeNull()
+    runtime.start()
+    raf.runNext()
+
+    expect(runtime.getAudioIntelligenceFrame()).toMatchObject({
+      visualFrameId: 1,
+      upstream: { frameId: 42, publicationSequence: 9, sourceId: 'runtime-audio' },
+      bands: { bass: { available: true, value: 0, confidence: 0.12 } },
+    })
+    expect(getFrame).toHaveBeenCalledTimes(1)
+    expect(getPublicationMeta).toHaveBeenCalledTimes(1)
+
+    raf.runNext()
+    expect(runtime.getAudioIntelligenceFrame()?.visualFrameId).toBe(2)
+    expect(getFrame).toHaveBeenCalledTimes(2)
+    expect(getPublicationMeta).toHaveBeenCalledTimes(2)
+    runtime.dispose()
+  })
+
+  it('treats the audio bridge as a runtime service capability without fabricating current drop data', () => {
     const registry = new Cinema2PresetRegistry()
-    const presetId = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.requires-drop')
+    const presetId = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.requires-drop-service')
     const manifest: Cinema2NativePresetManifest = {
       schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
       schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
       id: presetId,
       revision: 1,
-      metadata: { name: 'Requires Drop' },
+      metadata: { name: 'Requires Drop Service' },
       capabilities: [{ id: 'music.drop', requirement: 'required' }],
+    }
+    expect(registry.register(manifest).ok).toBe(true)
+    const raf = createRafHarness()
+    const canvas = new FakeCanvas(createMockWebGL())
+    const result = Cinema2Runtime.create(canvas as unknown as HTMLCanvasElement, {
+      presetId,
+      presetRegistry: registry,
+      requestAnimationFrame: raf.requestAnimationFrame,
+      cancelAnimationFrame: raf.cancelAnimationFrame,
+    })
+    if (!result.runtime) throw new Error(result.error)
+
+    expect(result.runtime.getCompiledPresetPlan().capabilities.available).toContain('music.drop')
+    result.runtime.start()
+    raf.runNext()
+    expect(result.runtime.getAudioIntelligenceFrame()?.structure.dropConfidence.available).toBe(false)
+    result.runtime.dispose()
+  })
+
+  it('rejects a registered preset with unavailable required capabilities before acquiring WebGL2', () => {
+    const registry = new Cinema2PresetRegistry()
+    const presetId = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.requires-hdr')
+    const manifest: Cinema2NativePresetManifest = {
+      schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
+      schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
+      id: presetId,
+      revision: 1,
+      metadata: { name: 'Requires HDR' },
+      capabilities: [{ id: 'render.hdr', requirement: 'required' }],
     }
     expect(registry.register(manifest).ok).toBe(true)
     const canvas = new FakeCanvas(createMockWebGL())
@@ -198,7 +272,7 @@ describe('Cinema2Runtime sibling foundation', () => {
     })
 
     expect(result.runtime).toBeNull()
-    expect(result.error).toContain('music.drop')
+    expect(result.error).toContain('render.hdr')
     expect(result.error).toContain('rejected before runtime setup')
     expect(canvas.getContext).not.toHaveBeenCalled()
   })

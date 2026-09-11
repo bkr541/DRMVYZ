@@ -1,3 +1,26 @@
+
+export {
+  CINEMA2_AUDIO_INTELLIGENCE_FRAME_VERSION,
+  CINEMA2_AUDIO_INTELLIGENCE_RUNTIME_CAPABILITIES,
+  Cinema2AudioIntelligenceBridge,
+  getCinema2AudioIntelligenceBridgeDiagnostics,
+  type Cinema2AudioAnalyzedPhrase,
+  type Cinema2AudioDiscontinuityReason,
+  type Cinema2AudioEvent,
+  type Cinema2AudioFixedClock,
+  type Cinema2AudioHarmonicSnapshot,
+  type Cinema2AudioIntelligenceBridgeDiagnostics,
+  type Cinema2AudioIntelligenceCapabilities,
+  type Cinema2AudioIntelligenceFrame,
+  type Cinema2AudioIntelligenceSource,
+  type Cinema2AudioLyricsSnapshot,
+  type Cinema2AudioSection,
+  type Cinema2AudioSemanticMoment,
+  type Cinema2AudioSignal,
+  type Cinema2AudioSignalProvenance,
+  type Cinema2AudioStemSnapshot,
+} from './audio/Cinema2AudioIntelligenceBridge'
+
 export {
   CINEMA2_CAPABILITY_IDS,
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
