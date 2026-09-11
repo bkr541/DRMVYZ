@@ -3,13 +3,16 @@ import { IconChipButton } from '../controls/IconChipButton'
 
 // ── TrackWorkspaceHeaderStyleGallery ─────────────────────────────────────
 //
-// Layout Lab / Template engine only. Restyle candidates for the Lyric
-// Manager left rail's "Track Workspace" title row (.lmv-rail-title),
-// explored from a reference moodboard of solid/gradient/angled/split bar
-// treatments. Every variant is pinned to the current row's exact content —
-// the AudioWave02Icon, the "Track Workspace" label, and the single
-// non-functioning "Add tracks" icon button — and its exact height (42px),
-// so only the frame around that content is being judged, not new content.
+// Layout Lab / Template engine only. Four surface-finish variations on the
+// winning "Solid Bar" restyle for the Lyric Manager left rail's "Track
+// Workspace" title row (.lmv-rail-title) — 01 · Flat is shown live in
+// production (.lmv-track-workspace > .lmv-rail-title in lyricManager.css);
+// 02–04 keep the exact same light silver-to-steel base but layer a
+// different surface treatment (diagonal sheen, drop shadow, beveled edge)
+// on top, so only the finish is being judged. Every variant is pinned to
+// the row's exact content — the AudioWave02Icon, the "Track Workspace"
+// label, and the single non-functioning "Add tracks" icon button — and its
+// exact height (42px) and square corners.
 
 function AddTracksButton({ className }: { className: string }) {
   return (
@@ -36,43 +39,23 @@ function TitleRow({ variant }: { variant: string }) {
 const GALLERY_ENTRIES = [
   {
     id: 'solid',
-    title: '01 · Solid Bar (Clean & Modern)',
-    blurb: 'A flat, light silver-to-steel gradient bar with near-black text — the highest-contrast, most "pressed button" reading of the row.',
+    title: '01 · Solid Bar — Flat',
+    blurb: 'The plain vertical silver-to-steel gradient with near-black text, no extra surface treatment. Shipped to production.',
   },
   {
-    id: 'gradient',
-    title: '02 · Gradient Bar (Premium)',
-    blurb: 'A dark diagonal gradient with a soft inner sheen along the top edge — the current dark theme kept, but with more depth than a flat fill.',
+    id: 'solid-sheen',
+    title: '02 · Solid Bar — Diagonal Sheen',
+    blurb: 'Same silver base, but with a brighter diagonal highlight streak crossing it — a brushed/polished metal reflection rather than a flat top-to-bottom fade.',
   },
   {
-    id: 'angled',
-    title: '03 · Angled Tab (Tech)',
-    blurb: 'The top-left corner is clipped into an angled tab, with a short cyan accent bar tracing the cut — a HUD/console read.',
+    id: 'solid-shadow',
+    title: '03 · Solid Bar — Drop Shadow',
+    blurb: 'Same silver base, lifted off the row beneath it with a soft outer drop shadow and a crisp hairline edge — reads as a raised, physically separate plate.',
   },
   {
-    id: 'split',
-    title: '04 · Split Bar (Functional)',
-    blurb: 'The bar is divided into a light identity zone (icon + label) and a dark action zone (the button), with a hard seam between them.',
-  },
-  {
-    id: 'outline',
-    title: '05 · Outline Frame (Minimal)',
-    blurb: 'No fill at all — just a thin cyan hairline border on a transparent bar, so the row reads as a frame rather than a panel.',
-  },
-  {
-    id: 'underline',
-    title: '06 · Underline Accent (Editorial)',
-    blurb: 'No box whatsoever — a bold cyan underline is the only separator, closest to a magazine section header.',
-  },
-  {
-    id: 'bevel',
-    title: '07 · Beveled Panel (Hardware)',
-    blurb: 'A skeuomorphic inset/outset bevel (light top edge, dark bottom edge) — reads like a physical console panel rather than a flat UI bar.',
-  },
-  {
-    id: 'glass',
-    title: '08 · Glass Panel (Frosted)',
-    blurb: 'A translucent, blurred glass bar with a faint cyan glow — the lightest-weight, most "floating" treatment of the set.',
+    id: 'solid-bevel',
+    title: '04 · Solid Bar — Beveled Edge',
+    blurb: 'Same silver base, with a light inset highlight along the top edge and a soft inset shadow along the bottom — a subtle metallic bevel instead of a flat fill.',
   },
 ]
 
