@@ -104,6 +104,30 @@ export {
 } from './parameters/Cinema2ParameterState'
 
 export {
+  CINEMA2_TARGET_PLAN_VERSION,
+  Cinema2FinalValueResolver,
+  compileCinema2TargetPlan,
+  type Cinema2ActionDispatchResult,
+  type Cinema2CompiledChoreographyTargetHandle,
+  type Cinema2CompiledTargetPlan,
+  type Cinema2DispatchedTargetAction,
+  type Cinema2FinalValueResolverOptions,
+  type Cinema2ResolvedTargetValue,
+  type Cinema2TargetContribution,
+  type Cinema2TargetCapabilityAvailability,
+  type Cinema2TargetDiagnostic,
+  type Cinema2TargetEntityHandle,
+  type Cinema2TargetEntityKind,
+  type Cinema2TargetHandle,
+  type Cinema2TargetId,
+  type Cinema2TargetOperation,
+  type Cinema2TargetPlanCompileOptions,
+  type Cinema2TargetPlanCompilationResult,
+  type Cinema2TargetUserAuthority,
+  type Cinema2TargetValueType,
+} from './parameters/Cinema2TargetRuntime'
+
+export {
   Cinema2Runtime,
   getCinema2RuntimeDiagnostics,
   type Cinema2RuntimeCreateOptions,

@@ -10,6 +10,9 @@ import {
   type Cinema2SerializedParameterState,
 } from '../parameters/Cinema2ParameterState'
 import {
+  Cinema2FinalValueResolver,
+} from '../parameters/Cinema2TargetRuntime'
+import {
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
   Cinema2PresetRegistry,
   cinema2NativePresetRegistry,
@@ -58,6 +61,8 @@ export interface Cinema2RuntimeDiagnostics {
   activeWebGLContextCount: number
   nativePresetManifestValidationCount: number
   nativePresetCompilationCount: number
+  targetResolverCreationCount: number
+  activeTargetResolverCount: number
 }
 
 export interface Cinema2RuntimeCreateOptions {
@@ -83,6 +88,8 @@ const diagnostics: Cinema2RuntimeDiagnostics = {
   activeWebGLContextCount: 0,
   nativePresetManifestValidationCount: 0,
   nativePresetCompilationCount: 0,
+  targetResolverCreationCount: 0,
+  activeTargetResolverCount: 0,
 }
 
 const EMPTY_VIEWPORT: Cinema2Viewport = { width: 1, height: 1, dpr: 1 }
@@ -199,6 +206,7 @@ export class Cinema2Runtime {
   private readonly onContextLostHandler: (event: Event) => void
   private readonly onContextRestoredHandler: () => void
   private readonly audioIntelligenceBridge: Cinema2AudioIntelligenceBridge
+  private readonly targetResolver: Cinema2FinalValueResolver
 
   private phase: Cinema2RuntimePhase = 'initializing'
   private viewport: Cinema2Viewport = { ...EMPTY_VIEWPORT }
@@ -225,6 +233,11 @@ export class Cinema2Runtime {
     this.cancelFrame = options.cancelAnimationFrame ?? (handle => window.cancelAnimationFrame(handle))
     this.onSnapshot = options.onSnapshot ?? null
     this.audioIntelligenceBridge = options.audioIntelligenceBridge ?? new Cinema2AudioIntelligenceBridge()
+    this.targetResolver = new Cinema2FinalValueResolver(compiledPresetPlan.targets, {
+      resolveBaseValue: target => target.parameterId == null
+        ? target.authoredBaseValue
+        : parameterState.getValue(target.parameterId),
+    })
     this.contextHandle = registerDrmvyzWebGLContext(gl, {
       lifetime: 'live-reusable',
       role: 'react-live-canvas',
@@ -281,6 +294,8 @@ export class Cinema2Runtime {
     diagnostics.activeRuntimeCount += 1
     diagnostics.activeWebGLContextCount += 1
     diagnostics.activeEventListenerCount += 2
+    diagnostics.targetResolverCreationCount += 1
+    diagnostics.activeTargetResolverCount += 1
   }
 
   start(): void {
@@ -347,6 +362,11 @@ export class Cinema2Runtime {
     return this.parameterState.serialize()
   }
 
+  /** Single final-value authority for all compiled shared writable targets. */
+  getTargetResolver(): Cinema2FinalValueResolver {
+    return this.targetResolver
+  }
+
   /** Most recent immutable Audio Intelligence snapshot captured for a visual frame. */
   getAudioIntelligenceFrame(): Readonly<Cinema2AudioIntelligenceFrame> | null {
     return this.audioIntelligenceFrame
@@ -387,6 +407,7 @@ export class Cinema2Runtime {
     }
 
     diagnostics.activeRuntimeCount = Math.max(0, diagnostics.activeRuntimeCount - 1)
+    diagnostics.activeTargetResolverCount = Math.max(0, diagnostics.activeTargetResolverCount - 1)
     diagnostics.disposedRuntimeCount += 1
     this.phase = 'disposed'
     this.statusMessage = null

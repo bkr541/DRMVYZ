@@ -23,8 +23,12 @@ import {
   validateCinema2ParameterDefinitions,
   type Cinema2CompiledParameterPlan,
 } from '../parameters/Cinema2ParameterSchema'
+import {
+  compileCinema2TargetPlan,
+  type Cinema2CompiledTargetPlan,
+} from '../parameters/Cinema2TargetRuntime'
 
-export const CINEMA2_COMPILED_PRESET_PLAN_VERSION = 2 as const
+export const CINEMA2_COMPILED_PRESET_PLAN_VERSION = 3 as const
 
 export type Cinema2PresetDiagnosticSeverity = 'warning' | 'error'
 
@@ -74,6 +78,7 @@ export interface Cinema2CompiledPresetPlan {
   manifest: Readonly<Cinema2NativePresetManifest>
   capabilities: Readonly<Cinema2CompiledCapabilityPlan>
   parameters: Readonly<Cinema2CompiledParameterPlan>
+  targets: Readonly<Cinema2CompiledTargetPlan>
   scene: Readonly<Cinema2CompiledScenePlan>
   render: Readonly<Cinema2CompiledRenderPlan>
 }
@@ -131,6 +136,11 @@ export function compileCinema2NativePreset(
   options: Cinema2PresetCompileOptions = {},
 ): Cinema2PresetCompilationResult {
   const diagnostics: Cinema2PresetDiagnostic[] = []
+  // Capability inputs can be generators. Materialize once so validation, the
+  // target registry and the compiled capability plan observe identical truth.
+  const compileOptions: Cinema2PresetCompileOptions = options.availableCapabilities == null
+    ? options
+    : { ...options, availableCapabilities: Object.freeze([...options.availableCapabilities]) }
   const identity = validateCinema2NativePresetManifestIdentity(value)
   if (!identity.ok) {
     return {
@@ -146,7 +156,7 @@ export function compileCinema2NativePreset(
   const manifest = identity.manifest
   validateOptionalContainers(manifest, diagnostics)
   const index = buildManifestIndex(manifest, diagnostics)
-  validateCapabilities(manifest, options, diagnostics)
+  validateCapabilities(manifest, compileOptions, diagnostics)
   diagnostics.push(...validateCinema2ParameterDefinitions(manifest).map(diagnostic => ({ ...diagnostic, severity: 'error' as const })))
   validateReferencesAndCombinations(manifest, index, diagnostics)
   validateSceneParentCycles(manifest, index, diagnostics)
@@ -161,13 +171,22 @@ export function compileCinema2NativePreset(
   }
 
   const clonedManifest = deepFreeze(cloneSerializable(manifest)) as Readonly<Cinema2NativePresetManifest>
+  const parameterPlan = compileCinema2ParameterPlan(clonedManifest)
+  const targetCompilation = compileCinema2TargetPlan(clonedManifest, parameterPlan, {
+    availableCapabilities: compileOptions.availableCapabilities,
+  })
+  diagnostics.push(...targetCompilation.diagnostics.map(diagnostic => ({ ...diagnostic, severity: 'error' as const })))
+  if (hasErrors(diagnostics)) {
+    return { ok: false, plan: null, diagnostics: freezeDiagnostics(diagnostics) }
+  }
   const plan = deepFreeze({
     version: CINEMA2_COMPILED_PRESET_PLAN_VERSION,
     presetId: clonedManifest.id,
     revision: clonedManifest.revision,
     manifest: clonedManifest,
-    capabilities: compileCapabilityPlan(clonedManifest, options),
-    parameters: compileCinema2ParameterPlan(clonedManifest),
+    capabilities: compileCapabilityPlan(clonedManifest, compileOptions),
+    parameters: parameterPlan,
+    targets: targetCompilation.plan,
     scene: compileScenePlan(clonedManifest),
     render: renderPlan,
   }) as Readonly<Cinema2CompiledPresetPlan>

@@ -142,11 +142,13 @@ describe('Cinema 2.0 production sibling path', () => {
     expect(callbacks.size).toBe(1)
     expect(getCinema2RuntimeDiagnostics()).toMatchObject({
       activeRuntimeCount: 1,
+      activeTargetResolverCount: 1,
       activeAnimationFrameCount: 1,
       activeEventListenerCount: 2,
       activeWebGLContextCount: 1,
       nativePresetManifestValidationCount: initialDiagnostics.nativePresetManifestValidationCount + 1,
       nativePresetCompilationCount: initialDiagnostics.nativePresetCompilationCount + 1,
+      targetResolverCreationCount: initialDiagnostics.targetResolverCreationCount + 1,
     })
 
     for (let pass = 0; pass < 12; pass += 1) {
@@ -155,6 +157,7 @@ describe('Cinema 2.0 production sibling path', () => {
       expect(callbacks.size).toBe(1)
       expect(getCinema2RuntimeDiagnostics()).toMatchObject({
         activeRuntimeCount: 0,
+        activeTargetResolverCount: 0,
         activeAnimationFrameCount: 0,
         activeEventListenerCount: 0,
         activeWebGLContextCount: 0,
@@ -169,6 +172,7 @@ describe('Cinema 2.0 production sibling path', () => {
       expect(callbacks.size).toBe(1)
       expect(getCinema2RuntimeDiagnostics()).toMatchObject({
         activeRuntimeCount: 1,
+        activeTargetResolverCount: 1,
         activeAnimationFrameCount: 1,
         activeEventListenerCount: 2,
         activeWebGLContextCount: 1,
@@ -189,6 +193,7 @@ describe('Cinema 2.0 production sibling path', () => {
     expect(callbacks.size).toBe(1)
     expect(getCinema2RuntimeDiagnostics()).toMatchObject({
       activeRuntimeCount: 0,
+      activeTargetResolverCount: 0,
       activeAnimationFrameCount: 0,
       activeEventListenerCount: 0,
       activeWebGLContextCount: 0,
