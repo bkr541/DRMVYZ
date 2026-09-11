@@ -568,6 +568,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * carries no creative preset behavior or future subsystem requirements.
  */
 const CINEMA2_FOUNDATION_ROOT_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('foundation-root')
+const CINEMA2_FOUNDATION_MODULE_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('foundation-fullscreen-node')
+const CINEMA2_FOUNDATION_MODULE_ID = cinema2StableId<Cinema2ModuleId>('foundation-fullscreen')
+const CINEMA2_FOUNDATION_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('fullscreen-shader')
 const CINEMA2_FOUNDATION_LAYER_ID = cinema2StableId<Cinema2LayerId>('foundation-layer')
 
 export const CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
@@ -576,11 +579,24 @@ export const CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST: Readonly<Cinema2NativeP
   id: cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.foundation'),
   revision: 1,
   metadata: Object.freeze({ name: 'Cinema 2.0 Foundation' }),
+  modules: Object.freeze([{
+    id: CINEMA2_FOUNDATION_MODULE_ID,
+    typeId: CINEMA2_FOUNDATION_MODULE_TYPE_ID,
+    version: 1,
+    enabled: true,
+    config: Object.freeze({ label: 'Cinema 2.0 Foundation Fullscreen' }),
+  }]),
   scene: Object.freeze({
     nodes: Object.freeze([{
       id: CINEMA2_FOUNDATION_ROOT_NODE_ID,
       kind: 'group' as const,
       coordinateSpace: 'normalized-screen' as const,
+      visible: true,
+    }, {
+      id: CINEMA2_FOUNDATION_MODULE_NODE_ID,
+      kind: 'module' as const,
+      parent: cinema2Ref(CINEMA2_FOUNDATION_ROOT_NODE_ID),
+      module: cinema2Ref(CINEMA2_FOUNDATION_MODULE_ID),
       visible: true,
     }]),
   }),

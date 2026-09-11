@@ -187,3 +187,40 @@ export {
   type Cinema2PresetRegistryCompileOptions,
   type Cinema2PresetRegistryRegisterResult,
 } from './presets/Cinema2PresetRegistry'
+
+export {
+  CINEMA2_FULLSCREEN_SHADER_MODULE_TYPE_ID,
+  CINEMA2_FULLSCREEN_SHADER_MODULE_VERSION,
+  cinema2FullscreenShaderModuleDefinition,
+} from './modules/Cinema2FullscreenShaderModule'
+
+export {
+  Cinema2ModuleRegistry,
+  cinema2NativeModuleRegistry,
+  type Cinema2ModuleRegistryResult,
+} from './modules/Cinema2ModuleRegistry'
+
+export {
+  Cinema2ModuleRuntime,
+  type Cinema2ModuleInstanceSnapshot,
+  type Cinema2ModuleRuntimeSnapshot,
+  type Cinema2ModuleRuntimeStatus,
+} from './modules/Cinema2ModuleRuntime'
+
+export {
+  type Cinema2ModuleCreateContext,
+  type Cinema2ModuleDiagnostic,
+  type Cinema2ModuleFrameReadContext,
+  type Cinema2ModuleInstance,
+  type Cinema2ModuleLifecycleFacet,
+  type Cinema2ModuleParameterReadFacet,
+  type Cinema2ModuleRenderExecutionContext,
+  type Cinema2ModuleRenderFacet,
+  type Cinema2ModuleRenderPassProvider,
+  type Cinema2ModuleResourceFacet,
+  type Cinema2ModuleResourceSnapshot,
+  type Cinema2ModuleTargetFacet,
+  type Cinema2ModuleTypeDefinition,
+  type Cinema2ModuleUpdateContext,
+  type Cinema2ModuleViewport,
+} from './modules/Cinema2ModuleContracts'

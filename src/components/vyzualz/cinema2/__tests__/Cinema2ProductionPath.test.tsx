@@ -153,7 +153,7 @@ describe('Cinema 2.0 production sibling path', () => {
     })
     const productionScene = activeCinema2Runtime?.getSceneGraph()
     expect(productionScene?.rootNodeIds).toEqual(['foundation-root'])
-    expect(productionScene?.traversalOrder).toEqual(['foundation-root'])
+    expect(productionScene?.traversalOrder).toEqual(['foundation-root', 'foundation-fullscreen-node'])
     expect(productionScene?.layerOrder).toEqual(['foundation-layer'])
     expect(productionScene?.nodes[0]).toMatchObject({
       coordinateSpace: 'normalized-screen',
@@ -167,6 +167,23 @@ describe('Cinema 2.0 production sibling path', () => {
       blendMode: 'normal',
       depthPolicy: 'disabled',
     })
+    expect(productionScene?.nodes[1]).toMatchObject({
+      id: 'foundation-fullscreen-node',
+      kind: 'module',
+      moduleId: 'foundation-fullscreen',
+      layerIds: ['foundation-layer'],
+    })
+    expect(activeCinema2Runtime?.getModuleRuntimeSnapshot()).toMatchObject({
+      activeModuleCount: 1,
+      failedModuleCount: 0,
+      activeResourceLeaseCount: 0,
+      modules: [expect.objectContaining({
+        moduleId: 'foundation-fullscreen',
+        status: 'active',
+        renderProviderCount: 1,
+      })],
+    })
+    expect(activeCinema2Runtime?.getModuleRenderPassProviders()).toHaveLength(1)
 
     for (let pass = 0; pass < 12; pass += 1) {
       await act(async () => useReactStore.getState().selectReactEngine('cinema'))

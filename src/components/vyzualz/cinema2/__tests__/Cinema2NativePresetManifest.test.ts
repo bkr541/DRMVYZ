@@ -47,11 +47,16 @@ describe('Cinema 2.0 native preset manifest contract', () => {
     expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST).not.toHaveProperty('shaderScene')
     expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST).not.toHaveProperty('cinematicWorld')
     expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST).not.toHaveProperty('render')
-    expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST.scene?.nodes).toHaveLength(1)
+    expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST.modules).toHaveLength(1)
+    expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST.scene?.nodes).toHaveLength(2)
     expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST.layers).toHaveLength(1)
     expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST.scene?.nodes[0]).toMatchObject({
       kind: 'group',
       coordinateSpace: 'normalized-screen',
+    })
+    expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST.scene?.nodes[1]).toMatchObject({
+      kind: 'module',
+      module: { id: 'foundation-fullscreen' },
     })
   })
 

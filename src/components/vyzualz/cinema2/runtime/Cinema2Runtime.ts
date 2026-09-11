@@ -19,6 +19,15 @@ import {
   cinema2NativePresetRegistry,
 } from '../presets/Cinema2PresetRegistry'
 import {
+  Cinema2ModuleRuntime,
+  type Cinema2ModuleRuntimeSnapshot,
+} from '../modules/Cinema2ModuleRuntime'
+import {
+  Cinema2ModuleRegistry,
+  cinema2NativeModuleRegistry,
+} from '../modules/Cinema2ModuleRegistry'
+import type { Cinema2ModuleRenderPassProvider } from '../modules/Cinema2ModuleContracts'
+import {
   registerDrmvyzWebGLContext,
   retireDrmvyzWebGLContext,
   type WebGLContextDiagnosticHandle,
@@ -72,6 +81,7 @@ export interface Cinema2RuntimeCreateOptions {
   onSnapshot?: (snapshot: Cinema2RuntimeSnapshot) => void
   presetId?: Cinema2PresetId
   presetRegistry?: Cinema2PresetRegistry
+  moduleRegistry?: Cinema2ModuleRegistry
   serializedParameterState?: string | Cinema2SerializedParameterState
   audioIntelligenceBridge?: Cinema2AudioIntelligenceBridge
 }
@@ -136,9 +146,9 @@ export function getCinema2RuntimeDiagnostics(): Readonly<Cinema2RuntimeDiagnosti
  *
  * This runtime deliberately owns only lifecycle, one WebGL2 context, one RAF
  * loop, a deterministic safe frame, resize state, context recovery and the
- * canonical read-only Audio Intelligence bridge. Native preset registration/
- * compilation gates activation; render-graph execution and creative modules
- * remain later Cinema 2.0 stages.
+ * canonical read-only Audio Intelligence bridge and focused module lifecycle.
+ * Native preset/module registration gates activation; render-graph scheduling
+ * remains a later Cinema 2.0 stage.
  */
 export class Cinema2Runtime {
   static create(
@@ -154,6 +164,13 @@ export class Cinema2Runtime {
     })
     if (!compilation.ok) {
       const message = `Cinema 2.0 preset activation was rejected before runtime setup: ${compilation.diagnostics.map(diagnostic => `${diagnostic.path}: ${diagnostic.message}`).join('; ')}`
+      return { runtime: null, error: message, snapshot: unavailableSnapshot(message) }
+    }
+
+    const moduleRegistry = options.moduleRegistry ?? cinema2NativeModuleRegistry
+    const moduleValidation = moduleRegistry.validateModules(compilation.plan.manifest.modules ?? [])
+    if (!moduleValidation.ok) {
+      const message = `Cinema 2.0 module activation was rejected before runtime setup: ${moduleValidation.diagnostics.map(diagnostic => `${diagnostic.path}: ${diagnostic.message}`).join('; ')}`
       return { runtime: null, error: message, snapshot: unavailableSnapshot(message) }
     }
 
@@ -189,7 +206,7 @@ export class Cinema2Runtime {
 
     let runtime: Cinema2Runtime | null = null
     try {
-      runtime = new Cinema2Runtime(canvas, gl, compilation.plan, parameterState, options)
+      runtime = new Cinema2Runtime(canvas, gl, compilation.plan, parameterState, moduleRegistry, options)
       runtime.renderSafeFrame()
       const snapshot = runtime.getSnapshot()
       return { runtime, error: null, snapshot }
@@ -208,6 +225,7 @@ export class Cinema2Runtime {
   private readonly onContextRestoredHandler: () => void
   private readonly audioIntelligenceBridge: Cinema2AudioIntelligenceBridge
   private readonly targetResolver: Cinema2FinalValueResolver
+  private readonly moduleRuntime: Cinema2ModuleRuntime
 
   private phase: Cinema2RuntimePhase = 'initializing'
   private viewport: Cinema2Viewport = { ...EMPTY_VIEWPORT }
@@ -222,12 +240,15 @@ export class Cinema2Runtime {
   private audioIntelligenceFrame: Readonly<Cinema2AudioIntelligenceFrame> | null = null
   private listenersAttached = false
   private contextOwned = false
+  private firstFrameTimestampMs: number | null = null
+  private lastFrameTimestampMs: number | null = null
 
   private constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly gl: WebGL2RenderingContext,
     private readonly compiledPresetPlan: Readonly<Cinema2CompiledPresetPlan>,
     private readonly parameterState: Cinema2ParameterState,
+    moduleRegistry: Cinema2ModuleRegistry,
     options: Cinema2RuntimeCreateOptions,
   ) {
     this.requestFrame = options.requestAnimationFrame ?? (callback => window.requestAnimationFrame(callback))
@@ -239,6 +260,7 @@ export class Cinema2Runtime {
         ? target.authoredBaseValue
         : parameterState.getValue(target.parameterId),
     })
+    this.moduleRuntime = new Cinema2ModuleRuntime(gl, compiledPresetPlan, this.targetResolver, moduleRegistry)
     this.contextHandle = registerDrmvyzWebGLContext(gl, {
       lifetime: 'live-reusable',
       role: 'react-live-canvas',
@@ -252,6 +274,8 @@ export class Cinema2Runtime {
       this.contextLost = true
       this.phase = 'context-lost'
       this.statusMessage = 'Cinema 2.0 paused because its WebGL2 context was lost.'
+      this.moduleRuntime.handleContextLost()
+      this.lastFrameTimestampMs = null
       this.cancelScheduledFrame()
       this.emitSnapshot()
     }
@@ -262,6 +286,7 @@ export class Cinema2Runtime {
       this.contextGeneration += 1
       this.statusMessage = null
       try {
+        this.moduleRuntime.handleContextRestored()
         this.gl.viewport(0, 0, this.viewport.width, this.viewport.height)
         this.renderSafeFrame()
         this.phase = this.suspended ? 'suspended' : this.runningRequested ? 'running' : 'initializing'
@@ -285,6 +310,7 @@ export class Cinema2Runtime {
       if (contextLostListenerAttached) {
         canvas.removeEventListener('webglcontextlost', this.onContextLostHandler)
       }
+      this.moduleRuntime.dispose()
       retireDrmvyzWebGLContext(this.contextHandle, 'release-resources')
       throw error
     }
@@ -297,6 +323,7 @@ export class Cinema2Runtime {
     diagnostics.activeEventListenerCount += 2
     diagnostics.targetResolverCreationCount += 1
     diagnostics.activeTargetResolverCount += 1
+    this.moduleRuntime.activate()
   }
 
   start(): void {
@@ -378,6 +405,15 @@ export class Cinema2Runtime {
     return this.audioIntelligenceFrame
   }
 
+  getModuleRuntimeSnapshot(): Readonly<Cinema2ModuleRuntimeSnapshot> {
+    return this.moduleRuntime.getSnapshot()
+  }
+
+  /** Stage 07 consumes these providers; modules never own the frame scheduler. */
+  getModuleRenderPassProviders(): readonly Readonly<Cinema2ModuleRenderPassProvider>[] {
+    return this.moduleRuntime.getRenderPassProviders()
+  }
+
   getSnapshot(): Cinema2RuntimeSnapshot {
     return {
       phase: this.phase,
@@ -405,6 +441,8 @@ export class Cinema2Runtime {
       this.listenersAttached = false
       diagnostics.activeEventListenerCount = Math.max(0, diagnostics.activeEventListenerCount - 2)
     }
+
+    this.moduleRuntime.dispose()
 
     if (this.contextOwned) {
       retireDrmvyzWebGLContext(this.contextHandle, 'release-resources')
@@ -446,7 +484,7 @@ export class Cinema2Runtime {
     diagnostics.activeAnimationFrameCount += 1
   }
 
-  private readonly runFrame = (): void => {
+  private readonly runFrame = (timestampMs: number): void => {
     if (this.animationFrameId != null) {
       this.animationFrameId = null
       diagnostics.activeAnimationFrameCount = Math.max(0, diagnostics.activeAnimationFrameCount - 1)
@@ -455,7 +493,22 @@ export class Cinema2Runtime {
 
     try {
       const visualFrameId = this.frameCount + 1
+      const safeTimestampMs = Number.isFinite(timestampMs) ? Math.max(0, timestampMs) : (this.lastFrameTimestampMs ?? 0)
+      if (this.firstFrameTimestampMs == null) this.firstFrameTimestampMs = safeTimestampMs
+      const deltaTimeSec = this.lastFrameTimestampMs == null
+        ? 0
+        : Math.min(0.1, Math.max(0, (safeTimestampMs - this.lastFrameTimestampMs) / 1000))
+      this.lastFrameTimestampMs = safeTimestampMs
       this.audioIntelligenceFrame = this.audioIntelligenceBridge.capture(visualFrameId)
+      this.moduleRuntime.update(Object.freeze({
+        frameId: visualFrameId,
+        timestampMs: safeTimestampMs,
+        deltaTimeSec,
+        elapsedTimeSec: Math.max(0, (safeTimestampMs - this.firstFrameTimestampMs) / 1000),
+        viewport: Object.freeze({ ...this.viewport }),
+        contextGeneration: this.contextGeneration,
+        audio: this.audioIntelligenceFrame,
+      }))
       this.renderSafeFrame()
       this.frameCount = visualFrameId
     } catch (error) {
