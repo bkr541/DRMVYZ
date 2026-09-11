@@ -171,7 +171,14 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
       toJSON: () => ({}),
     })
     useReactStore.getState().resetReactView()
-    let activeRuntime: Cinema2Runtime | null = null
+    // A holder object, not a bare `let`, because TS's control-flow narrowing
+    // can't see assignments made inside a closure that's only invoked
+    // indirectly (here, by React via the onRuntimeReady prop) — it keeps
+    // treating the variable as its literal `null` initializer at every read
+    // after this point, so `activeRuntime?.foo()` type-checks as a property
+    // access on `never`. Property access on an object field isn't narrowed
+    // the same way, so this sidesteps the bug entirely.
+    const activeRuntimeRef: { current: Cinema2Runtime | null } = { current: null }
 
     function ProductionInspectorHarness() {
       const engineId = useReactStore(state => state.activeReactEngineId)
@@ -183,7 +190,7 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
             <>
               <Cinema2Stage
                 onRuntimeReady={next => {
-                  activeRuntime = next
+                  activeRuntimeRef.current = next
                   setRuntime(next)
                 }}
               />
@@ -197,8 +204,8 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     await act(async () => root?.render(<ProductionInspectorHarness />))
     await act(async () => useReactStore.getState().selectReactEngine('cinema2'))
     expect(host?.querySelector('[data-cinema2-stage="runtime"]')).not.toBeNull()
-    expect(activeRuntime).not.toBeNull()
-    expect(activeRuntime?.getCompiledPresetPlan().presetId).toBe(CINEMA2_RUNTIME_FOUNDATION_PRESET_ID)
+    expect(activeRuntimeRef.current).not.toBeNull()
+    expect(activeRuntimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_RUNTIME_FOUNDATION_PRESET_ID)
     expect(host?.querySelector('[data-cinema2-inspector="empty"]')?.textContent).toContain('No Cinema 2.0 parameters')
   })
 })

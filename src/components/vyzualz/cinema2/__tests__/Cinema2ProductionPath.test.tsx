@@ -109,7 +109,14 @@ describe('Cinema 2.0 production sibling path', () => {
       callbacks.delete(id)
     }))
     const contexts = [] as ReturnType<typeof createCinemaMockWebGL>[]
-    let activeCinema2Runtime: Cinema2Runtime | null = null
+    // A holder object, not a bare `let`, because TS's control-flow narrowing
+    // can't see assignments made inside a closure that's only invoked
+    // indirectly (here, by React via the onCinema2RuntimeReady prop) — it
+    // keeps treating the variable as its literal `null` initializer at every
+    // read after this point, so `activeCinema2Runtime?.foo()` type-checks as
+    // a property access on `never`. Property access on an object field isn't
+    // narrowed the same way, so this sidesteps the bug entirely.
+    const activeCinema2RuntimeRef: { current: Cinema2Runtime | null } = { current: null }
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => {
       if (kind !== 'webgl2') return null
       const gl = createCinemaMockWebGL()
@@ -128,7 +135,7 @@ describe('Cinema 2.0 production sibling path', () => {
       toJSON: () => ({}),
     })
 
-    await act(async () => root?.render(<ProductionSiblingHarness onCinema2RuntimeReady={runtime => { activeCinema2Runtime = runtime }} />))
+    await act(async () => root?.render(<ProductionSiblingHarness onCinema2RuntimeReady={runtime => { activeCinema2RuntimeRef.current = runtime }} />))
     expect(useReactStore.getState().activeReactEngineId).toBe('cinema')
     expect(host?.querySelector('[data-cinema-output-canvas="true"]')).not.toBeNull()
     expect(callbacks.size).toBe(1)
@@ -161,7 +168,7 @@ describe('Cinema 2.0 production sibling path', () => {
       nativePresetCompilationCount: initialDiagnostics.nativePresetCompilationCount + 1,
       targetResolverCreationCount: initialDiagnostics.targetResolverCreationCount + 1,
     })
-    const productionScene = activeCinema2Runtime?.getSceneGraph()
+    const productionScene = activeCinema2RuntimeRef.current?.getSceneGraph()
     expect(productionScene?.rootNodeIds).toEqual(['foundation-root'])
     expect(productionScene?.traversalOrder).toEqual(['foundation-root', 'foundation-fullscreen-node'])
     expect(productionScene?.layerOrder).toEqual(['foundation-layer'])
@@ -183,7 +190,7 @@ describe('Cinema 2.0 production sibling path', () => {
       moduleId: 'foundation-fullscreen',
       layerIds: ['foundation-layer'],
     })
-    expect(activeCinema2Runtime?.getModuleRuntimeSnapshot()).toMatchObject({
+    expect(activeCinema2RuntimeRef.current?.getModuleRuntimeSnapshot()).toMatchObject({
       activeModuleCount: 1,
       failedModuleCount: 0,
       activeResourceLeaseCount: 0,
@@ -193,9 +200,9 @@ describe('Cinema 2.0 production sibling path', () => {
         renderProviderCount: 1,
       })],
     })
-    expect(activeCinema2Runtime?.getModuleRenderPassProviders()).toHaveLength(1)
+    expect(activeCinema2RuntimeRef.current?.getModuleRenderPassProviders()).toHaveLength(1)
 
-    const productionResourceManager = activeCinema2Runtime?.getResourceManager()
+    const productionResourceManager = activeCinema2RuntimeRef.current?.getResourceManager()
     expect(productionResourceManager).toBeDefined()
     const productionTarget = productionResourceManager!.acquireRenderTarget('production-path.validation', {
       size: { kind: 'viewport', widthScale: 0.5, heightScale: 0.5 },
