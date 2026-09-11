@@ -116,7 +116,8 @@ export class Cinema2ModuleRuntime {
             try {
               provider.execute(context)
             } catch (error) {
-              this.failRecord(record, 'CINEMA2_MODULE_RENDER_FAILED', `Module render provider \"${provider.id}\" failed: ${errorMessage(error)}`)
+              this.failRecord(record, 'CINEMA2_MODULE_RENDER_FAILED', `Module render provider "${provider.id}" failed: ${errorMessage(error)}`)
+              throw error
             }
           },
         }))

@@ -214,6 +214,18 @@ describe('Cinema 2.0 production sibling path', () => {
       })],
     })
 
+    const cinema2Frame = [...callbacks.entries()][0]
+    expect(cinema2Frame).toBeDefined()
+    callbacks.delete(cinema2Frame[0])
+    await act(async () => cinema2Frame[1](16.67))
+    expect(activeCinema2RuntimeRef.current?.getRenderGraphExecutorSnapshot()).toMatchObject({
+      frameCount: 1,
+      executedPassCount: 1,
+      failedPassCount: 0,
+    })
+    expect(contexts[contexts.length - 1]?.__calls.drawCount).toBeGreaterThan(0)
+    expect(callbacks.size).toBe(1)
+
     const productionResourceManager = activeCinema2RuntimeRef.current?.getResourceManager()
     expect(productionResourceManager).toBeDefined()
     const productionTarget = productionResourceManager!.acquireRenderTarget('production-path.validation', {

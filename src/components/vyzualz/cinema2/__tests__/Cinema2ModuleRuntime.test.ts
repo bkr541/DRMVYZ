@@ -265,7 +265,7 @@ describe('Cinema 2.0 focused module runtime', () => {
       target: null,
       width: 640,
       height: 360,
-    })).not.toThrow()
+    })).toThrow('render exploded')
 
     expect(disposedResources).toBe(1)
     expect(created.runtime.getSnapshot().phase).toBe('initializing')

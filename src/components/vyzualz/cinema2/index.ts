@@ -275,6 +275,7 @@ export {
   type Cinema2ModuleMediaFacet,
   type Cinema2ModuleParameterReadFacet,
   type Cinema2ModuleRenderExecutionContext,
+  type Cinema2ModuleRenderInput,
   type Cinema2ModuleRenderFacet,
   type Cinema2ModuleRenderPassProvider,
   type Cinema2ModuleResourceFacet,
@@ -284,3 +285,10 @@ export {
   type Cinema2ModuleUpdateContext,
   type Cinema2ModuleViewport,
 } from './modules/Cinema2ModuleContracts'
+
+export { Cinema2RenderGraphExecutor } from './runtime/Cinema2RenderGraphExecutor'
+export type {
+  Cinema2RenderGraphExecutorDiagnostic,
+  Cinema2RenderGraphExecutorOptions,
+  Cinema2RenderGraphExecutorSnapshot,
+} from './runtime/Cinema2RenderGraphExecutor'

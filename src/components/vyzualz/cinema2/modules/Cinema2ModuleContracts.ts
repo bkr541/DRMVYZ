@@ -96,11 +96,21 @@ export interface Cinema2ModuleUpdateContext {
   targets: Cinema2ModuleTargetFacet
 }
 
+export interface Cinema2ModuleRenderInput {
+  id: string
+  attachment: 'color' | 'depth'
+  texture: WebGLTexture
+  width: number
+  height: number
+}
+
 export interface Cinema2ModuleRenderExecutionContext {
   frame: Readonly<Cinema2ModuleFrameReadContext>
   target: WebGLFramebuffer | null
   width: number
   height: number
+  /** Compiled upstream render inputs. Modules may read them but never own their lifetime. */
+  inputs?: readonly Readonly<Cinema2ModuleRenderInput>[]
 }
 
 export interface Cinema2ModuleRenderPassProvider {

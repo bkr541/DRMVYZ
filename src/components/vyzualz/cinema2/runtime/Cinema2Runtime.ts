@@ -37,6 +37,7 @@ import {
   Cinema2ResourceManager,
   type Cinema2ResourceManagerSnapshot,
 } from './Cinema2ResourceManager'
+import { Cinema2RenderGraphExecutor, type Cinema2RenderGraphExecutorSnapshot } from './Cinema2RenderGraphExecutor'
 import {
   registerDrmvyzWebGLContext,
   retireDrmvyzWebGLContext,
@@ -160,9 +161,9 @@ export function getCinema2RuntimeDiagnostics(): Readonly<Cinema2RuntimeDiagnosti
  *
  * This runtime deliberately owns only lifecycle, one WebGL2 context, one RAF
  * loop, a deterministic safe frame, resize state, context recovery and the
- * canonical read-only Audio Intelligence bridge and focused module lifecycle.
- * Native preset/module registration gates activation; render-graph scheduling
- * remains a later Cinema 2.0 stage.
+ * canonical read-only Audio Intelligence bridge, focused module lifecycle and
+ * compiled render-graph execution. Native preset/module registration gates
+ * activation before the engine-owned frame executor can run.
  */
 export class Cinema2Runtime {
   static create(
@@ -242,6 +243,7 @@ export class Cinema2Runtime {
   private readonly mediaSlotRuntime: Cinema2MediaSlotRuntime
   private readonly moduleRuntime: Cinema2ModuleRuntime
   private readonly resourceManager: Cinema2ResourceManager
+  private readonly renderGraphExecutor: Cinema2RenderGraphExecutor
 
   private phase: Cinema2RuntimePhase = 'initializing'
   private viewport: Cinema2Viewport = { ...EMPTY_VIEWPORT }
@@ -279,6 +281,10 @@ export class Cinema2Runtime {
     this.resourceManager = new Cinema2ResourceManager(gl)
     this.mediaSlotRuntime = new Cinema2MediaSlotRuntime(gl, compiledPresetPlan.manifest.mediaSlots ?? [], options.mediaLoader)
     this.moduleRuntime = new Cinema2ModuleRuntime(gl, compiledPresetPlan, this.targetResolver, moduleRegistry, this.mediaSlotRuntime)
+    this.renderGraphExecutor = new Cinema2RenderGraphExecutor(gl, compiledPresetPlan.render, compiledPresetPlan.scene, parameterState, this.resourceManager, {
+      quality: 'high',
+      availableCapabilities: CINEMA2_RUNTIME_AVAILABLE_CAPABILITIES,
+    })
     this.contextHandle = registerDrmvyzWebGLContext(gl, {
       lifetime: 'live-reusable',
       role: 'react-live-canvas',
@@ -292,6 +298,7 @@ export class Cinema2Runtime {
       this.contextLost = true
       this.phase = 'context-lost'
       this.statusMessage = 'Cinema 2.0 paused because its WebGL2 context was lost.'
+      this.renderGraphExecutor.handleContextLost()
       this.moduleRuntime.handleContextLost()
       this.mediaSlotRuntime.handleContextLost()
       this.resourceManager.handleContextLost()
@@ -307,6 +314,7 @@ export class Cinema2Runtime {
       this.statusMessage = null
       try {
         this.resourceManager.handleContextRestored()
+        this.renderGraphExecutor.handleContextRestored()
         this.mediaSlotRuntime.handleContextRestored()
         this.moduleRuntime.handleContextRestored()
         this.gl.viewport(0, 0, this.viewport.width, this.viewport.height)
@@ -332,6 +340,7 @@ export class Cinema2Runtime {
       if (contextLostListenerAttached) {
         canvas.removeEventListener('webglcontextlost', this.onContextLostHandler)
       }
+      this.renderGraphExecutor.dispose()
       this.moduleRuntime.dispose()
       this.mediaSlotRuntime.dispose()
       this.resourceManager.dispose()
@@ -457,6 +466,10 @@ export class Cinema2Runtime {
     return this.resourceManager.getSnapshot()
   }
 
+  getRenderGraphExecutorSnapshot(): Readonly<Cinema2RenderGraphExecutorSnapshot> {
+    return this.renderGraphExecutor.getSnapshot()
+  }
+
   /** Stage 07 consumes these providers; modules never own the frame scheduler. */
   getModuleRenderPassProviders(): readonly Readonly<Cinema2ModuleRenderPassProvider>[] {
     return this.moduleRuntime.getRenderPassProviders()
@@ -490,6 +503,7 @@ export class Cinema2Runtime {
       diagnostics.activeEventListenerCount = Math.max(0, diagnostics.activeEventListenerCount - 2)
     }
 
+    this.renderGraphExecutor.dispose()
     this.moduleRuntime.dispose()
     this.mediaSlotRuntime.dispose()
     this.resourceManager.dispose()
@@ -551,7 +565,7 @@ export class Cinema2Runtime {
       this.lastFrameTimestampMs = safeTimestampMs
       this.audioIntelligenceFrame = this.audioIntelligenceBridge.capture(visualFrameId)
       this.mediaSlotRuntime.updateVideoTextures()
-      this.moduleRuntime.update(Object.freeze({
+      const frame = Object.freeze({
         frameId: visualFrameId,
         timestampMs: safeTimestampMs,
         deltaTimeSec,
@@ -559,8 +573,9 @@ export class Cinema2Runtime {
         viewport: Object.freeze({ ...this.viewport }),
         contextGeneration: this.contextGeneration,
         audio: this.audioIntelligenceFrame,
-      }))
-      this.renderSafeFrame()
+      })
+      this.moduleRuntime.update(frame)
+      this.renderGraphExecutor.executeFrame(frame, this.moduleRuntime.getRenderPassProviders())
       this.frameCount = visualFrameId
     } catch (error) {
       this.runningRequested = false
