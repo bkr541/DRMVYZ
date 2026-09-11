@@ -1582,6 +1582,71 @@
   box-shadow: inset 1px 0 0 rgba(255,255,255,0.025);
 }
 
+/* Same silver "contains the window" outline, mirrored onto the right rail's
+   left edge — same thread, same ring, same top/bottom bands as the left
+   rail, just flipped to the opposite side (the right rail's toggle centers
+   on its left edge via .vz-inspector-toggle--right { left: -14px }). */
+.lmv-right-rail::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  width: 2px;
+  z-index: 5;
+  background: linear-gradient(
+    90deg,
+    rgba(200, 206, 212, 0.85),
+    #ffffff 50%,
+    rgba(200, 206, 212, 0.85)
+  );
+  pointer-events: none;
+}
+
+.lmv-right-rail::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 32px;
+  height: 32px;
+  z-index: 19;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1.5px solid rgba(215, 220, 225, 0.9);
+  pointer-events: none;
+}
+
+/* The right rail's toggle also re-centers to the midline while collapsed. */
+.lmv-right-rail.vz-inspector--collapsed::before {
+  left: 50%;
+}
+
+.lmv-right-rail .vz-inspector-inner::before,
+.lmv-right-rail .vz-inspector-inner::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 5;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    rgba(200, 206, 212, 0.85),
+    #ffffff 50%,
+    rgba(200, 206, 212, 0.85)
+  );
+}
+
+.lmv-right-rail .vz-inspector-inner::before {
+  top: 0;
+}
+
+.lmv-right-rail .vz-inspector-inner::after {
+  bottom: 0;
+}
+
 .lmv-left-rail .vz-inspector-inner,
 .lmv-right-rail .vz-inspector-inner {
   background: rgba(8,12,18,0.96);
@@ -2189,10 +2254,12 @@
     border-right: 0;
     border-bottom: 1px solid rgba(126,218,232,0.12);
   }
-  /* Stacked layout: the left rail's right edge is no longer the window
-     boundary, so the silver outline + toggle ring don't apply here. */
+  /* Stacked layout: neither rail's side edge is the window boundary anymore,
+     so the silver outline + toggle ring don't apply here. */
   .lmv-left-rail::before,
-  .lmv-left-rail::after {
+  .lmv-left-rail::after,
+  .lmv-right-rail::before,
+  .lmv-right-rail::after {
     display: none;
   }
   .lmv-left-rail.vz-inspector--collapsed,
@@ -2805,6 +2872,17 @@
   padding: 14px 12px 12px;
 }
 
+/* Right rail "Document Workspace" title: a bare wrapper (not a whole section
+   like Track Workspace's 14px 12px 12px box) so SelectedTrackHero/
+   LyricPreviewPanel below it keep their existing spacing untouched. It only
+   exists to give the shared .lmv-rail-title's -14px/-12px negative margin a
+   matching 14px/12px padding to cancel, landing the title at the exact same
+   position — relative to the rail edges — as Track Workspace's title on the
+   left rail. */
+.lmv-document-workspace-header {
+  padding: 14px 12px 0;
+}
+
 /* Window header — mirrors the Media Library panel header (.vz-panel-header +
    .vz-panel-title in the Media Manager): a full-width row with a bottom
    divider, an uppercase muted title, and a currentColor icon. The negative
@@ -2851,6 +2929,24 @@
   height: 26px;
   padding: 0;
   flex-shrink: 0;
+}
+
+/* Center visualizer's "Live Preview" header (a reusable .drc-header group,
+   not the .lmv-rail-title used by Track Workspace/Document Workspace):
+   matched to Track Workspace's row height and title font-size only. Color,
+   weight, letter-spacing, and case are left as the shared .drc-header
+   default on purpose. Scoped to this one header via headerClassName so no
+   other Collapsible group (Validation, Document Stats, Track Library, …) is
+   affected. */
+.drc-header.lmv-live-preview-header {
+  min-height: 42px;
+  font-size: 12px;
+}
+
+.lmv-live-preview-header > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .lmv-mockup-workspace-tabs.dv-underline-tabs,

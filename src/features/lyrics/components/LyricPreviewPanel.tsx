@@ -1,4 +1,5 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react'
+import { ViewIcon } from 'hugeicons-react'
 import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
@@ -97,14 +98,16 @@ function RightInspectorSection({
   defaultOpen = true,
   children,
   badge,
+  headerClassName,
 }: {
-  title: string
+  title: ReactNode
   defaultOpen?: boolean
   children: ReactNode
   badge?: ReactNode
+  headerClassName?: string
 }) {
   return (
-    <Collapsible label={title} defaultOpen={defaultOpen} headerAccessory={badge}>
+    <Collapsible label={title} defaultOpen={defaultOpen} headerAccessory={badge} headerClassName={headerClassName}>
       {children}
     </Collapsible>
   )
@@ -163,7 +166,15 @@ export function LyricLivePreviewPanel({
   const progressPercent = calculateLyricCueProgress(currentAudioTimeMs, previewCue, globalOffsetMs)
 
   return (
-    <RightInspectorSection title="Live Preview">
+    <RightInspectorSection
+      title={(
+        <>
+          <ViewIcon size={13} color="currentColor" aria-hidden="true" />
+          <span>Live Preview</span>
+        </>
+      )}
+      headerClassName="lmv-live-preview-header"
+    >
       {previewCue ? (
         <>
           <StylePreviewBox cue={previewCue} doc={document} />

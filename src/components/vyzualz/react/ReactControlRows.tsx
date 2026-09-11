@@ -512,11 +512,12 @@ export interface CollapsibleProps {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   bodyClassName?: string
+  headerClassName?: string
   headerAccessory?: ReactNode
   children: React.ReactNode
 }
 
-export function Collapsible({ label, defaultOpen = true, open, onOpenChange, bodyClassName, headerAccessory, children }: CollapsibleProps) {
+export function Collapsible({ label, defaultOpen = true, open, onOpenChange, bodyClassName, headerClassName, headerAccessory, children }: CollapsibleProps) {
   return (
     <DualRailCollapsible
       label={label}
@@ -524,6 +525,7 @@ export function Collapsible({ label, defaultOpen = true, open, onOpenChange, bod
       open={open}
       onOpenChange={onOpenChange}
       bodyClassName={bodyClassName}
+      headerClassName={headerClassName}
       headerAccessory={headerAccessory}
     >
       {children}

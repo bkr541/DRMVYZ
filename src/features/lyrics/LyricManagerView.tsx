@@ -46,7 +46,7 @@ import { LyricRecoveryDialog } from './components/LyricRecoveryDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import { RailTabs, type RailTabOption } from '../../components/vyzualz/layout/RailTabs'
-import { Add01Icon, AudioWave02Icon, SubtitleIcon } from 'hugeicons-react'
+import { Add01Icon, AudioWave02Icon, File02Icon, SubtitleIcon } from 'hugeicons-react'
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
@@ -2221,6 +2221,13 @@ export function LyricManagerView({
           onToggleCollapsed={() => setRightRailCollapsed(value => !value)}
           className="lmv-right-rail"
         >
+          <div className="lmv-document-workspace-header">
+            <div className="lmv-rail-title">
+              <File02Icon size={15} color="currentColor" aria-hidden="true" />
+              <span>Document Workspace</span>
+            </div>
+          </div>
+
           <SelectedTrackHero
             track={selectedTrack}
             openVersionTitle={editorDocument?.title ?? null}
