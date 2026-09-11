@@ -4,10 +4,11 @@ import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { CanvasEnginePanel } from './ReactCanvasEngineShell'
 import { PixGridEnginePanel } from './pixGrid/PixGridEnginePanel'
 import { HeadlinerEnginePanel } from './headliner/HeadlinerWorkspace'
-import { Cinema2Placeholder } from './Cinema2Placeholder'
+import { Cinema2MediaSourcePanel } from './Cinema2MediaSourcePanel'
 import { CinemaWorkspace } from './CinemaWorkspace'
 import type { CinemaWorkspaceFrameBridgeResult } from './CinemaWorkspaceFrameBridge'
 import type { CinemaRuntimeSnapshot } from '../cinema'
+import type { Cinema2Runtime } from '../cinema2'
 import { useShallow } from 'zustand/react/shallow'
 import { resolveCinematicConfigForPreset, useReactStore } from '../../../stores/reactStore'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -370,9 +371,13 @@ function OscillatorSourceDiagnostics({
 export function ReactEnginePanel({
   cinemaFrameBridge = null,
   cinemaRuntimeSnapshot = null,
+  cinema2Runtime = null,
+  onOpenMediaManager,
 }: {
   cinemaFrameBridge?: CinemaWorkspaceFrameBridgeResult | null
   cinemaRuntimeSnapshot?: CinemaRuntimeSnapshot | null
+  cinema2Runtime?: Cinema2Runtime | null
+  onOpenMediaManager?: () => void
 } = {}) {
   const engine = useSharedAudio()
   const {
@@ -498,7 +503,9 @@ export function ReactEnginePanel({
         />
       )}
 
-      {activeReactEngineId === 'cinema2' && <Cinema2Placeholder area="Source" />}
+      {activeReactEngineId === 'cinema2' && (
+        <Cinema2MediaSourcePanel runtime={cinema2Runtime} onOpenMediaManager={onOpenMediaManager} />
+      )}
 
       {/* Cinematic Worlds source selection lives in the left rail. */}
       {activeReactEngineId === 'cinematicPortal' && (

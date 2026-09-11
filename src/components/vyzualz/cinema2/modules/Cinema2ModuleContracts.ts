@@ -5,6 +5,7 @@ import type {
   Cinema2ModuleTypeId,
 } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2AudioIntelligenceFrame } from '../audio/Cinema2AudioIntelligenceBridge'
+import type { Cinema2ManagedMediaResource, Cinema2MediaSlotSnapshot } from '../media/Cinema2MediaSlotRuntime'
 import type {
   Cinema2ActionDispatchResult,
   Cinema2ResolvedTargetValue,
@@ -40,6 +41,11 @@ export interface Cinema2ModuleTargetFacet {
   ): Cinema2ActionDispatchResult
 }
 
+export interface Cinema2ModuleMediaFacet {
+  get(bindingName: string): Readonly<Cinema2ManagedMediaResource> | null
+  getSlot(bindingName: string): Readonly<Cinema2MediaSlotSnapshot> | null
+}
+
 export interface Cinema2ModuleResourceSnapshot {
   activeLeaseCount: number
   disposedLeaseCount: number
@@ -64,6 +70,7 @@ export interface Cinema2ModuleCreateContext {
   module: Readonly<Cinema2ModuleManifest>
   parameters: Cinema2ModuleParameterReadFacet
   targets: Cinema2ModuleTargetFacet
+  media: Cinema2ModuleMediaFacet
   resources: Cinema2ModuleResourceFacet
 }
 

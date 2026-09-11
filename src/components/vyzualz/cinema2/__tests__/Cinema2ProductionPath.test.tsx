@@ -8,6 +8,7 @@ import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constan
 import { useReactStore } from '../../../../stores/reactStore'
 import { Cinema2Stage } from '../../react/Cinema2Stage'
 import { ReactEngineBrowser } from '../../react/ReactEngineBrowser'
+import { ReactEnginePanel } from '../../react/ReactEnginePanel'
 import { CinemaWorkspace } from '../../react/CinemaWorkspace'
 import { buildCinemaWorkspaceFrameBridge } from '../../react/CinemaWorkspaceFrameBridge'
 import {
@@ -45,13 +46,21 @@ const productionFrameBridge = buildCinemaWorkspaceFrameBridge({
 
 function ProductionSiblingHarness({ onCinema2RuntimeReady }: { onCinema2RuntimeReady?: (runtime: Cinema2Runtime | null) => void } = {}) {
   const engineId = useReactStore(state => state.activeReactEngineId)
+  const [cinema2Runtime, setCinema2Runtime] = React.useState<Cinema2Runtime | null>(null)
+  const handleCinema2RuntimeReady = (runtime: Cinema2Runtime | null) => {
+    setCinema2Runtime(runtime)
+    onCinema2RuntimeReady?.(runtime)
+  }
   return (
     <>
       <ReactEngineBrowser />
       {engineId === 'cinema' ? (
         <CinemaWorkspace surface="stage" frameBridge={productionFrameBridge} />
       ) : engineId === 'cinema2' ? (
-        <Cinema2Stage onRuntimeReady={onCinema2RuntimeReady} />
+        <>
+          <Cinema2Stage onRuntimeReady={handleCinema2RuntimeReady} />
+          <ReactEnginePanel cinema2Runtime={cinema2Runtime} />
+        </>
       ) : (
         <div data-production-engine={engineId} />
       )}
@@ -139,6 +148,7 @@ describe('Cinema 2.0 production sibling path', () => {
     expect(useReactStore.getState().activeReactEngineId).toBe('cinema2')
     expect(host?.querySelector('[data-cinema2-stage="runtime"]')).not.toBeNull()
     expect(host?.querySelector('[data-cinema2-output-canvas="true"]')).not.toBeNull()
+    expect(host?.querySelector('[data-cinema2-media-source="empty"]')).not.toBeNull()
     expect(contexts[contexts.length - 1]?.clearColor).toHaveBeenCalledWith(0, 0, 0, 1)
     expect(callbacks.size).toBe(1)
     expect(getCinema2RuntimeDiagnostics()).toMatchObject({

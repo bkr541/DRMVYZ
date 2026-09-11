@@ -897,6 +897,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                     <ReactEnginePanel
                       cinemaFrameBridge={cinemaFrameBridge}
                       cinemaRuntimeSnapshot={cinemaRuntimeSnapshot}
+                      cinema2Runtime={cinema2Runtime}
+                      onOpenMediaManager={onOpenMediaManager}
                     />
                   )}
                   {leftTab === 'media' && (

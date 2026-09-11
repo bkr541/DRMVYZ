@@ -28,6 +28,11 @@ import {
 } from '../modules/Cinema2ModuleRegistry'
 import type { Cinema2ModuleRenderPassProvider } from '../modules/Cinema2ModuleContracts'
 import {
+  Cinema2MediaSlotRuntime,
+  type Cinema2MediaLoader,
+  type Cinema2MediaSlotRuntimeSnapshot,
+} from '../media/Cinema2MediaSlotRuntime'
+import {
   registerDrmvyzWebGLContext,
   retireDrmvyzWebGLContext,
   type WebGLContextDiagnosticHandle,
@@ -84,6 +89,7 @@ export interface Cinema2RuntimeCreateOptions {
   moduleRegistry?: Cinema2ModuleRegistry
   serializedParameterState?: string | Cinema2SerializedParameterState
   audioIntelligenceBridge?: Cinema2AudioIntelligenceBridge
+  mediaLoader?: Cinema2MediaLoader
 }
 
 export type Cinema2RuntimeCreateResult =
@@ -106,6 +112,9 @@ const diagnostics: Cinema2RuntimeDiagnostics = {
 const EMPTY_VIEWPORT: Cinema2Viewport = { width: 1, height: 1, dpr: 1 }
 const CINEMA2_RUNTIME_AVAILABLE_CAPABILITIES = Object.freeze([
   'render.webgl2',
+  'media.image',
+  'media.video',
+  'media.svg',
   ...CINEMA2_AUDIO_INTELLIGENCE_RUNTIME_CAPABILITIES,
 ] satisfies readonly Cinema2CapabilityId[])
 
@@ -225,6 +234,7 @@ export class Cinema2Runtime {
   private readonly onContextRestoredHandler: () => void
   private readonly audioIntelligenceBridge: Cinema2AudioIntelligenceBridge
   private readonly targetResolver: Cinema2FinalValueResolver
+  private readonly mediaSlotRuntime: Cinema2MediaSlotRuntime
   private readonly moduleRuntime: Cinema2ModuleRuntime
 
   private phase: Cinema2RuntimePhase = 'initializing'
@@ -260,7 +270,8 @@ export class Cinema2Runtime {
         ? target.authoredBaseValue
         : parameterState.getValue(target.parameterId),
     })
-    this.moduleRuntime = new Cinema2ModuleRuntime(gl, compiledPresetPlan, this.targetResolver, moduleRegistry)
+    this.mediaSlotRuntime = new Cinema2MediaSlotRuntime(gl, compiledPresetPlan.manifest.mediaSlots ?? [], options.mediaLoader)
+    this.moduleRuntime = new Cinema2ModuleRuntime(gl, compiledPresetPlan, this.targetResolver, moduleRegistry, this.mediaSlotRuntime)
     this.contextHandle = registerDrmvyzWebGLContext(gl, {
       lifetime: 'live-reusable',
       role: 'react-live-canvas',
@@ -275,6 +286,7 @@ export class Cinema2Runtime {
       this.phase = 'context-lost'
       this.statusMessage = 'Cinema 2.0 paused because its WebGL2 context was lost.'
       this.moduleRuntime.handleContextLost()
+      this.mediaSlotRuntime.handleContextLost()
       this.lastFrameTimestampMs = null
       this.cancelScheduledFrame()
       this.emitSnapshot()
@@ -286,6 +298,7 @@ export class Cinema2Runtime {
       this.contextGeneration += 1
       this.statusMessage = null
       try {
+        this.mediaSlotRuntime.handleContextRestored()
         this.moduleRuntime.handleContextRestored()
         this.gl.viewport(0, 0, this.viewport.width, this.viewport.height)
         this.renderSafeFrame()
@@ -311,6 +324,7 @@ export class Cinema2Runtime {
         canvas.removeEventListener('webglcontextlost', this.onContextLostHandler)
       }
       this.moduleRuntime.dispose()
+      this.mediaSlotRuntime.dispose()
       retireDrmvyzWebGLContext(this.contextHandle, 'release-resources')
       throw error
     }
@@ -409,6 +423,15 @@ export class Cinema2Runtime {
     return this.moduleRuntime.getSnapshot()
   }
 
+  /** Canonical engine-owned media-slot lifecycle and managed texture service. */
+  getMediaSlotRuntime(): Cinema2MediaSlotRuntime {
+    return this.mediaSlotRuntime
+  }
+
+  getMediaSlotRuntimeSnapshot(): Readonly<Cinema2MediaSlotRuntimeSnapshot> {
+    return this.mediaSlotRuntime.getSnapshot()
+  }
+
   /** Stage 07 consumes these providers; modules never own the frame scheduler. */
   getModuleRenderPassProviders(): readonly Readonly<Cinema2ModuleRenderPassProvider>[] {
     return this.moduleRuntime.getRenderPassProviders()
@@ -443,6 +466,7 @@ export class Cinema2Runtime {
     }
 
     this.moduleRuntime.dispose()
+    this.mediaSlotRuntime.dispose()
 
     if (this.contextOwned) {
       retireDrmvyzWebGLContext(this.contextHandle, 'release-resources')
@@ -500,6 +524,7 @@ export class Cinema2Runtime {
         : Math.min(0.1, Math.max(0, (safeTimestampMs - this.lastFrameTimestampMs) / 1000))
       this.lastFrameTimestampMs = safeTimestampMs
       this.audioIntelligenceFrame = this.audioIntelligenceBridge.capture(visualFrameId)
+      this.mediaSlotRuntime.updateVideoTextures()
       this.moduleRuntime.update(Object.freeze({
         frameId: visualFrameId,
         timestampMs: safeTimestampMs,

@@ -16,12 +16,14 @@ import type {
   Cinema2ModuleDiagnostic,
   Cinema2ModuleFrameReadContext,
   Cinema2ModuleInstance,
+  Cinema2ModuleMediaFacet,
   Cinema2ModuleParameterReadFacet,
   Cinema2ModuleRenderPassProvider,
   Cinema2ModuleTargetFacet,
 } from './Cinema2ModuleContracts'
 import { Cinema2ModuleRegistry } from './Cinema2ModuleRegistry'
 import { Cinema2ModuleResourceScope } from './Cinema2ModuleResources'
+import { Cinema2MediaSlotRuntime } from '../media/Cinema2MediaSlotRuntime'
 
 export type Cinema2ModuleRuntimeStatus = 'inactive' | 'active' | 'failed' | 'disposed'
 
@@ -47,6 +49,7 @@ interface ModuleRecord {
   resources: Cinema2ModuleResourceScope | null
   parameters: Cinema2ModuleParameterReadFacet
   targets: Cinema2ModuleTargetFacet
+  media: Cinema2ModuleMediaFacet
   diagnostics: Cinema2ModuleDiagnostic[]
 }
 
@@ -64,6 +67,7 @@ export class Cinema2ModuleRuntime {
     plan: Readonly<Cinema2CompiledPresetPlan>,
     targetResolver: Cinema2FinalValueResolver,
     private readonly registry: Cinema2ModuleRegistry,
+    mediaRuntime: Cinema2MediaSlotRuntime,
   ) {
     const moduleTargets = indexModuleTargets(plan.targets.targets)
     this.records = (plan.manifest.modules ?? []).map(module => ({
@@ -73,6 +77,7 @@ export class Cinema2ModuleRuntime {
       resources: null,
       parameters: createParameterFacet(module, moduleTargets.get(module.id) ?? new Map(), targetResolver),
       targets: createTargetFacet(targetResolver),
+      media: createMediaFacet(module, mediaRuntime),
       diagnostics: [],
     }))
   }
@@ -168,6 +173,7 @@ export class Cinema2ModuleRuntime {
       module: record.module,
       parameters: record.parameters,
       targets: record.targets,
+      media: record.media,
       resources,
     }
     try {
@@ -266,6 +272,22 @@ function createTargetFacet(resolver: Cinema2FinalValueResolver): Cinema2ModuleTa
     },
   }
   return Object.freeze(facet)
+}
+
+function createMediaFacet(
+  module: Readonly<Cinema2ModuleManifest>,
+  mediaRuntime: Cinema2MediaSlotRuntime,
+): Cinema2ModuleMediaFacet {
+  return Object.freeze({
+    get(bindingName: string) {
+      const slot = module.media?.[bindingName]
+      return slot ? mediaRuntime.getManagedResource(slot.$ref) : null
+    },
+    getSlot(bindingName: string) {
+      const slot = module.media?.[bindingName]
+      return slot ? mediaRuntime.getSlotSnapshot(slot.$ref) : null
+    },
+  })
 }
 
 function cloneJson<T extends Cinema2JsonValue | undefined>(value: T): T {

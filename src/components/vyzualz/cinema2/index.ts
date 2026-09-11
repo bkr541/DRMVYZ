@@ -200,6 +200,21 @@ export {
   type Cinema2ModuleRegistryResult,
 } from './modules/Cinema2ModuleRegistry'
 
+
+export {
+  Cinema2MediaSlotRuntime,
+  type Cinema2LoadedMedia,
+  type Cinema2ManagedMediaResource,
+  type Cinema2MediaFit,
+  type Cinema2MediaLoader,
+  type Cinema2MediaPlaybackSnapshot,
+  type Cinema2MediaPresentation,
+  type Cinema2MediaSlotRuntimeSnapshot,
+  type Cinema2MediaSlotSnapshot,
+  type Cinema2MediaSlotStatus,
+  type Cinema2MediaSource,
+} from './media/Cinema2MediaSlotRuntime'
+
 export {
   Cinema2ModuleRuntime,
   type Cinema2ModuleInstanceSnapshot,
@@ -213,6 +228,7 @@ export {
   type Cinema2ModuleFrameReadContext,
   type Cinema2ModuleInstance,
   type Cinema2ModuleLifecycleFacet,
+  type Cinema2ModuleMediaFacet,
   type Cinema2ModuleParameterReadFacet,
   type Cinema2ModuleRenderExecutionContext,
   type Cinema2ModuleRenderFacet,
