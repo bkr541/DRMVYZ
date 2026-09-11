@@ -1619,10 +1619,23 @@
 .lmv-left-rail .vz-inspector-inner,
 .lmv-right-rail .vz-inspector-inner {
   background: rgba(8,12,18,0.96);
-  /* Match the Media Manager's rail inset exactly
-     (.mmv-content > .vz-inspector > .vz-inspector-inner { padding: 8px 12px }). */
-  padding: 8px 12px;
   box-sizing: border-box;
+}
+
+/* Right rail keeps the Media Manager's rail inset exactly
+   (.mmv-content > .vz-inspector > .vz-inspector-inner { padding: 8px 12px }). */
+.lmv-right-rail .vz-inspector-inner {
+  padding: 8px 12px;
+}
+
+/* Left rail's top/left/right inset is applied per-section below instead
+   (.lmv-lyric-management, .lmv-workspace-tabs, .lmv-workspace-tab-panel)
+   so the Solid Bar Track Workspace header can reach the rail's true top
+   and side edges with no surrounding gap, while everything else keeps its
+   original position. Bottom inset is untouched since nothing needs to
+   reach the bottom edge. */
+.lmv-left-rail .vz-inspector-inner {
+  padding: 0 0 8px;
 }
 
 .lmv-left-rail .vz-inspector-inner {
@@ -2855,6 +2868,18 @@
   padding: 14px 12px 12px;
 }
 
+/* The Solid Bar Track Workspace header (below) needs to reach the rail's
+   true content edges with no gap, so its own top/left/right padding is
+   zeroed here — the tab strip and tab panel beneath it get that inset back
+   directly (see .lmv-workspace-tabs/.lmv-workspace-tab-panel) so only the
+   header bar itself becomes edge-to-edge; nothing else in Track Workspace
+   shifts position. Bottom padding is untouched (unrelated to the header). */
+.lmv-track-workspace {
+  padding-top: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
 .lmv-mockup-left-shell[data-has-selected-track='true'] .lmv-mockup-track-workspace,
 .lmv-workspace-shell[data-has-selected-track='true'] .lmv-track-workspace {
   flex: 0 0 55%;
@@ -2865,6 +2890,17 @@
 .lmv-lyric-management {
   flex: 0 0 45%;
   padding: 14px 12px 12px;
+}
+
+/* .lmv-left-rail .vz-inspector-inner's own left/right inset was moved out
+   (see above) so the Track Workspace header can reach the rail's true side
+   edges; add that same 12px back here so Lyric Management's content keeps
+   its original horizontal position. Top/bottom are untouched — this
+   section doesn't sit against the rail's top edge, only Track Workspace
+   does. */
+.lmv-lyric-management {
+  padding-left: 24px;
+  padding-right: 24px;
 }
 
 /* Right rail "Document Workspace" title: a bare wrapper (not a whole section
@@ -2926,6 +2962,33 @@
   flex-shrink: 0;
 }
 
+/* Track Workspace row restyled per Layout Lab / Template's Design tab —
+   "01 · Solid Bar (Clean & Modern)" mockup (.lltwh-row--solid): a flat,
+   light silver-to-steel gradient bar with near-black text/icon, in place
+   of the flush full-bleed dark header + divider .lmv-rail-title uses
+   everywhere else (Lyric Management, Document Workspace are unaffected —
+   scoped to .lmv-track-workspace only). Edge-to-edge with the rail's true
+   content edges (.lmv-track-workspace's own padding is zeroed above) so
+   the bar touches the corners of the window, with no gap around it; its
+   own 14px side padding still insets the icon/label/button content.
+   Square corners (no border-radius) per explicit correction. */
+.lmv-track-workspace > .lmv-rail-title {
+  margin: 0;
+  border-bottom: 0;
+  background: linear-gradient(180deg, rgba(228, 234, 238, 0.97), rgba(190, 199, 205, 0.94));
+  color: #10161a;
+}
+
+.lmv-track-workspace .lmv-rail-title-action.dv-icon-chip {
+  background: #0b1114;
+  border-color: #26d8f2;
+  color: #26d8f2;
+}
+
+.lmv-track-workspace .lmv-rail-title-action.dv-icon-chip:hover:not(:disabled) {
+  background: #131c20;
+}
+
 /* Center visualizer's "Live Preview" header (a reusable .drc-header group,
    not the .lmv-rail-title used by Track Workspace/Document Workspace):
    matched to Track Workspace's row height, title font-size, and left inset.
@@ -2957,6 +3020,16 @@
   margin-top: 25px;
 }
 
+/* .lmv-track-workspace's own left/right padding, and .lmv-left-rail
+   .vz-inspector-inner's grandparent left/right padding, were both zeroed
+   so the Solid Bar header above can reach the rail's true side edges;
+   restore that same 24px (12 + 12) side inset here so the tabs (and
+   .lmv-workspace-tab-panel below) keep their original position. Scoped to
+   production only — the Layout Lab mockup twin is untouched. */
+.lmv-workspace-tabs.dv-underline-tabs {
+  padding: 0 24px;
+}
+
 .lmv-mockup-workspace-tabs .dv-underline-tab,
 .lmv-workspace-tabs .dv-underline-tab {
   flex: 1 1 0;
@@ -2970,6 +3043,14 @@
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* Restore the 24px (12 + 12) side inset .lmv-track-workspace and
+   .lmv-left-rail .vz-inspector-inner used to provide together, before both
+   were zeroed for the edge-to-edge Solid Bar header (see .lmv-track-workspace
+   and .lmv-left-rail .vz-inspector-inner above). */
+.lmv-workspace-tab-panel {
+  padding: 0 24px;
 }
 
 /* Keep the "Track Library" group header on the same left edge as the tabs and
