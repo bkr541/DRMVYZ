@@ -1,5 +1,5 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react'
-import { ViewIcon } from 'hugeicons-react'
+import { Activity01Icon, ViewIcon } from 'hugeicons-react'
 import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
@@ -239,46 +239,53 @@ export function LyricPreviewPanel({
 
   return (
     <div className="lmv-right-panel">
-      {extractionConsole}
-
-      <RightInspectorSection title="Validation" badge={validationBadge}>
-        <IssueList issues={errorIssues} onNavigate={onNavigateToIssue} />
-        <IssueList issues={warningIssues.slice(0, 8)} onNavigate={onNavigateToIssue} />
-        {warningIssues.length > 8 && <div className="lmv-more-warnings-note">+{warningIssues.length - 8} more warnings</div>}
-        {(attentionCueIds.size > 0 || validation.issues.length > 0) && (
-          <div className="lmv-attention-box">
-            <strong>{attentionCueIds.size} unique cue{attentionCueIds.size === 1 ? '' : 's'} needing attention</strong>
-            <dl className="lmv-attention-counts">
-              <div><dt>Unreviewed cues</dt><dd>{review.unreviewed}</dd></div>
-              <div><dt>Low confidence</dt><dd>{review.lowConfidence}</dd></div>
-              <div><dt>Warnings</dt><dd>{validation.warnings.length}</dd></div>
-              <div><dt>Errors</dt><dd>{validation.errors.length}</dd></div>
-            </dl>
-          </div>
-        )}
-        {validation.valid && validation.warnings.length === 0 && cues.length > 0 && (
-          <div className="lmv-valid-ok-msg">All cues are valid</div>
-        )}
-      </RightInspectorSection>
-
-      <RightInspectorSection title="Document Stats">
-        <div className="lmv-stats-grid">
-          <div className="lmv-stat-row"><span className="lmv-stat-label">Cues</span><span className="lmv-stat-value">{validation.cueCount}</span></div>
-          <div className="lmv-stat-row"><span className="lmv-stat-label">Words</span><span className="lmv-stat-value">{validation.wordCount}</span></div>
-          <div className="lmv-stat-row"><span className="lmv-stat-label">Unreviewed</span><span className="lmv-stat-value">{review.unreviewed}</span></div>
-          <div className="lmv-stat-row"><span className="lmv-stat-label">Low confidence</span><span className="lmv-stat-value">{review.lowConfidence}</span></div>
-          <div className="lmv-stat-row"><span className="lmv-stat-label">Review complete</span><span className="lmv-stat-value">{Math.round(review.completionPercent)}%</span></div>
-          <div className="lmv-stat-row"><span className="lmv-stat-label">Groups</span><span className="lmv-stat-value">{validation.groupCount}</span></div>
-          <div className="lmv-stat-row"><span className="lmv-stat-label">Start</span><span className="lmv-stat-value">{fmtMs(validation.earliestStartMs)}</span></div>
-          <div className="lmv-stat-row"><span className="lmv-stat-label">End</span><span className="lmv-stat-value">{fmtMs(validation.latestEndMs)}</span></div>
-          {document && (
-            <>
-              <div className="lmv-stat-row"><span className="lmv-stat-label">Source</span><span className="lmv-stat-value">{document.sourceType}</span></div>
-              <div className="lmv-stat-row"><span className="lmv-stat-label">Active</span><span className={`lmv-stat-value${document.isActive ? ' lmv-stat-active' : ''}`}>{document.isActive ? 'Yes' : 'No'}</span></div>
-            </>
-          )}
+      <section className="lmv-diagnostics-window" aria-label="Diagnostics">
+        <div className="lmv-rail-title">
+          <Activity01Icon size={15} color="currentColor" aria-hidden="true" />
+          <span>Diagnostics</span>
         </div>
-      </RightInspectorSection>
+
+        {extractionConsole}
+
+        <RightInspectorSection title="Validation" badge={validationBadge}>
+          <IssueList issues={errorIssues} onNavigate={onNavigateToIssue} />
+          <IssueList issues={warningIssues.slice(0, 8)} onNavigate={onNavigateToIssue} />
+          {warningIssues.length > 8 && <div className="lmv-more-warnings-note">+{warningIssues.length - 8} more warnings</div>}
+          {(attentionCueIds.size > 0 || validation.issues.length > 0) && (
+            <div className="lmv-attention-box">
+              <strong>{attentionCueIds.size} unique cue{attentionCueIds.size === 1 ? '' : 's'} needing attention</strong>
+              <dl className="lmv-attention-counts">
+                <div><dt>Unreviewed cues</dt><dd>{review.unreviewed}</dd></div>
+                <div><dt>Low confidence</dt><dd>{review.lowConfidence}</dd></div>
+                <div><dt>Warnings</dt><dd>{validation.warnings.length}</dd></div>
+                <div><dt>Errors</dt><dd>{validation.errors.length}</dd></div>
+              </dl>
+            </div>
+          )}
+          {validation.valid && validation.warnings.length === 0 && cues.length > 0 && (
+            <div className="lmv-valid-ok-msg">All cues are valid</div>
+          )}
+        </RightInspectorSection>
+
+        <RightInspectorSection title="Document Stats">
+          <div className="lmv-stats-grid">
+            <div className="lmv-stat-row"><span className="lmv-stat-label">Cues</span><span className="lmv-stat-value">{validation.cueCount}</span></div>
+            <div className="lmv-stat-row"><span className="lmv-stat-label">Words</span><span className="lmv-stat-value">{validation.wordCount}</span></div>
+            <div className="lmv-stat-row"><span className="lmv-stat-label">Unreviewed</span><span className="lmv-stat-value">{review.unreviewed}</span></div>
+            <div className="lmv-stat-row"><span className="lmv-stat-label">Low confidence</span><span className="lmv-stat-value">{review.lowConfidence}</span></div>
+            <div className="lmv-stat-row"><span className="lmv-stat-label">Review complete</span><span className="lmv-stat-value">{Math.round(review.completionPercent)}%</span></div>
+            <div className="lmv-stat-row"><span className="lmv-stat-label">Groups</span><span className="lmv-stat-value">{validation.groupCount}</span></div>
+            <div className="lmv-stat-row"><span className="lmv-stat-label">Start</span><span className="lmv-stat-value">{fmtMs(validation.earliestStartMs)}</span></div>
+            <div className="lmv-stat-row"><span className="lmv-stat-label">End</span><span className="lmv-stat-value">{fmtMs(validation.latestEndMs)}</span></div>
+            {document && (
+              <>
+                <div className="lmv-stat-row"><span className="lmv-stat-label">Source</span><span className="lmv-stat-value">{document.sourceType}</span></div>
+                <div className="lmv-stat-row"><span className="lmv-stat-label">Active</span><span className={`lmv-stat-value${document.isActive ? ' lmv-stat-active' : ''}`}>{document.isActive ? 'Yes' : 'No'}</span></div>
+              </>
+            )}
+          </div>
+        </RightInspectorSection>
+      </section>
     </div>
   )
 }

@@ -2071,6 +2071,26 @@
   gap: 6px;
 }
 
+/* "Diagnostics" window: groups Workflow Status, Validation, and Document
+   Stats (moved here from being flat direct children of .lmv-right-panel)
+   under one titled section, living under Document Workspace like Track
+   Information above it. */
+.lmv-diagnostics-window {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Window header — the plain default .lmv-rail-title treatment (unlike
+   Track Workspace/Lyric Management/Document Workspace, this one hasn't
+   been restyled to the Drop Shadow bar). The negative margin pulls it out
+   of .lmv-right-panel's own 16px/26px top/side padding so the divider
+   spans the panel's full width, flush with its edges, instead of nesting
+   Diagnostics as an inset card. */
+.lmv-diagnostics-window > .lmv-rail-title {
+  margin: -16px -26px 0;
+}
+
 .lmv-preview-cue-box {
   min-height: 112px;
   border-radius: 4px;
