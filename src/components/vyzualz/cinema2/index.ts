@@ -60,8 +60,14 @@ export {
   type Cinema2ModuleTypeId,
   type Cinema2NativePresetManifest,
   type Cinema2OutputManifest,
+  type Cinema2ParameterConditionManifest,
+  type Cinema2ParameterExposure,
   type Cinema2ParameterId,
   type Cinema2ParameterManifest,
+  type Cinema2ParameterOptionManifest,
+  type Cinema2ParameterPersistenceScope,
+  type Cinema2ParameterResetMode,
+  type Cinema2ParameterType,
   type Cinema2PresetDefaultsManifest,
   type Cinema2PresetId,
   type Cinema2PresetMetadataManifest,
@@ -77,6 +83,25 @@ export {
   type Cinema2VariationManifest,
   type Cinema2WritableTargetRef,
 } from './contracts/Cinema2NativePresetManifest'
+
+export {
+  compileCinema2ParameterPlan,
+  normalizeCinema2ParameterValue,
+  validateCinema2ParameterDefinitions,
+  type Cinema2CompiledParameterDefinition,
+  type Cinema2CompiledParameterPlan,
+  type Cinema2ParameterSchemaDiagnostic,
+  type Cinema2ParameterValueNormalizationResult,
+} from './parameters/Cinema2ParameterSchema'
+
+export {
+  CINEMA2_PARAMETER_STATE_SCHEMA_ID,
+  CINEMA2_PARAMETER_STATE_SCHEMA_VERSION,
+  Cinema2ParameterState,
+  type Cinema2ParameterStateMutationResult,
+  type Cinema2ParameterStateSnapshot,
+  type Cinema2SerializedParameterState,
+} from './parameters/Cinema2ParameterState'
 
 export {
   Cinema2Runtime,

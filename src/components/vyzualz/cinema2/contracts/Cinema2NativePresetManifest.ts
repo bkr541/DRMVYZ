@@ -120,25 +120,74 @@ export type Cinema2ParameterType =
   | 'boolean'
   | 'enum'
   | 'color'
+  | 'trigger'
+  | 'string'
+  | 'text'
   | 'vec2'
   | 'vec3'
-  | 'text'
+  | 'media'
+  | 'status'
+  | 'meter'
+
+export type Cinema2ParameterExposure = 'primary' | 'advanced' | 'hidden' | 'diagnostic'
+export type Cinema2ParameterPersistenceScope = 'preset' | 'user' | 'runtime-only'
+export type Cinema2ParameterResetMode = 'authored-default' | 'none'
 
 export interface Cinema2ParameterOptionManifest {
   value: string
   label: string
 }
 
+export type Cinema2ParameterConditionManifest =
+  | {
+      kind: 'parameter-equals'
+      parameterId: Cinema2ParameterId
+      value: Cinema2JsonValue
+    }
+  | {
+      kind: 'parameter-not-equals'
+      parameterId: Cinema2ParameterId
+      value: Cinema2JsonValue
+    }
+  | {
+      kind: 'capability-available'
+      capability: Cinema2CapabilityId
+    }
+
+/**
+ * Native Cinema 2.0 authored parameter definition. This is descriptive schema,
+ * not resolved runtime modulation state. Presets/modules may contribute these
+ * definitions without modifying an engine-wide creative parameter catalog.
+ */
 export interface Cinema2ParameterManifest {
   id: Cinema2ParameterId
   label: string
+  description?: string
   type: Cinema2ParameterType
+  /**
+   * Authored reset value. `defaults.parameterValues` may override this at the
+   * preset envelope. Trigger parameters intentionally omit a default value.
+   */
   defaultValue?: Cinema2JsonValue
   min?: number
   max?: number
   step?: number
+  unit?: string
   options?: readonly Cinema2ParameterOptionManifest[]
+  section?: string
+  group?: string
+  order?: number
+  exposure?: Cinema2ParameterExposure
+  visibleWhen?: readonly Cinema2ParameterConditionManifest[]
+  enabledWhen?: readonly Cinema2ParameterConditionManifest[]
+  capabilities?: readonly Cinema2CapabilityRequirement[]
   modulatable?: boolean
+  choreographable?: boolean
+  automatable?: boolean
+  persistence?: Cinema2ParameterPersistenceScope
+  reset?: Cinema2ParameterResetMode
+  /** Optional media-slot binding for `media` parameters. */
+  mediaSlot?: Cinema2MediaSlotRef
   metadata?: Cinema2JsonObject
 }
 

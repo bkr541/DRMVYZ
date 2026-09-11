@@ -86,8 +86,8 @@ describe('Cinema 2.0 native preset compiler', () => {
     const result = compileCinema2NativePreset({
       ...minimalManifest(),
       parameters: [
-        { id: parameterId, label: 'Amount A', type: 'float' },
-        { id: parameterId, label: 'Amount B', type: 'float' },
+        { id: parameterId, label: 'Amount A', type: 'float', defaultValue: 0 },
+        { id: parameterId, label: 'Amount B', type: 'float', defaultValue: 0 },
       ],
     })
 
@@ -177,7 +177,7 @@ describe('Cinema 2.0 native preset compiler', () => {
     const parameterId = cinema2StableId<Cinema2ParameterId>('amount')
     const result = compileCinema2NativePreset({
       ...minimalManifest(),
-      parameters: [{ id: parameterId, label: 'Amount', type: 'float' }],
+      parameters: [{ id: parameterId, label: 'Amount', type: 'float', defaultValue: 0 }],
       modules: [{ id: moduleId, typeId: cinema2StableId<Cinema2ModuleTypeId>('generator'), version: 1 }],
       scene: { nodes: [{ id: nodeId, kind: 'group', module: cinema2Ref(moduleId) }] },
       choreography: {

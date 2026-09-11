@@ -18,8 +18,13 @@ import {
   type Cinema2SceneNodeId,
   type Cinema2VariationId,
 } from '../contracts/Cinema2NativePresetManifest'
+import {
+  compileCinema2ParameterPlan,
+  validateCinema2ParameterDefinitions,
+  type Cinema2CompiledParameterPlan,
+} from '../parameters/Cinema2ParameterSchema'
 
-export const CINEMA2_COMPILED_PRESET_PLAN_VERSION = 1 as const
+export const CINEMA2_COMPILED_PRESET_PLAN_VERSION = 2 as const
 
 export type Cinema2PresetDiagnosticSeverity = 'warning' | 'error'
 
@@ -68,6 +73,7 @@ export interface Cinema2CompiledPresetPlan {
   revision: number
   manifest: Readonly<Cinema2NativePresetManifest>
   capabilities: Readonly<Cinema2CompiledCapabilityPlan>
+  parameters: Readonly<Cinema2CompiledParameterPlan>
   scene: Readonly<Cinema2CompiledScenePlan>
   render: Readonly<Cinema2CompiledRenderPlan>
 }
@@ -141,6 +147,7 @@ export function compileCinema2NativePreset(
   validateOptionalContainers(manifest, diagnostics)
   const index = buildManifestIndex(manifest, diagnostics)
   validateCapabilities(manifest, options, diagnostics)
+  diagnostics.push(...validateCinema2ParameterDefinitions(manifest).map(diagnostic => ({ ...diagnostic, severity: 'error' as const })))
   validateReferencesAndCombinations(manifest, index, diagnostics)
   validateSceneParentCycles(manifest, index, diagnostics)
 
@@ -160,6 +167,7 @@ export function compileCinema2NativePreset(
     revision: clonedManifest.revision,
     manifest: clonedManifest,
     capabilities: compileCapabilityPlan(clonedManifest, options),
+    parameters: compileCinema2ParameterPlan(clonedManifest),
     scene: compileScenePlan(clonedManifest),
     render: renderPlan,
   }) as Readonly<Cinema2CompiledPresetPlan>
@@ -303,6 +311,9 @@ function validateCapabilities(
   for (const [index, module] of readArray(manifest.modules, '$.modules', diagnostics).entries()) {
     groups.push({ path: `$.modules[${index}].capabilities`, values: module.capabilities })
   }
+  for (const [index, parameter] of readArray(manifest.parameters, '$.parameters', diagnostics).entries()) {
+    groups.push({ path: `$.parameters[${index}].capabilities`, values: parameter.capabilities })
+  }
 
   for (const group of groups) {
     const seen = new Set<string>()
@@ -375,6 +386,14 @@ function collectCapabilityRequirements(
       }
     }
   }
+  if (Array.isArray(manifest.parameters)) {
+    for (const [parameterIndex, parameter] of manifest.parameters.entries()) {
+      if (!isPlainObject(parameter) || !Array.isArray(parameter.capabilities)) continue
+      for (const [capabilityIndex, capability] of parameter.capabilities.entries()) {
+        if (isPlainObject(capability)) values.push({ ...(capability as unknown as Cinema2CapabilityRequirement), path: `$.parameters[${parameterIndex}].capabilities[${capabilityIndex}]` })
+      }
+    }
+  }
   return values
 }
 
@@ -412,33 +431,7 @@ function validateReferencesAndCombinations(
   index: ManifestIndex,
   diagnostics: Cinema2PresetDiagnostic[],
 ): void {
-  const parameterTypes = new Set(['float', 'integer', 'boolean', 'enum', 'color', 'vec2', 'vec3', 'text'])
-  for (const [parameterIndex, parameter] of readArray(manifest.parameters, '$.parameters', diagnostics).entries()) {
-    const base = `$.parameters[${parameterIndex}]`
-    if (!parameterTypes.has(String(parameter.type))) {
-      diagnostics.push(error('CINEMA2_PRESET_PARAMETER_TYPE_INVALID', `Unsupported parameter type "${String(parameter.type)}".`, `${base}.type`))
-    }
-    if (parameter.type === 'enum') {
-      if (!Array.isArray(parameter.options) || parameter.options.length === 0) {
-        diagnostics.push(error('CINEMA2_PRESET_COMBINATION_INVALID', 'Enum parameters must declare at least one option.', `${base}.options`))
-      } else {
-        const values = new Set<string>()
-        for (const [optionIndex, option] of parameter.options.entries()) {
-          if (!isPlainObject(option) || typeof option.value !== 'string' || typeof option.label !== 'string') {
-            diagnostics.push(error('CINEMA2_PRESET_SCHEMA_INVALID', 'Enum parameter options must contain string value and label fields.', `${base}.options[${optionIndex}]`))
-            continue
-          }
-          if (values.has(option.value)) {
-            diagnostics.push(error('CINEMA2_PRESET_DUPLICATE_ID', `Duplicate enum option value "${option.value}".`, `${base}.options[${optionIndex}].value`))
-          }
-          values.add(option.value)
-        }
-      }
-    }
-    if (typeof parameter.min === 'number' && typeof parameter.max === 'number' && parameter.min > parameter.max) {
-      diagnostics.push(error('CINEMA2_PRESET_COMBINATION_INVALID', 'Parameter min cannot exceed max.', base))
-    }
-  }
+  // Parameter definitions/defaults are validated by the Cinema 2.0 parameter schema boundary.
 
   const mediaKinds = new Set(['image', 'video', 'svg'])
   for (const [slotIndex, slot] of readArray(manifest.mediaSlots, '$.mediaSlots', diagnostics).entries()) {

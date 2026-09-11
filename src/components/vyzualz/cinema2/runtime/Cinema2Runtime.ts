@@ -6,6 +6,10 @@ import {
 } from '../audio/Cinema2AudioIntelligenceBridge'
 import type { Cinema2CompiledPresetPlan } from '../presets/Cinema2PresetCompiler'
 import {
+  Cinema2ParameterState,
+  type Cinema2SerializedParameterState,
+} from '../parameters/Cinema2ParameterState'
+import {
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
   Cinema2PresetRegistry,
   cinema2NativePresetRegistry,
@@ -62,6 +66,7 @@ export interface Cinema2RuntimeCreateOptions {
   onSnapshot?: (snapshot: Cinema2RuntimeSnapshot) => void
   presetId?: Cinema2PresetId
   presetRegistry?: Cinema2PresetRegistry
+  serializedParameterState?: string | Cinema2SerializedParameterState
   audioIntelligenceBridge?: Cinema2AudioIntelligenceBridge
 }
 
@@ -144,6 +149,15 @@ export class Cinema2Runtime {
       return { runtime: null, error: message, snapshot: unavailableSnapshot(message) }
     }
 
+    const parameterState = new Cinema2ParameterState(compilation.plan.parameters)
+    if (options.serializedParameterState != null) {
+      const restored = parameterState.restore(options.serializedParameterState)
+      if (!restored.ok) {
+        const message = `Cinema 2.0 parameter state was rejected before runtime setup: ${restored.diagnostics.map(diagnostic => `${diagnostic.path}: ${diagnostic.message}`).join('; ')}`
+        return { runtime: null, error: message, snapshot: unavailableSnapshot(message) }
+      }
+    }
+
     let gl: WebGL2RenderingContext | null = null
     try {
       gl = canvas.getContext('webgl2', {
@@ -167,7 +181,7 @@ export class Cinema2Runtime {
 
     let runtime: Cinema2Runtime | null = null
     try {
-      runtime = new Cinema2Runtime(canvas, gl, compilation.plan, options)
+      runtime = new Cinema2Runtime(canvas, gl, compilation.plan, parameterState, options)
       runtime.renderSafeFrame()
       const snapshot = runtime.getSnapshot()
       return { runtime, error: null, snapshot }
@@ -204,6 +218,7 @@ export class Cinema2Runtime {
     private readonly canvas: HTMLCanvasElement,
     private readonly gl: WebGL2RenderingContext,
     private readonly compiledPresetPlan: Readonly<Cinema2CompiledPresetPlan>,
+    private readonly parameterState: Cinema2ParameterState,
     options: Cinema2RuntimeCreateOptions,
   ) {
     this.requestFrame = options.requestAnimationFrame ?? (callback => window.requestAnimationFrame(callback))
@@ -321,6 +336,15 @@ export class Cinema2Runtime {
 
   getCompiledPresetPlan(): Readonly<Cinema2CompiledPresetPlan> {
     return this.compiledPresetPlan
+  }
+
+  /** Canonical authored/user parameter state owned by this preset runtime. */
+  getParameterState(): Cinema2ParameterState {
+    return this.parameterState
+  }
+
+  serializeParameterState(): string {
+    return this.parameterState.serialize()
   }
 
   /** Most recent immutable Audio Intelligence snapshot captured for a visual frame. */
