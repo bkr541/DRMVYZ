@@ -1,7 +1,10 @@
+import type { Cinema2PresetId } from '../contracts/Cinema2NativePresetManifest'
+import type { Cinema2CompiledPresetPlan } from '../presets/Cinema2PresetCompiler'
 import {
-  CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST,
-  validateCinema2NativePresetManifestIdentity,
-} from '../contracts/Cinema2NativePresetManifest'
+  CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
+  Cinema2PresetRegistry,
+  cinema2NativePresetRegistry,
+} from '../presets/Cinema2PresetRegistry'
 import {
   registerDrmvyzWebGLContext,
   retireDrmvyzWebGLContext,
@@ -45,12 +48,15 @@ export interface Cinema2RuntimeDiagnostics {
   activeEventListenerCount: number
   activeWebGLContextCount: number
   nativePresetManifestValidationCount: number
+  nativePresetCompilationCount: number
 }
 
 export interface Cinema2RuntimeCreateOptions {
   requestAnimationFrame?: typeof requestAnimationFrame
   cancelAnimationFrame?: typeof cancelAnimationFrame
   onSnapshot?: (snapshot: Cinema2RuntimeSnapshot) => void
+  presetId?: Cinema2PresetId
+  presetRegistry?: Cinema2PresetRegistry
 }
 
 export type Cinema2RuntimeCreateResult =
@@ -65,6 +71,7 @@ const diagnostics: Cinema2RuntimeDiagnostics = {
   activeEventListenerCount: 0,
   activeWebGLContextCount: 0,
   nativePresetManifestValidationCount: 0,
+  nativePresetCompilationCount: 0,
 }
 
 const EMPTY_VIEWPORT: Cinema2Viewport = { width: 1, height: 1, dpr: 1 }
@@ -105,9 +112,9 @@ export function getCinema2RuntimeDiagnostics(): Readonly<Cinema2RuntimeDiagnosti
  * Minimal native Cinema 2.0 runtime foundation.
  *
  * This runtime deliberately owns only lifecycle, one WebGL2 context, one RAF
- * loop, a deterministic safe frame, resize state and context recovery. Preset
- * compilation, audio intelligence, graph execution and creative modules are
- * future Cinema 2.0 stages and are not delegated to Cinema 1 here.
+ * loop, a deterministic safe frame, resize state and context recovery. Native
+ * preset registration/compilation now gates activation; render-graph execution,
+ * audio intelligence and creative modules remain later Cinema 2.0 stages.
  */
 export class Cinema2Runtime {
   static create(
@@ -115,9 +122,14 @@ export class Cinema2Runtime {
     options: Cinema2RuntimeCreateOptions = {},
   ): Cinema2RuntimeCreateResult {
     diagnostics.nativePresetManifestValidationCount += 1
-    const contractValidation = validateCinema2NativePresetManifestIdentity(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST)
-    if (!contractValidation.ok) {
-      const message = `Cinema 2.0 native preset contract is invalid: ${contractValidation.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`
+    diagnostics.nativePresetCompilationCount += 1
+    const presetRegistry = options.presetRegistry ?? cinema2NativePresetRegistry
+    const presetId = options.presetId ?? CINEMA2_RUNTIME_FOUNDATION_PRESET_ID
+    const compilation = presetRegistry.compile(presetId, {
+      availableCapabilities: ['render.webgl2'],
+    })
+    if (!compilation.ok) {
+      const message = `Cinema 2.0 preset activation was rejected before runtime setup: ${compilation.diagnostics.map(diagnostic => `${diagnostic.path}: ${diagnostic.message}`).join('; ')}`
       return { runtime: null, error: message, snapshot: unavailableSnapshot(message) }
     }
 
@@ -144,7 +156,7 @@ export class Cinema2Runtime {
 
     let runtime: Cinema2Runtime | null = null
     try {
-      runtime = new Cinema2Runtime(canvas, gl, options)
+      runtime = new Cinema2Runtime(canvas, gl, compilation.plan, options)
       runtime.renderSafeFrame()
       const snapshot = runtime.getSnapshot()
       return { runtime, error: null, snapshot }
@@ -178,6 +190,7 @@ export class Cinema2Runtime {
   private constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly gl: WebGL2RenderingContext,
+    private readonly compiledPresetPlan: Readonly<Cinema2CompiledPresetPlan>,
     options: Cinema2RuntimeCreateOptions,
   ) {
     this.requestFrame = options.requestAnimationFrame ?? (callback => window.requestAnimationFrame(callback))
@@ -290,6 +303,10 @@ export class Cinema2Runtime {
     }
     this.emitSnapshot()
     return true
+  }
+
+  getCompiledPresetPlan(): Readonly<Cinema2CompiledPresetPlan> {
+    return this.compiledPresetPlan
   }
 
   getSnapshot(): Cinema2RuntimeSnapshot {

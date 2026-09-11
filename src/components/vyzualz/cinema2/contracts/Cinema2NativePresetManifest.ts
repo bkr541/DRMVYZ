@@ -489,9 +489,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Minimal authored manifest used only to prove the native contract is reachable
- * from the existing Stage-01 production runtime. It is not a preset registry,
- * compiler input API, or meaningful visual preset.
+ * Neutral native manifest used by the production Cinema 2.0 registry/runtime
+ * path until keeper presets are registered in a later stage. It intentionally
+ * carries no creative preset behavior or future subsystem requirements.
  */
 export const CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,

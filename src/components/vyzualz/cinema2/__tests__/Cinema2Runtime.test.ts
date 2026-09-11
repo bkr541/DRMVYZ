@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  CINEMA2_NATIVE_PRESET_SCHEMA_ID,
+  CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
+  Cinema2PresetRegistry,
   Cinema2Runtime,
+  cinema2NamespacedId,
   getCinema2RuntimeDiagnostics,
-} from '../runtime/Cinema2Runtime'
+  type Cinema2NativePresetManifest,
+  type Cinema2PresetId,
+} from '..'
 
 type RafHarness = ReturnType<typeof createRafHarness>
 
@@ -170,6 +176,31 @@ describe('Cinema2Runtime sibling foundation', () => {
     expect(raf.callbacks.size).toBe(1)
 
     runtime.dispose()
+  })
+
+  it('rejects a registered preset with unavailable required capabilities before acquiring WebGL2', () => {
+    const registry = new Cinema2PresetRegistry()
+    const presetId = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.requires-drop')
+    const manifest: Cinema2NativePresetManifest = {
+      schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
+      schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
+      id: presetId,
+      revision: 1,
+      metadata: { name: 'Requires Drop' },
+      capabilities: [{ id: 'music.drop', requirement: 'required' }],
+    }
+    expect(registry.register(manifest).ok).toBe(true)
+    const canvas = new FakeCanvas(createMockWebGL())
+
+    const result = Cinema2Runtime.create(canvas as unknown as HTMLCanvasElement, {
+      presetId,
+      presetRegistry: registry,
+    })
+
+    expect(result.runtime).toBeNull()
+    expect(result.error).toContain('music.drop')
+    expect(result.error).toContain('rejected before runtime setup')
+    expect(canvas.getContext).not.toHaveBeenCalled()
   })
 
   it('returns an explicit unavailable state when WebGL2 is missing or initialization throws', () => {

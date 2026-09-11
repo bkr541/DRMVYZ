@@ -66,3 +66,25 @@ export {
   type Cinema2RuntimeSnapshot,
   type Cinema2Viewport,
 } from './runtime/Cinema2Runtime'
+
+export {
+  CINEMA2_COMPILED_PRESET_PLAN_VERSION,
+  compileCinema2NativePreset,
+  type Cinema2CompiledCapabilityPlan,
+  type Cinema2CompiledPresetPlan,
+  type Cinema2CompiledRenderIntent,
+  type Cinema2CompiledRenderPlan,
+  type Cinema2CompiledScenePlan,
+  type Cinema2PresetCompilationResult,
+  type Cinema2PresetCompileOptions,
+  type Cinema2PresetDiagnostic,
+  type Cinema2PresetDiagnosticSeverity,
+} from './presets/Cinema2PresetCompiler'
+
+export {
+  CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
+  Cinema2PresetRegistry,
+  cinema2NativePresetRegistry,
+  type Cinema2PresetRegistryCompileOptions,
+  type Cinema2PresetRegistryRegisterResult,
+} from './presets/Cinema2PresetRegistry'
