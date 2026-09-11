@@ -1819,6 +1819,43 @@
   border-bottom: 1px solid rgba(126,218,232,0.1);
 }
 
+/* SelectedTrackHero's empty <-> filled swap, driven by useMountTransition
+   (LyricManagerView.tsx) since only one of the two ever mounts at a time —
+   each fades/slides independently as the track selection changes. The
+   modifier classes below are unique to this pairing (.lmv-track-state's
+   other, unrelated empty-state usages elsewhere in the app never receive
+   them), so scoping the transition to just these selectors can't bleed
+   into those. */
+.lmv-track-state--entering,
+.lmv-track-state--entered,
+.lmv-track-state--exiting {
+  transition: opacity 200ms ease;
+}
+
+.lmv-track-state--entering,
+.lmv-track-state--exiting {
+  opacity: 0;
+}
+
+.lmv-track-state--entered {
+  opacity: 1;
+}
+
+.lmv-track-info-fill {
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.lmv-track-info-fill--entering,
+.lmv-track-info-fill--exiting {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.lmv-track-info-fill--entered {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .lmv-track-info-header {
   display: flex;
   align-items: center;
@@ -2921,6 +2958,29 @@
   padding-top: 0;
   padding-left: 0;
   padding-right: 0;
+}
+
+/* Enter/exit animation for the whole section, driven by useMountTransition
+   (LyricManagerView.tsx) since it only mounts once a track is selected —
+   React removes it from the DOM the instant selectedTrack goes null, before
+   a plain CSS transition on unmount could ever play, so the hook keeps it
+   mounted a beat longer while this class drives it back to the hidden
+   state. Track Workspace's flex-basis (55%/45% split) is held for the same
+   extra beat via data-has-selected-track, so the layout doesn't snap back
+   to 100% out from under the still-fading section. */
+.lmv-lyric-management {
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.lmv-lyric-management--entering,
+.lmv-lyric-management--exiting {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.lmv-lyric-management--entered {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* Right rail "Document Workspace" header: now restyled to match Track

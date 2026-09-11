@@ -50,6 +50,7 @@ import { Add01Icon, AudioWave02Icon, File02Icon, FileAddIcon, FileImportIcon, Su
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
+import { useMountTransition } from '../../hooks/useMountTransition'
 import type { LyricManagerNavigationIntent, LyricManagerWorkflow } from './lyricNavigation'
 import { findSavedTrackLinkCandidates, type SavedTrackLinkCandidate } from './services/savedTrackLinking'
 import { LinkSavedTrackDialog } from './components/LinkSavedTrackDialog'
@@ -234,33 +235,45 @@ function SelectedTrackHero({
   onLoadTrack: () => void
   onTogglePlayback: () => void
 }) {
+  const hasTrack = Boolean(track)
+  const emptyPhase = useMountTransition(!hasTrack, 200)
+  const filledPhase = useMountTransition(hasTrack, 200)
+
+  // The filled branch keeps animating out for a moment after `track` goes
+  // null (deselection) — hold on to the last non-null track so its details
+  // stay rendered (fading out) instead of the branch going blank mid-exit.
+  const lastTrackRef = useRef<LyricManagerTrack | null>(track)
+  if (track) lastTrackRef.current = track
+  const displayTrack = track ?? lastTrackRef.current
+
   return (
     <section className="lmv-track-info-panel" aria-label="Selected track">
       <Collapsible label="Track Information" defaultOpen>
-        {!track ? (
-          <div className="lmv-track-state">Select a track from the library to inspect lyric versions, edit timed cues, and preview the document in the visualizer.</div>
-        ) : (
-          <>
+        {emptyPhase !== 'unmounted' && (
+          <div className={`lmv-track-state lmv-track-state--${emptyPhase}`}>Select a track from the library to inspect lyric versions, edit timed cues, and preview the document in the visualizer.</div>
+        )}
+        {filledPhase !== 'unmounted' && displayTrack && (
+          <div className={`lmv-track-info-fill lmv-track-info-fill--${filledPhase}`}>
             <div className="lmv-track-info-header">
-              <div className="lmv-track-art" aria-hidden="true"><span>{trackInitials(track)}</span></div>
+              <div className="lmv-track-art" aria-hidden="true"><span>{trackInitials(displayTrack)}</span></div>
               <div className="lmv-track-card-main">
                 <div className="lmv-track-card-topline">
-                  <span className="lmv-track-title">{track.title || track.fileName}</span>
+                  <span className="lmv-track-title">{displayTrack.title || displayTrack.fileName}</span>
                   <span className="lmv-track-state-badges">
                     <StatusBadge tone="selected">Selected</StatusBadge>
                     {selectedTrackLoaded && <StatusBadge tone="loaded">Loaded</StatusBadge>}
                     {selectedTrackPlaying && <StatusBadge tone="playing">Playing</StatusBadge>}
                   </span>
                 </div>
-                <span className="lmv-track-artist">{track.artist || 'Unknown artist'}</span>
+                <span className="lmv-track-artist">{displayTrack.artist || 'Unknown artist'}</span>
               </div>
             </div>
 
             <div className="lmv-stats-grid lmv-track-info-stats" aria-label="Track details">
-              <div className="lmv-stat-row"><span className="lmv-stat-label">Duration</span><span className="lmv-stat-value">{formatDuration(track.durationSec)}</span></div>
-              <div className="lmv-stat-row"><span className="lmv-stat-label">Tempo</span><span className="lmv-stat-value">{track.bpm ? `${Math.round(track.bpm)} BPM` : '—'}</span></div>
-              <div className="lmv-stat-row"><span className="lmv-stat-label">Key</span><span className="lmv-stat-value">{track.musicalKey || '—'}</span></div>
-              <div className="lmv-stat-row"><span className="lmv-stat-label">Added</span><span className="lmv-stat-value">{formatTrackDate(track.createdAt)}</span></div>
+              <div className="lmv-stat-row"><span className="lmv-stat-label">Duration</span><span className="lmv-stat-value">{formatDuration(displayTrack.durationSec)}</span></div>
+              <div className="lmv-stat-row"><span className="lmv-stat-label">Tempo</span><span className="lmv-stat-value">{displayTrack.bpm ? `${Math.round(displayTrack.bpm)} BPM` : '—'}</span></div>
+              <div className="lmv-stat-row"><span className="lmv-stat-label">Key</span><span className="lmv-stat-value">{displayTrack.musicalKey || '—'}</span></div>
+              <div className="lmv-stat-row"><span className="lmv-stat-label">Added</span><span className="lmv-stat-value">{formatTrackDate(displayTrack.createdAt)}</span></div>
             </div>
 
             <dl className="lmv-workflow-status-grid lmv-track-info-versions">
@@ -283,7 +296,7 @@ function SelectedTrackHero({
                 {selectedTrackPlaying ? 'Pause' : 'Preview'}
               </IconChipButton>
             </div>
-          </>
+          </div>
         )}
       </Collapsible>
     </section>
@@ -436,6 +449,7 @@ export function LyricManagerView({
   const [selectedTrack, setSelectedTrack] = useState<LyricManagerTrack | null>(
     null,
   )
+  const lyricManagementPhase = useMountTransition(Boolean(selectedTrack), 220)
   const [documents, setDocuments] = useState<LyricDocumentVersion[]>([])
   const [legacyDocuments, setLegacyDocuments] = useState<
     LyricDocumentVersion[]
@@ -1141,10 +1155,18 @@ export function LyricManagerView({
 
   const handleSelectTrack = useCallback(
     (track: LyricManagerTrack) => {
-      if (selectedTrack?.dbId === track.dbId) return
+      if (selectedTrack?.dbId === track.dbId) {
+        requestTransition(
+          `Save changes before deselecting “${track.title}”?`,
+          () => {
+            selectTrackState(null)
+          },
+        )
+        return
+      }
       openTrackWorkflow(track, 'timeline')
     },
-    [openTrackWorkflow, selectedTrack?.dbId],
+    [openTrackWorkflow, requestTransition, selectTrackState, selectedTrack?.dbId],
   )
 
   const handleSelectDocument = useCallback(
@@ -2016,7 +2038,7 @@ export function LyricManagerView({
         >
           <div
             className="lmv-workspace-shell"
-            data-has-selected-track={selectedTrack ? 'true' : 'false'}
+            data-has-selected-track={lyricManagementPhase !== 'unmounted' ? 'true' : 'false'}
           >
           <section className="lmv-track-workspace" aria-label="Track Workspace">
             <div className="lmv-rail-title">
@@ -2100,8 +2122,8 @@ export function LyricManagerView({
             </div>
           </section>
 
-          {selectedTrack && (
-          <section className="lmv-lyric-management" aria-label="Lyric Management">
+          {lyricManagementPhase !== 'unmounted' && (
+          <section className={`lmv-lyric-management lmv-lyric-management--${lyricManagementPhase}`} aria-label="Lyric Management">
             <div className="lmv-rail-title">
               <SubtitleIcon size={15} color="currentColor" aria-hidden="true" />
               <span>Lyric Management</span>
