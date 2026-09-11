@@ -2933,14 +2933,19 @@
 
 /* Center visualizer's "Live Preview" header (a reusable .drc-header group,
    not the .lmv-rail-title used by Track Workspace/Document Workspace):
-   matched to Track Workspace's row height and title font-size only. Color,
-   weight, letter-spacing, and case are left as the shared .drc-header
-   default on purpose. Scoped to this one header via headerClassName so no
-   other Collapsible group (Validation, Document Stats, Track Library, …) is
-   affected. */
+   matched to Track Workspace's row height, title font-size, and left inset.
+   Track Workspace's icon/text sits 26px from the rail edge — 12px from
+   .vz-inspector-inner's own padding, plus .lmv-rail-title's own 14px padding
+   — but .lmv-center (Live Preview's container) carries no such padding of
+   its own, so that 26px is reproduced directly on this header instead of
+   being split across two ancestors. Color, weight, letter-spacing, and case
+   are left as the shared .drc-header default on purpose. Scoped to this one
+   header via headerClassName so no other Collapsible group (Validation,
+   Document Stats, Track Library, …) is affected. */
 .drc-header.lmv-live-preview-header {
   min-height: 42px;
   font-size: 12px;
+  padding-left: 26px;
 }
 
 .lmv-live-preview-header > span:first-child {
