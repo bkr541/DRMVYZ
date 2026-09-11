@@ -1498,6 +1498,85 @@
   box-shadow: inset -1px 0 0 rgba(255,255,255,0.025);
 }
 
+/* Silver "contains the window" outline on the left rail's right edge — a
+   brushed-chrome thread running the height of the rail, with a matching ring
+   that wraps around the floating collapse/expand toggle (.vz-inspector-toggle,
+   which already centers itself on this exact edge) instead of being broken by
+   it. Purely decorative: z-index keeps it under the toggle button and above
+   the rail's own border/box-shadow. */
+.lmv-left-rail::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -1px;
+  width: 2px;
+  z-index: 5;
+  background: linear-gradient(
+    90deg,
+    rgba(200, 206, 212, 0.85),
+    #ffffff 50%,
+    rgba(200, 206, 212, 0.85)
+  );
+  pointer-events: none;
+}
+
+.lmv-left-rail::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  width: 32px;
+  height: 32px;
+  z-index: 19;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1.5px solid rgba(215, 220, 225, 0.9);
+  pointer-events: none;
+}
+
+/* The toggle re-centers to the rail's midline while collapsed
+   (.vz-inspector--collapsed .vz-inspector-toggle--left) — follow it so the
+   ring keeps wrapping the icon instead of pointing at empty space. */
+.lmv-left-rail.vz-inspector--collapsed::before {
+  left: 50%;
+}
+
+/* Same silver treatment along the top and bottom edges, closing the frame
+   that the right-edge thread + ring started. Both pseudo-element slots on
+   .lmv-left-rail are already spoken for (::before is the toggle ring, ::after
+   is the right-edge thread), and painting these as a background-image on the
+   rail itself doesn't work: .vz-inspector-inner is a normal in-flow child
+   that fills the rail's full height with its own near-opaque background, so
+   it paints over the rail's own background completely. Use
+   .vz-inspector-inner's own (separate) ::before/::after slots instead, lifted
+   above its content with position:absolute + z-index so they render on top
+   instead of underneath it. */
+.lmv-left-rail .vz-inspector-inner::before,
+.lmv-left-rail .vz-inspector-inner::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 5;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    rgba(200, 206, 212, 0.85),
+    #ffffff 50%,
+    rgba(200, 206, 212, 0.85)
+  );
+}
+
+.lmv-left-rail .vz-inspector-inner::before {
+  top: 0;
+}
+
+.lmv-left-rail .vz-inspector-inner::after {
+  bottom: 0;
+}
+
 .lmv-right-rail {
   border-left: 1px solid rgba(126,218,232,0.12);
   box-shadow: inset 1px 0 0 rgba(255,255,255,0.025);
@@ -2109,6 +2188,12 @@
     border-left: 0;
     border-right: 0;
     border-bottom: 1px solid rgba(126,218,232,0.12);
+  }
+  /* Stacked layout: the left rail's right edge is no longer the window
+     boundary, so the silver outline + toggle ring don't apply here. */
+  .lmv-left-rail::before,
+  .lmv-left-rail::after {
+    display: none;
   }
   .lmv-left-rail.vz-inspector--collapsed,
   .lmv-right-rail.vz-inspector--collapsed {
