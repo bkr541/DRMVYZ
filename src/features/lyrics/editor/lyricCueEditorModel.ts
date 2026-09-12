@@ -30,6 +30,8 @@ export type LyricSnapMode =
   | 'quarter-beat'
   | 'word'
 
+export type LyricBeatGridStatus = 'trusted' | 'temporary' | 'not-loaded' | 'analyzing' | 'failed' | 'missing' | 'no-track'
+
 export interface LyricSnapContext {
   mode: LyricSnapMode
   beatGridMs?: readonly number[]

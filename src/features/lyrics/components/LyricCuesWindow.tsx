@@ -2,81 +2,46 @@ import { BubbleRevealSlider } from '../../../components/vyzualz/react/controls/B
 import { IconMorphCheckbox } from '../../../components/vyzualz/react/controls/IconMorphToggle'
 import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
-import type { TrackIntelligenceAnalysis } from '../../musicIntelligence/types'
-import type { ReactTrackSection } from '../../../components/vyzualz/react/ReactTypes'
-import {
-  canUseSnapMode,
-  isCueActive,
-  LOW_LYRIC_CONFIDENCE,
-  type LyricBeatGridStatus,
-  type LyricSnapMode,
-} from './lyricCueEditorModel'
-import { LyricCueInspector, type LyricSectionOption } from './LyricCueInspector'
-import { LyricCueTimeline } from './LyricCueTimeline'
-import { type TimelineOverlayVisibility } from '../../timeline/timelineOverlays'
 import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
 import { isKeyboardInputTarget } from '../../../utils/keyboardTargets'
-import { formatMs, useLyricCueEditor, type LyricCueFilter } from './useLyricCueEditor'
+import { canUseSnapMode, isCueActive, LOW_LYRIC_CONFIDENCE, type LyricSnapMode } from '../editor/lyricCueEditorModel'
+import { LyricCueTimeline } from '../editor/LyricCueTimeline'
+import { formatMs, type LyricCueFilter, type useLyricCueEditor } from '../editor/useLyricCueEditor'
+import type { TimelineOverlayVisibility } from '../../timeline/timelineOverlays'
 
-export type { LyricCueFilter }
+type Editor = ReturnType<typeof useLyricCueEditor>
 
 interface Props {
-  trackId: string | null
-  trackUrl: string | null
-  decodedBuffer?: AudioBuffer | null
+  editor: Editor
   durationMs: number
   currentTimeMs: number | null
-  getCurrentTimeMs?: () => number | null
-  globalOffsetMs?: number
   onSeek: (timeMs: number) => void
-  beatGridMs?: number[]
-  beatGridStatus?: LyricBeatGridStatus
-  beatGridStatusMessage?: string | null
-  sections?: LyricSectionOption[]
-  analysis?: TrackIntelligenceAnalysis | null
-  timelineSections?: ReactTrackSection[]
-  snapMode?: LyricSnapMode
-  onSnapModeChange?: (mode: LyricSnapMode) => void
-  onAnalyzeTrack?: () => void
-  analysisActionLabel?: string
-  navigationTarget?: { cueId: string; wordId?: string | null; revision: number } | null
 }
 
-export function LyricCueEditor({
-  trackId,
-  trackUrl,
-  decodedBuffer,
-  durationMs,
-  currentTimeMs,
-  getCurrentTimeMs,
-  globalOffsetMs = 0,
-  onSeek,
-  beatGridMs = [],
-  beatGridStatus = 'missing',
-  beatGridStatusMessage = null,
-  sections = [],
-  analysis = null,
-  timelineSections = [],
-  snapMode: controlledSnapMode,
-  onSnapModeChange,
-  onAnalyzeTrack,
-  analysisActionLabel = 'Analyze Track',
-  navigationTarget = null,
-}: Props) {
+const MAX_LYRIC_CUES_LANES = 3
+
+/**
+ * "Lyric Cues" window: the always-visible, fully-editable cue timeline that
+ * replaces the old tab-buried LyricCueEditor. Wraps LyricCueTimeline (capped
+ * at 3 lanes via its new additive `maxVisibleLanes` prop, with ruler/
+ * waveform/overlays/word-lane switched off since Track Timeline above
+ * already shows those) plus the toolbar and filterable cue list relocated
+ * here verbatim from the old editor, so undo/redo and cue browsing aren't
+ * lost.
+ */
+export function LyricCuesWindow({ editor, durationMs, currentTimeMs, onSeek }: Props) {
   const {
     rootRef,
     cues,
     orderedCues,
     selectedCueId,
-    selectedCue,
-    selectedIndex,
     canonicalPlayheadMs,
+    getCurrentTimeMs,
     cueHistoryPast,
     cueHistoryFuture,
     undoCueEdit,
     redoCueEdit,
     selectCue,
-    updateCueWord,
     snapMode,
     setSnapMode,
     snapContext,
@@ -88,40 +53,23 @@ export function LyricCueEditor({
     filteredCues,
     inactiveCueIds,
     cueIssues,
-    peaks,
-    loading,
     waveformZoom,
     setWaveformZoom,
-    actions,
     commitCuePatch,
     commitWords,
     addAtPlayhead,
     addAtTimelineTime,
     handleCueContextAction,
     beatGridHint,
-  } = useLyricCueEditor({
-    trackId,
-    trackUrl,
-    decodedBuffer,
-    durationMs,
-    currentTimeMs,
-    getCurrentTimeMs,
-    globalOffsetMs,
     beatGridMs,
-    beatGridStatus,
-    beatGridStatusMessage,
-    sections,
-    analysis,
-    timelineSections,
-    snapMode: controlledSnapMode,
-    onSnapModeChange,
-    navigationTarget,
-  })
+    wordBoundaryMs,
+  } = editor
 
   return (
-    <div
+    <section
       ref={rootRef}
-      className="lyric-cue-editor-root"
+      className="lmv-lyric-cues-window"
+      aria-label="Lyric Cues"
       onKeyDown={event => {
         if (isKeyboardInputTarget(event.target)) return
         if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return
@@ -130,7 +78,11 @@ export function LyricCueEditor({
         else undoCueEdit()
       }}
     >
-      <div className="lyric-cue-editor-toolbar">
+      <div className="lmv-rail-title">
+        <span>Lyric Cues</span>
+      </div>
+
+      <div className="lyric-cue-editor-toolbar lmv-lyric-cues-toolbar">
         <IconChipButton onClick={addAtPlayhead}>+ Add cue at playhead</IconChipButton>
         <IconChipButton disabled={cueHistoryPast.length === 0} onClick={undoCueEdit} aria-label="Undo lyric edit">Undo</IconChipButton>
         <IconChipButton disabled={cueHistoryFuture.length === 0} onClick={redoCueEdit} aria-label="Redo lyric edit">Redo</IconChipButton>
@@ -143,7 +95,7 @@ export function LyricCueEditor({
             <option value="beat" disabled={!canUseSnapMode('beat', { beatGridMs })}>Beat</option>
             <option value="half-beat" disabled={!canUseSnapMode('half-beat', { beatGridMs })}>Half beat</option>
             <option value="quarter-beat" disabled={!canUseSnapMode('quarter-beat', { beatGridMs })}>Quarter beat</option>
-            <option value="word" disabled={!canUseSnapMode('word', { wordBoundaryMs: snapContext.wordBoundaryMs })}>Word boundary</option>
+            <option value="word" disabled={!canUseSnapMode('word', { wordBoundaryMs })}>Word boundary</option>
           </DropdownSelect>
         </label>
         <label className="lyric-cue-editor-toolbar__zoom">
@@ -171,12 +123,7 @@ export function LyricCueEditor({
           {overlaySource.authoritative ? 'Track Map overlays' : 'Fallback timeline'}
         </span>
         {beatGridHint && (
-          <span className="lyric-cue-editor-toolbar__hint">
-            <span>{beatGridHint}</span>
-            {onAnalyzeTrack && beatGridStatus !== 'analyzing' && (
-              <button type="button" className="lmv-inline-action" onClick={onAnalyzeTrack}>{analysisActionLabel}</button>
-            )}
-          </span>
+          <span className="lyric-cue-editor-toolbar__hint">{beatGridHint}</span>
         )}
       </div>
 
@@ -187,12 +134,12 @@ export function LyricCueEditor({
         getCurrentTimeMs={getCurrentTimeMs}
         durationMs={durationMs}
         zoom={waveformZoom}
-        globalOffsetMs={globalOffsetMs}
-        waveformPeaks={peaks}
-        waveformLoading={loading}
         snapContext={snapContext}
-        overlaySource={overlaySource}
-        overlayVisibility={overlayVisibility}
+        maxVisibleLanes={MAX_LYRIC_CUES_LANES}
+        showRuler={false}
+        showWaveform={false}
+        showOverlays={false}
+        showWordLane={false}
         inactiveCueIds={inactiveCueIds}
         onSelectCue={selectCue}
         onSeek={onSeek}
@@ -203,7 +150,7 @@ export function LyricCueEditor({
         onDeleteCue={cueId => handleCueContextAction(cueId, 'delete', 0)}
       />
 
-      <div className="lyric-cue-editor-layout">
+      <DualRailCollapsible label="Cue list" defaultOpen={false} bodyClassName="lyric-cue-list-body">
         <section className="lyric-cue-list" aria-label="Lyric cue list">
           <div className="lyric-cue-list__controls">
             <strong>{filteredCues.length} of {cues.length} cues</strong>
@@ -260,25 +207,7 @@ export function LyricCueEditor({
             {filteredCues.length === 0 && <div className="lyric-cue-list__empty">No cues match this filter.</div>}
           </div>
         </section>
-
-        {selectedCue && actions ? (
-          <LyricCueInspector
-            cue={selectedCue}
-            cues={cues}
-            currentTimeMs={canonicalPlayheadMs}
-            durationMs={durationMs}
-            sections={sections}
-            actions={actions}
-            canMergePrevious={selectedIndex > 0}
-            canMergeNext={selectedIndex >= 0 && selectedIndex < orderedCues.length - 1}
-            onUpdateCue={commitCuePatch}
-            onUpdateWord={updateCueWord}
-            focusWordId={navigationTarget?.cueId === selectedCue.id ? navigationTarget.wordId : null}
-          />
-        ) : (
-          <div className="lyric-cue-editor__empty-selection">Select a cue in the timeline or list to edit it.</div>
-        )}
-      </div>
-    </div>
+      </DualRailCollapsible>
+    </section>
   )
 }

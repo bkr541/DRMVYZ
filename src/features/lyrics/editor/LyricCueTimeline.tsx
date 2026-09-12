@@ -77,6 +77,17 @@ interface Props {
   overlaySource?: TimelineOverlaySource;
   overlayVisibility?: TimelineOverlayVisibility;
   inactiveCueIds?: ReadonlySet<string>;
+  /** Caps how many overlap lanes render before stacking; defaults to the
+   * original fixed 6-lane behavior. */
+  maxVisibleLanes?: number;
+  /** Each defaults to true (today's behavior). Lyric Manager's compact
+   * "Lyric Cues" window turns these off individually to show only cue
+   * lanes, without forking this component. */
+  showRuler?: boolean;
+  showWaveform?: boolean;
+  showOverlays?: boolean;
+  showWordLane?: boolean;
+  showPlayhead?: boolean;
   onSelectCue: (cueId: string | null) => void;
   onSeek: (timeMs: number) => void;
   onAddCueAt?: (timeMs: number) => void;
@@ -151,6 +162,12 @@ export function LyricCueTimeline({
   overlaySource = { authoritative: false, markers: [], ranges: [] },
   overlayVisibility = DEFAULT_TIMELINE_OVERLAY_VISIBILITY,
   inactiveCueIds = new Set<string>(),
+  maxVisibleLanes = MAX_VISIBLE_CUE_LANES,
+  showRuler = true,
+  showWaveform = true,
+  showOverlays = true,
+  showWordLane = true,
+  showPlayhead = true,
   onSelectCue,
   onSeek,
   onAddCueAt,
@@ -218,7 +235,7 @@ export function LyricCueTimeline({
   );
   const shownLaneCount = Math.max(
     1,
-    Math.min(MAX_VISIBLE_CUE_LANES, laneLayout.laneCount || 1),
+    Math.min(maxVisibleLanes, laneLayout.laneCount || 1),
   );
   const selectedCue = cues.find((cue) => cue.id === selectedCueId) ?? null;
   // Canonical cues carry no untimed words (they are repaired at every
@@ -230,8 +247,14 @@ export function LyricCueTimeline({
       : (selectedCue?.words ?? [])
   ).filter(hasUsableLyricWordTiming);
   const hasWordLane =
-    !compact && Boolean(selectedCue && selectedWords.length > 0);
-  const cueAreaTop = compact ? 2 : hasWordLane ? 140 : 108;
+    !compact && showWordLane && Boolean(selectedCue && selectedWords.length > 0);
+  const cueAreaTop = compact
+    ? 2
+    : hasWordLane
+      ? 140
+      : (showRuler || showWaveform)
+        ? 108
+        : 8;
   const timelineHeight = compact
     ? undefined
     : cueAreaTop + shownLaneCount * (CUE_LANE_HEIGHT + CUE_LANE_GAP) + 8;
@@ -553,7 +576,7 @@ export function LyricCueTimeline({
       data-testid="lyric-cue-timeline"
       data-timeline-background="true"
     >
-      {!compact && (
+      {!compact && showRuler && (
         <div
           className="lyric-cue-timeline__ruler"
           aria-hidden="true"
@@ -574,6 +597,7 @@ export function LyricCueTimeline({
       )}
 
       {!compact &&
+        showOverlays &&
         visibleOverlays.ranges.map((range) => {
           const layout = computeViewportRangeLayout(range, viewport);
           if (!layout.visible) return null;
@@ -594,6 +618,7 @@ export function LyricCueTimeline({
         })}
 
       {!compact &&
+        showOverlays &&
         visibleOverlays.markers.map((marker) => (
           <div
             key={marker.id}
@@ -610,7 +635,7 @@ export function LyricCueTimeline({
           </div>
         ))}
 
-      {!compact && (
+      {!compact && showWaveform && (
         <LyricWaveformCanvas
           peaks={waveformPeaks}
           loading={waveformLoading}
@@ -620,7 +645,7 @@ export function LyricCueTimeline({
         />
       )}
 
-      {!compact && (
+      {!compact && showPlayhead && (
         <div
           ref={playheadRef}
           className="lyric-cue-timeline__playhead"
@@ -714,7 +739,7 @@ export function LyricCueTimeline({
           );
         const issues = issuesByCue.get(cue.id) ?? [];
         const lane = laneByCue.get(cue.id) ?? 0;
-        const visibleLane = Math.min(MAX_VISIBLE_CUE_LANES - 1, lane);
+        const visibleLane = Math.min(maxVisibleLanes - 1, lane);
         const lowConfidence =
           cue.confidence !== undefined && cue.confidence < LOW_LYRIC_CONFIDENCE;
         const inactive = inactiveCueIds.has(cue.id);
@@ -730,7 +755,7 @@ export function LyricCueTimeline({
               inactive ? "lyric-cue-block--inactive" : "",
               liveBounds?.cueId === cue.id ? "lyric-cue-block--dragging" : "",
               issues.length ? "lyric-cue-block--warning" : "",
-              lane >= MAX_VISIBLE_CUE_LANES ? "lyric-cue-block--stacked" : "",
+              lane >= maxVisibleLanes ? "lyric-cue-block--stacked" : "",
             ]
               .filter(Boolean)
               .join(" ")}

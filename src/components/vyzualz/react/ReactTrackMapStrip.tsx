@@ -107,7 +107,7 @@ interface TimelineCueItem {
 
 // ── Section display metadata ───────────────────────────────────────────────────
 
-const SECTION_COLORS: Record<ReactSectionType, string> = {
+export const SECTION_COLORS: Record<ReactSectionType, string> = {
   intro:     '#61d6aa',
   verse:     '#4ac7db',
   build:     '#d8b95a',

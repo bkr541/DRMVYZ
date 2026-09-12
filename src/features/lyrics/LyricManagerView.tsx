@@ -1,8 +1,6 @@
 import { BubbleRevealSlider } from '../../components/vyzualz/react/controls/BubbleRevealSlider'
 import { NoticeCard } from '../../components/vyzualz/react/controls/NoticeCard'
 import { IconChipButton } from '../../components/vyzualz/react/controls/IconChipButton'
-import { StatusBadge } from '../../components/vyzualz/react/controls/StatusBadge'
-import { Collapsible } from '../../components/vyzualz/react/ReactControlRows'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
 import { useLyricsStore } from '../../stores/lyricsStore'
@@ -18,7 +16,7 @@ import { adaptMIAnalysis, resolveTrackSections } from '../trackIntelligence/trac
 import type { LyricCue, LyricDocument, LyricSectionType, LyricTranscriptionJob } from '../../types/lyrics'
 import type { Track } from '../../types'
 import type { TrackIntelligenceAnalysis, BeatMarkerMI } from '../musicIntelligence/types'
-import type { LyricBeatGridStatus } from './editor/LyricCueEditor'
+import type { LyricBeatGridStatus } from './editor/lyricCueEditorModel'
 import type { LyricDocumentImportResult } from './utils/lyricDocumentImport'
 import type {
   LyricDocumentVersion,
@@ -33,7 +31,6 @@ import {
 import { LyricManagerHeader } from './components/LyricManagerHeader'
 import { LyricTrackBrowser } from './components/LyricTrackBrowser'
 import { LyricDocumentSidebar } from './components/LyricDocumentSidebar'
-import { ManualLyricEditor } from './components/ManualLyricEditor'
 import { JsonLyricImporter } from './components/JsonLyricImporter'
 import { AiLyricExtractor } from './components/AiLyricExtractor'
 import { LyricLivePreviewPanel, LyricPreviewPanel } from './components/LyricPreviewPanel'
@@ -51,6 +48,14 @@ import type { PerformanceAppView } from '../../components/vyzualz/appView'
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
 import { useMountTransition } from '../../hooks/useMountTransition'
+import { formatDuration, formatMsClock } from './utils/lyricManagerFormat'
+import { useLyricCueEditor } from './editor/useLyricCueEditor'
+import { LyricTrackMetaHeader } from './components/LyricTrackMetaHeader'
+import { LyricTrackTimelineWindow } from './components/LyricTrackTimelineWindow'
+import { LyricCuesWindow } from './components/LyricCuesWindow'
+import { LyricDocumentDefaultsPanel } from './components/LyricDocumentDefaultsPanel'
+import { LyricCueInspectorWindow } from './components/LyricCueInspectorWindow'
+import { LyricCueSettingsPanel } from './components/LyricCueSettingsPanel'
 import type { LyricManagerNavigationIntent, LyricManagerWorkflow } from './lyricNavigation'
 import { findSavedTrackLinkCandidates, type SavedTrackLinkCandidate } from './services/savedTrackLinking'
 import { LinkSavedTrackDialog } from './components/LinkSavedTrackDialog'
@@ -96,41 +101,6 @@ function workspaceTabForWorkflow(tab: WorkflowTab): WorkspaceTab {
 
 function workflowTabForWorkspace(tab: WorkspaceTab): WorkflowTab {
   return tab === 'import' ? 'json' : tab === 'aiExtract' ? 'ai' : 'manual'
-}
-
-function formatDuration(seconds: number | null | undefined): string {
-  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return '—'
-  const safe = Math.max(0, Math.round(seconds))
-  const mins = Math.floor(safe / 60)
-  const secs = safe % 60
-  return `${mins}:${secs.toString().padStart(2, '0')}`
-}
-
-function formatMsClock(ms: number | null | undefined): string {
-  if (ms === null || ms === undefined || !Number.isFinite(ms)) return '0:00.00'
-  const safe = Math.max(0, Math.round(ms))
-  const mins = Math.floor(safe / 60_000)
-  const secs = Math.floor((safe % 60_000) / 1_000)
-  const hundredths = Math.floor((safe % 1_000) / 10)
-  return `${mins}:${secs.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}`
-}
-
-function formatTrackDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString()
-}
-
-function trackInitials(track: LyricManagerTrack | null): string {
-  if (!track) return '♪'
-  const source = `${track.title || track.fileName || ''} ${track.artist || ''}`.trim()
-  const initials = source
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(part => part[0]?.toUpperCase() ?? '')
-    .join('')
-  return initials || '♪'
 }
 
 function toLyricSectionType(type: string): LyricSectionType {
@@ -214,93 +184,6 @@ function canonicalDocumentVersion(
     language: metadataValue('language'),
     documentReviewStatus: metadataValue('reviewStatus') ?? metadataValue('review_status'),
   }
-}
-
-function SelectedTrackHero({
-  track,
-  openVersionTitle,
-  activeVersionTitle,
-  selectedTrackLoaded,
-  selectedTrackPlaying,
-  loading,
-  onLoadTrack,
-  onTogglePlayback,
-}: {
-  track: LyricManagerTrack | null
-  openVersionTitle: string | null
-  activeVersionTitle: string | null
-  selectedTrackLoaded: boolean
-  selectedTrackPlaying: boolean
-  loading: boolean
-  onLoadTrack: () => void
-  onTogglePlayback: () => void
-}) {
-  const hasTrack = Boolean(track)
-  const emptyPhase = useMountTransition(!hasTrack, 200)
-  const filledPhase = useMountTransition(hasTrack, 200)
-
-  // The filled branch keeps animating out for a moment after `track` goes
-  // null (deselection) — hold on to the last non-null track so its details
-  // stay rendered (fading out) instead of the branch going blank mid-exit.
-  const lastTrackRef = useRef<LyricManagerTrack | null>(track)
-  if (track) lastTrackRef.current = track
-  const displayTrack = track ?? lastTrackRef.current
-
-  return (
-    <section className="lmv-track-info-panel" aria-label="Selected track">
-      <Collapsible label="Track Information" defaultOpen>
-        {emptyPhase !== 'unmounted' && (
-          <div className={`lmv-track-state lmv-track-state--${emptyPhase}`}>Select a track from the library to inspect lyric versions, edit timed cues, and preview the document in the visualizer.</div>
-        )}
-        {filledPhase !== 'unmounted' && displayTrack && (
-          <div className={`lmv-track-info-fill lmv-track-info-fill--${filledPhase}`}>
-            <div className="lmv-track-info-header">
-              <div className="lmv-track-art" aria-hidden="true"><span>{trackInitials(displayTrack)}</span></div>
-              <div className="lmv-track-card-main">
-                <div className="lmv-track-card-topline">
-                  <span className="lmv-track-title">{displayTrack.title || displayTrack.fileName}</span>
-                  <span className="lmv-track-state-badges">
-                    <StatusBadge tone="selected">Selected</StatusBadge>
-                    {selectedTrackLoaded && <StatusBadge tone="loaded">Loaded</StatusBadge>}
-                    {selectedTrackPlaying && <StatusBadge tone="playing">Playing</StatusBadge>}
-                  </span>
-                </div>
-                <span className="lmv-track-artist">{displayTrack.artist || 'Unknown artist'}</span>
-              </div>
-            </div>
-
-            <div className="lmv-stats-grid lmv-track-info-stats" aria-label="Track details">
-              <div className="lmv-stat-row"><span className="lmv-stat-label">Duration</span><span className="lmv-stat-value">{formatDuration(displayTrack.durationSec)}</span></div>
-              <div className="lmv-stat-row"><span className="lmv-stat-label">Tempo</span><span className="lmv-stat-value">{displayTrack.bpm ? `${Math.round(displayTrack.bpm)} BPM` : '—'}</span></div>
-              <div className="lmv-stat-row"><span className="lmv-stat-label">Key</span><span className="lmv-stat-value">{displayTrack.musicalKey || '—'}</span></div>
-              <div className="lmv-stat-row"><span className="lmv-stat-label">Added</span><span className="lmv-stat-value">{formatTrackDate(displayTrack.createdAt)}</span></div>
-            </div>
-
-            <dl className="lmv-workflow-status-grid lmv-track-info-versions">
-              <div><dt>Open version</dt><dd>{openVersionTitle ?? 'None'}</dd></div>
-              <div><dt>Active version</dt><dd className={activeVersionTitle ? 'lmv-status-good' : 'lmv-status-missing'}>{activeVersionTitle ?? 'None'}</dd></div>
-            </dl>
-
-            <div className="lmv-track-hero-actions">
-              <IconChipButton
-                onClick={onLoadTrack}
-                disabled={loading}
-              >
-                {loading ? 'Loading…' : selectedTrackLoaded ? 'Reload deck' : 'Load deck'}
-              </IconChipButton>
-              <IconChipButton
-                tone="primary"
-                onClick={onTogglePlayback}
-                disabled={!selectedTrackLoaded}
-              >
-                {selectedTrackPlaying ? 'Pause' : 'Preview'}
-              </IconChipButton>
-            </div>
-          </div>
-        )}
-      </Collapsible>
-    </section>
-  )
 }
 
 function LyricTransportBar({
@@ -1929,6 +1812,21 @@ export function LyricManagerView({
     : savedBeatGridMs.length >= 2
       ? savedBeatGridMs
       : fallbackBeatGridMs
+  // Raw markers (not just ms) for Track Timeline's Beat Grid row, which
+  // draws real tick marks via Track Map's drawBeatGridCanvas — that needs
+  // isDownbeat/timeSec, not the flat ms array snapping uses. No raw
+  // equivalent exists for the synthetic BPM-only fallback grid, so the row
+  // simply renders no ticks in that case (snapping still works via
+  // trustedBeatGridMs above).
+  const liveRawBeatGrid = selectedTrackLoaded && engine.currentAnalysisStatus === 'complete'
+    ? (engine.currentEffectiveBeatGrid ?? engine.currentAnalysis?.beatGrid ?? [])
+    : []
+  const savedRawBeatGrid = savedAnalysis?.beatGrid ?? []
+  const trustedRawBeatGrid: BeatMarkerMI[] = liveRawBeatGrid.length >= 2
+    ? liveRawBeatGrid
+    : savedRawBeatGrid.length >= 2
+      ? savedRawBeatGrid
+      : []
   const beatGridStatus: LyricBeatGridStatus = !selectedTrack
     ? 'no-track'
     : liveBeatGridMs.length >= 2 || savedBeatGridMs.length >= 2
@@ -1960,6 +1858,25 @@ export function LyricManagerView({
     durationSec: editorDurationMs / 1000,
   })
   const sectionOptions = sectionOptionsFromTimeline(activeEditorSections)
+
+  const cueEditor = useLyricCueEditor({
+    trackId: runtimeTrackId,
+    trackUrl: runtimeTrackUrl,
+    decodedBuffer,
+    durationMs: editorDurationMs,
+    currentTimeMs: selectedTrackLoaded ? currentAudioTimeMs : null,
+    getCurrentTimeMs: getCurrentAudioTimeMs,
+    globalOffsetMs,
+    beatGridMs: trustedBeatGridMs,
+    beatGridStatus,
+    beatGridStatusMessage,
+    sections: sectionOptions,
+    analysis: activeEditorAnalysis,
+    timelineSections: activeEditorSections,
+    snapMode,
+    onSnapModeChange: setSnapMode,
+    navigationTarget,
+  })
 
   useEffect(() => {
     if (!selectedTrack || !selectedTrackLoaded || engine.currentAnalysisStatus !== 'complete' || !engine.currentAnalysis) return
@@ -2161,16 +2078,29 @@ export function LyricManagerView({
         </WorkspaceRail>
 
         <main className="lmv-center" aria-label="Lyric editing workspace">
-          <LyricLivePreviewPanel
-            cues={storeCues}
-            document={editorDocument}
-            selectedCue={selectedCue}
-            currentAudioTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
-            isPlaying={selectedTrackPlaying}
-            globalOffsetMs={globalOffsetMs}
-            onPreviewInVisualizer={handlePreviewInPerformanceView}
-            previewDestination={returnView === 'react' ? 'React' : returnView === 'showManager' ? 'Show Manager' : 'Visualizer'}
+          <LyricTrackMetaHeader
+            track={selectedTrack}
+            openVersionTitle={editorDocument?.title ?? null}
+            activeVersionTitle={activeVersionForSelectedTrack?.title ?? null}
+            loading={selectedTrack ? audioPreviewStates[selectedTrack.dbId]?.status === 'loading' : false}
+            selectedTrackLoaded={selectedTrackLoaded}
+            selectedTrackPlaying={selectedTrackPlaying}
+            onLoadTrack={() => { void handleLoadSelectedTrack() }}
+            onTogglePlayback={handleTogglePlayback}
           />
+
+          <div className="lmv-live-preview-enlarged">
+            <LyricLivePreviewPanel
+              cues={storeCues}
+              document={editorDocument}
+              selectedCue={selectedCue}
+              currentAudioTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
+              isPlaying={selectedTrackPlaying}
+              globalOffsetMs={globalOffsetMs}
+              onPreviewInVisualizer={handlePreviewInPerformanceView}
+              previewDestination={returnView === 'react' ? 'React' : returnView === 'showManager' ? 'Show Manager' : 'Visualizer'}
+            />
+          </div>
 
           {engine.currentTrack && !engine.currentAudioTrackId && (
             <section className="lmv-local-track-link" aria-label="Local track identity">
@@ -2185,27 +2115,59 @@ export function LyricManagerView({
           )}
 
           <div className="lmv-tab-content" role="tabpanel" aria-label="Lyric editor">
-            {editorPlaceholder ? (
-              <div className="lmv-editor-placeholder">
-                <div>{editorPlaceholder}</div>
-                {selectedTrack && (
-                  <div className="lmv-editor-placeholder-actions">
-                    <IconChipButton
-                      tone="primary"
-                      onClick={handleNewDocument}
-                    >
-                      Create Blank Lyrics
-                    </IconChipButton>
-                    <IconChipButton
-                      onClick={handleImportDocument}
-                    >
-                      Import Lyrics
-                    </IconChipButton>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <ManualLyricEditor
+          {editorPlaceholder ? (
+            <div className="lmv-editor-placeholder">
+              <div>{editorPlaceholder}</div>
+              {selectedTrack && (
+                <div className="lmv-editor-placeholder-actions">
+                  <IconChipButton
+                    tone="primary"
+                    onClick={handleNewDocument}
+                  >
+                    Create Blank Lyrics
+                  </IconChipButton>
+                  <IconChipButton
+                    onClick={handleImportDocument}
+                  >
+                    Import Lyrics
+                  </IconChipButton>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <LyricTrackTimelineWindow
+                durationMs={editorDurationMs}
+                currentTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
+                getCurrentTimeMs={getCurrentAudioTimeMs}
+                zoom={cueEditor.waveformZoom}
+                sections={activeEditorSections}
+                beatGrid={trustedRawBeatGrid}
+                trackId={runtimeTrackId}
+                trackUrl={runtimeTrackUrl}
+                decodedBuffer={decodedBuffer}
+                waveformPeaks={cueEditor.peaks}
+                waveformLoading={cueEditor.loading}
+                beatGridStatus={beatGridStatus}
+                beatGridStatusMessage={beatGridStatusMessage}
+                onAnalyzeTrack={handleAnalyzeSelectedTrack}
+                analysisActionLabel={beatGridStatus === 'failed' ? 'Retry Track Analysis' : selectedTrackLoaded ? 'Analyze Track' : 'Load & Analyze Track'}
+              />
+
+              <LyricCuesWindow
+                editor={cueEditor}
+                durationMs={editorDurationMs}
+                currentTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
+                onSeek={(timeMs) => {
+                  if (!selectedTrackLoaded) {
+                    showStatus('Load the selected track to the deck before seeking.')
+                    return
+                  }
+                  engine.seek(timeMs / 1000)
+                }}
+              />
+
+              <LyricDocumentDefaultsPanel
                 draftTitle={draftTitle}
                 draftArtist={draftArtist}
                 globalOffsetMs={globalOffsetMs}
@@ -2218,34 +2180,10 @@ export function LyricManagerView({
                 onUpdateDefaultStyle={updateDraftDefaultStyle}
                 onUpdateDefaultAnimation={updateDraftDefaultAnimation}
                 onUpdateDefaultEffects={updateDraftDefaultEffects}
-                trackId={runtimeTrackId}
-                trackUrl={runtimeTrackUrl}
-                decodedBuffer={decodedBuffer}
-                durationMs={editorDurationMs}
-                currentAudioTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
-                getCurrentAudioTimeMs={getCurrentAudioTimeMs}
-                onSeek={(timeMs) => {
-                  if (!selectedTrackLoaded) {
-                    showStatus('Load the selected track to the deck before seeking.')
-                    return
-                  }
-                  engine.seek(timeMs / 1000)
-                }}
-                beatGridMs={trustedBeatGridMs}
-                beatGridStatus={beatGridStatus}
-                beatGridStatusMessage={beatGridStatusMessage}
-                sections={sectionOptions}
-                analysis={activeEditorAnalysis}
-                timelineSections={activeEditorSections}
-                snapMode={snapMode}
-                onSnapModeChange={setSnapMode}
-                onAnalyzeTrack={handleAnalyzeSelectedTrack}
-                analysisActionLabel={beatGridStatus === 'failed' ? 'Retry Track Analysis' : selectedTrackLoaded ? 'Analyze Track' : 'Load & Analyze Track'}
-                navigationTarget={navigationTarget}
               />
-            )}
+            </>
+          )}
           </div>
-
         </main>
 
         <WorkspaceRail
@@ -2262,18 +2200,28 @@ export function LyricManagerView({
             </div>
           </div>
 
-          <SelectedTrackHero
-            track={selectedTrack}
-            openVersionTitle={editorDocument?.title ?? null}
-            activeVersionTitle={activeVersionForSelectedTrack?.title ?? null}
-            selectedTrackLoaded={selectedTrackLoaded}
-            selectedTrackPlaying={selectedTrackPlaying}
-            loading={selectedTrack ? audioPreviewStates[selectedTrack.dbId]?.status === 'loading' : false}
-            onLoadTrack={() => {
-              void handleLoadSelectedTrack()
-            }}
-            onTogglePlayback={handleTogglePlayback}
-          />
+          {cueEditor.selectedCue && cueEditor.actions ? (
+            <>
+              <LyricCueInspectorWindow
+                cue={cueEditor.selectedCue}
+                cues={cueEditor.cues}
+                currentTimeMs={cueEditor.canonicalPlayheadMs}
+                durationMs={editorDurationMs}
+                sections={sectionOptions}
+                actions={cueEditor.actions}
+                canMergePrevious={cueEditor.selectedIndex > 0}
+                canMergeNext={cueEditor.selectedIndex >= 0 && cueEditor.selectedIndex < cueEditor.orderedCues.length - 1}
+                onUpdateCue={cueEditor.commitCuePatch}
+                onUpdateWord={cueEditor.updateCueWord}
+              />
+              <LyricCueSettingsPanel
+                cue={cueEditor.selectedCue}
+                onUpdateCue={cueEditor.commitCuePatch}
+              />
+            </>
+          ) : (
+            <div className="lmv-cue-panels-empty">Select a lyric cue in Lyric Cues to view and edit it here.</div>
+          )}
 
           <LyricPreviewPanel
             cues={storeCues}

@@ -3606,3 +3606,235 @@
   box-shadow: 0 0 5px rgba(74,199,219,0.7);
   pointer-events: none;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Lyric Manager redesign: artwork/metadata header, Track Timeline, Lyric
+   Cues, Document Info, and the two Document Workspace cue panels.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Track metadata header (center column, top) ──────────────────────── */
+
+.lmv-track-meta-header {
+  flex: 0 0 auto;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(126,218,232,0.1);
+  background: rgba(10,14,16,0.6);
+}
+
+.lmv-track-meta-fill {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.lmv-track-meta-fill--entering,
+.lmv-track-meta-fill--exiting {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.lmv-track-meta-fill--entered {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.lmv-track-meta-header .lmv-track-art {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  font-size: 14px;
+}
+
+.lmv-track-meta-identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  flex: 1 1 220px;
+}
+
+.lmv-track-meta-chips {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 0 0 auto;
+}
+
+.lmv-track-meta-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 44px;
+}
+
+.lmv-track-meta-chip-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(196,207,211,0.42);
+}
+
+.lmv-track-meta-chip-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(232,244,248,0.9);
+}
+
+.lmv-track-meta-header .lmv-track-info-versions {
+  margin-top: 0;
+  flex: 0 0 auto;
+}
+
+.lmv-track-meta-header .lmv-track-hero-actions {
+  flex-direction: row;
+  margin-top: 0;
+  flex: 0 0 auto;
+}
+
+/* ── Enlarged Live Preview (center column) ───────────────────────────── */
+
+.lmv-live-preview-enlarged {
+  flex: 0 0 auto;
+}
+
+.lmv-live-preview-enlarged .lmv-preview-cue-box {
+  min-height: 180px;
+}
+
+.lmv-live-preview-enlarged .lmv-preview-cue-text {
+  font-size: 1.4em;
+}
+
+/* ── Track Timeline window (center column) ───────────────────────────── */
+
+.lmv-track-timeline-window,
+.lmv-lyric-cues-window,
+.lmv-document-defaults-window {
+  flex: 0 0 auto;
+  padding: 14px 12px 12px;
+  border-bottom: 1px solid rgba(126,218,232,0.1);
+}
+
+.lmv-track-timeline-hint {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(196,207,211,0.5);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* Row heights match Track Map's own .rv-timeline-lanes grid exactly
+   (reactView.css: grid-template-rows: 32px 44px 38px 24px for
+   beats/sections/cues/ruler) — Section keeps 44px, Beat Grid keeps 32px,
+   Timing keeps 24px. Waveform has no Track Map lane to copy a height from
+   (its energy lane is dead code, SHOW_ENERGY_LANE = false), so it reuses
+   the freed 38px slot to keep the row-height vocabulary closed. */
+.lmv-track-timeline-lanes {
+  display: grid;
+  grid-template-rows: 44px 38px 32px 24px;
+  border: 1px solid rgba(74,199,219,0.18);
+  border-bottom-color: rgba(74,199,219,0.22);
+  background: linear-gradient(180deg, rgba(74,199,219,0.032), transparent 30%), #071018;
+  margin-top: 10px;
+}
+
+.lmv-track-timeline-lane {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border-top: 1px solid rgba(74,199,219,0.09);
+}
+
+.lmv-track-timeline-lane:first-child {
+  border-top: 0;
+}
+
+.lmv-track-timeline-lane-content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(5,11,17,0.76);
+  background-image:
+    linear-gradient(to right, rgba(74,199,219,0.055) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255,255,255,0.018) 1px, transparent 1px);
+  background-size: 16.6667% 100%, 4.1667% 100%;
+}
+
+.lmv-track-timeline-lane-content--ruler {
+  background-color: rgba(4,10,15,0.9);
+  background-image: none;
+}
+
+.lmv-track-timeline-lane--waveform .lyric-waveform-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.lmv-track-timeline-beat-canvas,
+.lmv-track-timeline-ruler-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Track Section row reuses Track Map's own .rv-section-region/
+   .rv-section-color-bar/.rv-section-label classes verbatim (already styled
+   in reactView.css), so only the absolute-positioning host needs a rule
+   here — the section visuals themselves need no new CSS. */
+.lmv-track-timeline-lane--section .rv-section-region {
+  height: 100%;
+}
+
+/* ── Lyric Cues window (center column) ───────────────────────────────── */
+
+.lmv-lyric-cues-toolbar {
+  margin-top: 10px;
+}
+
+.lmv-lyric-cues-window .lyric-cue-timeline__scroll {
+  margin-top: 10px;
+  max-height: 220px;
+}
+
+.lmv-lyric-cues-window .lyric-cue-list-body {
+  margin-top: 10px;
+}
+
+/* ── Document Info window (center column) ────────────────────────────── */
+
+.lmv-document-defaults-window .lmv-workflow-content {
+  padding: 14px 0 0;
+}
+
+/* ── Document Workspace: Cue Inspector / Cue Settings windows ────────── */
+
+.lmv-cue-inspector-window,
+.lmv-cue-settings-window {
+  flex: 0 0 auto;
+  padding: 14px 12px 12px;
+  border-bottom: 1px solid rgba(126,218,232,0.1);
+}
+
+.lmv-cue-inspector-window .lyric-cue-inspector,
+.lmv-cue-settings-window .lyric-cue-inspector__presentation,
+.lmv-cue-settings-window .lyric-cue-inspector__metadata {
+  margin-top: 10px;
+}
+
+.lmv-cue-panels-empty {
+  flex: 0 0 auto;
+  padding: 20px 26px;
+  color: rgba(196,207,211,0.42);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+  border-bottom: 1px solid rgba(126,218,232,0.1);
+}

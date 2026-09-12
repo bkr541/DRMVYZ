@@ -24,6 +24,7 @@ import {
 } from './lyricCueEditorModel'
 import { LyricPresentationControls } from '../components/LyricPresentationControls'
 import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
+import { LyricCueJsonField } from './LyricCueJsonField'
 
 export interface LyricSectionOption {
   id: string
@@ -57,6 +58,11 @@ interface Props {
   onUpdateCue: (cueId: string, patch: Partial<Omit<LyricCue, 'id'>>) => void
   onUpdateWord: (cueId: string, wordId: string, patch: Partial<Omit<LyricWord, 'id'>>) => void
   focusWordId?: string | null
+  /** Default true (today's behavior). Lyric Manager's Document Workspace
+   * suppresses these since the same style/animation/effects config now has
+   * its own dedicated "Cue Settings" window. */
+  showPresentationControls?: boolean
+  showStyleMetadataJson?: boolean
 }
 
 const SOURCES: LyricSource[] = ['manual', 'import', 'transcription', 'corrected', 'generated', 'unknown']
@@ -80,53 +86,6 @@ function parseFiniteInteger(value: string): number | null {
   if (!value.trim()) return null
   const number = Number(value)
   return Number.isFinite(number) ? Math.round(number) : null
-}
-
-function stableJson(value: unknown): string {
-  return JSON.stringify(value ?? {}, null, 2)
-}
-
-function JsonMetadataField({
-  label,
-  value,
-  onCommit,
-}: {
-  label: string
-  value: Partial<LyricStyle> | Partial<LyricAnimation> | Partial<LyricEffects> | Record<string, unknown> | undefined
-  onCommit: (value: Record<string, unknown>) => void
-}) {
-  const [draft, setDraft] = useState(stableJson(value))
-  const [error, setError] = useState<string | null>(null)
-  useEffect(() => { setDraft(stableJson(value)); setError(null) }, [value])
-
-  const commit = () => {
-    try {
-      const parsed = JSON.parse(draft) as unknown
-      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error('Use a JSON object')
-      setError(null)
-      onCommit(parsed as Record<string, unknown>)
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Invalid JSON')
-    }
-  }
-
-  return (
-    <div className="lyric-cue-inspector__json-field">
-      <label>{label}</label>
-      <textarea
-        className="lmv-textarea"
-        rows={4}
-        value={draft}
-        aria-invalid={!!error}
-        onChange={event => setDraft(event.target.value)}
-        onBlur={commit}
-        onKeyDown={event => {
-          if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') commit()
-        }}
-      />
-      {error && <span role="alert" className="lyric-cue-inspector__error">{error}</span>}
-    </div>
-  )
 }
 
 function WordTimingEditor({
@@ -280,6 +239,8 @@ export function LyricCueInspector({
   onUpdateCue,
   onUpdateWord,
   focusWordId = null,
+  showPresentationControls = true,
+  showStyleMetadataJson = true,
 }: Props) {
   const [text, setText] = useState(cue.text)
   const [start, setStart] = useState(String(cue.startMs))
@@ -445,25 +406,27 @@ export function LyricCueInspector({
         <IconChipButton className="lyric-cue-inspector__delete" onClick={actions.delete}>Delete cue</IconChipButton>
       </div>
 
-      <DualRailCollapsible
-        className="lyric-cue-inspector__presentation"
-        defaultOpen={false}
-        label="Cue appearance overrides"
-      >
-        <p>Only fields set here override the document defaults. Other renderer metadata is preserved.</p>
-        <LyricPresentationControls
-          style={cue.style ?? {}}
-          animation={cue.animation ?? {}}
-          effects={cue.effects ?? {}}
-          allowInherit
-          onStyleChange={patch => onUpdateCue(cue.id, { style: { ...(cue.style ?? {}), ...patch } })}
-          onAnimationChange={patch => onUpdateCue(cue.id, { animation: { ...(cue.animation ?? {}), ...patch } })}
-          onEffectsChange={patch => onUpdateCue(cue.id, { effects: { ...(cue.effects ?? {}), ...patch } })}
-          onClearStyle={() => onUpdateCue(cue.id, { style: undefined })}
-          onClearAnimation={() => onUpdateCue(cue.id, { animation: undefined })}
-          onClearEffects={() => onUpdateCue(cue.id, { effects: undefined })}
-        />
-      </DualRailCollapsible>
+      {showPresentationControls && (
+        <DualRailCollapsible
+          className="lyric-cue-inspector__presentation"
+          defaultOpen={false}
+          label="Cue appearance overrides"
+        >
+          <p>Only fields set here override the document defaults. Other renderer metadata is preserved.</p>
+          <LyricPresentationControls
+            style={cue.style ?? {}}
+            animation={cue.animation ?? {}}
+            effects={cue.effects ?? {}}
+            allowInherit
+            onStyleChange={patch => onUpdateCue(cue.id, { style: { ...(cue.style ?? {}), ...patch } })}
+            onAnimationChange={patch => onUpdateCue(cue.id, { animation: { ...(cue.animation ?? {}), ...patch } })}
+            onEffectsChange={patch => onUpdateCue(cue.id, { effects: { ...(cue.effects ?? {}), ...patch } })}
+            onClearStyle={() => onUpdateCue(cue.id, { style: undefined })}
+            onClearAnimation={() => onUpdateCue(cue.id, { animation: undefined })}
+            onClearEffects={() => onUpdateCue(cue.id, { effects: undefined })}
+          />
+        </DualRailCollapsible>
+      )}
 
       <DualRailCollapsible
         className="lyric-cue-inspector__metadata"
@@ -471,10 +434,14 @@ export function LyricCueInspector({
         label="Advanced metadata JSON"
       >
         <p>Use this only for uncommon renderer fields or troubleshooting. Unknown fields are preserved.</p>
-        <JsonMetadataField label="Style JSON" value={cue.style} onCommit={value => onUpdateCue(cue.id, { style: value as Partial<LyricStyle> })} />
-        <JsonMetadataField label="Animation JSON" value={cue.animation} onCommit={value => onUpdateCue(cue.id, { animation: value as Partial<LyricAnimation> })} />
-        <JsonMetadataField label="Effects JSON" value={cue.effects} onCommit={value => onUpdateCue(cue.id, { effects: value as Partial<LyricEffects> })} />
-        <JsonMetadataField label="Analysis metadata JSON" value={cue.analysisMetadata} onCommit={value => onUpdateCue(cue.id, { analysisMetadata: value })} />
+        {showStyleMetadataJson && (
+          <>
+            <LyricCueJsonField label="Style JSON" value={cue.style} onCommit={value => onUpdateCue(cue.id, { style: value as Partial<LyricStyle> })} />
+            <LyricCueJsonField label="Animation JSON" value={cue.animation} onCommit={value => onUpdateCue(cue.id, { animation: value as Partial<LyricAnimation> })} />
+            <LyricCueJsonField label="Effects JSON" value={cue.effects} onCommit={value => onUpdateCue(cue.id, { effects: value as Partial<LyricEffects> })} />
+          </>
+        )}
+        <LyricCueJsonField label="Analysis metadata JSON" value={cue.analysisMetadata} onCommit={value => onUpdateCue(cue.id, { analysisMetadata: value })} />
       </DualRailCollapsible>
 
       <WordTimingEditor cue={cue} onUpdateCue={onUpdateCue} onUpdateWord={onUpdateWord} focusWordId={focusWordId} />

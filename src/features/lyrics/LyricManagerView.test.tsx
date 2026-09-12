@@ -713,8 +713,8 @@ describe('LyricManagerView track-first workflow', () => {
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
 
-    const heroStats = container.querySelector('.lmv-track-info-panel .lmv-track-info-stats')?.textContent ?? ''
-    expect(heroStats).toContain('Added')
+    const heroStats = container.querySelector('.lmv-track-meta-chips')?.textContent ?? ''
+    expect(heroStats).toContain('Duration')
     expect(heroStats).not.toContain('Updated')
 
     expect(container.textContent).not.toContain('↻ Loop')
