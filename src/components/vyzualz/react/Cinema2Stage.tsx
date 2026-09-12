@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { Cinema2Runtime, type Cinema2RuntimeSnapshot } from '../cinema2'
+import { Cinema2Runtime, type Cinema2PresetId, type Cinema2RuntimeSnapshot } from '../cinema2'
 import { acquireReactLiveEngineOwnership } from './renderers/ReactLiveEngineOwnership'
 import { resolveCanvasResolution, type CanvasResolution } from './rendering/canvasResolution'
 import { assertDrmvyzWebGLContextOwnershipBoundsForDevelopment } from './shaders/runtime/WebGLContextLifecycle'
 
 export interface Cinema2StageProps {
+  presetId?: Cinema2PresetId
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onRuntimeReady?: (runtime: Cinema2Runtime | null) => void
 }
@@ -20,7 +21,7 @@ function statusCopy(snapshot: Cinema2RuntimeSnapshot | null): string | null {
 }
 
 /** Production Stage host for the native Cinema 2.0 sibling runtime. */
-export function Cinema2Stage({ onCanvasReady, onRuntimeReady }: Cinema2StageProps) {
+export function Cinema2Stage({ presetId, onCanvasReady, onRuntimeReady }: Cinema2StageProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const onCanvasReadyRef = useRef(onCanvasReady)
   const onRuntimeReadyRef = useRef(onRuntimeReady)
@@ -86,7 +87,7 @@ export function Cinema2Stage({ onCanvasReady, onRuntimeReady }: Cinema2StageProp
       window.addEventListener('resize', resize)
       document.addEventListener('visibilitychange', handleVisibilityChange)
 
-      const created = Cinema2Runtime.create(canvas, { onSnapshot: reportSnapshot })
+      const created = Cinema2Runtime.create(canvas, { onSnapshot: reportSnapshot, presetId })
       reportSnapshot(created.snapshot)
       if (!created.runtime) {
         onRuntimeReadyRef.current?.(null)
@@ -124,7 +125,7 @@ export function Cinema2Stage({ onCanvasReady, onRuntimeReady }: Cinema2StageProp
     }
 
     return () => ownership.retire('unmount')
-  }, [])
+  }, [presetId])
 
   const message = statusCopy(runtimeSnapshot)
 

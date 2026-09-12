@@ -619,7 +619,7 @@ export const CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST: Readonly<Cinema2NativeP
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.foundation'),
   revision: 1,
-  metadata: Object.freeze({ name: 'Cinema 2.0 Foundation' }),
+  metadata: Object.freeze({ name: 'Cinema 2.0 Foundation', tags: Object.freeze(['internal']) }),
   modules: Object.freeze([{
     id: CINEMA2_FOUNDATION_MODULE_ID,
     typeId: CINEMA2_FOUNDATION_MODULE_TYPE_ID,

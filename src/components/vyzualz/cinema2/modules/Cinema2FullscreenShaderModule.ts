@@ -72,7 +72,7 @@ export const cinema2FullscreenShaderModuleDefinition: Readonly<Cinema2ModuleType
               label,
               vertSrc: FULLSCREEN_VERT_SRC,
               fragSrc: fragmentSource,
-              optionalUniforms: ['u_time', 'u_resolution'],
+              optionalUniforms: ['u_time', 'u_resolution', 'u_audioOverallEnergy', 'u_audioOverallEnergyAvailable'],
             })
             if (!result.program) {
               throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
@@ -87,8 +87,15 @@ export const cinema2FullscreenShaderModuleDefinition: Readonly<Cinema2ModuleType
           (gl: WebGL2RenderingContext) => new FullscreenPass(gl),
           (value: FullscreenPass) => value.dispose(),
         )
+        // Uniform setters require this program to be current. FullscreenPass.run()
+        // activates again before draw, so this keeps the shared pass contract intact.
+        program.activate()
         program.setFloat('u_time', frame.elapsedTimeSec)
         program.setVec2('u_resolution', width, height)
+        const overallEnergy = frame.audio?.features.overallEnergy
+        const overallEnergyAvailable = overallEnergy?.available === true && typeof overallEnergy.value === 'number' && Number.isFinite(overallEnergy.value)
+        program.setFloat('u_audioOverallEnergy', overallEnergyAvailable ? overallEnergy.value! : 0)
+        program.setFloat('u_audioOverallEnergyAvailable', overallEnergyAvailable ? 1 : 0)
         pass.run(program, target, width, height, [])
       },
     })

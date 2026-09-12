@@ -292,3 +292,9 @@ export type {
   Cinema2RenderGraphExecutorOptions,
   Cinema2RenderGraphExecutorSnapshot,
 } from './runtime/Cinema2RenderGraphExecutor'
+
+export {
+  CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID,
+  CINEMA2_REFERENCE_VISUAL_PRESET_ID,
+  CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
+} from './presets/Cinema2ReferenceVisualPreset'

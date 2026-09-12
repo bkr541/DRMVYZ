@@ -54,6 +54,7 @@ import { FontLibraryPanel } from './FontLibraryPanel'
 import { ReactEngineBrowser } from './ReactEngineBrowser'
 import { Cinema2Placeholder } from './Cinema2Placeholder'
 import { Cinema2InspectorPanel } from './Cinema2InspectorPanel'
+import { Cinema2PresetsPanel } from './Cinema2PresetsPanel'
 import { Cinema2Stage } from './Cinema2Stage'
 import { CinemaWorkspace } from './CinemaWorkspace'
 import { CinemaLayersPanel, CinemaPresetsPanel } from './CinemaWorkspacePanels'
@@ -61,7 +62,7 @@ import { createCinemaFontLibrarySnapshot, createCinemaMediaLibrarySnapshot } fro
 import { buildCinemaWorkspaceFrameBridge } from './CinemaWorkspaceFrameBridge'
 import type { CinemaWorkspaceRuntimeFrameConfig } from './CinemaWorkspaceRuntimeFrameSource'
 import type { CinemaFrameBuilderState, CinemaRuntimeSnapshot } from '../cinema'
-import type { Cinema2Runtime } from '../cinema2'
+import { CINEMA2_RUNTIME_FOUNDATION_PRESET_ID, type Cinema2PresetId, type Cinema2Runtime } from '../cinema2'
 import { getCinemaEditorSelection, useCinemaStore } from '../cinema'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import { isCinemaLegacyEngineId } from '../cinema/CinemaLegacyRetirement'
@@ -384,6 +385,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const [rekordboxHeaderSlot, setRekordboxHeaderSlot] = useState<HTMLDivElement | null>(null)
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
   const [cinema2Runtime, setCinema2Runtime] = useState<Cinema2Runtime | null>(null)
+  const [cinema2PresetId, setCinema2PresetId] = useState<Cinema2PresetId>(CINEMA2_RUNTIME_FOUNDATION_PRESET_ID)
   const [canvasOutputCapability, setCanvasOutputCapability] = useState<CanvasOutputCapability>(CANVAS_OUTPUT_AVAILABLE)
   const outputCapability = activeReactEngineId === 'canvas'
     ? canvasOutputCapability
@@ -941,7 +943,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 onLiveFps={setLiveFps}
               />
             ) : activeReactEngineId === 'cinema2' ? (
-              <Cinema2Stage onCanvasReady={setOutputCanvas} onRuntimeReady={setCinema2Runtime} />
+              <Cinema2Stage presetId={cinema2PresetId} onCanvasReady={setOutputCanvas} onRuntimeReady={setCinema2Runtime} />
             ) : activeReactEngineId === 'canvas' ? (
               <CanvasEngineSurface
                 isPlaying={engine.isPlaying}
@@ -1176,7 +1178,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               ) : activeReactEngineId === 'cinema' ? (
                 <CinemaPresetsPanel />
               ) : activeReactEngineId === 'cinema2' ? (
-                <Cinema2Placeholder area="Presets" />
+                <Cinema2PresetsPanel activePresetId={cinema2PresetId} onSelectPreset={setCinema2PresetId} />
               ) : activeReactEngineId === 'headliner' ? (
                 <HeadlinerPresetsPanel />
               ) : (
