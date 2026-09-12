@@ -322,6 +322,7 @@ export interface Cinema2EnvironmentManifest {
 export type Cinema2RenderPassKind = 'module' | 'scene' | 'fullscreen' | 'composite' | 'output'
 export type Cinema2RenderAttachment = 'color' | 'depth'
 export type Cinema2RenderQualityLevel = 'low' | 'medium' | 'high'
+export type Cinema2EffectScope = 'layer' | 'output'
 
 export interface Cinema2RenderQualityGateManifest {
   min?: Cinema2RenderQualityLevel
@@ -359,7 +360,7 @@ export interface Cinema2RenderPassManifest {
   module?: Cinema2ModuleRef
   scene?: Cinema2SceneNodeRef
   layers?: readonly Cinema2LayerRef[]
-  /** Effect-ready extension point. Fullscreen effect execution is implemented in a later stage. */
+  /** Engine-managed fullscreen effect instance executed by the Cinema 2.0 effect runtime. */
   effect?: Cinema2EffectRef
   enabledWhen?: readonly Cinema2ParameterConditionManifest[]
   quality?: Cinema2RenderQualityGateManifest
@@ -383,7 +384,17 @@ export interface Cinema2EffectManifest {
   typeId: Cinema2EffectTypeId
   version: number
   enabled?: boolean
+  /** Stable authored ordering hint for effects that share the same scope. */
+  order?: number
+  /** Output is the default post-processing scope; layer scopes name their source layer explicitly. */
+  scope?: Cinema2EffectScope
+  layer?: Cinema2LayerRef
+  /** Effect-local quality gate layered on top of the owning render pass quality. */
+  quality?: Cinema2RenderQualityGateManifest
+  /** Authored effect values. `mix` is the common wet/dry property used by the engine runtime. */
   parameters?: Readonly<Record<string, Cinema2JsonValue>>
+  /** Optional bindings make effect targets read from canonical Cinema 2.0 parameter state. */
+  parameterBindings?: Readonly<Record<string, Cinema2ParameterRef>>
   config?: Cinema2JsonObject
 }
 

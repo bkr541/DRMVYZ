@@ -398,6 +398,9 @@ function validatePassShape(
   if (pass.kind === 'fullscreen' && pass.module == null && pass.effect == null) diagnostics.push(error('CINEMA2_RENDER_FULLSCREEN_SOURCE_REQUIRED', 'A fullscreen render pass must reference a module or effect.', base))
   if (pass.kind === 'composite' && readArray(pass.inputs).length === 0) diagnostics.push(error('CINEMA2_RENDER_INPUT_REQUIRED', 'A composite render pass requires at least one input.', `${base}.inputs`))
   if (pass.effect != null && pass.kind !== 'fullscreen') diagnostics.push(error('CINEMA2_RENDER_EFFECT_PASS_INVALID', 'Effect references are only valid on fullscreen passes.', `${base}.effect`))
+  if (pass.effect != null && readArray(pass.inputs).filter(input => isPlainObject(input) && (input.attachment ?? 'color') === 'color').length !== 1) {
+    diagnostics.push(error('CINEMA2_RENDER_EFFECT_INPUT_INVALID', 'Effect fullscreen passes require exactly one color input.', `${base}.inputs`))
+  }
 
   validateEntityRef(pass.module, indexes.modules, `${base}.module`, 'module', diagnostics)
   validateEntityRef(pass.scene, indexes.sceneNodes, `${base}.scene`, 'scene node', diagnostics)

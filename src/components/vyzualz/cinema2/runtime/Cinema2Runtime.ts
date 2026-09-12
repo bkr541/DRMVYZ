@@ -1,4 +1,4 @@
-import type { Cinema2CapabilityId, Cinema2PresetId } from '../contracts/Cinema2NativePresetManifest'
+import type { Cinema2CapabilityId, Cinema2PresetId, Cinema2RenderQualityLevel } from '../contracts/Cinema2NativePresetManifest'
 import {
   CINEMA2_AUDIO_INTELLIGENCE_RUNTIME_CAPABILITIES,
   Cinema2AudioIntelligenceBridge,
@@ -28,6 +28,9 @@ import {
   cinema2NativeModuleRegistry,
 } from '../modules/Cinema2ModuleRegistry'
 import type { Cinema2ModuleRenderPassProvider } from '../modules/Cinema2ModuleContracts'
+import { Cinema2EffectRuntime } from '../effects/Cinema2EffectRuntime'
+import { Cinema2EffectRegistry, cinema2NativeEffectRegistry } from '../effects/Cinema2EffectRegistry'
+import type { Cinema2EffectRuntimeSnapshot } from '../effects/Cinema2EffectContracts'
 import {
   Cinema2MediaSlotRuntime,
   type Cinema2MediaLoader,
@@ -93,6 +96,8 @@ export interface Cinema2RuntimeCreateOptions {
   presetId?: Cinema2PresetId
   presetRegistry?: Cinema2PresetRegistry
   moduleRegistry?: Cinema2ModuleRegistry
+  effectRegistry?: Cinema2EffectRegistry
+  renderQuality?: Cinema2RenderQualityLevel
   serializedParameterState?: string | Cinema2SerializedParameterState
   audioIntelligenceBridge?: Cinema2AudioIntelligenceBridge
   mediaLoader?: Cinema2MediaLoader
@@ -188,6 +193,12 @@ export class Cinema2Runtime {
       const message = `Cinema 2.0 module activation was rejected before runtime setup: ${moduleValidation.diagnostics.map(diagnostic => `${diagnostic.path}: ${diagnostic.message}`).join('; ')}`
       return { runtime: null, error: message, snapshot: unavailableSnapshot(message) }
     }
+    const effectRegistry = options.effectRegistry ?? cinema2NativeEffectRegistry
+    const effectValidation = effectRegistry.validateEffects(compilation.plan.manifest.effects ?? [])
+    if (!effectValidation.ok) {
+      const message = `Cinema 2.0 effect activation was rejected before runtime setup: ${effectValidation.diagnostics.map(diagnostic => `${diagnostic.path}: ${diagnostic.message}`).join('; ')}`
+      return { runtime: null, error: message, snapshot: unavailableSnapshot(message) }
+    }
 
     const parameterState = new Cinema2ParameterState(compilation.plan.parameters)
     if (options.serializedParameterState != null) {
@@ -221,7 +232,7 @@ export class Cinema2Runtime {
 
     let runtime: Cinema2Runtime | null = null
     try {
-      runtime = new Cinema2Runtime(canvas, gl, compilation.plan, parameterState, moduleRegistry, options)
+      runtime = new Cinema2Runtime(canvas, gl, compilation.plan, parameterState, moduleRegistry, effectRegistry, options)
       runtime.renderSafeFrame()
       const snapshot = runtime.getSnapshot()
       return { runtime, error: null, snapshot }
@@ -242,6 +253,7 @@ export class Cinema2Runtime {
   private readonly targetResolver: Cinema2FinalValueResolver
   private readonly mediaSlotRuntime: Cinema2MediaSlotRuntime
   private readonly moduleRuntime: Cinema2ModuleRuntime
+  private readonly effectRuntime: Cinema2EffectRuntime
   private readonly resourceManager: Cinema2ResourceManager
   private readonly renderGraphExecutor: Cinema2RenderGraphExecutor
 
@@ -267,6 +279,7 @@ export class Cinema2Runtime {
     private readonly compiledPresetPlan: Readonly<Cinema2CompiledPresetPlan>,
     private readonly parameterState: Cinema2ParameterState,
     moduleRegistry: Cinema2ModuleRegistry,
+    effectRegistry: Cinema2EffectRegistry,
     options: Cinema2RuntimeCreateOptions,
   ) {
     this.requestFrame = options.requestAnimationFrame ?? (callback => window.requestAnimationFrame(callback))
@@ -281,9 +294,12 @@ export class Cinema2Runtime {
     this.resourceManager = new Cinema2ResourceManager(gl)
     this.mediaSlotRuntime = new Cinema2MediaSlotRuntime(gl, compiledPresetPlan.manifest.mediaSlots ?? [], options.mediaLoader)
     this.moduleRuntime = new Cinema2ModuleRuntime(gl, compiledPresetPlan, this.targetResolver, moduleRegistry, this.mediaSlotRuntime)
+    const renderQuality = options.renderQuality ?? 'high'
+    this.effectRuntime = new Cinema2EffectRuntime(gl, compiledPresetPlan, this.targetResolver, effectRegistry, renderQuality)
     this.renderGraphExecutor = new Cinema2RenderGraphExecutor(gl, compiledPresetPlan.render, compiledPresetPlan.scene, parameterState, this.resourceManager, {
-      quality: 'high',
+      quality: renderQuality,
       availableCapabilities: CINEMA2_RUNTIME_AVAILABLE_CAPABILITIES,
+      effectRuntime: this.effectRuntime,
     })
     this.contextHandle = registerDrmvyzWebGLContext(gl, {
       lifetime: 'live-reusable',
@@ -299,6 +315,7 @@ export class Cinema2Runtime {
       this.phase = 'context-lost'
       this.statusMessage = 'Cinema 2.0 paused because its WebGL2 context was lost.'
       this.renderGraphExecutor.handleContextLost()
+      this.effectRuntime.handleContextLost()
       this.moduleRuntime.handleContextLost()
       this.mediaSlotRuntime.handleContextLost()
       this.resourceManager.handleContextLost()
@@ -315,6 +332,7 @@ export class Cinema2Runtime {
       try {
         this.resourceManager.handleContextRestored()
         this.renderGraphExecutor.handleContextRestored()
+        this.effectRuntime.handleContextRestored()
         this.mediaSlotRuntime.handleContextRestored()
         this.moduleRuntime.handleContextRestored()
         this.gl.viewport(0, 0, this.viewport.width, this.viewport.height)
@@ -341,6 +359,7 @@ export class Cinema2Runtime {
         canvas.removeEventListener('webglcontextlost', this.onContextLostHandler)
       }
       this.renderGraphExecutor.dispose()
+      this.effectRuntime.dispose()
       this.moduleRuntime.dispose()
       this.mediaSlotRuntime.dispose()
       this.resourceManager.dispose()
@@ -466,6 +485,10 @@ export class Cinema2Runtime {
     return this.resourceManager.getSnapshot()
   }
 
+  getEffectRuntimeSnapshot(): Readonly<Cinema2EffectRuntimeSnapshot> {
+    return this.effectRuntime.getSnapshot()
+  }
+
   getRenderGraphExecutorSnapshot(): Readonly<Cinema2RenderGraphExecutorSnapshot> {
     return this.renderGraphExecutor.getSnapshot()
   }
@@ -504,6 +527,7 @@ export class Cinema2Runtime {
     }
 
     this.renderGraphExecutor.dispose()
+    this.effectRuntime.dispose()
     this.moduleRuntime.dispose()
     this.mediaSlotRuntime.dispose()
     this.resourceManager.dispose()

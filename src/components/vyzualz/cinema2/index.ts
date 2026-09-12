@@ -44,6 +44,8 @@ export {
   type Cinema2ChoreographyRuleId,
   type Cinema2ChoreographyRuleManifest,
   type Cinema2EffectId,
+  type Cinema2EffectScope,
+  type Cinema2EffectTypeId,
   type Cinema2EffectManifest,
   type Cinema2EnvironmentManifest,
   type Cinema2JsonObject,
@@ -150,6 +152,39 @@ export {
   type Cinema2TargetUserAuthority,
   type Cinema2TargetValueType,
 } from './parameters/Cinema2TargetRuntime'
+
+
+export {
+  CINEMA2_BLOOM_EFFECT_TYPE_ID,
+  CINEMA2_BLUR_EFFECT_TYPE_ID,
+  CINEMA2_BUILTIN_EFFECT_VERSION,
+  cinema2BloomEffectDefinition,
+  cinema2BlurEffectDefinition,
+} from './effects/Cinema2BuiltinEffects'
+
+export {
+  Cinema2EffectRegistry,
+  cinema2NativeEffectRegistry,
+  type Cinema2EffectRegistryResult,
+} from './effects/Cinema2EffectRegistry'
+
+export {
+  Cinema2EffectRuntime,
+  type Cinema2EffectExecutionContext,
+  type Cinema2EffectExecutionResult,
+} from './effects/Cinema2EffectRuntime'
+
+export type {
+  Cinema2EffectCreateContext,
+  Cinema2EffectDiagnostic,
+  Cinema2EffectInstance,
+  Cinema2EffectInstanceSnapshot,
+  Cinema2EffectRenderExecutionContext,
+  Cinema2EffectRenderInput,
+  Cinema2EffectRuntimeSnapshot,
+  Cinema2EffectRuntimeStatus,
+  Cinema2EffectTypeDefinition,
+} from './effects/Cinema2EffectContracts'
 
 export {
   Cinema2Runtime,
@@ -294,6 +329,11 @@ export type {
 } from './runtime/Cinema2RenderGraphExecutor'
 
 export {
+  CINEMA2_REFERENCE_VISUAL_BLOOM_ENABLED_ID,
+  CINEMA2_REFERENCE_VISUAL_BLOOM_INTENSITY_ID,
+  CINEMA2_REFERENCE_VISUAL_BLOOM_MIX_ID,
+  CINEMA2_REFERENCE_VISUAL_BLOOM_RADIUS_ID,
+  CINEMA2_REFERENCE_VISUAL_BLOOM_THRESHOLD_ID,
   CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID,
   CINEMA2_REFERENCE_VISUAL_PRESET_ID,
   CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,

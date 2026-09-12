@@ -12,7 +12,9 @@ import {
   type Cinema2MediaSlotId,
   type Cinema2ModuleId,
   type Cinema2NativePresetManifest,
+  type Cinema2JsonValue,
   type Cinema2ParameterId,
+  type Cinema2ParameterType,
   type Cinema2PresetId,
   type Cinema2RenderPassId,
   type Cinema2SceneNodeId,
@@ -503,11 +505,52 @@ function validateReferencesAndCombinations(
   }
 
   for (const [effectIndex, effect] of readArray(manifest.effects, '$.effects', diagnostics).entries()) {
+    const base = `$.effects[${effectIndex}]`
     if (!isCinema2StableId(effect.typeId)) {
-      diagnostics.push(error('CINEMA2_PRESET_EFFECT_TYPE_INVALID', 'Effect typeId must be a stable ID.', `$.effects[${effectIndex}].typeId`))
+      diagnostics.push(error('CINEMA2_PRESET_EFFECT_TYPE_INVALID', 'Effect typeId must be a stable ID.', `${base}.typeId`))
     }
     if (!Number.isInteger(effect.version) || effect.version < 1) {
-      diagnostics.push(error('CINEMA2_PRESET_EFFECT_VERSION_INVALID', 'Effect version must be a positive integer.', `$.effects[${effectIndex}].version`))
+      diagnostics.push(error('CINEMA2_PRESET_EFFECT_VERSION_INVALID', 'Effect version must be a positive integer.', `${base}.version`))
+    }
+    if (effect.order != null && (!Number.isInteger(effect.order) || effect.order < 0)) {
+      diagnostics.push(error('CINEMA2_PRESET_EFFECT_ORDER_INVALID', 'Effect order must be a non-negative integer.', `${base}.order`))
+    }
+    if (effect.scope != null && effect.scope !== 'output' && effect.scope !== 'layer') {
+      diagnostics.push(error('CINEMA2_PRESET_EFFECT_SCOPE_INVALID', `Unsupported effect scope "${String(effect.scope)}".`, `${base}.scope`))
+    }
+    if ((effect.scope ?? 'output') === 'layer') {
+      validateRef(effect.layer, index.layers.ids, `${base}.layer`, 'layer', diagnostics)
+    } else if (effect.layer != null) {
+      diagnostics.push(error('CINEMA2_PRESET_EFFECT_SCOPE_INVALID', 'Output-scoped effects cannot declare a layer reference.', `${base}.layer`))
+    }
+    validateEffectQuality(effect.quality, `${base}.quality`, diagnostics)
+    if (effect.parameterBindings != null) {
+      if (!isPlainObject(effect.parameterBindings)) {
+        diagnostics.push(error('CINEMA2_PRESET_EFFECT_BINDINGS_INVALID', 'Effect parameterBindings must be an object.', `${base}.parameterBindings`))
+      } else {
+        const allowedProperties = new Set(['enabled', ...Object.keys(isPlainObject(effect.parameters) ? effect.parameters : {})])
+        for (const [property, ref] of Object.entries(effect.parameterBindings)) {
+          const bindingPath = `${base}.parameterBindings.${property}`
+          if (!allowedProperties.has(property)) {
+            diagnostics.push(error('CINEMA2_PRESET_EFFECT_BINDING_PROPERTY_INVALID', `Effect binding references unknown property "${property}".`, bindingPath))
+          }
+          const parameterId = validateRef(ref, index.parameters.ids, bindingPath, 'parameter', diagnostics)
+          if (!parameterId || !allowedProperties.has(property)) continue
+          const parameter = manifest.parameters?.find(candidate => candidate.id === parameterId)
+          const authoredValue = property === 'enabled' ? (effect.enabled ?? true) : effect.parameters?.[property]
+          if (!parameter || authoredValue === undefined) continue
+          const compatibleTypes = effectBindingParameterTypes(authoredValue)
+          if (compatibleTypes.length === 0) {
+            diagnostics.push(error('CINEMA2_PRESET_EFFECT_BINDING_VALUE_UNSUPPORTED', `Effect property "${property}" is not representable by the shared target runtime and cannot be parameter-bound.`, bindingPath))
+          } else if (!compatibleTypes.includes(parameter.type)) {
+            diagnostics.push(error(
+              'CINEMA2_PRESET_EFFECT_BINDING_TYPE_MISMATCH',
+              `Effect property "${property}" requires parameter type ${compatibleTypes.join(' or ')}, not "${parameter.type}".`,
+              bindingPath,
+            ))
+          }
+        }
+      }
     }
   }
 
@@ -542,6 +585,39 @@ function validateReferencesAndCombinations(
 
   if (manifest.output?.renderPass != null) {
     validateRef(manifest.output.renderPass, index.renderPasses.ids, '$.output.renderPass', 'render pass', diagnostics)
+  }
+}
+
+
+function effectBindingParameterTypes(value: Cinema2JsonValue): readonly Cinema2ParameterType[] {
+  if (typeof value === 'boolean') return ['boolean']
+  if (typeof value === 'number' && Number.isFinite(value)) return ['float', 'integer', 'meter']
+  if (typeof value === 'string') return ['enum', 'string', 'text', 'status']
+  if (Array.isArray(value) && value.every(component => typeof component === 'number' && Number.isFinite(component))) {
+    if (value.length === 2) return ['vec2']
+    if (value.length === 3) return ['vec3']
+    if (value.length === 4) return ['color']
+  }
+  return []
+}
+
+function validateEffectQuality(
+  value: unknown,
+  path: string,
+  diagnostics: Cinema2PresetDiagnostic[],
+): void {
+  if (value == null) return
+  if (!isPlainObject(value)) {
+    diagnostics.push(error('CINEMA2_PRESET_EFFECT_QUALITY_INVALID', 'Effect quality gate must be an object.', path))
+    return
+  }
+  const levels = { low: 0, medium: 1, high: 2 } as const
+  const min = value.min
+  const max = value.max
+  if (min != null && !(String(min) in levels)) diagnostics.push(error('CINEMA2_PRESET_EFFECT_QUALITY_INVALID', `Unsupported minimum quality "${String(min)}".`, `${path}.min`))
+  if (max != null && !(String(max) in levels)) diagnostics.push(error('CINEMA2_PRESET_EFFECT_QUALITY_INVALID', `Unsupported maximum quality "${String(max)}".`, `${path}.max`))
+  if (typeof min === 'string' && typeof max === 'string' && min in levels && max in levels && levels[min as keyof typeof levels] > levels[max as keyof typeof levels]) {
+    diagnostics.push(error('CINEMA2_PRESET_EFFECT_QUALITY_INVALID', 'Effect quality minimum cannot exceed the maximum.', path))
   }
 }
 

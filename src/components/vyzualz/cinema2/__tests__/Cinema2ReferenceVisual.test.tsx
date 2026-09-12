@@ -10,6 +10,8 @@ import { Cinema2InspectorPanel } from '../../react/Cinema2InspectorPanel'
 import { Cinema2PresetsPanel } from '../../react/Cinema2PresetsPanel'
 import { Cinema2Stage } from '../../react/Cinema2Stage'
 import {
+  CINEMA2_REFERENCE_VISUAL_BLOOM_ENABLED_ID,
+  CINEMA2_REFERENCE_VISUAL_BLOOM_MIX_ID,
   CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID,
   CINEMA2_REFERENCE_VISUAL_PRESET_ID,
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
@@ -89,8 +91,8 @@ function createReferenceRuntime(audioBridge: Cinema2AudioIntelligenceBridge, raf
 
 function uniformFloatCalls(gl: ReturnType<typeof createCinemaMockWebGL>, name: string): number[] {
   return (gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls
-    .filter(([location]) => (location as { name?: string } | null)?.name === name)
-    .map(([, value]) => value as number)
+    .filter((call: unknown[]) => (call[0] as { name?: string } | null)?.name === name)
+    .map((call: unknown[]) => call[1] as number)
 }
 
 // Array.prototype.at() needs an ES2022 lib target this project's tsconfig
@@ -101,11 +103,12 @@ function lastValue<T>(values: T[]): T | undefined {
 }
 
 describe('Cinema 2.0 Reference Visual native vertical slice', () => {
-  it('is registered as a native preset with one module, one scene module node, one layer and one Design parameter', () => {
+  it('is registered as a native preset with one shared Bloom effect and schema-driven Design/Effects parameters', () => {
     const manifest = cinema2NativePresetRegistry.get(CINEMA2_REFERENCE_VISUAL_PRESET_ID)
     expect(manifest).not.toBeNull()
     expect(manifest?.metadata.name).toBe('Reference Visual')
-    expect(manifest?.parameters).toHaveLength(1)
+    expect(manifest?.parameters).toHaveLength(6)
+    expect(manifest?.effects).toHaveLength(1)
     expect(manifest?.modules).toHaveLength(1)
     expect(manifest?.scene?.nodes.filter(node => node.kind === 'module')).toHaveLength(1)
     expect(manifest?.layers).toHaveLength(1)
@@ -118,8 +121,8 @@ describe('Cinema 2.0 Reference Visual native vertical slice', () => {
     expect(compiled.plan.render).toMatchObject({
       synthesized: false,
       intent: 'authored-render-graph',
-      passOrder: ['reference-scene-output'],
-      outputPassId: 'reference-scene-output',
+      passOrder: ['reference-scene-output', 'reference-bloom-output'],
+      outputPassId: 'reference-bloom-output',
     })
   })
 
@@ -130,25 +133,38 @@ describe('Cinema 2.0 Reference Visual native vertical slice', () => {
     runtime.start()
     raf.runNext()
 
-    expect(gl.__calls.drawCount).toBe(1)
+    expect(gl.__calls.drawCount).toBe(2)
+    expect(runtime.getEffectRuntimeSnapshot()).toMatchObject({ activeEffectCount: 1, failedEffectCount: 0 })
     expect(lastValue(uniformFloatCalls(gl, 'u_audioOverallEnergy'))).toBe(0.25)
     expect(lastValue(uniformFloatCalls(gl, 'u_audioOverallEnergyAvailable'))).toBe(1)
 
     energy = 0.9
     raf.runNext(33.34)
-    expect(gl.__calls.drawCount).toBe(2)
+    expect(gl.__calls.drawCount).toBe(4)
     expect(lastValue(uniformFloatCalls(gl, 'u_audioOverallEnergy'))).toBe(0.9)
 
     expect(runtime.getParameterState().setPersistentValue(CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID, false).ok).toBe(true)
     const clearBeforeDisabledFrame = gl.__calls.clearCount
     raf.runNext(50.01)
-    expect(gl.__calls.drawCount).toBe(2)
+    expect(gl.__calls.drawCount).toBe(4)
     expect(gl.__calls.clearCount).toBeGreaterThan(clearBeforeDisabledFrame)
     expect(runtime.getRenderGraphExecutorSnapshot().skippedPassCount).toBeGreaterThan(0)
 
     expect(runtime.getParameterState().setPersistentValue(CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID, true).ok).toBe(true)
     raf.runNext(66.68)
-    expect(gl.__calls.drawCount).toBe(3)
+    expect(gl.__calls.drawCount).toBe(6)
+
+    expect(runtime.getParameterState().setPersistentValue(CINEMA2_REFERENCE_VISUAL_BLOOM_MIX_ID, 0).ok).toBe(true)
+    const blitsBeforeBypass = (gl.blitFramebuffer as ReturnType<typeof vi.fn>).mock.calls.length
+    raf.runNext(83.35)
+    expect(gl.__calls.drawCount).toBe(7)
+    expect((gl.blitFramebuffer as ReturnType<typeof vi.fn>).mock.calls.length).toBe(blitsBeforeBypass + 1)
+    expect(runtime.getEffectRuntimeSnapshot().activeEffectCount).toBe(0)
+
+    expect(runtime.getParameterState().setPersistentValue(CINEMA2_REFERENCE_VISUAL_BLOOM_MIX_ID, 0.6).ok).toBe(true)
+    raf.runNext(100.02)
+    expect(gl.__calls.drawCount).toBe(9)
+    expect(lastValue(uniformFloatCalls(gl, 'u_mix'))).toBe(0.6)
     runtime.dispose()
   })
 
@@ -160,7 +176,7 @@ describe('Cinema 2.0 Reference Visual native vertical slice', () => {
     expect(runtime.getAudioIntelligenceFrame()?.features.overallEnergy).toMatchObject({ available: false, value: null })
     expect(lastValue(uniformFloatCalls(gl, 'u_audioOverallEnergy'))).toBe(0)
     expect(lastValue(uniformFloatCalls(gl, 'u_audioOverallEnergyAvailable'))).toBe(0)
-    expect(gl.__calls.drawCount).toBe(1)
+    expect(gl.__calls.drawCount).toBe(2)
     runtime.dispose()
   })
 
@@ -256,12 +272,16 @@ describe('Cinema 2.0 Reference Visual production preset selection', () => {
 
     await act(async () => root?.render(<ProductionPresetHarness />))
     expect(activeRuntimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_RUNTIME_FOUNDATION_PRESET_ID)
+    expect(host?.textContent).not.toContain('Effects')
     const referenceButton = host?.querySelector<HTMLButtonElement>(`[data-cinema2-preset-id="${CINEMA2_REFERENCE_VISUAL_PRESET_ID}"]`)
     expect(referenceButton?.textContent).toContain('Reference Visual')
 
     await act(async () => referenceButton?.click())
     expect(activeRuntimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_REFERENCE_VISUAL_PRESET_ID)
     expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID}"]`)).not.toBeNull()
+    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_REFERENCE_VISUAL_BLOOM_ENABLED_ID}"]`)).not.toBeNull()
+    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_REFERENCE_VISUAL_BLOOM_MIX_ID}"]`)).not.toBeNull()
+    expect(host?.textContent).toContain('Effects')
     expect(host?.querySelector('[data-cinema2-output-canvas="true"]')).not.toBeNull()
   })
 })

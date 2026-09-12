@@ -8,6 +8,7 @@ import type {
   Cinema2RenderTargetId,
 } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleFrameReadContext, Cinema2ModuleRenderPassProvider } from '../modules/Cinema2ModuleContracts'
+import type { Cinema2EffectRuntime } from '../effects/Cinema2EffectRuntime'
 import type { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import type {
   Cinema2CompiledRenderInput,
@@ -40,6 +41,7 @@ export interface Cinema2RenderGraphExecutorSnapshot {
 export interface Cinema2RenderGraphExecutorOptions {
   quality?: Cinema2RenderQualityLevel
   availableCapabilities?: Iterable<Cinema2CapabilityId>
+  effectRuntime?: Cinema2EffectRuntime
 }
 
 interface TargetRecord {
@@ -65,6 +67,7 @@ export class Cinema2RenderGraphExecutor {
   private readonly passById = new Map<Cinema2RenderPassId, Readonly<Cinema2CompiledRenderPass>>()
   private readonly quality: Cinema2RenderQualityLevel
   private readonly availableCapabilities: ReadonlySet<Cinema2CapabilityId>
+  private readonly effectRuntime: Cinema2EffectRuntime | null
   private diagnostics: Cinema2RenderGraphExecutorDiagnostic[] = []
   private frameCount = 0
   private executedPassCount = 0
@@ -83,6 +86,7 @@ export class Cinema2RenderGraphExecutor {
   ) {
     this.quality = options.quality ?? 'high'
     this.availableCapabilities = new Set(options.availableCapabilities ?? [])
+    this.effectRuntime = options.effectRuntime ?? null
     for (const target of plan.targets) this.targetHandles.set(target.id, target)
     for (const pass of plan.passes) this.passById.set(pass.id, pass)
   }
@@ -253,6 +257,20 @@ export class Cinema2RenderGraphExecutor {
     target: Readonly<Cinema2RenderTargetBinding> | null,
     inputs: readonly { id: Cinema2RenderSlotId; attachment: Cinema2RenderAttachment; texture: WebGLTexture; width: number; height: number }[],
   ): void {
+    if (pass.effect) {
+      if (!this.effectRuntime) throw new Error(`Render pass "${pass.id}" requires the Cinema 2.0 effect runtime.`)
+      if (inputs.length !== 1) throw new Error(`Effect render pass "${pass.id}" requires exactly one executable color input.`)
+      const result = this.effectRuntime.execute(pass.effect.id, {
+        frame,
+        input: inputs[0],
+        target: target?.framebuffer ?? null,
+        width: target?.width ?? frame.viewport.width,
+        height: target?.height ?? frame.viewport.height,
+      })
+      if (result === 'applied') return
+      this.blitFirstInput(inputs, target, frame)
+      return
+    }
     if (pass.kind === 'output' || pass.kind === 'composite') {
       this.blitFirstInput(inputs, target, frame)
       return

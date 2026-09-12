@@ -47,6 +47,8 @@ export function createCinemaMockWebGL(): CinemaMockWebGL {
   const gl = {
     __calls: calls,
     FRAMEBUFFER: 0x8d40,
+    READ_FRAMEBUFFER: 0x8ca8,
+    DRAW_FRAMEBUFFER: 0x8ca9,
     RENDERBUFFER: 0x8d41,
     TEXTURE_2D: 0x0de1,
     TEXTURE_MIN_FILTER: 0x2801,
@@ -160,6 +162,7 @@ export function createCinemaMockWebGL(): CinemaMockWebGL {
     }),
     deleteFramebuffer: vi.fn(() => { calls.deletedFramebuffers += 1 }),
     bindFramebuffer: vi.fn((_target: number, framebuffer: WebGLFramebuffer | null) => { boundFramebuffer = framebuffer }),
+    blitFramebuffer: vi.fn(),
     checkFramebufferStatus: vi.fn(() => 0x8cd5),
     createTexture: vi.fn(() => {
       calls.createdTextures += 1

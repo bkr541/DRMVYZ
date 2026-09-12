@@ -241,9 +241,11 @@ export function compileCinema2TargetPlan(
 
   for (const effect of manifest.effects ?? []) {
     const entity = addEntity('effect', effect.id)
-    addTarget(entity, 'enabled', 'boolean', effect.enabled ?? true)
+    addTarget(entity, 'enabled', 'boolean', effect.enabled ?? true, {
+      parameterId: effect.parameterBindings?.enabled?.$ref ?? null,
+    })
     for (const [property, value] of Object.entries(effect.parameters ?? {}).sort(compareEntries)) {
-      addInferredTarget(entity, property, value, addTarget)
+      addInferredTarget(entity, property, value, addTarget, [], effect.parameterBindings?.[property]?.$ref ?? null)
     }
   }
 
@@ -498,9 +500,10 @@ function addInferredTarget(
   value: Cinema2JsonValue,
   addTarget: AddCinema2Target,
   capabilities: readonly Cinema2CapabilityId[] = [],
+  parameterId: Cinema2ParameterId | null = null,
 ): void {
   const type = inferValueType(value)
-  if (type) addTarget(entity, property, type, value, { capabilities })
+  if (type) addTarget(entity, property, type, value, { capabilities, parameterId })
 }
 
 function inferValueType(value: Cinema2JsonValue): Cinema2TargetValueType | null {
