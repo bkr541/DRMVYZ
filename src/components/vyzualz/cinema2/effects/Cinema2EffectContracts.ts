@@ -17,6 +17,8 @@ export interface Cinema2EffectDiagnostic {
 }
 
 export interface Cinema2EffectRenderInput {
+  id: string
+  attachment: 'color' | 'depth'
   texture: WebGLTexture
   width: number
   height: number
@@ -25,6 +27,8 @@ export interface Cinema2EffectRenderInput {
 export interface Cinema2EffectRenderExecutionContext {
   frame: Readonly<Cinema2ModuleFrameReadContext>
   input: Readonly<Cinema2EffectRenderInput>
+  /** All resolved Render Graph inputs, preserving color/depth attachment identity. */
+  inputs: readonly Readonly<Cinema2EffectRenderInput>[]
   target: WebGLFramebuffer | null
   width: number
   height: number

@@ -25,11 +25,13 @@ export interface Cinema2RenderTargetLease {
   readonly ownerId: string
   readonly ownershipClass: Cinema2RenderTargetOwnershipClass
   readonly descriptor: Readonly<Cinema2NormalizedRenderTargetDescriptor>
+  readonly sampleableDepth: boolean
 }
 
 export interface Cinema2RenderTargetBinding {
   readonly framebuffer: WebGLFramebuffer
   readonly colorTexture: WebGLTexture
+  readonly depthTexture: WebGLTexture | null
   readonly depthRenderbuffer: WebGLRenderbuffer | null
   readonly width: number
   readonly height: number
@@ -69,6 +71,11 @@ export interface Cinema2RenderTargetReleaseOptions {
   pool?: boolean
 }
 
+export interface Cinema2RenderTargetAcquireOptions {
+  /** Allocate depth as a texture when downstream Render Graph consumers sample it. */
+  sampleableDepth?: boolean
+}
+
 export interface Cinema2ResourceViewport {
   width: number
   height: number
@@ -90,6 +97,7 @@ interface Cinema2NormalizedRenderTargetDescriptor {
 interface TargetSurface {
   framebuffer: WebGLFramebuffer | null
   colorTexture: WebGLTexture | null
+  depthTexture: WebGLTexture | null
   depthRenderbuffer: WebGLRenderbuffer | null
 }
 
@@ -155,18 +163,20 @@ export class Cinema2ResourceManager {
     ownerId: string,
     descriptor: Cinema2RenderTargetDescriptor,
     ownershipClass: Cinema2RenderTargetOwnershipClass,
+    options: Cinema2RenderTargetAcquireOptions = {},
   ): Cinema2RenderTargetLease {
     this.assertUsable('acquire a render target')
     const normalizedOwnerId = normalizeOwnerId(ownerId)
     const normalized = normalizeDescriptor(descriptor)
     const size = resolveTargetSize(this.viewport, normalized, this.maximumTextureSize, this.renderTargetScale)
-    const key = descriptorKey(normalized, size.width, size.height)
+    const sampleableDepth = options.sampleableDepth === true && normalized.depthFormat !== 'none'
+    const key = descriptorKey(normalized, size.width, size.height, sampleableDepth)
     const pooled = this.pooledByKey.get(key)
     const record = pooled?.pop()
     if (!record) this.assertWithinBudget(normalized, size.width, size.height)
     if (pooled?.length === 0) this.pooledByKey.delete(key)
 
-    const lease = createLease(this.nextLeaseId++, normalizedOwnerId, ownershipClass, normalized)
+    const lease = createLease(this.nextLeaseId++, normalizedOwnerId, ownershipClass, normalized, sampleableDepth)
     if (record) {
       this.pooledAllocationCount = Math.max(0, this.pooledAllocationCount - 1)
       this.reusedAllocationCount += 1
@@ -176,7 +186,7 @@ export class Cinema2ResourceManager {
       return lease
     }
 
-    const surfaces = this.createSurfaces(normalized, size.width, size.height)
+    const surfaces = this.createSurfaces(normalized, size.width, size.height, sampleableDepth)
     const created: TargetRecord = {
       lease,
       key,
@@ -203,6 +213,7 @@ export class Cinema2ResourceManager {
     return Object.freeze({
       framebuffer: surface.framebuffer,
       colorTexture: surface.colorTexture,
+      depthTexture: surface.depthTexture,
       depthRenderbuffer: surface.depthRenderbuffer,
       width: record.width,
       height: record.height,
@@ -262,8 +273,8 @@ export class Cinema2ResourceManager {
           record,
           width: size.width,
           height: size.height,
-          key: descriptorKey(record.lease.descriptor, size.width, size.height),
-          surfaces: this.createSurfaces(record.lease.descriptor, size.width, size.height),
+          key: descriptorKey(record.lease.descriptor, size.width, size.height, record.lease.sampleableDepth),
+          surfaces: this.createSurfaces(record.lease.descriptor, size.width, size.height, record.lease.sampleableDepth),
         })
       }
     } catch (error) {
@@ -304,8 +315,8 @@ export class Cinema2ResourceManager {
           record,
           width: size.width,
           height: size.height,
-          key: descriptorKey(record.lease.descriptor, size.width, size.height),
-          surfaces: this.createSurfaces(record.lease.descriptor, size.width, size.height),
+          key: descriptorKey(record.lease.descriptor, size.width, size.height, record.lease.sampleableDepth),
+          surfaces: this.createSurfaces(record.lease.descriptor, size.width, size.height, record.lease.sampleableDepth),
         })
       }
     } catch (error) {
@@ -378,7 +389,7 @@ export class Cinema2ResourceManager {
       for (const record of this.active.values()) {
         const size = resolveTargetSize(this.viewport, record.lease.descriptor, this.maximumTextureSize, this.renderTargetScale)
         if (record.width === size.width && record.height === size.height) continue
-        replacements.push({ record, width: size.width, height: size.height, key: descriptorKey(record.lease.descriptor, size.width, size.height), surfaces: this.createSurfaces(record.lease.descriptor, size.width, size.height) })
+        replacements.push({ record, width: size.width, height: size.height, key: descriptorKey(record.lease.descriptor, size.width, size.height, record.lease.sampleableDepth), surfaces: this.createSurfaces(record.lease.descriptor, size.width, size.height, record.lease.sampleableDepth) })
       }
     } catch (error) {
       for (const replacement of replacements) this.destroySurfaces(replacement.surfaces, true)
@@ -435,6 +446,7 @@ export class Cinema2ResourceManager {
     descriptor: Readonly<Cinema2NormalizedRenderTargetDescriptor>,
     width: number,
     height: number,
+    sampleableDepth: boolean,
   ): TargetSurface[] {
     if (!this.contextAvailable) throw new Error('Cinema 2.0 cannot allocate render targets while its WebGL2 context is unavailable.')
     if ((descriptor.colorFormat === 'rgba16f' || descriptor.colorFormat === 'rgba32f') && !supportsFloatColorTargets(this.gl)) {
@@ -443,7 +455,7 @@ export class Cinema2ResourceManager {
     const count = descriptor.surfaceLayout === 'paired' ? 2 : 1
     const surfaces: TargetSurface[] = []
     try {
-      for (let index = 0; index < count; index += 1) surfaces.push(this.createSurface(descriptor, width, height))
+      for (let index = 0; index < count; index += 1) surfaces.push(this.createSurface(descriptor, width, height, sampleableDepth))
       return surfaces
     } catch (error) {
       this.destroySurfaces(surfaces, true)
@@ -455,11 +467,13 @@ export class Cinema2ResourceManager {
     descriptor: Readonly<Cinema2NormalizedRenderTargetDescriptor>,
     width: number,
     height: number,
+    sampleableDepth: boolean,
   ): TargetSurface {
     const gl = this.gl
     const framebuffer = gl.createFramebuffer()
     if (!framebuffer) throw new Error('Cinema 2.0 could not allocate a render-target framebuffer.')
     let colorTexture: WebGLTexture | null = null
+    let depthTexture: WebGLTexture | null = null
     let depthRenderbuffer: WebGLRenderbuffer | null = null
     try {
       gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer)
@@ -471,24 +485,47 @@ export class Cinema2ResourceManager {
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, colorTexture, 0)
 
       if (descriptor.depthFormat !== 'none') {
-        depthRenderbuffer = gl.createRenderbuffer()
-        if (!depthRenderbuffer) throw new Error('Cinema 2.0 could not allocate a render-target depth attachment.')
-        gl.bindRenderbuffer(gl.RENDERBUFFER, depthRenderbuffer)
-        gl.renderbufferStorage(
-          gl.RENDERBUFFER,
-          descriptor.depthFormat === 'depth16' ? gl.DEPTH_COMPONENT16 : gl.DEPTH_COMPONENT24,
-          width,
-          height,
-        )
-        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthRenderbuffer)
+        if (sampleableDepth) {
+          depthTexture = gl.createTexture()
+          if (!depthTexture) throw new Error('Cinema 2.0 could not allocate a sampleable render-target depth attachment.')
+          gl.bindTexture(gl.TEXTURE_2D, depthTexture)
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+          gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            descriptor.depthFormat === 'depth16' ? gl.DEPTH_COMPONENT16 : gl.DEPTH_COMPONENT24,
+            width,
+            height,
+            0,
+            gl.DEPTH_COMPONENT,
+            descriptor.depthFormat === 'depth16' ? gl.UNSIGNED_SHORT : gl.UNSIGNED_INT,
+            null,
+          )
+          gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthTexture, 0)
+        } else {
+          depthRenderbuffer = gl.createRenderbuffer()
+          if (!depthRenderbuffer) throw new Error('Cinema 2.0 could not allocate a render-target depth attachment.')
+          gl.bindRenderbuffer(gl.RENDERBUFFER, depthRenderbuffer)
+          gl.renderbufferStorage(
+            gl.RENDERBUFFER,
+            descriptor.depthFormat === 'depth16' ? gl.DEPTH_COMPONENT16 : gl.DEPTH_COMPONENT24,
+            width,
+            height,
+          )
+          gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthRenderbuffer)
+        }
       }
 
       const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER)
       if (status !== gl.FRAMEBUFFER_COMPLETE) {
         throw new Error(`Cinema 2.0 render-target framebuffer is incomplete (status ${status}).`)
       }
-      return { framebuffer, colorTexture, depthRenderbuffer }
+      return { framebuffer, colorTexture, depthTexture, depthRenderbuffer }
     } catch (error) {
+      if (depthTexture) gl.deleteTexture(depthTexture)
       if (depthRenderbuffer) gl.deleteRenderbuffer(depthRenderbuffer)
       if (colorTexture) gl.deleteTexture(colorTexture)
       gl.deleteFramebuffer(framebuffer)
@@ -516,10 +553,12 @@ export class Cinema2ResourceManager {
   private destroySurfaces(surfaces: readonly TargetSurface[], deleteGlResources: boolean): void {
     for (const surface of surfaces) {
       if (deleteGlResources) {
+        if (surface.depthTexture) this.gl.deleteTexture(surface.depthTexture)
         if (surface.depthRenderbuffer) this.gl.deleteRenderbuffer(surface.depthRenderbuffer)
         if (surface.colorTexture) this.gl.deleteTexture(surface.colorTexture)
         if (surface.framebuffer) this.gl.deleteFramebuffer(surface.framebuffer)
       }
+      surface.depthTexture = null
       surface.depthRenderbuffer = null
       surface.colorTexture = null
       surface.framebuffer = null
@@ -528,6 +567,7 @@ export class Cinema2ResourceManager {
 
   private abandonSurfaces(surfaces: readonly TargetSurface[]): void {
     for (const surface of surfaces) {
+      surface.depthTexture = null
       surface.depthRenderbuffer = null
       surface.colorTexture = null
       surface.framebuffer = null
@@ -561,12 +601,14 @@ function createLease(
   ownerId: string,
   ownershipClass: Cinema2RenderTargetOwnershipClass,
   descriptor: Readonly<Cinema2NormalizedRenderTargetDescriptor>,
+  sampleableDepth: boolean,
 ): Cinema2RenderTargetLease {
   return Object.freeze({
     leaseId: `cinema2.runtime.render-target.${id}`,
     ownerId,
     ownershipClass,
     descriptor,
+    sampleableDepth,
   })
 }
 
@@ -617,6 +659,7 @@ function descriptorKey(
   descriptor: Readonly<Cinema2NormalizedRenderTargetDescriptor>,
   width: number,
   height: number,
+  sampleableDepth: boolean,
 ): string {
   return JSON.stringify({
     width,
@@ -626,6 +669,7 @@ function descriptorKey(
     filter: descriptor.filter,
     wrap: descriptor.wrap,
     surfaceLayout: descriptor.surfaceLayout,
+    sampleableDepth,
   })
 }
 

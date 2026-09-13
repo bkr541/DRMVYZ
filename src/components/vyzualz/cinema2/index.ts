@@ -293,6 +293,7 @@ export {
 
 export {
   Cinema2ResourceManager,
+  type Cinema2RenderTargetAcquireOptions,
   type Cinema2RenderTargetBinding,
   type Cinema2RenderTargetLease,
   type Cinema2RenderTargetReleaseOptions,

@@ -33,6 +33,8 @@ export interface Cinema2CompiledEntityHandle<Id extends string> {
 export interface Cinema2CompiledRenderTargetHandle extends Cinema2CompiledEntityHandle<Cinema2RenderTargetId> {
   descriptor: Readonly<Cinema2RenderTargetDescriptor>
   ownership: Cinema2RenderTargetOwnershipClass
+  /** Runtime-only allocation hint derived from actual downstream depth consumers. */
+  sampleableDepth: boolean
 }
 
 export interface Cinema2CompiledRenderInput {
@@ -175,6 +177,7 @@ export function compileCinema2RenderGraph(manifest: Cinema2NativePresetManifest)
 
   const dependencies = new Map<Cinema2RenderPassId, Set<Cinema2RenderPassId>>()
   const dependents = new Map<Cinema2RenderPassId, Set<Cinema2RenderPassId>>()
+  const sampledDepthTargetIds = new Set<Cinema2RenderTargetId>()
   for (const id of passById.keys()) {
     dependencies.set(id, new Set())
     dependents.set(id, new Set())
@@ -228,6 +231,19 @@ export function compileCinema2RenderGraph(manifest: Cinema2NativePresetManifest)
       if (requestedAttachment !== sourceOutput.attachment) {
         diagnostics.push(error('CINEMA2_RENDER_ATTACHMENT_MISMATCH', `Input attachment "${requestedAttachment}" does not match source output attachment "${sourceOutput.attachment}".`, `${path}.attachment`))
       }
+      if (requestedAttachment === 'depth' && sourceOutput.target) {
+        sampledDepthTargetIds.add(sourceOutput.target.id)
+        const currentOutputTargetIds = new Set(readArray(indexed.pass.outputs)
+          .map(output => isPlainObject(output) ? readValidRef(output.target) : null)
+          .filter((id): id is string => id != null))
+        if (currentOutputTargetIds.has(sourceOutput.target.id)) {
+          diagnostics.push(error(
+            'CINEMA2_RENDER_DEPTH_FEEDBACK_HAZARD',
+            `Render pass "${passId}" cannot sample depth target "${sourceOutput.target.id}" while also writing that target.`,
+            path,
+          ))
+        }
+      }
       addDependency(passId, sourcePassId as Cinema2RenderPassId, dependencies, dependents)
     }
   }
@@ -243,6 +259,11 @@ export function compileCinema2RenderGraph(manifest: Cinema2NativePresetManifest)
   }
 
   const orderIndex = new Map(order.map((id, index) => [id, index] as const))
+  const resolvedTargets = Object.freeze(targets.map(target => deepFreeze({
+    ...target,
+    sampleableDepth: sampledDepthTargetIds.has(target.id),
+  })))
+  const resolvedTargetById = new Map(resolvedTargets.map(target => [target.id, target] as const))
   const compiledPasses = order.map(id => {
     const indexed = passById.get(id)!
     const pass = indexed.pass
@@ -267,7 +288,11 @@ export function compileCinema2RenderGraph(manifest: Cinema2NativePresetManifest)
       if (!isPlainObject(output) || !isCinema2StableId(output.id)) continue
       const compiled = outputByPassAndId.get(outputKey(id, output.id))
       if (!compiled) continue
-      outputs.push(deepFreeze({ id: output.id, attachment: compiled.attachment, target: compiled.target }))
+      outputs.push(deepFreeze({
+        id: output.id,
+        attachment: compiled.attachment,
+        target: compiled.target ? resolvedTargetById.get(compiled.target.id) ?? compiled.target : null,
+      }))
     }
     return deepFreeze({
       id,
@@ -292,19 +317,19 @@ export function compileCinema2RenderGraph(manifest: Cinema2NativePresetManifest)
     passes: Object.freeze(compiledPasses),
     passOrder: Object.freeze(order),
     outputPassId,
-    targets: Object.freeze(targets),
+    targets: resolvedTargets,
   } satisfies Cinema2CompiledRenderPlan)
   return { ok: true, plan, diagnostics: [] }
 }
 
 function synthesizeTrivialPlan(manifest: Cinema2NativePresetManifest): Cinema2RenderGraphCompilationResult {
   const layers = readArray(manifest.layers).filter(layer => isPlainObject(layer) && isCinema2StableId(layer.id))
-  const layerIds = layers.map(layer => layer.id as Cinema2LayerId)
+  const layerIds = orderedLayerEntries(layers).map(({ layer }) => layer.id as Cinema2LayerId)
   const sceneNodes = readArray(manifest.scene?.nodes).filter(node => isPlainObject(node) && isCinema2StableId(node.id))
   const modules = readArray(manifest.modules).filter(module => isPlainObject(module) && isCinema2StableId(module.id))
   const hasVisualIntent = sceneNodes.length > 0 || layerIds.length > 0 || modules.length > 0
   const id = hasVisualIntent ? SYNTHETIC_SCENE_OUTPUT_ID : SYNTHETIC_SAFE_CLEAR_ID
-  const layerIndexes = new Map(layers.map((layer, index) => [layer.id as Cinema2LayerId, index] as const))
+  const layerIndexes = new Map(layerIds.map((layerId, index) => [layerId, index] as const))
   const sceneNodeIndexes = new Map(sceneNodes.map((node, index) => [node.id, index] as const))
   const moduleIndexes = new Map(modules.map((module, index) => [module.id, index] as const))
   const firstSceneNode = sceneNodes[0]
@@ -340,7 +365,7 @@ function buildEntityIndexes(manifest: Cinema2NativePresetManifest): CompiledInde
   return {
     modules: indexIds(manifest.modules),
     sceneNodes: indexIds(manifest.scene?.nodes),
-    layers: indexIds(manifest.layers),
+    layers: indexLayerIds(manifest.layers),
     effects: indexIds(manifest.effects),
     parameters: new Set(readArray(manifest.parameters).filter(parameter => isPlainObject(parameter) && isCinema2StableId(parameter.id)).map(parameter => parameter.id)),
   }
@@ -374,6 +399,7 @@ function compileTargets(
       index,
       descriptor: cloneSerializable(target.descriptor),
       ownership: target.ownership === 'persistent' ? 'persistent' : 'transient',
+      sampleableDepth: false,
     }))
   }
   return Object.freeze(compiled)
@@ -570,6 +596,25 @@ function normalizeAttachmentWithoutDiagnostics(value: unknown): Cinema2RenderAtt
 
 function outputKey(passId: Cinema2RenderPassId, outputId: Cinema2RenderSlotId): string {
   return `${passId}\u0000${outputId}`
+}
+
+function indexLayerIds(values: Cinema2NativePresetManifest['layers']): ReadonlyMap<Cinema2LayerId, number> {
+  const map = new Map<Cinema2LayerId, number>()
+  for (const [{ layer }, index] of orderedLayerEntries(readArray(values)).map((entry, index) => [entry, index] as const)) {
+    if (isCinema2StableId(layer.id) && !map.has(layer.id as Cinema2LayerId)) map.set(layer.id as Cinema2LayerId, index)
+  }
+  return map
+}
+
+function orderedLayerEntries(values: readonly any[]): Array<{ layer: Record<string, any>; index: number; order: number }> {
+  return values
+    .map((value, index) => ({
+      layer: isPlainObject(value) ? value : {},
+      index,
+      order: isPlainObject(value) && Number.isInteger(value.order) ? Number(value.order) : index,
+    }))
+    .filter(entry => isCinema2StableId(entry.layer.id))
+    .sort((left, right) => left.order - right.order || left.index - right.index || compareStrings(String(left.layer.id), String(right.layer.id)))
 }
 
 function indexIds<T extends { id: Id }, Id extends string>(values: readonly T[] | undefined): ReadonlyMap<Id, number> {

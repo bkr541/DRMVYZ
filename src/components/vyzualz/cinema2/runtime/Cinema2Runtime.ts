@@ -415,6 +415,7 @@ export class Cinema2Runtime {
       spatialRuntime: this.spatialRuntime,
       cameraRuntime: this.cameraRuntime,
       lightingEnvironmentRuntime: this.lightingEnvironmentRuntime,
+      targetResolver: this.targetResolver,
     })
     this.contextHandle = registerDrmvyzWebGLContext(gl, {
       lifetime: 'live-reusable',

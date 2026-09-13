@@ -197,4 +197,39 @@ describe('Cinema2ResourceManager', () => {
     constrained.dispose()
   })
 
+  it('allocates downstream-sampleable depth as a texture and preserves that lifecycle across resize/context restore', () => {
+    const gl = createCinemaMockWebGL()
+    const manager = new Cinema2ResourceManager(gl)
+    manager.resize({ width: 200, height: 100, dpr: 1 })
+    const lease = manager.acquireRenderTarget('sampleable-depth', {
+      ...VIEWPORT_TARGET,
+      depthFormat: 'depth24',
+    }, 'persistent', { sampleableDepth: true })
+
+    const initial = manager.getRenderTargetBinding(lease)
+    expect(lease.sampleableDepth).toBe(true)
+    expect(initial.depthTexture).not.toBeNull()
+    expect(initial.depthRenderbuffer).toBeNull()
+    expect(gl.__calls.createdTextures).toBe(2)
+    expect(gl.__calls.createdRenderbuffers).toBe(0)
+    expect(manager.getSnapshot().estimatedGpuMemoryBytes).toBe(160_000)
+
+    manager.resize({ width: 100, height: 50, dpr: 1 })
+    const resized = manager.getRenderTargetBinding(lease)
+    expect(resized.depthTexture).not.toBe(initial.depthTexture)
+    expect(resized).toMatchObject({ width: 100, height: 50 })
+
+    manager.handleContextLost()
+    manager.handleContextRestored()
+    const restored = manager.getRenderTargetBinding(lease)
+    expect(restored.depthTexture).not.toBeNull()
+    expect(restored.depthRenderbuffer).toBeNull()
+
+    manager.dispose()
+    expect(manager.getSnapshot()).toMatchObject({ disposed: true, activeLeaseCount: 0, estimatedGpuMemoryBytes: 0 })
+    // Lost-context handles are invalidated by the browser rather than explicitly deleted.
+    expect(gl.__calls.deletedTextures).toBeGreaterThan(0)
+    expect(gl.__calls.deletedRenderbuffers).toBe(0)
+  })
+
 })

@@ -23,7 +23,8 @@ import type { Cinema2HistoryService } from '../runtime/Cinema2HistoryService'
 
 export interface Cinema2EffectExecutionContext {
   frame: Readonly<Cinema2ModuleFrameReadContext>
-  input: Readonly<{ texture: WebGLTexture; width: number; height: number }>
+  input: Readonly<{ id: string; attachment: 'color' | 'depth'; texture: WebGLTexture; width: number; height: number }>
+  inputs: readonly Readonly<{ id: string; attachment: 'color' | 'depth'; texture: WebGLTexture; width: number; height: number }>[]
   target: WebGLFramebuffer | null
   width: number
   height: number
