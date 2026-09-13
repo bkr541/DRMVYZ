@@ -6,6 +6,7 @@ import type {
 } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2AudioIntelligenceFrame } from '../audio/Cinema2AudioIntelligenceBridge'
 import type { Cinema2VisualDirectorFrame } from '../director/Cinema2VisualDirector'
+import type { Cinema2ResolvedSpatialNode } from '../spatial/Cinema2SpatialRuntime'
 import type { Cinema2ManagedMediaResource, Cinema2MediaSlotSnapshot } from '../media/Cinema2MediaSlotRuntime'
 import type {
   Cinema2ActionDispatchResult,
@@ -111,6 +112,10 @@ export interface Cinema2ModuleRenderExecutionContext {
   target: WebGLFramebuffer | null
   width: number
   height: number
+  /** True only when the currently bound engine-owned target has a depth attachment. */
+  depthAvailable?: boolean
+  /** Final target-resolved Scene Graph nodes associated with this module for the current pass. */
+  spatialNodes?: readonly Readonly<Cinema2ResolvedSpatialNode>[]
   /** Compiled upstream render inputs. Modules may read them but never own their lifetime. */
   inputs?: readonly Readonly<Cinema2ModuleRenderInput>[]
 }
@@ -118,7 +123,7 @@ export interface Cinema2ModuleRenderExecutionContext {
 export interface Cinema2ModuleRenderPassProvider {
   id: string
   moduleId: Cinema2ModuleId
-  intent: 'fullscreen'
+  intent: 'fullscreen' | 'world'
   execute(context: Cinema2ModuleRenderExecutionContext): void
 }
 

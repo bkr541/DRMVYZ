@@ -33,6 +33,7 @@ import {
   cinema2NativeModuleRegistry,
 } from '../modules/Cinema2ModuleRegistry'
 import type { Cinema2ModuleRenderPassProvider } from '../modules/Cinema2ModuleContracts'
+import { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
 import { Cinema2EffectRuntime } from '../effects/Cinema2EffectRuntime'
 import { Cinema2EffectRegistry, cinema2NativeEffectRegistry } from '../effects/Cinema2EffectRegistry'
 import type { Cinema2EffectRuntimeSnapshot } from '../effects/Cinema2EffectContracts'
@@ -141,7 +142,9 @@ const diagnostics: Cinema2RuntimeDiagnostics = {
 const EMPTY_VIEWPORT: Cinema2Viewport = { width: 1, height: 1, dpr: 1 }
 const CINEMA2_RUNTIME_AVAILABLE_CAPABILITIES = Object.freeze([
   'render.webgl2',
+  'render.depth',
   'render.history',
+  'scene.3d',
   'media.image',
   'media.video',
   'media.svg',
@@ -287,6 +290,7 @@ export class Cinema2Runtime {
   private readonly visualDirector: Cinema2VisualDirector
   private readonly randomService: Cinema2RandomService
   private readonly targetResolver: Cinema2FinalValueResolver
+  private readonly spatialRuntime: Cinema2SpatialRuntime
   private readonly choreographyRuntime: Cinema2ChoreographyRuntime
   private readonly mediaSlotRuntime: Cinema2MediaSlotRuntime
   private readonly moduleRuntime: Cinema2ModuleRuntime
@@ -345,6 +349,7 @@ export class Cinema2Runtime {
         if (parameterId) effectRuntime?.dispatchParameterAction(parameterId, event.eventId)
       },
     })
+    this.spatialRuntime = new Cinema2SpatialRuntime(compiledPresetPlan.scene, compiledPresetPlan.targets.targets, this.targetResolver)
     this.choreographyRuntime = new Cinema2ChoreographyRuntime(compiledPresetPlan, parameterState, this.targetResolver, this.randomService)
     this.mediaSlotRuntime = new Cinema2MediaSlotRuntime(gl, compiledPresetPlan.manifest.mediaSlots ?? [], options.mediaLoader)
     this.moduleRuntime = new Cinema2ModuleRuntime(gl, compiledPresetPlan, this.targetResolver, moduleRegistry, this.mediaSlotRuntime)
@@ -355,6 +360,7 @@ export class Cinema2Runtime {
       quality: renderQuality,
       availableCapabilities: CINEMA2_RUNTIME_AVAILABLE_CAPABILITIES,
       effectRuntime: this.effectRuntime,
+      spatialRuntime: this.spatialRuntime,
     })
     this.contextHandle = registerDrmvyzWebGLContext(gl, {
       lifetime: 'live-reusable',
@@ -417,6 +423,7 @@ export class Cinema2Runtime {
         canvas.removeEventListener('webglcontextlost', this.onContextLostHandler)
       }
       this.renderGraphExecutor.dispose()
+      this.spatialRuntime.dispose()
       this.choreographyRuntime.dispose()
       this.effectRuntime.dispose()
       this.historyService.dispose()
@@ -519,6 +526,11 @@ export class Cinema2Runtime {
     return this.targetResolver
   }
 
+  /** Final target-resolved world/screen Scene Graph view used by native render providers. */
+  getSpatialRuntime(): Cinema2SpatialRuntime {
+    return this.spatialRuntime
+  }
+
   /** Most recent immutable Audio Intelligence snapshot captured for a visual frame. */
   getAudioIntelligenceFrame(): Readonly<Cinema2AudioIntelligenceFrame> | null {
     return this.audioIntelligenceFrame
@@ -608,6 +620,7 @@ export class Cinema2Runtime {
     }
 
     this.renderGraphExecutor.dispose()
+    this.spatialRuntime.dispose()
     this.choreographyRuntime.dispose()
     this.effectRuntime.dispose()
     this.historyService.dispose()

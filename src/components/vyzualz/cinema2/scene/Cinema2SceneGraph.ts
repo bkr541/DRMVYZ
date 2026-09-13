@@ -161,7 +161,7 @@ export function compileCinema2SceneGraph(manifest: Cinema2NativePresetManifest):
     const localTransform = compileTransform(authored.transform)
     const resolvedMatrix = parent == null
       ? localTransform.matrix
-      : multiplyMatrix4(parent.resolvedTransform.matrix, localTransform.matrix)
+      : multiplyCinema2Matrix4(parent.resolvedTransform.matrix, localTransform.matrix)
     const resolvedTransform: Cinema2ResolvedTransform = deepFreeze({
       position: Object.freeze([resolvedMatrix[12], resolvedMatrix[13], resolvedMatrix[14]]) as Cinema2Vector3,
       matrix: resolvedMatrix,
@@ -494,17 +494,26 @@ function compileTransform(transform: Cinema2TransformManifest | undefined): Read
   const position = freezeVector3(transform?.position ?? IDENTITY_POSITION)
   const rotation = freezeVector3(transform?.rotation ?? IDENTITY_ROTATION)
   const scale = freezeVector3(transform?.scale ?? IDENTITY_SCALE)
-  const matrix = multiplyMatrix4(
-    multiplyMatrix4(
-      multiplyMatrix4(
-        multiplyMatrix4(translationMatrix(position), rotationZMatrix(rotation[2])),
+  const matrix = createCinema2Transform3DMatrix(position, rotation, scale)
+  return deepFreeze({ position, rotation, scale, matrix })
+}
+
+
+export function createCinema2Transform3DMatrix(
+  position: Cinema2Vector3,
+  rotation: Cinema2Vector3,
+  scale: Cinema2Vector3,
+): Cinema2Matrix4 {
+  return multiplyCinema2Matrix4(
+    multiplyCinema2Matrix4(
+      multiplyCinema2Matrix4(
+        multiplyCinema2Matrix4(translationMatrix(position), rotationZMatrix(rotation[2])),
         rotationYMatrix(rotation[1]),
       ),
       rotationXMatrix(rotation[0]),
     ),
     scaleMatrix(scale),
   )
-  return deepFreeze({ position, rotation, scale, matrix })
 }
 
 function translationMatrix([x, y, z]: Cinema2Vector3): Cinema2Matrix4 {
@@ -558,7 +567,7 @@ function rotationZMatrix(radians: number): Cinema2Matrix4 {
   ]) as Cinema2Matrix4
 }
 
-function multiplyMatrix4(left: Cinema2Matrix4, right: Cinema2Matrix4): Cinema2Matrix4 {
+export function multiplyCinema2Matrix4(left: Cinema2Matrix4, right: Cinema2Matrix4): Cinema2Matrix4 {
   const result = new Array<number>(16).fill(0)
   for (let column = 0; column < 4; column += 1) {
     for (let row = 0; row < 4; row += 1) {

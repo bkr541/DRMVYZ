@@ -48,6 +48,7 @@ export {
   type Cinema2CoordinateSpace,
   type Cinema2CameraManifest,
   type Cinema2CapabilityId,
+  type Cinema2Color,
   type Cinema2CapabilityRequirement,
   type Cinema2CapabilityRequirementMode,
   type Cinema2ChoreographyActionId,
@@ -290,6 +291,8 @@ export {
 
 export {
   CINEMA2_SCENE_GRAPH_PLAN_VERSION,
+  createCinema2Transform3DMatrix,
+  multiplyCinema2Matrix4,
   type Cinema2CompiledLayerDefinition,
   type Cinema2CompiledSceneGraph,
   type Cinema2CompiledSceneNode,
@@ -325,6 +328,34 @@ export {
   CINEMA2_FULLSCREEN_SHADER_MODULE_VERSION,
   cinema2FullscreenShaderModuleDefinition,
 } from './modules/Cinema2FullscreenShaderModule'
+
+export {
+  CINEMA2_OBJECT3D_MODULE_TYPE_ID,
+  CINEMA2_OBJECT3D_MODULE_VERSION,
+  cinema2Object3DModuleDefinition,
+} from './modules/Cinema2Object3DModule'
+
+export {
+  compileCinema2Object3DSvgGeometry,
+  compileCinema2Object3DTextGeometry,
+  type Cinema2CompiledObject3DGeometry,
+  type Cinema2Object3DGeometryResult,
+  type Cinema2Object3DSvgGeometryRequest,
+  type Cinema2Object3DTextGeometryRequest,
+} from './spatial/Cinema2Object3DGeometry'
+
+export {
+  Cinema2Object3DRenderer,
+  createCinema2FoundationWorldToClip,
+  type Cinema2Object3DDrawRequest,
+  type Cinema2Object3DMaterial,
+  type Cinema2Object3DRendererSnapshot,
+} from './spatial/Cinema2Object3DRenderer'
+
+export {
+  Cinema2SpatialRuntime,
+  type Cinema2ResolvedSpatialNode,
+} from './spatial/Cinema2SpatialRuntime'
 
 export {
   CINEMA2_REACTOR_NATIVE_MODULE_TYPE_ID,

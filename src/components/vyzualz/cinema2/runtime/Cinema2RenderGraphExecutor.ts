@@ -1,6 +1,7 @@
 import type {
   Cinema2CapabilityId,
   Cinema2JsonValue,
+  Cinema2ModuleId,
   Cinema2RenderAttachment,
   Cinema2RenderPassId,
   Cinema2RenderQualityLevel,
@@ -16,6 +17,7 @@ import type {
   Cinema2CompiledRenderPlan,
 } from '../render/Cinema2RenderGraph'
 import type { Cinema2CompiledSceneGraph } from '../scene/Cinema2SceneGraph'
+import type { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
 import {
   Cinema2ResourceManager,
   type Cinema2RenderTargetBinding,
@@ -42,6 +44,7 @@ export interface Cinema2RenderGraphExecutorOptions {
   quality?: Cinema2RenderQualityLevel
   availableCapabilities?: Iterable<Cinema2CapabilityId>
   effectRuntime?: Cinema2EffectRuntime
+  spatialRuntime?: Cinema2SpatialRuntime
 }
 
 interface TargetRecord {
@@ -68,6 +71,7 @@ export class Cinema2RenderGraphExecutor {
   private readonly quality: Cinema2RenderQualityLevel
   private readonly availableCapabilities: ReadonlySet<Cinema2CapabilityId>
   private readonly effectRuntime: Cinema2EffectRuntime | null
+  private readonly spatialRuntime: Cinema2SpatialRuntime | null
   private diagnostics: Cinema2RenderGraphExecutorDiagnostic[] = []
   private frameCount = 0
   private executedPassCount = 0
@@ -87,6 +91,7 @@ export class Cinema2RenderGraphExecutor {
     this.quality = options.quality ?? 'high'
     this.availableCapabilities = new Set(options.availableCapabilities ?? [])
     this.effectRuntime = options.effectRuntime ?? null
+    this.spatialRuntime = options.spatialRuntime ?? null
     for (const target of plan.targets) this.targetHandles.set(target.id, target)
     for (const pass of plan.passes) this.passById.set(pass.id, pass)
   }
@@ -283,20 +288,27 @@ export class Cinema2RenderGraphExecutor {
       }
       throw new Error(`Render pass "${pass.id}" has no reachable module render provider.`)
     }
-    for (const moduleId of moduleIds) {
+    const passProviders = moduleIds.map(moduleId => {
       const provider = providers.get(moduleId)
       if (!provider) throw new Error(`No active render provider is bound for module "${moduleId}".`)
+      return { moduleId, provider }
+    })
+    const hasWorldProvider = passProviders.some(entry => entry.provider.intent === 'world')
+    if (hasWorldProvider) this.prepareWorldTarget(pass, target)
+    for (const { moduleId, provider } of passProviders) {
       provider.execute({
         frame,
         target: target?.framebuffer ?? null,
         width: target?.width ?? frame.viewport.width,
         height: target?.height ?? frame.viewport.height,
+        depthAvailable: target?.depthRenderbuffer != null,
+        spatialNodes: this.resolveSpatialNodesForModule(pass, moduleId),
         inputs,
       })
     }
   }
 
-  private resolvePassModuleIds(pass: Readonly<Cinema2CompiledRenderPass>): string[] {
+  private resolvePassModuleIds(pass: Readonly<Cinema2CompiledRenderPass>): Cinema2ModuleId[] {
     if (pass.module) return [pass.module.id]
     const nodeIds = new Set<string>()
     if (pass.sceneNode) nodeIds.add(pass.sceneNode.id)
@@ -305,7 +317,7 @@ export class Cinema2RenderGraphExecutor {
       if (definition) nodeIds.add(definition.sourceNodeId)
     }
     if (nodeIds.size === 0 && pass.kind === 'scene') for (const id of this.scene.rootNodeIds) nodeIds.add(id)
-    const moduleIds: string[] = []
+    const moduleIds: Cinema2ModuleId[] = []
     for (const node of this.scene.nodes) {
       if (!node.effectiveVisible || !node.moduleId) continue
       if (nodeIds.has(node.id) || node.layerIds.some(layerId => pass.layers.some(layer => layer.id === layerId)) || isDescendantOfAny(node.id, nodeIds, this.scene)) {
@@ -313,6 +325,44 @@ export class Cinema2RenderGraphExecutor {
       }
     }
     return moduleIds
+  }
+
+  private prepareWorldTarget(
+    pass: Readonly<Cinema2CompiledRenderPass>,
+    target: Readonly<Cinema2RenderTargetBinding> | null,
+  ): void {
+    if (!target?.depthRenderbuffer) {
+      throw new Error(`World-space render pass "${pass.id}" requires an engine-owned render target with a depth attachment.`)
+    }
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, target.framebuffer)
+    this.gl.viewport(0, 0, target.width, target.height)
+    this.gl.disable(this.gl.SCISSOR_TEST)
+    this.gl.disable(this.gl.BLEND)
+    this.gl.enable(this.gl.DEPTH_TEST)
+    this.gl.depthFunc(this.gl.LEQUAL)
+    this.gl.depthMask(true)
+    this.gl.colorMask(true, true, true, true)
+    this.gl.clearColor(0, 0, 0, 1)
+    this.gl.clearDepth(1)
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT)
+  }
+
+  private resolveSpatialNodesForModule(
+    pass: Readonly<Cinema2CompiledRenderPass>,
+    moduleId: Cinema2ModuleId,
+  ) {
+    if (!this.spatialRuntime) return Object.freeze([])
+    const nodes = this.spatialRuntime.resolveModuleNodes(moduleId)
+    if (pass.module) return nodes
+    const roots = new Set<string>()
+    if (pass.sceneNode) roots.add(pass.sceneNode.id)
+    for (const layer of pass.layers) {
+      const definition = this.scene.layers[layer.index]
+      if (definition) roots.add(definition.sourceNodeId)
+    }
+    if (roots.size === 0 && pass.kind === 'scene') for (const id of this.scene.rootNodeIds) roots.add(id)
+    if (roots.size === 0) return nodes
+    return Object.freeze(nodes.filter(node => roots.has(node.id) || isDescendantOfAny(node.id, roots, this.scene)))
   }
 
   private presentBinding(

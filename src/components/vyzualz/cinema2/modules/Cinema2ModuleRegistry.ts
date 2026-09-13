@@ -2,6 +2,7 @@ import type { Cinema2ModuleManifest, Cinema2ModuleTypeId } from '../contracts/Ci
 import type { Cinema2ModuleDiagnostic, Cinema2ModuleTypeDefinition } from './Cinema2ModuleContracts'
 import { cinema2FullscreenShaderModuleDefinition } from './Cinema2FullscreenShaderModule'
 import { cinema2ReactorNativeModuleDefinition } from './Cinema2ReactorNativeModule'
+import { cinema2Object3DModuleDefinition } from './Cinema2Object3DModule'
 
 export interface Cinema2ModuleRegistryResult {
   ok: boolean
@@ -79,6 +80,10 @@ if (!fullscreenShaderRegistration.ok) {
 const reactorNativeRegistration = cinema2NativeModuleRegistry.register(cinema2ReactorNativeModuleDefinition)
 if (!reactorNativeRegistration.ok) {
   throw new Error(`Cinema 2.0 Reactor native module registration failed: ${reactorNativeRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+const object3DRegistration = cinema2NativeModuleRegistry.register(cinema2Object3DModuleDefinition)
+if (!object3DRegistration.ok) {
+  throw new Error(`Cinema 2.0 Object3D module registration failed: ${object3DRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 
 function moduleDiagnosticPath(index: number, path: string): string {
