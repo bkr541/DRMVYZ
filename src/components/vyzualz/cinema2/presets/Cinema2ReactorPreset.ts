@@ -16,6 +16,7 @@ import {
   type Cinema2RenderSlotId,
   type Cinema2RenderTargetId,
 } from '../contracts/Cinema2NativePresetManifest'
+import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import {
   CINEMA2_BLOOM_EFFECT_TYPE_ID,
   CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID,
@@ -102,6 +103,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     Object.freeze({ id: 'media.svg' as const, requirement: 'optional' as const, purpose: 'Engine-owned Reactor media slots.' }),
   ]),
   parameters: Object.freeze([
+    CINEMA2_QUALITY_MODE_PARAMETER,
     Object.freeze({
       id: CINEMA2_REACTOR_CORE_SIZE_ID,
       label: 'Core Size',

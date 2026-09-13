@@ -1,4 +1,6 @@
 import type { Cinema2CapabilityId, Cinema2ParameterId, Cinema2PresetId, Cinema2RenderQualityLevel } from '../contracts/Cinema2NativePresetManifest'
+import { CINEMA2_QUALITY_MODE_PARAMETER_ID, readCinema2QualityMode, type Cinema2QualityMode } from '../parameters/Cinema2PerformanceParameters'
+import { Cinema2PerformanceDiagnostics, type Cinema2PerformanceSnapshot } from './Cinema2PerformanceDiagnostics'
 import {
   CINEMA2_AUDIO_INTELLIGENCE_RUNTIME_CAPABILITIES,
   Cinema2AudioIntelligenceBridge,
@@ -91,6 +93,7 @@ export interface Cinema2RuntimeSnapshot {
   contextGeneration: number
   statusMessage: string | null
   resources: Cinema2RuntimeResourceSnapshot
+  performance?: Readonly<Cinema2PerformanceSnapshot>
 }
 
 export interface Cinema2RuntimeDiagnostics {
@@ -121,6 +124,7 @@ export interface Cinema2RuntimeCreateOptions {
   moduleRegistry?: Cinema2ModuleRegistry
   effectRegistry?: Cinema2EffectRegistry
   renderQuality?: Cinema2RenderQualityLevel
+  diagnosticsEnabled?: boolean
   serializedParameterState?: string | Cinema2SerializedParameterState
   audioIntelligenceBridge?: Cinema2AudioIntelligenceBridge
   mediaLoader?: Cinema2MediaLoader
@@ -170,6 +174,19 @@ function unavailableSnapshot(message: string): Cinema2RuntimeSnapshot {
       activeAnimationFrameCount: 0,
       activeEventListenerCount: 0,
       activeWebGLContextCount: 0,
+    },
+    performance: {
+      diagnosticsEnabled: false,
+      requestedMode: 'auto',
+      resolvedQuality: 'high',
+      renderTargetScale: 1,
+      gpuMemoryBudgetBytes: 256 * 1024 * 1024,
+      cpuFrameTimeMs: null,
+      cpuFrameTimeAverageMs: null,
+      gpuFrameTimeMs: null,
+      gpuTimingSupported: false,
+      degraded: false,
+      degradationReason: null,
     },
   }
 }
@@ -310,6 +327,9 @@ export class Cinema2Runtime {
   private readonly resourceManager: Cinema2ResourceManager
   private readonly historyService: Cinema2HistoryService
   private readonly renderGraphExecutor: Cinema2RenderGraphExecutor
+  private readonly performanceDiagnostics: Cinema2PerformanceDiagnostics
+  private readonly renderQualityOverride: Cinema2RenderQualityLevel | null
+  private activeRenderQuality: Cinema2RenderQualityLevel
 
   private phase: Cinema2RuntimePhase = 'initializing'
   private viewport: Cinema2Viewport = { ...EMPTY_VIEWPORT }
@@ -348,7 +368,15 @@ export class Cinema2Runtime {
       stateKey: parameterState.serialize(),
       ...options.randomness,
     })
-    this.resourceManager = new Cinema2ResourceManager(gl)
+    this.renderQualityOverride = options.renderQuality ?? null
+    const initialMode = this.resolveRequestedQualityMode()
+    this.performanceDiagnostics = new Cinema2PerformanceDiagnostics(gl, initialMode, options.diagnosticsEnabled !== false)
+    const initialPolicy = this.performanceDiagnostics.getPolicy()
+    this.activeRenderQuality = this.renderQualityOverride ?? initialPolicy.resolvedQuality
+    this.resourceManager = new Cinema2ResourceManager(gl, {
+      maximumEstimatedGpuMemoryBytes: initialPolicy.gpuMemoryBudgetBytes,
+      renderTargetScale: initialPolicy.renderTargetScale,
+    })
     this.historyService = new Cinema2HistoryService(gl, this.resourceManager, compiledPresetPlan.presetId)
     let effectRuntime: Cinema2EffectRuntime | null = null
     let moduleRuntime: Cinema2ModuleRuntime | null = null
@@ -366,7 +394,7 @@ export class Cinema2Runtime {
     })
     this.spatialRuntime = new Cinema2SpatialRuntime(compiledPresetPlan.scene, compiledPresetPlan.targets.targets, this.targetResolver)
     this.cameraRuntime = new Cinema2CameraRuntime(compiledPresetPlan, parameterState, this.targetResolver, this.spatialRuntime)
-    const renderQuality = options.renderQuality ?? 'high'
+    const renderQuality = this.activeRenderQuality
     this.lightingEnvironmentRuntime = new Cinema2LightingEnvironmentRuntime(
       compiledPresetPlan,
       this.targetResolver,
@@ -450,6 +478,7 @@ export class Cinema2Runtime {
         canvas.removeEventListener('webglcontextlost', this.onContextLostHandler)
       }
       this.renderGraphExecutor.dispose()
+      this.performanceDiagnostics.dispose()
       this.cameraRuntime.dispose()
       this.lightingEnvironmentRuntime.dispose()
       this.spatialRuntime.dispose()
@@ -625,6 +654,26 @@ export class Cinema2Runtime {
     return this.renderGraphExecutor.getSnapshot()
   }
 
+  getPerformanceSnapshot(): Readonly<Cinema2PerformanceSnapshot> {
+    return this.performanceDiagnostics.getSnapshot()
+  }
+
+  getDiagnosticsSnapshot(): Readonly<{
+    presetId: Cinema2PresetId
+    performance: Readonly<Cinema2PerformanceSnapshot>
+    resources: Readonly<Cinema2ResourceManagerSnapshot>
+    render: Readonly<Cinema2RenderGraphExecutorSnapshot>
+    modules: Readonly<Cinema2ModuleRuntimeSnapshot>
+  }> {
+    return Object.freeze({
+      presetId: this.compiledPresetPlan.presetId,
+      performance: this.performanceDiagnostics.getSnapshot(),
+      resources: this.resourceManager.getSnapshot(),
+      render: this.renderGraphExecutor.getSnapshot(),
+      modules: this.moduleRuntime.getSnapshot(),
+    })
+  }
+
   /** Stage 07 consumes these providers; modules never own the frame scheduler. */
   getModuleRenderPassProviders(): readonly Readonly<Cinema2ModuleRenderPassProvider>[] {
     return this.moduleRuntime.getRenderPassProviders()
@@ -642,6 +691,7 @@ export class Cinema2Runtime {
         activeEventListenerCount: this.listenersAttached ? 2 : 0,
         activeWebGLContextCount: this.contextOwned ? 1 : 0,
       },
+      performance: this.performanceDiagnostics.getSnapshot(),
     }
   }
 
@@ -659,6 +709,7 @@ export class Cinema2Runtime {
     }
 
     this.renderGraphExecutor.dispose()
+    this.performanceDiagnostics.dispose()
     this.cameraRuntime.dispose()
     this.lightingEnvironmentRuntime.dispose()
     this.spatialRuntime.dispose()
@@ -718,6 +769,8 @@ export class Cinema2Runtime {
     if (this.disposed || !this.runningRequested || this.suspended || this.contextLost || this.phase === 'unavailable') return
 
     try {
+      const cpuFrameStartedAt = readMonotonicTimeMs()
+      const qualityChanged = this.applyPerformancePolicy()
       const visualFrameId = this.frameCount + 1
       const safeTimestampMs = Number.isFinite(timestampMs) ? Math.max(0, timestampMs) : (this.lastFrameTimestampMs ?? 0)
       if (this.firstFrameTimestampMs == null) this.firstFrameTimestampMs = safeTimestampMs
@@ -745,8 +798,20 @@ export class Cinema2Runtime {
       this.lightingEnvironmentRuntime.update()
       this.cameraRuntime.update(frame)
       this.moduleRuntime.update(frame)
-      this.renderGraphExecutor.executeFrame(frame, this.moduleRuntime.getRenderPassProviders())
+      this.performanceDiagnostics.beginGpuFrame()
+      try {
+        this.renderGraphExecutor.executeFrame(frame, this.moduleRuntime.getRenderPassProviders())
+      } finally {
+        this.performanceDiagnostics.endGpuFrame()
+      }
+      const budgetDiagnostic = this.renderGraphExecutor.getSnapshot().diagnostics.find(
+        diagnostic => diagnostic.code === 'CINEMA2_RENDER_RESOURCE_BUDGET_EXCEEDED',
+      )
+      this.performanceDiagnostics.markDegraded(budgetDiagnostic?.message ?? null)
       this.frameCount = visualFrameId
+      const autoQualityChanged = this.performanceDiagnostics.sampleCpuFrame(Math.max(0, readMonotonicTimeMs() - cpuFrameStartedAt))
+      if (autoQualityChanged) this.applyPerformancePolicy()
+      if (qualityChanged || autoQualityChanged) this.emitSnapshot()
     } catch (error) {
       this.choreographyRuntime.reset('frame-failure')
       this.runningRequested = false
@@ -756,6 +821,41 @@ export class Cinema2Runtime {
       return
     }
     this.scheduleFrame()
+  }
+
+  private resolveRequestedQualityMode(): Cinema2QualityMode {
+    if (this.renderQualityOverride === 'low') return 'performance'
+    if (this.renderQualityOverride === 'medium') return 'balanced'
+    if (this.renderQualityOverride === 'high') return 'quality'
+    return readCinema2QualityMode(this.parameterState.getValue(CINEMA2_QUALITY_MODE_PARAMETER_ID))
+  }
+
+  private applyPerformancePolicy(): boolean {
+    const mode = this.resolveRequestedQualityMode()
+    this.performanceDiagnostics.setRequestedMode(mode)
+    const policy = this.performanceDiagnostics.getPolicy()
+    const quality = this.renderQualityOverride ?? policy.resolvedQuality
+    const currentResources = this.resourceManager.getSnapshot()
+    const changed = quality !== this.activeRenderQuality
+      || Math.abs(currentResources.renderTargetScale - policy.renderTargetScale) > 1e-6
+      || Math.abs(currentResources.maximumEstimatedGpuMemoryBytes - policy.gpuMemoryBudgetBytes) > 1
+    if (!changed) return false
+    this.activeRenderQuality = quality
+    this.renderGraphExecutor.setQuality(quality)
+    this.effectRuntime.setQuality(quality)
+    this.lightingEnvironmentRuntime.setQuality(quality)
+    try {
+      const resourceSnapshot = this.resourceManager.getSnapshot()
+      if (Math.abs(resourceSnapshot.renderTargetScale - policy.renderTargetScale) > 1e-6) this.historyService.handleResize()
+      this.resourceManager.setBudgetPolicy({
+        maximumEstimatedGpuMemoryBytes: policy.gpuMemoryBudgetBytes,
+        renderTargetScale: policy.renderTargetScale,
+      })
+      this.performanceDiagnostics.markDegraded(null)
+    } catch (error) {
+      this.performanceDiagnostics.markDegraded(`Resource policy update was constrained: ${errorMessage(error)}`)
+    }
+    return true
   }
 
   private cancelScheduledFrame(): void {
@@ -773,4 +873,9 @@ export class Cinema2Runtime {
       if (import.meta.env.DEV) console.error('[Cinema2Runtime] snapshot listener failed:', error)
     }
   }
+}
+
+function readMonotonicTimeMs(): number {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') return performance.now()
+  return Date.now()
 }

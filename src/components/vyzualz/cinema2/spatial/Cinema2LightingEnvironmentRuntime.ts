@@ -96,7 +96,7 @@ export class Cinema2LightingEnvironmentRuntime {
     private readonly plan: Readonly<Cinema2CompiledPresetPlan>,
     private readonly resolver: Cinema2FinalValueResolver,
     private readonly spatial: Cinema2SpatialRuntime,
-    private readonly quality: Cinema2RenderQualityLevel = 'high',
+    private quality: Cinema2RenderQualityLevel = 'high',
   ) {
     for (const light of plan.manifest.lighting?.lights ?? []) {
       this.lightTargets.set(light.id, {
@@ -121,6 +121,10 @@ export class Cinema2LightingEnvironmentRuntime {
       environment: resolveEnvironment(plan, resolver, this.environmentTargets),
     })
     this.update()
+  }
+
+  setQuality(quality: Cinema2RenderQualityLevel): void {
+    this.quality = quality
   }
 
   update(): Readonly<Cinema2LightingEnvironmentFrame> {

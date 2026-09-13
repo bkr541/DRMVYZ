@@ -55,7 +55,7 @@ export class Cinema2EffectRuntime {
     plan: Readonly<Cinema2CompiledPresetPlan>,
     private readonly resolver: Cinema2FinalValueResolver,
     private readonly registry: Cinema2EffectRegistry,
-    private readonly quality: Cinema2RenderQualityLevel,
+    private quality: Cinema2RenderQualityLevel,
     private readonly history: Cinema2HistoryService,
   ) {
     const targetsByEffect = indexEffectTargets(plan.targets.targets)
@@ -69,6 +69,10 @@ export class Cinema2EffectRuntime {
         diagnostics: [],
       })
     }
+  }
+
+  setQuality(quality: Cinema2RenderQualityLevel): void {
+    this.quality = quality
   }
 
   execute(effectId: Cinema2EffectId, context: Readonly<Cinema2EffectExecutionContext>): Cinema2EffectExecutionResult {

@@ -564,3 +564,17 @@ export {
   CINEMA2_ELECTRIC_STORM_STRIKE_RATE_ID,
   CINEMA2_ELECTRIC_STORM_THICKNESS_ID,
 } from './presets/Cinema2ElectricStormPreset'
+
+export {
+  CINEMA2_QUALITY_MODE_PARAMETER,
+  CINEMA2_QUALITY_MODE_PARAMETER_ID,
+  readCinema2QualityMode,
+  type Cinema2QualityMode,
+} from './parameters/Cinema2PerformanceParameters'
+
+export {
+  Cinema2PerformanceDiagnostics,
+  cinema2QualityPolicy,
+  type Cinema2PerformanceSnapshot,
+  type Cinema2QualityPolicy,
+} from './runtime/Cinema2PerformanceDiagnostics'

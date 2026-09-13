@@ -42,6 +42,8 @@ export interface Cinema2ResourceManagerSnapshot {
   readonly viewport: Readonly<Cinema2ResourceViewport>
   readonly maximumTextureSize: number
   readonly maximumPooledAllocationCount: number
+  readonly maximumEstimatedGpuMemoryBytes: number
+  readonly renderTargetScale: number
   readonly activeLeaseCount: number
   readonly activeTransientLeaseCount: number
   readonly activePersistentLeaseCount: number
@@ -59,6 +61,8 @@ export interface Cinema2ResourceManagerSnapshot {
 export interface Cinema2ResourceManagerOptions {
   maximumPooledAllocationCount?: number
   maximumTextureSize?: number
+  maximumEstimatedGpuMemoryBytes?: number
+  renderTargetScale?: number
 }
 
 export interface Cinema2RenderTargetReleaseOptions {
@@ -128,12 +132,16 @@ export class Cinema2ResourceManager {
   private reconstructedAllocationCount = 0
   private readonly maximumPooledAllocationCount: number
   private readonly maximumTextureSize: number
+  private maximumEstimatedGpuMemoryBytes: number
+  private renderTargetScale: number
 
   constructor(
     private readonly gl: WebGL2RenderingContext,
     options: Cinema2ResourceManagerOptions = {},
   ) {
     this.maximumPooledAllocationCount = positiveInteger(options.maximumPooledAllocationCount, 24)
+    this.maximumEstimatedGpuMemoryBytes = finitePositive(options.maximumEstimatedGpuMemoryBytes, 256 * 1024 * 1024)
+    this.renderTargetScale = clampRenderTargetScale(options.renderTargetScale)
     this.maximumTextureSize = Math.max(
       1,
       Math.min(
@@ -151,10 +159,11 @@ export class Cinema2ResourceManager {
     this.assertUsable('acquire a render target')
     const normalizedOwnerId = normalizeOwnerId(ownerId)
     const normalized = normalizeDescriptor(descriptor)
-    const size = resolveTargetSize(this.viewport, normalized, this.maximumTextureSize)
+    const size = resolveTargetSize(this.viewport, normalized, this.maximumTextureSize, this.renderTargetScale)
     const key = descriptorKey(normalized, size.width, size.height)
     const pooled = this.pooledByKey.get(key)
     const record = pooled?.pop()
+    if (!record) this.assertWithinBudget(normalized, size.width, size.height)
     if (pooled?.length === 0) this.pooledByKey.delete(key)
 
     const lease = createLease(this.nextLeaseId++, normalizedOwnerId, ownershipClass, normalized)
@@ -247,7 +256,7 @@ export class Cinema2ResourceManager {
     const replacements: PendingReplacement[] = []
     try {
       for (const record of this.active.values()) {
-        const size = resolveTargetSize(next, record.lease.descriptor, this.maximumTextureSize)
+        const size = resolveTargetSize(next, record.lease.descriptor, this.maximumTextureSize, this.renderTargetScale)
         if (record.width === size.width && record.height === size.height) continue
         replacements.push({
           record,
@@ -290,7 +299,7 @@ export class Cinema2ResourceManager {
     const replacements: PendingReplacement[] = []
     try {
       for (const record of this.active.values()) {
-        const size = resolveTargetSize(this.viewport, record.lease.descriptor, this.maximumTextureSize)
+        const size = resolveTargetSize(this.viewport, record.lease.descriptor, this.maximumTextureSize, this.renderTargetScale)
         replacements.push({
           record,
           width: size.width,
@@ -332,6 +341,8 @@ export class Cinema2ResourceManager {
       viewport: Object.freeze({ ...this.viewport }),
       maximumTextureSize: this.maximumTextureSize,
       maximumPooledAllocationCount: this.maximumPooledAllocationCount,
+      maximumEstimatedGpuMemoryBytes: this.maximumEstimatedGpuMemoryBytes,
+      renderTargetScale: this.renderTargetScale,
       activeLeaseCount: activeRecords.length,
       activeTransientLeaseCount,
       activePersistentLeaseCount,
@@ -345,6 +356,68 @@ export class Cinema2ResourceManager {
       estimatedGpuMemoryBytes: residentRecords.reduce((sum, record) => sum + estimateRecordBytes(record), 0),
       activeLeaseCountByOwner: Object.freeze({ ...activeLeaseCountByOwner }),
     })
+  }
+
+  setBudgetPolicy(policy: Readonly<{ maximumEstimatedGpuMemoryBytes: number; renderTargetScale: number }>): boolean {
+    this.assertNotDisposed()
+    const nextBudget = finitePositive(policy.maximumEstimatedGpuMemoryBytes, this.maximumEstimatedGpuMemoryBytes)
+    const nextScale = clampRenderTargetScale(policy.renderTargetScale)
+    const changed = Math.abs(nextScale - this.renderTargetScale) > 1e-6 || Math.abs(nextBudget - this.maximumEstimatedGpuMemoryBytes) > 1
+    if (!changed) return false
+    this.maximumEstimatedGpuMemoryBytes = nextBudget
+    const scaleChanged = Math.abs(nextScale - this.renderTargetScale) > 1e-6
+    this.renderTargetScale = nextScale
+    if (scaleChanged && this.contextAvailable) this.reallocateForCurrentViewport()
+    this.trimPoolToBudget()
+    return true
+  }
+
+  private reallocateForCurrentViewport(): void {
+    const replacements: PendingReplacement[] = []
+    try {
+      for (const record of this.active.values()) {
+        const size = resolveTargetSize(this.viewport, record.lease.descriptor, this.maximumTextureSize, this.renderTargetScale)
+        if (record.width === size.width && record.height === size.height) continue
+        replacements.push({ record, width: size.width, height: size.height, key: descriptorKey(record.lease.descriptor, size.width, size.height), surfaces: this.createSurfaces(record.lease.descriptor, size.width, size.height) })
+      }
+    } catch (error) {
+      for (const replacement of replacements) this.destroySurfaces(replacement.surfaces, true)
+      throw error
+    }
+    for (const replacement of replacements) {
+      const previous = replacement.record.surfaces
+      replacement.record.surfaces = replacement.surfaces
+      replacement.record.width = replacement.width
+      replacement.record.height = replacement.height
+      replacement.record.key = replacement.key
+      this.destroySurfaces(previous, true)
+      this.reconstructedAllocationCount += 1
+    }
+    this.destroyPooledRecords(true)
+  }
+
+  private assertWithinBudget(descriptor: Readonly<Cinema2NormalizedRenderTargetDescriptor>, width: number, height: number): void {
+    const requestedBytes = estimateDescriptorBytes(descriptor, width, height)
+    const residentBytes = this.contextAvailable ? this.allRecords().reduce((sum, record) => sum + estimateRecordBytes(record), 0) : 0
+    if (residentBytes + requestedBytes > this.maximumEstimatedGpuMemoryBytes) {
+      throw new Error(`Cinema 2.0 resource budget exceeded: ${residentBytes + requestedBytes} estimated bytes requested with a ${this.maximumEstimatedGpuMemoryBytes} byte budget.`)
+    }
+  }
+
+  private trimPoolToBudget(): void {
+    if (!this.contextAvailable) return
+    let residentBytes = this.allRecords().reduce((sum, record) => sum + estimateRecordBytes(record), 0)
+    if (residentBytes <= this.maximumEstimatedGpuMemoryBytes) return
+    for (const [key, records] of this.pooledByKey) {
+      while (records.length > 0 && residentBytes > this.maximumEstimatedGpuMemoryBytes) {
+        const record = records.pop()!
+        residentBytes -= estimateRecordBytes(record)
+        this.pooledAllocationCount = Math.max(0, this.pooledAllocationCount - 1)
+        this.destroyRecord(record, true)
+      }
+      if (records.length === 0) this.pooledByKey.delete(key)
+      if (residentBytes <= this.maximumEstimatedGpuMemoryBytes) break
+    }
   }
 
   dispose(): void {
@@ -560,13 +633,19 @@ function resolveTargetSize(
   viewport: Readonly<Cinema2ResourceViewport>,
   descriptor: Readonly<Cinema2NormalizedRenderTargetDescriptor>,
   maximumTextureSize: number,
+  renderTargetScale = 1,
 ): { width: number; height: number } {
-  const rawWidth = descriptor.size.kind === 'fixed' ? descriptor.size.width : viewport.width * descriptor.size.widthScale
-  const rawHeight = descriptor.size.kind === 'fixed' ? descriptor.size.height : viewport.height * descriptor.size.heightScale
+  const scale = descriptor.size.kind === 'viewport' ? renderTargetScale : 1
+  const rawWidth = descriptor.size.kind === 'fixed' ? descriptor.size.width : viewport.width * descriptor.size.widthScale * scale
+  const rawHeight = descriptor.size.kind === 'fixed' ? descriptor.size.height : viewport.height * descriptor.size.heightScale * scale
   return {
     width: Math.min(maximumTextureSize, Math.max(1, Math.round(rawWidth))),
     height: Math.min(maximumTextureSize, Math.max(1, Math.round(rawHeight))),
   }
+}
+
+function clampRenderTargetScale(value: number | undefined): number {
+  return Math.max(0.5, Math.min(1, finitePositive(value, 1)))
 }
 
 function normalizeViewport(viewport: Cinema2ResourceViewport): Cinema2ResourceViewport {
@@ -643,13 +722,14 @@ function allocateColorTexture(
 }
 
 function estimateRecordBytes(record: TargetRecord): number {
-  const colorBytes = colorBytesPerPixel(record.lease.descriptor.colorFormat)
-  const depthBytes = record.lease.descriptor.depthFormat === 'depth16'
-    ? 2
-    : record.lease.descriptor.depthFormat === 'depth24'
-      ? 4
-      : 0
-  return record.width * record.height * (colorBytes + depthBytes) * record.surfaces.length
+  return estimateDescriptorBytes(record.lease.descriptor, record.width, record.height)
+}
+
+function estimateDescriptorBytes(descriptor: Readonly<Cinema2NormalizedRenderTargetDescriptor>, width: number, height: number): number {
+  const colorBytes = colorBytesPerPixel(descriptor.colorFormat)
+  const depthBytes = descriptor.depthFormat === 'depth16' ? 2 : descriptor.depthFormat === 'depth24' ? 4 : 0
+  const surfaceCount = descriptor.surfaceLayout === 'paired' ? 2 : 1
+  return width * height * (colorBytes + depthBytes) * surfaceCount
 }
 
 function colorBytesPerPixel(format: Cinema2RenderTargetColorFormat): number {

@@ -24,6 +24,7 @@ import {
   type Cinema2Vector2,
   type Cinema2Vector3,
 } from '../contracts/Cinema2NativePresetManifest'
+import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 export const CINEMA2_SPATIAL_REFERENCE_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.spatial-reference')
 const FULLSCREEN_SHADER_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('fullscreen-shader')
 const OBJECT3D_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('object3d')
@@ -140,6 +141,7 @@ export const CINEMA2_SPATIAL_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2NativePr
     Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Downbeat camera impulse when authoritative downbeat data is available.' }),
   ]),
   parameters: Object.freeze([
+    CINEMA2_QUALITY_MODE_PARAMETER,
     Object.freeze({
       id: CINEMA2_SPATIAL_REFERENCE_OBJECT_COLOR_ID,
       label: 'Object Color',

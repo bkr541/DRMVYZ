@@ -39,6 +39,7 @@ export interface Cinema2RenderGraphExecutorSnapshot {
   skippedPassCount: number
   failedPassCount: number
   activePersistentTargetCount: number
+  lastExecutedPassIds: readonly Cinema2RenderPassId[]
   diagnostics: readonly Readonly<Cinema2RenderGraphExecutorDiagnostic>[]
 }
 
@@ -72,7 +73,7 @@ export class Cinema2RenderGraphExecutor {
   private readonly persistentTargets = new Map<Cinema2RenderTargetId, TargetRecord>()
   private readonly targetHandles = new Map<Cinema2RenderTargetId, Readonly<Cinema2CompiledRenderPlan['targets'][number]>>()
   private readonly passById = new Map<Cinema2RenderPassId, Readonly<Cinema2CompiledRenderPass>>()
-  private readonly quality: Cinema2RenderQualityLevel
+  private quality: Cinema2RenderQualityLevel
   private readonly availableCapabilities: ReadonlySet<Cinema2CapabilityId>
   private readonly effectRuntime: Cinema2EffectRuntime | null
   private readonly spatialRuntime: Cinema2SpatialRuntime | null
@@ -83,6 +84,7 @@ export class Cinema2RenderGraphExecutor {
   private executedPassCount = 0
   private skippedPassCount = 0
   private failedPassCount = 0
+  private lastExecutedPassIds: Cinema2RenderPassId[] = []
   private disposed = false
   private readonly frameBindings = new Map<WebGLTexture, Readonly<Cinema2RenderTargetBinding>>()
 
@@ -104,6 +106,10 @@ export class Cinema2RenderGraphExecutor {
     for (const pass of plan.passes) this.passById.set(pass.id, pass)
   }
 
+  setQuality(quality: Cinema2RenderQualityLevel): void {
+    this.quality = quality
+  }
+
   executeFrame(
     frame: Readonly<Cinema2ModuleFrameReadContext>,
     providers: readonly Readonly<Cinema2ModuleRenderPassProvider>[],
@@ -111,6 +117,7 @@ export class Cinema2RenderGraphExecutor {
     if (this.disposed) return
     this.frameCount += 1
     this.diagnostics = []
+    this.lastExecutedPassIds = []
     const transientTargets = new Map<Cinema2RenderTargetId, TargetRecord>()
     const produced = new Map<string, ProducedOutput>()
     const providerByModuleId = new Map(providers.map(provider => [provider.moduleId, provider] as const))
@@ -145,6 +152,7 @@ export class Cinema2RenderGraphExecutor {
           const inputs = resolvedInputs.map(entry => entry.value).filter((value): value is NonNullable<typeof value> => value != null)
           this.executePass(pass, frame, providerByModuleId, target?.binding ?? null, inputs)
           this.executedPassCount += 1
+          this.lastExecutedPassIds.push(pass.id)
           this.markOutputs(pass, produced, target?.binding ?? null, true)
           if (pass.id === this.plan.outputPassId) {
             if (target?.binding) this.presentBinding(target.binding, frame)
@@ -154,7 +162,12 @@ export class Cinema2RenderGraphExecutor {
           this.failedPassCount += 1
           this.markOutputs(pass, produced, null, false)
           this.restoreDefaultFramebuffer(frame)
-          this.pushDiagnostic('CINEMA2_RENDER_PASS_FAILED', errorMessage(error), pass.id)
+          const message = errorMessage(error)
+          this.pushDiagnostic(
+            message.includes('resource budget exceeded') ? 'CINEMA2_RENDER_RESOURCE_BUDGET_EXCEEDED' : 'CINEMA2_RENDER_PASS_FAILED',
+            message,
+            pass.id,
+          )
         }
       }
     } finally {
@@ -184,6 +197,7 @@ export class Cinema2RenderGraphExecutor {
       skippedPassCount: this.skippedPassCount,
       failedPassCount: this.failedPassCount,
       activePersistentTargetCount: this.persistentTargets.size,
+      lastExecutedPassIds: Object.freeze([...this.lastExecutedPassIds]),
       diagnostics: Object.freeze(this.diagnostics.map(diagnostic => Object.freeze({ ...diagnostic }))),
     })
   }

@@ -174,4 +174,27 @@ describe('Cinema2ResourceManager', () => {
     failingManager.dispose()
     noFloatManager.dispose()
   })
+
+  it('applies render-target scaling and enforces an estimated GPU memory budget', () => {
+    const gl = createCinemaMockWebGL()
+    const manager = new Cinema2ResourceManager(gl, { maximumEstimatedGpuMemoryBytes: 512 * 1024 })
+    manager.resize({ width: 400, height: 200, dpr: 1 })
+    const lease = manager.acquireRenderTarget('quality-owner', VIEWPORT_TARGET, 'persistent')
+    expect(manager.getRenderTargetBinding(lease)).toMatchObject({ width: 400, height: 200 })
+
+    expect(manager.setBudgetPolicy({ maximumEstimatedGpuMemoryBytes: 512 * 1024, renderTargetScale: 0.5 })).toBe(true)
+    expect(manager.getRenderTargetBinding(lease)).toMatchObject({ width: 200, height: 100 })
+    expect(manager.getSnapshot()).toMatchObject({ renderTargetScale: 0.5, maximumEstimatedGpuMemoryBytes: 512 * 1024 })
+
+    const constrained = new Cinema2ResourceManager(createCinemaMockWebGL(), { maximumEstimatedGpuMemoryBytes: 20_000 })
+    expect(() => constrained.acquireRenderTarget('over-budget', {
+      size: { kind: 'fixed', width: 100, height: 100 },
+      colorFormat: 'rgba8',
+    }, 'persistent')).toThrow(/resource budget exceeded/i)
+    expect(constrained.getSnapshot().activeLeaseCount).toBe(0)
+
+    manager.dispose()
+    constrained.dispose()
+  })
+
 })

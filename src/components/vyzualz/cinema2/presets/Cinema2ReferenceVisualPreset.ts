@@ -18,6 +18,7 @@ import {
   type Cinema2RenderPassId,
   type Cinema2SceneNodeId,
 } from '../contracts/Cinema2NativePresetManifest'
+import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { CINEMA2_BLOOM_EFFECT_TYPE_ID, CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID } from '../effects/Cinema2BuiltinEffects'
 
 export const CINEMA2_REFERENCE_VISUAL_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.reference-visual')
@@ -103,6 +104,7 @@ export const CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST: Readonly<Cinema2NativePre
     Object.freeze({ id: 'music.rhythm-events' as const, requirement: 'optional' as const, purpose: 'Kick-event choreography when authoritative rhythm events are available.' }),
   ]),
   parameters: Object.freeze([
+    CINEMA2_QUALITY_MODE_PARAMETER,
     Object.freeze({
       id: CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID,
       label: 'Reference Output',

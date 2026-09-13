@@ -18,6 +18,7 @@ import {
   CINEMA2_REFERENCE_VISUAL_TRAILS_PERSISTENCE_ID,
   CINEMA2_REFERENCE_VISUAL_TRAILS_RESET_ID,
   CINEMA2_REFERENCE_VISUAL_PRESET_ID,
+  CINEMA2_QUALITY_MODE_PARAMETER_ID,
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
   Cinema2AudioIntelligenceBridge,
   Cinema2Runtime,
@@ -128,7 +129,7 @@ describe('Cinema 2.0 Reference Visual native vertical slice', () => {
     const manifest = cinema2NativePresetRegistry.get(CINEMA2_REFERENCE_VISUAL_PRESET_ID)
     expect(manifest).not.toBeNull()
     expect(manifest?.metadata.name).toBe('Reference Visual')
-    expect(manifest?.parameters).toHaveLength(10)
+    expect(manifest?.parameters).toHaveLength(11)
     expect(manifest?.effects).toHaveLength(2)
     expect(manifest?.modules).toHaveLength(1)
     expect(manifest?.scene?.nodes.filter(node => node.kind === 'module')).toHaveLength(1)
@@ -385,4 +386,26 @@ describe('Cinema 2.0 Reference Visual production preset selection', () => {
     await act(async () => resetButton?.click())
     expect(activeRuntimeRef.current?.getHistoryServiceSnapshot()).toMatchObject({ validBufferCount: 0, lastResetReason: 'manual' })
   })
+
+  it('applies the shared quality control through the real registry/runtime frame path', () => {
+    const { runtime, raf } = createReferenceRuntime(createAudioBridge(() => 0.3, () => true))
+    runtime.resize({ width: 800, height: 450, dpr: 1 })
+    expect(runtime.getParameterState().setPersistentValue(CINEMA2_QUALITY_MODE_PARAMETER_ID, 'performance').ok).toBe(true)
+    runtime.start()
+    raf.runNext()
+
+    expect(runtime.getPerformanceSnapshot()).toMatchObject({
+      requestedMode: 'performance',
+      resolvedQuality: 'low',
+      renderTargetScale: 0.67,
+    })
+    expect(runtime.getResourceManagerSnapshot().renderTargetScale).toBe(0.67)
+    expect(runtime.getDiagnosticsSnapshot()).toMatchObject({
+      presetId: CINEMA2_REFERENCE_VISUAL_PRESET_ID,
+      performance: { resolvedQuality: 'low' },
+      resources: { renderTargetScale: 0.67 },
+    })
+    runtime.dispose()
+  })
+
 })

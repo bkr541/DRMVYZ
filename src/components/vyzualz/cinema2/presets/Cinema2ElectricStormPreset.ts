@@ -13,6 +13,7 @@ import {
   type Cinema2PresetId,
   type Cinema2SceneNodeId,
 } from '../contracts/Cinema2NativePresetManifest'
+import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { CINEMA2_ELECTRIC_STORM_NATIVE_MODULE_TYPE_ID } from '../modules/Cinema2ElectricStormNativeModule'
 
 export const CINEMA2_ELECTRIC_STORM_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.electric-storm')
@@ -81,6 +82,7 @@ export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST: Readonly<Cinema2NativePrese
     Object.freeze({ id: 'visual-director.significance' as const, requirement: 'optional' as const, purpose: 'Preset-agnostic visual significance and transition authority.' }),
   ]),
   parameters: Object.freeze([
+    CINEMA2_QUALITY_MODE_PARAMETER,
     Object.freeze({
       id: CINEMA2_ELECTRIC_STORM_LIGHTNING_COLOR_ID,
       label: 'Lightning Color',
