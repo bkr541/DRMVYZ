@@ -3647,16 +3647,24 @@
 
 .lmv-track-meta-header {
   flex: 0 0 auto;
-  padding: 14px 20px;
-  border-bottom: 1px solid rgba(126,218,232,0.1);
-  background: rgba(10,14,16,0.6);
 }
 
+/* Split Rail (Layout Lab Template's TrackHeaderStyleGallery concept 04):
+   an accent rail + artwork, an identity column carrying title/badges/
+   artist/versions, a 2×2 stat grid, and actions stacked on the far right —
+   ported from .lltm-row--rail/.lltm-rail-* (reactView.css) into this
+   component's own lmv-track-meta-* classes so Lyric Manager doesn't take a
+   runtime dependency on React View's stylesheet. */
 .lmv-track-meta-fill {
   display: flex;
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
+  padding: 12px 16px 12px 0;
+  border: 1px solid rgba(126,218,232,0.12);
+  border-radius: 10px;
+  background: rgba(11,21,25,0.85);
+  overflow: hidden;
   transition: opacity 200ms ease, transform 200ms ease;
 }
 
@@ -3671,24 +3679,32 @@
   transform: translateY(0);
 }
 
+.lmv-track-meta-rail-accent {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 4px;
+  background: linear-gradient(180deg, #67f7ff, #4ac7db);
+}
+
 .lmv-track-meta-header .lmv-track-art {
   flex: 0 0 auto;
-  width: 48px;
-  height: 48px;
-  font-size: 14px;
+  width: 56px;
+  height: 56px;
+  font-size: 15px;
 }
 
 .lmv-track-meta-identity {
   display: flex;
   flex-direction: column;
+  gap: 6px;
   min-width: 160px;
   flex: 1 1 220px;
 }
 
 .lmv-track-meta-chips {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(64px, auto));
+  gap: 8px 18px;
   flex: 0 0 auto;
 }
 
@@ -3719,7 +3735,6 @@
 }
 
 .lmv-track-meta-header .lmv-track-hero-actions {
-  flex-direction: row;
   margin-top: 0;
   flex: 0 0 auto;
 }

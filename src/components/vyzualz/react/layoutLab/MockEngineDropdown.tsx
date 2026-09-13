@@ -11,7 +11,7 @@ import {
 // instead of two drifting copies.
 
 function MockEngineIcon({ engineId, glyph }: { engineId: LayoutLabEngineId, glyph: string }) {
-  const IconComponent = engineId === 'template' ? null : getReactEngineIconComponent(engineId)
+  const IconComponent = engineId === 'template' || engineId === 'lyricManager' ? null : getReactEngineIconComponent(engineId)
   return IconComponent ? <IconComponent /> : <>{glyph}</>
 }
 

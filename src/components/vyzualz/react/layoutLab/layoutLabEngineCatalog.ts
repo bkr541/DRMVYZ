@@ -1,7 +1,7 @@
 import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from '../reactEngineCatalog'
 import type { ReactEngineId } from '../ReactTypes'
 
-export type LayoutLabEngineId = ReactEngineId | 'template'
+export type LayoutLabEngineId = ReactEngineId | 'template' | 'lyricManager'
 
 export interface LayoutLabEngineCatalogEntry {
   id: LayoutLabEngineId
@@ -14,6 +14,7 @@ export interface LayoutLabEngineCatalogEntry {
 export const LAYOUT_LAB_ENGINE_IDS: LayoutLabEngineId[] = [
   ...REACT_ENGINE_IDS,
   'template',
+  'lyricManager',
 ]
 
 export const LAYOUT_LAB_ENGINE_CATALOG: Record<LayoutLabEngineId, LayoutLabEngineCatalogEntry> = {
@@ -24,5 +25,12 @@ export const LAYOUT_LAB_ENGINE_CATALOG: Record<LayoutLabEngineId, LayoutLabEngin
     shortLabel: 'Template',
     icon: '▤',
     description: 'Blank Layout Lab workspace for future template authoring.',
+  },
+  lyricManager: {
+    id: 'lyricManager',
+    label: 'Lyric Manager',
+    shortLabel: 'Lyrics',
+    icon: '♪',
+    description: 'Concept exploration for Lyric Manager’s track timeline and lyric cue rows.',
   },
 }

@@ -17,14 +17,16 @@ interface Props {
 }
 
 /**
- * Always-visible artwork + title/artist/key/bpm/genre/duration row at the
- * top of the center column — replaces "Track Information" in Document
- * Workspace, since that's now redundant with this row. There is no
- * artwork/cover-image field anywhere in the data model (verified: neither
- * LyricManagerTrack/SavedAudioTrack nor the audio_tracks table has one), so
- * the artwork slot reuses the existing trackInitials() placeholder
- * treatment rather than a real image — real artwork storage is a separate,
- * later change.
+ * Track info row at the top of the Live Preview body, above the visual
+ * preview — replaces "Track Information" in Document Workspace, since
+ * that's now redundant with this row. Laid out as Layout Lab Template's
+ * "Split Rail" concept: an accent rail + artwork, an identity column
+ * (title/badges/artist/versions), a 2×2 stat grid, and actions stacked on
+ * the far right. There is no artwork/cover-image field anywhere in the data
+ * model (verified: neither LyricManagerTrack/SavedAudioTrack nor the
+ * audio_tracks table has one), so the artwork slot reuses the existing
+ * trackInitials() placeholder treatment rather than a real image — real
+ * artwork storage is a separate, later change.
  */
 export function LyricTrackMetaHeader({
   track,
@@ -51,6 +53,7 @@ export function LyricTrackMetaHeader({
       )}
       {filledPhase !== 'unmounted' && displayTrack && (
         <div className={`lmv-track-meta-fill lmv-track-meta-fill--${filledPhase}`}>
+          <span className="lmv-track-meta-rail-accent" aria-hidden="true" />
           <div className="lmv-track-art" aria-hidden="true"><span>{trackInitials(displayTrack)}</span></div>
 
           <div className="lmv-track-meta-identity">
@@ -63,6 +66,10 @@ export function LyricTrackMetaHeader({
               </span>
             </div>
             <span className="lmv-track-artist">{displayTrack.artist || 'Unknown artist'}</span>
+            <dl className="lmv-workflow-status-grid lmv-track-info-versions">
+              <div><dt>Open version</dt><dd>{openVersionTitle ?? 'None'}</dd></div>
+              <div><dt>Active version</dt><dd className={activeVersionTitle ? 'lmv-status-good' : 'lmv-status-missing'}>{activeVersionTitle ?? 'None'}</dd></div>
+            </dl>
           </div>
 
           <div className="lmv-track-meta-chips" aria-label="Track details">
@@ -71,11 +78,6 @@ export function LyricTrackMetaHeader({
             <span className="lmv-track-meta-chip"><span className="lmv-track-meta-chip-label">Genre</span><span className="lmv-track-meta-chip-value">{displayTrack.genre || '—'}</span></span>
             <span className="lmv-track-meta-chip"><span className="lmv-track-meta-chip-label">Duration</span><span className="lmv-track-meta-chip-value">{formatDuration(displayTrack.durationSec)}</span></span>
           </div>
-
-          <dl className="lmv-workflow-status-grid lmv-track-info-versions">
-            <div><dt>Open version</dt><dd>{openVersionTitle ?? 'None'}</dd></div>
-            <div><dt>Active version</dt><dd className={activeVersionTitle ? 'lmv-status-good' : 'lmv-status-missing'}>{activeVersionTitle ?? 'None'}</dd></div>
-          </dl>
 
           <div className="lmv-track-hero-actions">
             <IconChipButton onClick={onLoadTrack} disabled={loading}>

@@ -22325,3 +22325,159 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .lltm-strip-versions {
   padding: 0 10px 8px 42px;
 }
+
+/* ── Layout Lab / Lyric Manager — timeline style gallery ──────────────────
+   Three concepts combining Track Timeline (Track Section/Waveform/Beat
+   Grid/Timing) with Lyric Cues' three cue lanes, built to resemble Track
+   Map's own lane-stack box. .rv-section-region/.rv-section-color-bar/
+   .rv-section-label are reused verbatim (see LyricManagerTimelineStyleGallery.tsx);
+   everything else here is new. */
+
+.llym-stack {
+  border: 1px solid rgba(74,199,219,0.18);
+  border-bottom-color: rgba(74,199,219,0.22);
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(74,199,219,0.032), transparent 30%), #071018;
+  overflow: hidden;
+}
+
+.llym-lane {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border-top: 1px solid rgba(74,199,219,0.09);
+  background-color: rgba(5,11,17,0.76);
+}
+.llym-lane:first-child { border-top: 0; }
+
+.llym-lane--ruler {
+  height: 24px;
+  background-color: rgba(4,10,15,0.9);
+}
+
+.llym-ruler-mark {
+  position: absolute;
+  bottom: 4px;
+  transform: translateX(-50%);
+  color: rgba(232,244,248,0.42);
+  font: 500 9.5px/1 ui-monospace, 'SF Mono', Menlo, monospace;
+  white-space: nowrap;
+}
+.llym-ruler-mark[data-align='start'] { transform: translateX(0); }
+.llym-ruler-mark[data-align='end'] { transform: translateX(-100%); }
+
+.llym-lane--sections { height: 44px; }
+
+.llym-lane--beatgrid {
+  height: 32px;
+  background-color: rgba(4,10,15,0.9);
+  background-image:
+    repeating-linear-gradient(to right, rgba(97,214,170,0.85) 0 2px, transparent 2px 48px),
+    repeating-linear-gradient(to right, rgba(74,199,219,0.45) 0 1px, transparent 1px 12px);
+  background-size: 100% 13px, 100% 5px;
+  background-position: top, top;
+  background-repeat: no-repeat;
+}
+
+.llym-lane--waveform {
+  height: 38px;
+}
+
+.llym-waveform-bars {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+  gap: 1px;
+  padding: 3px 2px;
+}
+
+.llym-waveform-bars span {
+  flex: 1 1 0;
+  min-width: 1px;
+  height: calc(var(--h, 0.3) * 100%);
+  background: linear-gradient(180deg, rgba(74,199,219,0.85), rgba(74,199,219,0.25));
+  border-radius: 1px;
+}
+
+.llym-lane--cue {
+  height: 30px;
+  background-color: rgba(5,11,17,0.6);
+}
+
+.llym-lane--cue-tall {
+  height: 48px;
+}
+
+.llym-cue-block {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid rgba(74,199,219,0.35);
+  border-radius: 5px;
+  background: rgba(74,199,219,0.14);
+  color: #bdeeff;
+  font: 600 9.5px/1.1 var(--az-font-data, Inter, system-ui, sans-serif);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.llym-lane--cue-tall .llym-cue-block {
+  font-size: 10.5px;
+  border-color: rgba(97,214,170,0.4);
+  background: rgba(97,214,170,0.14);
+  color: #bdf5df;
+}
+
+/* Concept 2 — Split Stack */
+
+.llym-split {
+  display: flex;
+  flex-direction: column;
+}
+
+.llym-sync-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 2px;
+  color: rgba(196,207,211,0.4);
+  font: 700 8.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.llym-sync-divider::before,
+.llym-sync-divider::after {
+  flex: 1 1 auto;
+  height: 1px;
+  background: repeating-linear-gradient(to right, rgba(74,199,219,0.35) 0 4px, transparent 4px 8px);
+  content: '';
+}
+
+/* Concept 3 — Cue-Forward */
+
+.llym-reference-strip {
+  padding: 8px 10px 10px;
+  border-top: 1px solid rgba(74,199,219,0.12);
+}
+
+.llym-reference-strip-label {
+  display: block;
+  margin-bottom: 6px;
+  color: rgba(196,207,211,0.42);
+  font: 700 8.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.llym-reference-strip-lanes {
+  border: 1px solid rgba(74,199,219,0.14);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.llym-reference-strip-lanes .llym-lane--sections { height: 30px; }
+.llym-reference-strip-lanes .llym-lane--beatgrid { height: 16px; }
+.llym-reference-strip-lanes .llym-lane--waveform { height: 20px; }

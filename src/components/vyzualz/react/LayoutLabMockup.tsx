@@ -20,6 +20,7 @@ import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { TrackLibraryRowStyleGallery } from './layoutLab/TrackLibraryRowStyleGallery'
 import { TrackWorkspaceHeaderStyleGallery } from './layoutLab/TrackWorkspaceHeaderStyleGallery'
 import { TrackHeaderStyleGallery } from './layoutLab/TrackHeaderStyleGallery'
+import { LyricManagerTimelineStyleGallery } from './layoutLab/LyricManagerTimelineStyleGallery'
 import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
 import { LaserDjBeamBuilderMockup } from './layoutLab/LaserDjBeamBuilderMockup'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
@@ -195,7 +196,7 @@ export function LayoutLabMockup() {
   const [rightCollapsed, setRightCollapsed] = useState(false)
   const [dockCollapsed, setDockCollapsed] = useState(false)
   const [templateRightTab, setTemplateRightTab] = useState<'presets' | 'design' | 'react' | 'output'>('design')
-  const composition = engineId === 'template' ? null : resolveLayoutLabComposition(engineId)
+  const composition = engineId === 'template' || engineId === 'lyricManager' ? null : resolveLayoutLabComposition(engineId)
   const [activeSurface, setActiveSurface] = useState<ReactLowerSurface>('trackMap')
   const soundDrawingState = useSoundDrawingMockState()
   const pixGridState = usePixGridMockState()
@@ -203,7 +204,7 @@ export function LayoutLabMockup() {
   const canvasState = useCanvasMockState()
 
   const handleSelectEngine = (id: LayoutLabEngineId) => {
-    if (id === 'template') {
+    if (id === 'template' || id === 'lyricManager') {
       setEngineId(id)
       return
     }
@@ -273,6 +274,11 @@ export function LayoutLabMockup() {
             {engineId === 'template' && (
               <div className="llcm-stage-gallery">
                 <TrackHeaderStyleGallery />
+              </div>
+            )}
+            {engineId === 'lyricManager' && (
+              <div className="llcm-stage-gallery">
+                <LyricManagerTimelineStyleGallery />
               </div>
             )}
           </div>

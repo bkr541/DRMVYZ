@@ -191,17 +191,17 @@ export function LyricLivePreviewPanel({
       )}
       headerClassName="lmv-live-preview-header"
     >
-      <LyricTrackMetaHeader
-        track={track}
-        openVersionTitle={openVersionTitle}
-        activeVersionTitle={activeVersionTitle}
-        loading={loading}
-        selectedTrackLoaded={selectedTrackLoaded}
-        selectedTrackPlaying={isPlaying}
-        onLoadTrack={onLoadTrack}
-        onTogglePlayback={onTogglePlayback}
-      />
       <div className="lmv-live-preview-body">
+        <LyricTrackMetaHeader
+          track={track}
+          openVersionTitle={openVersionTitle}
+          activeVersionTitle={activeVersionTitle}
+          loading={loading}
+          selectedTrackLoaded={selectedTrackLoaded}
+          selectedTrackPlaying={isPlaying}
+          onLoadTrack={onLoadTrack}
+          onTogglePlayback={onTogglePlayback}
+        />
         {previewCue ? (
           <>
             <StylePreviewBox cue={previewCue} doc={document} />
