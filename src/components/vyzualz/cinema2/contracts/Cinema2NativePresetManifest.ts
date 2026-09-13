@@ -395,6 +395,8 @@ export interface Cinema2EffectManifest {
   parameters?: Readonly<Record<string, Cinema2JsonValue>>
   /** Optional bindings make effect targets read from canonical Cinema 2.0 parameter state. */
   parameterBindings?: Readonly<Record<string, Cinema2ParameterRef>>
+  /** Optional trigger bindings route canonical action parameters to effect instance actions. */
+  actionBindings?: Readonly<Record<string, Cinema2ParameterRef>>
   config?: Cinema2JsonObject
 }
 

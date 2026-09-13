@@ -4,6 +4,9 @@ import {
   CINEMA2_REFERENCE_VISUAL_BLOOM_ENABLED_ID,
   CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID,
   CINEMA2_REFERENCE_VISUAL_BLOOM_MIX_ID,
+  CINEMA2_REFERENCE_VISUAL_TRAILS_ENABLED_ID,
+  CINEMA2_REFERENCE_VISUAL_TRAILS_PERSISTENCE_ID,
+  CINEMA2_REFERENCE_VISUAL_TRAILS_RESET_ID,
   CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
 } from '../presets/Cinema2ReferenceVisualPreset'
 import {
@@ -15,7 +18,7 @@ import {
   type Cinema2NativePresetManifest,
   type Cinema2PresetId,
 } from '../contracts/Cinema2NativePresetManifest'
-import { CINEMA2_BLUR_EFFECT_TYPE_ID } from '../effects/Cinema2BuiltinEffects'
+import { CINEMA2_BLUR_EFFECT_TYPE_ID, CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID } from '../effects/Cinema2BuiltinEffects'
 import { Cinema2EffectRegistry, cinema2NativeEffectRegistry } from '../effects/Cinema2EffectRegistry'
 import { Cinema2EffectRuntime } from '../effects/Cinema2EffectRuntime'
 import { Cinema2PresetRegistry } from '../presets/Cinema2PresetRegistry'
@@ -23,6 +26,8 @@ import { Cinema2Runtime } from '../runtime/Cinema2Runtime'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
+import { Cinema2ResourceManager } from '../runtime/Cinema2ResourceManager'
+import { Cinema2HistoryService } from '../runtime/Cinema2HistoryService'
 
 const SECOND_EFFECT_ID = cinema2StableId<Cinema2EffectId>('reference-secondary-blur')
 const UNKNOWN_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('missing-effect')
@@ -42,8 +47,10 @@ function createRuntime(manifest: Cinema2NativePresetManifest = CINEMA2_REFERENCE
   })
   const gl = createCinemaMockWebGL()
   gl.getUniformLocation = vi.fn((_program: WebGLProgram, name: string) => ({ name } as unknown as WebGLUniformLocation))
-  const runtime = new Cinema2EffectRuntime(gl, compiled, resolver, cinema2NativeEffectRegistry, quality)
-  return { compiled, state, gl, runtime }
+  const resources = new Cinema2ResourceManager(gl)
+  const history = new Cinema2HistoryService(gl, resources, compiled.presetId)
+  const runtime = new Cinema2EffectRuntime(gl, compiled, resolver, cinema2NativeEffectRegistry, quality, history)
+  return { compiled, state, gl, resources, history, runtime }
 }
 
 function executionContext() {
@@ -102,6 +109,7 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
     if (!referenceEffect) throw new Error('Reference effect is missing.')
     const manifest: Cinema2NativePresetManifest = {
       ...CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
+      render: undefined,
       effects: [{
         ...referenceEffect,
         order: -1,
@@ -109,6 +117,7 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
           ...referenceEffect.parameterBindings,
           mix: cinema2Ref(CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID),
         },
+        actionBindings: { reset: cinema2Ref(CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID) },
       }],
     }
 
@@ -117,6 +126,7 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
     expect(result.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'CINEMA2_PRESET_EFFECT_ORDER_INVALID' }),
       expect.objectContaining({ code: 'CINEMA2_PRESET_EFFECT_BINDING_TYPE_MISMATCH' }),
+      expect.objectContaining({ code: 'CINEMA2_PRESET_EFFECT_ACTION_BINDING_TYPE_MISMATCH' }),
     ]))
   })
 
@@ -126,6 +136,7 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
     const manifest: Cinema2NativePresetManifest = {
       ...CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
       id: cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.reference-visual-unknown-effect'),
+      render: undefined,
       effects: [{ ...referenceEffect, typeId: UNKNOWN_EFFECT_TYPE_ID }],
     }
     const registry = new Cinema2PresetRegistry()
@@ -174,11 +185,40 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
     expect(runtime.getSnapshot().effects[0]?.status).toBe('disposed')
   })
 
+  it('runs Feedback/Trails through engine-owned History, resolves persistence, dispatches reset, and releases history on disable', () => {
+    const { compiled, state, gl, resources, history, runtime } = createRuntime()
+    const feedback = compiled.manifest.effects?.find(effect => effect.typeId === CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID)
+    if (!feedback) throw new Error('Reference Feedback/Trails effect is missing.')
+
+    expect(runtime.execute(feedback.id, executionContext())).toBe('applied')
+    expect(history.getSnapshot()).toMatchObject({ activeBufferCount: 1, validBufferCount: 1 })
+    expect(resources.getSnapshot()).toMatchObject({ activePersistentLeaseCount: 1, activeSurfaceCount: 2 })
+    expect(lastUniform(gl, 'u_persistence')).toBe(0.86)
+
+    expect(state.setPersistentValue(CINEMA2_REFERENCE_VISUAL_TRAILS_PERSISTENCE_ID, 0.25).ok).toBe(true)
+    expect(runtime.execute(feedback.id, executionContext())).toBe('applied')
+    expect(lastUniform(gl, 'u_persistence')).toBe(0.25)
+
+    expect(runtime.dispatchParameterAction(CINEMA2_REFERENCE_VISUAL_TRAILS_RESET_ID, 'manual-reset')).toBe(1)
+    expect(history.getSnapshot()).toMatchObject({ validBufferCount: 0, lastResetReason: 'manual' })
+
+    expect(state.setPersistentValue(CINEMA2_REFERENCE_VISUAL_TRAILS_ENABLED_ID, false).ok).toBe(true)
+    expect(runtime.execute(feedback.id, executionContext())).toBe('bypassed')
+    expect(history.getSnapshot().activeBufferCount).toBe(0)
+    expect(resources.getSnapshot().activePersistentLeaseCount).toBe(0)
+    expect(gl.__calls.deletedTextures).toBeGreaterThanOrEqual(2)
+
+    runtime.dispose()
+    history.dispose()
+    resources.dispose()
+  })
+
   it('preserves explicit authored ordering and scope independent of effect type', () => {
     const first = CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST.effects?.[0]
     if (!first) throw new Error('Reference effect is missing.')
     const manifest: Cinema2NativePresetManifest = {
       ...CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
+      render: undefined,
       effects: [
         { ...first, order: 20 },
         {
@@ -202,6 +242,7 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
     if (!first) throw new Error('Reference effect is missing.')
     const manifest: Cinema2NativePresetManifest = {
       ...CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
+      render: undefined,
       effects: [{ ...first, quality: { min: 'high' } }],
     }
     const { gl, runtime } = createRuntime(manifest, 'medium')

@@ -61,6 +61,10 @@ export interface Cinema2ResourceManagerOptions {
   maximumTextureSize?: number
 }
 
+export interface Cinema2RenderTargetReleaseOptions {
+  pool?: boolean
+}
+
 export interface Cinema2ResourceViewport {
   width: number
   height: number
@@ -201,11 +205,11 @@ export class Cinema2ResourceManager {
     return this.requireActiveRecord(lease).surfaces.length
   }
 
-  release(lease: Cinema2RenderTargetLease): void {
+  release(lease: Cinema2RenderTargetLease, options: Cinema2RenderTargetReleaseOptions = {}): void {
     const record = this.active.get(lease.leaseId)
     if (!record || record.lease !== lease) return
     this.active.delete(lease.leaseId)
-    if (this.disposed || !this.contextAvailable || this.pooledAllocationCount >= this.maximumPooledAllocationCount) {
+    if (options.pool === false || this.disposed || !this.contextAvailable || this.pooledAllocationCount >= this.maximumPooledAllocationCount) {
       this.destroyRecord(record, this.contextAvailable && !this.disposed)
       return
     }

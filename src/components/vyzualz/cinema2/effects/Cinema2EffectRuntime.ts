@@ -3,6 +3,7 @@ import type {
   Cinema2EffectManifest,
   Cinema2EffectScope,
   Cinema2JsonValue,
+  Cinema2ParameterId,
   Cinema2RenderQualityLevel,
 } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
@@ -18,6 +19,7 @@ import type {
   Cinema2EffectRuntimeStatus,
 } from './Cinema2EffectContracts'
 import type { Cinema2EffectRegistry } from './Cinema2EffectRegistry'
+import type { Cinema2HistoryService } from '../runtime/Cinema2HistoryService'
 
 export interface Cinema2EffectExecutionContext {
   frame: Readonly<Cinema2ModuleFrameReadContext>
@@ -54,6 +56,7 @@ export class Cinema2EffectRuntime {
     private readonly resolver: Cinema2FinalValueResolver,
     private readonly registry: Cinema2EffectRegistry,
     private readonly quality: Cinema2RenderQualityLevel,
+    private readonly history: Cinema2HistoryService,
   ) {
     const targetsByEffect = indexEffectTargets(plan.targets.targets)
     const ordered = [...(plan.manifest.effects ?? [])].sort(compareEffects)
@@ -118,6 +121,26 @@ export class Cinema2EffectRuntime {
     }
   }
 
+
+  dispatchParameterAction(parameterId: Cinema2ParameterId, eventId: string): number {
+    if (this.disposed) return 0
+    let dispatched = 0
+    for (const record of this.records.values()) {
+      if (!record.instance) continue
+      for (const [action, ref] of Object.entries(record.effect.actionBindings ?? {})) {
+        if (ref.$ref !== parameterId) continue
+        if (!record.instance.handleAction) continue
+        try {
+          record.instance.handleAction(action, eventId)
+          dispatched += 1
+        } catch (error) {
+          this.failRecord(record, 'CINEMA2_EFFECT_ACTION_FAILED', `Effect action "${action}" failed: ${errorMessage(error)}`)
+        }
+      }
+    }
+    return dispatched
+  }
+
   handleContextLost(): void {
     if (this.disposed) return
     for (const record of this.records.values()) this.retireRecord(record, 'inactive')
@@ -164,7 +187,7 @@ export class Cinema2EffectRuntime {
     }
     record.diagnostics = []
     try {
-      record.instance = definition.create({ gl: this.gl, effect: record.effect })
+      record.instance = definition.create({ gl: this.gl, effect: record.effect, history: this.history })
       record.status = 'active'
       return true
     } catch (error) {

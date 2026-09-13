@@ -17,6 +17,7 @@ import type {
 
 export const CINEMA2_BLUR_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('blur')
 export const CINEMA2_BLOOM_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('bloom')
+export const CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('feedback-trails')
 export const CINEMA2_BUILTIN_EFFECT_VERSION = 1 as const
 
 const BLUR_FRAGMENT_SOURCE = `#version 300 es
@@ -40,6 +41,23 @@ void main() {
   blurred += sampleSource(v_uv + px * 3.230769) * 0.070811;
   blurred += sampleSource(v_uv - px * 3.230769) * 0.070811;
   outColor = mix(base, blurred, clamp(u_mix, 0.0, 1.0));
+}`
+
+const FEEDBACK_TRAILS_FRAGMENT_SOURCE = `#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_source;
+uniform sampler2D u_history;
+uniform float u_mix;
+uniform float u_persistence;
+uniform float u_historyValid;
+out vec4 outColor;
+void main() {
+  vec4 base = texture(u_source, v_uv);
+  vec4 prior = texture(u_history, v_uv);
+  vec4 history = mix(base, prior, step(0.5, u_historyValid));
+  vec4 trailed = mix(base, history, clamp(u_persistence, 0.0, 1.0));
+  outColor = mix(base, trailed, clamp(u_mix, 0.0, 1.0));
 }`
 
 const BLOOM_FRAGMENT_SOURCE = `#version 300 es
@@ -160,6 +178,93 @@ function numberValue(values: Readonly<Record<string, Cinema2JsonValue>>, name: s
   const value = values[name]
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
+
+class HistoryFeedbackEffectInstance implements Cinema2EffectInstance {
+  private readonly program: ShaderProgram
+  private readonly pass: FullscreenPass
+  private readonly historyName: string
+  private disposed = false
+
+  constructor(
+    private readonly gl: WebGL2RenderingContext,
+    private readonly history: Cinema2EffectCreateContext['history'],
+    effect: Readonly<Cinema2EffectManifest>,
+  ) {
+    const result = ShaderProgram.create(gl, new ShaderCompiler(gl), {
+      label: `Cinema2/Effect/FeedbackTrails/${effect.id}`,
+      vertSrc: FULLSCREEN_VERT_SRC,
+      fragSrc: FEEDBACK_TRAILS_FRAGMENT_SOURCE,
+      requiredUniforms: ['u_source', 'u_history', 'u_mix', 'u_persistence', 'u_historyValid'],
+    })
+    if (!result.program) throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
+    this.program = result.program
+    this.pass = new FullscreenPass(gl)
+    this.historyName = `effect.${effect.id}.feedback-trails`
+  }
+
+  render(context: Readonly<Cinema2EffectRenderExecutionContext>): void {
+    if (this.disposed) return
+    const persistence = clamp(numberValue(context.parameters, 'persistence', 0.85), 0, 1)
+    const historyFrame = this.history.beginFrame(this.historyName, context.width, context.height)
+    this.gl.disable(this.gl.SCISSOR_TEST)
+    this.gl.disable(this.gl.BLEND)
+    this.gl.disable(this.gl.DEPTH_TEST)
+    this.gl.colorMask(true, true, true, true)
+    this.program.activate()
+    this.program.setFloat('u_mix', context.mix)
+    this.program.setFloat('u_persistence', persistence)
+    this.program.setFloat('u_historyValid', historyFrame?.valid ? 1 : 0)
+
+    if (!historyFrame) {
+      this.pass.run(this.program, context.target, context.width, context.height, [
+        { unit: 0, texture: context.input.texture, uniformName: 'u_source' },
+        { unit: 1, texture: context.input.texture, uniformName: 'u_history' },
+      ])
+      return
+    }
+
+    this.pass.run(this.program, historyFrame.write.framebuffer, context.width, context.height, [
+      { unit: 0, texture: context.input.texture, uniformName: 'u_source' },
+      { unit: 1, texture: historyFrame.read.colorTexture, uniformName: 'u_history' },
+    ])
+    this.gl.bindFramebuffer(this.gl.READ_FRAMEBUFFER, historyFrame.write.framebuffer)
+    this.gl.readBuffer(this.gl.COLOR_ATTACHMENT0)
+    this.gl.bindFramebuffer(this.gl.DRAW_FRAMEBUFFER, context.target)
+    this.gl.blitFramebuffer(
+      0, 0, context.width, context.height,
+      0, 0, context.width, context.height,
+      this.gl.COLOR_BUFFER_BIT,
+      this.gl.NEAREST,
+    )
+    this.gl.bindFramebuffer(this.gl.READ_FRAMEBUFFER, null)
+    this.gl.bindFramebuffer(this.gl.DRAW_FRAMEBUFFER, null)
+    this.history.commit(this.historyName)
+  }
+
+  handleAction(action: string): void {
+    if (this.disposed || action !== 'reset') return
+    this.history.resetBuffer(this.historyName, 'manual')
+  }
+
+  dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
+    this.history.releaseBuffer(this.historyName)
+    this.pass.dispose()
+    this.program.dispose()
+  }
+}
+
+export const cinema2FeedbackTrailsEffectDefinition: Readonly<Cinema2EffectTypeDefinition> = Object.freeze({
+  typeId: CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID,
+  version: CINEMA2_BUILTIN_EFFECT_VERSION,
+  label: 'Feedback / Trails',
+  validate: (effect: Readonly<Cinema2EffectManifest>) => Object.freeze([
+    ...validateCommon(effect),
+    ...validateNumeric(effect, 'persistence', 0, 1),
+  ]),
+  create: ({ gl, effect, history }: Readonly<Cinema2EffectCreateContext>) => new HistoryFeedbackEffectInstance(gl, history, effect),
+})
 
 export const cinema2BlurEffectDefinition: Readonly<Cinema2EffectTypeDefinition> = Object.freeze({
   typeId: CINEMA2_BLUR_EFFECT_TYPE_ID,

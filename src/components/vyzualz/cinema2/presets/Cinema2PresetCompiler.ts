@@ -552,6 +552,29 @@ function validateReferencesAndCombinations(
         }
       }
     }
+    if (effect.actionBindings != null) {
+      if (!isPlainObject(effect.actionBindings)) {
+        diagnostics.push(error('CINEMA2_PRESET_EFFECT_ACTION_BINDINGS_INVALID', 'Effect actionBindings must be an object.', `${base}.actionBindings`))
+      } else {
+        for (const [action, ref] of Object.entries(effect.actionBindings)) {
+          const bindingPath = `${base}.actionBindings.${action}`
+          if (!action.trim()) {
+            diagnostics.push(error('CINEMA2_PRESET_EFFECT_ACTION_BINDING_NAME_INVALID', 'Effect action binding names must be non-empty.', bindingPath))
+            continue
+          }
+          const parameterId = validateRef(ref, index.parameters.ids, bindingPath, 'parameter', diagnostics)
+          if (!parameterId) continue
+          const parameter = manifest.parameters?.find(candidate => candidate.id === parameterId)
+          if (parameter && parameter.type !== 'trigger') {
+            diagnostics.push(error(
+              'CINEMA2_PRESET_EFFECT_ACTION_BINDING_TYPE_MISMATCH',
+              `Effect action "${action}" requires a trigger parameter, not "${parameter.type}".`,
+              bindingPath,
+            ))
+          }
+        }
+      }
+    }
   }
 
   for (const [ruleIndex, rule] of readArray(manifest.choreography?.rules, '$.choreography.rules', diagnostics).entries()) {

@@ -158,8 +158,10 @@ export {
   CINEMA2_BLOOM_EFFECT_TYPE_ID,
   CINEMA2_BLUR_EFFECT_TYPE_ID,
   CINEMA2_BUILTIN_EFFECT_VERSION,
+  CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID,
   cinema2BloomEffectDefinition,
   cinema2BlurEffectDefinition,
+  cinema2FeedbackTrailsEffectDefinition,
 } from './effects/Cinema2BuiltinEffects'
 
 export {
@@ -185,6 +187,15 @@ export type {
   Cinema2EffectRuntimeStatus,
   Cinema2EffectTypeDefinition,
 } from './effects/Cinema2EffectContracts'
+
+export {
+  Cinema2HistoryService,
+  type Cinema2HistoryBufferSnapshot,
+  type Cinema2HistoryFrame,
+  type Cinema2HistoryResetReason,
+  type Cinema2HistoryServiceOptions,
+  type Cinema2HistoryServiceSnapshot,
+} from './runtime/Cinema2HistoryService'
 
 export {
   Cinema2Runtime,
@@ -215,6 +226,7 @@ export {
   Cinema2ResourceManager,
   type Cinema2RenderTargetBinding,
   type Cinema2RenderTargetLease,
+  type Cinema2RenderTargetReleaseOptions,
   type Cinema2ResourceManagerOptions,
   type Cinema2ResourceManagerSnapshot,
   type Cinema2ResourceViewport,
@@ -335,6 +347,10 @@ export {
   CINEMA2_REFERENCE_VISUAL_BLOOM_RADIUS_ID,
   CINEMA2_REFERENCE_VISUAL_BLOOM_THRESHOLD_ID,
   CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID,
+  CINEMA2_REFERENCE_VISUAL_TRAILS_ENABLED_ID,
+  CINEMA2_REFERENCE_VISUAL_TRAILS_MIX_ID,
+  CINEMA2_REFERENCE_VISUAL_TRAILS_PERSISTENCE_ID,
+  CINEMA2_REFERENCE_VISUAL_TRAILS_RESET_ID,
   CINEMA2_REFERENCE_VISUAL_PRESET_ID,
   CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
 } from './presets/Cinema2ReferenceVisualPreset'

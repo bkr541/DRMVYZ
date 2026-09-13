@@ -7,6 +7,7 @@ import type {
   Cinema2RenderQualityLevel,
 } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
+import type { Cinema2HistoryService } from '../runtime/Cinema2HistoryService'
 
 export interface Cinema2EffectDiagnostic {
   code: string
@@ -34,10 +35,12 @@ export interface Cinema2EffectRenderExecutionContext {
 export interface Cinema2EffectCreateContext {
   gl: WebGL2RenderingContext
   effect: Readonly<Cinema2EffectManifest>
+  history: Cinema2HistoryService
 }
 
 export interface Cinema2EffectInstance {
   render(context: Readonly<Cinema2EffectRenderExecutionContext>): void
+  handleAction?(action: string, eventId: string): void
   dispose(): void
 }
 
