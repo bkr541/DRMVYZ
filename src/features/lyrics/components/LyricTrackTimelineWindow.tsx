@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { BeatMarkerMI } from '../../musicIntelligence/types'
 import type { ReactTrackSection } from '../../../components/vyzualz/react/ReactTypes'
+import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
 import {
   drawBeatGridCanvas,
   drawTimelineRuler,
@@ -136,9 +137,10 @@ export function LyricTrackTimelineWindow({
 
   return (
     <section className="lmv-track-timeline-window" aria-label="Track Timeline">
-      <div className="lmv-rail-title">
-        <span>Track Timeline</span>
-        {beatGridHint && (
+      <DualRailCollapsible
+        label="Track Timeline"
+        headerClassName="lmv-live-preview-header"
+        headerAccessory={beatGridHint && (
           <span className="lmv-track-timeline-hint">
             {beatGridHint}
             {onAnalyzeTrack && beatGridStatus !== 'analyzing' && (
@@ -146,27 +148,28 @@ export function LyricTrackTimelineWindow({
             )}
           </span>
         )}
-      </div>
-      <div className="lmv-track-timeline-lanes">
-        <div className="lmv-track-timeline-lane lmv-track-timeline-lane--section">
-          <TrackSectionRow sections={sections} viewport={viewport} />
+      >
+        <div className="lmv-track-timeline-lanes">
+          <div className="lmv-track-timeline-lane lmv-track-timeline-lane--section">
+            <TrackSectionRow sections={sections} viewport={viewport} />
+          </div>
+          <div className="lmv-track-timeline-lane lmv-track-timeline-lane--waveform">
+            <LyricWaveformCanvas
+              peaks={waveformPeaks}
+              loading={waveformLoading}
+              durationSec={durationSec}
+              currentTimeSec={currentSec}
+              viewport={viewport}
+            />
+          </div>
+          <div className="lmv-track-timeline-lane lmv-track-timeline-lane--beatgrid">
+            <BeatGridRow beatGrid={beatGrid} durationSec={durationSec} viewport={viewport} />
+          </div>
+          <div className="lmv-track-timeline-lane lmv-track-timeline-lane--timing">
+            <TimingRow viewport={viewport} />
+          </div>
         </div>
-        <div className="lmv-track-timeline-lane lmv-track-timeline-lane--waveform">
-          <LyricWaveformCanvas
-            peaks={waveformPeaks}
-            loading={waveformLoading}
-            durationSec={durationSec}
-            currentTimeSec={currentSec}
-            viewport={viewport}
-          />
-        </div>
-        <div className="lmv-track-timeline-lane lmv-track-timeline-lane--beatgrid">
-          <BeatGridRow beatGrid={beatGrid} durationSec={durationSec} viewport={viewport} />
-        </div>
-        <div className="lmv-track-timeline-lane lmv-track-timeline-lane--timing">
-          <TimingRow viewport={viewport} />
-        </div>
-      </div>
+      </DualRailCollapsible>
     </section>
   )
 }

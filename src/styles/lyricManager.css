@@ -3105,23 +3105,54 @@
   background: #131c20;
 }
 
-/* Center visualizer's "Live Preview" header (a reusable .drc-header group,
-   not the .lmv-rail-title used by Track Workspace/Lyric Management/Document
-   Workspace): matched to Track Workspace's row height, title font-size, and
-   left inset. Track Workspace's icon/text now sits 14px from the rail edge
-   — its Drop Shadow header is edge-to-edge (.lmv-left-rail .vz-inspector-inner
-   and .lmv-track-workspace's own padding are both zeroed), so only
-   .lmv-rail-title's own 14px padding remains — but .lmv-center (Live
-   Preview's container) carries no such padding of its own, so that 14px is
-   reproduced directly on this header instead of being split across
-   ancestors. Color, weight, letter-spacing, and case are left as the shared
-   .drc-header default on purpose. Scoped to this one header via
-   headerClassName so no other Collapsible group (Validation, Document
-   Stats, Track Library, …) is affected. */
+/* Center visualizer's collapsible group header (a reusable .drc-header
+   group, not the .lmv-rail-title used by Track Workspace/Lyric Management/
+   Document Workspace): matched to Track Workspace's row height, title
+   font-size, and left inset. Track Workspace's icon/text sits 14px from the
+   rail edge — its Drop Shadow header is edge-to-edge (.lmv-left-rail
+   .vz-inspector-inner and .lmv-track-workspace's own padding are both
+   zeroed), so only .lmv-rail-title's own 14px padding remains — but
+   .lmv-center (this header's container, whether Live Preview's
+   .lmv-live-preview-enlarged or Track Timeline/Lyric Cues' own windows once
+   their padding is zeroed below) carries no such padding of its own, so
+   that 14px is reproduced directly on the header instead of being split
+   across ancestors. Color, weight, letter-spacing, and case are left as the
+   shared .drc-header default on purpose. Shared by Live Preview, Track
+   Timeline, and Lyric Cues via headerClassName so every top-level group in
+   the center column collapses/expands with the same look; other Collapsible
+   groups (Validation, Document Stats, Track Library, Overlays, Cue list, …)
+   are unaffected. */
 .drc-header.lmv-live-preview-header {
   min-height: 42px;
   font-size: 12px;
   padding-left: 14px;
+}
+
+/* Track Timeline / Lyric Cues used to get their edge-to-edge header bleed
+   from .lmv-rail-title's negative margins against this window's own
+   14px/12px/12px padding (see .lmv-track-timeline-window rule below); now
+   that .lmv-live-preview-header provides the row directly, the window's own
+   padding is zeroed so the header can sit flush like Live Preview's
+   container does, and .drc-group/.drc-body take over reproducing that
+   padding around the (unchanged) top gap and the lanes/toolbar/timeline
+   content, which already carry their own top margins. */
+.lmv-track-timeline-window,
+.lmv-lyric-cues-window {
+  padding: 0;
+}
+
+.lmv-track-timeline-window > .drc-group,
+.lmv-lyric-cues-window > .drc-group {
+  padding-top: 14px;
+}
+
+.lmv-track-timeline-window > .drc-group > .drc-body,
+.lmv-lyric-cues-window > .drc-group > .drc-body {
+  margin-top: 0;
+  padding: 0 12px 12px;
+  gap: 0;
+  background: transparent;
+  border-radius: 0;
 }
 
 .lmv-live-preview-header > span:first-child {

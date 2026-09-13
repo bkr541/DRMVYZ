@@ -78,135 +78,133 @@ export function LyricCuesWindow({ editor, durationMs, currentTimeMs, onSeek }: P
         else undoCueEdit()
       }}
     >
-      <div className="lmv-rail-title">
-        <span>Lyric Cues</span>
-      </div>
+      <DualRailCollapsible label="Lyric Cues" headerClassName="lmv-live-preview-header">
+        <div className="lyric-cue-editor-toolbar lmv-lyric-cues-toolbar">
+          <IconChipButton onClick={addAtPlayhead}>+ Add cue at playhead</IconChipButton>
+          <IconChipButton disabled={cueHistoryPast.length === 0} onClick={undoCueEdit} aria-label="Undo lyric edit">Undo</IconChipButton>
+          <IconChipButton disabled={cueHistoryFuture.length === 0} onClick={redoCueEdit} aria-label="Redo lyric edit">Redo</IconChipButton>
+          <label>
+            <span>Snap</span>
+            <DropdownSelect className="lmv-select" value={snapMode} onChange={event => setSnapMode(event.target.value as LyricSnapMode)}>
+              <option value="none">No snap</option>
+              <option value="millisecond">10 ms grid</option>
+              <option value="frame">30 fps frames</option>
+              <option value="beat" disabled={!canUseSnapMode('beat', { beatGridMs })}>Beat</option>
+              <option value="half-beat" disabled={!canUseSnapMode('half-beat', { beatGridMs })}>Half beat</option>
+              <option value="quarter-beat" disabled={!canUseSnapMode('quarter-beat', { beatGridMs })}>Quarter beat</option>
+              <option value="word" disabled={!canUseSnapMode('word', { wordBoundaryMs })}>Word boundary</option>
+            </DropdownSelect>
+          </label>
+          <label className="lyric-cue-editor-toolbar__zoom">
+            <span>Zoom {waveformZoom.toFixed(2)}×</span>
+            <BubbleRevealSlider type="range" min={1} max={16} step={1} value={waveformZoom} onChange={event => setWaveformZoom(Number(event.target.value))} aria-label="Shared waveform zoom" />
+          </label>
+          <DualRailCollapsible
+            className="lyric-cue-editor-overlays"
+            defaultOpen={false}
+            headerClassName="lyric-cue-editor-overlays-trigger"
+            bodyClassName="lyric-cue-editor-overlays-panel"
+            label="Overlays"
+          >
+            {(Object.keys(overlayVisibility) as Array<keyof TimelineOverlayVisibility>).map(key => (
+              <label key={key}>
+                <IconMorphCheckbox
+                  checked={overlayVisibility[key]}
+                  onChange={event => setOverlayVisibility(current => ({ ...current, [key]: event.target.checked }))}
+                />
+                <span>{key.replace(/([A-Z])/g, ' $1')}</span>
+              </label>
+            ))}
+          </DualRailCollapsible>
+          <span className={`lyric-cue-editor-toolbar__authority${overlaySource.authoritative ? ' lyric-cue-editor-toolbar__authority--trusted' : ''}`}>
+            {overlaySource.authoritative ? 'Track Map overlays' : 'Fallback timeline'}
+          </span>
+          {beatGridHint && (
+            <span className="lyric-cue-editor-toolbar__hint">{beatGridHint}</span>
+          )}
+        </div>
 
-      <div className="lyric-cue-editor-toolbar lmv-lyric-cues-toolbar">
-        <IconChipButton onClick={addAtPlayhead}>+ Add cue at playhead</IconChipButton>
-        <IconChipButton disabled={cueHistoryPast.length === 0} onClick={undoCueEdit} aria-label="Undo lyric edit">Undo</IconChipButton>
-        <IconChipButton disabled={cueHistoryFuture.length === 0} onClick={redoCueEdit} aria-label="Redo lyric edit">Redo</IconChipButton>
-        <label>
-          <span>Snap</span>
-          <DropdownSelect className="lmv-select" value={snapMode} onChange={event => setSnapMode(event.target.value as LyricSnapMode)}>
-            <option value="none">No snap</option>
-            <option value="millisecond">10 ms grid</option>
-            <option value="frame">30 fps frames</option>
-            <option value="beat" disabled={!canUseSnapMode('beat', { beatGridMs })}>Beat</option>
-            <option value="half-beat" disabled={!canUseSnapMode('half-beat', { beatGridMs })}>Half beat</option>
-            <option value="quarter-beat" disabled={!canUseSnapMode('quarter-beat', { beatGridMs })}>Quarter beat</option>
-            <option value="word" disabled={!canUseSnapMode('word', { wordBoundaryMs })}>Word boundary</option>
-          </DropdownSelect>
-        </label>
-        <label className="lyric-cue-editor-toolbar__zoom">
-          <span>Zoom {waveformZoom.toFixed(2)}×</span>
-          <BubbleRevealSlider type="range" min={1} max={16} step={1} value={waveformZoom} onChange={event => setWaveformZoom(Number(event.target.value))} aria-label="Shared waveform zoom" />
-        </label>
-        <DualRailCollapsible
-          className="lyric-cue-editor-overlays"
-          defaultOpen={false}
-          headerClassName="lyric-cue-editor-overlays-trigger"
-          bodyClassName="lyric-cue-editor-overlays-panel"
-          label="Overlays"
-        >
-          {(Object.keys(overlayVisibility) as Array<keyof TimelineOverlayVisibility>).map(key => (
-            <label key={key}>
-              <IconMorphCheckbox
-                checked={overlayVisibility[key]}
-                onChange={event => setOverlayVisibility(current => ({ ...current, [key]: event.target.checked }))}
-              />
-              <span>{key.replace(/([A-Z])/g, ' $1')}</span>
-            </label>
-          ))}
+        <LyricCueTimeline
+          cues={orderedCues}
+          selectedCueId={selectedCueId}
+          currentTimeMs={currentTimeMs}
+          getCurrentTimeMs={getCurrentTimeMs}
+          durationMs={durationMs}
+          zoom={waveformZoom}
+          snapContext={snapContext}
+          maxVisibleLanes={MAX_LYRIC_CUES_LANES}
+          showRuler={false}
+          showWaveform={false}
+          showOverlays={false}
+          showWordLane={false}
+          inactiveCueIds={inactiveCueIds}
+          onSelectCue={selectCue}
+          onSeek={onSeek}
+          onAddCueAt={addAtTimelineTime}
+          onCommitCue={commitCuePatch}
+          onCommitWords={commitWords}
+          onCueContextAction={handleCueContextAction}
+          onDeleteCue={cueId => handleCueContextAction(cueId, 'delete', 0)}
+        />
+
+        <DualRailCollapsible label="Cue list" defaultOpen={false} bodyClassName="lyric-cue-list-body">
+          <section className="lyric-cue-list" aria-label="Lyric cue list">
+            <div className="lyric-cue-list__controls">
+              <strong>{filteredCues.length} of {cues.length} cues</strong>
+              <label>
+                <span>Filter</span>
+                <DropdownSelect className="lmv-select" value={filter} onChange={event => setFilter(event.target.value as LyricCueFilter)}>
+                  <option value="all">All</option>
+                  <option value="unreviewed">Unreviewed</option>
+                  <option value="low-confidence">Low confidence</option>
+                  <option value="warnings">Warnings</option>
+                  <option value="empty-text">Empty text</option>
+                </DropdownSelect>
+              </label>
+            </div>
+            <div className="lyric-cue-list__scroll">
+              <table>
+                <thead>
+                  <tr><th>#</th><th>Start</th><th>End</th><th>Duration</th><th>Text</th><th>Confidence</th><th>Review</th><th>Warnings</th></tr>
+                </thead>
+                <tbody>
+                  {filteredCues.map(cue => {
+                    const index = orderedCues.findIndex(item => item.id === cue.id)
+                    const issues = cueIssues.get(cue.id) ?? []
+                    const active = canonicalPlayheadMs !== null && isCueActive(cue, canonicalPlayheadMs)
+                    return (
+                      <tr
+                        key={cue.id}
+                        tabIndex={0}
+                        data-cue-row-id={cue.id}
+                        className={`${selectedCueId === cue.id ? 'lyric-cue-list__row--selected' : ''}${active ? ' lyric-cue-list__row--active' : ''}`}
+                        aria-selected={selectedCueId === cue.id}
+                        aria-current={active ? 'time' : undefined}
+                        onClick={() => selectCue(cue.id)}
+                        onKeyDown={event => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            selectCue(cue.id)
+                          }
+                        }}
+                      >
+                        <td>{index + 1}</td>
+                        <td>{formatMs(cue.startMs)}</td>
+                        <td>{formatMs(cue.endMs)}</td>
+                        <td>{cue.endMs - cue.startMs} ms</td>
+                        <td>{cue.text || <em>Empty</em>}</td>
+                        <td className={cue.confidence !== undefined && cue.confidence < LOW_LYRIC_CONFIDENCE ? 'lyric-cue-list__low-confidence' : ''}>{cue.confidence === undefined ? '—' : `${Math.round(cue.confidence * 100)}%`}</td>
+                        <td>{cue.reviewStatus ?? 'unreviewed'}</td>
+                        <td>{issues.length || cue.warnings?.length ? <span aria-label="Cue has warnings">⚠ {issues.length + (cue.warnings?.length ?? 0)}</span> : '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              {filteredCues.length === 0 && <div className="lyric-cue-list__empty">No cues match this filter.</div>}
+            </div>
+          </section>
         </DualRailCollapsible>
-        <span className={`lyric-cue-editor-toolbar__authority${overlaySource.authoritative ? ' lyric-cue-editor-toolbar__authority--trusted' : ''}`}>
-          {overlaySource.authoritative ? 'Track Map overlays' : 'Fallback timeline'}
-        </span>
-        {beatGridHint && (
-          <span className="lyric-cue-editor-toolbar__hint">{beatGridHint}</span>
-        )}
-      </div>
-
-      <LyricCueTimeline
-        cues={orderedCues}
-        selectedCueId={selectedCueId}
-        currentTimeMs={currentTimeMs}
-        getCurrentTimeMs={getCurrentTimeMs}
-        durationMs={durationMs}
-        zoom={waveformZoom}
-        snapContext={snapContext}
-        maxVisibleLanes={MAX_LYRIC_CUES_LANES}
-        showRuler={false}
-        showWaveform={false}
-        showOverlays={false}
-        showWordLane={false}
-        inactiveCueIds={inactiveCueIds}
-        onSelectCue={selectCue}
-        onSeek={onSeek}
-        onAddCueAt={addAtTimelineTime}
-        onCommitCue={commitCuePatch}
-        onCommitWords={commitWords}
-        onCueContextAction={handleCueContextAction}
-        onDeleteCue={cueId => handleCueContextAction(cueId, 'delete', 0)}
-      />
-
-      <DualRailCollapsible label="Cue list" defaultOpen={false} bodyClassName="lyric-cue-list-body">
-        <section className="lyric-cue-list" aria-label="Lyric cue list">
-          <div className="lyric-cue-list__controls">
-            <strong>{filteredCues.length} of {cues.length} cues</strong>
-            <label>
-              <span>Filter</span>
-              <DropdownSelect className="lmv-select" value={filter} onChange={event => setFilter(event.target.value as LyricCueFilter)}>
-                <option value="all">All</option>
-                <option value="unreviewed">Unreviewed</option>
-                <option value="low-confidence">Low confidence</option>
-                <option value="warnings">Warnings</option>
-                <option value="empty-text">Empty text</option>
-              </DropdownSelect>
-            </label>
-          </div>
-          <div className="lyric-cue-list__scroll">
-            <table>
-              <thead>
-                <tr><th>#</th><th>Start</th><th>End</th><th>Duration</th><th>Text</th><th>Confidence</th><th>Review</th><th>Warnings</th></tr>
-              </thead>
-              <tbody>
-                {filteredCues.map(cue => {
-                  const index = orderedCues.findIndex(item => item.id === cue.id)
-                  const issues = cueIssues.get(cue.id) ?? []
-                  const active = canonicalPlayheadMs !== null && isCueActive(cue, canonicalPlayheadMs)
-                  return (
-                    <tr
-                      key={cue.id}
-                      tabIndex={0}
-                      data-cue-row-id={cue.id}
-                      className={`${selectedCueId === cue.id ? 'lyric-cue-list__row--selected' : ''}${active ? ' lyric-cue-list__row--active' : ''}`}
-                      aria-selected={selectedCueId === cue.id}
-                      aria-current={active ? 'time' : undefined}
-                      onClick={() => selectCue(cue.id)}
-                      onKeyDown={event => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault()
-                          selectCue(cue.id)
-                        }
-                      }}
-                    >
-                      <td>{index + 1}</td>
-                      <td>{formatMs(cue.startMs)}</td>
-                      <td>{formatMs(cue.endMs)}</td>
-                      <td>{cue.endMs - cue.startMs} ms</td>
-                      <td>{cue.text || <em>Empty</em>}</td>
-                      <td className={cue.confidence !== undefined && cue.confidence < LOW_LYRIC_CONFIDENCE ? 'lyric-cue-list__low-confidence' : ''}>{cue.confidence === undefined ? '—' : `${Math.round(cue.confidence * 100)}%`}</td>
-                      <td>{cue.reviewStatus ?? 'unreviewed'}</td>
-                      <td>{issues.length || cue.warnings?.length ? <span aria-label="Cue has warnings">⚠ {issues.length + (cue.warnings?.length ?? 0)}</span> : '—'}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-            {filteredCues.length === 0 && <div className="lyric-cue-list__empty">No cues match this filter.</div>}
-          </div>
-        </section>
       </DualRailCollapsible>
     </section>
   )
