@@ -3738,6 +3738,30 @@
   font-size: 1.4em;
 }
 
+/* The track meta header used to sit directly in .lmv-center, above this
+   whole collapsible group; now it's the body's first child instead, still
+   above the visual preview. Its own padding/background/divider (see
+   .lmv-track-meta-header) already look right full-bleed, so the default
+   Step Indent .drc-body treatment (padded/indented/tinted) is zeroed here
+   and reproduced instead by .lmv-live-preview-body around everything below
+   the header — direct-child scoped so nested Collapsible groups elsewhere
+   in this panel (there are none today, but keeps this from leaking) aren't
+   affected. */
+.lmv-live-preview-enlarged > .drc-group > .drc-body {
+  margin-top: 0;
+  padding: 0;
+  gap: 0;
+  background: transparent;
+  border-radius: 0;
+}
+
+.lmv-live-preview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 20px 16px;
+}
+
 /* ── Track Timeline window (center column) ───────────────────────────── */
 
 .lmv-track-timeline-window,

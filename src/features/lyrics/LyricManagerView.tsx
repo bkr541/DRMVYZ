@@ -50,7 +50,6 @@ import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../au
 import { useMountTransition } from '../../hooks/useMountTransition'
 import { formatDuration, formatMsClock } from './utils/lyricManagerFormat'
 import { useLyricCueEditor } from './editor/useLyricCueEditor'
-import { LyricTrackMetaHeader } from './components/LyricTrackMetaHeader'
 import { LyricTrackTimelineWindow } from './components/LyricTrackTimelineWindow'
 import { LyricCuesWindow } from './components/LyricCuesWindow'
 import { LyricDocumentDefaultsPanel } from './components/LyricDocumentDefaultsPanel'
@@ -2078,17 +2077,6 @@ export function LyricManagerView({
         </WorkspaceRail>
 
         <main className="lmv-center" aria-label="Lyric editing workspace">
-          <LyricTrackMetaHeader
-            track={selectedTrack}
-            openVersionTitle={editorDocument?.title ?? null}
-            activeVersionTitle={activeVersionForSelectedTrack?.title ?? null}
-            loading={selectedTrack ? audioPreviewStates[selectedTrack.dbId]?.status === 'loading' : false}
-            selectedTrackLoaded={selectedTrackLoaded}
-            selectedTrackPlaying={selectedTrackPlaying}
-            onLoadTrack={() => { void handleLoadSelectedTrack() }}
-            onTogglePlayback={handleTogglePlayback}
-          />
-
           <div className="lmv-live-preview-enlarged">
             <LyricLivePreviewPanel
               cues={storeCues}
@@ -2099,6 +2087,13 @@ export function LyricManagerView({
               globalOffsetMs={globalOffsetMs}
               onPreviewInVisualizer={handlePreviewInPerformanceView}
               previewDestination={returnView === 'react' ? 'React' : returnView === 'showManager' ? 'Show Manager' : 'Visualizer'}
+              track={selectedTrack}
+              openVersionTitle={editorDocument?.title ?? null}
+              activeVersionTitle={activeVersionForSelectedTrack?.title ?? null}
+              loading={selectedTrack ? audioPreviewStates[selectedTrack.dbId]?.status === 'loading' : false}
+              selectedTrackLoaded={selectedTrackLoaded}
+              onLoadTrack={() => { void handleLoadSelectedTrack() }}
+              onTogglePlayback={handleTogglePlayback}
             />
           </div>
 
