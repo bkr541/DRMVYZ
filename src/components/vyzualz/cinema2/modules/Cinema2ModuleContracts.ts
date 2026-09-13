@@ -13,6 +13,7 @@ import type { Cinema2LightingEnvironmentFrame } from '../spatial/Cinema2Lighting
 import type { Cinema2ManagedMediaResource, Cinema2MediaSlotSnapshot } from '../media/Cinema2MediaSlotRuntime'
 import type {
   Cinema2ActionDispatchResult,
+  Cinema2DispatchedTargetAction,
   Cinema2ResolvedTargetValue,
   Cinema2TargetContribution,
   Cinema2TargetHandle,
@@ -157,6 +158,8 @@ export interface Cinema2ModuleLifecycleFacet {
 export interface Cinema2ModuleInstance {
   lifecycle: Cinema2ModuleLifecycleFacet
   render?: Cinema2ModuleRenderFacet
+  /** Receives only actions explicitly bound by the authored module manifest. */
+  handleAction?(action: string, event: Readonly<Cinema2DispatchedTargetAction>): void
 }
 
 export interface Cinema2ModuleTypeDefinition {

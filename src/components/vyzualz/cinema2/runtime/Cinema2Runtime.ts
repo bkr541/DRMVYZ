@@ -191,11 +191,14 @@ export function getCinema2RuntimeDiagnostics(): Readonly<Cinema2RuntimeDiagnosti
   return { ...diagnostics }
 }
 
-function indexEffectActionParameters(plan: Readonly<Cinema2CompiledPresetPlan>): ReadonlyMap<string, Cinema2ParameterId> {
+function indexBoundActionParameters(plan: Readonly<Cinema2CompiledPresetPlan>): ReadonlyMap<string, Cinema2ParameterId> {
   const result = new Map<string, Cinema2ParameterId>()
   const boundParameters = new Set<Cinema2ParameterId>()
   for (const effect of plan.manifest.effects ?? []) {
     for (const ref of Object.values(effect.actionBindings ?? {})) boundParameters.add(ref.$ref)
+  }
+  for (const module of plan.manifest.modules ?? []) {
+    for (const ref of Object.values(module.actionBindings ?? {})) boundParameters.add(ref.$ref)
   }
   for (const target of plan.targets.targets) {
     if (target.channel === 'action' && target.parameterId && boundParameters.has(target.parameterId)) {
@@ -348,14 +351,17 @@ export class Cinema2Runtime {
     this.resourceManager = new Cinema2ResourceManager(gl)
     this.historyService = new Cinema2HistoryService(gl, this.resourceManager, compiledPresetPlan.presetId)
     let effectRuntime: Cinema2EffectRuntime | null = null
-    const effectActionParameters = indexEffectActionParameters(compiledPresetPlan)
+    let moduleRuntime: Cinema2ModuleRuntime | null = null
+    const boundActionParameters = indexBoundActionParameters(compiledPresetPlan)
     this.targetResolver = new Cinema2FinalValueResolver(compiledPresetPlan.targets, {
       resolveBaseValue: target => target.parameterId == null
         ? target.authoredBaseValue
         : parameterState.getValue(target.parameterId),
       dispatchAction: event => {
-        const parameterId = effectActionParameters.get(event.targetId)
-        if (parameterId) effectRuntime?.dispatchParameterAction(parameterId, event.eventId)
+        const parameterId = boundActionParameters.get(event.targetId)
+        if (!parameterId) return
+        effectRuntime?.dispatchParameterAction(parameterId, event.eventId)
+        moduleRuntime?.dispatchParameterAction(parameterId, event)
       },
     })
     this.spatialRuntime = new Cinema2SpatialRuntime(compiledPresetPlan.scene, compiledPresetPlan.targets.targets, this.targetResolver)
@@ -370,6 +376,7 @@ export class Cinema2Runtime {
     this.choreographyRuntime = new Cinema2ChoreographyRuntime(compiledPresetPlan, parameterState, this.targetResolver, this.randomService)
     this.mediaSlotRuntime = new Cinema2MediaSlotRuntime(gl, compiledPresetPlan.manifest.mediaSlots ?? [], options.mediaLoader)
     this.moduleRuntime = new Cinema2ModuleRuntime(gl, compiledPresetPlan, this.targetResolver, moduleRegistry, this.mediaSlotRuntime, this.randomService)
+    moduleRuntime = this.moduleRuntime
     this.effectRuntime = new Cinema2EffectRuntime(gl, compiledPresetPlan, this.targetResolver, effectRegistry, renderQuality, this.historyService)
     effectRuntime = this.effectRuntime
     this.renderGraphExecutor = new Cinema2RenderGraphExecutor(gl, compiledPresetPlan.render, compiledPresetPlan.scene, parameterState, this.resourceManager, {

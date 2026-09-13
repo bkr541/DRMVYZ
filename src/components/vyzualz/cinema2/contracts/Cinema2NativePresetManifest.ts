@@ -231,6 +231,8 @@ export interface Cinema2ModuleManifest {
   parameters?: Readonly<Record<string, Cinema2JsonValue>>
   /** Optional bindings keep module creative values on the canonical parameter-state/target path. */
   parameterBindings?: Readonly<Record<string, Cinema2ParameterRef>>
+  /** Optional trigger bindings route canonical typed action events into module-local creative handlers. */
+  actionBindings?: Readonly<Record<string, Cinema2ParameterRef>>
   media?: Readonly<Record<string, Cinema2MediaSlotRef>>
   config?: Cinema2JsonObject
 }

@@ -2,9 +2,11 @@ import type {
   Cinema2JsonValue,
   Cinema2ModuleId,
   Cinema2ModuleManifest,
+  Cinema2ParameterId,
 } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2CompiledPresetPlan } from '../presets/Cinema2PresetCompiler'
 import type {
+  Cinema2DispatchedTargetAction,
   Cinema2FinalValueResolver,
   Cinema2TargetContribution,
   Cinema2TargetHandle,
@@ -105,6 +107,24 @@ export class Cinema2ModuleRuntime {
         this.failRecord(record, 'CINEMA2_MODULE_UPDATE_FAILED', `Module update failed: ${errorMessage(error)}`)
       }
     }
+  }
+
+  dispatchParameterAction(parameterId: Cinema2ParameterId, event: Readonly<Cinema2DispatchedTargetAction>): number {
+    if (this.disposed) return 0
+    let dispatched = 0
+    for (const record of this.records) {
+      if (record.status !== 'active' || !record.instance?.handleAction) continue
+      for (const [action, ref] of Object.entries(record.module.actionBindings ?? {})) {
+        if (ref.$ref !== parameterId) continue
+        try {
+          record.instance.handleAction(action, event)
+          dispatched += 1
+        } catch (error) {
+          this.failRecord(record, 'CINEMA2_MODULE_ACTION_FAILED', `Module action "${action}" failed: ${errorMessage(error)}`)
+        }
+      }
+    }
+    return dispatched
   }
 
   /** Stage 07 consumes these providers and remains the only frame scheduler. */

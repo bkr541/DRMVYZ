@@ -4,6 +4,7 @@ import React, { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createCinemaMockWebGL, CinemaResizeObserverMock } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
 import { Cinema2InspectorPanel } from '../../react/Cinema2InspectorPanel'
 import { Cinema2PresetsPanel } from '../../react/Cinema2PresetsPanel'
 import { Cinema2Stage } from '../../react/Cinema2Stage'
@@ -14,10 +15,18 @@ import {
   CINEMA2_ELECTRIC_STORM_GLOW_ID,
   CINEMA2_ELECTRIC_STORM_LIGHTNING_COLOR_ID,
   CINEMA2_ELECTRIC_STORM_MASTER_INTENSITY_ID,
+  CINEMA2_ELECTRIC_STORM_MUSIC_REACTIVITY_ID,
+  CINEMA2_ELECTRIC_STORM_KICK_REACTION_ID,
+  CINEMA2_ELECTRIC_STORM_TRANSIENT_REACTION_ID,
+  CINEMA2_ELECTRIC_STORM_DROP_REACTION_ID,
+  CINEMA2_ELECTRIC_STORM_STRUCTURE_REACTION_ID,
+  CINEMA2_ELECTRIC_STORM_IMPACT_SHAKE_ID,
+  CINEMA2_ELECTRIC_STORM_ZOOM_PUNCH_ID,
   CINEMA2_ELECTRIC_STORM_PRESET_ID,
   CINEMA2_ELECTRIC_STORM_STRIKE_RATE_ID,
   CINEMA2_ELECTRIC_STORM_THICKNESS_ID,
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
+  Cinema2AudioIntelligenceBridge,
   Cinema2ElectricStormStrikeGenerator,
   Cinema2ElectricStormThunderController,
   Cinema2RandomService,
@@ -84,7 +93,7 @@ class FakeCanvas extends EventTarget {
   }
 }
 
-function createElectricStormRuntime(seed = 'runtime-seed') {
+function createElectricStormRuntime(seed = 'runtime-seed', audioIntelligenceBridge?: Cinema2AudioIntelligenceBridge) {
   const gl = createCinemaMockWebGL()
   gl.getUniformLocation = vi.fn((_program: WebGLProgram, name: string) => ({ name } as unknown as WebGLUniformLocation))
   const raf = createRafHarness()
@@ -95,6 +104,7 @@ function createElectricStormRuntime(seed = 'runtime-seed') {
     requestAnimationFrame: raf.requestAnimationFrame,
     cancelAnimationFrame: raf.cancelAnimationFrame,
     randomness: { mode: 'deterministic', seed },
+    audioIntelligenceBridge,
   })
   if (!result.runtime) throw new Error(result.error)
   return { runtime: result.runtime, gl, raf, canvas }
@@ -111,7 +121,7 @@ function lastUniformVec3(gl: ReturnType<typeof createCinemaMockWebGL>, name: str
   return call ? [call[1], call[2], call[3]] as const : undefined
 }
 
-describe('Cinema 2.0 Electric Storm 14A procedural lightning', () => {
+describe('Cinema 2.0 Electric Storm 14B musical direction', () => {
   it('generates bounded strike candidates with the preserved topology vocabulary', () => {
     const generator = new Cinema2ElectricStormStrikeGenerator(createRandomness())
     generator.request({ tier: 'hero', power: 1, count: 2, detail: 0.9, eventId: 'hero-a' })
@@ -188,6 +198,89 @@ describe('Cinema 2.0 Electric Storm 14A procedural lightning', () => {
     expect(runtime.getModuleRuntimeSnapshot()).toMatchObject({ activeModuleCount: 0, activeResourceLeaseCount: 0 })
   })
 
+  it('routes canonical drop intent through Audio -> Director -> Choreography -> typed module action and shared Environment targets', () => {
+    let frameId = 0
+    let sequence = 0
+    let timeSec = 1
+    let dropActive = false
+    let momentTimeSec = 1.5
+    const bridge = new Cinema2AudioIntelligenceBridge({
+      getFrame: () => ({
+        ...DEFAULT_MI_FRAME,
+        frameId: ++frameId,
+        sourceId: 'electric-storm-14b-test',
+        timeSec,
+        bands: { ...DEFAULT_MI_FRAME.bands, normalizedBass: 0.86, normalizedHigh: 0.64 },
+        energy: { ...DEFAULT_MI_FRAME.energy, instant: 0.9, shortTerm: 0.82, buildProgress: dropActive ? 0.96 : 0.45, dropImpact: dropActive ? 1 : 0 },
+        rhythm: { ...DEFAULT_MI_FRAME.rhythm, bpm: 120, bpmConfidence: 0.96, beatIndex: frameId, beatPhase: 0, beatInBar: frameId % 4, barIndex: Math.floor(frameId / 4), transientConfidence: 0.96 },
+        section: { ...DEFAULT_MI_FRAME.section, type: dropActive ? 'drop' : 'build', label: dropActive ? 'Drop' : 'Build', startSec: 0, endSec: 32, progress: 0.5, intensity: dropActive ? 1 : 0.75, confidence: 0.96 },
+        semanticMoments: dropActive ? [{ id: 'drop-impact-1', type: 'drop_impact', timeSec: momentTimeSec, confidence: 0.99, source: 'heuristic' }] : [],
+        capabilities: { ...DEFAULT_MI_FRAME.capabilities!, liveBands: true, rhythmEvents: true, beatGrid: true, sections: true, trackEnergyCurve: true },
+        analysisCapabilities: { ...DEFAULT_MI_FRAME.analysisCapabilities!, semanticMoments: true },
+        confidence: { ...DEFAULT_MI_FRAME.confidence, overall: 0.96, rhythm: 0.96, section: 0.96 },
+      }),
+      getPublicationMeta: () => ({ sequence: ++sequence, publishedAtMs: timeSec * 1000, publisherId: 'electric-storm-14b-test', kind: 'frame' as const }),
+    })
+    const { runtime, gl, raf } = createElectricStormRuntime('music-route', bridge)
+    expect(runtime.getParameterState().setPersistentValue(CINEMA2_ELECTRIC_STORM_STRIKE_RATE_ID, 0).ok).toBe(true)
+    runtime.start()
+    raf.runNext(16.67)
+
+    dropActive = true
+    timeSec = 1.5
+    raf.runNext(33.34)
+
+    expect(runtime.getVisualDirectorFrame()?.authority.impact).toMatchObject({ available: true, occurred: true })
+    expect(runtime.getChoreographyRuntimeSnapshot()).toMatchObject({ dispatchedActionCount: 1 })
+    expect(runtime.getModuleRuntimeSnapshot()).toMatchObject({ activeModuleCount: 1, failedModuleCount: 0 })
+    expect(lastUniformFloat(gl, 'u_exposure')).toBeGreaterThan(1)
+    expect(lastUniformFloat(gl, 'u_fogDensity')).toBeGreaterThan(0.08)
+
+    // Upstream may refine a marker's timestamp while retaining its canonical ID.
+    // Choreography must deduplicate the repeated event identity instead of spawning twice.
+    momentTimeSec = 1.55
+    timeSec = 1.6
+    raf.runNext(50.01)
+    expect(runtime.getChoreographyRuntimeSnapshot()).toMatchObject({ dispatchedActionCount: 1 })
+    expect(runtime.getChoreographyRuntimeSnapshot().deduplicatedEventCount).toBeGreaterThan(0)
+    expect(lastUniformFloat(gl, 'u_impactStrength')).toBeGreaterThan(0)
+
+    dropActive = false
+    timeSec = 5
+    raf.runNext(66.68)
+    expect(runtime.getAudioIntelligenceFrame()?.discontinuity.occurred).toBe(true)
+    expect(runtime.getChoreographyRuntimeSnapshot().resetCount).toBeGreaterThan(0)
+    expect(lastUniformFloat(gl, 'u_impactStrength')).toBe(0)
+    runtime.dispose()
+  })
+
+  it('authors stable kick/transient/downbeat/phrase/section/drop routes with shared cooldown/probability policy and no duplicate drop section route', () => {
+    const plan = cinema2NativePresetRegistry.compile(CINEMA2_ELECTRIC_STORM_PRESET_ID)
+    expect(plan.ok).toBe(true)
+    if (!plan.ok) throw new Error('Expected Electric Storm preset to compile.')
+    const rules = plan.plan.manifest.choreography?.rules ?? []
+    expect(rules.map(rule => rule.source.signal)).toEqual(expect.arrayContaining(['kick', 'transient', 'downbeat', 'phrase', 'section-change', 'drop']))
+    const downbeat = rules.find(rule => rule.source.signal === 'downbeat')
+    const drop = rules.find(rule => rule.source.signal === 'drop')
+    expect(downbeat?.actions[0]).toMatchObject({ operation: 'spawn', cooldownBeats: 2, quantizeBeats: 1 })
+    expect(drop?.actions).toEqual(expect.arrayContaining([expect.objectContaining({ operation: 'envelope', composition: 'add' })]))
+    expect(rules.filter(rule => rule.source.signal === 'kick' || rule.source.signal === 'transient').every(rule => rule.actions[0]?.probability != null)).toBe(true)
+    const section = rules.find(rule => rule.source.signal === 'section-change')
+    expect(section?.conditions).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'section-type' })]))
+    expect(JSON.stringify(section?.conditions)).not.toContain('"drop"')
+  })
+
+  it('keeps deterministic selection reproducible while session-organic activation entropy changes the sequence', () => {
+    const deterministicA = new Cinema2RandomService({ presetId: String(CINEMA2_ELECTRIC_STORM_PRESET_ID), revision: 1, stateKey: '{}', mode: 'deterministic', seed: '14b' })
+    const deterministicB = new Cinema2RandomService({ presetId: String(CINEMA2_ELECTRIC_STORM_PRESET_ID), revision: 1, stateKey: '{}', mode: 'deterministic', seed: '14b' })
+    const namespace = { moduleId: 'choreography', eventId: 'event-14b', purpose: 'strike-probability' }
+    expect(deterministicB.sample(namespace, 0)).toBe(deterministicA.sample(namespace, 0))
+
+    const organicA = new Cinema2RandomService({ presetId: String(CINEMA2_ELECTRIC_STORM_PRESET_ID), revision: 1, stateKey: '{}', mode: 'session-organic', seed: '14b', activationEntropy: () => 'activation-a' })
+    const organicB = new Cinema2RandomService({ presetId: String(CINEMA2_ELECTRIC_STORM_PRESET_ID), revision: 1, stateKey: '{}', mode: 'session-organic', seed: '14b', activationEntropy: () => 'activation-b' })
+    expect(organicB.sample(namespace, 0)).not.toBe(organicA.sample(namespace, 0))
+  })
+
   it('keeps generic runtime owners free of Electric Storm identity branches', () => {
     expect(Cinema2Runtime.toString().toLowerCase()).not.toContain('electricstorm')
     expect(Cinema2Runtime.toString().toLowerCase()).not.toContain('electric-storm')
@@ -214,7 +307,7 @@ afterEach(async () => {
 })
 
 describe('Cinema 2.0 Electric Storm production selection path', () => {
-  it('selects Electric Storm 2.0 through the real preset browser, activates Stage, and exposes only Stage 14A Design controls', async () => {
+  it('selects Electric Storm 2.0 through the real preset browser, activates Stage, and exposes Stage 14B schema-driven Design and React controls', async () => {
     CinemaResizeObserverMock.reset()
     vi.stubGlobal('ResizeObserver', CinemaResizeObserverMock)
     const raf = createRafHarness()
@@ -251,9 +344,16 @@ describe('Cinema 2.0 Electric Storm production selection path', () => {
       CINEMA2_ELECTRIC_STORM_THICKNESS_ID,
       CINEMA2_ELECTRIC_STORM_BACKGROUND_ID,
       CINEMA2_ELECTRIC_STORM_HAZE_ID,
-  CINEMA2_ELECTRIC_STORM_GLOW_ID,
+      CINEMA2_ELECTRIC_STORM_GLOW_ID,
+      CINEMA2_ELECTRIC_STORM_MUSIC_REACTIVITY_ID,
+      CINEMA2_ELECTRIC_STORM_KICK_REACTION_ID,
+      CINEMA2_ELECTRIC_STORM_TRANSIENT_REACTION_ID,
+      CINEMA2_ELECTRIC_STORM_DROP_REACTION_ID,
+      CINEMA2_ELECTRIC_STORM_STRUCTURE_REACTION_ID,
+      CINEMA2_ELECTRIC_STORM_IMPACT_SHAKE_ID,
+      CINEMA2_ELECTRIC_STORM_ZOOM_PUNCH_ID,
     ]) expect(host?.querySelector(`[data-cinema2-control-id="${id}"]`)).not.toBeNull()
-    expect(host?.querySelector('[data-cinema2-inspector="react"]')?.textContent ?? '').not.toContain('Electric Storm')
+    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_ELECTRIC_STORM_STRUCTURE_REACTION_ID}"]`)).not.toBeNull()
 
     await act(async () => raf.runNext())
     expect(activeRuntimeRef.current?.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 1, executedPassCount: 1, failedPassCount: 0 })

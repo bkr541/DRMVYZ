@@ -20,6 +20,7 @@ import {
   type Cinema2ElectricStormStrikeDescriptor,
 } from './Cinema2ElectricStormStrikeGenerator'
 import { Cinema2ElectricStormThunderController } from './Cinema2ElectricStormThunder'
+import type { Cinema2DispatchedTargetAction } from '../parameters/Cinema2TargetRuntime'
 
 export const CINEMA2_ELECTRIC_STORM_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('electric-storm-native-render')
 export const CINEMA2_ELECTRIC_STORM_NATIVE_MODULE_VERSION = 1 as const
@@ -159,7 +160,28 @@ void main() {
 }
 `
 
-const REQUIRED_PARAMETERS = ['lightningColor', 'masterIntensity', 'strikeRate', 'branching', 'thickness', 'glow', 'impactShake', 'zoomPunch'] as const
+const REQUIRED_PARAMETERS = [
+  'lightningColor', 'masterIntensity', 'strikeRate', 'branching', 'thickness', 'glow', 'impactShake', 'zoomPunch',
+  'musicReactivity', 'kickReaction', 'transientReaction', 'dropReaction', 'structureReaction',
+] as const
+
+const MAX_PENDING_MUSICAL_STRIKES = 32
+const MUSICAL_STRIKE_KINDS = new Set(['kick', 'drop', 'transient', 'downbeat', 'phrase', 'section'])
+const MUSICAL_STRIKE_TIERS = new Set(['micro', 'medium', 'strong', 'hero'])
+
+type Cinema2ElectricStormMusicalStrikeKind = 'kick' | 'drop' | 'transient' | 'downbeat' | 'phrase' | 'section'
+
+interface Cinema2ElectricStormMusicalStrikePayload {
+  readonly kind: Cinema2ElectricStormMusicalStrikeKind
+  readonly tier: Cinema2ElectricStormStrikeDescriptor['tier']
+  readonly count?: number
+  readonly durationScale?: number
+}
+
+interface PendingMusicalStrike {
+  readonly eventId: string
+  readonly payload: Readonly<Cinema2ElectricStormMusicalStrikePayload>
+}
 
 type Rgb = readonly [number, number, number]
 
@@ -189,6 +211,80 @@ function colorValue(context: Cinema2ModuleCreateContext, name: string, fallback:
 }
 
 function clamp01(value: number): number { return Math.max(0, Math.min(1, value)) }
+
+function finiteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function numericSignalValue(signal: Readonly<{ available: boolean; value: number | null }> | null | undefined): number | null {
+  return signal?.available && typeof signal.value === 'number' && Number.isFinite(signal.value) ? signal.value : null
+}
+
+function parseMusicalStrikePayload(payload: Cinema2DispatchedTargetAction['payload']): Readonly<Cinema2ElectricStormMusicalStrikePayload> | null {
+  if (payload == null || typeof payload !== 'object' || Array.isArray(payload)) return null
+  const record = payload as Readonly<Record<string, unknown>>
+  if (typeof record.kind !== 'string' || !MUSICAL_STRIKE_KINDS.has(record.kind)) return null
+  if (typeof record.tier !== 'string' || !MUSICAL_STRIKE_TIERS.has(record.tier)) return null
+  const count = finiteNumber(record.count)
+  const durationScale = finiteNumber(record.durationScale)
+  return Object.freeze({
+    kind: record.kind as Cinema2ElectricStormMusicalStrikeKind,
+    tier: record.tier as Cinema2ElectricStormStrikeDescriptor['tier'],
+    ...(count == null ? {} : { count: Math.max(1, Math.min(CINEMA2_ELECTRIC_STORM_MAX_ACTIVE_STRIKES, Math.round(count))) }),
+    ...(durationScale == null ? {} : { durationScale: Math.max(0.4, Math.min(1.35, durationScale)) }),
+  })
+}
+
+function reactionForKind(parameters: Cinema2ModuleUpdateContext['parameters'], kind: Cinema2ElectricStormMusicalStrikeKind): number {
+  const property = kind === 'kick'
+    ? 'kickReaction'
+    : kind === 'transient'
+      ? 'transientReaction'
+      : kind === 'drop'
+        ? 'dropReaction'
+        : 'structureReaction'
+  const value = parameters.get(property)
+  return clamp01(typeof value === 'number' && Number.isFinite(value) ? value : 0)
+}
+
+function musicalStrikeIntent(
+  pending: Readonly<PendingMusicalStrike>,
+  frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
+  parameters: Cinema2ModuleUpdateContext['parameters'],
+) {
+  const musicReactivity = clamp01(typeof parameters.get('musicReactivity') === 'number' ? parameters.get('musicReactivity') as number : 0)
+  const reaction = reactionForKind(parameters, pending.payload.kind)
+  if (musicReactivity <= 0 || reaction <= 0) return null
+
+  const intensity = numericSignalValue(frame.director?.continuous.intensity)
+  const build = numericSignalValue(frame.director?.context.build)
+  const impact = frame.director?.authority.impact.available ? clamp01(frame.director.authority.impact.authority) : null
+  const bass = numericSignalValue(frame.audio?.bands.bass)
+  const high = numericSignalValue(frame.audio?.bands.high)
+  const trackEnergy = numericSignalValue(frame.audio?.features.trackEnergy)
+
+  let significance = 0.5
+  if (intensity != null) significance = significance * 0.35 + clamp01(intensity) * 0.65
+  if (impact != null) significance = Math.max(significance, impact)
+  if (pending.payload.kind === 'drop' && build != null) significance = Math.max(significance, 0.55 + clamp01(build) * 0.35)
+
+  let styleEnergy = significance
+  if (bass != null) styleEnergy = styleEnergy * 0.72 + clamp01(bass) * 0.28
+  if (trackEnergy != null) styleEnergy = styleEnergy * 0.78 + clamp01(trackEnergy) * 0.22
+  const detailAccent = high == null ? 0 : clamp01(high) * 0.18
+  const reactionStrength = clamp01(musicReactivity * reaction)
+  const power = clamp01((0.42 + significance * 0.58) * (0.58 + reactionStrength * 0.42))
+  const detail = clamp01(styleEnergy * 0.82 + detailAccent)
+
+  return Object.freeze({
+    tier: pending.payload.tier,
+    power,
+    detail,
+    count: pending.payload.count,
+    durationScale: pending.payload.durationScale,
+    eventId: pending.eventId,
+  })
+}
 
 function rgbToHsl(color: Rgb): readonly [number, number, number] {
   const [r, g, b] = color
@@ -276,6 +372,7 @@ export const cinema2ElectricStormNativeModuleDefinition: Readonly<Cinema2ModuleT
     let thunderFlash = 0
     let lastDiscontinuitySequence: number | null = null
     const thunderedStrikeKeys = new Set<string>()
+    const pendingMusicalStrikes: PendingMusicalStrike[] = []
 
     const provider = Object.freeze({
       id: `${context.module.id}:electric-storm`,
@@ -317,12 +414,19 @@ export const cinema2ElectricStormNativeModuleDefinition: Readonly<Cinema2ModuleT
       lifecycle: {
         update: ({ frame, parameters }: Cinema2ModuleUpdateContext) => {
           const sequence = frame.audio?.discontinuity.generation ?? null
-          if (frame.audio?.discontinuity.occurred && sequence !== lastDiscontinuitySequence) {
+          if (frame.audio?.discontinuity.occurred && frame.audio.discontinuity.reason !== 'activation' && sequence !== lastDiscontinuitySequence) {
             strikeGenerator.reset()
             thunder.reset()
             strikes = Object.freeze([])
+            pendingMusicalStrikes.splice(0)
             thunderedStrikeKeys.clear()
             lastDiscontinuitySequence = sequence
+          }
+          while (pendingMusicalStrikes.length > 0) {
+            const pending = pendingMusicalStrikes.shift()
+            if (!pending) break
+            const intent = musicalStrikeIntent(pending, frame, parameters)
+            if (intent) strikeGenerator.request(intent)
           }
           const strikeFrame = strikeGenerator.update(frame.elapsedTimeSec, typeof parameters.get('strikeRate') === 'number' ? parameters.get('strikeRate') as number : 0.58)
           strikes = strikeFrame.active
@@ -342,9 +446,17 @@ export const cinema2ElectricStormNativeModuleDefinition: Readonly<Cinema2ModuleT
           strikeGenerator.reset()
           thunder.reset()
           strikes = Object.freeze([])
+          pendingMusicalStrikes.splice(0)
           thunderedStrikeKeys.clear()
           thunderFlash = 0
         },
+      },
+      handleAction: (action: string, event: Readonly<Cinema2DispatchedTargetAction>) => {
+        if (action !== 'spawnStrike') return
+        const payload = parseMusicalStrikePayload(event.payload)
+        if (!payload) return
+        if (pendingMusicalStrikes.length >= MAX_PENDING_MUSICAL_STRIKES) pendingMusicalStrikes.shift()
+        pendingMusicalStrikes.push(Object.freeze({ eventId: event.eventId, payload }))
       },
       render: { providers: Object.freeze([provider]) },
     }
