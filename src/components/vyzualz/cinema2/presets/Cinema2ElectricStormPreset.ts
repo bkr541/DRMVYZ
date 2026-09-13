@@ -32,6 +32,9 @@ export const CINEMA2_ELECTRIC_STORM_DROP_REACTION_ID = cinema2StableId<Cinema2Pa
 export const CINEMA2_ELECTRIC_STORM_STRUCTURE_REACTION_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-structure-reaction')
 export const CINEMA2_ELECTRIC_STORM_IMPACT_SHAKE_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-impact-shake')
 export const CINEMA2_ELECTRIC_STORM_ZOOM_PUNCH_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-zoom-punch')
+export const CINEMA2_ELECTRIC_STORM_FLASH_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-flash-intensity')
+export const CINEMA2_ELECTRIC_STORM_FLASH_DURATION_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-flash-duration')
+export const CINEMA2_ELECTRIC_STORM_FLASH_DECAY_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-flash-decay')
 export const CINEMA2_ELECTRIC_STORM_STRIKE_INTENT_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-strike-intent')
 
 export const CINEMA2_ELECTRIC_STORM_MODULE_ID = cinema2StableId<Cinema2ModuleId>('electric-storm-procedural-lightning')
@@ -64,11 +67,11 @@ export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST: Readonly<Cinema2NativePrese
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_ELECTRIC_STORM_PRESET_ID,
-  revision: 1,
+  revision: 2,
   metadata: Object.freeze({
     name: 'Electric Storm 2.0',
-    description: 'Native Cinema 2.0 procedural lightning with deterministic strike topology and shared atmosphere ownership.',
-    tags: Object.freeze(['electric-storm', 'native', 'procedural-lightning']),
+    description: 'Production Cinema 2.0 procedural lightning with deterministic topology, musical strike tiers, atmosphere, and shaped thunder illumination.',
+    tags: Object.freeze(['electric-storm', 'native', 'procedural-lightning', 'keeper']),
   }),
   capabilities: Object.freeze([
     Object.freeze({ id: 'render.webgl2' as const, requirement: 'required' as const, purpose: 'Procedural fullscreen lightning rendering.' }),
@@ -142,6 +145,27 @@ export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST: Readonly<Cinema2NativePrese
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
+      id: CINEMA2_ELECTRIC_STORM_FLASH_INTENSITY_ID,
+      label: 'Flash Intensity',
+      type: 'float' as const, defaultValue: 0.78, min: 0, max: 1.5, step: 0.01,
+      section: 'Effects', group: 'Thunder', order: 80,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_ELECTRIC_STORM_FLASH_DURATION_ID,
+      label: 'Flash Duration',
+      type: 'float' as const, defaultValue: 0.46, min: 0, max: 1, step: 0.01,
+      section: 'Effects', group: 'Thunder', order: 81,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_ELECTRIC_STORM_FLASH_DECAY_ID,
+      label: 'Flash Decay',
+      type: 'float' as const, defaultValue: 0.62, min: 0, max: 1, step: 0.01,
+      section: 'Effects', group: 'Thunder', order: 82,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
       id: CINEMA2_ELECTRIC_STORM_MUSIC_REACTIVITY_ID,
       label: 'Music Reactivity',
       type: 'float' as const, defaultValue: 0.8, min: 0, max: 1, step: 0.01,
@@ -201,7 +225,7 @@ export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST: Readonly<Cinema2NativePrese
   modules: Object.freeze([Object.freeze({
     id: CINEMA2_ELECTRIC_STORM_MODULE_ID,
     typeId: CINEMA2_ELECTRIC_STORM_NATIVE_MODULE_TYPE_ID,
-    version: 1,
+    version: 2,
     enabled: true,
     parameters: Object.freeze({
       lightningColor: Object.freeze([0.29, 0.65, 1, 1] as const),
@@ -217,6 +241,9 @@ export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST: Readonly<Cinema2NativePrese
       transientReaction: 0.58,
       dropReaction: 0.92,
       structureReaction: 0.7,
+      flashIntensity: 0.78,
+      flashDuration: 0.46,
+      flashDecay: 0.62,
     }),
     parameterBindings: Object.freeze({
       lightningColor: cinema2Ref(CINEMA2_ELECTRIC_STORM_LIGHTNING_COLOR_ID),
@@ -232,6 +259,9 @@ export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST: Readonly<Cinema2NativePrese
       transientReaction: cinema2Ref(CINEMA2_ELECTRIC_STORM_TRANSIENT_REACTION_ID),
       dropReaction: cinema2Ref(CINEMA2_ELECTRIC_STORM_DROP_REACTION_ID),
       structureReaction: cinema2Ref(CINEMA2_ELECTRIC_STORM_STRUCTURE_REACTION_ID),
+      flashIntensity: cinema2Ref(CINEMA2_ELECTRIC_STORM_FLASH_INTENSITY_ID),
+      flashDuration: cinema2Ref(CINEMA2_ELECTRIC_STORM_FLASH_DURATION_ID),
+      flashDecay: cinema2Ref(CINEMA2_ELECTRIC_STORM_FLASH_DECAY_ID),
     }),
     actionBindings: Object.freeze({
       spawnStrike: cinema2Ref(CINEMA2_ELECTRIC_STORM_STRIKE_INTENT_ID),

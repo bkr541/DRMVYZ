@@ -23,7 +23,7 @@ import { Cinema2ElectricStormThunderController } from './Cinema2ElectricStormThu
 import type { Cinema2DispatchedTargetAction } from '../parameters/Cinema2TargetRuntime'
 
 export const CINEMA2_ELECTRIC_STORM_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('electric-storm-native-render')
-export const CINEMA2_ELECTRIC_STORM_NATIVE_MODULE_VERSION = 1 as const
+export const CINEMA2_ELECTRIC_STORM_NATIVE_MODULE_VERSION = 2 as const
 
 const ELECTRIC_STORM_FRAGMENT_SOURCE = `#version 300 es
 precision highp float;
@@ -162,7 +162,7 @@ void main() {
 
 const REQUIRED_PARAMETERS = [
   'lightningColor', 'masterIntensity', 'strikeRate', 'branching', 'thickness', 'glow', 'impactShake', 'zoomPunch',
-  'musicReactivity', 'kickReaction', 'transientReaction', 'dropReaction', 'structureReaction',
+  'musicReactivity', 'kickReaction', 'transientReaction', 'dropReaction', 'structureReaction', 'flashIntensity', 'flashDuration', 'flashDecay',
 ] as const
 
 const MAX_PENDING_MUSICAL_STRIKES = 32
@@ -436,7 +436,11 @@ export const cinema2ElectricStormNativeModuleDefinition: Readonly<Cinema2ModuleT
             activeKeys.add(key)
             if (strike.startedAtSec <= frame.elapsedTimeSec && !thunderedStrikeKeys.has(key)) {
               thunderedStrikeKeys.add(key)
-              thunder.trigger(strike)
+              thunder.trigger(strike, {
+                intensity: typeof parameters.get('flashIntensity') === 'number' ? parameters.get('flashIntensity') as number : 0.78,
+                duration: typeof parameters.get('flashDuration') === 'number' ? parameters.get('flashDuration') as number : 0.46,
+                decay: typeof parameters.get('flashDecay') === 'number' ? parameters.get('flashDecay') as number : 0.62,
+              })
             }
           }
           for (const key of thunderedStrikeKeys) if (!activeKeys.has(key)) thunderedStrikeKeys.delete(key)

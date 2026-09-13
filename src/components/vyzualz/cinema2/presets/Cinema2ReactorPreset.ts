@@ -35,6 +35,13 @@ export const CINEMA2_REACTOR_BLOOM_INTENSITY_ID = cinema2StableId<Cinema2Paramet
 export const CINEMA2_REACTOR_RESET_TRAILS_ID = cinema2StableId<Cinema2ParameterId>('reactor-reset-trails')
 export const CINEMA2_REACTOR_MEDIA_INFLUENCE_ID = cinema2StableId<Cinema2ParameterId>('reactor-media-influence')
 export const CINEMA2_REACTOR_REACTIVITY_ID = cinema2StableId<Cinema2ParameterId>('reactor-reactivity')
+export const CINEMA2_REACTOR_ROTATION_SPEED_ID = cinema2StableId<Cinema2ParameterId>('reactor-rotation-speed')
+export const CINEMA2_REACTOR_BUILD_CONTRACTION_ID = cinema2StableId<Cinema2ParameterId>('reactor-build-contraction')
+export const CINEMA2_REACTOR_SHOCKWAVE_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('reactor-shockwave-intensity')
+export const CINEMA2_REACTOR_PRIMARY_COLOR_ID = cinema2StableId<Cinema2ParameterId>('reactor-primary-color')
+export const CINEMA2_REACTOR_SECONDARY_COLOR_ID = cinema2StableId<Cinema2ParameterId>('reactor-secondary-color')
+export const CINEMA2_REACTOR_ACCENT_COLOR_ID = cinema2StableId<Cinema2ParameterId>('reactor-accent-color')
+export const CINEMA2_REACTOR_BACKGROUND_COLOR_ID = cinema2StableId<Cinema2ParameterId>('reactor-background-color')
 
 export const CINEMA2_REACTOR_USER_MEDIA_SLOT_ID = cinema2StableId<Cinema2MediaSlotId>('reactor-user-media')
 export const CINEMA2_REACTOR_ALBUM_ARTWORK_SLOT_ID = cinema2StableId<Cinema2MediaSlotId>('reactor-album-artwork')
@@ -64,12 +71,14 @@ const REACTOR_BLOOM_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('reactor-blo
 const REACTOR_INTENSITY_RULE_ID = cinema2StableId<Cinema2ChoreographyRuleId>('reactor-intensity-response')
 const REACTOR_BASS_RULE_ID = cinema2StableId<Cinema2ChoreographyRuleId>('reactor-bass-response')
 const REACTOR_IMPACT_RULE_ID = cinema2StableId<Cinema2ChoreographyRuleId>('reactor-impact-response')
+const REACTOR_BUILD_RULE_ID = cinema2StableId<Cinema2ChoreographyRuleId>('reactor-build-response')
 const REACTOR_DOWNBEAT_RULE_ID = cinema2StableId<Cinema2ChoreographyRuleId>('reactor-downbeat-refraction')
 const REACTOR_DROP_RULE_ID = cinema2StableId<Cinema2ChoreographyRuleId>('reactor-drop-impact')
 
 const REACTOR_INTENSITY_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-intensity-map')
 const REACTOR_BASS_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-bass-map')
 const REACTOR_IMPACT_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-impact-map')
+const REACTOR_BUILD_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-build-map')
 const REACTOR_DOWNBEAT_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-downbeat-refraction-envelope')
 const REACTOR_DROP_BURST_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-drop-burst-envelope')
 const REACTOR_DROP_BLOOM_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-drop-bloom-envelope')
@@ -84,11 +93,11 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_REACTOR_PRESET_ID,
-  revision: 1,
+  revision: 2,
   metadata: Object.freeze({
     name: 'Reactor 2.0',
-    description: 'Native Cinema 2.0 Reactor generator, shared feedback history, refraction composite, and bloom.',
-    tags: Object.freeze(['reactor', 'native', 'multipass']),
+    description: 'Production Cinema 2.0 Reactor with authored palette, build motion, media refraction, feedback trails, and bloom.',
+    tags: Object.freeze(['reactor', 'native', 'multipass', 'keeper']),
   }),
   capabilities: Object.freeze([
     Object.freeze({ id: 'render.webgl2' as const, requirement: 'required' as const, purpose: 'Native multipass Reactor output.' }),
@@ -123,6 +132,15 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
+      id: CINEMA2_REACTOR_ROTATION_SPEED_ID,
+      label: 'Rotation Speed',
+      type: 'float' as const,
+      defaultValue: 0.21,
+      min: 0, max: 1, step: 0.01,
+      section: 'Design', group: 'Core', order: 12,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
       id: CINEMA2_REACTOR_RAY_DENSITY_ID,
       label: 'Ray Density',
       type: 'float' as const,
@@ -141,12 +159,53 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
+      id: CINEMA2_REACTOR_SHOCKWAVE_INTENSITY_ID,
+      label: 'Shockwave',
+      type: 'float' as const,
+      defaultValue: 1.2,
+      min: 0, max: 2.5, step: 0.05,
+      section: 'Design', group: 'Composite', order: 31,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
       id: CINEMA2_REACTOR_MEDIA_INFLUENCE_ID,
       label: 'Media Influence',
       type: 'float' as const,
       defaultValue: 0.34,
       min: 0, max: 1, step: 0.01,
       section: 'Design', group: 'Media', order: 35,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_REACTOR_PRIMARY_COLOR_ID,
+      label: 'Primary',
+      type: 'color' as const,
+      defaultValue: Object.freeze([0.08, 0.62, 1, 1] as const),
+      section: 'Design', group: 'Palette', order: 40,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_REACTOR_SECONDARY_COLOR_ID,
+      label: 'Secondary',
+      type: 'color' as const,
+      defaultValue: Object.freeze([0.36, 0.18, 0.95, 1] as const),
+      section: 'Design', group: 'Palette', order: 41,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_REACTOR_ACCENT_COLOR_ID,
+      label: 'Accent',
+      type: 'color' as const,
+      defaultValue: Object.freeze([1, 0.24, 0.58, 1] as const),
+      section: 'Design', group: 'Palette', order: 42,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_REACTOR_BACKGROUND_COLOR_ID,
+      label: 'Background',
+      type: 'color' as const,
+      defaultValue: Object.freeze([0.006, 0.009, 0.016, 1] as const),
+      section: 'Design', group: 'Palette', order: 43,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -160,6 +219,16 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
       modulatable: true,
       choreographable: true,
+    }),
+    Object.freeze({
+      id: CINEMA2_REACTOR_BUILD_CONTRACTION_ID,
+      label: 'Build Contraction',
+      description: 'Controls how strongly generic build significance pulls the Reactor core inward before release.',
+      type: 'float' as const,
+      defaultValue: 0.66,
+      min: 0, max: 1, step: 0.01,
+      section: 'React', group: 'Response', order: 11,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
       id: CINEMA2_REACTOR_TRAILS_ENABLED_ID,
@@ -224,16 +293,20 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     Object.freeze({
       id: REACTOR_GENERATOR_MODULE_ID,
       typeId: CINEMA2_REACTOR_NATIVE_MODULE_TYPE_ID,
-      version: 1,
+      version: 2,
       enabled: true,
       parameters: Object.freeze({
         coreSize: 0.42,
         coreIntensity: 1.15,
+        rotationSpeed: 0.21,
         rayDensity: 0.62,
         energyResponse: 0,
+        buildResponse: 0,
+        buildContraction: 0.66,
         bassResponse: 0,
         impactBurst: 0,
         mediaInfluence: 0.34,
+        backgroundColor: Object.freeze([0.006, 0.009, 0.016, 1]),
         primaryColor: Object.freeze([0.08, 0.62, 1, 1]),
         secondaryColor: Object.freeze([0.36, 0.18, 0.95, 1]),
         accentColor: Object.freeze([1, 0.24, 0.58, 1]),
@@ -241,8 +314,14 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       parameterBindings: Object.freeze({
         coreSize: cinema2Ref(CINEMA2_REACTOR_CORE_SIZE_ID),
         coreIntensity: cinema2Ref(CINEMA2_REACTOR_CORE_INTENSITY_ID),
+        rotationSpeed: cinema2Ref(CINEMA2_REACTOR_ROTATION_SPEED_ID),
         rayDensity: cinema2Ref(CINEMA2_REACTOR_RAY_DENSITY_ID),
         mediaInfluence: cinema2Ref(CINEMA2_REACTOR_MEDIA_INFLUENCE_ID),
+        buildContraction: cinema2Ref(CINEMA2_REACTOR_BUILD_CONTRACTION_ID),
+        backgroundColor: cinema2Ref(CINEMA2_REACTOR_BACKGROUND_COLOR_ID),
+        primaryColor: cinema2Ref(CINEMA2_REACTOR_PRIMARY_COLOR_ID),
+        secondaryColor: cinema2Ref(CINEMA2_REACTOR_SECONDARY_COLOR_ID),
+        accentColor: cinema2Ref(CINEMA2_REACTOR_ACCENT_COLOR_ID),
       }),
       media: Object.freeze({
         userMedia: cinema2Ref(CINEMA2_REACTOR_USER_MEDIA_SLOT_ID),
@@ -254,10 +333,13 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     Object.freeze({
       id: REACTOR_COMPOSITE_MODULE_ID,
       typeId: CINEMA2_REACTOR_NATIVE_MODULE_TYPE_ID,
-      version: 1,
+      version: 2,
       enabled: true,
-      parameters: Object.freeze({ refraction: 0.42, edgeGlow: 0.72, impactResponse: 0, refractionPulse: 0 }),
-      parameterBindings: Object.freeze({ refraction: cinema2Ref(CINEMA2_REACTOR_REFRACTION_ID) }),
+      parameters: Object.freeze({ refraction: 0.42, edgeGlow: 0.72, impactResponse: 0, refractionPulse: 0, shockwaveIntensity: 1.2 }),
+      parameterBindings: Object.freeze({
+        refraction: cinema2Ref(CINEMA2_REACTOR_REFRACTION_ID),
+        shockwaveIntensity: cinema2Ref(CINEMA2_REACTOR_SHOCKWAVE_INTENSITY_ID),
+      }),
       config: Object.freeze({ variant: 'composite' }),
     }),
   ]),
@@ -322,6 +404,18 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
         actions: Object.freeze([Object.freeze({
           id: REACTOR_BASS_ACTION_ID,
           target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(REACTOR_GENERATOR_MODULE_ID), property: 'bassResponse' }),
+          operation: 'map' as const,
+          map: Object.freeze({ inputMin: 0, inputMax: 1, outputMin: 0, outputMax: 1, clamp: true }),
+        })]),
+      }),
+      Object.freeze({
+        id: REACTOR_BUILD_RULE_ID,
+        priority: 14,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.build' as const, smoothingMs: 120 }),
+        strengthParameter: cinema2Ref(CINEMA2_REACTOR_REACTIVITY_ID),
+        actions: Object.freeze([Object.freeze({
+          id: REACTOR_BUILD_ACTION_ID,
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(REACTOR_GENERATOR_MODULE_ID), property: 'buildResponse' }),
           operation: 'map' as const,
           map: Object.freeze({ inputMin: 0, inputMax: 1, outputMin: 0, outputMax: 1, clamp: true }),
         })]),

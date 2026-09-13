@@ -12,19 +12,27 @@ import { Cinema2PresetsPanel } from '../../react/Cinema2PresetsPanel'
 import { Cinema2RuntimeDiagnostics } from '../../react/Cinema2RuntimeDiagnostics'
 import { Cinema2Stage } from '../../react/Cinema2Stage'
 import {
+  CINEMA2_REACTOR_ACCENT_COLOR_ID,
+  CINEMA2_REACTOR_BACKGROUND_COLOR_ID,
   CINEMA2_REACTOR_BLOOM_INTENSITY_ID,
+  CINEMA2_REACTOR_BUILD_CONTRACTION_ID,
   CINEMA2_REACTOR_CORE_SIZE_ID,
   CINEMA2_REACTOR_MEDIA_INFLUENCE_ID,
   CINEMA2_REACTOR_REACTIVITY_ID,
   CINEMA2_REACTOR_PRESET_ID,
   CINEMA2_REACTOR_PRESET_MANIFEST,
+  CINEMA2_REACTOR_PRIMARY_COLOR_ID,
   CINEMA2_REACTOR_REFRACTION_ID,
+  CINEMA2_REACTOR_ROTATION_SPEED_ID,
+  CINEMA2_REACTOR_SECONDARY_COLOR_ID,
+  CINEMA2_REACTOR_SHOCKWAVE_INTENSITY_ID,
   CINEMA2_REACTOR_RESET_TRAILS_ID,
   CINEMA2_REACTOR_USER_MEDIA_SLOT_ID,
   CINEMA2_REACTOR_ALBUM_ARTWORK_SLOT_ID,
   CINEMA2_REACTOR_MEDIA_OUTPUT_SLOT_ID,
   CINEMA2_REACTOR_TRAILS_ENABLED_ID,
   CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID,
+  CINEMA2_QUALITY_MODE_PARAMETER_ID,
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
   CINEMA2_SPATIAL_REFERENCE_ORBIT_RADIUS_ID,
   CINEMA2_SPATIAL_REFERENCE_PRESET_ID,
@@ -77,7 +85,7 @@ class FakeCanvas extends EventTarget {
   }
 }
 
-function createReactorRuntime(raf: RafHarness = createRafHarness(), options: { audioIntelligenceBridge?: Cinema2AudioIntelligenceBridge; mediaLoader?: Cinema2MediaLoader } = {}) {
+function createReactorRuntime(raf: RafHarness = createRafHarness(), options: { audioIntelligenceBridge?: Cinema2AudioIntelligenceBridge; mediaLoader?: Cinema2MediaLoader; randomness?: { mode?: 'deterministic' | 'session-organic'; seed?: string | number; activationEntropy?: () => string } } = {}) {
   const gl = createCinemaMockWebGL()
   gl.getUniformLocation = vi.fn((_program: WebGLProgram, name: string) => ({ name } as unknown as WebGLUniformLocation))
   const canvas = new FakeCanvas(gl)
@@ -114,7 +122,16 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
       CINEMA2_REACTOR_ALBUM_ARTWORK_SLOT_ID,
       CINEMA2_REACTOR_MEDIA_OUTPUT_SLOT_ID,
     ])
-    expect(manifest?.choreography?.rules).toHaveLength(5)
+    expect(manifest?.revision).toBe(2)
+    expect(manifest?.metadata.tags).toContain('keeper')
+    expect(manifest?.choreography?.rules).toHaveLength(6)
+
+    const definitions = new Map((manifest?.parameters ?? []).map(definition => [definition.id, definition]))
+    expect(definitions.get(CINEMA2_REACTOR_ROTATION_SPEED_ID)).toMatchObject({ defaultValue: 0.21, min: 0, max: 1 })
+    expect(definitions.get(CINEMA2_REACTOR_BUILD_CONTRACTION_ID)).toMatchObject({ defaultValue: 0.66, min: 0, max: 1 })
+    expect(definitions.get(CINEMA2_REACTOR_SHOCKWAVE_INTENSITY_ID)).toMatchObject({ defaultValue: 1.2, min: 0, max: 2.5 })
+    expect(definitions.get(CINEMA2_REACTOR_PRIMARY_COLOR_ID)?.defaultValue).toEqual([0.08, 0.62, 1, 1])
+    expect(definitions.get(CINEMA2_REACTOR_BACKGROUND_COLOR_ID)?.defaultValue).toEqual([0.006, 0.009, 0.016, 1])
 
     const compiled = cinema2NativePresetRegistry.compile(CINEMA2_REACTOR_PRESET_ID, {
       availableCapabilities: [
@@ -138,7 +155,38 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
     const refractionTarget = compiled.plan.targets.targets.find(target => target.kind === 'module' && target.ownerId === 'reactor-composite' && target.property === 'refraction')
     expect(coreTarget?.parameterId).toBe(CINEMA2_REACTOR_CORE_SIZE_ID)
     expect(refractionTarget?.parameterId).toBe(CINEMA2_REACTOR_REFRACTION_ID)
-    expect(compiled.plan.targets.choreographyTargets).toHaveLength(7)
+    expect(compiled.plan.targets.choreographyTargets).toHaveLength(8)
+  })
+
+  it('uses engine-owned quality scaling and namespaced randomness for production rendering', () => {
+    const first = createReactorRuntime(createRafHarness(), { randomness: { mode: 'deterministic', seed: '17a-reactor' } })
+    first.runtime.start()
+    first.raf.runNext()
+    const deterministicSeed = lastValue(uniformFloatCalls(first.gl, 'u_patternSeed'))
+    expect(deterministicSeed).toBeTypeOf('number')
+
+    expect(first.runtime.getParameterState().setPersistentValue(CINEMA2_QUALITY_MODE_PARAMETER_ID, 'performance').ok).toBe(true)
+    first.raf.runNext(33.34)
+    expect(first.runtime.getPerformanceSnapshot()).toMatchObject({ resolvedQuality: 'low', renderTargetScale: 0.67 })
+    expect(first.runtime.getResourceManagerSnapshot().renderTargetScale).toBe(0.67)
+
+    expect(first.runtime.getParameterState().setPersistentValue(CINEMA2_QUALITY_MODE_PARAMETER_ID, 'quality').ok).toBe(true)
+    first.raf.runNext(50.01)
+    expect(first.runtime.getPerformanceSnapshot()).toMatchObject({ resolvedQuality: 'high', renderTargetScale: 1 })
+    expect(first.runtime.getResourceManagerSnapshot().renderTargetScale).toBe(1)
+    first.runtime.dispose()
+
+    const replay = createReactorRuntime(createRafHarness(), { randomness: { mode: 'deterministic', seed: '17a-reactor' } })
+    replay.runtime.start()
+    replay.raf.runNext()
+    expect(lastValue(uniformFloatCalls(replay.gl, 'u_patternSeed'))).toBe(deterministicSeed)
+    replay.runtime.dispose()
+
+    const organic = createReactorRuntime(createRafHarness(), { randomness: { mode: 'session-organic', seed: '17a-reactor', activationEntropy: () => 'different-activation' } })
+    organic.runtime.start()
+    organic.raf.runNext()
+    expect(lastValue(uniformFloatCalls(organic.gl, 'u_patternSeed'))).not.toBe(deterministicSeed)
+    organic.runtime.dispose()
   })
 
   it('loads, replaces, renders, removes, and disposes Reactor media through the shared Media Runtime', async () => {
@@ -418,12 +466,13 @@ describe('Cinema 2.0 Reactor production selection path', () => {
 
     await act(async () => reactorButton?.click())
     expect(activeRuntimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_REACTOR_PRESET_ID)
-    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_REACTOR_CORE_SIZE_ID}"]`)).not.toBeNull()
-    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_REACTOR_REFRACTION_ID}"]`)).not.toBeNull()
-    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID}"]`)).not.toBeNull()
-    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_REACTOR_RESET_TRAILS_ID}"]`)).not.toBeNull()
-    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_REACTOR_MEDIA_INFLUENCE_ID}"]`)).not.toBeNull()
-    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_REACTOR_REACTIVITY_ID}"]`)).not.toBeNull()
+    for (const id of [
+      CINEMA2_REACTOR_CORE_SIZE_ID, CINEMA2_REACTOR_ROTATION_SPEED_ID, CINEMA2_REACTOR_REFRACTION_ID,
+      CINEMA2_REACTOR_SHOCKWAVE_INTENSITY_ID, CINEMA2_REACTOR_MEDIA_INFLUENCE_ID, CINEMA2_REACTOR_PRIMARY_COLOR_ID,
+      CINEMA2_REACTOR_SECONDARY_COLOR_ID, CINEMA2_REACTOR_ACCENT_COLOR_ID, CINEMA2_REACTOR_BACKGROUND_COLOR_ID,
+      CINEMA2_REACTOR_REACTIVITY_ID, CINEMA2_REACTOR_BUILD_CONTRACTION_ID, CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID,
+      CINEMA2_REACTOR_RESET_TRAILS_ID, CINEMA2_REACTOR_BLOOM_INTENSITY_ID, CINEMA2_QUALITY_MODE_PARAMETER_ID,
+    ]) expect(host?.querySelector(`[data-cinema2-control-id="${id}"]`)).not.toBeNull()
     expect(host?.querySelector('[data-cinema2-media-source="slots"]')).not.toBeNull()
     expect(host?.textContent).toContain('User Media')
     expect(host?.textContent).toContain('Album Artwork')

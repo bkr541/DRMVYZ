@@ -14,7 +14,7 @@ import type {
 } from './Cinema2ModuleContracts'
 
 export const CINEMA2_REACTOR_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('reactor-native-render')
-export const CINEMA2_REACTOR_NATIVE_MODULE_VERSION = 1 as const
+export const CINEMA2_REACTOR_NATIVE_MODULE_VERSION = 2 as const
 
 const GENERATOR_FRAGMENT_SOURCE = `#version 300 es
 precision highp float;
@@ -23,11 +23,16 @@ uniform vec2 u_resolution;
 uniform float u_time;
 uniform float u_coreSize;
 uniform float u_coreIntensity;
+uniform float u_rotationSpeed;
 uniform float u_rayDensity;
 uniform float u_energyResponse;
+uniform float u_buildResponse;
+uniform float u_buildContraction;
 uniform float u_bassResponse;
 uniform float u_impactBurst;
 uniform float u_mediaInfluence;
+uniform float u_patternSeed;
+uniform vec4 u_backgroundColor;
 uniform sampler2D u_userMedia;
 uniform float u_userMediaAvailable;
 uniform float u_userMediaOpacity;
@@ -66,14 +71,16 @@ void main() {
   point.x *= u_resolution.x / max(u_resolution.y, 1.0);
 
   float energy = clamp(u_energyResponse + u_impactBurst * 0.32, 0.0, 1.5);
+  float build = clamp(u_buildResponse, 0.0, 1.5);
   float bass = clamp(u_bassResponse, 0.0, 1.5);
   float impact = clamp(u_impactBurst, 0.0, 1.5);
-  float spin = u_time * (0.055 + energy * 0.05 + impact * 0.018);
+  float spin = u_time * (0.018 + u_rotationSpeed * 0.19) * (1.0 + energy * 0.55 + impact * 0.22);
   vec2 local = rotate2d(spin) * point;
   float radius = length(local);
   float angle = atan(local.y, local.x);
 
-  float coreRadius = max(0.08, u_coreSize) * (0.78 + bass * 0.18 + impact * 0.04);
+  float buildScale = 1.0 - clamp(u_buildContraction, 0.0, 1.0) * build * 0.24;
+  float coreRadius = max(0.08, u_coreSize) * buildScale * (0.78 + bass * 0.18 + impact * 0.04);
   float segmented = 0.5 + 0.5 * cos(angle * 8.0 + u_time * 0.42);
   float outerRing = exp(-abs(radius - coreRadius) * (48.0 - energy * 12.0)) * mix(0.42, 1.0, segmented);
   float innerRing = exp(-abs(radius - coreRadius * 0.57) * 68.0);
@@ -86,7 +93,7 @@ void main() {
   for (int index = 0; index < 36; index++) {
     float ordinal = float(index);
     if (ordinal >= rayCount) break;
-    float seed = hash11(ordinal * 9.73 + 2.17);
+    float seed = hash11(ordinal * 9.73 + 2.17 + u_patternSeed);
     float rayAngle = ordinal / rayCount * TAU + (seed - 0.5) * 0.24 + spin * (0.45 + seed * 0.2);
     vec2 direction = vec2(cos(rayAngle), sin(rayAngle));
     float travel = fract(u_time * (0.055 + seed * 0.075) + seed * 3.17);
@@ -101,7 +108,7 @@ void main() {
     hotRays += line * envelope * step(0.78, seed);
   }
 
-  vec3 color = vec3(0.006, 0.009, 0.016);
+  vec3 color = u_backgroundColor.rgb;
   color += u_primaryColor.rgb * outerRing * u_coreIntensity * (0.55 + energy * 0.8);
   color += u_secondaryColor.rgb * (innerRing * 0.52 + rays * 0.36) * (0.45 + bass * 0.75);
   color += u_accentColor.rgb * (diamond * 0.42 + hotRays * 0.68 + coreGlow * 0.12) * (0.45 + energy * 0.7 + impact * 0.42);
@@ -138,6 +145,7 @@ uniform float u_refraction;
 uniform float u_edgeGlow;
 uniform float u_impactResponse;
 uniform float u_refractionPulse;
+uniform float u_shockwaveIntensity;
 out vec4 outColor;
 
 void main() {
@@ -159,7 +167,7 @@ void main() {
   source.b = mix(source.b, blue, clamp(refraction, 0.0, 1.0));
 
   float shockwave = exp(-abs(radius - (0.34 + 0.025 * sin(u_time * 0.72) + impact * 0.045)) * 54.0);
-  source += vec3(0.16, 0.48, 0.72) * shockwave * u_edgeGlow * (0.22 + impact * 0.82);
+  source += vec3(0.16, 0.48, 0.72) * shockwave * u_edgeGlow * u_shockwaveIntensity * (0.22 + impact * 0.82);
   float vignette = 1.0 - smoothstep(0.55, 0.95, radius);
   outColor = vec4(source * mix(0.62, 1.0, vignette), 1.0);
 }
@@ -182,8 +190,8 @@ function validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2Modu
     })])
   }
   const required = variant === 'generator'
-    ? ['coreSize', 'coreIntensity', 'rayDensity', 'energyResponse', 'bassResponse', 'impactBurst', 'mediaInfluence', 'primaryColor', 'secondaryColor', 'accentColor']
-    : ['refraction', 'edgeGlow', 'impactResponse', 'refractionPulse']
+    ? ['coreSize', 'coreIntensity', 'rotationSpeed', 'rayDensity', 'energyResponse', 'buildResponse', 'buildContraction', 'bassResponse', 'impactBurst', 'mediaInfluence', 'backgroundColor', 'primaryColor', 'secondaryColor', 'accentColor']
+    : ['refraction', 'edgeGlow', 'impactResponse', 'refractionPulse', 'shockwaveIntensity']
   const diagnostics: Cinema2ModuleDiagnostic[] = []
   for (const property of required) {
     if (module.parameters?.[property] === undefined) {
@@ -221,14 +229,14 @@ function createProgram(
     fragSrc: generator ? GENERATOR_FRAGMENT_SOURCE : COMPOSITE_FRAGMENT_SOURCE,
     requiredUniforms: generator
       ? [
-          'u_resolution', 'u_time', 'u_coreSize', 'u_coreIntensity', 'u_rayDensity',
-          'u_energyResponse', 'u_bassResponse', 'u_impactBurst', 'u_mediaInfluence',
+          'u_resolution', 'u_time', 'u_coreSize', 'u_coreIntensity', 'u_rotationSpeed', 'u_rayDensity',
+          'u_energyResponse', 'u_buildResponse', 'u_buildContraction', 'u_bassResponse', 'u_impactBurst', 'u_mediaInfluence', 'u_patternSeed', 'u_backgroundColor',
           'u_userMedia', 'u_userMediaAvailable', 'u_userMediaOpacity',
           'u_albumArtwork', 'u_albumArtworkAvailable', 'u_albumArtworkOpacity',
           'u_mediaOutput', 'u_mediaOutputAvailable', 'u_mediaOutputOpacity',
           'u_primaryColor', 'u_secondaryColor', 'u_accentColor',
         ]
-      : ['u_source', 'u_resolution', 'u_time', 'u_refraction', 'u_edgeGlow', 'u_impactResponse', 'u_refractionPulse'],
+      : ['u_source', 'u_resolution', 'u_time', 'u_refraction', 'u_edgeGlow', 'u_impactResponse', 'u_refractionPulse', 'u_shockwaveIntensity'],
   })
   if (!result.program) {
     throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
@@ -243,6 +251,7 @@ export const cinema2ReactorNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
   create: (context: Cinema2ModuleCreateContext) => {
     const variant = readVariant(context.module)
     if (!variant) throw new Error('Reactor native render module was activated without a valid variant.')
+    const patternSeed = context.randomness.sample('reactor-pattern-seed') * 997
     const provider = Object.freeze({
       id: `${context.module.id}:${variant}`,
       moduleId: context.module.id,
@@ -265,16 +274,22 @@ export const cinema2ReactorNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
         program.setFloat('u_time', frame.elapsedTimeSec)
 
         if (variant === 'generator') {
+          const background = colorValue(context, 'backgroundColor', [0.006, 0.009, 0.016, 1])
           const primary = colorValue(context, 'primaryColor', [0.12, 0.72, 1, 1])
           const secondary = colorValue(context, 'secondaryColor', [0.33, 0.22, 0.95, 1])
           const accent = colorValue(context, 'accentColor', [1, 0.28, 0.64, 1])
           program.setFloat('u_coreSize', numberValue(context, 'coreSize', 0.42))
           program.setFloat('u_coreIntensity', numberValue(context, 'coreIntensity', 1.15))
+          program.setFloat('u_rotationSpeed', numberValue(context, 'rotationSpeed', 0.21))
           program.setFloat('u_rayDensity', numberValue(context, 'rayDensity', 0.62))
           program.setFloat('u_energyResponse', numberValue(context, 'energyResponse', 0))
+          program.setFloat('u_buildResponse', numberValue(context, 'buildResponse', 0))
+          program.setFloat('u_buildContraction', numberValue(context, 'buildContraction', 0.66))
           program.setFloat('u_bassResponse', numberValue(context, 'bassResponse', 0))
           program.setFloat('u_impactBurst', numberValue(context, 'impactBurst', 0))
           program.setFloat('u_mediaInfluence', numberValue(context, 'mediaInfluence', 0.34))
+          program.setFloat('u_patternSeed', patternSeed)
+          program.setVec4('u_backgroundColor', background[0], background[1], background[2], background[3])
           const userMedia = context.media.get('userMedia')
           const albumArtwork = context.media.get('albumArtwork')
           const mediaOutput = context.media.get('mediaOutput')
@@ -302,6 +317,7 @@ export const cinema2ReactorNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
         program.setFloat('u_edgeGlow', numberValue(context, 'edgeGlow', 0.72))
         program.setFloat('u_impactResponse', numberValue(context, 'impactResponse', 0))
         program.setFloat('u_refractionPulse', numberValue(context, 'refractionPulse', 0))
+        program.setFloat('u_shockwaveIntensity', numberValue(context, 'shockwaveIntensity', 1.2))
         pass.run(program, target, width, height, [{ unit: 0, texture: source.texture, uniformName: 'u_source' }])
       },
     })

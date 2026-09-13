@@ -12,6 +12,9 @@ import {
   CINEMA2_ELECTRIC_STORM_BACKGROUND_ID,
   CINEMA2_ELECTRIC_STORM_BRANCHING_ID,
   CINEMA2_ELECTRIC_STORM_HAZE_ID,
+  CINEMA2_ELECTRIC_STORM_FLASH_DECAY_ID,
+  CINEMA2_ELECTRIC_STORM_FLASH_DURATION_ID,
+  CINEMA2_ELECTRIC_STORM_FLASH_INTENSITY_ID,
   CINEMA2_ELECTRIC_STORM_GLOW_ID,
   CINEMA2_ELECTRIC_STORM_LIGHTNING_COLOR_ID,
   CINEMA2_ELECTRIC_STORM_MASTER_INTENSITY_ID,
@@ -25,6 +28,7 @@ import {
   CINEMA2_ELECTRIC_STORM_PRESET_ID,
   CINEMA2_ELECTRIC_STORM_STRIKE_RATE_ID,
   CINEMA2_ELECTRIC_STORM_THICKNESS_ID,
+  CINEMA2_QUALITY_MODE_PARAMETER_ID,
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
   Cinema2AudioIntelligenceBridge,
   Cinema2ElectricStormStrikeGenerator,
@@ -39,7 +43,7 @@ import {
 function createRandomness(seed = 'electric-storm-stage14a', moduleId = 'electric-storm-procedural-lightning'): Cinema2ModuleRandomnessFacet {
   const service = new Cinema2RandomService({
     presetId: String(CINEMA2_ELECTRIC_STORM_PRESET_ID),
-    revision: 1,
+    revision: 2,
     stateKey: '{}',
     mode: 'deterministic',
     seed,
@@ -121,7 +125,17 @@ function lastUniformVec3(gl: ReturnType<typeof createCinemaMockWebGL>, name: str
   return call ? [call[1], call[2], call[3]] as const : undefined
 }
 
-describe('Cinema 2.0 Electric Storm 14B musical direction', () => {
+describe('Cinema 2.0 Electric Storm keeper production behavior', () => {
+  it('authors production metadata and safe thunder defaults through schema metadata', () => {
+    const manifest = cinema2NativePresetRegistry.get(CINEMA2_ELECTRIC_STORM_PRESET_ID)
+    expect(manifest?.revision).toBe(2)
+    expect(manifest?.metadata.tags).toContain('keeper')
+    const definitions = new Map((manifest?.parameters ?? []).map(definition => [definition.id, definition]))
+    expect(definitions.get(CINEMA2_ELECTRIC_STORM_FLASH_INTENSITY_ID)).toMatchObject({ defaultValue: 0.78, min: 0, max: 1.5 })
+    expect(definitions.get(CINEMA2_ELECTRIC_STORM_FLASH_DURATION_ID)).toMatchObject({ defaultValue: 0.46, min: 0, max: 1 })
+    expect(definitions.get(CINEMA2_ELECTRIC_STORM_FLASH_DECAY_ID)).toMatchObject({ defaultValue: 0.62, min: 0, max: 1 })
+  })
+
   it('generates bounded strike candidates with the preserved topology vocabulary', () => {
     const generator = new Cinema2ElectricStormStrikeGenerator(createRandomness())
     generator.request({ tier: 'hero', power: 1, count: 2, detail: 0.9, eventId: 'hero-a' })
@@ -165,8 +179,11 @@ describe('Cinema 2.0 Electric Storm 14B musical direction', () => {
     const strike = requestedStrikeSequence('thunder', 1).strikes[0]
     if (!strike) throw new Error('Expected a strike fixture.')
     const thunder = new Cinema2ElectricStormThunderController()
-    thunder.trigger({ ...strike, tier: 'strong' })
+    thunder.trigger({ ...strike, tier: 'strong' }, { intensity: 0.8, duration: 0.5, decay: 0.6 })
     expect(thunder.update(0.02).illumination).toBeGreaterThan(0)
+    thunder.trigger({ ...strike, tier: 'hero', startedAtSec: strike.startedAtSec + 0.08 }, { intensity: 1, duration: 1, decay: 1 })
+    for (let index = 0; index < 20; index += 1) thunder.update(0.02)
+    expect(thunder.update(0.02).illumination).toBe(0)
     thunder.reset()
     expect(thunder.update(0.02)).toEqual({ illumination: 0, active: false })
   })
@@ -182,6 +199,11 @@ describe('Cinema 2.0 Electric Storm 14B musical direction', () => {
     expect(runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 1, executedPassCount: 1, failedPassCount: 0 })
     expect(lastUniformVec3(gl, 'u_background')).toEqual([0.004, 0.007, 0.014])
     expect(lastUniformFloat(gl, 'u_fogDensity')).toBeCloseTo(0.08)
+
+    expect(runtime.getParameterState().setPersistentValue(CINEMA2_QUALITY_MODE_PARAMETER_ID, 'performance').ok).toBe(true)
+    raf.runNext(25.005)
+    expect(runtime.getPerformanceSnapshot()).toMatchObject({ resolvedQuality: 'low', renderTargetScale: 0.67 })
+    expect(runtime.getResourceManagerSnapshot().renderTargetScale).toBe(0.67)
 
     expect(runtime.getParameterState().setPersistentValue(CINEMA2_ELECTRIC_STORM_BACKGROUND_ID, [0.12, 0.04, 0.02, 1]).ok).toBe(true)
     expect(runtime.getParameterState().setPersistentValue(CINEMA2_ELECTRIC_STORM_HAZE_ID, 0.2).ok).toBe(true)
@@ -271,13 +293,13 @@ describe('Cinema 2.0 Electric Storm 14B musical direction', () => {
   })
 
   it('keeps deterministic selection reproducible while session-organic activation entropy changes the sequence', () => {
-    const deterministicA = new Cinema2RandomService({ presetId: String(CINEMA2_ELECTRIC_STORM_PRESET_ID), revision: 1, stateKey: '{}', mode: 'deterministic', seed: '14b' })
-    const deterministicB = new Cinema2RandomService({ presetId: String(CINEMA2_ELECTRIC_STORM_PRESET_ID), revision: 1, stateKey: '{}', mode: 'deterministic', seed: '14b' })
+    const deterministicA = new Cinema2RandomService({ presetId: String(CINEMA2_ELECTRIC_STORM_PRESET_ID), revision: 2, stateKey: '{}', mode: 'deterministic', seed: '14b' })
+    const deterministicB = new Cinema2RandomService({ presetId: String(CINEMA2_ELECTRIC_STORM_PRESET_ID), revision: 2, stateKey: '{}', mode: 'deterministic', seed: '14b' })
     const namespace = { moduleId: 'choreography', eventId: 'event-14b', purpose: 'strike-probability' }
     expect(deterministicB.sample(namespace, 0)).toBe(deterministicA.sample(namespace, 0))
 
-    const organicA = new Cinema2RandomService({ presetId: String(CINEMA2_ELECTRIC_STORM_PRESET_ID), revision: 1, stateKey: '{}', mode: 'session-organic', seed: '14b', activationEntropy: () => 'activation-a' })
-    const organicB = new Cinema2RandomService({ presetId: String(CINEMA2_ELECTRIC_STORM_PRESET_ID), revision: 1, stateKey: '{}', mode: 'session-organic', seed: '14b', activationEntropy: () => 'activation-b' })
+    const organicA = new Cinema2RandomService({ presetId: String(CINEMA2_ELECTRIC_STORM_PRESET_ID), revision: 2, stateKey: '{}', mode: 'session-organic', seed: '14b', activationEntropy: () => 'activation-a' })
+    const organicB = new Cinema2RandomService({ presetId: String(CINEMA2_ELECTRIC_STORM_PRESET_ID), revision: 2, stateKey: '{}', mode: 'session-organic', seed: '14b', activationEntropy: () => 'activation-b' })
     expect(organicB.sample(namespace, 0)).not.toBe(organicA.sample(namespace, 0))
   })
 
@@ -307,7 +329,7 @@ afterEach(async () => {
 })
 
 describe('Cinema 2.0 Electric Storm production selection path', () => {
-  it('selects Electric Storm 2.0 through the real preset browser, activates Stage, and exposes Stage 14B schema-driven Design and React controls', async () => {
+  it('selects Electric Storm 2.0 through the real preset browser, activates Stage, and exposes Stage 17A schema-driven Design and React controls', async () => {
     CinemaResizeObserverMock.reset()
     vi.stubGlobal('ResizeObserver', CinemaResizeObserverMock)
     const raf = createRafHarness()
@@ -344,6 +366,9 @@ describe('Cinema 2.0 Electric Storm production selection path', () => {
       CINEMA2_ELECTRIC_STORM_THICKNESS_ID,
       CINEMA2_ELECTRIC_STORM_BACKGROUND_ID,
       CINEMA2_ELECTRIC_STORM_HAZE_ID,
+      CINEMA2_ELECTRIC_STORM_FLASH_DECAY_ID,
+      CINEMA2_ELECTRIC_STORM_FLASH_DURATION_ID,
+      CINEMA2_ELECTRIC_STORM_FLASH_INTENSITY_ID,
       CINEMA2_ELECTRIC_STORM_GLOW_ID,
       CINEMA2_ELECTRIC_STORM_MUSIC_REACTIVITY_ID,
       CINEMA2_ELECTRIC_STORM_KICK_REACTION_ID,
@@ -352,6 +377,7 @@ describe('Cinema 2.0 Electric Storm production selection path', () => {
       CINEMA2_ELECTRIC_STORM_STRUCTURE_REACTION_ID,
       CINEMA2_ELECTRIC_STORM_IMPACT_SHAKE_ID,
       CINEMA2_ELECTRIC_STORM_ZOOM_PUNCH_ID,
+      CINEMA2_QUALITY_MODE_PARAMETER_ID,
     ]) expect(host?.querySelector(`[data-cinema2-control-id="${id}"]`)).not.toBeNull()
     expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_ELECTRIC_STORM_STRUCTURE_REACTION_ID}"]`)).not.toBeNull()
 

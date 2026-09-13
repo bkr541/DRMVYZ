@@ -23,7 +23,7 @@ export const CINEMA2_QUALITY_MODE_PARAMETER: Readonly<Cinema2ParameterManifest> 
   ]),
   section: 'Advanced',
   group: 'Performance',
-  order: -100,
+  order: 0,
   exposure: 'advanced' as const,
   persistence: 'user' as const,
   reset: 'authored-default' as const,

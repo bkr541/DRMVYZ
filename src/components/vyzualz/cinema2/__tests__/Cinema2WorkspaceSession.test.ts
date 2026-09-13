@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
 import {
+  CINEMA2_ELECTRIC_STORM_FLASH_DECAY_ID,
+  CINEMA2_ELECTRIC_STORM_PRESET_ID,
   CINEMA2_REACTOR_CORE_SIZE_ID,
   CINEMA2_REACTOR_PRESET_ID,
   CINEMA2_REACTOR_USER_MEDIA_SLOT_ID,
@@ -39,11 +41,11 @@ function getRuntimeFields(store: object): unknown[] {
   return Object.values(store)
 }
 
-function createRuntime(serializedParameterState?: string) {
+function createRuntime(serializedParameterState?: string, presetId = CINEMA2_REACTOR_PRESET_ID) {
   const gl = createCinemaMockWebGL()
   const canvas = new FakeCanvas(gl)
   const result = Cinema2Runtime.create(canvas as unknown as HTMLCanvasElement, {
-    presetId: CINEMA2_REACTOR_PRESET_ID,
+    presetId,
     serializedParameterState,
     mediaLoader,
   })
@@ -80,6 +82,20 @@ describe('Cinema 2.0 workspace re-entry state', () => {
       source: { id: 'workspace-media', revision: 7 },
     })
     expect(second.getResourceManagerSnapshot().disposed).toBe(false)
+    second.dispose()
+  })
+
+
+  it('round-trips Electric Storm production effect state while leaving transient thunder state runtime-owned', () => {
+    const first = createRuntime(undefined, CINEMA2_ELECTRIC_STORM_PRESET_ID)
+    expect(first.getParameterState().setPersistentValue(CINEMA2_ELECTRIC_STORM_FLASH_DECAY_ID, 0.27).ok).toBe(true)
+    const saved = captureCinema2WorkspacePresetState(first)
+    expect(saved.presetId).toBe(CINEMA2_ELECTRIC_STORM_PRESET_ID)
+    first.dispose()
+
+    const second = createRuntime(saved.serializedParameterState, CINEMA2_ELECTRIC_STORM_PRESET_ID)
+    expect(second.getParameterState().getValue(CINEMA2_ELECTRIC_STORM_FLASH_DECAY_ID)).toBe(0.27)
+    expect(second.getModuleRuntimeSnapshot()).toMatchObject({ failedModuleCount: 0 })
     second.dispose()
   })
 
