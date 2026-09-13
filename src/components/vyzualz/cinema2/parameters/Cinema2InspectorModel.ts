@@ -1,4 +1,4 @@
-import type { Cinema2JsonValue, Cinema2ParameterConditionManifest } from '../contracts/Cinema2NativePresetManifest'
+import type { Cinema2JsonValue, Cinema2ParameterConditionManifest, Cinema2ParameterId } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2CompiledPresetPlan } from '../presets/Cinema2PresetCompiler'
 import type { Cinema2CompiledParameterDefinition } from './Cinema2ParameterSchema'
 import type { Cinema2ParameterStateSnapshot } from './Cinema2ParameterState'
@@ -33,6 +33,7 @@ export function createCinema2InspectorModel(
 ): readonly Readonly<Cinema2InspectorSectionModel>[] {
   const availableCapabilities = new Set(plan.capabilities.available)
   const values = { ...state.persistentValues, ...state.runtimeOnlyValues }
+  const cameraControlParameters = collectCameraControlParameterIds(plan)
   const ordered = plan.parameters.definitions
     .map((definition, authoredIndex) => ({ definition, authoredIndex }))
     .sort((left, right) => (
@@ -44,7 +45,7 @@ export function createCinema2InspectorModel(
 
   for (const { definition } of ordered) {
     if (definition.exposure === 'hidden') continue
-    if (resolveSurface(definition) !== surface) continue
+    if (resolveSurface(definition, cameraControlParameters) !== surface) continue
     if (!conditionsPass(definition.visibleWhen, values, availableCapabilities)) continue
 
     const capabilityEnabled = definition.capabilities == null
@@ -62,7 +63,7 @@ export function createCinema2InspectorModel(
           ? 'Unavailable for the current parameter state.'
           : null
 
-    const sectionLabel = resolveSectionLabel(definition, surface)
+    const sectionLabel = resolveSectionLabel(definition, surface, cameraControlParameters)
     let section = sectionMap.get(sectionLabel)
     if (!section) {
       section = { label: sectionLabel, groups: new Map() }
@@ -90,14 +91,29 @@ export function createCinema2InspectorModel(
   })))
 }
 
-function resolveSurface(definition: Readonly<Cinema2CompiledParameterDefinition>): Cinema2InspectorSurface {
+function collectCameraControlParameterIds(plan: Readonly<Cinema2CompiledPresetPlan>): ReadonlySet<Cinema2ParameterId> {
+  const ids = new Set<Cinema2ParameterId>()
+  const cameras = plan.manifest.cameras ?? []
+  const requested = plan.manifest.defaults?.camera?.$ref
+  const activeCamera = cameras.find(camera => camera.id === requested) ?? cameras[0] ?? null
+  for (const ref of Object.values(activeCamera?.controls ?? {})) if (ref) ids.add(ref.$ref)
+  return ids
+}
+
+function resolveSurface(
+  definition: Readonly<Cinema2CompiledParameterDefinition>,
+  cameraControlParameters: ReadonlySet<Cinema2ParameterId>,
+): Cinema2InspectorSurface {
+  if (cameraControlParameters.has(definition.id)) return 'design'
   return definition.section?.trim().toLowerCase() === 'react' ? 'react' : 'design'
 }
 
 function resolveSectionLabel(
   definition: Readonly<Cinema2CompiledParameterDefinition>,
   surface: Cinema2InspectorSurface,
+  cameraControlParameters: ReadonlySet<Cinema2ParameterId>,
 ): string {
+  if (cameraControlParameters.has(definition.id)) return 'Camera'
   const authored = definition.section?.trim()
   if (authored) return authored
   return surface === 'react' ? 'React' : 'Parameters'

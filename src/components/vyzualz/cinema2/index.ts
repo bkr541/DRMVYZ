@@ -45,6 +45,16 @@ export {
   isCinema2StableId,
   validateCinema2NativePresetManifestIdentity,
   type Cinema2CameraId,
+  type Cinema2CameraControlBindingsManifest,
+  type Cinema2CameraOrbitRigManifest,
+  type Cinema2CameraPathPointManifest,
+  type Cinema2CameraPathRigManifest,
+  type Cinema2CameraProjection,
+  type Cinema2CameraRigManifest,
+  type Cinema2CameraSafetyManifest,
+  type Cinema2CameraStaticRigManifest,
+  type Cinema2CameraTransitionEasing,
+  type Cinema2CameraTransitionManifest,
   type Cinema2CoordinateSpace,
   type Cinema2CameraManifest,
   type Cinema2CapabilityId,
@@ -346,7 +356,6 @@ export {
 
 export {
   Cinema2Object3DRenderer,
-  createCinema2FoundationWorldToClip,
   type Cinema2Object3DDrawRequest,
   type Cinema2Object3DMaterial,
   type Cinema2Object3DRendererSnapshot,
@@ -356,6 +365,17 @@ export {
   Cinema2SpatialRuntime,
   type Cinema2ResolvedSpatialNode,
 } from './spatial/Cinema2SpatialRuntime'
+
+export {
+  CINEMA2_CAMERA_RUNTIME_VERSION,
+  Cinema2CameraRuntime,
+  createCinema2OrthographicProjection,
+  createCinema2PerspectiveProjection,
+  type Cinema2CameraFrame,
+  type Cinema2CameraRigKind,
+  type Cinema2CameraRuntimeSnapshot,
+  type Cinema2CameraRuntimeSource,
+} from './spatial/Cinema2CameraRuntime'
 
 export {
   CINEMA2_REACTOR_NATIVE_MODULE_TYPE_ID,

@@ -527,9 +527,11 @@ function validateReferencesAndCombinations(
   }
 
   for (const [cameraIndex, camera] of readArray(manifest.cameras, '$.cameras', diagnostics).entries()) {
+    const base = `$.cameras[${cameraIndex}]`
     if (camera.projection !== 'perspective' && camera.projection !== 'orthographic') {
-      diagnostics.push(error('CINEMA2_PRESET_COMBINATION_INVALID', `Unsupported camera projection "${String(camera.projection)}".`, `$.cameras[${cameraIndex}].projection`))
+      diagnostics.push(error('CINEMA2_PRESET_COMBINATION_INVALID', `Unsupported camera projection "${String(camera.projection)}".`, `${base}.projection`))
     }
+    validateCameraDefinition(camera, base, manifest, index, diagnostics)
   }
 
 
@@ -704,6 +706,191 @@ function bindingParameterTypes(value: Cinema2JsonValue): readonly Cinema2Paramet
     if (value.length === 4) return ['color']
   }
   return []
+}
+
+function validateCameraDefinition(
+  camera: NonNullable<Cinema2NativePresetManifest['cameras']>[number],
+  path: string,
+  manifest: Cinema2NativePresetManifest,
+  index: ManifestIndex,
+  diagnostics: Cinema2PresetDiagnostic[],
+): void {
+  if (camera.fovDegrees != null && (!Number.isFinite(camera.fovDegrees) || camera.fovDegrees <= 0 || camera.fovDegrees >= 180)) {
+    diagnostics.push(error('CINEMA2_PRESET_CAMERA_VALUE_INVALID', 'Perspective FOV must be finite and between 0 and 180 degrees.', `${path}.fovDegrees`))
+  }
+  if (camera.orthographicHeight != null && (!Number.isFinite(camera.orthographicHeight) || camera.orthographicHeight <= 0)) {
+    diagnostics.push(error('CINEMA2_PRESET_CAMERA_VALUE_INVALID', 'Orthographic height must be a positive finite number.', `${path}.orthographicHeight`))
+  }
+  if (camera.near != null && (!Number.isFinite(camera.near) || camera.near <= 0)) {
+    diagnostics.push(error('CINEMA2_PRESET_CAMERA_VALUE_INVALID', 'Camera near must be a positive finite number.', `${path}.near`))
+  }
+  if (camera.far != null && (!Number.isFinite(camera.far) || camera.far <= 0)) {
+    diagnostics.push(error('CINEMA2_PRESET_CAMERA_VALUE_INVALID', 'Camera far must be a positive finite number.', `${path}.far`))
+  }
+  if (typeof camera.near === 'number' && typeof camera.far === 'number' && camera.far <= camera.near) {
+    diagnostics.push(error('CINEMA2_PRESET_CAMERA_VALUE_INVALID', 'Camera far must be greater than near.', `${path}.far`))
+  }
+  if (camera.smoothingMs != null && (!Number.isFinite(camera.smoothingMs) || camera.smoothingMs < 0)) {
+    diagnostics.push(error('CINEMA2_PRESET_CAMERA_VALUE_INVALID', 'Camera smoothingMs must be a finite non-negative number.', `${path}.smoothingMs`))
+  }
+
+  const rig = camera.rig
+  if (rig != null) {
+    if (typeof rig !== 'object' || Array.isArray(rig)) {
+      diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', 'Camera rig must be an object.', `${path}.rig`))
+    } else if (rig.kind === 'orbit') {
+      if (rig.radius != null && (!Number.isFinite(rig.radius) || rig.radius <= 0)) {
+        diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', 'Orbit radius must be a positive finite number.', `${path}.rig.radius`))
+      }
+      for (const key of ['azimuthDegrees', 'elevationDegrees', 'angularVelocityDegreesPerSecond'] as const) {
+        if (rig[key] != null && !Number.isFinite(rig[key])) diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', `${key} must be finite.`, `${path}.rig.${key}`))
+      }
+      if (typeof rig.elevationDegrees === 'number' && (rig.elevationDegrees <= -90 || rig.elevationDegrees >= 90)) {
+        diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', 'Orbit elevationDegrees must stay between -90 and 90 degrees.', `${path}.rig.elevationDegrees`))
+      }
+    } else if (rig.kind === 'path' || rig.kind === 'fly') {
+      if (!Array.isArray(rig.points) || rig.points.length < 2) {
+        diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', 'Path/fly rigs require at least two authored points.', `${path}.rig.points`))
+      } else {
+        rig.points.forEach((point, pointIndex) => {
+          const pointPath = `${path}.rig.points[${pointIndex}]`
+          if (!isPlainObject(point)) {
+            diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', 'Camera path point must be an object.', pointPath))
+            return
+          }
+          validateCameraVector3(point.position, `${pointPath}.position`, diagnostics)
+          if (point.target != null) validateCameraVector3(point.target, `${pointPath}.target`, diagnostics)
+          const pointFov = point.fovDegrees
+          if (pointFov != null && (typeof pointFov !== 'number' || !Number.isFinite(pointFov) || pointFov <= 0 || pointFov >= 180)) {
+            diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', 'Path point FOV must be finite and between 0 and 180 degrees.', `${pointPath}.fovDegrees`))
+          }
+        })
+      }
+      if (rig.durationSeconds != null && (!Number.isFinite(rig.durationSeconds) || rig.durationSeconds <= 0)) {
+        diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', 'Path/fly durationSeconds must be a positive finite number.', `${path}.rig.durationSeconds`))
+      }
+      if (rig.speed != null && (!Number.isFinite(rig.speed) || rig.speed <= 0)) {
+        diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', 'Path/fly speed must be a positive finite number.', `${path}.rig.speed`))
+      }
+      if (rig.durationSeconds == null && rig.speed == null) {
+        diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', 'Path/fly rigs require durationSeconds or speed.', `${path}.rig`))
+      }
+    } else if (rig.kind !== 'static') {
+      diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', `Unsupported camera rig kind "${String(rig.kind)}".`, `${path}.rig.kind`))
+    }
+  }
+
+  const transition = camera.transition
+  if (transition != null) {
+    if (typeof transition !== 'object' || Array.isArray(transition)) {
+      diagnostics.push(error('CINEMA2_PRESET_CAMERA_TRANSITION_INVALID', 'Camera transition must be an object.', `${path}.transition`))
+    } else {
+      if (!Number.isFinite(transition.durationSeconds) || transition.durationSeconds <= 0) {
+        diagnostics.push(error('CINEMA2_PRESET_CAMERA_TRANSITION_INVALID', 'Camera transition durationSeconds must be positive and finite.', `${path}.transition.durationSeconds`))
+      }
+      if (transition.easing != null && transition.easing !== 'linear' && transition.easing !== 'smoothstep') {
+        diagnostics.push(error('CINEMA2_PRESET_CAMERA_TRANSITION_INVALID', 'Camera transition easing must be linear or smoothstep.', `${path}.transition.easing`))
+      }
+      if (transition.fromPosition != null) validateCameraVector3(transition.fromPosition, `${path}.transition.fromPosition`, diagnostics)
+      if (transition.fromTarget != null) validateCameraVector3(transition.fromTarget, `${path}.transition.fromTarget`, diagnostics)
+      if (transition.fromFovDegrees != null && (!Number.isFinite(transition.fromFovDegrees) || transition.fromFovDegrees <= 0 || transition.fromFovDegrees >= 180)) {
+        diagnostics.push(error('CINEMA2_PRESET_CAMERA_TRANSITION_INVALID', 'Transition FOV must be finite and between 0 and 180 degrees.', `${path}.transition.fromFovDegrees`))
+      }
+    }
+  }
+
+  validateCameraSafety(camera.safety, `${path}.safety`, diagnostics)
+  validateCameraControls(camera, `${path}.controls`, manifest, index, diagnostics)
+}
+
+function validateCameraControls(
+  camera: NonNullable<Cinema2NativePresetManifest['cameras']>[number],
+  path: string,
+  manifest: Cinema2NativePresetManifest,
+  index: ManifestIndex,
+  diagnostics: Cinema2PresetDiagnostic[],
+): void {
+  const controls = camera.controls
+  if (controls == null) return
+  if (typeof controls !== 'object' || Array.isArray(controls)) {
+    diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'Camera controls must be an object of parameter references.', path))
+    return
+  }
+  const expected = new Map<string, readonly Cinema2ParameterType[]>([
+    ['positionOffset', ['vec3']],
+    ['targetOffset', ['vec3']],
+    ['fovDegrees', ['float', 'integer']],
+    ['orbitRadius', ['float', 'integer']],
+    ['orbitAzimuthDegrees', ['float', 'integer']],
+    ['orbitElevationDegrees', ['float', 'integer']],
+    ['pathProgress', ['float', 'integer']],
+    ['smoothingMs', ['float', 'integer']],
+  ])
+  for (const [name, ref] of Object.entries(controls)) {
+    const controlPath = `${path}.${name}`
+    const types = expected.get(name)
+    if (!types) {
+      diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', `Unsupported camera control "${name}".`, controlPath))
+      continue
+    }
+    const parameterId = validateRef(ref, index.parameters.ids, controlPath, 'parameter', diagnostics)
+    const parameter = parameterId ? manifest.parameters?.find(candidate => candidate.id === parameterId) : null
+    if (parameter && !types.includes(parameter.type)) {
+      diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROL_TYPE_MISMATCH', `Camera control "${name}" requires parameter type ${types.join(' or ')}, not "${parameter.type}".`, controlPath))
+    }
+    if (name.startsWith('orbit') && camera.rig?.kind !== 'orbit') {
+      diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', `Camera control "${name}" requires an orbit rig.`, controlPath))
+    }
+    if (name === 'pathProgress' && camera.rig?.kind !== 'path' && camera.rig?.kind !== 'fly') {
+      diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'pathProgress requires a path or fly rig.', controlPath))
+    }
+  }
+}
+
+function validateCameraSafety(
+  safety: NonNullable<NonNullable<Cinema2NativePresetManifest['cameras']>[number]['safety']> | undefined,
+  path: string,
+  diagnostics: Cinema2PresetDiagnostic[],
+): void {
+  if (safety == null) return
+  if (typeof safety !== 'object' || Array.isArray(safety)) {
+    diagnostics.push(error('CINEMA2_PRESET_CAMERA_SAFETY_INVALID', 'Camera safety must be an object.', path))
+    return
+  }
+  if (safety.minPosition != null) validateCameraVector3(safety.minPosition, `${path}.minPosition`, diagnostics)
+  if (safety.maxPosition != null) validateCameraVector3(safety.maxPosition, `${path}.maxPosition`, diagnostics)
+  if (safety.minPosition && safety.maxPosition && safety.minPosition.some((value, index) => value > safety.maxPosition![index])) {
+    diagnostics.push(error('CINEMA2_PRESET_CAMERA_SAFETY_INVALID', 'Camera minPosition components must not exceed maxPosition.', path))
+  }
+  for (const key of ['maxPositionOffset', 'maxTargetOffset'] as const) {
+    const value = safety[key]
+    if (value != null) {
+      validateCameraVector3(value, `${path}.${key}`, diagnostics)
+      if (value.some(component => component < 0)) diagnostics.push(error('CINEMA2_PRESET_CAMERA_SAFETY_INVALID', `${key} components must be non-negative.`, `${path}.${key}`))
+    }
+  }
+  for (const key of ['minFovDegrees', 'maxFovDegrees', 'minNear', 'maxFar'] as const) {
+    const value = safety[key]
+    if (value != null && (!Number.isFinite(value) || value <= 0)) diagnostics.push(error('CINEMA2_PRESET_CAMERA_SAFETY_INVALID', `${key} must be a positive finite number.`, `${path}.${key}`))
+  }
+  if (typeof safety.minFovDegrees === 'number' && safety.minFovDegrees >= 180) {
+    diagnostics.push(error('CINEMA2_PRESET_CAMERA_SAFETY_INVALID', 'Camera minFovDegrees must stay below 180 degrees.', `${path}.minFovDegrees`))
+  }
+  if (typeof safety.maxFovDegrees === 'number' && safety.maxFovDegrees >= 180) {
+    diagnostics.push(error('CINEMA2_PRESET_CAMERA_SAFETY_INVALID', 'Camera maxFovDegrees must stay below 180 degrees.', `${path}.maxFovDegrees`))
+  }
+  if (typeof safety.minFovDegrees === 'number' && typeof safety.maxFovDegrees === 'number' && safety.minFovDegrees >= safety.maxFovDegrees) {
+    diagnostics.push(error('CINEMA2_PRESET_CAMERA_SAFETY_INVALID', 'Camera minFovDegrees must be less than maxFovDegrees.', path))
+  }
+  if (typeof safety.minNear === 'number' && typeof safety.maxFar === 'number' && safety.maxFar <= safety.minNear) {
+    diagnostics.push(error('CINEMA2_PRESET_CAMERA_SAFETY_INVALID', 'Camera maxFar must be greater than minNear.', path))
+  }
+}
+
+function validateCameraVector3(value: unknown, path: string, diagnostics: Cinema2PresetDiagnostic[]): void {
+  if (!Array.isArray(value) || value.length !== 3 || value.some(component => typeof component !== 'number' || !Number.isFinite(component))) {
+    diagnostics.push(error('CINEMA2_PRESET_CAMERA_VALUE_INVALID', 'Camera vector must contain exactly three finite numbers.', path))
+  }
 }
 
 function validateEffectQuality(

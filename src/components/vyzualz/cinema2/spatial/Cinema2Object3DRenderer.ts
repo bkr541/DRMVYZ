@@ -9,8 +9,7 @@ export interface Cinema2Object3DMaterial {
 
 export interface Cinema2Object3DDrawRequest {
   modelMatrix: Cinema2Matrix4
-  width: number
-  height: number
+  worldToClipMatrix: Cinema2Matrix4
   material?: Readonly<Cinema2Object3DMaterial>
 }
 
@@ -23,9 +22,6 @@ export interface Cinema2Object3DRendererSnapshot {
 }
 
 const DEFAULT_COLOR = Object.freeze([1, 1, 1, 1]) as Cinema2Color
-const WORLD_HALF_HEIGHT = 2.5
-const WORLD_DEPTH_HALF_RANGE = 50
-
 const VERTEX_SHADER = `#version 300 es
 precision highp float;
 layout(location = 0) in vec3 aPosition;
@@ -45,11 +41,7 @@ void main() {
   outColor = vec4(rgb, uColor.a);
 }`
 
-/**
- * Focused Stage 12A mesh renderer. The orthographic world-to-clip transform is
- * intentionally camera-free; Stage 12B can replace this projection input with
- * final camera authority without changing object or Scene Graph ownership.
- */
+/** Focused mesh renderer. Final world view/projection is supplied only by Camera Runtime. */
 export class Cinema2Object3DRenderer {
   private readonly vao: WebGLVertexArrayObject
   private readonly positionBuffer: WebGLBuffer
@@ -111,8 +103,6 @@ export class Cinema2Object3DRenderer {
 
   draw(request: Readonly<Cinema2Object3DDrawRequest>): void {
     if (this.disposed) throw new Error('Cinema 2.0 Object3D renderer is disposed.')
-    const width = Math.max(1, Math.round(request.width))
-    const height = Math.max(1, Math.round(request.height))
     const color = normalizeColor(request.material?.color ?? DEFAULT_COLOR)
     const emissive = Math.max(0, finite(request.material?.emissiveIntensity, 0))
     const gl = this.gl
@@ -124,7 +114,7 @@ export class Cinema2Object3DRenderer {
     gl.depthMask(true)
     gl.disable(gl.CULL_FACE)
     gl.uniformMatrix4fv(this.modelLocation, false, new Float32Array(request.modelMatrix))
-    gl.uniformMatrix4fv(this.worldToClipLocation, false, createFoundationWorldToClip(width, height))
+    gl.uniformMatrix4fv(this.worldToClipLocation, false, new Float32Array(request.worldToClipMatrix))
     gl.uniform4fv(this.colorLocation, new Float32Array(color))
     gl.uniform1f(this.emissiveLocation, emissive)
     gl.drawElements(gl.TRIANGLES, this.mesh.indices.length, gl.UNSIGNED_INT, 0)
@@ -151,21 +141,6 @@ export class Cinema2Object3DRenderer {
     this.deletedBufferCount = 2
     this.gl.deleteVertexArray(this.vao)
   }
-}
-
-export function createCinema2FoundationWorldToClip(width: number, height: number): Float32Array {
-  return createFoundationWorldToClip(width, height)
-}
-
-function createFoundationWorldToClip(width: number, height: number): Float32Array {
-  const aspect = Math.max(1e-6, width / Math.max(1, height))
-  const halfWidth = WORLD_HALF_HEIGHT * aspect
-  return new Float32Array([
-    1 / halfWidth, 0, 0, 0,
-    0, 1 / WORLD_HALF_HEIGHT, 0, 0,
-    0, 0, -1 / WORLD_DEPTH_HALF_RANGE, 0,
-    0, 0, 0, 1,
-  ])
 }
 
 function createProgram(gl: WebGL2RenderingContext): WebGLProgram {

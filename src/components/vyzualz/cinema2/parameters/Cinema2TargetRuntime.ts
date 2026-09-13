@@ -277,6 +277,7 @@ export function compileCinema2TargetPlan(
     addTransformTargets(entity, camera.transform, addTarget)
     addTarget(entity, 'target', 'vec3', camera.target ?? [0, 0, 0])
     if (camera.projection === 'perspective') addTarget(entity, 'fovDegrees', 'number', camera.fovDegrees ?? 50, { min: 1, max: 179 })
+    else addTarget(entity, 'orthographicHeight', 'number', camera.orthographicHeight ?? 5, { min: 0.0001 })
     addTarget(entity, 'near', 'number', camera.near ?? 0.1, { min: 0.0001 })
     addTarget(entity, 'far', 'number', camera.far ?? 1000, { min: 0.0001 })
   }
@@ -454,6 +455,32 @@ export class Cinema2FinalValueResolver {
   ): Cinema2ResolvedTargetValue {
     const target = this.targets.get(targetId) ?? null
     if (!target) return failureValue('CINEMA2_TARGET_UNKNOWN', `Unknown Cinema 2.0 target "${targetId}".`, String(targetId))
+    const rawBase = this.resolveBaseValue(target) ?? target.authoredBaseValue
+    return this.resolveTargetFromBase(target, rawBase, contributions, userAuthority)
+  }
+
+  /**
+   * Resolves canonical transient contributions against a caller-owned dynamic
+   * base. Camera Runtime uses this after rig/transition/user-offset resolution so
+   * choreography still composes through the one shared target authority.
+   */
+  resolveFromBase(
+    targetId: Cinema2TargetId,
+    baseValue: Cinema2JsonValue,
+    contributions: readonly Readonly<Cinema2TargetContribution>[] = [],
+    userAuthority: Cinema2TargetUserAuthority = 'base',
+  ): Cinema2ResolvedTargetValue {
+    const target = this.targets.get(targetId) ?? null
+    if (!target) return failureValue('CINEMA2_TARGET_UNKNOWN', `Unknown Cinema 2.0 target "${targetId}".`, String(targetId))
+    return this.resolveTargetFromBase(target, baseValue, contributions, userAuthority)
+  }
+
+  private resolveTargetFromBase(
+    target: Readonly<Cinema2TargetHandle>,
+    rawBase: Cinema2JsonValue | undefined,
+    contributions: readonly Readonly<Cinema2TargetContribution>[],
+    userAuthority: Cinema2TargetUserAuthority,
+  ): Cinema2ResolvedTargetValue {
     if (target.capabilityAvailability !== 'available') {
       return failureValue(
         target.capabilityAvailability === 'unavailable' ? 'CINEMA2_TARGET_CAPABILITY_UNAVAILABLE' : 'CINEMA2_TARGET_CAPABILITY_UNRESOLVED',
@@ -467,7 +494,6 @@ export class Cinema2FinalValueResolver {
     }
 
     const diagnostics: Cinema2TargetDiagnostic[] = []
-    const rawBase = this.resolveBaseValue(target) ?? target.authoredBaseValue
     const normalizedBase = normalizeTargetValue(target, rawBase, `${target.id}.base`)
     diagnostics.push(...normalizedBase.diagnostics)
     if (!normalizedBase.ok || normalizedBase.value === undefined) {
@@ -482,7 +508,7 @@ export class Cinema2FinalValueResolver {
       return freeze({ ok: false, target, value: cloneJson(normalizedBase.value), diagnostics: Object.freeze(diagnostics) })
     }
 
-    const sorted = [...(this.transientContributions.get(targetId) ?? []), ...contributions].sort(compareContributions)
+    const sorted = [...(this.transientContributions.get(target.id) ?? []), ...contributions].sort(compareContributions)
     const compatible: Cinema2TargetContribution[] = []
     for (const contribution of sorted) {
       if (contribution.operation === 'action') {

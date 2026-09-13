@@ -18,6 +18,7 @@ import type {
 } from '../render/Cinema2RenderGraph'
 import type { Cinema2CompiledSceneGraph } from '../scene/Cinema2SceneGraph'
 import type { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
+import type { Cinema2CameraRuntime } from '../spatial/Cinema2CameraRuntime'
 import {
   Cinema2ResourceManager,
   type Cinema2RenderTargetBinding,
@@ -45,6 +46,7 @@ export interface Cinema2RenderGraphExecutorOptions {
   availableCapabilities?: Iterable<Cinema2CapabilityId>
   effectRuntime?: Cinema2EffectRuntime
   spatialRuntime?: Cinema2SpatialRuntime
+  cameraRuntime?: Cinema2CameraRuntime
 }
 
 interface TargetRecord {
@@ -72,6 +74,7 @@ export class Cinema2RenderGraphExecutor {
   private readonly availableCapabilities: ReadonlySet<Cinema2CapabilityId>
   private readonly effectRuntime: Cinema2EffectRuntime | null
   private readonly spatialRuntime: Cinema2SpatialRuntime | null
+  private readonly cameraRuntime: Cinema2CameraRuntime | null
   private diagnostics: Cinema2RenderGraphExecutorDiagnostic[] = []
   private frameCount = 0
   private executedPassCount = 0
@@ -92,6 +95,7 @@ export class Cinema2RenderGraphExecutor {
     this.availableCapabilities = new Set(options.availableCapabilities ?? [])
     this.effectRuntime = options.effectRuntime ?? null
     this.spatialRuntime = options.spatialRuntime ?? null
+    this.cameraRuntime = options.cameraRuntime ?? null
     for (const target of plan.targets) this.targetHandles.set(target.id, target)
     for (const pass of plan.passes) this.passById.set(pass.id, pass)
   }
@@ -303,6 +307,7 @@ export class Cinema2RenderGraphExecutor {
         height: target?.height ?? frame.viewport.height,
         depthAvailable: target?.depthRenderbuffer != null,
         spatialNodes: this.resolveSpatialNodesForModule(pass, moduleId),
+        camera: provider.intent === 'world' ? this.cameraRuntime?.getFrame() : undefined,
         inputs,
       })
     }

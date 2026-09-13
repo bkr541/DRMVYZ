@@ -7,6 +7,7 @@ import type {
 import type { Cinema2AudioIntelligenceFrame } from '../audio/Cinema2AudioIntelligenceBridge'
 import type { Cinema2VisualDirectorFrame } from '../director/Cinema2VisualDirector'
 import type { Cinema2ResolvedSpatialNode } from '../spatial/Cinema2SpatialRuntime'
+import type { Cinema2CameraFrame } from '../spatial/Cinema2CameraRuntime'
 import type { Cinema2ManagedMediaResource, Cinema2MediaSlotSnapshot } from '../media/Cinema2MediaSlotRuntime'
 import type {
   Cinema2ActionDispatchResult,
@@ -116,6 +117,8 @@ export interface Cinema2ModuleRenderExecutionContext {
   depthAvailable?: boolean
   /** Final target-resolved Scene Graph nodes associated with this module for the current pass. */
   spatialNodes?: readonly Readonly<Cinema2ResolvedSpatialNode>[]
+  /** Final semantic world-camera state. Screen-space providers may ignore it. */
+  camera?: Readonly<Cinema2CameraFrame>
   /** Compiled upstream render inputs. Modules may read them but never own their lifetime. */
   inputs?: readonly Readonly<Cinema2ModuleRenderInput>[]
 }

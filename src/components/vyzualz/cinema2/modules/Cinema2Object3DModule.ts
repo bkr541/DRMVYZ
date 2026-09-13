@@ -98,13 +98,15 @@ export const cinema2Object3DModuleDefinition: Readonly<Cinema2ModuleTypeDefiniti
         if (!execution.depthAvailable) {
           throw new Error(`Cinema 2.0 Object3D module "${context.module.id}" requires a render target with a depth attachment.`)
         }
+        if (!execution.camera) {
+          throw new Error(`Cinema 2.0 Object3D module "${context.module.id}" requires final Camera Runtime state.`)
+        }
         const color = resolveColor(context, 'color', config.material.color)
         const emissiveIntensity = resolveNumber(context, 'emissiveIntensity', config.material.emissiveIntensity, 0)
         for (const node of drawable) {
           renderer.draw({
             modelMatrix: node.worldMatrix,
-            width: execution.width,
-            height: execution.height,
+            worldToClipMatrix: execution.camera.viewProjectionMatrix,
             material: { color, emissiveIntensity },
           })
         }

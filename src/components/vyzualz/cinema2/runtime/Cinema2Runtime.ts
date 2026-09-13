@@ -34,6 +34,7 @@ import {
 } from '../modules/Cinema2ModuleRegistry'
 import type { Cinema2ModuleRenderPassProvider } from '../modules/Cinema2ModuleContracts'
 import { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
+import { Cinema2CameraRuntime, type Cinema2CameraRuntimeSnapshot } from '../spatial/Cinema2CameraRuntime'
 import { Cinema2EffectRuntime } from '../effects/Cinema2EffectRuntime'
 import { Cinema2EffectRegistry, cinema2NativeEffectRegistry } from '../effects/Cinema2EffectRegistry'
 import type { Cinema2EffectRuntimeSnapshot } from '../effects/Cinema2EffectContracts'
@@ -145,6 +146,7 @@ const CINEMA2_RUNTIME_AVAILABLE_CAPABILITIES = Object.freeze([
   'render.depth',
   'render.history',
   'scene.3d',
+  'camera.world',
   'media.image',
   'media.video',
   'media.svg',
@@ -291,6 +293,7 @@ export class Cinema2Runtime {
   private readonly randomService: Cinema2RandomService
   private readonly targetResolver: Cinema2FinalValueResolver
   private readonly spatialRuntime: Cinema2SpatialRuntime
+  private readonly cameraRuntime: Cinema2CameraRuntime
   private readonly choreographyRuntime: Cinema2ChoreographyRuntime
   private readonly mediaSlotRuntime: Cinema2MediaSlotRuntime
   private readonly moduleRuntime: Cinema2ModuleRuntime
@@ -350,6 +353,7 @@ export class Cinema2Runtime {
       },
     })
     this.spatialRuntime = new Cinema2SpatialRuntime(compiledPresetPlan.scene, compiledPresetPlan.targets.targets, this.targetResolver)
+    this.cameraRuntime = new Cinema2CameraRuntime(compiledPresetPlan, parameterState, this.targetResolver, this.spatialRuntime)
     this.choreographyRuntime = new Cinema2ChoreographyRuntime(compiledPresetPlan, parameterState, this.targetResolver, this.randomService)
     this.mediaSlotRuntime = new Cinema2MediaSlotRuntime(gl, compiledPresetPlan.manifest.mediaSlots ?? [], options.mediaLoader)
     this.moduleRuntime = new Cinema2ModuleRuntime(gl, compiledPresetPlan, this.targetResolver, moduleRegistry, this.mediaSlotRuntime)
@@ -361,6 +365,7 @@ export class Cinema2Runtime {
       availableCapabilities: CINEMA2_RUNTIME_AVAILABLE_CAPABILITIES,
       effectRuntime: this.effectRuntime,
       spatialRuntime: this.spatialRuntime,
+      cameraRuntime: this.cameraRuntime,
     })
     this.contextHandle = registerDrmvyzWebGLContext(gl, {
       lifetime: 'live-reusable',
@@ -376,6 +381,7 @@ export class Cinema2Runtime {
       this.phase = 'context-lost'
       this.statusMessage = 'Cinema 2.0 paused because its WebGL2 context was lost.'
       this.choreographyRuntime.reset('context-lost')
+      this.cameraRuntime.reset()
       this.renderGraphExecutor.handleContextLost()
       this.effectRuntime.handleContextLost()
       this.historyService.handleContextLost()
@@ -393,6 +399,7 @@ export class Cinema2Runtime {
       this.contextGeneration += 1
       this.statusMessage = null
       try {
+        this.cameraRuntime.reset()
         this.resourceManager.handleContextRestored()
         this.historyService.handleContextRestored()
         this.renderGraphExecutor.handleContextRestored()
@@ -423,6 +430,7 @@ export class Cinema2Runtime {
         canvas.removeEventListener('webglcontextlost', this.onContextLostHandler)
       }
       this.renderGraphExecutor.dispose()
+      this.cameraRuntime.dispose()
       this.spatialRuntime.dispose()
       this.choreographyRuntime.dispose()
       this.effectRuntime.dispose()
@@ -531,6 +539,11 @@ export class Cinema2Runtime {
     return this.spatialRuntime
   }
 
+  /** Final semantic world-camera authority for the active Cinema 2.0 preset. */
+  getCameraRuntimeSnapshot(): Readonly<Cinema2CameraRuntimeSnapshot> {
+    return this.cameraRuntime.getSnapshot()
+  }
+
   /** Most recent immutable Audio Intelligence snapshot captured for a visual frame. */
   getAudioIntelligenceFrame(): Readonly<Cinema2AudioIntelligenceFrame> | null {
     return this.audioIntelligenceFrame
@@ -620,6 +633,7 @@ export class Cinema2Runtime {
     }
 
     this.renderGraphExecutor.dispose()
+    this.cameraRuntime.dispose()
     this.spatialRuntime.dispose()
     this.choreographyRuntime.dispose()
     this.effectRuntime.dispose()
@@ -700,6 +714,7 @@ export class Cinema2Runtime {
         director: this.visualDirectorFrame,
       })
       this.choreographyRuntime.update(frame)
+      this.cameraRuntime.update(frame)
       this.moduleRuntime.update(frame)
       this.renderGraphExecutor.executeFrame(frame, this.moduleRuntime.getRenderPassProviders())
       this.frameCount = visualFrameId

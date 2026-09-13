@@ -15,7 +15,7 @@ import {
   compileCinema2Object3DSvgGeometry,
   compileCinema2Object3DTextGeometry,
 } from '../spatial/Cinema2Object3DGeometry'
-import { createCinema2FoundationWorldToClip } from '../spatial/Cinema2Object3DRenderer'
+import { createCinema2OrthographicProjection } from '../spatial/Cinema2CameraRuntime'
 import { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
@@ -23,6 +23,7 @@ import {
   cinema2NamespacedId,
   cinema2Ref,
   cinema2StableId,
+  type Cinema2CameraId,
   type Cinema2LayerId,
   type Cinema2ModuleId,
   type Cinema2NativePresetManifest,
@@ -120,6 +121,7 @@ function createSpatialManifest(): Cinema2NativePresetManifest {
 function createHybridManifest(): Cinema2NativePresetManifest {
   const presetId = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.test-object3d-production')
   const backgroundId = cinema2StableId<Cinema2ModuleId>('hybrid-background')
+  const cameraId = cinema2StableId<Cinema2CameraId>('hybrid-camera')
   const objectId = cinema2StableId<Cinema2ModuleId>('hybrid-object3d')
   const screenRootId = cinema2StableId<Cinema2SceneNodeId>('hybrid-screen-root')
   const screenNodeId = cinema2StableId<Cinema2SceneNodeId>('hybrid-screen-node')
@@ -145,6 +147,7 @@ function createHybridManifest(): Cinema2NativePresetManifest {
       { id: 'render.webgl2', requirement: 'required' },
       { id: 'render.depth', requirement: 'required' },
       { id: 'scene.3d', requirement: 'required' },
+      { id: 'camera.world', requirement: 'required' },
     ],
     modules: [
       { id: backgroundId, typeId: CINEMA2_FULLSCREEN_SHADER_MODULE_TYPE_ID, version: 1 },
@@ -164,6 +167,17 @@ function createHybridManifest(): Cinema2NativePresetManifest {
         },
       },
     ],
+    cameras: [{
+      id: cameraId,
+      label: 'Hybrid Camera',
+      projection: 'orthographic',
+      orthographicHeight: 5,
+      transform: { position: [0, 0, 50] },
+      target: [0, 0, 0],
+      near: 0.1,
+      far: 100,
+    }],
+    defaults: { camera: cinema2Ref(cameraId) },
     scene: {
       nodes: [
         { id: screenRootId, kind: 'group', coordinateSpace: 'normalized-screen' },
@@ -210,7 +224,7 @@ function createHybridManifest(): Cinema2NativePresetManifest {
   }
 }
 
-describe('Cinema 2.0 Stage 12A spatial/Object3D foundation', () => {
+describe('Cinema 2.0 Stage 12A/12B spatial Object3D and Camera foundation', () => {
   it('resolves target-driven Transform3D hierarchy and visibility without mutating the compiled Scene Graph', () => {
     const manifest = createSpatialManifest()
     const compilation = compileCinema2NativePreset(manifest)
@@ -273,9 +287,9 @@ describe('Cinema 2.0 Stage 12A spatial/Object3D foundation', () => {
     })).toEqual([])
   })
 
-  it('changes the camera-free foundation projection with aspect ratio while preserving vertical scale', () => {
-    const square = createCinema2FoundationWorldToClip(400, 400)
-    const wide = createCinema2FoundationWorldToClip(800, 400)
+  it('changes the Camera Runtime orthographic projection with aspect ratio while preserving vertical scale', () => {
+    const square = createCinema2OrthographicProjection(5, 1, 0.1, 100)
+    const wide = createCinema2OrthographicProjection(5, 2, 0.1, 100)
     expect(wide[0]).toBeCloseTo(square[0] / 2)
     expect(wide[5]).toBeCloseTo(square[5])
     expect(wide[10]).toBeCloseTo(square[10])
@@ -303,6 +317,7 @@ describe('Cinema 2.0 Stage 12A spatial/Object3D foundation', () => {
     created.runtime.start()
     raf.runNext(16.67)
 
+    expect(created.runtime.getCameraRuntimeSnapshot()).toMatchObject({ frameCount: 1, activeCameraId: manifest.cameras?.[0]?.id, camera: { source: 'authored', aspect: 2 } })
     expect(created.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ executedPassCount: 2, failedPassCount: 0 })
     expect(gl.__calls.createdRenderbuffers).toBeGreaterThanOrEqual(1)
     expect(gl.enable).toHaveBeenCalledWith(gl.DEPTH_TEST)

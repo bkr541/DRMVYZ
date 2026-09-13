@@ -275,6 +275,70 @@ export interface Cinema2LayerManifest {
 }
 
 export type Cinema2CameraProjection = 'perspective' | 'orthographic'
+export type Cinema2CameraTransitionEasing = 'linear' | 'smoothstep'
+
+export interface Cinema2CameraStaticRigManifest {
+  kind: 'static'
+}
+
+export interface Cinema2CameraOrbitRigManifest {
+  kind: 'orbit'
+  radius?: number
+  azimuthDegrees?: number
+  elevationDegrees?: number
+  angularVelocityDegreesPerSecond?: number
+}
+
+export interface Cinema2CameraPathPointManifest {
+  position: Cinema2Vector3
+  target?: Cinema2Vector3
+  fovDegrees?: number
+}
+
+/** Simple authored point-to-point path. `fly` is the distance/speed variant. */
+export interface Cinema2CameraPathRigManifest {
+  kind: 'path' | 'fly'
+  points: readonly Cinema2CameraPathPointManifest[]
+  durationSeconds?: number
+  speed?: number
+  loop?: boolean
+}
+
+export type Cinema2CameraRigManifest =
+  | Cinema2CameraStaticRigManifest
+  | Cinema2CameraOrbitRigManifest
+  | Cinema2CameraPathRigManifest
+
+export interface Cinema2CameraTransitionManifest {
+  durationSeconds: number
+  easing?: Cinema2CameraTransitionEasing
+  fromPosition?: Cinema2Vector3
+  fromTarget?: Cinema2Vector3
+  fromFovDegrees?: number
+}
+
+/** Optional parameter bindings expose only implemented Camera controls through the shared schema Inspector. */
+export interface Cinema2CameraControlBindingsManifest {
+  positionOffset?: Cinema2ParameterRef
+  targetOffset?: Cinema2ParameterRef
+  fovDegrees?: Cinema2ParameterRef
+  orbitRadius?: Cinema2ParameterRef
+  orbitAzimuthDegrees?: Cinema2ParameterRef
+  orbitElevationDegrees?: Cinema2ParameterRef
+  pathProgress?: Cinema2ParameterRef
+  smoothingMs?: Cinema2ParameterRef
+}
+
+export interface Cinema2CameraSafetyManifest {
+  minPosition?: Cinema2Vector3
+  maxPosition?: Cinema2Vector3
+  maxPositionOffset?: Cinema2Vector3
+  maxTargetOffset?: Cinema2Vector3
+  minFovDegrees?: number
+  maxFovDegrees?: number
+  minNear?: number
+  maxFar?: number
+}
 
 export interface Cinema2CameraManifest {
   id: Cinema2CameraId
@@ -285,8 +349,15 @@ export interface Cinema2CameraManifest {
   /** Optional scene-node target; mutually exclusive with authored target coordinates. */
   targetNode?: Cinema2SceneNodeRef
   fovDegrees?: number
+  /** Vertical orthographic world span; ignored by perspective cameras. */
+  orthographicHeight?: number
   near?: number
   far?: number
+  rig?: Cinema2CameraRigManifest
+  transition?: Cinema2CameraTransitionManifest
+  controls?: Cinema2CameraControlBindingsManifest
+  safety?: Cinema2CameraSafetyManifest
+  smoothingMs?: number
   config?: Cinema2JsonObject
 }
 
