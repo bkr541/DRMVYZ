@@ -105,13 +105,52 @@ describe('Cinema 2.0 media-slot runtime', () => {
     expect(gl.__calls.createdTextures).toBe(2)
     expect(gl.__calls.deletedTextures).toBe(1)
 
-    expect(await runtime.replace(requiredSlotId, source('bad'))).toMatchObject({ status: 'error', error: 'decode failed' })
-    expect(second.dispose).toHaveBeenCalledTimes(1)
-    expect(gl.__calls.deletedTextures).toBe(2)
-    expect(runtime.getManagedResource(requiredSlotId)).toBeNull()
+    expect(await runtime.replace(requiredSlotId, source('bad'))).toMatchObject({
+      status: 'ready',
+      source: expect.objectContaining({ id: 'second' }),
+      error: 'Replacement failed: decode failed',
+    })
+    expect(second.dispose).toHaveBeenCalledTimes(0)
+    expect(gl.__calls.deletedTextures).toBe(1)
+    expect(runtime.getManagedResource(requiredSlotId)).toMatchObject({ source: expect.objectContaining({ id: 'second' }), width: 1280 })
 
     expect(runtime.remove(requiredSlotId)).toMatchObject({ status: 'missing-required', source: null })
+    expect(second.dispose).toHaveBeenCalledTimes(1)
     runtime.dispose()
+    expect(gl.__calls.createdTextures).toBe(gl.__calls.deletedTextures)
+  })
+
+
+  it('cancels superseded loads and never lets a stale completion replace the newest media resource', async () => {
+    const gl = createCinemaMockWebGL()
+    const pending = new Map<string, { resolve: (value: Cinema2LoadedMedia) => void; signal: AbortSignal }>()
+    const loader: Cinema2MediaLoader = {
+      load: vi.fn((candidate: Readonly<Cinema2MediaSource>, signal: AbortSignal) => new Promise<Cinema2LoadedMedia>(resolve => {
+        pending.set(candidate.id, { resolve, signal })
+      })),
+    }
+    const runtime = new Cinema2MediaSlotRuntime(gl, [
+      { id: optionalSlotId, label: 'Replaceable', accepts: ['image'] },
+    ], loader)
+
+    const firstLoaded = loaded({ width: 640, height: 360 })
+    const secondLoaded = loaded({ width: 1280, height: 720 })
+    const firstReplace = runtime.replace(optionalSlotId, source('first'))
+    const secondReplace = runtime.replace(optionalSlotId, source('second'))
+
+    expect(pending.get('first')?.signal.aborted).toBe(true)
+    pending.get('second')?.resolve(secondLoaded)
+    await secondReplace
+    expect(runtime.getManagedResource(optionalSlotId)).toMatchObject({ source: expect.objectContaining({ id: 'second' }), width: 1280 })
+
+    pending.get('first')?.resolve(firstLoaded)
+    await firstReplace
+    expect(firstLoaded.dispose).toHaveBeenCalledTimes(1)
+    expect(secondLoaded.dispose).toHaveBeenCalledTimes(0)
+    expect(runtime.getManagedResource(optionalSlotId)).toMatchObject({ source: expect.objectContaining({ id: 'second' }), width: 1280 })
+
+    runtime.dispose()
+    expect(secondLoaded.dispose).toHaveBeenCalledTimes(1)
     expect(gl.__calls.createdTextures).toBe(gl.__calls.deletedTextures)
   })
 

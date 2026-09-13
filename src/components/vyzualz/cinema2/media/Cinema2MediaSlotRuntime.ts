@@ -90,6 +90,8 @@ interface SlotRecord {
   error: string | null
   texture: WebGLTexture | null
   loaded: Cinema2LoadedMedia | null
+  resourceSource: Readonly<Cinema2MediaSource> | null
+  resourcePresentation: Readonly<Cinema2MediaPresentation>
   abortController: AbortController | null
   generation: number
 }
@@ -123,6 +125,8 @@ export class Cinema2MediaSlotRuntime {
         error: null,
         texture: null,
         loaded: null,
+        resourceSource: null,
+        resourcePresentation: DEFAULT_PRESENTATION,
         abortController: null,
         generation: 0,
       })
@@ -142,7 +146,7 @@ export class Cinema2MediaSlotRuntime {
       slotCount: slots.length,
       readyResourceCount: slots.filter(slot => slot.status === 'ready').length,
       loadingCount: slots.filter(slot => slot.status === 'loading').length,
-      errorCount: slots.filter(slot => slot.status === 'error').length,
+      errorCount: slots.filter(slot => slot.error != null).length,
       missingRequiredCount: slots.filter(slot => slot.status === 'missing-required').length,
       slots: Object.freeze(slots),
     })
@@ -156,14 +160,14 @@ export class Cinema2MediaSlotRuntime {
 
   getManagedResource(slotId: Cinema2MediaSlotId): Readonly<Cinema2ManagedMediaResource> | null {
     const record = this.records.get(slotId)
-    if (!record || record.status !== 'ready' || !record.source || !record.loaded || !record.texture) return null
+    if (!record || !record.resourceSource || !record.loaded || !record.texture) return null
     return Object.freeze({
       slotId,
-      source: record.source,
+      source: record.resourceSource,
       texture: record.texture,
       width: record.loaded.width,
       height: record.loaded.height,
-      presentation: record.presentation,
+      presentation: record.resourcePresentation,
       playback: freezePlayback(record.loaded.getPlaybackSnapshot?.() ?? null),
     })
   }
@@ -182,39 +186,63 @@ export class Cinema2MediaSlotRuntime {
       throw new Error(`Cinema 2.0 media slot "${record.manifest.label}" requires a media source ID and runtime URL.`)
     }
 
-    this.releaseRecordResources(record, false)
+    record.abortController?.abort()
+    record.abortController = null
     record.generation += 1
     const generation = record.generation
     const abortController = new AbortController()
+    const candidateSource = freezeSource(source)
+    const candidatePresentation = normalizePresentation(presentation)
     record.abortController = abortController
-    record.source = freezeSource(source)
-    record.presentation = normalizePresentation(presentation)
+    record.source = candidateSource
+    record.presentation = candidatePresentation
     record.status = 'loading'
     record.error = null
     this.emit()
 
+    let candidateLoaded: Cinema2LoadedMedia | null = null
+    let candidateTexture: WebGLTexture | null = null
     try {
-      const loaded = await this.loader.load(record.source, abortController.signal)
+      candidateLoaded = await this.loader.load(candidateSource, abortController.signal)
       if (this.disposed || record.generation !== generation || abortController.signal.aborted) {
-        loaded.dispose()
+        disposeLoadedMedia(candidateLoaded)
         return freezeSlotSnapshot(record)
       }
-      record.loaded = loaded
-      record.texture = this.createTexture(loaded.pixelSource)
+      candidateTexture = this.createTexture(candidateLoaded.pixelSource)
+      if (this.disposed || record.generation !== generation || abortController.signal.aborted) {
+        this.gl.deleteTexture(candidateTexture)
+        disposeLoadedMedia(candidateLoaded)
+        return freezeSlotSnapshot(record)
+      }
+
+      const previousLoaded = record.loaded
+      const previousTexture = record.texture
+      record.loaded = candidateLoaded
+      record.texture = candidateTexture
+      record.resourceSource = candidateSource
+      record.resourcePresentation = candidatePresentation
       record.abortController = null
       record.status = 'ready'
       record.error = null
+      candidateLoaded = null
+      candidateTexture = null
+      if (previousTexture) this.gl.deleteTexture(previousTexture)
+      disposeLoadedMedia(previousLoaded)
       this.emit()
     } catch (error) {
+      if (candidateTexture) this.gl.deleteTexture(candidateTexture)
+      disposeLoadedMedia(candidateLoaded)
       if (record.generation === generation && !this.disposed && !abortController.signal.aborted) {
         record.abortController = null
-        this.releaseTexture(record)
-        if (record.loaded) {
-          record.loaded.dispose()
-          record.loaded = null
+        if (record.loaded && record.texture && record.resourceSource) {
+          record.source = record.resourceSource
+          record.presentation = record.resourcePresentation
+          record.status = 'ready'
+          record.error = `Replacement failed: ${errorMessage(error)}`
+        } else {
+          record.status = 'error'
+          record.error = errorMessage(error)
         }
-        record.status = 'error'
-        record.error = errorMessage(error)
         this.emit()
       }
     }
@@ -237,7 +265,7 @@ export class Cinema2MediaSlotRuntime {
   updateVideoTextures(): void {
     if (this.disposed) return
     for (const record of this.records.values()) {
-      if (record.status !== 'ready' || record.source?.kind !== 'video' || !record.loaded || !record.texture) continue
+      if (record.resourceSource?.kind !== 'video' || !record.loaded || !record.texture) continue
       if (record.loaded.canUploadFrame && !record.loaded.canUploadFrame()) continue
       try {
         this.uploadTexture(record.texture, record.loaded.pixelSource)
@@ -266,11 +294,11 @@ export class Cinema2MediaSlotRuntime {
     if (this.disposed) return
     let changed = false
     for (const record of this.records.values()) {
-      if (!record.loaded || !record.source) continue
+      if (!record.loaded || !record.resourceSource) continue
       try {
         record.texture = this.createTexture(record.loaded.pixelSource)
-        record.status = 'ready'
-        record.error = null
+        record.status = record.abortController ? 'loading' : 'ready'
+        if (!record.abortController) record.error = null
       } catch (error) {
         record.status = 'error'
         record.error = `Media texture restore failed: ${errorMessage(error)}`
@@ -301,15 +329,15 @@ export class Cinema2MediaSlotRuntime {
     record.abortController = null
     this.releaseTexture(record)
     if (record.loaded) {
-      try {
-        record.loaded.dispose()
-      } finally {
-        record.loaded = null
-      }
+      const loaded = record.loaded
+      record.loaded = null
+      disposeLoadedMedia(loaded)
     }
     if (clearSource) {
       record.source = null
       record.presentation = DEFAULT_PRESENTATION
+      record.resourceSource = null
+      record.resourcePresentation = DEFAULT_PRESENTATION
     }
   }
 
@@ -387,6 +415,15 @@ function normalizePresentation(value: Partial<Cinema2MediaPresentation>): Readon
 
 function finiteOr(value: number | undefined, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function disposeLoadedMedia(loaded: Cinema2LoadedMedia | null): void {
+  if (!loaded) return
+  try {
+    loaded.dispose()
+  } catch (error) {
+    if (import.meta.env.DEV) console.warn('[Cinema2MediaSlotRuntime] media disposal failed:', error)
+  }
 }
 
 function errorMessage(error: unknown): string {

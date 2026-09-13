@@ -28,8 +28,11 @@ import { CinemaResizeObserverMock, createCinemaMockWebGL } from '../../cinema/__
 import { getCinema2AudioIntelligenceBridgeDiagnostics } from '../audio/Cinema2AudioIntelligenceBridge'
 import { getCinema2RuntimeDiagnostics, type Cinema2Runtime } from '../runtime/Cinema2Runtime'
 import {
+  CINEMA2_ELECTRIC_STORM_PRESET_ID,
+  CINEMA2_REACTOR_PRESET_ID,
   CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID,
   CINEMA2_REFERENCE_VISUAL_PRESET_ID,
+  CINEMA2_SPATIAL_REFERENCE_PRESET_ID,
   cinema2WorkspaceSessionStore,
   type Cinema2PresetId,
 } from '..'
@@ -354,6 +357,72 @@ describe('Cinema 2.0 production sibling path', () => {
     expect(callbacks.size).toBe(0)
     expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({ activeOwnerCount: 0 })
     expect(getDrmvyzWebGLContextDiagnosticsForTests()).toMatchObject({ activeCount: 0 })
+  }, 20_000)
+
+  it('rapidly switches all keeper presets through the real Cinema2Stage path without retaining retired ownership', async () => {
+    const before = getCinema2RuntimeDiagnostics()
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+      const id = nextRaf++
+      callbacks.set(id, callback)
+      return id
+    }))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn((id: number) => callbacks.delete(id)))
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => (
+      kind === 'webgl2' ? createCinemaMockWebGL() as unknown as RenderingContext : null
+    ))
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 960,
+      height: 540,
+      top: 0,
+      left: 0,
+      right: 960,
+      bottom: 540,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    })
+    const runtimeRef: { current: Cinema2Runtime | null } = { current: null }
+    const presetIds = [
+      CINEMA2_REFERENCE_VISUAL_PRESET_ID,
+      CINEMA2_REACTOR_PRESET_ID,
+      CINEMA2_SPATIAL_REFERENCE_PRESET_ID,
+      CINEMA2_ELECTRIC_STORM_PRESET_ID,
+    ]
+    useReactStore.getState().selectReactEngine('cinema2')
+
+    for (let cycle = 0; cycle < 2; cycle += 1) {
+      for (const presetId of presetIds) {
+        await act(async () => root?.render(
+          <ProductionReentryHarness
+            presetId={presetId}
+            onCinema2RuntimeReady={runtime => { runtimeRef.current = runtime }}
+          />,
+        ))
+        expect(runtimeRef.current?.getCompiledPresetPlan().presetId).toBe(presetId)
+        expect(getCinema2RuntimeDiagnostics()).toMatchObject({
+          activeRuntimeCount: before.activeRuntimeCount + 1,
+          activeAnimationFrameCount: before.activeAnimationFrameCount + 1,
+          activeEventListenerCount: before.activeEventListenerCount + 2,
+          activeWebGLContextCount: before.activeWebGLContextCount + 1,
+          activeTargetResolverCount: before.activeTargetResolverCount + 1,
+        })
+        expect(callbacks.size).toBe(1)
+      }
+    }
+
+    await act(async () => root?.render(<div data-cinema2-stress-away="true" />))
+    runtimeRef.current = null
+    expect(callbacks.size).toBe(0)
+    expect(getCinema2RuntimeDiagnostics()).toMatchObject({
+      activeRuntimeCount: before.activeRuntimeCount,
+      activeAnimationFrameCount: before.activeAnimationFrameCount,
+      activeEventListenerCount: before.activeEventListenerCount,
+      activeWebGLContextCount: before.activeWebGLContextCount,
+      activeTargetResolverCount: before.activeTargetResolverCount,
+    })
+    expect(CinemaResizeObserverMock.instances.every(observer => observer.disconnect.mock.calls.length === 1)).toBe(true)
   }, 20_000)
 
   it('captures canonical Music Intelligence through the real Cinema 2.0 Stage runtime path', async () => {

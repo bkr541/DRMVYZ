@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
+import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
+  CINEMA2_ELECTRIC_STORM_PRESET_ID,
+  CINEMA2_REACTOR_PRESET_ID,
+  CINEMA2_REFERENCE_VISUAL_PRESET_ID,
+  CINEMA2_SPATIAL_REFERENCE_PRESET_ID,
   Cinema2AudioIntelligenceBridge,
   Cinema2PresetRegistry,
   Cinema2Runtime,
@@ -234,6 +239,138 @@ describe('Cinema2Runtime sibling foundation', () => {
 
     runtime.dispose()
   })
+
+
+  it('rolls a failed context restoration back to a retired, explicit unavailable state', () => {
+    const before = getCinema2RuntimeDiagnostics()
+    const gl = createCinemaMockWebGL()
+    const raf = createRafHarness()
+    const canvas = new FakeCanvas(gl)
+    const result = Cinema2Runtime.create(canvas as unknown as HTMLCanvasElement, {
+      requestAnimationFrame: raf.requestAnimationFrame,
+      cancelAnimationFrame: raf.cancelAnimationFrame,
+    })
+    if (!result.runtime) throw new Error(result.error)
+    const runtime = result.runtime
+    runtime.resize({ width: 640, height: 360, dpr: 1 })
+    runtime.getResourceManager().acquireRenderTarget('recovery-test', {
+      size: { kind: 'viewport' },
+      colorFormat: 'rgba8',
+      depthFormat: 'depth24',
+    }, 'persistent')
+    runtime.start()
+
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }))
+    vi.mocked(gl.checkFramebufferStatus).mockReturnValue(0)
+    canvas.dispatchEvent(new Event('webglcontextrestored'))
+
+    expect(runtime.getSnapshot()).toMatchObject({
+      phase: 'unavailable',
+      resources: {
+        activeAnimationFrameCount: 0,
+        activeEventListenerCount: 0,
+        activeWebGLContextCount: 0,
+      },
+    })
+    expect(runtime.getSnapshot().statusMessage).toContain('Reselect the preset or engine to retry')
+    expect(runtime.getResourceManagerSnapshot()).toMatchObject({ disposed: true, activeLeaseCount: 0, pooledAllocationCount: 0 })
+    expect(raf.callbacks.size).toBe(0)
+    expect(getCinema2RuntimeDiagnostics()).toMatchObject({
+      activeRuntimeCount: before.activeRuntimeCount + 1,
+      activeEventListenerCount: before.activeEventListenerCount,
+      activeWebGLContextCount: before.activeWebGLContextCount,
+    })
+
+    runtime.dispose()
+    expect(getCinema2RuntimeDiagnostics()).toMatchObject({
+      activeRuntimeCount: before.activeRuntimeCount,
+      activeAnimationFrameCount: before.activeAnimationFrameCount,
+      activeEventListenerCount: before.activeEventListenerCount,
+      activeWebGLContextCount: before.activeWebGLContextCount,
+    })
+  })
+
+  it('keeps the last committed viewport and resources when resize reallocation fails', () => {
+    const gl = createCinemaMockWebGL()
+    const raf = createRafHarness()
+    const canvas = new FakeCanvas(gl)
+    const result = Cinema2Runtime.create(canvas as unknown as HTMLCanvasElement, {
+      requestAnimationFrame: raf.requestAnimationFrame,
+      cancelAnimationFrame: raf.cancelAnimationFrame,
+    })
+    if (!result.runtime) throw new Error(result.error)
+    const runtime = result.runtime
+    expect(runtime.resize({ width: 640, height: 360, dpr: 1 })).toBe(true)
+    const lease = runtime.getResourceManager().acquireRenderTarget('resize-test', {
+      size: { kind: 'viewport' },
+      colorFormat: 'rgba8',
+      depthFormat: 'depth24',
+    }, 'persistent')
+    expect(runtime.getResourceManager().getRenderTargetBinding(lease)).toMatchObject({ width: 640, height: 360 })
+
+    vi.mocked(gl.checkFramebufferStatus).mockReturnValue(0)
+    expect(runtime.resize({ width: 1280, height: 720, dpr: 2 })).toBe(false)
+    expect(runtime.getSnapshot()).toMatchObject({
+      viewport: { width: 640, height: 360, dpr: 1 },
+      phase: 'initializing',
+    })
+    expect(runtime.getSnapshot().statusMessage).toContain('kept the previous output size')
+    expect(canvas.width).toBe(640)
+    expect(canvas.height).toBe(360)
+    expect(runtime.getResourceManager().getRenderTargetBinding(lease)).toMatchObject({ width: 640, height: 360 })
+
+    vi.mocked(gl.checkFramebufferStatus).mockReturnValue(gl.FRAMEBUFFER_COMPLETE)
+    expect(runtime.resize({ width: 800, height: 450, dpr: 1.25 })).toBe(true)
+    expect(runtime.getSnapshot()).toMatchObject({
+      viewport: { width: 800, height: 450, dpr: 1.25 },
+      statusMessage: null,
+      performance: { degraded: false, degradationReason: null },
+    })
+    expect(runtime.getResourceManager().getRenderTargetBinding(lease)).toMatchObject({ width: 800, height: 450 })
+
+    runtime.dispose()
+  })
+
+  it('stress-switches every keeper reference preset without monotonic runtime ownership growth', () => {
+    const before = getCinema2RuntimeDiagnostics()
+    const presetIds = [
+      CINEMA2_REFERENCE_VISUAL_PRESET_ID,
+      CINEMA2_REACTOR_PRESET_ID,
+      CINEMA2_SPATIAL_REFERENCE_PRESET_ID,
+      CINEMA2_ELECTRIC_STORM_PRESET_ID,
+    ]
+
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      for (const presetId of presetIds) {
+        const gl = createCinemaMockWebGL()
+        const raf = createRafHarness()
+        const canvas = new FakeCanvas(gl)
+        const result = Cinema2Runtime.create(canvas as unknown as HTMLCanvasElement, {
+          presetId,
+          requestAnimationFrame: raf.requestAnimationFrame,
+          cancelAnimationFrame: raf.cancelAnimationFrame,
+          randomness: { mode: 'deterministic', seed: `stress-${cycle}` },
+        })
+        if (!result.runtime) throw new Error(result.error)
+        const runtime = result.runtime
+        runtime.resize({ width: 640 + cycle * 32, height: 360 + cycle * 18, dpr: 1 + cycle * 0.25 })
+        runtime.start()
+        raf.runNext(16.67)
+        canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }))
+        canvas.dispatchEvent(new Event('webglcontextrestored'))
+        if (raf.callbacks.size > 0) raf.runNext(33.34)
+        runtime.dispose()
+
+        expect(getCinema2RuntimeDiagnostics()).toMatchObject({
+          activeRuntimeCount: before.activeRuntimeCount,
+          activeAnimationFrameCount: before.activeAnimationFrameCount,
+          activeEventListenerCount: before.activeEventListenerCount,
+          activeWebGLContextCount: before.activeWebGLContextCount,
+          activeTargetResolverCount: before.activeTargetResolverCount,
+        })
+      }
+    }
+  }, 20_000)
 
   it('captures the canonical Audio Intelligence bridge exactly once for each scheduled visual frame', () => {
     const audioFrame = {

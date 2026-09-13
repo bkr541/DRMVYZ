@@ -341,6 +341,7 @@ export class Cinema2Runtime {
   private suspended = false
   private contextLost = false
   private disposed = false
+  private servicesRetired = false
   private audioIntelligenceFrame: Readonly<Cinema2AudioIntelligenceFrame> | null = null
   private visualDirectorFrame: Readonly<Cinema2VisualDirectorFrame> | null = null
   private listenersAttached = false
@@ -423,26 +424,28 @@ export class Cinema2Runtime {
     })
 
     this.onContextLostHandler = event => {
-      if (this.disposed) return
+      if (this.disposed || this.phase === 'unavailable') return
       event.preventDefault()
       this.contextLost = true
       this.phase = 'context-lost'
       this.statusMessage = 'Cinema 2.0 paused because its WebGL2 context was lost.'
-      this.choreographyRuntime.reset('context-lost')
-      this.cameraRuntime.reset()
-      this.renderGraphExecutor.handleContextLost()
-      this.effectRuntime.handleContextLost()
-      this.historyService.handleContextLost()
-      this.moduleRuntime.handleContextLost()
-      this.mediaSlotRuntime.handleContextLost()
-      this.resourceManager.handleContextLost()
-      this.lastFrameTimestampMs = null
       this.cancelScheduledFrame()
+      this.lastFrameTimestampMs = null
+      this.runCleanupSteps('context loss', [
+        ['choreography', () => this.choreographyRuntime.reset('context-lost')],
+        ['camera', () => this.cameraRuntime.reset()],
+        ['render graph', () => this.renderGraphExecutor.handleContextLost()],
+        ['effects', () => this.effectRuntime.handleContextLost()],
+        ['history', () => this.historyService.handleContextLost()],
+        ['modules', () => this.moduleRuntime.handleContextLost()],
+        ['media', () => this.mediaSlotRuntime.handleContextLost()],
+        ['resources', () => this.resourceManager.handleContextLost()],
+      ])
       this.emitSnapshot()
     }
 
     this.onContextRestoredHandler = () => {
-      if (this.disposed) return
+      if (this.disposed || this.phase === 'unavailable') return
       this.contextLost = false
       this.contextGeneration += 1
       this.statusMessage = null
@@ -457,14 +460,11 @@ export class Cinema2Runtime {
         this.gl.viewport(0, 0, this.viewport.width, this.viewport.height)
         this.renderSafeFrame()
         this.phase = this.suspended ? 'suspended' : this.runningRequested ? 'running' : 'initializing'
+        this.refreshRecoverableStatus()
         this.emitSnapshot()
         this.scheduleFrame()
       } catch (error) {
-        this.runningRequested = false
-        this.phase = 'unavailable'
-        this.statusMessage = `Cinema 2.0 could not recover its WebGL2 context: ${errorMessage(error)}`
-        this.cancelScheduledFrame()
-        this.emitSnapshot()
+        this.failUnrecoverably('Cinema 2.0 could not recover its WebGL2 context', error)
       }
     }
 
@@ -477,17 +477,7 @@ export class Cinema2Runtime {
       if (contextLostListenerAttached) {
         canvas.removeEventListener('webglcontextlost', this.onContextLostHandler)
       }
-      this.renderGraphExecutor.dispose()
-      this.performanceDiagnostics.dispose()
-      this.cameraRuntime.dispose()
-      this.lightingEnvironmentRuntime.dispose()
-      this.spatialRuntime.dispose()
-      this.choreographyRuntime.dispose()
-      this.effectRuntime.dispose()
-      this.historyService.dispose()
-      this.moduleRuntime.dispose()
-      this.mediaSlotRuntime.dispose()
-      this.resourceManager.dispose()
+      this.retireOwnedServices('setup failure')
       retireDrmvyzWebGLContext(this.contextHandle, 'release-resources')
       throw error
     }
@@ -543,15 +533,32 @@ export class Cinema2Runtime {
       || this.canvas.height !== nextViewport.height
     if (!changed) return false
 
+    try {
+      this.resourceManager.resize(nextViewport)
+    } catch (error) {
+      this.performanceDiagnostics.markDegraded(`Resize was isolated: ${errorMessage(error)}`)
+      this.statusMessage = 'Cinema 2.0 kept the previous output size because render targets could not be resized safely.'
+      this.emitSnapshot()
+      return false
+    }
+
     this.viewport = nextViewport
     this.canvas.width = nextViewport.width
     this.canvas.height = nextViewport.height
     this.historyService.handleResize()
-    this.resourceManager.resize(nextViewport)
     if (!this.contextLost) {
-      this.gl.viewport(0, 0, nextViewport.width, nextViewport.height)
-      this.renderSafeFrame()
+      try {
+        this.gl.viewport(0, 0, nextViewport.width, nextViewport.height)
+        this.renderSafeFrame()
+      } catch (error) {
+        this.failUnrecoverably('Cinema 2.0 stopped after an unrecoverable resize output failure', error)
+        return false
+      }
     }
+    if (this.performanceDiagnostics.getSnapshot().degradationReason?.startsWith('Resize was isolated:')) {
+      this.performanceDiagnostics.markDegraded(null)
+    }
+    this.refreshRecoverableStatus()
     this.emitSnapshot()
     return true
   }
@@ -701,30 +708,8 @@ export class Cinema2Runtime {
     this.runningRequested = false
     this.cancelScheduledFrame()
 
-    if (this.listenersAttached) {
-      this.canvas.removeEventListener('webglcontextlost', this.onContextLostHandler)
-      this.canvas.removeEventListener('webglcontextrestored', this.onContextRestoredHandler)
-      this.listenersAttached = false
-      diagnostics.activeEventListenerCount = Math.max(0, diagnostics.activeEventListenerCount - 2)
-    }
-
-    this.renderGraphExecutor.dispose()
-    this.performanceDiagnostics.dispose()
-    this.cameraRuntime.dispose()
-    this.lightingEnvironmentRuntime.dispose()
-    this.spatialRuntime.dispose()
-    this.choreographyRuntime.dispose()
-    this.effectRuntime.dispose()
-    this.historyService.dispose()
-    this.moduleRuntime.dispose()
-    this.mediaSlotRuntime.dispose()
-    this.resourceManager.dispose()
-
-    if (this.contextOwned) {
-      retireDrmvyzWebGLContext(this.contextHandle, 'release-resources')
-      this.contextOwned = false
-      diagnostics.activeWebGLContextCount = Math.max(0, diagnostics.activeWebGLContextCount - 1)
-    }
+    this.releaseExternalOwnership()
+    this.retireOwnedServices('runtime disposal')
 
     diagnostics.activeRuntimeCount = Math.max(0, diagnostics.activeRuntimeCount - 1)
     diagnostics.activeTargetResolverCount = Math.max(0, diagnostics.activeTargetResolverCount - 1)
@@ -811,16 +796,92 @@ export class Cinema2Runtime {
       this.frameCount = visualFrameId
       const autoQualityChanged = this.performanceDiagnostics.sampleCpuFrame(Math.max(0, readMonotonicTimeMs() - cpuFrameStartedAt))
       if (autoQualityChanged) this.applyPerformancePolicy()
-      if (qualityChanged || autoQualityChanged) this.emitSnapshot()
+      const recoveryStatusChanged = this.refreshRecoverableStatus()
+      if (qualityChanged || autoQualityChanged || recoveryStatusChanged) this.emitSnapshot()
     } catch (error) {
-      this.choreographyRuntime.reset('frame-failure')
-      this.runningRequested = false
-      this.phase = 'unavailable'
-      this.statusMessage = `Cinema 2.0 stopped after a WebGL2 render failure: ${errorMessage(error)}`
-      this.emitSnapshot()
+      this.runCleanupSteps('frame failure', [['choreography', () => this.choreographyRuntime.reset('frame-failure')]])
+      this.failUnrecoverably('Cinema 2.0 stopped after an unrecoverable frame failure', error)
       return
     }
     this.scheduleFrame()
+  }
+
+  private refreshRecoverableStatus(): boolean {
+    if (this.phase === 'unavailable' || this.phase === 'context-lost') return false
+    const performanceSnapshot = this.performanceDiagnostics.getSnapshot()
+    const renderSnapshot = this.renderGraphExecutor.getSnapshot()
+    const moduleSnapshot = this.moduleRuntime.getSnapshot()
+    const effectSnapshot = this.effectRuntime.getSnapshot()
+    const mediaSnapshot = this.mediaSlotRuntime.getSnapshot()
+    let next: string | null = null
+    if (performanceSnapshot.degradationReason?.startsWith('Resize was isolated:')) {
+      next = 'Cinema 2.0 kept the previous output size because render targets could not be resized safely.'
+    } else if (renderSnapshot.diagnostics.some(diagnostic => diagnostic.code === 'CINEMA2_RENDER_RESOURCE_BUDGET_EXCEEDED')) {
+      next = 'Cinema 2.0 is running with a constrained render path because the GPU resource budget was reached.'
+    } else if (moduleSnapshot.failedModuleCount > 0) {
+      next = 'Cinema 2.0 is still running after isolating a failed visual module.'
+    } else if (effectSnapshot.failedEffectCount > 0) {
+      next = 'Cinema 2.0 is still running with a failed effect safely bypassed.'
+    } else if (renderSnapshot.diagnostics.length > 0) {
+      next = 'Cinema 2.0 is still running with a failed render pass isolated safely.'
+    } else if (mediaSnapshot.errorCount > 0) {
+      next = 'Cinema 2.0 is still running while a media source failed or is unavailable.'
+    }
+    if (next === this.statusMessage) return false
+    this.statusMessage = next
+    return true
+  }
+
+  private failUnrecoverably(prefix: string, error: unknown): void {
+    this.runningRequested = false
+    this.cancelScheduledFrame()
+    this.phase = 'unavailable'
+    this.statusMessage = `${prefix}: ${errorMessage(error)} Reselect the preset or engine to retry.`
+    this.releaseExternalOwnership()
+    this.retireOwnedServices('unrecoverable failure')
+    this.emitSnapshot()
+  }
+
+  private releaseExternalOwnership(): void {
+    if (this.listenersAttached) {
+      this.canvas.removeEventListener('webglcontextlost', this.onContextLostHandler)
+      this.canvas.removeEventListener('webglcontextrestored', this.onContextRestoredHandler)
+      this.listenersAttached = false
+      diagnostics.activeEventListenerCount = Math.max(0, diagnostics.activeEventListenerCount - 2)
+    }
+    if (this.contextOwned) {
+      retireDrmvyzWebGLContext(this.contextHandle, 'release-resources')
+      this.contextOwned = false
+      diagnostics.activeWebGLContextCount = Math.max(0, diagnostics.activeWebGLContextCount - 1)
+    }
+  }
+
+  private retireOwnedServices(reason: string): void {
+    if (this.servicesRetired) return
+    this.servicesRetired = true
+    this.runCleanupSteps(reason, [
+      ['render graph', () => this.renderGraphExecutor.dispose()],
+      ['performance diagnostics', () => this.performanceDiagnostics.dispose()],
+      ['camera', () => this.cameraRuntime.dispose()],
+      ['lighting/environment', () => this.lightingEnvironmentRuntime.dispose()],
+      ['spatial runtime', () => this.spatialRuntime.dispose()],
+      ['choreography', () => this.choreographyRuntime.dispose()],
+      ['effects', () => this.effectRuntime.dispose()],
+      ['history', () => this.historyService.dispose()],
+      ['modules', () => this.moduleRuntime.dispose()],
+      ['media', () => this.mediaSlotRuntime.dispose()],
+      ['resources', () => this.resourceManager.dispose()],
+    ])
+  }
+
+  private runCleanupSteps(reason: string, steps: readonly (readonly [string, () => void])[]): void {
+    for (const [label, cleanup] of steps) {
+      try {
+        cleanup()
+      } catch (error) {
+        if (import.meta.env.DEV) console.warn(`[Cinema2Runtime] ${reason} ${label} cleanup failed:`, error)
+      }
+    }
   }
 
   private resolveRequestedQualityMode(): Cinema2QualityMode {

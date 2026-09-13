@@ -27,7 +27,7 @@ function statusCopy(snapshot: Cinema2RuntimeSnapshot | null): string | null {
   if (snapshot?.phase === 'unavailable') {
     return snapshot.statusMessage ?? 'Cinema 2.0 WebGL2 output is unavailable.'
   }
-  return null
+  return snapshot?.statusMessage ?? null
 }
 
 /** Production Stage host for the native Cinema 2.0 sibling runtime. */
