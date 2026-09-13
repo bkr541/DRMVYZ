@@ -558,6 +558,8 @@ export interface Cinema2ChoreographyActionManifest {
   delayBeats?: number
   quantizeBeats?: number
   cooldownBeats?: number
+  /** Event-derived probability gate. Omitted means always execute. */
+  probability?: number
   retrigger?: Cinema2ChoreographyRetriggerPolicy
   config?: Cinema2JsonObject
 }

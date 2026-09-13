@@ -118,6 +118,13 @@ export interface Cinema2TargetContributionSubmission {
   contribution: Readonly<Cinema2TargetContribution>
 }
 
+export interface Cinema2TargetWriteBatchResult {
+  ok: boolean
+  /** True when the canonical transient set was atomically replaced (including fail-safe clear). */
+  applied: boolean
+  diagnostics: readonly Cinema2TargetDiagnostic[]
+}
+
 export interface Cinema2ResolvedTargetValue {
   ok: boolean
   target: Readonly<Cinema2TargetHandle> | null
@@ -143,6 +150,8 @@ export interface Cinema2ActionDispatchResult {
 export interface Cinema2FinalValueResolverOptions {
   resolveBaseValue?: (target: Readonly<Cinema2TargetHandle>) => Cinema2JsonValue | undefined
   dispatchAction?: (event: Readonly<Cinema2DispatchedTargetAction>) => void
+  /** Shared transient state is currently owned only by engine choreography. */
+  authorizedTransientWriterIds?: readonly string[]
 }
 
 const NUMERIC_OPERATIONS = Object.freeze(['add', 'multiply', 'replace'] as const)
@@ -335,6 +344,7 @@ export class Cinema2FinalValueResolver {
   private readonly transientContributions = new Map<Cinema2TargetId, readonly Readonly<Cinema2TargetContribution>[]>()
   private readonly resolveBaseValue: (target: Readonly<Cinema2TargetHandle>) => Cinema2JsonValue | undefined
   private readonly dispatchAction: ((event: Readonly<Cinema2DispatchedTargetAction>) => void) | null
+  private readonly authorizedTransientWriterIds: ReadonlySet<string>
 
   constructor(
     readonly plan: Readonly<Cinema2CompiledTargetPlan>,
@@ -343,6 +353,7 @@ export class Cinema2FinalValueResolver {
     for (const target of plan.targets) this.targets.set(target.id, target)
     this.resolveBaseValue = options.resolveBaseValue ?? (target => cloneJson(target.authoredBaseValue))
     this.dispatchAction = options.dispatchAction ?? null
+    this.authorizedTransientWriterIds = new Set(options.authorizedTransientWriterIds ?? ['choreography'])
   }
 
   getTarget(targetId: Cinema2TargetId): Readonly<Cinema2TargetHandle> | null {
@@ -350,26 +361,79 @@ export class Cinema2FinalValueResolver {
   }
 
   /**
-   * Atomically replaces frame/runtime modulation without touching authored or
-   * persistent parameter state. All later resolve() calls observe this shared
-   * contribution set until the next replacement/reset.
+   * Atomically replaces shared frame/runtime modulation without touching authored
+   * or persistent state. The writer id is an ownership guard, not a creative
+   * namespace. Invalid authorized batches fail safe to an empty transient set.
    */
-  replaceTransientContributions(submissions: readonly Readonly<Cinema2TargetContributionSubmission>[]): void {
+  replaceTransientContributions(
+    writerId: string,
+    submissions: readonly Readonly<Cinema2TargetContributionSubmission>[],
+  ): Readonly<Cinema2TargetWriteBatchResult> {
+    const writerDiagnostic = this.authorizeTransientWriter(writerId)
+    if (writerDiagnostic) return freeze({ ok: false, applied: false, diagnostics: Object.freeze([writerDiagnostic]) })
+
     const next = new Map<Cinema2TargetId, Cinema2TargetContribution[]>()
+    const diagnostics: Cinema2TargetDiagnostic[] = []
+    let invalid = false
     for (const submission of submissions) {
-      if (!this.targets.has(submission.targetId)) continue
+      const target = this.targets.get(submission.targetId) ?? null
+      if (!target) {
+        diagnostics.push(issue('CINEMA2_TARGET_UNKNOWN', `Unknown Cinema 2.0 target "${submission.targetId}" in transient write batch.`, String(submission.targetId)))
+        invalid = true
+        continue
+      }
+      if (!submission.contribution.contributorId.trim()) {
+        diagnostics.push(issue('CINEMA2_TARGET_UNAUTHORIZED_WRITER', `Transient writer "${writerId}" submitted an empty contributor identity.`, target.id))
+        invalid = true
+        continue
+      }
+      if (writerId === 'choreography' && !submission.contribution.contributorId.startsWith('choreography:')) {
+        diagnostics.push(issue('CINEMA2_TARGET_UNAUTHORIZED_WRITER', `Transient writer "${writerId}" cannot publish contributor "${submission.contribution.contributorId}".`, target.id))
+        invalid = true
+        continue
+      }
+      if (target.channel !== 'value' || submission.contribution.operation === 'action') {
+        diagnostics.push(issue('CINEMA2_TARGET_SCALAR_ACTION_MISMATCH', `Transient value batch cannot write action target "${target.id}".`, target.id))
+        invalid = true
+        continue
+      }
+      if (!target.operations.includes(submission.contribution.operation)) {
+        diagnostics.push(issue('CINEMA2_TARGET_COMPOSITION_INCOMPATIBLE', `Target "${target.id}" does not support ${submission.contribution.operation} composition.`, target.id))
+        invalid = true
+        continue
+      }
       const values = next.get(submission.targetId) ?? []
       values.push(freeze({ ...submission.contribution, value: cloneJson(submission.contribution.value) }))
       next.set(submission.targetId, values)
+    }
+
+    if (invalid) {
+      this.transientContributions.clear()
+      return freeze({ ok: false, applied: true, diagnostics: Object.freeze(diagnostics) })
+    }
+
+    for (const [targetId, values] of next) {
+      const target = this.targets.get(targetId)
+      if (target) diagnoseReplacementConflict(target, values, diagnostics)
     }
     this.transientContributions.clear()
     for (const [targetId, values] of next) {
       this.transientContributions.set(targetId, Object.freeze([...values].sort(compareContributions)))
     }
+    return freeze({ ok: diagnostics.length === 0, applied: true, diagnostics: Object.freeze(diagnostics) })
   }
 
-  clearTransientContributions(): void {
+  clearTransientContributions(writerId: string): Readonly<Cinema2TargetWriteBatchResult> {
+    const writerDiagnostic = this.authorizeTransientWriter(writerId)
+    if (writerDiagnostic) return freeze({ ok: false, applied: false, diagnostics: Object.freeze([writerDiagnostic]) })
     this.transientContributions.clear()
+    return freeze({ ok: true, applied: true, diagnostics: Object.freeze([]) })
+  }
+
+  private authorizeTransientWriter(writerId: string): Cinema2TargetDiagnostic | null {
+    const normalized = writerId.trim()
+    if (normalized && this.authorizedTransientWriterIds.has(normalized)) return null
+    return issue('CINEMA2_TARGET_UNAUTHORIZED_WRITER', `Writer "${writerId}" is not authorized to mutate shared Cinema 2.0 transient target state.`, '$.targets.transient')
   }
 
   getTransientContributions(targetId: Cinema2TargetId): readonly Readonly<Cinema2TargetContribution>[] {
@@ -651,6 +715,26 @@ function composeScaleAuthority(
   for (const contribution of additive) factor = arithmeticValues(factor, contribution.value, target, 'add', diagnostics, target.id)
   for (const contribution of multiplicative) factor = arithmeticValues(factor, contribution.value, target, 'multiply', diagnostics, target.id)
   return scaleValues(base, factor, target, diagnostics, target.id)
+}
+
+function diagnoseReplacementConflict(
+  target: Readonly<Cinema2TargetHandle>,
+  contributions: readonly Cinema2TargetContribution[],
+  diagnostics: Cinema2TargetDiagnostic[],
+): void {
+  const replacements = contributions.filter(entry => entry.operation === 'replace')
+  if (replacements.length < 2) return
+  const ranked = [...replacements].sort((left, right) => finitePriority(right.priority) - finitePriority(left.priority) || compareStrings(left.contributorId, right.contributorId))
+  const winner = ranked[0]
+  const topPriority = finitePriority(winner.priority)
+  const tied = ranked.filter(entry => finitePriority(entry.priority) === topPriority)
+  if (tied.length > 1 && tied.some(entry => !jsonEqual(entry.value, winner.value))) {
+    diagnostics.push(issue(
+      'CINEMA2_TARGET_REPLACE_PRIORITY_CONFLICT',
+      `Equal-priority replacements conflict for target "${target.id}"; contributor "${winner.contributorId}" wins deterministically.`,
+      target.id,
+    ))
+  }
 }
 
 function chooseReplacement(

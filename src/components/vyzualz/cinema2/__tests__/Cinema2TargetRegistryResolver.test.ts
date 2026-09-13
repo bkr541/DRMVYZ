@@ -264,4 +264,64 @@ describe('Cinema 2.0 target registry and final value resolver', () => {
       expect.objectContaining({ code: 'CINEMA2_TARGET_SCALAR_ACTION_MISMATCH' }),
     ]))
   })
+
+  it('guards shared transient writes by writer identity and rejects incompatible batches atomically', () => {
+    const plan = compilePlan()
+    const resolver = new Cinema2FinalValueResolver(plan.targets)
+    const handle = target(plan.targets, intensityId, 'value')
+
+    const unauthorized = resolver.replaceTransientContributions('module-direct', [{
+      targetId: handle.id,
+      contribution: { contributorId: 'module:rogue', operation: 'replace', value: 0.9 },
+    }])
+    expect(unauthorized).toMatchObject({ ok: false, applied: false })
+    expect(unauthorized.diagnostics[0]?.code).toBe('CINEMA2_TARGET_UNAUTHORIZED_WRITER')
+    expect(resolver.getTransientContributions(handle.id)).toEqual([])
+
+    const valid = resolver.replaceTransientContributions('choreography', [{
+      targetId: handle.id,
+      contribution: { contributorId: 'choreography:rule:action', operation: 'replace', value: 0.7 },
+    }])
+    expect(valid).toMatchObject({ ok: true, applied: true })
+    expect(resolver.resolve(handle.id).value).toBeCloseTo(0.7)
+
+    const visible = target(plan.targets, layerId, 'visible')
+    const invalid = resolver.replaceTransientContributions('choreography', [
+      {
+        targetId: handle.id,
+        contribution: { contributorId: 'choreography:valid', operation: 'replace', value: 0.8 },
+      },
+      {
+        targetId: visible.id,
+        contribution: { contributorId: 'choreography:invalid', operation: 'add', value: 1 },
+      },
+    ])
+    expect(invalid).toMatchObject({ ok: false, applied: true })
+    expect(invalid.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'CINEMA2_TARGET_COMPOSITION_INCOMPATIBLE' }),
+    ]))
+    expect(resolver.getTransientContributions(handle.id)).toEqual([])
+    expect(resolver.getTransientContributions(visible.id)).toEqual([])
+  })
+
+  it('surfaces replacement conflicts when choreography publishes them, while keeping the winner deterministic', () => {
+    const plan = compilePlan()
+    const resolver = new Cinema2FinalValueResolver(plan.targets)
+    const handle = target(plan.targets, intensityId, 'value')
+    const submissions = [
+      { targetId: handle.id, contribution: { contributorId: 'choreography:writer-b', operation: 'replace' as const, value: 0.8, priority: 7 } },
+      { targetId: handle.id, contribution: { contributorId: 'choreography:writer-a', operation: 'replace' as const, value: 0.3, priority: 7 } },
+    ]
+
+    const publication = resolver.replaceTransientContributions('choreography', submissions)
+    expect(publication.applied).toBe(true)
+    expect(publication.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'CINEMA2_TARGET_REPLACE_PRIORITY_CONFLICT' }),
+    ]))
+    expect(resolver.resolve(handle.id).value).toBeCloseTo(0.3)
+
+    resolver.replaceTransientContributions('choreography', [...submissions].reverse())
+    expect(resolver.resolve(handle.id).value).toBeCloseTo(0.3)
+  })
+
 })

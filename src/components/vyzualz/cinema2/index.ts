@@ -163,6 +163,7 @@ export {
   type Cinema2ResolvedTargetValue,
   type Cinema2TargetContribution,
   type Cinema2TargetContributionSubmission,
+  type Cinema2TargetWriteBatchResult,
   type Cinema2TargetCapabilityAvailability,
   type Cinema2TargetDiagnostic,
   type Cinema2TargetEntityHandle,
@@ -175,6 +176,16 @@ export {
   type Cinema2TargetUserAuthority,
   type Cinema2TargetValueType,
 } from './parameters/Cinema2TargetRuntime'
+
+export {
+  Cinema2RandomService,
+  type Cinema2RandomNamespace,
+  type Cinema2RandomSeed,
+  type Cinema2RandomServiceOptions,
+  type Cinema2RandomServiceSnapshot,
+  type Cinema2RandomStream,
+  type Cinema2RandomnessMode,
+} from './runtime/Cinema2RandomService'
 
 export {
   Cinema2ChoreographyRuntime,
@@ -233,6 +244,7 @@ export {
   type Cinema2RuntimeCreateResult,
   type Cinema2RuntimeDiagnostics,
   type Cinema2RuntimePhase,
+  type Cinema2RuntimeRandomnessOptions,
   type Cinema2RuntimeResourceSnapshot,
   type Cinema2RuntimeSnapshot,
   type Cinema2Viewport,

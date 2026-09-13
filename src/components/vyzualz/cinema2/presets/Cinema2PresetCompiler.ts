@@ -635,6 +635,15 @@ function validateReferencesAndCombinations(
       const actionBase = `${base}.actions[${actionIndex}]`
       validateWritableTarget(action.target, index, `${actionBase}.target`, diagnostics)
       validateChoreographyAction(action, actionBase, diagnostics)
+      if (action.probability != null
+        && (rule.source.signal === 'continuous' || rule.source.signal === 'parameter')
+        && ['map', 'set', 'replace', 'add', 'multiply'].includes(String(action.operation))) {
+        diagnostics.push(error(
+          'CINEMA2_PRESET_CHOREOGRAPHY_PROBABILITY_REQUIRES_EVENT',
+          'probability requires an event-derived action; continuous value mappings cannot be randomly gated per frame.',
+          `${actionBase}.probability`,
+        ))
+      }
     }
   }
 
@@ -762,6 +771,9 @@ function validateChoreographyAction(
   }
   if (typeof action.quantizeBeats === 'number' && action.quantizeBeats === 0) {
     diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_TIMING_INVALID', 'quantizeBeats must be greater than zero when present.', `${path}.quantizeBeats`))
+  }
+  if (action.probability != null && (!Number.isFinite(action.probability) || action.probability < 0 || action.probability > 1)) {
+    diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_PROBABILITY_INVALID', 'probability must be a finite number from 0 through 1.', `${path}.probability`))
   }
   if (action.retrigger != null && !['ignore', 'restart', 'extend'].includes(String(action.retrigger))) {
     diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_RETRIGGER_INVALID', 'retrigger must be ignore, restart or extend.', `${path}.retrigger`))

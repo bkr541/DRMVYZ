@@ -23,6 +23,7 @@ import {
   type Cinema2TargetOperation,
 } from '../parameters/Cinema2TargetRuntime'
 import type { Cinema2CompiledPresetPlan } from '../presets/Cinema2PresetCompiler'
+import { Cinema2RandomService } from '../runtime/Cinema2RandomService'
 
 export interface Cinema2ChoreographyDiagnostic {
   code: string
@@ -40,6 +41,8 @@ export interface Cinema2ChoreographyRuntimeSnapshot {
   seenEventCount: number
   deduplicatedEventCount: number
   dispatchedActionCount: number
+  probabilityDecisionCount: number
+  probabilityRejectedCount: number
   resetCount: number
   activeVariationId: Cinema2VariationId | null
   diagnostics: readonly Readonly<Cinema2ChoreographyDiagnostic>[]
@@ -135,12 +138,19 @@ export class Cinema2ChoreographyRuntime {
   private activeContributionCount = 0
   private deduplicatedEventCount = 0
   private dispatchedActionCount = 0
+  private probabilityDecisionCount = 0
+  private probabilityRejectedCount = 0
   private resetCount = 0
 
   constructor(
     private readonly plan: Readonly<Cinema2CompiledPresetPlan>,
     private readonly parameterState: Cinema2ParameterState,
     private readonly resolver: Cinema2FinalValueResolver,
+    private readonly randomService: Cinema2RandomService = new Cinema2RandomService({
+      presetId: plan.presetId,
+      revision: plan.manifest.revision,
+      stateKey: parameterState.serialize(),
+    }),
   ) {
     for (const target of plan.targets.choreographyTargets) this.choreographyTargets.set(target.actionId, target)
     for (const target of plan.targets.targets) {
@@ -202,8 +212,10 @@ export class Cinema2ChoreographyRuntime {
 
     this.emitActiveState(frame, submissions)
     this.emitActiveVariation(submissions)
-    this.resolver.replaceTransientContributions(submissions)
-    this.activeContributionCount = submissions.length
+    const publication = this.resolver.replaceTransientContributions('choreography', submissions)
+    for (const diagnostic of publication.diagnostics) this.diagnosticOnce(diagnostic.code, diagnostic.message, diagnostic.path)
+    const targetIds = new Set(submissions.map(submission => submission.targetId))
+    this.activeContributionCount = [...targetIds].reduce((count, targetId) => count + this.resolver.getTransientContributions(targetId).length, 0)
     this.previousAudioTimeSec = audio?.upstream.timeSec ?? this.previousAudioTimeSec
     this.frameCount += 1
   }
@@ -230,6 +242,8 @@ export class Cinema2ChoreographyRuntime {
       seenEventCount: this.seenEventIds.size,
       deduplicatedEventCount: this.deduplicatedEventCount,
       dispatchedActionCount: this.dispatchedActionCount,
+      probabilityDecisionCount: this.probabilityDecisionCount,
+      probabilityRejectedCount: this.probabilityRejectedCount,
       resetCount: this.resetCount,
       activeVariationId: this.activeVariation?.id ?? null,
       diagnostics: Object.freeze(this.diagnostics.map(diagnostic => Object.freeze({ ...diagnostic }))),
@@ -249,7 +263,8 @@ export class Cinema2ChoreographyRuntime {
     this.activeVariation = null
     this.previousAudioTimeSec = null
     this.activeContributionCount = 0
-    this.resolver.clearTransientContributions()
+    const cleared = this.resolver.clearTransientContributions('choreography')
+    for (const diagnostic of cleared.diagnostics) this.diagnosticOnce(diagnostic.code, diagnostic.message, diagnostic.path)
     this.resetCount += 1
   }
 
@@ -403,6 +418,19 @@ export class Cinema2ChoreographyRuntime {
     event: Readonly<ChoreographyEvent>,
     frame: Readonly<Cinema2ModuleFrameReadContext>,
   ): void {
+    if (action.probability != null) {
+      this.probabilityDecisionCount += 1
+      const accepted = this.randomService.probability({
+        moduleId: 'choreography',
+        eventId: event.id,
+        purpose: `${rule.id}:${action.id}:probability`,
+      }, action.probability)
+      if (!accepted) {
+        this.probabilityRejectedCount += 1
+        return
+      }
+    }
+
     const beat = beatPosition(frame.audio)
     if (action.cooldownBeats && action.cooldownBeats > 0) {
       if (beat == null) {

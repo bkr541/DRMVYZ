@@ -356,4 +356,63 @@ describe('Cinema 2.0 deterministic choreography runtime', () => {
     ]))
     expect(action.ok).toBe(true)
   })
+
+  it('applies authored event probability deterministically before dispatch', () => {
+    const h = harness(baseManifest([
+      {
+        id: ruleId('probability'),
+        priority: 10,
+        source: { signal: 'kick', capability: 'music.rhythm-events' },
+        actions: [
+          {
+            id: actionId('always-reject'),
+            target: { kind: 'parameter', ref: cinema2Ref(TRIGGER_ID) },
+            operation: 'trigger',
+            probability: 0,
+          },
+          {
+            id: actionId('always-accept'),
+            target: { kind: 'parameter', ref: cinema2Ref(TRIGGER_ID) },
+            operation: 'trigger',
+            probability: 1,
+          },
+        ],
+      },
+    ]))
+    const source = h.getSource()
+    h.updateSource({
+      timeSec: 2,
+      rhythm: { ...source.rhythm, kickHit: true, kickStrength: 1, transientConfidence: 0.95 },
+    })
+    h.runtime.update(h.nextFrame(2000))
+
+    expect(h.dispatched).toHaveLength(1)
+    expect(h.dispatched[0]).toContain('always-accept')
+    expect(h.runtime.getSnapshot()).toMatchObject({
+      probabilityDecisionCount: 2,
+      probabilityRejectedCount: 1,
+    })
+  })
+
+  it('rejects malformed authored probability at the compile boundary', () => {
+    const result = compileCinema2NativePreset(baseManifest([
+      {
+        id: ruleId('bad-probability'),
+        priority: 1,
+        source: { signal: 'kick', capability: 'music.rhythm-events' },
+        actions: [{
+          id: actionId('bad-probability-action'),
+          target: { kind: 'parameter', ref: cinema2Ref(TRIGGER_ID) },
+          operation: 'trigger',
+          probability: 1.1,
+        }],
+      },
+    ]))
+
+    expect(result.ok).toBe(false)
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'CINEMA2_PRESET_CHOREOGRAPHY_PROBABILITY_INVALID' }),
+    ]))
+  })
+
 })

@@ -48,6 +48,11 @@ import {
 import { Cinema2RenderGraphExecutor, type Cinema2RenderGraphExecutorSnapshot } from './Cinema2RenderGraphExecutor'
 import { Cinema2HistoryService, type Cinema2HistoryServiceSnapshot } from './Cinema2HistoryService'
 import {
+  Cinema2RandomService,
+  type Cinema2RandomSeed,
+  type Cinema2RandomnessMode,
+} from './Cinema2RandomService'
+import {
   registerDrmvyzWebGLContext,
   retireDrmvyzWebGLContext,
   type WebGLContextDiagnosticHandle,
@@ -95,6 +100,12 @@ export interface Cinema2RuntimeDiagnostics {
   activeTargetResolverCount: number
 }
 
+export interface Cinema2RuntimeRandomnessOptions {
+  mode?: Cinema2RandomnessMode
+  seed?: Cinema2RandomSeed
+  activationEntropy?: () => Cinema2RandomSeed
+}
+
 export interface Cinema2RuntimeCreateOptions {
   requestAnimationFrame?: typeof requestAnimationFrame
   cancelAnimationFrame?: typeof cancelAnimationFrame
@@ -107,6 +118,7 @@ export interface Cinema2RuntimeCreateOptions {
   serializedParameterState?: string | Cinema2SerializedParameterState
   audioIntelligenceBridge?: Cinema2AudioIntelligenceBridge
   mediaLoader?: Cinema2MediaLoader
+  randomness?: Readonly<Cinema2RuntimeRandomnessOptions>
 }
 
 export type Cinema2RuntimeCreateResult =
@@ -272,6 +284,7 @@ export class Cinema2Runtime {
   private readonly onContextRestoredHandler: () => void
   private readonly audioIntelligenceBridge: Cinema2AudioIntelligenceBridge
   private readonly visualDirector: Cinema2VisualDirector
+  private readonly randomService: Cinema2RandomService
   private readonly targetResolver: Cinema2FinalValueResolver
   private readonly choreographyRuntime: Cinema2ChoreographyRuntime
   private readonly mediaSlotRuntime: Cinema2MediaSlotRuntime
@@ -312,6 +325,12 @@ export class Cinema2Runtime {
     this.onSnapshot = options.onSnapshot ?? null
     this.audioIntelligenceBridge = options.audioIntelligenceBridge ?? new Cinema2AudioIntelligenceBridge()
     this.visualDirector = new Cinema2VisualDirector()
+    this.randomService = new Cinema2RandomService({
+      presetId: compiledPresetPlan.presetId,
+      revision: compiledPresetPlan.manifest.revision,
+      stateKey: parameterState.serialize(),
+      ...options.randomness,
+    })
     this.resourceManager = new Cinema2ResourceManager(gl)
     this.historyService = new Cinema2HistoryService(gl, this.resourceManager, compiledPresetPlan.presetId)
     let effectRuntime: Cinema2EffectRuntime | null = null
@@ -325,7 +344,7 @@ export class Cinema2Runtime {
         if (parameterId) effectRuntime?.dispatchParameterAction(parameterId, event.eventId)
       },
     })
-    this.choreographyRuntime = new Cinema2ChoreographyRuntime(compiledPresetPlan, parameterState, this.targetResolver)
+    this.choreographyRuntime = new Cinema2ChoreographyRuntime(compiledPresetPlan, parameterState, this.targetResolver, this.randomService)
     this.mediaSlotRuntime = new Cinema2MediaSlotRuntime(gl, compiledPresetPlan.manifest.mediaSlots ?? [], options.mediaLoader)
     this.moduleRuntime = new Cinema2ModuleRuntime(gl, compiledPresetPlan, this.targetResolver, moduleRegistry, this.mediaSlotRuntime)
     const renderQuality = options.renderQuality ?? 'high'
@@ -507,6 +526,11 @@ export class Cinema2Runtime {
   /** Most recent generic, read-only significance frame derived from Audio Intelligence. */
   getVisualDirectorFrame(): Readonly<Cinema2VisualDirectorFrame> | null {
     return this.visualDirectorFrame
+  }
+
+  /** Engine-owned namespaced randomness used by choreography and future native modules. */
+  getRandomService(): Cinema2RandomService {
+    return this.randomService
   }
 
   /** Transient preset-mapping state owned by the engine choreography service. */

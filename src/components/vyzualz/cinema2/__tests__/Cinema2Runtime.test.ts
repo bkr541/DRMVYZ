@@ -353,4 +353,28 @@ describe('Cinema2Runtime sibling foundation', () => {
       activeWebGLContextCount: before.activeWebGLContextCount,
     })
   })
+
+  it('creates the deterministic random service through the real runtime activation path', () => {
+    const create = () => {
+      const raf = createRafHarness()
+      const canvas = new FakeCanvas(createMockWebGL())
+      const result = Cinema2Runtime.create(canvas as unknown as HTMLCanvasElement, {
+        requestAnimationFrame: raf.requestAnimationFrame,
+        cancelAnimationFrame: raf.cancelAnimationFrame,
+        randomness: { mode: 'deterministic', seed: 'production-replay' },
+      })
+      if (!result.runtime) throw new Error(result.error)
+      return result.runtime
+    }
+    const first = create()
+    const second = create()
+    const namespace = { moduleId: 'choreography', eventId: 'drop:production:1', purpose: 'probability' }
+
+    expect(first.getRandomService().getSnapshot()).toMatchObject({ mode: 'deterministic', seed: 'production-replay' })
+    expect(first.getRandomService().sample(namespace)).toBe(second.getRandomService().sample(namespace))
+
+    first.dispose()
+    second.dispose()
+  })
+
 })
