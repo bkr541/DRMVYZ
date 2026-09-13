@@ -4,7 +4,10 @@ import {
   cinema2NamespacedId,
   cinema2Ref,
   cinema2StableId,
+  type Cinema2ChoreographyActionId,
+  type Cinema2ChoreographyRuleId,
   type Cinema2EffectId,
+  type Cinema2MediaSlotId,
   type Cinema2ModuleId,
   type Cinema2NativePresetManifest,
   type Cinema2ParameterId,
@@ -29,6 +32,12 @@ export const CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID = cinema2StableId<Cinema2Para
 export const CINEMA2_REACTOR_BLOOM_ENABLED_ID = cinema2StableId<Cinema2ParameterId>('reactor-bloom-enabled')
 export const CINEMA2_REACTOR_BLOOM_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('reactor-bloom-intensity')
 export const CINEMA2_REACTOR_RESET_TRAILS_ID = cinema2StableId<Cinema2ParameterId>('reactor-reset-trails')
+export const CINEMA2_REACTOR_MEDIA_INFLUENCE_ID = cinema2StableId<Cinema2ParameterId>('reactor-media-influence')
+export const CINEMA2_REACTOR_REACTIVITY_ID = cinema2StableId<Cinema2ParameterId>('reactor-reactivity')
+
+export const CINEMA2_REACTOR_USER_MEDIA_SLOT_ID = cinema2StableId<Cinema2MediaSlotId>('reactor-user-media')
+export const CINEMA2_REACTOR_ALBUM_ARTWORK_SLOT_ID = cinema2StableId<Cinema2MediaSlotId>('reactor-album-artwork')
+export const CINEMA2_REACTOR_MEDIA_OUTPUT_SLOT_ID = cinema2StableId<Cinema2MediaSlotId>('reactor-media-output')
 
 const REACTOR_GENERATOR_MODULE_ID = cinema2StableId<Cinema2ModuleId>('reactor-generator')
 const REACTOR_COMPOSITE_MODULE_ID = cinema2StableId<Cinema2ModuleId>('reactor-composite')
@@ -51,10 +60,24 @@ const REACTOR_COMPOSITE_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('reactor
 const REACTOR_COMPOSITE_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('reactor-composite-color')
 const REACTOR_BLOOM_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('reactor-bloom-source')
 
+const REACTOR_INTENSITY_RULE_ID = cinema2StableId<Cinema2ChoreographyRuleId>('reactor-intensity-response')
+const REACTOR_BASS_RULE_ID = cinema2StableId<Cinema2ChoreographyRuleId>('reactor-bass-response')
+const REACTOR_IMPACT_RULE_ID = cinema2StableId<Cinema2ChoreographyRuleId>('reactor-impact-response')
+const REACTOR_DOWNBEAT_RULE_ID = cinema2StableId<Cinema2ChoreographyRuleId>('reactor-downbeat-refraction')
+const REACTOR_DROP_RULE_ID = cinema2StableId<Cinema2ChoreographyRuleId>('reactor-drop-impact')
+
+const REACTOR_INTENSITY_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-intensity-map')
+const REACTOR_BASS_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-bass-map')
+const REACTOR_IMPACT_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-impact-map')
+const REACTOR_DOWNBEAT_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-downbeat-refraction-envelope')
+const REACTOR_DROP_BURST_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-drop-burst-envelope')
+const REACTOR_DROP_BLOOM_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-drop-bloom-envelope')
+const REACTOR_DROP_HISTORY_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-drop-history-reset')
+
 /**
  * Native Cinema 2.0 Reactor rendering slice. Creative form/refraction stay in
- * local modules while temporal feedback and bloom use engine-owned effects.
- * Choreography intentionally remains absent until Stage 11B.
+ * local modules while media, musical response, temporal feedback and bloom use
+ * engine-owned Cinema 2.0 services.
  */
 export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
@@ -71,6 +94,12 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     Object.freeze({ id: 'render.history' as const, requirement: 'required' as const, purpose: 'Engine-owned feedback history.' }),
     Object.freeze({ id: 'audio.features' as const, requirement: 'optional' as const, purpose: 'Overall-energy response when authoritative analysis is available.' }),
     Object.freeze({ id: 'audio.bands' as const, requirement: 'optional' as const, purpose: 'Bass response when authoritative bands are available.' }),
+    Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Shared transient refraction response.' }),
+    Object.freeze({ id: 'music.drop' as const, requirement: 'optional' as const, purpose: 'Shared impact envelope and feedback reset.' }),
+    Object.freeze({ id: 'visual-director.significance' as const, requirement: 'optional' as const, purpose: 'Generic visual significance response.' }),
+    Object.freeze({ id: 'media.image' as const, requirement: 'optional' as const, purpose: 'Engine-owned Reactor media slots.' }),
+    Object.freeze({ id: 'media.video' as const, requirement: 'optional' as const, purpose: 'Engine-owned Reactor media slots.' }),
+    Object.freeze({ id: 'media.svg' as const, requirement: 'optional' as const, purpose: 'Engine-owned Reactor media slots.' }),
   ]),
   parameters: Object.freeze([
     Object.freeze({
@@ -108,6 +137,27 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       min: 0, max: 1, step: 0.01,
       section: 'Design', group: 'Composite', order: 30,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_REACTOR_MEDIA_INFLUENCE_ID,
+      label: 'Media Influence',
+      type: 'float' as const,
+      defaultValue: 0.34,
+      min: 0, max: 1, step: 0.01,
+      section: 'Design', group: 'Media', order: 35,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_REACTOR_REACTIVITY_ID,
+      label: 'Reactivity',
+      description: 'Scales shared Cinema 2.0 musical mappings without changing authored design values.',
+      type: 'float' as const,
+      defaultValue: 0.82,
+      min: 0, max: 1.5, step: 0.01,
+      section: 'React', group: 'Response', order: 10,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+      modulatable: true,
+      choreographable: true,
     }),
     Object.freeze({
       id: CINEMA2_REACTOR_TRAILS_ENABLED_ID,
@@ -151,6 +201,23 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
   ]),
+  mediaSlots: Object.freeze([
+    Object.freeze({
+      id: CINEMA2_REACTOR_USER_MEDIA_SLOT_ID,
+      label: 'User Media',
+      accepts: Object.freeze(['image', 'video', 'svg'] as const),
+    }),
+    Object.freeze({
+      id: CINEMA2_REACTOR_ALBUM_ARTWORK_SLOT_ID,
+      label: 'Album Artwork',
+      accepts: Object.freeze(['image'] as const),
+    }),
+    Object.freeze({
+      id: CINEMA2_REACTOR_MEDIA_OUTPUT_SLOT_ID,
+      label: 'Media Output',
+      accepts: Object.freeze(['image', 'video'] as const),
+    }),
+  ]),
   modules: Object.freeze([
     Object.freeze({
       id: REACTOR_GENERATOR_MODULE_ID,
@@ -161,6 +228,10 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
         coreSize: 0.42,
         coreIntensity: 1.15,
         rayDensity: 0.62,
+        energyResponse: 0,
+        bassResponse: 0,
+        impactBurst: 0,
+        mediaInfluence: 0.34,
         primaryColor: Object.freeze([0.08, 0.62, 1, 1]),
         secondaryColor: Object.freeze([0.36, 0.18, 0.95, 1]),
         accentColor: Object.freeze([1, 0.24, 0.58, 1]),
@@ -169,6 +240,12 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
         coreSize: cinema2Ref(CINEMA2_REACTOR_CORE_SIZE_ID),
         coreIntensity: cinema2Ref(CINEMA2_REACTOR_CORE_INTENSITY_ID),
         rayDensity: cinema2Ref(CINEMA2_REACTOR_RAY_DENSITY_ID),
+        mediaInfluence: cinema2Ref(CINEMA2_REACTOR_MEDIA_INFLUENCE_ID),
+      }),
+      media: Object.freeze({
+        userMedia: cinema2Ref(CINEMA2_REACTOR_USER_MEDIA_SLOT_ID),
+        albumArtwork: cinema2Ref(CINEMA2_REACTOR_ALBUM_ARTWORK_SLOT_ID),
+        mediaOutput: cinema2Ref(CINEMA2_REACTOR_MEDIA_OUTPUT_SLOT_ID),
       }),
       config: Object.freeze({ variant: 'generator' }),
     }),
@@ -177,7 +254,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       typeId: CINEMA2_REACTOR_NATIVE_MODULE_TYPE_ID,
       version: 1,
       enabled: true,
-      parameters: Object.freeze({ refraction: 0.42, edgeGlow: 0.72 }),
+      parameters: Object.freeze({ refraction: 0.42, edgeGlow: 0.72, impactResponse: 0, refractionPulse: 0 }),
       parameterBindings: Object.freeze({ refraction: cinema2Ref(CINEMA2_REACTOR_REFRACTION_ID) }),
       config: Object.freeze({ variant: 'composite' }),
     }),
@@ -211,6 +288,107 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       }),
     }),
   ]),
+  choreography: Object.freeze({
+    rules: Object.freeze([
+      Object.freeze({
+        id: REACTOR_INTENSITY_RULE_ID,
+        priority: 20,
+        source: Object.freeze({
+          signal: 'continuous' as const,
+          capability: 'visual-director.significance' as const,
+          path: 'director.intensity' as const,
+          smoothingMs: 110,
+        }),
+        strengthParameter: cinema2Ref(CINEMA2_REACTOR_REACTIVITY_ID),
+        actions: Object.freeze([Object.freeze({
+          id: REACTOR_INTENSITY_ACTION_ID,
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(REACTOR_GENERATOR_MODULE_ID), property: 'energyResponse' }),
+          operation: 'map' as const,
+          map: Object.freeze({ inputMin: 0, inputMax: 1, outputMin: 0, outputMax: 1, clamp: true }),
+        })]),
+      }),
+      Object.freeze({
+        id: REACTOR_BASS_RULE_ID,
+        priority: 21,
+        source: Object.freeze({
+          signal: 'continuous' as const,
+          capability: 'audio.bands' as const,
+          path: 'audio.bands.bass' as const,
+          smoothingMs: 75,
+        }),
+        strengthParameter: cinema2Ref(CINEMA2_REACTOR_REACTIVITY_ID),
+        actions: Object.freeze([Object.freeze({
+          id: REACTOR_BASS_ACTION_ID,
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(REACTOR_GENERATOR_MODULE_ID), property: 'bassResponse' }),
+          operation: 'map' as const,
+          map: Object.freeze({ inputMin: 0, inputMax: 1, outputMin: 0, outputMax: 1, clamp: true }),
+        })]),
+      }),
+      Object.freeze({
+        id: REACTOR_IMPACT_RULE_ID,
+        priority: 22,
+        source: Object.freeze({
+          signal: 'continuous' as const,
+          capability: 'visual-director.significance' as const,
+          path: 'director.impact' as const,
+          smoothingMs: 55,
+        }),
+        strengthParameter: cinema2Ref(CINEMA2_REACTOR_REACTIVITY_ID),
+        actions: Object.freeze([Object.freeze({
+          id: REACTOR_IMPACT_ACTION_ID,
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(REACTOR_COMPOSITE_MODULE_ID), property: 'impactResponse' }),
+          operation: 'map' as const,
+          map: Object.freeze({ inputMin: 0, inputMax: 1, outputMin: 0, outputMax: 1, clamp: true }),
+        })]),
+      }),
+      Object.freeze({
+        id: REACTOR_DOWNBEAT_RULE_ID,
+        priority: 30,
+        source: Object.freeze({ signal: 'downbeat' as const, capability: 'music.downbeat' as const }),
+        strengthParameter: cinema2Ref(CINEMA2_REACTOR_REACTIVITY_ID),
+        actions: Object.freeze([Object.freeze({
+          id: REACTOR_DOWNBEAT_ACTION_ID,
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(REACTOR_COMPOSITE_MODULE_ID), property: 'refractionPulse' }),
+          operation: 'envelope' as const,
+          composition: 'add' as const,
+          value: 0.24,
+          envelope: Object.freeze({ attack: 0, hold: 0.04, release: 0.22, unit: 'seconds' as const }),
+          retrigger: 'restart' as const,
+        })]),
+      }),
+      Object.freeze({
+        id: REACTOR_DROP_RULE_ID,
+        priority: 40,
+        source: Object.freeze({ signal: 'drop' as const, capability: 'music.drop' as const }),
+        strengthParameter: cinema2Ref(CINEMA2_REACTOR_REACTIVITY_ID),
+        actions: Object.freeze([
+          Object.freeze({
+            id: REACTOR_DROP_BURST_ACTION_ID,
+            target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(REACTOR_GENERATOR_MODULE_ID), property: 'impactBurst' }),
+            operation: 'envelope' as const,
+            composition: 'add' as const,
+            value: 1,
+            envelope: Object.freeze({ attack: 0.015, hold: 0.08, release: 0.62, unit: 'seconds' as const }),
+            retrigger: 'restart' as const,
+          }),
+          Object.freeze({
+            id: REACTOR_DROP_BLOOM_ACTION_ID,
+            target: Object.freeze({ kind: 'effect' as const, ref: cinema2Ref(REACTOR_BLOOM_EFFECT_ID), property: 'intensity' }),
+            operation: 'envelope' as const,
+            composition: 'add' as const,
+            value: 1.15,
+            envelope: Object.freeze({ attack: 0.01, hold: 0.06, release: 0.52, unit: 'seconds' as const }),
+            retrigger: 'restart' as const,
+          }),
+          Object.freeze({
+            id: REACTOR_DROP_HISTORY_ACTION_ID,
+            target: Object.freeze({ kind: 'parameter' as const, ref: cinema2Ref(CINEMA2_REACTOR_RESET_TRAILS_ID) }),
+            operation: 'trigger' as const,
+          }),
+        ]),
+      }),
+    ]),
+  }),
   render: Object.freeze({
     targets: Object.freeze([
       Object.freeze({

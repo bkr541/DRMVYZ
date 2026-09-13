@@ -3,28 +3,39 @@
 import React, { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
 import { createCinemaMockWebGL, CinemaResizeObserverMock } from '../../cinema/__tests__/CinemaWebGLTestUtils'
 import { Cinema2InspectorPanel } from '../../react/Cinema2InspectorPanel'
+import { Cinema2MediaSourcePanel } from '../../react/Cinema2MediaSourcePanel'
 import { Cinema2PresetsPanel } from '../../react/Cinema2PresetsPanel'
 import { Cinema2Stage } from '../../react/Cinema2Stage'
 import {
   CINEMA2_REACTOR_BLOOM_INTENSITY_ID,
   CINEMA2_REACTOR_CORE_SIZE_ID,
+  CINEMA2_REACTOR_MEDIA_INFLUENCE_ID,
+  CINEMA2_REACTOR_REACTIVITY_ID,
   CINEMA2_REACTOR_PRESET_ID,
   CINEMA2_REACTOR_PRESET_MANIFEST,
   CINEMA2_REACTOR_REFRACTION_ID,
   CINEMA2_REACTOR_RESET_TRAILS_ID,
+  CINEMA2_REACTOR_USER_MEDIA_SLOT_ID,
+  CINEMA2_REACTOR_ALBUM_ARTWORK_SLOT_ID,
+  CINEMA2_REACTOR_MEDIA_OUTPUT_SLOT_ID,
   CINEMA2_REACTOR_TRAILS_ENABLED_ID,
   CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID,
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
+  Cinema2AudioIntelligenceBridge,
+  Cinema2ChoreographyRuntime,
   Cinema2EffectRuntime,
   Cinema2FinalValueResolver,
+  Cinema2MediaSlotRuntime,
   Cinema2RenderGraphExecutor,
   Cinema2Runtime,
   compileCinema2NativePreset,
   cinema2NativePresetRegistry,
   cinema2Ref,
   cinema2StableId,
+  type Cinema2MediaLoader,
   type Cinema2ParameterId,
   type Cinema2PresetId,
 } from '..'
@@ -62,7 +73,7 @@ class FakeCanvas extends EventTarget {
   }
 }
 
-function createReactorRuntime(raf: RafHarness = createRafHarness()) {
+function createReactorRuntime(raf: RafHarness = createRafHarness(), options: { audioIntelligenceBridge?: Cinema2AudioIntelligenceBridge; mediaLoader?: Cinema2MediaLoader } = {}) {
   const gl = createCinemaMockWebGL()
   gl.getUniformLocation = vi.fn((_program: WebGLProgram, name: string) => ({ name } as unknown as WebGLUniformLocation))
   const canvas = new FakeCanvas(gl)
@@ -71,6 +82,7 @@ function createReactorRuntime(raf: RafHarness = createRafHarness()) {
     presetRegistry: cinema2NativePresetRegistry,
     requestAnimationFrame: raf.requestAnimationFrame,
     cancelAnimationFrame: raf.cancelAnimationFrame,
+    ...options,
   })
   if (!result.runtime) throw new Error(result.error)
   return { runtime: result.runtime, gl, raf, canvas }
@@ -87,16 +99,25 @@ function lastValue<T>(values: T[]): T | undefined {
 }
 
 describe('Cinema 2.0 Reactor native rendering slice', () => {
-  it('compiles a native generator -> shared feedback -> composite -> bloom topology without choreography', () => {
+  it('compiles native Reactor with shared media slots and shared choreography targets', () => {
     const manifest = cinema2NativePresetRegistry.get(CINEMA2_REACTOR_PRESET_ID)
     expect(manifest).not.toBeNull()
     expect(manifest?.metadata.name).toBe('Reactor 2.0')
     expect(manifest?.modules).toHaveLength(2)
     expect(manifest?.effects).toHaveLength(2)
-    expect(manifest?.choreography).toBeUndefined()
+    expect(manifest?.mediaSlots?.map(slot => slot.id)).toEqual([
+      CINEMA2_REACTOR_USER_MEDIA_SLOT_ID,
+      CINEMA2_REACTOR_ALBUM_ARTWORK_SLOT_ID,
+      CINEMA2_REACTOR_MEDIA_OUTPUT_SLOT_ID,
+    ])
+    expect(manifest?.choreography?.rules).toHaveLength(5)
 
     const compiled = cinema2NativePresetRegistry.compile(CINEMA2_REACTOR_PRESET_ID, {
-      availableCapabilities: ['render.webgl2', 'render.history', 'audio.features', 'audio.bands'],
+      availableCapabilities: [
+        'render.webgl2', 'render.history', 'audio.features', 'audio.bands',
+        'music.downbeat', 'music.drop', 'visual-director.significance',
+        'media.image', 'media.video', 'media.svg',
+      ],
     })
     expect(compiled.ok).toBe(true)
     if (!compiled.ok) return
@@ -113,6 +134,99 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
     const refractionTarget = compiled.plan.targets.targets.find(target => target.kind === 'module' && target.ownerId === 'reactor-composite' && target.property === 'refraction')
     expect(coreTarget?.parameterId).toBe(CINEMA2_REACTOR_CORE_SIZE_ID)
     expect(refractionTarget?.parameterId).toBe(CINEMA2_REACTOR_REFRACTION_ID)
+    expect(compiled.plan.targets.choreographyTargets).toHaveLength(7)
+  })
+
+  it('loads, replaces, renders, removes, and disposes Reactor media through the shared Media Runtime', async () => {
+    const disposed: string[] = []
+    const mediaLoader: Cinema2MediaLoader = {
+      load: async source => ({
+        pixelSource: {} as TexImageSource,
+        width: 64,
+        height: 64,
+        dynamic: false,
+        dispose: () => disposed.push(source.id),
+      }),
+    }
+    const { runtime, gl, raf } = createReactorRuntime(createRafHarness(), { mediaLoader })
+    const media = runtime.getMediaSlotRuntime()
+    expect(runtime.getMediaSlotRuntimeSnapshot()).toMatchObject({ slotCount: 3, readyResourceCount: 0 })
+
+    await media.replace(CINEMA2_REACTOR_USER_MEDIA_SLOT_ID, {
+      id: 'reactor-media-a', label: 'Media A', kind: 'image', url: 'blob:reactor-a', mimeType: 'image/png',
+    })
+    expect(media.getSlotSnapshot(CINEMA2_REACTOR_USER_MEDIA_SLOT_ID)).toMatchObject({ status: 'ready', source: { id: 'reactor-media-a' } })
+    runtime.start()
+    raf.runNext()
+    expect(lastValue(uniformFloatCalls(gl, 'u_userMediaAvailable'))).toBe(1)
+    expect(lastValue(uniformFloatCalls(gl, 'u_userMediaOpacity'))).toBe(1)
+
+    await media.replace(CINEMA2_REACTOR_USER_MEDIA_SLOT_ID, {
+      id: 'reactor-media-b', label: 'Media B', kind: 'image', url: 'blob:reactor-b', mimeType: 'image/png',
+    })
+    expect(disposed).toContain('reactor-media-a')
+    expect(media.getSlotSnapshot(CINEMA2_REACTOR_USER_MEDIA_SLOT_ID)).toMatchObject({ status: 'ready', source: { id: 'reactor-media-b' } })
+
+    media.remove(CINEMA2_REACTOR_USER_MEDIA_SLOT_ID)
+    expect(disposed).toContain('reactor-media-b')
+    expect(media.getSlotSnapshot(CINEMA2_REACTOR_USER_MEDIA_SLOT_ID)?.status).toBe('empty')
+    raf.runNext(33.34)
+    expect(lastValue(uniformFloatCalls(gl, 'u_userMediaAvailable'))).toBe(0)
+
+    runtime.dispose()
+    expect(gl.__calls.deletedTextures).toBe(gl.__calls.createdTextures)
+    expect(runtime.getResourceManagerSnapshot().activeLeaseCount).toBe(0)
+  })
+
+  it('drives Reactor continuous/event response through shared choreography and clears transient response on audio discontinuity', () => {
+    let frameId = 0
+    let timeSec = 1
+    let downbeatHit = true
+    const bridge = new Cinema2AudioIntelligenceBridge({
+      getFrame: () => ({
+        ...DEFAULT_MI_FRAME,
+        frameId: ++frameId,
+        sourceId: 'reactor-11b-test',
+        timeSec,
+        bands: { ...DEFAULT_MI_FRAME.bands, normalizedBass: 0.8 },
+        energy: { ...DEFAULT_MI_FRAME.energy, instant: 0.7 },
+        rhythm: {
+          ...DEFAULT_MI_FRAME.rhythm,
+          bpm: 120, bpmConfidence: 0.95, beatIndex: frameId, beatPhase: 0, beatInBar: 0, barIndex: 0,
+          downbeatHit, transientConfidence: 0.95,
+        },
+        capabilities: { ...DEFAULT_MI_FRAME.capabilities!, liveBands: true, beatGrid: true, rhythmEvents: true },
+        confidence: { ...DEFAULT_MI_FRAME.confidence, overall: 0.95, rhythm: 0.95 },
+      }),
+      getPublicationMeta: () => ({ sequence: frameId, publishedAtMs: timeSec * 1000, publisherId: 'reactor-11b-test', kind: 'frame' as const }),
+    })
+    const { runtime, gl, raf } = createReactorRuntime(createRafHarness(), { audioIntelligenceBridge: bridge })
+    runtime.start()
+    raf.runNext()
+
+    const bassTarget = runtime.getCompiledPresetPlan().targets.targets.find(target => target.kind === 'module' && target.ownerId === 'reactor-generator' && target.property === 'bassResponse')
+    const refractionPulseTarget = runtime.getCompiledPresetPlan().targets.targets.find(target => target.kind === 'module' && target.ownerId === 'reactor-composite' && target.property === 'refractionPulse')
+    expect(bassTarget).toBeDefined()
+    expect(refractionPulseTarget).toBeDefined()
+    if (!bassTarget || !refractionPulseTarget) throw new Error('Reactor choreography targets were not compiled.')
+
+    const bass = runtime.getTargetResolver().resolve(bassTarget.id).value
+    expect(typeof bass).toBe('number')
+    expect(bass as number).toBeGreaterThan(0)
+    expect(lastValue(uniformFloatCalls(gl, 'u_bassResponse'))).toBeCloseTo(bass as number)
+    expect(runtime.getTargetResolver().resolve(refractionPulseTarget.id).value as number).toBeGreaterThan(0)
+    expect(runtime.getChoreographyRuntimeSnapshot()).toMatchObject({ activeEnvelopeCount: 1, seenEventCount: 1 })
+
+    const serializedBefore = runtime.serializeParameterState()
+    downbeatHit = false
+    timeSec = 4
+    raf.runNext(33.34)
+    expect(runtime.getAudioIntelligenceFrame()?.discontinuity.occurred).toBe(true)
+    expect(runtime.getChoreographyRuntimeSnapshot().resetCount).toBeGreaterThan(0)
+    expect(runtime.getTargetResolver().resolve(refractionPulseTarget.id).value).toBe(0)
+    expect(runtime.getHistoryServiceSnapshot().lastResetReason).toBe('discontinuity')
+    expect(runtime.serializeParameterState()).toBe(serializedBefore)
+    runtime.dispose()
   })
 
   it('rejects invalid generic module parameter bindings at compile time', () => {
@@ -221,8 +335,11 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
     runtime.dispose()
   })
 
-  it('keeps generic Cinema 2.0 runtime owners free of Reactor identity branches', () => {
-    const genericOwners = [Cinema2Runtime, Cinema2RenderGraphExecutor, Cinema2EffectRuntime, Cinema2FinalValueResolver]
+  it('keeps generic Cinema 2.0 runtime and schema UI owners free of Reactor identity branches', () => {
+    const genericOwners = [
+      Cinema2Runtime, Cinema2RenderGraphExecutor, Cinema2EffectRuntime, Cinema2FinalValueResolver,
+      Cinema2ChoreographyRuntime, Cinema2MediaSlotRuntime, Cinema2InspectorPanel, Cinema2MediaSourcePanel,
+    ]
     for (const owner of genericOwners) expect(owner.toString().toLowerCase()).not.toContain('reactor')
   })
 })
@@ -283,8 +400,9 @@ describe('Cinema 2.0 Reactor production selection path', () => {
               setRuntime(next)
             }}
           />
+          <Cinema2MediaSourcePanel runtime={runtime} />
           <Cinema2InspectorPanel runtime={runtime} surface="design" />
-          <Cinema2InspectorPanel runtime={runtime} surface="effects" />
+          <Cinema2InspectorPanel runtime={runtime} surface="react" />
         </>
       )
     }
@@ -299,6 +417,12 @@ describe('Cinema 2.0 Reactor production selection path', () => {
     expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_REACTOR_REFRACTION_ID}"]`)).not.toBeNull()
     expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID}"]`)).not.toBeNull()
     expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_REACTOR_RESET_TRAILS_ID}"]`)).not.toBeNull()
+    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_REACTOR_MEDIA_INFLUENCE_ID}"]`)).not.toBeNull()
+    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_REACTOR_REACTIVITY_ID}"]`)).not.toBeNull()
+    expect(host?.querySelector('[data-cinema2-media-source="slots"]')).not.toBeNull()
+    expect(host?.textContent).toContain('User Media')
+    expect(host?.textContent).toContain('Album Artwork')
+    expect(host?.textContent).toContain('Media Output')
 
     await act(async () => raf.runNext())
     expect(activeRuntimeRef.current?.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 1, executedPassCount: 4, failedPassCount: 0 })
