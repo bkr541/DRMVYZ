@@ -158,8 +158,11 @@ describe('Cinema 2.0 Stage 12C shared Lighting and Environment foundation', () =
     const plan = compile()
     const state = new Cinema2ParameterState(plan.parameters)
     const model = createCinema2InspectorModel(plan, state.getSnapshot(), 'design')
-    expect(model.map(section => section.label)).toEqual(['Lighting', 'Environment'])
-    expect(model.find(section => section.label === 'Environment')?.groups.map(group => group.label)).toEqual(['Background', 'Fog / Haze'])
+    expect(model.map(section => section.label)).toEqual(['Environment'])
+    expect(model[0]?.groups).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'instance', instanceKind: 'light', label: 'Key Light' }),
+      expect.objectContaining({ kind: 'instance', instanceKind: 'environment', label: 'Environment' }),
+    ]))
 
     const empty = compileCinema2NativePreset({
       schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,

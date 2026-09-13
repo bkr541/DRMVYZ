@@ -152,7 +152,11 @@ export {
 export {
   createCinema2InspectorModel,
   type Cinema2InspectorControlModel,
+  type Cinema2InspectorEntryModel,
   type Cinema2InspectorGroupModel,
+  type Cinema2InspectorInstanceKind,
+  type Cinema2InspectorInstanceModel,
+  type Cinema2InspectorSectionId,
   type Cinema2InspectorSectionModel,
   type Cinema2InspectorSurface,
 } from './parameters/Cinema2InspectorModel'

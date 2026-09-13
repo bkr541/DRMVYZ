@@ -1,7 +1,10 @@
-import { Fragment, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   createCinema2InspectorModel,
   type Cinema2InspectorControlModel,
+  type Cinema2InspectorEntryModel,
+  type Cinema2InspectorGroupModel,
+  type Cinema2InspectorInstanceModel,
   type Cinema2InspectorSurface,
 } from '../cinema2/parameters/Cinema2InspectorModel'
 import type { Cinema2JsonValue } from '../cinema2/contracts/Cinema2NativePresetManifest'
@@ -80,34 +83,125 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
           {sections.map(section => (
             <div className="rv-ctrl-group" key={section.label} data-cinema2-section={section.label}>
               <CtrlSection label={section.label} />
-              {section.groups.map((group, groupIndex) => (
-                <Fragment key={group.label ?? `ungrouped-${groupIndex}`}>
-                  {group.label ? (
-                    <Collapsible label={group.label}>
-                      {group.controls.map(control => (
-                        <Cinema2SchemaControl
-                          key={control.definition.id}
-                          control={control}
-                          onChange={candidate => commit(control, candidate)}
-                          onTrigger={() => dispatch(control)}
-                        />
-                      ))}
-                    </Collapsible>
-                  ) : group.controls.map(control => (
-                    <Cinema2SchemaControl
-                      key={control.definition.id}
-                      control={control}
-                      onChange={candidate => commit(control, candidate)}
-                      onTrigger={() => dispatch(control)}
-                    />
-                  ))}
-                </Fragment>
+              {section.groups.map((entry, entryIndex) => (
+                <Cinema2InspectorEntry
+                  key={entry.kind === 'instance' ? `${entry.instanceKind}:${entry.instanceId}` : entry.label ?? `ungrouped-${entryIndex}`}
+                  entry={entry}
+                  onChange={commit}
+                  onTrigger={dispatch}
+                />
               ))}
             </div>
           ))}
         </div>
       </div>
     </div>
+  )
+}
+
+function Cinema2InspectorEntry({
+  entry,
+  onChange,
+  onTrigger,
+}: {
+  entry: Readonly<Cinema2InspectorEntryModel>
+  onChange: (control: Readonly<Cinema2InspectorControlModel>, value: Cinema2JsonValue) => void
+  onTrigger: (control: Readonly<Cinema2InspectorControlModel>) => void
+}) {
+  if (entry.kind === 'instance') {
+    return (
+      <Cinema2InspectorInstance
+        instance={entry}
+        onChange={onChange}
+        onTrigger={onTrigger}
+      />
+    )
+  }
+  return (
+    <Cinema2InspectorGroup
+      group={entry}
+      onChange={onChange}
+      onTrigger={onTrigger}
+    />
+  )
+}
+
+function Cinema2InspectorInstance({
+  instance,
+  onChange,
+  onTrigger,
+}: {
+  instance: Readonly<Cinema2InspectorInstanceModel>
+  onChange: (control: Readonly<Cinema2InspectorControlModel>, value: Cinema2JsonValue) => void
+  onTrigger: (control: Readonly<Cinema2InspectorControlModel>) => void
+}) {
+  const singleGroup = instance.groups.length === 1 ? instance.groups[0] : null
+  const canInlineSingleGroup = singleGroup != null && (singleGroup.label == null || singleGroup.label === instance.label)
+
+  return (
+    <div
+      data-cinema2-instance-kind={instance.instanceKind}
+      data-cinema2-instance-id={instance.instanceId}
+    >
+      <Collapsible label={instance.label}>
+        {canInlineSingleGroup && singleGroup ? (
+          <Cinema2InspectorControls
+            controls={singleGroup.controls}
+            onChange={onChange}
+            onTrigger={onTrigger}
+          />
+        ) : instance.groups.map((group, groupIndex) => (
+          <Cinema2InspectorGroup
+            key={group.label ?? `ungrouped-${groupIndex}`}
+            group={group}
+            onChange={onChange}
+            onTrigger={onTrigger}
+          />
+        ))}
+      </Collapsible>
+    </div>
+  )
+}
+
+function Cinema2InspectorGroup({
+  group,
+  onChange,
+  onTrigger,
+}: {
+  group: Readonly<Cinema2InspectorGroupModel>
+  onChange: (control: Readonly<Cinema2InspectorControlModel>, value: Cinema2JsonValue) => void
+  onTrigger: (control: Readonly<Cinema2InspectorControlModel>) => void
+}) {
+  if (!group.label) {
+    return <Cinema2InspectorControls controls={group.controls} onChange={onChange} onTrigger={onTrigger} />
+  }
+  return (
+    <Collapsible label={group.label}>
+      <Cinema2InspectorControls controls={group.controls} onChange={onChange} onTrigger={onTrigger} />
+    </Collapsible>
+  )
+}
+
+function Cinema2InspectorControls({
+  controls,
+  onChange,
+  onTrigger,
+}: {
+  controls: readonly Readonly<Cinema2InspectorControlModel>[]
+  onChange: (control: Readonly<Cinema2InspectorControlModel>, value: Cinema2JsonValue) => void
+  onTrigger: (control: Readonly<Cinema2InspectorControlModel>) => void
+}) {
+  return (
+    <>
+      {controls.map(control => (
+        <Cinema2SchemaControl
+          key={control.definition.id}
+          control={control}
+          onChange={candidate => onChange(control, candidate)}
+          onTrigger={() => onTrigger(control)}
+        />
+      ))}
+    </>
   )
 }
 
