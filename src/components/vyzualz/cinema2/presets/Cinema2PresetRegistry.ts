@@ -6,6 +6,7 @@ import {
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST } from './Cinema2ReferenceVisualPreset'
 import { CINEMA2_REACTOR_PRESET_MANIFEST } from './Cinema2ReactorPreset'
+import { CINEMA2_SPATIAL_REFERENCE_PRESET_MANIFEST } from './Cinema2SpatialReferencePreset'
 import {
   compileCinema2NativePreset,
   type Cinema2PresetCompilationResult,
@@ -94,4 +95,8 @@ if (!referenceVisualRegistration.ok) {
 const reactorRegistration = cinema2NativePresetRegistry.register(CINEMA2_REACTOR_PRESET_MANIFEST)
 if (!reactorRegistration.ok) {
   throw new Error(`Cinema 2.0 Reactor preset registration failed: ${reactorRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+const spatialReferenceRegistration = cinema2NativePresetRegistry.register(CINEMA2_SPATIAL_REFERENCE_PRESET_MANIFEST)
+if (!spatialReferenceRegistration.ok) {
+  throw new Error(`Cinema 2.0 Spatial Reference preset registration failed: ${spatialReferenceRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }

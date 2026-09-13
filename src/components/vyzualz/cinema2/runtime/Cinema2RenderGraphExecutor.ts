@@ -304,6 +304,7 @@ export class Cinema2RenderGraphExecutor {
     const hasWorldProvider = passProviders.some(entry => entry.provider.intent === 'world')
     if (hasWorldProvider) this.prepareWorldTarget(pass, target)
     for (const { moduleId, provider } of passProviders) {
+      this.prepareProviderState(provider.intent)
       provider.execute({
         frame,
         target: target?.framebuffer ?? null,
@@ -316,6 +317,20 @@ export class Cinema2RenderGraphExecutor {
         inputs,
       })
     }
+  }
+
+  private prepareProviderState(intent: Readonly<Cinema2ModuleRenderPassProvider>['intent']): void {
+    this.gl.disable(this.gl.SCISSOR_TEST)
+    this.gl.disable(this.gl.BLEND)
+    this.gl.colorMask(true, true, true, true)
+    if (intent === 'world') {
+      this.gl.enable(this.gl.DEPTH_TEST)
+      this.gl.depthFunc(this.gl.LEQUAL)
+      this.gl.depthMask(true)
+      return
+    }
+    this.gl.disable(this.gl.DEPTH_TEST)
+    this.gl.depthMask(false)
   }
 
   private resolvePassModuleIds(pass: Readonly<Cinema2CompiledRenderPass>): Cinema2ModuleId[] {
