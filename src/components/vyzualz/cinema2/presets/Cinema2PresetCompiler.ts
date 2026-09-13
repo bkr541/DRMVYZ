@@ -5,6 +5,7 @@ import {
   type Cinema2CameraId,
   type Cinema2CapabilityId,
   type Cinema2CapabilityRequirement,
+  type Cinema2ChoreographyActionManifest,
   type Cinema2ChoreographySignal,
   type Cinema2EffectId,
   type Cinema2LayerId,
@@ -121,12 +122,17 @@ const CAPABILITY_IDS = new Set<string>(CINEMA2_CAPABILITY_IDS)
 const SIGNAL_CAPABILITY: Partial<Record<Cinema2ChoreographySignal, Cinema2CapabilityId>> = {
   beat: 'music.beat',
   downbeat: 'music.downbeat',
+  kick: 'music.rhythm-events',
+  snare: 'music.rhythm-events',
+  transient: 'music.rhythm-events',
   bar: 'music.bar',
   phrase: 'music.phrase',
   'section-change': 'music.section',
   build: 'music.build',
   drop: 'music.drop',
   'vocal-presence': 'music.vocal-presence',
+  'lyric-line': 'music.lyrics',
+  'lyric-word': 'music.lyrics',
 }
 
 /**
@@ -579,19 +585,56 @@ function validateReferencesAndCombinations(
 
   for (const [ruleIndex, rule] of readArray(manifest.choreography?.rules, '$.choreography.rules', diagnostics).entries()) {
     const base = `$.choreography.rules[${ruleIndex}]`
-    const expectedCapability = SIGNAL_CAPABILITY[rule.source?.signal]
-    if (expectedCapability && rule.source?.capability !== expectedCapability) {
+    if (!isPlainObject(rule.source)) {
+      diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_SOURCE_INVALID', 'Choreography source must be an object.', `${base}.source`))
+      continue
+    }
+    const expectedCapability = SIGNAL_CAPABILITY[rule.source.signal]
+    if (expectedCapability && rule.source.capability !== expectedCapability) {
       diagnostics.push(error(
         'CINEMA2_PRESET_CAPABILITY_COMBINATION_INVALID',
-        `Choreography signal "${String(rule.source?.signal)}" requires capability "${expectedCapability}", not "${String(rule.source?.capability)}".`,
+        `Choreography signal "${String(rule.source.signal)}" requires capability "${expectedCapability}", not "${String(rule.source.capability)}".`,
         `${base}.source.capability`,
       ))
-    } else if (!CAPABILITY_IDS.has(String(rule.source?.capability))) {
-      diagnostics.push(error('CINEMA2_PRESET_CAPABILITY_UNSUPPORTED', `Unsupported choreography capability "${String(rule.source?.capability)}".`, `${base}.source.capability`))
+    } else if (rule.source.capability != null && !CAPABILITY_IDS.has(String(rule.source.capability))) {
+      diagnostics.push(error('CINEMA2_PRESET_CAPABILITY_UNSUPPORTED', `Unsupported choreography capability "${String(rule.source.capability)}".`, `${base}.source.capability`))
+    }
+    if (rule.source.signal === 'continuous' && typeof rule.source.path !== 'string') {
+      diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_SOURCE_INVALID', 'Continuous choreography sources require a typed path.', `${base}.source.path`))
+    }
+    if (rule.source.signal === 'parameter') {
+      validateRef(rule.source.parameter, index.parameters.ids, `${base}.source.parameter`, 'parameter', diagnostics)
+    }
+    if (rule.source.smoothingMs != null && !isFiniteNonNegative(rule.source.smoothingMs)) {
+      diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_TIMING_INVALID', 'Source smoothingMs must be a finite non-negative number.', `${base}.source.smoothingMs`))
+    }
+    validateOptionalFinite(rule.source.threshold, `${base}.source.threshold`, 'source threshold', diagnostics)
+    validateOptionalFinite(rule.source.scale, `${base}.source.scale`, 'source scale', diagnostics)
+    validateOptionalFinite(rule.source.offset, `${base}.source.offset`, 'source offset', diagnostics)
+    if (rule.source.clamp != null && (!Array.isArray(rule.source.clamp) || rule.source.clamp.length !== 2 || !rule.source.clamp.every(Number.isFinite) || rule.source.clamp[0] > rule.source.clamp[1])) {
+      diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_SOURCE_INVALID', 'Source clamp must be [min, max] with finite ascending values.', `${base}.source.clamp`))
     }
 
+    if (rule.enabledParameter != null) {
+      const enabledParameterId = validateRef(rule.enabledParameter, index.parameters.ids, `${base}.enabledParameter`, 'parameter', diagnostics)
+      const parameter = enabledParameterId ? manifest.parameters?.find(candidate => candidate.id === enabledParameterId) : null
+      if (parameter && parameter.type !== 'boolean') {
+        diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_ROUTE_CONTROL_INVALID', 'enabledParameter must reference a boolean parameter.', `${base}.enabledParameter`))
+      }
+    }
+    if (rule.strengthParameter != null) {
+      const strengthParameterId = validateRef(rule.strengthParameter, index.parameters.ids, `${base}.strengthParameter`, 'parameter', diagnostics)
+      const parameter = strengthParameterId ? manifest.parameters?.find(candidate => candidate.id === strengthParameterId) : null
+      if (parameter && parameter.type !== 'float' && parameter.type !== 'integer' && parameter.type !== 'meter') {
+        diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_ROUTE_CONTROL_INVALID', 'strengthParameter must reference a numeric parameter.', `${base}.strengthParameter`))
+      }
+    }
+    validateChoreographyConditions(rule.conditions, `${base}.conditions`, diagnostics)
+
     for (const [actionIndex, action] of readArray(rule.actions, `${base}.actions`, diagnostics).entries()) {
-      validateWritableTarget(action.target, index, `${base}.actions[${actionIndex}].target`, diagnostics)
+      const actionBase = `${base}.actions[${actionIndex}]`
+      validateWritableTarget(action.target, index, `${actionBase}.target`, diagnostics)
+      validateChoreographyAction(action, actionBase, diagnostics)
     }
   }
 
@@ -666,6 +709,10 @@ function validateWritableTarget(
       validateRef(target.ref, index.sceneNodes.ids, `${path}.ref`, 'scene node', diagnostics)
       validateTargetProperty(target.property, `${path}.property`, diagnostics)
       break
+    case 'layer':
+      validateRef(target.ref, index.layers.ids, `${path}.ref`, 'layer', diagnostics)
+      validateTargetProperty(target.property, `${path}.property`, diagnostics)
+      break
     case 'camera':
       validateRef(target.ref, index.cameras.ids, `${path}.ref`, 'camera', diagnostics)
       validateTargetProperty(target.property, `${path}.property`, diagnostics)
@@ -678,9 +725,144 @@ function validateWritableTarget(
       validateRef(target.ref, index.effects.ids, `${path}.ref`, 'effect', diagnostics)
       validateTargetProperty(target.property, `${path}.property`, diagnostics)
       break
+    case 'environment':
+      validateTargetProperty(target.property, `${path}.property`, diagnostics)
+      break
+    case 'media':
+      validateRef(target.ref, index.mediaSlots.ids, `${path}.ref`, 'media slot', diagnostics)
+      break
+    case 'variation':
+      validateRef(target.ref, index.variations.ids, `${path}.ref`, 'variation', diagnostics)
+      break
     default:
       diagnostics.push(error('CINEMA2_PRESET_TARGET_INVALID', `Unsupported writable target kind "${String(target.kind)}".`, `${path}.kind`))
   }
+}
+
+function validateChoreographyAction(
+  action: Readonly<Cinema2ChoreographyActionManifest>,
+  path: string,
+  diagnostics: Cinema2PresetDiagnostic[],
+): void {
+  const operations = new Set([
+    'map', 'set', 'replace', 'add', 'multiply', 'pulse', 'envelope', 'toggle',
+    'trigger', 'spawn', 'set-for-duration', 'variation-switch',
+  ])
+  if (!operations.has(String(action.operation))) {
+    diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_OPERATION_INVALID', `Unsupported choreography operation "${String(action.operation)}".`, `${path}.operation`))
+  }
+  if (action.composition != null && !['replace', 'add', 'multiply'].includes(String(action.composition))) {
+    diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_COMPOSITION_INVALID', 'Envelope/pulse composition must be replace, add or multiply.', `${path}.composition`))
+  }
+  for (const key of ['durationBeats', 'durationSeconds', 'delayBeats', 'quantizeBeats', 'cooldownBeats'] as const) {
+    const value = action[key]
+    if (value != null && !isFiniteNonNegative(value)) {
+      diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_TIMING_INVALID', `${key} must be a finite non-negative number.`, `${path}.${key}`))
+    }
+  }
+  if (typeof action.quantizeBeats === 'number' && action.quantizeBeats === 0) {
+    diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_TIMING_INVALID', 'quantizeBeats must be greater than zero when present.', `${path}.quantizeBeats`))
+  }
+  if (action.retrigger != null && !['ignore', 'restart', 'extend'].includes(String(action.retrigger))) {
+    diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_RETRIGGER_INVALID', 'retrigger must be ignore, restart or extend.', `${path}.retrigger`))
+  }
+  if (action.map != null) {
+    if (!isPlainObject(action.map)) {
+      diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_MAP_INVALID', 'map must be an object.', `${path}.map`))
+    } else {
+      for (const key of ['inputMin', 'inputMax', 'outputMin', 'outputMax'] as const) validateOptionalFinite(action.map[key], `${path}.map.${key}`, key, diagnostics)
+      if (typeof action.map.inputMin === 'number' && typeof action.map.inputMax === 'number' && action.map.inputMin === action.map.inputMax) {
+        diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_MAP_INVALID', 'map inputMin and inputMax must differ.', `${path}.map`))
+      }
+    }
+  }
+  if (action.envelope != null) {
+    if (!isPlainObject(action.envelope)) {
+      diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_ENVELOPE_INVALID', 'envelope must be an object.', `${path}.envelope`))
+    } else {
+      for (const key of ['attack', 'hold', 'release'] as const) {
+        const value = action.envelope[key]
+        if (value != null && !isFiniteNonNegative(value)) {
+          diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_ENVELOPE_INVALID', `${key} must be a finite non-negative number.`, `${path}.envelope.${key}`))
+        }
+      }
+      if (action.envelope.unit != null && action.envelope.unit !== 'seconds' && action.envelope.unit !== 'beats') {
+        diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_ENVELOPE_INVALID', 'Envelope unit must be seconds or beats.', `${path}.envelope.unit`))
+      }
+    }
+  }
+}
+
+function validateChoreographyConditions(
+  conditions: unknown,
+  path: string,
+  diagnostics: Cinema2PresetDiagnostic[],
+): void {
+  if (conditions == null) return
+  if (!Array.isArray(conditions)) {
+    diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_CONDITION_INVALID', 'conditions must be an array.', path))
+    return
+  }
+  for (const [index, condition] of conditions.entries()) {
+    const conditionPath = `${path}[${index}]`
+    if (!isPlainObject(condition)) {
+      diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_CONDITION_INVALID', 'Condition must be an object.', conditionPath))
+      continue
+    }
+    switch (condition.kind) {
+      case 'source-threshold':
+        validateOptionalFinite(condition.min, `${conditionPath}.min`, 'minimum threshold', diagnostics)
+        validateOptionalFinite(condition.max, `${conditionPath}.max`, 'maximum threshold', diagnostics)
+        break
+      case 'source-range':
+        if (!Number.isFinite(condition.min) || !Number.isFinite(condition.max) || Number(condition.min) > Number(condition.max)) {
+          diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_CONDITION_INVALID', 'source-range requires finite min <= max.', conditionPath))
+        }
+        break
+      case 'director-phase':
+        if (!Array.isArray(condition.phases) || condition.phases.length === 0 || condition.phases.some(phase => !['low', 'steady', 'rising', 'building', 'peak', 'release'].includes(String(phase)))) {
+          diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_CONDITION_INVALID', 'director-phase requires one or more supported phases.', `${conditionPath}.phases`))
+        }
+        break
+      case 'section-type':
+        if (!Array.isArray(condition.values) || condition.values.length === 0 || condition.values.some(value => typeof value !== 'string' || value.length === 0)) {
+          diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_CONDITION_INVALID', 'section-type requires one or more non-empty values.', `${conditionPath}.values`))
+        }
+        break
+      case 'build':
+      case 'drop':
+      case 'confidence':
+        if (!Number.isFinite(condition.min) || Number(condition.min) < 0 || Number(condition.min) > 1) {
+          diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_CONDITION_INVALID', `${String(condition.kind)} min must be between 0 and 1.`, `${conditionPath}.min`))
+        }
+        break
+      case 'capability':
+        if (!CAPABILITY_IDS.has(String(condition.capability))) {
+          diagnostics.push(error('CINEMA2_PRESET_CAPABILITY_UNSUPPORTED', `Unsupported choreography capability "${String(condition.capability)}".`, `${conditionPath}.capability`))
+        }
+        if (condition.available != null && typeof condition.available !== 'boolean') {
+          diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_CONDITION_INVALID', 'Capability condition available must be boolean.', `${conditionPath}.available`))
+        }
+        break
+      case 'once-per-event':
+        break
+      default:
+        diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_CONDITION_INVALID', `Unsupported choreography condition "${String(condition.kind)}".`, `${conditionPath}.kind`))
+    }
+  }
+}
+
+function validateOptionalFinite(
+  value: unknown,
+  path: string,
+  label: string,
+  diagnostics: Cinema2PresetDiagnostic[],
+): void {
+  if (value != null && !Number.isFinite(value)) diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_VALUE_INVALID', `${label} must be finite.`, path))
+}
+
+function isFiniteNonNegative(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
 }
 
 function validateTargetProperty(value: unknown, path: string, diagnostics: Cinema2PresetDiagnostic[]): void {

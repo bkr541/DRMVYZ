@@ -52,9 +52,19 @@ export {
   type Cinema2CapabilityRequirementMode,
   type Cinema2ChoreographyActionId,
   type Cinema2ChoreographyActionManifest,
+  type Cinema2ChoreographyComposition,
+  type Cinema2ChoreographyConditionManifest,
+  type Cinema2ChoreographyContinuousSourcePath,
+  type Cinema2ChoreographyEnvelopeManifest,
+  type Cinema2ChoreographyEnvelopeUnit,
   type Cinema2ChoreographyManifest,
+  type Cinema2ChoreographyMapManifest,
+  type Cinema2ChoreographyOperation,
+  type Cinema2ChoreographyRetriggerPolicy,
   type Cinema2ChoreographyRuleId,
   type Cinema2ChoreographyRuleManifest,
+  type Cinema2ChoreographySignal,
+  type Cinema2ChoreographySourceManifest,
   type Cinema2EffectId,
   type Cinema2EffectScope,
   type Cinema2EffectTypeId,
@@ -152,6 +162,7 @@ export {
   type Cinema2FinalValueResolverOptions,
   type Cinema2ResolvedTargetValue,
   type Cinema2TargetContribution,
+  type Cinema2TargetContributionSubmission,
   type Cinema2TargetCapabilityAvailability,
   type Cinema2TargetDiagnostic,
   type Cinema2TargetEntityHandle,
@@ -164,6 +175,12 @@ export {
   type Cinema2TargetUserAuthority,
   type Cinema2TargetValueType,
 } from './parameters/Cinema2TargetRuntime'
+
+export {
+  Cinema2ChoreographyRuntime,
+  type Cinema2ChoreographyDiagnostic,
+  type Cinema2ChoreographyRuntimeSnapshot,
+} from './choreography/Cinema2ChoreographyRuntime'
 
 
 export {

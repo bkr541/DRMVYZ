@@ -106,12 +106,14 @@ export const CINEMA2_CAPABILITY_IDS = [
   'audio.features',
   'music.beat',
   'music.downbeat',
+  'music.rhythm-events',
   'music.bar',
   'music.phrase',
   'music.section',
   'music.vocal-presence',
   'music.build',
   'music.drop',
+  'music.lyrics',
   'visual-director.significance',
 ] as const
 
@@ -400,21 +402,87 @@ export interface Cinema2EffectManifest {
   config?: Cinema2JsonObject
 }
 
+export type Cinema2ChoreographyContinuousSourcePath =
+  | 'audio.bands.sub'
+  | 'audio.bands.bass'
+  | 'audio.bands.lowMid'
+  | 'audio.bands.mid'
+  | 'audio.bands.high'
+  | 'audio.bands.air'
+  | 'audio.features.overallEnergy'
+  | 'audio.features.rms'
+  | 'audio.features.spectralCentroid'
+  | 'audio.features.spectralFlux'
+  | 'audio.features.transientEnergy'
+  | 'audio.features.vocalPresence'
+  | 'audio.features.tension'
+  | 'audio.features.complexity'
+  | 'audio.features.buildProgress'
+  | 'audio.features.trackEnergy'
+  | 'audio.rhythm.bpm'
+  | 'audio.rhythm.beatPhase'
+  | 'audio.rhythm.beatIndex'
+  | 'audio.rhythm.beatInBar'
+  | 'audio.rhythm.barIndex'
+  | 'audio.structure.buildConfidence'
+  | 'audio.structure.dropConfidence'
+  | 'audio.stems.vocals'
+  | 'audio.stems.drums'
+  | 'audio.stems.bass'
+  | 'audio.stems.instruments'
+  | 'audio.stems.other'
+  | 'audio.stems.vocalActivity'
+  | 'audio.lyrics.vocalActivity'
+  | 'audio.lyrics.phraseConfidence'
+  | 'audio.lyrics.lineProgress'
+  | 'audio.lyrics.wordProgress'
+  | 'director.intensity'
+  | 'director.momentum'
+  | 'director.build'
+  | 'director.impact'
+  | 'director.variation'
+  | 'timing.elapsedTimeSec'
+  | 'timing.beatPhase'
+  | 'timing.barPhase'
+  | 'timing.clock4'
+  | 'timing.clock8'
+  | 'timing.clock16'
+  | 'timing.clock32'
+  | 'runtime.frameId'
+
 export type Cinema2ChoreographySignal =
   | 'continuous'
+  | 'parameter'
   | 'beat'
   | 'downbeat'
+  | 'kick'
+  | 'snare'
+  | 'transient'
   | 'bar'
   | 'phrase'
   | 'section-change'
   | 'build'
   | 'drop'
   | 'vocal-presence'
+  | 'lyric-line'
+  | 'lyric-word'
 
 export interface Cinema2ChoreographySourceManifest {
   signal: Cinema2ChoreographySignal
-  capability: Cinema2CapabilityId
+  /** Service/capability gate. Runtime still checks frame-level availability. */
+  capability?: Cinema2CapabilityId
+  /** Required for `continuous`; ignored by discrete event sources. */
+  path?: Cinema2ChoreographyContinuousSourcePath
+  /** Required for `parameter`; the canonical parameter state remains read-only. */
+  parameter?: Cinema2ParameterRef
+  /** Legacy/simple threshold gate for continuous sources and edge-trigger sources. */
   threshold?: number
+  /** Optional affine transform applied before authored action mapping. */
+  scale?: number
+  offset?: number
+  clamp?: Cinema2Vector2
+  /** Engine-owned smoothing; Audio Intelligence values themselves are never rewritten. */
+  smoothingMs?: number
   config?: Cinema2JsonObject
 }
 
@@ -422,18 +490,75 @@ export type Cinema2WritableTargetRef =
   | { kind: 'parameter'; ref: Cinema2ParameterRef }
   | { kind: 'module'; ref: Cinema2ModuleRef; property: string }
   | { kind: 'scene-node'; ref: Cinema2SceneNodeRef; property: string }
+  | { kind: 'layer'; ref: Cinema2LayerRef; property: string }
+  | { kind: 'effect'; ref: Cinema2EffectRef; property: string }
   | { kind: 'camera'; ref: Cinema2CameraRef; property: string }
   | { kind: 'light'; ref: Cinema2LightRef; property: string }
-  | { kind: 'effect'; ref: Cinema2EffectRef; property: string }
+  | { kind: 'environment'; property: string }
+  | { kind: 'media'; ref: Cinema2MediaSlotRef }
+  | { kind: 'variation'; ref: Cinema2VariationRef }
 
-export type Cinema2ChoreographyOperation = 'set' | 'add' | 'multiply' | 'trigger'
+export type Cinema2ChoreographyOperation =
+  | 'map'
+  | 'set'
+  | 'replace'
+  | 'add'
+  | 'multiply'
+  | 'pulse'
+  | 'envelope'
+  | 'toggle'
+  | 'trigger'
+  | 'spawn'
+  | 'set-for-duration'
+  | 'variation-switch'
+
+export type Cinema2ChoreographyComposition = 'replace' | 'add' | 'multiply'
+export type Cinema2ChoreographyRetriggerPolicy = 'ignore' | 'restart' | 'extend'
+export type Cinema2ChoreographyEnvelopeUnit = 'seconds' | 'beats'
+
+export interface Cinema2ChoreographyMapManifest {
+  inputMin?: number
+  inputMax?: number
+  outputMin?: number
+  outputMax?: number
+  clamp?: boolean
+}
+
+export interface Cinema2ChoreographyEnvelopeManifest {
+  attack?: number
+  hold?: number
+  release?: number
+  unit?: Cinema2ChoreographyEnvelopeUnit
+}
+
+export type Cinema2ChoreographyConditionManifest =
+  | { kind: 'source-threshold'; min?: number; max?: number }
+  | { kind: 'source-range'; min: number; max: number }
+  | { kind: 'director-phase'; phases: readonly ('low' | 'steady' | 'rising' | 'building' | 'peak' | 'release')[] }
+  | { kind: 'section-type'; values: readonly string[] }
+  | { kind: 'build'; min: number }
+  | { kind: 'drop'; min: number }
+  | { kind: 'capability'; capability: Cinema2CapabilityId; available?: boolean }
+  | { kind: 'confidence'; min: number }
+  | { kind: 'once-per-event' }
 
 export interface Cinema2ChoreographyActionManifest {
   id: Cinema2ChoreographyActionId
   target: Cinema2WritableTargetRef
   operation: Cinema2ChoreographyOperation
+  /** Value/payload or envelope peak. Continuous mappings may omit it and use the source value. */
   value?: Cinema2JsonValue
+  /** Composition used by pulse/envelope/set-for-duration. Defaults to replace. */
+  composition?: Cinema2ChoreographyComposition
+  map?: Cinema2ChoreographyMapManifest
+  envelope?: Cinema2ChoreographyEnvelopeManifest
+  /** Backward-compatible shorthand used by pulse/set-for-duration. */
   durationBeats?: number
+  durationSeconds?: number
+  delayBeats?: number
+  quantizeBeats?: number
+  cooldownBeats?: number
+  retrigger?: Cinema2ChoreographyRetriggerPolicy
   config?: Cinema2JsonObject
 }
 
@@ -443,6 +568,10 @@ export interface Cinema2ChoreographyRuleManifest {
   source: Cinema2ChoreographySourceManifest
   actions: readonly Cinema2ChoreographyActionManifest[]
   enabled?: boolean
+  /** Optional route controls must be explicitly authored parameters to appear in UI. */
+  enabledParameter?: Cinema2ParameterRef
+  strengthParameter?: Cinema2ParameterRef
+  conditions?: readonly Cinema2ChoreographyConditionManifest[]
   config?: Cinema2JsonObject
 }
 

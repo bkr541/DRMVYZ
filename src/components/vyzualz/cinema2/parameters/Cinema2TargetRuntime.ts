@@ -1,6 +1,7 @@
 import type {
   Cinema2CapabilityId,
   Cinema2ChoreographyActionId,
+  Cinema2ChoreographyActionManifest,
   Cinema2JsonValue,
   Cinema2NativePresetManifest,
   Cinema2ParameterId,
@@ -109,6 +110,12 @@ export interface Cinema2TargetContribution {
   value?: Cinema2JsonValue
   priority?: number
   eventId?: string
+}
+
+/** One transient runtime contribution routed through the canonical resolver. */
+export interface Cinema2TargetContributionSubmission {
+  targetId: Cinema2TargetId
+  contribution: Readonly<Cinema2TargetContribution>
 }
 
 export interface Cinema2ResolvedTargetValue {
@@ -298,7 +305,7 @@ export function compileCinema2TargetPlan(
         diagnostics.push(issue('CINEMA2_TARGET_UNKNOWN_OR_UNSUPPORTED', 'Writable target is not registered or its property is unsupported.', `${path}.target`))
         continue
       }
-      const operation = choreographyOperation(action.operation)
+      const operation = choreographyOperation(action)
       if (!handle.operations.includes(operation)) {
         diagnostics.push(issue(
           handle.channel === 'action' || operation === 'action' ? 'CINEMA2_TARGET_SCALAR_ACTION_MISMATCH' : 'CINEMA2_TARGET_COMPOSITION_INCOMPATIBLE',
@@ -325,6 +332,7 @@ export function compileCinema2TargetPlan(
 
 export class Cinema2FinalValueResolver {
   private readonly targets = new Map<Cinema2TargetId, Readonly<Cinema2TargetHandle>>()
+  private readonly transientContributions = new Map<Cinema2TargetId, readonly Readonly<Cinema2TargetContribution>[]>()
   private readonly resolveBaseValue: (target: Readonly<Cinema2TargetHandle>) => Cinema2JsonValue | undefined
   private readonly dispatchAction: ((event: Readonly<Cinema2DispatchedTargetAction>) => void) | null
 
@@ -339,6 +347,33 @@ export class Cinema2FinalValueResolver {
 
   getTarget(targetId: Cinema2TargetId): Readonly<Cinema2TargetHandle> | null {
     return this.targets.get(targetId) ?? null
+  }
+
+  /**
+   * Atomically replaces frame/runtime modulation without touching authored or
+   * persistent parameter state. All later resolve() calls observe this shared
+   * contribution set until the next replacement/reset.
+   */
+  replaceTransientContributions(submissions: readonly Readonly<Cinema2TargetContributionSubmission>[]): void {
+    const next = new Map<Cinema2TargetId, Cinema2TargetContribution[]>()
+    for (const submission of submissions) {
+      if (!this.targets.has(submission.targetId)) continue
+      const values = next.get(submission.targetId) ?? []
+      values.push(freeze({ ...submission.contribution, value: cloneJson(submission.contribution.value) }))
+      next.set(submission.targetId, values)
+    }
+    this.transientContributions.clear()
+    for (const [targetId, values] of next) {
+      this.transientContributions.set(targetId, Object.freeze([...values].sort(compareContributions)))
+    }
+  }
+
+  clearTransientContributions(): void {
+    this.transientContributions.clear()
+  }
+
+  getTransientContributions(targetId: Cinema2TargetId): readonly Readonly<Cinema2TargetContribution>[] {
+    return this.transientContributions.get(targetId) ?? Object.freeze([])
   }
 
   resolve(
@@ -376,7 +411,7 @@ export class Cinema2FinalValueResolver {
       return freeze({ ok: false, target, value: cloneJson(normalizedBase.value), diagnostics: Object.freeze(diagnostics) })
     }
 
-    const sorted = [...contributions].sort(compareContributions)
+    const sorted = [...(this.transientContributions.get(targetId) ?? []), ...contributions].sort(compareContributions)
     const compatible: Cinema2TargetContribution[] = []
     for (const contribution of sorted) {
       if (contribution.operation === 'action') {
@@ -565,14 +600,31 @@ function resolveWritableTargetHandle(
     }
     case 'module': return lookup.get(lookupKey('module', target.ref.$ref, target.property)) ?? null
     case 'scene-node': return lookup.get(lookupKey('scene-node', target.ref.$ref, target.property)) ?? null
+    case 'layer': return lookup.get(lookupKey('layer', target.ref.$ref, target.property)) ?? null
     case 'camera': return lookup.get(lookupKey('camera', target.ref.$ref, target.property)) ?? null
     case 'light': return lookup.get(lookupKey('light', target.ref.$ref, target.property)) ?? null
     case 'effect': return lookup.get(lookupKey('effect', target.ref.$ref, target.property)) ?? null
+    case 'environment': return lookup.get(lookupKey('environment', 'root', target.property)) ?? null
+    case 'media': return lookup.get(lookupKey('media', target.ref.$ref, 'source')) ?? null
+    case 'variation': return lookup.get(lookupKey('variation', target.ref.$ref, 'activate')) ?? null
   }
 }
 
-function choreographyOperation(operation: 'set' | 'add' | 'multiply' | 'trigger'): Cinema2TargetOperation {
-  return operation === 'set' ? 'replace' : operation === 'trigger' ? 'action' : operation
+function choreographyOperation(action: Readonly<Cinema2ChoreographyActionManifest>): Cinema2TargetOperation {
+  switch (action.operation) {
+    case 'add': return 'add'
+    case 'multiply': return 'multiply'
+    case 'trigger':
+    case 'spawn':
+    case 'variation-switch': return 'action'
+    case 'pulse':
+    case 'envelope':
+    case 'set-for-duration': return action.composition ?? 'replace'
+    case 'map':
+    case 'set':
+    case 'replace':
+    case 'toggle': return 'replace'
+  }
 }
 
 function composeBaseAuthority(

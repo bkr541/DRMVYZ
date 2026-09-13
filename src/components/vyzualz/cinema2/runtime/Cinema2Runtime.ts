@@ -5,6 +5,10 @@ import {
   type Cinema2AudioIntelligenceFrame,
 } from '../audio/Cinema2AudioIntelligenceBridge'
 import { Cinema2VisualDirector, type Cinema2VisualDirectorFrame } from '../director/Cinema2VisualDirector'
+import {
+  Cinema2ChoreographyRuntime,
+  type Cinema2ChoreographyRuntimeSnapshot,
+} from '../choreography/Cinema2ChoreographyRuntime'
 import type { Cinema2CompiledPresetPlan } from '../presets/Cinema2PresetCompiler'
 import type { Cinema2CompiledRenderPlan } from '../render/Cinema2RenderGraph'
 import type { Cinema2CompiledSceneGraph } from '../scene/Cinema2SceneGraph'
@@ -128,6 +132,7 @@ const CINEMA2_RUNTIME_AVAILABLE_CAPABILITIES = Object.freeze([
   'media.image',
   'media.video',
   'media.svg',
+  'visual-director.significance',
   ...CINEMA2_AUDIO_INTELLIGENCE_RUNTIME_CAPABILITIES,
 ] satisfies readonly Cinema2CapabilityId[])
 
@@ -268,6 +273,7 @@ export class Cinema2Runtime {
   private readonly audioIntelligenceBridge: Cinema2AudioIntelligenceBridge
   private readonly visualDirector: Cinema2VisualDirector
   private readonly targetResolver: Cinema2FinalValueResolver
+  private readonly choreographyRuntime: Cinema2ChoreographyRuntime
   private readonly mediaSlotRuntime: Cinema2MediaSlotRuntime
   private readonly moduleRuntime: Cinema2ModuleRuntime
   private readonly effectRuntime: Cinema2EffectRuntime
@@ -319,6 +325,7 @@ export class Cinema2Runtime {
         if (parameterId) effectRuntime?.dispatchParameterAction(parameterId, event.eventId)
       },
     })
+    this.choreographyRuntime = new Cinema2ChoreographyRuntime(compiledPresetPlan, parameterState, this.targetResolver)
     this.mediaSlotRuntime = new Cinema2MediaSlotRuntime(gl, compiledPresetPlan.manifest.mediaSlots ?? [], options.mediaLoader)
     this.moduleRuntime = new Cinema2ModuleRuntime(gl, compiledPresetPlan, this.targetResolver, moduleRegistry, this.mediaSlotRuntime)
     const renderQuality = options.renderQuality ?? 'high'
@@ -342,6 +349,7 @@ export class Cinema2Runtime {
       this.contextLost = true
       this.phase = 'context-lost'
       this.statusMessage = 'Cinema 2.0 paused because its WebGL2 context was lost.'
+      this.choreographyRuntime.reset('context-lost')
       this.renderGraphExecutor.handleContextLost()
       this.effectRuntime.handleContextLost()
       this.historyService.handleContextLost()
@@ -389,6 +397,7 @@ export class Cinema2Runtime {
         canvas.removeEventListener('webglcontextlost', this.onContextLostHandler)
       }
       this.renderGraphExecutor.dispose()
+      this.choreographyRuntime.dispose()
       this.effectRuntime.dispose()
       this.historyService.dispose()
       this.moduleRuntime.dispose()
@@ -500,6 +509,11 @@ export class Cinema2Runtime {
     return this.visualDirectorFrame
   }
 
+  /** Transient preset-mapping state owned by the engine choreography service. */
+  getChoreographyRuntimeSnapshot(): Readonly<Cinema2ChoreographyRuntimeSnapshot> {
+    return this.choreographyRuntime.getSnapshot()
+  }
+
   getModuleRuntimeSnapshot(): Readonly<Cinema2ModuleRuntimeSnapshot> {
     return this.moduleRuntime.getSnapshot()
   }
@@ -569,6 +583,7 @@ export class Cinema2Runtime {
     }
 
     this.renderGraphExecutor.dispose()
+    this.choreographyRuntime.dispose()
     this.effectRuntime.dispose()
     this.historyService.dispose()
     this.moduleRuntime.dispose()
@@ -646,10 +661,12 @@ export class Cinema2Runtime {
         audio: this.audioIntelligenceFrame,
         director: this.visualDirectorFrame,
       })
+      this.choreographyRuntime.update(frame)
       this.moduleRuntime.update(frame)
       this.renderGraphExecutor.executeFrame(frame, this.moduleRuntime.getRenderPassProviders())
       this.frameCount = visualFrameId
     } catch (error) {
+      this.choreographyRuntime.reset('frame-failure')
       this.runningRequested = false
       this.phase = 'unavailable'
       this.statusMessage = `Cinema 2.0 stopped after a WebGL2 render failure: ${errorMessage(error)}`

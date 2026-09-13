@@ -59,7 +59,7 @@ class FakeCanvas extends EventTarget {
   }
 }
 
-function createAudioBridge(energy: () => number, available: () => boolean, timeSec?: () => number) {
+function createAudioBridge(energy: () => number, available: () => boolean, timeSec?: () => number, kickHit?: () => boolean) {
   let frameId = 0
   return new Cinema2AudioIntelligenceBridge({
     getFrame: () => ({
@@ -68,7 +68,22 @@ function createAudioBridge(energy: () => number, available: () => boolean, timeS
       sourceId: 'reference-visual-test',
       timeSec: timeSec?.() ?? frameId / 60,
       energy: { ...DEFAULT_MI_FRAME.energy, instant: energy() },
-      capabilities: { ...DEFAULT_MI_FRAME.capabilities!, liveBands: available() },
+      rhythm: {
+        ...DEFAULT_MI_FRAME.rhythm,
+        bpm: kickHit ? 120 : DEFAULT_MI_FRAME.rhythm.bpm,
+        bpmConfidence: kickHit ? 0.95 : DEFAULT_MI_FRAME.rhythm.bpmConfidence,
+        beatPhase: 0,
+        beatIndex: frameId,
+        kickHit: kickHit?.() ?? false,
+        kickStrength: kickHit ? 1 : DEFAULT_MI_FRAME.rhythm.kickStrength,
+        transientConfidence: kickHit ? 0.95 : DEFAULT_MI_FRAME.rhythm.transientConfidence,
+      },
+      capabilities: {
+        ...DEFAULT_MI_FRAME.capabilities!,
+        liveBands: available(),
+        rhythmEvents: kickHit != null,
+        beatGrid: kickHit != null,
+      },
       confidence: { ...DEFAULT_MI_FRAME.confidence, overall: 0.9 },
     }),
     getPublicationMeta: () => ({
@@ -172,6 +187,37 @@ describe('Cinema 2.0 Reference Visual native vertical slice', () => {
     raf.runNext(100.02)
     expect(gl.__calls.drawCount).toBe(14)
     expect(lastValue(uniformFloatCalls(gl, 'u_mix'))).toBe(0.6)
+    runtime.dispose()
+  })
+
+  it('runs continuous and event choreography through the production runtime without mutating persistent controls', () => {
+    let kick = true
+    const { runtime, raf } = createReferenceRuntime(createAudioBridge(() => 0.5, () => true, undefined, () => kick))
+    const serializedBefore = runtime.serializeParameterState()
+    runtime.start()
+    raf.runNext()
+
+    const bloomTarget = runtime.getCompiledPresetPlan().targets.targets.find(target =>
+      target.kind === 'effect' && target.ownerId === 'reference-bloom' && target.property === 'intensity')
+    const trailsTarget = runtime.getCompiledPresetPlan().targets.targets.find(target =>
+      target.kind === 'effect' && target.ownerId === 'reference-trails' && target.property === 'mix')
+    expect(bloomTarget).toBeDefined()
+    expect(trailsTarget).toBeDefined()
+    if (!bloomTarget || !trailsTarget) throw new Error('Reference choreography targets were not compiled.')
+
+    expect(runtime.getTargetResolver().resolve(bloomTarget.id).value).toBeCloseTo(1.6)
+    expect(runtime.getTargetResolver().resolve(trailsTarget.id).value).toBeCloseTo(0.8)
+    expect(runtime.getChoreographyRuntimeSnapshot()).toMatchObject({
+      activeContributionCount: 2,
+      activeEnvelopeCount: 1,
+      seenEventCount: 1,
+    })
+    expect(runtime.serializeParameterState()).toBe(serializedBefore)
+
+    kick = false
+    raf.runNext(33.34)
+    expect(runtime.getChoreographyRuntimeSnapshot().activeEnvelopeCount).toBe(1)
+    expect(runtime.serializeParameterState()).toBe(serializedBefore)
     runtime.dispose()
   })
 

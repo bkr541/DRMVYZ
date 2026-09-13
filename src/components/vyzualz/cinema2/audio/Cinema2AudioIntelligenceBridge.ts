@@ -24,12 +24,14 @@ export const CINEMA2_AUDIO_INTELLIGENCE_RUNTIME_CAPABILITIES = Object.freeze([
   'audio.features',
   'music.beat',
   'music.downbeat',
+  'music.rhythm-events',
   'music.bar',
   'music.phrase',
   'music.section',
   'music.vocal-presence',
   'music.build',
   'music.drop',
+  'music.lyrics',
 ] satisfies readonly Cinema2CapabilityId[])
 
 export type Cinema2AudioDiscontinuityReason =

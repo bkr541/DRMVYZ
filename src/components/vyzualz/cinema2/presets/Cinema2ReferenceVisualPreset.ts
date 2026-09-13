@@ -4,6 +4,8 @@ import {
   cinema2NamespacedId,
   cinema2Ref,
   cinema2StableId,
+  type Cinema2ChoreographyActionId,
+  type Cinema2ChoreographyRuleId,
   type Cinema2EffectId,
   type Cinema2LayerId,
   type Cinema2ModuleId,
@@ -46,6 +48,10 @@ const REFERENCE_TRAILS_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('referenc
 const REFERENCE_EFFECT_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('reference-effect-source')
 const REFERENCE_BLOOM_EFFECT_ID = cinema2StableId<Cinema2EffectId>('reference-bloom')
 const REFERENCE_TRAILS_EFFECT_ID = cinema2StableId<Cinema2EffectId>('reference-trails')
+const REFERENCE_ENERGY_BLOOM_RULE_ID = cinema2StableId<Cinema2ChoreographyRuleId>('reference-energy-bloom')
+const REFERENCE_ENERGY_BLOOM_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reference-energy-bloom-add')
+const REFERENCE_KICK_TRAILS_RULE_ID = cinema2StableId<Cinema2ChoreographyRuleId>('reference-kick-trails')
+const REFERENCE_KICK_TRAILS_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reference-kick-trails-envelope')
 
 const REFERENCE_FRAGMENT_SOURCE = `#version 300 es
 precision highp float;
@@ -94,6 +100,7 @@ export const CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST: Readonly<Cinema2NativePre
   capabilities: Object.freeze([
     Object.freeze({ id: 'render.webgl2' as const, requirement: 'required' as const, purpose: 'Native fullscreen Stage output.' }),
     Object.freeze({ id: 'audio.features' as const, requirement: 'optional' as const, purpose: 'Continuous overall-energy diagnostic response when authoritative audio is available.' }),
+    Object.freeze({ id: 'music.rhythm-events' as const, requirement: 'optional' as const, purpose: 'Kick-event choreography when authoritative rhythm events are available.' }),
   ]),
   parameters: Object.freeze([
     Object.freeze({
@@ -255,8 +262,48 @@ export const CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST: Readonly<Cinema2NativePre
       actionBindings: Object.freeze({ reset: cinema2Ref(CINEMA2_REFERENCE_VISUAL_TRAILS_RESET_ID) }),
     }),
   ]),
+  choreography: Object.freeze({
+    rules: Object.freeze([
+      Object.freeze({
+        id: REFERENCE_ENERGY_BLOOM_RULE_ID,
+        priority: 10,
+        source: Object.freeze({
+          signal: 'continuous' as const,
+          capability: 'audio.features' as const,
+          path: 'audio.features.overallEnergy' as const,
+          smoothingMs: 90,
+          clamp: Object.freeze([0, 1] as const),
+        }),
+        actions: Object.freeze([Object.freeze({
+          id: REFERENCE_ENERGY_BLOOM_ACTION_ID,
+          target: Object.freeze({ kind: 'effect' as const, ref: cinema2Ref(REFERENCE_BLOOM_EFFECT_ID), property: 'intensity' }),
+          operation: 'add' as const,
+          value: 0.7,
+        })]),
+      }),
+      Object.freeze({
+        id: REFERENCE_KICK_TRAILS_RULE_ID,
+        priority: 20,
+        source: Object.freeze({
+          signal: 'kick' as const,
+          capability: 'music.rhythm-events' as const,
+        }),
+        conditions: Object.freeze([Object.freeze({ kind: 'confidence' as const, min: 0.2 })]),
+        actions: Object.freeze([Object.freeze({
+          id: REFERENCE_KICK_TRAILS_ACTION_ID,
+          target: Object.freeze({ kind: 'effect' as const, ref: cinema2Ref(REFERENCE_TRAILS_EFFECT_ID), property: 'mix' }),
+          operation: 'envelope' as const,
+          composition: 'add' as const,
+          value: 0.25,
+          envelope: Object.freeze({ attack: 0, hold: 0.08, release: 0.32, unit: 'beats' as const }),
+          cooldownBeats: 0.1,
+          retrigger: 'restart' as const,
+        })]),
+      }),
+    ]),
+  }),
   // A tiny authored plan keeps parameter-gated scene rendering and the shared
-  // effect seam on the real frame-production path without adding choreography.
+  // effect seam on the real frame-production path.
   render: Object.freeze({
     targets: Object.freeze([
       Object.freeze({
