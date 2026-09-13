@@ -10,7 +10,6 @@ import { TabStyleGallery } from './layoutLab/TabStyleGallery'
 import { EngineDropdownStyleGallery } from './layoutLab/EngineDropdownStyleGallery'
 import { NoticeStyleGallery } from './layoutLab/NoticeStyleGallery'
 import { NotificationsModalMockup } from './layoutLab/NotificationsModalMockup'
-import { CastScreenModalMockup } from './layoutLab/CastScreenModalMockup'
 import { MediaLibraryStyleGallery } from './layoutLab/MediaLibraryStyleGallery'
 import { ButtonStyleGallery } from './layoutLab/ButtonStyleGallery'
 import { PaletteGroupStyleGallery } from './layoutLab/PaletteGroupStyleGallery'
@@ -20,7 +19,7 @@ import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { TrackLibraryRowStyleGallery } from './layoutLab/TrackLibraryRowStyleGallery'
 import { TrackWorkspaceHeaderStyleGallery } from './layoutLab/TrackWorkspaceHeaderStyleGallery'
-import { DeleteConfirmDialogStyleGallery } from './layoutLab/DeleteConfirmDialogStyleGallery'
+import { TrackHeaderStyleGallery } from './layoutLab/TrackHeaderStyleGallery'
 import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
 import { LaserDjBeamBuilderMockup } from './layoutLab/LaserDjBeamBuilderMockup'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
@@ -273,9 +272,7 @@ export function LayoutLabMockup() {
             {engineId === 'canvas' && <CanvasCanvasMockup state={canvasState} />}
             {engineId === 'template' && (
               <div className="llcm-stage-gallery">
-                <CastScreenModalMockup />
-                <div className="llcm-stage-section-hdr">Delete Confirmation Dialog</div>
-                <DeleteConfirmDialogStyleGallery />
+                <TrackHeaderStyleGallery />
               </div>
             )}
           </div>

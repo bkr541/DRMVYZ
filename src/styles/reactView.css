@@ -21766,3 +21766,562 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   flex-direction: column;
   gap: 6px;
 }
+
+/* ── Layout Lab / Template — track header style gallery ───────────────────
+   Five redesign concepts for Lyric Manager's LyricTrackMetaHeader.tsx row.
+   .lltm-status-good and .lltm-ticket-versions (dl) are shared across
+   concepts 2-5; each concept otherwise owns its own layout classes. */
+
+.lltm-status-good { color: #61d6aa; }
+
+.lltm-row {
+  width: 100%;
+  color: rgba(196, 207, 211, 0.7);
+  font: 500 11px/1.4 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.lltm-ticket-versions {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+.lltm-ticket-versions div { display: grid; grid-template-columns: minmax(44px, auto) minmax(0, 1fr); align-items: start; gap: 8px; }
+.lltm-ticket-versions dt { color: rgba(196, 207, 211, 0.48); font-size: 9px; }
+.lltm-ticket-versions dd { min-width: 0; margin: 0; overflow: hidden; color: rgba(237, 249, 251, 0.82); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Concept 1 — Vinyl Deck Header */
+
+.lltm-row--vinyl {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border: 1px solid rgba(126, 218, 232, 0.12);
+  border-radius: 10px;
+  background: rgba(11, 21, 25, 0.85);
+}
+
+.lltm-vinyl-disc {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background:
+    repeating-radial-gradient(circle, rgba(255, 255, 255, 0.09) 0 1.5px, transparent 1.5px 4px),
+    radial-gradient(circle at 35% 30%, rgba(74, 199, 219, 0.22), transparent 55%),
+    #05090b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lltm-vinyl-label {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: #0d1a1f;
+  border: 1px solid rgba(74, 199, 219, 0.35);
+  color: rgba(237, 249, 251, 0.85);
+  font-size: 7px;
+  font-weight: 800;
+}
+
+.lltm-vinyl-body {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.lltm-vinyl-topline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lltm-vinyl-title {
+  overflow: hidden;
+  color: rgba(237, 249, 251, 0.92);
+  font: 700 12px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltm-vinyl-artist {
+  overflow: hidden;
+  color: rgba(196, 207, 211, 0.58);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltm-vinyl-readout {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 1px;
+  font: 500 9.5px/1 ui-monospace, 'SF Mono', Menlo, monospace;
+  color: rgba(196, 207, 211, 0.5);
+}
+
+.lltm-vinyl-readout-hl {
+  color: #6fe0f0;
+  font-weight: 700;
+}
+
+.lltm-vinyl-dot {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: rgba(196, 207, 211, 0.4);
+}
+
+.lltm-vinyl-active {
+  overflow: hidden;
+  margin-top: 2px;
+  color: rgba(196, 207, 211, 0.48);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltm-vinyl-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+/* Concept 2 — Ticket Stub */
+
+.lltm-row--ticket {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid rgba(126, 218, 232, 0.16);
+  border-radius: 12px;
+  background: rgba(6, 12, 17, 0.9);
+  overflow: hidden;
+}
+
+.lltm-ticket-stub {
+  display: flex;
+  padding: 14px 16px;
+}
+
+.lltm-ticket-stub--main {
+  flex: 1 1 62%;
+  gap: 12px;
+}
+
+.lltm-ticket-stub--manifest {
+  flex: 0 0 38%;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lltm-ticket-perforation {
+  position: relative;
+  flex: 0 0 auto;
+  width: 0;
+  border-left: 2px dashed rgba(126, 218, 232, 0.28);
+}
+
+.lltm-ticket-perforation::before,
+.lltm-ticket-perforation::after {
+  position: absolute;
+  left: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--rv-canvas-bg, #05090b);
+  content: '';
+}
+.lltm-ticket-perforation::before { top: -7px; }
+.lltm-ticket-perforation::after { bottom: -7px; }
+
+.lltm-ticket-art {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 5px;
+  border: 1px solid rgba(126, 218, 232, 0.16);
+  background:
+    linear-gradient(145deg, rgba(74, 199, 219, 0.2), transparent 50%),
+    radial-gradient(circle at 50% 25%, rgba(237, 249, 251, 0.2), transparent 26%),
+    #071014;
+  color: rgba(237, 249, 251, 0.9);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.lltm-ticket-identity {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lltm-ticket-topline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lltm-ticket-title {
+  overflow: hidden;
+  color: rgba(237, 249, 251, 0.92);
+  font: 700 12px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltm-ticket-artist {
+  overflow: hidden;
+  color: rgba(196, 207, 211, 0.58);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltm-ticket-manifest {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+}
+.lltm-ticket-manifest div { display: flex; justify-content: space-between; gap: 8px; }
+.lltm-ticket-manifest dt {
+  color: rgba(196, 207, 211, 0.45);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.lltm-ticket-manifest dd { margin: 0; color: rgba(232, 244, 248, 0.9); font-size: 11px; font-weight: 600; }
+
+.lltm-ticket-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Concept 3 — Session Console */
+
+.lltm-row--console {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(126, 218, 232, 0.12);
+  border-radius: 10px;
+  background: rgba(11, 21, 25, 0.85);
+}
+
+.lltm-console-hdr {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.lltm-console-art {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 5px;
+  border: 1px solid rgba(126, 218, 232, 0.16);
+  background:
+    linear-gradient(145deg, rgba(74, 199, 219, 0.2), transparent 50%),
+    radial-gradient(circle at 50% 25%, rgba(237, 249, 251, 0.2), transparent 26%),
+    #071014;
+  color: rgba(237, 249, 251, 0.9);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.lltm-console-identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lltm-console-topline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lltm-console-title {
+  overflow: hidden;
+  color: rgba(237, 249, 251, 0.92);
+  font: 700 12px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltm-console-artist {
+  overflow: hidden;
+  color: rgba(196, 207, 211, 0.58);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltm-console-screens {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.lltm-console-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 10px;
+  border: 1px solid rgba(74, 199, 219, 0.14);
+  border-radius: 6px;
+  background: rgba(2, 8, 10, 0.85);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.lltm-console-screen-label {
+  color: rgba(196, 207, 211, 0.42);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lltm-console-screen-value {
+  overflow: hidden;
+  color: #6fe0f0;
+  font: 700 15px/1.1 ui-monospace, 'SF Mono', Menlo, monospace;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 12px rgba(74, 199, 219, 0.45);
+  white-space: nowrap;
+}
+
+.lltm-console-screen--bpm .lltm-console-screen-value { font-size: 20px; }
+
+.lltm-console-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lltm-console-versions { flex: 1 1 auto; min-width: 0; }
+
+.lltm-console-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+/* Concept 4 — Split Rail */
+
+.lltm-row--rail {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px 12px 0;
+  border: 1px solid rgba(126, 218, 232, 0.12);
+  border-radius: 10px;
+  background: rgba(11, 21, 25, 0.85);
+  overflow: hidden;
+}
+
+.lltm-rail-accent {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 4px;
+  background: linear-gradient(180deg, #67f7ff, #4ac7db);
+}
+
+.lltm-rail-art {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  border: 1px solid rgba(126, 218, 232, 0.16);
+  background:
+    linear-gradient(145deg, rgba(74, 199, 219, 0.2), transparent 50%),
+    radial-gradient(circle at 50% 25%, rgba(237, 249, 251, 0.2), transparent 26%),
+    #071014;
+  color: rgba(237, 249, 251, 0.9);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.lltm-rail-col--identity {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 220px;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lltm-rail-topline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lltm-rail-title {
+  overflow: hidden;
+  color: rgba(237, 249, 251, 0.92);
+  font: 700 12px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltm-rail-artist {
+  overflow: hidden;
+  color: rgba(196, 207, 211, 0.58);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltm-rail-stats {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(2, minmax(64px, auto));
+  gap: 8px 18px;
+}
+
+.lltm-rail-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lltm-rail-stat-label {
+  color: rgba(196, 207, 211, 0.42);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lltm-rail-stat-value {
+  color: rgba(232, 244, 248, 0.9);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.lltm-rail-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* Concept 5 — Compact Strip */
+
+.lltm-row--strip {
+  border: 1px solid rgba(126, 218, 232, 0.12);
+  border-radius: 8px;
+  background: rgba(11, 21, 25, 0.85);
+}
+
+.lltm-strip-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+}
+
+.lltm-strip-art {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  border: 1px solid rgba(126, 218, 232, 0.16);
+  background: #071014;
+  color: rgba(237, 249, 251, 0.9);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.lltm-strip-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #d8b95a;
+  box-shadow: 0 0 6px rgba(216, 185, 90, 0.7);
+}
+
+.lltm-strip-title {
+  overflow: hidden;
+  flex: 0 1 auto;
+  color: rgba(237, 249, 251, 0.92);
+  font: 700 11px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltm-strip-sep { flex: 0 0 auto; color: rgba(196, 207, 211, 0.35); }
+
+.lltm-strip-artist {
+  overflow: hidden;
+  flex: 0 1 auto;
+  color: rgba(196, 207, 211, 0.58);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltm-strip-stats {
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-width: 40px;
+  margin-left: 8px;
+  color: rgba(196, 207, 211, 0.42);
+  font: 500 9.5px/1 ui-monospace, 'SF Mono', Menlo, monospace;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltm-strip-toggle {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(196, 207, 211, 0.6);
+  cursor: pointer;
+}
+.lltm-strip-toggle:hover { color: #67f7ff; }
+.lltm-strip-toggle svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 160ms ease; }
+
+.lltm-row--strip .dv-icon-chip {
+  padding: 5px 8px;
+}
+
+.lltm-strip-versions {
+  padding: 0 10px 8px 42px;
+}
