@@ -107,6 +107,8 @@ export const cinema2Object3DModuleDefinition: Readonly<Cinema2ModuleTypeDefiniti
           renderer.draw({
             modelMatrix: node.worldMatrix,
             worldToClipMatrix: execution.camera.viewProjectionMatrix,
+            cameraPosition: execution.camera.position,
+            lightingEnvironment: execution.lightingEnvironment,
             material: { color, emissiveIntensity },
           })
         }

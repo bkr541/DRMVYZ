@@ -363,14 +363,25 @@ export interface Cinema2CameraManifest {
 
 export type Cinema2LightType = 'ambient' | 'directional' | 'point' | 'spot'
 
+/** Optional parameter bindings expose only authored light controls through the shared schema Inspector. */
+export interface Cinema2LightControlBindingsManifest {
+  color?: Cinema2ParameterRef
+  intensity?: Cinema2ParameterRef
+  position?: Cinema2ParameterRef
+  rotation?: Cinema2ParameterRef
+}
+
 export interface Cinema2LightManifest {
   id: Cinema2LightId
   type: Cinema2LightType
   color?: Cinema2Color
   intensity?: number
   transform?: Cinema2TransformManifest
+  /** Optional Scene Graph anchor. The authored/controlled transform is local to this node. */
+  node?: Cinema2SceneNodeRef
   /** Optional scene-node target for directional/spot-style orientation consumers. */
   targetNode?: Cinema2SceneNodeRef
+  controls?: Cinema2LightControlBindingsManifest
   config?: Cinema2JsonObject
 }
 
@@ -387,10 +398,21 @@ export interface Cinema2FogManifest {
   far?: number
 }
 
+/** Optional parameter bindings keep Environment UI capability-driven and schema-authored. */
+export interface Cinema2EnvironmentControlBindingsManifest {
+  backgroundColor?: Cinema2ParameterRef
+  exposure?: Cinema2ParameterRef
+  fogColor?: Cinema2ParameterRef
+  fogDensity?: Cinema2ParameterRef
+  fogNear?: Cinema2ParameterRef
+  fogFar?: Cinema2ParameterRef
+}
+
 export interface Cinema2EnvironmentManifest {
   backgroundColor?: Cinema2Color
   fog?: Cinema2FogManifest
   exposure?: number
+  controls?: Cinema2EnvironmentControlBindingsManifest
   config?: Cinema2JsonObject
 }
 

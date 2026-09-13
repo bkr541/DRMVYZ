@@ -35,6 +35,10 @@ import {
 import type { Cinema2ModuleRenderPassProvider } from '../modules/Cinema2ModuleContracts'
 import { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
 import { Cinema2CameraRuntime, type Cinema2CameraRuntimeSnapshot } from '../spatial/Cinema2CameraRuntime'
+import {
+  Cinema2LightingEnvironmentRuntime,
+  type Cinema2LightingEnvironmentRuntimeSnapshot,
+} from '../spatial/Cinema2LightingEnvironmentRuntime'
 import { Cinema2EffectRuntime } from '../effects/Cinema2EffectRuntime'
 import { Cinema2EffectRegistry, cinema2NativeEffectRegistry } from '../effects/Cinema2EffectRegistry'
 import type { Cinema2EffectRuntimeSnapshot } from '../effects/Cinema2EffectContracts'
@@ -147,6 +151,7 @@ const CINEMA2_RUNTIME_AVAILABLE_CAPABILITIES = Object.freeze([
   'render.history',
   'scene.3d',
   'camera.world',
+  'lighting',
   'media.image',
   'media.video',
   'media.svg',
@@ -294,6 +299,7 @@ export class Cinema2Runtime {
   private readonly targetResolver: Cinema2FinalValueResolver
   private readonly spatialRuntime: Cinema2SpatialRuntime
   private readonly cameraRuntime: Cinema2CameraRuntime
+  private readonly lightingEnvironmentRuntime: Cinema2LightingEnvironmentRuntime
   private readonly choreographyRuntime: Cinema2ChoreographyRuntime
   private readonly mediaSlotRuntime: Cinema2MediaSlotRuntime
   private readonly moduleRuntime: Cinema2ModuleRuntime
@@ -354,10 +360,16 @@ export class Cinema2Runtime {
     })
     this.spatialRuntime = new Cinema2SpatialRuntime(compiledPresetPlan.scene, compiledPresetPlan.targets.targets, this.targetResolver)
     this.cameraRuntime = new Cinema2CameraRuntime(compiledPresetPlan, parameterState, this.targetResolver, this.spatialRuntime)
+    const renderQuality = options.renderQuality ?? 'high'
+    this.lightingEnvironmentRuntime = new Cinema2LightingEnvironmentRuntime(
+      compiledPresetPlan,
+      this.targetResolver,
+      this.spatialRuntime,
+      renderQuality,
+    )
     this.choreographyRuntime = new Cinema2ChoreographyRuntime(compiledPresetPlan, parameterState, this.targetResolver, this.randomService)
     this.mediaSlotRuntime = new Cinema2MediaSlotRuntime(gl, compiledPresetPlan.manifest.mediaSlots ?? [], options.mediaLoader)
     this.moduleRuntime = new Cinema2ModuleRuntime(gl, compiledPresetPlan, this.targetResolver, moduleRegistry, this.mediaSlotRuntime)
-    const renderQuality = options.renderQuality ?? 'high'
     this.effectRuntime = new Cinema2EffectRuntime(gl, compiledPresetPlan, this.targetResolver, effectRegistry, renderQuality, this.historyService)
     effectRuntime = this.effectRuntime
     this.renderGraphExecutor = new Cinema2RenderGraphExecutor(gl, compiledPresetPlan.render, compiledPresetPlan.scene, parameterState, this.resourceManager, {
@@ -366,6 +378,7 @@ export class Cinema2Runtime {
       effectRuntime: this.effectRuntime,
       spatialRuntime: this.spatialRuntime,
       cameraRuntime: this.cameraRuntime,
+      lightingEnvironmentRuntime: this.lightingEnvironmentRuntime,
     })
     this.contextHandle = registerDrmvyzWebGLContext(gl, {
       lifetime: 'live-reusable',
@@ -431,6 +444,7 @@ export class Cinema2Runtime {
       }
       this.renderGraphExecutor.dispose()
       this.cameraRuntime.dispose()
+      this.lightingEnvironmentRuntime.dispose()
       this.spatialRuntime.dispose()
       this.choreographyRuntime.dispose()
       this.effectRuntime.dispose()
@@ -544,6 +558,11 @@ export class Cinema2Runtime {
     return this.cameraRuntime.getSnapshot()
   }
 
+  /** Shared target-resolved Lighting/Environment service used by native spatial rendering. */
+  getLightingEnvironmentRuntimeSnapshot(): Readonly<Cinema2LightingEnvironmentRuntimeSnapshot> {
+    return this.lightingEnvironmentRuntime.getSnapshot()
+  }
+
   /** Most recent immutable Audio Intelligence snapshot captured for a visual frame. */
   getAudioIntelligenceFrame(): Readonly<Cinema2AudioIntelligenceFrame> | null {
     return this.audioIntelligenceFrame
@@ -634,6 +653,7 @@ export class Cinema2Runtime {
 
     this.renderGraphExecutor.dispose()
     this.cameraRuntime.dispose()
+    this.lightingEnvironmentRuntime.dispose()
     this.spatialRuntime.dispose()
     this.choreographyRuntime.dispose()
     this.effectRuntime.dispose()
@@ -664,7 +684,8 @@ export class Cinema2Runtime {
     this.gl.disable(this.gl.BLEND)
     this.gl.disable(this.gl.DEPTH_TEST)
     this.gl.colorMask(true, true, true, true)
-    this.gl.clearColor(0, 0, 0, 1)
+    const background = this.lightingEnvironmentRuntime.getFrame().environment.backgroundColor
+    this.gl.clearColor(background[0], background[1], background[2], background[3])
     this.gl.clear(this.gl.COLOR_BUFFER_BIT)
     this.gl.flush()
   }
@@ -714,6 +735,7 @@ export class Cinema2Runtime {
         director: this.visualDirectorFrame,
       })
       this.choreographyRuntime.update(frame)
+      this.lightingEnvironmentRuntime.update()
       this.cameraRuntime.update(frame)
       this.moduleRuntime.update(frame)
       this.renderGraphExecutor.executeFrame(frame, this.moduleRuntime.getRenderPassProviders())

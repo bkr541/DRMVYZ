@@ -47,7 +47,7 @@ const IDENTITY_SCALE = Object.freeze([1, 1, 1]) as Cinema2Vector3
  */
 export class Cinema2SpatialRuntime {
   private readonly targetsByNode = new Map<Cinema2SceneNodeId, SpatialTargetSet>()
-  private readonly nodeById = new Map(this.scene.nodes.map(node => [node.id, node] as const))
+  private readonly nodeById = new Map<Cinema2SceneNodeId, Readonly<Cinema2CompiledSceneGraph['nodes'][number]>>()
   private disposed = false
 
   constructor(
@@ -55,6 +55,7 @@ export class Cinema2SpatialRuntime {
     targetHandles: readonly Readonly<Cinema2TargetHandle>[],
     private readonly resolver: Cinema2FinalValueResolver,
   ) {
+    for (const node of scene.nodes) this.nodeById.set(node.id, node)
     for (const node of scene.nodes) {
       this.targetsByNode.set(node.id, {
         visible: findTarget(targetHandles, node.id, 'visible'),

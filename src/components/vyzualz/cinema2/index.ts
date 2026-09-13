@@ -80,14 +80,18 @@ export {
   type Cinema2EffectScope,
   type Cinema2EffectTypeId,
   type Cinema2EffectManifest,
+  type Cinema2EnvironmentControlBindingsManifest,
   type Cinema2EnvironmentManifest,
+  type Cinema2FogManifest,
   type Cinema2JsonObject,
   type Cinema2JsonValue,
   type Cinema2LayerBlendMode,
   type Cinema2LayerDepthPolicy,
   type Cinema2LayerId,
   type Cinema2LayerManifest,
+  type Cinema2LightControlBindingsManifest,
   type Cinema2LightId,
+  type Cinema2LightType,
   type Cinema2LightingManifest,
   type Cinema2ManifestDiagnostic,
   type Cinema2ManifestIdentityValidation,
@@ -365,6 +369,15 @@ export {
   Cinema2SpatialRuntime,
   type Cinema2ResolvedSpatialNode,
 } from './spatial/Cinema2SpatialRuntime'
+
+export {
+  Cinema2LightingEnvironmentRuntime,
+  type Cinema2LightingEnvironmentFrame,
+  type Cinema2LightingEnvironmentRuntimeSnapshot,
+  type Cinema2ResolvedEnvironmentFrame,
+  type Cinema2ResolvedFogFrame,
+  type Cinema2ResolvedLightFrame,
+} from './spatial/Cinema2LightingEnvironmentRuntime'
 
 export {
   CINEMA2_CAMERA_RUNTIME_VERSION,

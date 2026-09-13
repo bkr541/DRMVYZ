@@ -19,6 +19,7 @@ import type {
 import type { Cinema2CompiledSceneGraph } from '../scene/Cinema2SceneGraph'
 import type { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
 import type { Cinema2CameraRuntime } from '../spatial/Cinema2CameraRuntime'
+import type { Cinema2LightingEnvironmentRuntime } from '../spatial/Cinema2LightingEnvironmentRuntime'
 import {
   Cinema2ResourceManager,
   type Cinema2RenderTargetBinding,
@@ -47,6 +48,7 @@ export interface Cinema2RenderGraphExecutorOptions {
   effectRuntime?: Cinema2EffectRuntime
   spatialRuntime?: Cinema2SpatialRuntime
   cameraRuntime?: Cinema2CameraRuntime
+  lightingEnvironmentRuntime?: Cinema2LightingEnvironmentRuntime
 }
 
 interface TargetRecord {
@@ -75,6 +77,7 @@ export class Cinema2RenderGraphExecutor {
   private readonly effectRuntime: Cinema2EffectRuntime | null
   private readonly spatialRuntime: Cinema2SpatialRuntime | null
   private readonly cameraRuntime: Cinema2CameraRuntime | null
+  private readonly lightingEnvironmentRuntime: Cinema2LightingEnvironmentRuntime | null
   private diagnostics: Cinema2RenderGraphExecutorDiagnostic[] = []
   private frameCount = 0
   private executedPassCount = 0
@@ -96,6 +99,7 @@ export class Cinema2RenderGraphExecutor {
     this.effectRuntime = options.effectRuntime ?? null
     this.spatialRuntime = options.spatialRuntime ?? null
     this.cameraRuntime = options.cameraRuntime ?? null
+    this.lightingEnvironmentRuntime = options.lightingEnvironmentRuntime ?? null
     for (const target of plan.targets) this.targetHandles.set(target.id, target)
     for (const pass of plan.passes) this.passById.set(pass.id, pass)
   }
@@ -308,6 +312,7 @@ export class Cinema2RenderGraphExecutor {
         depthAvailable: target?.depthRenderbuffer != null,
         spatialNodes: this.resolveSpatialNodesForModule(pass, moduleId),
         camera: provider.intent === 'world' ? this.cameraRuntime?.getFrame() : undefined,
+        lightingEnvironment: this.lightingEnvironmentRuntime?.getFrame(),
         inputs,
       })
     }
@@ -347,7 +352,8 @@ export class Cinema2RenderGraphExecutor {
     this.gl.depthFunc(this.gl.LEQUAL)
     this.gl.depthMask(true)
     this.gl.colorMask(true, true, true, true)
-    this.gl.clearColor(0, 0, 0, 1)
+    const background = this.backgroundColor()
+    this.gl.clearColor(background[0], background[1], background[2], background[3])
     this.gl.clearDepth(1)
     this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT)
   }
@@ -422,8 +428,13 @@ export class Cinema2RenderGraphExecutor {
     this.gl.disable(this.gl.BLEND)
     this.gl.disable(this.gl.DEPTH_TEST)
     this.gl.colorMask(true, true, true, true)
-    this.gl.clearColor(0, 0, 0, 1)
+    const background = this.backgroundColor()
+    this.gl.clearColor(background[0], background[1], background[2], background[3])
     this.gl.clear(this.gl.COLOR_BUFFER_BIT)
+  }
+
+  private backgroundColor(): readonly [number, number, number, number] {
+    return this.lightingEnvironmentRuntime?.getFrame().environment.backgroundColor ?? [0, 0, 0, 1]
   }
 
   private markOutputs(

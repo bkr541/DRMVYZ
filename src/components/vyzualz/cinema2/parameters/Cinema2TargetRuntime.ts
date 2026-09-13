@@ -284,20 +284,53 @@ export function compileCinema2TargetPlan(
 
   for (const light of manifest.lighting?.lights ?? []) {
     const entity = addEntity('light', light.id)
-    addTarget(entity, 'color', 'color', light.color ?? [1, 1, 1, 1], { min: 0, max: 1 })
-    addTarget(entity, 'intensity', 'number', light.intensity ?? 1, { min: 0 })
-    addTransformTargets(entity, light.transform, addTarget)
+    addTarget(entity, 'color', 'color', light.color ?? [1, 1, 1, 1], {
+      min: 0,
+      max: 1,
+      parameterId: light.controls?.color?.$ref ?? null,
+    })
+    addTarget(entity, 'intensity', 'number', light.intensity ?? 1, {
+      min: 0,
+      parameterId: light.controls?.intensity?.$ref ?? null,
+    })
+    addTransformTargets(entity, light.transform, addTarget, {
+      position: light.controls?.position,
+      rotation: light.controls?.rotation,
+    })
   }
 
   if (manifest.environment != null) {
     const entity = addEntity('environment', 'root')
-    addTarget(entity, 'backgroundColor', 'color', manifest.environment.backgroundColor ?? [0, 0, 0, 1], { min: 0, max: 1 })
-    addTarget(entity, 'exposure', 'number', manifest.environment.exposure ?? 1, { min: 0, max: 32 })
+    const controls = manifest.environment.controls
+    addTarget(entity, 'backgroundColor', 'color', manifest.environment.backgroundColor ?? [0, 0, 0, 1], {
+      min: 0,
+      max: 1,
+      parameterId: controls?.backgroundColor?.$ref ?? null,
+    })
+    addTarget(entity, 'exposure', 'number', manifest.environment.exposure ?? 1, {
+      min: 0,
+      max: 32,
+      parameterId: controls?.exposure?.$ref ?? null,
+    })
     if (manifest.environment.fog != null) {
-      addTarget(entity, 'fog.color', 'color', manifest.environment.fog.color ?? [0, 0, 0, 1], { min: 0, max: 1 })
-      addTarget(entity, 'fog.density', 'number', manifest.environment.fog.density ?? 0, { min: 0, max: 10 })
-      addTarget(entity, 'fog.near', 'number', manifest.environment.fog.near ?? 0, { min: 0 })
-      addTarget(entity, 'fog.far', 'number', manifest.environment.fog.far ?? 1000, { min: 0 })
+      addTarget(entity, 'fog.color', 'color', manifest.environment.fog.color ?? [0, 0, 0, 1], {
+        min: 0,
+        max: 1,
+        parameterId: controls?.fogColor?.$ref ?? null,
+      })
+      addTarget(entity, 'fog.density', 'number', manifest.environment.fog.density ?? 0, {
+        min: 0,
+        max: 10,
+        parameterId: controls?.fogDensity?.$ref ?? null,
+      })
+      addTarget(entity, 'fog.near', 'number', manifest.environment.fog.near ?? 0, {
+        min: 0,
+        parameterId: controls?.fogNear?.$ref ?? null,
+      })
+      addTarget(entity, 'fog.far', 'number', manifest.environment.fog.far ?? 1000, {
+        min: 0,
+        parameterId: controls?.fogFar?.$ref ?? null,
+      })
     }
   }
 
@@ -620,10 +653,15 @@ function addTransformTargets(
   entity: Cinema2TargetEntityHandle,
   transform: { position?: readonly [number, number, number]; rotation?: readonly [number, number, number]; scale?: readonly [number, number, number] } | undefined,
   addTarget: AddCinema2Target,
+  bindings?: {
+    position?: { readonly $ref: Cinema2ParameterId }
+    rotation?: { readonly $ref: Cinema2ParameterId }
+    scale?: { readonly $ref: Cinema2ParameterId }
+  },
 ): void {
-  addTarget(entity, 'transform.position', 'vec3', transform?.position ?? [0, 0, 0])
-  addTarget(entity, 'transform.rotation', 'vec3', transform?.rotation ?? [0, 0, 0])
-  addTarget(entity, 'transform.scale', 'vec3', transform?.scale ?? [1, 1, 1])
+  addTarget(entity, 'transform.position', 'vec3', transform?.position ?? [0, 0, 0], { parameterId: bindings?.position?.$ref ?? null })
+  addTarget(entity, 'transform.rotation', 'vec3', transform?.rotation ?? [0, 0, 0], { parameterId: bindings?.rotation?.$ref ?? null })
+  addTarget(entity, 'transform.scale', 'vec3', transform?.scale ?? [1, 1, 1], { parameterId: bindings?.scale?.$ref ?? null })
 }
 
 function addInferredTarget(

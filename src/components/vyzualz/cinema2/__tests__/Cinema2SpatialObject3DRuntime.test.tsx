@@ -25,6 +25,7 @@ import {
   cinema2StableId,
   type Cinema2CameraId,
   type Cinema2LayerId,
+  type Cinema2LightId,
   type Cinema2ModuleId,
   type Cinema2NativePresetManifest,
   type Cinema2PresetId,
@@ -122,6 +123,7 @@ function createHybridManifest(): Cinema2NativePresetManifest {
   const presetId = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.test-object3d-production')
   const backgroundId = cinema2StableId<Cinema2ModuleId>('hybrid-background')
   const cameraId = cinema2StableId<Cinema2CameraId>('hybrid-camera')
+  const lightId = cinema2StableId<Cinema2LightId>('hybrid-key-light')
   const objectId = cinema2StableId<Cinema2ModuleId>('hybrid-object3d')
   const screenRootId = cinema2StableId<Cinema2SceneNodeId>('hybrid-screen-root')
   const screenNodeId = cinema2StableId<Cinema2SceneNodeId>('hybrid-screen-node')
@@ -148,6 +150,7 @@ function createHybridManifest(): Cinema2NativePresetManifest {
       { id: 'render.depth', requirement: 'required' },
       { id: 'scene.3d', requirement: 'required' },
       { id: 'camera.world', requirement: 'required' },
+      { id: 'lighting', requirement: 'required' },
     ],
     modules: [
       { id: backgroundId, typeId: CINEMA2_FULLSCREEN_SHADER_MODULE_TYPE_ID, version: 1 },
@@ -178,6 +181,22 @@ function createHybridManifest(): Cinema2NativePresetManifest {
       far: 100,
     }],
     defaults: { camera: cinema2Ref(cameraId) },
+    lighting: {
+      lights: [{
+        id: lightId,
+        type: 'directional',
+        color: [1, 0.95, 0.9, 1],
+        intensity: 1.5,
+        transform: { position: [3, 4, 8] },
+        node: cinema2Ref(worldRootId),
+        targetNode: cinema2Ref(nearNodeId),
+      }],
+    },
+    environment: {
+      backgroundColor: [0.04, 0.06, 0.1, 1],
+      exposure: 1.1,
+      fog: { mode: 'linear', color: [0.08, 0.1, 0.14, 1], near: 20, far: 80 },
+    },
     scene: {
       nodes: [
         { id: screenRootId, kind: 'group', coordinateSpace: 'normalized-screen' },
@@ -318,7 +337,15 @@ describe('Cinema 2.0 Stage 12A/12B spatial Object3D and Camera foundation', () =
     raf.runNext(16.67)
 
     expect(created.runtime.getCameraRuntimeSnapshot()).toMatchObject({ frameCount: 1, activeCameraId: manifest.cameras?.[0]?.id, camera: { source: 'authored', aspect: 2 } })
+    expect(created.runtime.getLightingEnvironmentRuntimeSnapshot()).toMatchObject({
+      authoredLightCount: 1,
+      activeLightCount: 1,
+      hasAuthoredEnvironment: true,
+      quality: 'high',
+    })
     expect(created.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ executedPassCount: 2, failedPassCount: 0 })
+    expect(gl.clearColor).toHaveBeenCalledWith(0.04, 0.06, 0.1, 1)
+    expect(gl.uniform1i).toHaveBeenCalledWith(expect.anything(), 1)
     expect(gl.__calls.createdRenderbuffers).toBeGreaterThanOrEqual(1)
     expect(gl.enable).toHaveBeenCalledWith(gl.DEPTH_TEST)
     expect(gl.depthFunc).toHaveBeenCalledWith(gl.LEQUAL)

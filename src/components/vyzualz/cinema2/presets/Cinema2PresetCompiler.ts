@@ -537,10 +537,13 @@ function validateReferencesAndCombinations(
 
   const lightTypes = new Set(['ambient', 'directional', 'point', 'spot'])
   for (const [lightIndex, light] of readArray(manifest.lighting?.lights, '$.lighting.lights', diagnostics).entries()) {
+    const base = `$.lighting.lights[${lightIndex}]`
     if (!lightTypes.has(String(light.type))) {
-      diagnostics.push(error('CINEMA2_PRESET_COMBINATION_INVALID', `Unsupported light type "${String(light.type)}".`, `$.lighting.lights[${lightIndex}].type`))
+      diagnostics.push(error('CINEMA2_PRESET_COMBINATION_INVALID', `Unsupported light type "${String(light.type)}".`, `${base}.type`))
     }
+    validateLightDefinition(light, base, manifest, index, diagnostics)
   }
+  validateEnvironmentDefinition(manifest, index, diagnostics)
 
   for (const [effectIndex, effect] of readArray(manifest.effects, '$.effects', diagnostics).entries()) {
     const base = `$.effects[${effectIndex}]`
@@ -844,6 +847,144 @@ function validateCameraControls(
     if (name === 'pathProgress' && camera.rig?.kind !== 'path' && camera.rig?.kind !== 'fly') {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'pathProgress requires a path or fly rig.', controlPath))
     }
+  }
+}
+
+function validateLightDefinition(
+  light: NonNullable<NonNullable<Cinema2NativePresetManifest['lighting']>['lights']>[number],
+  path: string,
+  manifest: Cinema2NativePresetManifest,
+  index: ManifestIndex,
+  diagnostics: Cinema2PresetDiagnostic[],
+): void {
+  if (light.color != null) validateLightingColor(light.color, `${path}.color`, diagnostics)
+  if (light.intensity != null && (!Number.isFinite(light.intensity) || light.intensity < 0)) {
+    diagnostics.push(error('CINEMA2_PRESET_LIGHT_VALUE_INVALID', 'Light intensity must be a finite non-negative number.', `${path}.intensity`))
+  }
+  if (light.transform != null) {
+    if (!isPlainObject(light.transform)) {
+      diagnostics.push(error('CINEMA2_PRESET_LIGHT_VALUE_INVALID', 'Light transform must be an object.', `${path}.transform`))
+    } else {
+      if (light.transform.position != null) validateLightingVector3(light.transform.position, `${path}.transform.position`, diagnostics)
+      if (light.transform.rotation != null) validateLightingVector3(light.transform.rotation, `${path}.transform.rotation`, diagnostics)
+      if (light.transform.scale != null) validateLightingVector3(light.transform.scale, `${path}.transform.scale`, diagnostics)
+    }
+  }
+  if (light.node != null) validateRef(light.node, index.sceneNodes.ids, `${path}.node`, 'scene node', diagnostics)
+  if (light.targetNode != null) validateRef(light.targetNode, index.sceneNodes.ids, `${path}.targetNode`, 'scene node', diagnostics)
+  validateLightingControls(light.controls, `${path}.controls`, manifest, index, diagnostics)
+}
+
+function validateLightingControls(
+  controls: NonNullable<NonNullable<NonNullable<Cinema2NativePresetManifest['lighting']>['lights']>[number]['controls']> | undefined,
+  path: string,
+  manifest: Cinema2NativePresetManifest,
+  index: ManifestIndex,
+  diagnostics: Cinema2PresetDiagnostic[],
+): void {
+  if (controls == null) return
+  if (!isPlainObject(controls)) {
+    diagnostics.push(error('CINEMA2_PRESET_LIGHT_CONTROLS_INVALID', 'Light controls must be an object of parameter references.', path))
+    return
+  }
+  const expected = new Map<string, readonly Cinema2ParameterType[]>([
+    ['color', ['color']],
+    ['intensity', ['float', 'integer']],
+    ['position', ['vec3']],
+    ['rotation', ['vec3']],
+  ])
+  validateSpatialControlBindings(controls, expected, path, 'light', manifest, index, diagnostics)
+}
+
+function validateEnvironmentDefinition(
+  manifest: Cinema2NativePresetManifest,
+  index: ManifestIndex,
+  diagnostics: Cinema2PresetDiagnostic[],
+): void {
+  const environment = manifest.environment
+  if (environment == null) return
+  const path = '$.environment'
+  if (environment.backgroundColor != null) validateLightingColor(environment.backgroundColor, `${path}.backgroundColor`, diagnostics)
+  if (environment.exposure != null && (!Number.isFinite(environment.exposure) || environment.exposure < 0)) {
+    diagnostics.push(error('CINEMA2_PRESET_ENVIRONMENT_VALUE_INVALID', 'Environment exposure must be a finite non-negative number.', `${path}.exposure`))
+  }
+  const fog = environment.fog
+  if (fog != null) {
+    if (!isPlainObject(fog)) {
+      diagnostics.push(error('CINEMA2_PRESET_ENVIRONMENT_VALUE_INVALID', 'Environment fog must be an object.', `${path}.fog`))
+    } else {
+      if (fog.mode !== 'linear' && fog.mode !== 'exponential') {
+        diagnostics.push(error('CINEMA2_PRESET_ENVIRONMENT_VALUE_INVALID', 'Fog mode must be linear or exponential.', `${path}.fog.mode`))
+      }
+      if (fog.color != null) validateLightingColor(fog.color, `${path}.fog.color`, diagnostics)
+      for (const key of ['density', 'near', 'far'] as const) {
+        const value = fog[key]
+        if (value != null && (!Number.isFinite(value) || value < 0)) {
+          diagnostics.push(error('CINEMA2_PRESET_ENVIRONMENT_VALUE_INVALID', `Fog ${key} must be a finite non-negative number.`, `${path}.fog.${key}`))
+        }
+      }
+      const near = fog.near ?? 0
+      const far = fog.far ?? 1000
+      if (fog.mode === 'linear' && Number.isFinite(near) && Number.isFinite(far) && far <= near) {
+        diagnostics.push(error('CINEMA2_PRESET_ENVIRONMENT_VALUE_INVALID', 'Linear fog far must be greater than near.', `${path}.fog.far`))
+      }
+    }
+  }
+  const controls = environment.controls
+  if (controls == null) return
+  if (!isPlainObject(controls)) {
+    diagnostics.push(error('CINEMA2_PRESET_ENVIRONMENT_CONTROLS_INVALID', 'Environment controls must be an object of parameter references.', `${path}.controls`))
+    return
+  }
+  const expected = new Map<string, readonly Cinema2ParameterType[]>([
+    ['backgroundColor', ['color']],
+    ['exposure', ['float', 'integer']],
+    ['fogColor', ['color']],
+    ['fogDensity', ['float', 'integer']],
+    ['fogNear', ['float', 'integer']],
+    ['fogFar', ['float', 'integer']],
+  ])
+  validateSpatialControlBindings(controls, expected, `${path}.controls`, 'environment', manifest, index, diagnostics)
+  for (const name of ['fogColor', 'fogDensity', 'fogNear', 'fogFar'] as const) {
+    if (controls[name] != null && fog == null) {
+      diagnostics.push(error('CINEMA2_PRESET_ENVIRONMENT_CONTROLS_INVALID', `Environment control "${name}" requires an authored fog definition.`, `${path}.controls.${name}`))
+    }
+  }
+}
+
+function validateSpatialControlBindings(
+  controls: object,
+  expected: ReadonlyMap<string, readonly Cinema2ParameterType[]>,
+  path: string,
+  label: string,
+  manifest: Cinema2NativePresetManifest,
+  index: ManifestIndex,
+  diagnostics: Cinema2PresetDiagnostic[],
+): void {
+  for (const [name, ref] of Object.entries(controls)) {
+    const controlPath = `${path}.${name}`
+    const types = expected.get(name)
+    if (!types) {
+      diagnostics.push(error('CINEMA2_PRESET_SPATIAL_CONTROLS_INVALID', `Unsupported ${label} control "${name}".`, controlPath))
+      continue
+    }
+    const parameterId = validateRef(ref, index.parameters.ids, controlPath, 'parameter', diagnostics)
+    const parameter = parameterId ? manifest.parameters?.find(candidate => candidate.id === parameterId) : null
+    if (parameter && !types.includes(parameter.type)) {
+      diagnostics.push(error('CINEMA2_PRESET_SPATIAL_CONTROL_TYPE_MISMATCH', `${label[0].toUpperCase()}${label.slice(1)} control "${name}" requires parameter type ${types.join(' or ')}, not "${parameter.type}".`, controlPath))
+    }
+  }
+}
+
+function validateLightingColor(value: unknown, path: string, diagnostics: Cinema2PresetDiagnostic[]): void {
+  if (!Array.isArray(value) || value.length !== 4 || value.some(component => typeof component !== 'number' || !Number.isFinite(component) || component < 0 || component > 1)) {
+    diagnostics.push(error('CINEMA2_PRESET_LIGHTING_COLOR_INVALID', 'Lighting/environment colors must contain four finite values from 0 through 1.', path))
+  }
+}
+
+function validateLightingVector3(value: unknown, path: string, diagnostics: Cinema2PresetDiagnostic[]): void {
+  if (!Array.isArray(value) || value.length !== 3 || value.some(component => typeof component !== 'number' || !Number.isFinite(component))) {
+    diagnostics.push(error('CINEMA2_PRESET_LIGHT_VALUE_INVALID', 'Light transform vectors must contain exactly three finite numbers.', path))
   }
 }
 

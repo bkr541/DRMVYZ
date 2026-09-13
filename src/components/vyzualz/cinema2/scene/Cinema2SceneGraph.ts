@@ -49,6 +49,7 @@ export interface Cinema2CompiledSceneNode {
   mediaSlotId: Cinema2MediaSlotId | null
   layerIds: readonly Cinema2LayerId[]
   targetedByCameraIds: readonly Cinema2CameraId[]
+  anchoredLightIds: readonly Cinema2LightId[]
   targetedByLightIds: readonly Cinema2LightId[]
   localTransform: Readonly<Cinema2LocalTransform>
   resolvedTransform: Readonly<Cinema2ResolvedTransform>
@@ -149,6 +150,7 @@ export function compileCinema2SceneGraph(manifest: Cinema2NativePresetManifest):
     assignLayerToSubtree(layer.sourceNodeId)
   }
   const cameraTargets = collectCameraTargets(manifest)
+  const lightAnchors = collectLightAnchors(manifest)
   const lightTargets = collectLightTargets(manifest)
 
   const resolvedNodes = new Map<Cinema2SceneNodeId, Cinema2CompiledSceneNode>()
@@ -177,6 +179,7 @@ export function compileCinema2SceneGraph(manifest: Cinema2NativePresetManifest):
       mediaSlotId: authored.media?.$ref ?? null,
       layerIds: Object.freeze([...(layerIdsByNode.get(authored.id) ?? [])]),
       targetedByCameraIds: Object.freeze([...(cameraTargets.get(authored.id) ?? [])].sort(compareStrings)),
+      anchoredLightIds: Object.freeze([...(lightAnchors.get(authored.id) ?? [])].sort(compareStrings)),
       targetedByLightIds: Object.freeze([...(lightTargets.get(authored.id) ?? [])].sort(compareStrings)),
       localTransform,
       resolvedTransform,
@@ -328,6 +331,9 @@ function validateSpatialTargets(
       const authored = light as unknown as NonNullable<NonNullable<Cinema2NativePresetManifest['lighting']>['lights']>[number]
       const base = `$.lighting.lights[${index}]`
       validateTransform(authored.transform, `${base}.transform`, diagnostics)
+      if (authored.node != null && !hasRef(nodesById, authored.node.$ref)) {
+        diagnostics.push(error('CINEMA2_PRESET_REFERENCE_MISSING', `Unknown light anchor scene node "${String(authored.node.$ref)}".`, `${base}.node`))
+      }
       if (authored.targetNode != null && !hasRef(nodesById, authored.targetNode.$ref)) {
         diagnostics.push(error('CINEMA2_PRESET_REFERENCE_MISSING', `Unknown light target scene node "${String(authored.targetNode.$ref)}".`, `${base}.targetNode`))
       }
@@ -475,6 +481,19 @@ function collectCameraTargets(manifest: Cinema2NativePresetManifest): Map<Cinema
     targets.set(nodeId, values)
   }
   return targets
+}
+
+function collectLightAnchors(manifest: Cinema2NativePresetManifest): Map<Cinema2SceneNodeId, Cinema2LightId[]> {
+  const anchors = new Map<Cinema2SceneNodeId, Cinema2LightId[]>()
+  if (!Array.isArray(manifest.lighting?.lights)) return anchors
+  for (const light of manifest.lighting.lights) {
+    const nodeId = light.node?.$ref
+    if (nodeId == null) continue
+    const values = anchors.get(nodeId) ?? []
+    values.push(light.id)
+    anchors.set(nodeId, values)
+  }
+  return anchors
 }
 
 function collectLightTargets(manifest: Cinema2NativePresetManifest): Map<Cinema2SceneNodeId, Cinema2LightId[]> {

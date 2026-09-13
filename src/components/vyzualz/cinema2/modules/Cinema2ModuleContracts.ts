@@ -8,6 +8,7 @@ import type { Cinema2AudioIntelligenceFrame } from '../audio/Cinema2AudioIntelli
 import type { Cinema2VisualDirectorFrame } from '../director/Cinema2VisualDirector'
 import type { Cinema2ResolvedSpatialNode } from '../spatial/Cinema2SpatialRuntime'
 import type { Cinema2CameraFrame } from '../spatial/Cinema2CameraRuntime'
+import type { Cinema2LightingEnvironmentFrame } from '../spatial/Cinema2LightingEnvironmentRuntime'
 import type { Cinema2ManagedMediaResource, Cinema2MediaSlotSnapshot } from '../media/Cinema2MediaSlotRuntime'
 import type {
   Cinema2ActionDispatchResult,
@@ -119,6 +120,8 @@ export interface Cinema2ModuleRenderExecutionContext {
   spatialNodes?: readonly Readonly<Cinema2ResolvedSpatialNode>[]
   /** Final semantic world-camera state. Screen-space providers may ignore it. */
   camera?: Readonly<Cinema2CameraFrame>
+  /** Shared final lighting/environment state. Specialized emissive shader logic remains module-local. */
+  lightingEnvironment?: Readonly<Cinema2LightingEnvironmentFrame>
   /** Compiled upstream render inputs. Modules may read them but never own their lifetime. */
   inputs?: readonly Readonly<Cinema2ModuleRenderInput>[]
 }
