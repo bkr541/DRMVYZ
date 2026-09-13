@@ -263,6 +263,12 @@ describe('Cinema2Runtime sibling foundation', () => {
       upstream: { frameId: 42, publicationSequence: 9, sourceId: 'runtime-audio' },
       bands: { bass: { available: true, value: 0, confidence: 0.12 } },
     })
+    expect(runtime.getVisualDirectorFrame()).toMatchObject({
+      version: 1,
+      visualFrameId: 1,
+      discontinuityGeneration: 1,
+      continuous: { intensity: { available: true } },
+    })
     expect(getFrame).toHaveBeenCalledTimes(1)
     expect(getPublicationMeta).toHaveBeenCalledTimes(1)
 

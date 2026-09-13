@@ -22,6 +22,18 @@ export {
 } from './audio/Cinema2AudioIntelligenceBridge'
 
 export {
+  CINEMA2_VISUAL_DIRECTOR_FRAME_VERSION,
+  Cinema2VisualDirector,
+  type Cinema2VisualDirectorAuthority,
+  type Cinema2VisualDirectorFrame,
+  type Cinema2VisualDirectorSectionContext,
+  type Cinema2VisualDirectorSignal,
+  type Cinema2VisualDirectorTransitionContext,
+  type Cinema2VisualDirectorTransitionKind,
+  type Cinema2VisualPhase,
+} from './director/Cinema2VisualDirector'
+
+export {
   CINEMA2_CAPABILITY_IDS,
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,

@@ -4,6 +4,7 @@ import {
   Cinema2AudioIntelligenceBridge,
   type Cinema2AudioIntelligenceFrame,
 } from '../audio/Cinema2AudioIntelligenceBridge'
+import { Cinema2VisualDirector, type Cinema2VisualDirectorFrame } from '../director/Cinema2VisualDirector'
 import type { Cinema2CompiledPresetPlan } from '../presets/Cinema2PresetCompiler'
 import type { Cinema2CompiledRenderPlan } from '../render/Cinema2RenderGraph'
 import type { Cinema2CompiledSceneGraph } from '../scene/Cinema2SceneGraph'
@@ -265,6 +266,7 @@ export class Cinema2Runtime {
   private readonly onContextLostHandler: (event: Event) => void
   private readonly onContextRestoredHandler: () => void
   private readonly audioIntelligenceBridge: Cinema2AudioIntelligenceBridge
+  private readonly visualDirector: Cinema2VisualDirector
   private readonly targetResolver: Cinema2FinalValueResolver
   private readonly mediaSlotRuntime: Cinema2MediaSlotRuntime
   private readonly moduleRuntime: Cinema2ModuleRuntime
@@ -284,6 +286,7 @@ export class Cinema2Runtime {
   private contextLost = false
   private disposed = false
   private audioIntelligenceFrame: Readonly<Cinema2AudioIntelligenceFrame> | null = null
+  private visualDirectorFrame: Readonly<Cinema2VisualDirectorFrame> | null = null
   private listenersAttached = false
   private contextOwned = false
   private firstFrameTimestampMs: number | null = null
@@ -302,6 +305,7 @@ export class Cinema2Runtime {
     this.cancelFrame = options.cancelAnimationFrame ?? (handle => window.cancelAnimationFrame(handle))
     this.onSnapshot = options.onSnapshot ?? null
     this.audioIntelligenceBridge = options.audioIntelligenceBridge ?? new Cinema2AudioIntelligenceBridge()
+    this.visualDirector = new Cinema2VisualDirector()
     this.resourceManager = new Cinema2ResourceManager(gl)
     this.historyService = new Cinema2HistoryService(gl, this.resourceManager, compiledPresetPlan.presetId)
     let effectRuntime: Cinema2EffectRuntime | null = null
@@ -491,6 +495,11 @@ export class Cinema2Runtime {
     return this.audioIntelligenceFrame
   }
 
+  /** Most recent generic, read-only significance frame derived from Audio Intelligence. */
+  getVisualDirectorFrame(): Readonly<Cinema2VisualDirectorFrame> | null {
+    return this.visualDirectorFrame
+  }
+
   getModuleRuntimeSnapshot(): Readonly<Cinema2ModuleRuntimeSnapshot> {
     return this.moduleRuntime.getSnapshot()
   }
@@ -622,6 +631,7 @@ export class Cinema2Runtime {
         : Math.min(0.1, Math.max(0, (safeTimestampMs - this.lastFrameTimestampMs) / 1000))
       this.lastFrameTimestampMs = safeTimestampMs
       this.audioIntelligenceFrame = this.audioIntelligenceBridge.capture(visualFrameId)
+      this.visualDirectorFrame = this.visualDirector.capture(this.audioIntelligenceFrame)
       if (this.audioIntelligenceFrame.discontinuity.occurred && this.audioIntelligenceFrame.discontinuity.reason !== 'activation') {
         this.historyService.resetAll('discontinuity')
       }
@@ -634,6 +644,7 @@ export class Cinema2Runtime {
         viewport: Object.freeze({ ...this.viewport }),
         contextGeneration: this.contextGeneration,
         audio: this.audioIntelligenceFrame,
+        director: this.visualDirectorFrame,
       })
       this.moduleRuntime.update(frame)
       this.renderGraphExecutor.executeFrame(frame, this.moduleRuntime.getRenderPassProviders())

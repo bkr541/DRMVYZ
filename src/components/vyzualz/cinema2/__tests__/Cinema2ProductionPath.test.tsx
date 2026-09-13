@@ -223,6 +223,12 @@ describe('Cinema 2.0 production sibling path', () => {
       executedPassCount: 1,
       failedPassCount: 0,
     })
+    expect(activeCinema2RuntimeRef.current?.getVisualDirectorFrame()).toMatchObject({
+      version: 1,
+      visualFrameId: 1,
+      discontinuityGeneration: 1,
+    })
+    expect(Object.isFrozen(activeCinema2RuntimeRef.current?.getVisualDirectorFrame())).toBe(true)
     expect(contexts[contexts.length - 1]?.__calls.drawCount).toBeGreaterThan(0)
     expect(callbacks.size).toBe(1)
 

@@ -63,6 +63,7 @@ function executionContext() {
       viewport: { width: 640, height: 360, dpr: 1 },
       contextGeneration: 0,
       audio: null,
+      director: null,
     },
     input: { texture: {} as WebGLTexture, width: 640, height: 360 },
     target: null,

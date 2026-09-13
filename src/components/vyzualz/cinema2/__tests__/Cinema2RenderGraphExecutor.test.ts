@@ -81,6 +81,7 @@ const frame = Object.freeze({
   viewport: Object.freeze({ width: 320, height: 180, dpr: 1 }),
   contextGeneration: 1,
   audio: null,
+  director: null,
 })
 
 function provider(execute = vi.fn()): Cinema2ModuleRenderPassProvider {

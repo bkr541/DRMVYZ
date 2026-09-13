@@ -5,6 +5,7 @@ import type {
   Cinema2ModuleTypeId,
 } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2AudioIntelligenceFrame } from '../audio/Cinema2AudioIntelligenceBridge'
+import type { Cinema2VisualDirectorFrame } from '../director/Cinema2VisualDirector'
 import type { Cinema2ManagedMediaResource, Cinema2MediaSlotSnapshot } from '../media/Cinema2MediaSlotRuntime'
 import type {
   Cinema2ActionDispatchResult,
@@ -88,6 +89,7 @@ export interface Cinema2ModuleFrameReadContext {
   viewport: Readonly<Cinema2ModuleViewport>
   contextGeneration: number
   audio: Readonly<Cinema2AudioIntelligenceFrame> | null
+  director: Readonly<Cinema2VisualDirectorFrame> | null
 }
 
 export interface Cinema2ModuleUpdateContext {
