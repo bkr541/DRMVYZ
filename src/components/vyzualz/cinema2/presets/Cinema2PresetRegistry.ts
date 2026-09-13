@@ -4,10 +4,8 @@ import {
   type Cinema2NativePresetManifest,
   type Cinema2PresetId,
 } from '../contracts/Cinema2NativePresetManifest'
-import { CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST } from './Cinema2ReferenceVisualPreset'
-import { CINEMA2_REACTOR_PRESET_MANIFEST } from './Cinema2ReactorPreset'
-import { CINEMA2_SPATIAL_REFERENCE_PRESET_MANIFEST } from './Cinema2SpatialReferencePreset'
-import { CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST } from './Cinema2ElectricStormPreset'
+import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from './Cinema2FirstPartyPresetCatalog'
+import { validateCinema2PresetAuthoringConventions } from './Cinema2PresetAuthoring'
 import {
   compileCinema2NativePreset,
   type Cinema2PresetCompilationResult,
@@ -85,23 +83,17 @@ export class Cinema2PresetRegistry {
 export const CINEMA2_RUNTIME_FOUNDATION_PRESET_ID = CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST.id
 
 export const cinema2NativePresetRegistry = new Cinema2PresetRegistry()
-const foundationRegistration = cinema2NativePresetRegistry.register(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST)
-if (!foundationRegistration.ok) {
-  throw new Error(`Cinema 2.0 foundation preset registration failed: ${foundationRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
-}
-const referenceVisualRegistration = cinema2NativePresetRegistry.register(CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST)
-if (!referenceVisualRegistration.ok) {
-  throw new Error(`Cinema 2.0 Reference Visual preset registration failed: ${referenceVisualRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
-}
-const reactorRegistration = cinema2NativePresetRegistry.register(CINEMA2_REACTOR_PRESET_MANIFEST)
-if (!reactorRegistration.ok) {
-  throw new Error(`Cinema 2.0 Reactor preset registration failed: ${reactorRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
-}
-const spatialReferenceRegistration = cinema2NativePresetRegistry.register(CINEMA2_SPATIAL_REFERENCE_PRESET_MANIFEST)
-if (!spatialReferenceRegistration.ok) {
-  throw new Error(`Cinema 2.0 Spatial Reference preset registration failed: ${spatialReferenceRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
-}
-const electricStormRegistration = cinema2NativePresetRegistry.register(CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST)
-if (!electricStormRegistration.ok) {
-  throw new Error(`Cinema 2.0 Electric Storm preset registration failed: ${electricStormRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+for (const declaration of CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS) {
+  const authoringValidation = validateCinema2PresetAuthoringConventions(declaration)
+  if (!authoringValidation.ok) {
+    throw new Error(
+      `Cinema 2.0 ${declaration.role} preset authoring validation failed for "${declaration.manifest.id}": ${authoringValidation.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`,
+    )
+  }
+  const registration = cinema2NativePresetRegistry.register(declaration.manifest)
+  if (!registration.ok) {
+    throw new Error(
+      `Cinema 2.0 ${declaration.role} preset registration failed for "${declaration.manifest.id}": ${registration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`,
+    )
+  }
 }

@@ -596,3 +596,15 @@ export {
   type Cinema2PerformanceSnapshot,
   type Cinema2QualityPolicy,
 } from './runtime/Cinema2PerformanceDiagnostics'
+
+export {
+  CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS,
+} from './presets/Cinema2FirstPartyPresetCatalog'
+
+export {
+  defineCinema2FirstPartyPreset,
+  validateCinema2PresetAuthoringConventions,
+  type Cinema2FirstPartyPresetDeclaration,
+  type Cinema2FirstPartyPresetRole,
+  type Cinema2PresetAuthoringValidationResult,
+} from './presets/Cinema2PresetAuthoring'
