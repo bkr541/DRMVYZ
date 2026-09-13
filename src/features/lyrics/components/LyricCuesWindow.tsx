@@ -16,9 +16,45 @@ interface Props {
   durationMs: number
   currentTimeMs: number | null
   onSeek: (timeMs: number) => void
+  showTimeline?: boolean
+}
+
+interface TimelineProps {
+  editor: Editor
+  durationMs: number
+  currentTimeMs: number | null
+  onSeek: (timeMs: number) => void
 }
 
 const MAX_LYRIC_CUES_LANES = 3
+
+export function LyricCueStackedTimeline({ editor, durationMs, currentTimeMs, onSeek }: TimelineProps) {
+  return (
+    <LyricCueTimeline
+      cues={editor.orderedCues}
+      selectedCueId={editor.selectedCueId}
+      currentTimeMs={currentTimeMs}
+      getCurrentTimeMs={editor.getCurrentTimeMs}
+      durationMs={durationMs}
+      zoom={editor.waveformZoom}
+      snapContext={editor.snapContext}
+      maxVisibleLanes={MAX_LYRIC_CUES_LANES}
+      showRuler={false}
+      showWaveform={false}
+      showOverlays={false}
+      showWordLane={false}
+      stackedLanes
+      inactiveCueIds={editor.inactiveCueIds}
+      onSelectCue={editor.selectCue}
+      onSeek={onSeek}
+      onAddCueAt={editor.addAtTimelineTime}
+      onCommitCue={editor.commitCuePatch}
+      onCommitWords={editor.commitWords}
+      onCueContextAction={editor.handleCueContextAction}
+      onDeleteCue={cueId => editor.handleCueContextAction(cueId, 'delete', 0)}
+    />
+  )
+}
 
 /**
  * "Lyric Cues" window: the always-visible, fully-editable cue timeline that
@@ -29,7 +65,7 @@ const MAX_LYRIC_CUES_LANES = 3
  * here verbatim from the old editor, so undo/redo and cue browsing aren't
  * lost.
  */
-export function LyricCuesWindow({ editor, durationMs, currentTimeMs, onSeek }: Props) {
+export function LyricCuesWindow({ editor, durationMs, currentTimeMs, onSeek, showTimeline = true }: Props) {
   const {
     rootRef,
     cues,
@@ -124,28 +160,30 @@ export function LyricCuesWindow({ editor, durationMs, currentTimeMs, onSeek }: P
           )}
         </div>
 
-        <LyricCueTimeline
-          cues={orderedCues}
-          selectedCueId={selectedCueId}
-          currentTimeMs={currentTimeMs}
-          getCurrentTimeMs={getCurrentTimeMs}
-          durationMs={durationMs}
-          zoom={waveformZoom}
-          snapContext={snapContext}
-          maxVisibleLanes={MAX_LYRIC_CUES_LANES}
-          showRuler={false}
-          showWaveform={false}
-          showOverlays={false}
-          showWordLane={false}
-          inactiveCueIds={inactiveCueIds}
-          onSelectCue={selectCue}
-          onSeek={onSeek}
-          onAddCueAt={addAtTimelineTime}
-          onCommitCue={commitCuePatch}
-          onCommitWords={commitWords}
-          onCueContextAction={handleCueContextAction}
-          onDeleteCue={cueId => handleCueContextAction(cueId, 'delete', 0)}
-        />
+        {showTimeline && (
+          <LyricCueTimeline
+            cues={orderedCues}
+            selectedCueId={selectedCueId}
+            currentTimeMs={currentTimeMs}
+            getCurrentTimeMs={getCurrentTimeMs}
+            durationMs={durationMs}
+            zoom={waveformZoom}
+            snapContext={snapContext}
+            maxVisibleLanes={MAX_LYRIC_CUES_LANES}
+            showRuler={false}
+            showWaveform={false}
+            showOverlays={false}
+            showWordLane={false}
+            inactiveCueIds={inactiveCueIds}
+            onSelectCue={selectCue}
+            onSeek={onSeek}
+            onAddCueAt={addAtTimelineTime}
+            onCommitCue={commitCuePatch}
+            onCommitWords={commitWords}
+            onCueContextAction={handleCueContextAction}
+            onDeleteCue={cueId => handleCueContextAction(cueId, 'delete', 0)}
+          />
+        )}
 
         <DualRailCollapsible label="Cue list" defaultOpen={false} bodyClassName="lyric-cue-list-body">
           <section className="lyric-cue-list" aria-label="Lyric cue list">

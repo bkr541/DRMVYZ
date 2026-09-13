@@ -51,8 +51,9 @@ import { useMountTransition } from '../../hooks/useMountTransition'
 import { formatDuration, formatMsClock } from './utils/lyricManagerFormat'
 import { useLyricCueEditor } from './editor/useLyricCueEditor'
 import { LyricTrackTimelineWindow } from './components/LyricTrackTimelineWindow'
-import { LyricCuesWindow } from './components/LyricCuesWindow'
+import { LyricCuesWindow, LyricCueStackedTimeline } from './components/LyricCuesWindow'
 import { LyricDocumentDefaultsPanel } from './components/LyricDocumentDefaultsPanel'
+import { LyricDocumentPresentationPanel } from './components/LyricDocumentPresentationPanel'
 import { LyricCueInspectorWindow } from './components/LyricCueInspectorWindow'
 import { LyricCueSettingsPanel } from './components/LyricCueSettingsPanel'
 import type { LyricManagerNavigationIntent, LyricManagerWorkflow } from './lyricNavigation'
@@ -2147,6 +2148,20 @@ export function LyricManagerView({
                 beatGridStatusMessage={beatGridStatusMessage}
                 onAnalyzeTrack={handleAnalyzeSelectedTrack}
                 analysisActionLabel={beatGridStatus === 'failed' ? 'Retry Track Analysis' : selectedTrackLoaded ? 'Analyze Track' : 'Load & Analyze Track'}
+                cueTimeline={
+                  <LyricCueStackedTimeline
+                    editor={cueEditor}
+                    durationMs={editorDurationMs}
+                    currentTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
+                    onSeek={(timeMs) => {
+                      if (!selectedTrackLoaded) {
+                        showStatus('Load the selected track to the deck before seeking.')
+                        return
+                      }
+                      engine.seek(timeMs / 1000)
+                    }}
+                  />
+                }
               />
 
               <LyricCuesWindow
@@ -2160,6 +2175,7 @@ export function LyricManagerView({
                   }
                   engine.seek(timeMs / 1000)
                 }}
+                showTimeline={false}
               />
 
               <LyricDocumentDefaultsPanel
@@ -2169,12 +2185,6 @@ export function LyricManagerView({
                 onUpdateTitle={setDraftTitle}
                 onUpdateArtist={setDraftArtist}
                 onUpdateGlobalOffset={setGlobalOffsetMs}
-                defaultStyle={draftDefaultStyle}
-                defaultAnimation={draftDefaultAnimation}
-                defaultEffects={draftDefaultEffects}
-                onUpdateDefaultStyle={updateDraftDefaultStyle}
-                onUpdateDefaultAnimation={updateDraftDefaultAnimation}
-                onUpdateDefaultEffects={updateDraftDefaultEffects}
               />
             </>
           )}
@@ -2209,13 +2219,35 @@ export function LyricManagerView({
                 onUpdateCue={cueEditor.commitCuePatch}
                 onUpdateWord={cueEditor.updateCueWord}
               />
+              {editorDocument && (
+                <LyricDocumentPresentationPanel
+                  defaultStyle={draftDefaultStyle}
+                  defaultAnimation={draftDefaultAnimation}
+                  defaultEffects={draftDefaultEffects}
+                  onUpdateDefaultStyle={updateDraftDefaultStyle}
+                  onUpdateDefaultAnimation={updateDraftDefaultAnimation}
+                  onUpdateDefaultEffects={updateDraftDefaultEffects}
+                />
+              )}
               <LyricCueSettingsPanel
                 cue={cueEditor.selectedCue}
                 onUpdateCue={cueEditor.commitCuePatch}
               />
             </>
           ) : (
-            <div className="lmv-cue-panels-empty">Select a lyric cue in Lyric Cues to view and edit it here.</div>
+            <>
+              <div className="lmv-cue-panels-empty">Select a lyric cue in Lyric Cues to view and edit it here.</div>
+              {editorDocument && (
+                <LyricDocumentPresentationPanel
+                  defaultStyle={draftDefaultStyle}
+                  defaultAnimation={draftDefaultAnimation}
+                  defaultEffects={draftDefaultEffects}
+                  onUpdateDefaultStyle={updateDraftDefaultStyle}
+                  onUpdateDefaultAnimation={updateDraftDefaultAnimation}
+                  onUpdateDefaultEffects={updateDraftDefaultEffects}
+                />
+              )}
+            </>
           )}
 
           <LyricPreviewPanel

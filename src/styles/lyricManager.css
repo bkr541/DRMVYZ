@@ -3908,3 +3908,77 @@
   text-align: center;
   border-bottom: 1px solid rgba(126,218,232,0.1);
 }
+
+/* ── Lyric Manager: Layout Lab “01 · Stacked Lanes” production port ───────
+   Track reference rows and the editable lyric-cue lanes now share one
+   continuous timeline surface, matching the Layout Lab source-of-truth. */
+.lmv-track-timeline-lanes--stacked {
+  display: flex;
+  flex-direction: column;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--timing { height: 24px; flex: 0 0 24px; }
+.lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--section { height: 44px; flex: 0 0 44px; }
+.lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--beatgrid { height: 32px; flex: 0 0 32px; }
+.lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--waveform { height: 38px; flex: 0 0 38px; }
+
+.lmv-track-timeline-cue-lanes {
+  position: relative;
+  border-top: 1px solid rgba(74,199,219,0.09);
+  background-color: rgba(5,11,17,0.6);
+}
+
+.lyric-cue-timeline__inner--stacked-lanes {
+  min-width: 100%;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(5,11,17,0.6) 0,
+      rgba(5,11,17,0.6) 29px,
+      rgba(74,199,219,0.09) 29px,
+      rgba(74,199,219,0.09) 30px
+    );
+}
+
+.lyric-cue-timeline__inner--stacked-lanes .lyric-cue-block {
+  height: 22px;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgba(74,199,219,0.35);
+  border-radius: 5px;
+  background: rgba(74,199,219,0.14);
+  color: #bdeeff;
+  font-size: 9.5px;
+  box-shadow: none;
+}
+
+.lyric-cue-timeline__inner--stacked-lanes .lyric-cue-block--selected {
+  border-color: rgba(97,214,170,0.72);
+  background: rgba(97,214,170,0.2);
+  color: #d9fff0;
+}
+
+.lyric-cue-timeline__inner--stacked-lanes .lyric-cue-block--active {
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22), 0 0 10px rgba(74,199,219,0.16);
+}
+
+.lyric-cue-timeline__inner--stacked-lanes .lyric-cue-timeline__playhead {
+  top: 0;
+  bottom: 0;
+}
+
+/* Document-level defaults now live in the right-side Document Workspace,
+   immediately beneath Cue Inspector, using the shared collapsible/control
+   components rather than a one-off center-workspace treatment. */
+.lmv-document-presentation-window {
+  flex: 0 0 auto;
+  padding: 14px 12px 12px;
+  border-bottom: 1px solid rgba(126,218,232,0.1);
+}
+
+.lmv-document-presentation-window .lmv-defaults-section {
+  padding-top: 10px;
+}

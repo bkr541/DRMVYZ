@@ -88,6 +88,9 @@ interface Props {
   showOverlays?: boolean;
   showWordLane?: boolean;
   showPlayhead?: boolean;
+  /** Production Lyric Manager stacked-lanes mode: cue lanes render as an
+   * unframed continuation of the Track Timeline lane stack. */
+  stackedLanes?: boolean;
   onSelectCue: (cueId: string | null) => void;
   onSeek: (timeMs: number) => void;
   onAddCueAt?: (timeMs: number) => void;
@@ -168,6 +171,7 @@ export function LyricCueTimeline({
   showOverlays = true,
   showWordLane = true,
   showPlayhead = true,
+  stackedLanes = false,
   onSelectCue,
   onSeek,
   onAddCueAt,
@@ -233,10 +237,9 @@ export function LyricCueTimeline({
       new Map(laneLayout.assignments.map((item) => [item.cueId, item.lane])),
     [laneLayout],
   );
-  const shownLaneCount = Math.max(
-    1,
-    Math.min(maxVisibleLanes, laneLayout.laneCount || 1),
-  );
+  const shownLaneCount = stackedLanes
+    ? Math.max(1, maxVisibleLanes)
+    : Math.max(1, Math.min(maxVisibleLanes, laneLayout.laneCount || 1));
   const selectedCue = cues.find((cue) => cue.id === selectedCueId) ?? null;
   // Canonical cues carry no untimed words (they are repaired at every
   // ingestion boundary); this filter is now only a defensive guard against a
@@ -250,14 +253,19 @@ export function LyricCueTimeline({
     !compact && showWordLane && Boolean(selectedCue && selectedWords.length > 0);
   const cueAreaTop = compact
     ? 2
-    : hasWordLane
-      ? 140
-      : (showRuler || showWaveform)
-        ? 108
-        : 8;
+    : stackedLanes
+      ? 4
+      : hasWordLane
+        ? 140
+        : (showRuler || showWaveform)
+          ? 108
+          : 8;
+  const stackedLaneHeight = 30;
   const timelineHeight = compact
     ? undefined
-    : cueAreaTop + shownLaneCount * (CUE_LANE_HEIGHT + CUE_LANE_GAP) + 8;
+    : stackedLanes
+      ? shownLaneCount * stackedLaneHeight
+      : cueAreaTop + shownLaneCount * (CUE_LANE_HEIGHT + CUE_LANE_GAP) + 8;
   const visibleOverlays = useMemo(
     () =>
       selectVisibleTimelineOverlays(
@@ -566,7 +574,7 @@ export function LyricCueTimeline({
   const timeline = (
     <div
       ref={innerRef}
-      className={`lyric-cue-timeline__inner${compact ? " lyric-cue-timeline__inner--compact" : ""}`}
+      className={`lyric-cue-timeline__inner${compact ? " lyric-cue-timeline__inner--compact" : ""}${stackedLanes ? " lyric-cue-timeline__inner--stacked-lanes" : ""}`}
       style={timelineHeight ? { height: timelineHeight } : undefined}
       onPointerDown={handleBackgroundSeek}
       onDoubleClick={handleBackgroundDoubleClick}
@@ -764,7 +772,9 @@ export function LyricCueTimeline({
               width: `${Math.max(layout.widthPct, 0.3)}%`,
               top: compact
                 ? 2
-                : cueAreaTop + visibleLane * (CUE_LANE_HEIGHT + CUE_LANE_GAP),
+                : stackedLanes
+                  ? visibleLane * stackedLaneHeight + 4
+                  : cueAreaTop + visibleLane * (CUE_LANE_HEIGHT + CUE_LANE_GAP),
             }}
             role="button"
             tabIndex={0}
@@ -844,7 +854,7 @@ export function LyricCueTimeline({
 
       {cues.length === 0 && (
         <div className="lyric-cue-timeline__empty">
-          Double-click the waveform to add a timed lyric cue.
+          {stackedLanes ? "Double-click the timeline to add a timed lyric cue." : "Double-click the waveform to add a timed lyric cue."}
         </div>
       )}
 
@@ -887,6 +897,6 @@ export function LyricCueTimeline({
     </div>
   );
 
-  if (compact) return timeline;
+  if (compact || stackedLanes) return timeline;
   return <div className="lyric-cue-timeline__scroll">{timeline}</div>;
 }
