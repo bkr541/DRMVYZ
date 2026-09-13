@@ -270,6 +270,15 @@ export {
 } from './runtime/Cinema2Runtime'
 
 export {
+  captureCinema2WorkspacePresetState,
+  cinema2WorkspaceSessionStore,
+  Cinema2WorkspaceSessionStore,
+  restoreCinema2WorkspaceMedia,
+  type Cinema2WorkspaceMediaSlotState,
+  type Cinema2WorkspacePresetState,
+} from './runtime/Cinema2WorkspaceSession'
+
+export {
   validateCinema2RenderTargetDescriptor,
   type Cinema2RenderTargetColorFormat,
   type Cinema2RenderTargetDepthFormat,

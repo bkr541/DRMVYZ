@@ -269,40 +269,6 @@
   letter-spacing: 0.04em;
 }
 
-/* ── Cinema 2.0 shell placeholder (every tab, until real content lands) ──────── */
-.rv-cinema2-placeholder {
-  flex: 1;
-  min-height: 120px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 28px 20px;
-  text-align: center;
-}
-
-.rv-cinema2-placeholder-eyebrow {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(138, 180, 248, 0.75);
-}
-
-.rv-cinema2-placeholder-area {
-  font-size: 15px;
-  font-weight: 700;
-  color: rgba(232, 244, 248, 0.82);
-}
-
-.rv-cinema2-placeholder-note {
-  font-size: 10px;
-  font-style: italic;
-  letter-spacing: 0.04em;
-  color: rgba(232, 244, 248, 0.3);
-}
-
 .rv-preset-browser {
   display: flex;
   flex-direction: column;
@@ -21765,6 +21731,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.rv-cinema2-diagnostic-row .rv-ctrl-description {
+  margin-left: auto;
+  max-width: 62%;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Layout Lab / Template — track header style gallery ───────────────────

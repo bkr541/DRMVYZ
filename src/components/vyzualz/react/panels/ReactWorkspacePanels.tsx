@@ -9,10 +9,12 @@ import { ReactModulationPanel } from '../ReactModulationPanel'
 import { ReactAudioPanel } from '../ReactAudioPanel'
 import { ReactRecordingPanel } from '../ReactRecordingPanel'
 import { CinemaRenderedDiagnostics } from '../CinemaWorkspace'
+import { Cinema2RuntimeDiagnostics } from '../Cinema2RuntimeDiagnostics'
 import { CinemaInspectorPanel, CinemaSelectedLayerSummary } from '../CinemaInspectorPanel'
 import { CinemaComposerStage19Panel } from '../CinemaComposerStage19Panel'
 import type { CinemaWorkspaceFrameBridgeResult } from '../CinemaWorkspaceFrameBridge'
 import { isCinemaBuiltInComposition, useCinemaStore, type CinemaRuntimeSnapshot } from '../../cinema'
+import type { Cinema2Runtime, Cinema2RuntimeSnapshot } from '../../cinema2'
 import { LaserDmxShowDirectorControls } from '../LaserDmxShowDirectorControls'
 import { ProductionOutputPanel } from '../output/ProductionOutputPanel'
 import { OutputCastControl } from '../output/OutputCastControl'
@@ -225,6 +227,8 @@ interface ReactOutputWorkspacePanelProps {
   onStartRecording: (canvas: HTMLCanvasElement) => void
   cinemaFrameBridge?: CinemaWorkspaceFrameBridgeResult | null
   cinemaRuntimeSnapshot?: CinemaRuntimeSnapshot | null
+  cinema2Runtime?: Cinema2Runtime | null
+  cinema2RuntimeSnapshot?: Cinema2RuntimeSnapshot | null
   showCastControl?: boolean
 }
 
@@ -237,11 +241,14 @@ export function ReactOutputWorkspacePanel({
   onStartRecording,
   cinemaFrameBridge = null,
   cinemaRuntimeSnapshot = null,
+  cinema2Runtime = null,
+  cinema2RuntimeSnapshot = null,
   showCastControl = false,
 }: ReactOutputWorkspacePanelProps) {
   const activeReactEngineId = useReactStore(state => state.activeReactEngineId)
   const isLaserDmx = activeReactEngineId === 'laserDmx'
   const isCinema = activeReactEngineId === 'cinema'
+  const isCinema2 = activeReactEngineId === 'cinema2'
   const fracturesOutputDeferred = isCanvasFracturesOutputDeferred(outputCapability)
   const [surface, setSurface] = useState<OutputSurface>('recording')
 
@@ -266,6 +273,12 @@ export function ReactOutputWorkspacePanel({
             <CinemaRenderedDiagnostics
               frameBridge={cinemaFrameBridge}
               runtimeSnapshot={cinemaRuntimeSnapshot}
+            />
+          )}
+          {isCinema2 && (
+            <Cinema2RuntimeDiagnostics
+              runtime={cinema2Runtime}
+              snapshot={cinema2RuntimeSnapshot}
             />
           )}
           {showCastControl && (

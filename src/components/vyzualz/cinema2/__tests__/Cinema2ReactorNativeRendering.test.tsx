@@ -6,8 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
 import { createCinemaMockWebGL, CinemaResizeObserverMock } from '../../cinema/__tests__/CinemaWebGLTestUtils'
 import { Cinema2InspectorPanel } from '../../react/Cinema2InspectorPanel'
+import { Cinema2LayersPanel } from '../../react/Cinema2LayersPanel'
 import { Cinema2MediaSourcePanel } from '../../react/Cinema2MediaSourcePanel'
 import { Cinema2PresetsPanel } from '../../react/Cinema2PresetsPanel'
+import { Cinema2RuntimeDiagnostics } from '../../react/Cinema2RuntimeDiagnostics'
 import { Cinema2Stage } from '../../react/Cinema2Stage'
 import {
   CINEMA2_REACTOR_BLOOM_INTENSITY_ID,
@@ -24,6 +26,8 @@ import {
   CINEMA2_REACTOR_TRAILS_ENABLED_ID,
   CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID,
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
+  CINEMA2_SPATIAL_REFERENCE_ORBIT_RADIUS_ID,
+  CINEMA2_SPATIAL_REFERENCE_PRESET_ID,
   Cinema2AudioIntelligenceBridge,
   Cinema2ChoreographyRuntime,
   Cinema2EffectRuntime,
@@ -339,6 +343,7 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
     const genericOwners = [
       Cinema2Runtime, Cinema2RenderGraphExecutor, Cinema2EffectRuntime, Cinema2FinalValueResolver,
       Cinema2ChoreographyRuntime, Cinema2MediaSlotRuntime, Cinema2InspectorPanel, Cinema2MediaSourcePanel,
+      Cinema2LayersPanel, Cinema2RuntimeDiagnostics,
     ]
     for (const owner of genericOwners) expect(owner.toString().toLowerCase()).not.toContain('reactor')
   })
@@ -427,5 +432,13 @@ describe('Cinema 2.0 Reactor production selection path', () => {
     await act(async () => raf.runNext())
     expect(activeRuntimeRef.current?.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 1, executedPassCount: 4, failedPassCount: 0 })
     expect(activeRuntimeRef.current?.getHistoryServiceSnapshot()).toMatchObject({ activeBufferCount: 1, validBufferCount: 1 })
+
+    const spatialButton = host?.querySelector<HTMLButtonElement>(`[data-cinema2-preset-id="${CINEMA2_SPATIAL_REFERENCE_PRESET_ID}"]`)
+    await act(async () => spatialButton?.click())
+    expect(activeRuntimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_SPATIAL_REFERENCE_PRESET_ID)
+    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_REACTOR_CORE_SIZE_ID}"]`)).toBeNull()
+    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_SPATIAL_REFERENCE_ORBIT_RADIUS_ID}"]`)).not.toBeNull()
+    expect(host?.querySelector('[data-cinema2-section="Camera"]')).not.toBeNull()
+    expect(host?.querySelector('[data-cinema2-media-source="empty"]')).not.toBeNull()
   })
 })

@@ -27,6 +27,12 @@ import { useCinemaStore } from '../../cinema/CinemaStore'
 import { CinemaResizeObserverMock, createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
 import { getCinema2AudioIntelligenceBridgeDiagnostics } from '../audio/Cinema2AudioIntelligenceBridge'
 import { getCinema2RuntimeDiagnostics, type Cinema2Runtime } from '../runtime/Cinema2Runtime'
+import {
+  CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID,
+  CINEMA2_REFERENCE_VISUAL_PRESET_ID,
+  cinema2WorkspaceSessionStore,
+  type Cinema2PresetId,
+} from '..'
 
 let root: Root | null = null
 let host: HTMLDivElement | null = null
@@ -68,12 +74,44 @@ function ProductionSiblingHarness({ onCinema2RuntimeReady }: { onCinema2RuntimeR
   )
 }
 
+function ProductionReentryHarness({
+  presetId,
+  onCinema2RuntimeReady,
+}: {
+  presetId: Cinema2PresetId
+  onCinema2RuntimeReady?: (runtime: Cinema2Runtime | null) => void
+}) {
+  const engineId = useReactStore(state => state.activeReactEngineId)
+  const [runtime, setRuntime] = React.useState<Cinema2Runtime | null>(null)
+  const restoreState = cinema2WorkspaceSessionStore.getPresetState(presetId)
+  return (
+    <>
+      <ReactEngineBrowser />
+      {engineId === 'cinema2' ? (
+        <>
+          <Cinema2Stage
+            presetId={presetId}
+            restoreState={restoreState}
+            onRuntimeReady={next => {
+              setRuntime(next)
+              onCinema2RuntimeReady?.(next)
+            }}
+            onRuntimeRetiring={state => cinema2WorkspaceSessionStore.storePresetState(state)}
+          />
+          <ReactEnginePanel cinema2Runtime={runtime} />
+        </>
+      ) : <div data-production-engine={engineId} />}
+    </>
+  )
+}
+
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   CinemaResizeObserverMock.reset()
   vi.stubGlobal('ResizeObserver', CinemaResizeObserverMock)
   resetReactLiveEngineOwnershipForTests()
   resetDrmvyzWebGLContextDiagnosticsForTests()
+  cinema2WorkspaceSessionStore.reset()
   AudioFeatureBus.reset()
   useReactStore.getState().resetReactView()
   useCinemaStore.getState().hydrateCinemaState(createCinemaFoundationPersistedState())
@@ -90,6 +128,7 @@ afterEach(async () => {
   host = null
   resetReactLiveEngineOwnershipForTests()
   resetDrmvyzWebGLContextDiagnosticsForTests()
+  cinema2WorkspaceSessionStore.reset()
   AudioFeatureBus.reset()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
@@ -365,6 +404,53 @@ describe('Cinema 2.0 production sibling path', () => {
       lastCapturedSourceFrameId: 314,
     })
     expect(callbacks.size).toBe(1)
+  })
+
+  it('reconstructs persistent Cinema 2.0 state after navigating away from and back to the engine', async () => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => (
+      kind === 'webgl2' ? createCinemaMockWebGL() as unknown as RenderingContext : null
+    ))
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 960,
+      height: 540,
+      top: 0,
+      left: 0,
+      right: 960,
+      bottom: 540,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    })
+    const runtimeRef: { current: Cinema2Runtime | null } = { current: null }
+    useReactStore.getState().selectReactEngine('cinema2')
+
+    await act(async () => root?.render(
+      <ProductionReentryHarness
+        presetId={CINEMA2_REFERENCE_VISUAL_PRESET_ID}
+        onCinema2RuntimeReady={runtime => { runtimeRef.current = runtime }}
+      />,
+    ))
+    expect(runtimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_REFERENCE_VISUAL_PRESET_ID)
+    expect(runtimeRef.current?.getParameterState().setPersistentValue(CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID, false).ok).toBe(true)
+    expect(runtimeRef.current?.getParameterState().getValue(CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID)).toBe(false)
+
+    cinema2WorkspaceSessionStore.selectPreset(CINEMA2_REFERENCE_VISUAL_PRESET_ID)
+    await act(async () => root?.render(<div data-workspace-away="true" />))
+    expect(runtimeRef.current).toBeNull()
+    expect(getCinema2RuntimeDiagnostics().activeRuntimeCount).toBe(0)
+    expect(cinema2WorkspaceSessionStore.getActivePresetId()).toBe(CINEMA2_REFERENCE_VISUAL_PRESET_ID)
+
+    await act(async () => root?.render(
+      <ProductionReentryHarness
+        presetId={cinema2WorkspaceSessionStore.getActivePresetId()!}
+        onCinema2RuntimeReady={runtime => { runtimeRef.current = runtime }}
+      />,
+    ))
+    expect(runtimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_REFERENCE_VISUAL_PRESET_ID)
+    expect(runtimeRef.current?.getParameterState().getValue(CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID)).toBe(false)
+    expect(getCinema2RuntimeDiagnostics().activeRuntimeCount).toBe(1)
   })
 
   it('shows a concise safe Stage status when WebGL2 initialization is unavailable', async () => {
