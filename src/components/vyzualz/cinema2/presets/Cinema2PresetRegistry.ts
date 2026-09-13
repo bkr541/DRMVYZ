@@ -5,6 +5,7 @@ import {
   type Cinema2PresetId,
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST } from './Cinema2ReferenceVisualPreset'
+import { CINEMA2_REACTOR_PRESET_MANIFEST } from './Cinema2ReactorPreset'
 import {
   compileCinema2NativePreset,
   type Cinema2PresetCompilationResult,
@@ -89,4 +90,8 @@ if (!foundationRegistration.ok) {
 const referenceVisualRegistration = cinema2NativePresetRegistry.register(CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST)
 if (!referenceVisualRegistration.ok) {
   throw new Error(`Cinema 2.0 Reference Visual preset registration failed: ${referenceVisualRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+const reactorRegistration = cinema2NativePresetRegistry.register(CINEMA2_REACTOR_PRESET_MANIFEST)
+if (!reactorRegistration.ok) {
+  throw new Error(`Cinema 2.0 Reactor preset registration failed: ${reactorRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }

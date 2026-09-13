@@ -245,7 +245,14 @@ export function compileCinema2TargetPlan(
     const capabilities = module.capabilities?.map(capability => capability.id) ?? []
     addTarget(entity, 'enabled', 'boolean', module.enabled ?? true, { capabilities })
     for (const [property, value] of Object.entries(module.parameters ?? {}).sort(compareEntries)) {
-      addInferredTarget(entity, property, value, addTarget, capabilities)
+      addInferredTarget(
+        entity,
+        property,
+        value,
+        addTarget,
+        capabilities,
+        module.parameterBindings?.[property]?.$ref ?? null,
+      )
     }
   }
 

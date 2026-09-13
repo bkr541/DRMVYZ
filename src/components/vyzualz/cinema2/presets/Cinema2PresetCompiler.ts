@@ -485,6 +485,36 @@ function validateReferencesAndCombinations(
     if (!Number.isInteger(module.version) || module.version < 1) {
       diagnostics.push(error('CINEMA2_PRESET_MODULE_VERSION_INVALID', 'Module version must be a positive integer.', `$.modules[${moduleIndex}].version`))
     }
+    if (module.parameterBindings != null) {
+      const base = `$.modules[${moduleIndex}].parameterBindings`
+      if (!isPlainObject(module.parameterBindings)) {
+        diagnostics.push(error('CINEMA2_PRESET_MODULE_BINDINGS_INVALID', 'Module parameterBindings must be an object.', base))
+      } else {
+        const authoredParameters = isPlainObject(module.parameters) ? module.parameters : {}
+        const allowedProperties = new Set(Object.keys(authoredParameters))
+        for (const [property, ref] of Object.entries(module.parameterBindings)) {
+          const bindingPath = `${base}.${property}`
+          if (!allowedProperties.has(property)) {
+            diagnostics.push(error('CINEMA2_PRESET_MODULE_BINDING_PROPERTY_INVALID', `Module binding references unknown property "${property}".`, bindingPath))
+          }
+          const parameterId = validateRef(ref, index.parameters.ids, bindingPath, 'parameter', diagnostics)
+          if (!parameterId || !allowedProperties.has(property)) continue
+          const parameter = manifest.parameters?.find(candidate => candidate.id === parameterId)
+          const authoredValue = authoredParameters[property] as Cinema2JsonValue | undefined
+          if (!parameter || authoredValue === undefined) continue
+          const compatibleTypes = bindingParameterTypes(authoredValue)
+          if (compatibleTypes.length === 0) {
+            diagnostics.push(error('CINEMA2_PRESET_MODULE_BINDING_VALUE_UNSUPPORTED', `Module property "${property}" is not representable by the shared target runtime and cannot be parameter-bound.`, bindingPath))
+          } else if (!compatibleTypes.includes(parameter.type)) {
+            diagnostics.push(error(
+              'CINEMA2_PRESET_MODULE_BINDING_TYPE_MISMATCH',
+              `Module property "${property}" requires parameter type ${compatibleTypes.join(' or ')}, not "${parameter.type}".`,
+              bindingPath,
+            ))
+          }
+        }
+      }
+    }
     if (module.media != null) {
       if (!isPlainObject(module.media)) {
         diagnostics.push(error('CINEMA2_PRESET_SCHEMA_INVALID', 'Module media bindings must be an object.', `$.modules[${moduleIndex}].media`))
@@ -545,7 +575,7 @@ function validateReferencesAndCombinations(
           const parameter = manifest.parameters?.find(candidate => candidate.id === parameterId)
           const authoredValue = property === 'enabled' ? (effect.enabled ?? true) : effect.parameters?.[property]
           if (!parameter || authoredValue === undefined) continue
-          const compatibleTypes = effectBindingParameterTypes(authoredValue)
+          const compatibleTypes = bindingParameterTypes(authoredValue)
           if (compatibleTypes.length === 0) {
             diagnostics.push(error('CINEMA2_PRESET_EFFECT_BINDING_VALUE_UNSUPPORTED', `Effect property "${property}" is not representable by the shared target runtime and cannot be parameter-bound.`, bindingPath))
           } else if (!compatibleTypes.includes(parameter.type)) {
@@ -664,7 +694,7 @@ function validateReferencesAndCombinations(
 }
 
 
-function effectBindingParameterTypes(value: Cinema2JsonValue): readonly Cinema2ParameterType[] {
+function bindingParameterTypes(value: Cinema2JsonValue): readonly Cinema2ParameterType[] {
   if (typeof value === 'boolean') return ['boolean']
   if (typeof value === 'number' && Number.isFinite(value)) return ['float', 'integer', 'meter']
   if (typeof value === 'string') return ['enum', 'string', 'text', 'status']

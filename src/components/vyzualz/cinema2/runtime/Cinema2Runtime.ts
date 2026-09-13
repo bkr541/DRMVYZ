@@ -141,6 +141,7 @@ const diagnostics: Cinema2RuntimeDiagnostics = {
 const EMPTY_VIEWPORT: Cinema2Viewport = { width: 1, height: 1, dpr: 1 }
 const CINEMA2_RUNTIME_AVAILABLE_CAPABILITIES = Object.freeze([
   'render.webgl2',
+  'render.history',
   'media.image',
   'media.video',
   'media.svg',

@@ -327,6 +327,12 @@ export {
 } from './modules/Cinema2FullscreenShaderModule'
 
 export {
+  CINEMA2_REACTOR_NATIVE_MODULE_TYPE_ID,
+  CINEMA2_REACTOR_NATIVE_MODULE_VERSION,
+  cinema2ReactorNativeModuleDefinition,
+} from './modules/Cinema2ReactorNativeModule'
+
+export {
   Cinema2ModuleRegistry,
   cinema2NativeModuleRegistry,
   type Cinema2ModuleRegistryResult,
@@ -395,3 +401,17 @@ export {
   CINEMA2_REFERENCE_VISUAL_PRESET_ID,
   CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
 } from './presets/Cinema2ReferenceVisualPreset'
+
+export {
+  CINEMA2_REACTOR_BLOOM_ENABLED_ID,
+  CINEMA2_REACTOR_BLOOM_INTENSITY_ID,
+  CINEMA2_REACTOR_CORE_INTENSITY_ID,
+  CINEMA2_REACTOR_CORE_SIZE_ID,
+  CINEMA2_REACTOR_PRESET_ID,
+  CINEMA2_REACTOR_PRESET_MANIFEST,
+  CINEMA2_REACTOR_RAY_DENSITY_ID,
+  CINEMA2_REACTOR_REFRACTION_ID,
+  CINEMA2_REACTOR_RESET_TRAILS_ID,
+  CINEMA2_REACTOR_TRAILS_ENABLED_ID,
+  CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID,
+} from './presets/Cinema2ReactorPreset'
