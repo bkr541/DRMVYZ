@@ -18,12 +18,14 @@ import type {
   Cinema2ModuleInstance,
   Cinema2ModuleMediaFacet,
   Cinema2ModuleParameterReadFacet,
+  Cinema2ModuleRandomnessFacet,
   Cinema2ModuleRenderPassProvider,
   Cinema2ModuleTargetFacet,
 } from './Cinema2ModuleContracts'
 import { Cinema2ModuleRegistry } from './Cinema2ModuleRegistry'
 import { Cinema2ModuleResourceScope } from './Cinema2ModuleResources'
 import { Cinema2MediaSlotRuntime } from '../media/Cinema2MediaSlotRuntime'
+import { Cinema2RandomService } from '../runtime/Cinema2RandomService'
 
 export type Cinema2ModuleRuntimeStatus = 'inactive' | 'active' | 'failed' | 'disposed'
 
@@ -50,6 +52,7 @@ interface ModuleRecord {
   parameters: Cinema2ModuleParameterReadFacet
   targets: Cinema2ModuleTargetFacet
   media: Cinema2ModuleMediaFacet
+  randomness: Cinema2ModuleRandomnessFacet
   diagnostics: Cinema2ModuleDiagnostic[]
 }
 
@@ -68,6 +71,7 @@ export class Cinema2ModuleRuntime {
     targetResolver: Cinema2FinalValueResolver,
     private readonly registry: Cinema2ModuleRegistry,
     mediaRuntime: Cinema2MediaSlotRuntime,
+    randomService: Cinema2RandomService,
   ) {
     const moduleTargets = indexModuleTargets(plan.targets.targets)
     this.records = (plan.manifest.modules ?? []).map(module => ({
@@ -78,6 +82,7 @@ export class Cinema2ModuleRuntime {
       parameters: createParameterFacet(module, moduleTargets.get(module.id) ?? new Map(), targetResolver),
       targets: createTargetFacet(targetResolver),
       media: createMediaFacet(module, mediaRuntime),
+      randomness: createRandomnessFacet(module.id, randomService),
       diagnostics: [],
     }))
   }
@@ -176,6 +181,7 @@ export class Cinema2ModuleRuntime {
       targets: record.targets,
       media: record.media,
       resources,
+      randomness: record.randomness,
     }
     try {
       record.resources = resources
@@ -273,6 +279,26 @@ function createTargetFacet(resolver: Cinema2FinalValueResolver): Cinema2ModuleTa
     },
   }
   return Object.freeze(facet)
+}
+
+function createRandomnessFacet(
+  moduleId: Cinema2ModuleId,
+  randomService: Cinema2RandomService,
+): Cinema2ModuleRandomnessFacet {
+  return Object.freeze({
+    sample(purpose: string, index = 0, substream?: string) {
+      return randomService.sample({ moduleId, purpose, substream }, index)
+    },
+    probability(purpose: string, probability: number, index = 0, substream?: string) {
+      return randomService.probability({ moduleId, purpose, substream }, probability, index)
+    },
+    stream(purpose: string, substream?: string) {
+      return randomService.stream({ moduleId, purpose, substream })
+    },
+    eventStream(eventId: string, purpose: string, substream?: string) {
+      return randomService.eventStream(moduleId, eventId, purpose, substream)
+    },
+  })
 }
 
 function createMediaFacet(

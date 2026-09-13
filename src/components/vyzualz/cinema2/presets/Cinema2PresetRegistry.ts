@@ -7,6 +7,7 @@ import {
 import { CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST } from './Cinema2ReferenceVisualPreset'
 import { CINEMA2_REACTOR_PRESET_MANIFEST } from './Cinema2ReactorPreset'
 import { CINEMA2_SPATIAL_REFERENCE_PRESET_MANIFEST } from './Cinema2SpatialReferencePreset'
+import { CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST } from './Cinema2ElectricStormPreset'
 import {
   compileCinema2NativePreset,
   type Cinema2PresetCompilationResult,
@@ -99,4 +100,8 @@ if (!reactorRegistration.ok) {
 const spatialReferenceRegistration = cinema2NativePresetRegistry.register(CINEMA2_SPATIAL_REFERENCE_PRESET_MANIFEST)
 if (!spatialReferenceRegistration.ok) {
   throw new Error(`Cinema 2.0 Spatial Reference preset registration failed: ${spatialReferenceRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+const electricStormRegistration = cinema2NativePresetRegistry.register(CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST)
+if (!electricStormRegistration.ok) {
+  throw new Error(`Cinema 2.0 Electric Storm preset registration failed: ${electricStormRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }

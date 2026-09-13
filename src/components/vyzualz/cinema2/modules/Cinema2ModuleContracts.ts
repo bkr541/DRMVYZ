@@ -5,6 +5,7 @@ import type {
   Cinema2ModuleTypeId,
 } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2AudioIntelligenceFrame } from '../audio/Cinema2AudioIntelligenceBridge'
+import type { Cinema2RandomStream } from '../runtime/Cinema2RandomService'
 import type { Cinema2VisualDirectorFrame } from '../director/Cinema2VisualDirector'
 import type { Cinema2ResolvedSpatialNode } from '../spatial/Cinema2SpatialRuntime'
 import type { Cinema2CameraFrame } from '../spatial/Cinema2CameraRuntime'
@@ -55,6 +56,15 @@ export interface Cinema2ModuleResourceSnapshot {
   disposedLeaseCount: number
 }
 
+/** Module-scoped view of engine-owned randomness. The host fixes moduleId so
+ * creative code cannot perturb or impersonate a sibling module namespace. */
+export interface Cinema2ModuleRandomnessFacet {
+  sample(purpose: string, index?: number, substream?: string): number
+  probability(purpose: string, probability: number, index?: number, substream?: string): boolean
+  stream(purpose: string, substream?: string): Cinema2RandomStream
+  eventStream(eventId: string, purpose: string, substream?: string): Cinema2RandomStream
+}
+
 /**
  * Resource factories receive WebGL2 only inside the engine-owned acquisition
  * boundary. The returned value is tracked by the host and deterministically
@@ -76,6 +86,7 @@ export interface Cinema2ModuleCreateContext {
   targets: Cinema2ModuleTargetFacet
   media: Cinema2ModuleMediaFacet
   resources: Cinema2ModuleResourceFacet
+  randomness: Cinema2ModuleRandomnessFacet
 }
 
 export interface Cinema2ModuleViewport {

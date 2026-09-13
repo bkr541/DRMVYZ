@@ -397,6 +397,31 @@ export {
 } from './modules/Cinema2ReactorNativeModule'
 
 export {
+  CINEMA2_ELECTRIC_STORM_NATIVE_MODULE_TYPE_ID,
+  CINEMA2_ELECTRIC_STORM_NATIVE_MODULE_VERSION,
+  cinema2ElectricStormNativeModuleDefinition,
+} from './modules/Cinema2ElectricStormNativeModule'
+
+export {
+  CINEMA2_ELECTRIC_STORM_HISTORY_LIMIT,
+  CINEMA2_ELECTRIC_STORM_MAX_ACTIVE_STRIKES,
+  Cinema2ElectricStormStrikeGenerator,
+  type Cinema2ElectricStormPoint,
+  type Cinema2ElectricStormStrikeDescriptor,
+  type Cinema2ElectricStormStrikeFrame,
+  type Cinema2ElectricStormStrikeIntent,
+  type Cinema2ElectricStormStrikeLengthClass,
+  type Cinema2ElectricStormStrikeOrientation,
+  type Cinema2ElectricStormStrikePlacement,
+  type Cinema2ElectricStormStrikeTier,
+} from './modules/Cinema2ElectricStormStrikeGenerator'
+
+export {
+  Cinema2ElectricStormThunderController,
+  type Cinema2ElectricStormThunderFrame,
+} from './modules/Cinema2ElectricStormThunder'
+
+export {
   Cinema2ModuleRegistry,
   cinema2NativeModuleRegistry,
   type Cinema2ModuleRegistryResult,
@@ -432,6 +457,7 @@ export {
   type Cinema2ModuleLifecycleFacet,
   type Cinema2ModuleMediaFacet,
   type Cinema2ModuleParameterReadFacet,
+  type Cinema2ModuleRandomnessFacet,
   type Cinema2ModuleRenderExecutionContext,
   type Cinema2ModuleRenderInput,
   type Cinema2ModuleRenderFacet,
@@ -511,3 +537,17 @@ export {
   CINEMA2_SPATIAL_REFERENCE_PRESET_MANIFEST,
   CINEMA2_SPATIAL_REFERENCE_REACTIVITY_ID,
 } from './presets/Cinema2SpatialReferencePreset'
+
+export {
+  CINEMA2_ELECTRIC_STORM_BACKGROUND_ID,
+  CINEMA2_ELECTRIC_STORM_BRANCHING_ID,
+  CINEMA2_ELECTRIC_STORM_GLOW_ID,
+  CINEMA2_ELECTRIC_STORM_HAZE_ID,
+  CINEMA2_ELECTRIC_STORM_LIGHTNING_COLOR_ID,
+  CINEMA2_ELECTRIC_STORM_MASTER_INTENSITY_ID,
+  CINEMA2_ELECTRIC_STORM_MODULE_ID,
+  CINEMA2_ELECTRIC_STORM_PRESET_ID,
+  CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST,
+  CINEMA2_ELECTRIC_STORM_STRIKE_RATE_ID,
+  CINEMA2_ELECTRIC_STORM_THICKNESS_ID,
+} from './presets/Cinema2ElectricStormPreset'

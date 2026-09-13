@@ -3,6 +3,7 @@ import type { Cinema2ModuleDiagnostic, Cinema2ModuleTypeDefinition } from './Cin
 import { cinema2FullscreenShaderModuleDefinition } from './Cinema2FullscreenShaderModule'
 import { cinema2ReactorNativeModuleDefinition } from './Cinema2ReactorNativeModule'
 import { cinema2Object3DModuleDefinition } from './Cinema2Object3DModule'
+import { cinema2ElectricStormNativeModuleDefinition } from './Cinema2ElectricStormNativeModule'
 
 export interface Cinema2ModuleRegistryResult {
   ok: boolean
@@ -84,6 +85,10 @@ if (!reactorNativeRegistration.ok) {
 const object3DRegistration = cinema2NativeModuleRegistry.register(cinema2Object3DModuleDefinition)
 if (!object3DRegistration.ok) {
   throw new Error(`Cinema 2.0 Object3D module registration failed: ${object3DRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+const electricStormRegistration = cinema2NativeModuleRegistry.register(cinema2ElectricStormNativeModuleDefinition)
+if (!electricStormRegistration.ok) {
+  throw new Error(`Cinema 2.0 Electric Storm native module registration failed: ${electricStormRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 
 function moduleDiagnosticPath(index: number, path: string): string {
