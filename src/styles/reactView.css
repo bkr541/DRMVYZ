@@ -5527,11 +5527,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
    other Underline Tabs instances (preset library filter, lower workspace
    surfaces) since they're the primary top-level navigation for the panel.
    They also span the full width of the right rail with evenly spaced,
-   equal-width tabs, and sit further from the top of the rail than the
-   default .vz-inspector-inner padding gives every other rail content. */
+   equal-width tabs. Space above the tab row matches Lyric Manager's Track
+   Workspace tabs below its own Solid Bar window row header
+   (.lmv-workspace-tabs.dv-underline-tabs { margin-top: 25px }), now that
+   this rail has the same RailWindowHeader ("Inspector") above it. */
 .rv-main-workspace-tabs.dv-underline-tabs {
   gap: 22px;
-  margin-top: 10px;
+  margin-top: 25px;
   margin-bottom: 12px;
   justify-content: space-between;
 }
