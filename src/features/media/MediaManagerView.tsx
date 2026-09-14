@@ -63,6 +63,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
             label="Media Manager library"
             collapsed={leftCollapsed}
             onToggleCollapsed={() => setLeftCollapsed(value => !value)}
+            className="rw-frame--left"
           >
             <RailWindowHeader
               side="left"
@@ -108,6 +109,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
             label="Media Manager details"
             collapsed={rightCollapsed}
             onToggleCollapsed={() => setRightCollapsed(value => !value)}
+            className="rw-frame--right"
           >
             <MediaManagerInspector media={selectedMedia} track={selectedTrack} />
           </WorkspaceRail>

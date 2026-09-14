@@ -787,7 +787,7 @@ function EmptyShowManagerWorkspace({
 }) {
   return (
     <>
-      <aside className="sm-library" aria-label="Show Manager component library">
+      <aside className="sm-library rw-frame--left" aria-label="Show Manager component library">
         <RailWindowHeader
           side="left"
           icon={<Layers01Icon size={15} color="currentColor" aria-hidden="true" />}
@@ -812,7 +812,7 @@ function EmptyShowManagerWorkspace({
         <div className="sm-stage-frame sm-stage-frame--empty" data-testid="show-manager-empty-visualizer" aria-label="Blank Show Manager visualizer" />
         <div className="sm-timeline sm-timeline--empty" data-testid="show-manager-empty-track-map" aria-label="Empty Show Manager Track Map" />
       </main>
-      <aside className="sm-inspector" aria-label={`Show Manager ${REACT_ENGINE_CATALOG[selectedEngineId].label} inspector`}>
+      <aside className="sm-inspector rw-frame--right" aria-label={`Show Manager ${REACT_ENGINE_CATALOG[selectedEngineId].label} inspector`}>
         <RailWindowHeader
           side="right"
           icon={<Settings02Icon size={15} color="currentColor" aria-hidden="true" />}
@@ -2198,7 +2198,7 @@ export function ShowManagerView() {
         ) : (
           <>
         {workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? (
-          <aside className="sm-library sm-library--deck" aria-label="Show Manager Deck images">
+          <aside className="sm-library sm-library--deck rw-frame--left" aria-label="Show Manager Deck images">
             <PixGridDeckBuilderLibrary
               deck={editingDeck}
               draftName={deckDraftName}
@@ -2223,7 +2223,7 @@ export function ShowManagerView() {
             />
           </aside>
         ) : (
-        <aside className="sm-library" aria-label="Show Manager component library">
+        <aside className="sm-library rw-frame--left" aria-label="Show Manager component library">
           <RailWindowHeader
             side="left"
             icon={<Layers01Icon size={15} color="currentColor" aria-hidden="true" />}
@@ -2658,7 +2658,7 @@ export function ShowManagerView() {
         </main>
 
         {workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? (
-          <aside className="sm-inspector sm-inspector--deck" aria-label="Show Manager Deck Builder inspector">
+          <aside className="sm-inspector sm-inspector--deck rw-frame--right" aria-label="Show Manager Deck Builder inspector">
             <PixGridDeckBuilderInspector
               deck={editingDeck}
               draftName={deckDraftName}
@@ -2685,7 +2685,7 @@ export function ShowManagerView() {
             />
           </aside>
         ) : (
-        <aside className="sm-inspector" aria-label={`Show Manager ${activeSectionEngineId ? REACT_ENGINE_CATALOG[activeSectionEngineId].label : 'section'} inspector`}>
+        <aside className="sm-inspector rw-frame--right" aria-label={`Show Manager ${activeSectionEngineId ? REACT_ENGINE_CATALOG[activeSectionEngineId].label : 'section'} inspector`}>
           <RailWindowHeader
             side="right"
             icon={<Settings02Icon size={15} color="currentColor" aria-hidden="true" />}

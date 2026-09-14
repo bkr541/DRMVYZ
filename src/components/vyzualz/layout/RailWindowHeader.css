@@ -70,3 +70,37 @@
 .rw-window-header-actions .dv-icon-chip:hover:not(:disabled) {
   background: #131c20;
 }
+
+/* ── Window frame edge ────────────────────────────────────────────────────
+   The silver-thread rail border that pairs with RailWindowHeader — same
+   origin as the header itself: Lyric Manager's left/right rails
+   (.lmv-left-rail::after / .lmv-right-rail::after in lyricManager.css),
+   promoted into a reusable pair of classes. Apply .rw-frame--left /
+   .rw-frame--right to a rail's outer element (WorkspaceRail's className
+   prop, or directly on a custom rail element) on whichever edge borders
+   the rest of the window. */
+.rw-frame--left,
+.rw-frame--right {
+  position: relative;
+}
+
+.rw-frame--left::after,
+.rw-frame--right::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  z-index: 5;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(190, 199, 205, 0.94), rgba(228, 234, 238, 0.97) 50%, rgba(190, 199, 205, 0.94));
+}
+
+.rw-frame--left::after {
+  right: -1px;
+}
+
+.rw-frame--right::after {
+  left: -1px;
+}

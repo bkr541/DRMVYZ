@@ -874,6 +874,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           label="React left rail"
           collapsed={leftCollapsed}
           onToggleCollapsed={() => setLeftCollapsed((v) => !v)}
+          className="rw-frame--left"
         >
           <RailWindowHeader
             side="left"
@@ -1204,6 +1205,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           label="React right rail"
           collapsed={rightCollapsed}
           onToggleCollapsed={() => setRightCollapsed((v) => !v)}
+          className="rw-frame--right"
         >
           <RailWindowHeader
             side="right"

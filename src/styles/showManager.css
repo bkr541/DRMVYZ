@@ -186,6 +186,18 @@
 .sm-library { border-right: 1px solid var(--az-border); }
 .sm-inspector { border-left: 1px solid var(--az-border); }
 
+/* .rw-frame--left/--right's edge thread normally bleeds 1px outside the
+   rail (right: -1px / left: -1px, matching Lyric Manager exactly) — but
+   .sm-library/.sm-inspector clip that with their own overflow: hidden
+   above, so pull the thread fully inside instead of losing half its width. */
+.sm-library.rw-frame--left::after {
+  right: 0;
+}
+
+.sm-inspector.rw-frame--right::after {
+  left: 0;
+}
+
 /* Component Library / Deck Images / Inspector / Deck Builder Inspector all
    render a RailWindowHeader (src/components/vyzualz/layout/RailWindowHeader)
    as their first child — pull it out of .sm-library/.sm-inspector's own
