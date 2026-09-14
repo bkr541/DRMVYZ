@@ -25,9 +25,6 @@ const pixGridChoreographer = new PixGridStructuralChoreographer()
 export type { ReactFrameContext, ReactRenderParams }
 export { DEFAULT_REACT_RENDER_PARAMS }
 
-// Re-export the VzFrameContext converter for consumers
-export { reactFrameFromVz } from './reactRenderUtils'
-
 // ── Section resolution ────────────────────────────────────────────────────────
 
 export interface ReactEngineRenderOptions {

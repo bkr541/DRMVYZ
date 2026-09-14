@@ -1,4 +1,3 @@
-import type { VzFrameContext } from '../../effects/types'
 import type {
   ReactTrackSection,
   ReactSectionType,
@@ -20,8 +19,7 @@ import type { VisualSimulationRuntimeMode } from '../../../../features/visualSim
 import { resolveSectionAtTime as resolveCanonicalSectionAtTime } from '../../../../features/trackIntelligence/authoritativeTimeline'
 
 // ── React frame context ───────────────────────────────────────────────────────
-// A lighter version of VzFrameContext used by all React engine renderers.
-// Can be built directly from an AnalyserNode or converted from VzFrameContext.
+// Shared frame context used by the current React engine renderers.
 
 export interface ReactFrameContext {
   W: number
@@ -167,34 +165,6 @@ export const DEFAULT_REACT_RENDER_PARAMS: ReactRenderParams = {
   soundDrawingRibbonResetRevision: 0,
   soundDrawingPerformanceSettings: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
   soundDrawingRuntimeMode: 'live',
-}
-
-// ── VzFrameContext → ReactFrameContext conversion ────────────────────────────
-
-export function reactFrameFromVz(vz: VzFrameContext): ReactFrameContext {
-  return {
-    W: vz.W,
-    H: vz.H,
-    dpr: vz.dpr,
-    t:         vz.time,
-    elapsedTimeSec: vz.time / 60,
-    deltaTimeSec:   1 / 60,
-    timeSec:   vz.audioTime,
-    audioTime: vz.audioTime,
-    bpm:       vz.bpm,
-    beatPhase: vz.beatPhase,
-    beatHit:   vz.beatHit,
-    isPlaying: true,  // Vyzualz live canvas is always active
-    audio: {
-      bass:   vz.audio.bass,
-      mid:    (vz.audio.lowMid + vz.audio.mid) * 0.5,
-      high:   vz.audio.high,
-      volume: vz.audio.volume,
-    },
-    freqData:          vz.freqData,
-    timeDomainData:    vz.timeDomainData,
-    musicIntelligence: null,
-  }
 }
 
 // ── Math helpers ──────────────────────────────────────────────────────────────
