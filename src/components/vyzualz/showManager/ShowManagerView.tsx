@@ -24,7 +24,8 @@ import { DualRailCollapsible } from '../react/DualRailCollapsible'
 import { PanelSubtabs } from '../react/PanelSubtabs'
 import { MusicIntelligenceDiagnosticsPanel } from '../modulation/MusicIntelligenceDiagnosticsPanel'
 import { LaserDmxRoutingTriggersPanel } from './LaserDmxRoutingTriggersPanel'
-import { MoreVerticalIcon } from 'hugeicons-react'
+import { MoreVerticalIcon, Layers01Icon, Image01Icon, Settings02Icon } from 'hugeicons-react'
+import { RailWindowHeader } from '../layout/RailWindowHeader'
 import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from '../react/reactEngineCatalog'
 import { PixGridDesignPanel } from '../react/pixGrid/PixGridDesignPanel'
 import { PixGridSurface } from '../react/pixGrid/PixGridSurface'
@@ -787,6 +788,11 @@ function EmptyShowManagerWorkspace({
   return (
     <>
       <aside className="sm-library" aria-label="Show Manager component library">
+        <RailWindowHeader
+          side="left"
+          icon={<Layers01Icon size={15} color="currentColor" aria-hidden="true" />}
+          label="Component Library"
+        />
         <div className="sm-engine-picker">
           <Dropdown
             id="show-manager-engine"
@@ -807,10 +813,12 @@ function EmptyShowManagerWorkspace({
         <div className="sm-timeline sm-timeline--empty" data-testid="show-manager-empty-track-map" aria-label="Empty Show Manager Track Map" />
       </main>
       <aside className="sm-inspector" aria-label={`Show Manager ${REACT_ENGINE_CATALOG[selectedEngineId].label} inspector`}>
-        <div className="sm-panel-heading sm-panel-heading--inspector">
-          <strong>INSPECTOR</strong>
-          <span>No Show open</span>
-        </div>
+        <RailWindowHeader
+          side="right"
+          icon={<Settings02Icon size={15} color="currentColor" aria-hidden="true" />}
+          label="Inspector"
+        />
+        <span className="sm-window-substatus">No Show open</span>
         <div className="sm-panel-blank" data-testid="show-manager-empty-inspector" />
       </aside>
     </>
@@ -2216,6 +2224,11 @@ export function ShowManagerView() {
           </aside>
         ) : (
         <aside className="sm-library" aria-label="Show Manager component library">
+          <RailWindowHeader
+            side="left"
+            icon={<Layers01Icon size={15} color="currentColor" aria-hidden="true" />}
+            label="Component Library"
+          />
           <div className="sm-engine-picker">
             <Dropdown
               id="show-manager-engine"
@@ -2673,6 +2686,11 @@ export function ShowManagerView() {
           </aside>
         ) : (
         <aside className="sm-inspector" aria-label={`Show Manager ${activeSectionEngineId ? REACT_ENGINE_CATALOG[activeSectionEngineId].label : 'section'} inspector`}>
+          <RailWindowHeader
+            side="right"
+            icon={<Settings02Icon size={15} color="currentColor" aria-hidden="true" />}
+            label="Inspector"
+          />
           <RailTabs
             tabs={SHOW_MANAGER_RIGHT_INSPECTOR_TABS}
             activeTab={rightInspectorTab}

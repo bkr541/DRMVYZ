@@ -8,6 +8,7 @@ import { Badge } from '../react/controls/Badge'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { useMediaStore } from '../../../stores/mediaStore'
+import { RailWindowHeader } from '../layout/RailWindowHeader'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { useAudioStore } from '../../../stores/audioStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
@@ -315,10 +316,11 @@ export function MediaManagerInspector({
 }) {
   return (
     <>
-      <div className="vz-panel-header">
-        <InformationCircleIcon size={14} color="currentColor" style={{ flexShrink: 0 }} />
-        <span className="vz-panel-title" title="Media Details">Media Details</span>
-      </div>
+      <RailWindowHeader
+        side="right"
+        icon={<InformationCircleIcon size={15} color="currentColor" aria-hidden="true" />}
+        label="Media Details"
+      />
       {media ? (
         <VisualMediaInspector key={media.id} media={media} />
       ) : track ? (

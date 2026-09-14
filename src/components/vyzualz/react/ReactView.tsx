@@ -49,6 +49,8 @@ import { resolveTrackTimelineAvailability } from './trackTimeline/trackTimelineA
 import { RailTabs } from '../layout/RailTabs'
 import type { RailTabOption } from '../layout/RailTabs'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
+import { RailWindowHeader } from '../layout/RailWindowHeader'
+import { DashboardSquare01Icon, Settings02Icon } from 'hugeicons-react'
 import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import { FontLibraryPanel } from './FontLibraryPanel'
 import { ReactEngineBrowser } from './ReactEngineBrowser'
@@ -873,6 +875,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           collapsed={leftCollapsed}
           onToggleCollapsed={() => setLeftCollapsed((v) => !v)}
         >
+          <RailWindowHeader
+            side="left"
+            icon={<DashboardSquare01Icon size={15} color="currentColor" aria-hidden="true" />}
+            label={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} Workspace`}
+          />
           <div className="rv-left-workspace-shell" data-description-density="compact">
             <section
               className="rv-context-workspace"
@@ -1198,6 +1205,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           collapsed={rightCollapsed}
           onToggleCollapsed={() => setRightCollapsed((v) => !v)}
         >
+          <RailWindowHeader
+            side="right"
+            icon={<Settings02Icon size={15} color="currentColor" aria-hidden="true" />}
+            label="Inspector"
+          />
           <RailTabs
             tabs={rightTabs}
             activeTab={activeRightPanel}

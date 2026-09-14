@@ -42,8 +42,7 @@
   color: rgba(240, 247, 249, 0.94);
 }
 
-.sm-title-block span,
-.sm-panel-heading span {
+.sm-title-block span {
   font-size: 8px;
   color: rgba(196, 212, 220, 0.42);
   letter-spacing: 0.08em;
@@ -187,20 +186,27 @@
 .sm-library { border-right: 1px solid var(--az-border); }
 .sm-inspector { border-left: 1px solid var(--az-border); }
 
-.sm-panel-heading {
-  height: 42px;
-  padding: 8px 11px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 3px;
-  border-bottom: 1px solid var(--sm-border);
+/* Component Library / Deck Images / Inspector / Deck Builder Inspector all
+   render a RailWindowHeader (src/components/vyzualz/layout/RailWindowHeader)
+   as their first child — pull it out of .sm-library/.sm-inspector's own
+   8px/12px padding so it sits flush/edge-to-edge with the rail's true
+   corners, matching Lyric Manager's Track Workspace/Document Workspace
+   treatment. */
+.sm-library .rw-window-header,
+.sm-inspector .rw-window-header {
+  margin: -8px -12px 0;
 }
 
-.sm-panel-heading strong {
-  font-size: 10px;
-  letter-spacing: 0.07em;
-  color: rgba(232, 244, 248, 0.74);
+/* Small muted status line under a RailWindowHeader, replacing the old
+   .sm-panel-heading's second <span> row (deck item count, "No Show open",
+   etc.) now that the header itself moved to the shared component. */
+.sm-window-substatus {
+  display: block;
+  padding: 8px 11px 0;
+  font-size: 8px;
+  color: rgba(196, 212, 220, 0.42);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .sm-engine-picker {

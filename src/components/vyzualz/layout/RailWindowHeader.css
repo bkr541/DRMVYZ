@@ -1,0 +1,72 @@
+/* ── RailWindowHeader ─────────────────────────────────────────────────────
+   Canonical DRMVYZ rail window title bar. See RailWindowHeader.tsx for the
+   full origin note — this is the "Solid Bar — Drop Shadow" treatment
+   promoted out of Lyric Manager into a shared component. */
+
+.rw-window-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 14px;
+  min-height: 42px;
+  color: #10161a;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  box-shadow:
+    0 2px 2px rgba(0, 0, 0, 0.6),
+    0 8px 14px rgba(0, 0, 0, 0.55),
+    0 32px 56px rgba(0, 0, 0, 0.8),
+    0 0 46px rgba(38, 216, 242, 0.18);
+}
+
+.rw-window-header svg {
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.rw-window-header-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rw-window-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.rw-window-header--left {
+  background:
+    linear-gradient(to right, rgba(0, 0, 0, 0.28), transparent 45%),
+    linear-gradient(180deg, rgba(228, 234, 238, 0.97), rgba(190, 199, 205, 0.94));
+}
+
+.rw-window-header--right {
+  background:
+    linear-gradient(to left, rgba(0, 0, 0, 0.28), transparent 45%),
+    linear-gradient(180deg, rgba(228, 234, 238, 0.97), rgba(190, 199, 205, 0.94));
+}
+
+.rw-window-header-actions .dv-icon-chip {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  flex-shrink: 0;
+  background: #0b1114;
+  border-color: #26d8f2;
+  color: #26d8f2;
+}
+
+.rw-window-header-actions .dv-icon-chip:hover:not(:disabled) {
+  background: #131c20;
+}

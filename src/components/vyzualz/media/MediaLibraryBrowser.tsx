@@ -615,6 +615,9 @@ export interface MediaLibraryBrowserProps {
   onOpenLyricManager?: (intent: LyricManagerNavigationIntent) => void
   context?: MediaLibraryContext
   title?: string
+  /** Skips the internal .vz-panel-header row — for callers that render their
+   *  own window header (e.g. RailWindowHeader) above this component instead. */
+  hideInternalHeader?: boolean
   capabilities: readonly MediaLibraryCapability[]
   getDisabledReason?: (media: UploadedMedia) => string | null
   /** Manager-only: selects a saved audio track into the manager's own preview/
@@ -653,6 +656,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   onOpenLyricManager,
   context = 'visualizer',
   title = 'Media Library',
+  hideInternalHeader = false,
   capabilities,
   getDisabledReason,
   activeTrackId = null,
@@ -1455,38 +1459,40 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           </Collapsible>
         ) : (
           <>
-            <div className="vz-panel-header">
-              <Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
-              <span className="vz-panel-title" title={title}>{title}</span>
-              {isManager && (
-                <>
+            {!hideInternalHeader && (
+              <div className="vz-panel-header">
+                <Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
+                <span className="vz-panel-title" title={title}>{title}</span>
+                {isManager && (
+                  <>
+                    <IconChipButton
+                      className="vz-panel-header-icon-btn"
+                      icon={<AddCollectionIcon size={14} />}
+                      onClick={() => openCollectionEditor()}
+                      title="New Collection"
+                      aria-label="New Collection"
+                    />
+                    <IconChipButton
+                      className="vz-panel-header-icon-btn"
+                      tone="primary"
+                      icon={<AddMediaIcon size={14} />}
+                      onClick={() => openImportMediaModal()}
+                      title="New Media"
+                      aria-label="New Media"
+                    />
+                  </>
+                )}
+                {!isManager && (
                   <IconChipButton
-                    className="vz-panel-header-icon-btn"
-                    icon={<AddCollectionIcon size={14} />}
-                    onClick={() => openCollectionEditor()}
-                    title="New Collection"
-                    aria-label="New Collection"
-                  />
-                  <IconChipButton
-                    className="vz-panel-header-icon-btn"
-                    tone="primary"
-                    icon={<AddMediaIcon size={14} />}
-                    onClick={() => openImportMediaModal()}
-                    title="New Media"
-                    aria-label="New Media"
-                  />
-                </>
-              )}
-              {!isManager && (
-                <IconChipButton
-                  onClick={() => { void refreshLibrary?.() }}
-                  disabled={refreshing}
-                  title="Refresh media library"
-                >
-                  {refreshing ? 'Refreshing…' : 'Refresh'}
-                </IconChipButton>
-              )}
-            </div>
+                    onClick={() => { void refreshLibrary?.() }}
+                    disabled={refreshing}
+                    title="Refresh media library"
+                  >
+                    {refreshing ? 'Refreshing…' : 'Refresh'}
+                  </IconChipButton>
+                )}
+              </div>
+            )}
             {libraryBody}
           </>
         )}

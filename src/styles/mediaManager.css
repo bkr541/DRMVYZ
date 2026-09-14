@@ -129,28 +129,12 @@
   box-shadow: none;
 }
 
-.vz-media-browser--manager .vz-panel-header {
-  min-height: 42px;
-  padding-inline: 14px;
-}
-
-/* Media Details header on the right rail mirrors the Media Library header
-   on the left (same icon/title row, minus the add buttons) — match its
-   sizing here too. */
-.mmv-content .vz-inspector--right .vz-panel-header {
-  min-height: 42px;
-  padding-inline: 14px;
-}
-
-/* Icon-only New Collection/New Media actions on the Media Library header
-   row (moved here from the top mmv-header row). Square, no text label. */
-.vz-panel-header-icon-btn.dv-icon-chip {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  flex-shrink: 0;
+/* Both rails' RailWindowHeader (Media Library / Media Details) pulls out of
+   the rail's own 8px/12px padding so it sits flush/edge-to-edge with the
+   rail's true corners, matching Lyric Manager's Track Workspace/Document
+   Workspace treatment. */
+.mmv-content .rw-window-header {
+  margin: -8px -12px 0;
 }
 
 /* ── Middle stage: plain media preview (no live effects) ────────────────── */

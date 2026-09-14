@@ -1,12 +1,15 @@
 import { useState } from 'react'
+import { Layers01Icon, FolderAddIcon, Add01Icon } from 'hugeicons-react'
 import { useAudioStore } from '../../stores/audioStore'
 import { useMediaStore } from '../../stores/mediaStore'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
+import { RailWindowHeader } from '../../components/vyzualz/layout/RailWindowHeader'
 import { MediaLibraryBrowser } from '../../components/vyzualz/media/MediaLibraryBrowser'
 import { MediaManagerStage } from '../../components/vyzualz/media/MediaManagerStage'
 import { MediaManagerInspector } from '../../components/vyzualz/media/MediaManagerInspector'
 import { MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
 import { VyzualzHeaderActions } from '../../components/vyzualz/shared/VyzualzHeaderActions'
+import { IconChipButton } from '../../components/vyzualz/react/controls/IconChipButton'
 import type { LyricManagerNavigationIntent } from '../lyrics/lyricNavigation'
 
 interface MediaManagerViewProps {
@@ -19,6 +22,8 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
   const trackCount = useAudioStore(state => state.savedTracks.length)
   const mediaItems = useMediaStore(state => state.items)
   const savedTracks = useAudioStore(state => state.savedTracks)
+  const openCollectionEditor = useMediaStore(state => state.openCollectionEditor)
+  const openImportMediaModal = useMediaStore(state => state.openImportMediaModal)
 
   const [leftCollapsed, setLeftCollapsed] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
@@ -59,6 +64,28 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
             collapsed={leftCollapsed}
             onToggleCollapsed={() => setLeftCollapsed(value => !value)}
           >
+            <RailWindowHeader
+              side="left"
+              icon={<Layers01Icon size={15} color="currentColor" aria-hidden="true" />}
+              label="Media Library"
+              actions={
+                <>
+                  <IconChipButton
+                    icon={<FolderAddIcon size={14} color="currentColor" />}
+                    onClick={() => openCollectionEditor()}
+                    title="New Collection"
+                    aria-label="New Collection"
+                  />
+                  <IconChipButton
+                    tone="primary"
+                    icon={<Add01Icon size={14} color="currentColor" />}
+                    onClick={() => openImportMediaModal()}
+                    title="New Media"
+                    aria-label="New Media"
+                  />
+                </>
+              }
+            />
             <MediaLibraryBrowser
               activeMediaId={selectedMediaId}
               onSelect={id => { setSelectedMediaId(id); setSelectedTrackId(null) }}
@@ -66,6 +93,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
               onSelectTrack={track => { setSelectedTrackId(track.id); setSelectedMediaId(null) }}
               context="manager"
               title="Media Library"
+              hideInternalHeader
               capabilities={MEDIA_MANAGER_CAPABILITIES}
               onOpenLyricManager={onOpenLyricManager}
             />

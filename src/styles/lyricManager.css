@@ -3095,66 +3095,10 @@
   flex-shrink: 0;
 }
 
-/* Track Workspace / Lyric Management / Document Workspace headers, all
-   restyled per Layout Lab / Template's Design tab — "03 · Solid Bar — Drop
-   Shadow" mockup (.lltwh-row--solid-shadow): the same flat silver-to-steel
-   gradient bar with near-black text/icon, lifted off the row beneath it
-   with a heavy multi-layer elevation shadow, in place of the flush
-   full-bleed dark header + divider .lmv-rail-title uses by default. All
-   three share the exact same treatment and fit — edge-to-edge with each
-   rail's true content edges (the relevant ancestor padding is zeroed near
-   each one below) so every bar touches its rail's corners, with no gap
-   around it; each row's own 14px side padding still insets its
-   icon/label/button content. Square corners (no border-radius) per
-   explicit correction. The mockup's `transform: translateY(-4px)` is
-   intentionally dropped on all three — each bar sits flush at its rail's
-   true edge with no surrounding margin, so nudging it would just clip
-   against the section's overflow: hidden instead of reading as "lifted".
-   The shadow itself is kept as-is, even though its lower layers get
-   clipped by that same overflow: hidden before they fully fade out. */
-.lmv-track-workspace > .lmv-rail-title,
-.lmv-lyric-management > .lmv-rail-title,
-.lmv-document-workspace-header > .lmv-rail-title {
-  margin: 0;
-  border-bottom: 0;
-  box-shadow:
-    0 2px 2px rgba(0, 0, 0, 0.6),
-    0 8px 14px rgba(0, 0, 0, 0.55),
-    0 32px 56px rgba(0, 0, 0, 0.8),
-    0 0 46px rgba(38, 216, 242, 0.18);
-  color: #10161a;
-}
-
-/* A slight darker sheen along each bar's outer edge — the edge away from
-   the center column, where the bar meets the true window edge — layered
-   over the same silver-to-steel gradient all three share. Track Workspace
-   and Lyric Management live in the left rail, so their outer edge is the
-   left side; Document Workspace lives in the right rail, so its outer edge
-   is the right side. */
-.lmv-track-workspace > .lmv-rail-title,
-.lmv-lyric-management > .lmv-rail-title {
-  background:
-    linear-gradient(to right, rgba(0, 0, 0, 0.28), transparent 45%),
-    linear-gradient(180deg, rgba(228, 234, 238, 0.97), rgba(190, 199, 205, 0.94));
-}
-
-.lmv-document-workspace-header > .lmv-rail-title {
-  background:
-    linear-gradient(to left, rgba(0, 0, 0, 0.28), transparent 45%),
-    linear-gradient(180deg, rgba(228, 234, 238, 0.97), rgba(190, 199, 205, 0.94));
-}
-
-.lmv-track-workspace .lmv-rail-title-action.dv-icon-chip,
-.lmv-lyric-management .lmv-rail-title-action.dv-icon-chip {
-  background: #0b1114;
-  border-color: #26d8f2;
-  color: #26d8f2;
-}
-
-.lmv-track-workspace .lmv-rail-title-action.dv-icon-chip:hover:not(:disabled),
-.lmv-lyric-management .lmv-rail-title-action.dv-icon-chip:hover:not(:disabled) {
-  background: #131c20;
-}
+/* Track Workspace / Lyric Management / Document Workspace headers now render
+   the shared RailWindowHeader component (src/components/vyzualz/layout/
+   RailWindowHeader.tsx + .css) instead of a local .lmv-rail-title treatment —
+   see that component for the "Solid Bar — Drop Shadow" styling itself. */
 
 /* Center visualizer's collapsible group header (a reusable .drc-header
    group, not the .lmv-rail-title used by Track Workspace/Lyric Management/

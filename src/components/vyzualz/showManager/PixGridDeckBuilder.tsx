@@ -3,6 +3,8 @@ import { IconMorphCheckbox } from '../react/controls/IconMorphToggle'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import { useId, useRef, type ChangeEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
+import { RailWindowHeader } from '../layout/RailWindowHeader'
+import { Image01Icon, Settings02Icon } from 'hugeicons-react'
 import { ReactPresetThumbnail } from '../react/ReactPresetThumbnail'
 import type { ReactPreset } from '../react/ReactTypes'
 import {
@@ -108,10 +110,12 @@ export function PixGridDeckBuilderLibrary({
 
   return (
     <div className="sm-deck-library" aria-label="Deck image library">
-      <div className="sm-panel-heading">
-        <strong>DECK IMAGES</strong>
-        <span>{deck ? `${items.length} of ${PIX_GRID_DECK_MAX_ITEMS}` : 'Create a new Deck'}</span>
-      </div>
+      <RailWindowHeader
+        side="left"
+        icon={<Image01Icon size={15} color="currentColor" aria-hidden="true" />}
+        label="Deck Images"
+      />
+      <span className="sm-window-substatus">{deck ? `${items.length} of ${PIX_GRID_DECK_MAX_ITEMS}` : 'Create a new Deck'}</span>
       <div className="sm-deck-upload-card">
         <label htmlFor={inputId} className={`sm-deck-upload-button${upload.active ? ' is-busy' : ''}`}>
           <input
@@ -236,10 +240,12 @@ export function PixGridDeckBuilderInspector({
 
   return (
     <div className="sm-deck-inspector" aria-label="Deck Builder inspector">
-      <div className="sm-panel-heading sm-panel-heading--inspector">
-        <strong>DECK BUILDER</strong>
-        <span>{deck ? 'Project Deck configuration' : 'New Deck'}</span>
-      </div>
+      <RailWindowHeader
+        side="right"
+        icon={<Settings02Icon size={15} color="currentColor" aria-hidden="true" />}
+        label="Deck Builder"
+      />
+      <span className="sm-window-substatus">{deck ? 'Project Deck configuration' : 'New Deck'}</span>
       <div className="sm-inspector-scroll">
         <section className="sm-deck-inspector-section">
           <h3>Name</h3>

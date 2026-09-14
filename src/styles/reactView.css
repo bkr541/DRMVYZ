@@ -4917,6 +4917,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   padding: 8px var(--rv-rail-inline-padding);
 }
 
+/* Left/right rail RailWindowHeader pulls out of the rail's own 8px/12px
+   padding so it sits flush/edge-to-edge with the rail's true corners,
+   matching Lyric Manager's Track Workspace/Document Workspace treatment. */
+.rv-layout > .vz-inspector > .vz-inspector-inner > .rw-window-header {
+  margin: -8px calc(var(--rv-rail-inline-padding) * -1) 0;
+}
+
 .rv-left-workspace-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

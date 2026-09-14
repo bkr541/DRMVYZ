@@ -42,6 +42,7 @@ import { LyricWorkflowStatus } from './components/LyricWorkflowStatus'
 import { LyricRecoveryDialog } from './components/LyricRecoveryDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
+import { RailWindowHeader } from '../../components/vyzualz/layout/RailWindowHeader'
 import { RailTabs, type RailTabOption } from '../../components/vyzualz/layout/RailTabs'
 import { Add01Icon, AudioWave02Icon, File02Icon, FileAddIcon, FileImportIcon, SubtitleIcon } from 'hugeicons-react'
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
@@ -1987,21 +1988,23 @@ export function LyricManagerView({
               ? { flexBasis: `${100 - lyricManagementHeightPct}%` }
               : undefined}
           >
-            <div className="lmv-rail-title">
-              <AudioWave02Icon size={15} color="currentColor" aria-hidden="true" />
-              <span>Track Workspace</span>
-              <IconChipButton
-                className="lmv-rail-title-action"
-                tone="primary"
-                icon={<Add01Icon size={14} color="currentColor" />}
-                onClick={() => {
-                  setUploadPurpose('canonical')
-                  setUploadOpen(true)
-                }}
-                title="Add tracks"
-                aria-label="Add tracks"
-              />
-            </div>
+            <RailWindowHeader
+              side="left"
+              icon={<AudioWave02Icon size={15} color="currentColor" aria-hidden="true" />}
+              label="Track Workspace"
+              actions={
+                <IconChipButton
+                  tone="primary"
+                  icon={<Add01Icon size={14} color="currentColor" />}
+                  onClick={() => {
+                    setUploadPurpose('canonical')
+                    setUploadOpen(true)
+                  }}
+                  title="Add tracks"
+                  aria-label="Add tracks"
+                />
+              }
+            />
 
             <RailTabs
               tabs={WORKSPACE_TABS}
@@ -2089,24 +2092,27 @@ export function LyricManagerView({
                 if (event.key === 'ArrowDown') { event.preventDefault(); setLyricManagementHeightPct(Math.max(20, (lyricManagementHeightPct ?? 45) - 2)) }
               }}
             />
-            <div className="lmv-rail-title">
-              <SubtitleIcon size={15} color="currentColor" aria-hidden="true" />
-              <span>Lyric Management</span>
-              <IconChipButton
-                className="lmv-rail-title-action"
-                icon={<FileAddIcon size={14} color="currentColor" />}
-                onClick={handleNewDocument}
-                title="New version"
-                aria-label="New lyric version"
-              />
-              <IconChipButton
-                className="lmv-rail-title-action"
-                icon={<FileImportIcon size={14} color="currentColor" />}
-                onClick={handleImportDocument}
-                title="Import version"
-                aria-label="Import lyric version"
-              />
-            </div>
+            <RailWindowHeader
+              side="left"
+              icon={<SubtitleIcon size={15} color="currentColor" aria-hidden="true" />}
+              label="Lyric Management"
+              actions={
+                <>
+                  <IconChipButton
+                    icon={<FileAddIcon size={14} color="currentColor" />}
+                    onClick={handleNewDocument}
+                    title="New version"
+                    aria-label="New lyric version"
+                  />
+                  <IconChipButton
+                    icon={<FileImportIcon size={14} color="currentColor" />}
+                    onClick={handleImportDocument}
+                    title="Import version"
+                    aria-label="Import lyric version"
+                  />
+                </>
+              }
+            />
 
           <LyricDocumentSidebar
             documents={documents}
@@ -2247,10 +2253,11 @@ export function LyricManagerView({
           className="lmv-right-rail"
         >
           <div className="lmv-document-workspace-header">
-            <div className="lmv-rail-title">
-              <File02Icon size={15} color="currentColor" aria-hidden="true" />
-              <span>Document Workspace</span>
-            </div>
+            <RailWindowHeader
+              side="right"
+              icon={<File02Icon size={15} color="currentColor" aria-hidden="true" />}
+              label="Document Workspace"
+            />
           </div>
 
           {cueEditor.selectedCue && cueEditor.actions ? (
