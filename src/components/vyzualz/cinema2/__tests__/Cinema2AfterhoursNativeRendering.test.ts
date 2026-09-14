@@ -286,7 +286,7 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
     harness.resources.disposeAll()
   })
 
-  it('smoothly morphs topology changes, supports explicit hard cuts, and clears temporal exposure on discontinuity/context/viewport invalidation', () => {
+  it('smoothly morphs topology changes without exceeding Beam Count and supports explicit hard cuts/lifecycle invalidation', () => {
     const harness = createHarness({ symmetry: false, beamCount: 8 })
     const first = frame({ timeSec: 1 })
     harness.instance.lifecycle.update({ frame: first, parameters: harness.parameterFacet, targets: harness.targetFacet })
@@ -296,42 +296,39 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
     const second = frame({ frameId: 2, timeSec: 1.08 })
     harness.instance.lifecycle.update({ frame: second, parameters: harness.parameterFacet, targets: harness.targetFacet })
     execute(harness, second)
-    expect(lastInstanceCount(harness.gl)).toBeGreaterThan(8)
+    expect(lastInstanceCount(harness.gl)).toBe(8)
 
     harness.parameters.pattern = 'crossCanopy'
     const morph = frame({ frameId: 3, timeSec: 1.12 })
     harness.instance.lifecycle.update({ frame: morph, parameters: harness.parameterFacet, targets: harness.targetFacet })
     execute(harness, morph)
+    expect(lastInstanceCount(harness.gl)).toBeLessThanOrEqual(8)
     const morphUpload = lastMockArgument(harness.gl.bufferSubData, 2) as Float32Array
     expect(Array.from(morphUpload).every(Number.isFinite)).toBe(true)
 
+    const morphMid = frame({ frameId: 4, timeSec: 1.29 })
+    harness.instance.lifecycle.update({ frame: morphMid, parameters: harness.parameterFacet, targets: harness.targetFacet })
+    execute(harness, morphMid)
+    expect(lastInstanceCount(harness.gl)).toBeLessThanOrEqual(8)
+
     harness.instance.handleAction?.(CINEMA2_AFTERHOURS_HARD_CUT_ACTION, {} as never)
-    const cut = frame({ frameId: 4, timeSec: 1.14 })
+    const cut = frame({ frameId: 5, timeSec: 1.31 })
     harness.instance.lifecycle.update({ frame: cut, parameters: harness.parameterFacet, targets: harness.targetFacet })
     execute(harness, cut)
+    expect(lastInstanceCount(harness.gl)).toBeLessThanOrEqual(8)
 
-    const resized = frame({ frameId: 5, timeSec: 1.18, viewport: { width: 1920, height: 1080, dpr: 1 } })
+    const resized = frame({ frameId: 6, timeSec: 1.35, viewport: { width: 1920, height: 1080, dpr: 1 } })
     harness.instance.lifecycle.update({ frame: resized, parameters: harness.parameterFacet, targets: harness.targetFacet })
     execute(harness, resized, camera(16 / 9, 0.4))
-    expect(lastInstanceCount(harness.gl)).toBe(8)
+    expect(lastInstanceCount(harness.gl)).toBeLessThanOrEqual(8)
 
-    const refill = frame({ frameId: 6, timeSec: 1.26, viewport: resized.viewport })
-    harness.instance.lifecycle.update({ frame: refill, parameters: harness.parameterFacet, targets: harness.targetFacet })
-    execute(harness, refill, camera(16 / 9, 0.4))
-    expect(lastInstanceCount(harness.gl)).toBeGreaterThan(8)
-
-    const regenerated = frame({ frameId: 7, timeSec: 1.3, contextGeneration: 2, viewport: resized.viewport })
+    const regenerated = frame({ frameId: 7, timeSec: 1.4, contextGeneration: 2, viewport: resized.viewport })
     harness.instance.lifecycle.update({ frame: regenerated, parameters: harness.parameterFacet, targets: harness.targetFacet })
     execute(harness, regenerated, camera(16 / 9, 0.4))
     expect(lastInstanceCount(harness.gl)).toBe(8)
 
-    const refillAgain = frame({ frameId: 8, timeSec: 1.38, contextGeneration: 2, viewport: resized.viewport })
-    harness.instance.lifecycle.update({ frame: refillAgain, parameters: harness.parameterFacet, targets: harness.targetFacet })
-    execute(harness, refillAgain, camera(16 / 9, 0.4))
-    expect(lastInstanceCount(harness.gl)).toBeGreaterThan(8)
-
     const discontinuity = frame({
-      frameId: 9,
+      frameId: 8,
       timeSec: 4,
       contextGeneration: 2,
       viewport: resized.viewport,
@@ -340,6 +337,30 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
     harness.instance.lifecycle.update({ frame: discontinuity, parameters: harness.parameterFacet, targets: harness.targetFacet })
     execute(harness, discontinuity, camera(16 / 9, 0.4))
     expect(lastInstanceCount(harness.gl)).toBe(8)
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
+  it('preserves mirrored pairs while enforcing an odd authored Beam Count during topology morphs', () => {
+    const harness = createHarness({ symmetry: true, beamCount: 7, pattern: 'wideFan' })
+    const first = frame({ timeSec: 1 })
+    harness.instance.lifecycle.update({ frame: first, parameters: harness.parameterFacet, targets: harness.targetFacet })
+    execute(harness, first)
+    expect(lastInstanceCount(harness.gl)).toBe(6)
+
+    harness.parameters.pattern = 'fullRig'
+    const morph = frame({ frameId: 2, timeSec: 1.17 })
+    harness.instance.lifecycle.update({ frame: morph, parameters: harness.parameterFacet, targets: harness.targetFacet })
+    execute(harness, morph)
+    expect(lastInstanceCount(harness.gl)).toBeLessThanOrEqual(6)
+    expect(lastInstanceCount(harness.gl) % 2).toBe(0)
+
+    const morphMid = frame({ frameId: 3, timeSec: 1.34 })
+    harness.instance.lifecycle.update({ frame: morphMid, parameters: harness.parameterFacet, targets: harness.targetFacet })
+    execute(harness, morphMid)
+    expect(lastInstanceCount(harness.gl)).toBeLessThanOrEqual(6)
+    expect(lastInstanceCount(harness.gl) % 2).toBe(0)
+
     harness.instance.lifecycle.dispose()
     harness.resources.disposeAll()
   })
@@ -364,7 +385,7 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
     const activeLater = frame({ frameId: 4, timeSec: 3.08, elapsedTimeSec: 0, audio: beatAudio(3.08) })
     harness.instance.lifecycle.update({ frame: activeLater, parameters: harness.parameterFacet, targets: harness.targetFacet })
     execute(harness, activeLater)
-    expect(lastInstanceCount(harness.gl)).toBeGreaterThan(2)
+    expect(lastInstanceCount(harness.gl)).toBe(2)
 
     const paused = frame({ frameId: 5, timeSec: 9, elapsedTimeSec: 0, transport: { sourcePresent: true, playing: false, analysisActive: true, paused: true, animationActive: false, trackId: 'track-a', timeSec: 3.08 } })
     harness.instance.lifecycle.update({ frame: paused, parameters: harness.parameterFacet, targets: harness.targetFacet })

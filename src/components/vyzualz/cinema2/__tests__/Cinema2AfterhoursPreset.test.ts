@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
+import type { MusicIntelligenceFrame } from '../../../../features/musicIntelligence/types'
 import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { afterhoursWorldDefinition } from '../../react/renderers/cinematic/worlds/AfterhoursWorld'
+import { Cinema2AudioIntelligenceBridge } from '../audio/Cinema2AudioIntelligenceBridge'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
 import { createCinema2InspectorModel } from '../parameters/Cinema2InspectorModel'
@@ -83,7 +87,113 @@ function targetFor(plan: ReturnType<typeof compileAfterhours>, kind: string, own
   return target
 }
 
-describe('Cinema 2.0 Afterhours 2.0 Stage 7 production preset', () => {
+function stage8MusicFrame(frameId = 1, timeSec = 8): MusicIntelligenceFrame {
+  return {
+    ...DEFAULT_MI_FRAME,
+    frameId,
+    sourceId: 'afterhours-stage8-source',
+    trackId: 'afterhours-stage8-track',
+    timeSec,
+    bands: {
+      ...DEFAULT_MI_FRAME.bands,
+      normalizedSub: 0.82,
+      normalizedBass: 0.88,
+      normalizedMid: 0.62,
+      normalizedHigh: 0.7,
+    },
+    rhythm: {
+      ...DEFAULT_MI_FRAME.rhythm,
+      bpm: 128,
+      bpmConfidence: 0.98,
+      bpmSource: 'offline_analysis',
+      beatIndex: 32,
+      beatPhase: 0,
+      beatInBar: 0,
+      barIndex: 8,
+      beatHit: true,
+      downbeatHit: true,
+      beatEventTimeSec: timeSec,
+      kickHit: true,
+      kickStrength: 1,
+      snareHit: true,
+      snareStrength: 0.9,
+      transient: 0.96,
+      transientConfidence: 0.97,
+      phrase4Hit: true,
+      phrase4Progress: 0,
+      phrase16Hit: true,
+      phrase16Progress: 0,
+    },
+    energy: {
+      ...DEFAULT_MI_FRAME.energy,
+      instant: 0.94,
+      rms: 0.84,
+      spectralFlux: 0.9,
+      buildProgress: 0.15,
+      tension: 0.86,
+      trackCurve: 0.98,
+    },
+    section: {
+      ...DEFAULT_MI_FRAME.section,
+      type: 'drop',
+      label: 'drop',
+      startSec: timeSec - 0.2,
+      endSec: timeSec + 7.8,
+      progress: 0.025,
+      intensity: 0.98,
+      confidence: 0.98,
+      source: 'analysis',
+    },
+    stems: { ...DEFAULT_MI_FRAME.stems, vocalActivity: 0.08 },
+    semantics: { ...DEFAULT_MI_FRAME.semantics, buildConfidence: 0.12, dropConfidence: 0.98 },
+    capabilities: {
+      ...DEFAULT_MI_FRAME.capabilities!,
+      liveBands: true,
+      rhythmEvents: true,
+      beatGrid: true,
+      sections: true,
+      trackEnergyCurve: true,
+      stemCurves: true,
+    },
+    analysisCapabilities: {
+      ...DEFAULT_MI_FRAME.analysisCapabilities!,
+      reliableBeatGrid: true,
+      reliableDownbeatGrid: true,
+      barAwareSections: true,
+      selfSimilarityAnalysis: true,
+      semanticClassification: true,
+      phraseHierarchy: true,
+      semanticMoments: true,
+      legacyFallbackOnly: false,
+    },
+    analysisSource: 'bar_self_similarity',
+    phraseMarkers: [{
+      id: `stage8-phrase-${frameId}`,
+      timeSec,
+      phraseLength: 8,
+      lengthBars: 8,
+      barIndex: 8,
+      confidence: 0.96,
+      source: 'structural_boundary',
+      structurallyDetected: true,
+    }],
+    semanticMoments: [{
+      id: `stage8-drop-${frameId}`,
+      timeSec,
+      type: 'drop_impact',
+      confidence: 0.99,
+      source: 'structural_analysis',
+    }],
+    confidence: { ...DEFAULT_MI_FRAME.confidence, overall: 0.97, rhythm: 0.98, section: 0.98 },
+  }
+}
+
+function lastInstancedDrawCount(gl: ReturnType<typeof createCinemaMockWebGL>): number {
+  const calls = (gl.drawArraysInstanced as unknown as { mock: { calls: unknown[][] } }).mock.calls
+  return Number(calls[calls.length - 1]?.[3] ?? 0)
+}
+
+describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
   it('registers as a first-party keeper and passes the shared authoring/compiler gates', () => {
     const declaration = CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS.find(candidate => candidate.manifest.id === CINEMA2_AFTERHOURS_PRESET_ID)
     expect(declaration).toMatchObject({ role: 'keeper' })
@@ -94,7 +204,7 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 7 production preset', () => {
     const plan = compileAfterhours()
     expect(plan.manifest.modules).toHaveLength(1)
     expect(plan.manifest.effects).toHaveLength(1)
-    expect(plan.manifest.revision).toBe(4)
+    expect(plan.manifest.revision).toBe(5)
     expect(plan.manifest.modules?.[0]).toMatchObject({
       id: CINEMA2_AFTERHOURS_MODULE_ID,
       typeId: CINEMA2_AFTERHOURS_NATIVE_MODULE_TYPE_ID,
@@ -320,6 +430,87 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 7 production preset', () => {
     }
 
     created.runtime.dispose()
+  })
+
+  it('executes the final first-party path from selection through audio/director choreography, planner, camera, render graph, trails, and native pixels', () => {
+    const gl = createCinemaMockWebGL()
+    let scheduledFrame: FrameRequestCallback | null = null
+    const upstream = stage8MusicFrame()
+    const transport = {
+      sourcePresent: true,
+      playing: true,
+      analysisActive: true,
+      paused: false,
+      trackId: upstream.trackId,
+      timeSec: upstream.timeSec,
+    }
+    const bridge = new Cinema2AudioIntelligenceBridge({
+      getFrame: () => upstream,
+      getPublicationMeta: () => ({
+        sequence: upstream.frameId,
+        publishedAtMs: upstream.timeSec * 1000,
+        publisherId: 'afterhours-stage8-integration',
+        kind: 'frame' as const,
+      }),
+    })
+    const created = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
+      presetId: CINEMA2_AFTERHOURS_PRESET_ID,
+      audioIntelligenceBridge: bridge,
+      transportSource: { getState: () => transport },
+      requestAnimationFrame: vi.fn((callback: FrameRequestCallback) => {
+        scheduledFrame = callback
+        return 1
+      }),
+      cancelAnimationFrame: vi.fn(),
+      renderQuality: 'high',
+    })
+    expect(created.error).toBeNull()
+    if (!created.runtime) return
+
+    const state = created.runtime.getParameterState()
+    expect(state.setPersistentValue(CINEMA2_AFTERHOURS_PATTERN_ID, 'wideFan')).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID, true)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_AFTERHOURS_SIDE_LASERS_ID, false)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_AFTERHOURS_TOP_LASERS_ID, false)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_AFTERHOURS_BEAM_COUNT_ID, 7)).toMatchObject({ ok: true })
+
+    created.runtime.resize({ width: 640, height: 360, dpr: 1 })
+    created.runtime.start()
+    expect(scheduledFrame).not.toBeNull()
+    ;(scheduledFrame as FrameRequestCallback | null)?.(16)
+
+    const plan = created.runtime.getCompiledPresetPlan()
+    expect(plan.presetId).toBe(CINEMA2_AFTERHOURS_PRESET_ID)
+    expect(created.runtime.getModuleRuntimeSnapshot().activeModuleCount).toBe(1)
+    expect(created.runtime.getCameraRuntimeSnapshot().activeCameraId).toBe(CINEMA2_AFTERHOURS_CAMERA_ID)
+    expect(created.runtime.getTargetResolver().resolve(targetFor(plan, 'module', CINEMA2_AFTERHOURS_MODULE_ID, 'directorImpact').id).value).toBeGreaterThan(0)
+    expect(created.runtime.getTargetResolver().resolve(targetFor(plan, 'module', CINEMA2_AFTERHOURS_MODULE_ID, 'kickAccent').id).value).toBeGreaterThan(0)
+    expect(created.runtime.getTargetResolver().resolve(targetFor(plan, 'module', CINEMA2_AFTERHOURS_MODULE_ID, 'snareAccent').id).value).toBeGreaterThan(0)
+    expect(created.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 1, executedPassCount: 2, failedPassCount: 0 })
+    expect(created.runtime.getHistoryServiceSnapshot()).toMatchObject({ activeBufferCount: 1, validBufferCount: 1 })
+    expect(created.runtime.getEffectRuntimeSnapshot().effects).toEqual([expect.objectContaining({
+      effectId: 'afterhours-feedback-trails',
+      typeId: 'feedback-trails',
+      status: 'active',
+    })])
+    expect(lastInstancedDrawCount(gl)).toBeGreaterThan(0)
+    expect(lastInstancedDrawCount(gl)).toBeLessThanOrEqual(7)
+
+    expect(state.getValue(CINEMA2_AFTERHOURS_PATTERN_ID)).toBe('wideFan')
+    expect(state.getValue(CINEMA2_AFTERHOURS_SIDE_LASERS_ID)).toBe(false)
+    expect(state.getValue(CINEMA2_AFTERHOURS_TOP_LASERS_ID)).toBe(false)
+    expect(state.getValue(CINEMA2_AFTERHOURS_BEAM_COUNT_ID)).toBe(7)
+
+    created.runtime.dispose()
+  })
+
+  it('keeps legacy Afterhours independent from the Cinema 2.0 keeper identity and native module registration', () => {
+    expect(afterhoursWorldDefinition).toMatchObject({ id: 'afterhours', label: 'Afterhours', backend: 'webgl2' })
+    expect(afterhoursWorldDefinition.id).not.toBe(CINEMA2_AFTERHOURS_PRESET_ID)
+    expect(CINEMA2_AFTERHOURS_PRESET_MANIFEST.modules?.[0]).toMatchObject({
+      id: CINEMA2_AFTERHOURS_MODULE_ID,
+      typeId: CINEMA2_AFTERHOURS_NATIVE_MODULE_TYPE_ID,
+    })
   })
 
   it('keeps feedback history clean while audio is absent or paused and preserves engine lifecycle resets', () => {

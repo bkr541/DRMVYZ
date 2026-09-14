@@ -30,11 +30,8 @@ import {
   type Cinema2AfterhoursShowPlannerStructure,
 } from './afterhours/Cinema2AfterhoursShowPlanner'
 import {
-  CINEMA2_AFTERHOURS_TEMPORAL_HISTORY_MAX_SAMPLES,
-  CINEMA2_AFTERHOURS_TEMPORAL_HISTORY_WINDOW_SEC,
   Cinema2AfterhoursRenderer,
   type Cinema2AfterhoursRenderBeam,
-  type Cinema2AfterhoursTemporalBeamSample,
 } from './afterhours/Cinema2AfterhoursRenderer'
 
 export const CINEMA2_AFTERHOURS_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('afterhours-native-render')
@@ -82,7 +79,6 @@ export const CINEMA2_AFTERHOURS_NATIVE_PARAMETER_NAMES = Object.freeze([
 ] as const)
 
 const MORPH_DURATION_SEC = 0.34
-const HISTORY_SAMPLE_INTERVAL_SEC = 1 / 45
 const IDLE_SWAY_WORLD = 0.035
 const DEFAULT_PRIMARY = Object.freeze([0.455, 0.961, 1, 1]) as Cinema2Color
 const DEFAULT_ACCENT = Object.freeze([1, 1, 1, 1]) as Cinema2Color
@@ -191,21 +187,14 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
     let transition: BeamTransition | null = null
     let settled = new Map<string, Readonly<BeamTransitionState>>()
     let hardCutRequested = false
-    let history: Cinema2AfterhoursTemporalBeamSample[] = []
-    let lastHistorySampleSec = Number.NEGATIVE_INFINITY
     let lastTimeSec: number | null = null
     let lastTrackId: string | null | undefined = undefined
     let lastPaused: boolean | null = null
     let lastContextGeneration: number | null = null
-    let lastViewportKey = ''
     let renderBeams: readonly Cinema2AfterhoursRenderBeam[] = Object.freeze([])
     let lastTriggerEventId: string | null = null
     let pulseStartedAtSec = Number.NEGATIVE_INFINITY
 
-    const clearTemporalHistory = () => {
-      history = []
-      lastHistorySampleSec = Number.NEGATIVE_INFINITY
-    }
     const resetTransientState = () => {
       signature = ''
       transition = null
@@ -213,7 +202,6 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
       renderBeams = Object.freeze([])
       lastTriggerEventId = null
       pulseStartedAtSec = Number.NEGATIVE_INFINITY
-      clearTemporalHistory()
     }
 
     const provider = Object.freeze({
@@ -231,8 +219,6 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
         )
         renderer.draw({
           beams: renderBeams,
-          history,
-          timeSec: lastTimeSec ?? execution.frame.elapsedTimeSec,
           worldToClipMatrix: execution.camera.viewProjectionMatrix,
           cameraPosition: execution.camera.position,
           primaryColor: config.primaryColor,
@@ -250,20 +236,16 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
           const { frame } = updateContext
           config = readFrameConfig(updateContext, autoPalette)
           const timeSec = resolveTimeSec(frame)
-          const viewportKey = `${frame.viewport.width}x${frame.viewport.height}@${frame.viewport.dpr}`
           const discontinuity = Boolean(frame.audio?.discontinuity.occurred && frame.audio.discontinuity.reason !== 'activation')
           const backwards = lastTimeSec != null && timeSec < lastTimeSec - 1e-6
           const sourceReplaced = lastTrackId !== undefined && frame.transport?.trackId !== lastTrackId
           const contextChanged = lastContextGeneration != null && frame.contextGeneration !== lastContextGeneration
-          const viewportChanged = lastViewportKey.length > 0 && viewportKey !== lastViewportKey
           const paused = frame.transport?.sourcePresent === true && frame.transport.paused === true
           const enteredPause = paused && lastPaused === false
           const triggerPreviousTimeSec = discontinuity || backwards || sourceReplaced || contextChanged ? null : lastTimeSec
           if (discontinuity || backwards || sourceReplaced || contextChanged) resetTransientState()
-          else if (viewportChanged) clearTemporalHistory()
           if (enteredPause) {
             pulseStartedAtSec = Number.NEGATIVE_INFINITY
-            clearTemporalHistory()
           }
 
           const triggerEventId = resolveCinema2AfterhoursTriggerEventIdentity(frame, config.trigger, triggerPreviousTimeSec)
@@ -304,32 +286,21 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
             if (transition) {
               settled = new Map(transition.to)
               transition = null
-              clearTemporalHistory()
             }
             hardCutRequested = false
           }
 
-          const resolved = resolveTransitionState(transition, settled, timeSec)
+          const resolved = limitTransitionStates(resolveTransitionState(transition, settled, timeSec), showPlan.beamCount, showPlan.symmetry)
           if (transition && transitionProgress(transition, timeSec) >= 1) {
             settled = new Map(transition.to)
             transition = null
           }
           renderBeams = buildRenderBeams(resolved, frame, timeSec, config, showPlan, pulse)
 
-          if (timeSec - lastHistorySampleSec >= HISTORY_SAMPLE_INTERVAL_SEC && renderBeams.length > 0) {
-            const sample = Object.freeze({ timeSec, beams: cloneRenderBeams(renderBeams) })
-            history = [...history, sample].filter(candidate => timeSec - candidate.timeSec <= CINEMA2_AFTERHOURS_TEMPORAL_HISTORY_WINDOW_SEC)
-            if (history.length > CINEMA2_AFTERHOURS_TEMPORAL_HISTORY_MAX_SAMPLES) {
-              history = history.slice(history.length - CINEMA2_AFTERHOURS_TEMPORAL_HISTORY_MAX_SAMPLES)
-            }
-            lastHistorySampleSec = timeSec
-          }
-
           lastTimeSec = timeSec
           lastTrackId = frame.transport?.trackId
           lastPaused = paused
           lastContextGeneration = frame.contextGeneration
-          lastViewportKey = viewportKey
         },
         dispose() {
           resetTransientState()
@@ -426,6 +397,52 @@ function resolveTransitionState(
   return result
 }
 
+function limitTransitionStates(
+  states: ReadonlyMap<string, Readonly<BeamTransitionState>>,
+  beamCount: number,
+  symmetry: boolean,
+): ReadonlyMap<string, Readonly<BeamTransitionState>> {
+  const ceiling = clamp(Math.round(beamCount), CINEMA2_AFTERHOURS_MIN_BEAMS, CINEMA2_AFTERHOURS_MAX_BEAMS)
+  if (states.size <= ceiling) return states
+
+  const ranked = [...states.entries()].sort(compareTransitionEntries)
+  if (!symmetry) return new Map(ranked.slice(0, ceiling))
+
+  const pairBudget = Math.floor(ceiling / 2)
+  const pairs = new Map<string, Array<readonly [string, Readonly<BeamTransitionState>]>>()
+  for (const entry of ranked) {
+    const pairId = entry[1].descriptor.symmetry?.pairId
+    if (!pairId) continue
+    const group = pairs.get(pairId) ?? []
+    group.push(entry)
+    pairs.set(pairId, group)
+  }
+
+  const rankedPairs = [...pairs.entries()]
+    .filter(([, entries]) => entries.length >= 2)
+    .sort((left, right) => {
+      const leftScore = left[1].reduce((sum, entry) => sum + entry[1].alpha, 0) / left[1].length
+      const rightScore = right[1].reduce((sum, entry) => sum + entry[1].alpha, 0) / right[1].length
+      if (Math.abs(rightScore - leftScore) > 1e-9) return rightScore - leftScore
+      return left[0].localeCompare(right[0])
+    })
+    .slice(0, pairBudget)
+
+  const selected = rankedPairs
+    .flatMap(([, entries]) => [...entries].sort(compareTransitionEntries).slice(0, 2))
+    .sort(compareTransitionEntries)
+  return new Map(selected)
+}
+
+function compareTransitionEntries(
+  left: readonly [string, Readonly<BeamTransitionState>],
+  right: readonly [string, Readonly<BeamTransitionState>],
+): number {
+  if (Math.abs(right[1].alpha - left[1].alpha) > 1e-9) return right[1].alpha - left[1].alpha
+  if (left[1].descriptor.slot !== right[1].descriptor.slot) return left[1].descriptor.slot - right[1].descriptor.slot
+  return left[0].localeCompare(right[0])
+}
+
 function buildRenderBeams(
   states: ReadonlyMap<string, Readonly<BeamTransitionState>>,
   frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
@@ -520,14 +537,6 @@ function applyIdleSway(target: Cinema2Vector3, phase: number, timeSec: number, m
     target[1] + Math.cos(angle * 0.83) * amplitude * 0.55,
     target[2],
   ]) as Cinema2Vector3
-}
-
-function cloneRenderBeams(beams: readonly Cinema2AfterhoursRenderBeam[]): readonly Cinema2AfterhoursRenderBeam[] {
-  return Object.freeze(beams.map(beam => Object.freeze({
-    ...beam,
-    originWorld: Object.freeze([...beam.originWorld]) as Cinema2Vector3,
-    targetWorld: Object.freeze([...beam.targetWorld]) as Cinema2Vector3,
-  })))
 }
 
 function transitionProgress(transition: Readonly<BeamTransition>, timeSec: number): number {

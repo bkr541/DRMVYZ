@@ -1,10 +1,8 @@
 import type { Cinema2Color, Cinema2Vector3 } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2Matrix4 } from '../../scene/Cinema2SceneGraph'
+import { CINEMA2_AFTERHOURS_MAX_BEAMS } from './Cinema2AfterhoursDomain'
 
-export const CINEMA2_AFTERHOURS_TEMPORAL_HISTORY_MAX_SAMPLES = 4 as const
-export const CINEMA2_AFTERHOURS_TEMPORAL_HISTORY_WINDOW_SEC = 0.12
-export const CINEMA2_AFTERHOURS_TEMPORAL_EXPOSURE_SEC = 0.075
-export const CINEMA2_AFTERHOURS_MAX_RENDER_INSTANCES = 80 as const
+export const CINEMA2_AFTERHOURS_MAX_RENDER_INSTANCES = CINEMA2_AFTERHOURS_MAX_BEAMS
 
 export interface Cinema2AfterhoursRenderBeam {
   readonly fixtureId: string
@@ -15,15 +13,8 @@ export interface Cinema2AfterhoursRenderBeam {
   readonly accentWeight: number
 }
 
-export interface Cinema2AfterhoursTemporalBeamSample {
-  readonly timeSec: number
-  readonly beams: readonly Cinema2AfterhoursRenderBeam[]
-}
-
 export interface Cinema2AfterhoursRendererDrawRequest {
   readonly beams: readonly Cinema2AfterhoursRenderBeam[]
-  readonly history: readonly Cinema2AfterhoursTemporalBeamSample[]
-  readonly timeSec: number
   readonly worldToClipMatrix: Cinema2Matrix4
   readonly cameraPosition: Cinema2Vector3
   readonly primaryColor: Cinema2Color
@@ -270,12 +261,6 @@ export class Cinema2AfterhoursRenderer {
     }
 
     for (const beam of request.beams) write(beam, 1)
-    for (const sample of request.history) {
-      const age = Math.max(0, request.timeSec - sample.timeSec)
-      const ageWeight = temporalWeightForAge(age)
-      if (ageWeight <= 0) continue
-      for (const beam of sample.beams) write(beam, ageWeight)
-    }
     return instanceCount
   }
 }
@@ -323,13 +308,6 @@ function compileShader(gl: WebGL2RenderingContext, type: number, source: string)
     throw new Error(`Cinema 2.0 Afterhours laser shader compilation failed: ${log}`)
   }
   return shader
-}
-
-function temporalWeightForAge(ageSec: number): number {
-  if (!Number.isFinite(ageSec) || ageSec <= 0 || ageSec > CINEMA2_AFTERHOURS_TEMPORAL_HISTORY_WINDOW_SEC) return 0
-  const distanceFromExposure = Math.abs(ageSec - CINEMA2_AFTERHOURS_TEMPORAL_EXPOSURE_SEC)
-  const focus = Math.max(0, 1 - distanceFromExposure / CINEMA2_AFTERHOURS_TEMPORAL_HISTORY_WINDOW_SEC)
-  return Math.min(0.24, 0.08 + focus * 0.16)
 }
 
 function finite(value: number, fallback: number): number {

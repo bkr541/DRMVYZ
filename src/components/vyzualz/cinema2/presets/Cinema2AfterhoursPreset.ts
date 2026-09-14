@@ -195,16 +195,16 @@ const ACCENT_COLOR = Object.freeze([1, 1, 1, 1] as const)
 const BACKGROUND_COLOR = Object.freeze([0, 0, 0, 1] as const)
 
 /**
- * Stage 7 production manifest for the independent Cinema 2.0 Afterhours keeper.
+ * Production manifest for the independent Cinema 2.0 Afterhours keeper.
  * Shared Audio Intelligence, Visual Director significance, camera choreography,
- * and engine-owned feedback history now cooperate without moving temporal GPU
+ * and engine-owned feedback history cooperate without moving temporal GPU
  * ownership into the laser module.
  */
 export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_AFTERHOURS_PRESET_ID,
-  revision: 4,
+  revision: 5,
   metadata: Object.freeze({
     name: 'Afterhours 2.0',
     description: 'Native Cinema 2.0 world-space DJ laser rig with fixed 3D fixtures, disciplined topology, real symmetry, and renderer-owned atmosphere.',
