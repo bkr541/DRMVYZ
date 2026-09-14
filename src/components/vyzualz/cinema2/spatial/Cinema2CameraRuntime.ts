@@ -147,14 +147,15 @@ export class Cinema2CameraRuntime {
     const safety = resolveSafety(camera)
     let pose = this.resolveBaseRig(camera, frame)
     pose = applyAuthoredTransition(camera, pose, frame.elapsedTimeSec)
+    const safetyReference = clonePose(pose)
     pose = this.applyUserControls(camera, pose, safety)
     pose = this.applyTargetContributions(pose)
-    const safe = clampPose(pose, safety)
+    const safe = clampPose(pose, safety, safetyReference)
     const smoothingMs = resolveSmoothingMs(camera, this.parameters)
     const smoothed = this.previousPose && smoothingMs > 0
       ? smoothPose(this.previousPose, safe.pose, frame.deltaTimeSec, smoothingMs)
       : safe.pose
-    const finalSafety = clampPose(smoothed, safety)
+    const finalSafety = clampPose(smoothed, safety, safetyReference)
     this.previousPose = clonePose(finalSafety.pose)
 
     const viewMatrix = createLookAtMatrix(finalSafety.pose.position, finalSafety.pose.target)
@@ -410,13 +411,21 @@ function resolveSafety(camera: Readonly<Cinema2CameraManifest>): Readonly<Camera
   })
 }
 
-function clampPose(pose: CameraPose, safety: Readonly<CameraSafety>): { pose: CameraPose; corrected: boolean } {
+function clampPose(
+  pose: CameraPose,
+  safety: Readonly<CameraSafety>,
+  referencePose: Readonly<CameraPose>,
+): { pose: CameraPose; corrected: boolean } {
   const position = freezeVec3([
-    clamp(pose.position[0], safety.minPosition[0], safety.maxPosition[0]),
-    clamp(pose.position[1], safety.minPosition[1], safety.maxPosition[1]),
-    clamp(pose.position[2], safety.minPosition[2], safety.maxPosition[2]),
+    clampAroundReference(pose.position[0], referencePose.position[0], safety.maxPositionOffset[0], safety.minPosition[0], safety.maxPosition[0]),
+    clampAroundReference(pose.position[1], referencePose.position[1], safety.maxPositionOffset[1], safety.minPosition[1], safety.maxPosition[1]),
+    clampAroundReference(pose.position[2], referencePose.position[2], safety.maxPositionOffset[2], safety.minPosition[2], safety.maxPosition[2]),
   ])
-  let target = freezeVec3(pose.target)
+  let target = freezeVec3([
+    clampAroundReference(pose.target[0], referencePose.target[0], safety.maxTargetOffset[0]),
+    clampAroundReference(pose.target[1], referencePose.target[1], safety.maxTargetOffset[1]),
+    clampAroundReference(pose.target[2], referencePose.target[2], safety.maxTargetOffset[2]),
+  ])
   const fovDegrees = clamp(finite(pose.fovDegrees, DEFAULT_FOV_DEGREES), safety.minFovDegrees, safety.maxFovDegrees)
   const orthographicHeight = Math.max(EPSILON, positive(pose.orthographicHeight, DEFAULT_ORTHOGRAPHIC_HEIGHT))
   const near = Math.max(safety.minNear, positive(pose.near, DEFAULT_NEAR))
@@ -429,6 +438,22 @@ function clampPose(pose: CameraPose, safety: Readonly<CameraSafety>): { pose: Ca
     || near !== pose.near
     || far !== pose.far
   return { pose: { position, target, fovDegrees, orthographicHeight, near, far }, corrected }
+}
+
+function clampAroundReference(
+  value: number,
+  reference: number,
+  maxOffset: number,
+  absoluteMin = Number.NEGATIVE_INFINITY,
+  absoluteMax = Number.POSITIVE_INFINITY,
+): number {
+  const limit = Math.abs(finite(maxOffset, 0))
+  const relativeMin = reference - limit
+  const relativeMax = reference + limit
+  const minimum = Math.max(absoluteMin, relativeMin)
+  const maximum = Math.min(absoluteMax, relativeMax)
+  if (minimum <= maximum) return clamp(value, minimum, maximum)
+  return clamp(value, absoluteMin, absoluteMax)
 }
 
 function resolveSmoothingMs(camera: Readonly<Cinema2CameraManifest>, parameters: Cinema2ParameterState): number {

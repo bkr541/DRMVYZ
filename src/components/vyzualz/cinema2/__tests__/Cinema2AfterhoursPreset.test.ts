@@ -81,7 +81,7 @@ function targetFor(plan: ReturnType<typeof compileAfterhours>, kind: string, own
   return target
 }
 
-describe('Cinema 2.0 Afterhours 2.0 Stage 5 production preset', () => {
+describe('Cinema 2.0 Afterhours 2.0 Stage 6 production preset', () => {
   it('registers as a first-party keeper and passes the shared authoring/compiler gates', () => {
     const declaration = CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS.find(candidate => candidate.manifest.id === CINEMA2_AFTERHOURS_PRESET_ID)
     expect(declaration).toMatchObject({ role: 'keeper' })
@@ -225,15 +225,25 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 5 production preset', () => {
     expect(plan.manifest.cameras?.find(camera => camera.id === CINEMA2_AFTERHOURS_CAMERA_ID)).toMatchObject({
       projection: 'perspective',
       rig: { kind: 'static' },
+      safety: {
+        minPosition: [-1.6, 2.5, 17.4],
+        maxPosition: [1.6, 4.2, 20.7],
+        minFovDegrees: 44,
+        maxFovDegrees: 56,
+      },
     })
     expect(plan.manifest.defaults?.camera?.$ref).toBe(CINEMA2_AFTERHOURS_CAMERA_ID)
   })
 
   it('activates through the real production registry/runtime and instantiates the native module with the shared final camera/depth path', () => {
     const gl = createCinemaMockWebGL()
+    let scheduledFrame: FrameRequestCallback | null = null
     const created = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
       presetId: CINEMA2_AFTERHOURS_PRESET_ID,
-      requestAnimationFrame: vi.fn(() => 1),
+      requestAnimationFrame: vi.fn((callback: FrameRequestCallback) => {
+        scheduledFrame = callback
+        return 1
+      }),
       cancelAnimationFrame: vi.fn(),
       renderQuality: 'high',
     })
@@ -245,6 +255,19 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 5 production preset', () => {
     expect(created.runtime.getModuleRuntimeSnapshot().activeModuleCount).toBe(1)
     expect(created.runtime.getCameraRuntimeSnapshot()).toMatchObject({ activeCameraId: CINEMA2_AFTERHOURS_CAMERA_ID })
     expect(created.runtime.getCompiledPresetPlan().render.targets.some(target => target.descriptor.depthFormat === 'depth24')).toBe(true)
+
+    created.runtime.resize({ width: 640, height: 360, dpr: 1 })
+    created.runtime.start()
+    expect(scheduledFrame).not.toBeNull()
+    ;(scheduledFrame as FrameRequestCallback | null)?.(16)
+
+    const cameraFrame = created.runtime.getCameraRuntimeSnapshot().camera
+    const matrixCalls = (gl.uniformMatrix4fv as unknown as { mock: { calls: unknown[][] } }).mock.calls
+    const uploadedMatrix = Array.from(matrixCalls[matrixCalls.length - 1]?.[2] as Float32Array)
+    expect(uploadedMatrix).toHaveLength(16)
+    for (let index = 0; index < 16; index += 1) {
+      expect(uploadedMatrix[index]).toBeCloseTo(cameraFrame.viewProjectionMatrix[index] ?? 0, 5)
+    }
 
     created.runtime.dispose()
   })

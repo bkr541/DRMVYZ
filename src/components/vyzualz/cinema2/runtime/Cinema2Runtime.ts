@@ -847,6 +847,7 @@ export class Cinema2Runtime {
         this.visualDirector.reset()
         this.visualDirectorFrame = null
         this.choreographyRuntime.reset('transport-inactive')
+        this.cameraRuntime.reset()
         this.historyService.resetAll('deactivation')
       }
       this.lastTransportState = transport

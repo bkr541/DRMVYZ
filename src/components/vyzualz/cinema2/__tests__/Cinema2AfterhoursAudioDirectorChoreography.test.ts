@@ -18,11 +18,14 @@ import { planCinema2AfterhoursShow } from '../modules/afterhours/Cinema2Afterhou
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
 import {
+  CINEMA2_AFTERHOURS_CAMERA_ID,
   CINEMA2_AFTERHOURS_MODULE_ID,
   CINEMA2_AFTERHOURS_PRESET_ID,
 } from '../presets/Cinema2AfterhoursPreset'
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
 import { compileCinema2NativePreset, type Cinema2CompiledPresetPlan } from '../presets/Cinema2PresetCompiler'
+import { Cinema2CameraRuntime } from '../spatial/Cinema2CameraRuntime'
+import { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
 
 const AVAILABLE_CAPABILITIES = Object.freeze([
   'render.webgl2',
@@ -256,13 +259,15 @@ function triggerFrame(source: MusicIntelligenceFrame): Readonly<Cinema2ModuleFra
   })
 }
 
-describe('Cinema 2.0 Afterhours 2.0 Stage 5 Audio Director choreography', () => {
+describe('Cinema 2.0 Afterhours 2.0 Stage 6 Audio Director and camera choreography', () => {
   it('routes the real first-party manifest through Choreography/Target Runtime into Show Planner performance intent', () => {
     const plan = compileProductionAfterhours()
     const parameterState = new Cinema2ParameterState(plan.parameters)
     const resolver = new Cinema2FinalValueResolver(plan.targets, {
       resolveBaseValue: target => target.parameterId == null ? target.authoredBaseValue : parameterState.getValue(target.parameterId),
     })
+    const spatial = new Cinema2SpatialRuntime(plan.scene, plan.targets.targets, resolver)
+    const camera = new Cinema2CameraRuntime(plan, parameterState, resolver, spatial)
     const choreography = new Cinema2ChoreographyRuntime(plan, parameterState, resolver)
     const director = new Cinema2VisualDirector()
     let upstream = musicFrame({ frameId: 1, timeSec: 9.5, sectionType: 'verse', beatIndex: 19, barIndex: 4 })
@@ -272,7 +277,11 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 5 Audio Director choreography', () => 
       getPublicationMeta: () => ({ sequence: publicationSequence, publishedAtMs: upstream.timeSec * 1000, publisherId: 'afterhours-stage5-integration', kind: 'frame' as const }),
     })
 
-    choreography.update(transportFrame(bridge.capture(1), director))
+    const verseFrame = transportFrame(bridge.capture(1), director)
+    choreography.update(verseFrame)
+    const verseCamera = camera.update(verseFrame)
+    expect(verseCamera.cameraId).toBe(CINEMA2_AFTERHOURS_CAMERA_ID)
+    expect(verseCamera.source).toBe('authored')
 
     upstream = musicFrame({
       frameId: 2,
@@ -293,7 +302,9 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 5 Audio Director choreography', () => 
       phraseMarker: true,
     })
     publicationSequence += 1
-    choreography.update(transportFrame(bridge.capture(2), director))
+    const buildFrame = transportFrame(bridge.capture(2), director)
+    choreography.update(buildFrame)
+    const buildCamera = camera.update(buildFrame)
 
     const resolved = (property: string) => Number(resolver.resolve(moduleTarget(plan, property).id).value)
     const performance = Object.freeze({
@@ -317,6 +328,16 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 5 Audio Director choreography', () => 
     expect(performance.downbeatAccent).toBeGreaterThan(0)
     expect(performance.phraseAccent).toBeGreaterThan(0)
     expect(performance.sectionAccent).toBeGreaterThan(0)
+    expect(buildCamera.position).not.toEqual(verseCamera.position)
+    expect(buildCamera.fovDegrees).toBeLessThan(verseCamera.fovDegrees)
+    expect(buildCamera.position[0]).toBeGreaterThanOrEqual(-1.6)
+    expect(buildCamera.position[0]).toBeLessThanOrEqual(1.6)
+    expect(buildCamera.position[1]).toBeGreaterThanOrEqual(2.5)
+    expect(buildCamera.position[1]).toBeLessThanOrEqual(4.2)
+    expect(buildCamera.position[2]).toBeGreaterThanOrEqual(17.4)
+    expect(buildCamera.position[2]).toBeLessThanOrEqual(20.7)
+    expect(buildCamera.fovDegrees).toBeGreaterThanOrEqual(44)
+    expect(buildCamera.fovDegrees).toBeLessThanOrEqual(56)
 
     const baselinePlan = planCinema2AfterhoursShow({
       pattern: 'wideFan', autoPerformance: false, beamCount: 16, symmetry: true, sideLasers: true, topLasers: true, patternChange: 'bar4',
@@ -348,10 +369,38 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 5 Audio Director choreography', () => 
       dropMoment: true,
     })
     publicationSequence += 1
-    choreography.update(transportFrame(bridge.capture(3), director))
+    const dropFrame = transportFrame(bridge.capture(3), director)
+    choreography.update(dropFrame)
+    const dropCamera = camera.update(dropFrame)
 
     expect(resolved('directorImpact')).toBeGreaterThan(0)
     expect(resolved('dropAccent')).toBeGreaterThan(0)
+    expect(dropCamera.position).not.toEqual(buildCamera.position)
+    expect(dropCamera.fovDegrees).toBeGreaterThan(buildCamera.fovDegrees)
+
+    upstream = musicFrame({
+      frameId: 4,
+      timeSec: 12.5,
+      sectionType: 'verse',
+      sectionStartSec: 12,
+      buildProgress: 0,
+      buildConfidence: 0,
+      dropConfidence: 0,
+      vocalPresence: 0.95,
+      beatIndex: 25,
+      barIndex: 6,
+    })
+    publicationSequence += 1
+    const vocalFrame = transportFrame(bridge.capture(4), director)
+    choreography.update(vocalFrame)
+    const vocalCamera = camera.update(vocalFrame)
+    expect(Math.abs(vocalCamera.position[0])).toBeLessThan(Math.abs(dropCamera.position[0]) + 0.001)
+    expect(vocalCamera.position[2]).toBeGreaterThan(dropCamera.position[2])
+    expect(vocalCamera.fovDegrees).toBeGreaterThanOrEqual(49)
+
+    camera.dispose()
+    spatial.dispose()
+    choreography.dispose()
   })
 
   it('maps every Trigger option to canonical event identity and preserves true bar4/bar8 cadence', () => {

@@ -195,6 +195,7 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
     let lastHistorySampleSec = Number.NEGATIVE_INFINITY
     let lastTimeSec: number | null = null
     let lastTrackId: string | null | undefined = undefined
+    let lastPaused: boolean | null = null
     let lastContextGeneration: number | null = null
     let lastViewportKey = ''
     let renderBeams: readonly Cinema2AfterhoursRenderBeam[] = Object.freeze([])
@@ -255,9 +256,15 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
           const sourceReplaced = lastTrackId !== undefined && frame.transport?.trackId !== lastTrackId
           const contextChanged = lastContextGeneration != null && frame.contextGeneration !== lastContextGeneration
           const viewportChanged = lastViewportKey.length > 0 && viewportKey !== lastViewportKey
+          const paused = frame.transport?.sourcePresent === true && frame.transport.paused === true
+          const enteredPause = paused && lastPaused === false
           const triggerPreviousTimeSec = discontinuity || backwards || sourceReplaced || contextChanged ? null : lastTimeSec
           if (discontinuity || backwards || sourceReplaced || contextChanged) resetTransientState()
           else if (viewportChanged) clearTemporalHistory()
+          if (enteredPause) {
+            pulseStartedAtSec = Number.NEGATIVE_INFINITY
+            clearTemporalHistory()
+          }
 
           const triggerEventId = resolveCinema2AfterhoursTriggerEventIdentity(frame, config.trigger, triggerPreviousTimeSec)
           if (triggerEventId && triggerEventId !== lastTriggerEventId && frame.transport?.playing !== false && frame.transport?.paused !== true) {
@@ -320,6 +327,7 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
 
           lastTimeSec = timeSec
           lastTrackId = frame.transport?.trackId
+          lastPaused = paused
           lastContextGeneration = frame.contextGeneration
           lastViewportKey = viewportKey
         },
@@ -723,7 +731,10 @@ function hueChannel(p: number, q: number, input: number): number {
 }
 
 function resolveTimeSec(frame: Readonly<Cinema2ModuleUpdateContext['frame']>): number {
-  if (frame.transport?.sourcePresent === false) return frame.elapsedTimeSec
+  if (frame.transport?.sourcePresent === false) {
+    const frameClockSec = frame.timestampMs / 1000
+    return Number.isFinite(frameClockSec) ? Math.max(0, frameClockSec) : frame.elapsedTimeSec
+  }
   const transportTime = frame.transport?.timeSec
   return typeof transportTime === 'number' && Number.isFinite(transportTime) ? transportTime : frame.elapsedTimeSec
 }

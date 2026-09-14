@@ -108,7 +108,7 @@ describe('Cinema 2.0 Stage 12B final Camera Runtime', () => {
         orbitAzimuthDegrees: cinema2Ref(ORBIT_AZIMUTH_ID),
         orbitElevationDegrees: cinema2Ref(ORBIT_ELEVATION_ID),
       },
-      safety: { maxPositionOffset: [1, 1, 1], minPosition: [-20, -20, -20], maxPosition: [20, 20, 20] },
+      safety: { maxPositionOffset: [1, 1, 1], maxTargetOffset: [0.5, 0.5, 0.5], minPosition: [-20, -20, -20], maxPosition: [20, 20, 20] },
     }]
     manifest.defaults = { camera: cinema2Ref(CAMERA_ID) }
     const { plan, state, resolver, camera } = compileRuntime(manifest)
@@ -116,20 +116,25 @@ describe('Cinema 2.0 Stage 12B final Camera Runtime', () => {
     expect(state.setPersistentValue(POSITION_OFFSET_ID, [9, 0, 0]).ok).toBe(true)
     expect(state.setPersistentValue(FOV_ID, 75).ok).toBe(true)
     const positionTarget = plan.targets.targets.find(target => target.kind === 'camera' && target.ownerId === CAMERA_ID && target.property === 'transform.position')
+    const aimTarget = plan.targets.targets.find(target => target.kind === 'camera' && target.ownerId === CAMERA_ID && target.property === 'target')
     expect(positionTarget).toBeDefined()
-    if (!positionTarget) return
+    expect(aimTarget).toBeDefined()
+    if (!positionTarget || !aimTarget) return
     expect(resolver.replaceTransientContributions('choreography', [{
       targetId: positionTarget.id,
       contribution: { contributorId: 'choreography:camera-impulse', operation: 'add', value: [0, 2, 0] },
+    }, {
+      targetId: aimTarget.id,
+      contribution: { contributorId: 'choreography:camera-aim', operation: 'add', value: [0, 3, 0] },
     }])).toMatchObject({ applied: true })
 
     const result = camera.update(frame(0))
-    expect(result.target).toEqual([2, 0, 0])
-    expect(result.position.map(value => Number(value.toFixed(6)))).toEqual([3, 2, 10])
+    expect(result.target).toEqual([2, 0.5, 0])
+    expect(result.position.map(value => Number(value.toFixed(6)))).toEqual([3, 1, 10])
     expect(result.fovDegrees).toBe(75)
     expect(result.aspect).toBe(2)
     expect(result.projectionMatrix[0]).toBeCloseTo(result.projectionMatrix[5] / 2)
-    expect(result.corrected).toBe(false)
+    expect(result.corrected).toBe(true)
   })
 
   it('supports authored path/fly timing and authored transition ordering', () => {
