@@ -39,7 +39,6 @@ describe('appearance CSS token contract', () => {
 
     for (const selector of [
       ".rv-ctrl-toggle:is(.rv-ctrl-toggle--on, [aria-pressed='true'], [data-state='on'])",
-      ".vz-layer-toggle:is(.vz-layer-toggle--on, [aria-pressed='true'])",
       ".rv-stage-focus-btn:is(.is-active, [aria-pressed='true'])",
       ".rv-reset-btn[aria-pressed='true']",
       ".rv-glyph-upload-btn:is(.rv-glyph-upload-btn--active, [aria-pressed='true'])",

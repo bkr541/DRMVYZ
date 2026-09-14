@@ -238,8 +238,6 @@ body,
    The extra specificity prevents the theme layer from flattening ON back to OFF. */
 [data-theme] :is(
   .rv-ctrl-toggle:is(.rv-ctrl-toggle--on, [aria-pressed='true'], [data-state='on']),
-  .vz-layer-toggle:is(.vz-layer-toggle--on, [aria-pressed='true']),
-  .vz-li-audio-btn:is(.vz-li-audio-btn--on, [aria-pressed='true']),
   .vz-settings-seg-btn.vsm-settings-toggle:is(.vz-settings-seg-btn--active, [aria-pressed='true']),
   .rv-stage-focus-btn:is(.is-active, [aria-pressed='true']),
   .rv-reset-btn[aria-pressed='true'],
