@@ -7,6 +7,7 @@ import {
   type Cinema2EffectTypeId,
   type Cinema2JsonValue,
 } from '../contracts/Cinema2NativePresetManifest'
+import { assertCinema2NoGlErrors } from '../runtime/Cinema2GpuValidation'
 import type {
   Cinema2EffectCreateContext,
   Cinema2EffectDiagnostic,
@@ -265,6 +266,7 @@ class HistoryFeedbackEffectInstance implements Cinema2EffectInstance {
         { unit: 0, texture: context.input.texture, uniformName: 'u_source' },
         { unit: 1, texture: context.input.texture, uniformName: 'u_history' },
       ])
+      assertCinema2NoGlErrors(this.gl, 'Feedback/Trails transport-bypass draw')
       return
     }
 
@@ -280,6 +282,7 @@ class HistoryFeedbackEffectInstance implements Cinema2EffectInstance {
         { unit: 0, texture: context.input.texture, uniformName: 'u_source' },
         { unit: 1, texture: context.input.texture, uniformName: 'u_history' },
       ])
+      assertCinema2NoGlErrors(this.gl, 'Feedback/Trails no-history draw')
       return
     }
 
@@ -287,17 +290,23 @@ class HistoryFeedbackEffectInstance implements Cinema2EffectInstance {
       { unit: 0, texture: context.input.texture, uniformName: 'u_source' },
       { unit: 1, texture: historyFrame.read.colorTexture, uniformName: 'u_history' },
     ])
-    this.gl.bindFramebuffer(this.gl.READ_FRAMEBUFFER, historyFrame.write.framebuffer)
-    this.gl.readBuffer(this.gl.COLOR_ATTACHMENT0)
-    this.gl.bindFramebuffer(this.gl.DRAW_FRAMEBUFFER, context.target)
-    this.gl.blitFramebuffer(
-      0, 0, context.width, context.height,
-      0, 0, context.width, context.height,
-      this.gl.COLOR_BUFFER_BIT,
-      this.gl.NEAREST,
-    )
-    this.gl.bindFramebuffer(this.gl.READ_FRAMEBUFFER, null)
-    this.gl.bindFramebuffer(this.gl.DRAW_FRAMEBUFFER, null)
+    assertCinema2NoGlErrors(this.gl, 'Feedback/Trails history draw')
+    try {
+      this.gl.disable(this.gl.SCISSOR_TEST)
+      this.gl.bindFramebuffer(this.gl.READ_FRAMEBUFFER, historyFrame.write.framebuffer)
+      this.gl.readBuffer(this.gl.COLOR_ATTACHMENT0)
+      this.gl.bindFramebuffer(this.gl.DRAW_FRAMEBUFFER, context.target)
+      this.gl.blitFramebuffer(
+        0, 0, context.width, context.height,
+        0, 0, context.width, context.height,
+        this.gl.COLOR_BUFFER_BIT,
+        this.gl.NEAREST,
+      )
+      assertCinema2NoGlErrors(this.gl, 'Feedback/Trails history presentation')
+    } finally {
+      this.gl.bindFramebuffer(this.gl.READ_FRAMEBUFFER, null)
+      this.gl.bindFramebuffer(this.gl.DRAW_FRAMEBUFFER, null)
+    }
     this.history.commit(this.historyName)
   }
 

@@ -31,11 +31,24 @@ import {
   type Cinema2RenderTargetLease,
 } from './Cinema2ResourceManager'
 import { Cinema2Compositor } from './Cinema2Compositor'
+import { assertCinema2NoGlErrors } from './Cinema2GpuValidation'
 
 export interface Cinema2RenderGraphExecutorDiagnostic {
   code: string
   message: string
   passId: Cinema2RenderPassId | null
+}
+
+export interface Cinema2RenderVisibilityCheckpoint {
+  stage: 'pass-target' | 'canvas'
+  passId: Cinema2RenderPassId
+  width: number
+  height: number
+  sampledWidth: number
+  sampledHeight: number
+  maxRgbByte: number | null
+  rgbEnergyDetected: boolean | null
+  error: string | null
 }
 
 export interface Cinema2RenderGraphExecutorSnapshot {
@@ -47,6 +60,7 @@ export interface Cinema2RenderGraphExecutorSnapshot {
   activePersistentTargetCount: number
   lastExecutedPassIds: readonly Cinema2RenderPassId[]
   diagnostics: readonly Readonly<Cinema2RenderGraphExecutorDiagnostic>[]
+  visibilityCheckpoints: readonly Readonly<Cinema2RenderVisibilityCheckpoint>[]
 }
 
 export interface Cinema2RenderGraphExecutorOptions {
@@ -57,6 +71,8 @@ export interface Cinema2RenderGraphExecutorOptions {
   cameraRuntime?: Cinema2CameraRuntime
   lightingEnvironmentRuntime?: Cinema2LightingEnvironmentRuntime
   targetResolver?: Cinema2FinalValueResolver
+  /** Explicit development/test-only sparse readback. Disabled by default. */
+  debugVisibilityReadback?: boolean
 }
 
 interface TargetRecord {
@@ -103,6 +119,7 @@ export class Cinema2RenderGraphExecutor {
   private readonly cameraRuntime: Cinema2CameraRuntime | null
   private readonly lightingEnvironmentRuntime: Cinema2LightingEnvironmentRuntime | null
   private readonly targetResolver: Cinema2FinalValueResolver | null
+  private readonly debugVisibilityReadback: boolean
   private readonly layerTargets = new Map<string, Readonly<Cinema2TargetHandle>>()
   private compositor: Cinema2Compositor | null = null
   private contextAvailable = true
@@ -112,6 +129,7 @@ export class Cinema2RenderGraphExecutor {
   private skippedPassCount = 0
   private failedPassCount = 0
   private lastExecutedPassIds: Cinema2RenderPassId[] = []
+  private visibilityCheckpoints: Cinema2RenderVisibilityCheckpoint[] = []
   private disposed = false
   private readonly frameBindings = new Map<WebGLTexture, Readonly<Cinema2RenderTargetBinding>>()
 
@@ -130,6 +148,7 @@ export class Cinema2RenderGraphExecutor {
     this.cameraRuntime = options.cameraRuntime ?? null
     this.lightingEnvironmentRuntime = options.lightingEnvironmentRuntime ?? null
     this.targetResolver = options.targetResolver ?? null
+    this.debugVisibilityReadback = options.debugVisibilityReadback === true
     if (this.targetResolver) {
       for (const target of this.targetResolver.plan.targets) {
         if (target.kind === 'layer') this.layerTargets.set(`${target.ownerId}\u0000${target.property}`, target)
@@ -151,6 +170,7 @@ export class Cinema2RenderGraphExecutor {
     this.frameCount += 1
     this.diagnostics = []
     this.lastExecutedPassIds = []
+    this.visibilityCheckpoints = []
     const transientTargets = new Map<Cinema2RenderTargetId, TargetRecord>()
     const produced = new Map<string, ProducedOutput>()
     const providerByModuleId = new Map(providers.map(provider => [provider.moduleId, provider] as const))
@@ -187,8 +207,10 @@ export class Cinema2RenderGraphExecutor {
           this.executedPassCount += 1
           this.lastExecutedPassIds.push(pass.id)
           this.markOutputs(pass, produced, target?.binding ?? null, true)
+          if (target?.binding) this.captureVisibilityCheckpoint('pass-target', pass.id, target.binding, frame)
           if (pass.id === this.plan.outputPassId) {
             if (target?.binding) this.presentBinding(target.binding, frame)
+            this.captureVisibilityCheckpoint('canvas', pass.id, null, frame)
             finalOutputSucceeded = true
           }
         } catch (error) {
@@ -236,6 +258,7 @@ export class Cinema2RenderGraphExecutor {
       activePersistentTargetCount: this.persistentTargets.size,
       lastExecutedPassIds: Object.freeze([...this.lastExecutedPassIds]),
       diagnostics: Object.freeze(this.diagnostics.map(diagnostic => Object.freeze({ ...diagnostic }))),
+      visibilityCheckpoints: Object.freeze(this.visibilityCheckpoints.map(checkpoint => Object.freeze({ ...checkpoint }))),
     })
   }
 
@@ -281,31 +304,36 @@ export class Cinema2RenderGraphExecutor {
     const targetId = targetIds[0]
     const handle = this.targetHandles.get(targetId)
     if (!handle) throw new Error(`Compiled render target "${targetId}" is unavailable.`)
-    if (handle.ownership === 'persistent') {
-      const existingPersistent = this.persistentTargets.get(targetId)
-      if (existingPersistent) {
-        const rebound = { lease: existingPersistent.lease, binding: this.resources.getRenderTargetBinding(existingPersistent.lease) }
-        this.persistentTargets.set(targetId, rebound)
-        this.frameBindings.set(rebound.binding.colorTexture, rebound.binding)
-        return rebound
+
+    try {
+      if (handle.ownership === 'persistent') {
+        const existingPersistent = this.persistentTargets.get(targetId)
+        if (existingPersistent) {
+          const rebound = { lease: existingPersistent.lease, binding: this.resources.getRenderTargetBinding(existingPersistent.lease) }
+          this.persistentTargets.set(targetId, rebound)
+          this.frameBindings.set(rebound.binding.colorTexture, rebound.binding)
+          return rebound
+        }
+        const lease = this.resources.acquireRenderTarget('cinema2.render-executor', handle.descriptor, 'persistent', {
+          sampleableDepth: handle.sampleableDepth,
+        })
+        const created = { lease, binding: this.resources.getRenderTargetBinding(lease) }
+        this.persistentTargets.set(targetId, created)
+        this.frameBindings.set(created.binding.colorTexture, created.binding)
+        return created
       }
-      const lease = this.resources.acquireRenderTarget('cinema2.render-executor', handle.descriptor, 'persistent', {
+      const existing = transientTargets.get(targetId)
+      if (existing) return existing
+      const lease = this.resources.acquireRenderTarget('cinema2.render-executor', handle.descriptor, 'transient', {
         sampleableDepth: handle.sampleableDepth,
       })
       const created = { lease, binding: this.resources.getRenderTargetBinding(lease) }
-      this.persistentTargets.set(targetId, created)
+      transientTargets.set(targetId, created)
       this.frameBindings.set(created.binding.colorTexture, created.binding)
       return created
+    } catch (error) {
+      throw new Error(`Render target "${targetId}" for pass "${pass.id}" could not be resolved: ${errorMessage(error)}`)
     }
-    const existing = transientTargets.get(targetId)
-    if (existing) return existing
-    const lease = this.resources.acquireRenderTarget('cinema2.render-executor', handle.descriptor, 'transient', {
-      sampleableDepth: handle.sampleableDepth,
-    })
-    const created = { lease, binding: this.resources.getRenderTargetBinding(lease) }
-    transientTargets.set(targetId, created)
-    this.frameBindings.set(created.binding.colorTexture, created.binding)
-    return created
   }
 
   private resolveInput(input: Readonly<Cinema2CompiledRenderInput>, produced: ReadonlyMap<string, ProducedOutput>) {
@@ -632,6 +660,7 @@ export class Cinema2RenderGraphExecutor {
 
   private copyDepth(source: Readonly<Cinema2RenderTargetBinding>, target: Readonly<Cinema2RenderTargetBinding>): void {
     if (typeof this.gl.blitFramebuffer !== 'function') throw new Error('Cinema 2.0 depth propagation requires WebGL2 blitFramebuffer support.')
+    this.gl.disable(this.gl.SCISSOR_TEST)
     this.gl.bindFramebuffer(this.gl.READ_FRAMEBUFFER, source.framebuffer)
     this.gl.bindFramebuffer(this.gl.DRAW_FRAMEBUFFER, target.framebuffer)
     this.gl.blitFramebuffer(
@@ -640,6 +669,7 @@ export class Cinema2RenderGraphExecutor {
       this.gl.DEPTH_BUFFER_BIT,
       this.gl.NEAREST,
     )
+    assertCinema2NoGlErrors(this.gl, 'depth propagation blit', `${source.width}x${source.height} -> ${target.width}x${target.height}`)
   }
 
   private resolvePassModuleIds(
@@ -718,13 +748,22 @@ export class Cinema2RenderGraphExecutor {
     if (typeof this.gl.blitFramebuffer !== 'function') {
       throw new Error('Cinema 2.0 final output presentation requires WebGL2 blitFramebuffer support.')
     }
+    this.gl.disable(this.gl.SCISSOR_TEST)
+    this.gl.colorMask(true, true, true, true)
+    this.gl.viewport(0, 0, frame.viewport.width, frame.viewport.height)
     this.gl.bindFramebuffer(this.gl.READ_FRAMEBUFFER, source.framebuffer)
+    this.gl.readBuffer(this.gl.COLOR_ATTACHMENT0)
     this.gl.bindFramebuffer(this.gl.DRAW_FRAMEBUFFER, null)
     this.gl.blitFramebuffer(
       0, 0, source.width, source.height,
       0, 0, frame.viewport.width, frame.viewport.height,
       this.gl.COLOR_BUFFER_BIT,
       this.gl.LINEAR,
+    )
+    assertCinema2NoGlErrors(
+      this.gl,
+      'final output presentation',
+      `${source.width}x${source.height} -> ${frame.viewport.width}x${frame.viewport.height}`,
     )
   }
 
@@ -741,13 +780,23 @@ export class Cinema2RenderGraphExecutor {
     if (!sourceBinding || typeof this.gl.blitFramebuffer !== 'function') {
       throw new Error('Cinema 2.0 output/composite pass requires a framebuffer-backed color input and WebGL2 blitFramebuffer support.')
     }
+    this.gl.disable(this.gl.SCISSOR_TEST)
+    this.gl.colorMask(true, true, true, true)
     this.gl.bindFramebuffer(this.gl.READ_FRAMEBUFFER, sourceBinding.framebuffer)
+    this.gl.readBuffer(this.gl.COLOR_ATTACHMENT0)
     this.gl.bindFramebuffer(this.gl.DRAW_FRAMEBUFFER, target?.framebuffer ?? null)
+    const width = target?.width ?? frame.viewport.width
+    const height = target?.height ?? frame.viewport.height
     this.gl.blitFramebuffer(
       0, 0, sourceBinding.width, sourceBinding.height,
-      0, 0, target?.width ?? frame.viewport.width, target?.height ?? frame.viewport.height,
+      0, 0, width, height,
       this.gl.COLOR_BUFFER_BIT,
       this.gl.LINEAR,
+    )
+    assertCinema2NoGlErrors(
+      this.gl,
+      'render input blit',
+      `${sourceBinding.width}x${sourceBinding.height} -> ${width}x${height}`,
     )
   }
 
@@ -779,6 +828,52 @@ export class Cinema2RenderGraphExecutor {
     valid: boolean,
   ): void {
     for (const output of pass.outputs) produced.set(outputKey(pass.id, output.id), { binding, valid })
+  }
+
+  private captureVisibilityCheckpoint(
+    stage: Cinema2RenderVisibilityCheckpoint['stage'],
+    passId: Cinema2RenderPassId,
+    source: Readonly<Cinema2RenderTargetBinding> | null,
+    frame: Readonly<Cinema2ModuleFrameReadContext>,
+  ): void {
+    if (!this.debugVisibilityReadback || typeof this.gl.readPixels !== 'function') return
+    const width = source?.width ?? frame.viewport.width
+    const height = source?.height ?? frame.viewport.height
+    const sampledWidth = Math.max(1, Math.min(8, width))
+    const sampledHeight = Math.max(1, Math.min(8, height))
+    const x = Math.max(0, Math.floor((width - sampledWidth) / 2))
+    const y = Math.max(0, Math.floor((height - sampledHeight) / 2))
+    const pixels = new Uint8Array(sampledWidth * sampledHeight * 4)
+    let maxRgbByte: number | null = null
+    let rgbEnergyDetected: boolean | null = null
+    let error: string | null = null
+    try {
+      this.gl.bindFramebuffer(this.gl.READ_FRAMEBUFFER, source?.framebuffer ?? null)
+      this.gl.readBuffer(source ? this.gl.COLOR_ATTACHMENT0 : this.gl.BACK)
+      this.gl.readPixels(x, y, sampledWidth, sampledHeight, this.gl.RGBA, this.gl.UNSIGNED_BYTE, pixels)
+      assertCinema2NoGlErrors(this.gl, `${stage} visibility checkpoint`, String(passId))
+      let maximum = 0
+      for (let index = 0; index < pixels.length; index += 4) {
+        maximum = Math.max(maximum, pixels[index] ?? 0, pixels[index + 1] ?? 0, pixels[index + 2] ?? 0)
+      }
+      maxRgbByte = maximum
+      rgbEnergyDetected = maximum > 0
+    } catch (caught) {
+      error = errorMessage(caught)
+    } finally {
+      this.gl.bindFramebuffer(this.gl.READ_FRAMEBUFFER, null)
+    }
+    this.visibilityCheckpoints.push({
+      stage,
+      passId,
+      width,
+      height,
+      sampledWidth,
+      sampledHeight,
+      maxRgbByte,
+      rgbEnergyDetected,
+      error,
+    })
   }
 
   private restoreDefaultFramebuffer(frame: Readonly<Cinema2ModuleFrameReadContext>): void {

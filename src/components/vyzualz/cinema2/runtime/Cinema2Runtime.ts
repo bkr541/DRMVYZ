@@ -139,6 +139,8 @@ export interface Cinema2RuntimeCreateOptions {
   effectRegistry?: Cinema2EffectRegistry
   renderQuality?: Cinema2RenderQualityLevel
   diagnosticsEnabled?: boolean
+  /** Explicit development/test-only sparse render-target/canvas readback. */
+  debugVisibilityReadback?: boolean
   serializedParameterState?: string | Cinema2SerializedParameterState
   audioIntelligenceBridge?: Cinema2AudioIntelligenceBridge
   /**
@@ -480,6 +482,7 @@ export class Cinema2Runtime {
       cameraRuntime: this.cameraRuntime,
       lightingEnvironmentRuntime: this.lightingEnvironmentRuntime,
       targetResolver: this.targetResolver,
+      debugVisibilityReadback: options.debugVisibilityReadback === true,
     })
     this.contextHandle = registerDrmvyzWebGLContext(gl, {
       lifetime: 'live-reusable',

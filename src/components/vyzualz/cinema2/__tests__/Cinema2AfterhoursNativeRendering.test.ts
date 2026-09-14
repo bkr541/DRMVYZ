@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { createCinemaMockWebGL, type CinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
 import {
@@ -287,6 +287,18 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
     harness.instance.lifecycle.update({ frame: restored, parameters: harness.parameterFacet, targets: harness.targetFacet })
     execute(harness, restored)
     expect(harness.gl.uniform1f).toHaveBeenCalledWith(masterLocation, 1)
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
+  it('surfaces silent WebGL draw errors from the native laser renderer', () => {
+    const harness = createHarness({ beamCount: 2, symmetry: false })
+    const current = frame({ timeSec: 1 })
+    harness.instance.lifecycle.update({ frame: current, parameters: harness.parameterFacet, targets: harness.targetFacet })
+    vi.mocked(harness.gl.getError).mockReturnValueOnce(0x0502).mockReturnValue(0)
+
+    expect(() => execute(harness, current)).toThrow(/Afterhours native laser draw.*INVALID_OPERATION/)
 
     harness.instance.lifecycle.dispose()
     harness.resources.disposeAll()

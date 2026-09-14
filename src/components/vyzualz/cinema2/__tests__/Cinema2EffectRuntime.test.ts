@@ -216,6 +216,35 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
     resources.dispose()
   })
 
+  it('surfaces a trails presentation GL failure, retires the failed effect, and does not commit black history', () => {
+    const { compiled, gl, history, runtime } = createRuntime()
+    const feedback = compiled.manifest.effects?.find(effect => effect.typeId === CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID)
+    if (!feedback) throw new Error('Reference Feedback/Trails effect is missing.')
+    let pendingError = 0
+    vi.mocked(gl.getError).mockImplementation(() => {
+      const error = pendingError
+      pendingError = 0
+      return error
+    })
+    vi.mocked(gl.blitFramebuffer).mockImplementationOnce(() => {
+      pendingError = 0x0506
+    })
+
+    expect(runtime.execute(feedback.id, executionContext())).toBe('bypassed')
+    expect(runtime.getSnapshot()).toMatchObject({ activeEffectCount: 0, failedEffectCount: 1 })
+    expect(runtime.getSnapshot().effects).toEqual([expect.objectContaining({
+      effectId: feedback.id,
+      status: 'failed',
+      diagnostics: [expect.objectContaining({
+        code: 'CINEMA2_EFFECT_RENDER_FAILED',
+        message: expect.stringMatching(/Feedback\/Trails history presentation.*INVALID_FRAMEBUFFER_OPERATION/),
+      })],
+    })])
+    expect(history.getSnapshot()).toMatchObject({ activeBufferCount: 0, validBufferCount: 0 })
+
+    runtime.dispose()
+  })
+
   it('can make Feedback/Trails transport-aware without changing the shared default behavior', () => {
     const feedback = CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST.effects?.find(effect => effect.typeId === CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID)
     if (!feedback) throw new Error('Reference Feedback/Trails effect is missing.')

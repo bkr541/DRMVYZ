@@ -28,6 +28,8 @@ const outputPass = cinema2StableId<Cinema2RenderPassId>('output-pass')
 const colorOutput = cinema2StableId<Cinema2RenderSlotId>('color-output')
 const colorInput = cinema2StableId<Cinema2RenderSlotId>('color-input')
 const targetId = cinema2StableId<Cinema2RenderTargetId>('intermediate')
+const outputTargetId = cinema2StableId<Cinema2RenderTargetId>('final-target')
+const finalColorOutput = cinema2StableId<Cinema2RenderSlotId>('final-color-output')
 const enabledId = cinema2StableId<Cinema2ParameterId>('enabled')
 
 function manifest(twoPass = true): Cinema2NativePresetManifest {
@@ -99,6 +101,53 @@ describe('Cinema2RenderGraphExecutor', () => {
     expect(created.gl.blitFramebuffer).toHaveBeenCalledTimes(1)
     expect(created.resources.getSnapshot().activeLeaseCount).toBe(0)
     expect(created.executor.getSnapshot()).toMatchObject({ executedPassCount: 2, failedPassCount: 0 })
+    created.executor.dispose()
+    created.resources.dispose()
+  })
+
+  it('surfaces final framebuffer presentation errors with a distinct diagnostic instead of treating the canvas as successful', () => {
+    const value = manifest(true)
+    value.render = {
+      targets: [
+        { id: targetId, descriptor: { size: { kind: 'viewport' }, colorFormat: 'rgba8' } },
+        { id: outputTargetId, descriptor: { size: { kind: 'viewport' }, colorFormat: 'rgba8' } },
+      ],
+      passes: [
+        { id: sourcePass, kind: 'module', module: cinema2Ref(moduleId), outputs: [{ id: colorOutput, target: cinema2Ref(targetId) }] },
+        {
+          id: outputPass,
+          kind: 'output',
+          inputs: [{ id: colorInput, source: { pass: cinema2Ref(sourcePass), output: colorOutput } }],
+          outputs: [{ id: finalColorOutput, target: cinema2Ref(outputTargetId) }],
+        },
+      ],
+      outputPass: cinema2Ref(outputPass),
+    }
+    const created = createExecutor(value)
+    let pendingError = 0
+    let blitCount = 0
+    vi.mocked(created.gl.getError).mockImplementation(() => {
+      const error = pendingError
+      pendingError = 0
+      return error
+    })
+    vi.mocked(created.gl.blitFramebuffer).mockImplementation(() => {
+      blitCount += 1
+      if (blitCount === 2) pendingError = 0x0506
+    })
+
+    created.executor.executeFrame(frame, [provider()])
+
+    const snapshot = created.executor.getSnapshot()
+    expect(blitCount).toBe(2)
+    expect(snapshot.failedPassCount).toBe(1)
+    expect(snapshot.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: 'CINEMA2_RENDER_PASS_FAILED',
+      passId: outputPass,
+      message: expect.stringMatching(/final output presentation.*INVALID_FRAMEBUFFER_OPERATION/),
+    })]))
+    expect(created.gl.readBuffer).toHaveBeenCalledWith(created.gl.COLOR_ATTACHMENT0)
+    expect(created.gl.colorMask).toHaveBeenCalledWith(true, true, true, true)
     created.executor.dispose()
     created.resources.dispose()
   })

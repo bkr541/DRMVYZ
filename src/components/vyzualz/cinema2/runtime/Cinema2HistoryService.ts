@@ -4,6 +4,7 @@ import type {
   Cinema2RenderTargetLease,
   Cinema2ResourceManager,
 } from './Cinema2ResourceManager'
+import { assertCinema2NoGlErrors } from './Cinema2GpuValidation'
 
 export type Cinema2HistoryResetReason =
   | 'activation'
@@ -257,7 +258,12 @@ export class Cinema2HistoryService {
       valid: false,
       estimatedGpuMemoryBytes: bytes,
     }
-    this.clearRecord(record)
+    try {
+      this.clearRecord(record)
+    } catch (error) {
+      this.resources.release(lease, { pool: false })
+      throw error
+    }
     this.lastDiagnostic = null
     return record
   }
@@ -275,6 +281,7 @@ export class Cinema2HistoryService {
       this.gl.clear(this.gl.COLOR_BUFFER_BIT)
     }
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null)
+    assertCinema2NoGlErrors(this.gl, 'history buffer clear', record.name)
   }
 
   private releaseRecord(record: HistoryRecord): void {

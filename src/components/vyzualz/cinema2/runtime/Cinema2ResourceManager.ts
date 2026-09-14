@@ -8,6 +8,7 @@ import type {
   Cinema2RenderTargetSurfaceLayout,
   Cinema2RenderTargetWrap,
 } from '../contracts/Cinema2RenderTargets'
+import { assertCinema2NoGlErrors, describeCinema2FramebufferStatus } from './Cinema2GpuValidation'
 
 export type {
   Cinema2RenderTargetColorFormat,
@@ -521,8 +522,16 @@ export class Cinema2ResourceManager {
 
       const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER)
       if (status !== gl.FRAMEBUFFER_COMPLETE) {
-        throw new Error(`Cinema 2.0 render-target framebuffer is incomplete (status ${status}).`)
+        throw new Error(
+          `Cinema 2.0 render-target framebuffer is incomplete: ${describeCinema2FramebufferStatus(status)} `
+          + `for ${width}x${height} ${descriptor.colorFormat}/${descriptor.depthFormat}.`,
+        )
       }
+      assertCinema2NoGlErrors(
+        gl,
+        'render-target creation',
+        `${width}x${height} ${descriptor.colorFormat}/${descriptor.depthFormat}`,
+      )
       return { framebuffer, colorTexture, depthTexture, depthRenderbuffer }
     } catch (error) {
       if (depthTexture) gl.deleteTexture(depthTexture)

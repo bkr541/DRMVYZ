@@ -149,7 +149,7 @@ describe('Cinema2ResourceManager', () => {
     const failingGl = createCinemaMockWebGL()
     failingGl.checkFramebufferStatus = vi.fn(() => 0) as typeof failingGl.checkFramebufferStatus
     const failingManager = new Cinema2ResourceManager(failingGl)
-    expect(() => failingManager.acquireRenderTarget('bad-target', VIEWPORT_TARGET, 'transient')).toThrow(/incomplete/i)
+    expect(() => failingManager.acquireRenderTarget('bad-target', VIEWPORT_TARGET, 'transient')).toThrow(/FRAMEBUFFER.*0x0.*1x1.*rgba8\/none/i)
     expect(failingManager.getSnapshot()).toMatchObject({ activeLeaseCount: 0, pooledAllocationCount: 0 })
     expect(failingGl.__calls.deletedTextures).toBe(failingGl.__calls.createdTextures)
     expect(failingGl.__calls.deletedFramebuffers).toBe(failingGl.__calls.createdFramebuffers)

@@ -1,5 +1,6 @@
 import type { Cinema2Color, Cinema2Vector3 } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2Matrix4 } from '../../scene/Cinema2SceneGraph'
+import { assertCinema2NoGlErrors } from '../../runtime/Cinema2GpuValidation'
 import { CINEMA2_AFTERHOURS_MAX_BEAMS } from './Cinema2AfterhoursDomain'
 
 export const CINEMA2_AFTERHOURS_MAX_RENDER_INSTANCES = CINEMA2_AFTERHOURS_MAX_BEAMS
@@ -174,7 +175,7 @@ export class Cinema2AfterhoursRenderer {
       configureInstanceAttribute(gl, 4, 4, 10)
       gl.bindVertexArray(null)
 
-      if (gl.getError() === gl.OUT_OF_MEMORY) throw new Error('Cinema 2.0 Afterhours could not allocate GPU memory for laser instances.')
+      assertCinema2NoGlErrors(gl, 'Afterhours laser resource allocation')
       if (gl.isContextLost()) throw new Error('Cinema 2.0 lost WebGL2 while allocating Afterhours laser resources.')
     } catch (error) {
       gl.bindVertexArray(null)
@@ -217,6 +218,7 @@ export class Cinema2AfterhoursRenderer {
     gl.disable(gl.BLEND)
     gl.depthMask(true)
     gl.bindVertexArray(null)
+    assertCinema2NoGlErrors(gl, 'Afterhours native laser draw', `${instanceCount} beam instances`)
     this.drawCount += 1
   }
 

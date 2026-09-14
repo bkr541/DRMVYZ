@@ -438,6 +438,92 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     created.runtime.dispose()
   })
 
+  it('isolates a Feedback/Trails GPU failure and still presents the current raw Afterhours scene through the real render graph', () => {
+    const gl = createCinemaMockWebGL()
+    let scheduledFrame: FrameRequestCallback | null = null
+    let pendingError = 0
+    let injected = false
+    vi.mocked(gl.getError).mockImplementation(() => {
+      const error = pendingError
+      pendingError = 0
+      return error
+    })
+    vi.mocked(gl.blitFramebuffer).mockImplementation(() => {
+      if (!injected) {
+        injected = true
+        pendingError = 0x0506
+      }
+    })
+    const created = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
+      presetId: CINEMA2_AFTERHOURS_PRESET_ID,
+      requestAnimationFrame: vi.fn((callback: FrameRequestCallback) => {
+        scheduledFrame = callback
+        return 1
+      }),
+      cancelAnimationFrame: vi.fn(),
+      renderQuality: 'high',
+    })
+    expect(created.error).toBeNull()
+    if (!created.runtime) return
+
+    created.runtime.resize({ width: 640, height: 360, dpr: 1 })
+    created.runtime.start()
+    ;(scheduledFrame as FrameRequestCallback | null)?.(16)
+
+    expect(created.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({
+      frameCount: 1,
+      executedPassCount: 2,
+      failedPassCount: 0,
+      lastExecutedPassIds: ['afterhours-scene-pass', 'afterhours-trails-pass'],
+    })
+    expect(created.runtime.getEffectRuntimeSnapshot()).toMatchObject({ failedEffectCount: 1 })
+    expect(created.runtime.getEffectRuntimeSnapshot().effects).toEqual([expect.objectContaining({
+      effectId: 'afterhours-feedback-trails',
+      status: 'failed',
+      diagnostics: [expect.objectContaining({
+        message: expect.stringMatching(/Feedback\/Trails history presentation.*INVALID_FRAMEBUFFER_OPERATION/),
+      })],
+    })])
+    expect(created.runtime.getHistoryServiceSnapshot()).toMatchObject({ activeBufferCount: 0, validBufferCount: 0 })
+    expect(gl.blitFramebuffer).toHaveBeenCalledTimes(3)
+    expect(gl.readBuffer).toHaveBeenCalledWith(gl.COLOR_ATTACHMENT0)
+
+    created.runtime.dispose()
+  })
+
+  it('reports the exact Afterhours target and pass when framebuffer allocation is incomplete', () => {
+    const gl = createCinemaMockWebGL()
+    let scheduledFrame: FrameRequestCallback | null = null
+    gl.checkFramebufferStatus = vi.fn(() => 0) as typeof gl.checkFramebufferStatus
+    const created = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
+      presetId: CINEMA2_AFTERHOURS_PRESET_ID,
+      requestAnimationFrame: vi.fn((callback: FrameRequestCallback) => {
+        scheduledFrame = callback
+        return 1
+      }),
+      cancelAnimationFrame: vi.fn(),
+      renderQuality: 'high',
+    })
+    expect(created.error).toBeNull()
+    if (!created.runtime) return
+
+    created.runtime.resize({ width: 640, height: 360, dpr: 1 })
+    created.runtime.start()
+    ;(scheduledFrame as FrameRequestCallback | null)?.(16)
+
+    expect(created.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({
+      failedPassCount: 1,
+      skippedPassCount: 1,
+    })
+    expect(created.runtime.getRenderGraphExecutorSnapshot().diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({
+      code: 'CINEMA2_RENDER_PASS_FAILED',
+      passId: 'afterhours-scene-pass',
+      message: expect.stringMatching(/afterhours-scene-target.*FRAMEBUFFER.*0x0.*640x360.*rgba8\/depth24/i),
+    })]))
+
+    created.runtime.dispose()
+  })
+
   it('executes the final first-party path from selection through audio/director choreography, planner, camera, render graph, trails, and native pixels', () => {
     const gl = createCinemaMockWebGL()
     let scheduledFrame: FrameRequestCallback | null = null
@@ -469,6 +555,7 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
       }),
       cancelAnimationFrame: vi.fn(),
       renderQuality: 'high',
+      debugVisibilityReadback: true,
     })
     expect(created.error).toBeNull()
     if (!created.runtime) return
@@ -492,8 +579,22 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     expect(created.runtime.getTargetResolver().resolve(targetFor(plan, 'module', CINEMA2_AFTERHOURS_MODULE_ID, 'directorImpact').id).value).toBeGreaterThan(0)
     expect(created.runtime.getTargetResolver().resolve(targetFor(plan, 'module', CINEMA2_AFTERHOURS_MODULE_ID, 'kickAccent').id).value).toBeGreaterThan(0)
     expect(created.runtime.getTargetResolver().resolve(targetFor(plan, 'module', CINEMA2_AFTERHOURS_MODULE_ID, 'snareAccent').id).value).toBeGreaterThan(0)
-    expect(created.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 1, executedPassCount: 2, failedPassCount: 0 })
+    expect(created.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({
+      frameCount: 1,
+      executedPassCount: 2,
+      failedPassCount: 0,
+      lastExecutedPassIds: ['afterhours-scene-pass', 'afterhours-trails-pass'],
+    })
     expect(created.runtime.getHistoryServiceSnapshot()).toMatchObject({ activeBufferCount: 1, validBufferCount: 1 })
+    expect(gl.checkFramebufferStatus).toHaveBeenCalled()
+    expect(gl.blitFramebuffer).toHaveBeenCalledTimes(2)
+    expect(gl.readBuffer).toHaveBeenCalledWith(gl.COLOR_ATTACHMENT0)
+    expect(gl.readPixels).toHaveBeenCalledTimes(3)
+    expect(created.runtime.getRenderGraphExecutorSnapshot().visibilityCheckpoints).toEqual([
+      expect.objectContaining({ stage: 'pass-target', passId: 'afterhours-scene-pass', width: 640, height: 360, sampledWidth: 8, sampledHeight: 8 }),
+      expect.objectContaining({ stage: 'pass-target', passId: 'afterhours-trails-pass', width: 640, height: 360, sampledWidth: 8, sampledHeight: 8 }),
+      expect.objectContaining({ stage: 'canvas', passId: 'afterhours-trails-pass', width: 640, height: 360, sampledWidth: 8, sampledHeight: 8 }),
+    ])
     expect(created.runtime.getEffectRuntimeSnapshot().effects).toEqual([expect.objectContaining({
       effectId: 'afterhours-feedback-trails',
       typeId: 'feedback-trails',

@@ -177,6 +177,7 @@ export function createCinemaMockWebGL(): CinemaMockWebGL {
     framebufferTexture2D: vi.fn(),
     drawBuffers: vi.fn(),
     readBuffer: vi.fn(),
+    readPixels: vi.fn(),
     createRenderbuffer: vi.fn(() => {
       calls.createdRenderbuffers += 1
       return { id: objectId++ } as unknown as WebGLRenderbuffer
