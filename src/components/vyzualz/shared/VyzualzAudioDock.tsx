@@ -1,5 +1,5 @@
 import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
-import { useId, useState, useRef, useEffect, useCallback, useSyncExternalStore } from 'react'
+import { useId, useState, useRef, useEffect, useCallback, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
 import { useVisualStore, DEFAULT_PRESETS } from '../../../stores/visualStore'
@@ -337,6 +337,13 @@ export function VyzualzAudioDock({
     const base = engine.currentEffectiveBpm ?? 120
     engine.setBpmOverride(track.id, Math.max(40, Math.min(300, Math.round(base) + delta))
     )
+  }
+
+  const handleBpmScrub = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!canEditBpm || !track) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+    engine.setBpmOverride(track.id, Math.round(40 + fraction * (300 - 40)))
   }
 
   const handleClearOverride = () => {
@@ -797,20 +804,9 @@ export function VyzualzAudioDock({
         {/* Column wrapper so the stale banner sits below the BPM block */}
         <div className="vz-dock-bpm-wrap">
         <div className="vz-dock-bpm-block">
-          <div className="vz-dock-bpm-block-top">
+          <div className="vz-dock-bpm-track-top">
             <span className="vz-dock-bpm-block-label">BPM</span>
-            {hasOverride && (
-              <button
-                className="vz-dock-bpm-reset-btn"
-                onClick={handleClearOverride}
-                title={`Reset to analyzed BPM${bpmState.kind === 'value' && bpmState.analyzed !== null ? ` (${bpmState.analyzed.toFixed(2)})` : ''}`}
-              >
-                ↺
-              </button>
-            )}
-          </div>
-          <div className="vz-dock-bpm-block-row">
-            {/* BPM value — three mutually exclusive states */}
+            {/* BPM value — five mutually exclusive states */}
             {bpmState.kind === 'value' && (
               bpmEditing ? (
                 <input
@@ -856,7 +852,7 @@ export function VyzualzAudioDock({
             {bpmState.kind === 'unavailable' && (
               <span
                 className="vz-dock-bpm-block-val vz-dock-bpm-none"
-                title="BPM detection failed for this track. You can set it manually with the arrows or tap tempo."
+                title="BPM detection failed for this track. You can set it manually by dragging the bar below or tap tempo."
               >
                 BPM unavailable
               </span>
@@ -865,25 +861,42 @@ export function VyzualzAudioDock({
               <span className="vz-dock-bpm-block-val vz-dock-bpm-none">--</span>
             )}
 
-            <div className="vz-dock-bpm-chevrons">
+            {hasOverride && (
               <button
-                className="vz-dock-bpm-chevron"
-                onClick={() => handleBpmStep(+1)}
-                disabled={!canEditBpm}
-                title="BPM +1"
+                className="vz-dock-bpm-reset-btn"
+                onClick={handleClearOverride}
+                title={`Reset to analyzed BPM${bpmState.kind === 'value' && bpmState.analyzed !== null ? ` (${bpmState.analyzed.toFixed(2)})` : ''}`}
               >
-                <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor"><path d="M7 15l5-5 5 5z"/></svg>
+                ↺
               </button>
-              <button
-                className="vz-dock-bpm-chevron"
-                onClick={() => handleBpmStep(-1)}
-                disabled={!canEditBpm}
-                title="BPM −1"
-              >
-                <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor"><path d="M7 9l5 5 5-5z"/></svg>
-              </button>
-            </div>
+            )}
           </div>
+
+          {/* Drag anywhere on the bar to scrub the BPM directly, instead of
+              stepping it one beat at a time via chevrons. */}
+          {bpmState.kind === 'value' && (
+            <div
+              className={`vz-dock-bpm-track-bar${canEditBpm ? '' : ' is-disabled'}`}
+              onPointerDown={event => {
+                if (!canEditBpm) return
+                handleBpmScrub(event)
+                event.currentTarget.setPointerCapture(event.pointerId)
+              }}
+              onPointerMove={event => { if (canEditBpm && event.buttons === 1) handleBpmScrub(event) }}
+              role="slider"
+              aria-label="BPM"
+              aria-valuemin={40}
+              aria-valuemax={300}
+              aria-valuenow={Math.round(bpmState.bpm)}
+              aria-disabled={!canEditBpm}
+            >
+              <div
+                className="vz-dock-bpm-track-fill"
+                style={{ width: `${Math.min(100, Math.max(0, ((bpmState.bpm - 40) / (300 - 40)) * 100))}%` }}
+              />
+            </div>
+          )}
+
           {/* Secondary line: analyzed BPM when override is active */}
           {bpmState.kind === 'value' && bpmState.analyzed !== null && (
             <span className="vz-dock-bpm-analyzed-label">

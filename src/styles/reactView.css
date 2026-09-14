@@ -6919,44 +6919,20 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   grid-row: 2;
 }
 
-/* Row 1's height only gives the BPM group ~TAP/SYNC's height to work with,
-   nowhere near enough for the original label-above-value two-line stack —
-   so here it's rebuilt as one inline row (label, value, chevrons, and the
-   reset button when shown) instead. .vz-dock-bpm-block-top/-row lose their
-   own boxes (`display: contents`) so their children — label, optional
-   reset button, value, chevrons — become direct flex children of
-   .vz-dock-bpm-block and lay out on one line together. The secondary
-   "analyzed X.XX" comparison line has no room left and is dropped; the
-   value's own title tooltip still surfaces that detail on hover. */
+/* Row 1's height only gives the BPM group ~TAP/SYNC's height to work with —
+   matches Layout Lab / Template's "06 · BPM Group" concept: label + value
+   on one line (.vz-dock-bpm-track-top), a drag-to-scrub fill bar
+   (.vz-dock-bpm-track-bar) directly under it instead of discrete up/down
+   chevrons. The secondary "analyzed X.XX" comparison line has no room left
+   and is dropped; the value's own title tooltip still surfaces that detail
+   on hover. */
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-block {
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 7px;
   width: 100%;
   min-width: 0;
-}
-
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-block-top,
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-block-row {
-  display: contents;
+  gap: 3px;
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-block-label {
-  flex-shrink: 0;
-}
-
-/* Pushes the reset button (DOM order: label, reset, value, chevrons) past
-   the value/chevrons pair (implicit order 0) to the end of the row, so it
-   reads label → value → chevrons → reset instead of splitting the label
-   from its value. */
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-reset-btn {
-  order: 1;
-  flex-shrink: 0;
-}
-
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-chevrons {
-  margin-left: 0;
   flex-shrink: 0;
 }
 
@@ -7122,7 +7098,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-addtrack-btn,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-bpm-reset-btn,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-bpm-analyzed-label,
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-bpm-chevrons,
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-bpm-track-bar,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-bpm-stale,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-zoom-btns {
   display: none;
