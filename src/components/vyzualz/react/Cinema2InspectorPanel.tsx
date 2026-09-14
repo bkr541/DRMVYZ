@@ -11,15 +11,31 @@ import type { Cinema2JsonValue } from '../cinema2/contracts/Cinema2NativePresetM
 import type { Cinema2Runtime } from '../cinema2/runtime/Cinema2Runtime'
 import { Collapsible, ColorRow, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import { IconChipButton } from './controls/IconChipButton'
+import { PanelSubtabs } from './PanelSubtabs'
+import { ReactAudioPanel } from './ReactAudioPanel'
 
 export interface Cinema2InspectorPanelProps {
   runtime: Cinema2Runtime | null
   surface: Cinema2InspectorSurface
 }
 
+// Design's ENGINE/SELECTION split and React's PERFORMANCE/ANALYSIS split
+// mirror the nested PanelSubtabs every other engine's Design/React tab
+// already uses (see ReactDesignWorkspacePanel/ReactReactivityWorkspacePanel
+// in panels/ReactWorkspacePanels.tsx) — Cinema2InspectorModel's `surface`
+// stays a plain 'design' | 'react' split; these sub-tabs are presentation
+// only. SELECTION has no content yet: Cinema 2.0 has no per-object
+// selection model (Cinema2LayersPanel, the only "layer" UI that exists, is
+// read-only/disabled and lives in its own left-rail Layers tab, unrelated
+// to this), so it stays permanently disabled until that feature exists.
+type Cinema2DesignSurface = 'engine' | 'selection'
+type Cinema2ReactSurface = 'performance' | 'analysis'
+
 export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPanelProps) {
   const [, setRevision] = useState(0)
   const actionSequence = useRef(0)
+  const [designSurface, setDesignSurface] = useState<Cinema2DesignSurface>('engine')
+  const [reactSurface, setReactSurface] = useState<Cinema2ReactSurface>('performance')
   const plan = runtime?.getCompiledPresetPlan() ?? null
   const snapshot = runtime?.getParameterState().getSnapshot() ?? null
   const sections = useMemo(() => (
@@ -60,39 +76,75 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
     if (!result.ok && import.meta.env.DEV) console.warn('[Cinema2InspectorPanel] action dispatch rejected:', result.diagnostics)
   }
 
-  if (sections.length === 0) {
-    return <EmptyCinema2Inspector copy="No Cinema 2.0 parameters are declared for this workspace." />
+  const sectionsContent = sections.length === 0
+    ? <div className="rv-ctrl-group"><div className="rv-ctrl-info">No Cinema 2.0 parameters are declared for this workspace.</div></div>
+    : (
+      <>
+        {surface === 'design' && hasResettablePersistentValue && (
+          <div className="rv-ctrl-group" data-cinema2-inspector-actions="true">
+            <IconChipButton
+              onClick={() => {
+                parameterState.resetAll()
+                refresh()
+              }}
+            >
+              Reset Parameters
+            </IconChipButton>
+          </div>
+        )}
+        {sections.map(section => (
+          <div className="rv-ctrl-group" key={section.label} data-cinema2-section={section.label}>
+            <CtrlSection label={section.label} />
+            {section.groups.map((entry, entryIndex) => (
+              <Cinema2InspectorEntry
+                key={entry.kind === 'instance' ? `${entry.instanceKind}:${entry.instanceId}` : entry.label ?? `ungrouped-${entryIndex}`}
+                entry={entry}
+                onChange={commit}
+                onTrigger={dispatch}
+              />
+            ))}
+          </div>
+        ))}
+      </>
+    )
+
+  if (surface === 'design') {
+    return (
+      <div className="rv-workspace-panel" data-cinema2-inspector={surface}>
+        <PanelSubtabs
+          value={designSurface}
+          onChange={setDesignSurface}
+          ariaLabel="Cinema 2.0 design surfaces"
+          options={[
+            { id: 'engine', label: 'ENGINE' },
+            { id: 'selection', label: 'SELECTION', disabled: true },
+          ]}
+        />
+        <div className="rv-workspace-panel-body">
+          <div className="rv-inspector rv-inspector-scroll">
+            {designSurface === 'engine' ? sectionsContent : (
+              <div className="rv-ctrl-group"><div className="rv-ctrl-info">Select an object in the scene to edit its properties here.</div></div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="rv-workspace-panel" data-cinema2-inspector={surface}>
+      <PanelSubtabs
+        value={reactSurface}
+        onChange={setReactSurface}
+        ariaLabel="Cinema 2.0 reactivity surfaces"
+        options={[
+          { id: 'performance', label: 'PERFORMANCE' },
+          { id: 'analysis', label: 'ANALYSIS' },
+        ]}
+      />
       <div className="rv-workspace-panel-body">
         <div className="rv-inspector rv-inspector-scroll">
-          {surface === 'design' && hasResettablePersistentValue && (
-            <div className="rv-ctrl-group" data-cinema2-inspector-actions="true">
-              <IconChipButton
-                onClick={() => {
-                  parameterState.resetAll()
-                  refresh()
-                }}
-              >
-                Reset Parameters
-              </IconChipButton>
-            </div>
-          )}
-          {sections.map(section => (
-            <div className="rv-ctrl-group" key={section.label} data-cinema2-section={section.label}>
-              <CtrlSection label={section.label} />
-              {section.groups.map((entry, entryIndex) => (
-                <Cinema2InspectorEntry
-                  key={entry.kind === 'instance' ? `${entry.instanceKind}:${entry.instanceId}` : entry.label ?? `ungrouped-${entryIndex}`}
-                  entry={entry}
-                  onChange={commit}
-                  onTrigger={dispatch}
-                />
-              ))}
-            </div>
-          ))}
+          {reactSurface === 'performance' ? sectionsContent : <ReactAudioPanel />}
         </div>
       </div>
     </div>
