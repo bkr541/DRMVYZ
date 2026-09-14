@@ -1551,7 +1551,7 @@ export const useVisualStore = create<VisualState>()(
           ...current,
           ...p,
           // Spread DEFAULT_EFFECTS first so any fields added after the last save
-          // are never undefined when VzSlider reads them.
+          // remain defined for legacy effect rendering and persisted sessions.
           effects:          { ...DEFAULT_EFFECTS, ...(p.effects ?? {}) },
           effectParams:     p.effectParams ?? DEFAULT_EFFECT_PARAMS,
           enabledFxArr:     mergedFxArr,

@@ -115,48 +115,6 @@ export const DEFAULT_MODULATION_ROUTES: ModulationRoute[] = [
   { id: 'section-intensity',    effectId: 'masterIntensity',source: 'sectionIntensity', amount: 0.20, enabled: false },
 ]
 
-// ── Band display metadata (used by ModulationPanel) ──────────────────────────
-
-export const BAND_LABELS: Record<AudioBand, string> = {
-  bass: 'Bass', lowMid: 'LMid', mid: 'Mid', high: 'High', volume: 'Vol', beat: 'Beat',
-}
-
-export const EFFECT_LABELS: Partial<Record<keyof VzEffects, string>> = {
-  // ── Core effects ──────────────────────────────────────────────────────
-  bassReactivity:  'Scale Pulse',
-  tunnelSpeed:     'Tunnel Depth',
-  displacement:    'Displacement',
-  feedbackTrails:  'Feedback Bend',
-  glitchAmount:    'Glitch',
-  strobe:          'Strobe',
-  rgbSplit:        'RGB Split',
-  bloom:           'Bloom',
-  masterIntensity: 'Brightness',
-  colorShift:      'Color Shift',
-  logoScale:       'Reactive Scale',
-  // ── Newer effects ─────────────────────────────────────────────────────
-  spectrumBars:    'Spectrum Bars',
-  circularSpectrum: 'Circ Spectrum',
-  oscilloscope:    'Oscilloscope',
-  beatRing:        'Beat Ring',
-  particleBurst:   'Particles',
-  reactiveGrid:    'React Grid',
-  cameraShake:     'Cam Shake',
-  kaleidoscope:    'Kaleidoscope',
-  mirrorSplit:     'Mirror Split',
-  radialBlur:      'Radial Blur',
-  vhsStatic:       'VHS Static',
-  datamoshSmear:   'Datamosh',
-  edgeGlow:        'Edge Glow',
-  colorCycle:      'Color Cycle',
-  beatFlash:       'Beat Flash',
-  edgeFlicker:     'Edge Flicker',
-  noiseFog:          'Noise Fog',
-  scanlines:         'Scanlines',
-  pixelDistortion:   'Pixel Distortion',
-  frameQuantization: 'Frame Quantize',
-}
-
 // ── Band extraction ───────────────────────────────────────────────────────────
 
 export function getBandAvg(buf: Uint8Array<ArrayBuffer>, sampleRate: number, lo: number, hi: number): number {

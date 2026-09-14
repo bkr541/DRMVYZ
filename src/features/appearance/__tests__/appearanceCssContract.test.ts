@@ -39,7 +39,6 @@ describe('appearance CSS token contract', () => {
 
     for (const selector of [
       ".rv-ctrl-toggle:is(.rv-ctrl-toggle--on, [aria-pressed='true'], [data-state='on'])",
-      ".vz-param-toggle:is(.vz-param-toggle--on, [aria-pressed='true'])",
       ".vz-layer-toggle:is(.vz-layer-toggle--on, [aria-pressed='true'])",
       ".rv-stage-focus-btn:is(.is-active, [aria-pressed='true'])",
       ".rv-reset-btn[aria-pressed='true']",
@@ -47,7 +46,6 @@ describe('appearance CSS token contract', () => {
       "button[role='switch'][aria-checked='true']",
       '.lmv-toggle-track--on',
       '.vz-sync-track--on',
-      '.vz-mod-reactivity-track--on',
       ".vz-ml-insp-toggle-input:checked + .vz-ml-insp-toggle-track",
     ]) {
       expect(appearanceCss, selector).toContain(selector)
