@@ -2814,10 +2814,12 @@
   .lyric-cue-editor * { scroll-behavior: auto !important; transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
 }
 
-/* Shared Dropdown replacement for the Track Library filter selector. */
+/* Shared Dropdown replacement for the Track Library filter selector. Narrowed
+   24px from its original 142px so the search input beside it (flex: 1 1 auto)
+   grows to fill the freed space. */
 .lmv-track-filter-dropdown {
-  width: 142px;
-  max-width: min(142px, 42vw);
+  width: 118px;
+  max-width: min(118px, 42vw);
 }
 
 /* UnderlineDropdown already matches .dv-text-input's padding/border-bottom; pin
@@ -2869,10 +2871,11 @@
 /* Lyric Versions search + filter row: same "search grows, filter dropdown sits
    flush-right" treatment as Track Library's .lmv-track-search-row, styled
    exactly like that dropdown (same width, dense size, trigger height pinned
-   to the search input's own height so both underlines land on one line). */
+   to the search input's own height so both underlines land on one line).
+   Narrowed 24px from its original 142px, matching Track Library's dropdown. */
 .lmv-doc-filter-dropdown {
-  width: 142px;
-  max-width: min(142px, 42vw);
+  width: 118px;
+  max-width: min(118px, 42vw);
 }
 
 .lmv-doc-search-row .lmv-doc-filter-dropdown .drm-dropdown__trigger {
@@ -2943,6 +2946,13 @@
   padding: 14px 12px 12px;
 }
 
+/* Matches Lyric Management's own 220ms opacity/transform transition below
+   so the two animate as one move instead of the flex-basis split snapping
+   instantly while Lyric Management's content fades in beside/below it. */
+.lmv-track-workspace {
+  transition: flex-basis 220ms ease;
+}
+
 /* The Solid Bar Track Workspace header (below) needs to reach the rail's
    true content edges with no gap, so its own top/left/right padding is
    zeroed here — the tab strip and tab panel beneath it get that inset back
@@ -2975,9 +2985,32 @@
    only the header bar itself becomes edge-to-edge; nothing else in Lyric
    Management shifts position. Bottom padding is untouched. */
 .lmv-lyric-management {
+  position: relative;
   padding-top: 0;
   padding-left: 0;
   padding-right: 0;
+}
+
+/* Drag-to-resize handle for the Track Workspace / Lyric Management split.
+   Absolutely positioned at the section's own top inside edge (rather than
+   straddling above it, which .lmv-lyric-management's own overflow: hidden
+   would clip) and rather than a real flex child, so it never adds to the
+   two sections' combined flex-basis — they already sum to 100%. */
+.lmv-lyric-management-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  z-index: 2;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.lmv-lyric-management-resize-handle:hover,
+.lmv-lyric-management-resize-handle:focus-visible {
+  background: rgba(74, 199, 219, 0.3);
+  outline: none;
 }
 
 /* Enter/exit animation for the whole section, driven by useMountTransition
@@ -3084,13 +3117,31 @@
 .lmv-document-workspace-header > .lmv-rail-title {
   margin: 0;
   border-bottom: 0;
-  background: linear-gradient(180deg, rgba(228, 234, 238, 0.97), rgba(190, 199, 205, 0.94));
   box-shadow:
     0 2px 2px rgba(0, 0, 0, 0.6),
     0 8px 14px rgba(0, 0, 0, 0.55),
     0 32px 56px rgba(0, 0, 0, 0.8),
     0 0 46px rgba(38, 216, 242, 0.18);
   color: #10161a;
+}
+
+/* A slight darker sheen along each bar's outer edge — the edge away from
+   the center column, where the bar meets the true window edge — layered
+   over the same silver-to-steel gradient all three share. Track Workspace
+   and Lyric Management live in the left rail, so their outer edge is the
+   left side; Document Workspace lives in the right rail, so its outer edge
+   is the right side. */
+.lmv-track-workspace > .lmv-rail-title,
+.lmv-lyric-management > .lmv-rail-title {
+  background:
+    linear-gradient(to right, rgba(0, 0, 0, 0.28), transparent 45%),
+    linear-gradient(180deg, rgba(228, 234, 238, 0.97), rgba(190, 199, 205, 0.94));
+}
+
+.lmv-document-workspace-header > .lmv-rail-title {
+  background:
+    linear-gradient(to left, rgba(0, 0, 0, 0.28), transparent 45%),
+    linear-gradient(180deg, rgba(228, 234, 238, 0.97), rgba(190, 199, 205, 0.94));
 }
 
 .lmv-track-workspace .lmv-rail-title-action.dv-icon-chip,

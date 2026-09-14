@@ -333,6 +333,28 @@ export function LyricManagerView({
     null,
   )
   const lyricManagementPhase = useMountTransition(Boolean(selectedTrack), 220)
+  const workspaceShellRef = useRef<HTMLDivElement>(null)
+  const [lyricManagementHeightPct, setLyricManagementHeightPct] = useState<number | null>(null)
+  const handleLyricManagementResizeStart = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return
+    const container = workspaceShellRef.current
+    if (!container) return
+    event.preventDefault()
+    const rect = container.getBoundingClientRect()
+    const startY = event.clientY
+    const startPct = lyricManagementHeightPct ?? 45
+    const ownerWindow = event.currentTarget.ownerDocument.defaultView ?? window
+    const onMove = (moveEvent: PointerEvent) => {
+      const deltaPct = ((moveEvent.clientY - startY) / rect.height) * 100
+      setLyricManagementHeightPct(Math.max(20, Math.min(70, startPct - deltaPct)))
+    }
+    const onUp = () => {
+      ownerWindow.removeEventListener('pointermove', onMove)
+      ownerWindow.removeEventListener('pointerup', onUp)
+    }
+    ownerWindow.addEventListener('pointermove', onMove)
+    ownerWindow.addEventListener('pointerup', onUp, { once: true })
+  }, [lyricManagementHeightPct])
   const [documents, setDocuments] = useState<LyricDocumentVersion[]>([])
   const [legacyDocuments, setLegacyDocuments] = useState<
     LyricDocumentVersion[]
@@ -1954,10 +1976,17 @@ export function LyricManagerView({
           className="lmv-left-rail"
         >
           <div
+            ref={workspaceShellRef}
             className="lmv-workspace-shell"
             data-has-selected-track={lyricManagementPhase !== 'unmounted' ? 'true' : 'false'}
           >
-          <section className="lmv-track-workspace" aria-label="Track Workspace">
+          <section
+            className="lmv-track-workspace"
+            aria-label="Track Workspace"
+            style={lyricManagementHeightPct != null && lyricManagementPhase !== 'unmounted'
+              ? { flexBasis: `${100 - lyricManagementHeightPct}%` }
+              : undefined}
+          >
             <div className="lmv-rail-title">
               <AudioWave02Icon size={15} color="currentColor" aria-hidden="true" />
               <span>Track Workspace</span>
@@ -2040,7 +2069,26 @@ export function LyricManagerView({
           </section>
 
           {lyricManagementPhase !== 'unmounted' && (
-          <section className={`lmv-lyric-management lmv-lyric-management--${lyricManagementPhase}`} aria-label="Lyric Management">
+          <section
+            className={`lmv-lyric-management lmv-lyric-management--${lyricManagementPhase}`}
+            aria-label="Lyric Management"
+            style={lyricManagementHeightPct != null ? { flexBasis: `${lyricManagementHeightPct}%` } : undefined}
+          >
+            <div
+              className="lmv-lyric-management-resize-handle"
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Resize Lyric Management"
+              aria-valuenow={Math.round(lyricManagementHeightPct ?? 45)}
+              aria-valuemin={20}
+              aria-valuemax={70}
+              tabIndex={0}
+              onPointerDown={handleLyricManagementResizeStart}
+              onKeyDown={event => {
+                if (event.key === 'ArrowUp') { event.preventDefault(); setLyricManagementHeightPct(Math.min(70, (lyricManagementHeightPct ?? 45) + 2)) }
+                if (event.key === 'ArrowDown') { event.preventDefault(); setLyricManagementHeightPct(Math.max(20, (lyricManagementHeightPct ?? 45) - 2)) }
+              }}
+            />
             <div className="lmv-rail-title">
               <SubtitleIcon size={15} color="currentColor" aria-hidden="true" />
               <span>Lyric Management</span>
