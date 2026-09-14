@@ -14,6 +14,7 @@ import { BadgeStyleGallery } from './layoutLab/BadgeStyleGallery'
 import { LayerRowStyleGallery } from './layoutLab/LayerRowStyleGallery'
 import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
+import { BpmGroupStyleGallery } from './layoutLab/BpmGroupStyleGallery'
 import { TrackHeaderStyleGallery } from './layoutLab/TrackHeaderStyleGallery'
 import { LyricManagerTimelineStyleGallery } from './layoutLab/LyricManagerTimelineStyleGallery'
 import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
@@ -249,6 +250,7 @@ export function LayoutLabMockup() {
                       <BadgeStyleGallery />
                       <LayerRowStyleGallery />
                       <NumericInputStyleGallery />
+                      <BpmGroupStyleGallery />
                     </div>
                   </div>
                 )}

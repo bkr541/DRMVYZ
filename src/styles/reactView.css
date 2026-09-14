@@ -17340,6 +17340,295 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   gap: 12px;
 }
 
+/* ── BpmGroupStyleGallery ─────────────────────────────────────────────────
+   Six BPM-group concepts for the React Audio Dock's row-1 cell, each shown
+   inside a row-fit simulator sized to the real constraint: a ~38px-tall
+   strip beside a real-proportioned TAP button mockup. */
+.llbg-gallery {
+  gap: 20px;
+}
+
+.llbg-row-sim {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  height: 38px;
+  width: 250px;
+  padding: 4px;
+  background: rgba(5, 10, 16, 0.6);
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+}
+
+.llbg-row-sim-bpm {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.llbg-row-sim-tap {
+  flex: 0 0 76px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: rgba(74, 199, 219, 0.055);
+  border: 1px solid rgba(74, 199, 219, 0.42);
+  border-radius: 4px;
+  color: rgba(102, 226, 244, 0.94);
+  font: 800 9px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.llbg-row-sim-tap svg {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+}
+
+.llbg-chevrons {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.llbg-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.1s;
+}
+
+.llbg-chevron:hover {
+  background: rgba(74, 199, 219, 0.15);
+  color: var(--az-cyan);
+  border-color: rgba(74, 199, 219, 0.3);
+}
+
+.llbg-chevron svg {
+  width: 7px;
+  height: 7px;
+}
+
+/* Concept 1: Inline Row (current production shape) */
+.llbg-inline {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+}
+
+.llbg-inline-label {
+  font: 700 9.5px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.38);
+  flex-shrink: 0;
+}
+
+.llbg-inline-value {
+  font: 700 17px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  color: var(--az-cyan);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Concept 2: Bordered Chip (matches TAP/SYNC's button treatment) */
+.llbg-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+}
+
+.llbg-chip .llbg-inline-label {
+  color: rgba(255, 255, 255, 0.32);
+}
+
+.llbg-chip .llbg-inline-value {
+  font-size: 14px;
+}
+
+/* Concept 3: Micro Tag (value-dominant, label as a tiny corner badge) */
+.llbg-microtag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.llbg-microtag-value {
+  font: 800 18px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  color: var(--az-cyan);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.llbg-microtag-badge {
+  flex-shrink: 0;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(74, 199, 219, 0.16);
+  border: 1px solid rgba(74, 199, 219, 0.32);
+  color: #8ef4ff;
+  font: 800 7px/1.4 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Concept 4: Drag Scrubber (reuses the real NumericScrubField) */
+.llbg-scrub-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.llbg-scrub-row-label {
+  font: 700 9.5px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.38);
+  flex-shrink: 0;
+}
+
+.llbg-scrub-row .dv-scrub-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.llbg-scrub-row .dv-scrub-field-label {
+  display: none;
+}
+
+.llbg-scrub-row .dv-scrub {
+  height: 30px;
+  padding: 0 8px;
+}
+
+.llbg-scrub-row .dv-scrub-value {
+  font-size: 14px;
+}
+
+/* Concept 5: Icon Label + Merged Stepper */
+.llbg-icon-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.llbg-icon-stepper-icon {
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.llbg-icon-stepper-value {
+  font: 700 17px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  color: var(--az-cyan);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.llbg-merged-stepper {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  width: 14px;
+  height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.llbg-merged-stepper button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  padding: 0;
+}
+
+.llbg-merged-stepper button:first-child {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.llbg-merged-stepper button:hover {
+  background: rgba(74, 199, 219, 0.15);
+  color: var(--az-cyan);
+}
+
+.llbg-merged-stepper svg {
+  width: 6px;
+  height: 6px;
+}
+
+/* Concept 6: Value First (caption folded under the number, not beside it) */
+.llbg-value-first {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.llbg-value-first-stack {
+  min-width: 0;
+}
+
+.llbg-value-first-value {
+  font: 800 19px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  color: var(--az-cyan);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.llbg-value-first-caption {
+  font: 700 6.5px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.34);
+  margin-top: 1px;
+}
+
 /* ── Cinema engine registration and single-owner runtime workspace ───────── */
 .rv-cinema-workspace {
   box-sizing: border-box;
