@@ -25,17 +25,35 @@ export interface Cinema2AfterhoursShowPlannerSettings {
 }
 
 /**
- * Canonical structural facts supplied by Cinema 2.0. This contract deliberately
- * contains no raw audio features and performs no analysis of its own. Stage 5
- * can enrich the explicit intent fields without changing Show Planner ownership.
+ * Already-resolved Cinema 2.0 significance/choreography inputs. These are not
+ * raw audio features and the Show Planner never analyzes audio independently.
+ */
+export interface Cinema2AfterhoursPerformanceIntent {
+  readonly intensity?: number
+  readonly build?: number
+  readonly impact?: number
+  readonly vocalPresence?: number
+  readonly kickAccent?: number
+  readonly snareAccent?: number
+  readonly downbeatAccent?: number
+  readonly phraseAccent?: number
+  readonly sectionAccent?: number
+  readonly dropAccent?: number
+}
+
+/**
+ * Canonical structural facts supplied by Cinema 2.0. The optional performance
+ * block is populated from Target Runtime / Choreography-resolved signals.
  */
 export interface Cinema2AfterhoursShowPlannerStructure {
   readonly sourceIdentity: string
   readonly absoluteBarIndex: number | null
   readonly phraseIdentity: string | null
+  readonly sectionIdentity?: string | null
   readonly dropIdentity: string | null
-  /** Reserved for a caller that has already decided a high-significance cut is appropriate. */
+  /** Caller-resolved high-significance structural cut authority. */
   readonly hardCutIntent: boolean
+  readonly performance?: Readonly<Cinema2AfterhoursPerformanceIntent>
 }
 
 export interface Cinema2AfterhoursShowPlan {
@@ -47,9 +65,29 @@ export interface Cinema2AfterhoursShowPlan {
   readonly sideLasers: boolean
   readonly topLasers: boolean
   readonly transitionIntent: Cinema2AfterhoursTransitionIntent
+  /** Runtime spatial multiplier applied without rebuilding topology every frame. */
+  readonly spreadScale: number
+  /** Runtime scanner authority multiplier. */
+  readonly motionScale: number
+  readonly bottomIntensity: number
+  readonly sideIntensity: number
+  readonly topIntensity: number
+  /** Normalized structural blackout intent. User Blackout Amount remains the ceiling. */
+  readonly blackout: number
 }
 
 const TOPOLOGY_COUNT = CINEMA2_AFTERHOURS_TOPOLOGY_IDS.length
+const DENSE_PEAK_TOPOLOGIES = Object.freeze([
+  'fullRig', 'radialCrown', 'crossCanopy',
+] as const satisfies readonly Cinema2AfterhoursTopologyId[])
+
+function clamp01(value: number | null | undefined): number {
+  return Math.min(1, Math.max(0, typeof value === 'number' && Number.isFinite(value) ? value : 0))
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, Number.isFinite(value) ? value : min))
+}
 
 function clampBeamCount(value: number): number {
   const rounded = Math.round(Number.isFinite(value) ? value : CINEMA2_AFTERHOURS_MIN_BEAMS)
@@ -95,8 +133,8 @@ export function resolveCinema2AfterhoursCadenceIdentity(
 
 /**
  * Stateless, event-keyed Show Planner. Its decisions are reconstructable from
- * authored settings, canonical structure, and the engine-owned random service;
- * frame order never advances a private random stream.
+ * authored settings, canonical structure, resolved significance, and the
+ * engine-owned random service; frame order never advances a private stream.
  */
 export function planCinema2AfterhoursShow(
   settings: Readonly<Cinema2AfterhoursShowPlannerSettings>,
@@ -105,58 +143,121 @@ export function planCinema2AfterhoursShow(
 ): Readonly<Cinema2AfterhoursShowPlan> {
   const authoredBeamCount = clampBeamCount(settings.beamCount)
   const cadenceIdentity = resolveCinema2AfterhoursCadenceIdentity(settings.patternChange, structure)
+  const performance = normalizedPerformance(structure.performance)
+  const peak = Math.max(performance.impact, performance.dropAccent)
+  const dropStructure = performance.dropAccent
+  const sectionStructure = performance.sectionAccent * 0.82
+  const phraseStructure = performance.phraseAccent * 0.58
+  const structuralAccent = Math.max(dropStructure, sectionStructure, phraseStructure)
 
-  if (!settings.autoPerformance) {
-    return Object.freeze({
-      topologyId: settings.pattern,
-      variationKey: `manual:${settings.pattern}:${cadenceIdentity}`,
-      cadenceIdentity,
-      beamCount: authoredBeamCount,
-      symmetry: settings.symmetry,
-      sideLasers: settings.sideLasers,
-      topLasers: settings.topLasers,
-      transitionIntent: 'smooth' as const,
-    })
+  let topologyId = settings.pattern
+  if (settings.autoPerformance) {
+    const peakIdentity = structure.dropIdentity
+      ? `${safeIdentity(structure.sourceIdentity, 'source:unknown')}:drop:${structure.dropIdentity}`
+      : cadenceIdentity
+    if (peak >= 0.72 && performance.dropAccent >= 0.35) {
+      const contrast = sample(random, peakIdentity, 'peak-contrast')
+      if (contrast < 0.24) topologyId = 'sparseArchitecture'
+      else {
+        const denseIndex = Math.min(
+          DENSE_PEAK_TOPOLOGIES.length - 1,
+          Math.floor(sample(random, peakIdentity, 'peak-dense-family') * DENSE_PEAK_TOPOLOGIES.length),
+        )
+        topologyId = DENSE_PEAK_TOPOLOGIES[denseIndex]!
+      }
+    } else {
+      const topologyIndex = Math.min(
+        TOPOLOGY_COUNT - 1,
+        Math.floor(sample(random, cadenceIdentity, 'topology-family') * TOPOLOGY_COUNT),
+      )
+      topologyId = CINEMA2_AFTERHOURS_TOPOLOGY_IDS[topologyIndex]!
+    }
   }
 
-  const topologyIndex = Math.min(
-    TOPOLOGY_COUNT - 1,
-    Math.floor(sample(random, cadenceIdentity, 'topology-family') * TOPOLOGY_COUNT),
-  )
-  const topologyId = CINEMA2_AFTERHOURS_TOPOLOGY_IDS[topologyIndex]!
+  const sideRecruitment = settings.autoPerformance
+    ? settings.sideLasers
+      || topologyId === 'splitWings'
+      || topologyId === 'crossCanopy'
+      || topologyId === 'fullRig'
+      || performance.snareAccent >= 0.45
+      || performance.downbeatAccent >= 0.62
+      || sample(random, cadenceIdentity, 'recruit-side') >= 0.46
+    : settings.sideLasers
+  const topRecruitment = settings.autoPerformance
+    ? settings.topLasers
+      || topologyId === 'chevronRoof'
+      || topologyId === 'radialCrown'
+      || topologyId === 'fullRig'
+      || performance.snareAccent >= 0.58
+      || performance.downbeatAccent >= 0.5
+      || sample(random, cadenceIdentity, 'recruit-top') >= 0.58
+    : settings.topLasers
 
-  // Auto Performance may recruit installed banks, but authored toggles are only
-  // read as starting authority and are never mutated. High-capacity topologies
-  // receive broader bank authority; quieter/sparser topology can stay restrained.
-  const sideRecruitment = settings.sideLasers
-    || topologyId === 'splitWings'
-    || topologyId === 'crossCanopy'
-    || topologyId === 'fullRig'
-    || sample(random, cadenceIdentity, 'recruit-side') >= 0.46
-  const topRecruitment = settings.topLasers
-    || topologyId === 'chevronRoof'
-    || topologyId === 'radialCrown'
-    || topologyId === 'fullRig'
-    || sample(random, cadenceIdentity, 'recruit-top') >= 0.58
-
-  // Density is a runtime-resolved choice below the user's Beam Count ceiling.
-  // The sparse family keeps its renderer/domain cap; no planner value can raise
-  // the authored simultaneous-beam maximum.
-  const density = 0.62 + sample(random, cadenceIdentity, 'beam-density') * 0.38
+  // Density always stays under the user's hard Beam Count ceiling. Vocals open
+  // negative space while peak dense families may approach, never exceed, it.
+  const randomDensity = 0.68 + sample(random, cadenceIdentity, 'beam-density') * 0.32
+  const vocalDensity = 1 - performance.vocalPresence * 0.46
+  const buildDensity = 1 - performance.build * 0.1
+  const peakDensity = peak >= 0.72 && topologyId !== 'sparseArchitecture' ? 0.96 : randomDensity
   const beamCount = Math.max(
     CINEMA2_AFTERHOURS_MIN_BEAMS,
-    Math.min(authoredBeamCount, Math.round(authoredBeamCount * density)),
+    Math.min(authoredBeamCount, Math.round(authoredBeamCount * peakDensity * vocalDensity * buildDensity)),
   )
+
+  const spreadScale = clamp(1 - performance.build * 0.36 + peak * 0.2, 0.56, 1.08)
+  const motionScale = clamp(
+    0.72 + performance.intensity * 0.28 + performance.build * 0.24 + peak * 0.18 - performance.vocalPresence * 0.42,
+    0.22,
+    1.25,
+  )
+
+  const blackoutKind = dropStructure >= sectionStructure && dropStructure >= phraseStructure
+    ? 'drop' as const
+    : sectionStructure >= phraseStructure
+      ? 'section' as const
+      : 'phrase' as const
+  const blackoutIdentity = blackoutKind === 'drop'
+    ? structure.dropIdentity ?? cadenceIdentity
+    : blackoutKind === 'section'
+      ? structure.sectionIdentity ?? cadenceIdentity
+      : structure.phraseIdentity ?? cadenceIdentity
+  const blackoutGateThreshold = blackoutKind === 'drop' ? 0.76 : blackoutKind === 'section' ? 0.84 : 0.9
+  const blackoutGate = structuralAccent >= 0.42
+    && sample(random, `blackout:${blackoutKind}:${blackoutIdentity}`, 'structural-blackout') >= blackoutGateThreshold
+  const blackout = blackoutGate ? clamp01(structuralAccent * (0.52 + peak * 0.34)) : 0
 
   return Object.freeze({
     topologyId,
-    variationKey: `auto:${topologyId}:${cadenceIdentity}`,
+    variationKey: `${settings.autoPerformance ? 'auto' : 'manual'}:${topologyId}:${cadenceIdentity}`,
     cadenceIdentity,
     beamCount,
     symmetry: settings.symmetry,
     sideLasers: sideRecruitment,
     topLasers: topRecruitment,
-    transitionIntent: structure.hardCutIntent ? 'hardCut' as const : 'smooth' as const,
+    transitionIntent: settings.autoPerformance && structure.hardCutIntent ? 'hardCut' as const : 'smooth' as const,
+    spreadScale,
+    motionScale,
+    bottomIntensity: clamp(1 + performance.kickAccent * 0.38 + performance.downbeatAccent * 0.14, 0.35, 1.5),
+    sideIntensity: clamp(1 + performance.snareAccent * 0.34 + performance.downbeatAccent * 0.16, 0.35, 1.5),
+    topIntensity: clamp(1 + performance.snareAccent * 0.3 + performance.downbeatAccent * 0.2, 0.35, 1.5),
+    blackout,
+  })
+}
+
+function normalizedPerformance(
+  intent: Readonly<Cinema2AfterhoursPerformanceIntent> | undefined,
+): Required<Cinema2AfterhoursPerformanceIntent> {
+  return Object.freeze({
+    intensity: clamp01(intent?.intensity),
+    build: clamp01(intent?.build),
+    impact: clamp01(intent?.impact),
+    vocalPresence: clamp01(intent?.vocalPresence),
+    kickAccent: clamp01(intent?.kickAccent),
+    snareAccent: clamp01(intent?.snareAccent),
+    downbeatAccent: clamp01(intent?.downbeatAccent),
+    phraseAccent: clamp01(intent?.phraseAccent),
+    sectionAccent: clamp01(intent?.sectionAccent),
+    dropAccent: clamp01(intent?.dropAccent),
   })
 }
 

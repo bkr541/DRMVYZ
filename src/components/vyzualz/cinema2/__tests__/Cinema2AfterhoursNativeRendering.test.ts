@@ -44,6 +44,16 @@ const BASE_PARAMETERS: Record<string, Cinema2JsonValue> = {
   motionAmount: 0.55,
   patternChange: 'off',
   blackoutAmount: 0.25,
+  directorIntensity: 0,
+  directorBuild: 0,
+  directorImpact: 0,
+  vocalPresence: 0,
+  kickAccent: 0,
+  snareAccent: 0,
+  downbeatAccent: 0,
+  phraseAccent: 0,
+  sectionAccent: 0,
+  dropAccent: 0,
 }
 
 class TestResources implements Cinema2ModuleResourceFacet {
@@ -143,6 +153,25 @@ function frame(options: Partial<Cinema2ModuleFrameReadContext> & { timeSec?: num
     audio: options.audio ?? null,
     director: options.director ?? null,
   }
+}
+
+
+function beatAudio(timeSec: number, discontinuity = false) {
+  return {
+    upstream: { timeSec },
+    discontinuity: { occurred: discontinuity, reason: discontinuity ? 'seek' : null, generation: discontinuity ? 2 : 1 },
+    rhythm: {
+      beat: { id: 'beat-stable', strength: 1 },
+      bpm: { available: true, value: 120 },
+      beatIndex: { available: true, value: 8 },
+      beatPhase: { available: true, value: 0 },
+      barIndex: { available: true, value: 2 },
+    },
+    structure: {
+      analyzedPhrases: { available: false, value: null },
+      semanticMoments: { available: false, value: null },
+    },
+  } as never
 }
 
 function camera(aspect = 16 / 9, x = 0): Cinema2CameraFrame {
@@ -346,4 +375,38 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
     expect(harness.gl.__calls.deletedBuffers).toBe(2)
     expect(harness.gl.__calls.deletedVertexArrays).toBe(1)
   })
+
+  it('deduplicates repeated Trigger event IDs, respects Pulse Amount, and resets pulse state on discontinuity', () => {
+    const harness = createHarness({ beamCount: 2, symmetry: false, motionAmount: 0, pulseAmount: 1, pulseDecay: 1, trigger: 'beat' })
+    const first = frame({ frameId: 1, timeSec: 1, audio: beatAudio(1) })
+    harness.instance.lifecycle.update({ frame: first, parameters: harness.parameterFacet, targets: harness.targetFacet })
+    execute(harness, first)
+    const firstUpload = lastMockArgument(harness.gl.bufferSubData, 2) as Float32Array
+    const firstIntensity = firstUpload[10]!
+
+    const repeated = frame({ frameId: 2, timeSec: 1.4, audio: beatAudio(1.4) })
+    harness.instance.lifecycle.update({ frame: repeated, parameters: harness.parameterFacet, targets: harness.targetFacet })
+    execute(harness, repeated)
+    const repeatedUpload = lastMockArgument(harness.gl.bufferSubData, 2) as Float32Array
+    const repeatedIntensity = repeatedUpload[10]!
+    expect(repeatedIntensity).toBeLessThan(firstIntensity)
+
+    harness.parameters.pulseAmount = 0
+    const pulseDisabled = frame({ frameId: 3, timeSec: 1.45, audio: beatAudio(1.45) })
+    harness.instance.lifecycle.update({ frame: pulseDisabled, parameters: harness.parameterFacet, targets: harness.targetFacet })
+    execute(harness, pulseDisabled)
+    const disabledUpload = lastMockArgument(harness.gl.bufferSubData, 2) as Float32Array
+    expect(disabledUpload[10]!).toBeLessThan(firstIntensity)
+
+    harness.parameters.pulseAmount = 1
+    const seek = frame({ frameId: 4, timeSec: 1.5, audio: beatAudio(1.5, true) })
+    harness.instance.lifecycle.update({ frame: seek, parameters: harness.parameterFacet, targets: harness.targetFacet })
+    execute(harness, seek)
+    const seekUpload = lastMockArgument(harness.gl.bufferSubData, 2) as Float32Array
+    expect(seekUpload[10]!).toBeGreaterThan(repeatedIntensity)
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
 })

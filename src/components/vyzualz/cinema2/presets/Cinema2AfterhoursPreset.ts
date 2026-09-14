@@ -5,6 +5,8 @@ import {
   cinema2Ref,
   cinema2StableId,
   type Cinema2CameraId,
+  type Cinema2ChoreographyActionId,
+  type Cinema2ChoreographyRuleId,
   type Cinema2LayerId,
   type Cinema2ModuleId,
   type Cinema2NativePresetManifest,
@@ -58,6 +60,38 @@ const AFTERHOURS_SCENE_PASS_ID = cinema2StableId<Cinema2RenderPassId>('afterhour
 const AFTERHOURS_COLOR_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('afterhours-scene-color')
 const AFTERHOURS_DEPTH_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('afterhours-scene-depth')
 
+
+const choreographyRuleId = (id: string) => cinema2StableId<Cinema2ChoreographyRuleId>(id)
+const choreographyActionId = (id: string) => cinema2StableId<Cinema2ChoreographyActionId>(id)
+
+const AFTERHOURS_DIRECTOR_INTENSITY_RULE_ID = choreographyRuleId('afterhours-director-intensity')
+const AFTERHOURS_DIRECTOR_BUILD_RULE_ID = choreographyRuleId('afterhours-director-build')
+const AFTERHOURS_DIRECTOR_IMPACT_RULE_ID = choreographyRuleId('afterhours-director-impact')
+const AFTERHOURS_VOCAL_RULE_ID = choreographyRuleId('afterhours-vocal-restraint')
+const AFTERHOURS_KICK_RULE_ID = choreographyRuleId('afterhours-kick-bank-accent')
+const AFTERHOURS_SNARE_RULE_ID = choreographyRuleId('afterhours-snare-bank-accent')
+const AFTERHOURS_DOWNBEAT_RULE_ID = choreographyRuleId('afterhours-downbeat-accent')
+const AFTERHOURS_PHRASE_RULE_ID = choreographyRuleId('afterhours-phrase-structure')
+const AFTERHOURS_SECTION_RULE_ID = choreographyRuleId('afterhours-section-structure')
+const AFTERHOURS_DROP_RULE_ID = choreographyRuleId('afterhours-drop-structure')
+
+const moduleContinuousAction = (id: string, property: string) => Object.freeze({
+  id: choreographyActionId(id),
+  target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_AFTERHOURS_MODULE_ID), property }),
+  operation: 'replace' as const,
+  value: 1,
+})
+
+const moduleEnvelopeAction = (id: string, property: string, hold: number, release: number) => Object.freeze({
+  id: choreographyActionId(id),
+  target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_AFTERHOURS_MODULE_ID), property }),
+  operation: 'envelope' as const,
+  value: 1,
+  composition: 'replace' as const,
+  envelope: Object.freeze({ attack: 0, hold, release, unit: 'seconds' as const }),
+  retrigger: 'restart' as const,
+})
+
 const COLOR_MODE_OPTIONS = Object.freeze([
   Object.freeze({ value: 'manual', label: 'Manual' }),
   Object.freeze({ value: 'auto', label: 'Auto' }),
@@ -106,15 +140,16 @@ const ACCENT_COLOR = Object.freeze([1, 1, 1, 1] as const)
 const BACKGROUND_COLOR = Object.freeze([0, 0, 0, 1] as const)
 
 /**
- * Stage 3 production manifest for the independent Cinema 2.0 Afterhours keeper.
- * Musical show planning, camera choreography and trails intentionally remain
- * outside this manifest until their assigned migration stages.
+ * Stage 5 production manifest for the independent Cinema 2.0 Afterhours keeper.
+ * Shared Audio Intelligence, Visual Director significance, and declarative
+ * choreography drive the Show Planner. Camera choreography and engine trails
+ * remain reserved for their later migration stages.
  */
 export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_AFTERHOURS_PRESET_ID,
-  revision: 1,
+  revision: 2,
   metadata: Object.freeze({
     name: 'Afterhours 2.0',
     description: 'Native Cinema 2.0 world-space DJ laser rig with fixed 3D fixtures, disciplined topology, real symmetry, and renderer-owned atmosphere.',
@@ -125,6 +160,16 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
     Object.freeze({ id: 'render.depth' as const, requirement: 'required' as const, purpose: 'Depth-tested world-space laser geometry.' }),
     Object.freeze({ id: 'scene.3d' as const, requirement: 'required' as const, purpose: 'World-space 32-fixture stage rig and laser field.' }),
     Object.freeze({ id: 'camera.world' as const, requirement: 'required' as const, purpose: 'Shared final Cinema 2.0 perspective camera frame.' }),
+    Object.freeze({ id: 'audio.transport' as const, requirement: 'optional' as const, purpose: 'Pause/source lifecycle and transport-safe non-musical motion.' }),
+    Object.freeze({ id: 'music.beat' as const, requirement: 'optional' as const, purpose: 'Beat, beat2/beat4 trigger routing and BPM-synced scanner phase.' }),
+    Object.freeze({ id: 'music.bar' as const, requirement: 'optional' as const, purpose: 'Bar and true bar4/bar8 trigger routing.' }),
+    Object.freeze({ id: 'music.rhythm-events' as const, requirement: 'optional' as const, purpose: 'Kick/snare fixture-family accents and Trigger routing.' }),
+    Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Broader structural bank accents and Trigger routing.' }),
+    Object.freeze({ id: 'music.phrase' as const, requirement: 'optional' as const, purpose: 'Phrase-level structural accents and Trigger routing.' }),
+    Object.freeze({ id: 'music.section' as const, requirement: 'optional' as const, purpose: 'Section-transition structural accents.' }),
+    Object.freeze({ id: 'music.drop' as const, requirement: 'optional' as const, purpose: 'Drop structure, peak topology selection, and Trigger routing.' }),
+    Object.freeze({ id: 'music.vocal-presence' as const, requirement: 'optional' as const, purpose: 'Vocal restraint and negative-space management.' }),
+    Object.freeze({ id: 'visual-director.significance' as const, requirement: 'optional' as const, purpose: 'Generic intensity, build, impact, and transition significance.' }),
   ]),
   parameters: Object.freeze([
     Object.freeze({
@@ -193,14 +238,14 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
     Object.freeze({
       id: CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID,
       label: 'Auto Performance', type: 'boolean' as const, defaultValue: false,
-      description: 'Grants broader topology and bank authority to the Stage 4 show planner. Stage 3 remains manually driven.',
+      description: 'Grants broader topology and bank authority to the Cinema 2.0 show planner; when off, the authored Pattern and bank authorizations remain authoritative.',
       section: 'Design', group: 'Pattern', order: 31,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
       id: CINEMA2_AFTERHOURS_PATTERN_CHANGE_ID,
       label: 'Pattern Change', type: 'enum' as const, defaultValue: 'off', options: PATTERN_CHANGE_OPTIONS,
-      description: 'Authored cadence consumed by the Stage 4 show planner.',
+      description: 'Authored cadence consumed by the deterministic Cinema 2.0 show planner.',
       section: 'Design', group: 'Pattern', order: 32,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
@@ -231,7 +276,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
     Object.freeze({
       id: CINEMA2_AFTERHOURS_BPM_SYNC_ID,
       label: 'BPM Sync', type: 'boolean' as const, defaultValue: true,
-      description: 'Selects the Stage 4/5 musical motion policy without fabricating timing in Stage 3.',
+      description: 'Uses canonical Cinema 2.0 music timing for scanner motion when enabled; never fabricates a private beat clock.',
       section: 'React', group: 'Reactivity', order: 100,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
@@ -256,7 +301,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
     Object.freeze({
       id: CINEMA2_AFTERHOURS_BLACKOUT_AMOUNT_ID,
       label: 'Blackout Amount', type: 'float' as const, defaultValue: 0.25, min: 0, max: 1, step: 0.01,
-      description: 'Ceiling for structural blackout authority used by later musical choreography.',
+      description: 'Ceiling for sparse phrase/section/drop structural blackout authority.',
       section: 'React', group: 'Structure', order: 110,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
@@ -293,6 +338,18 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
         motionAmount: 0.55,
         patternChange: 'off',
         blackoutAmount: 0.25,
+        // Internal Target Runtime / Choreography inputs. These are deliberately
+        // not user-facing parameters or persistent preset state.
+        directorIntensity: 0,
+        directorBuild: 0,
+        directorImpact: 0,
+        vocalPresence: 0,
+        kickAccent: 0,
+        snareAccent: 0,
+        downbeatAccent: 0,
+        phraseAccent: 0,
+        sectionAccent: 0,
+        dropAccent: 0,
       }),
       parameterBindings: Object.freeze({
         pattern: cinema2Ref(CINEMA2_AFTERHOURS_PATTERN_ID),
@@ -371,6 +428,70 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
       }),
     }),
   ]),
+  choreography: Object.freeze({
+    rules: Object.freeze([
+      Object.freeze({
+        id: AFTERHOURS_DIRECTOR_INTENSITY_RULE_ID,
+        priority: 20,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.intensity' as const, smoothingMs: 90 }),
+        actions: Object.freeze([moduleContinuousAction('afterhours-director-intensity-map', 'directorIntensity')]),
+      }),
+      Object.freeze({
+        id: AFTERHOURS_DIRECTOR_BUILD_RULE_ID,
+        priority: 21,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.build' as const, smoothingMs: 110 }),
+        actions: Object.freeze([moduleContinuousAction('afterhours-director-build-map', 'directorBuild')]),
+      }),
+      Object.freeze({
+        id: AFTERHOURS_DIRECTOR_IMPACT_RULE_ID,
+        priority: 22,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.impact' as const, smoothingMs: 35 }),
+        actions: Object.freeze([moduleContinuousAction('afterhours-director-impact-map', 'directorImpact')]),
+      }),
+      Object.freeze({
+        id: AFTERHOURS_VOCAL_RULE_ID,
+        priority: 23,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'music.vocal-presence' as const, path: 'audio.features.vocalPresence' as const, smoothingMs: 130 }),
+        actions: Object.freeze([moduleContinuousAction('afterhours-vocal-presence-map', 'vocalPresence')]),
+      }),
+      Object.freeze({
+        id: AFTERHOURS_KICK_RULE_ID,
+        priority: 30,
+        source: Object.freeze({ signal: 'kick' as const, capability: 'music.rhythm-events' as const }),
+        actions: Object.freeze([moduleEnvelopeAction('afterhours-kick-envelope', 'kickAccent', 0.025, 0.18)]),
+      }),
+      Object.freeze({
+        id: AFTERHOURS_SNARE_RULE_ID,
+        priority: 31,
+        source: Object.freeze({ signal: 'snare' as const, capability: 'music.rhythm-events' as const }),
+        actions: Object.freeze([moduleEnvelopeAction('afterhours-snare-envelope', 'snareAccent', 0.025, 0.22)]),
+      }),
+      Object.freeze({
+        id: AFTERHOURS_DOWNBEAT_RULE_ID,
+        priority: 32,
+        source: Object.freeze({ signal: 'downbeat' as const, capability: 'music.downbeat' as const }),
+        actions: Object.freeze([moduleEnvelopeAction('afterhours-downbeat-envelope', 'downbeatAccent', 0.04, 0.28)]),
+      }),
+      Object.freeze({
+        id: AFTERHOURS_PHRASE_RULE_ID,
+        priority: 40,
+        source: Object.freeze({ signal: 'phrase' as const, capability: 'music.phrase' as const }),
+        actions: Object.freeze([moduleEnvelopeAction('afterhours-phrase-envelope', 'phraseAccent', 0.06, 0.55)]),
+      }),
+      Object.freeze({
+        id: AFTERHOURS_SECTION_RULE_ID,
+        priority: 41,
+        source: Object.freeze({ signal: 'section-change' as const, capability: 'music.section' as const }),
+        actions: Object.freeze([moduleEnvelopeAction('afterhours-section-envelope', 'sectionAccent', 0.075, 0.65)]),
+      }),
+      Object.freeze({
+        id: AFTERHOURS_DROP_RULE_ID,
+        priority: 50,
+        source: Object.freeze({ signal: 'drop' as const, capability: 'music.drop' as const }),
+        actions: Object.freeze([moduleEnvelopeAction('afterhours-drop-envelope', 'dropAccent', 0.1, 0.8)]),
+      }),
+    ]),
+  }),
   environment: Object.freeze({
     backgroundColor: BACKGROUND_COLOR,
     exposure: 1,

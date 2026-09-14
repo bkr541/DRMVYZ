@@ -4,7 +4,10 @@ import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUti
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
 import { createCinema2InspectorModel } from '../parameters/Cinema2InspectorModel'
-import { CINEMA2_AFTERHOURS_NATIVE_MODULE_TYPE_ID } from '../modules/Cinema2AfterhoursNativeModule'
+import {
+  CINEMA2_AFTERHOURS_NATIVE_MODULE_TYPE_ID,
+  CINEMA2_AFTERHOURS_NATIVE_PARAMETER_NAMES,
+} from '../modules/Cinema2AfterhoursNativeModule'
 import { CINEMA2_AFTERHOURS_TOPOLOGY_IDS } from '../modules/afterhours/Cinema2AfterhoursDomain'
 import {
   CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID,
@@ -78,7 +81,7 @@ function targetFor(plan: ReturnType<typeof compileAfterhours>, kind: string, own
   return target
 }
 
-describe('Cinema 2.0 Afterhours 2.0 Stage 3 production preset', () => {
+describe('Cinema 2.0 Afterhours 2.0 Stage 5 production preset', () => {
   it('registers as a first-party keeper and passes the shared authoring/compiler gates', () => {
     const declaration = CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS.find(candidate => candidate.manifest.id === CINEMA2_AFTERHOURS_PRESET_ID)
     expect(declaration).toMatchObject({ role: 'keeper' })
@@ -103,11 +106,13 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 3 production preset', () => {
     const module = plan.manifest.modules?.[0]
     expect(module).toBeDefined()
     const bindings = module?.parameterBindings ?? {}
-    expect(Object.keys(bindings).sort()).toEqual(Object.keys(module?.parameters ?? {}).sort())
+    expect(Object.keys(module?.parameters ?? {}).sort()).toEqual([...CINEMA2_AFTERHOURS_NATIVE_PARAMETER_NAMES].sort())
 
-    for (const [property, binding] of Object.entries(bindings)) {
+    for (const property of CINEMA2_AFTERHOURS_NATIVE_PARAMETER_NAMES) {
       const moduleTarget = targetFor(plan, 'module', CINEMA2_AFTERHOURS_MODULE_ID, property)
-      expect(moduleTarget.parameterId, property).toBe(binding.$ref)
+      const binding = bindings[property]
+      if (binding) expect(moduleTarget.parameterId, property).toBe(binding.$ref)
+      else expect(moduleTarget.parameterId, `${property} is internal choreography state`).toBeNull()
     }
     expect(targetFor(plan, 'environment', 'root', 'backgroundColor').parameterId).toBe(CINEMA2_AFTERHOURS_BACKGROUND_ID)
 
@@ -115,8 +120,32 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 3 production preset', () => {
     expect(pattern?.options.map(option => option.value)).toEqual(CINEMA2_AFTERHOURS_TOPOLOGY_IDS)
     expect(plan.parameters.authoredDefaults[CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID]).toBe(false)
     expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_AFTERHOURS_BEAM_COUNT_ID)).toMatchObject({ min: 2, max: 16, step: 1 })
-    expect(plan.manifest.choreography).toBeUndefined()
+    expect(plan.manifest.choreography?.rules).toHaveLength(10)
     expect(plan.capabilities.required.some(capability => capability.startsWith('music.'))).toBe(false)
+    expect(plan.capabilities.optional).toEqual(expect.arrayContaining([
+      'audio.transport',
+      'music.beat',
+      'music.bar',
+      'music.rhythm-events',
+      'music.downbeat',
+      'music.phrase',
+      'music.section',
+      'music.drop',
+      'music.vocal-presence',
+      'visual-director.significance',
+    ]))
+    expect(plan.capabilities.unavailableOptional).toEqual(expect.arrayContaining([
+      'audio.transport',
+      'music.beat',
+      'music.bar',
+      'music.rhythm-events',
+      'music.downbeat',
+      'music.phrase',
+      'music.section',
+      'music.drop',
+      'music.vocal-presence',
+      'visual-director.significance',
+    ]))
   })
 
   it('uses the shared Inspector projection with coherent groups and no preset-specific settings surface', () => {

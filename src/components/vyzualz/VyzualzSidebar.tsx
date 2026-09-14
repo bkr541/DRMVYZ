@@ -46,15 +46,14 @@ export function VyzualzSidebar({
           aria-current={appView === 'react' || !appView ? 'page' : undefined}
         >
           <span className="az-nav-fill" aria-hidden="true" />
-          <svg viewBox="0 0 52 52" width="28" height="28" fill="none">
-            <g fill="currentColor">
-              <path d="M50,6c0-2.2-1.8-4-4-4H6C3.8,2,2,3.8,2,6v27.7c0,2.2,1.8,4,4,4h40c2.2,0,4-1.8,4-4V6z M44,30.2
-                c0,0.8-0.7,1.5-1.5,1.5h-33C8.7,31.7,8,31,8,30.2V9.5C8,8.7,8.7,8,9.5,8h33C43.3,8,44,8.7,44,9.5V30.2z M19,44c-2.2,0-4,1.8-4,4
-                v0.5c0,0.8,0.7,1.5,1.5,1.5h19c0.8,0,1.5-0.7,1.5-1.5V48c0-2.2-1.8-4-4-4H19z"/>
-            </g>
-            <path d="M18,26.7h-4.1c-0.6,0-1-0.5-1-1V14c0-0.6,0.4-1,1-1H18c0.5,0,1,0.4,1,1v11.7C19,26.3,18.5,26.7,18,26.7z" fill="currentColor" fillOpacity="0.85"/>
-            <path d="M38.1,26.7H24.8c-0.6,0-1-0.4-1-1V14c0-0.6,0.4-1,1-1h13.3c0.5,0,1,0.4,1,1v11.7
-              C39.1,26.3,38.6,26.7,38.1,26.7z" fill="currentColor" fillOpacity="0.85"/>
+          <svg viewBox="0 0 16 16" width="28" height="28" fill="none">
+            <path d="M1 11a1 1 0 1 0 2 0 1 1 0 1 0 -2 0" fill="currentColor"/>
+            <path d="M6.75 15c-1.5293 0 -2.97425 -0.74335 -3.86525 -1.98855l0.81325 -0.5819C4.40175 13.4129 5.5426 14 6.75 14c1.9845 0 3.6289 -1.5501 3.74365 -3.52895l0.9983 0.05785c-0.1454 2.50715 -2.22825 4.47105 -4.74195 4.47105Z" fill="currentColor"/>
+            <path d="M13 11.5a1 1 0 1 0 2 0 1 1 0 1 0 -2 0" fill="currentColor"/>
+            <path d="m15.32055 9.5474 -0.96215 -0.27245c0.094 -0.3319 0.1416 -0.67675 0.1416 -1.02495 0 -2.06775 -1.68225 -3.75 -3.75 -3.75 -0.53845 0 -1.05785 0.1115 -1.5438 0.3314l-0.41235 -0.911C9.4103 3.6414 10.0684 3.5 10.75005 3.5c2.61915 0 4.75 2.13085 4.75 4.75 0 0.44035 -0.0604 0.87685 -0.17945 1.2974Z" fill="currentColor"/>
+            <path d="m10.20705 7.29295 -1.5 -1.5C8.51835 5.604 8.2671 5.5 8 5.5s-0.5183 0.104 -0.70715 0.29295l-1.4999 1.5C5.598 7.48775 5.5 7.7439 5.5 8s0.098 0.5122 0.29295 0.70705l1.4999 1.5C7.4817 10.396 7.7329 10.5 8 10.5s0.5183 -0.104 0.70705 -0.29295l1.5 -1.5C10.402 8.51225 10.5 8.2561 10.5 8s-0.098 -0.5122 -0.29295 -0.70705ZM8 9.5l-1.5 -1.5 1.5 -1.5 1.4999 1.5L8 9.5Z" fill="currentColor"/>
+            <path d="M7 1.5a1 1 0 1 0 2 0 1 1 0 1 0 -2 0" fill="currentColor"/>
+            <path d="M4.0127 9.94105C2.46275 9.11215 1.5 7.50625 1.5 5.75c0 -2.51355 1.96385 -4.5965 4.47105 -4.74195l0.05785 0.9983C4.05 2.1212 2.49995 3.76565 2.49995 5.75c0 1.3866 0.7604 2.6546 1.9844 3.3092l-0.4717 0.88185Z" fill="currentColor"/>
           </svg>
           <span className="az-nav-label">React</span>
         </button>
@@ -77,14 +76,11 @@ export function VyzualzSidebar({
           disabled={showManagerUnavailable}
         >
           <span className="az-nav-fill" aria-hidden="true" />
-          <svg viewBox="0 0 28 28" width="28" height="28" fill="none" aria-hidden="true">
-            <rect x="3.5" y="4" width="21" height="20" rx="2.5" fill="#0d1820" />
-            <rect x="3.5" y="4" width="21" height="20" rx="2.5" stroke="currentColor" strokeWidth="1.1" strokeOpacity="0.48" />
-            <path d="M10 4v20M18 4v20" stroke="currentColor" strokeWidth="1" strokeOpacity="0.3" />
-            <path d="M3.5 15.5h21" stroke="currentColor" strokeWidth="1" strokeOpacity="0.3" />
-            <rect x="11.5" y="7" width="5" height="5" rx="1" fill="currentColor" fillOpacity="0.82" />
-            <path d="M5.8 19h2.2M11.2 19h2.2M16.6 19h2.2M22 19h.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-            <path d="M6 21.5h16" stroke="currentColor" strokeWidth="1" strokeOpacity="0.45" />
+          <svg viewBox="0 0 16 16" width="28" height="28" fill="none" aria-hidden="true">
+            <path d="M13 6c-1.10455 0 -2 0.8954 -2 2s0.89545 2 2 2 2 -0.89545 2 -2 -0.8954 -2 -2 -2Zm0 3c-0.5514 0 -1 -0.4486 -1 -1s0.4486 -1 1 -1 1 0.4486 1 1 -0.4486 1 -1 1Z" fill="currentColor"/>
+            <path d="M7.5 10.5v1h1.29295l-1.1504 1.1504C7.447 12.55665 7.2308 12.5 6.99995 12.5c-0.82715 0 -1.5 0.67285 -1.5 1.5s0.67285 1.5 1.5 1.5 1.5 -0.67285 1.5 -1.5c0 -0.23095 -0.05675 -0.447 -0.15025 -0.6426l1.15025 -1.1504v1.29295h1v-3h-3Zm-0.5 4c-0.27575 0 -0.5 -0.22435 -0.5 -0.5s0.22425 -0.5 0.5 -0.5 0.5 0.22435 0.5 0.5 -0.22425 0.5 -0.5 0.5Z" fill="currentColor"/>
+            <path d="M5.70715 5.70705 5 6.41435l1.0858 1.0857h-2.178c-0.20705 -0.58055 -0.75685 -1 -1.40785 -1 -0.82715 0 -1.5 0.67285 -1.5 1.5s0.67285 1.5 1.5 1.5c0.651 0 1.2008 -0.41945 1.40785 -1h2.178L5 9.58575l0.70715 0.7073L8 8.0001l-2.29285 -2.29295ZM2.5 8.5c-0.27575 0 -0.5 -0.22435 -0.5 -0.5s0.22425 -0.5 0.5 -0.5 0.5 0.22435 0.5 0.5 -0.22425 0.5 -0.5 0.5Z" fill="currentColor"/>
+            <path d="M9.5 2.5v1.29295l-1.15025 -1.1504c0.0935 -0.19555 0.15025 -0.4116 0.15025 -0.6426 0 -0.82715 -0.67285 -1.5 -1.5 -1.5s-1.5 0.67285 -1.5 1.5 0.67285 1.5 1.5 1.5c0.23085 0 0.447 -0.05665 0.6426 -0.1504l1.1504 1.1504h-1.29295v1h3v-3h-1Zm-3 -0.5c0 -0.27565 0.22425 -0.5 0.5 -0.5s0.5 0.22435 0.5 0.5 -0.22425 0.5 -0.5 0.5 -0.5 -0.22435 -0.5 -0.5Z" fill="currentColor"/>
           </svg>
           <span className="az-nav-label">Show Manager</span>
         </button>
@@ -99,14 +95,16 @@ export function VyzualzSidebar({
           aria-current={appView === 'lyrics' ? 'page' : undefined}
         >
           <span className="az-nav-fill" aria-hidden="true" />
-          <svg viewBox="0 0 32 32" width="28" height="28" fill="none">
-            <path d="M27,12.994l0.009,-6.035c-0,-0.53 -0.211,-1.039 -0.586,-1.414c-0.375,-0.375 -0.884,-0.586 -1.414,-0.586c-4.185,0 -13.824,0 -18.009,0c-0.53,0 -1.039,0.211 -1.414,0.586c-0.375,0.375 -0.586,0.884 -0.586,1.414c0,4.184 0,13.817 0,18c-0,0.531 0.211,1.04 0.586,1.415c0.375,0.375 0.884,0.585 1.414,0.585l6,0.039"
-              fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M9.004,10l13.983,0c0.552,0 1,-0.448 1,-1c0,-0.552 -0.448,-1 -1,-1l-13.983,0c-0.552,0 -1,0.448 -1,1c0,0.552 0.448,1 1,1Z" fill="currentColor" fillOpacity="0.85"/>
-            <path d="M9.004,13.994l13.983,0c0.552,0 1,-0.448 1,-1c0,-0.552 -0.448,-1 -1,-1l-13.983,0c-0.552,0 -1,0.448 -1,1c0,0.552 0.448,1 1,1Z" fill="currentColor" fillOpacity="0.85"/>
-            <path d="M9.004,18l5.981,0c0.552,-0 1,-0.448 1,-1c-0,-0.552 -0.448,-1 -1,-1l-5.981,0c-0.552,-0 -1,0.448 -1,1c0,0.552 0.448,1 1,1Z" fill="currentColor" fillOpacity="0.85"/>
-            <path d="M9.004,22.006l5.981,-0c0.552,-0 1,-0.448 1,-1c-0,-0.552 -0.448,-1 -1,-1l-5.981,-0c-0.552,-0 -1,0.448 -1,1c0,0.552 0.448,1 1,1Z" fill="currentColor" fillOpacity="0.85"/>
-            <path d="M18.003,23.922l-0.001,0c-1.105,0 -2.002,0.897 -2.002,2.002c-0,1.105 0.897,2.002 2.002,2.002c1.104,-0 2.001,-0.897 2.001,-2.002l0,-7.122c0,-0 6.001,-0.75 6.001,-0.75l0.003,3.867c-1.105,-0 -2.002,0.897 -2.002,2.002c0,1.104 0.897,2.001 2.002,2.001c1.105,0 2.002,-0.897 2.002,-2.001l-0.006,-7.003c0,-0.286 -0.123,-0.559 -0.338,-0.749c-0.215,-0.19 -0.501,-0.278 -0.786,-0.242l-8,1c-0.5,0.062 -0.876,0.488 -0.876,0.992l0,6.003Z" fill="currentColor"/>
+          <svg viewBox="0 0 16 16" width="28" height="28" fill="none">
+            <path d="M3 11.5h2.5v1H3Z" fill="currentColor"/>
+            <path d="M3 9.5h2.5v1H3Z" fill="currentColor"/>
+            <path d="M6.5 15H2c-0.55 0 -1 -0.45 -1 -1V8.5c0 -0.55 0.45 -1 1 -1h4.5c0.55 0 1 0.45 1 1v5.5c0 0.55 -0.45 1 -1 1zM2 8.5v5.5h4.5V8.5H2z" fill="currentColor"/>
+            <path d="M9.5 1h4v1h-4Z" fill="currentColor"/>
+            <path d="M11 3h4v1h-4Z" fill="currentColor"/>
+            <path d="M11 5h4v1h-4Z" fill="currentColor"/>
+            <path d="M9.5 7h4v1h-4Z" fill="currentColor"/>
+            <path d="M11 9h4v1h-4Z" fill="currentColor"/>
+            <path d="m6 0.5 -0.7 0.7L6.6 2.5H2c-0.55 0 -1 0.45 -1 1v2.5h1V3.5h4.6l-1.3 1.3L6 5.5l2.5 -2.5 -2.5 -2.5z" fill="currentColor"/>
           </svg>
           <span className="az-nav-label">Lyric Manager</span>
         </button>
@@ -121,13 +119,10 @@ export function VyzualzSidebar({
           aria-current={appView === 'media' ? 'page' : undefined}
         >
           <span className="az-nav-fill" aria-hidden="true" />
-          <svg viewBox="0 0 28 28" width="28" height="28" fill="none">
-            <rect x="3.5" y="5" width="21" height="17" rx="2.5" fill="#0d1820" />
-            <rect x="3.5" y="5" width="21" height="17" rx="2.5" stroke="currentColor" strokeWidth="1.2" strokeOpacity="0.5" />
-            <path d="M7.5 18.2l4.1-4.2 3 2.9 2.1-2.1 3.8 3.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-            <circle cx="18.8" cy="10.2" r="1.7" fill="currentColor" fillOpacity="0.8" />
-            <path d="M9 3.5h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeOpacity="0.45" />
-            <path d="M9 23.8h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeOpacity="0.45" />
+          <svg viewBox="0 0 16 16" width="28" height="28" fill="none">
+            <path d="m4.5 9.5 0 3 2.5 -1.5z" fill="currentColor"/>
+            <path d="M5.5 8c1.65 0 3 1.35 3 3s-1.35 3 -3 3 -3 -1.35 -3 -3 1.35 -3 3 -3m0 -1c-2.2 0 -4 1.8 -4 4s1.8 4 4 4 4 -1.8 4 -4 -1.8 -4 -4 -4z" fill="currentColor"/>
+            <path d="M2 3v3h11v7h-2v1h2c0.55 0 1 -0.45 1 -1V3c0 -0.55 -0.45 -1 -1 -1H3c-0.55 0 -1 0.45 -1 1zm1 2V3h10v2H3z" fill="currentColor"/>
           </svg>
           <span className="az-nav-label">Media Manager</span>
         </button>

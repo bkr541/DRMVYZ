@@ -44,7 +44,7 @@ function hashedRandom(): Cinema2AfterhoursRandomSource {
   })
 }
 
-describe('Cinema 2.0 Afterhours 2.0 Stage 4 Show Planner', () => {
+describe('Cinema 2.0 Afterhours 2.0 Stage 5 Show Planner', () => {
   it('keeps authored topology and hard bank authorizations authoritative when Auto Performance is off', () => {
     const plan = planCinema2AfterhoursShow(SETTINGS, STRUCTURE, random())
     expect(plan.topologyId).toBe('wideFan')
@@ -148,4 +148,86 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 4 Show Planner', () => {
     expect(repeated).toEqual(first)
     expect(replayedWithinSameEightBarWindow).toEqual(first)
   })
+
+  it('compresses builds, releases on impact, and lets vocal presence create negative space', () => {
+    const baseline = planCinema2AfterhoursShow(SETTINGS, STRUCTURE, random(0.99))
+    const building = planCinema2AfterhoursShow(
+      SETTINGS,
+      { ...STRUCTURE, performance: { build: 0.9, intensity: 0.7 } },
+      random(0.99),
+    )
+    const impact = planCinema2AfterhoursShow(
+      SETTINGS,
+      { ...STRUCTURE, performance: { build: 0.15, impact: 1, dropAccent: 1 } },
+      random(0.99),
+    )
+    const vocal = planCinema2AfterhoursShow(
+      SETTINGS,
+      { ...STRUCTURE, performance: { vocalPresence: 1, intensity: 0.8 } },
+      random(0.99),
+    )
+
+    expect(building.spreadScale).toBeLessThan(baseline.spreadScale)
+    expect(impact.spreadScale).toBeGreaterThan(building.spreadScale)
+    expect(vocal.beamCount).toBeLessThan(baseline.beamCount)
+    expect(vocal.motionScale).toBeLessThan(baseline.motionScale)
+  })
+
+  it('gives kick and snare meaningfully different fixture-family emphasis', () => {
+    const kick = planCinema2AfterhoursShow(
+      SETTINGS,
+      { ...STRUCTURE, performance: { kickAccent: 1 } },
+      random(0.99),
+    )
+    const snare = planCinema2AfterhoursShow(
+      SETTINGS,
+      { ...STRUCTURE, performance: { snareAccent: 1 } },
+      random(0.99),
+    )
+
+    expect(kick.bottomIntensity).toBeGreaterThan(kick.sideIntensity)
+    expect(kick.bottomIntensity).toBeGreaterThan(kick.topIntensity)
+    expect(snare.sideIntensity).toBeGreaterThan(snare.bottomIntensity)
+    expect(snare.topIntensity).toBeGreaterThan(snare.bottomIntensity)
+  })
+
+  it('chooses deterministic sparse-versus-dense hero drop boundaries only inside Auto Performance authority', () => {
+    const peak = { ...STRUCTURE, performance: { impact: 1, dropAccent: 1 } }
+    const sparse = planCinema2AfterhoursShow({ ...SETTINGS, autoPerformance: true }, peak, random(0.1))
+    const dense = planCinema2AfterhoursShow({ ...SETTINGS, autoPerformance: true }, peak, random(0.5))
+    const manual = planCinema2AfterhoursShow(SETTINGS, peak, random(0.1))
+
+    expect(sparse.topologyId).toBe('sparseArchitecture')
+    expect(['fullRig', 'radialCrown', 'crossCanopy']).toContain(dense.topologyId)
+    expect(manual.topologyId).toBe(SETTINGS.pattern)
+  })
+
+  it('gates blackouts to sparse structural significance instead of kick/snare flicker', () => {
+    const kickOnly = planCinema2AfterhoursShow(
+      SETTINGS,
+      { ...STRUCTURE, performance: { kickAccent: 1, snareAccent: 1 } },
+      random(0.99),
+    )
+    const structuralBelowGate = planCinema2AfterhoursShow(
+      SETTINGS,
+      { ...STRUCTURE, performance: { dropAccent: 1, impact: 1 } },
+      random(0.5),
+    )
+    const structuralAccepted = planCinema2AfterhoursShow(
+      SETTINGS,
+      { ...STRUCTURE, performance: { dropAccent: 1, impact: 1 } },
+      random(0.99),
+    )
+    const phraseAccepted = planCinema2AfterhoursShow(
+      SETTINGS,
+      { ...STRUCTURE, dropIdentity: null, performance: { phraseAccent: 1 } },
+      random(0.99),
+    )
+
+    expect(kickOnly.blackout).toBe(0)
+    expect(structuralBelowGate.blackout).toBe(0)
+    expect(structuralAccepted.blackout).toBeGreaterThan(0)
+    expect(phraseAccepted.blackout).toBeGreaterThan(0)
+  })
+
 })

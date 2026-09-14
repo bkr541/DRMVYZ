@@ -69,6 +69,16 @@ export const CINEMA2_AFTERHOURS_NATIVE_PARAMETER_NAMES = Object.freeze([
   'motionAmount',
   'patternChange',
   'blackoutAmount',
+  'directorIntensity',
+  'directorBuild',
+  'directorImpact',
+  'vocalPresence',
+  'kickAccent',
+  'snareAccent',
+  'downbeatAccent',
+  'phraseAccent',
+  'sectionAccent',
+  'dropAccent',
 ] as const)
 
 const MORPH_DURATION_SEC = 0.34
@@ -115,6 +125,16 @@ interface FrameConfig {
   readonly motionAmount: number
   readonly patternChange: Cinema2AfterhoursPatternChangeId
   readonly blackoutAmount: number
+  readonly directorIntensity: number
+  readonly directorBuild: number
+  readonly directorImpact: number
+  readonly vocalPresence: number
+  readonly kickAccent: number
+  readonly snareAccent: number
+  readonly downbeatAccent: number
+  readonly phraseAccent: number
+  readonly sectionAccent: number
+  readonly dropAccent: number
 }
 
 function validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2ModuleDiagnostic[] {
@@ -145,7 +165,7 @@ function validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2Modu
       diagnostics.push(diagnostic('CINEMA2_AFTERHOURS_COLOR_INVALID', `$.parameters.${property}`, `Afterhours "${property}" must contain four finite values from 0 through 1.`))
     }
   }
-  for (const property of ['spread', 'accentMix', 'atmosphere', 'masterIntensity', 'pulseAmount', 'pulseDecay', 'motionAmount', 'blackoutAmount'] as const) {
+  for (const property of ['spread', 'accentMix', 'atmosphere', 'masterIntensity', 'pulseAmount', 'pulseDecay', 'motionAmount', 'blackoutAmount', 'directorIntensity', 'directorBuild', 'directorImpact', 'vocalPresence', 'kickAccent', 'snareAccent', 'downbeatAccent', 'phraseAccent', 'sectionAccent', 'dropAccent'] as const) {
     if (module.parameters?.[property] !== undefined && !numberInRange(module.parameters[property], 0, 1)) {
       diagnostics.push(diagnostic('CINEMA2_AFTERHOURS_NORMALIZED_PARAMETER_INVALID', `$.parameters.${property}`, `Afterhours "${property}" must be between 0 and 1.`))
     }
@@ -178,6 +198,8 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
     let lastContextGeneration: number | null = null
     let lastViewportKey = ''
     let renderBeams: readonly Cinema2AfterhoursRenderBeam[] = Object.freeze([])
+    let lastTriggerEventId: string | null = null
+    let pulseStartedAtSec = Number.NEGATIVE_INFINITY
 
     const clearTemporalHistory = () => {
       history = []
@@ -188,6 +210,8 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
       transition = null
       settled = new Map()
       renderBeams = Object.freeze([])
+      lastTriggerEventId = null
+      pulseStartedAtSec = Number.NEGATIVE_INFINITY
       clearTemporalHistory()
     }
 
@@ -231,10 +255,17 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
           const sourceReplaced = lastTrackId !== undefined && frame.transport?.trackId !== lastTrackId
           const contextChanged = lastContextGeneration != null && frame.contextGeneration !== lastContextGeneration
           const viewportChanged = lastViewportKey.length > 0 && viewportKey !== lastViewportKey
+          const triggerPreviousTimeSec = discontinuity || backwards || sourceReplaced || contextChanged ? null : lastTimeSec
           if (discontinuity || backwards || sourceReplaced || contextChanged) resetTransientState()
           else if (viewportChanged) clearTemporalHistory()
 
-          const showPlan = planCinema2AfterhoursShow(config, resolveShowPlannerStructure(frame), randomAdapter)
+          const triggerEventId = resolveCinema2AfterhoursTriggerEventIdentity(frame, config.trigger, triggerPreviousTimeSec)
+          if (triggerEventId && triggerEventId !== lastTriggerEventId && frame.transport?.playing !== false && frame.transport?.paused !== true) {
+            lastTriggerEventId = triggerEventId
+            pulseStartedAtSec = timeSec
+          }
+          const pulse = resolveCinema2AfterhoursPulseEnvelope(frame, timeSec, pulseStartedAtSec, config.pulseDecay)
+          const showPlan = planCinema2AfterhoursShow(config, resolveShowPlannerStructure(frame, config), randomAdapter)
           const nextSignature = createGeometrySignature(config, showPlan)
           if (nextSignature !== signature) {
             const nextDescriptors = generateCinema2AfterhoursBeamFrame({
@@ -276,7 +307,7 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
             settled = new Map(transition.to)
             transition = null
           }
-          renderBeams = buildRenderBeams(resolved, frame, timeSec, config.motionAmount)
+          renderBeams = buildRenderBeams(resolved, frame, timeSec, config, showPlan, pulse)
 
           if (timeSec - lastHistorySampleSec >= HISTORY_SAMPLE_INTERVAL_SEC && renderBeams.length > 0) {
             const sample = Object.freeze({ timeSec, beams: cloneRenderBeams(renderBeams) })
@@ -311,8 +342,8 @@ function readFrameConfig(
   const colorMode = source.parameters.get('colorMode') === 'auto' ? 'auto' : 'manual'
   return Object.freeze({
     pattern: isTopology(source.parameters.get('pattern')) ? source.parameters.get('pattern') as Cinema2AfterhoursTopologyId : 'wideFan',
-    // Stage 3 carries this authority through the canonical target path. Stage 4
-    // is responsible for allowing it to choose topology families or rig banks.
+    // Runtime authority is carried through the canonical target path. The Show
+    // Planner broadens topology/bank authority only when Auto Performance is on.
     autoPerformance: booleanValue(source.parameters.get('autoPerformance'), false),
     beamCount: clamp(Math.round(numberValue(source.parameters.get('beamCount'), 8)), CINEMA2_AFTERHOURS_MIN_BEAMS, CINEMA2_AFTERHOURS_MAX_BEAMS),
     symmetry: booleanValue(source.parameters.get('symmetry'), true),
@@ -332,6 +363,16 @@ function readFrameConfig(
     motionAmount: clamp01(numberValue(source.parameters.get('motionAmount'), 0.55)),
     patternChange: isPatternChange(source.parameters.get('patternChange')) ? source.parameters.get('patternChange') as Cinema2AfterhoursPatternChangeId : 'off',
     blackoutAmount: clamp01(numberValue(source.parameters.get('blackoutAmount'), 0.25)),
+    directorIntensity: clamp01(numberValue(source.parameters.get('directorIntensity'), 0)),
+    directorBuild: clamp01(numberValue(source.parameters.get('directorBuild'), 0)),
+    directorImpact: clamp01(numberValue(source.parameters.get('directorImpact'), 0)),
+    vocalPresence: clamp01(numberValue(source.parameters.get('vocalPresence'), 0)),
+    kickAccent: clamp01(numberValue(source.parameters.get('kickAccent'), 0)),
+    snareAccent: clamp01(numberValue(source.parameters.get('snareAccent'), 0)),
+    downbeatAccent: clamp01(numberValue(source.parameters.get('downbeatAccent'), 0)),
+    phraseAccent: clamp01(numberValue(source.parameters.get('phraseAccent'), 0)),
+    sectionAccent: clamp01(numberValue(source.parameters.get('sectionAccent'), 0)),
+    dropAccent: clamp01(numberValue(source.parameters.get('dropAccent'), 0)),
   })
 }
 
@@ -381,25 +422,86 @@ function buildRenderBeams(
   states: ReadonlyMap<string, Readonly<BeamTransitionState>>,
   frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
   timeSec: number,
-  motionAmount: number,
+  config: Readonly<FrameConfig>,
+  showPlan: Readonly<Cinema2AfterhoursShowPlan>,
+  pulse: number,
 ): readonly Cinema2AfterhoursRenderBeam[] {
   const idle = frame.transport?.sourcePresent === false
   const paused = frame.transport?.sourcePresent === true && frame.transport.paused
+  const playing = frame.transport?.sourcePresent === true && frame.transport.playing && !paused
+  const pulseAuthority = resolveCinema2AfterhoursPulseAuthority(pulse, config.pulseAmount)
+  const blackoutScale = clamp01(1 - showPlan.blackout * config.blackoutAmount)
   const result: Cinema2AfterhoursRenderBeam[] = []
   for (const [fixtureId, state] of states) {
-    const target = idle && !paused
-      ? applyIdleSway(state.targetWorld, state.descriptor.scanner.phase, timeSec, motionAmount)
-      : state.targetWorld
+    let target = applyPerformanceSpread(state.targetWorld, showPlan.spreadScale)
+    if (idle && !paused) {
+      target = applyIdleSway(target, state.descriptor.scanner.phase, timeSec, config.motionAmount)
+    } else if (playing) {
+      target = applyPerformanceMotion(target, state.descriptor.scanner.phase, frame, timeSec, config, showPlan, pulseAuthority)
+    }
+    const bankIntensity = state.descriptor.bank === 'bottom'
+      ? showPlan.bottomIntensity
+      : state.descriptor.bank === 'overhead'
+        ? showPlan.topIntensity
+        : showPlan.sideIntensity
+    const intensity = state.descriptor.intensityWeight
+      * bankIntensity
+      * (1 + pulseAuthority * 0.42)
+      * blackoutScale
     result.push(Object.freeze({
       fixtureId,
       originWorld: state.descriptor.originWorld,
       targetWorld: target,
-      intensity: state.descriptor.intensityWeight,
-      alpha: state.alpha,
+      intensity,
+      alpha: state.alpha * blackoutScale,
       accentWeight: stableUnitHash(state.descriptor.symmetry?.pairId ?? fixtureId),
     }))
   }
   return Object.freeze(result)
+}
+
+function applyPerformanceSpread(target: Cinema2Vector3, scale: number): Cinema2Vector3 {
+  return Object.freeze([
+    clamp(target[0] * clamp(scale, 0.56, 1.08), -7.8, 7.8),
+    target[1],
+    target[2],
+  ]) as Cinema2Vector3
+}
+
+function applyPerformanceMotion(
+  target: Cinema2Vector3,
+  scannerPhase: number,
+  frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
+  timeSec: number,
+  config: Readonly<FrameConfig>,
+  showPlan: Readonly<Cinema2AfterhoursShowPlan>,
+  pulseAuthority: number,
+): Cinema2Vector3 {
+  const phase = resolveMotionPhase(frame, timeSec, config.bpmSync)
+  if (phase == null) return target
+  const authority = clamp01(config.motionAmount) * showPlan.motionScale
+  if (authority <= 1e-5) return target
+  const angle = phase * Math.PI * 2 + scannerPhase * Math.PI * 2
+  const amplitude = 0.1 + 0.28 * clamp(authority + pulseAuthority * 0.16, 0, 1.25)
+  return Object.freeze([
+    clamp(target[0] + Math.sin(angle) * amplitude, -7.8, 7.8),
+    clamp(target[1] + Math.cos(angle * 0.73) * amplitude * 0.42, 0.6, 6.8),
+    target[2],
+  ]) as Cinema2Vector3
+}
+
+function resolveMotionPhase(
+  frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
+  timeSec: number,
+  bpmSync: boolean,
+): number | null {
+  if (bpmSync) {
+    const beatIndex = frame.audio?.rhythm.beatIndex
+    const beatPhase = frame.audio?.rhythm.beatPhase
+    if (!beatIndex?.available || !beatPhase?.available || beatIndex.value == null || beatPhase.value == null) return null
+    return (beatIndex.value + beatPhase.value) * 0.25
+  }
+  return Number.isFinite(timeSec) ? timeSec * 0.18 : null
 }
 
 function applyIdleSway(target: Cinema2Vector3, phase: number, timeSec: number, motionAmount: number): Cinema2Vector3 {
@@ -438,6 +540,7 @@ function createGeometrySignature(config: Readonly<FrameConfig>, showPlan: Readon
 
 function resolveShowPlannerStructure(
   frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
+  config: Readonly<FrameConfig>,
 ): Readonly<Cinema2AfterhoursShowPlannerStructure> {
   const audio = frame.audio
   const timeSec = audio?.upstream.timeSec ?? frame.transport?.timeSec ?? frame.elapsedTimeSec
@@ -453,14 +556,36 @@ function resolveShowPlannerStructure(
     ? audio.structure.semanticMoments.value.filter(moment => moment.type === 'drop' || moment.type === 'drop_impact')
     : Object.freeze([])
   const dropIdentity = latestStructuralIdentity(moments, timeSec)
+  const transition = frame.director?.context.transition
+  const canonicalPerformanceAvailable = audio != null && frame.transport?.sourcePresent !== false
+  const hardCutIntent = Boolean(
+    canonicalPerformanceAvailable
+    && transition?.occurred
+    && transition.authority >= 0.88
+    && config.sectionAccent >= 0.62
+    && config.directorImpact >= 0.72,
+  )
   return Object.freeze({
     sourceIdentity: frame.transport?.trackId ?? 'no-source',
     absoluteBarIndex,
     phraseIdentity,
+    sectionIdentity: frame.director?.context.section?.available ? frame.director.context.section.value?.id ?? null : null,
     dropIdentity,
-    // Stage 5 owns the significance policy that may set this true. Stage 4 only
-    // establishes and tests the explicit contract so no raw-audio inference leaks here.
-    hardCutIntent: false,
+    hardCutIntent,
+    performance: canonicalPerformanceAvailable
+      ? Object.freeze({
+          intensity: config.directorIntensity,
+          build: config.directorBuild,
+          impact: config.directorImpact,
+          vocalPresence: config.vocalPresence,
+          kickAccent: config.kickAccent,
+          snareAccent: config.snareAccent,
+          downbeatAccent: config.downbeatAccent,
+          phraseAccent: config.phraseAccent,
+          sectionAccent: config.sectionAccent,
+          dropAccent: config.dropAccent,
+        })
+      : undefined,
   })
 }
 
@@ -474,6 +599,98 @@ function latestStructuralIdentity(
     if (!latest || item.timeSec > latest.timeSec || (item.timeSec === latest.timeSec && item.id > latest.id)) latest = item
   }
   return latest?.id ?? null
+}
+
+
+/**
+ * Routes the user-selected Trigger to authoritative Cinema 2.0 event identity.
+ * It never invents timing: beat2/beat4 use canonical beat identity, bar4/bar8
+ * use canonical bar identity, and phrase/drop use published structure.
+ */
+export function resolveCinema2AfterhoursTriggerEventIdentity(
+  frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
+  trigger: Cinema2AfterhoursTriggerId,
+  previousTimeSec: number | null,
+): string | null {
+  const audio = frame.audio
+  if (!audio || frame.transport?.sourcePresent === false || frame.transport?.paused === true || frame.transport?.playing === false) return null
+  if (trigger === 'beat') return audio.rhythm.beat?.id ?? null
+  if (trigger === 'kick') return audio.rhythm.kick?.id ?? null
+  if (trigger === 'snare') return audio.rhythm.snare?.id ?? null
+  if (trigger === 'downbeat') return audio.rhythm.downbeat?.id ?? null
+  if (trigger === 'beat2' || trigger === 'beat4') {
+    const beat = audio.rhythm.beat
+    const index = audio.rhythm.beatIndex.available ? audio.rhythm.beatIndex.value : null
+    const divisor = trigger === 'beat2' ? 2 : 4
+    return beat && typeof index === 'number' && Number.isFinite(index) && Math.floor(index) % divisor === 0 ? beat.id : null
+  }
+  if (trigger === 'bar' || trigger === 'bar4' || trigger === 'bar8') {
+    const boundary = audio.rhythm.fixedClocks[4].boundary
+    if (!boundary) return null
+    if (trigger === 'bar') return boundary.id
+    const bar = audio.rhythm.barIndex.available ? audio.rhythm.barIndex.value : null
+    const divisor = trigger === 'bar4' ? 4 : 8
+    return typeof bar === 'number' && Number.isFinite(bar) && Math.floor(bar) % divisor === 0 ? `${boundary.id}:${trigger}:${Math.floor(bar)}` : null
+  }
+  if (trigger === 'phrase') {
+    const phrase = crossedStructuralIdentity(
+      audio.structure.analyzedPhrases.available && audio.structure.analyzedPhrases.value ? audio.structure.analyzedPhrases.value : Object.freeze([]),
+      previousTimeSec,
+      audio.upstream.timeSec,
+    )
+    return phrase ?? audio.rhythm.fixedClocks[16].boundary?.id ?? null
+  }
+  const drop = crossedStructuralIdentity(
+    audio.structure.semanticMoments.available && audio.structure.semanticMoments.value
+      ? audio.structure.semanticMoments.value.filter(moment => moment.type === 'drop' || moment.type === 'drop_impact')
+      : Object.freeze([]),
+    previousTimeSec,
+    audio.upstream.timeSec,
+  )
+  if (drop) return drop
+  const transition = frame.director?.context.transition
+  const section = frame.director?.context.section
+  return transition?.occurred && transition.eventId && section?.available && section.value?.type === 'drop'
+    ? transition.eventId
+    : null
+}
+
+function crossedStructuralIdentity(
+  items: readonly Readonly<{ id: string; timeSec: number }>[],
+  previousTimeSec: number | null,
+  currentTimeSec: number,
+): string | null {
+  if (previousTimeSec == null || !Number.isFinite(currentTimeSec) || currentTimeSec <= previousTimeSec) return null
+  let crossed: Readonly<{ id: string; timeSec: number }> | null = null
+  for (const item of items) {
+    if (!Number.isFinite(item.timeSec) || item.timeSec <= previousTimeSec || item.timeSec > currentTimeSec + 1e-6) continue
+    if (!crossed || item.timeSec > crossed.timeSec || (item.timeSec === crossed.timeSec && item.id > crossed.id)) crossed = item
+  }
+  return crossed?.id ?? null
+}
+
+export function resolveCinema2AfterhoursPulseAuthority(pulse: number, pulseAmount: number): number {
+  return clamp01(pulse) * clamp01(pulseAmount)
+}
+
+export function resolveCinema2AfterhoursPulseEnvelope(
+  frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
+  timeSec: number,
+  startedAtSec: number,
+  decay: number,
+): number {
+  if (!Number.isFinite(startedAtSec) || startedAtSec === Number.NEGATIVE_INFINITY) return 0
+  if (frame.transport?.sourcePresent === false || frame.transport?.paused === true || frame.transport?.playing === false) return 0
+  const elapsed = Math.max(0, timeSec - startedAtSec)
+  let releaseSec = 0.08 + clamp01(decay) * 0.72
+  const bpm = frame.audio?.rhythm.bpm
+  if (bpm?.available && bpm.value != null && bpm.value > 1) {
+    const beatSec = 60 / bpm.value
+    releaseSec = beatSec * (0.18 + clamp01(decay) * 1.32)
+  }
+  if (releaseSec <= 1e-6 || elapsed >= releaseSec) return 0
+  const normalized = clamp01(elapsed / releaseSec)
+  return 1 - smoothstep(normalized)
 }
 
 function createAutoPalette(context: Cinema2ModuleCreateContext): Readonly<{ primary: Cinema2Color; accent: Cinema2Color }> {
