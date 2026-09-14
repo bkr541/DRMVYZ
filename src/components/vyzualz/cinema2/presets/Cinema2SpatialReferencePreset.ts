@@ -129,7 +129,7 @@ export const CINEMA2_SPATIAL_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2NativePr
   metadata: Object.freeze({
     name: 'Spatial Reference',
     description: 'Neutral Cinema 2.0 3D, camera, lighting, overlay, effect and choreography reference.',
-    tags: Object.freeze(['reference', 'diagnostic', 'spatial']),
+    tags: Object.freeze(['reference', 'diagnostic', 'spatial', 'internal']),
   }),
   capabilities: Object.freeze([
     Object.freeze({ id: 'render.webgl2' as const, requirement: 'required' as const, purpose: 'Native Cinema 2.0 Stage rendering.' }),

@@ -96,7 +96,7 @@ export const CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST: Readonly<Cinema2NativePre
   metadata: Object.freeze({
     name: 'Reference Visual',
     description: 'Minimal native Cinema 2.0 vertical-slice diagnostic.',
-    tags: Object.freeze(['reference', 'diagnostic']),
+    tags: Object.freeze(['reference', 'diagnostic', 'internal']),
   }),
   capabilities: Object.freeze([
     Object.freeze({ id: 'render.webgl2' as const, requirement: 'required' as const, purpose: 'Native fullscreen Stage output.' }),

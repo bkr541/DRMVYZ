@@ -349,6 +349,14 @@ describe('Cinema 2.0 Reference Visual production preset selection', () => {
       return (
         <>
           <Cinema2PresetsPanel activePresetId={presetId} onSelectPreset={setPresetId} />
+          {/* Reference Visual is an internal diagnostic preset, hidden from the
+              real Presets panel (see 'internal' tag on its metadata) — this
+              button stands in for however an internal/dev flow would still
+              reach it (a URL param, a dev tool, …) so the rest of the pipeline
+              (Stage runtime, Inspector) stays covered end to end. */}
+          <button type="button" data-testid="select-reference-visual" onClick={() => setPresetId(CINEMA2_REFERENCE_VISUAL_PRESET_ID)}>
+            Select Reference Visual
+          </button>
           <Cinema2Stage
             presetId={presetId}
             onRuntimeReady={next => {
@@ -364,8 +372,8 @@ describe('Cinema 2.0 Reference Visual production preset selection', () => {
     await act(async () => root?.render(<ProductionPresetHarness />))
     expect(activeRuntimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_RUNTIME_FOUNDATION_PRESET_ID)
     expect(host?.textContent).not.toContain('Effects')
-    const referenceButton = host?.querySelector<HTMLButtonElement>(`[data-cinema2-preset-id="${CINEMA2_REFERENCE_VISUAL_PRESET_ID}"]`)
-    expect(referenceButton?.textContent).toContain('Reference Visual')
+    expect(host?.querySelector(`[data-cinema2-preset-id="${CINEMA2_REFERENCE_VISUAL_PRESET_ID}"]`)).toBeNull()
+    const referenceButton = host?.querySelector<HTMLButtonElement>('[data-testid="select-reference-visual"]')
 
     await act(async () => referenceButton?.click())
     expect(activeRuntimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_REFERENCE_VISUAL_PRESET_ID)

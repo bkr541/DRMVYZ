@@ -64,12 +64,14 @@ import type { CinemaWorkspaceRuntimeFrameConfig } from './CinemaWorkspaceRuntime
 import type { CinemaFrameBuilderState, CinemaRuntimeSnapshot } from '../cinema'
 import {
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
+  cinema2NativePresetRegistry,
   cinema2WorkspaceSessionStore,
   type Cinema2PresetId,
   type Cinema2Runtime,
   type Cinema2RuntimeSnapshot,
   type Cinema2WorkspacePresetState,
 } from '../cinema2'
+import { readCinema2LastPresetId, writeCinema2LastPresetId } from './cinema2WorkspacePreferences'
 import { getCinemaEditorSelection, useCinemaStore } from '../cinema'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import { isCinemaLegacyEngineId } from '../cinema/CinemaLegacyRetirement'
@@ -393,12 +395,17 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
   const [cinema2Runtime, setCinema2Runtime] = useState<Cinema2Runtime | null>(null)
   const [cinema2RuntimeSnapshot, setCinema2RuntimeSnapshot] = useState<Cinema2RuntimeSnapshot | null>(null)
-  const [cinema2PresetId, setCinema2PresetId] = useState<Cinema2PresetId>(
-    () => cinema2WorkspaceSessionStore.getActivePresetId() ?? CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
-  )
+  const [cinema2PresetId, setCinema2PresetId] = useState<Cinema2PresetId>(() => {
+    const sessionPresetId = cinema2WorkspaceSessionStore.getActivePresetId()
+    if (sessionPresetId) return sessionPresetId
+    const lastPresetId = readCinema2LastPresetId()
+    if (lastPresetId && cinema2NativePresetRegistry.has(lastPresetId)) return lastPresetId
+    return CINEMA2_RUNTIME_FOUNDATION_PRESET_ID
+  })
   const cinema2RestoreState = cinema2WorkspaceSessionStore.getPresetState(cinema2PresetId)
   const handleCinema2PresetSelect = useCallback((presetId: Cinema2PresetId) => {
     cinema2WorkspaceSessionStore.selectPreset(presetId)
+    writeCinema2LastPresetId(presetId)
     setCinema2PresetId(presetId)
   }, [])
   const handleCinema2RuntimeRetiring = useCallback((state: Readonly<Cinema2WorkspacePresetState>) => {
