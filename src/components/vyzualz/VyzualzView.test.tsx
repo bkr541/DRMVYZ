@@ -1,47 +1,12 @@
 // @vitest-environment jsdom
 ;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
 
-import React, { act, useEffect } from 'react'
+import React, { act } from 'react'
+import { readFileSync } from 'node:fs'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLyricsStore } from '../../stores/lyricsStore'
 import type { AppView, PerformanceAppView } from './appView'
-
-const lifecycle = vi.hoisted(() => ({
-  hotkeys: vi.fn(),
-  activeEffects: 0,
-  mounts: 0,
-  unmounts: 0,
-}))
-
-vi.mock('./VisualizerWorkspace', () => ({
-  VisualizerWorkspace: ({ onAppViewChange }: { onAppViewChange: (view: AppView) => void }) => {
-    useEffect(() => {
-      lifecycle.mounts += 1
-      lifecycle.activeEffects += 1
-      const handleKeyDown = (event: KeyboardEvent) => {
-        if (event.key === 'f' || event.key === 'F' || event.key === ' ' || /^[1-9]$/.test(event.key)) {
-          lifecycle.hotkeys(event.key)
-        }
-      }
-      window.addEventListener('keydown', handleKeyDown)
-      return () => {
-        lifecycle.unmounts += 1
-        lifecycle.activeEffects -= 1
-        window.removeEventListener('keydown', handleKeyDown)
-      }
-    }, [])
-
-    return (
-      <div data-testid="visualizer-workspace">
-        <button aria-label="React" onClick={() => onAppViewChange('react')}>React</button>
-        <button aria-label="Show Manager" onClick={() => onAppViewChange('showManager')}>Show Manager</button>
-        <button aria-label="Lyric Manager" onClick={() => onAppViewChange('lyrics')}>Lyrics</button>
-        <button aria-label="Media Manager" onClick={() => onAppViewChange('media')}>Media</button>
-      </div>
-    )
-  },
-}))
 
 vi.mock('./react/ReactView', () => ({
   ReactView: ({ onOpenMediaManager }: { onOpenMediaManager?: () => void }) => (
@@ -115,15 +80,7 @@ async function clickLabel(label: string): Promise<void> {
   await flush()
 }
 
-function press(key: string): void {
-  act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })))
-}
-
 beforeEach(() => {
-  lifecycle.hotkeys.mockClear()
-  lifecycle.activeEffects = 0
-  lifecycle.mounts = 0
-  lifecycle.unmounts = 0
   useLyricsStore.getState().markEditorDirty(false)
 })
 
@@ -134,40 +91,30 @@ afterEach(() => {
   container = null
 })
 
-describe('Vyzualz application-view lifecycle isolation', () => {
-  it('keeps Visualizer hotkeys inactive in React, Show Manager, Media Manager, and Lyric Manager', async () => {
+describe('Vyzualz production application-view routing', () => {
+  it('does not expose Visualizer and keeps every current workspace selectable through the real router', async () => {
     await renderView('react')
-    press('f')
-    press(' ')
-    press('1')
-    expect(lifecycle.hotkeys).not.toHaveBeenCalled()
+
+    const labels = [...(container?.querySelectorAll<HTMLElement>('.az-nav-item') ?? [])]
+      .map(item => item.getAttribute('aria-label'))
+    expect(labels).toEqual(['React', 'Show Manager', 'Lyric Manager', 'Media Manager'])
+    expect(labels).not.toContain('Visualizer')
+    expect(container?.querySelector('[data-testid="react-workspace"]')).not.toBeNull()
 
     await clickLabel('Show Manager')
     expect(container?.querySelector('[data-testid="show-manager"]')).not.toBeNull()
-    press('f')
-    expect(lifecycle.hotkeys).not.toHaveBeenCalled()
 
-    await clickLabel('Visualizer')
-    expect(lifecycle.activeEffects).toBe(1)
     await clickLabel('Media Manager')
-    lifecycle.hotkeys.mockClear()
-    press('f')
-    press(' ')
-    expect(lifecycle.hotkeys).not.toHaveBeenCalled()
+    expect(container?.querySelector('[data-testid="media-manager"]')).not.toBeNull()
 
     await clickLabel('Lyric Manager')
-    press('1')
-    expect(lifecycle.hotkeys).not.toHaveBeenCalled()
-    expect(lifecycle.activeEffects).toBe(0)
+    expect(container?.querySelector('[data-testid="lyric-manager"]')).not.toBeNull()
   })
 
-  it('preserves Visualizer behavior while Visualizer is active', async () => {
-    await renderView('visualizer')
-    press('f')
-    press(' ')
-    press('2')
-    expect(lifecycle.hotkeys.mock.calls.map(call => call[0])).toEqual(['f', ' ', '2'])
-    expect(lifecycle.activeEffects).toBe(1)
+  it('contains no production Visualizer workspace import or render branch', () => {
+    const source = readFileSync(new URL('./VyzualzView.tsx', import.meta.url), 'utf8')
+    expect(source).not.toContain('VisualizerWorkspace')
+    expect(source).not.toContain("appView === 'visualizer'")
   })
 
   it('returns Lyric Manager to the originating performance view', async () => {
@@ -177,12 +124,6 @@ describe('Vyzualz application-view lifecycle isolation', () => {
     await clickLabel('Back')
     expect(container?.querySelector('[data-testid="react-workspace"]')).not.toBeNull()
 
-    await clickLabel('Visualizer')
-    await clickLabel('Lyric Manager')
-    expect(container?.querySelector('[data-testid="lyric-manager"]')?.getAttribute('data-return-view')).toBe('visualizer')
-    await clickLabel('Back')
-    expect(container?.querySelector('[data-testid="visualizer-workspace"]')).not.toBeNull()
-
     await clickLabel('Show Manager')
     await clickLabel('Lyric Manager')
     expect(container?.querySelector('[data-testid="lyric-manager"]')?.getAttribute('data-return-view')).toBe('showManager')
@@ -190,51 +131,32 @@ describe('Vyzualz application-view lifecycle isolation', () => {
     expect(container?.querySelector('[data-testid="show-manager"]')).not.toBeNull()
   })
 
-  it('preserves manager origin across manager-to-manager navigation', async () => {
+  it('preserves the originating performance view across manager-to-manager navigation', async () => {
     await renderView('react')
     await clickLabel('Media Manager')
-    expect(container?.querySelector('[data-testid="media-manager"]')).not.toBeNull()
     await clickLabel('Lyric Manager')
     expect(container?.querySelector('[data-testid="lyric-manager"]')?.getAttribute('data-return-view')).toBe('react')
     await clickLabel('Back')
     expect(container?.querySelector('[data-testid="react-workspace"]')).not.toBeNull()
 
-    await clickLabel('Visualizer')
+    await clickLabel('Show Manager')
     await clickLabel('Media Manager')
     await clickLabel('Lyric Manager')
-    expect(container?.querySelector('[data-testid="lyric-manager"]')?.getAttribute('data-return-view')).toBe('visualizer')
+    expect(container?.querySelector('[data-testid="lyric-manager"]')?.getAttribute('data-return-view')).toBe('showManager')
     await clickLabel('Back')
-    expect(container?.querySelector('[data-testid="visualizer-workspace"]')).not.toBeNull()
+    expect(container?.querySelector('[data-testid="show-manager"]')).not.toBeNull()
   })
 
-  it('returns Lyric Manager previews to the originating performance view', async () => {
+  it('returns Lyric Manager previews to the originating current performance view', async () => {
     await renderView('react')
     await clickLabel('Lyric Manager')
     await clickLabel('Preview')
     expect(container?.querySelector('[data-testid="react-workspace"]')).not.toBeNull()
 
-    await clickLabel('Visualizer')
+    await clickLabel('Show Manager')
     await clickLabel('Lyric Manager')
     await clickLabel('Preview')
-    expect(container?.querySelector('[data-testid="visualizer-workspace"]')).not.toBeNull()
-  })
-
-  it('cleans up global listeners and side effects across repeated view switches', async () => {
-    await renderView('visualizer')
-    press('f')
-    expect(lifecycle.hotkeys).toHaveBeenCalledTimes(1)
-
-    await clickLabel('React')
-    expect(lifecycle.activeEffects).toBe(0)
-    press('f')
-    expect(lifecycle.hotkeys).toHaveBeenCalledTimes(1)
-
-    await clickLabel('Visualizer')
-    expect(lifecycle.activeEffects).toBe(1)
-    press('f')
-    expect(lifecycle.hotkeys).toHaveBeenCalledTimes(2)
-    expect(lifecycle.mounts).toBe(2)
-    expect(lifecycle.unmounts).toBe(1)
+    expect(container?.querySelector('[data-testid="show-manager"]')).not.toBeNull()
   })
 
   it('passes a one-time typed lyric navigation intent from Media Manager into Lyric Manager', async () => {
@@ -249,5 +171,4 @@ describe('Vyzualz application-view lifecycle isolation', () => {
     await clickLabel('Consume Intent')
     expect(container?.querySelector('[data-testid="lyric-manager"]')?.getAttribute('data-target-track')).toBe('')
   })
-
 })

@@ -62,33 +62,6 @@ export function VyzualzSidebar({
           <span className="az-nav-label">React</span>
         </button>
 
-        {/* Visualizer icon */}
-        <button
-          type="button"
-          className={`az-nav-item${appView === 'visualizer' ? ' az-nav-item--active' : ''}`}
-          onClick={() => onAppViewChange?.('visualizer')}
-          title="Visualizer"
-          aria-label="Visualizer"
-          aria-current={appView === 'visualizer' ? 'page' : undefined}
-        >
-          <span className="az-nav-fill" aria-hidden="true" />
-          <svg viewBox="0 0 1024 1024" width="28" height="28">
-            {/* Monitor frame */}
-            <path d="M960 1002.666667H64a42.666667 42.666667 0 0 1-42.666667-42.666667V64a42.666667 42.666667 0 0 1 42.666667-42.666667h896a42.666667 42.666667 0 0 1 42.666667 42.666667v896a42.666667 42.666667 0 0 1-42.666667 42.666667z" fill="#0d1820"/>
-            {/* Screen area */}
-            <path d="M64 64h896v682.666667H64z" fill="#091318"/>
-            {/* Bottom bar track (unplayed) */}
-            <path d="M896 896H597.333333a21.333333 21.333333 0 1 1 0-42.666667h298.666667a21.333333 21.333333 0 1 1 0 42.666667z" fill="#1a2d3a"/>
-            {/* Bottom bar (progress) */}
-            <path d="M661.333333 896H128a21.333333 21.333333 0 1 1 0-42.666667h533.333333a21.333333 21.333333 0 1 1 0 42.666667z" fill="#4ac7db"/>
-            {/* Disc indicator */}
-            <path d="M640 960c-47.04 0-85.333333-38.293333-85.333333-85.333333s38.293333-85.333333 85.333333-85.333334 85.333333 38.293333 85.333333 85.333334-38.293333 85.333333-85.333333 85.333333z" fill="#4ac7db"/>
-            {/* Play triangle — brightest element, focal point */}
-            <path d="M426.666667 554.666667a21.269333 21.269333 0 0 1-21.333334-21.333334V277.333333a21.333333 21.333333 0 0 1 33.173334-17.749333l192 128a21.333333 21.333333 0 0 1 0 35.498667l-192 128A21.333333 21.333333 0 0 1 426.666667 554.666667z" fill="#67f7ff"/>
-          </svg>
-          <span className="az-nav-label">Visualizer</span>
-        </button>
-
         <div className="az-nav-section-label">Managers</div>
 
         {/* Show Manager icon */}

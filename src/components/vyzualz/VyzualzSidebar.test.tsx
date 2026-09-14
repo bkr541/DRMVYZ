@@ -43,7 +43,7 @@ describe('VyzualzSidebar workspace navigation', () => {
     expect(onAppViewChange).not.toHaveBeenCalledWith('showManager')
   })
 
-  it('renders Media Manager directly beneath Lyric Manager and navigates to media', () => {
+  it('omits the legacy Visualizer entry and keeps manager navigation intact', () => {
     const onAppViewChange = vi.fn()
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -61,7 +61,8 @@ describe('VyzualzSidebar workspace navigation', () => {
 
     const navItems = [...container.querySelectorAll<HTMLElement>('.az-nav-item')]
     const labels = navItems.map(item => item.getAttribute('aria-label'))
-    expect(labels.indexOf('Show Manager')).toBe(labels.indexOf('Visualizer') + 1)
+    expect(labels).toEqual(['React', 'Show Manager', 'Lyric Manager', 'Media Manager'])
+    expect(labels).not.toContain('Visualizer')
     expect(labels.indexOf('Media Manager')).toBe(labels.indexOf('Lyric Manager') + 1)
 
     const showManagerItem = navItems.find(item => item.getAttribute('aria-label') === 'Show Manager')

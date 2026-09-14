@@ -11,7 +11,6 @@ import './styles/lyricManagerModal.css'
 import './styles/lyricManager.css'
 import './styles/mediaManager.css'
 import './styles/workspaceShell.css'
-import './styles/addCueModal.css'
 import './styles/appearance.css'
 import { bootstrapAppearanceTheme } from './features/appearance/appearanceStore'
 

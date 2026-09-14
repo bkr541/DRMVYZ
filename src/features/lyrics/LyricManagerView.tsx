@@ -254,7 +254,7 @@ function LyricTransportBar({
 
 export function LyricManagerView({
   onBack,
-  returnView = 'visualizer',
+  returnView = 'react',
   navigationIntent = null,
   onNavigationIntentConsumed,
 }: Props) {
@@ -2087,7 +2087,7 @@ export function LyricManagerView({
               isPlaying={selectedTrackPlaying}
               globalOffsetMs={globalOffsetMs}
               onPreviewInVisualizer={handlePreviewInPerformanceView}
-              previewDestination={returnView === 'react' ? 'React' : returnView === 'showManager' ? 'Show Manager' : 'Visualizer'}
+              previewDestination={returnView === 'showManager' ? 'Show Manager' : 'React'}
               track={selectedTrack}
               openVersionTitle={editorDocument?.title ?? null}
               activeVersionTitle={activeVersionForSelectedTrack?.title ?? null}

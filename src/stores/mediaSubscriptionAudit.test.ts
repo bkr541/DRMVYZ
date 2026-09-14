@@ -6,7 +6,6 @@ const auditedFiles = [
   '../components/vyzualz/MediaUploadModal.tsx',
   '../components/vyzualz/media/MediaStatusBar.tsx',
   '../components/vyzualz/media/MediaPreviewModal.tsx',
-  '../components/vyzualz/VisualizerWorkspace.tsx',
   '../components/vyzualz/hooks/useMediaNavigation.ts',
   '../components/vyzualz/layers/VzLayersPanel.tsx',
   '../components/vyzualz/SettingsModal.tsx',

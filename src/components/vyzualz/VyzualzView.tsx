@@ -11,9 +11,6 @@ import type { AppView, PerformanceAppView } from './appView'
 import type { LyricManagerNavigationIntent } from '../../features/lyrics/lyricNavigation'
 import { setAudioSourcePolicyAppView } from '../../audio/audioSourcePolicy'
 
-const VisualizerWorkspace = lazy(() =>
-  import('./VisualizerWorkspace').then(module => ({ default: module.VisualizerWorkspace })),
-)
 const ReactView = lazy(() =>
   import('./react/ReactView').then(module => ({ default: module.ReactView })),
 )
@@ -27,18 +24,10 @@ const LyricManagerView = lazy(() =>
   import('../../features/lyrics/LyricManagerView').then(module => ({ default: module.LyricManagerView })),
 )
 
-function WorkspaceLoading({ label, standalone = false }: { label: string; standalone?: boolean }) {
-  const status = (
+function WorkspaceLoading({ label }: { label: string }) {
+  return (
     <div className="rv-lazy-fallback" role="status" aria-live="polite">
       Loading {label}…
-    </div>
-  )
-  if (!standalone) return status
-  return (
-    <div className="az-root">
-      <div className="az-shell">
-        <main className="vz-main">{status}</main>
-      </div>
     </div>
   )
 }
@@ -69,11 +58,7 @@ interface Props {
 }
 
 /**
- * Application-view router.
- *
- * Each major workspace is conditionally mounted so Visualizer listeners,
- * recorders, cloud sync, media automation, and animation loops exist only while
- * the Visualizer workspace is active.
+ * Application-view router for the current production workspaces.
  */
 export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props) {
   const [appView, setAppView] = useState<AppView>(initialAppView)
@@ -83,11 +68,6 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
       : DEFAULT_PERFORMANCE_VIEW)
   const [pendingAppView, setPendingAppView] = useState<AppView | null>(null)
   const [lyricNavigationIntent, setLyricNavigationIntent] = useState<LyricManagerNavigationIntent | null>(null)
-  // True only immediately after a 'lyrics' → 'visualizer' transition. VyzualzView
-  // never unmounts, so it recomputes this fresh on every transition rather than
-  // relying on VisualizerWorkspace (which fully unmounts/remounts on navigation)
-  // to detect a change relative to its own mount-reset history.
-  const [lyricPreviewPending, setLyricPreviewPending] = useState(false)
   const lyricEditorDirty = useLyricsStore(state => state.editorDirty)
   const lyricEditorSaving = useLyricsStore(state => state.isSaving)
 
@@ -100,7 +80,6 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
     if (isPerformanceAppView(appView) && !isPerformanceAppView(next)) {
       setOriginatingPerformanceView(appView)
     }
-    setLyricPreviewPending(appView === 'lyrics' && next === 'visualizer')
     setAppView(next)
   }, [appView])
 
@@ -119,20 +98,6 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
     setLyricNavigationIntent(intent)
     requestAppViewChange('lyrics')
   }, [requestAppViewChange])
-
-  if (appView === 'visualizer') {
-    return (
-      <>
-        <Suspense fallback={<WorkspaceLoading label="Visualizer" standalone />}>
-          <VisualizerWorkspace
-            onAppViewChange={requestAppViewChange}
-            showLyricPreviewToastOnMount={lyricPreviewPending}
-            onOpenLyricManager={openLyricManager}
-          />
-        </Suspense>
-      </>
-    )
-  }
 
   if (appView === 'react') {
     return (

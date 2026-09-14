@@ -1,7 +1,7 @@
 import type { AppView } from '../components/vyzualz/appView'
 
 export const SHOW_MANAGER_AUDIO_SOURCE_LOCK_MESSAGE =
-  'An audio track cannot be loaded while in Show Manager. Navigate to another workspace such as React, VYZUALZ, or Media Manager to load a different track.'
+  'An audio track cannot be loaded while in Show Manager. Navigate to another workspace such as React or Media Manager to load a different track.'
 
 export type AudioSourceMutationAuthority = 'user' | 'showManagerLinkedTrack'
 

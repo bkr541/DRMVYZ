@@ -8,15 +8,16 @@ import {
 import type { AppView, PerformanceAppView } from './appView'
 
 describe('shared app-view model', () => {
-  it('defines Media Manager in the canonical app-view union', () => {
-    expectTypeOf<AppView>().toEqualTypeOf<'react' | 'visualizer' | 'showManager' | 'lyrics' | 'media'>()
-    expect(APP_VIEWS).toEqual(['react', 'visualizer', 'showManager', 'lyrics', 'media'])
+  it('defines only the current production workspaces in the canonical app-view union', () => {
+    expectTypeOf<AppView>().toEqualTypeOf<'react' | 'showManager' | 'lyrics' | 'media'>()
+    expect(APP_VIEWS).toEqual(['react', 'showManager', 'lyrics', 'media'])
+    expect(APP_VIEWS.join(',')).not.toContain('visualizer')
   })
 
   it('keeps the default and performance-view narrowing strongly typed', () => {
     expectTypeOf(DEFAULT_PERFORMANCE_VIEW).toEqualTypeOf<PerformanceAppView>()
+    expect(DEFAULT_PERFORMANCE_VIEW).toBe('react')
     expect(isPerformanceAppView('react')).toBe(true)
-    expect(isPerformanceAppView('visualizer')).toBe(true)
     expect(isPerformanceAppView('showManager')).toBe(true)
     expect(isPerformanceAppView('media')).toBe(false)
   })
