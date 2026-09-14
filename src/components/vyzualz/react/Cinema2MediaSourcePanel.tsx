@@ -47,7 +47,6 @@ export function Cinema2MediaSourcePanel({ runtime, onOpenMediaManager }: Cinema2
   }
 
   const selectedSlot = snapshot.slots.find(slot => slot.id === selectedSlotId) ?? snapshot.slots[0]
-  const status = mediaStatusCopy(selectedSlot)
 
   return (
     <div className="rv-canvas-engine-panel" data-cinema2-media-source="slots">
@@ -80,10 +79,6 @@ export function Cinema2MediaSourcePanel({ runtime, onOpenMediaManager }: Cinema2
           onChange={setSelectedSlotId}
         />
       )}
-      <div className="rv-canvas-panel-status" role="status" aria-live="polite" data-cinema2-media-status={selectedSlot.status}>
-        <span>{selectedSlot.label}</span>
-        <strong>{status}{selectedSlot.error ? ` ${selectedSlot.error}` : ''}</strong>
-      </div>
       {selectedSlot.source && (
         <div className="rv-canvas-panel-status">
           <span>Source</span>
@@ -117,12 +112,4 @@ function getCinema2MediaDisabledReason(media: UploadedMedia, accepts: readonly C
   const source = cinema2MediaSourceFromLibraryItem(media)
   if (!source) return 'This media does not currently have a loadable runtime source.'
   return accepts.includes(source.kind) ? null : `This slot accepts ${accepts.join(', ')} media.`
-}
-
-function mediaStatusCopy(slot: Cinema2MediaSlotRuntimeSnapshot['slots'][number]): string {
-  if (slot.status === 'ready') return 'Ready'
-  if (slot.status === 'loading') return 'Loading…'
-  if (slot.status === 'error') return 'Load failed.'
-  if (slot.status === 'missing-required') return 'Required source missing.'
-  return 'Optional source not selected.'
 }

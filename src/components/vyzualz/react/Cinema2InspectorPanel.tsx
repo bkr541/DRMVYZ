@@ -122,7 +122,18 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
         />
         <div className="rv-workspace-panel-body">
           <div className="rv-inspector rv-inspector-scroll">
-            {designSurface === 'engine' ? sectionsContent : (
+            {designSurface === 'engine' ? (
+              <>
+                {sectionsContent}
+                <div className="rv-ctrl-group" data-cinema2-placeholder-group="master-controls">
+                  <Collapsible label="Master Controls">
+                    <Collapsible label="Palette">
+                      <div className="rv-ctrl-info">No controls yet.</div>
+                    </Collapsible>
+                  </Collapsible>
+                </div>
+              </>
+            ) : (
               <div className="rv-ctrl-group"><div className="rv-ctrl-info">Select an object in the scene to edit its properties here.</div></div>
             )}
           </div>
@@ -144,7 +155,16 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
       />
       <div className="rv-workspace-panel-body">
         <div className="rv-inspector rv-inspector-scroll">
-          {reactSurface === 'performance' ? sectionsContent : <ReactAudioPanel />}
+          {reactSurface === 'performance' ? (
+            <>
+              {sectionsContent}
+              <div className="rv-ctrl-group" data-cinema2-placeholder-group="reactive-controls">
+                <Collapsible label="Reactive Controls">
+                  <div className="rv-ctrl-info">No controls yet.</div>
+                </Collapsible>
+              </div>
+            </>
+          ) : <ReactAudioPanel />}
         </div>
       </div>
     </div>
