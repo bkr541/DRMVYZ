@@ -512,6 +512,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
       Object.freeze({
         id: AFTERHOURS_DIRECTOR_INTENSITY_RULE_ID,
         priority: 20,
+        enabledParameter: cinema2Ref(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID),
         source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.intensity' as const, smoothingMs: 90 }),
         actions: Object.freeze([
           moduleContinuousAction('afterhours-director-intensity-map', 'directorIntensity'),
@@ -521,6 +522,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
       Object.freeze({
         id: AFTERHOURS_DIRECTOR_BUILD_RULE_ID,
         priority: 21,
+        enabledParameter: cinema2Ref(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID),
         source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.build' as const, smoothingMs: 110 }),
         actions: Object.freeze([
           moduleContinuousAction('afterhours-director-build-map', 'directorBuild'),
@@ -533,6 +535,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
       Object.freeze({
         id: AFTERHOURS_DIRECTOR_IMPACT_RULE_ID,
         priority: 22,
+        enabledParameter: cinema2Ref(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID),
         source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.impact' as const, smoothingMs: 35 }),
         actions: Object.freeze([
           moduleContinuousAction('afterhours-director-impact-map', 'directorImpact'),
@@ -542,6 +545,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
       Object.freeze({
         id: AFTERHOURS_VOCAL_RULE_ID,
         priority: 23,
+        enabledParameter: cinema2Ref(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID),
         source: Object.freeze({ signal: 'continuous' as const, capability: 'music.vocal-presence' as const, path: 'audio.features.vocalPresence' as const, smoothingMs: 130 }),
         actions: Object.freeze([
           moduleContinuousAction('afterhours-vocal-presence-map', 'vocalPresence'),
@@ -554,24 +558,28 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
       Object.freeze({
         id: AFTERHOURS_KICK_RULE_ID,
         priority: 30,
+        enabledParameter: cinema2Ref(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID),
         source: Object.freeze({ signal: 'kick' as const, capability: 'music.rhythm-events' as const }),
         actions: Object.freeze([moduleEnvelopeAction('afterhours-kick-envelope', 'kickAccent', 0.025, 0.18)]),
       }),
       Object.freeze({
         id: AFTERHOURS_SNARE_RULE_ID,
         priority: 31,
+        enabledParameter: cinema2Ref(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID),
         source: Object.freeze({ signal: 'snare' as const, capability: 'music.rhythm-events' as const }),
         actions: Object.freeze([moduleEnvelopeAction('afterhours-snare-envelope', 'snareAccent', 0.025, 0.22)]),
       }),
       Object.freeze({
         id: AFTERHOURS_DOWNBEAT_RULE_ID,
         priority: 32,
+        enabledParameter: cinema2Ref(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID),
         source: Object.freeze({ signal: 'downbeat' as const, capability: 'music.downbeat' as const }),
         actions: Object.freeze([moduleEnvelopeAction('afterhours-downbeat-envelope', 'downbeatAccent', 0.04, 0.28)]),
       }),
       Object.freeze({
         id: AFTERHOURS_PHRASE_RULE_ID,
         priority: 40,
+        enabledParameter: cinema2Ref(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID),
         source: Object.freeze({ signal: 'phrase' as const, capability: 'music.phrase' as const }),
         actions: Object.freeze([
           moduleEnvelopeAction('afterhours-phrase-envelope', 'phraseAccent', 0.06, 0.55),
@@ -582,6 +590,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
       Object.freeze({
         id: AFTERHOURS_SECTION_RULE_ID,
         priority: 41,
+        enabledParameter: cinema2Ref(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID),
         source: Object.freeze({ signal: 'section-change' as const, capability: 'music.section' as const }),
         actions: Object.freeze([
           moduleEnvelopeAction('afterhours-section-envelope', 'sectionAccent', 0.075, 0.65),
@@ -594,6 +603,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
       Object.freeze({
         id: AFTERHOURS_DROP_RULE_ID,
         priority: 50,
+        enabledParameter: cinema2Ref(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID),
         source: Object.freeze({ signal: 'drop' as const, capability: 'music.drop' as const }),
         actions: Object.freeze([
           moduleEnvelopeAction('afterhours-drop-envelope', 'dropAccent', 0.1, 0.8),

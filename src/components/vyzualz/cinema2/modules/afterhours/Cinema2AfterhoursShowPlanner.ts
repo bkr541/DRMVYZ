@@ -143,7 +143,12 @@ export function planCinema2AfterhoursShow(
 ): Readonly<Cinema2AfterhoursShowPlan> {
   const authoredBeamCount = clampBeamCount(settings.beamCount)
   const cadenceIdentity = resolveCinema2AfterhoursCadenceIdentity(settings.patternChange, structure)
-  const performance = normalizedPerformance(structure.performance)
+  // Auto Performance owns authored Audio Director / choreography modulation.
+  // When it is disabled, manual preset values are the complete planner authority
+  // even if a stale/transient performance contribution reaches this pure function.
+  const performance = settings.autoPerformance
+    ? normalizedPerformance(structure.performance)
+    : normalizedPerformance(undefined)
   const peak = Math.max(performance.impact, performance.dropAccent)
   const dropStructure = performance.dropAccent
   const sectionStructure = performance.sectionAccent * 0.82

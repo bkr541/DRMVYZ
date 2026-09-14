@@ -27,6 +27,7 @@ const REPLACE_ID = cinema2StableId<Cinema2ParameterId>('replace-output')
 const EVENT_ID = cinema2StableId<Cinema2ParameterId>('event-output')
 const TOGGLE_ID = cinema2StableId<Cinema2ParameterId>('toggle-output')
 const TRIGGER_ID = cinema2StableId<Cinema2ParameterId>('trigger-output')
+const ENABLED_ID = cinema2StableId<Cinema2ParameterId>('route-enabled')
 
 function ruleId(value: string) {
   return cinema2StableId<Cinema2ChoreographyRuleId>(value)
@@ -57,6 +58,7 @@ function baseManifest(rules: Cinema2NativePresetManifest['choreography'] extends
       { id: EVENT_ID, label: 'Event', type: 'float', defaultValue: 0.2, min: -20, max: 20 },
       { id: TOGGLE_ID, label: 'Toggle', type: 'boolean', defaultValue: false },
       { id: TRIGGER_ID, label: 'Trigger', type: 'trigger' },
+      { id: ENABLED_ID, label: 'Route enabled', type: 'boolean', defaultValue: true },
     ],
     choreography: { rules },
   }
@@ -262,6 +264,42 @@ describe('Cinema 2.0 deterministic choreography runtime', () => {
     h.updateSource({ timeSec: 2.5, rhythm: { ...sixth.rhythm, kickHit: false, beatIndex: 5, beatPhase: 0 } })
     h.runtime.update(h.nextFrame(2500))
     expect(h.dispatched).toHaveLength(2)
+  })
+
+  it('drops queued choreography when its enabled parameter is turned off before the due beat', () => {
+    const h = harness(baseManifest([
+      {
+        id: ruleId('disable-queued-trigger'),
+        priority: 10,
+        enabledParameter: cinema2Ref(ENABLED_ID),
+        source: { signal: 'kick', capability: 'music.rhythm-events' },
+        actions: [{
+          id: actionId('disable-queued-trigger-action'),
+          target: { kind: 'parameter', ref: cinema2Ref(TRIGGER_ID) },
+          operation: 'trigger',
+          quantizeBeats: 1,
+        }],
+      },
+    ]))
+    const first = h.getSource()
+    h.updateSource({
+      timeSec: 1.1,
+      rhythm: { ...first.rhythm, kickHit: true, kickStrength: 1, beatIndex: 2, beatPhase: 0.2, transientConfidence: 0.95 },
+    })
+    h.runtime.update(h.nextFrame(1100))
+    expect(h.runtime.getSnapshot().pendingEventCount).toBe(1)
+
+    expect(h.parameterState.setPersistentValue(ENABLED_ID, false)).toMatchObject({ ok: true })
+    const second = h.getSource()
+    h.updateSource({ timeSec: 1.2, rhythm: { ...second.rhythm, kickHit: false, beatIndex: 2, beatPhase: 0.4 } })
+    h.runtime.update(h.nextFrame(1200))
+    expect(h.runtime.getSnapshot().pendingEventCount).toBe(0)
+
+    expect(h.parameterState.setPersistentValue(ENABLED_ID, true)).toMatchObject({ ok: true })
+    const third = h.getSource()
+    h.updateSource({ timeSec: 1.5, rhythm: { ...third.rhythm, kickHit: false, beatIndex: 3, beatPhase: 0 } })
+    h.runtime.update(h.nextFrame(1500))
+    expect(h.dispatched).toHaveLength(0)
   })
 
   it('gates events by capability, confidence, and Director phase', () => {

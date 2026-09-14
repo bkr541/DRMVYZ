@@ -589,7 +589,7 @@ function resolveShowPlannerStructure(
     sectionIdentity: frame.director?.context.section?.available ? frame.director.context.section.value?.id ?? null : null,
     dropIdentity,
     hardCutIntent,
-    performance: canonicalPerformanceAvailable
+    performance: config.autoPerformance && canonicalPerformanceAvailable
       ? Object.freeze({
           intensity: config.directorIntensity,
           build: config.directorBuild,

@@ -464,6 +464,15 @@ export class Cinema2ChoreographyRuntime {
 
   private processPending(frame: Readonly<Cinema2ModuleFrameReadContext>): void {
     if (this.pending.length === 0) return
+
+    // A route can be disabled after an event was queued but before its
+    // quantized/delayed fire time. Drop it immediately, even if beat timing is
+    // currently unavailable, so re-enabling cannot replay stale authority.
+    for (let index = this.pending.length - 1; index >= 0; index -= 1) {
+      if (!this.routeEnabled(this.pending[index].rule)) this.pending.splice(index, 1)
+    }
+    if (this.pending.length === 0) return
+
     const beat = beatPosition(frame.audio)
     if (beat == null) return
     let index = 0
@@ -617,7 +626,7 @@ export class Cinema2ChoreographyRuntime {
   private emitActiveState(frame: Readonly<Cinema2ModuleFrameReadContext>, submissions: Cinema2TargetContributionSubmission[]): void {
     const now = currentTimeSec(frame)
     for (const [actionId, envelope] of [...this.envelopes]) {
-      if (now > envelope.endSec + EPSILON) {
+      if (!this.routeEnabled(envelope.rule) || now > envelope.endSec + EPSILON) {
         this.envelopes.delete(actionId)
         continue
       }
@@ -638,7 +647,7 @@ export class Cinema2ChoreographyRuntime {
     }
 
     for (const [actionId, duration] of [...this.durations]) {
-      if (now > duration.endSec + EPSILON) {
+      if (!this.routeEnabled(duration.rule) || now > duration.endSec + EPSILON) {
         this.durations.delete(actionId)
         continue
       }
@@ -656,7 +665,11 @@ export class Cinema2ChoreographyRuntime {
       })
     }
 
-    for (const toggle of this.toggles.values()) {
+    for (const [actionId, toggle] of [...this.toggles]) {
+      if (!this.routeEnabled(toggle.rule)) {
+        this.toggles.delete(actionId)
+        continue
+      }
       submissions.push({
         targetId: toggle.target.id,
         contribution: Object.freeze({

@@ -55,6 +55,16 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 5 Show Planner', () => {
     expect(plan.transitionIntent).toBe('smooth')
   })
 
+  it('ignores transient performance intent when Auto Performance is off', () => {
+    const baseline = planCinema2AfterhoursShow(SETTINGS, STRUCTURE, random(0.99))
+    const stalePerformance = planCinema2AfterhoursShow(
+      SETTINGS,
+      { ...STRUCTURE, hardCutIntent: true, performance: { build: 1, impact: 1, vocalPresence: 1, kickAccent: 1, snareAccent: 1, downbeatAccent: 1, phraseAccent: 1, sectionAccent: 1, dropAccent: 1 } },
+      random(0.99),
+    )
+    expect(stalePerformance).toEqual(baseline)
+  })
+
   it('may choose another topology and recruit side/top banks without mutating authored settings', () => {
     const authored = { ...SETTINGS, autoPerformance: true, patternChange: 'off' as const }
     const plan = planCinema2AfterhoursShow(authored, STRUCTURE, random(0.99))
@@ -150,19 +160,20 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 5 Show Planner', () => {
   })
 
   it('compresses builds, releases on impact, and lets vocal presence create negative space', () => {
-    const baseline = planCinema2AfterhoursShow(SETTINGS, STRUCTURE, random(0.99))
+    const auto = { ...SETTINGS, autoPerformance: true }
+    const baseline = planCinema2AfterhoursShow(auto, STRUCTURE, random(0.99))
     const building = planCinema2AfterhoursShow(
-      SETTINGS,
+      auto,
       { ...STRUCTURE, performance: { build: 0.9, intensity: 0.7 } },
       random(0.99),
     )
     const impact = planCinema2AfterhoursShow(
-      SETTINGS,
+      auto,
       { ...STRUCTURE, performance: { build: 0.15, impact: 1, dropAccent: 1 } },
       random(0.99),
     )
     const vocal = planCinema2AfterhoursShow(
-      SETTINGS,
+      auto,
       { ...STRUCTURE, performance: { vocalPresence: 1, intensity: 0.8 } },
       random(0.99),
     )
@@ -174,13 +185,14 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 5 Show Planner', () => {
   })
 
   it('gives kick and snare meaningfully different fixture-family emphasis', () => {
+    const auto = { ...SETTINGS, autoPerformance: true }
     const kick = planCinema2AfterhoursShow(
-      SETTINGS,
+      auto,
       { ...STRUCTURE, performance: { kickAccent: 1 } },
       random(0.99),
     )
     const snare = planCinema2AfterhoursShow(
-      SETTINGS,
+      auto,
       { ...STRUCTURE, performance: { snareAccent: 1 } },
       random(0.99),
     )
@@ -203,23 +215,24 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 5 Show Planner', () => {
   })
 
   it('gates blackouts to sparse structural significance instead of kick/snare flicker', () => {
+    const auto = { ...SETTINGS, autoPerformance: true }
     const kickOnly = planCinema2AfterhoursShow(
-      SETTINGS,
+      auto,
       { ...STRUCTURE, performance: { kickAccent: 1, snareAccent: 1 } },
       random(0.99),
     )
     const structuralBelowGate = planCinema2AfterhoursShow(
-      SETTINGS,
+      auto,
       { ...STRUCTURE, performance: { dropAccent: 1, impact: 1 } },
       random(0.5),
     )
     const structuralAccepted = planCinema2AfterhoursShow(
-      SETTINGS,
+      auto,
       { ...STRUCTURE, performance: { dropAccent: 1, impact: 1 } },
       random(0.99),
     )
     const phraseAccepted = planCinema2AfterhoursShow(
-      SETTINGS,
+      auto,
       { ...STRUCTURE, dropIdentity: null, performance: { phraseAccent: 1 } },
       random(0.99),
     )

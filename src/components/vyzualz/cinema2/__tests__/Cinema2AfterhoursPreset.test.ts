@@ -240,6 +240,9 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     })
     expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_AFTERHOURS_BEAM_COUNT_ID)).toMatchObject({ min: 2, max: 16, step: 1 })
     expect(plan.manifest.choreography?.rules).toHaveLength(10)
+    for (const rule of plan.manifest.choreography?.rules ?? []) {
+      expect(rule.enabledParameter?.$ref, `Auto Performance gate for ${rule.id}`).toBe(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)
+    }
     expect(plan.capabilities.required.some(capability => capability.startsWith('music.'))).toBe(false)
     expect(plan.capabilities.optional).toEqual(expect.arrayContaining([
       'audio.transport',
@@ -690,6 +693,45 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     expect(created.runtime.getHistoryServiceSnapshot()).toMatchObject({ validBufferCount: 0, lastResetReason: 'deactivation' })
 
     created.runtime.dispose()
+  })
+
+  it('reconstructs native module, camera, render targets, and defaults cleanly after disposal and re-entry', () => {
+    const createSession = () => {
+      const gl = createCinemaMockWebGL()
+      let scheduledFrame: FrameRequestCallback | null = null
+      const created = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
+        presetId: CINEMA2_AFTERHOURS_PRESET_ID,
+        requestAnimationFrame: vi.fn((callback: FrameRequestCallback) => {
+          scheduledFrame = callback
+          return 1
+        }),
+        cancelAnimationFrame: vi.fn(),
+        renderQuality: 'high',
+      })
+      expect(created.error).toBeNull()
+      if (!created.runtime) throw new Error('Expected Afterhours 2.0 runtime')
+      created.runtime.resize({ width: 640, height: 360, dpr: 1 })
+      created.runtime.start()
+      expect(scheduledFrame).not.toBeNull()
+      ;(scheduledFrame as FrameRequestCallback | null)?.(16)
+      return { gl, runtime: created.runtime }
+    }
+
+    const first = createSession()
+    expect(first.runtime.getModuleRuntimeSnapshot().activeModuleCount).toBe(1)
+    expect(first.runtime.getCameraRuntimeSnapshot().activeCameraId).toBe(CINEMA2_AFTERHOURS_CAMERA_ID)
+    expect(first.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 1, failedPassCount: 0 })
+    expect(lastInstancedDrawCount(first.gl)).toBeGreaterThan(0)
+    expect(first.runtime.getParameterState().getValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)).toBe(false)
+    first.runtime.dispose()
+
+    const reentered = createSession()
+    expect(reentered.runtime.getModuleRuntimeSnapshot().activeModuleCount).toBe(1)
+    expect(reentered.runtime.getCameraRuntimeSnapshot().activeCameraId).toBe(CINEMA2_AFTERHOURS_CAMERA_ID)
+    expect(reentered.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 1, failedPassCount: 0 })
+    expect(lastInstancedDrawCount(reentered.gl)).toBeGreaterThan(0)
+    expect(reentered.runtime.getParameterState().getValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)).toBe(false)
+    reentered.runtime.dispose()
   })
 
   it('keeps the engine-owned trails pass valid across all eight topology families', () => {

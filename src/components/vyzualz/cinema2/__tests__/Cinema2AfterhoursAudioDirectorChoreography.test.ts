@@ -18,6 +18,7 @@ import { planCinema2AfterhoursShow } from '../modules/afterhours/Cinema2Afterhou
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
 import {
+  CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID,
   CINEMA2_AFTERHOURS_CAMERA_ID,
   CINEMA2_AFTERHOURS_MODULE_ID,
   CINEMA2_AFTERHOURS_PRESET_ID,
@@ -271,9 +272,61 @@ function triggerFrame(source: MusicIntelligenceFrame): Readonly<Cinema2ModuleFra
 }
 
 describe('Cinema 2.0 Afterhours 2.0 Stage 7 Audio Director, camera, and trail choreography', () => {
+  it('keeps manual authority complete while Auto Performance is off and releases in-flight choreography when disabled', () => {
+    const plan = compileProductionAfterhours()
+    const parameterState = new Cinema2ParameterState(plan.parameters)
+    const resolver = new Cinema2FinalValueResolver(plan.targets, {
+      resolveBaseValue: target => target.parameterId == null ? target.authoredBaseValue : parameterState.getValue(target.parameterId),
+    })
+    const choreography = new Cinema2ChoreographyRuntime(plan, parameterState, resolver)
+    const director = new Cinema2VisualDirector()
+    const trailMixTarget = trailsTarget(plan, 'mix')
+    const trailPersistenceTarget = trailsTarget(plan, 'persistence')
+    const resolved = (property: string) => Number(resolver.resolve(moduleTarget(plan, property).id).value)
+
+    const buildAudio = new Cinema2AudioIntelligenceBridge({
+      getFrame: () => musicFrame({
+        frameId: 101, timeSec: 30, sectionType: 'build', sectionStartSec: 29, buildProgress: 0.95, buildConfidence: 0.98,
+        vocalPresence: 0.85, beatIndex: 60, barIndex: 15, beatHit: true, downbeatHit: true, kickHit: true, snareHit: true, phraseMarker: true,
+      }),
+      getPublicationMeta: () => ({ sequence: 101, publishedAtMs: 30_000, publisherId: 'afterhours-stage3-auto-gate', kind: 'frame' as const }),
+    }).capture(101)
+    const manualFrame = transportFrame(buildAudio, director)
+
+    choreography.update(manualFrame)
+    expect(parameterState.getValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)).toBe(false)
+    expect(resolved('directorIntensity')).toBe(0)
+    expect(resolved('directorBuild')).toBe(0)
+    expect(resolved('vocalPresence')).toBe(0)
+    expect(resolved('kickAccent')).toBe(0)
+    expect(Number(resolver.resolve(trailMixTarget.id).value)).toBeCloseTo(0.12, 6)
+    expect(Number(resolver.resolve(trailPersistenceTarget.id).value)).toBeCloseTo(0.76, 6)
+
+    expect(parameterState.setPersistentValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID, true)).toMatchObject({ ok: true })
+    choreography.update(manualFrame)
+    expect(resolved('directorBuild')).toBeGreaterThan(0)
+    expect(resolved('vocalPresence')).toBeGreaterThan(0)
+    expect(resolved('kickAccent')).toBeGreaterThan(0)
+    expect(Number(resolver.resolve(trailMixTarget.id).value)).toBeGreaterThan(0.12)
+    expect(choreography.getSnapshot().activeEnvelopeCount).toBeGreaterThan(0)
+
+    expect(parameterState.setPersistentValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID, false)).toMatchObject({ ok: true })
+    choreography.update(manualFrame)
+    expect(resolved('directorIntensity')).toBe(0)
+    expect(resolved('directorBuild')).toBe(0)
+    expect(resolved('vocalPresence')).toBe(0)
+    expect(resolved('kickAccent')).toBe(0)
+    expect(Number(resolver.resolve(trailMixTarget.id).value)).toBeCloseTo(0.12, 6)
+    expect(Number(resolver.resolve(trailPersistenceTarget.id).value)).toBeCloseTo(0.76, 6)
+    expect(choreography.getSnapshot()).toMatchObject({ activeContributionCount: 0, activeEnvelopeCount: 0 })
+
+    choreography.dispose()
+  })
+
   it('routes the real first-party manifest through Choreography/Target Runtime into Show Planner performance intent', () => {
     const plan = compileProductionAfterhours()
     const parameterState = new Cinema2ParameterState(plan.parameters)
+    expect(parameterState.setPersistentValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID, true)).toMatchObject({ ok: true })
     const resolver = new Cinema2FinalValueResolver(plan.targets, {
       resolveBaseValue: target => target.parameterId == null ? target.authoredBaseValue : parameterState.getValue(target.parameterId),
     })
@@ -363,12 +416,12 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 7 Audio Director, camera, and trail ch
     expect(buildTrailPersistence).toBeLessThan(0.95)
 
     const baselinePlan = planCinema2AfterhoursShow({
-      pattern: 'wideFan', autoPerformance: false, beamCount: 16, symmetry: true, sideLasers: true, topLasers: true, patternChange: 'bar4',
+      pattern: 'wideFan', autoPerformance: true, beamCount: 16, symmetry: true, sideLasers: true, topLasers: true, patternChange: 'bar4',
     }, {
       sourceIdentity: 'afterhours-stage5-track', absoluteBarIndex: 5, phraseIdentity: 'phrase-2', dropIdentity: null, hardCutIntent: false,
     }, deterministicRandom())
     const choreographedPlan = planCinema2AfterhoursShow({
-      pattern: 'wideFan', autoPerformance: false, beamCount: 16, symmetry: true, sideLasers: true, topLasers: true, patternChange: 'bar4',
+      pattern: 'wideFan', autoPerformance: true, beamCount: 16, symmetry: true, sideLasers: true, topLasers: true, patternChange: 'bar4',
     }, {
       sourceIdentity: 'afterhours-stage5-track', absoluteBarIndex: 5, phraseIdentity: 'phrase-2', dropIdentity: null, hardCutIntent: false, performance,
     }, deterministicRandom())
