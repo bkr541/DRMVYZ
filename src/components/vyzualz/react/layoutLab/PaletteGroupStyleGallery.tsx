@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { BubbleRevealSlider } from '../controls/BubbleRevealSlider'
 import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 
 // ── PaletteGroupStyleGallery ─────────────────────────────────────────────────
 //
-// Layout Lab / Template engine only. Five candidate treatments for a named
+// Layout Lab / Template engine only. Candidate treatments for a named
 // color-slot group (Background / Primary / Secondary / Accent / Foreground /
 // Highlight — the shape of Cinema's per-layer Palette group) that actually
 // let the user pick a color per row, not just read one. Each entry owns its
@@ -21,11 +21,6 @@ const PALETTE_FIELDS = [
 
 type PaletteKey = typeof PALETTE_FIELDS[number]['key']
 type PaletteState = Record<PaletteKey, string>
-
-const PRESET_SWATCHES = [
-  '#4ac7db', '#67f7ff', '#6b4cff', '#b84fc9', '#d8b95a', '#61d6aa',
-  '#ff6b6b', '#ffa07a', '#e8f4f8', '#9ab2bc', '#0a0d10', '#010208',
-]
 
 function usePaletteState(): [PaletteState, (key: PaletteKey, value: string) => void] {
   const [state, setState] = useState<PaletteState>(() => {
@@ -89,31 +84,7 @@ function isValidHex(value: string): boolean {
   return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value.trim())
 }
 
-// ── 01 · Native Swatch (current pattern, refined) ────────────────────────────
-
-function NativeSwatchPalette() {
-  const [state, setColor] = usePaletteState()
-  return (
-    <div className="llpg-group llpg-group--cols-2">
-      {PALETTE_FIELDS.map(field => (
-        <div key={field.key} className="llpg-row">
-          <span className="llpg-row-label">{field.label}</span>
-          <label className="llpg-native-swatch" style={{ background: state[field.key] }}>
-            <input
-              type="color"
-              value={state[field.key]}
-              onChange={event => setColor(field.key, event.target.value)}
-              aria-label={field.label}
-            />
-          </label>
-          <span className="llpg-row-hex">{state[field.key].toUpperCase()}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ── 02 · Inline Expand (gradient picker, accordion-style) ────────────────────
+// ── 01 · Inline Expand (gradient picker, accordion-style) ────────────────────
 
 function ExpandHslPalette() {
   const [state, setColor] = usePaletteState()
@@ -174,136 +145,7 @@ function ExpandHslPalette() {
   )
 }
 
-// ── 03 · Popover Gradient Picker (2D saturation/lightness square + hue) ──────
-
-function GradientPopoverPalette() {
-  const [state, setColor] = usePaletteState()
-  const [openKey, setOpenKey] = useState<PaletteKey | null>(null)
-  const openRowRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!openKey) return
-    const onPointerDown = (event: PointerEvent) => {
-      if (!openRowRef.current?.contains(event.target as Node)) setOpenKey(null)
-    }
-    window.addEventListener('pointerdown', onPointerDown)
-    return () => window.removeEventListener('pointerdown', onPointerDown)
-  }, [openKey])
-
-  return (
-    <div className="llpg-group llpg-group--cols-3">
-      {PALETTE_FIELDS.map(field => {
-        const open = openKey === field.key
-        const [h, s, l] = hexToHsl(state[field.key])
-        return (
-          <div key={field.key} ref={open ? openRowRef : undefined} className="llpg-row llpg-row--popover-anchor">
-            <span className="llpg-row-label">{field.label}</span>
-            <button
-              type="button"
-              className="llpg-swatch-btn"
-              style={{ background: state[field.key] }}
-              aria-label={`Choose ${field.label}`}
-              onClick={() => setOpenKey(open ? null : field.key)}
-            />
-            <span className="llpg-row-hex">{state[field.key].toUpperCase()}</span>
-            {open && (
-              <div className="llpg-popover">
-                <div
-                  className="llpg-gradient-square"
-                  style={{ background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${h} 100% 50%))` }}
-                  onPointerDown={event => {
-                    const rect = event.currentTarget.getBoundingClientRect()
-                    const move = (clientX: number, clientY: number) => {
-                      const x = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-                      const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height))
-                      const nextS = x * 100
-                      const nextL = (1 - y) * 100
-                      setColor(field.key, hslToHex(h, nextS, nextL))
-                    }
-                    move(event.clientX, event.clientY)
-                    const onMove = (moveEvent: PointerEvent) => move(moveEvent.clientX, moveEvent.clientY)
-                    const onUp = () => window.removeEventListener('pointermove', onMove)
-                    window.addEventListener('pointermove', onMove)
-                    window.addEventListener('pointerup', onUp, { once: true })
-                  }}
-                >
-                  <span className="llpg-gradient-thumb" style={{ left: `${s}%`, top: `${100 - l}%` }} aria-hidden="true" />
-                </div>
-                <BubbleRevealSlider
-                  className="llpg-hue-slider"
-                  min={0} max={360} step={1}
-                  value={h}
-                  onChange={event => setColor(field.key, hslToHex(Number(event.target.value), s, l))}
-                />
-                <DreamVizTextInput
-                  className="llpg-hex-input"
-                  value={state[field.key]}
-                  onChange={event => { if (isValidHex(event.target.value)) setColor(field.key, event.target.value) }}
-                />
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-// ── 04 · Preset Swatch Grid (curated on-brand colors only) ───────────────────
-
-function PresetGridPalette() {
-  const [state, setColor] = usePaletteState()
-  const [openKey, setOpenKey] = useState<PaletteKey | null>(null)
-  const openCellRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!openKey) return
-    const onPointerDown = (event: PointerEvent) => {
-      if (!openCellRef.current?.contains(event.target as Node)) setOpenKey(null)
-    }
-    window.addEventListener('pointerdown', onPointerDown)
-    return () => window.removeEventListener('pointerdown', onPointerDown)
-  }, [openKey])
-
-  return (
-    <div className="llpg-group llpg-group--strip-6">
-      {PALETTE_FIELDS.map(field => {
-        const open = openKey === field.key
-        return (
-          <div key={field.key} ref={open ? openCellRef : undefined} className="llpg-cell llpg-cell--popover-anchor">
-            <span className="llpg-cell-label">{field.label.replace(' Color', '')}</span>
-            <button
-              type="button"
-              className="llpg-swatch-btn llpg-swatch-btn--cell"
-              style={{ background: state[field.key] }}
-              aria-label={`Choose ${field.label}`}
-              onClick={() => setOpenKey(open ? null : field.key)}
-            />
-            <span className="llpg-cell-hex">{state[field.key].toUpperCase()}</span>
-            {open && (
-              <div className="llpg-popover llpg-popover--grid llpg-popover--centered">
-                <div className="llpg-preset-grid">
-                  {PRESET_SWATCHES.map(preset => (
-                    <button
-                      key={preset}
-                      type="button"
-                      className={`llpg-preset-swatch${preset.toLowerCase() === state[field.key].toLowerCase() ? ' is-active' : ''}`}
-                      style={{ background: preset }}
-                      aria-label={preset}
-                      onClick={() => { setColor(field.key, preset); setOpenKey(null) }}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-// ── 05 · Full-Bleed Swatch (the color fills the cell, label sits on top) ────
+// ── 02 · Full-Bleed Swatch (the color fills the cell, label sits on top) ────
 
 function HexFirstPalette() {
   const [state, setColor] = usePaletteState()
@@ -328,11 +170,8 @@ function HexFirstPalette() {
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'native', title: '01 · Native Swatch', blurb: 'The current pattern: a swatch opens the OS color picker, with a live hex readout beside it. Simplest to build, least distinctive.', Palette: NativeSwatchPalette },
-  { id: 'expand', title: '02 · Inline Expand', blurb: 'Collapsed rows show only the label and swatch — no hex readout. Clicking a row expands it in place — accordion-style — to reveal a saturation/lightness gradient square, a hue strip, and a hex field. No overlay, everything stays in document flow.', Palette: ExpandHslPalette },
-  { id: 'gradient', title: '03 · Popover Gradient', blurb: 'Clicking the swatch opens a floating picker with a 2D saturation/lightness square, a hue strip, and a hex field — the fullest, most "real" color-picker experience.', Palette: GradientPopoverPalette },
-  { id: 'preset', title: '04 · Preset Grid', blurb: 'Clicking the swatch opens a curated grid of on-brand colors only — no arbitrary color entry. Fastest to pick from, keeps every palette on-brand by construction.', Palette: PresetGridPalette },
-  { id: 'hexFirst', title: '05 · Full-Bleed Swatch', blurb: 'The label sits above a full-width color block — no visible hex text or buttons. Clicking anywhere on the color opens the OS picker.', Palette: HexFirstPalette },
+  { id: 'expand', title: '01 · Inline Expand', blurb: 'Collapsed rows show only the label and swatch — no hex readout. Clicking a row expands it in place — accordion-style — to reveal a saturation/lightness gradient square, a hue strip, and a hex field. No overlay, everything stays in document flow.', Palette: ExpandHslPalette },
+  { id: 'hexFirst', title: '02 · Full-Bleed Swatch', blurb: 'The label sits above a full-width color block — no visible hex text or buttons. Clicking anywhere on the color opens the OS picker.', Palette: HexFirstPalette },
 ]
 
 export function PaletteGroupStyleGallery() {

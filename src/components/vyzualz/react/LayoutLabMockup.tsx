@@ -9,16 +9,11 @@ import { ToggleStyleGallery } from './layoutLab/ToggleStyleGallery'
 import { TabStyleGallery } from './layoutLab/TabStyleGallery'
 import { EngineDropdownStyleGallery } from './layoutLab/EngineDropdownStyleGallery'
 import { NoticeStyleGallery } from './layoutLab/NoticeStyleGallery'
-import { NotificationsModalMockup } from './layoutLab/NotificationsModalMockup'
-import { MediaLibraryStyleGallery } from './layoutLab/MediaLibraryStyleGallery'
-import { ButtonStyleGallery } from './layoutLab/ButtonStyleGallery'
 import { PaletteGroupStyleGallery } from './layoutLab/PaletteGroupStyleGallery'
 import { BadgeStyleGallery } from './layoutLab/BadgeStyleGallery'
 import { LayerRowStyleGallery } from './layoutLab/LayerRowStyleGallery'
 import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
-import { TrackLibraryRowStyleGallery } from './layoutLab/TrackLibraryRowStyleGallery'
-import { TrackWorkspaceHeaderStyleGallery } from './layoutLab/TrackWorkspaceHeaderStyleGallery'
 import { TrackHeaderStyleGallery } from './layoutLab/TrackHeaderStyleGallery'
 import { LyricManagerTimelineStyleGallery } from './layoutLab/LyricManagerTimelineStyleGallery'
 import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
@@ -250,13 +245,9 @@ export function LayoutLabMockup() {
                       <TabStyleGallery />
                       <EngineDropdownStyleGallery />
                       <NoticeStyleGallery />
-                      <NotificationsModalMockup />
-                      <MediaLibraryStyleGallery />
-                      <ButtonStyleGallery />
                       <PaletteGroupStyleGallery />
                       <BadgeStyleGallery />
                       <LayerRowStyleGallery />
-                      <TrackLibraryRowStyleGallery />
                       <NumericInputStyleGallery />
                     </div>
                   </div>
@@ -361,11 +352,6 @@ export function LayoutLabMockup() {
                 {templateRightTab === 'presets' && (
                   <div className="rv-inspector rv-inspector-scroll">
                     <PresetCardStyleGallery />
-                  </div>
-                )}
-                {templateRightTab === 'design' && (
-                  <div className="rv-inspector rv-inspector-scroll">
-                    <TrackWorkspaceHeaderStyleGallery />
                   </div>
                 )}
                 {templateRightTab === 'output' && (
