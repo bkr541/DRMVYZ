@@ -64,7 +64,8 @@ const REACTOR_COMPOSITE_TARGET_ID = cinema2StableId<Cinema2RenderTargetId>('reac
 const REACTOR_GENERATOR_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('reactor-generator-color')
 const REACTOR_FEEDBACK_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('reactor-feedback-source')
 const REACTOR_FEEDBACK_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('reactor-feedback-color')
-const REACTOR_COMPOSITE_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('reactor-composite-source')
+const REACTOR_COMPOSITE_HISTORY_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('reactor-composite-history')
+const REACTOR_COMPOSITE_FRESH_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('reactor-composite-fresh')
 const REACTOR_COMPOSITE_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('reactor-composite-color')
 const REACTOR_BLOOM_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('reactor-bloom-source')
 
@@ -83,6 +84,8 @@ const REACTOR_DOWNBEAT_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>(
 const REACTOR_DROP_BURST_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-drop-burst-envelope')
 const REACTOR_DROP_BLOOM_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-drop-bloom-envelope')
 const REACTOR_DROP_HISTORY_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-drop-history-reset')
+const REACTOR_DROP_SHOCKWAVE_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-drop-shockwave-envelope')
+const REACTOR_IMPACT_GENERATOR_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('reactor-impact-generator-map')
 
 /**
  * Native Cinema 2.0 Reactor rendering slice. Creative form/refraction stay in
@@ -93,10 +96,10 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_REACTOR_PRESET_ID,
-  revision: 2,
+  revision: 3,
   metadata: Object.freeze({
     name: 'Reactor 2.0',
-    description: 'Production Cinema 2.0 Reactor with authored palette, build motion, media refraction, feedback trails, and bloom.',
+    description: 'Production Cinema 2.0 Reactor with full-stage shrapnel, procedural core motion, impact shockwaves, media refraction, feedback trails, and bloom.',
     tags: Object.freeze(['reactor', 'native', 'multipass', 'keeper']),
   }),
   capabilities: Object.freeze([
@@ -117,8 +120,8 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       id: CINEMA2_REACTOR_CORE_SIZE_ID,
       label: 'Core Size',
       type: 'float' as const,
-      defaultValue: 0.42,
-      min: 0.18, max: 0.72, step: 0.01,
+      defaultValue: 0.46,
+      min: 0.1, max: 1.1, step: 0.01,
       section: 'Design', group: 'Core', order: 10,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
@@ -136,7 +139,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       label: 'Rotation Speed',
       type: 'float' as const,
       defaultValue: 0.21,
-      min: 0, max: 1, step: 0.01,
+      min: -2, max: 2, step: 0.01,
       section: 'Design', group: 'Core', order: 12,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
@@ -153,8 +156,8 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       id: CINEMA2_REACTOR_REFRACTION_ID,
       label: 'Refraction',
       type: 'float' as const,
-      defaultValue: 0.42,
-      min: 0, max: 1, step: 0.01,
+      defaultValue: 0.82,
+      min: 0, max: 3, step: 0.01,
       section: 'Design', group: 'Composite', order: 30,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
@@ -163,7 +166,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       label: 'Shockwave',
       type: 'float' as const,
       defaultValue: 1.2,
-      min: 0, max: 2.5, step: 0.05,
+      min: 0, max: 3, step: 0.05,
       section: 'Design', group: 'Composite', order: 31,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
@@ -293,10 +296,10 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     Object.freeze({
       id: REACTOR_GENERATOR_MODULE_ID,
       typeId: CINEMA2_REACTOR_NATIVE_MODULE_TYPE_ID,
-      version: 2,
+      version: 3,
       enabled: true,
       parameters: Object.freeze({
-        coreSize: 0.42,
+        coreSize: 0.46,
         coreIntensity: 1.15,
         rotationSpeed: 0.21,
         rayDensity: 0.62,
@@ -333,12 +336,21 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     Object.freeze({
       id: REACTOR_COMPOSITE_MODULE_ID,
       typeId: CINEMA2_REACTOR_NATIVE_MODULE_TYPE_ID,
-      version: 2,
+      version: 3,
       enabled: true,
-      parameters: Object.freeze({ refraction: 0.42, edgeGlow: 0.72, impactResponse: 0, refractionPulse: 0, shockwaveIntensity: 1.2 }),
+      parameters: Object.freeze({
+        refraction: 0.82,
+        edgeGlow: 0.82,
+        impactResponse: 0,
+        refractionPulse: 0,
+        shockwaveIntensity: 1.2,
+        shockwavePulse: 0,
+        accentColor: Object.freeze([1, 0.24, 0.58, 1]),
+      }),
       parameterBindings: Object.freeze({
         refraction: cinema2Ref(CINEMA2_REACTOR_REFRACTION_ID),
         shockwaveIntensity: cinema2Ref(CINEMA2_REACTOR_SHOCKWAVE_INTENSITY_ID),
+        accentColor: cinema2Ref(CINEMA2_REACTOR_ACCENT_COLOR_ID),
       }),
       config: Object.freeze({ variant: 'composite' }),
     }),
@@ -351,7 +363,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       enabled: true,
       order: 0,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 0.72, persistence: 0.9 }),
+      parameters: Object.freeze({ mix: 1, persistence: 0.9 }),
       parameterBindings: Object.freeze({
         enabled: cinema2Ref(CINEMA2_REACTOR_TRAILS_ENABLED_ID),
         persistence: cinema2Ref(CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID),
@@ -365,7 +377,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       enabled: true,
       order: 1,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 0.58, threshold: 0.36, radius: 2.2, intensity: 1.45 }),
+      parameters: Object.freeze({ mix: 0.74, threshold: 0.28, radius: 6.5, intensity: 1.45 }),
       parameterBindings: Object.freeze({
         enabled: cinema2Ref(CINEMA2_REACTOR_BLOOM_ENABLED_ID),
         intensity: cinema2Ref(CINEMA2_REACTOR_BLOOM_INTENSITY_ID),
@@ -388,7 +400,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
           id: REACTOR_INTENSITY_ACTION_ID,
           target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(REACTOR_GENERATOR_MODULE_ID), property: 'energyResponse' }),
           operation: 'map' as const,
-          map: Object.freeze({ inputMin: 0, inputMax: 1, outputMin: 0, outputMax: 1, clamp: true }),
+          map: Object.freeze({ inputMin: 0, inputMax: 1, outputMin: 0, outputMax: 1.2, clamp: true }),
         })]),
       }),
       Object.freeze({
@@ -405,7 +417,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
           id: REACTOR_BASS_ACTION_ID,
           target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(REACTOR_GENERATOR_MODULE_ID), property: 'bassResponse' }),
           operation: 'map' as const,
-          map: Object.freeze({ inputMin: 0, inputMax: 1, outputMin: 0, outputMax: 1, clamp: true }),
+          map: Object.freeze({ inputMin: 0, inputMax: 1, outputMin: 0, outputMax: 1.25, clamp: true }),
         })]),
       }),
       Object.freeze({
@@ -430,12 +442,20 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
           smoothingMs: 55,
         }),
         strengthParameter: cinema2Ref(CINEMA2_REACTOR_REACTIVITY_ID),
-        actions: Object.freeze([Object.freeze({
-          id: REACTOR_IMPACT_ACTION_ID,
-          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(REACTOR_COMPOSITE_MODULE_ID), property: 'impactResponse' }),
-          operation: 'map' as const,
-          map: Object.freeze({ inputMin: 0, inputMax: 1, outputMin: 0, outputMax: 1, clamp: true }),
-        })]),
+        actions: Object.freeze([
+          Object.freeze({
+            id: REACTOR_IMPACT_ACTION_ID,
+            target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(REACTOR_COMPOSITE_MODULE_ID), property: 'impactResponse' }),
+            operation: 'map' as const,
+            map: Object.freeze({ inputMin: 0, inputMax: 1, outputMin: 0, outputMax: 1.35, clamp: true }),
+          }),
+          Object.freeze({
+            id: REACTOR_IMPACT_GENERATOR_ACTION_ID,
+            target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(REACTOR_GENERATOR_MODULE_ID), property: 'impactBurst' }),
+            operation: 'map' as const,
+            map: Object.freeze({ inputMin: 0, inputMax: 1, outputMin: 0, outputMax: 0.72, clamp: true }),
+          }),
+        ]),
       }),
       Object.freeze({
         id: REACTOR_DOWNBEAT_RULE_ID,
@@ -447,8 +467,8 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
           target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(REACTOR_COMPOSITE_MODULE_ID), property: 'refractionPulse' }),
           operation: 'envelope' as const,
           composition: 'add' as const,
-          value: 0.24,
-          envelope: Object.freeze({ attack: 0, hold: 0.04, release: 0.22, unit: 'seconds' as const }),
+          value: 0.34,
+          envelope: Object.freeze({ attack: 0, hold: 0.04, release: 0.28, unit: 'seconds' as const }),
           retrigger: 'restart' as const,
         })]),
       }),
@@ -474,6 +494,15 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
             composition: 'add' as const,
             value: 1.15,
             envelope: Object.freeze({ attack: 0.01, hold: 0.06, release: 0.52, unit: 'seconds' as const }),
+            retrigger: 'restart' as const,
+          }),
+          Object.freeze({
+            id: REACTOR_DROP_SHOCKWAVE_ACTION_ID,
+            target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(REACTOR_COMPOSITE_MODULE_ID), property: 'shockwavePulse' }),
+            operation: 'envelope' as const,
+            composition: 'add' as const,
+            value: 1,
+            envelope: Object.freeze({ attack: 0.005, hold: 0.05, release: 0.82, unit: 'seconds' as const }),
             retrigger: 'restart' as const,
           }),
           Object.freeze({
@@ -524,10 +553,16 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
         id: REACTOR_COMPOSITE_PASS_ID,
         kind: 'module' as const,
         module: cinema2Ref(REACTOR_COMPOSITE_MODULE_ID),
-        inputs: Object.freeze([Object.freeze({
-          id: REACTOR_COMPOSITE_INPUT_ID,
-          source: Object.freeze({ pass: cinema2Ref(REACTOR_FEEDBACK_PASS_ID), output: REACTOR_FEEDBACK_OUTPUT_ID }),
-        })]),
+        inputs: Object.freeze([
+          Object.freeze({
+            id: REACTOR_COMPOSITE_HISTORY_INPUT_ID,
+            source: Object.freeze({ pass: cinema2Ref(REACTOR_FEEDBACK_PASS_ID), output: REACTOR_FEEDBACK_OUTPUT_ID }),
+          }),
+          Object.freeze({
+            id: REACTOR_COMPOSITE_FRESH_INPUT_ID,
+            source: Object.freeze({ pass: cinema2Ref(REACTOR_GENERATOR_PASS_ID), output: REACTOR_GENERATOR_OUTPUT_ID }),
+          }),
+        ]),
         outputs: Object.freeze([Object.freeze({ id: REACTOR_COMPOSITE_OUTPUT_ID, target: cinema2Ref(REACTOR_COMPOSITE_TARGET_ID) })]),
       }),
       Object.freeze({

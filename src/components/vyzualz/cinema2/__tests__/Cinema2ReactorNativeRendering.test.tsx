@@ -122,14 +122,14 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
       CINEMA2_REACTOR_ALBUM_ARTWORK_SLOT_ID,
       CINEMA2_REACTOR_MEDIA_OUTPUT_SLOT_ID,
     ])
-    expect(manifest?.revision).toBe(2)
+    expect(manifest?.revision).toBe(3)
     expect(manifest?.metadata.tags).toContain('keeper')
     expect(manifest?.choreography?.rules).toHaveLength(6)
 
     const definitions = new Map((manifest?.parameters ?? []).map(definition => [definition.id, definition]))
-    expect(definitions.get(CINEMA2_REACTOR_ROTATION_SPEED_ID)).toMatchObject({ defaultValue: 0.21, min: 0, max: 1 })
+    expect(definitions.get(CINEMA2_REACTOR_ROTATION_SPEED_ID)).toMatchObject({ defaultValue: 0.21, min: -2, max: 2 })
     expect(definitions.get(CINEMA2_REACTOR_BUILD_CONTRACTION_ID)).toMatchObject({ defaultValue: 0.66, min: 0, max: 1 })
-    expect(definitions.get(CINEMA2_REACTOR_SHOCKWAVE_INTENSITY_ID)).toMatchObject({ defaultValue: 1.2, min: 0, max: 2.5 })
+    expect(definitions.get(CINEMA2_REACTOR_SHOCKWAVE_INTENSITY_ID)).toMatchObject({ defaultValue: 1.2, min: 0, max: 3 })
     expect(definitions.get(CINEMA2_REACTOR_PRIMARY_COLOR_ID)?.defaultValue).toEqual([0.08, 0.62, 1, 1])
     expect(definitions.get(CINEMA2_REACTOR_BACKGROUND_COLOR_ID)?.defaultValue).toEqual([0.006, 0.009, 0.016, 1])
 
@@ -150,12 +150,14 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
     })
     expect(compiled.plan.render.targets).toHaveLength(3)
     expect(compiled.plan.render.targets.every(target => target.ownership === 'transient')).toBe(true)
+    const compositePass = compiled.plan.render.passes.find(pass => pass.id === 'reactor-composite-pass')
+    expect(compositePass?.inputs.filter(input => input.attachment === 'color')).toHaveLength(2)
 
     const coreTarget = compiled.plan.targets.targets.find(target => target.kind === 'module' && target.ownerId === 'reactor-generator' && target.property === 'coreSize')
     const refractionTarget = compiled.plan.targets.targets.find(target => target.kind === 'module' && target.ownerId === 'reactor-composite' && target.property === 'refraction')
     expect(coreTarget?.parameterId).toBe(CINEMA2_REACTOR_CORE_SIZE_ID)
     expect(refractionTarget?.parameterId).toBe(CINEMA2_REACTOR_REFRACTION_ID)
-    expect(compiled.plan.targets.choreographyTargets).toHaveLength(8)
+    expect(compiled.plan.targets.choreographyTargets).toHaveLength(9)
   })
 
   it('uses engine-owned quality scaling and namespaced randomness for production rendering', () => {
@@ -326,8 +328,9 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
     expect(runtime.getHistoryServiceSnapshot()).toMatchObject({ activeBufferCount: 1, validBufferCount: 1 })
     expect(runtime.getEffectRuntimeSnapshot().effects.map(effect => effect.effectId)).toEqual(['reactor-feedback', 'reactor-bloom'])
     expect(runtime.getModuleRuntimeSnapshot()).toMatchObject({ activeModuleCount: 2, failedModuleCount: 0 })
-    expect(lastValue(uniformFloatCalls(gl, 'u_coreSize'))).toBeCloseTo(0.42)
-    expect(lastValue(uniformFloatCalls(gl, 'u_refraction'))).toBeCloseTo(0.42)
+    expect(lastValue(uniformFloatCalls(gl, 'u_coreSize'))).toBeCloseTo(0.46)
+    expect(lastValue(uniformFloatCalls(gl, 'u_refraction'))).toBeCloseTo(0.82)
+    expect(lastValue(uniformFloatCalls(gl, 'u_shockwavePulse'))).toBe(0)
 
     expect(runtime.getParameterState().setPersistentValue(CINEMA2_REACTOR_CORE_SIZE_ID, 0.61).ok).toBe(true)
     expect(runtime.getParameterState().setPersistentValue(CINEMA2_REACTOR_REFRACTION_ID, 0.78).ok).toBe(true)

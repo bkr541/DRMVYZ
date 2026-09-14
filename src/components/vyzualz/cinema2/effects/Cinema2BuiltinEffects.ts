@@ -51,13 +51,27 @@ uniform sampler2D u_history;
 uniform float u_mix;
 uniform float u_persistence;
 uniform float u_historyValid;
+uniform float u_deltaTime;
 out vec4 outColor;
+mat2 rotate2d(float angle) {
+  float c = cos(angle);
+  float s = sin(angle);
+  return mat2(c, -s, s, c);
+}
 void main() {
   vec4 base = texture(u_source, v_uv);
-  vec4 prior = texture(u_history, v_uv);
+  float frameFactor = clamp(max(u_deltaTime, 0.0001) * 60.0, 0.25, 6.0);
+  float persistence = clamp(u_persistence, 0.0, 0.9995);
+  float retention = pow(persistence, frameFactor);
+  vec2 centered = v_uv - 0.5;
+  float trailMix = clamp(u_mix, 0.0, 1.0);
+  vec2 historyUv = 0.5 + rotate2d(0.0018 * trailMix * frameFactor) * centered * pow(0.9975, frameFactor);
+  vec4 prior = texture(u_history, clamp(historyUv, vec2(0.0), vec2(1.0)));
   vec4 history = mix(base, prior, step(0.5, u_historyValid));
-  vec4 trailed = mix(base, history, clamp(u_persistence, 0.0, 1.0));
-  outColor = mix(base, trailed, clamp(u_mix, 0.0, 1.0));
+  vec3 retained = history.rgb * retention;
+  vec3 trailed = max(base.rgb, retained);
+  trailed += min(base.rgb, retained) * 0.18 * trailMix;
+  outColor = vec4(mix(base.rgb, trailed, trailMix), max(base.a, history.a * retention));
 }`
 
 const BLOOM_FRAGMENT_SOURCE = `#version 300 es
@@ -72,25 +86,30 @@ uniform float u_intensity;
 out vec4 outColor;
 vec4 sampleSource(vec2 uv) { return texture(u_source, clamp(uv, vec2(0.0), vec2(1.0))); }
 float luma(vec3 color) { return dot(color, vec3(0.2126, 0.7152, 0.0722)); }
+vec3 brightSample(vec2 uv) {
+  vec3 sampleColor = sampleSource(uv).rgb;
+  float knee = smoothstep(u_threshold, min(1.0, u_threshold + 0.28), luma(sampleColor));
+  return sampleColor * knee;
+}
 void main() {
   vec2 px = max(u_radius, 0.0) / max(u_resolution, vec2(1.0));
   vec4 base = sampleSource(v_uv);
-  vec4 taps[9];
-  taps[0] = base;
-  taps[1] = sampleSource(v_uv + vec2(px.x, 0.0));
-  taps[2] = sampleSource(v_uv - vec2(px.x, 0.0));
-  taps[3] = sampleSource(v_uv + vec2(0.0, px.y));
-  taps[4] = sampleSource(v_uv - vec2(0.0, px.y));
-  taps[5] = sampleSource(v_uv + px);
-  taps[6] = sampleSource(v_uv - px);
-  taps[7] = sampleSource(v_uv + vec2(px.x, -px.y));
-  taps[8] = sampleSource(v_uv + vec2(-px.x, px.y));
-  vec3 glow = vec3(0.0);
-  for (int i = 0; i < 9; i++) {
-    vec3 bright = max(taps[i].rgb - vec3(u_threshold), vec3(0.0));
-    glow += bright * smoothstep(min(u_threshold, 0.9999), 1.0, luma(taps[i].rgb));
-  }
-  glow /= 9.0;
+  if (u_radius <= 0.0001 || u_intensity <= 0.0001) { outColor = base; return; }
+
+  vec3 glow = brightSample(v_uv) * 0.12;
+  glow += brightSample(v_uv + vec2(px.x, 0.0)) * 0.09;
+  glow += brightSample(v_uv - vec2(px.x, 0.0)) * 0.09;
+  glow += brightSample(v_uv + vec2(0.0, px.y)) * 0.09;
+  glow += brightSample(v_uv - vec2(0.0, px.y)) * 0.09;
+  glow += brightSample(v_uv + px * 1.8) * 0.065;
+  glow += brightSample(v_uv - px * 1.8) * 0.065;
+  glow += brightSample(v_uv + vec2(px.x, -px.y) * 1.8) * 0.065;
+  glow += brightSample(v_uv + vec2(-px.x, px.y) * 1.8) * 0.065;
+  glow += brightSample(v_uv + vec2(px.x, 0.0) * 3.6) * 0.055;
+  glow += brightSample(v_uv - vec2(px.x, 0.0) * 3.6) * 0.055;
+  glow += brightSample(v_uv + vec2(0.0, px.y) * 3.6) * 0.055;
+  glow += brightSample(v_uv - vec2(0.0, px.y) * 3.6) * 0.055;
+
   vec4 bloomed = vec4(base.rgb + glow * max(u_intensity, 0.0), base.a);
   outColor = mix(base, bloomed, clamp(u_mix, 0.0, 1.0));
 }`
@@ -194,7 +213,7 @@ class HistoryFeedbackEffectInstance implements Cinema2EffectInstance {
       label: `Cinema2/Effect/FeedbackTrails/${effect.id}`,
       vertSrc: FULLSCREEN_VERT_SRC,
       fragSrc: FEEDBACK_TRAILS_FRAGMENT_SOURCE,
-      requiredUniforms: ['u_source', 'u_history', 'u_mix', 'u_persistence', 'u_historyValid'],
+      requiredUniforms: ['u_source', 'u_history', 'u_mix', 'u_persistence', 'u_historyValid', 'u_deltaTime'],
     })
     if (!result.program) throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
     this.program = result.program
@@ -214,6 +233,7 @@ class HistoryFeedbackEffectInstance implements Cinema2EffectInstance {
     this.program.setFloat('u_mix', context.mix)
     this.program.setFloat('u_persistence', persistence)
     this.program.setFloat('u_historyValid', historyFrame?.valid ? 1 : 0)
+    this.program.setFloat('u_deltaTime', context.frame.deltaTimeSec)
 
     if (!historyFrame) {
       this.pass.run(this.program, context.target, context.width, context.height, [
