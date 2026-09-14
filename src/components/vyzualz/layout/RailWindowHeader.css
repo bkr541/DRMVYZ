@@ -104,3 +104,41 @@
 .rw-frame--right::after {
   left: -1px;
 }
+
+/* Ring around the collapse/expand toggle (.vz-inspector-toggle), matching
+   Lyric Manager's .lmv-left-rail::before / .lmv-right-rail::before. Scoped
+   to WorkspaceRail's own .vz-inspector class (not just .rw-frame--left/
+   --right) since that's the only context guaranteed to have a toggle
+   button positioned at this exact spot — Show Manager's asides use
+   .rw-frame--left/--right too but have no toggle to ring. */
+.vz-inspector.rw-frame--left::before,
+.vz-inspector.rw-frame--right::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 32px;
+  height: 32px;
+  z-index: 19;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.vz-inspector.rw-frame--left::before {
+  left: 100%;
+  border: 1.5px solid rgba(228, 234, 238, 0.9);
+}
+
+.vz-inspector.rw-frame--right::before {
+  left: 0;
+  border: 1.5px solid rgba(215, 220, 225, 0.9);
+}
+
+/* The toggle re-centers to the rail's midline while collapsed
+   (.vz-inspector--collapsed .vz-inspector-toggle--left/--right) — follow
+   it so the ring keeps wrapping the icon instead of pointing at empty
+   space. */
+.vz-inspector.rw-frame--left.vz-inspector--collapsed::before,
+.vz-inspector.rw-frame--right.vz-inspector--collapsed::before {
+  left: 50%;
+}
