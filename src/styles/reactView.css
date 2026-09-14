@@ -5673,7 +5673,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
    header's flex measurements. The negative top offset matches the existing
    lower-workspace contextual-help placement while keeping the icon inside the
    Electron content viewport. */
-.rv-header-input-help.drm-help-overlay-anchor,
 .rv-header-output-help.drm-help-overlay-anchor {
   --drm-help-overlay-top: -12px;
   --drm-help-overlay-right: -9px;
@@ -6914,7 +6913,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   justify-content: center;
 }
 
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-rekordbox-menu {
+/* The consolidated Source trigger (audio input + Rekordbox, opened in one
+   popover — see VyzualzAudioDock.tsx's showAudioSourceControl) takes the
+   grid slot the inline Rekordbox menu used to sit in when it wasn't
+   portaled to the header. React always sets showAudioSourceControl, so
+   .vz-dock-rekordbox-menu itself never renders inside .rv-shell anymore. */
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-trigger {
   grid-column: 1;
   grid-row: 2;
 }
@@ -7275,25 +7279,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   }
 
   .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-track-artist,
-  .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-volume-row .vz-dock-vol-db,
-  .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-rekordbox-status {
+  .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-volume-row .vz-dock-vol-db {
     display: none;
-  }
-
-  .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-rekordbox-menu {
-    flex-basis: 104px;
-    min-width: 88px;
-    max-width: 112px;
-  }
-
-  .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-rekordbox-label {
-    font-size: 7px;
-  }
-
-  .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-rekordbox-select {
-    height: 24px;
-    padding-inline: 7px 20px;
-    font-size: 7.5px;
   }
 }
 
@@ -7910,152 +7897,41 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-shader-editor-error { display: flex; gap: 6px; }
 .rv-shader-editor-error-line { color: rgba(255, 180, 180, 0.7); font-weight: 800; }
 
-/* ── Rekordbox import affordances in the transport deck ─────────────────── */
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-menu {
-  flex: 0 1 122px;
-  min-width: 100px;
-  max-width: 132px;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-label {
-  color: rgba(103, 247, 255, 0.62);
-  font: 900 7.5px/1 var(--az-font);
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-select {
-  height: 26px;
-  border-radius: 7px;
-  border-color: rgba(74, 199, 219, 0.26);
-  color: rgba(176, 244, 255, 0.76);
-  background: rgba(5, 14, 22, 0.84);
-  font-size: 8px;
-  letter-spacing: 0.1em;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-status {
-  color: rgba(180, 231, 238, 0.58);
-  font: 650 7.5px/1.1 var(--az-font);
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-badge {
-  display: inline-flex;
-  align-items: center;
-  width: max-content;
-  max-width: 100%;
-  margin-top: 2px;
-  padding: 2px 5px;
-  border: 1px solid rgba(54, 245, 255, 0.22);
-  border-radius: 999px;
-  color: rgba(124, 245, 255, 0.82);
-  background: rgba(54, 245, 255, 0.055);
-  font: 800 8px/1 var(--az-font);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-strip {
-  position: absolute;
-  z-index: 5;
-  top: 10px;
-  right: 12px;
-  width: auto;
-  max-width: min(320px, calc(100% - 116px));
-  min-width: 0;
-  height: 24px;
-  margin-top: 0;
-  padding: 3px 5px;
-  display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr);
-  align-items: center;
-  gap: 5px;
-  border: 1px solid rgba(74, 199, 219, 0.18);
-  border-radius: 8px;
-  background:
-    linear-gradient(90deg, rgba(74, 199, 219, 0.07), transparent 52%),
-    rgba(3, 10, 16, 0.9);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.02),
-    0 4px 14px rgba(0, 0, 0, 0.22);
-  pointer-events: auto;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-kicker {
-  min-width: 18px;
-  padding-left: 2px;
-  color: rgba(103, 247, 255, 0.66);
-  font: 900 7.5px/1 var(--az-font);
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-tools {
-  position: static;
-  left: auto;
-  bottom: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: max-content;
-  pointer-events: auto;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-btn {
-  appearance: none;
-  display: inline-flex;
+/* ── Audio Source trigger (Input + Rekordbox, consolidated) ─────────────── */
+.rv-shell > .vz-transport-dock .vz-dock-source-trigger {
+  display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 34px;
-  height: 18px;
-  padding: 0 7px;
-  border: 1px solid rgba(74, 199, 219, 0.26);
-  border-radius: 6px;
-  color: rgba(176, 244, 255, 0.74);
-  background: rgba(5, 14, 22, 0.84);
-  font: 850 7.5px/1 var(--az-font);
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-  text-decoration: none;
-  cursor: pointer;
-  transition: border-color 120ms ease, color 120ms ease, background 120ms ease, box-shadow 120ms ease;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-btn--active {
-  border-color: rgba(54, 245, 255, 0.72);
-  color: rgba(232, 255, 255, 0.98);
-  background: linear-gradient(135deg, rgba(35, 148, 170, 0.32), rgba(26, 96, 64, 0.28));
-  box-shadow: 0 0 12px rgba(54, 245, 255, 0.18);
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-btn:disabled {
-  cursor: wait;
-  opacity: 0.58;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-btn:hover,
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-btn:focus-visible {
-  border-color: rgba(54, 245, 255, 0.64);
-  color: rgba(216, 255, 255, 0.96);
-  background: rgba(13, 35, 45, 0.92);
-  outline: none;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-status {
+  gap: 5px;
+  width: 100%;
+  height: 100%;
   min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  color: rgba(180, 231, 238, 0.58);
-  font: 650 7.5px/1.1 var(--az-font);
-  letter-spacing: 0.03em;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  color: rgba(220, 235, 240, 0.68);
+  font: 800 9px/1 var(--az-font);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
 }
 
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-rekordbox-menu,
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-rekordbox-tools,
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-rekordbox-strip,
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-rekordbox-status,
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-rekordbox-badge {
+.rv-shell > .vz-transport-dock .vz-dock-source-trigger:hover,
+.rv-shell > .vz-transport-dock .vz-dock-source-trigger[aria-expanded='true'] {
+  border-color: rgba(74, 199, 219, 0.42);
+  color: rgba(102, 226, 244, 0.94);
+  background: rgba(74, 199, 219, 0.06);
+}
+
+.vz-dock-source-popover-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-source-trigger {
   display: none;
 }
 
@@ -10396,24 +10272,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-shell > .vz-transport-dock .vz-dock-track-artist {
   min-width: 0;
   max-width: 100%;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-menu {
-  flex: 0 0 156px;
-  min-width: 150px;
-  max-width: 166px;
-  gap: 3px;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-select {
-  font-size: 7.75px;
-  letter-spacing: 0.07em;
-  padding-inline: 9px 22px;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-status,
-.rv-shell > .vz-transport-dock .vz-dock-rekordbox-badge {
-  display: none;
 }
 
 /* ── CANVAS engine media foundation ────────────────────────────────────────── */

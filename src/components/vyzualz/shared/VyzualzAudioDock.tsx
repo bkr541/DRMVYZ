@@ -24,7 +24,7 @@ import type { WaveformCueCreateRequest } from '../../../features/timeline/wavefo
 import { buildManualCueMarker } from '../../../features/timeline/manualCuePoint'
 import { cueMarkerBelongsToTrack } from '../../../types/cue'
 import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
-import { HelpInfoTrigger } from '../../shared/InfoPopover'
+import { HelpInfoTrigger, InfoPopover } from '../../shared/InfoPopover'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import {
   getAudioSourcePolicySnapshot,
@@ -163,8 +163,16 @@ export interface VyzualzAudioDockProps {
   waveformAppearance?: 'rgb' | 'deck'
   /** Render the Rekordbox tools dropdown into this element (e.g. the top
    *  header row) instead of its default spot in the dock. State and import
-   *  handlers stay owned by this component either way. */
+   *  handlers stay owned by this component either way. Ignored when
+   *  `showAudioSourceControl` is set — that consolidates Rekordbox into the
+   *  same popover as the audio source selector instead. */
   rekordboxMenuPortalTarget?: HTMLElement | null
+  /** Render a single compact "Source" control (audio input selector +
+   *  Rekordbox tools, consolidated into one icon-button + popover) in the
+   *  BPM row's empty second row instead of leaving that space unused.
+   *  Callers that render their own Input dropdown elsewhere (e.g. the
+   *  React view header) should stop doing so once this is enabled. */
+  showAudioSourceControl?: boolean
 }
 
 export function VyzualzAudioDock({
@@ -174,6 +182,7 @@ export function VyzualzAudioDock({
   unifiedTimeline = false,
   waveformAppearance = 'rgb',
   rekordboxMenuPortalTarget = null,
+  showAudioSourceControl = false,
 }: VyzualzAudioDockProps) {
   const {
     presets, activePresetId, bpmSync, toggleBpmSync, setPlaying,
@@ -200,11 +209,14 @@ export function VyzualzAudioDock({
   const fileInputId       = useId()
   const rekordboxXmlInputId = useId()
   const rekordboxActionSelectId = useId()
+  const audioSourceSelectId = useId()
   const { handleTap } = useTapTempo()
 
   const [collapsedByUser, setCollapsedByUser] = useState(() => (
     expandable ? readCollapsedPreference() : false
   ))
+  const audioSourceTriggerRef = useRef<HTMLButtonElement>(null)
+  const [audioSourcePopoverOpen, setAudioSourcePopoverOpen] = useState(false)
   const [rekordboxLibrary, setRekordboxLibrary] = useState<RekordboxLibrary | null>(null)
   const [rekordboxStatus, setRekordboxStatus] = useState<string | null>(null)
   const [rekordboxDiagnostic, setRekordboxDiagnostic] = useState<string | null>(null)
@@ -596,20 +608,24 @@ export function VyzualzAudioDock({
     liveInputSelected ? 'vz-transport-dock--live-input' : '',
   ].filter(Boolean).join(' ')
 
+  // Header-style (roomy) treatment when portaled to the header, or consolidated
+  // into the audio source popover — both have space for the full label + select.
+  // The default (compact, inline in the dock's own grid) is the tight variant.
+  const rekordboxMenuRoomy = !!rekordboxMenuPortalTarget || showAudioSourceControl
   const rekordboxMenu = (
     <div
-      className={rekordboxMenuPortalTarget ? 'vz-input-group' : 'vz-dock-rekordbox-menu'}
+      className={rekordboxMenuRoomy ? 'vz-input-group' : 'vz-dock-rekordbox-menu'}
       aria-label="Rekordbox import tools"
     >
       <label
-        className={rekordboxMenuPortalTarget ? 'vz-input-label' : 'vz-dock-rekordbox-label'}
+        className={rekordboxMenuRoomy ? 'vz-input-label' : 'vz-dock-rekordbox-label'}
         htmlFor={rekordboxActionSelectId}
       >
         Rekordbox
       </label>
       <DropdownSelect
         id={rekordboxActionSelectId}
-        className={rekordboxMenuPortalTarget ? 'az-select' : 'vz-dock-rekordbox-select'}
+        className={rekordboxMenuRoomy ? 'az-select' : 'vz-dock-rekordbox-select'}
         value=""
         disabled={rekordboxBusy || trackSourceLocked}
         onChange={event => {
@@ -944,7 +960,54 @@ export function VyzualzAudioDock({
         )}
         </div>{/* end vz-dock-bpm-wrap */}
 
-        {!rekordboxMenuPortalTarget && rekordboxMenu}
+        {showAudioSourceControl ? (
+          <>
+            <button
+              ref={audioSourceTriggerRef}
+              type="button"
+              className="vz-dock-source-trigger"
+              onClick={() => setAudioSourcePopoverOpen(value => !value)}
+              aria-haspopup="dialog"
+              aria-expanded={audioSourcePopoverOpen}
+              title="Audio source & Rekordbox"
+            >
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 7h10M4 17h6M18 17h2M14 7h6" />
+                <circle cx="16" cy="7" r="2" />
+                <circle cx="12" cy="17" r="2" />
+              </svg>
+              <span>Source</span>
+            </button>
+            <InfoPopover
+              open={audioSourcePopoverOpen}
+              anchorRef={audioSourceTriggerRef}
+              onOpenChange={setAudioSourcePopoverOpen}
+              title="Audio Source"
+              placement="above"
+              align="start"
+              width={220}
+            >
+              <div className="vz-dock-source-popover-body">
+                <div className="vz-input-group">
+                  <label className="vz-input-label" htmlFor={audioSourceSelectId}>Input</label>
+                  <DropdownSelect
+                    id={audioSourceSelectId}
+                    className="az-select"
+                    value={engine.source}
+                    onChange={e => engine.setSource(e.target.value as typeof engine.source)}
+                  >
+                    <option value="file">Track Input</option>
+                    <option value="microphone">Live Input</option>
+                    <option value="demo">Demo Signal</option>
+                  </DropdownSelect>
+                </div>
+                {rekordboxMenu}
+              </div>
+            </InfoPopover>
+          </>
+        ) : (
+          !rekordboxMenuPortalTarget && rekordboxMenu
+        )}
         </div>
 
         <div className="vz-dock-right-btns">

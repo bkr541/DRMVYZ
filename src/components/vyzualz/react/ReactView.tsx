@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useMemo, useEffect, useLayoutEffect, useCallback, useId, useRef } from 'react'
+import { lazy, Suspense, useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
@@ -109,7 +109,6 @@ import {
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
 import { subscribePixGridWorkspace } from './pixGrid/PixGridWorkspaceNavigation'
 import '../../../styles/reactView.css'
-import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import {
   CANVAS_OUTPUT_AVAILABLE,
@@ -192,7 +191,6 @@ export interface ReactViewProps {
 }
 
 export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewProps) {
-  const audioSourceId = useId()
   const engine   = useSharedAudio()
   const analyser = engine.analyserMaster
 
@@ -393,7 +391,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const recorder = useRecorder()
   const { startVideoRecording } = recorder
   const { hasActiveProgramAudio, getRecordingStream } = engine
-  const [rekordboxHeaderSlot, setRekordboxHeaderSlot] = useState<HTMLDivElement | null>(null)
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
   const [cinema2Runtime, setCinema2Runtime] = useState<Cinema2Runtime | null>(null)
   const [cinema2RuntimeSnapshot, setCinema2RuntimeSnapshot] = useState<Cinema2RuntimeSnapshot | null>(null)
@@ -776,33 +773,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
         </div>
 
         <div className="vz-header-sep" />
-
-        <div className="vz-input-group rv-header-input-help drm-help-overlay-anchor">
-          <label className="vz-input-label" htmlFor={audioSourceId}>
-            Input
-          </label>
-          <DropdownSelect
-            id={audioSourceId}
-            className="az-select"
-            value={engine.source}
-            onChange={(e) => engine.setSource(e.target.value as typeof engine.source)}
-          >
-            <option value="file">Track Input</option>
-            <option value="microphone">Live Input</option>
-            <option value="demo">Demo Signal</option>
-          </DropdownSelect>
-          <HelpInfoTrigger
-            helpId="react.shared.header.audioInput"
-            currentValue={engine.source === 'file'
-              ? 'Track Input'
-              : engine.source === 'microphone'
-                ? 'Live Input'
-                : 'Demo Signal'}
-            placement="below"
-          />
-        </div>
-
-        <div ref={setRekordboxHeaderSlot} className="vz-header-rekordbox-slot" />
 
         <span className="az-spacer" />
         <ReactPersistenceStatus />
@@ -1278,7 +1248,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           !stageFocus
         }
         waveformAppearance="deck"
-        rekordboxMenuPortalTarget={rekordboxHeaderSlot}
+        showAudioSourceControl
       />
     </div>
   )
