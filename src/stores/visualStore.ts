@@ -1589,8 +1589,8 @@ export const useVisualStore = create<VisualState>()(
           timelineClips:         [] as VzTimelineMediaClip[],
           timelineOverlayClips:  [] as VzTimelineMediaClip[],
           timelineEffectRegions: [] as VzTimelineEffectRegion[],
-          // videoBaselineMode and rendererType are ephemeral — always start clean.
-          // rendererType is resolved from gpuPreference by LiveVisualCanvas on mount.
+          // videoBaselineMode and rendererType are ephemeral compatibility state — always start clean.
+          // Current engine runtimes own their renderer lifecycle independently of this legacy store field.
           videoBaselineMode:      false,
           rendererType:           'canvas2d' as const,
           rendererFallbackReason: null,
