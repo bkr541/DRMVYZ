@@ -4954,6 +4954,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   z-index: 6;
   width: 100%;
   min-width: 0;
+  /* Cancel .vz-inspector-inner's rail padding so the trigger below reaches
+     the rail's true left/right edges, the same technique RailWindowHeader
+     uses to sit flush at the top. */
+  margin: 0 calc(var(--rv-rail-inline-padding) * -1);
 }
 
 /* Styled to match Layout Lab / Template's "Radial Spotlight" engine
@@ -4976,7 +4980,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   align-items: center;
   gap: 16px;
   padding: 18px 20px;
-  border-radius: 20px;
+  /* Square, not rounded, so it fits flush edge-to-edge under
+     RailWindowHeader and flush with the rail's true left/right edges
+     (see .rv-engine-dropdown's negative margin). */
+  border-radius: 0;
   border: 1px solid rgba(74, 199, 219, 0.22);
   background:
     radial-gradient(circle at 12% 30%, rgba(74, 199, 219, 0.16), transparent 55%),
@@ -10177,9 +10184,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* ── Show Director / transport tightening pass ─────────────────────────────── */
+/* Zero horizontal/top padding so the Engine dropdown (its sole child) can
+   reach the rail's true left/right edges and sit flush under RailWindowHeader
+   — see .rv-engine-dropdown's own negative margin, which cancels the
+   remaining inset from .vz-inspector-inner's padding, and
+   .rv-engine-dropdown-trigger's removed border-radius, which lets it fit
+   flush into that square corner. Bottom padding is kept as the gap before
+   the Source/Layers tab row. */
 .rv-context-workspace-header {
   min-height: 0;
-  padding: 10px 10px 8px;
+  padding: 0 0 8px;
   gap: 0;
 }
 
