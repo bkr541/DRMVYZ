@@ -14,6 +14,7 @@ export type Cinema2HistoryResetReason =
   | 'context-restored'
   | 'size-change'
   | 'deactivation'
+  | 'transport-inactive'
 
 export interface Cinema2HistoryFrame {
   readonly name: string

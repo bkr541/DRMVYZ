@@ -18,6 +18,7 @@ import {
   CINEMA2_AFTERHOURS_PATTERN_ID,
   CINEMA2_AFTERHOURS_PRESET_ID,
   CINEMA2_AFTERHOURS_PRESET_MANIFEST,
+  CINEMA2_AFTERHOURS_RESET_TRAILS_ID,
   CINEMA2_AFTERHOURS_SIDE_LASERS_ID,
   CINEMA2_AFTERHOURS_SYMMETRY_ID,
   CINEMA2_AFTERHOURS_TOP_LASERS_ID,
@@ -28,8 +29,8 @@ import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
 import { Cinema2Runtime } from '../runtime/Cinema2Runtime'
 
-const REQUIRED_CAPABILITIES = Object.freeze(['render.webgl2', 'render.depth', 'scene.3d', 'camera.world'] as const)
-const EXPECTED_PARAMETER_IDS = Object.freeze([
+const REQUIRED_CAPABILITIES = Object.freeze(['render.webgl2', 'render.depth', 'render.history', 'scene.3d', 'camera.world'] as const)
+const EXPECTED_USER_PARAMETER_IDS = Object.freeze([
   'afterhours-background',
   'afterhours-color-mode',
   'afterhours-primary-color',
@@ -52,6 +53,7 @@ const EXPECTED_PARAMETER_IDS = Object.freeze([
   'afterhours-pattern-change',
   'afterhours-blackout-amount',
 ])
+const EXPECTED_PARAMETER_IDS = Object.freeze([...EXPECTED_USER_PARAMETER_IDS, 'afterhours-reset-trails'])
 
 class FakeCanvas extends EventTarget {
   width = 640
@@ -81,7 +83,7 @@ function targetFor(plan: ReturnType<typeof compileAfterhours>, kind: string, own
   return target
 }
 
-describe('Cinema 2.0 Afterhours 2.0 Stage 6 production preset', () => {
+describe('Cinema 2.0 Afterhours 2.0 Stage 7 production preset', () => {
   it('registers as a first-party keeper and passes the shared authoring/compiler gates', () => {
     const declaration = CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS.find(candidate => candidate.manifest.id === CINEMA2_AFTERHOURS_PRESET_ID)
     expect(declaration).toMatchObject({ role: 'keeper' })
@@ -91,6 +93,8 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 6 production preset', () => {
 
     const plan = compileAfterhours()
     expect(plan.manifest.modules).toHaveLength(1)
+    expect(plan.manifest.effects).toHaveLength(1)
+    expect(plan.manifest.revision).toBe(4)
     expect(plan.manifest.modules?.[0]).toMatchObject({
       id: CINEMA2_AFTERHOURS_MODULE_ID,
       typeId: CINEMA2_AFTERHOURS_NATIVE_MODULE_TYPE_ID,
@@ -101,7 +105,7 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 6 production preset', () => {
 
   it('authors the complete independent parameter contract and binds every exposed control into shared engine state', () => {
     const plan = compileAfterhours()
-    expect(plan.parameters.definitions.map(definition => definition.id)).toEqual(EXPECTED_PARAMETER_IDS)
+    expect(plan.parameters.definitions.map(definition => definition.id).sort()).toEqual([...EXPECTED_PARAMETER_IDS].sort())
 
     const module = plan.manifest.modules?.[0]
     expect(module).toBeDefined()
@@ -117,8 +121,13 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 6 production preset', () => {
     expect(targetFor(plan, 'environment', 'root', 'backgroundColor').parameterId).toBe(CINEMA2_AFTERHOURS_BACKGROUND_ID)
 
     const pattern = plan.parameters.definitions.find(definition => definition.id === CINEMA2_AFTERHOURS_PATTERN_ID)
-    expect(pattern?.options.map(option => option.value)).toEqual(CINEMA2_AFTERHOURS_TOPOLOGY_IDS)
+    expect(pattern?.options?.map(option => option.value)).toEqual(CINEMA2_AFTERHOURS_TOPOLOGY_IDS)
     expect(plan.parameters.authoredDefaults[CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID]).toBe(false)
+    expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_AFTERHOURS_RESET_TRAILS_ID)).toMatchObject({
+      type: 'trigger',
+      exposure: 'hidden',
+      persistence: 'runtime-only',
+    })
     expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_AFTERHOURS_BEAM_COUNT_ID)).toMatchObject({ min: 2, max: 16, step: 1 })
     expect(plan.manifest.choreography?.rules).toHaveLength(10)
     expect(plan.capabilities.required.some(capability => capability.startsWith('music.'))).toBe(false)
@@ -163,7 +172,8 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 6 production preset', () => {
 
     expect(designGroups).toEqual(expect.arrayContaining(['Color', 'Rig', 'Pattern', 'Motion', 'Atmosphere']))
     expect(reactGroups).toEqual(expect.arrayContaining(['Reactivity', 'Structure']))
-    expect(allControls).toEqual(expect.arrayContaining(EXPECTED_PARAMETER_IDS))
+    expect(allControls).toEqual(expect.arrayContaining(EXPECTED_USER_PARAMETER_IDS))
+    expect(allControls).not.toContain(CINEMA2_AFTERHOURS_RESET_TRAILS_ID)
     expect(allControls).toContain(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)
   })
 
@@ -222,6 +232,22 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 6 production preset', () => {
       expect.objectContaining({ role: 'world', depthPolicy: 'read-write' }),
     ])
     expect(plan.render.targets.some(target => target.descriptor.depthFormat === 'depth24')).toBe(true)
+    expect(plan.render).toMatchObject({
+      synthesized: false,
+      intent: 'authored-render-graph',
+      passOrder: ['afterhours-scene-pass', 'afterhours-trails-pass'],
+      outputPassId: 'afterhours-trails-pass',
+    })
+    expect(plan.render.targets).toHaveLength(2)
+    expect(plan.manifest.effects?.[0]).toMatchObject({
+      id: 'afterhours-feedback-trails',
+      typeId: 'feedback-trails',
+      parameters: { mix: 0.12, persistence: 0.76 },
+      actionBindings: { reset: { $ref: CINEMA2_AFTERHOURS_RESET_TRAILS_ID } },
+    })
+    const trailsPass = plan.render.passes.find(pass => pass.id === 'afterhours-trails-pass')
+    expect(trailsPass?.inputs).toHaveLength(1)
+    expect(trailsPass?.inputs[0]?.sourcePass.id).toBe('afterhours-scene-pass')
     expect(plan.manifest.cameras?.find(camera => camera.id === CINEMA2_AFTERHOURS_CAMERA_ID)).toMatchObject({
       projection: 'perspective',
       rig: { kind: 'static' },
@@ -261,6 +287,30 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 6 production preset', () => {
     expect(scheduledFrame).not.toBeNull()
     ;(scheduledFrame as FrameRequestCallback | null)?.(16)
 
+    expect(created.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({
+      frameCount: 1,
+      executedPassCount: 2,
+      failedPassCount: 0,
+    })
+    expect(created.runtime.getHistoryServiceSnapshot()).toMatchObject({ activeBufferCount: 1, validBufferCount: 1 })
+    expect(created.runtime.getEffectRuntimeSnapshot().effects).toEqual([expect.objectContaining({
+      effectId: 'afterhours-feedback-trails',
+      typeId: 'feedback-trails',
+      status: 'active',
+    })])
+
+    const resetTarget = created.runtime.getCompiledPresetPlan().targets.targets.find(target => (
+      target.channel === 'action' && target.parameterId === CINEMA2_AFTERHOURS_RESET_TRAILS_ID
+    ))
+    expect(resetTarget).toBeDefined()
+    if (!resetTarget) throw new Error('Afterhours Trails reset action target was not compiled.')
+    expect(created.runtime.getTargetResolver().dispatch(resetTarget.id, [{
+      contributorId: 'afterhours-stage7-test',
+      operation: 'action',
+      eventId: 'afterhours-stage7-test:reset',
+    }])).toMatchObject({ ok: true })
+    expect(created.runtime.getHistoryServiceSnapshot()).toMatchObject({ validBufferCount: 0, lastResetReason: 'manual' })
+
     const cameraFrame = created.runtime.getCameraRuntimeSnapshot().camera
     const matrixCalls = (gl.uniformMatrix4fv as unknown as { mock: { calls: unknown[][] } }).mock.calls
     const uploadedMatrix = Array.from(matrixCalls[matrixCalls.length - 1]?.[2] as Float32Array)
@@ -271,4 +321,111 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 6 production preset', () => {
 
     created.runtime.dispose()
   })
+
+  it('keeps feedback history clean while audio is absent or paused and preserves engine lifecycle resets', () => {
+    const gl = createCinemaMockWebGL()
+    let scheduledFrame: FrameRequestCallback | null = null
+    const transport = {
+      sourcePresent: false,
+      playing: false,
+      analysisActive: false,
+      paused: false,
+      trackId: null as string | null,
+      timeSec: 0,
+    }
+    const created = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
+      presetId: CINEMA2_AFTERHOURS_PRESET_ID,
+      requestAnimationFrame: vi.fn((callback: FrameRequestCallback) => {
+        scheduledFrame = callback
+        return 1
+      }),
+      cancelAnimationFrame: vi.fn(),
+      transportSource: { getState: () => transport },
+      renderQuality: 'high',
+    })
+    expect(created.error).toBeNull()
+    if (!created.runtime) return
+
+    const runFrame = (timestampMs: number) => {
+      expect(scheduledFrame).not.toBeNull()
+      ;(scheduledFrame as FrameRequestCallback | null)?.(timestampMs)
+    }
+
+    created.runtime.resize({ width: 640, height: 360, dpr: 1 })
+    created.runtime.start()
+    runFrame(16)
+    expect(created.runtime.getHistoryServiceSnapshot()).toMatchObject({
+      activeBufferCount: 0,
+      validBufferCount: 0,
+      lastResetReason: 'resize',
+    })
+
+    transport.sourcePresent = true
+    transport.playing = true
+    transport.analysisActive = true
+    transport.trackId = 'track-a'
+    transport.timeSec = 1
+    runFrame(32)
+    expect(created.runtime.getHistoryServiceSnapshot()).toMatchObject({ activeBufferCount: 1, validBufferCount: 1 })
+
+    transport.playing = false
+    transport.paused = true
+    transport.timeSec = 1.25
+    runFrame(48)
+    const pausedSnapshot = created.runtime.getHistoryServiceSnapshot()
+    expect(pausedSnapshot).toMatchObject({ activeBufferCount: 1, validBufferCount: 0, lastResetReason: 'transport-inactive' })
+    runFrame(64)
+    expect(created.runtime.getHistoryServiceSnapshot().resetCount).toBe(pausedSnapshot.resetCount)
+
+    transport.playing = true
+    transport.paused = false
+    transport.timeSec = 1.5
+    runFrame(80)
+    expect(created.runtime.getHistoryServiceSnapshot()).toMatchObject({ activeBufferCount: 1, validBufferCount: 1 })
+
+    transport.sourcePresent = false
+    transport.playing = false
+    transport.analysisActive = false
+    transport.trackId = null
+    transport.timeSec = 0
+    runFrame(96)
+    expect(created.runtime.getHistoryServiceSnapshot()).toMatchObject({ validBufferCount: 0, lastResetReason: 'deactivation' })
+
+    created.runtime.dispose()
+  })
+
+  it('keeps the engine-owned trails pass valid across all eight topology families', () => {
+    const gl = createCinemaMockWebGL()
+    let scheduledFrame: FrameRequestCallback | null = null
+    const created = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
+      presetId: CINEMA2_AFTERHOURS_PRESET_ID,
+      requestAnimationFrame: vi.fn((callback: FrameRequestCallback) => {
+        scheduledFrame = callback
+        return 1
+      }),
+      cancelAnimationFrame: vi.fn(),
+      renderQuality: 'high',
+    })
+    expect(created.error).toBeNull()
+    if (!created.runtime) return
+
+    created.runtime.resize({ width: 640, height: 360, dpr: 1 })
+    created.runtime.start()
+    let timestampMs = 16
+    for (const topologyId of CINEMA2_AFTERHOURS_TOPOLOGY_IDS) {
+      expect(created.runtime.getParameterState().setPersistentValue(CINEMA2_AFTERHOURS_PATTERN_ID, topologyId)).toMatchObject({ ok: true })
+      expect(scheduledFrame).not.toBeNull()
+      ;(scheduledFrame as FrameRequestCallback | null)?.(timestampMs)
+      timestampMs += 16
+      expect(created.runtime.getHistoryServiceSnapshot()).toMatchObject({ activeBufferCount: 1, validBufferCount: 1 })
+      expect(created.runtime.getRenderGraphExecutorSnapshot().failedPassCount).toBe(0)
+    }
+    expect(created.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({
+      frameCount: CINEMA2_AFTERHOURS_TOPOLOGY_IDS.length,
+      executedPassCount: CINEMA2_AFTERHOURS_TOPOLOGY_IDS.length * 2,
+    })
+
+    created.runtime.dispose()
+  })
+
 })

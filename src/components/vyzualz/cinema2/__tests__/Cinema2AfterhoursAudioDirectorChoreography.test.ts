@@ -30,6 +30,7 @@ import { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
 const AVAILABLE_CAPABILITIES = Object.freeze([
   'render.webgl2',
   'render.depth',
+  'render.history',
   'scene.3d',
   'camera.world',
   'audio.transport',
@@ -59,6 +60,16 @@ function moduleTarget(plan: Readonly<Cinema2CompiledPresetPlan>, property: strin
     && candidate.property === property
   ))
   if (!target) throw new Error(`Missing Afterhours module target ${property}`)
+  return target
+}
+
+function trailsTarget(plan: Readonly<Cinema2CompiledPresetPlan>, property: string) {
+  const target = plan.targets.targets.find(candidate => (
+    candidate.kind === 'effect'
+    && candidate.ownerId === 'afterhours-feedback-trails'
+    && candidate.property === property
+  ))
+  if (!target) throw new Error(`Missing Afterhours trails target ${property}`)
   return target
 }
 
@@ -259,7 +270,7 @@ function triggerFrame(source: MusicIntelligenceFrame): Readonly<Cinema2ModuleFra
   })
 }
 
-describe('Cinema 2.0 Afterhours 2.0 Stage 6 Audio Director and camera choreography', () => {
+describe('Cinema 2.0 Afterhours 2.0 Stage 7 Audio Director, camera, and trail choreography', () => {
   it('routes the real first-party manifest through Choreography/Target Runtime into Show Planner performance intent', () => {
     const plan = compileProductionAfterhours()
     const parameterState = new Cinema2ParameterState(plan.parameters)
@@ -282,6 +293,12 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 6 Audio Director and camera choreograp
     const verseCamera = camera.update(verseFrame)
     expect(verseCamera.cameraId).toBe(CINEMA2_AFTERHOURS_CAMERA_ID)
     expect(verseCamera.source).toBe('authored')
+    const trailMixTarget = trailsTarget(plan, 'mix')
+    const trailPersistenceTarget = trailsTarget(plan, 'persistence')
+    const verseTrailMix = Number(resolver.resolve(trailMixTarget.id).value)
+    const verseTrailPersistence = Number(resolver.resolve(trailPersistenceTarget.id).value)
+    expect(verseTrailMix).toBeGreaterThanOrEqual(0.12)
+    expect(verseTrailPersistence).toBeGreaterThanOrEqual(0.76)
 
     upstream = musicFrame({
       frameId: 2,
@@ -338,6 +355,12 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 6 Audio Director and camera choreograp
     expect(buildCamera.position[2]).toBeLessThanOrEqual(20.7)
     expect(buildCamera.fovDegrees).toBeGreaterThanOrEqual(44)
     expect(buildCamera.fovDegrees).toBeLessThanOrEqual(56)
+    const buildTrailMix = Number(resolver.resolve(trailMixTarget.id).value)
+    const buildTrailPersistence = Number(resolver.resolve(trailPersistenceTarget.id).value)
+    expect(buildTrailMix).toBeGreaterThan(verseTrailMix)
+    expect(buildTrailPersistence).toBeGreaterThan(verseTrailPersistence)
+    expect(buildTrailMix).toBeLessThan(0.75)
+    expect(buildTrailPersistence).toBeLessThan(0.95)
 
     const baselinePlan = planCinema2AfterhoursShow({
       pattern: 'wideFan', autoPerformance: false, beamCount: 16, symmetry: true, sideLasers: true, topLasers: true, patternChange: 'bar4',
@@ -375,6 +398,7 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 6 Audio Director and camera choreograp
 
     expect(resolved('directorImpact')).toBeGreaterThan(0)
     expect(resolved('dropAccent')).toBeGreaterThan(0)
+    expect(Number(resolver.resolve(trailMixTarget.id).value)).toBeGreaterThan(0.12)
     expect(dropCamera.position).not.toEqual(buildCamera.position)
     expect(dropCamera.fovDegrees).toBeGreaterThan(buildCamera.fovDegrees)
 

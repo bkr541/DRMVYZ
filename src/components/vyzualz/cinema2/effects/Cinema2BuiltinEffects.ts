@@ -202,11 +202,17 @@ function numberValue(values: Readonly<Record<string, Cinema2JsonValue>>, name: s
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
+function booleanValue(values: Readonly<Record<string, Cinema2JsonValue>>, name: string, fallback: boolean): boolean {
+  const value = values[name]
+  return typeof value === 'boolean' ? value : fallback
+}
+
 class HistoryFeedbackEffectInstance implements Cinema2EffectInstance {
   private readonly program: ShaderProgram
   private readonly pass: FullscreenPass
   private readonly historyName: string
   private disposed = false
+  private transportBypassed = false
 
   constructor(
     private readonly gl: WebGL2RenderingContext,
@@ -228,12 +234,42 @@ class HistoryFeedbackEffectInstance implements Cinema2EffectInstance {
   render(context: Readonly<Cinema2EffectRenderExecutionContext>): void {
     if (this.disposed) return
     const persistence = clamp(numberValue(context.parameters, 'persistence', 0.85), 0, 1)
-    const historyFrame = this.history.beginFrame(this.historyName, context.width, context.height)
+    const transportAware = booleanValue(context.parameters, 'transportAware', false)
+    const transportInactive = transportAware && (
+      context.frame.transport?.sourcePresent === false
+      || context.frame.transport?.paused === true
+      || context.frame.transport?.animationActive === false
+    )
+
     this.gl.disable(this.gl.SCISSOR_TEST)
     this.gl.disable(this.gl.BLEND)
     this.gl.disable(this.gl.DEPTH_TEST)
     this.gl.colorMask(true, true, true, true)
     this.program.activate()
+
+    if (transportInactive) {
+      if (!this.transportBypassed) {
+        const activeHistory = this.history.getSnapshot().buffers.find(buffer => buffer.name === this.historyName)
+        // Preserve a stronger engine lifecycle reason (source replacement, seek,
+        // resize, etc.) if the host already invalidated this history before the
+        // effect executes. Transport inactivity only owns the reset when there
+        // is actually valid feedback content left to retire.
+        if (activeHistory?.valid) this.history.resetBuffer(this.historyName, 'transport-inactive')
+      }
+      this.transportBypassed = true
+      this.program.setFloat('u_mix', 0)
+      this.program.setFloat('u_persistence', persistence)
+      this.program.setFloat('u_historyValid', 0)
+      this.program.setFloat('u_deltaTime', 0)
+      this.pass.run(this.program, context.target, context.width, context.height, [
+        { unit: 0, texture: context.input.texture, uniformName: 'u_source' },
+        { unit: 1, texture: context.input.texture, uniformName: 'u_history' },
+      ])
+      return
+    }
+
+    this.transportBypassed = false
+    const historyFrame = this.history.beginFrame(this.historyName, context.width, context.height)
     this.program.setFloat('u_mix', context.mix)
     this.program.setFloat('u_persistence', persistence)
     this.program.setFloat('u_historyValid', historyFrame?.valid ? 1 : 0)
@@ -283,10 +319,21 @@ export const cinema2FeedbackTrailsEffectDefinition: Readonly<Cinema2EffectTypeDe
   typeId: CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID,
   version: CINEMA2_BUILTIN_EFFECT_VERSION,
   label: 'Feedback / Trails',
-  validate: (effect: Readonly<Cinema2EffectManifest>) => Object.freeze([
-    ...validateCommon(effect),
-    ...validateNumeric(effect, 'persistence', 0, 1),
-  ]),
+  validate: (effect: Readonly<Cinema2EffectManifest>) => {
+    const diagnostics = [
+      ...validateCommon(effect),
+      ...validateNumeric(effect, 'persistence', 0, 1),
+    ]
+    const transportAware = effect.parameters?.transportAware
+    if (transportAware !== undefined && typeof transportAware !== 'boolean') {
+      diagnostics.push({
+        code: 'CINEMA2_EFFECT_PARAMETER_INVALID',
+        path: '$.parameters.transportAware',
+        message: 'Effect parameter "transportAware" must be boolean when provided.',
+      })
+    }
+    return Object.freeze(diagnostics)
+  },
   create: ({ gl, effect, history }: Readonly<Cinema2EffectCreateContext>) => new HistoryFeedbackEffectInstance(gl, history, effect),
 })
 

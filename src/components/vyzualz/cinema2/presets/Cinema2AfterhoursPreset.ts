@@ -7,6 +7,7 @@ import {
   type Cinema2CameraId,
   type Cinema2ChoreographyActionId,
   type Cinema2ChoreographyRuleId,
+  type Cinema2EffectId,
   type Cinema2JsonValue,
   type Cinema2LayerId,
   type Cinema2ModuleId,
@@ -25,6 +26,7 @@ import {
   CINEMA2_AFTERHOURS_TRIGGER_IDS,
 } from '../modules/Cinema2AfterhoursNativeModule'
 import { CINEMA2_AFTERHOURS_TOPOLOGY_IDS } from '../modules/afterhours/Cinema2AfterhoursDomain'
+import { CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID } from '../effects/Cinema2BuiltinEffects'
 
 export const CINEMA2_AFTERHOURS_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.afterhours')
 
@@ -49,6 +51,7 @@ export const CINEMA2_AFTERHOURS_PULSE_DECAY_ID = cinema2StableId<Cinema2Paramete
 export const CINEMA2_AFTERHOURS_MOTION_AMOUNT_ID = cinema2StableId<Cinema2ParameterId>('afterhours-motion-amount')
 export const CINEMA2_AFTERHOURS_PATTERN_CHANGE_ID = cinema2StableId<Cinema2ParameterId>('afterhours-pattern-change')
 export const CINEMA2_AFTERHOURS_BLACKOUT_AMOUNT_ID = cinema2StableId<Cinema2ParameterId>('afterhours-blackout-amount')
+export const CINEMA2_AFTERHOURS_RESET_TRAILS_ID = cinema2StableId<Cinema2ParameterId>('afterhours-reset-trails')
 
 export const CINEMA2_AFTERHOURS_MODULE_ID = cinema2StableId<Cinema2ModuleId>('afterhours-laser-field')
 export const CINEMA2_AFTERHOURS_CAMERA_ID = cinema2StableId<Cinema2CameraId>('afterhours-stage-camera')
@@ -58,8 +61,13 @@ const AFTERHOURS_ROOT_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('afterhours-
 const AFTERHOURS_MODULE_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('afterhours-laser-field-node')
 const AFTERHOURS_SCENE_TARGET_ID = cinema2StableId<Cinema2RenderTargetId>('afterhours-scene-target')
 const AFTERHOURS_SCENE_PASS_ID = cinema2StableId<Cinema2RenderPassId>('afterhours-scene-pass')
+const AFTERHOURS_TRAILS_PASS_ID = cinema2StableId<Cinema2RenderPassId>('afterhours-trails-pass')
+const AFTERHOURS_TRAILS_EFFECT_ID = cinema2StableId<Cinema2EffectId>('afterhours-feedback-trails')
+const AFTERHOURS_TRAILS_TARGET_ID = cinema2StableId<Cinema2RenderTargetId>('afterhours-trails-target')
 const AFTERHOURS_COLOR_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('afterhours-scene-color')
 const AFTERHOURS_DEPTH_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('afterhours-scene-depth')
+const AFTERHOURS_TRAILS_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('afterhours-trails-source')
+const AFTERHOURS_TRAILS_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('afterhours-trails-color')
 
 
 const choreographyRuleId = (id: string) => cinema2StableId<Cinema2ChoreographyRuleId>(id)
@@ -116,6 +124,29 @@ const cameraEnvelopeAddAction = (
   retrigger: 'restart' as const,
 })
 
+const effectContinuousAddAction = (id: string, property: string, value: number) => Object.freeze({
+  id: choreographyActionId(id),
+  target: Object.freeze({ kind: 'effect' as const, ref: cinema2Ref(AFTERHOURS_TRAILS_EFFECT_ID), property }),
+  operation: 'add' as const,
+  value,
+})
+
+const effectEnvelopeAddAction = (id: string, property: string, value: number, hold: number, release: number) => Object.freeze({
+  id: choreographyActionId(id),
+  target: Object.freeze({ kind: 'effect' as const, ref: cinema2Ref(AFTERHOURS_TRAILS_EFFECT_ID), property }),
+  operation: 'envelope' as const,
+  value,
+  composition: 'add' as const,
+  envelope: Object.freeze({ attack: 0.01, hold, release, unit: 'seconds' as const }),
+  retrigger: 'restart' as const,
+})
+
+const resetTrailsAction = (id: string) => Object.freeze({
+  id: choreographyActionId(id),
+  target: Object.freeze({ kind: 'parameter' as const, ref: cinema2Ref(CINEMA2_AFTERHOURS_RESET_TRAILS_ID) }),
+  operation: 'trigger' as const,
+})
+
 const COLOR_MODE_OPTIONS = Object.freeze([
   Object.freeze({ value: 'manual', label: 'Manual' }),
   Object.freeze({ value: 'auto', label: 'Auto' }),
@@ -164,16 +195,16 @@ const ACCENT_COLOR = Object.freeze([1, 1, 1, 1] as const)
 const BACKGROUND_COLOR = Object.freeze([0, 0, 0, 1] as const)
 
 /**
- * Stage 6 production manifest for the independent Cinema 2.0 Afterhours keeper.
- * Shared Audio Intelligence, Visual Director significance, and declarative
- * choreography drive the Show Planner and restrained shared-camera motion.
- * Engine-owned feedback trails remain reserved for their later migration stage.
+ * Stage 7 production manifest for the independent Cinema 2.0 Afterhours keeper.
+ * Shared Audio Intelligence, Visual Director significance, camera choreography,
+ * and engine-owned feedback history now cooperate without moving temporal GPU
+ * ownership into the laser module.
  */
 export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_AFTERHOURS_PRESET_ID,
-  revision: 3,
+  revision: 4,
   metadata: Object.freeze({
     name: 'Afterhours 2.0',
     description: 'Native Cinema 2.0 world-space DJ laser rig with fixed 3D fixtures, disciplined topology, real symmetry, and renderer-owned atmosphere.',
@@ -182,6 +213,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
   capabilities: Object.freeze([
     Object.freeze({ id: 'render.webgl2' as const, requirement: 'required' as const, purpose: 'Native instanced laser-field rendering.' }),
     Object.freeze({ id: 'render.depth' as const, requirement: 'required' as const, purpose: 'Depth-tested world-space laser geometry.' }),
+    Object.freeze({ id: 'render.history' as const, requirement: 'required' as const, purpose: 'Engine-owned temporal feedback for restrained scanner trails.' }),
     Object.freeze({ id: 'scene.3d' as const, requirement: 'required' as const, purpose: 'World-space 32-fixture stage rig and laser field.' }),
     Object.freeze({ id: 'camera.world' as const, requirement: 'required' as const, purpose: 'Shared final Cinema 2.0 perspective camera frame.' }),
     Object.freeze({ id: 'audio.transport' as const, requirement: 'optional' as const, purpose: 'Pause/source lifecycle and transport-safe non-musical motion.' }),
@@ -329,6 +361,13 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
       section: 'React', group: 'Structure', order: 110,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
+    Object.freeze({
+      id: CINEMA2_AFTERHOURS_RESET_TRAILS_ID,
+      label: 'Reset Trails', type: 'trigger' as const,
+      description: 'Internal structural-history reset routed through the shared Cinema 2.0 action path.',
+      section: 'Effects', group: 'Feedback', order: 900,
+      exposure: 'hidden' as const, persistence: 'runtime-only' as const, reset: 'none' as const,
+    }),
   ]),
   modules: Object.freeze([
     Object.freeze({
@@ -399,6 +438,20 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
       }),
     }),
   ]),
+  effects: Object.freeze([
+    Object.freeze({
+      id: AFTERHOURS_TRAILS_EFFECT_ID,
+      typeId: CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID,
+      version: 1,
+      enabled: true,
+      order: 0,
+      scope: 'output' as const,
+      // Deliberately restrained at rest. Shared choreography can temporarily
+      // increase exposure/persistence for builds and significant motion.
+      parameters: Object.freeze({ mix: 0.12, persistence: 0.76, transportAware: true }),
+      actionBindings: Object.freeze({ reset: cinema2Ref(CINEMA2_AFTERHOURS_RESET_TRAILS_ID) }),
+    }),
+  ]),
   scene: Object.freeze({
     nodes: Object.freeze([
       Object.freeze({
@@ -460,7 +513,10 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
         id: AFTERHOURS_DIRECTOR_INTENSITY_RULE_ID,
         priority: 20,
         source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.intensity' as const, smoothingMs: 90 }),
-        actions: Object.freeze([moduleContinuousAction('afterhours-director-intensity-map', 'directorIntensity')]),
+        actions: Object.freeze([
+          moduleContinuousAction('afterhours-director-intensity-map', 'directorIntensity'),
+          effectContinuousAddAction('afterhours-trails-intensity', 'mix', 0.10),
+        ]),
       }),
       Object.freeze({
         id: AFTERHOURS_DIRECTOR_BUILD_RULE_ID,
@@ -470,13 +526,18 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
           moduleContinuousAction('afterhours-director-build-map', 'directorBuild'),
           cameraContinuousAddAction('afterhours-camera-build-dolly', 'transform.position', Object.freeze([0, 0.05, -0.52] as const)),
           cameraContinuousAddAction('afterhours-camera-build-fov', 'fovDegrees', -1.6),
+          effectContinuousAddAction('afterhours-trails-build-mix', 'mix', 0.20),
+          effectContinuousAddAction('afterhours-trails-build-persistence', 'persistence', 0.09),
         ]),
       }),
       Object.freeze({
         id: AFTERHOURS_DIRECTOR_IMPACT_RULE_ID,
         priority: 22,
         source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.impact' as const, smoothingMs: 35 }),
-        actions: Object.freeze([moduleContinuousAction('afterhours-director-impact-map', 'directorImpact')]),
+        actions: Object.freeze([
+          moduleContinuousAction('afterhours-director-impact-map', 'directorImpact'),
+          effectContinuousAddAction('afterhours-trails-impact', 'mix', 0.14),
+        ]),
       }),
       Object.freeze({
         id: AFTERHOURS_VOCAL_RULE_ID,
@@ -486,6 +547,8 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
           moduleContinuousAction('afterhours-vocal-presence-map', 'vocalPresence'),
           cameraContinuousAddAction('afterhours-camera-vocal-settle', 'transform.position', Object.freeze([0, -0.03, 0.28] as const)),
           cameraContinuousAddAction('afterhours-camera-vocal-fov', 'fovDegrees', 0.8),
+          effectContinuousAddAction('afterhours-trails-vocal-restraint-mix', 'mix', -0.08),
+          effectContinuousAddAction('afterhours-trails-vocal-restraint-persistence', 'persistence', -0.05),
         ]),
       }),
       Object.freeze({
@@ -525,6 +588,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
           cameraEnvelopeAddAction('afterhours-camera-section-reveal-position', 'transform.position', Object.freeze([0.34, 0.08, -0.18] as const), 0.1, 0.95),
           cameraEnvelopeAddAction('afterhours-camera-section-reveal-target', 'target', Object.freeze([-0.14, 0.04, -0.05] as const), 0.1, 0.95),
           cameraEnvelopeAddAction('afterhours-camera-section-fov', 'fovDegrees', -0.7, 0.08, 0.82),
+          resetTrailsAction('afterhours-section-trails-reset'),
         ]),
       }),
       Object.freeze({
@@ -536,6 +600,8 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
           cameraEnvelopeAddAction('afterhours-camera-drop-push', 'transform.position', Object.freeze([0, -0.05, -0.62] as const), 0.12, 0.8),
           cameraEnvelopeAddAction('afterhours-camera-drop-target', 'target', Object.freeze([0, 0.05, -0.12] as const), 0.12, 0.8),
           cameraEnvelopeAddAction('afterhours-camera-drop-release-fov', 'fovDegrees', 1.25, 0.12, 0.8),
+          effectEnvelopeAddAction('afterhours-drop-trails-release', 'mix', 0.18, 0.08, 0.42),
+          resetTrailsAction('afterhours-drop-trails-reset'),
         ]),
       }),
     ]),
@@ -558,6 +624,15 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
         }),
         ownership: 'transient' as const,
       }),
+      Object.freeze({
+        id: AFTERHOURS_TRAILS_TARGET_ID,
+        descriptor: Object.freeze({
+          size: Object.freeze({ kind: 'viewport' as const }),
+          colorFormat: 'rgba8' as const,
+          depthFormat: 'none' as const,
+        }),
+        ownership: 'transient' as const,
+      }),
     ]),
     passes: Object.freeze([
       Object.freeze({
@@ -569,9 +644,22 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
           Object.freeze({ id: AFTERHOURS_DEPTH_OUTPUT_ID, target: cinema2Ref(AFTERHOURS_SCENE_TARGET_ID), attachment: 'depth' as const }),
         ]),
       }),
+      Object.freeze({
+        id: AFTERHOURS_TRAILS_PASS_ID,
+        kind: 'fullscreen' as const,
+        effect: cinema2Ref(AFTERHOURS_TRAILS_EFFECT_ID),
+        inputs: Object.freeze([Object.freeze({
+          id: AFTERHOURS_TRAILS_INPUT_ID,
+          source: Object.freeze({ pass: cinema2Ref(AFTERHOURS_SCENE_PASS_ID), output: AFTERHOURS_COLOR_OUTPUT_ID }),
+        })]),
+        outputs: Object.freeze([Object.freeze({
+          id: AFTERHOURS_TRAILS_OUTPUT_ID,
+          target: cinema2Ref(AFTERHOURS_TRAILS_TARGET_ID),
+        })]),
+      }),
     ]),
-    outputPass: cinema2Ref(AFTERHOURS_SCENE_PASS_ID),
+    outputPass: cinema2Ref(AFTERHOURS_TRAILS_PASS_ID),
   }),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_AFTERHOURS_CAMERA_ID) }),
-  output: Object.freeze({ renderPass: cinema2Ref(AFTERHOURS_SCENE_PASS_ID), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
+  output: Object.freeze({ renderPass: cinema2Ref(AFTERHOURS_TRAILS_PASS_ID), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
 })

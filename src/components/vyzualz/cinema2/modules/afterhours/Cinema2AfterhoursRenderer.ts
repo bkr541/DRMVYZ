@@ -63,6 +63,8 @@ out vec4 vColor;
 out vec4 vMeta;
 out float vSide;
 out float vLongitudinal;
+out float vViewDistance;
+out float vBeamLength;
 void main() {
   vec3 beam = aTarget - aOrigin;
   float beamLength = max(length(beam), 0.0001);
@@ -82,6 +84,8 @@ void main() {
   vMeta = aMeta;
   vSide = abs(aCorner.y);
   vLongitudinal = t;
+  vViewDistance = length(uCameraPosition - center);
+  vBeamLength = beamLength;
 }`
 
 const FRAGMENT_SHADER = `#version 300 es
@@ -90,23 +94,31 @@ in vec4 vColor;
 in vec4 vMeta;
 in float vSide;
 in float vLongitudinal;
+in float vViewDistance;
+in float vBeamLength;
 uniform float uAtmosphere;
 uniform float uMasterIntensity;
 out vec4 outColor;
 void main() {
   float side = clamp(vSide, 0.0, 1.0);
-  float core = exp(-side * side * 92.0);
-  float body = exp(-side * side * 26.0);
-  float halo = exp(-side * side * 5.2);
-  float sourceBloom = exp(-vLongitudinal * 42.0);
-  float rayFalloff = mix(1.0, 0.58, smoothstep(0.18, 1.0, vLongitudinal));
+  float core = exp(-side * side * 118.0);
+  float body = exp(-side * side * 34.0);
+  float halo = exp(-side * side * 6.4);
+  float sourceBloom = exp(-vLongitudinal * 56.0);
+  float rayFalloff = mix(1.0, 0.50, smoothstep(0.14, 1.0, vLongitudinal));
   float atmosphere = clamp(uAtmosphere, 0.0, 1.0);
   float temporal = clamp(vMeta.z, 0.0, 1.0);
   float intensity = max(0.0, vMeta.x) * clamp(vMeta.y, 0.0, 1.0) * max(0.0, uMasterIntensity);
-  float optical = core * 1.55 + body * 0.52 + halo * atmosphere * 0.30 + sourceBloom * (0.34 + atmosphere * 0.16);
-  optical *= rayFalloff * intensity * mix(1.0, 0.52, temporal);
-  vec3 rgb = vColor.rgb * optical;
-  float alpha = clamp((core * 0.96 + body * 0.48 + halo * atmosphere * 0.18 + sourceBloom * 0.22) * intensity, 0.0, 1.0);
+  // World-space distance separation keeps near paths crisp while allowing far
+  // paths to recede naturally into haze instead of flattening into one plane.
+  float distanceFade = mix(1.08, 0.62, smoothstep(7.0, 30.0, vViewDistance));
+  float lengthDiscipline = mix(1.0, 0.88, smoothstep(10.0, 18.0, vBeamLength));
+  float temporalFade = mix(1.0, 0.42, temporal);
+  float optical = core * 1.72 + body * 0.40 + halo * atmosphere * 0.22 + sourceBloom * (0.22 + atmosphere * 0.12);
+  optical *= rayFalloff * distanceFade * lengthDiscipline * intensity * temporalFade;
+  vec3 coreColor = mix(vColor.rgb, vec3(1.0), core * 0.10);
+  vec3 rgb = coreColor * optical;
+  float alpha = clamp((core * 0.98 + body * 0.40 + halo * atmosphere * 0.12 + sourceBloom * 0.16) * distanceFade * intensity * temporalFade, 0.0, 1.0);
   if (alpha < 0.001) discard;
   outColor = vec4(rgb, alpha);
 }`

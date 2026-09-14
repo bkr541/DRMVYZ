@@ -28,6 +28,7 @@ import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { Cinema2ResourceManager } from '../runtime/Cinema2ResourceManager'
 import { Cinema2HistoryService } from '../runtime/Cinema2HistoryService'
+import type { Cinema2TransportFrameState } from '../modules/Cinema2ModuleContracts'
 
 const SECOND_EFFECT_ID = cinema2StableId<Cinema2EffectId>('reference-secondary-blur')
 const UNKNOWN_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('missing-effect')
@@ -213,6 +214,83 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
     runtime.dispose()
     history.dispose()
     resources.dispose()
+  })
+
+  it('can make Feedback/Trails transport-aware without changing the shared default behavior', () => {
+    const feedback = CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST.effects?.find(effect => effect.typeId === CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID)
+    if (!feedback) throw new Error('Reference Feedback/Trails effect is missing.')
+    const manifest: Cinema2NativePresetManifest = {
+      ...CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
+      effects: CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST.effects?.map(effect => (
+        effect.id === feedback.id
+          ? { ...effect, parameters: { ...effect.parameters, transportAware: true } }
+          : effect
+      )),
+    }
+    const { gl, history, runtime } = createRuntime(manifest)
+    const withTransport = (transport: Readonly<Cinema2TransportFrameState>, frameId = 1) => {
+      const base = executionContext()
+      return {
+        ...base,
+        frame: {
+          ...base.frame,
+          frameId,
+          transport,
+        },
+      }
+    }
+    const active = {
+      sourcePresent: true,
+      playing: true,
+      analysisActive: true,
+      paused: false,
+      animationActive: true,
+      trackId: 'track-a',
+      timeSec: 1,
+    } as const
+
+    const sharedDefault = createRuntime()
+    expect(sharedDefault.runtime.execute(feedback.id, withTransport({
+      ...active,
+      playing: false,
+      paused: true,
+      animationActive: false,
+    }))).toBe('applied')
+    expect(sharedDefault.history.getSnapshot()).toMatchObject({ activeBufferCount: 1, validBufferCount: 1 })
+    expect(lastUniform(sharedDefault.gl, 'u_mix')).toBe(0.55)
+    sharedDefault.runtime.dispose()
+
+    expect(runtime.execute(feedback.id, withTransport(active))).toBe('applied')
+    expect(history.getSnapshot()).toMatchObject({ activeBufferCount: 1, validBufferCount: 1 })
+    expect(lastUniform(gl, 'u_mix')).toBe(0.55)
+
+    expect(runtime.execute(feedback.id, withTransport({
+      ...active,
+      playing: false,
+      paused: true,
+      animationActive: false,
+      timeSec: 1.25,
+    }, 2))).toBe('applied')
+    expect(history.getSnapshot()).toMatchObject({ validBufferCount: 0, lastResetReason: 'transport-inactive' })
+    expect(lastUniform(gl, 'u_mix')).toBe(0)
+
+    expect(runtime.execute(feedback.id, withTransport({
+      sourcePresent: false,
+      playing: false,
+      analysisActive: false,
+      paused: false,
+      animationActive: false,
+      trackId: null,
+      timeSec: 0,
+    }, 3))).toBe('applied')
+    expect(history.getSnapshot()).toMatchObject({ validBufferCount: 0, lastResetReason: 'transport-inactive' })
+    expect(lastUniform(gl, 'u_mix')).toBe(0)
+
+    expect(runtime.execute(feedback.id, withTransport({ ...active, timeSec: 2 }, 4))).toBe('applied')
+    expect(history.getSnapshot()).toMatchObject({ activeBufferCount: 1, validBufferCount: 1 })
+    expect(lastUniform(gl, 'u_historyValid')).toBe(0)
+
+    runtime.dispose()
   })
 
   it('preserves explicit authored ordering and scope independent of effect type', () => {
