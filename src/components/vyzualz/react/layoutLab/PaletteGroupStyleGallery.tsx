@@ -113,7 +113,7 @@ function NativeSwatchPalette() {
   )
 }
 
-// ── 02 · Inline Expand (HSL sliders, accordion-style) ────────────────────────
+// ── 02 · Inline Expand (gradient picker, accordion-style) ────────────────────
 
 function ExpandHslPalette() {
   const [state, setColor] = usePaletteState()
@@ -124,29 +124,42 @@ function ExpandHslPalette() {
       {PALETTE_FIELDS.map(field => {
         const open = openKey === field.key
         const [h, s, l] = hexToHsl(state[field.key])
-        const setHsl = (nextH: number, nextS: number, nextL: number) => setColor(field.key, hslToHex(nextH, nextS, nextL))
         return (
           <div key={field.key} className={`llpg-expand-row${open ? ' is-open' : ''}`}>
             <button type="button" className="llpg-expand-hdr" onClick={() => setOpenKey(open ? null : field.key)}>
               <span className="llpg-swatch-dot" style={{ background: state[field.key] }} aria-hidden="true" />
               <span className="llpg-row-label">{field.label}</span>
-              <span className="llpg-row-hex">{state[field.key].toUpperCase()}</span>
               <span className="llpg-expand-caret" aria-hidden="true">▾</span>
             </button>
             {open && (
               <div className="llpg-expand-body">
-                <div className="llpg-hsl-row">
-                  <span>Hue</span>
-                  <BubbleRevealSlider min={0} max={360} step={1} value={h} onChange={event => setHsl(Number(event.target.value), s, l)} />
+                <div
+                  className="llpg-gradient-square"
+                  style={{ background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${h} 100% 50%))` }}
+                  onPointerDown={event => {
+                    const rect = event.currentTarget.getBoundingClientRect()
+                    const move = (clientX: number, clientY: number) => {
+                      const x = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+                      const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height))
+                      const nextS = x * 100
+                      const nextL = (1 - y) * 100
+                      setColor(field.key, hslToHex(h, nextS, nextL))
+                    }
+                    move(event.clientX, event.clientY)
+                    const onMove = (moveEvent: PointerEvent) => move(moveEvent.clientX, moveEvent.clientY)
+                    const onUp = () => window.removeEventListener('pointermove', onMove)
+                    window.addEventListener('pointermove', onMove)
+                    window.addEventListener('pointerup', onUp, { once: true })
+                  }}
+                >
+                  <span className="llpg-gradient-thumb" style={{ left: `${s}%`, top: `${100 - l}%` }} aria-hidden="true" />
                 </div>
-                <div className="llpg-hsl-row">
-                  <span>Saturation</span>
-                  <BubbleRevealSlider min={0} max={100} step={1} value={s} onChange={event => setHsl(h, Number(event.target.value), l)} />
-                </div>
-                <div className="llpg-hsl-row">
-                  <span>Lightness</span>
-                  <BubbleRevealSlider min={0} max={100} step={1} value={l} onChange={event => setHsl(h, s, Number(event.target.value))} />
-                </div>
+                <BubbleRevealSlider
+                  className="llpg-hue-slider"
+                  min={0} max={360} step={1}
+                  value={h}
+                  onChange={event => setColor(field.key, hslToHex(Number(event.target.value), s, l))}
+                />
                 <DreamVizTextInput
                   className="llpg-hex-input"
                   value={state[field.key]}
@@ -316,7 +329,7 @@ function HexFirstPalette() {
 
 const GALLERY_ENTRIES = [
   { id: 'native', title: '01 · Native Swatch', blurb: 'The current pattern: a swatch opens the OS color picker, with a live hex readout beside it. Simplest to build, least distinctive.', Palette: NativeSwatchPalette },
-  { id: 'expand', title: '02 · Inline Expand', blurb: 'Clicking a row expands it in place — accordion-style — to reveal Hue/Saturation/Lightness sliders and a hex field. No overlay, everything stays in document flow.', Palette: ExpandHslPalette },
+  { id: 'expand', title: '02 · Inline Expand', blurb: 'Collapsed rows show only the label and swatch — no hex readout. Clicking a row expands it in place — accordion-style — to reveal a saturation/lightness gradient square, a hue strip, and a hex field. No overlay, everything stays in document flow.', Palette: ExpandHslPalette },
   { id: 'gradient', title: '03 · Popover Gradient', blurb: 'Clicking the swatch opens a floating picker with a 2D saturation/lightness square, a hue strip, and a hex field — the fullest, most "real" color-picker experience.', Palette: GradientPopoverPalette },
   { id: 'preset', title: '04 · Preset Grid', blurb: 'Clicking the swatch opens a curated grid of on-brand colors only — no arbitrary color entry. Fastest to pick from, keeps every palette on-brand by construction.', Palette: PresetGridPalette },
   { id: 'hexFirst', title: '05 · Full-Bleed Swatch', blurb: 'The label sits above a full-width color block — no visible hex text or buttons. Clicking anywhere on the color opens the OS picker.', Palette: HexFirstPalette },

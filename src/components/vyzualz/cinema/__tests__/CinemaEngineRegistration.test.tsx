@@ -356,17 +356,17 @@ describe('Cinema production engine registration', () => {
     ).ok).toBe(true)
 
     await act(async () => root?.render(<ProductionLiveControlHarness />))
-    expect(host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-swatch[aria-label="Primary"]')).not.toBeNull()
-    expect(host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-swatch[aria-label="Secondary"]')).not.toBeNull()
-    expect(host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-swatch[aria-label="Accent"]')).not.toBeNull()
-    const background = host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-swatch[aria-label="Background"]')
+    expect(host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-hdr[data-palette-row-label="Primary"]')).not.toBeNull()
+    expect(host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-hdr[data-palette-row-label="Secondary"]')).not.toBeNull()
+    expect(host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-hdr[data-palette-row-label="Accent"]')).not.toBeNull()
+    const background = host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-hdr[data-palette-row-label="Background"]')
     expect(background).not.toBeNull()
-    expect(host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-swatch[aria-label="Highlight"]')).toBeNull()
-    expect(host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-swatch[aria-label="Foreground"]')).toBeNull()
+    expect(host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-hdr[data-palette-row-label="Highlight"]')).toBeNull()
+    expect(host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-hdr[data-palette-row-label="Foreground"]')).toBeNull()
     const programsBeforeEdit = gl.__calls.createdPrograms
 
     await act(async () => background?.click())
-    const colorHex = document.body.querySelector<HTMLInputElement>('.rv-ctrl-palette-popover-hex')
+    const colorHex = host?.querySelector<HTMLInputElement>('.rv-ctrl-palette-hex-input')
     expect(colorHex).not.toBeNull()
     await act(async () => {
       if (!colorHex) return
@@ -682,10 +682,10 @@ describe('Cinema production engine registration', () => {
     await act(async () => presetButton?.click())
     const layerButton = host?.querySelector<HTMLButtonElement>('.rv-cinema-layer-tree button')
     await act(async () => layerButton?.click())
-    const swatch = host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-swatch')
+    const swatch = host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-hdr')
     expect(swatch).not.toBeNull()
     await act(async () => swatch?.click())
-    const colorHex = document.body.querySelector<HTMLInputElement>('.rv-ctrl-palette-popover-hex')
+    const colorHex = host?.querySelector<HTMLInputElement>('.rv-ctrl-palette-hex-input')
     expect(colorHex).not.toBeNull()
     await act(async () => {
       if (!colorHex) return

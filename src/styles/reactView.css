@@ -12358,70 +12358,78 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   letter-spacing: 0.04em;
 }
 
-/* Palette color row — Layout Lab "Full-Bleed Swatch" winner, paired with the
-   "Popover Gradient" variant's popover mechanics (position + outside-click
-   dismissal) and the "Inline Expand" variant's Hue/Saturation/Lightness
-   sliders. Used by dedicated named-color-slot groups (Cinema's per-layer
-   Palette), not every lone ColorRow scattered among unrelated controls
-   elsewhere. An OS-native <input type="color"> panel can't be resized or
-   recolored, so the swatch is a plain trigger button and the picker itself
-   is a fully DOM-owned popover. */
+/* Palette color row — mirrors Layout Lab Template's "Inline Expand" winner
+   exactly (see PaletteGroupStyleGallery.tsx's ExpandHslPalette): a collapsed
+   row is one line (swatch dot, label filling the rest, caret) with no hex
+   readout; clicking it expands the row in place, accordion-style, to a
+   gradient square + hue strip + hex field. No popover, no portal, no
+   viewport-clamped positioning — the picker stays in document flow like the
+   rest of the group. Used by dedicated named-color-slot groups (Cinema's
+   per-layer Palette), not every lone ColorRow scattered among unrelated
+   controls elsewhere. */
 .rv-ctrl-palette-row {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-width: 0;
-}
-
-.rv-ctrl-palette-row-label {
-  color: rgba(245, 248, 250, 0.7);
-  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
-}
-
-.rv-ctrl-palette-swatch {
-  display: block;
-  width: 100%;
-  min-height: calc(var(--ui-control-height) - 6px);
-  margin: 0;
-  padding: 0;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.015);
+  overflow: hidden;
 }
 
-.rv-ctrl-palette-swatch--disabled {
+.rv-ctrl-palette-hdr {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.rv-ctrl-palette-hdr:disabled {
   cursor: not-allowed;
   opacity: 0.42;
 }
 
-.rv-ctrl-palette-swatch:focus-visible {
+.rv-ctrl-palette-hdr:focus-visible {
   outline: 2px solid #67f7ff;
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
-/* Portalled straight to document.body (see PaletteColorRow) so it can never
-   lose to a sibling/ancestor stacking context or get clipped by a scroll
-   container — position: fixed + top/left are computed in JS from the
-   swatch's own bounding rect. z-index matches this codebase's established
-   "always on top of everything" tier (cast popover / context menus sit at
-   2147483000–2147483002), one above the current ceiling. */
-.rv-ctrl-palette-popover {
-  position: fixed;
-  z-index: 2147483003;
+.rv-ctrl-palette-swatch-dot {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+
+.rv-ctrl-palette-row-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: rgba(245, 248, 250, 0.7);
+  font: 600 11px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-ctrl-palette-caret {
+  flex: 0 0 auto;
+  color: rgba(196, 207, 211, 0.45);
+  font-size: 10px;
+  transition: transform 140ms ease;
+}
+
+.rv-ctrl-palette-row.is-open .rv-ctrl-palette-caret {
+  transform: rotate(180deg);
+}
+
+.rv-ctrl-palette-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  width: 244px;
-  padding: 13px;
-  border-radius: 10px;
-  border: 1px solid rgba(103, 247, 255, 0.18);
-  /* Fully opaque — darkened past the right window's own panel color so the
-     group underneath never bleeds through. */
-  background: color-mix(in srgb, var(--color-panel-alt, #12171b) 65%, #000 35%);
-  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.55);
+  gap: 8px;
+  padding: 4px 9px 12px 34px;
 }
 
 .rv-ctrl-palette-gradient-square {
@@ -12444,41 +12452,27 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   pointer-events: none;
 }
 
-/* The gradient square only plots saturation × lightness at one fixed hue —
-   this strip is the third dimension, the only way to actually reach the
-   full spectrum. .dv-bubble-slider's own background rule is !important, so
-   this override needs equal specificity + !important too. */
-.rv-ctrl-palette-popover .dv-bubble-slider.rv-ctrl-palette-hue-slider {
+.rv-ctrl-palette-hue-slider {
   width: 100%;
-  background: linear-gradient(to right, #ff0000, #ffea00, #35ff00, #00fff2, #0033ff, #d400ff, #ff0000) !important;
 }
 
-.rv-ctrl-palette-popover-hex-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.rv-ctrl-palette-popover-swatch {
-  flex: 0 0 auto;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
-}
-
-.rv-ctrl-palette-popover-hex {
-  flex: 1 1 auto;
-  min-width: 0;
+.rv-ctrl-palette-hex-input {
+  margin-top: 2px;
 }
 
 /* Cinema's Palette group lays its PaletteColorRow items out in a 4-column
-   grid, matching the Full-Bleed Swatch winner's final Layout Lab layout. */
+   grid, matching the Full-Bleed Swatch winner's final Layout Lab layout. An
+   open row now expands in place rather than in a portaled popover, so it
+   needs to break out of its single grid cell and claim the full row width —
+   same rule Inline Expand's own 2-column gallery grid uses. */
 .drc-body.rv-cinema-palette-body {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 10px 12px;
+}
+
+.drc-body.rv-cinema-palette-body .rv-ctrl-palette-row.is-open {
+  grid-column: 1 / -1;
 }
 
 /* Engine Mode should sit flush like LaserDMX's Lighting Components group —

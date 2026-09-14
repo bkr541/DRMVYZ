@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { useId, useState, type CSSProperties, type ReactNode } from 'react'
 import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { IconMorphToggle } from './controls/IconMorphToggle'
@@ -307,15 +306,15 @@ export function ColorRow({ label, value, onChange, disabled = false, id, descrip
   )
 }
 
-// ── Palette color row (Layout Lab "Full-Bleed Swatch" + popover HSL picker) ────
+// ── Palette color row (Layout Lab "Inline Expand") ──────────────────────────
 //
 // Canonical treatment for named-color-slot groups (Cinema's per-layer Palette:
-// Background / Primary / Secondary / Accent / Foreground / Highlight). The
-// label sits above a full-width color block; clicking it opens an in-app
-// popover with Hue/Saturation/Lightness sliders (Layout Lab's "Inline Expand"
-// controls) positioned and dismissed like Layout Lab's "Popover Gradient"
-// variant — an OS-native color panel can't be resized or recolored, so this
-// picker is fully DOM-owned instead.
+// Background / Primary / Secondary / Accent / Foreground / Highlight). A
+// collapsed row is a single line — swatch dot, label filling the remaining
+// space, caret — with no hex readout. Clicking it expands the row in place,
+// accordion-style, to reveal a saturation/lightness gradient square, a hue
+// strip, and a hex field — no popover, everything stays in document flow, so
+// there's no portal or viewport-clamped positioning to own.
 
 function hexToRgb(hex: string): [number, number, number] {
   const clean = hex.replace('#', '').trim()
@@ -380,79 +379,27 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
   const generatedId = useId()
   const inputId = id ?? generatedId
   const [open, setOpen] = useState(false)
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
-  const swatchRef = useRef<HTMLButtonElement>(null)
-  const popoverRef = useRef<HTMLDivElement>(null)
-
-  const updatePosition = useCallback(() => {
-    const rect = swatchRef.current?.getBoundingClientRect()
-    if (!rect) return
-    setPosition({ top: rect.bottom + 6, left: rect.left })
-  }, [])
-
-  useEffect(() => {
-    if (!open) return
-    updatePosition()
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node
-      if (swatchRef.current?.contains(target) || popoverRef.current?.contains(target)) return
-      setOpen(false)
-    }
-    // Bound to the swatch's own window/document rather than the bare
-    // globals — a foreign-window portal (this popover can be opened from
-    // inside Layout Lab's popup window) never receives events routed to the
-    // wrong window, and window.innerWidth/innerHeight below would otherwise
-    // measure the wrong viewport entirely.
-    const ownerDocument = swatchRef.current?.ownerDocument ?? document
-    const ownerWindow = ownerDocument.defaultView ?? window
-    ownerDocument.addEventListener('pointerdown', onPointerDown)
-    ownerWindow.addEventListener('resize', updatePosition)
-    ownerWindow.addEventListener('scroll', updatePosition, true)
-    return () => {
-      ownerDocument.removeEventListener('pointerdown', onPointerDown)
-      ownerWindow.removeEventListener('resize', updatePosition)
-      ownerWindow.removeEventListener('scroll', updatePosition, true)
-    }
-  }, [open, updatePosition])
-
-  // Once the popover has actually mounted, clamp it to the viewport — a
-  // swatch near the panel's right/bottom edge would otherwise anchor the
-  // popover off-screen. Bails out (returns the same object) once the
-  // clamped position stops changing, so this converges instead of looping.
-  useLayoutEffect(() => {
-    if (!open || !position) return
-    const swatchRect = swatchRef.current?.getBoundingClientRect()
-    const popoverRect = popoverRef.current?.getBoundingClientRect()
-    if (!swatchRect || !popoverRect) return
-    const ownerWindow = swatchRef.current?.ownerDocument.defaultView ?? window
-    const margin = 8
-    const nextLeft = Math.min(swatchRect.left, Math.max(margin, ownerWindow.innerWidth - margin - popoverRect.width))
-    const nextTop = (swatchRect.bottom + 6 + popoverRect.height > ownerWindow.innerHeight - margin)
-      ? Math.max(margin, swatchRect.top - popoverRect.height - 6)
-      : swatchRect.bottom + 6
-    setPosition(current => (current && current.left === nextLeft && current.top === nextTop) ? current : { left: nextLeft, top: nextTop })
-  }, [open, position])
-
   const [h, s, l] = hexToHsl(value)
   const setHsl = (nextH: number, nextS: number, nextL: number) => onChange(hslToHex(nextH, nextS, nextL))
 
   return (
-    <div className="rv-ctrl-palette-row">
-      <label className="rv-ctrl-palette-row-label" htmlFor={inputId}>{label}</label>
+    <div className={`rv-ctrl-palette-row${open ? ' is-open' : ''}`}>
       <button
-        ref={swatchRef}
         id={inputId}
         type="button"
-        className={`rv-ctrl-palette-swatch${disabled ? ' rv-ctrl-palette-swatch--disabled' : ''}`}
-        style={{ background: value }}
+        className="rv-ctrl-palette-hdr"
         disabled={disabled}
-        aria-label={label}
         aria-expanded={open}
         aria-describedby={description ? `${inputId}-description` : undefined}
+        data-palette-row-label={label}
         onClick={() => setOpen(current => !current)}
-      />
-      {open && !disabled && position && swatchRef.current && createPortal(
-        <div ref={popoverRef} className="rv-ctrl-palette-popover" style={{ top: position.top, left: position.left }}>
+      >
+        <span className="rv-ctrl-palette-swatch-dot" style={{ background: value }} aria-hidden="true" />
+        <span className="rv-ctrl-palette-row-label">{label}</span>
+        <span className="rv-ctrl-palette-caret" aria-hidden="true">▾</span>
+      </button>
+      {open && !disabled && (
+        <div className="rv-ctrl-palette-body">
           <div
             className="rv-ctrl-palette-gradient-square"
             style={{ background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${h} 100% 50%))` }}
@@ -464,7 +411,9 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
                 setHsl(h, x * 100, (1 - y) * 100)
               }
               move(event.clientX, event.clientY)
-              // The drag target's own window — see the ownerDocument note above.
+              // The drag target's own window — matters when this row is
+              // opened inside a foreign-window portal (e.g. Layout Lab's
+              // popup window), so the drag listens on the right document.
               const ownerWindow = event.currentTarget.ownerDocument.defaultView ?? window
               const onMove = (moveEvent: PointerEvent) => move(moveEvent.clientX, moveEvent.clientY)
               const onUp = () => ownerWindow.removeEventListener('pointermove', onMove)
@@ -480,18 +429,12 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
             aria-label="Hue"
             onChange={event => setHsl(Number(event.target.value), s, l)}
           />
-          <div className="rv-ctrl-palette-popover-hex-row">
-            <span className="rv-ctrl-palette-popover-swatch" style={{ background: value }} aria-hidden="true" />
-            <DreamVizTextInput
-              className="rv-ctrl-palette-popover-hex"
-              value={value}
-              onChange={event => { if (isValidHex(event.target.value)) onChange(event.target.value) }}
-            />
-          </div>
-        </div>,
-        // Portal into the swatch's own document, not the bare global — see
-        // the ownerDocument note in the effect above.
-        swatchRef.current.ownerDocument.body,
+          <DreamVizTextInput
+            className="rv-ctrl-palette-hex-input"
+            value={value}
+            onChange={event => { if (isValidHex(event.target.value)) onChange(event.target.value) }}
+          />
+        </div>
       )}
       {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>
