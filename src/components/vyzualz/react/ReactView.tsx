@@ -971,6 +971,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               <Cinema2Stage
                 presetId={cinema2PresetId}
                 restoreState={cinema2RestoreState}
+                isPlaying={engine.isPlaying}
+                analysisActive={engine.analysisActive}
+                isPaused={transportPaused}
+                activeAudioTrackId={engine.currentAudioTrackId ?? engine.currentTrackId}
+                getAudioTime={engine.getCurrentTime}
                 onCanvasReady={setOutputCanvas}
                 onRuntimeReady={setCinema2Runtime}
                 onRuntimeSnapshot={setCinema2RuntimeSnapshot}

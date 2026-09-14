@@ -372,6 +372,70 @@ describe('Cinema2Runtime sibling foundation', () => {
     }
   }, 20_000)
 
+  it('keeps rendering while freezing Cinema 2.0 visual time whenever transport analysis is inactive or paused', () => {
+    const raf = createRafHarness()
+    const canvas = new FakeCanvas(createMockWebGL())
+    const transport = {
+      sourcePresent: false,
+      playing: false,
+      analysisActive: false,
+      paused: false,
+      trackId: null as string | null,
+      timeSec: 0,
+    }
+    const result = Cinema2Runtime.create(canvas as unknown as HTMLCanvasElement, {
+      requestAnimationFrame: raf.requestAnimationFrame,
+      cancelAnimationFrame: raf.cancelAnimationFrame,
+      transportSource: { getState: () => transport },
+    })
+    if (!result.runtime) throw new Error(result.error)
+    const runtime = result.runtime
+
+    runtime.start()
+    raf.runNext(100)
+    raf.runNext(200)
+    raf.runNext(300)
+    expect(runtime.getSnapshot().frameCount).toBe(3)
+    expect(runtime.getVisualElapsedTimeSec()).toBe(0)
+    expect(runtime.getTransportFrameState()).toMatchObject({ analysisActive: false, animationActive: false })
+    expect(runtime.getVisualDirectorFrame()).toBeNull()
+
+    transport.sourcePresent = true
+    transport.playing = true
+    transport.analysisActive = true
+    transport.trackId = 'track-1'
+    transport.timeSec = 1
+    raf.runNext(400)
+    raf.runNext(450)
+    expect(runtime.getVisualElapsedTimeSec()).toBeCloseTo(0.15, 6)
+    expect(runtime.getTransportFrameState()).toMatchObject({ analysisActive: true, paused: false, animationActive: true })
+
+    transport.paused = true
+    transport.playing = false
+    transport.timeSec = 1.15
+    raf.runNext(500)
+    raf.runNext(550)
+    expect(runtime.getVisualElapsedTimeSec()).toBeCloseTo(0.15, 6)
+    expect(runtime.getTransportFrameState()).toMatchObject({ paused: true, animationActive: false })
+
+    transport.paused = false
+    transport.playing = true
+    transport.timeSec = 1.2
+    raf.runNext(600)
+    expect(runtime.getVisualElapsedTimeSec()).toBeCloseTo(0.2, 6)
+
+    transport.analysisActive = false
+    transport.playing = false
+    transport.sourcePresent = false
+    transport.trackId = null
+    raf.runNext(650)
+    expect(runtime.getVisualElapsedTimeSec()).toBeCloseTo(0.2, 6)
+    expect(runtime.getHistoryServiceSnapshot().lastResetReason).toBe('deactivation')
+    expect(runtime.getVisualDirectorFrame()).toBeNull()
+
+    runtime.dispose()
+  })
+
   it('captures the canonical Audio Intelligence bridge exactly once for each scheduled visual frame', () => {
     const audioFrame = {
       ...DEFAULT_MI_FRAME,

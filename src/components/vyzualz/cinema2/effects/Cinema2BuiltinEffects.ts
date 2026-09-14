@@ -60,7 +60,11 @@ mat2 rotate2d(float angle) {
 }
 void main() {
   vec4 base = texture(u_source, v_uv);
-  float frameFactor = clamp(max(u_deltaTime, 0.0001) * 60.0, 0.25, 6.0);
+  if (u_deltaTime <= 0.000001) {
+    outColor = u_historyValid > 0.5 ? texture(u_history, v_uv) : base;
+    return;
+  }
+  float frameFactor = clamp(max(u_deltaTime, 0.0) * 60.0, 0.0, 6.0);
   float persistence = clamp(u_persistence, 0.0, 0.9995);
   float retention = pow(persistence, frameFactor);
   vec2 centered = v_uv - 0.5;

@@ -96,6 +96,21 @@ export interface Cinema2ModuleViewport {
   dpr: number
 }
 
+/**
+ * Transport truth captured by the Cinema 2.0 host for this visual frame.
+ * `animationActive` is deliberately separate from renderer liveness: the RAF
+ * loop may keep rendering while musical/procedural time is frozen.
+ */
+export interface Cinema2TransportFrameState {
+  sourcePresent: boolean
+  playing: boolean
+  analysisActive: boolean
+  paused: boolean
+  animationActive: boolean
+  trackId: string | null
+  timeSec: number
+}
+
 export interface Cinema2ModuleFrameReadContext {
   frameId: number
   timestampMs: number
@@ -103,6 +118,8 @@ export interface Cinema2ModuleFrameReadContext {
   elapsedTimeSec: number
   viewport: Readonly<Cinema2ModuleViewport>
   contextGeneration: number
+  /** Optional for isolated/test hosts that intentionally run without a transport provider. */
+  transport?: Readonly<Cinema2TransportFrameState>
   audio: Readonly<Cinema2AudioIntelligenceFrame> | null
   director: Readonly<Cinema2VisualDirectorFrame> | null
 }

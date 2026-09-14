@@ -264,6 +264,8 @@ export {
   type Cinema2RuntimeDiagnostics,
   type Cinema2RuntimePhase,
   type Cinema2RuntimeRandomnessOptions,
+  type Cinema2RuntimeTransportSnapshot,
+  type Cinema2RuntimeTransportSource,
   type Cinema2RuntimeResourceSnapshot,
   type Cinema2RuntimeSnapshot,
   type Cinema2Viewport,
@@ -481,6 +483,7 @@ export {
   type Cinema2ModuleTargetFacet,
   type Cinema2ModuleTypeDefinition,
   type Cinema2ModuleUpdateContext,
+  type Cinema2TransportFrameState,
   type Cinema2ModuleViewport,
 } from './modules/Cinema2ModuleContracts'
 

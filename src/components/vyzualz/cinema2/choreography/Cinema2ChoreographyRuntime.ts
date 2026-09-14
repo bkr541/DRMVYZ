@@ -891,7 +891,7 @@ function capabilityAvailable(capability: Cinema2CapabilityId, frame: Readonly<Ci
   const audio = frame.audio
   switch (capability) {
     case 'render.webgl2': return true
-    case 'audio.transport': return audio != null
+    case 'audio.transport': return frame.transport?.sourcePresent ?? audio != null
     case 'audio.bands': return audio?.capabilities.bands === true
     case 'audio.features': return audio != null && (
       audio.features.overallEnergy.available || audio.features.rms.available || audio.features.spectralFlux.available
@@ -1028,7 +1028,7 @@ function beatPosition(audio: Readonly<Cinema2AudioIntelligenceFrame> | null): nu
 }
 
 function currentTimeSec(frame: Readonly<Cinema2ModuleFrameReadContext>): number {
-  return frame.audio?.upstream.timeSec ?? frame.elapsedTimeSec
+  return frame.transport?.timeSec ?? frame.audio?.upstream.timeSec ?? frame.elapsedTimeSec
 }
 
 function unavailableSample(): SourceSample {

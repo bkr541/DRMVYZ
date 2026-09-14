@@ -14,6 +14,11 @@ import { assertDrmvyzWebGLContextOwnershipBoundsForDevelopment } from './shaders
 export interface Cinema2StageProps {
   presetId?: Cinema2PresetId
   restoreState?: Readonly<Cinema2WorkspacePresetState> | null
+  isPlaying?: boolean
+  analysisActive?: boolean
+  isPaused?: boolean
+  activeAudioTrackId?: string | null
+  getAudioTime?: () => number
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onRuntimeReady?: (runtime: Cinema2Runtime | null) => void
   onRuntimeSnapshot?: (snapshot: Cinema2RuntimeSnapshot | null) => void
@@ -34,6 +39,11 @@ function statusCopy(snapshot: Cinema2RuntimeSnapshot | null): string | null {
 export function Cinema2Stage({
   presetId,
   restoreState = null,
+  isPlaying,
+  analysisActive,
+  isPaused,
+  activeAudioTrackId,
+  getAudioTime,
   onCanvasReady,
   onRuntimeReady,
   onRuntimeSnapshot,
@@ -44,7 +54,21 @@ export function Cinema2Stage({
   const onRuntimeReadyRef = useRef(onRuntimeReady)
   const onRuntimeSnapshotRef = useRef(onRuntimeSnapshot)
   const onRuntimeRetiringRef = useRef(onRuntimeRetiring)
+  const transportRef = useRef({
+    isPlaying: isPlaying ?? true,
+    analysisActive: analysisActive ?? true,
+    isPaused: isPaused ?? false,
+    activeAudioTrackId: activeAudioTrackId ?? null,
+    getAudioTime,
+  })
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<Cinema2RuntimeSnapshot | null>(null)
+  transportRef.current = {
+    isPlaying: isPlaying ?? true,
+    analysisActive: analysisActive ?? true,
+    isPaused: isPaused ?? false,
+    activeAudioTrackId: activeAudioTrackId ?? null,
+    getAudioTime,
+  }
   onCanvasReadyRef.current = onCanvasReady
   onRuntimeReadyRef.current = onRuntimeReady
   onRuntimeSnapshotRef.current = onRuntimeSnapshot
@@ -116,6 +140,20 @@ export function Cinema2Stage({
         onSnapshot: reportSnapshot,
         presetId,
         serializedParameterState: restoreState?.serializedParameterState,
+        transportSource: {
+          getState: () => {
+            const transport = transportRef.current
+            const timeSec = transport.getAudioTime?.() ?? 0
+            return {
+              sourcePresent: transport.analysisActive || transport.activeAudioTrackId != null,
+              playing: transport.isPlaying,
+              analysisActive: transport.analysisActive,
+              paused: transport.isPaused,
+              trackId: transport.activeAudioTrackId,
+              timeSec: Number.isFinite(timeSec) ? Math.max(0, timeSec) : 0,
+            }
+          },
+        },
       })
       reportSnapshot(created.snapshot)
       if (!created.runtime) {

@@ -440,6 +440,19 @@ export const cinema2ElectricStormNativeModuleDefinition: Readonly<Cinema2ModuleT
     return {
       lifecycle: {
         update: ({ frame, parameters }: Cinema2ModuleUpdateContext) => {
+          if (frame.transport && !frame.transport.sourcePresent) {
+            strikeGenerator.reset()
+            thunder.reset()
+            strikes = Object.freeze([])
+            pendingMusicalStrikes.splice(0)
+            thunderedStrikeKeys.clear()
+            mediumSpectralBucket = Number.NaN
+            microSpectralBucket = Number.NaN
+            thunderFlash = 0
+            return
+          }
+          if (frame.transport && !frame.transport.animationActive) return
+
           const sequence = frame.audio?.discontinuity.generation ?? null
           if (frame.audio?.discontinuity.occurred && frame.audio.discontinuity.reason !== 'activation' && sequence !== lastDiscontinuitySequence) {
             strikeGenerator.reset()

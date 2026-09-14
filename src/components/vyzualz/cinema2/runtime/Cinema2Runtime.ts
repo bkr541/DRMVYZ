@@ -34,7 +34,7 @@ import {
   Cinema2ModuleRegistry,
   cinema2NativeModuleRegistry,
 } from '../modules/Cinema2ModuleRegistry'
-import type { Cinema2ModuleRenderPassProvider } from '../modules/Cinema2ModuleContracts'
+import type { Cinema2ModuleRenderPassProvider, Cinema2TransportFrameState } from '../modules/Cinema2ModuleContracts'
 import { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
 import { Cinema2CameraRuntime, type Cinema2CameraRuntimeSnapshot } from '../spatial/Cinema2CameraRuntime'
 import {
@@ -115,6 +115,20 @@ export interface Cinema2RuntimeRandomnessOptions {
   activationEntropy?: () => Cinema2RandomSeed
 }
 
+export interface Cinema2RuntimeTransportSnapshot {
+  sourcePresent: boolean
+  playing: boolean
+  analysisActive: boolean
+  paused: boolean
+  trackId: string | null
+  timeSec: number
+}
+
+/** Host-owned transport source. Cinema 2.0 samples it once per visual frame. */
+export interface Cinema2RuntimeTransportSource {
+  getState(): Readonly<Cinema2RuntimeTransportSnapshot>
+}
+
 export interface Cinema2RuntimeCreateOptions {
   requestAnimationFrame?: typeof requestAnimationFrame
   cancelAnimationFrame?: typeof cancelAnimationFrame
@@ -127,6 +141,12 @@ export interface Cinema2RuntimeCreateOptions {
   diagnosticsEnabled?: boolean
   serializedParameterState?: string | Cinema2SerializedParameterState
   audioIntelligenceBridge?: Cinema2AudioIntelligenceBridge
+  /**
+   * Optional so isolated/runtime tests can remain autonomous. Production Stage
+   * supplies the real DRMVYZ transport and therefore freezes animation while
+   * analysis is inactive or file playback is paused.
+   */
+  transportSource?: Cinema2RuntimeTransportSource
   mediaLoader?: Cinema2MediaLoader
   randomness?: Readonly<Cinema2RuntimeRandomnessOptions>
 }
@@ -197,6 +217,47 @@ function errorMessage(error: unknown): string {
 
 function finitePositive(value: number, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+const AUTONOMOUS_TRANSPORT_STATE: Readonly<Cinema2TransportFrameState> = Object.freeze({
+  sourcePresent: true,
+  playing: true,
+  analysisActive: true,
+  paused: false,
+  animationActive: true,
+  trackId: null,
+  timeSec: 0,
+})
+
+function normalizeTransportState(
+  source: Cinema2RuntimeTransportSource | null,
+): Readonly<Cinema2TransportFrameState> {
+  if (!source) return AUTONOMOUS_TRANSPORT_STATE
+  let state: Readonly<Cinema2RuntimeTransportSnapshot>
+  try {
+    state = source.getState()
+  } catch {
+    return Object.freeze({
+      sourcePresent: false,
+      playing: false,
+      analysisActive: false,
+      paused: false,
+      animationActive: false,
+      trackId: null,
+      timeSec: 0,
+    })
+  }
+  const analysisActive = state.analysisActive === true
+  const paused = state.paused === true
+  return Object.freeze({
+    sourcePresent: state.sourcePresent === true || analysisActive || state.trackId != null,
+    playing: state.playing === true,
+    analysisActive,
+    paused,
+    animationActive: analysisActive && !paused,
+    trackId: state.trackId ?? null,
+    timeSec: Number.isFinite(state.timeSec) ? Math.max(0, state.timeSec) : 0,
+  })
 }
 
 /**
@@ -314,6 +375,7 @@ export class Cinema2Runtime {
   private readonly onContextLostHandler: (event: Event) => void
   private readonly onContextRestoredHandler: () => void
   private readonly audioIntelligenceBridge: Cinema2AudioIntelligenceBridge
+  private readonly transportSource: Cinema2RuntimeTransportSource | null
   private readonly visualDirector: Cinema2VisualDirector
   private readonly randomService: Cinema2RandomService
   private readonly targetResolver: Cinema2FinalValueResolver
@@ -346,8 +408,9 @@ export class Cinema2Runtime {
   private visualDirectorFrame: Readonly<Cinema2VisualDirectorFrame> | null = null
   private listenersAttached = false
   private contextOwned = false
-  private firstFrameTimestampMs: number | null = null
   private lastFrameTimestampMs: number | null = null
+  private visualElapsedTimeSec = 0
+  private lastTransportState: Readonly<Cinema2TransportFrameState> | null = null
 
   private constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -362,6 +425,7 @@ export class Cinema2Runtime {
     this.cancelFrame = options.cancelAnimationFrame ?? (handle => window.cancelAnimationFrame(handle))
     this.onSnapshot = options.onSnapshot ?? null
     this.audioIntelligenceBridge = options.audioIntelligenceBridge ?? new Cinema2AudioIntelligenceBridge()
+    this.transportSource = options.transportSource ?? null
     this.visualDirector = new Cinema2VisualDirector()
     this.randomService = new Cinema2RandomService({
       presetId: compiledPresetPlan.presetId,
@@ -607,6 +671,16 @@ export class Cinema2Runtime {
     return this.lightingEnvironmentRuntime.getSnapshot()
   }
 
+  /** Current host transport truth sampled by the visual clock. */
+  getTransportFrameState(): Readonly<Cinema2TransportFrameState> | null {
+    return this.lastTransportState
+  }
+
+  /** Audio-gated visual time supplied to modules, cameras, choreography and effects. */
+  getVisualElapsedTimeSec(): number {
+    return this.visualElapsedTimeSec
+  }
+
   /** Most recent immutable Audio Intelligence snapshot captured for a visual frame. */
   getAudioIntelligenceFrame(): Readonly<Cinema2AudioIntelligenceFrame> | null {
     return this.audioIntelligenceFrame
@@ -759,14 +833,28 @@ export class Cinema2Runtime {
       const qualityChanged = this.applyPerformancePolicy()
       const visualFrameId = this.frameCount + 1
       const safeTimestampMs = Number.isFinite(timestampMs) ? Math.max(0, timestampMs) : (this.lastFrameTimestampMs ?? 0)
-      if (this.firstFrameTimestampMs == null) this.firstFrameTimestampMs = safeTimestampMs
-      const deltaTimeSec = this.lastFrameTimestampMs == null
+      const rawDeltaTimeSec = this.lastFrameTimestampMs == null
         ? 0
         : Math.min(0.1, Math.max(0, (safeTimestampMs - this.lastFrameTimestampMs) / 1000))
       this.lastFrameTimestampMs = safeTimestampMs
+
+      const transport = normalizeTransportState(this.transportSource)
+      const deltaTimeSec = transport.animationActive ? rawDeltaTimeSec : 0
+      this.visualElapsedTimeSec = Math.max(0, this.visualElapsedTimeSec + deltaTimeSec)
+
+      const sourceRemoved = this.lastTransportState?.sourcePresent === true && !transport.sourcePresent
+      if (sourceRemoved) {
+        this.visualDirector.reset()
+        this.visualDirectorFrame = null
+        this.choreographyRuntime.reset('transport-inactive')
+        this.historyService.resetAll('deactivation')
+      }
+      this.lastTransportState = transport
+
       this.audioIntelligenceFrame = this.audioIntelligenceBridge.capture(visualFrameId)
-      this.visualDirectorFrame = this.visualDirector.capture(this.audioIntelligenceFrame)
-      if (this.audioIntelligenceFrame.discontinuity.occurred && this.audioIntelligenceFrame.discontinuity.reason !== 'activation') {
+      const frameAudio = transport.analysisActive ? this.audioIntelligenceFrame : null
+      this.visualDirectorFrame = frameAudio ? this.visualDirector.capture(frameAudio) : null
+      if (frameAudio?.discontinuity.occurred && frameAudio.discontinuity.reason !== 'activation') {
         this.historyService.resetAll('discontinuity')
       }
       this.mediaSlotRuntime.updateVideoTextures()
@@ -774,10 +862,11 @@ export class Cinema2Runtime {
         frameId: visualFrameId,
         timestampMs: safeTimestampMs,
         deltaTimeSec,
-        elapsedTimeSec: Math.max(0, (safeTimestampMs - this.firstFrameTimestampMs) / 1000),
+        elapsedTimeSec: this.visualElapsedTimeSec,
         viewport: Object.freeze({ ...this.viewport }),
         contextGeneration: this.contextGeneration,
-        audio: this.audioIntelligenceFrame,
+        transport,
+        audio: frameAudio,
         director: this.visualDirectorFrame,
       })
       this.choreographyRuntime.update(frame)
