@@ -17470,17 +17470,36 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   font-size: 14px;
 }
 
-/* Concept 3: Micro Tag (value-dominant, label as a tiny corner badge) */
-.llbg-microtag {
+/* Concept 3: Watermark Overlay (giant ghosted "BPM" layered behind the value) */
+.llbg-watermark {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
   width: 100%;
   min-width: 0;
+  overflow: hidden;
+  padding-left: 2px;
 }
 
-.llbg-microtag-value {
-  font: 800 18px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+.llbg-watermark-bg {
+  position: absolute;
+  left: -3px;
+  top: 50%;
+  transform: translateY(-50%);
+  font: 800 30px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.01em;
+  color: rgba(74, 199, 219, 0.1);
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+
+.llbg-watermark-value {
+  position: relative;
+  z-index: 1;
+  font: 800 17px/1 var(--az-font-data, Inter, system-ui, sans-serif);
   font-variant-numeric: tabular-nums;
   color: var(--az-cyan);
   white-space: nowrap;
@@ -17489,20 +17508,14 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   min-width: 0;
 }
 
-.llbg-microtag-badge {
-  flex-shrink: 0;
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: rgba(74, 199, 219, 0.16);
-  border: 1px solid rgba(74, 199, 219, 0.32);
-  color: #8ef4ff;
-  font: 800 7px/1.4 var(--az-font, Inter, system-ui, sans-serif);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.llbg-watermark .llbg-chevrons {
+  position: relative;
+  z-index: 1;
+  margin-left: auto;
 }
 
-/* Concept 4: Drag Scrubber (reuses the real NumericScrubField) */
-.llbg-scrub-row {
+/* Concept 4: Flanking Stepper (− value + side by side, like a quantity picker) */
+.llbg-flank-stepper {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -17510,110 +17523,34 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   min-width: 0;
 }
 
-.llbg-scrub-row-label {
-  font: 700 9.5px/1 var(--az-font, Inter, system-ui, sans-serif);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.38);
+.llbg-flank-btn {
   flex-shrink: 0;
-}
-
-.llbg-scrub-row .dv-scrub-field {
-  flex: 1;
-  min-width: 0;
-}
-
-.llbg-scrub-row .dv-scrub-field-label {
-  display: none;
-}
-
-.llbg-scrub-row .dv-scrub {
-  height: 30px;
-  padding: 0 8px;
-}
-
-.llbg-scrub-row .dv-scrub-value {
-  font-size: 14px;
-}
-
-/* Concept 5: Icon Label + Merged Stepper */
-.llbg-icon-stepper {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  min-width: 0;
-}
-
-.llbg-icon-stepper-icon {
-  flex-shrink: 0;
-  width: 13px;
-  height: 13px;
-  color: rgba(255, 255, 255, 0.38);
-}
-
-.llbg-icon-stepper-value {
-  font: 700 17px/1 var(--az-font-data, Inter, system-ui, sans-serif);
-  font-variant-numeric: tabular-nums;
-  color: var(--az-cyan);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-
-.llbg-merged-stepper {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  width: 14px;
-  height: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.llbg-merged-stepper button {
-  flex: 1;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.04);
-  border: none;
-  color: rgba(255, 255, 255, 0.5);
+  font: 700 13px/1 var(--az-font, Inter, system-ui, sans-serif);
   cursor: pointer;
-  padding: 0;
+  transition: all 0.12s;
 }
 
-.llbg-merged-stepper button:first-child {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
-}
-
-.llbg-merged-stepper button:hover {
+.llbg-flank-btn:hover {
   background: rgba(74, 199, 219, 0.15);
   color: var(--az-cyan);
+  border-color: rgba(74, 199, 219, 0.35);
 }
 
-.llbg-merged-stepper svg {
-  width: 6px;
-  height: 6px;
-}
-
-/* Concept 6: Value First (caption folded under the number, not beside it) */
-.llbg-value-first {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
+.llbg-flank-value {
+  flex: 1;
   min-width: 0;
-}
-
-.llbg-value-first-stack {
-  min-width: 0;
-}
-
-.llbg-value-first-value {
-  font: 800 19px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  text-align: center;
+  font: 700 14px/1 var(--az-font-data, Inter, system-ui, sans-serif);
   font-variant-numeric: tabular-nums;
   color: var(--az-cyan);
   white-space: nowrap;
@@ -17621,12 +17558,122 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   text-overflow: ellipsis;
 }
 
-.llbg-value-first-caption {
-  font: 700 6.5px/1 var(--az-font, Inter, system-ui, sans-serif);
-  letter-spacing: 0.14em;
+.llbg-flank-unit {
+  margin-left: 3px;
+  font: 700 8px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.34);
-  margin-top: 1px;
+  color: rgba(255, 255, 255, 0.36);
+}
+
+/* Concept 5: Rotary Dial (a circular ring showing position in the BPM range) */
+.llbg-dial-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.llbg-dial {
+  position: relative;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+}
+
+.llbg-dial svg {
+  width: 100%;
+  height: 100%;
+}
+
+.llbg-dial-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 2.5;
+}
+
+.llbg-dial-fill {
+  fill: none;
+  stroke: var(--az-cyan);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 120ms ease;
+}
+
+.llbg-dial-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 800 6px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.llbg-dial-value {
+  flex: 1;
+  min-width: 0;
+  font: 700 16px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  color: var(--az-cyan);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Concept 6: Underline Scrub Track (a mini fill bar under the value, drag to adjust) */
+.llbg-track-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.llbg-track-top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.llbg-track-label {
+  flex-shrink: 0;
+  font: 700 8px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.llbg-track-value {
+  min-width: 0;
+  font: 700 14px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  color: var(--az-cyan);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.llbg-track-bar {
+  position: relative;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: ew-resize;
+  overflow: hidden;
+}
+
+.llbg-track-fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: linear-gradient(90deg, rgba(74, 199, 219, 0.5), var(--az-cyan));
+  border-radius: inherit;
+  pointer-events: none;
 }
 
 /* ── Cinema engine registration and single-owner runtime workspace ───────── */

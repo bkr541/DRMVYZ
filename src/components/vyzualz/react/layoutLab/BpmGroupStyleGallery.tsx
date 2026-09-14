@@ -1,5 +1,4 @@
-import { useState, type ReactNode } from 'react'
-import { NumericScrubField } from '../controls/NumericScrubField'
+import { useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 
 // ── BpmGroupStyleGallery ────────────────────────────────────────────────
 //
@@ -88,61 +87,88 @@ function BorderedChip() {
   )
 }
 
-// ── Concept 3: Micro Tag (value-dominant, label as a tiny corner badge) ─
-function MicroTag() {
+// ── Concept 3: Watermark Overlay (giant ghosted "BPM" behind the number) ─
+function WatermarkOverlay() {
   const { bpm, step } = useBpmSample(128)
   return (
-    <div className="llbg-microtag">
-      <span className="llbg-microtag-badge">BPM</span>
-      <span className="llbg-microtag-value">{bpm.toFixed(2)}</span>
+    <div className="llbg-watermark">
+      <span className="llbg-watermark-bg" aria-hidden="true">BPM</span>
+      <span className="llbg-watermark-value">{bpm.toFixed(2)}</span>
       <Chevrons onUp={() => step(1)} onDown={() => step(-1)} />
     </div>
   )
 }
 
-// ── Concept 4: Drag Scrubber (reuses the real NumericScrubField) ───────
-function DragScrubber() {
+// ── Concept 4: Flanking Stepper (− value + side by side, like a quantity picker) ─
+function FlankingStepper() {
+  const { bpm, step } = useBpmSample(128)
+  return (
+    <div className="llbg-flank-stepper">
+      <button type="button" className="llbg-flank-btn" onClick={() => step(-1)} title="BPM -1" aria-label="BPM -1">−</button>
+      <span className="llbg-flank-value">
+        {bpm.toFixed(2)}
+        <span className="llbg-flank-unit">bpm</span>
+      </span>
+      <button type="button" className="llbg-flank-btn" onClick={() => step(1)} title="BPM +1" aria-label="BPM +1">+</button>
+    </div>
+  )
+}
+
+// ── Concept 5: Rotary Dial (a circular ring showing position in the BPM range) ─
+function RotaryDial() {
+  const { bpm, step } = useBpmSample(128)
+  const radius = 15
+  const circumference = 2 * Math.PI * radius
+  const pct = (bpm - MIN_BPM) / (MAX_BPM - MIN_BPM)
+  const dashoffset = circumference * (1 - pct)
+  return (
+    <div className="llbg-dial-row">
+      <div className="llbg-dial">
+        <svg viewBox="0 0 36 36" aria-hidden="true">
+          <circle className="llbg-dial-track" cx={18} cy={18} r={radius} />
+          <circle
+            className="llbg-dial-fill"
+            cx={18} cy={18} r={radius}
+            strokeDasharray={circumference}
+            strokeDashoffset={dashoffset}
+            transform="rotate(-90 18 18)"
+          />
+        </svg>
+        <span className="llbg-dial-label">BPM</span>
+      </div>
+      <span className="llbg-dial-value">{bpm.toFixed(2)}</span>
+      <Chevrons onUp={() => step(1)} onDown={() => step(-1)} />
+    </div>
+  )
+}
+
+// ── Concept 6: Underline Scrub Track (a mini fill bar under the value, drag to adjust) ─
+function UnderlineScrubTrack() {
   const [bpm, setBpm] = useState(128)
-  return (
-    <div className="llbg-scrub-row">
-      <span className="llbg-scrub-row-label">BPM</span>
-      <NumericScrubField
-        label="BPM"
-        value={bpm}
-        onChange={setBpm}
-        min={MIN_BPM}
-        max={MAX_BPM}
-        step={1}
-      />
-    </div>
-  )
-}
+  const pct = ((bpm - MIN_BPM) / (MAX_BPM - MIN_BPM)) * 100
 
-// ── Concept 5: Icon Label + Merged Stepper ──────────────────────────────
-function IconLabelMergedStepper() {
-  const { bpm, step } = useBpmSample(128)
-  return (
-    <div className="llbg-icon-stepper">
-      <span className="llbg-icon-stepper-icon"><MetronomeIcon /></span>
-      <span className="llbg-icon-stepper-value">{bpm.toFixed(2)}</span>
-      <div className="llbg-merged-stepper">
-        <button type="button" onClick={() => step(1)} title="BPM +1" aria-label="BPM +1"><ChevronUpIcon /></button>
-        <button type="button" onClick={() => step(-1)} title="BPM -1" aria-label="BPM -1"><ChevronDownIcon /></button>
-      </div>
-    </div>
-  )
-}
+  const scrubFromPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+    setBpm(clampBpm(Math.round(MIN_BPM + fraction * (MAX_BPM - MIN_BPM))))
+  }
 
-// ── Concept 6: Value First (caption folded under the number, not beside it) ─
-function ValueFirst() {
-  const { bpm, step } = useBpmSample(128)
   return (
-    <div className="llbg-value-first">
-      <div className="llbg-value-first-stack">
-        <div className="llbg-value-first-value">{bpm.toFixed(2)}</div>
-        <div className="llbg-value-first-caption">BPM</div>
+    <div className="llbg-track-group">
+      <div className="llbg-track-top">
+        <span className="llbg-track-label">BPM</span>
+        <span className="llbg-track-value">{bpm.toFixed(2)}</span>
       </div>
-      <Chevrons onUp={() => step(1)} onDown={() => step(-1)} />
+      <div
+        className="llbg-track-bar"
+        onPointerDown={event => {
+          scrubFromPointer(event)
+          event.currentTarget.setPointerCapture(event.pointerId)
+        }}
+        onPointerMove={event => { if (event.buttons === 1) scrubFromPointer(event) }}
+      >
+        <div className="llbg-track-fill" style={{ width: `${pct}%` }} />
+      </div>
     </div>
   )
 }
@@ -150,10 +176,10 @@ function ValueFirst() {
 const GALLERY_ENTRIES = [
   { id: 'inline', title: '01 · BPM Group - VyzualzAudioDock.tsx', blurb: 'Current production shape: label, value, and chevrons all on one line, no border. Baseline for comparison against the other five.', Group: InlineRow },
   { id: 'chip', title: '02 · BPM Group - VyzualzAudioDock.tsx', blurb: 'Same inline content wrapped in a bordered, rounded chip — matches TAP/SYNC’s own button treatment so all three read as one family of controls.', Group: BorderedChip },
-  { id: 'microtag', title: '03 · BPM Group - VyzualzAudioDock.tsx', blurb: 'Value-first hierarchy: a large BPM number with “BPM” shrunk to a small corner tag instead of a full-size label, freeing width for the number itself.', Group: MicroTag },
-  { id: 'scrubber', title: '04 · BPM Group - VyzualzAudioDock.tsx', blurb: 'Drops the chevrons entirely and reuses the real, reusable NumericScrubField (the app’s canonical “Drag Scrubber”) — drag to adjust, double-click to type an exact value.', Group: DragScrubber },
-  { id: 'iconStepper', title: '05 · BPM Group - VyzualzAudioDock.tsx', blurb: 'Swaps the “BPM” text label for TAP’s own metronome glyph, and merges the two chevron buttons into one compact split stepper to save width.', Group: IconLabelMergedStepper },
-  { id: 'valueFirst', title: '06 · BPM Group - VyzualzAudioDock.tsx', blurb: 'The number leads at full size with “BPM” folded underneath it as a tiny caption, rather than beside it — reads like a speedometer more than a labeled field.', Group: ValueFirst },
+  { id: 'watermark', title: '03 · BPM Group - VyzualzAudioDock.tsx', blurb: 'The word “BPM” blown up huge, faded to a near-invisible ghost, and layered behind the value instead of sitting beside it as its own label — a stat-card treatment rather than a form field.', Group: WatermarkOverlay },
+  { id: 'flankStepper', title: '04 · BPM Group - VyzualzAudioDock.tsx', blurb: 'Drops the stacked up/down chevrons for a side-by-side − / + quantity-picker pair flanking the value, the way a cart or counter control works — a more modern gesture than a vertical arrow stack.', Group: FlankingStepper },
+  { id: 'dial', title: '05 · BPM Group - VyzualzAudioDock.tsx', blurb: 'A small circular progress ring — position around the ring reflects where the BPM sits in its 40–300 range — replaces the text label entirely with a shape the rest of the dock doesn’t otherwise use.', Group: RotaryDial },
+  { id: 'track', title: '06 · BPM Group - VyzualzAudioDock.tsx', blurb: 'A hairline fill bar sits directly under the value like a mini scrubber track (drag it to change BPM) instead of discrete chevrons — the label and value share one compact line above it.', Group: UnderlineScrubTrack },
 ]
 
 export function BpmGroupStyleGallery() {
