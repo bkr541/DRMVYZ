@@ -4,9 +4,9 @@ import { useMediaStore } from '../../../stores/mediaStore'
 import type { Cinema2MediaKind, Cinema2MediaSlotId } from '../cinema2/contracts/Cinema2NativePresetManifest'
 import type { Cinema2MediaSlotRuntimeSnapshot, Cinema2MediaSource } from '../cinema2/media/Cinema2MediaSlotRuntime'
 import type { Cinema2Runtime } from '../cinema2/runtime/Cinema2Runtime'
-import { MediaDeckPanel } from '../media/MediaDeckPanel'
-import { CtrlSection, SelectRow } from './ReactControlRows'
-import { IconChipButton } from './controls/IconChipButton'
+import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
+import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
+import { SelectRow } from './ReactControlRows'
 import { isUnifiedSvgMediaItem } from './svgSourceLifecycle'
 
 export interface Cinema2MediaSourcePanelProps {
@@ -50,8 +50,24 @@ export function Cinema2MediaSourcePanel({ runtime, onOpenMediaManager }: Cinema2
   const status = mediaStatusCopy(selectedSlot)
 
   return (
-    <div data-cinema2-media-source="slots">
-      <CtrlSection label="Media" />
+    <div className="rv-canvas-engine-panel" data-cinema2-media-source="slots">
+      <div className="rv-canvas-library-shell">
+        <MediaLibraryBrowser
+          activeMediaId={selectedSlot.source?.id ?? null}
+          onSelect={mediaId => {
+            const media = useMediaStore.getState().items.find(item => item.id === mediaId)
+            if (!media || !mediaRuntime) return
+            const source = cinema2MediaSourceFromLibraryItem(media)
+            if (!source) return
+            void mediaRuntime.replace(selectedSlot.id as Cinema2MediaSlotId, source)
+          }}
+          context="canvas"
+          title="Media Library"
+          capabilities={CANVAS_MEDIA_LIBRARY_CAPABILITIES}
+          onOpenMediaManager={onOpenMediaManager}
+          getDisabledReason={media => getCinema2MediaDisabledReason(media, selectedSlot.accepts)}
+        />
+      </div>
       {snapshot.slots.length > 1 && (
         <SelectRow
           id="cinema2-media-slot"
@@ -64,31 +80,16 @@ export function Cinema2MediaSourcePanel({ runtime, onOpenMediaManager }: Cinema2
           onChange={setSelectedSlotId}
         />
       )}
-      <div className="rv-ctrl-info" role="status" aria-live="polite" data-cinema2-media-status={selectedSlot.status}>
-        <strong>{selectedSlot.label}</strong> · {status}
-        {selectedSlot.error ? ` ${selectedSlot.error}` : ''}
+      <div className="rv-canvas-panel-status" role="status" aria-live="polite" data-cinema2-media-status={selectedSlot.status}>
+        <span>{selectedSlot.label}</span>
+        <strong>{status}{selectedSlot.error ? ` ${selectedSlot.error}` : ''}</strong>
       </div>
       {selectedSlot.source && (
-        <div className="rv-ctrl-row">
-          <span className="rv-ctrl-label">Source</span>
-          <span className="rv-ctrl-description">{selectedSlot.source.label}</span>
-          <IconChipButton onClick={() => mediaRuntime?.remove(selectedSlot.id)}>Remove</IconChipButton>
+        <div className="rv-canvas-panel-status">
+          <span>Source</span>
+          <strong>{selectedSlot.source.label}</strong>
         </div>
       )}
-      <MediaDeckPanel
-        mode="react"
-        activeMediaId={selectedSlot.source?.id ?? null}
-        onOpenMediaManager={onOpenMediaManager}
-        title={`${selectedSlot.label} Media`}
-        getDisabledReason={media => getCinema2MediaDisabledReason(media, selectedSlot.accepts)}
-        onSelect={mediaId => {
-          const media = useMediaStore.getState().items.find(item => item.id === mediaId)
-          if (!media || !mediaRuntime) return
-          const source = cinema2MediaSourceFromLibraryItem(media)
-          if (!source) return
-          void mediaRuntime.replace(selectedSlot.id as Cinema2MediaSlotId, source)
-        }}
-      />
     </div>
   )
 }

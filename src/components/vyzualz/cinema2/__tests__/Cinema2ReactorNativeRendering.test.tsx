@@ -449,6 +449,13 @@ describe('Cinema 2.0 Reactor production selection path', () => {
       return (
         <>
           <Cinema2PresetsPanel activePresetId={presetId} onSelectPreset={setPresetId} />
+          {/* Spatial Reference is an internal diagnostic preset, hidden from
+              the real Presets panel (see 'internal' tag on its metadata) —
+              this button stands in for however an internal/dev flow would
+              still reach it, so the rest of the pipeline stays covered. */}
+          <button type="button" data-testid="select-spatial-reference" onClick={() => setPresetId(CINEMA2_SPATIAL_REFERENCE_PRESET_ID)}>
+            Select Spatial Reference
+          </button>
           <Cinema2Stage
             presetId={presetId}
             onRuntimeReady={next => {
@@ -485,7 +492,8 @@ describe('Cinema 2.0 Reactor production selection path', () => {
     expect(activeRuntimeRef.current?.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 1, executedPassCount: 4, failedPassCount: 0 })
     expect(activeRuntimeRef.current?.getHistoryServiceSnapshot()).toMatchObject({ activeBufferCount: 1, validBufferCount: 1 })
 
-    const spatialButton = host?.querySelector<HTMLButtonElement>(`[data-cinema2-preset-id="${CINEMA2_SPATIAL_REFERENCE_PRESET_ID}"]`)
+    expect(host?.querySelector(`[data-cinema2-preset-id="${CINEMA2_SPATIAL_REFERENCE_PRESET_ID}"]`)).toBeNull()
+    const spatialButton = host?.querySelector<HTMLButtonElement>('[data-testid="select-spatial-reference"]')
     await act(async () => spatialButton?.click())
     expect(activeRuntimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_SPATIAL_REFERENCE_PRESET_ID)
     expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_REACTOR_CORE_SIZE_ID}"]`)).toBeNull()
