@@ -195,7 +195,7 @@ describe('Show Manager Audio Dock source lock integration', () => {
     expect(container?.querySelector('[role="alert"]')?.textContent).toContain(
       'An audio track cannot be loaded while in Show Manager.',
     )
-    expect(container?.querySelector('[role="alert"]')?.textContent).toContain('React, VYZUALZ, or Media Manager')
+    expect(container?.querySelector('[role="alert"]')?.textContent).toContain('React or Media Manager')
   })
 
   it('disables the real Audio Dock track routes and surfaces capture errors while Live Input is selected', async () => {
