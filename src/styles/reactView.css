@@ -6976,8 +6976,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-tap-btn {
-  width: calc(100% - 12px);
-  justify-self: center;
   height: 100%;
   min-width: 0;
   border-width: 1px;
@@ -7009,21 +7007,38 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   grid-row: 1;
 }
 
-.rv-shell > .vz-transport-dock .vz-dock-cue-btn,
-.rv-shell > .vz-transport-dock .vz-dock-sync-master-btn {
-  width: calc(100% - 12px);
-  justify-self: center;
+/* TAP/CUE sit in column 2, SYNC/blank in column 3 — each pair used to be
+   centered with a symmetric 6px inset on both sides (width: calc(100% -
+   12px)), so the visible gap between TAP↔SYNC and CUE↔blank was the grid's
+   own 10px column-gap PLUS 6px+6px of button inset, 22px total. Keeping
+   only the outer insets (TAP/CUE's left, facing BPM; SYNC/blank's right,
+   facing the card edge — the latter still matched to CUE's own height
+   shave below so the block's bottom-right corner stays even) and dropping
+   the inner ones tightens that to just the column-gap. Not collapsed
+   only — collapsed's own rules already set these buttons to a plain full
+   width with no inset. */
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-tap-btn,
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-cue-btn {
+  width: calc(100% - 6px);
+  margin-left: 6px;
+  margin-right: 0;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-sync-master-btn,
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-blank-btn {
+  width: calc(100% - 6px);
+  margin-left: 0;
+  margin-right: 6px;
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-cue-btn {
   grid-row: 2;
   /* Overrides the base rule's fixed 32px so CUE can shrink to half the
      stacked column's height instead of overflowing it. The 6px shave (vs.
-     TAP/SYNC's plain 100%) leaves a bottom margin that roughly matches the
-     6px half of the 12px horizontal inset every button already gets from
-     width: calc(100% - 12px) — without it CUE sits flush against the dock's
-     bottom edge while SYNC/blank sit inset from the right, so the block's
-     bottom-right corner reads uneven. */
+     TAP/SYNC's plain 100%) leaves a bottom margin that matches SYNC/blank's
+     own 6px outer-edge inset — without it CUE sits flush against the
+     dock's bottom edge while SYNC/blank sit inset from the right, so the
+     block's bottom-right corner reads uneven. */
   height: calc(100% - 6px);
 }
 
@@ -7045,11 +7060,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-shell > .vz-transport-dock .vz-dock-blank-btn {
   grid-row: 2;
-  width: calc(100% - 12px);
   /* Matches CUE's height so the block's bottom edge is even across both
      columns — see the comment on .vz-dock-cue-btn. */
   height: calc(100% - 6px);
-  justify-self: center;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 4px;
@@ -17317,9 +17330,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* ── BpmGroupStyleGallery ─────────────────────────────────────────────────
-   Six BPM-group concepts for the React Audio Dock's row-1 cell, each shown
-   inside a row-fit simulator sized to the real constraint: a ~38px-tall
-   strip beside a real-proportioned TAP button mockup. */
+   The winning BPM-group treatment (Underline Scrub Track) for the React
+   Audio Dock's row-1 cell, shown inside a row-fit simulator sized to the
+   real constraint: a ~38px-tall strip beside a real-proportioned TAP
+   button mockup. */
 .llbg-gallery {
   gap: 20px;
 }
@@ -17364,242 +17378,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   flex-shrink: 0;
 }
 
-.llbg-chevrons {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.llbg-chevron {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-  color: rgba(255, 255, 255, 0.5);
-  cursor: pointer;
-  padding: 0;
-  transition: all 0.1s;
-}
-
-.llbg-chevron:hover {
-  background: rgba(74, 199, 219, 0.15);
-  color: var(--az-cyan);
-  border-color: rgba(74, 199, 219, 0.3);
-}
-
-.llbg-chevron svg {
-  width: 7px;
-  height: 7px;
-}
-
-/* Concept 1: Inline Row (current production shape) */
-.llbg-inline {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  width: 100%;
-  min-width: 0;
-}
-
-.llbg-inline-label {
-  font: 700 9.5px/1 var(--az-font, Inter, system-ui, sans-serif);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.38);
-  flex-shrink: 0;
-}
-
-.llbg-inline-value {
-  font: 700 17px/1 var(--az-font-data, Inter, system-ui, sans-serif);
-  font-variant-numeric: tabular-nums;
-  color: var(--az-cyan);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-
-/* Concept 2: Bordered Chip (matches TAP/SYNC's button treatment) */
-.llbg-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  min-width: 0;
-  height: 100%;
-  padding: 0 8px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 6px;
-}
-
-.llbg-chip .llbg-inline-label {
-  color: rgba(255, 255, 255, 0.32);
-}
-
-.llbg-chip .llbg-inline-value {
-  font-size: 14px;
-}
-
-/* Concept 3: Watermark Overlay (giant ghosted "BPM" layered behind the value) */
-.llbg-watermark {
-  position: relative;
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
-  padding-left: 2px;
-}
-
-.llbg-watermark-bg {
-  position: absolute;
-  left: -3px;
-  top: 50%;
-  transform: translateY(-50%);
-  font: 800 30px/1 var(--az-font-data, Inter, system-ui, sans-serif);
-  letter-spacing: 0.01em;
-  color: rgba(74, 199, 219, 0.1);
-  text-transform: uppercase;
-  white-space: nowrap;
-  pointer-events: none;
-  user-select: none;
-  z-index: 0;
-}
-
-.llbg-watermark-value {
-  position: relative;
-  z-index: 1;
-  font: 800 17px/1 var(--az-font-data, Inter, system-ui, sans-serif);
-  font-variant-numeric: tabular-nums;
-  color: var(--az-cyan);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-
-.llbg-watermark .llbg-chevrons {
-  position: relative;
-  z-index: 1;
-  margin-left: auto;
-}
-
-/* Concept 4: Flanking Stepper (− value + side by side, like a quantity picker) */
-.llbg-flank-stepper {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  min-width: 0;
-}
-
-.llbg-flank-btn {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font: 700 13px/1 var(--az-font, Inter, system-ui, sans-serif);
-  cursor: pointer;
-  transition: all 0.12s;
-}
-
-.llbg-flank-btn:hover {
-  background: rgba(74, 199, 219, 0.15);
-  color: var(--az-cyan);
-  border-color: rgba(74, 199, 219, 0.35);
-}
-
-.llbg-flank-value {
-  flex: 1;
-  min-width: 0;
-  text-align: center;
-  font: 700 14px/1 var(--az-font-data, Inter, system-ui, sans-serif);
-  font-variant-numeric: tabular-nums;
-  color: var(--az-cyan);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.llbg-flank-unit {
-  margin-left: 3px;
-  font: 700 8px/1 var(--az-font, Inter, system-ui, sans-serif);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.36);
-}
-
-/* Concept 5: Rotary Dial (a circular ring showing position in the BPM range) */
-.llbg-dial-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-width: 0;
-}
-
-.llbg-dial {
-  position: relative;
-  flex-shrink: 0;
-  width: 30px;
-  height: 30px;
-}
-
-.llbg-dial svg {
-  width: 100%;
-  height: 100%;
-}
-
-.llbg-dial-track {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.1);
-  stroke-width: 2.5;
-}
-
-.llbg-dial-fill {
-  fill: none;
-  stroke: var(--az-cyan);
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  transition: stroke-dashoffset 120ms ease;
-}
-
-.llbg-dial-label {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font: 800 6px/1 var(--az-font, Inter, system-ui, sans-serif);
-  letter-spacing: 0.04em;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.llbg-dial-value {
-  flex: 1;
-  min-width: 0;
-  font: 700 16px/1 var(--az-font-data, Inter, system-ui, sans-serif);
-  font-variant-numeric: tabular-nums;
-  color: var(--az-cyan);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Concept 6: Underline Scrub Track (a mini fill bar under the value, drag to adjust) */
+/* Underline Scrub Track: a mini fill bar under the value, drag to adjust. */
 .llbg-track-group {
   display: flex;
   flex-direction: column;
