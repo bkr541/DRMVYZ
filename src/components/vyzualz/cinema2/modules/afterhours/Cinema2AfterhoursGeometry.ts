@@ -159,6 +159,14 @@ function mirrorTarget(target: Cinema2Vector3): Cinema2Vector3 {
   return vector(-target[0], target[1], target[2])
 }
 
+function applyTopologySpread(target: Cinema2Vector3, spreadValue: number | undefined): Cinema2Vector3 {
+  const spread = clamp(spreadValue ?? 1, 0, 1)
+  // Keep every topology recognizable at zero while letting the control widen
+  // deterministically to the fully authored Stage 1 geometry at one.
+  const lateralScale = 0.45 + spread * 0.55
+  return boundTarget(vector(target[0] * lateralScale, target[1], target[2]))
+}
+
 function beam(
   slot: number,
   fixture: Cinema2AfterhoursFixture,
@@ -221,7 +229,10 @@ export function generateCinema2AfterhoursBeamFrame(
       const jitterZ = centeredSample(input.random, variationKey, `${topology.id}:pair-z`, pairOrdinal)
       const phase = sample(input.random, variationKey, `${topology.id}:pair-phase`, pairOrdinal)
       const intensity = 0.88 + sample(input.random, variationKey, `${topology.id}:pair-intensity`, pairOrdinal) * 0.12
-      const leftTarget = topologyTarget(topology, left, pairOrdinal, Math.max(1, allocation.fixtures.length / 2), jitterX, jitterY, jitterZ)
+      const leftTarget = applyTopologySpread(
+        topologyTarget(topology, left, pairOrdinal, Math.max(1, allocation.fixtures.length / 2), jitterX, jitterY, jitterZ),
+        input.spread,
+      )
       const rightTarget = mirrorTarget(leftTarget)
       const leftSlot = left === first ? index : index + 1
       const rightSlot = left === first ? index + 1 : index
@@ -240,7 +251,10 @@ export function generateCinema2AfterhoursBeamFrame(
       beams.push(beam(
         index,
         fixture,
-        topologyTarget(topology, fixture, index, allocation.fixtures.length, jitterX, jitterY, jitterZ),
+        applyTopologySpread(
+          topologyTarget(topology, fixture, index, allocation.fixtures.length, jitterX, jitterY, jitterZ),
+          input.spread,
+        ),
         topology,
         phase,
         intensity,

@@ -25,16 +25,25 @@ import { createCinema2PerspectiveProjection, type Cinema2CameraFrame } from '../
 const MODULE_ID = cinema2StableId<Cinema2ModuleId>('afterhours-native-test')
 const BASE_PARAMETERS: Record<string, Cinema2JsonValue> = {
   pattern: 'wideFan',
+  autoPerformance: false,
   beamCount: 8,
   symmetry: true,
   sideLasers: true,
   topLasers: true,
+  spread: 0.65,
   colorMode: 'manual',
   primaryColor: [0.45, 0.96, 1, 1],
   accentColor: [1, 1, 1, 1],
   accentMix: 0.25,
   atmosphere: 0.55,
+  bpmSync: true,
   masterIntensity: 0.75,
+  trigger: 'beat',
+  pulseAmount: 0.65,
+  pulseDecay: 0.45,
+  motionAmount: 0.55,
+  patternChange: 'off',
+  blackoutAmount: 0.25,
 }
 
 class TestResources implements Cinema2ModuleResourceFacet {

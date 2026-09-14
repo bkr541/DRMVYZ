@@ -121,6 +121,8 @@ export interface Cinema2AfterhoursRandomSource {
 
 export interface Cinema2AfterhoursBeamGenerationInput extends Cinema2AfterhoursAllocationInput {
   readonly random: Cinema2AfterhoursRandomSource
+  /** User-authored 0..1 topology width. Omitted callers retain full authored spread. */
+  readonly spread?: number
   /** Stable event/variation identity, not frame time. */
   readonly variationKey?: string
 }

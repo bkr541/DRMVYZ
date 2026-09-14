@@ -1,0 +1,222 @@
+import { describe, expect, it, vi } from 'vitest'
+
+import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
+import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
+import { createCinema2InspectorModel } from '../parameters/Cinema2InspectorModel'
+import { CINEMA2_AFTERHOURS_NATIVE_MODULE_TYPE_ID } from '../modules/Cinema2AfterhoursNativeModule'
+import { CINEMA2_AFTERHOURS_TOPOLOGY_IDS } from '../modules/afterhours/Cinema2AfterhoursDomain'
+import {
+  CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID,
+  CINEMA2_AFTERHOURS_BACKGROUND_ID,
+  CINEMA2_AFTERHOURS_BEAM_COUNT_ID,
+  CINEMA2_AFTERHOURS_CAMERA_ID,
+  CINEMA2_AFTERHOURS_MODULE_ID,
+  CINEMA2_AFTERHOURS_PATTERN_ID,
+  CINEMA2_AFTERHOURS_PRESET_ID,
+  CINEMA2_AFTERHOURS_PRESET_MANIFEST,
+  CINEMA2_AFTERHOURS_SIDE_LASERS_ID,
+  CINEMA2_AFTERHOURS_SYMMETRY_ID,
+  CINEMA2_AFTERHOURS_TOP_LASERS_ID,
+} from '../presets/Cinema2AfterhoursPreset'
+import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
+import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
+import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
+import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
+import { Cinema2Runtime } from '../runtime/Cinema2Runtime'
+
+const REQUIRED_CAPABILITIES = Object.freeze(['render.webgl2', 'render.depth', 'scene.3d', 'camera.world'] as const)
+const EXPECTED_PARAMETER_IDS = Object.freeze([
+  'afterhours-background',
+  'afterhours-color-mode',
+  'afterhours-primary-color',
+  'afterhours-accent-color',
+  'afterhours-accent-mix',
+  'afterhours-pattern',
+  'afterhours-auto-performance',
+  'afterhours-symmetry',
+  'afterhours-side-lasers',
+  'afterhours-top-lasers',
+  'afterhours-beam-count',
+  'afterhours-spread',
+  'afterhours-atmosphere',
+  'afterhours-bpm-sync',
+  'afterhours-master-intensity',
+  'afterhours-trigger',
+  'afterhours-pulse-amount',
+  'afterhours-pulse-decay',
+  'afterhours-motion-amount',
+  'afterhours-pattern-change',
+  'afterhours-blackout-amount',
+])
+
+class FakeCanvas extends EventTarget {
+  width = 640
+  height = 360
+  readonly getContext: ReturnType<typeof vi.fn>
+
+  constructor(gl: WebGL2RenderingContext | null) {
+    super()
+    this.getContext = vi.fn(() => gl)
+  }
+}
+
+function compileAfterhours() {
+  const result = compileCinema2NativePreset(CINEMA2_AFTERHOURS_PRESET_MANIFEST, {
+    availableCapabilities: REQUIRED_CAPABILITIES,
+  })
+  expect(result.ok, result.diagnostics.map(diagnostic => `${diagnostic.path}: ${diagnostic.message}`).join('\n')).toBe(true)
+  if (!result.ok) throw new Error('Expected Afterhours 2.0 to compile')
+  return result.plan
+}
+
+function targetFor(plan: ReturnType<typeof compileAfterhours>, kind: string, ownerId: string, property: string) {
+  const target = plan.targets.targets.find(candidate => (
+    candidate.kind === kind && candidate.ownerId === ownerId && candidate.property === property
+  ))
+  if (!target) throw new Error(`Missing target ${kind}:${ownerId}:${property}`)
+  return target
+}
+
+describe('Cinema 2.0 Afterhours 2.0 Stage 3 production preset', () => {
+  it('registers as a first-party keeper and passes the shared authoring/compiler gates', () => {
+    const declaration = CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS.find(candidate => candidate.manifest.id === CINEMA2_AFTERHOURS_PRESET_ID)
+    expect(declaration).toMatchObject({ role: 'keeper' })
+    expect(declaration?.manifest.metadata.name).toBe('Afterhours 2.0')
+    expect(validateCinema2PresetAuthoringConventions({ role: 'keeper', manifest: CINEMA2_AFTERHOURS_PRESET_MANIFEST })).toMatchObject({ ok: true })
+    expect(cinema2NativePresetRegistry.has(CINEMA2_AFTERHOURS_PRESET_ID)).toBe(true)
+
+    const plan = compileAfterhours()
+    expect(plan.manifest.modules).toHaveLength(1)
+    expect(plan.manifest.modules?.[0]).toMatchObject({
+      id: CINEMA2_AFTERHOURS_MODULE_ID,
+      typeId: CINEMA2_AFTERHOURS_NATIVE_MODULE_TYPE_ID,
+      version: 1,
+    })
+    expect(plan.capabilities.required).toEqual(expect.arrayContaining(REQUIRED_CAPABILITIES))
+  })
+
+  it('authors the complete independent parameter contract and binds every exposed control into shared engine state', () => {
+    const plan = compileAfterhours()
+    expect(plan.parameters.definitions.map(definition => definition.id)).toEqual(EXPECTED_PARAMETER_IDS)
+
+    const module = plan.manifest.modules?.[0]
+    expect(module).toBeDefined()
+    const bindings = module?.parameterBindings ?? {}
+    expect(Object.keys(bindings).sort()).toEqual(Object.keys(module?.parameters ?? {}).sort())
+
+    for (const [property, binding] of Object.entries(bindings)) {
+      const moduleTarget = targetFor(plan, 'module', CINEMA2_AFTERHOURS_MODULE_ID, property)
+      expect(moduleTarget.parameterId, property).toBe(binding.$ref)
+    }
+    expect(targetFor(plan, 'environment', 'root', 'backgroundColor').parameterId).toBe(CINEMA2_AFTERHOURS_BACKGROUND_ID)
+
+    const pattern = plan.parameters.definitions.find(definition => definition.id === CINEMA2_AFTERHOURS_PATTERN_ID)
+    expect(pattern?.options.map(option => option.value)).toEqual(CINEMA2_AFTERHOURS_TOPOLOGY_IDS)
+    expect(plan.parameters.authoredDefaults[CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID]).toBe(false)
+    expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_AFTERHOURS_BEAM_COUNT_ID)).toMatchObject({ min: 2, max: 16, step: 1 })
+    expect(plan.manifest.choreography).toBeUndefined()
+    expect(plan.capabilities.required.some(capability => capability.startsWith('music.'))).toBe(false)
+  })
+
+  it('uses the shared Inspector projection with coherent groups and no preset-specific settings surface', () => {
+    const plan = compileAfterhours()
+    const state = new Cinema2ParameterState(plan.parameters)
+    const design = createCinema2InspectorModel(plan, state.getSnapshot(), 'design')
+    const react = createCinema2InspectorModel(plan, state.getSnapshot(), 'react')
+
+    const designGroups = design.flatMap(section => section.groups.map(group => group.label))
+    const reactGroups = react.flatMap(section => section.groups.map(group => group.label))
+    const allControls = [...design, ...react]
+      .flatMap(section => section.groups)
+      .flatMap(group => group.controls)
+      .map(control => control.definition.id)
+
+    expect(designGroups).toEqual(expect.arrayContaining(['Color', 'Rig', 'Pattern', 'Motion', 'Atmosphere']))
+    expect(reactGroups).toEqual(expect.arrayContaining(['Reactivity', 'Structure']))
+    expect(allControls).toEqual(expect.arrayContaining(EXPECTED_PARAMETER_IDS))
+    expect(allControls).toContain(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)
+  })
+
+  it('persists independently, accepts every enum/boundary, and resolves bound module state through the canonical target runtime', () => {
+    const plan = compileAfterhours()
+    const state = new Cinema2ParameterState(plan.parameters)
+
+    for (const definition of plan.parameters.definitions) {
+      if (definition.type !== 'trigger') {
+        expect(state.getValue(definition.id), `fresh default for ${definition.id}`).toEqual(plan.parameters.authoredDefaults[definition.id])
+      }
+      if (definition.type === 'enum') {
+        for (const option of definition.options ?? []) {
+          expect(state.setPersistentValue(definition.id, option.value), `${definition.id}=${option.value}`).toMatchObject({ ok: true })
+        }
+      }
+      if ((definition.type === 'float' || definition.type === 'integer') && definition.min != null && definition.max != null) {
+        expect(state.setPersistentValue(definition.id, definition.min), `${definition.id}=min`).toMatchObject({ ok: true })
+        expect(state.setPersistentValue(definition.id, definition.max), `${definition.id}=max`).toMatchObject({ ok: true })
+      }
+    }
+
+    for (const symmetry of [false, true]) {
+      for (const sideLasers of [false, true]) {
+        for (const topLasers of [false, true]) {
+          expect(state.setPersistentValue(CINEMA2_AFTERHOURS_SYMMETRY_ID, symmetry)).toMatchObject({ ok: true })
+          expect(state.setPersistentValue(CINEMA2_AFTERHOURS_SIDE_LASERS_ID, sideLasers)).toMatchObject({ ok: true })
+          expect(state.setPersistentValue(CINEMA2_AFTERHOURS_TOP_LASERS_ID, topLasers)).toMatchObject({ ok: true })
+        }
+      }
+    }
+
+    expect(state.setPersistentValue(CINEMA2_AFTERHOURS_PATTERN_ID, 'crossCanopy')).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_AFTERHOURS_BEAM_COUNT_ID, 12)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID, true)).toMatchObject({ ok: true })
+    expect(JSON.parse(state.serialize()).presetId).toBe(CINEMA2_AFTERHOURS_PRESET_ID)
+
+    const restored = new Cinema2ParameterState(plan.parameters)
+    expect(restored.restore(state.serialize())).toMatchObject({ ok: true })
+    expect(restored.getValue(CINEMA2_AFTERHOURS_PATTERN_ID)).toBe('crossCanopy')
+    expect(restored.getValue(CINEMA2_AFTERHOURS_BEAM_COUNT_ID)).toBe(12)
+    expect(restored.getValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)).toBe(true)
+
+    const resolver = new Cinema2FinalValueResolver(plan.targets, {
+      resolveBaseValue: target => target.parameterId == null ? target.authoredBaseValue : restored.getValue(target.parameterId),
+    })
+    expect(resolver.resolve(targetFor(plan, 'module', CINEMA2_AFTERHOURS_MODULE_ID, 'pattern').id).value).toBe('crossCanopy')
+    expect(resolver.resolve(targetFor(plan, 'module', CINEMA2_AFTERHOURS_MODULE_ID, 'beamCount').id).value).toBe(12)
+    expect(resolver.resolve(targetFor(plan, 'module', CINEMA2_AFTERHOURS_MODULE_ID, 'autoPerformance').id).value).toBe(true)
+  })
+
+  it('authors one world-space depth layer and conservative perspective camera for the native 3D renderer', () => {
+    const plan = compileAfterhours()
+    expect(plan.scene.nodes.some(node => node.coordinateSpace === 'world' && node.moduleId === CINEMA2_AFTERHOURS_MODULE_ID)).toBe(true)
+    expect(plan.manifest.layers).toEqual([
+      expect.objectContaining({ role: 'world', depthPolicy: 'read-write' }),
+    ])
+    expect(plan.render.targets.some(target => target.descriptor.depthFormat === 'depth24')).toBe(true)
+    expect(plan.manifest.cameras?.find(camera => camera.id === CINEMA2_AFTERHOURS_CAMERA_ID)).toMatchObject({
+      projection: 'perspective',
+      rig: { kind: 'static' },
+    })
+    expect(plan.manifest.defaults?.camera?.$ref).toBe(CINEMA2_AFTERHOURS_CAMERA_ID)
+  })
+
+  it('activates through the real production registry/runtime and instantiates the native module with the shared final camera/depth path', () => {
+    const gl = createCinemaMockWebGL()
+    const created = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
+      presetId: CINEMA2_AFTERHOURS_PRESET_ID,
+      requestAnimationFrame: vi.fn(() => 1),
+      cancelAnimationFrame: vi.fn(),
+      renderQuality: 'high',
+    })
+    expect(created.error).toBeNull()
+    expect(created.runtime).not.toBeNull()
+    if (!created.runtime) return
+
+    expect(created.runtime.getCompiledPresetPlan().presetId).toBe(CINEMA2_AFTERHOURS_PRESET_ID)
+    expect(created.runtime.getModuleRuntimeSnapshot().activeModuleCount).toBe(1)
+    expect(created.runtime.getCameraRuntimeSnapshot()).toMatchObject({ activeCameraId: CINEMA2_AFTERHOURS_CAMERA_ID })
+    expect(created.runtime.getCompiledPresetPlan().render.targets.some(target => target.descriptor.depthFormat === 'depth24')).toBe(true)
+
+    created.runtime.dispose()
+  })
+})

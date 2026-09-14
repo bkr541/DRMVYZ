@@ -33,19 +33,35 @@ import {
 export const CINEMA2_AFTERHOURS_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('afterhours-native-render')
 export const CINEMA2_AFTERHOURS_NATIVE_MODULE_VERSION = 1 as const
 export const CINEMA2_AFTERHOURS_HARD_CUT_ACTION = 'hardStructuralCut' as const
+export const CINEMA2_AFTERHOURS_TRIGGER_IDS = Object.freeze([
+  'beat', 'kick', 'snare', 'downbeat', 'beat2', 'beat4', 'bar', 'bar4', 'bar8', 'phrase', 'drop',
+] as const)
+export const CINEMA2_AFTERHOURS_PATTERN_CHANGE_IDS = Object.freeze(['off', 'bar', 'bar4', 'bar8', 'phrase', 'drop'] as const)
+
+export type Cinema2AfterhoursTriggerId = typeof CINEMA2_AFTERHOURS_TRIGGER_IDS[number]
+export type Cinema2AfterhoursPatternChangeId = typeof CINEMA2_AFTERHOURS_PATTERN_CHANGE_IDS[number]
 
 export const CINEMA2_AFTERHOURS_NATIVE_PARAMETER_NAMES = Object.freeze([
   'pattern',
+  'autoPerformance',
   'beamCount',
   'symmetry',
   'sideLasers',
   'topLasers',
+  'spread',
   'colorMode',
   'primaryColor',
   'accentColor',
   'accentMix',
   'atmosphere',
+  'bpmSync',
   'masterIntensity',
+  'trigger',
+  'pulseAmount',
+  'pulseDecay',
+  'motionAmount',
+  'patternChange',
+  'blackoutAmount',
 ] as const)
 
 const MORPH_DURATION_SEC = 0.34
@@ -54,6 +70,8 @@ const IDLE_SWAY_WORLD = 0.035
 const DEFAULT_PRIMARY = Object.freeze([0.455, 0.961, 1, 1]) as Cinema2Color
 const DEFAULT_ACCENT = Object.freeze([1, 1, 1, 1]) as Cinema2Color
 const TOPOLOGY_SET = new Set<string>(CINEMA2_AFTERHOURS_TOPOLOGY_IDS)
+const TRIGGER_SET = new Set<string>(CINEMA2_AFTERHOURS_TRIGGER_IDS)
+const PATTERN_CHANGE_SET = new Set<string>(CINEMA2_AFTERHOURS_PATTERN_CHANGE_IDS)
 
 type AfterhoursColorMode = 'manual' | 'auto'
 
@@ -71,16 +89,25 @@ interface BeamTransition {
 
 interface FrameConfig {
   readonly pattern: Cinema2AfterhoursTopologyId
+  readonly autoPerformance: boolean
   readonly beamCount: number
   readonly symmetry: boolean
   readonly sideLasers: boolean
   readonly topLasers: boolean
+  readonly spread: number
   readonly colorMode: AfterhoursColorMode
   readonly primaryColor: Cinema2Color
   readonly accentColor: Cinema2Color
   readonly accentMix: number
   readonly atmosphere: number
+  readonly bpmSync: boolean
   readonly masterIntensity: number
+  readonly trigger: Cinema2AfterhoursTriggerId
+  readonly pulseAmount: number
+  readonly pulseDecay: number
+  readonly motionAmount: number
+  readonly patternChange: Cinema2AfterhoursPatternChangeId
+  readonly blackoutAmount: number
 }
 
 function validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2ModuleDiagnostic[] {
@@ -98,7 +125,7 @@ function validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2Modu
   if (module.parameters?.beamCount !== undefined && !numberInRange(module.parameters.beamCount, CINEMA2_AFTERHOURS_MIN_BEAMS, CINEMA2_AFTERHOURS_MAX_BEAMS)) {
     diagnostics.push(diagnostic('CINEMA2_AFTERHOURS_BEAM_COUNT_INVALID', '$.parameters.beamCount', `Afterhours Beam Count must be between ${CINEMA2_AFTERHOURS_MIN_BEAMS} and ${CINEMA2_AFTERHOURS_MAX_BEAMS}.`))
   }
-  for (const property of ['symmetry', 'sideLasers', 'topLasers'] as const) {
+  for (const property of ['autoPerformance', 'symmetry', 'sideLasers', 'topLasers', 'bpmSync'] as const) {
     if (module.parameters?.[property] !== undefined && typeof module.parameters[property] !== 'boolean') {
       diagnostics.push(diagnostic('CINEMA2_AFTERHOURS_BOOLEAN_PARAMETER_INVALID', `$.parameters.${property}`, `Afterhours "${property}" must be boolean.`))
     }
@@ -111,10 +138,16 @@ function validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2Modu
       diagnostics.push(diagnostic('CINEMA2_AFTERHOURS_COLOR_INVALID', `$.parameters.${property}`, `Afterhours "${property}" must contain four finite values from 0 through 1.`))
     }
   }
-  for (const property of ['accentMix', 'atmosphere', 'masterIntensity'] as const) {
+  for (const property of ['spread', 'accentMix', 'atmosphere', 'masterIntensity', 'pulseAmount', 'pulseDecay', 'motionAmount', 'blackoutAmount'] as const) {
     if (module.parameters?.[property] !== undefined && !numberInRange(module.parameters[property], 0, 1)) {
       diagnostics.push(diagnostic('CINEMA2_AFTERHOURS_NORMALIZED_PARAMETER_INVALID', `$.parameters.${property}`, `Afterhours "${property}" must be between 0 and 1.`))
     }
+  }
+  if (module.parameters?.trigger !== undefined && !isTrigger(module.parameters.trigger)) {
+    diagnostics.push(diagnostic('CINEMA2_AFTERHOURS_TRIGGER_INVALID', '$.parameters.trigger', `Afterhours trigger must be one of: ${CINEMA2_AFTERHOURS_TRIGGER_IDS.join(', ')}.`))
+  }
+  if (module.parameters?.patternChange !== undefined && !isPatternChange(module.parameters.patternChange)) {
+    diagnostics.push(diagnostic('CINEMA2_AFTERHOURS_PATTERN_CHANGE_INVALID', '$.parameters.patternChange', `Afterhours patternChange must be one of: ${CINEMA2_AFTERHOURS_PATTERN_CHANGE_IDS.join(', ')}.`))
   }
   return Object.freeze(diagnostics.map(entry => Object.freeze(entry)))
 }
@@ -202,6 +235,7 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
               symmetry: config.symmetry,
               sideLasers: config.sideLasers,
               topLasers: config.topLasers,
+              spread: config.spread,
               variationKey: `renderer:${config.pattern}`,
               random: randomAdapter,
             })
@@ -233,7 +267,7 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
             settled = new Map(transition.to)
             transition = null
           }
-          renderBeams = buildRenderBeams(resolved, frame, timeSec)
+          renderBeams = buildRenderBeams(resolved, frame, timeSec, config.motionAmount)
 
           if (timeSec - lastHistorySampleSec >= HISTORY_SAMPLE_INTERVAL_SEC && renderBeams.length > 0) {
             const sample = Object.freeze({ timeSec, beams: cloneRenderBeams(renderBeams) })
@@ -268,16 +302,27 @@ function readFrameConfig(
   const colorMode = source.parameters.get('colorMode') === 'auto' ? 'auto' : 'manual'
   return Object.freeze({
     pattern: isTopology(source.parameters.get('pattern')) ? source.parameters.get('pattern') as Cinema2AfterhoursTopologyId : 'wideFan',
+    // Stage 3 carries this authority through the canonical target path. Stage 4
+    // is responsible for allowing it to choose topology families or rig banks.
+    autoPerformance: booleanValue(source.parameters.get('autoPerformance'), false),
     beamCount: clamp(Math.round(numberValue(source.parameters.get('beamCount'), 8)), CINEMA2_AFTERHOURS_MIN_BEAMS, CINEMA2_AFTERHOURS_MAX_BEAMS),
     symmetry: booleanValue(source.parameters.get('symmetry'), true),
     sideLasers: booleanValue(source.parameters.get('sideLasers'), false),
     topLasers: booleanValue(source.parameters.get('topLasers'), false),
+    spread: clamp01(numberValue(source.parameters.get('spread'), 0.65)),
     colorMode,
     primaryColor: colorMode === 'auto' ? autoPalette.primary : colorValue(source.parameters.get('primaryColor'), DEFAULT_PRIMARY),
     accentColor: colorMode === 'auto' ? autoPalette.accent : colorValue(source.parameters.get('accentColor'), DEFAULT_ACCENT),
     accentMix: clamp01(numberValue(source.parameters.get('accentMix'), 0.25)),
     atmosphere: clamp01(numberValue(source.parameters.get('atmosphere'), 0.55)),
+    bpmSync: booleanValue(source.parameters.get('bpmSync'), true),
     masterIntensity: clamp01(numberValue(source.parameters.get('masterIntensity'), 0.75)),
+    trigger: isTrigger(source.parameters.get('trigger')) ? source.parameters.get('trigger') as Cinema2AfterhoursTriggerId : 'beat',
+    pulseAmount: clamp01(numberValue(source.parameters.get('pulseAmount'), 0.65)),
+    pulseDecay: clamp01(numberValue(source.parameters.get('pulseDecay'), 0.45)),
+    motionAmount: clamp01(numberValue(source.parameters.get('motionAmount'), 0.55)),
+    patternChange: isPatternChange(source.parameters.get('patternChange')) ? source.parameters.get('patternChange') as Cinema2AfterhoursPatternChangeId : 'off',
+    blackoutAmount: clamp01(numberValue(source.parameters.get('blackoutAmount'), 0.25)),
   })
 }
 
@@ -327,13 +372,14 @@ function buildRenderBeams(
   states: ReadonlyMap<string, Readonly<BeamTransitionState>>,
   frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
   timeSec: number,
+  motionAmount: number,
 ): readonly Cinema2AfterhoursRenderBeam[] {
   const idle = frame.transport?.sourcePresent === false
   const paused = frame.transport?.sourcePresent === true && frame.transport.paused
   const result: Cinema2AfterhoursRenderBeam[] = []
   for (const [fixtureId, state] of states) {
     const target = idle && !paused
-      ? applyIdleSway(state.targetWorld, state.descriptor.scanner.phase, timeSec)
+      ? applyIdleSway(state.targetWorld, state.descriptor.scanner.phase, timeSec, motionAmount)
       : state.targetWorld
     result.push(Object.freeze({
       fixtureId,
@@ -347,11 +393,12 @@ function buildRenderBeams(
   return Object.freeze(result)
 }
 
-function applyIdleSway(target: Cinema2Vector3, phase: number, timeSec: number): Cinema2Vector3 {
+function applyIdleSway(target: Cinema2Vector3, phase: number, timeSec: number, motionAmount: number): Cinema2Vector3 {
   const angle = timeSec * 0.23 + phase * Math.PI * 2
+  const amplitude = IDLE_SWAY_WORLD * clamp01(motionAmount)
   return Object.freeze([
-    target[0] + Math.sin(angle) * IDLE_SWAY_WORLD,
-    target[1] + Math.cos(angle * 0.83) * IDLE_SWAY_WORLD * 0.55,
+    target[0] + Math.sin(angle) * amplitude,
+    target[1] + Math.cos(angle * 0.83) * amplitude * 0.55,
     target[2],
   ]) as Cinema2Vector3
 }
@@ -375,6 +422,7 @@ function createGeometrySignature(config: Readonly<FrameConfig>): string {
     config.symmetry ? 1 : 0,
     config.sideLasers ? 1 : 0,
     config.topLasers ? 1 : 0,
+    config.spread.toFixed(4),
   ].join('|')
 }
 
@@ -432,6 +480,14 @@ function stableUnitHash(value: string): number {
 
 function isTopology(value: unknown): value is Cinema2AfterhoursTopologyId {
   return typeof value === 'string' && TOPOLOGY_SET.has(value)
+}
+
+function isTrigger(value: unknown): value is Cinema2AfterhoursTriggerId {
+  return typeof value === 'string' && TRIGGER_SET.has(value)
+}
+
+function isPatternChange(value: unknown): value is Cinema2AfterhoursPatternChangeId {
+  return typeof value === 'string' && PATTERN_CHANGE_SET.has(value)
 }
 
 function isColor(value: unknown): value is Cinema2Color {
