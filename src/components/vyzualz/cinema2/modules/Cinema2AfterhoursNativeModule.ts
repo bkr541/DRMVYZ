@@ -23,6 +23,13 @@ import {
 } from './afterhours/Cinema2AfterhoursDomain'
 import { generateCinema2AfterhoursBeamFrame } from './afterhours/Cinema2AfterhoursGeometry'
 import {
+  CINEMA2_AFTERHOURS_PATTERN_CHANGE_IDS,
+  planCinema2AfterhoursShow,
+  type Cinema2AfterhoursPatternChangeId,
+  type Cinema2AfterhoursShowPlan,
+  type Cinema2AfterhoursShowPlannerStructure,
+} from './afterhours/Cinema2AfterhoursShowPlanner'
+import {
   CINEMA2_AFTERHOURS_TEMPORAL_HISTORY_MAX_SAMPLES,
   CINEMA2_AFTERHOURS_TEMPORAL_HISTORY_WINDOW_SEC,
   Cinema2AfterhoursRenderer,
@@ -36,10 +43,10 @@ export const CINEMA2_AFTERHOURS_HARD_CUT_ACTION = 'hardStructuralCut' as const
 export const CINEMA2_AFTERHOURS_TRIGGER_IDS = Object.freeze([
   'beat', 'kick', 'snare', 'downbeat', 'beat2', 'beat4', 'bar', 'bar4', 'bar8', 'phrase', 'drop',
 ] as const)
-export const CINEMA2_AFTERHOURS_PATTERN_CHANGE_IDS = Object.freeze(['off', 'bar', 'bar4', 'bar8', 'phrase', 'drop'] as const)
+export { CINEMA2_AFTERHOURS_PATTERN_CHANGE_IDS } from './afterhours/Cinema2AfterhoursShowPlanner'
+export type { Cinema2AfterhoursPatternChangeId } from './afterhours/Cinema2AfterhoursShowPlanner'
 
 export type Cinema2AfterhoursTriggerId = typeof CINEMA2_AFTERHOURS_TRIGGER_IDS[number]
-export type Cinema2AfterhoursPatternChangeId = typeof CINEMA2_AFTERHOURS_PATTERN_CHANGE_IDS[number]
 
 export const CINEMA2_AFTERHOURS_NATIVE_PARAMETER_NAMES = Object.freeze([
   'pattern',
@@ -227,16 +234,17 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
           if (discontinuity || backwards || sourceReplaced || contextChanged) resetTransientState()
           else if (viewportChanged) clearTemporalHistory()
 
-          const nextSignature = createGeometrySignature(config)
+          const showPlan = planCinema2AfterhoursShow(config, resolveShowPlannerStructure(frame), randomAdapter)
+          const nextSignature = createGeometrySignature(config, showPlan)
           if (nextSignature !== signature) {
             const nextDescriptors = generateCinema2AfterhoursBeamFrame({
-              topologyId: config.pattern,
-              beamCount: config.beamCount,
-              symmetry: config.symmetry,
-              sideLasers: config.sideLasers,
-              topLasers: config.topLasers,
+              topologyId: showPlan.topologyId,
+              beamCount: showPlan.beamCount,
+              symmetry: showPlan.symmetry,
+              sideLasers: showPlan.sideLasers,
+              topLasers: showPlan.topLasers,
               spread: config.spread,
-              variationKey: `renderer:${config.pattern}`,
+              variationKey: showPlan.variationKey,
               random: randomAdapter,
             })
             const current = resolveTransitionState(transition, settled, timeSec)
@@ -252,6 +260,7 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
               }
             }
             signature = nextSignature
+            if (showPlan.transitionIntent === 'hardCut') hardCutRequested = true
           }
           if (hardCutRequested) {
             if (transition) {
@@ -415,15 +424,56 @@ function transitionProgress(transition: Readonly<BeamTransition>, timeSec: numbe
   return clamp01((timeSec - transition.startedAtSec) / MORPH_DURATION_SEC)
 }
 
-function createGeometrySignature(config: Readonly<FrameConfig>): string {
+function createGeometrySignature(config: Readonly<FrameConfig>, showPlan: Readonly<Cinema2AfterhoursShowPlan>): string {
   return [
-    config.pattern,
-    config.beamCount,
-    config.symmetry ? 1 : 0,
-    config.sideLasers ? 1 : 0,
-    config.topLasers ? 1 : 0,
+    showPlan.topologyId,
+    showPlan.variationKey,
+    showPlan.beamCount,
+    showPlan.symmetry ? 1 : 0,
+    showPlan.sideLasers ? 1 : 0,
+    showPlan.topLasers ? 1 : 0,
     config.spread.toFixed(4),
   ].join('|')
+}
+
+function resolveShowPlannerStructure(
+  frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
+): Readonly<Cinema2AfterhoursShowPlannerStructure> {
+  const audio = frame.audio
+  const timeSec = audio?.upstream.timeSec ?? frame.transport?.timeSec ?? frame.elapsedTimeSec
+  const barValue = audio?.rhythm.barIndex.available ? audio.rhythm.barIndex.value : null
+  const absoluteBarIndex = typeof barValue === 'number' && Number.isFinite(barValue)
+    ? Math.max(0, Math.floor(barValue))
+    : null
+  const phrases = audio?.structure.analyzedPhrases.available && audio.structure.analyzedPhrases.value
+    ? audio.structure.analyzedPhrases.value
+    : Object.freeze([])
+  const phraseIdentity = latestStructuralIdentity(phrases, timeSec)
+  const moments = audio?.structure.semanticMoments.available && audio.structure.semanticMoments.value
+    ? audio.structure.semanticMoments.value.filter(moment => moment.type === 'drop' || moment.type === 'drop_impact')
+    : Object.freeze([])
+  const dropIdentity = latestStructuralIdentity(moments, timeSec)
+  return Object.freeze({
+    sourceIdentity: frame.transport?.trackId ?? 'no-source',
+    absoluteBarIndex,
+    phraseIdentity,
+    dropIdentity,
+    // Stage 5 owns the significance policy that may set this true. Stage 4 only
+    // establishes and tests the explicit contract so no raw-audio inference leaks here.
+    hardCutIntent: false,
+  })
+}
+
+function latestStructuralIdentity(
+  items: readonly Readonly<{ id: string; timeSec: number }>[],
+  timeSec: number,
+): string | null {
+  let latest: Readonly<{ id: string; timeSec: number }> | null = null
+  for (const item of items) {
+    if (!Number.isFinite(item.timeSec) || item.timeSec > timeSec + 1e-6) continue
+    if (!latest || item.timeSec > latest.timeSec || (item.timeSec === latest.timeSec && item.id > latest.id)) latest = item
+  }
+  return latest?.id ?? null
 }
 
 function createAutoPalette(context: Cinema2ModuleCreateContext): Readonly<{ primary: Cinema2Color; accent: Cinema2Color }> {
