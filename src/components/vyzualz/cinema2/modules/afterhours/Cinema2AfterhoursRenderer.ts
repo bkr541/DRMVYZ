@@ -73,7 +73,9 @@ void main() {
   gl_Position = uWorldToClip * vec4(worldPosition, 1.0);
   vColor = aColor;
   vMeta = aMeta;
-  vSide = abs(aCorner.y);
+  // Preserve the signed quad coordinate through raster interpolation so the
+  // fragment shader receives 0.0 at the beam center.
+  vSide = aCorner.y;
   vLongitudinal = t;
   vViewDistance = length(uCameraPosition - center);
   vBeamLength = beamLength;
@@ -91,7 +93,7 @@ uniform float uAtmosphere;
 uniform float uMasterIntensity;
 out vec4 outColor;
 void main() {
-  float side = clamp(vSide, 0.0, 1.0);
+  float side = clamp(abs(vSide), 0.0, 1.0);
   float core = exp(-side * side * 118.0);
   float body = exp(-side * side * 34.0);
   float halo = exp(-side * side * 6.4);
@@ -207,7 +209,9 @@ export class Cinema2AfterhoursRenderer {
     gl.depthFunc(gl.LEQUAL)
     gl.depthMask(false)
     gl.enable(gl.BLEND)
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE)
+    // RGB is already intensity-weighted in the fragment shader, so use pure
+    // additive blending instead of multiplying the contribution by alpha again.
+    gl.blendFunc(gl.ONE, gl.ONE)
     gl.disable(gl.CULL_FACE)
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, instanceCount)
     gl.disable(gl.BLEND)

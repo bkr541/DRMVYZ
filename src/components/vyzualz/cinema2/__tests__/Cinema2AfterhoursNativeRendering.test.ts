@@ -224,7 +224,74 @@ function lastInstanceCount(gl: CinemaMockWebGL): number {
   return Number(lastMockArgument(gl.drawArraysInstanced, 3) ?? 0)
 }
 
+function shaderSources(gl: CinemaMockWebGL): readonly string[] {
+  const calls = (gl.shaderSource as unknown as { mock: { calls: unknown[][] } }).mock.calls
+  return calls.map(call => String(call[1] ?? ''))
+}
+
+function uniformLocationFor(gl: CinemaMockWebGL, name: string): WebGLUniformLocation | null {
+  const mock = gl.getUniformLocation as unknown as {
+    mock: { calls: unknown[][]; results: Array<{ value: unknown }> }
+  }
+  const index = mock.mock.calls.findIndex(call => call[1] === name)
+  return index >= 0 ? mock.mock.results[index]?.value as WebGLUniformLocation : null
+}
+
+function beamProfileStrength(side: number, atmosphere: number, longitudinal = 0.5): number {
+  const boundedSide = Math.max(0, Math.min(1, Math.abs(side)))
+  const core = Math.exp(-boundedSide * boundedSide * 118)
+  const body = Math.exp(-boundedSide * boundedSide * 34)
+  const halo = Math.exp(-boundedSide * boundedSide * 6.4)
+  const sourceBloom = Math.exp(-longitudinal * 56)
+  return core * 1.72 + body * 0.40 + halo * atmosphere * 0.22 + sourceBloom * (0.22 + atmosphere * 0.12)
+}
+
 describe('Cinema 2.0 Afterhours native 3D renderer', () => {
+  it('preserves signed beam-side interpolation through zero and keeps the optical center stronger than the edges', () => {
+    const harness = createHarness()
+    const sources = shaderSources(harness.gl)
+    const vertex = sources.find(source => source.includes('layout(location = 0) in vec2 aCorner')) ?? ''
+    const fragment = sources.find(source => source.includes('out vec4 outColor')) ?? ''
+
+    expect(vertex).toContain('vSide = aCorner.y;')
+    expect(vertex).not.toContain('vSide = abs(aCorner.y);')
+    expect(fragment).toContain('float side = clamp(abs(vSide), 0.0, 1.0);')
+    expect(beamProfileStrength(0, 0.55)).toBeGreaterThan(beamProfileStrength(1, 0.55))
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
+  it('uses additive blending without reapplying alpha and honors Master Intensity at its zero boundary', () => {
+    const harness = createHarness({ masterIntensity: 0, beamCount: 2, symmetry: false })
+    const current = frame({
+      timeSec: 1,
+      transport: { sourcePresent: false, playing: false, analysisActive: false, paused: false, animationActive: false, trackId: null, timeSec: 0 },
+    })
+    harness.instance.lifecycle.update({ frame: current, parameters: harness.parameterFacet, targets: harness.targetFacet })
+    execute(harness, current)
+
+    expect(lastInstanceCount(harness.gl)).toBe(2)
+    expect(harness.gl.blendFunc).toHaveBeenCalledWith(harness.gl.ONE, harness.gl.ONE)
+    expect(harness.gl.blendFunc).not.toHaveBeenCalledWith(harness.gl.SRC_ALPHA, harness.gl.ONE)
+    const masterLocation = uniformLocationFor(harness.gl, 'uMasterIntensity')
+    expect(masterLocation).not.toBeNull()
+    expect(harness.gl.uniform1f).toHaveBeenCalledWith(masterLocation, 0)
+
+    harness.parameters.masterIntensity = 1
+    const restored = frame({
+      frameId: 2,
+      timeSec: 2,
+      transport: { sourcePresent: false, playing: false, analysisActive: false, paused: false, animationActive: false, trackId: null, timeSec: 0 },
+    })
+    harness.instance.lifecycle.update({ frame: restored, parameters: harness.parameterFacet, targets: harness.targetFacet })
+    execute(harness, restored)
+    expect(harness.gl.uniform1f).toHaveBeenCalledWith(masterLocation, 1)
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
   it('registers the stable native type and rejects incomplete authoring before WebGL activation', () => {
     const registry = new Cinema2ModuleRegistry()
     expect(registry.register(cinema2AfterhoursNativeModuleDefinition).ok).toBe(true)
