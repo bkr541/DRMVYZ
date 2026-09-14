@@ -61,7 +61,7 @@ function requestedStrikeSequence(seed: string, count = 10) {
   const strikes = []
   for (let index = 0; index < count; index += 1) {
     generator.request({ tier: index % 3 === 0 ? 'strong' : 'medium', power: 0.9, eventId: `event-${index}` })
-    const frame = generator.update(index, 0)
+    const frame = generator.update(index, Number.EPSILON)
     strikes.push(...frame.started)
   }
   return { generator, strikes }
@@ -139,7 +139,7 @@ describe('Cinema 2.0 Electric Storm keeper production behavior', () => {
   it('generates bounded strike candidates with the preserved topology vocabulary', () => {
     const generator = new Cinema2ElectricStormStrikeGenerator(createRandomness())
     generator.request({ tier: 'hero', power: 1, count: 2, detail: 0.9, eventId: 'hero-a' })
-    const frame = generator.update(0, 0)
+    const frame = generator.update(0, Number.EPSILON)
     expect(frame.started).toHaveLength(2)
     for (const strike of frame.started) {
       expect(strike.start.x).toBeGreaterThanOrEqual(-1)
@@ -152,6 +152,15 @@ describe('Cinema 2.0 Electric Storm keeper production behavior', () => {
       expect(strike.branchDetail).toBeGreaterThanOrEqual(0)
       expect(strike.branchDetail).toBeLessThanOrEqual(1)
     }
+  })
+
+  it('treats Strike Rate zero as the master gate for queued musical strikes', () => {
+    const generator = new Cinema2ElectricStormStrikeGenerator(createRandomness('zero-rate-gate'))
+    generator.request({ tier: 'hero', power: 1, count: 2, eventId: 'drop-at-zero-rate' })
+    const frame = generator.update(0, 0)
+    expect(frame.started).toHaveLength(0)
+    expect(frame.active).toHaveLength(0)
+    expect(generator.getDiagnostics().pendingRequestCount).toBe(0)
   })
 
   it('replays the same strike candidates for the same engine seed and diverges for another seed', () => {
@@ -186,6 +195,18 @@ describe('Cinema 2.0 Electric Storm keeper production behavior', () => {
     expect(thunder.update(0.02).illumination).toBe(0)
     thunder.reset()
     expect(thunder.update(0.02)).toEqual({ illumination: 0, active: false })
+  })
+
+  it('keeps one authored thunder envelope for a multi-bolt strike group', () => {
+    const strike = requestedStrikeSequence('thunder-group', 1).strikes[0]
+    if (!strike) throw new Error('Expected a strike fixture.')
+    const thunder = new Cinema2ElectricStormThunderController()
+    const groupId = 4242
+    thunder.trigger({ ...strike, tier: 'hero', groupId }, { intensity: 1, duration: 1, decay: 1 })
+    expect(thunder.update(0.02).illumination).toBeGreaterThan(0)
+    thunder.trigger({ ...strike, tier: 'hero', groupId, seed: strike.seed + 1, startedAtSec: strike.startedAtSec + 0.018 }, { intensity: 1, duration: 1, decay: 1 })
+    for (let index = 0; index < 8; index += 1) thunder.update(0.02)
+    expect(thunder.update(0.02).illumination).toBeGreaterThan(0)
   })
 
   it('renders through the native runtime, consumes shared Environment state, and releases tracked resources', () => {
@@ -244,7 +265,7 @@ describe('Cinema 2.0 Electric Storm keeper production behavior', () => {
       getPublicationMeta: () => ({ sequence: ++sequence, publishedAtMs: timeSec * 1000, publisherId: 'electric-storm-14b-test', kind: 'frame' as const }),
     })
     const { runtime, gl, raf } = createElectricStormRuntime('music-route', bridge)
-    expect(runtime.getParameterState().setPersistentValue(CINEMA2_ELECTRIC_STORM_STRIKE_RATE_ID, 0).ok).toBe(true)
+    expect(runtime.getParameterState().setPersistentValue(CINEMA2_ELECTRIC_STORM_STRIKE_RATE_ID, 1).ok).toBe(true)
     runtime.start()
     raf.runNext(16.67)
 
@@ -276,7 +297,7 @@ describe('Cinema 2.0 Electric Storm keeper production behavior', () => {
     runtime.dispose()
   })
 
-  it('authors stable kick/transient/downbeat/phrase/section/drop routes with shared cooldown/probability policy and no duplicate drop section route', () => {
+  it('authors stable kick/transient/downbeat/phrase/section/drop routes while leaving strike probability to the Electric Storm module', () => {
     const plan = cinema2NativePresetRegistry.compile(CINEMA2_ELECTRIC_STORM_PRESET_ID)
     expect(plan.ok).toBe(true)
     if (!plan.ok) throw new Error('Expected Electric Storm preset to compile.')
@@ -286,7 +307,7 @@ describe('Cinema 2.0 Electric Storm keeper production behavior', () => {
     const drop = rules.find(rule => rule.source.signal === 'drop')
     expect(downbeat?.actions[0]).toMatchObject({ operation: 'spawn', cooldownBeats: 2, quantizeBeats: 1 })
     expect(drop?.actions).toEqual(expect.arrayContaining([expect.objectContaining({ operation: 'envelope', composition: 'add' })]))
-    expect(rules.filter(rule => rule.source.signal === 'kick' || rule.source.signal === 'transient').every(rule => rule.actions[0]?.probability != null)).toBe(true)
+    expect(rules.filter(rule => ['kick', 'transient', 'downbeat', 'phrase', 'section-change', 'drop'].includes(rule.source.signal)).every(rule => rule.actions[0]?.probability == null)).toBe(true)
     const section = rules.find(rule => rule.source.signal === 'section-change')
     expect(section?.conditions).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'section-type' })]))
     expect(JSON.stringify(section?.conditions)).not.toContain('"drop"')

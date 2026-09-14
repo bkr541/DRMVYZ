@@ -25,9 +25,13 @@ export class Cinema2ElectricStormThunderController {
   private currentIllumination = 0
   private active = false
   private lastTriggerTimeSec: number | null = null
+  private lastTriggerGroupId: number | null = null
 
   trigger(strike: Readonly<Cinema2ElectricStormStrikeDescriptor>, settings: Readonly<Cinema2ElectricStormThunderSettings>): void {
     if (strike.tier === 'micro') return
+    // A grouped strike is one musical/thunder event rendered as multiple bolts.
+    // Do not restart and crush the flash envelope for each bolt in the group.
+    if (strike.groupId != null && strike.groupId === this.lastTriggerGroupId) return
     const weight = strike.tier === 'hero' ? 1 : strike.tier === 'strong' ? 0.82 : 0.5
     const intensity = Math.max(0, Math.min(1.5, Number.isFinite(settings.intensity) ? settings.intensity : 0.78))
     const duration = clamp01(settings.duration)
@@ -52,6 +56,7 @@ export class Cinema2ElectricStormThunderController {
     this.elapsedSec = 0
     this.active = this.peak > 0
     this.lastTriggerTimeSec = strike.startedAtSec
+    this.lastTriggerGroupId = strike.groupId
   }
 
   update(deltaTimeSec: number): Readonly<Cinema2ElectricStormThunderFrame> {
@@ -78,5 +83,6 @@ export class Cinema2ElectricStormThunderController {
     this.currentIllumination = 0
     this.active = false
     this.lastTriggerTimeSec = null
+    this.lastTriggerGroupId = null
   }
 }

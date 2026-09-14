@@ -211,6 +211,12 @@ function colorValue(context: Cinema2ModuleCreateContext, name: string, fallback:
 }
 
 function clamp01(value: number): number { return Math.max(0, Math.min(1, value)) }
+function mix(a: number, b: number, amount: number): number { return a + (b - a) * clamp01(amount) }
+function smoothstep(edge0: number, edge1: number, value: number): number {
+  if (edge0 === edge1) return value < edge0 ? 0 : 1
+  const t = clamp01((value - edge0) / (edge1 - edge0))
+  return t * t * (3 - 2 * t)
+}
 
 function finiteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -247,14 +253,33 @@ function reactionForKind(parameters: Cinema2ModuleUpdateContext['parameters'], k
   return clamp01(typeof value === 'number' && Number.isFinite(value) ? value : 0)
 }
 
+function baseProbabilityForKind(kind: Cinema2ElectricStormMusicalStrikeKind): number {
+  if (kind === 'kick') return 0.62
+  if (kind === 'transient') return 0.48
+  if (kind === 'downbeat') return 0.72
+  if (kind === 'phrase') return 0.78
+  if (kind === 'section') return 0.86
+  return 1
+}
+
 function musicalStrikeIntent(
   pending: Readonly<PendingMusicalStrike>,
   frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
   parameters: Cinema2ModuleUpdateContext['parameters'],
+  randomness: Cinema2ModuleCreateContext['randomness'],
+  strikeRate: number,
 ) {
   const musicReactivity = clamp01(typeof parameters.get('musicReactivity') === 'number' ? parameters.get('musicReactivity') as number : 0)
   const reaction = reactionForKind(parameters, pending.payload.kind)
-  if (musicReactivity <= 0 || reaction <= 0) return null
+  const rateGate = smoothstep(0, 0.6, strikeRate)
+  const reactionGate = smoothstep(0, 0.65, musicReactivity * reaction)
+  if (rateGate <= 0 || reactionGate <= 0) return null
+
+  // Choreography delivers the canonical event exactly once; the Electric Storm
+  // module owns the creative probability so Strike Rate and the corresponding
+  // Reaction control govern whether that event actually becomes lightning.
+  const probability = clamp01(baseProbabilityForKind(pending.payload.kind) * rateGate * reactionGate)
+  if (!randomness.eventStream(pending.eventId, 'musical-strike-probability', pending.payload.kind).probability(probability)) return null
 
   const intensity = numericSignalValue(frame.director?.continuous.intensity)
   const build = numericSignalValue(frame.director?.context.build)
@@ -373,6 +398,8 @@ export const cinema2ElectricStormNativeModuleDefinition: Readonly<Cinema2ModuleT
     let lastDiscontinuitySequence: number | null = null
     const thunderedStrikeKeys = new Set<string>()
     const pendingMusicalStrikes: PendingMusicalStrike[] = []
+    let mediumSpectralBucket = Number.NaN
+    let microSpectralBucket = Number.NaN
 
     const provider = Object.freeze({
       id: `${context.module.id}:electric-storm`,
@@ -420,19 +447,77 @@ export const cinema2ElectricStormNativeModuleDefinition: Readonly<Cinema2ModuleT
             strikes = Object.freeze([])
             pendingMusicalStrikes.splice(0)
             thunderedStrikeKeys.clear()
+            mediumSpectralBucket = Number.NaN
+            microSpectralBucket = Number.NaN
             lastDiscontinuitySequence = sequence
           }
+          const strikeRate = clamp01(typeof parameters.get('strikeRate') === 'number' ? parameters.get('strikeRate') as number : 0.58)
           while (pendingMusicalStrikes.length > 0) {
             const pending = pendingMusicalStrikes.shift()
             if (!pending) break
-            const intent = musicalStrikeIntent(pending, frame, parameters)
+            const intent = musicalStrikeIntent(pending, frame, parameters, context.randomness, strikeRate)
             if (intent) strikeGenerator.request(intent)
           }
-          const strikeFrame = strikeGenerator.update(frame.elapsedTimeSec, typeof parameters.get('strikeRate') === 'number' ? parameters.get('strikeRate') as number : 0.58)
+
+          // Restore the keeper preset's continuous spectral activity. Mid energy
+          // produces medium accents and high energy produces micro detail, both
+          // still subordinate to master Strike Rate and Music Reactivity.
+          const musicReactivity = clamp01(typeof parameters.get('musicReactivity') === 'number' ? parameters.get('musicReactivity') as number : 0)
+          const rateGate = smoothstep(0, 0.6, strikeRate)
+          const reactivityGate = smoothstep(0, 0.65, musicReactivity)
+          if (frame.audio && rateGate > 0 && reactivityGate > 0) {
+            const spectralTimeSec = Number.isFinite(frame.audio.upstream.timeSec) ? Math.max(0, frame.audio.upstream.timeSec) : frame.elapsedTimeSec
+            const mids = numericSignalValue(frame.audio.bands.mid)
+            const highs = numericSignalValue(frame.audio.bands.high)
+            const bass = numericSignalValue(frame.audio.bands.bass)
+            const build = numericSignalValue(frame.audio.features.buildProgress) ?? numericSignalValue(frame.director?.context.build) ?? 0
+            const energy = numericSignalValue(frame.audio.features.overallEnergy) ?? numericSignalValue(frame.audio.features.trackEnergy) ?? 0
+            const transient = numericSignalValue(frame.audio.features.transientEnergy) ?? 0
+            const masterIntensity = clamp01(typeof parameters.get('masterIntensity') === 'number' ? parameters.get('masterIntensity') as number : 0.82)
+            const authority = clamp01(masterIntensity * 0.42 + strikeRate * 0.58)
+
+            if (mids != null && mids > 0.46 && authority > 0.08) {
+              const intervalSec = mix(1.15, 0.36, clamp01(mids * 0.55 + build * 0.45))
+              const bucket = Math.floor(spectralTimeSec / intervalSec)
+              if (bucket !== mediumSpectralBucket) {
+                mediumSpectralBucket = bucket
+                const probability = clamp01((mids - 0.36) * (0.42 + strikeRate * 0.45 + build * 0.28) * rateGate * reactivityGate)
+                if (context.randomness.probability('spectral-medium-probability', probability, bucket)) {
+                  strikeGenerator.request({
+                    tier: 'medium',
+                    power: clamp01(0.3 + mids * 0.34 + (bass ?? 0) * 0.2 + energy * 0.16),
+                    detail: clamp01(0.3 + (highs ?? 0) * 0.25 + build * 0.45),
+                    eventId: `spectral-mid-${bucket}`,
+                  })
+                }
+              }
+            }
+
+            if (highs != null && highs > 0.5 && authority > 0.08) {
+              const intervalSec = mix(0.72, 0.2, clamp01(highs * 0.62 + build * 0.38))
+              const bucket = Math.floor(spectralTimeSec / intervalSec)
+              if (bucket !== microSpectralBucket) {
+                microSpectralBucket = bucket
+                const probability = clamp01((highs - 0.4) * (0.55 + strikeRate * 0.35 + build * 0.4) * rateGate * reactivityGate)
+                if (context.randomness.probability('spectral-micro-probability', probability, bucket)) {
+                  strikeGenerator.request({
+                    tier: 'micro',
+                    power: clamp01(0.25 + highs * 0.45 + transient * 0.18 + build * 0.12),
+                    detail: clamp01(0.46 + highs * 0.38 + build * 0.16),
+                    durationScale: mix(0.72, 0.5, transient),
+                    eventId: `spectral-high-${bucket}`,
+                  })
+                }
+              }
+            }
+          }
+
+          const strikeFrame = strikeGenerator.update(frame.elapsedTimeSec, strikeRate)
           strikes = strikeFrame.active
           const activeKeys = new Set<string>()
           for (const strike of strikes) {
-            const key = `${strike.startedAtSec}:${strike.seed}`
+            // Multiple bolts in one generated group represent one thunder event.
+            const key = strike.groupId == null ? `${strike.startedAtSec}:${strike.seed}` : `group:${strike.groupId}`
             activeKeys.add(key)
             if (strike.startedAtSec <= frame.elapsedTimeSec && !thunderedStrikeKeys.has(key)) {
               thunderedStrikeKeys.add(key)
@@ -452,6 +537,8 @@ export const cinema2ElectricStormNativeModuleDefinition: Readonly<Cinema2ModuleT
           strikes = Object.freeze([])
           pendingMusicalStrikes.splice(0)
           thunderedStrikeKeys.clear()
+          mediumSpectralBucket = Number.NaN
+          microSpectralBucket = Number.NaN
           thunderFlash = 0
         },
       },

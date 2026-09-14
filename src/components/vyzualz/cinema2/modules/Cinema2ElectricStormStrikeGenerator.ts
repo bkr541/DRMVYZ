@@ -283,6 +283,10 @@ export class Cinema2ElectricStormStrikeGenerator {
 
   private drainPending(timeSec: number, rate: number, started: Cinema2ElectricStormStrikeDescriptor[]): void {
     const queued = this.pending.splice(0, this.pending.length)
+    // Strike Rate is the master lightning gate. Discard queued musical/spectral
+    // requests while disabled so stale events cannot fire later when the user
+    // raises the control again.
+    if (rate <= 0) return
     for (const intent of queued) {
       const available = CINEMA2_ELECTRIC_STORM_MAX_ACTIVE_STRIKES - this.active.length - started.length
       if (available <= 0) continue
