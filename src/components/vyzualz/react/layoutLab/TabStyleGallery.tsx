@@ -57,7 +57,7 @@ function UnderlineTabs() {
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'underline', title: '01 · Underline Tabs', blurb: 'Borderless labels — a cyan underline grows in under the active tab.', Tabs: UnderlineTabs },
+  { id: 'underline', title: '01 · Tab Strip - RailTabs.tsx', blurb: 'Borderless labels — a cyan underline grows in under the active tab.', Tabs: UnderlineTabs },
 ]
 
 export function TabStyleGallery() {

@@ -47,7 +47,7 @@ function DragScrubberFields() {
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'scrubber', title: '01 · Drag Scrubber', blurb: 'A DAW-style scrub field — drag horizontally for fast, approximate adjustment with a live fill bar, or double-click the number (or press Enter) to type an exact value instead.', Fields: DragScrubberFields },
+  { id: 'scrubber', title: '01 · Numeric Input - NumericScrubField.tsx', blurb: 'A DAW-style scrub field — drag horizontally for fast, approximate adjustment with a live fill bar, or double-click the number (or press Enter) to type an exact value instead.', Fields: DragScrubberFields },
 ]
 
 export function NumericInputStyleGallery() {

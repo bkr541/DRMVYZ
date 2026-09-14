@@ -83,8 +83,8 @@ function MinimalListRows() {
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'filmstrip', title: '01 · Filmstrip Row', blurb: 'The current production shape, refined — a wide thumbnail on the left, name and chips stacked on the right, favorite star pinned to the corner.', Rows: FilmstripRows },
-  { id: 'minimal', title: '02 · Minimal List', blurb: 'No thumbnail at all — a color dot stands in for it. The highest-density option, suited to long preset libraries where a thumbnail adds little signal.', Rows: MinimalListRows },
+  { id: 'filmstrip', title: '01 · Preset Card - ReactPresetCard.tsx', blurb: 'The current production shape, refined — a wide thumbnail on the left, name and chips stacked on the right, favorite star pinned to the corner.', Rows: FilmstripRows },
+  { id: 'minimal', title: '02 · Preset Card - ReactPresetCard.tsx', blurb: 'No thumbnail at all — a color dot stands in for it. The highest-density option, suited to long preset libraries where a thumbnail adds little signal.', Rows: MinimalListRows },
 ]
 
 export function PresetCardStyleGallery() {

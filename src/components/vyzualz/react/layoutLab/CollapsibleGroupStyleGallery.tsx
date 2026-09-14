@@ -102,7 +102,7 @@ function StepIndentGroup({ label = 'Master', nested = false }: NestableGroupProp
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'step', title: '01 · Step Indent', blurb: 'Pure whitespace and a barely-there background tint mark the body — no line, no card, no bracket, just indentation. Shown with a nested Secondary group inside Master.', Group: StepIndentGroup },
+  { id: 'step', title: '01 · Collapsible Group - DualRailCollapsible.tsx', blurb: 'Pure whitespace and a barely-there background tint mark the body — no line, no card, no bracket, just indentation. Shown with a nested Secondary group inside Master.', Group: StepIndentGroup },
 ]
 
 export function CollapsibleGroupStyleGallery() {

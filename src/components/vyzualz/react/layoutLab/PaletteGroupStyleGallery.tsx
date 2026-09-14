@@ -170,8 +170,8 @@ function HexFirstPalette() {
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'expand', title: '01 · Inline Expand', blurb: 'Collapsed rows show only the label and swatch — no hex readout. Clicking a row expands it in place — accordion-style — to reveal a saturation/lightness gradient square, a hue strip, and a hex field. No overlay, everything stays in document flow.', Palette: ExpandHslPalette },
-  { id: 'hexFirst', title: '02 · Full-Bleed Swatch', blurb: 'The label sits above a full-width color block — no visible hex text or buttons. Clicking anywhere on the color opens the OS picker.', Palette: HexFirstPalette },
+  { id: 'expand', title: '01 · Palette Group - ReactControlRows.tsx', blurb: 'Collapsed rows show only the label and swatch — no hex readout. Clicking a row expands it in place — accordion-style — to reveal a saturation/lightness gradient square, a hue strip, and a hex field. No overlay, everything stays in document flow.', Palette: ExpandHslPalette },
+  { id: 'hexFirst', title: '02 · Palette Group - ReactControlRows.tsx', blurb: 'The label sits above a full-width color block — no visible hex text or buttons. Clicking anywhere on the color opens the OS picker.', Palette: HexFirstPalette },
 ]
 
 export function PaletteGroupStyleGallery() {

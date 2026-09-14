@@ -18,7 +18,7 @@ export function TemplateOutputDiagnosticsMockup() {
     <div className={`llcg-accent llcg-accent--right${open ? ' is-open' : ''}`}>
       <button type="button" className="llcg-accent-header" onClick={() => setOpen(v => !v)} aria-expanded={open}>
         <span className="llcg-accent-dot" aria-hidden="true" />
-        <span>Renderer Diagnostics</span>
+        <span>Renderer Diagnostics - ShaderInspectorPanel.tsx</span>
         <span className={`llcg-caret${open ? ' is-open' : ''}`} aria-hidden="true">⌄</span>
       </button>
       {open && (

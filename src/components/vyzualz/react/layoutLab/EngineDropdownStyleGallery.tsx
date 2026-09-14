@@ -82,7 +82,7 @@ function RadialSpotlightEngineDropdown() {
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'spotlight', title: '01 · Radial Spotlight', blurb: "A soft radial glow breathes behind the icon; menu options pop in with a spring stagger and the active row's icon pulses.", Dropdown: RadialSpotlightEngineDropdown },
+  { id: 'spotlight', title: '01 · Engine Dropdown - ReactEngineBrowser.tsx', blurb: "A soft radial glow breathes behind the icon; menu options pop in with a spring stagger and the active row's icon pulses.", Dropdown: RadialSpotlightEngineDropdown },
 ]
 
 export function EngineDropdownStyleGallery() {

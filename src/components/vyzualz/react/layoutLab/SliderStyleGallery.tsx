@@ -18,7 +18,7 @@ function BubbleRevealSlider() {
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'bubble', title: '01 · Bubble Reveal', blurb: 'Dragging pops a dropdown-menu-styled value bubble above the thumb.', Slider: BubbleRevealSlider },
+  { id: 'bubble', title: '01 · Slider - BubbleRevealSlider.tsx', blurb: 'Dragging pops a dropdown-menu-styled value bubble above the thumb.', Slider: BubbleRevealSlider },
 ]
 
 export function SliderStyleGallery() {

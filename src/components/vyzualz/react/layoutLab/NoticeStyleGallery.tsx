@@ -35,7 +35,7 @@ function InlineFlagNotice() {
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'flag', title: '01 · Inline Flag', blurb: 'No card chrome — a thin accent line and small flag icon for lower-emphasis, less intrusive notices.', Notice: InlineFlagNotice },
+  { id: 'flag', title: '01 · Notice - NoticeCard.tsx', blurb: 'No card chrome — a thin accent line and small flag icon for lower-emphasis, less intrusive notices.', Notice: InlineFlagNotice },
 ]
 
 export function NoticeStyleGallery() {

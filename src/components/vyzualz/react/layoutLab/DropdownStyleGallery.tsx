@@ -24,7 +24,7 @@ export function DropdownStyleGallery() {
     <div className="lldd-gallery">
       <div className="lldd-gallery-row">
         <div className="lldd-gallery-copy">
-          <span className="lldd-gallery-title">02 · Underline</span>
+          <span className="lldd-gallery-title">01 · Dropdown - UnderlineDropdown.tsx</span>
           <span className="lldd-gallery-blurb">Borderless trigger, animated underline, accent-bar option rows.</span>
         </div>
         <div className="lldd-gallery-sample">

@@ -66,7 +66,7 @@ function SplitRailRow() {
 const GALLERY_ENTRIES = [
   {
     id: 'rail',
-    title: '01 · Split Rail',
+    title: '01 · Track Header - LyricTrackMetaHeader.tsx',
     blurb: 'A colored accent rail along the left edge with a larger square thumbnail, then two even columns — identity + versions on the left, a 2×2 stat grid with actions stacked along the far right edge instead of trailing inline.',
     Row: SplitRailRow,
   },

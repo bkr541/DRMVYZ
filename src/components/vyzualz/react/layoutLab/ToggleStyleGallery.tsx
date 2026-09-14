@@ -20,7 +20,7 @@ function IconMorphToggle() {
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'morph', title: '01 · Icon Morph', blurb: 'A circular ring fades into a drawn-in checkmark when switched on.', Toggle: IconMorphToggle },
+  { id: 'morph', title: '01 · Toggle - IconMorphToggle.tsx', blurb: 'A circular ring fades into a drawn-in checkmark when switched on.', Toggle: IconMorphToggle },
 ]
 
 export function ToggleStyleGallery() {

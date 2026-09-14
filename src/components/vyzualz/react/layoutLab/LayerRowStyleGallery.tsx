@@ -49,7 +49,7 @@ function ChannelStripRows() {
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'strip', title: '01 · Channel Strip', blurb: 'Each layer reads like a mixer channel — a colored accent rail, a huge faint index watermark behind it, label up top. The status line fades out with a mask-image gradient instead of an ellipsis, so the long locked-media filename on Transition dissolves at the edge rather than clipping.', Rows: ChannelStripRows },
+  { id: 'strip', title: '01 · Layer Row - LayerRow.tsx', blurb: 'Each layer reads like a mixer channel — a colored accent rail, a huge faint index watermark behind it, label up top. The status line fades out with a mask-image gradient instead of an ellipsis, so the long locked-media filename on Transition dissolves at the edge rather than clipping.', Rows: ChannelStripRows },
 ]
 
 export function LayerRowStyleGallery() {

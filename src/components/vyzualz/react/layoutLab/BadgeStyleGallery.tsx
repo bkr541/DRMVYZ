@@ -43,7 +43,7 @@ function RemovableCapsuleBadges() {
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'capsule', title: '01 · Removable Capsule', blurb: 'A bordered capsule with a color dot and a dismiss (×) button — the shape needed for editable tag/genre entry, not just display. Click × to try removing one.', Badges: RemovableCapsuleBadges },
+  { id: 'capsule', title: '01 · Badge - Badge.tsx', blurb: 'A bordered capsule with a color dot and a dismiss (×) button — the shape needed for editable tag/genre entry, not just display. Click × to try removing one.', Badges: RemovableCapsuleBadges },
 ]
 
 export function BadgeStyleGallery() {
