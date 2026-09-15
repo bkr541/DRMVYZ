@@ -6,6 +6,7 @@ import { cinema2Object3DModuleDefinition } from './Cinema2Object3DModule'
 import { cinema2ElectricStormNativeModuleDefinition } from './Cinema2ElectricStormNativeModule'
 import { cinema2AfterhoursNativeModuleDefinition } from './Cinema2AfterhoursNativeModule'
 import { cinema2InterlockNativeModuleDefinition } from './Cinema2InterlockNativeModule'
+import { cinema2InterlockLiquidLightModuleDefinition } from './Cinema2InterlockLiquidLightModule'
 
 export interface Cinema2ModuleRegistryResult {
   ok: boolean
@@ -99,6 +100,10 @@ if (!afterhoursNativeRegistration.ok) {
 const interlockNativeRegistration = cinema2NativeModuleRegistry.register(cinema2InterlockNativeModuleDefinition)
 if (!interlockNativeRegistration.ok) {
   throw new Error(`Cinema 2.0 Interlock native module registration failed: ${interlockNativeRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+const interlockLiquidLightRegistration = cinema2NativeModuleRegistry.register(cinema2InterlockLiquidLightModuleDefinition)
+if (!interlockLiquidLightRegistration.ok) {
+  throw new Error(`Cinema 2.0 Interlock liquid-light module registration failed: ${interlockLiquidLightRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 
 function moduleDiagnosticPath(index: number, path: string): string {

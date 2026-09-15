@@ -43,6 +43,7 @@ const BASE_PARAMETERS: Record<string, Cinema2JsonValue> = {
   segmentImpact: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentImpact,
   segmentDirectionBias: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentDirectionBias,
   segmentBankPhase: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentBankPhase,
+  effectsIntensity: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.effectsIntensity,
 }
 
 class TestResources implements Cinema2ModuleResourceFacet {
@@ -460,4 +461,33 @@ describe('Cinema 2.0 Interlock native LED renderer', () => {
     harness.instance.lifecycle.dispose()
     harness.resources.disposeAll()
   })
+
+  it('maps Effects Intensity monotonically into LED afterglow and impact without rebuilding GPU resources', () => {
+    const harness = createHarness({ segmentAfterglow: 0.8, segmentImpact: 0.6, effectsIntensity: 0 })
+    const first = frame({ timeSec: 0 })
+    update(harness, first)
+    execute(harness, first)
+    expect(lastUniformFloat(harness.gl, 'uSegmentAfterglow')).toBeCloseTo(0)
+    expect(lastUniformFloat(harness.gl, 'uSegmentImpact')).toBeCloseTo(0)
+
+    harness.parameters.effectsIntensity = 0.35
+    const middle = frame({ timeSec: 0.1, frameId: 2 })
+    update(harness, middle)
+    execute(harness, middle)
+    expect(lastUniformFloat(harness.gl, 'uSegmentAfterglow')).toBeCloseTo(0.28)
+    expect(lastUniformFloat(harness.gl, 'uSegmentImpact')).toBeCloseTo(0.21)
+
+    harness.parameters.effectsIntensity = 1
+    const full = frame({ timeSec: 0.2, frameId: 3 })
+    update(harness, full)
+    execute(harness, full)
+    expect(lastUniformFloat(harness.gl, 'uSegmentAfterglow')).toBeCloseTo(0.8)
+    expect(lastUniformFloat(harness.gl, 'uSegmentImpact')).toBeCloseTo(0.6)
+    expect(harness.resources.getSnapshot().activeLeaseCount).toBe(1)
+    expect(harness.gl.__calls.createdPrograms).toBe(1)
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
 })

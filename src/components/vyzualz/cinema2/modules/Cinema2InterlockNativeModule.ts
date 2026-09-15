@@ -71,6 +71,7 @@ export const CINEMA2_INTERLOCK_NATIVE_PARAMETER_NAMES = Object.freeze([
   'segmentImpact',
   'segmentDirectionBias',
   'segmentBankPhase',
+  'effectsIntensity',
 ] as const)
 
 const PARAMETER_NAME_SET = new Set<string>(CINEMA2_INTERLOCK_NATIVE_PARAMETER_NAMES)
@@ -86,6 +87,7 @@ const DEFAULT_SEGMENT_ENERGY = 0.65
 const DEFAULT_SEGMENT_IMPACT = 0
 const DEFAULT_SEGMENT_DIRECTION_BIAS = 0
 const DEFAULT_SEGMENT_BANK_PHASE = 0
+const DEFAULT_EFFECTS_INTENSITY = 0.35
 
 interface FrameConfig {
   readonly pattern: Cinema2InterlockPatternId
@@ -105,6 +107,7 @@ interface FrameConfig {
   readonly segmentImpact: number
   readonly segmentDirectionBias: number
   readonly segmentBankPhase: number
+  readonly effectsIntensity: number
 }
 
 interface ActiveTransition {
@@ -185,6 +188,7 @@ function validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2Modu
     ['segmentImpact', 0, 1],
     ['segmentDirectionBias', -1, 1],
     ['segmentBankPhase', 0, 1],
+    ['effectsIntensity', 0, 1],
   ] as const) {
     if (parameters[property] !== undefined && !numberInRange(parameters[property], minimum, maximum)) {
       diagnostics.push(diagnostic(
@@ -300,10 +304,10 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           segmentPhase: resolveCinema2InterlockSegmentPhase(segmentClockSec, config.segmentSpeed),
           litDensity: config.litDensity,
           segmentFade: config.segmentFade,
-          segmentAfterglow: config.segmentAfterglow,
+          segmentAfterglow: config.segmentAfterglow * config.effectsIntensity,
           unlitVisibility: config.unlitVisibility,
           segmentEnergy: config.segmentEnergy,
-          segmentImpact: config.segmentImpact,
+          segmentImpact: config.segmentImpact * config.effectsIntensity,
           segmentDirectionBias: config.segmentDirectionBias,
           segmentBankPhase: config.segmentBankPhase,
         })
@@ -463,6 +467,7 @@ function readFrameConfig(
     segmentImpact: clamp01(numberValue(source.parameters.get('segmentImpact'), DEFAULT_SEGMENT_IMPACT)),
     segmentDirectionBias: clamp(numberValue(source.parameters.get('segmentDirectionBias'), DEFAULT_SEGMENT_DIRECTION_BIAS), -1, 1),
     segmentBankPhase: clamp01(numberValue(source.parameters.get('segmentBankPhase'), DEFAULT_SEGMENT_BANK_PHASE)),
+    effectsIntensity: clamp01(numberValue(source.parameters.get('effectsIntensity'), DEFAULT_EFFECTS_INTENSITY)),
   })
 }
 
@@ -556,4 +561,5 @@ export const CINEMA2_INTERLOCK_NATIVE_DEFAULTS = Object.freeze({
   segmentImpact: DEFAULT_SEGMENT_IMPACT,
   segmentDirectionBias: DEFAULT_SEGMENT_DIRECTION_BIAS,
   segmentBankPhase: DEFAULT_SEGMENT_BANK_PHASE,
+  effectsIntensity: DEFAULT_EFFECTS_INTENSITY,
 })

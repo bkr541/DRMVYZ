@@ -9,6 +9,12 @@ import { Cinema2InspectorPanel } from '../../react/Cinema2InspectorPanel'
 import { Cinema2PresetsPanel } from '../../react/Cinema2PresetsPanel'
 import { Cinema2Stage } from '../../react/Cinema2Stage'
 import {
+  CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID,
+  CINEMA2_INTERLOCK_BACKGROUND_FLOW_ID,
+  CINEMA2_INTERLOCK_BACKGROUND_PALETTE_MODE_ID,
+  CINEMA2_INTERLOCK_CENTER_GLOW_ID,
+  CINEMA2_INTERLOCK_EDGE_DARKNESS_ID,
+  CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID,
   CINEMA2_INTERLOCK_LED_COLOR_ID,
   CINEMA2_INTERLOCK_LED_INTENSITY_ID,
   CINEMA2_INTERLOCK_LIT_DENSITY_ID,
@@ -75,7 +81,7 @@ afterEach(async () => {
 })
 
 describe('Cinema 2.0 Interlock production selection path', () => {
-  it('appears once in the real preset browser, activates the native runtime, exposes Stage 3 schema controls, and executes 28 LED instances', async () => {
+  it('appears once in the real preset browser, activates the native runtime, exposes Stage 4 schema controls, and executes the liquid-light/effects path with 28 LED instances', async () => {
     const raf = createRafHarness()
     vi.stubGlobal('requestAnimationFrame', raf.requestAnimationFrame)
     vi.stubGlobal('cancelAnimationFrame', raf.cancelAnimationFrame)
@@ -117,15 +123,24 @@ describe('Cinema 2.0 Interlock production selection path', () => {
 
     expect(activeRuntimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_INTERLOCK_PRESET_ID)
     expect(activeRuntimeRef.current?.getModuleRuntimeSnapshot()).toMatchObject({
-      activeModuleCount: 1,
+      activeModuleCount: 2,
       failedModuleCount: 0,
-      modules: [expect.objectContaining({ renderProviderCount: 1, status: 'active' })],
+      modules: [
+        expect.objectContaining({ renderProviderCount: 1, status: 'active' }),
+        expect.objectContaining({ renderProviderCount: 1, status: 'active' }),
+      ],
     })
     for (const id of [
       CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID,
       CINEMA2_INTERLOCK_SYMMETRY_ID,
       CINEMA2_INTERLOCK_LED_COLOR_ID,
       CINEMA2_INTERLOCK_LED_INTENSITY_ID,
+      CINEMA2_INTERLOCK_BACKGROUND_PALETTE_MODE_ID,
+      CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID,
+      CINEMA2_INTERLOCK_BACKGROUND_FLOW_ID,
+      CINEMA2_INTERLOCK_CENTER_GLOW_ID,
+      CINEMA2_INTERLOCK_EDGE_DARKNESS_ID,
+      CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID,
       CINEMA2_INTERLOCK_ROTATION_AMOUNT_ID,
       CINEMA2_INTERLOCK_MORPH_DURATION_ID,
       CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID,
@@ -145,7 +160,7 @@ describe('Cinema 2.0 Interlock production selection path', () => {
     expect(gl.__calls.drawInstancedCount).toBeGreaterThan(0)
     expect(activeRuntimeRef.current?.getRenderGraphExecutorSnapshot()).toMatchObject({
       frameCount: 1,
-      executedPassCount: 1,
+      executedPassCount: 3,
       failedPassCount: 0,
     })
   })
