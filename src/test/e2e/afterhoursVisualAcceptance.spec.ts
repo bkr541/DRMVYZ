@@ -23,8 +23,8 @@ type AcceptanceWindow = Window & {
 const enabled = process.env.DRMVYZ_AFTERHOURS_VISUAL_ACCEPTANCE === '1'
 const outputRoot = path.resolve(process.cwd(), 'artifacts/afterhours-visual-acceptance')
 
-test.describe('Afterhours deterministic visual acceptance harness', () => {
-  test.skip(!enabled, 'Run with npm run visual:afterhours')
+test.describe('Legacy Cinema Afterhours deterministic visual acceptance harness', () => {
+  test.skip(!enabled, 'Run with npm run visual:afterhours:legacy')
 
   test('cycles named checkpoints through the real Cinema Afterhours renderer deterministically', async ({ page }) => {
     test.setTimeout(180_000)

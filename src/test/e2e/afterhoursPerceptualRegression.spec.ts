@@ -171,8 +171,8 @@ function musicAtBar(barIndex: number, overrides: MusicOverride = {}): MusicOverr
   }
 }
 
-test.describe('Afterhours Stage 8 perceptual and production regressions', () => {
-  test.skip(!enabled, 'Run with npm run test:afterhours:perceptual')
+test.describe('Legacy Cinema Afterhours Stage 8 perceptual and production regressions', () => {
+  test.skip(!enabled, 'Run with npm run test:afterhours:legacy:perceptual')
 
   test('enforces literal power, blackout, beam-budget, and bank authority in the live Cinema renderer', async ({ page }) => {
     test.setTimeout(120_000)

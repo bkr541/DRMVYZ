@@ -4,16 +4,12 @@ import { spawn, spawnSync } from 'node:child_process'
 import path from 'node:path'
 
 const root = process.cwd()
-const output = path.join(root, 'artifacts/afterhours-visual-acceptance-runtime')
+const output = path.join(root, 'artifacts/cinema2-afterhours-browser')
 const playwrightCli = path.join(root, 'node_modules/@playwright/test/cli.js')
 const viteCli = path.join(root, 'node_modules/vite/bin/vite.js')
 const systemChromium = ['/usr/bin/chromium', '/usr/bin/chromium-browser'].find(existsSync)
-const port = 46000 + (process.pid % 1000)
+const port = 47000 + (process.pid % 1000)
 const baseUrl = `http://127.0.0.1:${port}`
-const perceptualRegression = process.argv.includes('--perceptual-regression')
-const specFile = perceptualRegression
-  ? 'src/test/e2e/afterhoursPerceptualRegression.spec.ts'
-  : 'src/test/e2e/afterhoursVisualAcceptance.spec.ts'
 
 function requireDependency(file, installHint) {
   if (!existsSync(file)) throw new Error(`${path.relative(root, file)} is missing. ${installHint}`)
@@ -49,8 +45,8 @@ async function waitForServer(url, timeoutMs = 15_000) {
 let server = null
 let status = 1
 try {
-  requireDependency(playwrightCli, 'Run npm ci before the Afterhours visual acceptance suite.')
-  requireDependency(viteCli, 'Run npm ci before the Afterhours visual acceptance suite.')
+  requireDependency(playwrightCli, 'Run npm ci before the Cinema 2.0 After Hours 2.0 browser suite.')
+  requireDependency(viteCli, 'Run npm ci before the Cinema 2.0 After Hours 2.0 browser suite.')
   const { build } = await import('vite')
   await rm(output, { recursive: true, force: true })
   await mkdir(output, { recursive: true })
@@ -59,38 +55,49 @@ try {
     build: {
       outDir: output,
       emptyOutDir: true,
-      rollupOptions: { input: path.join(root, 'src/test/browser/afterhours-visual-acceptance.html') },
+      rollupOptions: { input: path.join(root, 'src/test/browser/cinema2-afterhours-production.html') },
     },
   })
-  const builtHtml = await findFile(output, 'afterhours-visual-acceptance.html')
-  if (!builtHtml) throw new Error('Vite did not emit the Afterhours visual acceptance page.')
+  const builtHtml = await findFile(output, 'cinema2-afterhours-production.html')
+  if (!builtHtml) throw new Error('Vite did not emit the Cinema 2.0 After Hours 2.0 production page.')
   const pagePath = `/${path.relative(output, builtHtml).split(path.sep).join('/')}`
   const env = {
     ...process.env,
-    DRMVYZ_AFTERHOURS_VISUAL_ACCEPTANCE: '1',
-    ...(perceptualRegression ? { DRMVYZ_AFTERHOURS_PERCEPTUAL_REGRESSION: '1' } : {}),
-    DRMVYZ_AFTERHOURS_VISUAL_ACCEPTANCE_PAGE: pagePath,
+    DRMVYZ_CINEMA2_AFTERHOURS_BROWSER: '1',
+    DRMVYZ_CINEMA2_AFTERHOURS_PAGE: pagePath,
     PLAYWRIGHT_BASE_URL: baseUrl,
     ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
       ? {}
       : systemChromium ? { PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: systemChromium } : {}),
   }
-  server = spawn(process.execPath, [viteCli, output, '--host', '127.0.0.1', '--port', String(port), '--strictPort'], { cwd: root, env, stdio: 'inherit' })
+  server = spawn(process.execPath, [
+    viteCli,
+    output,
+    '--host', '127.0.0.1',
+    '--port', String(port),
+    '--strictPort',
+  ], { cwd: root, env, stdio: 'inherit' })
   await waitForServer(`${baseUrl}${pagePath}`)
-  const result = spawnSync(process.execPath, [playwrightCli, 'test', specFile, '--project=chromium'], { cwd: root, env, stdio: 'inherit' })
+  const result = spawnSync(process.execPath, [
+    playwrightCli,
+    'test',
+    'src/test/e2e/cinema2AfterhoursVisualAcceptance.spec.ts',
+    '--project=chromium',
+  ], { cwd: root, env, stdio: 'inherit' })
   status = result.status ?? 1
 } finally {
   if (server && server.exitCode == null) {
     server.kill('SIGTERM')
     await new Promise(resolve => {
       const timer = setTimeout(resolve, 1_000)
-      server.once('exit', () => { clearTimeout(timer); resolve() })
+      server.once('exit', () => {
+        clearTimeout(timer)
+        resolve()
+      })
     })
     if (server.exitCode == null) server.kill('SIGKILL')
   }
 }
 
 if (status !== 0) process.exit(status)
-console.log(perceptualRegression
-  ? 'Legacy Cinema Afterhours Stage 8 perceptual regression passed.'
-  : 'Legacy Cinema Afterhours deterministic visual acceptance passed. Screenshots are in artifacts/afterhours-visual-acceptance/.')
+console.log('Cinema 2.0 After Hours 2.0 real-browser visual acceptance passed.')
