@@ -68,6 +68,7 @@
     "audio:batch": "node scripts/browser-audio-intelligence-batch.mjs",
     "test:audio:batch": "node --test scripts/audio-intelligence-batch-core.test.mjs",
     "test:e2e:cinema2-afterhours": "node scripts/run-cinema2-afterhours-browser.mjs",
+    "test:e2e:cinema2-interlock": "node scripts/run-cinema2-interlock-browser.mjs",
     "visual:afterhours:legacy": "node scripts/run-afterhours-visual-acceptance.mjs",
     "test:afterhours:legacy:perceptual": "node scripts/run-afterhours-visual-acceptance.mjs --perceptual-regression"
   },

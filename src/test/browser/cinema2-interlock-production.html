@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DRMVYZ Cinema 2.0 Interlock Acceptance</title>
+  <style>
+    html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #05090c; }
+    [data-cinema2-interlock-status] { position: fixed; left: -10000px; top: -10000px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <pre data-cinema2-interlock-status data-result="booting">booting</pre>
+  <script type="module" src="./Cinema2InterlockProductionBrowserHarness.tsx"></script>
+</body>
+</html>

@@ -1,0 +1,274 @@
+import { expect, test, type Locator, type Page } from '@playwright/test'
+import {
+  CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID,
+  CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID,
+  CINEMA2_INTERLOCK_BACKGROUND_FLOW_ID,
+  CINEMA2_INTERLOCK_BANK_STAGGER_ID,
+  CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID,
+  CINEMA2_INTERLOCK_LIT_DENSITY_ID,
+  CINEMA2_INTERLOCK_BLOOM_PASS_ID,
+  CINEMA2_INTERLOCK_MORPH_DURATION_ID,
+  CINEMA2_INTERLOCK_RENDER_PASS_ID,
+  CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID,
+  CINEMA2_INTERLOCK_PRESET_ID,
+  CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID,
+  CINEMA2_INTERLOCK_SEGMENT_SPEED_ID,
+  CINEMA2_INTERLOCK_TRAILS_PASS_ID,
+  CINEMA2_REACTOR_PRESET_ID,
+} from '../../components/vyzualz/cinema2'
+import type {
+  Cinema2InterlockDifferenceMetrics,
+  Cinema2InterlockPixelMetrics,
+} from '../visual/Cinema2InterlockPixelMetrics'
+import { isCinema2InterlockFrameVisible } from '../visual/Cinema2InterlockPixelMetrics'
+
+type BrowserHarnessApi = {
+  getAudioState(): { trackId: string | null; analyzedBpm: number | null; analysisStatus: string | null }
+  measureScreenshotDataUrl(dataUrl: string): Promise<Cinema2InterlockPixelMetrics>
+  compareScreenshotDataUrls(beforeDataUrl: string, afterDataUrl: string): Promise<Cinema2InterlockDifferenceMetrics>
+  runRawSceneProbe(): Promise<{
+    presetId: string
+    phase: string
+    frameCount: number
+    failedPassCount: number
+    activeModuleCount: number
+    activeResourceLeaseCount: number
+    executedPassCount: number
+    lastExecutedPassIds: readonly string[]
+    sceneCheckpoint: { maxRgbByte: number | null; rgbEnergyDetected: boolean | null; error: string | null } | null
+    outputCheckpoint: { maxRgbByte: number | null; rgbEnergyDetected: boolean | null; error: string | null } | null
+  }>
+}
+
+declare global {
+  interface Window {
+    __DRMVYZ_CINEMA2_INTERLOCK_ACCEPTANCE__?: BrowserHarnessApi
+  }
+}
+
+const enabled = process.env.DRMVYZ_CINEMA2_INTERLOCK_BROWSER === '1'
+const pagePath = process.env.DRMVYZ_CINEMA2_INTERLOCK_PAGE ?? '/cinema2-interlock-production.html'
+const toDataUrl = (buffer: Buffer) => `data:image/png;base64,${buffer.toString('base64')}`
+
+async function bootProductionInterlock(page: Page): Promise<Locator> {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.addInitScript(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+  await page.goto(pagePath)
+  await expect(page.locator('[data-cinema2-interlock-status]')).toHaveAttribute('data-result', 'ready', { timeout: 30_000 })
+
+  await page.locator('.rv-engine-dropdown-trigger').click()
+  await page.getByRole('option', { name: /Cinema 2\.0/i }).click()
+  await expect(page.locator('[data-cinema2-stage="runtime"]')).toHaveAttribute('data-runtime-phase', 'running', { timeout: 30_000 })
+
+  const preset = page.locator(`[data-cinema2-preset-id="${CINEMA2_INTERLOCK_PRESET_ID}"]`)
+  await expect(preset).toBeVisible()
+  await preset.click()
+  await expect(preset).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('[data-cinema2-stage="runtime"]')).toHaveAttribute('data-runtime-phase', 'running', { timeout: 30_000 })
+
+  const canvas = page.locator('[data-cinema2-output-canvas="true"]')
+  await expect(canvas).toBeVisible()
+  await expect.poll(async () => {
+    const box = await canvas.boundingBox()
+    return box ? Math.min(box.width, box.height) : 0
+  }, { timeout: 15_000 }).toBeGreaterThan(100)
+  return canvas
+}
+
+async function capture(page: Page, canvas: Locator): Promise<{ dataUrl: string; metrics: Cinema2InterlockPixelMetrics }> {
+  const screenshot = await canvas.screenshot({ animations: 'disabled' })
+  const dataUrl = toDataUrl(screenshot)
+  const metrics = await page.evaluate(async data => {
+    const harness = window.__DRMVYZ_CINEMA2_INTERLOCK_ACCEPTANCE__
+    if (!harness) throw new Error('Interlock acceptance API is unavailable.')
+    return harness.measureScreenshotDataUrl(data)
+  }, dataUrl)
+  return { dataUrl, metrics }
+}
+
+async function compare(page: Page, before: string, after: string): Promise<Cinema2InterlockDifferenceMetrics> {
+  return page.evaluate(async ({ beforeDataUrl, afterDataUrl }) => {
+    const harness = window.__DRMVYZ_CINEMA2_INTERLOCK_ACCEPTANCE__
+    if (!harness) throw new Error('Interlock acceptance API is unavailable.')
+    return harness.compareScreenshotDataUrls(beforeDataUrl, afterDataUrl)
+  }, { beforeDataUrl: before, afterDataUrl: after })
+}
+
+async function selectRightTab(page: Page, name: 'PRESETS' | 'DESIGN' | 'REACT'): Promise<void> {
+  await page.getByRole('tablist', { name: 'React right workspace panels' }).getByRole('tab', { name }).click()
+}
+
+async function setRangeParameter(page: Page, parameterId: string, value: number): Promise<void> {
+  const input = page.locator(`[data-cinema2-control-id="${parameterId}"] input[type="range"]`)
+  await expect(input).toBeVisible()
+  await input.evaluate((element, nextValue) => {
+    const inputElement = element as HTMLInputElement
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    setter?.call(inputElement, String(nextValue))
+    inputElement.dispatchEvent(new Event('input', { bubbles: true }))
+    inputElement.dispatchEvent(new Event('change', { bubbles: true }))
+  }, value)
+  await expect(input).toHaveValue(String(value))
+}
+
+async function setBooleanParameter(page: Page, parameterId: string, value: boolean): Promise<void> {
+  const toggle = page.locator(`[data-cinema2-control-id="${parameterId}"] [role="switch"]`)
+  await expect(toggle).toBeVisible()
+  const current = await toggle.getAttribute('aria-checked')
+  if ((current === 'true') !== value) await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-checked', String(value))
+}
+
+async function setEnumParameter(page: Page, parameterId: string, optionLabel: string): Promise<void> {
+  const control = page.locator(`[data-cinema2-control-id="${parameterId}"]`)
+  const trigger = control.getByRole('combobox')
+  await expect(trigger).toBeVisible()
+  await trigger.click()
+  await page.getByRole('option', { name: optionLabel, exact: true }).click()
+  await expect(trigger).toContainText(optionLabel)
+}
+
+async function configureManualCheckpointBase(page: Page): Promise<void> {
+  await selectRightTab(page, 'DESIGN')
+  await setBooleanParameter(page, String(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), false)
+  await setRangeParameter(page, String(CINEMA2_INTERLOCK_MORPH_DURATION_ID), 0.25)
+  await setRangeParameter(page, String(CINEMA2_INTERLOCK_SEGMENT_SPEED_ID), 0)
+  await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_FLOW_ID), 0)
+}
+
+test.describe('Cinema 2.0 Interlock Stage 7 real-browser visual acceptance', () => {
+  test.skip(!enabled, 'Run with npm run test:e2e:cinema2-interlock')
+
+  test('renders the no-source production keeper, exposes live controls, and survives neighboring-preset re-entry', async ({ page }, testInfo) => {
+    test.setTimeout(180_000)
+    const pageErrors: string[] = []
+    page.on('pageerror', error => pageErrors.push(error.message))
+    const canvas = await bootProductionInterlock(page)
+
+    const environment = await page.evaluate(() => ({ dpr: window.devicePixelRatio, width: window.innerWidth, height: window.innerHeight }))
+    expect(environment).toMatchObject({ width: 1440, height: 900 })
+    expect(environment.dpr).toBe(1)
+
+    const audio = await page.evaluate(() => window.__DRMVYZ_CINEMA2_INTERLOCK_ACCEPTANCE__!.getAudioState())
+    expect(audio.trackId).toBeNull()
+    expect(audio.analyzedBpm).toBeNull()
+
+    let idle: Awaited<ReturnType<typeof capture>> | null = null
+    await expect.poll(async () => {
+      idle = await capture(page, canvas)
+      return isCinema2InterlockFrameVisible(idle.metrics)
+    }, { timeout: 15_000, intervals: [100, 200, 400, 800] }).toBe(true)
+    expect(idle!.metrics.nearWhiteRatio).toBeLessThan(0.5)
+    expect(idle!.metrics.segmentGapContrastRatio).toBeGreaterThan(0)
+    await testInfo.attach('interlock-idle-metrics.json', { body: Buffer.from(JSON.stringify({ environment, audio, metrics: idle!.metrics }, null, 2)), contentType: 'application/json' })
+
+    await selectRightTab(page, 'DESIGN')
+    await expect(page.locator(`[data-cinema2-control-id="${CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID}"]`)).toBeVisible()
+    await expect(page.locator(`[data-cinema2-control-id="${CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID}"]`)).toBeVisible()
+    await expect(page.locator(`[data-cinema2-control-id="${CINEMA2_INTERLOCK_BANK_STAGGER_ID}"]`)).toBeVisible()
+    await expect(page.locator('[data-cinema2-inspector="design"]')).not.toContainText(/BPM Sync|Sync BPM/i)
+
+    await selectRightTab(page, 'PRESETS')
+    await page.locator(`[data-cinema2-preset-id="${CINEMA2_REACTOR_PRESET_ID}"]`).click()
+    await expect(page.locator(`[data-cinema2-preset-id="${CINEMA2_REACTOR_PRESET_ID}"]`)).toHaveAttribute('aria-pressed', 'true')
+    await page.locator(`[data-cinema2-preset-id="${CINEMA2_INTERLOCK_PRESET_ID}"]`).click()
+    await expect(page.locator(`[data-cinema2-preset-id="${CINEMA2_INTERLOCK_PRESET_ID}"]`)).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator('[data-cinema2-stage="runtime"]')).toHaveAttribute('data-runtime-phase', 'running', { timeout: 30_000 })
+    await expect.poll(async () => isCinema2InterlockFrameVisible((await capture(page, canvas)).metrics), { timeout: 15_000 }).toBe(true)
+    expect(pageErrors).toEqual([])
+  })
+
+  test('captures deterministic manual layout checkpoints and bounded atmosphere/effect extremes', async ({ page }, testInfo) => {
+    test.setTimeout(180_000)
+    const canvas = await bootProductionInterlock(page)
+    await configureManualCheckpointBase(page)
+
+    const checkpoints: Record<string, Cinema2InterlockPixelMetrics> = {}
+    const captureCheckpoint = async (name: string) => {
+      await page.waitForTimeout(450)
+      const frame = await capture(page, canvas)
+      expect(isCinema2InterlockFrameVisible(frame.metrics)).toBe(true)
+      expect(frame.metrics.nearWhiteRatio).toBeLessThan(0.5)
+      checkpoints[name] = frame.metrics
+      await testInfo.attach(`interlock-${name}.png`, { body: Buffer.from(frame.dataUrl.split(',')[1]!, 'base64'), contentType: 'image/png' })
+      return frame
+    }
+
+    await setEnumParameter(page, String(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID), 'Diamond Tunnel')
+    await setEnumParameter(page, String(CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID), 'Forward Chase')
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_LIT_DENSITY_ID), 0.55)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID), 0.35)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID), 0.25)
+    const steady = await captureCheckpoint('steady')
+
+    await setEnumParameter(page, String(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID), 'Mechanical Iris')
+    await setEnumParameter(page, String(CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID), 'Center Out')
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_LIT_DENSITY_ID), 0.78)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID), 0.38)
+    const build = await captureCheckpoint('build')
+    expect((await compare(page, steady.dataUrl, build.dataUrl)).changedPixelRatio).toBeGreaterThan(0.002)
+
+    await setEnumParameter(page, String(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID), 'Four-Way Vortex')
+    await setEnumParameter(page, String(CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID), 'Impact Burst')
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_LIT_DENSITY_ID), 0.95)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID), 1)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID), 0.6)
+    const drop = await captureCheckpoint('drop')
+    expect((await compare(page, build.dataUrl, drop.dataUrl)).changedPixelRatio).toBeGreaterThan(0.002)
+    expect(drop.metrics.clippedRatio).toBeLessThan(0.35)
+
+    await setEnumParameter(page, String(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID), 'Double Wing')
+    await setEnumParameter(page, String(CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID), 'Solid')
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_LIT_DENSITY_ID), 0.35)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID), 0.1)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID), 0.15)
+    const release = await captureCheckpoint('vocal-release')
+    expect((await compare(page, drop.dataUrl, release.dataUrl)).changedPixelRatio).toBeGreaterThan(0.002)
+
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID), 0)
+    const effectsZero = await captureCheckpoint('effects-0')
+    const effectsZeroRepeat = await captureCheckpoint('effects-0-repeat')
+    expect((await compare(page, effectsZero.dataUrl, effectsZeroRepeat.dataUrl)).repeatSimilarity).toBeGreaterThan(0.995)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID), 1)
+    const effectsOne = await captureCheckpoint('effects-1')
+    expect((await compare(page, effectsZero.dataUrl, effectsOne.dataUrl)).changedPixelRatio).toBeGreaterThan(0.0005)
+    expect(effectsOne.metrics.nearWhiteRatio).toBeLessThan(0.5)
+
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID), 0.35)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID), 0)
+    const atmosphereZero = await captureCheckpoint('atmosphere-0')
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID), 1)
+    const atmosphereOne = await captureCheckpoint('atmosphere-1')
+    expect((await compare(page, atmosphereZero.dataUrl, atmosphereOne.dataUrl)).changedPixelRatio).toBeGreaterThan(0.0005)
+    expect(atmosphereOne.metrics.nearWhiteRatio).toBeLessThan(0.5)
+
+    await testInfo.attach('interlock-checkpoint-metrics.json', { body: Buffer.from(JSON.stringify(checkpoints, null, 2)), contentType: 'application/json' })
+  })
+
+  test('proves the real Interlock scene, trails, and bloom graph produces WebGL pixels without failed modules', async ({ page }, testInfo) => {
+    test.setTimeout(60_000)
+    await page.goto(pagePath)
+    await expect(page.locator('[data-cinema2-interlock-status]')).toHaveAttribute('data-result', 'ready', { timeout: 30_000 })
+    const probe = await page.evaluate(() => window.__DRMVYZ_CINEMA2_INTERLOCK_ACCEPTANCE__!.runRawSceneProbe())
+    await testInfo.attach('interlock-raw-scene-probe.json', { body: Buffer.from(JSON.stringify(probe, null, 2)), contentType: 'application/json' })
+    expect(probe.presetId).toBe(String(CINEMA2_INTERLOCK_PRESET_ID))
+    expect(probe.phase).toBe('running')
+    expect(probe.frameCount).toBeGreaterThanOrEqual(4)
+    expect(probe.activeModuleCount).toBe(2)
+    expect(probe.activeResourceLeaseCount).toBeGreaterThan(0)
+    expect(probe.executedPassCount).toBe(probe.frameCount * 3)
+    expect(probe.lastExecutedPassIds).toEqual([
+      String(CINEMA2_INTERLOCK_RENDER_PASS_ID),
+      String(CINEMA2_INTERLOCK_TRAILS_PASS_ID),
+      String(CINEMA2_INTERLOCK_BLOOM_PASS_ID),
+    ])
+    expect(probe.failedPassCount).toBe(0)
+    expect(probe.sceneCheckpoint).toMatchObject({ rgbEnergyDetected: true, error: null })
+    expect(probe.sceneCheckpoint?.maxRgbByte).toBeGreaterThan(12)
+    expect(probe.outputCheckpoint).toMatchObject({ rgbEnergyDetected: true, error: null })
+    expect(probe.outputCheckpoint?.maxRgbByte).toBeGreaterThan(12)
+  })
+})

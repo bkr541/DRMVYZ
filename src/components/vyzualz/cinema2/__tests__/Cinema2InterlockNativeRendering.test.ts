@@ -391,6 +391,25 @@ describe('Cinema 2.0 Interlock native LED renderer', () => {
     harness.resources.disposeAll()
   })
 
+  it('consumes Bank Stagger live as the authored segment bank phase without rebuilding GPU resources', () => {
+    const harness = createHarness({ segmentPattern: 'bankRipple', segmentBankPhase: 0, segmentSpeed: 0 })
+    const first = frame({ timeSec: 0 })
+    update(harness, first)
+    execute(harness, first)
+    expect(lastUniformFloat(harness.gl, 'uSegmentBankPhase')).toBeCloseTo(0)
+
+    harness.parameters.segmentBankPhase = 0.5
+    const second = frame({ timeSec: 0.1, frameId: 2 })
+    update(harness, second)
+    execute(harness, second)
+    expect(lastUniformFloat(harness.gl, 'uSegmentBankPhase')).toBeCloseTo(0.5)
+    expect(harness.resources.getSnapshot().activeLeaseCount).toBe(1)
+    expect(harness.gl.__calls.createdPrograms).toBe(1)
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
   it('switches all nine segment programs live while preserving one bounded 28-instance GPU pipeline', () => {
     const harness = createHarness()
     let timeSec = 0

@@ -63,6 +63,7 @@ export const CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID = cinema2StableId<Cinema2Param
 export const CINEMA2_INTERLOCK_LIT_DENSITY_ID = cinema2StableId<Cinema2ParameterId>('interlock-lit-density')
 export const CINEMA2_INTERLOCK_SEGMENT_SPEED_ID = cinema2StableId<Cinema2ParameterId>('interlock-segment-speed')
 export const CINEMA2_INTERLOCK_SEGMENT_FADE_ID = cinema2StableId<Cinema2ParameterId>('interlock-segment-fade')
+export const CINEMA2_INTERLOCK_BANK_STAGGER_ID = cinema2StableId<Cinema2ParameterId>('interlock-bank-stagger')
 export const CINEMA2_INTERLOCK_SEGMENT_AFTERGLOW_ID = cinema2StableId<Cinema2ParameterId>('interlock-segment-afterglow')
 export const CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID = cinema2StableId<Cinema2ParameterId>('interlock-unlit-visibility')
 export const CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID = cinema2StableId<Cinema2ParameterId>('interlock-mirror-segment-direction')
@@ -248,7 +249,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'enum' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.patternChange,
       options: PATTERN_CHANGE_OPTIONS,
-      section: 'Motion', group: 'Performance', order: 36,
+      section: 'Scene', group: 'Performance', order: 12,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -257,7 +258,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'boolean' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.symmetry,
       description: 'Keeps paired fixture transition direction mirrored when enabled; disabling it releases paired transition direction while preserving the rigid rig.',
-      section: 'Scene', group: 'Layout', order: 11,
+      section: 'Scene', group: 'Layout', order: 13,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -387,11 +388,21 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
+      id: CINEMA2_INTERLOCK_BANK_STAGGER_ID,
+      label: 'Bank Stagger',
+      type: 'float' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentBankPhase,
+      min: 0, max: 1, step: 0.01,
+      description: 'Offsets the authored LED bank phase while preserving deterministic show-planner stagger and segment direction.',
+      section: 'Motion', group: 'Segments', order: 34,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
       id: CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID,
       label: 'Mirror Segment Direction',
       type: 'boolean' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.mirrorSegmentDirection,
-      section: 'Motion', group: 'Segments', order: 34,
+      section: 'Motion', group: 'Segments', order: 35,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -400,7 +411,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_LIQUID_LIGHT_DEFAULTS.flow,
       min: 0, max: 1, step: 0.01,
-      section: 'Motion', group: 'Atmosphere', order: 35,
+      section: 'Motion', group: 'Atmosphere', order: 36,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -567,6 +578,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         litDensity: cinema2Ref(CINEMA2_INTERLOCK_LIT_DENSITY_ID),
         segmentSpeed: cinema2Ref(CINEMA2_INTERLOCK_SEGMENT_SPEED_ID),
         segmentFade: cinema2Ref(CINEMA2_INTERLOCK_SEGMENT_FADE_ID),
+        segmentBankPhase: cinema2Ref(CINEMA2_INTERLOCK_BANK_STAGGER_ID),
         segmentAfterglow: cinema2Ref(CINEMA2_INTERLOCK_SEGMENT_AFTERGLOW_ID),
         unlitVisibility: cinema2Ref(CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID),
         mirrorSegmentDirection: cinema2Ref(CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID),

@@ -25,6 +25,7 @@ import {
   CINEMA2_INTERLOCK_BACKGROUND_LAYER_ID,
   CINEMA2_INTERLOCK_BACKGROUND_MODULE_ID,
   CINEMA2_INTERLOCK_BACKGROUND_PALETTE_MODE_ID,
+  CINEMA2_INTERLOCK_BANK_STAGGER_ID,
   CINEMA2_INTERLOCK_BASS_ROTATION_ID,
   CINEMA2_INTERLOCK_BLOOM_EFFECT_ID,
   CINEMA2_INTERLOCK_BLOOM_PASS_ID,
@@ -87,6 +88,7 @@ const PERSISTED_PARAMETER_IDS = Object.freeze([
   CINEMA2_INTERLOCK_MORPH_DURATION_ID,
   CINEMA2_INTERLOCK_SEGMENT_SPEED_ID,
   CINEMA2_INTERLOCK_SEGMENT_FADE_ID,
+  CINEMA2_INTERLOCK_BANK_STAGGER_ID,
   CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID,
   CINEMA2_INTERLOCK_BACKGROUND_FLOW_ID,
   CINEMA2_INTERLOCK_PATTERN_CHANGE_ID,
@@ -138,6 +140,7 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID]).toBe(CINEMA2_INTERLOCK_DEFAULT_PATTERN_ID)
     expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID]).toBe(0.25)
     expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID]).toBe(0.35)
+    expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_BANK_STAGGER_ID]).toBe(0)
     expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID]).toBe(true)
     expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID]).toBe(0.75)
     expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_VOCAL_RESTRAINT_ID]).toBe(0.35)
@@ -145,6 +148,9 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID)).toMatchObject({ min: 0, max: 1 })
     expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_RESET_TRAILS_ID)).toMatchObject({ type: 'trigger', persistence: 'runtime-only', exposure: 'hidden' })
     expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID)?.options?.map(option => option.value)).toEqual(CINEMA2_INTERLOCK_PATTERN_IDS)
+    expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_PATTERN_CHANGE_ID)).toMatchObject({ section: 'Scene', group: 'Performance' })
+    expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_BANK_STAGGER_ID)).toMatchObject({ section: 'Motion', group: 'Segments', persistence: 'preset' })
+    expect(definitions.filter(definition => /sync|bpm/i.test(definition.label))).toEqual([])
 
     const state = new Cinema2ParameterState(plan.parameters)
     const controls = createCinema2InspectorModel(plan, state.getSnapshot(), 'design')
@@ -194,6 +200,31 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(restored.getValue(CINEMA2_INTERLOCK_TRIGGER_ID)).toBe('kick')
   })
 
+  it('restores pre-Stage-7 saved state with the new Bank Stagger default and rejects malformed values without corrupting state', () => {
+    const plan = compileInterlock()
+    const current = new Cinema2ParameterState(plan.parameters)
+    expect(current.setPersistentValue(CINEMA2_INTERLOCK_LED_INTENSITY_ID, 0.51)).toMatchObject({ ok: true })
+    const payload = JSON.parse(current.serialize()) as { values: Record<string, unknown> }
+    delete payload.values[CINEMA2_INTERLOCK_BANK_STAGGER_ID]
+
+    const restored = new Cinema2ParameterState(plan.parameters)
+    expect(restored.restore({
+      schemaId: 'drmvyz.cinema2.parameter-state',
+      schemaVersion: 1,
+      presetId: CINEMA2_INTERLOCK_PRESET_ID,
+      presetRevision: CINEMA2_INTERLOCK_PRESET_MANIFEST.revision,
+      values: payload.values,
+    })).toMatchObject({ ok: true })
+    expect(restored.getValue(CINEMA2_INTERLOCK_LED_INTENSITY_ID)).toBe(0.51)
+    expect(restored.getValue(CINEMA2_INTERLOCK_BANK_STAGGER_ID)).toBe(0)
+
+    const before = restored.getValue(CINEMA2_INTERLOCK_BANK_STAGGER_ID)
+    expect(restored.setPersistentValue(CINEMA2_INTERLOCK_BANK_STAGGER_ID, Number.POSITIVE_INFINITY)).toMatchObject({ ok: false })
+    expect(restored.getValue(CINEMA2_INTERLOCK_BANK_STAGGER_ID)).toBe(before)
+    expect(restored.setPersistentValue(CINEMA2_INTERLOCK_BANK_STAGGER_ID, 3)).toMatchObject({ ok: true })
+    expect(restored.getValue(CINEMA2_INTERLOCK_BANK_STAGGER_ID)).toBe(1)
+  })
+
   it('keeps rendering ownership explicit while Stage 6 choreography targets modules and built-in effects without cameras', () => {
     const plan = compileInterlock()
     expect(plan.capabilities.required).toEqual(['render.webgl2'])
@@ -235,6 +266,7 @@ describe('Cinema 2.0 Interlock production preset', () => {
     })
     const ledModule = plan.manifest.modules?.find(module => module.id === CINEMA2_INTERLOCK_MODULE_ID)
     expect(ledModule?.parameterBindings?.effectsIntensity).toEqual({ id: CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID })
+    expect(ledModule?.parameterBindings?.segmentBankPhase).toEqual({ id: CINEMA2_INTERLOCK_BANK_STAGGER_ID })
     expect(ledModule?.parameterBindings?.autoPerformance).toEqual({ id: CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID })
     expect(ledModule?.parameterBindings?.masterReactivity).toEqual({ id: CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID })
     expect(plan.manifest.effects?.find(effect => effect.id === CINEMA2_INTERLOCK_TRAILS_EFFECT_ID)?.parameterBindings?.mix).toEqual({ id: CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID })

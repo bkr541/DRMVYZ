@@ -215,6 +215,21 @@ describe('Cinema 2.0 Interlock Stage 1 domain', () => {
     expect(Math.max(...portalY)).toBeCloseTo(portal.viewport.safeMaxY, 8)
   })
 
+  it('keeps the Four-Way Vortex hero edge fixtures within a documented 20 CSS-pixel tolerance of the 12px safe composition line', () => {
+    const layout = resolveCinema2InterlockLayout(CINEMA2_INTERLOCK_HERO_PATTERN_ID, { width: 1920, height: 1080, dpr: 1 })
+    const edgeIds = new Set(CINEMA2_INTERLOCK_RIG.banks.edge.map(candidate => candidate.id))
+    const edgeFixtures = layout.fixtures.filter(candidate => edgeIds.has(candidate.fixtureId))
+    const boundaryDistances = edgeFixtures.flatMap(candidate => [candidate.top, candidate.bottom].map(point => Math.min(
+      Math.abs(point[0] - layout.viewport.safeMinX),
+      Math.abs(layout.viewport.safeMaxX - point[0]),
+      Math.abs(point[1] - layout.viewport.safeMinY),
+      Math.abs(layout.viewport.safeMaxY - point[1]),
+    )))
+    expect(edgeFixtures).toHaveLength(CINEMA2_INTERLOCK_RIG.banks.edge.length)
+    expect(Math.min(...boundaryDistances)).toBeLessThanOrEqual(20)
+    expect(layout.fixtures.every(candidate => isCinema2InterlockGeometryViewportSafe(candidate, layout.viewport))).toBe(true)
+  })
+
   it('keeps CSS-space geometry identical when the same viewport is represented at DPR 1 and DPR 2', () => {
     const one = resolveCinema2InterlockLayout('fourWayVortex', { width: 1280, height: 720, dpr: 1 })
     const two = resolveCinema2InterlockLayout('fourWayVortex', { width: 2560, height: 1440, dpr: 2 })
