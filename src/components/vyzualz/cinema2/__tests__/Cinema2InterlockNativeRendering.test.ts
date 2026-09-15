@@ -44,6 +44,20 @@ const BASE_PARAMETERS: Record<string, Cinema2JsonValue> = {
   segmentDirectionBias: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentDirectionBias,
   segmentBankPhase: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentBankPhase,
   effectsIntensity: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.effectsIntensity,
+  // Native renderer unit tests exercise authored/manual geometry unless a test opts into Stage 6 Auto Performance.
+  autoPerformance: false,
+  patternChange: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.patternChange,
+  masterReactivity: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.masterReactivity,
+  bassRotation: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.bassRotation,
+  segmentReactivity: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentReactivity,
+  transientPulse: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.transientPulse,
+  highShimmer: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.highShimmer,
+  buildTension: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.buildTension,
+  vocalRestraint: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.vocalRestraint,
+  trigger: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.trigger,
+  directorIntensity: 0, directorMomentum: 0, directorBuild: 0, directorImpact: 0, directorVariation: 0,
+  subEnergy: 0, bassEnergy: 0, overallEnergy: 0, spectralFlux: 0, highEnergy: 0, airEnergy: 0, vocalPresence: 0,
+  kickAccent: 0, snareAccent: 0, downbeatAccent: 0, barAccent: 0, phraseAccent: 0, sectionAccent: 0, dropAccent: 0,
 }
 
 class TestResources implements Cinema2ModuleResourceFacet {

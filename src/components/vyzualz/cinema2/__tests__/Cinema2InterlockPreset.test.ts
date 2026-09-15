@@ -17,6 +17,7 @@ import {
 } from '../modules/interlock/Cinema2InterlockDomain'
 import { cinema2NativeModuleRegistry } from '../modules/Cinema2ModuleRegistry'
 import {
+  CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID,
   CINEMA2_INTERLOCK_BACKGROUND_ACCENT_ID,
   CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID,
   CINEMA2_INTERLOCK_BACKGROUND_COLOR_ID,
@@ -24,18 +25,23 @@ import {
   CINEMA2_INTERLOCK_BACKGROUND_LAYER_ID,
   CINEMA2_INTERLOCK_BACKGROUND_MODULE_ID,
   CINEMA2_INTERLOCK_BACKGROUND_PALETTE_MODE_ID,
+  CINEMA2_INTERLOCK_BASS_ROTATION_ID,
   CINEMA2_INTERLOCK_BLOOM_EFFECT_ID,
   CINEMA2_INTERLOCK_BLOOM_PASS_ID,
+  CINEMA2_INTERLOCK_BUILD_TENSION_ID,
   CINEMA2_INTERLOCK_CENTER_GLOW_ID,
   CINEMA2_INTERLOCK_EDGE_DARKNESS_ID,
   CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID,
+  CINEMA2_INTERLOCK_HIGH_SHIMMER_ID,
   CINEMA2_INTERLOCK_LAYER_ID,
   CINEMA2_INTERLOCK_LED_COLOR_ID,
   CINEMA2_INTERLOCK_LED_INTENSITY_ID,
   CINEMA2_INTERLOCK_LIT_DENSITY_ID,
+  CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID,
   CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID,
   CINEMA2_INTERLOCK_MODULE_ID,
   CINEMA2_INTERLOCK_MORPH_DURATION_ID,
+  CINEMA2_INTERLOCK_PATTERN_CHANGE_ID,
   CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID,
   CINEMA2_INTERLOCK_PRESET_ID,
   CINEMA2_INTERLOCK_PRESET_MANIFEST,
@@ -46,21 +52,26 @@ import {
   CINEMA2_INTERLOCK_SEGMENT_AFTERGLOW_ID,
   CINEMA2_INTERLOCK_SEGMENT_FADE_ID,
   CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID,
+  CINEMA2_INTERLOCK_SEGMENT_REACTIVITY_ID,
   CINEMA2_INTERLOCK_SEGMENT_SPEED_ID,
   CINEMA2_INTERLOCK_SYMMETRY_ID,
   CINEMA2_INTERLOCK_TRAILS_EFFECT_ID,
   CINEMA2_INTERLOCK_TRAILS_PASS_ID,
   CINEMA2_INTERLOCK_TRAILS_TARGET_ID,
+  CINEMA2_INTERLOCK_TRANSIENT_PULSE_ID,
+  CINEMA2_INTERLOCK_TRIGGER_ID,
   CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID,
+  CINEMA2_INTERLOCK_VOCAL_RESTRAINT_ID,
 } from '../presets/Cinema2InterlockPreset'
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
 
-const AVAILABLE_CAPABILITIES = Object.freeze(['render.webgl2', 'audio.transport'] as const)
+const AVAILABLE_CAPABILITIES = Object.freeze(['render.webgl2', 'render.history', 'audio.transport', 'audio.bands', 'audio.features', 'music.rhythm-events', 'music.beat', 'music.downbeat', 'music.bar', 'music.phrase', 'music.section', 'music.drop', 'music.vocal-presence', 'visual-director.significance'] as const)
 const PERSISTED_PARAMETER_IDS = Object.freeze([
   CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID,
+  CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID,
   CINEMA2_INTERLOCK_SYMMETRY_ID,
   CINEMA2_INTERLOCK_LED_COLOR_ID,
   CINEMA2_INTERLOCK_LED_INTENSITY_ID,
@@ -78,6 +89,15 @@ const PERSISTED_PARAMETER_IDS = Object.freeze([
   CINEMA2_INTERLOCK_SEGMENT_FADE_ID,
   CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID,
   CINEMA2_INTERLOCK_BACKGROUND_FLOW_ID,
+  CINEMA2_INTERLOCK_PATTERN_CHANGE_ID,
+  CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID,
+  CINEMA2_INTERLOCK_BASS_ROTATION_ID,
+  CINEMA2_INTERLOCK_SEGMENT_REACTIVITY_ID,
+  CINEMA2_INTERLOCK_TRANSIENT_PULSE_ID,
+  CINEMA2_INTERLOCK_HIGH_SHIMMER_ID,
+  CINEMA2_INTERLOCK_BUILD_TENSION_ID,
+  CINEMA2_INTERLOCK_VOCAL_RESTRAINT_ID,
+  CINEMA2_INTERLOCK_TRIGGER_ID,
   CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID,
   CINEMA2_INTERLOCK_SEGMENT_AFTERGLOW_ID,
   CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID,
@@ -110,7 +130,7 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(cinema2NativeModuleRegistry.validateModules(plan.manifest.modules ?? [])).toMatchObject({ ok: true })
   })
 
-  it('authors the Stage 4 atmosphere and finishing controls through the shared schema with the required defaults', () => {
+  it('authors Stage 6 Auto Performance and reactivity controls through the shared schema with the required defaults', () => {
     const plan = compileInterlock()
     const definitions = plan.parameters.definitions
     const ids = definitions.map(definition => definition.id)
@@ -118,6 +138,9 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID]).toBe(CINEMA2_INTERLOCK_DEFAULT_PATTERN_ID)
     expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID]).toBe(0.25)
     expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID]).toBe(0.35)
+    expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID]).toBe(true)
+    expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID]).toBe(0.75)
+    expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_VOCAL_RESTRAINT_ID]).toBe(0.35)
     expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID)).toMatchObject({ min: 0, max: 1 })
     expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID)).toMatchObject({ min: 0, max: 1 })
     expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_RESET_TRAILS_ID)).toMatchObject({ type: 'trigger', persistence: 'runtime-only', exposure: 'hidden' })
@@ -146,7 +169,7 @@ describe('Cinema 2.0 Interlock production preset', () => {
     ]))
   })
 
-  it('persists authored atmosphere/effects state while keeping Stage 6 runtime hooks and reset actions out of serialization', () => {
+  it('persists authored Stage 6 controls while keeping resolved runtime hooks and reset actions out of serialization', () => {
     const plan = compileInterlock()
     const state = new Cinema2ParameterState(plan.parameters)
     expect(state.setPersistentValue(CINEMA2_INTERLOCK_LED_COLOR_ID, [0.2, 0.75, 1, 1])).toMatchObject({ ok: true })
@@ -155,6 +178,8 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(state.setPersistentValue(CINEMA2_INTERLOCK_BACKGROUND_ACCENT_ID, [0.15, 0.4, 0.8, 1])).toMatchObject({ ok: true })
     expect(state.setPersistentValue(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID, 0.62)).toMatchObject({ ok: true })
     expect(state.setPersistentValue(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID, 0.73)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID, 0.44)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_INTERLOCK_TRIGGER_ID, 'kick')).toMatchObject({ ok: true })
 
     const serialized = state.serialize()
     const payload = JSON.parse(serialized) as { values: Record<string, unknown> }
@@ -165,15 +190,20 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(restored.restore(serialized)).toMatchObject({ ok: true })
     expect(restored.getValue(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID)).toBe(0.62)
     expect(restored.getValue(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID)).toBe(0.73)
+    expect(restored.getValue(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID)).toBe(0.44)
+    expect(restored.getValue(CINEMA2_INTERLOCK_TRIGGER_ID)).toBe('kick')
   })
 
-  it('keeps background, LED rig, trails, and bloom in explicit Stage 4 ownership/order with no camera or choreography additions', () => {
+  it('keeps rendering ownership explicit while Stage 6 choreography targets modules and built-in effects without cameras', () => {
     const plan = compileInterlock()
     expect(plan.capabilities.required).toEqual(['render.webgl2'])
     expect(plan.manifest.cameras ?? []).toHaveLength(0)
     expect(plan.manifest.lighting?.lights ?? []).toHaveLength(0)
     expect(plan.manifest.mediaSlots ?? []).toHaveLength(0)
-    expect(plan.manifest.choreography).toBeUndefined()
+    expect(plan.manifest.choreography?.rules.length).toBeGreaterThanOrEqual(18)
+    expect(plan.manifest.choreography?.rules.some(rule => rule.source.signal === 'drop')).toBe(true)
+    expect(plan.manifest.choreography?.rules.some(rule => rule.source.path === 'director.intensity')).toBe(true)
+    expect(plan.manifest.choreography?.rules.some(rule => rule.source.path === 'audio.features.vocalPresence')).toBe(true)
 
     expect(plan.manifest.layers).toEqual([
       expect.objectContaining({ id: CINEMA2_INTERLOCK_BACKGROUND_LAYER_ID, order: 0, blendMode: 'normal', depthPolicy: 'disabled' }),
@@ -205,6 +235,8 @@ describe('Cinema 2.0 Interlock production preset', () => {
     })
     const ledModule = plan.manifest.modules?.find(module => module.id === CINEMA2_INTERLOCK_MODULE_ID)
     expect(ledModule?.parameterBindings?.effectsIntensity).toEqual({ id: CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID })
+    expect(ledModule?.parameterBindings?.autoPerformance).toEqual({ id: CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID })
+    expect(ledModule?.parameterBindings?.masterReactivity).toEqual({ id: CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID })
     expect(plan.manifest.effects?.find(effect => effect.id === CINEMA2_INTERLOCK_TRAILS_EFFECT_ID)?.parameterBindings?.mix).toEqual({ id: CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID })
     expect(plan.manifest.effects?.find(effect => effect.id === CINEMA2_INTERLOCK_BLOOM_EFFECT_ID)?.parameterBindings?.intensity).toEqual({ id: CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID })
   })

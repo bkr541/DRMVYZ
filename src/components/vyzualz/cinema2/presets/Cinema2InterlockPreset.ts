@@ -4,7 +4,10 @@ import {
   cinema2NamespacedId,
   cinema2Ref,
   cinema2StableId,
+  type Cinema2ChoreographyActionId,
+  type Cinema2ChoreographyRuleId,
   type Cinema2EffectId,
+  type Cinema2JsonValue,
   type Cinema2LayerId,
   type Cinema2ModuleId,
   type Cinema2NativePresetManifest,
@@ -32,11 +35,25 @@ import {
 } from '../modules/interlock/Cinema2InterlockDomain'
 import { getCinema2InterlockPatternDefinition } from '../modules/interlock/Cinema2InterlockPatternCatalog'
 import { CINEMA2_INTERLOCK_SEGMENT_PROGRAM_IDS } from '../modules/interlock/Cinema2InterlockSegments'
+import {
+  CINEMA2_INTERLOCK_PATTERN_CHANGE_IDS,
+  CINEMA2_INTERLOCK_TRIGGER_IDS,
+} from '../modules/interlock/Cinema2InterlockShowPlanner'
 import { CINEMA2_BLOOM_EFFECT_TYPE_ID, CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID } from '../effects/Cinema2BuiltinEffects'
 
 export const CINEMA2_INTERLOCK_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>(CINEMA2_INTERLOCK_FUTURE_PRESET_ID)
 
 export const CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID = cinema2StableId<Cinema2ParameterId>('interlock-pattern')
+export const CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID = cinema2StableId<Cinema2ParameterId>('interlock-auto-performance')
+export const CINEMA2_INTERLOCK_PATTERN_CHANGE_ID = cinema2StableId<Cinema2ParameterId>('interlock-pattern-change')
+export const CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID = cinema2StableId<Cinema2ParameterId>('interlock-master-reactivity')
+export const CINEMA2_INTERLOCK_BASS_ROTATION_ID = cinema2StableId<Cinema2ParameterId>('interlock-bass-rotation')
+export const CINEMA2_INTERLOCK_SEGMENT_REACTIVITY_ID = cinema2StableId<Cinema2ParameterId>('interlock-segment-reactivity')
+export const CINEMA2_INTERLOCK_TRANSIENT_PULSE_ID = cinema2StableId<Cinema2ParameterId>('interlock-transient-pulse')
+export const CINEMA2_INTERLOCK_HIGH_SHIMMER_ID = cinema2StableId<Cinema2ParameterId>('interlock-high-shimmer')
+export const CINEMA2_INTERLOCK_BUILD_TENSION_ID = cinema2StableId<Cinema2ParameterId>('interlock-build-tension')
+export const CINEMA2_INTERLOCK_VOCAL_RESTRAINT_ID = cinema2StableId<Cinema2ParameterId>('interlock-vocal-restraint')
+export const CINEMA2_INTERLOCK_TRIGGER_ID = cinema2StableId<Cinema2ParameterId>('interlock-trigger')
 export const CINEMA2_INTERLOCK_LED_COLOR_ID = cinema2StableId<Cinema2ParameterId>('interlock-led-color')
 export const CINEMA2_INTERLOCK_LED_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('interlock-led-intensity')
 export const CINEMA2_INTERLOCK_ROTATION_AMOUNT_ID = cinema2StableId<Cinema2ParameterId>('interlock-rotation-amount')
@@ -78,6 +95,69 @@ export const CINEMA2_INTERLOCK_BLOOM_INPUT_ID = cinema2StableId<Cinema2RenderSlo
 export const CINEMA2_INTERLOCK_TRAILS_EFFECT_ID = cinema2StableId<Cinema2EffectId>('interlock-feedback-trails')
 export const CINEMA2_INTERLOCK_BLOOM_EFFECT_ID = cinema2StableId<Cinema2EffectId>('interlock-bloom')
 
+const choreographyRuleId = (id: string) => cinema2StableId<Cinema2ChoreographyRuleId>(id)
+const choreographyActionId = (id: string) => cinema2StableId<Cinema2ChoreographyActionId>(id)
+
+const moduleContinuousAction = (id: string, property: string) => Object.freeze({
+  id: choreographyActionId(id),
+  target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_INTERLOCK_MODULE_ID), property }),
+  operation: 'replace' as const,
+  value: 1,
+})
+
+const backgroundContinuousAction = (id: string, property: string) => Object.freeze({
+  id: choreographyActionId(id),
+  target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_INTERLOCK_BACKGROUND_MODULE_ID), property }),
+  operation: 'replace' as const,
+  value: 1,
+})
+
+const moduleEnvelopeAction = (id: string, property: string, hold: number, release: number, value = 1) => Object.freeze({
+  id: choreographyActionId(id),
+  target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_INTERLOCK_MODULE_ID), property }),
+  operation: 'envelope' as const,
+  value,
+  composition: 'replace' as const,
+  envelope: Object.freeze({ attack: 0, hold, release, unit: 'beats' as const }),
+  cooldownBeats: 0.05,
+  retrigger: 'restart' as const,
+})
+
+const backgroundEnvelopeAction = (id: string, property: string, hold: number, release: number, value = 1) => Object.freeze({
+  id: choreographyActionId(id),
+  target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_INTERLOCK_BACKGROUND_MODULE_ID), property }),
+  operation: 'envelope' as const,
+  value,
+  composition: 'replace' as const,
+  envelope: Object.freeze({ attack: 0, hold, release, unit: 'beats' as const }),
+  cooldownBeats: 0.05,
+  retrigger: 'restart' as const,
+})
+
+const effectContinuousAddAction = (id: string, effectId: Cinema2EffectId, property: string, value: Cinema2JsonValue) => Object.freeze({
+  id: choreographyActionId(id),
+  target: Object.freeze({ kind: 'effect' as const, ref: cinema2Ref(effectId), property }),
+  operation: 'add' as const,
+  value,
+})
+
+const effectEnvelopeAddAction = (id: string, effectId: Cinema2EffectId, property: string, value: number, hold: number, release: number) => Object.freeze({
+  id: choreographyActionId(id),
+  target: Object.freeze({ kind: 'effect' as const, ref: cinema2Ref(effectId), property }),
+  operation: 'envelope' as const,
+  value,
+  composition: 'add' as const,
+  envelope: Object.freeze({ attack: 0.01, hold, release, unit: 'beats' as const }),
+  cooldownBeats: 0.05,
+  retrigger: 'restart' as const,
+})
+
+const resetTrailsAction = (id: string) => Object.freeze({
+  id: choreographyActionId(id),
+  target: Object.freeze({ kind: 'parameter' as const, ref: cinema2Ref(CINEMA2_INTERLOCK_RESET_TRAILS_ID) }),
+  operation: 'trigger' as const,
+})
+
 const ENVIRONMENT_CLEAR = Object.freeze([0, 0, 0, 1] as const)
 const PALETTE_MODE_OPTIONS = Object.freeze(CINEMA2_INTERLOCK_BACKGROUND_PALETTE_MODES.map(value => Object.freeze({
   value,
@@ -102,13 +182,26 @@ const SEGMENT_PATTERN_OPTIONS = Object.freeze(CINEMA2_INTERLOCK_SEGMENT_PROGRAM_
   value,
   label: SEGMENT_PATTERN_LABELS[value],
 })))
+const PATTERN_CHANGE_LABELS: Readonly<Record<(typeof CINEMA2_INTERLOCK_PATTERN_CHANGE_IDS)[number], string>> = Object.freeze({
+  off: 'Off',
+  '8beats': '8 Beats',
+  '16beats': '16 Beats',
+  '32beats': '32 Beats',
+  phrase: 'Phrase',
+  section: 'Section',
+})
+const PATTERN_CHANGE_OPTIONS = Object.freeze(CINEMA2_INTERLOCK_PATTERN_CHANGE_IDS.map(value => Object.freeze({ value, label: PATTERN_CHANGE_LABELS[value] })))
+const TRIGGER_LABELS: Readonly<Record<(typeof CINEMA2_INTERLOCK_TRIGGER_IDS)[number], string>> = Object.freeze({
+  auto: 'Auto', beat: 'Beat', kick: 'Kick', snare: 'Snare', downbeat: 'Downbeat', bar: 'Bar', phrase: 'Phrase',
+})
+const TRIGGER_OPTIONS = Object.freeze(CINEMA2_INTERLOCK_TRIGGER_IDS.map(value => Object.freeze({ value, label: TRIGGER_LABELS[value] })))
 
 /** Production keeper: native 28-fixture screen-space segmented LED installation with liquid-light atmosphere and engine-owned finishing. */
 export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_INTERLOCK_PRESET_ID,
-  revision: 2,
+  revision: 3,
   metadata: Object.freeze({
     name: 'Interlock',
     description: 'Native Cinema 2.0 screen-space installation built from 28 rigid segmented LED fixtures over a restrained flowing liquid-light atmosphere with engine-owned trails and bloom.',
@@ -116,7 +209,19 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
   }),
   capabilities: Object.freeze([
     Object.freeze({ id: 'render.webgl2' as const, requirement: 'required' as const, purpose: 'Native liquid-light and instanced LED rendering.' }),
-    Object.freeze({ id: 'audio.transport' as const, requirement: 'optional' as const, purpose: 'Freeze procedural motion and reset temporal feedback while host animation transport is inactive or paused.' }),
+    Object.freeze({ id: 'audio.transport' as const, requirement: 'optional' as const, purpose: 'Canonical transport and synchronized timing state.' }),
+    Object.freeze({ id: 'audio.bands' as const, requirement: 'optional' as const, purpose: 'Sub, bass, high, and air performance detail.' }),
+    Object.freeze({ id: 'audio.features' as const, requirement: 'optional' as const, purpose: 'Energy and spectral-flow performance detail.' }),
+    Object.freeze({ id: 'music.rhythm-events' as const, requirement: 'optional' as const, purpose: 'Kick and snare event accents.' }),
+    Object.freeze({ id: 'music.beat' as const, requirement: 'optional' as const, purpose: 'Beat identity and deterministic fallback cadence.' }),
+    Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Broad alignment accents.' }),
+    Object.freeze({ id: 'music.bar' as const, requirement: 'optional' as const, purpose: 'Small bank and segment variation boundaries.' }),
+    Object.freeze({ id: 'music.phrase' as const, requirement: 'optional' as const, purpose: 'Preferred layout-transition boundaries.' }),
+    Object.freeze({ id: 'music.section' as const, requirement: 'optional' as const, purpose: 'Major layout-family changes.' }),
+    Object.freeze({ id: 'music.drop' as const, requirement: 'optional' as const, purpose: 'Four-Way Vortex hero reveal and bounded impact.' }),
+    Object.freeze({ id: 'music.vocal-presence' as const, requirement: 'optional' as const, purpose: 'Reduce clutter only when vocal presence is available.' }),
+    Object.freeze({ id: 'visual-director.significance' as const, requirement: 'optional' as const, purpose: 'Phase-aware macro performance meaning.' }),
+    Object.freeze({ id: 'render.history' as const, requirement: 'optional' as const, purpose: 'Feedback trails when render history is available.' }),
   ]),
   parameters: Object.freeze([
     Object.freeze({
@@ -126,6 +231,24 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.pattern,
       options: PATTERN_OPTIONS,
       section: 'Scene', group: 'Layout', order: 10,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID,
+      label: 'Auto Performance',
+      type: 'boolean' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.autoPerformance,
+      description: 'Lets Interlock choose deterministic layouts and segment programs from shared Audio Intelligence and Visual Director meaning.',
+      section: 'Scene', group: 'Performance', order: 11,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_INTERLOCK_PATTERN_CHANGE_ID,
+      label: 'Pattern Change',
+      type: 'enum' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.patternChange,
+      options: PATTERN_CHANGE_OPTIONS,
+      section: 'Motion', group: 'Performance', order: 36,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -281,6 +404,46 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
+      id: CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID, label: 'Master Reactivity', type: 'float' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.masterReactivity, min: 0, max: 1, step: 0.01,
+      section: 'React', group: 'Performance', order: 60, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_INTERLOCK_BASS_ROTATION_ID, label: 'Bass Rotation', type: 'float' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.bassRotation, min: 0, max: 1, step: 0.01,
+      section: 'React', group: 'Motion', order: 61, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_INTERLOCK_SEGMENT_REACTIVITY_ID, label: 'Segment Reactivity', type: 'float' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentReactivity, min: 0, max: 1, step: 0.01,
+      section: 'React', group: 'Segments', order: 62, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_INTERLOCK_TRANSIENT_PULSE_ID, label: 'Transient Pulse', type: 'float' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.transientPulse, min: 0, max: 1, step: 0.01,
+      section: 'React', group: 'Events', order: 63, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_INTERLOCK_HIGH_SHIMMER_ID, label: 'High Shimmer', type: 'float' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.highShimmer, min: 0, max: 1, step: 0.01,
+      section: 'React', group: 'Segments', order: 64, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_INTERLOCK_BUILD_TENSION_ID, label: 'Build Tension', type: 'float' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.buildTension, min: 0, max: 1, step: 0.01,
+      section: 'React', group: 'Motion', order: 65, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_INTERLOCK_VOCAL_RESTRAINT_ID, label: 'Vocal Restraint', type: 'float' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.vocalRestraint, min: 0, max: 1, step: 0.01,
+      section: 'React', group: 'Space', order: 66, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_INTERLOCK_TRIGGER_ID, label: 'Trigger', type: 'enum' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.trigger, options: TRIGGER_OPTIONS,
+      section: 'React', group: 'Events', order: 67, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
       id: CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID,
       label: 'Effects Intensity',
       type: 'float' as const,
@@ -379,6 +542,19 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         segmentDirectionBias: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentDirectionBias,
         segmentBankPhase: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentBankPhase,
         effectsIntensity: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.effectsIntensity,
+        autoPerformance: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.autoPerformance,
+        patternChange: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.patternChange,
+        masterReactivity: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.masterReactivity,
+        bassRotation: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.bassRotation,
+        segmentReactivity: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentReactivity,
+        transientPulse: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.transientPulse,
+        highShimmer: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.highShimmer,
+        buildTension: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.buildTension,
+        vocalRestraint: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.vocalRestraint,
+        trigger: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.trigger,
+        directorIntensity: 0, directorMomentum: 0, directorBuild: 0, directorImpact: 0, directorVariation: 0,
+        subEnergy: 0, bassEnergy: 0, overallEnergy: 0, spectralFlux: 0, highEnergy: 0, airEnergy: 0, vocalPresence: 0,
+        kickAccent: 0, snareAccent: 0, downbeatAccent: 0, barAccent: 0, phraseAccent: 0, sectionAccent: 0, dropAccent: 0,
       }),
       parameterBindings: Object.freeze({
         pattern: cinema2Ref(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID),
@@ -395,6 +571,16 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         unlitVisibility: cinema2Ref(CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID),
         mirrorSegmentDirection: cinema2Ref(CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID),
         effectsIntensity: cinema2Ref(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID),
+        autoPerformance: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID),
+        patternChange: cinema2Ref(CINEMA2_INTERLOCK_PATTERN_CHANGE_ID),
+        masterReactivity: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID),
+        bassRotation: cinema2Ref(CINEMA2_INTERLOCK_BASS_ROTATION_ID),
+        segmentReactivity: cinema2Ref(CINEMA2_INTERLOCK_SEGMENT_REACTIVITY_ID),
+        transientPulse: cinema2Ref(CINEMA2_INTERLOCK_TRANSIENT_PULSE_ID),
+        highShimmer: cinema2Ref(CINEMA2_INTERLOCK_HIGH_SHIMMER_ID),
+        buildTension: cinema2Ref(CINEMA2_INTERLOCK_BUILD_TENSION_ID),
+        vocalRestraint: cinema2Ref(CINEMA2_INTERLOCK_VOCAL_RESTRAINT_ID),
+        trigger: cinema2Ref(CINEMA2_INTERLOCK_TRIGGER_ID),
       }),
     }),
   ]),
@@ -447,6 +633,29 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       order: 1,
     }),
   ]),
+  choreography: Object.freeze({
+    rules: Object.freeze([
+      Object.freeze({ id: choreographyRuleId('interlock-director-intensity'), priority: 20, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.intensity' as const, smoothingMs: 100 }), actions: Object.freeze([moduleContinuousAction('interlock-director-intensity-module', 'directorIntensity'), backgroundContinuousAction('interlock-director-intensity-background', 'backgroundEnergy'), effectContinuousAddAction('interlock-director-intensity-bloom', CINEMA2_INTERLOCK_BLOOM_EFFECT_ID, 'intensity', 0.12)]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-director-momentum'), priority: 21, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.momentum' as const, smoothingMs: 85 }), actions: Object.freeze([moduleContinuousAction('interlock-director-momentum-module', 'directorMomentum')]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-director-build'), priority: 22, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.build' as const, smoothingMs: 115 }), actions: Object.freeze([moduleContinuousAction('interlock-director-build-module', 'directorBuild'), backgroundContinuousAction('interlock-director-build-background', 'backgroundBuild'), effectContinuousAddAction('interlock-build-trails-mix', CINEMA2_INTERLOCK_TRAILS_EFFECT_ID, 'mix', 0.10), effectContinuousAddAction('interlock-build-trails-persistence', CINEMA2_INTERLOCK_TRAILS_EFFECT_ID, 'persistence', 0.08)]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-director-impact'), priority: 23, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.impact' as const, smoothingMs: 38 }), actions: Object.freeze([moduleContinuousAction('interlock-director-impact-module', 'directorImpact')]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-director-variation'), priority: 24, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.variation' as const, smoothingMs: 140 }), actions: Object.freeze([moduleContinuousAction('interlock-director-variation-module', 'directorVariation')]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-sub'), priority: 25, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'continuous' as const, capability: 'audio.bands' as const, path: 'audio.bands.sub' as const, smoothingMs: 80 }), actions: Object.freeze([moduleContinuousAction('interlock-sub-module', 'subEnergy'), backgroundContinuousAction('interlock-sub-background', 'backgroundBassExpansion')]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-bass'), priority: 26, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'continuous' as const, capability: 'audio.bands' as const, path: 'audio.bands.bass' as const, smoothingMs: 85 }), actions: Object.freeze([moduleContinuousAction('interlock-bass-module', 'bassEnergy')]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-energy'), priority: 27, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'continuous' as const, capability: 'audio.features' as const, path: 'audio.features.overallEnergy' as const, smoothingMs: 95 }), actions: Object.freeze([moduleContinuousAction('interlock-energy-module', 'overallEnergy')]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-flux'), priority: 28, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'continuous' as const, capability: 'audio.features' as const, path: 'audio.features.spectralFlux' as const, smoothingMs: 105 }), actions: Object.freeze([moduleContinuousAction('interlock-flux-module', 'spectralFlux'), backgroundContinuousAction('interlock-flux-background', 'backgroundFlux')]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-high'), priority: 29, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'continuous' as const, capability: 'audio.bands' as const, path: 'audio.bands.high' as const, smoothingMs: 150 }), actions: Object.freeze([moduleContinuousAction('interlock-high-module', 'highEnergy')]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-air'), priority: 30, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'continuous' as const, capability: 'audio.bands' as const, path: 'audio.bands.air' as const, smoothingMs: 170 }), actions: Object.freeze([moduleContinuousAction('interlock-air-module', 'airEnergy')]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-vocal-restraint'), priority: 31, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'continuous' as const, capability: 'music.vocal-presence' as const, path: 'audio.features.vocalPresence' as const, smoothingMs: 150 }), actions: Object.freeze([moduleContinuousAction('interlock-vocal-module', 'vocalPresence'), backgroundContinuousAction('interlock-vocal-background', 'backgroundVocalRestraint'), effectContinuousAddAction('interlock-vocal-trails-mix', CINEMA2_INTERLOCK_TRAILS_EFFECT_ID, 'mix', -0.10), effectContinuousAddAction('interlock-vocal-trails-persistence', CINEMA2_INTERLOCK_TRAILS_EFFECT_ID, 'persistence', -0.06)]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-kick'), priority: 40, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'kick' as const, capability: 'music.rhythm-events' as const }), conditions: Object.freeze([Object.freeze({ kind: 'once-per-event' as const })]), actions: Object.freeze([moduleEnvelopeAction('interlock-kick-envelope', 'kickAccent', 0.02, 0.30)]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-snare'), priority: 41, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'snare' as const, capability: 'music.rhythm-events' as const }), conditions: Object.freeze([Object.freeze({ kind: 'once-per-event' as const })]), actions: Object.freeze([moduleEnvelopeAction('interlock-snare-envelope', 'snareAccent', 0.04, 0.42)]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-downbeat'), priority: 42, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'downbeat' as const, capability: 'music.downbeat' as const }), conditions: Object.freeze([Object.freeze({ kind: 'once-per-event' as const })]), actions: Object.freeze([moduleEnvelopeAction('interlock-downbeat-envelope', 'downbeatAccent', 0.08, 0.45)]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-bar'), priority: 43, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'bar' as const, capability: 'music.bar' as const }), conditions: Object.freeze([Object.freeze({ kind: 'once-per-event' as const })]), actions: Object.freeze([moduleEnvelopeAction('interlock-bar-envelope', 'barAccent', 0.02, 0.25, 0.45)]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-phrase'), priority: 50, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'phrase' as const, capability: 'music.phrase' as const }), conditions: Object.freeze([Object.freeze({ kind: 'once-per-event' as const })]), actions: Object.freeze([moduleEnvelopeAction('interlock-phrase-envelope', 'phraseAccent', 0.12, 0.70, 0.70)]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-section'), priority: 60, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'section-change' as const, capability: 'music.section' as const }), conditions: Object.freeze([Object.freeze({ kind: 'once-per-event' as const })]), actions: Object.freeze([moduleEnvelopeAction('interlock-section-envelope', 'sectionAccent', 0.15, 0.80), resetTrailsAction('interlock-section-reset-trails')]) }),
+      Object.freeze({ id: choreographyRuleId('interlock-drop'), priority: 70, enabledParameter: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID), source: Object.freeze({ signal: 'drop' as const, capability: 'music.drop' as const }), conditions: Object.freeze([Object.freeze({ kind: 'once-per-event' as const })]), actions: Object.freeze([moduleEnvelopeAction('interlock-drop-envelope', 'dropAccent', 0.10, 0.80), backgroundEnvelopeAction('interlock-drop-background-envelope', 'backgroundDropImpact', 0.08, 0.60), effectEnvelopeAddAction('interlock-drop-trails-envelope', CINEMA2_INTERLOCK_TRAILS_EFFECT_ID, 'mix', 0.16, 0.08, 0.50), effectEnvelopeAddAction('interlock-drop-bloom-envelope', CINEMA2_INTERLOCK_BLOOM_EFFECT_ID, 'intensity', 0.20, 0.08, 0.45), resetTrailsAction('interlock-drop-reset-trails')]) }),
+    ]),
+  }),
   environment: Object.freeze({
     backgroundColor: ENVIRONMENT_CLEAR,
     exposure: 1,

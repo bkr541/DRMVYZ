@@ -53,6 +53,16 @@ import {
   Cinema2InterlockRenderer,
   type Cinema2InterlockRenderFixture,
 } from './interlock/Cinema2InterlockRenderer'
+import {
+  CINEMA2_INTERLOCK_PATTERN_CHANGE_IDS,
+  CINEMA2_INTERLOCK_TRIGGER_IDS,
+  planCinema2InterlockShow,
+  type Cinema2InterlockPatternChangeId,
+  type Cinema2InterlockRandomSource,
+  type Cinema2InterlockShowPlan,
+  type Cinema2InterlockShowPlannerStructure,
+  type Cinema2InterlockTriggerId,
+} from './interlock/Cinema2InterlockShowPlanner'
 
 export const CINEMA2_INTERLOCK_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('interlock-native-render')
 export const CINEMA2_INTERLOCK_NATIVE_MODULE_VERSION = 1 as const
@@ -76,6 +86,35 @@ export const CINEMA2_INTERLOCK_NATIVE_PARAMETER_NAMES = Object.freeze([
   'segmentDirectionBias',
   'segmentBankPhase',
   'effectsIntensity',
+  'autoPerformance',
+  'patternChange',
+  'masterReactivity',
+  'bassRotation',
+  'segmentReactivity',
+  'transientPulse',
+  'highShimmer',
+  'buildTension',
+  'vocalRestraint',
+  'trigger',
+  'directorIntensity',
+  'directorMomentum',
+  'directorBuild',
+  'directorImpact',
+  'directorVariation',
+  'subEnergy',
+  'bassEnergy',
+  'overallEnergy',
+  'spectralFlux',
+  'highEnergy',
+  'airEnergy',
+  'vocalPresence',
+  'kickAccent',
+  'snareAccent',
+  'downbeatAccent',
+  'barAccent',
+  'phraseAccent',
+  'sectionAccent',
+  'dropAccent',
 ] as const)
 
 const PARAMETER_NAME_SET = new Set<string>(CINEMA2_INTERLOCK_NATIVE_PARAMETER_NAMES)
@@ -92,6 +131,14 @@ const DEFAULT_SEGMENT_IMPACT = 0
 const DEFAULT_SEGMENT_DIRECTION_BIAS = 0
 const DEFAULT_SEGMENT_BANK_PHASE = 0
 const DEFAULT_EFFECTS_INTENSITY = 0.35
+const DEFAULT_AUTO_PERFORMANCE = true
+const DEFAULT_MASTER_REACTIVITY = 0.75
+const DEFAULT_BASS_ROTATION = 0.6
+const DEFAULT_SEGMENT_REACTIVITY = 0.75
+const DEFAULT_TRANSIENT_PULSE = 0.7
+const DEFAULT_HIGH_SHIMMER = 0.15
+const DEFAULT_BUILD_TENSION = 0.65
+const DEFAULT_VOCAL_RESTRAINT = 0.35
 
 interface FrameConfig {
   readonly pattern: Cinema2InterlockPatternId
@@ -112,17 +159,48 @@ interface FrameConfig {
   readonly segmentDirectionBias: number
   readonly segmentBankPhase: number
   readonly effectsIntensity: number
+  readonly autoPerformance: boolean
+  readonly patternChange: Cinema2InterlockPatternChangeId
+  readonly masterReactivity: number
+  readonly bassRotation: number
+  readonly segmentReactivity: number
+  readonly transientPulse: number
+  readonly highShimmer: number
+  readonly buildTension: number
+  readonly vocalRestraint: number
+  readonly trigger: Cinema2InterlockTriggerId
+  readonly directorIntensity: number
+  readonly directorMomentum: number
+  readonly directorBuild: number
+  readonly directorImpact: number
+  readonly directorVariation: number
+  readonly subEnergy: number
+  readonly bassEnergy: number
+  readonly overallEnergy: number
+  readonly spectralFlux: number
+  readonly highEnergy: number
+  readonly airEnergy: number
+  readonly vocalPresence: number
+  readonly kickAccent: number
+  readonly snareAccent: number
+  readonly downbeatAccent: number
+  readonly barAccent: number
+  readonly phraseAccent: number
+  readonly sectionAccent: number
+  readonly dropAccent: number
 }
 
 interface ActiveTransition {
   readonly targetPatternId: Cinema2InterlockPatternId
   readonly states: readonly Cinema2InterlockTransitionState[]
+  readonly durationBeats: number
   progress: number
 }
 
 interface PendingTransition {
   readonly targetPatternId: Cinema2InterlockPatternId
   readonly startBeat: number
+  readonly durationBeats: number
 }
 
 function validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2ModuleDiagnostic[] {
@@ -180,6 +258,15 @@ function validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2Modu
       'Interlock Symmetry must be boolean.',
     ))
   }
+  if (parameters.autoPerformance !== undefined && typeof parameters.autoPerformance !== 'boolean') {
+    diagnostics.push(diagnostic('CINEMA2_INTERLOCK_AUTO_PERFORMANCE_INVALID', '$.parameters.autoPerformance', 'Interlock Auto Performance must be boolean.'))
+  }
+  if (parameters.patternChange !== undefined && !isPatternChange(parameters.patternChange)) {
+    diagnostics.push(diagnostic('CINEMA2_INTERLOCK_PATTERN_CHANGE_INVALID', '$.parameters.patternChange', `Interlock Pattern Change must be one of: ${CINEMA2_INTERLOCK_PATTERN_CHANGE_IDS.join(', ')}.`))
+  }
+  if (parameters.trigger !== undefined && !isTrigger(parameters.trigger)) {
+    diagnostics.push(diagnostic('CINEMA2_INTERLOCK_TRIGGER_INVALID', '$.parameters.trigger', `Interlock Trigger must be one of: ${CINEMA2_INTERLOCK_TRIGGER_IDS.join(', ')}.`))
+  }
   if (parameters.segmentPattern !== undefined && !isSegmentProgram(parameters.segmentPattern)) {
     diagnostics.push(diagnostic(
       'CINEMA2_INTERLOCK_SEGMENT_PATTERN_INVALID',
@@ -198,6 +285,32 @@ function validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2Modu
     ['segmentDirectionBias', -1, 1],
     ['segmentBankPhase', 0, 1],
     ['effectsIntensity', 0, 1],
+    ['masterReactivity', 0, 1],
+    ['bassRotation', 0, 1],
+    ['segmentReactivity', 0, 1],
+    ['transientPulse', 0, 1],
+    ['highShimmer', 0, 1],
+    ['buildTension', 0, 1],
+    ['vocalRestraint', 0, 1],
+    ['directorIntensity', 0, 1],
+    ['directorMomentum', 0, 1],
+    ['directorBuild', 0, 1],
+    ['directorImpact', 0, 1],
+    ['directorVariation', 0, 1],
+    ['subEnergy', 0, 1],
+    ['bassEnergy', 0, 1],
+    ['overallEnergy', 0, 1],
+    ['spectralFlux', 0, 1],
+    ['highEnergy', 0, 1],
+    ['airEnergy', 0, 1],
+    ['vocalPresence', 0, 1],
+    ['kickAccent', 0, 1],
+    ['snareAccent', 0, 1],
+    ['downbeatAccent', 0, 1],
+    ['barAccent', 0, 1],
+    ['phraseAccent', 0, 1],
+    ['sectionAccent', 0, 1],
+    ['dropAccent', 0, 1],
   ] as const) {
     if (parameters[property] !== undefined && !numberInRange(parameters[property], minimum, maximum)) {
       diagnostics.push(diagnostic(
@@ -240,6 +353,22 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     let lastReanchorGeneration: number | null = null
     let segmentPhase = 0
     const clockResolver = new Cinema2InterlockClockResolver()
+    const randomAdapter = createInterlockRandomAdapter(context)
+    let showPlan: Readonly<Cinema2InterlockShowPlan> | null = null
+    let lastTrackId: string | null | undefined = undefined
+    let lastSourceId: string | null | undefined = undefined
+    let lastPaused: boolean | null = null
+    let lastTimeSec: number | null = null
+    let lastContextGeneration: number | null = null
+    let renderSegmentPattern = config.segmentPattern
+    let renderLedIntensity = config.ledIntensity
+    let renderLitDensity = config.litDensity
+    let renderSegmentSpeed = config.segmentSpeed
+    let renderSegmentEnergy = config.segmentEnergy
+    let renderSegmentImpact = config.segmentImpact
+    let renderSegmentDirectionBias = config.segmentDirectionBias
+    let renderSegmentBankPhase = config.segmentBankPhase
+    let reactiveRotationAmount = config.rotationAmount
     let disposed = false
 
     const rebuildSettledLayout = (viewport: Cinema2InterlockViewport, patternId = config.pattern) => {
@@ -250,7 +379,7 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
       renderFixtures = toRenderFixtures(layout.fixtures, config.mirrorSegmentDirection)
     }
 
-    const beginPatternTransition = (viewport: Cinema2InterlockViewport, targetPatternId: Cinema2InterlockPatternId) => {
+    const beginPatternTransition = (viewport: Cinema2InterlockViewport, targetPatternId: Cinema2InterlockPatternId, durationBeats = 2) => {
       if (currentGeometry.size !== CINEMA2_INTERLOCK_FIXTURE_COUNT) {
         rebuildSettledLayout(viewport, activePattern)
       }
@@ -265,7 +394,7 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           resolveTransitionRotationMode(target.rotationMode, fixture.mirrorSide, index, config.symmetry),
         )
       })
-      transition = { targetPatternId, states: Object.freeze(states), progress: 0 }
+      transition = { targetPatternId, states: Object.freeze(states), durationBeats: clamp(durationBeats, 0.5, 4), progress: 0 }
       pendingTransition = null
     }
 
@@ -274,14 +403,16 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
       targetPatternId: Cinema2InterlockPatternId,
       syncEnabled: boolean,
       canonicalBeatPosition: number,
+      durationBeats: number,
     ) => {
       if (!syncEnabled) {
-        beginPatternTransition(viewport, targetPatternId)
+        beginPatternTransition(viewport, targetPatternId, durationBeats)
         return
       }
       pendingTransition = Object.freeze({
         targetPatternId,
         startBeat: nextCinema2InterlockBeatBoundary(canonicalBeatPosition),
+        durationBeats: clamp(durationBeats, 0.5, 4),
       })
     }
 
@@ -302,17 +433,17 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           width: execution.width,
           height: execution.height,
           ledColor: config.ledColor,
-          ledIntensity: config.ledIntensity,
-          segmentProgram: config.segmentPattern,
+          ledIntensity: renderLedIntensity,
+          segmentProgram: renderSegmentPattern,
           segmentPhase,
-          litDensity: config.litDensity,
+          litDensity: renderLitDensity,
           segmentFade: config.segmentFade,
           segmentAfterglow: config.segmentAfterglow * config.effectsIntensity,
           unlitVisibility: config.unlitVisibility,
-          segmentEnergy: config.segmentEnergy,
-          segmentImpact: config.segmentImpact * config.effectsIntensity,
-          segmentDirectionBias: config.segmentDirectionBias,
-          segmentBankPhase: config.segmentBankPhase,
+          segmentEnergy: renderSegmentEnergy,
+          segmentImpact: renderSegmentImpact * config.effectsIntensity,
+          segmentDirectionBias: renderSegmentDirectionBias,
+          segmentBankPhase: renderSegmentBankPhase,
         })
       },
     })
@@ -327,7 +458,44 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           const viewport = normalizeViewport(frame)
           const nextViewportKey = viewportKey(viewport)
           const clock = clockResolver.resolve(frame)
-          segmentPhase = resolveCinema2InterlockSegmentClockPhase(clock, config.segmentSpeed)
+          const currentTimeSec = frame.audio?.upstream.timeSec ?? frame.transport?.timeSec ?? frame.elapsedTimeSec
+          const discontinuity = Boolean(frame.audio?.discontinuity.occurred && frame.audio.discontinuity.reason !== 'activation')
+          const backwards = lastTimeSec != null && currentTimeSec < lastTimeSec - 1e-6
+          const currentSourceId = frame.audio?.upstream.sourceId ?? null
+          const sourceReplaced = (lastTrackId !== undefined && frame.transport?.trackId !== lastTrackId)
+            || (lastSourceId !== undefined && currentSourceId !== lastSourceId)
+          const contextChanged = lastContextGeneration != null && frame.contextGeneration !== lastContextGeneration
+          const paused = frame.transport?.sourcePresent === true && frame.transport.paused === true
+          const enteredPause = paused && lastPaused === false
+          if (discontinuity || backwards || sourceReplaced || contextChanged) {
+            showPlan = null
+            transition = null
+            pendingTransition = null
+          }
+          if (enteredPause) {
+            transition = null
+            pendingTransition = null
+          }
+
+          const structure = resolveInterlockShowPlannerStructure(frame, config)
+          showPlan = planCinema2InterlockShow(config, structure, randomAdapter, showPlan)
+          // Choreography strength already applies Master Reactivity before values reach runtime targets.
+          const master = config.autoPerformance ? 1 : 0
+          const vocalReduction = 1 - config.vocalRestraint * config.vocalPresence * master * 0.48
+          const triggerAccent = resolveInterlockTriggerAccent(config)
+          const bass = Math.max(config.subEnergy, config.bassEnergy)
+          renderSegmentPattern = showPlan.segmentProgram
+          const highAirShimmer = Math.max(config.highEnergy, config.airEnergy) * config.highShimmer * master
+          renderLedIntensity = clamp01(config.ledIntensity * (0.72 + config.directorIntensity * master * 0.34 + triggerAccent * config.transientPulse * master * 0.28 + highAirShimmer * 0.08) * vocalReduction)
+          renderLitDensity = clamp(config.litDensity * showPlan.densityScale * vocalReduction, 0.05, 1)
+          renderSegmentSpeed = clamp01(config.segmentSpeed * (0.76 + config.directorMomentum * master * 0.58 + config.directorBuild * config.buildTension * master * 0.22))
+          renderSegmentEnergy = clamp01(config.segmentEnergy + config.overallEnergy * config.segmentReactivity * master * 0.52 + bass * config.segmentReactivity * master * 0.28 + highAirShimmer * 0.10)
+          renderSegmentImpact = clamp01(Math.max(config.segmentImpact, triggerAccent * config.transientPulse * master, config.directorImpact * master * 0.55))
+          const snareDirection = config.snareAccent > 0.05 ? (((finiteBeatIndex(frame) ?? 0) % 2 === 0) ? 0.36 : -0.36) * config.snareAccent : 0
+          renderSegmentDirectionBias = clamp(config.segmentDirectionBias + showPlan.segmentDirectionBias + snareDirection, -1, 1)
+          renderSegmentBankPhase = fract(config.segmentBankPhase + showPlan.bankStagger + config.barAccent * 0.18 + config.snareAccent * 0.11)
+          reactiveRotationAmount = clamp01(config.rotationAmount * (0.72 + bass * config.bassRotation * master * 0.42 + config.kickAccent * config.bassRotation * master * 0.18 + config.directorBuild * config.buildTension * master * 0.18))
+          segmentPhase = resolveCinema2InterlockSegmentClockPhase(clock, renderSegmentSpeed)
           const resized = lastViewportKey != null && lastViewportKey !== nextViewportKey
           const reanchored = lastReanchorGeneration != null && clock.reanchorGeneration !== lastReanchorGeneration
 
@@ -335,21 +503,24 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
             pendingTransition = Object.freeze({
               targetPatternId: pendingTransition.targetPatternId,
               startBeat: nextCinema2InterlockBeatBoundary(clock.canonicalBeatPosition),
+              durationBeats: pendingTransition.durationBeats,
             })
           }
 
+          const desiredPattern = showPlan.layoutId
+          const currentGoal = pendingTransition?.targetPatternId ?? transition?.targetPatternId ?? activePattern
           if (lastViewportKey == null || currentGeometry.size === 0 || resized) {
-            rebuildSettledLayout(viewport, config.pattern)
+            rebuildSettledLayout(viewport, desiredPattern)
             pendingTransition = null
-          } else if (config.pattern !== previousConfig.pattern) {
-            requestPatternTransition(viewport, config.pattern, clock.syncEnabled, clock.canonicalBeatPosition)
+          } else if (!paused && (desiredPattern !== currentGoal || (!config.autoPerformance && config.pattern !== previousConfig.pattern))) {
+            requestPatternTransition(viewport, desiredPattern, clock.syncEnabled, clock.canonicalBeatPosition, showPlan.transitionBeats)
           }
 
           if (pendingTransition && (
             !clock.syncEnabled
             || clock.canonicalBeatPosition + 1e-6 >= pendingTransition.startBeat
           )) {
-            beginPatternTransition(viewport, pendingTransition.targetPatternId)
+            beginPatternTransition(viewport, pendingTransition.targetPatternId, pendingTransition.durationBeats)
           }
 
           if (transition) {
@@ -358,7 +529,7 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
                 const deltaBeats = lastMotionBeatPosition == null || reanchored
                   ? 0
                   : Math.max(0, clock.motionBeatPosition - lastMotionBeatPosition)
-                transition.progress += deltaBeats / 2
+                transition.progress += deltaBeats / Math.max(0.5, transition.durationBeats)
               } else {
                 transition.progress += Math.max(0, finite(frame.deltaTimeSec, 0)) / config.morphDurationSec
               }
@@ -367,7 +538,7 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
             const next = transition.states.map((state, index) => resolveTransitionFixture(
               state,
               progress,
-              config.rotationAmount,
+              reactiveRotationAmount,
               config.symmetry,
               index,
             ))
@@ -387,6 +558,11 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           lastViewportKey = nextViewportKey
           lastMotionBeatPosition = clock.motionBeatPosition
           lastReanchorGeneration = clock.reanchorGeneration
+          lastTrackId = frame.transport?.trackId
+          lastSourceId = currentSourceId
+          lastPaused = paused
+          lastTimeSec = currentTimeSec
+          lastContextGeneration = frame.contextGeneration
         },
         dispose() {
           disposed = true
@@ -394,6 +570,7 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           pendingTransition = null
           currentGeometry.clear()
           renderFixtures = Object.freeze([])
+          showPlan = null
           clockResolver.reset()
         },
       },
@@ -487,8 +664,129 @@ function readFrameConfig(
     segmentDirectionBias: clamp(numberValue(source.parameters.get('segmentDirectionBias'), DEFAULT_SEGMENT_DIRECTION_BIAS), -1, 1),
     segmentBankPhase: clamp01(numberValue(source.parameters.get('segmentBankPhase'), DEFAULT_SEGMENT_BANK_PHASE)),
     effectsIntensity: clamp01(numberValue(source.parameters.get('effectsIntensity'), DEFAULT_EFFECTS_INTENSITY)),
+    autoPerformance: booleanValue(source.parameters.get('autoPerformance'), DEFAULT_AUTO_PERFORMANCE),
+    patternChange: isPatternChange(source.parameters.get('patternChange')) ? source.parameters.get('patternChange') as Cinema2InterlockPatternChangeId : 'phrase',
+    masterReactivity: clamp01(numberValue(source.parameters.get('masterReactivity'), DEFAULT_MASTER_REACTIVITY)),
+    bassRotation: clamp01(numberValue(source.parameters.get('bassRotation'), DEFAULT_BASS_ROTATION)),
+    segmentReactivity: clamp01(numberValue(source.parameters.get('segmentReactivity'), DEFAULT_SEGMENT_REACTIVITY)),
+    transientPulse: clamp01(numberValue(source.parameters.get('transientPulse'), DEFAULT_TRANSIENT_PULSE)),
+    highShimmer: clamp01(numberValue(source.parameters.get('highShimmer'), DEFAULT_HIGH_SHIMMER)),
+    buildTension: clamp01(numberValue(source.parameters.get('buildTension'), DEFAULT_BUILD_TENSION)),
+    vocalRestraint: clamp01(numberValue(source.parameters.get('vocalRestraint'), DEFAULT_VOCAL_RESTRAINT)),
+    trigger: isTrigger(source.parameters.get('trigger')) ? source.parameters.get('trigger') as Cinema2InterlockTriggerId : 'auto',
+    directorIntensity: clamp01(numberValue(source.parameters.get('directorIntensity'), 0)),
+    directorMomentum: clamp01(numberValue(source.parameters.get('directorMomentum'), 0)),
+    directorBuild: clamp01(numberValue(source.parameters.get('directorBuild'), 0)),
+    directorImpact: clamp01(numberValue(source.parameters.get('directorImpact'), 0)),
+    directorVariation: clamp01(numberValue(source.parameters.get('directorVariation'), 0)),
+    subEnergy: clamp01(numberValue(source.parameters.get('subEnergy'), 0)),
+    bassEnergy: clamp01(numberValue(source.parameters.get('bassEnergy'), 0)),
+    overallEnergy: clamp01(numberValue(source.parameters.get('overallEnergy'), 0)),
+    spectralFlux: clamp01(numberValue(source.parameters.get('spectralFlux'), 0)),
+    highEnergy: clamp01(numberValue(source.parameters.get('highEnergy'), 0)),
+    airEnergy: clamp01(numberValue(source.parameters.get('airEnergy'), 0)),
+    vocalPresence: clamp01(numberValue(source.parameters.get('vocalPresence'), 0)),
+    kickAccent: clamp01(numberValue(source.parameters.get('kickAccent'), 0)),
+    snareAccent: clamp01(numberValue(source.parameters.get('snareAccent'), 0)),
+    downbeatAccent: clamp01(numberValue(source.parameters.get('downbeatAccent'), 0)),
+    barAccent: clamp01(numberValue(source.parameters.get('barAccent'), 0)),
+    phraseAccent: clamp01(numberValue(source.parameters.get('phraseAccent'), 0)),
+    sectionAccent: clamp01(numberValue(source.parameters.get('sectionAccent'), 0)),
+    dropAccent: clamp01(numberValue(source.parameters.get('dropAccent'), 0)),
   })
 }
+
+function createInterlockRandomAdapter(context: Cinema2ModuleCreateContext): Cinema2InterlockRandomSource {
+  return Object.freeze({
+    sample(purpose: string, eventId: string, index = 0) {
+      return context.randomness.sample(`${purpose}:${eventId}`, index, 'show-planner')
+    },
+  })
+}
+
+function resolveInterlockShowPlannerStructure(
+  frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
+  config: Readonly<FrameConfig>,
+): Readonly<Cinema2InterlockShowPlannerStructure> {
+  const audio = frame.audio
+  const timeSec = audio?.upstream.timeSec ?? frame.transport?.timeSec ?? frame.elapsedTimeSec
+  const phrases = audio?.structure.analyzedPhrases.available && audio.structure.analyzedPhrases.value ? audio.structure.analyzedPhrases.value : Object.freeze([])
+  const drops = audio?.structure.semanticMoments.available && audio.structure.semanticMoments.value
+    ? audio.structure.semanticMoments.value.filter(moment => moment.type === 'drop' || moment.type === 'drop_impact')
+    : Object.freeze([])
+  const beatIndex = finiteBeatIndex(frame)
+  const routedDropEvent = config.dropAccent > 0.05
+  const routedDropIdentity = routedDropEvent
+    ? latestStructuralIdentity(drops, timeSec)
+      ?? frame.director?.context.transition.eventId
+      ?? `${frame.transport?.trackId ?? 'source'}:drop:${beatIndex ?? frame.frameId}`
+    : null
+  const canonicalPerformanceAvailable = audio != null && frame.transport?.sourcePresent !== false
+  return Object.freeze({
+    sourceIdentity: frame.transport?.trackId ?? audio?.upstream.trackId ?? audio?.upstream.sourceId ?? 'no-source',
+    absoluteBeatIndex: beatIndex,
+    phraseIdentity: latestStructuralIdentity(phrases, timeSec),
+    sectionIdentity: frame.director?.context.section.available ? frame.director.context.section.value?.id ?? null : null,
+    dropIdentity: routedDropIdentity,
+    phase: frame.director?.phase.available && frame.director.phase.value ? frame.director.phase.value : 'low',
+    performance: config.autoPerformance && canonicalPerformanceAvailable ? Object.freeze({
+      intensity: config.directorIntensity,
+      momentum: config.directorMomentum,
+      build: config.directorBuild,
+      impact: config.directorImpact,
+      variation: config.directorVariation,
+      bass: Math.max(config.subEnergy, config.bassEnergy),
+      energy: config.overallEnergy,
+      flux: config.spectralFlux,
+      highAir: Math.max(config.highEnergy, config.airEnergy) * config.highShimmer,
+      vocalPresence: config.vocalPresence,
+      kickAccent: config.kickAccent,
+      snareAccent: config.snareAccent,
+      downbeatAccent: config.downbeatAccent,
+      barAccent: config.barAccent,
+      phraseAccent: config.phraseAccent,
+      sectionAccent: config.sectionAccent,
+      dropAccent: config.dropAccent,
+    }) : undefined,
+  })
+}
+
+function latestStructuralIdentity(items: readonly Readonly<{ id: string; timeSec: number }>[], timeSec: number): string | null {
+  let latest: Readonly<{ id: string; timeSec: number }> | null = null
+  for (const item of items) {
+    if (!Number.isFinite(item.timeSec) || item.timeSec > timeSec + 1e-6) continue
+    if (!latest || item.timeSec > latest.timeSec || (item.timeSec === latest.timeSec && item.id > latest.id)) latest = item
+  }
+  return latest?.id ?? null
+}
+
+function finiteBeatIndex(frame: Readonly<Cinema2ModuleUpdateContext['frame']>): number | null {
+  const value = frame.audio?.rhythm.beatIndex.available ? frame.audio.rhythm.beatIndex.value : null
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : null
+}
+
+function resolveInterlockTriggerAccent(config: Readonly<FrameConfig>): number {
+  switch (config.trigger) {
+    case 'beat': return Math.max(config.kickAccent, config.snareAccent, config.downbeatAccent * 0.7)
+    case 'kick': return config.kickAccent
+    case 'snare': return config.snareAccent
+    case 'downbeat': return config.downbeatAccent
+    case 'bar': return config.barAccent
+    case 'phrase': return config.phraseAccent
+    case 'auto':
+    default: return Math.max(config.kickAccent, config.snareAccent * 0.9, config.downbeatAccent, config.phraseAccent * 0.65, config.dropAccent)
+  }
+}
+
+function isPatternChange(value: unknown): value is Cinema2InterlockPatternChangeId {
+  return typeof value === 'string' && (CINEMA2_INTERLOCK_PATTERN_CHANGE_IDS as readonly string[]).includes(value)
+}
+
+function isTrigger(value: unknown): value is Cinema2InterlockTriggerId {
+  return typeof value === 'string' && (CINEMA2_INTERLOCK_TRIGGER_IDS as readonly string[]).includes(value)
+}
+
+function fract(value: number): number { return value - Math.floor(value) }
 
 function normalizeViewport(frame: Readonly<Cinema2ModuleFrameReadContext>): Cinema2InterlockViewport {
   return Object.freeze({
@@ -576,4 +874,33 @@ export const CINEMA2_INTERLOCK_NATIVE_DEFAULTS = Object.freeze({
   segmentDirectionBias: DEFAULT_SEGMENT_DIRECTION_BIAS,
   segmentBankPhase: DEFAULT_SEGMENT_BANK_PHASE,
   effectsIntensity: DEFAULT_EFFECTS_INTENSITY,
+  autoPerformance: DEFAULT_AUTO_PERFORMANCE,
+  patternChange: 'phrase' as Cinema2InterlockPatternChangeId,
+  masterReactivity: DEFAULT_MASTER_REACTIVITY,
+  bassRotation: DEFAULT_BASS_ROTATION,
+  segmentReactivity: DEFAULT_SEGMENT_REACTIVITY,
+  transientPulse: DEFAULT_TRANSIENT_PULSE,
+  highShimmer: DEFAULT_HIGH_SHIMMER,
+  buildTension: DEFAULT_BUILD_TENSION,
+  vocalRestraint: DEFAULT_VOCAL_RESTRAINT,
+  trigger: 'auto' as Cinema2InterlockTriggerId,
+  directorIntensity: 0,
+  directorMomentum: 0,
+  directorBuild: 0,
+  directorImpact: 0,
+  directorVariation: 0,
+  subEnergy: 0,
+  bassEnergy: 0,
+  overallEnergy: 0,
+  spectralFlux: 0,
+  highEnergy: 0,
+  airEnergy: 0,
+  vocalPresence: 0,
+  kickAccent: 0,
+  snareAccent: 0,
+  downbeatAccent: 0,
+  barAccent: 0,
+  phraseAccent: 0,
+  sectionAccent: 0,
+  dropAccent: 0,
 })
