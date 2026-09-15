@@ -32,6 +32,17 @@ const BASE_PARAMETERS: Record<string, Cinema2JsonValue> = {
   rotationAmount: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.rotationAmount,
   morphDuration: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.morphDuration,
   symmetry: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.symmetry,
+  segmentPattern: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentPattern,
+  litDensity: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.litDensity,
+  segmentSpeed: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentSpeed,
+  segmentFade: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentFade,
+  segmentAfterglow: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentAfterglow,
+  unlitVisibility: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.unlitVisibility,
+  mirrorSegmentDirection: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.mirrorSegmentDirection,
+  segmentEnergy: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentEnergy,
+  segmentImpact: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentImpact,
+  segmentDirectionBias: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentDirectionBias,
+  segmentBankPhase: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentBankPhase,
 }
 
 class TestResources implements Cinema2ModuleResourceFacet {
@@ -64,7 +75,10 @@ class TestResources implements Cinema2ModuleResourceFacet {
 function createHarness(overrides: Partial<Record<string, Cinema2JsonValue>> = {}) {
   const gl = createCinemaMockWebGL()
   gl.getUniformLocation = vi.fn((_program: WebGLProgram, name: string) => ({ name } as unknown as WebGLUniformLocation))
-  const parameters: Record<string, Cinema2JsonValue> = { ...BASE_PARAMETERS, ...overrides }
+  const parameters: Record<string, Cinema2JsonValue> = { ...BASE_PARAMETERS }
+  for (const [name, value] of Object.entries(overrides)) {
+    if (value !== undefined) parameters[name] = value
+  }
   const module: Cinema2ModuleManifest = {
     id: MODULE_ID,
     typeId: CINEMA2_INTERLOCK_NATIVE_MODULE_TYPE_ID,
@@ -164,7 +178,13 @@ function shaderSources(gl: CinemaMockWebGL): readonly string[] {
 function lastUniformFloat(gl: CinemaMockWebGL, name: string): number | undefined {
   const calls = (gl.uniform1f as unknown as { mock: { calls: unknown[][] } }).mock.calls
     .filter(call => (call[0] as { name?: string } | null)?.name === name)
-  return calls.at(-1)?.[1] as number | undefined
+  return calls.length > 0 ? calls[calls.length - 1]?.[1] as number | undefined : undefined
+}
+
+function lastUniformInt(gl: CinemaMockWebGL, name: string): number | undefined {
+  const calls = (gl.uniform1i as unknown as { mock: { calls: unknown[][] } }).mock.calls
+    .filter(call => (call[0] as { name?: string } | null)?.name === name)
+  return calls.length > 0 ? calls[calls.length - 1]?.[1] as number | undefined : undefined
 }
 
 function lastUniformColor(gl: CinemaMockWebGL, name: string): readonly number[] | undefined {
@@ -190,7 +210,7 @@ function finishTransition(
 }
 
 describe('Cinema 2.0 Interlock native LED renderer', () => {
-  it('validates its exact Stage 2 module contract and rejects malformed or placeholder configuration', () => {
+  it('validates its exact segmented module contract and rejects malformed or placeholder configuration', () => {
     const valid: Cinema2ModuleManifest = {
       id: MODULE_ID,
       typeId: CINEMA2_INTERLOCK_NATIVE_MODULE_TYPE_ID,
@@ -200,11 +220,13 @@ describe('Cinema 2.0 Interlock native LED renderer', () => {
     expect(cinema2InterlockNativeModuleDefinition.validate?.(valid)).toEqual([])
     expect(cinema2InterlockNativeModuleDefinition.validate?.({
       ...valid,
-      parameters: { ...BASE_PARAMETERS, ledIntensity: 2, futureSegmentControl: 1 },
+      parameters: { ...BASE_PARAMETERS, ledIntensity: 2, segmentPattern: 'nope', litDensity: 4, futureSegmentControl: 1 },
       config: { placeholder: true },
     })).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'CINEMA2_INTERLOCK_NORMALIZED_PARAMETER_INVALID' }),
       expect.objectContaining({ code: 'CINEMA2_INTERLOCK_MODULE_PARAMETER_UNKNOWN' }),
+      expect.objectContaining({ code: 'CINEMA2_INTERLOCK_SEGMENT_PATTERN_INVALID' }),
+      expect.objectContaining({ code: 'CINEMA2_INTERLOCK_SEGMENT_PARAMETER_INVALID' }),
       expect.objectContaining({ code: 'CINEMA2_INTERLOCK_MODULE_CONFIG_UNSUPPORTED' }),
     ]))
   })
@@ -218,10 +240,12 @@ describe('Cinema 2.0 Interlock native LED renderer', () => {
     const sources = shaderSources(harness.gl)
     const fragment = sources.find(source => source.includes('roundedBoxSdf')) ?? ''
     expect(fragment).toContain('float roundedBoxSdf')
+    expect(fragment).toContain('segmentProgramMask')
+    expect(fragment).toContain('float cellShape')
     expect(fragment).toContain('vec3 coreColor')
     expect(fragment).toContain('outColor = vec4(rgb * alpha, alpha);')
     expect(lastInstanceCount(harness.gl)).toBe(CINEMA2_INTERLOCK_FIXTURE_COUNT)
-    expect(lastUploadedInstances(harness.gl)).toHaveLength(CINEMA2_INTERLOCK_FIXTURE_COUNT * 7)
+    expect(lastUploadedInstances(harness.gl)).toHaveLength(CINEMA2_INTERLOCK_FIXTURE_COUNT * 11)
     expect(harness.gl.__calls.createdPrograms).toBe(1)
     expect(harness.gl.__calls.createdBuffers).toBe(2)
     expect(harness.gl.__calls.createdVertexArrays).toBe(1)
@@ -230,6 +254,9 @@ describe('Cinema 2.0 Interlock native LED renderer', () => {
     expect(harness.gl.blendFunc).toHaveBeenCalledWith(harness.gl.ONE, harness.gl.ONE_MINUS_SRC_ALPHA)
     expect(lastUniformFloat(harness.gl, 'uLedIntensity')).toBeCloseTo(0.78)
     expect(lastUniformColor(harness.gl, 'uLedColor')).toEqual([0.94, 0.98, 1, 1])
+    expect(lastUniformInt(harness.gl, 'uSegmentProgram')).toBe(3)
+    expect(lastUniformFloat(harness.gl, 'uLitDensity')).toBeCloseTo(0.65)
+    expect(lastUniformFloat(harness.gl, 'uUnlitVisibility')).toBeCloseTo(0.045)
 
     harness.instance.lifecycle.dispose()
     harness.resources.disposeAll()
@@ -344,6 +371,91 @@ describe('Cinema 2.0 Interlock native LED renderer', () => {
     expect(harness.resources.getSnapshot().activeLeaseCount).toBe(1)
     expect(harness.gl.__calls.createdPrograms).toBe(1)
     expect(harness.gl.__calls.drawInstancedCount).toBe(2)
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
+  it('switches all nine segment programs live while preserving one bounded 28-instance GPU pipeline', () => {
+    const harness = createHarness()
+    let timeSec = 0
+    const fingerprints = new Set<number>()
+    const programs = ['solid', 'forwardChase', 'reverseChase', 'centerOut', 'edgeIn', 'alternating', 'audioMeterFill', 'bankRipple', 'impactBurst'] as const
+    for (const [index, program] of programs.entries()) {
+      harness.parameters.segmentPattern = program
+      const current = frame({ timeSec, deltaTimeSec: index === 0 ? 0 : 0.25, frameId: index + 1 })
+      update(harness, current)
+      execute(harness, current)
+      fingerprints.add(lastUniformInt(harness.gl, 'uSegmentProgram') ?? -1)
+      expect(lastInstanceCount(harness.gl)).toBe(CINEMA2_INTERLOCK_FIXTURE_COUNT)
+      expect(harness.resources.getSnapshot().activeLeaseCount).toBe(1)
+      timeSec += 0.25
+    }
+    expect(fingerprints.size).toBe(9)
+    expect(harness.gl.__calls.createdPrograms).toBe(1)
+    expect(harness.gl.__calls.createdBuffers).toBe(2)
+    expect(harness.gl.__calls.createdVertexArrays).toBe(1)
+    expect(harness.gl.__calls.drawInstancedCount).toBe(9)
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
+  it('freezes deterministic segment phase while paused and resumes without a phase jump', () => {
+    const harness = createHarness({ segmentPattern: 'forwardChase', segmentSpeed: 0.5 })
+    const playing = frame({ timeSec: 1, deltaTimeSec: 1 })
+    update(harness, playing)
+    execute(harness, playing)
+    const beforePause = lastUniformFloat(harness.gl, 'uSegmentPhase')
+
+    const pausedTransport = {
+      sourcePresent: true,
+      playing: false,
+      analysisActive: true,
+      paused: true,
+      animationActive: false,
+      trackId: 'track-a',
+      timeSec: 5,
+    }
+    const paused = frame({ timeSec: 5, deltaTimeSec: 4, transport: pausedTransport, frameId: 2 })
+    update(harness, paused)
+    execute(harness, paused)
+    expect(lastUniformFloat(harness.gl, 'uSegmentPhase')).toBe(beforePause)
+
+    const resumed = frame({ timeSec: 5.25, deltaTimeSec: 0.25, frameId: 3 })
+    update(harness, resumed)
+    execute(harness, resumed)
+    expect(lastUniformFloat(harness.gl, 'uSegmentPhase')).not.toBe(beforePause)
+    expect(harness.gl.__calls.createdPrograms).toBe(1)
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
+  it('uses stable 24/32/48 cell metadata and mirrors segment direction without altering geometry', () => {
+    const harness = createHarness({ mirrorSegmentDirection: true })
+    const current = frame({ timeSec: 0 })
+    update(harness, current)
+    execute(harness, current)
+    const mirrored = lastUploadedInstances(harness.gl)
+    const cells = new Set<number>()
+    const directions = new Set<number>()
+    for (let index = 0; index < CINEMA2_INTERLOCK_FIXTURE_COUNT; index += 1) {
+      cells.add(mirrored[index * 11 + 7]!)
+      directions.add(mirrored[index * 11 + 8]!)
+    }
+    expect([...cells].sort((a, b) => a - b)).toEqual([24, 32, 48])
+    expect([...directions].sort()).toEqual([-1, 1])
+
+    harness.parameters.mirrorSegmentDirection = false
+    update(harness, frame({ timeSec: 0.1, frameId: 2 }))
+    execute(harness, frame({ timeSec: 0.1, frameId: 2 }))
+    const synchronized = lastUploadedInstances(harness.gl)
+    for (let index = 0; index < CINEMA2_INTERLOCK_FIXTURE_COUNT; index += 1) {
+      expect(synchronized[index * 11 + 8]).toBe(1)
+      expect(synchronized[index * 11]).toBeCloseTo(mirrored[index * 11]!, 5)
+      expect(synchronized[index * 11 + 1]).toBeCloseTo(mirrored[index * 11 + 1]!, 5)
+    }
 
     harness.instance.lifecycle.dispose()
     harness.resources.disposeAll()

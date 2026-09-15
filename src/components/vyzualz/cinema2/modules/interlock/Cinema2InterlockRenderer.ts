@@ -4,12 +4,20 @@ import {
   CINEMA2_INTERLOCK_FIXTURE_COUNT,
   type Cinema2InterlockResolvedFixtureGeometry,
 } from './Cinema2InterlockDomain'
+import {
+  getCinema2InterlockSegmentProgramIndex,
+  type Cinema2InterlockSegmentProgramId,
+} from './Cinema2InterlockSegments'
 
 export const CINEMA2_INTERLOCK_MAX_RENDER_INSTANCES = CINEMA2_INTERLOCK_FIXTURE_COUNT
 
 export interface Cinema2InterlockRenderFixture {
   readonly fixtureId: string
   readonly geometry: Readonly<Cinema2InterlockResolvedFixtureGeometry>
+  readonly cellCount: number
+  readonly segmentDirection: 1 | -1
+  readonly bankIndex: number
+  readonly fixtureOrder: number
 }
 
 export interface Cinema2InterlockRendererDrawRequest {
@@ -18,6 +26,16 @@ export interface Cinema2InterlockRendererDrawRequest {
   readonly height: number
   readonly ledColor: Cinema2Color
   readonly ledIntensity: number
+  readonly segmentProgram: Cinema2InterlockSegmentProgramId
+  readonly segmentPhase: number
+  readonly litDensity: number
+  readonly segmentFade: number
+  readonly segmentAfterglow: number
+  readonly unlitVisibility: number
+  readonly segmentEnergy: number
+  readonly segmentImpact: number
+  readonly segmentDirectionBias: number
+  readonly segmentBankPhase: number
 }
 
 export interface Cinema2InterlockRendererSnapshot {
@@ -25,9 +43,10 @@ export interface Cinema2InterlockRendererSnapshot {
   readonly drawCount: number
   readonly lastInstanceCount: number
   readonly bufferUploadCount: number
+  readonly instanceFloats: number
 }
 
-const INSTANCE_FLOATS = 7
+const INSTANCE_FLOATS = 11
 const INSTANCE_STRIDE_BYTES = INSTANCE_FLOATS * Float32Array.BYTES_PER_ELEMENT
 const BASE_VERTICES = new Float32Array([
   -1, -1,
@@ -42,9 +61,11 @@ layout(location = 0) in vec2 aCorner;
 layout(location = 1) in vec2 aMidpointPx;
 layout(location = 2) in vec2 aAxis;
 layout(location = 3) in vec3 aDimensions;
+layout(location = 4) in vec4 aSegmentMeta;
 uniform vec2 uViewportPx;
 out vec2 vLocalPx;
 out vec2 vHalfSizePx;
+flat out vec4 vSegmentMeta;
 void main() {
   float halfLength = max(aDimensions.x, 0.0001);
   float halfThickness = max(aDimensions.y, 0.0001);
@@ -61,19 +82,97 @@ void main() {
   gl_Position = vec4(ndc, 0.0, 1.0);
   vLocalPx = local;
   vHalfSizePx = vec2(halfLength, halfThickness);
+  vSegmentMeta = aSegmentMeta;
 }`
 
 const FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 in vec2 vLocalPx;
 in vec2 vHalfSizePx;
+flat in vec4 vSegmentMeta;
 uniform vec4 uLedColor;
 uniform float uLedIntensity;
+uniform int uSegmentProgram;
+uniform float uSegmentPhase;
+uniform float uLitDensity;
+uniform float uSegmentFade;
+uniform float uSegmentAfterglow;
+uniform float uUnlitVisibility;
+uniform float uSegmentEnergy;
+uniform float uSegmentImpact;
+uniform float uSegmentDirectionBias;
+uniform float uSegmentBankPhase;
 out vec4 outColor;
 
 float roundedBoxSdf(vec2 pointPx, vec2 halfSizePx, float radiusPx) {
   vec2 q = abs(pointPx) - max(halfSizePx - vec2(radiusPx), vec2(0.0));
   return length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - radiusPx;
+}
+
+float saturate(float value) { return clamp(value, 0.0, 1.0); }
+float wrap01(float value) { return fract(value + 4.0); }
+float chaseMask(float position, float phase, float density, float fade, float afterglow, float direction) {
+  float head = direction > 0.0 ? phase : wrap01(1.0 - phase);
+  float behind = direction > 0.0 ? wrap01(head - position) : wrap01(position - head);
+  float coreWidth = 0.035 + density * 0.36;
+  float softness = 0.01 + fade * 0.12;
+  float core = 1.0 - smoothstep(coreWidth, coreWidth + softness, behind);
+  float tailWidth = coreWidth + 0.03 + afterglow * 0.5;
+  float tail = (1.0 - smoothstep(coreWidth, tailWidth, behind)) * afterglow * 0.72;
+  return saturate(max(core, tail));
+}
+
+float movingFrontMask(float position, float phase, float density, float fade, float afterglow) {
+  float distanceToFront = abs(position - phase);
+  float width = 0.025 + density * 0.19;
+  float softness = 0.01 + fade * 0.11;
+  float core = 1.0 - smoothstep(width, width + softness, distanceToFront);
+  float trailing = position <= phase
+    ? (1.0 - smoothstep(width, width + 0.05 + afterglow * 0.45, distanceToFront)) * afterglow * 0.65
+    : 0.0;
+  return saturate(max(core, trailing));
+}
+
+float thresholdMask(float position, float threshold, float fade) {
+  float softness = 0.005 + fade * 0.06;
+  return 1.0 - smoothstep(threshold, threshold + softness, position);
+}
+
+float segmentProgramMask(float position, float cellIndex, float cellCount) {
+  float phase = wrap01(uSegmentPhase);
+  float density = clamp(uLitDensity, 0.05, 1.0);
+  float fade = saturate(uSegmentFade);
+  float afterglow = saturate(uSegmentAfterglow);
+  float direction = vSegmentMeta.y < 0.0 ? -1.0 : 1.0;
+  float directed = direction < 0.0 ? 1.0 - position : position;
+  directed = wrap01(directed + clamp(uSegmentDirectionBias, -1.0, 1.0) * 0.125);
+
+  if (uSegmentProgram == 0) return 1.0;
+  if (uSegmentProgram == 1) return chaseMask(directed, phase, density, fade, afterglow, 1.0);
+  if (uSegmentProgram == 2) return chaseMask(directed, phase, density, fade, afterglow, -1.0);
+  if (uSegmentProgram == 3) return movingFrontMask(abs(directed - 0.5) * 2.0, phase, density, fade, afterglow);
+  if (uSegmentProgram == 4) return movingFrontMask(min(directed, 1.0 - directed) * 2.0, phase, density, fade, afterglow);
+  if (uSegmentProgram == 5) {
+    float parity = mod(cellIndex, 2.0);
+    float activeParity = phase < 0.5 ? 0.0 : 1.0;
+    float transition = min(abs(phase - 0.5), min(abs(phase), abs(1.0 - phase)));
+    float edge = 0.08 + fade * 0.17;
+    float parityLevel = abs(parity - activeParity) < 0.25 ? 1.0 : 1.0 - smoothstep(0.0, edge, transition);
+    return saturate(parityLevel * (0.45 + density * 0.55));
+  }
+  if (uSegmentProgram == 6) {
+    float threshold = saturate(saturate(uSegmentEnergy) * (0.35 + density * 0.65));
+    return thresholdMask(directed, threshold, fade);
+  }
+  if (uSegmentProgram == 7) {
+    float bankOffset = vSegmentMeta.z * 0.17 + vSegmentMeta.w * 0.11 + wrap01(uSegmentBankPhase);
+    return chaseMask(directed, wrap01(phase - bankOffset), density, fade, afterglow, 1.0);
+  }
+  float radial = abs(directed - 0.5) * 2.0;
+  float burstPhase = wrap01(phase * 0.72);
+  float wave = movingFrontMask(radial, burstPhase, max(0.18, density * 0.72), fade, afterglow);
+  float envelope = 0.28 + saturate(uSegmentImpact) * 0.72;
+  return saturate(wave * envelope);
 }
 
 void main() {
@@ -84,25 +183,38 @@ void main() {
   float distancePx = roundedBoxSdf(vLocalPx, vHalfSizePx, radius);
   float aa = max(fwidth(distancePx), 0.75);
   float body = 1.0 - smoothstep(-aa, aa, distancePx);
-  float innerDistance = roundedBoxSdf(vLocalPx, vHalfSizePx * vec2(0.985, 0.62), max(0.5, radius * 0.58));
-  float core = 1.0 - smoothstep(-aa, aa * 1.5, innerDistance);
-  float glowRadius = max(vHalfSizePx.y * 2.75, 4.0);
-  float glow = exp(-max(distancePx, 0.0) / glowRadius) * (1.0 - body) * 0.24;
 
-  float alpha = clamp((body * 0.93 + glow) * intensity * clamp(uLedColor.a, 0.0, 1.0), 0.0, 1.0);
+  float cellCount = max(1.0, floor(vSegmentMeta.x + 0.5));
+  float normalizedX = clamp(vLocalPx.x / max(vHalfSizePx.x * 2.0, 0.0001) + 0.5, 0.0, 0.999999);
+  float cellCoordinate = normalizedX * cellCount;
+  float cellIndex = floor(cellCoordinate);
+  float cellLocal = fract(cellCoordinate) - 0.5;
+  float cellEdgeAa = max(fwidth(cellCoordinate), 0.015);
+  float cellShape = 1.0 - smoothstep(0.39 - cellEdgeAa, 0.48 + cellEdgeAa, abs(cellLocal));
+  float segmentedBody = body * cellShape;
+
+  float pattern = segmentProgramMask((cellIndex + 0.5) / cellCount, cellIndex, cellCount);
+  float cellIntensity = mix(clamp(uUnlitVisibility, 0.0, 0.15), 1.0, pattern);
+
+  float innerDistance = roundedBoxSdf(vLocalPx, vHalfSizePx * vec2(0.985, 0.62), max(0.5, radius * 0.58));
+  float core = (1.0 - smoothstep(-aa, aa * 1.5, innerDistance)) * cellShape;
+  float glowRadius = max(vHalfSizePx.y * 2.75, 4.0);
+  float glow = exp(-max(distancePx, 0.0) / glowRadius) * (1.0 - body) * 0.16 * cellIntensity;
+
+  float alpha = clamp((segmentedBody * (0.72 + cellIntensity * 0.25) + glow) * intensity * clamp(uLedColor.a, 0.0, 1.0), 0.0, 1.0);
   if (alpha <= 0.001) discard;
 
   vec3 authored = clamp(uLedColor.rgb, vec3(0.0), vec3(1.0));
-  vec3 coreColor = mix(authored, vec3(1.0), core * 0.72);
-  float brightness = intensity * (0.58 + body * 0.62 + core * 0.72 + glow * 0.55);
+  vec3 coreColor = mix(authored, vec3(1.0), core * (0.35 + cellIntensity * 0.45));
+  float brightness = intensity * cellIntensity * (0.82 + segmentedBody * 0.58 + core * 0.62 + glow * 0.45);
   vec3 rgb = coreColor * brightness;
   outColor = vec4(rgb * alpha, alpha);
 }`
 
 /**
- * Screen-space GPU renderer for Interlock's rigid LED fixtures. Geometry,
- * transition policy, persisted settings and frame scheduling remain outside
- * this class; it owns only one shared program/VAO/buffer set and drawing.
+ * One shared screen-space GPU renderer for all 28 fixtures. Segmentation is
+ * evaluated analytically in the fragment shader, so cell count changes do not
+ * allocate scene nodes, buffers, programs, or draw calls per LED cell.
  */
 export class Cinema2InterlockRenderer {
   private readonly program: WebGLProgram
@@ -113,6 +225,16 @@ export class Cinema2InterlockRenderer {
   private readonly viewportLocation: WebGLUniformLocation | null
   private readonly ledColorLocation: WebGLUniformLocation | null
   private readonly ledIntensityLocation: WebGLUniformLocation | null
+  private readonly segmentProgramLocation: WebGLUniformLocation | null
+  private readonly segmentPhaseLocation: WebGLUniformLocation | null
+  private readonly litDensityLocation: WebGLUniformLocation | null
+  private readonly segmentFadeLocation: WebGLUniformLocation | null
+  private readonly segmentAfterglowLocation: WebGLUniformLocation | null
+  private readonly unlitVisibilityLocation: WebGLUniformLocation | null
+  private readonly segmentEnergyLocation: WebGLUniformLocation | null
+  private readonly segmentImpactLocation: WebGLUniformLocation | null
+  private readonly segmentDirectionBiasLocation: WebGLUniformLocation | null
+  private readonly segmentBankPhaseLocation: WebGLUniformLocation | null
   private disposed = false
   private drawCount = 0
   private lastInstanceCount = 0
@@ -139,6 +261,16 @@ export class Cinema2InterlockRenderer {
       this.viewportLocation = gl.getUniformLocation(this.program, 'uViewportPx')
       this.ledColorLocation = gl.getUniformLocation(this.program, 'uLedColor')
       this.ledIntensityLocation = gl.getUniformLocation(this.program, 'uLedIntensity')
+      this.segmentProgramLocation = gl.getUniformLocation(this.program, 'uSegmentProgram')
+      this.segmentPhaseLocation = gl.getUniformLocation(this.program, 'uSegmentPhase')
+      this.litDensityLocation = gl.getUniformLocation(this.program, 'uLitDensity')
+      this.segmentFadeLocation = gl.getUniformLocation(this.program, 'uSegmentFade')
+      this.segmentAfterglowLocation = gl.getUniformLocation(this.program, 'uSegmentAfterglow')
+      this.unlitVisibilityLocation = gl.getUniformLocation(this.program, 'uUnlitVisibility')
+      this.segmentEnergyLocation = gl.getUniformLocation(this.program, 'uSegmentEnergy')
+      this.segmentImpactLocation = gl.getUniformLocation(this.program, 'uSegmentImpact')
+      this.segmentDirectionBiasLocation = gl.getUniformLocation(this.program, 'uSegmentDirectionBias')
+      this.segmentBankPhaseLocation = gl.getUniformLocation(this.program, 'uSegmentBankPhase')
 
       gl.bindVertexArray(this.vao)
       gl.bindBuffer(gl.ARRAY_BUFFER, this.baseBuffer)
@@ -151,6 +283,7 @@ export class Cinema2InterlockRenderer {
       configureInstanceAttribute(gl, 1, 2, 0)
       configureInstanceAttribute(gl, 2, 2, 2)
       configureInstanceAttribute(gl, 3, 3, 4)
+      configureInstanceAttribute(gl, 4, 4, 7)
       gl.bindVertexArray(null)
 
       assertCinema2NoGlErrors(gl, 'Interlock LED renderer resource allocation')
@@ -171,10 +304,6 @@ export class Cinema2InterlockRenderer {
     this.lastInstanceCount = instanceCount
 
     const gl = this.gl
-    // The current production executor can fast-path a single normal layer
-    // directly into its engine-owned target without a pre-clear. Clear only
-    // this dedicated Interlock surface to transparent so pixels outside the
-    // finite fixtures are deterministic and remain compositable.
     gl.disable(gl.SCISSOR_TEST)
     gl.colorMask(true, true, true, true)
     gl.clearColor(0, 0, 0, 0)
@@ -190,6 +319,16 @@ export class Cinema2InterlockRenderer {
       clamp01(request.ledColor[3]),
     )
     gl.uniform1f(this.ledIntensityLocation, clamp01(request.ledIntensity))
+    gl.uniform1i(this.segmentProgramLocation, Math.max(0, getCinema2InterlockSegmentProgramIndex(request.segmentProgram)))
+    gl.uniform1f(this.segmentPhaseLocation, wrap01(request.segmentPhase))
+    gl.uniform1f(this.litDensityLocation, clamp(request.litDensity, 0.05, 1))
+    gl.uniform1f(this.segmentFadeLocation, clamp01(request.segmentFade))
+    gl.uniform1f(this.segmentAfterglowLocation, clamp01(request.segmentAfterglow))
+    gl.uniform1f(this.unlitVisibilityLocation, clamp(request.unlitVisibility, 0, 0.15))
+    gl.uniform1f(this.segmentEnergyLocation, clamp01(request.segmentEnergy))
+    gl.uniform1f(this.segmentImpactLocation, clamp01(request.segmentImpact))
+    gl.uniform1f(this.segmentDirectionBiasLocation, clamp(request.segmentDirectionBias, -1, 1))
+    gl.uniform1f(this.segmentBankPhaseLocation, wrap01(request.segmentBankPhase))
 
     gl.bindVertexArray(this.vao)
     gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer)
@@ -199,8 +338,6 @@ export class Cinema2InterlockRenderer {
     gl.disable(gl.DEPTH_TEST)
     gl.depthMask(false)
     gl.enable(gl.BLEND)
-    // Fragment output is premultiplied so the fixture layer stays transparent
-    // outside finite bars and can be composited safely by Cinema 2.0.
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
     gl.disable(gl.CULL_FACE)
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, instanceCount)
@@ -208,7 +345,7 @@ export class Cinema2InterlockRenderer {
     gl.depthMask(true)
     gl.bindVertexArray(null)
 
-    assertCinema2NoGlErrors(gl, 'Interlock native LED draw', `${instanceCount} fixture instances`)
+    assertCinema2NoGlErrors(gl, 'Interlock native segmented LED draw', `${instanceCount} fixture instances`)
     this.drawCount += 1
   }
 
@@ -218,6 +355,7 @@ export class Cinema2InterlockRenderer {
       drawCount: this.drawCount,
       lastInstanceCount: this.lastInstanceCount,
       bufferUploadCount: this.bufferUploadCount,
+      instanceFloats: INSTANCE_FLOATS,
     })
   }
 
@@ -250,6 +388,10 @@ export class Cinema2InterlockRenderer {
       this.instanceData[offset + 4] = halfLength
       this.instanceData[offset + 5] = halfThickness
       this.instanceData[offset + 6] = glowPad
+      this.instanceData[offset + 7] = clamp(Math.round(fixture.cellCount), 1, 256)
+      this.instanceData[offset + 8] = fixture.segmentDirection < 0 ? -1 : 1
+      this.instanceData[offset + 9] = clamp(Math.round(fixture.bankIndex), 0, 3)
+      this.instanceData[offset + 10] = clamp01(fixture.fixtureOrder)
       instanceCount += 1
     }
     return instanceCount
@@ -305,6 +447,15 @@ function finitePositive(value: number, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback
 }
 
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.max(minimum, Math.min(maximum, Number.isFinite(value) ? value : minimum))
+}
+
 function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
+  return clamp(value, 0, 1)
+}
+
+function wrap01(value: number): number {
+  const finite = Number.isFinite(value) ? value : 0
+  return finite - Math.floor(finite)
 }

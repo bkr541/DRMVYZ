@@ -24,6 +24,7 @@ import {
   CINEMA2_INTERLOCK_PATTERN_IDS,
 } from '../modules/interlock/Cinema2InterlockDomain'
 import { getCinema2InterlockPatternDefinition } from '../modules/interlock/Cinema2InterlockPatternCatalog'
+import { CINEMA2_INTERLOCK_SEGMENT_PROGRAM_IDS } from '../modules/interlock/Cinema2InterlockSegments'
 
 export const CINEMA2_INTERLOCK_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>(CINEMA2_INTERLOCK_FUTURE_PRESET_ID)
 
@@ -33,6 +34,13 @@ export const CINEMA2_INTERLOCK_LED_INTENSITY_ID = cinema2StableId<Cinema2Paramet
 export const CINEMA2_INTERLOCK_ROTATION_AMOUNT_ID = cinema2StableId<Cinema2ParameterId>('interlock-rotation-amount')
 export const CINEMA2_INTERLOCK_MORPH_DURATION_ID = cinema2StableId<Cinema2ParameterId>('interlock-morph-duration')
 export const CINEMA2_INTERLOCK_SYMMETRY_ID = cinema2StableId<Cinema2ParameterId>('interlock-symmetry')
+export const CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID = cinema2StableId<Cinema2ParameterId>('interlock-segment-pattern')
+export const CINEMA2_INTERLOCK_LIT_DENSITY_ID = cinema2StableId<Cinema2ParameterId>('interlock-lit-density')
+export const CINEMA2_INTERLOCK_SEGMENT_SPEED_ID = cinema2StableId<Cinema2ParameterId>('interlock-segment-speed')
+export const CINEMA2_INTERLOCK_SEGMENT_FADE_ID = cinema2StableId<Cinema2ParameterId>('interlock-segment-fade')
+export const CINEMA2_INTERLOCK_SEGMENT_AFTERGLOW_ID = cinema2StableId<Cinema2ParameterId>('interlock-segment-afterglow')
+export const CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID = cinema2StableId<Cinema2ParameterId>('interlock-unlit-visibility')
+export const CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID = cinema2StableId<Cinema2ParameterId>('interlock-mirror-segment-direction')
 
 export const CINEMA2_INTERLOCK_MODULE_ID = cinema2StableId<Cinema2ModuleId>('interlock-led-rig')
 export const CINEMA2_INTERLOCK_LAYER_ID = cinema2StableId<Cinema2LayerId>('interlock-led-layer')
@@ -47,8 +55,23 @@ const PATTERN_OPTIONS = Object.freeze(CINEMA2_INTERLOCK_PATTERN_IDS.map(value =>
   value,
   label: getCinema2InterlockPatternDefinition(value).label,
 })))
+const SEGMENT_PATTERN_LABELS: Readonly<Record<(typeof CINEMA2_INTERLOCK_SEGMENT_PROGRAM_IDS)[number], string>> = Object.freeze({
+  solid: 'Solid',
+  forwardChase: 'Forward Chase',
+  reverseChase: 'Reverse Chase',
+  centerOut: 'Center Out',
+  edgeIn: 'Edge In',
+  alternating: 'Alternating',
+  audioMeterFill: 'Audio Meter Fill',
+  bankRipple: 'Bank Ripple',
+  impactBurst: 'Impact Burst',
+})
+const SEGMENT_PATTERN_OPTIONS = Object.freeze(CINEMA2_INTERLOCK_SEGMENT_PROGRAM_IDS.map(value => Object.freeze({
+  value,
+  label: SEGMENT_PATTERN_LABELS[value],
+})))
 
-/** Stage 2 production keeper: native 28-fixture screen-space LED installation. */
+/** Production keeper: native 28-fixture screen-space segmented LED installation. */
 export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
@@ -56,7 +79,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
   revision: 1,
   metadata: Object.freeze({
     name: 'Interlock',
-    description: 'Native Cinema 2.0 screen-space installation built from 28 rigid emissive LED fixtures and five pivot-safe layouts.',
+    description: 'Native Cinema 2.0 screen-space installation built from 28 rigid segmented LED fixtures, nine illumination programs, and five pivot-safe layouts.',
     tags: Object.freeze(['interlock', 'native', 'led', 'screen-space', 'keeper']),
   }),
   capabilities: Object.freeze([
@@ -100,6 +123,24 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
+      id: CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID,
+      label: 'Segment Pattern',
+      type: 'enum' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentPattern,
+      options: SEGMENT_PATTERN_OPTIONS,
+      section: 'Design', group: 'Segments', order: 22,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_INTERLOCK_LIT_DENSITY_ID,
+      label: 'Lit Density',
+      type: 'float' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.litDensity,
+      min: 0.05, max: 1, step: 0.01,
+      section: 'Design', group: 'Segments', order: 23,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
       id: CINEMA2_INTERLOCK_ROTATION_AMOUNT_ID,
       label: 'Rotation Amount',
       type: 'float' as const,
@@ -118,6 +159,50 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       section: 'Motion', group: 'Morph', order: 31,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
+    Object.freeze({
+      id: CINEMA2_INTERLOCK_SEGMENT_SPEED_ID,
+      label: 'Segment Speed',
+      type: 'float' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentSpeed,
+      min: 0, max: 1, step: 0.01,
+      section: 'Motion', group: 'Segments', order: 32,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_INTERLOCK_SEGMENT_FADE_ID,
+      label: 'Segment Fade',
+      type: 'float' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentFade,
+      min: 0, max: 1, step: 0.01,
+      section: 'Motion', group: 'Segments', order: 33,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID,
+      label: 'Mirror Segment Direction',
+      type: 'boolean' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.mirrorSegmentDirection,
+      section: 'Motion', group: 'Segments', order: 34,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_INTERLOCK_SEGMENT_AFTERGLOW_ID,
+      label: 'Segment Afterglow',
+      type: 'float' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentAfterglow,
+      min: 0, max: 1, step: 0.01,
+      section: 'Effects', group: 'Segments', order: 40,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID,
+      label: 'Unlit Visibility',
+      type: 'float' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.unlitVisibility,
+      min: 0, max: 0.15, step: 0.005,
+      section: 'Advanced', group: 'Segments', order: 50,
+      exposure: 'advanced' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
   ]),
   modules: Object.freeze([Object.freeze({
     id: CINEMA2_INTERLOCK_MODULE_ID,
@@ -134,6 +219,17 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       rotationAmount: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.rotationAmount,
       morphDuration: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.morphDuration,
       symmetry: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.symmetry,
+      segmentPattern: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentPattern,
+      litDensity: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.litDensity,
+      segmentSpeed: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentSpeed,
+      segmentFade: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentFade,
+      segmentAfterglow: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentAfterglow,
+      unlitVisibility: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.unlitVisibility,
+      mirrorSegmentDirection: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.mirrorSegmentDirection,
+      segmentEnergy: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentEnergy,
+      segmentImpact: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentImpact,
+      segmentDirectionBias: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentDirectionBias,
+      segmentBankPhase: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentBankPhase,
     }),
     parameterBindings: Object.freeze({
       pattern: cinema2Ref(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID),
@@ -142,6 +238,13 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       rotationAmount: cinema2Ref(CINEMA2_INTERLOCK_ROTATION_AMOUNT_ID),
       morphDuration: cinema2Ref(CINEMA2_INTERLOCK_MORPH_DURATION_ID),
       symmetry: cinema2Ref(CINEMA2_INTERLOCK_SYMMETRY_ID),
+      segmentPattern: cinema2Ref(CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID),
+      litDensity: cinema2Ref(CINEMA2_INTERLOCK_LIT_DENSITY_ID),
+      segmentSpeed: cinema2Ref(CINEMA2_INTERLOCK_SEGMENT_SPEED_ID),
+      segmentFade: cinema2Ref(CINEMA2_INTERLOCK_SEGMENT_FADE_ID),
+      segmentAfterglow: cinema2Ref(CINEMA2_INTERLOCK_SEGMENT_AFTERGLOW_ID),
+      unlitVisibility: cinema2Ref(CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID),
+      mirrorSegmentDirection: cinema2Ref(CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID),
     }),
   })]),
   scene: Object.freeze({

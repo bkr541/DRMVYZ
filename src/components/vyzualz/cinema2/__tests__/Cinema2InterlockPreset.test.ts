@@ -15,6 +15,8 @@ import {
   CINEMA2_INTERLOCK_LAYER_ID,
   CINEMA2_INTERLOCK_LED_COLOR_ID,
   CINEMA2_INTERLOCK_LED_INTENSITY_ID,
+  CINEMA2_INTERLOCK_LIT_DENSITY_ID,
+  CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID,
   CINEMA2_INTERLOCK_MODULE_ID,
   CINEMA2_INTERLOCK_MORPH_DURATION_ID,
   CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID,
@@ -23,7 +25,12 @@ import {
   CINEMA2_INTERLOCK_RENDER_PASS_ID,
   CINEMA2_INTERLOCK_RENDER_TARGET_ID,
   CINEMA2_INTERLOCK_ROTATION_AMOUNT_ID,
+  CINEMA2_INTERLOCK_SEGMENT_AFTERGLOW_ID,
+  CINEMA2_INTERLOCK_SEGMENT_FADE_ID,
+  CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID,
+  CINEMA2_INTERLOCK_SEGMENT_SPEED_ID,
   CINEMA2_INTERLOCK_SYMMETRY_ID,
+  CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID,
 } from '../presets/Cinema2InterlockPreset'
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
@@ -38,6 +45,13 @@ const EXPECTED_PARAMETER_IDS = Object.freeze([
   CINEMA2_INTERLOCK_LED_INTENSITY_ID,
   CINEMA2_INTERLOCK_ROTATION_AMOUNT_ID,
   CINEMA2_INTERLOCK_MORPH_DURATION_ID,
+  CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID,
+  CINEMA2_INTERLOCK_LIT_DENSITY_ID,
+  CINEMA2_INTERLOCK_SEGMENT_SPEED_ID,
+  CINEMA2_INTERLOCK_SEGMENT_FADE_ID,
+  CINEMA2_INTERLOCK_SEGMENT_AFTERGLOW_ID,
+  CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID,
+  CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID,
 ])
 
 function compileInterlock() {
@@ -73,7 +87,7 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(cinema2NativeModuleRegistry.validateModules(registryCompilation.plan.manifest.modules ?? [])).toMatchObject({ ok: true })
   })
 
-  it('authors exactly the six Stage 2 controls and projects them through the shared Inspector without preset-specific UI', () => {
+  it('authors the Stage 2 controls plus all seven Stage 3 segment controls through the shared Inspector', () => {
     const plan = compileInterlock()
     expect(plan.parameters.definitions.map(definition => definition.id)).toEqual(EXPECTED_PARAMETER_IDS)
     expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID]).toBe(CINEMA2_INTERLOCK_DEFAULT_PATTERN_ID)
@@ -83,6 +97,11 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_INTERLOCK_LED_INTENSITY_ID)).toMatchObject({ min: 0, max: 1 })
     expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_INTERLOCK_ROTATION_AMOUNT_ID)).toMatchObject({ min: 0, max: 1 })
     expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_INTERLOCK_MORPH_DURATION_ID)).toMatchObject({ min: 0.25, max: 8 })
+    expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID)?.options?.map(option => option.value)).toEqual([
+      'solid', 'forwardChase', 'reverseChase', 'centerOut', 'edgeIn', 'alternating', 'audioMeterFill', 'bankRipple', 'impactBurst',
+    ])
+    expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_INTERLOCK_LIT_DENSITY_ID)).toMatchObject({ min: 0.05, max: 1 })
+    expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID)).toMatchObject({ min: 0, max: 0.15, exposure: 'advanced' })
 
     const state = new Cinema2ParameterState(plan.parameters)
     const design = createCinema2InspectorModel(plan, state.getSnapshot(), 'design')
@@ -94,7 +113,7 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(controls).toHaveLength(EXPECTED_PARAMETER_IDS.length)
   })
 
-  it('persists and reconstructs all Stage 2 authored state while keeping runtime transition/GPU state out of serialization', () => {
+  it('persists and reconstructs all authored segment state while keeping runtime segment/GPU state out of serialization', () => {
     const plan = compileInterlock()
     const state = new Cinema2ParameterState(plan.parameters)
 
@@ -104,12 +123,19 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(state.setPersistentValue(CINEMA2_INTERLOCK_ROTATION_AMOUNT_ID, 0.42)).toMatchObject({ ok: true })
     expect(state.setPersistentValue(CINEMA2_INTERLOCK_MORPH_DURATION_ID, 4.25)).toMatchObject({ ok: true })
     expect(state.setPersistentValue(CINEMA2_INTERLOCK_SYMMETRY_ID, false)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID, 'bankRipple')).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_INTERLOCK_LIT_DENSITY_ID, 0.73)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_INTERLOCK_SEGMENT_SPEED_ID, 0.44)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_INTERLOCK_SEGMENT_FADE_ID, 0.27)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_INTERLOCK_SEGMENT_AFTERGLOW_ID, 0.31)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID, 0.06)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID, false)).toMatchObject({ ok: true })
 
     const serialized = state.serialize()
     const payload = JSON.parse(serialized) as { presetId: string; values: Record<string, unknown> }
     expect(payload.presetId).toBe(CINEMA2_INTERLOCK_PRESET_ID)
     expect(Object.keys(payload.values).sort()).toEqual([...EXPECTED_PARAMETER_IDS].sort())
-    expect(JSON.stringify(payload)).not.toMatch(/transition|angle|endpoint|buffer|program|viewport|contextGeneration/i)
+    expect(JSON.stringify(payload)).not.toMatch(/transition|angle|endpoint|buffer|viewport|contextGeneration|segmentEnergy|segmentImpact|segmentDirectionBias|segmentBankPhase/i)
 
     const restored = new Cinema2ParameterState(plan.parameters)
     expect(restored.restore(serialized)).toMatchObject({ ok: true })
@@ -119,9 +145,31 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(restored.getValue(CINEMA2_INTERLOCK_ROTATION_AMOUNT_ID)).toBe(0.42)
     expect(restored.getValue(CINEMA2_INTERLOCK_MORPH_DURATION_ID)).toBe(4.25)
     expect(restored.getValue(CINEMA2_INTERLOCK_SYMMETRY_ID)).toBe(false)
+    expect(restored.getValue(CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID)).toBe('bankRipple')
+    expect(restored.getValue(CINEMA2_INTERLOCK_LIT_DENSITY_ID)).toBe(0.73)
+    expect(restored.getValue(CINEMA2_INTERLOCK_SEGMENT_SPEED_ID)).toBe(0.44)
+    expect(restored.getValue(CINEMA2_INTERLOCK_SEGMENT_FADE_ID)).toBe(0.27)
+    expect(restored.getValue(CINEMA2_INTERLOCK_SEGMENT_AFTERGLOW_ID)).toBe(0.31)
+    expect(restored.getValue(CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID)).toBe(0.06)
+    expect(restored.getValue(CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID)).toBe(false)
+
+    const stage2Payload = JSON.parse(new Cinema2ParameterState(plan.parameters).serialize()) as { values: Record<string, unknown> }
+    for (const id of [
+      CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID,
+      CINEMA2_INTERLOCK_LIT_DENSITY_ID,
+      CINEMA2_INTERLOCK_SEGMENT_SPEED_ID,
+      CINEMA2_INTERLOCK_SEGMENT_FADE_ID,
+      CINEMA2_INTERLOCK_SEGMENT_AFTERGLOW_ID,
+      CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID,
+      CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID,
+    ]) delete stage2Payload.values[id]
+    const restoredStage2 = new Cinema2ParameterState(plan.parameters)
+    expect(restoredStage2.restore(JSON.stringify(stage2Payload))).toMatchObject({ ok: true })
+    expect(restoredStage2.getValue(CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID)).toBe('centerOut')
+    expect(restoredStage2.getValue(CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID)).toBe(0.045)
   })
 
-  it('uses the required screen-space/no-depth production shape and does not smuggle later-stage systems into Stage 2', () => {
+  it('keeps the required screen-space/no-depth production shape and leaves later-stage choreography out of Stage 3', () => {
     const plan = compileInterlock()
     expect(plan.capabilities.required).toEqual(['render.webgl2'])
     expect(plan.manifest.cameras ?? []).toHaveLength(0)
@@ -130,6 +178,17 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(plan.manifest.effects ?? []).toHaveLength(0)
     expect(plan.manifest.variations ?? []).toHaveLength(0)
     expect(plan.manifest.choreography).toBeUndefined()
+
+    const moduleParameters = plan.manifest.modules?.[0]?.parameters ?? {}
+    expect(moduleParameters).toMatchObject({
+      segmentEnergy: 0.65,
+      segmentImpact: 0,
+      segmentDirectionBias: 0,
+      segmentBankPhase: 0,
+    })
+    expect(Object.keys(plan.parameters.authoredDefaults)).not.toEqual(expect.arrayContaining([
+      'segmentEnergy', 'segmentImpact', 'segmentDirectionBias', 'segmentBankPhase',
+    ]))
 
     expect(plan.manifest.layers).toEqual([expect.objectContaining({
       id: CINEMA2_INTERLOCK_LAYER_ID,

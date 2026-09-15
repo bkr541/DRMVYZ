@@ -11,11 +11,18 @@ import { Cinema2Stage } from '../../react/Cinema2Stage'
 import {
   CINEMA2_INTERLOCK_LED_COLOR_ID,
   CINEMA2_INTERLOCK_LED_INTENSITY_ID,
+  CINEMA2_INTERLOCK_LIT_DENSITY_ID,
+  CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID,
   CINEMA2_INTERLOCK_MORPH_DURATION_ID,
   CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID,
   CINEMA2_INTERLOCK_PRESET_ID,
   CINEMA2_INTERLOCK_ROTATION_AMOUNT_ID,
+  CINEMA2_INTERLOCK_SEGMENT_AFTERGLOW_ID,
+  CINEMA2_INTERLOCK_SEGMENT_FADE_ID,
+  CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID,
+  CINEMA2_INTERLOCK_SEGMENT_SPEED_ID,
   CINEMA2_INTERLOCK_SYMMETRY_ID,
+  CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID,
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
   type Cinema2PresetId,
 } from '..'
@@ -68,7 +75,7 @@ afterEach(async () => {
 })
 
 describe('Cinema 2.0 Interlock production selection path', () => {
-  it('appears once in the real preset browser, activates the native runtime, exposes six schema controls, and executes 28 LED instances', async () => {
+  it('appears once in the real preset browser, activates the native runtime, exposes Stage 3 schema controls, and executes 28 LED instances', async () => {
     const raf = createRafHarness()
     vi.stubGlobal('requestAnimationFrame', raf.requestAnimationFrame)
     vi.stubGlobal('cancelAnimationFrame', raf.cancelAnimationFrame)
@@ -121,6 +128,13 @@ describe('Cinema 2.0 Interlock production selection path', () => {
       CINEMA2_INTERLOCK_LED_INTENSITY_ID,
       CINEMA2_INTERLOCK_ROTATION_AMOUNT_ID,
       CINEMA2_INTERLOCK_MORPH_DURATION_ID,
+      CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID,
+      CINEMA2_INTERLOCK_LIT_DENSITY_ID,
+      CINEMA2_INTERLOCK_SEGMENT_SPEED_ID,
+      CINEMA2_INTERLOCK_SEGMENT_FADE_ID,
+      CINEMA2_INTERLOCK_SEGMENT_AFTERGLOW_ID,
+      CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID,
+      CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID,
     ]) expect(host?.querySelector(`[data-cinema2-control-id="${id}"]`)).not.toBeNull()
 
     await act(async () => raf.runNext())

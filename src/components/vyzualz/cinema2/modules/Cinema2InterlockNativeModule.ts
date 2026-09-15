@@ -29,7 +29,22 @@ import {
   resolveCinema2InterlockTransition,
 } from './interlock/Cinema2InterlockGeometry'
 import { getCinema2InterlockPatternTarget, normalizeCinema2InterlockPatternId } from './interlock/Cinema2InterlockPatternCatalog'
-import { CINEMA2_INTERLOCK_RIG } from './interlock/Cinema2InterlockRig'
+import { CINEMA2_INTERLOCK_RIG, getCinema2InterlockFixture } from './interlock/Cinema2InterlockRig'
+import {
+  CINEMA2_INTERLOCK_DEFAULT_LIT_DENSITY,
+  CINEMA2_INTERLOCK_DEFAULT_MIRROR_SEGMENT_DIRECTION,
+  CINEMA2_INTERLOCK_DEFAULT_SEGMENT_AFTERGLOW,
+  CINEMA2_INTERLOCK_DEFAULT_SEGMENT_FADE,
+  CINEMA2_INTERLOCK_DEFAULT_SEGMENT_PROGRAM_ID,
+  CINEMA2_INTERLOCK_DEFAULT_SEGMENT_SPEED,
+  CINEMA2_INTERLOCK_DEFAULT_UNLIT_VISIBILITY,
+  CINEMA2_INTERLOCK_SEGMENT_BANK_INDEX,
+  CINEMA2_INTERLOCK_SEGMENT_PROGRAM_IDS,
+  normalizeCinema2InterlockSegmentProgramId,
+  resolveCinema2InterlockCellCount,
+  resolveCinema2InterlockSegmentPhase,
+  type Cinema2InterlockSegmentProgramId,
+} from './interlock/Cinema2InterlockSegments'
 import {
   Cinema2InterlockRenderer,
   type Cinema2InterlockRenderFixture,
@@ -45,6 +60,17 @@ export const CINEMA2_INTERLOCK_NATIVE_PARAMETER_NAMES = Object.freeze([
   'rotationAmount',
   'morphDuration',
   'symmetry',
+  'segmentPattern',
+  'litDensity',
+  'segmentSpeed',
+  'segmentFade',
+  'segmentAfterglow',
+  'unlitVisibility',
+  'mirrorSegmentDirection',
+  'segmentEnergy',
+  'segmentImpact',
+  'segmentDirectionBias',
+  'segmentBankPhase',
 ] as const)
 
 const PARAMETER_NAME_SET = new Set<string>(CINEMA2_INTERLOCK_NATIVE_PARAMETER_NAMES)
@@ -56,6 +82,10 @@ const DEFAULT_SYMMETRY = true
 const MIN_MORPH_DURATION_SEC = 0.25
 const MAX_MORPH_DURATION_SEC = 8
 const EXCURSION_SCALE_RADIANS = 0.18
+const DEFAULT_SEGMENT_ENERGY = 0.65
+const DEFAULT_SEGMENT_IMPACT = 0
+const DEFAULT_SEGMENT_DIRECTION_BIAS = 0
+const DEFAULT_SEGMENT_BANK_PHASE = 0
 
 interface FrameConfig {
   readonly pattern: Cinema2InterlockPatternId
@@ -64,6 +94,17 @@ interface FrameConfig {
   readonly rotationAmount: number
   readonly morphDurationSec: number
   readonly symmetry: boolean
+  readonly segmentPattern: Cinema2InterlockSegmentProgramId
+  readonly litDensity: number
+  readonly segmentSpeed: number
+  readonly segmentFade: number
+  readonly segmentAfterglow: number
+  readonly unlitVisibility: number
+  readonly mirrorSegmentDirection: boolean
+  readonly segmentEnergy: number
+  readonly segmentImpact: number
+  readonly segmentDirectionBias: number
+  readonly segmentBankPhase: number
 }
 
 interface ActiveTransition {
@@ -127,11 +168,44 @@ function validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2Modu
       'Interlock Symmetry must be boolean.',
     ))
   }
+  if (parameters.segmentPattern !== undefined && !isSegmentProgram(parameters.segmentPattern)) {
+    diagnostics.push(diagnostic(
+      'CINEMA2_INTERLOCK_SEGMENT_PATTERN_INVALID',
+      '$.parameters.segmentPattern',
+      `Interlock Segment Pattern must be one of: ${CINEMA2_INTERLOCK_SEGMENT_PROGRAM_IDS.join(', ')}.`,
+    ))
+  }
+  for (const [property, minimum, maximum] of [
+    ['litDensity', 0.05, 1],
+    ['segmentSpeed', 0, 1],
+    ['segmentFade', 0, 1],
+    ['segmentAfterglow', 0, 1],
+    ['unlitVisibility', 0, 0.15],
+    ['segmentEnergy', 0, 1],
+    ['segmentImpact', 0, 1],
+    ['segmentDirectionBias', -1, 1],
+    ['segmentBankPhase', 0, 1],
+  ] as const) {
+    if (parameters[property] !== undefined && !numberInRange(parameters[property], minimum, maximum)) {
+      diagnostics.push(diagnostic(
+        'CINEMA2_INTERLOCK_SEGMENT_PARAMETER_INVALID',
+        `$.parameters.${property}`,
+        `Interlock "${property}" must be between ${minimum} and ${maximum}.`,
+      ))
+    }
+  }
+  if (parameters.mirrorSegmentDirection !== undefined && typeof parameters.mirrorSegmentDirection !== 'boolean') {
+    diagnostics.push(diagnostic(
+      'CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_INVALID',
+      '$.parameters.mirrorSegmentDirection',
+      'Interlock Mirror Segment Direction must be boolean.',
+    ))
+  }
   if (module.config && Object.keys(module.config).length > 0) {
     diagnostics.push(diagnostic(
       'CINEMA2_INTERLOCK_MODULE_CONFIG_UNSUPPORTED',
       '$.config',
-      'Interlock Stage 2 does not accept module-local config; authored state belongs in supported parameters.',
+      'Interlock does not accept module-local config; authored state belongs in supported parameters.',
     ))
   }
   return Object.freeze(diagnostics.map(entry => Object.freeze(entry)))
@@ -151,6 +225,10 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     let lastTimeSec: number | null = null
     let lastTrackId: string | null | undefined = undefined
     let lastContextGeneration: number | null = null
+    let segmentClockAnchorSourceSec = 0
+    let segmentClockAnchorPhaseSec = 0
+    let segmentClockSec = 0
+    let segmentClockInitialized = false
     let disposed = false
 
     const rebuildSettledLayout = (viewport: Cinema2InterlockViewport, patternId = config.pattern) => {
@@ -158,7 +236,28 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
       currentGeometry = new Map(layout.fixtures.map(candidate => [candidate.fixtureId, candidate]))
       activePattern = layout.patternId
       transition = null
-      renderFixtures = toRenderFixtures(layout.fixtures)
+      renderFixtures = toRenderFixtures(layout.fixtures, config.mirrorSegmentDirection)
+    }
+
+    const resetSegmentClock = (sourceTimeSec: number) => {
+      segmentClockAnchorSourceSec = sourceTimeSec
+      segmentClockAnchorPhaseSec = 0
+      segmentClockSec = 0
+      segmentClockInitialized = true
+    }
+
+    const updateSegmentClock = (frame: Readonly<Cinema2ModuleFrameReadContext>, sourceTimeSec: number, reset: boolean) => {
+      if (!segmentClockInitialized || reset) {
+        resetSegmentClock(sourceTimeSec)
+        return
+      }
+      if (!animationActive(frame)) {
+        segmentClockAnchorSourceSec = sourceTimeSec
+        segmentClockAnchorPhaseSec = segmentClockSec
+        return
+      }
+      const elapsed = Math.max(0, sourceTimeSec - segmentClockAnchorSourceSec)
+      segmentClockSec = segmentClockAnchorPhaseSec + elapsed
     }
 
     const beginPatternTransition = (viewport: Cinema2InterlockViewport, targetPatternId: Cinema2InterlockPatternId) => {
@@ -197,6 +296,16 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           height: execution.height,
           ledColor: config.ledColor,
           ledIntensity: config.ledIntensity,
+          segmentProgram: config.segmentPattern,
+          segmentPhase: resolveCinema2InterlockSegmentPhase(segmentClockSec, config.segmentSpeed),
+          litDensity: config.litDensity,
+          segmentFade: config.segmentFade,
+          segmentAfterglow: config.segmentAfterglow,
+          unlitVisibility: config.unlitVisibility,
+          segmentEnergy: config.segmentEnergy,
+          segmentImpact: config.segmentImpact,
+          segmentDirectionBias: config.segmentDirectionBias,
+          segmentBankPhase: config.segmentBankPhase,
         })
       },
     })
@@ -217,6 +326,8 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           const contextChanged = lastContextGeneration != null && frame.contextGeneration !== lastContextGeneration
           const resized = lastViewportKey != null && lastViewportKey !== nextViewportKey
           const reset = discontinuity || backwards || sourceReplaced || contextChanged || resized
+          const segmentReset = discontinuity || backwards || sourceReplaced || contextChanged
+          updateSegmentClock(frame, timeSec, segmentReset)
 
           if (lastViewportKey == null || currentGeometry.size === 0 || reset) {
             rebuildSettledLayout(viewport, config.pattern)
@@ -235,7 +346,7 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
               index,
             ))
             currentGeometry = new Map(next.map(candidate => [candidate.fixtureId, candidate]))
-            renderFixtures = toRenderFixtures(next)
+            renderFixtures = toRenderFixtures(next, config.mirrorSegmentDirection)
             if (progress >= 1) {
               // Always settle to the Stage 1 authored target. Rotation Amount
               // only governs the legal-pivot angular excursion during the morph.
@@ -243,6 +354,10 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
             }
           } else if (config.pattern !== activePattern) {
             beginPatternTransition(viewport, config.pattern)
+          }
+
+          if (config.mirrorSegmentDirection !== previousConfig.mirrorSegmentDirection && currentGeometry.size === CINEMA2_INTERLOCK_FIXTURE_COUNT) {
+            renderFixtures = toRenderFixtures([...currentGeometry.values()], config.mirrorSegmentDirection)
           }
 
           lastViewportKey = nextViewportKey
@@ -255,6 +370,8 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           transition = null
           currentGeometry.clear()
           renderFixtures = Object.freeze([])
+          segmentClockInitialized = false
+          segmentClockSec = 0
         },
       },
       render: { providers: Object.freeze([provider]) },
@@ -306,11 +423,23 @@ function resolveTransitionRotationMode(
 
 function toRenderFixtures(
   fixtures: readonly Readonly<Cinema2InterlockResolvedFixtureGeometry>[],
+  mirrorSegmentDirection: boolean,
 ): readonly Cinema2InterlockRenderFixture[] {
   if (fixtures.length !== CINEMA2_INTERLOCK_FIXTURE_COUNT) {
     throw new Error(`Interlock expected ${CINEMA2_INTERLOCK_FIXTURE_COUNT} resolved fixtures, received ${fixtures.length}.`)
   }
-  return Object.freeze(fixtures.map(geometry => Object.freeze({ fixtureId: geometry.fixtureId, geometry })))
+  return Object.freeze(fixtures.map((geometry, index) => {
+    const fixture = getCinema2InterlockFixture(geometry.fixtureId)
+    if (!fixture) throw new Error(`Interlock render data is missing rig fixture ${geometry.fixtureId}.`)
+    return Object.freeze({
+      fixtureId: geometry.fixtureId,
+      geometry,
+      cellCount: resolveCinema2InterlockCellCount(fixture),
+      segmentDirection: mirrorSegmentDirection && fixture.mirrorSide === 'right' ? -1 as const : 1 as const,
+      bankIndex: CINEMA2_INTERLOCK_SEGMENT_BANK_INDEX[fixture.bank],
+      fixtureOrder: Math.floor(index / 2) / Math.max(1, CINEMA2_INTERLOCK_RIG.pairs.length - 1),
+    })
+  }))
 }
 
 function readFrameConfig(
@@ -323,6 +452,17 @@ function readFrameConfig(
     rotationAmount: clamp01(numberValue(source.parameters.get('rotationAmount'), DEFAULT_ROTATION_AMOUNT)),
     morphDurationSec: clamp(numberValue(source.parameters.get('morphDuration'), DEFAULT_MORPH_DURATION_SEC), MIN_MORPH_DURATION_SEC, MAX_MORPH_DURATION_SEC),
     symmetry: booleanValue(source.parameters.get('symmetry'), DEFAULT_SYMMETRY),
+    segmentPattern: normalizeCinema2InterlockSegmentProgramId(source.parameters.get('segmentPattern')),
+    litDensity: clamp(numberValue(source.parameters.get('litDensity'), CINEMA2_INTERLOCK_DEFAULT_LIT_DENSITY), 0.05, 1),
+    segmentSpeed: clamp01(numberValue(source.parameters.get('segmentSpeed'), CINEMA2_INTERLOCK_DEFAULT_SEGMENT_SPEED)),
+    segmentFade: clamp01(numberValue(source.parameters.get('segmentFade'), CINEMA2_INTERLOCK_DEFAULT_SEGMENT_FADE)),
+    segmentAfterglow: clamp01(numberValue(source.parameters.get('segmentAfterglow'), CINEMA2_INTERLOCK_DEFAULT_SEGMENT_AFTERGLOW)),
+    unlitVisibility: clamp(numberValue(source.parameters.get('unlitVisibility'), CINEMA2_INTERLOCK_DEFAULT_UNLIT_VISIBILITY), 0, 0.15),
+    mirrorSegmentDirection: booleanValue(source.parameters.get('mirrorSegmentDirection'), CINEMA2_INTERLOCK_DEFAULT_MIRROR_SEGMENT_DIRECTION),
+    segmentEnergy: clamp01(numberValue(source.parameters.get('segmentEnergy'), DEFAULT_SEGMENT_ENERGY)),
+    segmentImpact: clamp01(numberValue(source.parameters.get('segmentImpact'), DEFAULT_SEGMENT_IMPACT)),
+    segmentDirectionBias: clamp(numberValue(source.parameters.get('segmentDirectionBias'), DEFAULT_SEGMENT_DIRECTION_BIAS), -1, 1),
+    segmentBankPhase: clamp01(numberValue(source.parameters.get('segmentBankPhase'), DEFAULT_SEGMENT_BANK_PHASE)),
   })
 }
 
@@ -351,6 +491,10 @@ function resolveTimeSec(frame: Readonly<Cinema2ModuleFrameReadContext>): number 
 
 function isPattern(value: unknown): value is Cinema2InterlockPatternId {
   return typeof value === 'string' && (CINEMA2_INTERLOCK_PATTERN_IDS as readonly string[]).includes(value)
+}
+
+function isSegmentProgram(value: unknown): value is Cinema2InterlockSegmentProgramId {
+  return typeof value === 'string' && (CINEMA2_INTERLOCK_SEGMENT_PROGRAM_IDS as readonly string[]).includes(value)
 }
 
 function isColor(value: unknown): value is Cinema2Color {
@@ -401,4 +545,15 @@ export const CINEMA2_INTERLOCK_NATIVE_DEFAULTS = Object.freeze({
   rotationAmount: DEFAULT_ROTATION_AMOUNT,
   morphDuration: DEFAULT_MORPH_DURATION_SEC,
   symmetry: DEFAULT_SYMMETRY,
+  segmentPattern: CINEMA2_INTERLOCK_DEFAULT_SEGMENT_PROGRAM_ID,
+  litDensity: CINEMA2_INTERLOCK_DEFAULT_LIT_DENSITY,
+  segmentSpeed: CINEMA2_INTERLOCK_DEFAULT_SEGMENT_SPEED,
+  segmentFade: CINEMA2_INTERLOCK_DEFAULT_SEGMENT_FADE,
+  segmentAfterglow: CINEMA2_INTERLOCK_DEFAULT_SEGMENT_AFTERGLOW,
+  unlitVisibility: CINEMA2_INTERLOCK_DEFAULT_UNLIT_VISIBILITY,
+  mirrorSegmentDirection: CINEMA2_INTERLOCK_DEFAULT_MIRROR_SEGMENT_DIRECTION,
+  segmentEnergy: DEFAULT_SEGMENT_ENERGY,
+  segmentImpact: DEFAULT_SEGMENT_IMPACT,
+  segmentDirectionBias: DEFAULT_SEGMENT_DIRECTION_BIAS,
+  segmentBankPhase: DEFAULT_SEGMENT_BANK_PHASE,
 })
