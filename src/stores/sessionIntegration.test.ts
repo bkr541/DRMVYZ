@@ -112,6 +112,14 @@ describe('session save → load roundtrip', () => {
     expect(sessions[0].id).not.toBe(sessions[1].id)
   })
 
+  it('toggleBpmSync mutates the canonical persisted Sync preference without a preset-local copy', () => {
+    expect(useVisualStore.getState().bpmSync).toBe(false)
+    useVisualStore.getState().toggleBpmSync()
+    expect(useVisualStore.getState().bpmSync).toBe(true)
+    useVisualStore.getState().toggleBpmSync()
+    expect(useVisualStore.getState().bpmSync).toBe(false)
+  })
+
   it('loadSession restores BPM, quality, and bpmSync', () => {
     useVisualStore.setState({ bpm: 140, bpmSync: true, quality: 'Low' })
     useVisualStore.getState().saveSession('BPM test', 'file', [])

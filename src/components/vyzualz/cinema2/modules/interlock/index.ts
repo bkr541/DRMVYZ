@@ -4,3 +4,4 @@ export * from './Cinema2InterlockPatternCatalog'
 export * from './Cinema2InterlockGeometry'
 
 export * from './Cinema2InterlockSegments'
+export * from './Cinema2InterlockClock'

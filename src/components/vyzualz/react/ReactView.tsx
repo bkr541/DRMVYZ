@@ -8,6 +8,7 @@ import { useRecorder } from '../../../hooks/useRecorder'
 import { ReactPersistenceStatus } from './ReactPersistenceStatus'
 import { retainSharedPerformanceDiagnosticsEngine } from './SharedPerformanceDiagnosticsStore'
 import { useReactStore } from '../../../stores/reactStore'
+import { useVisualStore } from '../../../stores/visualStore'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { useLyricsStore } from '../../../stores/lyricsStore'
 import { ReactPresetsPanel, ReactEnginePanel } from './panels/ReactRightPanels'
@@ -290,6 +291,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     selectSvgAsset:                  s.selectSvgAsset,
     })),
   )
+  const bpmSync = useVisualStore((s) => s.bpmSync)
   const activeShaderId = useShaderPanelStore((s) => s.activeShaderId)
   const activeBrandKit = useBrandKitStore((s) => s.activeKit)
   const mediaAssets = useMediaStore((s) => s.items)
@@ -953,6 +955,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 analysisActive={engine.analysisActive}
                 isPaused={transportPaused}
                 activeAudioTrackId={engine.currentAudioTrackId ?? engine.currentTrackId}
+                bpmSync={engine.source !== 'microphone' && bpmSync}
+                bpm={engine.currentEffectiveBpm}
                 getAudioTime={engine.getCurrentTime}
                 onCanvasReady={setOutputCanvas}
                 onRuntimeReady={setCinema2Runtime}

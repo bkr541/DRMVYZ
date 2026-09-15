@@ -122,6 +122,10 @@ export interface Cinema2RuntimeTransportSnapshot {
   paused: boolean
   trackId: string | null
   timeSec: number
+  /** Optional for backward-compatible test/legacy hosts; omitted means Sync OFF. */
+  bpmSync?: boolean
+  /** Optional canonical host BPM fallback for visual timing. */
+  bpm?: number | null
 }
 
 /** Host-owned transport source. Cinema 2.0 samples it once per visual frame. */
@@ -229,6 +233,8 @@ const AUTONOMOUS_TRANSPORT_STATE: Readonly<Cinema2TransportFrameState> = Object.
   animationActive: true,
   trackId: null,
   timeSec: 0,
+  bpmSync: false,
+  bpm: null,
 })
 
 function normalizeTransportState(
@@ -247,6 +253,8 @@ function normalizeTransportState(
       animationActive: false,
       trackId: null,
       timeSec: 0,
+      bpmSync: false,
+      bpm: null,
     })
   }
   const analysisActive = state.analysisActive === true
@@ -259,6 +267,8 @@ function normalizeTransportState(
     animationActive: analysisActive && !paused,
     trackId: state.trackId ?? null,
     timeSec: Number.isFinite(state.timeSec) ? Math.max(0, state.timeSec) : 0,
+    bpmSync: state.bpmSync === true,
+    bpm: typeof state.bpm === 'number' && Number.isFinite(state.bpm) && state.bpm > 0 ? state.bpm : null,
   })
 }
 

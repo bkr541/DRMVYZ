@@ -438,6 +438,49 @@ describe('Cinema2Runtime sibling foundation', () => {
     runtime.dispose()
   })
 
+  it('samples global BPM Sync/BPM per frame with backward-compatible defaults', () => {
+    const raf = createRafHarness()
+    const canvas = new FakeCanvas(createMockWebGL())
+    const transport: {
+      sourcePresent: boolean
+      playing: boolean
+      analysisActive: boolean
+      paused: boolean
+      trackId: string | null
+      timeSec: number
+      bpmSync?: boolean
+      bpm?: number | null
+    } = {
+      sourcePresent: true,
+      playing: true,
+      analysisActive: true,
+      paused: false,
+      trackId: 'track-sync',
+      timeSec: 0,
+    }
+    const result = Cinema2Runtime.create(canvas as unknown as HTMLCanvasElement, {
+      requestAnimationFrame: raf.requestAnimationFrame,
+      cancelAnimationFrame: raf.cancelAnimationFrame,
+      transportSource: { getState: () => transport },
+    })
+    if (!result.runtime) throw new Error(result.error)
+
+    result.runtime.start()
+    raf.runNext(16.67)
+    expect(result.runtime.getTransportFrameState()).toMatchObject({ bpmSync: false, bpm: null })
+
+    transport.bpmSync = true
+    transport.bpm = 150
+    transport.timeSec = 0.4
+    raf.runNext(33.34)
+    expect(result.runtime.getTransportFrameState()).toMatchObject({ bpmSync: true, bpm: 150 })
+
+    transport.bpm = Number.NaN
+    raf.runNext(50.01)
+    expect(result.runtime.getTransportFrameState()).toMatchObject({ bpmSync: true, bpm: null })
+    result.runtime.dispose()
+  })
+
   it('captures the canonical Audio Intelligence bridge exactly once for each scheduled visual frame', () => {
     const audioFrame = {
       ...DEFAULT_MI_FRAME,

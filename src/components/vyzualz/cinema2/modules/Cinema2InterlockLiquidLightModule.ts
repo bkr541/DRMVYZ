@@ -11,11 +11,14 @@ import {
 import type {
   Cinema2ModuleCreateContext,
   Cinema2ModuleDiagnostic,
-  Cinema2ModuleFrameReadContext,
   Cinema2ModuleRenderExecutionContext,
   Cinema2ModuleTypeDefinition,
   Cinema2ModuleUpdateContext,
 } from './Cinema2ModuleContracts'
+import {
+  Cinema2InterlockClockResolver,
+  resolveCinema2InterlockBackgroundClockTime,
+} from './interlock/Cinema2InterlockClock'
 
 export const CINEMA2_INTERLOCK_LIQUID_LIGHT_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('interlock-liquid-light-render')
 export const CINEMA2_INTERLOCK_LIQUID_LIGHT_MODULE_VERSION = 1 as const
@@ -235,9 +238,7 @@ export const cinema2InterlockLiquidLightModuleDefinition: Readonly<Cinema2Module
   create: (context: Cinema2ModuleCreateContext) => {
     let config = readFrameConfig(context)
     let flowTimeSec = 0
-    let lastSourceTimeSec: number | null = null
-    let lastTrackId: string | null | undefined = undefined
-    let lastContextGeneration: number | null = null
+    const clockResolver = new Cinema2InterlockClockResolver()
     let disposed = false
 
     const provider = Object.freeze({
@@ -289,22 +290,13 @@ export const cinema2InterlockLiquidLightModuleDefinition: Readonly<Cinema2Module
           if (disposed) return
           config = readFrameConfig(updateContext)
           const { frame } = updateContext
-          const sourceTimeSec = resolveTimeSec(frame)
-          const sourceReplaced = lastTrackId !== undefined && frame.transport?.trackId !== lastTrackId
-          const contextChanged = lastContextGeneration != null && frame.contextGeneration !== lastContextGeneration
-          const backwards = lastSourceTimeSec != null && sourceTimeSec < lastSourceTimeSec - 1e-6
-          const discontinuity = Boolean(frame.audio?.discontinuity.occurred && frame.audio.discontinuity.reason !== 'activation')
-          const resetFrame = sourceReplaced || contextChanged || backwards || discontinuity
-          if (!resetFrame && animationActive(frame)) {
-            flowTimeSec += Math.max(0, finite(frame.deltaTimeSec, 0))
-          }
-          lastSourceTimeSec = sourceTimeSec
-          lastTrackId = frame.transport?.trackId
-          lastContextGeneration = frame.contextGeneration
+          const clock = clockResolver.resolve(frame)
+          flowTimeSec = resolveCinema2InterlockBackgroundClockTime(clock, config.flow)
         },
         dispose() {
           disposed = true
           flowTimeSec = 0
+          clockResolver.reset()
         },
       },
       render: { providers: Object.freeze([provider]) },
@@ -337,15 +329,6 @@ function isPaletteMode(value: unknown): value is Cinema2InterlockBackgroundPalet
   return typeof value === 'string' && (CINEMA2_INTERLOCK_BACKGROUND_PALETTE_MODES as readonly string[]).includes(value)
 }
 
-function animationActive(frame: Readonly<Cinema2ModuleFrameReadContext>): boolean {
-  if (!frame.transport) return true
-  return frame.transport.animationActive && !frame.transport.paused
-}
-
-function resolveTimeSec(frame: Readonly<Cinema2ModuleFrameReadContext>): number {
-  const transportTime = frame.transport?.timeSec
-  return typeof transportTime === 'number' && Number.isFinite(transportTime) ? transportTime : finite(frame.elapsedTimeSec, 0)
-}
 
 function isColor(value: unknown): value is Cinema2Color {
   return Array.isArray(value) && value.length === 4 && value.every(entry => typeof entry === 'number' && Number.isFinite(entry) && entry >= 0 && entry <= 1)
@@ -367,7 +350,6 @@ function numberInRange(value: unknown, minimum: number, maximum: number): boolea
   return typeof value === 'number' && Number.isFinite(value) && value >= minimum && value <= maximum
 }
 
-function finite(value: number, fallback: number): number { return Number.isFinite(value) ? value : fallback }
 function clamp01(value: number): number { return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)) }
 
 function rgbToHsl(color: Rgb): readonly [number, number, number] {

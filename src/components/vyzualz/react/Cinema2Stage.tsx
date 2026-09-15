@@ -18,6 +18,8 @@ export interface Cinema2StageProps {
   analysisActive?: boolean
   isPaused?: boolean
   activeAudioTrackId?: string | null
+  bpmSync?: boolean
+  bpm?: number | null
   getAudioTime?: () => number
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onRuntimeReady?: (runtime: Cinema2Runtime | null) => void
@@ -43,6 +45,8 @@ export function Cinema2Stage({
   analysisActive,
   isPaused,
   activeAudioTrackId,
+  bpmSync,
+  bpm,
   getAudioTime,
   onCanvasReady,
   onRuntimeReady,
@@ -59,6 +63,8 @@ export function Cinema2Stage({
     analysisActive: analysisActive ?? true,
     isPaused: isPaused ?? false,
     activeAudioTrackId: activeAudioTrackId ?? null,
+    bpmSync: bpmSync === true,
+    bpm: typeof bpm === 'number' && Number.isFinite(bpm) && bpm > 0 ? bpm : null,
     getAudioTime,
   })
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<Cinema2RuntimeSnapshot | null>(null)
@@ -67,6 +73,8 @@ export function Cinema2Stage({
     analysisActive: analysisActive ?? true,
     isPaused: isPaused ?? false,
     activeAudioTrackId: activeAudioTrackId ?? null,
+    bpmSync: bpmSync === true,
+    bpm: typeof bpm === 'number' && Number.isFinite(bpm) && bpm > 0 ? bpm : null,
     getAudioTime,
   }
   onCanvasReadyRef.current = onCanvasReady
@@ -151,6 +159,8 @@ export function Cinema2Stage({
               paused: transport.isPaused,
               trackId: transport.activeAudioTrackId,
               timeSec: Number.isFinite(timeSec) ? Math.max(0, timeSec) : 0,
+              bpmSync: transport.bpmSync,
+              bpm: transport.bpm,
             }
           },
         },

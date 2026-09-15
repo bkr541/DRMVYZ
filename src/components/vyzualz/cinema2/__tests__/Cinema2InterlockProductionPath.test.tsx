@@ -164,4 +164,68 @@ describe('Cinema 2.0 Interlock production selection path', () => {
       failedPassCount: 0,
     })
   })
+
+  it('samples live Sync/BPM prop changes through the stable production Stage transport without recreating the runtime', async () => {
+    const raf = createRafHarness()
+    vi.stubGlobal('requestAnimationFrame', raf.requestAnimationFrame)
+    vi.stubGlobal('cancelAnimationFrame', raf.cancelAnimationFrame)
+    const contexts: CinemaMockWebGL[] = []
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => {
+      if (kind !== 'webgl2') return null
+      const gl = createCinemaMockWebGL()
+      contexts.push(gl)
+      return gl as unknown as RenderingContext
+    })
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 960,
+      height: 540,
+      top: 0,
+      left: 0,
+      right: 960,
+      bottom: 540,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    })
+    const ready = vi.fn()
+    const runtimeRef: { current: Cinema2Runtime | null } = { current: null }
+    let audioTime = 0
+
+    function Harness() {
+      const [sync, setSync] = useState(false)
+      return <>
+        <button data-testid="toggle-sync" onClick={() => setSync(value => !value)}>Toggle Sync</button>
+        <Cinema2Stage
+          presetId={CINEMA2_INTERLOCK_PRESET_ID}
+          isPlaying
+          analysisActive
+          isPaused={false}
+          activeAudioTrackId="track-stage-sync"
+          bpmSync={sync}
+          bpm={128}
+          getAudioTime={() => audioTime}
+          onRuntimeReady={runtime => {
+            runtimeRef.current = runtime
+            ready(runtime)
+          }}
+        />
+      </>
+    }
+
+    await act(async () => root?.render(<Harness />))
+    const originalRuntimeIdentity = runtimeRef.current
+    expect(runtimeRef.current).not.toBeNull()
+    await act(async () => raf.runNext(16.67))
+    expect(runtimeRef.current?.getTransportFrameState()).toMatchObject({ bpmSync: false, bpm: 128 })
+
+    audioTime = 0.46875
+    await act(async () => host?.querySelector<HTMLButtonElement>('[data-testid="toggle-sync"]')?.click())
+    await act(async () => raf.runNext(33.34))
+
+    expect(runtimeRef.current).toBe(originalRuntimeIdentity)
+    expect(runtimeRef.current?.getTransportFrameState()).toMatchObject({ bpmSync: true, bpm: 128, trackId: 'track-stage-sync' })
+    expect(contexts).toHaveLength(1)
+    expect(ready).toHaveBeenCalledTimes(1)
+  })
+
 })

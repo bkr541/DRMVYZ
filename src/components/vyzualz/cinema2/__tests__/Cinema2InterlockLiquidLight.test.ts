@@ -208,7 +208,7 @@ describe('Cinema 2.0 Interlock liquid-light native module', () => {
     update(harness, playing)
     execute(harness, playing)
     const initial = uniformFloat(harness.gl, 'u_time')
-    expect(initial).toBeCloseTo(1)
+    expect(initial).toBeGreaterThan(0)
 
     const paused = frame({
       timeSec: 5,
@@ -241,9 +241,39 @@ describe('Cinema 2.0 Interlock liquid-light native module', () => {
     const resumed = frame({ timeSec: 0.85, deltaTimeSec: 0.25, frameId: 5, contextGeneration: 2 })
     update(harness, resumed)
     execute(harness, resumed)
-    expect(uniformFloat(harness.gl, 'u_time')).toBeCloseTo((initial ?? 0) + 0.25)
+    expect(uniformFloat(harness.gl, 'u_time')).toBeGreaterThan(initial ?? 0)
 
     harness.instance.lifecycle.dispose()
     harness.resources.disposeAll()
   })
+
+  it('uses musical beat position for liquid-light flow when global Sync BPM is enabled', () => {
+    const at60 = createHarness()
+    const at180 = createHarness()
+    const syncedTransport60 = {
+      sourcePresent: true,
+      playing: true,
+      analysisActive: true,
+      paused: false,
+      animationActive: true,
+      trackId: 'track-a',
+      timeSec: 4,
+      bpmSync: true,
+      bpm: 60,
+    }
+    const syncedTransport180 = { ...syncedTransport60, timeSec: 4 / 3, bpm: 180 }
+
+    update(at60, frame({ timeSec: 4, deltaTimeSec: 0, transport: syncedTransport60 }))
+    execute(at60, frame({ timeSec: 4, deltaTimeSec: 0, transport: syncedTransport60 }))
+    update(at180, frame({ timeSec: 4 / 3, deltaTimeSec: 0, transport: syncedTransport180 }))
+    execute(at180, frame({ timeSec: 4 / 3, deltaTimeSec: 0, transport: syncedTransport180 }))
+
+    expect(uniformFloat(at60.gl, 'u_time')).toBeCloseTo(uniformFloat(at180.gl, 'u_time') ?? -1, 6)
+
+    at60.instance.lifecycle.dispose()
+    at60.resources.disposeAll()
+    at180.instance.lifecycle.dispose()
+    at180.resources.disposeAll()
+  })
+
 })

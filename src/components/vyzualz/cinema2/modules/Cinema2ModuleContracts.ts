@@ -109,6 +109,10 @@ export interface Cinema2TransportFrameState {
   animationActive: boolean
   trackId: string | null
   timeSec: number
+  /** Global Audio Dock Sync BPM preference sampled by the host for this frame. */
+  bpmSync?: boolean
+  /** Optional canonical host BPM fallback when analyzed beat-grid timing is unavailable. */
+  bpm?: number | null
 }
 
 export interface Cinema2ModuleFrameReadContext {

@@ -165,6 +165,8 @@ beforeEach(() => {
   vi.mocked(fixture.engine.replacePreparedTracks).mockClear()
   vi.mocked(fixture.engine.setSource).mockClear()
   vi.mocked(fixture.engine.pause).mockClear()
+  fixture.visualState.bpmSync = false
+  fixture.visualState.toggleBpmSync.mockClear()
 })
 
 afterEach(() => {
@@ -231,4 +233,14 @@ describe('Show Manager Audio Dock source lock integration', () => {
     )
     expect(container?.querySelector('[role="alert"]')).toBeNull()
   })
+
+  it('routes the real Audio Dock SYNC button through the canonical toggle action', async () => {
+    await renderView('react')
+
+    const sync = container?.querySelector<HTMLButtonElement>('.vz-dock-sync-master-btn')
+    expect(sync?.getAttribute('aria-label')).toBe('BPM Sync: OFF')
+    await act(async () => sync?.click())
+    expect(fixture.visualState.toggleBpmSync).toHaveBeenCalledTimes(1)
+  })
+
 })
