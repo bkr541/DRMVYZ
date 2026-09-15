@@ -29,6 +29,7 @@ import { getCinema2AudioIntelligenceBridgeDiagnostics } from '../audio/Cinema2Au
 import { getCinema2RuntimeDiagnostics, type Cinema2Runtime } from '../runtime/Cinema2Runtime'
 import {
   CINEMA2_ELECTRIC_STORM_PRESET_ID,
+  CINEMA2_INTERLOCK_PRESET_ID,
   CINEMA2_REACTOR_PRESET_ID,
   CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID,
   CINEMA2_REFERENCE_VISUAL_PRESET_ID,
@@ -389,6 +390,7 @@ describe('Cinema 2.0 production sibling path', () => {
       CINEMA2_REACTOR_PRESET_ID,
       CINEMA2_SPATIAL_REFERENCE_PRESET_ID,
       CINEMA2_ELECTRIC_STORM_PRESET_ID,
+      CINEMA2_INTERLOCK_PRESET_ID,
     ]
     useReactStore.getState().selectReactEngine('cinema2')
 
