@@ -6,6 +6,7 @@ import {
   CINEMA2_INTERLOCK_BANK_STAGGER_ID,
   CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID,
   CINEMA2_INTERLOCK_LIT_DENSITY_ID,
+  CINEMA2_INTERLOCK_LED_INTENSITY_ID,
   CINEMA2_INTERLOCK_BLOOM_PASS_ID,
   CINEMA2_INTERLOCK_MORPH_DURATION_ID,
   CINEMA2_INTERLOCK_RENDER_PASS_ID,
@@ -18,14 +19,16 @@ import {
 } from '../../components/vyzualz/cinema2'
 import type {
   Cinema2InterlockDifferenceMetrics,
+  Cinema2InterlockFixtureDifferenceMetrics,
   Cinema2InterlockPixelMetrics,
 } from '../visual/Cinema2InterlockPixelMetrics'
-import { isCinema2InterlockFrameVisible } from '../visual/Cinema2InterlockPixelMetrics'
+import { isCinema2InterlockFixtureDifferenceVisible, isCinema2InterlockFrameVisible } from '../visual/Cinema2InterlockPixelMetrics'
 
 type BrowserHarnessApi = {
   getAudioState(): { trackId: string | null; analyzedBpm: number | null; analysisStatus: string | null }
   measureScreenshotDataUrl(dataUrl: string): Promise<Cinema2InterlockPixelMetrics>
   compareScreenshotDataUrls(beforeDataUrl: string, afterDataUrl: string): Promise<Cinema2InterlockDifferenceMetrics>
+  compareFixtureScreenshotDataUrls(beforeDataUrl: string, afterDataUrl: string, patternId: 'diamondTunnel' | 'mechanicalIris' | 'doubleWing' | 'bassPortal' | 'fourWayVortex'): Promise<Cinema2InterlockFixtureDifferenceMetrics>
   runRawSceneProbe(): Promise<{
     presetId: string
     phase: string
@@ -95,6 +98,19 @@ async function compare(page: Page, before: string, after: string): Promise<Cinem
     if (!harness) throw new Error('Interlock acceptance API is unavailable.')
     return harness.compareScreenshotDataUrls(beforeDataUrl, afterDataUrl)
   }, { beforeDataUrl: before, afterDataUrl: after })
+}
+
+async function compareFixtureSamples(
+  page: Page,
+  before: string,
+  after: string,
+  patternId: 'diamondTunnel' | 'mechanicalIris' | 'doubleWing' | 'bassPortal' | 'fourWayVortex',
+): Promise<Cinema2InterlockFixtureDifferenceMetrics> {
+  return page.evaluate(async ({ beforeDataUrl, afterDataUrl, patternId }) => {
+    const harness = window.__DRMVYZ_CINEMA2_INTERLOCK_ACCEPTANCE__
+    if (!harness) throw new Error('Interlock acceptance API is unavailable.')
+    return harness.compareFixtureScreenshotDataUrls(beforeDataUrl, afterDataUrl, patternId)
+  }, { beforeDataUrl: before, afterDataUrl: after, patternId })
 }
 
 async function selectRightTab(page: Page, name: 'PRESETS' | 'DESIGN' | 'REACT'): Promise<void> {
@@ -246,6 +262,52 @@ test.describe('Cinema 2.0 Interlock Stage 7 real-browser visual acceptance', () 
     expect(atmosphereOne.metrics.nearWhiteRatio).toBeLessThan(0.5)
 
     await testInfo.attach('interlock-checkpoint-metrics.json', { body: Buffer.from(JSON.stringify(checkpoints, null, 2)), contentType: 'application/json' })
+  })
+
+  test('distinguishes LED fixture output from a frozen background-only frame and survives preset re-entry', async ({ page }, testInfo) => {
+    test.setTimeout(180_000)
+    const canvas = await bootProductionInterlock(page)
+    await configureManualCheckpointBase(page)
+    await setEnumParameter(page, String(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID), 'Diamond Tunnel')
+    await setEnumParameter(page, String(CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID), 'Solid')
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID), 1)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID), 0)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_LED_INTENSITY_ID), 0)
+    await page.waitForTimeout(250)
+    const backgroundOnly = await capture(page, canvas)
+    const backgroundOnlyRepeat = await capture(page, canvas)
+    const negative = await compareFixtureSamples(page, backgroundOnly.dataUrl, backgroundOnlyRepeat.dataUrl, 'diamondTunnel')
+    expect(isCinema2InterlockFrameVisible(backgroundOnly.metrics)).toBe(true)
+    expect(isCinema2InterlockFixtureDifferenceVisible(negative)).toBe(false)
+
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_LED_INTENSITY_ID), 1)
+    await page.waitForTimeout(250)
+    const ledFrame = await capture(page, canvas)
+    const fixtureDelta = await compareFixtureSamples(page, backgroundOnly.dataUrl, ledFrame.dataUrl, 'diamondTunnel')
+    expect(isCinema2InterlockFixtureDifferenceVisible(fixtureDelta)).toBe(true)
+    expect(fixtureDelta.changedFixtureCount).toBeGreaterThanOrEqual(8)
+
+    await selectRightTab(page, 'PRESETS')
+    await page.locator(`[data-cinema2-preset-id="${CINEMA2_REACTOR_PRESET_ID}"]`).click()
+    await expect(page.locator(`[data-cinema2-preset-id="${CINEMA2_REACTOR_PRESET_ID}"]`)).toHaveAttribute('aria-pressed', 'true')
+    await page.locator(`[data-cinema2-preset-id="${CINEMA2_INTERLOCK_PRESET_ID}"]`).click()
+    await expect(page.locator(`[data-cinema2-preset-id="${CINEMA2_INTERLOCK_PRESET_ID}"]`)).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator('[data-cinema2-stage="runtime"]')).toHaveAttribute('data-runtime-phase', 'running', { timeout: 30_000 })
+    await configureManualCheckpointBase(page)
+    await setEnumParameter(page, String(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID), 'Diamond Tunnel')
+    await setEnumParameter(page, String(CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID), 'Solid')
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID), 1)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID), 0)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_LED_INTENSITY_ID), 1)
+    await page.waitForTimeout(250)
+    const reentry = await capture(page, canvas)
+    const reentryDelta = await compareFixtureSamples(page, backgroundOnly.dataUrl, reentry.dataUrl, 'diamondTunnel')
+    expect(isCinema2InterlockFixtureDifferenceVisible(reentryDelta)).toBe(true)
+
+    await testInfo.attach('interlock-fixture-specific-metrics.json', {
+      body: Buffer.from(JSON.stringify({ negative, fixtureDelta, reentryDelta }, null, 2)),
+      contentType: 'application/json',
+    })
   })
 
   test('proves the real Interlock scene, trails, and bloom graph produces WebGL pixels without failed modules', async ({ page }, testInfo) => {

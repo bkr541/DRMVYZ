@@ -161,10 +161,10 @@ function update(harness: ReturnType<typeof createHarness>, currentFrame: Cinema2
   })
 }
 
-function execute(harness: ReturnType<typeof createHarness>, currentFrame: Cinema2ModuleFrameReadContext): void {
+function execute(harness: ReturnType<typeof createHarness>, currentFrame: Cinema2ModuleFrameReadContext, target: WebGLFramebuffer | null = null): void {
   harness.provider.execute({
     frame: currentFrame,
-    target: null,
+    target,
     width: currentFrame.viewport.width,
     height: currentFrame.viewport.height,
     depthAvailable: false,
@@ -225,6 +225,24 @@ function finishTransition(
 }
 
 describe('Cinema 2.0 Interlock native LED renderer', () => {
+  it('binds the engine-supplied non-null framebuffer and target viewport without clearing it', () => {
+    const harness = createHarness()
+    const currentFrame = frame({ timeSec: 0, viewport: { width: 960, height: 540, dpr: 1 } })
+    const target = { id: 'interlock-offscreen-target' } as unknown as WebGLFramebuffer
+    update(harness, currentFrame)
+    execute(harness, currentFrame, target)
+
+    const framebufferCalls = (harness.gl.bindFramebuffer as unknown as { mock: { calls: unknown[][] } }).mock.calls
+    expect(framebufferCalls.some(call => call[0] === harness.gl.FRAMEBUFFER && call[1] === target)).toBe(true)
+    expect(harness.gl.viewport).toHaveBeenCalledWith(0, 0, 960, 540)
+    expect(harness.gl.clear).not.toHaveBeenCalled()
+    expect(lastInstanceCount(harness.gl)).toBe(CINEMA2_INTERLOCK_FIXTURE_COUNT)
+    expect(framebufferCalls.at(-1)?.[1]).toBeNull()
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
   it('validates its exact segmented module contract and rejects malformed or placeholder configuration', () => {
     const valid: Cinema2ModuleManifest = {
       id: MODULE_ID,

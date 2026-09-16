@@ -429,6 +429,7 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           value => value.dispose(),
         )
         renderer.draw({
+          target: execution.target,
           fixtures: renderFixtures,
           width: execution.width,
           height: execution.height,

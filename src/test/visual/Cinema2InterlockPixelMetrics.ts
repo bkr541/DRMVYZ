@@ -1,3 +1,6 @@
+import { resolveCinema2InterlockLayout } from '../../components/vyzualz/cinema2/modules/interlock/Cinema2InterlockGeometry'
+import type { Cinema2InterlockPatternId } from '../../components/vyzualz/cinema2/modules/interlock/Cinema2InterlockDomain'
+
 export interface Cinema2InterlockPixelMetrics {
   pixelCount: number
   activePixelCount: number
@@ -168,6 +171,81 @@ export function isCinema2InterlockFrameVisible(metrics: Readonly<Cinema2Interloc
     && metrics.activePixelRatio >= 0.002
     && metrics.meanLuminance >= 0.0005
     && metrics.maxLuminance >= 0.08
+}
+
+export interface Cinema2InterlockFixtureDifferenceMetrics {
+  sampleCount: number
+  changedSampleCount: number
+  changedSampleRatio: number
+  meanAbsoluteLuminanceDelta: number
+  maxLuminanceDelta: number
+  changedFixtureCount: number
+}
+
+export function compareCinema2InterlockFixtureSamples(
+  before: ArrayLike<number>,
+  after: ArrayLike<number>,
+  width: number,
+  height: number,
+  patternId: Cinema2InterlockPatternId,
+  dpr = 1,
+  changedLuminanceThreshold = 0.035,
+): Cinema2InterlockFixtureDifferenceMetrics {
+  if (before.length !== after.length || before.length !== width * height * 4) {
+    throw new Error('Interlock fixture comparison requires equal RGBA buffers matching the supplied dimensions.')
+  }
+  const layout = resolveCinema2InterlockLayout(patternId, { width, height, dpr })
+  let sampleCount = 0
+  let changedSampleCount = 0
+  let deltaSum = 0
+  let maxLuminanceDelta = 0
+  let changedFixtureCount = 0
+
+  for (const fixture of layout.fixtures) {
+    const dx = fixture.bottom[0] - fixture.top[0]
+    const dy = fixture.bottom[1] - fixture.top[1]
+    const length = Math.max(1e-6, Math.hypot(dx, dy))
+    const nx = -dy / length
+    const ny = dx / length
+    const cross = Math.max(1, fixture.thicknessPx * 0.22)
+    let fixtureChanged = false
+    for (const t of [0.14, 0.26, 0.38, 0.5, 0.62, 0.74, 0.86]) {
+      const cx = fixture.top[0] + dx * t
+      const cy = fixture.top[1] + dy * t
+      for (const offset of [-cross, 0, cross]) {
+        const x = Math.max(0, Math.min(width - 1, Math.round(cx + nx * offset)))
+        const y = Math.max(0, Math.min(height - 1, Math.round(cy + ny * offset)))
+        const pixelOffset = (y * width + x) * 4
+        const beforeLuma = luminance(clampByte(before[pixelOffset]), clampByte(before[pixelOffset + 1]), clampByte(before[pixelOffset + 2]))
+        const afterLuma = luminance(clampByte(after[pixelOffset]), clampByte(after[pixelOffset + 1]), clampByte(after[pixelOffset + 2]))
+        const delta = Math.abs(afterLuma - beforeLuma)
+        sampleCount += 1
+        deltaSum += delta
+        maxLuminanceDelta = Math.max(maxLuminanceDelta, delta)
+        if (delta >= changedLuminanceThreshold) {
+          changedSampleCount += 1
+          fixtureChanged = true
+        }
+      }
+    }
+    if (fixtureChanged) changedFixtureCount += 1
+  }
+
+  return {
+    sampleCount,
+    changedSampleCount,
+    changedSampleRatio: sampleCount > 0 ? changedSampleCount / sampleCount : 0,
+    meanAbsoluteLuminanceDelta: sampleCount > 0 ? deltaSum / sampleCount : 0,
+    maxLuminanceDelta,
+    changedFixtureCount,
+  }
+}
+
+export function isCinema2InterlockFixtureDifferenceVisible(metrics: Readonly<Cinema2InterlockFixtureDifferenceMetrics>): boolean {
+  return metrics.sampleCount > 0
+    && metrics.changedFixtureCount >= 8
+    && metrics.changedSampleRatio >= 0.08
+    && metrics.maxLuminanceDelta >= 0.08
 }
 
 function percentile(sorted: readonly number[], p: number): number {

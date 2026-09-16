@@ -4,9 +4,11 @@ import { AudioEngineProvider, useSharedAudio } from '../../context/AudioEngineCo
 import { VyzualzView } from '../../components/vyzualz/VyzualzView'
 import { CINEMA2_INTERLOCK_PRESET_ID, Cinema2Runtime } from '../../components/vyzualz/cinema2'
 import {
+  compareCinema2InterlockFixtureSamples,
   compareCinema2InterlockRgbaPixels,
   measureCinema2InterlockRgbaPixels,
   type Cinema2InterlockDifferenceMetrics,
+  type Cinema2InterlockFixtureDifferenceMetrics,
   type Cinema2InterlockPixelMetrics,
 } from '../visual/Cinema2InterlockPixelMetrics'
 import '../../styles.css'
@@ -33,6 +35,7 @@ type HarnessApi = {
   getAudioState(): { trackId: string | null; analyzedBpm: number | null; analysisStatus: string | null }
   measureScreenshotDataUrl(dataUrl: string): Promise<Cinema2InterlockPixelMetrics>
   compareScreenshotDataUrls(beforeDataUrl: string, afterDataUrl: string): Promise<Cinema2InterlockDifferenceMetrics>
+  compareFixtureScreenshotDataUrls(beforeDataUrl: string, afterDataUrl: string, patternId: 'diamondTunnel' | 'mechanicalIris' | 'doubleWing' | 'bassPortal' | 'fourWayVortex'): Promise<Cinema2InterlockFixtureDifferenceMetrics>
   runRawSceneProbe(): Promise<RawProbeResult>
 }
 
@@ -127,6 +130,12 @@ window.__DRMVYZ_CINEMA2_INTERLOCK_ACCEPTANCE__ = {
     const after = await decodeScreenshot(afterDataUrl)
     if (before.width !== after.width || before.height !== after.height) throw new Error('Interlock screenshot dimensions changed during comparison.')
     return compareCinema2InterlockRgbaPixels(before.data, after.data)
+  },
+  compareFixtureScreenshotDataUrls: async (beforeDataUrl, afterDataUrl, patternId) => {
+    const before = await decodeScreenshot(beforeDataUrl)
+    const after = await decodeScreenshot(afterDataUrl)
+    if (before.width !== after.width || before.height !== after.height) throw new Error('Interlock screenshot dimensions changed during fixture comparison.')
+    return compareCinema2InterlockFixtureSamples(before.data, after.data, before.width, before.height, patternId, window.devicePixelRatio)
   },
   runRawSceneProbe,
 }

@@ -21,6 +21,7 @@ export interface Cinema2InterlockRenderFixture {
 }
 
 export interface Cinema2InterlockRendererDrawRequest {
+  readonly target: WebGLFramebuffer | null
   readonly fixtures: readonly Readonly<Cinema2InterlockRenderFixture>[]
   readonly width: number
   readonly height: number
@@ -304,11 +305,15 @@ export class Cinema2InterlockRenderer {
     this.lastInstanceCount = instanceCount
 
     const gl = this.gl
+    const previousFramebuffer = gl.getParameter(gl.FRAMEBUFFER_BINDING) as WebGLFramebuffer | null
+    gl.bindFramebuffer(gl.FRAMEBUFFER, request.target)
+    gl.viewport(0, 0, finitePositive(request.width, 1), finitePositive(request.height, 1))
     gl.disable(gl.SCISSOR_TEST)
     gl.colorMask(true, true, true, true)
-    gl.clearColor(0, 0, 0, 0)
-    gl.clear(gl.COLOR_BUFFER_BIT)
-    if (instanceCount === 0) return
+    if (instanceCount === 0) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, previousFramebuffer)
+      return
+    }
     gl.useProgram(this.program)
     gl.uniform2f(this.viewportLocation, finitePositive(request.width, 1), finitePositive(request.height, 1))
     gl.uniform4f(
@@ -340,13 +345,16 @@ export class Cinema2InterlockRenderer {
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
     gl.disable(gl.CULL_FACE)
-    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, instanceCount)
-    gl.disable(gl.BLEND)
-    gl.depthMask(true)
-    gl.bindVertexArray(null)
-
-    assertCinema2NoGlErrors(gl, 'Interlock native segmented LED draw', `${instanceCount} fixture instances`)
-    this.drawCount += 1
+    try {
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, instanceCount)
+      assertCinema2NoGlErrors(gl, 'Interlock native segmented LED draw', `${instanceCount} fixture instances`)
+      this.drawCount += 1
+    } finally {
+      gl.disable(gl.BLEND)
+      gl.depthMask(true)
+      gl.bindVertexArray(null)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, previousFramebuffer)
+    }
   }
 
   getSnapshot(): Readonly<Cinema2InterlockRendererSnapshot> {
