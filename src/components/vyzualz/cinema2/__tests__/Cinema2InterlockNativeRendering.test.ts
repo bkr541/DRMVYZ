@@ -23,6 +23,7 @@ import {
   CINEMA2_INTERLOCK_PATTERN_IDS,
 } from '../modules/interlock/Cinema2InterlockDomain'
 import { resolveCinema2InterlockLayout } from '../modules/interlock/Cinema2InterlockGeometry'
+import { CINEMA2_INTERLOCK_RIG } from '../modules/interlock/Cinema2InterlockRig'
 
 const MODULE_ID = cinema2StableId<Cinema2ModuleId>('interlock-native-test')
 const BASE_PARAMETERS: Record<string, Cinema2JsonValue> = {
@@ -207,6 +208,17 @@ function lastUniformColor(gl: CinemaMockWebGL, name: string): readonly number[] 
     .filter(call => (call[0] as { name?: string } | null)?.name === name)
   const call = calls.at(-1)
   return call ? [Number(call[1]), Number(call[2]), Number(call[3]), Number(call[4])] : undefined
+}
+
+function uploadedFixtureAngle(instances: readonly number[], fixtureIndex: number): number {
+  const offset = fixtureIndex * 11
+  return Math.atan2(instances[offset + 3] ?? 0, instances[offset + 2] ?? 1)
+}
+
+function fixtureIndex(predicate: (fixture: typeof CINEMA2_INTERLOCK_RIG.fixtures[number]) => boolean): number {
+  const index = CINEMA2_INTERLOCK_RIG.fixtures.findIndex(predicate)
+  if (index < 0) throw new Error('Expected Interlock fixture was not found in the stable rig.')
+  return index
 }
 
 function finishTransition(
@@ -453,7 +465,7 @@ describe('Cinema 2.0 Interlock native LED renderer', () => {
     harness.resources.disposeAll()
   })
 
-  it('consumes Bank Stagger live as the authored segment bank phase without rebuilding GPU resources', () => {
+  it('consumes Bank Stagger live as relative Bank Ripple separation without rebuilding GPU resources', () => {
     const harness = createHarness({ segmentPattern: 'bankRipple', segmentBankPhase: 0, segmentSpeed: 0 })
     const first = frame({ timeSec: 0 })
     update(harness, first)
@@ -467,6 +479,172 @@ describe('Cinema 2.0 Interlock native LED renderer', () => {
     expect(lastUniformFloat(harness.gl, 'uSegmentBankPhase')).toBeCloseTo(0.5)
     expect(harness.resources.getSnapshot().activeLeaseCount).toBe(1)
     expect(harness.gl.__calls.createdPrograms).toBe(1)
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
+  it('uses Bank Stagger as real deterministic inter-bank layout delay across the full 0..1 control range', () => {
+    const innerIndex = fixtureIndex(fixture => fixture.bank === 'inner' && fixture.quadrant === 'topLeft')
+    const edgeIndex = fixtureIndex(fixture => fixture.bank === 'edge' && fixture.quadrant === 'topLeft')
+    const separations: number[] = []
+
+    for (const bankStagger of [0, 0.25, 0.5, 0.75, 1]) {
+      const harness = createHarness({ morphDuration: 4, rotationAmount: 0, segmentBankPhase: bankStagger })
+      update(harness, frame({ timeSec: 0, deltaTimeSec: 0, frameId: 1 }))
+      harness.parameters.pattern = 'doubleWing'
+      update(harness, frame({ timeSec: 0, deltaTimeSec: 0, frameId: 2 }))
+      update(harness, frame({ timeSec: 2, deltaTimeSec: 2, frameId: 3 }))
+      execute(harness, frame({ timeSec: 2, deltaTimeSec: 0, frameId: 4 }))
+
+      const instances = lastUploadedInstances(harness.gl)
+      const innerAngle = uploadedFixtureAngle(instances, innerIndex)
+      const edgeAngle = uploadedFixtureAngle(instances, edgeIndex)
+      const separation = Math.abs(innerAngle - edgeAngle)
+      separations.push(separation)
+      if (bankStagger === 0) expect(separation).toBeCloseTo(0, 5)
+
+      harness.instance.lifecycle.dispose()
+      harness.resources.disposeAll()
+    }
+
+    for (let index = 1; index < separations.length; index += 1) {
+      expect(separations[index]!).toBeGreaterThan(separations[index - 1]!)
+    }
+  })
+
+  it.each([60, 120, 128, 150, 180])('keeps synchronized bank-transition progress equivalent at %i BPM', (bpm: number) => {
+    const harness = createHarness({ morphDuration: 8, rotationAmount: 0, segmentBankPhase: 1 })
+    const syncedTransport = (beatPosition: number) => ({
+      sourcePresent: true,
+      playing: true,
+      analysisActive: true,
+      paused: false,
+      animationActive: true,
+      trackId: 'track-a',
+      timeSec: beatPosition * 60 / bpm,
+      bpm,
+      bpmSync: true,
+    })
+
+    update(harness, frame({ timeSec: 0, deltaTimeSec: 0, transport: syncedTransport(0), frameId: 1 }))
+    harness.parameters.pattern = 'doubleWing'
+    update(harness, frame({ timeSec: 0, deltaTimeSec: 0, transport: syncedTransport(0), frameId: 2 }))
+    update(harness, frame({
+      timeSec: 60 / bpm,
+      deltaTimeSec: 60 / bpm,
+      transport: syncedTransport(1),
+      frameId: 3,
+    }))
+    update(harness, frame({
+      timeSec: 120 / bpm,
+      deltaTimeSec: 60 / bpm,
+      transport: syncedTransport(2),
+      frameId: 4,
+    }))
+    execute(harness, frame({ timeSec: 120 / bpm, deltaTimeSec: 0, transport: syncedTransport(2), frameId: 5 }))
+
+    const innerIndex = fixtureIndex(fixture => fixture.bank === 'inner' && fixture.quadrant === 'topLeft')
+    const instances = lastUploadedInstances(harness.gl)
+    // One canonical beat into a two-beat transition resolves the same pose at
+    // every BPM; only real-world seconds differ.
+    expect(uploadedFixtureAngle(instances, innerIndex)).toBeCloseTo(-Math.PI / 8, 4)
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
+  it('freezes a staggered transition on pause, survives rapid Sync toggles, and converges exactly after resume', () => {
+    const harness = createHarness({ morphDuration: 4, rotationAmount: 0, segmentBankPhase: 1 })
+    update(harness, frame({ timeSec: 0, deltaTimeSec: 0, frameId: 1 }))
+    harness.parameters.pattern = 'doubleWing'
+    update(harness, frame({ timeSec: 0, deltaTimeSec: 0, frameId: 2 }))
+    update(harness, frame({ timeSec: 1.5, deltaTimeSec: 1.5, frameId: 3 }))
+    execute(harness, frame({ timeSec: 1.5, deltaTimeSec: 0, frameId: 4 }))
+    const beforePause = lastUploadedInstances(harness.gl)
+
+    const pausedTransport = {
+      sourcePresent: true, playing: false, analysisActive: true, paused: true, animationActive: false,
+      trackId: 'track-a', timeSec: 20, bpm: 150, bpmSync: true,
+    }
+    update(harness, frame({ timeSec: 20, deltaTimeSec: 18.5, transport: pausedTransport, frameId: 5 }))
+    execute(harness, frame({ timeSec: 20, deltaTimeSec: 0, transport: pausedTransport, frameId: 6 }))
+    expect(lastUploadedInstances(harness.gl)).toEqual(beforePause)
+
+    const syncOffTransport = { ...pausedTransport, playing: true, paused: false, animationActive: true, timeSec: 20.25, bpmSync: false }
+    update(harness, frame({ timeSec: 20.25, deltaTimeSec: 0.25, transport: syncOffTransport, frameId: 7 }))
+    const syncOnTransport = { ...syncOffTransport, timeSec: 20.5, bpmSync: true }
+    update(harness, frame({ timeSec: 20.5, deltaTimeSec: 0.25, transport: syncOnTransport, frameId: 8 }))
+    update(harness, frame({ timeSec: 25, deltaTimeSec: 4.5, transport: { ...syncOffTransport, timeSec: 25 }, frameId: 9 }))
+    execute(harness, frame({ timeSec: 25, deltaTimeSec: 0, transport: { ...syncOffTransport, timeSec: 25 }, frameId: 10 }))
+
+    const expected = resolveCinema2InterlockLayout('doubleWing', { width: 1280, height: 720, dpr: 1 })
+    const instances = lastUploadedInstances(harness.gl)
+    for (let index = 0; index < CINEMA2_INTERLOCK_FIXTURE_COUNT; index += 1) {
+      const fixture = expected.fixtures[index]!
+      const offset = index * 11
+      const dx = fixture.bottom[0] - fixture.top[0]
+      const dy = fixture.bottom[1] - fixture.top[1]
+      const length = Math.hypot(dx, dy)
+      expect(instances[offset]).toBeCloseTo(fixture.middle[0], 4)
+      expect(instances[offset + 1]).toBeCloseTo(fixture.middle[1], 4)
+      expect(instances[offset + 2]).toBeCloseTo(dx / length, 4)
+      expect(instances[offset + 3]).toBeCloseTo(dy / length, 4)
+    }
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
+  it('replays the same staggered transition deterministically and remains bounded through rapid manual layout changes', () => {
+    const run = () => {
+      const harness = createHarness({ morphDuration: 3, rotationAmount: 0, segmentBankPhase: 0.75 })
+      update(harness, frame({ timeSec: 0, deltaTimeSec: 0, frameId: 1 }))
+      harness.parameters.pattern = 'mechanicalIris'
+      update(harness, frame({ timeSec: 0, deltaTimeSec: 0, frameId: 2 }))
+      update(harness, frame({ timeSec: 0.8, deltaTimeSec: 0.8, frameId: 3 }))
+      harness.parameters.pattern = 'bassPortal'
+      update(harness, frame({ timeSec: 0.8, deltaTimeSec: 0, frameId: 4 }))
+      update(harness, frame({ timeSec: 1.4, deltaTimeSec: 0.6, frameId: 5 }))
+      harness.parameters.pattern = 'doubleWing'
+      update(harness, frame({ timeSec: 1.4, deltaTimeSec: 0, frameId: 6 }))
+      update(harness, frame({ timeSec: 5.5, deltaTimeSec: 4.1, frameId: 7 }))
+      execute(harness, frame({ timeSec: 5.5, deltaTimeSec: 0, frameId: 8 }))
+      const instances = lastUploadedInstances(harness.gl)
+      expect(instances.every(Number.isFinite)).toBe(true)
+      expect(lastInstanceCount(harness.gl)).toBe(CINEMA2_INTERLOCK_FIXTURE_COUNT)
+      harness.instance.lifecycle.dispose()
+      harness.resources.disposeAll()
+      return instances
+    }
+
+    expect(run()).toEqual(run())
+  })
+
+  it('re-anchors stagger timing on source removal and replacement without preserving transient transition progress', () => {
+    const harness = createHarness({ morphDuration: 6, rotationAmount: 0, segmentBankPhase: 1 })
+    update(harness, frame({ timeSec: 0, deltaTimeSec: 0, frameId: 1 }))
+    harness.parameters.pattern = 'fourWayVortex'
+    update(harness, frame({ timeSec: 0, deltaTimeSec: 0, frameId: 2 }))
+    update(harness, frame({ timeSec: 1, deltaTimeSec: 1, frameId: 3 }))
+
+    const removedTransport = {
+      sourcePresent: false, playing: false, analysisActive: false, paused: false, animationActive: true,
+      trackId: null, timeSec: 0,
+    }
+    update(harness, frame({ timeSec: 0, deltaTimeSec: 0, transport: removedTransport, frameId: 4 }))
+    execute(harness, frame({ timeSec: 0, deltaTimeSec: 0, transport: removedTransport, frameId: 5 }))
+    expect(lastUploadedInstances(harness.gl).every(Number.isFinite)).toBe(true)
+
+    const replacementTransport = {
+      sourcePresent: true, playing: true, analysisActive: true, paused: false, animationActive: true,
+      trackId: 'track-b', timeSec: 0.25,
+    }
+    update(harness, frame({ timeSec: 0.25, deltaTimeSec: 0.25, transport: replacementTransport, frameId: 6 }))
+    update(harness, frame({ timeSec: 7, deltaTimeSec: 6.75, transport: { ...replacementTransport, timeSec: 7 }, frameId: 7 }))
+    execute(harness, frame({ timeSec: 7, deltaTimeSec: 0, transport: { ...replacementTransport, timeSec: 7 }, frameId: 8 }))
+    expect(lastInstanceCount(harness.gl)).toBe(CINEMA2_INTERLOCK_FIXTURE_COUNT)
+    expect(lastUploadedInstances(harness.gl).every(Number.isFinite)).toBe(true)
 
     harness.instance.lifecycle.dispose()
     harness.resources.disposeAll()

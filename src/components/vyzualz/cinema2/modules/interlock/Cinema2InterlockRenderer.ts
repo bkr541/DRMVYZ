@@ -166,7 +166,8 @@ float segmentProgramMask(float position, float cellIndex, float cellCount) {
     return thresholdMask(directed, threshold, fade);
   }
   if (uSegmentProgram == 7) {
-    float bankOffset = vSegmentMeta.z * 0.17 + vSegmentMeta.w * 0.11 + wrap01(uSegmentBankPhase);
+    float bankStagger = saturate(uSegmentBankPhase);
+    float bankOffset = vSegmentMeta.z * 0.17 * bankStagger + vSegmentMeta.w * 0.11;
     return chaseMask(directed, wrap01(phase - bankOffset), density, fade, afterglow, 1.0);
   }
   float radial = abs(directed - 0.5) * 2.0;
@@ -333,7 +334,7 @@ export class Cinema2InterlockRenderer {
     gl.uniform1f(this.segmentEnergyLocation, clamp01(request.segmentEnergy))
     gl.uniform1f(this.segmentImpactLocation, clamp01(request.segmentImpact))
     gl.uniform1f(this.segmentDirectionBiasLocation, clamp(request.segmentDirectionBias, -1, 1))
-    gl.uniform1f(this.segmentBankPhaseLocation, wrap01(request.segmentBankPhase))
+    gl.uniform1f(this.segmentBankPhaseLocation, clamp01(request.segmentBankPhase))
 
     gl.bindVertexArray(this.vao)
     gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer)

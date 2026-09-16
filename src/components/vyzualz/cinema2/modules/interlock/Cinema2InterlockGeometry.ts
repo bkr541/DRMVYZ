@@ -26,6 +26,10 @@ function finitePositive(value: number, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback
 }
 
+function finiteNonNegative(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, value) : 0
+}
+
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0
   return Math.max(0, Math.min(1, value))
@@ -232,13 +236,14 @@ export function resolveCinema2InterlockAngleDelta(
  */
 export function createCinema2InterlockTransitionState(
   current: Cinema2InterlockResolvedFixtureGeometry,
-  target: Pick<Cinema2InterlockPatternTarget, 'pivot' | 'targetAngleRad' | 'rotationMode'>,
+  target: Pick<Cinema2InterlockPatternTarget, 'pivot' | 'targetAngleRad' | 'rotationMode'> & Partial<Pick<Cinema2InterlockPatternTarget, 'bankDelayBeats'>>,
   targetPatternId: Cinema2InterlockPatternId | null = null,
   rotationMode: Cinema2InterlockRotationMode = target.rotationMode,
 ): Cinema2InterlockTransitionState {
   return Object.freeze({
     fixtureId: current.fixtureId,
     targetPatternId,
+    bankDelayBeats: finiteNonNegative(target.bankDelayBeats ?? 0),
     pivot: target.pivot,
     pivotPoint: pointForPivot(current, target.pivot),
     startAngleRad: current.angleRad,
@@ -248,6 +253,26 @@ export function createCinema2InterlockTransitionState(
     lengthPx: current.lengthPx,
     thicknessPx: current.thicknessPx,
   })
+}
+
+/**
+ * Derives one fixture bank's morph progress from the canonical transition
+ * timeline. The runtime expresses elapsed time in beat-equivalent units:
+ * synchronized playback advances with the Interlock musical clock, while
+ * Sync Off advances those units from the deterministic free-running seconds
+ * clock. That keeps the catalog-owned bank delay independent from frame rate,
+ * wall-clock timers, and renderer/shader state.
+ */
+export function resolveCinema2InterlockBankTransitionProgress(
+  elapsedTransitionBeats: number,
+  durationBeats: number,
+  bankDelayBeats: number,
+  bankStagger: number,
+): number {
+  const elapsed = finiteNonNegative(elapsedTransitionBeats)
+  const duration = Math.max(EPSILON, finiteNonNegative(durationBeats))
+  const delay = finiteNonNegative(bankDelayBeats) * clamp01(bankStagger)
+  return clamp01((elapsed - delay) / duration)
 }
 
 export function resolveCinema2InterlockTransition(

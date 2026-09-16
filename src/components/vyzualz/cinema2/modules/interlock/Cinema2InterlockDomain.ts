@@ -72,7 +72,7 @@ export interface Cinema2InterlockPatternTarget {
   readonly pivot: Cinema2InterlockPivotId
   readonly targetAngleRad: number
   readonly rotationMode: Cinema2InterlockRotationMode
-  /** Later show-planner stages may use this stable authored stagger. */
+  /** Stable catalog-owned delay consumed by the production transition runtime. */
   readonly bankDelayBeats: number
 }
 
@@ -129,6 +129,8 @@ export interface Cinema2InterlockResolvedLayout {
 export interface Cinema2InterlockTransitionState {
   readonly fixtureId: Cinema2InterlockFixtureId
   readonly targetPatternId: Cinema2InterlockPatternId | null
+  /** Stable catalog-authored delay intent for this fixture's bank. */
+  readonly bankDelayBeats: number
   readonly pivot: Cinema2InterlockPivotId
   readonly pivotPoint: Cinema2Vector2
   readonly startAngleRad: number

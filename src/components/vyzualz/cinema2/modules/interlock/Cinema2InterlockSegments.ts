@@ -103,7 +103,7 @@ export function resolveCinema2InterlockSegmentIntensity(
   const afterglow = clamp01(input.segmentAfterglow)
   const energy = clamp01(input.segmentEnergy)
   const impact = clamp01(input.segmentImpact)
-  const bankPhase = fract(finiteOr(input.segmentBankPhase, 0))
+  const bankStagger = clamp01(finiteOr(input.segmentBankPhase, 0))
   const bankIndex = clampInteger(input.bankIndex, 0, 3)
   const fixtureOrder = clamp01(input.fixtureOrder)
 
@@ -135,7 +135,7 @@ export function resolveCinema2InterlockSegmentIntensity(
       return thresholdMask(position, threshold, fade)
     }
     case 'bankRipple': {
-      const offset = bankIndex * 0.17 + fixtureOrder * 0.11 + bankPhase
+      const offset = bankIndex * 0.17 * bankStagger + fixtureOrder * 0.11
       return chaseMask(position, fract(phase - offset + 1), density, fade, afterglow, 1)
     }
     case 'impactBurst': {

@@ -397,7 +397,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentBankPhase,
       min: 0, max: 1, step: 0.01,
-      description: 'Offsets the authored LED bank phase while preserving deterministic show-planner stagger and segment direction.',
+      description: 'Scales deterministic inter-bank timing: 0 moves banks together and 1 uses the full authored bank-delay spacing for layout morphs and Bank Ripple.',
       section: 'Motion', group: 'Segments', order: 34,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),

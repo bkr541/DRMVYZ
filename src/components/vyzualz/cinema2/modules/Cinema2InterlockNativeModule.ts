@@ -24,6 +24,7 @@ import {
 } from './interlock/Cinema2InterlockDomain'
 import {
   createCinema2InterlockTransitionState,
+  resolveCinema2InterlockBankTransitionProgress,
   resolveCinema2InterlockGeometryFromPivot,
   resolveCinema2InterlockLayout,
   resolveCinema2InterlockTransition,
@@ -194,7 +195,8 @@ interface ActiveTransition {
   readonly targetPatternId: Cinema2InterlockPatternId
   readonly states: readonly Cinema2InterlockTransitionState[]
   readonly durationBeats: number
-  progress: number
+  readonly durationSec: number
+  elapsedTransitionBeats: number
 }
 
 interface PendingTransition {
@@ -350,6 +352,7 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     let activePattern = config.pattern
     let lastViewportKey: string | null = null
     let lastMotionBeatPosition: number | null = null
+    let lastMotionFreeRunningSec: number | null = null
     let lastReanchorGeneration: number | null = null
     let segmentPhase = 0
     const clockResolver = new Cinema2InterlockClockResolver()
@@ -357,7 +360,6 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     let showPlan: Readonly<Cinema2InterlockShowPlan> | null = null
     let lastTrackId: string | null | undefined = undefined
     let lastSourceId: string | null | undefined = undefined
-    let lastPaused: boolean | null = null
     let lastTimeSec: number | null = null
     let lastContextGeneration: number | null = null
     let renderSegmentPattern = config.segmentPattern
@@ -379,7 +381,12 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
       renderFixtures = toRenderFixtures(layout.fixtures, config.mirrorSegmentDirection)
     }
 
-    const beginPatternTransition = (viewport: Cinema2InterlockViewport, targetPatternId: Cinema2InterlockPatternId, durationBeats = 2) => {
+    const beginPatternTransition = (
+      viewport: Cinema2InterlockViewport,
+      targetPatternId: Cinema2InterlockPatternId,
+      durationBeats = 2,
+      initialElapsedBeats = 0,
+    ) => {
       if (currentGeometry.size !== CINEMA2_INTERLOCK_FIXTURE_COUNT) {
         rebuildSettledLayout(viewport, activePattern)
       }
@@ -394,7 +401,13 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           resolveTransitionRotationMode(target.rotationMode, fixture.mirrorSide, index, config.symmetry),
         )
       })
-      transition = { targetPatternId, states: Object.freeze(states), durationBeats: clamp(durationBeats, 0.5, 4), progress: 0 }
+      transition = {
+        targetPatternId,
+        states: Object.freeze(states),
+        durationBeats: clamp(durationBeats, 0.5, 4),
+        durationSec: config.morphDurationSec,
+        elapsedTransitionBeats: Math.max(0, finite(initialElapsedBeats, 0)),
+      }
       pendingTransition = null
     }
 
@@ -402,7 +415,7 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
       viewport: Cinema2InterlockViewport,
       targetPatternId: Cinema2InterlockPatternId,
       syncEnabled: boolean,
-      canonicalBeatPosition: number,
+      motionBeatPosition: number,
       durationBeats: number,
     ) => {
       if (!syncEnabled) {
@@ -411,7 +424,7 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
       }
       pendingTransition = Object.freeze({
         targetPatternId,
-        startBeat: nextCinema2InterlockBeatBoundary(canonicalBeatPosition),
+        startBeat: nextCinema2InterlockBeatBoundary(motionBeatPosition),
         durationBeats: clamp(durationBeats, 0.5, 4),
       })
     }
@@ -467,13 +480,8 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
             || (lastSourceId !== undefined && currentSourceId !== lastSourceId)
           const contextChanged = lastContextGeneration != null && frame.contextGeneration !== lastContextGeneration
           const paused = frame.transport?.sourcePresent === true && frame.transport.paused === true
-          const enteredPause = paused && lastPaused === false
           if (discontinuity || backwards || sourceReplaced || contextChanged) {
             showPlan = null
-            transition = null
-            pendingTransition = null
-          }
-          if (enteredPause) {
             transition = null
             pendingTransition = null
           }
@@ -494,7 +502,10 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           renderSegmentImpact = clamp01(Math.max(config.segmentImpact, triggerAccent * config.transientPulse, config.directorImpact * 0.55))
           const snareDirection = config.snareAccent > 0.05 ? (((finiteBeatIndex(frame) ?? 0) % 2 === 0) ? 0.36 : -0.36) * config.snareAccent : 0
           renderSegmentDirectionBias = clamp(config.segmentDirectionBias + showPlan.segmentDirectionBias + snareDirection, -1, 1)
-          renderSegmentBankPhase = fract(config.segmentBankPhase + showPlan.bankStagger + config.barAccent * 0.18 + config.snareAccent * 0.11)
+          // Bank Stagger is a 0..1 scale for relative bank separation. Keep it
+          // out of the global phase clock so 0 means simultaneous banks and 1
+          // means the full catalog-authored delay everywhere it is consumed.
+          renderSegmentBankPhase = config.segmentBankPhase
           reactiveRotationAmount = clamp01(config.rotationAmount * (0.72 + bass * config.bassRotation * 0.42 + config.kickAccent * config.bassRotation * 0.18 + config.directorBuild * config.buildTension * 0.18))
           segmentPhase = resolveCinema2InterlockSegmentClockPhase(clock, renderSegmentSpeed)
           const resized = lastViewportKey != null && lastViewportKey !== nextViewportKey
@@ -503,49 +514,65 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           if (pendingTransition && reanchored && clock.syncEnabled) {
             pendingTransition = Object.freeze({
               targetPatternId: pendingTransition.targetPatternId,
-              startBeat: nextCinema2InterlockBeatBoundary(clock.canonicalBeatPosition),
+              startBeat: nextCinema2InterlockBeatBoundary(clock.motionBeatPosition),
               durationBeats: pendingTransition.durationBeats,
             })
           }
 
+          const transitionAtFrameStart = transition
           const desiredPattern = showPlan.layoutId
           const currentGoal = pendingTransition?.targetPatternId ?? transition?.targetPatternId ?? activePattern
           if (lastViewportKey == null || currentGeometry.size === 0 || resized) {
             rebuildSettledLayout(viewport, desiredPattern)
             pendingTransition = null
           } else if (!paused && (desiredPattern !== currentGoal || (!config.autoPerformance && config.pattern !== previousConfig.pattern))) {
-            requestPatternTransition(viewport, desiredPattern, clock.syncEnabled, clock.canonicalBeatPosition, showPlan.transitionBeats)
+            requestPatternTransition(viewport, desiredPattern, clock.syncEnabled, clock.motionBeatPosition, showPlan.transitionBeats)
           }
 
           if (pendingTransition && (
             !clock.syncEnabled
-            || clock.canonicalBeatPosition + 1e-6 >= pendingTransition.startBeat
+            || clock.motionBeatPosition + 1e-6 >= pendingTransition.startBeat
           )) {
-            beginPatternTransition(viewport, pendingTransition.targetPatternId, pendingTransition.durationBeats)
+            const initialElapsedBeats = clock.syncEnabled
+              ? Math.max(0, clock.motionBeatPosition - pendingTransition.startBeat)
+              : 0
+            beginPatternTransition(viewport, pendingTransition.targetPatternId, pendingTransition.durationBeats, initialElapsedBeats)
           }
 
           if (transition) {
-            if (animationActive(frame)) {
+            if (transition === transitionAtFrameStart && animationActive(frame)) {
               if (clock.syncEnabled) {
                 const deltaBeats = lastMotionBeatPosition == null || reanchored
                   ? 0
                   : Math.max(0, clock.motionBeatPosition - lastMotionBeatPosition)
-                transition.progress += deltaBeats / Math.max(0.5, transition.durationBeats)
+                transition.elapsedTransitionBeats += deltaBeats
               } else {
-                transition.progress += Math.max(0, finite(frame.deltaTimeSec, 0)) / config.morphDurationSec
+                const deltaSec = lastMotionFreeRunningSec == null || reanchored
+                  ? 0
+                  : Math.max(0, clock.freeRunningSec - lastMotionFreeRunningSec)
+                transition.elapsedTransitionBeats += deltaSec * transition.durationBeats / Math.max(MIN_MORPH_DURATION_SEC, transition.durationSec)
               }
             }
-            const progress = clamp01(transition.progress)
-            const next = transition.states.map((state, index) => resolveTransitionFixture(
-              state,
-              progress,
-              reactiveRotationAmount,
-              config.symmetry,
-              index,
-            ))
+            let transitionComplete = true
+            const next = transition.states.map((state, index) => {
+              const bankProgress = resolveCinema2InterlockBankTransitionProgress(
+                transition!.elapsedTransitionBeats,
+                transition!.durationBeats,
+                state.bankDelayBeats,
+                config.segmentBankPhase,
+              )
+              if (bankProgress < 1) transitionComplete = false
+              return resolveTransitionFixture(
+                state,
+                bankProgress,
+                reactiveRotationAmount,
+                config.symmetry,
+                index,
+              )
+            })
             currentGeometry = new Map(next.map(candidate => [candidate.fixtureId, candidate]))
             renderFixtures = toRenderFixtures(next, config.mirrorSegmentDirection)
-            if (progress >= 1) {
+            if (transitionComplete) {
               // Always settle to the Stage 1 authored target. Rotation Amount
               // only governs the legal-pivot angular excursion during the morph.
               rebuildSettledLayout(viewport, transition.targetPatternId)
@@ -558,10 +585,10 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
 
           lastViewportKey = nextViewportKey
           lastMotionBeatPosition = clock.motionBeatPosition
+          lastMotionFreeRunningSec = clock.freeRunningSec
           lastReanchorGeneration = clock.reanchorGeneration
           lastTrackId = frame.transport?.trackId
           lastSourceId = currentSourceId
-          lastPaused = paused
           lastTimeSec = currentTimeSec
           lastContextGeneration = frame.contextGeneration
         },

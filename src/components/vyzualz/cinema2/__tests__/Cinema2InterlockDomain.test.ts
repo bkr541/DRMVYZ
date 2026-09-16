@@ -14,6 +14,7 @@ import {
   isCinema2InterlockGeometryViewportSafe,
   normalizeCinema2InterlockPatternId,
   resolveCinema2InterlockAngleDelta,
+  resolveCinema2InterlockBankTransitionProgress,
   resolveCinema2InterlockGeometryFromPivot,
   resolveCinema2InterlockLayout,
   resolveCinema2InterlockTransition,
@@ -96,6 +97,38 @@ describe('Cinema 2.0 Interlock Stage 1 domain', () => {
       expect(pattern.targets).toHaveLength(CINEMA2_INTERLOCK_FIXTURE_COUNT)
       expect(new Set(pattern.targets.map(target => target.fixtureId))).toEqual(rigIds)
       expect(validateCinema2InterlockPatternDefinition(pattern)).toEqual([])
+    }
+  })
+
+  it('keeps authored bank-delay intent stable for every fixture in all five layouts', () => {
+    const expectedDelay = { inner: 0, middle: 0.0625, outer: 0.125, edge: 0.1875 } as const
+    for (const pattern of CINEMA2_INTERLOCK_PATTERN_CATALOG) {
+      for (const fixture of CINEMA2_INTERLOCK_RIG.fixtures) {
+        expect(getCinema2InterlockPatternTarget(pattern.id, fixture.id).bankDelayBeats)
+          .toBe(expectedDelay[fixture.bank])
+      }
+    }
+  })
+
+  it('derives monotonic per-bank transition separation and exact delayed completion from Bank Stagger', () => {
+    const durationBeats = 2
+    const elapsedBeats = 1
+    const edgeDelayBeats = 0.1875
+    const separations = [0, 0.25, 0.5, 0.75, 1].map(bankStagger => {
+      const inner = resolveCinema2InterlockBankTransitionProgress(elapsedBeats, durationBeats, 0, bankStagger)
+      const edge = resolveCinema2InterlockBankTransitionProgress(elapsedBeats, durationBeats, edgeDelayBeats, bankStagger)
+      if (bankStagger === 0) expect(edge).toBeCloseTo(inner, 12)
+      return inner - edge
+    })
+
+    expect(separations[0]).toBeCloseTo(0, 12)
+    for (let index = 1; index < separations.length; index += 1) {
+      expect(separations[index]!).toBeGreaterThan(separations[index - 1]!)
+    }
+
+    for (const bankStagger of [0, 0.25, 0.5, 0.75, 1]) {
+      const finalElapsed = durationBeats + edgeDelayBeats * bankStagger
+      expect(resolveCinema2InterlockBankTransitionProgress(finalElapsed, durationBeats, edgeDelayBeats, bankStagger)).toBe(1)
     }
   })
 

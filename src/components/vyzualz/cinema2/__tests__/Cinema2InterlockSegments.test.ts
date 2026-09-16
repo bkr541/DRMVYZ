@@ -95,7 +95,12 @@ describe('Cinema 2.0 Interlock segmented LED domain', () => {
     expect(intensity('alternating', 2, { phase: 0.75 })).toBeLessThan(intensity('alternating', 3, { phase: 0.75 }))
 
     expect(intensity('audioMeterFill', 2, { segmentEnergy: 0.9 })).toBeGreaterThan(intensity('audioMeterFill', 20, { segmentEnergy: 0.2 }))
-    expect(intensity('bankRipple', 5, { bankIndex: 0 })).not.toBe(intensity('bankRipple', 5, { bankIndex: 3 }))
+    const simultaneousBank0 = Array.from({ length: 24 }, (_, cellIndex) => intensity('bankRipple', cellIndex, { bankIndex: 0, segmentBankPhase: 0 }))
+    const simultaneousBank3 = Array.from({ length: 24 }, (_, cellIndex) => intensity('bankRipple', cellIndex, { bankIndex: 3, segmentBankPhase: 0 }))
+    expect(simultaneousBank3).toEqual(simultaneousBank0)
+    const staggeredBank0 = Array.from({ length: 24 }, (_, cellIndex) => intensity('bankRipple', cellIndex, { bankIndex: 0, segmentBankPhase: 1 }))
+    const staggeredBank3 = Array.from({ length: 24 }, (_, cellIndex) => intensity('bankRipple', cellIndex, { bankIndex: 3, segmentBankPhase: 1 }))
+    expect(staggeredBank3).not.toEqual(staggeredBank0)
     expect(intensity('impactBurst', 8, { segmentImpact: 1 })).toBeGreaterThan(intensity('impactBurst', 8, { segmentImpact: 0 }))
   })
 })
