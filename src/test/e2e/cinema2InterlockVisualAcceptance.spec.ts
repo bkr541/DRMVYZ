@@ -20,13 +20,15 @@ import {
 import type {
   Cinema2InterlockDifferenceMetrics,
   Cinema2InterlockFixtureDifferenceMetrics,
+  Cinema2InterlockFixtureReadabilityMetrics,
   Cinema2InterlockPixelMetrics,
 } from '../visual/Cinema2InterlockPixelMetrics'
-import { isCinema2InterlockFixtureDifferenceVisible, isCinema2InterlockFrameVisible } from '../visual/Cinema2InterlockPixelMetrics'
+import { isCinema2InterlockFixtureDifferenceVisible, isCinema2InterlockFixtureReadable, isCinema2InterlockFrameVisible } from '../visual/Cinema2InterlockPixelMetrics'
 
 type BrowserHarnessApi = {
   getAudioState(): { trackId: string | null; analyzedBpm: number | null; analysisStatus: string | null }
   measureScreenshotDataUrl(dataUrl: string): Promise<Cinema2InterlockPixelMetrics>
+  measureFixtureScreenshotDataUrl(dataUrl: string, patternId: 'diamondTunnel' | 'mechanicalIris' | 'doubleWing' | 'bassPortal' | 'fourWayVortex'): Promise<Cinema2InterlockFixtureReadabilityMetrics>
   compareScreenshotDataUrls(beforeDataUrl: string, afterDataUrl: string): Promise<Cinema2InterlockDifferenceMetrics>
   compareFixtureScreenshotDataUrls(beforeDataUrl: string, afterDataUrl: string, patternId: 'diamondTunnel' | 'mechanicalIris' | 'doubleWing' | 'bassPortal' | 'fourWayVortex'): Promise<Cinema2InterlockFixtureDifferenceMetrics>
   runRawSceneProbe(): Promise<{
@@ -40,6 +42,25 @@ type BrowserHarnessApi = {
     lastExecutedPassIds: readonly string[]
     sceneCheckpoint: { maxRgbByte: number | null; rgbEnergyDetected: boolean | null; error: string | null } | null
     outputCheckpoint: { maxRgbByte: number | null; rgbEnergyDetected: boolean | null; error: string | null } | null
+    performance: {
+      resolvedQuality: string
+      cpuFrameTimeMs: number | null
+      cpuFrameTimeAverageMs: number | null
+      gpuFrameTimeMs: number | null
+      gpuTimingSupported: boolean
+    }
+    resources: { activeLeaseCount: number; activeSurfaceCount: number; estimatedGpuMemoryBytes: number }
+    history: { activeBufferCount: number; validBufferCount: number; activeSurfaceCount: number; estimatedGpuMemoryBytes: number }
+    postDispose: {
+      phase: string
+      activeAnimationFrameCount: number
+      activeEventListenerCount: number
+      activeWebGLContextCount: number
+      activeModuleCount: number
+      activeModuleResourceLeaseCount: number
+      activeRenderTargetLeaseCount: number
+      activeHistoryBufferCount: number
+    }
   }>
 }
 
@@ -90,6 +111,18 @@ async function capture(page: Page, canvas: Locator): Promise<{ dataUrl: string; 
     return harness.measureScreenshotDataUrl(data)
   }, dataUrl)
   return { dataUrl, metrics }
+}
+
+async function measureFixtureReadability(
+  page: Page,
+  dataUrl: string,
+  patternId: 'diamondTunnel' | 'mechanicalIris' | 'doubleWing' | 'bassPortal' | 'fourWayVortex',
+): Promise<Cinema2InterlockFixtureReadabilityMetrics> {
+  return page.evaluate(async ({ dataUrl, patternId }) => {
+    const harness = window.__DRMVYZ_CINEMA2_INTERLOCK_ACCEPTANCE__
+    if (!harness) throw new Error('Interlock acceptance API is unavailable.')
+    return harness.measureFixtureScreenshotDataUrl(dataUrl, patternId)
+  }, { dataUrl, patternId })
 }
 
 async function compare(page: Page, before: string, after: string): Promise<Cinema2InterlockDifferenceMetrics> {
@@ -155,7 +188,7 @@ async function configureManualCheckpointBase(page: Page): Promise<void> {
   await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_FLOW_ID), 0)
 }
 
-test.describe('Cinema 2.0 Interlock Stage 7 real-browser visual acceptance', () => {
+test.describe('Cinema 2.0 Interlock Stage 6 final real-browser visual acceptance', () => {
   test.skip(!enabled, 'Run with npm run test:e2e:cinema2-interlock')
 
   test('renders the no-source production keeper, exposes live controls, and survives neighboring-preset re-entry', async ({ page }, testInfo) => {
@@ -179,7 +212,10 @@ test.describe('Cinema 2.0 Interlock Stage 7 real-browser visual acceptance', () 
     }, { timeout: 15_000, intervals: [100, 200, 400, 800] }).toBe(true)
     expect(idle!.metrics.nearWhiteRatio).toBeLessThan(0.5)
     expect(idle!.metrics.segmentGapContrastRatio).toBeGreaterThan(0)
-    await testInfo.attach('interlock-idle-metrics.json', { body: Buffer.from(JSON.stringify({ environment, audio, metrics: idle!.metrics }, null, 2)), contentType: 'application/json' })
+    const idleFixtureReadability = await measureFixtureReadability(page, idle!.dataUrl, 'diamondTunnel')
+    expect(isCinema2InterlockFixtureReadable(idleFixtureReadability)).toBe(true)
+    expect(idleFixtureReadability.visibleFixtureCount).toBeGreaterThanOrEqual(26)
+    await testInfo.attach('interlock-idle-metrics.json', { body: Buffer.from(JSON.stringify({ environment, audio, metrics: idle!.metrics, fixtureReadability: idleFixtureReadability }, null, 2)), contentType: 'application/json' })
 
     await selectRightTab(page, 'DESIGN')
     await expect(page.locator(`[data-cinema2-control-id="${CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID}"]`)).toBeVisible()
@@ -217,7 +253,7 @@ test.describe('Cinema 2.0 Interlock Stage 7 real-browser visual acceptance', () 
       ['bassPortal', 'Bass Portal'],
       ['fourWayVortex', 'Four-Way Vortex'],
     ] as const
-    const report: Record<string, { metrics: Cinema2InterlockPixelMetrics; fixtureSignal: Cinema2InterlockFixtureDifferenceMetrics }> = {}
+    const report: Record<string, { metrics: Cinema2InterlockPixelMetrics; fixtureSignal: Cinema2InterlockFixtureDifferenceMetrics; fixtureReadability: Cinema2InterlockFixtureReadabilityMetrics }> = {}
     let previousDataUrl: string | null = null
 
     for (const [id, label] of layouts) {
@@ -225,13 +261,16 @@ test.describe('Cinema 2.0 Interlock Stage 7 real-browser visual acceptance', () 
       await page.waitForTimeout(450)
       const frame = await capture(page, canvas)
       const fixtureSignal = await compareFixtureSamples(page, backgroundOnly.dataUrl, frame.dataUrl, id)
+      const fixtureReadability = await measureFixtureReadability(page, frame.dataUrl, id)
       expect(isCinema2InterlockFrameVisible(frame.metrics)).toBe(true)
+      expect(isCinema2InterlockFixtureReadable(fixtureReadability)).toBe(true)
+      expect(fixtureReadability.visibleFixtureCount).toBeGreaterThanOrEqual(26)
       expect(fixtureSignal.changedFixtureCount).toBeGreaterThanOrEqual(24)
       expect(fixtureSignal.changedSampleRatio).toBeGreaterThan(0.2)
       if (previousDataUrl) {
         expect((await compare(page, previousDataUrl, frame.dataUrl)).changedPixelRatio).toBeGreaterThan(0.002)
       }
-      report[id] = { metrics: frame.metrics, fixtureSignal }
+      report[id] = { metrics: frame.metrics, fixtureSignal, fixtureReadability }
       await testInfo.attach(`interlock-layout-${id}.png`, {
         body: Buffer.from(frame.dataUrl.split(',')[1]!, 'base64'),
         contentType: 'image/png',
@@ -250,15 +289,21 @@ test.describe('Cinema 2.0 Interlock Stage 7 real-browser visual acceptance', () 
     const canvas = await bootProductionInterlock(page)
     await configureManualCheckpointBase(page)
 
-    const checkpoints: Record<string, Cinema2InterlockPixelMetrics> = {}
-    const captureCheckpoint = async (name: string) => {
+    const checkpoints: Record<string, { metrics: Cinema2InterlockPixelMetrics; fixtureReadability: Cinema2InterlockFixtureReadabilityMetrics }> = {}
+    const captureCheckpoint = async (
+      name: string,
+      patternId: 'diamondTunnel' | 'mechanicalIris' | 'doubleWing' | 'bassPortal' | 'fourWayVortex',
+    ) => {
       await page.waitForTimeout(450)
       const frame = await capture(page, canvas)
+      const fixtureReadability = await measureFixtureReadability(page, frame.dataUrl, patternId)
       expect(isCinema2InterlockFrameVisible(frame.metrics)).toBe(true)
+      expect(isCinema2InterlockFixtureReadable(fixtureReadability)).toBe(true)
+      expect(fixtureReadability.visibleFixtureCount).toBeGreaterThanOrEqual(26)
       expect(frame.metrics.nearWhiteRatio).toBeLessThan(0.5)
-      checkpoints[name] = frame.metrics
+      checkpoints[name] = { metrics: frame.metrics, fixtureReadability }
       await testInfo.attach(`interlock-${name}.png`, { body: Buffer.from(frame.dataUrl.split(',')[1]!, 'base64'), contentType: 'image/png' })
-      return frame
+      return { ...frame, fixtureReadability }
     }
 
     await setEnumParameter(page, String(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID), 'Diamond Tunnel')
@@ -266,13 +311,13 @@ test.describe('Cinema 2.0 Interlock Stage 7 real-browser visual acceptance', () 
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_LIT_DENSITY_ID), 0.55)
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID), 0.35)
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID), 0.25)
-    const steady = await captureCheckpoint('steady')
+    const steady = await captureCheckpoint('steady', 'diamondTunnel')
 
     await setEnumParameter(page, String(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID), 'Mechanical Iris')
     await setEnumParameter(page, String(CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID), 'Center Out')
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_LIT_DENSITY_ID), 0.78)
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID), 0.38)
-    const build = await captureCheckpoint('build')
+    const build = await captureCheckpoint('build', 'mechanicalIris')
     expect((await compare(page, steady.dataUrl, build.dataUrl)).changedPixelRatio).toBeGreaterThan(0.002)
 
     await setEnumParameter(page, String(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID), 'Four-Way Vortex')
@@ -280,32 +325,34 @@ test.describe('Cinema 2.0 Interlock Stage 7 real-browser visual acceptance', () 
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_LIT_DENSITY_ID), 0.95)
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID), 1)
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID), 0.6)
-    const drop = await captureCheckpoint('drop')
+    const drop = await captureCheckpoint('drop', 'fourWayVortex')
     expect((await compare(page, build.dataUrl, drop.dataUrl)).changedPixelRatio).toBeGreaterThan(0.002)
     expect(drop.metrics.clippedRatio).toBeLessThan(0.35)
+    expect(drop.fixtureReadability.segmentGapContrastRatio).toBeGreaterThan(0)
 
     await setEnumParameter(page, String(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID), 'Double Wing')
     await setEnumParameter(page, String(CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID), 'Solid')
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_LIT_DENSITY_ID), 0.35)
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID), 0.1)
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID), 0.15)
-    const release = await captureCheckpoint('vocal-release')
+    const release = await captureCheckpoint('vocal-release', 'doubleWing')
     expect((await compare(page, drop.dataUrl, release.dataUrl)).changedPixelRatio).toBeGreaterThan(0.002)
 
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID), 0)
-    const effectsZero = await captureCheckpoint('effects-0')
-    const effectsZeroRepeat = await captureCheckpoint('effects-0-repeat')
+    const effectsZero = await captureCheckpoint('effects-0', 'doubleWing')
+    const effectsZeroRepeat = await captureCheckpoint('effects-0-repeat', 'doubleWing')
     expect((await compare(page, effectsZero.dataUrl, effectsZeroRepeat.dataUrl)).repeatSimilarity).toBeGreaterThan(0.995)
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID), 1)
-    const effectsOne = await captureCheckpoint('effects-1')
+    const effectsOne = await captureCheckpoint('effects-1', 'doubleWing')
     expect((await compare(page, effectsZero.dataUrl, effectsOne.dataUrl)).changedPixelRatio).toBeGreaterThan(0.0005)
     expect(effectsOne.metrics.nearWhiteRatio).toBeLessThan(0.5)
+    expect(effectsOne.fixtureReadability.segmentGapContrastRatio).toBeGreaterThan(0)
 
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID), 0.35)
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID), 0)
-    const atmosphereZero = await captureCheckpoint('atmosphere-0')
+    const atmosphereZero = await captureCheckpoint('atmosphere-0', 'doubleWing')
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID), 1)
-    const atmosphereOne = await captureCheckpoint('atmosphere-1')
+    const atmosphereOne = await captureCheckpoint('atmosphere-1', 'doubleWing')
     expect((await compare(page, atmosphereZero.dataUrl, atmosphereOne.dataUrl)).changedPixelRatio).toBeGreaterThan(0.0005)
     expect(atmosphereOne.metrics.nearWhiteRatio).toBeLessThan(0.5)
 
@@ -325,13 +372,24 @@ test.describe('Cinema 2.0 Interlock Stage 7 real-browser visual acceptance', () 
     const backgroundOnly = await capture(page, canvas)
     const backgroundOnlyRepeat = await capture(page, canvas)
     const negative = await compareFixtureSamples(page, backgroundOnly.dataUrl, backgroundOnlyRepeat.dataUrl, 'diamondTunnel')
+    const backgroundOnlyReadability = await measureFixtureReadability(page, backgroundOnly.dataUrl, 'diamondTunnel')
     expect(isCinema2InterlockFrameVisible(backgroundOnly.metrics)).toBe(true)
+    expect(isCinema2InterlockFixtureReadable(backgroundOnlyReadability)).toBe(false)
     expect(isCinema2InterlockFixtureDifferenceVisible(negative)).toBe(false)
+
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_LED_INTENSITY_ID), 0.5)
+    await page.waitForTimeout(250)
+    const halfIntensityFrame = await capture(page, canvas)
+    const halfIntensityReadability = await measureFixtureReadability(page, halfIntensityFrame.dataUrl, 'diamondTunnel')
+    expect(isCinema2InterlockFixtureReadable(halfIntensityReadability)).toBe(true)
 
     await setRangeParameter(page, String(CINEMA2_INTERLOCK_LED_INTENSITY_ID), 1)
     await page.waitForTimeout(250)
     const ledFrame = await capture(page, canvas)
     const fixtureDelta = await compareFixtureSamples(page, backgroundOnly.dataUrl, ledFrame.dataUrl, 'diamondTunnel')
+    const ledReadability = await measureFixtureReadability(page, ledFrame.dataUrl, 'diamondTunnel')
+    expect(ledReadability.meanCoreLuminance).toBeGreaterThan(halfIntensityReadability.meanCoreLuminance)
+    expect(isCinema2InterlockFixtureReadable(ledReadability)).toBe(true)
     expect(isCinema2InterlockFixtureDifferenceVisible(fixtureDelta)).toBe(true)
     expect(fixtureDelta.changedFixtureCount).toBeGreaterThanOrEqual(8)
 
@@ -353,7 +411,7 @@ test.describe('Cinema 2.0 Interlock Stage 7 real-browser visual acceptance', () 
     expect(isCinema2InterlockFixtureDifferenceVisible(reentryDelta)).toBe(true)
 
     await testInfo.attach('interlock-fixture-specific-metrics.json', {
-      body: Buffer.from(JSON.stringify({ negative, fixtureDelta, reentryDelta }, null, 2)),
+      body: Buffer.from(JSON.stringify({ backgroundOnlyReadability, halfIntensityReadability, ledReadability, negative, fixtureDelta, reentryDelta }, null, 2)),
       contentType: 'application/json',
     })
   })
@@ -380,5 +438,25 @@ test.describe('Cinema 2.0 Interlock Stage 7 real-browser visual acceptance', () 
     expect(probe.sceneCheckpoint?.maxRgbByte).toBeGreaterThan(12)
     expect(probe.outputCheckpoint).toMatchObject({ rgbEnergyDetected: true, error: null })
     expect(probe.outputCheckpoint?.maxRgbByte).toBeGreaterThan(12)
+    expect(probe.performance.resolvedQuality).toBe('high')
+    expect(probe.performance.cpuFrameTimeMs).not.toBeNull()
+    expect(probe.performance.cpuFrameTimeAverageMs).not.toBeNull()
+    expect(probe.performance.cpuFrameTimeMs ?? -1).toBeGreaterThanOrEqual(0)
+    expect(probe.performance.cpuFrameTimeAverageMs ?? -1).toBeGreaterThanOrEqual(0)
+    expect(probe.resources.activeLeaseCount).toBeGreaterThan(0)
+    expect(probe.resources.activeSurfaceCount).toBeGreaterThan(0)
+    expect(probe.resources.estimatedGpuMemoryBytes).toBeGreaterThan(0)
+    expect(probe.history.activeBufferCount).toBeGreaterThanOrEqual(0)
+    expect(probe.history.validBufferCount).toBeLessThanOrEqual(probe.history.activeBufferCount)
+    expect(probe.postDispose).toEqual({
+      phase: 'disposed',
+      activeAnimationFrameCount: 0,
+      activeEventListenerCount: 0,
+      activeWebGLContextCount: 0,
+      activeModuleCount: 0,
+      activeModuleResourceLeaseCount: 0,
+      activeRenderTargetLeaseCount: 0,
+      activeHistoryBufferCount: 0,
+    })
   })
 })

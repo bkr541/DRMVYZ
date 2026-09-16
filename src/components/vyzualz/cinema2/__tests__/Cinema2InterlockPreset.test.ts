@@ -271,8 +271,16 @@ describe('Cinema 2.0 Interlock production preset', () => {
       expect.objectContaining({ id: CINEMA2_INTERLOCK_LAYER_ID, order: 1, blendMode: 'normal', depthPolicy: 'disabled' }),
     ])
     expect(plan.manifest.effects).toEqual([
-      expect.objectContaining({ id: CINEMA2_INTERLOCK_TRAILS_EFFECT_ID, order: 0, parameters: expect.objectContaining({ transportAware: true }) }),
-      expect.objectContaining({ id: CINEMA2_INTERLOCK_BLOOM_EFFECT_ID, order: 1 }),
+      expect.objectContaining({
+        id: CINEMA2_INTERLOCK_TRAILS_EFFECT_ID,
+        order: 0,
+        parameters: expect.objectContaining({ mix: 0.35, persistence: 0.76, transportAware: true }),
+      }),
+      expect.objectContaining({
+        id: CINEMA2_INTERLOCK_BLOOM_EFFECT_ID,
+        order: 1,
+        parameters: expect.objectContaining({ mix: 0.38, threshold: 0.64, radius: 2.2, intensity: 0.35 }),
+      }),
     ])
     expect(plan.manifest.render?.targets).toEqual([
       expect.objectContaining({ id: CINEMA2_INTERLOCK_RENDER_TARGET_ID, descriptor: expect.objectContaining({ colorFormat: 'rgba8', depthFormat: 'none' }) }),
@@ -295,6 +303,7 @@ describe('Cinema 2.0 Interlock production preset', () => {
       backgroundVocalRestraint: 0,
     })
     const ledModule = plan.manifest.modules?.find(module => module.id === CINEMA2_INTERLOCK_MODULE_ID)
+    expect(ledModule?.parameters?.unlitVisibility).toBe(0.085)
     expect(ledModule?.parameterBindings?.effectsIntensity).toEqual({ id: CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID })
     expect(ledModule?.parameterBindings?.segmentBankPhase).toEqual({ id: CINEMA2_INTERLOCK_BANK_STAGGER_ID })
     expect(ledModule?.parameterBindings?.autoPerformance).toEqual({ id: CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID })

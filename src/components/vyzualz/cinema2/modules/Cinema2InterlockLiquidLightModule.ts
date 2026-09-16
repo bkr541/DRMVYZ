@@ -85,7 +85,12 @@ void main() {
   vec2 p = uv * 2.0 - 1.0;
   p.x *= u_resolution.x / max(1.0, u_resolution.y);
 
-  float flowRate = 0.72 * saturate(u_flow);
+  float atmosphere = saturate(u_atmosphere);
+  // Atmosphere is the canonical hierarchy control: zero becomes an almost-static dark
+  // field, while higher values progressively reveal the liquid motion instead of merely
+  // changing brightness on an always-animated background.
+  float atmosphereMotion = atmosphere * (0.25 + atmosphere * 0.75);
+  float flowRate = 0.72 * saturate(u_flow) * atmosphereMotion;
   float t = u_time * flowRate;
   float energy = saturate(u_backgroundEnergy);
   float bassExpansion = saturate(u_backgroundBassExpansion);
@@ -95,12 +100,12 @@ void main() {
   float vocalRestraint = saturate(u_backgroundVocalRestraint);
 
   vec2 q = p;
-  q.x += sin(p.y * 1.35 + t * 0.63) * (0.10 + 0.05 * u_flow);
-  q.y += sin(p.x * 1.18 - t * 0.49) * (0.09 + 0.045 * u_flow);
+  q.x += sin(p.y * 1.35 + t * 0.63) * atmosphereMotion * (0.10 + 0.05 * u_flow);
+  q.y += sin(p.x * 1.18 - t * 0.49) * atmosphereMotion * (0.09 + 0.045 * u_flow);
   q += vec2(
     sin((p.x + p.y) * 0.78 + t * 0.31),
     cos((p.x - p.y) * 0.72 - t * 0.28)
-  ) * 0.065;
+  ) * (0.065 * atmosphereMotion);
 
   float ribbonA = 0.5 + 0.5 * sin(q.x * 2.15 + sin(q.y * 1.32 + t * 0.47) * 1.45 + t * 0.38);
   float ribbonB = 0.5 + 0.5 * sin(q.y * 1.88 + cos(q.x * 1.12 - t * 0.33) * 1.28 - t * 0.29);
@@ -109,19 +114,18 @@ void main() {
   float center = exp(-dot(p, p) * mix(3.0, 1.65, bassExpansion)) * saturate(u_centerGlow);
   float edge = smoothstep(0.44, 1.36, length(p * vec2(0.72, 0.95)));
 
-  float atmosphere = saturate(u_atmosphere);
-  float reactiveLift = energy * 0.12 + build * 0.08 + flux * 0.07 + impact * 0.12;
+  float reactiveLift = (energy * 0.12 + build * 0.08 + flux * 0.07 + impact * 0.12) * (0.25 + atmosphere * 0.75);
   float restraint = 1.0 - vocalRestraint * 0.28;
-  float field = saturate((ribbon * 0.52 + broadGlow * 0.34 + center * 0.58) * (0.34 + atmosphere * 0.78 + reactiveLift)) * restraint;
+  float field = saturate((ribbon * 0.52 + broadGlow * 0.34 + center * 0.58) * (0.06 + atmosphere * 0.62 + reactiveLift)) * restraint;
 
   vec3 secondaryAccent = mix(u_accentColor, u_accentColor.brg, 0.36);
-  float secondary = smoothstep(0.56, 0.96, ribbonB) * (0.08 + atmosphere * 0.18);
+  float secondary = smoothstep(0.56, 0.96, ribbonB) * atmosphere * 0.16;
   vec3 color = u_baseColor;
-  color += u_accentColor * field * (0.18 + atmosphere * 0.36);
+  color += u_accentColor * field * (0.08 + atmosphere * 0.24);
   color += secondaryAccent * secondary;
-  color += u_accentColor * center * (0.05 + impact * 0.08);
+  color += u_accentColor * center * atmosphere * (0.025 + impact * 0.055);
   color *= 1.0 - saturate(u_edgeDarkness) * edge * 0.64;
-  color = min(color, vec3(0.72));
+  color = min(color, vec3(0.56));
 
   outColor = vec4(max(color, vec3(0.0)), 1.0);
 }

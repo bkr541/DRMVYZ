@@ -208,8 +208,11 @@ void main() {
   if (alpha <= 0.001) discard;
 
   vec3 authored = clamp(uLedColor.rgb, vec3(0.0), vec3(1.0));
-  vec3 coreColor = mix(authored, vec3(1.0), core * (0.35 + cellIntensity * 0.45));
-  float brightness = intensity * cellIntensity * (0.82 + segmentedBody * 0.58 + core * 0.62 + glow * 0.45);
+  // Keep a restrained white-hot core for depth without bleaching the selected LED color.
+  // The bounded brightness curve is deliberately monotonic and keeps max intensity from
+  // turning most fixture cells into clipped white rectangles.
+  vec3 coreColor = mix(authored, vec3(1.0), core * (0.10 + cellIntensity * 0.18));
+  float brightness = intensity * cellIntensity * (0.68 + segmentedBody * 0.18 + core * 0.16 + glow * 0.18);
   vec3 rgb = coreColor * brightness;
   outColor = vec4(rgb * alpha, alpha);
 }`

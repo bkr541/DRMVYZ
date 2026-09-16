@@ -550,7 +550,7 @@ describe('Cinema 2.0 Interlock native LED renderer', () => {
     expect(lastUniformColor(harness.gl, 'uLedColor')).toEqual([0.94, 0.98, 1, 1])
     expect(lastUniformInt(harness.gl, 'uSegmentProgram')).toBe(3)
     expect(lastUniformFloat(harness.gl, 'uLitDensity')).toBeCloseTo(0.65)
-    expect(lastUniformFloat(harness.gl, 'uUnlitVisibility')).toBeCloseTo(0.045)
+    expect(lastUniformFloat(harness.gl, 'uUnlitVisibility')).toBeCloseTo(0.085)
 
     harness.instance.lifecycle.dispose()
     harness.resources.disposeAll()

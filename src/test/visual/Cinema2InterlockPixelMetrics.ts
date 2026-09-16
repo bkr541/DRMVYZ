@@ -1,5 +1,8 @@
 import { resolveCinema2InterlockLayout } from '../../components/vyzualz/cinema2/modules/interlock/Cinema2InterlockGeometry'
-import type { Cinema2InterlockPatternId } from '../../components/vyzualz/cinema2/modules/interlock/Cinema2InterlockDomain'
+import { resolveCinema2InterlockRendererInstanceDimensions } from '../../components/vyzualz/cinema2/modules/interlock/Cinema2InterlockRenderEnvelope'
+import { CINEMA2_INTERLOCK_FIXTURE_COUNT, type Cinema2InterlockPatternId } from '../../components/vyzualz/cinema2/modules/interlock/Cinema2InterlockDomain'
+import { CINEMA2_INTERLOCK_RIG } from '../../components/vyzualz/cinema2/modules/interlock/Cinema2InterlockRig'
+import { resolveCinema2InterlockCellCount } from '../../components/vyzualz/cinema2/modules/interlock/Cinema2InterlockSegments'
 
 export interface Cinema2InterlockPixelMetrics {
   pixelCount: number
@@ -173,6 +176,166 @@ export function isCinema2InterlockFrameVisible(metrics: Readonly<Cinema2Interloc
     && metrics.maxLuminance >= 0.08
 }
 
+export interface Cinema2InterlockFixtureReadabilityMetrics {
+  fixtureCount: number
+  visibleFixtureCount: number
+  visibleFixtureRatio: number
+  sampleCount: number
+  visibleSampleCount: number
+  visibleSampleRatio: number
+  meanCoreLuminance: number
+  meanLocalBackgroundLuminance: number
+  meanCoreBackgroundSeparation: number
+  maxCoreBackgroundSeparation: number
+  longitudinalEdgeCount: number
+  highContrastLongitudinalEdgeCount: number
+  segmentGapSampleCount: number
+  readableSegmentGapCount: number
+  meanSegmentGapContrast: number
+  segmentGapContrastRatio: number
+}
+
+/**
+ * Samples the canonical 28-fixture geometry directly instead of allowing a
+ * bright fullscreen background to satisfy Interlock acceptance. Each structural
+ * sample compares the fixture core against both sides just outside the finite
+ * renderer envelope; a background gradient therefore cannot cheaply masquerade
+ * as an LED bar. Centerline diagnostics plus authored cell-boundary samples
+ * separately measure whether segmented cells remain visually distinguishable.
+ */
+export function measureCinema2InterlockFixtureReadability(
+  pixels: ArrayLike<number>,
+  width: number,
+  height: number,
+  patternId: Cinema2InterlockPatternId,
+  dpr = 1,
+): Cinema2InterlockFixtureReadabilityMetrics {
+  if (width <= 0 || height <= 0 || pixels.length !== width * height * 4) {
+    throw new Error('Interlock fixture readability requires RGBA pixels matching positive dimensions.')
+  }
+
+  const layout = resolveCinema2InterlockLayout(patternId, { width, height, dpr })
+  let sampleCount = 0
+  let visibleSampleCount = 0
+  let visibleFixtureCount = 0
+  let coreLuminanceSum = 0
+  let localBackgroundLuminanceSum = 0
+  let separationSum = 0
+  let maxCoreBackgroundSeparation = 0
+  let longitudinalEdgeCount = 0
+  let highContrastLongitudinalEdgeCount = 0
+  let segmentGapSampleCount = 0
+  let readableSegmentGapCount = 0
+  let segmentGapContrastSum = 0
+  const authoredFixtureById = new Map(CINEMA2_INTERLOCK_RIG.fixtures.map(fixture => [fixture.id, fixture] as const))
+
+  for (const fixture of layout.fixtures) {
+    const dx = fixture.bottom[0] - fixture.top[0]
+    const dy = fixture.bottom[1] - fixture.top[1]
+    const length = Math.max(1e-6, Math.hypot(dx, dy))
+    const nx = -dy / length
+    const ny = dx / length
+    const dimensions = resolveCinema2InterlockRendererInstanceDimensions(fixture.lengthPx, fixture.thicknessPx)
+    const coreOffset = Math.max(0.5, dimensions.halfThicknessPx * 0.28)
+    const backgroundOffset = dimensions.renderedHalfThicknessPx + Math.max(2, dpr * 1.5)
+    let fixtureVisibleSamples = 0
+    let fixtureSeparationSum = 0
+
+    for (const t of [0.08, 0.17, 0.26, 0.35, 0.44, 0.53, 0.62, 0.71, 0.80, 0.89, 0.96]) {
+      const cx = fixture.top[0] + dx * t
+      const cy = fixture.top[1] + dy * t
+      const core = averageLuminanceAt(pixels, width, height, [
+        [cx, cy],
+        [cx + nx * coreOffset, cy + ny * coreOffset],
+        [cx - nx * coreOffset, cy - ny * coreOffset],
+      ])
+      const sideA = pixelLuminanceAt(pixels, width, height, cx + nx * backgroundOffset, cy + ny * backgroundOffset)
+      const sideB = pixelLuminanceAt(pixels, width, height, cx - nx * backgroundOffset, cy - ny * backgroundOffset)
+      const localBackground = Math.max(sideA, sideB)
+      const separation = Math.max(0, core - localBackground)
+
+      sampleCount += 1
+      coreLuminanceSum += core
+      localBackgroundLuminanceSum += localBackground
+      separationSum += separation
+      fixtureSeparationSum += separation
+      maxCoreBackgroundSeparation = Math.max(maxCoreBackgroundSeparation, separation)
+      if (separation >= 0.006 && core >= 0.018) {
+        visibleSampleCount += 1
+        fixtureVisibleSamples += 1
+      }
+    }
+
+    const structuralSamples = 11
+    const fixtureMeanSeparation = fixtureSeparationSum / structuralSamples
+    if (fixtureVisibleSamples >= 2 || fixtureMeanSeparation >= 0.0045) visibleFixtureCount += 1
+
+    // Dense centerline sampling is a general contrast diagnostic. The explicit
+    // authored cell-boundary sampling below is the fixture-aware segment-gap check.
+    let previous: number | null = null
+    for (let index = 0; index < 97; index += 1) {
+      const t = 0.015 + (0.97 * index / 96)
+      const cx = fixture.top[0] + dx * t
+      const cy = fixture.top[1] + dy * t
+      const current = pixelLuminanceAt(pixels, width, height, cx, cy)
+      if (previous != null) {
+        longitudinalEdgeCount += 1
+        if (Math.abs(current - previous) >= 0.018) highContrastLongitudinalEdgeCount += 1
+      }
+      previous = current
+    }
+
+    const authoredFixture = authoredFixtureById.get(fixture.fixtureId)
+    if (authoredFixture) {
+      const cellCount = resolveCinema2InterlockCellCount(authoredFixture)
+      for (let boundaryIndex = 1; boundaryIndex < cellCount; boundaryIndex += 1) {
+        const boundaryT = boundaryIndex / cellCount
+        const leftCenterT = (boundaryIndex - 0.5) / cellCount
+        const rightCenterT = (boundaryIndex + 0.5) / cellCount
+        const gap = averageLuminanceAt(pixels, width, height, [
+          [fixture.top[0] + dx * boundaryT, fixture.top[1] + dy * boundaryT],
+          [fixture.top[0] + dx * boundaryT + nx * coreOffset, fixture.top[1] + dy * boundaryT + ny * coreOffset],
+          [fixture.top[0] + dx * boundaryT - nx * coreOffset, fixture.top[1] + dy * boundaryT - ny * coreOffset],
+        ])
+        const leftCell = pixelLuminanceAt(pixels, width, height, fixture.top[0] + dx * leftCenterT, fixture.top[1] + dy * leftCenterT)
+        const rightCell = pixelLuminanceAt(pixels, width, height, fixture.top[0] + dx * rightCenterT, fixture.top[1] + dy * rightCenterT)
+        const neighboringCell = Math.max(leftCell, rightCell)
+        const gapContrast = Math.max(0, neighboringCell - gap)
+        segmentGapSampleCount += 1
+        segmentGapContrastSum += gapContrast
+        if (neighboringCell >= 0.015 && gapContrast >= 0.004) readableSegmentGapCount += 1
+      }
+    }
+  }
+
+  return {
+    fixtureCount: layout.fixtures.length,
+    visibleFixtureCount,
+    visibleFixtureRatio: layout.fixtures.length > 0 ? visibleFixtureCount / layout.fixtures.length : 0,
+    sampleCount,
+    visibleSampleCount,
+    visibleSampleRatio: sampleCount > 0 ? visibleSampleCount / sampleCount : 0,
+    meanCoreLuminance: sampleCount > 0 ? coreLuminanceSum / sampleCount : 0,
+    meanLocalBackgroundLuminance: sampleCount > 0 ? localBackgroundLuminanceSum / sampleCount : 0,
+    meanCoreBackgroundSeparation: sampleCount > 0 ? separationSum / sampleCount : 0,
+    maxCoreBackgroundSeparation,
+    longitudinalEdgeCount,
+    highContrastLongitudinalEdgeCount,
+    segmentGapSampleCount,
+    readableSegmentGapCount,
+    meanSegmentGapContrast: segmentGapSampleCount > 0 ? segmentGapContrastSum / segmentGapSampleCount : 0,
+    segmentGapContrastRatio: segmentGapSampleCount > 0 ? readableSegmentGapCount / segmentGapSampleCount : 0,
+  }
+}
+
+export function isCinema2InterlockFixtureReadable(metrics: Readonly<Cinema2InterlockFixtureReadabilityMetrics>): boolean {
+  return metrics.fixtureCount === CINEMA2_INTERLOCK_FIXTURE_COUNT
+    && metrics.visibleFixtureCount >= 26
+    && metrics.visibleSampleRatio >= 0.18
+    && metrics.meanCoreBackgroundSeparation >= 0.004
+    && metrics.maxCoreBackgroundSeparation >= 0.025
+}
+
 export interface Cinema2InterlockFixtureDifferenceMetrics {
   sampleCount: number
   changedSampleCount: number
@@ -246,6 +409,31 @@ export function isCinema2InterlockFixtureDifferenceVisible(metrics: Readonly<Cin
     && metrics.changedFixtureCount >= 8
     && metrics.changedSampleRatio >= 0.08
     && metrics.maxLuminanceDelta >= 0.08
+}
+
+function pixelLuminanceAt(
+  pixels: ArrayLike<number>,
+  width: number,
+  height: number,
+  x: number,
+  y: number,
+): number {
+  const px = Math.max(0, Math.min(width - 1, Math.round(x)))
+  const py = Math.max(0, Math.min(height - 1, Math.round(y)))
+  const offset = (py * width + px) * 4
+  return luminance(clampByte(pixels[offset]), clampByte(pixels[offset + 1]), clampByte(pixels[offset + 2]))
+}
+
+function averageLuminanceAt(
+  pixels: ArrayLike<number>,
+  width: number,
+  height: number,
+  points: readonly (readonly [number, number])[],
+): number {
+  if (points.length === 0) return 0
+  let sum = 0
+  for (const [x, y] of points) sum += pixelLuminanceAt(pixels, width, height, x, y)
+  return sum / points.length
 }
 
 function percentile(sorted: readonly number[], p: number): number {

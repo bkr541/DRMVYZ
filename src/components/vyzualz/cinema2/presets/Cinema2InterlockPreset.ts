@@ -687,7 +687,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       quality: Object.freeze({ min: 'low' as const }),
       parameters: Object.freeze({
         mix: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.effectsIntensity,
-        persistence: 0.84,
+        persistence: 0.76,
         transportAware: true,
       }),
       parameterBindings: Object.freeze({
@@ -704,9 +704,9 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       scope: 'output' as const,
       quality: Object.freeze({ min: 'low' as const }),
       parameters: Object.freeze({
-        mix: 0.48,
-        threshold: 0.58,
-        radius: 2.6,
+        mix: 0.38,
+        threshold: 0.64,
+        radius: 2.2,
         intensity: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.effectsIntensity,
       }),
       parameterBindings: Object.freeze({

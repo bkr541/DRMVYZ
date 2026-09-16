@@ -6,9 +6,11 @@ import { CINEMA2_INTERLOCK_PRESET_ID, Cinema2Runtime } from '../../components/vy
 import {
   compareCinema2InterlockFixtureSamples,
   compareCinema2InterlockRgbaPixels,
+  measureCinema2InterlockFixtureReadability,
   measureCinema2InterlockRgbaPixels,
   type Cinema2InterlockDifferenceMetrics,
   type Cinema2InterlockFixtureDifferenceMetrics,
+  type Cinema2InterlockFixtureReadabilityMetrics,
   type Cinema2InterlockPixelMetrics,
 } from '../visual/Cinema2InterlockPixelMetrics'
 import '../../styles.css'
@@ -29,11 +31,31 @@ type RawProbeResult = {
   lastExecutedPassIds: readonly string[]
   sceneCheckpoint: { maxRgbByte: number | null; rgbEnergyDetected: boolean | null; error: string | null } | null
   outputCheckpoint: { maxRgbByte: number | null; rgbEnergyDetected: boolean | null; error: string | null } | null
+  performance: {
+    resolvedQuality: string
+    cpuFrameTimeMs: number | null
+    cpuFrameTimeAverageMs: number | null
+    gpuFrameTimeMs: number | null
+    gpuTimingSupported: boolean
+  }
+  resources: { activeLeaseCount: number; activeSurfaceCount: number; estimatedGpuMemoryBytes: number }
+  history: { activeBufferCount: number; validBufferCount: number; activeSurfaceCount: number; estimatedGpuMemoryBytes: number }
+  postDispose: {
+    phase: string
+    activeAnimationFrameCount: number
+    activeEventListenerCount: number
+    activeWebGLContextCount: number
+    activeModuleCount: number
+    activeModuleResourceLeaseCount: number
+    activeRenderTargetLeaseCount: number
+    activeHistoryBufferCount: number
+  }
 }
 
 type HarnessApi = {
   getAudioState(): { trackId: string | null; analyzedBpm: number | null; analysisStatus: string | null }
   measureScreenshotDataUrl(dataUrl: string): Promise<Cinema2InterlockPixelMetrics>
+  measureFixtureScreenshotDataUrl(dataUrl: string, patternId: 'diamondTunnel' | 'mechanicalIris' | 'doubleWing' | 'bassPortal' | 'fourWayVortex'): Promise<Cinema2InterlockFixtureReadabilityMetrics>
   compareScreenshotDataUrls(beforeDataUrl: string, afterDataUrl: string): Promise<Cinema2InterlockDifferenceMetrics>
   compareFixtureScreenshotDataUrls(beforeDataUrl: string, afterDataUrl: string, patternId: 'diamondTunnel' | 'mechanicalIris' | 'doubleWing' | 'bassPortal' | 'fourWayVortex'): Promise<Cinema2InterlockFixtureDifferenceMetrics>
   runRawSceneProbe(): Promise<RawProbeResult>
@@ -48,6 +70,7 @@ declare global {
 const rootElement = document.querySelector<HTMLElement>('#root')
 const statusElement = document.querySelector<HTMLElement>('[data-cinema2-interlock-status]')
 if (!rootElement || !statusElement) throw new Error('Cinema 2.0 Interlock browser harness is incomplete.')
+const acceptanceStatusElement = statusElement
 
 let audioState = { trackId: null as string | null, analyzedBpm: null as number | null, analysisStatus: null as string | null }
 
@@ -72,15 +95,17 @@ async function runRawSceneProbe(): Promise<RawProbeResult> {
   document.body.append(canvas)
   const created = Cinema2Runtime.create(canvas, {
     presetId: CINEMA2_INTERLOCK_PRESET_ID,
+    diagnosticsEnabled: true,
     debugVisibilityReadback: true,
     renderQuality: 'high',
-    randomness: { mode: 'deterministic', seed: 'interlock-stage7-acceptance' },
+    randomness: { mode: 'deterministic', seed: 'interlock-stage6-final-acceptance' },
   })
   if (!created.runtime) {
     canvas.remove()
     throw new Error(created.error)
   }
   const runtime = created.runtime
+  let result: Omit<RawProbeResult, 'postDispose'> | null = null
   try {
     runtime.resize({ width: 640, height: 360, dpr: 1 })
     runtime.start()
@@ -91,9 +116,12 @@ async function runRawSceneProbe(): Promise<RawProbeResult> {
     }
     const render = runtime.getRenderGraphExecutorSnapshot()
     const modules = runtime.getModuleRuntimeSnapshot()
+    const performanceSnapshot = runtime.getPerformanceSnapshot()
+    const resources = runtime.getResourceManagerSnapshot()
+    const history = runtime.getHistoryServiceSnapshot()
     const sceneCheckpoint = render.visibilityCheckpoints.find(checkpoint => checkpoint.stage === 'pass-target') ?? null
     const outputCheckpoint = [...render.visibilityCheckpoints].reverse().find(checkpoint => checkpoint.stage === 'canvas') ?? null
-    return {
+    result = {
       presetId: String(runtime.getDiagnosticsSnapshot().presetId),
       phase: runtime.getSnapshot().phase,
       frameCount: runtime.getSnapshot().frameCount,
@@ -112,10 +140,47 @@ async function runRawSceneProbe(): Promise<RawProbeResult> {
         rgbEnergyDetected: outputCheckpoint.rgbEnergyDetected,
         error: outputCheckpoint.error,
       } : null,
+      performance: {
+        resolvedQuality: performanceSnapshot.resolvedQuality,
+        cpuFrameTimeMs: performanceSnapshot.cpuFrameTimeMs,
+        cpuFrameTimeAverageMs: performanceSnapshot.cpuFrameTimeAverageMs,
+        gpuFrameTimeMs: performanceSnapshot.gpuFrameTimeMs,
+        gpuTimingSupported: performanceSnapshot.gpuTimingSupported,
+      },
+      resources: {
+        activeLeaseCount: resources.activeLeaseCount,
+        activeSurfaceCount: resources.activeSurfaceCount,
+        estimatedGpuMemoryBytes: resources.estimatedGpuMemoryBytes,
+      },
+      history: {
+        activeBufferCount: history.activeBufferCount,
+        validBufferCount: history.validBufferCount,
+        activeSurfaceCount: history.activeSurfaceCount,
+        estimatedGpuMemoryBytes: history.estimatedGpuMemoryBytes,
+      },
     }
   } finally {
     runtime.dispose()
     canvas.remove()
+  }
+
+  if (!result) throw new Error('Interlock raw scene probe did not produce a result.')
+  const disposedRuntime = runtime.getSnapshot()
+  const disposedModules = runtime.getModuleRuntimeSnapshot()
+  const disposedResources = runtime.getResourceManagerSnapshot()
+  const disposedHistory = runtime.getHistoryServiceSnapshot()
+  return {
+    ...result,
+    postDispose: {
+      phase: disposedRuntime.phase,
+      activeAnimationFrameCount: disposedRuntime.resources.activeAnimationFrameCount,
+      activeEventListenerCount: disposedRuntime.resources.activeEventListenerCount,
+      activeWebGLContextCount: disposedRuntime.resources.activeWebGLContextCount,
+      activeModuleCount: disposedModules.activeModuleCount,
+      activeModuleResourceLeaseCount: disposedModules.activeResourceLeaseCount,
+      activeRenderTargetLeaseCount: disposedResources.activeLeaseCount,
+      activeHistoryBufferCount: disposedHistory.activeBufferCount,
+    },
   }
 }
 
@@ -124,6 +189,10 @@ window.__DRMVYZ_CINEMA2_INTERLOCK_ACCEPTANCE__ = {
   measureScreenshotDataUrl: async dataUrl => {
     const image = await decodeScreenshot(dataUrl)
     return measureCinema2InterlockRgbaPixels(image.data, image.width, image.height)
+  },
+  measureFixtureScreenshotDataUrl: async (dataUrl, patternId) => {
+    const image = await decodeScreenshot(dataUrl)
+    return measureCinema2InterlockFixtureReadability(image.data, image.width, image.height, patternId, window.devicePixelRatio)
   },
   compareScreenshotDataUrls: async (beforeDataUrl, afterDataUrl) => {
     const before = await decodeScreenshot(beforeDataUrl)
@@ -148,8 +217,8 @@ function HarnessContent() {
       analyzedBpm: typeof audio.currentAnalyzedBpm === 'number' ? audio.currentAnalyzedBpm : null,
       analysisStatus: audio.currentAnalysisStatus ?? null,
     }
-    statusElement.dataset.result = 'ready'
-    statusElement.textContent = JSON.stringify(audioState)
+    acceptanceStatusElement.dataset.result = 'ready'
+    acceptanceStatusElement.textContent = JSON.stringify(audioState)
   }, [audio.currentAnalysisStatus, audio.currentAnalyzedBpm, audio.currentTrackId])
   return <VyzualzView activeView="vyzualz" onNavigate={() => {}} initialAppView="react" />
 }
