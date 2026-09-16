@@ -7,6 +7,7 @@ import {
   type Cinema2ChoreographyActionId,
   type Cinema2ChoreographyRuleId,
   type Cinema2LayerId,
+  type Cinema2MediaSlotId,
   type Cinema2ModuleId,
   type Cinema2NativePresetManifest,
   type Cinema2ParameterId,
@@ -36,6 +37,11 @@ export const CINEMA2_ELECTRIC_STORM_FLASH_INTENSITY_ID = cinema2StableId<Cinema2
 export const CINEMA2_ELECTRIC_STORM_FLASH_DURATION_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-flash-duration')
 export const CINEMA2_ELECTRIC_STORM_FLASH_DECAY_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-flash-decay')
 export const CINEMA2_ELECTRIC_STORM_STRIKE_INTENT_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-strike-intent')
+export const CINEMA2_ELECTRIC_STORM_MEDIA_INFLUENCE_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-media-influence')
+
+export const CINEMA2_ELECTRIC_STORM_USER_MEDIA_SLOT_ID = cinema2StableId<Cinema2MediaSlotId>('electric-storm-user-media')
+export const CINEMA2_ELECTRIC_STORM_ALBUM_ARTWORK_SLOT_ID = cinema2StableId<Cinema2MediaSlotId>('electric-storm-album-artwork')
+export const CINEMA2_ELECTRIC_STORM_MEDIA_OUTPUT_SLOT_ID = cinema2StableId<Cinema2MediaSlotId>('electric-storm-media-output')
 
 export const CINEMA2_ELECTRIC_STORM_MODULE_ID = cinema2StableId<Cinema2ModuleId>('electric-storm-procedural-lightning')
 const ELECTRIC_STORM_ROOT_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('electric-storm-root')
@@ -83,6 +89,9 @@ export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST: Readonly<Cinema2NativePrese
     Object.freeze({ id: 'music.section' as const, requirement: 'optional' as const, purpose: 'Section-change storm variation.' }),
     Object.freeze({ id: 'music.drop' as const, requirement: 'optional' as const, purpose: 'Drop-entry hero strikes.' }),
     Object.freeze({ id: 'visual-director.significance' as const, requirement: 'optional' as const, purpose: 'Preset-agnostic visual significance and transition authority.' }),
+    Object.freeze({ id: 'media.image' as const, requirement: 'optional' as const, purpose: 'Engine-owned Electric Storm media slots.' }),
+    Object.freeze({ id: 'media.video' as const, requirement: 'optional' as const, purpose: 'Engine-owned Electric Storm media slots.' }),
+    Object.freeze({ id: 'media.svg' as const, requirement: 'optional' as const, purpose: 'Engine-owned Electric Storm media slots.' }),
   ]),
   parameters: Object.freeze([
     CINEMA2_QUALITY_MODE_PARAMETER,
@@ -221,6 +230,30 @@ export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST: Readonly<Cinema2NativePrese
       section: 'React', group: 'Runtime', order: 999,
       exposure: 'hidden' as const, persistence: 'runtime-only' as const, reset: 'none' as const,
     }),
+    Object.freeze({
+      id: CINEMA2_ELECTRIC_STORM_MEDIA_INFLUENCE_ID,
+      label: 'Media Influence',
+      type: 'float' as const, defaultValue: 0.34, min: 0, max: 1, step: 0.01,
+      section: 'Design', group: 'Atmosphere', order: 22,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+  ]),
+  mediaSlots: Object.freeze([
+    Object.freeze({
+      id: CINEMA2_ELECTRIC_STORM_USER_MEDIA_SLOT_ID,
+      label: 'User Media',
+      accepts: Object.freeze(['image', 'video', 'svg'] as const),
+    }),
+    Object.freeze({
+      id: CINEMA2_ELECTRIC_STORM_ALBUM_ARTWORK_SLOT_ID,
+      label: 'Album Artwork',
+      accepts: Object.freeze(['image'] as const),
+    }),
+    Object.freeze({
+      id: CINEMA2_ELECTRIC_STORM_MEDIA_OUTPUT_SLOT_ID,
+      label: 'Media Output',
+      accepts: Object.freeze(['image', 'video'] as const),
+    }),
   ]),
   modules: Object.freeze([Object.freeze({
     id: CINEMA2_ELECTRIC_STORM_MODULE_ID,
@@ -244,6 +277,7 @@ export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST: Readonly<Cinema2NativePrese
       flashIntensity: 0.78,
       flashDuration: 0.46,
       flashDecay: 0.62,
+      mediaInfluence: 0.34,
     }),
     parameterBindings: Object.freeze({
       lightningColor: cinema2Ref(CINEMA2_ELECTRIC_STORM_LIGHTNING_COLOR_ID),
@@ -262,9 +296,15 @@ export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST: Readonly<Cinema2NativePrese
       flashIntensity: cinema2Ref(CINEMA2_ELECTRIC_STORM_FLASH_INTENSITY_ID),
       flashDuration: cinema2Ref(CINEMA2_ELECTRIC_STORM_FLASH_DURATION_ID),
       flashDecay: cinema2Ref(CINEMA2_ELECTRIC_STORM_FLASH_DECAY_ID),
+      mediaInfluence: cinema2Ref(CINEMA2_ELECTRIC_STORM_MEDIA_INFLUENCE_ID),
     }),
     actionBindings: Object.freeze({
       spawnStrike: cinema2Ref(CINEMA2_ELECTRIC_STORM_STRIKE_INTENT_ID),
+    }),
+    media: Object.freeze({
+      userMedia: cinema2Ref(CINEMA2_ELECTRIC_STORM_USER_MEDIA_SLOT_ID),
+      albumArtwork: cinema2Ref(CINEMA2_ELECTRIC_STORM_ALBUM_ARTWORK_SLOT_ID),
+      mediaOutput: cinema2Ref(CINEMA2_ELECTRIC_STORM_MEDIA_OUTPUT_SLOT_ID),
     }),
   })]),
   scene: Object.freeze({

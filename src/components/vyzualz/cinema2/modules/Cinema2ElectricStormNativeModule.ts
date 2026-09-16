@@ -55,6 +55,16 @@ uniform vec4 u_strikeStyle1;
 uniform vec4 u_strikeLine2;
 uniform vec4 u_strikeMeta2;
 uniform vec4 u_strikeStyle2;
+uniform float u_mediaInfluence;
+uniform sampler2D u_userMedia;
+uniform float u_userMediaAvailable;
+uniform float u_userMediaOpacity;
+uniform sampler2D u_albumArtwork;
+uniform float u_albumArtworkAvailable;
+uniform float u_albumArtworkOpacity;
+uniform sampler2D u_mediaOutput;
+uniform float u_mediaOutputAvailable;
+uniform float u_mediaOutputOpacity;
 out vec4 outColor;
 
 float hash21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
@@ -146,6 +156,19 @@ void main() {
   float haze = smoothstep(0.34, 0.78, hazeA * 0.72 + hazeB * 0.38);
   float hazePresence = haze * clamp(u_fogDensity * 2.4, 0.0, 0.32) * (0.45 + u_masterIntensity * 0.55);
   vec3 color = u_background + mix(u_background, u_fogColor, 0.56) * hazePresence;
+  float userWeight = u_userMediaAvailable * u_userMediaOpacity;
+  float artworkWeight = u_albumArtworkAvailable * u_albumArtworkOpacity;
+  float outputWeight = u_mediaOutputAvailable * u_mediaOutputOpacity;
+  float mediaWeight = userWeight + artworkWeight + outputWeight;
+  if (u_mediaInfluence > 0.001 && mediaWeight > 0.001) {
+    vec2 mediaUv = clamp(uv + vec2(hazeA - 0.5, hazeB - 0.5) * 0.01, vec2(0.001), vec2(0.999));
+    vec3 mediaColor = (
+      texture(u_userMedia, mediaUv).rgb * userWeight
+      + texture(u_albumArtwork, mediaUv).rgb * artworkWeight
+      + texture(u_mediaOutput, mediaUv).rgb * outputWeight
+    ) / max(mediaWeight, 0.0001);
+    color = mix(color, mediaColor, clamp(u_mediaInfluence * (0.35 + hazePresence * 1.4), 0.0, 0.85));
+  }
   float thunderFlash = clamp(u_thunderFlash, 0.0, 1.0);
   color += mix(max(u_background, vec3(0.008)), mix(vec3(1.0), u_lightningGlowColor, 0.42), 0.78) * (0.28 + haze * 0.82 + hazeB * 0.22) * thunderFlash;
   vec3 strikes = renderStrike(p, u_strikeLine0, u_strikeMeta0, u_strikeStyle0, 0.0)
@@ -163,6 +186,7 @@ void main() {
 const REQUIRED_PARAMETERS = [
   'lightningColor', 'masterIntensity', 'strikeRate', 'branching', 'thickness', 'glow', 'impactShake', 'zoomPunch',
   'musicReactivity', 'kickReaction', 'transientReaction', 'dropReaction', 'structureReaction', 'flashIntensity', 'flashDuration', 'flashDecay',
+  'mediaInfluence',
 ] as const
 
 const MAX_PENDING_MUSICAL_STRIKES = 32
@@ -380,6 +404,10 @@ function createProgram(gl: WebGL2RenderingContext): ShaderProgram {
     'u_lightningBody', 'u_lightningCore', 'u_lightningGlowColor', 'u_lightningBranchColor',
     'u_masterIntensity', 'u_branching', 'u_thickness', 'u_glowAmount', 'u_impactShake', 'u_zoomPunch', 'u_impactStrength', 'u_thunderFlash',
     'u_strikeLine0', 'u_strikeMeta0', 'u_strikeStyle0', 'u_strikeLine1', 'u_strikeMeta1', 'u_strikeStyle1', 'u_strikeLine2', 'u_strikeMeta2', 'u_strikeStyle2',
+    'u_mediaInfluence',
+    'u_userMedia', 'u_userMediaAvailable', 'u_userMediaOpacity',
+    'u_albumArtwork', 'u_albumArtworkAvailable', 'u_albumArtworkOpacity',
+    'u_mediaOutput', 'u_mediaOutputAvailable', 'u_mediaOutputOpacity',
   ]
   const result = ShaderProgram.create(gl, new ShaderCompiler(gl), { label: 'Cinema2/ElectricStorm/native', vertSrc: FULLSCREEN_VERT_SRC, fragSrc: ELECTRIC_STORM_FRAGMENT_SOURCE, requiredUniforms })
   if (!result.program) throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
@@ -433,7 +461,22 @@ export const cinema2ElectricStormNativeModuleDefinition: Readonly<Cinema2ModuleT
         program.setFloat('u_impactStrength', strikes.reduce((maximum, strike) => Math.max(maximum, strikeImpactStrength(strike, frame.elapsedTimeSec)), 0))
         program.setFloat('u_thunderFlash', thunderFlash)
         for (let index = 0; index < CINEMA2_ELECTRIC_STORM_MAX_ACTIVE_STRIKES; index += 1) setStrikeUniforms(program, index, strikes[index], frame.elapsedTimeSec)
-        pass.run(program, target, width, height, [])
+        program.setFloat('u_mediaInfluence', numberValue(context, 'mediaInfluence', 0.34))
+        const userMedia = context.media.get('userMedia')
+        const albumArtwork = context.media.get('albumArtwork')
+        const mediaOutput = context.media.get('mediaOutput')
+        program.setFloat('u_userMediaAvailable', userMedia ? 1 : 0)
+        program.setFloat('u_userMediaOpacity', userMedia?.presentation.opacity ?? 0)
+        program.setFloat('u_albumArtworkAvailable', albumArtwork ? 1 : 0)
+        program.setFloat('u_albumArtworkOpacity', albumArtwork?.presentation.opacity ?? 0)
+        program.setFloat('u_mediaOutputAvailable', mediaOutput ? 1 : 0)
+        program.setFloat('u_mediaOutputOpacity', mediaOutput?.presentation.opacity ?? 0)
+        const mediaTextures = [
+          userMedia ? { unit: 0, texture: userMedia.texture, uniformName: 'u_userMedia' } : null,
+          albumArtwork ? { unit: 1, texture: albumArtwork.texture, uniformName: 'u_albumArtwork' } : null,
+          mediaOutput ? { unit: 2, texture: mediaOutput.texture, uniformName: 'u_mediaOutput' } : null,
+        ].filter((binding): binding is { unit: number; texture: WebGLTexture; uniformName: string } => binding != null)
+        pass.run(program, target, width, height, mediaTextures)
       },
     })
 
