@@ -13,6 +13,7 @@ import { PaletteGroupStyleGallery } from './layoutLab/PaletteGroupStyleGallery'
 import { BadgeStyleGallery } from './layoutLab/BadgeStyleGallery'
 import { LayerRowStyleGallery } from './layoutLab/LayerRowStyleGallery'
 import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
+import { LyricTrackMetaWindowStyleGallery } from './layoutLab/LyricTrackMetaWindowStyleGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { BpmGroupStyleGallery } from './layoutLab/BpmGroupStyleGallery'
 import { TrackHeaderStyleGallery } from './layoutLab/TrackHeaderStyleGallery'
@@ -354,6 +355,11 @@ export function LayoutLabMockup() {
                 {templateRightTab === 'presets' && (
                   <div className="rv-inspector rv-inspector-scroll">
                     <PresetCardStyleGallery />
+                  </div>
+                )}
+                {templateRightTab === 'design' && (
+                  <div className="rv-inspector rv-inspector-scroll">
+                    <LyricTrackMetaWindowStyleGallery />
                   </div>
                 )}
                 {templateRightTab === 'output' && (

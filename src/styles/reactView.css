@@ -18423,6 +18423,315 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border: 0;
   padding: 0;
 }
+
+/* ── LyricTrackMetaWindowStyleGallery (.lltm-*) ─────────────────────────────
+   Five candidate layouts for relocating the loaded-track summary (production
+   source: LyricTrackMetaHeader.tsx / .lmv-track-meta-* in lyricManager.css)
+   out of Live Preview and into its own right-rail window. Colors/type reuse
+   that production component's own values (chip label/value, avatar glow,
+   status-good green) so a chosen layout can graduate with no restyle. Each
+   sample is wrapped as a self-contained bordered card purely for gallery
+   presentation — the real window would sit flush like its rail siblings. */
+.lltm-window {
+  border: 1px solid rgba(74, 199, 219, 0.22);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(6, 12, 17, 0.92);
+}
+
+.lltm-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 14px;
+}
+
+.lltm-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(232, 244, 248, 0.94);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltm-artist {
+  font-size: 10px;
+  color: rgba(196, 207, 211, 0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltm-status-good { color: #61d6aa; }
+
+.lltm-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.lltm-avatar {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  border: 1px solid rgba(126, 218, 232, 0.16);
+  background:
+    linear-gradient(145deg, rgba(74, 199, 219, 0.2), transparent 50%),
+    radial-gradient(circle at 50% 25%, rgba(237, 249, 251, 0.2), transparent 26%),
+    #071014;
+  color: rgba(237, 249, 251, 0.9);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 14px rgba(74, 199, 219, 0.66);
+}
+
+.lltm-avatar--sm { width: 28px; height: 28px; font-size: 10px; }
+.lltm-avatar--md { width: 40px; height: 40px; font-size: 12px; }
+
+.lltm-chip-label {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(196, 207, 211, 0.42);
+}
+
+.lltm-chip-value {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(232, 244, 248, 0.9);
+}
+
+.lltm-versions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  font-size: 10px;
+}
+
+.lltm-versions dt {
+  color: rgba(196, 207, 211, 0.42);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lltm-versions dd {
+  margin: 0;
+  color: rgba(232, 244, 248, 0.86);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.lltm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.lltm-actions--row .dv-icon-chip { flex: 1 1 0; justify-content: center; }
+.lltm-actions--stack { flex-direction: column; }
+.lltm-actions--stack .dv-icon-chip { width: 100%; justify-content: center; }
+
+/* 01 · Compact Identity Card */
+.lltm-compact-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lltm-compact-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lltm-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+}
+
+/* 02 · Hero Banner */
+.lltm-hero-banner {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 76px;
+  margin: -12px -14px 0;
+  padding: 12px 14px;
+  background:
+    linear-gradient(180deg, rgba(74, 199, 219, 0.22), rgba(6, 12, 17, 0) 70%),
+    radial-gradient(circle at 18% 20%, rgba(103, 247, 255, 0.24), transparent 55%),
+    #081117;
+  border-bottom: 1px solid rgba(74, 199, 219, 0.18);
+}
+
+.lltm-hero-avatar {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  border: 1px solid rgba(126, 218, 232, 0.3);
+  background: rgba(6, 12, 17, 0.72);
+  color: rgba(237, 249, 251, 0.92);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 14px rgba(74, 199, 219, 0.66);
+  flex-shrink: 0;
+}
+
+.lltm-hero-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin-left: 10px;
+}
+
+.lltm-hero-actions {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+}
+
+.lltm-body--hero { gap: 12px; }
+
+.lltm-chip-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
+/* 03 · Diagnostic List */
+.lltm-diag-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lltm-diag-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.1);
+}
+
+.lltm-diag-row:last-of-type { border-bottom: none; }
+
+.lltm-diag-label {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgba(196, 207, 211, 0.5);
+}
+
+.lltm-diag-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(232, 244, 248, 0.9);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 04 · Chip Rail Sidebar */
+.lltm-rail-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lltm-chip-rail {
+  display: flex;
+  flex-direction: column;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  overflow: hidden;
+}
+
+.lltm-chip-rail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.014);
+}
+
+.lltm-chip-rail-row + .lltm-chip-rail-row {
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.lltm-chip-rail-row .lltm-chip-label { margin: 0; }
+.lltm-chip-rail-row .lltm-chip-value { text-align: right; }
+
+/* 05 · Collapsible Summary */
+.lltm-collapse-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.lltm-collapse-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(232, 244, 248, 0.94);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lltm-collapse-inline {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(196, 207, 211, 0.55);
+}
+
+.lltm-collapse-chevron {
+  flex-shrink: 0;
+  color: rgba(196, 207, 211, 0.45);
+  font-size: 11px;
+  transition: transform 140ms ease;
+}
+
+.lltm-collapse-chevron.is-open { transform: rotate(180deg); }
+
+.lltm-collapse-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(154, 178, 188, 0.12);
+}
+
 .rv-cinema-graph-editor__connections path.is-disabled { stroke-dasharray: 4 5; opacity: 0.58; }
 
 /* Cinema Stage 6: built-in routing is informational rather than a disabled editor. */
