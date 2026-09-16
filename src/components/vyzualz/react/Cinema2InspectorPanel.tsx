@@ -86,6 +86,12 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
   const masterControlsDesignEntries: Cinema2InspectorEntryModel[] = []
   let masterControlsPaletteGroup: Cinema2InspectorGroupModel | null = null
   const masterControlsEffectsControls: Cinema2InspectorControlModel[] = []
+  // Reactivity and Build Contraction are re-authored onto the "Design"
+  // section (they used to live under "React" > Response) specifically so
+  // they land in this same sections computation and can be pulled straight
+  // into Master Controls' own body, flat — not nested under a "Response"
+  // sub-header, since only the parameters were asked to move, not the group.
+  const masterControlsRootControls: Cinema2InspectorControlModel[] = []
   const sectionsContent = sections.length === 0
     ? <div className="rv-ctrl-group"><div className="rv-ctrl-info">No Cinema 2.0 parameters are declared for this workspace.</div></div>
     : (
@@ -100,6 +106,10 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
                 }
                 if (entry.label === 'Palette') {
                   masterControlsPaletteGroup = entry
+                  return false
+                }
+                if (entry.label === 'Response') {
+                  masterControlsRootControls.push(...entry.controls)
                   return false
                 }
                 return true
@@ -179,38 +189,47 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
                 {sectionsContent}
                 <div className="rv-ctrl-group" data-cinema2-placeholder-group="master-controls">
                   <Collapsible label="Master Controls">
-                    <Collapsible label="Design">
-                      {masterControlsDesignEntries.length === 0 ? (
-                        <div className="rv-ctrl-info">No controls yet.</div>
-                      ) : (
-                        masterControlsDesignEntries.map((entry, entryIndex) => (
-                          <Cinema2InspectorEntry
-                            key={entry.kind === 'instance' ? `${entry.instanceKind}:${entry.instanceId}` : entry.label ?? `ungrouped-${entryIndex}`}
-                            entry={entry}
-                            onChange={commit}
-                            onTrigger={dispatch}
-                          />
-                        ))
-                      )}
-                    </Collapsible>
-                    <Collapsible label="Effects">
-                      {masterControlsEffectsControls.length === 0 ? (
-                        <div className="rv-ctrl-info">No controls yet.</div>
-                      ) : (
-                        <Cinema2InspectorControls
-                          controls={masterControlsEffectsControls}
+                    {masterControlsRootControls.length === 0 ? (
+                      <div className="rv-ctrl-info">No controls yet.</div>
+                    ) : (
+                      <Cinema2InspectorControls
+                        controls={masterControlsRootControls}
+                        onChange={commit}
+                        onTrigger={dispatch}
+                      />
+                    )}
+                  </Collapsible>
+                  <Collapsible label="Design">
+                    {masterControlsDesignEntries.length === 0 ? (
+                      <div className="rv-ctrl-info">No controls yet.</div>
+                    ) : (
+                      masterControlsDesignEntries.map((entry, entryIndex) => (
+                        <Cinema2InspectorEntry
+                          key={entry.kind === 'instance' ? `${entry.instanceKind}:${entry.instanceId}` : entry.label ?? `ungrouped-${entryIndex}`}
+                          entry={entry}
                           onChange={commit}
                           onTrigger={dispatch}
                         />
-                      )}
-                    </Collapsible>
-                    <Collapsible label="Palette" bodyClassName="rv-cinema2-palette-body">
-                      {masterControlsPaletteGroup == null ? (
-                        <div className="rv-ctrl-info">No controls yet.</div>
-                      ) : (
-                        <Cinema2PaletteColorGroup group={masterControlsPaletteGroup} onChange={commit} />
-                      )}
-                    </Collapsible>
+                      ))
+                    )}
+                  </Collapsible>
+                  <Collapsible label="Effects">
+                    {masterControlsEffectsControls.length === 0 ? (
+                      <div className="rv-ctrl-info">No controls yet.</div>
+                    ) : (
+                      <Cinema2InspectorControls
+                        controls={masterControlsEffectsControls}
+                        onChange={commit}
+                        onTrigger={dispatch}
+                      />
+                    )}
+                  </Collapsible>
+                  <Collapsible label="Palette" bodyClassName="rv-cinema2-palette-body">
+                    {masterControlsPaletteGroup == null ? (
+                      <div className="rv-ctrl-info">No controls yet.</div>
+                    ) : (
+                      <Cinema2PaletteColorGroup group={masterControlsPaletteGroup} onChange={commit} />
+                    )}
                   </Collapsible>
                 </div>
                 {resetParametersButton}
@@ -427,6 +446,7 @@ function Cinema2SchemaControl({
               step={definition.step ?? (definition.type === 'integer' ? 1 : 0.01)}
               disabled={disabled}
               description={description || undefined}
+              resetValue={typeof definition.defaultValue === 'number' ? definition.defaultValue : undefined}
               onChange={next => onChange(definition.type === 'integer' ? Math.round(next) : next)}
             />
           </div>

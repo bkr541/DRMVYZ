@@ -206,7 +206,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       type: 'float' as const,
       defaultValue: 0.82,
       min: 0, max: 1.5, step: 0.01,
-      section: 'React', group: 'Response', order: 10,
+      section: 'Design', group: 'Response', order: 10,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
       modulatable: true,
       choreographable: true,
@@ -218,7 +218,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       type: 'float' as const,
       defaultValue: 0.66,
       min: 0, max: 1, step: 0.01,
-      section: 'React', group: 'Response', order: 11,
+      section: 'Design', group: 'Response', order: 11,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
