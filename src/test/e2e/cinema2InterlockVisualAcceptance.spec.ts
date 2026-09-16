@@ -197,6 +197,54 @@ test.describe('Cinema 2.0 Interlock Stage 7 real-browser visual acceptance', () 
     expect(pageErrors).toEqual([])
   })
 
+  test('captures isolated deterministic stills for all five layouts with fixture-region signal', async ({ page }, testInfo) => {
+    test.setTimeout(180_000)
+    const canvas = await bootProductionInterlock(page)
+    await configureManualCheckpointBase(page)
+    await setEnumParameter(page, String(CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID), 'Solid')
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_LIT_DENSITY_ID), 1)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID), 0)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID), 0)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_LED_INTENSITY_ID), 0)
+    await page.waitForTimeout(300)
+    const backgroundOnly = await capture(page, canvas)
+    await setRangeParameter(page, String(CINEMA2_INTERLOCK_LED_INTENSITY_ID), 1)
+
+    const layouts = [
+      ['diamondTunnel', 'Diamond Tunnel'],
+      ['mechanicalIris', 'Mechanical Iris'],
+      ['doubleWing', 'Double Wing'],
+      ['bassPortal', 'Bass Portal'],
+      ['fourWayVortex', 'Four-Way Vortex'],
+    ] as const
+    const report: Record<string, { metrics: Cinema2InterlockPixelMetrics; fixtureSignal: Cinema2InterlockFixtureDifferenceMetrics }> = {}
+    let previousDataUrl: string | null = null
+
+    for (const [id, label] of layouts) {
+      await setEnumParameter(page, String(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID), label)
+      await page.waitForTimeout(450)
+      const frame = await capture(page, canvas)
+      const fixtureSignal = await compareFixtureSamples(page, backgroundOnly.dataUrl, frame.dataUrl, id)
+      expect(isCinema2InterlockFrameVisible(frame.metrics)).toBe(true)
+      expect(fixtureSignal.changedFixtureCount).toBeGreaterThanOrEqual(24)
+      expect(fixtureSignal.changedSampleRatio).toBeGreaterThan(0.2)
+      if (previousDataUrl) {
+        expect((await compare(page, previousDataUrl, frame.dataUrl)).changedPixelRatio).toBeGreaterThan(0.002)
+      }
+      report[id] = { metrics: frame.metrics, fixtureSignal }
+      await testInfo.attach(`interlock-layout-${id}.png`, {
+        body: Buffer.from(frame.dataUrl.split(',')[1]!, 'base64'),
+        contentType: 'image/png',
+      })
+      previousDataUrl = frame.dataUrl
+    }
+
+    await testInfo.attach('interlock-layout-isolation-metrics.json', {
+      body: Buffer.from(JSON.stringify(report, null, 2)),
+      contentType: 'application/json',
+    })
+  })
+
   test('captures deterministic manual layout checkpoints and bounded atmosphere/effect extremes', async ({ page }, testInfo) => {
     test.setTimeout(180_000)
     const canvas = await bootProductionInterlock(page)

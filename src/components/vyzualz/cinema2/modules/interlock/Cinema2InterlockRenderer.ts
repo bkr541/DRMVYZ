@@ -8,6 +8,7 @@ import {
   getCinema2InterlockSegmentProgramIndex,
   type Cinema2InterlockSegmentProgramId,
 } from './Cinema2InterlockSegments'
+import { resolveCinema2InterlockRendererInstanceDimensions } from './Cinema2InterlockRenderEnvelope'
 
 export const CINEMA2_INTERLOCK_MAX_RENDER_INSTANCES = CINEMA2_INTERLOCK_FIXTURE_COUNT
 
@@ -386,9 +387,8 @@ export class Cinema2InterlockRenderer {
       const dy = geometry.bottom[1] - geometry.top[1]
       const length = Math.hypot(dx, dy)
       if (!Number.isFinite(length) || length <= 1e-6) continue
-      const halfLength = length / 2
-      const halfThickness = Math.max(0.5, finitePositive(geometry.thicknessPx, 1) / 2)
-      const glowPad = Math.max(3, halfThickness * 3.4)
+      const { halfLengthPx: halfLength, halfThicknessPx: halfThickness, glowPaddingPx: glowPad } =
+        resolveCinema2InterlockRendererInstanceDimensions(length, geometry.thicknessPx)
       const offset = instanceCount * INSTANCE_FLOATS
       this.instanceData[offset] = geometry.middle[0]
       this.instanceData[offset + 1] = geometry.middle[1]

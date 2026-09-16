@@ -11,6 +11,7 @@ import {
   createCinema2InterlockTransitionState,
   getCinema2InterlockMirrorFixture,
   getCinema2InterlockPatternTarget,
+  isCinema2InterlockGeometryBodySafe,
   isCinema2InterlockGeometryViewportSafe,
   normalizeCinema2InterlockPatternId,
   resolveCinema2InterlockAngleDelta,
@@ -18,6 +19,7 @@ import {
   resolveCinema2InterlockFinalPose,
   resolveCinema2InterlockGeometryFromPivot,
   resolveCinema2InterlockLayout,
+  resolveCinema2InterlockVisibleEnvelope,
   resolveCinema2InterlockTransition,
   validateCinema2InterlockPatternDefinition,
   type Cinema2InterlockPatternId,
@@ -28,9 +30,12 @@ import {
 
 const VIEWPORTS: readonly Cinema2InterlockViewport[] = Object.freeze([
   Object.freeze({ width: 1920, height: 1080, dpr: 1 }),
-  Object.freeze({ width: 1680, height: 1050, dpr: 1 }),
+  Object.freeze({ width: 1920, height: 1200, dpr: 1 }),
   Object.freeze({ width: 900, height: 900, dpr: 1 }),
   Object.freeze({ width: 2560, height: 1080, dpr: 1 }),
+  Object.freeze({ width: 2560, height: 1440, dpr: 1 }),
+  Object.freeze({ width: 3840, height: 2160, dpr: 1 }),
+  Object.freeze({ width: 5120, height: 1440, dpr: 1 }),
   Object.freeze({ width: 20, height: 20, dpr: 1 }),
   Object.freeze({ width: 2560, height: 1440, dpr: 2 }),
 ])
@@ -98,6 +103,24 @@ describe('Cinema 2.0 Interlock Stage 1 domain', () => {
       expect(pattern.targets).toHaveLength(CINEMA2_INTERLOCK_FIXTURE_COUNT)
       expect(new Set(pattern.targets.map(target => target.fixtureId))).toEqual(rigIds)
       expect(validateCinema2InterlockPatternDefinition(pattern)).toEqual([])
+    }
+  })
+
+  it('uses one intentional top/middle/bottom hinge topology across all five deterministic layouts', () => {
+    const pivotByFixture = new Map<string, Cinema2InterlockPivotId>()
+    for (const pattern of CINEMA2_INTERLOCK_PATTERN_CATALOG) {
+      const counts: Record<Cinema2InterlockPivotId, number> = { top: 0, middle: 0, bottom: 0 }
+      for (const fixture of CINEMA2_INTERLOCK_RIG.fixtures) {
+        const target = getCinema2InterlockPatternTarget(pattern.id, fixture.id)
+        counts[target.pivot] += 1
+        const previous = pivotByFixture.get(fixture.id)
+        if (previous) expect(target.pivot).toBe(previous)
+        else pivotByFixture.set(fixture.id, target.pivot)
+
+        const mirror = getCinema2InterlockMirrorFixture(fixture)
+        expect(getCinema2InterlockPatternTarget(pattern.id, mirror.id).pivot).toBe(target.pivot)
+      }
+      expect(counts).toEqual({ top: 8, middle: 12, bottom: 8 })
     }
   })
 
@@ -233,6 +256,7 @@ describe('Cinema 2.0 Interlock Stage 1 domain', () => {
       for (const patternId of CINEMA2_INTERLOCK_PATTERN_IDS) {
         const layout = resolveCinema2InterlockLayout(patternId, viewport)
         expect(layout.fixtures).toHaveLength(CINEMA2_INTERLOCK_FIXTURE_COUNT)
+        expect(layout.fixtures.every(candidate => isCinema2InterlockGeometryBodySafe(candidate, layout.viewport))).toBe(true)
         expect(layout.fixtures.every(candidate => isCinema2InterlockGeometryViewportSafe(candidate, layout.viewport))).toBe(true)
         for (const fixture of layout.fixtures) {
           expect(Number.isFinite(fixture.angleRad)).toBe(true)
@@ -259,34 +283,99 @@ describe('Cinema 2.0 Interlock Stage 1 domain', () => {
     expect(tiny.fixtures.every(candidate => isCinema2InterlockGeometryViewportSafe(candidate, tiny.viewport))).toBe(true)
   })
 
-  it('makes authored edge fixtures actually reach the safe boundary in the wing and portal layouts', () => {
+  it('places wing and portal edge fixtures by the actual rendered envelope instead of centerline endpoints', () => {
     const viewport = { width: 1920, height: 1080, dpr: 1 }
-    const wing = resolveCinema2InterlockLayout('doubleWing', viewport)
-    const portal = resolveCinema2InterlockLayout('bassPortal', viewport)
     const edgeIds = new Set(CINEMA2_INTERLOCK_RIG.banks.edge.map(candidate => candidate.id))
-    const wingEdges = wing.fixtures.filter(candidate => edgeIds.has(candidate.fixtureId))
-    const portalEdges = portal.fixtures.filter(candidate => edgeIds.has(candidate.fixtureId))
-    const wingX = wingEdges.flatMap(candidate => [candidate.top[0], candidate.bottom[0]])
-    const portalY = portalEdges.flatMap(candidate => [candidate.top[1], candidate.bottom[1]])
-    expect(Math.min(...wingX)).toBeCloseTo(wing.viewport.safeMinX, 8)
-    expect(Math.max(...wingX)).toBeCloseTo(wing.viewport.safeMaxX, 8)
-    expect(Math.min(...portalY)).toBeCloseTo(portal.viewport.safeMinY, 8)
-    expect(Math.max(...portalY)).toBeCloseTo(portal.viewport.safeMaxY, 8)
+    for (const patternId of ['doubleWing', 'bassPortal'] as const) {
+      const layout = resolveCinema2InterlockLayout(patternId, viewport)
+      const edgeFixtures = layout.fixtures.filter(candidate => edgeIds.has(candidate.fixtureId))
+      const boundaryDistances = edgeFixtures.map(candidate => {
+        const rendered = resolveCinema2InterlockVisibleEnvelope(candidate).rendered
+        return Math.min(
+          rendered.minX - layout.viewport.safeMinX,
+          layout.viewport.safeMaxX - rendered.maxX,
+          rendered.minY - layout.viewport.safeMinY,
+          layout.viewport.safeMaxY - rendered.maxY,
+        )
+      })
+      expect(edgeFixtures).toHaveLength(CINEMA2_INTERLOCK_RIG.banks.edge.length)
+      expect(Math.max(...boundaryDistances)).toBeLessThanOrEqual(8 * layout.viewport.dpr)
+      expect(edgeFixtures.every(candidate => isCinema2InterlockGeometryBodySafe(candidate, layout.viewport))).toBe(true)
+      expect(edgeFixtures.every(candidate => isCinema2InterlockGeometryViewportSafe(candidate, layout.viewport))).toBe(true)
+    }
   })
 
-  it('keeps the Four-Way Vortex hero edge fixtures within a documented 20 CSS-pixel tolerance of the 12px safe composition line', () => {
+  it('keeps the Four-Way Vortex rendered edge envelope close to the intended 12 CSS-pixel composition line', () => {
     const layout = resolveCinema2InterlockLayout(CINEMA2_INTERLOCK_HERO_PATTERN_ID, { width: 1920, height: 1080, dpr: 1 })
     const edgeIds = new Set(CINEMA2_INTERLOCK_RIG.banks.edge.map(candidate => candidate.id))
     const edgeFixtures = layout.fixtures.filter(candidate => edgeIds.has(candidate.fixtureId))
-    const boundaryDistances = edgeFixtures.flatMap(candidate => [candidate.top, candidate.bottom].map(point => Math.min(
-      Math.abs(point[0] - layout.viewport.safeMinX),
-      Math.abs(layout.viewport.safeMaxX - point[0]),
-      Math.abs(point[1] - layout.viewport.safeMinY),
-      Math.abs(layout.viewport.safeMaxY - point[1]),
-    )))
+    const boundaryDistances = edgeFixtures.map(candidate => {
+      const rendered = resolveCinema2InterlockVisibleEnvelope(candidate).rendered
+      return Math.min(
+        rendered.minX - layout.viewport.safeMinX,
+        layout.viewport.safeMaxX - rendered.maxX,
+        rendered.minY - layout.viewport.safeMinY,
+        layout.viewport.safeMaxY - rendered.maxY,
+      )
+    })
     expect(edgeFixtures).toHaveLength(CINEMA2_INTERLOCK_RIG.banks.edge.length)
-    expect(Math.min(...boundaryDistances)).toBeLessThanOrEqual(20)
+    expect(Math.max(...boundaryDistances)).toBeLessThanOrEqual(10 * layout.viewport.dpr)
+    expect(layout.fixtures.every(candidate => isCinema2InterlockGeometryBodySafe(candidate, layout.viewport))).toBe(true)
     expect(layout.fixtures.every(candidate => isCinema2InterlockGeometryViewportSafe(candidate, layout.viewport))).toBe(true)
+  })
+
+  it('measures the same finite body and glow-expanded quad that the native renderer rasterizes', () => {
+    const geometry = resolveCinema2InterlockGeometryFromPivot({
+      fixtureId: 'envelope-probe',
+      pivot: 'middle',
+      pivotPoint: Object.freeze([500, 400] as const),
+      angleRad: 0,
+      lengthPx: 200,
+      thicknessPx: 20,
+    })
+    const envelope = resolveCinema2InterlockVisibleEnvelope(geometry)
+    expect(envelope.dimensions.halfThicknessPx).toBe(10)
+    expect(envelope.dimensions.glowPaddingPx).toBe(34)
+    expect(envelope.body).toEqual({ minX: 400, maxX: 600, minY: 390, maxY: 410 })
+    expect(envelope.rendered).toEqual({ minX: 366, maxX: 634, minY: 356, maxY: 444 })
+  })
+
+  it('keeps all five layout resting poses mechanically distinct while preserving dimensions by fixture identity', () => {
+    const viewport = { width: 1920, height: 1080, dpr: 1 }
+    const signatures = new Set<string>()
+    const reference = fixtureMap('diamondTunnel', viewport)
+    for (const patternId of CINEMA2_INTERLOCK_PATTERN_IDS) {
+      const layout = resolveCinema2InterlockLayout(patternId, viewport)
+      signatures.add(layout.fixtures.map(candidate => [
+        candidate.fixtureId,
+        candidate.pivot,
+        candidate.middle[0].toFixed(2),
+        candidate.middle[1].toFixed(2),
+        candidate.angleRad.toFixed(4),
+      ].join(':')).join('|'))
+      for (const fixture of layout.fixtures) {
+        const baseline = reference.get(fixture.fixtureId)!
+        expect(fixture.lengthPx).toBeCloseTo(baseline.lengthPx, 10)
+        expect(fixture.thicknessPx).toBeCloseTo(baseline.thicknessPx, 10)
+      }
+    }
+    expect(signatures.size).toBe(CINEMA2_INTERLOCK_PATTERN_IDS.length)
+  })
+
+  it('keeps the full rendered envelope safe under the strongest Stage 4 continuous reactive rotation', () => {
+    const maxReactiveOffset = Math.PI / 12
+    for (const viewport of VIEWPORTS.filter(candidate => !resolveCinema2InterlockLayout('diamondTunnel', candidate).viewport.degradedInset)) {
+      for (const patternId of CINEMA2_INTERLOCK_PATTERN_IDS) {
+        const layout = resolveCinema2InterlockLayout(patternId, viewport)
+        for (const fixture of layout.fixtures) {
+          for (const offset of [-maxReactiveOffset, maxReactiveOffset]) {
+            const reactive = resolveCinema2InterlockFinalPose(fixture, offset)
+            expect(isCinema2InterlockGeometryBodySafe(reactive, layout.viewport)).toBe(true)
+            expect(isCinema2InterlockGeometryViewportSafe(reactive, layout.viewport)).toBe(true)
+          }
+        }
+      }
+    }
   })
 
   it('keeps CSS-space geometry identical when the same viewport is represented at DPR 1 and DPR 2', () => {

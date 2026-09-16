@@ -8,6 +8,7 @@ import {
   type Cinema2InterlockPatternDefinition,
   type Cinema2InterlockPatternId,
   type Cinema2InterlockPatternTarget,
+  type Cinema2InterlockPivotId,
   type Cinema2InterlockRotationMode,
 } from './Cinema2InterlockDomain'
 import { CINEMA2_INTERLOCK_RIG } from './Cinema2InterlockRig'
@@ -51,11 +52,29 @@ function leftAuthoredAngle(fixture: Cinema2InterlockFixture, patternId: Cinema2I
   }
 }
 
+/**
+ * The installation uses one stable mechanical hinge topology across layouts.
+ * Keeping each fixture on the same physical pivot makes every layout a
+ * deterministic resting pose and lets Stage 3 transitions converge exactly
+ * without translating a bar during pivot handoff. Inner/edge fixtures retain
+ * midpoint pivots; upper middle/outer banks hinge from their top endpoint and
+ * lower middle/outer banks hinge from their bottom endpoint.
+ */
+function authoredPivot(fixture: Cinema2InterlockFixture): Cinema2InterlockPivotId {
+  if (fixture.bank === 'inner' || fixture.bank === 'edge') return 'middle'
+  return fixture.quadrant === 'topLeft' || fixture.quadrant === 'topRight' ? 'top' : 'bottom'
+}
+
 function authoredRotationMode(
   fixture: Cinema2InterlockFixture,
   patternId: Cinema2InterlockPatternId,
 ): Cinema2InterlockRotationMode {
   if (patternId !== 'fourWayVortex') return 'shortest'
+
+  // Only midpoint-hinged fixtures take the directional long arc. Endpoint
+  // hinges use shortest-path motion so their rigid sweep stays inside the
+  // renderer-aware safe envelope while the vortex still has opposing motion.
+  if (authoredPivot(fixture) !== 'middle') return 'shortest'
   if (fixture.quadrant === 'topLeft' || fixture.quadrant === 'bottomRight') return 'clockwise'
   return 'counterclockwise'
 }
@@ -65,7 +84,7 @@ function targetFor(fixture: Cinema2InterlockFixture, patternId: Cinema2Interlock
   const angle = fixture.mirrorSide === 'left' ? leftAngle : mirrorAngle(leftAngle)
   return Object.freeze({
     fixtureId: fixture.id,
-    pivot: 'middle' as const,
+    pivot: authoredPivot(fixture),
     targetAngleRad: angle,
     rotationMode: authoredRotationMode(fixture, patternId),
     bankDelayBeats: BANK_DELAY_BEATS[fixture.bank],

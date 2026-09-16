@@ -14,6 +14,10 @@ import {
 } from './Cinema2InterlockDomain'
 import { getCinema2InterlockPatternDefinition, getCinema2InterlockPatternTarget } from './Cinema2InterlockPatternCatalog'
 import { CINEMA2_INTERLOCK_RIG } from './Cinema2InterlockRig'
+import {
+  resolveCinema2InterlockRendererInstanceDimensions,
+  resolveCinema2InterlockVisibleEnvelope,
+} from './Cinema2InterlockRenderEnvelope'
 
 const TWO_PI = Math.PI * 2
 const EPSILON = 1e-9
@@ -90,16 +94,25 @@ function baseMidpoint(
   fixture: Cinema2InterlockFixture,
   viewport: Cinema2InterlockResolvedViewport,
   lengthPx: number,
+  thicknessPx: number,
 ): Cinema2Vector2 {
   const safeWidth = Math.max(EPSILON, viewport.safeMaxX - viewport.safeMinX)
   const safeHeight = Math.max(EPSILON, viewport.safeMaxY - viewport.safeMinY)
-  const xTravel = Math.max(0, safeWidth - lengthPx)
-  const yTravel = Math.max(0, safeHeight - lengthPx)
-  const halfLength = lengthPx / 2
-  return point(
-    viewport.safeMinX + halfLength + xTravel * clamp01(fixture.basePose.midpointNormalized[0]),
-    viewport.safeMinY + halfLength + yTravel * clamp01(fixture.basePose.midpointNormalized[1]),
-  )
+  const envelope = resolveCinema2InterlockRendererInstanceDimensions(lengthPx, thicknessPx)
+  const centerInset = envelope.halfLengthPx + envelope.radialPaddingPx
+  const xTravel = Math.max(0, safeWidth - centerInset * 2)
+  const yTravel = Math.max(0, safeHeight - centerInset * 2)
+
+  // Normal viewports reserve enough midpoint travel for the renderer's finite
+  // glow-expanded quad at any middle-pivot angle. Extremely small degraded
+  // viewports fall back to the axis center rather than producing invalid math.
+  const centerX = xTravel > EPSILON
+    ? viewport.safeMinX + centerInset + xTravel * clamp01(fixture.basePose.midpointNormalized[0])
+    : (viewport.safeMinX + viewport.safeMaxX) / 2
+  const centerY = yTravel > EPSILON
+    ? viewport.safeMinY + centerInset + yTravel * clamp01(fixture.basePose.midpointNormalized[1])
+    : (viewport.safeMinY + viewport.safeMaxY) / 2
+  return point(centerX, centerY)
 }
 
 /**
@@ -160,7 +173,7 @@ function resolveFixtureForTarget(
   viewport: Cinema2InterlockResolvedViewport,
 ): Cinema2InterlockResolvedFixtureGeometry {
   const dimensions = fixtureDimensions(fixture, viewport)
-  const midpoint = baseMidpoint(fixture, viewport, dimensions.lengthPx)
+  const midpoint = baseMidpoint(fixture, viewport, dimensions.lengthPx, dimensions.thicknessPx)
   const baseGeometry = resolveCinema2InterlockGeometryFromPivot({
     fixtureId: fixture.id,
     patternId: null,
@@ -194,18 +207,60 @@ export function resolveCinema2InterlockLayout(
   return Object.freeze({ patternId: definition.id, viewport, fixtures })
 }
 
-/** Screen coordinates are safe when the fixture centerline remains inside the authored inset. */
+function boundsInside(
+  bounds: Readonly<{ minX: number; maxX: number; minY: number; maxY: number }>,
+  minX: number,
+  maxX: number,
+  minY: number,
+  maxY: number,
+  tolerancePx: number,
+): boolean {
+  return bounds.minX >= minX - tolerancePx
+    && bounds.maxX <= maxX + tolerancePx
+    && bounds.minY >= minY - tolerancePx
+    && bounds.maxY <= maxY + tolerancePx
+}
+
+/** Physical LED body acceptance against the authored CSS-pixel safe region. */
+export function isCinema2InterlockGeometryBodySafe(
+  geometry: Cinema2InterlockResolvedFixtureGeometry,
+  viewport: Cinema2InterlockResolvedViewport,
+  tolerancePx = 1e-6,
+): boolean {
+  const envelope = resolveCinema2InterlockVisibleEnvelope(geometry)
+  return boundsInside(
+    envelope.body,
+    viewport.safeMinX,
+    viewport.safeMaxX,
+    viewport.safeMinY,
+    viewport.safeMaxY,
+    tolerancePx,
+  )
+}
+
+/**
+ * Canonical composition acceptance using the GPU-visible quad, including the
+ * renderer-owned glow padding. On normal viewports the full finite rendered
+ * envelope must stay inside the 12 CSS-pixel safe region. Degraded microscopic
+ * viewports can only promise no backing-buffer escape.
+ */
 export function isCinema2InterlockGeometryViewportSafe(
   geometry: Cinema2InterlockResolvedFixtureGeometry,
   viewport: Cinema2InterlockResolvedViewport,
   tolerancePx = 1e-6,
 ): boolean {
-  return [geometry.top, geometry.middle, geometry.bottom].every(candidate => (
-    candidate[0] >= viewport.safeMinX - tolerancePx
-    && candidate[0] <= viewport.safeMaxX + tolerancePx
-    && candidate[1] >= viewport.safeMinY - tolerancePx
-    && candidate[1] <= viewport.safeMaxY + tolerancePx
-  ))
+  const envelope = resolveCinema2InterlockVisibleEnvelope(geometry)
+  if (viewport.degradedInset) {
+    return boundsInside(envelope.rendered, 0, viewport.width, 0, viewport.height, tolerancePx)
+  }
+  return boundsInside(
+    envelope.rendered,
+    viewport.safeMinX,
+    viewport.safeMaxX,
+    viewport.safeMinY,
+    viewport.safeMaxY,
+    tolerancePx,
+  )
 }
 
 export function resolveCinema2InterlockAngleDelta(

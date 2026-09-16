@@ -417,7 +417,7 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           current,
           target,
           targetPatternId,
-          resolveTransitionRotationMode(target.rotationMode, fixture.mirrorSide, index, config.symmetry),
+          resolveTransitionRotationMode(target.rotationMode, target.pivot, fixture.mirrorSide, index, config.symmetry),
         )
       })
       transition = {
@@ -654,12 +654,18 @@ function resolveContinuousReactiveAngularOffset(
 
 function resolveTransitionRotationMode(
   authored: Cinema2InterlockTransitionState['rotationMode'],
+  pivot: Cinema2InterlockTransitionState['pivot'],
   mirrorSide: 'left' | 'right',
   fixtureIndex: number,
   symmetry: boolean,
 ): Cinema2InterlockTransitionState['rotationMode'] {
   if (symmetry) return authored
   if (authored === 'longest') return authored
+
+  // Free/asymmetric choreography may choose a directional arc only for
+  // midpoint hinges. For top/bottom hinges, forcing a nearly-full revolution
+  // would violate the rendered-envelope sweep that Stage 5 keeps in bounds.
+  if (pivot !== 'middle') return authored
   if (fixtureIndex % 3 === 0) return mirrorSide === 'left' ? 'clockwise' : 'counterclockwise'
   return authored
 }
