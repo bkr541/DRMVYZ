@@ -66,9 +66,33 @@ export class Cinema2ParameterState {
     if (definition.persistence === 'runtime-only' || definition.readOnly || definition.type === 'trigger') {
       return failure('CINEMA2_PARAMETER_STATE_NOT_PERSISTENT', `Parameter "${parameterId}" does not accept persistent authored/user values.`, `values.${parameterId}`)
     }
-    const normalized = normalizeCinema2ParameterValue(definition, candidate, { mode: 'runtime', path: `values.${parameterId}` })
-    if (!normalized.ok || normalized.value === undefined) return { ok: false, diagnostics: normalized.diagnostics }
-    this.persistentValues = { ...this.persistentValues, [parameterId]: cloneJson(normalized.value) }
+
+    const dependentEdits = userEditSetParameters(definition)
+    return this.setPersistentValuesAtomically({ ...dependentEdits, [parameterId]: candidate })
+  }
+
+  private setPersistentValuesAtomically(candidates: Readonly<Record<string, unknown>>): Cinema2ParameterStateMutationResult {
+    const nextValues = { ...this.persistentValues }
+    const diagnostics: Cinema2ParameterSchemaDiagnostic[] = []
+
+    for (const [key, candidate] of Object.entries(candidates)) {
+      const parameterId = key as Cinema2ParameterId
+      const definition = this.definitions.get(parameterId)
+      if (!definition) {
+        diagnostics.push({ code: 'CINEMA2_PARAMETER_STATE_UNKNOWN_ID', message: `Unknown Cinema 2.0 parameter "${key}".`, path: `values.${key}` })
+        continue
+      }
+      if (definition.persistence === 'runtime-only' || definition.readOnly || definition.type === 'trigger') {
+        diagnostics.push({ code: 'CINEMA2_PARAMETER_STATE_NOT_PERSISTENT', message: `Parameter "${key}" does not accept persistent authored/user values.`, path: `values.${key}` })
+        continue
+      }
+      const normalized = normalizeCinema2ParameterValue(definition, candidate, { mode: 'runtime', path: `values.${key}` })
+      if (!normalized.ok || normalized.value === undefined) diagnostics.push(...normalized.diagnostics)
+      else nextValues[key] = cloneJson(normalized.value)
+    }
+
+    if (diagnostics.length > 0) return { ok: false, diagnostics: deepFreeze(diagnostics) }
+    this.persistentValues = nextValues
     return success()
   }
 
@@ -176,6 +200,13 @@ export class Cinema2ParameterState {
       runtimeOnlyValues: sortRecord(this.runtimeOnlyValues),
     })
   }
+}
+
+function userEditSetParameters(
+  definition: Readonly<Cinema2CompiledParameterDefinition>,
+): Readonly<Record<string, Cinema2JsonValue>> {
+  const candidate = definition.metadata?.userEditSetParameters
+  return isPlainObject(candidate) ? candidate as Readonly<Record<string, Cinema2JsonValue>> : Object.freeze({})
 }
 
 function sortRecord(values: Readonly<Record<string, Cinema2JsonValue>>): Readonly<Record<string, Cinema2JsonValue>> {

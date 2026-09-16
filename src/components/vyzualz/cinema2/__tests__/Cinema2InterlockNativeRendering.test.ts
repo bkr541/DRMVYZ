@@ -243,6 +243,50 @@ describe('Cinema 2.0 Interlock native LED renderer', () => {
     harness.resources.disposeAll()
   })
 
+  it('keeps reactive runtime modulation identical when Auto Performance is off', () => {
+    const reactiveOverrides = {
+      directorIntensity: 0.8,
+      directorMomentum: 0.7,
+      directorBuild: 0.65,
+      directorImpact: 0.6,
+      overallEnergy: 0.9,
+      subEnergy: 0.8,
+      bassEnergy: 0.85,
+      highEnergy: 0.7,
+      airEnergy: 0.65,
+      kickAccent: 0.9,
+      snareAccent: 0.75,
+      barAccent: 0.6,
+    } satisfies Partial<Record<string, Cinema2JsonValue>>
+    const manual = createHarness({ ...reactiveOverrides, autoPerformance: false })
+    const automatic = createHarness({ ...reactiveOverrides, autoPerformance: true })
+    const currentFrame = frame({ timeSec: 4 })
+
+    update(manual, currentFrame)
+    execute(manual, currentFrame)
+    update(automatic, currentFrame)
+    execute(automatic, currentFrame)
+
+    for (const uniform of ['uLedIntensity', 'uSegmentEnergy', 'uSegmentImpact'] as const) {
+      const manualValue = lastUniformFloat(manual.gl, uniform)
+      const automaticValue = lastUniformFloat(automatic.gl, uniform)
+      expect(manualValue, uniform).toBeDefined()
+      expect(automaticValue, uniform).toBeDefined()
+      expect(Number(manualValue), uniform).toBeCloseTo(Number(automaticValue), 6)
+    }
+    const manualSegmentEnergy = lastUniformFloat(manual.gl, 'uSegmentEnergy')
+    const manualSegmentImpact = lastUniformFloat(manual.gl, 'uSegmentImpact')
+    expect(manualSegmentEnergy).toBeDefined()
+    expect(manualSegmentImpact).toBeDefined()
+    expect(Number(manualSegmentEnergy)).toBeGreaterThan(CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentEnergy)
+    expect(Number(manualSegmentImpact)).toBeGreaterThan(0)
+
+    manual.instance.lifecycle.dispose()
+    automatic.instance.lifecycle.dispose()
+    manual.resources.disposeAll()
+    automatic.resources.disposeAll()
+  })
+
   it('validates its exact segmented module contract and rejects malformed or placeholder configuration', () => {
     const valid: Cinema2ModuleManifest = {
       id: MODULE_ID,

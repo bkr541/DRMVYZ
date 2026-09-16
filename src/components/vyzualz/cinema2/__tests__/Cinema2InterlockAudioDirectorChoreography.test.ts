@@ -19,6 +19,7 @@ import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
 import {
   CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID,
   CINEMA2_INTERLOCK_BACKGROUND_MODULE_ID,
+  CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID,
   CINEMA2_INTERLOCK_MODULE_ID,
   CINEMA2_INTERLOCK_PRESET_MANIFEST,
 } from '../presets/Cinema2InterlockPreset'
@@ -281,11 +282,25 @@ describe('Cinema 2.0 Interlock Stage 6 Audio Intelligence and choreography', () 
     expect((gl.drawArraysInstanced as unknown as { mock: { calls: unknown[][] } }).mock.calls.at(-1)?.[3]).toBe(28)
 
     expect(state.setPersistentValue(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID, false)).toMatchObject({ ok: true })
-    upstream = musicFrame({ frameId: 4, timeSec: 11, sectionType: 'drop', drop: true, kick: true })
+    upstream = musicFrame({ frameId: 4, timeSec: 11, sectionType: 'verse' })
+    sequence += 1
+    runFrame()
+    expect(Number(resolver.resolve(moduleTarget(plan, CINEMA2_INTERLOCK_MODULE_ID, 'directorIntensity').id).value)).toBeGreaterThan(0)
+    expect(Number(resolver.resolve(moduleTarget(plan, CINEMA2_INTERLOCK_MODULE_ID, 'bassEnergy').id).value)).toBeGreaterThan(0)
+
+    expect(state.setPersistentValue(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID, 0)).toMatchObject({ ok: true })
+    upstream = musicFrame({ frameId: 5, timeSec: 11.5, sectionType: 'verse' })
     sequence += 1
     runFrame()
     expect(Number(resolver.resolve(moduleTarget(plan, CINEMA2_INTERLOCK_MODULE_ID, 'directorIntensity').id).value)).toBe(0)
-    expect(Number(resolver.resolve(moduleTarget(plan, CINEMA2_INTERLOCK_MODULE_ID, 'dropAccent').id).value)).toBe(0)
+    expect(Number(resolver.resolve(moduleTarget(plan, CINEMA2_INTERLOCK_MODULE_ID, 'bassEnergy').id).value)).toBe(0)
+
+    expect(state.setPersistentValue(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID, 1)).toMatchObject({ ok: true })
+    upstream = musicFrame({ frameId: 6, timeSec: 12, sectionType: 'verse' })
+    sequence += 1
+    runFrame()
+    expect(Number(resolver.resolve(moduleTarget(plan, CINEMA2_INTERLOCK_MODULE_ID, 'directorIntensity').id).value)).toBeGreaterThan(0)
+    expect(Number(resolver.resolve(moduleTarget(plan, CINEMA2_INTERLOCK_MODULE_ID, 'bassEnergy').id).value)).toBeGreaterThan(0)
 
     instance.lifecycle.dispose()
     choreography.dispose()

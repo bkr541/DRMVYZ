@@ -481,21 +481,21 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           const structure = resolveInterlockShowPlannerStructure(frame, config)
           showPlan = planCinema2InterlockShow(config, structure, randomAdapter, showPlan)
           // Choreography strength already applies Master Reactivity before values reach runtime targets.
-          const master = config.autoPerformance ? 1 : 0
-          const vocalReduction = 1 - config.vocalRestraint * config.vocalPresence * master * 0.48
+          // Auto Performance owns show selection only; reactive target values remain live in manual mode.
+          const vocalReduction = 1 - config.vocalRestraint * config.vocalPresence * 0.48
           const triggerAccent = resolveInterlockTriggerAccent(config)
           const bass = Math.max(config.subEnergy, config.bassEnergy)
           renderSegmentPattern = showPlan.segmentProgram
-          const highAirShimmer = Math.max(config.highEnergy, config.airEnergy) * config.highShimmer * master
-          renderLedIntensity = clamp01(config.ledIntensity * (0.72 + config.directorIntensity * master * 0.34 + triggerAccent * config.transientPulse * master * 0.28 + highAirShimmer * 0.08) * vocalReduction)
+          const highAirShimmer = Math.max(config.highEnergy, config.airEnergy) * config.highShimmer
+          renderLedIntensity = clamp01(config.ledIntensity * (0.72 + config.directorIntensity * 0.34 + triggerAccent * config.transientPulse * 0.28 + highAirShimmer * 0.08) * vocalReduction)
           renderLitDensity = clamp(config.litDensity * showPlan.densityScale * vocalReduction, 0.05, 1)
-          renderSegmentSpeed = clamp01(config.segmentSpeed * (0.76 + config.directorMomentum * master * 0.58 + config.directorBuild * config.buildTension * master * 0.22))
-          renderSegmentEnergy = clamp01(config.segmentEnergy + config.overallEnergy * config.segmentReactivity * master * 0.52 + bass * config.segmentReactivity * master * 0.28 + highAirShimmer * 0.10)
-          renderSegmentImpact = clamp01(Math.max(config.segmentImpact, triggerAccent * config.transientPulse * master, config.directorImpact * master * 0.55))
+          renderSegmentSpeed = clamp01(config.segmentSpeed * (0.76 + config.directorMomentum * 0.58 + config.directorBuild * config.buildTension * 0.22))
+          renderSegmentEnergy = clamp01(config.segmentEnergy + config.overallEnergy * config.segmentReactivity * 0.52 + bass * config.segmentReactivity * 0.28 + highAirShimmer * 0.10)
+          renderSegmentImpact = clamp01(Math.max(config.segmentImpact, triggerAccent * config.transientPulse, config.directorImpact * 0.55))
           const snareDirection = config.snareAccent > 0.05 ? (((finiteBeatIndex(frame) ?? 0) % 2 === 0) ? 0.36 : -0.36) * config.snareAccent : 0
           renderSegmentDirectionBias = clamp(config.segmentDirectionBias + showPlan.segmentDirectionBias + snareDirection, -1, 1)
           renderSegmentBankPhase = fract(config.segmentBankPhase + showPlan.bankStagger + config.barAccent * 0.18 + config.snareAccent * 0.11)
-          reactiveRotationAmount = clamp01(config.rotationAmount * (0.72 + bass * config.bassRotation * master * 0.42 + config.kickAccent * config.bassRotation * master * 0.18 + config.directorBuild * config.buildTension * master * 0.18))
+          reactiveRotationAmount = clamp01(config.rotationAmount * (0.72 + bass * config.bassRotation * 0.42 + config.kickAccent * config.bassRotation * 0.18 + config.directorBuild * config.buildTension * 0.18))
           segmentPhase = resolveCinema2InterlockSegmentClockPhase(clock, renderSegmentSpeed)
           const resized = lastViewportKey != null && lastViewportKey !== nextViewportKey
           const reanchored = lastReanchorGeneration != null && clock.reanchorGeneration !== lastReanchorGeneration

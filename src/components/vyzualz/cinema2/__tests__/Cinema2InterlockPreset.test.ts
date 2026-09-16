@@ -175,6 +175,34 @@ describe('Cinema 2.0 Interlock production preset', () => {
     ]))
   })
 
+  it('atomically gives manual Pattern and Segment Pattern edits canonical authority over Auto Performance', () => {
+    const plan = compileInterlock()
+    const state = new Cinema2ParameterState(plan.parameters)
+
+    expect(state.getValue(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID)).toBe(true)
+    expect(state.setPersistentValue(CINEMA2_INTERLOCK_LED_INTENSITY_ID, 0.43)).toMatchObject({ ok: true })
+
+    expect(state.setPersistentValue(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID, 'bassPortal')).toMatchObject({ ok: true })
+    expect(state.getValue(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID)).toBe(false)
+    expect(state.getValue(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID)).toBe('bassPortal')
+    expect(state.getValue(CINEMA2_INTERLOCK_LED_INTENSITY_ID)).toBe(0.43)
+
+    expect(state.setPersistentValue(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID, true)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID, 'not-a-pattern')).toMatchObject({ ok: false })
+    expect(state.getValue(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID)).toBe(true)
+    expect(state.getValue(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID)).toBe('bassPortal')
+
+    expect(state.setPersistentValue(CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID, 'alternating')).toMatchObject({ ok: true })
+    expect(state.getValue(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID)).toBe(false)
+    expect(state.getValue(CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID)).toBe('alternating')
+
+    const restored = new Cinema2ParameterState(plan.parameters)
+    expect(restored.restore(state.serialize())).toMatchObject({ ok: true })
+    expect(restored.getValue(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID)).toBe(false)
+    expect(restored.getValue(CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID)).toBe('bassPortal')
+    expect(restored.getValue(CINEMA2_INTERLOCK_SEGMENT_PATTERN_ID)).toBe('alternating')
+  })
+
   it('persists authored Stage 6 controls while keeping resolved runtime hooks and reset actions out of serialization', () => {
     const plan = compileInterlock()
     const state = new Cinema2ParameterState(plan.parameters)
@@ -235,6 +263,8 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(plan.manifest.choreography?.rules.some(rule => rule.source.signal === 'drop')).toBe(true)
     expect(plan.manifest.choreography?.rules.some(rule => rule.source.path === 'director.intensity')).toBe(true)
     expect(plan.manifest.choreography?.rules.some(rule => rule.source.path === 'audio.features.vocalPresence')).toBe(true)
+    expect(plan.manifest.choreography?.rules.every(rule => rule.enabledParameter?.$ref !== CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID)).toBe(true)
+    expect(plan.manifest.choreography?.rules.every(rule => rule.strengthParameter?.$ref === CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID)).toBe(true)
 
     expect(plan.manifest.layers).toEqual([
       expect.objectContaining({ id: CINEMA2_INTERLOCK_BACKGROUND_LAYER_ID, order: 0, blendMode: 'normal', depthPolicy: 'disabled' }),
