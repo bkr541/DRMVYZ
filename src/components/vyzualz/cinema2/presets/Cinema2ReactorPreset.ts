@@ -28,12 +28,9 @@ export const CINEMA2_REACTOR_CORE_SIZE_ID = cinema2StableId<Cinema2ParameterId>(
 export const CINEMA2_REACTOR_CORE_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('reactor-core-intensity')
 export const CINEMA2_REACTOR_RAY_DENSITY_ID = cinema2StableId<Cinema2ParameterId>('reactor-ray-density')
 export const CINEMA2_REACTOR_REFRACTION_ID = cinema2StableId<Cinema2ParameterId>('reactor-refraction')
-export const CINEMA2_REACTOR_TRAILS_ENABLED_ID = cinema2StableId<Cinema2ParameterId>('reactor-trails-enabled')
 export const CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID = cinema2StableId<Cinema2ParameterId>('reactor-trails-persistence')
-export const CINEMA2_REACTOR_BLOOM_ENABLED_ID = cinema2StableId<Cinema2ParameterId>('reactor-bloom-enabled')
 export const CINEMA2_REACTOR_BLOOM_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('reactor-bloom-intensity')
 export const CINEMA2_REACTOR_RESET_TRAILS_ID = cinema2StableId<Cinema2ParameterId>('reactor-reset-trails')
-export const CINEMA2_REACTOR_MEDIA_INFLUENCE_ID = cinema2StableId<Cinema2ParameterId>('reactor-media-influence')
 export const CINEMA2_REACTOR_REACTIVITY_ID = cinema2StableId<Cinema2ParameterId>('reactor-reactivity')
 export const CINEMA2_REACTOR_ROTATION_SPEED_ID = cinema2StableId<Cinema2ParameterId>('reactor-rotation-speed')
 export const CINEMA2_REACTOR_BUILD_CONTRACTION_ID = cinema2StableId<Cinema2ParameterId>('reactor-build-contraction')
@@ -171,15 +168,6 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
-      id: CINEMA2_REACTOR_MEDIA_INFLUENCE_ID,
-      label: 'Media Influence',
-      type: 'float' as const,
-      defaultValue: 0.34,
-      min: 0, max: 1, step: 0.01,
-      section: 'Design', group: 'Media', order: 35,
-      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
-    }),
-    Object.freeze({
       id: CINEMA2_REACTOR_PRIMARY_COLOR_ID,
       label: 'Primary',
       type: 'color' as const,
@@ -234,14 +222,6 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
-      id: CINEMA2_REACTOR_TRAILS_ENABLED_ID,
-      label: 'Trails',
-      type: 'boolean' as const,
-      defaultValue: true,
-      section: 'Effects', group: 'Feedback', order: 40,
-      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
-    }),
-    Object.freeze({
       id: CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID,
       label: 'Persistence',
       type: 'float' as const,
@@ -256,14 +236,6 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       type: 'trigger' as const,
       section: 'Effects', group: 'Feedback', order: 42,
       exposure: 'primary' as const, persistence: 'runtime-only' as const, reset: 'none' as const,
-    }),
-    Object.freeze({
-      id: CINEMA2_REACTOR_BLOOM_ENABLED_ID,
-      label: 'Bloom',
-      type: 'boolean' as const,
-      defaultValue: true,
-      section: 'Effects', group: 'Bloom', order: 50,
-      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
       id: CINEMA2_REACTOR_BLOOM_INTENSITY_ID,
@@ -319,7 +291,6 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
         coreIntensity: cinema2Ref(CINEMA2_REACTOR_CORE_INTENSITY_ID),
         rotationSpeed: cinema2Ref(CINEMA2_REACTOR_ROTATION_SPEED_ID),
         rayDensity: cinema2Ref(CINEMA2_REACTOR_RAY_DENSITY_ID),
-        mediaInfluence: cinema2Ref(CINEMA2_REACTOR_MEDIA_INFLUENCE_ID),
         buildContraction: cinema2Ref(CINEMA2_REACTOR_BUILD_CONTRACTION_ID),
         backgroundColor: cinema2Ref(CINEMA2_REACTOR_BACKGROUND_COLOR_ID),
         primaryColor: cinema2Ref(CINEMA2_REACTOR_PRIMARY_COLOR_ID),
@@ -365,7 +336,6 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       scope: 'output' as const,
       parameters: Object.freeze({ mix: 1, persistence: 0.9 }),
       parameterBindings: Object.freeze({
-        enabled: cinema2Ref(CINEMA2_REACTOR_TRAILS_ENABLED_ID),
         persistence: cinema2Ref(CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID),
       }),
       actionBindings: Object.freeze({ reset: cinema2Ref(CINEMA2_REACTOR_RESET_TRAILS_ID) }),
@@ -379,7 +349,6 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       scope: 'output' as const,
       parameters: Object.freeze({ mix: 0.74, threshold: 0.28, radius: 6.5, intensity: 1.45 }),
       parameterBindings: Object.freeze({
-        enabled: cinema2Ref(CINEMA2_REACTOR_BLOOM_ENABLED_ID),
         intensity: cinema2Ref(CINEMA2_REACTOR_BLOOM_INTENSITY_ID),
       }),
     }),

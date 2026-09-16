@@ -9,7 +9,7 @@ import {
 } from '../cinema2/parameters/Cinema2InspectorModel'
 import type { Cinema2JsonValue } from '../cinema2/contracts/Cinema2NativePresetManifest'
 import type { Cinema2Runtime } from '../cinema2/runtime/Cinema2Runtime'
-import { Collapsible, ColorRow, CtrlSection, NumberInputRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { Collapsible, ColorRow, CtrlSection, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import { IconChipButton } from './controls/IconChipButton'
 import { PanelSubtabs } from './PanelSubtabs'
 import { ReactAudioPanel } from './ReactAudioPanel'
@@ -76,37 +76,89 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
     if (!result.ok && import.meta.env.DEV) console.warn('[Cinema2InspectorPanel] action dispatch rejected:', result.diagnostics)
   }
 
+  // Core and Shrapnel are pulled out of the flat "Design" section listing so
+  // they can render nested inside Master Controls > Design instead, Palette
+  // is pulled out to render nested inside Master Controls > Palette (with
+  // PaletteColorRow styling, see Cinema2PaletteColorGroup), and Feedback and
+  // Bloom are pulled out of the flat "Effects" section listing to render
+  // degrouped (flat, no Feedback/Bloom sub-headers) inside Master Controls >
+  // Effects — see the designSurface === 'engine' branch below.
+  const masterControlsDesignEntries: Cinema2InspectorEntryModel[] = []
+  let masterControlsPaletteGroup: Cinema2InspectorGroupModel | null = null
+  const masterControlsEffectsControls: Cinema2InspectorControlModel[] = []
   const sectionsContent = sections.length === 0
     ? <div className="rv-ctrl-group"><div className="rv-ctrl-info">No Cinema 2.0 parameters are declared for this workspace.</div></div>
     : (
       <>
-        {surface === 'design' && hasResettablePersistentValue && (
-          <div className="rv-ctrl-group" data-cinema2-inspector-actions="true">
-            <IconChipButton
-              onClick={() => {
-                parameterState.resetAll()
-                refresh()
-              }}
-            >
-              Reset Parameters
-            </IconChipButton>
-          </div>
-        )}
-        {sections.map(section => (
-          <div className="rv-ctrl-group" key={section.label} data-cinema2-section={section.label}>
-            <CtrlSection label={section.label} />
-            {section.groups.map((entry, entryIndex) => (
-              <Cinema2InspectorEntry
-                key={entry.kind === 'instance' ? `${entry.instanceKind}:${entry.instanceId}` : entry.label ?? `ungrouped-${entryIndex}`}
-                entry={entry}
-                onChange={commit}
-                onTrigger={dispatch}
-              />
-            ))}
-          </div>
-        ))}
+        {sections.map(section => {
+          const visibleGroups = section.label === 'Design'
+            ? section.groups.filter(entry => {
+                if (entry.kind !== 'group') return true
+                if (entry.label === 'Core' || entry.label === 'Shrapnel' || entry.label === 'Composite') {
+                  masterControlsDesignEntries.push(entry)
+                  return false
+                }
+                if (entry.label === 'Palette') {
+                  masterControlsPaletteGroup = entry
+                  return false
+                }
+                return true
+              })
+            : section.label === 'Effects'
+              ? section.groups.filter(entry => {
+                  // Feedback and Bloom are authored as effect instances (bound
+                  // via the preset's `effects` array), not plain parameter
+                  // groups, so they arrive here as kind:'instance' entries —
+                  // unlike Core/Shrapnel/Palette above, which are plain
+                  // module-bound groups. Match by label regardless of kind.
+                  // Their controls are flattened (degrouped) rather than
+                  // re-wrapped in their own Feedback/Bloom sub-collapsible,
+                  // so they read as plain controls directly under Effects.
+                  if (entry.label === 'Feedback' || entry.label === 'Bloom') {
+                    masterControlsEffectsControls.push(...entry.controls)
+                    return false
+                  }
+                  return true
+                })
+              : section.label === 'Advanced'
+                ? section.groups.filter(entry => {
+                    // Quality / Performance is a rendering-cost control, not a
+                    // visual-design one — it now lives in the OUTPUT tab
+                    // (Cinema2RuntimeDiagnostics) instead of Design.
+                    if (entry.label === 'Performance') return false
+                    return true
+                  })
+                : section.groups
+          if (visibleGroups.length === 0) return null
+          return (
+            <div className="rv-ctrl-group" key={section.label} data-cinema2-section={section.label}>
+              <CtrlSection label={section.label} />
+              {visibleGroups.map((entry, entryIndex) => (
+                <Cinema2InspectorEntry
+                  key={entry.kind === 'instance' ? `${entry.instanceKind}:${entry.instanceId}` : entry.label ?? `ungrouped-${entryIndex}`}
+                  entry={entry}
+                  onChange={commit}
+                  onTrigger={dispatch}
+                />
+              ))}
+            </div>
+          )
+        })}
       </>
     )
+
+  const resetParametersButton = hasResettablePersistentValue && (
+    <div className="rv-ctrl-group" data-cinema2-inspector-actions="true">
+      <IconChipButton
+        onClick={() => {
+          parameterState.resetAll()
+          refresh()
+        }}
+      >
+        Reset Parameters
+      </IconChipButton>
+    </div>
+  )
 
   if (surface === 'design') {
     return (
@@ -127,11 +179,41 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
                 {sectionsContent}
                 <div className="rv-ctrl-group" data-cinema2-placeholder-group="master-controls">
                   <Collapsible label="Master Controls">
-                    <Collapsible label="Palette">
-                      <div className="rv-ctrl-info">No controls yet.</div>
+                    <Collapsible label="Design">
+                      {masterControlsDesignEntries.length === 0 ? (
+                        <div className="rv-ctrl-info">No controls yet.</div>
+                      ) : (
+                        masterControlsDesignEntries.map((entry, entryIndex) => (
+                          <Cinema2InspectorEntry
+                            key={entry.kind === 'instance' ? `${entry.instanceKind}:${entry.instanceId}` : entry.label ?? `ungrouped-${entryIndex}`}
+                            entry={entry}
+                            onChange={commit}
+                            onTrigger={dispatch}
+                          />
+                        ))
+                      )}
+                    </Collapsible>
+                    <Collapsible label="Effects">
+                      {masterControlsEffectsControls.length === 0 ? (
+                        <div className="rv-ctrl-info">No controls yet.</div>
+                      ) : (
+                        <Cinema2InspectorControls
+                          controls={masterControlsEffectsControls}
+                          onChange={commit}
+                          onTrigger={dispatch}
+                        />
+                      )}
+                    </Collapsible>
+                    <Collapsible label="Palette" bodyClassName="rv-cinema2-palette-body">
+                      {masterControlsPaletteGroup == null ? (
+                        <div className="rv-ctrl-info">No controls yet.</div>
+                      ) : (
+                        <Cinema2PaletteColorGroup group={masterControlsPaletteGroup} onChange={commit} />
+                      )}
                     </Collapsible>
                   </Collapsible>
                 </div>
+                {resetParametersButton}
               </>
             ) : (
               <div className="rv-ctrl-group"><div className="rv-ctrl-info">Select an object in the scene to edit its properties here.</div></div>
@@ -251,6 +333,44 @@ function Cinema2InspectorGroup({
     <Collapsible label={group.label}>
       <Cinema2InspectorControls controls={group.controls} onChange={onChange} onTrigger={onTrigger} />
     </Collapsible>
+  )
+}
+
+/**
+ * Renders a group's `color`-type controls with Layout Lab / Template's
+ * "01 · Palette Group - ReactControlRows.tsx" treatment (PaletteColorRow):
+ * a collapsed swatch-dot + label + caret row that expands in place into a
+ * saturation/lightness gradient square, hue strip, and hex field — instead
+ * of the generic ColorRow native-picker-plus-hex-readout used elsewhere.
+ * Used only for Master Controls > Palette; every other `color` control in
+ * the app keeps ColorRow.
+ */
+function Cinema2PaletteColorGroup({
+  group,
+  onChange,
+}: {
+  group: Readonly<Cinema2InspectorGroupModel>
+  onChange: (control: Readonly<Cinema2InspectorControlModel>, value: Cinema2JsonValue) => void
+}) {
+  return (
+    <>
+      {group.controls.map(control => {
+        const { definition, value, enabled, disabledReason } = control
+        const rgba = isNumericArray(value, 4) ? value : [1, 1, 1, 1]
+        const description = [definition.description, disabledReason].filter(Boolean).join(' ')
+        return (
+          <PaletteColorRow
+            key={definition.id}
+            id={`cinema2-parameter-${definition.id}`}
+            label={definition.label}
+            value={rgbaToHex(rgba)}
+            disabled={!enabled}
+            description={description || undefined}
+            onChange={hex => onChange(control, hexToRgba(hex, rgba[3]))}
+          />
+        )
+      })}
+    </>
   )
 }
 

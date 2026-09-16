@@ -144,27 +144,40 @@ export function Cinema2Stage({
       window.addEventListener('resize', resize)
       document.addEventListener('visibilitychange', handleVisibilityChange)
 
-      const created = Cinema2Runtime.create(canvas, {
+      const transportSource = {
+        getState: () => {
+          const transport = transportRef.current
+          const timeSec = transport.getAudioTime?.() ?? 0
+          return {
+            sourcePresent: transport.analysisActive || transport.activeAudioTrackId != null,
+            playing: transport.isPlaying,
+            analysisActive: transport.analysisActive,
+            paused: transport.isPaused,
+            trackId: transport.activeAudioTrackId,
+            timeSec: Number.isFinite(timeSec) ? Math.max(0, timeSec) : 0,
+            bpmSync: transport.bpmSync,
+            bpm: transport.bpm,
+          }
+        },
+      }
+      let created = Cinema2Runtime.create(canvas, {
         onSnapshot: reportSnapshot,
         presetId,
         serializedParameterState: restoreState?.serializedParameterState,
-        transportSource: {
-          getState: () => {
-            const transport = transportRef.current
-            const timeSec = transport.getAudioTime?.() ?? 0
-            return {
-              sourcePresent: transport.analysisActive || transport.activeAudioTrackId != null,
-              playing: transport.isPlaying,
-              analysisActive: transport.analysisActive,
-              paused: transport.isPaused,
-              trackId: transport.activeAudioTrackId,
-              timeSec: Number.isFinite(timeSec) ? Math.max(0, timeSec) : 0,
-              bpmSync: transport.bpmSync,
-              bpm: transport.bpm,
-            }
-          },
-        },
+        transportSource,
       })
+      if (!created.runtime && restoreState?.serializedParameterState != null) {
+        // The in-session captured parameter state (cinema2WorkspaceSessionStore)
+        // can go stale relative to the active preset's current schema — e.g. a
+        // parameter authored into that preset was since removed. Rather than
+        // leaving the Stage permanently unavailable over state that's only a
+        // same-session cache (not a saved show/project), discard it and retry
+        // once with the preset's authored defaults.
+        if (import.meta.env.DEV) {
+          console.warn('[Cinema2Stage] discarding incompatible session parameter state and retrying with defaults:', created.error)
+        }
+        created = Cinema2Runtime.create(canvas, { onSnapshot: reportSnapshot, presetId, transportSource })
+      }
       reportSnapshot(created.snapshot)
       if (!created.runtime) {
         onRuntimeReadyRef.current?.(null)

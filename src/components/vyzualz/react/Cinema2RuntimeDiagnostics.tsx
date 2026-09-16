@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import type { Cinema2Runtime, Cinema2RuntimeSnapshot } from '../cinema2'
-import { CtrlSection } from './ReactControlRows'
+import { CINEMA2_QUALITY_MODE_PARAMETER, CINEMA2_QUALITY_MODE_PARAMETER_ID, readCinema2QualityMode } from '../cinema2/parameters/Cinema2PerformanceParameters'
+import { CtrlSection, SelectRow } from './ReactControlRows'
 
 export interface Cinema2RuntimeDiagnosticsProps {
   runtime: Cinema2Runtime | null
@@ -7,6 +9,8 @@ export interface Cinema2RuntimeDiagnosticsProps {
 }
 
 export function Cinema2RuntimeDiagnostics({ runtime, snapshot }: Cinema2RuntimeDiagnosticsProps) {
+  const [, setRevision] = useState(0)
+
   if (!snapshot) {
     return <div className="rv-ctrl-info" data-cinema2-output-status="unavailable">Cinema 2.0 runtime status is unavailable.</div>
   }
@@ -30,9 +34,24 @@ export function Cinema2RuntimeDiagnostics({ runtime, snapshot }: Cinema2RuntimeD
   const resources = runtime.getResourceManagerSnapshot()
   const presetName = plan.manifest.metadata.name
   const phase = snapshot.phase === 'running' ? 'Running' : titleCase(snapshot.phase)
+  const parameterState = runtime.getParameterState()
+  const qualityMode = readCinema2QualityMode(parameterState.getValue(CINEMA2_QUALITY_MODE_PARAMETER_ID))
 
   return (
     <div className="rv-ctrl-group" data-cinema2-output-status={snapshot.phase}>
+      <CtrlSection label="Performance" />
+      <SelectRow
+        id="cinema2-output-quality-mode"
+        label={CINEMA2_QUALITY_MODE_PARAMETER.label}
+        value={qualityMode}
+        description={CINEMA2_QUALITY_MODE_PARAMETER.description}
+        options={(CINEMA2_QUALITY_MODE_PARAMETER.options ?? []).map(option => ({ value: option.value, label: option.label }))}
+        onChange={value => {
+          const result = parameterState.setPersistentValue(CINEMA2_QUALITY_MODE_PARAMETER_ID, value)
+          if (result.ok) setRevision(current => current + 1)
+          else if (import.meta.env.DEV) console.warn('[Cinema2RuntimeDiagnostics] quality mode update rejected:', result.diagnostics)
+        }}
+      />
       <CtrlSection label="Runtime" />
       <DiagnosticRow label="Preset" value={presetName} />
       <DiagnosticRow label="Status" value={phase} />

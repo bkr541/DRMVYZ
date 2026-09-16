@@ -17,7 +17,6 @@ import {
   CINEMA2_REACTOR_BLOOM_INTENSITY_ID,
   CINEMA2_REACTOR_BUILD_CONTRACTION_ID,
   CINEMA2_REACTOR_CORE_SIZE_ID,
-  CINEMA2_REACTOR_MEDIA_INFLUENCE_ID,
   CINEMA2_REACTOR_REACTIVITY_ID,
   CINEMA2_REACTOR_PRESET_ID,
   CINEMA2_REACTOR_PRESET_MANIFEST,
@@ -30,7 +29,6 @@ import {
   CINEMA2_REACTOR_USER_MEDIA_SLOT_ID,
   CINEMA2_REACTOR_ALBUM_ARTWORK_SLOT_ID,
   CINEMA2_REACTOR_MEDIA_OUTPUT_SLOT_ID,
-  CINEMA2_REACTOR_TRAILS_ENABLED_ID,
   CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID,
   CINEMA2_QUALITY_MODE_PARAMETER_ID,
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
@@ -363,11 +361,6 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
     expect(gl.__calls.createdPrograms).toBe(createdPrograms)
     expect(runtime.getHistoryServiceSnapshot().activeBufferCount).toBe(1)
 
-    expect(runtime.getParameterState().setPersistentValue(CINEMA2_REACTOR_TRAILS_ENABLED_ID, false).ok).toBe(true)
-    raf.runNext(200)
-    expect(runtime.getHistoryServiceSnapshot().activeBufferCount).toBe(0)
-    expect(runtime.getEffectRuntimeSnapshot().effects.find(effect => effect.effectId === 'reactor-feedback')?.status).toBe('inactive')
-
     runtime.dispose()
     expect(gl.__calls.deletedPrograms).toBe(gl.__calls.createdPrograms)
     expect(gl.__calls.deletedTextures).toBe(gl.__calls.createdTextures)
@@ -478,7 +471,7 @@ describe('Cinema 2.0 Reactor production selection path', () => {
     expect(activeRuntimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_REACTOR_PRESET_ID)
     for (const id of [
       CINEMA2_REACTOR_CORE_SIZE_ID, CINEMA2_REACTOR_ROTATION_SPEED_ID, CINEMA2_REACTOR_REFRACTION_ID,
-      CINEMA2_REACTOR_SHOCKWAVE_INTENSITY_ID, CINEMA2_REACTOR_MEDIA_INFLUENCE_ID, CINEMA2_REACTOR_PRIMARY_COLOR_ID,
+      CINEMA2_REACTOR_SHOCKWAVE_INTENSITY_ID, CINEMA2_REACTOR_PRIMARY_COLOR_ID,
       CINEMA2_REACTOR_SECONDARY_COLOR_ID, CINEMA2_REACTOR_ACCENT_COLOR_ID, CINEMA2_REACTOR_BACKGROUND_COLOR_ID,
       CINEMA2_REACTOR_REACTIVITY_ID, CINEMA2_REACTOR_BUILD_CONTRACTION_ID, CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID,
       CINEMA2_REACTOR_RESET_TRAILS_ID, CINEMA2_REACTOR_BLOOM_INTENSITY_ID, CINEMA2_QUALITY_MODE_PARAMETER_ID,
