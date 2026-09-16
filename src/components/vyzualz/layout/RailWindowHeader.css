@@ -1,7 +1,10 @@
 /* ── RailWindowHeader ─────────────────────────────────────────────────────
    Canonical DRMVYZ rail window title bar. See RailWindowHeader.tsx for the
-   full origin note — this is the "Solid Bar — Drop Shadow" treatment
-   promoted out of Lyric Manager into a shared component. */
+   full origin note. Originally the light "Solid Bar — Drop Shadow" silver
+   treatment promoted out of Lyric Manager; restyled to the dark "Two-Tier
+   Header Surface" treatment — a flat dark slate bar split into a lighter
+   upper band and a darker lower band by a thin bright seam, with light text
+   and a vertical divider between the icon and label. */
 
 .rw-window-header {
   display: flex;
@@ -11,16 +14,16 @@
   margin: 0;
   padding: 0 14px;
   min-height: 42px;
-  color: #10161a;
+  color: rgba(230, 238, 242, 0.95);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.15em;
   text-transform: uppercase;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow:
     0 2px 2px rgba(0, 0, 0, 0.6),
     0 8px 14px rgba(0, 0, 0, 0.55),
-    0 32px 56px rgba(0, 0, 0, 0.8),
-    0 0 46px rgba(38, 216, 242, 0.18);
+    0 32px 56px rgba(0, 0, 0, 0.8);
 }
 
 .rw-window-header svg {
@@ -34,6 +37,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+  padding-left: 10px;
 }
 
 .rw-window-header-actions {
@@ -45,14 +50,30 @@
 
 .rw-window-header--left {
   background:
-    linear-gradient(to right, rgba(0, 0, 0, 0.28), transparent 45%),
-    linear-gradient(180deg, rgba(228, 234, 238, 0.97), rgba(190, 199, 205, 0.94));
+    linear-gradient(to right, rgba(0, 0, 0, 0.22), transparent 45%),
+    linear-gradient(
+      180deg,
+      #333944 0%,
+      #333944 41%,
+      rgba(255, 255, 255, 0.08) 41%,
+      rgba(255, 255, 255, 0.08) 42%,
+      #1c2026 42%,
+      #1c2026 100%
+    );
 }
 
 .rw-window-header--right {
   background:
-    linear-gradient(to left, rgba(0, 0, 0, 0.28), transparent 45%),
-    linear-gradient(180deg, rgba(228, 234, 238, 0.97), rgba(190, 199, 205, 0.94));
+    linear-gradient(to left, rgba(0, 0, 0, 0.22), transparent 45%),
+    linear-gradient(
+      180deg,
+      #333944 0%,
+      #333944 41%,
+      rgba(255, 255, 255, 0.08) 41%,
+      rgba(255, 255, 255, 0.08) 42%,
+      #1c2026 42%,
+      #1c2026 100%
+    );
 }
 
 .rw-window-header-actions .dv-icon-chip {
@@ -72,13 +93,14 @@
 }
 
 /* ── Window frame edge ────────────────────────────────────────────────────
-   The silver-thread rail border that pairs with RailWindowHeader — same
-   origin as the header itself: Lyric Manager's left/right rails
-   (.lmv-left-rail::after / .lmv-right-rail::after in lyricManager.css),
-   promoted into a reusable pair of classes. Apply .rw-frame--left /
-   .rw-frame--right to a rail's outer element (WorkspaceRail's className
-   prop, or directly on a custom rail element) on whichever edge borders
-   the rest of the window. */
+   The rail-edge thread that pairs with RailWindowHeader — same origin as
+   the header itself: Lyric Manager's left/right rails (.lmv-left-rail::after
+   / .lmv-right-rail::after in lyricManager.css), promoted into a reusable
+   pair of classes. Apply .rw-frame--left / .rw-frame--right to a rail's
+   outer element (WorkspaceRail's className prop, or directly on a custom
+   rail element) on whichever edge borders the rest of the window. Recolored
+   from the original bright silver thread to a subtle neutral hairline
+   matching the header's own dark "Two-Tier Header Surface" borders. */
 .rw-frame--left,
 .rw-frame--right {
   position: relative;
@@ -94,7 +116,7 @@
   z-index: 5;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(190, 199, 205, 0.94), rgba(228, 234, 238, 0.97) 50%, rgba(190, 199, 205, 0.94));
+    linear-gradient(90deg, rgba(51, 57, 68, 0.15), #333944 50%, rgba(51, 57, 68, 0.15));
 }
 
 .rw-frame--left::after {
@@ -126,12 +148,12 @@
 
 .vz-inspector.rw-frame--left::before {
   left: 100%;
-  border: 1.5px solid rgba(228, 234, 238, 0.9);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
 }
 
 .vz-inspector.rw-frame--right::before {
   left: 0;
-  border: 1.5px solid rgba(215, 220, 225, 0.9);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
 }
 
 /* The toggle re-centers to the rail's midline while collapsed

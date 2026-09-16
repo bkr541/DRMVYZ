@@ -4924,12 +4924,23 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   margin: -8px calc(var(--rv-rail-inline-padding) * -1) 0;
 }
 
+/* Escape .vz-inspector-inner's 12px padding via negative margin, then
+   restore the same inset via its own padding — a net-zero move for every
+   existing consumer, but it pushes this shell's own border-box out to the
+   rail's true edge. Without this, .rv-engine-dropdown's negative margin
+   (reactView.css, near .rv-engine-dropdown) gets clipped by this element's
+   own overflow:hidden before it can reach the true edge, since this
+   container's border-box would otherwise still sit inset by 12px — unlike
+   RailWindowHeader, which sits one level shallower (a direct child of
+   .vz-inspector-inner, outside this wrapper) and never needs this escape. */
 .rv-left-workspace-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  margin: 0 calc(var(--rv-rail-inline-padding) * -1);
+  padding: 0 var(--rv-rail-inline-padding);
 }
 
 /* The left rail is a compact source/setup surface. Long control descriptions
@@ -5193,12 +5204,19 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   text-align: center;
 }
 
+/* Same escape-then-restore move as .rv-left-workspace-shell just above (and
+   for the same reason: this is the second of two overflow:hidden wrappers
+   .rv-engine-dropdown's own negative margin needs to see through to reach
+   the rail's true edge without being clipped). Net-zero for every other
+   consumer of this container. */
 .rv-context-workspace {
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  margin: 0 calc(var(--rv-rail-inline-padding) * -1);
+  padding: 0 var(--rv-rail-inline-padding);
   /* Match the right inspector's themed panel surface exactly. */
   background: var(--color-panel-alt, rgba(8, 12, 18, 0.96));
 }

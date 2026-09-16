@@ -1467,15 +1467,15 @@
   box-shadow: inset -1px 0 0 rgba(255,255,255,0.025);
 }
 
-/* Silver "contains the window" outline on the left rail's right edge — a
-   brushed-chrome thread running the height of the rail, with a matching ring
-   that wraps around the floating collapse/expand toggle (.vz-inspector-toggle,
-   which already centers itself on this exact edge) instead of being broken by
-   it. Purely decorative: z-index keeps it under the toggle button and above
-   the rail's own border/box-shadow. */
-/* Silver stops match the Track Workspace row's Drop Shadow gradient
-   (linear-gradient(180deg, rgba(228,234,238,0.97), rgba(190,199,205,0.94)))
-   so the window frame reads as the same brushed metal as the row. */
+/* "Contains the window" outline on the left rail's right edge — a thin
+   thread running the height of the rail, with a matching ring that wraps
+   around the floating collapse/expand toggle (.vz-inspector-toggle, which
+   already centers itself on this exact edge) instead of being broken by it.
+   Purely decorative: z-index keeps it under the toggle button and above the
+   rail's own border/box-shadow. */
+/* Neutral hairline stops match RailWindowHeader's dark "Two-Tier Header
+   Surface" borders (RailWindowHeader.css) so the window frame reads as the
+   same surface as the row. */
 .lmv-left-rail::after {
   content: '';
   position: absolute;
@@ -1486,9 +1486,9 @@
   z-index: 5;
   background: linear-gradient(
     90deg,
-    rgba(190, 199, 205, 0.94),
-    rgba(228, 234, 238, 0.97) 50%,
-    rgba(190, 199, 205, 0.94)
+    rgba(51, 57, 68, 0.15),
+    #333944 50%,
+    rgba(51, 57, 68, 0.15)
   );
   pointer-events: none;
 }
@@ -1503,7 +1503,7 @@
   z-index: 19;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  border: 1.5px solid rgba(228, 234, 238, 0.9);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
   pointer-events: none;
 }
 
@@ -1524,9 +1524,9 @@
    .vz-inspector-inner's own (separate) ::before/::after slots instead, lifted
    above its content with position:absolute + z-index so they render on top
    instead of underneath it. */
-/* Silver stops match the Track Workspace row's Drop Shadow gradient
-   (linear-gradient(180deg, rgba(228,234,238,0.97), rgba(190,199,205,0.94)))
-   so the window frame reads as the same brushed metal as the row. */
+/* Neutral hairline stops match RailWindowHeader's dark "Two-Tier Header
+   Surface" borders (RailWindowHeader.css) so the window frame reads as the
+   same surface as the row. */
 .lmv-left-rail .vz-inspector-inner::before,
 .lmv-left-rail .vz-inspector-inner::after {
   content: '';
@@ -1538,9 +1538,9 @@
   pointer-events: none;
   background: linear-gradient(
     90deg,
-    rgba(190, 199, 205, 0.94),
-    rgba(228, 234, 238, 0.97) 50%,
-    rgba(190, 199, 205, 0.94)
+    rgba(51, 57, 68, 0.15),
+    #333944 50%,
+    rgba(51, 57, 68, 0.15)
   );
 }
 
@@ -1557,10 +1557,10 @@
   box-shadow: inset 1px 0 0 rgba(255,255,255,0.025);
 }
 
-/* Same silver "contains the window" outline, mirrored onto the right rail's
-   left edge — same thread, same ring, same top/bottom bands as the left
-   rail, just flipped to the opposite side (the right rail's toggle centers
-   on its left edge via .vz-inspector-toggle--right { left: -14px }). */
+/* Same "contains the window" outline, mirrored onto the right rail's left
+   edge — same thread, same ring, same top/bottom bands as the left rail,
+   just flipped to the opposite side (the right rail's toggle centers on its
+   left edge via .vz-inspector-toggle--right { left: -14px }). */
 .lmv-right-rail::after {
   content: '';
   position: absolute;
@@ -1571,9 +1571,9 @@
   z-index: 5;
   background: linear-gradient(
     90deg,
-    rgba(200, 206, 212, 0.85),
-    #ffffff 50%,
-    rgba(200, 206, 212, 0.85)
+    rgba(51, 57, 68, 0.15),
+    #333944 50%,
+    rgba(51, 57, 68, 0.15)
   );
   pointer-events: none;
 }
@@ -1588,7 +1588,7 @@
   z-index: 19;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  border: 1.5px solid rgba(215, 220, 225, 0.9);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
   pointer-events: none;
 }
 
@@ -1608,9 +1608,9 @@
   pointer-events: none;
   background: linear-gradient(
     90deg,
-    rgba(200, 206, 212, 0.85),
-    #ffffff 50%,
-    rgba(200, 206, 212, 0.85)
+    rgba(51, 57, 68, 0.15),
+    #333944 50%,
+    rgba(51, 57, 68, 0.15)
   );
 }
 
