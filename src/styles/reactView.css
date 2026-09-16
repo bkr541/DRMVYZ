@@ -4963,11 +4963,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-engine-dropdown {
   position: relative;
   z-index: 6;
-  width: 100%;
   min-width: 0;
-  /* Cancel .vz-inspector-inner's rail padding so the trigger below reaches
-     the rail's true left/right edges, the same technique RailWindowHeader
-     uses to sit flush at the top. */
+  /* No explicit width: with an auto width, align-items:stretch on the
+     flex-column parent (.rv-context-workspace-header) solves the box's
+     width accounting for the negative margin below, so it correctly
+     expands past both edges. A fixed `width: 100%` would resolve against
+     the (still-inset) container *before* the margin is applied, so the
+     left edge reaches the rail's true edge (margin-left shifts the start
+     position) but the right edge would stay put 24px short (a fixed width
+     doesn't grow just because margin-right went negative) — exactly the
+     left-fixed-right-not bug this replaced. */
   margin: 0 calc(var(--rv-rail-inline-padding) * -1);
 }
 
