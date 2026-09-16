@@ -15,6 +15,7 @@ import {
   normalizeCinema2InterlockPatternId,
   resolveCinema2InterlockAngleDelta,
   resolveCinema2InterlockBankTransitionProgress,
+  resolveCinema2InterlockFinalPose,
   resolveCinema2InterlockGeometryFromPivot,
   resolveCinema2InterlockLayout,
   resolveCinema2InterlockTransition,
@@ -167,6 +168,31 @@ describe('Cinema 2.0 Interlock Stage 1 domain', () => {
         expect(stationary[1]).toBeCloseTo(pivotPoint[1], 10)
         expect(distance(frame.top, frame.bottom)).toBeCloseTo(240, 10)
         expect(frame.thicknessPx).toBeCloseTo(18, 10)
+      }
+    }
+  })
+
+  it('applies positive and negative final-pose offsets around every legal fixed pivot without changing rigid dimensions', () => {
+    const pivotPoint = Object.freeze([440, 320] as const)
+    for (const pivot of CINEMA2_INTERLOCK_PIVOT_IDS) {
+      const base = resolveCinema2InterlockGeometryFromPivot({
+        fixtureId: `final-pose-${pivot}`,
+        patternId: 'diamondTunnel',
+        pivot,
+        pivotPoint,
+        angleRad: 0.37,
+        lengthPx: 260,
+        thicknessPx: 16,
+      })
+
+      for (const offset of [-0.42, -0.17, 0.14, 0.39]) {
+        const resolved = resolveCinema2InterlockFinalPose(base, offset)
+        const stationary = pivot === 'top' ? resolved.top : pivot === 'bottom' ? resolved.bottom : resolved.middle
+        expect(stationary[0]).toBeCloseTo(pivotPoint[0], 10)
+        expect(stationary[1]).toBeCloseTo(pivotPoint[1], 10)
+        expect(resolved.angleRad).toBeCloseTo(base.angleRad + offset, 10)
+        expect(distance(resolved.top, resolved.bottom)).toBeCloseTo(base.lengthPx, 10)
+        expect(resolved.thicknessPx).toBeCloseTo(base.thicknessPx, 10)
       }
     }
   })

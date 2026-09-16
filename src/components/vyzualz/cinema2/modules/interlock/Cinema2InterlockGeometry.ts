@@ -290,3 +290,26 @@ export function resolveCinema2InterlockTransition(
     thicknessPx: state.thicknessPx,
   })
 }
+
+/**
+ * Canonical final-pose resolver. Layout/transition geometry remains the authored
+ * base pose; runtime mechanical reactivity is a non-accumulating angular offset
+ * applied around that pose's legal fixed pivot immediately before rendering.
+ */
+export function resolveCinema2InterlockFinalPose(
+  base: Readonly<Cinema2InterlockResolvedFixtureGeometry>,
+  angularOffsetRad: number,
+): Cinema2InterlockResolvedFixtureGeometry {
+  const offset = Number.isFinite(angularOffsetRad) ? angularOffsetRad : 0
+  if (Math.abs(offset) < EPSILON) return base
+
+  return resolveCinema2InterlockGeometryFromPivot({
+    fixtureId: base.fixtureId,
+    patternId: base.patternId,
+    pivot: base.pivot,
+    pivotPoint: pointForPivot(base, base.pivot),
+    angleRad: base.angleRad + offset,
+    lengthPx: base.lengthPx,
+    thicknessPx: base.thicknessPx,
+  })
+}

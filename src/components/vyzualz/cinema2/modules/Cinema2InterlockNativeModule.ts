@@ -25,7 +25,7 @@ import {
 import {
   createCinema2InterlockTransitionState,
   resolveCinema2InterlockBankTransitionProgress,
-  resolveCinema2InterlockGeometryFromPivot,
+  resolveCinema2InterlockFinalPose,
   resolveCinema2InterlockLayout,
   resolveCinema2InterlockTransition,
 } from './interlock/Cinema2InterlockGeometry'
@@ -126,7 +126,10 @@ const DEFAULT_MORPH_DURATION_SEC = 2
 const DEFAULT_SYMMETRY = true
 const MIN_MORPH_DURATION_SEC = 0.25
 const MAX_MORPH_DURATION_SEC = 8
-const EXCURSION_SCALE_RADIANS = 0.18
+const MAX_CONTINUOUS_REACTIVE_ANGLE_RADIANS = Math.PI / 12
+const TRANSIENT_TO_BASS_ROTATION_RATIO = 0.18 / 0.42
+const BUILD_TO_BASS_ROTATION_RATIO = 0.18 / 0.42
+const TRANSIENT_RESET_EPSILON = 1e-4
 const DEFAULT_SEGMENT_ENERGY = 0.65
 const DEFAULT_SEGMENT_IMPACT = 0
 const DEFAULT_SEGMENT_DIRECTION_BIAS = 0
@@ -370,7 +373,8 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     let renderSegmentImpact = config.segmentImpact
     let renderSegmentDirectionBias = config.segmentDirectionBias
     let renderSegmentBankPhase = config.segmentBankPhase
-    let reactiveRotationAmount = config.rotationAmount
+    let reactiveRotationStrength = 0
+    let suppressTransientRotation = false
     let disposed = false
 
     const rebuildSettledLayout = (viewport: Cinema2InterlockViewport, patternId = config.pattern) => {
@@ -378,7 +382,22 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
       currentGeometry = new Map(layout.fixtures.map(candidate => [candidate.fixtureId, candidate]))
       activePattern = layout.patternId
       transition = null
-      renderFixtures = toRenderFixtures(layout.fixtures, config.mirrorSegmentDirection)
+    }
+
+    const refreshRenderFixtures = () => {
+      if (currentGeometry.size !== CINEMA2_INTERLOCK_FIXTURE_COUNT) {
+        renderFixtures = Object.freeze([])
+        return
+      }
+      const finalGeometry = CINEMA2_INTERLOCK_RIG.fixtures.map((fixture, index) => {
+        const base = currentGeometry.get(fixture.id)
+        if (!base) throw new Error(`Interlock final-pose resolution is missing fixture geometry for ${fixture.id}.`)
+        return resolveCinema2InterlockFinalPose(
+          base,
+          resolveContinuousReactiveAngularOffset(reactiveRotationStrength, config.symmetry, index),
+        )
+      })
+      renderFixtures = toRenderFixtures(finalGeometry, config.mirrorSegmentDirection)
     }
 
     const beginPatternTransition = (
@@ -484,11 +503,16 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
             showPlan = null
             transition = null
             pendingTransition = null
+            suppressTransientRotation = true
+          }
+          if (suppressTransientRotation && config.kickAccent <= TRANSIENT_RESET_EPSILON) {
+            suppressTransientRotation = false
           }
 
           const structure = resolveInterlockShowPlannerStructure(frame, config)
           showPlan = planCinema2InterlockShow(config, structure, randomAdapter, showPlan)
-          // Choreography strength already applies Master Reactivity before values reach runtime targets.
+          // Choreography pre-scales routed signals by Master Reactivity; the final mechanical
+          // pass also gates on it so a zero master is an invariant even for direct/native inputs.
           // Auto Performance owns show selection only; reactive target values remain live in manual mode.
           const vocalReduction = 1 - config.vocalRestraint * config.vocalPresence * 0.48
           const triggerAccent = resolveInterlockTriggerAccent(config)
@@ -506,7 +530,12 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           // out of the global phase clock so 0 means simultaneous banks and 1
           // means the full catalog-authored delay everywhere it is consumed.
           renderSegmentBankPhase = config.segmentBankPhase
-          reactiveRotationAmount = clamp01(config.rotationAmount * (0.72 + bass * config.bassRotation * 0.42 + config.kickAccent * config.bassRotation * 0.18 + config.directorBuild * config.buildTension * 0.18))
+          reactiveRotationStrength = resolveContinuousReactiveRotationStrength(
+            config,
+            bass,
+            suppressTransientRotation ? 0 : config.kickAccent,
+            vocalReduction,
+          )
           segmentPhase = resolveCinema2InterlockSegmentClockPhase(clock, renderSegmentSpeed)
           const resized = lastViewportKey != null && lastViewportKey !== nextViewportKey
           const reanchored = lastReanchorGeneration != null && clock.reanchorGeneration !== lastReanchorGeneration
@@ -554,7 +583,7 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
               }
             }
             let transitionComplete = true
-            const next = transition.states.map((state, index) => {
+            const next = transition.states.map(state => {
               const bankProgress = resolveCinema2InterlockBankTransitionProgress(
                 transition!.elapsedTransitionBeats,
                 transition!.durationBeats,
@@ -562,26 +591,17 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
                 config.segmentBankPhase,
               )
               if (bankProgress < 1) transitionComplete = false
-              return resolveTransitionFixture(
-                state,
-                bankProgress,
-                reactiveRotationAmount,
-                config.symmetry,
-                index,
-              )
+              return resolveCinema2InterlockTransition(state, smoothstep(bankProgress))
             })
             currentGeometry = new Map(next.map(candidate => [candidate.fixtureId, candidate]))
-            renderFixtures = toRenderFixtures(next, config.mirrorSegmentDirection)
             if (transitionComplete) {
-              // Always settle to the Stage 1 authored target. Rotation Amount
-              // only governs the legal-pivot angular excursion during the morph.
+              // Settle base state to the exact authored target; continuous
+              // reactivity is applied afterward by the canonical final-pose pass.
               rebuildSettledLayout(viewport, transition.targetPatternId)
             }
           }
 
-          if (config.mirrorSegmentDirection !== previousConfig.mirrorSegmentDirection && currentGeometry.size === CINEMA2_INTERLOCK_FIXTURE_COUNT) {
-            renderFixtures = toRenderFixtures([...currentGeometry.values()], config.mirrorSegmentDirection)
-          }
+          refreshRenderFixtures()
 
           lastViewportKey = nextViewportKey
           lastMotionBeatPosition = clock.motionBeatPosition
@@ -607,34 +627,29 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
   },
 })
 
-function resolveTransitionFixture(
-  state: Readonly<Cinema2InterlockTransitionState>,
-  progress: number,
-  rotationAmount: number,
+function resolveContinuousReactiveRotationStrength(
+  config: Readonly<FrameConfig>,
+  bass: number,
+  kickAccent: number,
+  vocalReduction: number,
+): number {
+  const bassDrive = clamp01(bass) * config.bassRotation
+  const transientDrive = clamp01(kickAccent) * config.bassRotation * TRANSIENT_TO_BASS_ROTATION_RATIO
+  const buildDrive = config.directorBuild * config.buildTension * BUILD_TO_BASS_ROTATION_RATIO
+  const mechanicalDrive = clamp01(bassDrive + transientDrive + buildDrive)
+  return clamp01(config.rotationAmount * config.masterReactivity * mechanicalDrive * clamp01(vocalReduction))
+}
+
+function resolveContinuousReactiveAngularOffset(
+  strength: number,
   symmetry: boolean,
   fixtureIndex: number,
-): Cinema2InterlockResolvedFixtureGeometry {
-  const base = resolveCinema2InterlockTransition(state, smoothstep(progress))
-  if (progress <= 0 || progress >= 1 || rotationAmount <= 0) return base
-
+): number {
+  if (strength <= 0) return 0
   const mirrorSign = fixtureIndex % 2 === 0 ? -1 : 1
   const freeSign = fixtureIndex % 4 < 2 ? -1 : 1
   const direction = symmetry ? mirrorSign : freeSign
-  const angularExcursion = Math.sin(Math.PI * progress)
-    * Math.min(Math.abs(state.deltaAngleRad), Math.PI)
-    * EXCURSION_SCALE_RADIANS
-    * clamp01(rotationAmount)
-    * direction
-
-  return resolveCinema2InterlockGeometryFromPivot({
-    fixtureId: base.fixtureId,
-    patternId: base.patternId,
-    pivot: state.pivot,
-    pivotPoint: state.pivotPoint,
-    angleRad: base.angleRad + angularExcursion,
-    lengthPx: state.lengthPx,
-    thicknessPx: state.thicknessPx,
-  })
+  return MAX_CONTINUOUS_REACTIVE_ANGLE_RADIANS * clamp01(strength) * direction
 }
 
 function resolveTransitionRotationMode(

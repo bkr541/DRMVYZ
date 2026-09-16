@@ -215,6 +215,10 @@ function uploadedFixtureAngle(instances: readonly number[], fixtureIndex: number
   return Math.atan2(instances[offset + 3] ?? 0, instances[offset + 2] ?? 1)
 }
 
+function shortestAngleDelta(actual: number, expected: number): number {
+  return Math.atan2(Math.sin(actual - expected), Math.cos(actual - expected))
+}
+
 function fixtureIndex(predicate: (fixture: typeof CINEMA2_INTERLOCK_RIG.fixtures[number]) => boolean): number {
   const index = CINEMA2_INTERLOCK_RIG.fixtures.findIndex(predicate)
   if (index < 0) throw new Error('Expected Interlock fixture was not found in the stable rig.')
@@ -293,10 +297,211 @@ describe('Cinema 2.0 Interlock native LED renderer', () => {
     expect(Number(manualSegmentEnergy)).toBeGreaterThan(CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentEnergy)
     expect(Number(manualSegmentImpact)).toBeGreaterThan(0)
 
+    const manualInstances = lastUploadedInstances(manual.gl)
+    const automaticInstances = lastUploadedInstances(automatic.gl)
+    const authored = resolveCinema2InterlockLayout('diamondTunnel', currentFrame.viewport).fixtures[0]!
+    expect(uploadedFixtureAngle(manualInstances, 0)).toBeCloseTo(uploadedFixtureAngle(automaticInstances, 0), 5)
+    expect(Math.abs(shortestAngleDelta(uploadedFixtureAngle(manualInstances, 0), authored.angleRad))).toBeGreaterThan(0.01)
+
     manual.instance.lifecycle.dispose()
     automatic.instance.lifecycle.dispose()
     manual.resources.disposeAll()
     automatic.resources.disposeAll()
+  })
+
+  it.each(['diamondTunnel', 'bassPortal', 'fourWayVortex'] as const)(
+    'keeps settled %s geometry bass-reactive without requiring a layout transition',
+    (pattern: typeof CINEMA2_INTERLOCK_PATTERN_IDS[number]) => {
+      const harness = createHarness({
+        pattern,
+        rotationAmount: 1,
+        masterReactivity: 1,
+        bassRotation: 1,
+        bassEnergy: 0.9,
+      })
+      const viewport = { width: 1280, height: 720, dpr: 1 }
+      const authored = resolveCinema2InterlockLayout(pattern, viewport).fixtures[0]!
+
+      const reactiveFrame = frame({ timeSec: 2, viewport })
+      update(harness, reactiveFrame)
+      execute(harness, reactiveFrame)
+      const reactiveAngle = uploadedFixtureAngle(lastUploadedInstances(harness.gl), 0)
+      expect(Math.abs(shortestAngleDelta(reactiveAngle, authored.angleRad))).toBeGreaterThan(0.05)
+
+      harness.parameters.bassRotation = 0
+      const bassDisabledFrame = frame({ timeSec: 2.1, viewport, frameId: 2 })
+      update(harness, bassDisabledFrame)
+      execute(harness, bassDisabledFrame)
+      expect(shortestAngleDelta(uploadedFixtureAngle(lastUploadedInstances(harness.gl), 0), authored.angleRad)).toBeCloseTo(0, 5)
+
+      harness.parameters.bassRotation = 1
+      harness.parameters.rotationAmount = 0
+      const rotationDisabledFrame = frame({ timeSec: 2.2, viewport, frameId: 3 })
+      update(harness, rotationDisabledFrame)
+      execute(harness, rotationDisabledFrame)
+      expect(shortestAngleDelta(uploadedFixtureAngle(lastUploadedInstances(harness.gl), 0), authored.angleRad)).toBeCloseTo(0, 5)
+
+      harness.parameters.rotationAmount = 1
+      harness.parameters.masterReactivity = 0
+      const masterDisabledFrame = frame({ timeSec: 2.3, viewport, frameId: 4 })
+      update(harness, masterDisabledFrame)
+      execute(harness, masterDisabledFrame)
+      expect(shortestAngleDelta(uploadedFixtureAngle(lastUploadedInstances(harness.gl), 0), authored.angleRad)).toBeCloseTo(0, 5)
+
+      harness.instance.lifecycle.dispose()
+      harness.resources.disposeAll()
+    },
+  )
+
+  it('scales settled mechanical excursion with Rotation Amount and Bass Rotation while preserving authored rest geometry', () => {
+    const harness = createHarness({ rotationAmount: 0.25, masterReactivity: 1, bassRotation: 0.5, bassEnergy: 1 })
+    const viewport = { width: 1280, height: 720, dpr: 1 }
+    const authored = resolveCinema2InterlockLayout('diamondTunnel', viewport).fixtures[0]!
+
+    update(harness, frame({ timeSec: 1, viewport }))
+    execute(harness, frame({ timeSec: 1, viewport }))
+    const low = Math.abs(shortestAngleDelta(uploadedFixtureAngle(lastUploadedInstances(harness.gl), 0), authored.angleRad))
+
+    harness.parameters.rotationAmount = 1
+    harness.parameters.bassRotation = 1
+    update(harness, frame({ timeSec: 1.1, viewport, frameId: 2 }))
+    execute(harness, frame({ timeSec: 1.1, viewport, frameId: 2 }))
+    const high = Math.abs(shortestAngleDelta(uploadedFixtureAngle(lastUploadedInstances(harness.gl), 0), authored.angleRad))
+    expect(high).toBeGreaterThan(low * 3)
+    expect(high).toBeLessThanOrEqual(Math.PI / 12 + 1e-5)
+
+    harness.parameters.bassEnergy = 0
+    update(harness, frame({ timeSec: 1.2, viewport, frameId: 3 }))
+    execute(harness, frame({ timeSec: 1.2, viewport, frameId: 3 }))
+    expect(shortestAngleDelta(uploadedFixtureAngle(lastUploadedInstances(harness.gl), 0), authored.angleRad)).toBeCloseTo(0, 5)
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
+  it('combines approved build tension and vocal restraint with the final mechanical amplitude', () => {
+    const viewport = { width: 1280, height: 720, dpr: 1 }
+    const authored = resolveCinema2InterlockLayout('diamondTunnel', viewport).fixtures[0]!
+    const harness = createHarness({
+      rotationAmount: 1,
+      masterReactivity: 1,
+      bassRotation: 1,
+      bassEnergy: 0,
+      directorBuild: 1,
+      buildTension: 1,
+    })
+
+    update(harness, frame({ timeSec: 1, viewport }))
+    execute(harness, frame({ timeSec: 1, viewport }))
+    const buildOnly = Math.abs(shortestAngleDelta(uploadedFixtureAngle(lastUploadedInstances(harness.gl), 0), authored.angleRad))
+    expect(buildOnly).toBeGreaterThan(0.01)
+
+    harness.parameters.buildTension = 0
+    update(harness, frame({ timeSec: 1.1, viewport, frameId: 2 }))
+    execute(harness, frame({ timeSec: 1.1, viewport, frameId: 2 }))
+    expect(shortestAngleDelta(uploadedFixtureAngle(lastUploadedInstances(harness.gl), 0), authored.angleRad)).toBeCloseTo(0, 5)
+
+    harness.parameters.directorBuild = 0
+    harness.parameters.buildTension = 1
+    harness.parameters.bassEnergy = 1
+    harness.parameters.vocalPresence = 0
+    harness.parameters.vocalRestraint = 1
+    update(harness, frame({ timeSec: 1.2, viewport, frameId: 3 }))
+    execute(harness, frame({ timeSec: 1.2, viewport, frameId: 3 }))
+    const unrestricted = Math.abs(shortestAngleDelta(uploadedFixtureAngle(lastUploadedInstances(harness.gl), 0), authored.angleRad))
+
+    harness.parameters.vocalPresence = 1
+    update(harness, frame({ timeSec: 1.3, viewport, frameId: 4 }))
+    execute(harness, frame({ timeSec: 1.3, viewport, frameId: 4 }))
+    const restrained = Math.abs(shortestAngleDelta(uploadedFixtureAngle(lastUploadedInstances(harness.gl), 0), authored.angleRad))
+    expect(restrained).toBeLessThan(unrestricted * 0.6)
+    expect(restrained).toBeGreaterThan(0)
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
+  it('holds a routed kick impulse mechanically still while transport animation is paused', () => {
+    const harness = createHarness({ rotationAmount: 1, masterReactivity: 1, bassRotation: 1, kickAccent: 1 })
+    const playing = frame({ timeSec: 2 })
+    update(harness, playing)
+    execute(harness, playing)
+    const beforePause = lastUploadedInstances(harness.gl)
+
+    const pausedTransport = {
+      sourcePresent: true, playing: false, analysisActive: true, paused: true, animationActive: false,
+      trackId: 'track-a', timeSec: 9,
+    }
+    const paused = frame({ timeSec: 9, deltaTimeSec: 7, transport: pausedTransport, frameId: 2 })
+    update(harness, paused)
+    execute(harness, paused)
+    expect(lastUploadedInstances(harness.gl)).toEqual(beforePause)
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
+  it('keeps the same continuous reactive offset across transition completion instead of snapping back to static geometry', () => {
+    const controls = { rotationAmount: 1, masterReactivity: 1, bassRotation: 1, bassEnergy: 0.8, morphDuration: 0.25, segmentBankPhase: 0 }
+    const transitioning = createHarness(controls)
+    update(transitioning, frame({ timeSec: 0, deltaTimeSec: 0 }))
+    transitioning.parameters.pattern = 'mechanicalIris'
+    update(transitioning, frame({ timeSec: 0.01, deltaTimeSec: 0.01, frameId: 2 }))
+    update(transitioning, frame({ timeSec: 1, deltaTimeSec: 0.99, frameId: 3 }))
+    execute(transitioning, frame({ timeSec: 1, deltaTimeSec: 0, frameId: 4 }))
+    const completed = lastUploadedInstances(transitioning.gl)
+
+    const settled = createHarness({ ...controls, pattern: 'mechanicalIris' })
+    update(settled, frame({ timeSec: 1, deltaTimeSec: 0 }))
+    execute(settled, frame({ timeSec: 1, deltaTimeSec: 0 }))
+    const expectedSettledReactive = lastUploadedInstances(settled.gl)
+
+    expect(uploadedFixtureAngle(completed, 0)).toBeCloseTo(uploadedFixtureAngle(expectedSettledReactive, 0), 5)
+    const authored = resolveCinema2InterlockLayout('mechanicalIris', { width: 1280, height: 720, dpr: 1 }).fixtures[0]!
+    expect(Math.abs(shortestAngleDelta(uploadedFixtureAngle(completed, 0), authored.angleRad))).toBeGreaterThan(0.05)
+
+    transitioning.instance.lifecycle.dispose()
+    settled.instance.lifecycle.dispose()
+    transitioning.resources.disposeAll()
+    settled.resources.disposeAll()
+  })
+
+  it('suppresses stale kick rotation after a backward seek until the transient envelope has re-armed', () => {
+    const harness = createHarness({
+      rotationAmount: 1,
+      masterReactivity: 1,
+      bassRotation: 1,
+      bassEnergy: 0,
+      kickAccent: 1,
+    })
+    const viewport = { width: 1280, height: 720, dpr: 1 }
+    const authored = resolveCinema2InterlockLayout('diamondTunnel', viewport).fixtures[0]!
+
+    update(harness, frame({ timeSec: 4, viewport }))
+    execute(harness, frame({ timeSec: 4, viewport }))
+    expect(Math.abs(shortestAngleDelta(uploadedFixtureAngle(lastUploadedInstances(harness.gl), 0), authored.angleRad))).toBeGreaterThan(0.01)
+
+    update(harness, frame({ timeSec: 1, deltaTimeSec: 0, viewport, frameId: 2 }))
+    execute(harness, frame({ timeSec: 1, deltaTimeSec: 0, viewport, frameId: 2 }))
+    expect(shortestAngleDelta(uploadedFixtureAngle(lastUploadedInstances(harness.gl), 0), authored.angleRad)).toBeCloseTo(0, 5)
+
+    harness.parameters.kickAccent = 0
+    update(harness, frame({ timeSec: 1.1, viewport, frameId: 3 }))
+    harness.parameters.kickAccent = 1
+    update(harness, frame({ timeSec: 1.2, viewport, frameId: 4 }))
+    execute(harness, frame({ timeSec: 1.2, viewport, frameId: 4 }))
+    expect(Math.abs(shortestAngleDelta(uploadedFixtureAngle(lastUploadedInstances(harness.gl), 0), authored.angleRad))).toBeGreaterThan(0.01)
+
+    const replacementTransport = {
+      sourcePresent: true, playing: true, analysisActive: true, paused: false, animationActive: true,
+      trackId: 'track-b', timeSec: 1.3,
+    }
+    update(harness, frame({ timeSec: 1.3, viewport, transport: replacementTransport, frameId: 5 }))
+    execute(harness, frame({ timeSec: 1.3, viewport, transport: replacementTransport, frameId: 5 }))
+    expect(shortestAngleDelta(uploadedFixtureAngle(lastUploadedInstances(harness.gl), 0), authored.angleRad)).toBeCloseTo(0, 5)
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
   })
 
   it('validates its exact segmented module contract and rejects malformed or placeholder configuration', () => {
