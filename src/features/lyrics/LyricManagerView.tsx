@@ -44,7 +44,7 @@ import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import { RailWindowHeader } from '../../components/vyzualz/layout/RailWindowHeader'
 import { RailTabs, type RailTabOption } from '../../components/vyzualz/layout/RailTabs'
-import { Add01Icon, AudioWave02Icon, File02Icon, FileAddIcon, FileImportIcon, SubtitleIcon } from 'hugeicons-react'
+import { Add01Icon, AudioWave02Icon, File02Icon, FileAddIcon, FileImportIcon, InformationCircleIcon, SubtitleIcon } from 'hugeicons-react'
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
@@ -356,6 +356,38 @@ export function LyricManagerView({
     ownerWindow.addEventListener('pointermove', onMove)
     ownerWindow.addEventListener('pointerup', onUp, { once: true })
   }, [lyricManagementHeightPct])
+  // Right-rail counterpart of the workspaceShellRef/lyricManagementHeightPct
+  // split above: Track Information (top, conditionally mounted) / Document
+  // Workspace (bottom, always mounted) instead of Track Workspace / Lyric
+  // Management, but the same shell-bounded percentage-drag mechanism, so
+  // Document Workspace's resize handle behaves exactly like Lyric
+  // Management's.
+  const rightWorkspaceShellRef = useRef<HTMLDivElement>(null)
+  const [documentWorkspaceHeightPct, setDocumentWorkspaceHeightPct] = useState<number | null>(null)
+  const handleDocumentWorkspaceResizeStart = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return
+    const container = rightWorkspaceShellRef.current
+    if (!container) return
+    event.preventDefault()
+    const rect = container.getBoundingClientRect()
+    const startY = event.clientY
+    // Default matches the ~25%/75% Track Information/Document Workspace
+    // split (unlike Track Workspace/Lyric Management's ~55%/45%), so the
+    // clamp range is shifted to keep that default comfortably inside it
+    // instead of snapping on the very first drag.
+    const startPct = documentWorkspaceHeightPct ?? 75
+    const ownerWindow = event.currentTarget.ownerDocument.defaultView ?? window
+    const onMove = (moveEvent: PointerEvent) => {
+      const deltaPct = ((moveEvent.clientY - startY) / rect.height) * 100
+      setDocumentWorkspaceHeightPct(Math.max(30, Math.min(80, startPct - deltaPct)))
+    }
+    const onUp = () => {
+      ownerWindow.removeEventListener('pointermove', onMove)
+      ownerWindow.removeEventListener('pointerup', onUp)
+    }
+    ownerWindow.addEventListener('pointermove', onMove)
+    ownerWindow.addEventListener('pointerup', onUp, { once: true })
+  }, [documentWorkspaceHeightPct])
   const [documents, setDocuments] = useState<LyricDocumentVersion[]>([])
   const [legacyDocuments, setLegacyDocuments] = useState<
     LyricDocumentVersion[]
@@ -2252,13 +2284,61 @@ export function LyricManagerView({
           onToggleCollapsed={() => setRightRailCollapsed(value => !value)}
           className="lmv-right-rail"
         >
-          <div className="lmv-document-workspace-header">
-            <RailWindowHeader
-              side="right"
-              icon={<File02Icon size={15} color="currentColor" aria-hidden="true" />}
-              label="Document Workspace"
-            />
-          </div>
+          <div
+            ref={rightWorkspaceShellRef}
+            className="lmv-right-workspace-shell"
+            data-has-selected-track={lyricManagementPhase !== 'unmounted' ? 'true' : 'false'}
+          >
+          {lyricManagementPhase !== 'unmounted' && (
+            <section
+              className={`lmv-track-information lmv-track-information--${lyricManagementPhase}`}
+              aria-label="Track Information"
+              style={documentWorkspaceHeightPct != null
+                ? { flexBasis: `${100 - documentWorkspaceHeightPct}%` }
+                : undefined}
+            >
+              <RailWindowHeader
+                side="right"
+                icon={<InformationCircleIcon size={15} color="currentColor" aria-hidden="true" />}
+                label="Track Information"
+              />
+              <div className="lmv-track-information-body">
+                <span className="lmv-track-information-placeholder">Track details will appear here.</span>
+              </div>
+            </section>
+          )}
+
+          <section
+            className="lmv-document-workspace"
+            aria-label="Document Workspace"
+            style={documentWorkspaceHeightPct != null && lyricManagementPhase !== 'unmounted'
+              ? { flexBasis: `${documentWorkspaceHeightPct}%` }
+              : undefined}
+          >
+            {lyricManagementPhase !== 'unmounted' && (
+              <div
+                className="lmv-document-workspace-resize-handle"
+                role="separator"
+                aria-orientation="horizontal"
+                aria-label="Resize Document Workspace"
+                aria-valuenow={Math.round(documentWorkspaceHeightPct ?? 75)}
+                aria-valuemin={30}
+                aria-valuemax={80}
+                tabIndex={0}
+                onPointerDown={handleDocumentWorkspaceResizeStart}
+                onKeyDown={event => {
+                  if (event.key === 'ArrowUp') { event.preventDefault(); setDocumentWorkspaceHeightPct(Math.min(80, (documentWorkspaceHeightPct ?? 75) + 2)) }
+                  if (event.key === 'ArrowDown') { event.preventDefault(); setDocumentWorkspaceHeightPct(Math.max(30, (documentWorkspaceHeightPct ?? 75) - 2)) }
+                }}
+              />
+            )}
+            <div className="lmv-document-workspace-header">
+              <RailWindowHeader
+                side="right"
+                icon={<File02Icon size={15} color="currentColor" aria-hidden="true" />}
+                label="Document Workspace"
+              />
+            </div>
 
           {cueEditor.selectedCue && cueEditor.actions ? (
             <>

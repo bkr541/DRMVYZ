@@ -2081,13 +2081,12 @@
   gap: 6px;
 }
 
-/* Window header — the plain default .lmv-rail-title treatment (unlike
-   Track Workspace/Lyric Management/Document Workspace, this one hasn't
-   been restyled to the Drop Shadow bar). The negative margin pulls it out
-   of .lmv-right-panel's own 16px/26px top/side padding so the divider
-   spans the panel's full width, flush with its edges, instead of nesting
-   Diagnostics as an inset card. */
-.lmv-diagnostics-window > .lmv-rail-title {
+/* Diagnostics now renders the shared RailWindowHeader component, matching
+   Track Workspace/Lyric Management/Document Workspace's Drop Shadow bar
+   exactly. The negative margin pulls it out of .lmv-right-panel's own
+   16px/26px top/side padding so it reaches the panel's true edges flush,
+   instead of nesting Diagnostics as an inset card. */
+.lmv-diagnostics-window > .rw-window-header {
   margin: -16px -26px 0;
 }
 
@@ -3034,6 +3033,48 @@
 .lmv-lyric-management--entered {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* Track Information: a new right-rail window above Document Workspace,
+   visible only once a track is selected (lyricManagementPhase, shared with
+   the left rail's Lyric Management section — same trigger, same 220ms
+   timing) and animating in/out identically: opacity + an 8px upward slide.
+   Empty for now; a fixed ~25% share of the right rail's height (unlike
+   Lyric Management's resizable 45%, this one has no drag handle). */
+.lmv-track-information {
+  box-sizing: border-box;
+  min-height: 0;
+  flex: 0 0 25%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.lmv-track-information--entering,
+.lmv-track-information--exiting {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.lmv-track-information--entered {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.lmv-track-information-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.lmv-track-information-placeholder {
+  color: rgba(196, 207, 211, 0.42);
+  font-size: 11px;
+  text-align: center;
 }
 
 /* Right rail "Document Workspace" header: now restyled to match Track

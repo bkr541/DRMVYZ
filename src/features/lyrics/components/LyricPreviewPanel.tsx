@@ -1,6 +1,7 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react'
 import { Activity01Icon, ViewIcon } from 'hugeicons-react'
 import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
+import { RailWindowHeader } from '../../../components/vyzualz/layout/RailWindowHeader'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
 import { resolveLyricCueConfidence, type LyricCue, type LyricDocument, type LyricStyle } from '../../../types/lyrics'
@@ -268,10 +269,11 @@ export function LyricPreviewPanel({
   return (
     <div className="lmv-right-panel">
       <section className="lmv-diagnostics-window" aria-label="Diagnostics">
-        <div className="lmv-rail-title">
-          <Activity01Icon size={15} color="currentColor" aria-hidden="true" />
-          <span>Diagnostics</span>
-        </div>
+        <RailWindowHeader
+          side="right"
+          icon={<Activity01Icon size={15} color="currentColor" aria-hidden="true" />}
+          label="Diagnostics"
+        />
 
         {extractionConsole}
 
