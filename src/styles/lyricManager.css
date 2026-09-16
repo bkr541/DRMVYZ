@@ -3120,7 +3120,13 @@
 .drc-header.lmv-live-preview-header {
   min-height: 42px;
   font-size: 12px;
-  padding-left: 14px;
+  /* The base .drc-header rule (DualRailCollapsible.css) reserves space only
+     at the bottom (padding-bottom: 8px + a 1px border-bottom = 9px), so
+     align-items:center centers the icon/label within a content box that's
+     shifted toward the top of the 42px bar instead of the bar itself.
+     Matching padding-top makes that reserved space symmetric so the icon
+     and label land on the bar's true vertical center. */
+  padding: 9px 0 8px 14px;
 }
 
 /* .drc-group's own 12px padding-top (DualRailCollapsible.css) is meant for
