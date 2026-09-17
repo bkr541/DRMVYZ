@@ -204,7 +204,7 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     const plan = compileAfterhours()
     expect(plan.manifest.modules).toHaveLength(1)
     expect(plan.manifest.effects).toHaveLength(1)
-    expect(plan.manifest.revision).toBe(5)
+    expect(plan.manifest.revision).toBe(6)
     expect(plan.manifest.modules?.[0]).toMatchObject({
       id: CINEMA2_AFTERHOURS_MODULE_ID,
       typeId: CINEMA2_AFTERHOURS_NATIVE_MODULE_TYPE_ID,
@@ -232,6 +232,7 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
 
     const pattern = plan.parameters.definitions.find(definition => definition.id === CINEMA2_AFTERHOURS_PATTERN_ID)
     expect(pattern?.options?.map(option => option.value)).toEqual(CINEMA2_AFTERHOURS_TOPOLOGY_IDS)
+    expect(pattern?.metadata?.userEditSetParameters).toEqual({ [CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID]: false })
     expect(plan.parameters.authoredDefaults[CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID]).toBe(false)
     expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_AFTERHOURS_RESET_TRAILS_ID)).toMatchObject({
       type: 'trigger',
@@ -239,8 +240,12 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
       persistence: 'runtime-only',
     })
     expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_AFTERHOURS_BEAM_COUNT_ID)).toMatchObject({ min: 2, max: 16, step: 1 })
-    expect(plan.manifest.choreography?.rules).toHaveLength(10)
-    for (const rule of plan.manifest.choreography?.rules ?? []) {
+    expect(plan.manifest.choreography?.rules).toHaveLength(17)
+    const corePerformanceRules = (plan.manifest.choreography?.rules ?? []).filter(rule => rule.enabledParameter == null)
+    const autoPresentationRules = (plan.manifest.choreography?.rules ?? []).filter(rule => rule.enabledParameter != null)
+    expect(corePerformanceRules).toHaveLength(10)
+    expect(autoPresentationRules).toHaveLength(7)
+    for (const rule of autoPresentationRules) {
       expect(rule.enabledParameter?.$ref, `Auto Performance gate for ${rule.id}`).toBe(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)
     }
     expect(plan.capabilities.required.some(capability => capability.startsWith('music.'))).toBe(false)
@@ -288,6 +293,16 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     expect(allControls).toEqual(expect.arrayContaining(EXPECTED_USER_PARAMETER_IDS))
     expect(allControls).not.toContain(CINEMA2_AFTERHOURS_RESET_TRAILS_ID)
     expect(allControls).toContain(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)
+  })
+
+  it('gives a manual Pattern edit immediate authority by disabling Auto Performance for that domain', () => {
+    const plan = compileAfterhours()
+    const state = new Cinema2ParameterState(plan.parameters)
+    expect(state.setPersistentValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID, true)).toMatchObject({ ok: true })
+    expect(state.getValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)).toBe(true)
+    expect(state.setPersistentValue(CINEMA2_AFTERHOURS_PATTERN_ID, 'crossCanopy')).toMatchObject({ ok: true })
+    expect(state.getValue(CINEMA2_AFTERHOURS_PATTERN_ID)).toBe('crossCanopy')
+    expect(state.getValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)).toBe(false)
   })
 
   it('persists independently, accepts every enum/boundary, and resolves bound module state through the canonical target runtime', () => {

@@ -25,6 +25,7 @@ import { generateCinema2AfterhoursBeamFrame } from './afterhours/Cinema2Afterhou
 import {
   CINEMA2_AFTERHOURS_PATTERN_CHANGE_IDS,
   planCinema2AfterhoursShow,
+  resolveCinema2AfterhoursCadenceIdentity,
   type Cinema2AfterhoursPatternChangeId,
   type Cinema2AfterhoursShowPlan,
   type Cinema2AfterhoursShowPlannerStructure,
@@ -194,6 +195,10 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
     let renderBeams: readonly Cinema2AfterhoursRenderBeam[] = Object.freeze([])
     let lastTriggerEventId: string | null = null
     let pulseStartedAtSec = Number.NEGATIVE_INFINITY
+    let lastAuthoredPattern: Cinema2AfterhoursTopologyId | null = null
+    let lastPatternChange: Cinema2AfterhoursPatternChangeId | null = null
+    let lastPatternCadenceIdentity: string | null = null
+    let manualPatternStep = 0
 
     const resetTransientState = () => {
       signature = ''
@@ -202,6 +207,10 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
       renderBeams = Object.freeze([])
       lastTriggerEventId = null
       pulseStartedAtSec = Number.NEGATIVE_INFINITY
+      lastAuthoredPattern = null
+      lastPatternChange = null
+      lastPatternCadenceIdentity = null
+      manualPatternStep = 0
     }
 
     const provider = Object.freeze({
@@ -254,7 +263,33 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
             pulseStartedAtSec = timeSec
           }
           const pulse = resolveCinema2AfterhoursPulseEnvelope(frame, timeSec, pulseStartedAtSec, config.pulseDecay)
-          const showPlan = planCinema2AfterhoursShow(config, resolveShowPlannerStructure(frame, config), randomAdapter)
+          const structure = resolveShowPlannerStructure(frame, config)
+          const cadenceIdentity = resolveCinema2AfterhoursCadenceIdentity(config.patternChange, structure)
+          const patternEdited = lastAuthoredPattern != null && lastAuthoredPattern !== config.pattern
+          const cadenceEdited = lastPatternChange != null && lastPatternChange !== config.patternChange
+          const manualCadenceActive = !config.autoPerformance && config.patternChange !== 'off'
+
+          if (!manualCadenceActive || patternEdited || cadenceEdited || lastPatternCadenceIdentity == null) {
+            manualPatternStep = 0
+            lastPatternCadenceIdentity = cadenceIdentity
+          } else if (
+            frame.transport?.playing !== false
+            && frame.transport?.paused !== true
+            && cadenceIdentity !== lastPatternCadenceIdentity
+            && !cadenceIdentity.endsWith(':unavailable')
+          ) {
+            manualPatternStep += 1
+            lastPatternCadenceIdentity = cadenceIdentity
+          }
+
+          lastAuthoredPattern = config.pattern
+          lastPatternChange = config.patternChange
+
+          const showPlan = planCinema2AfterhoursShow(
+            Object.freeze({ ...config, patternStep: manualPatternStep }),
+            structure,
+            randomAdapter,
+          )
           const nextSignature = createGeometrySignature(config, showPlan)
           if (nextSignature !== signature) {
             const nextDescriptors = generateCinema2AfterhoursBeamFrame({
@@ -322,7 +357,8 @@ function readFrameConfig(
   return Object.freeze({
     pattern: isTopology(source.parameters.get('pattern')) ? source.parameters.get('pattern') as Cinema2AfterhoursTopologyId : 'wideFan',
     // Runtime authority is carried through the canonical target path. The Show
-    // Planner broadens topology/bank authority only when Auto Performance is on.
+    // Auto Performance may choose topology/presentation, but fixture-bank
+    // enables remain hard user authority in the Show Planner.
     autoPerformance: booleanValue(source.parameters.get('autoPerformance'), false),
     beamCount: clamp(Math.round(numberValue(source.parameters.get('beamCount'), 8)), CINEMA2_AFTERHOURS_MIN_BEAMS, CINEMA2_AFTERHOURS_MAX_BEAMS),
     symmetry: booleanValue(source.parameters.get('symmetry'), true),
@@ -462,7 +498,7 @@ function buildRenderBeams(
     if (idle && !paused) {
       target = applyIdleSway(target, state.descriptor.scanner.phase, timeSec, config.motionAmount)
     } else if (playing) {
-      target = applyPerformanceMotion(target, state.descriptor.scanner.phase, frame, timeSec, config, showPlan, pulseAuthority)
+      target = applyPerformanceMotion(target, state.descriptor, frame, timeSec, config, showPlan, pulseAuthority)
     }
     const bankIntensity = state.descriptor.bank === 'bottom'
       ? showPlan.bottomIntensity
@@ -495,7 +531,7 @@ function applyPerformanceSpread(target: Cinema2Vector3, scale: number): Cinema2V
 
 function applyPerformanceMotion(
   target: Cinema2Vector3,
-  scannerPhase: number,
+  descriptor: Readonly<Cinema2AfterhoursBeamDescriptor>,
   frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
   timeSec: number,
   config: Readonly<FrameConfig>,
@@ -504,15 +540,90 @@ function applyPerformanceMotion(
 ): Cinema2Vector3 {
   const phase = resolveMotionPhase(frame, timeSec, config.bpmSync)
   if (phase == null) return target
-  const authority = clamp01(config.motionAmount) * showPlan.motionScale
+  const authority = clamp(
+    clamp01(config.motionAmount) * showPlan.motionScale + pulseAuthority * 0.1,
+    0,
+    1.3,
+  )
   if (authority <= 1e-5) return target
-  const angle = phase * Math.PI * 2 + scannerPhase * Math.PI * 2
-  const amplitude = 0.1 + 0.28 * clamp(authority + pulseAuthority * 0.16, 0, 1.25)
+
+  // Legacy Afterhours was successful because each formation had a recognizable
+  // scanner vocabulary. Preserve that behavior while keeping Cinema 2.0's
+  // native 3D fixture rig: scanner authority now controls substantial pattern-
+  // specific travel instead of every topology receiving the same tiny wobble.
+  const scannerPhase = descriptor.scanner.phase
+  const cycle = phase * Math.PI * 2 + scannerPhase * Math.PI * 2
+  const side = descriptor.symmetry?.side === 'left'
+    ? -1
+    : descriptor.symmetry?.side === 'right'
+      ? 1
+      : Math.sign(descriptor.originWorld[0] || target[0] || 1)
+  const yawSpan = (descriptor.scanner.yawAuthorityDeg / 34) * 2.35 * authority
+  const pitchSpan = (descriptor.scanner.pitchAuthorityDeg / 24) * 1.2 * authority
+  let xOffset = 0
+  let yOffset = 0
+
+  switch (descriptor.topologyId) {
+    case 'wideFan': {
+      const openClose = Math.sin(cycle)
+      xOffset = side * openClose * yawSpan
+      yOffset = Math.cos(cycle * 2) * pitchSpan * 0.16
+      break
+    }
+    case 'splitWings':
+      xOffset = side * Math.sin(cycle) * yawSpan * 1.08
+      yOffset = Math.cos(cycle) * pitchSpan * 0.38
+      break
+    case 'crossCanopy':
+      xOffset = -side * Math.sin(cycle) * yawSpan
+      yOffset = Math.cos(cycle) * pitchSpan * 0.72
+      break
+    case 'diamondStar': {
+      const diamondX = triangleWave(cycle)
+      const diamondY = triangleWave(cycle + Math.PI / 2)
+      xOffset = diamondX * yawSpan * 0.82
+      yOffset = diamondY * pitchSpan * 0.78
+      break
+    }
+    case 'chevronRoof':
+      xOffset = side * Math.cos(cycle) * yawSpan * 0.72
+      yOffset = Math.sin(cycle) * pitchSpan * 0.58
+      break
+    case 'radialCrown':
+      xOffset = Math.sin(cycle) * yawSpan * 0.96
+      yOffset = Math.cos(cycle) * pitchSpan * 0.92
+      break
+    case 'sparseArchitecture':
+      // Restrained authored architecture: lower range and slower dwell-like arcs.
+      xOffset = side * Math.sin(cycle * 0.5) * yawSpan * 0.42
+      yOffset = Math.cos(cycle * 0.5) * pitchSpan * 0.3
+      break
+    case 'fullRig':
+    default: {
+      // Bank staggering prevents the full rig from moving as one rigid fan.
+      const bankOffset = descriptor.bank === 'bottom'
+        ? 0
+        : descriptor.bank === 'left'
+          ? Math.PI * 0.5
+          : descriptor.bank === 'right'
+            ? Math.PI * 1.5
+            : Math.PI
+      const bankCycle = cycle + bankOffset
+      xOffset = side * Math.sin(bankCycle) * yawSpan
+      yOffset = Math.cos(bankCycle) * pitchSpan * 0.68
+      break
+    }
+  }
+
   return Object.freeze([
-    clamp(target[0] + Math.sin(angle) * amplitude, -7.8, 7.8),
-    clamp(target[1] + Math.cos(angle * 0.73) * amplitude * 0.42, 0.6, 6.8),
+    clamp(target[0] + xOffset, -7.8, 7.8),
+    clamp(target[1] + yOffset, 0.6, 6.8),
     target[2],
   ]) as Cinema2Vector3
+}
+
+function triangleWave(angle: number): number {
+  return (2 / Math.PI) * Math.asin(Math.sin(angle))
 }
 
 function resolveMotionPhase(
@@ -524,9 +635,9 @@ function resolveMotionPhase(
     const beatIndex = frame.audio?.rhythm.beatIndex
     const beatPhase = frame.audio?.rhythm.beatPhase
     if (!beatIndex?.available || !beatPhase?.available || beatIndex.value == null || beatPhase.value == null) return null
-    return (beatIndex.value + beatPhase.value) * 0.25
+    return (beatIndex.value + beatPhase.value) * 0.5
   }
-  return Number.isFinite(timeSec) ? timeSec * 0.18 : null
+  return Number.isFinite(timeSec) ? timeSec * 0.32 : null
 }
 
 function applyIdleSway(target: Cinema2Vector3, phase: number, timeSec: number, motionAmount: number): Cinema2Vector3 {
@@ -589,7 +700,10 @@ function resolveShowPlannerStructure(
     sectionIdentity: frame.director?.context.section?.available ? frame.director.context.section.value?.id ?? null : null,
     dropIdentity,
     hardCutIntent,
-    performance: config.autoPerformance && canonicalPerformanceAvailable
+    // Core Audio Intelligence remains active in Manual mode. Auto Performance
+    // controls topology/show direction, not whether the authored laser design
+    // is allowed to perform to the music.
+    performance: canonicalPerformanceAvailable
       ? Object.freeze({
           intensity: config.directorIntensity,
           build: config.directorBuild,

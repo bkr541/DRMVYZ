@@ -156,16 +156,16 @@ function frame(options: Partial<Cinema2ModuleFrameReadContext> & { timeSec?: num
 }
 
 
-function beatAudio(timeSec: number, discontinuity = false) {
+function beatAudio(timeSec: number, discontinuity = false, beatIndex = 8, beatPhase = 0, barIndex = 2) {
   return {
     upstream: { timeSec },
     discontinuity: { occurred: discontinuity, reason: discontinuity ? 'seek' : null, generation: discontinuity ? 2 : 1 },
     rhythm: {
       beat: { id: 'beat-stable', strength: 1 },
       bpm: { available: true, value: 120 },
-      beatIndex: { available: true, value: 8 },
-      beatPhase: { available: true, value: 0 },
-      barIndex: { available: true, value: 2 },
+      beatIndex: { available: true, value: beatIndex },
+      beatPhase: { available: true, value: beatPhase },
+      barIndex: { available: true, value: barIndex },
     },
     structure: {
       analyzedPhrases: { available: false, value: null },
@@ -255,6 +255,9 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
 
     expect(vertex).toContain('vSide = aCorner.y;')
     expect(vertex).not.toContain('vSide = abs(aCorner.y);')
+    expect(vertex).toContain('viewportExitScale')
+    expect(vertex).toContain('extendedTargetNdc')
+    expect(vertex).toContain('worldClip.xy += (extendedCenterNdc - authoredCenterNdc) * worldClip.w;')
     expect(fragment).toContain('float side = clamp(abs(vSide), 0.0, 1.0);')
     expect(beamProfileStrength(0, 0.55)).toBeGreaterThan(beamProfileStrength(1, 0.55))
 
@@ -347,6 +350,29 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
       harness.instance.lifecycle.dispose()
       harness.resources.disposeAll()
     }
+  })
+
+  it('produces substantial beat-domain scanner travel for an authored pattern while playback is active', () => {
+    const harness = createHarness({ pattern: 'wideFan', beamCount: 2, symmetry: false, motionAmount: 1, pulseAmount: 0, bpmSync: true })
+    const first = frame({ frameId: 1, timeSec: 3, audio: beatAudio(3, false, 8, 0) })
+    harness.instance.lifecycle.update({ frame: first, parameters: harness.parameterFacet, targets: harness.targetFacet })
+    execute(harness, first)
+    const firstUpload = Array.from(lastMockArgument(harness.gl.bufferSubData, 2) as Float32Array)
+
+    const second = frame({ frameId: 2, timeSec: 3.25, audio: beatAudio(3.25, false, 8, 0.5) })
+    harness.instance.lifecycle.update({ frame: second, parameters: harness.parameterFacet, targets: harness.targetFacet })
+    execute(harness, second)
+    const secondUpload = Array.from(lastMockArgument(harness.gl.bufferSubData, 2) as Float32Array)
+
+    const targetDelta = Math.hypot(
+      secondUpload[3]! - firstUpload[3]!,
+      secondUpload[4]! - firstUpload[4]!,
+      secondUpload[5]! - firstUpload[5]!,
+    )
+    expect(targetDelta).toBeGreaterThan(0.35)
+
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
   })
 
   it('consumes final camera matrices and remains finite across pose/aspect changes', () => {

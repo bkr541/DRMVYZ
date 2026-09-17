@@ -55,26 +55,49 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 5 Show Planner', () => {
     expect(plan.transitionIntent).toBe('smooth')
   })
 
-  it('ignores transient performance intent when Auto Performance is off', () => {
+  it('keeps manual topology/banks authoritative while shared performance intent modulates the authored show', () => {
     const baseline = planCinema2AfterhoursShow(SETTINGS, STRUCTURE, random(0.99))
-    const stalePerformance = planCinema2AfterhoursShow(
+    const reactive = planCinema2AfterhoursShow(
       SETTINGS,
-      { ...STRUCTURE, hardCutIntent: true, performance: { build: 1, impact: 1, vocalPresence: 1, kickAccent: 1, snareAccent: 1, downbeatAccent: 1, phraseAccent: 1, sectionAccent: 1, dropAccent: 1 } },
+      { ...STRUCTURE, hardCutIntent: true, performance: { build: 0.9, intensity: 0.8, kickAccent: 1, downbeatAccent: 1 } },
       random(0.99),
     )
-    expect(stalePerformance).toEqual(baseline)
+    expect(reactive.topologyId).toBe(SETTINGS.pattern)
+    expect(reactive.sideLasers).toBe(false)
+    expect(reactive.topLasers).toBe(false)
+    expect(reactive.transitionIntent).toBe('smooth')
+    expect(reactive.spreadScale).toBeLessThan(baseline.spreadScale)
+    expect(reactive.motionScale).toBeGreaterThan(baseline.motionScale)
+    expect(reactive.bottomIntensity).toBeGreaterThan(baseline.bottomIntensity)
   })
 
-  it('may choose another topology and recruit side/top banks without mutating authored settings', () => {
+  it('may choose another topology but never resurrects disabled user fixture banks', () => {
     const authored = { ...SETTINGS, autoPerformance: true, patternChange: 'off' as const }
     const plan = planCinema2AfterhoursShow(authored, STRUCTURE, random(0.99))
     expect(plan.topologyId).toBe('fullRig')
     expect(plan.topologyId).not.toBe(authored.pattern)
-    expect(plan.sideLasers).toBe(true)
-    expect(plan.topLasers).toBe(true)
+    expect(plan.sideLasers).toBe(false)
+    expect(plan.topLasers).toBe(false)
     expect(authored.sideLasers).toBe(false)
     expect(authored.topLasers).toBe(false)
     expect(authored.pattern).toBe('wideFan')
+  })
+
+  it('rotates Pattern Change at canonical boundaries without requiring full Auto Performance', () => {
+    const first = planCinema2AfterhoursShow(
+      { ...SETTINGS, patternChange: 'bar', patternStep: 0 },
+      { ...STRUCTURE, absoluteBarIndex: 12 },
+      random(),
+    )
+    const next = planCinema2AfterhoursShow(
+      { ...SETTINGS, patternChange: 'bar', patternStep: 1 },
+      { ...STRUCTURE, absoluteBarIndex: 13 },
+      random(),
+    )
+    expect(first.topologyId).toBe('wideFan')
+    expect(next.topologyId).toBe('splitWings')
+    expect(next.sideLasers).toBe(false)
+    expect(next.topLasers).toBe(false)
   })
 
   it('never exceeds Beam Count and preserves authored Symmetry in either authority mode', () => {

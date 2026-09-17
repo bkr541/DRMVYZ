@@ -272,7 +272,7 @@ function triggerFrame(source: MusicIntelligenceFrame): Readonly<Cinema2ModuleFra
 }
 
 describe('Cinema 2.0 Afterhours 2.0 Stage 7 Audio Director, camera, and trail choreography', () => {
-  it('keeps manual authority complete while Auto Performance is off and releases in-flight choreography when disabled', () => {
+  it('keeps core music modulation alive in Manual mode while Auto Performance owns only presentation choreography', () => {
     const plan = compileProductionAfterhours()
     const parameterState = new Cinema2ParameterState(plan.parameters)
     const resolver = new Cinema2FinalValueResolver(plan.targets, {
@@ -295,10 +295,10 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 7 Audio Director, camera, and trail ch
 
     choreography.update(manualFrame)
     expect(parameterState.getValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)).toBe(false)
-    expect(resolved('directorIntensity')).toBe(0)
-    expect(resolved('directorBuild')).toBe(0)
-    expect(resolved('vocalPresence')).toBe(0)
-    expect(resolved('kickAccent')).toBe(0)
+    expect(resolved('directorIntensity')).toBeGreaterThan(0)
+    expect(resolved('directorBuild')).toBeGreaterThan(0)
+    expect(resolved('vocalPresence')).toBeGreaterThan(0)
+    expect(resolved('kickAccent')).toBeGreaterThan(0)
     expect(Number(resolver.resolve(trailMixTarget.id).value)).toBeCloseTo(0.12, 6)
     expect(Number(resolver.resolve(trailPersistenceTarget.id).value)).toBeCloseTo(0.76, 6)
 
@@ -312,13 +312,13 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 7 Audio Director, camera, and trail ch
 
     expect(parameterState.setPersistentValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID, false)).toMatchObject({ ok: true })
     choreography.update(manualFrame)
-    expect(resolved('directorIntensity')).toBe(0)
-    expect(resolved('directorBuild')).toBe(0)
-    expect(resolved('vocalPresence')).toBe(0)
-    expect(resolved('kickAccent')).toBe(0)
+    expect(resolved('directorIntensity')).toBeGreaterThan(0)
+    expect(resolved('directorBuild')).toBeGreaterThan(0)
+    expect(resolved('vocalPresence')).toBeGreaterThan(0)
+    expect(resolved('kickAccent')).toBeGreaterThan(0)
     expect(Number(resolver.resolve(trailMixTarget.id).value)).toBeCloseTo(0.12, 6)
     expect(Number(resolver.resolve(trailPersistenceTarget.id).value)).toBeCloseTo(0.76, 6)
-    expect(choreography.getSnapshot()).toMatchObject({ activeContributionCount: 0, activeEnvelopeCount: 0 })
+    expect(choreography.getSnapshot().activeContributionCount).toBeGreaterThan(0)
 
     choreography.dispose()
   })

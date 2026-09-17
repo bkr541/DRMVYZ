@@ -22,6 +22,13 @@ export interface Cinema2AfterhoursShowPlannerSettings {
   readonly sideLasers: boolean
   readonly topLasers: boolean
   readonly patternChange: Cinema2AfterhoursPatternChangeId
+  /**
+   * Runtime-owned cadence step used only when Pattern Change is active while
+   * Auto Performance is off. The native module advances this only on a real
+   * canonical boundary, so a direct Pattern edit remains visible immediately
+   * and is not replaced until the next requested musical boundary.
+   */
+  readonly patternStep?: number
 }
 
 /**
@@ -143,12 +150,10 @@ export function planCinema2AfterhoursShow(
 ): Readonly<Cinema2AfterhoursShowPlan> {
   const authoredBeamCount = clampBeamCount(settings.beamCount)
   const cadenceIdentity = resolveCinema2AfterhoursCadenceIdentity(settings.patternChange, structure)
-  // Auto Performance owns authored Audio Director / choreography modulation.
-  // When it is disabled, manual preset values are the complete planner authority
-  // even if a stale/transient performance contribution reaches this pure function.
-  const performance = settings.autoPerformance
-    ? normalizedPerformance(structure.performance)
-    : normalizedPerformance(undefined)
+  // Music performance intent is intentionally independent of Auto Performance.
+  // Manual mode defines WHAT the laser show is; shared Audio Intelligence and
+  // Choreography still describe HOW that authored show performs to the music.
+  const performance = normalizedPerformance(structure.performance)
   const peak = Math.max(performance.impact, performance.dropAccent)
   const dropStructure = performance.dropAccent
   const sectionStructure = performance.sectionAccent * 0.82
@@ -177,33 +182,27 @@ export function planCinema2AfterhoursShow(
       )
       topologyId = CINEMA2_AFTERHOURS_TOPOLOGY_IDS[topologyIndex]!
     }
+  } else if (settings.patternChange !== 'off') {
+    topologyId = rotateTopology(settings.pattern, settings.patternStep ?? 0)
   }
 
-  const sideRecruitment = settings.autoPerformance
-    ? settings.sideLasers
-      || topologyId === 'splitWings'
-      || topologyId === 'crossCanopy'
-      || topologyId === 'fullRig'
-      || performance.snareAccent >= 0.45
-      || performance.downbeatAccent >= 0.62
-      || sample(random, cadenceIdentity, 'recruit-side') >= 0.46
-    : settings.sideLasers
-  const topRecruitment = settings.autoPerformance
-    ? settings.topLasers
-      || topologyId === 'chevronRoof'
-      || topologyId === 'radialCrown'
-      || topologyId === 'fullRig'
-      || performance.snareAccent >= 0.58
-      || performance.downbeatAccent >= 0.5
-      || sample(random, cadenceIdentity, 'recruit-top') >= 0.58
-    : settings.topLasers
+  // Fixture-bank enables are hard user authority. Auto Performance may decide
+  // how an enabled bank performs, but it may never resurrect a bank the user
+  // explicitly turned off.
+  const sideRecruitment = settings.sideLasers
+  const topRecruitment = settings.topLasers
 
-  // Density always stays under the user's hard Beam Count ceiling. Vocals open
-  // negative space while peak dense families may approach, never exceed, it.
-  const randomDensity = 0.68 + sample(random, cadenceIdentity, 'beam-density') * 0.32
+  // Beam Count is the authored ceiling/base. Music may temporarily reduce
+  // density for vocals/build tension, but a quiet/manual state renders the
+  // literal authored count instead of applying hidden random thinning.
+  const randomDensity = settings.autoPerformance
+    ? 0.76 + sample(random, cadenceIdentity, 'beam-density') * 0.24
+    : 1
   const vocalDensity = 1 - performance.vocalPresence * 0.46
   const buildDensity = 1 - performance.build * 0.1
-  const peakDensity = peak >= 0.72 && topologyId !== 'sparseArchitecture' ? 0.96 : randomDensity
+  const peakDensity = peak >= 0.72 && topologyId !== 'sparseArchitecture'
+    ? Math.max(randomDensity, 0.96)
+    : randomDensity
   const beamCount = Math.max(
     CINEMA2_AFTERHOURS_MIN_BEAMS,
     Math.min(authoredBeamCount, Math.round(authoredBeamCount * peakDensity * vocalDensity * buildDensity)),
@@ -211,9 +210,9 @@ export function planCinema2AfterhoursShow(
 
   const spreadScale = clamp(1 - performance.build * 0.36 + peak * 0.2, 0.56, 1.08)
   const motionScale = clamp(
-    0.72 + performance.intensity * 0.28 + performance.build * 0.24 + peak * 0.18 - performance.vocalPresence * 0.42,
-    0.22,
-    1.25,
+    1 + performance.intensity * 0.22 + performance.build * 0.18 + peak * 0.24 - performance.vocalPresence * 0.42,
+    0.35,
+    1.35,
   )
 
   const blackoutKind = dropStructure >= sectionStructure && dropStructure >= phraseStructure
@@ -233,7 +232,7 @@ export function planCinema2AfterhoursShow(
 
   return Object.freeze({
     topologyId,
-    variationKey: `${settings.autoPerformance ? 'auto' : 'manual'}:${topologyId}:${cadenceIdentity}`,
+    variationKey: `${settings.autoPerformance ? 'auto' : 'manual'}:${topologyId}:${cadenceIdentity}:step-${Math.max(0, Math.floor(settings.patternStep ?? 0))}`,
     cadenceIdentity,
     beamCount,
     symmetry: settings.symmetry,
@@ -247,6 +246,12 @@ export function planCinema2AfterhoursShow(
     topIntensity: clamp(1 + performance.snareAccent * 0.3 + performance.downbeatAccent * 0.2, 0.35, 1.5),
     blackout,
   })
+}
+
+function rotateTopology(base: Cinema2AfterhoursTopologyId, rawStep: number): Cinema2AfterhoursTopologyId {
+  const start = Math.max(0, CINEMA2_AFTERHOURS_TOPOLOGY_IDS.indexOf(base))
+  const step = Math.max(0, Math.floor(Number.isFinite(rawStep) ? rawStep : 0))
+  return CINEMA2_AFTERHOURS_TOPOLOGY_IDS[(start + step) % TOPOLOGY_COUNT]!
 }
 
 function normalizedPerformance(

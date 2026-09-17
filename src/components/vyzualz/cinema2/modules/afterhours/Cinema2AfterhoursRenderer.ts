@@ -57,6 +57,27 @@ out float vSide;
 out float vLongitudinal;
 out float vViewDistance;
 out float vBeamLength;
+
+float viewportExitScale(vec2 originNdc, vec2 targetNdc) {
+  vec2 delta = targetNdc - originNdc;
+  if (dot(delta, delta) < 0.000001) return 1.0;
+  // Sources are expected to project on/near the production canvas. Avoid
+  // inventing a backwards ray when a future camera intentionally hides one.
+  if (abs(originNdc.x) > 1.08 || abs(originNdc.y) > 1.08) return 1.0;
+
+  const float edge = 1.002;
+  const float huge = 1000000.0;
+  float xExit = huge;
+  float yExit = huge;
+  if (delta.x > 0.00001) xExit = (edge - originNdc.x) / delta.x;
+  else if (delta.x < -0.00001) xExit = (-edge - originNdc.x) / delta.x;
+  if (delta.y > 0.00001) yExit = (edge - originNdc.y) / delta.y;
+  else if (delta.y < -0.00001) yExit = (-edge - originNdc.y) / delta.y;
+
+  float exitScale = min(xExit > 0.0 ? xExit : huge, yExit > 0.0 ? yExit : huge);
+  return exitScale >= huge * 0.5 ? 1.0 : max(1.0, exitScale);
+}
+
 void main() {
   vec3 beam = aTarget - aOrigin;
   float beamLength = max(length(beam), 0.0001);
@@ -71,7 +92,24 @@ void main() {
   float sourceBloom = exp(-t * 34.0);
   float widthWorld = mix(0.045, 0.085, clamp(uAtmosphere, 0.0, 1.0)) * (1.0 + sourceBloom * 1.35);
   vec3 worldPosition = center + sideAxis * aCorner.y * widthWorld;
-  gl_Position = uWorldToClip * vec4(worldPosition, 1.0);
+  vec4 originClip = uWorldToClip * vec4(aOrigin, 1.0);
+  vec4 targetClip = uWorldToClip * vec4(aTarget, 1.0);
+  vec4 worldClip = uWorldToClip * vec4(worldPosition, 1.0);
+
+  // Cinema 2.0 retains its finite 3D target for depth, scanner direction and
+  // camera perspective, then projects that direction to the actual visible
+  // stage boundary. This restores legacy Afterhours' stage-filling ray contract
+  // without reverting the preset to a screen-space renderer.
+  if (originClip.w > 0.0001 && targetClip.w > 0.0001 && worldClip.w > 0.0001) {
+    vec2 originNdc = originClip.xy / originClip.w;
+    vec2 targetNdc = targetClip.xy / targetClip.w;
+    float exitScale = viewportExitScale(originNdc, targetNdc);
+    vec2 authoredCenterNdc = mix(originNdc, targetNdc, t);
+    vec2 extendedTargetNdc = originNdc + (targetNdc - originNdc) * exitScale;
+    vec2 extendedCenterNdc = mix(originNdc, extendedTargetNdc, t);
+    worldClip.xy += (extendedCenterNdc - authoredCenterNdc) * worldClip.w;
+  }
+  gl_Position = worldClip;
   vColor = aColor;
   vMeta = aMeta;
   // Preserve the signed quad coordinate through raster interpolation so the
