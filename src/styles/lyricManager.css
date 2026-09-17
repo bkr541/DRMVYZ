@@ -2920,12 +2920,57 @@
 }
 
 .lmv-mockup-left-shell,
-.lmv-workspace-shell {
+.lmv-workspace-shell,
+.lmv-right-workspace-shell {
   display: flex;
   flex: 1;
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* Track Information owns the fixed top share of the right rail. The lower
+   shell then mirrors the left rail's Track Workspace / Lyric Management
+   splitter so Document Workspace and Diagnostics can exchange height without
+   changing Track Information's footprint. */
+.lmv-right-lower-shell {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lmv-document-workspace,
+.lmv-diagnostics-pane {
+  box-sizing: border-box;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lmv-document-workspace {
+  flex: 0 0 55%;
+  border-bottom: 1px solid rgba(126,218,232,0.12);
+}
+
+.lmv-document-workspace-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.lmv-diagnostics-pane {
+  position: relative;
+  flex: 0 0 45%;
+}
+
+.lmv-diagnostics-pane > .lmv-right-panel {
+  width: 100%;
+  height: 100%;
+  flex: 1 1 auto;
 }
 
 .lmv-mockup-track-workspace,
@@ -2995,7 +3040,8 @@
    straddling above it, which .lmv-lyric-management's own overflow: hidden
    would clip) and rather than a real flex child, so it never adds to the
    two sections' combined flex-basis — they already sum to 100%. */
-.lmv-lyric-management-resize-handle {
+.lmv-lyric-management-resize-handle,
+.lmv-diagnostics-resize-handle {
   position: absolute;
   top: 0;
   left: 0;
@@ -3007,7 +3053,9 @@
 }
 
 .lmv-lyric-management-resize-handle:hover,
-.lmv-lyric-management-resize-handle:focus-visible {
+.lmv-lyric-management-resize-handle:focus-visible,
+.lmv-diagnostics-resize-handle:hover,
+.lmv-diagnostics-resize-handle:focus-visible {
   background: rgba(74, 199, 219, 0.3);
   outline: none;
 }
@@ -3035,12 +3083,10 @@
   transform: translateY(0);
 }
 
-/* Track Information: a new right-rail window above Document Workspace,
-   visible only once a track is selected (lyricManagementPhase, shared with
-   the left rail's Lyric Management section — same trigger, same 220ms
-   timing) and animating in/out identically: opacity + an 8px upward slide.
-   Empty for now; a fixed ~25% share of the right rail's height (unlike
-   Lyric Management's resizable 45%, this one has no drag handle). */
+/* Track Information: the fixed top window in the right rail. It is visible
+   only once a track is selected (lyricManagementPhase, shared with the left
+   rail's Lyric Management section) and keeps a ~25% share while the lower
+   Document Workspace / Diagnostics pair handles its own resizable split. */
 .lmv-track-information {
   box-sizing: border-box;
   min-height: 0;
