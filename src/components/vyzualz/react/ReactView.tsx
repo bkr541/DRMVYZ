@@ -772,8 +772,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           <div className="vz-header-sub">Visual Performance Mode</div>
         </div>
 
-        <div className="vz-header-sep" />
-
         <span className="az-spacer" />
         <ReactPersistenceStatus />
         <ReactGlobalOutputControls />

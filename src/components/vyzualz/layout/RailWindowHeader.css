@@ -3,8 +3,7 @@
    full origin note. Originally the light "Solid Bar — Drop Shadow" silver
    treatment promoted out of Lyric Manager; restyled to the dark "Two-Tier
    Header Surface" treatment — a flat dark slate bar split into a lighter
-   upper band and a darker lower band by a thin bright seam, with light text
-   and a vertical divider between the icon and label. */
+   upper band and a darker lower band by a thin bright seam, with light text. */
 
 .rw-window-header {
   display: flex;
@@ -37,8 +36,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  border-left: 1px solid rgba(255, 255, 255, 0.14);
-  padding-left: 10px;
 }
 
 .rw-window-header-actions {
