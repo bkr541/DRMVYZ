@@ -634,8 +634,11 @@ function resolveMotionPhase(
   if (bpmSync) {
     const beatIndex = frame.audio?.rhythm.beatIndex
     const beatPhase = frame.audio?.rhythm.beatPhase
-    if (!beatIndex?.available || !beatPhase?.available || beatIndex.value == null || beatPhase.value == null) return null
-    return (beatIndex.value + beatPhase.value) * 0.5
+    if (beatIndex?.available && beatPhase?.available && beatIndex.value != null && beatPhase.value != null) {
+      return (beatIndex.value + beatPhase.value) * 0.5
+    }
+    // Beat tracking has not resolved yet (or never will for this source). Keep
+    // the rig performing on elapsed time rather than freezing until it does.
   }
   return Number.isFinite(timeSec) ? timeSec * 0.32 : null
 }

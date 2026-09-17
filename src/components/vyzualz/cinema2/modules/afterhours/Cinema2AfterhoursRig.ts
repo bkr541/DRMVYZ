@@ -15,14 +15,9 @@ import {
 } from './Cinema2AfterhoursDomain'
 import { getCinema2AfterhoursTopologyDefinition } from './Cinema2AfterhoursTopologyCatalog'
 
-// These remain true world-space fixture positions, but they are authored
-// against the production Afterhours camera so their projected sources read as
-// a perimeter rig instead of floating around the middle 40% of the canvas.
-// The old coordinates were mathematically valid 3D positions but projected far
-// too far inward, which visually broke the legacy floor/side/overhead contract.
-const BOTTOM_X = Object.freeze([-13.0, -10.3, -7.6, -4.9, -2.2, 2.2, 4.9, 7.6, 10.3, 13.0])
-const OVERHEAD_X = Object.freeze([-13.2, -10.5, -7.8, -5.1, -2.3, 2.3, 5.1, 7.8, 10.5, 13.2])
-const SIDE_Y = Object.freeze([-3.4, -0.8, 1.8, 4.4, 7.0, 9.6])
+const BOTTOM_X = Object.freeze([-6.2, -4.9, -3.6, -2.3, -1.0, 1.0, 2.3, 3.6, 4.9, 6.2])
+const OVERHEAD_X = Object.freeze([-6.4, -5.0, -3.65, -2.3, -1.05, 1.05, 2.3, 3.65, 5.0, 6.4])
+const SIDE_Y = Object.freeze([1.15, 2.05, 2.95, 3.85, 4.75, 5.65])
 const SIDE_Z = Object.freeze([0.65, 0.45, 0.2, -0.05, -0.3, -0.55])
 const BOTTOM_PAIR_ORDER = Object.freeze([[4, 5], [3, 6], [2, 7], [1, 8], [0, 9]] as const)
 const OVERHEAD_PAIR_ORDER = Object.freeze([[4, 5], [3, 6], [2, 7], [1, 8], [0, 9]] as const)
@@ -71,25 +66,25 @@ function horizontalPairId(bank: 'bottom' | 'overhead', index: number, length: nu
 const BOTTOM_FIXTURES = Object.freeze(BOTTOM_X.map((x, index) => {
   const mirrorIndex = BOTTOM_X.length - 1 - index
   return fixture(
-    'bottom', 'floor', index, vector(x, -4.75, 0.75), vector(0, 0.38, 0.93),
+    'bottom', 'floor', index, vector(x, 0.35, 0.75), vector(0, 0.38, 0.93),
     fixtureId('bottom', mirrorIndex), horizontalPairId('bottom', index, BOTTOM_X.length),
   )
 }))
 
 const LEFT_FIXTURES = Object.freeze(SIDE_Y.map((y, index) => fixture(
-  'left', 'leftWing', index, vector(-14.2, y, SIDE_Z[index]!), vector(0.48, 0.08, 0.87),
+  'left', 'leftWing', index, vector(-6.7, y, SIDE_Z[index]!), vector(0.48, 0.08, 0.87),
   fixtureId('right', index), `afterhours2-side-pair-${index}`,
 )))
 
 const RIGHT_FIXTURES = Object.freeze(SIDE_Y.map((y, index) => fixture(
-  'right', 'rightWing', index, vector(14.2, y, SIDE_Z[index]!), vector(-0.48, 0.08, 0.87),
+  'right', 'rightWing', index, vector(6.7, y, SIDE_Z[index]!), vector(-0.48, 0.08, 0.87),
   fixtureId('left', index), `afterhours2-side-pair-${index}`,
 )))
 
 const OVERHEAD_FIXTURES = Object.freeze(OVERHEAD_X.map((x, index) => {
   const mirrorIndex = OVERHEAD_X.length - 1 - index
   return fixture(
-    'overhead', 'roof', index, vector(x, 11.25, -0.45), vector(0, -0.34, 0.94),
+    'overhead', 'roof', index, vector(x, 6.25, -0.45), vector(0, -0.34, 0.94),
     fixtureId('overhead', mirrorIndex), horizontalPairId('overhead', index, OVERHEAD_X.length),
   )
 }))
