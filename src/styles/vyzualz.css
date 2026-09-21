@@ -5862,10 +5862,11 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   cursor: not-allowed;
 }
 
-/* ── Header profile avatar ───────────────────────────────────────────── */
+/* ── Header profile avatar (doubles as the settings trigger) ───────────── */
 .vz-header-avatar {
   width: 28px;
   height: 28px;
+  padding: 0;
   border-radius: 50%;
   border: 1.5px solid rgba(74,199,219,0.3);
   overflow: hidden;
@@ -5874,6 +5875,13 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   align-items: center;
   justify-content: center;
   background: rgba(74,199,219,0.1);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.vz-header-avatar:hover {
+  border-color: rgba(74,199,219,0.55);
+  background: rgba(74,199,219,0.18);
 }
 
 .vz-header-avatar-img {
