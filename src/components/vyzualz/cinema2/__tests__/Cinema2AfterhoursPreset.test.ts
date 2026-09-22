@@ -7,7 +7,7 @@ import { afterhoursWorldDefinition } from '../../react/renderers/cinematic/world
 import { Cinema2AudioIntelligenceBridge } from '../audio/Cinema2AudioIntelligenceBridge'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
-import { createCinema2InspectorModel } from '../parameters/Cinema2InspectorModel'
+import { createCinema2DesignParentGroupModel, createCinema2InspectorModel } from '../parameters/Cinema2InspectorModel'
 import {
   CINEMA2_AFTERHOURS_NATIVE_MODULE_TYPE_ID,
   CINEMA2_AFTERHOURS_NATIVE_PARAMETER_NAMES,
@@ -18,6 +18,7 @@ import {
   CINEMA2_AFTERHOURS_BACKGROUND_ID,
   CINEMA2_AFTERHOURS_BEAM_COUNT_ID,
   CINEMA2_AFTERHOURS_CAMERA_ID,
+  CINEMA2_AFTERHOURS_COLOR_MODE_ID,
   CINEMA2_AFTERHOURS_MODULE_ID,
   CINEMA2_AFTERHOURS_PATTERN_ID,
   CINEMA2_AFTERHOURS_PRESET_ID,
@@ -275,24 +276,62 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     ]))
   })
 
-  it('uses the shared Inspector projection with coherent groups and no preset-specific settings surface', () => {
+  it('projects the exact four Design parents while preserving React and conditional palette behavior', () => {
     const plan = compileAfterhours()
     const state = new Cinema2ParameterState(plan.parameters)
-    const design = createCinema2InspectorModel(plan, state.getSnapshot(), 'design')
+    const parents = createCinema2DesignParentGroupModel(plan, state.getSnapshot())
     const react = createCinema2InspectorModel(plan, state.getSnapshot(), 'react')
+    const labelsFor = (parentLabel: string) => {
+      const parent = parents.find(candidate => candidate.label === parentLabel)
+      return [
+        ...(parent?.controls.map(control => control.definition.label) ?? []),
+        ...(parent?.groups.flatMap(group => group.controls.map(control => control.definition.label)) ?? []),
+      ]
+    }
 
-    const designGroups = design.flatMap(section => section.groups.map(group => group.label))
+    expect(parents.map(parent => parent.label)).toEqual(['Master Controls', 'Design', 'Effects', 'Palette'])
+    expect(labelsFor('Master Controls')).toEqual(['Auto Performance', 'Master Intensity'])
+    expect(parents.find(parent => parent.label === 'Design')?.groups.map(group => group.label)).toEqual(['Rig', 'Pattern', 'Motion'])
+    expect(labelsFor('Design')).toEqual([
+      'Side Lasers',
+      'Top Lasers',
+      'Beam Count',
+      'Symmetry',
+      'Pattern',
+      'Pattern Change',
+      'Spread',
+      'Motion Amount',
+    ])
+    expect(labelsFor('Effects')).toEqual(['Atmosphere'])
+    expect(labelsFor('Palette')).toEqual(['Background', 'Color Mode', 'Primary Color', 'Accent Color', 'Accent Mix'])
+    expect(parents.flatMap(parent => [
+      ...parent.controls,
+      ...parent.groups.flatMap(group => group.controls),
+    ])).toHaveLength(16)
+    expect(createCinema2InspectorModel(plan, state.getSnapshot(), 'design')).toEqual([])
+
     const reactGroups = react.flatMap(section => section.groups.map(group => group.label))
-    const allControls = [...design, ...react]
-      .flatMap(section => section.groups)
-      .flatMap(group => group.controls)
-      .map(control => control.definition.id)
-
-    expect(designGroups).toEqual(expect.arrayContaining(['Color', 'Rig', 'Pattern', 'Motion', 'Atmosphere']))
+    const reactLabels = react.flatMap(section => section.groups.flatMap(group => group.controls.map(control => control.definition.label)))
     expect(reactGroups).toEqual(expect.arrayContaining(['Reactivity', 'Structure']))
+    expect(reactLabels).toEqual(['BPM Sync', 'Trigger', 'Pulse Amount', 'Pulse Decay', 'Blackout Amount'])
+
+    const allControls = [
+      ...parents.flatMap(parent => [
+        ...parent.controls,
+        ...parent.groups.flatMap(group => group.controls),
+      ]),
+      ...react.flatMap(section => section.groups.flatMap(group => group.controls)),
+    ].map(control => control.definition.id)
     expect(allControls).toEqual(expect.arrayContaining(EXPECTED_USER_PARAMETER_IDS))
     expect(allControls).not.toContain(CINEMA2_AFTERHOURS_RESET_TRAILS_ID)
     expect(allControls).toContain(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)
+
+    expect(state.setPersistentValue(CINEMA2_AFTERHOURS_COLOR_MODE_ID, 'auto')).toMatchObject({ ok: true })
+    const autoPalette = createCinema2DesignParentGroupModel(plan, state.getSnapshot()).find(parent => parent.label === 'Palette')
+    expect(autoPalette?.controls.map(control => control.definition.label)).toEqual(['Background', 'Color Mode', 'Accent Mix'])
+    expect(state.setPersistentValue(CINEMA2_AFTERHOURS_COLOR_MODE_ID, 'manual')).toMatchObject({ ok: true })
+    const manualPalette = createCinema2DesignParentGroupModel(plan, state.getSnapshot()).find(parent => parent.label === 'Palette')
+    expect(manualPalette?.controls.map(control => control.definition.label)).toEqual(['Background', 'Color Mode', 'Primary Color', 'Accent Color', 'Accent Mix'])
   })
 
   it('gives a manual Pattern edit immediate authority by disabling Auto Performance for that domain', () => {

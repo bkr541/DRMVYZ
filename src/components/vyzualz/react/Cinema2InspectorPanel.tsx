@@ -85,36 +85,12 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
     if (!result.ok && import.meta.env.DEV) console.warn('[Cinema2InspectorPanel] action dispatch rejected:', result.diagnostics)
   }
 
-  // Afterhours 2.0's Background color is authored at the top of Design >
-  // Color (see CINEMA2_AFTERHOURS_BACKGROUND_ID's order:10 in
-  // Cinema2AfterhoursPreset), but it must also be referenced from the
-  // preset's `environment.controls` so Cinema2TargetRuntime can drive the
-  // live background render target from it — that reference is what makes
-  // Cinema2InspectorModel pull it into its own single-control "Environment"
-  // section instead. Fold that control back into Color here (UI only, the
-  // runtime binding is untouched) and drop the now-empty Environment
-  // section from the render entirely.
-  const environmentSection = sections.find(section => section.label === 'Environment')
-  const environmentInstance = environmentSection?.groups.find(
-    (entry): entry is Cinema2InspectorInstanceModel => entry.kind === 'instance',
-  )
-  const environmentControls = environmentInstance?.controls ?? []
-  const visibleSections = environmentSection
-    ? sections.filter(section => section.label !== 'Environment')
-    : sections
-  const sectionsContent = visibleSections.length === 0
+  const sectionsContent = sections.length === 0
     ? <div className="rv-ctrl-group"><div className="rv-ctrl-info">No Cinema 2.0 parameters are declared for this workspace.</div></div>
     : (
       <>
-        {visibleSections.map(section => {
-          const visibleGroups = section.label === 'Design'
-            ? section.groups
-                .map(entry => (
-                  entry.kind === 'group' && entry.label === 'Color' && environmentControls.length > 0
-                    ? { ...entry, controls: [...environmentControls, ...entry.controls] }
-                    : entry
-                ))
-            : section.label === 'Advanced'
+        {sections.map(section => {
+          const visibleGroups = section.label === 'Advanced'
                 ? section.groups.filter(entry => {
                     // Quality / Performance is a rendering-cost control, not a
                     // visual-design one — it now lives in the OUTPUT tab
@@ -342,40 +318,11 @@ function Cinema2InspectorGroup({
   if (!group.label) {
     return <Cinema2InspectorControls controls={group.controls} onChange={onChange} onTrigger={onTrigger} />
   }
-  // Afterhours 2.0's Design > Color group uses the same PaletteColorRow
-  // treatment as Master Controls > Palette — see Cinema2PaletteColorGroup.
-  const body = group.label === 'Color'
-    ? <Cinema2PaletteColorGroup group={group} onChange={onChange} onTrigger={onTrigger} />
-    : <Cinema2InspectorControls controls={group.controls} onChange={onChange} onTrigger={onTrigger} />
   return (
     <Collapsible label={group.label}>
-      {body}
+      <Cinema2InspectorControls controls={group.controls} onChange={onChange} onTrigger={onTrigger} />
     </Collapsible>
   )
-}
-
-/**
- * Renders a group's `color`-type controls with Layout Lab / Template's
- * "01 · Palette Group - ReactControlRows.tsx" treatment (PaletteColorRow):
- * a collapsed swatch-dot + label + caret row that expands in place into a
- * saturation/lightness gradient square, hue strip, and hex field — instead
- * of the generic ColorRow native-picker-plus-hex-readout used elsewhere.
- * Non-color controls in the group (e.g. Afterhours' Color Mode enum,
- * Accent Mix float) fall through to the standard Cinema2SchemaControl
- * dispatch unchanged. Used for Master Controls > Palette (all-color) and
- * Afterhours 2.0's Design > Color group (mixed); every other `color`
- * control in the app keeps ColorRow.
- */
-function Cinema2PaletteColorGroup({
-  group,
-  onChange,
-  onTrigger,
-}: {
-  group: Readonly<Cinema2InspectorGroupModel>
-  onChange: (control: Readonly<Cinema2InspectorControlModel>, value: Cinema2JsonValue) => void
-  onTrigger?: (control: Readonly<Cinema2InspectorControlModel>) => void
-}) {
-  return <Cinema2PaletteControls controls={group.controls} onChange={onChange} onTrigger={onTrigger} />
 }
 
 function Cinema2PaletteControls({

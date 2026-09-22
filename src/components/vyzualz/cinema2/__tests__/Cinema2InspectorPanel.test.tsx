@@ -9,6 +9,12 @@ import { createCinemaMockWebGL, CinemaResizeObserverMock } from '../../cinema/__
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
+  CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID,
+  CINEMA2_AFTERHOURS_BACKGROUND_ID,
+  CINEMA2_AFTERHOURS_COLOR_MODE_ID,
+  CINEMA2_AFTERHOURS_MASTER_INTENSITY_ID,
+  CINEMA2_AFTERHOURS_PRIMARY_COLOR_ID,
+  CINEMA2_AFTERHOURS_ACCENT_COLOR_ID,
   CINEMA2_AFTERHOURS_PRESET_MANIFEST,
   CINEMA2_ELECTRIC_STORM_BACKGROUND_ID,
   CINEMA2_ELECTRIC_STORM_HAZE_ID,
@@ -239,7 +245,7 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     runtime.dispose()
   })
 
-  it('keeps Reactor parent presentation generic while leaving unmigrated keeper presets on their existing path', () => {
+  it('keeps Reactor parent presentation generic while leaving Interlock on its existing path', () => {
     const reactorResult = compileCinema2NativePreset(CINEMA2_REACTOR_PRESET_MANIFEST)
     expect(reactorResult.ok).toBe(true)
     if (!reactorResult.ok) return
@@ -262,16 +268,50 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
       'Background',
     ])
 
-    for (const manifest of [CINEMA2_AFTERHOURS_PRESET_MANIFEST, CINEMA2_INTERLOCK_PRESET_MANIFEST]) {
-      const result = compileCinema2NativePreset(manifest)
-      expect(result.ok).toBe(true)
-      if (!result.ok) continue
-      const state = new Cinema2ParameterState(result.plan.parameters)
-      expect(createCinema2DesignParentGroupModel(result.plan, state.getSnapshot()).every(parent => (
-        parent.controls.length === 0 && parent.groups.length === 0
-      ))).toBe(true)
-      expect(createCinema2InspectorModel(result.plan, state.getSnapshot(), 'design').length).toBeGreaterThan(0)
-    }
+    const result = compileCinema2NativePreset(CINEMA2_INTERLOCK_PRESET_MANIFEST)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const state = new Cinema2ParameterState(result.plan.parameters)
+    expect(createCinema2DesignParentGroupModel(result.plan, state.getSnapshot()).every(parent => (
+      parent.controls.length === 0 && parent.groups.length === 0
+    ))).toBe(true)
+    expect(createCinema2InspectorModel(result.plan, state.getSnapshot(), 'design').length).toBeGreaterThan(0)
+  })
+
+  it('renders Afterhours through the real runtime Inspector with the four parents and no duplicate legacy controls', async () => {
+    const runtime = createRuntimeForManifest(CINEMA2_AFTERHOURS_PRESET_MANIFEST)
+    await act(async () => root?.render(<Cinema2InspectorPanel runtime={runtime} surface="design" />))
+
+    expect([...(host?.querySelectorAll<HTMLElement>('[data-cinema2-parent-group]') ?? [])].map(element => element.dataset.cinema2ParentGroup)).toEqual([
+      'master-controls',
+      'design',
+      'effects',
+      'palette',
+    ])
+    expect(host?.querySelectorAll('[data-cinema2-section]')).toHaveLength(0)
+    expect(host?.querySelectorAll(`[data-cinema2-control-id="${CINEMA2_AFTERHOURS_BACKGROUND_ID}"]`)).toHaveLength(1)
+    expect(host?.querySelectorAll(`[data-cinema2-control-id="${CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID}"]`)).toHaveLength(1)
+    expect(host?.querySelectorAll('[data-cinema2-control-id="afterhours-reset-trails"]')).toHaveLength(0)
+    expect(host?.querySelector(`button#cinema2-parameter-${CINEMA2_AFTERHOURS_BACKGROUND_ID}[data-palette-row-label="Background"]`)).not.toBeNull()
+    expect(host?.querySelector(`button#cinema2-parameter-${CINEMA2_AFTERHOURS_PRIMARY_COLOR_ID}[data-palette-row-label="Primary Color"]`)).not.toBeNull()
+    expect(host?.querySelector(`button#cinema2-parameter-${CINEMA2_AFTERHOURS_ACCENT_COLOR_ID}[data-palette-row-label="Accent Color"]`)).not.toBeNull()
+
+    const masterIntensity = host?.querySelector<HTMLInputElement>(`#cinema2-parameter-${CINEMA2_AFTERHOURS_MASTER_INTENSITY_ID}`)
+    expect(masterIntensity).not.toBeNull()
+    await act(async () => {
+      if (!masterIntensity) return
+      masterIntensity.value = '0.86'
+      masterIntensity.dispatchEvent(new Event('input', { bubbles: true }))
+      masterIntensity.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(runtime.getParameterState().getValue(CINEMA2_AFTERHOURS_MASTER_INTENSITY_ID)).toBe(0.86)
+
+    expect(runtime.getParameterState().setPersistentValue(CINEMA2_AFTERHOURS_COLOR_MODE_ID, 'auto')).toMatchObject({ ok: true })
+    await act(async () => root?.render(<Cinema2InspectorPanel runtime={runtime} surface="design" />))
+    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_AFTERHOURS_PRIMARY_COLOR_ID}"]`)).toBeNull()
+    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_AFTERHOURS_ACCENT_COLOR_ID}"]`)).toBeNull()
+
+    runtime.dispose()
   })
 
   it('projects ordered sections/groups, conditions, exposure and capabilities without preset identity logic', () => {
