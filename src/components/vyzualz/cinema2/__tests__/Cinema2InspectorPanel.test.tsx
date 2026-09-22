@@ -209,14 +209,21 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     }
 
     expect(parents.map(parent => parent.label)).toEqual(['Master Controls', 'Design', 'Effects', 'Palette'])
-    expect(labelsFor('Master Controls')).toEqual(['Master Intensity'])
+    expect(labelsFor('Master Controls')).toEqual([
+      'Master Intensity',
+      'Music Reactivity',
+      'Kick Reaction',
+      'Transient Reaction',
+      'Drop Reaction',
+      'Structure Reaction',
+    ])
     expect(labelsFor('Design')).toEqual(['Strike Rate', 'Branching', 'Thickness', 'Media Influence'])
-    expect(labelsFor('Effects')).toEqual(['Glow', 'Haze', 'Flash Intensity', 'Flash Duration', 'Flash Decay'])
+    expect(labelsFor('Effects')).toEqual(['Glow', 'Haze', 'Flash Intensity', 'Flash Duration', 'Flash Decay', 'Impact Shake', 'Zoom Punch'])
     expect(labelsFor('Palette')).toEqual(['Lightning Color', 'Background'])
     expect(parents.flatMap(parent => [
       ...parent.controls,
       ...parent.groups.flatMap(group => group.controls),
-    ])).toHaveLength(12)
+    ])).toHaveLength(19)
 
     const legacyDesignControls = createCinema2InspectorModel(result.plan, state.getSnapshot(), 'design')
       .flatMap(section => section.groups.flatMap(group => group.controls))
@@ -224,17 +231,11 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     expect(legacyDesignControls.map(control => control.definition.label)).not.toContain('Background')
     expect(legacyDesignControls.map(control => control.definition.label)).not.toContain('Haze')
 
-    const reactLabels = createCinema2InspectorModel(result.plan, state.getSnapshot(), 'react')
-      .flatMap(section => section.groups.flatMap(group => group.controls.map(control => control.definition.label)))
-    expect(reactLabels).toEqual([
-      'Music Reactivity',
-      'Kick Reaction',
-      'Transient Reaction',
-      'Drop Reaction',
-      'Structure Reaction',
-      'Impact Shake',
-      'Zoom Punch',
-    ])
+    // Music Reactivity, Kick/Transient/Drop/Structure Reaction, Impact Shake,
+    // and Zoom Punch were the only React-tab parameters Electric Storm
+    // authored; moving them all under Design's Master Controls/Effects
+    // parents leaves React empty.
+    expect(createCinema2InspectorModel(result.plan, state.getSnapshot(), 'react')).toEqual([])
     expect(CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST.environment?.controls).toMatchObject({
       backgroundColor: { $ref: CINEMA2_ELECTRIC_STORM_BACKGROUND_ID },
       fogDensity: { $ref: CINEMA2_ELECTRIC_STORM_HAZE_ID },
@@ -298,6 +299,11 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     expect(interlockParents.find(parent => parent.id === 'master-controls')?.controls.map(control => control.definition.label)).toEqual([
       'Auto Performance',
       'LED Intensity',
+      'Master Reactivity',
+      'Bass Rotation',
+      'Segment Reactivity',
+      'Build Tension',
+      'Vocal Restraint',
     ])
     expect(interlockParents.find(parent => parent.id === 'design')?.groups.map(group => group.label)).toEqual(['Layout', 'Segments', 'Motion'])
     expect(createCinema2InspectorModel(result.plan, state.getSnapshot(), 'design')).toEqual([])

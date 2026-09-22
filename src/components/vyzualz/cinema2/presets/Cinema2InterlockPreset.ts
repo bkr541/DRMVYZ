@@ -421,42 +421,42 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     Object.freeze({
       id: CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID, label: 'Master Reactivity', type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.masterReactivity, min: 0, max: 1, step: 0.01,
-      section: 'React', group: 'Performance', order: 60, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+      section: 'Design', group: 'Performance', designParentGroup: 'master-controls' as const, order: 60, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
       id: CINEMA2_INTERLOCK_BASS_ROTATION_ID, label: 'Bass Rotation', type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.bassRotation, min: 0, max: 1, step: 0.01,
-      section: 'React', group: 'Motion', order: 61, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+      section: 'Design', group: 'Motion', designParentGroup: 'master-controls' as const, order: 61, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
       id: CINEMA2_INTERLOCK_SEGMENT_REACTIVITY_ID, label: 'Segment Reactivity', type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentReactivity, min: 0, max: 1, step: 0.01,
-      section: 'React', group: 'Segments', order: 62, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+      section: 'Design', group: 'Segments', designParentGroup: 'master-controls' as const, order: 62, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
       id: CINEMA2_INTERLOCK_TRANSIENT_PULSE_ID, label: 'Transient Pulse', type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.transientPulse, min: 0, max: 1, step: 0.01,
-      section: 'React', group: 'Events', order: 63, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+      section: 'Design', group: 'Events', designParentGroup: 'effects' as const, order: 63, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
       id: CINEMA2_INTERLOCK_HIGH_SHIMMER_ID, label: 'High Shimmer', type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.highShimmer, min: 0, max: 1, step: 0.01,
-      section: 'React', group: 'Segments', order: 64, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+      section: 'Design', group: 'Segments', designParentGroup: 'effects' as const, order: 64, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
       id: CINEMA2_INTERLOCK_BUILD_TENSION_ID, label: 'Build Tension', type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.buildTension, min: 0, max: 1, step: 0.01,
-      section: 'React', group: 'Motion', order: 65, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+      section: 'Design', group: 'Motion', designParentGroup: 'master-controls' as const, order: 65, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
       id: CINEMA2_INTERLOCK_VOCAL_RESTRAINT_ID, label: 'Vocal Restraint', type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.vocalRestraint, min: 0, max: 1, step: 0.01,
-      section: 'React', group: 'Space', order: 66, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+      section: 'Design', group: 'Space', designParentGroup: 'master-controls' as const, order: 66, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
       id: CINEMA2_INTERLOCK_TRIGGER_ID, label: 'Trigger', type: 'enum' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.trigger, options: TRIGGER_OPTIONS,
-      section: 'React', group: 'Events', order: 67, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+      section: 'Design', group: 'Events', designParentGroup: 'effects' as const, order: 67, exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
       id: CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID,

@@ -132,7 +132,7 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(cinema2NativeModuleRegistry.validateModules(plan.manifest.modules ?? [])).toMatchObject({ ok: true })
   })
 
-  it('projects Interlock into the four Design parents without changing React, conditional palette, or authored control semantics', () => {
+  it('projects Interlock into the four Design parents with an empty React tab and conditional palette semantics', () => {
     const plan = compileInterlock()
     const definitions = plan.parameters.definitions
     const ids = definitions.map(definition => definition.id)
@@ -164,7 +164,15 @@ describe('Cinema 2.0 Interlock production preset', () => {
     }
 
     expect(parents.map(parent => parent.label)).toEqual(['Master Controls', 'Design', 'Effects', 'Palette'])
-    expect(labelsFor('Master Controls')).toEqual(['Auto Performance', 'LED Intensity'])
+    expect(labelsFor('Master Controls')).toEqual([
+      'Auto Performance',
+      'LED Intensity',
+      'Master Reactivity',
+      'Bass Rotation',
+      'Segment Reactivity',
+      'Build Tension',
+      'Vocal Restraint',
+    ])
     expect(parents.find(parent => parent.label === 'Design')?.groups.map(group => group.label)).toEqual(['Layout', 'Segments', 'Motion'])
     expect(labelsFor('Design')).toEqual([
       'Pattern',
@@ -187,8 +195,11 @@ describe('Cinema 2.0 Interlock production preset', () => {
       'Center Glow',
       'Edge Darkness',
       'Background Flow',
+      'Transient Pulse',
+      'High Shimmer',
+      'Trigger',
     ]))
-    expect(labelsFor('Effects')).toHaveLength(6)
+    expect(labelsFor('Effects')).toHaveLength(9)
     expect(labelsFor('Palette')).toEqual(['LED Color', 'Background Palette'])
     expect(createCinema2InspectorModel(plan, state.getSnapshot(), 'design')).toEqual([])
 
@@ -200,18 +211,11 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(projectedIds).not.toContain(CINEMA2_INTERLOCK_RESET_TRAILS_ID)
     expect(projectedIds).toContain(CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID)
 
-    const react = createCinema2InspectorModel(plan, state.getSnapshot(), 'react')
-    const reactIds = react.flatMap(section => section.groups.flatMap(group => group.controls.map(control => control.definition.id)))
-    expect(new Set(reactIds)).toEqual(new Set([
-      CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID,
-      CINEMA2_INTERLOCK_BASS_ROTATION_ID,
-      CINEMA2_INTERLOCK_SEGMENT_REACTIVITY_ID,
-      CINEMA2_INTERLOCK_TRANSIENT_PULSE_ID,
-      CINEMA2_INTERLOCK_HIGH_SHIMMER_ID,
-      CINEMA2_INTERLOCK_BUILD_TENSION_ID,
-      CINEMA2_INTERLOCK_VOCAL_RESTRAINT_ID,
-      CINEMA2_INTERLOCK_TRIGGER_ID,
-    ]))
+    // Master Reactivity, Bass Rotation, Segment Reactivity, Transient Pulse,
+    // High Shimmer, Build Tension, Vocal Restraint, and Trigger were the only
+    // React-tab parameters Interlock authored; moving them all under
+    // Design's Master Controls/Effects parents leaves React empty.
+    expect(createCinema2InspectorModel(plan, state.getSnapshot(), 'react')).toEqual([])
 
     expect(state.setPersistentValue(CINEMA2_INTERLOCK_BACKGROUND_PALETTE_MODE_ID, 'manual')).toMatchObject({ ok: true })
     const manualParents = createCinema2DesignParentGroupModel(plan, state.getSnapshot())
