@@ -530,6 +530,19 @@ This matrix must be agreed before code is written.
 
 # 9. Parameter Contract
 
+## Inspector parent-group requirement
+
+Every user-facing parameter rendered within a Cinema 2.0 preset's Design inspector hierarchy, including any nested group of parameters, must be contained under exactly one of these four top-level parent groups:
+
+- **Master Controls**
+- **Design**
+- **Effects**
+- **Palette**
+
+Nested groups are allowed beneath these parent groups. This requirement defines only the top-level Inspector hierarchy. It must not hard-code or whitelist parameter names, subgroup names, parameter counts, control types, ranges, behaviors, runtime bindings, ownership modes, or preset-specific implementation details. A Cinema 2.0 preset may introduce whatever parameters and nested groups its design requires, provided their Design-inspector placement resolves under one of the four parent groups.
+
+Do not satisfy this requirement by matching specific parameter labels or preset-specific names in shared Inspector code. The grouping mechanism must remain generic enough for current and future Cinema 2.0 presets.
+
 Every user-facing parameter must satisfy all of the following.
 
 ## Wiring requirement

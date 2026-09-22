@@ -157,6 +157,23 @@ function createRuntimeForManifest(authored: Readonly<Cinema2NativePresetManifest
   return result.runtime
 }
 
+// React installs its own tracking setter on every mounted <input> to dedupe
+// change events; assigning `.value` directly goes through that same setter,
+// so by the time the native 'input' event is dispatched React sees no
+// mismatch and silently skips the synthetic onChange (the input's value
+// visually "sets" but the controlled component's onChange never fires, so
+// parameter state stays at its default). Calling the native prototype
+// setter bypasses React's tracker so the dispatched event is seen as a real
+// change — see https://github.com/facebook/react/issues/10135. The
+// Playwright e2e harness already does this correctly (setRangeParameter in
+// cinema2AfterhoursVisualAcceptance.spec.ts); this mirrors it for jsdom.
+function setSliderValue(input: HTMLInputElement, value: number) {
+  const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+  nativeValueSetter?.call(input, String(value))
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+  input.dispatchEvent(new Event('change', { bubbles: true }))
+}
+
 let host: HTMLDivElement | null = null
 let root: Root | null = null
 
@@ -242,9 +259,7 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     expect(masterIntensity).not.toBeNull()
     await act(async () => {
       if (!masterIntensity) return
-      masterIntensity.value = '0.91'
-      masterIntensity.dispatchEvent(new Event('input', { bubbles: true }))
-      masterIntensity.dispatchEvent(new Event('change', { bubbles: true }))
+      setSliderValue(masterIntensity, 0.91)
     })
     expect(runtime.getParameterState().getValue(CINEMA2_ELECTRIC_STORM_MASTER_INTENSITY_ID)).toBe(0.91)
 
@@ -313,9 +328,7 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     expect(ledIntensity).not.toBeNull()
     await act(async () => {
       if (!ledIntensity) return
-      ledIntensity.value = '0.67'
-      ledIntensity.dispatchEvent(new Event('input', { bubbles: true }))
-      ledIntensity.dispatchEvent(new Event('change', { bubbles: true }))
+      setSliderValue(ledIntensity, 0.67)
     })
     expect(runtime.getParameterState().getValue(CINEMA2_INTERLOCK_LED_INTENSITY_ID)).toBe(0.67)
 
@@ -349,9 +362,7 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     expect(masterIntensity).not.toBeNull()
     await act(async () => {
       if (!masterIntensity) return
-      masterIntensity.value = '0.86'
-      masterIntensity.dispatchEvent(new Event('input', { bubbles: true }))
-      masterIntensity.dispatchEvent(new Event('change', { bubbles: true }))
+      setSliderValue(masterIntensity, 0.86)
     })
     expect(runtime.getParameterState().getValue(CINEMA2_AFTERHOURS_MASTER_INTENSITY_ID)).toBe(0.86)
 
@@ -403,9 +414,7 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     expect(intensity).not.toBeNull()
     await act(async () => {
       if (!intensity) return
-      intensity.value = '0.8'
-      intensity.dispatchEvent(new Event('input', { bubbles: true }))
-      intensity.dispatchEvent(new Event('change', { bubbles: true }))
+      setSliderValue(intensity, 0.8)
     })
     expect(runtime.getParameterState().getValue(intensityId)).toBe(0.8)
 
