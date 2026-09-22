@@ -344,6 +344,8 @@ Create a **Legacy Behavior Inventory** containing at minimum:
 - layer/compositing behavior
 - effects
 - camera behavior
+- BPM/tempo synchronization behavior, including whether timing is free-running or beat-locked
+- palette/color roles and how each color affects the visual
 - reset behavior
 
 ### Do not translate geometry blindly
@@ -400,6 +402,8 @@ For every parameter:
 6. capture output
 
 The expected visual property must clearly change.
+
+In addition to legacy parity, every port must add and validate the mandatory shared Design controls defined in Section 9: **BPM Sync** under **Master Controls** and at least **four independently configurable color controls** under **Palette**, even when the legacy preset did not expose equivalent controls. Their authored defaults must preserve the approved baseline composition and behavior.
 
 If the parameter value changes in state but the canvas does not visibly change, the parameter is broken.
 
@@ -490,8 +494,10 @@ Define:
 - drop behavior
 - vocal behavior
 - expected audio responsiveness
+- BPM Sync behavior, including which timing/motion domains become beat-locked when enabled and what authored/free-running behavior is used when disabled
 - manual controls
 - automatic controls
+- palette role map containing at least four independently configurable color roles
 - camera role
 - effects role
 
@@ -542,6 +548,45 @@ Every user-facing parameter rendered within a Cinema 2.0 preset's Design inspect
 Nested groups are allowed beneath these parent groups. This requirement defines only the top-level Inspector hierarchy. It must not hard-code or whitelist parameter names, subgroup names, parameter counts, control types, ranges, behaviors, runtime bindings, ownership modes, or preset-specific implementation details. A Cinema 2.0 preset may introduce whatever parameters and nested groups its design requires, provided their Design-inspector placement resolves under one of the four parent groups.
 
 Do not satisfy this requirement by matching specific parameter labels or preset-specific names in shared Inspector code. The grouping mechanism must remain generic enough for current and future Cinema 2.0 presets.
+
+## Mandatory shared Design controls
+
+The following controls are required for **every first-party Cinema 2.0 preset**, whether it is a legacy port or a new preset created from scratch. These are preset-authoring requirements and must not be implemented as preset-name special cases in shared Inspector code.
+
+### BPM Sync
+
+Every preset must expose a user-facing **BPM Sync** toggle in the **Design** tab under the top-level **Master Controls** parent group.
+
+The BPM Sync control must:
+
+- be a boolean toggle available as a primary user control
+- have a real runtime consumer and must not be a placebo or Inspector-only value
+- govern the preset's tempo-synchronized motion/timing domains that are intended to lock to musical timing
+- when enabled, use Cinema 2.0's shared transport and/or Audio Intelligence timing sources rather than creating a preset-local BPM detector, beat detector, or competing musical clock
+- when disabled, remove BPM/beat locking for the governed timing domains and use a deliberate authored/free-running timing behavior without unintentionally disabling unrelated audio reactivity
+- behave deterministically across play, pause, resume, seek, loop, track change, preset re-entry, and BPM Sync state changes
+- produce a perceptibly different timing result between appropriate Sync ON and Sync OFF test cases whenever the preset contains time-varying motion or timing behavior
+
+If an engine-wide or host-level BPM Sync state also exists, the preset must explicitly define how its BPM Sync control composes with that state. Two independent toggles must not silently fight each other, and the user-facing preset control must not imply synchronization that the rendered preset ignores.
+
+A preset with no meaningful tempo-aware behavior is not exempt. It must define at least one appropriate visual timing or motion domain for BPM Sync before it can be considered complete.
+
+### Palette minimum
+
+Every preset must expose at least **four independently configurable user-facing color controls** in the **Design** tab under the top-level **Palette** parent group.
+
+The four-color minimum must:
+
+- use actual `color` parameters
+- provide semantically meaningful visual roles appropriate to the preset, such as **Background**, **Primary**, **Secondary**, **Accent**, **Highlight**, **Atmosphere**, **Emission**, or another preset-specific role
+- include a configurable background color when the preset renders or owns a configurable background surface
+- allow each color to be edited independently by the user
+- connect each color to a real visual consumer so changing that color produces the intended visible result
+- preserve manual color edits as the authored base truth unless a clearly labeled automatic color mode is explicitly granted authority to modulate or replace them
+
+A Color Mode selector, palette preset selector, gradient selector, derived color, hidden runtime color, or duplicate alias does **not** count toward the four-color minimum. Multiple controls that merely write the same undifferentiated color target also do not satisfy the requirement.
+
+Preset-specific labels are allowed and encouraged. The contract requires the four configurable color roles and their placement under **Palette**; it does not require every preset to use identical color names.
 
 Every user-facing parameter must satisfy all of the following.
 
@@ -644,6 +689,8 @@ A preset must behave correctly when:
 - the preset is switched away from and back to
 
 Volatile movement and choreography state must reset or reconstruct deterministically at discontinuities.
+
+The preset's required **BPM Sync** control must also transition cleanly between synchronized and unsynchronized timing without a visible discontinuity, stale phase, frozen motion, or competing-clock behavior unless a deliberate hard reset is part of the authored design.
 
 Do not allow stale envelopes, old pattern transitions, prior track timing, or previous preset state to leak into the new state.
 
@@ -855,6 +902,15 @@ For discrete controls:
 
 - every important enum option must produce the expected family of visual change.
 
+## Mandatory shared-control tests
+
+Every preset must additionally prove on the production path that:
+
+- **BPM Sync** is present under **Design > Master Controls**, is user-editable, reaches a real timing consumer, and changes the governed motion/timing behavior between appropriate Sync ON and Sync OFF cases
+- at least **four independently configurable color controls** are present under **Design > Palette**
+- each required Palette color can be changed independently and visibly affects its documented visual role
+- no required Palette color is only a duplicate alias, hidden derived value, or unconsumed state
+
 ---
 
 ## Motion test
@@ -975,6 +1031,9 @@ A preset must not be marked complete, merged as production-ready, or exposed as 
 
 - hero visual is incorrectly positioned
 - required geometry is missing
+- BPM Sync is missing, placed outside Design > Master Controls, or does not control a real synchronization/timing path
+- fewer than four independently configurable user-facing color controls exist under Design > Palette
+- any required Palette color is visually inert, unconsumed, or only aliases the same undifferentiated target as another required color
 - user-facing control has no visible result
 - multiple unrelated controls change the same thing accidentally
 - music plays but the intended visual does not react
@@ -1030,6 +1089,8 @@ Document:
 - movement
 - control mapping
 - audio mapping
+- BPM Sync timing contract
+- palette role map with at least four independently configurable colors
 - authority matrix
 - system ownership
 
@@ -1048,6 +1109,8 @@ No automation is allowed to mask missing visual behavior.
 ## Step 4: Prove every manual control
 
 Add production-canvas acceptance tests.
+
+Explicitly prove the mandatory **BPM Sync** control and the minimum four independently configurable **Palette** color controls before continuing.
 
 Do not continue while primary controls are perceptually inert.
 
@@ -1110,15 +1173,17 @@ Every implementation must produce or update:
 3. User/automation authority matrix
 4. Parameter-to-visible-output map
 5. Audio-signal-to-visual-response map
-6. Native module/render implementation
-7. Production-path control tests
-8. Production-path motion tests
-9. Production-path audio-reactivity tests
-10. Manual takeover tests
-11. Preset re-entry/reset tests
-12. Visual acceptance captures or checkpoints
-13. Legacy A/B comparison when porting
-14. Known intentional differences from legacy, if any
+6. BPM Sync timing contract
+7. Palette role map documenting at least four independently configurable user-facing colors
+8. Native module/render implementation
+9. Production-path control tests
+10. Production-path motion tests
+11. Production-path audio-reactivity tests
+12. Manual takeover tests
+13. Preset re-entry/reset tests
+14. Visual acceptance captures or checkpoints
+15. Legacy A/B comparison when porting
+16. Known intentional differences from legacy, if any
 
 ---
 
@@ -1137,6 +1202,9 @@ A Cinema 2.0 preset is complete only when all of the following are true.
 ### Controls
 
 - [ ] Every primary control visibly works.
+- [ ] **BPM Sync** exists in **Design > Master Controls**, is user-editable, is wired to a real timing consumer, and has validated Sync ON/OFF behavior.
+- [ ] At least **four independently configurable color controls** exist in **Design > Palette**.
+- [ ] Each required Palette color visibly controls its documented visual role and is not a duplicate alias or derived-only value.
 - [ ] Minimum/default/maximum states are validated.
 - [ ] Discrete options visibly produce their intended result.
 - [ ] Disabled features remain disabled.
@@ -1157,6 +1225,7 @@ A Cinema 2.0 preset is complete only when all of the following are true.
 - [ ] Continuous energy response is visible.
 - [ ] Structural response is visible where intended.
 - [ ] Pause/seek/loop/track-change behavior is correct.
+- [ ] BPM Sync uses shared Cinema 2.0 timing sources when enabled and a deliberate non-synced timing path when disabled.
 
 ### Authority
 
