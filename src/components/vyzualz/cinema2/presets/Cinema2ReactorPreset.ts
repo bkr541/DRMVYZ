@@ -119,7 +119,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       type: 'float' as const,
       defaultValue: 0.46,
       min: 0.1, max: 1.1, step: 0.01,
-      section: 'Design', group: 'Core', order: 10,
+      section: 'Design', group: 'Core', designParentGroup: 'design' as const, order: 10,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -128,7 +128,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       type: 'float' as const,
       defaultValue: 1.15,
       min: 0.3, max: 2.4, step: 0.05,
-      section: 'Design', group: 'Core', order: 11,
+      section: 'Design', group: 'Core', designParentGroup: 'design' as const, order: 11,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -137,7 +137,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       type: 'float' as const,
       defaultValue: 0.21,
       min: -2, max: 2, step: 0.01,
-      section: 'Design', group: 'Core', order: 12,
+      section: 'Design', group: 'Core', designParentGroup: 'design' as const, order: 12,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -146,7 +146,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       type: 'float' as const,
       defaultValue: 0.62,
       min: 0, max: 1, step: 0.01,
-      section: 'Design', group: 'Shrapnel', order: 20,
+      section: 'Design', group: 'Shrapnel', designParentGroup: 'design' as const, order: 20,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -155,7 +155,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       type: 'float' as const,
       defaultValue: 0.82,
       min: 0, max: 3, step: 0.01,
-      section: 'Design', group: 'Composite', order: 30,
+      section: 'Design', group: 'Composite', designParentGroup: 'design' as const, order: 30,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -164,7 +164,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       type: 'float' as const,
       defaultValue: 1.2,
       min: 0, max: 3, step: 0.05,
-      section: 'Design', group: 'Composite', order: 31,
+      section: 'Design', group: 'Composite', designParentGroup: 'design' as const, order: 31,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -172,7 +172,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       label: 'Primary',
       type: 'color' as const,
       defaultValue: Object.freeze([0.08, 0.62, 1, 1] as const),
-      section: 'Design', group: 'Palette', order: 40,
+      section: 'Design', group: 'Palette', designParentGroup: 'palette' as const, order: 40,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -180,7 +180,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       label: 'Secondary',
       type: 'color' as const,
       defaultValue: Object.freeze([0.36, 0.18, 0.95, 1] as const),
-      section: 'Design', group: 'Palette', order: 41,
+      section: 'Design', group: 'Palette', designParentGroup: 'palette' as const, order: 41,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -188,7 +188,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       label: 'Accent',
       type: 'color' as const,
       defaultValue: Object.freeze([1, 0.24, 0.58, 1] as const),
-      section: 'Design', group: 'Palette', order: 42,
+      section: 'Design', group: 'Palette', designParentGroup: 'palette' as const, order: 42,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -196,7 +196,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       label: 'Background',
       type: 'color' as const,
       defaultValue: Object.freeze([0.006, 0.009, 0.016, 1] as const),
-      section: 'Design', group: 'Palette', order: 43,
+      section: 'Design', group: 'Palette', designParentGroup: 'palette' as const, order: 43,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -206,7 +206,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       type: 'float' as const,
       defaultValue: 0.82,
       min: 0, max: 1.5, step: 0.01,
-      section: 'Design', group: 'Response', order: 10,
+      section: 'Design', group: 'Response', designParentGroup: 'master-controls' as const, order: 10,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
       modulatable: true,
       choreographable: true,
@@ -218,7 +218,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       type: 'float' as const,
       defaultValue: 0.66,
       min: 0, max: 1, step: 0.01,
-      section: 'Design', group: 'Response', order: 11,
+      section: 'Design', group: 'Response', designParentGroup: 'master-controls' as const, order: 11,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -227,14 +227,14 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       type: 'float' as const,
       defaultValue: 0.9,
       min: 0, max: 0.985, step: 0.005,
-      section: 'Effects', group: 'Feedback', order: 41,
+      section: 'Effects', group: 'Feedback', designParentGroup: 'effects' as const, order: 41,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
       id: CINEMA2_REACTOR_RESET_TRAILS_ID,
       label: 'Reset Trails',
       type: 'trigger' as const,
-      section: 'Effects', group: 'Feedback', order: 42,
+      section: 'Effects', group: 'Feedback', designParentGroup: 'effects' as const, order: 42,
       exposure: 'primary' as const, persistence: 'runtime-only' as const, reset: 'none' as const,
     }),
     Object.freeze({
@@ -243,7 +243,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       type: 'float' as const,
       defaultValue: 1.45,
       min: 0, max: 4, step: 0.05,
-      section: 'Effects', group: 'Bloom', order: 51,
+      section: 'Effects', group: 'Bloom', designParentGroup: 'effects' as const, order: 51,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
   ]),

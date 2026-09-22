@@ -154,6 +154,15 @@ export type Cinema2ParameterExposure = 'primary' | 'advanced' | 'hidden' | 'diag
 export type Cinema2ParameterPersistenceScope = 'preset' | 'user' | 'runtime-only'
 export type Cinema2ParameterResetMode = 'authored-default' | 'none'
 
+export const CINEMA2_DESIGN_PARENT_GROUP_IDS = [
+  'master-controls',
+  'design',
+  'effects',
+  'palette',
+] as const
+
+export type Cinema2DesignParentGroup = typeof CINEMA2_DESIGN_PARENT_GROUP_IDS[number]
+
 export interface Cinema2ParameterOptionManifest {
   value: string
   label: string
@@ -197,6 +206,12 @@ export interface Cinema2ParameterManifest {
   options?: readonly Cinema2ParameterOptionManifest[]
   section?: string
   group?: string
+  /**
+   * Optional canonical Design-workspace parent placement. This presentation
+   * metadata is independent from runtime ownership/bindings and persistence.
+   * Unclassified parameters continue to use the legacy section/group path.
+   */
+  designParentGroup?: Cinema2DesignParentGroup
   order?: number
   exposure?: Cinema2ParameterExposure
   visibleWhen?: readonly Cinema2ParameterConditionManifest[]

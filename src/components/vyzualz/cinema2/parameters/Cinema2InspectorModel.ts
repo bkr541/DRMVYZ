@@ -1,7 +1,9 @@
-import type {
-  Cinema2JsonValue,
-  Cinema2ParameterConditionManifest,
-  Cinema2ParameterId,
+import {
+  CINEMA2_DESIGN_PARENT_GROUP_IDS,
+  type Cinema2DesignParentGroup,
+  type Cinema2JsonValue,
+  type Cinema2ParameterConditionManifest,
+  type Cinema2ParameterId,
 } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2CompiledPresetPlan } from '../presets/Cinema2PresetCompiler'
 import type { Cinema2CompiledParameterDefinition } from './Cinema2ParameterSchema'
@@ -55,6 +57,13 @@ export interface Cinema2InspectorSectionModel {
   groups: readonly Readonly<Cinema2InspectorEntryModel>[]
 }
 
+export interface Cinema2DesignParentGroupModel {
+  id: Cinema2DesignParentGroup
+  label: string
+  controls: readonly Readonly<Cinema2InspectorControlModel>[]
+  groups: readonly Readonly<Cinema2InspectorGroupModel>[]
+}
+
 interface InspectorSectionDefinition {
   id: Cinema2InspectorSectionId
   label: string
@@ -97,6 +106,11 @@ interface MutableInstance {
   advanced: boolean
 }
 
+interface MutableDesignParentGroup {
+  controls: ProjectedControl[]
+  groups: Map<string, MutableGroup>
+}
+
 const SECTION_DEFINITIONS: readonly InspectorSectionDefinition[] = Object.freeze([
   Object.freeze({ id: 'scene', label: 'Scene', surface: 'design', order: 0 }),
   Object.freeze({ id: 'design', label: 'Design', surface: 'design', order: 10 }),
@@ -110,6 +124,15 @@ const SECTION_DEFINITIONS: readonly InspectorSectionDefinition[] = Object.freeze
 ])
 
 const SECTION_BY_ID = new Map(SECTION_DEFINITIONS.map(section => [section.id, section]))
+const DESIGN_PARENT_LABELS: Readonly<Record<Cinema2DesignParentGroup, string>> = Object.freeze({
+  'master-controls': 'Master Controls',
+  design: 'Design',
+  effects: 'Effects',
+  palette: 'Palette',
+})
+const DESIGN_PARENT_DEFINITIONS: readonly Readonly<{ id: Cinema2DesignParentGroup; label: string }>[] = Object.freeze(
+  CINEMA2_DESIGN_PARENT_GROUP_IDS.map(id => Object.freeze({ id, label: DESIGN_PARENT_LABELS[id] })),
+)
 const SECTION_ALIASES = new Map<string, Cinema2InspectorSectionId>([
   ['scene', 'scene'],
   ['object', 'scene'],
@@ -159,30 +182,11 @@ export function createCinema2InspectorModel(
     const sectionId = instance?.sectionId ?? resolveSectionId(definition.section)
     const section = SECTION_BY_ID.get(sectionId)
     if (!section || section.surface !== surface) continue
+    if (surface === 'design' && definition.designParentGroup != null) continue
     if (!conditionsPass(definition.visibleWhen, values, availableCapabilities)) continue
 
-    const capabilityEnabled = definition.capabilities == null
-      || definition.capabilities.every(requirement => availableCapabilities.has(requirement.id))
-    const conditionEnabled = conditionsPass(definition.enabledWhen, values, availableCapabilities)
-    const enabled = !definition.readOnly && capabilityEnabled && conditionEnabled
-    const unavailableCapabilities = definition.capabilities
-      ?.filter(requirement => !availableCapabilities.has(requirement.id))
-      .map(requirement => requirement.id) ?? []
-    const disabledReason = definition.readOnly
-      ? 'Read-only runtime value.'
-      : unavailableCapabilities.length > 0
-        ? `Unavailable capability: ${unavailableCapabilities.join(', ')}`
-        : !conditionEnabled
-          ? 'Unavailable for the current parameter state.'
-          : null
-
     projected.push({
-      control: {
-        definition,
-        value: Object.prototype.hasOwnProperty.call(values, definition.id) ? cloneJson(values[definition.id]) : undefined,
-        enabled,
-        disabledReason,
-      },
+      control: createControlModel(definition, values, availableCapabilities),
       sectionId,
       groupLabel: definition.group?.trim() || null,
       order: definition.order ?? authoredIndex,
@@ -244,6 +248,95 @@ export function createCinema2InspectorModel(
     .filter(section => section.groups.length > 0)
 
   return deepFreeze(result)
+}
+
+/**
+ * Projects explicitly classified Design controls into the four canonical
+ * parent containers. Runtime instance ownership still determines whether a
+ * parameter belongs to the Design surface, but never overrides authored
+ * parent placement. Unclassified presets remain on the legacy section path.
+ */
+export function createCinema2DesignParentGroupModel(
+  plan: Readonly<Cinema2CompiledPresetPlan>,
+  state: Readonly<Cinema2ParameterStateSnapshot>,
+): readonly Readonly<Cinema2DesignParentGroupModel>[] {
+  const availableCapabilities = new Set(plan.capabilities.available)
+  const values = { ...state.persistentValues, ...state.runtimeOnlyValues }
+  const instanceOwners = collectInspectorInstanceOwners(plan)
+  const inactiveCameraParameters = collectInactiveCameraParameterIds(plan)
+  const parents = new Map<Cinema2DesignParentGroup, MutableDesignParentGroup>()
+
+  for (const [authoredIndex, definition] of plan.parameters.definitions.entries()) {
+    const parentId = definition.designParentGroup
+    if (parentId == null) continue
+    if (definition.exposure === 'hidden' || definition.exposure === 'diagnostic') continue
+    if (inactiveCameraParameters.has(definition.id) && !instanceOwners.has(definition.id)) continue
+
+    const instance = instanceOwners.get(definition.id) ?? null
+    const sectionId = instance?.sectionId ?? resolveSectionId(definition.section)
+    if (SECTION_BY_ID.get(sectionId)?.surface !== 'design') continue
+    if (!conditionsPass(definition.visibleWhen, values, availableCapabilities)) continue
+
+    let parent = parents.get(parentId)
+    if (!parent) {
+      parent = { controls: [], groups: new Map() }
+      parents.set(parentId, parent)
+    }
+
+    const item: ProjectedControl = {
+      control: createControlModel(definition, values, availableCapabilities),
+      sectionId,
+      // Secondary grouping is intentionally preserved only inside Design.
+      // Master Controls, Effects, and Palette stay flat, matching the current
+      // Reactor presentation without any preset/label special-casing.
+      groupLabel: parentId === 'design' ? definition.group?.trim() || null : null,
+      order: definition.order ?? authoredIndex,
+      authoredIndex,
+      advanced: definition.exposure === 'advanced',
+      instance: null,
+    }
+
+    if (parentId === 'design' && item.groupLabel != null) addToMutableGroup(parent.groups, item)
+    else parent.controls.push(item)
+  }
+
+  return deepFreeze(DESIGN_PARENT_DEFINITIONS.map(definition => {
+    const parent = parents.get(definition.id)
+    const groups = parent == null ? [] : [...parent.groups.values()].map(finalizeGroup).sort(compareGroups)
+    return {
+      ...definition,
+      controls: parent == null ? [] : sortControls(parent.controls).map(item => item.control),
+      groups,
+    }
+  }))
+}
+
+function createControlModel(
+  definition: Readonly<Cinema2CompiledParameterDefinition>,
+  values: Readonly<Record<string, Cinema2JsonValue>>,
+  availableCapabilities: ReadonlySet<string>,
+): Cinema2InspectorControlModel {
+  const capabilityEnabled = definition.capabilities == null
+    || definition.capabilities.every(requirement => availableCapabilities.has(requirement.id))
+  const conditionEnabled = conditionsPass(definition.enabledWhen, values, availableCapabilities)
+  const enabled = !definition.readOnly && capabilityEnabled && conditionEnabled
+  const unavailableCapabilities = definition.capabilities
+    ?.filter(requirement => !availableCapabilities.has(requirement.id))
+    .map(requirement => requirement.id) ?? []
+  const disabledReason = definition.readOnly
+    ? 'Read-only runtime value.'
+    : unavailableCapabilities.length > 0
+      ? `Unavailable capability: ${unavailableCapabilities.join(', ')}`
+      : !conditionEnabled
+        ? 'Unavailable for the current parameter state.'
+        : null
+
+  return {
+    definition,
+    value: Object.prototype.hasOwnProperty.call(values, definition.id) ? cloneJson(values[definition.id]) : undefined,
+    enabled,
+    disabledReason,
+  }
 }
 
 function collectInspectorInstanceOwners(

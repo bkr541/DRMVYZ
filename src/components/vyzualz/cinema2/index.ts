@@ -103,6 +103,8 @@ export {
   type Cinema2NativePresetManifest,
   type Cinema2OutputManifest,
   type Cinema2ParameterConditionManifest,
+  CINEMA2_DESIGN_PARENT_GROUP_IDS,
+  type Cinema2DesignParentGroup,
   type Cinema2ParameterExposure,
   type Cinema2ParameterId,
   type Cinema2ParameterManifest,
@@ -150,7 +152,9 @@ export {
 
 
 export {
+  createCinema2DesignParentGroupModel,
   createCinema2InspectorModel,
+  type Cinema2DesignParentGroupModel,
   type Cinema2InspectorControlModel,
   type Cinema2InspectorEntryModel,
   type Cinema2InspectorGroupModel,

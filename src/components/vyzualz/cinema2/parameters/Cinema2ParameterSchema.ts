@@ -1,7 +1,9 @@
 import {
   CINEMA2_CAPABILITY_IDS,
+  CINEMA2_DESIGN_PARENT_GROUP_IDS,
   isCinema2StableId,
   type Cinema2CapabilityId,
+  type Cinema2DesignParentGroup,
   type Cinema2JsonValue,
   type Cinema2MediaSlotId,
   type Cinema2NativePresetManifest,
@@ -62,6 +64,7 @@ const PARAMETER_TYPES = new Set<Cinema2ParameterType>([
   'meter',
 ])
 const CAPABILITIES = new Set<string>(CINEMA2_CAPABILITY_IDS)
+const DESIGN_PARENT_GROUPS = new Set<Cinema2DesignParentGroup>(CINEMA2_DESIGN_PARENT_GROUP_IDS)
 const EXPOSURES = new Set<Cinema2ParameterExposure>(['primary', 'advanced', 'hidden', 'diagnostic'])
 const PERSISTENCE = new Set<Cinema2ParameterPersistenceScope>(['preset', 'user', 'runtime-only'])
 const RESET_MODES = new Set<Cinema2ParameterResetMode>(['authored-default', 'none'])
@@ -246,6 +249,13 @@ function validateDefinition(
   }
   validateOptionalText(definition.section, `${path}.section`, 'section', diagnostics)
   validateOptionalText(definition.group, `${path}.group`, 'group', diagnostics)
+  if (definition.designParentGroup != null && !DESIGN_PARENT_GROUPS.has(definition.designParentGroup)) {
+    diagnostics.push(issue(
+      'CINEMA2_PARAMETER_DESIGN_PARENT_GROUP_INVALID',
+      `Unsupported Design parent group "${String(definition.designParentGroup)}".`,
+      `${path}.designParentGroup`,
+    ))
+  }
   validateOptionalBoolean(definition.modulatable, `${path}.modulatable`, diagnostics)
   validateOptionalBoolean(definition.choreographable, `${path}.choreographable`, diagnostics)
   validateOptionalBoolean(definition.automatable, `${path}.automatable`, diagnostics)

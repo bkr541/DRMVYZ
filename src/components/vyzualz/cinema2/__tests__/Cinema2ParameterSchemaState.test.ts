@@ -31,7 +31,7 @@ function manifest(): Cinema2NativePresetManifest {
     metadata: { name: 'Parameter Foundation Test' },
     mediaSlots: [{ id: mediaSlotId, label: 'Hero Media', accepts: ['image', 'video'] }],
     parameters: [
-      { id: id('gain'), label: 'Gain', description: 'Master authored gain.', type: 'float', defaultValue: 0.5, min: 0, max: 1, step: 0.05, unit: '%', section: 'Design', group: 'Master', order: 0, exposure: 'primary', modulatable: true, choreographable: true, automatable: true },
+      { id: id('gain'), label: 'Gain', description: 'Master authored gain.', type: 'float', defaultValue: 0.5, min: 0, max: 1, step: 0.05, unit: '%', section: 'Design', group: 'Master', designParentGroup: 'design', order: 0, exposure: 'primary', modulatable: true, choreographable: true, automatable: true },
       { id: id('count'), label: 'Count', type: 'integer', defaultValue: 4, min: 1, max: 16, step: 1, persistence: 'user' },
       { id: enabledId, label: 'Enabled', type: 'boolean', defaultValue: true },
       { id: id('mode'), label: 'Mode', type: 'enum', defaultValue: 'fan', options: [{ value: 'fan', label: 'Fan' }, { value: 'split', label: 'Split' }], enabledWhen: [{ kind: 'capability-available', capability: 'music.beat' }] },
@@ -89,6 +89,7 @@ describe('Cinema 2.0 parameter schema and persistent state foundation', () => {
     expect(gain).toMatchObject({
       section: 'Design',
       group: 'Master',
+      designParentGroup: 'design',
       order: 0,
       exposure: 'primary',
       persistence: 'preset',
@@ -115,6 +116,7 @@ describe('Cinema 2.0 parameter schema and persistent state foundation', () => {
       { id: id('bad-media'), label: 'Bad Media', type: 'media', defaultValue: null, mediaSlot: cinema2Ref(cinema2StableId<Cinema2MediaSlotId>('missing-slot')) },
       { id: id('bad-condition'), label: 'Bad Condition', type: 'boolean', defaultValue: true, visibleWhen: [{ kind: 'parameter-equals', parameterId: id('missing-parameter'), value: true }] },
       { id: id('bad-capability-shape'), label: 'Bad Capability Shape', type: 'boolean', defaultValue: true, capabilities: ['audio.bands'] as never[] },
+      { id: id('bad-design-parent'), label: 'Bad Design Parent', type: 'boolean', defaultValue: true, designParentGroup: 'not-a-parent' as never },
     ]
     invalid.defaults = undefined
 
@@ -130,6 +132,7 @@ describe('Cinema 2.0 parameter schema and persistent state foundation', () => {
       expect.objectContaining({ code: 'CINEMA2_PARAMETER_MEDIA_SLOT_INVALID' }),
       expect.objectContaining({ code: 'CINEMA2_PARAMETER_CONDITION_REFERENCE_MISSING' }),
       expect.objectContaining({ code: 'CINEMA2_PARAMETER_CAPABILITY_INVALID' }),
+      expect.objectContaining({ code: 'CINEMA2_PARAMETER_DESIGN_PARENT_GROUP_INVALID' }),
     ]))
   })
 

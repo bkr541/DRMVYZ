@@ -9,7 +9,13 @@ import { createCinemaMockWebGL, CinemaResizeObserverMock } from '../../cinema/__
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
+  CINEMA2_AFTERHOURS_PRESET_MANIFEST,
+  CINEMA2_ELECTRIC_STORM_BACKGROUND_ID,
+  CINEMA2_ELECTRIC_STORM_HAZE_ID,
+  CINEMA2_ELECTRIC_STORM_MASTER_INTENSITY_ID,
   CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST,
+  CINEMA2_INTERLOCK_PRESET_MANIFEST,
+  CINEMA2_QUALITY_MODE_PARAMETER_ID,
   CINEMA2_REACTOR_PRESET_MANIFEST,
   CINEMA2_REFERENCE_VISUAL_PRESET_ID,
   CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
@@ -21,6 +27,7 @@ import {
   cinema2Ref,
   cinema2StableId,
   compileCinema2NativePreset,
+  createCinema2DesignParentGroupModel,
   createCinema2InspectorModel,
   type Cinema2CameraId,
   type Cinema2EffectId,
@@ -117,14 +124,18 @@ function compilePlan() {
 }
 
 function createRuntime() {
+  return createRuntimeForManifest(inspectorManifest())
+}
+
+function createRuntimeForManifest(authored: Readonly<Cinema2NativePresetManifest>) {
   const registry = new Cinema2PresetRegistry()
-  expect(registry.register(inspectorManifest()).ok).toBe(true)
+  expect(registry.register(authored).ok).toBe(true)
   const canvas = document.createElement('canvas')
   vi.spyOn(canvas, 'getContext').mockImplementation((kind: string) => (
     kind === 'webgl2' ? createCinemaMockWebGL() as unknown as RenderingContext : null
   ))
   const result = Cinema2Runtime.create(canvas, {
-    presetId,
+    presetId: authored.id,
     presetRegistry: registry,
     requestAnimationFrame: vi.fn(() => 1),
     cancelAnimationFrame: vi.fn(),
@@ -154,6 +165,115 @@ afterEach(async () => {
 })
 
 describe('Cinema 2.0 schema-driven Inspector', () => {
+  it('projects Electric Storm into the exact four declarative Design parents without changing runtime ownership', () => {
+    const result = compileCinema2NativePreset(CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const state = new Cinema2ParameterState(result.plan.parameters)
+    const parents = createCinema2DesignParentGroupModel(result.plan, state.getSnapshot())
+    const labelsFor = (parentLabel: string) => {
+      const parent = parents.find(candidate => candidate.label === parentLabel)
+      return [
+        ...(parent?.controls.map(control => control.definition.label) ?? []),
+        ...(parent?.groups.flatMap(group => group.controls.map(control => control.definition.label)) ?? []),
+      ]
+    }
+
+    expect(parents.map(parent => parent.label)).toEqual(['Master Controls', 'Design', 'Effects', 'Palette'])
+    expect(labelsFor('Master Controls')).toEqual(['Master Intensity'])
+    expect(labelsFor('Design')).toEqual(['Strike Rate', 'Branching', 'Thickness', 'Media Influence'])
+    expect(labelsFor('Effects')).toEqual(['Glow', 'Haze', 'Flash Intensity', 'Flash Duration', 'Flash Decay'])
+    expect(labelsFor('Palette')).toEqual(['Lightning Color', 'Background'])
+    expect(parents.flatMap(parent => [
+      ...parent.controls,
+      ...parent.groups.flatMap(group => group.controls),
+    ])).toHaveLength(12)
+
+    const legacyDesignControls = createCinema2InspectorModel(result.plan, state.getSnapshot(), 'design')
+      .flatMap(section => section.groups.flatMap(group => group.controls))
+    expect(legacyDesignControls.map(control => control.definition.id)).toEqual([CINEMA2_QUALITY_MODE_PARAMETER_ID])
+    expect(legacyDesignControls.map(control => control.definition.label)).not.toContain('Background')
+    expect(legacyDesignControls.map(control => control.definition.label)).not.toContain('Haze')
+
+    const reactLabels = createCinema2InspectorModel(result.plan, state.getSnapshot(), 'react')
+      .flatMap(section => section.groups.flatMap(group => group.controls.map(control => control.definition.label)))
+    expect(reactLabels).toEqual([
+      'Music Reactivity',
+      'Kick Reaction',
+      'Transient Reaction',
+      'Drop Reaction',
+      'Structure Reaction',
+      'Impact Shake',
+      'Zoom Punch',
+    ])
+    expect(CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST.environment?.controls).toMatchObject({
+      backgroundColor: { $ref: CINEMA2_ELECTRIC_STORM_BACKGROUND_ID },
+      fogDensity: { $ref: CINEMA2_ELECTRIC_STORM_HAZE_ID },
+    })
+  })
+
+  it('renders Electric Storm parent placement through the real runtime Inspector and edits the canonical parameter state', async () => {
+    const runtime = createRuntimeForManifest(CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST)
+    await act(async () => root?.render(<Cinema2InspectorPanel runtime={runtime} surface="design" />))
+
+    expect([...(host?.querySelectorAll<HTMLElement>('[data-cinema2-parent-group]') ?? [])].map(element => element.dataset.cinema2ParentGroup)).toEqual([
+      'master-controls',
+      'design',
+      'effects',
+      'palette',
+    ])
+    expect(host?.querySelectorAll(`[data-cinema2-control-id="${CINEMA2_ELECTRIC_STORM_BACKGROUND_ID}"]`)).toHaveLength(1)
+    expect(host?.querySelectorAll(`[data-cinema2-control-id="${CINEMA2_ELECTRIC_STORM_HAZE_ID}"]`)).toHaveLength(1)
+    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_QUALITY_MODE_PARAMETER_ID}"]`)).toBeNull()
+
+    const masterIntensity = host?.querySelector<HTMLInputElement>(`#cinema2-parameter-${CINEMA2_ELECTRIC_STORM_MASTER_INTENSITY_ID}`)
+    expect(masterIntensity).not.toBeNull()
+    await act(async () => {
+      if (!masterIntensity) return
+      masterIntensity.value = '0.91'
+      masterIntensity.dispatchEvent(new Event('input', { bubbles: true }))
+      masterIntensity.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(runtime.getParameterState().getValue(CINEMA2_ELECTRIC_STORM_MASTER_INTENSITY_ID)).toBe(0.91)
+
+    runtime.dispose()
+  })
+
+  it('keeps Reactor parent presentation generic while leaving unmigrated keeper presets on their existing path', () => {
+    const reactorResult = compileCinema2NativePreset(CINEMA2_REACTOR_PRESET_MANIFEST)
+    expect(reactorResult.ok).toBe(true)
+    if (!reactorResult.ok) return
+    const reactorState = new Cinema2ParameterState(reactorResult.plan.parameters)
+    const reactorParents = createCinema2DesignParentGroupModel(reactorResult.plan, reactorState.getSnapshot())
+    expect(reactorParents.find(parent => parent.id === 'master-controls')?.controls.map(control => control.definition.label)).toEqual([
+      'Reactivity',
+      'Build Contraction',
+    ])
+    expect(reactorParents.find(parent => parent.id === 'design')?.groups.map(group => group.label)).toEqual(['Core', 'Shrapnel', 'Composite'])
+    expect(reactorParents.find(parent => parent.id === 'effects')?.controls.map(control => control.definition.label)).toEqual([
+      'Persistence',
+      'Reset Trails',
+      'Intensity',
+    ])
+    expect(reactorParents.find(parent => parent.id === 'palette')?.controls.map(control => control.definition.label)).toEqual([
+      'Primary',
+      'Secondary',
+      'Accent',
+      'Background',
+    ])
+
+    for (const manifest of [CINEMA2_AFTERHOURS_PRESET_MANIFEST, CINEMA2_INTERLOCK_PRESET_MANIFEST]) {
+      const result = compileCinema2NativePreset(manifest)
+      expect(result.ok).toBe(true)
+      if (!result.ok) continue
+      const state = new Cinema2ParameterState(result.plan.parameters)
+      expect(createCinema2DesignParentGroupModel(result.plan, state.getSnapshot()).every(parent => (
+        parent.controls.length === 0 && parent.groups.length === 0
+      ))).toBe(true)
+      expect(createCinema2InspectorModel(result.plan, state.getSnapshot(), 'design').length).toBeGreaterThan(0)
+    }
+  })
+
   it('projects ordered sections/groups, conditions, exposure and capabilities without preset identity logic', () => {
     const plan = compilePlan()
     const state = new Cinema2ParameterState(plan.parameters)
@@ -240,9 +360,9 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
   it('projects all four reference complexity classes through the same generic Inspector architecture', () => {
     const cases = [
       { manifest: CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST, design: ['Design', 'Effects'], react: [] },
-      { manifest: CINEMA2_REACTOR_PRESET_MANIFEST, design: ['Design', 'Effects'], react: ['React'] },
+      { manifest: CINEMA2_REACTOR_PRESET_MANIFEST, design: ['Advanced'], react: [] },
       { manifest: CINEMA2_SPATIAL_REFERENCE_PRESET_MANIFEST, design: ['Scene', 'Camera', 'Effects', 'Environment'], react: ['React'] },
-      { manifest: CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST, design: ['Design', 'Environment'], react: ['React'] },
+      { manifest: CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST, design: ['Advanced'], react: ['React'] },
     ] as const
 
     for (const testCase of cases) {

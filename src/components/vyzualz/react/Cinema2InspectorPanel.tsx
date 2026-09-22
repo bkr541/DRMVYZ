@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
 import {
+  createCinema2DesignParentGroupModel,
   createCinema2InspectorModel,
+  type Cinema2DesignParentGroupModel,
   type Cinema2InspectorControlModel,
   type Cinema2InspectorEntryModel,
   type Cinema2InspectorGroupModel,
@@ -41,11 +43,18 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
   const sections = useMemo(() => (
     plan && snapshot ? createCinema2InspectorModel(plan, snapshot, surface) : []
   ), [plan, snapshot, surface])
-  const hasResettablePersistentValue = sections.some(section => section.groups.some(group => group.controls.some(control => (
+  const designParentGroups = useMemo(() => (
+    plan && snapshot && surface === 'design' ? createCinema2DesignParentGroupModel(plan, snapshot) : []
+  ), [plan, snapshot, surface])
+  const isResettable = (control: Readonly<Cinema2InspectorControlModel>) => (
     control.definition.persistence !== 'runtime-only'
     && control.definition.reset !== 'none'
     && control.definition.type !== 'trigger'
-  ))))
+  )
+  const hasResettablePersistentValue = sections.some(section => section.groups.some(group => group.controls.some(isResettable)))
+    || designParentGroups.some(parent => (
+      parent.controls.some(isResettable) || parent.groups.some(group => group.controls.some(isResettable))
+    ))
 
   const refresh = () => setRevision(current => current + 1)
 
@@ -76,22 +85,6 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
     if (!result.ok && import.meta.env.DEV) console.warn('[Cinema2InspectorPanel] action dispatch rejected:', result.diagnostics)
   }
 
-  // Core and Shrapnel are pulled out of the flat "Design" section listing so
-  // they can render nested inside Master Controls > Design instead, Palette
-  // is pulled out to render nested inside Master Controls > Palette (with
-  // PaletteColorRow styling, see Cinema2PaletteColorGroup), and Feedback and
-  // Bloom are pulled out of the flat "Effects" section listing to render
-  // degrouped (flat, no Feedback/Bloom sub-headers) inside Master Controls >
-  // Effects — see the designSurface === 'engine' branch below.
-  const masterControlsDesignEntries: Cinema2InspectorEntryModel[] = []
-  let masterControlsPaletteGroup: Cinema2InspectorGroupModel | null = null
-  const masterControlsEffectsControls: Cinema2InspectorControlModel[] = []
-  // Reactivity and Build Contraction are re-authored onto the "Design"
-  // section (they used to live under "React" > Response) specifically so
-  // they land in this same sections computation and can be pulled straight
-  // into Master Controls' own body, flat — not nested under a "Response"
-  // sub-header, since only the parameters were asked to move, not the group.
-  const masterControlsRootControls: Cinema2InspectorControlModel[] = []
   // Afterhours 2.0's Background color is authored at the top of Design >
   // Color (see CINEMA2_AFTERHOURS_BACKGROUND_ID's order:10 in
   // Cinema2AfterhoursPreset), but it must also be referenced from the
@@ -121,39 +114,7 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
                     ? { ...entry, controls: [...environmentControls, ...entry.controls] }
                     : entry
                 ))
-                .filter(entry => {
-                  if (entry.kind !== 'group') return true
-                  if (entry.label === 'Core' || entry.label === 'Shrapnel' || entry.label === 'Composite') {
-                    masterControlsDesignEntries.push(entry)
-                    return false
-                  }
-                  if (entry.label === 'Palette') {
-                    masterControlsPaletteGroup = entry
-                    return false
-                  }
-                  if (entry.label === 'Response') {
-                    masterControlsRootControls.push(...entry.controls)
-                    return false
-                  }
-                  return true
-                })
-            : section.label === 'Effects'
-              ? section.groups.filter(entry => {
-                  // Feedback and Bloom are authored as effect instances (bound
-                  // via the preset's `effects` array), not plain parameter
-                  // groups, so they arrive here as kind:'instance' entries —
-                  // unlike Core/Shrapnel/Palette above, which are plain
-                  // module-bound groups. Match by label regardless of kind.
-                  // Their controls are flattened (degrouped) rather than
-                  // re-wrapped in their own Feedback/Bloom sub-collapsible,
-                  // so they read as plain controls directly under Effects.
-                  if (entry.label === 'Feedback' || entry.label === 'Bloom') {
-                    masterControlsEffectsControls.push(...entry.controls)
-                    return false
-                  }
-                  return true
-                })
-              : section.label === 'Advanced'
+            : section.label === 'Advanced'
                 ? section.groups.filter(entry => {
                     // Quality / Performance is a rendering-cost control, not a
                     // visual-design one — it now lives in the OUTPUT tab
@@ -210,50 +171,18 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
             {designSurface === 'engine' ? (
               <>
                 {sectionsContent}
-                <div className="rv-ctrl-group" data-cinema2-placeholder-group="master-controls">
-                  <Collapsible label="Master Controls">
-                    {masterControlsRootControls.length === 0 ? (
-                      <div className="rv-ctrl-info">No controls yet.</div>
-                    ) : (
-                      <Cinema2InspectorControls
-                        controls={masterControlsRootControls}
-                        onChange={commit}
-                        onTrigger={dispatch}
-                      />
-                    )}
-                  </Collapsible>
-                  <Collapsible label="Design">
-                    {masterControlsDesignEntries.length === 0 ? (
-                      <div className="rv-ctrl-info">No controls yet.</div>
-                    ) : (
-                      masterControlsDesignEntries.map((entry, entryIndex) => (
-                        <Cinema2InspectorEntry
-                          key={entry.kind === 'instance' ? `${entry.instanceKind}:${entry.instanceId}` : entry.label ?? `ungrouped-${entryIndex}`}
-                          entry={entry}
-                          onChange={commit}
-                          onTrigger={dispatch}
-                        />
-                      ))
-                    )}
-                  </Collapsible>
-                  <Collapsible label="Effects">
-                    {masterControlsEffectsControls.length === 0 ? (
-                      <div className="rv-ctrl-info">No controls yet.</div>
-                    ) : (
-                      <Cinema2InspectorControls
-                        controls={masterControlsEffectsControls}
-                        onChange={commit}
-                        onTrigger={dispatch}
-                      />
-                    )}
-                  </Collapsible>
-                  <Collapsible label="Palette" bodyClassName="rv-cinema2-palette-body">
-                    {masterControlsPaletteGroup == null ? (
-                      <div className="rv-ctrl-info">No controls yet.</div>
-                    ) : (
-                      <Cinema2PaletteColorGroup group={masterControlsPaletteGroup} onChange={commit} />
-                    )}
-                  </Collapsible>
+                <div
+                  className="rv-ctrl-group"
+                  data-cinema2-design-parent-groups="master-controls design effects palette"
+                >
+                  {designParentGroups.map(parent => (
+                    <Cinema2DesignParentGroup
+                      key={parent.id}
+                      parent={parent}
+                      onChange={commit}
+                      onTrigger={dispatch}
+                    />
+                  ))}
                 </div>
                 {resetParametersButton}
               </>
@@ -292,6 +221,48 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
         </div>
       </div>
     </div>
+  )
+}
+
+function Cinema2DesignParentGroup({
+  parent,
+  onChange,
+  onTrigger,
+}: {
+  parent: Readonly<Cinema2DesignParentGroupModel>
+  onChange: (control: Readonly<Cinema2InspectorControlModel>, value: Cinema2JsonValue) => void
+  onTrigger: (control: Readonly<Cinema2InspectorControlModel>) => void
+}) {
+  const empty = parent.controls.length === 0 && parent.groups.length === 0
+  const body = empty ? (
+    <div className="rv-ctrl-info">No controls yet.</div>
+  ) : parent.id === 'palette' ? (
+    <Cinema2PaletteControls controls={parent.controls} onChange={onChange} onTrigger={onTrigger} />
+  ) : (
+    <>
+      {parent.controls.length > 0 && (
+        <Cinema2InspectorControls controls={parent.controls} onChange={onChange} onTrigger={onTrigger} />
+      )}
+      {parent.groups.map((group, groupIndex) => (
+        <Cinema2InspectorGroup
+          key={group.label ?? `ungrouped-${groupIndex}`}
+          group={group}
+          onChange={onChange}
+          onTrigger={onTrigger}
+        />
+      ))}
+    </>
+  )
+
+  return (
+    <Collapsible
+      label={parent.label}
+      bodyClassName={parent.id === 'palette' ? 'rv-cinema2-palette-body' : undefined}
+    >
+      <div data-cinema2-parent-group={parent.id} style={{ display: 'contents' }}>
+        {body}
+      </div>
+    </Collapsible>
   )
 }
 
@@ -404,9 +375,21 @@ function Cinema2PaletteColorGroup({
   onChange: (control: Readonly<Cinema2InspectorControlModel>, value: Cinema2JsonValue) => void
   onTrigger?: (control: Readonly<Cinema2InspectorControlModel>) => void
 }) {
+  return <Cinema2PaletteControls controls={group.controls} onChange={onChange} onTrigger={onTrigger} />
+}
+
+function Cinema2PaletteControls({
+  controls,
+  onChange,
+  onTrigger,
+}: {
+  controls: readonly Readonly<Cinema2InspectorControlModel>[]
+  onChange: (control: Readonly<Cinema2InspectorControlModel>, value: Cinema2JsonValue) => void
+  onTrigger?: (control: Readonly<Cinema2InspectorControlModel>) => void
+}) {
   return (
     <>
-      {group.controls.map(control => {
+      {controls.map(control => {
         if (control.definition.type !== 'color') {
           return (
             <Cinema2SchemaControl
@@ -421,15 +404,21 @@ function Cinema2PaletteColorGroup({
         const rgba = isNumericArray(value, 4) ? value : [1, 1, 1, 1]
         const description = [definition.description, disabledReason].filter(Boolean).join(' ')
         return (
-          <PaletteColorRow
+          <div
             key={definition.id}
-            id={`cinema2-parameter-${definition.id}`}
-            label={definition.label}
-            value={rgbaToHex(rgba)}
-            disabled={!enabled}
-            description={description || undefined}
-            onChange={hex => onChange(control, hexToRgba(hex, rgba[3]))}
-          />
+            data-cinema2-control-id={definition.id}
+            data-cinema2-control-type={definition.type}
+            style={{ display: 'contents' }}
+          >
+            <PaletteColorRow
+              id={`cinema2-parameter-${definition.id}`}
+              label={definition.label}
+              value={rgbaToHex(rgba)}
+              disabled={!enabled}
+              description={description || undefined}
+              onChange={hex => onChange(control, hexToRgba(hex, rgba[3]))}
+            />
+          </div>
         )
       })}
     </>
