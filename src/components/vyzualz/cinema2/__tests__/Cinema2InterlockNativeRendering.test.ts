@@ -47,6 +47,7 @@ const BASE_PARAMETERS: Record<string, Cinema2JsonValue> = {
   effectsIntensity: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.effectsIntensity,
   // Native renderer unit tests exercise authored/manual geometry unless a test opts into Stage 6 Auto Performance.
   autoPerformance: false,
+  bpmSync: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.bpmSync,
   patternChange: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.patternChange,
   masterReactivity: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.masterReactivity,
   bassRotation: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.bassRotation,

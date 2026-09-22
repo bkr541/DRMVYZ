@@ -40,6 +40,7 @@ export const CINEMA2_INTERLOCK_LIQUID_LIGHT_DEFAULTS = Object.freeze({
   backgroundBuild: 0,
   backgroundDropImpact: 0,
   backgroundVocalRestraint: 0,
+  bpmSync: true,
 })
 
 const REQUIRED_PARAMETERS = Object.freeze([
@@ -57,6 +58,7 @@ const REQUIRED_PARAMETERS = Object.freeze([
   'backgroundBuild',
   'backgroundDropImpact',
   'backgroundVocalRestraint',
+  'bpmSync',
 ] as const)
 
 const LIQUID_LIGHT_FRAGMENT_SOURCE = `#version 300 es
@@ -148,6 +150,7 @@ interface FrameConfig {
   readonly backgroundBuild: number
   readonly backgroundDropImpact: number
   readonly backgroundVocalRestraint: number
+  readonly bpmSync: boolean
 }
 
 export interface Cinema2InterlockLiquidLightPalette {
@@ -211,6 +214,11 @@ function validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2Modu
       message: `Interlock liquid-light "${property}" must be between 0 and 1.`,
     })
   }
+  if (parameters.bpmSync !== undefined && typeof parameters.bpmSync !== 'boolean') diagnostics.push({
+    code: 'CINEMA2_INTERLOCK_LIQUID_LIGHT_PARAMETER_INVALID',
+    path: '$.parameters.bpmSync',
+    message: 'Interlock liquid-light "bpmSync" must be boolean.',
+  })
   if (module.config && Object.keys(module.config).length > 0) diagnostics.push({
     code: 'CINEMA2_INTERLOCK_LIQUID_LIGHT_CONFIG_UNSUPPORTED',
     path: '$.config',
@@ -294,7 +302,7 @@ export const cinema2InterlockLiquidLightModuleDefinition: Readonly<Cinema2Module
           if (disposed) return
           config = readFrameConfig(updateContext)
           const { frame } = updateContext
-          const clock = clockResolver.resolve(frame)
+          const clock = clockResolver.resolve(frame, config.bpmSync)
           flowTimeSec = resolveCinema2InterlockBackgroundClockTime(clock, config.flow)
         },
         dispose() {
@@ -326,6 +334,7 @@ function readFrameConfig(
     backgroundBuild: clamp01(numberValue(source.parameters.get('backgroundBuild'), 0)),
     backgroundDropImpact: clamp01(numberValue(source.parameters.get('backgroundDropImpact'), 0)),
     backgroundVocalRestraint: clamp01(numberValue(source.parameters.get('backgroundVocalRestraint'), 0)),
+    bpmSync: booleanValue(source.parameters.get('bpmSync'), CINEMA2_INTERLOCK_LIQUID_LIGHT_DEFAULTS.bpmSync),
   })
 }
 
@@ -352,6 +361,10 @@ function numberValue(value: Cinema2JsonValue | undefined, fallback: number): num
 
 function numberInRange(value: unknown, minimum: number, maximum: number): boolean {
   return typeof value === 'number' && Number.isFinite(value) && value >= minimum && value <= maximum
+}
+
+function booleanValue(value: Cinema2JsonValue | undefined, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback
 }
 
 function clamp01(value: number): number { return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)) }

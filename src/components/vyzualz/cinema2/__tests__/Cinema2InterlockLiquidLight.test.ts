@@ -38,6 +38,7 @@ const BASE_PARAMETERS: Record<string, Cinema2JsonValue> = {
   backgroundBuild: 0,
   backgroundDropImpact: 0,
   backgroundVocalRestraint: 0,
+  bpmSync: CINEMA2_INTERLOCK_LIQUID_LIGHT_DEFAULTS.bpmSync,
 }
 
 class TestResources implements Cinema2ModuleResourceFacet {

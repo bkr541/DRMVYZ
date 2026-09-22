@@ -20,6 +20,7 @@ import { CINEMA2_ELECTRIC_STORM_NATIVE_MODULE_TYPE_ID } from '../modules/Cinema2
 export const CINEMA2_ELECTRIC_STORM_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.electric-storm')
 export const CINEMA2_ELECTRIC_STORM_LIGHTNING_COLOR_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-lightning-color')
 export const CINEMA2_ELECTRIC_STORM_MASTER_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-master-intensity')
+export const CINEMA2_ELECTRIC_STORM_BPM_SYNC_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-bpm-sync')
 export const CINEMA2_ELECTRIC_STORM_STRIKE_RATE_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-strike-rate')
 export const CINEMA2_ELECTRIC_STORM_BRANCHING_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-branching')
 export const CINEMA2_ELECTRIC_STORM_THICKNESS_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-thickness')
@@ -108,6 +109,14 @@ export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST: Readonly<Cinema2NativePrese
       label: 'Master Intensity',
       type: 'float' as const, defaultValue: 0.82, min: 0, max: 1.5, step: 0.01,
       section: 'Design', group: 'Lightning', designParentGroup: 'master-controls' as const, order: 11,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_ELECTRIC_STORM_BPM_SYNC_ID,
+      label: 'BPM Sync',
+      type: 'boolean' as const, defaultValue: true,
+      description: 'Locks the storm\'s continuous motion (haze drift, impact shake) to the analyzed or global Audio Dock Sync tempo instead of raw elapsed time.',
+      section: 'Design', group: 'Lightning', designParentGroup: 'master-controls' as const, order: 12,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -278,10 +287,12 @@ export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST: Readonly<Cinema2NativePrese
       flashDuration: 0.46,
       flashDecay: 0.62,
       mediaInfluence: 0.34,
+      bpmSync: true,
     }),
     parameterBindings: Object.freeze({
       lightningColor: cinema2Ref(CINEMA2_ELECTRIC_STORM_LIGHTNING_COLOR_ID),
       masterIntensity: cinema2Ref(CINEMA2_ELECTRIC_STORM_MASTER_INTENSITY_ID),
+      bpmSync: cinema2Ref(CINEMA2_ELECTRIC_STORM_BPM_SYNC_ID),
       strikeRate: cinema2Ref(CINEMA2_ELECTRIC_STORM_STRIKE_RATE_ID),
       branching: cinema2Ref(CINEMA2_ELECTRIC_STORM_BRANCHING_ID),
       thickness: cinema2Ref(CINEMA2_ELECTRIC_STORM_THICKNESS_ID),

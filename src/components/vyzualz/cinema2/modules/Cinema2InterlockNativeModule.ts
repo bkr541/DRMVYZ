@@ -88,6 +88,7 @@ export const CINEMA2_INTERLOCK_NATIVE_PARAMETER_NAMES = Object.freeze([
   'segmentBankPhase',
   'effectsIntensity',
   'autoPerformance',
+  'bpmSync',
   'patternChange',
   'masterReactivity',
   'bassRotation',
@@ -136,6 +137,7 @@ const DEFAULT_SEGMENT_DIRECTION_BIAS = 0
 const DEFAULT_SEGMENT_BANK_PHASE = 0
 const DEFAULT_EFFECTS_INTENSITY = 0.35
 const DEFAULT_AUTO_PERFORMANCE = true
+const DEFAULT_BPM_SYNC = true
 const DEFAULT_MASTER_REACTIVITY = 0.75
 const DEFAULT_BASS_ROTATION = 0.6
 const DEFAULT_SEGMENT_REACTIVITY = 0.75
@@ -164,6 +166,7 @@ interface FrameConfig {
   readonly segmentBankPhase: number
   readonly effectsIntensity: number
   readonly autoPerformance: boolean
+  readonly bpmSync: boolean
   readonly patternChange: Cinema2InterlockPatternChangeId
   readonly masterReactivity: number
   readonly bassRotation: number
@@ -265,6 +268,9 @@ function validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2Modu
   }
   if (parameters.autoPerformance !== undefined && typeof parameters.autoPerformance !== 'boolean') {
     diagnostics.push(diagnostic('CINEMA2_INTERLOCK_AUTO_PERFORMANCE_INVALID', '$.parameters.autoPerformance', 'Interlock Auto Performance must be boolean.'))
+  }
+  if (parameters.bpmSync !== undefined && typeof parameters.bpmSync !== 'boolean') {
+    diagnostics.push(diagnostic('CINEMA2_INTERLOCK_BPM_SYNC_INVALID', '$.parameters.bpmSync', 'Interlock BPM Sync must be boolean.'))
   }
   if (parameters.patternChange !== undefined && !isPatternChange(parameters.patternChange)) {
     diagnostics.push(diagnostic('CINEMA2_INTERLOCK_PATTERN_CHANGE_INVALID', '$.parameters.patternChange', `Interlock Pattern Change must be one of: ${CINEMA2_INTERLOCK_PATTERN_CHANGE_IDS.join(', ')}.`))
@@ -490,7 +496,7 @@ export const cinema2InterlockNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           config = readFrameConfig(updateContext)
           const viewport = normalizeViewport(frame)
           const nextViewportKey = viewportKey(viewport)
-          const clock = clockResolver.resolve(frame)
+          const clock = clockResolver.resolve(frame, config.bpmSync)
           const currentTimeSec = frame.audio?.upstream.timeSec ?? frame.transport?.timeSec ?? frame.elapsedTimeSec
           const discontinuity = Boolean(frame.audio?.discontinuity.occurred && frame.audio.discontinuity.reason !== 'activation')
           const backwards = lastTimeSec != null && currentTimeSec < lastTimeSec - 1e-6
@@ -714,6 +720,7 @@ function readFrameConfig(
     segmentBankPhase: clamp01(numberValue(source.parameters.get('segmentBankPhase'), DEFAULT_SEGMENT_BANK_PHASE)),
     effectsIntensity: clamp01(numberValue(source.parameters.get('effectsIntensity'), DEFAULT_EFFECTS_INTENSITY)),
     autoPerformance: booleanValue(source.parameters.get('autoPerformance'), DEFAULT_AUTO_PERFORMANCE),
+    bpmSync: booleanValue(source.parameters.get('bpmSync'), DEFAULT_BPM_SYNC),
     patternChange: isPatternChange(source.parameters.get('patternChange')) ? source.parameters.get('patternChange') as Cinema2InterlockPatternChangeId : 'phrase',
     masterReactivity: clamp01(numberValue(source.parameters.get('masterReactivity'), DEFAULT_MASTER_REACTIVITY)),
     bassRotation: clamp01(numberValue(source.parameters.get('bassRotation'), DEFAULT_BASS_ROTATION)),
@@ -924,6 +931,7 @@ export const CINEMA2_INTERLOCK_NATIVE_DEFAULTS = Object.freeze({
   segmentBankPhase: DEFAULT_SEGMENT_BANK_PHASE,
   effectsIntensity: DEFAULT_EFFECTS_INTENSITY,
   autoPerformance: DEFAULT_AUTO_PERFORMANCE,
+  bpmSync: DEFAULT_BPM_SYNC,
   patternChange: 'phrase' as Cinema2InterlockPatternChangeId,
   masterReactivity: DEFAULT_MASTER_REACTIVITY,
   bassRotation: DEFAULT_BASS_ROTATION,

@@ -45,6 +45,7 @@ export const CINEMA2_INTERLOCK_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>(
 
 export const CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID = cinema2StableId<Cinema2ParameterId>('interlock-pattern')
 export const CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID = cinema2StableId<Cinema2ParameterId>('interlock-auto-performance')
+export const CINEMA2_INTERLOCK_BPM_SYNC_ID = cinema2StableId<Cinema2ParameterId>('interlock-bpm-sync')
 export const CINEMA2_INTERLOCK_PATTERN_CHANGE_ID = cinema2StableId<Cinema2ParameterId>('interlock-pattern-change')
 export const CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID = cinema2StableId<Cinema2ParameterId>('interlock-master-reactivity')
 export const CINEMA2_INTERLOCK_BASS_ROTATION_ID = cinema2StableId<Cinema2ParameterId>('interlock-bass-rotation')
@@ -243,6 +244,15 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.autoPerformance,
       description: 'Lets Interlock choose deterministic layouts and segment programs from shared Audio Intelligence and Visual Director meaning.',
       section: 'Scene', group: 'Performance', designParentGroup: 'master-controls' as const, order: 11,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
+      id: CINEMA2_INTERLOCK_BPM_SYNC_ID,
+      label: 'BPM Sync',
+      type: 'boolean' as const,
+      defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.bpmSync,
+      description: 'Narrows the global Audio Dock Sync preference to this preset: on follows it, off always runs free-running motion regardless of the transport-wide toggle.',
+      section: 'Scene', group: 'Performance', designParentGroup: 'master-controls' as const, order: 12,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -518,6 +528,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         backgroundBuild: CINEMA2_INTERLOCK_LIQUID_LIGHT_DEFAULTS.backgroundBuild,
         backgroundDropImpact: CINEMA2_INTERLOCK_LIQUID_LIGHT_DEFAULTS.backgroundDropImpact,
         backgroundVocalRestraint: CINEMA2_INTERLOCK_LIQUID_LIGHT_DEFAULTS.backgroundVocalRestraint,
+        bpmSync: CINEMA2_INTERLOCK_LIQUID_LIGHT_DEFAULTS.bpmSync,
       }),
       parameterBindings: Object.freeze({
         paletteMode: cinema2Ref(CINEMA2_INTERLOCK_BACKGROUND_PALETTE_MODE_ID),
@@ -528,6 +539,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         flow: cinema2Ref(CINEMA2_INTERLOCK_BACKGROUND_FLOW_ID),
         centerGlow: cinema2Ref(CINEMA2_INTERLOCK_CENTER_GLOW_ID),
         edgeDarkness: cinema2Ref(CINEMA2_INTERLOCK_EDGE_DARKNESS_ID),
+        bpmSync: cinema2Ref(CINEMA2_INTERLOCK_BPM_SYNC_ID),
       }),
     }),
     Object.freeze({
@@ -558,6 +570,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         segmentBankPhase: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentBankPhase,
         effectsIntensity: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.effectsIntensity,
         autoPerformance: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.autoPerformance,
+        bpmSync: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.bpmSync,
         patternChange: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.patternChange,
         masterReactivity: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.masterReactivity,
         bassRotation: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.bassRotation,
@@ -588,6 +601,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         mirrorSegmentDirection: cinema2Ref(CINEMA2_INTERLOCK_MIRROR_SEGMENT_DIRECTION_ID),
         effectsIntensity: cinema2Ref(CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID),
         autoPerformance: cinema2Ref(CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID),
+        bpmSync: cinema2Ref(CINEMA2_INTERLOCK_BPM_SYNC_ID),
         patternChange: cinema2Ref(CINEMA2_INTERLOCK_PATTERN_CHANGE_ID),
         masterReactivity: cinema2Ref(CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID),
         bassRotation: cinema2Ref(CINEMA2_INTERLOCK_BASS_ROTATION_ID),

@@ -12,6 +12,7 @@ import type {
   Cinema2ModuleRenderExecutionContext,
   Cinema2ModuleTypeDefinition,
 } from './Cinema2ModuleContracts'
+import { Cinema2SyncedMotionClockResolver } from './Cinema2SyncedMotionClock'
 
 export const CINEMA2_REACTOR_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('reactor-native-render')
 export const CINEMA2_REACTOR_NATIVE_MODULE_VERSION = 3 as const
@@ -275,8 +276,8 @@ function validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2Modu
     })])
   }
   const required = variant === 'generator'
-    ? ['coreSize', 'coreIntensity', 'rotationSpeed', 'rayDensity', 'energyResponse', 'buildResponse', 'buildContraction', 'bassResponse', 'impactBurst', 'mediaInfluence', 'backgroundColor', 'primaryColor', 'secondaryColor', 'accentColor']
-    : ['refraction', 'edgeGlow', 'impactResponse', 'refractionPulse', 'shockwaveIntensity', 'shockwavePulse', 'accentColor']
+    ? ['coreSize', 'coreIntensity', 'rotationSpeed', 'rayDensity', 'energyResponse', 'buildResponse', 'buildContraction', 'bassResponse', 'impactBurst', 'mediaInfluence', 'backgroundColor', 'primaryColor', 'secondaryColor', 'accentColor', 'bpmSync']
+    : ['refraction', 'edgeGlow', 'impactResponse', 'refractionPulse', 'shockwaveIntensity', 'shockwavePulse', 'accentColor', 'bpmSync']
   const diagnostics: Cinema2ModuleDiagnostic[] = []
   for (const property of required) {
     if (module.parameters?.[property] === undefined) {
@@ -293,6 +294,11 @@ function validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2Modu
 function numberValue(context: Cinema2ModuleCreateContext, name: string, fallback: number): number {
   const value = context.parameters.get(name)
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function booleanValue(context: Cinema2ModuleCreateContext, name: string, fallback: boolean): boolean {
+  const value = context.parameters.get(name)
+  return typeof value === 'boolean' ? value : fallback
 }
 
 function colorValue(context: Cinema2ModuleCreateContext, name: string, fallback: readonly [number, number, number, number]): readonly [number, number, number, number] {
@@ -337,6 +343,7 @@ export const cinema2ReactorNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
     const variant = readVariant(context.module)
     if (!variant) throw new Error('Reactor native render module was activated without a valid variant.')
     const patternSeed = context.randomness.sample('reactor-pattern-seed') * 997
+    const motionClock = new Cinema2SyncedMotionClockResolver()
     const provider = Object.freeze({
       id: `${context.module.id}:${variant}`,
       moduleId: context.module.id,
@@ -356,7 +363,9 @@ export const cinema2ReactorNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
         )
         program.activate()
         program.setVec2('u_resolution', width, height)
-        program.setFloat('u_time', frame.elapsedTimeSec)
+        const bpmSync = booleanValue(context, 'bpmSync', true)
+        const syncedTimeSec = motionClock.resolve(frame, bpmSync).syncedTimeSec
+        program.setFloat('u_time', syncedTimeSec)
 
         if (variant === 'generator') {
           const background = colorValue(context, 'backgroundColor', [0.006, 0.009, 0.016, 1])
@@ -416,7 +425,7 @@ export const cinema2ReactorNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
     })
 
     return {
-      lifecycle: { update: () => {}, dispose: () => {} },
+      lifecycle: { update: () => {}, dispose: () => motionClock.reset() },
       render: { providers: Object.freeze([provider]) },
     }
   },

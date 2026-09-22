@@ -21,6 +21,7 @@ import {
   CINEMA2_INTERLOCK_BACKGROUND_ACCENT_ID,
   CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID,
   CINEMA2_INTERLOCK_BACKGROUND_COLOR_ID,
+  CINEMA2_INTERLOCK_BPM_SYNC_ID,
   CINEMA2_INTERLOCK_BACKGROUND_FLOW_ID,
   CINEMA2_INTERLOCK_BACKGROUND_LAYER_ID,
   CINEMA2_INTERLOCK_BACKGROUND_MODULE_ID,
@@ -73,6 +74,7 @@ const AVAILABLE_CAPABILITIES = Object.freeze(['render.webgl2', 'render.history',
 const PERSISTED_PARAMETER_IDS = Object.freeze([
   CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID,
   CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID,
+  CINEMA2_INTERLOCK_BPM_SYNC_ID,
   CINEMA2_INTERLOCK_SYMMETRY_ID,
   CINEMA2_INTERLOCK_LED_COLOR_ID,
   CINEMA2_INTERLOCK_LED_INTENSITY_ID,
@@ -151,7 +153,10 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID)?.options?.map(option => option.value)).toEqual(CINEMA2_INTERLOCK_PATTERN_IDS)
     expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_PATTERN_CHANGE_ID)).toMatchObject({ section: 'Scene', group: 'Layout', designParentGroup: 'design' })
     expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_BANK_STAGGER_ID)).toMatchObject({ section: 'Motion', group: 'Segments', designParentGroup: 'design', persistence: 'preset' })
-    expect(definitions.filter(definition => /sync|bpm/i.test(definition.label))).toEqual([])
+    expect(definitions.filter(definition => /sync|bpm/i.test(definition.label))).toHaveLength(1)
+    expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_BPM_SYNC_ID)).toMatchObject({
+      label: 'BPM Sync', type: 'boolean', defaultValue: true, section: 'Scene', group: 'Performance', designParentGroup: 'master-controls',
+    })
 
     const state = new Cinema2ParameterState(plan.parameters)
     const parents = createCinema2DesignParentGroupModel(plan, state.getSnapshot())
@@ -166,6 +171,7 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(parents.map(parent => parent.label)).toEqual(['Master Controls', 'Design', 'Effects', 'Palette'])
     expect(labelsFor('Master Controls')).toEqual([
       'Auto Performance',
+      'BPM Sync',
       'LED Intensity',
       'Master Reactivity',
       'Bass Rotation',

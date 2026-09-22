@@ -21,6 +21,7 @@ import {
 } from './Cinema2ElectricStormStrikeGenerator'
 import { Cinema2ElectricStormThunderController } from './Cinema2ElectricStormThunder'
 import type { Cinema2DispatchedTargetAction } from '../parameters/Cinema2TargetRuntime'
+import { Cinema2SyncedMotionClockResolver } from './Cinema2SyncedMotionClock'
 
 export const CINEMA2_ELECTRIC_STORM_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('electric-storm-native-render')
 export const CINEMA2_ELECTRIC_STORM_NATIVE_MODULE_VERSION = 2 as const
@@ -186,7 +187,7 @@ void main() {
 const REQUIRED_PARAMETERS = [
   'lightningColor', 'masterIntensity', 'strikeRate', 'branching', 'thickness', 'glow', 'impactShake', 'zoomPunch',
   'musicReactivity', 'kickReaction', 'transientReaction', 'dropReaction', 'structureReaction', 'flashIntensity', 'flashDuration', 'flashDecay',
-  'mediaInfluence',
+  'mediaInfluence', 'bpmSync',
 ] as const
 
 const MAX_PENDING_MUSICAL_STRIKES = 32
@@ -428,6 +429,8 @@ export const cinema2ElectricStormNativeModuleDefinition: Readonly<Cinema2ModuleT
     const pendingMusicalStrikes: PendingMusicalStrike[] = []
     let mediumSpectralBucket = Number.NaN
     let microSpectralBucket = Number.NaN
+    const motionClock = new Cinema2SyncedMotionClockResolver()
+    let syncedTimeSec = 0
 
     const provider = Object.freeze({
       id: `${context.module.id}:electric-storm`,
@@ -443,7 +446,7 @@ export const cinema2ElectricStormNativeModuleDefinition: Readonly<Cinema2ModuleT
         const fogColor = fog?.color ?? background
         program.activate()
         program.setVec2('u_resolution', width, height)
-        program.setFloat('u_time', frame.elapsedTimeSec)
+        program.setFloat('u_time', syncedTimeSec)
         program.setVec3('u_background', background[0], background[1], background[2])
         program.setVec3('u_fogColor', fogColor[0], fogColor[1], fogColor[2])
         program.setFloat('u_fogDensity', fog?.density ?? 0)
@@ -483,6 +486,11 @@ export const cinema2ElectricStormNativeModuleDefinition: Readonly<Cinema2ModuleT
     return {
       lifecycle: {
         update: ({ frame, parameters }: Cinema2ModuleUpdateContext) => {
+          // Resolved unconditionally (including idle/no-source) so ambient
+          // u_time motion keeps advancing exactly as frame.elapsedTimeSec did
+          // before BPM Sync existed; only the rate changes when synced.
+          const bpmSync = parameters.get('bpmSync') !== false
+          syncedTimeSec = motionClock.resolve(frame, bpmSync).syncedTimeSec
           if (frame.transport && !frame.transport.sourcePresent) {
             strikeGenerator.reset()
             thunder.reset()
@@ -596,6 +604,8 @@ export const cinema2ElectricStormNativeModuleDefinition: Readonly<Cinema2ModuleT
           mediumSpectralBucket = Number.NaN
           microSpectralBucket = Number.NaN
           thunderFlash = 0
+          motionClock.reset()
+          syncedTimeSec = 0
         },
       },
       handleAction: (action: string, event: Readonly<Cinema2DispatchedTargetAction>) => {

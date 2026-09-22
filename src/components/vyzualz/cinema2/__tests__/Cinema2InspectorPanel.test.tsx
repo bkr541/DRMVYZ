@@ -211,6 +211,7 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     expect(parents.map(parent => parent.label)).toEqual(['Master Controls', 'Design', 'Effects', 'Palette'])
     expect(labelsFor('Master Controls')).toEqual([
       'Master Intensity',
+      'BPM Sync',
       'Music Reactivity',
       'Kick Reaction',
       'Transient Reaction',
@@ -223,7 +224,7 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     expect(parents.flatMap(parent => [
       ...parent.controls,
       ...parent.groups.flatMap(group => group.controls),
-    ])).toHaveLength(19)
+    ])).toHaveLength(20)
 
     const legacyDesignControls = createCinema2InspectorModel(result.plan, state.getSnapshot(), 'design')
       .flatMap(section => section.groups.flatMap(group => group.controls))
@@ -276,6 +277,7 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     expect(reactorParents.find(parent => parent.id === 'master-controls')?.controls.map(control => control.definition.label)).toEqual([
       'Reactivity',
       'Build Contraction',
+      'BPM Sync',
     ])
     expect(reactorParents.find(parent => parent.id === 'design')?.groups.map(group => group.label)).toEqual(['Core', 'Shrapnel', 'Composite'])
     expect(reactorParents.find(parent => parent.id === 'effects')?.controls.map(control => control.definition.label)).toEqual([
@@ -298,6 +300,7 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     expect(interlockParents.map(parent => parent.label)).toEqual(['Master Controls', 'Design', 'Effects', 'Palette'])
     expect(interlockParents.find(parent => parent.id === 'master-controls')?.controls.map(control => control.definition.label)).toEqual([
       'Auto Performance',
+      'BPM Sync',
       'LED Intensity',
       'Master Reactivity',
       'Bass Rotation',

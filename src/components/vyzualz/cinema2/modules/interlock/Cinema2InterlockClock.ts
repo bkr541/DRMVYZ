@@ -51,8 +51,11 @@ export class Cinema2InterlockClockResolver {
   private lastIdentity = ''
   private reanchorGeneration = 0
 
-  resolve(frame: Readonly<Cinema2ModuleFrameReadContext>): Readonly<Cinema2InterlockClockFrame> {
-    const syncEnabled = frame.transport?.bpmSync === true
+  resolve(frame: Readonly<Cinema2ModuleFrameReadContext>, presetSyncEnabled = true): Readonly<Cinema2InterlockClockFrame> {
+    // The authored BPM Sync toggle only ever narrows the global Audio Dock
+    // Sync preference: off forces free-running even while the transport-wide
+    // toggle is on, but it can never turn sync on by itself.
+    const syncEnabled = presetSyncEnabled && frame.transport?.bpmSync === true
     const active = animationActive(frame)
     const deltaTimeSec = active ? finiteNonNegative(frame.deltaTimeSec) : 0
     const transportTimeSec = finiteNonNegative(frame.transport?.timeSec ?? frame.elapsedTimeSec)

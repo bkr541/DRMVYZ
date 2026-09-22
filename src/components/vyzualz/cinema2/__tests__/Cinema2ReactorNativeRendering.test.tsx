@@ -155,7 +155,7 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
     const refractionTarget = compiled.plan.targets.targets.find(target => target.kind === 'module' && target.ownerId === 'reactor-composite' && target.property === 'refraction')
     expect(coreTarget?.parameterId).toBe(CINEMA2_REACTOR_CORE_SIZE_ID)
     expect(refractionTarget?.parameterId).toBe(CINEMA2_REACTOR_REFRACTION_ID)
-    expect(compiled.plan.targets.choreographyTargets).toHaveLength(9)
+    expect(compiled.plan.targets.choreographyTargets).toHaveLength(10)
   })
 
   it('uses engine-owned quality scaling and namespaced randomness for production rendering', () => {

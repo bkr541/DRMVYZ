@@ -32,6 +32,7 @@ export const CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID = cinema2StableId<Cinema2Para
 export const CINEMA2_REACTOR_BLOOM_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('reactor-bloom-intensity')
 export const CINEMA2_REACTOR_RESET_TRAILS_ID = cinema2StableId<Cinema2ParameterId>('reactor-reset-trails')
 export const CINEMA2_REACTOR_REACTIVITY_ID = cinema2StableId<Cinema2ParameterId>('reactor-reactivity')
+export const CINEMA2_REACTOR_BPM_SYNC_ID = cinema2StableId<Cinema2ParameterId>('reactor-bpm-sync')
 export const CINEMA2_REACTOR_ROTATION_SPEED_ID = cinema2StableId<Cinema2ParameterId>('reactor-rotation-speed')
 export const CINEMA2_REACTOR_BUILD_CONTRACTION_ID = cinema2StableId<Cinema2ParameterId>('reactor-build-contraction')
 export const CINEMA2_REACTOR_SHOCKWAVE_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('reactor-shockwave-intensity')
@@ -222,6 +223,15 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
+      id: CINEMA2_REACTOR_BPM_SYNC_ID,
+      label: 'BPM Sync',
+      type: 'boolean' as const,
+      defaultValue: true,
+      description: 'Locks the reactor\'s continuous motion (spin, wobble, turbulence) to the analyzed or global Audio Dock Sync tempo instead of raw elapsed time.',
+      section: 'Design', group: 'Response', designParentGroup: 'master-controls' as const, order: 12,
+      exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
+    }),
+    Object.freeze({
       id: CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID,
       label: 'Persistence',
       type: 'float' as const,
@@ -285,6 +295,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
         primaryColor: Object.freeze([0.08, 0.62, 1, 1]),
         secondaryColor: Object.freeze([0.36, 0.18, 0.95, 1]),
         accentColor: Object.freeze([1, 0.24, 0.58, 1]),
+        bpmSync: true,
       }),
       parameterBindings: Object.freeze({
         coreSize: cinema2Ref(CINEMA2_REACTOR_CORE_SIZE_ID),
@@ -296,6 +307,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
         primaryColor: cinema2Ref(CINEMA2_REACTOR_PRIMARY_COLOR_ID),
         secondaryColor: cinema2Ref(CINEMA2_REACTOR_SECONDARY_COLOR_ID),
         accentColor: cinema2Ref(CINEMA2_REACTOR_ACCENT_COLOR_ID),
+        bpmSync: cinema2Ref(CINEMA2_REACTOR_BPM_SYNC_ID),
       }),
       media: Object.freeze({
         userMedia: cinema2Ref(CINEMA2_REACTOR_USER_MEDIA_SLOT_ID),
@@ -317,11 +329,13 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
         shockwaveIntensity: 1.2,
         shockwavePulse: 0,
         accentColor: Object.freeze([1, 0.24, 0.58, 1]),
+        bpmSync: true,
       }),
       parameterBindings: Object.freeze({
         refraction: cinema2Ref(CINEMA2_REACTOR_REFRACTION_ID),
         shockwaveIntensity: cinema2Ref(CINEMA2_REACTOR_SHOCKWAVE_INTENSITY_ID),
         accentColor: cinema2Ref(CINEMA2_REACTOR_ACCENT_COLOR_ID),
+        bpmSync: cinema2Ref(CINEMA2_REACTOR_BPM_SYNC_ID),
       }),
       config: Object.freeze({ variant: 'composite' }),
     }),
