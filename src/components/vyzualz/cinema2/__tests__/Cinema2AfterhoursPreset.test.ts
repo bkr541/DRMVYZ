@@ -276,7 +276,7 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     ]))
   })
 
-  it('projects the exact four Design parents while preserving React and conditional palette behavior', () => {
+  it('projects the exact four Design parents with an empty React tab and conditional palette behavior', () => {
     const plan = compileAfterhours()
     const state = new Cinema2ParameterState(plan.parameters)
     const parents = createCinema2DesignParentGroupModel(plan, state.getSnapshot())
@@ -290,7 +290,7 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     }
 
     expect(parents.map(parent => parent.label)).toEqual(['Master Controls', 'Design', 'Effects', 'Palette'])
-    expect(labelsFor('Master Controls')).toEqual(['Auto Performance', 'Master Intensity'])
+    expect(labelsFor('Master Controls')).toEqual(['Auto Performance', 'Master Intensity', 'BPM Sync'])
     expect(parents.find(parent => parent.label === 'Design')?.groups.map(group => group.label)).toEqual(['Rig', 'Pattern', 'Motion'])
     expect(labelsFor('Design')).toEqual([
       'Side Lasers',
@@ -302,18 +302,18 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
       'Spread',
       'Motion Amount',
     ])
-    expect(labelsFor('Effects')).toEqual(['Atmosphere'])
+    expect(labelsFor('Effects')).toEqual(['Atmosphere', 'Trigger', 'Pulse Amount', 'Pulse Decay', 'Blackout Amount'])
     expect(labelsFor('Palette')).toEqual(['Background', 'Color Mode', 'Primary Color', 'Accent Color', 'Accent Mix'])
     expect(parents.flatMap(parent => [
       ...parent.controls,
       ...parent.groups.flatMap(group => group.controls),
-    ])).toHaveLength(16)
+    ])).toHaveLength(21)
     expect(createCinema2InspectorModel(plan, state.getSnapshot(), 'design')).toEqual([])
 
-    const reactGroups = react.flatMap(section => section.groups.map(group => group.label))
-    const reactLabels = react.flatMap(section => section.groups.flatMap(group => group.controls.map(control => control.definition.label)))
-    expect(reactGroups).toEqual(expect.arrayContaining(['Reactivity', 'Structure']))
-    expect(reactLabels).toEqual(['BPM Sync', 'Trigger', 'Pulse Amount', 'Pulse Decay', 'Blackout Amount'])
+    // BPM Sync, Trigger, Pulse Amount, Pulse Decay, and Blackout Amount were
+    // the only React-tab parameters Afterhours authored; moving them all
+    // under Design's Master Controls/Effects parents leaves React empty.
+    expect(react).toEqual([])
 
     const allControls = [
       ...parents.flatMap(parent => [
