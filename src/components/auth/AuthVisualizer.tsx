@@ -14,7 +14,7 @@ const DEEP = '6, 120, 160'
 const MAGENTA = '184, 79, 201'
 const GREEN = '97, 214, 170'
 
-const SCENE_MS = 6600
+const SCENE_MS = 4600
 const FADE_MS = 950
 const BPM = 124
 
