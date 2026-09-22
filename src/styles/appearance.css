@@ -287,6 +287,10 @@ body,
   color: var(--color-text-strong);
 }
 
+[data-theme] .vsm-nav-item.vsm-nav-signout {
+  color: var(--color-danger, #ef7373);
+}
+
 [data-theme] :is(
   .vz-header-sub,
   .vz-input-label,

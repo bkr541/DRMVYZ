@@ -2,6 +2,7 @@ import { DreamVizTextInput } from '../vyzualz/react/controls/DreamVizTextInput'
 import { AuthVisualizer } from './AuthVisualizer'
 import { useState } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
+import { setRememberSession } from '../../lib/authSessionStorage'
 import '../../styles/auth.css'
 
 // ── SVG emblem mark ───────────────────────────────────────────────────────────
@@ -226,21 +227,26 @@ function Checkbox({
 
 // ── Login form ────────────────────────────────────────────────────────────────
 
-function LoginForm({ onSuccess, onSwitch }: { onSuccess: () => void; onSwitch: () => void }) {
+function LoginForm({
+  onSuccess, onSwitch, onForgotPassword,
+}: {
+  onSuccess: () => void
+  onSwitch: () => void
+  onForgotPassword: () => void
+}) {
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [showPwd, setShowPwd]   = useState(false)
-  const [remember, setRemember] = useState(false)
+  const [remember, setRemember] = useState(true)
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
-
-  void remember // stored for future persistent session logic
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!email || !password) { setError('Please fill in all fields'); return }
     setError(null)
     setLoading(true)
+    setRememberSession(remember)
     const { error: err } = await supabase.auth.signInWithPassword({ email, password })
     setLoading(false)
     if (err) { setError(err.message); return }
@@ -268,7 +274,7 @@ function LoginForm({ onSuccess, onSwitch }: { onSuccess: () => void; onSwitch: (
 
       <div className="auth-form-row">
         <Checkbox checked={remember} onChange={setRemember}>Remember me</Checkbox>
-        <button type="button" className="auth-link">Forgot password?</button>
+        <button type="button" className="auth-link" onClick={onForgotPassword}>Forgot password?</button>
       </div>
 
       {error && <p className="auth-error">{error}</p>}
@@ -398,10 +404,158 @@ function SignupForm({ onSuccess, onSwitch }: { onSuccess: () => void; onSwitch: 
   )
 }
 
+// ── Reset password (request code + verify code) ─────────────────────────────
+
+function ResetPasswordForm({ onSwitch }: { onSwitch: () => void }) {
+  const [step, setStep]       = useState<'request' | 'verify'>('request')
+  const [email, setEmail]     = useState('')
+  const [code, setCode]       = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState<string | null>(null)
+
+  async function handleRequestCode(e: React.FormEvent) {
+    e.preventDefault()
+    if (!email) { setError('Enter your email'); return }
+    setError(null)
+    setLoading(true)
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email)
+    setLoading(false)
+    if (err) { setError(err.message); return }
+    setStep('verify')
+  }
+
+  async function handleVerifyCode(e: React.FormEvent) {
+    e.preventDefault()
+    if (!code) { setError('Enter the code from your email'); return }
+    setError(null)
+    setLoading(true)
+    const { error: err } = await supabase.auth.verifyOtp({ email, token: code, type: 'recovery' })
+    setLoading(false)
+    if (err) { setError(err.message); return }
+    // Success hands off to App's PASSWORD_RECOVERY auth-state handler, which
+    // swaps this whole screen for the "set new password" one.
+  }
+
+  if (step === 'request') {
+    return (
+      <form className="auth-form" onSubmit={handleRequestCode} noValidate>
+        <div className="auth-form-heading">
+          <h1 className="auth-form-title">Reset Password</h1>
+          <p className="auth-form-sub">We'll email you a code to reset your password</p>
+        </div>
+
+        <Field
+          label="EMAIL" type="email" placeholder="you@example.com"
+          value={email} onChange={setEmail} icon={<IconUser/>}
+          autoComplete="email"
+        />
+
+        {error && <p className="auth-error">{error}</p>}
+
+        <button className="auth-submit" type="submit" disabled={loading}>
+          {loading ? <span className="auth-spinner"/> : 'Send Code'}
+        </button>
+
+        <p className="auth-switch">
+          <button type="button" className="auth-link" onClick={onSwitch}>Back to Log In</button>
+        </p>
+      </form>
+    )
+  }
+
+  return (
+    <form className="auth-form" onSubmit={handleVerifyCode} noValidate>
+      <div className="auth-form-heading">
+        <h1 className="auth-form-title">Enter Code</h1>
+        <p className="auth-form-sub">
+          Enter the code we sent to <strong style={{ color: 'rgba(255,255,255,0.7)' }}>{email}</strong>
+        </p>
+      </div>
+
+      <Field
+        label="CODE" type="text" placeholder="123456"
+        value={code} onChange={setCode} icon={<IconLock/>}
+        autoComplete="one-time-code"
+      />
+
+      {error && <p className="auth-error">{error}</p>}
+
+      <button className="auth-submit" type="submit" disabled={loading}>
+        {loading ? <span className="auth-spinner"/> : 'Verify Code'}
+      </button>
+
+      <p className="auth-switch">
+        <button type="button" className="auth-link" onClick={() => setStep('request')}>Use a different email</button>
+      </p>
+    </form>
+  )
+}
+
+// ── Reset password (set new password, after code verification) ─────────────
+
+export function ResetPasswordCompletionScreen() {
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm]   = useState('')
+  const [showPwd, setShowPwd]   = useState(false)
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState<string | null>(null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (password.length < 6) { setError('Password must be at least 6 characters'); return }
+    if (password !== confirm) { setError('Passwords do not match'); return }
+    setError(null)
+    setLoading(true)
+    const { error: err } = await supabase.auth.updateUser({ password })
+    setLoading(false)
+    if (err) setError(err.message)
+    // On success, App's auth-state listener picks up the resulting
+    // USER_UPDATED event and moves on to the authenticated app.
+  }
+
+  return (
+    <div className="auth-root">
+      <div className="auth-panels">
+        <div className="auth-panel auth-panel--form">
+          <AuthLogo/>
+          <form className="auth-form" onSubmit={handleSubmit} noValidate>
+            <div className="auth-form-heading">
+              <h1 className="auth-form-title">Set New Password</h1>
+              <p className="auth-form-sub">Choose a new password for your account</p>
+            </div>
+
+            <Field
+              label="NEW PASSWORD" type="password" placeholder="••••••••"
+              value={password} onChange={setPassword} icon={<IconLock/>}
+              showToggle={{ visible: showPwd, onToggle: () => setShowPwd(p => !p) }}
+              autoComplete="new-password"
+            />
+            <Field
+              label="CONFIRM PASSWORD" type="password" placeholder="••••••••"
+              value={confirm} onChange={setConfirm} icon={<IconLock/>}
+              autoComplete="new-password"
+            />
+
+            {error && <p className="auth-error">{error}</p>}
+
+            <button className="auth-submit" type="submit" disabled={loading}>
+              {loading ? <span className="auth-spinner"/> : 'Set Password'}
+            </button>
+          </form>
+        </div>
+
+        <div className="auth-panel auth-panel--emblem">
+          <EmblemPanel/>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Auth page root ────────────────────────────────────────────────────────────
 
 export function AuthPage({ onAuth }: { onAuth: () => void }) {
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login')
 
   if (!supabaseConfigured) {
     return (
@@ -427,8 +581,14 @@ export function AuthPage({ onAuth }: { onAuth: () => void }) {
         <div className="auth-panel auth-panel--form">
           <AuthLogo compact={mode === 'signup'}/>
           {mode === 'login'
-            ? <LoginForm  onSuccess={onAuth} onSwitch={() => setMode('signup')}/>
-            : <SignupForm onSuccess={onAuth} onSwitch={() => setMode('login')} />
+            ? <LoginForm
+                onSuccess={onAuth}
+                onSwitch={() => setMode('signup')}
+                onForgotPassword={() => setMode('reset')}
+              />
+            : mode === 'signup'
+              ? <SignupForm onSuccess={onAuth} onSwitch={() => setMode('login')} />
+              : <ResetPasswordForm onSwitch={() => setMode('login')} />
           }
         </div>
 

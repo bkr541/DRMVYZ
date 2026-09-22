@@ -525,6 +525,13 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                 }}
               >{item.label}</button>
             ))}
+            <div className="vsm-nav-footer">
+              <button
+                type="button"
+                className="vsm-nav-item vsm-nav-signout"
+                onClick={() => { onClose(); void supabase.auth.signOut() }}
+              >Sign Out</button>
+            </div>
           </nav>
           <div
             id={`vsm-panel-${tab}`}
