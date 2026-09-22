@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
-import { createCinema2InspectorModel } from '../parameters/Cinema2InspectorModel'
+import { createCinema2DesignParentGroupModel, createCinema2InspectorModel } from '../parameters/Cinema2InspectorModel'
 import {
   CINEMA2_INTERLOCK_NATIVE_MODULE_TYPE_ID,
   CINEMA2_INTERLOCK_NATIVE_MODULE_VERSION,
@@ -132,7 +132,7 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(cinema2NativeModuleRegistry.validateModules(plan.manifest.modules ?? [])).toMatchObject({ ok: true })
   })
 
-  it('authors Stage 6 Auto Performance and reactivity controls through the shared schema with the required defaults', () => {
+  it('projects Interlock into the four Design parents without changing React, conditional palette, or authored control semantics', () => {
     const plan = compileInterlock()
     const definitions = plan.parameters.definitions
     const ids = definitions.map(definition => definition.id)
@@ -144,35 +144,83 @@ describe('Cinema 2.0 Interlock production preset', () => {
     expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID]).toBe(true)
     expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID]).toBe(0.75)
     expect(plan.parameters.authoredDefaults[CINEMA2_INTERLOCK_VOCAL_RESTRAINT_ID]).toBe(0.35)
-    expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID)).toMatchObject({ min: 0, max: 1 })
-    expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID)).toMatchObject({ min: 0, max: 1 })
-    expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_RESET_TRAILS_ID)).toMatchObject({ type: 'trigger', persistence: 'runtime-only', exposure: 'hidden' })
+    expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_BACKGROUND_ATMOSPHERE_ID)).toMatchObject({ min: 0, max: 1, designParentGroup: 'effects' })
+    expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_EFFECTS_INTENSITY_ID)).toMatchObject({ min: 0, max: 1, designParentGroup: 'effects' })
+    expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_RESET_TRAILS_ID)).toMatchObject({ type: 'trigger', persistence: 'runtime-only', exposure: 'hidden', designParentGroup: 'effects' })
+    expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID)).toMatchObject({ exposure: 'advanced', section: 'Advanced', group: 'Segments', designParentGroup: 'design' })
     expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_PATTERN_PARAMETER_ID)?.options?.map(option => option.value)).toEqual(CINEMA2_INTERLOCK_PATTERN_IDS)
-    expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_PATTERN_CHANGE_ID)).toMatchObject({ section: 'Scene', group: 'Performance' })
-    expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_BANK_STAGGER_ID)).toMatchObject({ section: 'Motion', group: 'Segments', persistence: 'preset' })
+    expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_PATTERN_CHANGE_ID)).toMatchObject({ section: 'Scene', group: 'Layout', designParentGroup: 'design' })
+    expect(definitions.find(definition => definition.id === CINEMA2_INTERLOCK_BANK_STAGGER_ID)).toMatchObject({ section: 'Motion', group: 'Segments', designParentGroup: 'design', persistence: 'preset' })
     expect(definitions.filter(definition => /sync|bpm/i.test(definition.label))).toEqual([])
 
     const state = new Cinema2ParameterState(plan.parameters)
-    const controls = createCinema2InspectorModel(plan, state.getSnapshot(), 'design')
-      .flatMap(section => section.groups)
-      .flatMap(group => group.controls)
-      .map(control => control.definition.id)
-    expect(controls).toEqual(expect.arrayContaining(PERSISTED_PARAMETER_IDS.filter(id =>
-      id !== CINEMA2_INTERLOCK_BACKGROUND_COLOR_ID && id !== CINEMA2_INTERLOCK_BACKGROUND_ACCENT_ID
-    )))
-    expect(controls).not.toContain(CINEMA2_INTERLOCK_BACKGROUND_COLOR_ID)
-    expect(controls).not.toContain(CINEMA2_INTERLOCK_BACKGROUND_ACCENT_ID)
-    expect(controls).not.toContain(CINEMA2_INTERLOCK_RESET_TRAILS_ID)
+    const parents = createCinema2DesignParentGroupModel(plan, state.getSnapshot())
+    const labelsFor = (parentLabel: string) => {
+      const parent = parents.find(candidate => candidate.label === parentLabel)
+      return [
+        ...(parent?.controls.map(control => control.definition.label) ?? []),
+        ...(parent?.groups.flatMap(group => group.controls.map(control => control.definition.label)) ?? []),
+      ]
+    }
+
+    expect(parents.map(parent => parent.label)).toEqual(['Master Controls', 'Design', 'Effects', 'Palette'])
+    expect(labelsFor('Master Controls')).toEqual(['Auto Performance', 'LED Intensity'])
+    expect(parents.find(parent => parent.label === 'Design')?.groups.map(group => group.label)).toEqual(['Layout', 'Segments', 'Motion'])
+    expect(labelsFor('Design')).toEqual([
+      'Pattern',
+      'Pattern Change',
+      'Symmetry',
+      'Segment Pattern',
+      'Lit Density',
+      'Segment Speed',
+      'Segment Fade',
+      'Bank Stagger',
+      'Mirror Segment Direction',
+      'Unlit Visibility',
+      'Rotation Amount',
+      'Morph Duration',
+    ])
+    expect(labelsFor('Effects')).toEqual(expect.arrayContaining([
+      'Effects Intensity',
+      'Segment Afterglow',
+      'Background Atmosphere',
+      'Center Glow',
+      'Edge Darkness',
+      'Background Flow',
+    ]))
+    expect(labelsFor('Effects')).toHaveLength(6)
+    expect(labelsFor('Palette')).toEqual(['LED Color', 'Background Palette'])
+    expect(createCinema2InspectorModel(plan, state.getSnapshot(), 'design')).toEqual([])
+
+    const projectedIds = parents.flatMap(parent => [
+      ...parent.controls,
+      ...parent.groups.flatMap(group => group.controls),
+    ]).map(control => control.definition.id)
+    expect(new Set(projectedIds).size).toBe(projectedIds.length)
+    expect(projectedIds).not.toContain(CINEMA2_INTERLOCK_RESET_TRAILS_ID)
+    expect(projectedIds).toContain(CINEMA2_INTERLOCK_UNLIT_VISIBILITY_ID)
+
+    const react = createCinema2InspectorModel(plan, state.getSnapshot(), 'react')
+    const reactIds = react.flatMap(section => section.groups.flatMap(group => group.controls.map(control => control.definition.id)))
+    expect(new Set(reactIds)).toEqual(new Set([
+      CINEMA2_INTERLOCK_MASTER_REACTIVITY_ID,
+      CINEMA2_INTERLOCK_BASS_ROTATION_ID,
+      CINEMA2_INTERLOCK_SEGMENT_REACTIVITY_ID,
+      CINEMA2_INTERLOCK_TRANSIENT_PULSE_ID,
+      CINEMA2_INTERLOCK_HIGH_SHIMMER_ID,
+      CINEMA2_INTERLOCK_BUILD_TENSION_ID,
+      CINEMA2_INTERLOCK_VOCAL_RESTRAINT_ID,
+      CINEMA2_INTERLOCK_TRIGGER_ID,
+    ]))
 
     expect(state.setPersistentValue(CINEMA2_INTERLOCK_BACKGROUND_PALETTE_MODE_ID, 'manual')).toMatchObject({ ok: true })
-    const manualControls = createCinema2InspectorModel(plan, state.getSnapshot(), 'design')
-      .flatMap(section => section.groups)
-      .flatMap(group => group.controls)
-      .map(control => control.definition.id)
-    expect(manualControls).toEqual(expect.arrayContaining([
-      CINEMA2_INTERLOCK_BACKGROUND_COLOR_ID,
-      CINEMA2_INTERLOCK_BACKGROUND_ACCENT_ID,
-    ]))
+    const manualParents = createCinema2DesignParentGroupModel(plan, state.getSnapshot())
+    expect(manualParents.find(parent => parent.label === 'Palette')?.controls.map(control => control.definition.label)).toEqual([
+      'LED Color',
+      'Background Palette',
+      'Background Color',
+      'Background Accent',
+    ])
   })
 
   it('atomically gives manual Pattern and Segment Pattern edits canonical authority over Auto Performance', () => {

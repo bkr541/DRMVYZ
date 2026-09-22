@@ -20,6 +20,12 @@ import {
   CINEMA2_ELECTRIC_STORM_HAZE_ID,
   CINEMA2_ELECTRIC_STORM_MASTER_INTENSITY_ID,
   CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST,
+  CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID,
+  CINEMA2_INTERLOCK_BACKGROUND_ACCENT_ID,
+  CINEMA2_INTERLOCK_BACKGROUND_COLOR_ID,
+  CINEMA2_INTERLOCK_BACKGROUND_PALETTE_MODE_ID,
+  CINEMA2_INTERLOCK_LED_INTENSITY_ID,
+  CINEMA2_INTERLOCK_RESET_TRAILS_ID,
   CINEMA2_INTERLOCK_PRESET_MANIFEST,
   CINEMA2_QUALITY_MODE_PARAMETER_ID,
   CINEMA2_REACTOR_PRESET_MANIFEST,
@@ -245,7 +251,7 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     runtime.dispose()
   })
 
-  it('keeps Reactor parent presentation generic while leaving Interlock on its existing path', () => {
+  it('keeps Reactor parent presentation generic while migrating Interlock through the same four-parent path', () => {
     const reactorResult = compileCinema2NativePreset(CINEMA2_REACTOR_PRESET_MANIFEST)
     expect(reactorResult.ok).toBe(true)
     if (!reactorResult.ok) return
@@ -272,10 +278,53 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     const state = new Cinema2ParameterState(result.plan.parameters)
-    expect(createCinema2DesignParentGroupModel(result.plan, state.getSnapshot()).every(parent => (
-      parent.controls.length === 0 && parent.groups.length === 0
-    ))).toBe(true)
-    expect(createCinema2InspectorModel(result.plan, state.getSnapshot(), 'design').length).toBeGreaterThan(0)
+    const interlockParents = createCinema2DesignParentGroupModel(result.plan, state.getSnapshot())
+    expect(interlockParents.map(parent => parent.label)).toEqual(['Master Controls', 'Design', 'Effects', 'Palette'])
+    expect(interlockParents.find(parent => parent.id === 'master-controls')?.controls.map(control => control.definition.label)).toEqual([
+      'Auto Performance',
+      'LED Intensity',
+    ])
+    expect(interlockParents.find(parent => parent.id === 'design')?.groups.map(group => group.label)).toEqual(['Layout', 'Segments', 'Motion'])
+    expect(createCinema2InspectorModel(result.plan, state.getSnapshot(), 'design')).toEqual([])
+  })
+
+  it('renders Interlock through the production Inspector path with four parents, no duplicates, and canonical edits', async () => {
+    const runtime = createRuntimeForManifest(CINEMA2_INTERLOCK_PRESET_MANIFEST)
+    await act(async () => root?.render(<Cinema2InspectorPanel runtime={runtime} surface="design" />))
+
+    expect([...(host?.querySelectorAll<HTMLElement>('[data-cinema2-parent-group]') ?? [])].map(element => element.dataset.cinema2ParentGroup)).toEqual([
+      'master-controls',
+      'design',
+      'effects',
+      'palette',
+    ])
+    expect(host?.querySelectorAll('[data-cinema2-section]')).toHaveLength(0)
+    expect(host?.querySelectorAll(`[data-cinema2-control-id="${CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID}"]`)).toHaveLength(1)
+    expect(host?.querySelectorAll(`[data-cinema2-control-id="${CINEMA2_INTERLOCK_RESET_TRAILS_ID}"]`)).toHaveLength(0)
+    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_INTERLOCK_BACKGROUND_COLOR_ID}"]`)).toBeNull()
+    expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_INTERLOCK_BACKGROUND_ACCENT_ID}"]`)).toBeNull()
+
+    const visibleControlIds = [...(host?.querySelectorAll<HTMLElement>('[data-cinema2-control-id]') ?? [])]
+      .map(element => element.dataset.cinema2ControlId)
+      .filter((value): value is string => value != null)
+    expect(new Set(visibleControlIds).size).toBe(visibleControlIds.length)
+
+    const ledIntensity = host?.querySelector<HTMLInputElement>(`#cinema2-parameter-${CINEMA2_INTERLOCK_LED_INTENSITY_ID}`)
+    expect(ledIntensity).not.toBeNull()
+    await act(async () => {
+      if (!ledIntensity) return
+      ledIntensity.value = '0.67'
+      ledIntensity.dispatchEvent(new Event('input', { bubbles: true }))
+      ledIntensity.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(runtime.getParameterState().getValue(CINEMA2_INTERLOCK_LED_INTENSITY_ID)).toBe(0.67)
+
+    expect(runtime.getParameterState().setPersistentValue(CINEMA2_INTERLOCK_BACKGROUND_PALETTE_MODE_ID, 'manual')).toMatchObject({ ok: true })
+    await act(async () => root?.render(<Cinema2InspectorPanel runtime={runtime} surface="design" />))
+    expect(host?.querySelectorAll(`[data-cinema2-control-id="${CINEMA2_INTERLOCK_BACKGROUND_COLOR_ID}"]`)).toHaveLength(1)
+    expect(host?.querySelectorAll(`[data-cinema2-control-id="${CINEMA2_INTERLOCK_BACKGROUND_ACCENT_ID}"]`)).toHaveLength(1)
+
+    runtime.dispose()
   })
 
   it('renders Afterhours through the real runtime Inspector with the four parents and no duplicate legacy controls', async () => {

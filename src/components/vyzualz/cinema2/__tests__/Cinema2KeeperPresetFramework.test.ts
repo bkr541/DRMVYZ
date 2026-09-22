@@ -11,6 +11,7 @@ import {
   cinema2NamespacedId,
   cinema2Ref,
   cinema2StableId,
+  createCinema2DesignParentGroupModel,
   createCinema2InspectorModel,
   validateCinema2PresetAuthoringConventions,
   type Cinema2FirstPartyPresetDeclaration,
@@ -48,6 +49,7 @@ function nextKeeperManifest(): Cinema2NativePresetManifest {
       step: 0.01,
       section: 'Design',
       group: 'Fixture',
+      designParentGroup: 'design',
       exposure: 'primary',
       persistence: 'preset',
       reset: 'authored-default',
@@ -93,6 +95,19 @@ describe('Cinema 2.0 keeper preset migration framework', () => {
     )
   })
 
+  it('catalog-drives the keeper Design-parent completeness guard without constraining reference or foundation manifests', () => {
+    const keepers = CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS.filter(declaration => declaration.role === 'keeper')
+    expect(keepers.length).toBeGreaterThan(0)
+
+    for (const declaration of keepers) {
+      const result = validateCinema2PresetAuthoringConventions(declaration)
+      expect(
+        result.diagnostics.filter(diagnostic => diagnostic.code === 'CINEMA2_PRESET_AUTHORING_DESIGN_PARENT_REQUIRED' || diagnostic.code === 'CINEMA2_PRESET_AUTHORING_DESIGN_PARENT_INVALID'),
+        declaration.manifest.id,
+      ).toEqual([])
+    }
+  })
+
   it('rejects undeclared nested capabilities and exposed controls that bypass schema bindings', () => {
     const missingCapability = nextKeeperManifest()
     missingCapability.parameters = [{
@@ -120,6 +135,32 @@ describe('Cinema 2.0 keeper preset migration framework', () => {
     ]))
   })
 
+  it('rejects a keeper Design control with a missing or invalid canonical parent classification', () => {
+    const missingParent = nextKeeperManifest()
+    missingParent.parameters = [{ ...missingParent.parameters![0], designParentGroup: undefined }]
+    const missingResult = validateCinema2PresetAuthoringConventions(keeperDeclaration(missingParent))
+    expect(missingResult.ok).toBe(false)
+    expect(missingResult.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'CINEMA2_PRESET_AUTHORING_DESIGN_PARENT_REQUIRED',
+        path: '$.parameters[0].designParentGroup',
+        message: expect.stringContaining(String(FIXTURE_GAIN_ID)),
+      }),
+    ]))
+
+    const invalidParent = nextKeeperManifest()
+    invalidParent.parameters = [{ ...invalidParent.parameters![0], designParentGroup: 'not-a-parent' as never }]
+    const invalidResult = validateCinema2PresetAuthoringConventions(keeperDeclaration(invalidParent))
+    expect(invalidResult.ok).toBe(false)
+    expect(invalidResult.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'CINEMA2_PRESET_AUTHORING_DESIGN_PARENT_INVALID',
+        path: '$.parameters[0].designParentGroup',
+        message: expect.stringContaining('not-a-parent'),
+      }),
+    ]))
+  })
+
   it('lets a new simple keeper register, appear in the generic Inspector, activate through the production runtime service, and retire tracked resources', () => {
     const manifest = nextKeeperManifest()
     expect(validateCinema2PresetAuthoringConventions(keeperDeclaration(manifest))).toMatchObject({ ok: true })
@@ -131,8 +172,12 @@ describe('Cinema 2.0 keeper preset migration framework', () => {
     if (!compilation.ok) throw new Error('Expected keeper fixture to compile')
 
     const parameterState = new Cinema2ParameterState(compilation.plan.parameters)
-    const inspector = createCinema2InspectorModel(compilation.plan, parameterState.getSnapshot(), 'design')
-    expect(inspector.flatMap(section => section.groups.flatMap(group => group.controls)).map(control => control.definition.id)).toContain(FIXTURE_GAIN_ID)
+    const parents = createCinema2DesignParentGroupModel(compilation.plan, parameterState.getSnapshot())
+    expect(parents.flatMap(parent => [
+      ...parent.controls,
+      ...parent.groups.flatMap(group => group.controls),
+    ]).map(control => control.definition.id)).toContain(FIXTURE_GAIN_ID)
+    expect(createCinema2InspectorModel(compilation.plan, parameterState.getSnapshot(), 'design')).toEqual([])
 
     const moduleRegistry = new Cinema2ModuleRegistry()
     expect(moduleRegistry.register({

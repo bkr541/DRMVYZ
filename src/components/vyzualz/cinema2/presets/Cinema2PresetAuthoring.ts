@@ -1,3 +1,4 @@
+import { CINEMA2_DESIGN_PARENT_GROUP_IDS } from '../contracts/Cinema2NativePresetManifest'
 import type {
   Cinema2CapabilityId,
   Cinema2CapabilityRequirement,
@@ -21,6 +22,8 @@ export interface Cinema2PresetAuthoringValidationResult {
   ok: boolean
   diagnostics: readonly Cinema2PresetDiagnostic[]
 }
+
+const DESIGN_PARENT_GROUPS = new Set<string>(CINEMA2_DESIGN_PARENT_GROUP_IDS)
 
 interface CapabilityUse {
   id: Cinema2CapabilityId
@@ -94,6 +97,27 @@ export function validateCinema2PresetAuthoringConventions(
   const consumers = collectParameterConsumers(manifest)
   for (const [index, parameter] of (manifest.parameters ?? []).entries()) {
     if (!isUserFacingParameter(parameter.exposure)) continue
+
+    if (
+      declaration.role === 'keeper'
+      && isDesignWorkspaceParameter(parameter.section)
+      && !isOutputWorkspaceParameter(parameter.id, parameter.section)
+    ) {
+      if (parameter.designParentGroup == null) {
+        diagnostics.push(error(
+          'CINEMA2_PRESET_AUTHORING_DESIGN_PARENT_REQUIRED',
+          `Keeper preset "${manifest.id}" user-facing Design parameter "${parameter.id}" must declare one of the four canonical Design parent groups.`,
+          `$.parameters[${index}].designParentGroup`,
+        ))
+      } else if (!DESIGN_PARENT_GROUPS.has(parameter.designParentGroup)) {
+        diagnostics.push(error(
+          'CINEMA2_PRESET_AUTHORING_DESIGN_PARENT_INVALID',
+          `Keeper preset "${manifest.id}" parameter "${parameter.id}" declares unsupported Design parent group "${String(parameter.designParentGroup)}".`,
+          `$.parameters[${index}].designParentGroup`,
+        ))
+      }
+    }
+
     if (parameter.id === CINEMA2_QUALITY_MODE_PARAMETER_ID) continue
     if (parameter.type === 'media' && parameter.mediaSlot != null) continue
     if (consumers.has(parameter.id)) continue
@@ -218,6 +242,14 @@ function collectParameterConsumers(manifest: Readonly<Cinema2NativePresetManifes
 
 function isUserFacingParameter(exposure: Cinema2ParameterExposure | undefined): boolean {
   return exposure !== 'hidden' && exposure !== 'diagnostic'
+}
+
+function isDesignWorkspaceParameter(section: string | undefined): boolean {
+  return section?.trim().toLowerCase() !== 'react'
+}
+
+function isOutputWorkspaceParameter(parameterId: Cinema2ParameterId, section: string | undefined): boolean {
+  return parameterId === CINEMA2_QUALITY_MODE_PARAMETER_ID || section?.trim().toLowerCase() === 'output'
 }
 
 function error(code: string, message: string, path: string): Cinema2PresetDiagnostic {

@@ -233,7 +233,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       options: PATTERN_OPTIONS,
       description: 'Choosing a Pattern takes manual layout authority and turns Auto Performance off.',
       metadata: Object.freeze({ userEditSetParameters: Object.freeze({ [CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID]: false }) }),
-      section: 'Scene', group: 'Layout', order: 10,
+      section: 'Scene', group: 'Layout', designParentGroup: 'design' as const, order: 10,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -242,7 +242,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'boolean' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.autoPerformance,
       description: 'Lets Interlock choose deterministic layouts and segment programs from shared Audio Intelligence and Visual Director meaning.',
-      section: 'Scene', group: 'Performance', order: 11,
+      section: 'Scene', group: 'Performance', designParentGroup: 'master-controls' as const, order: 11,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -251,7 +251,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'enum' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.patternChange,
       options: PATTERN_CHANGE_OPTIONS,
-      section: 'Scene', group: 'Performance', order: 12,
+      section: 'Scene', group: 'Layout', designParentGroup: 'design' as const, order: 12,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -260,7 +260,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'boolean' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.symmetry,
       description: 'Keeps paired fixture transition direction mirrored when enabled; disabling it releases paired transition direction while preserving the rigid rig.',
-      section: 'Scene', group: 'Layout', order: 13,
+      section: 'Scene', group: 'Layout', designParentGroup: 'design' as const, order: 13,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -268,7 +268,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       label: 'LED Color',
       type: 'color' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.ledColor,
-      section: 'Design', group: 'LED', order: 20,
+      section: 'Design', group: 'LED', designParentGroup: 'palette' as const, order: 20,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -277,7 +277,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.ledIntensity,
       min: 0, max: 1, step: 0.01,
-      section: 'Design', group: 'LED', order: 21,
+      section: 'Design', group: 'LED', designParentGroup: 'master-controls' as const, order: 21,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -288,7 +288,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       options: SEGMENT_PATTERN_OPTIONS,
       description: 'Choosing a Segment Pattern takes manual program authority and turns Auto Performance off.',
       metadata: Object.freeze({ userEditSetParameters: Object.freeze({ [CINEMA2_INTERLOCK_AUTO_PERFORMANCE_ID]: false }) }),
-      section: 'Design', group: 'Segments', order: 22,
+      section: 'Design', group: 'Segments', designParentGroup: 'design' as const, order: 22,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -297,7 +297,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.litDensity,
       min: 0.05, max: 1, step: 0.01,
-      section: 'Design', group: 'Segments', order: 23,
+      section: 'Design', group: 'Segments', designParentGroup: 'design' as const, order: 23,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -306,7 +306,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'enum' as const,
       defaultValue: CINEMA2_INTERLOCK_LIQUID_LIGHT_DEFAULTS.paletteMode,
       options: PALETTE_MODE_OPTIONS,
-      section: 'Design', group: 'Atmosphere', order: 24,
+      section: 'Design', group: 'Atmosphere', designParentGroup: 'palette' as const, order: 24,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -315,7 +315,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'color' as const,
       defaultValue: CINEMA2_INTERLOCK_LIQUID_LIGHT_DEFAULTS.backgroundColor,
       visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_INTERLOCK_BACKGROUND_PALETTE_MODE_ID, value: 'manual' })]),
-      section: 'Design', group: 'Atmosphere', order: 25,
+      section: 'Design', group: 'Atmosphere', designParentGroup: 'palette' as const, order: 25,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -324,7 +324,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'color' as const,
       defaultValue: CINEMA2_INTERLOCK_LIQUID_LIGHT_DEFAULTS.backgroundAccent,
       visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_INTERLOCK_BACKGROUND_PALETTE_MODE_ID, value: 'manual' })]),
-      section: 'Design', group: 'Atmosphere', order: 26,
+      section: 'Design', group: 'Atmosphere', designParentGroup: 'palette' as const, order: 26,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -333,7 +333,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_LIQUID_LIGHT_DEFAULTS.atmosphere,
       min: 0, max: 1, step: 0.01,
-      section: 'Design', group: 'Atmosphere', order: 27,
+      section: 'Design', group: 'Atmosphere', designParentGroup: 'effects' as const, order: 27,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -342,7 +342,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_LIQUID_LIGHT_DEFAULTS.centerGlow,
       min: 0, max: 1, step: 0.01,
-      section: 'Design', group: 'Atmosphere', order: 28,
+      section: 'Design', group: 'Atmosphere', designParentGroup: 'effects' as const, order: 28,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -351,7 +351,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_LIQUID_LIGHT_DEFAULTS.edgeDarkness,
       min: 0, max: 1, step: 0.01,
-      section: 'Design', group: 'Atmosphere', order: 29,
+      section: 'Design', group: 'Atmosphere', designParentGroup: 'effects' as const, order: 29,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -361,7 +361,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.rotationAmount,
       min: 0, max: 1, step: 0.01,
       description: 'Scales the additional legal-pivot angular excursion used while morphing between authored layouts.',
-      section: 'Motion', group: 'Morph', order: 30,
+      section: 'Motion', group: 'Motion', designParentGroup: 'design' as const, order: 30,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -370,7 +370,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.morphDuration,
       min: 0.25, max: 8, step: 0.05, unit: 's',
-      section: 'Motion', group: 'Morph', order: 31,
+      section: 'Motion', group: 'Motion', designParentGroup: 'design' as const, order: 31,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -379,7 +379,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentSpeed,
       min: 0, max: 1, step: 0.01,
-      section: 'Motion', group: 'Segments', order: 32,
+      section: 'Motion', group: 'Segments', designParentGroup: 'design' as const, order: 32,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -388,7 +388,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentFade,
       min: 0, max: 1, step: 0.01,
-      section: 'Motion', group: 'Segments', order: 33,
+      section: 'Motion', group: 'Segments', designParentGroup: 'design' as const, order: 33,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -398,7 +398,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentBankPhase,
       min: 0, max: 1, step: 0.01,
       description: 'Scales deterministic inter-bank timing: 0 moves banks together and 1 uses the full authored bank-delay spacing for layout morphs and Bank Ripple.',
-      section: 'Motion', group: 'Segments', order: 34,
+      section: 'Motion', group: 'Segments', designParentGroup: 'design' as const, order: 34,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -406,7 +406,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       label: 'Mirror Segment Direction',
       type: 'boolean' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.mirrorSegmentDirection,
-      section: 'Motion', group: 'Segments', order: 35,
+      section: 'Motion', group: 'Segments', designParentGroup: 'design' as const, order: 35,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -415,7 +415,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_LIQUID_LIGHT_DEFAULTS.flow,
       min: 0, max: 1, step: 0.01,
-      section: 'Motion', group: 'Atmosphere', order: 36,
+      section: 'Motion', group: 'Atmosphere', designParentGroup: 'effects' as const, order: 36,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -465,7 +465,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.effectsIntensity,
       min: 0, max: 1, step: 0.01,
       description: 'Master finishing strength for feedback trails, bloom, LED afterglow, and bounded impact enhancement.',
-      section: 'Effects', group: 'Master', order: 40,
+      section: 'Effects', group: 'Master', designParentGroup: 'effects' as const, order: 40,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
@@ -474,14 +474,14 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.segmentAfterglow,
       min: 0, max: 1, step: 0.01,
-      section: 'Effects', group: 'Segments', order: 41,
+      section: 'Effects', group: 'Segments', designParentGroup: 'effects' as const, order: 41,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
       id: CINEMA2_INTERLOCK_RESET_TRAILS_ID,
       label: 'Reset Trails',
       type: 'trigger' as const,
-      section: 'Effects', group: 'Trails', order: 49,
+      section: 'Effects', group: 'Trails', designParentGroup: 'effects' as const, order: 49,
       exposure: 'hidden' as const, persistence: 'runtime-only' as const, reset: 'none' as const,
     }),
     Object.freeze({
@@ -490,7 +490,7 @@ export const CINEMA2_INTERLOCK_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'float' as const,
       defaultValue: CINEMA2_INTERLOCK_NATIVE_DEFAULTS.unlitVisibility,
       min: 0, max: 0.15, step: 0.005,
-      section: 'Advanced', group: 'Segments', order: 50,
+      section: 'Advanced', group: 'Segments', designParentGroup: 'design' as const, order: 50,
       exposure: 'advanced' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
   ]),
