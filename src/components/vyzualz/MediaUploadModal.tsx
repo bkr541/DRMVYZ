@@ -1017,45 +1017,49 @@ export function MediaUploadModal({
                 <div className="mum-fields-row">
                   <div className="mum-field">
                     <label className="mum-field-label" htmlFor="mum-tags-input">TAGS</label>
-                    <div className="mum-chip-field">
-                      <TagChips tags={uploadDraft.tags} onRemove={removeTag} />
-                      <DreamVizTextInput
-                        id="mum-tags-input"
-                        className="mum-chip-input"
-                        placeholder="Type to add tags…"
-                        value={tagInput}
-                        onChange={e => setTagInput(e.target.value)}
-                        onKeyDown={handleTagKey}
-                        onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
-                      />
-                    </div>
+                    <DreamVizTextInput
+                      id="mum-tags-input"
+                      className="mum-chip-input"
+                      placeholder="Type to add tags…"
+                      value={tagInput}
+                      onChange={e => setTagInput(e.target.value)}
+                      onKeyDown={handleTagKey}
+                      onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
+                    />
+                    {uploadDraft.tags.length > 0 && (
+                      <div className="mum-chip-field">
+                        <TagChips tags={uploadDraft.tags} onRemove={removeTag} />
+                      </div>
+                    )}
                   </div>
 
                   <div className="mum-field">
                     <label className="mum-field-label">COLLECTIONS</label>
-                    <div className="mum-collection-dropdown-field">
-                      <CollectionChips
-                        ids={uploadDraft.collectionIds}
-                        collections={collections}
-                        onRemove={removeCollection}
-                      />
-                      <Dropdown
-                        id="media-collections"
-                        searchable
-                        searchValue={collInput}
-                        onSearchChange={setCollInput}
-                        value={null}
-                        options={collectionDropdownOptions}
-                        onChange={value => { void handleCollectionDropdownChange(value) }}
-                        placeholder="Type to search or create…"
-                        ariaLabel="Collections"
-                        menuLabel="Collections"
-                        size="compact"
-                        maxMenuHeight={260}
-                        showDescriptions={false}
-                        className="mum-collections-dropdown"
-                      />
-                    </div>
+                    <Dropdown
+                      id="media-collections"
+                      searchable
+                      searchValue={collInput}
+                      onSearchChange={setCollInput}
+                      value={null}
+                      options={collectionDropdownOptions}
+                      onChange={value => { void handleCollectionDropdownChange(value) }}
+                      placeholder="Type to search or create…"
+                      ariaLabel="Collections"
+                      menuLabel="Collections"
+                      size="compact"
+                      maxMenuHeight={260}
+                      showDescriptions={false}
+                      className="mum-collections-dropdown"
+                    />
+                    {uploadDraft.collectionIds.length > 0 && (
+                      <div className="mum-chip-field">
+                        <CollectionChips
+                          ids={uploadDraft.collectionIds}
+                          collections={collections}
+                          onRemove={removeCollection}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 

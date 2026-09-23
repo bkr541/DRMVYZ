@@ -363,29 +363,20 @@
 }
 
 /* Chip input — matches the Media Manager inspector's Tags & Collections
-   field (.mmi-chip-field / .mmi-chip-input in mediaManager.css): a plain
-   flex-wrap of pills followed by a small boxed text input, rather than one
-   bordered field enclosing everything. */
+   field (.mmi-chip-field / .mmi-chip-input in mediaManager.css): a full-width
+   input with the selected pills wrapped in a row beneath it. */
 .mum-chip-field {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 5px;
-  margin-bottom: 6px;
+  margin-top: 5px;
 }
 .mum-chip-input {
-  flex: 1;
-  min-width: 90px;
-}
-.mum-collection-dropdown-field {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 5px;
+  width: 100%;
 }
 .mum-collections-dropdown {
-  flex: 1 1 180px;
-  min-width: 140px;
+  width: 100%;
 }
 .mum-collections-dropdown .drm-dropdown__search-trigger {
   min-height: 36px;

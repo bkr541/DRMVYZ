@@ -7955,10 +7955,69 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   background: rgba(74, 199, 219, 0.06);
 }
 
+/* Audio Source popover — InfoPopover restyled to the Media Upload modal
+   (.mum-*): same panel surface, cyan-tinted border, tracked uppercase title +
+   subtitle header with a hairline divider, and .mum-field / UnderlineDropdown
+   controls in the body. */
+.drm-info-popover.vz-dock-source-popover {
+  --drm-info-border: rgba(103, 247, 255, 0.28);
+  --drm-info-divider: rgba(103, 247, 255, 0.16);
+  border-radius: 9px;
+  background: var(--color-panel-alt, #0b1115);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.55);
+}
+.vz-dock-source-popover::before { display: none; }
+.vz-dock-source-popover .drm-info-popover__header { padding: 16px 20px 12px; }
+.vz-dock-source-popover .drm-info-popover__header-row { gap: 8px; }
+.vz-dock-source-popover .drm-info-popover__header-icon {
+  width: 20px;
+  height: 20px;
+  flex-basis: 20px;
+  color: #19bff2;
+  filter: none;
+}
+.vz-dock-source-popover .drm-info-popover__header-icon > svg { width: 16px; height: 16px; }
+.vz-dock-source-popover .drm-info-popover__title {
+  font-family: var(--az-font);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #e8f4f8;
+}
+.vz-dock-source-popover .drm-info-popover__description {
+  margin-top: 3px;
+  font-family: var(--az-font);
+  font-size: 11px;
+  letter-spacing: 0;
+  color: rgba(196, 212, 220, 0.66);
+}
+.vz-dock-source-popover .drm-info-popover__close {
+  width: 24px;
+  height: 24px;
+  flex-basis: 24px;
+  border-radius: 4px;
+  color: rgba(245, 248, 250, 0.4);
+  align-self: flex-start;
+}
+.vz-dock-source-popover .drm-info-popover__close:hover {
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  color: rgba(245, 248, 250, 0.85);
+}
+.vz-dock-source-popover .drm-info-popover__body { padding: 16px 20px 20px; }
+.drm-info-popover-backdrop:has(+ .vz-dock-source-popover) {
+  background: rgba(4, 6, 8, 0.6);
+  backdrop-filter: none;
+}
+/* Dropdown menus portal to <body> at z-index 12000, under the popover (12200). */
+.drm-dropdown__menu.vz-dock-source-menu { z-index: 12300; }
+
 .vz-dock-source-popover-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-source-trigger {

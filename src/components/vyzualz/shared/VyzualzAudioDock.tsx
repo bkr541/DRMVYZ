@@ -24,6 +24,7 @@ import type { WaveformCueCreateRequest } from '../../../features/timeline/wavefo
 import { buildManualCueMarker } from '../../../features/timeline/manualCuePoint'
 import { cueMarkerBelongsToTrack } from '../../../types/cue'
 import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
+import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
 import { HelpInfoTrigger, InfoPopover } from '../../shared/InfoPopover'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import {
@@ -651,6 +652,38 @@ export function VyzualzAudioDock({
     </div>
   )
 
+  const rekordboxPopoverMenu = (
+    <div className="mum-field" aria-label="Rekordbox import tools">
+      <label className="mum-field-label" htmlFor={rekordboxActionSelectId}>REKORDBOX</label>
+      <UnderlineDropdown
+        triggerId={rekordboxActionSelectId}
+        value=""
+        placeholder={rekordboxBusy ? 'Reading…' : rekordboxUsbMode ? 'USB Mode Armed' : 'RB Tools'}
+        disabled={rekordboxBusy || trackSourceLocked}
+        onChange={action => {
+          if (action === 'xml') document.getElementById(rekordboxXmlInputId)?.click()
+          if (action === 'usb') void handleRekordboxUsbRoot()
+          if (action === 'mode') toggleRekordboxUsbMode()
+        }}
+        options={[
+          { value: 'xml', label: 'Import XML…' },
+          { value: 'usb', label: 'Scan USB…' },
+          { value: 'mode', label: rekordboxUsbMode ? 'Turn USB Mode Off' : 'Arm USB Mode' },
+        ]}
+        ariaLabel="Rekordbox"
+        menuLabel="Rekordbox"
+        menuClassName="vz-dock-source-menu"
+        size="compact"
+        showDescriptions={false}
+        title={trackSourceLocked
+          ? (sourceSelectionLocked
+            ? 'Rekordbox source rehydration is unavailable while in Show Manager'
+            : 'Rekordbox source rehydration is unavailable while Live Input is selected')
+          : 'Import Rekordbox metadata or arm USB Mode. USB Mode does not import cues unless XML or the native parser matches the track.'}
+      />
+    </div>
+  )
+
   return (
     <>
     {rekordboxMenuPortalTarget && createPortal(rekordboxMenu, rekordboxMenuPortalTarget)}
@@ -983,25 +1016,39 @@ export function VyzualzAudioDock({
               anchorRef={audioSourceTriggerRef}
               onOpenChange={setAudioSourcePopoverOpen}
               title="Audio Source"
+              headerIcon={(
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 7h10M4 17h6M18 17h2M14 7h6" />
+                  <circle cx="16" cy="7" r="2" />
+                  <circle cx="12" cy="17" r="2" />
+                </svg>
+              )}
+              description="Select the input and Rekordbox tools."
+              className="vz-dock-source-popover"
               placement="above"
               align="start"
-              width={220}
+              width={280}
             >
               <div className="vz-dock-source-popover-body">
-                <div className="vz-input-group">
-                  <label className="vz-input-label" htmlFor={audioSourceSelectId}>Input</label>
-                  <DropdownSelect
-                    id={audioSourceSelectId}
-                    className="az-select"
+                <div className="mum-field">
+                  <label className="mum-field-label" htmlFor={audioSourceSelectId}>INPUT</label>
+                  <UnderlineDropdown
+                    triggerId={audioSourceSelectId}
                     value={engine.source}
-                    onChange={e => engine.setSource(e.target.value as typeof engine.source)}
-                  >
-                    <option value="file">Track Input</option>
-                    <option value="microphone">Live Input</option>
-                    <option value="demo">Demo Signal</option>
-                  </DropdownSelect>
+                    onChange={value => engine.setSource(value as typeof engine.source)}
+                    options={[
+                      { value: 'file', label: 'Track Input' },
+                      { value: 'microphone', label: 'Live Input' },
+                      { value: 'demo', label: 'Demo Signal' },
+                    ]}
+                    ariaLabel="Input"
+                    menuLabel="Input"
+                    menuClassName="vz-dock-source-menu"
+                    size="compact"
+                    showDescriptions={false}
+                  />
                 </div>
-                {rekordboxMenu}
+                {rekordboxPopoverMenu}
               </div>
             </InfoPopover>
           </>

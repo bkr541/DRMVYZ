@@ -159,30 +159,27 @@ function VisualMediaInspector({ media }: { media: UploadedMedia }) {
           <span className="rv-ctrl-label-cluster">
             <label className="rv-ctrl-label" htmlFor="mmi-tags">Tags</label>
           </span>
-          <div className="mmi-chip-field">
-            {tags.map(tag => <Badge key={tag} label={tag} tone="#4ac7db" onRemove={() => removeTag(tag)} removeLabel="Remove tag" />)}
-            <DreamVizTextInput
-              id="mmi-tags"
-              className="mmi-chip-input"
-              placeholder="Type to add tags…"
-              value={tagInput}
-              onChange={event => setTagInput(event.target.value)}
-              onKeyDown={event => {
-                if (event.key === 'Enter' || event.key === ',') { event.preventDefault(); addTag(tagInput) }
-              }}
-              onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
-            />
-          </div>
+          <DreamVizTextInput
+            id="mmi-tags"
+            className="mmi-chip-input"
+            placeholder="Type to add tags…"
+            value={tagInput}
+            onChange={event => setTagInput(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === 'Enter' || event.key === ',') { event.preventDefault(); addTag(tagInput) }
+            }}
+            onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
+          />
+          {tags.length > 0 && (
+            <div className="mmi-chip-field">
+              {tags.map(tag => <Badge key={tag} label={tag} tone="#4ac7db" onRemove={() => removeTag(tag)} removeLabel="Remove tag" />)}
+            </div>
+          )}
         </div>
         <div className="rv-ctrl-row">
           <span className="rv-ctrl-label-cluster">
             <label className="rv-ctrl-label" htmlFor="mmi-collections">Collections</label>
           </span>
-          <div className="mmi-chip-field">
-            {collectionIds.map(id => (
-              <Badge key={id} label={collections.find(c => c.id === id)?.name ?? id} tone="#b84fc9" onRemove={() => removeCollectionId(id)} removeLabel="Remove collection" />
-            ))}
-          </div>
           <Dropdown
             id="mmi-collections"
             searchable
@@ -197,6 +194,13 @@ function VisualMediaInspector({ media }: { media: UploadedMedia }) {
             size="compact"
             showDescriptions={false}
           />
+          {collectionIds.length > 0 && (
+            <div className="mmi-chip-field">
+              {collectionIds.map(id => (
+                <Badge key={id} label={collections.find(c => c.id === id)?.name ?? id} tone="#b84fc9" onRemove={() => removeCollectionId(id)} removeLabel="Remove collection" />
+              ))}
+            </div>
+          )}
         </div>
       </Collapsible>
 
