@@ -29,12 +29,16 @@ import { PixGridMockup } from './layoutLab/PixGridMockup'
 import { PixGridRightRailMockup } from './layoutLab/PixGridRightRailMockup'
 import { SoundDrawingMockup } from './layoutLab/SoundDrawingMockup'
 import { SoundDrawingRightRailMockup } from './layoutLab/SoundDrawingRightRailMockup'
+import { Cinema2StillsFilmstripMockup } from './layoutLab/Cinema2StillsFilmstripMockup'
+import { Cinema2CanvasMockup } from './layoutLab/Cinema2CanvasMockup'
+import { Cinema2RightRailMockup } from './layoutLab/Cinema2RightRailMockup'
 import type { LayoutLabEngineId } from './layoutLab/layoutLabEngineCatalog'
 import { resolveLayoutLabComposition } from './layoutLab/layoutLabComposition'
 import { useCanvasMockState, type CanvasMockState } from './layoutLab/useCanvasMockState'
 import { useLaserDmxMockState, type LaserDmxMockState } from './layoutLab/useLaserDmxMockState'
 import { usePixGridMockState, type PixGridMockState } from './layoutLab/usePixGridMockState'
 import { useSoundDrawingMockState } from './layoutLab/useSoundDrawingMockState'
+import { useCinema2MockState } from './layoutLab/useCinema2MockState'
 import type { ReactLowerSurface } from './reactWorkspaceComposition'
 
 // ── LayoutLabMockup ────────────────────────────────────────────────────────
@@ -199,6 +203,7 @@ export function LayoutLabMockup() {
   const pixGridState = usePixGridMockState()
   const laserDmxState = useLaserDmxMockState()
   const canvasState = useCanvasMockState()
+  const cinema2State = useCinema2MockState()
 
   const handleSelectEngine = (id: LayoutLabEngineId) => {
     if (id === 'template' || id === 'lyricManager') {
@@ -231,6 +236,8 @@ export function LayoutLabMockup() {
             <LaserDmxMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={laserDmxState} />
           ) : engineId === 'canvas' ? (
             <CanvasMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={canvasState} />
+          ) : engineId === 'cinema2' ? (
+            <Cinema2StillsFilmstripMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={cinema2State} />
           ) : (
             <div className="rv-left-workspace-shell" data-description-density="compact">
               <section className="rv-context-workspace">
@@ -265,6 +272,7 @@ export function LayoutLabMockup() {
             {engineId === 'pixGrid' && <PixGridCanvasMockup state={pixGridState} />}
             {engineId === 'laserDmx' && <LaserDmxCanvasMockup state={laserDmxState} />}
             {engineId === 'canvas' && <CanvasCanvasMockup state={canvasState} />}
+            {engineId === 'cinema2' && <Cinema2CanvasMockup state={cinema2State} />}
             {engineId === 'template' && (
               <div className="llcm-stage-gallery">
                 <TrackHeaderStyleGallery />
@@ -378,6 +386,8 @@ export function LayoutLabMockup() {
             <LaserDmxRightRailMockup state={laserDmxState} />
           ) : engineId === 'canvas' ? (
             <CanvasRightRailMockup state={canvasState} onSelectEngine={handleSelectEngine} />
+          ) : engineId === 'cinema2' ? (
+            <Cinema2RightRailMockup state={cinema2State} />
           ) : (
             <>
               <RailTabs

@@ -14442,6 +14442,73 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   font: 600 8px/1.25 var(--az-font);
 }
 
+.rv-layout-lab-cinema2-canvas {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(74, 199, 219, 0.1), transparent 42%),
+    linear-gradient(180deg, rgba(1, 8, 12, 0.76), rgba(1, 5, 8, 0.95));
+}
+
+.rv-layout-lab-cinema2-stage {
+  position: relative;
+  width: min(56%, 560px);
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border: 1px solid rgba(103, 247, 255, 0.22);
+  border-radius: 8px;
+  background: #020608;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48), inset 0 0 48px rgba(33, 194, 218, 0.05);
+}
+
+.rv-layout-lab-cinema2-empty {
+  color: rgba(220, 241, 244, 0.45);
+  font: 500 12px/1.5 var(--az-font-data);
+  text-align: center;
+  max-width: 320px;
+}
+
+.rv-layout-lab-cinema2-canvas-status {
+  position: absolute;
+  left: 50%;
+  bottom: 7%;
+  min-width: 240px;
+  display: grid;
+  gap: 3px;
+  padding: 9px 12px;
+  border: 1px solid rgba(103, 247, 255, 0.16);
+  border-radius: 6px;
+  background: rgba(1, 8, 12, 0.88);
+  text-align: center;
+  transform: translateX(-50%);
+  backdrop-filter: blur(10px);
+}
+
+.rv-layout-lab-cinema2-canvas-status span {
+  color: rgba(103, 247, 255, 0.72);
+  font: 800 7px/1.2 var(--az-font);
+  letter-spacing: 0.14em;
+}
+
+.rv-layout-lab-cinema2-canvas-status strong {
+  color: #eafcff;
+  font: 800 11px/1.25 var(--az-font);
+}
+
+.rv-layout-lab-cinema2-canvas-status small {
+  color: rgba(220, 241, 244, 0.5);
+  font: 600 8px/1.25 var(--az-font);
+}
+
+.ll-c2-still-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .rv-layout-lab-media-browser {
   display: grid;
   gap: 10px;
@@ -17158,6 +17225,95 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   right: 10px;
   color: #f0b429;
   font-size: 13px;
+}
+
+/* Cinema 2.0 concept-preset thumbnail — a real (mock) still render instead
+   of the flat color-gradient placeholder other filmstrip thumbs use. */
+.ll-c2-preset-thumb {
+  overflow: hidden;
+  padding: 0;
+  background: #020508;
+}
+
+.ll-c2-preset-blurb {
+  overflow: hidden;
+  color: rgba(200, 220, 225, 0.55);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Cinema 2.0 left rail — ten-still concept filmstrip (contact sheet). */
+.ll-c2-stills-empty {
+  padding: 16px 14px;
+}
+
+.ll-c2-stills-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 2px;
+}
+
+.ll-c2-stills-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+.ll-c2-stills-heading-name {
+  color: rgba(232, 244, 248, 0.9);
+  font: 600 12px/1.3 var(--az-font-data);
+}
+
+.ll-c2-stills-heading-count {
+  color: rgba(103, 247, 255, 0.65);
+  font: 700 10px/1.3 var(--az-font-data);
+  letter-spacing: 0.04em;
+}
+
+.ll-c2-stills-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.ll-c2-still-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 7px;
+  background: transparent;
+}
+
+.ll-c2-still-tile:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(74, 199, 219, 0.3);
+}
+
+.ll-c2-still-tile.is-active {
+  border-color: #4ac7db;
+  background: rgba(74, 199, 219, 0.09);
+}
+
+.ll-c2-still-tile-frame {
+  display: block;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #020508;
+}
+
+.ll-c2-still-tile-label {
+  overflow: hidden;
+  color: rgba(210, 228, 232, 0.7);
+  font: 500 9px/1.3 var(--az-font-data);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 02 · Minimal List — no thumbnail, highest density. */
