@@ -29,8 +29,8 @@ in vec2 v_uv;
 uniform vec2 u_resolution;
 out vec4 outColor;
 
-const int SEGMENT_COUNT = 100;
-const vec4 HUMN_SEGMENTS[SEGMENT_COUNT] = vec4[SEGMENT_COUNT](
+const int PRIMARY_SEGMENT_COUNT = 100;
+const vec4 PRIMARY_SEGMENTS[PRIMARY_SEGMENT_COUNT] = vec4[PRIMARY_SEGMENT_COUNT](
   vec4(-0.182788, 0.782178, -0.036558, 0.826352),
   vec4(-0.194973, 0.779132, 0.108149, 0.739528),
   vec4(-0.239147, 0.738005, -0.207159, 0.768469),
@@ -133,11 +133,66 @@ const vec4 HUMN_SEGMENTS[SEGMENT_COUNT] = vec4[SEGMENT_COUNT](
   vec4(-0.237624, -0.893374, -0.217822, -0.971059)
 );
 
+const int ACCENT_SEGMENT_COUNT = 24;
+const vec4 ACCENT_SEGMENTS[ACCENT_SEGMENT_COUNT] = vec4[ACCENT_SEGMENT_COUNT](
+  vec4(-0.182788, 0.782178, -0.036558, 0.826352),
+  vec4(-0.345773, 0.622239, -0.295506, 0.469916),
+  vec4(-0.258949, 0.346535, -0.162986, 0.323686),
+  vec4(-0.245240, 0.305407, -0.233054, 0.249048),
+  vec4(-0.063976, 0.060168, -0.038081, 0.305407),
+  vec4(0.092917, 0.265804, 0.141660, 0.302361),
+  vec4(0.167555, 0.261234, 0.170602, 0.303884),
+  vec4(0.243717, -0.006855, 0.297030, 0.224676),
+  vec4(0.316832, 0.157654, 0.350343, 0.142422),
+  vec4(-0.031988, 0.288652, 0.054836, 0.061691),
+  vec4(-0.039604, -0.064737, 0.053313, 0.054075),
+  vec4(-0.042650, -0.101295, 0.060929, -0.125666),
+  vec4(-0.176695, -0.241432, -0.062452, -0.293222),
+  vec4(0.175171, -0.192688, 0.199543, -0.168317),
+  vec4(-0.068545, -0.096725, -0.051790, -0.296268),
+  vec4(0.199543, -0.166794, 0.207159, -0.340442),
+  vec4(-0.312262, -0.457730, -0.265042, -0.322163),
+  vec4(0.181264, -0.453161, 0.205636, -0.341965),
+  vec4(-0.577304, -0.521706, -0.278751, -0.335872),
+  vec4(-0.623001, -0.597867, -0.283321, -0.727342),
+  vec4(0.473724, -0.507997, 0.722011, -0.610053),
+  vec4(0.749429, -0.623762, 0.901752, -0.756283),
+  vec4(-0.277228, -0.734958, -0.217822, -0.968012),
+  vec4(0.111196, -0.773039, 0.249810, -0.719726)
+);
+
+const int GHOST_SEGMENT_COUNT = 18;
+const vec4 GHOST_SEGMENTS[GHOST_SEGMENT_COUNT] = vec4[GHOST_SEGMENT_COUNT](
+  vec4(-0.430000, 0.612000, -0.394000, 0.651000),
+  vec4(0.282000, 0.620000, 0.250000, 0.668000),
+  vec4(-0.347000, 0.383000, -0.347000, 0.287000),
+  vec4(0.305000, 0.286000, 0.309000, 0.187000),
+  vec4(-0.271000, 0.342000, -0.210000, 0.339000),
+  vec4(0.175000, 0.346000, 0.256000, 0.349000),
+  vec4(-0.289000, 0.238000, -0.246000, 0.236000),
+  vec4(0.104000, 0.260000, 0.172000, 0.258000),
+  vec4(-0.355000, 0.118000, -0.318000, 0.052000),
+  vec4(0.282000, 0.060000, 0.316000, 0.153000),
+  vec4(-0.296000, -0.115000, -0.203000, -0.219000),
+  vec4(0.198000, -0.166000, 0.233000, -0.115000),
+  vec4(-0.054000, -0.294000, 0.060000, -0.282000),
+  vec4(-0.025000, -0.323000, 0.028000, -0.302000),
+  vec4(-0.195000, -0.523000, 0.109000, -0.775000),
+  vec4(-0.389000, -0.686000, -0.280000, -0.727000),
+  vec4(0.342000, -0.680000, 0.458000, -0.520000),
+  vec4(-0.571000, -0.517000, -0.356000, -0.383000)
+);
+
 float sdSegment(vec2 p, vec2 a, vec2 b) {
   vec2 pa = p - a;
   vec2 ba = b - a;
   float h = clamp(dot(pa, ba) / max(dot(ba, ba), 0.000001), 0.0, 1.0);
   return length(pa - ba * h);
+}
+
+float segmentMask(vec2 p, vec2 a, vec2 b, float stroke, float feather) {
+  float d = sdSegment(p, a, b);
+  return 1.0 - smoothstep(stroke, stroke + feather, d);
 }
 
 void main() {
@@ -148,19 +203,35 @@ void main() {
   vec2 p = v_uv * 2.0 - 1.0;
   p.x *= aspect;
 
-  // Keep the bust readable on wide stages without stretching its proportions.
-  float portraitScale = mix(1.0, 1.12, smoothstep(1.15, 1.85, aspect));
+  // Match the original portrait scale and breathing room more closely across viewport sizes.
+  float portraitScale = mix(1.02, 1.14, smoothstep(1.10, 1.90, aspect));
   p /= portraitScale;
+  p.y += 0.012;
 
   float px = 2.0 / resolution.y;
-  float stroke = 0.95 * px;
-  float feather = 1.10 * px;
 
-  float figure = 0.0;
-  for (int i = 0; i < SEGMENT_COUNT; ++i) {
-    vec4 segment = HUMN_SEGMENTS[i];
-    float d = sdSegment(p, segment.xy, segment.zw);
-    figure = max(figure, 1.0 - smoothstep(stroke, stroke + feather, d));
+  float primarySoft = 0.0;
+  float primaryCore = 0.0;
+  for (int i = 0; i < PRIMARY_SEGMENT_COUNT; ++i) {
+    vec4 segment = PRIMARY_SEGMENTS[i];
+    primarySoft = max(primarySoft, segmentMask(p, segment.xy, segment.zw, 1.18 * px, 1.40 * px));
+    primaryCore = max(primaryCore, segmentMask(p, segment.xy, segment.zw, 0.56 * px, 0.60 * px));
+  }
+
+  float accentSoft = 0.0;
+  float accentCore = 0.0;
+  for (int i = 0; i < ACCENT_SEGMENT_COUNT; ++i) {
+    vec4 segment = ACCENT_SEGMENTS[i];
+    accentSoft = max(accentSoft, segmentMask(p, segment.xy, segment.zw, 1.26 * px, 1.42 * px));
+    accentCore = max(accentCore, segmentMask(p, segment.xy, segment.zw, 0.62 * px, 0.66 * px));
+  }
+
+  float ghostSoft = 0.0;
+  float ghostCore = 0.0;
+  for (int i = 0; i < GHOST_SEGMENT_COUNT; ++i) {
+    vec4 segment = GHOST_SEGMENTS[i];
+    ghostSoft = max(ghostSoft, segmentMask(p, segment.xy, segment.zw, 0.92 * px, 1.22 * px));
+    ghostCore = max(ghostCore, segmentMask(p, segment.xy, segment.zw, 0.42 * px, 0.54 * px));
   }
 
   // Fine technical grid from the visual reference, subordinate to the figure.
@@ -169,14 +240,25 @@ void main() {
     smoothstep(0.486, 0.500, gridCell.x),
     smoothstep(0.486, 0.500, gridCell.y)
   );
+  vec2 macroCell = abs(fract(gl_FragCoord.xy / 290.0) - 0.5);
+  float macroGrid = max(
+    smoothstep(0.492, 0.500, macroCell.x),
+    smoothstep(0.492, 0.500, macroCell.y)
+  );
 
-  float vignette = 1.0 - smoothstep(0.58, 1.28, length((v_uv - 0.5) * vec2(0.92, 1.0)));
-  vec3 background = vec3(0.0012, 0.0017, 0.0020);
-  vec3 gridColor = vec3(0.18, 0.22, 0.23) * grid * 0.55;
-  vec3 lineColor = vec3(0.96, 0.97, 0.98) * figure * 0.90;
+  float vignette = 1.0 - smoothstep(0.56, 1.30, length((v_uv - 0.5) * vec2(0.92, 1.0)));
+  vec3 background = vec3(0.0009, 0.0012, 0.0014);
+  vec3 gridColor = vec3(0.10, 0.13, 0.14) * grid * 0.74 + vec3(0.08, 0.10, 0.11) * macroGrid * 0.12;
 
-  vec3 color = background + gridColor + lineColor;
-  color *= 0.93 + 0.07 * vignette;
+  float ghostFigure = ghostSoft * 0.18 + ghostCore * 0.10;
+  float wireframeFigure = primarySoft * 0.32 + primaryCore * 0.80;
+  float accentFigure = accentSoft * 0.16 + accentCore * 0.34;
+
+  vec3 color = background + gridColor;
+  color += vec3(0.72, 0.75, 0.77) * ghostFigure;
+  color += vec3(0.93, 0.95, 0.97) * wireframeFigure;
+  color += vec3(1.0) * accentFigure;
+  color *= 0.92 + 0.08 * vignette;
   outColor = vec4(color, 1.0);
 }
 `
@@ -185,10 +267,10 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_HUMN_PRESET_ID,
-  revision: 2,
+  revision: 3,
   metadata: Object.freeze({
     name: 'HUM:N',
-    description: 'A near-black sparse low-poly humanoid bust reconstructed from the approved fractured white wireframe silhouette over a restrained technical grid.',
+    description: 'A near-black sparse low-poly humanoid bust reconstructed from the approved fractured white wireframe silhouette with stronger facet hierarchy, faint emergence fragments, and a restrained technical grid.',
     tags: Object.freeze(['hum-n', 'native', 'humanoid', 'low-poly', 'wireframe', 'screen-space', 'keeper']),
   }),
   capabilities: Object.freeze([
