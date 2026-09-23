@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { RailTabs, type RailTabOption } from '../../layout/RailTabs'
 import { Collapsible } from '../ReactControlRows'
-import { Cinema2ConceptStillRenderer } from './Cinema2ConceptStillRenderer'
+import { Cinema2StillPreview } from './Cinema2StillPreview'
 import type { Cinema2MockState } from './useCinema2MockState'
 
 // ── Cinema2RightRailMockup ──────────────────────────────────────────────────
@@ -42,7 +42,7 @@ export function Cinema2RightRailMockup({ state }: { state: Cinema2MockState }) {
                     title={preset.blurb}
                   >
                     <span className="llpc-filmstrip-thumb ll-c2-preset-thumb" style={{ '--llpc-tone': '#4ac7db' } as CSSProperties} aria-hidden="true">
-                      <Cinema2ConceptStillRenderer still={preset.stills[Math.floor(preset.stills.length / 2)]} uid={`llpc-${preset.id}`} />
+                      <Cinema2StillPreview still={preset.stills[Math.floor(preset.stills.length / 2)]!} uid={`llpc-${preset.id}`} />
                     </span>
                     <span className="llpc-filmstrip-body">
                       <span className="llpc-filmstrip-name">{preset.name}</span>

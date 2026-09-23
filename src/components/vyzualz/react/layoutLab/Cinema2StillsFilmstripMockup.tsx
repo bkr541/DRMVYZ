@@ -1,5 +1,5 @@
 import { MockEngineDropdown } from './MockEngineDropdown'
-import { Cinema2ConceptStillRenderer } from './Cinema2ConceptStillRenderer'
+import { Cinema2StillPreview } from './Cinema2StillPreview'
 import type { Cinema2MockState } from './useCinema2MockState'
 import type { LayoutLabEngineId } from './layoutLabEngineCatalog'
 
@@ -45,7 +45,7 @@ export function Cinema2StillsFilmstripMockup({
                       onClick={() => state.selectStill(still.id)}
                     >
                       <span className="ll-c2-still-tile-frame">
-                        <Cinema2ConceptStillRenderer still={still} uid={`llfs-${still.id}`} />
+                        <Cinema2StillPreview still={still} uid={`llfs-${still.id}`} />
                       </span>
                       <span className="ll-c2-still-tile-label">{still.label}</span>
                     </button>

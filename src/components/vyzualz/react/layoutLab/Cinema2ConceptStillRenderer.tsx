@@ -1,13 +1,13 @@
-import type { Cinema2ConceptStill } from './cinema2ConceptSamples'
+import type { Cinema2BloomStill } from './cinema2ConceptSamples'
 
 // ── Cinema2ConceptStillRenderer ────────────────────────────────────────────
 //
-// Pure SVG render of a single concept still — no shader code, no Cinema2
-// module/runtime. `uid` must be unique per mounted instance (many stills can
-// be on screen at once, in the filmstrip and the big preview) so their
-// <defs> ids never collide.
+// Pure SVG render of a single 'bloom'-kind concept still — no shader code, no
+// Cinema2 module/runtime. `uid` must be unique per mounted instance (many
+// stills can be on screen at once, in the filmstrip and the big preview) so
+// their <defs> ids never collide.
 
-export function Cinema2ConceptStillRenderer({ still, uid }: { still: Cinema2ConceptStill; uid: string }) {
+export function Cinema2ConceptStillRenderer({ still, uid }: { still: Cinema2BloomStill; uid: string }) {
   const bgId = `${uid}-bg`
   const coreId = `${uid}-core`
   const glowId = `${uid}-glow`

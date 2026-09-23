@@ -1,4 +1,4 @@
-import { Cinema2ConceptStillRenderer } from './Cinema2ConceptStillRenderer'
+import { Cinema2StillPreview } from './Cinema2StillPreview'
 import type { Cinema2MockState } from './useCinema2MockState'
 
 // ── Cinema2CanvasMockup ──────────────────────────────────────────────────────
@@ -19,7 +19,7 @@ export function Cinema2CanvasMockup({ state }: { state: Cinema2MockState }) {
   return (
     <div className="rv-layout-lab-cinema2-canvas" aria-label="Cinema 2.0 concept preview (mockup)">
       <div className="rv-layout-lab-cinema2-stage">
-        <Cinema2ConceptStillRenderer still={state.selectedStill} uid="ll-c2-canvas" />
+        <Cinema2StillPreview still={state.selectedStill} uid="ll-c2-canvas" />
       </div>
       <div className="rv-layout-lab-cinema2-canvas-status">
         <span>CONCEPT MOCKUP</span>
