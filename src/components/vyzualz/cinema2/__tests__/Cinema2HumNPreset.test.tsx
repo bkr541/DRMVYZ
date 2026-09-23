@@ -149,10 +149,12 @@ describe('Cinema 2.0 HUM:N Prompt 01 static visual foundation', () => {
   })
 
   it('renders the same deliberately static shader across frames even while authoritative audio is present', () => {
-    expect(CINEMA2_HUMN_STATIC_FRAGMENT_SOURCE).toContain('segmentMask')
-    expect(CINEMA2_HUMN_STATIC_FRAGMENT_SOURCE).toContain('p.x *= resolution.x / resolution.y')
+    expect(CINEMA2_HUMN_STATIC_FRAGMENT_SOURCE).toContain('SEGMENT_COUNT = 100')
+    expect(CINEMA2_HUMN_STATIC_FRAGMENT_SOURCE).toContain('p.x *= aspect')
     expect(CINEMA2_HUMN_STATIC_FRAGMENT_SOURCE).not.toContain('u_time')
     expect(CINEMA2_HUMN_STATIC_FRAGMENT_SOURCE).not.toContain('u_audio')
+    expect(CINEMA2_HUMN_STATIC_FRAGMENT_SOURCE).not.toContain('cyan')
+    expect(CINEMA2_HUMN_STATIC_FRAGMENT_SOURCE).not.toContain('magenta')
 
     const { runtime, gl, raf } = createHumNRuntime()
     runtime.resize({ width: 1280, height: 720, dpr: 1 })
