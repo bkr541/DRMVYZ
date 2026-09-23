@@ -7,6 +7,7 @@ const { app, BrowserWindow, dialog, ipcMain, net, protocol, screen, session, she
 const log = require('./logging.cjs')
 const { installRekordboxUsbBridge } = require('../native/rekordbox/rekordboxUsbBridge.cjs')
 const { installOutputCastBridge } = require('../native/output/outputCastBridge.cjs')
+const { installDiagnosticsBridge } = require('../native/diagnostics/diagnosticsBridge.cjs')
 
 const DEV_SERVER_URL = process.env.DRMVYZ_VITE_DEV_SERVER_URL || 'http://127.0.0.1:5173'
 const forceBuiltRenderer = process.argv.includes('--production')
@@ -207,6 +208,7 @@ if (!app.requestSingleInstanceLock()) {
     configureSessionSecurity()
     installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow })
     installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, shell, dialog, isTrustedAppUrl })
+    installDiagnosticsBridge({ ipcMain, log })
     createMainWindow()
 
     app.on('activate', () => {

@@ -1,5 +1,6 @@
 import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 import { NoticeCard } from './controls/NoticeCard'
+import { createLogger } from '../../../lib/logger'
 import {
   Component,
   useEffect,
@@ -603,11 +604,14 @@ function CinemaGraphStructuredFallback({ composition, definitions }: CinemaAdvan
   )
 }
 
+const graphEditorLog = createLogger('CinemaGraphEditor')
+
 class CinemaGraphEditorErrorBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
   state = { failed: false }
   static getDerivedStateFromError() { return { failed: true } }
-  componentDidCatch(_error: Error, _info: ErrorInfo) {
+  componentDidCatch(error: Error, info: ErrorInfo) {
     // The fallback is intentionally local. Canonical Cinema state is never replaced on a UI failure.
+    graphEditorLog.error(`graph surface crashed: ${error.message}`, { stack: error.stack, componentStack: info.componentStack })
   }
   render() { return this.state.failed ? this.props.fallback : this.props.children }
 }

@@ -55,4 +55,18 @@ contextBridge.exposeInMainWorld('drmvyzNative', Object.freeze({
       return () => ipcRenderer.removeListener('drmvyz:output:receiver-requested', listener)
     },
   }),
+  diagnostics: Object.freeze({
+    // Fire-and-forget: logging must never block or reject on the caller.
+    log: entry => { ipcRenderer.send('drmvyz:diagnostics:log', entry) },
+    readMainLog: () => ipcRenderer.invoke('drmvyz:diagnostics:read-main-log'),
+    watchMainLog: callback => {
+      const listener = (_event, chunk) => callback(chunk)
+      ipcRenderer.on('drmvyz:diagnostics:main-log-appended', listener)
+      ipcRenderer.send('drmvyz:diagnostics:watch-main-log')
+      return () => {
+        ipcRenderer.removeListener('drmvyz:diagnostics:main-log-appended', listener)
+        ipcRenderer.send('drmvyz:diagnostics:unwatch-main-log')
+      }
+    },
+  }),
 }))

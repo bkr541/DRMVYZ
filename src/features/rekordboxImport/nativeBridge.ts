@@ -1,5 +1,6 @@
 import type { RekordboxLibrary } from './types'
 import type { NativeOutputBridge } from '../../native/outputBridge'
+import type { NativeDiagnosticsBridge } from '../../native/diagnosticsBridge'
 
 export interface NativeRekordboxUsbScanResult {
   cancelled: boolean
@@ -32,6 +33,7 @@ export interface DrmvyzNativeBridge {
   files?: NativeFileBridge
   rekordbox?: NativeRekordboxBridge
   output?: NativeOutputBridge
+  diagnostics?: NativeDiagnosticsBridge
 }
 
 declare global {

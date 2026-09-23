@@ -43,6 +43,9 @@ import {
   computeAnalysisVariantKey,
   computeImportedGridRevision,
 } from '../features/trackIntelligence/TrackAnalysisCoordinator'
+import { createLogger } from '../lib/logger'
+
+const audioLog = createLogger('AudioEngine')
 
 function resolveAuthoritativeSectionsForTrack(
   track: Track,
@@ -385,6 +388,17 @@ export function useAudioEngine(): AudioEngine {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // ── Device-change diagnostics ───────────────────────────────────────────────
+  // navigator.mediaDevices fires this for any input/output device add/remove on
+  // the system, not just ones this app is using — a coarse but useful signal to
+  // correlate against a Live Input drop mid-show.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || typeof navigator.mediaDevices?.addEventListener !== 'function') return
+    const handleDeviceChange = () => audioLog.warn('audio/video device list changed')
+    navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange)
+    return () => navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange)
+  }, [])
+
   // ── Stereo scope capture disposal ───────────────────────────────────────────
   // The tap owns a worklet node and its message port; both must be released with
   // the hook, not left holding a reference to a torn-down audio graph.
@@ -434,6 +448,12 @@ export function useAudioEngine(): AudioEngine {
 
     const ctx = new AudioContext()
     ctxRef.current = ctx
+    // Guarded: some test/mock AudioContext implementations omit EventTarget methods.
+    if (typeof ctx.addEventListener === 'function') {
+      ctx.addEventListener('statechange', () => {
+        audioLog.warn(`AudioContext state changed to "${ctx.state}"`, { sampleRate: ctx.sampleRate })
+      })
+    }
 
     // Initialize the centralized music intelligence engine with this context's sample rate
     musicIntelligenceEngine.initialize({ sampleRate: ctx.sampleRate })

@@ -10,6 +10,8 @@ import type { Profile } from '../../../types/database'
 import { BrandKitSettingsPanel } from '../../../features/personalization/components/BrandKitSettingsPanel'
 import { AppearanceSettingsPanel } from '../../../features/appearance/AppearanceSettingsPanel'
 import { useContextualHelpStore } from '../../../features/contextualHelp/contextualHelpStore'
+import { getRecentLogEntries } from '../../../lib/logger'
+import { DeveloperPanel } from './developer/DeveloperPanel'
 
 // ── AccountPanel ──────────────────────────────────────────────────────────────
 
@@ -238,6 +240,31 @@ function ShortcutPanel() {
 
 const QUALITY_LEVELS = ['Low', 'Medium', 'High'] as const
 
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function buildDiagnosticsReport(): string {
+  const entries = getRecentLogEntries()
+  const lines = [
+    `DRMVYZ diagnostics — ${new Date().toISOString()}`,
+    `Platform: ${window.drmvyzNative?.runtime?.platform ?? 'unknown'} (electron: ${window.drmvyzNative?.runtime?.isElectron ? 'yes' : 'no'})`,
+    `User agent: ${navigator.userAgent}`,
+    '',
+    `Recent log entries (${entries.length}):`,
+    ...entries.map(entry => {
+      const time = new Date(entry.timestamp).toISOString()
+      const context = entry.context !== undefined ? ` ${safeStringify(entry.context)}` : ''
+      return `${time} [${entry.level.toUpperCase()}] [${entry.category}] ${entry.message}${context}`
+    }),
+  ]
+  return lines.join('\n')
+}
+
 function SystemSettingsPanel() {
   const {
     quality, setQuality, bpmSync, toggleBpmSync, bpm,
@@ -268,6 +295,25 @@ function SystemSettingsPanel() {
         : infoUserId
           ? 'Saved to your account.'
           : 'Saved on this device.'
+
+  const [diagnosticsStatus, setDiagnosticsStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+  const diagnosticsStatusTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (diagnosticsStatusTimer.current) clearTimeout(diagnosticsStatusTimer.current)
+  }, [])
+
+  const handleCopyDiagnostics = useCallback(() => {
+    const write = navigator.clipboard?.writeText(buildDiagnosticsReport())
+    if (!write) { setDiagnosticsStatus('error'); return }
+    void write
+      .then(() => setDiagnosticsStatus('copied'))
+      .catch(() => setDiagnosticsStatus('error'))
+      .finally(() => {
+        if (diagnosticsStatusTimer.current) clearTimeout(diagnosticsStatusTimer.current)
+        diagnosticsStatusTimer.current = setTimeout(() => setDiagnosticsStatus('idle'), 2000)
+      })
+  }, [])
 
   return (
     <div className="vsm-system-settings">
@@ -430,17 +476,43 @@ function SystemSettingsPanel() {
         </div>
         <ShortcutPanel />
       </section>
+
+      <section className="vsm-settings-group">
+        <div className="vsm-settings-group-heading">
+          <div>
+            <h2>Diagnostics</h2>
+            <p>Copy recent app activity to share when reporting an issue.</p>
+          </div>
+        </div>
+        <div className="vsm-settings-actions">
+          <button
+            className="vz-settings-reset-btn"
+            onClick={handleCopyDiagnostics}
+            title="Copy recent log activity and basic environment info to the clipboard"
+          >Copy Diagnostics</button>
+        </div>
+        {diagnosticsStatus !== 'idle' && (
+          <div
+            className={`vsm-settings-detail${diagnosticsStatus === 'error' ? ' vsm-settings-detail--error' : ''}`}
+            role="status"
+            aria-live="polite"
+          >
+            <span>{diagnosticsStatus === 'copied' ? 'Copied to clipboard.' : 'Could not copy — clipboard unavailable.'}</span>
+          </div>
+        )}
+      </section>
     </div>
   )
 }
 
-type SettingsTab = 'account' | 'appearance' | 'brand' | 'system'
+type SettingsTab = 'account' | 'appearance' | 'brand' | 'system' | 'developer'
 
 const SETTINGS_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'account', label: 'Account' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'brand', label: 'Brand Kit' },
   { id: 'system', label: 'System Settings' },
+  { id: 'developer', label: 'Developer' },
 ]
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
@@ -535,7 +607,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           </nav>
           <div
             id={`vsm-panel-${tab}`}
-            className={`vsm-content${tab === 'brand' ? ' vsm-content--brand' : ''}`}
+            className={`vsm-content${tab === 'brand' ? ' vsm-content--brand' : ''}${tab === 'developer' ? ' vsm-content--developer' : ''}`}
             role="tabpanel"
             aria-labelledby={`vsm-tab-${tab}`}
             tabIndex={0}
@@ -544,6 +616,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             {tab === 'appearance' && <AppearanceSettingsPanel />}
             {tab === 'brand' && <BrandKitSettingsPanel />}
             {tab === 'system' && <SystemSettingsPanel />}
+            {tab === 'developer' && <DeveloperPanel />}
           </div>
         </div>
       </div>

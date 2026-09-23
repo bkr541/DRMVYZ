@@ -41,6 +41,9 @@ import {
 } from './shaders'
 import type { GpuColorGradeParams } from './colorGradeParams'
 import { NEUTRAL_GPU_COLOR_GRADE, isColorGradeActive } from './colorGradeParams'
+import { createLogger } from '../lib/logger'
+
+const log = createLogger('WebGL2Renderer')
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -781,21 +784,19 @@ export class WebGL2Renderer {
       this._contextLostHandler = (e: Event) => {
         e.preventDefault()
         this._contextLost = true
-        if (import.meta.env.DEV) console.warn('[WebGL2Renderer] context lost')
+        log.warn('WebGL2 context lost')
         callbacks?.onContextLost?.('WebGL2 context lost during playback')
       }
       this._contextRestoredHandler = () => {
         this._contextLost = false
-        if (import.meta.env.DEV) console.log('[WebGL2Renderer] context restored')
+        log.info('WebGL2 context restored')
         callbacks?.onContextRestored?.()
       }
       canvas.addEventListener('webglcontextlost', this._contextLostHandler)
       canvas.addEventListener('webglcontextrestored', this._contextRestoredHandler)
 
-      if (import.meta.env.DEV) {
-        const dbg = gl.getExtension('WEBGL_debug_renderer_info')
-        if (dbg) console.log('[WebGL2Renderer] GPU:', gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL))
-      }
+      const dbg = gl.getExtension('WEBGL_debug_renderer_info')
+      if (dbg) log.info('GPU renderer', { renderer: gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) })
     } catch (e) {
       // Partial-initialisation cleanup: delete every GPU resource created so far.
       // This guarantees no leaked textures, FBOs, programs, or shaders when

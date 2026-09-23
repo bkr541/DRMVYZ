@@ -467,6 +467,191 @@ body,
   border-color: var(--color-secondary);
 }
 
+/* Settings → Developer */
+.vsm-content--developer {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+}
+
+.vsm-dev-panel {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.vsm-dev-content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.vsm-dev-placeholder {
+  padding: 32px 24px;
+  color: var(--color-text-faint);
+}
+
+.vsm-dev-placeholder h2 {
+  margin: 0 0 6px;
+  font: 700 12px/1.2 var(--az-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-strong);
+}
+
+.vsm-dev-placeholder p {
+  margin: 0;
+  font: 400 11px/1.5 var(--az-font-data);
+}
+
+.vsm-dev-log-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.vsm-dev-log-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border-faint);
+  flex-shrink: 0;
+}
+
+.vsm-dev-log-search {
+  flex: 1 1 260px;
+  min-width: 180px;
+}
+
+.vsm-dev-log-chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.vsm-dev-log-chip {
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border-subtle);
+  background: transparent;
+  color: var(--color-text-faint);
+  font: 600 9px/1 var(--az-font-data);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.vsm-dev-log-chip:hover {
+  color: var(--color-text-strong);
+}
+
+.vsm-dev-log-chip--error.is-active  { background: rgba(239,115,115,0.16); border-color: var(--color-danger, #ef7373); color: var(--color-danger, #ef7373); }
+.vsm-dev-log-chip--warn.is-active   { background: rgba(216,185,90,0.16);  border-color: #d8b95a; color: #d8b95a; }
+.vsm-dev-log-chip--info.is-active,
+.vsm-dev-log-chip--verbose.is-active,
+.vsm-dev-log-chip--silly.is-active  { background: rgba(var(--color-primary-rgb), 0.16); border-color: var(--color-primary); color: var(--color-primary); }
+.vsm-dev-log-chip--debug.is-active  { background: var(--color-surface-hover); border-color: var(--color-border-subtle); color: var(--color-text-strong); }
+
+.vsm-dev-log-count {
+  color: var(--color-text-faint);
+  font: 600 10px/1 var(--az-font-data);
+  white-space: nowrap;
+}
+
+.vsm-dev-log-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.vsm-dev-log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 400 11px/1.5 var(--az-font-data);
+}
+
+.vsm-dev-log-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-panel-alt);
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-border-faint);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  font: 700 10px/1 var(--az-font);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+.vsm-dev-log-table thead th:hover {
+  color: var(--color-text-strong);
+}
+
+.vsm-dev-log-row td {
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--color-border-faint);
+  vertical-align: top;
+}
+
+.vsm-dev-log-row--error { background: rgba(239,115,115,0.05); }
+.vsm-dev-log-row--warn  { background: rgba(216,185,90,0.045); }
+
+.vsm-dev-log-time {
+  white-space: nowrap;
+  color: var(--color-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.vsm-dev-log-scope {
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.vsm-dev-log-message pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+}
+
+.vsm-dev-log-level {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font: 700 9px/1.4 var(--az-font-data);
+  letter-spacing: 0.04em;
+}
+
+.vsm-dev-log-level--error { background: rgba(239,115,115,0.16); color: var(--color-danger, #ef7373); }
+.vsm-dev-log-level--warn  { background: rgba(216,185,90,0.16); color: #d8b95a; }
+.vsm-dev-log-level--info  { background: rgba(var(--color-primary-rgb), 0.14); color: var(--color-primary); }
+.vsm-dev-log-level--debug,
+.vsm-dev-log-level--verbose,
+.vsm-dev-log-level--silly,
+.vsm-dev-log-level--unknown { background: var(--color-surface); color: var(--color-text-faint); }
+
+.vsm-dev-log-path {
+  padding: 6px 16px;
+  border-top: 1px solid var(--color-border-faint);
+  color: var(--color-text-faint);
+  font: 400 9px/1.4 var(--az-font-data);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
 .vz-shortcuts-section--settings {
   width: 100%;
   padding: 0;

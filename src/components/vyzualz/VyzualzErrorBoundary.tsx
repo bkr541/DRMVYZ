@@ -1,5 +1,8 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { productionOutputController } from './react/output/ProductionOutput'
+import { createLogger } from '../../lib/logger'
+
+const log = createLogger('VyzualzErrorBoundary')
 
 interface Props {
   /**
@@ -23,11 +26,11 @@ export class VyzualzErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     productionOutputController.handleRendererCrash(this.props.section)
-    console.error(
-      `[VyzualzErrorBoundary][${this.props.section ?? 'VyzualzView'}]`,
-      error,
-      info.componentStack,
-    )
+    log.error(`${this.props.section ?? 'VyzualzView'} crashed: ${error.message}`, {
+      section: this.props.section ?? 'VyzualzView',
+      stack: error.stack,
+      componentStack: info.componentStack,
+    })
   }
 
   handleReset = (): void => {
