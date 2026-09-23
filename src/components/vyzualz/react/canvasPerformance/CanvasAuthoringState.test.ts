@@ -18,7 +18,7 @@ import {
   setCanvasAuthoredLayerSoloState,
   updateCanvasLayerEngineOverridesState,
 } from './CanvasAuthoringState'
-import { MAX_CANVAS_AUTHORED_LAYERS, MAX_CANVAS_PERFORMANCE_LAYERS, type CanvasAuthoredLayer } from './CanvasPerformanceTypes'
+import { MAX_CANVAS_AUTHORED_LAYERS, MAX_CANVAS_PERFORMANCE_LAYERS, type CanvasAuthoredLayer, type CanvasMediaPool } from './CanvasPerformanceTypes'
 
 function makeLayer(overrides: Partial<CanvasAuthoredLayer> & { id: string; mediaId: string }): CanvasAuthoredLayer {
   return {
@@ -95,7 +95,7 @@ describe('CANVAS canonical authoring state', () => {
           { id: 'layer-a', mediaId: 'media-a', effects: [], order: 0, enabled: true, solo: false, ownership: 'manual', pinned: true },
           { id: 'layer-b', mediaId: 'media-a', effects: [], order: 1, enabled: true, solo: false, ownership: 'manual', pinned: true },
         ],
-        mediaPools: [{ id: 'pool-a', name: 'Main', mediaIds: ['media-a'] }],
+        mediaPools: [{ id: 'pool-a', name: 'Main', mediaIds: ['media-a'], textItems: [] }],
         activeMediaPoolId: 'pool-a',
       },
     }))
@@ -105,9 +105,9 @@ describe('CANVAS canonical authoring state', () => {
     if (referenced.allowed) throw new Error('Expected CANVAS authoring deletion refusal')
     expect(referenced.warning.message).toContain('2 CANVAS layers and 1 Media Pool')
 
-    let mediaPools = [
-      { id: 'pool-a', name: 'Main', mediaIds: ['media-a', 'media-b'] },
-      { id: 'pool-b', name: 'Drop', mediaIds: ['media-a'] },
+    let mediaPools: CanvasMediaPool[] = [
+      { id: 'pool-a', name: 'Main', mediaIds: ['media-a', 'media-b'], textItems: [] },
+      { id: 'pool-b', name: 'Drop', mediaIds: ['media-a'], textItems: [] },
     ]
     const poolGuard = createCanvasAuthoringMediaDeletionGuard(() => ({
       canvasOrchestrationSettings: { authoredLayers: [], mediaPools, activeMediaPoolId: 'pool-a' },
@@ -128,8 +128,8 @@ describe('CANVAS canonical authoring state', () => {
 
   it('resolves the canonical active Pool and applies case-insensitive name availability without conflating ids', () => {
     const pools = [
-      { id: 'pool-a', name: 'Warmup', mediaIds: ['media-a'] },
-      { id: 'pool-b', name: 'Drop', mediaIds: ['media-b'] },
+      { id: 'pool-a', name: 'Warmup', mediaIds: ['media-a'], textItems: [] },
+      { id: 'pool-b', name: 'Drop', mediaIds: ['media-b'], textItems: [] },
     ]
     expect(resolveActiveCanvasMediaPool({ mediaPools: pools, activeMediaPoolId: 'pool-b' })?.mediaIds).toEqual(['media-b'])
     expect(resolveActiveCanvasMediaPool({ mediaPools: pools, activeMediaPoolId: 'missing' })).toBeNull()
@@ -145,14 +145,15 @@ describe('CANVAS canonical authoring state', () => {
       id: CANVAS_LEGACY_COMPATIBILITY_POOL_ID,
       name: 'Performance Pool',
       mediaIds: ['media-a', 'media-b'],
+      textItems: [],
     }])
     expect(migrated.activeMediaPoolId).toBe(CANVAS_LEGACY_COMPATIBILITY_POOL_ID)
     expect(migrated.mediaPoolIds).toEqual(['media-a', 'media-b'])
 
     const named = normalizeCanvasAuthoringState({
       mediaPools: [
-        { id: 'pool-a', name: 'A', mediaIds: ['media-a'] },
-        { id: 'pool-b', name: 'B', mediaIds: ['media-b'] },
+        { id: 'pool-a', name: 'A', mediaIds: ['media-a'], textItems: [] },
+        { id: 'pool-b', name: 'B', mediaIds: ['media-b'], textItems: [] },
       ],
       activeMediaPoolId: 'pool-b',
       mediaPoolIds: ['stale-legacy-id'],
@@ -160,7 +161,7 @@ describe('CANVAS canonical authoring state', () => {
     expect(named.mediaPoolIds).toEqual(['media-b'])
 
     const corruptActive = normalizeCanvasAuthoringState({
-      mediaPools: [{ id: 'pool-a', name: 'A', mediaIds: ['media-a'] }],
+      mediaPools: [{ id: 'pool-a', name: 'A', mediaIds: ['media-a'], textItems: [] }],
       activeMediaPoolId: 'missing-pool',
     })
     expect(corruptActive.activeMediaPoolId).toBeNull()

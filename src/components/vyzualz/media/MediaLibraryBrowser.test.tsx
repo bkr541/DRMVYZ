@@ -141,6 +141,9 @@ function resetMocks() {
     createCanvasMediaPool: vi.fn().mockReturnValue({ ok: false, code: 'invalid-pool-name', message: 'Enter a name for the CANVAS Media Pool.' }),
     deleteCanvasMediaPool: vi.fn(),
     addCanvasMediaToPool: vi.fn().mockReturnValue({ ok: true }),
+    addCanvasPoolText: vi.fn().mockReturnValue({ ok: true }),
+    updateCanvasPoolText: vi.fn().mockReturnValue({ ok: true }),
+    removeCanvasPoolText: vi.fn().mockReturnValue({ ok: true }),
   }
   mocks.engine = {
     tracks: [],
@@ -611,7 +614,7 @@ describe('MediaLibraryBrowser manager: Pools tab', () => {
 
   it('lists existing pools, drills into one, and deletes it', async () => {
     mocks.reactState.canvasOrchestrationSettings = {
-      mediaPools: [{ id: 'pool-1', name: 'Opening Set', mediaIds: ['media-1'] }],
+      mediaPools: [{ id: 'pool-1', name: 'Opening Set', mediaIds: ['media-1'], textItems: [] }],
     }
     await renderBrowser({
       activeMediaId: null,
@@ -698,7 +701,7 @@ describe('MediaLibraryBrowser manager: Add To submenu', () => {
 
   it('adds the right-clicked media to an existing pool', async () => {
     mocks.reactState.canvasOrchestrationSettings = {
-      mediaPools: [{ id: 'pool-1', name: 'Warehouse Loop', mediaIds: [] }],
+      mediaPools: [{ id: 'pool-1', name: 'Warehouse Loop', mediaIds: [], textItems: [] }],
     }
     await openCardContextMenu()
 

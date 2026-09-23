@@ -24,6 +24,7 @@ const CANONICAL_CANVAS_PRESET_FIELDS: ReadonlyArray<keyof CanvasPresetSettings> 
   'fractureColorTreatmentAmount', 'fractureEffectRoleWeights', 'fractureColorSourceMode',
   'fractureManualPrimaryColor', 'fractureManualSupportingColor', 'fractureAudioResponse',
   'fractureBassMotion', 'fractureTransientGlitch', 'fractureStructuralResponse',
+  'cutbank',
 ]
 
 function canonicalValues(value: Partial<CanvasPresetSettings>): Record<string, unknown> {

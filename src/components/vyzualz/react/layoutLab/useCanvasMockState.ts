@@ -8,6 +8,7 @@ import {
   type CanvasEngineSettings,
   type CanvasMediaItemType,
   type CanvasPresetId,
+  type CanvasPresetRendererKind,
   type CanvasPresetSettings,
   type CanvasSectionTriggerType,
   type CanvasVideoTimingSettings,
@@ -56,7 +57,7 @@ export interface CanvasMockPreset {
   name: string
   description: string
   accent: string
-  rendererKind: 'standard' | 'particleAura' | 'fragmentCollage' | 'laserImageFx'
+  rendererKind: CanvasPresetRendererKind
   favorite: boolean
   modified: boolean
 }

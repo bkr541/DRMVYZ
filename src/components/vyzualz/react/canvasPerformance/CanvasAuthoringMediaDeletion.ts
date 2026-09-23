@@ -25,7 +25,7 @@ export function findCanvasAuthoringMediaReferences(
 }
 
 function clonePools(pools: readonly CanvasMediaPool[]): CanvasMediaPool[] {
-  return pools.map(pool => ({ ...pool, mediaIds: [...pool.mediaIds] }))
+  return pools.map(pool => ({ ...pool, mediaIds: [...pool.mediaIds], textItems: pool.textItems.map(item => ({ ...item })) }))
 }
 
 function removeMediaFromPools(pools: readonly CanvasMediaPool[], mediaId: string): CanvasMediaPool[] {

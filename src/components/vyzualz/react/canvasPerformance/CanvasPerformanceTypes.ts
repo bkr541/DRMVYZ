@@ -514,10 +514,25 @@ export type CanvasLayerEffectMutationResult =
   | { ok: true; layer: CanvasAuthoredLayer }
   | { ok: false; code: CanvasLayerEffectMutationFailureCode }
 
+/**
+ * CANVAS-native text entry owned by a named Media Pool. Deliberately not an
+ * UploadedMedia record: text is authored inside CANVAS and only specialized
+ * renderers (CUTBANK) understand it. Media-only consumers keep reading
+ * `mediaIds` and never see these entries.
+ */
+export interface CanvasPoolTextItem {
+  id: string
+  text: string
+}
+
+export const MAX_CANVAS_POOL_TEXT_ITEMS = 48
+export const MAX_CANVAS_POOL_TEXT_LENGTH = 96
+
 export interface CanvasMediaPool {
   id: string
   name: string
   mediaIds: string[]
+  textItems: CanvasPoolTextItem[]
 }
 
 export type CanvasLayerMutationFailureCode =
@@ -540,6 +555,9 @@ export type CanvasMediaPoolMutationFailureCode =
   | 'pool-limit-reached'
   | 'pool-not-found'
   | 'invalid-media-id'
+  | 'invalid-text'
+  | 'text-not-found'
+  | 'text-limit-reached'
 
 export type CanvasMediaPoolMutationResult =
   | { ok: true; pool: CanvasMediaPool }

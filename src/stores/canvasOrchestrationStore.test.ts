@@ -416,6 +416,7 @@ describe('CANVAS orchestration persistence and compatibility', () => {
       id: CANVAS_LEGACY_COMPATIBILITY_POOL_ID,
       name: 'Performance Pool',
       mediaIds: ['legacy-a', 'legacy-b'],
+      textItems: [],
     }])
     expect(versionMigratedCanvas.activeMediaPoolId).toBe(CANVAS_LEGACY_COMPATIBILITY_POOL_ID)
 
@@ -424,6 +425,7 @@ describe('CANVAS orchestration persistence and compatibility', () => {
       id: CANVAS_LEGACY_COMPATIBILITY_POOL_ID,
       name: 'Performance Pool',
       mediaIds: ['legacy-a', 'legacy-b'],
+      textItems: [],
     }])
     expect(migrated.canvasOrchestrationSettings.activeMediaPoolId).toBe(CANVAS_LEGACY_COMPATIBILITY_POOL_ID)
     expect(migrated.canvasOrchestrationSettings.mediaPoolIds).toEqual(['legacy-a', 'legacy-b'])

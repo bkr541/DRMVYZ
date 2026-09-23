@@ -1,4 +1,5 @@
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
+import { PoolTextEntries } from './PoolTextEntries'
 import { UnderlineTabs } from '../react/controls/UnderlineTabs'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import { IconChipButton } from '../react/controls/IconChipButton'
@@ -273,7 +274,7 @@ function matchesMediaLibraryFilter(m: UploadedMedia, f: MediaLibraryFilter): boo
 // ── Collection folder card ─────────────────────────────────────────────────
 
 function CollectionFolder({
-  collection, items, viewMode, onClick, onEdit, onRemove, removeTitle = 'Delete collection', headerExtra,
+  collection, items, viewMode, onClick, onEdit, onRemove, removeTitle = 'Delete collection', headerExtra, textCount = 0,
 }: {
   collection: MediaCollection
   items: UploadedMedia[]
@@ -283,9 +284,11 @@ function CollectionFolder({
   onRemove?: () => void
   removeTitle?: string
   headerExtra?: ReactNode
+  /** CANVAS-native text entries (Pools only) counted alongside media. */
+  textCount?: number
 }) {
   const thumbs = items.slice(0, 4)
-  const count  = items.length
+  const count  = items.length + textCount
   const actions = (onEdit || onRemove) ? (
     <div className="vz-coll-actions" onClick={event => event.stopPropagation()}>
       {onEdit && <button type="button" className="vz-media-edit-btn" onClick={onEdit} title="Edit collection"><PencilEdit01Icon size={11} color="currentColor" /></button>}
@@ -326,7 +329,7 @@ function CollectionFolder({
           ))}
           {count > 4 && <div className="vz-coll-thumb vz-coll-thumb-more">+{count - 4}</div>}
         </div>
-      ) : <div className="vz-coll-empty-strip">No media in this collection</div>}
+      ) : <div className="vz-coll-empty-strip">{textCount > 0 ? `${textCount} text ${textCount === 1 ? 'entry' : 'entries'}` : 'No media in this collection'}</div>}
     </div>
   )
 }
@@ -1366,13 +1369,14 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             </button>
             <FolderLibraryIcon size={12} color="currentColor" style={{ flexShrink: 0 }} />
             <span className="vz-coll-breadcrumb-name">{openPool.name}</span>
-            <span className="vz-coll-folder-count">{openPoolItems.length} {openPoolItems.length === 1 ? 'item' : 'items'}</span>
+            <span className="vz-coll-folder-count">{openPool.mediaIds.length + openPool.textItems.length} {openPool.mediaIds.length + openPool.textItems.length === 1 ? 'item' : 'items'}</span>
             {renderPoolActiveToggle(openPool.id, openPool.name)}
           </div>
+          <PoolTextEntries pool={openPool} query={searchActive ? searchQuery : ''} />
           {openPoolItems.length === 0 ? (
             <div className="vz-media-grid">
               <div className="vz-coll-empty-wrap">
-                <div className="vz-coll-folder-empty">No media in this pool</div>
+                <div className="vz-coll-folder-empty">{openPool.textItems.length > 0 ? 'No media in this pool' : 'Nothing in this pool yet'}</div>
               </div>
             </div>
           ) : renderGrid(openPoolItems)}
@@ -1428,6 +1432,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
               key={pool.id}
               collection={{ id: pool.id, name: pool.name }}
               items={itemsByPool.get(pool.id) ?? []}
+              textCount={pool.textItems.length}
               viewMode={viewMode}
               onClick={() => setOpenPoolId(pool.id)}
               onRemove={() => setDeletePoolConfirm({ id: pool.id, name: pool.name })}

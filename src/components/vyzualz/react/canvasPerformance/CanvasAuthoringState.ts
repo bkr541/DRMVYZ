@@ -3,6 +3,8 @@ import {
   CANVAS_LAYER_EFFECT_IDS,
   MAX_CANVAS_AUTHORED_LAYERS,
   MAX_CANVAS_LAYER_EFFECTS,
+  MAX_CANVAS_POOL_TEXT_ITEMS,
+  MAX_CANVAS_POOL_TEXT_LENGTH,
   MAX_CANVAS_STORED_AUTHORED_LAYERS,
   type CanvasAuthoredLayer,
   type CanvasAuthoredLayerOwnership,
@@ -12,6 +14,7 @@ import {
   type CanvasLayerEngineOverrides,
   type CanvasLayerMutationFailureCode,
   type CanvasMediaPool,
+  type CanvasPoolTextItem,
   type CanvasPrimaryLayerState,
   type CanvasRenderMode,
 } from './CanvasPerformanceTypes'
@@ -378,6 +381,33 @@ export function clearCanvasLayerEffectsState(
   return mutateCanvasLayerEffects(authoredLayers, primaryLayer, layerId, () => [])
 }
 
+export function normalizeCanvasPoolTextValue(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  return value.replace(/\s+/g, ' ').trim().slice(0, MAX_CANVAS_POOL_TEXT_LENGTH).trim()
+}
+
+/** Pre-text projects have no `textItems`; they normalize to an empty list. */
+export function normalizeCanvasPoolTextItems(value: unknown): CanvasPoolTextItem[] {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<string>()
+  const items: CanvasPoolTextItem[] = []
+  for (const raw of value) {
+    if (!isRecord(raw)) continue
+    const id = typeof raw.id === 'string' ? raw.id.trim() : ''
+    const text = normalizeCanvasPoolTextValue(raw.text)
+    if (!id || !text || seen.has(id)) continue
+    seen.add(id)
+    items.push({ id, text })
+    if (items.length >= MAX_CANVAS_POOL_TEXT_ITEMS) break
+  }
+  return items
+}
+
+/** Media entries plus native text entries — what a Pool card reports as its size. */
+export function countCanvasPoolEntries(pool: Pick<CanvasMediaPool, 'mediaIds' | 'textItems'>): number {
+  return pool.mediaIds.length + pool.textItems.length
+}
+
 export function normalizeCanvasMediaPools(value: unknown): CanvasMediaPool[] {
   if (!Array.isArray(value)) return []
   const seenIds = new Set<string>()
@@ -392,6 +422,7 @@ export function normalizeCanvasMediaPools(value: unknown): CanvasMediaPool[] {
       id,
       name: requestedName || `Media Pool ${index + 1}`,
       mediaIds: normalizeCanvasMediaIds(raw.mediaIds),
+      textItems: normalizeCanvasPoolTextItems(raw.textItems),
     })
     if (pools.length >= MAX_CANVAS_MEDIA_POOLS) break
   }
@@ -452,6 +483,7 @@ export function normalizeCanvasAuthoringState(source: Record<string, unknown>): 
         id: CANVAS_LEGACY_COMPATIBILITY_POOL_ID,
         name: CANVAS_LEGACY_COMPATIBILITY_POOL_NAME,
         mediaIds: legacyIds,
+        textItems: [],
       }]
       activeMediaPoolId = CANVAS_LEGACY_COMPATIBILITY_POOL_ID
     }
@@ -653,8 +685,70 @@ export function upsertCanvasCompatibilityPool(
         id: CANVAS_LEGACY_COMPATIBILITY_POOL_ID,
         name: CANVAS_LEGACY_COMPATIBILITY_POOL_NAME,
         mediaIds: nextIds,
+        textItems: [],
       },
     ],
     activeMediaPoolId: CANVAS_LEGACY_COMPATIBILITY_POOL_ID,
   }
+}
+
+export type CanvasPoolTextMutationResult =
+  | { ok: true; pools: CanvasMediaPool[]; pool: CanvasMediaPool; item: CanvasPoolTextItem }
+  | { ok: false; code: 'pool-not-found' | 'invalid-text' | 'text-not-found' | 'text-limit-reached'; message: string }
+
+const POOL_NOT_FOUND = 'That CANVAS Media Pool is no longer available.'
+
+function replacePool(pools: readonly CanvasMediaPool[], pool: CanvasMediaPool): CanvasMediaPool[] {
+  return pools.map(candidate => candidate.id === pool.id ? pool : candidate)
+}
+
+export function addCanvasPoolTextItemState(
+  pools: readonly CanvasMediaPool[],
+  poolId: string,
+  itemId: string,
+  text: unknown,
+): CanvasPoolTextMutationResult {
+  const current = normalizeCanvasMediaPools(pools)
+  const pool = current.find(candidate => candidate.id === poolId)
+  if (!pool) return { ok: false, code: 'pool-not-found', message: POOL_NOT_FOUND }
+  const normalized = normalizeCanvasPoolTextValue(text)
+  if (!normalized) return { ok: false, code: 'invalid-text', message: 'Enter some text to add to the Pool.' }
+  if (pool.textItems.length >= MAX_CANVAS_POOL_TEXT_ITEMS) {
+    return { ok: false, code: 'text-limit-reached', message: `A Pool can hold up to ${MAX_CANVAS_POOL_TEXT_ITEMS} text entries.` }
+  }
+  const item = { id: itemId, text: normalized }
+  const nextPool = { ...pool, textItems: [...pool.textItems, item] }
+  return { ok: true, pools: replacePool(current, nextPool), pool: nextPool, item }
+}
+
+export function updateCanvasPoolTextItemState(
+  pools: readonly CanvasMediaPool[],
+  poolId: string,
+  itemId: string,
+  text: unknown,
+): CanvasPoolTextMutationResult {
+  const current = normalizeCanvasMediaPools(pools)
+  const pool = current.find(candidate => candidate.id === poolId)
+  if (!pool) return { ok: false, code: 'pool-not-found', message: POOL_NOT_FOUND }
+  const existing = pool.textItems.find(candidate => candidate.id === itemId)
+  if (!existing) return { ok: false, code: 'text-not-found', message: 'That text entry is no longer in the Pool.' }
+  const normalized = normalizeCanvasPoolTextValue(text)
+  if (!normalized) return { ok: false, code: 'invalid-text', message: 'Text cannot be empty. Delete the entry instead.' }
+  const item = { ...existing, text: normalized }
+  const nextPool = { ...pool, textItems: pool.textItems.map(candidate => candidate.id === itemId ? item : candidate) }
+  return { ok: true, pools: replacePool(current, nextPool), pool: nextPool, item }
+}
+
+export function removeCanvasPoolTextItemState(
+  pools: readonly CanvasMediaPool[],
+  poolId: string,
+  itemId: string,
+): CanvasPoolTextMutationResult {
+  const current = normalizeCanvasMediaPools(pools)
+  const pool = current.find(candidate => candidate.id === poolId)
+  if (!pool) return { ok: false, code: 'pool-not-found', message: POOL_NOT_FOUND }
+  const existing = pool.textItems.find(candidate => candidate.id === itemId)
+  if (!existing) return { ok: false, code: 'text-not-found', message: 'That text entry is no longer in the Pool.' }
+  const nextPool = { ...pool, textItems: pool.textItems.filter(candidate => candidate.id !== itemId) }
+  return { ok: true, pools: replacePool(current, nextPool), pool: nextPool, item: existing }
 }

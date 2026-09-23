@@ -193,13 +193,25 @@ describe('canonical React preset card architecture', () => {
     for (const hidden of ['Bass Bloom', 'Ghost Echo', 'Glitch Pulse', 'Luma Melt', 'Frame Stutter', 'Clean Playback']) {
       expect(container.querySelector(`[aria-label="Load ${hidden}"]`)).toBeNull()
     }
-    for (const retained of ['Particle Aura', 'Fractures', 'Laser Image FX']) {
+    for (const retained of ['Particle Aura', 'Fractures', 'Laser Image FX', 'CUTBANK']) {
       expect(container.querySelector(`[aria-label="Load ${retained}"]`)).not.toBeNull()
     }
 
     expect(useReactStore.getState().selectedCanvasPresetId).toBe('canvas-bass-bloom')
     expect(container.textContent).not.toContain('CANVAS Media Presets')
     expect(container.textContent).not.toContain('Bass Bloom')
+  })
+
+  it('selects CUTBANK from the CANVAS preset picker and loads its dedicated renderer preset', async () => {
+    await act(async () => {
+      useReactStore.getState().selectReactEngine('canvas')
+    })
+    await render(<ReactPresetsPanel />)
+    const card = container.querySelector<HTMLElement>('[aria-label="Load CUTBANK"]')
+    expect(card).not.toBeNull()
+    await act(async () => { card!.click() })
+    expect(useReactStore.getState().selectedCanvasPresetId).toBe('canvas-cutbank')
+    expect(useReactStore.getState().canvasPresetSettings.cutbank.paletteMode).toBe('monochrome')
   })
 
   it('renders Show Director templates through the shared card with persistent selected and modified state', async () => {

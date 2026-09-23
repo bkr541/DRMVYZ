@@ -534,7 +534,7 @@ describe('Canvas Fractures audio adapter', () => {
     expect(adapterSource).not.toContain('AudioFeatureBus.setFrame')
     expect(adapterSource).not.toContain('AudioFeatureBus.updatePartial')
     expect(adapterSource).not.toContain('musicIntelligenceEngine')
-    expect(shellSource).toContain('if (!particleReconstructionActive && !fragmentCollageActive && !laserImageFxActive)')
+    expect(shellSource).toContain('if (!particleReconstructionActive && !fragmentCollageActive && !laserImageFxActive && !cutbankActive)')
     expect(shellSource).toContain('performanceContextRef={particlePerformanceContextRef}')
   })
 })

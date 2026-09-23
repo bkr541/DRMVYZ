@@ -239,7 +239,11 @@ import {
   setCanvasAuthoredLayerSoloState,
   updateCanvasLayerEngineOverridesState,
   upsertCanvasCompatibilityPool,
+  addCanvasPoolTextItemState,
+  updateCanvasPoolTextItemState,
+  removeCanvasPoolTextItemState,
 } from '../components/vyzualz/react/canvasPerformance/CanvasAuthoringState'
+import { normalizeCanvasCutbankSettings } from '../components/vyzualz/react/renderers/cutbank/CutbankSettings'
 import { CANVAS_COMPOSITION_TEMPLATES } from '../components/vyzualz/react/canvasPerformance/CanvasCompositionTemplates'
 import { CANVAS_TRANSITIONS } from '../components/vyzualz/react/canvasPerformance/CanvasTransitions'
 import { normalizeCanvasFracturesOverrideProfile } from '../components/vyzualz/react/canvasPerformance/CanvasFracturesPerformance'
@@ -2660,6 +2664,9 @@ interface ReactStoreState {
   deleteCanvasMediaPool: (poolId: string) => CanvasMediaPoolMutationResult
   setActiveCanvasMediaPool: (poolId: string | null) => CanvasMediaPoolMutationResult | null
   addCanvasMediaToPool: (poolId: string, mediaId: string) => CanvasMediaPoolMutationResult
+  addCanvasPoolText: (poolId: string, text: string) => CanvasMediaPoolMutationResult
+  updateCanvasPoolText: (poolId: string, textId: string, text: string) => CanvasMediaPoolMutationResult
+  removeCanvasPoolText: (poolId: string, textId: string) => CanvasMediaPoolMutationResult
   removeCanvasMediaFromPool: (poolId: string, mediaId: string) => CanvasMediaPoolMutationResult
   toggleCanvasMediaPoolItem: (mediaId: string, selected?: boolean) => void
   setCanvasMediaRoles: (mediaId: string, roles: CanvasMediaRole[]) => void
@@ -4485,7 +4492,7 @@ function createCanvasOrchestrationSettingsForPersistence(
   return canonical
 }
 
-function createCanvasAuthoringIdentity(prefix: 'layer' | 'pool'): string {
+function createCanvasAuthoringIdentity(prefix: 'layer' | 'pool' | 'text'): string {
   const randomUuid = globalThis.crypto?.randomUUID?.()
   if (randomUuid) return `canvas-${prefix}-${randomUuid}`
   return `canvas-${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
@@ -4804,6 +4811,7 @@ export function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSetti
     fractureBassMotion: clampCanvasNumber(source.fractureBassMotion, DEFAULT_CANVAS_PRESET_SETTINGS.fractureBassMotion, 0, 1),
     fractureTransientGlitch: clampCanvasNumber(source.fractureTransientGlitch, DEFAULT_CANVAS_PRESET_SETTINGS.fractureTransientGlitch, 0, 1),
     fractureStructuralResponse: clampCanvasNumber(source.fractureStructuralResponse, DEFAULT_CANVAS_PRESET_SETTINGS.fractureStructuralResponse, 0, 1),
+    cutbank: normalizeCanvasCutbankSettings(source.cutbank),
     motionTrailAmount: trailAmount,
     particleAmount: particleDensity,
     dissolveAmount: turbulence,
@@ -7724,7 +7732,7 @@ export const useReactStore = create<ReactStoreState>()(
             }
             return {}
           }
-          const pool = { id: createCanvasAuthoringIdentity('pool'), name: normalizedName, mediaIds: [] }
+          const pool = { id: createCanvasAuthoringIdentity('pool'), name: normalizedName, mediaIds: [], textItems: [] }
           result = { ok: true, pool }
           return {
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
@@ -7865,6 +7873,71 @@ export const useReactStore = create<ReactStoreState>()(
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
               ...state.canvasOrchestrationSettings,
               mediaPools: current.map((candidate, candidateIndex) => candidateIndex === index ? pool : candidate),
+              poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+            }),
+          }
+        })
+        return result
+      },
+
+      addCanvasPoolText: (poolId, text) => {
+        let result: CanvasMediaPoolMutationResult = { ok: false, code: 'pool-not-found', message: 'That CANVAS Media Pool is no longer available.' }
+        set((state) => {
+          const mutation = addCanvasPoolTextItemState(
+            state.canvasOrchestrationSettings.mediaPools,
+            poolId,
+            createCanvasAuthoringIdentity('text'),
+            text,
+          )
+          if (!mutation.ok) {
+            result = mutation
+            return {}
+          }
+          result = { ok: true, pool: mutation.pool }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              mediaPools: mutation.pools,
+              poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+            }),
+          }
+        })
+        return result
+      },
+
+      updateCanvasPoolText: (poolId, textId, text) => {
+        let result: CanvasMediaPoolMutationResult = { ok: false, code: 'pool-not-found', message: 'That CANVAS Media Pool is no longer available.' }
+        set((state) => {
+          const mutation = updateCanvasPoolTextItemState(state.canvasOrchestrationSettings.mediaPools, poolId, textId, text)
+          if (!mutation.ok) {
+            result = mutation
+            return {}
+          }
+          result = { ok: true, pool: mutation.pool }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              mediaPools: mutation.pools,
+              poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
+            }),
+          }
+        })
+        return result
+      },
+
+      removeCanvasPoolText: (poolId, textId) => {
+        let result: CanvasMediaPoolMutationResult = { ok: false, code: 'pool-not-found', message: 'That CANVAS Media Pool is no longer available.' }
+        set((state) => {
+          const mutation = removeCanvasPoolTextItemState(state.canvasOrchestrationSettings.mediaPools, poolId, textId)
+          if (!mutation.ok) {
+            result = mutation
+            return {}
+          }
+          result = { ok: true, pool: mutation.pool }
+          return {
+            canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
+              ...state.canvasOrchestrationSettings,
+              mediaPools: mutation.pools,
               poolRevision: state.canvasOrchestrationSettings.poolRevision + 1,
             }),
           }

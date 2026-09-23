@@ -135,6 +135,7 @@ describe('Canvas Layout Lab import boundary', () => {
       'Particle Aura',
       'Fractures',
       'Laser Image FX',
+      'CUTBANK',
     ])
   })
 })

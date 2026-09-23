@@ -6700,3 +6700,32 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   cursor: not-allowed;
   opacity: 0.56;
 }
+
+/* ── Pool text entries (CANVAS-native text stored on a Pool) ─────────── */
+.vz-pool-text { display: flex; flex-direction: column; }
+.vz-pool-text__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 6px 0;
+}
+.vz-pool-text__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--az-panel2);
+}
+.vz-pool-text__value {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(232, 238, 240, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vz-pool-text__edit { flex: 1; min-width: 0; }

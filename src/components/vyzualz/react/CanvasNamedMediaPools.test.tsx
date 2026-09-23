@@ -204,4 +204,39 @@ describe('CANVAS Media Library Pools', () => {
     expect(state.mediaPools.map(pool => pool.name)).toEqual(['Warmup'])
     expect(state.activeMediaPoolId).toBeNull()
   })
+  it('adds, edits, and deletes native text inside a Pool with a distinct TEXT badge and counts', () => {
+    openPoolsTab()
+    createPool('Lyrics')
+    const folder = () => [...host.querySelectorAll<HTMLElement>('.vz-coll-folder')].find(f => f.textContent?.includes('Lyrics'))!
+    act(() => folder().click())
+
+    const input = host.querySelector<HTMLInputElement>('[aria-label="New pool text"]')
+    if (!input) throw new Error('Expected pool text input')
+    setInputValue(input, "DON'T WAKE ME")
+    act(() => findButton(host, 'Add Text').click())
+    expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools[0].textItems.map(t => t.text)).toEqual(["DON'T WAKE ME"])
+    expect(host.querySelector('.vz-pool-text__row .dv-badge')?.textContent).toContain('TEXT')
+    expect(host.textContent).toContain("DON'T WAKE ME")
+    expect(host.querySelector('.vz-coll-breadcrumb')?.textContent).toContain('1 item')
+
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit text DON\'T WAKE ME"]')!.click())
+    const edit = host.querySelector<HTMLInputElement>('.vz-pool-text__edit')
+    if (!edit) throw new Error('Expected edit input')
+    setInputValue(edit, 'IS THIS REAL?')
+    act(() => findButton(host, 'Save').click())
+    expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools[0].textItems.map(t => t.text)).toEqual(['IS THIS REAL?'])
+
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="Delete text IS THIS REAL?"]')!.click())
+    expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools[0].textItems).toEqual([])
+  })
+
+  it('shows text entries in the Pool card count', () => {
+    openPoolsTab()
+    createPool('Lyrics')
+    const poolId = useReactStore.getState().canvasOrchestrationSettings.mediaPools[0].id
+    act(() => { useReactStore.getState().addCanvasPoolText(poolId, 'HELLO') })
+    const card = [...host.querySelectorAll<HTMLElement>('.vz-coll-folder')].find(f => f.textContent?.includes('Lyrics'))!
+    expect(card.textContent).toContain('1 item')
+    expect(card.textContent).toContain('1 text entry')
+  })
 })

@@ -57,6 +57,8 @@ import {
 } from './renderers/CanvasParticleAuraRenderer'
 import { CanvasFracturesRendererLayer } from './renderers/CanvasFracturesRendererLayer'
 import { CanvasLaserImageFxLayer } from './renderers/laserImageFx/CanvasLaserImageFxLayer'
+import { CanvasCutbankLayer } from './renderers/cutbank/CanvasCutbankLayer'
+import { CutbankDesignControls } from './renderers/cutbank/CutbankDesignControls'
 import {
   isCanvasOutputAvailable,
   resolveCanvasOutputCapability,
@@ -1573,6 +1575,7 @@ export function CanvasEngineSurface({
   const [particleRendererNotice, setParticleRendererNotice] = useState<string | null>(null)
   const [laserImageFxRendererNotice, setLaserImageFxRendererNotice] = useState<string | null>(null)
   const [fracturesRendererNotice, setFracturesRendererNotice] = useState<string | null>(null)
+  const [cutbankRendererNotice, setCutbankRendererNotice] = useState<string | null>(null)
   const [fracturesReadySourceKey, setFracturesReadySourceKey] = useState<string | null>(null)
   const [detectedBackgroundMode, setDetectedBackgroundMode] = useState<{
     mediaKey: string
@@ -1599,6 +1602,10 @@ export function CanvasEngineSurface({
   const presetStyle = useMemo(() => makeCanvasPresetStyle(canvasPresetSettings), [canvasPresetSettings])
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
   const rendererKind = selectedPreset.rendererKind
+  const cutbankPool = useMemo(
+    () => orchestrationSettings.mediaPools.find(pool => pool.id === orchestrationSettings.activeMediaPoolId) ?? null,
+    [orchestrationSettings.activeMediaPoolId, orchestrationSettings.mediaPools],
+  )
   const outputContract = useMemo(() => resolveCanvasOutputContract({
     canvasOutputOpacity: settings.opacity,
     presetSettings: canvasPresetSettings,
@@ -1606,6 +1613,7 @@ export function CanvasEngineSurface({
   const particleReconstructionActive = rendererKind === 'particleAura'
   const fragmentCollageActive = rendererKind === 'fragmentCollage'
   const laserImageFxActive = rendererKind === 'laserImageFx'
+  const cutbankActive = rendererKind === 'cutbank'
   const effectPassActive = rendererKind === 'standard' && hasCanvasEffectPass(canvasPresetSettings)
   const singleLayerEffectOwner = useMemo(() => {
     if (orchestrationSettings.renderMode !== 'single') return null
@@ -1650,13 +1658,16 @@ export function CanvasEngineSurface({
   getAudioTimeRef.current = getAudioTime
 
   useEffect(() => {
-    const authoredLayerRuntime = !runtimeCanvasShow && orchestrationSettings.renderMode === 'layers'
-    const singleEffectLayerRuntime = !runtimeCanvasShow && singleLayerEffectRuntime
+    // CUTBANK owns its own pool-driven performance; the generic authored/pool
+    // automation runtimes stay idle so nothing else changes the same output.
+    const authoredLayerRuntime = !runtimeCanvasShow && !cutbankActive && orchestrationSettings.renderMode === 'layers'
+    const singleEffectLayerRuntime = !runtimeCanvasShow && !cutbankActive && singleLayerEffectRuntime
     const compositedAuthoredRuntime = authoredLayerRuntime || singleEffectLayerRuntime
     const authoredRuntimeLayers = singleEffectLayerRuntime && singleLayerEffectOwner
       ? [singleLayerEffectOwner]
       : orchestrationSettings.authoredLayers
     const performanceRuntime = !runtimeCanvasShow
+      && !cutbankActive
       && orchestrationSettings.renderMode === 'performance'
       && orchestrationSettings.enabled
     if (!runtimeCanvasShow && (showPreviewMode || (!compositedAuthoredRuntime && !performanceRuntime))) {
@@ -1871,7 +1882,7 @@ export function CanvasEngineSurface({
     resolveFrame()
     const intervalId = window.setInterval(resolveFrame, 80)
     return () => window.clearInterval(intervalId)
-  }, [activeAudioTrackId, activeItem, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, settings.fitMode, settings.scale, settings.positionX, settings.positionY, settings.rotation, settings.opacity, showPreviewMode, singleLayerEffectOwner, singleLayerEffectRuntime])
+  }, [activeAudioTrackId, activeItem, cutbankActive, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, settings.fitMode, settings.scale, settings.positionX, settings.positionY, settings.rotation, settings.opacity, showPreviewMode, singleLayerEffectOwner, singleLayerEffectRuntime])
 
   useEffect(() => () => {
     orchestrationPreloadManager.dispose()
@@ -1879,7 +1890,7 @@ export function CanvasEngineSurface({
   }, [orchestrationPreloadManager])
 
   useEffect(() => {
-    if (!particleReconstructionActive && !fragmentCollageActive && !laserImageFxActive) {
+    if (!particleReconstructionActive && !fragmentCollageActive && !laserImageFxActive && !cutbankActive) {
       previousParticlePerformanceContextRef.current = null
       particlePerformanceContextRef.current = null
       return
@@ -1909,7 +1920,7 @@ export function CanvasEngineSurface({
       previousParticlePerformanceContextRef.current = null
       particlePerformanceContextRef.current = null
     }
-  }, [activeAudioTrackId, fragmentCollageActive, laserImageFxActive, particleReconstructionActive])
+  }, [activeAudioTrackId, cutbankActive, fragmentCollageActive, laserImageFxActive, particleReconstructionActive])
 
   // Keep the direct renderer visible only while every authored source is still
   // preloading. Once a source is drawable, or all authored sources have failed,
@@ -1937,14 +1948,15 @@ export function CanvasEngineSurface({
   }, [onCanvasReady, onOutputCapabilityChange, outputAvailable, outputCapability])
 
   useEffect(() => {
-    if (orchestrationRenderable || !outputAvailable) return
+    // CUTBANK publishes its own capture canvas from CanvasCutbankLayer.
+    if (orchestrationRenderable || !outputAvailable || cutbankActive) return
     const captureCanvas = outputCaptureCanvasRef.current
     onCanvasReady?.(captureCanvas)
     return () => onCanvasReady?.(null)
-  }, [onCanvasReady, orchestrationRenderable, outputAvailable])
+  }, [cutbankActive, onCanvasReady, orchestrationRenderable, outputAvailable])
 
   useEffect(() => {
-    if (orchestrationRenderable || fragmentCollageActive) return
+    if (orchestrationRenderable || fragmentCollageActive || cutbankActive) return
     const captureCanvas = outputCaptureCanvasRef.current
     const effectsCanvas = sourceEffectsCanvasRef.current
     if (!captureCanvas || !effectsCanvas) return
@@ -2144,7 +2156,7 @@ export function CanvasEngineSurface({
       window.cancelAnimationFrame(frameId)
       onLiveFps?.(0)
     }
-  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, onLiveFps, orchestrationRenderable, outputContract, particleReconstructionActive, particleSourceRef, reactivityActive, settings])
+  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, cutbankActive, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, onLiveFps, orchestrationRenderable, outputContract, particleReconstructionActive, particleSourceRef, reactivityActive, settings])
 
   useEffect(() => {
     setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
@@ -2494,6 +2506,36 @@ export function CanvasEngineSurface({
       aria-hidden="true"
     />
   )
+
+  if (cutbankActive && !runtimeCanvasShow) {
+    return (
+      <div
+        className="rv-canvas-engine-surface rv-canvas-engine-surface--cutbank"
+        role="region"
+        aria-label="CANVAS engine render surface"
+        data-renderer-kind={rendererKind}
+      >
+        <CanvasCutbankLayer
+          active
+          settings={canvasPresetSettings}
+          pool={cutbankPool}
+          poolRevision={orchestrationSettings.poolRevision}
+          mediaItems={mediaItems}
+          trackIdentity={activeAudioTrackId}
+          getAudioTime={getAudioTime}
+          performanceContextRef={particlePerformanceContextRef}
+          audioActive={reactivityActive}
+          onCanvasReady={outputAvailable ? onCanvasReady : undefined}
+          onStatusChange={setCutbankRendererNotice}
+        />
+        <div className="rv-canvas-visualizer-notice-stack" aria-label="CANVAS visualizer notices">
+          {cutbankRendererNotice && (
+            <NoticeCard tone="warning" role="status" title="CUTBANK">{cutbankRendererNotice}</NoticeCard>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   if (orchestrationRenderable && orchestrationFrame) {
     return (
@@ -3475,6 +3517,10 @@ export function CanvasPerformanceAutomationControls() {
     .filter((item): item is CanvasMediaItem => item !== null)
   const selectedShow = getCanvasPerformanceShow(settings.programId)
   const autoPerformanceActive = settings.enabled && settings.renderMode === 'performance'
+  const cutbankSelected = useReactStore(s => s.selectedCanvasPresetId === 'canvas-cutbank')
+
+  // CUTBANK runs its own pool-driven performance; generic automation would only fight it.
+  if (cutbankSelected) return null
 
   return (
     <Collapsible label="Performance Automation" defaultOpen>
@@ -4996,9 +5042,20 @@ export function useCanvasScopedEngineSettings(): {
 export function CanvasEngineFxPanel() {
   const { settings, updateSettings, scope } = useCanvasScopedEngineSettings()
   const layerScopeActive = scope.kind === 'layer'
+  const selectedCutbank = useReactStore(state => state.selectedCanvasPresetId === 'canvas-cutbank')
 
   const setSettings = (patch: Partial<CanvasLayerEngineBaseline>) => {
     updateSettings(patch)
+  }
+
+  // CUTBANK has its own four-group surface; Display, Auto Role, and Video Timing
+  // describe single-source Canvas output that CUTBANK does not consume.
+  if (selectedCutbank && !layerScopeActive) {
+    return (
+      <div className="rv-ctrl-group">
+        <CutbankDesignControls />
+      </div>
+    )
   }
 
   return (

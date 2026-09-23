@@ -102,7 +102,7 @@ function settings(patch: Partial<CanvasOrchestrationSettings> = {}): CanvasOrche
     ...DEFAULT_CANVAS_ORCHESTRATION_SETTINGS,
     renderMode: 'layers',
     poolAutomationEnabled: true,
-    mediaPools: [{ id: 'active-pool', name: 'Active', mediaIds: ['pool-a', 'pool-b', 'pool-c', 'pool-d'] }],
+    mediaPools: [{ id: 'active-pool', name: 'Active', mediaIds: ['pool-a', 'pool-b', 'pool-c', 'pool-d'], textItems: [] }],
     activeMediaPoolId: 'active-pool',
     mediaPoolIds: ['pool-a', 'pool-b', 'pool-c', 'pool-d'],
     ...patch,
@@ -205,15 +205,15 @@ describe('CANVAS Pool automation runtime', () => {
 
   it('handles empty, single-item, and many-item active Pools without borrowing from inactive Pools', () => {
     const mediaItems = [media('pool-a'), media('pool-b'), media('pool-c'), media('inactive-a')]
-    const empty = settings({ mediaPools: [{ id: 'active-pool', name: 'Active', mediaIds: [] }], mediaPoolIds: [] })
+    const empty = settings({ mediaPools: [{ id: 'active-pool', name: 'Active', mediaIds: [], textItems: [] }], mediaPoolIds: [] })
     const emptyResolution = resolveCanvasPoolAutomationRuntime({ context: contextAt(1), settings: empty, mediaItems })
     expect(emptyResolution.automaticLayers).toEqual([])
     expect(emptyResolution.diagnostics).toContain('pool-automation-empty-active-pool')
 
     const single = settings({
       mediaPools: [
-        { id: 'active-pool', name: 'Active', mediaIds: ['pool-a'] },
-        { id: 'inactive-pool', name: 'Inactive', mediaIds: ['inactive-a'] },
+        { id: 'active-pool', name: 'Active', mediaIds: ['pool-a'], textItems: [] },
+        { id: 'inactive-pool', name: 'Inactive', mediaIds: ['inactive-a'], textItems: [] },
       ],
       mediaPoolIds: ['pool-a'],
     })
@@ -223,8 +223,8 @@ describe('CANVAS Pool automation runtime', () => {
 
     const many = settings({
       mediaPools: [
-        { id: 'active-pool', name: 'Active', mediaIds: ['pool-a', 'pool-b', 'pool-c'] },
-        { id: 'inactive-pool', name: 'Inactive', mediaIds: ['inactive-a'] },
+        { id: 'active-pool', name: 'Active', mediaIds: ['pool-a', 'pool-b', 'pool-c'], textItems: [] },
+        { id: 'inactive-pool', name: 'Inactive', mediaIds: ['inactive-a'], textItems: [] },
       ],
       mediaPoolIds: ['pool-a', 'pool-b', 'pool-c'],
     })
@@ -242,8 +242,8 @@ describe('CANVAS Pool automation runtime', () => {
     const initialSettings = settings({
       authoredLayers: [manualLayer('manual-1', 'manual-a', 0)],
       mediaPools: [
-        { id: 'active-pool', name: 'Active', mediaIds: ['pool-a', 'pool-b'] },
-        { id: 'other-pool', name: 'Other', mediaIds: ['other-a', 'other-b'] },
+        { id: 'active-pool', name: 'Active', mediaIds: ['pool-a', 'pool-b'], textItems: [] },
+        { id: 'other-pool', name: 'Other', mediaIds: ['other-a', 'other-b'], textItems: [] },
       ],
       mediaPoolIds: ['pool-a', 'pool-b'],
     })

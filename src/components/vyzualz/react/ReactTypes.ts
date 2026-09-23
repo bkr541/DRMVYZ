@@ -6,6 +6,7 @@ import { REACTIVE_CONSTELLATION_CURATED_PRESETS } from './ReactiveConstellationP
 import { PIX_GRID_PRESETS } from './pixGrid/PixGridPresets'
 import type { PixGridPresetSettings } from './pixGrid/PixGridTypes'
 import { createDefaultProductionStageModel } from './LaserDmxProductionRig'
+import { DEFAULT_CANVAS_CUTBANK_SETTINGS, type CanvasCutbankSettings } from './renderers/cutbank/CutbankSettings'
 import type {
   ProductionChoreographySettings,
   ProductionCompoundCue,
@@ -218,8 +219,9 @@ export type CanvasPresetId =
   | 'canvas-particle-aura'
   | 'canvas-fractures'
   | 'canvas-laser-image-fx'
+  | 'canvas-cutbank'
 
-export type CanvasPresetRendererKind = 'standard' | 'particleAura' | 'fragmentCollage' | 'laserImageFx'
+export type CanvasPresetRendererKind = 'standard' | 'particleAura' | 'fragmentCollage' | 'laserImageFx' | 'cutbank'
 export type CanvasPresetColorMode = 'original' | 'palette' | 'audioReactive'
 export type CanvasParticleQuality = 'low' | 'balanced' | 'high'
 export type CanvasLaserImageEffect =
@@ -315,7 +317,7 @@ export const DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS: CanvasVideoTimingSettings = {
   sectionTriggerTypes: ['intro', 'build', 'drop', 'breakdown', 'outro'],
 }
 
-export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 6 as const
+export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 7 as const
 
 export interface CanvasPresetSettings {
   schemaVersion: typeof CANVAS_PRESET_SETTINGS_SCHEMA_VERSION
@@ -398,6 +400,8 @@ export interface CanvasPresetSettings {
   fractureBassMotion: number
   fractureTransientGlitch: number
   fractureStructuralResponse: number
+  /** CUTBANK's dedicated settings block (schema v7). Consumed only by the CUTBANK renderer. */
+  cutbank: CanvasCutbankSettings
   /** @deprecated Read/write compatibility for persisted pre-recipe CANVAS sessions only. */
   motionTrailAmount: number
   particleAmount: number
@@ -572,6 +576,7 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
   fractureBassMotion: 0.3,
   fractureTransientGlitch: 0.25,
   fractureStructuralResponse: 0.35,
+  cutbank: DEFAULT_CANVAS_CUTBANK_SETTINGS,
   motionTrailAmount: 0,
   particleAmount: 0,
   dissolveAmount: 0,
@@ -887,8 +892,32 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     },
     controls: [],
   },
+  {
+    id: 'canvas-cutbank',
+    name: 'CUTBANK',
+    description: 'Audio-directed editorial collage and kinetic typography built from a Media Pool of images, SVGs, video, and your own text.',
+    accent: '#f2f0e6',
+    rendererKind: 'cutbank',
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 1,
+      sourceVisibility: 1,
+      intensity: 0,
+      bassReactivity: 0,
+      beatPulse: 0,
+      glow: 0,
+      trailAmount: 0,
+      rgbSplit: 0,
+      glitchAmount: 0,
+      stutterRate: 0,
+      motionAmount: 0,
+      turbulence: 0,
+      particleDensity: 0,
+      cutbank: DEFAULT_CANVAS_CUTBANK_SETTINGS,
+    },
+    controls: [],
+  },
 ]
-
 
 export const CANVAS_LEGACY_EFFECT_PRESET_IDS = [
   'canvas-bass-bloom',
