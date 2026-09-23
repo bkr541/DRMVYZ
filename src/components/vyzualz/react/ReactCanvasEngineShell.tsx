@@ -205,16 +205,6 @@ function CanvasHelpControl({
   )
 }
 
-function CanvasMediaTokens() {
-  return (
-    <div className="rv-canvas-media-tokens" aria-label="Supported CANVAS media types">
-      <span>Video</span>
-      <span>Images</span>
-      <span>SVGs</span>
-    </div>
-  )
-}
-
 interface CanvasOverrideStatusProps {
   title: string
   message: string
@@ -2530,7 +2520,6 @@ export function CanvasEngineSurface({
   }
 
   if (!activeItem) {
-    const hasSelectableMedia = mediaItems.length > 0
     return (
       <div
         className="rv-canvas-engine-surface rv-canvas-engine-surface--empty"
@@ -2540,24 +2529,6 @@ export function CanvasEngineSurface({
       >
         {captureCanvasNode}
         {sourceEffectsCanvasNode}
-        <div className="rv-canvas-live-empty-card rv-canvas-live-empty-card--render-only">
-          <div className="rv-canvas-engine-eyebrow">CANVAS Output</div>
-          <h2 className="rv-canvas-live-empty-title">
-            {hasSelectableMedia ? 'No source selected' : 'Choose a CANVAS source'}
-          </h2>
-          <p className="rv-canvas-engine-desc">
-            {fragmentCollageActive
-              ? 'Fractures needs an active video, image, or SVG before its specialized fragment renderer can sample the source.'
-              : laserImageFxActive
-              ? 'Laser Image FX needs an active video, image, or SVG before its WebGL2 renderer can sample the source.'
-              : particleReconstructionActive
-              ? 'Particle Aura needs an active video, image, or SVG before it can sample pixels.'
-              : hasSelectableMedia
-                ? 'Select media in the left SOURCE panel to render it here.'
-                : 'Select from your media library in the left SOURCE panel, then this stage becomes render-only output.'}
-          </p>
-          <CanvasMediaTokens />
-        </div>
       </div>
     )
   }

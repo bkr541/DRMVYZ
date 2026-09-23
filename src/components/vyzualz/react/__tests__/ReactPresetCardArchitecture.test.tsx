@@ -198,7 +198,7 @@ describe('canonical React preset card architecture', () => {
     }
 
     expect(useReactStore.getState().selectedCanvasPresetId).toBe('canvas-bass-bloom')
-    expect(container.textContent).toContain('CANVAS Media Presets')
+    expect(container.textContent).not.toContain('CANVAS Media Presets')
     expect(container.textContent).not.toContain('Bass Bloom')
   })
 

@@ -325,31 +325,29 @@ function CanvasPresetCollection({ thumbnailGenerationKey, query }: { thumbnailGe
   )
 
   return (
-    <Collapsible label="CANVAS Media Presets" defaultOpen>
-      <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>
-        {visibleCanvasPresets.length === 0 && (
-          <div className="rv-ctrl-info">No CANVAS presets match your search.</div>
-        )}
-        {visibleCanvasPresets.map(canvasPreset => {
-          const cardPreset = cardById.get(canvasPreset.id)
-          if (!cardPreset) return null
-          return (
-            <StandardReactPresetCard
-              key={canvasPreset.id}
-              preset={cardPreset}
-              isActive={canvasPreset.id === selectedCanvasPresetId}
-              modified={canvasPreset.id === selectedCanvasPresetId
-                && resolveCanvasPresetProvenance(canvasPreset, canvasPresetSettings).status === 'modified'}
-              activeEngineId="canvas"
-              onSelect={id => selectCanvasPreset(id as CanvasPresetId)}
-              thumbnailGenerationKey={canvasThumbnailGenerationKey}
-              modeHintOverride={null}
-              showMore={false}
-            />
-          )
-        })}
-      </div>
-    </Collapsible>
+    <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>
+      {visibleCanvasPresets.length === 0 && (
+        <div className="rv-ctrl-info">No CANVAS presets match your search.</div>
+      )}
+      {visibleCanvasPresets.map(canvasPreset => {
+        const cardPreset = cardById.get(canvasPreset.id)
+        if (!cardPreset) return null
+        return (
+          <StandardReactPresetCard
+            key={canvasPreset.id}
+            preset={cardPreset}
+            isActive={canvasPreset.id === selectedCanvasPresetId}
+            modified={canvasPreset.id === selectedCanvasPresetId
+              && resolveCanvasPresetProvenance(canvasPreset, canvasPresetSettings).status === 'modified'}
+            activeEngineId="canvas"
+            onSelect={id => selectCanvasPreset(id as CanvasPresetId)}
+            thumbnailGenerationKey={canvasThumbnailGenerationKey}
+            modeHintOverride={null}
+            showMore={false}
+          />
+        )
+      })}
+    </div>
   )
 }
 

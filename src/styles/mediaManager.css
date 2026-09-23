@@ -505,14 +505,14 @@
 .vz-media-browser--manager .vz-media-grid {
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
-  padding: 4px;
+  padding: 0 4px;
 }
 
 .vz-media-browser--manager .vz-coll-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 10px;
-  padding: 4px;
+  padding: 0 4px;
 }
 
 .vz-media-browser--manager .vz-media-list,

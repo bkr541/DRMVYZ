@@ -16,7 +16,6 @@ import {
   GridViewIcon,
   ListViewIcon,
   PropertyViewIcon,
-  Refresh01Icon,
 } from 'hugeicons-react'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia, MediaCollection, MediaMutationState } from '../../../stores/mediaStore'
@@ -1483,18 +1482,6 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             >
               <ListViewIcon size={13} color="currentColor" />
             </button>
-            {isCanvasMode && (
-              <button
-                type="button"
-                className="vz-md-refresh-icon-btn"
-                onClick={() => { void refreshLibrary?.() }}
-                disabled={refreshing}
-                title="Refresh media library"
-                aria-label="Refresh media library"
-              >
-                <Refresh01Icon size={11} color="currentColor" />
-              </button>
-            )}
           </div>
         )}
       </div>

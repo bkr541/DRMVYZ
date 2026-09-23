@@ -551,7 +551,7 @@
 .vz-media-list {
   display: flex;
   flex-direction: column;
-  padding: 4px 6px;
+  padding: 0 6px;
 }
 
 .vz-media-row {
@@ -645,6 +645,9 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  /* Wheel/trackpad scrolling over the grid stays in the grid instead of
+     chaining into the enclosing panel once it hits either end. */
+  overscroll-behavior: contain;
   padding: 6px;
   min-height: 0;
   display: flex;
@@ -666,7 +669,8 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
-  padding: 6px 6px;
+  /* Vertical inset comes from .vz-media-scroll so top and bottom match. */
+  padding: 0 6px;
   flex: 1;
 }
 
@@ -6423,6 +6427,10 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
 .vz-media-virtual {
   min-height: 100%;
   contain: layout style;
+  /* .vz-media-scroll is a flex column; without this the wrapper shrinks to the
+     scroll box and its (layout-contained) overflow is no longer scrollable, so
+     the wheel falls through to the enclosing panel instead of the grid. */
+  flex-shrink: 0;
 }
 
 .vz-media-virtual-spacer {
