@@ -34,8 +34,9 @@ function isPlausibleRemovableRoot(rootPath) {
   return REMOVABLE_ROOT_RE.test(path.resolve(String(rootPath || '')))
 }
 
-function installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow }) {
+function installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow, log }) {
   if (!ipcMain || !dialog) throw new Error('installRekordboxUsbBridge requires Electron ipcMain and dialog.')
+  const rekordboxLog = log ? log.scope('rekordbox:scan') : null
 
   ipcMain.handle('drmvyz:rekordbox:select-usb-root-and-parse', async event => {
     const owner = BrowserWindow?.fromWebContents?.(event.sender)
@@ -49,23 +50,26 @@ function installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow }) {
       return emptyResult({ cancelled: true })
     }
 
-    return scanRekordboxUsbRoot(result.filePaths[0])
+    return scanRekordboxUsbRoot(result.filePaths[0], log)
   })
 
   ipcMain.handle('drmvyz:rekordbox:scan-usb-root', async (_event, rootPath) => {
     if (!isPlausibleRemovableRoot(rootPath)) {
+      rekordboxLog?.warn('rejected scan-usb-root request — path is not a plausible removable-media mount point', { rootPath })
       return emptyResult({
         warnings: ['The requested path does not look like a removable-media mount point and was not scanned.'],
       })
     }
-    return scanRekordboxUsbRoot(rootPath)
+    return scanRekordboxUsbRoot(rootPath, log)
   })
 }
 
-async function scanRekordboxUsbRoot(rootPath) {
+async function scanRekordboxUsbRoot(rootPath, log) {
+  const rekordboxLog = log ? log.scope('rekordbox:scan') : null
   const normalizedRoot = path.resolve(String(rootPath || ''))
   const rootName = path.basename(normalizedRoot)
   const warnings = []
+  rekordboxLog?.info(`scanning USB root "${rootName}"`, { rootPath: normalizedRoot })
 
   const rekordboxDir = path.join(normalizedRoot, 'PIONEER', 'rekordbox')
   const exportPdb = path.join(rekordboxDir, 'export.pdb')
@@ -95,6 +99,10 @@ async function scanRekordboxUsbRoot(rootPath) {
   if (detectedPdbFiles === 0) warnings.push('No /PIONEER/rekordbox/export.pdb file was found on the selected USB root.')
   if (anlzFiles.files.length === 0) warnings.push('No /PIONEER/USBANLZ/*.DAT, *.EXT, or *.2EX analysis files were found.')
   if (tracks.length === 0) warnings.push('No usable Rekordbox tracks could be parsed from this USB. Confirm this is the root of a Rekordbox-prepared USB.')
+
+  const summary = { rootName, parserMode, detectedPdbFiles, detectedAnlzFiles: anlzFiles.files.length, tracks: tracks.length }
+  if (warnings.length > 0) rekordboxLog?.warn(`scan of "${rootName}" completed with ${warnings.length} warning(s)`, { ...summary, warnings })
+  else rekordboxLog?.info(`scan of "${rootName}" completed`, summary)
 
   return {
     cancelled: false,

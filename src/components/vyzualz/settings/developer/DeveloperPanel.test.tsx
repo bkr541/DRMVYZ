@@ -8,9 +8,9 @@ import type { NativeDiagnosticsBridge, NativeMainLogAppendChunk } from '../../..
 import { DeveloperPanel } from './DeveloperPanel'
 
 const SEED_LOG = [
-  '[2026-09-22 10:00:00.000] [info]  (main) app ready',
-  '[2026-09-22 10:00:01.000] [warn]  (renderer:WebGL2Renderer) context lost',
-  '[2026-09-22 10:00:02.000] [error] (renderer:VyzualzErrorBoundary) VyzualzView crashed: boom',
+  '[2026-09-22 10:00:00.000] [info]  (system:main) app ready',
+  '[2026-09-22 10:00:01.000] [warn]  (react:WebGL2Renderer) context lost',
+  '[2026-09-22 10:00:02.000] [error] (react:VyzualzErrorBoundary) VyzualzView crashed: boom',
 ].join('\n') + '\n'
 
 let container: HTMLDivElement
@@ -75,10 +75,10 @@ afterEach(async () => {
 })
 
 describe('DeveloperPanel', () => {
-  it('shows five sub-nav groups and defaults to Logging', () => {
-    const navButtons = [...document.querySelectorAll<HTMLButtonElement>('.vsm-dev-nav button')].map(b => b.textContent)
+  it('shows five sub-tabs and defaults to Logging', () => {
+    const navButtons = [...document.querySelectorAll<HTMLButtonElement>('.vsm-dev-panel .rv-right-subtabs button')].map(b => b.textContent)
     expect(navButtons).toEqual(['Logging', 'Feature Flags', 'Network', 'Performance', 'Storage'])
-    expect(document.querySelector('.vsm-dev-nav .vsm-nav-item--active')?.textContent).toBe('Logging')
+    expect(document.querySelector('.vsm-dev-panel .rv-right-subtabs .is-active')?.textContent).toBe('Logging')
   })
 
   it('loads the seeded main.log content into sortable rows', () => {
@@ -88,6 +88,15 @@ describe('DeveloperPanel', () => {
     expect(rows.some(text => text.includes('app ready'))).toBe(true)
     expect(rows.some(text => text.includes('context lost'))).toBe(true)
     expect(rows.some(text => text.includes('VyzualzView crashed: boom'))).toBe(true)
+    // None of the seeded entries are multi-line, so none should offer to expand.
+    expect(document.querySelector('.vsm-dev-log-row--collapsible')).toBeNull()
+  })
+
+  it('splits the "<component>:<category>" scope convention into a Component column and a narrower Scope', () => {
+    const componentLabels = [...document.querySelectorAll('.vsm-dev-log-component')].map(el => el.textContent)
+    expect(componentLabels.sort()).toEqual(['React', 'React', 'System'])
+    const scopes = [...document.querySelectorAll('.vsm-dev-log-scope')].map(el => el.textContent)
+    expect(scopes.sort()).toEqual(['VyzualzErrorBoundary', 'WebGL2Renderer', 'main'])
   })
 
   it('switches to a placeholder group and back without losing the log view', async () => {
@@ -115,18 +124,74 @@ describe('DeveloperPanel', () => {
     expect(levels).toEqual(['ERROR', 'INFO', 'WARN'])
   })
 
-  it('filters rows by clicking a level chip', async () => {
-    const errorChip = [...document.querySelectorAll<HTMLButtonElement>('.vsm-dev-log-chip')]
-      .find(chip => chip.textContent === 'error')!
-    await act(async () => errorChip.click())
+  it('filters rows using the level dropdown, defaulting to All', async () => {
+    const trigger = document.querySelector<HTMLButtonElement>('.vsm-dev-log-level-select[role="combobox"]')!
+    expect(trigger.textContent).toContain('All')
+
+    await act(async () => trigger.click())
+    const errorOption = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find(option => option.textContent === 'ERROR')!
+    await act(async () => errorOption.click())
 
     const rows = rowsText()
     expect(rows).toHaveLength(1)
     expect(rows[0]).toContain('VyzualzView crashed')
     expect(document.querySelector('.vsm-dev-log-count')?.textContent).toBe('1 / 3')
 
-    await act(async () => errorChip.click())
+    await act(async () => trigger.click())
+    const allOption = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find(option => option.textContent === 'All')!
+    await act(async () => allOption.click())
     expect(rowsText()).toHaveLength(3)
+  })
+
+  it('filters rows using the component dropdown, defaulting to All', async () => {
+    const trigger = document.querySelector<HTMLButtonElement>('.vsm-dev-log-component-select[role="combobox"]')!
+    expect(trigger.textContent).toContain('All')
+
+    await act(async () => trigger.click())
+    const systemOption = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find(option => option.textContent === 'System')!
+    await act(async () => systemOption.click())
+
+    const rows = rowsText()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toContain('app ready')
+    expect(document.querySelector('.vsm-dev-log-count')?.textContent).toBe('1 / 3')
+
+    await act(async () => trigger.click())
+    const allOption = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find(option => option.textContent === 'All')!
+    await act(async () => allOption.click())
+    expect(rowsText()).toHaveLength(3)
+  })
+
+  it('sorts rows by component', async () => {
+    const componentHeader = [...document.querySelectorAll('.vsm-dev-log-table thead th')]
+      .find(th => th.textContent?.includes('Component')) as HTMLElement
+
+    await act(async () => componentHeader.click())
+    expect(componentHeader.getAttribute('aria-sort')).toBe('descending')
+    const desc = [...document.querySelectorAll('.vsm-dev-log-component')].map(el => el.textContent)
+    expect(desc).toEqual(['System', 'React', 'React']) // desc alpha: system > react
+
+    await act(async () => componentHeader.click())
+    expect(componentHeader.getAttribute('aria-sort')).toBe('ascending')
+    const asc = [...document.querySelectorAll('.vsm-dev-log-component')].map(el => el.textContent)
+    expect(asc).toEqual(['React', 'React', 'System'])
+  })
+
+  it('filters with a "component:" search token', async () => {
+    const search = document.querySelector<HTMLInputElement>('.vsm-dev-log-search')!
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+    await act(async () => {
+      setter.call(search, 'component:system')
+      search.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    const rows = rowsText()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toContain('app ready')
   })
 
   it('filters with a "scope:" search token', async () => {
@@ -163,20 +228,144 @@ describe('DeveloperPanel', () => {
     root = createRoot(container)
   })
 
-  it('copies filtered rows to the clipboard', async () => {
-    const copyButton = buttonWithText('Copy filtered')
+  it('copies a single row to the clipboard via its hover copy icon, without toggling expand', async () => {
+    const row = [...document.querySelectorAll<HTMLElement>('.vsm-dev-log-row')]
+      .find(candidate => candidate.textContent?.includes('context lost'))!
+    const copyButton = row.querySelector<HTMLButtonElement>('.vsm-dev-log-copy-row-btn')!
+
     await act(async () => copyButton.click())
     expect(clipboardWriteText).toHaveBeenCalledTimes(1)
     const copied = clipboardWriteText.mock.calls[0]![0] as string
-    expect(copied).toContain('app ready')
     expect(copied).toContain('context lost')
-    expect(copied).toContain('VyzualzView crashed: boom')
+    expect(copied).not.toContain('app ready')
+    // This entry is single-line and has no expand affordance at all.
+    expect(row.classList.contains('vsm-dev-log-row--collapsible')).toBe(false)
   })
 
-  it('clears the view without touching the log file', async () => {
-    await act(async () => buttonWithText('Clear').click())
-    expect(rowsText()).toHaveLength(0)
-    expect(document.querySelector('.vsm-dev-log-count')?.textContent).toBe('0 / 0')
+  it('gives every row a copy icon, even ones without an expand affordance', () => {
+    const rows = [...document.querySelectorAll<HTMLElement>('.vsm-dev-log-row')]
+    expect(rows).toHaveLength(3)
+    for (const row of rows) {
+      expect(row.querySelector('.vsm-dev-log-copy-row-btn')).not.toBeNull()
+    }
+  })
+})
+
+describe('DeveloperPanel multi-line message collapsing', () => {
+  it('collapses a folded stack trace to its first line and expands on click', async () => {
+    const stackTraceLog = [
+      '[2026-09-22 10:05:00.000] [error]        Error sending from webFrameMain:  Error: boom',
+      '    at WebFrameMain.send (node:electron/js2c/browser_init:2:104635)',
+      '    at WebContents.send (node:electron/js2c/browser_init:2:88680)',
+      '',
+    ].join('\n')
+
+    const bridge: NativeDiagnosticsBridge = {
+      log: vi.fn(),
+      readMainLog: vi.fn(async () => ({
+        path: '/tmp/main.log', content: stackTraceLog, truncated: false, sizeBytes: stackTraceLog.length,
+      })),
+      watchMainLog: vi.fn(() => () => {}),
+    }
+    window.drmvyzNative = { runtime: { isElectron: true, platform: 'darwin' }, diagnostics: bridge }
+
+    const el = document.createElement('div')
+    document.body.appendChild(el)
+    const r = createRoot(el)
+    await act(async () => r.render(<DeveloperPanel />))
+    await flush()
+
+    const row = el.querySelector<HTMLElement>('.vsm-dev-log-row')!
+    expect(row.classList.contains('vsm-dev-log-row--collapsible')).toBe(true)
+    expect(row.getAttribute('aria-expanded')).toBe('false')
+    expect(row.querySelector('.vsm-dev-log-expand-caret')?.textContent).toBe('▸')
+    expect(row.querySelector('.vsm-dev-log-message-first')?.textContent).toBe('Error sending from webFrameMain:  Error: boom')
+    expect(row.querySelector('.vsm-dev-log-message-collapse')?.classList.contains('is-expanded')).toBe(false)
+    expect(row.querySelector('.vsm-dev-log-message-collapse pre')?.textContent).toContain('WebFrameMain.send')
+
+    await act(async () => row.click())
+    expect(row.getAttribute('aria-expanded')).toBe('true')
+    expect(row.querySelector('.vsm-dev-log-expand-caret')?.textContent).toBe('▾')
+    expect(row.querySelector('.vsm-dev-log-message-collapse')?.classList.contains('is-expanded')).toBe(true)
+
+    await act(async () => row.click())
+    expect(row.getAttribute('aria-expanded')).toBe('false')
+    expect(row.querySelector('.vsm-dev-log-message-collapse')?.classList.contains('is-expanded')).toBe(false)
+
+    await act(async () => r.unmount())
+    el.remove()
+    delete window.drmvyzNative
+  })
+
+  it('copying a collapsible row does not also toggle its expand state', async () => {
+    const stackTraceLog = [
+      '[2026-09-22 10:05:30.000] [error] boom summary',
+      '    at somewhere.js:1:1',
+      '',
+    ].join('\n')
+
+    const writeText = vi.fn(async (_text: string) => undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    const bridge: NativeDiagnosticsBridge = {
+      log: vi.fn(),
+      readMainLog: vi.fn(async () => ({
+        path: '/tmp/main.log', content: stackTraceLog, truncated: false, sizeBytes: stackTraceLog.length,
+      })),
+      watchMainLog: vi.fn(() => () => {}),
+    }
+    window.drmvyzNative = { runtime: { isElectron: true, platform: 'darwin' }, diagnostics: bridge }
+
+    const el = document.createElement('div')
+    document.body.appendChild(el)
+    const r = createRoot(el)
+    await act(async () => r.render(<DeveloperPanel />))
+    await flush()
+
+    const row = el.querySelector<HTMLElement>('.vsm-dev-log-row')!
+    const copyButton = row.querySelector<HTMLButtonElement>('.vsm-dev-log-copy-row-btn')!
+
+    await act(async () => copyButton.click())
+    expect(writeText).toHaveBeenCalledTimes(1)
+    expect(writeText.mock.calls[0]![0] as string).toContain('somewhere.js')
+    expect(row.getAttribute('aria-expanded')).toBe('false') // unaffected by the copy click
+
+    await act(async () => r.unmount())
+    el.remove()
+    delete window.drmvyzNative
+  })
+
+  it('toggles expansion via keyboard (Enter/Space) for accessibility', async () => {
+    const stackTraceLog = [
+      '[2026-09-22 10:06:00.000] [warn]  multi-line message',
+      'second line',
+      '',
+    ].join('\n')
+
+    const bridge: NativeDiagnosticsBridge = {
+      log: vi.fn(),
+      readMainLog: vi.fn(async () => ({
+        path: '/tmp/main.log', content: stackTraceLog, truncated: false, sizeBytes: stackTraceLog.length,
+      })),
+      watchMainLog: vi.fn(() => () => {}),
+    }
+    window.drmvyzNative = { runtime: { isElectron: true, platform: 'darwin' }, diagnostics: bridge }
+
+    const el = document.createElement('div')
+    document.body.appendChild(el)
+    const r = createRoot(el)
+    await act(async () => r.render(<DeveloperPanel />))
+    await flush()
+
+    const row = el.querySelector<HTMLElement>('.vsm-dev-log-row')!
+    expect(row.getAttribute('tabIndex') ?? row.tabIndex.toString()).toBeTruthy()
+    await act(async () => {
+      row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+    expect(row.getAttribute('aria-expanded')).toBe('true')
+
+    await act(async () => r.unmount())
+    el.remove()
+    delete window.drmvyzNative
   })
 })
 

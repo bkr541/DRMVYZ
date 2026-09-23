@@ -45,7 +45,7 @@ import {
 } from '../features/trackIntelligence/TrackAnalysisCoordinator'
 import { createLogger } from '../lib/logger'
 
-const audioLog = createLogger('AudioEngine')
+const audioLog = createLogger('react', 'AudioEngine')
 
 function resolveAuthoritativeSectionsForTrack(
   track: Track,

@@ -9,12 +9,16 @@
  */
 
 import { getNativeDiagnosticsBridge } from '../native/diagnosticsBridge'
+import type { LogComponent } from './logComponents'
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 export interface LogEntry {
   timestamp: number
   level: LogLevel
+  /** Coarse top-level app area — see logComponents.ts. */
+  component: LogComponent
+  /** Specific module/subsystem name within that component. */
   category: string
   message: string
   context?: unknown
@@ -33,9 +37,9 @@ function record(entry: LogEntry): void {
   }
 }
 
-function emit(level: LogLevel, category: string, message: string, context?: unknown): void {
-  record({ timestamp: Date.now(), level, category, message, context })
-  const prefix = `[${category}]`
+function emit(level: LogLevel, component: LogComponent, category: string, message: string, context?: unknown): void {
+  record({ timestamp: Date.now(), level, component, category, message, context })
+  const prefix = `[${component}:${category}]`
   const args: unknown[] = context !== undefined ? [prefix, message, context] : [prefix, message]
   if (level === 'error') console.error(...args)
   else if (level === 'warn') console.warn(...args)
@@ -50,13 +54,13 @@ export interface Logger {
   error: (message: string, context?: unknown) => void
 }
 
-/** One logger per module/subsystem, tagged with a short category name. */
-export function createLogger(category: string): Logger {
+/** One logger per module/subsystem, tagged with its top-level component and a short category name. */
+export function createLogger(component: LogComponent, category: string): Logger {
   return {
-    debug: (message, context) => emit('debug', category, message, context),
-    info:  (message, context) => emit('info',  category, message, context),
-    warn:  (message, context) => emit('warn',  category, message, context),
-    error: (message, context) => emit('error', category, message, context),
+    debug: (message, context) => emit('debug', component, category, message, context),
+    info:  (message, context) => emit('info',  component, category, message, context),
+    warn:  (message, context) => emit('warn',  component, category, message, context),
+    error: (message, context) => emit('error', component, category, message, context),
   }
 }
 

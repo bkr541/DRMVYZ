@@ -5,7 +5,25 @@ const fs = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
-const { parseAnlzBuffer, scanRekordboxUsbRoot, isPlausibleRemovableRoot } = require('./rekordboxUsbBridge.cjs')
+const { parseAnlzBuffer, scanRekordboxUsbRoot, isPlausibleRemovableRoot, installRekordboxUsbBridge } = require('./rekordboxUsbBridge.cjs')
+
+function fakeLog() {
+  const calls = []
+  const scopes = new Map()
+  return {
+    calls,
+    scope(name) {
+      if (!scopes.has(name)) {
+        scopes.set(name, {
+          info: (...args) => calls.push({ scope: name, level: 'info', args }),
+          warn: (...args) => calls.push({ scope: name, level: 'warn', args }),
+          error: (...args) => calls.push({ scope: name, level: 'error', args }),
+        })
+      }
+      return scopes.get(name)
+    },
+  }
+}
 
 const PSSI_MASK_BASE = [
   0xcb, 0xe1, 0xee, 0xfa, 0xe5, 0xee, 0xad, 0xee, 0xe9, 0xd2,
@@ -443,4 +461,49 @@ test('isPlausibleRemovableRoot rejects arbitrary filesystem paths a compromised 
   assert.equal(isPlausibleRemovableRoot('/etc'), false)
   assert.equal(isPlausibleRemovableRoot('/'), false)
   assert.equal(isPlausibleRemovableRoot(''), false)
+})
+
+test('scanRekordboxUsbRoot logs a start line and a warning summary with counts when the scan turns up nothing', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'drmvyz-rb-log-'))
+  t.after(() => fs.rm(root, { recursive: true, force: true }))
+  const log = fakeLog()
+
+  const result = await scanRekordboxUsbRoot(root, log)
+
+  assert.equal(log.calls.length, 2)
+  assert.deepEqual(log.calls[0].scope, 'rekordbox:scan')
+  assert.equal(log.calls[0].level, 'info')
+  assert.match(log.calls[0].args[0], /scanning USB root/)
+  assert.equal(log.calls[0].args[1].rootPath, path.resolve(root))
+
+  const summaryCall = log.calls[1]
+  assert.equal(summaryCall.level, 'warn') // an empty/non-Rekordbox folder always yields >=1 warning
+  assert.match(summaryCall.args[0], /completed with \d+ warning/)
+  const [summary] = summaryCall.args.slice(1)
+  assert.equal(summary.tracks, result.library.tracks.length)
+  assert.equal(summary.detectedPdbFiles, result.detectedPdbFiles)
+  assert.equal(summary.detectedAnlzFiles, result.detectedAnlzFiles)
+  assert.deepEqual(summary.warnings, result.warnings)
+})
+
+test('scanRekordboxUsbRoot works without a log argument (logging is opt-in)', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'drmvyz-rb-log-optional-'))
+  t.after(() => fs.rm(root, { recursive: true, force: true }))
+  await assert.doesNotReject(scanRekordboxUsbRoot(root))
+})
+
+test('installRekordboxUsbBridge logs a warning when scan-usb-root is asked to scan a non-removable path', async () => {
+  const log = fakeLog()
+  const handlers = new Map()
+  const ipcMain = { handle: (channel, handler) => handlers.set(channel, handler) }
+  installRekordboxUsbBridge({ ipcMain, dialog: {}, log })
+
+  const result = await handlers.get('drmvyz:rekordbox:scan-usb-root')(null, '/etc')
+
+  assert.equal(result.library, null)
+  assert.equal(log.calls.length, 1)
+  assert.equal(log.calls[0].scope, 'rekordbox:scan')
+  assert.equal(log.calls[0].level, 'warn')
+  assert.match(log.calls[0].args[0], /rejected scan-usb-root request/)
+  assert.equal(log.calls[0].args[1].rootPath, '/etc')
 })

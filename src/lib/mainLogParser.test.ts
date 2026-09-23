@@ -2,19 +2,33 @@ import { describe, expect, it } from 'vitest'
 import { parseMainLogText } from './mainLogParser'
 
 describe('parseMainLogText', () => {
-  it('parses a scoped entry into timestamp/level/scope/message', () => {
-    const [entry] = parseMainLogText('[2026-09-22 13:43:45.501] [info]  (main) logging ready — level=info\n')
+  it('parses a scoped entry into timestamp/level/component/scope/message', () => {
+    const [entry] = parseMainLogText('[2026-09-22 13:43:45.501] [info]  (system:main) logging ready — level=info\n')
     expect(entry).toMatchObject({
       timestampRaw: '2026-09-22 13:43:45.501',
       level: 'info',
+      component: 'system',
       scope: 'main',
       message: 'logging ready — level=info',
     })
     expect(entry.timestamp).toEqual(new Date(2026, 8, 22, 13, 43, 45, 501).getTime())
   })
 
-  it('parses an unscoped entry with an empty scope', () => {
+  it('splits a "<component>:<category>" scope into a known component plus the remaining scope', () => {
+    const [entry] = parseMainLogText('[2026-09-22 13:43:45.501] [warn]  (react:WebGL2Renderer) context lost\n')
+    expect(entry.component).toBe('react')
+    expect(entry.scope).toBe('WebGL2Renderer')
+  })
+
+  it('falls back to the "system" component for a scope with no recognized component prefix', () => {
+    const [entry] = parseMainLogText('[2026-09-22 13:43:45.501] [warn]  (renderer:WebGL2Renderer) legacy-format line\n')
+    expect(entry.component).toBe('system')
+    expect(entry.scope).toBe('renderer:WebGL2Renderer')
+  })
+
+  it('parses an unscoped entry with an empty scope and the "system" component', () => {
     const [entry] = parseMainLogText('[2026-09-22 13:43:45.598] [info]         app ready — v1.0.0\n')
+    expect(entry.component).toBe('system')
     expect(entry.scope).toBe('')
     expect(entry.message).toBe('app ready — v1.0.0')
   })

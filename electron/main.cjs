@@ -101,7 +101,7 @@ function configureSessionSecurity() {
   // trace in the log file rather than only the renderer console.
   appSession.webRequest.onErrorOccurred(
     { urls: ['*://*.supabase.co/*', '*://*.supabase.io/*'] },
-    details => log.warn('net-error', { url: details.url, error: details.error }),
+    details => log.scope('system:network').warn('net-error', { url: details.url, error: details.error }),
   )
 }
 
@@ -126,13 +126,14 @@ function createMainWindow() {
 
   window.once('ready-to-show', () => window.show())
 
+  const windowLog = log.scope('system:window')
   const wc = window.webContents
   wc.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     if (errorCode === -3) return // ERR_ABORTED — navigation superseded, not a failure
-    log.warn('did-fail-load', { errorCode, errorDescription, validatedURL, isMainFrame })
+    windowLog.warn('did-fail-load', { errorCode, errorDescription, validatedURL, isMainFrame })
   })
-  wc.on('render-process-gone', (_event, details) => log.error('render-process-gone', details))
-  wc.on('unresponsive', () => log.warn('renderer unresponsive'))
+  wc.on('render-process-gone', (_event, details) => windowLog.error('render-process-gone', details))
+  wc.on('unresponsive', () => windowLog.warn('renderer unresponsive'))
 
   window.webContents.setWindowOpenHandler(({ url, frameName }) => {
     const popupConfig = frameName === 'drmvyz-layout-lab'
@@ -200,13 +201,13 @@ if (!app.requestSingleInstanceLock()) {
     mainWindow.focus()
   })
 
-  app.on('child-process-gone', (_event, details) => log.error('child-process-gone', details))
+  app.on('child-process-gone', (_event, details) => log.scope('system:process').error('child-process-gone', details))
 
   app.whenReady().then(() => {
-    log.info(`app ready — v${app.getVersion()} electron ${process.versions.electron} ${process.platform}/${process.arch} devServer=${useDevServer}`)
+    log.scope('system:app').info(`app ready — v${app.getVersion()} electron ${process.versions.electron} ${process.platform}/${process.arch} devServer=${useDevServer}`)
     if (!useDevServer) registerAppProtocol()
     configureSessionSecurity()
-    installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow })
+    installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow, log })
     installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, shell, dialog, isTrustedAppUrl })
     installDiagnosticsBridge({ ipcMain, log })
     createMainWindow()
@@ -214,7 +215,7 @@ if (!app.requestSingleInstanceLock()) {
     app.on('activate', () => {
       if (!mainWindow) createMainWindow()
     })
-  }).catch(error => log.error('app bootstrap failed', error))
+  }).catch(error => log.scope('system:app').error('app bootstrap failed', error))
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit()

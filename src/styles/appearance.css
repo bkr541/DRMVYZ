@@ -476,9 +476,15 @@ body,
 
 .vsm-dev-panel {
   display: flex;
+  flex-direction: column;
   flex: 1;
   min-width: 0;
   min-height: 0;
+}
+
+.vsm-dev-panel .rv-right-subtabs {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border-faint);
 }
 
 .vsm-dev-content {
@@ -530,34 +536,11 @@ body,
   min-width: 180px;
 }
 
-.vsm-dev-log-chips {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
+.vsm-dev-log-level-select,
+.vsm-dev-log-component-select {
+  flex: 0 0 auto;
+  min-width: 110px;
 }
-
-.vsm-dev-log-chip {
-  padding: 3px 8px;
-  border-radius: 4px;
-  border: 1px solid var(--color-border-subtle);
-  background: transparent;
-  color: var(--color-text-faint);
-  font: 600 9px/1 var(--az-font-data);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.vsm-dev-log-chip:hover {
-  color: var(--color-text-strong);
-}
-
-.vsm-dev-log-chip--error.is-active  { background: rgba(239,115,115,0.16); border-color: var(--color-danger, #ef7373); color: var(--color-danger, #ef7373); }
-.vsm-dev-log-chip--warn.is-active   { background: rgba(216,185,90,0.16);  border-color: #d8b95a; color: #d8b95a; }
-.vsm-dev-log-chip--info.is-active,
-.vsm-dev-log-chip--verbose.is-active,
-.vsm-dev-log-chip--silly.is-active  { background: rgba(var(--color-primary-rgb), 0.16); border-color: var(--color-primary); color: var(--color-primary); }
-.vsm-dev-log-chip--debug.is-active  { background: var(--color-surface-hover); border-color: var(--color-border-subtle); color: var(--color-text-strong); }
 
 .vsm-dev-log-count {
   color: var(--color-text-faint);
@@ -607,6 +590,9 @@ body,
 .vsm-dev-log-row--error { background: rgba(239,115,115,0.05); }
 .vsm-dev-log-row--warn  { background: rgba(216,185,90,0.045); }
 
+.vsm-dev-log-row--collapsible { cursor: pointer; }
+.vsm-dev-log-row--collapsible:hover td { background: var(--color-surface-hover); }
+
 .vsm-dev-log-time {
   white-space: nowrap;
   color: var(--color-text-faint);
@@ -618,11 +604,82 @@ body,
   color: var(--color-text-muted);
 }
 
+.vsm-dev-log-message {
+  position: relative;
+  padding-right: 30px;
+}
+
 .vsm-dev-log-message pre {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
   font-family: inherit;
+}
+
+.vsm-dev-log-copy-row-btn {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 4px;
+  background: var(--color-panel-alt);
+  color: var(--color-text-faint);
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  transition: opacity 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.vsm-dev-log-row:hover .vsm-dev-log-copy-row-btn,
+.vsm-dev-log-copy-row-btn:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.vsm-dev-log-copy-row-btn:hover {
+  color: var(--color-text-strong);
+  border-color: var(--color-primary);
+}
+
+.vsm-dev-log-expand-caret {
+  display: inline-block;
+  width: 10px;
+  color: var(--color-text-faint);
+}
+
+.vsm-dev-log-message-first {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Smooth "height: auto" collapse/expand without measuring pixels — a 0fr/1fr
+   grid track animates to the content's natural height. */
+.vsm-dev-log-message-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms ease;
+}
+
+.vsm-dev-log-message-collapse.is-expanded {
+  grid-template-rows: 1fr;
+}
+
+.vsm-dev-log-message-collapse > div {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.vsm-dev-log-message-collapse pre {
+  margin-top: 4px;
+  color: var(--color-text-muted);
 }
 
 .vsm-dev-log-level {
@@ -640,6 +697,18 @@ body,
 .vsm-dev-log-level--verbose,
 .vsm-dev-log-level--silly,
 .vsm-dev-log-level--unknown { background: var(--color-surface); color: var(--color-text-faint); }
+
+.vsm-dev-log-component {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font: 600 9px/1.5 var(--az-font-data);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
 
 .vsm-dev-log-path {
   padding: 6px 16px;

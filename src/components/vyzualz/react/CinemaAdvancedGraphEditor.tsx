@@ -604,7 +604,7 @@ function CinemaGraphStructuredFallback({ composition, definitions }: CinemaAdvan
   )
 }
 
-const graphEditorLog = createLogger('CinemaGraphEditor')
+const graphEditorLog = createLogger('react', 'CinemaGraphEditor')
 
 class CinemaGraphEditorErrorBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
   state = { failed: false }

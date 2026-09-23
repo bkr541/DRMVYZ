@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PanelSubtabs } from '../../react/PanelSubtabs'
 import { DeveloperLoggingPanel } from './DeveloperLoggingPanel'
 
 type DeveloperGroupId = 'logging' | 'feature-flags' | 'network' | 'performance' | 'storage'
@@ -20,46 +21,21 @@ function DeveloperPlaceholderGroup({ label }: { label: string }) {
   )
 }
 
-/** Settings → Developer: a secondary nav (same shape as the outer Settings
- * nav) so the Logging group can use the full panel width/height for its table. */
+/** Settings → Developer: a horizontal sub-tab row (same widget the SYSTEM/USER
+ * preset scope tabs use elsewhere) above a full-width/height content pane, so
+ * the Logging group can give its table the whole panel to work with. */
 export function DeveloperPanel() {
   const [group, setGroup] = useState<DeveloperGroupId>('logging')
 
   return (
     <div className="vsm-dev-panel">
-      <nav className="vsm-nav vsm-dev-nav" role="tablist" aria-label="Developer sections">
-        {DEVELOPER_GROUPS.map(item => (
-          <button
-            key={item.id}
-            id={`vsm-dev-tab-${item.id}`}
-            type="button"
-            role="tab"
-            aria-selected={group === item.id}
-            aria-controls={`vsm-dev-panel-${item.id}`}
-            tabIndex={group === item.id ? 0 : -1}
-            className={`vsm-nav-item${group === item.id ? ' vsm-nav-item--active' : ''}`}
-            onClick={() => setGroup(item.id)}
-            onKeyDown={event => {
-              const index = DEVELOPER_GROUPS.findIndex(candidate => candidate.id === item.id)
-              const delta = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1
-                : event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1
-                  : 0
-              if (!delta) return
-              event.preventDefault()
-              const next = DEVELOPER_GROUPS[(index + delta + DEVELOPER_GROUPS.length) % DEVELOPER_GROUPS.length]
-              setGroup(next.id)
-              requestAnimationFrame(() => document.getElementById(`vsm-dev-tab-${next.id}`)?.focus())
-            }}
-          >{item.label}</button>
-        ))}
-      </nav>
-      <div
-        id={`vsm-dev-panel-${group}`}
-        className="vsm-dev-content"
-        role="tabpanel"
-        aria-labelledby={`vsm-dev-tab-${group}`}
-        tabIndex={0}
-      >
+      <PanelSubtabs
+        value={group}
+        options={DEVELOPER_GROUPS}
+        onChange={setGroup}
+        ariaLabel="Developer sections"
+      />
+      <div className="vsm-dev-content" role="tabpanel" aria-label={`Developer — ${DEVELOPER_GROUPS.find(item => item.id === group)?.label}`}>
         {group === 'logging' && <DeveloperLoggingPanel />}
         {group === 'feature-flags' && <DeveloperPlaceholderGroup label="Feature Flags" />}
         {group === 'network' && <DeveloperPlaceholderGroup label="Network" />}

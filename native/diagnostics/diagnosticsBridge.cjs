@@ -4,6 +4,12 @@ const fs = require('node:fs')
 const fsp = require('node:fs/promises')
 
 const LOG_LEVELS = new Set(['debug', 'info', 'warn', 'error'])
+// Mirrors src/lib/logComponents.ts — kept in sync manually since main-process
+// .cjs files can't import the TS source.
+const LOG_COMPONENTS = new Set([
+  'react', 'show-manager', 'rekordbox', 'output', 'lyrics',
+  'music-intelligence', 'brand-kit', 'settings', 'auth', 'system',
+])
 // Initial load reads only the tail of the file — a live show's log can run
 // to several MB, and the Logging panel only needs recent history to be useful.
 const TAIL_BYTES = 2 * 1024 * 1024
@@ -26,9 +32,10 @@ const watchersBySenderId = new Map()
 function installDiagnosticsBridge({ ipcMain, log }) {
   ipcMain.on('drmvyz:diagnostics:log', (_event, entry) => {
     if (!entry || typeof entry !== 'object') return
-    const { level, category, message, context } = entry
-    const scopeName = typeof category === 'string' && category ? `renderer:${category}` : 'renderer'
-    const scoped = log.scope(scopeName)
+    const { level, component, category, message, context } = entry
+    const componentPrefix = LOG_COMPONENTS.has(component) ? component : 'system'
+    const categoryPart = typeof category === 'string' && category ? `:${category}` : ''
+    const scoped = log.scope(`${componentPrefix}${categoryPart}`)
     const write = LOG_LEVELS.has(level) ? scoped[level] : scoped.info
     const text = typeof message === 'string' ? message : String(message)
     if (context === undefined) write.call(scoped, text)
@@ -43,7 +50,7 @@ function installDiagnosticsBridge({ ipcMain, log }) {
       const content = await readRange(filePath, start, stat.size)
       return { path: filePath, content, truncated: start > 0, sizeBytes: stat.size }
     } catch (error) {
-      log.scope('diagnostics').warn('read-main-log failed:', error)
+      log.scope('system:diagnostics').warn('read-main-log failed:', error)
       return null
     }
   })
@@ -94,7 +101,7 @@ function startWatching(sender, log) {
         sender.send('drmvyz:diagnostics:main-log-appended', { content })
       }
     } catch (error) {
-      log.scope('diagnostics').warn('watch-main-log read failed:', error)
+      log.scope('system:diagnostics').warn('watch-main-log read failed:', error)
     }
   }
 
@@ -105,7 +112,7 @@ function startWatching(sender, log) {
       state.timer = setTimeout(readDelta, CHANGE_DEBOUNCE_MS)
     })
   } catch (error) {
-    log.scope('diagnostics').warn('watch-main-log failed to start:', error)
+    log.scope('system:diagnostics').warn('watch-main-log failed to start:', error)
   }
 
   sender.once('destroyed', () => stopWatcher(sender.id))

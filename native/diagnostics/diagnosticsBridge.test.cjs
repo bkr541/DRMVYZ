@@ -64,16 +64,16 @@ function fakeLog() {
   }
 }
 
-test('routes a renderer log entry to the matching level, scoped by category', () => {
+test('routes a renderer log entry to the matching level, scoped by component and category', () => {
   const ipcMain = fakeIpcMain()
   const log = fakeLog()
   installDiagnosticsBridge({ ipcMain, log })
 
   ipcMain.emit('drmvyz:diagnostics:log', null, {
-    level: 'error', category: 'WebGL2Renderer', message: 'context lost',
+    level: 'error', component: 'react', category: 'WebGL2Renderer', message: 'context lost',
   })
 
-  assert.deepEqual(log.calls, [{ scope: 'renderer:WebGL2Renderer', level: 'error', args: ['context lost'] }])
+  assert.deepEqual(log.calls, [{ scope: 'react:WebGL2Renderer', level: 'error', args: ['context lost'] }])
 })
 
 test('forwards context as a second argument when present', () => {
@@ -82,22 +82,38 @@ test('forwards context as a second argument when present', () => {
   installDiagnosticsBridge({ ipcMain, log })
 
   ipcMain.emit('drmvyz:diagnostics:log', null, {
-    level: 'warn', category: 'AudioEngine', message: 'device list changed', context: { count: 3 },
+    level: 'warn', component: 'react', category: 'AudioEngine', message: 'device list changed', context: { count: 3 },
   })
 
   assert.deepEqual(log.calls, [
-    { scope: 'renderer:AudioEngine', level: 'warn', args: ['device list changed', { count: 3 }] },
+    { scope: 'react:AudioEngine', level: 'warn', args: ['device list changed', { count: 3 }] },
   ])
 })
 
-test('falls back to info for an unrecognized level and "renderer" for a missing category', () => {
+test('falls back to "system" for an unrecognized or missing component', () => {
   const ipcMain = fakeIpcMain()
   const log = fakeLog()
   installDiagnosticsBridge({ ipcMain, log })
 
-  ipcMain.emit('drmvyz:diagnostics:log', null, { level: 'trace', category: '', message: 'hello' })
+  ipcMain.emit('drmvyz:diagnostics:log', null, {
+    level: 'info', component: 'not-a-real-component', category: 'Thing', message: 'hi',
+  })
+  ipcMain.emit('drmvyz:diagnostics:log', null, { level: 'info', category: 'Thing', message: 'hi again' })
 
-  assert.deepEqual(log.calls, [{ scope: 'renderer', level: 'info', args: ['hello'] }])
+  assert.deepEqual(log.calls, [
+    { scope: 'system:Thing', level: 'info', args: ['hi'] },
+    { scope: 'system:Thing', level: 'info', args: ['hi again'] },
+  ])
+})
+
+test('falls back to info for an unrecognized level and omits the category segment when missing', () => {
+  const ipcMain = fakeIpcMain()
+  const log = fakeLog()
+  installDiagnosticsBridge({ ipcMain, log })
+
+  ipcMain.emit('drmvyz:diagnostics:log', null, { level: 'trace', component: 'react', category: '', message: 'hello' })
+
+  assert.deepEqual(log.calls, [{ scope: 'react', level: 'info', args: ['hello'] }])
 })
 
 test('ignores malformed entries without throwing', () => {

@@ -2,7 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { productionOutputController } from './react/output/ProductionOutput'
 import { createLogger } from '../../lib/logger'
 
-const log = createLogger('VyzualzErrorBoundary')
+const log = createLogger('react', 'VyzualzErrorBoundary')
 
 interface Props {
   /**

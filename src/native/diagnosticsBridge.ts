@@ -1,6 +1,9 @@
+import type { LogComponent } from '../lib/logComponents'
+
 export interface NativeDiagnosticsLogEntry {
   timestamp: number
   level: 'debug' | 'info' | 'warn' | 'error'
+  component: LogComponent
   category: string
   message: string
   context?: unknown

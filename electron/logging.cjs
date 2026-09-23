@@ -53,9 +53,9 @@ if (process.env.SENTRY_DSN) {
       },
     })
     sentryReady = true
-    log.scope('logging').info('Sentry initialized (main process)')
+    log.scope('system:logging').info('Sentry initialized (main process)')
   } catch (error) {
-    log.scope('logging').warn('Sentry init failed; continuing with file logging only:', error)
+    log.scope('system:logging').warn('Sentry init failed; continuing with file logging only:', error)
   }
 }
 
@@ -102,7 +102,7 @@ if (sentryReady) {
   })
 }
 
-log.scope('main').info(
+log.scope('system:main').info(
   `logging ready — level=${LOG_LEVEL} file=${log.transports.file.getFile().path} remote=${sentryReady ? 'sentry' : 'off'}`,
 )
 

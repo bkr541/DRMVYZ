@@ -43,7 +43,7 @@ import type { GpuColorGradeParams } from './colorGradeParams'
 import { NEUTRAL_GPU_COLOR_GRADE, isColorGradeActive } from './colorGradeParams'
 import { createLogger } from '../lib/logger'
 
-const log = createLogger('WebGL2Renderer')
+const log = createLogger('react', 'WebGL2Renderer')
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
