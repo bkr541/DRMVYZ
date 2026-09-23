@@ -20,6 +20,7 @@ import {
 } from 'hugeicons-react'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia, MediaCollection, MediaMutationState } from '../../../stores/mediaStore'
+import { useReactStore } from '../../../stores/reactStore'
 import type { MediaLibraryQuery, MediaLibraryServerFilter } from '../../../lib/mediaDb'
 import type { MediaRole } from '../../../lib/mediaRoles'
 import { useAudioStore } from '../../../stores/audioStore'
@@ -36,11 +37,12 @@ import { isUnifiedSvgMediaItem } from '../../../lib/svgMediaEligibility'
 import type { MediaLibraryCapability, MediaLibraryContext } from './mediaLibraryCapabilities'
 import { loadSavedTrackIntoEngine } from '../../../audio/savedTrackLoader'
 import { ContextActionMenu } from '../context-menu/ContextActionMenu'
+import { MediaAddToSubmenu } from './MediaAddToMenu'
 import { AudioTrackCard } from './AudioTrackCard'
 import { createLyricManagerNavigationIntent } from '../../../features/lyrics/lyricNavigation'
 import type { LyricManagerNavigationIntent } from '../../../features/lyrics/lyricNavigation'
 
-type MediaLibraryFilter = 'all' | 'tracks' | 'collections' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays' | 'svg'
+type MediaLibraryFilter = 'all' | 'tracks' | 'collections' | 'pools' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays' | 'svg'
 type ViewMode = 'grid' | 'list'
 
 
@@ -158,7 +160,7 @@ const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
 })
 
 function toServerFilter(filter: MediaLibraryFilter): MediaLibraryServerFilter {
-  if (filter === 'tracks' || filter === 'collections') return 'all'
+  if (filter === 'tracks' || filter === 'collections' || filter === 'pools') return 'all'
   return filter
 }
 
@@ -236,6 +238,7 @@ const MANAGER_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
   { key: 'all',         label: 'All Visuals' },
   { key: 'tracks',      label: 'Audio Tracks' },
   { key: 'collections', label: 'Collections' },
+  { key: 'pools',       label: 'Pools' },
   { key: 'favorites',   label: 'Favorites' },
   { key: 'images',      label: 'Images' },
   { key: 'videos',      label: 'Videos' },
@@ -270,7 +273,7 @@ function matchesMediaLibraryFilter(m: UploadedMedia, f: MediaLibraryFilter): boo
 // ── Collection folder card ─────────────────────────────────────────────────
 
 function CollectionFolder({
-  collection, items, viewMode, onClick, onEdit, onRemove,
+  collection, items, viewMode, onClick, onEdit, onRemove, removeTitle = 'Delete collection',
 }: {
   collection: MediaCollection
   items: UploadedMedia[]
@@ -278,13 +281,14 @@ function CollectionFolder({
   onClick: () => void
   onEdit?: () => void
   onRemove?: () => void
+  removeTitle?: string
 }) {
   const thumbs = items.slice(0, 4)
   const count  = items.length
   const actions = (onEdit || onRemove) ? (
     <div className="vz-coll-actions" onClick={event => event.stopPropagation()}>
       {onEdit && <button type="button" className="vz-media-edit-btn" onClick={onEdit} title="Edit collection"><PencilEdit01Icon size={11} color="currentColor" /></button>}
-      {onRemove && <button type="button" className="vz-media-remove" onClick={onRemove} title="Delete collection"><Delete02Icon size={12} color="currentColor" /></button>}
+      {onRemove && <button type="button" className="vz-media-remove" onClick={onRemove} title={removeTitle}><Delete02Icon size={12} color="currentColor" /></button>}
     </div>
   ) : null
 
@@ -706,6 +710,9 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     mutationStates: state.mutationStates,
   })))
 
+  const mediaPools = useReactStore(state => state.canvasOrchestrationSettings.mediaPools)
+  const deleteCanvasMediaPool = useReactStore(state => state.deleteCanvasMediaPool)
+
   const { savedTracks, loading: tracksLoading, loadSavedTracks, removeSavedTrack, getSignedUrl } = useAudioStore()
   const engine = useSharedAudio()
   const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null)
@@ -713,6 +720,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
 
   const [libraryFilter, setMediaLibraryFilter] = useState<MediaLibraryFilter>('all')
   const [openCollectionId, setOpenCollectionId] = useState<string | null>(null)
+  const [openPoolId, setOpenPoolId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
@@ -742,6 +750,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const [bulkActionError, setBulkActionError] = useState<string | null>(null)
   const [deleteCollectionConfirm, setDeleteCollectionConfirm] = useState<{ id: string; name: string } | null>(null)
   const [deletingCollection, setDeletingCollection] = useState(false)
+  const [deletePoolConfirm, setDeletePoolConfirm] = useState<{ id: string; name: string } | null>(null)
 
   const searchActive = searchQuery.length > 0
   const searchLower  = searchQuery.toLowerCase()
@@ -766,6 +775,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const canBrowseCollections = capabilitySet.has('collections')
   const canDragMedia = capabilitySet.has('drag-media')
   const canMultiSelect = isManager && capabilitySet.has('multi-select')
+  const canBrowsePools = isManager && capabilitySet.has('pools')
 
   const isReactMode = context === 'react'
   const availableFilters = useMemo(() => {
@@ -778,10 +788,10 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           : isReactMode
             ? REACT_FILTERS
             : VISUALIZER_FILTERS
-    return canBrowseCollections
-      ? source
-      : source.filter(filter => filter.key !== 'collections')
-  }, [canBrowseCollections, context, isCanvasMode, isPixGridMode, isReactMode])
+    return source
+      .filter(filter => canBrowseCollections || filter.key !== 'collections')
+      .filter(filter => canBrowsePools || filter.key !== 'pools')
+  }, [canBrowseCollections, canBrowsePools, context, isCanvasMode, isPixGridMode, isReactMode])
 
   const loadCollectionsRef = useRef(loadCollections)
   useEffect(() => { loadCollectionsRef.current = loadCollections }, [loadCollections])
@@ -828,6 +838,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const handleSetFilter = useCallback((f: MediaLibraryFilter) => {
     setMediaLibraryFilter(f)
     if (f !== 'collections') setOpenCollectionId(null)
+    if (f !== 'pools') setOpenPoolId(null)
   }, [])
 
   const queryItems = useMemo(() => {
@@ -870,6 +881,31 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     () => collections.find(c => c.id === openCollectionId) ?? null,
     [collections, openCollectionId]
   )
+
+  // Pools keep an ordered mediaIds array on the pool itself (unlike
+  // collections, which are looked up per-item via collectionIds), so this
+  // resolves through a raw-items lookup map rather than filtering `items`.
+  const mediaByIdMap = useMemo(() => new Map(items.map(item => [item.id, item])), [items])
+  const itemsByPool = useMemo(() => {
+    const map = new Map<string, UploadedMedia[]>()
+    for (const pool of mediaPools) {
+      map.set(pool.id, pool.mediaIds.map(id => mediaByIdMap.get(id)).filter((item): item is UploadedMedia => Boolean(item)))
+    }
+    return map
+  }, [mediaByIdMap, mediaPools])
+
+  const openPool = useMemo(() => mediaPools.find(p => p.id === openPoolId) ?? null, [mediaPools, openPoolId])
+
+  const openPoolItems = useMemo(() => {
+    const base = openPoolId ? (itemsByPool.get(openPoolId) ?? []) : []
+    if (!searchActive) return base
+    return base.filter(item => matchesSearch(item, searchQuery))
+  }, [itemsByPool, openPoolId, searchActive, searchQuery])
+
+  const filteredPools = useMemo(() => {
+    if (!searchActive) return mediaPools
+    return mediaPools.filter(pool => pool.name.toLowerCase().includes(searchLower))
+  }, [mediaPools, searchActive, searchLower])
 
   const openCollectionItems = useMemo(() => {
     const raw = serverManaged && openCollectionId ? queryItems : (openCollectionId ? (itemsByCollection.get(openCollectionId) ?? []) : [])
@@ -1203,14 +1239,16 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           </div>
           {openCollectionItems.length === 0 ? (
             <div className="vz-media-grid">
-              {isManager ? (
-                <div className="vz-coll-folder-empty">No media in this collection</div>
-              ) : (
-                <PerformanceDeckEmptyState
-                  message="No media in this collection. Add files from Media Manager."
-                  onOpenMediaManager={onOpenMediaManager}
-                />
-              )}
+              <div className="vz-coll-empty-wrap">
+                {isManager ? (
+                  <div className="vz-coll-folder-empty">No media in this collection</div>
+                ) : (
+                  <PerformanceDeckEmptyState
+                    message="No media in this collection. Add files from Media Manager."
+                    onOpenMediaManager={onOpenMediaManager}
+                  />
+                )}
+              </div>
             </div>
           ) : renderGrid(openCollectionItems)}
         </>
@@ -1238,17 +1276,19 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     if (filteredCollections.length === 0) {
       return (
         <div className="vz-media-grid">
-          <div className="vz-coll-folder-empty">
-            {searchActive ? (
-              `No collections match "${searchQuery}"`
-            ) : isManager ? (
-              'No collections yet. Use New Collection to create one.'
-            ) : (
-              <PerformanceDeckEmptyState
-                message="No collections available. Create collections from Media Manager."
-                onOpenMediaManager={onOpenMediaManager}
-              />
-            )}
+          <div className="vz-coll-empty-wrap">
+            <div className="vz-coll-folder-empty">
+              {searchActive ? (
+                `No collections match "${searchQuery}"`
+              ) : isManager ? (
+                'No collections yet. Use New Collection to create one.'
+              ) : (
+                <PerformanceDeckEmptyState
+                  message="No collections available. Create collections from Media Manager."
+                  onOpenMediaManager={onOpenMediaManager}
+                />
+              )}
+            </div>
           </div>
         </div>
       )
@@ -1265,6 +1305,65 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             onClick={() => setOpenCollectionId(c.id)}
             onEdit={isManager ? () => openCollectionEditor(c) : undefined}
             onRemove={isManager ? () => setDeleteCollectionConfirm({ id: c.id, name: c.name }) : undefined}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  // Same CANVAS Engine Media Pools (reactStore) exposed as a browsable tab
+  // here — reuses CollectionFolder for the folder card since a pool is a
+  // named, ordered group of media ids, same shape the card already renders.
+  // New pools are created through the right-click Add To → Pool flow
+  // (MediaAddToMenu.tsx); this tab is for browsing/removing existing ones.
+  const renderPoolsView = () => {
+    if (openPoolId && openPool) {
+      return (
+        <>
+          <div className="vz-coll-breadcrumb">
+            <button className="vz-coll-back-btn" onClick={() => setOpenPoolId(null)}>
+              <ArrowLeft01Icon size={12} color="currentColor" />
+            </button>
+            <FolderLibraryIcon size={12} color="currentColor" style={{ flexShrink: 0 }} />
+            <span className="vz-coll-breadcrumb-name">{openPool.name}</span>
+            <span className="vz-coll-folder-count">{openPoolItems.length} {openPoolItems.length === 1 ? 'item' : 'items'}</span>
+          </div>
+          {openPoolItems.length === 0 ? (
+            <div className="vz-media-grid">
+              <div className="vz-coll-empty-wrap">
+                <div className="vz-coll-folder-empty">No media in this pool</div>
+              </div>
+            </div>
+          ) : renderGrid(openPoolItems)}
+        </>
+      )
+    }
+
+    if (filteredPools.length === 0) {
+      return (
+        <div className="vz-media-grid">
+          <div className="vz-coll-empty-wrap">
+            <div className="vz-coll-folder-empty">
+              {searchActive
+                ? `No pools match "${searchQuery}"`
+                : 'No Pools yet. Right-click media and use Add To → Pool to create one.'}
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className={viewMode === 'list' ? 'vz-media-list' : 'vz-coll-list'}>
+        {filteredPools.map(pool => (
+          <CollectionFolder
+            key={pool.id}
+            collection={{ id: pool.id, name: pool.name }}
+            items={itemsByPool.get(pool.id) ?? []}
+            viewMode={viewMode}
+            onClick={() => setOpenPoolId(pool.id)}
+            onRemove={() => setDeletePoolConfirm({ id: pool.id, name: pool.name })}
+            removeTitle="Delete pool"
           />
         ))}
       </div>
@@ -1336,6 +1435,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           renderTracksView()
         ) : libraryFilter === 'collections' ? (
           renderCollectionsView()
+        ) : libraryFilter === 'pools' ? (
+          renderPoolsView()
         ) : queryError && filtered.length === 0 ? (
           <div className="vz-media-page-error">
             <NoticeCard tone="error" role="alert" title="Media library unavailable">
@@ -1369,8 +1470,10 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         ) : filtered.length === 0 ? (
           isManager ? (
             <div className="vz-media-grid">
-              <div className="vz-coll-folder-empty">
-                {searchActive ? `No media matches "${searchQuery}"` : 'No media matches this filter.'}
+              <div className="vz-coll-empty-wrap">
+                <div className="vz-coll-folder-empty">
+                  {searchActive ? `No media matches "${searchQuery}"` : 'No media matches this filter.'}
+                </div>
               </div>
             </div>
           ) : (
@@ -1413,6 +1516,12 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
               onSelect: () => { void handleDownloadMedia(contextMenuTargetIds) },
             },
             {
+              id: 'add-to',
+              label: 'Add To',
+              dividerBefore: true,
+              submenu: <MediaAddToSubmenu targetIds={contextMenuTargetIds} onDone={() => setCardContextMenu(null)} />,
+            },
+            {
               id: 'delete',
               label: 'Delete',
               danger: true,
@@ -1444,6 +1553,14 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           busy={deletingCollection}
           onCancel={() => setDeleteCollectionConfirm(null)}
           onConfirm={() => { void handleConfirmDeleteCollection(deleteCollectionConfirm.id) }}
+        />
+      )}
+      {deletePoolConfirm && (
+        <ConfirmDialog
+          title="Delete Pool"
+          message={`Delete pool “${deletePoolConfirm.name}”? Media files will remain in the library.`}
+          onCancel={() => setDeletePoolConfirm(null)}
+          onConfirm={() => { deleteCanvasMediaPool(deletePoolConfirm.id); setDeletePoolConfirm(null) }}
         />
       )}
       <div

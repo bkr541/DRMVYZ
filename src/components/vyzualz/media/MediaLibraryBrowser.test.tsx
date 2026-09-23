@@ -10,6 +10,7 @@ import type { SavedAudioTrack } from '../../../stores/audioStore'
 const mocks = vi.hoisted(() => ({
   mediaState: {} as Record<string, unknown>,
   audioState: {} as Record<string, unknown>,
+  reactState: {} as Record<string, unknown>,
   engine: {} as Record<string, unknown>,
   listTrackAnalysisPayloads: vi.fn(),
 }))
@@ -20,6 +21,11 @@ vi.mock('../../../stores/mediaStore', () => ({
 
 vi.mock('../../../stores/audioStore', () => ({
   useAudioStore: () => mocks.audioState,
+}))
+
+vi.mock('../../../stores/reactStore', () => ({
+  useReactStore: (selector?: (state: Record<string, unknown>) => unknown) =>
+    typeof selector === 'function' ? selector(mocks.reactState) : mocks.reactState,
 }))
 
 vi.mock('../../../context/AudioEngineContext', () => ({
@@ -117,6 +123,8 @@ function resetMocks() {
     collectionsLoading: false,
     loadCollections: vi.fn(),
     removeCollection: vi.fn().mockResolvedValue(true),
+    createCollection: vi.fn().mockResolvedValue(null),
+    addMediaToCollection: vi.fn().mockResolvedValue(undefined),
     importModalOpen: false,
     openImportMediaModal: vi.fn(),
     closeImportMediaModal: vi.fn(),
@@ -127,6 +135,12 @@ function resetMocks() {
     loadSavedTracks: vi.fn(),
     removeSavedTrack: vi.fn().mockResolvedValue(true),
     getSignedUrl: vi.fn().mockResolvedValue('https://example.test/performance.wav'),
+  }
+  mocks.reactState = {
+    canvasOrchestrationSettings: { mediaPools: [] },
+    createCanvasMediaPool: vi.fn().mockReturnValue({ ok: false, code: 'invalid-pool-name', message: 'Enter a name for the CANVAS Media Pool.' }),
+    deleteCanvasMediaPool: vi.fn(),
+    addCanvasMediaToPool: vi.fn().mockReturnValue({ ok: true }),
   }
   mocks.engine = {
     tracks: [],
@@ -580,4 +594,134 @@ describe('MediaLibraryBrowser virtualization', () => {
     }))
   })
 
+})
+
+describe('MediaLibraryBrowser manager: Pools tab', () => {
+  it('shows the Pools filter and an empty state when no pools exist', async () => {
+    await renderBrowser({
+      activeMediaId: null,
+      onSelect: vi.fn(),
+      context: 'manager',
+      capabilities: MEDIA_MANAGER_CAPABILITIES,
+    })
+
+    act(() => findButton('Pools')?.click())
+    expect(container?.textContent).toContain('No Pools yet.')
+  })
+
+  it('lists existing pools, drills into one, and deletes it', async () => {
+    mocks.reactState.canvasOrchestrationSettings = {
+      mediaPools: [{ id: 'pool-1', name: 'Opening Set', mediaIds: ['media-1'] }],
+    }
+    await renderBrowser({
+      activeMediaId: null,
+      onSelect: vi.fn(),
+      context: 'manager',
+      capabilities: MEDIA_MANAGER_CAPABILITIES,
+    })
+
+    act(() => findButton('Pools')?.click())
+    expect(container?.textContent).toContain('Opening Set')
+
+    const folder = container?.querySelector<HTMLElement>('.vz-coll-folder')
+    act(() => folder?.click())
+    expect(container?.querySelector('.vz-coll-breadcrumb-name')?.textContent).toBe('Opening Set')
+    expect(container?.querySelector('.vz-media-card')).not.toBeNull()
+
+    act(() => container?.querySelector<HTMLElement>('.vz-coll-back-btn')?.click())
+    act(() => container?.querySelector<HTMLElement>('.vz-media-remove')?.click())
+    const confirmDialog = document.querySelector('[role="alertdialog"]')
+    expect(confirmDialog?.textContent).toContain('Delete pool')
+    const confirmButton = [...(confirmDialog?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find(button => button.textContent === 'Delete')
+    act(() => confirmButton?.click())
+    expect(mocks.reactState.deleteCanvasMediaPool).toHaveBeenCalledWith('pool-1')
+  })
+})
+
+describe('MediaLibraryBrowser manager: Add To submenu', () => {
+  const menuItem = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+    .find(button => button.textContent === label) ?? null
+  // Add To picker rows carry a trailing count span (e.g. "Warehouse Loop0"),
+  // so match on the name span's own text instead of the row's full textContent.
+  const pickerOption = (name: string) => [...document.querySelectorAll<HTMLElement>('.vz-add-to-picker__name')]
+    .find(span => span.textContent === name)?.closest<HTMLButtonElement>('.vz-add-to-picker__option') ?? null
+
+  function setInputValue(input: HTMLInputElement, value: string) {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    setter?.call(input, value)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+
+  async function openCardContextMenu() {
+    await renderBrowser({
+      activeMediaId: null,
+      onSelect: vi.fn(),
+      context: 'manager',
+      capabilities: MEDIA_MANAGER_CAPABILITIES,
+    })
+    const card = container?.querySelector<HTMLElement>('.vz-media-card')
+    expect(card).not.toBeNull()
+    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 50 })
+    act(() => card?.dispatchEvent(event))
+  }
+
+  it('adds the right-clicked media to an existing collection', async () => {
+    mocks.mediaState.collections = [{ id: 'coll-1', name: 'Opening Set' }]
+    await openCardContextMenu()
+
+    act(() => menuItem('Add To')?.click())
+    act(() => menuItem('Collection')?.click())
+    await act(async () => { menuItem('Opening Set')?.click(); await Promise.resolve() })
+
+    expect(mocks.mediaState.addMediaToCollection).toHaveBeenCalledWith('coll-1', ['media-1'])
+  })
+
+  it('creates a new collection from the inline input and adds the media to it', async () => {
+    mocks.mediaState.createCollection = vi.fn().mockResolvedValue('coll-new')
+    await openCardContextMenu()
+
+    act(() => menuItem('Add To')?.click())
+    act(() => menuItem('Collection')?.click())
+
+    const input = document.querySelector<HTMLInputElement>('[aria-label="New Collection name"]')
+    expect(input).not.toBeNull()
+    act(() => setInputValue(input!, 'Encore'))
+    await act(async () => {
+      input?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      await Promise.resolve()
+    })
+
+    expect(mocks.mediaState.createCollection).toHaveBeenCalledWith('Encore')
+    expect(mocks.mediaState.addMediaToCollection).toHaveBeenCalledWith('coll-new', ['media-1'])
+  })
+
+  it('adds the right-clicked media to an existing pool', async () => {
+    mocks.reactState.canvasOrchestrationSettings = {
+      mediaPools: [{ id: 'pool-1', name: 'Warehouse Loop', mediaIds: [] }],
+    }
+    await openCardContextMenu()
+
+    act(() => menuItem('Add To')?.click())
+    act(() => menuItem('Pool')?.click())
+    act(() => pickerOption('Warehouse Loop')?.click())
+
+    expect(mocks.reactState.addCanvasMediaToPool).toHaveBeenCalledWith('pool-1', 'media-1')
+  })
+
+  it('creates a new pool from the inline input and adds the media to it', async () => {
+    mocks.reactState.createCanvasMediaPool = vi.fn().mockReturnValue({ ok: true, pool: { id: 'pool-new', name: 'Encore', mediaIds: [] } })
+    await openCardContextMenu()
+
+    act(() => menuItem('Add To')?.click())
+    act(() => menuItem('Pool')?.click())
+
+    const input = document.querySelector<HTMLInputElement>('[aria-label="New Pool name"]')
+    expect(input).not.toBeNull()
+    act(() => setInputValue(input!, 'Encore'))
+    act(() => input?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+
+    expect(mocks.reactState.createCanvasMediaPool).toHaveBeenCalledWith('Encore')
+    expect(mocks.reactState.addCanvasMediaToPool).toHaveBeenCalledWith('pool-new', 'media-1')
+  })
 })

@@ -15,6 +15,10 @@ export type MediaLibraryCapability =
    * Edit/Download/Delete menu. Destructive and bulk actions stay exclusive
    * to Media Manager, same as 'remove'. */
   | 'multi-select'
+  /** Browsable tab for the CANVAS Engine Media Pools (reactStore's
+   * canvasOrchestrationSettings.mediaPools) — the same pools CANVAS Engine
+   * authoring uses, exclusive to Media Manager. */
+  | 'pools'
 
 /**
  * Performance views can browse, preview, favorite, select, and load media, but
@@ -46,6 +50,7 @@ export const MEDIA_MANAGER_CAPABILITIES = [
   'collections',
   'drag-media',
   'multi-select',
+  'pools',
 ] as const satisfies readonly MediaLibraryCapability[]
 
 
