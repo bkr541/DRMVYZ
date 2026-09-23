@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import { cinema2NativePresetRegistry, type Cinema2PresetId } from '../cinema2'
 import { PresetSearchRow } from './controls/PresetSearchRow'
+import { PanelSubtabs } from './PanelSubtabs'
 
 const CINEMA2_PRESET_TONES = ['#4ac7db', '#67f7ff', '#6b4cff', '#61d6aa']
 
@@ -13,6 +14,7 @@ export interface Cinema2PresetsPanelProps {
 export function Cinema2PresetsPanel({ activePresetId, onSelectPreset }: Cinema2PresetsPanelProps) {
   const [query, setQuery] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [scope, setScope] = useState<'system' | 'user'>('system')
   const needle = query.trim().toLowerCase()
   const presets = cinema2NativePresetRegistry.list().filter(manifest => {
     if (manifest.metadata.tags?.includes('internal')) return false
@@ -21,7 +23,13 @@ export function Cinema2PresetsPanel({ activePresetId, onSelectPreset }: Cinema2P
   })
 
   return (
-    <section className="rv-cinema-panel-list" aria-label="Cinema 2.0 presets">
+    <section className="rv-cinema-panel-list" aria-label="Cinema 2.0 presets" data-preset-scope={scope}>
+      <PanelSubtabs
+        value={scope}
+        options={[{ id: 'system', label: 'SYSTEM' }, { id: 'user', label: 'USER' }]}
+        onChange={setScope}
+        ariaLabel="Preset scope"
+      />
       <PresetSearchRow
         query={query}
         onQueryChange={setQuery}
@@ -29,6 +37,7 @@ export function Cinema2PresetsPanel({ activePresetId, onSelectPreset }: Cinema2P
         onViewModeChange={setViewMode}
         ariaLabel="Search Cinema 2.0 presets"
       />
+      {scope === 'system' && (
       <div className={`rv-cinema-preset-grid${viewMode === 'list' ? ' rv-cinema-preset-grid--list' : ''}`} data-cinema2-preset-grid="true">
         {presets.map((manifest, index) => {
           const active = manifest.id === activePresetId
@@ -53,6 +62,7 @@ export function Cinema2PresetsPanel({ activePresetId, onSelectPreset }: Cinema2P
         })}
         {presets.length === 0 && <div className="rv-ctrl-info">No Cinema 2.0 presets match “{query}”.</div>}
       </div>
+      )}
     </section>
   )
 }
