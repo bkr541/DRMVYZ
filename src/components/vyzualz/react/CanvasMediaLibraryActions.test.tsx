@@ -440,32 +440,4 @@ describe('CANVAS Media Library Stage 2 actions', () => {
     openMediaActions(mediaTwo.id)
     expect(menuButton('Add as Layer')).not.toBeNull()
   })
-
-  it('Add to Pool fails safely without an active pool and targets the live active pool idempotently', () => {
-    openMediaActions()
-    chooseAction('Add to Pool')
-
-    expect(host.textContent).toContain('Create or activate a Media Pool first, then add this media again.')
-    expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools).toEqual([])
-
-    const first = useReactStore.getState().createCanvasMediaPool('First')
-    const second = useReactStore.getState().createCanvasMediaPool('Second')
-    if (!first.ok || !second.ok) throw new Error('Expected two CANVAS pools')
-    useReactStore.getState().setActiveCanvasMediaPool(first.pool.id)
-
-    openMediaActions()
-    act(() => {
-      useReactStore.getState().setActiveCanvasMediaPool(second.pool.id)
-    })
-    chooseAction('Add to Pool')
-
-    let pools = useReactStore.getState().canvasOrchestrationSettings.mediaPools
-    expect(pools.find(pool => pool.id === first.pool.id)?.mediaIds).toEqual([])
-    expect(pools.find(pool => pool.id === second.pool.id)?.mediaIds).toEqual([mediaOne.id])
-
-    openMediaActions()
-    chooseAction('Add to Pool')
-    pools = useReactStore.getState().canvasOrchestrationSettings.mediaPools
-    expect(pools.find(pool => pool.id === second.pool.id)?.mediaIds).toEqual([mediaOne.id])
-  })
 })

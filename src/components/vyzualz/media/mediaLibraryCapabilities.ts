@@ -17,7 +17,7 @@ export type MediaLibraryCapability =
   | 'multi-select'
   /** Browsable tab for the CANVAS Engine Media Pools (reactStore's
    * canvasOrchestrationSettings.mediaPools) — the same pools CANVAS Engine
-   * authoring uses, exclusive to Media Manager. */
+   * authoring uses. Media Manager and the CANVAS Engine library only. */
   | 'pools'
 
 /**
@@ -64,6 +64,14 @@ export const CANVAS_MEDIA_LIBRARY_CAPABILITIES = [
   'drag-media',
 ] as const satisfies readonly MediaLibraryCapability[]
 
+
+/** CANVAS Engine's own media library: the shared CANVAS set plus a browsable
+ * Pools tab. Other CANVAS-context hosts (Show Manager, Cinema 2.0 source
+ * panel) keep the plain set. */
+export const CANVAS_ENGINE_MEDIA_LIBRARY_CAPABILITIES = [
+  ...CANVAS_MEDIA_LIBRARY_CAPABILITIES,
+  'pools',
+] as const satisfies readonly MediaLibraryCapability[]
 
 /** PixGrid selects compatible still images and SVGs through the shared library. */
 export const PIX_GRID_MEDIA_LIBRARY_CAPABILITIES = [

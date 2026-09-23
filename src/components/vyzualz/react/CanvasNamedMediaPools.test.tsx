@@ -57,23 +57,15 @@ let host: HTMLDivElement
 let root: Root
 let mediaStoreBaseline: ReturnType<typeof useMediaStore.getState>
 
-function poolPanel(): HTMLElement {
-  const panel = host.querySelector<HTMLElement>('[aria-label="CANVAS Media Pools"]')
-  if (!panel) throw new Error('Expected CANVAS Media Pools panel')
-  return panel
-}
-
-function poolButton(name: string): HTMLButtonElement {
-  const button = [...poolPanel().querySelectorAll<HTMLButtonElement>('.rv-canvas-pools__select')]
-    .find(candidate => candidate.textContent?.includes(name))
-  if (!button) throw new Error(`Expected pool selector ${name}`)
+function findButton(container: ParentNode, label: string): HTMLButtonElement {
+  const button = [...container.querySelectorAll<HTMLButtonElement>('button')]
+    .find(candidate => candidate.textContent?.trim() === label)
+  if (!button) throw new Error(`Expected button ${label}`)
   return button
 }
 
-function poolRow(name: string): HTMLElement {
-  const row = poolButton(name).closest<HTMLElement>('.rv-canvas-pools__row')
-  if (!row) throw new Error(`Expected pool row ${name}`)
-  return row
+function openPoolsTab() {
+  act(() => findButton(host, 'Pools').click())
 }
 
 function setInputValue(input: HTMLInputElement, value: string) {
@@ -85,18 +77,11 @@ function setInputValue(input: HTMLInputElement, value: string) {
   })
 }
 
-function clickButton(container: ParentNode, label: string) {
-  const button = [...container.querySelectorAll<HTMLButtonElement>('button')]
-    .find(candidate => candidate.textContent?.trim() === label)
-  if (!button) throw new Error(`Expected button ${label}`)
-  act(() => button.click())
-}
-
 function createPool(name: string) {
-  const input = poolPanel().querySelector<HTMLInputElement>('[aria-label="New CANVAS Media Pool name"]')
+  const input = host.querySelector<HTMLInputElement>('[aria-label="New pool name"]')
   if (!input) throw new Error('Expected new pool name input')
   setInputValue(input, name)
-  clickButton(poolPanel(), 'Create')
+  act(() => findButton(host, 'Add Pool').click())
 }
 
 function mediaCard(media: UploadedMedia): HTMLElement {
@@ -106,12 +91,17 @@ function mediaCard(media: UploadedMedia): HTMLElement {
   return card
 }
 
-function addMediaToPool(media: UploadedMedia) {
+function addMediaToPool(media: UploadedMedia, poolName: string) {
   act(() => mediaCard(media).click())
   const add = [...document.body.querySelectorAll<HTMLButtonElement>('[role="menu"] button[role="menuitem"]')]
     .find(button => button.textContent?.trim() === 'Add to Pool')
   if (!add) throw new Error('Expected Add to Pool action')
+  expect(add.getAttribute('aria-haspopup')).toBe('menu')
   act(() => add.click())
+  const option = [...document.body.querySelectorAll<HTMLButtonElement>('.vz-add-to-picker__option')]
+    .find(candidate => candidate.textContent?.includes(poolName))
+  if (!option) throw new Error(`Expected pool option ${poolName}`)
+  act(() => option.click())
 }
 
 beforeEach(() => {
@@ -149,79 +139,69 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('CANVAS Stage 5 named Media Pools', () => {
-  it('authors multiple Pools while keeping inspected, active, Make Active, and manual-layer state independent', () => {
-    act(() => {
-      useReactStore.getState().selectCanvasMediaItem(mediaTwo.id)
-      const layer = useReactStore.getState().addCanvasAuthoredLayer(mediaTwo.id)
-      if (!layer.ok) throw new Error(layer.message)
-    })
-    const originalLayerIds = useReactStore.getState().canvasOrchestrationSettings.authoredLayers.map(layer => layer.id)
+describe('CANVAS Media Library Pools', () => {
+  it('no longer renders the standalone Media Pools group under the library', () => {
+    expect(host.querySelector('[aria-label="CANVAS Media Pools"]')).toBeNull()
+    expect(host.textContent).not.toContain('Media Pools')
+  })
 
+  it('creates named Pools from the Pools tab and lists them as groups with count and thumbnails', () => {
+    openPoolsTab()
+    expect(host.textContent).toContain('No Pools yet.')
     createPool('Warmup')
     createPool('Drop')
     expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools.map(pool => pool.name)).toEqual(['Warmup', 'Drop'])
 
-    act(() => poolButton('Warmup').click())
-    const warmupRow = poolRow('Warmup')
-    const activateWarmup = warmupRow.querySelector<HTMLButtonElement>('[aria-label="Activate CANVAS Media Pool Warmup"]')
-    if (!activateWarmup) throw new Error('Expected Warmup activation')
-    act(() => activateWarmup.click())
-    const warmupId = useReactStore.getState().canvasOrchestrationSettings.activeMediaPoolId
-    expect(warmupId).not.toBeNull()
-
-    addMediaToPool(mediaOne)
-    expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools.find(pool => pool.id === warmupId)?.mediaIds).toEqual([mediaOne.id])
-
-    act(() => poolButton('Drop').click())
-    expect(useReactStore.getState().canvasOrchestrationSettings.activeMediaPoolId).toBe(warmupId)
-    expect(poolPanel().querySelector('[aria-label="Inspect CANVAS Media Pool Drop"]')).not.toBeNull()
-
-    const dropRow = poolRow('Drop')
-    const activateDrop = dropRow.querySelector<HTMLButtonElement>('[aria-label="Activate CANVAS Media Pool Drop"]')
-    if (!activateDrop) throw new Error('Expected Drop activation')
-    act(() => activateDrop.click())
-    const dropId = useReactStore.getState().canvasOrchestrationSettings.activeMediaPoolId
-    expect(dropId).not.toBe(warmupId)
-
-    addMediaToPool(mediaTwo)
-    expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools.find(pool => pool.id === dropId)?.mediaIds).toEqual([mediaTwo.id])
-
-    act(() => poolButton('Warmup').click())
-    const removeWarmup = poolPanel().querySelector<HTMLButtonElement>(`[aria-label="Remove Pool One from CANVAS Media Pool Warmup"]`)
-    if (!removeWarmup) throw new Error('Expected Warmup membership removal')
-    act(() => removeWarmup.click())
-    expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools.find(pool => pool.id === warmupId)?.mediaIds).toEqual([])
-
-    expect(useReactStore.getState().activeCanvasMediaId).toBe(mediaTwo.id)
-    expect(useReactStore.getState().canvasOrchestrationSettings.authoredLayers.map(layer => layer.id)).toEqual(originalLayerIds)
+    const folders = [...host.querySelectorAll<HTMLElement>('.vz-coll-folder')]
+    expect(folders).toHaveLength(2)
+    expect(folders[0].textContent).toContain('Warmup')
+    expect(folders[0].textContent).toContain('0 items')
   })
 
-  it('renames and deletes inspected Pools with confirmation and clears an active Pool without random replacement', () => {
+  it('Add to Pool flyout lists Pools and adds the right-clicked media to the chosen Pool', () => {
+    openPoolsTab()
+    createPool('Warmup')
+    createPool('Drop')
+    act(() => findButton(host, 'All').click())
+
+    addMediaToPool(mediaOne, 'Warmup')
+    const pools = useReactStore.getState().canvasOrchestrationSettings.mediaPools
+    expect(pools.find(pool => pool.name === 'Warmup')?.mediaIds).toEqual([mediaOne.id])
+    expect(pools.find(pool => pool.name === 'Drop')?.mediaIds).toEqual([])
+
+    addMediaToPool(mediaTwo, 'Warmup')
+    expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools.find(pool => pool.name === 'Warmup')?.mediaIds)
+      .toEqual([mediaOne.id, mediaTwo.id])
+
+    addMediaToPool(mediaTwo, 'Warmup')
+    expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools.find(pool => pool.name === 'Warmup')?.mediaIds)
+      .toEqual([mediaOne.id, mediaTwo.id])
+
+    openPoolsTab()
+    const warmup = [...host.querySelectorAll<HTMLElement>('.vz-coll-folder')].find(folder => folder.textContent?.includes('Warmup'))
+    expect(warmup?.textContent).toContain('2 items')
+    expect(warmup?.querySelectorAll('.vz-coll-thumb img')).toHaveLength(2)
+  })
+
+  it('sets and clears the active Pool from the Pools tab and deletes a Pool with confirmation', () => {
+    openPoolsTab()
     createPool('Warmup')
     createPool('Drop')
 
-    const dropRow = poolRow('Drop')
-    const activateDrop = dropRow.querySelector<HTMLButtonElement>('[aria-label="Activate CANVAS Media Pool Drop"]')
-    if (!activateDrop) throw new Error('Expected Drop activation')
-    act(() => activateDrop.click())
-    const activeDropId = useReactStore.getState().canvasOrchestrationSettings.activeMediaPoolId
+    const activate = host.querySelector<HTMLButtonElement>('[aria-label="Activate pool Drop"]')
+    if (!activate) throw new Error('Expected Drop activation')
+    act(() => activate.click())
+    const dropId = useReactStore.getState().canvasOrchestrationSettings.activeMediaPoolId
+    expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools.find(pool => pool.id === dropId)?.name).toBe('Drop')
 
-    clickButton(poolPanel(), 'Rename')
-    const rename = poolPanel().querySelector<HTMLInputElement>('[aria-label="Rename CANVAS Media Pool Drop"]')
-    if (!rename) throw new Error('Expected rename input')
-    setInputValue(rename, 'Drop Rotation')
-    clickButton(poolPanel(), 'Save')
-    expect(useReactStore.getState().canvasOrchestrationSettings.mediaPools.find(pool => pool.id === activeDropId)?.name).toBe('Drop Rotation')
-
-    clickButton(poolPanel(), 'Delete')
-    expect(poolPanel().textContent).toContain('Confirm Delete')
-    clickButton(poolPanel(), 'Confirm Delete')
+    const dropFolder = [...host.querySelectorAll<HTMLElement>('.vz-coll-folder')].find(folder => folder.textContent?.includes('Drop'))
+    const remove = dropFolder?.querySelector<HTMLButtonElement>('button[title="Delete pool"]')
+    if (!remove) throw new Error('Expected Drop delete button')
+    act(() => remove.click())
+    act(() => findButton(document.body, 'Delete').click())
 
     const state = useReactStore.getState().canvasOrchestrationSettings
     expect(state.mediaPools.map(pool => pool.name)).toEqual(['Warmup'])
     expect(state.activeMediaPoolId).toBeNull()
-    expect(state.mediaPoolIds).toEqual([])
-    expect(poolPanel().textContent).toContain('None active')
   })
 })

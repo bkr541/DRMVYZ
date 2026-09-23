@@ -219,6 +219,7 @@ const REACT_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
 const CANVAS_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
   { key: 'all',         label: 'All'         },
   { key: 'collections', label: 'Collections' },
+  { key: 'pools',       label: 'Pools'       },
   { key: 'favorites',   label: 'Favorites'   },
   { key: 'images',      label: 'Images'      },
   { key: 'videos',      label: 'Videos'      },
@@ -273,7 +274,7 @@ function matchesMediaLibraryFilter(m: UploadedMedia, f: MediaLibraryFilter): boo
 // ── Collection folder card ─────────────────────────────────────────────────
 
 function CollectionFolder({
-  collection, items, viewMode, onClick, onEdit, onRemove, removeTitle = 'Delete collection',
+  collection, items, viewMode, onClick, onEdit, onRemove, removeTitle = 'Delete collection', headerExtra,
 }: {
   collection: MediaCollection
   items: UploadedMedia[]
@@ -282,6 +283,7 @@ function CollectionFolder({
   onEdit?: () => void
   onRemove?: () => void
   removeTitle?: string
+  headerExtra?: ReactNode
 }) {
   const thumbs = items.slice(0, 4)
   const count  = items.length
@@ -298,6 +300,7 @@ function CollectionFolder({
         <FolderLibraryIcon size={13} color="currentColor" style={{ flexShrink: 0 }} />
         <span className="vz-coll-folder-name" style={{ flex: 1 }}>{collection.name}</span>
         <span className="vz-coll-folder-count">{count} {count === 1 ? 'item' : 'items'}</span>
+        {headerExtra}
         {actions}
       </div>
     )
@@ -309,6 +312,7 @@ function CollectionFolder({
         <FolderLibraryIcon size={13} color="currentColor" style={{ flexShrink: 0 }} />
         <span className="vz-coll-folder-name">{collection.name}</span>
         <span className="vz-coll-folder-count">{count} {count === 1 ? 'item' : 'items'}</span>
+        {headerExtra}
         {actions}
       </div>
       {collection.description && <div className="vz-coll-description">{collection.description}</div>}
@@ -712,6 +716,11 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
 
   const mediaPools = useReactStore(state => state.canvasOrchestrationSettings.mediaPools)
   const deleteCanvasMediaPool = useReactStore(state => state.deleteCanvasMediaPool)
+  const createCanvasMediaPool = useReactStore(state => state.createCanvasMediaPool)
+  const activeMediaPoolId = useReactStore(state => state.canvasOrchestrationSettings.activeMediaPoolId)
+  const setActiveCanvasMediaPool = useReactStore(state => state.setActiveCanvasMediaPool)
+  const [newPoolDraft, setNewPoolDraft] = useState('')
+  const [newPoolError, setNewPoolError] = useState<string | null>(null)
 
   const { savedTracks, loading: tracksLoading, loadSavedTracks, removeSavedTrack, getSignedUrl } = useAudioStore()
   const engine = useSharedAudio()
@@ -775,7 +784,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const canBrowseCollections = capabilitySet.has('collections')
   const canDragMedia = capabilitySet.has('drag-media')
   const canMultiSelect = isManager && capabilitySet.has('multi-select')
-  const canBrowsePools = isManager && capabilitySet.has('pools')
+  const canBrowsePools = (isManager || isCanvasMode) && capabilitySet.has('pools')
 
   const isReactMode = context === 'react'
   const availableFilters = useMemo(() => {
@@ -1314,8 +1323,40 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   // Same CANVAS Engine Media Pools (reactStore) exposed as a browsable tab
   // here — reuses CollectionFolder for the folder card since a pool is a
   // named, ordered group of media ids, same shape the card already renders.
-  // New pools are created through the right-click Add To → Pool flow
-  // (MediaAddToMenu.tsx); this tab is for browsing/removing existing ones.
+  // Pools can be created here by name or through the right-click Add To →
+  // Pool flow (MediaAddToMenu.tsx).
+  const submitNewPool = () => {
+    const name = newPoolDraft.trim()
+    if (!name) return
+    const result = createCanvasMediaPool(name)
+    if (!result.ok) {
+      setNewPoolError(result.message)
+      return
+    }
+    setNewPoolDraft('')
+    setNewPoolError(null)
+  }
+
+  const renderPoolActiveToggle = (poolId: string, poolName: string) => {
+    if (!isCanvasMode) return undefined
+    const active = poolId === activeMediaPoolId
+    return (
+      <button
+        type="button"
+        className={`vz-coll-active-btn${active ? ' vz-coll-active-btn--on' : ''}`}
+        aria-pressed={active}
+        aria-label={`${active ? 'Deactivate' : 'Activate'} pool ${poolName}`}
+        title={active ? 'Active pool — click to deactivate' : 'Set as active pool'}
+        onClick={event => {
+          event.stopPropagation()
+          setActiveCanvasMediaPool(active ? null : poolId)
+        }}
+      >
+        {active ? 'Active' : 'Set Active'}
+      </button>
+    )
+  }
+
   const renderPoolsView = () => {
     if (openPoolId && openPool) {
       return (
@@ -1327,6 +1368,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             <FolderLibraryIcon size={12} color="currentColor" style={{ flexShrink: 0 }} />
             <span className="vz-coll-breadcrumb-name">{openPool.name}</span>
             <span className="vz-coll-folder-count">{openPoolItems.length} {openPoolItems.length === 1 ? 'item' : 'items'}</span>
+            {renderPoolActiveToggle(openPool.id, openPool.name)}
           </div>
           {openPoolItems.length === 0 ? (
             <div className="vz-media-grid">
@@ -1339,34 +1381,63 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
       )
     }
 
+    const createRow = (
+      <div className="vz-pool-create" onPointerDown={event => event.stopPropagation()}>
+        <DreamVizTextInput
+          className="vz-pool-create__input"
+          value={newPoolDraft}
+          placeholder="New pool name"
+          aria-label="New pool name"
+          onChange={event => { setNewPoolDraft(event.target.value); setNewPoolError(null) }}
+          onKeyDown={event => { if (event.key === 'Enter') submitNewPool() }}
+        />
+        <IconChipButton onClick={submitNewPool} disabled={newPoolDraft.trim().length === 0} aria-label="Create pool">
+          Add Pool
+        </IconChipButton>
+      </div>
+    )
+    const createError = newPoolError ? <div className="vz-pool-create__error" role="alert">{newPoolError}</div> : null
+
     if (filteredPools.length === 0) {
       return (
-        <div className="vz-media-grid">
-          <div className="vz-coll-empty-wrap">
-            <div className="vz-coll-folder-empty">
-              {searchActive
-                ? `No pools match "${searchQuery}"`
-                : 'No Pools yet. Right-click media and use Add To → Pool to create one.'}
+        <>
+          {createRow}
+          {createError}
+          <div className="vz-media-grid">
+            <div className="vz-coll-empty-wrap">
+              <div className="vz-coll-folder-empty">
+                {searchActive
+                  ? `No pools match "${searchQuery}"`
+                  : 'No Pools yet. Enter a name above to create one.'}
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )
     }
 
+    const listClass = viewMode === 'list'
+      ? 'vz-media-list'
+      : `vz-coll-list${isCanvasMode ? ' vz-coll-list--grid' : ''}`
     return (
-      <div className={viewMode === 'list' ? 'vz-media-list' : 'vz-coll-list'}>
-        {filteredPools.map(pool => (
-          <CollectionFolder
-            key={pool.id}
-            collection={{ id: pool.id, name: pool.name }}
-            items={itemsByPool.get(pool.id) ?? []}
-            viewMode={viewMode}
-            onClick={() => setOpenPoolId(pool.id)}
-            onRemove={() => setDeletePoolConfirm({ id: pool.id, name: pool.name })}
-            removeTitle="Delete pool"
-          />
-        ))}
-      </div>
+      <>
+        {createRow}
+        {createError}
+        <div className={listClass}>
+          {filteredPools.map(pool => (
+            <CollectionFolder
+              key={pool.id}
+              collection={{ id: pool.id, name: pool.name }}
+              items={itemsByPool.get(pool.id) ?? []}
+              viewMode={viewMode}
+              onClick={() => setOpenPoolId(pool.id)}
+              onRemove={() => setDeletePoolConfirm({ id: pool.id, name: pool.name })}
+              removeTitle="Delete pool"
+              headerExtra={renderPoolActiveToggle(pool.id, pool.name)}
+            />
+          ))}
+        </div>
+      </>
     )
   }
 

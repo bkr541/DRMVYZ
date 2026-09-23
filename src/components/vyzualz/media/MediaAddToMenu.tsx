@@ -30,18 +30,21 @@ function AddToPickerPanel({
   onPick,
   onCreate,
   error,
+  emptyHint,
 }: {
   kind: 'Collection' | 'Pool'
   options: AddToPickerOption[]
   onPick: (id: string) => void
-  onCreate: (name: string) => void
+  /** Omit to render a pick-only list with no "New …" input. */
+  onCreate?: (name: string) => void
   error: string | null
+  emptyHint?: string
 }) {
   const [draft, setDraft] = useState('')
 
   const submitCreate = () => {
     const name = draft.trim()
-    if (!name) return
+    if (!name || !onCreate) return
     onCreate(name)
     setDraft('')
   }
@@ -49,7 +52,7 @@ function AddToPickerPanel({
   return (
     <div className="vz-add-to-picker">
       {options.length === 0 ? (
-        <div className="vz-add-to-picker__empty">No {kind.toLowerCase()}s yet.</div>
+        <div className="vz-add-to-picker__empty">{emptyHint ?? `No ${kind.toLowerCase()}s yet.`}</div>
       ) : (
         options.map(option => (
           <button
@@ -64,19 +67,23 @@ function AddToPickerPanel({
           </button>
         ))
       )}
-      <div className="vz-add-to-picker__divider" role="separator" />
-      <div className="vz-add-to-picker__create" onPointerDown={event => event.stopPropagation()}>
-        <DreamVizTextInput
-          className="vz-add-to-picker__input"
-          value={draft}
-          placeholder={`New ${kind}`}
-          aria-label={`New ${kind} name`}
-          onChange={event => setDraft(event.target.value)}
-          onKeyDown={event => {
-            if (event.key === 'Enter') submitCreate()
-          }}
-        />
-      </div>
+      {onCreate && (
+        <>
+          <div className="vz-add-to-picker__divider" role="separator" />
+          <div className="vz-add-to-picker__create" onPointerDown={event => event.stopPropagation()}>
+            <DreamVizTextInput
+              className="vz-add-to-picker__input"
+              value={draft}
+              placeholder={`New ${kind}`}
+              aria-label={`New ${kind} name`}
+              onChange={event => setDraft(event.target.value)}
+              onKeyDown={event => {
+                if (event.key === 'Enter') submitCreate()
+              }}
+            />
+          </div>
+        </>
+      )}
       {error && <div className="vz-add-to-picker__error" role="alert">{error}</div>}
     </div>
   )
@@ -165,4 +172,38 @@ export function MediaAddToSubmenu({
   ]
 
   return <ContextMenuItemsList items={items} />
+}
+
+/** Pick-only list of the CANVAS Engine Media Pools, for the CANVAS library's
+ * "Add to Pool" flyout. Pools are created from the library's Pools tab. */
+export function MediaAddToPoolPicker({
+  targetIds,
+  onDone,
+}: {
+  targetIds: string[]
+  onDone: (message: string | null) => void
+}) {
+  const { mediaPools, addCanvasMediaToPool } = useReactStore(useShallow(state => ({
+    mediaPools: state.canvasOrchestrationSettings.mediaPools,
+    addCanvasMediaToPool: state.addCanvasMediaToPool,
+  })))
+
+  const addToPool = (poolId: string) => {
+    let failure: string | null = null
+    for (const mediaId of targetIds) {
+      const result = addCanvasMediaToPool(poolId, mediaId)
+      if (!result.ok) failure = result.message
+    }
+    onDone(failure)
+  }
+
+  return (
+    <AddToPickerPanel
+      kind="Pool"
+      options={mediaPools.map(pool => ({ id: pool.id, name: pool.name, count: pool.mediaIds.length }))}
+      onPick={addToPool}
+      error={null}
+      emptyHint="No pools yet. Create one in the Pools tab."
+    />
+  )
 }

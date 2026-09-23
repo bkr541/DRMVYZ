@@ -19,7 +19,6 @@ import { HelpInfoTrigger, type HelpInfoTriggerProps } from '../../shared/InfoPop
 import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from './SharedPerformanceDiagnosticsStore'
 import { MediaLibraryBrowser, type MediaLibraryCardActionAnchor } from '../media/MediaLibraryBrowser'
 import { ContextActionMenu } from '../context-menu/ContextActionMenu'
-import { CanvasMediaPoolsPanel } from './CanvasMediaPoolsPanel'
 import {
   getCanvasMediaTransparencyKey,
   prepareCanvasCaptureBackground,
@@ -27,7 +26,8 @@ import {
   resolveCanvasMediaBackgroundMode,
   type CanvasBackgroundMode,
 } from './canvasMediaTransparency'
-import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
+import { CANVAS_ENGINE_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
+import { MediaAddToPoolPicker } from '../media/MediaAddToMenu'
 import { getCanvasLibraryDisabledReason, getCanvasLibraryMediaType } from './canvasMediaLibraryContract'
 import {
   ensureCanvasTransparentPngVerification,
@@ -396,7 +396,6 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
   const ensureMediaSigned = useMediaStore(s => s.ensureMediaSigned)
   const orchestration = useReactStore(s => s.canvasOrchestrationSettings)
   const addCanvasAuthoredLayer = useReactStore(s => s.addCanvasAuthoredLayer)
-  const addCanvasMediaToPool = useReactStore(s => s.addCanvasMediaToPool)
   const setCanvasMediaRoles = useReactStore(s => s.setCanvasMediaRoles)
   const mediaItems = useCanvasRuntimeMediaItems()
   const [actionMenu, setActionMenu] = useState<({ mediaId: string } & MediaLibraryCardActionAnchor) | null>(null)
@@ -501,17 +500,6 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
     void addLayerNow(mediaId)
   }
 
-  const addToActivePool = (mediaId: string) => {
-    const activePoolId = useReactStore.getState().canvasOrchestrationSettings.activeMediaPoolId
-    if (!activePoolId) {
-      setActionFeedback('Create or activate a Media Pool first, then add this media again.')
-      return
-    }
-    const result = addCanvasMediaToPool(activePoolId, mediaId)
-    if (!result.ok) setActionFeedback(result.message)
-    else setActionFeedback(null)
-  }
-
   return (
     <div className={`rv-canvas-library-shell${compact ? ' rv-canvas-library-shell--compact' : ''}`}>
       <MediaLibraryBrowser
@@ -519,7 +507,7 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
         onCardActionRequest={openMediaActions}
         context="canvas"
         title="Media Library"
-        capabilities={CANVAS_MEDIA_LIBRARY_CAPABILITIES}
+        capabilities={CANVAS_ENGINE_MEDIA_LIBRARY_CAPABILITIES}
         getDisabledReason={getCanvasLibraryDisabledReason}
       />
       {actionFeedback && (
@@ -555,7 +543,15 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
             {
               id: 'add-to-pool',
               label: 'Add to Pool',
-              onSelect: () => addToActivePool(actionMenu.mediaId),
+              submenu: (
+                <MediaAddToPoolPicker
+                  targetIds={[actionMenu.mediaId]}
+                  onDone={message => {
+                    setActionFeedback(message)
+                    setActionMenu(null)
+                  }}
+                />
+              ),
             },
           ]}
         />
@@ -580,7 +576,6 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
           ]}
         />
       )}
-      <CanvasMediaPoolsPanel mediaItems={mediaItems} />
       {activeItem && orchestration.mediaPoolIds.includes(activeItem.id) && (
         <div className="rv-canvas-role-editor" aria-label={`Performance roles for ${activeItem.name}`}>
           <div className="rv-canvas-pool__head">
