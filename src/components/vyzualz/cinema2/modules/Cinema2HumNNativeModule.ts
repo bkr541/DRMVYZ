@@ -36,6 +36,58 @@ export type Cinema2HumNSemanticGroupId =
   | 'secondary-edges'
   | 'ghost-emergence-edges'
 
+export const CINEMA2_HUMN_COMPOSITION_ANCHOR = Object.freeze({ x: 0, y: 0.0266565 })
+export const CINEMA2_HUMN_CRITICAL_FIGURE_BOUNDS = Object.freeze({
+  minX: -0.901752,
+  maxX: 0.901752,
+  minY: -0.773039,
+  maxY: 0.826352,
+})
+
+const HUMN_SAFE_FRAME_MARGIN = 0.995
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function smoothstep(edge0: number, edge1: number, value: number): number {
+  const t = clampNumber((value - edge0) / Math.max(edge1 - edge0, Number.EPSILON), 0, 1)
+  return t * t * (3 - 2 * t)
+}
+
+function humNPortraitScale(aspect: number): number {
+  return 1.02 + (1.14 - 1.02) * smoothstep(1.10, 1.90, aspect)
+}
+
+/**
+ * Keeps the authored public 0.70-1.30 Figure Scale range while protecting the
+ * canonical head/shoulder envelope on unusually constrained viewports. The
+ * approved landscape default resolves to exactly 1.0; only unsafe enlargement
+ * (or portrait fit pressure) is constrained internally.
+ */
+export function resolveCinema2HumNFigureScale(requested: unknown, width: number, height: number): number {
+  const authored = clampNumber(readNumber(requested, 1), 0.7, 1.3)
+  const safeWidth = Math.max(1, width)
+  const safeHeight = Math.max(1, height)
+  const aspect = safeWidth / safeHeight
+  const portraitScale = humNPortraitScale(aspect)
+  const horizontalExtent = Math.max(
+    Math.abs(CINEMA2_HUMN_CRITICAL_FIGURE_BOUNDS.minX - CINEMA2_HUMN_COMPOSITION_ANCHOR.x),
+    Math.abs(CINEMA2_HUMN_CRITICAL_FIGURE_BOUNDS.maxX - CINEMA2_HUMN_COMPOSITION_ANCHOR.x),
+  )
+  const verticalExtent = Math.max(
+    Math.abs(CINEMA2_HUMN_CRITICAL_FIGURE_BOUNDS.minY - CINEMA2_HUMN_COMPOSITION_ANCHOR.y),
+    Math.abs(CINEMA2_HUMN_CRITICAL_FIGURE_BOUNDS.maxY - CINEMA2_HUMN_COMPOSITION_ANCHOR.y),
+  )
+  const anchorScreenOffsetY = Math.abs(CINEMA2_HUMN_COMPOSITION_ANCHOR.y - 0.012)
+  const horizontalCap = (HUMN_SAFE_FRAME_MARGIN * aspect) / Math.max(portraitScale * horizontalExtent, Number.EPSILON)
+  const verticalCap = (HUMN_SAFE_FRAME_MARGIN / portraitScale - anchorScreenOffsetY) / Math.max(verticalExtent, Number.EPSILON)
+  const safeCap = clampNumber(Math.min(1.3, horizontalCap, verticalCap), 0.01, 1.3)
+
+  if (safeCap >= 1) return Math.min(authored, safeCap)
+  return safeCap * (authored / 1.3)
+}
+
 
 /** Authored bridge strokes revealed only below the approved fragmentation baseline. */
 const HUMN_RESTORATION_SEGMENTS: readonly Cinema2HumNSegment[] = Object.freeze([
@@ -375,6 +427,9 @@ export const CINEMA2_HUMN_FRAGMENT_SOURCE = `#version 300 es
 precision highp float;
 in vec2 v_uv;
 uniform vec2 u_resolution;
+uniform float u_masterIntensity;
+uniform float u_figureScale;
+uniform float u_gridPresence;
 uniform float u_linePresence;
 uniform float u_lineWeight;
 uniform float u_fragmentation;
@@ -473,6 +528,11 @@ void main() {
   float portraitScale = mix(1.02, 1.14, smoothstep(1.10, 1.90, aspect));
   p /= portraitScale;
   p.y += 0.012;
+  vec2 compositionAnchor = vec2(${glslNumber(CINEMA2_HUMN_COMPOSITION_ANCHOR.x)}, ${glslNumber(CINEMA2_HUMN_COMPOSITION_ANCHOR.y)});
+  float figureScale = max(u_figureScale, 0.0001);
+  if (abs(figureScale - 1.0) > 0.000001) {
+    p = compositionAnchor + (p - compositionAnchor) / figureScale;
+  }
 
   float px = 2.0 / resolution.y;
   float weight = clamp(u_lineWeight, 0.5, 2.0);
@@ -557,20 +617,26 @@ void main() {
 
   float vignette = 1.0 - smoothstep(0.56, 1.30, length((v_uv - 0.5) * vec2(0.92, 1.0)));
   vec3 background = vec3(0.0009, 0.0012, 0.0014);
+  float gridPresence = clamp(u_gridPresence, 0.0, 1.0);
   vec3 gridColor = vec3(0.10, 0.13, 0.14) * grid * 0.74 + vec3(0.08, 0.10, 0.11) * macroGrid * 0.12;
+  if (gridPresence < 0.999999) gridColor *= gridPresence;
 
   float ghostFigure = ghostSoft * 0.18 + ghostCore * 0.10;
   float wireframeFigure = primarySoft * 0.32 + primaryCore * 0.80;
   float accentFigure = accentSoft * 0.16 + accentCore * 0.34;
 
-  vec3 color = background + gridColor;
-  color = mix(color, skinColor, skinCoverage * facetFill * 0.90);
+  vec3 stageColor = background + gridColor;
+  vec3 figureColor = stageColor;
+  figureColor = mix(figureColor, skinColor, skinCoverage * facetFill * 0.90);
   float presence = clamp(u_linePresence, 0.0, 1.0);
-  color += presence * vec3(0.72, 0.75, 0.77) * ghostFigure;
-  color += presence * vec3(0.93, 0.95, 0.97) * wireframeFigure;
-  color += presence * vec3(1.0) * accentFigure;
-  color += presence * vec3(0.90, 0.93, 0.95) * restoration * 0.48;
-  color += presence * vec3(0.86, 0.91, 0.94) * denseFigure * 0.52;
+  figureColor += presence * vec3(0.72, 0.75, 0.77) * ghostFigure;
+  figureColor += presence * vec3(0.93, 0.95, 0.97) * wireframeFigure;
+  figureColor += presence * vec3(1.0) * accentFigure;
+  figureColor += presence * vec3(0.90, 0.93, 0.95) * restoration * 0.48;
+  figureColor += presence * vec3(0.86, 0.91, 0.94) * denseFigure * 0.52;
+  float masterIntensity = clamp(u_masterIntensity, 0.0, 1.0);
+  vec3 color = figureColor;
+  if (masterIntensity < 0.999999) color = mix(stageColor, figureColor, masterIntensity);
   color *= 0.92 + 0.08 * vignette;
   outColor = vec4(color, 1.0);
 }
@@ -625,7 +691,7 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
               label,
               vertSrc: FULLSCREEN_VERT_SRC,
               fragSrc: CINEMA2_HUMN_FRAGMENT_SOURCE,
-              optionalUniforms: ['u_resolution', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle'],
+              optionalUniforms: ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle'],
             })
             if (!result.program) {
               throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
@@ -642,6 +708,9 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
         )
         program.activate()
         program.setVec2('u_resolution', width, height)
+        program.setFloat('u_masterIntensity', readNumber(context.parameters.get('masterIntensity'), 1))
+        program.setFloat('u_figureScale', resolveCinema2HumNFigureScale(context.parameters.get('figureScale'), width, height))
+        program.setFloat('u_gridPresence', readNumber(context.parameters.get('gridPresence'), 1))
         program.setFloat('u_linePresence', readNumber(context.parameters.get('linePresence'), 1))
         program.setFloat('u_lineWeight', readNumber(context.parameters.get('lineWeight'), 1))
         program.setFloat('u_fragmentation', readNumber(context.parameters.get('fragmentation'), 0.55))

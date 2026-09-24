@@ -30,6 +30,71 @@ export const CINEMA2_HUMN_FRAGMENTATION_ID = cinema2StableId<Cinema2ParameterId>
 export const CINEMA2_HUMN_MESH_DETAIL_ID = cinema2StableId<Cinema2ParameterId>('hum-n-mesh-detail')
 export const CINEMA2_HUMN_FACET_FILL_ID = cinema2StableId<Cinema2ParameterId>('hum-n-facet-fill')
 export const CINEMA2_HUMN_FILL_STYLE_ID = cinema2StableId<Cinema2ParameterId>('hum-n-fill-style')
+export const CINEMA2_HUMN_MASTER_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('hum-n-master-intensity')
+export const CINEMA2_HUMN_FIGURE_SCALE_ID = cinema2StableId<Cinema2ParameterId>('hum-n-figure-scale')
+export const CINEMA2_HUMN_GRID_PRESENCE_ID = cinema2StableId<Cinema2ParameterId>('hum-n-grid-presence')
+
+const CINEMA2_HUMN_COMPOSITION_OUTPUT_PARAMETERS = Object.freeze([
+  Object.freeze({
+    id: CINEMA2_HUMN_MASTER_INTENSITY_ID,
+    label: 'Master Intensity',
+    description: 'Controls the final HUM:N figure and facet output strength without changing the technical stage or grid.',
+    type: 'float' as const,
+    defaultValue: 1,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    section: 'Design',
+    designParentGroup: 'master-controls' as const,
+    order: 1,
+    exposure: 'primary' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_FIGURE_SCALE_ID,
+    label: 'Figure Scale',
+    description: 'Uniformly scales the complete HUM:N figure around the approved composition anchor while preserving its proportions.',
+    type: 'float' as const,
+    defaultValue: 1,
+    min: 0.7,
+    max: 1.3,
+    step: 0.01,
+    section: 'Design',
+    group: 'Composition',
+    designParentGroup: 'design' as const,
+    order: 1,
+    exposure: 'primary' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_GRID_PRESENCE_ID,
+    label: 'Grid Presence',
+    description: 'Controls only the restrained technical background grid while leaving the near-black stage intact.',
+    type: 'float' as const,
+    defaultValue: 1,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    section: 'Design',
+    group: 'Stage',
+    designParentGroup: 'design' as const,
+    order: 2,
+    exposure: 'primary' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+])
 
 const CINEMA2_HUMN_FIGURE_PARAMETERS = Object.freeze([
   Object.freeze({
@@ -166,7 +231,7 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_HUMN_PRESET_ID,
-  revision: 6,
+  revision: 7,
   metadata: Object.freeze({
     name: 'HUM:N',
     description: 'A near-black sparse low-poly humanoid bust reconstructed from the approved fractured white wireframe silhouette with stronger facet hierarchy, faint emergence fragments, and a restrained technical grid.',
@@ -175,13 +240,20 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
   capabilities: Object.freeze([
     Object.freeze({ id: 'render.webgl2' as const, requirement: 'required' as const, purpose: 'Deterministic screen-space native HUM:N topology rendering.' }),
   ]),
-  parameters: Object.freeze([CINEMA2_QUALITY_MODE_PARAMETER, ...CINEMA2_HUMN_FIGURE_PARAMETERS]),
+  parameters: Object.freeze([
+    CINEMA2_QUALITY_MODE_PARAMETER,
+    ...CINEMA2_HUMN_COMPOSITION_OUTPUT_PARAMETERS,
+    ...CINEMA2_HUMN_FIGURE_PARAMETERS,
+  ]),
   modules: Object.freeze([Object.freeze({
     id: CINEMA2_HUMN_MODULE_ID,
     typeId: CINEMA2_HUMN_NATIVE_MODULE_TYPE_ID,
     version: CINEMA2_HUMN_NATIVE_MODULE_VERSION,
     enabled: true,
     parameters: Object.freeze({
+      masterIntensity: 1,
+      figureScale: 1,
+      gridPresence: 1,
       linePresence: 1,
       lineWeight: 1,
       fragmentation: 0.55,
@@ -190,6 +262,9 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
       fillStyle: 'Mixed',
     }),
     parameterBindings: Object.freeze({
+      masterIntensity: cinema2Ref(CINEMA2_HUMN_MASTER_INTENSITY_ID),
+      figureScale: cinema2Ref(CINEMA2_HUMN_FIGURE_SCALE_ID),
+      gridPresence: cinema2Ref(CINEMA2_HUMN_GRID_PRESENCE_ID),
       linePresence: cinema2Ref(CINEMA2_HUMN_LINE_PRESENCE_ID),
       lineWeight: cinema2Ref(CINEMA2_HUMN_LINE_WEIGHT_ID),
       fragmentation: cinema2Ref(CINEMA2_HUMN_FRAGMENTATION_ID),

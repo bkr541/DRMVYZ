@@ -9,10 +9,15 @@ import { Cinema2PresetsPanel } from '../../react/Cinema2PresetsPanel'
 import { Cinema2Stage } from '../../react/Cinema2Stage'
 import {
   CINEMA2_HUMN_CANONICAL_TOPOLOGY,
+  CINEMA2_HUMN_COMPOSITION_ANCHOR,
+  CINEMA2_HUMN_CRITICAL_FIGURE_BOUNDS,
   CINEMA2_HUMN_FRAGMENT_SOURCE,
   CINEMA2_HUMN_FUTURE_FACET_GROUPS,
   CINEMA2_HUMN_SKIN_FACET_GROUPS,
   CINEMA2_HUMN_LAYER_ID,
+  CINEMA2_HUMN_MASTER_INTENSITY_ID,
+  CINEMA2_HUMN_FIGURE_SCALE_ID,
+  CINEMA2_HUMN_GRID_PRESENCE_ID,
   CINEMA2_HUMN_LINE_PRESENCE_ID,
   CINEMA2_HUMN_LINE_WEIGHT_ID,
   CINEMA2_HUMN_FRAGMENTATION_ID,
@@ -31,6 +36,7 @@ import {
   createCinema2DesignParentGroupModel,
   cinema2NativeModuleRegistry,
   cinema2NativePresetRegistry,
+  resolveCinema2HumNFigureScale,
   type Cinema2PresetId,
 } from '..'
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
@@ -92,7 +98,7 @@ function createHumNRuntime() {
   const raf = createRafHarness()
   const gl = createCinemaMockWebGL()
   gl.getUniformLocation = vi.fn((_program: WebGLProgram, name: string) =>
-    ['u_resolution', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle'].includes(name)
+    ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle'].includes(name)
       ? ({ name } as unknown as WebGLUniformLocation)
       : null)
   const created = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
@@ -194,6 +200,9 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     expect(runtime.getModuleRuntimeSnapshot()).toMatchObject({ activeModuleCount: 1, failedModuleCount: 0 })
     expect(runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 3, executedPassCount: 3, failedPassCount: 0 })
     expect((gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls).toEqual(expect.arrayContaining([
+      [expect.objectContaining({ name: 'u_masterIntensity' }), 1],
+      [expect.objectContaining({ name: 'u_figureScale' }), 1],
+      [expect.objectContaining({ name: 'u_gridPresence' }), 1],
       [expect.objectContaining({ name: 'u_linePresence' }), 1],
       [expect.objectContaining({ name: 'u_lineWeight' }), 1],
       [expect.objectContaining({ name: 'u_fragmentation' }), 0.55],
@@ -304,8 +313,11 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
 
     const snapshot = JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)
     expect(JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)).toBe(snapshot)
-    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(7)
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(10)
     expect(CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.parameterBindings ?? {}).toEqual({
+      masterIntensity: { $ref: CINEMA2_HUMN_MASTER_INTENSITY_ID },
+      figureScale: { $ref: CINEMA2_HUMN_FIGURE_SCALE_ID },
+      gridPresence: { $ref: CINEMA2_HUMN_GRID_PRESENCE_ID },
       linePresence: { $ref: CINEMA2_HUMN_LINE_PRESENCE_ID },
       lineWeight: { $ref: CINEMA2_HUMN_LINE_WEIGHT_ID },
       fragmentation: { $ref: CINEMA2_HUMN_FRAGMENTATION_ID },
@@ -315,6 +327,79 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     })
     expect(CINEMA2_HUMN_PRESET_MANIFEST.choreography ?? []).toHaveLength(0)
     expect(CINEMA2_HUMN_PRESET_MANIFEST.effects ?? []).toHaveLength(0)
+  })
+
+  it('projects Master Intensity flat under Master Controls and Figure Scale/Grid Presence into the approved Design groups', () => {
+    const { runtime } = createHumNRuntime()
+    const plan = runtime.getCompiledPresetPlan()
+    const state = runtime.getParameterState()
+    const definitions = new Map(plan.parameters.definitions.map(definition => [definition.id, definition]))
+
+    expect(definitions.get(CINEMA2_HUMN_MASTER_INTENSITY_ID)).toMatchObject({
+      label: 'Master Intensity',
+      type: 'float',
+      defaultValue: 1,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      designParentGroup: 'master-controls',
+      modulatable: false,
+      choreographable: false,
+      automatable: false,
+    })
+    expect(definitions.get(CINEMA2_HUMN_FIGURE_SCALE_ID)).toMatchObject({
+      label: 'Figure Scale',
+      type: 'float',
+      defaultValue: 1,
+      min: 0.7,
+      max: 1.3,
+      step: 0.01,
+      group: 'Composition',
+      designParentGroup: 'design',
+      modulatable: false,
+      choreographable: false,
+      automatable: false,
+    })
+    expect(definitions.get(CINEMA2_HUMN_GRID_PRESENCE_ID)).toMatchObject({
+      label: 'Grid Presence',
+      type: 'float',
+      defaultValue: 1,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      group: 'Stage',
+      designParentGroup: 'design',
+      modulatable: false,
+      choreographable: false,
+      automatable: false,
+    })
+
+    expect(state.getValue(CINEMA2_HUMN_MASTER_INTENSITY_ID)).toBe(1)
+    expect(state.getValue(CINEMA2_HUMN_FIGURE_SCALE_ID)).toBe(1)
+    expect(state.getValue(CINEMA2_HUMN_GRID_PRESENCE_ID)).toBe(1)
+
+    const design = createCinema2DesignParentGroupModel(plan, state.getSnapshot())
+    const master = design.find(parent => parent.id === 'master-controls')
+    expect(master?.groups).toEqual([])
+    expect(master?.controls.map(control => control.definition.label)).toContain('Master Intensity')
+    expect(design.find(parent => parent.id === 'design')?.groups.find(group => group.label === 'Composition')?.controls.map(control => control.definition.label)).toEqual(['Figure Scale'])
+    expect(design.find(parent => parent.id === 'design')?.groups.find(group => group.label === 'Stage')?.controls.map(control => control.definition.label)).toEqual(['Grid Presence'])
+
+    const moduleTargets = plan.targets.targets.filter(target => target.kind === 'module' && target.ownerId === CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.id)
+    expect(moduleTargets.filter(target => ['masterIntensity', 'figureScale', 'gridPresence'].includes(target.property)).map(target => target.parameterId).sort()).toEqual([
+      CINEMA2_HUMN_FIGURE_SCALE_ID,
+      CINEMA2_HUMN_GRID_PRESENCE_ID,
+      CINEMA2_HUMN_MASTER_INTENSITY_ID,
+    ].sort())
+    const userOwnedParameterIds = new Set<string>([
+      CINEMA2_HUMN_MASTER_INTENSITY_ID,
+      CINEMA2_HUMN_FIGURE_SCALE_ID,
+      CINEMA2_HUMN_GRID_PRESENCE_ID,
+    ])
+    expect(plan.targets.choreographyTargets.filter(target =>
+      target.target.parameterId != null && userOwnedParameterIds.has(target.target.parameterId)
+    )).toHaveLength(0)
+    runtime.dispose()
   })
 
   it('routes manual min/default/max and enum changes into real shader consumers without audio rewriting them', () => {
@@ -360,6 +445,63 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     runtime.dispose()
   })
 
+  it('routes Master Intensity, Figure Scale, and Grid Presence through independent native shader consumers', () => {
+    const { runtime, gl, raf } = createHumNRuntime()
+    runtime.resize({ width: 1280, height: 720, dpr: 1 })
+    runtime.start()
+    const state = runtime.getParameterState()
+
+    raf.runNext(16.67)
+    expect((gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls).toEqual(expect.arrayContaining([
+      [expect.objectContaining({ name: 'u_masterIntensity' }), 1],
+      [expect.objectContaining({ name: 'u_figureScale' }), 1],
+      [expect.objectContaining({ name: 'u_gridPresence' }), 1],
+    ]))
+
+    expect(state.setPersistentValue(CINEMA2_HUMN_MASTER_INTENSITY_ID, 0)).toMatchObject({ ok: true })
+    raf.runNext(33.34)
+    expect((gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls).toEqual(expect.arrayContaining([
+      [expect.objectContaining({ name: 'u_masterIntensity' }), 0],
+      [expect.objectContaining({ name: 'u_gridPresence' }), 1],
+    ]))
+    expect(state.getValue(CINEMA2_HUMN_MASTER_INTENSITY_ID)).toBe(0)
+    expect(state.getValue(CINEMA2_HUMN_GRID_PRESENCE_ID)).toBe(1)
+
+    expect(state.setPersistentValue(CINEMA2_HUMN_FIGURE_SCALE_ID, 0.7)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_HUMN_GRID_PRESENCE_ID, 0)).toMatchObject({ ok: true })
+    raf.runNext(50.01)
+    expect((gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls).toEqual(expect.arrayContaining([
+      [expect.objectContaining({ name: 'u_masterIntensity' }), 0],
+      [expect.objectContaining({ name: 'u_figureScale' }), 0.7],
+      [expect.objectContaining({ name: 'u_gridPresence' }), 0],
+    ]))
+    expect(state.getValue(CINEMA2_HUMN_GRID_PRESENCE_ID)).toBe(0)
+
+    expect(state.setPersistentValue(CINEMA2_HUMN_MASTER_INTENSITY_ID, 1)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_HUMN_FIGURE_SCALE_ID, 1.3)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_HUMN_GRID_PRESENCE_ID, 1)).toMatchObject({ ok: true })
+    raf.runNext(66.68)
+    const safeMaxScale = resolveCinema2HumNFigureScale(1.3, 1280, 720)
+    expect(safeMaxScale).toBeGreaterThan(1)
+    expect(safeMaxScale).toBeLessThanOrEqual(1.3)
+    expect((gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls).toEqual(expect.arrayContaining([
+      [expect.objectContaining({ name: 'u_masterIntensity' }), 1],
+      [expect.objectContaining({ name: 'u_figureScale' }), safeMaxScale],
+      [expect.objectContaining({ name: 'u_gridPresence' }), 1],
+    ]))
+
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('vec3 stageColor = background + gridColor;')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('if (masterIntensity < 0.999999) color = mix(stageColor, figureColor, masterIntensity);')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('if (gridPresence < 0.999999) gridColor *= gridPresence;')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('if (abs(figureScale - 1.0) > 0.000001)')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('compositionAnchor + (p - compositionAnchor) / figureScale')
+
+    const snapshot = state.getSnapshot()
+    raf.runNext(83.35)
+    expect(state.getSnapshot()).toEqual(snapshot)
+    runtime.dispose()
+  })
+
   it('keeps Facet Fill zero as the exact authored default and routes mid/full fill plus every Fill Style to deterministic shader consumers', () => {
     expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('SKIN_FACET_COUNT = 45')
     expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('if (facetFill > 0.0)')
@@ -398,16 +540,40 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     runtime.dispose()
   })
 
-  it('preserves the screen-space composition path across landscape, square, portrait, and ultrawide resize', () => {
+  it('keeps Figure Scale centered and inside the critical safe bounds across landscape, square, portrait, and ultrawide viewports', () => {
     const { runtime, gl, raf } = createHumNRuntime()
     runtime.start()
     const sizes = [[1600, 900], [1024, 1024], [900, 1200], [1920, 800]] as const
-    sizes.forEach(([width, height], index) => {
-      runtime.resize({ width, height, dpr: 1 })
-      raf.runNext(16.67 * (index + 1))
-    })
+    const requestedScales = [0.7, 1, 1.3] as const
+    const state = runtime.getParameterState()
 
-    expect(runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: sizes.length, failedPassCount: 0 })
+    let frame = 0
+    for (const [width, height] of sizes) {
+      for (const requested of requestedScales) {
+        runtime.resize({ width, height, dpr: 1 })
+        expect(state.setPersistentValue(CINEMA2_HUMN_FIGURE_SCALE_ID, requested)).toMatchObject({ ok: true })
+        raf.runNext(16.67 * ++frame)
+
+        const effective = resolveCinema2HumNFigureScale(requested, width, height)
+        expect((gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
+          expect.objectContaining({ name: 'u_figureScale' }), effective,
+        ])
+
+        const aspect = width / height
+        const t = Math.min(1, Math.max(0, (aspect - 1.10) / (1.90 - 1.10)))
+        const portraitScale = 1.02 + (1.14 - 1.02) * (t * t * (3 - 2 * t))
+        const screenXs = [CINEMA2_HUMN_CRITICAL_FIGURE_BOUNDS.minX, CINEMA2_HUMN_CRITICAL_FIGURE_BOUNDS.maxX].map(x =>
+          portraitScale * (CINEMA2_HUMN_COMPOSITION_ANCHOR.x + effective * (x - CINEMA2_HUMN_COMPOSITION_ANCHOR.x)) / aspect
+        )
+        const screenYs = [CINEMA2_HUMN_CRITICAL_FIGURE_BOUNDS.minY, CINEMA2_HUMN_CRITICAL_FIGURE_BOUNDS.maxY].map(y =>
+          portraitScale * (CINEMA2_HUMN_COMPOSITION_ANCHOR.y + effective * (y - CINEMA2_HUMN_COMPOSITION_ANCHOR.y) - 0.012)
+        )
+        expect(Math.max(...screenXs.map(Math.abs))).toBeLessThanOrEqual(0.995001)
+        expect(Math.max(...screenYs.map(Math.abs))).toBeLessThanOrEqual(0.995001)
+      }
+    }
+
+    expect(runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: sizes.length * requestedScales.length, failedPassCount: 0 })
     const resolutionCalls = (gl.uniform2f as ReturnType<typeof vi.fn>).mock.calls.map((call: unknown[]) => [call[1], call[2]])
     for (const size of sizes) expect(resolutionCalls).toContainEqual([...size])
     runtime.dispose()
