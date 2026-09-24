@@ -48,11 +48,37 @@ export const CINEMA2_HUMN_MASTER_REACTIVITY_ID = cinema2StableId<Cinema2Paramete
 export const CINEMA2_HUMN_COLOR_SHIFT_AMOUNT_ID = cinema2StableId<Cinema2ParameterId>('hum-n-color-shift-amount')
 export const CINEMA2_HUMN_FLICKER_AMOUNT_ID = cinema2StableId<Cinema2ParameterId>('hum-n-flicker-amount')
 export const CINEMA2_HUMN_FRAGMENT_JITTER_ID = cinema2StableId<Cinema2ParameterId>('hum-n-fragment-jitter')
+export const CINEMA2_HUMN_GESTURE_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('hum-n-gesture-intensity')
+export const CINEMA2_HUMN_AUTO_PERFORMANCE_ID = cinema2StableId<Cinema2ParameterId>('hum-n-auto-performance')
+/** Hidden, runtime-only trigger that carries stable drop/phrase/section identity to the native module. */
+export const CINEMA2_HUMN_STRUCTURAL_EVENT_INTENT_ID = cinema2StableId<Cinema2ParameterId>('hum-n-structural-event-intent')
 /** Hidden, runtime-only trigger that carries stable rhythm-event identity to the native module. */
 export const CINEMA2_HUMN_FRAGMENT_EVENT_INTENT_ID = cinema2StableId<Cinema2ParameterId>('hum-n-fragment-event-intent')
 
 const choreographyRuleId = (id: string) => cinema2StableId<Cinema2ChoreographyRuleId>(id)
 const choreographyActionId = (id: string) => cinema2StableId<Cinema2ChoreographyActionId>(id)
+
+/** Manual edits to any Auto Performance-influenced control reclaim control by turning Auto Performance off. */
+const AUTO_TAKEOVER_METADATA = Object.freeze({
+  userEditSetParameters: Object.freeze({ [CINEMA2_HUMN_AUTO_PERFORMANCE_ID]: false }),
+})
+
+const structuralEventSpawnAction = (id: string, kind: 'drop' | 'phrase' | 'section') => Object.freeze({
+  id: choreographyActionId(id),
+  target: Object.freeze({ kind: 'parameter' as const, ref: cinema2Ref(CINEMA2_HUMN_STRUCTURAL_EVENT_INTENT_ID) }),
+  operation: 'spawn' as const,
+  value: Object.freeze({ kind }),
+})
+
+/** Carries the event's own strength to the module for a half-beat; the module reads it once when it starts the move. */
+const structuralStrengthAction = (id: string, property: string) => Object.freeze({
+  id: choreographyActionId(id),
+  target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property }),
+  operation: 'set-for-duration' as const,
+  value: 1,
+  composition: 'replace' as const,
+  durationBeats: 0.5,
+})
 
 const fragmentEventSpawnAction = (id: string, kind: 'beat' | 'downbeat' | 'kick' | 'snare') => Object.freeze({
   id: choreographyActionId(id),
@@ -109,6 +135,22 @@ const CINEMA2_HUMN_COMPOSITION_OUTPUT_PARAMETERS = Object.freeze([
     section: 'Design',
     designParentGroup: 'master-controls' as const,
     order: 3,
+    exposure: 'primary' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_AUTO_PERFORMANCE_ID,
+    label: 'Auto Performance',
+    description: 'Lets the shared Visual Director choose among the authored gestures and scale line versus skin emphasis within your ceilings. Editing an auto-influenced control turns it off.',
+    type: 'boolean' as const,
+    defaultValue: false,
+    section: 'Design',
+    designParentGroup: 'master-controls' as const,
+    order: 4,
     exposure: 'primary' as const,
     modulatable: false,
     choreographable: false,
@@ -263,6 +305,7 @@ const CINEMA2_HUMN_PALETTE_PARAMETERS = Object.freeze([
   }),
   Object.freeze({
     id: CINEMA2_HUMN_COLOR_SHIFT_AMOUNT_ID,
+    metadata: AUTO_TAKEOVER_METADATA,
     label: 'Color Shift Amount',
     description: 'Controls the degree of palette role movement driven by high-frequency band energy. At 0, authored colors are completely stable.',
     type: 'float' as const,
@@ -328,7 +371,29 @@ const CINEMA2_HUMN_FIGURE_PARAMETERS = Object.freeze([
     reset: 'authored-default' as const,
   }),
   Object.freeze({
+    id: CINEMA2_HUMN_GESTURE_INTENSITY_ID,
+    label: 'Gesture Intensity',
+    description: 'Your ceiling for large structural gestures (reach, shock, head grab, lunge) and, with Motion Amount, for calmer phrase/section body language. At 0 the large gestures never appear.',
+    type: 'float' as const,
+    defaultValue: 0,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    section: 'Design',
+    group: 'Performance Motion',
+    designParentGroup: 'design' as const,
+    order: 3,
+    exposure: 'primary' as const,
+    modulatable: true,
+    choreographable: true,
+    automatable: false,
+    metadata: AUTO_TAKEOVER_METADATA,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
     id: CINEMA2_HUMN_LINE_PRESENCE_ID,
+    metadata: AUTO_TAKEOVER_METADATA,
     label: 'Line Presence',
     description: 'Controls the visible presence of HUM:N topology lines while preserving the authored grid and geometry.',
     type: 'float' as const,
@@ -411,6 +476,7 @@ const CINEMA2_HUMN_FIGURE_PARAMETERS = Object.freeze([
   }),
   Object.freeze({
     id: CINEMA2_HUMN_FACET_FILL_ID,
+    metadata: AUTO_TAKEOVER_METADATA,
     label: 'Facet Fill',
     description: 'Reveals authored polygonal skin facets beneath the HUM:N line network while preserving the user-owned base value for later intelligence modulation.',
     type: 'float' as const,
@@ -457,6 +523,7 @@ const CINEMA2_HUMN_FIGURE_PARAMETERS = Object.freeze([
 const CINEMA2_HUMN_EFFECTS_PARAMETERS = Object.freeze([
   Object.freeze({
     id: CINEMA2_HUMN_FLICKER_AMOUNT_ID,
+    metadata: AUTO_TAKEOVER_METADATA,
     label: 'Flicker Amount',
     description: 'Controls beat and downbeat-driven ghost line flicker intensity. At 0, rhythmic line events are visually absent.',
     type: 'float' as const,
@@ -477,6 +544,7 @@ const CINEMA2_HUMN_EFFECTS_PARAMETERS = Object.freeze([
   }),
   Object.freeze({
     id: CINEMA2_HUMN_FRAGMENT_JITTER_ID,
+    metadata: AUTO_TAKEOVER_METADATA,
     label: 'Fragment Jitter',
     description: 'Controls kick-driven local fragment displacement intensity. At 0, kick displacement is visually absent.',
     type: 'float' as const,
@@ -499,6 +567,17 @@ const CINEMA2_HUMN_EFFECTS_PARAMETERS = Object.freeze([
 
 const CINEMA2_HUMN_RUNTIME_PARAMETERS = Object.freeze([
   Object.freeze({
+    id: CINEMA2_HUMN_STRUCTURAL_EVENT_INTENT_ID,
+    label: 'Structural Event Intent',
+    type: 'trigger' as const,
+    section: 'React',
+    group: 'Runtime',
+    order: 998,
+    exposure: 'hidden' as const,
+    persistence: 'runtime-only' as const,
+    reset: 'none' as const,
+  }),
+  Object.freeze({
     id: CINEMA2_HUMN_FRAGMENT_EVENT_INTENT_ID,
     label: 'Fragment Event Intent',
     type: 'trigger' as const,
@@ -518,7 +597,7 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_HUMN_PRESET_ID,
-  revision: 14,
+  revision: 18,
   metadata: Object.freeze({
     name: 'HUM:N',
     description: 'A near-black sparse low-poly humanoid bust reconstructed from the approved fractured white wireframe silhouette with stronger facet hierarchy, faint emergence fragments, and a restrained technical grid.',
@@ -532,7 +611,10 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
     Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Downbeat-driven ghost emergence reveal.' }),
     Object.freeze({ id: 'music.rhythm-events' as const, requirement: 'optional' as const, purpose: 'Kick and snare-driven fragment behavior.' }),
     Object.freeze({ id: 'music.vocal-presence' as const, requirement: 'optional' as const, purpose: 'Vocal presence restraint of intelligence-added motion.' }),
-    Object.freeze({ id: 'visual-director.significance' as const, requirement: 'optional' as const, purpose: 'Build choreography and ghost edge emphasis.' }),
+    Object.freeze({ id: 'visual-director.significance' as const, requirement: 'optional' as const, purpose: 'Build choreography, ghost edge emphasis, and Auto Performance.' }),
+    Object.freeze({ id: 'music.drop' as const, requirement: 'optional' as const, purpose: 'Drop gestures (reach, shock, head grab, lunge).' }),
+    Object.freeze({ id: 'music.phrase' as const, requirement: 'optional' as const, purpose: 'Phrase-boundary look, turn, and scan body language.' }),
+    Object.freeze({ id: 'music.section' as const, requirement: 'optional' as const, purpose: 'Section-change look, turn, scan, and recenter body language.' }),
   ]),
   parameters: Object.freeze([
     CINEMA2_QUALITY_MODE_PARAMETER,
@@ -576,7 +658,13 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
       vocalMotionRestraint: 0,
       ghostEdgeEmphasis: 0,
       linePresenceLowering: 0,
+      autoLineSparse: 0,
       buildMotionLift: 0,
+      dropStrength: 0,
+      phraseStrength: 0,
+      sectionStrength: 0,
+      gestureIntensity: 0,
+      autoPerformance: false,
       beatFlicker: 0,
       downbeatReveal: 0,
       kickJitter: 0,
@@ -605,9 +693,12 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
       colorShiftAmount: cinema2Ref(CINEMA2_HUMN_COLOR_SHIFT_AMOUNT_ID),
       flickerAmount: cinema2Ref(CINEMA2_HUMN_FLICKER_AMOUNT_ID),
       fragmentJitter: cinema2Ref(CINEMA2_HUMN_FRAGMENT_JITTER_ID),
+      gestureIntensity: cinema2Ref(CINEMA2_HUMN_GESTURE_INTENSITY_ID),
+      autoPerformance: cinema2Ref(CINEMA2_HUMN_AUTO_PERFORMANCE_ID),
     }),
     actionBindings: Object.freeze({
       fragmentEvent: cinema2Ref(CINEMA2_HUMN_FRAGMENT_EVENT_INTENT_ID),
+      structuralEvent: cinema2Ref(CINEMA2_HUMN_STRUCTURAL_EVENT_INTENT_ID),
     }),
     config: Object.freeze({ label: 'HUM:N Sparse Wireframe Foundation' }),
   })]),
@@ -762,6 +853,104 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
           value: 0.20,
         })]),
         strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
+      // Structural events (Part C/D): Choreography owns detection, dedupe and
+      // strength; the module owns timing and deterministic selection through
+      // the hidden structural intent (event id) and per-kind strength targets.
+      Object.freeze({
+        id: choreographyRuleId('hum-n-drop-gesture'),
+        priority: 40,
+        source: Object.freeze({ signal: 'drop' as const, capability: 'music.drop' as const }),
+        conditions: Object.freeze([Object.freeze({ kind: 'drop' as const, min: 0.35 })]),
+        actions: Object.freeze([
+          structuralEventSpawnAction('hum-n-drop-event', 'drop'),
+          structuralStrengthAction('hum-n-drop-strength', 'dropStrength'),
+        ]),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-phrase-look'),
+        priority: 41,
+        source: Object.freeze({ signal: 'phrase' as const, capability: 'music.phrase' as const }),
+        actions: Object.freeze([
+          structuralEventSpawnAction('hum-n-phrase-event', 'phrase'),
+          structuralStrengthAction('hum-n-phrase-strength', 'phraseStrength'),
+        ]),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-section-look'),
+        priority: 42,
+        source: Object.freeze({ signal: 'section-change' as const, capability: 'music.section' as const }),
+        actions: Object.freeze([
+          structuralEventSpawnAction('hum-n-section-event', 'section'),
+          structuralStrengthAction('hum-n-section-strength', 'sectionStrength'),
+        ]),
+      }),
+      // Auto Performance (Part E): gated by the user's Auto Performance switch.
+      // Every contribution either scales a user ceiling DOWN (never above it) or
+      // is itself bounded by Master Reactivity; nothing here writes a user value.
+      Object.freeze({
+        id: choreographyRuleId('hum-n-auto-skin-emphasis'),
+        priority: 50,
+        enabledParameter: cinema2Ref(CINEMA2_HUMN_AUTO_PERFORMANCE_ID),
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.intensity' as const, scale: 2, offset: -1, clamp: Object.freeze([0, 1] as const), smoothingMs: 250 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-auto-facet-emphasis'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'facetFill' }),
+          operation: 'add' as const,
+          value: 0.2,
+        })]),
+        strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-auto-line-sparse'),
+        priority: 51,
+        enabledParameter: cinema2Ref(CINEMA2_HUMN_AUTO_PERFORMANCE_ID),
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.intensity' as const, scale: -1, offset: 1, clamp: Object.freeze([0, 1] as const), smoothingMs: 250 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-auto-line-sparse-lowering'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'autoLineSparse' }),
+          operation: 'replace' as const,
+          value: 0.2,
+        })]),
+        strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-auto-intensity-ceilings'),
+        priority: 52,
+        enabledParameter: cinema2Ref(CINEMA2_HUMN_AUTO_PERFORMANCE_ID),
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.intensity' as const, scale: -1, offset: 1, clamp: Object.freeze([0, 1] as const), smoothingMs: 250 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-auto-gesture-ceiling'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'gestureIntensity' }),
+          operation: 'multiply' as const,
+          value: 0.6,
+        })]),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-auto-momentum-ceilings'),
+        priority: 53,
+        enabledParameter: cinema2Ref(CINEMA2_HUMN_AUTO_PERFORMANCE_ID),
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.momentum' as const, scale: -1, offset: 1, clamp: Object.freeze([0, 1] as const), smoothingMs: 250 }),
+        actions: Object.freeze([
+          Object.freeze({
+            id: choreographyActionId('hum-n-auto-color-shift-ceiling'),
+            target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'colorShiftAmount' }),
+            operation: 'multiply' as const,
+            value: 0.55,
+          }),
+          Object.freeze({
+            id: choreographyActionId('hum-n-auto-flicker-ceiling'),
+            target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'flickerAmount' }),
+            operation: 'multiply' as const,
+            value: 0.6,
+          }),
+          Object.freeze({
+            id: choreographyActionId('hum-n-auto-jitter-ceiling'),
+            target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'fragmentJitter' }),
+            operation: 'multiply' as const,
+            value: 0.6,
+          }),
+        ]),
       }),
       // Part F: Rhythmic fragment events. Each rule carries (1) a beat-timed
       // envelope that the shared choreography runtime owns and (2) a spawn of

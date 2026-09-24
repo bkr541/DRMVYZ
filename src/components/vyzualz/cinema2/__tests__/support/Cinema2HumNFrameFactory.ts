@@ -26,6 +26,15 @@ export interface HumFrameInput {
   structural?: boolean
   stems?: boolean
   rhythm?: boolean
+  /** Persistent drop markers; an event fires when playback time crosses one. */
+  dropMoments?: readonly { id: string; timeSec: number }[]
+  dropConfidence?: number
+  /** Persistent phrase markers; an event fires when playback time crosses one. */
+  phrases?: readonly { id: string; timeSec: number }[]
+  sectionType?: string
+  /** Changing these mid-play is a section-change (new section identity). */
+  sectionStartSec?: number
+  sectionEndSec?: number
 }
 
 export const HUM_BPM = 120 // 0.5s per beat
@@ -77,10 +86,10 @@ export function humMusicFrame(input: HumFrameInput): MusicIntelligenceFrame {
     },
     section: {
       ...DEFAULT_MI_FRAME.section,
-      type: (input.buildConfidence ?? 0) > 0.5 ? 'build' : 'verse',
+      type: (input.sectionType ?? ((input.buildConfidence ?? 0) > 0.5 ? 'build' : 'verse')) as MusicIntelligenceFrame['section']['type'],
       label: 'section',
-      startSec: Math.max(0, input.timeSec - 0.1),
-      endSec: input.timeSec + 4,
+      startSec: input.sectionStartSec ?? 0,
+      endSec: input.sectionEndSec ?? 600,
       progress: 0.1,
       intensity: 0.6,
       confidence: 0.96,
@@ -90,7 +99,7 @@ export function humMusicFrame(input: HumFrameInput): MusicIntelligenceFrame {
     semantics: {
       ...DEFAULT_MI_FRAME.semantics,
       buildConfidence: input.buildConfidence ?? 0,
-      dropConfidence: 0.02,
+      dropConfidence: input.dropConfidence ?? ((input.dropMoments?.length ?? 0) > 0 ? 0.9 : 0.02),
     },
     capabilities: {
       ...DEFAULT_MI_FRAME.capabilities!,
@@ -108,8 +117,25 @@ export function humMusicFrame(input: HumFrameInput): MusicIntelligenceFrame {
       barAwareSections: structural,
       selfSimilarityAnalysis: structural,
       semanticClassification: structural,
+      semanticMoments: (input.dropMoments?.length ?? 0) > 0,
+      phraseHierarchy: (input.phrases?.length ?? 0) > 0,
       legacyFallbackOnly: false,
     },
+    semanticMoments: (input.dropMoments ?? []).map(moment => ({
+      id: moment.id,
+      timeSec: moment.timeSec,
+      type: 'drop_impact' as const,
+      confidence: 0.95,
+      source: 'structural_analysis' as const,
+    })),
+    phraseMarkers: (input.phrases ?? []).map(phrase => ({
+      id: phrase.id,
+      timeSec: phrase.timeSec,
+      lengthBars: 4,
+      phraseLength: 4,
+      confidence: 0.9,
+      source: 'structural_boundary' as const,
+    })),
     confidence: { ...DEFAULT_MI_FRAME.confidence, overall: 0.96, rhythm: 0.96, section: 0.96 },
   }
 }

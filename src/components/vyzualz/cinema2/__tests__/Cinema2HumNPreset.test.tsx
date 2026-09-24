@@ -31,6 +31,8 @@ import {
   CINEMA2_HUMN_COLOR_SHIFT_AMOUNT_ID,
   CINEMA2_HUMN_FLICKER_AMOUNT_ID,
   CINEMA2_HUMN_FRAGMENT_JITTER_ID,
+  CINEMA2_HUMN_GESTURE_INTENSITY_ID,
+  CINEMA2_HUMN_AUTO_PERFORMANCE_ID,
   CINEMA2_HUMN_LINE_PRESENCE_ID,
   CINEMA2_HUMN_LINE_WEIGHT_ID,
   CINEMA2_HUMN_FRAGMENTATION_ID,
@@ -359,8 +361,8 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
 
     const snapshot = JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)
     expect(JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)).toBe(snapshot)
-    // 18 authored controls + Quality Mode + 4 reactive controls + 1 hidden runtime trigger.
-    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(24)
+    // 18 authored controls + Quality Mode + 4 reactive controls + Gesture Intensity + Auto Performance + 2 hidden runtime triggers.
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(27)
     expect(CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.parameterBindings ?? {}).toEqual({
       masterIntensity: { $ref: CINEMA2_HUMN_MASTER_INTENSITY_ID },
       bpmSync: { $ref: CINEMA2_HUMN_BPM_SYNC_ID },
@@ -384,6 +386,8 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
       colorShiftAmount: { $ref: CINEMA2_HUMN_COLOR_SHIFT_AMOUNT_ID },
       flickerAmount: { $ref: CINEMA2_HUMN_FLICKER_AMOUNT_ID },
       fragmentJitter: { $ref: CINEMA2_HUMN_FRAGMENT_JITTER_ID },
+      gestureIntensity: { $ref: CINEMA2_HUMN_GESTURE_INTENSITY_ID },
+      autoPerformance: { $ref: CINEMA2_HUMN_AUTO_PERFORMANCE_ID },
     })
     expect(CINEMA2_HUMN_PRESET_MANIFEST.choreography?.rules.length ?? 0).toBeGreaterThan(0)
     expect(CINEMA2_HUMN_PRESET_MANIFEST.effects ?? []).toHaveLength(0)

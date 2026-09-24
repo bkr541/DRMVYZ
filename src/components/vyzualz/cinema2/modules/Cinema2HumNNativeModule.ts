@@ -8,6 +8,18 @@ import {
   type Cinema2ModuleTypeId,
 } from '../contracts/Cinema2NativePresetManifest'
 import { Cinema2SyncedMotionClockResolver } from './Cinema2SyncedMotionClock'
+import { buildHumNLimbGlsl, CINEMA2_HUMN_ARM_ANCHORS, CINEMA2_HUMN_HEAD_GRAB_POSE } from './humn/Cinema2HumNLimbTopology'
+import {
+  Cinema2HumNPerformanceRuntime,
+  CINEMA2_HUMN_LUNGE_PIVOT,
+  cinema2HumNAutoDropStrength,
+  cinema2HumNDirectorContext,
+  cinema2HumNDirectionFromUnit,
+  resolveCinema2HumNGestureUniforms,
+  selectCinema2HumNDropGesture,
+  selectCinema2HumNStructuralVariant,
+  type Cinema2HumNStructuralKind,
+} from './humn/Cinema2HumNPerformance'
 import type { Cinema2DispatchedTargetAction } from '../parameters/Cinema2TargetRuntime'
 import type {
   Cinema2ModuleCreateContext,
@@ -480,6 +492,17 @@ uniform float u_beatSeed;
 uniform float u_downbeatSeed;
 uniform float u_kickSeed;
 uniform float u_snareSeed;
+uniform float u_gReach;
+uniform vec4 u_reachHand;
+uniform vec4 u_reachArm;
+uniform vec2 u_reachWrist;
+uniform float u_gShock;
+uniform float u_gGrab;
+uniform float u_gLunge;
+uniform float u_lungeScale;
+uniform float u_lookYaw;
+uniform float u_bodyTurn;
+uniform float u_nod;
 out vec4 outColor;
 
 ${glslSegmentArray('PRIMARY_SEGMENTS', HUMN_PRIMARY_SEGMENTS)}
@@ -493,6 +516,21 @@ ${glslSegmentArray('RESTORATION_SEGMENTS', HUMN_RESTORATION_SEGMENTS)}
 ${glslSegmentArray('DENSE_SEGMENTS', HUMN_DENSE_SEGMENTS)}
 
 ${glslFloatArray('PRIMARY_EYE_CHEEK_ORDINAL', 'PRIMARY_SEGMENT_COUNT', HUMN_PRIMARY_EYE_CHEEK_ORDINALS)}
+
+${buildHumNLimbGlsl()}
+
+const vec2 LEFT_SHOULDER = vec2(${glslNumber(CINEMA2_HUMN_ARM_ANCHORS.leftShoulder[0])}, ${glslNumber(CINEMA2_HUMN_ARM_ANCHORS.leftShoulder[1])});
+const vec2 RIGHT_SHOULDER = vec2(${glslNumber(CINEMA2_HUMN_ARM_ANCHORS.rightShoulder[0])}, ${glslNumber(CINEMA2_HUMN_ARM_ANCHORS.rightShoulder[1])});
+const vec2 GRAB_LEFT_ELBOW = vec2(${glslNumber(CINEMA2_HUMN_HEAD_GRAB_POSE.left.elbow[0])}, ${glslNumber(CINEMA2_HUMN_HEAD_GRAB_POSE.left.elbow[1])});
+const vec2 GRAB_LEFT_WRIST = vec2(${glslNumber(CINEMA2_HUMN_HEAD_GRAB_POSE.left.wrist[0])}, ${glslNumber(CINEMA2_HUMN_HEAD_GRAB_POSE.left.wrist[1])});
+const vec2 GRAB_LEFT_HAND = vec2(${glslNumber(CINEMA2_HUMN_HEAD_GRAB_POSE.left.handOrigin[0])}, ${glslNumber(CINEMA2_HUMN_HEAD_GRAB_POSE.left.handOrigin[1])});
+const float GRAB_LEFT_ANGLE = ${glslNumber(CINEMA2_HUMN_HEAD_GRAB_POSE.left.handAngle)};
+const vec2 GRAB_RIGHT_ELBOW = vec2(${glslNumber(CINEMA2_HUMN_HEAD_GRAB_POSE.right.elbow[0])}, ${glslNumber(CINEMA2_HUMN_HEAD_GRAB_POSE.right.elbow[1])});
+const vec2 GRAB_RIGHT_WRIST = vec2(${glslNumber(CINEMA2_HUMN_HEAD_GRAB_POSE.right.wrist[0])}, ${glslNumber(CINEMA2_HUMN_HEAD_GRAB_POSE.right.wrist[1])});
+const vec2 GRAB_RIGHT_HAND = vec2(${glslNumber(CINEMA2_HUMN_HEAD_GRAB_POSE.right.handOrigin[0])}, ${glslNumber(CINEMA2_HUMN_HEAD_GRAB_POSE.right.handOrigin[1])});
+const float GRAB_RIGHT_ANGLE = ${glslNumber(CINEMA2_HUMN_HEAD_GRAB_POSE.right.handAngle)};
+const float GRAB_HAND_SCALE = ${glslNumber(CINEMA2_HUMN_HEAD_GRAB_POSE.handScale)};
+const vec2 LUNGE_PIVOT = vec2(${glslNumber(CINEMA2_HUMN_LUNGE_PIVOT.x)}, ${glslNumber(CINEMA2_HUMN_LUNGE_PIVOT.y)});
 
 ${glslFacetArrays(HUMN_SKIN_FACETS)}
 
@@ -669,6 +707,105 @@ vec4 humNKickDisplace(vec4 segment, int index, float salt) {
   return segment + vec4(shift, shift);
 }
 
+// ── Structural gestures ─────────────────────────────────────────────────────
+// Figure-local pose: the sampling point is mapped through the inverse of the
+// forward pose (lunge, shock, head grab, look/turn/nod). Every term is
+// weighted by a resolved gesture uniform and is an exact identity at zero, so
+// the approved default frame is untouched. The background grid never goes
+// through this path.
+float humNHeadWeight(float y) {
+  return smoothstep(-0.22, 0.05, y);
+}
+
+vec2 applyHumNGesturePose(vec2 p) {
+  // Look / body turn / nod (last forward step, first inverse step).
+  if (abs(u_lookYaw) > 0.00001 || abs(u_bodyTurn) > 0.00001 || u_nod > 0.00001) {
+    float hw = humNHeadWeight(p.y);
+    p.x -= 0.05 * u_lookYaw * hw;
+    p.y += 0.02 * u_nod * hw;
+    float sw = 1.0 - hw;
+    p.x -= 0.03 * u_bodyTurn * sw;
+    p = rotateAround(p, vec2(0.0, -0.56), -0.035 * u_bodyTurn);
+  }
+  // Head grab: tilt then dip.
+  if (u_gGrab > 0.00001) {
+    float hw = humNHeadWeight(p.y);
+    p = rotateAround(p, vec2(-0.04, 0.10), -0.09 * u_gGrab * hw);
+    p.y += 0.03 * u_gGrab * hw;
+  }
+  // Shock: head pulls back (smaller, lifted), features spread, shoulders recoil.
+  if (u_gShock > 0.00001) {
+    float hw = humNHeadWeight(p.y);
+    p.y -= 0.03 * u_gShock * hw;
+    vec2 headCenter = vec2(-0.04, 0.35);
+    p = headCenter + (p - headCenter) / (1.0 - 0.07 * u_gShock * hw);
+    vec2 faceCenter = vec2(-0.04, 0.30);
+    float faceWeight = 1.0 - smoothstep(0.10, 0.42, length((p - faceCenter) * vec2(1.0, 0.9)));
+    p = faceCenter + (p - faceCenter) / (1.0 + 0.11 * u_gShock * faceWeight);
+    // Shoulders recoil over a wide band so the jaw/neck region is never sheared.
+    float torsoWeight = 1.0 - smoothstep(-0.62, -0.10, p.y);
+    p.y += 0.06 * u_gShock * torsoWeight;
+    p.x /= (1.0 - 0.05 * u_gShock * torsoWeight);
+  }
+  // Lunge: figure-local surge about the crown pivot; the stage is never scaled.
+  if (u_gLunge > 0.00001 && u_lungeScale > 1.00001) {
+    p = LUNGE_PIVOT + (p - LUNGE_PIVOT) / u_lungeScale;
+  }
+  return p;
+}
+
+vec2 handToScene(vec2 u, vec2 origin, float scale, float angle, float mirror) {
+  u.x *= mirror;
+  u.x *= 1.0 + 0.16 * (u.y + 0.6);
+  float c = cos(angle);
+  float s = sin(angle);
+  return origin + vec2(c * u.x - s * u.y, s * u.x + c * u.y) * scale;
+}
+
+// x: hand line strokes, y: foreground occlusion coverage.
+vec2 humNHandInstance(vec2 p, vec2 origin, float scale, float angle, float mirror, float stroke, float feather, float edge) {
+  if (scale < 0.0005) return vec2(0.0);
+  if (length(p - origin) > 1.3 * scale + stroke * 2.0) return vec2(0.0);
+  float lines = 0.0;
+  float cover = 0.0;
+  for (int i = 0; i < HAND_SEGMENT_COUNT; ++i) {
+    vec4 seg = HAND_SEGMENTS[i];
+    vec2 a = handToScene(seg.xy, origin, scale, angle, mirror);
+    vec2 b = handToScene(seg.zw, origin, scale, angle, mirror);
+    lines = max(lines, segmentMask(p, a, b, stroke, feather));
+  }
+  for (int i = 0; i < HAND_CAPSULE_COUNT; ++i) {
+    vec4 seg = HAND_CAPSULES[i];
+    vec2 a = handToScene(seg.xy, origin, scale, angle, mirror);
+    vec2 b = handToScene(seg.zw, origin, scale, angle, mirror);
+    float radius = 0.5 * HAND_CAPSULE_WIDTH[i] * scale;
+    cover = max(cover, 1.0 - smoothstep(radius - edge, radius, sdSegment(p, a, b)));
+  }
+  for (int i = 0; i < 2; ++i) {
+    vec2 a = handToScene(HAND_PALM[i * 3], origin, scale, angle, mirror);
+    vec2 b = handToScene(HAND_PALM[i * 3 + 1], origin, scale, angle, mirror);
+    vec2 c = handToScene(HAND_PALM[i * 3 + 2], origin, scale, angle, mirror);
+    cover = max(cover, triangleMask(p, a, b, c));
+  }
+  return vec2(lines, cover);
+}
+
+// A tapered limb bone: two fractured edge strokes plus occlusion coverage.
+vec2 humNLimbBone(vec2 p, vec2 a, vec2 b, float widthA, float widthB, float stroke, float feather) {
+  vec2 ba = b - a;
+  float len2 = max(dot(ba, ba), 0.000001);
+  float tRaw = dot(p - a, ba) / len2;
+  float t = clamp(tRaw, 0.0, 1.0);
+  float d = length(p - a - ba * t);
+  float halfWidth = 0.5 * mix(widthA, widthB, t);
+  float cover = 1.0 - smoothstep(halfWidth - stroke, halfWidth, d);
+  float ring = 1.0 - smoothstep(stroke, stroke + feather, abs(d - halfWidth));
+  float inSpan = step(0.02, tRaw) * step(tRaw, 0.98);
+  float side = dot(p - a, vec2(-ba.y, ba.x));
+  float broken = (side > 0.0 && tRaw > 0.52 && tRaw < 0.60) ? 0.0 : 1.0;
+  return vec2(ring * inSpan * broken, cover);
+}
+
 void main() {
   vec2 resolution = max(u_resolution, vec2(1.0));
   float aspect = resolution.x / resolution.y;
@@ -681,12 +818,15 @@ void main() {
   float portraitScale = mix(1.02, 1.14, smoothstep(1.10, 1.90, aspect));
   p /= portraitScale;
   p.y += 0.012;
+  vec2 screenP = p;
   vec2 compositionAnchor = vec2(${glslNumber(CINEMA2_HUMN_COMPOSITION_ANCHOR.x)}, ${glslNumber(CINEMA2_HUMN_COMPOSITION_ANCHOR.y)});
   float figureScale = max(u_figureScale, 0.0001);
   if (abs(figureScale - 1.0) > 0.000001) {
     p = compositionAnchor + (p - compositionAnchor) / figureScale;
   }
   p = applyHumNNativeMotion(p);
+  vec2 posedP = p;
+  p = applyHumNGesturePose(p);
 
   float flickerAmt = clamp(u_flickerAmount, 0.0, 1.0);
   float beatLift = flickerAmt * clamp(u_beatFlicker, 0.0, 1.0) * 0.10;
@@ -813,6 +953,57 @@ void main() {
   figureColor += presence * wireframeColor * vec3(1.040816, 1.032389, 1.020000) * accentFigure;
   figureColor += presence * wireframeColor * vec3(0.936735, 0.960121, 0.969000) * restoration * 0.48;
   figureColor += presence * wireframeColor * vec3(0.895102, 0.939474, 0.958800) * denseFigure * 0.52;
+  // Authored arms and hands. Head Grab lives in the posed figure space so it
+  // follows the head; Reach is a foreground projection in screen space.
+  float limbStroke = 0.62 * weight * px;
+  float limbFeather = 0.60 * weight * px;
+  vec3 limbFill = stageColor * 0.35 + u_skinPrimary.rgb * (0.05 + 0.10 * facetFill);
+  if (u_gGrab > 0.00001) {
+    float g = clamp(u_gGrab, 0.0, 1.0);
+    float armEase = smoothstep(0.0, 0.7, g);
+    float wristEase = smoothstep(0.15, 1.0, g);
+    float handEase = smoothstep(0.25, 1.0, g);
+    float handScale = GRAB_HAND_SCALE * smoothstep(0.1, 0.9, g);
+    vec2 lElbow = mix(LEFT_SHOULDER, GRAB_LEFT_ELBOW, armEase);
+    vec2 lWrist = mix(LEFT_SHOULDER, GRAB_LEFT_WRIST, wristEase);
+    vec2 lHand = mix(LEFT_SHOULDER, GRAB_LEFT_HAND, handEase);
+    vec2 rElbow = mix(RIGHT_SHOULDER, GRAB_RIGHT_ELBOW, armEase);
+    vec2 rWrist = mix(RIGHT_SHOULDER, GRAB_RIGHT_WRIST, wristEase);
+    vec2 rHand = mix(RIGHT_SHOULDER, GRAB_RIGHT_HAND, handEase);
+    float grabLines = 0.0;
+    float grabCover = 0.0;
+    vec2 bone = humNLimbBone(posedP, LEFT_SHOULDER, lElbow, 0.11, 0.10, limbStroke, limbFeather);
+    grabLines = max(grabLines, bone.x); grabCover = max(grabCover, bone.y);
+    bone = humNLimbBone(posedP, lElbow, lWrist, 0.10, 0.085, limbStroke, limbFeather);
+    grabLines = max(grabLines, bone.x); grabCover = max(grabCover, bone.y);
+    bone = humNLimbBone(posedP, RIGHT_SHOULDER, rElbow, 0.11, 0.10, limbStroke, limbFeather);
+    grabLines = max(grabLines, bone.x); grabCover = max(grabCover, bone.y);
+    bone = humNLimbBone(posedP, rElbow, rWrist, 0.10, 0.085, limbStroke, limbFeather);
+    grabLines = max(grabLines, bone.x); grabCover = max(grabCover, bone.y);
+    vec2 leftHand = humNHandInstance(posedP, lHand, handScale, GRAB_LEFT_ANGLE, 1.0, limbStroke, limbFeather, px);
+    vec2 rightHand = humNHandInstance(posedP, rHand, handScale, GRAB_RIGHT_ANGLE, -1.0, limbStroke, limbFeather, px);
+    grabLines = max(grabLines, max(leftHand.x, rightHand.x));
+    grabCover = max(grabCover, max(leftHand.y, rightHand.y));
+    figureColor = mix(figureColor, limbFill, grabCover * 0.94);
+    figureColor += presence * wireframeColor * grabLines * 0.92;
+  }
+  if (u_gReach > 0.00001) {
+    vec2 shoulder = u_reachArm.xy;
+    vec2 elbow = u_reachArm.zw;
+    vec2 wrist = u_reachWrist;
+    float k = u_reachHand.z;
+    float reachLines = 0.0;
+    float reachCover = 0.0;
+    vec2 bone = humNLimbBone(screenP, shoulder, elbow, 0.12, 0.13, limbStroke, limbFeather);
+    reachLines = max(reachLines, bone.x); reachCover = max(reachCover, bone.y);
+    bone = humNLimbBone(screenP, elbow, wrist, 0.13, max(0.30 * k, 0.13), limbStroke, limbFeather);
+    reachLines = max(reachLines, bone.x); reachCover = max(reachCover, bone.y);
+    vec2 hand = humNHandInstance(screenP, u_reachHand.xy, k, u_reachHand.w, 1.0, limbStroke, limbFeather, px);
+    reachLines = max(reachLines, hand.x);
+    reachCover = max(reachCover, hand.y);
+    figureColor = mix(figureColor, limbFill, reachCover * 0.96);
+    figureColor += presence * wireframeColor * reachLines * 0.95;
+  }
   float masterIntensity = clamp(u_masterIntensity, 0.0, 1.0);
   vec3 color = figureColor;
   if (masterIntensity < 0.999999) color = mix(stageColor, figureColor, masterIntensity);
@@ -827,6 +1018,23 @@ function parseFragmentEventKind(payload: unknown): Cinema2HumNFragmentEventKind 
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null
   const kind = (payload as { kind?: unknown }).kind
   return kind === 'beat' || kind === 'downbeat' || kind === 'kick' || kind === 'snare' ? kind : null
+}
+
+function parseStructuralEventKind(payload: unknown): Cinema2HumNStructuralKind | null {
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null
+  const kind = (payload as { kind?: unknown }).kind
+  return kind === 'drop' || kind === 'phrase' || kind === 'section' ? kind : null
+}
+
+function frameTimeSec(frame: { transport?: { timeSec: number }; audio: { upstream: { timeSec: number } } | null; elapsedTimeSec: number }): number {
+  return frame.transport?.timeSec ?? frame.audio?.upstream.timeSec ?? frame.elapsedTimeSec
+}
+
+function frameBeatSec(frame: { transport?: { bpm?: number | null }; audio: { rhythm: { bpm: { available: boolean; value: number | null } } } | null }): number | null {
+  const analysed = frame.audio?.rhythm.bpm
+  if (analysed?.available && typeof analysed.value === 'number' && analysed.value > 0) return 60 / analysed.value
+  const host = frame.transport?.bpm
+  return typeof host === 'number' && host > 0 ? 60 / host : null
 }
 
 function readNumber(value: unknown, fallback: number): number {
@@ -884,9 +1092,13 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
       : `Cinema2/${context.module.id}`
     const motionClock = new Cinema2SyncedMotionClockResolver()
     const eventSeeds: Record<Cinema2HumNFragmentEventKind, number> = { beat: 0, downbeat: 0, kick: 0, snare: 0 }
+    const performance = new Cinema2HumNPerformanceRuntime()
+    const pendingStructural: { eventId: string; kind: Cinema2HumNStructuralKind }[] = []
     let audioGeneration: number | null = null
     let contextGeneration: number | null = null
     const resetEventSeeds = () => {
+      performance.reset()
+      pendingStructural.length = 0
       eventSeeds.beat = 0
       eventSeeds.downbeat = 0
       eventSeeds.kick = 0
@@ -906,7 +1118,7 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
               label,
               vertSrc: FULLSCREEN_VERT_SRC,
               fragSrc: CINEMA2_HUMN_FRAGMENT_SOURCE,
-              optionalUniforms: ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_motionAmount', 'u_motionTime', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle', 'u_backgroundColor', 'u_wireframeColor', 'u_patternInk', 'u_skinPrimary', 'u_skinSecondary', 'u_skinAccent', 'u_colorShift', 'u_ghostEdgeEmphasis', 'u_beatFlicker', 'u_downbeatReveal', 'u_kickJitter', 'u_snareEyeCheek', 'u_flickerAmount', 'u_fragmentJitter', 'u_beatSeed', 'u_downbeatSeed', 'u_kickSeed', 'u_snareSeed'],
+              optionalUniforms: ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_motionAmount', 'u_motionTime', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle', 'u_backgroundColor', 'u_wireframeColor', 'u_patternInk', 'u_skinPrimary', 'u_skinSecondary', 'u_skinAccent', 'u_colorShift', 'u_ghostEdgeEmphasis', 'u_beatFlicker', 'u_downbeatReveal', 'u_kickJitter', 'u_snareEyeCheek', 'u_flickerAmount', 'u_fragmentJitter', 'u_beatSeed', 'u_downbeatSeed', 'u_kickSeed', 'u_snareSeed', 'u_gReach', 'u_reachHand', 'u_reachArm', 'u_reachWrist', 'u_gShock', 'u_gGrab', 'u_gLunge', 'u_lungeScale', 'u_lookYaw', 'u_bodyTurn', 'u_nod'],
             })
             if (!result.program) {
               throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
@@ -933,7 +1145,8 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
         const vocalMotionRestraint = clampNumber(readNumber(context.parameters.get('vocalMotionRestraint'), 0), 0, 1)
         const intelligenceMotion = (tensionMotionLift + buildMotionLift) * (1 - vocalMotionRestraint)
         const motionAmount = clampNumber(userMotionAmount + intelligenceMotion, 0, 1)
-        program.setFloat('u_figureScale', resolveCinema2HumNFigureScale(context.parameters.get('figureScale'), width, height, motionAmount))
+        const resolvedFigureScale = resolveCinema2HumNFigureScale(context.parameters.get('figureScale'), width, height, motionAmount)
+        program.setFloat('u_figureScale', resolvedFigureScale)
         const motionRate = readMotionRate(context.parameters.get('motionRate'))
         const bpmSync = readBoolean(context.parameters.get('bpmSync'), true)
         const motionTimeSec = motionClock.resolve(frame, bpmSync).syncedTimeSec * motionRate
@@ -942,7 +1155,11 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
         program.setFloat('u_gridPresence', readNumber(context.parameters.get('gridPresence'), 1))
         // Energy may only lower Line Presence, and never below 0.55x the user's value.
         const linePresenceBase = clampNumber(readNumber(context.parameters.get('linePresence'), 1), 0, 1)
-        const linePresenceLowering = clampNumber(readNumber(context.parameters.get('linePresenceLowering'), 0), 0, 0.45)
+        const linePresenceLowering = clampNumber(
+          readNumber(context.parameters.get('linePresenceLowering'), 0) + readNumber(context.parameters.get('autoLineSparse'), 0),
+          0,
+          0.45,
+        )
         program.setFloat('u_linePresence', linePresenceBase * (1 - linePresenceLowering))
         program.setFloat('u_lineWeight', readNumber(context.parameters.get('lineWeight'), 1))
         program.setFloat('u_fragmentation', clampNumber(readNumber(context.parameters.get('fragmentation'), 0.55), 0, 1))
@@ -977,6 +1194,21 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
         program.setFloat('u_downbeatSeed', eventSeeds.downbeat)
         program.setFloat('u_kickSeed', eventSeeds.kick)
         program.setFloat('u_snareSeed', eventSeeds.snare)
+        // Structural performance: live ceilings are applied every frame, never latched.
+        const gestureIntensity = clampNumber(readNumber(context.parameters.get('gestureIntensity'), 0), 0, 1)
+        const pose = performance.evaluate(frameTimeSec(frame), { gestureIntensity, motionAmount: userMotionAmount })
+        const gesture = resolveCinema2HumNGestureUniforms(pose, { aspect: width / Math.max(height, 1), figureScale: resolvedFigureScale })
+        program.setFloat('u_gReach', gesture.reach.weight)
+        program.setVec4('u_reachHand', gesture.reach.handX, gesture.reach.handY, gesture.reach.handScale, gesture.reach.handAngle)
+        program.setVec4('u_reachArm', gesture.reach.shoulderX, gesture.reach.shoulderY, gesture.reach.elbowX, gesture.reach.elbowY)
+        program.setVec2('u_reachWrist', gesture.reach.wristX, gesture.reach.wristY)
+        program.setFloat('u_gShock', gesture.shock)
+        program.setFloat('u_gGrab', gesture.headGrab)
+        program.setFloat('u_gLunge', gesture.lungeWeight)
+        program.setFloat('u_lungeScale', gesture.lungeScale)
+        program.setFloat('u_lookYaw', gesture.lookYaw)
+        program.setFloat('u_bodyTurn', gesture.bodyTurn)
+        program.setFloat('u_nod', gesture.nod)
         pass.run(program, target, width, height, [])
       },
     })
@@ -991,6 +1223,52 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
             audioGeneration = nextAudioGeneration
             contextGeneration = frame.contextGeneration
           }
+          // Without analysis there is no musical time: nothing may stay posed.
+          if (frame.audio == null) {
+            if (performance.activeCount > 0 || pendingStructural.length > 0) resetEventSeeds()
+            return
+          }
+          if (pendingStructural.length === 0) return
+          const nowSec = frameTimeSec(frame)
+          const beatSec = frameBeatSec(frame)
+          const autoOn = readBoolean(context.parameters.get('autoPerformance'), false)
+          const director = autoOn ? cinema2HumNDirectorContext(frame.director as never) : null
+          for (const pending of pendingStructural.splice(0)) {
+            if (beatSec == null) continue // no musical time: never fabricate a tempo
+            const strength = clampNumber(readNumber(context.parameters.get(`${pending.kind}Strength`), 0), 0, 1)
+            if (strength <= 0.001) continue
+            const stream = context.randomness.eventStream(pending.eventId, `hum-n-structural-${pending.kind}`)
+            const family = stream.next()
+            const direction = cinema2HumNDirectionFromUnit(stream.next())
+            const alt = stream.next()
+            if (pending.kind === 'drop') {
+              // Director impact may gate and scale a drop, but only while Auto Performance is on.
+              const gatedStrength = cinema2HumNAutoDropStrength(strength, director?.impact ?? null)
+              if (gatedStrength == null) continue
+              const gesture = selectCinema2HumNDropGesture(family, { auto: director, previous: performance.previousDropGesture })
+              performance.trigger({
+                eventId: pending.eventId,
+                kind: 'drop',
+                gesture,
+                strength: gatedStrength,
+                startSec: nowSec,
+                beatSec,
+              }, nowSec)
+            } else {
+              const variant = selectCinema2HumNStructuralVariant(pending.kind, family, director)
+              const resolved = variant === 'lookLeft' && direction > 0 ? 'lookRight' : variant
+              performance.trigger({
+                eventId: pending.eventId,
+                kind: pending.kind,
+                variant: resolved,
+                sign: direction,
+                alt,
+                strength,
+                startSec: nowSec,
+                beatSec,
+              }, nowSec)
+            }
+          }
         },
         dispose: () => {
           motionClock.reset()
@@ -998,6 +1276,11 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
         },
       },
       handleAction: (action: string, event: Readonly<Cinema2DispatchedTargetAction>) => {
+        if (action === 'structuralEvent') {
+          const kind = parseStructuralEventKind(event.payload)
+          if (kind && pendingStructural.length < 8) pendingStructural.push({ eventId: event.eventId, kind })
+          return
+        }
         if (action !== 'fragmentEvent') return
         const kind = parseFragmentEventKind(event.payload)
         if (!kind) return
