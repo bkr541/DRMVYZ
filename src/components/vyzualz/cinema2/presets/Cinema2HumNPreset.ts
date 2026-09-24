@@ -6,6 +6,7 @@ import {
   cinema2StableId,
   type Cinema2LayerId,
   type Cinema2ModuleId,
+  type Cinema2ParameterId,
   type Cinema2NativePresetManifest,
   type Cinema2PresetId,
   type Cinema2SceneNodeId,
@@ -23,6 +24,96 @@ export const CINEMA2_HUMN_ROOT_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('hu
 export const CINEMA2_HUMN_MODULE_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('hum-n-emergence-node')
 export const CINEMA2_HUMN_LAYER_ID = cinema2StableId<Cinema2LayerId>('hum-n-emergence-layer')
 
+export const CINEMA2_HUMN_LINE_PRESENCE_ID = cinema2StableId<Cinema2ParameterId>('hum-n-line-presence')
+export const CINEMA2_HUMN_LINE_WEIGHT_ID = cinema2StableId<Cinema2ParameterId>('hum-n-line-weight')
+export const CINEMA2_HUMN_FRAGMENTATION_ID = cinema2StableId<Cinema2ParameterId>('hum-n-fragmentation')
+export const CINEMA2_HUMN_MESH_DETAIL_ID = cinema2StableId<Cinema2ParameterId>('hum-n-mesh-detail')
+
+const CINEMA2_HUMN_FIGURE_PARAMETERS = Object.freeze([
+  Object.freeze({
+    id: CINEMA2_HUMN_LINE_PRESENCE_ID,
+    label: 'Line Presence',
+    description: 'Controls the visible presence of HUM:N topology lines while preserving the authored grid and geometry.',
+    type: 'float' as const,
+    defaultValue: 1,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    section: 'Design',
+    group: 'Figure Construction',
+    designParentGroup: 'design' as const,
+    order: 10,
+    exposure: 'primary' as const,
+    modulatable: true,
+    choreographable: true,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_LINE_WEIGHT_ID,
+    label: 'Line Weight',
+    description: 'Changes the actual rendered thickness of HUM:N topology strokes without shifting the authored geometry.',
+    type: 'float' as const,
+    defaultValue: 1,
+    min: 0.5,
+    max: 2,
+    step: 0.05,
+    section: 'Design',
+    group: 'Figure Construction',
+    designParentGroup: 'design' as const,
+    order: 11,
+    exposure: 'primary' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_FRAGMENTATION_ID,
+    label: 'Fragmentation',
+    description: 'Deterministically opens or closes authored topology segments without frame-to-frame reshuffling.',
+    type: 'float' as const,
+    defaultValue: 0.55,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    section: 'Design',
+    group: 'Figure Construction',
+    designParentGroup: 'design' as const,
+    order: 12,
+    exposure: 'primary' as const,
+    modulatable: true,
+    choreographable: true,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_MESH_DETAIL_ID,
+    label: 'Mesh Detail',
+    description: 'Selects the authored HUM:N topology set eligible to render.',
+    type: 'enum' as const,
+    defaultValue: 'Reference',
+    options: Object.freeze([
+      Object.freeze({ value: 'Sparse', label: 'Sparse' }),
+      Object.freeze({ value: 'Reference', label: 'Reference' }),
+      Object.freeze({ value: 'Dense', label: 'Dense' }),
+    ]),
+    section: 'Design',
+    group: 'Figure Construction',
+    designParentGroup: 'design' as const,
+    order: 13,
+    exposure: 'primary' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+])
+
 /** Backward-compatible source export; the dedicated native HUM:N module owns it now. */
 export const CINEMA2_HUMN_STATIC_FRAGMENT_SOURCE = CINEMA2_HUMN_FRAGMENT_SOURCE
 
@@ -30,7 +121,7 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_HUMN_PRESET_ID,
-  revision: 4,
+  revision: 5,
   metadata: Object.freeze({
     name: 'HUM:N',
     description: 'A near-black sparse low-poly humanoid bust reconstructed from the approved fractured white wireframe silhouette with stronger facet hierarchy, faint emergence fragments, and a restrained technical grid.',
@@ -39,12 +130,24 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
   capabilities: Object.freeze([
     Object.freeze({ id: 'render.webgl2' as const, requirement: 'required' as const, purpose: 'Deterministic screen-space native HUM:N topology rendering.' }),
   ]),
-  parameters: Object.freeze([CINEMA2_QUALITY_MODE_PARAMETER]),
+  parameters: Object.freeze([CINEMA2_QUALITY_MODE_PARAMETER, ...CINEMA2_HUMN_FIGURE_PARAMETERS]),
   modules: Object.freeze([Object.freeze({
     id: CINEMA2_HUMN_MODULE_ID,
     typeId: CINEMA2_HUMN_NATIVE_MODULE_TYPE_ID,
     version: CINEMA2_HUMN_NATIVE_MODULE_VERSION,
     enabled: true,
+    parameters: Object.freeze({
+      linePresence: 1,
+      lineWeight: 1,
+      fragmentation: 0.55,
+      meshDetail: 'Reference',
+    }),
+    parameterBindings: Object.freeze({
+      linePresence: cinema2Ref(CINEMA2_HUMN_LINE_PRESENCE_ID),
+      lineWeight: cinema2Ref(CINEMA2_HUMN_LINE_WEIGHT_ID),
+      fragmentation: cinema2Ref(CINEMA2_HUMN_FRAGMENTATION_ID),
+      meshDetail: cinema2Ref(CINEMA2_HUMN_MESH_DETAIL_ID),
+    }),
     config: Object.freeze({ label: 'HUM:N Sparse Wireframe Foundation' }),
   })]),
   scene: Object.freeze({

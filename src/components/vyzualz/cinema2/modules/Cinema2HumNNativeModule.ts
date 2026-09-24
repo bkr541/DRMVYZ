@@ -36,6 +36,33 @@ export type Cinema2HumNSemanticGroupId =
   | 'secondary-edges'
   | 'ghost-emergence-edges'
 
+
+/** Authored bridge strokes revealed only below the approved fragmentation baseline. */
+const HUMN_RESTORATION_SEGMENTS: readonly Cinema2HumNSegment[] = Object.freeze([
+  Object.freeze([-0.207159, 0.768469, -0.182788, 0.782178]) as Cinema2HumNSegment,
+  Object.freeze([0.108149, 0.739528, 0.172125, 0.742574]) as Cinema2HumNSegment,
+  Object.freeze([-0.254379, 0.346535, -0.166032, 0.323686]) as Cinema2HumNSegment,
+  Object.freeze([0.054836, 0.061691, 0.115765, 0.025133]) as Cinema2HumNSegment,
+  Object.freeze([-0.202589, -0.220107, -0.068545, -0.096725]) as Cinema2HumNSegment,
+  Object.freeze([0.060929, -0.125666, 0.175171, -0.192688]) as Cinema2HumNSegment,
+  Object.freeze([-0.325971, 0.081493, -0.303123, 0.005331]) as Cinema2HumNSegment,
+  Object.freeze([0.237624, -0.043412, 0.201066, -0.165270]) as Cinema2HumNSegment,
+])
+
+/** Conservative authored additions used only by Mesh Detail = Dense. */
+const HUMN_DENSE_SEGMENTS: readonly Cinema2HumNSegment[] = Object.freeze([
+  Object.freeze([-0.265042, 0.715156, -0.063976, 0.305407]) as Cinema2HumNSegment,
+  Object.freeze([0.214775, 0.649657, 0.054836, 0.061691]) as Cinema2HumNSegment,
+  Object.freeze([-0.242193, 0.319117, -0.039604, -0.064737]) as Cinema2HumNSegment,
+  Object.freeze([0.188880, 0.346535, 0.065499, 0.051028]) as Cinema2HumNSegment,
+  Object.freeze([-0.351866, 0.239909, -0.287890, -0.054075]) as Cinema2HumNSegment,
+  Object.freeze([0.293983, 0.220107, 0.236101, -0.087586]) as Cinema2HumNSegment,
+  Object.freeze([-0.290937, -0.115004, -0.193450, -0.526276]) as Cinema2HumNSegment,
+  Object.freeze([0.201066, -0.165270, 0.207159, -0.329779]) as Cinema2HumNSegment,
+  Object.freeze([-0.193450, -0.526276, -0.577304, -0.521706]) as Cinema2HumNSegment,
+  Object.freeze([0.207159, -0.329779, 0.473724, -0.507997]) as Cinema2HumNSegment,
+])
+
 const HUMN_PRIMARY_SEGMENTS: readonly Cinema2HumNSegment[] = Object.freeze([
   Object.freeze([-0.182788, 0.782178, -0.036558, 0.826352]) as Cinema2HumNSegment,
   Object.freeze([-0.194973, 0.779132, 0.108149, 0.739528]) as Cinema2HumNSegment,
@@ -247,6 +274,8 @@ export const CINEMA2_HUMN_CANONICAL_TOPOLOGY = Object.freeze({
   primarySegments: HUMN_PRIMARY_SEGMENTS,
   accentSegments: HUMN_ACCENT_SEGMENTS,
   ghostSegments: HUMN_GHOST_SEGMENTS,
+  restorationSegments: HUMN_RESTORATION_SEGMENTS,
+  denseSegments: HUMN_DENSE_SEGMENTS,
   semanticGroups: CINEMA2_HUMN_SEMANTIC_GROUPS,
   futureFacetGroups: CINEMA2_HUMN_FUTURE_FACET_GROUPS,
 })
@@ -271,6 +300,10 @@ export const CINEMA2_HUMN_FRAGMENT_SOURCE = `#version 300 es
 precision highp float;
 in vec2 v_uv;
 uniform vec2 u_resolution;
+uniform float u_linePresence;
+uniform float u_lineWeight;
+uniform float u_fragmentation;
+uniform int u_meshDetail;
 out vec4 outColor;
 
 ${glslSegmentArray('PRIMARY_SEGMENTS', HUMN_PRIMARY_SEGMENTS)}
@@ -278,6 +311,10 @@ ${glslSegmentArray('PRIMARY_SEGMENTS', HUMN_PRIMARY_SEGMENTS)}
 ${glslSegmentArray('ACCENT_SEGMENTS', HUMN_ACCENT_SEGMENTS)}
 
 ${glslSegmentArray('GHOST_SEGMENTS', HUMN_GHOST_SEGMENTS)}
+
+${glslSegmentArray('RESTORATION_SEGMENTS', HUMN_RESTORATION_SEGMENTS)}
+
+${glslSegmentArray('DENSE_SEGMENTS', HUMN_DENSE_SEGMENTS)}
 
 float sdSegment(vec2 p, vec2 a, vec2 b) {
   vec2 pa = p - a;
@@ -289,6 +326,17 @@ float sdSegment(vec2 p, vec2 a, vec2 b) {
 float segmentMask(vec2 p, vec2 a, vec2 b, float stroke, float feather) {
   float d = sdSegment(p, a, b);
   return 1.0 - smoothstep(stroke, stroke + feather, d);
+}
+
+float stableRank(int index, float salt) {
+  return fract(sin((float(index) + 1.0) * 12.9898 + salt * 78.233) * 43758.5453);
+}
+
+float fragmentationKeep(int index, float salt) {
+  if (u_fragmentation <= 0.55) return 1.0;
+  float normalized = clamp((u_fragmentation - 0.55) / 0.45, 0.0, 1.0);
+  float keepFraction = mix(1.0, 0.22, normalized);
+  return stableRank(index, salt) <= keepFraction ? 1.0 : 0.0;
 }
 
 void main() {
@@ -305,29 +353,55 @@ void main() {
   p.y += 0.012;
 
   float px = 2.0 / resolution.y;
+  float weight = clamp(u_lineWeight, 0.5, 2.0);
 
   float primarySoft = 0.0;
   float primaryCore = 0.0;
   for (int i = 0; i < PRIMARY_SEGMENT_COUNT; ++i) {
     vec4 segment = PRIMARY_SEGMENTS[i];
-    primarySoft = max(primarySoft, segmentMask(p, segment.xy, segment.zw, 1.18 * px, 1.40 * px));
-    primaryCore = max(primaryCore, segmentMask(p, segment.xy, segment.zw, 0.56 * px, 0.60 * px));
+    float eligible = (u_meshDetail == 0 && stableRank(i, 0.17) > 0.72) ? 0.0 : 1.0;
+    float keep = eligible * fragmentationKeep(i, 0.17);
+    primarySoft = max(primarySoft, keep * segmentMask(p, segment.xy, segment.zw, 1.18 * weight * px, 1.40 * weight * px));
+    primaryCore = max(primaryCore, keep * segmentMask(p, segment.xy, segment.zw, 0.56 * weight * px, 0.60 * weight * px));
   }
 
   float accentSoft = 0.0;
   float accentCore = 0.0;
   for (int i = 0; i < ACCENT_SEGMENT_COUNT; ++i) {
     vec4 segment = ACCENT_SEGMENTS[i];
-    accentSoft = max(accentSoft, segmentMask(p, segment.xy, segment.zw, 1.26 * px, 1.42 * px));
-    accentCore = max(accentCore, segmentMask(p, segment.xy, segment.zw, 0.62 * px, 0.66 * px));
+    float eligible = u_meshDetail == 0 ? 0.0 : 1.0;
+    float keep = eligible * fragmentationKeep(i, 0.41);
+    accentSoft = max(accentSoft, keep * segmentMask(p, segment.xy, segment.zw, 1.26 * weight * px, 1.42 * weight * px));
+    accentCore = max(accentCore, keep * segmentMask(p, segment.xy, segment.zw, 0.62 * weight * px, 0.66 * weight * px));
   }
 
   float ghostSoft = 0.0;
   float ghostCore = 0.0;
   for (int i = 0; i < GHOST_SEGMENT_COUNT; ++i) {
     vec4 segment = GHOST_SEGMENTS[i];
-    ghostSoft = max(ghostSoft, segmentMask(p, segment.xy, segment.zw, 0.92 * px, 1.22 * px));
-    ghostCore = max(ghostCore, segmentMask(p, segment.xy, segment.zw, 0.42 * px, 0.54 * px));
+    float eligible = u_meshDetail == 0 ? 0.0 : 1.0;
+    float keep = eligible * fragmentationKeep(i, 0.73);
+    ghostSoft = max(ghostSoft, keep * segmentMask(p, segment.xy, segment.zw, 0.92 * weight * px, 1.22 * weight * px));
+    ghostCore = max(ghostCore, keep * segmentMask(p, segment.xy, segment.zw, 0.42 * weight * px, 0.54 * weight * px));
+  }
+
+  float restoration = 0.0;
+  float restorationAmount = clamp((0.55 - u_fragmentation) / 0.55, 0.0, 1.0);
+  if (u_meshDetail > 0 && restorationAmount > 0.0) {
+    for (int i = 0; i < RESTORATION_SEGMENT_COUNT; ++i) {
+      vec4 segment = RESTORATION_SEGMENTS[i];
+      float reveal = stableRank(i, 0.91) <= restorationAmount ? 1.0 : 0.0;
+      restoration = max(restoration, reveal * segmentMask(p, segment.xy, segment.zw, 0.72 * weight * px, 0.82 * weight * px));
+    }
+  }
+
+  float denseFigure = 0.0;
+  if (u_meshDetail == 2) {
+    for (int i = 0; i < DENSE_SEGMENT_COUNT; ++i) {
+      vec4 segment = DENSE_SEGMENTS[i];
+      float keep = fragmentationKeep(i, 1.13);
+      denseFigure = max(denseFigure, keep * segmentMask(p, segment.xy, segment.zw, 0.66 * weight * px, 0.76 * weight * px));
+    }
   }
 
   // Fine technical grid from the visual reference, subordinate to the figure.
@@ -351,13 +425,26 @@ void main() {
   float accentFigure = accentSoft * 0.16 + accentCore * 0.34;
 
   vec3 color = background + gridColor;
-  color += vec3(0.72, 0.75, 0.77) * ghostFigure;
-  color += vec3(0.93, 0.95, 0.97) * wireframeFigure;
-  color += vec3(1.0) * accentFigure;
+  float presence = clamp(u_linePresence, 0.0, 1.0);
+  color += presence * vec3(0.72, 0.75, 0.77) * ghostFigure;
+  color += presence * vec3(0.93, 0.95, 0.97) * wireframeFigure;
+  color += presence * vec3(1.0) * accentFigure;
+  color += presence * vec3(0.90, 0.93, 0.95) * restoration * 0.48;
+  color += presence * vec3(0.86, 0.91, 0.94) * denseFigure * 0.52;
   color *= 0.92 + 0.08 * vignette;
   outColor = vec4(color, 1.0);
 }
 `
+
+function readNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function readMeshDetail(value: unknown): number {
+  if (value === 'Sparse') return 0
+  if (value === 'Dense') return 2
+  return 1
+}
 
 function validateConfig(config: Cinema2JsonObject | undefined): readonly Cinema2ModuleDiagnostic[] {
   if (config == null || config.label == null) return Object.freeze([])
@@ -391,7 +478,7 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
               label,
               vertSrc: FULLSCREEN_VERT_SRC,
               fragSrc: CINEMA2_HUMN_FRAGMENT_SOURCE,
-              optionalUniforms: ['u_resolution'],
+              optionalUniforms: ['u_resolution', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail'],
             })
             if (!result.program) {
               throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
@@ -408,6 +495,10 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
         )
         program.activate()
         program.setVec2('u_resolution', width, height)
+        program.setFloat('u_linePresence', readNumber(context.parameters.get('linePresence'), 1))
+        program.setFloat('u_lineWeight', readNumber(context.parameters.get('lineWeight'), 1))
+        program.setFloat('u_fragmentation', readNumber(context.parameters.get('fragmentation'), 0.55))
+        program.setInt('u_meshDetail', readMeshDetail(context.parameters.get('meshDetail')))
         pass.run(program, target, width, height, [])
       },
     })

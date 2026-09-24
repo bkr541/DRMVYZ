@@ -12,6 +12,10 @@ import {
   CINEMA2_HUMN_FRAGMENT_SOURCE,
   CINEMA2_HUMN_FUTURE_FACET_GROUPS,
   CINEMA2_HUMN_LAYER_ID,
+  CINEMA2_HUMN_LINE_PRESENCE_ID,
+  CINEMA2_HUMN_LINE_WEIGHT_ID,
+  CINEMA2_HUMN_FRAGMENTATION_ID,
+  CINEMA2_HUMN_MESH_DETAIL_ID,
   CINEMA2_HUMN_NATIVE_MODULE_TYPE_ID,
   CINEMA2_HUMN_NATIVE_MODULE_VERSION,
   CINEMA2_HUMN_PRESET_ID,
@@ -21,6 +25,7 @@ import {
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
   Cinema2AudioIntelligenceBridge,
   Cinema2Runtime,
+  createCinema2DesignParentGroupModel,
   cinema2NativeModuleRegistry,
   cinema2NativePresetRegistry,
   type Cinema2PresetId,
@@ -84,7 +89,9 @@ function createHumNRuntime() {
   const raf = createRafHarness()
   const gl = createCinemaMockWebGL()
   gl.getUniformLocation = vi.fn((_program: WebGLProgram, name: string) =>
-    name === 'u_resolution' ? ({ name } as unknown as WebGLUniformLocation) : null)
+    ['u_resolution', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail'].includes(name)
+      ? ({ name } as unknown as WebGLUniformLocation)
+      : null)
   const created = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
     presetId: CINEMA2_HUMN_PRESET_ID,
     presetRegistry: cinema2NativePresetRegistry,
@@ -183,7 +190,14 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     expect(gl.__calls.drawCount).toBe(3)
     expect(runtime.getModuleRuntimeSnapshot()).toMatchObject({ activeModuleCount: 1, failedModuleCount: 0 })
     expect(runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 3, executedPassCount: 3, failedPassCount: 0 })
-    expect((gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0)
+    expect((gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls).toEqual(expect.arrayContaining([
+      [expect.objectContaining({ name: 'u_linePresence' }), 1],
+      [expect.objectContaining({ name: 'u_lineWeight' }), 1],
+      [expect.objectContaining({ name: 'u_fragmentation' }), 0.55],
+    ]))
+    expect((gl.uniform1i as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
+      expect.objectContaining({ name: 'u_meshDetail' }), 1,
+    ])
     expect((gl.uniform2f as ReturnType<typeof vi.fn>).mock.calls).toEqual(expect.arrayContaining([
       [expect.objectContaining({ name: 'u_resolution' }), 1280, 720],
     ]))
@@ -194,7 +208,47 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     expect(gl.__calls.deletedVertexArrays).toBe(gl.__calls.createdVertexArrays)
   })
 
-  it('keeps the approved canonical topology semantically addressable without exposing new controls', () => {
+  it('exposes only the four approved Figure Construction controls with the requested authority and defaults', () => {
+    const { runtime } = createHumNRuntime()
+    const plan = runtime.getCompiledPresetPlan()
+    const state = runtime.getParameterState()
+    const figureDefinitions = plan.parameters.definitions.filter(definition => definition.group === 'Figure Construction')
+    expect(figureDefinitions.map(definition => definition.id)).toEqual([
+      CINEMA2_HUMN_LINE_PRESENCE_ID,
+      CINEMA2_HUMN_LINE_WEIGHT_ID,
+      CINEMA2_HUMN_FRAGMENTATION_ID,
+      CINEMA2_HUMN_MESH_DETAIL_ID,
+    ])
+    expect(figureDefinitions.map(definition => definition.defaultValue)).toEqual([1, 1, 0.55, 'Reference'])
+    expect(figureDefinitions.map(definition => [definition.modulatable, definition.choreographable])).toEqual([
+      [true, true],
+      [false, false],
+      [true, true],
+      [false, false],
+    ])
+    expect(state.getValue(CINEMA2_HUMN_LINE_PRESENCE_ID)).toBe(1)
+    expect(state.getValue(CINEMA2_HUMN_LINE_WEIGHT_ID)).toBe(1)
+    expect(state.getValue(CINEMA2_HUMN_FRAGMENTATION_ID)).toBe(0.55)
+    expect(state.getValue(CINEMA2_HUMN_MESH_DETAIL_ID)).toBe('Reference')
+
+    const design = createCinema2DesignParentGroupModel(plan, state.getSnapshot())
+    const figureGroup = design.find(parent => parent.id === 'design')?.groups.find(group => group.label === 'Figure Construction')
+    expect(figureGroup?.controls.map(control => control.definition.label)).toEqual([
+      'Line Presence',
+      'Line Weight',
+      'Fragmentation',
+      'Mesh Detail',
+    ])
+
+    const moduleTargets = plan.targets.targets.filter(target => target.kind === 'module' && target.ownerId === CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.id)
+    expect(moduleTargets.filter(target => ['linePresence', 'fragmentation'].includes(target.property)).map(target => target.parameterId).sort()).toEqual([
+      CINEMA2_HUMN_FRAGMENTATION_ID,
+      CINEMA2_HUMN_LINE_PRESENCE_ID,
+    ].sort())
+    runtime.dispose()
+  })
+
+  it('keeps the approved canonical topology semantically addressable with bound Figure Construction targets', () => {
     const expectedGroups = [
       'head-shell',
       'left-eye',
@@ -221,10 +275,54 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
 
     const snapshot = JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)
     expect(JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)).toBe(snapshot)
-    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(1)
-    expect(CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.parameterBindings ?? {}).toEqual({})
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(5)
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.parameterBindings ?? {}).toEqual({
+      linePresence: { $ref: CINEMA2_HUMN_LINE_PRESENCE_ID },
+      lineWeight: { $ref: CINEMA2_HUMN_LINE_WEIGHT_ID },
+      fragmentation: { $ref: CINEMA2_HUMN_FRAGMENTATION_ID },
+      meshDetail: { $ref: CINEMA2_HUMN_MESH_DETAIL_ID },
+    })
     expect(CINEMA2_HUMN_PRESET_MANIFEST.choreography ?? []).toHaveLength(0)
     expect(CINEMA2_HUMN_PRESET_MANIFEST.effects ?? []).toHaveLength(0)
+  })
+
+  it('routes manual min/default/max and enum changes into real shader consumers without audio rewriting them', () => {
+    const { runtime, gl, raf } = createHumNRuntime()
+    runtime.resize({ width: 1280, height: 720, dpr: 1 })
+    runtime.start()
+
+    const state = runtime.getParameterState()
+    expect(state.setPersistentValue(CINEMA2_HUMN_LINE_PRESENCE_ID, 0)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_HUMN_LINE_WEIGHT_ID, 2)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_HUMN_FRAGMENTATION_ID, 1)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_HUMN_MESH_DETAIL_ID, 'Dense')).toMatchObject({ ok: true })
+    raf.runNext(16.67)
+
+    expect((gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls).toEqual(expect.arrayContaining([
+      [expect.objectContaining({ name: 'u_linePresence' }), 0],
+      [expect.objectContaining({ name: 'u_lineWeight' }), 2],
+      [expect.objectContaining({ name: 'u_fragmentation' }), 1],
+    ]))
+    expect((gl.uniform1i as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
+      expect.objectContaining({ name: 'u_meshDetail' }), 2,
+    ])
+
+    expect(state.setPersistentValue(CINEMA2_HUMN_LINE_WEIGHT_ID, 0.5)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_HUMN_FRAGMENTATION_ID, 0)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_HUMN_MESH_DETAIL_ID, 'Sparse')).toMatchObject({ ok: true })
+    raf.runNext(33.34)
+    expect((gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls).toEqual(expect.arrayContaining([
+      [expect.objectContaining({ name: 'u_lineWeight' }), 0.5],
+      [expect.objectContaining({ name: 'u_fragmentation' }), 0],
+    ]))
+    expect((gl.uniform1i as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
+      expect.objectContaining({ name: 'u_meshDetail' }), 0,
+    ])
+
+    const snapshot = state.getSnapshot()
+    raf.runNext(50.01)
+    expect(state.getSnapshot()).toEqual(snapshot)
+    runtime.dispose()
   })
 
   it('preserves the screen-space composition path across landscape, square, portrait, and ultrawide resize', () => {
