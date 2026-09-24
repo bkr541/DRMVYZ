@@ -20,6 +20,18 @@ export interface ConfirmDialogProps {
    * Defaults to true since nearly every confirmation in the app guards a
    * delete or other irreversible change; pass false for a neutral confirm. */
   danger?: boolean
+  /** Optional extra content (e.g. a text field) between the message and the notice. */
+  children?: ReactNode
+  /** A third action between Cancel and the confirm button (e.g. "Discard Changes"). */
+  secondary?: { label: string; onClick: () => void; danger?: boolean }
+  /** 'primary' fills the confirm button with the accent tone instead of using danger red. */
+  confirmTone?: 'primary' | 'default'
+  /** Disables just the confirm button, e.g. while a form field is invalid. */
+  confirmDisabled?: boolean
+  /** Keeps Cancel usable while `busy` (the work continues in the background). */
+  allowCancelWhileBusy?: boolean
+  /** 'neutral' swaps the red icon badge for the accent tone on non-destructive dialogs. */
+  iconTone?: 'danger' | 'neutral'
   onCancel: () => void
   onConfirm: () => void
 }
@@ -54,6 +66,12 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   busy = false,
   danger = true,
+  children,
+  secondary,
+  confirmTone = 'default',
+  confirmDisabled = false,
+  allowCancelWhileBusy = false,
+  iconTone = 'danger',
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
@@ -63,7 +81,7 @@ export function ConfirmDialog({
       className="dv-confirm-backdrop"
       role="presentation"
       onMouseDown={event => {
-        if (event.target === event.currentTarget && !busy) onCancel()
+        if (event.target === event.currentTarget && (!busy || allowCancelWhileBusy)) onCancel()
       }}
     >
       <div
@@ -72,24 +90,36 @@ export function ConfirmDialog({
         aria-modal="true"
         aria-labelledby={headingId}
         onKeyDown={event => {
-          if (event.key === 'Escape' && !busy) onCancel()
+          if (event.key === 'Escape' && (!busy || allowCancelWhileBusy)) onCancel()
         }}
       >
-        <span className="dv-confirm-icon" aria-hidden="true"><ConfirmDialogIcon /></span>
+        <span className={`dv-confirm-icon${iconTone === 'neutral' ? ' dv-confirm-icon--neutral' : ''}`} aria-hidden="true"><ConfirmDialogIcon /></span>
         <h2 id={headingId}>{title}</h2>
         <p>{message}</p>
+        {children}
         {notice && (
           <NoticeCard tone={noticeTone} title={noticeTitle} role="status">
             {notice}
           </NoticeCard>
         )}
         <div className="dv-confirm-actions">
-          <IconChipButton type="button" onClick={onCancel} disabled={busy}>{cancelLabel}</IconChipButton>
+          <IconChipButton type="button" onClick={onCancel} disabled={busy && !allowCancelWhileBusy}>{cancelLabel}</IconChipButton>
+          {secondary && (
+            <IconChipButton
+              type="button"
+              className={secondary.danger ? 'dv-icon-chip--danger' : undefined}
+              onClick={secondary.onClick}
+              disabled={busy}
+            >
+              {secondary.label}
+            </IconChipButton>
+          )}
           <IconChipButton
             type="button"
+            tone={confirmTone === 'primary' ? 'primary' : 'default'}
             className={danger ? 'dv-icon-chip--danger' : undefined}
             onClick={onConfirm}
-            disabled={busy}
+            disabled={busy || confirmDisabled}
           >
             {busy ? busyLabel : confirmLabel}
           </IconChipButton>

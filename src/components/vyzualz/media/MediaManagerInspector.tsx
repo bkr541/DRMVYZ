@@ -14,6 +14,7 @@ import type { UploadedMedia } from '../../../stores/mediaStore'
 import { useAudioStore } from '../../../stores/audioStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
 import { MediaDeleteConfirmDialog } from './MediaDeleteConfirmDialog'
+import { MediaEditPanel } from './MediaEditPanel'
 import {
   MEDIA_ROLE_LABELS,
   MUSICAL_KEYS,
@@ -323,9 +324,12 @@ const MEDIA_INSPECTOR_TABS: RailTabOption<MediaInspectorTab>[] = [
 export function MediaManagerInspector({
   media,
   track,
+  onMediaCreated,
 }: {
   media: UploadedMedia | null
   track: SavedAudioTrack | null
+  /** Save As created a new media item; the view selects it. */
+  onMediaCreated?: (mediaId: string) => void
 }) {
   const [activeTab, setActiveTab] = useState<MediaInspectorTab>('info')
   return (
@@ -343,7 +347,16 @@ export function MediaManagerInspector({
         className="rv-main-workspace-tabs"
         variant="underline"
       />
-      {/* Edit and Output are intentionally empty for now. */}
+      {/* Output is intentionally empty for now. */}
+      {activeTab === 'edit' && (
+        media ? (
+          <MediaEditPanel key={media.id} media={media} onMediaCreated={id => onMediaCreated?.(id)} />
+        ) : (
+          <div className="mmi-empty">
+            <p>{track ? 'Audio tracks are edited from the Info tab.' : 'Select an image or video to edit it.'}</p>
+          </div>
+        )
+      )}
       {activeTab === 'info' && (
         media ? (
           <VisualMediaInspector key={media.id} media={media} />

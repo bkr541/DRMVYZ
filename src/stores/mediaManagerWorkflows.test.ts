@@ -14,6 +14,7 @@ const mediaDbMocks = vi.hoisted(() => ({
   deleteMediaFile: vi.fn(),
   beginMediaUpload: vi.fn(),
   finalizeMediaUploadAtomic: vi.fn(),
+  replaceMediaItemContentAtomic: vi.fn(),
   markMediaUploadCleanupPending: vi.fn(),
   updateMediaCleanupJob: vi.fn(),
   requestMediaDeletion: vi.fn(),
@@ -221,6 +222,38 @@ describe('Media Manager canonical workflows', () => {
     mediaDbMocks.beginMediaUpload.mockResolvedValue({ ok: true, mediaItem: null, operationStatus: 'uploading', phase: 'uploading_original' })
     mediaDbMocks.finalizeMediaUploadAtomic.mockImplementation(async (input: { operationId: string }) => ({
       ok: true, mediaItem: uploadCanonical(input.operationId), reconciled: false,
+    }))
+    mediaDbMocks.replaceMediaItemContentAtomic.mockImplementation(async (input: {
+      operationId: string; mediaItemId: string; expectedRevision: number
+      media: { name: string; storage_path: string; thumbnail_path: string | null; mime_type: string | null; width: number | null; height: number | null; duration_sec: number | null; file_size: number | null; metadata: Record<string, unknown> }
+    }) => ({
+      ok: true,
+      reconciled: false,
+      mediaItem: {
+        ...uploadCanonical(input.operationId),
+        id: input.mediaItemId,
+        name: input.media.name,
+        storage_path: input.media.storage_path,
+        thumbnail_path: input.media.thumbnail_path,
+        mime_type: input.media.mime_type,
+        width: input.media.width,
+        height: input.media.height,
+        duration_sec: input.media.duration_sec,
+        file_size: input.media.file_size,
+        metadata: input.media.metadata,
+        title: 'Image',
+        description: 'Original',
+        media_role: 'background_image',
+        revision: input.expectedRevision + 1,
+        tags: ['original'],
+        collection_ids: ['collection-1'],
+      },
+      cleanupJob: {
+        id: 'content-cleanup-1', user_id: 'user-1', media_item_id: input.mediaItemId, upload_operation_id: null,
+        kind: 'derivative_cleanup', status: 'pending', storage_paths: ['user-1/media-1/image.png'],
+        completed_paths: [], last_error: null, created_at: '2026-07-11T00:00:00.000Z',
+        updated_at: '2026-07-11T00:00:00.000Z', completed_at: null,
+      },
     }))
     mediaDbMocks.markMediaUploadCleanupPending.mockImplementation(async (operationId: string, paths: string[], error: string) => ({
       ok: true,
@@ -890,6 +923,208 @@ describe('Media Manager canonical workflows', () => {
     expect(useMediaStore.getState().queryItemIds).toEqual(['db-user-2-item'])
     expect(useMediaStore.getState().items.some(item => item.id === privateItem.id)).toBe(false)
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:private')
+  })
+
+
+  describe('media content replacement (Media Manager Save)', () => {
+    beforeEach(() => {
+      // An earlier account-switch test leaves user-2 signed in; these tests act as user-1.
+      vi.mocked(supabase.auth.getUser).mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null } as never)
+    })
+
+    const renderedFile = () => new File(['edited-bytes'], 'image.png', { type: 'image/png' })
+
+    it('swaps the bytes in one revision-guarded call, keeping the item id and organization', async () => {
+      const item = mediaItem({ revision: 3 })
+      useMediaStore.setState({ items: [item] })
+
+      const result = await useMediaStore.getState().replaceMediaContent('db-media-1', renderedFile(), {
+        metadata: { width: 800, height: 450, hasAlpha: false, detectedMimeType: 'image/png' },
+      })
+
+      expect(result.ok).toBe(true)
+      expect(mediaDbMocks.finalizeMediaUploadAtomic).not.toHaveBeenCalled()
+      expect(mediaDbMocks.beginMediaUpload).toHaveBeenCalledTimes(1)
+      const operationId = mediaDbMocks.beginMediaUpload.mock.calls[0]![0] as string
+      const newPath = `user-1/uploads/${operationId}/original.png`
+      expect(mediaDbMocks.uploadMediaFile).toHaveBeenCalledWith(newPath, expect.any(File), 'image/png')
+      expect(mediaDbMocks.replaceMediaItemContentAtomic).toHaveBeenCalledWith(expect.objectContaining({
+        mediaItemId: 'media-1',
+        expectedRevision: 3,
+        operationId,
+        media: expect.objectContaining({ storage_path: newPath, type: 'image', mime_type: 'image/png' }),
+      }))
+
+      const [updated] = useMediaStore.getState().items
+      expect(useMediaStore.getState().items).toHaveLength(1)
+      expect(updated).toMatchObject({
+        id: 'db-media-1', dbId: 'media-1', storagePath: newPath, revision: 4,
+        title: 'Image', description: 'Original', mediaRole: 'background_image',
+        tags: ['original'], collectionIds: ['collection-1'], favorite: false,
+      })
+    })
+
+    it('shows the rendered file immediately and requests a fresh signed URL for the new path', async () => {
+      useMediaStore.setState({ items: [mediaItem({ revision: 1 })] })
+      mediaDbMocks.createSignedMediaUrl.mockResolvedValue({ url: 'https://signed.example/new.png', error: null })
+
+      const result = await useMediaStore.getState().replaceMediaContent('db-media-1', renderedFile(), { metadata: {} })
+      expect(result.ok).toBe(true)
+      await vi.waitFor(() => {
+        expect(useMediaStore.getState().items[0]?.url).toBe('https://signed.example/new.png')
+      })
+      expect(mediaDbMocks.createSignedMediaUrl).toHaveBeenCalledWith(
+        expect.stringContaining('/uploads/'), expect.any(Number),
+      )
+    })
+
+    it('removes the previous storage object and completes its durable cleanup job', async () => {
+      useMediaStore.setState({ items: [mediaItem({ revision: 1 })] })
+
+      await useMediaStore.getState().replaceMediaContent('db-media-1', renderedFile(), { metadata: {} })
+
+      expect(mediaDbMocks.deleteMediaFile).toHaveBeenCalledWith('user-1/media-1/image.png')
+      expect(mediaDbMocks.updateMediaCleanupJob).toHaveBeenCalledWith('content-cleanup-1', ['user-1/media-1/image.png'], 'complete', null)
+    })
+
+    it('a cleanup failure never fails the save, and stays recorded for retry', async () => {
+      useMediaStore.setState({ items: [mediaItem({ revision: 1 })] })
+      mediaDbMocks.deleteMediaFile.mockResolvedValueOnce({ error: 'network down' })
+
+      const result = await useMediaStore.getState().replaceMediaContent('db-media-1', renderedFile(), { metadata: {} })
+
+      expect(result.ok).toBe(true)
+      expect(mediaDbMocks.updateMediaCleanupJob).toHaveBeenCalledWith('content-cleanup-1', [], 'failed', expect.stringContaining('could not be removed'))
+    })
+
+    it('reports a revision conflict, leaves the item untouched, and removes the orphaned upload', async () => {
+      const item = mediaItem({ revision: 2 })
+      useMediaStore.setState({ items: [item] })
+      mediaDbMocks.replaceMediaItemContentAtomic.mockResolvedValueOnce({
+        ok: false, kind: 'conflict', message: 'This media item changed in another session.', currentRevision: 5,
+      })
+
+      const result = await useMediaStore.getState().replaceMediaContent('db-media-1', renderedFile(), { metadata: {} })
+
+      expect(result).toMatchObject({ ok: false, kind: 'conflict' })
+      expect(useMediaStore.getState().items[0]).toMatchObject({ storagePath: 'user-1/media-1/image.png', revision: 2 })
+      const operationId = mediaDbMocks.beginMediaUpload.mock.calls[0]![0] as string
+      expect(mediaDbMocks.markMediaUploadCleanupPending).toHaveBeenCalledWith(
+        operationId, [`user-1/uploads/${operationId}/original.png`], expect.any(String),
+      )
+      expect(mediaDbMocks.deleteMediaFile).toHaveBeenCalledWith(`user-1/uploads/${operationId}/original.png`)
+      // The original object is never touched by a failed replace.
+      expect(mediaDbMocks.deleteMediaFile).not.toHaveBeenCalledWith('user-1/media-1/image.png')
+    })
+
+    it('leaves the item untouched when the storage upload fails', async () => {
+      useMediaStore.setState({ items: [mediaItem({ revision: 2 })] })
+      mediaDbMocks.uploadMediaFile.mockResolvedValueOnce({ error: 'quota exceeded' })
+
+      const result = await useMediaStore.getState().replaceMediaContent('db-media-1', renderedFile(), { metadata: {} })
+
+      expect(result).toMatchObject({ ok: false, kind: 'failed' })
+      expect(mediaDbMocks.replaceMediaItemContentAtomic).not.toHaveBeenCalled()
+      expect(useMediaStore.getState().items[0]).toMatchObject({ storagePath: 'user-1/media-1/image.png', revision: 2 })
+    })
+
+    it('refuses items that are not synced or are being deleted', async () => {
+      useMediaStore.setState({ items: [mediaItem({ dbId: undefined, revision: undefined })] })
+      expect(await useMediaStore.getState().replaceMediaContent('db-media-1', renderedFile(), { metadata: {} }))
+        .toMatchObject({ ok: false })
+      useMediaStore.setState({ items: [mediaItem({ lifecycleStatus: 'deletion_pending' })] })
+      expect(await useMediaStore.getState().replaceMediaContent('db-media-1', renderedFile(), { metadata: {} }))
+        .toMatchObject({ ok: false })
+      expect(mediaDbMocks.beginMediaUpload).not.toHaveBeenCalled()
+    })
+
+    it('does nothing when cancelled before it starts', async () => {
+      useMediaStore.setState({ items: [mediaItem({ revision: 1 })] })
+      const controller = new AbortController()
+      controller.abort()
+      const result = await useMediaStore.getState().replaceMediaContent('db-media-1', renderedFile(), { metadata: {}, signal: controller.signal })
+      expect(result).toMatchObject({ ok: false, kind: 'cancelled' })
+      expect(mediaDbMocks.beginMediaUpload).not.toHaveBeenCalled()
+    })
+
+    it('finishes interrupted content cleanups found when the library refreshes', async () => {
+      mediaDbMocks.listPendingMediaCleanup.mockResolvedValue({
+        rows: [{
+          id: 'stale-cleanup', user_id: 'user-1', media_item_id: 'media-1', upload_operation_id: null,
+          kind: 'derivative_cleanup', status: 'failed', storage_paths: ['user-1/media-1/old.png'],
+          completed_paths: [], last_error: 'network', created_at: '2026-07-11T00:00:00.000Z',
+          updated_at: '2026-07-11T00:00:00.000Z', completed_at: null,
+        }],
+        error: null,
+      })
+      await useMediaStore.getState().refreshLibrary()
+      await vi.waitFor(() => {
+        expect(mediaDbMocks.updateMediaCleanupJob).toHaveBeenCalledWith('stale-cleanup', ['user-1/media-1/old.png'], 'complete', null)
+      })
+      expect(mediaDbMocks.deleteMediaFile).toHaveBeenCalledWith('user-1/media-1/old.png')
+    })
+  })
+
+  describe('rendered video Save As upload', () => {
+    beforeEach(() => {
+      // An earlier account-switch test leaves user-2 signed in; these tests act as user-1.
+      vi.mocked(supabase.auth.getUser).mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null } as never)
+    })
+
+    it('keeps rejecting video for Deck ingestion unless the caller opts in', async () => {
+      const video = new File(['v'], 'clip.mp4', { type: 'video/mp4' })
+      const result = await useMediaStore.getState().uploadCanonicalVisualFile(video)
+      expect(result).toMatchObject({ ok: false, error: expect.stringContaining('requires an image') })
+      expect(mediaDbMocks.beginMediaUpload).not.toHaveBeenCalled()
+    })
+
+    it('uploads a rendered video as a new item with the inherited organization when allowVideo is set', async () => {
+      const realCreate = document.createElement.bind(document)
+      vi.spyOn(document, 'createElement').mockImplementation(((tag: string, options?: ElementCreationOptions) => {
+        if (tag !== 'video') return realCreate(tag, options)
+        const fake = {
+          duration: 4, readyState: 4, videoWidth: 640, videoHeight: 360,
+          onloadedmetadata: null as (() => void) | null, onloadeddata: null as (() => void) | null,
+          onseeked: null as (() => void) | null, onerror: null as (() => void) | null,
+          set src(_value: string) { queueMicrotask(() => { this.onloadedmetadata?.(); this.onloadeddata?.() }) },
+          set currentTime(_value: number) { queueMicrotask(() => this.onseeked?.()) },
+          muted: false, playsInline: false, preload: '', crossOrigin: '',
+        }
+        return fake as unknown as HTMLVideoElement
+      }) as typeof document.createElement)
+      try {
+        mediaDbMocks.finalizeMediaUploadAtomic.mockImplementationOnce(async (input: { operationId: string }) => ({
+          ok: true,
+          reconciled: false,
+          mediaItem: uploadCanonical(input.operationId, {
+            id: 'edited-video', type: 'video', name: 'Clip (edited).mp4', mime_type: 'video/mp4',
+            storage_path: `user-1/uploads/${input.operationId}/original.mp4`, thumbnail_path: null,
+            duration_sec: 4, media_role: 'background_video', title: 'Clip (edited)',
+          }),
+        }))
+        const file = new File(['video-bytes'], 'Clip (edited).mp4', { type: 'video/mp4' })
+        const result = await useMediaStore.getState().uploadCanonicalVisualFile(file, {
+          allowVideo: true,
+          role: 'background_video',
+          title: 'Clip (edited)',
+          tags: ['live'],
+          collectionIds: ['collection-1'],
+          metadata: { detectedMimeType: 'video/mp4', duration: 4 },
+        })
+
+        expect(result).toMatchObject({ ok: true, item: { id: 'db-edited-video', type: 'video' } })
+        expect(mediaDbMocks.finalizeMediaUploadAtomic).toHaveBeenCalledWith(expect.objectContaining({
+          tagNames: ['live'],
+          collectionIds: ['collection-1'],
+          media: expect.objectContaining({
+            type: 'video', name: 'Clip (edited).mp4', mime_type: 'video/mp4', media_role: 'background_video', title: 'Clip (edited)',
+          }),
+        }))
+        expect(useMediaStore.getState().items[0]?.id).toBe('db-edited-video')
+      } finally {
+        vi.restoreAllMocks()
+      }
+    })
   })
 
 })

@@ -6,6 +6,16 @@ import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
 import { VzMiniWaveform } from '../transport/VzMiniWaveform'
 import { MediaVideoTimeline } from './MediaVideoTimeline'
 import { useWaveformPeaks } from '../hooks/useWaveformPeaks'
+import { MediaEditPreview } from './MediaEditPreview'
+import { MediaEditCropOverlay } from './MediaEditCropOverlay'
+import {
+  createDefaultMediaEdit,
+  isMediaEditNeutral,
+  orientedCropToSource,
+  sourceCropToOriented,
+  type MediaEditCrop,
+} from '../../../features/media/edit/mediaEditModel'
+import { useMediaEditStore } from '../../../stores/mediaEditStore'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { useAudioStore } from '../../../stores/audioStore'
@@ -30,6 +40,16 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const imageRef = useRef<HTMLImageElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  // The edit session is the single source of truth; the stage only reads it.
+  const sessionMediaId = useMediaEditStore(state => state.mediaId)
+  const sessionEdit = useMediaEditStore(state => state.edit)
+  const cropMode = useMediaEditStore(state => state.cropMode)
+  const activeEdit = sessionMediaId === media.id ? sessionEdit : null
+  const [previewFault, setPreviewFault] = useState<string | null>(null)
+  const [cropDraft, setCropDraft] = useState<MediaEditCrop>(() => createDefaultMediaEdit().crop)
 
   useEffect(() => {
     setVideoError(false)
@@ -38,11 +58,31 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
     setPlaying(false)
     setCurrentTime(0)
     setDuration(0)
+    setPreviewFault(null)
   }, [media.id])
+
+  // Entering crop mode starts the rectangle from the current crop, drawn on the oriented full frame.
+  useEffect(() => {
+    if (!cropMode || !activeEdit) return
+    setCropDraft(sourceCropToOriented(activeEdit.crop, activeEdit))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cropMode])
 
   const isVideo = media.type === 'video'
   const hasAlpha = media.metadata?.hasAlpha === true
   const src = media.url || null
+  const editing = activeEdit !== null && (cropMode || !isMediaEditNeutral(activeEdit))
+  // Untouched media is shown directly; the GPU preview only takes over while an edit is active.
+  const showEditPreview = editing && previewFault === null && Boolean(src)
+  const sourceClass = showEditPreview ? ' mms-source--hidden' : ''
+
+  const applyCrop = () => {
+    if (!activeEdit) return
+    const store = useMediaEditStore.getState()
+    store.setCrop(orientedCropToSource(cropDraft, activeEdit))
+    store.setCropMode(false)
+  }
+  const cancelCrop = () => useMediaEditStore.getState().setCropMode(false)
 
   const recoverAsset = async () => {
     if (recovering) return
@@ -77,7 +117,7 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
         ) : isVideo ? (
           <video
             ref={videoRef}
-            className="mms-video"
+            className={`mms-video${sourceClass}`}
             src={src}
             crossOrigin="anonymous"
             onTimeUpdate={event => setCurrentTime(event.currentTarget.currentTime)}
@@ -95,14 +135,52 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
           </NoticeCard>
         ) : (
           <img
+            ref={imageRef}
             src={src}
             alt={media.title ?? media.name}
-            className="mms-image"
+            className={`mms-image${sourceClass}`}
+            crossOrigin="anonymous"
             onLoad={() => markMediaAssetLoaded(media.id, 'original')}
             onError={() => { setImageError(true); void recoverAsset() }}
           />
         )}
+        {showEditPreview && activeEdit && !videoError && !imageError && (
+          <>
+            <MediaEditPreview
+              canvasRef={canvasRef}
+              sourceRef={(isVideo ? videoRef : imageRef) as React.RefObject<HTMLImageElement | HTMLVideoElement>}
+              kind={isVideo ? 'video' : 'image'}
+              edit={activeEdit}
+              ignoreCrop={cropMode}
+              sourceKey={src ?? ''}
+              className={isVideo ? 'mms-video' : 'mms-image'}
+              onFault={setPreviewFault}
+            />
+            {cropMode && (
+              <MediaEditCropOverlay
+                targetRef={canvasRef}
+                rect={cropDraft}
+                onChange={setCropDraft}
+                onApply={applyCrop}
+                onCancel={cancelCrop}
+              />
+            )}
+          </>
+        )}
       </div>
+
+      {previewFault && editing && (
+        <NoticeCard tone="warning" role="status" title="Live preview unavailable">{previewFault}</NoticeCard>
+      )}
+
+      {cropMode && showEditPreview && (
+        <div className="mms-crop-toolbar" role="toolbar" aria-label="Crop">
+          <span className="mms-crop-hint">Drag the handles to choose the area to keep.</span>
+          <IconChipButton onClick={() => setCropDraft(createDefaultMediaEdit().crop)}>Reset</IconChipButton>
+          <IconChipButton onClick={cancelCrop}>Cancel</IconChipButton>
+          <IconChipButton tone="primary" onClick={applyCrop}>Apply Crop</IconChipButton>
+        </div>
+      )}
 
       {isVideo && src && !videoError && (
         <>

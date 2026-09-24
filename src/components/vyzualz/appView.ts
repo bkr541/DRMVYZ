@@ -21,12 +21,19 @@ export interface AppViewNavigationDecision {
   pendingView: AppView | null
 }
 
+/**
+ * Which views currently hold unsaved work. Each feature reports only its own
+ * flag, so Lyric Manager and Media Manager can both block navigation without
+ * knowing anything about each other.
+ */
+export type AppViewUnsavedState = Readonly<Partial<Record<AppView, boolean>>>
+
 export function resolveAppViewNavigation(
   currentView: AppView,
   requestedView: AppView,
-  hasUnsavedLyrics: boolean,
+  unsaved: AppViewUnsavedState,
 ): AppViewNavigationDecision {
-  if (currentView === 'lyrics' && requestedView !== 'lyrics' && hasUnsavedLyrics) {
+  if (requestedView !== currentView && unsaved[currentView] === true) {
     return { nextView: currentView, pendingView: requestedView }
   }
 

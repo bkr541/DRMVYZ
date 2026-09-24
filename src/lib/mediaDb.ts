@@ -85,6 +85,36 @@ export type FinalizeMediaUploadResult =
   | { ok: true; mediaItem: CanonicalMediaItem; reconciled: boolean }
   | { ok: false; kind: MediaPersistenceFailureKind; message: string; code?: string }
 
+export interface ReplaceMediaContentInput {
+  operationId: string
+  mediaItemId: string
+  expectedRevision: number
+  media: {
+    name: string
+    type: 'image' | 'video'
+    storage_path: string
+    thumbnail_path: string | null
+    width: number | null
+    height: number | null
+    duration_sec: number | null
+    file_size: number | null
+    mime_type: string | null
+    metadata: MediaMetadata
+  }
+  derivatives: MediaDerivativePath[]
+}
+
+export type ReplaceMediaContentResult =
+  | { ok: true; mediaItem: CanonicalMediaItem; cleanupJob: MediaCleanupJobRow | null; reconciled: boolean }
+  | {
+      ok: false
+      kind: MediaPersistenceFailureKind
+      message: string
+      code?: string
+      currentRevision?: number
+      mediaItem?: CanonicalMediaItem
+    }
+
 export type MediaCleanupResult =
   | { ok: true; cleanupJob: MediaCleanupJobRow }
   | { ok: false; kind: MediaPersistenceFailureKind; message: string; code?: string }
@@ -435,6 +465,45 @@ export async function finalizeMediaUploadAtomic(input: FinalizeMediaUploadInput)
     return { ok: true, mediaItem, reconciled: data.reconciled === true }
   } catch (error) {
     return { ok: false, kind: 'transport', message: error instanceof Error ? error.message : 'Unexpected upload finalization failure.' }
+  }
+}
+
+/**
+ * Swaps one canonical media item over to freshly uploaded content in a single
+ * revision-guarded transaction, keeping its id, metadata, tags and collections.
+ * The previous storage objects come back as a durable cleanup job.
+ */
+export async function replaceMediaItemContentAtomic(input: ReplaceMediaContentInput): Promise<ReplaceMediaContentResult> {
+  if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 1) {
+    return { ok: false, kind: 'validation', message: 'A valid expected media revision is required.' }
+  }
+  try {
+    const { data, error } = await db.rpc('replace_media_item_content_atomic', {
+      p_media_item_id: input.mediaItemId,
+      p_expected_revision: input.expectedRevision,
+      p_operation_id: input.operationId,
+      p_media: input.media,
+      p_derivative_paths: input.derivatives,
+    })
+    if (error) {
+      return {
+        ok: false,
+        kind: 'transport',
+        message: 'The media replacement response was not received.',
+        ...(typeof error.code === 'string' ? { code: error.code } : {}),
+      }
+    }
+    if (!isRecord(data)) return { ok: false, kind: 'unexpected', message: 'The media replacement returned malformed data.' }
+    if (data.status !== 'success') return parsePersistenceFailure(data, 'The media replacement was rejected.')
+    const mediaItem = parseCanonicalMediaItem(data.media_item)
+    if (!mediaItem) return { ok: false, kind: 'unexpected', message: 'The media replacement returned an incomplete canonical item.' }
+    const cleanupJob = data.cleanup_job == null ? null : parseCleanupJob(data.cleanup_job)
+    if (data.cleanup_job != null && !cleanupJob) {
+      return { ok: false, kind: 'unexpected', message: 'The media replacement returned malformed cleanup data.' }
+    }
+    return { ok: true, mediaItem, cleanupJob, reconciled: data.reconciled === true }
+  } catch (error) {
+    return { ok: false, kind: 'transport', message: error instanceof Error ? error.message : 'Unexpected media replacement failure.' }
   }
 }
 

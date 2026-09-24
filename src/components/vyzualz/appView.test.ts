@@ -25,14 +25,52 @@ describe('shared app-view model', () => {
 
 describe('Lyric Manager app-view guard', () => {
   it('holds Media Manager as the pending destination when lyrics are unsaved', () => {
-    expect(resolveAppViewNavigation('lyrics', 'media', true)).toEqual({
+    expect(resolveAppViewNavigation('lyrics', 'media', { lyrics: true })).toEqual({
       nextView: 'lyrics',
       pendingView: 'media',
     })
   })
 
   it('allows Media Manager navigation after lyrics are clean', () => {
-    expect(resolveAppViewNavigation('lyrics', 'media', false)).toEqual({
+    expect(resolveAppViewNavigation('lyrics', 'media', { lyrics: false })).toEqual({
+      nextView: 'media',
+      pendingView: null,
+    })
+  })
+})
+
+describe('Media Manager app-view guard', () => {
+  it('holds the requested destination while media edits are unsaved', () => {
+    expect(resolveAppViewNavigation('media', 'react', { media: true })).toEqual({
+      nextView: 'media',
+      pendingView: 'react',
+    })
+    expect(resolveAppViewNavigation('media', 'lyrics', { media: true })).toEqual({
+      nextView: 'media',
+      pendingView: 'lyrics',
+    })
+  })
+
+  it('allows navigation once media edits are clean', () => {
+    expect(resolveAppViewNavigation('media', 'react', { media: false })).toEqual({
+      nextView: 'react',
+      pendingView: null,
+    })
+  })
+
+  it('only the current view can block: unsaved lyrics do not stop navigation away from Media Manager', () => {
+    expect(resolveAppViewNavigation('media', 'react', { lyrics: true })).toEqual({
+      nextView: 'react',
+      pendingView: null,
+    })
+    expect(resolveAppViewNavigation('lyrics', 'react', { media: true })).toEqual({
+      nextView: 'react',
+      pendingView: null,
+    })
+  })
+
+  it('never blocks a request for the view that is already open', () => {
+    expect(resolveAppViewNavigation('media', 'media', { media: true })).toEqual({
       nextView: 'media',
       pendingView: null,
     })

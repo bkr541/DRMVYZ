@@ -1,6 +1,8 @@
 import { lazy, Suspense, useCallback, useLayoutEffect, useState } from 'react'
 import { useLyricsStore } from '../../stores/lyricsStore'
 import { UnsavedLyricChangesDialog } from '../../features/lyrics/components/UnsavedLyricChangesDialog'
+import { UnsavedMediaChangesDialog } from './media/UnsavedMediaChangesDialog'
+import { selectMediaEditNeedsGuard, useMediaEditStore } from '../../stores/mediaEditStore'
 import { VyzualzSidebar } from './VyzualzSidebar'
 import {
   DEFAULT_PERFORMANCE_VIEW,
@@ -70,6 +72,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
   const [lyricNavigationIntent, setLyricNavigationIntent] = useState<LyricManagerNavigationIntent | null>(null)
   const lyricEditorDirty = useLyricsStore(state => state.editorDirty)
   const lyricEditorSaving = useLyricsStore(state => state.isSaving)
+  const mediaEditorNeedsGuard = useMediaEditStore(selectMediaEditNeedsGuard)
 
   useLayoutEffect(() => {
     setAudioSourcePolicyAppView(appView)
@@ -84,10 +87,10 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
   }, [appView])
 
   const requestAppViewChange = useCallback((next: AppView) => {
-    const decision = resolveAppViewNavigation(appView, next, lyricEditorDirty)
+    const decision = resolveAppViewNavigation(appView, next, { lyrics: lyricEditorDirty, media: mediaEditorNeedsGuard })
     setPendingAppView(decision.pendingView)
     if (decision.nextView !== appView) commitAppViewChange(decision.nextView)
-  }, [appView, commitAppViewChange, lyricEditorDirty])
+  }, [appView, commitAppViewChange, lyricEditorDirty, mediaEditorNeedsGuard])
 
   const finishPendingNavigation = useCallback((next: AppView | null) => {
     setPendingAppView(null)
@@ -132,13 +135,20 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
 
   if (appView === 'media') {
     return (
-      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
-        <Suspense fallback={<WorkspaceLoading label="Media Manager" />}>
-          <MediaManagerView
-            onOpenLyricManager={openLyricManager}
-          />
-        </Suspense>
-      </ManagedWorkspaceShell>
+      <>
+        <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
+          <Suspense fallback={<WorkspaceLoading label="Media Manager" />}>
+            <MediaManagerView
+              onOpenLyricManager={openLyricManager}
+            />
+          </Suspense>
+        </ManagedWorkspaceShell>
+        <UnsavedMediaChangesDialog
+          open={pendingAppView !== null}
+          onCancel={() => setPendingAppView(null)}
+          onProceed={() => finishPendingNavigation(pendingAppView)}
+        />
+      </>
     )
   }
 

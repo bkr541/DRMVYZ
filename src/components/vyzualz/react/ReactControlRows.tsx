@@ -21,6 +21,8 @@ export interface SliderRowProps {
   description?: string
   /** When set, double-clicking the slider resets its value to this amount. */
   resetValue?: number
+  /** Overrides the value readout (and slider bubble), e.g. "+20", "90°". */
+  formatValue?: (value: number) => string
   onInteractionStart?: () => void
   onInteractionEnd?: () => void
 }
@@ -28,13 +30,14 @@ export interface SliderRowProps {
 export function SliderRow({
   label, labelAccessory, value, onChange,
   min = 0, max = 1, step = 0.01,
-  color = '#4ac7db', id, disabled = false, description, resetValue, onInteractionStart, onInteractionEnd,
+  color = '#4ac7db', id, disabled = false, description, resetValue, formatValue, onInteractionStart, onInteractionEnd,
 }: SliderRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
   const pct = `${Math.round(((value - min) / (max - min)) * 100)}%`
   const display =
-    (min === 0 && max === 1) ? `${Math.round(value * 100)}%`
+    formatValue                ? formatValue(value)
+    : (min === 0 && max === 1) ? `${Math.round(value * 100)}%`
     : step >= 1               ? `${Math.round(value)}`
     :                           value.toFixed(2)
   return (

@@ -718,3 +718,133 @@
   height: auto;
   min-height: 0;
 }
+
+/* ── Media editing ─────────────────────────────────────────────────────────── */
+
+/* The source <img>/<video> keeps decoding and playing while the edited canvas is
+   shown in its place, so it is hidden without leaving the layout or the decoder. */
+.mms-media-area { position: relative; }
+
+.mms-source--hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mms-edit-canvas {
+  /* Same sizing rules as .mms-image / .mms-video, which it also carries. */
+  width: auto;
+  height: auto;
+  background: transparent;
+}
+
+.mms-crop-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 16px 10px;
+}
+
+.mms-crop-hint {
+  margin-right: auto;
+  color: rgba(196, 207, 211, 0.55);
+  font-size: 11px;
+}
+
+.mmec-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.mmec-frame {
+  position: absolute;
+  /* Lets the dimming shadow and the corner/edge handles extend a little past the
+     picture (so every handle is fully grabbable) without dimming the whole stage. */
+  clip-path: inset(-14px);
+}
+
+.mmec-rect {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1.5px solid #67f7ff;
+  /* Everything outside the rectangle is dimmed. */
+  box-shadow: 0 0 0 9999px rgba(4, 8, 12, 0.62);
+  cursor: move;
+  pointer-events: auto;
+  touch-action: none;
+  outline: none;
+  background-image:
+    linear-gradient(to right, transparent calc(33.333% - 0.5px), rgba(103,247,255,0.35) calc(33.333% - 0.5px), rgba(103,247,255,0.35) calc(33.333% + 0.5px), transparent calc(33.333% + 0.5px), transparent calc(66.666% - 0.5px), rgba(103,247,255,0.35) calc(66.666% - 0.5px), rgba(103,247,255,0.35) calc(66.666% + 0.5px), transparent calc(66.666% + 0.5px)),
+    linear-gradient(to bottom, transparent calc(33.333% - 0.5px), rgba(103,247,255,0.35) calc(33.333% - 0.5px), rgba(103,247,255,0.35) calc(33.333% + 0.5px), transparent calc(33.333% + 0.5px), transparent calc(66.666% - 0.5px), rgba(103,247,255,0.35) calc(66.666% - 0.5px), rgba(103,247,255,0.35) calc(66.666% + 0.5px), transparent calc(66.666% + 0.5px));
+}
+
+.mmec-rect:focus-visible { box-shadow: 0 0 0 9999px rgba(4, 8, 12, 0.62), 0 0 0 2px rgba(103,247,255,0.55); }
+
+.mmec-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 1.5px solid #67f7ff;
+  border-radius: 3px;
+  background: #0b1115;
+  touch-action: none;
+}
+
+.mmec-handle--nw { left: -7px; top: -7px; cursor: nwse-resize; }
+.mmec-handle--n  { left: calc(50% - 6px); top: -7px; cursor: ns-resize; }
+.mmec-handle--ne { right: -7px; top: -7px; cursor: nesw-resize; }
+.mmec-handle--e  { right: -7px; top: calc(50% - 6px); cursor: ew-resize; }
+.mmec-handle--se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+.mmec-handle--s  { left: calc(50% - 6px); bottom: -7px; cursor: ns-resize; }
+.mmec-handle--sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
+.mmec-handle--w  { left: -7px; top: calc(50% - 6px); cursor: ew-resize; }
+
+.mms-stage--video .mms-media-area .mms-edit-canvas { max-height: calc(100cqh - 290px); }
+
+.mmi-body .rv-ctrl-row.mmi-edit-action-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mmi-edit-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mmi-edit-progress {
+  color: rgba(196, 207, 211, 0.62);
+  font-size: 11px;
+}
+
+.mmi-saveas-field {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+}
+
+.mmi-saveas-error {
+  color: #e0687d;
+  font-size: 11px;
+}
+
+/* Save · Save As (· Reset) sit side by side under the Edit groups. */
+.mmi-actions--row {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.mmi-actions--row .dv-icon-chip {
+  width: auto;
+  flex: 1 1 0;
+}

@@ -9,6 +9,7 @@ import {
   deleteMediaFile,
   beginMediaUpload,
   finalizeMediaUploadAtomic,
+  replaceMediaItemContentAtomic,
   markMediaUploadCleanupPending,
   updateMediaCleanupJob,
   requestMediaDeletion,
@@ -26,7 +27,7 @@ import type { MediaRole, MediaEnergy } from '../lib/mediaRoles'
 import { useAudioStore } from './audioStore'
 import { analyzeAudioFile } from '../utils/analyzeAudioFile'
 import { useVisualStore } from './visualStore'
-import { generateThumbnail, clearMediaGenerationCaches } from '../components/vyzualz/media/generateThumbnail'
+import { generateThumbnail, clearMediaGenerationCaches, clearFilmstripCache } from '../components/vyzualz/media/generateThumbnail'
 import { MediaSigningCoordinator } from '../lib/mediaSigning'
 import { BoundedObjectUrlCache } from '../lib/mediaAssetCache'
 import type { MediaSigningPriority } from '../lib/mediaSigning'
@@ -189,7 +190,20 @@ export interface CanonicalVisualUploadOptions {
   operationId?: string
   signal?: AbortSignal
   onPhase?: (phase: UploadWorkflowPhase) => void
+  /** Accept a rendered video (Media Manager Save As). Off by default for Deck ingestion. */
+  allowVideo?: boolean
 }
+
+export interface ReplaceMediaContentOptions {
+  signal?: AbortSignal
+  onPhase?: (phase: UploadWorkflowPhase) => void
+  /** Metadata for the replacement content (already stripped of stale analysis). */
+  metadata: MediaMetadata
+}
+
+export type ReplaceMediaContentStoreResult =
+  | { ok: true; item: UploadedMedia }
+  | { ok: false; error: string; kind: 'conflict' | 'failed' | 'cancelled'; cleanupPending?: boolean }
 
 export type CanonicalVisualUploadResult =
   | { ok: true; item: UploadedMedia }
@@ -588,8 +602,10 @@ type UploadResult =
       derivatives: MediaDerivativePath[]
       mediaItem: CanonicalMediaItem
       derivativeWarning?: string
+      /** Present when the upload replaced an existing item's content. */
+      cleanupJob?: MediaCleanupJobRow | null
     }
-  | { ok: false; error: string; phase: UploadWorkflowPhase; cleanupPending?: boolean }
+  | { ok: false; error: string; phase: UploadWorkflowPhase; cleanupPending?: boolean; conflict?: boolean }
 
 function uploadCancelled(signal?: AbortSignal): boolean {
   return signal?.aborted === true
@@ -635,7 +651,12 @@ async function uploadToSupabase(
   item: LocalItem,
   userId: string,
   operationId: string,
-  options: { signal?: AbortSignal; onPhase?: (phase: UploadWorkflowPhase) => void } = {},
+  options: {
+    signal?: AbortSignal
+    onPhase?: (phase: UploadWorkflowPhase) => void
+    /** Swap this existing item over to the upload instead of creating a new one. */
+    replace?: { mediaItemId: string; expectedRevision: number }
+  } = {},
 ): Promise<UploadResult> {
   const extension = storageExtensionForFile(file)
   const storagePath = `${userId}/uploads/${operationId}/original.${extension}`
@@ -720,28 +741,39 @@ async function uploadToSupabase(
     if (uploadCancelled(options.signal)) return fail('Upload cancelled. Uploaded objects are being cleaned up.', 'cancelled')
 
     options.onPhase?.('saving_record')
-    const finalized = await finalizeMediaUploadAtomic({
-      operationId,
-      media: {
-        name: item.name,
-        type: item.type,
-        storage_path: storagePath,
-        thumbnail_path: thumbnailStoragePath,
-        mime_type: contentType || null,
-        file_size: file.size,
-        width: item._width ?? item.metadata.width ?? null,
-        height: item._height ?? item.metadata.height ?? null,
-        duration_sec: item._duration ?? item.metadata.duration ?? null,
-        favorite: false,
-        media_role: item.mediaRole,
-        title: item.title ?? null,
-        description: item.description ?? null,
-        metadata: item.metadata,
-      },
-      tagNames: item.tags,
-      collectionIds: item.collectionIds,
-      derivatives,
-    })
+    const mediaRecord = {
+      name: item.name,
+      type: item.type,
+      storage_path: storagePath,
+      thumbnail_path: thumbnailStoragePath,
+      mime_type: contentType || null,
+      file_size: file.size,
+      width: item._width ?? item.metadata.width ?? null,
+      height: item._height ?? item.metadata.height ?? null,
+      duration_sec: item._duration ?? item.metadata.duration ?? null,
+      metadata: item.metadata,
+    }
+    const finalized = options.replace
+      ? await replaceMediaItemContentAtomic({
+          operationId,
+          mediaItemId: options.replace.mediaItemId,
+          expectedRevision: options.replace.expectedRevision,
+          media: mediaRecord,
+          derivatives,
+        })
+      : await finalizeMediaUploadAtomic({
+          operationId,
+          media: {
+            ...mediaRecord,
+            favorite: false,
+            media_role: item.mediaRole,
+            title: item.title ?? null,
+            description: item.description ?? null,
+          },
+          tagNames: item.tags,
+          collectionIds: item.collectionIds,
+          derivatives,
+        })
     if (!finalized.ok) {
       if (finalized.kind === 'transport') {
         const reconciled = await beginMediaUpload(operationId, storagePath, plannedDerivatives)
@@ -756,7 +788,8 @@ async function uploadToSupabase(
           }
         }
       }
-      return fail(finalized.message, 'saving_record')
+      const failure = await fail(finalized.message, 'saving_record')
+      return failure.ok ? failure : { ...failure, conflict: finalized.kind === 'conflict' }
     }
 
     options.onPhase?.('complete')
@@ -766,6 +799,7 @@ async function uploadToSupabase(
       thumbnailStoragePath: finalized.mediaItem.thumbnail_path,
       derivatives: finalized.mediaItem.derivative_paths ?? derivatives,
       mediaItem: finalized.mediaItem,
+      ...(options.replace ? { cleanupJob: (finalized as { cleanupJob?: MediaCleanupJobRow | null }).cleanupJob ?? null } : {}),
       ...(derivativeWarning ? { derivativeWarning } : {}),
     }
   } catch (error) {
@@ -1066,6 +1100,46 @@ function applyCollectionOrder(items: UploadedMedia[], collectionId: string, orde
   return items.map(item => item.collectionIds.includes(collectionId) ? ordered[index++] : item)
 }
 
+function displayMetaFor(canonical: CanonicalMediaItem): string {
+  const extension = canonical.storage_path.split('.').pop()?.toUpperCase() ?? ''
+  if (canonical.type === 'video') return `${extension} · ${fmtDur(canonical.duration_sec ?? 0)}`
+  return canonical.width && canonical.height ? `${extension} · ${canonical.width}×${canonical.height}` : extension
+}
+
+const contentCleanupInFlight = new Set<string>()
+
+/**
+ * Removes the storage objects a content replacement left behind and completes
+ * its durable job. Deleting an already-missing object succeeds, so an
+ * interrupted run is safe to repeat.
+ */
+async function runContentCleanup(job: MediaCleanupJobRow, userId: string): Promise<boolean> {
+  if (contentCleanupInFlight.has(job.id)) return false
+  contentCleanupInFlight.add(job.id)
+  try {
+    const completed = [...job.completed_paths]
+    for (const path of job.storage_paths) {
+      if (completed.includes(path)) continue
+      if (!isOwnedExactStoragePath(userId, path)) {
+        await updateMediaCleanupJob(job.id, completed, 'failed', 'Cleanup stopped because a path is invalid or belongs to another account.')
+        return false
+      }
+      const removed = await deleteMediaFile(path)
+      if (removed.error) {
+        await updateMediaCleanupJob(job.id, completed, 'failed', `Previous media content could not be removed: ${interpretError(removed.error)}`)
+        return false
+      }
+      completed.push(path)
+    }
+    const finished = await updateMediaCleanupJob(job.id, completed, 'complete', null)
+    return finished.ok
+  } catch {
+    return false
+  } finally {
+    contentCleanupInFlight.delete(job.id)
+  }
+}
+
 // ── Store interface ───────────────────────────────────────────────────────────
 
 interface MediaState {
@@ -1137,6 +1211,11 @@ interface MediaState {
   // Upload
   uploadQueuedMedia(options?: UploadQueuedMediaOptions): Promise<UploadBatchResult>
   uploadCanonicalVisualFile(file: File, options?: CanonicalVisualUploadOptions): Promise<CanonicalVisualUploadResult>
+  /**
+   * Media Manager "Save": swaps a canonical item over to freshly rendered content
+   * (same id, same organization, new bytes) in one revision-guarded transaction.
+   */
+  replaceMediaContent(itemId: string, file: File, options: ReplaceMediaContentOptions): Promise<ReplaceMediaContentStoreResult>
   addFiles(files: File[]): Promise<void>   // quick drag-drop path (no modal)
 
   // Load
@@ -1377,7 +1456,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   // ── Canonical visual upload service ──────────────────────────────────────
 
   async uploadCanonicalVisualFile(file, options = {}) {
-    if (file.type.startsWith('video/') || /\.(mp4|mov|webm|mkv)$/i.test(file.name)) {
+    if (!options.allowVideo && (file.type.startsWith('video/') || /\.(mp4|mov|webm|mkv)$/i.test(file.name))) {
       return { ok: false, error: 'The canonical visual upload path requires an image file.', phase: 'failed' }
     }
     if (uploadCancelled(options.signal)) {
@@ -1447,6 +1526,98 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     }
 
     return { ok: true, item: uploadedItem }
+  },
+
+  // ── Canonical content replacement (Media Manager Save) ───────────────────
+
+  async replaceMediaContent(itemId, file, options) {
+    const item = get().items.find(candidate => candidate.id === itemId)
+    if (!item?.dbId || item.revision == null) {
+      return { ok: false, kind: 'failed', error: 'This media has not finished syncing, so it cannot be replaced yet.' }
+    }
+    if (item.uploading || item.lifecycleStatus === 'deletion_pending' || item.lifecycleStatus === 'deletion_failed') {
+      return { ok: false, kind: 'failed', error: 'This media is busy or being deleted and cannot be replaced.' }
+    }
+    if (uploadCancelled(options.signal)) return { ok: false, kind: 'cancelled', error: 'Save cancelled.' }
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      const error = supabaseConfigured ? 'Sign in to save media.' : 'Supabase is not configured.'
+      set({ authRequired: supabaseConfigured })
+      return { ok: false, kind: 'failed', error }
+    }
+
+    let localItem: LocalItem
+    try {
+      localItem = await buildLocalItem(file, {
+        role: item.mediaRole,
+        title: item.title,
+        description: item.description,
+        tags: item.tags,
+        collectionIds: item.collectionIds,
+        metadata: options.metadata,
+      })
+    } catch (error) {
+      return { ok: false, kind: 'failed', error: error instanceof Error ? error.message : 'The edited media could not be prepared.' }
+    }
+
+    const operationId = generateOperationId()
+    const result = await uploadToSupabase(file, localItem, userId, operationId, {
+      signal: options.signal,
+      onPhase: options.onPhase,
+      replace: { mediaItemId: item.dbId, expectedRevision: item.revision },
+    })
+    if (!result.ok) {
+      releaseManagedObjectUrl(localItem.localObjectUrlKey, localItem.url)
+      return {
+        ok: false,
+        kind: result.conflict ? 'conflict' : result.phase === 'cancelled' ? 'cancelled' : 'failed',
+        error: result.error,
+        ...(result.cleanupPending ? { cleanupPending: true } : {}),
+      }
+    }
+
+    const canonical = result.mediaItem
+    // Anything cached against the previous bytes must not serve the new content.
+    const previousPaths = [
+      item.storagePath,
+      item.thumbnailStoragePath,
+      ...(item.derivativePaths ?? []).map(derivative => derivative.path),
+    ].filter((path): path is string => Boolean(path))
+    mediaSigningCoordinator.purgePaths(userId, MEDIA_STORAGE_BUCKET, previousPaths)
+    clearMediaGenerationCaches(stableMediaCachePrefix(item))
+    clearFilmstripCache(`media-manager:${item.id}`)
+    releaseManagedObjectUrl(item.localObjectUrlKey, item.url)
+    if (item.thumbnailUrl?.startsWith('blob:') && item.thumbnailUrl !== item.url) URL.revokeObjectURL(item.thumbnailUrl)
+    if (item.localThumbnailObjectUrl?.startsWith('blob:')) URL.revokeObjectURL(item.localThumbnailObjectUrl)
+
+    const replaced: UploadedMedia = {
+      ...reconcileCanonicalMediaItem({
+        ...item,
+        // Show the rendered file immediately; ensureMediaSigned swaps in a signed URL right after.
+        url: localItem.url,
+        localObjectUrlKey: localItem.localObjectUrlKey,
+        urlExpiresAt: undefined,
+        thumbnailUrl: localItem.thumbnailUrl,
+        thumbnailExpiresAt: undefined,
+        localThumbnailObjectUrl: undefined,
+        originalLoadRetries: 0,
+        thumbnailLoadRetries: 0,
+        originalSigningError: undefined,
+        thumbnailSigningError: undefined,
+        uploadOperationId: operationId,
+        derivativeWarning: result.derivativeWarning,
+      }, canonical),
+      meta: displayMetaFor(canonical),
+    }
+    set(state => ({
+      items: state.items.map(candidate => candidate.id === itemId ? replaced : candidate),
+      invalidated: true,
+      loadError: result.derivativeWarning ?? null,
+    }))
+    void get().ensureMediaSigned([itemId], 'visible')
+
+    if (result.cleanupJob) await runContentCleanup(result.cleanupJob, userId)
+    return { ok: true, item: replaced }
   },
 
   // ── Upload: queue-based (modal path) ─────────────────────────────────────
@@ -1862,6 +2033,11 @@ export const useMediaStore = create<MediaState>((set, get) => ({
           const cleanupMessage = cleanupResult.error
             ? `Pending cleanup could not be loaded: ${interpretError(cleanupResult.error)}`
             : collectionsResult.error ? `Collections could not be refreshed: ${interpretError(collectionsResult.error)}` : null
+
+          // Interrupted "Save" cleanups (previous content objects) finish in the background.
+          for (const job of cleanupResult.rows) {
+            if (job.kind === 'derivative_cleanup' && job.status !== 'complete') void runContentCleanup(job, userId)
+          }
 
           set(state => ({
             items: reconcileLibraryItems(state.items, pageItems, state.mutationStates),

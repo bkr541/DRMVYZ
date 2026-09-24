@@ -629,6 +629,11 @@
   color: #e0687d;
 }
 
+.dv-confirm-icon--neutral {
+  background: rgba(103, 247, 255, 0.12);
+  color: #67f7ff;
+}
+
 .dv-confirm-icon svg {
   width: 22px;
   height: 22px;
@@ -668,6 +673,7 @@
 
 .dv-confirm-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 7px;
   margin-top: 4px;
