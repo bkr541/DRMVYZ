@@ -18,6 +18,9 @@ import {
   CINEMA2_HUMN_MASTER_INTENSITY_ID,
   CINEMA2_HUMN_FIGURE_SCALE_ID,
   CINEMA2_HUMN_GRID_PRESENCE_ID,
+  CINEMA2_HUMN_BACKGROUND_ID,
+  CINEMA2_HUMN_WIREFRAME_ID,
+  CINEMA2_HUMN_PATTERN_INK_ID,
   CINEMA2_HUMN_LINE_PRESENCE_ID,
   CINEMA2_HUMN_LINE_WEIGHT_ID,
   CINEMA2_HUMN_FRAGMENTATION_ID,
@@ -98,7 +101,7 @@ function createHumNRuntime() {
   const raf = createRafHarness()
   const gl = createCinemaMockWebGL()
   gl.getUniformLocation = vi.fn((_program: WebGLProgram, name: string) =>
-    ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle'].includes(name)
+    ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle', 'u_backgroundColor', 'u_wireframeColor', 'u_patternInk'].includes(name)
       ? ({ name } as unknown as WebGLUniformLocation)
       : null)
   const created = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
@@ -215,6 +218,11 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     expect((gl.uniform2f as ReturnType<typeof vi.fn>).mock.calls).toEqual(expect.arrayContaining([
       [expect.objectContaining({ name: 'u_resolution' }), 1280, 720],
     ]))
+    expect((gl.uniform4f as ReturnType<typeof vi.fn>).mock.calls).toEqual(expect.arrayContaining([
+      [expect.objectContaining({ name: 'u_backgroundColor' }), 0, 0, 0, 1],
+      [expect.objectContaining({ name: 'u_wireframeColor' }), 245 / 255, 247 / 255, 250 / 255, 1],
+      [expect.objectContaining({ name: 'u_patternInk' }), 1, 1, 1, 1],
+    ]))
 
     runtime.dispose()
     expect(gl.__calls.deletedPrograms).toBe(gl.__calls.createdPrograms)
@@ -313,7 +321,7 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
 
     const snapshot = JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)
     expect(JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)).toBe(snapshot)
-    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(10)
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(13)
     expect(CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.parameterBindings ?? {}).toEqual({
       masterIntensity: { $ref: CINEMA2_HUMN_MASTER_INTENSITY_ID },
       figureScale: { $ref: CINEMA2_HUMN_FIGURE_SCALE_ID },
@@ -324,6 +332,9 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
       meshDetail: { $ref: CINEMA2_HUMN_MESH_DETAIL_ID },
       facetFill: { $ref: CINEMA2_HUMN_FACET_FILL_ID },
       fillStyle: { $ref: CINEMA2_HUMN_FILL_STYLE_ID },
+      backgroundColor: { $ref: CINEMA2_HUMN_BACKGROUND_ID },
+      wireframeColor: { $ref: CINEMA2_HUMN_WIREFRAME_ID },
+      patternInk: { $ref: CINEMA2_HUMN_PATTERN_INK_ID },
     })
     expect(CINEMA2_HUMN_PRESET_MANIFEST.choreography ?? []).toHaveLength(0)
     expect(CINEMA2_HUMN_PRESET_MANIFEST.effects ?? []).toHaveLength(0)
@@ -399,6 +410,132 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     expect(plan.targets.choreographyTargets.filter(target =>
       target.target.parameterId != null && userOwnedParameterIds.has(target.target.parameterId)
     )).toHaveLength(0)
+    runtime.dispose()
+  })
+
+  it('exposes the three independent user-owned Palette roles with canonical defaults and production bindings', () => {
+    const { runtime } = createHumNRuntime()
+    const plan = runtime.getCompiledPresetPlan()
+    const state = runtime.getParameterState()
+    const definitions = new Map(plan.parameters.definitions.map(definition => [definition.id, definition]))
+
+    expect(definitions.get(CINEMA2_HUMN_BACKGROUND_ID)).toMatchObject({
+      label: 'Background',
+      type: 'color',
+      defaultValue: [0, 0, 0, 1],
+      group: 'Stage Colors',
+      designParentGroup: 'palette',
+      modulatable: false,
+      choreographable: false,
+      automatable: false,
+    })
+    expect(definitions.get(CINEMA2_HUMN_WIREFRAME_ID)).toMatchObject({
+      label: 'Wireframe',
+      type: 'color',
+      defaultValue: [245 / 255, 247 / 255, 250 / 255, 1],
+      group: 'Figure Colors',
+      designParentGroup: 'palette',
+      modulatable: false,
+      choreographable: false,
+      automatable: false,
+    })
+    expect(definitions.get(CINEMA2_HUMN_PATTERN_INK_ID)).toMatchObject({
+      label: 'Pattern Ink',
+      type: 'color',
+      defaultValue: [1, 1, 1, 1],
+      group: 'Pattern Colors',
+      designParentGroup: 'palette',
+      modulatable: false,
+      choreographable: false,
+      automatable: false,
+    })
+
+    expect(state.getValue(CINEMA2_HUMN_BACKGROUND_ID)).toEqual([0, 0, 0, 1])
+    expect(state.getValue(CINEMA2_HUMN_WIREFRAME_ID)).toEqual([245 / 255, 247 / 255, 250 / 255, 1])
+    expect(state.getValue(CINEMA2_HUMN_PATTERN_INK_ID)).toEqual([1, 1, 1, 1])
+
+    const design = createCinema2DesignParentGroupModel(plan, state.getSnapshot())
+    const palette = design.find(parent => parent.id === 'palette')
+    expect(palette?.groups.map(group => [group.label, group.controls.map(control => control.definition.label)])).toEqual([
+      ['Stage Colors', ['Background']],
+      ['Figure Colors', ['Wireframe']],
+      ['Pattern Colors', ['Pattern Ink']],
+    ])
+
+    const moduleTargets = plan.targets.targets.filter(target => target.kind === 'module' && target.ownerId === CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.id)
+    expect(moduleTargets.filter(target => ['backgroundColor', 'wireframeColor', 'patternInk'].includes(target.property)).map(target => target.parameterId).sort()).toEqual([
+      CINEMA2_HUMN_BACKGROUND_ID,
+      CINEMA2_HUMN_PATTERN_INK_ID,
+      CINEMA2_HUMN_WIREFRAME_ID,
+    ].sort())
+    const paletteIds = new Set<string>([
+      CINEMA2_HUMN_BACKGROUND_ID,
+      CINEMA2_HUMN_WIREFRAME_ID,
+      CINEMA2_HUMN_PATTERN_INK_ID,
+    ])
+    expect(plan.targets.choreographyTargets.filter(target =>
+      target.target.parameterId != null && paletteIds.has(target.target.parameterId)
+    )).toHaveLength(0)
+
+    runtime.dispose()
+  })
+
+  it('routes Background, Wireframe, and Pattern Ink independently into real shader consumers, including filled Stripe/Mixed facets', () => {
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('vec3 background = u_backgroundColor.rgb;')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('vec3 wireframeColor = u_wireframeColor.rgb;')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('stripeWave >= 0.0 ? u_patternInk.rgb * 0.96')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('mixedRole == 4) return u_patternInk.rgb * vec3(0.94, 0.96, 0.98);')
+
+    const { runtime, gl, raf } = createHumNRuntime()
+    runtime.resize({ width: 1280, height: 720, dpr: 1 })
+    runtime.start()
+    const state = runtime.getParameterState()
+    const latestColor = (name: string) => {
+      const calls = (gl.uniform4f as ReturnType<typeof vi.fn>).mock.calls.filter((call: unknown[]) =>
+        (call[0] as { name?: string } | null)?.name === name
+      )
+      return calls.at(-1)?.slice(1)
+    }
+
+    expect(state.setPersistentValue(CINEMA2_HUMN_FACET_FILL_ID, 1)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_HUMN_FILL_STYLE_ID, 'Stripe')).toMatchObject({ ok: true })
+    raf.runNext(16.67)
+    expect(latestColor('u_backgroundColor')).toEqual([0, 0, 0, 1])
+    expect(latestColor('u_wireframeColor')).toEqual([245 / 255, 247 / 255, 250 / 255, 1])
+    expect(latestColor('u_patternInk')).toEqual([1, 1, 1, 1])
+
+    const background = [0.12, 0.24, 0.36, 1] as const
+    expect(state.setPersistentValue(CINEMA2_HUMN_BACKGROUND_ID, background)).toMatchObject({ ok: true })
+    raf.runNext(33.34)
+    expect(latestColor('u_backgroundColor')).toEqual([...background])
+    expect(latestColor('u_wireframeColor')).toEqual([245 / 255, 247 / 255, 250 / 255, 1])
+    expect(latestColor('u_patternInk')).toEqual([1, 1, 1, 1])
+
+    const wireframe = [1, 0.14, 0.08, 1] as const
+    expect(state.setPersistentValue(CINEMA2_HUMN_WIREFRAME_ID, wireframe)).toMatchObject({ ok: true })
+    raf.runNext(50.01)
+    expect(latestColor('u_backgroundColor')).toEqual([...background])
+    expect(latestColor('u_wireframeColor')).toEqual([...wireframe])
+    expect(latestColor('u_patternInk')).toEqual([1, 1, 1, 1])
+
+    const stripeInk = [0.1, 0.95, 0.2, 1] as const
+    expect(state.setPersistentValue(CINEMA2_HUMN_PATTERN_INK_ID, stripeInk)).toMatchObject({ ok: true })
+    raf.runNext(66.68)
+    expect(latestColor('u_backgroundColor')).toEqual([...background])
+    expect(latestColor('u_wireframeColor')).toEqual([...wireframe])
+    expect(latestColor('u_patternInk')).toEqual([...stripeInk])
+
+    const mixedInk = [0.18, 0.28, 1, 1] as const
+    expect(state.setPersistentValue(CINEMA2_HUMN_FILL_STYLE_ID, 'Mixed')).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_HUMN_PATTERN_INK_ID, mixedInk)).toMatchObject({ ok: true })
+    raf.runNext(83.35)
+    expect(latestColor('u_backgroundColor')).toEqual([...background])
+    expect(latestColor('u_wireframeColor')).toEqual([...wireframe])
+    expect(latestColor('u_patternInk')).toEqual([...mixedInk])
+
+    const snapshot = state.getSnapshot()
+    raf.runNext(100.02)
+    expect(state.getSnapshot()).toEqual(snapshot)
     runtime.dispose()
   })
 

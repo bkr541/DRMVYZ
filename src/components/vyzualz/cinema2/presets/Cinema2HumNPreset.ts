@@ -33,6 +33,9 @@ export const CINEMA2_HUMN_FILL_STYLE_ID = cinema2StableId<Cinema2ParameterId>('h
 export const CINEMA2_HUMN_MASTER_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('hum-n-master-intensity')
 export const CINEMA2_HUMN_FIGURE_SCALE_ID = cinema2StableId<Cinema2ParameterId>('hum-n-figure-scale')
 export const CINEMA2_HUMN_GRID_PRESENCE_ID = cinema2StableId<Cinema2ParameterId>('hum-n-grid-presence')
+export const CINEMA2_HUMN_BACKGROUND_ID = cinema2StableId<Cinema2ParameterId>('hum-n-background')
+export const CINEMA2_HUMN_WIREFRAME_ID = cinema2StableId<Cinema2ParameterId>('hum-n-wireframe')
+export const CINEMA2_HUMN_PATTERN_INK_ID = cinema2StableId<Cinema2ParameterId>('hum-n-pattern-ink')
 
 const CINEMA2_HUMN_COMPOSITION_OUTPUT_PARAMETERS = Object.freeze([
   Object.freeze({
@@ -87,6 +90,60 @@ const CINEMA2_HUMN_COMPOSITION_OUTPUT_PARAMETERS = Object.freeze([
     group: 'Stage',
     designParentGroup: 'design' as const,
     order: 2,
+    exposure: 'primary' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+])
+
+const CINEMA2_HUMN_PALETTE_PARAMETERS = Object.freeze([
+  Object.freeze({
+    id: CINEMA2_HUMN_BACKGROUND_ID,
+    label: 'Background',
+    description: 'Sets only the HUM:N stage/background surface color without recoloring the grid, figure line art, or facet pattern ink.',
+    type: 'color' as const,
+    defaultValue: Object.freeze([0, 0, 0, 1]),
+    section: 'Design',
+    group: 'Stage Colors',
+    designParentGroup: 'palette' as const,
+    order: 1,
+    exposure: 'primary' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_WIREFRAME_ID,
+    label: 'Wireframe',
+    description: 'Sets the primary HUM:N topology line color while preserving authored line hierarchy and leaving Pattern Ink independent.',
+    type: 'color' as const,
+    defaultValue: Object.freeze([245 / 255, 247 / 255, 250 / 255, 1]),
+    section: 'Design',
+    group: 'Figure Colors',
+    designParentGroup: 'palette' as const,
+    order: 2,
+    exposure: 'primary' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_PATTERN_INK_ID,
+    label: 'Pattern Ink',
+    description: 'Sets the bright ink used by Stripe and Mixed skin-facet graphics without recoloring the stage or topology lines.',
+    type: 'color' as const,
+    defaultValue: Object.freeze([1, 1, 1, 1]),
+    section: 'Design',
+    group: 'Pattern Colors',
+    designParentGroup: 'palette' as const,
+    order: 3,
     exposure: 'primary' as const,
     modulatable: false,
     choreographable: false,
@@ -231,7 +288,7 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_HUMN_PRESET_ID,
-  revision: 7,
+  revision: 8,
   metadata: Object.freeze({
     name: 'HUM:N',
     description: 'A near-black sparse low-poly humanoid bust reconstructed from the approved fractured white wireframe silhouette with stronger facet hierarchy, faint emergence fragments, and a restrained technical grid.',
@@ -244,6 +301,7 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
     CINEMA2_QUALITY_MODE_PARAMETER,
     ...CINEMA2_HUMN_COMPOSITION_OUTPUT_PARAMETERS,
     ...CINEMA2_HUMN_FIGURE_PARAMETERS,
+    ...CINEMA2_HUMN_PALETTE_PARAMETERS,
   ]),
   modules: Object.freeze([Object.freeze({
     id: CINEMA2_HUMN_MODULE_ID,
@@ -260,6 +318,9 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
       meshDetail: 'Reference',
       facetFill: 0,
       fillStyle: 'Mixed',
+      backgroundColor: Object.freeze([0, 0, 0, 1]),
+      wireframeColor: Object.freeze([245 / 255, 247 / 255, 250 / 255, 1]),
+      patternInk: Object.freeze([1, 1, 1, 1]),
     }),
     parameterBindings: Object.freeze({
       masterIntensity: cinema2Ref(CINEMA2_HUMN_MASTER_INTENSITY_ID),
@@ -271,6 +332,9 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
       meshDetail: cinema2Ref(CINEMA2_HUMN_MESH_DETAIL_ID),
       facetFill: cinema2Ref(CINEMA2_HUMN_FACET_FILL_ID),
       fillStyle: cinema2Ref(CINEMA2_HUMN_FILL_STYLE_ID),
+      backgroundColor: cinema2Ref(CINEMA2_HUMN_BACKGROUND_ID),
+      wireframeColor: cinema2Ref(CINEMA2_HUMN_WIREFRAME_ID),
+      patternInk: cinema2Ref(CINEMA2_HUMN_PATTERN_INK_ID),
     }),
     config: Object.freeze({ label: 'HUM:N Sparse Wireframe Foundation' }),
   })]),

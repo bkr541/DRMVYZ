@@ -436,6 +436,9 @@ uniform float u_fragmentation;
 uniform int u_meshDetail;
 uniform float u_facetFill;
 uniform int u_fillStyle;
+uniform vec4 u_backgroundColor;
+uniform vec4 u_wireframeColor;
+uniform vec4 u_patternInk;
 out vec4 outColor;
 
 ${glslSegmentArray('PRIMARY_SEGMENTS', HUMN_PRIMARY_SEGMENTS)}
@@ -501,7 +504,7 @@ vec3 facetStyleColor(int index, vec2 p, vec2 centroid) {
   float gradientT = clamp(0.5 + (p.y - centroid.y) * 2.8 + (p.x - centroid.x) * 0.8, 0.0, 1.0);
   vec3 gradient = mix(base * 0.46, nextRole, gradientT);
   float stripeWave = sin((p.x * 1.28 + p.y) * 92.0 + float(index) * 1.73);
-  vec3 stripe = stripeWave >= 0.0 ? vec3(0.96) : vec3(0.006);
+  vec3 stripe = stripeWave >= 0.0 ? u_patternInk.rgb * 0.96 : vec3(0.006);
 
   if (u_fillStyle == 0) return base;
   if (u_fillStyle == 1) return gradient;
@@ -512,7 +515,7 @@ vec3 facetStyleColor(int index, vec2 p, vec2 centroid) {
   if (mixedRole == 1) return stripe;
   if (mixedRole == 2) return vec3(0.94, 0.08, 0.62);
   if (mixedRole == 3) return vec3(0.58, 0.96, 0.08);
-  if (mixedRole == 4) return vec3(0.94, 0.96, 0.98);
+  if (mixedRole == 4) return u_patternInk.rgb * vec3(0.94, 0.96, 0.98);
   return gradient;
 }
 
@@ -616,7 +619,7 @@ void main() {
   );
 
   float vignette = 1.0 - smoothstep(0.56, 1.30, length((v_uv - 0.5) * vec2(0.92, 1.0)));
-  vec3 background = vec3(0.0009, 0.0012, 0.0014);
+  vec3 background = u_backgroundColor.rgb;
   float gridPresence = clamp(u_gridPresence, 0.0, 1.0);
   vec3 gridColor = vec3(0.10, 0.13, 0.14) * grid * 0.74 + vec3(0.08, 0.10, 0.11) * macroGrid * 0.12;
   if (gridPresence < 0.999999) gridColor *= gridPresence;
@@ -629,11 +632,12 @@ void main() {
   vec3 figureColor = stageColor;
   figureColor = mix(figureColor, skinColor, skinCoverage * facetFill * 0.90);
   float presence = clamp(u_linePresence, 0.0, 1.0);
-  figureColor += presence * vec3(0.72, 0.75, 0.77) * ghostFigure;
-  figureColor += presence * vec3(0.93, 0.95, 0.97) * wireframeFigure;
-  figureColor += presence * vec3(1.0) * accentFigure;
-  figureColor += presence * vec3(0.90, 0.93, 0.95) * restoration * 0.48;
-  figureColor += presence * vec3(0.86, 0.91, 0.94) * denseFigure * 0.52;
+  vec3 wireframeColor = u_wireframeColor.rgb;
+  figureColor += presence * wireframeColor * vec3(0.749388, 0.774291, 0.785400) * ghostFigure;
+  figureColor += presence * wireframeColor * vec3(0.967959, 0.980769, 0.989400) * wireframeFigure;
+  figureColor += presence * wireframeColor * vec3(1.040816, 1.032389, 1.020000) * accentFigure;
+  figureColor += presence * wireframeColor * vec3(0.936735, 0.960121, 0.969000) * restoration * 0.48;
+  figureColor += presence * wireframeColor * vec3(0.895102, 0.939474, 0.958800) * denseFigure * 0.52;
   float masterIntensity = clamp(u_masterIntensity, 0.0, 1.0);
   vec3 color = figureColor;
   if (masterIntensity < 0.999999) color = mix(stageColor, figureColor, masterIntensity);
@@ -644,6 +648,13 @@ void main() {
 
 function readNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function readColor(value: unknown, fallback: readonly [number, number, number, number]): readonly [number, number, number, number] {
+  if (Array.isArray(value) && value.length === 4 && value.every(component => typeof component === 'number' && Number.isFinite(component))) {
+    return value as unknown as readonly [number, number, number, number]
+  }
+  return fallback
 }
 
 function readMeshDetail(value: unknown): number {
@@ -691,7 +702,7 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
               label,
               vertSrc: FULLSCREEN_VERT_SRC,
               fragSrc: CINEMA2_HUMN_FRAGMENT_SOURCE,
-              optionalUniforms: ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle'],
+              optionalUniforms: ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle', 'u_backgroundColor', 'u_wireframeColor', 'u_patternInk'],
             })
             if (!result.program) {
               throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
@@ -717,6 +728,12 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
         program.setInt('u_meshDetail', readMeshDetail(context.parameters.get('meshDetail')))
         program.setFloat('u_facetFill', readNumber(context.parameters.get('facetFill'), 0))
         program.setInt('u_fillStyle', readFillStyle(context.parameters.get('fillStyle')))
+        const backgroundColor = readColor(context.parameters.get('backgroundColor'), [0, 0, 0, 1])
+        const wireframeColor = readColor(context.parameters.get('wireframeColor'), [245 / 255, 247 / 255, 250 / 255, 1])
+        const patternInk = readColor(context.parameters.get('patternInk'), [1, 1, 1, 1])
+        program.setVec4('u_backgroundColor', backgroundColor[0], backgroundColor[1], backgroundColor[2], backgroundColor[3])
+        program.setVec4('u_wireframeColor', wireframeColor[0], wireframeColor[1], wireframeColor[2], wireframeColor[3])
+        program.setVec4('u_patternInk', patternInk[0], patternInk[1], patternInk[2], patternInk[3])
         pass.run(program, target, width, height, [])
       },
     })
