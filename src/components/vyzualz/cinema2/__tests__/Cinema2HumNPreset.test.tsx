@@ -16,6 +16,9 @@ import {
   CINEMA2_HUMN_SKIN_FACET_GROUPS,
   CINEMA2_HUMN_LAYER_ID,
   CINEMA2_HUMN_MASTER_INTENSITY_ID,
+  CINEMA2_HUMN_BPM_SYNC_ID,
+  CINEMA2_HUMN_MOTION_AMOUNT_ID,
+  CINEMA2_HUMN_MOTION_RATE_ID,
   CINEMA2_HUMN_FIGURE_SCALE_ID,
   CINEMA2_HUMN_GRID_PRESENCE_ID,
   CINEMA2_HUMN_BACKGROUND_ID,
@@ -104,7 +107,7 @@ function createHumNRuntime() {
   const raf = createRafHarness()
   const gl = createCinemaMockWebGL()
   gl.getUniformLocation = vi.fn((_program: WebGLProgram, name: string) =>
-    ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle', 'u_backgroundColor', 'u_wireframeColor', 'u_patternInk', 'u_skinPrimary', 'u_skinSecondary', 'u_skinAccent'].includes(name)
+    ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_motionAmount', 'u_motionTime', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle', 'u_backgroundColor', 'u_wireframeColor', 'u_patternInk', 'u_skinPrimary', 'u_skinSecondary', 'u_skinAccent'].includes(name)
       ? ({ name } as unknown as WebGLUniformLocation)
       : null)
   const created = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
@@ -233,6 +236,34 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     expect(gl.__calls.deletedVertexArrays).toBe(gl.__calls.createdVertexArrays)
   })
 
+  it('advances authored native motion frame-to-frame through the production runtime only when Motion Amount is raised', () => {
+    const { runtime, gl, raf } = createHumNRuntime()
+    runtime.resize({ width: 1280, height: 720, dpr: 1 })
+    runtime.start()
+    const state = runtime.getParameterState()
+
+    raf.runNext(16.67)
+    expect((gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
+      expect.objectContaining({ name: 'u_motionAmount' }), 0,
+    ])
+
+    expect(state.setPersistentValue(CINEMA2_HUMN_MOTION_AMOUNT_ID, 1)).toMatchObject({ ok: true })
+    raf.runNext(33.34)
+    const firstMotionCall = (gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls
+      .filter((call: unknown[]) => (call[0] as { name?: string } | null)?.name === 'u_motionTime')
+      .slice(-1)[0]
+    raf.runNext(50.01)
+    const secondMotionCall = (gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls
+      .filter((call: unknown[]) => (call[0] as { name?: string } | null)?.name === 'u_motionTime')
+      .slice(-1)[0]
+
+    expect(firstMotionCall?.[1]).toEqual(expect.any(Number))
+    expect(secondMotionCall?.[1]).toEqual(expect.any(Number))
+    expect(Number(secondMotionCall?.[1])).toBeGreaterThan(Number(firstMotionCall?.[1]))
+    expect(runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 3, failedPassCount: 0 })
+    runtime.dispose()
+  })
+
   it('exposes the six approved Figure Construction controls with the requested authority and defaults', () => {
     const { runtime } = createHumNRuntime()
     const plan = runtime.getCompiledPresetPlan()
@@ -324,9 +355,12 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
 
     const snapshot = JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)
     expect(JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)).toBe(snapshot)
-    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(13)
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(19)
     expect(CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.parameterBindings ?? {}).toEqual({
       masterIntensity: { $ref: CINEMA2_HUMN_MASTER_INTENSITY_ID },
+      bpmSync: { $ref: CINEMA2_HUMN_BPM_SYNC_ID },
+      motionAmount: { $ref: CINEMA2_HUMN_MOTION_AMOUNT_ID },
+      motionRate: { $ref: CINEMA2_HUMN_MOTION_RATE_ID },
       figureScale: { $ref: CINEMA2_HUMN_FIGURE_SCALE_ID },
       gridPresence: { $ref: CINEMA2_HUMN_GRID_PRESENCE_ID },
       linePresence: { $ref: CINEMA2_HUMN_LINE_PRESENCE_ID },
@@ -338,12 +372,15 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
       backgroundColor: { $ref: CINEMA2_HUMN_BACKGROUND_ID },
       wireframeColor: { $ref: CINEMA2_HUMN_WIREFRAME_ID },
       patternInk: { $ref: CINEMA2_HUMN_PATTERN_INK_ID },
+      skinPrimary: { $ref: CINEMA2_HUMN_SKIN_PRIMARY_ID },
+      skinSecondary: { $ref: CINEMA2_HUMN_SKIN_SECONDARY_ID },
+      skinAccent: { $ref: CINEMA2_HUMN_SKIN_ACCENT_ID },
     })
     expect(CINEMA2_HUMN_PRESET_MANIFEST.choreography ?? []).toHaveLength(0)
     expect(CINEMA2_HUMN_PRESET_MANIFEST.effects ?? []).toHaveLength(0)
   })
 
-  it('projects Master Intensity flat under Master Controls and Figure Scale/Grid Presence into the approved Design groups', () => {
+  it('projects Master Intensity/BPM Sync flat under Master Controls and Figure Scale/Grid Presence/Motion into the approved Design groups', () => {
     const { runtime } = createHumNRuntime()
     const plan = runtime.getCompiledPresetPlan()
     const state = runtime.getParameterState()
@@ -357,6 +394,38 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
       max: 1,
       step: 0.01,
       designParentGroup: 'master-controls',
+      modulatable: false,
+      choreographable: false,
+      automatable: false,
+    })
+    expect(definitions.get(CINEMA2_HUMN_BPM_SYNC_ID)).toMatchObject({
+      label: 'BPM Sync',
+      type: 'boolean',
+      defaultValue: true,
+      designParentGroup: 'master-controls',
+      modulatable: false,
+      choreographable: false,
+      automatable: false,
+    })
+    expect(definitions.get(CINEMA2_HUMN_MOTION_AMOUNT_ID)).toMatchObject({
+      label: 'Motion Amount',
+      type: 'float',
+      defaultValue: 0,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      group: 'Motion',
+      designParentGroup: 'design',
+      modulatable: true,
+      choreographable: false,
+      automatable: false,
+    })
+    expect(definitions.get(CINEMA2_HUMN_MOTION_RATE_ID)).toMatchObject({
+      label: 'Motion Rate',
+      type: 'enum',
+      defaultValue: '1x',
+      group: 'Motion',
+      designParentGroup: 'design',
       modulatable: false,
       choreographable: false,
       automatable: false,
@@ -389,24 +458,33 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     })
 
     expect(state.getValue(CINEMA2_HUMN_MASTER_INTENSITY_ID)).toBe(1)
+    expect(state.getValue(CINEMA2_HUMN_BPM_SYNC_ID)).toBe(true)
+    expect(state.getValue(CINEMA2_HUMN_MOTION_AMOUNT_ID)).toBe(0)
+    expect(state.getValue(CINEMA2_HUMN_MOTION_RATE_ID)).toBe('1x')
     expect(state.getValue(CINEMA2_HUMN_FIGURE_SCALE_ID)).toBe(1)
     expect(state.getValue(CINEMA2_HUMN_GRID_PRESENCE_ID)).toBe(1)
 
     const design = createCinema2DesignParentGroupModel(plan, state.getSnapshot())
     const master = design.find(parent => parent.id === 'master-controls')
     expect(master?.groups).toEqual([])
-    expect(master?.controls.map(control => control.definition.label)).toContain('Master Intensity')
+    expect(master?.controls.map(control => control.definition.label)).toEqual(expect.arrayContaining(['Master Intensity', 'BPM Sync']))
+    expect(design.find(parent => parent.id === 'design')?.groups.find(group => group.label === 'Motion')?.controls.map(control => control.definition.label)).toEqual(['Motion Amount', 'Motion Rate'])
     expect(design.find(parent => parent.id === 'design')?.groups.find(group => group.label === 'Composition')?.controls.map(control => control.definition.label)).toEqual(['Figure Scale'])
     expect(design.find(parent => parent.id === 'design')?.groups.find(group => group.label === 'Stage')?.controls.map(control => control.definition.label)).toEqual(['Grid Presence'])
 
     const moduleTargets = plan.targets.targets.filter(target => target.kind === 'module' && target.ownerId === CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.id)
-    expect(moduleTargets.filter(target => ['masterIntensity', 'figureScale', 'gridPresence'].includes(target.property)).map(target => target.parameterId).sort()).toEqual([
+    expect(moduleTargets.filter(target => ['masterIntensity', 'bpmSync', 'motionAmount', 'motionRate', 'figureScale', 'gridPresence'].includes(target.property)).map(target => target.parameterId).sort()).toEqual([
+      CINEMA2_HUMN_BPM_SYNC_ID,
       CINEMA2_HUMN_FIGURE_SCALE_ID,
       CINEMA2_HUMN_GRID_PRESENCE_ID,
       CINEMA2_HUMN_MASTER_INTENSITY_ID,
+      CINEMA2_HUMN_MOTION_AMOUNT_ID,
+      CINEMA2_HUMN_MOTION_RATE_ID,
     ].sort())
     const userOwnedParameterIds = new Set<string>([
       CINEMA2_HUMN_MASTER_INTENSITY_ID,
+      CINEMA2_HUMN_BPM_SYNC_ID,
+      CINEMA2_HUMN_MOTION_RATE_ID,
       CINEMA2_HUMN_FIGURE_SCALE_ID,
       CINEMA2_HUMN_GRID_PRESENCE_ID,
     ])

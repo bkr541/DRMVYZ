@@ -7,6 +7,7 @@ import {
   type Cinema2ModuleManifest,
   type Cinema2ModuleTypeId,
 } from '../contracts/Cinema2NativePresetManifest'
+import { Cinema2SyncedMotionClockResolver } from './Cinema2SyncedMotionClock'
 import type {
   Cinema2ModuleCreateContext,
   Cinema2ModuleDiagnostic,
@@ -65,8 +66,10 @@ function humNPortraitScale(aspect: number): number {
  * approved landscape default resolves to exactly 1.0; only unsafe enlargement
  * (or portrait fit pressure) is constrained internally.
  */
-export function resolveCinema2HumNFigureScale(requested: unknown, width: number, height: number): number {
+export function resolveCinema2HumNFigureScale(requested: unknown, width: number, height: number, motionAmount: unknown = 0): number {
   const authored = clampNumber(readNumber(requested, 1), 0.7, 1.3)
+  const motionSafety = clampNumber(readNumber(motionAmount, 0), 0, 1)
+  const safeFrameMargin = HUMN_SAFE_FRAME_MARGIN - 0.045 * motionSafety
   const safeWidth = Math.max(1, width)
   const safeHeight = Math.max(1, height)
   const aspect = safeWidth / safeHeight
@@ -80,8 +83,8 @@ export function resolveCinema2HumNFigureScale(requested: unknown, width: number,
     Math.abs(CINEMA2_HUMN_CRITICAL_FIGURE_BOUNDS.maxY - CINEMA2_HUMN_COMPOSITION_ANCHOR.y),
   )
   const anchorScreenOffsetY = Math.abs(CINEMA2_HUMN_COMPOSITION_ANCHOR.y - 0.012)
-  const horizontalCap = (HUMN_SAFE_FRAME_MARGIN * aspect) / Math.max(portraitScale * horizontalExtent, Number.EPSILON)
-  const verticalCap = (HUMN_SAFE_FRAME_MARGIN / portraitScale - anchorScreenOffsetY) / Math.max(verticalExtent, Number.EPSILON)
+  const horizontalCap = (safeFrameMargin * aspect) / Math.max(portraitScale * horizontalExtent, Number.EPSILON)
+  const verticalCap = (safeFrameMargin / portraitScale - anchorScreenOffsetY) / Math.max(verticalExtent, Number.EPSILON)
   const safeCap = clampNumber(Math.min(1.3, horizontalCap, verticalCap), 0.01, 1.3)
 
   if (safeCap >= 1) return Math.min(authored, safeCap)
@@ -420,8 +423,9 @@ function glslFacetArrays(facets: readonly Cinema2HumNFacet[]): string {
 }
 
 /**
- * Native-module-owned shader generated from the canonical topology above. It
- * deliberately has no time, audio, director, choreography, or automation input.
+ * Native-module-owned shader generated from the canonical topology above. Its
+ * only time input is the shared Cinema 2.0 synced-motion clock; it deliberately
+ * has no direct audio, director, choreography, or automation input.
  */
 export const CINEMA2_HUMN_FRAGMENT_SOURCE = `#version 300 es
 precision highp float;
@@ -429,6 +433,8 @@ in vec2 v_uv;
 uniform vec2 u_resolution;
 uniform float u_masterIntensity;
 uniform float u_figureScale;
+uniform float u_motionAmount;
+uniform float u_motionTime;
 uniform float u_gridPresence;
 uniform float u_linePresence;
 uniform float u_lineWeight;
@@ -523,6 +529,68 @@ vec3 facetStyleColor(int index, vec2 p, vec2 centroid) {
   return gradient;
 }
 
+vec2 rotateAround(vec2 point, vec2 pivot, float angle) {
+  float c = cos(angle);
+  float s = sin(angle);
+  vec2 local = point - pivot;
+  return pivot + vec2(c * local.x - s * local.y, s * local.x + c * local.y);
+}
+
+vec2 applyHumNNativeMotion(vec2 p) {
+  float amount = clamp(u_motionAmount, 0.0, 1.0);
+  if (amount <= 0.000001) return p;
+
+  float t = u_motionTime;
+  const float TAU = 6.28318530718;
+
+  // Slow, overlapping authored cycles keep the bust moving as one person rather
+  // than as independent line fragments. Ranges stay deliberately restrained.
+  float bodyWave = sin(t * TAU * 0.105 + 0.35);
+  float postureWave = sin(t * TAU * 0.071 + 1.20);
+  float breathWave = sin(t * TAU * 0.185 - 0.60);
+  float yawWave = sin(t * TAU * 0.132 + 0.82);
+  float pitchWave = sin(t * TAU * 0.097 - 1.05);
+  float shoulderWave = sin(t * TAU * 0.143 + 2.10);
+
+  // Inverse-transform the sample point so the rendered figure receives the
+  // forward pose. Translation remains under ~3% and breathing scale under 1%.
+  vec2 q = p;
+  vec2 bodyTranslation = vec2(0.018 * bodyWave + 0.008 * postureWave, 0.008 * postureWave) * amount;
+  q -= bodyTranslation;
+
+  float bodyLean = 0.027925268 * postureWave * amount; // ~1.6 degrees
+  q = rotateAround(q, vec2(0.0, -0.56), -bodyLean);
+
+  float shoulderWeight = 1.0 - smoothstep(-0.42, -0.12, q.y);
+  q.x -= shoulderWeight * 0.014 * shoulderWave * amount;
+  q.y -= shoulderWeight * 0.006 * breathWave * amount;
+
+  float breathScale = 1.0 + 0.008 * breathWave * amount;
+  vec2 torsoPivot = vec2(0.0, -0.46);
+  vec2 torsoLocal = q - torsoPivot;
+  torsoLocal.x /= mix(1.0, breathScale, shoulderWeight);
+  q = torsoPivot + torsoLocal;
+
+  float headWeight = smoothstep(-0.34, 0.06, q.y);
+  vec2 headPivot = vec2(-0.015, 0.13);
+  vec2 headLocal = q - headPivot;
+
+  // The 2D authored topology gets a restrained perspective proxy for roughly
+  // +/-8 degree yaw and +/-4 degree pitch without breaking shared vertices.
+  float yaw = 0.13962634 * yawWave * amount;
+  float pitch = 0.06981317 * pitchWave * amount;
+  float yawNorm = yaw / 0.13962634;
+  float pitchNorm = pitch / 0.06981317;
+  float yawCompression = 1.0 - 0.035 * abs(yawNorm);
+  headLocal.x = headLocal.x / max(yawCompression, 0.965);
+  headLocal.x += 0.022 * yawNorm * headLocal.y;
+  headLocal.x -= 0.030 * yawNorm * headWeight;
+  headLocal.y -= 0.018 * pitchNorm * headWeight;
+  q = mix(q, headPivot + headLocal, headWeight);
+
+  return q;
+}
+
 void main() {
   vec2 resolution = max(u_resolution, vec2(1.0));
   float aspect = resolution.x / resolution.y;
@@ -540,6 +608,7 @@ void main() {
   if (abs(figureScale - 1.0) > 0.000001) {
     p = compositionAnchor + (p - compositionAnchor) / figureScale;
   }
+  p = applyHumNNativeMotion(p);
 
   float px = 2.0 / resolution.y;
   float weight = clamp(u_lineWeight, 0.5, 2.0);
@@ -654,6 +723,17 @@ function readNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
+function readBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback
+}
+
+function readMotionRate(value: unknown): number {
+  if (value === '1/2x') return 0.5
+  if (value === '2x') return 2
+  if (value === '4x') return 4
+  return 1
+}
+
 function readColor(value: unknown, fallback: readonly [number, number, number, number]): readonly [number, number, number, number] {
   if (Array.isArray(value) && value.length === 4 && value.every(component => typeof component === 'number' && Number.isFinite(component))) {
     return value as unknown as readonly [number, number, number, number]
@@ -692,12 +772,13 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
     const label = typeof context.module.config?.label === 'string'
       ? context.module.config.label
       : `Cinema2/${context.module.id}`
+    const motionClock = new Cinema2SyncedMotionClockResolver()
 
     const provider = Object.freeze({
       id: `${context.module.id}:hum-n-native`,
       moduleId: context.module.id,
       intent: 'fullscreen' as const,
-      execute: ({ target, width, height }: Cinema2ModuleRenderExecutionContext) => {
+      execute: ({ frame, target, width, height }: Cinema2ModuleRenderExecutionContext) => {
         const program = context.resources.acquire(
           'hum-n-program',
           'WebGLProgram',
@@ -706,7 +787,7 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
               label,
               vertSrc: FULLSCREEN_VERT_SRC,
               fragSrc: CINEMA2_HUMN_FRAGMENT_SOURCE,
-              optionalUniforms: ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle', 'u_backgroundColor', 'u_wireframeColor', 'u_patternInk', 'u_skinPrimary', 'u_skinSecondary', 'u_skinAccent'],
+              optionalUniforms: ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_motionAmount', 'u_motionTime', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle', 'u_backgroundColor', 'u_wireframeColor', 'u_patternInk', 'u_skinPrimary', 'u_skinSecondary', 'u_skinAccent'],
             })
             if (!result.program) {
               throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
@@ -724,7 +805,13 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
         program.activate()
         program.setVec2('u_resolution', width, height)
         program.setFloat('u_masterIntensity', readNumber(context.parameters.get('masterIntensity'), 1))
-        program.setFloat('u_figureScale', resolveCinema2HumNFigureScale(context.parameters.get('figureScale'), width, height))
+        const motionAmount = clampNumber(readNumber(context.parameters.get('motionAmount'), 0), 0, 1)
+        program.setFloat('u_figureScale', resolveCinema2HumNFigureScale(context.parameters.get('figureScale'), width, height, motionAmount))
+        const motionRate = readMotionRate(context.parameters.get('motionRate'))
+        const bpmSync = readBoolean(context.parameters.get('bpmSync'), true)
+        const motionTimeSec = motionClock.resolve(frame, bpmSync).syncedTimeSec * motionRate
+        program.setFloat('u_motionAmount', motionAmount)
+        program.setFloat('u_motionTime', motionTimeSec)
         program.setFloat('u_gridPresence', readNumber(context.parameters.get('gridPresence'), 1))
         program.setFloat('u_linePresence', readNumber(context.parameters.get('linePresence'), 1))
         program.setFloat('u_lineWeight', readNumber(context.parameters.get('lineWeight'), 1))
@@ -751,7 +838,7 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
     return {
       lifecycle: {
         update: () => {},
-        dispose: () => {},
+        dispose: () => motionClock.reset(),
       },
       render: { providers: Object.freeze([provider]) },
     }

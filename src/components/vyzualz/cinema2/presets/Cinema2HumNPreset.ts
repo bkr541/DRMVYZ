@@ -31,6 +31,9 @@ export const CINEMA2_HUMN_MESH_DETAIL_ID = cinema2StableId<Cinema2ParameterId>('
 export const CINEMA2_HUMN_FACET_FILL_ID = cinema2StableId<Cinema2ParameterId>('hum-n-facet-fill')
 export const CINEMA2_HUMN_FILL_STYLE_ID = cinema2StableId<Cinema2ParameterId>('hum-n-fill-style')
 export const CINEMA2_HUMN_MASTER_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('hum-n-master-intensity')
+export const CINEMA2_HUMN_BPM_SYNC_ID = cinema2StableId<Cinema2ParameterId>('hum-n-bpm-sync')
+export const CINEMA2_HUMN_MOTION_AMOUNT_ID = cinema2StableId<Cinema2ParameterId>('hum-n-motion-amount')
+export const CINEMA2_HUMN_MOTION_RATE_ID = cinema2StableId<Cinema2ParameterId>('hum-n-motion-rate')
 export const CINEMA2_HUMN_FIGURE_SCALE_ID = cinema2StableId<Cinema2ParameterId>('hum-n-figure-scale')
 export const CINEMA2_HUMN_GRID_PRESENCE_ID = cinema2StableId<Cinema2ParameterId>('hum-n-grid-presence')
 export const CINEMA2_HUMN_BACKGROUND_ID = cinema2StableId<Cinema2ParameterId>('hum-n-background')
@@ -53,6 +56,22 @@ const CINEMA2_HUMN_COMPOSITION_OUTPUT_PARAMETERS = Object.freeze([
     section: 'Design',
     designParentGroup: 'master-controls' as const,
     order: 1,
+    exposure: 'primary' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_BPM_SYNC_ID,
+    label: 'BPM Sync',
+    description: 'Uses the shared Cinema 2.0 synced-motion clock for HUM:N native movement. This remains a hard user-owned authorization.',
+    type: 'boolean' as const,
+    defaultValue: true,
+    section: 'Design',
+    designParentGroup: 'master-controls' as const,
+    order: 2,
     exposure: 'primary' as const,
     modulatable: false,
     choreographable: false,
@@ -209,6 +228,49 @@ const CINEMA2_HUMN_PALETTE_PARAMETERS = Object.freeze([
 
 const CINEMA2_HUMN_FIGURE_PARAMETERS = Object.freeze([
   Object.freeze({
+    id: CINEMA2_HUMN_MOTION_AMOUNT_ID,
+    label: 'Motion Amount',
+    description: 'Controls the authored low-to-medium HUM:N head, neck, shoulder, posture, and breathing motion while preserving the approved topology.',
+    type: 'float' as const,
+    defaultValue: 0,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    section: 'Design',
+    group: 'Motion',
+    designParentGroup: 'design' as const,
+    order: 1,
+    exposure: 'primary' as const,
+    modulatable: true,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_MOTION_RATE_ID,
+    label: 'Motion Rate',
+    description: 'Multiplies the phase of HUM:N authored native movement without changing its motion vocabulary.',
+    type: 'enum' as const,
+    defaultValue: '1x',
+    options: Object.freeze([
+      Object.freeze({ value: '1/2x', label: '1/2x' }),
+      Object.freeze({ value: '1x', label: '1x' }),
+      Object.freeze({ value: '2x', label: '2x' }),
+      Object.freeze({ value: '4x', label: '4x' }),
+    ]),
+    section: 'Design',
+    group: 'Motion',
+    designParentGroup: 'design' as const,
+    order: 2,
+    exposure: 'primary' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
     id: CINEMA2_HUMN_LINE_PRESENCE_ID,
     label: 'Line Presence',
     description: 'Controls the visible presence of HUM:N topology lines while preserving the authored grid and geometry.',
@@ -342,7 +404,7 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_HUMN_PRESET_ID,
-  revision: 9,
+  revision: 10,
   metadata: Object.freeze({
     name: 'HUM:N',
     description: 'A near-black sparse low-poly humanoid bust reconstructed from the approved fractured white wireframe silhouette with stronger facet hierarchy, faint emergence fragments, and a restrained technical grid.',
@@ -364,6 +426,9 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
     enabled: true,
     parameters: Object.freeze({
       masterIntensity: 1,
+      bpmSync: true,
+      motionAmount: 0,
+      motionRate: '1x',
       figureScale: 1,
       gridPresence: 1,
       linePresence: 1,
@@ -381,6 +446,9 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
     }),
     parameterBindings: Object.freeze({
       masterIntensity: cinema2Ref(CINEMA2_HUMN_MASTER_INTENSITY_ID),
+      bpmSync: cinema2Ref(CINEMA2_HUMN_BPM_SYNC_ID),
+      motionAmount: cinema2Ref(CINEMA2_HUMN_MOTION_AMOUNT_ID),
+      motionRate: cinema2Ref(CINEMA2_HUMN_MOTION_RATE_ID),
       figureScale: cinema2Ref(CINEMA2_HUMN_FIGURE_SCALE_ID),
       gridPresence: cinema2Ref(CINEMA2_HUMN_GRID_PRESENCE_ID),
       linePresence: cinema2Ref(CINEMA2_HUMN_LINE_PRESENCE_ID),
