@@ -21719,20 +21719,35 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* ── Page Heading Style Gallery (Layout Lab / Template, middle visualizer) ── */
-/* Eight header-bar concepts laid out two per row. Every bar is exactly the
+/* Eight header-bar concepts stacked in one column; each concept is a 2x2 group
+   showing the REACT, Media Manager, Lyric Manager and Show Manager headings.
+   Every bar is exactly the
    60px height of the real page header rows (.vz-header, .mmv-header,
    .lmv-header, .sm-topbar, .ttv-view-header), border included, so a concept
    that fits here fits in the app. Presentation only. Every animation is
    disabled under prefers-reduced-motion at the bottom of this block. */
 
 .llph-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.llph-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.llph-group-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 22px 20px;
+  gap: 14px;
   align-items: start;
 }
 
-.llph-gallery .lldd-gallery-row { min-width: 0; }
+.llph-group-grid > .lldd-gallery-sample { min-width: 0; }
 
 .llph-bar {
   --llph-cyan: #67f7ff;

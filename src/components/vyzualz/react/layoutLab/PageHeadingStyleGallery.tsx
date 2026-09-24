@@ -3,13 +3,14 @@ import type { CSSProperties, ReactNode } from 'react'
 // ── PageHeadingStyleGallery ──────────────────────────────────────────────
 //
 // Layout Lab / Template engine, middle visualizer only. Eight from-scratch
-// concepts for the page-level header heading shown at the top of every view
-// (Media Manager, Lyric Manager, REACT, Show Manager, Track Timeline
-// Visualizer). Each concept is a full-width header bar that layers surface
-// treatment, icon work and CSS-only motion behind/around the title text
-// instead of styling the text alone. Presentation only — no store, no
-// routing, nothing wired to a real page. Motion stops under
-// prefers-reduced-motion.
+// concepts for the page-level header heading shown at the top of every view.
+// Each concept is a full-width header bar that layers surface treatment, icon
+// work and CSS-only motion behind/around the title text instead of styling the
+// text alone. The gallery stacks the concepts in one column and shows every
+// concept as a 2x2 group of the four page headings (REACT, Media Manager,
+// Lyric Manager, Show Manager) so a style can be judged across all of them.
+// Presentation only — no store, no routing, nothing wired to a real page.
+// Motion stops under prefers-reduced-motion.
 
 const svgProps = {
   viewBox: '0 0 24 24',
@@ -72,25 +73,41 @@ function TimelineIcon() {
   )
 }
 
+interface PageHeading {
+  id: string
+  title: string
+  Icon: () => ReactNode
+}
+
+/** The four page headings each concept is shown with, in 2x2 reading order. */
+const PAGES: PageHeading[] = [
+  { id: 'react', title: 'React', Icon: ReactIcon },
+  { id: 'media-manager', title: 'Media Manager', Icon: MediaIcon },
+  { id: 'lyric-manager', title: 'Lyric Manager', Icon: LyricIcon },
+  { id: 'show-manager', title: 'Show Manager', Icon: ShowIcon },
+]
+
+type BarProps = Pick<PageHeading, 'title' | 'Icon'>
+
 interface Concept {
   id: string
   title: string
   blurb: string
-  Bar: () => ReactNode
+  Bar: (props: BarProps) => ReactNode
 }
 
 // ── 01 · Scan Plate ───────────────────────────────────────────────────────
 // Angled HUD plate with corner brackets, a scanning light sweep, an icon
 // tag and a ticked rule that runs off to the right edge of the header.
 
-function ScanPlate() {
+function ScanPlate({ title, Icon }: BarProps) {
   return (
     <div className="llph-bar llph-c1">
       <span className="llph-c1-corner llph-c1-corner--tl" aria-hidden="true" />
       <span className="llph-c1-corner llph-c1-corner--bl" aria-hidden="true" />
       <div className="llph-c1-plate">
-        <span className="llph-c1-icon"><MediaIcon /></span>
-        <span className="llph-c1-title">Media Manager</span>
+        <span className="llph-c1-icon"><Icon /></span>
+        <span className="llph-c1-title">{title}</span>
         <span className="llph-c1-sweep" aria-hidden="true" />
       </div>
       <span className="llph-c1-rule" aria-hidden="true" />
@@ -102,11 +119,11 @@ function ScanPlate() {
 // A large icon tile inside a rotating dashed orbit ring and a soft radial
 // glow, with a second oversized ghost icon layered behind the title.
 
-function HaloIcon() {
+function HaloIcon({ title, Icon }: BarProps) {
   return (
     <div className="llph-bar llph-c2">
       <span className="llph-c2-glow" aria-hidden="true" />
-      <span className="llph-c2-ghost" aria-hidden="true"><LyricIcon /></span>
+      <span className="llph-c2-ghost" aria-hidden="true"><Icon /></span>
       <span className="llph-c2-orb" aria-hidden="true">
         <svg className="llph-c2-ring" viewBox="0 0 64 64">
           <circle cx="32" cy="32" r="29" />
@@ -114,9 +131,9 @@ function HaloIcon() {
         <svg className="llph-c2-ring llph-c2-ring--inner" viewBox="0 0 64 64">
           <circle cx="32" cy="32" r="22" />
         </svg>
-        <span className="llph-c2-icon"><LyricIcon /></span>
+        <span className="llph-c2-icon"><Icon /></span>
       </span>
-      <span className="llph-c2-title">Lyric Manager</span>
+      <span className="llph-c2-title">{title}</span>
     </div>
   )
 }
@@ -125,11 +142,11 @@ function HaloIcon() {
 // Signal traces with pulsing nodes leave the title and run off to the right,
 // a light packet travels each trace, and the title carries a drawn underline.
 
-function CircuitTrace() {
+function CircuitTrace({ title, Icon }: BarProps) {
   return (
     <div className="llph-bar llph-c3">
-      <span className="llph-c3-chip" aria-hidden="true"><ShowIcon /></span>
-      <span className="llph-c3-title">Show Manager</span>
+      <span className="llph-c3-chip" aria-hidden="true"><Icon /></span>
+      <span className="llph-c3-title">{title}</span>
       <svg className="llph-c3-traces" viewBox="0 0 700 60" preserveAspectRatio="xMinYMid slice" aria-hidden="true">
         <path className="llph-c3-trace" d="M0 30 H50 L68 15 H330 L348 30 H700" />
         <path className="llph-c3-trace llph-c3-trace--b" d="M0 30 H120 L138 45 H420 L438 30 H700" />
@@ -150,14 +167,14 @@ function CircuitTrace() {
 // corner screws, an engraved title, a recessed icon well and a status LED,
 // crossed by a slow specular sheen.
 
-function BrushedMetal() {
+function BrushedMetal({ title, Icon }: BarProps) {
   return (
     <div className="llph-bar llph-c4">
       <div className="llph-c4-plate">
         <span className="llph-c4-screw llph-c4-screw--tl" aria-hidden="true" />
         <span className="llph-c4-screw llph-c4-screw--bl" aria-hidden="true" />
-        <span className="llph-c4-well" aria-hidden="true"><ReactIcon /></span>
-        <span className="llph-c4-title">React</span>
+        <span className="llph-c4-well" aria-hidden="true"><Icon /></span>
+        <span className="llph-c4-title">{title}</span>
         <span className="llph-c4-led" aria-hidden="true" />
         <span className="llph-c4-screw llph-c4-screw--tr" aria-hidden="true" />
         <span className="llph-c4-screw llph-c4-screw--br" aria-hidden="true" />
@@ -173,7 +190,7 @@ function BrushedMetal() {
 
 const SPECTRUM_BARS = Array.from({ length: 44 }, (_, index) => index)
 
-function SpectrumEcho() {
+function SpectrumEcho({ title, Icon }: BarProps) {
   return (
     <div className="llph-bar llph-c5">
       <div className="llph-c5-spectrum" aria-hidden="true">
@@ -189,8 +206,8 @@ function SpectrumEcho() {
           />
         ))}
       </div>
-      <span className="llph-c5-icon" aria-hidden="true"><TimelineIcon /></span>
-      <span className="llph-c5-title" data-text="Track Timeline">Track Timeline</span>
+      <span className="llph-c5-icon" aria-hidden="true"><Icon /></span>
+      <span className="llph-c5-title" data-text={title}>{title}</span>
     </div>
   )
 }
@@ -200,12 +217,12 @@ function SpectrumEcho() {
 // and cyan channel copies that tear apart in short bursts, with slash
 // glyph chips either side.
 
-function GlitchSignal() {
+function GlitchSignal({ title, Icon }: BarProps) {
   return (
     <div className="llph-bar llph-c6">
       <span className="llph-c6-slash" aria-hidden="true">//</span>
-      <span className="llph-c6-icon" aria-hidden="true"><MediaIcon /></span>
-      <span className="llph-c6-title" data-text="Media Manager">Media Manager</span>
+      <span className="llph-c6-icon" aria-hidden="true"><Icon /></span>
+      <span className="llph-c6-title" data-text={title}>{title}</span>
       <span className="llph-c6-slash llph-c6-slash--end" aria-hidden="true">//</span>
       <span className="llph-c6-scan" aria-hidden="true" />
     </div>
@@ -217,7 +234,7 @@ function GlitchSignal() {
 // conic edge light, a glass icon tile with a top reflection and a
 // gradient title.
 
-function AuroraGlass() {
+function AuroraGlass({ title, Icon }: BarProps) {
   return (
     <div className="llph-bar llph-c7">
       <span className="llph-c7-blob llph-c7-blob--a" aria-hidden="true" />
@@ -226,8 +243,8 @@ function AuroraGlass() {
       <div className="llph-c7-card">
         <span className="llph-c7-edge" aria-hidden="true" />
         <div className="llph-c7-body">
-          <span className="llph-c7-tile" aria-hidden="true"><LyricIcon /></span>
-          <span className="llph-c7-title">Lyric Manager</span>
+          <span className="llph-c7-tile" aria-hidden="true"><Icon /></span>
+          <span className="llph-c7-title">{title}</span>
         </div>
       </div>
     </div>
@@ -239,16 +256,16 @@ function AuroraGlass() {
 // line. The title is an outline stencil that a solid fill continually wipes
 // across, like ink being laid down over the drawing.
 
-function BlueprintStencil() {
+function BlueprintStencil({ title, Icon }: BarProps) {
   return (
     <div className="llph-bar llph-c8">
       <span className="llph-c8-ruler" aria-hidden="true" />
       <span className="llph-c8-cross llph-c8-cross--tl" aria-hidden="true" />
       <span className="llph-c8-cross llph-c8-cross--br" aria-hidden="true" />
-      <span className="llph-c8-icon" aria-hidden="true"><ShowIcon /></span>
+      <span className="llph-c8-icon" aria-hidden="true"><Icon /></span>
       <div className="llph-c8-titlewrap">
-        <span className="llph-c8-title">Show Manager</span>
-        <span className="llph-c8-fill" aria-hidden="true">Show Manager</span>
+        <span className="llph-c8-title">{title}</span>
+        <span className="llph-c8-fill" aria-hidden="true">{title}</span>
         <span className="llph-c8-dim" aria-hidden="true" />
       </div>
     </div>
@@ -310,15 +327,19 @@ export function PageHeadingStyleGallery() {
   return (
     <div className="llcm-gallery lldd-gallery llph-gallery" aria-label="Page heading style concepts">
       {CONCEPTS.map(concept => (
-        <div key={concept.id} className="lldd-gallery-row" data-testid={`page-heading-concept-${concept.id}`}>
+        <section key={concept.id} className="llph-group" data-testid={`page-heading-concept-${concept.id}`}>
           <div className="lldd-gallery-copy">
             <span className="lldd-gallery-title">{concept.title}</span>
             <span className="lldd-gallery-blurb">{concept.blurb}</span>
           </div>
-          <div className="lldd-gallery-sample">
-            <concept.Bar />
+          <div className="llph-group-grid">
+            {PAGES.map(page => (
+              <div key={page.id} className="lldd-gallery-sample" data-testid={`page-heading-${concept.id}-${page.id}`}>
+                <concept.Bar title={page.title} Icon={page.Icon} />
+              </div>
+            ))}
           </div>
-        </div>
+        </section>
       ))}
     </div>
   )
