@@ -250,25 +250,89 @@ export const CINEMA2_HUMN_SEMANTIC_GROUPS: Readonly<Record<Cinema2HumNSemanticGr
   'ghost-emergence-edges': allSegmentIds('ghost', HUMN_GHOST_SEGMENTS),
 })
 
-/** Hidden canonical facet seeds for later skin/fill work. They are not rendered in Phase A. */
-export const CINEMA2_HUMN_FUTURE_FACET_GROUPS = Object.freeze({
+/**
+ * Authored semantic skin facets. Every vertex is anchored to a point already
+ * present in the HUM:N line topology, so fill never becomes an unrelated
+ * fullscreen triangulation. Object insertion order is the stable reveal order.
+ */
+export const CINEMA2_HUMN_SKIN_FACET_GROUPS = Object.freeze({
   forehead: Object.freeze([
-    Object.freeze([-0.239147, 0.738005, -0.036558, 0.826352, 0.108149, 0.739528]) as Cinema2HumNFacet,
-    Object.freeze([-0.306169, 0.677075, -0.265042, 0.715156, -0.194973, 0.779132]) as Cinema2HumNFacet,
+    Object.freeze([-0.306169, 0.677075, -0.239147, 0.738005, -0.063976, 0.305407]) as Cinema2HumNFacet,
+    Object.freeze([-0.239147, 0.738005, -0.036558, 0.826352, -0.063976, 0.305407]) as Cinema2HumNFacet,
+    Object.freeze([-0.036558, 0.826352, 0.108149, 0.739528, -0.063976, 0.305407]) as Cinema2HumNFacet,
+    Object.freeze([0.108149, 0.739528, 0.214775, 0.649657, 0.054836, 0.061691]) as Cinema2HumNFacet,
   ]),
-  leftFace: Object.freeze([
-    Object.freeze([-0.342727, 0.616146, -0.254379, 0.346535, -0.063976, 0.305407]) as Cinema2HumNFacet,
+  leftTemple: Object.freeze([
+    Object.freeze([-0.394516, 0.468393, -0.306169, 0.677075, -0.254379, 0.346535]) as Cinema2HumNFacet,
+    Object.freeze([-0.306169, 0.677075, -0.063976, 0.305407, -0.254379, 0.346535]) as Cinema2HumNFacet,
+    Object.freeze([-0.394516, 0.468393, -0.254379, 0.346535, -0.351866, 0.252094]) as Cinema2HumNFacet,
+  ]),
+  rightTemple: Object.freeze([
+    Object.freeze([0.214775, 0.649657, 0.292460, 0.584158, 0.188880, 0.346535]) as Cinema2HumNFacet,
+    Object.freeze([0.214775, 0.649657, 0.188880, 0.346535, 0.054836, 0.061691]) as Cinema2HumNFacet,
+    Object.freeze([0.292460, 0.584158, 0.309216, 0.412034, 0.188880, 0.346535]) as Cinema2HumNFacet,
+  ]),
+  leftEyePlane: Object.freeze([
+    Object.freeze([-0.254379, 0.346535, -0.166032, 0.323686, -0.242193, 0.244478]) as Cinema2HumNFacet,
+    Object.freeze([-0.166032, 0.323686, -0.042650, 0.305407, -0.063976, 0.060168]) as Cinema2HumNFacet,
+    Object.freeze([-0.242193, 0.244478, -0.063976, 0.060168, -0.351866, 0.252094]) as Cinema2HumNFacet,
+  ]),
+  rightEyePlane: Object.freeze([
+    Object.freeze([0.134044, 0.317593, 0.188880, 0.346535, 0.179741, 0.236862]) as Cinema2HumNFacet,
+    Object.freeze([0.092917, 0.265804, 0.134044, 0.317593, 0.054836, 0.061691]) as Cinema2HumNFacet,
+    Object.freeze([0.179741, 0.236862, 0.298553, 0.268850, 0.243717, -0.006855]) as Cinema2HumNFacet,
+  ]),
+  noseBridge: Object.freeze([
+    Object.freeze([-0.063976, 0.305407, -0.031988, 0.285605, 0.054836, 0.061691]) as Cinema2HumNFacet,
+    Object.freeze([-0.063976, 0.060168, -0.039604, -0.064737, 0.054836, 0.061691]) as Cinema2HumNFacet,
+    Object.freeze([-0.039604, -0.064737, 0.053313, 0.054075, 0.060929, -0.125666]) as Cinema2HumNFacet,
+  ]),
+  leftCheek: Object.freeze([
+    Object.freeze([-0.351866, 0.252094, -0.242193, 0.244478, -0.287890, -0.054075]) as Cinema2HumNFacet,
+    Object.freeze([-0.242193, 0.244478, -0.063976, 0.060168, -0.042650, -0.101295]) as Cinema2HumNFacet,
     Object.freeze([-0.351866, 0.252094, -0.287890, -0.054075, -0.042650, -0.101295]) as Cinema2HumNFacet,
   ]),
-  rightFace: Object.freeze([
-    Object.freeze([0.293983, 0.582635, 0.188880, 0.346535, 0.054836, 0.061691]) as Cinema2HumNFacet,
-    Object.freeze([0.298553, 0.268850, 0.243717, -0.006855, 0.060929, -0.125666]) as Cinema2HumNFacet,
+  rightCheek: Object.freeze([
+    Object.freeze([0.179741, 0.236862, 0.243717, -0.006855, 0.054836, 0.061691]) as Cinema2HumNFacet,
+    Object.freeze([0.298553, 0.268850, 0.243717, -0.006855, 0.236101, -0.087586]) as Cinema2HumNFacet,
+    Object.freeze([0.054836, 0.061691, 0.243717, -0.006855, 0.060929, -0.125666]) as Cinema2HumNFacet,
   ]),
-  torso: Object.freeze([
-    Object.freeze([-0.577304, -0.521706, -0.193450, -0.526276, -0.194973, -0.773039]) as Cinema2HumNFacet,
-    Object.freeze([0.207159, -0.329779, 0.473724, -0.507997, 0.109673, -0.773039]) as Cinema2HumNFacet,
+  mouthJaw: Object.freeze([
+    Object.freeze([-0.287890, -0.054075, -0.042650, -0.101295, -0.202589, -0.220107]) as Cinema2HumNFacet,
+    Object.freeze([-0.042650, -0.101295, 0.060929, -0.125666, -0.051790, -0.296268]) as Cinema2HumNFacet,
+    Object.freeze([0.060929, -0.125666, 0.201066, -0.165270, 0.079208, -0.281036]) as Cinema2HumNFacet,
+    Object.freeze([-0.202589, -0.220107, -0.051790, -0.296268, -0.176695, -0.241432]) as Cinema2HumNFacet,
+    Object.freeze([-0.051790, -0.296268, 0.060929, -0.282559, -0.035034, -0.338919]) as Cinema2HumNFacet,
+    Object.freeze([0.060929, -0.282559, 0.207159, -0.329779, -0.035034, -0.338919]) as Cinema2HumNFacet,
+  ]),
+  neck: Object.freeze([
+    Object.freeze([-0.265042, -0.317593, -0.193450, -0.526276, -0.035034, -0.338919]) as Cinema2HumNFacet,
+    Object.freeze([-0.193450, -0.526276, -0.012186, -0.568926, -0.035034, -0.338919]) as Cinema2HumNFacet,
+    Object.freeze([-0.035034, -0.338919, 0.181264, -0.453161, 0.207159, -0.329779]) as Cinema2HumNFacet,
+    Object.freeze([-0.035034, -0.338919, -0.012186, -0.568926, 0.181264, -0.453161]) as Cinema2HumNFacet,
+  ]),
+  leftShoulder: Object.freeze([
+    Object.freeze([-0.577304, -0.521706, -0.278751, -0.335872, -0.193450, -0.526276]) as Cinema2HumNFacet,
+    Object.freeze([-0.623001, -0.597867, -0.577304, -0.521706, -0.283321, -0.727342]) as Cinema2HumNFacet,
+    Object.freeze([-0.577304, -0.521706, -0.193450, -0.526276, -0.283321, -0.727342]) as Cinema2HumNFacet,
+    Object.freeze([-0.283321, -0.727342, -0.193450, -0.526276, -0.277228, -0.734958]) as Cinema2HumNFacet,
+    Object.freeze([-0.843869, -0.669459, -0.623001, -0.597867, -0.283321, -0.727342]) as Cinema2HumNFacet,
+  ]),
+  rightShoulder: Object.freeze([
+    Object.freeze([0.181264, -0.453161, 0.473724, -0.507997, 0.109673, -0.773039]) as Cinema2HumNFacet,
+    Object.freeze([0.473724, -0.507997, 0.722011, -0.610053, 0.336634, -0.686215]) as Cinema2HumNFacet,
+    Object.freeze([0.181264, -0.453161, 0.109673, -0.773039, -0.012186, -0.568926]) as Cinema2HumNFacet,
+    Object.freeze([0.109673, -0.773039, 0.336634, -0.686215, 0.473724, -0.507997]) as Cinema2HumNFacet,
+    Object.freeze([0.336634, -0.686215, 0.722011, -0.610053, 0.901752, -0.756283]) as Cinema2HumNFacet,
   ]),
 })
+
+/** Compatibility alias retained for earlier HUM:N foundation tests/consumers. */
+export const CINEMA2_HUMN_FUTURE_FACET_GROUPS = CINEMA2_HUMN_SKIN_FACET_GROUPS
+
+const HUMN_SKIN_FACETS: readonly Cinema2HumNFacet[] = Object.freeze(
+  Object.values(CINEMA2_HUMN_SKIN_FACET_GROUPS).flat(),
+)
 
 export const CINEMA2_HUMN_CANONICAL_TOPOLOGY = Object.freeze({
   primarySegments: HUMN_PRIMARY_SEGMENTS,
@@ -278,6 +342,7 @@ export const CINEMA2_HUMN_CANONICAL_TOPOLOGY = Object.freeze({
   denseSegments: HUMN_DENSE_SEGMENTS,
   semanticGroups: CINEMA2_HUMN_SEMANTIC_GROUPS,
   futureFacetGroups: CINEMA2_HUMN_FUTURE_FACET_GROUPS,
+  skinFacetGroups: CINEMA2_HUMN_SKIN_FACET_GROUPS,
 })
 
 function glslNumber(value: number): string {
@@ -292,6 +357,16 @@ function glslSegmentArray(name: string, segments: readonly Cinema2HumNSegment[])
   return `const int ${countName} = ${segments.length};\nconst vec4 ${name}[${countName}] = vec4[${countName}](\n${values}\n);`
 }
 
+function glslFacetArrays(facets: readonly Cinema2HumNFacet[]): string {
+  const ab = facets
+    .map(facet => `  vec4(${facet.slice(0, 4).map(glslNumber).join(', ')})`)
+    .join(',\n')
+  const c = facets
+    .map(facet => `  vec2(${facet.slice(4, 6).map(glslNumber).join(', ')})`)
+    .join(',\n')
+  return `const int SKIN_FACET_COUNT = ${facets.length};\nconst vec4 SKIN_FACET_AB[SKIN_FACET_COUNT] = vec4[SKIN_FACET_COUNT](\n${ab}\n);\nconst vec2 SKIN_FACET_C[SKIN_FACET_COUNT] = vec2[SKIN_FACET_COUNT](\n${c}\n);`
+}
+
 /**
  * Native-module-owned shader generated from the canonical topology above. It
  * deliberately has no time, audio, director, choreography, or automation input.
@@ -304,6 +379,8 @@ uniform float u_linePresence;
 uniform float u_lineWeight;
 uniform float u_fragmentation;
 uniform int u_meshDetail;
+uniform float u_facetFill;
+uniform int u_fillStyle;
 out vec4 outColor;
 
 ${glslSegmentArray('PRIMARY_SEGMENTS', HUMN_PRIMARY_SEGMENTS)}
@@ -315,6 +392,8 @@ ${glslSegmentArray('GHOST_SEGMENTS', HUMN_GHOST_SEGMENTS)}
 ${glslSegmentArray('RESTORATION_SEGMENTS', HUMN_RESTORATION_SEGMENTS)}
 
 ${glslSegmentArray('DENSE_SEGMENTS', HUMN_DENSE_SEGMENTS)}
+
+${glslFacetArrays(HUMN_SKIN_FACETS)}
 
 float sdSegment(vec2 p, vec2 a, vec2 b) {
   vec2 pa = p - a;
@@ -337,6 +416,49 @@ float fragmentationKeep(int index, float salt) {
   float normalized = clamp((u_fragmentation - 0.55) / 0.45, 0.0, 1.0);
   float keepFraction = mix(1.0, 0.22, normalized);
   return stableRank(index, salt) <= keepFraction ? 1.0 : 0.0;
+}
+
+
+float cross2(vec2 a, vec2 b) {
+  return a.x * b.y - a.y * b.x;
+}
+
+float triangleMask(vec2 p, vec2 a, vec2 b, vec2 c) {
+  float d0 = cross2(b - a, p - a);
+  float d1 = cross2(c - b, p - b);
+  float d2 = cross2(a - c, p - c);
+  bool hasNegative = d0 < 0.0 || d1 < 0.0 || d2 < 0.0;
+  bool hasPositive = d0 > 0.0 || d1 > 0.0 || d2 > 0.0;
+  return hasNegative && hasPositive ? 0.0 : 1.0;
+}
+
+vec3 facetRoleColor(int index) {
+  int role = index % 4;
+  if (role == 1) return vec3(0.94, 0.08, 0.62); // magenta secondary
+  if (role == 2) return vec3(0.58, 0.96, 0.08); // acid-green accent
+  if (role == 3) return vec3(0.94, 0.96, 0.98); // white graphic ink
+  return vec3(0.03, 0.78, 0.88); // cyan/teal primary
+}
+
+vec3 facetStyleColor(int index, vec2 p, vec2 centroid) {
+  vec3 base = facetRoleColor(index);
+  vec3 nextRole = facetRoleColor(index + 1);
+  float gradientT = clamp(0.5 + (p.y - centroid.y) * 2.8 + (p.x - centroid.x) * 0.8, 0.0, 1.0);
+  vec3 gradient = mix(base * 0.46, nextRole, gradientT);
+  float stripeWave = sin((p.x * 1.28 + p.y) * 92.0 + float(index) * 1.73);
+  vec3 stripe = stripeWave >= 0.0 ? vec3(0.96) : vec3(0.006);
+
+  if (u_fillStyle == 0) return base;
+  if (u_fillStyle == 1) return gradient;
+  if (u_fillStyle == 2) return stripe;
+
+  int mixedRole = index % 7;
+  if (mixedRole == 0) return vec3(0.004); // authored black surface void
+  if (mixedRole == 1) return stripe;
+  if (mixedRole == 2) return vec3(0.94, 0.08, 0.62);
+  if (mixedRole == 3) return vec3(0.58, 0.96, 0.08);
+  if (mixedRole == 4) return vec3(0.94, 0.96, 0.98);
+  return gradient;
 }
 
 void main() {
@@ -404,6 +526,23 @@ void main() {
     }
   }
 
+  vec3 skinColor = vec3(0.0);
+  float skinCoverage = 0.0;
+  float facetFill = clamp(u_facetFill, 0.0, 1.0);
+  if (facetFill > 0.0) {
+    for (int i = 0; i < SKIN_FACET_COUNT; ++i) {
+      vec4 ab = SKIN_FACET_AB[i];
+      vec2 c = SKIN_FACET_C[i];
+      float inside = triangleMask(p, ab.xy, ab.zw, c);
+      float rank = stableRank(i, 1.71);
+      float reveal = smoothstep(rank * 0.82, min(1.0, rank * 0.82 + 0.18), facetFill);
+      float mask = inside * reveal;
+      vec2 centroid = (ab.xy + ab.zw + c) / 3.0;
+      skinColor = mix(skinColor, facetStyleColor(i, p, centroid), mask);
+      skinCoverage = max(skinCoverage, mask);
+    }
+  }
+
   // Fine technical grid from the visual reference, subordinate to the figure.
   vec2 gridCell = abs(fract(gl_FragCoord.xy / 58.0) - 0.5);
   float grid = max(
@@ -425,6 +564,7 @@ void main() {
   float accentFigure = accentSoft * 0.16 + accentCore * 0.34;
 
   vec3 color = background + gridColor;
+  color = mix(color, skinColor, skinCoverage * facetFill * 0.90);
   float presence = clamp(u_linePresence, 0.0, 1.0);
   color += presence * vec3(0.72, 0.75, 0.77) * ghostFigure;
   color += presence * vec3(0.93, 0.95, 0.97) * wireframeFigure;
@@ -444,6 +584,13 @@ function readMeshDetail(value: unknown): number {
   if (value === 'Sparse') return 0
   if (value === 'Dense') return 2
   return 1
+}
+
+function readFillStyle(value: unknown): number {
+  if (value === 'Solid') return 0
+  if (value === 'Gradient') return 1
+  if (value === 'Stripe') return 2
+  return 3
 }
 
 function validateConfig(config: Cinema2JsonObject | undefined): readonly Cinema2ModuleDiagnostic[] {
@@ -478,7 +625,7 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
               label,
               vertSrc: FULLSCREEN_VERT_SRC,
               fragSrc: CINEMA2_HUMN_FRAGMENT_SOURCE,
-              optionalUniforms: ['u_resolution', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail'],
+              optionalUniforms: ['u_resolution', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle'],
             })
             if (!result.program) {
               throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
@@ -499,6 +646,8 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
         program.setFloat('u_lineWeight', readNumber(context.parameters.get('lineWeight'), 1))
         program.setFloat('u_fragmentation', readNumber(context.parameters.get('fragmentation'), 0.55))
         program.setInt('u_meshDetail', readMeshDetail(context.parameters.get('meshDetail')))
+        program.setFloat('u_facetFill', readNumber(context.parameters.get('facetFill'), 0))
+        program.setInt('u_fillStyle', readFillStyle(context.parameters.get('fillStyle')))
         pass.run(program, target, width, height, [])
       },
     })

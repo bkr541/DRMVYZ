@@ -11,11 +11,14 @@ import {
   CINEMA2_HUMN_CANONICAL_TOPOLOGY,
   CINEMA2_HUMN_FRAGMENT_SOURCE,
   CINEMA2_HUMN_FUTURE_FACET_GROUPS,
+  CINEMA2_HUMN_SKIN_FACET_GROUPS,
   CINEMA2_HUMN_LAYER_ID,
   CINEMA2_HUMN_LINE_PRESENCE_ID,
   CINEMA2_HUMN_LINE_WEIGHT_ID,
   CINEMA2_HUMN_FRAGMENTATION_ID,
   CINEMA2_HUMN_MESH_DETAIL_ID,
+  CINEMA2_HUMN_FACET_FILL_ID,
+  CINEMA2_HUMN_FILL_STYLE_ID,
   CINEMA2_HUMN_NATIVE_MODULE_TYPE_ID,
   CINEMA2_HUMN_NATIVE_MODULE_VERSION,
   CINEMA2_HUMN_PRESET_ID,
@@ -89,7 +92,7 @@ function createHumNRuntime() {
   const raf = createRafHarness()
   const gl = createCinemaMockWebGL()
   gl.getUniformLocation = vi.fn((_program: WebGLProgram, name: string) =>
-    ['u_resolution', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail'].includes(name)
+    ['u_resolution', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle'].includes(name)
       ? ({ name } as unknown as WebGLUniformLocation)
       : null)
   const created = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
@@ -194,10 +197,12 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
       [expect.objectContaining({ name: 'u_linePresence' }), 1],
       [expect.objectContaining({ name: 'u_lineWeight' }), 1],
       [expect.objectContaining({ name: 'u_fragmentation' }), 0.55],
+      [expect.objectContaining({ name: 'u_facetFill' }), 0],
     ]))
-    expect((gl.uniform1i as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
-      expect.objectContaining({ name: 'u_meshDetail' }), 1,
-    ])
+    expect((gl.uniform1i as ReturnType<typeof vi.fn>).mock.calls).toEqual(expect.arrayContaining([
+      [expect.objectContaining({ name: 'u_meshDetail' }), 1],
+      [expect.objectContaining({ name: 'u_fillStyle' }), 3],
+    ]))
     expect((gl.uniform2f as ReturnType<typeof vi.fn>).mock.calls).toEqual(expect.arrayContaining([
       [expect.objectContaining({ name: 'u_resolution' }), 1280, 720],
     ]))
@@ -208,7 +213,7 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     expect(gl.__calls.deletedVertexArrays).toBe(gl.__calls.createdVertexArrays)
   })
 
-  it('exposes only the four approved Figure Construction controls with the requested authority and defaults', () => {
+  it('exposes the six approved Figure Construction controls with the requested authority and defaults', () => {
     const { runtime } = createHumNRuntime()
     const plan = runtime.getCompiledPresetPlan()
     const state = runtime.getParameterState()
@@ -218,9 +223,13 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
       CINEMA2_HUMN_LINE_WEIGHT_ID,
       CINEMA2_HUMN_FRAGMENTATION_ID,
       CINEMA2_HUMN_MESH_DETAIL_ID,
+      CINEMA2_HUMN_FACET_FILL_ID,
+      CINEMA2_HUMN_FILL_STYLE_ID,
     ])
-    expect(figureDefinitions.map(definition => definition.defaultValue)).toEqual([1, 1, 0.55, 'Reference'])
+    expect(figureDefinitions.map(definition => definition.defaultValue)).toEqual([1, 1, 0.55, 'Reference', 0, 'Mixed'])
     expect(figureDefinitions.map(definition => [definition.modulatable, definition.choreographable])).toEqual([
+      [true, true],
+      [false, false],
       [true, true],
       [false, false],
       [true, true],
@@ -230,6 +239,8 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     expect(state.getValue(CINEMA2_HUMN_LINE_WEIGHT_ID)).toBe(1)
     expect(state.getValue(CINEMA2_HUMN_FRAGMENTATION_ID)).toBe(0.55)
     expect(state.getValue(CINEMA2_HUMN_MESH_DETAIL_ID)).toBe('Reference')
+    expect(state.getValue(CINEMA2_HUMN_FACET_FILL_ID)).toBe(0)
+    expect(state.getValue(CINEMA2_HUMN_FILL_STYLE_ID)).toBe('Mixed')
 
     const design = createCinema2DesignParentGroupModel(plan, state.getSnapshot())
     const figureGroup = design.find(parent => parent.id === 'design')?.groups.find(group => group.label === 'Figure Construction')
@@ -238,10 +249,13 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
       'Line Weight',
       'Fragmentation',
       'Mesh Detail',
+      'Facet Fill',
+      'Fill Style',
     ])
 
     const moduleTargets = plan.targets.targets.filter(target => target.kind === 'module' && target.ownerId === CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.id)
-    expect(moduleTargets.filter(target => ['linePresence', 'fragmentation'].includes(target.property)).map(target => target.parameterId).sort()).toEqual([
+    expect(moduleTargets.filter(target => ['linePresence', 'fragmentation', 'facetFill'].includes(target.property)).map(target => target.parameterId).sort()).toEqual([
+      CINEMA2_HUMN_FACET_FILL_ID,
       CINEMA2_HUMN_FRAGMENTATION_ID,
       CINEMA2_HUMN_LINE_PRESENCE_ID,
     ].sort())
@@ -269,18 +283,35 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     for (const group of expectedGroups) {
       expect(CINEMA2_HUMN_SEMANTIC_GROUPS[group].length, group).toBeGreaterThan(0)
     }
-    for (const [group, facets] of Object.entries(CINEMA2_HUMN_FUTURE_FACET_GROUPS)) {
+    expect(CINEMA2_HUMN_FUTURE_FACET_GROUPS).toBe(CINEMA2_HUMN_SKIN_FACET_GROUPS)
+    for (const [group, facets] of Object.entries(CINEMA2_HUMN_SKIN_FACET_GROUPS)) {
       expect(facets.length, group).toBeGreaterThan(0)
+      const authoredSegments = [
+        ...CINEMA2_HUMN_CANONICAL_TOPOLOGY.primarySegments,
+        ...CINEMA2_HUMN_CANONICAL_TOPOLOGY.accentSegments,
+        ...CINEMA2_HUMN_CANONICAL_TOPOLOGY.restorationSegments,
+        ...CINEMA2_HUMN_CANONICAL_TOPOLOGY.denseSegments,
+      ]
+      for (const facet of facets) {
+        for (let index = 0; index < facet.length; index += 2) {
+          const point = [facet[index], facet[index + 1]]
+          expect(authoredSegments.some(segment =>
+            (segment[0] === point[0] && segment[1] === point[1]) || (segment[2] === point[0] && segment[3] === point[1])
+          ), `${group} facet point ${point.join(',')}`).toBe(true)
+        }
+      }
     }
 
     const snapshot = JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)
     expect(JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)).toBe(snapshot)
-    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(5)
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(7)
     expect(CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.parameterBindings ?? {}).toEqual({
       linePresence: { $ref: CINEMA2_HUMN_LINE_PRESENCE_ID },
       lineWeight: { $ref: CINEMA2_HUMN_LINE_WEIGHT_ID },
       fragmentation: { $ref: CINEMA2_HUMN_FRAGMENTATION_ID },
       meshDetail: { $ref: CINEMA2_HUMN_MESH_DETAIL_ID },
+      facetFill: { $ref: CINEMA2_HUMN_FACET_FILL_ID },
+      fillStyle: { $ref: CINEMA2_HUMN_FILL_STYLE_ID },
     })
     expect(CINEMA2_HUMN_PRESET_MANIFEST.choreography ?? []).toHaveLength(0)
     expect(CINEMA2_HUMN_PRESET_MANIFEST.effects ?? []).toHaveLength(0)
@@ -296,16 +327,20 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     expect(state.setPersistentValue(CINEMA2_HUMN_LINE_WEIGHT_ID, 2)).toMatchObject({ ok: true })
     expect(state.setPersistentValue(CINEMA2_HUMN_FRAGMENTATION_ID, 1)).toMatchObject({ ok: true })
     expect(state.setPersistentValue(CINEMA2_HUMN_MESH_DETAIL_ID, 'Dense')).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_HUMN_FACET_FILL_ID, 1)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_HUMN_FILL_STYLE_ID, 'Stripe')).toMatchObject({ ok: true })
     raf.runNext(16.67)
 
     expect((gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls).toEqual(expect.arrayContaining([
       [expect.objectContaining({ name: 'u_linePresence' }), 0],
       [expect.objectContaining({ name: 'u_lineWeight' }), 2],
       [expect.objectContaining({ name: 'u_fragmentation' }), 1],
+      [expect.objectContaining({ name: 'u_facetFill' }), 1],
     ]))
-    expect((gl.uniform1i as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
-      expect.objectContaining({ name: 'u_meshDetail' }), 2,
-    ])
+    expect((gl.uniform1i as ReturnType<typeof vi.fn>).mock.calls).toEqual(expect.arrayContaining([
+      [expect.objectContaining({ name: 'u_meshDetail' }), 2],
+      [expect.objectContaining({ name: 'u_fillStyle' }), 2],
+    ]))
 
     expect(state.setPersistentValue(CINEMA2_HUMN_LINE_WEIGHT_ID, 0.5)).toMatchObject({ ok: true })
     expect(state.setPersistentValue(CINEMA2_HUMN_FRAGMENTATION_ID, 0)).toMatchObject({ ok: true })
@@ -322,6 +357,44 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     const snapshot = state.getSnapshot()
     raf.runNext(50.01)
     expect(state.getSnapshot()).toEqual(snapshot)
+    runtime.dispose()
+  })
+
+  it('keeps Facet Fill zero as the exact authored default and routes mid/full fill plus every Fill Style to deterministic shader consumers', () => {
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('SKIN_FACET_COUNT = 45')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('if (facetFill > 0.0)')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('skinCoverage * facetFill * 0.90')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).not.toContain('u_audio')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).not.toContain('u_time')
+
+    const { runtime, gl, raf } = createHumNRuntime()
+    runtime.resize({ width: 1280, height: 720, dpr: 1 })
+    runtime.start()
+    const state = runtime.getParameterState()
+
+    raf.runNext(16.67)
+    expect((gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
+      expect.objectContaining({ name: 'u_facetFill' }), 0,
+    ])
+
+    expect(state.setPersistentValue(CINEMA2_HUMN_FACET_FILL_ID, 0.5)).toMatchObject({ ok: true })
+    raf.runNext(33.34)
+    expect((gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
+      expect.objectContaining({ name: 'u_facetFill' }), 0.5,
+    ])
+
+    const styles = [['Solid', 0], ['Gradient', 1], ['Stripe', 2], ['Mixed', 3]] as const
+    for (const [style, shaderIndex] of styles) {
+      expect(state.setPersistentValue(CINEMA2_HUMN_FILL_STYLE_ID, style)).toMatchObject({ ok: true })
+      expect(state.setPersistentValue(CINEMA2_HUMN_FACET_FILL_ID, 1)).toMatchObject({ ok: true })
+      raf.runNext(50.01 + shaderIndex * 16.67)
+      expect((gl.uniform1i as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
+        expect.objectContaining({ name: 'u_fillStyle' }), shaderIndex,
+      ])
+    }
+
+    const snapshot = JSON.stringify(CINEMA2_HUMN_SKIN_FACET_GROUPS)
+    expect(JSON.stringify(CINEMA2_HUMN_SKIN_FACET_GROUPS)).toBe(snapshot)
     runtime.dispose()
   })
 

@@ -28,6 +28,8 @@ export const CINEMA2_HUMN_LINE_PRESENCE_ID = cinema2StableId<Cinema2ParameterId>
 export const CINEMA2_HUMN_LINE_WEIGHT_ID = cinema2StableId<Cinema2ParameterId>('hum-n-line-weight')
 export const CINEMA2_HUMN_FRAGMENTATION_ID = cinema2StableId<Cinema2ParameterId>('hum-n-fragmentation')
 export const CINEMA2_HUMN_MESH_DETAIL_ID = cinema2StableId<Cinema2ParameterId>('hum-n-mesh-detail')
+export const CINEMA2_HUMN_FACET_FILL_ID = cinema2StableId<Cinema2ParameterId>('hum-n-facet-fill')
+export const CINEMA2_HUMN_FILL_STYLE_ID = cinema2StableId<Cinema2ParameterId>('hum-n-fill-style')
 
 const CINEMA2_HUMN_FIGURE_PARAMETERS = Object.freeze([
   Object.freeze({
@@ -112,6 +114,49 @@ const CINEMA2_HUMN_FIGURE_PARAMETERS = Object.freeze([
     persistence: 'preset' as const,
     reset: 'authored-default' as const,
   }),
+  Object.freeze({
+    id: CINEMA2_HUMN_FACET_FILL_ID,
+    label: 'Facet Fill',
+    description: 'Reveals authored polygonal skin facets beneath the HUM:N line network while preserving the user-owned base value for later intelligence modulation.',
+    type: 'float' as const,
+    defaultValue: 0,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    section: 'Design',
+    group: 'Figure Construction',
+    designParentGroup: 'design' as const,
+    order: 14,
+    exposure: 'primary' as const,
+    modulatable: true,
+    choreographable: true,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_FILL_STYLE_ID,
+    label: 'Fill Style',
+    description: 'Selects the deterministic material treatment used by visible HUM:N skin facets.',
+    type: 'enum' as const,
+    defaultValue: 'Mixed',
+    options: Object.freeze([
+      Object.freeze({ value: 'Solid', label: 'Solid' }),
+      Object.freeze({ value: 'Gradient', label: 'Gradient' }),
+      Object.freeze({ value: 'Stripe', label: 'Stripe' }),
+      Object.freeze({ value: 'Mixed', label: 'Mixed' }),
+    ]),
+    section: 'Design',
+    group: 'Figure Construction',
+    designParentGroup: 'design' as const,
+    order: 15,
+    exposure: 'primary' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
 ])
 
 /** Backward-compatible source export; the dedicated native HUM:N module owns it now. */
@@ -121,7 +166,7 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_HUMN_PRESET_ID,
-  revision: 5,
+  revision: 6,
   metadata: Object.freeze({
     name: 'HUM:N',
     description: 'A near-black sparse low-poly humanoid bust reconstructed from the approved fractured white wireframe silhouette with stronger facet hierarchy, faint emergence fragments, and a restrained technical grid.',
@@ -141,12 +186,16 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
       lineWeight: 1,
       fragmentation: 0.55,
       meshDetail: 'Reference',
+      facetFill: 0,
+      fillStyle: 'Mixed',
     }),
     parameterBindings: Object.freeze({
       linePresence: cinema2Ref(CINEMA2_HUMN_LINE_PRESENCE_ID),
       lineWeight: cinema2Ref(CINEMA2_HUMN_LINE_WEIGHT_ID),
       fragmentation: cinema2Ref(CINEMA2_HUMN_FRAGMENTATION_ID),
       meshDetail: cinema2Ref(CINEMA2_HUMN_MESH_DETAIL_ID),
+      facetFill: cinema2Ref(CINEMA2_HUMN_FACET_FILL_ID),
+      fillStyle: cinema2Ref(CINEMA2_HUMN_FILL_STYLE_ID),
     }),
     config: Object.freeze({ label: 'HUM:N Sparse Wireframe Foundation' }),
   })]),
