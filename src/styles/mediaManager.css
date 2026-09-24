@@ -24,12 +24,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 0 20px;
+  padding: 0 20px 0 0;
   background: rgba(12,16,19,0.96);
   border-bottom: 1px solid rgba(154,178,188,0.14);
 }
 
 .mmv-header-left {
+  align-self: stretch;
   min-width: 0;
   display: flex;
   align-items: center;

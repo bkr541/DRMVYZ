@@ -24,16 +24,15 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 14px;
+  padding: 0 14px 0 0;
   border-bottom: 1px solid var(--sm-border);
   background: rgba(10, 14, 17, 0.98);
 }
 
 .sm-title-block {
-  min-width: 190px;
+  align-self: stretch;
   display: flex;
-  flex-direction: column;
-  gap: 9px;
+  align-items: center;
 }
 
 .sm-title-block strong {
@@ -786,7 +785,6 @@ button.sm-library-section-toggle:focus-visible {
 
 @media (max-width: 1180px) {
   .sm-workspace { grid-template-columns: 300px minmax(430px, 1fr) 350px; }
-  .sm-title-block { min-width: 150px; }
 }
 
 /* PixGrid Deck Builder reuses the Show Manager shell and swaps only rail content. */

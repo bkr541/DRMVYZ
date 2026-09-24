@@ -47,6 +47,7 @@ import { useRgbWaveformStore } from '../../../features/waveform/rgbWaveformStora
 import { TrackTimelineIcon } from './trackTimeline/TrackTimelineIcon'
 import { resolveTrackTimelineAvailability } from './trackTimeline/trackTimelineAvailability'
 import { RailTabs } from '../layout/RailTabs'
+import { PageHeadingPlate, ReactHeadingIcon } from '../layout/PageHeadingPlate'
 import { TopEdgeResizeHandle } from '../../shared/TopEdgeResizeHandle/TopEdgeResizeHandle'
 import type { RailTabOption } from '../layout/RailTabs'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
@@ -787,9 +788,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   return (
     <div className="rv-shell" data-help-engine={activeReactEngineId} data-stage-focus={stageFocus ? 'true' : undefined}>
       <div className="vz-header">
-        <div className="vz-header-title-group">
-          <div className="vz-header-title">REACT</div>
-        </div>
+        <PageHeadingPlate title="REACT" icon={<ReactHeadingIcon />} />
 
         <span className="az-spacer" />
         <ReactPersistenceStatus />

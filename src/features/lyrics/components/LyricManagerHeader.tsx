@@ -1,5 +1,6 @@
 import { IconMorphToggle } from '../../../components/vyzualz/react/controls/IconMorphToggle'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
+import { PageHeadingPlate, LyricHeadingIcon } from '../../../components/vyzualz/layout/PageHeadingPlate'
 import { VyzualzHeaderActions } from '../../../components/vyzualz/shared/VyzualzHeaderActions'
 import type { LyricWriteStatus } from '../../../stores/lyricsStore'
 
@@ -39,9 +40,7 @@ export function LyricManagerHeader({
   return (
     <header className="lmv-header">
       <div className="lmv-header-left">
-        <div className="lmv-header-title-group">
-          <span className="lmv-header-title">LYRIC MANAGER</span>
-        </div>
+        <PageHeadingPlate title="LYRIC MANAGER" icon={<LyricHeadingIcon />} />
         {saveStatusLabel && <span className={`lmv-dirty-badge lmv-dirty-badge--${saveStatus}`}>{saveStatusLabel}</span>}
       </div>
 

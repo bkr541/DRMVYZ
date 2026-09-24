@@ -6,6 +6,7 @@ import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import { RailWindowHeader } from '../../components/vyzualz/layout/RailWindowHeader'
 import { MediaLibraryBrowser } from '../../components/vyzualz/media/MediaLibraryBrowser'
 import { MediaManagerStage } from '../../components/vyzualz/media/MediaManagerStage'
+import { PageHeadingPlate, MediaHeadingIcon } from '../../components/vyzualz/layout/PageHeadingPlate'
 import { MediaManagerInspector } from '../../components/vyzualz/media/MediaManagerInspector'
 import { MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
 import { VyzualzHeaderActions } from '../../components/vyzualz/shared/VyzualzHeaderActions'
@@ -37,9 +38,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
     <main className="mmv-root" aria-labelledby="media-manager-title">
       <header className="mmv-header">
         <div className="mmv-header-left">
-          <div className="mmv-header-title-group">
-            <h1 id="media-manager-title" className="mmv-header-title">Media Manager</h1>
-          </div>
+          <PageHeadingPlate titleAs="h1" titleId="media-manager-title" title="Media Manager" icon={<MediaHeadingIcon />} />
         </div>
         <div className="mmv-summary" aria-label="Media library summary">
           <span><strong>{mediaCount}</strong> visual {mediaCount === 1 ? 'asset' : 'assets'}</span>

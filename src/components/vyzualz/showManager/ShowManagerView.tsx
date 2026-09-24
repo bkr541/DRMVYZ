@@ -19,6 +19,7 @@ import { ContextActionMenu } from '../context-menu/ContextActionMenu'
 import { Collapsible, ColorRow, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
 import { UnderlineTabs } from '../react/controls/UnderlineTabs'
 import { RailTabs, type RailTabOption } from '../layout/RailTabs'
+import { PageHeadingPlate, ShowHeadingIcon } from '../layout/PageHeadingPlate'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import { DualRailCollapsible } from '../react/DualRailCollapsible'
 import { PanelSubtabs } from '../react/PanelSubtabs'
@@ -2092,7 +2093,7 @@ export function ShowManagerView() {
     <section className="sm-root rv-shell" aria-label="Show Manager workspace">
       <header className="sm-topbar">
         <div className="sm-title-block" tabIndex={-1} ref={deckBuilderHeadingRef}>
-          <strong>{workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? 'DECK BUILDER' : 'SHOW MANAGER'}</strong>
+          <PageHeadingPlate title={workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? 'DECK BUILDER' : 'SHOW MANAGER'} icon={<ShowHeadingIcon />} />
         </div>
 
         {workspaceMode === 'default' && (

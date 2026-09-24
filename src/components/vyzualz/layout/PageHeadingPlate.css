@@ -1,0 +1,106 @@
+/* Page heading "Scan Plate" (header row of React, Media Manager, Lyric Manager, Show Manager).
+   Ported from Layout Lab → Template → 01 Scan Plate. The group is as wide as the page's left
+   window (--vz-page-heading-width, measured live) so its ticked rule ends flush with that
+   window's right edge. */
+
+.vz-page-heading {
+  --vz-ph-cyan: #67f7ff;
+  --vz-ph-cyan-deep: #4ac7db;
+  position: relative;
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: var(--vz-page-heading-width, 300px);
+  /* Never clip the title: a rail narrower than the plate lets the group grow past it instead. */
+  min-width: max-content;
+  padding: 0 0 0 14px;
+  overflow: hidden;
+  background: radial-gradient(60% 140% at 0% 50%, rgba(74, 199, 219, 0.1), transparent 70%);
+  font-family: var(--az-font, Inter, system-ui, sans-serif);
+  text-transform: uppercase;
+  isolation: isolate;
+}
+
+.vz-page-heading-corner {
+  position: absolute;
+  left: 7px;
+  width: 11px;
+  height: 11px;
+  border: 0 solid var(--vz-ph-cyan);
+  opacity: 0.85;
+}
+.vz-page-heading-corner--tl { top: 7px; border-top-width: 2px; border-left-width: 2px; }
+.vz-page-heading-corner--bl { bottom: 7px; border-bottom-width: 2px; border-left-width: 2px; }
+
+.vz-page-heading-plate {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 30px 8px 12px;
+  overflow: hidden;
+  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 100%, 0 100%);
+  background:
+    linear-gradient(100deg, rgba(74, 199, 219, 0.28), rgba(74, 199, 219, 0.06) 75%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 55%);
+  box-shadow: inset 0 1px 0 rgba(103, 247, 255, 0.35), inset 3px 0 0 var(--vz-ph-cyan);
+}
+
+.vz-page-heading-icon {
+  display: grid;
+  flex: 0 0 28px;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: #04181c;
+  background: linear-gradient(160deg, #9ff9ff, var(--vz-ph-cyan-deep));
+  clip-path: polygon(0 0, 100% 0, 100% 70%, 70% 100%, 0 100%);
+}
+.vz-page-heading-icon svg { width: 16px; height: 16px; }
+
+.vz-page-heading-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  white-space: nowrap;
+  color: transparent;
+  background: linear-gradient(180deg, #ffffff 15%, #93e9f3 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 0 8px rgba(103, 247, 255, 0.35));
+}
+
+.vz-page-heading-sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -70px;
+  width: 60px;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.32), transparent);
+  animation: vz-page-heading-sweep 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.vz-page-heading-rule {
+  flex: 1 1 0;
+  height: 10px;
+  min-width: 0;
+  background:
+    repeating-linear-gradient(90deg, rgba(103, 247, 255, 0.55) 0 1px, transparent 1px 10px) bottom / 100% 5px no-repeat,
+    linear-gradient(90deg, rgba(103, 247, 255, 0.7), rgba(103, 247, 255, 0.05)) bottom / 100% 1px no-repeat;
+}
+
+@keyframes vz-page-heading-sweep {
+  0%, 30% { transform: translateX(0); }
+  75%, 100% { transform: translateX(420px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vz-page-heading-sweep { animation: none; }
+}
