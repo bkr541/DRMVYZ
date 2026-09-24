@@ -8,10 +8,12 @@ import {
   type Cinema2ModuleTypeId,
 } from '../contracts/Cinema2NativePresetManifest'
 import { Cinema2SyncedMotionClockResolver } from './Cinema2SyncedMotionClock'
+import type { Cinema2DispatchedTargetAction } from '../parameters/Cinema2TargetRuntime'
 import type {
   Cinema2ModuleCreateContext,
   Cinema2ModuleDiagnostic,
   Cinema2ModuleRenderExecutionContext,
+  Cinema2ModuleUpdateContext,
   Cinema2ModuleTypeDefinition,
 } from './Cinema2ModuleContracts'
 
@@ -412,6 +414,22 @@ function glslSegmentArray(name: string, segments: readonly Cinema2HumNSegment[])
   return `const int ${countName} = ${segments.length};\nconst vec4 ${name}[${countName}] = vec4[${countName}](\n${values}\n);`
 }
 
+function glslFloatArray(name: string, countName: string, values: readonly number[]): string {
+  return `const float ${name}[${countName}] = float[${countName}](\n${values.map(value => `  ${value.toFixed(1)}`).join(',\n')}\n);`
+}
+
+/** Ordinal (0, 1, 2 ...) of each primary segment that belongs to an eye or cheek group, else -1. */
+const HUMN_PRIMARY_EYE_CHEEK_ORDINALS: readonly number[] = (() => {
+  const members = new Set<string>([
+    ...CINEMA2_HUMN_SEMANTIC_GROUPS['left-eye'],
+    ...CINEMA2_HUMN_SEMANTIC_GROUPS['right-eye'],
+    ...CINEMA2_HUMN_SEMANTIC_GROUPS['left-cheek'],
+    ...CINEMA2_HUMN_SEMANTIC_GROUPS['right-cheek'],
+  ])
+  let ordinal = 0
+  return Object.freeze(HUMN_PRIMARY_SEGMENTS.map((_, index) => (members.has(segmentId('primary', index)) ? ordinal++ : -1)))
+})()
+
 function glslFacetArrays(facets: readonly Cinema2HumNFacet[]): string {
   const ab = facets
     .map(facet => `  vec4(${facet.slice(0, 4).map(glslNumber).join(', ')})`)
@@ -424,8 +442,10 @@ function glslFacetArrays(facets: readonly Cinema2HumNFacet[]): string {
 
 /**
  * Native-module-owned shader generated from the canonical topology above. Its
- * only time input is the shared Cinema 2.0 synced-motion clock; it deliberately
- * has no direct audio, director, choreography, or automation input.
+ * only time input is the shared Cinema 2.0 synced-motion clock. It has no
+ * audio analysis of its own: every reactive uniform is a resolved canonical
+ * module target (choreography-owned) or a deterministic per-event seed, and
+ * each one collapses to the exact approved static frame at its neutral value.
  */
 export const CINEMA2_HUMN_FRAGMENT_SOURCE = `#version 300 es
 precision highp float;
@@ -456,6 +476,10 @@ uniform float u_kickJitter;
 uniform float u_snareEyeCheek;
 uniform float u_flickerAmount;
 uniform float u_fragmentJitter;
+uniform float u_beatSeed;
+uniform float u_downbeatSeed;
+uniform float u_kickSeed;
+uniform float u_snareSeed;
 out vec4 outColor;
 
 ${glslSegmentArray('PRIMARY_SEGMENTS', HUMN_PRIMARY_SEGMENTS)}
@@ -467,6 +491,8 @@ ${glslSegmentArray('GHOST_SEGMENTS', HUMN_GHOST_SEGMENTS)}
 ${glslSegmentArray('RESTORATION_SEGMENTS', HUMN_RESTORATION_SEGMENTS)}
 
 ${glslSegmentArray('DENSE_SEGMENTS', HUMN_DENSE_SEGMENTS)}
+
+${glslFloatArray('PRIMARY_EYE_CHEEK_ORDINAL', 'PRIMARY_SEGMENT_COUNT', HUMN_PRIMARY_EYE_CHEEK_ORDINALS)}
 
 ${glslFacetArrays(HUMN_SKIN_FACETS)}
 
@@ -514,23 +540,43 @@ vec3 paletteColorForRole(int r) {
   return u_skinPrimary.rgb;
 }
 
+// Authored role slots a shifted facet may land on. Nothing here is generated:
+// every slot is one of the user's own colors (or the authored background void).
+vec3 shiftedSlotColor(int slot) {
+  int s = int(mod(float(slot), 5.0));
+  if (s == 0) return u_skinPrimary.rgb;
+  if (s == 1) return u_skinSecondary.rgb;
+  if (s == 2) return u_skinAccent.rgb;
+  if (s == 3) return u_patternInk.rgb;
+  return u_backgroundColor.rgb;
+}
+
+int baseSlotForRole(int role) {
+  int rr = int(mod(float(role), 7.0));
+  if (rr == 4 || rr == 5) return 1;
+  if (rr == 6) return 2;
+  return 0;
+}
+
 vec3 facetRoleColor(int index) {
   // Stable authored role distribution: primary dominates, secondary contrasts,
   // and accent remains intentionally rare. The role is topology-index based,
-  // so palette edits never reshuffle which facets own which color.
+  // so palette edits never reshuffle which facets own which color. A resolved
+  // color shift slides every facet along the authored role ring
+  // (primary, secondary, accent, ink, void) - deterministic, no color synthesis.
   int role = index % 7;
   if (u_colorShift < 0.0001) return paletteColorForRole(role);
-  float shiftPhase = u_colorShift * 7.0;
-  int shiftBase = int(shiftPhase);
-  float shiftFrac = shiftPhase - float(shiftBase);
-  vec3 c1 = paletteColorForRole(role + shiftBase);
-  vec3 c2 = paletteColorForRole(role + shiftBase + 1);
-  return mix(c1, c2, shiftFrac);
+  float phase = clamp(u_colorShift, 0.0, 1.0) * 4.0;
+  int stepIndex = int(floor(phase));
+  float stepFrac = phase - float(stepIndex);
+  if (stepIndex >= 4) { stepIndex = 3; stepFrac = 1.0; }
+  int baseSlot = baseSlotForRole(role);
+  return mix(shiftedSlotColor(baseSlot + stepIndex), shiftedSlotColor(baseSlot + stepIndex + 1), stepFrac);
 }
 
-vec3 facetStyleColor(int index, vec2 p, vec2 centroid) {
+vec3 facetStyleColor(int index, vec2 p, vec2 facetCenter) {
   vec3 base = facetRoleColor(index);
-  float gradientT = clamp(0.5 + (p.y - centroid.y) * 2.8 + (p.x - centroid.x) * 0.8, 0.0, 1.0);
+  float gradientT = clamp(0.5 + (p.y - facetCenter.y) * 2.8 + (p.x - facetCenter.x) * 0.8, 0.0, 1.0);
   vec3 gradient = mix(base * 0.46, base, gradientT);
   float stripeWave = sin((p.x * 1.28 + p.y) * 92.0 + float(index) * 1.73);
   vec3 stripe = stripeWave >= 0.0 ? u_patternInk.rgb * 0.96 : vec3(0.006);
@@ -610,6 +656,19 @@ vec2 applyHumNNativeMotion(vec2 p) {
   return q;
 }
 
+// Kick: a deterministic ~third of the fragments (chosen per kick event via
+// u_kickSeed) is rigidly translated by at most 0.012 portrait units. Both
+// endpoints move together, so a shocked fragment stays a straight stroke and
+// the rest of the figure never moves.
+vec4 humNKickDisplace(vec4 segment, int index, float salt) {
+  float amount = clamp(u_fragmentJitter, 0.0, 1.0) * clamp(u_kickJitter, 0.0, 1.0);
+  if (amount <= 0.0001) return segment;
+  if (stableRank(index, salt + 7.13 + u_kickSeed * 19.0) > 0.32) return segment;
+  float angle = stableRank(index, salt + 3.71 + u_kickSeed * 23.0) * 6.28318530718;
+  vec2 shift = vec2(cos(angle), sin(angle)) * (0.012 * amount);
+  return segment + vec4(shift, shift);
+}
+
 void main() {
   vec2 resolution = max(u_resolution, vec2(1.0));
   float aspect = resolution.x / resolution.y;
@@ -629,13 +688,10 @@ void main() {
   }
   p = applyHumNNativeMotion(p);
 
-  // Kick-driven local fragment displacement
-  float kickDisplace = clamp(u_fragmentJitter, 0.0, 1.0) * clamp(u_kickJitter, 0.0, 1.0);
-  if (kickDisplace > 0.0001) {
-    float jx = (fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453) - 0.5) * kickDisplace * 0.024;
-    float jy = (fract(sin(dot(p, vec2(269.5, 183.3))) * 46835.2983) - 0.5) * kickDisplace * 0.024;
-    p += vec2(jx, jy);
-  }
+  float flickerAmt = clamp(u_flickerAmount, 0.0, 1.0);
+  float beatLift = flickerAmt * clamp(u_beatFlicker, 0.0, 1.0) * 0.10;
+  float downbeatLift = flickerAmt * clamp(u_downbeatReveal, 0.0, 1.0) * 0.25;
+  float snareAmount = flickerAmt * clamp(u_snareEyeCheek, 0.0, 1.0) * 0.18;
 
   float px = 2.0 / resolution.y;
   float weight = clamp(u_lineWeight, 0.5, 2.0);
@@ -643,41 +699,56 @@ void main() {
   float primarySoft = 0.0;
   float primaryCore = 0.0;
   for (int i = 0; i < PRIMARY_SEGMENT_COUNT; ++i) {
-    vec4 segment = PRIMARY_SEGMENTS[i];
+    vec4 segment = humNKickDisplace(PRIMARY_SEGMENTS[i], i, 0.17);
     float eligible = (u_meshDetail == 0 && stableRank(i, 0.17) > 0.72) ? 0.0 : 1.0;
-    bool inEyeOrCheek = (i >= 9 && i <= 36) || (i >= 43 && i <= 66);
-    float altFactor = step(0.5, stableRank(i, 2.33));
-    float snareSuppress = inEyeOrCheek ? altFactor * clamp(u_flickerAmount * u_snareEyeCheek, 0.0, 1.0) : 0.0;
-    float keep = eligible * fragmentationKeep(i, 0.17) * (1.0 - snareSuppress);
+    float keep = eligible * fragmentationKeep(i, 0.17);
+    float eyeCheekOrdinal = PRIMARY_EYE_CHEEK_ORDINAL[i];
+    if (eyeCheekOrdinal >= 0.0 && snareAmount > 0.0001) {
+      // Alternating eye/cheek fragments: one parity dips, the other is revealed.
+      // The parity flips per snare event through u_snareSeed.
+      float parity = mod(eyeCheekOrdinal + floor(u_snareSeed * 2.0), 2.0);
+      keep = parity < 0.5 ? keep * (1.0 - snareAmount) : keep + (eligible - keep) * snareAmount;
+    }
     primarySoft = max(primarySoft, keep * segmentMask(p, segment.xy, segment.zw, 1.18 * weight * px, 1.40 * weight * px));
     primaryCore = max(primaryCore, keep * segmentMask(p, segment.xy, segment.zw, 0.56 * weight * px, 0.60 * weight * px));
   }
 
   float accentSoft = 0.0;
   float accentCore = 0.0;
+  float accentLift = 0.0;
   for (int i = 0; i < ACCENT_SEGMENT_COUNT; ++i) {
-    vec4 segment = ACCENT_SEGMENTS[i];
+    vec4 segment = humNKickDisplace(ACCENT_SEGMENTS[i], i, 0.41);
     float eligible = u_meshDetail == 0 ? 0.0 : 1.0;
     float keep = eligible * fragmentationKeep(i, 0.41);
-    accentSoft = max(accentSoft, keep * segmentMask(p, segment.xy, segment.zw, 1.26 * weight * px, 1.42 * weight * px));
+    float softMask = segmentMask(p, segment.xy, segment.zw, 1.26 * weight * px, 1.42 * weight * px);
+    accentSoft = max(accentSoft, keep * softMask);
     accentCore = max(accentCore, keep * segmentMask(p, segment.xy, segment.zw, 0.62 * weight * px, 0.66 * weight * px));
+    accentLift = max(accentLift, eligible * step(stableRank(i, 3.3 + u_beatSeed * 13.0), 0.5) * beatLift * softMask);
   }
 
   float ghostSoft = 0.0;
   float ghostCore = 0.0;
+  float ghostLift = 0.0;
   for (int i = 0; i < GHOST_SEGMENT_COUNT; ++i) {
-    vec4 segment = GHOST_SEGMENTS[i];
+    vec4 segment = humNKickDisplace(GHOST_SEGMENTS[i], i, 0.73);
     float eligible = u_meshDetail == 0 ? 0.0 : 1.0;
     float keep = eligible * fragmentationKeep(i, 0.73);
-    ghostSoft = max(ghostSoft, keep * segmentMask(p, segment.xy, segment.zw, 0.92 * weight * px, 1.22 * weight * px));
+    float softMask = segmentMask(p, segment.xy, segment.zw, 0.92 * weight * px, 1.22 * weight * px);
+    ghostSoft = max(ghostSoft, keep * softMask);
     ghostCore = max(ghostCore, keep * segmentMask(p, segment.xy, segment.zw, 0.42 * weight * px, 0.54 * weight * px));
+    // Beat brightens a deterministic half of the ghost edges; the downbeat
+    // reveals a (different) deterministic subset even when fragmentation has
+    // hidden it. The lift lives only on the edge mask, never on the frame.
+    float ghostBeatPick = step(stableRank(i, 4.1 + u_beatSeed * 13.0), 0.5);
+    float ghostDownbeatPick = step(stableRank(i, 5.7 + u_downbeatSeed * 11.0), 0.45);
+    ghostLift = max(ghostLift, eligible * softMask * (beatLift * ghostBeatPick + downbeatLift * ghostDownbeatPick));
   }
 
   float restoration = 0.0;
   float restorationAmount = clamp((0.55 - u_fragmentation) / 0.55, 0.0, 1.0);
   if (u_meshDetail > 0 && restorationAmount > 0.0) {
     for (int i = 0; i < RESTORATION_SEGMENT_COUNT; ++i) {
-      vec4 segment = RESTORATION_SEGMENTS[i];
+      vec4 segment = humNKickDisplace(RESTORATION_SEGMENTS[i], i, 0.91);
       float reveal = stableRank(i, 0.91) <= restorationAmount ? 1.0 : 0.0;
       restoration = max(restoration, reveal * segmentMask(p, segment.xy, segment.zw, 0.72 * weight * px, 0.82 * weight * px));
     }
@@ -686,7 +757,7 @@ void main() {
   float denseFigure = 0.0;
   if (u_meshDetail == 2) {
     for (int i = 0; i < DENSE_SEGMENT_COUNT; ++i) {
-      vec4 segment = DENSE_SEGMENTS[i];
+      vec4 segment = humNKickDisplace(DENSE_SEGMENTS[i], i, 1.13);
       float keep = fragmentationKeep(i, 1.13);
       denseFigure = max(denseFigure, keep * segmentMask(p, segment.xy, segment.zw, 0.66 * weight * px, 0.76 * weight * px));
     }
@@ -703,8 +774,8 @@ void main() {
       float rank = stableRank(i, 1.71);
       float reveal = smoothstep(rank * 0.82, min(1.0, rank * 0.82 + 0.18), facetFill);
       float mask = inside * reveal;
-      vec2 centroid = (ab.xy + ab.zw + c) / 3.0;
-      skinColor = mix(skinColor, facetStyleColor(i, p, centroid), mask);
+      vec2 facetCenter = (ab.xy + ab.zw + c) / 3.0;
+      skinColor = mix(skinColor, facetStyleColor(i, p, facetCenter), mask);
       skinCoverage = max(skinCoverage, mask);
     }
   }
@@ -728,11 +799,9 @@ void main() {
   if (gridPresence < 0.999999) gridColor *= gridPresence;
 
   float ghostEmphasis = clamp(u_ghostEdgeEmphasis, 0.0, 1.0);
-  float flickerAmt = clamp(u_flickerAmount, 0.0, 1.0);
-  float ghostFlicker = flickerAmt * (clamp(u_beatFlicker, 0.0, 1.0) * 0.10 + clamp(u_downbeatReveal, 0.0, 1.0) * 0.25);
-  float ghostFigure = (ghostSoft * 0.18 + ghostCore * 0.10) * (1.0 + ghostEmphasis) + ghostFlicker;
+  float ghostFigure = (ghostSoft * 0.18 + ghostCore * 0.10) * (1.0 + ghostEmphasis) + ghostLift;
   float wireframeFigure = primarySoft * 0.32 + primaryCore * 0.80;
-  float accentFigure = accentSoft * 0.16 + accentCore * 0.34;
+  float accentFigure = accentSoft * 0.16 + accentCore * 0.34 + accentLift;
 
   vec3 stageColor = background + gridColor;
   vec3 figureColor = stageColor;
@@ -751,6 +820,14 @@ void main() {
   outColor = vec4(color, 1.0);
 }
 `
+
+export type Cinema2HumNFragmentEventKind = 'beat' | 'downbeat' | 'kick' | 'snare'
+
+function parseFragmentEventKind(payload: unknown): Cinema2HumNFragmentEventKind | null {
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null
+  const kind = (payload as { kind?: unknown }).kind
+  return kind === 'beat' || kind === 'downbeat' || kind === 'kick' || kind === 'snare' ? kind : null
+}
 
 function readNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
@@ -806,6 +883,15 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
       ? context.module.config.label
       : `Cinema2/${context.module.id}`
     const motionClock = new Cinema2SyncedMotionClockResolver()
+    const eventSeeds: Record<Cinema2HumNFragmentEventKind, number> = { beat: 0, downbeat: 0, kick: 0, snare: 0 }
+    let audioGeneration: number | null = null
+    let contextGeneration: number | null = null
+    const resetEventSeeds = () => {
+      eventSeeds.beat = 0
+      eventSeeds.downbeat = 0
+      eventSeeds.kick = 0
+      eventSeeds.snare = 0
+    }
 
     const provider = Object.freeze({
       id: `${context.module.id}:hum-n-native`,
@@ -820,7 +906,7 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
               label,
               vertSrc: FULLSCREEN_VERT_SRC,
               fragSrc: CINEMA2_HUMN_FRAGMENT_SOURCE,
-              optionalUniforms: ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_motionAmount', 'u_motionTime', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle', 'u_backgroundColor', 'u_wireframeColor', 'u_patternInk', 'u_skinPrimary', 'u_skinSecondary', 'u_skinAccent', 'u_colorShift', 'u_ghostEdgeEmphasis', 'u_beatFlicker', 'u_downbeatReveal', 'u_kickJitter', 'u_snareEyeCheek', 'u_flickerAmount', 'u_fragmentJitter'],
+              optionalUniforms: ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_motionAmount', 'u_motionTime', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle', 'u_backgroundColor', 'u_wireframeColor', 'u_patternInk', 'u_skinPrimary', 'u_skinSecondary', 'u_skinAccent', 'u_colorShift', 'u_ghostEdgeEmphasis', 'u_beatFlicker', 'u_downbeatReveal', 'u_kickJitter', 'u_snareEyeCheek', 'u_flickerAmount', 'u_fragmentJitter', 'u_beatSeed', 'u_downbeatSeed', 'u_kickSeed', 'u_snareSeed'],
             })
             if (!result.program) {
               throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
@@ -838,10 +924,14 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
         program.activate()
         program.setVec2('u_resolution', width, height)
         program.setFloat('u_masterIntensity', readNumber(context.parameters.get('masterIntensity'), 1))
+        // The resolved Motion Amount target is the user's base (plus any manual
+        // automation). Music adds on top of it through two internal targets and
+        // only that added portion is restrained by vocal presence.
         const userMotionAmount = clampNumber(readNumber(context.parameters.get('motionAmount'), 0), 0, 1)
         const tensionMotionLift = clampNumber(readNumber(context.parameters.get('tensionMotionLift'), 0), 0, 1)
+        const buildMotionLift = clampNumber(readNumber(context.parameters.get('buildMotionLift'), 0), 0, 1)
         const vocalMotionRestraint = clampNumber(readNumber(context.parameters.get('vocalMotionRestraint'), 0), 0, 1)
-        const intelligenceMotion = tensionMotionLift * (1 - vocalMotionRestraint)
+        const intelligenceMotion = (tensionMotionLift + buildMotionLift) * (1 - vocalMotionRestraint)
         const motionAmount = clampNumber(userMotionAmount + intelligenceMotion, 0, 1)
         program.setFloat('u_figureScale', resolveCinema2HumNFigureScale(context.parameters.get('figureScale'), width, height, motionAmount))
         const motionRate = readMotionRate(context.parameters.get('motionRate'))
@@ -850,11 +940,14 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
         program.setFloat('u_motionAmount', motionAmount)
         program.setFloat('u_motionTime', motionTimeSec)
         program.setFloat('u_gridPresence', readNumber(context.parameters.get('gridPresence'), 1))
-        program.setFloat('u_linePresence', readNumber(context.parameters.get('linePresence'), 1))
+        // Energy may only lower Line Presence, and never below 0.55x the user's value.
+        const linePresenceBase = clampNumber(readNumber(context.parameters.get('linePresence'), 1), 0, 1)
+        const linePresenceLowering = clampNumber(readNumber(context.parameters.get('linePresenceLowering'), 0), 0, 0.45)
+        program.setFloat('u_linePresence', linePresenceBase * (1 - linePresenceLowering))
         program.setFloat('u_lineWeight', readNumber(context.parameters.get('lineWeight'), 1))
-        program.setFloat('u_fragmentation', readNumber(context.parameters.get('fragmentation'), 0.55))
+        program.setFloat('u_fragmentation', clampNumber(readNumber(context.parameters.get('fragmentation'), 0.55), 0, 1))
         program.setInt('u_meshDetail', readMeshDetail(context.parameters.get('meshDetail')))
-        program.setFloat('u_facetFill', readNumber(context.parameters.get('facetFill'), 0))
+        program.setFloat('u_facetFill', clampNumber(readNumber(context.parameters.get('facetFill'), 0), 0, 1))
         program.setInt('u_fillStyle', readFillStyle(context.parameters.get('fillStyle')))
         const backgroundColor = readColor(context.parameters.get('backgroundColor'), [0, 0, 0, 1])
         const wireframeColor = readColor(context.parameters.get('wireframeColor'), [245 / 255, 247 / 255, 250 / 255, 1])
@@ -880,14 +973,36 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
         program.setFloat('u_snareEyeCheek', clampNumber(readNumber(context.parameters.get('snareEyeCheek'), 0), 0, 1))
         program.setFloat('u_flickerAmount', clampNumber(readNumber(context.parameters.get('flickerAmount'), 0), 0, 1))
         program.setFloat('u_fragmentJitter', clampNumber(readNumber(context.parameters.get('fragmentJitter'), 0), 0, 1))
+        program.setFloat('u_beatSeed', eventSeeds.beat)
+        program.setFloat('u_downbeatSeed', eventSeeds.downbeat)
+        program.setFloat('u_kickSeed', eventSeeds.kick)
+        program.setFloat('u_snareSeed', eventSeeds.snare)
         pass.run(program, target, width, height, [])
       },
     })
 
     return {
       lifecycle: {
-        update: () => {},
-        dispose: () => motionClock.reset(),
+        update: ({ frame }: Cinema2ModuleUpdateContext) => {
+          // Event-local state must not survive a seek, source change or new context.
+          const nextAudioGeneration = frame.audio?.discontinuity.generation ?? null
+          if (audioGeneration !== nextAudioGeneration || contextGeneration !== frame.contextGeneration) {
+            if (audioGeneration !== null || contextGeneration !== null) resetEventSeeds()
+            audioGeneration = nextAudioGeneration
+            contextGeneration = frame.contextGeneration
+          }
+        },
+        dispose: () => {
+          motionClock.reset()
+          resetEventSeeds()
+        },
+      },
+      handleAction: (action: string, event: Readonly<Cinema2DispatchedTargetAction>) => {
+        if (action !== 'fragmentEvent') return
+        const kind = parseFragmentEventKind(event.payload)
+        if (!kind) return
+        // Same stable event identity -> same seed -> same fragment subset.
+        eventSeeds[kind] = context.randomness.eventStream(event.eventId, `hum-n-fragment-${kind}`).next()
       },
       render: { providers: Object.freeze([provider]) },
     }

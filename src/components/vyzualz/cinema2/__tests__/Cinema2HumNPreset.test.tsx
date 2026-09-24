@@ -27,6 +27,10 @@ import {
   CINEMA2_HUMN_SKIN_PRIMARY_ID,
   CINEMA2_HUMN_SKIN_SECONDARY_ID,
   CINEMA2_HUMN_SKIN_ACCENT_ID,
+  CINEMA2_HUMN_MASTER_REACTIVITY_ID,
+  CINEMA2_HUMN_COLOR_SHIFT_AMOUNT_ID,
+  CINEMA2_HUMN_FLICKER_AMOUNT_ID,
+  CINEMA2_HUMN_FRAGMENT_JITTER_ID,
   CINEMA2_HUMN_LINE_PRESENCE_ID,
   CINEMA2_HUMN_LINE_WEIGHT_ID,
   CINEMA2_HUMN_FRAGMENTATION_ID,
@@ -164,7 +168,7 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     expect(manifest?.scene?.nodes.filter(node => node.kind === 'module')).toHaveLength(1)
     expect(manifest?.layers).toHaveLength(1)
     expect(manifest?.effects ?? []).toHaveLength(0)
-    expect(manifest?.choreography ?? []).toHaveLength(0)
+    expect(manifest?.choreography?.rules.length ?? 0).toBeGreaterThan(0)
     expect(manifest?.cameras ?? []).toHaveLength(0)
 
     const compiled = cinema2NativePresetRegistry.compile(CINEMA2_HUMN_PRESET_ID, {
@@ -355,7 +359,8 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
 
     const snapshot = JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)
     expect(JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)).toBe(snapshot)
-    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(19)
+    // 18 authored controls + Quality Mode + 4 reactive controls + 1 hidden runtime trigger.
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(24)
     expect(CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.parameterBindings ?? {}).toEqual({
       masterIntensity: { $ref: CINEMA2_HUMN_MASTER_INTENSITY_ID },
       bpmSync: { $ref: CINEMA2_HUMN_BPM_SYNC_ID },
@@ -375,8 +380,12 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
       skinPrimary: { $ref: CINEMA2_HUMN_SKIN_PRIMARY_ID },
       skinSecondary: { $ref: CINEMA2_HUMN_SKIN_SECONDARY_ID },
       skinAccent: { $ref: CINEMA2_HUMN_SKIN_ACCENT_ID },
+      masterReactivity: { $ref: CINEMA2_HUMN_MASTER_REACTIVITY_ID },
+      colorShiftAmount: { $ref: CINEMA2_HUMN_COLOR_SHIFT_AMOUNT_ID },
+      flickerAmount: { $ref: CINEMA2_HUMN_FLICKER_AMOUNT_ID },
+      fragmentJitter: { $ref: CINEMA2_HUMN_FRAGMENT_JITTER_ID },
     })
-    expect(CINEMA2_HUMN_PRESET_MANIFEST.choreography ?? []).toHaveLength(0)
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.choreography?.rules.length ?? 0).toBeGreaterThan(0)
     expect(CINEMA2_HUMN_PRESET_MANIFEST.effects ?? []).toHaveLength(0)
   })
 
@@ -570,11 +579,11 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
 
     const design = createCinema2DesignParentGroupModel(plan, state.getSnapshot())
     const palette = design.find(parent => parent.id === 'palette')
-    expect(palette?.groups.map(group => [group.label, group.controls.map(control => control.definition.label)])).toEqual([
-      ['Stage Colors', ['Background']],
-      ['Figure Colors', ['Wireframe']],
-      ['Skin Colors', ['Skin Primary', 'Skin Secondary', 'Skin Accent']],
-      ['Pattern Colors', ['Pattern Ink']],
+    // The Cinema 2.0 Inspector keeps Palette flat (secondary grouping is Design-only);
+    // the authored group labels stay on the definitions asserted above.
+    expect(palette?.groups).toEqual([])
+    expect(palette?.controls.map(control => control.definition.label)).toEqual([
+      'Background', 'Wireframe', 'Skin Primary', 'Skin Secondary', 'Skin Accent', 'Pattern Ink', 'Color Shift Amount',
     ])
 
     const moduleTargets = plan.targets.targets.filter(target => target.kind === 'module' && target.ownerId === CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.id)
@@ -607,8 +616,8 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('stripeWave >= 0.0 ? u_patternInk.rgb * 0.96')
     expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('mixedRole == 4) return u_patternInk.rgb * vec3(0.94, 0.96, 0.98);')
     expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('int role = index % 7;')
-    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('role == 4 || role == 5) return u_skinSecondary.rgb;')
-    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('role == 6) return u_skinAccent.rgb;')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('rr == 4 || rr == 5) return u_skinSecondary.rgb;')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('rr == 6) return u_skinAccent.rgb;')
     expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('return u_skinPrimary.rgb;')
     expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('vec3 gradient = mix(base * 0.46, base, gradientT);')
     expect(CINEMA2_HUMN_FRAGMENT_SOURCE).not.toContain('vec3(0.94, 0.08, 0.62)')
@@ -844,9 +853,10 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
         raf.runNext(16.67 * ++frame)
 
         const effective = resolveCinema2HumNFigureScale(requested, width, height)
-        expect((gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls).toContainEqual([
-          expect.objectContaining({ name: 'u_figureScale' }), effective,
-        ])
+        const figureScaleCalls = (gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls.filter((call: unknown[]) =>
+          (call[0] as { name?: string } | null)?.name === 'u_figureScale')
+        // The target resolver may round-trip the authored value through float math (1 ULP).
+        expect(Number(figureScaleCalls[figureScaleCalls.length - 1]?.[1])).toBeCloseTo(effective, 9)
 
         const aspect = width / height
         const t = Math.min(1, Math.max(0, (aspect - 1.10) / (1.90 - 1.10)))
@@ -876,6 +886,7 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => {
       if (kind !== 'webgl2') return null
       const gl = createCinemaMockWebGL()
+      gl.getUniformLocation = vi.fn((_program: WebGLProgram, name: string) => ({ name } as unknown as WebGLUniformLocation))
       contexts.push(gl)
       return gl as unknown as RenderingContext
     })
