@@ -125,7 +125,9 @@ export function CanvasCutbankLayer({
     let frameId = 0
     let disposed = false
     let contextLost = false
-    let idleTimeSec = 0
+    // With no audio time (no track, paused, or no live input) the whole visualizer holds still: the clock
+    // stops on the last transport time, so cuts, transitions, impulses, treatments and videos all freeze.
+    let heldTransportTimeSec = 0
     let lastNow = typeof performance !== 'undefined' ? performance.now() : Date.now()
     let lastSnapshotAt = 0
 
@@ -184,12 +186,10 @@ export function CanvasCutbankLayer({
             pass.resize(width, height)
           }
 
-          // Idle preview (nothing playing) advances on wall time with the deterministic fallback tempo.
-          if (!cur.audioActive) idleTimeSec += dtSec
           const context = performanceContextRef.current ?? fallbackContext
-          const transportTimeSec = cur.audioActive
-            ? (cur.getAudioTime?.() ?? context.audioTimeSec)
-            : idleTimeSec
+          if (cur.audioActive) heldTransportTimeSec = cur.getAudioTime?.() ?? context.audioTimeSec
+          const transportTimeSec = heldTransportTimeSec
+          const frameDtSec = cur.audioActive ? dtSec : 0
           const runtimeSettings = cur.audioActive ? cur.settings.cutbank : { ...cur.settings.cutbank, bpmSync: false }
           preload.setScope(cur.trackIdentity, cur.poolRevision)
 
@@ -199,7 +199,7 @@ export function CanvasCutbankLayer({
             mediaItems: cur.mediaItems,
             context,
             transportTimeSec,
-            dtSec,
+            dtSec: frameDtSec,
             trackIdentity: cur.trackIdentity,
             poolRevision: cur.poolRevision,
             isMediaReady: mediaId => preload.isReady(mediaId),
@@ -252,7 +252,12 @@ export function CanvasCutbankLayer({
                 }
                 handle.loop = true
                 handle.muted = true
-                if (handle.paused) void handle.play().catch(() => undefined)
+                // Shown videos only run while audio is running; otherwise they hold their current frame.
+                if (cur.audioActive) {
+                  if (handle.paused) void handle.play().catch(() => undefined)
+                } else if (!handle.paused) {
+                  handle.pause()
+                }
                 playedVideos.set(item.mediaId, handle)
               }
             }

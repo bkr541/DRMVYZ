@@ -184,6 +184,47 @@ describe('CanvasCutbankLayer lifecycle', () => {
     act(() => view.root.unmount())
   })
 
+  it('holds still with no audio: the clock, and so every cut, transition and treatment, does not advance on wall time', async () => {
+    let audioTime = 5
+    const view = mount({ getAudioTime: () => audioTime, audioActive: true })
+    runFrames(2)
+    const timeAt = (index: number) => (passes[0].render.mock.calls[index]?.[1] as { timeSec: number }).timeSec
+    const playingTime = timeAt(passes[0].render.mock.calls.length - 1)
+    expect(playingTime).toBeCloseTo(5, 5)
+    audioTime = 6
+    runFrames(1)
+    expect(timeAt(passes[0].render.mock.calls.length - 1)).toBeCloseTo(6, 5)
+
+    // Audio stops (no track / paused): wall time passes, but the visualizer holds the last transport time.
+    act(() => {
+      view.root.render(
+        <CanvasCutbankLayer
+          active
+          settings={DEFAULT_CANVAS_PRESET_SETTINGS}
+          pool={pool}
+          poolRevision={1}
+          mediaItems={media}
+          trackIdentity="track-a"
+          getAudioTime={() => audioTime}
+          performanceContextRef={contextRef}
+          audioActive={false}
+          onCanvasReady={view.onCanvasReady}
+          onStatusChange={view.onStatusChange}
+        />,
+      )
+    })
+    runFrames(1)
+    const held = timeAt(passes[0].render.mock.calls.length - 1)
+    for (let i = 0; i < 4; i += 1) {
+      await new Promise(resolve => setTimeout(resolve, 20))
+      audioTime += 1
+      runFrames(1)
+    }
+    expect(timeAt(passes[0].render.mock.calls.length - 1)).toBe(held)
+    expect(held).toBeCloseTo(6, 5)
+    act(() => view.root.unmount())
+  })
+
   it('stops rendering and reports when the GL pass throws (context loss safe)', () => {
     const view = mount()
     passes[0].render.mockImplementation(() => { throw new Error('boom') })
