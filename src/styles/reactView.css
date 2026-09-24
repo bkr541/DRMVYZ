@@ -17267,6 +17267,402 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   font-size: 13px;
 }
 
+/* ── Preset cards in the page-heading styles (static, no animation) ─────────── */
+.llpc-hud-list,
+.llpc-halo-list,
+.llpc-metal-list,
+.llpc-glass-list,
+.llpc-blue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.llpc-hud-card,
+.llpc-halo-card,
+.llpc-metal-card,
+.llpc-glass-card,
+.llpc-blue-card {
+  --llpc-cyan: #67f7ff;
+  position: relative;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  height: 64px;
+  overflow: hidden;
+  text-align: left;
+  text-transform: none;
+  isolation: isolate;
+  font-family: var(--az-font, Inter, system-ui, sans-serif);
+}
+
+.llpc-fav {
+  position: absolute;
+  top: 7px;
+  right: 10px;
+  color: #f0b429;
+  font-size: 13px;
+  z-index: 2;
+}
+
+.llpc-hud-meta,
+.llpc-halo-meta,
+.llpc-metal-meta,
+.llpc-glass-meta,
+.llpc-blue-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.llpc-hud-name,
+.llpc-halo-name,
+.llpc-metal-name,
+.llpc-glass-name,
+.llpc-blue-name {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.llpc-hud-body,
+.llpc-halo-body,
+.llpc-metal-body,
+.llpc-glass-body,
+.llpc-blue-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 03 · Scan Plate */
+.llpc-hud-card {
+  gap: 10px;
+  padding: 6px 30px 8px 18px;
+  border: 0;
+  background:
+    radial-gradient(70% 160% at 0% 50%, color-mix(in srgb, var(--llpc-tone) 14%, transparent), transparent 70%),
+    rgba(10, 14, 17, 0.98);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.llpc-hud-card:hover { box-shadow: inset 0 0 0 1px rgba(103, 247, 255, 0.3); }
+.llpc-hud-card.is-active { box-shadow: inset 0 0 0 1px rgba(103, 247, 255, 0.5), inset 3px 0 0 var(--llpc-cyan); }
+.llpc-hud-corner {
+  position: absolute;
+  left: 5px;
+  width: 9px;
+  height: 9px;
+  border: 0 solid var(--llpc-cyan);
+  opacity: 0.85;
+}
+.llpc-hud-corner--tl { top: 5px; border-top-width: 2px; border-left-width: 2px; }
+.llpc-hud-corner--bl { bottom: 5px; border-bottom-width: 2px; border-left-width: 2px; }
+.llpc-hud-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  color: #04181c;
+  background: linear-gradient(160deg, #ffffff, var(--llpc-tone));
+  clip-path: polygon(0 0, 100% 0, 100% 70%, 70% 100%, 0 100%);
+}
+.llpc-hud-icon svg { width: 18px; height: 18px; }
+.llpc-hud-name {
+  color: transparent;
+  background: linear-gradient(180deg, #ffffff 15%, #93e9f3 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.llpc-hud-rule {
+  position: absolute;
+  left: 16px;
+  right: 0;
+  bottom: 0;
+  height: 5px;
+  background:
+    repeating-linear-gradient(90deg, rgba(103, 247, 255, 0.5) 0 1px, transparent 1px 10px) bottom / 100% 4px no-repeat,
+    linear-gradient(90deg, rgba(103, 247, 255, 0.6), rgba(103, 247, 255, 0.05)) bottom / 100% 1px no-repeat;
+}
+
+/* 04 · Halo Icon */
+.llpc-halo-card {
+  gap: 12px;
+  padding: 6px 30px 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(20, 28, 40, 0.98), rgba(10, 14, 17, 0.98));
+}
+.llpc-halo-card:hover { border-color: rgba(103, 247, 255, 0.35); }
+.llpc-halo-card.is-active { border-color: var(--llpc-cyan); }
+.llpc-halo-glow {
+  position: absolute;
+  left: -30px;
+  top: 50%;
+  width: 150px;
+  height: 150px;
+  translate: 0 -50%;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--llpc-tone) 34%, transparent), rgba(146, 110, 255, 0.12) 45%, transparent 70%);
+  z-index: -1;
+}
+.llpc-halo-ghost {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  width: 80px;
+  height: 80px;
+  translate: 0 -50%;
+  color: rgba(103, 247, 255, 0.07);
+  z-index: -1;
+}
+.llpc-halo-ghost svg { width: 100%; height: 100%; stroke-width: 0.7; }
+.llpc-halo-orb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+}
+.llpc-halo-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: rgba(103, 247, 255, 0.75);
+  stroke-width: 1.6;
+  stroke-dasharray: 5 7;
+}
+.llpc-halo-ring--inner { stroke: rgba(180, 150, 255, 0.7); stroke-dasharray: 2 5; }
+.llpc-halo-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #eaffff;
+  background: radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--llpc-tone) 70%, white), rgba(30, 60, 80, 0.9));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--llpc-tone) 50%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.llpc-halo-icon svg { width: 16px; height: 16px; }
+.llpc-halo-name {
+  color: transparent;
+  background: linear-gradient(95deg, #ffffff 0%, #8ff3ff 55%, #b9a2ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* 05 · Brushed Metal */
+.llpc-metal-card {
+  gap: 10px;
+  padding: 6px 30px 6px 20px;
+  border: 0;
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.12) 0 1px, rgba(0, 0, 0, 0.06) 1px 3px),
+    linear-gradient(180deg, #b3bbc1 0%, #8a9399 46%, #6c757b 54%, #858e94 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.7),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 3px 8px rgba(0, 0, 0, 0.5);
+}
+.llpc-metal-card:hover { filter: brightness(1.08); }
+.llpc-metal-card.is-active { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 0 0 2px rgba(103, 247, 255, 0.75), 0 3px 8px rgba(0, 0, 0, 0.5); }
+.llpc-metal-screw {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #9aa3a9, #3b4247 70%);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55);
+}
+.llpc-metal-screw--tl { top: 4px; left: 5px; }
+.llpc-metal-screw--bl { bottom: 4px; left: 5px; }
+.llpc-metal-screw--tr { top: 4px; right: 5px; }
+.llpc-metal-screw--br { bottom: 4px; right: 5px; }
+.llpc-metal-well {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  color: var(--llpc-tone);
+  border-radius: 6px;
+  background: linear-gradient(180deg, #0a0e11, #161c20);
+  box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.85), 0 1px 0 rgba(255, 255, 255, 0.22);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--llpc-tone) 55%, transparent));
+}
+.llpc-metal-well svg { width: 20px; height: 20px; }
+.llpc-metal-name {
+  color: #0d1216;
+  letter-spacing: 0.14em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55), 0 -1px 0 rgba(0, 0, 0, 0.35);
+}
+.llpc-metal-meta {
+  align-self: flex-start;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #0a0e11, #161c20);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.llpc-metal-fav { right: 20px; color: #5a4300; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4); }
+.llpc-metal-led {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #6e777c, #2b3236 70%);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5);
+}
+.llpc-metal-card.is-active .llpc-metal-led {
+  background: radial-gradient(circle at 35% 30%, #d6ffff, var(--llpc-cyan) 55%, #167a86);
+  box-shadow: 0 0 9px var(--llpc-cyan), 0 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+/* 06 · Aurora Glass */
+.llpc-glass-card {
+  padding: 5px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(8, 10, 16, 0.98);
+}
+.llpc-glass-blob {
+  position: absolute;
+  width: 150px;
+  height: 80px;
+  border-radius: 50%;
+  filter: blur(24px);
+  opacity: 0.65;
+  z-index: -1;
+}
+.llpc-glass-blob--a { left: 4%; top: -30px; background: color-mix(in srgb, var(--llpc-tone) 80%, #2fd9e6); }
+.llpc-glass-blob--b { right: 6%; bottom: -34px; background: #7a5cff; }
+.llpc-glass-pane {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 4px 30px 4px 6px;
+  border-radius: 11px;
+  background: linear-gradient(180deg, rgba(28, 36, 48, 0.72), rgba(12, 16, 24, 0.82));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+}
+.llpc-glass-card:hover .llpc-glass-pane { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3); }
+.llpc-glass-card.is-active .llpc-glass-pane { box-shadow: inset 0 0 0 1px rgba(103, 247, 255, 0.85), 0 0 12px rgba(103, 247, 255, 0.25); }
+.llpc-glass-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  color: #fff;
+  border-radius: 10px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--llpc-tone) 65%, transparent), rgba(122, 92, 255, 0.45));
+  box-shadow: 0 4px 12px rgba(60, 200, 230, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.llpc-glass-tile::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 48%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.02));
+}
+.llpc-glass-tile svg { position: relative; width: 20px; height: 20px; }
+.llpc-glass-name {
+  color: transparent;
+  background: linear-gradient(180deg, #ffffff 25%, #b4c6ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* 07 · Blueprint Stencil */
+.llpc-blue-card {
+  gap: 10px;
+  padding: 8px 30px 4px 14px;
+  border: 0;
+  background:
+    linear-gradient(rgba(103, 247, 255, 0.07) 1px, transparent 1px) 0 0 / 12px 12px,
+    linear-gradient(90deg, rgba(103, 247, 255, 0.07) 1px, transparent 1px) 0 0 / 12px 12px,
+    linear-gradient(180deg, rgba(14, 40, 62, 0.85), rgba(9, 22, 36, 0.95));
+  box-shadow: inset 0 0 0 1px rgba(103, 247, 255, 0.1);
+}
+.llpc-blue-card:hover { box-shadow: inset 0 0 0 1px rgba(103, 247, 255, 0.4); }
+.llpc-blue-card.is-active { box-shadow: inset 0 0 0 1px rgba(103, 247, 255, 0.75); }
+.llpc-blue-ruler {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 6px;
+  border-bottom: 1px solid rgba(103, 247, 255, 0.4);
+  background:
+    repeating-linear-gradient(90deg, rgba(103, 247, 255, 0.6) 0 1px, transparent 1px 48px) 0 0 / 100% 6px no-repeat,
+    repeating-linear-gradient(90deg, rgba(103, 247, 255, 0.35) 0 1px, transparent 1px 12px) 0 0 / 100% 3px no-repeat;
+}
+.llpc-blue-cross {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background:
+    linear-gradient(rgba(103, 247, 255, 0.85), rgba(103, 247, 255, 0.85)) center / 100% 1px no-repeat,
+    linear-gradient(rgba(103, 247, 255, 0.85), rgba(103, 247, 255, 0.85)) center / 1px 100% no-repeat;
+}
+.llpc-blue-cross--tl { left: 3px; top: 9px; }
+.llpc-blue-cross--br { right: 5px; bottom: 4px; }
+.llpc-blue-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  color: var(--llpc-tone);
+  border: 1px dashed rgba(103, 247, 255, 0.7);
+  border-radius: 4px;
+}
+.llpc-blue-icon svg { width: 18px; height: 18px; }
+.llpc-blue-namewrap { position: relative; padding-bottom: 7px; min-width: 0; }
+.llpc-blue-name {
+  display: block;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(103, 247, 255, 0.85);
+}
+.llpc-blue-card.is-active .llpc-blue-name {
+  color: #eaffff;
+  -webkit-text-stroke: 0;
+  text-shadow: 0 0 10px rgba(103, 247, 255, 0.5);
+}
+.llpc-blue-dim {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 5px;
+  border-left: 1px solid rgba(103, 247, 255, 0.8);
+  border-right: 1px solid rgba(103, 247, 255, 0.8);
+  background: linear-gradient(rgba(103, 247, 255, 0.8), rgba(103, 247, 255, 0.8)) center / 100% 1px no-repeat;
+}
+
 /* Cinema 2.0 concept-preset thumbnail — a real (mock) still render instead
    of the flat color-gradient placeholder other filmstrip thumbs use. */
 .ll-c2-preset-thumb {

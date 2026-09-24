@@ -4,6 +4,7 @@ import { NoticeCard } from '../react/controls/NoticeCard'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
 import { VzMiniWaveform } from '../transport/VzMiniWaveform'
+import { MediaVideoTimeline } from './MediaVideoTimeline'
 import { useWaveformPeaks } from '../hooks/useWaveformPeaks'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
@@ -58,8 +59,13 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
     else video.pause()
   }
 
+  const seekTo = (timeSec: number) => {
+    const video = videoRef.current
+    if (video && isFinite(video.duration)) video.currentTime = timeSec
+  }
+
   return (
-    <div className="mms-stage">
+    <div className={`mms-stage${isVideo && src && !videoError ? ' mms-stage--video' : ''}`}>
       <div className={`mms-media-area${hasAlpha ? ' mms-media-area--transparent' : ''}`}>
         {!src ? (
           <NoticeCard tone="error" role="status" title="Media unavailable">{recovering ? 'Refreshing media link…' : 'Media file unavailable'}</NoticeCard>
@@ -99,25 +105,25 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
       </div>
 
       {isVideo && src && !videoError && (
-        <div className="mms-controls">
-          <button className="mms-play-btn" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
-            {playing ? <PauseIcon size={13} color="currentColor" /> : <PlayIcon size={13} color="currentColor" />}
-          </button>
-          <BubbleRevealSlider
-            type="range"
-            className="mms-scrubber"
-            min={0}
-            max={duration || 100}
-            step={0.05}
-            value={currentTime}
-            onChange={event => {
-              const video = videoRef.current
-              if (video && isFinite(video.duration)) video.currentTime = parseFloat(event.target.value)
-            }}
-            aria-label="Scrub video"
-          />
-          <span className="mms-time">{formatTime(currentTime)} / {formatTime(duration)}</span>
-        </div>
+        <>
+          <div className="mms-controls">
+            <button className="mms-play-btn" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
+              {playing ? <PauseIcon size={13} color="currentColor" /> : <PlayIcon size={13} color="currentColor" />}
+            </button>
+            <BubbleRevealSlider
+              type="range"
+              className="mms-scrubber"
+              min={0}
+              max={duration || 100}
+              step={0.05}
+              value={currentTime}
+              onChange={event => seekTo(parseFloat(event.target.value))}
+              aria-label="Scrub video"
+            />
+            <span className="mms-time">{formatTime(currentTime)} / {formatTime(duration)}</span>
+          </div>
+          <MediaVideoTimeline mediaId={media.id} src={src} duration={duration} currentTime={currentTime} onSeek={seekTo} />
+        </>
       )}
 
       <div className="mms-caption">{media.title ?? media.name}</div>

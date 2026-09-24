@@ -142,6 +142,22 @@
   overflow: hidden;
 }
 
+/* A playable video sits directly above its controls and timeline: the whole
+   group is centered in the stage, and the video is capped so the controls,
+   timeline and caption always keep their room (container height minus them). */
+.mms-stage--video {
+  container-type: size;
+  justify-content: center;
+}
+
+.mms-stage--video .mms-media-area {
+  flex: 0 1 auto;
+}
+
+.mms-stage--video .mms-video {
+  max-height: calc(100cqh - 290px);
+}
+
 .mms-empty {
   flex: 1;
   display: flex;
@@ -187,7 +203,7 @@
 
 .mms-caption {
   flex-shrink: 0;
-  padding: 8px 16px 10px;
+  padding: 4px 16px 16px;
   color: rgba(232,238,240,0.7);
   font-size: 11px;
   font-weight: 600;
@@ -233,6 +249,123 @@
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.03em;
+}
+
+/* ── Video timeline (Track Map / Track Timeline styling) ───────────────────── */
+.mmt-timeline {
+  flex-shrink: 0;
+  padding: 4px 16px 14px;
+}
+
+.mmt-track {
+  position: relative;
+  padding: 14px;
+  border: 1px solid rgba(154, 178, 188, 0.1);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
+/* The timeline itself: exactly 0:00 → duration. The padding around it belongs to the frame, not the timeline. */
+.mmt-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(154, 178, 188, 0.15);
+  border-radius: 4px;
+  background: var(--color-background, #090d0f);
+}
+
+.mmt-track:focus-visible {
+  outline: 1px solid rgba(74, 199, 219, 0.7);
+  outline-offset: 1px;
+}
+
+.mmt-ruler {
+  position: relative;
+  height: 32px;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.15);
+  background: linear-gradient(180deg, #0c1215, #0a0f12);
+}
+
+.mmt-tick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  background: rgba(196, 207, 211, 0.4);
+}
+
+.mmt-tick--end { margin-left: -1px; }
+.mmt-tick--end .mmt-tick-label { left: auto; right: 6px; }
+
+.mmt-tick--major { height: 12px; background: rgba(232, 238, 240, 0.85); }
+.mmt-tick--minor { height: 6px; }
+
+.mmt-tick-label {
+  position: absolute;
+  bottom: 16px;
+  left: 6px;
+  color: var(--color-text-muted, rgba(196, 207, 211, 0.58));
+  font: 600 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.mmt-strip {
+  position: relative;
+  display: flex;
+  box-sizing: border-box;
+  height: 76px;
+  padding: 10px 0;
+  background:
+    repeating-linear-gradient(90deg, rgba(154, 178, 188, 0.05) 0 1px, transparent 1px 24px),
+    #070b0d;
+}
+
+.mmt-frame {
+  flex: 1 1 0;
+  border-radius: 2px;
+  min-width: 0;
+  border-right: 1px solid rgba(0, 0, 0, 0.6);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  opacity: 0.92;
+}
+
+.mmt-gridline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(103, 247, 255, 0.14);
+  pointer-events: none;
+}
+
+
+.mmt-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: #4ac7db;
+  box-shadow: 0 0 6px rgba(74, 199, 219, 0.7);
+  pointer-events: none;
+}
+
+.mmt-playhead::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -4px;
+  border: 5px solid transparent;
+  border-top-color: #4ac7db;
+  border-bottom-width: 0;
 }
 
 /* ── Audio track hero + waveform ─────────────────────────────────────────── */

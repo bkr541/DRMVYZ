@@ -9,6 +9,7 @@ import { NoticeCard } from '../react/controls/NoticeCard'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { RailWindowHeader } from '../layout/RailWindowHeader'
+import { RailTabs, type RailTabOption } from '../layout/RailTabs'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { useAudioStore } from '../../../stores/audioStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
@@ -311,6 +312,14 @@ function AudioTrackInspector({ track }: { track: SavedAudioTrack }) {
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
+type MediaInspectorTab = 'info' | 'edit' | 'output'
+
+const MEDIA_INSPECTOR_TABS: RailTabOption<MediaInspectorTab>[] = [
+  { id: 'info', label: 'Info' },
+  { id: 'edit', label: 'Edit' },
+  { id: 'output', label: 'Output' },
+]
+
 export function MediaManagerInspector({
   media,
   track,
@@ -318,6 +327,7 @@ export function MediaManagerInspector({
   media: UploadedMedia | null
   track: SavedAudioTrack | null
 }) {
+  const [activeTab, setActiveTab] = useState<MediaInspectorTab>('info')
   return (
     <>
       <RailWindowHeader
@@ -325,14 +335,25 @@ export function MediaManagerInspector({
         icon={<InformationCircleIcon size={15} color="currentColor" aria-hidden="true" />}
         label="Media Details"
       />
-      {media ? (
-        <VisualMediaInspector key={media.id} media={media} />
-      ) : track ? (
-        <AudioTrackInspector key={track.id} track={track} />
-      ) : (
-        <div className="mmi-empty">
-          <p>Select media from the library to view and edit its details.</p>
-        </div>
+      <RailTabs
+        tabs={MEDIA_INSPECTOR_TABS}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        ariaLabel="Media Manager inspector tabs"
+        className="rv-main-workspace-tabs"
+        variant="underline"
+      />
+      {/* Edit and Output are intentionally empty for now. */}
+      {activeTab === 'info' && (
+        media ? (
+          <VisualMediaInspector key={media.id} media={media} />
+        ) : track ? (
+          <AudioTrackInspector key={track.id} track={track} />
+        ) : (
+          <div className="mmi-empty">
+            <p>Select media from the library to view and edit its details.</p>
+          </div>
+        )
       )}
     </>
   )
