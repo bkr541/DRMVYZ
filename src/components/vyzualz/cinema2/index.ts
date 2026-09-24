@@ -665,6 +665,20 @@ export {
 } from './presets/Cinema2InterlockPreset'
 
 export {
+  CINEMA2_HUMN_CANONICAL_TOPOLOGY,
+  CINEMA2_HUMN_FRAGMENT_SOURCE,
+  CINEMA2_HUMN_FUTURE_FACET_GROUPS,
+  CINEMA2_HUMN_NATIVE_MODULE_TYPE_ID,
+  CINEMA2_HUMN_NATIVE_MODULE_VERSION,
+  CINEMA2_HUMN_SEMANTIC_GROUPS,
+  cinema2HumNNativeModuleDefinition,
+  type Cinema2HumNFacet,
+  type Cinema2HumNSegment,
+  type Cinema2HumNSegmentTier,
+  type Cinema2HumNSemanticGroupId,
+} from './modules/Cinema2HumNNativeModule'
+
+export {
   CINEMA2_HUMN_LAYER_ID,
   CINEMA2_HUMN_MODULE_ID,
   CINEMA2_HUMN_MODULE_NODE_ID,

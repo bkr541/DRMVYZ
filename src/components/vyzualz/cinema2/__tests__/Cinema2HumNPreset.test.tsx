@@ -8,13 +8,20 @@ import { createCinemaMockWebGL, CinemaResizeObserverMock, type CinemaMockWebGL }
 import { Cinema2PresetsPanel } from '../../react/Cinema2PresetsPanel'
 import { Cinema2Stage } from '../../react/Cinema2Stage'
 import {
+  CINEMA2_HUMN_CANONICAL_TOPOLOGY,
+  CINEMA2_HUMN_FRAGMENT_SOURCE,
+  CINEMA2_HUMN_FUTURE_FACET_GROUPS,
   CINEMA2_HUMN_LAYER_ID,
+  CINEMA2_HUMN_NATIVE_MODULE_TYPE_ID,
+  CINEMA2_HUMN_NATIVE_MODULE_VERSION,
   CINEMA2_HUMN_PRESET_ID,
   CINEMA2_HUMN_PRESET_MANIFEST,
+  CINEMA2_HUMN_SEMANTIC_GROUPS,
   CINEMA2_HUMN_STATIC_FRAGMENT_SOURCE,
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
   Cinema2AudioIntelligenceBridge,
   Cinema2Runtime,
+  cinema2NativeModuleRegistry,
   cinema2NativePresetRegistry,
   type Cinema2PresetId,
 } from '..'
@@ -111,7 +118,7 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-describe('Cinema 2.0 HUM:N Prompt 01 static visual foundation', () => {
+describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
   it('registers exactly once as a native first-party keeper and compiles to the synthesized scene-output path', () => {
     const declarations = CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS.filter(candidate => candidate.manifest.id === CINEMA2_HUMN_PRESET_ID)
     expect(declarations).toHaveLength(1)
@@ -124,6 +131,11 @@ describe('Cinema 2.0 HUM:N Prompt 01 static visual foundation', () => {
     expect(manifest?.metadata.tags).not.toContain('internal')
     expect(cinema2NativePresetRegistry.list().filter(candidate => candidate.id === CINEMA2_HUMN_PRESET_ID)).toHaveLength(1)
     expect(manifest?.modules).toHaveLength(1)
+    expect(manifest?.modules?.[0]).toMatchObject({
+      typeId: CINEMA2_HUMN_NATIVE_MODULE_TYPE_ID,
+      version: CINEMA2_HUMN_NATIVE_MODULE_VERSION,
+    })
+    expect(cinema2NativeModuleRegistry.get(CINEMA2_HUMN_NATIVE_MODULE_TYPE_ID, CINEMA2_HUMN_NATIVE_MODULE_VERSION)).not.toBeNull()
     expect(manifest?.scene?.nodes.filter(node => node.kind === 'module')).toHaveLength(1)
     expect(manifest?.layers).toHaveLength(1)
     expect(manifest?.effects ?? []).toHaveLength(0)
@@ -148,7 +160,11 @@ describe('Cinema 2.0 HUM:N Prompt 01 static visual foundation', () => {
     })
   })
 
-  it('renders the same deliberately static shader across frames even while authoritative audio is present', () => {
+  it('renders the same deliberately static native topology across frames even while authoritative audio is present', () => {
+    expect(CINEMA2_HUMN_STATIC_FRAGMENT_SOURCE).toBe(CINEMA2_HUMN_FRAGMENT_SOURCE)
+    expect(CINEMA2_HUMN_CANONICAL_TOPOLOGY.primarySegments).toHaveLength(100)
+    expect(CINEMA2_HUMN_CANONICAL_TOPOLOGY.accentSegments).toHaveLength(24)
+    expect(CINEMA2_HUMN_CANONICAL_TOPOLOGY.ghostSegments).toHaveLength(18)
     expect(CINEMA2_HUMN_STATIC_FRAGMENT_SOURCE).toContain('PRIMARY_SEGMENT_COUNT = 100')
     expect(CINEMA2_HUMN_STATIC_FRAGMENT_SOURCE).toContain('ACCENT_SEGMENT_COUNT = 24')
     expect(CINEMA2_HUMN_STATIC_FRAGMENT_SOURCE).toContain('GHOST_SEGMENT_COUNT = 18')
@@ -178,6 +194,39 @@ describe('Cinema 2.0 HUM:N Prompt 01 static visual foundation', () => {
     expect(gl.__calls.deletedVertexArrays).toBe(gl.__calls.createdVertexArrays)
   })
 
+  it('keeps the approved canonical topology semantically addressable without exposing new controls', () => {
+    const expectedGroups = [
+      'head-shell',
+      'left-eye',
+      'right-eye',
+      'nose',
+      'left-cheek',
+      'right-cheek',
+      'jaw-mouth',
+      'left-ear',
+      'right-ear',
+      'neck',
+      'shoulders',
+      'primary-edges',
+      'secondary-edges',
+      'ghost-emergence-edges',
+    ] as const
+
+    for (const group of expectedGroups) {
+      expect(CINEMA2_HUMN_SEMANTIC_GROUPS[group].length, group).toBeGreaterThan(0)
+    }
+    for (const [group, facets] of Object.entries(CINEMA2_HUMN_FUTURE_FACET_GROUPS)) {
+      expect(facets.length, group).toBeGreaterThan(0)
+    }
+
+    const snapshot = JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)
+    expect(JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)).toBe(snapshot)
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(1)
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.parameterBindings ?? {}).toEqual({})
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.choreography ?? []).toHaveLength(0)
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.effects ?? []).toHaveLength(0)
+  })
+
   it('preserves the screen-space composition path across landscape, square, portrait, and ultrawide resize', () => {
     const { runtime, gl, raf } = createHumNRuntime()
     runtime.start()
@@ -188,7 +237,7 @@ describe('Cinema 2.0 HUM:N Prompt 01 static visual foundation', () => {
     })
 
     expect(runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: sizes.length, failedPassCount: 0 })
-    const resolutionCalls = (gl.uniform2f as ReturnType<typeof vi.fn>).mock.calls.map(call => [call[1], call[2]])
+    const resolutionCalls = (gl.uniform2f as ReturnType<typeof vi.fn>).mock.calls.map((call: unknown[]) => [call[1], call[2]])
     for (const size of sizes) expect(resolutionCalls).toContainEqual([...size])
     runtime.dispose()
   })
