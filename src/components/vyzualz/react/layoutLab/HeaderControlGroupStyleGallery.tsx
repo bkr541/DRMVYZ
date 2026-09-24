@@ -1,7 +1,4 @@
 import { useState, type ReactNode } from 'react'
-import { Badge } from '../controls/Badge'
-import { IconChipButton } from '../controls/IconChipButton'
-import { IconMorphToggle } from '../controls/IconMorphToggle'
 
 // ── HeaderControlGroupStyleGallery ───────────────────────────────────────
 //
@@ -13,6 +10,9 @@ import { IconMorphToggle } from '../controls/IconMorphToggle'
 // Show Lyrics toggle, Save) so the styles can be compared like for like, drawn
 // inside a 60px mock header with the page heading on the left and the profile
 // avatar on the right. Interactive so hover/active/on states can be judged.
+// The save status, the Show Lyrics toggle and Save are drawn as the SAME kind of
+// key as the icon tools in each concept (same size language, borders, hover and
+// on-state), so the whole group reads as one control family.
 // Presentation only — nothing is wired to a store, page or output.
 
 const svgProps = {
@@ -48,16 +48,40 @@ function useGroupState() {
   return { active, toggleTool, lyrics, setLyrics }
 }
 
-function Status({ className = '' }: { className?: string }) {
-  return <Badge className={className} label="Saved 3:27 PM" tone="#61d6aa" />
+const LyricsIcon = () => <svg {...svgProps}><path d="M4 7h16M4 12h10M4 17h13" /></svg>
+
+/** Read-only key: same shape as the tool keys, but not interactive. */
+function StatusKey({ className }: { className: string }) {
+  return (
+    <span className={`${className} llhg-key--wide llhg-key--static`} role="status">
+      <i className="llhg-key-dot" aria-hidden="true" />
+      Saved 3:27 PM
+    </span>
+  )
 }
 
-function LyricsToggle({ lyrics, setLyrics, className = '' }: { lyrics: boolean; setLyrics: (value: boolean) => void; className?: string }) {
+/** Show Lyrics as a switch-style key: lit like an active tool when on. */
+function LyricsKey({ lyrics, setLyrics, className }: { lyrics: boolean; setLyrics: (value: boolean) => void; className: string }) {
   return (
-    <label className={`llhg-toggle${className ? ` ${className}` : ''}`}>
-      <span className="llhg-toggle-label">Show Lyrics</span>
-      <IconMorphToggle checked={lyrics} onCheckedChange={setLyrics} aria-label="Show Lyrics" />
-    </label>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={lyrics}
+      className={`${className} llhg-key--wide${lyrics ? ' is-on' : ''}`}
+      onClick={() => setLyrics(!lyrics)}
+    >
+      <LyricsIcon />
+      Show Lyrics
+    </button>
+  )
+}
+
+function SaveKey({ className }: { className: string }) {
+  return (
+    <button type="button" className={`${className} llhg-key--wide llhg-key--save`}>
+      <SaveIcon />
+      Save
+    </button>
   )
 }
 
@@ -88,56 +112,12 @@ function SegmentedDeck() {
   const { active, toggleTool, lyrics, setLyrics } = useGroupState()
   return (
     <div className="llhg-deck" role="toolbar" aria-label="Header controls (Segmented Deck)">
-      <div className="llhg-deck-seg"><Status /></div>
+      <StatusKey className="llhg-deck-key" />
       <div className="llhg-deck-seg llhg-deck-seg--tools">
         {TOOLS.map(tool => <ToolKey key={tool.id} tool={tool} on={active.has(tool.id)} onClick={() => toggleTool(tool.id)} className="llhg-deck-key" />)}
       </div>
-      <div className="llhg-deck-seg"><LyricsToggle lyrics={lyrics} setLyrics={setLyrics} /></div>
-      <div className="llhg-deck-seg llhg-deck-seg--end"><IconChipButton tone="primary" icon={<SaveIcon />}>Save</IconChipButton></div>
-    </div>
-  )
-}
-
-// ── 02 · Floating Islands ─────────────────────────────────────────────────
-// Three separate rounded glass islands with air between them — status, tools,
-// actions — so each job reads on its own and the group adapts by dropping an
-// island rather than squeezing everything.
-
-function FloatingIslands() {
-  const { active, toggleTool, lyrics, setLyrics } = useGroupState()
-  return (
-    <div className="llhg-islands" role="toolbar" aria-label="Header controls (Floating Islands)">
-      <div className="llhg-island"><Status /></div>
-      <div className="llhg-island llhg-island--tools">
-        {TOOLS.map(tool => <ToolKey key={tool.id} tool={tool} on={active.has(tool.id)} onClick={() => toggleTool(tool.id)} className="llhg-island-key" />)}
-      </div>
-      <div className="llhg-island">
-        <LyricsToggle lyrics={lyrics} setLyrics={setLyrics} />
-        <IconChipButton tone="primary" icon={<SaveIcon />}>Save</IconChipButton>
-      </div>
-    </div>
-  )
-}
-
-// ── 03 · Hardware Console ─────────────────────────────────────────────────
-// A machined strip: square keys with a tiny LED under each that lights when the
-// tool is on, engraved-style labels and a recessed status window.
-
-function HardwareConsole() {
-  const { active, toggleTool, lyrics, setLyrics } = useGroupState()
-  return (
-    <div className="llhg-console" role="toolbar" aria-label="Header controls (Hardware Console)">
-      <div className="llhg-console-window"><span className="llhg-console-led" aria-hidden="true" /><span>Saved 3:27 PM</span></div>
-      <div className="llhg-console-keys">
-        {TOOLS.map(tool => (
-          <span key={tool.id} className="llhg-console-cell">
-            <ToolKey tool={tool} on={active.has(tool.id)} onClick={() => toggleTool(tool.id)} className="llhg-console-key" />
-            <span className={`llhg-console-pilot${active.has(tool.id) ? ' is-on' : ''}`} aria-hidden="true" />
-          </span>
-        ))}
-      </div>
-      <LyricsToggle lyrics={lyrics} setLyrics={setLyrics} className="llhg-toggle--console" />
-      <IconChipButton tone="primary" icon={<SaveIcon />}>Save</IconChipButton>
+      <LyricsKey lyrics={lyrics} setLyrics={setLyrics} className="llhg-deck-key" />
+      <SaveKey className="llhg-deck-key" />
     </div>
   )
 }
@@ -151,14 +131,14 @@ function NeonUnderline() {
   return (
     <div className="llhg-neon" role="toolbar" aria-label="Header controls (Neon Underline)">
       <span className="llhg-neon-cap llhg-neon-cap--start" aria-hidden="true" />
-      <Status />
+      <StatusKey className="llhg-neon-key" />
       <span className="llhg-neon-sep" aria-hidden="true" />
       <div className="llhg-neon-tools">
         {TOOLS.map(tool => <ToolKey key={tool.id} tool={tool} on={active.has(tool.id)} onClick={() => toggleTool(tool.id)} className="llhg-neon-key" />)}
       </div>
       <span className="llhg-neon-sep" aria-hidden="true" />
-      <LyricsToggle lyrics={lyrics} setLyrics={setLyrics} />
-      <IconChipButton tone="primary" icon={<SaveIcon />}>Save</IconChipButton>
+      <LyricsKey lyrics={lyrics} setLyrics={setLyrics} className="llhg-neon-key" />
+      <SaveKey className="llhg-neon-key" />
       <span className="llhg-neon-cap llhg-neon-cap--end" aria-hidden="true" />
     </div>
   )
@@ -173,23 +153,21 @@ function CommandCapsule() {
   return (
     <div className="llhg-capsule" role="toolbar" aria-label="Header controls (Command Capsule)">
       <div className="llhg-capsule-body">
-        <Status />
+        <StatusKey className="llhg-capsule-key" />
         <span className="llhg-capsule-dots" aria-hidden="true" />
         <div className="llhg-capsule-tools">
           {TOOLS.map(tool => <ToolKey key={tool.id} tool={tool} on={active.has(tool.id)} onClick={() => toggleTool(tool.id)} className="llhg-capsule-key" />)}
         </div>
         <span className="llhg-capsule-dots" aria-hidden="true" />
-        <LyricsToggle lyrics={lyrics} setLyrics={setLyrics} />
-        <IconChipButton tone="primary" icon={<SaveIcon />}>Save</IconChipButton>
+        <LyricsKey lyrics={lyrics} setLyrics={setLyrics} className="llhg-capsule-key" />
+        <SaveKey className="llhg-capsule-key" />
       </div>
     </div>
   )
 }
 
 const CONCEPTS = [
-  { id: 'segmented-deck', title: '01 · Segmented Deck', blurb: 'One bordered deck split by hairlines into status | tools | toggle | save. Reads as a single instrument; an active tool lights its own segment.', Group: SegmentedDeck },
-  { id: 'floating-islands', title: '02 · Floating Islands', blurb: 'Three separate rounded glass islands — status, tools, actions — with air between them, so each job reads on its own.', Group: FloatingIslands },
-  { id: 'hardware-console', title: '03 · Hardware Console', blurb: 'Machined strip: square keys with a pilot LED that lights when the tool is on, and a recessed status window.', Group: HardwareConsole },
+  { id: 'segmented-deck', title: '01 · Segmented Deck', blurb: 'One bordered deck split by hairlines into status | tools | Show Lyrics | Save — every cell is the same key. Reads as a single instrument; an active tool lights its own segment.', Group: SegmentedDeck },
   { id: 'neon-underline', title: '04 · Neon Underline', blurb: 'No boxes: a glowing hairline runs under the group, the active tool gets a cyan underline, angled end caps echo the Scan Plate heading.', Group: NeonUnderline },
   { id: 'command-capsule', title: '05 · Command Capsule', blurb: 'One rounded capsule with a gradient rim and frosted fill, circular tool buttons, dotted dividers and a filled Save pill.', Group: CommandCapsule },
 ]

@@ -48,6 +48,7 @@ import { TrackTimelineIcon } from './trackTimeline/TrackTimelineIcon'
 import { resolveTrackTimelineAvailability } from './trackTimeline/trackTimelineAvailability'
 import { RailTabs } from '../layout/RailTabs'
 import { PageHeadingPlate, ReactHeadingIcon } from '../layout/PageHeadingPlate'
+import { HeaderControlGroup } from '../layout/HeaderControlGroup'
 import { TopEdgeResizeHandle } from '../../shared/TopEdgeResizeHandle/TopEdgeResizeHandle'
 import type { RailTabOption } from '../layout/RailTabs'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
@@ -790,9 +791,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
       <div className="vz-header">
         <PageHeadingPlate title="REACT" icon={<ReactHeadingIcon />} />
 
+        <HeaderControlGroup label="React controls">
+          <ReactGlobalOutputControls />
+        </HeaderControlGroup>
+
         <span className="az-spacer" />
-        <ReactPersistenceStatus />
-        <ReactGlobalOutputControls />
         <button
           type="button"
           className="vsm-settings-btn vsm-settings-btn--track-timeline"
@@ -815,6 +818,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
             <path d="M21 7h-2V3c0-1.105-.895-2-2-2H7c-1.105 0-2 .895-2 2v2H3c-1.105 0-2 .895-2 2v4c0 1.105.895 2 2 2h2v8c0 1.105.895 2 2 2h10c1.105 0 2-.895 2-2v-2h2c1.105 0 2-.895 2-2V9c0-1.105-.895-2-2-2zm-4 14H7v-8h2c1.105 0 2-.895 2-2V7c0-1.105-.895-2-2-2H7V3h10v4h-2c-1.105 0-2 .895-2 2v8c0 1.105.895 2 2 2h2v2zm4-4h-6V9h6v8z" />
           </svg>
         </button>
+        <ReactPersistenceStatus />
         <VyzualzHeaderActions />
       </div>
       {trackTimelineOpen

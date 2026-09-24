@@ -1,0 +1,32 @@
+/* Centered header control group (React, Lyric Manager, Show Manager).
+   The header row is the positioning context; the group is taken out of the flex flow so it
+   sits at the true middle of the row no matter what is on either side of it. */
+
+.vz-header,
+.lmv-header,
+.sm-topbar,
+.mmv-header {
+  position: relative;
+}
+
+.vz-header-group {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  /* Never run under the page heading (which is as wide as the left window) or its mirror on the right. */
+  max-width: calc(100% - 2 * (var(--vz-page-heading-width, 300px) + 16px));
+  min-height: 42px;
+  padding: 4px 10px;
+  border: 1px solid rgba(154, 178, 188, 0.32);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* A group with nothing to show (e.g. a status that is currently empty) leaves no empty box. */
+.vz-header-group:empty { display: none; }

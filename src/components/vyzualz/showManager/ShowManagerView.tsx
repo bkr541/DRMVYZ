@@ -19,6 +19,7 @@ import { ContextActionMenu } from '../context-menu/ContextActionMenu'
 import { Collapsible, ColorRow, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
 import { UnderlineTabs } from '../react/controls/UnderlineTabs'
 import { RailTabs, type RailTabOption } from '../layout/RailTabs'
+import { HeaderControlGroup } from '../layout/HeaderControlGroup'
 import { PageHeadingPlate, ShowHeadingIcon } from '../layout/PageHeadingPlate'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import { DualRailCollapsible } from '../react/DualRailCollapsible'
@@ -2096,98 +2097,103 @@ export function ShowManagerView() {
           <PageHeadingPlate title={workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? 'DECK BUILDER' : 'SHOW MANAGER'} icon={<ShowHeadingIcon />} />
         </div>
 
-        {workspaceMode === 'default' && (
-          <div className="sm-header-show-actions" aria-label="Show file actions">
-            <button
-              type="button"
-              className="sm-header-icon-button"
-              onClick={createSelectedShow}
-              aria-label="New Show"
-              title="New Show"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M5 3.5h9l5 5v12H5z" />
-                <path d="M14 3.5v5h5M12 11v6M9 14h6" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="sm-header-icon-button"
-              onClick={() => setShowBrowserOpen(true)}
-              aria-label="Open Show"
-              title="Open Show"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3.5 7h6l2 2h9l-2 10h-15z" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="sm-header-icon-button sm-header-icon-button--primary"
-              onClick={saveAndActivateSelectedShow}
-              disabled={saveAndActivateDisabled}
-              aria-label={saveAndActivatePending
-                ? 'Saving and making Show active'
-                : 'Save + Make Active'}
-              title={saveAndActivatePending
-                ? 'Saving and making active…'
-                : 'Save + Make Active'}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M5 3.5h12l2 2v15H5z" />
-                <path d="M8 3.5v6h8v-6M8 20.5v-7h8v7" />
-                <path className="sm-header-icon-button__active-mark" d="M18.5 11l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8z" />
-              </svg>
-            </button>
+        <HeaderControlGroup label="Show Manager controls">
+          {workspaceMode === 'default' && (
+            <div className="sm-header-show-actions" aria-label="Show file actions">
+              <button
+                type="button"
+                className="sm-header-icon-button"
+                onClick={createSelectedShow}
+                aria-label="New Show"
+                title="New Show"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 3.5h9l5 5v12H5z" />
+                  <path d="M14 3.5v5h5M12 11v6M9 14h6" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="sm-header-icon-button"
+                onClick={() => setShowBrowserOpen(true)}
+                aria-label="Open Show"
+                title="Open Show"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3.5 7h6l2 2h9l-2 10h-15z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="sm-header-icon-button sm-header-icon-button--primary"
+                onClick={saveAndActivateSelectedShow}
+                disabled={saveAndActivateDisabled}
+                aria-label={saveAndActivatePending
+                  ? 'Saving and making Show active'
+                  : 'Save + Make Active'}
+                title={saveAndActivatePending
+                  ? 'Saving and making active…'
+                  : 'Save + Make Active'}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 3.5h12l2 2v15H5z" />
+                  <path d="M8 3.5v6h8v-6M8 20.5v-7h8v7" />
+                  <path className="sm-header-icon-button__active-mark" d="M18.5 11l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8z" />
+                </svg>
+              </button>
+            </div>
+          )}
+
+          <div className="sm-stage-tools sm-stage-tools--header" aria-label="Show Manager stage tools">
+            {(activeSectionEngineId === 'laserDmx' || activeSectionEngineId === 'canvas') && workspaceMode === 'default' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={activeSectionEngineId === 'canvas' ? undoCanvasShowManagerEdit : undoLaserShowEdit}
+                  disabled={(activeSectionEngineId === 'canvas' ? canvasShowUndoDepth : laserShowUndoDepth) === 0}
+                  title="Undo Show edit"
+                >↶</button>
+                <button
+                  type="button"
+                  onClick={activeSectionEngineId === 'canvas' ? redoCanvasShowManagerEdit : redoLaserShowEdit}
+                  disabled={(activeSectionEngineId === 'canvas' ? canvasShowRedoDepth : laserShowRedoDepth) === 0}
+                  title="Redo Show edit"
+                >↷</button>
+                {['↖', '✥', '⌗', '▦', '◫'].map(tool => (
+                  <button key={tool} type="button" disabled>{tool}</button>
+                ))}
+              </>
+            ) : (
+              ['↖', '✥', '↻', '⌗', '▦', '◫', '20'].map(tool => (
+                <button key={tool} type="button" disabled>{tool}</button>
+              ))
+            )}
           </div>
-        )}
+          {workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE && (
+            <button type="button" className="sm-header-button" onClick={exitDeckBuilder}>Back to Show Manager</button>
+          )}
+          <button type="button" className="sm-header-button" disabled>Show Lyrics</button>
+          <button
+            type="button"
+            className="sm-header-button"
+            onClick={() => void (saveEngineId === 'canvas' ? commitCanvasShowSave(false) : commitLaserShowSave(false))}
+            disabled={(saveEngineId !== 'laserDmx' && saveEngineId !== 'canvas')
+              || (saveEngineId === 'canvas' ? !activeCanvasShow || canvasSavePending !== null : !activeLaserDmxShow || laserSavePending !== null)}
+          >{(saveEngineId === 'canvas' ? canvasSavePending : laserSavePending) === 'save' ? 'Saving…' : 'Save'}</button>
+          {(activeSectionEngineId === 'laserDmx' || activeSectionEngineId === 'canvas' || activeSectionEngineId === 'pixGrid') && (
+            <>
+              {activeSectionEngineId !== 'pixGrid' && (activeSectionEngineId === 'canvas' ? canvasSaveStatus : laserSaveStatus) && (
+                <span className="sm-header-save-status" role="status">
+                  {activeSectionEngineId === 'canvas' ? canvasSaveStatus : laserSaveStatus}
+                </span>
+              )}
+            </>
+          )}
+        </HeaderControlGroup>
 
         <div className="sm-topbar-spacer" />
-        <div className="sm-stage-tools sm-stage-tools--header" aria-label="Show Manager stage tools">
-          {(activeSectionEngineId === 'laserDmx' || activeSectionEngineId === 'canvas') && workspaceMode === 'default' ? (
-            <>
-              <button
-                type="button"
-                onClick={activeSectionEngineId === 'canvas' ? undoCanvasShowManagerEdit : undoLaserShowEdit}
-                disabled={(activeSectionEngineId === 'canvas' ? canvasShowUndoDepth : laserShowUndoDepth) === 0}
-                title="Undo Show edit"
-              >↶</button>
-              <button
-                type="button"
-                onClick={activeSectionEngineId === 'canvas' ? redoCanvasShowManagerEdit : redoLaserShowEdit}
-                disabled={(activeSectionEngineId === 'canvas' ? canvasShowRedoDepth : laserShowRedoDepth) === 0}
-                title="Redo Show edit"
-              >↷</button>
-              {['↖', '✥', '⌗', '▦', '◫'].map(tool => (
-                <button key={tool} type="button" disabled>{tool}</button>
-              ))}
-            </>
-          ) : (
-            ['↖', '✥', '↻', '⌗', '▦', '◫', '20'].map(tool => (
-              <button key={tool} type="button" disabled>{tool}</button>
-            ))
-          )}
-        </div>
-        {workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE && (
-          <button type="button" className="sm-header-button" onClick={exitDeckBuilder}>Back to Show Manager</button>
-        )}
-        <button type="button" className="sm-header-button" disabled>Show Lyrics</button>
-        <button
-          type="button"
-          className="sm-header-button"
-          onClick={() => void (saveEngineId === 'canvas' ? commitCanvasShowSave(false) : commitLaserShowSave(false))}
-          disabled={(saveEngineId !== 'laserDmx' && saveEngineId !== 'canvas')
-            || (saveEngineId === 'canvas' ? !activeCanvasShow || canvasSavePending !== null : !activeLaserDmxShow || laserSavePending !== null)}
-        >{(saveEngineId === 'canvas' ? canvasSavePending : laserSavePending) === 'save' ? 'Saving…' : 'Save'}</button>
         {(activeSectionEngineId === 'laserDmx' || activeSectionEngineId === 'canvas' || activeSectionEngineId === 'pixGrid') && (
-          <>
-            <ReactPersistenceStatus />
-            {activeSectionEngineId !== 'pixGrid' && (activeSectionEngineId === 'canvas' ? canvasSaveStatus : laserSaveStatus) && (
-              <span className="sm-header-save-status" role="status">
-                {activeSectionEngineId === 'canvas' ? canvasSaveStatus : laserSaveStatus}
-              </span>
-            )}
-          </>
+          <ReactPersistenceStatus />
         )}
         <VyzualzHeaderActions />
       </header>

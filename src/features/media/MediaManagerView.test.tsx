@@ -55,8 +55,8 @@ describe('MediaManagerView', () => {
 
     expect(container.querySelector('#media-manager-title')?.textContent).toBe('Media Manager')
     expect(container.querySelector('[data-testid="media-library-browser"]')).not.toBeNull()
-    expect(container.textContent).toContain('2 visual assets')
-    expect(container.textContent).toContain('1 audio track')
+    // The library counts were removed from the header; the header holds only the heading and the profile control.
+    expect(container.querySelector('.mmv-header')?.textContent).not.toMatch(/visual asset|audio track|collection/)
     expect(mocks.browserProps).toHaveBeenCalledWith(expect.objectContaining({
       activeMediaId: null,
       context: 'manager',

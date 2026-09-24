@@ -1,6 +1,7 @@
 import { IconMorphToggle } from '../../../components/vyzualz/react/controls/IconMorphToggle'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { PageHeadingPlate, LyricHeadingIcon } from '../../../components/vyzualz/layout/PageHeadingPlate'
+import { HeaderControlGroup } from '../../../components/vyzualz/layout/HeaderControlGroup'
 import { VyzualzHeaderActions } from '../../../components/vyzualz/shared/VyzualzHeaderActions'
 import type { LyricWriteStatus } from '../../../stores/lyricsStore'
 
@@ -41,10 +42,10 @@ export function LyricManagerHeader({
     <header className="lmv-header">
       <div className="lmv-header-left">
         <PageHeadingPlate title="LYRIC MANAGER" icon={<LyricHeadingIcon />} />
-        {saveStatusLabel && <span className={`lmv-dirty-badge lmv-dirty-badge--${saveStatus}`}>{saveStatusLabel}</span>}
       </div>
 
-      <div className="lmv-header-right">
+      <HeaderControlGroup label="Lyric Manager controls">
+        {saveStatusLabel && <span className={`lmv-dirty-badge lmv-dirty-badge--${saveStatus}`}>{saveStatusLabel}</span>}
         <label className="lmv-toggle-row" title="Show or hide active lyrics in the visualizer">
           <span className="lmv-toggle-label">Show Lyrics</span>
           <IconMorphToggle
@@ -71,7 +72,9 @@ export function LyricManagerHeader({
         >
           {isSaving ? 'Saving…' : 'Save + Make Active'}
         </IconChipButton>
+      </HeaderControlGroup>
 
+      <div className="lmv-header-right">
         <VyzualzHeaderActions />
       </div>
     </header>

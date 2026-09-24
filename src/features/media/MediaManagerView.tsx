@@ -20,9 +20,6 @@ interface MediaManagerViewProps {
 }
 
 export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) {
-  const mediaCount = useMediaStore(state => state.items.length)
-  const collectionCount = useMediaStore(state => state.collections.length)
-  const trackCount = useAudioStore(state => state.savedTracks.length)
   const mediaItems = useMediaStore(state => state.items)
   const savedTracks = useAudioStore(state => state.savedTracks)
   const openCollectionEditor = useMediaStore(state => state.openCollectionEditor)
@@ -81,10 +78,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
         <div className="mmv-header-left">
           <PageHeadingPlate titleAs="h1" titleId="media-manager-title" title="Media Manager" icon={<MediaHeadingIcon />} />
         </div>
-        <div className="mmv-summary" aria-label="Media library summary">
-          <span><strong>{mediaCount}</strong> visual {mediaCount === 1 ? 'asset' : 'assets'}</span>
-          <span><strong>{trackCount}</strong> audio {trackCount === 1 ? 'track' : 'tracks'}</span>
-          <span><strong>{collectionCount}</strong> {collectionCount === 1 ? 'collection' : 'collections'}</span>
+        <div className="mmv-summary">
           <VyzualzHeaderActions />
         </div>
       </header>
