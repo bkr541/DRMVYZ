@@ -231,32 +231,6 @@
   flex-shrink: 0;
 }
 
-/* Toggle button */
-.az-sidebar-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 5px;
-  color: var(--az-text-faint);
-  cursor: pointer;
-  padding: 8px 10px;
-  width: 100%;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  transition: color 0.15s, background 0.15s;
-  white-space: nowrap;
-  overflow: hidden;
-}
-.az-sidebar-toggle:hover {
-  color: var(--az-text-muted);
-  background: rgba(255,255,255,0.07);
-}
-
 /* ── Collapsed sidebar ───────────────────────────────────────────────── */
 .az-sidebar--collapsed {
   width: 72px;
@@ -276,16 +250,8 @@
 }
 .az-sidebar--collapsed .az-nav-label { display: none; }
 .az-sidebar--collapsed .az-nav-section-label { display: none; }
-.az-sidebar--collapsed .az-sidebar-footer {
-  padding: 12px 8px;
-  align-items: center;
-}
-.az-sidebar--collapsed .az-footer-meta { display: none; }
-.az-sidebar--collapsed .az-sidebar-toggle {
-  padding: 8px;
-  width: auto;
-}
-.az-toggle-label { flex-shrink: 0; }
+/* The footer only holds the license/version block, which needs the expanded width. */
+.az-sidebar--collapsed .az-sidebar-footer { display: none; }
 
 /* ── Main area ───────────────────────────────────────────────────────── */
 .az-main {

@@ -80,13 +80,37 @@
   height: 26px;
   padding: 0;
   flex-shrink: 0;
-  background: #0b1114;
-  border-color: #26d8f2;
-  color: #26d8f2;
+  /* A quiet key that belongs to the slate bar: a light wash over the bar's own colour, a hairline
+     edge and soft icon ink, instead of a dark well with a bright cyan outline. */
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: rgba(230, 238, 242, 0.84);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 .rw-window-header-actions .dv-icon-chip:hover:not(:disabled) {
-  background: #131c20;
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+}
+
+/* The emphasised action (e.g. "New Media") keeps the accent, but as a tint rather than an outline. */
+.rw-window-header-actions .dv-icon-chip.dv-icon-chip--primary {
+  background: rgba(74, 199, 219, 0.16);
+  border-color: rgba(103, 247, 255, 0.4);
+  color: #8ff3fb;
+}
+
+.rw-window-header-actions .dv-icon-chip.dv-icon-chip--primary:hover:not(:disabled) {
+  background: rgba(74, 199, 219, 0.26);
+  border-color: rgba(103, 247, 255, 0.65);
+  color: #ffffff;
+}
+
+.rw-window-header-actions .dv-icon-chip:disabled {
+  opacity: 0.4;
 }
 
 /* ── Window frame edge ────────────────────────────────────────────────────

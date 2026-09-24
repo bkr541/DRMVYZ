@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import type { AppView } from './appView'
 
@@ -17,9 +17,26 @@ export function VyzualzSidebar({
   const [collapsed, setCollapsed] = useState(compact)
   const isCollapsed = collapsed
   const showManagerUnavailable = engine.source === 'microphone'
+  const asideRef = useRef<HTMLElement>(null)
+
+  // Publish the sidebar's live width (it animates between collapsed and expanded) so
+  // anything laid out beside it, such as the bottom audio dock, starts at its right edge.
+  useEffect(() => {
+    const aside = asideRef.current
+    const root = aside?.closest<HTMLElement>('.az-root')
+    if (!aside || !root) return
+    const publish = () => root.style.setProperty('--vz-sidebar-width', `${aside.getBoundingClientRect().width}px`)
+    publish()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(publish)
+    observer?.observe(aside)
+    return () => {
+      observer?.disconnect()
+      root.style.removeProperty('--vz-sidebar-width')
+    }
+  }, [])
 
   return (
-    <aside className={`az-sidebar${isCollapsed ? ' az-sidebar--collapsed' : ''}`}>
+    <aside ref={asideRef} className={`az-sidebar${isCollapsed ? ' az-sidebar--collapsed' : ''}`}>
       <button
         type="button"
         className="az-logo"
@@ -137,19 +154,6 @@ export function VyzualzSidebar({
             <span className="az-status-dot" />
           </div>
         </div>
-        <button
-          className="az-sidebar-toggle"
-          onClick={() => setCollapsed(c => !c)}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          <svg viewBox="0 0 20 20" width="13" height="13" fill="currentColor">
-            <path d={collapsed
-              ? 'M8 4l6 6-6 6-1.4-1.4L11.2 10 6.6 5.4z'
-              : 'M12 4L6 10l6 6 1.4-1.4L8.8 10l4.6-4.6z'
-            }/>
-          </svg>
-          <span className="az-nav-label az-toggle-label">{collapsed ? 'Expand' : 'Collapse'}</span>
-        </button>
       </div>
     </aside>
   )

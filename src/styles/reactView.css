@@ -203,8 +203,8 @@
 .rv-layout[data-right-collapsed='true'] { --rv-right-width: var(--rv-collapsed-width); }
 
 /* Dock sits below the grid; set column widths to align with rv-layout panels */
+/* --vz-sidebar-width is inherited from .az-root, where the sidebar publishes its live width. */
 .rv-shell > .az-dock {
-  --vz-sidebar-width: 72px;
   --vz-left-width: 330px;
   --vz-right-width: 400px;
 }
@@ -6705,7 +6705,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-shell > .az-dock.vz-transport-dock {
   position: fixed;
   z-index: 60;
-  left: 0;
+  /* Starts at the sidebar's right edge (it follows the sidebar's live width) so the left
+     navigation runs the full height of the window instead of sitting under the dock. */
+  left: var(--vz-sidebar-width, 72px);
   right: 0;
   bottom: 0;
   width: auto;
@@ -6722,7 +6724,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-shell > .vz-transport-dock .vz-dock-card {
   border-radius: 11px;
-  border-color: rgba(74, 199, 219, 0.34);
+  /* No blue outline around the three dock sections; transparent keeps the card sizes unchanged. */
+  border-color: transparent;
   background:
     radial-gradient(circle at 50% 0%, rgba(74, 199, 219, 0.055), transparent 44%),
     linear-gradient(180deg, rgba(10, 17, 24, 0.98), rgba(5, 10, 16, 0.98));
