@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { DreamVizTextInput } from '../../react/controls/DreamVizTextInput'
-import { DropdownSelect } from '../../../shared/Dropdown/Dropdown'
+import { UnderlineDropdown } from '../../react/controls/UnderlineDropdown'
 import { getNativeDiagnosticsBridge } from '../../../../native/diagnosticsBridge'
 import { parseMainLogText, type MainLogEntry, type MainLogLevel } from '../../../../lib/mainLogParser'
 import { LOG_COMPONENTS, LOG_COMPONENT_LABELS, type LogComponent } from '../../../../lib/logComponents'
@@ -159,26 +159,28 @@ export function DeveloperLoggingPanel() {
           onChange={event => setSearch(event.target.value)}
           aria-label="Search log entries"
         />
-        <DropdownSelect
+        <UnderlineDropdown
           className="vsm-dev-log-level-select"
+          eyebrow="Level"
+          ariaLabel="Filter by level"
           value={levelFilter}
-          onChange={event => setLevelFilter(event.target.value as LevelFilterValue)}
-          aria-label="Filter by level"
-          dropdownSize="compact"
-        >
-          <option value="all">All</option>
-          {LEVELS.map(level => <option key={level} value={level}>{level.toUpperCase()}</option>)}
-        </DropdownSelect>
-        <DropdownSelect
+          onChange={value => setLevelFilter(value as LevelFilterValue)}
+          options={[
+            { value: 'all', label: 'All' },
+            ...LEVELS.map(level => ({ value: level, label: level.toUpperCase() })),
+          ]}
+        />
+        <UnderlineDropdown
           className="vsm-dev-log-component-select"
+          eyebrow="Component"
+          ariaLabel="Filter by component"
           value={componentFilter}
-          onChange={event => setComponentFilter(event.target.value as ComponentFilterValue)}
-          aria-label="Filter by component"
-          dropdownSize="compact"
-        >
-          <option value="all">All</option>
-          {LOG_COMPONENTS.map(component => <option key={component} value={component}>{LOG_COMPONENT_LABELS[component]}</option>)}
-        </DropdownSelect>
+          onChange={value => setComponentFilter(value as ComponentFilterValue)}
+          options={[
+            { value: 'all', label: 'All' },
+            ...LOG_COMPONENTS.map(component => ({ value: component, label: LOG_COMPONENT_LABELS[component] })),
+          ]}
+        />
         <span className={`vsm-media-sync-dot${live ? ' is-online' : ''}`} aria-hidden="true" />
         <span className="vsm-dev-log-count">{visibleRows.length} / {entries.length}</span>
       </div>

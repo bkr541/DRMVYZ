@@ -130,16 +130,16 @@ function CircuitTrace() {
     <div className="llph-bar llph-c3">
       <span className="llph-c3-chip" aria-hidden="true"><ShowIcon /></span>
       <span className="llph-c3-title">Show Manager</span>
-      <svg className="llph-c3-traces" viewBox="0 0 700 92" preserveAspectRatio="xMinYMid slice" aria-hidden="true">
-        <path className="llph-c3-trace" d="M0 46 H50 L74 24 H330 L354 46 H700" />
-        <path className="llph-c3-trace llph-c3-trace--b" d="M0 46 H120 L144 68 H420 L444 46 H700" />
-        <path className="llph-c3-trace llph-c3-trace--c" d="M0 46 H700" />
-        <path className="llph-c3-packet" d="M0 46 H50 L74 24 H330 L354 46 H700" />
-        <path className="llph-c3-packet llph-c3-packet--b" d="M0 46 H120 L144 68 H420 L444 46 H700" />
-        <path className="llph-c3-packet llph-c3-packet--c" d="M0 46 H700" />
-        <circle className="llph-c3-node" cx="74" cy="24" r="3.5" />
-        <circle className="llph-c3-node llph-c3-node--b" cx="144" cy="68" r="3.5" />
-        <circle className="llph-c3-node llph-c3-node--c" cx="354" cy="46" r="3.5" />
+      <svg className="llph-c3-traces" viewBox="0 0 700 60" preserveAspectRatio="xMinYMid slice" aria-hidden="true">
+        <path className="llph-c3-trace" d="M0 30 H50 L68 15 H330 L348 30 H700" />
+        <path className="llph-c3-trace llph-c3-trace--b" d="M0 30 H120 L138 45 H420 L438 30 H700" />
+        <path className="llph-c3-trace llph-c3-trace--c" d="M0 30 H700" />
+        <path className="llph-c3-packet" d="M0 30 H50 L68 15 H330 L348 30 H700" />
+        <path className="llph-c3-packet llph-c3-packet--b" d="M0 30 H120 L138 45 H420 L438 30 H700" />
+        <path className="llph-c3-packet llph-c3-packet--c" d="M0 30 H700" />
+        <circle className="llph-c3-node" cx="68" cy="15" r="3" />
+        <circle className="llph-c3-node llph-c3-node--b" cx="138" cy="45" r="3" />
+        <circle className="llph-c3-node llph-c3-node--c" cx="348" cy="30" r="3" />
       </svg>
     </div>
   )

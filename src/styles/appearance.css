@@ -523,7 +523,7 @@ body,
 .vsm-dev-log-toolbar {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
   padding: 12px 16px;
   border-bottom: 1px solid var(--color-border-faint);
@@ -532,13 +532,14 @@ body,
 
 .vsm-dev-log-search {
   flex: 1 1 260px;
-  min-width: 180px;
+  min-width: 120px;
 }
 
-.vsm-dev-log-level-select,
-.vsm-dev-log-component-select {
-  flex: 0 0 auto;
-  min-width: 110px;
+.drm-dropdown.vsm-dev-log-level-select,
+.drm-dropdown.vsm-dev-log-component-select {
+  flex: 0 0 150px;
+  width: 150px;
+  min-width: 0;
 }
 
 .vsm-dev-log-count {
@@ -550,11 +551,13 @@ body,
 .vsm-dev-log-table-wrap {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .vsm-dev-log-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font: 400 11px/1.5 var(--az-font-data);
 }
@@ -575,6 +578,11 @@ body,
   text-transform: uppercase;
   color: var(--color-text-faint);
 }
+
+.vsm-dev-log-table thead th:nth-child(1) { width: 172px; }
+.vsm-dev-log-table thead th:nth-child(2) { width: 64px; }
+.vsm-dev-log-table thead th:nth-child(3) { width: 104px; }
+.vsm-dev-log-table thead th:nth-child(4) { width: 140px; }
 
 .vsm-dev-log-table thead th:hover {
   color: var(--color-text-strong);
@@ -599,19 +607,20 @@ body,
 }
 
 .vsm-dev-log-scope {
-  white-space: nowrap;
   color: var(--color-text-muted);
+  overflow-wrap: anywhere;
 }
 
 .vsm-dev-log-message {
   position: relative;
   padding-right: 30px;
+  overflow-wrap: anywhere;
 }
 
 .vsm-dev-log-message pre {
   margin: 0;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
   font-family: inherit;
 }
 
@@ -653,10 +662,8 @@ body,
 }
 
 .vsm-dev-log-message-first {
-  display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* Smooth "height: auto" collapse/expand without measuring pixels — a 0fr/1fr

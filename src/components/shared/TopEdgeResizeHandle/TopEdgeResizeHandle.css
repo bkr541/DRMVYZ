@@ -1,0 +1,19 @@
+/* Same 6px cyan-on-hover strip the Lyric Manager window splitters use. The
+   parent panel must be position: relative. */
+.drm-top-edge-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  z-index: 3;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.drm-top-edge-resize-handle:hover,
+.drm-top-edge-resize-handle:focus-visible,
+.drm-top-edge-resize-handle[data-dragging='true'] {
+  background: rgba(74, 199, 219, 0.3);
+  outline: none;
+}

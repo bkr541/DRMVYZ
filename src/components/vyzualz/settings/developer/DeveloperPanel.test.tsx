@@ -125,7 +125,7 @@ describe('DeveloperPanel', () => {
   })
 
   it('filters rows using the level dropdown, defaulting to All', async () => {
-    const trigger = document.querySelector<HTMLButtonElement>('.vsm-dev-log-level-select[role="combobox"]')!
+    const trigger = document.querySelector<HTMLButtonElement>('.vsm-dev-log-level-select [role="combobox"]')!
     expect(trigger.textContent).toContain('All')
 
     await act(async () => trigger.click())
@@ -146,7 +146,7 @@ describe('DeveloperPanel', () => {
   })
 
   it('filters rows using the component dropdown, defaulting to All', async () => {
-    const trigger = document.querySelector<HTMLButtonElement>('.vsm-dev-log-component-select[role="combobox"]')!
+    const trigger = document.querySelector<HTMLButtonElement>('.vsm-dev-log-component-select [role="combobox"]')!
     expect(trigger.textContent).toContain('All')
 
     await act(async () => trigger.click())

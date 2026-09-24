@@ -32,7 +32,7 @@ import {
   type LocalAudioPreparationProgress,
 } from '../services/localAudioPreparation'
 import { getAudioPreparationOperation } from '../../../lib/audioPreparationDb'
-import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
+import { UnderlineDropdown } from '../../../components/vyzualz/react/controls/UnderlineDropdown'
 
 const CUE_STYLE_OPTIONS: Array<{ value: LyricCueStyle; description: string }> = [
   { value: 'hip-hop', description: 'Short rhythmic phrases' },
@@ -846,13 +846,16 @@ export function AiLyricExtractor({
       <div className="lmv-grid2">
         <div className="lmv-field">
           <label className="lmv-field-label" htmlFor="lyric-extraction-source-mode">SOURCE MODE</label>
-          <DropdownSelect
-            id="lyric-extraction-source-mode"
-            className="lmv-select"
+          <UnderlineDropdown
+            triggerId="lyric-extraction-source-mode"
             value={extractionSourceMode}
             disabled={active}
-            onChange={event => {
-              const mode = event.target.value as LyricExtractionSourceMode
+            options={[
+              { value: 'full_mix', label: 'Full Mix' },
+              { value: 'vocal_reference', label: 'Vocal Reference' },
+            ]}
+            onChange={value => {
+              const mode = value as LyricExtractionSourceMode
               setExtractionSourceMode(mode)
               if (mode === 'full_mix') {
                 // Leaving Vocal Reference drops the reference selection and its
@@ -868,32 +871,29 @@ export function AiLyricExtractor({
               setNotice(null)
               setSignificantMismatchConfirmed(false)
             }}
-          >
-            <option value="full_mix">Full Mix</option>
-            <option value="vocal_reference">Vocal Reference</option>
-          </DropdownSelect>
+          />
         </div>
         {extractionSourceMode === 'vocal_reference' && (
           <div className="lmv-field">
             <label className="lmv-field-label" htmlFor="lyric-vocal-reference-track">SAVED VOCAL TRACK</label>
-            <DropdownSelect
-              id="lyric-vocal-reference-track"
-              className="lmv-select"
+            <UnderlineDropdown
+              triggerId="lyric-vocal-reference-track"
               value={vocalReferenceTrackId ?? ''}
               disabled={active}
-              onChange={event => {
-                setVocalReferenceTrackId(event.target.value || null)
+              placeholder="Choose a saved audio track…"
+              options={[
+                { value: '', label: 'Choose a saved audio track…' },
+                ...vocalReferenceCandidates.map(track => ({
+                  value: track.dbId,
+                  label: `${track.title}${track.artist ? ` · ${track.artist}` : ''} · ${formatTrackDuration(track.durationSec)}`,
+                })),
+              ]}
+              onChange={value => {
+                setVocalReferenceTrackId(value || null)
                 setError(null)
                 setNotice(null)
               }}
-            >
-              <option value="">Choose a saved audio track…</option>
-              {vocalReferenceCandidates.map(track => (
-                <option key={track.dbId} value={track.dbId}>
-                  {track.title}{track.artist ? ` · ${track.artist}` : ''} · {formatTrackDuration(track.durationSec)}
-                </option>
-              ))}
-            </DropdownSelect>
+            />
           </div>
         )}
         {extractionSourceMode === 'vocal_reference' && (
@@ -976,31 +976,41 @@ export function AiLyricExtractor({
       <div className="lmv-grid2">
         <div className="lmv-field">
           <label className="lmv-field-label" htmlFor="lyric-extraction-language">LANGUAGE</label>
-          <DropdownSelect id="lyric-extraction-language" className="lmv-select" value={options.language}
+          <UnderlineDropdown
+            triggerId="lyric-extraction-language"
+            value={options.language}
             disabled={active}
-            onChange={event => setOptions(current => ({ ...current, language: event.target.value }))}>
-            <option value="auto">Auto-detect</option>
-            <option value="en">English</option>
-            <option value="es">Spanish</option>
-            <option value="fr">French</option>
-            <option value="de">German</option>
-            <option value="ja">Japanese</option>
-          </DropdownSelect>
+            options={[
+              { value: 'auto', label: 'Auto-detect' },
+              { value: 'en', label: 'English' },
+              { value: 'es', label: 'Spanish' },
+              { value: 'fr', label: 'French' },
+              { value: 'de', label: 'German' },
+              { value: 'ja', label: 'Japanese' },
+            ]}
+            onChange={value => setOptions(current => ({ ...current, language: value }))}
+          />
         </div>
         <div className="lmv-field">
           <label className="lmv-field-label" htmlFor="lyric-extraction-timing">TIMING DETAIL</label>
-          <DropdownSelect id="lyric-extraction-timing" className="lmv-select" value={options.timingDetail}
+          <UnderlineDropdown
+            triggerId="lyric-extraction-timing"
+            value={options.timingDetail}
             disabled={active}
-            onChange={event => setOptions(current => ({ ...current, timingDetail: event.target.value as LyricTranscriptionOptions['timingDetail'] }))}>
-            {TIMING_OPTS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </DropdownSelect>
+            options={TIMING_OPTS.map(option => ({ value: option.value, label: option.label }))}
+            onChange={value => setOptions(current => ({ ...current, timingDetail: value as LyricTranscriptionOptions['timingDetail'] }))}
+          />
         </div>
         <div className="lmv-field">
           <label className="lmv-field-label" htmlFor="lyric-extraction-cue-style">CUE STYLE</label>
-          <DropdownSelect id="lyric-extraction-cue-style" className="lmv-select" value={options.cueStyle ?? 'balanced'} disabled={active}
-            onChange={event => setOptions(current => ({ ...current, cueStyle: event.target.value as LyricCueStyle }))}>
-            {CUE_STYLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{LYRIC_CUE_STYLE_LABELS[option.value]} · {option.description}</option>)}
-          </DropdownSelect>
+          <UnderlineDropdown
+            triggerId="lyric-extraction-cue-style"
+            value={options.cueStyle ?? 'balanced'}
+            disabled={active}
+            options={CUE_STYLE_OPTIONS.map(option => ({ value: option.value, label: LYRIC_CUE_STYLE_LABELS[option.value], description: option.description }))}
+            showDescriptions
+            onChange={value => setOptions(current => ({ ...current, cueStyle: value as LyricCueStyle }))}
+          />
         </div>
         <div className="lmv-field">
           <label className="lmv-field-label" htmlFor="lyric-extraction-offset">GLOBAL OFFSET MS</label>
@@ -1035,9 +1045,12 @@ export function AiLyricExtractor({
         <div className="lmv-job-card">
           <div className="lmv-section-label">REFORMAT CUES</div>
           <div className="lmv-grid2">
-            <DropdownSelect className="lmv-select" value={reformatStyle} onChange={event => { setReformatStyle(event.target.value as LyricCueStyle); setReformatPreview(null) }}>
-              {CUE_STYLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{LYRIC_CUE_STYLE_LABELS[option.value]}</option>)}
-            </DropdownSelect>
+            <UnderlineDropdown
+              ariaLabel="Reformat cue style"
+              value={reformatStyle}
+              options={CUE_STYLE_OPTIONS.map(option => ({ value: option.value, label: LYRIC_CUE_STYLE_LABELS[option.value] }))}
+              onChange={value => { setReformatStyle(value as LyricCueStyle); setReformatPreview(null) }}
+            />
             <IconChipButton onClick={previewReformat}>Preview Reformat</IconChipButton>
           </div>
           {reformatPreview && <div className="lmv-parse-next-hint">Current: {cues.length} cues · Proposed: {reformatPreview.length} cues

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
+import { lazy, Suspense, useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef, type CSSProperties } from 'react'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
@@ -47,6 +47,7 @@ import { useRgbWaveformStore } from '../../../features/waveform/rgbWaveformStora
 import { TrackTimelineIcon } from './trackTimeline/TrackTimelineIcon'
 import { resolveTrackTimelineAvailability } from './trackTimeline/trackTimelineAvailability'
 import { RailTabs } from '../layout/RailTabs'
+import { TopEdgeResizeHandle } from '../../shared/TopEdgeResizeHandle/TopEdgeResizeHandle'
 import type { RailTabOption } from '../layout/RailTabs'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { RailWindowHeader } from '../layout/RailWindowHeader'
@@ -189,6 +190,11 @@ export interface ReactViewProps {
   onOpenMediaManager?: () => void
   onOpenLyricManager?: (intent: import('../../../features/lyrics/lyricNavigation').LyricManagerNavigationIntent) => void
 }
+
+const DEFAULT_LOWER_SURFACE_HEIGHT = 205
+const MIN_LOWER_SURFACE_HEIGHT = 96
+const MAX_LOWER_SURFACE_HEIGHT = 640
+const MIN_STAGE_HEIGHT = 180
 
 export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewProps) {
   const engine   = useSharedAudio()
@@ -350,6 +356,20 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     leftTab: preferredLeftTab,
     setLeftTab,
   } = useReactWorkspacePreferences()
+  const lowerWorkspaceRef = useRef<HTMLElement>(null)
+  const [lowerSurfaceHeight, setLowerSurfaceHeight] = useState<number | null>(null)
+  const getLowerSurfaceStartHeight = useCallback(
+    () => lowerWorkspaceRef.current?.querySelector<HTMLElement>('.rv-lower-workspace-surface:not([hidden])')?.offsetHeight
+      ?? DEFAULT_LOWER_SURFACE_HEIGHT,
+    [],
+  )
+  const resizeLowerSurface = useCallback((next: number) => {
+    const section = lowerWorkspaceRef.current
+    const column = section?.parentElement
+    const toolbarHeight = section?.querySelector<HTMLElement>('.rv-lower-workspace-toolbar')?.offsetHeight ?? 0
+    const ceiling = column ? column.clientHeight - toolbarHeight - MIN_STAGE_HEIGHT : MAX_LOWER_SURFACE_HEIGHT
+    setLowerSurfaceHeight(Math.max(MIN_LOWER_SURFACE_HEIGHT, Math.min(next, ceiling)))
+  }, [])
   const activeLowerSurface = isReactLowerSurfaceAvailable(lowerSurface, workspaceComposition)
     ? lowerSurface
     : (lowerSurfaces[0] ?? 'trackMap')
@@ -1049,10 +1069,23 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           </div>
           {lowerSurfaces.length > 0 && (
             <section
+              ref={lowerWorkspaceRef}
               className="rv-lower-workspace"
               data-collapsed={lowerWorkspaceCollapsed ? 'true' : undefined}
+              data-resized={lowerSurfaceHeight != null ? 'true' : undefined}
+              style={lowerSurfaceHeight != null ? ({ '--rv-lower-surface-height': `${lowerSurfaceHeight}px` } as CSSProperties) : undefined}
               aria-label="Performance timeline workspace"
             >
+              {!lowerWorkspaceCollapsed && !stageFocus && (
+                <TopEdgeResizeHandle
+                  label="Resize timeline workspace"
+                  value={lowerSurfaceHeight ?? DEFAULT_LOWER_SURFACE_HEIGHT}
+                  min={MIN_LOWER_SURFACE_HEIGHT}
+                  max={MAX_LOWER_SURFACE_HEIGHT}
+                  getStartValue={getLowerSurfaceStartHeight}
+                  onChange={resizeLowerSurface}
+                />
+              )}
               <div className="rv-lower-workspace-toolbar">
                 <button
                   type="button"
