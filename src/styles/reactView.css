@@ -12500,13 +12500,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
    its styling and functionality per that mockup — 4 color rows read as 2
    rows of 2 instead of one long single-column stack. Same open-row
    full-width break-out rule as Cinema's 4-column Palette group above. */
-.drc-body.rv-cinema2-palette-body {
+.drc-body.rv-cinema2-palette-body,
+.rv-palette-color-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 10px 12px;
 }
 
-.drc-body.rv-cinema2-palette-body .rv-ctrl-palette-row.is-open {
+.drc-body.rv-cinema2-palette-body .rv-ctrl-palette-row.is-open,
+.rv-palette-color-grid .rv-ctrl-palette-row.is-open {
   grid-column: 1 / -1;
 }
 

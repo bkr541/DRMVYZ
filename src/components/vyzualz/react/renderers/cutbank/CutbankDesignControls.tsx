@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useReactStore } from '../../../../../stores/reactStore'
-import { Collapsible, ColorRow, SelectRow, SliderRow, ToggleRow } from '../../ReactControlRows'
+import { Collapsible, PaletteColorRow, SelectRow, SliderRow, ToggleRow } from '../../ReactControlRows'
 import { holdSliderToBeats, snapHoldBeats, cutRateToIntervalBeats } from './CutbankClock'
 import { autoPaletteBars } from './CutbankPalette'
 import {
@@ -145,10 +145,12 @@ export function CutbankDesignControls() {
         {slider('exposure', 'Exposure', '#d8b95a')}
         {slider('blackLevel', 'Black Level', '#8fa6ad')}
         {slider('whiteLevel', 'White Level', '#e8f4f8')}
-        <ColorRow label="Tint" value={settings.tintColor} onChange={tintColor => set({ tintColor })} />
+        <div className="rv-palette-color-grid">
+          <PaletteColorRow label="Tint" value={settings.tintColor} onChange={tintColor => set({ tintColor })} />
+          {paletteUsesAccents && <PaletteColorRow label="Accent Color 1" value={settings.accentColor1} onChange={accentColor1 => set({ accentColor1 })} />}
+          {paletteUsesAccents && <PaletteColorRow label="Accent Color 2" value={settings.accentColor2} onChange={accentColor2 => set({ accentColor2 })} />}
+        </div>
         {slider('tintAmount', 'Tint Amount', '#d8b95a')}
-        {paletteUsesAccents && <ColorRow label="Accent Color 1" value={settings.accentColor1} onChange={accentColor1 => set({ accentColor1 })} />}
-        {paletteUsesAccents && <ColorRow label="Accent Color 2" value={settings.accentColor2} onChange={accentColor2 => set({ accentColor2 })} />}
         {paletteUsesAccents && slider('colorizeAmount', 'Colorize Amount', '#4ac7db', 'How strongly the accent colors replace source color.')}
         <ToggleRow label="Invert Colors" value={settings.invertColors} onChange={invertColors => set({ invertColors })} />
         {settings.paletteMode === 'auto' && slider('colorChangeRate', 'Color Change Rate', '#61d6aa', `A new palette state about every ${autoPaletteBars(settings.colorChangeRate)} bar${autoPaletteBars(settings.colorChangeRate) === 1 ? '' : 's'}.`)}

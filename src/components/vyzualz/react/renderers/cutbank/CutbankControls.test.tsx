@@ -16,7 +16,7 @@ let root: Root
 const store = () => useReactStore.getState()
 
 const groupLabels = () => [...host.querySelectorAll<HTMLButtonElement>('.drc-header')].map(button => button.querySelector('span')?.textContent?.trim())
-const rowLabels = () => [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')].map(el => el.textContent?.trim())
+const rowLabels = () => [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label, .rv-ctrl-palette-row-label')].map(el => el.textContent?.trim())
 
 async function mountDesign() {
   await act(async () => { root.render(<CanvasEngineFxPanel />) })
