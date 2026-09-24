@@ -53,6 +53,7 @@ uniform float u_mix;
 uniform float u_persistence;
 uniform float u_historyValid;
 uniform float u_deltaTime;
+uniform float u_drift;
 out vec4 outColor;
 mat2 rotate2d(float angle) {
   float c = cos(angle);
@@ -70,7 +71,8 @@ void main() {
   float retention = pow(persistence, frameFactor);
   vec2 centered = v_uv - 0.5;
   float trailMix = clamp(u_mix, 0.0, 1.0);
-  vec2 historyUv = 0.5 + rotate2d(0.0018 * trailMix * frameFactor) * centered * pow(0.9975, frameFactor);
+  // u_drift scales the slow spiral applied to history; 0 keeps echoes pinned to real movement.
+  vec2 historyUv = 0.5 + rotate2d(0.0018 * trailMix * frameFactor * u_drift) * centered * pow(0.9975, frameFactor * u_drift);
   vec4 prior = texture(u_history, clamp(historyUv, vec2(0.0), vec2(1.0)));
   vec4 history = mix(base, prior, step(0.5, u_historyValid));
   vec3 retained = history.rgb * retention;
@@ -225,6 +227,7 @@ class HistoryFeedbackEffectInstance implements Cinema2EffectInstance {
       vertSrc: FULLSCREEN_VERT_SRC,
       fragSrc: FEEDBACK_TRAILS_FRAGMENT_SOURCE,
       requiredUniforms: ['u_source', 'u_history', 'u_mix', 'u_persistence', 'u_historyValid', 'u_deltaTime'],
+      optionalUniforms: ['u_drift'],
     })
     if (!result.program) throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
     this.program = result.program
@@ -235,6 +238,7 @@ class HistoryFeedbackEffectInstance implements Cinema2EffectInstance {
   render(context: Readonly<Cinema2EffectRenderExecutionContext>): void {
     if (this.disposed) return
     const persistence = clamp(numberValue(context.parameters, 'persistence', 0.85), 0, 1)
+    const drift = clamp(numberValue(context.parameters, 'drift', 1), 0, 1)
     const transportAware = booleanValue(context.parameters, 'transportAware', false)
     const transportInactive = transportAware && (
       context.frame.transport?.sourcePresent === false
@@ -247,6 +251,7 @@ class HistoryFeedbackEffectInstance implements Cinema2EffectInstance {
     this.gl.disable(this.gl.DEPTH_TEST)
     this.gl.colorMask(true, true, true, true)
     this.program.activate()
+    this.program.setFloat('u_drift', drift)
 
     if (transportInactive) {
       if (!this.transportBypassed) {
@@ -333,6 +338,7 @@ export const cinema2FeedbackTrailsEffectDefinition: Readonly<Cinema2EffectTypeDe
       ...validateCommon(effect),
       ...validateNumeric(effect, 'persistence', 0, 1),
     ]
+    if (effect.parameters?.drift !== undefined) diagnostics.push(...validateNumeric(effect, 'drift', 0, 1))
     const transportAware = effect.parameters?.transportAware
     if (transportAware !== undefined && typeof transportAware !== 'boolean') {
       diagnostics.push({

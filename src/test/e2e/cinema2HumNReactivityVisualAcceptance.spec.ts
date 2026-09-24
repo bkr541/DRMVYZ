@@ -45,7 +45,7 @@ const GESTURE = 'hum-n-gesture-intensity'
 const MOTION = 'hum-n-motion-amount'
 const AUTO = 'hum-n-auto-performance'
 // Recorded by the Gestures vitest suite (which also guards them): drop marker ids -> families.
-const DROP_IDS = { reach: 'drop-0', lunge: 'drop-3', shock: 'drop-6', headGrab: 'drop-8' } as const
+const DROP_IDS = { reach: 'drop-0', lunge: 'drop-1', shock: 'drop-3', headGrab: 'drop-2' } as const
 const FAMILIES = ['reach', 'shock', 'headGrab', 'lunge'] as const
 
 test.describe('HUM:N reactive behavior in a real WebGL2 browser', () => {

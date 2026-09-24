@@ -6,13 +6,18 @@ import {
   cinema2StableId,
   type Cinema2ChoreographyActionId,
   type Cinema2ChoreographyRuleId,
+  type Cinema2EffectId,
   type Cinema2LayerId,
   type Cinema2ModuleId,
   type Cinema2NativePresetManifest,
   type Cinema2ParameterId,
   type Cinema2PresetId,
+  type Cinema2RenderPassId,
+  type Cinema2RenderSlotId,
+  type Cinema2RenderTargetId,
   type Cinema2SceneNodeId,
 } from '../contracts/Cinema2NativePresetManifest'
+import { CINEMA2_BLOOM_EFFECT_TYPE_ID, CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID } from '../effects/Cinema2BuiltinEffects'
 import {
   CINEMA2_HUMN_FRAGMENT_SOURCE,
   CINEMA2_HUMN_NATIVE_MODULE_TYPE_ID,
@@ -50,6 +55,21 @@ export const CINEMA2_HUMN_FLICKER_AMOUNT_ID = cinema2StableId<Cinema2ParameterId
 export const CINEMA2_HUMN_FRAGMENT_JITTER_ID = cinema2StableId<Cinema2ParameterId>('hum-n-fragment-jitter')
 export const CINEMA2_HUMN_GESTURE_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('hum-n-gesture-intensity')
 export const CINEMA2_HUMN_AUTO_PERFORMANCE_ID = cinema2StableId<Cinema2ParameterId>('hum-n-auto-performance')
+export const CINEMA2_HUMN_GLOW_ID = cinema2StableId<Cinema2ParameterId>('hum-n-glow')
+export const CINEMA2_HUMN_TRAILS_ID = cinema2StableId<Cinema2ParameterId>('hum-n-trails')
+
+/** Engine-owned finishing chain: HUM:N scene -> feedback trails -> bloom -> output. */
+export const CINEMA2_HUMN_SCENE_TARGET_ID = cinema2StableId<Cinema2RenderTargetId>('hum-n-scene-target')
+export const CINEMA2_HUMN_TRAILS_TARGET_ID = cinema2StableId<Cinema2RenderTargetId>('hum-n-trails-target')
+export const CINEMA2_HUMN_SCENE_PASS_ID = cinema2StableId<Cinema2RenderPassId>('hum-n-scene-pass')
+export const CINEMA2_HUMN_TRAILS_PASS_ID = cinema2StableId<Cinema2RenderPassId>('hum-n-trails-pass')
+export const CINEMA2_HUMN_BLOOM_PASS_ID = cinema2StableId<Cinema2RenderPassId>('hum-n-bloom-pass')
+export const CINEMA2_HUMN_SCENE_COLOR_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('hum-n-scene-color')
+export const CINEMA2_HUMN_TRAILS_COLOR_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('hum-n-trails-color')
+export const CINEMA2_HUMN_TRAILS_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('hum-n-trails-source')
+export const CINEMA2_HUMN_BLOOM_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('hum-n-bloom-source')
+export const CINEMA2_HUMN_TRAILS_EFFECT_ID = cinema2StableId<Cinema2EffectId>('hum-n-feedback-trails')
+export const CINEMA2_HUMN_BLOOM_EFFECT_ID = cinema2StableId<Cinema2EffectId>('hum-n-bloom')
 /** Hidden, runtime-only trigger that carries stable drop/phrase/section identity to the native module. */
 export const CINEMA2_HUMN_STRUCTURAL_EVENT_INTENT_ID = cinema2StableId<Cinema2ParameterId>('hum-n-structural-event-intent')
 /** Hidden, runtime-only trigger that carries stable rhythm-event identity to the native module. */
@@ -86,6 +106,8 @@ const fragmentEventSpawnAction = (id: string, kind: 'beat' | 'downbeat' | 'kick'
   operation: 'spawn' as const,
   value: Object.freeze({ kind }),
 })
+
+const effectTarget = (effectId: Cinema2EffectId, property: string) => Object.freeze({ kind: 'effect' as const, ref: cinema2Ref(effectId), property })
 
 const CINEMA2_HUMN_COMPOSITION_OUTPUT_PARAMETERS = Object.freeze([
   Object.freeze({
@@ -563,6 +585,46 @@ const CINEMA2_HUMN_EFFECTS_PARAMETERS = Object.freeze([
     persistence: 'preset' as const,
     reset: 'authored-default' as const,
   }),
+  Object.freeze({
+    id: CINEMA2_HUMN_GLOW_ID,
+    label: 'Glow',
+    description: 'Neon light treatment on the bright wireframe and facets using the engine Bloom. At 0, Glow is completely off and the frame is unchanged.',
+    type: 'float' as const,
+    defaultValue: 0,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    section: 'Design',
+    group: 'Light Treatment',
+    designParentGroup: 'effects' as const,
+    order: 3,
+    exposure: 'primary' as const,
+    modulatable: true,
+    choreographable: true,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_TRAILS_ID,
+    label: 'Trails',
+    description: 'Geometric afterimages of real figure movement using the engine feedback history. At 0, Trails is completely off and no history is kept.',
+    type: 'float' as const,
+    defaultValue: 0,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    section: 'Design',
+    group: 'Temporal',
+    designParentGroup: 'effects' as const,
+    order: 4,
+    exposure: 'primary' as const,
+    modulatable: true,
+    choreographable: true,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
 ])
 
 const CINEMA2_HUMN_RUNTIME_PARAMETERS = Object.freeze([
@@ -597,7 +659,7 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_HUMN_PRESET_ID,
-  revision: 18,
+  revision: 21,
   metadata: Object.freeze({
     name: 'HUM:N',
     description: 'A near-black sparse low-poly humanoid bust reconstructed from the approved fractured white wireframe silhouette with stronger facet hierarchy, faint emergence fragments, and a restrained technical grid.',
@@ -615,6 +677,7 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
     Object.freeze({ id: 'music.drop' as const, requirement: 'optional' as const, purpose: 'Drop gestures (reach, shock, head grab, lunge).' }),
     Object.freeze({ id: 'music.phrase' as const, requirement: 'optional' as const, purpose: 'Phrase-boundary look, turn, and scan body language.' }),
     Object.freeze({ id: 'music.section' as const, requirement: 'optional' as const, purpose: 'Section-change look, turn, scan, and recenter body language.' }),
+    Object.freeze({ id: 'render.history' as const, requirement: 'optional' as const, purpose: 'Trails afterimages when render history is available.' }),
   ]),
   parameters: Object.freeze([
     CINEMA2_QUALITY_MODE_PARAMETER,
@@ -1024,6 +1087,78 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
           }),
         ]),
       }),
+      // Finishing (Glow / Trails). One artistic control drives several engine
+      // effect values through parameter-sourced routes, so the derived values are
+      // transient targets and are never written back to the user's parameters.
+      // Trails: mix = t * (1 - 0.25 t) (0.44 at 0.5, 0.75 at 1); persistence = 0.72 + 0.22 t (0.83, 0.94).
+      Object.freeze({
+        id: choreographyRuleId('hum-n-trails-mix-curve'),
+        priority: 60,
+        source: Object.freeze({ signal: 'parameter' as const, parameter: cinema2Ref(CINEMA2_HUMN_TRAILS_ID) }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-trails-mix-shape'),
+          target: effectTarget(CINEMA2_HUMN_TRAILS_EFFECT_ID, 'mix'),
+          operation: 'multiply' as const,
+          value: 0.75,
+        })]),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-trails-persistence-curve'),
+        priority: 61,
+        source: Object.freeze({ signal: 'parameter' as const, parameter: cinema2Ref(CINEMA2_HUMN_TRAILS_ID) }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-trails-persistence-lift'),
+          target: effectTarget(CINEMA2_HUMN_TRAILS_EFFECT_ID, 'persistence'),
+          operation: 'add' as const,
+          value: 0.22,
+        })]),
+      }),
+      // Glow: the built-in Bloom uses a compact 13-tap kernel, so the halo is kept tight (radius 1.0-2.0 px,
+      // threshold above saturated skin colors) and grows mostly in strength; a wider radius would comb into ghost lines.
+      Object.freeze({
+        id: choreographyRuleId('hum-n-glow-radius-curve'),
+        priority: 62,
+        source: Object.freeze({ signal: 'parameter' as const, parameter: cinema2Ref(CINEMA2_HUMN_GLOW_ID) }),
+        actions: Object.freeze([
+          Object.freeze({
+            id: choreographyActionId('hum-n-glow-radius-lift'),
+            target: effectTarget(CINEMA2_HUMN_BLOOM_EFFECT_ID, 'radius'),
+            operation: 'add' as const,
+            value: 1.0,
+          }),
+          Object.freeze({
+            id: choreographyActionId('hum-n-glow-intensity-lift'),
+            target: effectTarget(CINEMA2_HUMN_BLOOM_EFFECT_ID, 'intensity'),
+            operation: 'add' as const,
+            value: 1.6,
+          }),
+        ]),
+      }),
+      // Intelligence modulation is multiplicative, so a user value of 0 stays a hard off.
+      Object.freeze({
+        id: choreographyRuleId('hum-n-build-glow'),
+        priority: 63,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.build' as const, smoothingMs: 500 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-build-glow-lift'),
+          target: effectTarget(CINEMA2_HUMN_BLOOM_EFFECT_ID, 'mix'),
+          operation: 'multiply' as const,
+          value: 1.35,
+        })]),
+        strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-impact-trails'),
+        priority: 64,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.impact' as const, smoothingMs: 120 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-impact-trails-lift'),
+          target: effectTarget(CINEMA2_HUMN_TRAILS_EFFECT_ID, 'mix'),
+          operation: 'multiply' as const,
+          value: 1.25,
+        })]),
+        strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
     ]),
   }),
   scene: Object.freeze({
@@ -1042,4 +1177,98 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
     depthPolicy: 'disabled' as const,
     order: 0,
   })]),
+  effects: Object.freeze([
+    Object.freeze({
+      id: CINEMA2_HUMN_TRAILS_EFFECT_ID,
+      typeId: CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID,
+      version: 1,
+      enabled: true,
+      order: 0,
+      scope: 'output' as const,
+      quality: Object.freeze({ min: 'low' as const }),
+      parameters: Object.freeze({
+        mix: 0,
+        persistence: 0.72,
+        // No spiral drift: echoes follow real HUM:N movement and a static figure leaves none.
+        drift: 0,
+        transportAware: true,
+      }),
+      parameterBindings: Object.freeze({
+        mix: cinema2Ref(CINEMA2_HUMN_TRAILS_ID),
+      }),
+    }),
+    Object.freeze({
+      id: CINEMA2_HUMN_BLOOM_EFFECT_ID,
+      typeId: CINEMA2_BLOOM_EFFECT_TYPE_ID,
+      version: 1,
+      enabled: true,
+      order: 1,
+      scope: 'output' as const,
+      quality: Object.freeze({ min: 'low' as const }),
+      parameters: Object.freeze({
+        mix: 0,
+        threshold: 0.68,
+        radius: 1.0,
+        intensity: 1.4,
+      }),
+      parameterBindings: Object.freeze({
+        mix: cinema2Ref(CINEMA2_HUMN_GLOW_ID),
+      }),
+    }),
+  ]),
+  render: Object.freeze({
+    targets: Object.freeze([
+      Object.freeze({
+        id: CINEMA2_HUMN_SCENE_TARGET_ID,
+        descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba8' as const, depthFormat: 'none' as const }),
+        ownership: 'transient' as const,
+      }),
+      Object.freeze({
+        id: CINEMA2_HUMN_TRAILS_TARGET_ID,
+        descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba8' as const, depthFormat: 'none' as const }),
+        ownership: 'transient' as const,
+      }),
+    ]),
+    passes: Object.freeze([
+      Object.freeze({
+        id: CINEMA2_HUMN_SCENE_PASS_ID,
+        kind: 'scene' as const,
+        layers: Object.freeze([cinema2Ref(CINEMA2_HUMN_LAYER_ID)]),
+        outputs: Object.freeze([Object.freeze({
+          id: CINEMA2_HUMN_SCENE_COLOR_OUTPUT_ID,
+          target: cinema2Ref(CINEMA2_HUMN_SCENE_TARGET_ID),
+          attachment: 'color' as const,
+        })]),
+      }),
+      Object.freeze({
+        id: CINEMA2_HUMN_TRAILS_PASS_ID,
+        kind: 'fullscreen' as const,
+        effect: cinema2Ref(CINEMA2_HUMN_TRAILS_EFFECT_ID),
+        inputs: Object.freeze([Object.freeze({
+          id: CINEMA2_HUMN_TRAILS_INPUT_ID,
+          source: Object.freeze({ pass: cinema2Ref(CINEMA2_HUMN_SCENE_PASS_ID), output: CINEMA2_HUMN_SCENE_COLOR_OUTPUT_ID }),
+        })]),
+        outputs: Object.freeze([Object.freeze({
+          id: CINEMA2_HUMN_TRAILS_COLOR_OUTPUT_ID,
+          target: cinema2Ref(CINEMA2_HUMN_TRAILS_TARGET_ID),
+          attachment: 'color' as const,
+        })]),
+      }),
+      Object.freeze({
+        id: CINEMA2_HUMN_BLOOM_PASS_ID,
+        kind: 'fullscreen' as const,
+        effect: cinema2Ref(CINEMA2_HUMN_BLOOM_EFFECT_ID),
+        inputs: Object.freeze([Object.freeze({
+          id: CINEMA2_HUMN_BLOOM_INPUT_ID,
+          source: Object.freeze({ pass: cinema2Ref(CINEMA2_HUMN_TRAILS_PASS_ID), output: CINEMA2_HUMN_TRAILS_COLOR_OUTPUT_ID }),
+        })]),
+      }),
+    ]),
+    outputPass: cinema2Ref(CINEMA2_HUMN_BLOOM_PASS_ID),
+  }),
+  output: Object.freeze({
+    renderPass: cinema2Ref(CINEMA2_HUMN_BLOOM_PASS_ID),
+    colorSpace: 'srgb' as const,
+    alphaMode: 'premultiplied' as const,
+  }),
 })

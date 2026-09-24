@@ -6,14 +6,25 @@ import {
 } from '../../components/vyzualz/cinema2'
 import { humMusicFrame, type HumFrameInput } from '../../components/vyzualz/cinema2/__tests__/support/Cinema2HumNFrameFactory'
 
-type FrameStep = Omit<HumFrameInput, 'frameId' | 'timeSec'> & { frames?: number; dt?: number; timeSec?: number; pause?: boolean }
+type ParameterValue = number | boolean | string | readonly number[]
+
+type FrameStep = Omit<HumFrameInput, 'frameId' | 'timeSec'> & {
+  frames?: number
+  dt?: number
+  timeSec?: number
+  pause?: boolean
+  /** Persistent parameter edits applied before this step's frames (mid-run user changes). */
+  state?: Record<string, ParameterValue>
+}
 
 interface ScenarioInput {
   /** Persistent parameter values keyed by canonical parameter id. */
-  state?: Record<string, number | boolean | string>
+  state?: Record<string, ParameterValue>
   steps: readonly FrameStep[]
   /** Render size; defaults to 640x360. */
   size?: { width: number; height: number }
+  /** Host (Audio Dock) Sync preference; preset-level BPM Sync only narrows it. Defaults to off. */
+  hostSync?: boolean
 }
 
 interface Region {
@@ -23,12 +34,23 @@ interface Region {
   y1: number
 }
 
+interface Inspection {
+  history: { activeBufferCount: number; validBufferCount: number; lastResetReason: string; resetCount: number; buffers: readonly { name: string; valid: boolean; width: number; height: number }[] }
+  effects: readonly { effectId: string; status: string }[]
+  executedPassCount: number
+  resources: { activeLeaseCount: number; activeSurfaceCount: number; estimatedGpuMemoryBytes: number }
+  /** Resource ownership after runtime.dispose(): everything must be released. */
+  resourcesAfterDispose: { activeLeaseCount: number; activeSurfaceCount: number; estimatedGpuMemoryBytes: number; disposed: boolean }
+  historyAfterDispose: { activeBufferCount: number; disposed: boolean }
+}
+
 interface RenderedFrame {
   width: number
   height: number
   pixels: number[]
   diagnostics: string
   failedPassCount: number
+  inspection: Inspection
 }
 
 const DEFAULT_SIZE = { width: 640, height: 360 }
@@ -46,7 +68,7 @@ function render(input: ScenarioInput): RenderedFrame {
   let rafClock = 0
   let sequence = 0
   let upstream = humMusicFrame({ frameId: 1, timeSec: 10 })
-  const transport = { sourcePresent: true, playing: true, analysisActive: true, paused: false, trackId: 'hum-n-reactivity-track' as string | null, timeSec: 10 }
+  const transport = { sourcePresent: true, playing: true, analysisActive: true, paused: false, trackId: 'hum-n-reactivity-track' as string | null, timeSec: 10, bpmSync: input.hostSync === true }
   const bridge = new Cinema2AudioIntelligenceBridge({
     getFrame: () => upstream,
     getPublicationMeta: () => ({ sequence, publishedAtMs: upstream.timeSec * 1000, publisherId: 'hum-n-browser', kind: 'frame' as const }),
@@ -70,17 +92,22 @@ function render(input: ScenarioInput): RenderedFrame {
     throw new Error(`HUM:N runtime failed: ${created.error}`)
   }
   const runtime = created.runtime
+  let disposed = false
   try {
     runtime.resize({ width: WIDTH, height: HEIGHT, dpr: 1 })
     runtime.start()
-    for (const [id, value] of Object.entries(input.state ?? {})) {
-      const result = runtime.getParameterState().setPersistentValue(id as never, value as never)
-      if (!(result as { ok?: boolean }).ok) throw new Error(`Could not set ${id}`)
+    const applyState = (values: Record<string, ParameterValue> | undefined) => {
+      for (const [id, value] of Object.entries(values ?? {})) {
+        const result = runtime.getParameterState().setPersistentValue(id as never, value as never)
+        if (!(result as { ok?: boolean }).ok) throw new Error(`Could not set ${id}`)
+      }
     }
+    applyState(input.state)
     let frameId = 1
     let timeSec = 10
     const sticky: Partial<HumFrameInput> = {}
     for (const step of input.steps) {
+      applyState(step.state)
       for (const key of STICKY_KEYS) {
         if (key in step) (sticky as Record<string, unknown>)[key] = (step as Record<string, unknown>)[key]
       }
@@ -122,9 +149,31 @@ function render(input: ScenarioInput): RenderedFrame {
     const snapshot = runtime.getSnapshot()
     const executor = runtime.getRenderGraphExecutorSnapshot()
     const diagnostics = JSON.stringify({ phase: snapshot.phase, frameCount: snapshot.frameCount, executor, status: snapshot.statusMessage, modules: runtime.getModuleRuntimeSnapshot() })
-    return { width: WIDTH, height: HEIGHT, pixels: Array.from(data), diagnostics, failedPassCount: executor.failedPassCount }
-  } finally {
+    const history = runtime.getHistoryServiceSnapshot()
+    const resources = runtime.getResourceManagerSnapshot()
+    const inspection: Inspection = {
+      history: {
+        activeBufferCount: history.activeBufferCount,
+        validBufferCount: history.validBufferCount,
+        lastResetReason: history.lastResetReason,
+        resetCount: history.resetCount,
+        buffers: history.buffers.map(buffer => ({ name: buffer.name, valid: buffer.valid, width: buffer.width, height: buffer.height })),
+      },
+      effects: runtime.getEffectRuntimeSnapshot().effects.map(effect => ({ effectId: String(effect.effectId), status: effect.status })),
+      executedPassCount: executor.executedPassCount,
+      resources: { activeLeaseCount: resources.activeLeaseCount, activeSurfaceCount: resources.activeSurfaceCount, estimatedGpuMemoryBytes: resources.estimatedGpuMemoryBytes },
+      resourcesAfterDispose: { activeLeaseCount: 0, activeSurfaceCount: 0, estimatedGpuMemoryBytes: 0, disposed: false },
+      historyAfterDispose: { activeBufferCount: 0, disposed: false },
+    }
     runtime.dispose()
+    disposed = true
+    const after = runtime.getResourceManagerSnapshot()
+    inspection.resourcesAfterDispose = { activeLeaseCount: after.activeLeaseCount, activeSurfaceCount: after.activeSurfaceCount, estimatedGpuMemoryBytes: after.estimatedGpuMemoryBytes, disposed: after.disposed }
+    const historyAfter = runtime.getHistoryServiceSnapshot()
+    inspection.historyAfterDispose = { activeBufferCount: historyAfter.activeBufferCount, disposed: historyAfter.disposed }
+    return { width: WIDTH, height: HEIGHT, pixels: Array.from(data), diagnostics, failedPassCount: executor.failedPassCount, inspection }
+  } finally {
+    if (!disposed) runtime.dispose()
     canvas.remove()
   }
 }
@@ -161,6 +210,30 @@ interface DiffMetrics {
   /** Width of lit pixels inside the head band (y 8%..48%) for both frames. */
   headBandWidthBefore: number
   headBandWidthAfter: number
+  /** True when every byte of both frames matches. */
+  identical: boolean
+  /** Pixels that were black (<=4) before and visibly lit (>30) after: halo/echo reaching negative space. */
+  blackLifted: number
+  /** Share of the lit-before pixels that are still lit after (structure survival). */
+  litSurvival: number
+  /** Sum of channel values, used to compare light energy. */
+  energyBefore: number
+  energyAfter: number
+  hashBefore: string
+  hashAfter: string
+  inspectionBefore: Inspection
+  inspectionAfter: Inspection
+}
+
+function hashPixels(pixels: readonly number[]): string {
+  let h1 = 0x811c9dc5
+  let h2 = 0x01000193
+  for (let index = 0; index < pixels.length; index++) {
+    const value = pixels[index]!
+    h1 = Math.imul(h1 ^ value, 0x01000193) >>> 0
+    h2 = Math.imul(h2 + value + index, 0x85ebca6b) >>> 0
+  }
+  return `${h1.toString(16).padStart(8, '0')}${h2.toString(16).padStart(8, '0')}`
 }
 
 const LIT_LUMA = 95
@@ -203,13 +276,29 @@ function analyze(a: RenderedFrame, b: RenderedFrame, regions: readonly Region[] 
   let minY = Infinity
   let maxY = -Infinity
   const total = width * height
+  let identical = true
+  let blackLifted = 0
+  let litBefore = 0
+  let litStill = 0
+  let energyBefore = 0
+  let energyAfter = 0
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const offset = (y * width + x) * 4
+      const beforeMax = Math.max(a.pixels[offset]!, a.pixels[offset + 1]!, a.pixels[offset + 2]!)
+      const afterMax = Math.max(b.pixels[offset]!, b.pixels[offset + 1]!, b.pixels[offset + 2]!)
+      energyBefore += a.pixels[offset]! + a.pixels[offset + 1]! + a.pixels[offset + 2]!
+      energyAfter += b.pixels[offset]! + b.pixels[offset + 1]! + b.pixels[offset + 2]!
+      if (beforeMax <= 4 && afterMax > 30) blackLifted += 1
+      if (beforeMax > LIT_LUMA) {
+        litBefore += 1
+        if (afterMax > LIT_LUMA) litStill += 1
+      }
       let pixelMax = 0
       for (let channel = 0; channel < 3; channel++) {
         const diff = Math.abs(a.pixels[offset + channel]! - b.pixels[offset + channel]!)
         sum += diff
+        if (diff !== 0) identical = false
         if (diff > pixelMax) pixelMax = diff
       }
       if (pixelMax > max) max = pixelMax
@@ -250,11 +339,25 @@ function analyze(a: RenderedFrame, b: RenderedFrame, regions: readonly Region[] 
     headBoundsAfter: boundsOf(b, { y0: 0, y1: 0.5 }),
     headBandWidthBefore: beforeBand ? beforeBand.maxX - beforeBand.minX : 0,
     headBandWidthAfter: afterBand ? afterBand.maxX - afterBand.minX : 0,
+    identical,
+    blackLifted,
+    litSurvival: litBefore === 0 ? 1 : litStill / litBefore,
+    energyBefore,
+    energyAfter,
+    hashBefore: hashPixels(a.pixels),
+    hashAfter: hashPixels(b.pixels),
+    inspectionBefore: a.inspection,
+    inspectionAfter: b.inspection,
   }
 }
 
-function contactSheet(scenarios: readonly { label: string; scenario: ScenarioInput }[]): string {
-  const { width: WIDTH, height: HEIGHT } = DEFAULT_SIZE
+function contactSheet(
+  scenarios: readonly { label: string; scenario: ScenarioInput }[],
+  size: { width: number; height: number } = DEFAULT_SIZE,
+  /** Optional normalized crop, drawn 2x for close inspection of edges. */
+  crop?: Region,
+): string {
+  const { width: WIDTH, height: HEIGHT } = size
   const columns = 2
   const rows = Math.ceil(scenarios.length / columns)
   const sheet = document.createElement('canvas')
@@ -265,11 +368,20 @@ function contactSheet(scenarios: readonly { label: string; scenario: ScenarioInp
   context.fillStyle = '#111'
   context.fillRect(0, 0, sheet.width, sheet.height)
   scenarios.forEach((entry, index) => {
-    const frame = render({ ...entry.scenario, size: DEFAULT_SIZE })
+    const frame = render({ ...entry.scenario, size })
     const image = new ImageData(new Uint8ClampedArray(frame.pixels), WIDTH, HEIGHT)
     const x = (index % columns) * WIDTH
     const y = Math.floor(index / columns) * (HEIGHT + 22)
-    context.putImageData(image, x, y + 22)
+    if (crop) {
+      const scratch = document.createElement('canvas')
+      scratch.width = WIDTH
+      scratch.height = HEIGHT
+      scratch.getContext('2d')!.putImageData(image, 0, 0)
+      context.imageSmoothingEnabled = false
+      context.drawImage(scratch, crop.x0 * WIDTH, crop.y0 * HEIGHT, (crop.x1 - crop.x0) * WIDTH, (crop.y1 - crop.y0) * HEIGHT, x, y + 22, WIDTH, HEIGHT)
+    } else {
+      context.putImageData(image, x, y + 22)
+    }
     context.fillStyle = '#9ff'
     context.font = '13px sans-serif'
     context.fillText(entry.label, x + 6, y + 15)
@@ -281,14 +393,22 @@ declare global {
   interface Window {
     __DRMVYZ_CINEMA2_HUMN_ACCEPTANCE__?: {
       compare(before: ScenarioInput, after: ScenarioInput, regions?: readonly Region[]): DiffMetrics
+      /** Renders a scenario once and reports its pixel hash, luminous bounds and engine resource/history state. */
+      inspect(scenario: ScenarioInput): { hash: string; inspection: Inspection; failedPassCount: number; litBounds: Bounds | null; meanLuma: number }
       /** Debug/visual review: renders scenarios into one labelled contact sheet PNG. */
-      contactSheet(scenarios: readonly { label: string; scenario: ScenarioInput }[]): string
+      contactSheet(scenarios: readonly { label: string; scenario: ScenarioInput }[], size?: { width: number; height: number }, crop?: Region): string
     }
   }
 }
 
 window.__DRMVYZ_CINEMA2_HUMN_ACCEPTANCE__ = {
   compare: (before, after, regions) => analyze(render(before), render(after), regions),
+  inspect: scenario => {
+    const frame = render(scenario)
+    let luma = 0
+    for (let offset = 0; offset < frame.pixels.length; offset += 4) luma += 0.2126 * frame.pixels[offset]! + 0.7152 * frame.pixels[offset + 1]! + 0.0722 * frame.pixels[offset + 2]!
+    return { hash: hashPixels(frame.pixels), inspection: frame.inspection, failedPassCount: frame.failedPassCount, litBounds: boundsOf(frame), meanLuma: luma / (frame.width * frame.height) }
+  },
   contactSheet,
 }
 const status = document.querySelector<HTMLElement>('[data-cinema2-humn-status]')

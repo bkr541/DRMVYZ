@@ -35,6 +35,8 @@ export interface HumFrameInput {
   /** Changing these mid-play is a section-change (new section identity). */
   sectionStartSec?: number
   sectionEndSec?: number
+  /** Analyzed tempo; defaults to HUM_BPM (120). */
+  bpm?: number
 }
 
 export const HUM_BPM = 120 // 0.5s per beat
@@ -58,7 +60,7 @@ export function humMusicFrame(input: HumFrameInput): MusicIntelligenceFrame {
     },
     rhythm: {
       ...DEFAULT_MI_FRAME.rhythm,
-      bpm: HUM_BPM,
+      bpm: input.bpm ?? HUM_BPM,
       bpmConfidence: 0.96,
       bpmSource: 'offline_analysis',
       beatIndex,

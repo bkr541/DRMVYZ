@@ -26,7 +26,8 @@ class FakeCanvas extends EventTarget {
 type Numeric = { mock: { calls: unknown[][] } }
 
 export interface Harness {
-  step(input: Omit<HumFrameInput, 'frameId' | 'timeSec'> & { timeSec?: number; frames?: number; dt?: number }): void
+  /** `trackId: null` models an unloaded source (no track identity). */
+  step(input: Omit<HumFrameInput, 'frameId' | 'timeSec' | 'trackId'> & { trackId?: string | null; timeSec?: number; frames?: number; dt?: number }): void
   uniform(name: string): number
   vec4(name: string): readonly number[]
   drawCount(): number
@@ -34,6 +35,10 @@ export interface Harness {
   pause(paused: boolean): void
   get(id: Cinema2ParameterId): unknown
   snapshot(): string
+  /** Mutable host transport (source presence, pause, ...). */
+  transport: { sourcePresent: boolean; playing: boolean; analysisActive: boolean; paused: boolean; trackId: string | null; timeSec: number }
+  /** The runtime's canvas, so tests can dispatch WebGL context loss/restore events. */
+  canvas: EventTarget
   runtime: Cinema2Runtime
   dispose(): void
 }
@@ -51,7 +56,8 @@ export function createHarness(options: { seed?: string; state?: Record<string, n
     getPublicationMeta: () => ({ sequence, publishedAtMs: upstream.timeSec * 1000, publisherId: 'hum-n-reactivity', kind: 'frame' as const }),
   })
   const transport = { sourcePresent: true, playing: true, analysisActive: true, paused: false, trackId: 'hum-n-reactivity-track' as string | null, timeSec: 10 }
-  const created = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
+  const canvas = new FakeCanvas(gl)
+  const created = Cinema2Runtime.create(canvas as unknown as HTMLCanvasElement, {
     transportSource: { getState: () => transport },
     presetId: CINEMA2_HUMN_PRESET_ID,
     presetRegistry: cinema2NativePresetRegistry,
@@ -77,6 +83,8 @@ export function createHarness(options: { seed?: string; state?: Record<string, n
 
   const harness: Harness = {
     runtime,
+    transport,
+    canvas,
     step(input) {
       for (const key of ['dropMoments', 'phrases', 'sectionType', 'sectionStartSec', 'sectionEndSec', 'dropConfidence'] as const) {
         if (key in input) (sticky as Record<string, unknown>)[key] = (input as Record<string, unknown>)[key]
@@ -87,12 +95,13 @@ export function createHarness(options: { seed?: string; state?: Record<string, n
         frameId += 1
         timeSec = input.timeSec != null && index === 0 ? input.timeSec : transport.paused ? timeSec : timeSec + dt
         transport.timeSec = timeSec
-        transport.trackId = input.trackId ?? 'hum-n-reactivity-track'
+        transport.trackId = input.trackId === undefined ? 'hum-n-reactivity-track' : input.trackId
         // Rhythm events fire on the first frame of the step only.
         const first = index === 0
         upstream = humMusicFrame({
           ...sticky,
           ...input,
+          trackId: input.trackId ?? undefined,
           frameId,
           timeSec,
           beat: first && input.beat,

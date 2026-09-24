@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
 import { createCinemaMockWebGL, CinemaResizeObserverMock, type CinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { Cinema2InspectorPanel } from '../../react/Cinema2InspectorPanel'
 import { Cinema2PresetsPanel } from '../../react/Cinema2PresetsPanel'
 import { Cinema2Stage } from '../../react/Cinema2Stage'
 import {
@@ -14,7 +15,14 @@ import {
   CINEMA2_HUMN_FRAGMENT_SOURCE,
   CINEMA2_HUMN_FUTURE_FACET_GROUPS,
   CINEMA2_HUMN_SKIN_FACET_GROUPS,
+  CINEMA2_HUMN_BLOOM_EFFECT_ID,
+  CINEMA2_HUMN_GLOW_ID,
+  CINEMA2_HUMN_TRAILS_ID,
+  CINEMA2_HUMN_BLOOM_PASS_ID,
   CINEMA2_HUMN_LAYER_ID,
+  CINEMA2_HUMN_SCENE_PASS_ID,
+  CINEMA2_HUMN_TRAILS_EFFECT_ID,
+  CINEMA2_HUMN_TRAILS_PASS_ID,
   CINEMA2_HUMN_MASTER_INTENSITY_ID,
   CINEMA2_HUMN_BPM_SYNC_ID,
   CINEMA2_HUMN_MOTION_AMOUNT_ID,
@@ -150,7 +158,7 @@ afterEach(async () => {
 })
 
 describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
-  it('registers exactly once as a native first-party keeper and compiles to the synthesized scene-output path', () => {
+  it('registers exactly once as a native first-party keeper and compiles to the scene -> trails -> bloom -> output Render Graph', () => {
     const declarations = CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS.filter(candidate => candidate.manifest.id === CINEMA2_HUMN_PRESET_ID)
     expect(declarations).toHaveLength(1)
     expect(declarations[0]).toMatchObject({ role: 'keeper' })
@@ -169,7 +177,7 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     expect(cinema2NativeModuleRegistry.get(CINEMA2_HUMN_NATIVE_MODULE_TYPE_ID, CINEMA2_HUMN_NATIVE_MODULE_VERSION)).not.toBeNull()
     expect(manifest?.scene?.nodes.filter(node => node.kind === 'module')).toHaveLength(1)
     expect(manifest?.layers).toHaveLength(1)
-    expect(manifest?.effects ?? []).toHaveLength(0)
+    expect(manifest?.effects?.map(effect => effect.id)).toEqual([CINEMA2_HUMN_TRAILS_EFFECT_ID, CINEMA2_HUMN_BLOOM_EFFECT_ID])
     expect(manifest?.choreography?.rules.length ?? 0).toBeGreaterThan(0)
     expect(manifest?.cameras ?? []).toHaveLength(0)
 
@@ -179,15 +187,14 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     expect(compiled.ok, compiled.ok ? '' : compiled.diagnostics.map(diagnostic => `${diagnostic.path}: ${diagnostic.message}`).join('\n')).toBe(true)
     if (!compiled.ok) return
     expect(compiled.plan.render).toMatchObject({
-      synthesized: true,
-      intent: 'scene-output',
-      passOrder: ['auto-scene-output'],
-      outputPassId: 'auto-scene-output',
-      passes: [expect.objectContaining({
-        id: 'auto-scene-output',
-        kind: 'scene',
-        layers: [expect.objectContaining({ id: CINEMA2_HUMN_LAYER_ID, index: 0 })],
-      })],
+      synthesized: false,
+      passOrder: [CINEMA2_HUMN_SCENE_PASS_ID, CINEMA2_HUMN_TRAILS_PASS_ID, CINEMA2_HUMN_BLOOM_PASS_ID],
+      outputPassId: CINEMA2_HUMN_BLOOM_PASS_ID,
+      passes: [
+        expect.objectContaining({ id: CINEMA2_HUMN_SCENE_PASS_ID, kind: 'scene', layers: [expect.objectContaining({ id: CINEMA2_HUMN_LAYER_ID, index: 0 })] }),
+        expect.objectContaining({ id: CINEMA2_HUMN_TRAILS_PASS_ID, kind: 'fullscreen' }),
+        expect.objectContaining({ id: CINEMA2_HUMN_BLOOM_PASS_ID, kind: 'fullscreen' }),
+      ],
     })
   })
 
@@ -213,7 +220,7 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
 
     expect(gl.__calls.drawCount).toBe(3)
     expect(runtime.getModuleRuntimeSnapshot()).toMatchObject({ activeModuleCount: 1, failedModuleCount: 0 })
-    expect(runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 3, executedPassCount: 3, failedPassCount: 0 })
+    expect(runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 3, executedPassCount: 9, failedPassCount: 0 })
     expect((gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls).toEqual(expect.arrayContaining([
       [expect.objectContaining({ name: 'u_masterIntensity' }), 1],
       [expect.objectContaining({ name: 'u_figureScale' }), 1],
@@ -361,8 +368,8 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
 
     const snapshot = JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)
     expect(JSON.stringify(CINEMA2_HUMN_CANONICAL_TOPOLOGY)).toBe(snapshot)
-    // 18 authored controls + Quality Mode + 4 reactive controls + Gesture Intensity + Auto Performance + 2 hidden runtime triggers.
-    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(27)
+    // 18 authored controls + Quality Mode + 4 reactive controls + Gesture Intensity + Auto Performance + Glow + Trails + 2 hidden runtime triggers.
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.parameters).toHaveLength(29)
     expect(CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.parameterBindings ?? {}).toEqual({
       masterIntensity: { $ref: CINEMA2_HUMN_MASTER_INTENSITY_ID },
       bpmSync: { $ref: CINEMA2_HUMN_BPM_SYNC_ID },
@@ -390,7 +397,7 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
       autoPerformance: { $ref: CINEMA2_HUMN_AUTO_PERFORMANCE_ID },
     })
     expect(CINEMA2_HUMN_PRESET_MANIFEST.choreography?.rules.length ?? 0).toBeGreaterThan(0)
-    expect(CINEMA2_HUMN_PRESET_MANIFEST.effects ?? []).toHaveLength(0)
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.effects ?? []).toHaveLength(2)
   })
 
   it('projects Master Intensity/BPM Sync flat under Master Controls and Figure Scale/Grid Presence/Motion into the approved Design groups', () => {
@@ -924,7 +931,7 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     await act(async () => humButtons[0]?.click())
     expect(activeRuntimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_HUMN_PRESET_ID)
     await act(async () => raf.runNext())
-    expect(activeRuntimeRef.current?.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 1, executedPassCount: 1, failedPassCount: 0 })
+    expect(activeRuntimeRef.current?.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 1, executedPassCount: 3, failedPassCount: 0 })
     expect(contexts[contexts.length - 1]?.__calls.drawCount).toBeGreaterThan(0)
 
     const productionState = activeRuntimeRef.current?.getParameterState()
@@ -966,5 +973,73 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     await act(async () => raf.runNext(33.34))
     expect(activeRuntimeRef.current?.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 1, failedPassCount: 0 })
     expect(contexts.length).toBeGreaterThanOrEqual(3)
+  })
+})
+
+describe('Cinema 2.0 HUM:N Glow and Trails through the production Stage', () => {
+  it('exposes Glow and Trails once each in the real Inspector, runs the finishing chain, and re-enters with no stale history', async () => {
+    const raf = createRafHarness()
+    vi.stubGlobal('requestAnimationFrame', raf.requestAnimationFrame)
+    vi.stubGlobal('cancelAnimationFrame', raf.cancelAnimationFrame)
+    const contexts: CinemaMockWebGL[] = []
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => {
+      if (kind !== 'webgl2') return null
+      const gl = createCinemaMockWebGL()
+      gl.getUniformLocation = vi.fn((_program: WebGLProgram, name: string) => ({ name } as unknown as WebGLUniformLocation))
+      contexts.push(gl)
+      return gl as unknown as RenderingContext
+    })
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 960, height: 540, top: 0, left: 0, right: 960, bottom: 540, x: 0, y: 0, toJSON: () => ({}),
+    })
+
+    const activeRuntimeRef: { current: Cinema2RuntimeType | null } = { current: null }
+    function Harness() {
+      const [presetId, setPresetId] = useState<Cinema2PresetId>(CINEMA2_RUNTIME_FOUNDATION_PRESET_ID)
+      const [runtime, setRuntime] = useState<Cinema2RuntimeType | null>(null)
+      return <>
+        <button data-testid="foundation" onClick={() => setPresetId(CINEMA2_RUNTIME_FOUNDATION_PRESET_ID)}>Foundation</button>
+        <Cinema2PresetsPanel activePresetId={presetId} onSelectPreset={setPresetId} />
+        <Cinema2Stage presetId={presetId} onRuntimeReady={next => { activeRuntimeRef.current = next; setRuntime(next) }} />
+        <Cinema2InspectorPanel runtime={runtime} surface="design" />
+      </>
+    }
+
+    await act(async () => root?.render(<Harness />))
+    await act(async () => host?.querySelector<HTMLButtonElement>(`[data-cinema2-preset-id="${CINEMA2_HUMN_PRESET_ID}"]`)?.click())
+    const first = activeRuntimeRef.current!
+    expect(first.getCompiledPresetPlan().presetId).toBe(CINEMA2_HUMN_PRESET_ID)
+    for (const id of [CINEMA2_HUMN_GLOW_ID, CINEMA2_HUMN_TRAILS_ID]) {
+      expect(host?.querySelectorAll(`[data-cinema2-control-id="${id}"]`), String(id)).toHaveLength(1)
+    }
+    const labels = [...(host?.querySelectorAll('[data-cinema2-control-id^="hum-n-"]') ?? [])].map(node => node.getAttribute('data-cinema2-control-id'))
+    expect(labels.some(id => String(id).includes('event-intent'))).toBe(false)
+
+    await act(async () => raf.runNext(16.67))
+    expect(first.getEffectRuntimeSnapshot()).toMatchObject({ activeEffectCount: 0, failedEffectCount: 0 })
+    expect(first.getHistoryServiceSnapshot().activeBufferCount).toBe(0)
+
+    const state = first.getParameterState()
+    expect(state.setPersistentValue(CINEMA2_HUMN_GLOW_ID, 0.5)).toMatchObject({ ok: true })
+    expect(state.setPersistentValue(CINEMA2_HUMN_TRAILS_ID, 0.5)).toMatchObject({ ok: true })
+    await act(async () => raf.runNext(33.34))
+    await act(async () => raf.runNext(50.01))
+    expect(first.getEffectRuntimeSnapshot()).toMatchObject({ activeEffectCount: 2, failedEffectCount: 0 })
+    expect(first.getHistoryServiceSnapshot()).toMatchObject({ activeBufferCount: 1, validBufferCount: 1 })
+    expect(first.getRenderGraphExecutorSnapshot()).toMatchObject({ failedPassCount: 0 })
+
+    await act(async () => host?.querySelector<HTMLButtonElement>('[data-testid="foundation"]')?.click())
+    expect(activeRuntimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_RUNTIME_FOUNDATION_PRESET_ID)
+    // Switch-away disposed the HUM:N runtime: no history or lease survives.
+    expect(first.getHistoryServiceSnapshot()).toMatchObject({ activeBufferCount: 0, disposed: true })
+    expect(first.getResourceManagerSnapshot()).toMatchObject({ activeLeaseCount: 0 })
+
+    await act(async () => host?.querySelector<HTMLButtonElement>(`[data-cinema2-preset-id="${CINEMA2_HUMN_PRESET_ID}"]`)?.click())
+    const second = activeRuntimeRef.current!
+    expect(second).not.toBe(first)
+    expect(second.getCompiledPresetPlan().presetId).toBe(CINEMA2_HUMN_PRESET_ID)
+    await act(async () => raf.runNext(66.68))
+    expect(second.getHistoryServiceSnapshot()).toMatchObject({ activeBufferCount: 0, validBufferCount: 0 })
+    expect(second.getRenderGraphExecutorSnapshot()).toMatchObject({ failedPassCount: 0, executedPassCount: 3 })
   })
 })

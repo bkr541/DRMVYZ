@@ -42,6 +42,11 @@ async function waitForServer(url, timeoutMs = 15_000) {
   throw new Error(`Timed out waiting for ${url}: ${lastError instanceof Error ? lastError.message : String(lastError)}`)
 }
 
+// Optional narrowing for local iteration: DRMVYZ_CINEMA2_HUMN_SPECS=src/test/e2e/a.spec.ts,src/test/e2e/b.spec.ts
+const specs = process.env.DRMVYZ_CINEMA2_HUMN_SPECS
+  ? process.env.DRMVYZ_CINEMA2_HUMN_SPECS.split(',').filter(Boolean)
+  : ['src/test/e2e/cinema2HumNReactivityVisualAcceptance.spec.ts', 'src/test/e2e/cinema2HumNFinishingAcceptance.spec.ts']
+
 let server = null
 let status = 1
 try {
@@ -72,7 +77,7 @@ try {
   }
   server = spawn(process.execPath, [viteCli, output, '--host', '127.0.0.1', '--port', String(port), '--strictPort'], { cwd: root, env, stdio: 'inherit' })
   await waitForServer(`${baseUrl}${pagePath}`)
-  const result = spawnSync(process.execPath, [playwrightCli, 'test', 'src/test/e2e/cinema2HumNReactivityVisualAcceptance.spec.ts', '--project=chromium'], { cwd: root, env, stdio: 'inherit' })
+  const result = spawnSync(process.execPath, [playwrightCli, 'test', ...specs, '--project=chromium'], { cwd: root, env, stdio: 'inherit' })
   status = result.status ?? 1
 } finally {
   if (server && server.exitCode == null) {

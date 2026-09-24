@@ -322,6 +322,36 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
     runtime.dispose()
   })
 
+  it('Feedback/Trails drift defaults to the shared spiral behavior, can be authored to 0 for pinned echoes, and is validated', () => {
+    const feedback = CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST.effects?.find(effect => effect.typeId === CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID)
+    if (!feedback) throw new Error('Reference Feedback/Trails effect is missing.')
+    const withDrift = (drift?: number): Cinema2NativePresetManifest => ({
+      ...CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
+      effects: CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST.effects?.map(effect => (
+        effect.id === feedback.id ? { ...effect, parameters: { ...effect.parameters, ...(drift === undefined ? {} : { drift }) } } : effect
+      )),
+    })
+
+    const shared = createRuntime()
+    expect(shared.runtime.execute(feedback.id, executionContext())).toBe('applied')
+    expect(lastUniform(shared.gl, 'u_drift')).toBe(1)
+    shared.runtime.dispose()
+
+    const pinned = createRuntime(withDrift(0))
+    expect(pinned.runtime.execute(feedback.id, executionContext())).toBe('applied')
+    expect(lastUniform(pinned.gl, 'u_drift')).toBe(0)
+    pinned.runtime.dispose()
+
+    const half = createRuntime(withDrift(0.5))
+    expect(half.runtime.execute(feedback.id, executionContext())).toBe('applied')
+    expect(lastUniform(half.gl, 'u_drift')).toBe(0.5)
+    half.runtime.dispose()
+
+    const invalid = cinema2NativeEffectRegistry.get(CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID, 1)
+    expect(invalid?.validate?.({ ...feedback, parameters: { ...feedback.parameters, drift: 2 } }).map(diagnostic => diagnostic.path)).toEqual(['$.parameters.drift'])
+    expect(invalid?.validate?.({ ...feedback, parameters: { ...feedback.parameters, drift: 0 } })).toEqual([])
+  })
+
   it('preserves explicit authored ordering and scope independent of effect type', () => {
     const first = CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST.effects?.[0]
     if (!first) throw new Error('Reference effect is missing.')

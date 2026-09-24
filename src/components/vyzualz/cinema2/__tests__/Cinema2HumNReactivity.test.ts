@@ -42,8 +42,8 @@ const closeTo = (value: number, expected: number, digits = 4) => expect(value).t
 // ── Manifest / structural contract ──────────────────────────────────────────
 
 describe('HUM:N reactive manifest contract', () => {
-  it('is manifest revision 18 and compiles with only render.webgl2 available', () => {
-    expect(CINEMA2_HUMN_PRESET_MANIFEST.revision).toBe(18)
+  it('is manifest revision 21 and compiles with only render.webgl2 available', () => {
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.revision).toBe(21)
     const compiled = cinema2NativePresetRegistry.compile(CINEMA2_HUMN_PRESET_ID, { availableCapabilities: ['render.webgl2'] })
     expect(compiled.ok).toBe(true)
   })
