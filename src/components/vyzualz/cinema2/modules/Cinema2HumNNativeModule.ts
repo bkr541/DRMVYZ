@@ -439,6 +439,9 @@ uniform int u_fillStyle;
 uniform vec4 u_backgroundColor;
 uniform vec4 u_wireframeColor;
 uniform vec4 u_patternInk;
+uniform vec4 u_skinPrimary;
+uniform vec4 u_skinSecondary;
+uniform vec4 u_skinAccent;
 out vec4 outColor;
 
 ${glslSegmentArray('PRIMARY_SEGMENTS', HUMN_PRIMARY_SEGMENTS)}
@@ -491,18 +494,19 @@ float triangleMask(vec2 p, vec2 a, vec2 b, vec2 c) {
 }
 
 vec3 facetRoleColor(int index) {
-  int role = index % 4;
-  if (role == 1) return vec3(0.94, 0.08, 0.62); // magenta secondary
-  if (role == 2) return vec3(0.58, 0.96, 0.08); // acid-green accent
-  if (role == 3) return vec3(0.94, 0.96, 0.98); // white graphic ink
-  return vec3(0.03, 0.78, 0.88); // cyan/teal primary
+  // Stable authored role distribution: primary dominates, secondary contrasts,
+  // and accent remains intentionally rare. The role is topology-index based,
+  // so palette edits never reshuffle which facets own which color.
+  int role = index % 7;
+  if (role == 4 || role == 5) return u_skinSecondary.rgb;
+  if (role == 6) return u_skinAccent.rgb;
+  return u_skinPrimary.rgb;
 }
 
 vec3 facetStyleColor(int index, vec2 p, vec2 centroid) {
   vec3 base = facetRoleColor(index);
-  vec3 nextRole = facetRoleColor(index + 1);
   float gradientT = clamp(0.5 + (p.y - centroid.y) * 2.8 + (p.x - centroid.x) * 0.8, 0.0, 1.0);
-  vec3 gradient = mix(base * 0.46, nextRole, gradientT);
+  vec3 gradient = mix(base * 0.46, base, gradientT);
   float stripeWave = sin((p.x * 1.28 + p.y) * 92.0 + float(index) * 1.73);
   vec3 stripe = stripeWave >= 0.0 ? u_patternInk.rgb * 0.96 : vec3(0.006);
 
@@ -513,8 +517,8 @@ vec3 facetStyleColor(int index, vec2 p, vec2 centroid) {
   int mixedRole = index % 7;
   if (mixedRole == 0) return vec3(0.004); // authored black surface void
   if (mixedRole == 1) return stripe;
-  if (mixedRole == 2) return vec3(0.94, 0.08, 0.62);
-  if (mixedRole == 3) return vec3(0.58, 0.96, 0.08);
+  if (mixedRole == 2) return base;
+  if (mixedRole == 3) return base * 0.62;
   if (mixedRole == 4) return u_patternInk.rgb * vec3(0.94, 0.96, 0.98);
   return gradient;
 }
@@ -702,7 +706,7 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
               label,
               vertSrc: FULLSCREEN_VERT_SRC,
               fragSrc: CINEMA2_HUMN_FRAGMENT_SOURCE,
-              optionalUniforms: ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle', 'u_backgroundColor', 'u_wireframeColor', 'u_patternInk'],
+              optionalUniforms: ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle', 'u_backgroundColor', 'u_wireframeColor', 'u_patternInk', 'u_skinPrimary', 'u_skinSecondary', 'u_skinAccent'],
             })
             if (!result.program) {
               throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
@@ -731,9 +735,15 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
         const backgroundColor = readColor(context.parameters.get('backgroundColor'), [0, 0, 0, 1])
         const wireframeColor = readColor(context.parameters.get('wireframeColor'), [245 / 255, 247 / 255, 250 / 255, 1])
         const patternInk = readColor(context.parameters.get('patternInk'), [1, 1, 1, 1])
+        const skinPrimary = readColor(context.parameters.get('skinPrimary'), [72 / 255, 240 / 255, 221 / 255, 1])
+        const skinSecondary = readColor(context.parameters.get('skinSecondary'), [1, 61 / 255, 200 / 255, 1])
+        const skinAccent = readColor(context.parameters.get('skinAccent'), [200 / 255, 1, 74 / 255, 1])
         program.setVec4('u_backgroundColor', backgroundColor[0], backgroundColor[1], backgroundColor[2], backgroundColor[3])
         program.setVec4('u_wireframeColor', wireframeColor[0], wireframeColor[1], wireframeColor[2], wireframeColor[3])
         program.setVec4('u_patternInk', patternInk[0], patternInk[1], patternInk[2], patternInk[3])
+        program.setVec4('u_skinPrimary', skinPrimary[0], skinPrimary[1], skinPrimary[2], skinPrimary[3])
+        program.setVec4('u_skinSecondary', skinSecondary[0], skinSecondary[1], skinSecondary[2], skinSecondary[3])
+        program.setVec4('u_skinAccent', skinAccent[0], skinAccent[1], skinAccent[2], skinAccent[3])
         pass.run(program, target, width, height, [])
       },
     })

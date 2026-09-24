@@ -36,6 +36,9 @@ export const CINEMA2_HUMN_GRID_PRESENCE_ID = cinema2StableId<Cinema2ParameterId>
 export const CINEMA2_HUMN_BACKGROUND_ID = cinema2StableId<Cinema2ParameterId>('hum-n-background')
 export const CINEMA2_HUMN_WIREFRAME_ID = cinema2StableId<Cinema2ParameterId>('hum-n-wireframe')
 export const CINEMA2_HUMN_PATTERN_INK_ID = cinema2StableId<Cinema2ParameterId>('hum-n-pattern-ink')
+export const CINEMA2_HUMN_SKIN_PRIMARY_ID = cinema2StableId<Cinema2ParameterId>('hum-n-skin-primary')
+export const CINEMA2_HUMN_SKIN_SECONDARY_ID = cinema2StableId<Cinema2ParameterId>('hum-n-skin-secondary')
+export const CINEMA2_HUMN_SKIN_ACCENT_ID = cinema2StableId<Cinema2ParameterId>('hum-n-skin-accent')
 
 const CINEMA2_HUMN_COMPOSITION_OUTPUT_PARAMETERS = Object.freeze([
   Object.freeze({
@@ -143,7 +146,58 @@ const CINEMA2_HUMN_PALETTE_PARAMETERS = Object.freeze([
     section: 'Design',
     group: 'Pattern Colors',
     designParentGroup: 'palette' as const,
+    order: 6,
+    exposure: 'primary' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_SKIN_PRIMARY_ID,
+    label: 'Skin Primary',
+    description: 'Sets the dominant cyan/teal color used only by HUM:N skin facets assigned to the primary authored palette role.',
+    type: 'color' as const,
+    defaultValue: Object.freeze([72 / 255, 240 / 255, 221 / 255, 1]),
+    section: 'Design',
+    group: 'Skin Colors',
+    designParentGroup: 'palette' as const,
     order: 3,
+    exposure: 'primary' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_SKIN_SECONDARY_ID,
+    label: 'Skin Secondary',
+    description: 'Sets the contrasting magenta color used only by HUM:N skin facets assigned to the secondary authored palette role.',
+    type: 'color' as const,
+    defaultValue: Object.freeze([1, 61 / 255, 200 / 255, 1]),
+    section: 'Design',
+    group: 'Skin Colors',
+    designParentGroup: 'palette' as const,
+    order: 4,
+    exposure: 'primary' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_SKIN_ACCENT_ID,
+    label: 'Skin Accent',
+    description: 'Sets the rarer acid-green highlight color used only by HUM:N skin facets assigned to the accent authored palette role.',
+    type: 'color' as const,
+    defaultValue: Object.freeze([200 / 255, 1, 74 / 255, 1]),
+    section: 'Design',
+    group: 'Skin Colors',
+    designParentGroup: 'palette' as const,
+    order: 5,
     exposure: 'primary' as const,
     modulatable: false,
     choreographable: false,
@@ -288,7 +342,7 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_HUMN_PRESET_ID,
-  revision: 8,
+  revision: 9,
   metadata: Object.freeze({
     name: 'HUM:N',
     description: 'A near-black sparse low-poly humanoid bust reconstructed from the approved fractured white wireframe silhouette with stronger facet hierarchy, faint emergence fragments, and a restrained technical grid.',
@@ -321,6 +375,9 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
       backgroundColor: Object.freeze([0, 0, 0, 1]),
       wireframeColor: Object.freeze([245 / 255, 247 / 255, 250 / 255, 1]),
       patternInk: Object.freeze([1, 1, 1, 1]),
+      skinPrimary: Object.freeze([72 / 255, 240 / 255, 221 / 255, 1]),
+      skinSecondary: Object.freeze([1, 61 / 255, 200 / 255, 1]),
+      skinAccent: Object.freeze([200 / 255, 1, 74 / 255, 1]),
     }),
     parameterBindings: Object.freeze({
       masterIntensity: cinema2Ref(CINEMA2_HUMN_MASTER_INTENSITY_ID),
@@ -335,6 +392,9 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
       backgroundColor: cinema2Ref(CINEMA2_HUMN_BACKGROUND_ID),
       wireframeColor: cinema2Ref(CINEMA2_HUMN_WIREFRAME_ID),
       patternInk: cinema2Ref(CINEMA2_HUMN_PATTERN_INK_ID),
+      skinPrimary: cinema2Ref(CINEMA2_HUMN_SKIN_PRIMARY_ID),
+      skinSecondary: cinema2Ref(CINEMA2_HUMN_SKIN_SECONDARY_ID),
+      skinAccent: cinema2Ref(CINEMA2_HUMN_SKIN_ACCENT_ID),
     }),
     config: Object.freeze({ label: 'HUM:N Sparse Wireframe Foundation' }),
   })]),

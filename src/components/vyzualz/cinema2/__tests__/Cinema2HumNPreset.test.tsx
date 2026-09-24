@@ -21,6 +21,9 @@ import {
   CINEMA2_HUMN_BACKGROUND_ID,
   CINEMA2_HUMN_WIREFRAME_ID,
   CINEMA2_HUMN_PATTERN_INK_ID,
+  CINEMA2_HUMN_SKIN_PRIMARY_ID,
+  CINEMA2_HUMN_SKIN_SECONDARY_ID,
+  CINEMA2_HUMN_SKIN_ACCENT_ID,
   CINEMA2_HUMN_LINE_PRESENCE_ID,
   CINEMA2_HUMN_LINE_WEIGHT_ID,
   CINEMA2_HUMN_FRAGMENTATION_ID,
@@ -101,7 +104,7 @@ function createHumNRuntime() {
   const raf = createRafHarness()
   const gl = createCinemaMockWebGL()
   gl.getUniformLocation = vi.fn((_program: WebGLProgram, name: string) =>
-    ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle', 'u_backgroundColor', 'u_wireframeColor', 'u_patternInk'].includes(name)
+    ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle', 'u_backgroundColor', 'u_wireframeColor', 'u_patternInk', 'u_skinPrimary', 'u_skinSecondary', 'u_skinAccent'].includes(name)
       ? ({ name } as unknown as WebGLUniformLocation)
       : null)
   const created = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
@@ -413,7 +416,7 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     runtime.dispose()
   })
 
-  it('exposes the three independent user-owned Palette roles with canonical defaults and production bindings', () => {
+  it('exposes all six independent user-owned Palette colors with canonical defaults and production bindings', () => {
     const { runtime } = createHumNRuntime()
     const plan = runtime.getCompiledPresetPlan()
     const state = runtime.getParameterState()
@@ -449,29 +452,69 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
       choreographable: false,
       automatable: false,
     })
+    expect(definitions.get(CINEMA2_HUMN_SKIN_PRIMARY_ID)).toMatchObject({
+      label: 'Skin Primary',
+      type: 'color',
+      defaultValue: [72 / 255, 240 / 255, 221 / 255, 1],
+      group: 'Skin Colors',
+      designParentGroup: 'palette',
+      modulatable: false,
+      choreographable: false,
+      automatable: false,
+    })
+    expect(definitions.get(CINEMA2_HUMN_SKIN_SECONDARY_ID)).toMatchObject({
+      label: 'Skin Secondary',
+      type: 'color',
+      defaultValue: [1, 61 / 255, 200 / 255, 1],
+      group: 'Skin Colors',
+      designParentGroup: 'palette',
+      modulatable: false,
+      choreographable: false,
+      automatable: false,
+    })
+    expect(definitions.get(CINEMA2_HUMN_SKIN_ACCENT_ID)).toMatchObject({
+      label: 'Skin Accent',
+      type: 'color',
+      defaultValue: [200 / 255, 1, 74 / 255, 1],
+      group: 'Skin Colors',
+      designParentGroup: 'palette',
+      modulatable: false,
+      choreographable: false,
+      automatable: false,
+    })
 
     expect(state.getValue(CINEMA2_HUMN_BACKGROUND_ID)).toEqual([0, 0, 0, 1])
     expect(state.getValue(CINEMA2_HUMN_WIREFRAME_ID)).toEqual([245 / 255, 247 / 255, 250 / 255, 1])
     expect(state.getValue(CINEMA2_HUMN_PATTERN_INK_ID)).toEqual([1, 1, 1, 1])
+    expect(state.getValue(CINEMA2_HUMN_SKIN_PRIMARY_ID)).toEqual([72 / 255, 240 / 255, 221 / 255, 1])
+    expect(state.getValue(CINEMA2_HUMN_SKIN_SECONDARY_ID)).toEqual([1, 61 / 255, 200 / 255, 1])
+    expect(state.getValue(CINEMA2_HUMN_SKIN_ACCENT_ID)).toEqual([200 / 255, 1, 74 / 255, 1])
 
     const design = createCinema2DesignParentGroupModel(plan, state.getSnapshot())
     const palette = design.find(parent => parent.id === 'palette')
     expect(palette?.groups.map(group => [group.label, group.controls.map(control => control.definition.label)])).toEqual([
       ['Stage Colors', ['Background']],
       ['Figure Colors', ['Wireframe']],
+      ['Skin Colors', ['Skin Primary', 'Skin Secondary', 'Skin Accent']],
       ['Pattern Colors', ['Pattern Ink']],
     ])
 
     const moduleTargets = plan.targets.targets.filter(target => target.kind === 'module' && target.ownerId === CINEMA2_HUMN_PRESET_MANIFEST.modules?.[0]?.id)
-    expect(moduleTargets.filter(target => ['backgroundColor', 'wireframeColor', 'patternInk'].includes(target.property)).map(target => target.parameterId).sort()).toEqual([
+    expect(moduleTargets.filter(target => ['backgroundColor', 'wireframeColor', 'patternInk', 'skinPrimary', 'skinSecondary', 'skinAccent'].includes(target.property)).map(target => target.parameterId).sort()).toEqual([
       CINEMA2_HUMN_BACKGROUND_ID,
       CINEMA2_HUMN_PATTERN_INK_ID,
+      CINEMA2_HUMN_SKIN_PRIMARY_ID,
+      CINEMA2_HUMN_SKIN_SECONDARY_ID,
+      CINEMA2_HUMN_SKIN_ACCENT_ID,
       CINEMA2_HUMN_WIREFRAME_ID,
     ].sort())
     const paletteIds = new Set<string>([
       CINEMA2_HUMN_BACKGROUND_ID,
       CINEMA2_HUMN_WIREFRAME_ID,
       CINEMA2_HUMN_PATTERN_INK_ID,
+      CINEMA2_HUMN_SKIN_PRIMARY_ID,
+      CINEMA2_HUMN_SKIN_SECONDARY_ID,
+      CINEMA2_HUMN_SKIN_ACCENT_ID,
     ])
     expect(plan.targets.choreographyTargets.filter(target =>
       target.target.parameterId != null && paletteIds.has(target.target.parameterId)
@@ -480,11 +523,18 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     runtime.dispose()
   })
 
-  it('routes Background, Wireframe, and Pattern Ink independently into real shader consumers, including filled Stripe/Mixed facets', () => {
+  it('routes all six Palette colors independently into real shader consumers with deterministic skin-role ownership', () => {
     expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('vec3 background = u_backgroundColor.rgb;')
     expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('vec3 wireframeColor = u_wireframeColor.rgb;')
     expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('stripeWave >= 0.0 ? u_patternInk.rgb * 0.96')
     expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('mixedRole == 4) return u_patternInk.rgb * vec3(0.94, 0.96, 0.98);')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('int role = index % 7;')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('role == 4 || role == 5) return u_skinSecondary.rgb;')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('role == 6) return u_skinAccent.rgb;')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('return u_skinPrimary.rgb;')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).toContain('vec3 gradient = mix(base * 0.46, base, gradientT);')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).not.toContain('vec3(0.94, 0.08, 0.62)')
+    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).not.toContain('vec3(0.58, 0.96, 0.08)')
 
     const { runtime, gl, raf } = createHumNRuntime()
     runtime.resize({ width: 1280, height: 720, dpr: 1 })
@@ -503,6 +553,9 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     expect(latestColor('u_backgroundColor')).toEqual([0, 0, 0, 1])
     expect(latestColor('u_wireframeColor')).toEqual([245 / 255, 247 / 255, 250 / 255, 1])
     expect(latestColor('u_patternInk')).toEqual([1, 1, 1, 1])
+    expect(latestColor('u_skinPrimary')).toEqual([72 / 255, 240 / 255, 221 / 255, 1])
+    expect(latestColor('u_skinSecondary')).toEqual([1, 61 / 255, 200 / 255, 1])
+    expect(latestColor('u_skinAccent')).toEqual([200 / 255, 1, 74 / 255, 1])
 
     const background = [0.12, 0.24, 0.36, 1] as const
     expect(state.setPersistentValue(CINEMA2_HUMN_BACKGROUND_ID, background)).toMatchObject({ ok: true })
@@ -533,8 +586,29 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     expect(latestColor('u_wireframeColor')).toEqual([...wireframe])
     expect(latestColor('u_patternInk')).toEqual([...mixedInk])
 
-    const snapshot = state.getSnapshot()
+    const primary = [0.05, 0.85, 0.95, 1] as const
+    const secondary = [0.98, 0.05, 0.72, 1] as const
+    const accent = [0.62, 1, 0.04, 1] as const
+    expect(state.setPersistentValue(CINEMA2_HUMN_SKIN_PRIMARY_ID, primary)).toMatchObject({ ok: true })
     raf.runNext(100.02)
+    expect(latestColor('u_skinPrimary')).toEqual([...primary])
+    expect(latestColor('u_skinSecondary')).toEqual([1, 61 / 255, 200 / 255, 1])
+    expect(latestColor('u_skinAccent')).toEqual([200 / 255, 1, 74 / 255, 1])
+
+    expect(state.setPersistentValue(CINEMA2_HUMN_SKIN_SECONDARY_ID, secondary)).toMatchObject({ ok: true })
+    raf.runNext(116.69)
+    expect(latestColor('u_skinPrimary')).toEqual([...primary])
+    expect(latestColor('u_skinSecondary')).toEqual([...secondary])
+    expect(latestColor('u_skinAccent')).toEqual([200 / 255, 1, 74 / 255, 1])
+
+    expect(state.setPersistentValue(CINEMA2_HUMN_SKIN_ACCENT_ID, accent)).toMatchObject({ ok: true })
+    raf.runNext(133.36)
+    expect(latestColor('u_skinPrimary')).toEqual([...primary])
+    expect(latestColor('u_skinSecondary')).toEqual([...secondary])
+    expect(latestColor('u_skinAccent')).toEqual([...accent])
+
+    const snapshot = state.getSnapshot()
+    raf.runNext(150.03)
     expect(state.getSnapshot()).toEqual(snapshot)
     runtime.dispose()
   })
@@ -759,6 +833,37 @@ describe('Cinema 2.0 HUM:N Phase A native visual foundation', () => {
     await act(async () => raf.runNext())
     expect(activeRuntimeRef.current?.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 1, executedPassCount: 1, failedPassCount: 0 })
     expect(contexts[contexts.length - 1]?.__calls.drawCount).toBeGreaterThan(0)
+
+    const productionState = activeRuntimeRef.current?.getParameterState()
+    expect(productionState).toBeTruthy()
+    const productionPalette = [
+      [CINEMA2_HUMN_BACKGROUND_ID, [0.01, 0.02, 0.03, 1]],
+      [CINEMA2_HUMN_WIREFRAME_ID, [0.95, 0.10, 0.12, 1]],
+      [CINEMA2_HUMN_PATTERN_INK_ID, [0.92, 0.94, 0.16, 1]],
+      [CINEMA2_HUMN_SKIN_PRIMARY_ID, [0.08, 0.88, 0.94, 1]],
+      [CINEMA2_HUMN_SKIN_SECONDARY_ID, [0.96, 0.08, 0.72, 1]],
+      [CINEMA2_HUMN_SKIN_ACCENT_ID, [0.44, 0.98, 0.06, 1]],
+    ] as const
+    for (const [parameterId, color] of productionPalette) {
+      expect(productionState?.setPersistentValue(parameterId, color)).toMatchObject({ ok: true })
+    }
+    expect(productionState?.setPersistentValue(CINEMA2_HUMN_FACET_FILL_ID, 1)).toMatchObject({ ok: true })
+    expect(productionState?.setPersistentValue(CINEMA2_HUMN_FILL_STYLE_ID, 'Mixed')).toMatchObject({ ok: true })
+    await act(async () => raf.runNext(25.01))
+
+    const productionGl = contexts[contexts.length - 1]
+    const latestProductionColor = (name: string) => {
+      const calls = (productionGl?.uniform4f as ReturnType<typeof vi.fn>).mock.calls.filter((call: unknown[]) =>
+        (call[0] as { name?: string } | null)?.name === name
+      )
+      return calls.at(-1)?.slice(1)
+    }
+    expect(latestProductionColor('u_backgroundColor')).toEqual([...productionPalette[0][1]])
+    expect(latestProductionColor('u_wireframeColor')).toEqual([...productionPalette[1][1]])
+    expect(latestProductionColor('u_patternInk')).toEqual([...productionPalette[2][1]])
+    expect(latestProductionColor('u_skinPrimary')).toEqual([...productionPalette[3][1]])
+    expect(latestProductionColor('u_skinSecondary')).toEqual([...productionPalette[4][1]])
+    expect(latestProductionColor('u_skinAccent')).toEqual([...productionPalette[5][1]])
 
     await act(async () => host?.querySelector<HTMLButtonElement>('[data-testid="foundation"]')?.click())
     expect(activeRuntimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_RUNTIME_FOUNDATION_PRESET_ID)
