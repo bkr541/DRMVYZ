@@ -39,13 +39,6 @@
   line-height: 1;
 }
 
-.vz-header-sub {
-  font-size: 10px;
-  letter-spacing: 0.03em;
-  color: rgba(196,207,211,0.42);
-  line-height: 1;
-}
-
 .vz-input-group {
   display: flex;
   align-items: center;

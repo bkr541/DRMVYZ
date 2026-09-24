@@ -4,10 +4,12 @@ import {
   cinema2NamespacedId,
   cinema2Ref,
   cinema2StableId,
+  type Cinema2ChoreographyActionId,
+  type Cinema2ChoreographyRuleId,
   type Cinema2LayerId,
   type Cinema2ModuleId,
-  type Cinema2ParameterId,
   type Cinema2NativePresetManifest,
+  type Cinema2ParameterId,
   type Cinema2PresetId,
   type Cinema2SceneNodeId,
 } from '../contracts/Cinema2NativePresetManifest'
@@ -42,6 +44,13 @@ export const CINEMA2_HUMN_PATTERN_INK_ID = cinema2StableId<Cinema2ParameterId>('
 export const CINEMA2_HUMN_SKIN_PRIMARY_ID = cinema2StableId<Cinema2ParameterId>('hum-n-skin-primary')
 export const CINEMA2_HUMN_SKIN_SECONDARY_ID = cinema2StableId<Cinema2ParameterId>('hum-n-skin-secondary')
 export const CINEMA2_HUMN_SKIN_ACCENT_ID = cinema2StableId<Cinema2ParameterId>('hum-n-skin-accent')
+export const CINEMA2_HUMN_MASTER_REACTIVITY_ID = cinema2StableId<Cinema2ParameterId>('hum-n-master-reactivity')
+export const CINEMA2_HUMN_COLOR_SHIFT_AMOUNT_ID = cinema2StableId<Cinema2ParameterId>('hum-n-color-shift-amount')
+export const CINEMA2_HUMN_FLICKER_AMOUNT_ID = cinema2StableId<Cinema2ParameterId>('hum-n-flicker-amount')
+export const CINEMA2_HUMN_FRAGMENT_JITTER_ID = cinema2StableId<Cinema2ParameterId>('hum-n-fragment-jitter')
+
+const choreographyRuleId = (id: string) => cinema2StableId<Cinema2ChoreographyRuleId>(id)
+const choreographyActionId = (id: string) => cinema2StableId<Cinema2ChoreographyActionId>(id)
 
 const CINEMA2_HUMN_COMPOSITION_OUTPUT_PARAMETERS = Object.freeze([
   Object.freeze({
@@ -72,6 +81,25 @@ const CINEMA2_HUMN_COMPOSITION_OUTPUT_PARAMETERS = Object.freeze([
     section: 'Design',
     designParentGroup: 'master-controls' as const,
     order: 2,
+    exposure: 'primary' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_MASTER_REACTIVITY_ID,
+    label: 'Master Reactivity',
+    description: 'Global authorization multiplier for HUM:N continuous music modulation. At 0, all music-reactive behaviors collapse to user-authored base values.',
+    type: 'float' as const,
+    defaultValue: 0,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    section: 'Design',
+    designParentGroup: 'master-controls' as const,
+    order: 3,
     exposure: 'primary' as const,
     modulatable: false,
     choreographable: false,
@@ -220,6 +248,26 @@ const CINEMA2_HUMN_PALETTE_PARAMETERS = Object.freeze([
     exposure: 'primary' as const,
     modulatable: false,
     choreographable: false,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_COLOR_SHIFT_AMOUNT_ID,
+    label: 'Color Shift Amount',
+    description: 'Controls the degree of palette role movement driven by high-frequency band energy. At 0, authored colors are completely stable.',
+    type: 'float' as const,
+    defaultValue: 0,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    section: 'Design',
+    group: 'Color Behavior',
+    designParentGroup: 'palette' as const,
+    order: 7,
+    exposure: 'primary' as const,
+    modulatable: true,
+    choreographable: true,
     automatable: false,
     persistence: 'preset' as const,
     reset: 'authored-default' as const,
@@ -397,6 +445,49 @@ const CINEMA2_HUMN_FIGURE_PARAMETERS = Object.freeze([
   }),
 ])
 
+const CINEMA2_HUMN_EFFECTS_PARAMETERS = Object.freeze([
+  Object.freeze({
+    id: CINEMA2_HUMN_FLICKER_AMOUNT_ID,
+    label: 'Flicker Amount',
+    description: 'Controls beat and downbeat-driven ghost line flicker intensity. At 0, rhythmic line events are visually absent.',
+    type: 'float' as const,
+    defaultValue: 0,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    section: 'Design',
+    group: 'Fragment Behavior',
+    designParentGroup: 'effects' as const,
+    order: 1,
+    exposure: 'primary' as const,
+    modulatable: true,
+    choreographable: true,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+  Object.freeze({
+    id: CINEMA2_HUMN_FRAGMENT_JITTER_ID,
+    label: 'Fragment Jitter',
+    description: 'Controls kick-driven local fragment displacement intensity. At 0, kick displacement is visually absent.',
+    type: 'float' as const,
+    defaultValue: 0,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    section: 'Design',
+    group: 'Fragment Behavior',
+    designParentGroup: 'effects' as const,
+    order: 2,
+    exposure: 'primary' as const,
+    modulatable: true,
+    choreographable: true,
+    automatable: false,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+  }),
+])
+
 /** Backward-compatible source export; the dedicated native HUM:N module owns it now. */
 export const CINEMA2_HUMN_STATIC_FRAGMENT_SOURCE = CINEMA2_HUMN_FRAGMENT_SOURCE
 
@@ -404,7 +495,7 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_HUMN_PRESET_ID,
-  revision: 10,
+  revision: 14,
   metadata: Object.freeze({
     name: 'HUM:N',
     description: 'A near-black sparse low-poly humanoid bust reconstructed from the approved fractured white wireframe silhouette with stronger facet hierarchy, faint emergence fragments, and a restrained technical grid.',
@@ -412,12 +503,19 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
   }),
   capabilities: Object.freeze([
     Object.freeze({ id: 'render.webgl2' as const, requirement: 'required' as const, purpose: 'Deterministic screen-space native HUM:N topology rendering.' }),
+    Object.freeze({ id: 'audio.bands' as const, requirement: 'optional' as const, purpose: 'Continuous energy-driven line presence, fragmentation, facet fill, and palette color modulation.' }),
+    Object.freeze({ id: 'music.beat' as const, requirement: 'optional' as const, purpose: 'Beat-driven ghost line flicker.' }),
+    Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Downbeat-driven ghost emergence reveal.' }),
+    Object.freeze({ id: 'music.rhythm-events' as const, requirement: 'optional' as const, purpose: 'Kick and snare-driven fragment behavior.' }),
+    Object.freeze({ id: 'music.vocal-presence' as const, requirement: 'optional' as const, purpose: 'Vocal presence restraint of intelligence-added motion.' }),
+    Object.freeze({ id: 'visual-director.significance' as const, requirement: 'optional' as const, purpose: 'Build choreography and ghost edge emphasis.' }),
   ]),
   parameters: Object.freeze([
     CINEMA2_QUALITY_MODE_PARAMETER,
     ...CINEMA2_HUMN_COMPOSITION_OUTPUT_PARAMETERS,
     ...CINEMA2_HUMN_FIGURE_PARAMETERS,
     ...CINEMA2_HUMN_PALETTE_PARAMETERS,
+    ...CINEMA2_HUMN_EFFECTS_PARAMETERS,
   ]),
   modules: Object.freeze([Object.freeze({
     id: CINEMA2_HUMN_MODULE_ID,
@@ -443,6 +541,19 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
       skinPrimary: Object.freeze([72 / 255, 240 / 255, 221 / 255, 1]),
       skinSecondary: Object.freeze([1, 61 / 255, 200 / 255, 1]),
       skinAccent: Object.freeze([200 / 255, 1, 74 / 255, 1]),
+      masterReactivity: 0,
+      colorShiftAmount: 0,
+      flickerAmount: 0,
+      fragmentJitter: 0,
+      colorShiftHighBand: 0,
+      colorShiftAirBand: 0,
+      tensionMotionLift: 0,
+      vocalMotionRestraint: 0,
+      ghostEdgeEmphasis: 0,
+      beatFlicker: 0,
+      downbeatReveal: 0,
+      kickJitter: 0,
+      snareEyeCheek: 0,
     }),
     parameterBindings: Object.freeze({
       masterIntensity: cinema2Ref(CINEMA2_HUMN_MASTER_INTENSITY_ID),
@@ -463,9 +574,222 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
       skinPrimary: cinema2Ref(CINEMA2_HUMN_SKIN_PRIMARY_ID),
       skinSecondary: cinema2Ref(CINEMA2_HUMN_SKIN_SECONDARY_ID),
       skinAccent: cinema2Ref(CINEMA2_HUMN_SKIN_ACCENT_ID),
+      masterReactivity: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      colorShiftAmount: cinema2Ref(CINEMA2_HUMN_COLOR_SHIFT_AMOUNT_ID),
+      flickerAmount: cinema2Ref(CINEMA2_HUMN_FLICKER_AMOUNT_ID),
+      fragmentJitter: cinema2Ref(CINEMA2_HUMN_FRAGMENT_JITTER_ID),
     }),
     config: Object.freeze({ label: 'HUM:N Sparse Wireframe Foundation' }),
   })]),
+  choreography: Object.freeze({
+    rules: Object.freeze([
+      // Part B: Continuous appearance Audio Intelligence
+      Object.freeze({
+        id: choreographyRuleId('hum-n-overall-energy-line-presence'),
+        priority: 10,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'audio.bands' as const, path: 'audio.features.overallEnergy' as const, scale: -1, offset: 1, smoothingMs: 300 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-energy-lp-add'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'linePresence' }),
+          operation: 'add' as const,
+          value: -0.45,
+        })]),
+        strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-complexity-fragmentation'),
+        priority: 11,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'audio.bands' as const, path: 'audio.features.complexity' as const, offset: -0.5, smoothingMs: 400 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-complexity-frag-add'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'fragmentation' }),
+          operation: 'add' as const,
+          value: 0.36,
+        })]),
+        strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-track-energy-facet-fill'),
+        priority: 12,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'audio.bands' as const, path: 'audio.features.trackEnergy' as const, smoothingMs: 200 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-energy-facet-add'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'facetFill' }),
+          operation: 'add' as const,
+          value: 0.35,
+        })]),
+        strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
+      // Part C: High + Air → palette color shift
+      Object.freeze({
+        id: choreographyRuleId('hum-n-high-band-color-shift'),
+        priority: 13,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'audio.bands' as const, path: 'audio.bands.high' as const, smoothingMs: 100 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-high-color-replace'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'colorShiftHighBand' }),
+          operation: 'replace' as const,
+          value: 1,
+        })]),
+        strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-air-band-color-shift'),
+        priority: 14,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'audio.bands' as const, path: 'audio.bands.air' as const, smoothingMs: 80 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-air-color-replace'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'colorShiftAirBand' }),
+          operation: 'replace' as const,
+          value: 1,
+        })]),
+        strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
+      // Part D: Tension motion lift + vocal restraint
+      Object.freeze({
+        id: choreographyRuleId('hum-n-tension-motion-lift'),
+        priority: 15,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'audio.bands' as const, path: 'audio.features.tension' as const, smoothingMs: 250 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-tension-motion-replace'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'tensionMotionLift' }),
+          operation: 'replace' as const,
+          value: 0.25,
+        })]),
+        strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-vocal-motion-restraint'),
+        priority: 16,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'music.vocal-presence' as const, path: 'audio.features.vocalPresence' as const, smoothingMs: 300 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-vocal-restraint-replace'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'vocalMotionRestraint' }),
+          operation: 'replace' as const,
+          value: 0.25,
+        })]),
+        strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
+      // Part G: Build choreography
+      Object.freeze({
+        id: choreographyRuleId('hum-n-build-facet-fill'),
+        priority: 20,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.build' as const, smoothingMs: 500 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-build-facet-add'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'facetFill' }),
+          operation: 'add' as const,
+          value: 0.25,
+        })]),
+        strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-build-fragmentation'),
+        priority: 21,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.build' as const, smoothingMs: 500 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-build-frag-add'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'fragmentation' }),
+          operation: 'add' as const,
+          value: -0.12,
+        })]),
+        strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-build-motion-amount'),
+        priority: 22,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.build' as const, smoothingMs: 500 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-build-motion-add'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'motionAmount' }),
+          operation: 'add' as const,
+          value: 0.15,
+        })]),
+        strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-build-color-shift'),
+        priority: 23,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.build' as const, smoothingMs: 500 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-build-color-add'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'colorShiftAmount' }),
+          operation: 'add' as const,
+          value: 0.20,
+        })]),
+        strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-build-ghost-edge'),
+        priority: 24,
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.build' as const, smoothingMs: 500 }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-build-ghost-replace'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'ghostEdgeEmphasis' }),
+          operation: 'replace' as const,
+          value: 0.20,
+        })]),
+        strengthParameter: cinema2Ref(CINEMA2_HUMN_MASTER_REACTIVITY_ID),
+      }),
+      // Part F: Rhythmic fragment events
+      Object.freeze({
+        id: choreographyRuleId('hum-n-beat-flicker'),
+        priority: 30,
+        source: Object.freeze({ signal: 'beat' as const, capability: 'music.beat' as const }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-beat-flicker-envelope'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'beatFlicker' }),
+          operation: 'envelope' as const,
+          value: 1,
+          composition: 'replace' as const,
+          envelope: Object.freeze({ attack: 0, hold: 0.01, release: 0.18, unit: 'seconds' as const }),
+          retrigger: 'restart' as const,
+        })]),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-downbeat-reveal'),
+        priority: 31,
+        source: Object.freeze({ signal: 'downbeat' as const, capability: 'music.downbeat' as const }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-downbeat-reveal-envelope'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'downbeatReveal' }),
+          operation: 'envelope' as const,
+          value: 1,
+          composition: 'replace' as const,
+          envelope: Object.freeze({ attack: 0, hold: 0.025, release: 0.25, unit: 'seconds' as const }),
+          retrigger: 'restart' as const,
+        })]),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-kick-jitter'),
+        priority: 32,
+        source: Object.freeze({ signal: 'kick' as const, capability: 'music.rhythm-events' as const }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-kick-jitter-envelope'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'kickJitter' }),
+          operation: 'envelope' as const,
+          value: 1,
+          composition: 'replace' as const,
+          envelope: Object.freeze({ attack: 0, hold: 0.01, release: 0.25, unit: 'seconds' as const }),
+          retrigger: 'restart' as const,
+        })]),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-snare-eye-cheek'),
+        priority: 33,
+        source: Object.freeze({ signal: 'snare' as const, capability: 'music.rhythm-events' as const }),
+        actions: Object.freeze([Object.freeze({
+          id: choreographyActionId('hum-n-snare-eye-cheek-envelope'),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property: 'snareEyeCheek' }),
+          operation: 'envelope' as const,
+          value: 1,
+          composition: 'replace' as const,
+          envelope: Object.freeze({ attack: 0, hold: 0.01, release: 0.125, unit: 'seconds' as const }),
+          retrigger: 'restart' as const,
+        })]),
+      }),
+    ]),
+  }),
   scene: Object.freeze({
     nodes: Object.freeze([
       Object.freeze({ id: CINEMA2_HUMN_ROOT_NODE_ID, kind: 'group' as const, coordinateSpace: 'normalized-screen' as const, visible: true }),

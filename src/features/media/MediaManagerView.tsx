@@ -39,9 +39,6 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
         <div className="mmv-header-left">
           <div className="mmv-header-title-group">
             <h1 id="media-manager-title" className="mmv-header-title">Media Manager</h1>
-            <p className="mmv-header-subtitle">
-              Upload, preview, edit, organize, and safely remove the visual and audio media shared by every DRMVYZ performance view.
-            </p>
           </div>
         </div>
         <div className="mmv-summary" aria-label="Media library summary">

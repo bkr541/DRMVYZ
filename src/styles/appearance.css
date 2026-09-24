@@ -292,7 +292,6 @@ body,
 }
 
 [data-theme] :is(
-  .vz-header-sub,
   .vz-input-label,
   .vsm-nav-item,
   .vsm-settings-group-heading p,

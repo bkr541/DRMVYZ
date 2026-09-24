@@ -42,12 +42,6 @@
   color: rgba(240, 247, 249, 0.94);
 }
 
-.sm-title-block span {
-  font-size: 8px;
-  color: rgba(196, 212, 220, 0.42);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
 .sm-topbar-spacer { flex: 1; }
 
 .sm-header-show-actions {

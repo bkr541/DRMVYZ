@@ -769,7 +769,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
       <div className="vz-header">
         <div className="vz-header-title-group">
           <div className="vz-header-title">REACT</div>
-          <div className="vz-header-sub">Visual Performance Mode</div>
         </div>
 
         <span className="az-spacer" />

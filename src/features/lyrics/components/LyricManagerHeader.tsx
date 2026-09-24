@@ -8,8 +8,6 @@ interface Props {
   saveStatus: LyricWriteStatus
   lyricsDisplayEnabled: boolean
   hasDocument: boolean
-  draftTitle: string
-  selectedTrackName: string | null
   dirty: boolean
   onToggleLyricsDisplay: () => void
   onSave: () => void
@@ -21,8 +19,6 @@ export function LyricManagerHeader({
   saveStatus,
   lyricsDisplayEnabled,
   hasDocument,
-  draftTitle,
-  selectedTrackName,
   dirty,
   onToggleLyricsDisplay,
   onSave,
@@ -45,13 +41,6 @@ export function LyricManagerHeader({
       <div className="lmv-header-left">
         <div className="lmv-header-title-group">
           <span className="lmv-header-title">LYRIC MANAGER</span>
-          <span className="lmv-header-subtitle">
-            {hasDocument && draftTitle
-              ? draftTitle
-              : selectedTrackName
-                ? `Lyrics for ${selectedTrackName}`
-                : 'Select or upload a track, then manage its lyric versions'}
-          </span>
         </div>
         {saveStatusLabel && <span className={`lmv-dirty-badge lmv-dirty-badge--${saveStatus}`}>{saveStatusLabel}</span>}
       </div>

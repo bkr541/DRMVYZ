@@ -448,6 +448,14 @@ uniform vec4 u_patternInk;
 uniform vec4 u_skinPrimary;
 uniform vec4 u_skinSecondary;
 uniform vec4 u_skinAccent;
+uniform float u_colorShift;
+uniform float u_ghostEdgeEmphasis;
+uniform float u_beatFlicker;
+uniform float u_downbeatReveal;
+uniform float u_kickJitter;
+uniform float u_snareEyeCheek;
+uniform float u_flickerAmount;
+uniform float u_fragmentJitter;
 out vec4 outColor;
 
 ${glslSegmentArray('PRIMARY_SEGMENTS', HUMN_PRIMARY_SEGMENTS)}
@@ -499,14 +507,25 @@ float triangleMask(vec2 p, vec2 a, vec2 b, vec2 c) {
   return hasNegative && hasPositive ? 0.0 : 1.0;
 }
 
+vec3 paletteColorForRole(int r) {
+  int rr = int(mod(float(r), 7.0));
+  if (rr == 4 || rr == 5) return u_skinSecondary.rgb;
+  if (rr == 6) return u_skinAccent.rgb;
+  return u_skinPrimary.rgb;
+}
+
 vec3 facetRoleColor(int index) {
   // Stable authored role distribution: primary dominates, secondary contrasts,
   // and accent remains intentionally rare. The role is topology-index based,
   // so palette edits never reshuffle which facets own which color.
   int role = index % 7;
-  if (role == 4 || role == 5) return u_skinSecondary.rgb;
-  if (role == 6) return u_skinAccent.rgb;
-  return u_skinPrimary.rgb;
+  if (u_colorShift < 0.0001) return paletteColorForRole(role);
+  float shiftPhase = u_colorShift * 7.0;
+  int shiftBase = int(shiftPhase);
+  float shiftFrac = shiftPhase - float(shiftBase);
+  vec3 c1 = paletteColorForRole(role + shiftBase);
+  vec3 c2 = paletteColorForRole(role + shiftBase + 1);
+  return mix(c1, c2, shiftFrac);
 }
 
 vec3 facetStyleColor(int index, vec2 p, vec2 centroid) {
@@ -610,6 +629,14 @@ void main() {
   }
   p = applyHumNNativeMotion(p);
 
+  // Kick-driven local fragment displacement
+  float kickDisplace = clamp(u_fragmentJitter, 0.0, 1.0) * clamp(u_kickJitter, 0.0, 1.0);
+  if (kickDisplace > 0.0001) {
+    float jx = (fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453) - 0.5) * kickDisplace * 0.024;
+    float jy = (fract(sin(dot(p, vec2(269.5, 183.3))) * 46835.2983) - 0.5) * kickDisplace * 0.024;
+    p += vec2(jx, jy);
+  }
+
   float px = 2.0 / resolution.y;
   float weight = clamp(u_lineWeight, 0.5, 2.0);
 
@@ -618,7 +645,10 @@ void main() {
   for (int i = 0; i < PRIMARY_SEGMENT_COUNT; ++i) {
     vec4 segment = PRIMARY_SEGMENTS[i];
     float eligible = (u_meshDetail == 0 && stableRank(i, 0.17) > 0.72) ? 0.0 : 1.0;
-    float keep = eligible * fragmentationKeep(i, 0.17);
+    bool inEyeOrCheek = (i >= 9 && i <= 36) || (i >= 43 && i <= 66);
+    float altFactor = step(0.5, stableRank(i, 2.33));
+    float snareSuppress = inEyeOrCheek ? altFactor * clamp(u_flickerAmount * u_snareEyeCheek, 0.0, 1.0) : 0.0;
+    float keep = eligible * fragmentationKeep(i, 0.17) * (1.0 - snareSuppress);
     primarySoft = max(primarySoft, keep * segmentMask(p, segment.xy, segment.zw, 1.18 * weight * px, 1.40 * weight * px));
     primaryCore = max(primaryCore, keep * segmentMask(p, segment.xy, segment.zw, 0.56 * weight * px, 0.60 * weight * px));
   }
@@ -697,7 +727,10 @@ void main() {
   vec3 gridColor = vec3(0.10, 0.13, 0.14) * grid * 0.74 + vec3(0.08, 0.10, 0.11) * macroGrid * 0.12;
   if (gridPresence < 0.999999) gridColor *= gridPresence;
 
-  float ghostFigure = ghostSoft * 0.18 + ghostCore * 0.10;
+  float ghostEmphasis = clamp(u_ghostEdgeEmphasis, 0.0, 1.0);
+  float flickerAmt = clamp(u_flickerAmount, 0.0, 1.0);
+  float ghostFlicker = flickerAmt * (clamp(u_beatFlicker, 0.0, 1.0) * 0.10 + clamp(u_downbeatReveal, 0.0, 1.0) * 0.25);
+  float ghostFigure = (ghostSoft * 0.18 + ghostCore * 0.10) * (1.0 + ghostEmphasis) + ghostFlicker;
   float wireframeFigure = primarySoft * 0.32 + primaryCore * 0.80;
   float accentFigure = accentSoft * 0.16 + accentCore * 0.34;
 
@@ -787,7 +820,7 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
               label,
               vertSrc: FULLSCREEN_VERT_SRC,
               fragSrc: CINEMA2_HUMN_FRAGMENT_SOURCE,
-              optionalUniforms: ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_motionAmount', 'u_motionTime', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle', 'u_backgroundColor', 'u_wireframeColor', 'u_patternInk', 'u_skinPrimary', 'u_skinSecondary', 'u_skinAccent'],
+              optionalUniforms: ['u_resolution', 'u_masterIntensity', 'u_figureScale', 'u_motionAmount', 'u_motionTime', 'u_gridPresence', 'u_linePresence', 'u_lineWeight', 'u_fragmentation', 'u_meshDetail', 'u_facetFill', 'u_fillStyle', 'u_backgroundColor', 'u_wireframeColor', 'u_patternInk', 'u_skinPrimary', 'u_skinSecondary', 'u_skinAccent', 'u_colorShift', 'u_ghostEdgeEmphasis', 'u_beatFlicker', 'u_downbeatReveal', 'u_kickJitter', 'u_snareEyeCheek', 'u_flickerAmount', 'u_fragmentJitter'],
             })
             if (!result.program) {
               throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
@@ -805,7 +838,11 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
         program.activate()
         program.setVec2('u_resolution', width, height)
         program.setFloat('u_masterIntensity', readNumber(context.parameters.get('masterIntensity'), 1))
-        const motionAmount = clampNumber(readNumber(context.parameters.get('motionAmount'), 0), 0, 1)
+        const userMotionAmount = clampNumber(readNumber(context.parameters.get('motionAmount'), 0), 0, 1)
+        const tensionMotionLift = clampNumber(readNumber(context.parameters.get('tensionMotionLift'), 0), 0, 1)
+        const vocalMotionRestraint = clampNumber(readNumber(context.parameters.get('vocalMotionRestraint'), 0), 0, 1)
+        const intelligenceMotion = tensionMotionLift * (1 - vocalMotionRestraint)
+        const motionAmount = clampNumber(userMotionAmount + intelligenceMotion, 0, 1)
         program.setFloat('u_figureScale', resolveCinema2HumNFigureScale(context.parameters.get('figureScale'), width, height, motionAmount))
         const motionRate = readMotionRate(context.parameters.get('motionRate'))
         const bpmSync = readBoolean(context.parameters.get('bpmSync'), true)
@@ -831,6 +868,18 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
         program.setVec4('u_skinPrimary', skinPrimary[0], skinPrimary[1], skinPrimary[2], skinPrimary[3])
         program.setVec4('u_skinSecondary', skinSecondary[0], skinSecondary[1], skinSecondary[2], skinSecondary[3])
         program.setVec4('u_skinAccent', skinAccent[0], skinAccent[1], skinAccent[2], skinAccent[3])
+        const colorShiftAmount = clampNumber(readNumber(context.parameters.get('colorShiftAmount'), 0), 0, 1)
+        const colorShiftHighBand = clampNumber(readNumber(context.parameters.get('colorShiftHighBand'), 0), 0, 1)
+        const colorShiftAirBand = clampNumber(readNumber(context.parameters.get('colorShiftAirBand'), 0), 0, 1)
+        const effectiveColorShift = colorShiftAmount * clampNumber(colorShiftHighBand * 0.65 + colorShiftAirBand * 0.35, 0, 1)
+        program.setFloat('u_colorShift', effectiveColorShift)
+        program.setFloat('u_ghostEdgeEmphasis', clampNumber(readNumber(context.parameters.get('ghostEdgeEmphasis'), 0), 0, 1))
+        program.setFloat('u_beatFlicker', clampNumber(readNumber(context.parameters.get('beatFlicker'), 0), 0, 1))
+        program.setFloat('u_downbeatReveal', clampNumber(readNumber(context.parameters.get('downbeatReveal'), 0), 0, 1))
+        program.setFloat('u_kickJitter', clampNumber(readNumber(context.parameters.get('kickJitter'), 0), 0, 1))
+        program.setFloat('u_snareEyeCheek', clampNumber(readNumber(context.parameters.get('snareEyeCheek'), 0), 0, 1))
+        program.setFloat('u_flickerAmount', clampNumber(readNumber(context.parameters.get('flickerAmount'), 0), 0, 1))
+        program.setFloat('u_fragmentJitter', clampNumber(readNumber(context.parameters.get('fragmentJitter'), 0), 0, 1))
         pass.run(program, target, width, height, [])
       },
     })

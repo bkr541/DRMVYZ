@@ -17,6 +17,7 @@ import { LyricTrackMetaWindowStyleGallery } from './layoutLab/LyricTrackMetaWind
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { BpmGroupStyleGallery } from './layoutLab/BpmGroupStyleGallery'
 import { TrackHeaderStyleGallery } from './layoutLab/TrackHeaderStyleGallery'
+import { PageHeadingStyleGallery } from './layoutLab/PageHeadingStyleGallery'
 import { LyricManagerTimelineStyleGallery } from './layoutLab/LyricManagerTimelineStyleGallery'
 import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
 import { LaserDjBeamBuilderMockup } from './layoutLab/LaserDjBeamBuilderMockup'
@@ -275,6 +276,7 @@ export function LayoutLabMockup() {
             {engineId === 'cinema2' && <Cinema2CanvasMockup state={cinema2State} />}
             {engineId === 'template' && (
               <div className="llcm-stage-gallery">
+                <PageHeadingStyleGallery />
                 <TrackHeaderStyleGallery />
               </div>
             )}

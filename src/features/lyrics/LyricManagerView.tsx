@@ -1940,7 +1940,6 @@ export function LyricManagerView({
   }, [engine.currentAnalysis, engine.currentAnalysisStatus, selectedTrack, selectedTrackLoaded])
 
   const hasMore = tracks.length < trackTotal
-  const selectedTrackName = selectedTrack?.title ?? null
 
   const editorPlaceholder = useMemo(() => {
     if (!selectedTrack && !editorDocument)
@@ -1957,8 +1956,6 @@ export function LyricManagerView({
         saveStatus={activeWriteStatus}
         lyricsDisplayEnabled={lyricsDisplayEnabled}
         hasDocument={!!editorDocument}
-        draftTitle={draftTitle}
-        selectedTrackName={selectedTrackName}
         dirty={editorDirty}
         onToggleLyricsDisplay={() => setLyricsDisplayEnabled(!lyricsDisplayEnabled)}
         onSave={() => {

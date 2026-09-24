@@ -43,16 +43,6 @@
   white-space: nowrap;
 }
 
-.ttv-view-header-subtitle {
-  overflow: hidden;
-  max-width: 520px;
-  color: rgba(196, 207, 211, 0.42);
-  font: 400 10px/1.2 var(--az-font, Inter, system-ui, sans-serif);
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
 .ttv-app-shell.rv-shell {
   --ttv-label-column: 218px;
   --ttv-overview-playhead-ratio: 0;

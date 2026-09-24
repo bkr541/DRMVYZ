@@ -66,15 +66,6 @@
   color: rgba(232,238,240,0.95);
   white-space: nowrap;
 }
-.lmv-header-subtitle {
-  font-size: 10px;
-  color: rgba(196,207,211,0.42);
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 460px;
-}
 
 /* ── Toggle ──────────────────────────────────────────────────────────── */
 
@@ -945,7 +936,6 @@
 
 @media (max-width: 820px) {
   .lmv-header { padding: 0 10px; }
-  .lmv-header-subtitle,
   .lmv-toggle-row,
   .lmv-header-right .lmv-btn--ghost { display: none; }
   .lmv-track-browser { padding: 10px; }
@@ -1420,11 +1410,6 @@
 .lmv-header-title {
   font-size: 13px;
   letter-spacing: 0.12em;
-}
-
-.lmv-header-subtitle {
-  max-width: 620px;
-  color: rgba(196,207,211,0.42);
 }
 
 .lmv-btn {

@@ -2093,7 +2093,6 @@ export function ShowManagerView() {
       <header className="sm-topbar">
         <div className="sm-title-block" tabIndex={-1} ref={deckBuilderHeadingRef}>
           <strong>{workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? 'DECK BUILDER' : 'SHOW MANAGER'}</strong>
-          <span>{workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? 'PixGrid image sequence authoring' : hasOpenShow ? 'Show authoring workspace' : 'Use New Show or Open Show to begin'}</span>
         </div>
 
         {workspaceMode === 'default' && (
