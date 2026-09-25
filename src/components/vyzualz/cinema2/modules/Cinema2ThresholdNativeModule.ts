@@ -54,7 +54,7 @@ export const cinema2ThresholdNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     }
     const extras = module.config?.extras
     if (extras !== undefined && typeof extras !== 'boolean') {
-      return Object.freeze([{ code: 'CINEMA2_THRESHOLD_EXTRAS_INVALID', path: '$.config.extras', message: 'Threshold "extras" (outer towers, overhead structure and ground smoke) must be a boolean.' }])
+      return Object.freeze([{ code: 'CINEMA2_THRESHOLD_EXTRAS_INVALID', path: '$.config.extras', message: 'Threshold "extras" (outer towers and ground smoke) must be a boolean.' }])
     }
     return Object.freeze([])
   },
@@ -62,7 +62,7 @@ export const cinema2ThresholdNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     const seed = typeof context.module.config?.seed === 'number' ? context.module.config.seed : 1337
     const extras = context.module.config?.extras !== false
     const reactive = new ThresholdReactiveState()
-    // Detail (outer towers, overhead structure, ground smoke) is generated deterministically from the seed, gated per quality tier, and must fit
+    // Detail (outer towers, ground smoke) is generated deterministically from the seed, gated per quality tier, and must fit
     // each tier's instance budget: adding detail that would blow a budget fails module creation instead of a frame.
     const layout = buildThresholdLayout(seed, { extras })
     const puffs = extras ? buildThresholdSmoke(seed) : []

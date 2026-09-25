@@ -567,24 +567,26 @@ describe('Threshold detail layout', () => {
     expect(buildThresholdSmoke(7)).not.toEqual(buildThresholdSmoke(1337))
   })
 
-  it('is plain dark structure (outer towers and an overhead grid) that never enters the flight lane', () => {
-    expect(detail.length).toBeGreaterThan(60)
+  it('is only the outer tower rank: plain dark towers standing on the floor outside the housings, with nothing above the columns and nothing near the flight lane', () => {
+    expect(detail.length).toBe(2 * (7 + 1))
     expect(detail.every(instance => instance.role === 0 && instance.zone === THRESHOLD_ZONE_CORRIDOR)).toBe(true)
-    // Anything that crosses the flight lane (|x| < 8) hangs far above the camera; everything else on the floor is outside the housings.
     for (const instance of detail) {
-      const crossesLane = Math.abs(instance.position[0]) - instance.size[0] / 2 < 8
-      if (crossesLane) expect(instance.position[1] - instance.size[1] / 2).toBeGreaterThan(20)
+      expect(instance.position[1] - instance.size[1] / 2).toBeCloseTo(0, 6) // standing on the floor
+      expect(Math.abs(instance.position[0]) - instance.size[0] / 2).toBeGreaterThan(37.8) // outside the housings
+      // No overhead structure: nothing spans the aisle or hangs above the columns' tops (the housings are 46 high).
+      expect(instance.position[1] + instance.size[1] / 2).toBeLessThan(80)
+      expect(instance.size[1]).toBeGreaterThan(40)
     }
-    expect(detail.filter(instance => instance.position[1] - instance.size[1] / 2 < 0.05 && instance.position[1] > 0).every(instance => Math.abs(instance.position[0]) > 37.8)).toBe(true)
+    expect(detail.some(instance => instance.size[0] > 30 || instance.size[2] > 30)).toBe(false)
   })
 
-  it('gates detail by quality tier: medium adds the outer rank and the main beams, high adds chords, struts and cables', () => {
+  it('gates detail by quality tier: the outer tower rank starts at medium, and the smoke grows with each tier', () => {
     const tierOf = (instance: (typeof detail)[number]) => instance.minTier ?? 0
-    expect(detail.every(instance => tierOf(instance) >= 1)).toBe(true)
+    expect(detail.every(instance => tierOf(instance) === 1)).toBe(true)
     const counts = ([0, 1, 2] as const).map(tier => countThresholdInstances(full, tier))
     expect(counts[0]).toBe(base.length)
-    expect(counts[1]).toBeGreaterThan(counts[0]!)
-    expect(counts[2]).toBeGreaterThan(counts[1]!)
+    expect(counts[1]).toBe(base.length + detail.length)
+    expect(counts[2]).toBe(counts[1])
     const puffs = buildThresholdSmoke(1337)
     const puffCounts = ([0, 1, 2] as const).map(tier => countThresholdInstances(puffs, tier))
     expect(puffCounts[0]).toBeGreaterThan(0)

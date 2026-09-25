@@ -232,17 +232,13 @@ export function buildThresholdLayout(seed = 1337, options: Readonly<{ extras?: b
 
 /** |x| of the outer face of a corridor housing tower. */
 const HOUSING_OUTER_X = CORRIDOR_HALF_WIDTH + PANEL_THICKNESS / 2 + THRESHOLD_HOUSING_SIZE[2]
-const OVERHEAD_TOP_Y = 56
-const OVERHEAD_BOTTOM_Y = 52.4
-const OVERHEAD_HALF_SPAN = 40
 
 /**
  * Detail beyond the hero colonnade, appended after the base layout so the base instances (and their indices) never change. It uses its own
  * seeded stream, so the layout is identical run to run and the base scatter is untouched:
  *  - an outer rank of taller dark towers, staggered half a step behind the housings (medium and up), which gives the corridor depth through
- *    the gaps between the housings;
- *  - overhead structure: cross beams, longitudinal rails (medium and up), lower chords, struts and hanging cables (high), a faint ceiling
- *    the reference has and the volumetric light and shadows can rake across.
+ *    the gaps between the housings.
+ * (An overhead structure of beams, rails and cables was tried here and removed: the upper part of the frame stays open.)
  * Everything is role 0 (plain dark body), z-sorted so lap chunks cull well.
  */
 export function buildThresholdDetail(seed = 1337): readonly ThresholdInstance[] {
@@ -266,25 +262,7 @@ export function buildThresholdDetail(seed = 1337): readonly ThresholdInstance[] 
     row += 1
   }
 
-  const beamZ = (index: number) => -(CORRIDOR_FIRST + (index - 0.5) * CORRIDOR_SPACING)
-  for (let index = 0; index <= CORRIDOR_PAIRS; index += 1) {
-    const z = beamZ(index)
-    const shared = { ...base, row: index, rank: 0.5, side: 0 as const }
-    out.push({ ...shared, minTier: 1, position: [0, OVERHEAD_TOP_Y, z], size: [OVERHEAD_HALF_SPAN * 2, 1.5, 1.5] })
-    out.push({ ...shared, minTier: 2, position: [0, OVERHEAD_BOTTOM_Y, z], size: [OVERHEAD_HALF_SPAN * 2, 1, 1] })
-    for (const x of [-OVERHEAD_HALF_SPAN + 1, -20, 0, 20, OVERHEAD_HALF_SPAN - 1]) {
-      out.push({ ...shared, minTier: 2, position: [x, (OVERHEAD_TOP_Y + OVERHEAD_BOTTOM_Y) / 2, z], size: [0.7, OVERHEAD_TOP_Y - OVERHEAD_BOTTOM_Y, 0.7] })
-    }
-    for (let cable = 0; cable < 3; cable += 1) {
-      const length = range(7, 18)
-      out.push({ ...shared, minTier: 2, position: [range(-30, 30), OVERHEAD_BOTTOM_Y - length / 2, z + range(-2, 2)], size: [0.25, length, 0.25] })
-    }
-  }
-  const railLength = (CORRIDOR_PAIRS + 0.5) * CORRIDOR_SPACING
-  for (const x of [-14, 14]) {
-    out.push({ ...base, row: 0, rank: 0.5, side: (x < 0 ? 0 : 1) as 0 | 1, minTier: 1, position: [x, OVERHEAD_TOP_Y - 1.2, -(CORRIDOR_FIRST - CORRIDOR_SPACING + railLength / 2)], size: [1.1, 1.1, railLength + CORRIDOR_SPACING] })
-  }
-  // Nearest last, so chunks (consecutive instances) cover compact z ranges; the long rails stay where they are.
+  // Nearest last, so chunks (consecutive instances) cover compact z ranges.
   return out.sort((left, right) => left.position[2] - right.position[2])
 }
 
