@@ -37,6 +37,7 @@ import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import {
   CINEMA2_THRESHOLD_BPM_SYNC_ID,
   CINEMA2_THRESHOLD_CAMERA_ID,
+  CINEMA2_THRESHOLD_CAMERA_MOTION_ID,
   CINEMA2_THRESHOLD_INTENSITY_ID,
   CINEMA2_THRESHOLD_PRESET_ID,
   CINEMA2_THRESHOLD_PRESET_MANIFEST,
@@ -346,6 +347,82 @@ describe('Threshold reactive state', () => {
     expect(released.drop).toBeLessThan(0.15)
   })
 
+  it('never leaves the set dark while music plays: quiet, low-energy passages keep the near screens open and the level above half', () => {
+    for (const energy of [0, 0.05, 0.12, 0.3]) {
+      const { step } = reactiveHarness()
+      let frame = step(0)
+      for (let beat = 0.25; beat <= 12; beat += 0.25) frame = step(beat, { energy, buildProgress: 0, sectionType: 'verse' })
+      // The Visual Director calls very quiet passages 'low' (held at half); anything with some energy stays mostly open and bright.
+      expect(frame.arc, `arc at energy ${energy}`).toBeGreaterThanOrEqual(energy >= 0.3 ? 0.6 : 0.48)
+      expect(frame.level, `level at energy ${energy}`).toBeGreaterThanOrEqual(energy >= 0.3 ? 0.7 : 0.48)
+    }
+    // Even a breakdown holds half the corridor open and the level at half.
+    const { step } = reactiveHarness()
+    let frame = step(0)
+    for (let beat = 0.25; beat <= 16; beat += 0.25) frame = step(beat, { energy: 0.02, buildProgress: 0, sectionType: 'breakdown' })
+    expect(frame.arc).toBeGreaterThanOrEqual(0.48)
+    expect(frame.level).toBeGreaterThanOrEqual(0.48)
+    expect(frame.level).toBeLessThan(0.75)
+  })
+
+  it('holds a drop SECTION at full brightness with a beat-by-beat strobe, long after the drop moment has decayed', () => {
+    const verse = reactiveHarness()
+    const drop = reactiveHarness()
+    let verseFrame = verse.step(0)
+    let dropFrame = drop.step(0)
+    for (let beat = 0.25; beat <= 24; beat += 0.25) {
+      verseFrame = verse.step(beat, { energy: 0.15, buildProgress: 0, sectionType: 'verse', dropConfidence: 0.02 })
+      dropFrame = drop.step(beat, { energy: 0.15, buildProgress: 0, sectionType: 'drop', dropConfidence: 0.3 })
+    }
+    expect(dropFrame.drop).toBeLessThan(0.05) // the one-shot flash is long gone...
+    expect(dropFrame.dropHold).toBeGreaterThan(0.9) // ...but the section is still a drop
+    expect(dropFrame.level).toBeGreaterThan(0.95)
+    expect(dropFrame.level).toBeGreaterThan(verseFrame.level)
+    expect(verseFrame.dropHold).toBeLessThan(0.05)
+    // The strobe flips every beat.
+    const flips = new Set<number>()
+    for (let beat = 24.25; beat <= 28; beat += 0.25) if (Number.isInteger(beat)) flips.add(drop.step(beat, { energy: 0.15, sectionType: 'drop', dropConfidence: 0.3 }).beatFlip)
+    expect(flips.size).toBe(2)
+  })
+
+  it('BPM Sync ON pulses the screens on every beat of the grid and sweeps every bar even when no events were detected; OFF reacts to events only', () => {
+    const run = (bpmSync: boolean) => {
+      const { step } = reactiveHarness()
+      const pulses: number[] = []
+      const sweeps: number[] = []
+      step(0, {}, { bpmSync })
+      for (let beat = 0.25; beat <= 12; beat += 0.25) {
+        // The grid runs but the beat / downbeat / kick events are not reported (a detector that misses them).
+        const frame = step(beat + 0.001, { beat: false, downbeat: false, kick: 0, snare: 0, energy: 0.2, buildProgress: 0 }, { bpmSync })
+        pulses.push(frame.beatPulse)
+        sweeps.push(frame.sweepStrength)
+      }
+      return { pulses, sweeps }
+    }
+    const locked = run(true)
+    const free = run(false)
+    expect(Math.max(...locked.pulses)).toBeGreaterThan(0.6)
+    expect(Math.max(...locked.sweeps)).toBeGreaterThan(0.3)
+    // (The very first step carries a detected beat; look past its decay.)
+    expect(Math.max(...free.pulses.slice(8))).toBeLessThan(0.05)
+    expect(Math.max(...free.sweeps.slice(30))).toBe(0)
+    // Every beat of the grid restarts the pulse: 12 beats -> 12 rising edges.
+    const edges = locked.pulses.filter((value, index) => index > 0 && value > locked.pulses[index - 1]! + 0.3).length
+    expect(edges).toBeGreaterThanOrEqual(10)
+  })
+
+  it('BPM Sync is Threshold\'s own switch: the host dock Sync neither enables nor disables it', () => {
+    const state = (presetSync: boolean, dockSync: boolean) => {
+      const { step } = reactiveHarness()
+      step(0, {}, { bpmSync: presetSync, bpm: 150, transport: { bpmSync: dockSync } })
+      return step(1, {}, { bpmSync: presetSync, bpm: 150, transport: { bpmSync: dockSync } })
+    }
+    expect(state(true, false)).toMatchObject({ syncEnabled: true, locked: true })
+    expect(state(true, true)).toMatchObject({ syncEnabled: true, locked: true })
+    expect(state(false, true)).toMatchObject({ syncEnabled: false, locked: false })
+    expect(state(false, false)).toMatchObject({ syncEnabled: false, locked: false })
+  })
+
   it('steps support screens back for vocals and shimmers with the highs', () => {
     const { step } = reactiveHarness()
     let frame = step(0)
@@ -425,7 +502,7 @@ describe('Threshold preset', () => {
     expect(boundEffects.length).toBeGreaterThanOrEqual(2)
   })
 
-  it('flies dead centre down the corridor with a wide lens and only light drift', () => {
+  it('flies dead centre down the corridor with a wide lens, with camera motion large enough to see and scaled by Camera Motion', () => {
     const camera = manifest.cameras!.find(entry => entry.id === CINEMA2_THRESHOLD_CAMERA_ID)!
     expect(camera.fovDegrees).toBeGreaterThanOrEqual(65)
     const points = (camera.rig as { points: readonly { position: readonly number[]; target?: readonly number[] }[] }).points
@@ -435,8 +512,14 @@ describe('Threshold preset', () => {
       expect(point.position[0]).toBe(0)
       expect(point.target?.[0]).toBe(0)
     }
-    expect(camera.motion?.drift?.position).toBeLessThanOrEqual(0.05)
-    expect(camera.motion?.bank?.maxDegrees).toBeLessThanOrEqual(2)
+    // Sized for a 52-unit-wide aisle: the old 'steady' amplitudes (0.04 units) were invisible, which made the Camera Motion slider look dead.
+    expect(camera.motion?.drift?.position).toBeGreaterThanOrEqual(0.5)
+    expect(camera.motion?.bank?.maxDegrees).toBeGreaterThanOrEqual(3)
+    expect(camera.motion?.tempo).toMatchObject({ flightSpeed: true })
+    expect(camera.motion?.tempo?.weave).toBeGreaterThanOrEqual(1)
+    expect(camera.motion?.tempo?.punch).toBeGreaterThan(0)
+    // Both switches reach the runtime: the slider scales the motion, BPM Sync locks it to the track.
+    expect(camera.controls).toMatchObject({ motionAmount: { $ref: CINEMA2_THRESHOLD_CAMERA_MOTION_ID }, tempoSync: { $ref: CINEMA2_THRESHOLD_BPM_SYNC_ID } })
   })
 
   it('grades neutrally: no filmic curve to grey the whites, low saturation, minimal fringing and grain', () => {
@@ -460,6 +543,15 @@ describe('Threshold preset', () => {
 })
 
 // ── Detail, smoke, budgets and culling (roadmap #9, native half) ────────────────────────────────
+
+describe('Threshold hanging field', () => {
+  it('is dense enough to read as an environment and turned toward the aisle, so the flight never sees black planks', () => {
+    const field = buildThresholdLayout(1337, { extras: false }).filter(entry => entry.zone === THRESHOLD_ZONE_FIELD)
+    expect(field.length).toBeGreaterThanOrEqual(18)
+    expect(field.filter(entry => entry.role >= 1).length).toBeGreaterThanOrEqual(15)
+    for (const entry of field) expect(Math.abs(entry.rotation[0])).toBeLessThanOrEqual(0.52)
+  })
+})
 
 describe('Threshold detail layout', () => {
   const base = buildThresholdLayout(1337, { extras: false })

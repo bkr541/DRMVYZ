@@ -29,6 +29,9 @@ uniform float u_arc;
 uniform float u_level;
 uniform float u_phraseSide;
 uniform float u_breathing;
+uniform float u_dropHold;
+uniform float u_beatFlip;
+uniform float u_beatPulse;
 
 float towerEmission(float role, float row, float rank, float side, float ahead) {
   float rowParity = mod(row, 2.0);
@@ -39,7 +42,10 @@ float towerEmission(float role, float row, float rank, float side, float ahead) 
   float lead = u_phraseSide < 0.0 ? 1.0 : mix(0.72, 1.0, 1.0 - abs(side - u_phraseSide));
   float sweep = u_sweepStrength * exp(-pow((ahead - u_sweepFront) / 16.0, 2.0));
   // Main screens sit at full white when idle; music dims them (u_level) and hits/kick/snare lift them back over the top.
-  float primary = open * lead * (u_baseLevel * breathe * u_level + beatOn * u_beat * 0.5 + rowParity * u_snare * 0.8 + u_kick * 0.25);
+  // During a drop the set strobes beat by beat: the rows that lead this beat flash above white (bloom carries it) while the others dip.
+  float leads = 1.0 - abs(rowParity - u_beatFlip);
+  float strobe = mix(1.0, 0.62 + 0.8 * leads * (0.55 + 0.45 * u_beatPulse), u_dropHold);
+  float primary = open * lead * (u_baseLevel * breathe * u_level * strobe + beatOn * u_beat * 0.5 + rowParity * u_snare * 0.8 + u_kick * 0.25);
   float accent = (u_accentBase * breathe + u_kick * 1.15 + u_bass * 0.4) * (1.0 - 0.5 * u_vocal);
   float emit = 0.0;
   if (role > 1.5) emit = accent + sweep * 0.6 + u_drop * 0.8;
@@ -108,12 +114,15 @@ void main() {
   vec3 an = abs(a_normal);
   v_faceSize = an.z > 0.5 ? size.xy : (an.x > 0.5 ? size.zy : size.xz);
   v_role = role;
-  v_frontFace = step(0.5, a_normal.z);
+  // The hanging field and the ring are seen from both sides during the flight (the camera approaches the ring from behind its near panels),
+  // so their LED runs on both faces; the corridor's screens face the aisle only.
+  v_frontFace = zone > 0.5 ? step(0.5, abs(a_normal.z)) : step(0.5, a_normal.z);
 
   // Per-screen emission. Kept per instance (flat across the box) so the fragment stage only shades the LED face.
   float ahead = max(-(center.z + u_originShift.z), 0.0);
   // Screens, housings and bezels of a row share the row's emission (see towerEmission); roles 1, 3 and 4 use the primary, role 2 the accent.
-  float emit = towerEmission(role, row, rank, side, ahead);
+  // The field and ring have no build-up order: their slabs are open whenever the set is (only the corridor opens pair by pair).
+  float emit = towerEmission(role, row, zone > 0.5 ? 0.0 : rank, side, ahead);
   // The hanging field and the ring surface out of the fog as the camera nears them, so the far end of the corridor stays a clean vanishing point.
   // They are also a little dimmer than the corridor: a panel dead ahead in the ring fills the screen centre.
   // Field and ring pieces dissolve away (screen-door) beyond ~100 units, so the far end of the corridor is clean glow rather than a skyline.
@@ -443,13 +452,14 @@ export interface ThresholdDrawState {
     sweepFront: number; sweepStrength: number; drop: number
     energy: number; bass: number; highs: number; vocal: number
     arc: number; level: number; phraseSide: number; breathing: number
+    dropHold: number; beatFlip: number; beatPulse: number
   }
 }
 
 const UNIFORMS = [
   'u_viewRotation', 'u_projection', 'u_originShift', 'u_widthScale', 'u_intensity', 'u_baseLevel', 'u_accentBase',
   'u_kick', 'u_snare', 'u_beat', 'u_beatParity', 'u_sweepFront', 'u_sweepStrength', 'u_drop', 'u_energy', 'u_bass',
-  'u_vocal', 'u_arc', 'u_level', 'u_phraseSide', 'u_breathing', 'u_primaryColor', 'u_accentColor', 'u_bodyColor', 'u_fogColor',
+  'u_vocal', 'u_arc', 'u_level', 'u_phraseSide', 'u_breathing', 'u_dropHold', 'u_beatFlip', 'u_beatPulse', 'u_primaryColor', 'u_accentColor', 'u_bodyColor', 'u_fogColor',
   'u_fogDensity', 'u_highs', 'u_time', 'u_fieldVisibility', 'u_tier',
 ]
 
@@ -538,7 +548,7 @@ export class ThresholdRenderer {
         'u_viewRotation', 'u_projection', 'u_originShift', 'u_cameraPosition', 'u_widthScale', 'u_tier', 'u_time', 'u_intensity', 'u_smokeAmount',
         'u_fogDensity', 'u_sprites', 'u_fogColor', 'u_primaryColor', 'u_wallX', 'u_glow', 'u_depthPass', 'u_density',
         'u_baseLevel', 'u_accentBase', 'u_kick', 'u_snare', 'u_beat', 'u_beatParity', 'u_sweepFront', 'u_sweepStrength', 'u_drop', 'u_bass',
-        'u_vocal', 'u_arc', 'u_level', 'u_phraseSide', 'u_breathing',
+        'u_vocal', 'u_arc', 'u_level', 'u_phraseSide', 'u_breathing', 'u_dropHold', 'u_beatFlip', 'u_beatPulse',
       ],
     })
     if (!smoke.program) throw new Error(`Shader compilation failed at ${smoke.error.stage} for "${smoke.error.label}": ${smoke.error.log}`)
@@ -634,6 +644,9 @@ export class ThresholdRenderer {
     program.setFloat('u_level', r.level)
     program.setFloat('u_phraseSide', r.phraseSide)
     program.setFloat('u_breathing', r.breathing)
+    program.setFloat('u_dropHold', r.dropHold)
+    program.setFloat('u_beatFlip', r.beatFlip)
+    program.setFloat('u_beatPulse', r.beatPulse)
 
     if (state.vanishing.strength > 0.001) {
       const glow = this.glowProgram
@@ -709,6 +722,9 @@ export class ThresholdRenderer {
     program.setFloat('u_level', r.level)
     program.setFloat('u_phraseSide', r.phraseSide)
     program.setFloat('u_breathing', r.breathing)
+    program.setFloat('u_dropHold', r.dropHold)
+    program.setFloat('u_beatFlip', r.beatFlip)
+    program.setFloat('u_beatPulse', r.beatPulse)
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, state.smoke.texture!)
     program.setSampler('u_sprites', 0)

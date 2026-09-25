@@ -875,6 +875,17 @@ function validateCameraMotion(
       if (motion.drift.seed != null && (typeof motion.drift.seed !== 'number' || !Number.isFinite(motion.drift.seed))) invalid('Drift seed must be finite.', '.drift.seed')
     }
   }
+  if (motion.tempo != null) {
+    const tempo = motion.tempo
+    if (!isPlainObject(tempo)) invalid('Tempo must be an object.', '.tempo')
+    else {
+      if (tempo.referenceBpm != null && (typeof tempo.referenceBpm !== 'number' || !Number.isFinite(tempo.referenceBpm) || tempo.referenceBpm < 40 || tempo.referenceBpm > 240)) invalid('referenceBpm must be between 40 and 240.', '.tempo.referenceBpm')
+      if (tempo.flightSpeed != null && typeof tempo.flightSpeed !== 'boolean') invalid('flightSpeed must be boolean.', '.tempo.flightSpeed')
+      if (tempo.flightSpeed === true && !isPath) invalid('Tempo flightSpeed requires a path or fly rig.', '.tempo.flightSpeed')
+      for (const [name, max] of [['minRate', 4], ['maxRate', 4], ['weave', 20], ['bob', 5], ['roll', 20], ['fov', 20], ['punch', 20]] as const) nonNegative(tempo[name], `.tempo.${name}`, max)
+      if (typeof tempo.minRate === 'number' && typeof tempo.maxRate === 'number' && tempo.minRate > tempo.maxRate) invalid('minRate must not exceed maxRate.', '.tempo.minRate')
+    }
+  }
   if (motion.bank != null) {
     if (!isPlainObject(motion.bank)) invalid('Bank must be an object.', '.bank')
     else {
@@ -908,6 +919,7 @@ function validateCameraControls(
     ['pathProgress', ['float', 'integer']],
     ['smoothingMs', ['float', 'integer']],
     ['motionAmount', ['float', 'integer']],
+    ['tempoSync', ['boolean', 'float', 'integer']],
   ])
   for (const [name, ref] of Object.entries(controls)) {
     const controlPath = `${path}.${name}`
@@ -926,6 +938,9 @@ function validateCameraControls(
     }
     if (name === 'pathProgress' && camera.rig?.kind !== 'path' && camera.rig?.kind !== 'fly') {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'pathProgress requires a path or fly rig.', controlPath))
+    }
+    if (name === 'tempoSync' && camera.motion?.tempo == null) {
+      diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'tempoSync requires the camera to author `motion.tempo`.', controlPath))
     }
     if (name === 'motionAmount' && camera.motion == null) {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'motionAmount requires the camera to author `motion`.', controlPath))

@@ -221,11 +221,11 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     floatParameter(CINEMA2_THRESHOLD_INTENSITY_ID, 'Master Intensity', 'Overall strength of the screens, fog and glow, including every music response.', 'master-controls', 1, 1, 0, 1, 0.01),
     floatParameter(CINEMA2_THRESHOLD_REACTIVITY_ID, 'Master Reactivity', 'How strongly the set follows the music. At 0 the screens hold their idle look.', 'master-controls', 2, 0.8, 0, 1, 0.01),
     Object.freeze({
-      ...base(CINEMA2_THRESHOLD_BPM_SYNC_ID, 'BPM Sync', 'Locks the idle breathing, LED shimmer and light-sweep speed to the track tempo.', 'master-controls', 3),
+      ...base(CINEMA2_THRESHOLD_BPM_SYNC_ID, 'BPM Sync', 'On: the screens pulse on every beat of the track and sweep light down the aisle every bar, and the camera weaves and flies at the track tempo. Off: the set reacts only to detected hits, at a fixed tempo.', 'master-controls', 3),
       type: 'boolean' as const,
       defaultValue: true,
     }),
-    floatParameter(CINEMA2_THRESHOLD_CAMERA_MOTION_ID, 'Camera Motion', 'Handheld drift and banking of the flight camera (0 = locked off).', 'master-controls', 4, 1, 0, 1.5, 0.05),
+    floatParameter(CINEMA2_THRESHOLD_CAMERA_MOTION_ID, 'Camera Motion', 'How much the flight camera moves: handheld drift, banking, a beat-locked sway and a zoom punch on every kick (0 = locked off).', 'master-controls', 4, 1, 0, 1.5, 0.05),
     // Design
     floatParameter(CINEMA2_THRESHOLD_PANEL_BRIGHTNESS_ID, 'Panel Brightness', 'Resting brightness of the LED screens before the music adds to it.', 'design', 1, 0.7, 0, 1, 0.01, 'Screens'),
     floatParameter(CINEMA2_THRESHOLD_FOG_DENSITY_ID, 'Fog Density', 'How thick the haze is between you and the monoliths.', 'design', 2, 0.006, 0, 0.05, 0.001, 'Atmosphere'),
@@ -307,8 +307,18 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         loop: true,
         repeatOffset: vec3(0, 0, -LAP_LENGTH),
       }),
-      motion: cinema2CinematicMotion('steady', { splinePath: true }),
-      controls: Object.freeze({ motionAmount: cinema2Ref(CINEMA2_THRESHOLD_CAMERA_MOTION_ID) }),
+      // Camera Motion scales all of this (0 = locked off). Amplitudes are sized for a 52-unit-wide aisle: handheld drift and banking plus a
+      // beat-locked sway (weave over two bars, a bob every beat, FOV breathing every bar, a zoom punch on every kick). With BPM Sync on the sway
+      // follows the track's beats and the flight runs at its tempo; off, it free-runs at 120 BPM and the flight keeps its authored speed.
+      motion: cinema2CinematicMotion('gentle', {
+        splinePath: true,
+        overrides: Object.freeze({
+          drift: Object.freeze({ position: 0.7, target: 0.4, rollDegrees: 0.7, fovDegrees: 0.8, speed: 0.1 }),
+          bank: Object.freeze({ maxDegrees: 4, gain: 0.7, smoothingMs: 500 }),
+          tempo: Object.freeze({ referenceBpm: 120, flightSpeed: true, minRate: 0.75, maxRate: 1.45, weave: 1.8, bob: 0.25, roll: 1.4, fov: 1.2, punch: 2.4 }),
+        }),
+      }),
+      controls: Object.freeze({ motionAmount: cinema2Ref(CINEMA2_THRESHOLD_CAMERA_MOTION_ID), tempoSync: cinema2Ref(CINEMA2_THRESHOLD_BPM_SYNC_ID) }),
     }),
   ]),
   lighting: Object.freeze({
@@ -448,7 +458,7 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
             target: Object.freeze({ kind: 'camera' as const, ref: cinema2Ref(CINEMA2_THRESHOLD_CAMERA_ID), property: 'roll' }),
             operation: 'envelope' as const,
             composition: 'add' as const,
-            value: 1,
+            value: 2.2,
             envelope: Object.freeze({ attack: 0.3, hold: 0, release: 1.4, unit: 'beats' as const }),
             retrigger: 'restart' as const,
           }),
@@ -485,6 +495,20 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
           operation: 'add' as const,
           value: 0.35,
         })]),
+      }),
+      Object.freeze({
+        // A drop is a section, not a moment: while the Visual Director reports a peak, bloom, shafts and floor glare are held high in proportion to
+        // its intensity (the one-shot drop rule below adds the flash at the start).
+        id: ruleId('peak-sustain'),
+        priority: 30,
+        strengthParameter: cinema2Ref(CINEMA2_THRESHOLD_REACTIVITY_ID),
+        source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.intensity' as const, smoothingMs: 300 }),
+        conditions: Object.freeze([Object.freeze({ kind: 'director-phase' as const, phases: Object.freeze(['peak' as const]) })]),
+        actions: Object.freeze([
+          Object.freeze({ id: actionId('peak-sustain-bloom'), target: effectTarget(CINEMA2_THRESHOLD_BLOOM_EFFECT_ID, 'intensity'), operation: 'add' as const, value: 0.35 }),
+          Object.freeze({ id: actionId('peak-sustain-shafts'), target: effectTarget(CINEMA2_THRESHOLD_VOLUMETRIC_EFFECT_ID, 'shafts'), operation: 'add' as const, value: 0.3 }),
+          Object.freeze({ id: actionId('peak-sustain-glare'), target: effectTarget(CINEMA2_THRESHOLD_FLOOR_EFFECT_ID, 'glareIntensity'), operation: 'add' as const, value: 0.6 }),
+        ]),
       }),
       Object.freeze({
         id: ruleId('drop'),

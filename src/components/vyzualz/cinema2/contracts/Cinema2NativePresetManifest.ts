@@ -368,6 +368,31 @@ export interface Cinema2CameraBankManifest {
  * Resolution order inside the runtime: rig -> transition -> user controls -> target contributions ->
  * drift -> safety clamp -> FOV rate limit -> smoothing -> bank -> matrices.
  */
+/**
+ * Tempo-aware camera motion (opt-in via `motion.tempo`). Everything is scaled by the `motionAmount` control (0 = locked off).
+ * With the `tempoSync` control on and a track that has a tempo, the sway is locked to the track's beats (a beat-position clock that follows the
+ * beat grid) and, with `flightSpeed`, the flight along a path or fly rig runs at `bpm / referenceBpm` of its authored speed (clamped to
+ * `minRate`..`maxRate`). With it off (or with no track) the same sway free-runs at `referenceBpm` and the flight keeps its authored speed.
+ */
+export interface Cinema2CameraTempoManifest {
+  /** Tempo at which the authored flight speed and sway periods apply. Default 120. */
+  referenceBpm?: number
+  /** Tempo-lock the flight speed of a path/fly rig. Default true. */
+  flightSpeed?: boolean
+  minRate?: number
+  maxRate?: number
+  /** Side-to-side sway in world units over two bars. */
+  weave?: number
+  /** Vertical bob in world units, once per beat. */
+  bob?: number
+  /** Rocking roll in degrees over two bars. */
+  roll?: number
+  /** FOV breathing in degrees, once per bar. */
+  fov?: number
+  /** FOV punch (a quick zoom-in) in degrees on every kick; strength follows the kick. */
+  punch?: number
+}
+
 export interface Cinema2CameraMotionManifest {
   /** Path/fly rigs only. `spline` is a Catmull-Rom curve through the points, with no corners. Default `linear`. */
   interpolation?: Cinema2CameraPathInterpolation
@@ -379,6 +404,7 @@ export interface Cinema2CameraMotionManifest {
   bank?: Cinema2CameraBankManifest
   /** Largest FOV change per second, so choreography pulses cannot jerk the lens. */
   fovRateLimitDegreesPerSecond?: number
+  tempo?: Cinema2CameraTempoManifest
 }
 
 export interface Cinema2CameraTransitionManifest {
@@ -401,6 +427,8 @@ export interface Cinema2CameraControlBindingsManifest {
   smoothingMs?: Cinema2ParameterRef
   /** Scales drift and bank together (0 = locked off, 1 = as authored). Requires `motion`. */
   motionAmount?: Cinema2ParameterRef
+  /** Locks `motion.tempo` to the track's beats and tempo (a toggle or a number above 0.5). Requires `motion.tempo`. */
+  tempoSync?: Cinema2ParameterRef
 }
 
 export interface Cinema2CameraSafetyManifest {

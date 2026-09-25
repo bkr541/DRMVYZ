@@ -118,7 +118,7 @@ export const THRESHOLD_HOUSING_WINDOW = Object.freeze({
   centerY: (PANEL_CENTER_Y - THRESHOLD_HOUSING_SIZE[1] / 2) / THRESHOLD_HOUSING_SIZE[1],
 })
 const FIELD_START = 106
-const FIELD_END = 150
+const FIELD_END = 154
 export const THRESHOLD_RING_CENTER = 184
 const RING_RADIUS = 26
 
@@ -178,7 +178,8 @@ export function buildThresholdLayout(seed = 1337, options: Readonly<{ extras?: b
   }
 
   // 2 - Hanging field: floating slabs spread across x and height, facing back toward the camera.
-  const fieldCount = 14
+  // A denser field (was 14 slabs): the flight spends about a fifth of every lap here, and it must read as a lit environment, not a few stray panels.
+  const fieldCount = 20
   for (let index = 0; index < fieldCount; index += 1) {
     const distance = FIELD_START + (index / (fieldCount - 1)) * (FIELD_END - FIELD_START) + range(-1.5, 1.5)
     const sign = index % 2 === 0 ? -1 : 1
@@ -189,7 +190,8 @@ export function buildThresholdLayout(seed = 1337, options: Readonly<{ extras?: b
     instances.push({
       position: [x, range(8, 20) + height / 2, -distance],
       size: [width, height, 1.6],
-      rotation: [range(-0.5, 0.5) + sign * 0.35, range(-0.06, 0.06), range(-0.1, 0.1)],
+      // Turned toward the aisle by at most ~30 degrees: slabs seen edge-on read as black planks, and the flight passes through this zone.
+      rotation: [range(-0.3, 0.3) + sign * 0.2, range(-0.06, 0.06), range(-0.1, 0.1)],
       role: roleRoll < 0.7 ? 1 : roleRoll < 0.85 ? 2 : 0,
       row, zone: THRESHOLD_ZONE_FIELD, rank: random(), side: sign < 0 ? 0 : 1,
     })

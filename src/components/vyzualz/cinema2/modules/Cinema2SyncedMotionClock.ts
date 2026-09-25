@@ -29,8 +29,12 @@ export class Cinema2SyncedMotionClockResolver {
   private lastContextGeneration: number | null = null
   private lastTransportTimeSec: number | null = null
 
-  resolve(frame: Readonly<Cinema2ModuleFrameReadContext>, presetSyncEnabled: boolean): Readonly<Cinema2SyncedMotionClockFrame> {
-    const globallySynced = frame.transport?.bpmSync === true
+  /**
+   * `requireHostSync` (default true) composes the preset toggle with the host's global Audio Dock Sync (both must be on). A preset whose BPM Sync
+   * is the single authority for its beat-locked behaviour (Threshold) passes false, so the toggle is never silently overridden by the dock.
+   */
+  resolve(frame: Readonly<Cinema2ModuleFrameReadContext>, presetSyncEnabled: boolean, options: Readonly<{ requireHostSync?: boolean }> = {}): Readonly<Cinema2SyncedMotionClockFrame> {
+    const globallySynced = options.requireHostSync === false || frame.transport?.bpmSync === true
     const bpm = resolveEffectiveBpm(frame)
     const syncEnabled = presetSyncEnabled && globallySynced && bpm != null
 

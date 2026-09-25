@@ -16,7 +16,12 @@ import { Cinema2SyncedMotionClockResolver } from '../Cinema2SyncedMotionClock'
  *   highs           -> LED grid shimmer
  *   vocal presence  -> support screens step back to leave room
  *
- * BPM Sync governs the tempo-locked time domains: the idle breathing, the LED shimmer clock and the sweep speed.
+ * BPM Sync (the preset toggle, the single authority: the host's Audio Dock Sync does not also gate it) chooses how Threshold follows the beat:
+ *   ON  -> beat-locked: every beat of the track's beat grid pulses the screens (alternating rows, bar accent), a light sweep runs every bar,
+ *          and the breathing / shimmer / sweep clocks run at the track's tempo (the camera flight and sway lock to it too);
+ *   OFF -> free-running: the screens react only to the detected kick / snare / beat / downbeat events, at a fixed 120 BPM clock.
+ * Sections shape the whole set (never dark while music plays): a drop or peak sustains full brightness with a beat-by-beat strobe of alternating
+ * rows, a build opens more of the set, a breakdown dims it but keeps the nearest screens lit.
  * Everything audio-derived is scaled by Master Reactivity; at 0 the panels collapse to their authored idle look.
  */
 export interface ThresholdReactiveFrame {
@@ -50,6 +55,14 @@ export interface ThresholdReactiveFrame {
   phraseSide: number
   /** Slow idle breathing 0..1, present with or without music. */
   breathing: number
+  /** 0..1: how much the current section is a drop / peak (sustained, not just the moment it starts). Drives the beat-by-beat strobe. */
+  dropHold: number
+  /** 0/1: flips every beat, so alternate rows lead on alternate beats during a drop. */
+  beatFlip: number
+  /** 0..1: pulse that restarts on every beat (beat-locked when BPM Sync is on, detected beats otherwise). */
+  beatPulse: number
+  /** True when BPM Sync is on and a tempo is known: the screens, sweeps and clocks follow the beat grid. */
+  locked: boolean
 }
 
 const IDLE_ARC = 1
@@ -57,7 +70,9 @@ const SWEEP_SPEED = 46
 const SWEEP_LENGTH = 140
 const REFERENCE_BPM = 120
 
-const TAU = Object.freeze({ kick: 0.2, snare: 0.24, beat: 0.28, drop: 1.1, smooth: 0.18, arc: 0.8 })
+const TAU = Object.freeze({ kick: 0.2, snare: 0.24, beat: 0.28, drop: 1.1, smooth: 0.18, arc: 0.8, pulse: 0.22 })
+/** Normalisation of the instant energy: typical loud music sits well below 1, so it is mapped to the top of the range at about this value. */
+const ENERGY_FULL = 0.45
 
 export class ThresholdReactiveState {
   private readonly clock = new Cinema2SyncedMotionClockResolver()
@@ -77,6 +92,13 @@ export class ThresholdReactiveState {
   private bass = 0
   private highs = 0
   private vocal = 0
+  private dropHold = 0
+  private calm = 0
+  private buildHold = 0
+  private gridPulse = 0
+  private lastGridBeat: number | null = null
+  private lastBarIndex: number | null = null
+  private beatCounter = 0
   private arc = IDLE_ARC
   private level = 1
   private sweepFront = SWEEP_LENGTH
@@ -87,6 +109,9 @@ export class ThresholdReactiveState {
     this.kickId = this.snareId = this.beatId = this.downbeatId = this.phraseId = null
     this.previousDrop = 0
     this.kick = this.snare = this.beat = this.drop = this.energy = this.bass = this.highs = this.vocal = 0
+    this.dropHold = this.calm = this.buildHold = this.gridPulse = 0
+    this.lastGridBeat = this.lastBarIndex = null
+    this.beatCounter = 0
     this.arc = IDLE_ARC
     this.level = 1
     this.sweepFront = SWEEP_LENGTH
@@ -99,7 +124,8 @@ export class ThresholdReactiveState {
   }
 
   update(frame: Readonly<Cinema2ModuleFrameReadContext>, reactivity: number, bpmSync: boolean): Readonly<ThresholdReactiveFrame> {
-    const clock = this.clock.resolve(frame, bpmSync)
+    // BPM Sync is Threshold's own switch: it does not also wait for the host's dock Sync (see the class doc).
+    const clock = this.clock.resolve(frame, bpmSync, { requireHostSync: false })
     const audio = frame.audio
     const gate = clamp01(reactivity)
     const dt = Number.isFinite(frame.deltaTimeSec) ? clamp(frame.deltaTimeSec, 0, 0.25) : 0
@@ -139,7 +165,7 @@ export class ThresholdReactiveState {
     const snare = audio.rhythm.snare
     if (snare && snare.id !== this.snareId) { this.snareId = snare.id; this.snare = Math.max(this.snare, eventStrength(snare)) }
     const beat = audio.rhythm.beat
-    if (beat && beat.id !== this.beatId) { this.beatId = beat.id; this.beat = Math.max(this.beat, eventStrength(beat)) }
+    if (beat && beat.id !== this.beatId) { this.beatId = beat.id; this.beatCounter += 1; this.beat = Math.max(this.beat, eventStrength(beat)) }
     const downbeat = audio.rhythm.downbeat
     if (downbeat && downbeat.id !== this.downbeatId) {
       this.downbeatId = downbeat.id
@@ -151,10 +177,46 @@ export class ThresholdReactiveState {
     const phrase = audio.rhythm.fixedClocks[16].boundary
     if (phrase && phrase.id !== this.phraseId) { this.phraseId = phrase.id; this.phraseSide = this.phraseSide === 0 ? 1 : 0 }
 
-    // Drop: rising edge of the drop confidence.
+    // Beat-locked mode: the track's beat grid pulses the screens on every beat (a bar accent on the first beat) and starts a sweep every bar,
+    // whether or not the beat / downbeat events were detected.
+    const beatIndexValue = signal(audio.rhythm.beatIndex)
+    const barIndexValue = signal(audio.rhythm.barIndex)
+    const beatInBarValue = signal(audio.rhythm.beatInBar)
+    const locked = clock.syncEnabled && clock.bpm != null
+    if (locked && beatIndexValue != null) {
+      const whole = Math.floor(beatIndexValue)
+      if (this.lastGridBeat !== whole) {
+        const accent = beatInBarValue != null && Math.floor(beatInBarValue) === 0 ? 1 : 0.72
+        this.gridPulse = Math.max(this.gridPulse, accent * gate)
+        this.lastGridBeat = whole
+      }
+      const bar = barIndexValue != null ? Math.floor(barIndexValue) : Math.floor(whole / 4)
+      if (this.lastBarIndex !== bar) {
+        if (this.lastBarIndex != null && gate > 0) {
+          this.sweepFront = 0
+          this.sweepActive = true
+          this.sweepStrength = gate * (0.55 + 0.3 * Math.max(impact, clamp01(directorValue(frame.director?.continuous.intensity))))
+        }
+        this.lastBarIndex = bar
+      }
+    } else {
+      this.lastGridBeat = this.lastBarIndex = null
+    }
+
+    // Sections: a drop is a SUSTAINED state (the drop event is a moment, the section lasts for bars).
     const dropConfidence = signal(audio.structure.dropConfidence) ?? 0
     if (dropConfidence >= 0.6 && this.previousDrop < 0.6) this.drop = Math.max(this.drop, gate)
     this.previousDrop = dropConfidence
+    const sectionValue = audio.structure.section.available ? audio.structure.section.value : null
+    const sectionType = typeof sectionValue?.type === 'string' ? sectionValue.type.toLowerCase() : ''
+    const phaseValue = frame.director?.phase.available ? frame.director.phase.value : null
+    const isDrop = phaseValue === 'peak' || dropConfidence >= 0.5 || /drop|climax|peak|chorus/.test(sectionType)
+    const isCalm = !isDrop && (phaseValue === 'low' || /break|intro|outro|bridge|ambient|silence|quiet/.test(sectionType))
+    const isBuilding = !isDrop && (phaseValue === 'building' || /build|rise|pre/.test(sectionType))
+    const rise = (current: number, on: boolean, attack: number, release: number) => current + ((on ? 1 : 0) - current) * (1 - Math.exp(-dt / (on ? attack : release)))
+    this.dropHold = rise(this.dropHold, isDrop, 0.12, 1.2)
+    this.calm = rise(this.calm, isCalm, 0.6, 0.8)
+    this.buildHold = rise(this.buildHold, isBuilding, 0.5, 0.9)
 
     // Continuous signals, lightly smoothed.
     const follow = (current: number, target: number, tau: number) => current + (target - current) * (1 - Math.exp(-dt / tau))
@@ -162,14 +224,22 @@ export class ThresholdReactiveState {
     this.bass = follow(this.bass, (signal(audio.bands.bass) ?? 0) * gate, TAU.smooth)
     this.highs = follow(this.highs, (signal(audio.bands.high) ?? 0) * gate, TAU.smooth)
     this.vocal = follow(this.vocal, (signal(audio.features.vocalPresence) ?? 0) * gate, 0.4)
-    const build = clamp01(signal(audio.features.buildProgress) ?? directorValue(frame.director?.context.build) ?? 0)
-    const arcTarget = 0.3 + 0.7 * Math.max(build, this.energy * 0.6)
+    const build = clamp01(Math.max(signal(audio.features.buildProgress) ?? directorValue(frame.director?.context.build) ?? 0, this.buildHold * 0.7))
+    const energyN = clamp01(this.energy / (ENERGY_FULL * Math.max(gate, 0.001)))
+    // The set is never dark while music plays: the nearest pairs (and, in the field and ring, every slab) are always open, more open with energy,
+    // builds and drops; a breakdown holds half the corridor open. The level follows energy but never falls below half.
+    const openness = clamp01(0.62 + 0.38 * Math.max(build, energyN * 0.7, this.dropHold))
+    const arcTarget = openness + (0.5 - openness) * this.calm
     this.arc = follow(this.arc, IDLE_ARC + (arcTarget - IDLE_ARC) * gate, TAU.arc)
-    const levelTarget = 0.55 + 0.45 * clamp01(this.energy * 1.3 + build * 0.3)
-    this.level = follow(this.level, 1 + (levelTarget - 1) * gate, TAU.arc)
+    const baseLevel = 0.72 + 0.28 * energyN
+    const levelTarget = baseLevel + (0.5 - baseLevel) * this.calm
+    const levelWithSections = levelTarget + (1 - levelTarget) * Math.max(this.dropHold, build * 0.6)
+    this.level = follow(this.level, 1 + (levelWithSections - 1) * gate, TAU.arc)
 
     const beatIndex = signal(audio.rhythm.beatIndex)
+    const beatCount = beatIndex != null && locked ? Math.floor(beatIndex) : this.beatCounter
     const beatParity = beatIndex == null ? 0 : Math.floor(Math.floor(beatIndex) / 2) % 2
+    const beatFlip = ((beatCount % 2) + 2) % 2
 
     this.frame = {
       timeSec: clock.syncedTimeSec,
@@ -178,7 +248,7 @@ export class ThresholdReactiveState {
       audioActive: true,
       kick: this.kick,
       snare: this.snare,
-      beat: this.beat,
+      beat: Math.max(this.beat, this.gridPulse * 0.8),
       beatParity,
       sweepFront: this.sweepFront,
       sweepStrength: this.sweepActive ? this.sweepStrength * (1 - this.sweepFront / SWEEP_LENGTH) : 0,
@@ -191,6 +261,10 @@ export class ThresholdReactiveState {
       level: this.level,
       phraseSide: this.phraseSide,
       breathing,
+      dropHold: this.dropHold * gate,
+      beatFlip,
+      beatPulse: Math.max(this.gridPulse, this.beat),
+      locked,
     }
     return this.frame
   }
@@ -203,7 +277,11 @@ export class ThresholdReactiveState {
     this.snare = decay(this.snare, TAU.snare)
     this.beat = decay(this.beat, TAU.beat)
     this.drop = decay(this.drop, TAU.drop)
+    this.gridPulse = decay(this.gridPulse, TAU.pulse)
     if (!this.frame.audioActive) {
+      this.dropHold = decay(this.dropHold, 0.6)
+      this.calm = decay(this.calm, 0.6)
+      this.buildHold = decay(this.buildHold, 0.6)
       this.energy = decay(this.energy, 0.4)
       this.bass = decay(this.bass, 0.4)
       this.highs = decay(this.highs, 0.4)
@@ -219,6 +297,7 @@ function idleFrame(timeSec: number, bpm: number | null, syncEnabled: boolean): T
     timeSec, bpm, syncEnabled, audioActive: false,
     kick: 0, snare: 0, beat: 0, beatParity: 0, sweepFront: SWEEP_LENGTH, sweepStrength: 0, drop: 0,
     energy: 0, bass: 0, highs: 0, vocal: 0, arc: IDLE_ARC, level: 1, phraseSide: -1, breathing: 0.5,
+    dropHold: 0, beatFlip: 0, beatPulse: 0, locked: false,
   }
 }
 

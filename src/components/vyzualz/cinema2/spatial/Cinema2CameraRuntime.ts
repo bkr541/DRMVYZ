@@ -1,4 +1,5 @@
 import type {
+  Cinema2CameraTempoManifest,
   Cinema2CameraControlBindingsManifest,
   Cinema2CameraId,
   Cinema2CameraManifest,
@@ -128,6 +129,13 @@ export class Cinema2CameraRuntime {
   private previousBasePosition: Cinema2Vector3 | null = null
   private previousHeadingDegrees: number | null = null
   private bankDegrees = 0
+  /** Tempo motion (`motion.tempo`): a beat-position clock, the tempo-scaled flight clock and its smoothed rate, and the kick punch envelope. */
+  private tempoBeats = 0
+  private tempoInitialized = false
+  private flightTimeSec = 0
+  private flightRate = 1
+  private lastKickId: string | null = null
+  private punchEnvelope = 0
   private splinePath: Readonly<SplinePath> | null = null
   private currentFrame: Readonly<Cinema2CameraFrame>
   private frameCount = 0
@@ -162,7 +170,8 @@ export class Cinema2CameraRuntime {
     const camera = this.authoredCamera
     const motion = camera.motion
     const safety = resolveSafety(camera)
-    let pose = this.resolveBaseRig(camera, frame)
+    const tempoState = motion?.tempo ? this.advanceTempo(camera, motion.tempo, frame) : null
+    let pose = this.resolveBaseRig(camera, frame, tempoState ? this.flightTimeSec : frame.elapsedTimeSec)
     pose = applyAuthoredTransition(camera, pose, frame.elapsedTimeSec)
     const safetyReference = clonePose(pose)
     pose = this.applyUserControls(camera, pose, safety)
@@ -170,6 +179,7 @@ export class Cinema2CameraRuntime {
     const basePosition = pose.position
     const motionAmount = clamp(finite(readNumberControl(camera.controls, 'motionAmount', this.parameters) ?? undefined, 1), 0, 2)
     if (motion?.drift) pose = applyDrift(pose, motion.drift, frame.elapsedTimeSec, motionAmount)
+    if (motion?.tempo && tempoState) pose = applyTempoSway(pose, motion.tempo, tempoState.beats, this.punchEnvelope, motionAmount)
     const safe = clampPose(pose, safety, safetyReference)
     const smoothingMs = resolveSmoothingMs(camera, this.parameters)
     let smoothed = this.previousPose && smoothingMs > 0
@@ -217,11 +227,65 @@ export class Cinema2CameraRuntime {
     this.resetCount += 1
   }
 
+  /**
+   * Advances the tempo clocks for one frame: the flight clock (tempo-scaled when locked, smoothly, so toggling sync or changing track never
+   * jumps the camera), the beat-position clock (always advances; when locked it eases toward the track's beat grid, so toggling only changes
+   * its speed and phase slowly), and the kick punch envelope.
+   */
+  private advanceTempo(
+    camera: Readonly<Cinema2CameraManifest>,
+    tempo: Readonly<Cinema2CameraTempoManifest>,
+    frame: Readonly<Cinema2ModuleFrameReadContext>,
+  ): { beats: number; locked: boolean } {
+    const dt = Number.isFinite(frame.deltaTimeSec) ? clamp(frame.deltaTimeSec, 0, 0.25) : 0
+    const referenceBpm = clamp(finite(tempo.referenceBpm, 120), 40, 240)
+    const syncControl = readToggleControl(camera.controls, 'tempoSync', this.parameters)
+    const bpm = resolveTempoBpm(frame)
+    const locked = syncControl && bpm != null
+    const paused = frame.transport ? !frame.transport.animationActive || frame.transport.paused : false
+
+    if (!this.tempoInitialized) {
+      this.tempoInitialized = true
+      this.flightTimeSec = Math.max(0, frame.elapsedTimeSec)
+      this.tempoBeats = (Math.max(0, frame.elapsedTimeSec) * referenceBpm) / 60
+    } else {
+      const rateTarget = locked && tempo.flightSpeed !== false
+        ? clamp(bpm! / referenceBpm, finite(tempo.minRate, 0.7), Math.max(finite(tempo.minRate, 0.7), finite(tempo.maxRate, 1.5)))
+        : 1
+      this.flightRate += (rateTarget - this.flightRate) * (1 - Math.exp(-dt / 0.6))
+      this.flightTimeSec += dt * this.flightRate
+      if (!paused) {
+        this.tempoBeats += (dt * (locked ? bpm! : referenceBpm)) / 60
+        const index = frame.audio?.rhythm.beatIndex
+        const phase = frame.audio?.rhythm.beatPhase
+        if (locked && index?.available && typeof index.value === 'number' && Number.isFinite(index.value)) {
+          const measured = index.value + (phase?.available && typeof phase.value === 'number' && Number.isFinite(phase.value) ? clamp(phase.value, 0, 0.999) : 0)
+          // Align to the grid modulo two bars (the sway's period) and only ever ease toward it: a seek or track change slides the sway into place
+          // (a beat or two of extra speed for about a second) instead of snapping it, so the camera never cuts.
+          const period = 8
+          const delta = ((((measured - this.tempoBeats) % period) + period + period / 2) % period) - period / 2
+          const maxSlide = 1.5 * dt // beats: a slide, never a whip
+          this.tempoBeats += clamp(delta * (1 - Math.exp(-dt / 0.4)), -maxSlide, maxSlide)
+        }
+      }
+    }
+
+    this.punchEnvelope *= Math.exp(-dt / 0.22)
+    const kick = frame.audio?.rhythm.kick
+    if (kick && kick.id !== this.lastKickId) {
+      this.lastKickId = kick.id
+      this.punchEnvelope = Math.max(this.punchEnvelope, clamp(finite(kick.strength, 0), 0, 1))
+    }
+    return { beats: this.tempoBeats, locked }
+  }
+
   private resetMotionState(): void {
     this.previousPose = null
     this.previousBasePosition = null
     this.previousHeadingDegrees = null
     this.bankDegrees = 0
+    this.punchEnvelope = 0
+    this.lastKickId = null
   }
 
   getFrame(): Readonly<Cinema2CameraFrame> {
@@ -287,6 +351,7 @@ export class Cinema2CameraRuntime {
   private resolveBaseRig(
     camera: Readonly<Cinema2CameraManifest>,
     frame: Readonly<Cinema2ModuleFrameReadContext>,
+    pathTimeSec: number,
   ): CameraPose {
     const authoredPosition = freezeVec3(camera.transform?.position ?? DEFAULT_POSITION)
     const authoredTarget = resolveAuthoredTarget(camera, authoredPosition, this.spatial)
@@ -325,9 +390,9 @@ export class Cinema2CameraRuntime {
       const constantSpeed = camera.motion?.constantSpeed ?? true
       const progressControl = readNumberControl(camera.controls, 'pathProgress', this.parameters)
       const progress = progressControl == null
-        ? pathProgress(rig, frame.elapsedTimeSec, spline?.totalLength)
+        ? pathProgress(rig, pathTimeSec, spline?.totalLength)
         : clamp(progressControl, 0, 1)
-      const lap = spline?.repeatOffset && progressControl == null ? pathLap(rig, frame.elapsedTimeSec, spline.totalLength) : 0
+      const lap = spline?.repeatOffset && progressControl == null ? pathLap(rig, pathTimeSec, spline.totalLength) : 0
       const sampled = spline
         ? sampleSplinePath(spline, progress, constantSpeed, lap)
         : samplePath(rig.points, progress, authoredTarget, fovDegrees)
@@ -840,6 +905,53 @@ export function cinema2CameraDriftNoise(timeSec: number, speed: number, seed: nu
     weightTotal += weight
   })
   return sum / weightTotal
+}
+
+/** A toggle (boolean parameter) or number (above 0.5) camera control; false when unbound. */
+function readToggleControl(
+  controls: Readonly<Cinema2CameraControlBindingsManifest> | undefined,
+  name: keyof Cinema2CameraControlBindingsManifest,
+  parameters: Cinema2ParameterState,
+): boolean {
+  const ref = controls?.[name]
+  if (!ref) return false
+  const value = parameters.getValue(ref.$ref as Cinema2ParameterId)
+  return typeof value === 'boolean' ? value : typeof value === 'number' && Number.isFinite(value) && value > 0.5
+}
+
+/** The track's tempo (analysed, else the host transport's), or null when there is none. */
+function resolveTempoBpm(frame: Readonly<Cinema2ModuleFrameReadContext>): number | null {
+  const analysed = frame.audio?.rhythm.bpm
+  const valid = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 20 && value <= 400
+  if (analysed?.available && valid(analysed.value)) return analysed.value
+  const transport = frame.transport?.bpm
+  return valid(transport) ? transport : null
+}
+
+/**
+ * Beat-locked sway on top of the drift: side-to-side weave and roll rock over two bars (8 beats), a vertical bob every beat, FOV breathing
+ * every bar and a quick FOV punch on each kick. All of it scales with the Camera Motion amount.
+ */
+function applyTempoSway(
+  pose: CameraPose,
+  tempo: Readonly<Cinema2CameraTempoManifest>,
+  beats: number,
+  punchEnvelope: number,
+  amount: number,
+): CameraPose {
+  const tau = Math.PI * 2
+  const weave = Math.sin((tau * beats) / 8) * Math.max(0, finite(tempo.weave, 0)) * amount
+  const bob = Math.sin(tau * beats + 0.6) * Math.max(0, finite(tempo.bob, 0)) * amount
+  const roll = Math.sin((tau * beats) / 8 + 1.1) * Math.max(0, finite(tempo.roll, 0)) * amount
+  const fov = Math.sin((tau * beats) / 4) * Math.max(0, finite(tempo.fov, 0)) * amount - punchEnvelope * Math.max(0, finite(tempo.punch, 0)) * amount
+  return {
+    ...pose,
+    position: addVec3(pose.position, freezeVec3([weave, bob, 0])),
+    // The look-at point follows part of the weave, so the view slides across the scene instead of yawing hard.
+    target: addVec3(pose.target, freezeVec3([weave * 0.6, 0, 0])),
+    rollDegrees: pose.rollDegrees + roll,
+    fovDegrees: pose.fovDegrees + fov,
+  }
 }
 
 function applyDrift(
