@@ -68,12 +68,13 @@ export const cinema2ThresholdNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
         viewRotation[13] = 0
         viewRotation[14] = 0
         const atmosphere = color(context, 'atmosphereColor', DEFAULT_ATMOSPHERE)
+        const laps = thresholdPeriodIndices(camera.position[2])
         const state = reactive.getFrame()
         renderer.draw({
           viewRotation,
           projection: new Float32Array(camera.projectionMatrix),
           cameraPosition: camera.position,
-          laps: thresholdPeriodIndices(camera.position[2]),
+          laps,
           period: THRESHOLD_PERIOD,
           widthScale: clamp(number(context, 'corridorWidth', 1), 0.5, 1.8),
           intensity: clamp(number(context, 'intensity', 1), 0, 1.5),
@@ -85,6 +86,8 @@ export const cinema2ThresholdNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           bodyColor: rgb(color(context, 'voidColor', DEFAULT_VOID)),
           fogColor: [atmosphere[0] * 0.16, atmosphere[1] * 0.16, atmosphere[2] * 0.16],
           time: state.timeSec,
+          fieldVisibility: laps.map(lap => smoothstep(35, 60, -camera.position[2] - lap * THRESHOLD_PERIOD)),
+          vanishing: vanishingGlow(camera.position[2], laps, viewRotation, camera.projectionMatrix, clamp(number(context, 'intensity', 1), 0, 1.5), execution),
           reactive: state,
         })
       },
@@ -102,6 +105,43 @@ export const cinema2ThresholdNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     }
   },
 })
+
+/**
+ * Where the corridor's far end appears on screen and how strongly it glows. The glow belongs to a corridor, so it is strong while a
+ * lap's corridor is ahead (or the camera is inside it), fades out as the flight passes its last pair (into the hanging field and the
+ * ring), and fades back in as the next lap's corridor comes into view.
+ */
+function vanishingGlow(
+  cameraZ: number,
+  laps: readonly number[],
+  viewRotation: Float32Array,
+  projection: ArrayLike<number>,
+  intensity: number,
+  execution: Cinema2ModuleRenderExecutionContext,
+): { x: number; y: number; strength: number; aspect: number } {
+  let corridor = 0
+  for (const lap of laps) {
+    const phase = -cameraZ - lap * THRESHOLD_PERIOD
+    corridor = Math.max(corridor, smoothstep(-200, -150, phase) * (1 - smoothstep(70, 110, phase)))
+  }
+  // A point far down the corridor axis, through the camera's rotation and projection.
+  const v = [0, 0.04, -1]
+  const r = viewRotation
+  const view = [r[0]! * v[0]! + r[4]! * v[1]! + r[8]! * v[2]!, r[1]! * v[0]! + r[5]! * v[1]! + r[9]! * v[2]!, r[2]! * v[0]! + r[6]! * v[1]! + r[10]! * v[2]!]
+  const p = projection
+  const clipX = p[0]! * view[0]! + p[4]! * view[1]! + p[8]! * view[2]!
+  const clipY = p[1]! * view[0]! + p[5]! * view[1]! + p[9]! * view[2]!
+  const clipW = -view[2]!
+  const behind = clipW <= 0.0001
+  const x = behind ? 0.5 : (clipX / clipW) * 0.5 + 0.5
+  const y = behind ? 0.5 : (clipY / clipW) * 0.5 + 0.5
+  return { x, y, strength: behind ? 0 : corridor * intensity * 3.6, aspect: execution.width / Math.max(execution.height, 1) }
+}
+
+function smoothstep(edge0: number, edge1: number, value: number): number {
+  const t = Math.min(1, Math.max(0, (value - edge0) / (edge1 - edge0)))
+  return t * t * (3 - 2 * t)
+}
 
 function number(context: Cinema2ModuleCreateContext, name: string, fallback: number): number {
   const value = context.parameters.get(name)

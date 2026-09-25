@@ -36,7 +36,8 @@ import {
  * depth the pixel becomes floor (so pillars, screens and performers still occlude it), shaded with a
  * dark base, light pools and specular streaks from the shared light list, plus a screen-space
  * reflection: the mirrored ray is marched through the depth buffer and the scene color it hits is
- * blended in with a Fresnel weight. It needs the scene depth; without a depth input, or without a world
+ * blended in with a Fresnel weight. Optional `grit` (0-1, default 0) turns the mirror into wet concrete: damp patches, rippled
+ * reflections and dark cracks from world-anchored noise, at `gritScale` world units per patch. It needs the scene depth; without a depth input, or without a world
  * camera, the effect passes the image through unchanged.
  *
  * Screen-space limits, by design: only what is visible on screen can be reflected, reflections fade out
@@ -84,6 +85,9 @@ uniform float u_pool;
 uniform float u_specular;
 uniform float u_maxReflection;
 uniform float u_thickness;
+uniform float u_grit;
+uniform float u_gritScale;
+uniform float u_baseLift;
 uniform int u_steps;
 uniform int u_blurTaps;
 uniform vec3 u_ambient;
@@ -98,6 +102,15 @@ float hash21(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
   p3 += dot(p3, p3.yzx + 33.33);
   return fract((p3.x + p3.y) * p3.z);
+}
+float valueNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x), mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+float fbm(vec2 p) {
+  return valueNoise(p) * 0.5 + valueNoise(p * 2.03 + 17.1) * 0.25 + valueNoise(p * 4.11 + 41.7) * 0.125 + valueNoise(p * 8.3 + 5.3) * 0.0625;
 }
 vec3 unproject(vec2 ndc, float z) {
   vec4 p = u_invViewProj * vec4(ndc, z, 1.0);
@@ -149,10 +162,10 @@ vec3 traceReflection(vec3 hitPoint, vec3 reflected, vec3 origin) {
   return vec3(0.0);
 }
 
-vec3 sampleReflectionColor(vec2 uv, float travelled) {
+vec3 sampleReflectionColor(vec2 uv, float travelled, float roughnessScale) {
   vec3 sum = texture(u_source, uv).rgb;
-  if (u_blurTaps <= 1 || u_roughness <= 0.01) return sum;
-  float radius = u_roughness * (0.004 + 0.028 * clamp(travelled / max(u_maxReflection, 0.001), 0.0, 1.0));
+  if (u_blurTaps <= 1 || u_roughness * roughnessScale <= 0.01) return sum;
+  float radius = u_roughness * roughnessScale * (0.004 + 0.028 * clamp(travelled / max(u_maxReflection, 0.001), 0.0, 1.0));
   float total = 1.0;
   for (int i = 0; i < 4; i++) {
     if (i >= u_blurTaps - 1) break;
@@ -210,20 +223,42 @@ void main() {
   vec3 viewDir = normalize(origin - hitPoint);
   vec3 reflected = vec3(rayDir.x, -rayDir.y, rayDir.z);
 
+  // Wet concrete: large damp patches, fine ripples that break the mirror into streaks, and thin dark cracks. All noise is
+  // anchored to world position, so the surface stays put as the camera flies over it. Off (u_grit = 0) it is a perfect mirror.
+  float wet = 1.0;
+  float crack = 0.0;
+  float roughnessScale = 1.0;
+  float lightness = 1.0;
+  if (u_grit > 0.001) {
+    vec2 gp = hitPoint.xz / max(u_gritScale, 0.01);
+    float patches = fbm(gp * 0.45);
+    wet = mix(1.0, smoothstep(0.36, 0.6, patches), u_grit);
+    float ridge = abs(fbm(gp * 1.7 + 3.7) - 0.5);
+    crack = (1.0 - smoothstep(0.0, 0.035, ridge)) * u_grit;
+    // Perturb the surface normal with two fine noise fields (stretched along the flight axis, like tyre-worn concrete).
+    vec2 rp = vec2(hitPoint.x / max(u_gritScale, 0.01) * 9.0, hitPoint.z / max(u_gritScale, 0.01) * 3.6);
+    vec2 speckle = vec2(valueNoise(gp * 26.0), valueNoise(gp * 26.0 + 7.7)) - 0.5;
+    vec3 bump = normalize(vec3((fbm(rp) - 0.5) * 0.34 * u_grit + speckle.x * 0.16 * u_grit, 1.0, (fbm(rp + 31.3) - 0.5) * 0.34 * u_grit + speckle.y * 0.16 * u_grit));
+    reflected = reflect(rayDir, bump);
+    reflected.y = abs(reflected.y);
+    roughnessScale = 1.0 + 3.0 * u_grit * (1.0 - wet * (1.0 - crack));
+    lightness = 1.0 + 1.6 * u_grit * (fbm(gp * 3.1 + 9.0) - 0.4) - 0.8 * crack;
+  }
+
   vec3 hit = traceReflection(hitPoint, reflected, origin);
   vec3 environment = u_skyColor;
   if (hit.z > 0.5) {
     vec2 edge = min(hit.xy, 1.0 - hit.xy);
     float edgeFade = smoothstep(0.0, 0.1, min(edge.x, edge.y));
-    environment = mix(u_skyColor, sampleReflectionColor(hit.xy, length(hit.xy - v_uv)), edgeFade);
+    environment = mix(u_skyColor, sampleReflectionColor(hit.xy, length(hit.xy - v_uv), roughnessScale), edgeFade);
   }
 
   vec3 diffuse;
   vec3 specular;
   floorLighting(hitPoint, viewDir, diffuse, specular);
   float cosTheta = clamp(viewDir.y, 0.0, 1.0);
-  float fresnel = u_reflectivity * (0.15 + 0.85 * pow(1.0 - cosTheta, u_fresnel));
-  vec3 surface = u_baseColor * (1.0 + u_ambient) + u_albedo * u_pool * diffuse;
+  float fresnel = u_reflectivity * (0.15 + 0.85 * pow(1.0 - cosTheta, u_fresnel)) * mix(0.25, 1.0, wet) * (1.0 - 0.9 * crack);
+  vec3 surface = (u_baseColor * u_baseLift * (1.0 + u_ambient) + u_albedo * u_pool * diffuse) * max(lightness, 0.05);
   vec3 floorColor = surface * (1.0 - fresnel) + environment * fresnel + specular * u_specular * (0.4 + fresnel);
 
   // Fade to the untouched background toward the horizon so the plane never ends in a hard line.
@@ -242,6 +277,9 @@ const NUMERIC: readonly Cinema2EffectNumericRange[] = Object.freeze([
   ['specular', 0, 8],
   ['maxReflection', 1, 120],
   ['thickness', 0.05, 10],
+  ['grit', 0, 1],
+  ['gritScale', 0.5, 40],
+  ['baseLift', 0.1, 20],
 ])
 
 const DEFAULT_BASE_COLOR: readonly [number, number, number] = Object.freeze([0.012, 0.016, 0.024]) as readonly [number, number, number]
@@ -260,7 +298,7 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
       requiredUniforms: ['u_source', 'u_mix'],
       optionalUniforms: [
         'u_depth', 'u_time', 'u_enabled', 'u_viewProj', 'u_invViewProj', 'u_floorY', 'u_baseColor', 'u_albedo', 'u_reflectivity',
-        'u_roughness', 'u_fresnel', 'u_fadeDistance', 'u_skyColor', 'u_pool', 'u_specular', 'u_maxReflection', 'u_thickness',
+        'u_roughness', 'u_fresnel', 'u_fadeDistance', 'u_skyColor', 'u_pool', 'u_specular', 'u_maxReflection', 'u_thickness', 'u_grit', 'u_gritScale', 'u_baseLift',
         'u_steps', 'u_blurTaps', 'u_ambient', 'u_lightCount', 'u_lightPos[0]', 'u_lightDir[0]', 'u_lightCol[0]', 'u_lightInner[0]',
       ],
     })
@@ -307,6 +345,9 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
     program.setFloat('u_specular', clamp(number(p, 'specular', 1), 0, 8))
     program.setFloat('u_maxReflection', clamp(number(p, 'maxReflection', 30), 1, 120))
     program.setFloat('u_thickness', clamp(number(p, 'thickness', 1.2), 0.05, 10))
+    program.setFloat('u_grit', clamp(number(p, 'grit', 0), 0, 1))
+    program.setFloat('u_gritScale', clamp(number(p, 'gritScale', 6), 0.5, 40))
+    program.setFloat('u_baseLift', clamp(number(p, 'baseLift', 1), 0.1, 20))
     program.setInt('u_steps', profile.steps)
     program.setInt('u_blurTaps', profile.blurTaps)
     program.setVec3('u_ambient', lights.ambient[0], lights.ambient[1], lights.ambient[2])

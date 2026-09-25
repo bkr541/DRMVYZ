@@ -409,6 +409,22 @@ Measured after the batch: 1080p on the M3 Pro - high 8.7 ms, medium 3.3 ms, low 
 Still different from the reference (unchanged by this batch): 5 housings, 7 light spill, 8 smoke, 9 shafts, 10 vanishing-point glow / ceiling, 11 floor surface, 12 SSR dotted noise,
 14 stair-stepped bright edges. The near flybys are still large and bright; the corridor is emptier than the reference (dark void between panels where the reference has towers - that is item 5).
 
+### Refinement batch B (differences 5, 7-partial, 10, 11, 9-partial) - APPLIED 2026-09-25, not committed by the assistant
+Owner asked whether #5/#6 (Three.js) could bring Threshold to the reference. Decision, with reasons: the housing look is mostly LIGHTING (the screens lighting their own towers), not geometry, and Threshold flies an endless repeating lap in camera-relative
+coordinates; `three-scene` places models at fixed Scene Graph nodes (no lap repetition) and lights only from the engine light list (static world lights), so Three would have needed lap-repeat and following lights first, and would have lost the analytic
+"panel light falls on its own housing" that the native renderer can compute per instance. So the housing work was done natively in Threshold's instanced renderer; `three-scene` stays the right tool for sculpted assets (skull, alien, rocks).
+What changed (Threshold only, plus one opt-in floor feature):
+- Layout (`modules/threshold/Cinema2ThresholdLayout.ts`): the corridor is now 7 mirrored pairs at 13.3 spacing (was 5 at 20). Each screen sits (raised to y 19.5 on a plinth) in front of a 10.5 x 46 x 11 housing tower whose front face touches the screen's back, with a 4-bar bezel
+  standing proud of the screen, a plinth reaching into the aisle, and two small status lights (new roles 3 = housing, 4 = bezel/plinth metal; role 2 lights). Same row/rank/side as the screen, so housings react with their screen.
+- Shader (`Cinema2ThresholdRenderer.ts`): housings and bezels are dark weathered concrete (soft vertical streaks) lit by their own screen's emission, falling off with distance from the screen window (analytic spill, so it follows the music-driven brightness), with thin
+  world-width edge highlights near the light. Corridor Width now shifts every corridor piece by the same amount so a housing stays attached to its screen. Screens dim less when near (nearDim ramp 9-28 units, was 14-44).
+- Vanishing-point glow (difference 10): a depth-tested additive glow/cone at the corridor's far end (drawn behind everything, no depth write), strong while a corridor is ahead, faded out as the flight passes the last pair and back in for the next lap; per-lap `u_fieldVisibility` keeps the
+  hanging field from showing as a dark skyline against the glow (it dissolves in as the camera leaves the corridor), and field/ring pieces dissolve beyond ~100 units.
+- Floor (difference 11): the `reflective-floor` effect gained opt-in `grit` (0-1, default 0 = mirror), `gritScale` and `baseLift`: world-anchored damp patches, a rippled normal that breaks reflections into streaks, dark cracks and lightness variation. Threshold authors grit 0.8, scale 5, lift 3.5.
+- Grade/atmosphere: bluer shadow tint (tintAmount 0.22), grain 0.025, shafts 0.26 (length 0.55, origin at the horizon), mist 0.11 / height 3.6, noise 0.9.
+Measured on the M3 Pro, 1080p whole chain: high 7.0-8.0 ms, medium 3.75, low 3.7 (was 8.7 / 3.3 / 1.9 before batch B; the low-tier increase was not investigated - likely the extra housing instances and the full-screen glow pass, which do not shrink with the render-target scale as much as the effects do). Tests: Threshold suite updated (colonnade + new housing test), floor grit test added; Cinema2 folder unchanged failing set, 576 passing.
+Still different from the reference: real smoke wisps (the mist is smooth noise), diagonal light shafts occluded by the towers (#10), true wet-concrete texture and puddle glare (#7a/#8), the panels are lit-but-flat (no glass/LED grid at distance), the floor reads a little like water at the flyby, the hanging field and ring are unchanged.
+
 ## Practical recipes and gotchas (learned the hard way)
 Verification recipes
 - Unit tests: `npx vitest run src/components/vyzualz/cinema2` (compare the failing set to the baseline above); typecheck `npx tsc --noEmit -p tsconfig.json` (grep for the

@@ -22,6 +22,7 @@ import {
   CINEMA2_ATMOSPHERE_REFERENCE_VOLUMETRIC_EFFECT_ID,
 } from '../presets/Cinema2AtmosphereReferencePreset'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
+import { CINEMA2_THRESHOLD_FLOOR_EFFECT_ID, CINEMA2_THRESHOLD_PRESET_MANIFEST } from '../presets/Cinema2ThresholdPreset'
 import { Cinema2HistoryService } from '../runtime/Cinema2HistoryService'
 import { Cinema2ResourceManager } from '../runtime/Cinema2ResourceManager'
 
@@ -145,6 +146,29 @@ describe('Cinema 2.0 Reflective Floor effect', () => {
       expect(lastUniform(gl, 'uniform1f', 'u_floorY')).toBeCloseTo(-1.2)
       runtime.dispose()
     }
+  })
+
+  it('is a perfect mirror unless grit is authored, and validates the wet-concrete controls', () => {
+    // The Atmosphere Reference floor authors no grit: mirror by default, neutral base lift.
+    const { gl, runtime } = createEffectRuntime('high')
+    expect(runtime.execute(FLOOR, context({ depth: true, camera: true }))).toBe('applied')
+    expect(lastUniform(gl, 'uniform1f', 'u_grit')).toBe(0)
+    expect(lastUniform(gl, 'uniform1f', 'u_baseLift')).toBe(1)
+    runtime.dispose()
+
+    // Threshold authors wet, cracked concrete: grit, scale and a lifted base reach the shader.
+    const threshold = CINEMA2_THRESHOLD_PRESET_MANIFEST
+    const authored = createEffectRuntime('high', threshold)
+    expect(authored.runtime.execute(CINEMA2_THRESHOLD_FLOOR_EFFECT_ID, context({ depth: true, camera: true }))).toBe('applied')
+    expect(lastUniform(authored.gl, 'uniform1f', 'u_grit')).toBeGreaterThan(0.5)
+    expect(lastUniform(authored.gl, 'uniform1f', 'u_gritScale')).toBeGreaterThan(1)
+    expect(lastUniform(authored.gl, 'uniform1f', 'u_baseLift')).toBeGreaterThan(1)
+    authored.runtime.dispose()
+
+    const bad = { ...effectManifest(FLOOR), parameters: { mix: 1, grit: 2, gritScale: 0, baseLift: -1 } }
+    expect(cinema2ReflectiveFloorEffectDefinition.validate!(bad).map(diagnostic => diagnostic.path)).toEqual(
+      expect.arrayContaining(['$.parameters.grit', '$.parameters.gritScale', '$.parameters.baseLift']),
+    )
   })
 
   it('passes the image through when it cannot depth-test against a world camera', () => {

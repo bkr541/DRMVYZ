@@ -125,12 +125,13 @@ describe('Threshold layout', () => {
   })
 
   it('builds the corridor as an evenly spaced, perfectly mirrored colonnade of tall white-capable panels with no clutter', () => {
-    const corridor = layout.filter(entry => entry.zone === THRESHOLD_ZONE_CORRIDOR)
-    // Only main LED screens: no dark rear towers and no small support panels.
-    expect(corridor.every(entry => entry.role === 1)).toBe(true)
+    const corridorAll = layout.filter(entry => entry.zone === THRESHOLD_ZONE_CORRIDOR)
+    // Main LED screens plus the hardware that holds them (housing tower, bezel, plinth, status lights): no random rear towers or loose support panels.
+    expect(corridorAll.every(entry => entry.role >= 1)).toBe(true)
+    const corridor = corridorAll.filter(entry => entry.role === 1)
     const pairs = new Map<number, typeof corridor>()
     for (const entry of corridor) pairs.set(entry.row, [...(pairs.get(entry.row) ?? []), entry])
-    expect(pairs.size).toBeGreaterThanOrEqual(5)
+    expect(pairs.size).toBeGreaterThanOrEqual(7)
     const distances: number[] = []
     for (const [, pair] of [...pairs.entries()].sort((a, b) => a[0] - b[0])) {
       expect(pair).toHaveLength(2)
@@ -149,6 +150,34 @@ describe('Threshold layout', () => {
     // Far pairs open last, so the set opens symmetrically from the camera outward.
     const ranks = [...pairs.entries()].sort((a, b) => a[0] - b[0]).map(([, pair]) => pair[0].rank)
     expect([...ranks].sort((a, b) => a - b)).toEqual(ranks)
+  })
+
+  it('seats every corridor screen in a housing tower with a bezel, plinth and status lights, standing on the floor', () => {
+    const corridor = layout.filter(entry => entry.zone === THRESHOLD_ZONE_CORRIDOR)
+    const screens = corridor.filter(entry => entry.role === 1)
+    for (const screen of screens) {
+      const same = corridor.filter(entry => entry.row === screen.row && entry.side === screen.side)
+      const housing = same.filter(entry => entry.role === 3)
+      expect(housing).toHaveLength(1)
+      // Behind the screen (further from the aisle), touching its back face, taller than it, standing on the floor.
+      const backFace = Math.abs(screen.position[0]) + screen.size[2] / 2
+      const frontOfHousing = Math.abs(housing[0]!.position[0]) - housing[0]!.size[2] / 2
+      expect(frontOfHousing).toBeCloseTo(backFace)
+      expect(housing[0]!.size[1]).toBeGreaterThan(screen.size[1])
+      expect(housing[0]!.position[1] - housing[0]!.size[1] / 2).toBeCloseTo(0)
+      // Four bezel bars and a plinth (role 4), and two status lights (role 2).
+      expect(same.filter(entry => entry.role === 4)).toHaveLength(5)
+      expect(same.filter(entry => entry.role === 2)).toHaveLength(2)
+      // The screen sits above the plinth, and the plinth never rises above the screen's lower edge.
+      const plinth = same.filter(entry => entry.role === 4).sort((a, b) => b.size[0] - a.size[0])[0]!
+      expect(plinth.position[1] + plinth.size[1] / 2).toBeLessThan(screen.position[1] - screen.size[1] / 2 + 1e-6)
+    }
+    // Housings are close together (a dense colonnade) but never overlap their neighbours.
+    const housings = corridor.filter(entry => entry.role === 3 && entry.side === 0).sort((a, b) => b.position[2] - a.position[2])
+    for (let index = 1; index < housings.length; index += 1) {
+      const gap = housings[index - 1]!.position[2] - housings[index]!.position[2] - housings[index]!.size[0]
+      expect(gap).toBeGreaterThan(0)
+    }
   })
 
   it('draws the current lap and its neighbours, so the flight can repeat endlessly', () => {

@@ -17,8 +17,11 @@ export const THRESHOLD_ZONE_CORRIDOR = 0
 export const THRESHOLD_ZONE_FIELD = 1
 export const THRESHOLD_ZONE_RING = 2
 
-/** 0 = plain dark body, 1 = primary LED screen, 2 = accent (support) LED screen. */
-export type ThresholdRole = 0 | 1 | 2
+/**
+ * 0 = plain dark body, 1 = primary LED screen, 2 = accent (support) LED screen,
+ * 3 = housing tower (dark body that catches its screen's light), 4 = frame / plinth metal around a screen.
+ */
+export type ThresholdRole = 0 | 1 | 2 | 3 | 4
 
 export interface ThresholdInstance {
   /** Box center. */
@@ -52,12 +55,23 @@ function createRandom(seed: number): () => number {
 }
 
 /** Corridor pairs: evenly spaced, identical on both sides. */
-const CORRIDOR_PAIRS = 5
+const CORRIDOR_PAIRS = 7
 const CORRIDOR_FIRST = 24
-const CORRIDOR_SPACING = 20
+const CORRIDOR_SPACING = 13.3
 const CORRIDOR_HALF_WIDTH = 26
 const PANEL_WIDTH = 7
 const PANEL_HEIGHT = 36
+/** The screens sit slightly above the floor, on a plinth, like the reference's tower bases. */
+const PANEL_CENTER_Y = 19.5
+const PANEL_THICKNESS = 1.6
+/** Housing tower behind each corridor screen: its front face touches the screen's back face and it stands on the floor. */
+export const THRESHOLD_HOUSING_SIZE = Object.freeze([10.5, 46, 11] as const)
+/** Screen window in the housing's normalized local coordinates (used for the light spill on the tower). */
+export const THRESHOLD_HOUSING_WINDOW = Object.freeze({
+  halfWidth: (PANEL_WIDTH / 2 + 0.9) / THRESHOLD_HOUSING_SIZE[0],
+  halfHeight: (PANEL_HEIGHT / 2 + 0.9) / THRESHOLD_HOUSING_SIZE[1],
+  centerY: (PANEL_CENTER_Y - THRESHOLD_HOUSING_SIZE[1] / 2) / THRESHOLD_HOUSING_SIZE[1],
+})
 const FIELD_START = 106
 const FIELD_END = 150
 export const THRESHOLD_RING_CENTER = 184
@@ -76,12 +90,44 @@ export function buildThresholdLayout(seed = 1337): readonly ThresholdInstance[] 
     // Far pairs open last as the arc climbs.
     const rank = 0.04 + 0.92 * (index / (CORRIDOR_PAIRS - 1))
     for (const sign of [-1, 1] as const) {
+      const yaw = sign < 0 ? Math.PI / 2 : -Math.PI / 2
+      const base = { row, zone: 0 as const, rank, side: (sign < 0 ? 0 : 1) as 0 | 1, rotation: [yaw, 0, 0] as const }
+      // |x| of the screen's back face; everything behind it is housing.
+      const backX = CORRIDOR_HALF_WIDTH + PANEL_THICKNESS / 2
+      const frontX = CORRIDOR_HALF_WIDTH - PANEL_THICKNESS / 2
       instances.push({
-        position: [sign * CORRIDOR_HALF_WIDTH, PANEL_HEIGHT / 2, -distance],
-        size: [PANEL_WIDTH, PANEL_HEIGHT, 1.6],
-        rotation: [sign < 0 ? Math.PI / 2 : -Math.PI / 2, 0, 0],
-        role: 1, row, zone: THRESHOLD_ZONE_CORRIDOR, rank, side: sign < 0 ? 0 : 1,
+        ...base, position: [sign * CORRIDOR_HALF_WIDTH, PANEL_CENTER_Y, -distance], size: [PANEL_WIDTH, PANEL_HEIGHT, PANEL_THICKNESS], role: 1,
       })
+      // Housing tower.
+      instances.push({
+        ...base, role: 3, size: THRESHOLD_HOUSING_SIZE,
+        position: [sign * (backX + THRESHOLD_HOUSING_SIZE[2] / 2), THRESHOLD_HOUSING_SIZE[1] / 2, -distance],
+      })
+      // Bezel: four bars that stand a little proud of the screen face.
+      const bar = 0.9
+      const barDepth = 2.2
+      const barX = sign * (frontX - 0.5 + barDepth / 2)
+      const top = PANEL_CENTER_Y + PANEL_HEIGHT / 2
+      const bottom = PANEL_CENTER_Y - PANEL_HEIGHT / 2
+      const half = PANEL_WIDTH / 2
+      for (const offset of [-1, 1] as const) {
+        instances.push({ ...base, role: 4, size: [bar, PANEL_HEIGHT + 2 * bar, barDepth], position: [barX, PANEL_CENTER_Y, -distance + offset * (half + bar / 2)] })
+      }
+      instances.push({ ...base, role: 4, size: [PANEL_WIDTH, bar, barDepth], position: [barX, top + bar / 2, -distance] })
+      instances.push({ ...base, role: 4, size: [PANEL_WIDTH, bar, barDepth], position: [barX, bottom - bar / 2, -distance] })
+      // Plinth under the screen, reaching a little further into the aisle, with two small status lights.
+      const plinthHeight = bottom - bar
+      const plinthDepth = THRESHOLD_HOUSING_SIZE[2] + 2
+      instances.push({
+        ...base, role: 4, size: [THRESHOLD_HOUSING_SIZE[0] + 2, plinthHeight, plinthDepth],
+        position: [sign * (backX + THRESHOLD_HOUSING_SIZE[2] - plinthDepth / 2), plinthHeight / 2, -distance],
+      })
+      for (const offset of [-1, 1] as const) {
+        instances.push({
+          ...base, role: 2, size: [0.8, 0.3, 0.3],
+          position: [sign * (backX + THRESHOLD_HOUSING_SIZE[2] - plinthDepth - 0.1), plinthHeight / 2, -distance + offset * 4.6],
+        })
+      }
     }
     row += 1
   }

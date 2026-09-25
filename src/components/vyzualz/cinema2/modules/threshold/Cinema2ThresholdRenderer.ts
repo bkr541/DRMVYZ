@@ -1,7 +1,7 @@
 import { ShaderCompiler } from '../../../react/shaders/runtime/ShaderCompiler'
 import { ShaderProgram } from '../../../react/shaders/runtime/ShaderProgram'
 import { assertCinema2NoGlErrors } from '../../runtime/Cinema2GpuValidation'
-import { THRESHOLD_INSTANCE_FLOATS } from './Cinema2ThresholdLayout'
+import { THRESHOLD_HOUSING_WINDOW, THRESHOLD_INSTANCE_FLOATS } from './Cinema2ThresholdLayout'
 
 const VERTEX_SOURCE = `#version 300 es
 precision highp float;
@@ -33,12 +33,17 @@ uniform float u_arc;
 uniform float u_level;
 uniform float u_phraseSide;
 uniform float u_breathing;
+uniform float u_fieldVisibility;
 out vec3 v_normal;
 out vec2 v_uv;
 out float v_emit;
 out float v_role;
 out float v_frontFace;
 out vec3 v_relative;
+out vec3 v_local;
+out vec3 v_size;
+out vec2 v_faceSize;
+out float v_fieldFade;
 
 mat3 rotY(float a) { float c = cos(a); float s = sin(a); return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c); }
 mat3 rotX(float a) { float c = cos(a); float s = sin(a); return mat3(1.0, 0.0, 0.0, 0.0, c, s, 0.0, -s, c); }
@@ -55,12 +60,17 @@ void main() {
 
   vec3 center = i0.xyz;
   // Corridor Width widens or narrows the aisle only; the hanging field and ring keep their layout.
-  center.x *= mix(1.0, u_widthScale, step(zone, 0.5));
+  // Everything in the corridor (screens, housings, bezels) shifts by the same amount, so a housing stays attached to its screen.
+  center.x += sign(center.x) * 26.0 * (u_widthScale - 1.0) * step(zone, 0.5);
   vec3 relative = center + rotation * (a_position * size) + u_originShift;
   v_relative = relative;
   gl_Position = u_projection * (u_viewRotation * vec4(relative, 1.0));
   v_normal = rotation * a_normal;
   v_uv = a_uv;
+  v_local = a_position;
+  v_size = size;
+  vec3 an = abs(a_normal);
+  v_faceSize = an.z > 0.5 ? size.xy : (an.x > 0.5 ? size.zy : size.xz);
   v_role = role;
   v_frontFace = step(0.5, a_normal.z);
 
@@ -78,12 +88,15 @@ void main() {
   float accent = (u_accentBase * breathe + u_kick * 1.15 + u_bass * 0.4) * (1.0 - 0.5 * u_vocal);
   float emit = 0.0;
   if (role > 1.5) emit = accent + sweep * 0.6 + u_drop * 0.8;
-  else if (role > 0.5) emit = primary + sweep * 1.3 + u_drop;
+  else if (role > 0.5) emit = primary + sweep * 1.3 + u_drop; // roles 1, 3 and 4 share their screen's emission (housings and bezels catch its light)
   // The hanging field and the ring surface out of the fog as the camera nears them, so the far end of the corridor stays a clean vanishing point.
   // They are also a little dimmer than the corridor: a panel dead ahead in the ring fills the screen centre.
+  // Field and ring pieces dissolve away (screen-door) beyond ~100 units, so the far end of the corridor is clean glow rather than a skyline.
+  // The hanging field stays hidden while the camera is inside the corridor (u_fieldVisibility), so it never shows as a skyline against the glow.
+  v_fieldFade = zone > 0.5 ? smoothstep(118.0, 96.0, ahead) * (zone < 1.5 ? u_fieldVisibility : 1.0) : 1.0;
   float reveal = zone > 0.5 ? smoothstep(75.0, 40.0, ahead) * 0.72 : 1.0;
   // A screen dims smoothly as the camera gets close to it, so flying past one never blows out the frame.
-  float nearDim = mix(0.45, 1.0, smoothstep(14.0, 44.0, length(center + u_originShift)));
+  float nearDim = mix(0.45, 1.0, smoothstep(9.0, 28.0, length(center + u_originShift)));
   v_emit = emit * u_intensity * reveal * nearDim;
 }`
 
@@ -95,6 +108,10 @@ in float v_emit;
 in float v_role;
 in float v_frontFace;
 in vec3 v_relative;
+in vec3 v_local;
+in vec3 v_size;
+in vec2 v_faceSize;
+in float v_fieldFade;
 uniform vec3 u_primaryColor;
 uniform vec3 u_accentColor;
 uniform vec3 u_bodyColor;
@@ -110,13 +127,43 @@ float hash21(vec2 p) {
   return fract((p3.x + p3.y) * p3.z);
 }
 
+float valueNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x), mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+// Screen window on a housing tower in the tower's normalized local space: x = half width, y = half height, z = center height.
+const vec3 HOUSING_WINDOW = vec3(${THRESHOLD_HOUSING_WINDOW.halfWidth.toFixed(5)}, ${THRESHOLD_HOUSING_WINDOW.halfHeight.toFixed(5)}, ${THRESHOLD_HOUSING_WINDOW.centerY.toFixed(5)});
+
 void main() {
+  if (v_fieldFade < 1.0 && hash21(gl_FragCoord.xy) >= v_fieldFade) discard;
   vec3 normal = normalize(v_normal);
   float dist = length(v_relative);
   vec3 viewDir = -v_relative / max(dist, 0.001);
   vec2 edge = min(v_uv, 1.0 - v_uv);
   vec3 color;
-  if (v_role > 0.5 && v_frontFace > 0.5) {
+  if (v_role > 2.5) {
+    // Housing tower (3) and bezel / plinth metal (4): dark, grimy, and lit by the screen they belong to. The screen's light falls off
+    // with distance from the window, so the tower face around the screen and its near edges glow while the far sides stay dark.
+    vec3 q = v_local;
+    float dx = max(abs(q.x) - HOUSING_WINDOW.x, 0.0) * v_size.x;
+    float dy = max(abs(q.y - HOUSING_WINDOW.z) - HOUSING_WINDOW.y, 0.0) * v_size.y;
+    float dz = (0.5 - q.z) * v_size.z;
+    float reach = v_role < 3.5 ? length(vec3(dx, dy, dz)) : 0.6 + 0.4 * length(vec2(dx, dy));
+    float spill = v_emit * exp(-reach / 3.2);
+    vec3 tint = u_primaryColor;
+    // Weathered concrete: long soft vertical streaks plus a finer mottling, all gentle so the towers stay a dark mass.
+    vec2 surface = vec2(q.x * v_size.x + q.z * v_size.z, q.y * v_size.y);
+    float streak = valueNoise(vec2(surface.x * 1.3, surface.y * 0.06)) * 0.6 + valueNoise(surface * vec2(0.5, 0.25)) * 0.4;
+    float grime = 0.55 + 0.9 * streak;
+    float edgeWorld = min(min(v_uv.x, 1.0 - v_uv.x) * v_faceSize.x, min(v_uv.y, 1.0 - v_uv.y) * v_faceSize.y);
+    float edgeLine = 1.0 - smoothstep(0.0, max(0.05, fwidth(edgeWorld) * 1.1), edgeWorld);
+    vec3 ambient = u_fogColor * (0.4 + 0.2 * normal.y) + u_bodyColor * 2.0;
+    color = ambient * grime + tint * spill * (0.07 + 0.06 * grime);
+    color += edgeLine * (u_fogColor * 0.35 + tint * spill * 0.3);
+  } else if (v_role > 0.5 && v_frontFace > 0.5) {
     // LED screen inset in a dark bezel, with a fine pixel grid and highs-driven shimmer.
     float screen = smoothstep(0.012, 0.03, edge.x) * smoothstep(0.006, 0.014, edge.y);
     vec2 cell = vec2(64.0, 300.0);
@@ -142,6 +189,38 @@ void main() {
   outColor = vec4(color, 1.0);
 }`
 
+/**
+ * Light from the far end of the corridor: a soft glow at the vanishing point (as if the whole colonnade were scattering into the
+ * haze behind it). Drawn behind everything (depth 1, tested against the towers) and additive, so towers and screens occlude it.
+ */
+const GLOW_VERTEX_SOURCE = `#version 300 es
+precision highp float;
+out vec2 v_uv;
+void main() {
+  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  v_uv = p;
+  gl_Position = vec4(p * 2.0 - 1.0, 0.99999, 1.0);
+}`
+
+const GLOW_FRAGMENT_SOURCE = `#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform vec2 u_center;
+uniform float u_aspect;
+uniform float u_strength;
+uniform vec3 u_color;
+out vec4 outColor;
+void main() {
+  vec2 d = v_uv - u_center;
+  d.x *= u_aspect;
+  // A hot core, a wide soft halo, and a tall cone that opens upward like light spilling up the corridor.
+  float core = exp(-dot(d, d) / 0.0026);
+  float halo = exp(-(d.x * d.x) / 0.045 - (d.y * d.y) / (d.y > 0.0 ? 0.16 : 0.012));
+  float cone = exp(-abs(d.x) / (0.04 + max(d.y, 0.0) * 0.55)) * exp(-max(d.y, 0.0) / 0.42) * step(0.0, d.y);
+  float glow = core * 0.55 + halo * 0.6 + cone * 0.5;
+  outColor = vec4(u_color * glow * u_strength, 1.0);
+}`
+
 export interface ThresholdDrawState {
   viewRotation: Float32Array
   projection: Float32Array
@@ -159,6 +238,10 @@ export interface ThresholdDrawState {
   bodyColor: readonly [number, number, number]
   fogColor: readonly [number, number, number]
   time: number
+  /** Per drawn lap: 0 while the camera is before or inside that lap's corridor, rising to 1 once it has passed the last pair (governs the hanging field). */
+  fieldVisibility: readonly number[]
+  /** Where the corridor's far end lands on screen (0..1) and how strongly it glows (0 outside the corridor). */
+  vanishing: { x: number; y: number; strength: number; aspect: number }
   reactive: {
     kick: number; snare: number; beat: number; beatParity: number
     sweepFront: number; sweepStrength: number; drop: number
@@ -171,12 +254,14 @@ const UNIFORMS = [
   'u_viewRotation', 'u_projection', 'u_originShift', 'u_widthScale', 'u_intensity', 'u_baseLevel', 'u_accentBase',
   'u_kick', 'u_snare', 'u_beat', 'u_beatParity', 'u_sweepFront', 'u_sweepStrength', 'u_drop', 'u_energy', 'u_bass',
   'u_vocal', 'u_arc', 'u_level', 'u_phraseSide', 'u_breathing', 'u_primaryColor', 'u_accentColor', 'u_bodyColor', 'u_fogColor',
-  'u_fogDensity', 'u_highs', 'u_time',
+  'u_fogDensity', 'u_highs', 'u_time', 'u_fieldVisibility',
 ]
 
 /** Instanced unit boxes: geometry and instance data are uploaded once; per-frame state is uniforms only. */
 export class ThresholdRenderer {
   private readonly program: ShaderProgram
+  private readonly glowProgram: ShaderProgram
+  private readonly glowVao: WebGLVertexArrayObject
   private readonly vao: WebGLVertexArrayObject
   private readonly buffers: WebGLBuffer[] = []
   private readonly instanceCount: number
@@ -192,6 +277,17 @@ export class ThresholdRenderer {
     })
     if (!compiled.program) throw new Error(`Shader compilation failed at ${compiled.error.stage} for "${compiled.error.label}": ${compiled.error.log}`)
     this.program = compiled.program
+    const glow = ShaderProgram.create(gl, new ShaderCompiler(gl), {
+      label: 'Cinema2/Threshold/VanishingGlow',
+      vertSrc: GLOW_VERTEX_SOURCE,
+      fragSrc: GLOW_FRAGMENT_SOURCE,
+      optionalUniforms: ['u_center', 'u_aspect', 'u_strength', 'u_color'],
+    })
+    if (!glow.program) throw new Error(`Shader compilation failed at ${glow.error.stage} for "${glow.error.label}": ${glow.error.log}`)
+    this.glowProgram = glow.program
+    const glowVao = gl.createVertexArray()
+    if (!glowVao) throw new Error('Cinema 2.0 Threshold could not allocate a vertex array.')
+    this.glowVao = glowVao
 
     const vao = gl.createVertexArray()
     if (!vao) throw new Error('Cinema 2.0 Threshold could not allocate a vertex array.')
@@ -261,10 +357,27 @@ export class ThresholdRenderer {
     program.setFloat('u_phraseSide', r.phraseSide)
     program.setFloat('u_breathing', r.breathing)
 
+    if (state.vanishing.strength > 0.001) {
+      const glow = this.glowProgram
+      glow.activate()
+      glow.setVec2('u_center', state.vanishing.x, state.vanishing.y)
+      glow.setFloat('u_aspect', state.vanishing.aspect)
+      glow.setFloat('u_strength', state.vanishing.strength)
+      glow.setVec3('u_color', ...state.fogColor)
+      gl.bindVertexArray(this.glowVao)
+      gl.enable(gl.BLEND)
+      gl.blendFunc(gl.ONE, gl.ONE)
+      gl.depthMask(false)
+      gl.drawArrays(gl.TRIANGLES, 0, 3)
+      gl.depthMask(true)
+      gl.disable(gl.BLEND)
+      program.activate()
+    }
     gl.bindVertexArray(this.vao)
     gl.enable(gl.CULL_FACE)
     gl.cullFace(gl.BACK)
-    for (const lap of state.laps) {
+    for (const [index, lap] of state.laps.entries()) {
+      program.setFloat('u_fieldVisibility', state.fieldVisibility[index] ?? 1)
       // World -> camera-relative shift, computed in JS doubles so an endless flight keeps full precision.
       program.setVec3('u_originShift', -state.cameraPosition[0], -state.cameraPosition[1], -lap * state.period - state.cameraPosition[2])
       gl.drawElementsInstanced(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0, this.instanceCount)
@@ -280,6 +393,8 @@ export class ThresholdRenderer {
     for (const buffer of this.buffers) this.gl.deleteBuffer(buffer)
     this.buffers.length = 0
     this.gl.deleteVertexArray(this.vao)
+    this.gl.deleteVertexArray(this.glowVao)
+    this.glowProgram.dispose()
     this.program.dispose()
   }
 }
