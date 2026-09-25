@@ -189,6 +189,30 @@ failure set identical to clean HEAD; a real-browser 40 s run on the M3 Pro (came
 Known limits: bank follows horizontal heading only (no pitch/vertical banking); drift adds to the pose before the safety clamp, so a preset with a very
 tight `maxPositionOffset` will clip it; the roll target is only exposed when `motion` is authored.
 
+### Threshold preset (first consumer of #1-#4) — DELIVERED (2026-09-25), not committed by the assistant
+A visible first-party keeper, `drmvyz.cinema2.threshold` ("Threshold"), built to test whether the native stack reaches the monolith reference renders.
+- Files: `presets/Cinema2ThresholdPreset.ts`, `modules/Cinema2ThresholdNativeModule.ts` (instanced monolith renderer), `modules/threshold/` (`Layout`,
+  `ReactiveState`, `Renderer`), `__tests__/Cinema2Threshold.test.ts` (18 tests). Extra platform changes made for it: camera path `repeatOffset` (endless travel
+  through a repeating environment, absolute clamp lifted on the travel axis), volumetric `ambientHeight` (ambient glow that settles low), mock-GL
+  `drawElementsInstanced`.
+- Scenes (one 180-unit lap, repeated endlessly and seamlessly): corridor of standing monoliths, hanging-monolith field (camera rises above the mist),
+  inward-facing ring of tilted panels (camera passes through and looks up). One spline flight, 80 s per lap, low and forward, `gentle` motion.
+- Controls (15 + the shared quality control): Master Controls - Master Intensity, Master Reactivity, BPM Sync, Camera Motion; Design - Panel Brightness,
+  Fog Density, Corridor Width; Effects - Floor Reflection, Bloom, Light Shafts, Cinematic Finish; Palette - Primary, Accent, Atmosphere, Void (the contract needs four
+  independent colors, so Void = background/floor/body is the fourth). Master Intensity drives the module and the bloom/atmosphere mix; Reactivity gates every music
+  response and is the route strength for the choreography rules.
+- Music map: kick -> support screens; snare -> alternate rows; beat -> rows alternate every 2 beats; downbeat -> sweep down the aisle + camera lean + shaft/bloom
+  swell; phrase -> leading side swaps; build/energy -> how many screens are open; drop -> whole set flashes; bass -> fog swell; highs -> LED shimmer; vocals -> support
+  screens step back. BPM Sync locks idle breathing, LED shimmer and sweep speed to the tempo (real consumer, tested).
+- Measured in real Chrome on the M3 Pro (1080p, whole 5-pass frame): high 6.9 ms, medium 3.3 ms, low 1.9 ms.
+- Look tuning lessons (keep for the stage/LED preset): mist density must be scaled to the scene (a value carried over from a 20-unit scene was ~100x too thick and
+  drowned the frame); screen-space shafts above ~0.3 smear every bright pixel like motion blur; the existing bloom shows echo ghosts at radius >= 4 on hard bright edges
+  (use radius 2); a uniform ambient haze washes the sky, so use `ambientHeight`.
+- Known limits vs. the references: no sculpted cloud volumes, no floor texture (the floor is a smooth mirror), no catwalk/truss/ring-structure detail, fog glow around the
+  screens comes from bloom + shafts + low ambient haze (not from per-panel lights); low-resolution volumetric edges show slight stair-stepping on the brightest panels; SSR
+  leaves some dotted noise on the floor where bright reflections are thin; the ring reads as tall fins, not the radial ring hall; the fine LED grid fades with distance to
+  avoid moire.
+
 ### Roadmap status
 #1-#4 (all the native, no-Three.js work) are done. Remaining, in order: #5 Three.js spike (independent, can start any time), then #6 runtime module, #7
 asset pipeline, #8 PBR/environment lighting, #9 instancing, #10 limited shadows (also the fix for beams/pools ignoring occluders). The stage/LED-hall preset

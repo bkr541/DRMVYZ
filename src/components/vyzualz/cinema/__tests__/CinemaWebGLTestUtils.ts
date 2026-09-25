@@ -157,6 +157,7 @@ export function createCinemaMockWebGL(): CinemaMockWebGL {
     drawArrays: vi.fn(() => { calls.drawCount += 1 }),
     drawElements: vi.fn(() => { calls.drawCount += 1 }),
     drawArraysInstanced: vi.fn(() => { calls.drawInstancedCount += 1 }),
+    drawElementsInstanced: vi.fn(() => { calls.drawInstancedCount += 1 }),
     createFramebuffer: vi.fn(() => {
       calls.createdFramebuffers += 1
       return { id: objectId++ } as unknown as WebGLFramebuffer

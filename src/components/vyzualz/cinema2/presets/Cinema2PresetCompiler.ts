@@ -807,6 +807,12 @@ function validateCameraDefinition(
       if (rig.durationSeconds == null && rig.speed == null) {
         diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', 'Path/fly rigs require durationSeconds or speed.', `${path}.rig`))
       }
+      if (rig.repeatOffset != null) {
+        validateCameraVector3(rig.repeatOffset, `${path}.rig.repeatOffset`, diagnostics)
+        if (rig.loop !== true || camera.motion?.interpolation !== 'spline') {
+          diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', 'repeatOffset requires loop: true and motion.interpolation: "spline".', `${path}.rig.repeatOffset`))
+        }
+      }
     } else if (rig.kind !== 'static') {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', `Unsupported camera rig kind "${String(rig.kind)}".`, `${path}.rig.kind`))
     }

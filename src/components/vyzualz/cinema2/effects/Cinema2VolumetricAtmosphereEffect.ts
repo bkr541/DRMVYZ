@@ -83,6 +83,7 @@ uniform float u_anisotropy;
 uniform float u_occlusion;
 uniform vec3 u_hazeColor;
 uniform float u_ambientHaze;
+uniform float u_ambientHeight;
 uniform vec3 u_ambient;
 uniform float u_mistAmount;
 uniform float u_mistHeight;
@@ -204,7 +205,9 @@ void marchSegment(vec3 origin, vec3 dir, float segmentLength, int steps, float j
     float dens = densityAt(p);
     if (dens < 0.0001) continue;
     float extinction = dens * stepLength;
-    vec3 light = ambientFill + u_beam * lightScatter(p, dir);
+    // The ambient glow can settle low: with a height set it fades above the mist floor, leaving the open space above dark.
+    float ambientLift = u_ambientHeight > 0.001 ? exp(-max(p.y - u_mistFloor, 0.0) / u_ambientHeight) : 1.0;
+    vec3 light = ambientFill * ambientLift + u_beam * lightScatter(p, dir);
     scatter += transmittance * light * extinction;
     transmittance *= exp(-extinction * u_occlusion);
   }
@@ -335,6 +338,7 @@ const NUMERIC_PARAMETERS: readonly (readonly [name: string, min: number, max: nu
   ['anisotropy', -0.95, 0.95],
   ['occlusion', 0, 1],
   ['ambientHaze', 0, 4],
+  ['ambientHeight', 0, 200],
   ['mistAmount', 0, 4],
   ['mistHeight', 0.05, 20],
   ['mistFloor', -50, 50],
@@ -471,7 +475,7 @@ function environmentHazeColor(lighting: Readonly<Cinema2LightingEnvironmentFrame
 
 const MARCH_UNIFORMS = [
   'u_depth', 'u_time', 'u_hasDepth', 'u_hasCamera', 'u_invViewProj', 'u_steps', 'u_octaves', 'u_maxDistance',
-  'u_density', 'u_beam', 'u_anisotropy', 'u_occlusion', 'u_hazeColor', 'u_ambientHaze', 'u_ambient',
+  'u_density', 'u_beam', 'u_anisotropy', 'u_occlusion', 'u_hazeColor', 'u_ambientHaze', 'u_ambientHeight', 'u_ambient',
   'u_mistAmount', 'u_mistHeight', 'u_mistFloor', 'u_noiseScale', 'u_noiseStrength', 'u_wind', 'u_lightCount',
   'u_lightPos[0]', 'u_lightDir[0]', 'u_lightCol[0]', 'u_lightInner[0]', 'u_previous', 'u_historyBlend',
   'u_floorEnabled', 'u_floorY', 'u_floorReflection',
@@ -630,6 +634,7 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     program.setFloat('u_occlusion', clamp(numberValue(parameters, 'occlusion', 0.6), 0, 1))
     program.setVec3('u_hazeColor', hazeColor[0], hazeColor[1], hazeColor[2])
     program.setFloat('u_ambientHaze', clamp(numberValue(parameters, 'ambientHaze', 0.4), 0, 4))
+    program.setFloat('u_ambientHeight', clamp(numberValue(parameters, 'ambientHeight', 0), 0, 200))
     program.setVec3('u_ambient', lights.ambient[0], lights.ambient[1], lights.ambient[2])
     program.setFloat('u_mistAmount', clamp(numberValue(parameters, 'mistAmount', 0), 0, 4))
     program.setFloat('u_mistHeight', clamp(numberValue(parameters, 'mistHeight', 1.5), 0.05, 20))

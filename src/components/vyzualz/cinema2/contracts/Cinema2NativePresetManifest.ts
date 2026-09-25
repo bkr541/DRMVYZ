@@ -321,6 +321,13 @@ export interface Cinema2CameraPathRigManifest {
   durationSeconds?: number
   speed?: number
   loop?: boolean
+  /**
+   * Endless travel through a repeating environment. Each lap of a looping path is translated by this
+   * vector, and the closing segment joins the last point to the first point plus the offset, so the
+   * camera flows into the next lap with no jump. Requires `loop` and `motion.interpolation: 'spline'`.
+   * The absolute position clamp is lifted on axes the offset moves along.
+   */
+  repeatOffset?: Cinema2Vector3
 }
 
 export type Cinema2CameraRigManifest =

@@ -106,6 +106,8 @@ const DEFAULT_SAFETY: Readonly<CameraSafety> = Object.freeze({
 })
 const EPSILON = 1e-5
 const MAX_ROLL_DEGREES = 45
+/** Position bound on axes an endless path travels along (about a day at 10 units per second). */
+const REPEAT_TRAVEL_LIMIT = 1e9
 /** Below this horizontal speed (units/s) heading is meaningless, so bank relaxes toward level. */
 const MIN_BANK_SPEED = 0.02
 const SPLINE_SAMPLES_PER_SEGMENT = 200
@@ -325,8 +327,9 @@ export class Cinema2CameraRuntime {
       const progress = progressControl == null
         ? pathProgress(rig, frame.elapsedTimeSec, spline?.totalLength)
         : clamp(progressControl, 0, 1)
+      const lap = spline?.repeatOffset && progressControl == null ? pathLap(rig, frame.elapsedTimeSec, spline.totalLength) : 0
       const sampled = spline
-        ? sampleSplinePath(spline, progress, constantSpeed)
+        ? sampleSplinePath(spline, progress, constantSpeed, lap)
         : samplePath(rig.points, progress, authoredTarget, fovDegrees)
       return {
         position: sampled.position,
@@ -449,6 +452,12 @@ function pathProgress(rig: Extract<Cinema2CameraRigManifest, { kind: 'path' | 'f
   return clamp(raw, 0, 1)
 }
 
+/** Completed laps of a looping path, so a `repeatOffset` can translate each one. */
+function pathLap(rig: Extract<Cinema2CameraRigManifest, { kind: 'path' | 'fly' }>, elapsedTimeSec: number, splineLength: number): number {
+  const duration = rig.durationSeconds ?? splineLength / Math.max(EPSILON, positive(rig.speed, 1))
+  return Math.floor(Math.max(0, elapsedTimeSec) / Math.max(EPSILON, duration))
+}
+
 function pathLength(points: readonly Cinema2CameraPathPointManifest[]): number {
   let total = 0
   for (let index = 1; index < points.length; index += 1) total += distance(points[index - 1].position, points[index].position)
@@ -480,9 +489,16 @@ function samplePath(
 
 function resolveSafety(camera: Readonly<Cinema2CameraManifest>): Readonly<CameraSafety> {
   const authored = camera.safety
+  const minPosition = freezeVec3(authored?.minPosition ?? DEFAULT_SAFETY.minPosition)
+  const maxPosition = freezeVec3(authored?.maxPosition ?? DEFAULT_SAFETY.maxPosition)
+  // Endless travel would otherwise walk into the absolute position clamp: lift it on the axes the lap offset moves along.
+  const repeat = camera.rig && (camera.rig.kind === 'path' || camera.rig.kind === 'fly') ? camera.rig.repeatOffset : undefined
+  const lift = (bound: Cinema2Vector3, sign: 1 | -1): Cinema2Vector3 => repeat
+    ? freezeVec3(bound.map((value, axis) => repeat[axis] !== 0 ? sign * REPEAT_TRAVEL_LIMIT : value))
+    : bound
   return Object.freeze({
-    minPosition: freezeVec3(authored?.minPosition ?? DEFAULT_SAFETY.minPosition),
-    maxPosition: freezeVec3(authored?.maxPosition ?? DEFAULT_SAFETY.maxPosition),
+    minPosition: lift(minPosition, -1),
+    maxPosition: lift(maxPosition, 1),
     maxPositionOffset: freezeVec3(authored?.maxPositionOffset ?? DEFAULT_SAFETY.maxPositionOffset),
     maxTargetOffset: freezeVec3(authored?.maxTargetOffset ?? DEFAULT_SAFETY.maxTargetOffset),
     minFovDegrees: positive(authored?.minFovDegrees, DEFAULT_SAFETY.minFovDegrees),
@@ -853,6 +869,8 @@ interface SplinePath {
   targets: readonly Cinema2Vector3[]
   fovs: readonly number[]
   loop: boolean
+  /** Per-lap translation of positions and targets; null for ordinary loops. */
+  repeatOffset: Cinema2Vector3 | null
   segments: number
   /** Cumulative arc length of the position curve at `u = index / SPLINE_SAMPLES_PER_SEGMENT`. */
   arcLengths: Float64Array
@@ -869,12 +887,32 @@ function splineIndex(index: number, count: number, loop: boolean): number {
   return loop ? ((index % count) + count) % count : clamp(index, 0, count - 1)
 }
 
-function evaluateSpline<T extends number | Cinema2Vector3>(values: readonly T[], loop: boolean, segments: number, u: number): T {
+/**
+ * Catmull-Rom sample of a point list. With a `repeatOffset`, control points read past either end of a
+ * lap are the wrapped point translated by the offset once per wrap, so tangents stay continuous across laps.
+ */
+function evaluateSpline<T extends number | Cinema2Vector3>(
+  values: readonly T[],
+  loop: boolean,
+  segments: number,
+  u: number,
+  repeatOffset: Cinema2Vector3 | null = null,
+): T {
   const count = values.length
   const clampedU = clamp(u, 0, segments)
   const segment = Math.min(segments - 1, Math.floor(clampedU))
   const t = clampedU - segment
-  const at = (offset: number) => values[splineIndex(segment + offset, count, loop)]
+  const at = (offset: number): T => {
+    const index = segment + offset
+    const value = values[splineIndex(index, count, loop)]
+    if (!repeatOffset || typeof value === 'number') return value
+    const wraps = Math.floor(index / count)
+    return wraps === 0 ? value : (freezeVec3([
+      (value as Cinema2Vector3)[0] + repeatOffset[0] * wraps,
+      (value as Cinema2Vector3)[1] + repeatOffset[1] * wraps,
+      (value as Cinema2Vector3)[2] + repeatOffset[2] * wraps,
+    ]) as T)
+  }
   const [a, b, c, d] = [at(-1), at(0), at(1), at(2)]
   if (typeof b === 'number') return catmullRom(a as number, b, c as number, d as number, t) as T
   const v = (i: number) => catmullRom((a as Cinema2Vector3)[i], (b as Cinema2Vector3)[i], (c as Cinema2Vector3)[i], (d as Cinema2Vector3)[i], t)
@@ -887,19 +925,20 @@ function buildSplinePath(
   fallbackFov: number,
 ): Readonly<SplinePath> {
   const loop = rig.loop === true
+  const repeatOffset = loop && rig.repeatOffset ? freezeVec3(rig.repeatOffset) : null
   const positions = rig.points.map(point => freezeVec3(point.position))
   const targets = rig.points.map(point => freezeVec3(point.target ?? fallbackTarget))
   const fovs = rig.points.map(point => finite(point.fovDegrees, fallbackFov))
   const segments = loop ? positions.length : positions.length - 1
   const samples = segments * SPLINE_SAMPLES_PER_SEGMENT
   const arcLengths = new Float64Array(samples + 1)
-  let previous = evaluateSpline(positions, loop, segments, 0)
+  let previous = evaluateSpline(positions, loop, segments, 0, repeatOffset)
   for (let index = 1; index <= samples; index += 1) {
-    const point = evaluateSpline(positions, loop, segments, index / SPLINE_SAMPLES_PER_SEGMENT)
+    const point = evaluateSpline(positions, loop, segments, index / SPLINE_SAMPLES_PER_SEGMENT, repeatOffset)
     arcLengths[index] = arcLengths[index - 1] + distance(previous, point)
     previous = point
   }
-  return Object.freeze({ positions, targets, fovs, loop, segments, arcLengths, totalLength: Math.max(EPSILON, arcLengths[samples]) })
+  return Object.freeze({ positions, targets, fovs, loop, repeatOffset, segments, arcLengths, totalLength: Math.max(EPSILON, arcLengths[samples]) })
 }
 
 /** Inverse of the arc-length table: the spline parameter `u` at a given travelled distance. */
@@ -922,12 +961,21 @@ function sampleSplinePath(
   path: Readonly<SplinePath>,
   progress: number,
   constantSpeed: boolean,
+  lap = 0,
 ): Pick<CameraPose, 'position' | 'target' | 'fovDegrees'> {
   const p = clamp(progress, 0, 1)
   const u = constantSpeed ? splineParameterAtLength(path, p * path.totalLength) : p * path.segments
+  if (path.repeatOffset && lap > 0) {
+    const shift = freezeVec3([path.repeatOffset[0] * lap, path.repeatOffset[1] * lap, path.repeatOffset[2] * lap])
+    return {
+      position: addVec3(evaluateSpline(path.positions, path.loop, path.segments, u, path.repeatOffset), shift),
+      target: addVec3(evaluateSpline(path.targets, path.loop, path.segments, u, path.repeatOffset), shift),
+      fovDegrees: evaluateSpline(path.fovs, path.loop, path.segments, u),
+    }
+  }
   return {
-    position: evaluateSpline(path.positions, path.loop, path.segments, u),
-    target: evaluateSpline(path.targets, path.loop, path.segments, u),
+    position: evaluateSpline(path.positions, path.loop, path.segments, u, path.repeatOffset),
+    target: evaluateSpline(path.targets, path.loop, path.segments, u, path.repeatOffset),
     fovDegrees: evaluateSpline(path.fovs, path.loop, path.segments, u),
   }
 }

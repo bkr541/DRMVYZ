@@ -310,3 +310,56 @@ describe('Cinema 2.0 cinematic motion presets and the Atmosphere Reference dolly
     expect(Math.hypot(...sub(frames[80 * 30].position, frames[0].position))).toBeLessThan(0.5)
   })
 })
+
+describe('Cinema 2.0 camera motion: endless travel with repeatOffset', () => {
+  // One lap flies 600 units down -Z with a slight S-curve; the next lap starts where this one ends.
+  const LAP = [
+    { position: [0, 1, 0] },
+    { position: [1.5, 1.4, -150] },
+    { position: [-1.5, 1, -300] },
+    { position: [1, 1.6, -450] },
+  ].map(point => ({ position: point.position as [number, number, number], target: [point.position[0], 1.5, point.position[2] - 25] as [number, number, number] }))
+  const endless = () => build({
+    rig: { kind: 'fly', points: LAP, durationSeconds: 100, loop: true, repeatOffset: [0, 0, -600] },
+    motion: { interpolation: 'spline' },
+  })
+
+  it('flows into the next lap with no jump in position, speed or heading', () => {
+    const { camera } = endless()
+    const frames = run(camera, 250, 0).filter((_, index) => index % 6 === 0)
+    const steps = frames.slice(1).map((current, index) => Math.hypot(...sub(current.position, frames[index].position)))
+    expect(Math.max(...steps) / Math.min(...steps)).toBeLessThan(1.03)
+    for (let index = 2; index < frames.length; index += 1) {
+      expect(angleBetween(sub(frames[index - 1].position, frames[index - 2].position), sub(frames[index].position, frames[index - 1].position))).toBeLessThan(3)
+    }
+    // Laps really advance: 250 s is 2.5 laps of 100 s, so the camera is about 1500 units down the track.
+    expect(frames[frames.length - 1].position[2]).toBeLessThan(-1400)
+  })
+
+  it('is not stopped by the absolute position clamp', () => {
+    const { camera } = endless()
+    const late = camera.update(frame(340))
+    expect(late.position[2]).toBeLessThan(-2000)
+    expect(late.corrected).toBe(false)
+  })
+
+  it('repeats the same lap shape, shifted by the offset', () => {
+    const { camera } = endless()
+    const first = camera.update(frame(30)).position
+    const third = camera.update(frame(230)).position
+    expect(third[0]).toBeCloseTo(first[0], 3)
+    expect(third[1]).toBeCloseTo(first[1], 3)
+    expect(third[2]).toBeCloseTo(first[2] - 1200, 2)
+  })
+
+  it('requires a looping spline path', () => {
+    const codes = (rig: Record<string, unknown>, motion: Record<string, unknown> | undefined) => {
+      const result = compileCinema2NativePreset(manifest({ rig: { kind: 'fly', points: LAP, durationSeconds: 100, ...rig } as never, motion }))
+      return result.ok ? [] : result.diagnostics.map(entry => entry.code)
+    }
+    expect(codes({ loop: true, repeatOffset: [0, 0, -600] }, { interpolation: 'spline' })).toEqual([])
+    expect(codes({ loop: true, repeatOffset: [0, 0, -600] }, undefined)).toContain('CINEMA2_PRESET_CAMERA_RIG_INVALID')
+    expect(codes({ repeatOffset: [0, 0, -600] }, { interpolation: 'spline' })).toContain('CINEMA2_PRESET_CAMERA_RIG_INVALID')
+    expect(codes({ loop: true, repeatOffset: [0, 0] }, { interpolation: 'spline' })).toContain('CINEMA2_PRESET_CAMERA_VALUE_INVALID')
+  })
+})
