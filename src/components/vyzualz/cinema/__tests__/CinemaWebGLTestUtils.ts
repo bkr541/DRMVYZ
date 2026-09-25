@@ -126,6 +126,7 @@ export function createCinemaMockWebGL(): CinemaMockWebGL {
     getProgramParameter: vi.fn(() => true),
     getProgramInfoLog: vi.fn(() => ''),
     getUniformLocation: vi.fn(() => ({ id: objectId++ } as unknown as WebGLUniformLocation)),
+    uniform1fv: vi.fn(),
     uniform4fv: vi.fn(),
     uniform2f: vi.fn(),
     uniform3f: vi.fn(),

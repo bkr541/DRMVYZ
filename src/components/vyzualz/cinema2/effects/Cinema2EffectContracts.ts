@@ -7,6 +7,8 @@ import type {
   Cinema2RenderQualityLevel,
 } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
+import type { Cinema2CameraFrame } from '../spatial/Cinema2CameraRuntime'
+import type { Cinema2LightingEnvironmentFrame } from '../spatial/Cinema2LightingEnvironmentRuntime'
 import type { Cinema2HistoryService } from '../runtime/Cinema2HistoryService'
 
 export interface Cinema2EffectDiagnostic {
@@ -34,6 +36,12 @@ export interface Cinema2EffectRenderExecutionContext {
   height: number
   mix: number
   parameters: Readonly<Record<string, Cinema2JsonValue>>
+  /** Active render quality, so effects can scale their own cost without reading engine state. */
+  quality: Cinema2RenderQualityLevel
+  /** Final world camera for this frame. Effects that do not reconstruct world space ignore it. */
+  camera?: Readonly<Cinema2CameraFrame>
+  /** Shared lights/environment for this frame. Effects that do not light the scene ignore it. */
+  lightingEnvironment?: Readonly<Cinema2LightingEnvironmentFrame>
 }
 
 export interface Cinema2EffectCreateContext {

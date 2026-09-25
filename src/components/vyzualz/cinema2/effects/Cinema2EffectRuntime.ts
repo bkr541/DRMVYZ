@@ -7,6 +7,8 @@ import type {
   Cinema2RenderQualityLevel,
 } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
+import type { Cinema2CameraFrame } from '../spatial/Cinema2CameraRuntime'
+import type { Cinema2LightingEnvironmentFrame } from '../spatial/Cinema2LightingEnvironmentRuntime'
 import type {
   Cinema2FinalValueResolver,
   Cinema2TargetHandle,
@@ -28,6 +30,8 @@ export interface Cinema2EffectExecutionContext {
   target: WebGLFramebuffer | null
   width: number
   height: number
+  camera?: Readonly<Cinema2CameraFrame>
+  lightingEnvironment?: Readonly<Cinema2LightingEnvironmentFrame>
 }
 
 export type Cinema2EffectExecutionResult = 'applied' | 'bypassed'
@@ -118,7 +122,7 @@ export class Cinema2EffectRuntime {
     }
 
     try {
-      record.instance!.render({ ...context, mix, parameters: Object.freeze(parameters) })
+      record.instance!.render({ ...context, mix, parameters: Object.freeze(parameters), quality: this.quality })
       return 'applied'
     } catch (error) {
       this.failRecord(record, 'CINEMA2_EFFECT_RENDER_FAILED', `Effect render failed: ${errorMessage(error)}`)

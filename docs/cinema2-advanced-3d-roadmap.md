@@ -45,8 +45,10 @@ All under `src/components/vyzualz/cinema2/`.
   exponential depth fog, exposure. No volumetric light.
 - Camera (`spatial/Cinema2CameraRuntime.ts`): rigs static/orbit/path/fly.
 - Existing 3D (`modules/Cinema2Object3DModule.ts`, `spatial/Cinema2Object3D*.ts`): extruded text/SVG meshes only. No glTF, textures, PBR,
-  instancing or shadows. UNVERIFIED: whether simple primitives (panels, truss, floor) can be drawn — check `Cinema2SceneGraph.ts`
-  (`kind: 'primitive'`) before planning the stage preset.
+  instancing or shadows. VERIFIED (2026-09-25): `kind: 'primitive'` scene nodes are only transform anchors; nothing draws them. The
+  stage preset (panels, truss, floor) therefore needs a small drawable-primitive module (box/quad, emissive) before #3's floor work.
+  Also found: the SVG extruder currently fails on a hexagon ("degenerate triangle"), which breaks the existing Spatial Reference preset
+  (2 pre-existing failing tests); rectangles/triangles/circles extrude fine.
 - Effects (`effects/Cinema2BuiltinEffects.ts`): feedback/trails, blur, bloom.
 - Choreography (`choreography/Cinema2ChoreographyRuntime.ts`): operations pulse/envelope/toggle/trigger/spawn/set-for-duration/
   variation-switch, `quantizeBeats`, delay; audio bridge exposes beat/bar index, downbeat, phrase events, buildProgress,
@@ -92,6 +94,28 @@ context-loss recovery, disposal, `renderer.info` memory reporting into the budge
 - Reuse existing components/patterns; keep changes proportional; no exhaustive test runs for mockup-scoped work.
 - Supabase CLI is correctly logged in and linked (migration 0033 already applied).
 
-## Current task
-Start #1 (volumetric atmosphere) and, in parallel, #2–#4 design; #5 spike may run alongside. First step: read the contracts above,
-confirm the two UNVERIFIED items, then propose a concrete design for #1 before coding.
+## Status
+### #1 Volumetric atmosphere — DELIVERED (2026-09-25), not committed by the assistant
+Files: `effects/Cinema2VolumetricAtmosphereEffect.ts` (effect `volumetric-atmosphere` v1, registered in `Cinema2EffectRegistry.ts`),
+`presets/Cinema2AtmosphereReferencePreset.ts` (visible "Atmosphere Reference" preset, role `reference`; add the `internal` tag to hide it),
+`__tests__/Cinema2VolumetricAtmosphere.test.ts` (11 tests). Contract changes: effect executions now receive `camera`,
+`lightingEnvironment` and `quality`; light frames gained `spot` (`config.coneAngleDegrees`, `config.penumbra`) and `range` (`config.range`).
+How it works: per-pixel view ray from the inverse view-projection (perspective or orthographic), marched to the scene depth when a depth
+input is wired (any module's depth) or to `maxDistance` otherwise; noise-modulated haze + exponential ground mist; in-scatter from
+spot/point/directional lights with Henyey-Greenstein phase, ambient lights tint the fill; hue-preserving highlight roll-off.
+Marched at reduced resolution (low 0.4 / medium 0.5 / high 0.5) into a history-owned buffer, blended with the previous frame to remove
+jitter grain, then upsampled with a depth-aware 4-tap filter; falls back to a full-resolution march if the buffer is unavailable.
+Optional screen-space shafts (`shafts`) need neither lights nor a camera, so fullscreen-shader presets can use them.
+Musical response: `reactivity` follows the Visual Director's gated impact (0.35 s decay); any parameter is bindable/choreographable
+(the reference preset swells `beamIntensity` on the downbeat).
+Measured in real Chrome on the owner's M3 Pro (1080p, whole frame incl. scene + bloom): high 6.1 ms, medium 3.2 ms, low 1.8 ms.
+Known limits: no shadows (light scatters through occluders between the light and the ray; roadmap #10); pillar silhouettes show
+slight low-resolution stair-stepping under bright beams; grain is fully averaged only in motion; the effect has not been placed in any
+existing preset (opt-in per preset by adding a pass fed by scene color + depth).
+Verification: 11 new unit tests pass; `Cinema2` test folder failure set is identical to clean HEAD (40 pre-existing failures);
+real-browser screenshots checked for baseline-off, default, downbeat, low quality, full-resolution fallback and screen-space shafts.
+
+### Next: #2 performance light rig + choreography vocabulary
+First confirm the remaining UNVERIFIED item (does choreography already cover "alternate every 2 beats" and phrase-level changes?),
+then design named light groups on top of the light list (`Cinema2LightingEnvironmentRuntime`). #3 (finishing + reflective floor) and #4
+(camera) follow; #5 (Three.js spike) can start any time. Remember the drawable-primitive module prerequisite for the stage preset.

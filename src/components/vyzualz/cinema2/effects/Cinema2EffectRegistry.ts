@@ -4,6 +4,7 @@ import {
   cinema2BlurEffectDefinition,
   cinema2FeedbackTrailsEffectDefinition,
 } from './Cinema2BuiltinEffects'
+import { cinema2VolumetricAtmosphereEffectDefinition } from './Cinema2VolumetricAtmosphereEffect'
 import type { Cinema2EffectDiagnostic, Cinema2EffectTypeDefinition } from './Cinema2EffectContracts'
 
 export interface Cinema2EffectRegistryResult {
@@ -85,7 +86,12 @@ function errorMessage(error: unknown): string {
 }
 
 export const cinema2NativeEffectRegistry = new Cinema2EffectRegistry()
-for (const definition of [cinema2BlurEffectDefinition, cinema2BloomEffectDefinition, cinema2FeedbackTrailsEffectDefinition]) {
+for (const definition of [
+  cinema2BlurEffectDefinition,
+  cinema2BloomEffectDefinition,
+  cinema2FeedbackTrailsEffectDefinition,
+  cinema2VolumetricAtmosphereEffectDefinition,
+]) {
   const registration = cinema2NativeEffectRegistry.register(definition)
   if (!registration.ok) {
     throw new Error(`Cinema 2.0 built-in effect registration failed: ${registration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)

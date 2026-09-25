@@ -368,6 +368,8 @@ export class Cinema2RenderGraphExecutor {
         target: target?.framebuffer ?? null,
         width: target?.width ?? frame.viewport.width,
         height: target?.height ?? frame.viewport.height,
+        camera: this.cameraRuntime?.getFrame(),
+        lightingEnvironment: this.lightingEnvironmentRuntime?.getFrame(),
       })
       if (result === 'applied') return
       this.blitFirstInput(colorInputs, target, frame)

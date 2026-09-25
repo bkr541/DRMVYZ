@@ -1,5 +1,6 @@
 import { CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_AFTERHOURS_PRESET_MANIFEST } from './Cinema2AfterhoursPreset'
+import { CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST } from './Cinema2AtmosphereReferencePreset'
 import { CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST } from './Cinema2ElectricStormPreset'
 import { CINEMA2_INTERLOCK_PRESET_MANIFEST } from './Cinema2InterlockPreset'
 import { CINEMA2_HUMN_PRESET_MANIFEST } from './Cinema2HumNPreset'
@@ -29,6 +30,10 @@ export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
   defineCinema2FirstPartyPreset({
     role: 'reference',
     manifest: CINEMA2_SPATIAL_REFERENCE_PRESET_MANIFEST,
+  }),
+  defineCinema2FirstPartyPreset({
+    role: 'reference',
+    manifest: CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST,
   }),
   defineCinema2FirstPartyPreset({
     role: 'keeper',

@@ -1,6 +1,7 @@
 import type {
   Cinema2Color,
   Cinema2LightId,
+  Cinema2LightManifest,
   Cinema2LightType,
   Cinema2RenderQualityLevel,
   Cinema2Vector3,
@@ -20,6 +21,13 @@ export interface Cinema2ResolvedLightFrame {
   targetPosition: Cinema2Vector3 | null
   /** Unit vector pointing from the light toward its authored/derived target. */
   direction: Cinema2Vector3
+  /**
+   * Spot cone, resolved from `config.coneAngleDegrees` (outer half-angle) and `config.penumbra`
+   * (0 = hard edge, 1 = fully soft). Null for every other light type.
+   */
+  spot: Readonly<{ outerAngleDegrees: number; innerAngleDegrees: number }> | null
+  /** Distance at which the light stops scattering into volumetric atmosphere (`config.range`). */
+  range: number
 }
 
 export interface Cinema2ResolvedFogFrame {
@@ -75,6 +83,9 @@ const DEFAULT_BACKGROUND = Object.freeze([0, 0, 0, 1]) as Cinema2Color
 const DEFAULT_POSITION = Object.freeze([0, 0, 0]) as Cinema2Vector3
 const DEFAULT_ROTATION = Object.freeze([0, 0, 0]) as Cinema2Vector3
 const DEFAULT_DIRECTION = Object.freeze([0, 0, -1]) as Cinema2Vector3
+const DEFAULT_SPOT_OUTER_DEGREES = 30
+const DEFAULT_SPOT_PENUMBRA = 0.3
+const DEFAULT_LIGHT_RANGE = 30
 const QUALITY_LIGHT_LIMIT = Object.freeze({ low: 2, medium: 4, high: 8 } as const)
 
 /**
@@ -154,6 +165,8 @@ export class Cinema2LightingEnvironmentRuntime {
         position,
         targetPosition: targetPosition ? freezeVec3(targetPosition) : null,
         direction,
+        spot: light.type === 'spot' ? resolveSpot(light.config) : null,
+        range: resolveRange(light.config),
       })
     })
     this.currentFrame = freezeFrame({
@@ -214,6 +227,16 @@ function resolveEnvironment(
       far,
     }),
   })
+}
+
+function resolveSpot(config: Cinema2LightManifest['config']): NonNullable<Cinema2ResolvedLightFrame['spot']> {
+  const outer = Math.min(89, Math.max(1, finite(config?.coneAngleDegrees as number | undefined, DEFAULT_SPOT_OUTER_DEGREES)))
+  const penumbra = clamp01(finite(config?.penumbra as number | undefined, DEFAULT_SPOT_PENUMBRA))
+  return Object.freeze({ outerAngleDegrees: outer, innerAngleDegrees: outer * (1 - penumbra) })
+}
+
+function resolveRange(config: Cinema2LightManifest['config']): number {
+  return Math.max(0.1, finite(config?.range as number | undefined, DEFAULT_LIGHT_RANGE))
 }
 
 function findTarget(
