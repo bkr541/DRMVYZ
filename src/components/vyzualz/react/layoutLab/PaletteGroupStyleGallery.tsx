@@ -145,33 +145,8 @@ function ExpandHslPalette() {
   )
 }
 
-// ── 02 · Full-Bleed Swatch (the color fills the cell, label sits on top) ────
-
-function HexFirstPalette() {
-  const [state, setColor] = usePaletteState()
-
-  return (
-    <div className="llpg-group llpg-group--cols-3">
-      {PALETTE_FIELDS.map(field => (
-        <div key={field.key} className="llpg-fillcell-wrap">
-          <span className="llpg-fillcell-label">{field.label.replace(' Color', '')}</span>
-          <label className="llpg-fill-cell" style={{ background: state[field.key] }}>
-            <input
-              type="color"
-              value={state[field.key]}
-              onChange={event => setColor(field.key, event.target.value)}
-              aria-label={field.label}
-            />
-          </label>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 const GALLERY_ENTRIES = [
   { id: 'expand', title: '01 · Palette Group - ReactControlRows.tsx', blurb: 'Collapsed rows show only the label and swatch — no hex readout. Clicking a row expands it in place — accordion-style — to reveal a saturation/lightness gradient square, a hue strip, and a hex field. No overlay, everything stays in document flow.', Palette: ExpandHslPalette },
-  { id: 'hexFirst', title: '02 · Palette Group - ReactControlRows.tsx', blurb: 'The label sits above a full-width color block — no visible hex text or buttons. Clicking anywhere on the color opens the OS picker.', Palette: HexFirstPalette },
 ]
 
 export function PaletteGroupStyleGallery() {

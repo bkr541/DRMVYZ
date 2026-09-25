@@ -13,15 +13,9 @@ import { PaletteGroupStyleGallery } from './layoutLab/PaletteGroupStyleGallery'
 import { BadgeStyleGallery } from './layoutLab/BadgeStyleGallery'
 import { LayerRowStyleGallery } from './layoutLab/LayerRowStyleGallery'
 import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
-import { LyricTrackMetaWindowStyleGallery } from './layoutLab/LyricTrackMetaWindowStyleGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
-import { BpmGroupStyleGallery } from './layoutLab/BpmGroupStyleGallery'
-import { TrackHeaderStyleGallery } from './layoutLab/TrackHeaderStyleGallery'
-import { PageHeadingStyleGallery } from './layoutLab/PageHeadingStyleGallery'
 import { HeaderControlGroupStyleGallery } from './layoutLab/HeaderControlGroupStyleGallery'
 import { LyricManagerTimelineStyleGallery } from './layoutLab/LyricManagerTimelineStyleGallery'
-import { TemplateOutputDiagnosticsMockup } from './layoutLab/TemplateOutputDiagnosticsMockup'
-import { LaserDjBeamBuilderMockup } from './layoutLab/LaserDjBeamBuilderMockup'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
 import { CanvasMockup } from './layoutLab/CanvasMockup'
 import { CanvasRightRailMockup } from './layoutLab/CanvasRightRailMockup'
@@ -260,7 +254,6 @@ export function LayoutLabMockup() {
                       <BadgeStyleGallery />
                       <LayerRowStyleGallery />
                       <NumericInputStyleGallery />
-                      <BpmGroupStyleGallery />
                     </div>
                   </div>
                 )}
@@ -275,12 +268,6 @@ export function LayoutLabMockup() {
             {engineId === 'laserDmx' && <LaserDmxCanvasMockup state={laserDmxState} />}
             {engineId === 'canvas' && <CanvasCanvasMockup state={canvasState} />}
             {engineId === 'cinema2' && <Cinema2CanvasMockup state={cinema2State} />}
-            {engineId === 'template' && (
-              <div className="llcm-stage-gallery">
-                <PageHeadingStyleGallery />
-                <TrackHeaderStyleGallery />
-              </div>
-            )}
             {engineId === 'cinema' && (
               <div className="llcm-stage-gallery">
                 <HeaderControlGroupStyleGallery />
@@ -373,17 +360,7 @@ export function LayoutLabMockup() {
                     <PresetCardStyleGallery />
                   </div>
                 )}
-                {templateRightTab === 'design' && (
-                  <div className="rv-inspector rv-inspector-scroll">
-                    <LyricTrackMetaWindowStyleGallery />
-                  </div>
-                )}
-                {templateRightTab === 'output' && (
-                  <div className="rv-inspector rv-inspector-scroll">
-                    <TemplateOutputDiagnosticsMockup />
-                  </div>
-                )}
-                {templateRightTab === 'react' && <LaserDjBeamBuilderMockup />}
+                {/* Design, React and Output are intentionally blank in the Template engine. */}
               </div>
             </>
           ) : engineId === 'oscilloscope' ? (
