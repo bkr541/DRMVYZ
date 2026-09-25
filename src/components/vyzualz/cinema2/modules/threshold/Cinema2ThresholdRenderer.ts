@@ -30,6 +30,7 @@ uniform float u_energy;
 uniform float u_bass;
 uniform float u_vocal;
 uniform float u_arc;
+uniform float u_level;
 uniform float u_phraseSide;
 uniform float u_breathing;
 out vec3 v_normal;
@@ -67,16 +68,23 @@ void main() {
   float ahead = max(-(center.z + u_originShift.z), 0.0);
   float rowParity = mod(row, 2.0);
   float open = smoothstep(rank - 0.05, rank + 0.05, u_arc);
-  float breathe = 0.88 + 0.12 * u_breathing;
+  float breathe = 0.96 + 0.04 * u_breathing;
   float beatOn = 1.0 - abs(rowParity - u_beatParity);
-  float lead = mix(0.72, 1.0, 1.0 - abs(side - u_phraseSide));
+  // A negative phrase side (no music) means no leading side: the set is perfectly symmetric at idle.
+  float lead = u_phraseSide < 0.0 ? 1.0 : mix(0.72, 1.0, 1.0 - abs(side - u_phraseSide));
   float sweep = u_sweepStrength * exp(-pow((ahead - u_sweepFront) / 16.0, 2.0));
-  float primary = open * lead * (u_baseLevel * breathe + u_energy * 0.4 + beatOn * u_beat * 0.5 + rowParity * u_snare * 0.8);
+  // Main screens sit at full white when idle; music dims them (u_level) and hits/kick/snare lift them back over the top.
+  float primary = open * lead * (u_baseLevel * breathe * u_level + beatOn * u_beat * 0.5 + rowParity * u_snare * 0.8 + u_kick * 0.25);
   float accent = (u_accentBase * breathe + u_kick * 1.15 + u_bass * 0.4) * (1.0 - 0.5 * u_vocal);
   float emit = 0.0;
   if (role > 1.5) emit = accent + sweep * 0.6 + u_drop * 0.8;
   else if (role > 0.5) emit = primary + sweep * 1.3 + u_drop;
-  v_emit = emit * u_intensity;
+  // The hanging field and the ring surface out of the fog as the camera nears them, so the far end of the corridor stays a clean vanishing point.
+  // They are also a little dimmer than the corridor: a panel dead ahead in the ring fills the screen centre.
+  float reveal = zone > 0.5 ? smoothstep(75.0, 40.0, ahead) * 0.72 : 1.0;
+  // A screen dims smoothly as the camera gets close to it, so flying past one never blows out the frame.
+  float nearDim = mix(0.45, 1.0, smoothstep(14.0, 44.0, length(center + u_originShift)));
+  v_emit = emit * u_intensity * reveal * nearDim;
 }`
 
 const FRAGMENT_SOURCE = `#version 300 es
@@ -113,11 +121,11 @@ void main() {
     float screen = smoothstep(0.012, 0.03, edge.x) * smoothstep(0.006, 0.014, edge.y);
     vec2 cell = vec2(64.0, 300.0);
     vec2 grid = fract(v_uv * cell);
-    // The LED pitch fades out once a pixel drops below ~3 screen pixels, so distant screens do not moire.
-    float pixelDetail = clamp(1.0 - max(fwidth(v_uv.x * cell.x), fwidth(v_uv.y * cell.y)) * 0.6, 0.0, 1.0);
-    float pixel = mix(1.0, smoothstep(0.55, 0.25, length(grid - 0.5)), 0.28 * pixelDetail);
+    // The LED pitch fades out once a pixel drops below ~2 screen pixels, so distant screens do not moire.
+    float pixelDetail = clamp(1.0 - max(fwidth(v_uv.x * cell.x), fwidth(v_uv.y * cell.y)) * 1.8, 0.0, 1.0);
+    float pixel = mix(1.0, smoothstep(0.55, 0.25, length(grid - 0.5)), 0.1 * pixelDetail);
     float shimmer = 1.0 + (hash21(floor(v_uv * cell) + floor(u_time * 24.0)) - 0.5) * u_highs * 0.7 * pixelDetail;
-    float gradient = 0.86 + 0.14 * v_uv.y;
+    float gradient = 0.96 + 0.04 * v_uv.y;
     vec3 tint = v_role > 1.5 ? u_accentColor : u_primaryColor;
     float level = v_emit * pixel * shimmer * gradient;
     vec3 lit = tint * level;
@@ -155,14 +163,14 @@ export interface ThresholdDrawState {
     kick: number; snare: number; beat: number; beatParity: number
     sweepFront: number; sweepStrength: number; drop: number
     energy: number; bass: number; highs: number; vocal: number
-    arc: number; phraseSide: number; breathing: number
+    arc: number; level: number; phraseSide: number; breathing: number
   }
 }
 
 const UNIFORMS = [
   'u_viewRotation', 'u_projection', 'u_originShift', 'u_widthScale', 'u_intensity', 'u_baseLevel', 'u_accentBase',
   'u_kick', 'u_snare', 'u_beat', 'u_beatParity', 'u_sweepFront', 'u_sweepStrength', 'u_drop', 'u_energy', 'u_bass',
-  'u_vocal', 'u_arc', 'u_phraseSide', 'u_breathing', 'u_primaryColor', 'u_accentColor', 'u_bodyColor', 'u_fogColor',
+  'u_vocal', 'u_arc', 'u_level', 'u_phraseSide', 'u_breathing', 'u_primaryColor', 'u_accentColor', 'u_bodyColor', 'u_fogColor',
   'u_fogDensity', 'u_highs', 'u_time',
 ]
 
@@ -249,6 +257,7 @@ export class ThresholdRenderer {
     program.setFloat('u_highs', r.highs)
     program.setFloat('u_vocal', r.vocal)
     program.setFloat('u_arc', r.arc)
+    program.setFloat('u_level', r.level)
     program.setFloat('u_phraseSide', r.phraseSide)
     program.setFloat('u_breathing', r.breathing)
 

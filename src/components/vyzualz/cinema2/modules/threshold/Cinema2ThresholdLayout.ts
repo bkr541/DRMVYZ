@@ -12,7 +12,7 @@
  * is its local +Z face; `yaw` (about Y) turns it, and its local +Y is up.
  */
 
-export const THRESHOLD_PERIOD = 180
+export const THRESHOLD_PERIOD = 216
 export const THRESHOLD_ZONE_CORRIDOR = 0
 export const THRESHOLD_ZONE_FIELD = 1
 export const THRESHOLD_ZONE_RING = 2
@@ -51,11 +51,17 @@ function createRandom(seed: number): () => number {
   }
 }
 
-const CORRIDOR_LENGTH = 84
-const FIELD_END = 132
-const RING_CENTER = 156
+/** Corridor pairs: evenly spaced, identical on both sides. */
+const CORRIDOR_PAIRS = 5
+const CORRIDOR_FIRST = 24
+const CORRIDOR_SPACING = 20
+const CORRIDOR_HALF_WIDTH = 26
+const PANEL_WIDTH = 7
+const PANEL_HEIGHT = 36
+const FIELD_START = 106
+const FIELD_END = 150
+export const THRESHOLD_RING_CENTER = 184
 const RING_RADIUS = 26
-const CORRIDOR_HALF_WIDTH = 14
 
 export function buildThresholdLayout(seed = 1337): readonly ThresholdInstance[] {
   const random = createRandom(seed)
@@ -63,32 +69,18 @@ export function buildThresholdLayout(seed = 1337): readonly ThresholdInstance[] 
   const instances: ThresholdInstance[] = []
   let row = 0
 
-  // 1 - Corridor: pairs every 12 units. Each pair has a tall LED slab per side, a taller dark slab behind it and a
-  // small accent panel between the mains, so the rows read as a colonnade of towers with support screens.
-  for (let index = 0; index < 6; index += 1) {
-    const distance = 20 + index * 13
+  // 1 - Corridor: an evenly spaced, perfectly mirrored colonnade. Both panels of a pair share height and rank, so the
+  // rows open, dim and flash symmetrically; perspective alone makes the row shrink toward the vanishing point.
+  for (let index = 0; index < CORRIDOR_PAIRS; index += 1) {
+    const distance = CORRIDOR_FIRST + index * CORRIDOR_SPACING
+    // Far pairs open last as the arc climbs.
+    const rank = 0.04 + 0.92 * (index / (CORRIDOR_PAIRS - 1))
     for (const sign of [-1, 1] as const) {
-      const yaw = sign < 0 ? Math.PI / 2 : -Math.PI / 2
-      const side = sign < 0 ? 0 : 1
-      const mainHeight = range(14, 22)
       instances.push({
-        position: [sign * CORRIDOR_HALF_WIDTH, mainHeight / 2, -distance],
-        size: [3.6, mainHeight, 1.4],
-        rotation: [yaw, 0, 0],
-        role: 1, row, zone: THRESHOLD_ZONE_CORRIDOR, rank: random(), side,
-      })
-      const rearHeight = range(24, 32)
-      instances.push({
-        position: [sign * (CORRIDOR_HALF_WIDTH + 9), rearHeight / 2, -(distance + range(-3, 3))],
-        size: [4.6, rearHeight, 1.6],
-        rotation: [yaw, 0, 0],
-        role: index % 3 === 1 ? 1 : 0, row, zone: THRESHOLD_ZONE_CORRIDOR, rank: random(), side,
-      })
-      instances.push({
-        position: [sign * (CORRIDOR_HALF_WIDTH - 2), 2.9, -(distance + 6.5)],
-        size: [1.3, 5.8, 0.6],
-        rotation: [yaw, 0, 0],
-        role: 2, row: row + 1, zone: THRESHOLD_ZONE_CORRIDOR, rank: random(), side,
+        position: [sign * CORRIDOR_HALF_WIDTH, PANEL_HEIGHT / 2, -distance],
+        size: [PANEL_WIDTH, PANEL_HEIGHT, 1.6],
+        rotation: [sign < 0 ? Math.PI / 2 : -Math.PI / 2, 0, 0],
+        role: 1, row, zone: THRESHOLD_ZONE_CORRIDOR, rank, side: sign < 0 ? 0 : 1,
       })
     }
     row += 1
@@ -97,14 +89,14 @@ export function buildThresholdLayout(seed = 1337): readonly ThresholdInstance[] 
   // 2 - Hanging field: floating slabs spread across x and height, facing back toward the camera.
   const fieldCount = 14
   for (let index = 0; index < fieldCount; index += 1) {
-    const distance = CORRIDOR_LENGTH + 2 + (index / (fieldCount - 1)) * (FIELD_END - CORRIDOR_LENGTH - 4) + range(-1.5, 1.5)
+    const distance = FIELD_START + (index / (fieldCount - 1)) * (FIELD_END - FIELD_START) + range(-1.5, 1.5)
     const sign = index % 2 === 0 ? -1 : 1
-    const x = sign * range(10, 26)
-    const height = range(8, 15)
-    const width = range(3, 5.5)
+    const x = sign * range(12, 30)
+    const height = range(14, 24)
+    const width = range(4, 6.5)
     const roleRoll = random()
     instances.push({
-      position: [x, range(6, 15) + height / 2, -distance],
+      position: [x, range(8, 20) + height / 2, -distance],
       size: [width, height, 1.6],
       rotation: [range(-0.5, 0.5) + sign * 0.35, range(-0.06, 0.06), range(-0.1, 0.1)],
       role: roleRoll < 0.7 ? 1 : roleRoll < 0.85 ? 2 : 0,
@@ -119,13 +111,13 @@ export function buildThresholdLayout(seed = 1337): readonly ThresholdInstance[] 
   const lean = -0.2
   for (let index = 0; index < ringCount; index += 1) {
     const angle = (index / ringCount) * Math.PI * 2
-    const height = 20
-    const thickness = 1.2
-    const width = 6
+    const height = 26
+    const thickness = 1.4
+    const width = 6.5
     // Keep the lower edge on the floor while the panel leans back.
     const centerY = (height / 2) * Math.cos(lean) + (thickness / 2) * Math.abs(Math.sin(lean))
     instances.push({
-      position: [Math.sin(angle) * RING_RADIUS, centerY, -(RING_CENTER + Math.cos(angle) * RING_RADIUS)],
+      position: [Math.sin(angle) * RING_RADIUS, centerY, -(THRESHOLD_RING_CENTER + Math.cos(angle) * RING_RADIUS)],
       size: [width, height, thickness],
       rotation: [-angle, lean, 0],
       role: 1, row, zone: THRESHOLD_ZONE_RING, rank: random(), side: Math.sin(angle) < 0 ? 0 : 1,
@@ -133,7 +125,7 @@ export function buildThresholdLayout(seed = 1337): readonly ThresholdInstance[] 
     const innerAngle = angle + Math.PI / ringCount
     const innerRadius = RING_RADIUS - 7
     instances.push({
-      position: [Math.sin(innerAngle) * innerRadius, 3.4, -(RING_CENTER + Math.cos(innerAngle) * innerRadius)],
+      position: [Math.sin(innerAngle) * innerRadius, 3.4, -(THRESHOLD_RING_CENTER + Math.cos(innerAngle) * innerRadius)],
       size: [1.4, 6.8, 0.6],
       rotation: [-innerAngle, 0, 0],
       role: 2, row: row + 1, zone: THRESHOLD_ZONE_RING, rank: random(), side: Math.sin(innerAngle) < 0 ? 0 : 1,

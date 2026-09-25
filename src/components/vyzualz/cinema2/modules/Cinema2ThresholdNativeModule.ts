@@ -23,10 +23,10 @@ import { ThresholdRenderer } from './threshold/Cinema2ThresholdRenderer'
 export const CINEMA2_THRESHOLD_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('threshold-native-render')
 export const CINEMA2_THRESHOLD_NATIVE_MODULE_VERSION = 1 as const
 
-const DEFAULT_PRIMARY: Cinema2Color = Object.freeze([0.92, 0.96, 1, 1]) as Cinema2Color
+const DEFAULT_PRIMARY: Cinema2Color = Object.freeze([0.97, 0.985, 1, 1]) as Cinema2Color
 const DEFAULT_ACCENT: Cinema2Color = Object.freeze([0.42, 0.68, 1, 1]) as Cinema2Color
-const DEFAULT_ATMOSPHERE: Cinema2Color = Object.freeze([0.36, 0.46, 0.62, 1]) as Cinema2Color
-const DEFAULT_VOID: Cinema2Color = Object.freeze([0.012, 0.016, 0.026, 1]) as Cinema2Color
+const DEFAULT_ATMOSPHERE: Cinema2Color = Object.freeze([0.44, 0.5, 0.6, 1]) as Cinema2Color
+const DEFAULT_VOID: Cinema2Color = Object.freeze([0.014, 0.016, 0.02, 1]) as Cinema2Color
 
 /**
  * Threshold: giant LED monoliths in fog. Draws the repeating three-scene layout (corridor, hanging field, ring)
@@ -77,7 +77,7 @@ export const cinema2ThresholdNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           period: THRESHOLD_PERIOD,
           widthScale: clamp(number(context, 'corridorWidth', 1), 0.5, 1.8),
           intensity: clamp(number(context, 'intensity', 1), 0, 1.5),
-          baseLevel: 0.6 + 0.55 * clamp(number(context, 'panelBrightness', 0.7), 0, 1),
+          baseLevel: 1.1 + 0.15 * clamp(number(context, 'panelBrightness', 0.7), 0, 1),
           accentBase: 0.32 + 0.4 * clamp(number(context, 'panelBrightness', 0.7), 0, 1),
           fogDensity: clamp(number(context, 'fogDensity', 0.02), 0, 0.2),
           primaryColor: rgb(color(context, 'primaryColor', DEFAULT_PRIMARY)),

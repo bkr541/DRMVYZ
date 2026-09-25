@@ -11,6 +11,7 @@ import {
 import {
   THRESHOLD_INSTANCE_FLOATS,
   THRESHOLD_PERIOD,
+  THRESHOLD_RING_CENTER,
   THRESHOLD_ZONE_CORRIDOR,
   THRESHOLD_ZONE_FIELD,
   THRESHOLD_ZONE_RING,
@@ -73,7 +74,7 @@ describe('Threshold layout', () => {
     const packed = packThresholdInstances(layout)
     expect(packed.length).toBe(layout.length * THRESHOLD_INSTANCE_FLOATS)
     expect(packed.every(Number.isFinite)).toBe(true)
-    expect(layout.length).toBeGreaterThan(60)
+    expect(layout.length).toBeGreaterThan(40)
   })
 
   it('contains all three scenes inside one period along the flight direction', () => {
@@ -101,7 +102,7 @@ describe('Threshold layout', () => {
     }
     for (const instance of layout.filter(entry => entry.zone === THRESHOLD_ZONE_RING)) {
       const normal = faceNormal(instance)
-      const towardCentre: [number, number] = [-instance.position[0], -(instance.position[2] + 156)]
+      const towardCentre: [number, number] = [-instance.position[0], -(instance.position[2] + THRESHOLD_RING_CENTER)]
       const length = Math.hypot(...towardCentre)
       const alignment = (normal[0] * towardCentre[0] + normal[2] * towardCentre[1]) / (length * Math.hypot(normal[0], normal[2]))
       expect(alignment).toBeGreaterThan(0.95)
@@ -121,6 +122,33 @@ describe('Threshold layout', () => {
       if (instance.zone === THRESHOLD_ZONE_RING) continue
       expect(Math.abs(instance.position[0]) - instance.size[0]).toBeGreaterThan(3)
     }
+  })
+
+  it('builds the corridor as an evenly spaced, perfectly mirrored colonnade of tall white-capable panels with no clutter', () => {
+    const corridor = layout.filter(entry => entry.zone === THRESHOLD_ZONE_CORRIDOR)
+    // Only main LED screens: no dark rear towers and no small support panels.
+    expect(corridor.every(entry => entry.role === 1)).toBe(true)
+    const pairs = new Map<number, typeof corridor>()
+    for (const entry of corridor) pairs.set(entry.row, [...(pairs.get(entry.row) ?? []), entry])
+    expect(pairs.size).toBeGreaterThanOrEqual(5)
+    const distances: number[] = []
+    for (const [, pair] of [...pairs.entries()].sort((a, b) => a[0] - b[0])) {
+      expect(pair).toHaveLength(2)
+      const [left, right] = pair[0].position[0] < 0 ? pair : [pair[1], pair[0]]
+      // Mirrored: same height, size, distance, rank; opposite x.
+      expect(left.position[0]).toBeCloseTo(-right.position[0])
+      expect(left.position[1]).toBeCloseTo(right.position[1])
+      expect(left.position[2]).toBeCloseTo(right.position[2])
+      expect(left.size).toEqual(right.size)
+      expect(left.rank).toBe(right.rank)
+      expect(left.size[1]).toBeGreaterThanOrEqual(30)
+      distances.push(-left.position[2])
+    }
+    const gaps = distances.slice(1).map((distance, index) => distance - distances[index])
+    expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThan(1e-9)
+    // Far pairs open last, so the set opens symmetrically from the camera outward.
+    const ranks = [...pairs.entries()].sort((a, b) => a[0] - b[0]).map(([, pair]) => pair[0].rank)
+    expect([...ranks].sort((a, b) => a - b)).toEqual(ranks)
   })
 
   it('draws the current lap and its neighbours, so the flight can repeat endlessly', () => {
@@ -287,6 +315,26 @@ describe('Threshold reactive state', () => {
     expect(frame.highs).toBeGreaterThan(0.3)
   })
 
+  it('is full white and symmetric at idle, and lets music dim the set and energy bring it back', () => {
+    const idle = new ThresholdReactiveState()
+    const idleFrame = idle.update(Object.freeze({
+      frameId: 1, timestampMs: 0, deltaTimeSec: 1 / 60, elapsedTimeSec: 0, viewport: { width: 1280, height: 720, dpr: 1 },
+      contextGeneration: 1, audio: null, director: null,
+    }) as Readonly<Cinema2ModuleFrameReadContext>, 1, false)
+    expect(idleFrame).toMatchObject({ level: 1, arc: 1, phraseSide: -1, audioActive: false })
+
+    const quiet = reactiveHarness()
+    const loud = reactiveHarness()
+    let quietFrame = quiet.step(0)
+    let loudFrame = loud.step(0)
+    for (let beat = 0.25; beat <= 8; beat += 0.25) {
+      quietFrame = quiet.step(beat, { buildProgress: 0, energy: 0.05 })
+      loudFrame = loud.step(beat, { buildProgress: 1, buildConfidence: 1, energy: 0.95, tension: 1, sectionType: 'build' })
+    }
+    expect(quietFrame.level).toBeLessThan(0.8)
+    expect(loudFrame.level).toBeGreaterThan(quietFrame.level + 0.1)
+  })
+
   it('collapses to the idle look at zero reactivity, and with no source or after a seek', () => {
     const muted = reactiveHarness()
     let frame = muted.step(0, {}, { reactivity: 0 })
@@ -336,6 +384,29 @@ describe('Threshold preset', () => {
     expect(module.parameterBindings?.intensity?.$ref).toBe(CINEMA2_THRESHOLD_INTENSITY_ID)
     const boundEffects = (manifest.effects ?? []).filter(effect => Object.values(effect.parameterBindings ?? {}).some(ref => ref.$ref === CINEMA2_THRESHOLD_INTENSITY_ID))
     expect(boundEffects.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('flies dead centre down the corridor with a wide lens and only light drift', () => {
+    const camera = manifest.cameras!.find(entry => entry.id === CINEMA2_THRESHOLD_CAMERA_ID)!
+    expect(camera.fovDegrees).toBeGreaterThanOrEqual(65)
+    const points = (camera.rig as { points: readonly { position: readonly number[]; target?: readonly number[] }[] }).points
+    const corridorPoints = points.filter(point => -point.position[2] <= 90)
+    expect(corridorPoints.length).toBeGreaterThanOrEqual(3)
+    for (const point of corridorPoints) {
+      expect(point.position[0]).toBe(0)
+      expect(point.target?.[0]).toBe(0)
+    }
+    expect(camera.motion?.drift?.position).toBeLessThanOrEqual(0.05)
+    expect(camera.motion?.bank?.maxDegrees).toBeLessThanOrEqual(2)
+  })
+
+  it('grades neutrally: no filmic curve to grey the whites, low saturation, minimal fringing and grain', () => {
+    const finish = manifest.effects!.find(entry => entry.typeId === 'cinematic-finish')!
+    const parameters = finish.parameters as Record<string, number>
+    expect(parameters.toneMap).toBe(0)
+    expect(parameters.saturation).toBeLessThanOrEqual(0.6)
+    expect(parameters.aberration).toBeLessThanOrEqual(0.05)
+    expect(parameters.grain).toBeLessThanOrEqual(0.1)
   })
 
   it('flies an endless three-scene path and chains floor, atmosphere, bloom and finish', () => {

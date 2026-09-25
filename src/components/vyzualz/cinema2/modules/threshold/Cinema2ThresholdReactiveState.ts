@@ -41,13 +41,18 @@ export interface ThresholdReactiveFrame {
   vocal: number
   /** 0..1: fraction of primary screens open. */
   arc: number
-  /** 0/1: which side leads this phrase. */
+  /**
+   * 0..1 overall level of the main screens. Idle (no music) is full white; with music, quiet passages dim the set and
+   * energy brings it back up. Headroom below white is what lets hits and sweeps show on an 8-bit target.
+   */
+  level: number
+  /** 0/1: which side leads this phrase; -1 when there is no music (no leading side). */
   phraseSide: number
   /** Slow idle breathing 0..1, present with or without music. */
   breathing: number
 }
 
-const IDLE_ARC = 0.72
+const IDLE_ARC = 1
 const SWEEP_SPEED = 46
 const SWEEP_LENGTH = 140
 const REFERENCE_BPM = 120
@@ -73,6 +78,7 @@ export class ThresholdReactiveState {
   private highs = 0
   private vocal = 0
   private arc = IDLE_ARC
+  private level = 1
   private sweepFront = SWEEP_LENGTH
   private sweepActive = false
   private phraseSide = 0
@@ -82,6 +88,7 @@ export class ThresholdReactiveState {
     this.previousDrop = 0
     this.kick = this.snare = this.beat = this.drop = this.energy = this.bass = this.highs = this.vocal = 0
     this.arc = IDLE_ARC
+    this.level = 1
     this.sweepFront = SWEEP_LENGTH
     this.sweepActive = false
     this.phraseSide = 0
@@ -108,7 +115,7 @@ export class ThresholdReactiveState {
     if (!hasSource || !audio) {
       // No track: relax to the authored idle look, keeping only the slow breathing.
       this.decayAll(dt)
-      this.frame = { ...idleFrame(clock.syncedTimeSec, clock.bpm, clock.syncEnabled), breathing, arc: this.arc, phraseSide: this.phraseSide }
+      this.frame = { ...idleFrame(clock.syncedTimeSec, clock.bpm, clock.syncEnabled), breathing, arc: this.arc, level: this.level }
       return this.frame
     }
     if (paused) {
@@ -158,6 +165,8 @@ export class ThresholdReactiveState {
     const build = clamp01(signal(audio.features.buildProgress) ?? directorValue(frame.director?.context.build) ?? 0)
     const arcTarget = 0.3 + 0.7 * Math.max(build, this.energy * 0.6)
     this.arc = follow(this.arc, IDLE_ARC + (arcTarget - IDLE_ARC) * gate, TAU.arc)
+    const levelTarget = 0.55 + 0.45 * clamp01(this.energy * 1.3 + build * 0.3)
+    this.level = follow(this.level, 1 + (levelTarget - 1) * gate, TAU.arc)
 
     const beatIndex = signal(audio.rhythm.beatIndex)
     const beatParity = beatIndex == null ? 0 : Math.floor(Math.floor(beatIndex) / 2) % 2
@@ -179,6 +188,7 @@ export class ThresholdReactiveState {
       highs: this.highs,
       vocal: this.vocal,
       arc: this.arc,
+      level: this.level,
       phraseSide: this.phraseSide,
       breathing,
     }
@@ -199,6 +209,7 @@ export class ThresholdReactiveState {
       this.highs = decay(this.highs, 0.4)
       this.vocal = decay(this.vocal, 0.4)
       this.arc += (IDLE_ARC - this.arc) * (1 - Math.exp(-dt / TAU.arc))
+      this.level += (1 - this.level) * (1 - Math.exp(-dt / TAU.arc))
     }
   }
 }
@@ -207,7 +218,7 @@ function idleFrame(timeSec: number, bpm: number | null, syncEnabled: boolean): T
   return {
     timeSec, bpm, syncEnabled, audioActive: false,
     kick: 0, snare: 0, beat: 0, beatParity: 0, sweepFront: SWEEP_LENGTH, sweepStrength: 0, drop: 0,
-    energy: 0, bass: 0, highs: 0, vocal: 0, arc: IDLE_ARC, phraseSide: 0, breathing: 0.5,
+    energy: 0, bass: 0, highs: 0, vocal: 0, arc: IDLE_ARC, level: 1, phraseSide: -1, breathing: 0.5,
   }
 }
 

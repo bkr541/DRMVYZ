@@ -25,6 +25,7 @@ import {
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { cinema2CinematicMotion } from './Cinema2CameraMotionAuthoring'
+import { THRESHOLD_PERIOD } from '../modules/threshold/Cinema2ThresholdLayout'
 
 /**
  * THRESHOLD
@@ -86,16 +87,17 @@ const ruleId = (name: string) => cinema2StableId<Cinema2ChoreographyRuleId>(`thr
 const actionId = (name: string) => cinema2StableId<Cinema2ChoreographyActionId>(`threshold-${name}`)
 
 /** One lap of the flight is one repeat of the environment: the camera flies this far, then continues into the next copy. */
-const LAP_LENGTH = 180
-const LAP_SECONDS = 80
+const LAP_LENGTH = THRESHOLD_PERIOD
+/** About 2.25 world units per second: slow, low and forward. */
+const LAP_SECONDS = 96
 
 function vec3(x: number, y: number, z: number): Cinema2Vector3 { return Object.freeze([x, y, z]) }
 function color(r: number, g: number, b: number, a = 1): Cinema2Color { return Object.freeze([r, g, b, a]) }
 
-const DEFAULT_PRIMARY = color(0.92, 0.96, 1)
+const DEFAULT_PRIMARY = color(0.97, 0.985, 1)
 const DEFAULT_ACCENT = color(0.42, 0.68, 1)
-const DEFAULT_ATMOSPHERE = color(0.36, 0.46, 0.62)
-const DEFAULT_VOID = color(0.012, 0.016, 0.026)
+const DEFAULT_ATMOSPHERE = color(0.44, 0.5, 0.6)
+const DEFAULT_VOID = color(0.014, 0.016, 0.02)
 
 function base(
   id: Cinema2ParameterId,
@@ -161,21 +163,27 @@ const envelopeAction = (name: string, id: Cinema2EffectId, property: string, val
 })
 
 /**
- * A closed flight path for one lap: low and forward through the corridor, up over the mist through the hanging
- * field, into the ring looking up, then back down into the corridor. Points sit one per ~16-30 units of travel.
+ * The flight for one lap: dead centre and low down the corridor with a slight upward look, up over the mist through the
+ * hanging field (the only place with any lateral sway), into the ring looking up, then back down into the corridor.
+ * The lap is `THRESHOLD_PERIOD` long and `repeatOffset` continues it into the next copy of the environment.
  */
 function flightPoints() {
-  const point = (position: Cinema2Vector3, target: Cinema2Vector3, fovDegrees?: number) => Object.freeze({ position, target, ...(fovDegrees ? { fovDegrees } : {}) })
+  const point = (distance: number, x: number, y: number, targetY: number, fovDegrees?: number) => Object.freeze({
+    position: vec3(x, y, -distance),
+    target: vec3(0, targetY, -(distance + 40)),
+    ...(fovDegrees ? { fovDegrees } : {}),
+  })
   return Object.freeze([
-    point(vec3(0.6, 1.1, 0), vec3(0, 1.9, -30)),
-    point(vec3(-0.8, 1.2, -30), vec3(0, 2.1, -60)),
-    point(vec3(0.7, 1.3, -60), vec3(0, 2.4, -90)),
-    point(vec3(0, 1.9, -84), vec3(0, 3.4, -116)),
-    point(vec3(-1.5, 4, -100), vec3(0, 5.2, -130), 54),
-    point(vec3(1.2, 6, -116), vec3(0, 5.6, -148), 56),
-    point(vec3(0, 4.6, -132), vec3(0, 5, -162), 54),
-    point(vec3(0, 2.6, -148), vec3(0, 7.5, -178), 52),
-    point(vec3(0.5, 1.6, -164), vec3(0, 3, -192)),
+    point(0, 0, 1.3, 4),
+    point(40, 0, 1.3, 4),
+    point(80, 0, 1.3, 4.5),
+    point(104, 0, 2.2, 6, 70),
+    point(122, -1, 5, 7, 72),
+    point(138, 1, 6.5, 7, 72),
+    point(154, 0, 4.5, 6, 70),
+    point(170, 0, 2.5, 9, 70),
+    point(188, 0, 1.8, 6, 68),
+    point(204, 0, 1.4, 4, 68),
   ])
 }
 
@@ -220,8 +228,8 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     floatParameter(CINEMA2_THRESHOLD_CORRIDOR_WIDTH_ID, 'Corridor Width', 'Distance between the two rows of monoliths in the corridor.', 'design', 3, 1, 0.6, 1.6, 0.01, 'Layout'),
     // Effects
     floatParameter(CINEMA2_THRESHOLD_FLOOR_REFLECTION_ID, 'Floor Reflection', 'How mirror-like the wet floor is.', 'effects', 1, 0.75, 0, 1, 0.01),
-    floatParameter(CINEMA2_THRESHOLD_BLOOM_ID, 'Bloom', 'Glow around the bright screens.', 'effects', 2, 1.3, 0, 3, 0.05),
-    floatParameter(CINEMA2_THRESHOLD_SHAFTS_ID, 'Light Shafts', 'Rays radiating from the screens through the haze.', 'effects', 3, 0.3, 0, 1, 0.01),
+    floatParameter(CINEMA2_THRESHOLD_BLOOM_ID, 'Bloom', 'Glow around the bright screens.', 'effects', 2, 1, 0, 3, 0.05),
+    floatParameter(CINEMA2_THRESHOLD_SHAFTS_ID, 'Light Shafts', 'Rays radiating from the screens through the haze.', 'effects', 3, 0.12, 0, 1, 0.01),
     floatParameter(CINEMA2_THRESHOLD_FINISH_ID, 'Cinematic Finish', 'Filmic tone curve, grade, vignette, fringing and grain.', 'effects', 4, 1, 0, 1, 0.01),
     // Palette
     colorParameter(CINEMA2_THRESHOLD_PRIMARY_COLOR_ID, 'Primary', 'Color of the main LED screens.', 1, DEFAULT_PRIMARY),
@@ -284,10 +292,10 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       id: CINEMA2_THRESHOLD_CAMERA_ID,
       label: 'Threshold Flight',
       projection: 'perspective' as const,
-      fovDegrees: 52,
+      fovDegrees: 68,
       near: 0.3,
-      far: 340,
-      target: vec3(0, 2, -30),
+      far: 380,
+      target: vec3(0, 4, -40),
       rig: Object.freeze({
         kind: 'fly' as const,
         points: flightPoints(),
@@ -295,7 +303,7 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         loop: true,
         repeatOffset: vec3(0, 0, -LAP_LENGTH),
       }),
-      motion: cinema2CinematicMotion('gentle', { splinePath: true }),
+      motion: cinema2CinematicMotion('steady', { splinePath: true }),
       controls: Object.freeze({ motionAmount: cinema2Ref(CINEMA2_THRESHOLD_CAMERA_MOTION_ID) }),
     }),
   ]),
@@ -342,10 +350,10 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       noiseStrength: 0.75,
       drift: 0.05,
       maxDistance: 170,
-      shafts: 0.3,
+      shafts: 0.12,
       shaftOriginX: 0.5,
       shaftOriginY: 0.42,
-      shaftLength: 0.45,
+      shaftLength: 0.4,
       reactivity: 0,
     }, {
       mix: CINEMA2_THRESHOLD_INTENSITY_ID,
@@ -354,23 +362,25 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       shafts: CINEMA2_THRESHOLD_SHAFTS_ID,
     }),
     effect(CINEMA2_THRESHOLD_BLOOM_EFFECT_ID, BLOOM_EFFECT_TYPE_ID, 2, {
-      mix: 1, threshold: 0.55, radius: 2, intensity: 1.3,
+      mix: 1, threshold: 0.55, radius: 2, intensity: 1,
     }, {
       mix: CINEMA2_THRESHOLD_INTENSITY_ID,
       intensity: CINEMA2_THRESHOLD_BLOOM_ID,
     }),
     effect(CINEMA2_THRESHOLD_FINISH_EFFECT_ID, FINISH_EFFECT_TYPE_ID, 3, {
       mix: 1,
+      // No tone curve: a filmic curve compresses pure white to grey, and these screens are meant to be pure white.
+      toneMap: 0,
       exposure: 1,
-      contrast: 1.18,
-      saturation: 0.78,
-      vignette: 0.5,
+      contrast: 1.1,
+      saturation: 0.55,
+      vignette: 0.2,
       vignetteSoftness: 0.7,
-      grain: 0.2,
-      aberration: 0.14,
-      tintAmount: 0.25,
-      shadowTint: color(0.42, 0.5, 0.68),
-      highlightTint: color(0.55, 0.55, 0.58),
+      grain: 0.06,
+      aberration: 0.04,
+      tintAmount: 0.1,
+      shadowTint: color(0.47, 0.5, 0.56),
+      highlightTint: color(0.5, 0.5, 0.5),
     }, {
       mix: CINEMA2_THRESHOLD_FINISH_ID,
     }),

@@ -360,6 +360,29 @@ Confidence and plan (owner-approved ordering: do the high group first, then re-c
 - LOW: 8 (wispy smoke; better with #7a shipped noise/smoke textures, or #9 sprites; unlikely to match the reference without them).
 Also: keep Threshold's other scenes (hanging field, ring) working; verification method = real Chrome renders compared against the reference, judged by the owner.
 
+### Refinement batch A (differences 1, 2, 3, 4, 6, 13, 14-fringing/grain) - APPLIED 2026-09-25, not committed by the assistant
+What changed (all in Threshold; 22 tests in `Cinema2Threshold.test.ts` cover it):
+- Layout (`modules/threshold/Cinema2ThresholdLayout.ts`): period 216; corridor is now ONLY 5 mirrored pairs of main LED screens (7 x 36, half-width 26, spacing 20, first pair at
+  d=24), identical height/rank on both sides, ranks increasing with distance so the set opens symmetrically. The dark rear towers and small support panels are gone from the corridor.
+  Field: 14 taller panels (x 12-30). Ring: centre 184 (`THRESHOLD_RING_CENTER`), 26 tall panels.
+- Camera: dead centre (x = 0) with a slight upward look in the corridor, `steady` motion (drift 0.04, bank <= 1.5), FOV 68 (70-72 through the field), 96 s per lap (~2.25 u/s);
+  only the field section has lateral sway (+-1).
+- Screens: pure white by default (Primary 0.97/0.985/1, level above 1 so it clips to white), even glow (pixel grid 10%, gradient 4%), no filmic curve (`toneMap: 0`, exposure 1),
+  vignette 0.2, desaturated grade (saturation 0.55, tint 0.1, neutral tints), aberration 0.04, grain 0.06, shafts default 0.12.
+- Music on white panels: an 8-bit target clips anything above white, so brightness on top of white is invisible. New reactive `level`: idle = full white; with music, quiet passages dim
+  the set (down to ~55%) and energy/build bring it back, while beats/snare/kick/sweep lift over the top. Idle also has arc = 1 and no leading side (`phraseSide = -1`), so idle is perfectly
+  symmetric. Kick now also gently pulses the main screens (the corridor has no support panels any more).
+- Field/ring screens surface out of the fog only when the camera is within ~75 units (and at 72% brightness), so the far end of the corridor is a clean vanishing point; every screen dims
+  smoothly when the camera is within ~14-44 units of it (`nearDim`), so flying past one never blows out the frame.
+Lessons: (1) a filmic tone curve greys pure-white screens (ACES maps 1.0 to ~0.8), and boosting exposure to compensate lifts noise everywhere - drop the curve instead; (2) the vignette darkens
+the frame edges where the near panels sit, making white panels grey; (3) flying BESIDE a big panel is the worst frame (huge grazing-angle stretch at the periphery of a wide lens) - judge
+the flyby, not just the still; (4) with no track loaded the engine freezes visual time, so the camera holds the start of the lap - idle screenshots do not show the flyby; (5) fine LED-pixel
+patterns alias into moire at grazing angles unless their detail fades early (`pixelDetail` factor 1.8); (6) when a frame looks wrong, isolate by switching effects off one at a time
+before theorizing.
+Measured after the batch: 1080p on the M3 Pro - high 8.7 ms, medium 3.3 ms, low 1.9 ms.
+Still different from the reference (unchanged by this batch): 5 housings, 7 light spill, 8 smoke, 9 shafts, 10 vanishing-point glow / ceiling, 11 floor surface, 12 SSR dotted noise,
+14 stair-stepped bright edges. The near flybys are still large and bright; the corridor is emptier than the reference (dark void between panels where the reference has towers - that is item 5).
+
 ## Practical recipes and gotchas (learned the hard way)
 Verification recipes
 - Unit tests: `npx vitest run src/components/vyzualz/cinema2` (compare the failing set to the baseline above); typecheck `npx tsc --noEmit -p tsconfig.json` (grep for the
