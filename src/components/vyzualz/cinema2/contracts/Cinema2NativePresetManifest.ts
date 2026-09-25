@@ -328,6 +328,52 @@ export type Cinema2CameraRigManifest =
   | Cinema2CameraOrbitRigManifest
   | Cinema2CameraPathRigManifest
 
+export type Cinema2CameraPathInterpolation = 'linear' | 'spline'
+
+/** Slow, deterministic handheld-style wander. Every amplitude defaults to 0 (off). */
+export interface Cinema2CameraDriftManifest {
+  /** World-unit wander of the camera position. */
+  position?: number
+  /** World-unit wander of the look-at target (kept smaller than `position` for a steady frame). */
+  target?: number
+  /** Degrees of roll wander. */
+  rollDegrees?: number
+  /** Degrees of FOV breathing. */
+  fovDegrees?: number
+  /** Base wander frequency in cycles per second. Default 0.08 (one drift every ~12 s). */
+  speed?: number
+  /** Changes the wander pattern without changing its character. */
+  seed?: number
+}
+
+/** Leans the camera into turns, derived from its own heading change. */
+export interface Cinema2CameraBankManifest {
+  /** Largest bank angle in degrees. */
+  maxDegrees: number
+  /** Degrees of bank per degree/second of heading change. Default 0.6. */
+  gain?: number
+  /** Smoothing of the bank angle. Default 500. */
+  smoothingMs?: number
+}
+
+/**
+ * Cinematic camera motion, all opt-in so existing cameras behave exactly as authored.
+ * Resolution order inside the runtime: rig -> transition -> user controls -> target contributions ->
+ * drift -> safety clamp -> FOV rate limit -> smoothing -> bank -> matrices.
+ */
+export interface Cinema2CameraMotionManifest {
+  /** Path/fly rigs only. `spline` is a Catmull-Rom curve through the points, with no corners. Default `linear`. */
+  interpolation?: Cinema2CameraPathInterpolation
+  /** Path/fly rigs only. Travel at constant speed along the curve. Default: true with `spline`, false with `linear`. */
+  constantSpeed?: boolean
+  /** Fixed roll in degrees; also the base value of the writable `roll` target. */
+  rollDegrees?: number
+  drift?: Cinema2CameraDriftManifest
+  bank?: Cinema2CameraBankManifest
+  /** Largest FOV change per second, so choreography pulses cannot jerk the lens. */
+  fovRateLimitDegreesPerSecond?: number
+}
+
 export interface Cinema2CameraTransitionManifest {
   durationSeconds: number
   easing?: Cinema2CameraTransitionEasing
@@ -346,6 +392,8 @@ export interface Cinema2CameraControlBindingsManifest {
   orbitElevationDegrees?: Cinema2ParameterRef
   pathProgress?: Cinema2ParameterRef
   smoothingMs?: Cinema2ParameterRef
+  /** Scales drift and bank together (0 = locked off, 1 = as authored). Requires `motion`. */
+  motionAmount?: Cinema2ParameterRef
 }
 
 export interface Cinema2CameraSafetyManifest {
@@ -374,6 +422,7 @@ export interface Cinema2CameraManifest {
   far?: number
   rig?: Cinema2CameraRigManifest
   transition?: Cinema2CameraTransitionManifest
+  motion?: Cinema2CameraMotionManifest
   controls?: Cinema2CameraControlBindingsManifest
   safety?: Cinema2CameraSafetyManifest
   smoothingMs?: number

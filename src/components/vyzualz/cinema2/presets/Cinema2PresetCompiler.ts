@@ -831,8 +831,52 @@ function validateCameraDefinition(
     }
   }
 
+  validateCameraMotion(camera, path, diagnostics)
   validateCameraSafety(camera.safety, `${path}.safety`, diagnostics)
   validateCameraControls(camera, `${path}.controls`, manifest, index, diagnostics)
+}
+
+function validateCameraMotion(
+  camera: NonNullable<Cinema2NativePresetManifest['cameras']>[number],
+  path: string,
+  diagnostics: Cinema2PresetDiagnostic[],
+): void {
+  const motion = camera.motion
+  if (motion == null) return
+  const motionPath = `${path}.motion`
+  const invalid = (message: string, subPath: string) => diagnostics.push(error('CINEMA2_PRESET_CAMERA_MOTION_INVALID', message, `${motionPath}${subPath}`))
+  if (!isPlainObject(motion)) {
+    invalid('Camera motion must be an object.', '')
+    return
+  }
+  if (motion.interpolation != null && motion.interpolation !== 'linear' && motion.interpolation !== 'spline') invalid('Motion interpolation must be linear or spline.', '.interpolation')
+  if (motion.constantSpeed != null && typeof motion.constantSpeed !== 'boolean') invalid('Motion constantSpeed must be boolean.', '.constantSpeed')
+  const isPath = camera.rig?.kind === 'path' || camera.rig?.kind === 'fly'
+  if ((motion.interpolation != null || motion.constantSpeed != null) && !isPath) invalid('interpolation/constantSpeed require a path or fly rig.', '.interpolation')
+  const nonNegative = (value: unknown, subPath: string, max = Number.POSITIVE_INFINITY) => {
+    if (value != null && (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > max)) invalid(`Value must be a finite number between 0 and ${max}.`, subPath)
+  }
+  if (motion.rollDegrees != null && (typeof motion.rollDegrees !== 'number' || !Number.isFinite(motion.rollDegrees) || Math.abs(motion.rollDegrees) > 45)) invalid('rollDegrees must be finite and within ±45.', '.rollDegrees')
+  nonNegative(motion.fovRateLimitDegreesPerSecond, '.fovRateLimitDegreesPerSecond')
+  if (motion.drift != null) {
+    if (!isPlainObject(motion.drift)) invalid('Drift must be an object.', '.drift')
+    else {
+      nonNegative(motion.drift.position, '.drift.position', 10)
+      nonNegative(motion.drift.target, '.drift.target', 10)
+      nonNegative(motion.drift.rollDegrees, '.drift.rollDegrees', 20)
+      nonNegative(motion.drift.fovDegrees, '.drift.fovDegrees', 20)
+      if (motion.drift.speed != null && (typeof motion.drift.speed !== 'number' || !Number.isFinite(motion.drift.speed) || motion.drift.speed <= 0 || motion.drift.speed > 2)) invalid('Drift speed must be between 0 (exclusive) and 2 cycles per second.', '.drift.speed')
+      if (motion.drift.seed != null && (typeof motion.drift.seed !== 'number' || !Number.isFinite(motion.drift.seed))) invalid('Drift seed must be finite.', '.drift.seed')
+    }
+  }
+  if (motion.bank != null) {
+    if (!isPlainObject(motion.bank)) invalid('Bank must be an object.', '.bank')
+    else {
+      if (typeof motion.bank.maxDegrees !== 'number' || !Number.isFinite(motion.bank.maxDegrees) || motion.bank.maxDegrees < 0 || motion.bank.maxDegrees > 30) invalid('Bank maxDegrees must be between 0 and 30.', '.bank.maxDegrees')
+      nonNegative(motion.bank.gain, '.bank.gain', 10)
+      nonNegative(motion.bank.smoothingMs, '.bank.smoothingMs', 5000)
+    }
+  }
 }
 
 function validateCameraControls(
@@ -857,6 +901,7 @@ function validateCameraControls(
     ['orbitElevationDegrees', ['float', 'integer']],
     ['pathProgress', ['float', 'integer']],
     ['smoothingMs', ['float', 'integer']],
+    ['motionAmount', ['float', 'integer']],
   ])
   for (const [name, ref] of Object.entries(controls)) {
     const controlPath = `${path}.${name}`
@@ -875,6 +920,9 @@ function validateCameraControls(
     }
     if (name === 'pathProgress' && camera.rig?.kind !== 'path' && camera.rig?.kind !== 'fly') {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'pathProgress requires a path or fly rig.', controlPath))
+    }
+    if (name === 'motionAmount' && camera.motion == null) {
+      diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'motionAmount requires the camera to author `motion`.', controlPath))
     }
   }
 }

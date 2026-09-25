@@ -2,6 +2,7 @@ import type {
   Cinema2CameraControlBindingsManifest,
   Cinema2CameraId,
   Cinema2CameraManifest,
+  Cinema2CameraMotionManifest,
   Cinema2CameraPathPointManifest,
   Cinema2CameraProjection,
   Cinema2CameraRigManifest,
@@ -40,6 +41,8 @@ export interface Cinema2CameraFrame {
   near: number
   far: number
   aspect: number
+  /** Final camera roll in degrees (fixed roll + drift + choreography + bank). 0 for cameras without `motion`. */
+  rollDegrees: number
   viewMatrix: Cinema2Matrix4
   projectionMatrix: Cinema2Matrix4
   viewProjectionMatrix: Cinema2Matrix4
@@ -61,6 +64,7 @@ interface CameraTargetSet {
   orthographicHeight: Cinema2TargetId | null
   near: Cinema2TargetId | null
   far: Cinema2TargetId | null
+  roll: Cinema2TargetId | null
 }
 
 interface CameraPose {
@@ -70,6 +74,7 @@ interface CameraPose {
   orthographicHeight: number
   near: number
   far: number
+  rollDegrees: number
 }
 
 interface CameraSafety {
@@ -100,6 +105,10 @@ const DEFAULT_SAFETY: Readonly<CameraSafety> = Object.freeze({
   maxFar: 10000,
 })
 const EPSILON = 1e-5
+const MAX_ROLL_DEGREES = 45
+/** Below this horizontal speed (units/s) heading is meaningless, so bank relaxes toward level. */
+const MIN_BANK_SPEED = 0.02
+const SPLINE_SAMPLES_PER_SEGMENT = 200
 
 /**
  * Final semantic world-camera authority for Cinema 2.0.
@@ -113,6 +122,11 @@ export class Cinema2CameraRuntime {
   private readonly authoredCamera: Readonly<Cinema2CameraManifest> | null
   private readonly targets: CameraTargetSet
   private previousPose: CameraPose | null = null
+  /** Pre-drift position last frame: bank follows the rig's own heading, not the handheld wander. */
+  private previousBasePosition: Cinema2Vector3 | null = null
+  private previousHeadingDegrees: number | null = null
+  private bankDegrees = 0
+  private splinePath: Readonly<SplinePath> | null = null
   private currentFrame: Readonly<Cinema2CameraFrame>
   private frameCount = 0
   private resetCount = 0
@@ -132,7 +146,7 @@ export class Cinema2CameraRuntime {
   update(frame: Readonly<Cinema2ModuleFrameReadContext>): Readonly<Cinema2CameraFrame> {
     if (this.disposed) return this.currentFrame
     if (frame.audio?.discontinuity.occurred && frame.audio.discontinuity.reason !== 'activation') {
-      this.previousPose = null
+      this.resetMotionState()
       this.resetCount += 1
     }
 
@@ -144,21 +158,30 @@ export class Cinema2CameraRuntime {
     }
 
     const camera = this.authoredCamera
+    const motion = camera.motion
     const safety = resolveSafety(camera)
     let pose = this.resolveBaseRig(camera, frame)
     pose = applyAuthoredTransition(camera, pose, frame.elapsedTimeSec)
     const safetyReference = clonePose(pose)
     pose = this.applyUserControls(camera, pose, safety)
     pose = this.applyTargetContributions(pose)
+    const basePosition = pose.position
+    const motionAmount = clamp(finite(readNumberControl(camera.controls, 'motionAmount', this.parameters) ?? undefined, 1), 0, 2)
+    if (motion?.drift) pose = applyDrift(pose, motion.drift, frame.elapsedTimeSec, motionAmount)
     const safe = clampPose(pose, safety, safetyReference)
     const smoothingMs = resolveSmoothingMs(camera, this.parameters)
-    const smoothed = this.previousPose && smoothingMs > 0
+    let smoothed = this.previousPose && smoothingMs > 0
       ? smoothPose(this.previousPose, safe.pose, frame.deltaTimeSec, smoothingMs)
       : safe.pose
+    if (motion?.fovRateLimitDegreesPerSecond != null && this.previousPose) {
+      smoothed = { ...smoothed, fovDegrees: limitRate(this.previousPose.fovDegrees, smoothed.fovDegrees, motion.fovRateLimitDegreesPerSecond, frame.deltaTimeSec) }
+    }
     const finalSafety = clampPose(smoothed, safety, safetyReference)
     this.previousPose = clonePose(finalSafety.pose)
+    const bank = motion?.bank ? this.updateBank(motion.bank, basePosition, frame.deltaTimeSec, motionAmount) : 0
+    const rollDegrees = clamp(finalSafety.pose.rollDegrees + bank, -MAX_ROLL_DEGREES, MAX_ROLL_DEGREES)
 
-    const viewMatrix = createLookAtMatrix(finalSafety.pose.position, finalSafety.pose.target)
+    const viewMatrix = createLookAtMatrix(finalSafety.pose.position, finalSafety.pose.target, rollDegrees)
     const projectionMatrix = camera.projection === 'perspective'
       ? createPerspectiveMatrix(finalSafety.pose.fovDegrees, aspect, finalSafety.pose.near, finalSafety.pose.far)
       : createOrthographicMatrix(finalSafety.pose.orthographicHeight, aspect, finalSafety.pose.near, finalSafety.pose.far)
@@ -176,6 +199,7 @@ export class Cinema2CameraRuntime {
       near: finalSafety.pose.near,
       far: finalSafety.pose.far,
       aspect,
+      rollDegrees,
       viewMatrix,
       projectionMatrix,
       viewProjectionMatrix: multiplyCinema2Matrix4(projectionMatrix, viewMatrix),
@@ -187,8 +211,15 @@ export class Cinema2CameraRuntime {
 
   reset(): void {
     if (this.disposed) return
-    this.previousPose = null
+    this.resetMotionState()
     this.resetCount += 1
+  }
+
+  private resetMotionState(): void {
+    this.previousPose = null
+    this.previousBasePosition = null
+    this.previousHeadingDegrees = null
+    this.bankDegrees = 0
   }
 
   getFrame(): Readonly<Cinema2CameraFrame> {
@@ -208,7 +239,47 @@ export class Cinema2CameraRuntime {
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
-    this.previousPose = null
+    this.resetMotionState()
+  }
+
+  /**
+   * Bank follows the rig's own heading change: the horizontal direction of travel is differentiated,
+   * scaled into a target bank angle and smoothed. A camera moving in a straight line (or standing
+   * still) relaxes back to level. Positive bank leans the camera to its right, into a right turn.
+   */
+  private updateBank(
+    bank: Readonly<NonNullable<Cinema2CameraMotionManifest['bank']>>,
+    basePosition: Cinema2Vector3,
+    deltaTimeSec: number,
+    amount: number,
+  ): number {
+    const previous = this.previousBasePosition
+    this.previousBasePosition = basePosition
+    let headingRate = 0
+    if (previous && deltaTimeSec > 0 && deltaTimeSec < 0.5) {
+      const vx = basePosition[0] - previous[0]
+      const vz = basePosition[2] - previous[2]
+      if (Math.hypot(vx, vz) / deltaTimeSec > MIN_BANK_SPEED) {
+        const heading = radiansToDegrees(Math.atan2(vx, -vz))
+        if (this.previousHeadingDegrees != null) headingRate = wrapDegrees(heading - this.previousHeadingDegrees) / deltaTimeSec
+        this.previousHeadingDegrees = heading
+      }
+    }
+    const limit = Math.abs(finite(bank.maxDegrees, 0)) * amount
+    const target = clamp(finite(bank.gain, 0.6) * headingRate, -limit, limit)
+    const smoothingMs = clamp(finite(bank.smoothingMs, 500), 0, 5000)
+    if (deltaTimeSec <= 0) return this.bankDegrees
+    this.bankDegrees = smoothingMs <= 0
+      ? target
+      : this.bankDegrees + (target - this.bankDegrees) * (1 - Math.exp(-(deltaTimeSec * 1000) / smoothingMs))
+    return this.bankDegrees
+  }
+
+  private getSplinePath(camera: Readonly<Cinema2CameraManifest>, fallbackTarget: Cinema2Vector3, fallbackFov: number): Readonly<SplinePath> | null {
+    const rig = camera.rig
+    if (!rig || (rig.kind !== 'path' && rig.kind !== 'fly') || camera.motion?.interpolation !== 'spline' || rig.points.length < 2) return null
+    if (!this.splinePath) this.splinePath = buildSplinePath(rig, fallbackTarget, fallbackFov)
+    return this.splinePath
   }
 
   private resolveBaseRig(
@@ -222,12 +293,13 @@ export class Cinema2CameraRuntime {
     const orthographicHeight = positive(camera.orthographicHeight, DEFAULT_ORTHOGRAPHIC_HEIGHT)
     const near = positive(camera.near, DEFAULT_NEAR)
     const far = Math.max(near + EPSILON, positive(camera.far, DEFAULT_FAR))
+    const rollDegrees = finite(camera.motion?.rollDegrees, 0)
 
     if (rig.kind === 'orbit') {
-      const radius = positive(readNumberControl(camera.controls, 'orbitRadius', this.parameters), positive(rig.radius, distance(authoredPosition, authoredTarget) || 5))
-      const azimuth = finite(readNumberControl(camera.controls, 'orbitAzimuthDegrees', this.parameters), finite(rig.azimuthDegrees, 0))
+      const radius = positive(readNumberControl(camera.controls, 'orbitRadius', this.parameters) ?? undefined, positive(rig.radius, distance(authoredPosition, authoredTarget) || 5))
+      const azimuth = finite(readNumberControl(camera.controls, 'orbitAzimuthDegrees', this.parameters) ?? undefined, finite(rig.azimuthDegrees, 0))
         + finite(rig.angularVelocityDegreesPerSecond, 0) * Math.max(0, frame.elapsedTimeSec)
-      const elevation = clamp(finite(readNumberControl(camera.controls, 'orbitElevationDegrees', this.parameters), finite(rig.elevationDegrees, 15)), -89.9, 89.9)
+      const elevation = clamp(finite(readNumberControl(camera.controls, 'orbitElevationDegrees', this.parameters) ?? undefined, finite(rig.elevationDegrees, 15)), -89.9, 89.9)
       const azimuthRad = degreesToRadians(azimuth)
       const elevationRad = degreesToRadians(elevation)
       const horizontal = radius * Math.cos(elevationRad)
@@ -242,15 +314,20 @@ export class Cinema2CameraRuntime {
         orthographicHeight,
         near,
         far,
+        rollDegrees,
       }
     }
 
     if (rig.kind === 'path' || rig.kind === 'fly') {
+      const spline = this.getSplinePath(camera, authoredTarget, fovDegrees)
+      const constantSpeed = camera.motion?.constantSpeed ?? true
       const progressControl = readNumberControl(camera.controls, 'pathProgress', this.parameters)
       const progress = progressControl == null
-        ? pathProgress(rig, frame.elapsedTimeSec)
+        ? pathProgress(rig, frame.elapsedTimeSec, spline?.totalLength)
         : clamp(progressControl, 0, 1)
-      const sampled = samplePath(rig.points, progress, authoredTarget, fovDegrees)
+      const sampled = spline
+        ? sampleSplinePath(spline, progress, constantSpeed)
+        : samplePath(rig.points, progress, authoredTarget, fovDegrees)
       return {
         position: sampled.position,
         target: sampled.target,
@@ -258,10 +335,11 @@ export class Cinema2CameraRuntime {
         orthographicHeight,
         near,
         far,
+        rollDegrees,
       }
     }
 
-    return { position: authoredPosition, target: authoredTarget, fovDegrees, orthographicHeight, near, far }
+    return { position: authoredPosition, target: authoredTarget, fovDegrees, orthographicHeight, near, far, rollDegrees }
   }
 
   private applyUserControls(
@@ -288,6 +366,7 @@ export class Cinema2CameraRuntime {
       orthographicHeight: resolveNumberFromBase(this.resolver, this.targets.orthographicHeight, pose.orthographicHeight),
       near: resolveNumberFromBase(this.resolver, this.targets.near, pose.near),
       far: resolveNumberFromBase(this.resolver, this.targets.far, pose.far),
+      rollDegrees: resolveNumberFromBase(this.resolver, this.targets.roll, pose.rollDegrees),
     }
   }
 }
@@ -313,6 +392,7 @@ function indexCameraTargets(
     orthographicHeight: find('orthographicHeight'),
     near: find('near'),
     far: find('far'),
+    roll: find('roll'),
   }
 }
 
@@ -358,11 +438,12 @@ function applyAuthoredTransition(
     orthographicHeight: pose.orthographicHeight,
     near: pose.near,
     far: pose.far,
+    rollDegrees: pose.rollDegrees,
   }
 }
 
-function pathProgress(rig: Extract<Cinema2CameraRigManifest, { kind: 'path' | 'fly' }>, elapsedTimeSec: number): number {
-  const duration = rig.durationSeconds ?? pathLength(rig.points) / Math.max(EPSILON, positive(rig.speed, 1))
+function pathProgress(rig: Extract<Cinema2CameraRigManifest, { kind: 'path' | 'fly' }>, elapsedTimeSec: number, splineLength?: number): number {
+  const duration = rig.durationSeconds ?? (splineLength ?? pathLength(rig.points)) / Math.max(EPSILON, positive(rig.speed, 1))
   const raw = Math.max(0, elapsedTimeSec) / Math.max(EPSILON, duration)
   if (rig.loop) return raw - Math.floor(raw)
   return clamp(raw, 0, 1)
@@ -430,6 +511,7 @@ function clampPose(
   const orthographicHeight = Math.max(EPSILON, positive(pose.orthographicHeight, DEFAULT_ORTHOGRAPHIC_HEIGHT))
   const near = Math.max(safety.minNear, positive(pose.near, DEFAULT_NEAR))
   const far = Math.max(near + EPSILON, Math.min(safety.maxFar, positive(pose.far, DEFAULT_FAR)))
+  const rollDegrees = clamp(finite(pose.rollDegrees, 0), -MAX_ROLL_DEGREES, MAX_ROLL_DEGREES)
   if (distance(position, target) < EPSILON) target = freezeVec3([target[0], target[1], target[2] - 1])
   const corrected = !vecEqual(position, pose.position)
     || !vecEqual(target, pose.target)
@@ -437,7 +519,8 @@ function clampPose(
     || orthographicHeight !== pose.orthographicHeight
     || near !== pose.near
     || far !== pose.far
-  return { pose: { position, target, fovDegrees, orthographicHeight, near, far }, corrected }
+    || rollDegrees !== pose.rollDegrees
+  return { pose: { position, target, fovDegrees, orthographicHeight, near, far, rollDegrees }, corrected }
 }
 
 function clampAroundReference(
@@ -471,6 +554,7 @@ function smoothPose(previous: CameraPose, next: CameraPose, deltaTimeSec: number
     orthographicHeight: lerp(previous.orthographicHeight, next.orthographicHeight, alpha),
     near: lerp(previous.near, next.near, alpha),
     far: lerp(previous.far, next.far, alpha),
+    rollDegrees: lerp(previous.rollDegrees, next.rollDegrees, alpha),
   }
 }
 
@@ -567,11 +651,17 @@ function createOrthographicMatrix(verticalHeight: number, aspect: number, near: 
   ]) as Cinema2Matrix4
 }
 
-function createLookAtMatrix(position: Cinema2Vector3, target: Cinema2Vector3): Cinema2Matrix4 {
+function createLookAtMatrix(position: Cinema2Vector3, target: Cinema2Vector3, rollDegrees = 0): Cinema2Matrix4 {
   const forward = normalizeVec3(subVec3(position, target), [0, 0, 1])
-  let right = normalizeVec3(crossVec3([0, 1, 0], forward), [1, 0, 0])
-  if (lengthVec3(right) < EPSILON) right = normalizeVec3(crossVec3([0, 0, 1], forward), [1, 0, 0])
-  const up = crossVec3(forward, right)
+  let level = normalizeVec3(crossVec3([0, 1, 0], forward), [1, 0, 0])
+  if (lengthVec3(level) < EPSILON) level = normalizeVec3(crossVec3([0, 0, 1], forward), [1, 0, 0])
+  const levelUp = crossVec3(forward, level)
+  // Positive roll leans the camera's up toward its right (a right bank).
+  const roll = degreesToRadians(rollDegrees)
+  const cosine = Math.cos(roll)
+  const sine = Math.sin(roll)
+  const right = freezeVec3([level[0] * cosine - levelUp[0] * sine, level[1] * cosine - levelUp[1] * sine, level[2] * cosine - levelUp[2] * sine])
+  const up = freezeVec3([levelUp[0] * cosine + level[0] * sine, levelUp[1] * cosine + level[1] * sine, levelUp[2] * cosine + level[2] * sine])
   return Object.freeze([
     right[0], up[0], forward[0], 0,
     right[1], up[1], forward[1], 0,
@@ -598,6 +688,7 @@ function createImplicitSafeFrame(aspect: number): Readonly<Cinema2CameraFrame> {
     near: DEFAULT_NEAR,
     far: 100,
     aspect,
+    rollDegrees: 0,
     viewMatrix,
     projectionMatrix,
     viewProjectionMatrix: multiplyCinema2Matrix4(projectionMatrix, viewMatrix),
@@ -663,6 +754,7 @@ function clonePose(pose: CameraPose): CameraPose {
     orthographicHeight: pose.orthographicHeight,
     near: pose.near,
     far: pose.far,
+    rollDegrees: pose.rollDegrees,
   }
 }
 
@@ -693,4 +785,149 @@ function finite(value: number | undefined, fallback: number): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
+}
+
+function radiansToDegrees(value: number): number {
+  return value * 180 / Math.PI
+}
+
+function wrapDegrees(value: number): number {
+  return ((((value + 180) % 360) + 360) % 360) - 180
+}
+
+/** Moves `previous` toward `next` by at most `ratePerSecond * deltaTimeSec`. */
+function limitRate(previous: number, next: number, ratePerSecond: number, deltaTimeSec: number): number {
+  if (!(deltaTimeSec > 0) || deltaTimeSec >= 1) return next
+  const limit = Math.max(0, ratePerSecond) * deltaTimeSec
+  return previous + clamp(next - previous, -limit, limit)
+}
+
+// ── Drift ─────────────────────────────────────────────────────────────────────────────────────
+const DRIFT_RATIOS = Object.freeze([1, 1.618, 2.414])
+
+function hash01(value: number): number {
+  const x = Math.sin(value * 12.9898 + 78.233) * 43758.5453
+  return x - Math.floor(x)
+}
+
+/**
+ * Smooth, deterministic wander in [-1, 1]: three incommensurate sine waves with phases derived from
+ * the seed and channel. A pure function of time, so exports and scrubbing reproduce the same motion.
+ */
+export function cinema2CameraDriftNoise(timeSec: number, speed: number, seed: number, channel: number): number {
+  const base = 2 * Math.PI * speed * timeSec
+  let sum = 0
+  let weightTotal = 0
+  DRIFT_RATIOS.forEach((ratio, index) => {
+    const weight = 1 / (1 + index * 0.7)
+    sum += weight * Math.sin(base * ratio + hash01(seed * 7.13 + channel * 3.71 + index * 1.91) * 2 * Math.PI)
+    weightTotal += weight
+  })
+  return sum / weightTotal
+}
+
+function applyDrift(
+  pose: CameraPose,
+  drift: Readonly<NonNullable<Cinema2CameraMotionManifest['drift']>>,
+  elapsedTimeSec: number,
+  amount: number,
+): CameraPose {
+  const speed = positive(drift.speed, 0.08)
+  const seed = finite(drift.seed, 0)
+  const time = Math.max(0, elapsedTimeSec)
+  const noise = (channel: number) => cinema2CameraDriftNoise(time, speed, seed, channel)
+  const positionAmplitude = Math.max(0, finite(drift.position, 0)) * amount
+  const targetAmplitude = Math.max(0, finite(drift.target, 0)) * amount
+  return {
+    ...pose,
+    position: addVec3(pose.position, freezeVec3([noise(0) * positionAmplitude, noise(1) * positionAmplitude * 0.6, noise(2) * positionAmplitude])),
+    target: addVec3(pose.target, freezeVec3([noise(3) * targetAmplitude, noise(4) * targetAmplitude * 0.6, noise(5) * targetAmplitude])),
+    rollDegrees: pose.rollDegrees + noise(6) * Math.max(0, finite(drift.rollDegrees, 0)) * amount,
+    fovDegrees: pose.fovDegrees + noise(7) * Math.max(0, finite(drift.fovDegrees, 0)) * amount,
+  }
+}
+
+// ── Spline paths ──────────────────────────────────────────────────────────────────────────────
+interface SplinePath {
+  positions: readonly Cinema2Vector3[]
+  targets: readonly Cinema2Vector3[]
+  fovs: readonly number[]
+  loop: boolean
+  segments: number
+  /** Cumulative arc length of the position curve at `u = index / SPLINE_SAMPLES_PER_SEGMENT`. */
+  arcLengths: Float64Array
+  totalLength: number
+}
+
+function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): number {
+  const t2 = t * t
+  const t3 = t2 * t
+  return 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t3)
+}
+
+function splineIndex(index: number, count: number, loop: boolean): number {
+  return loop ? ((index % count) + count) % count : clamp(index, 0, count - 1)
+}
+
+function evaluateSpline<T extends number | Cinema2Vector3>(values: readonly T[], loop: boolean, segments: number, u: number): T {
+  const count = values.length
+  const clampedU = clamp(u, 0, segments)
+  const segment = Math.min(segments - 1, Math.floor(clampedU))
+  const t = clampedU - segment
+  const at = (offset: number) => values[splineIndex(segment + offset, count, loop)]
+  const [a, b, c, d] = [at(-1), at(0), at(1), at(2)]
+  if (typeof b === 'number') return catmullRom(a as number, b, c as number, d as number, t) as T
+  const v = (i: number) => catmullRom((a as Cinema2Vector3)[i], (b as Cinema2Vector3)[i], (c as Cinema2Vector3)[i], (d as Cinema2Vector3)[i], t)
+  return freezeVec3([v(0), v(1), v(2)]) as T
+}
+
+function buildSplinePath(
+  rig: Extract<Cinema2CameraRigManifest, { kind: 'path' | 'fly' }>,
+  fallbackTarget: Cinema2Vector3,
+  fallbackFov: number,
+): Readonly<SplinePath> {
+  const loop = rig.loop === true
+  const positions = rig.points.map(point => freezeVec3(point.position))
+  const targets = rig.points.map(point => freezeVec3(point.target ?? fallbackTarget))
+  const fovs = rig.points.map(point => finite(point.fovDegrees, fallbackFov))
+  const segments = loop ? positions.length : positions.length - 1
+  const samples = segments * SPLINE_SAMPLES_PER_SEGMENT
+  const arcLengths = new Float64Array(samples + 1)
+  let previous = evaluateSpline(positions, loop, segments, 0)
+  for (let index = 1; index <= samples; index += 1) {
+    const point = evaluateSpline(positions, loop, segments, index / SPLINE_SAMPLES_PER_SEGMENT)
+    arcLengths[index] = arcLengths[index - 1] + distance(previous, point)
+    previous = point
+  }
+  return Object.freeze({ positions, targets, fovs, loop, segments, arcLengths, totalLength: Math.max(EPSILON, arcLengths[samples]) })
+}
+
+/** Inverse of the arc-length table: the spline parameter `u` at a given travelled distance. */
+function splineParameterAtLength(path: Readonly<SplinePath>, length: number): number {
+  const table = path.arcLengths
+  const clamped = clamp(length, 0, path.totalLength)
+  let low = 0
+  let high = table.length - 1
+  while (high - low > 1) {
+    const mid = (low + high) >> 1
+    if (table[mid] <= clamped) low = mid
+    else high = mid
+  }
+  const span = table[high] - table[low]
+  const fraction = span > EPSILON ? (clamped - table[low]) / span : 0
+  return (low + fraction) / SPLINE_SAMPLES_PER_SEGMENT
+}
+
+function sampleSplinePath(
+  path: Readonly<SplinePath>,
+  progress: number,
+  constantSpeed: boolean,
+): Pick<CameraPose, 'position' | 'target' | 'fovDegrees'> {
+  const p = clamp(progress, 0, 1)
+  const u = constantSpeed ? splineParameterAtLength(path, p * path.totalLength) : p * path.segments
+  return {
+    position: evaluateSpline(path.positions, path.loop, path.segments, u),
+    target: evaluateSpline(path.targets, path.loop, path.segments, u),
+    fovDegrees: evaluateSpline(path.fovs, path.loop, path.segments, u),
+  }
 }

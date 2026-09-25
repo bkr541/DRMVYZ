@@ -164,6 +164,32 @@ mirrored pillars/beams, and Low quality.
 Known limits: no shadows, so pools/beams ignore occluders (roadmap #10); frame-to-frame grain only averages out at normal playback rates (a step over
 100 ms deliberately restarts the volumetric history); Low quality allows only 2 lights (existing limit), so a 3-spot rig shows 2 there.
 
-### Next: #4 camera upgrades (smooth paths, slow drift, gentle bank, restrained FOV)
-Built on `spatial/Cinema2CameraRuntime.ts` (rigs static/orbit/path/fly; note it already has ~3 pre-existing TypeScript errors at lines 227-230). #5 (Three.js spike)
-remains independent. The stage preset still needs the drawable-primitive module (LED panels, truss).
+### #4 Camera upgrades — DELIVERED (2026-09-25), not committed by the assistant
+Everything is opt-in through one `camera.motion` block (`Cinema2CameraMotionManifest`), so cameras without it behave exactly as before. Runtime order:
+rig -> transition -> user controls -> target contributions -> drift -> safety clamp -> FOV rate limit -> smoothing -> bank -> matrices
+(`spatial/Cinema2CameraRuntime.ts`). Compile-time validation is `CINEMA2_PRESET_CAMERA_MOTION_INVALID`.
+- Smooth paths: `motion.interpolation: 'spline'` runs a Catmull-Rom curve through path/fly points (position, target and FOV) instead of straight segments;
+  `constantSpeed` (default true with spline) reparametrizes by arc length so speed is even across uneven waypoint spacing; `loop` closes the curve without
+  a kink; speed-based durations use the curve length. Linear stays the default. The arc-length table uses 200 samples per segment (24 caused +-10% speed jitter).
+- Slow drift: `motion.drift` { position, target, rollDegrees, fovDegrees, speed, seed }: three incommensurate sines per channel, a pure function of
+  time, so exports and scrubbing are reproducible. `controls.motionAmount` scales drift and bank together (0 = locked off).
+- Bank: `motion.bank` { maxDegrees, gain, smoothingMs } leans the camera into turns from the heading change of its own (pre-drift) travel, and relaxes to
+  level on straight runs or when stopped. Positive roll = right bank.
+- Roll: a fixed `motion.rollDegrees` and a writable camera `roll` target (present only on cameras that author `motion`), so choreography can lean the camera
+  on the beat. `Cinema2CameraFrame` gained `rollDegrees` (0 for implicit/unauthored cameras); the view matrix takes roll.
+- Restrained FOV: `motion.fovRateLimitDegreesPerSecond` caps how fast the lens can change, so FOV pulses can't jerk.
+- `presets/Cinema2CameraMotionAuthoring.ts`: `cinema2CinematicMotion('steady' | 'gentle' | 'dynamic', { splinePath?, overrides? })`.
+- Atmosphere Reference now uses an 80 s closed dolly (6 points, varying radius/height, all above the floor), `gentle` motion, a Camera Motion control, and a
+  0.3-beat eased 1.2 degree roll lean on the downbeat. It replaces the old orbit camera in that preset only.
+Also fixed as a side effect: the 3 pre-existing TypeScript errors in `Cinema2CameraRuntime.ts` (null vs undefined control reads).
+Verified: 16 new camera tests (linear vs spline corners and speed, waypoint pass-through, loop seam, drift bounds/determinism/seed/motionAmount, bank sign
+and limits, level on straight runs, roll target composition, FOV rate limit, validation, reference-dolly guarantees); lint/typecheck clean; `Cinema2` folder
+failure set identical to clean HEAD; a real-browser 40 s run on the M3 Pro (camera stayed 0.65-1.83 above the -1.2 floor, bank -3.1..+0.7 degrees, FOV
+45.5-46.6, per-frame step 0.0167-0.0219 including drift) with frames from several vantage points.
+Known limits: bank follows horizontal heading only (no pitch/vertical banking); drift adds to the pose before the safety clamp, so a preset with a very
+tight `maxPositionOffset` will clip it; the roll target is only exposed when `motion` is authored.
+
+### Roadmap status
+#1-#4 (all the native, no-Three.js work) are done. Remaining, in order: #5 Three.js spike (independent, can start any time), then #6 runtime module, #7
+asset pipeline, #8 PBR/environment lighting, #9 instancing, #10 limited shadows (also the fix for beams/pools ignoring occluders). The stage/LED-hall preset
+can be built now on #1-#4 plus a small drawable-primitive module (LED panels, truss).

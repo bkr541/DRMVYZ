@@ -281,6 +281,8 @@ export function compileCinema2TargetPlan(
     else addTarget(entity, 'orthographicHeight', 'number', camera.orthographicHeight ?? 5, { min: 0.0001 })
     addTarget(entity, 'near', 'number', camera.near ?? 0.1, { min: 0.0001 })
     addTarget(entity, 'far', 'number', camera.far ?? 1000, { min: 0.0001 })
+    // Only cameras that author cinematic motion expose roll, so existing camera target sets are unchanged.
+    if (camera.motion) addTarget(entity, 'roll', 'number', camera.motion.rollDegrees ?? 0, { min: -45, max: 45 })
   }
 
   for (const light of manifest.lighting?.lights ?? []) {

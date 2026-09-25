@@ -56,7 +56,11 @@ export {
   type Cinema2CameraTransitionEasing,
   type Cinema2CameraTransitionManifest,
   type Cinema2CoordinateSpace,
+  type Cinema2CameraBankManifest,
+  type Cinema2CameraDriftManifest,
   type Cinema2CameraManifest,
+  type Cinema2CameraMotionManifest,
+  type Cinema2CameraPathInterpolation,
   type Cinema2CapabilityId,
   type Cinema2Color,
   type Cinema2CapabilityRequirement,
@@ -435,6 +439,7 @@ export {
 
 export {
   CINEMA2_CAMERA_RUNTIME_VERSION,
+  cinema2CameraDriftNoise,
   Cinema2CameraRuntime,
   createCinema2OrthographicProjection,
   createCinema2PerspectiveProjection,
@@ -571,6 +576,12 @@ export {
 } from './presets/Cinema2ReactorPreset'
 
 export {
+  cinema2CinematicMotion,
+  type Cinema2CinematicMotionLevel,
+  type Cinema2CinematicMotionOptions,
+} from './presets/Cinema2CameraMotionAuthoring'
+
+export {
   cinema2LightGroupStaggerRanks,
   expandCinema2LightGroupChoreography,
   type Cinema2LightGroupDiagnostic,
@@ -597,6 +608,7 @@ export {
   CINEMA2_ATMOSPHERE_REFERENCE_KEY_GROUP_ID,
   CINEMA2_ATMOSPHERE_REFERENCE_LEFT_LIGHT_ID,
   CINEMA2_ATMOSPHERE_REFERENCE_MIST_ID,
+  CINEMA2_ATMOSPHERE_REFERENCE_MOTION_ID,
   CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_MODULE_ID,
   CINEMA2_ATMOSPHERE_REFERENCE_PRESET_ID,
   CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST,

@@ -25,6 +25,7 @@ import {
   type Cinema2Vector3,
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
+import { cinema2CinematicMotion } from './Cinema2CameraMotionAuthoring'
 import {
   cinema2LightRigAlternate,
   cinema2LightRigHit,
@@ -47,6 +48,7 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_MIST_ID = cinema2StableId<Cinema2Param
 export const CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-reactivity')
 export const CINEMA2_ATMOSPHERE_REFERENCE_BLOOM_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-bloom')
 export const CINEMA2_ATMOSPHERE_REFERENCE_FLOOR_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-floor')
+export const CINEMA2_ATMOSPHERE_REFERENCE_MOTION_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-camera-motion')
 export const CINEMA2_ATMOSPHERE_REFERENCE_FINISH_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-finish')
 
 export const CINEMA2_ATMOSPHERE_REFERENCE_CAMERA_ID = cinema2StableId<Cinema2CameraId>('atmosphere-reference-camera')
@@ -91,7 +93,22 @@ const FLOOR_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('atmosphere-referen
 const BLOOM_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('atmosphere-reference-bloom-output')
 const FINISH_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('atmosphere-reference-finish-input')
 const DOWNBEAT_RULE_ID = cinema2StableId<Cinema2ChoreographyRuleId>('atmosphere-reference-downbeat-beam')
+const DOWNBEAT_ROLL_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('atmosphere-reference-downbeat-camera-lean')
 const DOWNBEAT_BEAM_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('atmosphere-reference-downbeat-beam-swell')
+
+/**
+ * A slow closed dolly loop around the stage. Radius and height vary point to point, so the spline has
+ * real S-curves for the camera to bank through, and every point stays above the floor plane.
+ */
+function dollyLoop() {
+  const centre = [0, -0.4, -1.2]
+  const radii = [8, 6.2, 8.4, 6.6, 8.2, 6.4]
+  const heights = [0.8, 1.6, 0.6, 1.8, 0.7, 1.5]
+  return Object.freeze(radii.map((radius, index) => {
+    const angle = (index / radii.length) * Math.PI * 2 - 0.4
+    return Object.freeze({ position: vec3(centre[0] + Math.sin(angle) * radius, heights[index], centre[2] + Math.cos(angle) * radius) })
+  }))
+}
 
 function vec3(x: number, y: number, z: number): Cinema2Vector3 { return Object.freeze([x, y, z]) }
 function color(r: number, g: number, b: number, a = 1): Cinema2Color { return Object.freeze([r, g, b, a]) }
@@ -188,6 +205,7 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_MIST_ID, 'Ground Mist', 'Extra mist that pools near the floor.', 0.35, 0, 3, 0.05, 12, 'Atmosphere'),
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID, 'Reactivity', 'How strongly haze and beams swell with the Visual Director’s musical impact.', 0.8, 0, 2, 0.05, 20, 'React'),
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_FLOOR_ID, 'Floor Reflection', 'How mirror-like the wet stage floor is.', 0.7, 0, 1, 0.05, 13, 'Atmosphere'),
+    floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_MOTION_ID, 'Camera Motion', 'Scales the handheld drift and banking of the dolly camera (0 = locked off).', 1, 0, 1.5, 0.05, 40, 'Camera'),
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_BLOOM_ID, 'Bloom', 'Glow added around bright beams.', 0.9, 0, 3, 0.05, 30, 'Post'),
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_FINISH_ID, 'Cinematic Finish', 'Amount of filmic tone curve, grade, vignette, fringing and grain.', 1, 0, 1, 0.05, 31, 'Post'),
   ]),
@@ -233,13 +251,15 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
   cameras: Object.freeze([
     Object.freeze({
       id: CINEMA2_ATMOSPHERE_REFERENCE_CAMERA_ID,
-      label: 'Atmosphere Orbit',
+      label: 'Atmosphere Dolly',
       projection: 'perspective' as const,
       targetNode: cinema2Ref(FOCUS_NODE_ID),
       fovDegrees: 46,
       near: 0.1,
       far: 60,
-      rig: Object.freeze({ kind: 'orbit' as const, radius: 8.4, azimuthDegrees: -24, elevationDegrees: 7, angularVelocityDegreesPerSecond: 2.2 }),
+      rig: Object.freeze({ kind: 'fly' as const, points: dollyLoop(), durationSeconds: 80, loop: true }),
+      motion: cinema2CinematicMotion('gentle', { splinePath: true }),
+      controls: Object.freeze({ motionAmount: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_MOTION_ID) }),
     }),
   ]),
   lighting: Object.freeze({
@@ -391,6 +411,16 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
             composition: 'add' as const,
             value: 2.2,
             envelope: Object.freeze({ attack: 0, hold: 0.1, release: 0.9, unit: 'beats' as const }),
+            retrigger: 'restart' as const,
+          }),
+          // A small lean into the downbeat, on the writable camera roll target.
+          Object.freeze({
+            id: DOWNBEAT_ROLL_ACTION_ID,
+            target: Object.freeze({ kind: 'camera' as const, ref: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_CAMERA_ID), property: 'roll' }),
+            operation: 'envelope' as const,
+            composition: 'add' as const,
+            value: 1.2,
+            envelope: Object.freeze({ attack: 0.3, hold: 0, release: 1.2, unit: 'beats' as const }),
             retrigger: 'restart' as const,
           }),
         ]),
