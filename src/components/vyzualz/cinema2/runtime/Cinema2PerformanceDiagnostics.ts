@@ -47,7 +47,7 @@ export class Cinema2PerformanceDiagnostics {
   private fastSamples = 0
   private degraded = false
   private degradationReason: string | null = null
-  private readonly ext: any
+  private ext: any
   private pendingGpuQuery: WebGLQuery | null = null
   private activeGpuQuery: WebGLQuery | null = null
 
@@ -57,8 +57,25 @@ export class Cinema2PerformanceDiagnostics {
     private readonly diagnosticsEnabled = true,
   ) {
     this.requestedMode = mode
-    this.ext = diagnosticsEnabled && typeof gl.getExtension === 'function'
-      ? gl.getExtension('EXT_disjoint_timer_query_webgl2')
+    this.ext = this.acquireTimerExtension()
+  }
+
+  /** Query handles and the extension object die with the context; drop them so nothing touches the lost context. */
+  handleContextLost(): void {
+    this.ext = null
+    this.activeGpuQuery = null
+    this.pendingGpuQuery = null
+    this.gpuFrameTimeMs = null
+  }
+
+  /** Extensions must be requested again after a restore, otherwise timer queries raise INVALID_ENUM and poison render-target validation. */
+  handleContextRestored(): void {
+    this.ext = this.acquireTimerExtension()
+  }
+
+  private acquireTimerExtension(): any {
+    return this.diagnosticsEnabled && typeof this.gl.getExtension === 'function'
+      ? this.gl.getExtension('EXT_disjoint_timer_query_webgl2')
       : null
   }
 

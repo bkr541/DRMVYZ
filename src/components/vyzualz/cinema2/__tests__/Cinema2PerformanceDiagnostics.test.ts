@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
 import {
   CINEMA2_ELECTRIC_STORM_PRESET_ID,
@@ -36,6 +36,44 @@ describe('Cinema2 performance quality and diagnostics', () => {
       cpuFrameTimeAverageMs: null,
     })
     disabled.dispose()
+  })
+
+  it('requests the GPU timer extension again after a context restore and drops stale queries on loss', () => {
+    const gl = createCinemaMockWebGL()
+    const extension = { TIME_ELAPSED_EXT: 0x88bf, GPU_DISJOINT_EXT: 0x8fbb }
+    let extensionEnabled = true
+    gl.getExtension = vi.fn((name: string) => (name === 'EXT_disjoint_timer_query_webgl2' && extensionEnabled ? extension : null)) as typeof gl.getExtension
+    Object.assign(gl, {
+      createQuery: vi.fn(() => ({})),
+      beginQuery: vi.fn(),
+      endQuery: vi.fn(),
+      deleteQuery: vi.fn(),
+      getQueryParameter: vi.fn(() => false),
+    })
+    const telemetry = new Cinema2PerformanceDiagnostics(gl, 'auto')
+    expect(telemetry.getSnapshot().gpuTimingSupported).toBe(true)
+    telemetry.beginGpuFrame()
+
+    telemetry.handleContextLost()
+    expect(telemetry.getSnapshot().gpuTimingSupported).toBe(false)
+    const queriesBeforeRestore = vi.mocked(gl.beginQuery).mock.calls.length
+    telemetry.beginGpuFrame()
+    telemetry.endGpuFrame()
+    expect(vi.mocked(gl.beginQuery).mock.calls.length).toBe(queriesBeforeRestore)
+
+    const requestsBeforeRestore = vi.mocked(gl.getExtension).mock.calls.length
+    telemetry.handleContextRestored()
+    expect(vi.mocked(gl.getExtension).mock.calls.length).toBeGreaterThan(requestsBeforeRestore)
+    expect(telemetry.getSnapshot().gpuTimingSupported).toBe(true)
+    telemetry.beginGpuFrame()
+    expect(vi.mocked(gl.beginQuery).mock.calls.length).toBe(queriesBeforeRestore + 1)
+
+    // A restore where the extension is unavailable must degrade to CPU-only timing instead of throwing.
+    extensionEnabled = false
+    telemetry.handleContextLost()
+    telemetry.handleContextRestored()
+    expect(telemetry.getSnapshot().gpuTimingSupported).toBe(false)
+    telemetry.dispose()
   })
 
   it('exposes one shared engine-level quality control across every reference preset', () => {

@@ -260,10 +260,13 @@ Findings that shape #6 (all reproducible with the reference code):
 - Not tested: skinned/animated meshes, transmission, shadow maps (that is #10), transparent sorting against engine effects, more than one Three module, very long
   (hours) flights, a real sculpted asset (the hero was a procedural torus knot with procedural maps, so overdraw and texture detail are optimistic).
 
-Pre-existing engine bug found by the spike (reproduces with NO Three code): after a WebGL context restore the engine never re-requests
-`EXT_disjoint_timer_query_webgl2`, so its timer queries raise INVALID_ENUM, the sticky error makes render-target creation fail ("could not be resolved ... reported
-WebGL errors") and every frame fails until the runtime is recreated. The spike worked around it by requesting the extension in a `webglcontextrestored` listener
-registered before the engine's. A real fix is one `getExtension` call in the engine's restore path. Not fixed (out of scope); tell the owner.
+Pre-existing engine bug found by the spike (reproduced with NO Three code) - FIXED 2026-09-25, not committed by the assistant: `Cinema2PerformanceDiagnostics` requested
+`EXT_disjoint_timer_query_webgl2` once in its constructor and never again, so after a WebGL context restore its timer queries raised INVALID_ENUM, the sticky error made
+render-target creation fail ("could not be resolved ... reported WebGL errors") and EVERY frame failed until the runtime was recreated (60 of 60 frames in a real-Chrome
+lose/restore test on the Atmosphere Reference preset). Fix: `handleContextLost()` (drop the extension and stale query handles) and `handleContextRestored()` (request the
+extension again), called from the runtime's context-loss cleanup list and restore sequence in `runtime/Cinema2Runtime.ts`. Verified in real Chrome: without the fix 60/60
+frames fail with GL error 0x500; with it 0 failed frames, no GL errors, timing supported again. New unit test in `__tests__/Cinema2PerformanceDiagnostics.test.ts`
+(Cinema2 folder: same 15 failing files / 40 failing tests as before, 558 passing).
 
 Decision: GO. #6 uses (in order): shared renderer per context; external-framebuffer handoff (RT+copy kept as the documented fallback if a future Three version breaks
 the XR-flag path); `resetState()` + a minimal GL guard around every Three pass (query only framebuffers, viewport, scissor, blend/depth/cull enables, depth func and
@@ -287,8 +290,7 @@ not include it never loads Three. Design inputs are the #5 decisions above; the 
 - Quality gating: low = simplified materials + LOD1 + smaller textures (via #7 variants); medium/high progressively richer. Budget: extend `Cinema2ModuleResourceFacet.acquire`
   (or add a sibling) with a byte-estimate callback and include it in `Cinema2PerformanceDiagnostics` so auto-quality can react.
 - Lifecycle/robustness: dispose scene content on preset exit (live GL counts must return to the shared-renderer baseline: 20-cycle test), rebuild the renderer and every
-  GPU-generated resource after a context loss (keep decoded CPU data), preset re-entry resets state deterministically. Consider fixing the pre-existing timer-query restore bug first
-  (it makes context-loss recovery fail for every preset).
+  GPU-generated resource after a context loss (keep decoded CPU data), preset re-entry resets state deterministically. The pre-existing timer-query restore bug is fixed (see #5), so context-loss recovery can be tested through the real Runtime.
 - Add `@types/three` (matching version) and a contract test that renders a probe sphere and checks color (sRGB 0.5 -> 128) and depth (<= 1e-4 vs analytic) through the real Runtime path.
 Acceptance: a test preset with one shipped model renders through the real Runtime path with correct occlusion by/against other modules; leaving and re-entering the preset
 leaks nothing; missing/corrupt asset produces a diagnostic and a safe skip; quality change measurably reduces cost; bundle check confirms zero cost when unused.
@@ -437,7 +439,6 @@ Gotchas
 
 ## Where we are and what happens next
 DONE: #1-#4, the Threshold preset with refinement batch A, and the #5 Three.js spike (GO; report above; reference code in `docs/cinema2-three-spike/`). All uncommitted by the
-assistant; the owner commits. The only repo change from #5 is the `three@0.186.1` dependency (package.json + package-lock.json). NEXT: #6 (the Three.js runtime module), designed
-from the #5 decisions. Consider first: (a) the one-line pre-existing engine fix for context restore (timer-query extension), because it breaks recovery for every preset;
-(b) #7a native textures and the asset-format decision (the spike argues for KTX2), which #6 needs before it ships a real model. Open decisions below still apply.
+assistant; the owner commits. The only repo change from #5 is the `three@0.186.1` dependency (package.json + package-lock.json). The context-restore engine bug found by the spike is fixed. NEXT: #6 (the Three.js runtime module), designed
+from the #5 decisions. Consider first: #7a native textures and the asset-format decision (the spike argues for KTX2), which #6 needs before it ships a real model. Open decisions below still apply.
 Keep verifying in a real browser, keep the baseline failing set unchanged, do not commit.

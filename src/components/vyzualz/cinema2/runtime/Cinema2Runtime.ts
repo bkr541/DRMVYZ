@@ -518,6 +518,7 @@ export class Cinema2Runtime {
         ['modules', () => this.moduleRuntime.handleContextLost()],
         ['media', () => this.mediaSlotRuntime.handleContextLost()],
         ['resources', () => this.resourceManager.handleContextLost()],
+        ['performance diagnostics', () => this.performanceDiagnostics.handleContextLost()],
       ])
       this.emitSnapshot()
     }
@@ -529,6 +530,7 @@ export class Cinema2Runtime {
       this.statusMessage = null
       try {
         this.cameraRuntime.reset()
+        this.performanceDiagnostics.handleContextRestored()
         this.resourceManager.handleContextRestored()
         this.historyService.handleContextRestored()
         this.renderGraphExecutor.handleContextRestored()
