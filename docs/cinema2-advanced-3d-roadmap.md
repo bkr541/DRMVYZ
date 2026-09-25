@@ -1,11 +1,50 @@
 # Cinema 2.0 — Advanced 3D Visuals: Decisions, Findings, Build Order and Handoff
 
 Handoff document, written so a new session (or a session that ran out of context) can resume with no other memory.
-READ ORDER: 1) this file, top to bottom; 2) `DRMVYZ_Cinema_2_0_Preset_Creation_Contract.md` and `AI_IMPLEMENTATION_CONTRACT.md` (repo root);
-3) then start at "Where we are and what happens next".
+READ ORDER: 1) "STATUS SUMMARY" right below (the fastest way to review everything done and everything left); 2) the rest of this file as needed;
+3) `DRMVYZ_Cinema_2_0_Preset_Creation_Contract.md` and `AI_IMPLEMENTATION_CONTRACT.md` (repo root); 4) then "Where we are and what happens next" at the end.
 
-Contents: Goal · Reference images · Principles · Working rules · What exists today (post-#4) · Roadmap table · Detailed plan for every step
-(#1-#4 delivered, #5-#10 specified) · Threshold preset (delivered) and its refinement plan · Practical recipes and gotchas · Open decisions for the owner.
+Contents: STATUS SUMMARY · Goal · Reference images · Principles · What exists today · Roadmap table · Working rules · Delivered work (#1-#4, Threshold) · Detailed plan and results for #5-#10
+(#5 and #6 delivered, #7-#10 specified) · Threshold refinement plan and batches A and B · Practical recipes and gotchas · Open decisions for the owner.
+
+## STATUS SUMMARY (updated 2026-09-25, end of the session that delivered #5, #6 and Threshold batch B)
+Everything below is committed in git by the owner (latest commit at the time of writing: "Threshold preset reference image fixes"). Working rules: the owner commits; never `git stash`; verify graphics claims in real Chrome
+(Electron for packaging/protocol claims); ask questions in plain text, not popups; reuse existing components; never promise pixel-perfect matches to the references; Blender is not part of the plan.
+
+### What was accomplished (steps 1-6 and the Threshold preset)
+| # | Delivered | Key facts |
+|---|---|---|
+| 1 | `volumetric-atmosphere` effect | Depth-aware haze, ground mist, light beams from the light list, optional screen-space shafts; reduced-resolution march + temporal blend; ~6 ms at 1080p high |
+| 2 | Light rig + choreography vocabulary | `beat-interval` condition (every Nth beat/bar/phrase), named light groups with stagger, authoring helpers (alternate, hit, phrase arrangement, ramp) |
+| 3 | `cinematic-finish` + `reflective-floor` effects | Tone/grade/vignette/fringing/grain; virtual mirror floor plane with SSR reflections and light pools; volumetric can stop at and reflect in the floor; 5-pass chain ~9.3 ms high |
+| 4 | Camera upgrades | Opt-in `camera.motion`: Catmull-Rom splines at constant speed, deterministic drift, bank, roll target, FOV rate limit, `repeatOffset` endless travel |
+| 5 | Three.js spike (GO) | `three@0.186.1` pinned; Three draws straight into the engine framebuffer (`setRenderTargetFramebuffer` + XR-target flag), depth error ~2e-5, Three pass ~1 ms at 1080p; one shared renderer per GL context; minimal GL state guard; fixed light rig with calibrated intensity mapping; lazy chunks (three 190 KB gzip); works in real Electron; 10k-frame soak and 20 create/dispose cycles clean; reference code in `docs/cinema2-three-spike/` |
+| - | Engine fix found by the spike | `Cinema2PerformanceDiagnostics` never re-requested the timer-query extension after a context restore, so every frame failed until reload (reproduced with no Three code); fixed (`handleContextLost/Restored`) and unit-tested |
+| 6 | `three-scene` module | Lazy-loaded shipped GLB models (meshopt), asset registry by id (never URLs), reference-counted asset cache, placement from Scene Graph nodes, optional material parameters (color, emissive, roughness, metalness, environmentIntensity), quality tiers (low drops normal/AO maps), warm-up (`compileAsync`, one texture upload per frame), missing/corrupt asset -> diagnostic and skip; engine additions `reportGpuBytes` and `getDiagnostics`; internal "Three Model Reference" preset and a shipped 159 KB reference GLB; Three pass 0.8-1.4 ms; context loss recovers in ~6 frames |
+| - | Threshold preset (`drmvyz.cinema2.threshold`) | 15 controls (4 Design parent groups), music map (kick, snare, beat, downbeat, phrase, build, drop, bass, highs, vocals), endless flight through corridor / hanging field / ring |
+| - | Threshold batch A | Symmetric evenly spaced colonnade, centred camera, FOV 68, pure white screens, neutral grade |
+| - | Threshold batch B | Housing towers with bezels/plinths/status lights lit analytically by their own screen (native, NOT Three: Threshold flies an endless camera-relative lap and `three-scene` places models at fixed nodes); vanishing-point glow; wet-concrete `grit` option on `reflective-floor`; bluer grade; 7 pairs at 13.3 spacing. 1080p whole chain: high 7.0-8.0 ms, medium 3.75, low 3.7 |
+Test state: `npx vitest run src/components/vyzualz/cinema2` = the same 15 failing files / 40 failing tests that pre-date all this work (listed under "What exists today"), 576 passing; lint and typecheck clean for touched files.
+
+### Remaining issues and limits (known, not fixed)
+- Threshold vs the reference: no billowing smoke (haze is smooth noise); shafts are not blocked by the towers (no shadows); floor is rippled wet concrete but reads a little like water at flybys and has no real concrete texture or puddle glare; the screens do not light the floor or air (only the towers); housings are boxes without bolts/bevels/overhead structure; only 7 receding pairs; the hanging field and ring were not touched; low tier is dearer than before batch B (3.7 ms vs 1.9 ms, cause not investigated).
+- `three-scene`: no Draco (meshopt or uncompressed only); one set of material overrides per module (no per-instance overrides); no skinned/animated meshes; no MSAA; layer `depthPolicy` is not passed to world providers (Three always tests and writes depth); quality variant chosen only when loading starts (a later low->high switch changes materials only and recompiles shaders once); environment is the procedural RoomEnvironment; no visible preset uses it yet.
+- Engine: no shadows (beams and pools ignore occluders); no runtime camera switching/cuts; precision degrades after hours of endless travel (effects reconstruct positions from camera matrices); the SVG extruder fails on hexagons (Spatial Reference preset fails 2 tests, pre-existing); scene `primitive` nodes draw nothing.
+- Asset/installer: `three` adds ~190 KB gzip lazily; uncompressed 2k PBR sets cost ~50 MB GPU each (4k ~250 MB, above the 256 MB high budget), so texture compression (KTX2) is needed before real assets ship.
+
+### Remaining steps and what each would add (none started)
+| Step | Purpose | What it fixes / adds (Threshold and beyond) | Notes and cautions |
+|---|---|---|---|
+| #7a native textures | Engine `Cinema2AssetTextureService`: shipped images into GL textures with mipmaps, budgeted and disposed | Floor normal/roughness maps -> real cracked concrete, fewer "water" ripples (high confidence); tileable smoke/noise textures for the haze (medium); grime/normal maps for the Threshold housings (needs the native module renderer to accept textures too) | Needs the texture format decision (KTX2 recommended) and an installer budget |
+| #7b asset pipeline | Build-time `assets:build` / `assets:check` (license allowlist, triangle/texture/GPU/installer budgets, attribution, generated manifest + `Cinema2AssetId` types) | Modelled housing detail (bevels, bolts, base rails), shippable skull/alien/rock assets, compressed textures | A Three-rendered housing cannot repeat along Threshold's endless lap unless `three-scene` learns lap repetition; the current hand-authored asset manifest gets replaced by the generated one |
+| #8 PBR + environment lighting | Physical materials, shipped HDR environment, area lights for emissive panels | Floor glare/pools from the screens (could also be approximated natively), real environment reflections for screen-space misses, glossy skull/alien/wet rock; LESS important for Threshold's own housings (already lit analytically) | Area lights need Standard/Physical materials, no shadows from area lights; cost scales with light count |
+| #9 instancing + distance detail | Generalise Threshold's instanced box renderer; Three `InstancedMesh`, LODs, impostors | More receding towers, overhead truss/cable detail, smoke drawn as textured billboards at the tower bases (with #7a), foliage/rocks for the jungle/cave | Native half needs no Three; per-tier instance budgets and deterministic seeded scatter |
+| #10 limited shadows | One engine-owned shadow map for one key light shared by native modules, Three and effects | Towers visibly block the light shafts (the reference's signature look), occluded floor pools, grounded shadows | Threshold's key light would have to follow the camera along the endless flight (re-render the shadow map each frame; measure cost); volumetric march gets a shadow fetch per step |
+Recommended order for the Threshold reference look: #7a, then the native half of #10, then the native half of #9, then #8 only if the floor glare still looks flat. Realistic expectation: composition, mood and main features (concrete floor, blocked beams, smoke) can converge;
+offline-render quality (global illumination, simulated accumulated smoke) cannot be matched at 60 fps.
+
+### Decisions still needed from the owner
+Installer-size budget (proposal: at most +50 MB for the first wave); where source assets live (repo, Git LFS or an external bucket); texture format (KTX2 recommended, WebP simpler but ~4-8x more VRAM); whether to add runtime camera cuts; whether Threshold becomes the base for further stage presets. Details in "Open decisions for the owner".
 
 ## Goal
 Raise the visual ceiling of the Cinema 2.0 engine so it can ship far more cinematic, music-choreographed
@@ -38,7 +77,7 @@ composition, palette and musical behavior — not pixel-for-pixel. Judge results
   (96/160/256 MB in `runtime/Cinema2PerformanceDiagnostics.ts`).
 - Blender is NOT part of the plan; assets can come from libraries (e.g. Poly Haven), any 3D tool that exports GLB, or code.
 
-## What exists today (verified 2026-09-25, after #1-#4 and Threshold)
+## What exists today (verified 2026-09-25, after #1-#6 and Threshold batches A and B)
 All under `src/components/vyzualz/cinema2/` unless noted. `three@0.186.1` (+ `@types/three@0.186.0`, exact pins) is used only through lazy `import()` in `modules/three/`; the `three-scene` module (#6) loads shipped GLB models with GLTFLoader + the meshopt decoder.
 - Modules (`modules/Cinema2ModuleContracts.ts`): create/update/dispose lifecycle; render providers (`intent: 'fullscreen' | 'world'`) get the shared
   WebGL2 context, an engine-owned framebuffer, optional depth (`depthAvailable`), `spatialNodes`, `camera` (`Cinema2CameraFrame`), `lightingEnvironment`,
@@ -104,7 +143,7 @@ Threshold gaps are geometry/tuning (native) and assets (#7), and #5 is a go/no-g
 Original design intent for #1: an effect/render-graph pass raymarching the view ray with depth + light list; its depth input accepts ANY module's depth (so a
 future Three.js module works); without depth it degrades to unoccluded haze. Delivered as below.
 
-### #1 Volumetric atmosphere — DELIVERED (2026-09-25), not committed by the assistant
+### #1 Volumetric atmosphere — DELIVERED (2026-09-25)
 Files: `effects/Cinema2VolumetricAtmosphereEffect.ts` (effect `volumetric-atmosphere` v1, registered in `Cinema2EffectRegistry.ts`),
 `presets/Cinema2AtmosphereReferencePreset.ts` (visible "Atmosphere Reference" preset, role `reference`; add the `internal` tag to hide it),
 `__tests__/Cinema2VolumetricAtmosphere.test.ts` (11 tests). Contract changes: effect executions now receive `camera`,
@@ -124,7 +163,7 @@ existing preset (opt-in per preset by adding a pass fed by scene color + depth).
 Verification: 11 new unit tests pass; `Cinema2` test folder failure set is identical to clean HEAD (40 pre-existing failures);
 real-browser screenshots checked for baseline-off, default, downbeat, low quality, full-resolution fallback and screen-space shafts.
 
-### #2 Performance light rig + choreography vocabulary — DELIVERED (2026-09-25), not committed by the assistant
+### #2 Performance light rig + choreography vocabulary — DELIVERED (2026-09-25)
 The unverified question is settled: choreography already had beat/downbeat/bar/phrase/drop/section signals, envelopes, hold-for-duration,
 delay/quantize, variations and director-phase conditions, but could not say "every Nth beat" or address a set of lights. Added:
 - `beat-interval` condition (`every`, `phase`, `unit: beat | bar | phrase`): passes when `counter % every === phase`; counters come from the
@@ -148,7 +187,7 @@ key lit, sides lit, the staggered downbeat sweep and the phrase blackout.
 Not done: color swapping (a `set-for-duration` on a color would scale it by event strength, so alternation is done with intensity groups of
 differently colored lights instead); nothing yet consumes `bar`/`drop` hits in a shipped preset beyond the helpers being available.
 
-### #3 Cinematic finishing + reflective floor — DELIVERED (2026-09-25), not committed by the assistant
+### #3 Cinematic finishing + reflective floor — DELIVERED (2026-09-25)
 Two new opt-in effects (registered in `Cinema2EffectRegistry`, shared parameter helpers in `effects/Cinema2EffectParameterHelpers.ts`) plus a floor hook in
 the volumetric effect. A reflective floor did NOT need a drawable primitive after all: it is a virtual plane, so scene `primitive` nodes still draw
 nothing and the drawable-primitive module is now only needed for the stage preset's LED panels and truss.
@@ -173,7 +212,7 @@ mirrored pillars/beams, and Low quality.
 Known limits: no shadows, so pools/beams ignore occluders (roadmap #10); frame-to-frame grain only averages out at normal playback rates (a step over
 100 ms deliberately restarts the volumetric history); Low quality allows only 2 lights (existing limit), so a 3-spot rig shows 2 there.
 
-### #4 Camera upgrades — DELIVERED (2026-09-25), not committed by the assistant
+### #4 Camera upgrades — DELIVERED (2026-09-25)
 Everything is opt-in through one `camera.motion` block (`Cinema2CameraMotionManifest`), so cameras without it behave exactly as before. Runtime order:
 rig -> transition -> user controls -> target contributions -> drift -> safety clamp -> FOV rate limit -> smoothing -> bank -> matrices
 (`spatial/Cinema2CameraRuntime.ts`). Compile-time validation is `CINEMA2_PRESET_CAMERA_MOTION_INVALID`.
@@ -198,7 +237,7 @@ failure set identical to clean HEAD; a real-browser 40 s run on the M3 Pro (came
 Known limits: bank follows horizontal heading only (no pitch/vertical banking); drift adds to the pose before the safety clamp, so a preset with a very
 tight `maxPositionOffset` will clip it; the roll target is only exposed when `motion` is authored.
 
-### Threshold preset (first consumer of #1-#4) — DELIVERED (2026-09-25), not committed by the assistant
+### Threshold preset (first consumer of #1-#4) — DELIVERED (2026-09-25)
 A visible first-party keeper, `drmvyz.cinema2.threshold` ("Threshold"), built to test whether the native stack reaches the monolith reference renders.
 - Files: `presets/Cinema2ThresholdPreset.ts`, `modules/Cinema2ThresholdNativeModule.ts` (instanced monolith renderer), `modules/threshold/` (`Layout`,
   `ReactiveState`, `Renderer`), `__tests__/Cinema2Threshold.test.ts` (18 tests when first delivered, 22 after batch A). Extra platform changes made for it: camera path `repeatOffset` (endless travel
@@ -222,13 +261,13 @@ A visible first-party keeper, `drmvyz.cinema2.threshold` ("Threshold"), built to
   leaves some dotted noise on the floor where bright reflections are thin; the ring reads as tall fins, not the radial ring hall; the fine LED grid fades with distance to
   avoid moire.
 
-## Detailed plan: steps #5-#10 (not started)
+## Detailed plan and results: steps #5-#10 (#5 and #6 delivered, #7-#10 not started)
 Common rules for every step: opt-in per preset and zero cost when unused; honor `Cinema2RenderQualityLevel` (low/medium/high) and the GPU budgets (96/160/256 MB in
 `runtime/Cinema2PerformanceDiagnostics.ts`); deterministic (no wall-clock randomness; use the engine random service / seeded generators); dispose everything
 (verify with the mock-GL create/delete counters, as `Cinema2Threshold.test.ts` does); verify visually in a real browser before claiming a result; keep the
 existing failing-test set unchanged; the owner commits.
 
-### #5 Three.js spike (go/no-go gate) — DONE 2026-09-25: GO (all pass criteria met), not committed by the assistant
+### #5 Three.js spike (go/no-go gate) — DONE 2026-09-25: GO (all pass criteria met)
 Question: can Three.js live inside the Cinema 2.0 render graph? Answer: yes, with one handoff design, one shared renderer per GL context and a GL state guard
 (all measured below). Reference code is kept in `docs/cinema2-three-spike/` (see its README); nothing in `src/` uses Three yet. The only repo change is the pinned
 dependency `three@0.186.1` (exact, in `package.json`); `@types/three` is NOT installed yet (add it in #6 so `tsc` can check the module).
@@ -260,7 +299,7 @@ Findings that shape #6 (all reproducible with the reference code):
 - Not tested: skinned/animated meshes, transmission, shadow maps (that is #10), transparent sorting against engine effects, more than one Three module, very long
   (hours) flights, a real sculpted asset (the hero was a procedural torus knot with procedural maps, so overdraw and texture detail are optimistic).
 
-Pre-existing engine bug found by the spike (reproduced with NO Three code) - FIXED 2026-09-25, not committed by the assistant: `Cinema2PerformanceDiagnostics` requested
+Pre-existing engine bug found by the spike (reproduced with NO Three code) - FIXED 2026-09-25: `Cinema2PerformanceDiagnostics` requested
 `EXT_disjoint_timer_query_webgl2` once in its constructor and never again, so after a WebGL context restore its timer queries raised INVALID_ENUM, the sticky error made
 render-target creation fail ("could not be resolved ... reported WebGL errors") and EVERY frame failed until the runtime was recreated (60 of 60 frames in a real-Chrome
 lose/restore test on the Atmosphere Reference preset). Fix: `handleContextLost()` (drop the extension and stale query handles) and `handleContextRestored()` (request the
@@ -276,7 +315,7 @@ files); precompile (`compileAsync`) and pre-upload during the loading state so t
 Implication for #7: uncompressed 2k PBR sets are ~50 MB each of GPU memory and 4k sets ~250 MB, so KTX2/Basis (GPU-compressed, ~4-8x smaller in VRAM) is now clearly
 preferable to WebP (which decodes to full RGBA) for anything but tiny textures; budget every shipped set against the 96/160/256 MB tiers.
 
-### #6 Three.js runtime module — DELIVERED 2026-09-25, not committed by the assistant
+### #6 Three.js runtime module — DELIVERED 2026-09-25
 A `three-scene` module type that draws shipped glTF models with Three.js inside the Cinema 2.0 render graph. Cinema 2.0 keeps the camera, lights, audio and choreography; the module only turns asset ids into pixels.
 Files (all under `src/components/vyzualz/cinema2/`): `modules/Cinema2ThreeSceneModule.ts` (module definition, state machine, config validation, parameters);
 `modules/three/` = `Cinema2ThreeLibrary.ts` (lazy `import()` of three + GLTFLoader + meshopt + RoomEnvironment; failed loads are not cached), `Cinema2ThreeRendererHost.ts` (ONE renderer per GL context and a
@@ -362,7 +401,7 @@ Design decision to make first: shadows are an ENGINE resource, not a Three featu
 Acceptance: towers visibly block a spot beam in the volumetric haze; a floor light pool is occluded by an object; shadow map memory counted; off at low; no acne on
 the reference scenes; frame cost within budget.
 
-## Threshold refinement plan (native work, before or alongside #5)
+## Threshold refinement plan (native work; batches A and B applied, remaining items map to #7-#10 in the STATUS SUMMARY)
 Owner asked for a side-by-side analysis of the current Threshold against the original reference (bright symmetric corridor of tall LED monoliths, smoke, wet cracked
 floor). 14 differences were identified (numbering is stable and used in conversation):
 1 symmetry (reference centred and mirrored; Threshold uneven, swaying) · 2 near-panel framing (reference panels inset ~10% from the edges; Threshold's are cropped at the
@@ -386,7 +425,7 @@ Confidence and plan (owner-approved ordering: do the high group first, then re-c
 - LOW: 8 (wispy smoke; better with #7a shipped noise/smoke textures, or #9 sprites; unlikely to match the reference without them).
 Also: keep Threshold's other scenes (hanging field, ring) working; verification method = real Chrome renders compared against the reference, judged by the owner.
 
-### Refinement batch A (differences 1, 2, 3, 4, 6, 13, 14-fringing/grain) - APPLIED 2026-09-25, not committed by the assistant
+### Refinement batch A (differences 1, 2, 3, 4, 6, 13, 14-fringing/grain) - APPLIED 2026-09-25
 What changed (all in Threshold; 22 tests in `Cinema2Threshold.test.ts` cover it):
 - Layout (`modules/threshold/Cinema2ThresholdLayout.ts`): period 216; corridor is now ONLY 5 mirrored pairs of main LED screens (7 x 36, half-width 26, spacing 20, first pair at
   d=24), identical height/rank on both sides, ranks increasing with distance so the set opens symmetrically. The dark rear towers and small support panels are gone from the corridor.
@@ -409,7 +448,7 @@ Measured after the batch: 1080p on the M3 Pro - high 8.7 ms, medium 3.3 ms, low 
 Still different from the reference (unchanged by this batch): 5 housings, 7 light spill, 8 smoke, 9 shafts, 10 vanishing-point glow / ceiling, 11 floor surface, 12 SSR dotted noise,
 14 stair-stepped bright edges. The near flybys are still large and bright; the corridor is emptier than the reference (dark void between panels where the reference has towers - that is item 5).
 
-### Refinement batch B (differences 5, 7-partial, 10, 11, 9-partial) - APPLIED 2026-09-25, not committed by the assistant
+### Refinement batch B (differences 5, 7-partial, 10, 11, 9-partial) - APPLIED 2026-09-25
 Owner asked whether #5/#6 (Three.js) could bring Threshold to the reference. Decision, with reasons: the housing look is mostly LIGHTING (the screens lighting their own towers), not geometry, and Threshold flies an endless repeating lap in camera-relative
 coordinates; `three-scene` places models at fixed Scene Graph nodes (no lap repetition) and lights only from the engine light list (static world lights), so Three would have needed lap-repeat and following lights first, and would have lost the analytic
 "panel light falls on its own housing" that the native renderer can compute per instance. So the housing work was done natively in Threshold's instanced renderer; `three-scene` stays the right tool for sculpted assets (skull, alien, rocks).
@@ -462,6 +501,6 @@ Gotchas
 6. Reference image files are not in the repo: `~/Downloads/cinema2-3d-reference-images/` (re-attach if missing); the Threshold reference frames were attached in chat only.
 
 ## Where we are and what happens next
-DONE: #1-#4, the Threshold preset with refinement batch A, the #5 Three.js spike (GO), the context-restore engine fix, and #6 (the `three-scene` module with the internal Three Model Reference preset). All uncommitted by the
-assistant; the owner commits. NEXT: #7 (asset pipeline: start with 7a native textures and the KTX2-vs-WebP decision, then the build script and `assets:check`), then #8 PBR + environment lighting, #9 instancing, #10 shadows. Open decisions below still apply
-(installer-size budget, source-asset storage, texture format, camera cuts, Threshold as a base). Keep verifying in a real browser, keep the baseline failing set unchanged, do not commit.
+DONE (and committed by the owner): #1-#4, the Threshold preset with refinement batches A and B, the #5 Three.js spike (GO), the context-restore engine fix, and #6 (the `three-scene` module with the internal Three Model Reference preset).
+NEXT: #7 (start with 7a native textures and the KTX2-vs-WebP decision, then the build script and `assets:check`), then the native half of #10 (shadows), the native half of #9 (instancing/smoke billboards), then #8. The STATUS SUMMARY at the top lists every remaining issue
+and what each remaining step would change. Before starting #7 ask the owner for the installer-size budget and where source assets live. Keep verifying in a real browser, keep the baseline failing set unchanged (15 files / 40 tests), do not commit, never `git stash`.
