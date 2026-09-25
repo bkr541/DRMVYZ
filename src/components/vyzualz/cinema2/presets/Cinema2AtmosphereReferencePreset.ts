@@ -36,12 +36,18 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_ID = cinema2NamespacedId<Cinema
 const OBJECT3D_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('object3d')
 const VOLUMETRIC_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('volumetric-atmosphere')
 const BLOOM_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('bloom')
+const FLOOR_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('reflective-floor')
+const FINISH_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('cinematic-finish')
+/** World height of the virtual floor plane; the volumetric mist and beam reflections use the same plane. */
+const FLOOR_Y = -1.2
 
 export const CINEMA2_ATMOSPHERE_REFERENCE_DENSITY_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-density')
 export const CINEMA2_ATMOSPHERE_REFERENCE_BEAM_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-beam')
 export const CINEMA2_ATMOSPHERE_REFERENCE_MIST_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-mist')
 export const CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-reactivity')
 export const CINEMA2_ATMOSPHERE_REFERENCE_BLOOM_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-bloom')
+export const CINEMA2_ATMOSPHERE_REFERENCE_FLOOR_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-floor')
+export const CINEMA2_ATMOSPHERE_REFERENCE_FINISH_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-finish')
 
 export const CINEMA2_ATMOSPHERE_REFERENCE_CAMERA_ID = cinema2StableId<Cinema2CameraId>('atmosphere-reference-camera')
 export const CINEMA2_ATMOSPHERE_REFERENCE_LEFT_LIGHT_ID = cinema2StableId<Cinema2LightId>('atmosphere-reference-left-spot')
@@ -50,7 +56,7 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_RIGHT_LIGHT_ID = cinema2StableId<Cinem
 export const CINEMA2_ATMOSPHERE_REFERENCE_KEY_GROUP_ID = cinema2StableId<Cinema2LightGroupId>('atmosphere-reference-key')
 export const CINEMA2_ATMOSPHERE_REFERENCE_SIDES_GROUP_ID = cinema2StableId<Cinema2LightGroupId>('atmosphere-reference-sides')
 /** Idle spot intensity; the rig lifts groups above it on the beat. */
-const RIG_BASE_INTENSITY = 0.6
+const RIG_BASE_INTENSITY = 0.9
 const RIG_PEAK_INTENSITY = 2.6
 const AMBIENT_LIGHT_ID = cinema2StableId<Cinema2LightId>('atmosphere-reference-ambient')
 
@@ -62,17 +68,28 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_MODULE_ID = cinema2StableId<Cin
 const WORLD_LAYER_ID = cinema2StableId<Cinema2LayerId>('atmosphere-reference-world-layer')
 export const CINEMA2_ATMOSPHERE_REFERENCE_VOLUMETRIC_EFFECT_ID = cinema2StableId<Cinema2EffectId>('atmosphere-reference-volumetric')
 const BLOOM_EFFECT_ID = cinema2StableId<Cinema2EffectId>('atmosphere-reference-bloom')
+export const CINEMA2_ATMOSPHERE_REFERENCE_FLOOR_EFFECT_ID = cinema2StableId<Cinema2EffectId>('atmosphere-reference-floor-effect')
+export const CINEMA2_ATMOSPHERE_REFERENCE_FINISH_EFFECT_ID = cinema2StableId<Cinema2EffectId>('atmosphere-reference-finish-effect')
 const SCENE_TARGET_ID = cinema2StableId<Cinema2RenderTargetId>('atmosphere-reference-scene-target')
 const ATMOSPHERE_TARGET_ID = cinema2StableId<Cinema2RenderTargetId>('atmosphere-reference-atmosphere-target')
+const FLOOR_TARGET_ID = cinema2StableId<Cinema2RenderTargetId>('atmosphere-reference-floor-target')
+const BLOOM_TARGET_ID = cinema2StableId<Cinema2RenderTargetId>('atmosphere-reference-bloom-target')
 const SCENE_PASS_ID = cinema2StableId<Cinema2RenderPassId>('atmosphere-reference-scene-pass')
 const ATMOSPHERE_PASS_ID = cinema2StableId<Cinema2RenderPassId>('atmosphere-reference-atmosphere-pass')
 const BLOOM_PASS_ID = cinema2StableId<Cinema2RenderPassId>('atmosphere-reference-bloom-pass')
+const FLOOR_PASS_ID = cinema2StableId<Cinema2RenderPassId>('atmosphere-reference-floor-pass')
+const FINISH_PASS_ID = cinema2StableId<Cinema2RenderPassId>('atmosphere-reference-finish-pass')
 const SCENE_COLOR_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('atmosphere-reference-scene-color')
 const SCENE_DEPTH_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('atmosphere-reference-scene-depth')
 const ATMOSPHERE_COLOR_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('atmosphere-reference-atmosphere-color')
 const ATMOSPHERE_DEPTH_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('atmosphere-reference-atmosphere-depth')
 const ATMOSPHERE_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('atmosphere-reference-atmosphere-output')
 const BLOOM_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('atmosphere-reference-bloom-input')
+const FLOOR_COLOR_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('atmosphere-reference-floor-color')
+const FLOOR_DEPTH_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('atmosphere-reference-floor-depth')
+const FLOOR_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('atmosphere-reference-floor-output')
+const BLOOM_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('atmosphere-reference-bloom-output')
+const FINISH_INPUT_ID = cinema2StableId<Cinema2RenderSlotId>('atmosphere-reference-finish-input')
 const DOWNBEAT_RULE_ID = cinema2StableId<Cinema2ChoreographyRuleId>('atmosphere-reference-downbeat-beam')
 const DOWNBEAT_BEAM_ACTION_ID = cinema2StableId<Cinema2ChoreographyActionId>('atmosphere-reference-downbeat-beam-swell')
 
@@ -150,7 +167,7 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
   revision: 1,
   metadata: Object.freeze({
     name: 'Atmosphere Reference',
-    description: 'Colored spot beams through haze and ground mist, with depth-aware light shafts that respond to the downbeat.',
+    description: 'A performance light rig: colored spot beams through haze and ground mist over a wet reflective floor, choreographed to the beat and finished with a filmic grade.',
     tags: Object.freeze(['reference', 'diagnostic', 'atmosphere', 'volumetric']),
   }),
   capabilities: Object.freeze([
@@ -167,10 +184,12 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
   parameters: Object.freeze([
     CINEMA2_QUALITY_MODE_PARAMETER,
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_DENSITY_ID, 'Haze Density', 'How thick the haze is. Thicker haze makes beams brighter and shortens visibility.', 0.032, 0, 0.4, 0.005, 10, 'Atmosphere'),
-    floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_BEAM_ID, 'Beam Intensity', 'Brightness of light scattering through the haze.', 1.2, 0, 6, 0.05, 11, 'Atmosphere'),
+    floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_BEAM_ID, 'Beam Intensity', 'Brightness of light scattering through the haze.', 1.9, 0, 6, 0.05, 11, 'Atmosphere'),
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_MIST_ID, 'Ground Mist', 'Extra mist that pools near the floor.', 0.35, 0, 3, 0.05, 12, 'Atmosphere'),
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID, 'Reactivity', 'How strongly haze and beams swell with the Visual Director’s musical impact.', 0.8, 0, 2, 0.05, 20, 'React'),
+    floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_FLOOR_ID, 'Floor Reflection', 'How mirror-like the wet stage floor is.', 0.7, 0, 1, 0.05, 13, 'Atmosphere'),
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_BLOOM_ID, 'Bloom', 'Glow added around bright beams.', 0.9, 0, 3, 0.05, 30, 'Post'),
+    floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_FINISH_ID, 'Cinematic Finish', 'Amount of filmic tone curve, grade, vignette, fringing and grain.', 1, 0, 1, 0.05, 31, 'Post'),
   ]),
   modules: Object.freeze([
     Object.freeze({
@@ -251,19 +270,42 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
   }),
   effects: Object.freeze([
     Object.freeze({
-      id: CINEMA2_ATMOSPHERE_REFERENCE_VOLUMETRIC_EFFECT_ID,
-      typeId: VOLUMETRIC_EFFECT_TYPE_ID,
+      id: CINEMA2_ATMOSPHERE_REFERENCE_FLOOR_EFFECT_ID,
+      typeId: FLOOR_EFFECT_TYPE_ID,
       version: 1,
       enabled: true,
       order: 0,
       scope: 'output' as const,
       parameters: Object.freeze({
         mix: 1,
+        floorY: FLOOR_Y,
+        reflectivity: 0.7,
+        roughness: 0.22,
+        fresnel: 3,
+        albedo: 0.12,
+        poolIntensity: 2.2,
+        specular: 1.4,
+        fadeDistance: 40,
+        maxReflection: 26,
+      }),
+      parameterBindings: Object.freeze({ reflectivity: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_FLOOR_ID) }),
+    }),
+    Object.freeze({
+      id: CINEMA2_ATMOSPHERE_REFERENCE_VOLUMETRIC_EFFECT_ID,
+      typeId: VOLUMETRIC_EFFECT_TYPE_ID,
+      version: 1,
+      enabled: true,
+      order: 1,
+      scope: 'output' as const,
+      parameters: Object.freeze({
+        mix: 1,
         density: 0.032,
-        beamIntensity: 1.2,
+        beamIntensity: 1.9,
         mistAmount: 0.35,
         mistHeight: 1.6,
-        mistFloor: -1.1,
+        mistFloor: FLOOR_Y,
+        floorY: FLOOR_Y,
+        floorReflection: 0.7,
         anisotropy: 0.55,
         occlusion: 0.55,
         ambientHaze: 0.06,
@@ -285,10 +327,20 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
       typeId: BLOOM_EFFECT_TYPE_ID,
       version: 1,
       enabled: true,
-      order: 1,
+      order: 2,
       scope: 'output' as const,
       parameters: Object.freeze({ mix: 0.45, threshold: 0.5, radius: 2.4, intensity: 0.9 }),
       parameterBindings: Object.freeze({ intensity: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_BLOOM_ID) }),
+    }),
+    Object.freeze({
+      id: CINEMA2_ATMOSPHERE_REFERENCE_FINISH_EFFECT_ID,
+      typeId: FINISH_EFFECT_TYPE_ID,
+      version: 1,
+      enabled: true,
+      order: 3,
+      scope: 'output' as const,
+      parameters: Object.freeze({ mix: 1, exposure: 1.35, vignette: 0.4, grain: 0.22, aberration: 0.25, contrast: 1.12, saturation: 1.1 }),
+      parameterBindings: Object.freeze({ mix: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_FINISH_ID) }),
     }),
   ]),
   choreography: Object.freeze({
@@ -353,7 +405,17 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
         ownership: 'transient' as const,
       }),
       Object.freeze({
+        id: FLOOR_TARGET_ID,
+        descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba8' as const }),
+        ownership: 'transient' as const,
+      }),
+      Object.freeze({
         id: ATMOSPHERE_TARGET_ID,
+        descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba8' as const }),
+        ownership: 'transient' as const,
+      }),
+      Object.freeze({
+        id: BLOOM_TARGET_ID,
         descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba8' as const }),
         ownership: 'transient' as const,
       }),
@@ -369,14 +431,33 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
         ]),
       }),
       Object.freeze({
-        id: ATMOSPHERE_PASS_ID,
+        id: FLOOR_PASS_ID,
         kind: 'fullscreen' as const,
         dependsOn: Object.freeze([cinema2Ref(SCENE_PASS_ID)]),
+        effect: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_FLOOR_EFFECT_ID),
+        inputs: Object.freeze([
+          Object.freeze({
+            id: FLOOR_COLOR_INPUT_ID,
+            source: Object.freeze({ pass: cinema2Ref(SCENE_PASS_ID), output: SCENE_COLOR_OUTPUT_ID }),
+            attachment: 'color' as const,
+          }),
+          Object.freeze({
+            id: FLOOR_DEPTH_INPUT_ID,
+            source: Object.freeze({ pass: cinema2Ref(SCENE_PASS_ID), output: SCENE_DEPTH_OUTPUT_ID }),
+            attachment: 'depth' as const,
+          }),
+        ]),
+        outputs: Object.freeze([Object.freeze({ id: FLOOR_OUTPUT_ID, target: cinema2Ref(FLOOR_TARGET_ID), attachment: 'color' as const })]),
+      }),
+      Object.freeze({
+        id: ATMOSPHERE_PASS_ID,
+        kind: 'fullscreen' as const,
+        dependsOn: Object.freeze([cinema2Ref(FLOOR_PASS_ID)]),
         effect: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_VOLUMETRIC_EFFECT_ID),
         inputs: Object.freeze([
           Object.freeze({
             id: ATMOSPHERE_COLOR_INPUT_ID,
-            source: Object.freeze({ pass: cinema2Ref(SCENE_PASS_ID), output: SCENE_COLOR_OUTPUT_ID }),
+            source: Object.freeze({ pass: cinema2Ref(FLOOR_PASS_ID), output: FLOOR_OUTPUT_ID }),
             attachment: 'color' as const,
           }),
           Object.freeze({
@@ -399,10 +480,24 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
             attachment: 'color' as const,
           }),
         ]),
+        outputs: Object.freeze([Object.freeze({ id: BLOOM_OUTPUT_ID, target: cinema2Ref(BLOOM_TARGET_ID), attachment: 'color' as const })]),
+      }),
+      Object.freeze({
+        id: FINISH_PASS_ID,
+        kind: 'fullscreen' as const,
+        dependsOn: Object.freeze([cinema2Ref(BLOOM_PASS_ID)]),
+        effect: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_FINISH_EFFECT_ID),
+        inputs: Object.freeze([
+          Object.freeze({
+            id: FINISH_INPUT_ID,
+            source: Object.freeze({ pass: cinema2Ref(BLOOM_PASS_ID), output: BLOOM_OUTPUT_ID }),
+            attachment: 'color' as const,
+          }),
+        ]),
       }),
     ]),
-    outputPass: cinema2Ref(BLOOM_PASS_ID),
+    outputPass: cinema2Ref(FINISH_PASS_ID),
   }),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_CAMERA_ID) }),
-  output: Object.freeze({ renderPass: cinema2Ref(BLOOM_PASS_ID), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
+  output: Object.freeze({ renderPass: cinema2Ref(FINISH_PASS_ID), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
 })

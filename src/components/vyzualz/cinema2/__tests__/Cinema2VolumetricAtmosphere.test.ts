@@ -162,7 +162,7 @@ describe('Cinema 2.0 Volumetric Atmosphere effect', () => {
 
   it('is registered and validates ranges and haze color', () => {
     expect(cinema2NativeEffectRegistry.get(CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_TYPE_ID, 1)).not.toBeNull()
-    const base = CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST.effects![0]
+    const base = CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST.effects!.find(effect => effect.id === CINEMA2_ATMOSPHERE_REFERENCE_VOLUMETRIC_EFFECT_ID)!
     expect(cinema2VolumetricAtmosphereEffectDefinition.validate!(base)).toEqual([])
     const bad = { ...base, parameters: { ...base.parameters, density: 9, hazeColor: [2, 0, 0] } }
     const codes = cinema2VolumetricAtmosphereEffectDefinition.validate!(bad).map(diagnostic => diagnostic.path)
@@ -223,14 +223,14 @@ describe('Cinema 2.0 Volumetric Atmosphere effect', () => {
 })
 
 describe('Cinema 2.0 Atmosphere Reference preset', () => {
-  it('compiles with the depth-fed volumetric pass between the scene and bloom', () => {
+  it('compiles with the depth-fed volumetric pass between the floor and bloom', () => {
     const compiled = compileCinema2NativePreset(CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST, { availableCapabilities: CAPABILITIES })
     expect(compiled.ok).toBe(true)
     if (!compiled.ok) return
     const effectPass = compiled.plan.render.passes.find(pass => pass.effect?.id === CINEMA2_ATMOSPHERE_REFERENCE_VOLUMETRIC_EFFECT_ID)
     expect(effectPass?.inputs.map(input => input.attachment).sort()).toEqual(['color', 'depth'])
     expect(compiled.plan.render.targets.find(target => target.sampleableDepth)).toBeDefined()
-    expect(compiled.plan.manifest.effects?.map(effect => effect.id as Cinema2EffectId)).toHaveLength(2)
+    expect(compiled.plan.manifest.effects?.map(effect => effect.id as Cinema2EffectId)).toHaveLength(4)
   })
 
   it('renders through the real Runtime path with the volumetric effect active and no failed passes', () => {
@@ -257,8 +257,8 @@ describe('Cinema 2.0 Atmosphere Reference preset', () => {
     created.runtime.resize({ width: 640, height: 360, dpr: 1 })
     created.runtime.start()
     frameCallback.current?.(1000)
-    expect(created.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ failedPassCount: 0, executedPassCount: 3 })
-    expect(created.runtime.getEffectRuntimeSnapshot().effects.map(effect => effect.status)).toEqual(['active', 'active'])
+    expect(created.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ failedPassCount: 0, executedPassCount: 5 })
+    expect(created.runtime.getEffectRuntimeSnapshot().effects.map(effect => effect.status)).toEqual(['active', 'active', 'active', 'active'])
     created.runtime.dispose()
     expect(gl.__calls.createdPrograms).toBe(gl.__calls.deletedPrograms)
     expect(gl.__calls.createdTextures).toBe(gl.__calls.deletedTextures)

@@ -235,6 +235,21 @@ export {
 } from './effects/Cinema2BuiltinEffects'
 
 export {
+  CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID,
+  CINEMA2_CINEMATIC_FINISH_EFFECT_VERSION,
+  CINEMA2_TONE_MAP,
+  cinema2CinematicFinishEffectDefinition,
+} from './effects/Cinema2CinematicFinishEffect'
+
+export {
+  CINEMA2_REFLECTIVE_FLOOR_EFFECT_TYPE_ID,
+  CINEMA2_REFLECTIVE_FLOOR_EFFECT_VERSION,
+  CINEMA2_REFLECTIVE_FLOOR_QUALITY_PROFILES,
+  cinema2ReflectiveFloorEffectDefinition,
+  type Cinema2ReflectiveFloorQualityProfile,
+} from './effects/Cinema2ReflectiveFloorEffect'
+
+export {
   CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_TYPE_ID,
   CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_VERSION,
   CINEMA2_VOLUMETRIC_MAX_LIGHTS,

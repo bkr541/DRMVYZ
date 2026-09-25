@@ -4,6 +4,8 @@ import {
   cinema2BlurEffectDefinition,
   cinema2FeedbackTrailsEffectDefinition,
 } from './Cinema2BuiltinEffects'
+import { cinema2CinematicFinishEffectDefinition } from './Cinema2CinematicFinishEffect'
+import { cinema2ReflectiveFloorEffectDefinition } from './Cinema2ReflectiveFloorEffect'
 import { cinema2VolumetricAtmosphereEffectDefinition } from './Cinema2VolumetricAtmosphereEffect'
 import type { Cinema2EffectDiagnostic, Cinema2EffectTypeDefinition } from './Cinema2EffectContracts'
 
@@ -91,6 +93,8 @@ for (const definition of [
   cinema2BloomEffectDefinition,
   cinema2FeedbackTrailsEffectDefinition,
   cinema2VolumetricAtmosphereEffectDefinition,
+  cinema2ReflectiveFloorEffectDefinition,
+  cinema2CinematicFinishEffectDefinition,
 ]) {
   const registration = cinema2NativeEffectRegistry.register(definition)
   if (!registration.ok) {

@@ -139,6 +139,31 @@ key lit, sides lit, the staggered downbeat sweep and the phrase blackout.
 Not done: color swapping (a `set-for-duration` on a color would scale it by event strength, so alternation is done with intensity groups of
 differently colored lights instead); nothing yet consumes `bar`/`drop` hits in a shipped preset beyond the helpers being available.
 
-### Next: #3 cinematic finishing (tone map, grade, vignette, grain) + reflective floor
-Both are opt-in effects/passes on the existing render graph. The floor needs a drawable primitive (scene `primitive` nodes draw nothing), which
-the stage preset also needs for LED panels and truss. #4 (camera) and the #5 Three.js spike remain independent.
+### #3 Cinematic finishing + reflective floor — DELIVERED (2026-09-25), not committed by the assistant
+Two new opt-in effects (registered in `Cinema2EffectRegistry`, shared parameter helpers in `effects/Cinema2EffectParameterHelpers.ts`) plus a floor hook in
+the volumetric effect. A reflective floor did NOT need a drawable primitive after all: it is a virtual plane, so scene `primitive` nodes still draw
+nothing and the drawable-primitive module is now only needed for the stage preset's LED panels and truss.
+- `cinematic-finish` v1 (`effects/Cinema2CinematicFinishEffect.ts`): exposure, tone curve (`toneMap` 0 none / 1 filmic ACES fit / 2 soft), white balance
+  (`temperature`, `tint`), contrast, saturation, split-toning (`shadowTint`, `highlightTint`, `tintAmount`), lens fringing, vignette, animated mid-tone
+  grain and a sub-LSB dither. Defaults are a restrained filmic look, so `{ mix: 1 }` is enough. Place it last. Contrast is a display-space S-curve on
+  purpose: a linear-light pivot clipped everything under ~0.016 to black on a dark stage. Inputs are 8-bit display-referred targets, so the curve shapes
+  roll-off and contrast; it cannot recover already-clipped highlights.
+- `reflective-floor` v1 (`effects/Cinema2ReflectiveFloorEffect.ts`): intersects each view ray with a plane at `floorY`; where the plane is nearer than the
+  scene depth the pixel becomes floor (objects still occlude it). Shaded with a dark base, light pools and specular from the shared light list, and a
+  screen-space reflection (mirrored ray marched through the depth buffer, 4-step bisection, Fresnel weight, edge fade, small blur for `roughness`, horizon
+  fade via `fadeDistance`). Needs a depth input and a world camera, otherwise it passes the image through. Limits: only on-screen content is reflected and
+  reflections fade at the screen edge.
+- Volumetric integration: authoring `floorY` on `volumetric-atmosphere` stops the haze at the plane and marches a mirrored segment (3/4 of the steps) so
+  beams reflect in the floor (`floorReflection`). Put the floor pass BEFORE volumetric so haze and beams sit on top of the floor.
+- Atmosphere Reference is now the full chain scene -> floor -> volumetric -> bloom -> finish with two new controls (Floor Reflection, Cinematic Finish),
+  brighter defaults (idle spot 0.9, beam 1.9) and a wet floor at y = -1.2.
+Measured in real Chrome on the M3 Pro (1080p, whole 5-pass frame): high 9.3 ms, medium 4.5 ms, low 2.2 ms.
+Verified: 8 new tests (registration/validation, uniforms per quality, passthrough without depth/camera, volumetric floor clamp on/off, pass order) plus the
+existing suites; lint/typecheck clean; `Cinema2` folder failure set identical to clean HEAD; real-browser frames with finish on/off, floor pools and
+mirrored pillars/beams, and Low quality.
+Known limits: no shadows, so pools/beams ignore occluders (roadmap #10); frame-to-frame grain only averages out at normal playback rates (a step over
+100 ms deliberately restarts the volumetric history); Low quality allows only 2 lights (existing limit), so a 3-spot rig shows 2 there.
+
+### Next: #4 camera upgrades (smooth paths, slow drift, gentle bank, restrained FOV)
+Built on `spatial/Cinema2CameraRuntime.ts` (rigs static/orbit/path/fly; note it already has ~3 pre-existing TypeScript errors at lines 227-230). #5 (Three.js spike)
+remains independent. The stage preset still needs the drawable-primitive module (LED panels, truss).

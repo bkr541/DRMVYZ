@@ -239,7 +239,7 @@ function rigHarness() {
 const KEY = CINEMA2_ATMOSPHERE_REFERENCE_CENTER_LIGHT_ID
 const LEFT = CINEMA2_ATMOSPHERE_REFERENCE_LEFT_LIGHT_ID
 const RIGHT = CINEMA2_ATMOSPHERE_REFERENCE_RIGHT_LIGHT_ID
-const REST = 0.6
+const REST = 0.9
 const LIT = 1.5
 
 describe('Cinema 2.0 Atmosphere Reference light rig behaviour', () => {

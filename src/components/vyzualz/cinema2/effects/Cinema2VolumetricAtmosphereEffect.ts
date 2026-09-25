@@ -90,6 +90,9 @@ uniform float u_mistFloor;
 uniform float u_noiseScale;
 uniform float u_noiseStrength;
 uniform vec3 u_wind;
+uniform float u_floorEnabled;
+uniform float u_floorY;
+uniform float u_floorReflection;
 uniform int u_lightCount;
 uniform vec4 u_lightPos[${CINEMA2_VOLUMETRIC_MAX_LIGHTS}];
 uniform vec4 u_lightDir[${CINEMA2_VOLUMETRIC_MAX_LIGHTS}];
@@ -191,6 +194,21 @@ vec3 compressScatter(vec3 s) {
   float peak = max(max(s.r, s.g), s.b);
   return s * ((1.0 - exp(-peak)) / max(peak, 0.0001));
 }
+// Ray-marches one segment of the density field, accumulating in-scattered light and transmittance.
+void marchSegment(vec3 origin, vec3 dir, float segmentLength, int steps, float jitter, inout vec3 scatter, inout float transmittance) {
+  float stepLength = segmentLength / float(steps);
+  vec3 ambientFill = u_hazeColor * u_ambientHaze + u_ambient * u_hazeColor;
+  for (int i = 0; i < ${CINEMA2_VOLUMETRIC_MAX_STEPS}; i++) {
+    if (i >= steps) break;
+    vec3 p = origin + dir * ((float(i) + jitter) * stepLength);
+    float dens = densityAt(p);
+    if (dens < 0.0001) continue;
+    float extinction = dens * stepLength;
+    vec3 light = ambientFill + u_beam * lightScatter(p, dir);
+    scatter += transmittance * light * extinction;
+    transmittance *= exp(-extinction * u_occlusion);
+  }
+}
 // Accumulates in-scattered light (rgb) and remaining transmittance (a) along the view ray through this pixel.
 vec4 marchAtmosphere(vec2 uv) {
   vec3 scatter = vec3(0.0);
@@ -205,18 +223,22 @@ vec4 marchAtmosphere(vec2 uv) {
       // Depth 1.0 is "nothing drawn": the ray runs to maxDistance.
       if (depth < 0.99999) tMax = min(tMax, length(unproject(ndc, depth * 2.0 - 1.0) - rayOrigin));
     }
-    float stepLength = tMax / float(u_steps);
     float jitter = hash21(gl_FragCoord.xy + fract(u_time * 0.618) * 977.0);
-    vec3 ambientFill = u_hazeColor * u_ambientHaze + u_ambient * u_hazeColor;
-    for (int i = 0; i < ${CINEMA2_VOLUMETRIC_MAX_STEPS}; i++) {
-      if (i >= u_steps) break;
-      vec3 p = rayOrigin + rayDir * ((float(i) + jitter) * stepLength);
-      float dens = densityAt(p);
-      if (dens < 0.0001) continue;
-      float extinction = dens * stepLength;
-      vec3 light = ambientFill + u_beam * lightScatter(p, rayDir);
-      scatter += transmittance * light * extinction;
-      transmittance *= exp(-extinction * u_occlusion);
+    // A floor plane ends the haze where the ray reaches it; the mirrored ray then gathers the reflected beams.
+    float planeDistance = 1.0e9;
+    if (u_floorEnabled > 0.5 && rayOrigin.y > u_floorY && rayDir.y < -0.0005) planeDistance = (u_floorY - rayOrigin.y) / rayDir.y;
+    bool onFloor = planeDistance < tMax;
+    if (onFloor) tMax = planeDistance;
+    marchSegment(rayOrigin, rayDir, tMax, u_steps, jitter, scatter, transmittance);
+    if (onFloor && u_floorReflection > 0.0001) {
+      vec3 floorPoint = rayOrigin + rayDir * planeDistance;
+      vec3 mirrored = vec3(rayDir.x, -rayDir.y, rayDir.z);
+      float fresnel = u_floorReflection * (0.15 + 0.85 * pow(1.0 - clamp(-rayDir.y, 0.0, 1.0), 3.0));
+      vec3 reflectedScatter = vec3(0.0);
+      float reflectedTransmittance = 1.0;
+      marchSegment(floorPoint, mirrored, u_maxDistance * 0.6, max((u_steps * 3) / 4, 8), fract(jitter + 0.5), reflectedScatter, reflectedTransmittance);
+      scatter += transmittance * reflectedScatter * fresnel;
+      transmittance *= mix(1.0, reflectedTransmittance, fresnel);
     }
   } else {
     // No world camera: screen-space haze only.
@@ -325,6 +347,8 @@ const NUMERIC_PARAMETERS: readonly (readonly [name: string, min: number, max: nu
   ['shaftOriginY', 0, 1],
   ['shaftLength', 0, 1],
   ['reactivity', 0, 2],
+  ['floorY', -50, 50],
+  ['floorReflection', 0, 1],
 ])
 
 function clamp(value: number, min: number, max: number): number {
@@ -450,6 +474,7 @@ const MARCH_UNIFORMS = [
   'u_density', 'u_beam', 'u_anisotropy', 'u_occlusion', 'u_hazeColor', 'u_ambientHaze', 'u_ambient',
   'u_mistAmount', 'u_mistHeight', 'u_mistFloor', 'u_noiseScale', 'u_noiseStrength', 'u_wind', 'u_lightCount',
   'u_lightPos[0]', 'u_lightDir[0]', 'u_lightCol[0]', 'u_lightInner[0]', 'u_previous', 'u_historyBlend',
+  'u_floorEnabled', 'u_floorY', 'u_floorReflection',
 ] as const
 const FINISH_UNIFORMS = [
   'u_source', 'u_depth', 'u_atmosphere', 'u_mix', 'u_hasDepth', 'u_nearFar', 'u_lowResolution', 'u_occlusion',
@@ -612,6 +637,11 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     program.setFloat('u_noiseScale', clamp(numberValue(parameters, 'noiseScale', 0.35), 0.02, 4))
     program.setFloat('u_noiseStrength', clamp(numberValue(parameters, 'noiseStrength', 0.6), 0, 1))
     program.setVec3('u_wind', values.wind, values.wind * 0.2, values.wind * 0.45)
+    // A floor is opt-in: authoring `floorY` clamps haze at that plane and reflects the beams in it.
+    const floorY = parameters.floorY
+    program.setFloat('u_floorEnabled', typeof floorY === 'number' && Number.isFinite(floorY) ? 1 : 0)
+    program.setFloat('u_floorY', clamp(numberValue(parameters, 'floorY', 0), -50, 50))
+    program.setFloat('u_floorReflection', clamp(numberValue(parameters, 'floorReflection', 0.6), 0, 1))
     program.setInt('u_lightCount', lights.count)
     setFloatArray(gl, program, 'u_lightPos[0]', lights.position, 4)
     setFloatArray(gl, program, 'u_lightDir[0]', lights.direction, 4)
