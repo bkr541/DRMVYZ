@@ -1,4 +1,3 @@
-import { GridViewIcon, ListViewIcon } from 'hugeicons-react'
 import { DreamVizTextInput } from './DreamVizTextInput'
 
 // ── PresetSearchRow ──────────────────────────────────────────────────────────
@@ -6,32 +5,24 @@ import { DreamVizTextInput } from './DreamVizTextInput'
 // Canonical DRMVYZ preset-tab search header, shared by every engine's Preset
 // tab (Cinema, Sound Drawing, Canvas, LaserDMX, PixGrid). A borderless search
 // field whose bottom rule also spans a leading magnifier icon, a clear button
-// that appears once text is typed, and a right-justified grid / list view
-// toggle. Reuses the Media Library `vz-md-search-*` / `vz-md-view-*` classes;
-// `.rv-preset-search-row` carries the icon-in-border treatment.
-
-export type PresetViewMode = 'grid' | 'list'
+// that appears once text is typed. Preset lists have a single layout (the
+// 01 · Preset Card row), so there is no grid / list toggle. Reuses the Media
+// Library `vz-md-search-*` classes; `.rv-preset-search-row` carries the
+// icon-in-border treatment.
 
 export interface PresetSearchRowProps {
   query: string
   onQueryChange: (value: string) => void
-  viewMode: PresetViewMode
-  onViewModeChange: (mode: PresetViewMode) => void
   placeholder?: string
   ariaLabel?: string
-  /** Drop the grid/list toggle where a panel has a single layout. */
-  showViewToggle?: boolean
   className?: string
 }
 
 export function PresetSearchRow({
   query,
   onQueryChange,
-  viewMode,
-  onViewModeChange,
   placeholder = 'Search presets…',
   ariaLabel = 'Search presets',
-  showViewToggle = true,
   className = '',
 }: PresetSearchRowProps) {
   return (
@@ -60,30 +51,6 @@ export function PresetSearchRow({
           </button>
         )}
       </div>
-      {showViewToggle && (
-        <div className="vz-md-view-toggles">
-          <button
-            type="button"
-            className={`vz-md-view-btn${viewMode === 'grid' ? ' vz-md-view-btn--active' : ''}`}
-            onClick={() => onViewModeChange('grid')}
-            title="Grid view"
-            aria-label="Grid view"
-            data-active={viewMode === 'grid' ? 'true' : 'false'}
-          >
-            <GridViewIcon size={13} color="currentColor" />
-          </button>
-          <button
-            type="button"
-            className={`vz-md-view-btn${viewMode === 'list' ? ' vz-md-view-btn--active' : ''}`}
-            onClick={() => onViewModeChange('list')}
-            title="List view"
-            aria-label="List view"
-            data-active={viewMode === 'list' ? 'true' : 'false'}
-          >
-            <ListViewIcon size={13} color="currentColor" />
-          </button>
-        </div>
-      )}
     </div>
   )
 }

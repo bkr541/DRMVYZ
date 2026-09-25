@@ -555,7 +555,6 @@ export function ReactPresetsPanel() {
   })))
   const [favoritePresetIds, setFavoritePresetIds] = useState<string[]>(readReactPresetFavorites)
   const [presetQuery, setPresetQuery] = useState('')
-  const [presetViewMode, setPresetViewMode] = useState<'grid' | 'list'>('grid')
   const [presetScope, setPresetScope] = useState<'system' | 'user'>('system')
 
   const displayPresets = useMemo(
@@ -696,7 +695,7 @@ export function ReactPresetsPanel() {
   )
 
   return (
-    <div className="rv-presets-panel" data-preset-view={presetViewMode} data-preset-scope={presetScope}>
+    <div className="rv-presets-panel" data-preset-scope={presetScope}>
       <PanelSubtabs
         value={presetScope}
         options={[{ id: 'system', label: 'SYSTEM' }, { id: 'user', label: 'USER' }]}
@@ -706,8 +705,6 @@ export function ReactPresetsPanel() {
       <PresetSearchRow
         query={presetQuery}
         onQueryChange={setPresetQuery}
-        viewMode={presetViewMode}
-        onViewModeChange={setPresetViewMode}
         ariaLabel={`Search ${activeEngine.label} presets`}
       />
       {presetScope === 'user' ? null : activeReactEngineId === 'oscilloscope' ? (

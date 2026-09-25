@@ -91,60 +91,24 @@
   height: 15px;
 }
 
-/* Universal list view: the ReactPresetsPanel cards are inherently wide
-   (thumb + content row), so "list" = a denser variant — smaller thumbnail,
-   tighter padding, collapsed min-heights. "grid" keeps the roomy default. */
-.rv-presets-panel[data-preset-view='list'] .rv-preset-group-cards {
-  gap: 4px;
-}
-
-.rv-presets-panel[data-preset-view='list'] .rv-preset-card--with-thumb .rv-preset-card-layout {
-  grid-template-columns: 68px minmax(0, 1fr);
-  min-height: 0;
-}
-
-.rv-presets-panel[data-preset-view='list'] .rv-preset-card-content {
-  min-height: 0;
-  padding: 7px 10px;
-}
-
 .rv-cinema-preset-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.rv-cinema-preset-grid--list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
-.rv-cinema-preset-grid--list .rv-cinema-preset-tile {
-  flex-direction: row;
+/* Same row card as the shared preset card (01 · Preset Card): accent rail, small thumbnail, name. */
+.rv-cinema-preset-tile {
+  position: relative;
+  display: flex;
   align-items: center;
   gap: 10px;
-  padding: 7px 9px;
-}
-
-.rv-cinema-preset-grid--list .rv-cinema-preset-tile-thumb {
-  flex: 0 0 46px;
-  width: 46px;
-  height: 30px;
-}
-
-.rv-cinema-preset-grid--list .rv-cinema-preset-tile-name {
-  flex: 1;
-  min-width: 0;
-}
-
-.rv-cinema-preset-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px;
+  width: 100%;
+  min-height: 60px;
+  padding: 8px 12px 8px 16px;
+  overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   text-align: left;
 }
@@ -159,18 +123,35 @@
   background: rgba(74, 199, 219, 0.07);
 }
 
+.rv-cinema-preset-tile-accent {
+  position: absolute;
+  top: 9px;
+  bottom: 9px;
+  left: 0;
+  width: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.rv-cinema-preset-tile.is-active .rv-cinema-preset-tile-accent {
+  background: #4ac7db;
+  box-shadow: 0 0 10px #4ac7db;
+}
+
 .rv-cinema-preset-tile-thumb {
   position: relative;
-  width: 100%;
-  height: 76px;
+  flex: 0 0 76px;
+  width: 76px;
+  height: 52px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
   background:
     radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--rv-preset-tone, #4ac7db) 45%, transparent), transparent 60%),
     #020508;
 }
 
 .rv-cinema-preset-tile-name {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   color: rgba(232, 244, 248, 0.9);
   font-size: 12px;
@@ -439,23 +420,29 @@
   min-width: 0;
 }
 
-.rv-preset-card.rv-preset-spotlight-card {
+/* Scoped through the shell so it outranks the generic `.rv-preset-card-shell > .rv-preset-card { display: block }` rule. */
+.rv-preset-spotlight-shell > .rv-preset-card.rv-preset-spotlight-card {
+  /* 01 · Preset Card (Layout Lab → Template): a row with a small thumbnail, the name and chips, and a
+     left accent rail that is the border's grey until the preset is selected. */
   position: relative;
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   width: 100%;
-  height: 96px;
-  padding: 0;
+  height: 70px;
+  padding: 8px 34px 8px 16px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 6px;
+  background: transparent;
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s, background 0.15s;
 }
 
 .rv-preset-card.rv-preset-spotlight-card:hover {
-  border-color: rgba(74, 199, 219, 0.35);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(74, 199, 219, 0.3);
 }
 
 .rv-preset-card.rv-preset-spotlight-card:focus-visible {
@@ -471,19 +458,40 @@
 
 .rv-preset-card.rv-preset-spotlight-card.rv-preset-spotlight-card--active {
   border-color: #4ac7db;
-  box-shadow: 0 0 0 1px rgba(74, 199, 219, 0.4), 0 0 24px rgba(74, 199, 219, 0.14);
+  background: rgba(74, 199, 219, 0.07);
+  box-shadow: none;
 }
 
 .rv-preset-card.rv-preset-spotlight-card.rv-preset-spotlight-card--no-thumb {
   height: auto;
   min-height: 56px;
-  padding: 10px 12px;
+}
+
+/* The Layer Row's accent rail: inset from the top and bottom, grey when unselected, cyan when selected. */
+.rv-preset-spotlight-accent {
+  position: absolute;
+  top: 9px;
+  bottom: 9px;
+  left: 0;
+  width: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.rv-preset-spotlight-card--active .rv-preset-spotlight-accent {
+  background: #4ac7db;
+  box-shadow: 0 0 10px #4ac7db;
 }
 
 .rv-preset-spotlight-thumb {
-  position: absolute;
-  inset: 0;
+  position: relative;
   display: block;
+  flex: 0 0 76px;
+  width: 76px;
+  height: 52px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #020508;
 }
 
 .rv-preset-spotlight-thumb .rv-preset-thumb {
@@ -495,47 +503,30 @@
   box-shadow: none;
 }
 
+.rv-preset-spotlight-thumb .rv-preset-thumb::after { display: none; }
+
 .rv-preset-spotlight-thumb .rv-preset-thumb-img {
   object-fit: cover;
 }
 
-.rv-preset-spotlight-scrim {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background: linear-gradient(180deg, transparent 38%, rgba(2, 5, 8, 0.94) 100%);
-  pointer-events: none;
-}
+.rv-preset-spotlight-scrim { display: none; }
 
 .rv-preset-spotlight-caption {
-  position: absolute;
-  z-index: 2;
-  left: 10px;
-  right: 10px;
-  bottom: 8px;
   display: flex;
+  min-width: 0;
+  flex: 1;
   flex-direction: column;
   gap: 5px;
   pointer-events: none;
 }
 
-.rv-preset-spotlight-card--no-thumb .rv-preset-spotlight-caption {
-  position: static;
-}
-
 .rv-preset-spotlight-name {
   overflow: hidden;
-  color: rgba(245, 248, 250, 0.95);
-  font-size: 13px;
-  font-weight: 700;
+  color: rgba(232, 244, 248, 0.9);
+  font-size: 12px;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
-}
-
-.rv-preset-spotlight-card--no-thumb .rv-preset-spotlight-name {
-  color: rgba(232, 244, 248, 0.9);
-  text-shadow: none;
 }
 
 .rv-preset-spotlight-chips {
@@ -544,12 +535,23 @@
   gap: 5px;
 }
 
+/* Badges in the card: equal space either side of the content and a small dot. */
+.rv-preset-spotlight-chips .dv-badge {
+  padding: 3px 8px;
+  gap: 5px;
+}
+.rv-preset-spotlight-chips .dv-badge-dot {
+  width: 4px;
+  height: 4px;
+}
+
 .rv-preset-spotlight-actions {
   position: absolute;
   z-index: 3;
   top: 8px;
   right: 10px;
   display: flex;
+  align-items: center;
   gap: 4px;
 }
 
@@ -579,9 +581,21 @@
   text-transform: uppercase;
 }
 
-.rv-preset-spotlight-action--active {
-  color: #f0b429;
-  border-color: rgba(240, 180, 41, 0.4);
+/* The favourite is the Media Library's heart: bare, faint when off, gold when on. */
+.rv-preset-spotlight-action--favorite {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.45);
+  transition: color 0.12s;
+}
+.rv-preset-spotlight-action--favorite:hover { color: #d8b95a; }
+
+.rv-preset-spotlight-action--active,
+.rv-preset-spotlight-action--favorite.rv-preset-spotlight-action--active {
+  color: #d8b95a;
 }
 
 .rv-preset-spotlight-action--danger {

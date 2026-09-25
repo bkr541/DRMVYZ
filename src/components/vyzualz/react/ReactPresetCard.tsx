@@ -1,4 +1,5 @@
 import { type KeyboardEvent, type ReactNode } from 'react'
+import { FavouriteIcon } from 'hugeicons-react'
 import { Badge } from './controls/Badge'
 
 export type ReactPresetCardChipTone = 'mode' | 'switch'
@@ -129,6 +130,7 @@ export function ReactPresetCard({
         aria-label={activateLabel}
         title={titleText}
       >
+        <span className="rv-preset-spotlight-accent" aria-hidden="true" />
         {hasThumbnail && (
           <>
             <span className="rv-preset-spotlight-thumb" aria-hidden="true">{thumbnail}</span>
@@ -157,7 +159,7 @@ export function ReactPresetCard({
           {onToggleFavorite && (
             <button
               type="button"
-              className={`rv-preset-spotlight-action${isFavorite ? ' rv-preset-spotlight-action--active' : ''}`}
+              className={`rv-preset-spotlight-action rv-preset-spotlight-action--favorite${isFavorite ? ' rv-preset-spotlight-action--active' : ''}`}
               onClick={event => {
                 event.stopPropagation()
                 onToggleFavorite()
@@ -166,7 +168,7 @@ export function ReactPresetCard({
               aria-label={`${isFavorite ? 'Remove' : 'Add'} ${title} ${isFavorite ? 'from' : 'to'} favorites`}
               title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
             >
-              {isFavorite ? '★' : '☆'}
+              <FavouriteIcon size={15} color="currentColor" />
             </button>
           )}
           {secondaryActions.map(action => (

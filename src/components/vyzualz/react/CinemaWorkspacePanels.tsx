@@ -34,7 +34,6 @@ function useCinemaPanelState() {
 export function CinemaPresetsPanel() {
   const { state, preset } = useCinemaPanelState()
   const [query, setQuery] = useState('')
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [scope, setScope] = useState<'system' | 'user'>('system')
   const needle = query.trim().toLowerCase()
   const presets = state.compositions.filter(candidate => {
@@ -62,12 +61,10 @@ export function CinemaPresetsPanel() {
       <PresetSearchRow
         query={query}
         onQueryChange={setQuery}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
         ariaLabel="Search Cinema presets"
       />
       {scope === 'system' && (
-      <div className={`rv-cinema-preset-grid${viewMode === 'list' ? ' rv-cinema-preset-grid--list' : ''}`}>
+      <div className="rv-cinema-preset-grid">
         {presets.map((candidate, index) => {
           const isActive = candidate.id === preset?.id
           const tone = CINEMA_LAYER_ROW_TONES[index % CINEMA_LAYER_ROW_TONES.length]
@@ -80,6 +77,7 @@ export function CinemaPresetsPanel() {
               title={candidate.metadata.description}
               onClick={() => selectPreset(candidate.id)}
             >
+              <span className="rv-cinema-preset-tile-accent" aria-hidden="true" />
               <span className="rv-cinema-preset-tile-thumb" style={{ '--rv-preset-tone': tone } as CSSProperties} aria-hidden="true" />
               <span className="rv-cinema-preset-tile-name">{candidate.metadata.name}</span>
             </button>

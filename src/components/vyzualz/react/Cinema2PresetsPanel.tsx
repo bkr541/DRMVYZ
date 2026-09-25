@@ -13,7 +13,6 @@ export interface Cinema2PresetsPanelProps {
 /** Native Cinema 2.0 preset browser backed directly by the engine registry. */
 export function Cinema2PresetsPanel({ activePresetId, onSelectPreset }: Cinema2PresetsPanelProps) {
   const [query, setQuery] = useState('')
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [scope, setScope] = useState<'system' | 'user'>('system')
   const needle = query.trim().toLowerCase()
   const presets = cinema2NativePresetRegistry.list().filter(manifest => {
@@ -33,12 +32,10 @@ export function Cinema2PresetsPanel({ activePresetId, onSelectPreset }: Cinema2P
       <PresetSearchRow
         query={query}
         onQueryChange={setQuery}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
         ariaLabel="Search Cinema 2.0 presets"
       />
       {scope === 'system' && (
-      <div className={`rv-cinema-preset-grid${viewMode === 'list' ? ' rv-cinema-preset-grid--list' : ''}`} data-cinema2-preset-grid="true">
+      <div className="rv-cinema-preset-grid" data-cinema2-preset-grid="true">
         {presets.map((manifest, index) => {
           const active = manifest.id === activePresetId
           return (
@@ -51,6 +48,7 @@ export function Cinema2PresetsPanel({ activePresetId, onSelectPreset }: Cinema2P
               title={manifest.metadata.description}
               onClick={() => onSelectPreset(manifest.id)}
             >
+              <span className="rv-cinema-preset-tile-accent" aria-hidden="true" />
               <span
                 className="rv-cinema-preset-tile-thumb"
                 style={{ '--rv-preset-tone': CINEMA2_PRESET_TONES[index % CINEMA2_PRESET_TONES.length] } as CSSProperties}
