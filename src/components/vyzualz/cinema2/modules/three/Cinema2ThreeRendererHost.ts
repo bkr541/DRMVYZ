@@ -14,6 +14,11 @@ export interface Cinema2ThreeRendererEntry {
   readonly renderer: ThreeNamespace.WebGLRenderer
   /** Image-based lighting texture, generated on first use and reused by every module on this context. */
   getEnvironment(): ThreeNamespace.Texture
+  /**
+   * A shipped equirectangular `.hdr` environment, fetched and filtered into an image-based-lighting texture once per URL and shared by every module
+   * on this context. Rejects when the file cannot be fetched or decoded (callers fall back to `getEnvironment`).
+   */
+  loadEnvironment(url: string): Promise<ThreeNamespace.Texture>
 }
 
 const entries = new WeakMap<WebGL2RenderingContext, Cinema2ThreeRendererEntry>()
@@ -30,6 +35,7 @@ export function getCinema2ThreeRenderer(library: Cinema2ThreeLibrary, gl: WebGL2
   renderer.outputColorSpace = THREE.SRGBColorSpace
 
   let environment: ThreeNamespace.Texture | null = null
+  const shipped = new Map<string, Promise<ThreeNamespace.Texture>>()
   const entry: Cinema2ThreeRendererEntry = Object.freeze({
     renderer,
     getEnvironment() {
@@ -43,6 +49,37 @@ export function getCinema2ThreeRenderer(library: Cinema2ThreeLibrary, gl: WebGL2
         environment = target.texture
       }
       return environment
+    },
+    loadEnvironment(url: string) {
+      const cached = shipped.get(url)
+      if (cached) return cached
+      const pending = (async () => {
+        // A dev server or the app protocol can answer a missing file with an HTML fallback page and status 200; the loader would then fail
+        // with a confusing parse error, so check what came back first.
+        const response = await fetch(url)
+        if (!response.ok) throw new Error(`Environment request for "${url}" failed with HTTP ${response.status}.`)
+        const buffer = await response.arrayBuffer()
+        const head = new TextDecoder('latin1').decode(new Uint8Array(buffer, 0, Math.min(16, buffer.byteLength)))
+        if (!/^#\?(RADIANCE|RGBE)/.test(head)) throw new Error(`Environment "${url}" is not a Radiance .hdr file.`)
+        const data = new library.HDRLoader().parse(buffer)
+        const source = new THREE.DataTexture(data.data, data.width, data.height, data.format, data.type)
+        source.mapping = THREE.EquirectangularReflectionMapping
+        source.minFilter = THREE.LinearFilter
+        source.magFilter = THREE.LinearFilter
+        source.generateMipmaps = false
+        source.flipY = true
+        source.needsUpdate = true
+        const generator = new THREE.PMREMGenerator(renderer)
+        const target = generator.fromEquirectangular(source)
+        source.dispose()
+        generator.dispose()
+        renderer.resetState()
+        return target.texture
+      })()
+      // A failed load is not cached, so a later activation can retry.
+      pending.catch(() => { if (shipped.get(url) === pending) shipped.delete(url) })
+      shipped.set(url, pending)
+      return pending
     },
   })
   entries.set(gl, entry)

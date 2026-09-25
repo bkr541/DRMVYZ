@@ -332,3 +332,39 @@ describe('Cinema 2.0 volumetric smoke volume', () => {
     service.dispose()
   })
 })
+
+describe('Cinema 2.0 reflective floor screen-row glare', () => {
+  function lastVec4Of(gl: ReturnType<typeof createCinemaMockWebGL>, name: string): number[] | undefined {
+    const calls = (gl.uniform4f as ReturnType<typeof vi.fn>).mock.calls.filter((call: unknown[]) => (call[0] as { name?: string } | null)?.name === name)
+    return calls[calls.length - 1]?.slice(1) as number[] | undefined
+  }
+
+  it('is off unless authored, and the Threshold floor places its rows from the corridor layout', () => {
+    const off = createEffectRuntime('high')
+    off.runtime.execute(FLOOR, context({ depth: true, camera: true }))
+    expect(lastUniform(off.gl, 'uniform1f', 'u_glare')).toBe(0)
+    off.runtime.dispose()
+
+    const threshold = createEffectRuntime('high', CINEMA2_THRESHOLD_PRESET_MANIFEST)
+    threshold.runtime.execute(CINEMA2_THRESHOLD_FLOOR_EFFECT_ID, context({ depth: true, camera: true }))
+    expect(lastUniform(threshold.gl, 'uniform1f', 'u_glare')).toBeGreaterThan(0.5)
+    // |x| of the screens (times the Corridor Width scale), first row, spacing, rows; then lap length, screen centre height and emitter area.
+    expect(lastVec4Of(threshold.gl, 'u_glareRows')).toEqual([26, 24, 13.3, 7])
+    expect(lastVec4Of(threshold.gl, 'u_glareShape')).toEqual([216, 19.5, 252, 0])
+    threshold.runtime.dispose()
+  })
+
+  it('follows Master Intensity and Corridor Width through bindings, and pulses with the music through envelopes', () => {
+    const effect = CINEMA2_THRESHOLD_PRESET_MANIFEST.effects!.find(candidate => candidate.id === CINEMA2_THRESHOLD_FLOOR_EFFECT_ID)!
+    expect(Object.keys(effect.parameterBindings ?? {})).toEqual(expect.arrayContaining(['glareIntensity', 'glareWidthScale']))
+    const targets = (CINEMA2_THRESHOLD_PRESET_MANIFEST.choreography?.rules ?? []).flatMap(rule => rule.actions.map(action => `${(action.target as { property?: string }).property}`))
+    expect(targets.filter(property => property === 'glareIntensity').length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('validates its ranges', () => {
+    const bad = { ...effectManifest(FLOOR), parameters: { mix: 1, glareIntensity: 9, glareWidthScale: 0, glareRowCount: 0, glareRepeat: 1, glareColor: [2, 0, 0] } }
+    expect(cinema2ReflectiveFloorEffectDefinition.validate!(bad).map(diagnostic => diagnostic.path)).toEqual(expect.arrayContaining([
+      '$.parameters.glareIntensity', '$.parameters.glareWidthScale', '$.parameters.glareRowCount', '$.parameters.glareRepeat', '$.parameters.glareColor',
+    ]))
+  })
+})

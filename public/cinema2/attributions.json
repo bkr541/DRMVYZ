@@ -23,6 +23,13 @@
       "origin": "scripts/cinema2-assets/generate-smoke-volume.mjs (64^3 volume stored as a 64x4096 PNG, converted to lossless WebP because the channels are data; the 32^3 file is the same noise field sampled more coarsely)"
     },
     {
+      "id": "cinema2-studio-environment",
+      "kind": "environment",
+      "license": "generated-in-house",
+      "attribution": null,
+      "origin": "scripts/cinema2-assets/generate-studio-environment.mjs (equirectangular Radiance RGBE: dark room with an overhead panel, a bright key softbox, a cool strip light and a magenta accent; 512 px wide for the low tier)"
+    },
+    {
       "id": "cinema2-wet-concrete",
       "kind": "texture",
       "license": "generated-in-house",

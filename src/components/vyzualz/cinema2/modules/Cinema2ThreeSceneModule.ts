@@ -20,8 +20,10 @@ import {
   CINEMA2_THREE_DEFAULT_OVERRIDES,
   Cinema2ThreeSceneBridge,
   type Cinema2ThreeMaterialOverrides,
+  type Cinema2ThreePanelSpec,
   type Cinema2ThreeSceneInstance,
 } from './three/Cinema2ThreeSceneBridge'
+import { cinema2ThreeEnvironmentRegistry, type Cinema2ThreeEnvironmentRegistry } from './three/Cinema2ThreeEnvironmentRegistry'
 
 export const CINEMA2_THREE_SCENE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('three-scene')
 export const CINEMA2_THREE_SCENE_MODULE_VERSION = 1 as const
@@ -37,9 +39,17 @@ export type Cinema2ThreeSceneModuleState = 'idle' | 'loading' | 'building' | 're
  * move it); without one the instance sits at the world origin.
  *
  * Module parameters (bindable to Design controls, all optional): `color` (multiplies the base color), `emissive` and
- * `emissiveIntensity`, `roughness`, `metalness`, `environmentIntensity`. Missing parameters leave the asset's own values.
+ * `emissiveIntensity`, `roughness`, `metalness`, `environmentIntensity`, and the PBR set: `clearcoat` / `clearcoatRoughness` (a glossy
+ * lacquer layer; using `clearcoat` upgrades the materials to physical ones), `environmentRotation` (degrees) and `panelIntensity`
+ * (multiplies the configured panel lights). Missing parameters leave the asset's own values.
+ *
+ * `config.environment`: id of a shipped equirectangular environment used for image-based lighting (default: the built-in studio room;
+ * a shipped one that fails to load falls back to it with a diagnostic). Its intensity follows the Cinema 2.0 environment exposure.
+ * `config.panels`: `[{ position, target, size: [width, height], color, intensity }]` rectangular LED-panel lights (Three `RectAreaLight`) that
+ * light the models: 0 on low, 2 on medium, 4 on high.
  */
 export interface Cinema2ThreeSceneModuleOptions {
+  environments?: Cinema2ThreeEnvironmentRegistry
   registry?: Cinema2ThreeAssetRegistry
   assets?: Cinema2ThreeAssetCache
   loadLibrary?: () => Promise<Cinema2ThreeLibrary>
@@ -57,15 +67,18 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
   const registry = options.registry ?? cinema2ThreeAssetRegistry
   const assets = options.assets ?? (registry === cinema2ThreeAssetRegistry ? defaultAssetCache : new Cinema2ThreeAssetCache(registry))
   const loadLibrary = options.loadLibrary ?? loadCinema2ThreeLibrary
+  const environments = options.environments ?? cinema2ThreeEnvironmentRegistry
 
   return Object.freeze({
     typeId: CINEMA2_THREE_SCENE_MODULE_TYPE_ID,
     version: CINEMA2_THREE_SCENE_MODULE_VERSION,
     validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2ModuleDiagnostic[] {
-      return Object.freeze(validateConfig(module, registry))
+      return Object.freeze(validateConfig(module, registry, environments))
     },
     create(context: Cinema2ModuleCreateContext) {
       const requested = parseInstances(context.module)
+      const panels = parsePanels(context.module)
+      const environmentId = typeof context.module.config?.environment === 'string' ? context.module.config.environment : null
       let state: Cinema2ThreeSceneModuleState = 'idle'
       let disposed = false
       let bridge: Cinema2ThreeSceneBridge | null = null
@@ -73,6 +86,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
       let held: Cinema2ThreeLoadedAsset[] = []
       let loaded: Cinema2ThreeSceneInstance[] = []
       let library: Cinema2ThreeLibrary | null = null
+      let areaLightTables: { init(): void } | null = null
       let overrides: Readonly<Cinema2ThreeMaterialOverrides> = CINEMA2_THREE_DEFAULT_OVERRIDES
       let reportedBytes = -1
       const diagnostics: Cinema2ModuleDiagnostic[] = []
@@ -95,6 +109,14 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           } catch (error) {
             if (!disposed) { state = 'failed'; report('CINEMA2_THREE_LIBRARY_LOAD_FAILED', `Cinema 2.0 could not load the 3D library: ${message(error)}`, `module.${context.module.id}`) }
             return
+          }
+          if (panels.length > 0) {
+            try {
+              areaLightTables = await library.loadAreaLightTables()
+            } catch (error) {
+              // Without the tables the panels cannot light anything, but the models still draw.
+              report('CINEMA2_THREE_AREA_LIGHTS_UNAVAILABLE', `Cinema 2.0 could not load the panel-light tables; panel lights are off: ${message(error)}`, `module.${context.module.id}.config.panels`)
+            }
           }
           const results = await Promise.all(requested.map(async instance => {
             try {
@@ -120,7 +142,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           bridge = context.resources.acquire(
             'three-scene:bridge',
             'ThreeSceneBridge',
-            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded),
+            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded, { panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null }),
             value => { value.dispose(); releaseHeld() },
           )
           state = 'building'
@@ -158,7 +180,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           },
         },
         render: { providers: Object.freeze([provider]) },
-        getDiagnostics: () => diagnostics,
+        getDiagnostics: () => (bridge ? [...diagnostics, ...bridge.getDiagnostics().map(entry => ({ ...entry, path: `module.${context.module.id}` }))] : diagnostics),
         inspect: (): Cinema2ThreeSceneModuleInspection => ({ state, loadedAssetCount: loaded.length, skippedInstanceCount: requested.length - loaded.length }),
       }
     },
@@ -185,7 +207,7 @@ function parseInstances(module: Readonly<Cinema2ModuleManifest>): RequestedInsta
   return result
 }
 
-function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinema2ThreeAssetRegistry): Cinema2ModuleDiagnostic[] {
+function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinema2ThreeAssetRegistry, environments: Cinema2ThreeEnvironmentRegistry): Cinema2ModuleDiagnostic[] {
   const diagnostics: Cinema2ModuleDiagnostic[] = []
   const raw = module.config?.instances
   if (!Array.isArray(raw) || raw.length === 0) {
@@ -207,7 +229,41 @@ function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinem
       diagnostics.push({ code: 'CINEMA2_THREE_SCENE_INSTANCE_INVALID', path: `${path}.node`, message: 'Instance "node" must be a Scene Graph node id string when present.' })
     }
   })
+  const environment = module.config?.environment
+  if (environment !== undefined && (typeof environment !== 'string' || !environments.has(environment))) {
+    diagnostics.push({ code: 'CINEMA2_THREE_SCENE_ENVIRONMENT_UNKNOWN', path: '$.config.environment', message: `No shipped environment "${String(environment)}" is registered.` })
+  }
+  const rawPanels = module.config?.panels
+  if (rawPanels !== undefined) {
+    if (!Array.isArray(rawPanels)) {
+      diagnostics.push({ code: 'CINEMA2_THREE_SCENE_PANELS_INVALID', path: '$.config.panels', message: 'config.panels must be a list of { position, target, size, color, intensity }.' })
+    } else {
+      rawPanels.forEach((entry, index) => {
+        if (!parsePanel(entry)) diagnostics.push({ code: 'CINEMA2_THREE_SCENE_PANELS_INVALID', path: `$.config.panels[${index}]`, message: 'A panel needs finite position [x, y, z] and target [x, y, z], size [width, height] above 0, a color [r, g, b] in 0..1 and a non-negative intensity.' })
+      })
+    }
+  }
   return diagnostics
+}
+
+function parsePanels(module: Readonly<Cinema2ModuleManifest>): Cinema2ThreePanelSpec[] {
+  const raw = module.config?.panels
+  return Array.isArray(raw) ? raw.map(parsePanel).filter((panel): panel is Cinema2ThreePanelSpec => panel !== null) : []
+}
+
+function parsePanel(entry: unknown): Cinema2ThreePanelSpec | null {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null
+  const record = entry as Record<string, unknown>
+  const vector = (value: unknown, length: number): number[] | null =>
+    Array.isArray(value) && value.length === length && value.every(component => typeof component === 'number' && Number.isFinite(component)) ? value as number[] : null
+  const position = vector(record.position, 3)
+  const target = vector(record.target, 3)
+  const size = vector(record.size, 2)
+  const color = vector(record.color, 3)
+  const intensity = record.intensity
+  if (!position || !target || !size || !color || typeof intensity !== 'number' || !Number.isFinite(intensity) || intensity < 0) return null
+  if (size[0]! <= 0 || size[1]! <= 0 || color.some(component => component < 0 || component > 1)) return null
+  return { position: position as [number, number, number], target: target as [number, number, number], width: size[0]!, height: size[1]!, color: color as [number, number, number], intensity }
 }
 
 function readOverrides(parameters: Cinema2ModuleParameterReadFacet, previous: Readonly<Cinema2ThreeMaterialOverrides>): Readonly<Cinema2ThreeMaterialOverrides> {
@@ -217,10 +273,16 @@ function readOverrides(parameters: Cinema2ModuleParameterReadFacet, previous: Re
   const roughness = readNumber(parameters.get('roughness'), 0, 1)
   const metalness = readNumber(parameters.get('metalness'), 0, 1)
   const environmentIntensity = readNumber(parameters.get('environmentIntensity'), 0, 4) ?? CINEMA2_THREE_DEFAULT_OVERRIDES.environmentIntensity
+  const clearcoat = readNumber(parameters.get('clearcoat'), 0, 1)
+  const clearcoatRoughness = readNumber(parameters.get('clearcoatRoughness'), 0, 1)
+  const environmentRotation = readNumber(parameters.get('environmentRotation'), -720, 720) ?? CINEMA2_THREE_DEFAULT_OVERRIDES.environmentRotation
+  const panelIntensity = readNumber(parameters.get('panelIntensity'), 0, 40) ?? CINEMA2_THREE_DEFAULT_OVERRIDES.panelIntensity
   const same = (x: readonly number[] | null, y: readonly number[] | null) => x === y || (x != null && y != null && x.every((value, index) => value === y[index]))
   if (same(color, previous.color) && same(emissive, previous.emissive) && emissiveIntensity === previous.emissiveIntensity
-    && roughness === previous.roughness && metalness === previous.metalness && environmentIntensity === previous.environmentIntensity) return previous
-  return Object.freeze({ color, emissive, emissiveIntensity, roughness, metalness, environmentIntensity })
+    && roughness === previous.roughness && metalness === previous.metalness && environmentIntensity === previous.environmentIntensity
+    && clearcoat === previous.clearcoat && clearcoatRoughness === previous.clearcoatRoughness
+    && environmentRotation === previous.environmentRotation && panelIntensity === previous.panelIntensity) return previous
+  return Object.freeze({ color, emissive, emissiveIntensity, roughness, metalness, environmentIntensity, clearcoat, clearcoatRoughness, environmentRotation, panelIntensity })
 }
 
 function readNumber(value: unknown, min: number, max: number): number | null {

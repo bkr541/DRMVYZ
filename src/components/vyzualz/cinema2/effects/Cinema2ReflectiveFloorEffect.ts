@@ -47,7 +47,9 @@ import {
  * depth the pixel becomes floor (so pillars, screens and performers still occlude it), shaded with a
  * dark base, light pools and specular streaks from the shared light list, plus a screen-space
  * reflection: the mirrored ray is marched through the depth buffer and the scene color it hits is
- * blended in with a Fresnel weight. Optional `grit` (0-1, default 0) turns the mirror into wet concrete: damp patches, rippled
+ * blended in with a Fresnel weight. Optional `glareIntensity` (default 0) lights the floor from rows of tall emissive screens standing along it (the
+ * Threshold colonnade): a soft area-light falloff from each screen of the three nearest rows on both sides, repeating every `glareRepeat` units, so
+ * the wet floor pools with light under the towers instead of only mirroring them. Optional `grit` (0-1, default 0) turns the mirror into wet concrete: damp patches, rippled
  * reflections and dark cracks from world-anchored noise, at `gritScale` world units per patch. Optional `surfaceTexture` names a shipped texture
  * (layout `surface-normal-crack-roughness`, see the texture registry) that replaces the procedural ripples with a real normal map, crack mask and
  * roughness map, tiled every `surfaceTextureScale` world units and blended in by `surfaceTextureStrength`; it fades in once loaded, and a missing or
@@ -103,6 +105,10 @@ uniform float u_thickness;
 uniform float u_grit;
 uniform float u_gritScale;
 uniform float u_baseLift;
+uniform float u_glare;
+uniform vec3 u_glareColor;
+uniform vec4 u_glareRows;
+uniform vec4 u_glareShape;
 uniform sampler2D u_surfaceTex;
 uniform float u_surface;
 uniform float u_surfaceScale;
@@ -131,6 +137,29 @@ float valueNoise(vec2 p) {
 }
 float fbm(vec2 p) {
   return valueNoise(p) * 0.5 + valueNoise(p * 2.03 + 17.1) * 0.25 + valueNoise(p * 4.11 + 41.7) * 0.125 + valueNoise(p * 8.3 + 5.3) * 0.0625;
+}
+// Light on the floor from rows of tall screens along the flight path, both sides of the aisle, repeating every lap. u_glareRows: x = |x| of the
+// screens, y = distance of the first row, z = row spacing, w = rows per lap. u_glareShape: x = lap length, y = screen centre height, z = effective
+// emitter area, w = unused. Area-light style falloff E = A cos(floor) cos(screen) / (d^2 + 0.6 A), summed over the three nearest rows per side.
+float rowGlare(vec3 p) {
+  float total = 0.0;
+  float zl = mod(-p.z, u_glareShape.x);
+  float nearest = floor((zl - u_glareRows.y) / u_glareRows.z + 0.5);
+  for (int di = -1; di <= 1; di++) {
+    float row = nearest + float(di);
+    if (row < 0.0 || row > u_glareRows.w - 1.0) continue;
+    float dz = zl - (u_glareRows.y + row * u_glareRows.z);
+    for (int side = 0; side < 2; side++) {
+      float s = side == 0 ? -1.0 : 1.0;
+      vec3 v = vec3(s * u_glareRows.x - p.x, u_glareShape.y - p.y, -dz);
+      float d2 = dot(v, v);
+      float dist = sqrt(d2);
+      float cosFloor = max(v.y, 0.0) / dist;
+      float cosScreen = max(s * v.x, 0.0) / dist;
+      total += u_glareShape.z * cosFloor * cosScreen / (d2 + 0.6 * u_glareShape.z);
+    }
+  }
+  return total;
 }
 vec3 unproject(vec2 ndc, float z) {
   vec4 p = u_invViewProj * vec4(ndc, z, 1.0);
@@ -298,7 +327,8 @@ void main() {
   floorLighting(hitPoint, viewDir, diffuse, specular);
   float cosTheta = clamp(viewDir.y, 0.0, 1.0);
   float fresnel = u_reflectivity * (0.15 + 0.85 * pow(1.0 - cosTheta, u_fresnel)) * mix(0.25, 1.0, wet) * (1.0 - 0.9 * crack);
-  vec3 surface = (u_baseColor * u_baseLift * (1.0 + u_ambient) + u_albedo * u_pool * diffuse) * max(lightness, 0.05);
+  vec3 glare = u_glare > 0.001 ? u_glareColor * rowGlare(hitPoint) * u_glare : vec3(0.0);
+  vec3 surface = (u_baseColor * u_baseLift * (1.0 + u_ambient) + u_albedo * u_pool * diffuse + glare) * max(lightness, 0.05);
   vec3 floorColor = surface * (1.0 - fresnel) + environment * fresnel + specular * u_specular * (0.4 + fresnel);
 
   // Fade to the untouched background toward the horizon so the plane never ends in a hard line.
@@ -323,12 +353,22 @@ const NUMERIC: readonly Cinema2EffectNumericRange[] = Object.freeze([
   ['surfaceTextureScale', 0.5, 60],
   ['surfaceTextureStrength', 0, 1],
   ['shadowStrength', 0, 1],
+  ['glareIntensity', 0, 8],
+  ['glareOffsetX', 1, 200],
+  ['glareWidthScale', 0.3, 3],
+  ['glareFirstDistance', 0, 500],
+  ['glareSpacing', 1, 200],
+  ['glareRowCount', 1, 64],
+  ['glareRepeat', 10, 5000],
+  ['glareScreenHeight', 0, 200],
+  ['glareArea', 1, 5000],
 ])
 
 /** Seconds a freshly loaded surface texture takes to fade in, so it does not pop. */
 const SURFACE_FADE_IN_SEC = 0.6
 
 const DEFAULT_BASE_COLOR: readonly [number, number, number] = Object.freeze([0.012, 0.016, 0.024]) as readonly [number, number, number]
+const DEFAULT_GLARE_COLOR: readonly [number, number, number] = Object.freeze([0.75, 0.85, 1]) as readonly [number, number, number]
 const DEFAULT_SKY_COLOR: readonly [number, number, number] = Object.freeze([0.006, 0.008, 0.014]) as readonly [number, number, number]
 
 class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
@@ -355,7 +395,7 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
       requiredUniforms: ['u_source', 'u_mix'],
       optionalUniforms: [
         'u_depth', 'u_time', 'u_enabled', 'u_viewProj', 'u_invViewProj', 'u_floorY', 'u_baseColor', 'u_albedo', 'u_reflectivity',
-        'u_roughness', 'u_fresnel', 'u_fadeDistance', 'u_skyColor', 'u_pool', 'u_specular', 'u_maxReflection', 'u_thickness', 'u_grit', 'u_gritScale', 'u_baseLift', 'u_surfaceTex', 'u_surface', 'u_surfaceScale', ...CINEMA2_SHADOW_UNIFORM_NAMES,
+        'u_roughness', 'u_fresnel', 'u_fadeDistance', 'u_skyColor', 'u_pool', 'u_specular', 'u_maxReflection', 'u_thickness', 'u_grit', 'u_gritScale', 'u_baseLift', 'u_glare', 'u_glareColor', 'u_glareRows', 'u_glareShape', 'u_surfaceTex', 'u_surface', 'u_surfaceScale', ...CINEMA2_SHADOW_UNIFORM_NAMES,
         'u_steps', 'u_blurTaps', 'u_ambient', 'u_lightCount', 'u_lightPos[0]', 'u_lightDir[0]', 'u_lightCol[0]', 'u_lightInner[0]',
       ],
     })
@@ -407,6 +447,12 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
     program.setFloat('u_grit', clamp(number(p, 'grit', 0), 0, 1))
     program.setFloat('u_gritScale', clamp(number(p, 'gritScale', 6), 0.5, 40))
     program.setFloat('u_baseLift', clamp(number(p, 'baseLift', 1), 0.1, 20))
+    // Screen-row glare (off unless glareIntensity is authored above 0).
+    program.setFloat('u_glare', clamp(number(p, 'glareIntensity', 0), 0, 8))
+    const glareColor = readEffectColor(p.glareColor, DEFAULT_GLARE_COLOR)
+    program.setVec3('u_glareColor', glareColor[0], glareColor[1], glareColor[2])
+    program.setVec4('u_glareRows', clamp(number(p, 'glareOffsetX', 26), 1, 200) * clamp(number(p, 'glareWidthScale', 1), 0.3, 3), clamp(number(p, 'glareFirstDistance', 24), 0, 500), clamp(number(p, 'glareSpacing', 13.3), 1, 200), clamp(number(p, 'glareRowCount', 7), 1, 64))
+    program.setVec4('u_glareShape', clamp(number(p, 'glareRepeat', 216), 10, 5000), clamp(number(p, 'glareScreenHeight', 19.5), 0, 200), clamp(number(p, 'glareArea', 250), 1, 5000), 0)
     const surface = this.surfaceAmount(context, clamp(number(p, 'surfaceTextureStrength', 1), 0, 1))
     program.setFloat('u_surface', surface)
     program.setFloat('u_surfaceScale', clamp(number(p, 'surfaceTextureScale', 6), 0.5, 60))
@@ -462,7 +508,7 @@ export const cinema2ReflectiveFloorEffectDefinition: Readonly<Cinema2EffectTypeD
   version: CINEMA2_REFLECTIVE_FLOOR_EFFECT_VERSION,
   label: 'Reflective Floor',
   validate: (effect: Readonly<Cinema2EffectManifest>) => [
-    ...validateEffectParameters(effect, NUMERIC, ['baseColor', 'skyColor']),
+    ...validateEffectParameters(effect, NUMERIC, ['baseColor', 'skyColor', 'glareColor']),
     ...validateSurfaceTexture(effect),
   ],
   create: ({ gl, effect, textures }: Readonly<Cinema2EffectCreateContext>) => new ReflectiveFloorEffectInstance(gl, effect, textures),

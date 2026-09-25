@@ -18,10 +18,46 @@ export interface Cinema2ThreeMaterialOverrides {
   metalness: number | null
   /** Strength of image-based lighting (0 disables reflections from the environment). */
   environmentIntensity: number
+  /** Clear lacquer layer (glossy skull, alien shell): 0-1. `null` leaves the asset alone; any number upgrades its materials to physical ones. */
+  clearcoat: number | null
+  clearcoatRoughness: number | null
+  /** Turns the environment about the vertical axis, in degrees, so its softboxes move across glossy surfaces. */
+  environmentRotation: number
+  /** Multiplies every configured panel light's intensity (choreography drives this to make LED panels pulse). */
+  panelIntensity: number
 }
+
+/** A rectangular emitter (an LED panel) that lights the Three models: `config.panels` of the `three-scene` module. */
+export interface Cinema2ThreePanelSpec {
+  position: readonly [number, number, number]
+  /** World point the panel faces. */
+  target: readonly [number, number, number]
+  width: number
+  height: number
+  /** sRGB color. */
+  color: readonly [number, number, number]
+  intensity: number
+}
+
+export interface Cinema2ThreeSceneOptions {
+  panels?: readonly Cinema2ThreePanelSpec[]
+  /** The loaded `RectAreaLightUniformsLib` (required when `panels` is non-empty; the module fetches it only in that case). */
+  areaLightTables?: { init(): void } | null
+  /** Resolves the shipped environment file for a quality tier; null (or a failed load) falls back to the built-in studio room. */
+  environmentUrl?: ((quality: Cinema2RenderQualityLevel) => string | null) | null
+}
+
+export interface Cinema2ThreeBridgeDiagnostic {
+  code: string
+  message: string
+}
+
+/** Panel (RectAreaLight) budget per quality tier: they cost per pixel per light, so low has none. */
+export const CINEMA2_THREE_PANEL_LIMITS: Readonly<Record<Cinema2RenderQualityLevel, number>> = Object.freeze({ low: 0, medium: 2, high: 4 })
 
 export const CINEMA2_THREE_DEFAULT_OVERRIDES: Readonly<Cinema2ThreeMaterialOverrides> = Object.freeze({
   color: null, emissive: null, emissiveIntensity: null, roughness: null, metalness: null, environmentIntensity: 0.5,
+  clearcoat: null, clearcoatRoughness: null, environmentRotation: 0, panelIntensity: 1,
 })
 
 export interface Cinema2ThreeSceneInstance {
@@ -38,7 +74,11 @@ interface PlacedInstance {
 
 interface OwnedMaterial {
   material: ThreeNamespace.MeshStandardMaterial
+  /** Where the mesh keeps this material, so it can be swapped for a physical one. */
+  slot: { mesh: ThreeNamespace.Mesh; index: number | null }
   base: {
+    clearcoat: number
+    clearcoatRoughness: number
     color: ThreeNamespace.Color
     emissive: ThreeNamespace.Color
     emissiveIntensity: number
@@ -67,6 +107,7 @@ type WarmStage = 'environment' | 'textures' | 'compile' | 'ready'
 export class Cinema2ThreeSceneBridge {
   private readonly renderer: ThreeNamespace.WebGLRenderer
   private readonly getEnvironment: () => ThreeNamespace.Texture
+  private readonly loadEnvironment: (url: string) => Promise<ThreeNamespace.Texture>
   private readonly scene: ThreeNamespace.Scene
   private readonly camera: ThreeNamespace.PerspectiveCamera
   private readonly target: ThreeNamespace.WebGLRenderTarget
@@ -75,6 +116,10 @@ export class Cinema2ThreeSceneBridge {
   private readonly pendingTextures: ThreeNamespace.Texture[] = []
   private readonly guard: Cinema2GlStateGuard
   private stage: WarmStage = 'environment'
+  private environmentLoad: 'idle' | 'loading' | 'done' = 'idle'
+  private readonly panels: { light: ThreeNamespace.RectAreaLight; spec: Readonly<Cinema2ThreePanelSpec> }[] = []
+  private readonly diagnostics: Cinema2ThreeBridgeDiagnostic[] = []
+  private upgraded = false
   private compiling = false
   private quality: Cinema2RenderQualityLevel | null = null
   private appliedOverrides: Readonly<Cinema2ThreeMaterialOverrides> | null = null
@@ -84,11 +129,13 @@ export class Cinema2ThreeSceneBridge {
     private readonly gl: WebGL2RenderingContext,
     private readonly library: Cinema2ThreeLibrary,
     instances: readonly Readonly<Cinema2ThreeSceneInstance>[],
+    private readonly options: Readonly<Cinema2ThreeSceneOptions> = {},
   ) {
     const { THREE } = library
     const host = getCinema2ThreeRenderer(library, gl)
     this.renderer = host.renderer
     this.getEnvironment = host.getEnvironment
+    this.loadEnvironment = host.loadEnvironment
     this.guard = new Cinema2GlStateGuard(gl)
     this.scene = new THREE.Scene()
     this.camera = new THREE.PerspectiveCamera()
@@ -108,12 +155,15 @@ export class Cinema2ThreeSceneBridge {
         const mesh = object as ThreeNamespace.Mesh
         if (!mesh.isMesh) return
         // Per-instance material clones so overrides never touch the shared asset; textures and geometry stay shared.
-        const cloned = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).map(material => {
+        const cloned = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).map((material, index) => {
           const standard = material.clone() as ThreeNamespace.MeshStandardMaterial
           if ((standard as { isMeshStandardMaterial?: boolean }).isMeshStandardMaterial) {
+            const physical = standard as Partial<ThreeNamespace.MeshPhysicalMaterial>
             materials.push({
               material: standard,
+              slot: { mesh, index: Array.isArray(mesh.material) ? index : null },
               base: {
+                clearcoat: physical.clearcoat ?? 0, clearcoatRoughness: physical.clearcoatRoughness ?? 0,
                 color: standard.color.clone(), emissive: standard.emissive.clone(), emissiveIntensity: standard.emissiveIntensity,
                 roughness: standard.roughness, metalness: standard.metalness, normalMap: standard.normalMap, aoMap: standard.aoMap,
               },
@@ -127,6 +177,26 @@ export class Cinema2ThreeSceneBridge {
       this.scene.add(root)
       this.placed.push({ node: instance.node, root, materials })
     }
+
+    // Panel lights: a fixed pool (unused ones simply hidden per tier), so the shader's light count only changes when the quality tier does.
+    const panelSpecs = options.panels ?? []
+    if (panelSpecs.length > 0) {
+      initializeAreaLightTables(options.areaLightTables ?? null)
+      for (const spec of panelSpecs) {
+        const light = new THREE.RectAreaLight(0xffffff, 0, spec.width, spec.height)
+        light.color.setRGB(spec.color[0], spec.color[1], spec.color[2], THREE.SRGBColorSpace)
+        light.position.set(spec.position[0], spec.position[1], spec.position[2])
+        light.lookAt(spec.target[0], spec.target[1], spec.target[2])
+        light.visible = false
+        this.scene.add(light)
+        this.panels.push({ light, spec })
+      }
+    }
+  }
+
+  /** Non-fatal problems (for example a shipped environment that failed to load and fell back to the built-in room). */
+  getDiagnostics(): readonly Cinema2ThreeBridgeDiagnostic[] {
+    return this.diagnostics
   }
 
   /** True once the shaders are compiled and the textures uploaded; until then `draw` prepares one step per frame and draws nothing. */
@@ -155,6 +225,7 @@ export class Cinema2ThreeSceneBridge {
       renderer.resetState()
       this.applyQuality(lighting.quality)
       this.applyOverrides(overrides)
+      this.applyEnvironmentAndPanels(overrides, lighting.environment.exposure)
       this.place(exec)
       applyCinema2CameraFrame(this.camera, camera)
       this.lightRig.update(lighting)
@@ -181,6 +252,8 @@ export class Cinema2ThreeSceneBridge {
       this.scene.remove(root)
       for (const { material } of materials) material.dispose()
     }
+    for (const { light } of this.panels) this.scene.remove(light)
+    this.panels.length = 0
     this.placed.length = 0
     this.pendingTextures.length = 0
     // Geometry and textures belong to the shared asset (freed when its last holder releases it); the renderer belongs to the context.
@@ -219,12 +292,48 @@ export class Cinema2ThreeSceneBridge {
         material.needsUpdate = true
       }
     }
+    this.appliedOverrides = null // clearcoat and panel visibility depend on the tier: reapply them
+    const limit = CINEMA2_THREE_PANEL_LIMITS[quality]
+    this.panels.forEach(({ light }, index) => { light.visible = index < limit })
+  }
+
+  /**
+   * Swaps standard materials for physical ones the first time a clearcoat is requested. A clearcoat of exactly 0 removes the
+   * lacquer from the shader, so anything the parameter can reach is held at a tiny positive value on the tiers that draw it:
+   * turning the control up never recompiles a shader mid-show.
+   */
+  private upgradeToPhysical(): void {
+    if (this.upgraded) return
+    this.upgraded = true
+    const { THREE } = this.library
+    for (const { materials } of this.placed) {
+      for (const owned of materials) {
+        const physical = new THREE.MeshPhysicalMaterial()
+        THREE.MeshStandardMaterial.prototype.copy.call(physical, owned.material)
+        physical.clearcoat = owned.base.clearcoat
+        physical.clearcoatRoughness = owned.base.clearcoatRoughness
+        const { mesh, index } = owned.slot
+        if (index == null) mesh.material = physical
+        else (mesh.material as ThreeNamespace.Material[])[index] = physical
+        owned.material.dispose()
+        owned.material = physical
+      }
+    }
+  }
+
+  private applyEnvironmentAndPanels(overrides: Readonly<Cinema2ThreeMaterialOverrides>, exposure: number): void {
+    // The environment follows the Cinema 2.0 environment exposure, so a preset's global exposure control dims reflections too.
+    this.scene.environmentIntensity = overrides.environmentIntensity * Math.max(0, exposure)
+    this.scene.environmentRotation.set(0, (overrides.environmentRotation * Math.PI) / 180, 0)
+    for (const { light, spec } of this.panels) light.intensity = spec.intensity * overrides.panelIntensity
   }
 
   private applyOverrides(overrides: Readonly<Cinema2ThreeMaterialOverrides>): void {
     if (this.appliedOverrides && sameOverrides(this.appliedOverrides, overrides)) return
     this.appliedOverrides = overrides
     const { THREE } = this.library
+    if (overrides.clearcoat != null) this.upgradeToPhysical()
+    const detailed = this.quality !== 'low'
     const tint = overrides.color ? new THREE.Color().setRGB(overrides.color[0], overrides.color[1], overrides.color[2], THREE.SRGBColorSpace) : null
     const emissive = overrides.emissive ? new THREE.Color().setRGB(overrides.emissive[0], overrides.emissive[1], overrides.emissive[2], THREE.SRGBColorSpace) : null
     for (const { materials } of this.placed) {
@@ -235,16 +344,36 @@ export class Cinema2ThreeSceneBridge {
         material.emissiveIntensity = overrides.emissiveIntensity ?? base.emissiveIntensity
         material.roughness = overrides.roughness ?? base.roughness
         material.metalness = overrides.metalness ?? base.metalness
+        const physical = material as Partial<ThreeNamespace.MeshPhysicalMaterial>
+        if ('clearcoat' in physical && this.upgraded) {
+          const wanted = overrides.clearcoat ?? base.clearcoat
+          physical.clearcoat = detailed && (overrides.clearcoat != null || base.clearcoat > 0) ? Math.max(0.001, wanted) : 0
+          physical.clearcoatRoughness = overrides.clearcoatRoughness ?? base.clearcoatRoughness
+        }
       }
     }
-    this.scene.environmentIntensity = overrides.environmentIntensity
   }
 
   /** One preparation step per frame so the first visible frame does not hitch: environment, textures (one each), shader compile. */
   private warmUp(): void {
     const { renderer } = this
     if (this.stage === 'environment') {
-      this.scene.environment = this.getEnvironment()
+      const url = this.options.environmentUrl?.(this.quality ?? 'high') ?? null
+      if (url && this.environmentLoad !== 'done') {
+        if (this.environmentLoad === 'idle') {
+          this.environmentLoad = 'loading'
+          this.loadEnvironment(url).then(
+            texture => { if (!this.disposed) { this.scene.environment = texture; this.environmentLoad = 'done' } },
+            error => {
+              if (this.disposed) return
+              this.diagnostics.push({ code: 'CINEMA2_THREE_ENVIRONMENT_LOAD_FAILED', message: `A shipped environment could not be loaded and the built-in studio room is used instead: ${error instanceof Error ? error.message : String(error)}` })
+              this.environmentLoad = 'done'
+            },
+          )
+        }
+        return // nothing draws until the environment is ready (or has failed over)
+      }
+      if (!this.scene.environment) this.scene.environment = this.getEnvironment()
       // Upload only textures the current tier actually samples (low drops normal and ambient-occlusion maps).
       const textures = new Set<ThreeNamespace.Texture>()
       for (const { materials } of this.placed) {
@@ -276,4 +405,16 @@ function sameOverrides(a: Readonly<Cinema2ThreeMaterialOverrides>, b: Readonly<C
   return same(a.color, b.color) && same(a.emissive, b.emissive)
     && a.emissiveIntensity === b.emissiveIntensity && a.roughness === b.roughness && a.metalness === b.metalness
     && a.environmentIntensity === b.environmentIntensity
+    && a.clearcoat === b.clearcoat && a.clearcoatRoughness === b.clearcoatRoughness
+    && a.environmentRotation === b.environmentRotation && a.panelIntensity === b.panelIntensity
+}
+
+const initializedAreaLightTables = new WeakSet<object>()
+
+/** `RectAreaLightUniformsLib.init()` fills global look-up tables: run it once per loaded Three library. */
+function initializeAreaLightTables(tables: { init(): void } | null): void {
+  if (!tables) throw new Error('Cinema 2.0 Three scene has panel lights but the area-light tables were not loaded.')
+  if (initializedAreaLightTables.has(tables)) return
+  initializedAreaLightTables.add(tables)
+  tables.init()
 }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { DEFAULT_BUDGETS, analyzeAssets, estimateTextureGpuBytes, generateAttributions, generateManifestSource, inspectGlb, readImageSize } from './assets-core.mjs'
+import { DEFAULT_BUDGETS, ENVIRONMENT_GPU_BYTES, analyzeAssets, readHdrSize, estimateTextureGpuBytes, generateAttributions, generateManifestSource, inspectGlb, readImageSize } from './assets-core.mjs'
 
 // ---- fixtures: header-only images and a tiny GLB, built in memory
 
@@ -48,8 +48,17 @@ function glb({ triangles = 12, images = [], extra = {} } = {}) {
   return Buffer.concat([header, chunkHeader(jsonChunk.length, 0x4e4f534a), jsonChunk, chunkHeader(binChunk.length, 0x004e4942), binChunk])
 }
 
+function hdr(width, height, magic = '#?RADIANCE') {
+  return Buffer.concat([Buffer.from(`${magic}\nFORMAT=32-bit_rle_rgbe\n\n-Y ${height} +X ${width}\n`, 'ascii'), Buffer.alloc(64)])
+}
+
 // A volume is one tall image: `depth` square slices of `width` x `width`.
 const files = {
+  'public/cinema2/environments/env-1024.hdr': hdr(1024, 512),
+  'public/cinema2/environments/env-512.hdr': hdr(512, 256),
+  'public/cinema2/environments/square.hdr': hdr(512, 512),
+  'public/cinema2/environments/huge.hdr': hdr(4096, 2048),
+  'public/cinema2/environments/not-hdr.hdr': Buffer.from('<html></html>'),
   'public/cinema2/textures/vol-64.png': png(64, 64 * 64),
   'public/cinema2/textures/vol-32.png': png(32, 32 * 32),
   'public/cinema2/textures/vol-ragged.png': png(64, 100),
@@ -99,6 +108,32 @@ test('measures a volume texture as depth square slices and prices it as a 3D tex
 test('fails a volume that is not whole square slices or whose edge is over the volume limit', () => {
   assert.deepEqual(codes(analyze(volume({ files: { high: 'public/cinema2/textures/vol-ragged.png' } }))), ['ASSET_FILE_INVALID'])
   assert.ok(codes(analyze(volume({ files: { high: 'public/cinema2/textures/vol-256.png' } }), { maxFileBytes: 1e9 })).includes('ASSET_TEXTURE_TOO_LARGE'))
+})
+
+const environment = (overrides = {}) => ({ id: 'ok-env', kind: 'environment', license: 'CC0', origin: 'https://example.com/env', files: { high: 'public/cinema2/environments/env-1024.hdr', low: 'public/cinema2/environments/env-512.hdr' }, ...overrides })
+
+test('reads the size of a Radiance HDR from its header and rejects other files', () => {
+  assert.deepEqual(readHdrSize(hdr(1024, 512)), { format: 'hdr', width: 1024, height: 512 })
+  assert.deepEqual(readHdrSize(hdr(64, 32, '#?RGBE')), { format: 'hdr', width: 64, height: 32 })
+  assert.equal(readHdrSize(Buffer.from('<html></html>')), null)
+  assert.equal(readHdrSize(Buffer.from('#?RADIANCE\nno size line here\n')), null)
+})
+
+test('accepts an environment, prices it as the filtered cube map on every tier and leaves out layout and compression', () => {
+  const result = analyze(environment())
+  assert.deepEqual(result.issues, [])
+  const asset = result.assets[0]
+  assert.equal(asset.kind, 'environment')
+  assert.deepEqual([asset.files.high.width, asset.files.high.height, asset.files.low.width], [1024, 512, 512])
+  assert.deepEqual(asset.gpuBytes, { high: ENVIRONMENT_GPU_BYTES, medium: ENVIRONMENT_GPU_BYTES, low: ENVIRONMENT_GPU_BYTES })
+  assert.ok(!('layout' in asset) && !('compression' in asset))
+  assert.equal(codes(analyze(environment({ license: 'CC-BY-4.0' }))).join(), 'ASSET_ATTRIBUTION_MISSING')
+})
+
+test('fails an environment that is not equirectangular, not an HDR, or too wide', () => {
+  assert.deepEqual(codes(analyze(environment({ files: { high: 'public/cinema2/environments/square.hdr' } }))), ['ASSET_FILE_INVALID'])
+  assert.deepEqual(codes(analyze(environment({ files: { high: 'public/cinema2/environments/not-hdr.hdr' } }))), ['ASSET_FILE_INVALID'])
+  assert.ok(codes(analyze(environment({ files: { high: 'public/cinema2/environments/huge.hdr' } }))).includes('ASSET_TEXTURE_TOO_LARGE'))
 })
 
 test('accepts a sprite sheet as an ordinary 2D data texture', () => {

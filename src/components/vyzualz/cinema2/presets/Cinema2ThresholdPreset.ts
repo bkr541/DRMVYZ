@@ -26,7 +26,7 @@ import {
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { cinema2CinematicMotion } from './Cinema2CameraMotionAuthoring'
-import { THRESHOLD_PERIOD } from '../modules/threshold/Cinema2ThresholdLayout'
+import { THRESHOLD_CORRIDOR, THRESHOLD_PERIOD } from '../modules/threshold/Cinema2ThresholdLayout'
 import { CINEMA2_SMOKE_VOLUME_TEXTURE_ASSET_ID, CINEMA2_WET_CONCRETE_TEXTURE_ASSET_ID } from '../assets/Cinema2TextureAssetManifest'
 
 /**
@@ -354,7 +354,21 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       surfaceTexture: CINEMA2_WET_CONCRETE_TEXTURE_ASSET_ID,
       surfaceTextureScale: 6,
       surfaceTextureStrength: 1,
+      // The screens light the floor under them (roadmap #8's floor glare): rows placed from the corridor layout, intensity follows Master Intensity
+      // and pulses with the music like the screens, width follows Corridor Width.
+      glareIntensity: 1,
+      glareColor: color(0.34, 0.42, 0.54),
+      glareOffsetX: THRESHOLD_CORRIDOR.halfWidth,
+      glareWidthScale: 1,
+      glareFirstDistance: THRESHOLD_CORRIDOR.first,
+      glareSpacing: THRESHOLD_CORRIDOR.spacing,
+      glareRowCount: THRESHOLD_CORRIDOR.pairs,
+      glareRepeat: THRESHOLD_PERIOD,
+      glareScreenHeight: THRESHOLD_CORRIDOR.screenCenterY,
+      glareArea: THRESHOLD_CORRIDOR.screenWidth * THRESHOLD_CORRIDOR.screenHeight,
     }, {
+      glareIntensity: CINEMA2_THRESHOLD_INTENSITY_ID,
+      glareWidthScale: CINEMA2_THRESHOLD_CORRIDOR_WIDTH_ID,
       reflectivity: CINEMA2_THRESHOLD_FLOOR_REFLECTION_ID,
       baseColor: CINEMA2_THRESHOLD_VOID_COLOR_ID,
       skyColor: CINEMA2_THRESHOLD_VOID_COLOR_ID,
@@ -428,6 +442,7 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         actions: Object.freeze([
           envelopeAction('downbeat-shafts', CINEMA2_THRESHOLD_VOLUMETRIC_EFFECT_ID, 'shafts', 0.45, 0, 0.1, 1.6),
           envelopeAction('downbeat-bloom', CINEMA2_THRESHOLD_BLOOM_EFFECT_ID, 'intensity', 0.5, 0, 0.1, 1.2),
+          envelopeAction('downbeat-glare', CINEMA2_THRESHOLD_FLOOR_EFFECT_ID, 'glareIntensity', 0.6, 0, 0.1, 1.2),
           Object.freeze({
             id: actionId('downbeat-lean'),
             target: Object.freeze({ kind: 'camera' as const, ref: cinema2Ref(CINEMA2_THRESHOLD_CAMERA_ID), property: 'roll' }),
@@ -445,7 +460,7 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         strengthParameter: cinema2Ref(CINEMA2_THRESHOLD_REACTIVITY_ID),
         source: Object.freeze({ signal: 'kick' as const, capability: 'music.rhythm-events' as const }),
         conditions: Object.freeze([Object.freeze({ kind: 'once-per-event' as const })]),
-        actions: Object.freeze([envelopeAction('kick-bloom', CINEMA2_THRESHOLD_BLOOM_EFFECT_ID, 'intensity', 0.25, 0, 0, 0.5)]),
+        actions: Object.freeze([envelopeAction('kick-bloom', CINEMA2_THRESHOLD_BLOOM_EFFECT_ID, 'intensity', 0.25, 0, 0, 0.5), envelopeAction('kick-glare', CINEMA2_THRESHOLD_FLOOR_EFFECT_ID, 'glareIntensity', 0.25, 0, 0, 0.5)]),
       }),
       Object.freeze({
         id: ruleId('bass-fog'),
@@ -479,6 +494,7 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         conditions: Object.freeze([Object.freeze({ kind: 'once-per-event' as const })]),
         actions: Object.freeze([
           envelopeAction('drop-bloom', CINEMA2_THRESHOLD_BLOOM_EFFECT_ID, 'intensity', 1.1, 0, 0.25, 2),
+          envelopeAction('drop-glare', CINEMA2_THRESHOLD_FLOOR_EFFECT_ID, 'glareIntensity', 1.2, 0, 0.25, 2),
           envelopeAction('drop-shafts', CINEMA2_THRESHOLD_VOLUMETRIC_EFFECT_ID, 'shafts', 0.5, 0, 0.25, 2.5),
         ]),
       }),

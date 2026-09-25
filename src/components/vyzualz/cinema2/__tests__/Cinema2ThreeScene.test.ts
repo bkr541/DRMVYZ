@@ -311,6 +311,28 @@ describe('Cinema 2.0 Three scene module lifecycle', () => {
     expect(instance.getDiagnostics!().map(d => d.code).sort()).toEqual(['CINEMA2_THREE_ASSET_LOAD_FAILED', 'CINEMA2_THREE_ASSET_UNKNOWN'])
   })
 
+  it('fetches the area-light tables only when panels are configured, and keeps the models when they cannot load', async () => {
+    const registry = makeRegistry()
+    const loadModel = vi.fn(async () => meshWithTexture().scene)
+    const loadAreaLightTables = vi.fn(async () => { throw new Error('chunk failed') })
+    const library = { THREE, loadAreaLightTables } as unknown as Cinema2ThreeLibrary
+    const definition = createCinema2ThreeSceneModuleDefinition({ registry, assets: new Cinema2ThreeAssetCache(registry, { loadModel }), loadLibrary: async () => library })
+
+    const plain = createContext(moduleManifest({ instances: [{ asset: 'test-model' }] }))
+    definition.create(plain.context).render!.providers[0]!.execute(exec)
+    await settle()
+    expect(loadAreaLightTables).not.toHaveBeenCalled()
+
+    const panels = [{ position: [0, 3, 3], target: [0, 0, 0], size: [2, 2], color: [1, 1, 1], intensity: 4 }]
+    const withPanels = createContext(moduleManifest({ instances: [{ asset: 'test-model' }], panels }))
+    const instance = definition.create(withPanels.context) as ReturnType<typeof definition.create> & { inspect(): { state: string; loadedAssetCount: number } }
+    instance.render!.providers[0]!.execute(exec)
+    await settle()
+    expect(loadAreaLightTables).toHaveBeenCalledTimes(1)
+    expect(instance.getDiagnostics!().map(d => d.code)).toEqual(['CINEMA2_THREE_AREA_LIGHTS_UNAVAILABLE'])
+    expect(instance.inspect()).toMatchObject({ state: 'building', loadedAssetCount: 1 })
+  })
+
   it('releases assets that finish loading after the module was disposed', async () => {
     const registry = makeRegistry()
     let finish: (scene: THREE.Object3D) => void = () => {}

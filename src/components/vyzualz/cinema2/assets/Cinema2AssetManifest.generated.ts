@@ -76,6 +76,31 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-studio-environment",
+    "kind": "environment",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/environments/studio-1024.hdr",
+        "bytes": 152066,
+        "width": 1024,
+        "height": 512
+      },
+      "low": {
+        "url": "/cinema2/environments/studio-512.hdr",
+        "bytes": 42279,
+        "width": 512,
+        "height": 256
+      }
+    },
+    "gpuBytes": {
+      "high": 4194304,
+      "medium": 4194304,
+      "low": 4194304
+    }
+  },
+  {
     "id": "cinema2-wet-concrete",
     "kind": "texture",
     "layout": "surface-normal-crack-roughness",

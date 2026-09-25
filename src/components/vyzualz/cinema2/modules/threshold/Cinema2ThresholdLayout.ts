@@ -91,6 +91,14 @@ function createRandom(seed: number): () => number {
   }
 }
 
+/**
+ * Corridor geometry other passes need to line up with the screens (the reflective floor's glare places its emitters from these):
+ * distance of the first pair along the lap, spacing, number of pairs, |x| of the screens, and the screen's centre height and size.
+ */
+export const THRESHOLD_CORRIDOR = Object.freeze({
+  first: 24, spacing: 13.3, pairs: 7, halfWidth: 26, screenCenterY: 19.5, screenWidth: 7, screenHeight: 36,
+})
+
 /** Corridor pairs: evenly spaced, identical on both sides. */
 const CORRIDOR_PAIRS = 7
 const CORRIDOR_FIRST = 24

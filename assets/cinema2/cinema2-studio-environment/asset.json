@@ -1,0 +1,10 @@
+{
+  "id": "cinema2-studio-environment",
+  "kind": "environment",
+  "license": "generated-in-house",
+  "origin": "scripts/cinema2-assets/generate-studio-environment.mjs (equirectangular Radiance RGBE: dark room with an overhead panel, a bright key softbox, a cool strip light and a magenta accent; 512 px wide for the low tier)",
+  "files": {
+    "high": "public/cinema2/environments/studio-1024.hdr",
+    "low": "public/cinema2/environments/studio-512.hdr"
+  }
+}

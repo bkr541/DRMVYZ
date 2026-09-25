@@ -13,7 +13,7 @@ export const LICENSE_ALLOWLIST = Object.freeze({
   'generated-in-house': Object.freeze({ attribution: false }),
 })
 
-export const ASSET_KINDS = Object.freeze(['model', 'texture'])
+export const ASSET_KINDS = Object.freeze(['model', 'texture', 'environment'])
 export const TEXTURE_LAYOUTS = Object.freeze(['surface-normal-crack-roughness', 'color', 'noise-volume-rgba', 'sprite-sheet-rgba'])
 export const MODEL_COMPRESSIONS = Object.freeze(['none', 'meshopt'])
 export const QUALITY_TIERS = Object.freeze(['low', 'medium', 'high'])
@@ -26,12 +26,16 @@ export const DEFAULT_BUDGETS = Object.freeze({
   maxTextureDimension: 2048,
   /** Edge length limit for volume textures (`noise-volume-rgba`); a 128^3 RGBA volume is already ~11 MB of GPU memory. */
   maxVolumeDimension: 128,
+  /** Width limit of an equirectangular environment (2:1). Its GPU cost is the small filtered cube map built from it, not its size, but the file ships. */
+  maxEnvironmentWidth: 2048,
   maxTrianglesPerAsset: 150000,
   /** GPU bytes shipped assets may take per quality tier: 20% of the engine's 96 / 160 / 256 MB tier budgets. */
   assetGpuBytes: Object.freeze({ low: 20132659, medium: 33554432, high: 53687091 }),
 })
 
 const MIP_CHAIN_FACTOR = 4 / 3
+/** Three's PMREM environment is a 256 px cube-UV map in half float (8 bytes per texel) with a mip chain, whatever the source size. */
+export const ENVIRONMENT_GPU_BYTES = Math.round(256 * 256 * 6 * 8 * MIP_CHAIN_FACTOR)
 const GLB_MAGIC = 0x46546c67
 const COMPONENT_BYTES = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 }
 const COMPONENT_COUNTS = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT2: 4, MAT3: 9, MAT4: 16 }
@@ -64,6 +68,15 @@ export function readImageSize(bytes) {
   }
   if (b.length >= 28 && b.toString('latin1', 1, 7) === 'KTX 20') return { format: 'ktx2', width: b.readUInt32LE(20), height: b.readUInt32LE(24) }
   return null
+}
+
+/** Pixel size of a Radiance `.hdr` (RGBE) image, read from its text header (`-Y height +X width`). Returns null for anything else. */
+export function readHdrSize(bytes) {
+  const b = Buffer.from(bytes.buffer ?? bytes, bytes.byteOffset ?? 0, bytes.byteLength ?? bytes.length)
+  const head = b.subarray(0, Math.min(b.length, 512)).toString('latin1')
+  if (!/^#\?(RADIANCE|RGBE)/.test(head)) return null
+  const match = /^-Y (\d+) \+X (\d+)$/m.exec(head)
+  return match ? { format: 'hdr', width: Number(match[2]), height: Number(match[1]) } : null
 }
 
 /** GPU bytes of one uploaded texture including its mip chain. KTX2 is assumed to be a block-compressed ~1 byte per pixel format. */
@@ -170,7 +183,14 @@ export function analyzeAssets(records, readFileBytes, budgetOverrides = {}) {
       if (bytes.length > budgets.maxFileBytes) fail(id, 'ASSET_FILE_TOO_LARGE', `"${path}" is ${formatMegabytes(bytes.length)}, above the ${formatMegabytes(budgets.maxFileBytes)} per-file budget.`)
       const entry = { path, url: `/${path.slice('public/'.length)}`, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex').slice(0, 16) }
       try {
-        if (record.kind === 'texture') {
+        if (record.kind === 'environment') {
+          const size = readHdrSize(bytes)
+          if (!size) throw new Error('not a Radiance .hdr (RGBE) image with a "-Y height +X width" header')
+          if (size.width !== size.height * 2) throw new Error(`an environment must be equirectangular (2:1); got ${size.width}x${size.height}`)
+          if (size.width > budgets.maxEnvironmentWidth) fail(id, 'ASSET_TEXTURE_TOO_LARGE', `"${path}" is ${size.width} px wide, above the ${budgets.maxEnvironmentWidth}px environment limit.`)
+          Object.assign(entry, { width: size.width, height: size.height, format: size.format })
+          gpu[tier] = ENVIRONMENT_GPU_BYTES
+        } else if (record.kind === 'texture') {
           const size = readImageSize(bytes)
           if (!size) throw new Error('unrecognised image format (PNG, JPEG, WebP or KTX2 expected)')
           if (record.layout === 'noise-volume-rgba') {
@@ -212,7 +232,7 @@ export function analyzeAssets(records, readFileBytes, budgetOverrides = {}) {
     assets.push({
       id,
       kind: record.kind,
-      ...(record.kind === 'texture' ? { layout: record.layout } : { compression: record.compression }),
+      ...(record.kind === 'texture' ? { layout: record.layout } : record.kind === 'model' ? { compression: record.compression } : {}),
       license,
       attribution: typeof record.attribution === 'string' && record.attribution.trim() ? record.attribution.trim() : null,
       origin: record.origin,

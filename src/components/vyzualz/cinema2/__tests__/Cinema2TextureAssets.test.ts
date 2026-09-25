@@ -12,6 +12,7 @@ import {
 import { CINEMA2_ASSET_RECORDS } from '../assets/Cinema2AssetManifest.generated'
 import { Cinema2TextureAssetRegistry } from '../assets/Cinema2TextureAssetRegistry'
 import { cinema2ThreeAssetRegistry } from '../modules/three/Cinema2ThreeAssetManifest'
+import { cinema2ThreeEnvironmentRegistry } from '../modules/three/Cinema2ThreeEnvironmentRegistry'
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
 import { cinema2NativeEffectRegistry } from '../effects/Cinema2EffectRegistry'
 import { Cinema2EffectRuntime } from '../effects/Cinema2EffectRuntime'
@@ -312,12 +313,13 @@ describe('Cinema 2.0 reflective floor surface texture', () => {
 })
 
 describe('Cinema 2.0 shipped asset manifest', () => {
-  it('fills both runtime registries from the generated manifest, with a license on every record', () => {
+  it('fills the model, texture and environment registries from the generated manifest, with a license on every record', () => {
+    const registryOf = (kind: string) => kind === 'model' ? cinema2ThreeAssetRegistry : kind === 'environment' ? cinema2ThreeEnvironmentRegistry : cinema2TextureAssetRegistry
     for (const record of CINEMA2_ASSET_RECORDS) {
       expect(record.license).toBeTruthy()
-      expect(record.kind === 'model' ? cinema2ThreeAssetRegistry.has(record.id) : cinema2TextureAssetRegistry.has(record.id)).toBe(true)
+      expect(registryOf(record.kind).has(record.id)).toBe(true)
     }
-    expect(cinema2ThreeAssetRegistry.list().length + cinema2TextureAssetRegistry.list().length).toBe(CINEMA2_ASSET_RECORDS.length)
+    expect(cinema2ThreeAssetRegistry.list().length + cinema2TextureAssetRegistry.list().length + cinema2ThreeEnvironmentRegistry.list().length).toBe(CINEMA2_ASSET_RECORDS.length)
   })
 
   it('keeps every first-party preset within the shipped-asset GPU budget of each quality tier', () => {
@@ -330,6 +332,8 @@ describe('Cinema 2.0 shipped asset manifest', () => {
       for (const module of manifest.modules ?? []) {
         const instances = (module.config as { instances?: readonly { asset?: string }[] } | undefined)?.instances
         for (const instance of instances ?? []) if (instance.asset) referenced.add(instance.asset)
+        const environment = (module.config as { environment?: string } | undefined)?.environment
+        if (typeof environment === 'string') referenced.add(environment)
       }
       for (const effect of manifest.effects ?? []) {
         for (const name of ['surfaceTexture', 'smokeTexture'] as const) {

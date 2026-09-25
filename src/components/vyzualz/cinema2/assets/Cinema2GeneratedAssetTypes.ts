@@ -32,4 +32,9 @@ export interface Cinema2GeneratedTextureAssetRecord extends Cinema2GeneratedAsse
   readonly layout: Cinema2TextureAssetLayout
 }
 
-export type Cinema2GeneratedAssetRecord = Cinema2GeneratedModelAssetRecord | Cinema2GeneratedTextureAssetRecord
+/** An equirectangular (2:1) Radiance `.hdr` environment for image-based lighting; `width`/`height` are the source size of each tier's file. */
+export interface Cinema2GeneratedEnvironmentAssetRecord extends Cinema2GeneratedAssetBase {
+  readonly kind: 'environment'
+}
+
+export type Cinema2GeneratedAssetRecord = Cinema2GeneratedModelAssetRecord | Cinema2GeneratedTextureAssetRecord | Cinema2GeneratedEnvironmentAssetRecord

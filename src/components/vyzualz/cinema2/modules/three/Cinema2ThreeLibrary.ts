@@ -1,5 +1,6 @@
 import type * as ThreeNamespace from 'three'
 import type { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import type { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
 
 /**
  * Lazy loader for Three.js. Nothing here is imported statically by product code: the dynamic `import()` calls below are
@@ -11,6 +12,13 @@ export interface Cinema2ThreeLibrary {
   readonly GLTFLoader: typeof GLTFLoader
   /** Meshopt decoder (a single inline module: no worker, no file paths, works offline). */
   readonly MeshoptDecoder: { supported: boolean; ready: Promise<void>; decode: (...args: never[]) => unknown }
+  /** Radiance `.hdr` (RGBE) loader for shipped environments. */
+  readonly HDRLoader: typeof HDRLoader
+  /**
+   * Look-up tables `RectAreaLight` needs (`init()` must run once before a scene with area lights first renders). They are a 100 KB gzip chunk, so
+   * they are fetched only by modules that configure panel lights.
+   */
+  loadAreaLightTables(): Promise<{ init(): void }>
   /** Procedural studio environment used for image-based lighting until a shipped HDR environment exists. */
   readonly RoomEnvironment: new () => ThreeNamespace.Scene & { dispose(): void }
 }
@@ -18,16 +26,19 @@ export interface Cinema2ThreeLibrary {
 export type Cinema2ThreeLibraryLoader = () => Promise<Cinema2ThreeLibrary>
 
 const defaultLoader: Cinema2ThreeLibraryLoader = async () => {
-  const [THREE, gltf, meshopt, room] = await Promise.all([
+  const [THREE, gltf, meshopt, room, hdr] = await Promise.all([
     import('three'),
     import('three/examples/jsm/loaders/GLTFLoader.js'),
     import('three/examples/jsm/libs/meshopt_decoder.module.js'),
     import('three/examples/jsm/environments/RoomEnvironment.js'),
+    import('three/examples/jsm/loaders/HDRLoader.js'),
   ])
   return Object.freeze({
     THREE,
     GLTFLoader: gltf.GLTFLoader,
     MeshoptDecoder: meshopt.MeshoptDecoder as unknown as Cinema2ThreeLibrary['MeshoptDecoder'],
+    HDRLoader: hdr.HDRLoader,
+    loadAreaLightTables: async () => (await import('three/examples/jsm/lights/RectAreaLightUniformsLib.js')).RectAreaLightUniformsLib as unknown as { init(): void },
     RoomEnvironment: room.RoomEnvironment as unknown as Cinema2ThreeLibrary['RoomEnvironment'],
   })
 }
