@@ -8,8 +8,11 @@ import {
   type Cinema2RenderQualityLevel,
 } from '../contracts/Cinema2NativePresetManifest'
 import { assertCinema2NoGlErrors } from '../runtime/Cinema2GpuValidation'
+import type { Cinema2AssetTextureService, Cinema2TextureHandle } from '../assets/Cinema2AssetTextureService'
+import { cinema2TextureAssetRegistry } from '../assets/Cinema2TextureAssetManifest'
 import type {
   Cinema2EffectCreateContext,
+  Cinema2EffectDiagnostic,
   Cinema2EffectInstance,
   Cinema2EffectRenderExecutionContext,
   Cinema2EffectTypeDefinition,
@@ -37,8 +40,11 @@ import {
  * dark base, light pools and specular streaks from the shared light list, plus a screen-space
  * reflection: the mirrored ray is marched through the depth buffer and the scene color it hits is
  * blended in with a Fresnel weight. Optional `grit` (0-1, default 0) turns the mirror into wet concrete: damp patches, rippled
- * reflections and dark cracks from world-anchored noise, at `gritScale` world units per patch. It needs the scene depth; without a depth input, or without a world
- * camera, the effect passes the image through unchanged.
+ * reflections and dark cracks from world-anchored noise, at `gritScale` world units per patch. Optional `surfaceTexture` names a shipped texture
+ * (layout `surface-normal-crack-roughness`, see the texture registry) that replaces the procedural ripples with a real normal map, crack mask and
+ * roughness map, tiled every `surfaceTextureScale` world units and blended in by `surfaceTextureStrength`; it fades in once loaded, and a missing or
+ * failed texture leaves the procedural look untouched. It needs the scene depth; without a depth input, or without a world camera, the effect passes
+ * the image through unchanged.
  *
  * Screen-space limits, by design: only what is visible on screen can be reflected, reflections fade out
  * toward the screen edge, and rough reflections are a small blur rather than a true cone. Place it BEFORE
@@ -88,6 +94,9 @@ uniform float u_thickness;
 uniform float u_grit;
 uniform float u_gritScale;
 uniform float u_baseLift;
+uniform sampler2D u_surfaceTex;
+uniform float u_surface;
+uniform float u_surfaceScale;
 uniform int u_steps;
 uniform int u_blurTaps;
 uniform vec3 u_ambient;
@@ -229,6 +238,7 @@ void main() {
   float crack = 0.0;
   float roughnessScale = 1.0;
   float lightness = 1.0;
+  vec3 bump = vec3(0.0, 1.0, 0.0);
   if (u_grit > 0.001) {
     vec2 gp = hitPoint.xz / max(u_gritScale, 0.01);
     float patches = fbm(gp * 0.45);
@@ -238,11 +248,28 @@ void main() {
     // Perturb the surface normal with two fine noise fields (stretched along the flight axis, like tyre-worn concrete).
     vec2 rp = vec2(hitPoint.x / max(u_gritScale, 0.01) * 9.0, hitPoint.z / max(u_gritScale, 0.01) * 3.6);
     vec2 speckle = vec2(valueNoise(gp * 26.0), valueNoise(gp * 26.0 + 7.7)) - 0.5;
-    vec3 bump = normalize(vec3((fbm(rp) - 0.5) * 0.34 * u_grit + speckle.x * 0.16 * u_grit, 1.0, (fbm(rp + 31.3) - 0.5) * 0.34 * u_grit + speckle.y * 0.16 * u_grit));
-    reflected = reflect(rayDir, bump);
-    reflected.y = abs(reflected.y);
+    bump = normalize(vec3((fbm(rp) - 0.5) * 0.34 * u_grit + speckle.x * 0.16 * u_grit, 1.0, (fbm(rp + 31.3) - 0.5) * 0.34 * u_grit + speckle.y * 0.16 * u_grit));
     roughnessScale = 1.0 + 3.0 * u_grit * (1.0 - wet * (1.0 - crack));
     lightness = 1.0 + 1.6 * u_grit * (fbm(gp * 3.1 + 9.0) - 0.4) - 0.8 * crack;
+  }
+  // Shipped surface texture: two samples at unrelated scales/rotations hide the repeat. The procedural fine ripples give way to the map's normals,
+  // its crack mask darkens and dulls the mirror, and its roughness channel drives the reflection blur.
+  if (u_surface > 0.001) {
+    vec2 sp = hitPoint.xz / max(u_surfaceScale, 0.01);
+    vec4 t1 = texture(u_surfaceTex, sp);
+    vec4 t2 = texture(u_surfaceTex, mat2(0.8, -0.6, 0.6, 0.8) * sp * 0.37 + 0.41);
+    vec2 texNormal = (t1.rg - 0.5) * 2.0 + (t2.rg - 0.5) * 1.3;
+    float texCrack = max(t1.b, t2.b * 0.7);
+    float texRough = mix(t1.a, t2.a, 0.4);
+    vec2 keep = bump.xz * (1.0 - 0.75 * u_surface);
+    bump = normalize(vec3(keep.x + texNormal.x * 0.42 * u_surface, 1.0, keep.y + texNormal.y * 0.42 * u_surface));
+    crack = max(crack, texCrack * u_surface);
+    roughnessScale = mix(roughnessScale, roughnessScale * (0.35 + 2.4 * texRough), u_surface);
+    lightness *= 1.0 + u_surface * (0.7 * (texRough - 0.45) - 0.7 * texCrack);
+  }
+  if (u_grit > 0.001 || u_surface > 0.001) {
+    reflected = reflect(rayDir, bump);
+    reflected.y = abs(reflected.y);
   }
 
   vec3 hit = traceReflection(hitPoint, reflected, origin);
@@ -280,7 +307,12 @@ const NUMERIC: readonly Cinema2EffectNumericRange[] = Object.freeze([
   ['grit', 0, 1],
   ['gritScale', 0.5, 40],
   ['baseLift', 0.1, 20],
+  ['surfaceTextureScale', 0.5, 60],
+  ['surfaceTextureStrength', 0, 1],
 ])
+
+/** Seconds a freshly loaded surface texture takes to fade in, so it does not pop. */
+const SURFACE_FADE_IN_SEC = 0.6
 
 const DEFAULT_BASE_COLOR: readonly [number, number, number] = Object.freeze([0.012, 0.016, 0.024]) as readonly [number, number, number]
 const DEFAULT_SKY_COLOR: readonly [number, number, number] = Object.freeze([0.006, 0.008, 0.014]) as readonly [number, number, number]
@@ -289,8 +321,18 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
   private readonly program: ShaderProgram
   private readonly pass: FullscreenPass
   private disposed = false
+  private readonly textureAssetId: string | null
+  private textureHandle: Cinema2TextureHandle | null = null
+  private textureQuality: Cinema2RenderQualityLevel | null = null
+  private textureReadySinceSec: number | null = null
 
-  constructor(private readonly gl: WebGL2RenderingContext, effect: Readonly<Cinema2EffectManifest>) {
+  constructor(
+    private readonly gl: WebGL2RenderingContext,
+    effect: Readonly<Cinema2EffectManifest>,
+    private readonly textures?: Cinema2AssetTextureService,
+  ) {
+    const assetId = effect.parameters?.surfaceTexture
+    this.textureAssetId = typeof assetId === 'string' && assetId.trim() ? assetId.trim() : null
     const result = ShaderProgram.create(gl, new ShaderCompiler(gl), {
       label: `Cinema2/Effect/ReflectiveFloor/${effect.id}`,
       vertSrc: FULLSCREEN_VERT_SRC,
@@ -298,7 +340,7 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
       requiredUniforms: ['u_source', 'u_mix'],
       optionalUniforms: [
         'u_depth', 'u_time', 'u_enabled', 'u_viewProj', 'u_invViewProj', 'u_floorY', 'u_baseColor', 'u_albedo', 'u_reflectivity',
-        'u_roughness', 'u_fresnel', 'u_fadeDistance', 'u_skyColor', 'u_pool', 'u_specular', 'u_maxReflection', 'u_thickness', 'u_grit', 'u_gritScale', 'u_baseLift',
+        'u_roughness', 'u_fresnel', 'u_fadeDistance', 'u_skyColor', 'u_pool', 'u_specular', 'u_maxReflection', 'u_thickness', 'u_grit', 'u_gritScale', 'u_baseLift', 'u_surfaceTex', 'u_surface', 'u_surfaceScale',
         'u_steps', 'u_blurTaps', 'u_ambient', 'u_lightCount', 'u_lightPos[0]', 'u_lightDir[0]', 'u_lightCol[0]', 'u_lightInner[0]',
       ],
     })
@@ -348,6 +390,9 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
     program.setFloat('u_grit', clamp(number(p, 'grit', 0), 0, 1))
     program.setFloat('u_gritScale', clamp(number(p, 'gritScale', 6), 0.5, 40))
     program.setFloat('u_baseLift', clamp(number(p, 'baseLift', 1), 0.1, 20))
+    const surface = this.surfaceAmount(context, clamp(number(p, 'surfaceTextureStrength', 1), 0, 1))
+    program.setFloat('u_surface', surface)
+    program.setFloat('u_surfaceScale', clamp(number(p, 'surfaceTextureScale', 6), 0.5, 60))
     program.setInt('u_steps', profile.steps)
     program.setInt('u_blurTaps', profile.blurTaps)
     program.setVec3('u_ambient', lights.ambient[0], lights.ambient[1], lights.ambient[2])
@@ -360,13 +405,33 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
       { unit: 0, texture: context.input.texture, uniformName: 'u_source' },
       // Without a depth input unit 1 re-binds the color texture; u_enabled keeps the shader from using it.
       { unit: 1, texture: depthInput?.texture ?? context.input.texture, uniformName: 'u_depth' },
+      // Unit 2 falls back to the colour texture while the surface texture is absent; u_surface = 0 keeps the shader from sampling it.
+      { unit: 2, texture: surface > 0 ? this.textureHandle!.texture! : context.input.texture, uniformName: 'u_surfaceTex' },
     ])
     assertCinema2NoGlErrors(gl, 'Reflective floor draw')
+  }
+
+  /** 0 until the texture is ready, then ramps to `strength`. Re-acquires when the quality tier (and so the resolution variant) changes. */
+  private surfaceAmount(context: Readonly<Cinema2EffectRenderExecutionContext>, strength: number): number {
+    if (!this.textureAssetId || !this.textures || strength <= 0) return 0
+    if (this.textureQuality !== context.quality) {
+      this.textureHandle?.release()
+      this.textureHandle = this.textures.acquire(this.textureAssetId, context.quality)
+      this.textureQuality = context.quality
+      this.textureReadySinceSec = null
+    }
+    const handle = this.textureHandle
+    if (!handle || handle.status !== 'ready' || !handle.texture) return 0
+    const now = context.frame.elapsedTimeSec
+    this.textureReadySinceSec ??= now
+    return strength * clamp((now - this.textureReadySinceSec) / SURFACE_FADE_IN_SEC, 0, 1)
   }
 
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
+    this.textureHandle?.release()
+    this.textureHandle = null
     this.pass.dispose()
     this.program.dispose()
   }
@@ -376,6 +441,22 @@ export const cinema2ReflectiveFloorEffectDefinition: Readonly<Cinema2EffectTypeD
   typeId: CINEMA2_REFLECTIVE_FLOOR_EFFECT_TYPE_ID,
   version: CINEMA2_REFLECTIVE_FLOOR_EFFECT_VERSION,
   label: 'Reflective Floor',
-  validate: (effect: Readonly<Cinema2EffectManifest>) => validateEffectParameters(effect, NUMERIC, ['baseColor', 'skyColor']),
-  create: ({ gl, effect }: Readonly<Cinema2EffectCreateContext>) => new ReflectiveFloorEffectInstance(gl, effect),
+  validate: (effect: Readonly<Cinema2EffectManifest>) => [
+    ...validateEffectParameters(effect, NUMERIC, ['baseColor', 'skyColor']),
+    ...validateSurfaceTexture(effect),
+  ],
+  create: ({ gl, effect, textures }: Readonly<Cinema2EffectCreateContext>) => new ReflectiveFloorEffectInstance(gl, effect, textures),
 })
+
+function validateSurfaceTexture(effect: Readonly<Cinema2EffectManifest>): readonly Cinema2EffectDiagnostic[] {
+  const value = effect.parameters?.surfaceTexture
+  if (value === undefined) return []
+  const record = typeof value === 'string' ? cinema2TextureAssetRegistry.get(value.trim()) : null
+  if (!record) {
+    return [{ code: 'CINEMA2_EFFECT_PARAMETER_INVALID', path: '$.parameters.surfaceTexture', message: 'Effect parameter "surfaceTexture" must be the id of a registered texture asset.' }]
+  }
+  if (record.layout !== 'surface-normal-crack-roughness') {
+    return [{ code: 'CINEMA2_EFFECT_PARAMETER_INVALID', path: '$.parameters.surfaceTexture', message: `Texture asset "${record.id}" has layout "${record.layout}", but the reflective floor needs "surface-normal-crack-roughness".` }]
+  }
+  return []
+}

@@ -22,6 +22,7 @@ import type {
 } from './Cinema2EffectContracts'
 import type { Cinema2EffectRegistry } from './Cinema2EffectRegistry'
 import type { Cinema2HistoryService } from '../runtime/Cinema2HistoryService'
+import type { Cinema2AssetTextureService } from '../assets/Cinema2AssetTextureService'
 
 export interface Cinema2EffectExecutionContext {
   frame: Readonly<Cinema2ModuleFrameReadContext>
@@ -62,6 +63,7 @@ export class Cinema2EffectRuntime {
     private readonly registry: Cinema2EffectRegistry,
     private quality: Cinema2RenderQualityLevel,
     private readonly history: Cinema2HistoryService,
+    private readonly textures?: Cinema2AssetTextureService,
   ) {
     const targetsByEffect = indexEffectTargets(plan.targets.targets)
     const ordered = [...(plan.manifest.effects ?? [])].sort(compareEffects)
@@ -196,7 +198,7 @@ export class Cinema2EffectRuntime {
     }
     record.diagnostics = []
     try {
-      record.instance = definition.create({ gl: this.gl, effect: record.effect, history: this.history })
+      record.instance = definition.create({ gl: this.gl, effect: record.effect, history: this.history, textures: this.textures })
       record.status = 'active'
       return true
     } catch (error) {

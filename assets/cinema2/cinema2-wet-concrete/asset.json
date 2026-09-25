@@ -1,0 +1,11 @@
+{
+  "id": "cinema2-wet-concrete",
+  "kind": "texture",
+  "layout": "surface-normal-crack-roughness",
+  "license": "generated-in-house",
+  "origin": "scripts/cinema2-assets/generate-wet-concrete.mjs (1024 px PNG, converted to lossless WebP because the channels are data: normal xy, crack mask, roughness; the 512 px file is a lanczos downscale)",
+  "files": {
+    "high": "public/cinema2/textures/wet-concrete-1024.webp",
+    "low": "public/cinema2/textures/wet-concrete-512.webp"
+  }
+}

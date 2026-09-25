@@ -10,6 +10,7 @@ import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleCont
 import type { Cinema2CameraFrame } from '../spatial/Cinema2CameraRuntime'
 import type { Cinema2LightingEnvironmentFrame } from '../spatial/Cinema2LightingEnvironmentRuntime'
 import type { Cinema2HistoryService } from '../runtime/Cinema2HistoryService'
+import type { Cinema2AssetTextureService } from '../assets/Cinema2AssetTextureService'
 
 export interface Cinema2EffectDiagnostic {
   code: string
@@ -48,6 +49,8 @@ export interface Cinema2EffectCreateContext {
   gl: WebGL2RenderingContext
   effect: Readonly<Cinema2EffectManifest>
   history: Cinema2HistoryService
+  /** Shipped-texture loader. Optional so hosts without one (unit tests) still create effects; effects must cope with its absence. */
+  textures?: Cinema2AssetTextureService
 }
 
 export interface Cinema2EffectInstance {
