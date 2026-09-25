@@ -6,6 +6,7 @@ import type {
   Cinema2NativePresetManifest,
   Cinema2ParameterId,
   Cinema2PresetId,
+  Cinema2LightGroupTargetRef,
   Cinema2WritableTargetRef,
 } from '../contracts/Cinema2NativePresetManifest'
 import type {
@@ -724,7 +725,7 @@ function resolveCapabilityAvailability(
 }
 
 function resolveWritableTargetHandle(
-  target: Cinema2WritableTargetRef,
+  target: Cinema2WritableTargetRef | Cinema2LightGroupTargetRef,
   lookup: ReadonlyMap<string, Cinema2TargetHandle>,
 ): Cinema2TargetHandle | null {
   switch (target.kind) {
@@ -742,6 +743,8 @@ function resolveWritableTargetHandle(
     case 'environment': return lookup.get(lookupKey('environment', 'root', target.property)) ?? null
     case 'media': return lookup.get(lookupKey('media', target.ref.$ref, 'source')) ?? null
     case 'variation': return lookup.get(lookupKey('variation', target.ref.$ref, 'activate')) ?? null
+    // Light groups are expanded to per-light targets before target compilation; reaching one here is an authoring bug.
+    case 'light-group': return null
   }
 }
 

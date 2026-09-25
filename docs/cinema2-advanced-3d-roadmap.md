@@ -115,7 +115,30 @@ existing preset (opt-in per preset by adding a pass fed by scene color + depth).
 Verification: 11 new unit tests pass; `Cinema2` test folder failure set is identical to clean HEAD (40 pre-existing failures);
 real-browser screenshots checked for baseline-off, default, downbeat, low quality, full-resolution fallback and screen-space shafts.
 
-### Next: #2 performance light rig + choreography vocabulary
-First confirm the remaining UNVERIFIED item (does choreography already cover "alternate every 2 beats" and phrase-level changes?),
-then design named light groups on top of the light list (`Cinema2LightingEnvironmentRuntime`). #3 (finishing + reflective floor) and #4
-(camera) follow; #5 (Three.js spike) can start any time. Remember the drawable-primitive module prerequisite for the stage preset.
+### #2 Performance light rig + choreography vocabulary — DELIVERED (2026-09-25), not committed by the assistant
+The unverified question is settled: choreography already had beat/downbeat/bar/phrase/drop/section signals, envelopes, hold-for-duration,
+delay/quantize, variations and director-phase conditions, but could not say "every Nth beat" or address a set of lights. Added:
+- `beat-interval` condition (`every`, `phase`, `unit: beat | bar | phrase`): passes when `counter % every === phase`; counters come from the
+  beat grid (`phrase` = floor(beat index / 16), the fixed 16-beat clock, so it stays deterministic); fails closed without beat timing.
+- Named light groups: `lighting.groups` + a `light-group` choreography target (optional `stagger: { beats, order }`, orders forward /
+  reverse / center-out / edges-in). Groups are authoring-only: `presets/Cinema2LightGroupExpansion.ts` expands them to one ordinary light
+  action per member (`<action>-<light>`, stagger becomes `delayBeats`) inside `compileCinema2NativePreset`, so the runtime, target resolver
+  and Inspector are unchanged. Bad groups fail compile with `CINEMA2_PRESET_LIGHT_GROUP_*` diagnostics.
+- Spot cones/range come from `light.config` (from #1); light intensity/color/position/rotation are already writable targets.
+- Authoring helpers in `presets/Cinema2LightRigAuthoring.ts`: `cinema2LightRigAlternate` (N groups take turns every B beats),
+  `cinema2LightRigHit` (envelope on any musical signal, optional stagger and counter gating), `cinema2LightRigPhraseArrangement`
+  (groups go dark on a repeating phrase pattern; give it a higher priority than the alternation), `cinema2LightRigRamp` (additive lift that
+  follows `director.intensity`/`director.build`, i.e. build -> drop -> release without a discrete trigger).
+- The Atmosphere Reference preset now demonstrates all four: key and sides alternate every 2 beats, the sides sweep left-to-right a quarter
+  beat apart on the downbeat, the key drops out on alternate phrases, and everything lifts with the build; idle spot intensity is 0.6, lit 2.6.
+Notes for authors: lit values scale with the triggering event's strength (a weak beat lights a group less), and route strength scales them too
+(the reference routes the rig through its Reactivity control). Higher-priority rules win when several replace the same target.
+Verified: 13 new unit tests (expansion, compile validation, helpers, and rig timing driven by synthetic beat/phrase/build frames), lint/typecheck
+clean, `Cinema2` test folder failure set identical to clean HEAD, and real-browser frames on the M3 Pro at beats 1, 3, 8.25 and 17 showing the
+key lit, sides lit, the staggered downbeat sweep and the phrase blackout.
+Not done: color swapping (a `set-for-duration` on a color would scale it by event strength, so alternation is done with intensity groups of
+differently colored lights instead); nothing yet consumes `bar`/`drop` hits in a shipped preset beyond the helpers being available.
+
+### Next: #3 cinematic finishing (tone map, grade, vignette, grain) + reflective floor
+Both are opt-in effects/passes on the existing render graph. The floor needs a drawable primitive (scene `primitive` nodes draw nothing), which
+the stage preset also needs for LED panels and truss. #4 (camera) and the #5 Three.js spike remain independent.

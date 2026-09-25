@@ -90,6 +90,13 @@ export {
   type Cinema2LayerId,
   type Cinema2LayerManifest,
   type Cinema2LightControlBindingsManifest,
+  type Cinema2BeatIntervalUnit,
+  type Cinema2LightGroupId,
+  type Cinema2LightGroupManifest,
+  type Cinema2LightGroupRef,
+  type Cinema2LightGroupStaggerManifest,
+  type Cinema2LightGroupStaggerOrder,
+  type Cinema2LightGroupTargetRef,
   type Cinema2LightId,
   type Cinema2LightType,
   type Cinema2LightingManifest,
@@ -549,11 +556,30 @@ export {
 } from './presets/Cinema2ReactorPreset'
 
 export {
+  cinema2LightGroupStaggerRanks,
+  expandCinema2LightGroupChoreography,
+  type Cinema2LightGroupDiagnostic,
+  type Cinema2LightGroupExpansionResult,
+} from './presets/Cinema2LightGroupExpansion'
+
+export {
+  cinema2LightRigAlternate,
+  cinema2LightRigHit,
+  cinema2LightRigPhraseArrangement,
+  cinema2LightRigRamp,
+  type Cinema2LightRigAlternateOptions,
+  type Cinema2LightRigHitOptions,
+  type Cinema2LightRigPhraseArrangementOptions,
+  type Cinema2LightRigRampOptions,
+} from './presets/Cinema2LightRigAuthoring'
+
+export {
   CINEMA2_ATMOSPHERE_REFERENCE_BEAM_ID,
   CINEMA2_ATMOSPHERE_REFERENCE_BLOOM_ID,
   CINEMA2_ATMOSPHERE_REFERENCE_CAMERA_ID,
   CINEMA2_ATMOSPHERE_REFERENCE_CENTER_LIGHT_ID,
   CINEMA2_ATMOSPHERE_REFERENCE_DENSITY_ID,
+  CINEMA2_ATMOSPHERE_REFERENCE_KEY_GROUP_ID,
   CINEMA2_ATMOSPHERE_REFERENCE_LEFT_LIGHT_ID,
   CINEMA2_ATMOSPHERE_REFERENCE_MIST_ID,
   CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_MODULE_ID,
@@ -561,6 +587,7 @@ export {
   CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST,
   CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID,
   CINEMA2_ATMOSPHERE_REFERENCE_RIGHT_LIGHT_ID,
+  CINEMA2_ATMOSPHERE_REFERENCE_SIDES_GROUP_ID,
   CINEMA2_ATMOSPHERE_REFERENCE_VOLUMETRIC_EFFECT_ID,
 } from './presets/Cinema2AtmosphereReferencePreset'
 

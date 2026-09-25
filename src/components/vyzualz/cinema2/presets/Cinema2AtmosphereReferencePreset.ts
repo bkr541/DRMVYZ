@@ -11,6 +11,7 @@ import {
   type Cinema2EffectId,
   type Cinema2EffectTypeId,
   type Cinema2LayerId,
+  type Cinema2LightGroupId,
   type Cinema2LightId,
   type Cinema2ModuleId,
   type Cinema2ModuleTypeId,
@@ -24,6 +25,12 @@ import {
   type Cinema2Vector3,
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
+import {
+  cinema2LightRigAlternate,
+  cinema2LightRigHit,
+  cinema2LightRigPhraseArrangement,
+  cinema2LightRigRamp,
+} from './Cinema2LightRigAuthoring'
 
 export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.atmosphere-reference')
 const OBJECT3D_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('object3d')
@@ -40,6 +47,11 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_CAMERA_ID = cinema2StableId<Cinema2Cam
 export const CINEMA2_ATMOSPHERE_REFERENCE_LEFT_LIGHT_ID = cinema2StableId<Cinema2LightId>('atmosphere-reference-left-spot')
 export const CINEMA2_ATMOSPHERE_REFERENCE_CENTER_LIGHT_ID = cinema2StableId<Cinema2LightId>('atmosphere-reference-center-spot')
 export const CINEMA2_ATMOSPHERE_REFERENCE_RIGHT_LIGHT_ID = cinema2StableId<Cinema2LightId>('atmosphere-reference-right-spot')
+export const CINEMA2_ATMOSPHERE_REFERENCE_KEY_GROUP_ID = cinema2StableId<Cinema2LightGroupId>('atmosphere-reference-key')
+export const CINEMA2_ATMOSPHERE_REFERENCE_SIDES_GROUP_ID = cinema2StableId<Cinema2LightGroupId>('atmosphere-reference-sides')
+/** Idle spot intensity; the rig lifts groups above it on the beat. */
+const RIG_BASE_INTENSITY = 0.6
+const RIG_PEAK_INTENSITY = 2.6
 const AMBIENT_LIGHT_ID = cinema2StableId<Cinema2LightId>('atmosphere-reference-ambient')
 
 const WORLD_ROOT_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('atmosphere-reference-world-root')
@@ -75,7 +87,7 @@ function spotLight(id: Cinema2LightId, lightColor: Cinema2Color, position: Cinem
     id,
     type: 'spot' as const,
     color: lightColor,
-    intensity: 2.6,
+    intensity: RIG_BASE_INTENSITY,
     transform: Object.freeze({ position }),
     node: cinema2Ref(WORLD_ROOT_NODE_ID),
     targetNode: cinema2Ref(target),
@@ -147,7 +159,10 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
     Object.freeze({ id: 'scene.3d' as const, requirement: 'required' as const, purpose: 'World-space Scene Graph objects.' }),
     Object.freeze({ id: 'camera.world' as const, requirement: 'required' as const, purpose: 'Shared final world camera used to reconstruct view rays.' }),
     Object.freeze({ id: 'lighting' as const, requirement: 'required' as const, purpose: 'Spot lights that scatter through the atmosphere.' }),
-    Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Downbeat beam swell when authoritative downbeat data is available.' }),
+    Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Downbeat beam swell and side-light sweep when authoritative downbeat data is available.' }),
+    Object.freeze({ id: 'music.beat' as const, requirement: 'optional' as const, purpose: 'Key and side lights alternate every two beats.' }),
+    Object.freeze({ id: 'music.phrase' as const, requirement: 'optional' as const, purpose: 'Key light drops out on alternate phrases.' }),
+    Object.freeze({ id: 'visual-director.significance' as const, requirement: 'optional' as const, purpose: 'Light intensity ramps with the Visual Director build.' }),
   ]),
   parameters: Object.freeze([
     CINEMA2_QUALITY_MODE_PARAMETER,
@@ -209,6 +224,14 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
     }),
   ]),
   lighting: Object.freeze({
+    groups: Object.freeze([
+      Object.freeze({ id: CINEMA2_ATMOSPHERE_REFERENCE_KEY_GROUP_ID, label: 'Key', lights: Object.freeze([cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_CENTER_LIGHT_ID)]) }),
+      Object.freeze({
+        id: CINEMA2_ATMOSPHERE_REFERENCE_SIDES_GROUP_ID,
+        label: 'Sides',
+        lights: Object.freeze([cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_LEFT_LIGHT_ID), cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_RIGHT_LIGHT_ID)]),
+      }),
+    ]),
     lights: Object.freeze([
       spotLight(CINEMA2_ATMOSPHERE_REFERENCE_CENTER_LIGHT_ID, color(1, 0.72, 0.28), vec3(0.2, 6.2, -2.6), OBJECT_NODE_IDS[1]),
       spotLight(CINEMA2_ATMOSPHERE_REFERENCE_LEFT_LIGHT_ID, color(0.2, 0.85, 1), vec3(-3.4, 5.6, 1.2), OBJECT_NODE_IDS[0]),
@@ -270,6 +293,40 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
   ]),
   choreography: Object.freeze({
     rules: Object.freeze([
+      // Performance light rig: key and sides trade the stage every two beats, the sides sweep on the
+      // downbeat, the key drops out on alternate phrases, and everything lifts with the build.
+      ...cinema2LightRigAlternate({
+        id: 'atmosphere-rig',
+        groups: [CINEMA2_ATMOSPHERE_REFERENCE_KEY_GROUP_ID, CINEMA2_ATMOSPHERE_REFERENCE_SIDES_GROUP_ID],
+        everyBeats: 2,
+        peak: RIG_PEAK_INTENSITY,
+        priority: 40,
+        strengthParameter: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID),
+      }),
+      ...cinema2LightRigHit({
+        id: 'atmosphere-rig-sides',
+        group: CINEMA2_ATMOSPHERE_REFERENCE_SIDES_GROUP_ID,
+        signal: 'downbeat',
+        peak: 1.4,
+        stagger: { beats: 0.25, order: 'forward' },
+        priority: 45,
+        strengthParameter: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID),
+      }),
+      ...cinema2LightRigPhraseArrangement({
+        id: 'atmosphere-rig',
+        groups: [CINEMA2_ATMOSPHERE_REFERENCE_KEY_GROUP_ID],
+        every: 2,
+        phase: 1,
+        priority: 60,
+      }),
+      ...cinema2LightRigRamp({
+        id: 'atmosphere-rig',
+        groups: [CINEMA2_ATMOSPHERE_REFERENCE_KEY_GROUP_ID, CINEMA2_ATMOSPHERE_REFERENCE_SIDES_GROUP_ID],
+        source: 'director.build',
+        lift: 0.8,
+        priority: 30,
+        strengthParameter: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID),
+      }),
       Object.freeze({
         id: DOWNBEAT_RULE_ID,
         priority: 30,

@@ -26,6 +26,7 @@ export type Cinema2SceneNodeId = Cinema2StableId<'scene-node'>
 export type Cinema2LayerId = Cinema2StableId<'layer'>
 export type Cinema2CameraId = Cinema2StableId<'camera'>
 export type Cinema2LightId = Cinema2StableId<'light'>
+export type Cinema2LightGroupId = Cinema2StableId<'light-group'>
 export type Cinema2RenderPassId = Cinema2StableId<'render-pass'>
 export type Cinema2RenderTargetId = Cinema2StableId<'render-target'>
 export type Cinema2RenderSlotId = Cinema2StableId<'render-slot'>
@@ -47,6 +48,7 @@ export type Cinema2SceneNodeRef = Cinema2Reference<'scene-node'>
 export type Cinema2LayerRef = Cinema2Reference<'layer'>
 export type Cinema2CameraRef = Cinema2Reference<'camera'>
 export type Cinema2LightRef = Cinema2Reference<'light'>
+export type Cinema2LightGroupRef = Cinema2Reference<'light-group'>
 export type Cinema2RenderPassRef = Cinema2Reference<'render-pass'>
 export type Cinema2RenderTargetRef = Cinema2Reference<'render-target'>
 export type Cinema2EffectRef = Cinema2Reference<'effect'>
@@ -402,8 +404,21 @@ export interface Cinema2LightManifest {
   config?: Cinema2JsonObject
 }
 
+/**
+ * A named set of lights a choreography action can address as one unit. Groups exist only at
+ * authoring level: the compiler expands a group action into one ordinary light action per member,
+ * so the runtime, target resolver and Inspector never see them.
+ */
+export interface Cinema2LightGroupManifest {
+  id: Cinema2LightGroupId
+  label?: string
+  /** Member order is the stagger order. */
+  lights: readonly Cinema2LightRef[]
+}
+
 export interface Cinema2LightingManifest {
   lights: readonly Cinema2LightManifest[]
+  groups?: readonly Cinema2LightGroupManifest[]
   config?: Cinema2JsonObject
 }
 
@@ -598,6 +613,24 @@ export interface Cinema2ChoreographySourceManifest {
   config?: Cinema2JsonObject
 }
 
+export type Cinema2LightGroupStaggerOrder = 'forward' | 'reverse' | 'center-out' | 'edges-in'
+
+/**
+ * Spreads a group action across its members in time. Each member's action is delayed by
+ * `beats * rank`, where rank follows `order` (default `forward`). Adds to any authored `delayBeats`.
+ */
+export interface Cinema2LightGroupStaggerManifest {
+  beats: number
+  order?: Cinema2LightGroupStaggerOrder
+}
+
+export interface Cinema2LightGroupTargetRef {
+  kind: 'light-group'
+  ref: Cinema2LightGroupRef
+  property: string
+  stagger?: Cinema2LightGroupStaggerManifest
+}
+
 export type Cinema2WritableTargetRef =
   | { kind: 'parameter'; ref: Cinema2ParameterRef }
   | { kind: 'module'; ref: Cinema2ModuleRef; property: string }
@@ -628,6 +661,8 @@ export type Cinema2ChoreographyComposition = 'replace' | 'add' | 'multiply'
 export type Cinema2ChoreographyRetriggerPolicy = 'ignore' | 'restart' | 'extend'
 export type Cinema2ChoreographyEnvelopeUnit = 'seconds' | 'beats'
 
+export type Cinema2BeatIntervalUnit = 'beat' | 'bar' | 'phrase'
+
 export interface Cinema2ChoreographyMapManifest {
   inputMin?: number
   inputMax?: number
@@ -653,10 +688,17 @@ export type Cinema2ChoreographyConditionManifest =
   | { kind: 'capability'; capability: Cinema2CapabilityId; available?: boolean }
   | { kind: 'confidence'; min: number }
   | { kind: 'once-per-event' }
+  /**
+   * Passes only when the counter for `unit` satisfies `counter % every === phase` at the event.
+   * Counters come from the beat grid: `beat` = beat index, `bar` = bar index, `phrase` = floor(beat index / 16).
+   * Fails closed while beat-grid timing is unavailable.
+   */
+  | { kind: 'beat-interval'; every: number; phase?: number; unit?: Cinema2BeatIntervalUnit }
 
 export interface Cinema2ChoreographyActionManifest {
   id: Cinema2ChoreographyActionId
-  target: Cinema2WritableTargetRef
+  /** A `light-group` target is expanded into per-light `light` targets before compilation. */
+  target: Cinema2WritableTargetRef | Cinema2LightGroupTargetRef
   operation: Cinema2ChoreographyOperation
   /** Value/payload or envelope peak. Continuous mappings may omit it and use the source value. */
   value?: Cinema2JsonValue

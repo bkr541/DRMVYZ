@@ -48,6 +48,8 @@ export const CINEMA2_COMPILED_PRESET_PLAN_VERSION = 5 as const
 
 export type Cinema2PresetDiagnosticSeverity = 'warning' | 'error'
 
+import { expandCinema2LightGroupChoreography } from './Cinema2LightGroupExpansion'
+
 export interface Cinema2PresetDiagnostic {
   code: string
   severity: Cinema2PresetDiagnosticSeverity
@@ -162,7 +164,10 @@ export function compileCinema2NativePreset(
     }
   }
 
-  const manifest = identity.manifest
+  // Light groups are an authoring convenience: expand them to plain per-light actions before anything else looks at choreography.
+  const expansion = expandCinema2LightGroupChoreography(identity.manifest)
+  diagnostics.push(...expansion.diagnostics.map(diagnostic => ({ ...diagnostic, severity: 'error' as const })))
+  const manifest = expansion.manifest
   validateOptionalContainers(manifest, diagnostics)
   const index = buildManifestIndex(manifest, diagnostics)
   validateCapabilities(manifest, compileOptions, diagnostics)
@@ -1240,6 +1245,19 @@ function validateChoreographyConditions(
         break
       case 'once-per-event':
         break
+      case 'beat-interval': {
+        const every = condition.every as unknown
+        const phase = (condition.phase ?? 0) as unknown
+        if (typeof every !== 'number' || !Number.isInteger(every) || every < 1) {
+          diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_CONDITION_INVALID', 'beat-interval every must be a positive integer.', `${conditionPath}.every`))
+        } else if (typeof phase !== 'number' || !Number.isInteger(phase) || phase < 0 || phase >= every) {
+          diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_CONDITION_INVALID', 'beat-interval phase must be an integer in [0, every).', `${conditionPath}.phase`))
+        }
+        if (condition.unit != null && !['beat', 'bar', 'phrase'].includes(String(condition.unit))) {
+          diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_CONDITION_INVALID', 'beat-interval unit must be beat, bar or phrase.', `${conditionPath}.unit`))
+        }
+        break
+      }
       default:
         diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_CONDITION_INVALID', `Unsupported choreography condition "${String(condition.kind)}".`, `${conditionPath}.kind`))
     }

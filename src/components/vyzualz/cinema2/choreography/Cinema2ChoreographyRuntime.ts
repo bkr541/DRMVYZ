@@ -897,7 +897,24 @@ function conditionPasses(
       return confidence != null && confidence >= condition.min
     }
     case 'once-per-event': return event != null
+    case 'beat-interval': return beatIntervalPasses(condition, frame)
   }
+}
+
+// Phrase counter uses the fixed 16-beat clock so it stays deterministic even when analyzed phrase markers vary in length.
+const BEATS_PER_PHRASE = 16
+
+function beatIntervalPasses(
+  condition: Readonly<Extract<Cinema2ChoreographyConditionManifest, { kind: 'beat-interval' }>>,
+  frame: Readonly<Cinema2ModuleFrameReadContext>,
+): boolean {
+  const rhythm = frame.audio?.rhythm
+  const unit = condition.unit ?? 'beat'
+  const signal = unit === 'bar' ? rhythm?.barIndex : rhythm?.beatIndex
+  if (!signal?.available || typeof signal.value !== 'number' || !Number.isFinite(signal.value)) return false
+  const counter = unit === 'phrase' ? Math.floor(signal.value / BEATS_PER_PHRASE) : Math.floor(signal.value)
+  const every = Math.max(1, Math.floor(condition.every))
+  return (((counter % every) + every) % every) === (condition.phase ?? 0)
 }
 
 function capabilityAvailable(capability: Cinema2CapabilityId, frame: Readonly<Cinema2ModuleFrameReadContext>): boolean {
