@@ -1,0 +1,13 @@
+import { chromium } from '/Users/kodyrobinson/Development/DRMVYZ/node_modules/@playwright/test/index.mjs'
+import fs from 'node:fs'
+const out = '/private/tmp/claude-501/-Users-kodyrobinson-Development-DRMVYZ/f92ef9ee-da0b-4efa-8dd8-c6b0b2f69912/scratchpad/spike'
+const script = process.argv[2]
+const browser = await chromium.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: ['--ignore-gpu-blocklist', '--enable-gpu-rasterization'] })
+const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+page.on('console', m => { const t = m.text(); if (!/Download the React DevTools|\[vite\]/.test(t)) console.log('[page]', t.slice(0, 300)) })
+page.on('pageerror', e => console.log('[pageerror]', String(e).slice(0, 500)))
+await page.goto('http://127.0.0.1:5197/src/test/browser/cinema2-three-spike.html')
+await page.waitForFunction(() => document.getElementById('status')?.textContent === 'ready', null, { timeout: 60000 })
+const fn = (await import(script)).default
+await fn(page, out, fs)
+await browser.close()

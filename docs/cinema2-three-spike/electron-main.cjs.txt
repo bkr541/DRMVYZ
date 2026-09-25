@@ -1,0 +1,39 @@
+// Mirrors the production protocol setup in electron/main.cjs, but serves the spike build.
+const { app, BrowserWindow, protocol, net } = require('electron')
+const path = require('node:path')
+const { pathToFileURL } = require('node:url')
+const DIST = '<SCRATCH>/dist'
+protocol.registerSchemesAsPrivileged([{ scheme: 'drmvyz-app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }])
+setTimeout(() => { console.log('WATCHDOG timeout'); process.exit(3) }, 240000)
+app.whenReady().then(async () => {
+  protocol.handle('drmvyz-app', async request => {
+    const url = new URL(request.url)
+    const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '') || 'index.html'
+    const resolved = path.normalize(path.join(DIST, rel))
+    if (!resolved.startsWith(DIST)) return new Response('Forbidden', { status: 403 })
+    try { const r = await net.fetch(pathToFileURL(resolved).toString()); if (r.ok) return r } catch {}
+    return new Response('Not found', { status: 404 })
+  })
+  const win = new BrowserWindow({ width: 1400, height: 900, show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } })
+  win.webContents.on('console-message', (e, level, message) => { if (!/DevTools|Autofill/.test(message)) console.log('[renderer]', message.slice(0, 300)) })
+  await win.loadURL('drmvyz-app://app/src/test/browser/cinema2-three-spike.html')
+  const run = async code => win.webContents.executeJavaScript(code, true)
+  await run("new Promise(r => { const t = setInterval(() => { if (document.getElementById('status').textContent === 'ready') { clearInterval(t); r() } }, 50) })")
+  const log = (label, value) => console.log(label, JSON.stringify(value))
+  log('GL renderer', await run("(() => { const c = document.createElement('canvas'); const g = c.getContext('webgl2'); const e = g.getExtension('WEBGL_debug_renderer_info'); return { version: g.getParameter(g.VERSION), renderer: e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'n/a' } })()"))
+  log('init', await run('window.spike.init()'))
+  for (const [label, file, dec] of [['plain', 'hero.glb', 'none'], ['meshopt', 'hero-meshopt.glb', 'meshopt'], ['draco', 'hero-draco.glb', 'draco']]) {
+    try {
+      const r = await run("window.spike.loadGlb('/src/test/browser/spike-assets/" + file + "', '" + dec + "', '/cinema2-decoders/draco/')")
+      const shot = await run("(() => { const r = window.spike.shot({ mode: 'external-fb', glb: true, close: true, staticCamera: true, measureThree: true, width: 1920, height: 1080 }, 20, 100); delete r.image; return r })()")
+      log('glb ' + label, { MB: +(r.bytes / 1048576).toFixed(2), decodeParseMs: +r.decodeAndParseMs.toFixed(0), triangles: r.triangles, renderedTris: shot.info && shot.info.triangles, threeMs: +shot.threeMs.mean.toFixed(2), frameMs: +shot.frameMs.mean.toFixed(2), glErrors: shot.glErrors, failedPasses: shot.failedPasses })
+    } catch (error) { log('glb ' + label + ' FAILED', String(error).slice(0, 400)) }
+  }
+  const plain = await run("(() => { const r = window.spike.shot({ mode: 'external-fb', measureThree: true, width: 1920, height: 1080, close: true, staticCamera: true, glb: false }, 30, 200); delete r.image; return r })()")
+  log('procedural hero close 1080p', { threeMs: +plain.threeMs.mean.toFixed(2), frameMs: +plain.frameMs.mean.toFixed(2), first4: plain.firstFramesMs })
+  const none = await run("(() => { const r = window.spike.shot({ mode: 'none', width: 1920, height: 1080, close: true, staticCamera: true }, 30, 200); delete r.image; return r })()")
+  log('engine chain only 1080p', { frameMs: +none.frameMs.mean.toFixed(2) })
+  log('cycles(20)', await run("(() => { const r = window.spike.cycles({ mode: 'external-fb', width: 640, height: 360 }, 20); return { liveAtEnd: r.liveAtEnd, creates: r.bridgeCreates, disposes: r.bridgeDisposes, glErrors: r.glErrors } })()"))
+  log('contextLoss', await run("window.spike.contextLoss({ mode: 'external-fb', width: 960, height: 540, rearmTimerQueries: true }).then(r => { delete r.image; return r })"))
+  app.quit()
+})

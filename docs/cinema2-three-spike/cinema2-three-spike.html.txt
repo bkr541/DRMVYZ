@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cinema 2.0 Three.js spike (throwaway)</title>
+  <style>html, body { margin: 0; background: #000; color: #ddd; font: 13px system-ui; }</style>
+</head>
+<body>
+<pre id="status">loading</pre>
+<script type="module" src="./Cinema2ThreeSpikeBrowserHarness.ts"></script>
+</body>
+</html>

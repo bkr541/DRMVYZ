@@ -1,0 +1,1232 @@
+/* THROWAWAY: Cinema 2.0 Three.js spike (roadmap #5). Delete after the spike report is written. */
+import {
+  CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST,
+  Cinema2Runtime,
+  cinema2NamespacedId,
+  cinema2NativeModuleRegistry,
+  cinema2NativePresetRegistry,
+  cinema2StableId,
+  type Cinema2ModuleTypeId,
+  type Cinema2PresetId,
+} from '../../components/vyzualz/cinema2'
+import type { Cinema2ModuleCreateContext, Cinema2ModuleRenderExecutionContext } from '../../components/vyzualz/cinema2/modules/Cinema2ModuleContracts'
+
+type ThreeNs = typeof import('three')
+type Mode = 'external-fb' | 'copy' | 'none'
+
+interface Options {
+  mode: Mode
+  width: number
+  height: number
+  quality: 'low' | 'medium' | 'high'
+  /** Target triangle count of the hero mesh. */
+  heroTriangles: number
+  textureSize: number
+  /** Measure the Three pass alone with a synchronous readPixels bracket. */
+  measureThree: boolean
+  /** Diff GL state around the Three pass. */
+  stateProbe: boolean
+  /** Sample engine depth under a probe sphere after the Three pass. */
+  depthProbe: boolean
+  /** Use a static camera (for soak comparisons). */
+  staticCamera: boolean
+  /** Camera close to the hero so it fills the frame (worst case for the Three pass). */
+  close: boolean
+  /** Hero comes from this GLB instead of the procedural mesh. */
+  glb: boolean
+  /** Use the PMREM environment (cost realism). */
+  environment: boolean
+  /** Save and restore GL state around the Three pass. */
+  guard: 'full' | 'minimal' | 'none'
+  /** Control: do not construct Three at all. */
+  skipBridge: boolean
+  /** Work around a pre-existing engine gap: re-request the timer-query extension after a context restore. */
+  rearmTimerQueries: boolean
+}
+
+const DEFAULTS: Options = {
+  mode: 'external-fb', width: 1280, height: 720, quality: 'high', heroTriangles: 100000, textureSize: 2048,
+  measureThree: false, stateProbe: false, depthProbe: false, staticCamera: false, close: false, glb: false, environment: true, guard: 'minimal', skipBridge: false, rearmTimerQueries: false,
+}
+
+// ---------------------------------------------------------------- GL instrumentation
+
+type Live = Record<string, Set<object>>
+const KINDS = ['Buffer', 'Texture', 'Framebuffer', 'Renderbuffer', 'Program', 'Shader', 'VertexArray', 'Sampler', 'Query', 'TransformFeedback'] as const
+const liveByContext = new WeakMap<object, Live>()
+const createdTotals: Record<string, number> = {}
+const deletedTotals: Record<string, number> = {}
+let glErrorCount = 0
+let captureStacks = false
+const stacks = new WeakMap<object, string>()
+
+function instrument(gl: WebGL2RenderingContext): void {
+  if (liveByContext.has(gl)) return
+  const live: Live = {}
+  for (const kind of KINDS) live[kind] = new Set()
+  liveByContext.set(gl, live)
+  const raw = gl as unknown as Record<string, (...args: unknown[]) => unknown>
+  for (const kind of KINDS) {
+    const create = `create${kind}`
+    const del = `delete${kind}`
+    const originalCreate = raw[create]!.bind(gl)
+    const originalDelete = raw[del]!.bind(gl)
+    raw[create] = (...args: unknown[]) => {
+      const object = originalCreate(...args) as object | null
+      if (object) { live[kind]!.add(object); createdTotals[kind] = (createdTotals[kind] ?? 0) + 1; if (captureStacks) stacks.set(object, new Error().stack ?? '') }
+      return object
+    }
+    raw[del] = (...args: unknown[]) => {
+      const object = args[0] as object | null
+      if (object && live[kind]!.delete(object)) deletedTotals[kind] = (deletedTotals[kind] ?? 0) + 1
+      return originalDelete(...args)
+    }
+  }
+}
+
+const originalGetContext = HTMLCanvasElement.prototype.getContext
+HTMLCanvasElement.prototype.getContext = function patched(this: HTMLCanvasElement, type: string, ...rest: unknown[]) {
+  const context = (originalGetContext as (...args: unknown[]) => unknown).call(this, type, ...rest)
+  if (type === 'webgl2' && context) instrument(context as WebGL2RenderingContext)
+  return context
+} as typeof HTMLCanvasElement.prototype.getContext
+
+function liveCounts(gl: WebGL2RenderingContext): Record<string, number> {
+  const live = liveByContext.get(gl)
+  const counts: Record<string, number> = {}
+  for (const kind of KINDS) counts[kind] = live?.[kind]?.size ?? 0
+  return counts
+}
+
+// ---------------------------------------------------------------- GL state snapshot
+
+const ids = new WeakMap<object, number>()
+let nextId = 1
+function idOf(value: unknown): string {
+  if (value == null) return 'null'
+  if (typeof value === 'object') {
+    if (ArrayBuffer.isView(value)) return Array.from(value as unknown as ArrayLike<number>).join(',')
+    if (Array.isArray(value)) return value.join(',')
+    if (!ids.has(value as object)) ids.set(value as object, nextId++)
+    return `#${ids.get(value as object)}`
+  }
+  return String(value)
+}
+
+function snapshotState(gl: WebGL2RenderingContext): Record<string, string> {
+  const out: Record<string, string> = {}
+  const names = [
+    'ACTIVE_TEXTURE', 'ARRAY_BUFFER_BINDING', 'ELEMENT_ARRAY_BUFFER_BINDING', 'VERTEX_ARRAY_BINDING', 'CURRENT_PROGRAM',
+    'FRAMEBUFFER_BINDING', 'READ_FRAMEBUFFER_BINDING', 'RENDERBUFFER_BINDING', 'VIEWPORT', 'SCISSOR_BOX', 'SCISSOR_TEST',
+    'BLEND', 'BLEND_SRC_RGB', 'BLEND_DST_RGB', 'BLEND_SRC_ALPHA', 'BLEND_DST_ALPHA', 'BLEND_EQUATION_RGB', 'BLEND_EQUATION_ALPHA',
+    'BLEND_COLOR', 'DEPTH_TEST', 'DEPTH_FUNC', 'DEPTH_WRITEMASK', 'DEPTH_RANGE', 'COLOR_WRITEMASK', 'COLOR_CLEAR_VALUE',
+    'DEPTH_CLEAR_VALUE', 'CULL_FACE', 'CULL_FACE_MODE', 'FRONT_FACE', 'STENCIL_TEST', 'STENCIL_WRITEMASK', 'STENCIL_FUNC',
+    'STENCIL_CLEAR_VALUE', 'POLYGON_OFFSET_FILL', 'POLYGON_OFFSET_FACTOR', 'POLYGON_OFFSET_UNITS', 'SAMPLE_ALPHA_TO_COVERAGE',
+    'DITHER', 'LINE_WIDTH', 'UNPACK_FLIP_Y_WEBGL', 'UNPACK_PREMULTIPLY_ALPHA_WEBGL', 'UNPACK_ALIGNMENT', 'UNPACK_ROW_LENGTH',
+    'UNPACK_IMAGE_HEIGHT', 'UNPACK_SKIP_PIXELS', 'UNPACK_SKIP_ROWS', 'UNPACK_SKIP_IMAGES', 'PACK_ALIGNMENT', 'PACK_ROW_LENGTH',
+    'UNIFORM_BUFFER_BINDING', 'TRANSFORM_FEEDBACK_BINDING', 'PIXEL_PACK_BUFFER_BINDING', 'PIXEL_UNPACK_BUFFER_BINDING',
+    'DRAW_BUFFER0', 'DRAW_BUFFER1', 'RASTERIZER_DISCARD',
+  ] as const
+  for (const name of names) {
+    const key = (gl as unknown as Record<string, number>)[name]
+    if (key === undefined) continue
+    try { out[name] = idOf(gl.getParameter(key)) } catch { out[name] = 'err' }
+  }
+  const active = gl.getParameter(gl.ACTIVE_TEXTURE) as number
+  const targets: [string, number, number][] = [['2D', gl.TEXTURE_2D, gl.TEXTURE_BINDING_2D], ['CUBE', gl.TEXTURE_CUBE_MAP, gl.TEXTURE_BINDING_CUBE_MAP], ['3D', gl.TEXTURE_3D, gl.TEXTURE_BINDING_3D], ['ARR', gl.TEXTURE_2D_ARRAY, gl.TEXTURE_BINDING_2D_ARRAY]]
+  for (let unit = 0; unit < 16; unit++) {
+    gl.activeTexture(gl.TEXTURE0 + unit)
+    for (const [label, , binding] of targets) out[`TEX${unit}_${label}`] = idOf(gl.getParameter(binding))
+    out[`SAMPLER${unit}`] = idOf(gl.getParameter(gl.SAMPLER_BINDING))
+  }
+  gl.activeTexture(active)
+  for (let index = 0; index < 8; index++) {
+    out[`ATTR${index}_ENABLED`] = idOf(gl.getVertexAttrib(index, gl.VERTEX_ATTRIB_ARRAY_ENABLED))
+    out[`ATTR${index}_DIVISOR`] = idOf(gl.getVertexAttrib(index, gl.VERTEX_ATTRIB_ARRAY_DIVISOR))
+  }
+  return out
+}
+
+function diffState(before: Record<string, string>, after: Record<string, string>): Record<string, [string, string]> {
+  const diff: Record<string, [string, string]> = {}
+  for (const key of Object.keys(before)) if (before[key] !== after[key]) diff[key] = [before[key]!, after[key] ?? 'missing']
+  return diff
+}
+
+
+// ---------------------------------------------------------------- GL state guard (candidate engine utility for #6)
+
+interface SavedUnit { t2d: WebGLTexture | null; cube: WebGLTexture | null; t3d: WebGLTexture | null; arr: WebGLTexture | null; sampler: WebGLSampler | null }
+
+class GlStateGuard {
+  private readonly p: Record<string, unknown> = {}
+  private readonly units: SavedUnit[] = []
+  private readonly caps: Record<string, boolean> = {}
+  constructor(private readonly gl: WebGL2RenderingContext) {}
+
+  private static readonly PARAMS = [
+    'ACTIVE_TEXTURE', 'ARRAY_BUFFER_BINDING', 'VERTEX_ARRAY_BINDING', 'CURRENT_PROGRAM', 'FRAMEBUFFER_BINDING', 'READ_FRAMEBUFFER_BINDING',
+    'RENDERBUFFER_BINDING', 'VIEWPORT', 'SCISSOR_BOX', 'BLEND_SRC_RGB', 'BLEND_DST_RGB', 'BLEND_SRC_ALPHA', 'BLEND_DST_ALPHA',
+    'BLEND_EQUATION_RGB', 'BLEND_EQUATION_ALPHA', 'BLEND_COLOR', 'DEPTH_FUNC', 'DEPTH_WRITEMASK', 'DEPTH_RANGE', 'COLOR_WRITEMASK',
+    'COLOR_CLEAR_VALUE', 'DEPTH_CLEAR_VALUE', 'STENCIL_CLEAR_VALUE', 'CULL_FACE_MODE', 'FRONT_FACE', 'STENCIL_WRITEMASK',
+    'POLYGON_OFFSET_FACTOR', 'POLYGON_OFFSET_UNITS', 'UNPACK_FLIP_Y_WEBGL', 'UNPACK_PREMULTIPLY_ALPHA_WEBGL', 'UNPACK_ALIGNMENT',
+    'UNPACK_ROW_LENGTH', 'PACK_ALIGNMENT', 'PACK_ROW_LENGTH', 'UNIFORM_BUFFER_BINDING', 'TRANSFORM_FEEDBACK_BINDING',
+    'PIXEL_PACK_BUFFER_BINDING', 'PIXEL_UNPACK_BUFFER_BINDING',
+  ] as const
+  private static readonly CAPS = ['BLEND', 'CULL_FACE', 'DEPTH_TEST', 'DITHER', 'POLYGON_OFFSET_FILL', 'RASTERIZER_DISCARD', 'SAMPLE_ALPHA_TO_COVERAGE', 'SCISSOR_TEST', 'STENCIL_TEST'] as const
+  private stencil: { func: number; ref: number; mask: number; fail: number; zfail: number; zpass: number } | null = null
+
+  capture(): this {
+    const gl = this.gl
+    for (const name of GlStateGuard.PARAMS) this.p[name] = gl.getParameter((gl as unknown as Record<string, number>)[name]!)
+    for (const name of GlStateGuard.CAPS) this.caps[name] = gl.isEnabled((gl as unknown as Record<string, number>)[name]!)
+    this.stencil = {
+      func: gl.getParameter(gl.STENCIL_FUNC), ref: gl.getParameter(gl.STENCIL_REF), mask: gl.getParameter(gl.STENCIL_VALUE_MASK),
+      fail: gl.getParameter(gl.STENCIL_FAIL), zfail: gl.getParameter(gl.STENCIL_PASS_DEPTH_FAIL), zpass: gl.getParameter(gl.STENCIL_PASS_DEPTH_PASS),
+    }
+    const active = this.p.ACTIVE_TEXTURE as number
+    this.units.length = 0
+    for (let unit = 0; unit < 16; unit++) {
+      gl.activeTexture(gl.TEXTURE0 + unit)
+      this.units.push({
+        t2d: gl.getParameter(gl.TEXTURE_BINDING_2D), cube: gl.getParameter(gl.TEXTURE_BINDING_CUBE_MAP),
+        t3d: gl.getParameter(gl.TEXTURE_BINDING_3D), arr: gl.getParameter(gl.TEXTURE_BINDING_2D_ARRAY), sampler: gl.getParameter(gl.SAMPLER_BINDING),
+      })
+    }
+    gl.activeTexture(active)
+    return this
+  }
+
+  restore(): void {
+    const gl = this.gl
+    const p = this.p as Record<string, never>
+    for (let unit = 0; unit < this.units.length; unit++) {
+      const u = this.units[unit]!
+      gl.activeTexture(gl.TEXTURE0 + unit)
+      gl.bindTexture(gl.TEXTURE_2D, u.t2d); gl.bindTexture(gl.TEXTURE_CUBE_MAP, u.cube); gl.bindTexture(gl.TEXTURE_3D, u.t3d); gl.bindTexture(gl.TEXTURE_2D_ARRAY, u.arr)
+      gl.bindSampler(unit, u.sampler)
+    }
+    gl.activeTexture(p.ACTIVE_TEXTURE)
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, p.FRAMEBUFFER_BINDING)
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, p.READ_FRAMEBUFFER_BINDING)
+    gl.bindRenderbuffer(gl.RENDERBUFFER, p.RENDERBUFFER_BINDING)
+    gl.bindBuffer(gl.ARRAY_BUFFER, p.ARRAY_BUFFER_BINDING)
+    gl.bindVertexArray(p.VERTEX_ARRAY_BINDING)
+    gl.bindBuffer(gl.UNIFORM_BUFFER, p.UNIFORM_BUFFER_BINDING)
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, p.PIXEL_PACK_BUFFER_BINDING)
+    gl.bindBuffer(gl.PIXEL_UNPACK_BUFFER, p.PIXEL_UNPACK_BUFFER_BINDING)
+    gl.useProgram(p.CURRENT_PROGRAM)
+    const vp = this.p.VIEWPORT as Int32Array, sc = this.p.SCISSOR_BOX as Int32Array
+    gl.viewport(vp[0]!, vp[1]!, vp[2]!, vp[3]!)
+    gl.scissor(sc[0]!, sc[1]!, sc[2]!, sc[3]!)
+    gl.blendFuncSeparate(p.BLEND_SRC_RGB, p.BLEND_DST_RGB, p.BLEND_SRC_ALPHA, p.BLEND_DST_ALPHA)
+    gl.blendEquationSeparate(p.BLEND_EQUATION_RGB, p.BLEND_EQUATION_ALPHA)
+    const bc = this.p.BLEND_COLOR as Float32Array
+    gl.blendColor(bc[0]!, bc[1]!, bc[2]!, bc[3]!)
+    gl.depthFunc(p.DEPTH_FUNC); gl.depthMask(p.DEPTH_WRITEMASK)
+    const dr = this.p.DEPTH_RANGE as Float32Array
+    gl.depthRange(dr[0]!, dr[1]!)
+    const cm = this.p.COLOR_WRITEMASK as boolean[]
+    gl.colorMask(cm[0]!, cm[1]!, cm[2]!, cm[3]!)
+    const cc = this.p.COLOR_CLEAR_VALUE as Float32Array
+    gl.clearColor(cc[0]!, cc[1]!, cc[2]!, cc[3]!)
+    gl.clearDepth(p.DEPTH_CLEAR_VALUE); gl.clearStencil(p.STENCIL_CLEAR_VALUE)
+    gl.cullFace(p.CULL_FACE_MODE); gl.frontFace(p.FRONT_FACE); gl.stencilMask(p.STENCIL_WRITEMASK)
+    if (this.stencil) { gl.stencilFunc(this.stencil.func, this.stencil.ref, this.stencil.mask); gl.stencilOp(this.stencil.fail, this.stencil.zfail, this.stencil.zpass) }
+    gl.polygonOffset(p.POLYGON_OFFSET_FACTOR, p.POLYGON_OFFSET_UNITS)
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, p.UNPACK_FLIP_Y_WEBGL); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, p.UNPACK_PREMULTIPLY_ALPHA_WEBGL)
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, p.UNPACK_ALIGNMENT); gl.pixelStorei(gl.UNPACK_ROW_LENGTH, p.UNPACK_ROW_LENGTH)
+    gl.pixelStorei(gl.PACK_ALIGNMENT, p.PACK_ALIGNMENT); gl.pixelStorei(gl.PACK_ROW_LENGTH, p.PACK_ROW_LENGTH)
+    for (const name of GlStateGuard.CAPS) {
+      const cap = (gl as unknown as Record<string, number>)[name]!
+      if (this.caps[name]) gl.enable(cap); else gl.disable(cap)
+    }
+  }
+}
+
+/**
+ * Cheap guard: query only the ~12 values the render graph executor establishes per pass (and that Three changes),
+ * restore them, and put everything else in a canonical unbound state. Restoring costs no GPU round trips.
+ */
+class MinimalGlStateGuard {
+  private fb: WebGLFramebuffer | null = null
+  private readFb: WebGLFramebuffer | null = null
+  private vp: Int32Array = new Int32Array(4)
+  private scissorBox: Int32Array = new Int32Array(4)
+  private flags = { scissor: false, blend: false, depth: false, cull: false }
+  private depthFunc = 0
+  private depthMask = true
+  private colorMask: boolean[] = [true, true, true, true]
+  private clear: Float32Array = new Float32Array(4)
+  private vao: WebGLVertexArrayObject | null = null
+  private program: WebGLProgram | null = null
+  constructor(private readonly gl: WebGL2RenderingContext) {}
+
+  capture(): this {
+    const gl = this.gl
+    this.fb = gl.getParameter(gl.FRAMEBUFFER_BINDING); this.readFb = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING)
+    this.vp = gl.getParameter(gl.VIEWPORT); this.scissorBox = gl.getParameter(gl.SCISSOR_BOX)
+    this.flags = { scissor: gl.isEnabled(gl.SCISSOR_TEST), blend: gl.isEnabled(gl.BLEND), depth: gl.isEnabled(gl.DEPTH_TEST), cull: gl.isEnabled(gl.CULL_FACE) }
+    this.depthFunc = gl.getParameter(gl.DEPTH_FUNC); this.depthMask = gl.getParameter(gl.DEPTH_WRITEMASK)
+    this.colorMask = gl.getParameter(gl.COLOR_WRITEMASK); this.clear = gl.getParameter(gl.COLOR_CLEAR_VALUE)
+    this.vao = gl.getParameter(gl.VERTEX_ARRAY_BINDING); this.program = gl.getParameter(gl.CURRENT_PROGRAM)
+    return this
+  }
+
+  restore(): void {
+    const gl = this.gl
+    for (let unit = 0; unit < 16; unit++) {
+      gl.activeTexture(gl.TEXTURE0 + unit)
+      gl.bindTexture(gl.TEXTURE_2D, null); gl.bindTexture(gl.TEXTURE_CUBE_MAP, null)
+    }
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindBuffer(gl.ARRAY_BUFFER, null)
+    gl.bindVertexArray(this.vao)
+    gl.useProgram(this.program)
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb); gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.readFb)
+    gl.viewport(this.vp[0]!, this.vp[1]!, this.vp[2]!, this.vp[3]!)
+    gl.scissor(this.scissorBox[0]!, this.scissorBox[1]!, this.scissorBox[2]!, this.scissorBox[3]!)
+    const set = (cap: number, on: boolean) => { if (on) gl.enable(cap); else gl.disable(cap) }
+    set(gl.SCISSOR_TEST, this.flags.scissor); set(gl.BLEND, this.flags.blend); set(gl.DEPTH_TEST, this.flags.depth); set(gl.CULL_FACE, this.flags.cull)
+    gl.depthFunc(this.depthFunc); gl.depthMask(this.depthMask)
+    gl.colorMask(this.colorMask[0]!, this.colorMask[1]!, this.colorMask[2]!, this.colorMask[3]!)
+    gl.clearColor(this.clear[0]!, this.clear[1]!, this.clear[2]!, this.clear[3]!)
+  }
+}
+
+// ---------------------------------------------------------------- shared state for the spike module
+
+let THREE: ThreeNs
+let RoomEnvironmentCtor: new () => import('three').Scene
+let GLTFLoaderCtor: typeof import('three/examples/jsm/loaders/GLTFLoader.js').GLTFLoader
+let options: Options = DEFAULTS
+let loadedHero: import('three').Object3D | null = null
+const probe = {
+  stateDiffs: [] as Record<string, [string, string]>[],
+  threeMs: [] as number[],
+  guardCaptureMs: [] as number[],
+  guardRestoreMs: [] as number[],
+  depthReadings: [] as { expected: number; measured: number; pixel: [number, number] }[],
+  afterDisposeInfo: null as null | { geometries: number; textures: number },
+  bridgeCreates: 0,
+  bridgeDisposes: 0,
+  lastInfo: null as null | { calls: number; triangles: number; geometries: number; textures: number; programs: number },
+  estimatedBytes: 0,
+  firstFrameMs: 0,
+  frameErrors: [] as string[],
+}
+
+const SPIKE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('three-spike')
+const SPIKE_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.three-spike')
+
+// Mapping constants (documented in the spike report): engine intensity 1 makes a white diffuse surface at half the
+// light's range (or any distance, for ambient and directional) read as full white.
+const K_AMBIENT = Math.PI
+const K_DIRECTIONAL = Math.PI
+
+/**
+ * ONE Three renderer per GL context, kept for the context's lifetime. WebGLRenderer.dispose() does not delete the 3 scratch
+ * framebuffers, 4 empty textures and the shared empty texture it creates in its constructor, so creating a renderer per preset
+ * leaks ~8 GL objects each time. Scene content (geometry, materials, textures, targets) is disposed per bridge instead.
+ */
+const sharedRenderers = new WeakMap<WebGL2RenderingContext, import('three').WebGLRenderer>()
+function sharedRenderer(gl: WebGL2RenderingContext): import('three').WebGLRenderer {
+  let renderer = sharedRenderers.get(gl)
+  if (!renderer) {
+    renderer = new THREE.WebGLRenderer({ canvas: gl.canvas as HTMLCanvasElement, context: gl, antialias: false, alpha: false, depth: false, stencil: false })
+    renderer.autoClear = false
+    renderer.toneMapping = THREE.NoToneMapping
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    sharedRenderers.set(gl, renderer)
+    const canvas = gl.canvas as HTMLCanvasElement
+    const onLost = () => {
+      // GPU-generated resources (PMREM environment, render targets) do not survive a lost context: drop the renderer and its caches
+      // so the next bridge builds fresh ones on the restored context.
+      canvas.removeEventListener('webglcontextlost', onLost)
+      sharedRenderers.delete(gl)
+      sharedEnvironments.delete(renderer!)
+      renderer!.dispose()
+    }
+    canvas.addEventListener('webglcontextlost', onLost)
+  }
+  return renderer
+}
+
+/**
+ * The PMREM environment is generated once per renderer and kept for its lifetime: PMREMGenerator leaves one GL buffer behind on
+ * every use in 0.186 (measured), and regenerating costs time. A preset switch reuses it.
+ */
+const sharedEnvironments = new WeakMap<import('three').WebGLRenderer, import('three').Texture>()
+function sharedEnvironment(renderer: import('three').WebGLRenderer): import('three').Texture {
+  let texture = sharedEnvironments.get(renderer)
+  if (!texture) {
+    const pmrem = new THREE.PMREMGenerator(renderer)
+    const room = new RoomEnvironmentCtor()
+    const target = pmrem.fromScene(room as never, 0.04)
+    ;(room as unknown as { dispose(): void }).dispose()
+    pmrem.dispose()
+    renderer.resetState()
+    texture = target.texture
+    sharedEnvironments.set(renderer, texture)
+  }
+  return texture
+}
+
+class ThreeBridge {
+  readonly renderer: import('three').WebGLRenderer
+  readonly scene: import('three').Scene
+  readonly camera: import('three').PerspectiveCamera
+  readonly target: import('three').WebGLRenderTarget
+  readonly nodeMeshes: import('three').Object3D[] = []
+  readonly probeSphere: import('three').Mesh
+  readonly lights: import('three').Light[] = []
+  private readonly disposables: { dispose(): void }[] = []
+  private copy: { program: WebGLProgram; vao: WebGLVertexArrayObject } | null = null
+  private copyTarget: import('three').WebGLRenderTarget | null = null
+  private scratch: { fb: WebGLFramebuffer; tex: WebGLTexture; program: WebGLProgram } | null = null
+  disposed = false
+  private sizedOnce = false
+
+  constructor(readonly gl: WebGL2RenderingContext, readonly opts: Options) {
+    const t0 = performance.now()
+    this.renderer = sharedRenderer(gl)
+    this.scene = new THREE.Scene()
+    this.camera = new THREE.PerspectiveCamera()
+    this.camera.matrixAutoUpdate = false
+    this.camera.matrixWorldAutoUpdate = false
+    // External framebuffer target: Three never allocates anything for it, and treats it like the XR path (output colour space follows the texture).
+    this.target = new THREE.WebGLRenderTarget(opts.width, opts.height, { depthBuffer: true })
+    ;(this.target as unknown as { isXRRenderTarget: boolean }).isXRRenderTarget = true
+    this.target.texture.colorSpace = THREE.SRGBColorSpace
+
+    this.buildScene()
+    if (opts.environment) {
+      this.scene.environment = sharedEnvironment(this.renderer)
+      this.scene.environmentIntensity = 0.35
+    }
+    this.probeSphere = this.scene.getObjectByName('probe') as import('three').Mesh
+    this.renderer.resetState()
+    probe.bridgeCreates += 1
+    probe.firstFrameMs = performance.now() - t0
+  }
+
+  private makeTexture(kind: 'albedo' | 'normal' | 'orm'): import('three').Texture {
+    const size = this.opts.textureSize
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = size
+    const context = canvas.getContext('2d')!
+    const image = context.createImageData(size, size)
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const o = (y * size + x) * 4
+        const u = x / size, v = y / size
+        const stripes = 0.5 + 0.5 * Math.sin((u * 40 + Math.sin(v * 12) * 2) * Math.PI)
+        if (kind === 'albedo') { image.data[o] = 40 + stripes * 30; image.data[o + 1] = 42 + stripes * 30; image.data[o + 2] = 48 + stripes * 40 }
+        else if (kind === 'normal') { image.data[o] = 128 + (stripes - 0.5) * 60; image.data[o + 1] = 128 + Math.cos(v * 90) * 20; image.data[o + 2] = 235 }
+        else { image.data[o] = 255; image.data[o + 1] = 60 + stripes * 60; image.data[o + 2] = 200 }
+        image.data[o + 3] = 255
+      }
+    }
+    context.putImageData(image, 0, 0)
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping
+    texture.anisotropy = 4
+    if (kind === 'albedo') texture.colorSpace = THREE.SRGBColorSpace
+    this.disposables.push(texture)
+    return texture
+  }
+
+  private buildScene(): void {
+    const opts = this.opts
+    // Hero: a torus knot sized to the requested triangle budget, with a 3-map PBR set.
+    const tubular = Math.round(Math.sqrt(opts.heroTriangles / 2 * 6))
+    const radial = Math.max(8, Math.round(opts.heroTriangles / 2 / tubular))
+    const geometry = new THREE.TorusKnotGeometry(0.42, 0.14, tubular, radial)
+    const albedo = this.makeTexture('albedo')
+    const normal = this.makeTexture('normal')
+    const orm = this.makeTexture('orm')
+    const material = new THREE.MeshStandardMaterial({ map: albedo, normalMap: normal, roughnessMap: orm, metalnessMap: orm, aoMap: orm, roughness: 1, metalness: 1, color: 0xffffff })
+    const hero: import('three').Object3D = opts.glb && loadedHero ? loadedHero : new THREE.Mesh(geometry, material)
+    hero.matrixAutoUpdate = false
+    this.scene.add(hero)
+    this.nodeMeshes.push(hero)
+    this.disposables.push(geometry, material)
+
+    // Cheap neighbours (plain materials) used for occlusion checks against the floor and haze.
+    const sphere = new THREE.SphereGeometry(0.5, 48, 32)
+    const glossy = new THREE.MeshStandardMaterial({ color: 0x9aa3b0, roughness: 0.25, metalness: 0.9 })
+    const emissive = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xff5522, emissiveIntensity: 2.2, roughness: 0.6 })
+    const box = new THREE.BoxGeometry(0.8, 2.2, 0.8)
+    const pillar = new THREE.MeshStandardMaterial({ color: 0x556070, roughness: 0.55, metalness: 0.2 })
+    const [left, right, back] = [new THREE.Mesh(sphere, glossy), new THREE.Mesh(box, pillar), new THREE.Mesh(sphere, emissive)]
+    for (const mesh of [left, right, back]) { mesh.matrixAutoUpdate = false; this.scene.add(mesh); this.nodeMeshes.push(mesh) }
+    this.disposables.push(sphere, glossy, emissive, box, pillar)
+
+    const probeMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(0.5, 0.5, 0.5, THREE.SRGBColorSpace) })
+    const probeMesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), probeMaterial)
+    probeMesh.name = 'probe'
+    probeMesh.position.set(-0.9, -0.55, 2.4)
+    probeMesh.visible = opts.depthProbe
+    this.scene.add(probeMesh)
+    this.disposables.push(probeMesh.geometry, probeMaterial)
+
+    // Fixed rig (the engine's list is mapped onto it each frame; unused slots go to intensity 0 so shaders never recompile).
+    const ambient = new THREE.AmbientLight(0xffffff, 0)
+    this.scene.add(ambient)
+    this.lights.push(ambient)
+    for (let index = 0; index < 3; index++) {
+      const spot = new THREE.SpotLight(0xffffff, 0, 0, 0.3, 0.4, 2)
+      this.scene.add(spot, spot.target)
+      this.lights.push(spot)
+    }
+  }
+
+  private mapLights(frame: NonNullable<Cinema2ModuleRenderExecutionContext['lightingEnvironment']>): void {
+    let spotIndex = 1
+    this.lights[0]!.intensity = 0
+    for (let index = 1; index < this.lights.length; index++) this.lights[index]!.intensity = 0
+    for (const light of frame.lights) {
+      const color = new THREE.Color().setRGB(light.color[0], light.color[1], light.color[2], THREE.SRGBColorSpace)
+      if (light.type === 'ambient') {
+        const ambient = this.lights[0] as import('three').AmbientLight
+        ambient.color.copy(color)
+        ambient.intensity = light.intensity * K_AMBIENT
+      } else if (light.type === 'spot' && spotIndex < this.lights.length) {
+        const spot = this.lights[spotIndex++] as import('three').SpotLight
+        const outer = ((light.spot?.outerAngleDegrees ?? 30) * Math.PI) / 180
+        const inner = ((light.spot?.innerAngleDegrees ?? 20) * Math.PI) / 180
+        spot.color.copy(color)
+        spot.position.set(...light.position)
+        spot.target.position.set(...(light.targetPosition ?? [light.position[0] + light.direction[0], light.position[1] + light.direction[1], light.position[2] + light.direction[2]]))
+        spot.angle = outer
+        spot.penumbra = outer > 0 ? Math.max(0, 1 - inner / outer) : 0
+        spot.distance = light.range
+        spot.decay = 2
+        spot.intensity = light.intensity * Math.PI * (light.range * 0.5) ** 2
+        spot.updateMatrixWorld(); spot.target.updateMatrixWorld()
+      }
+    }
+    void K_DIRECTIONAL
+  }
+
+  private setCamera(camera: NonNullable<Cinema2ModuleRenderExecutionContext['camera']>): void {
+    const c = this.camera
+    c.projectionMatrix.fromArray(camera.projectionMatrix as unknown as number[])
+    c.projectionMatrixInverse.copy(c.projectionMatrix).invert()
+    c.matrixWorldInverse.fromArray(camera.viewMatrix as unknown as number[])
+    c.matrixWorld.copy(c.matrixWorldInverse).invert()
+    c.near = camera.near
+    c.far = camera.far
+  }
+
+  private ensureCopy(): void {
+    if (this.copy) return
+    const gl = this.gl
+    const compile = (type: number, source: string) => {
+      const shader = gl.createShader(type)!
+      gl.shaderSource(shader, source); gl.compileShader(shader)
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader) ?? 'shader')
+      return shader
+    }
+    const program = gl.createProgram()!
+    const vs = compile(gl.VERTEX_SHADER, `#version 300 es
+out vec2 v_uv; void main(){ vec2 p = vec2(float((gl_VertexID<<1)&2), float(gl_VertexID&2)); v_uv = p; gl_Position = vec4(p*2.0-1.0, 0.0, 1.0); }`)
+    const fs = compile(gl.FRAGMENT_SHADER, `#version 300 es
+precision highp float; in vec2 v_uv; uniform sampler2D u_color; uniform sampler2D u_depth; out vec4 o;
+vec3 enc(vec3 c){ return mix(c*12.92, 1.055*pow(c, vec3(1.0/2.4))-0.055, step(0.0031308, c)); }
+void main(){ vec4 c = texture(u_color, v_uv); float d = texelFetch(u_depth, ivec2(gl_FragCoord.xy), 0).r; if (c.a < 0.001 && d >= 1.0) discard; o = vec4(enc(clamp(c.rgb,0.0,1.0)), 1.0); gl_FragDepth = d; }`)
+    gl.attachShader(program, vs); gl.attachShader(program, fs); gl.linkProgram(program)
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program) ?? 'link')
+    gl.deleteShader(vs); gl.deleteShader(fs)
+    const vao = gl.createVertexArray()!
+    this.copy = { program, vao }
+  }
+
+  draw(exec: Cinema2ModuleRenderExecutionContext): void {
+    if (this.disposed) return
+    const { gl, renderer, opts } = this
+    const camera = exec.camera
+    if (!camera || !exec.lightingEnvironment) throw new Error('three-spike needs camera and lighting frames')
+    const nodes = exec.spatialNodes ?? []
+    for (let index = 0; index < this.nodeMeshes.length; index++) {
+      const node = nodes[index]
+      const mesh = this.nodeMeshes[index]!
+      if (!node) { mesh.visible = false; continue }
+      mesh.visible = node.visible
+      mesh.matrix.fromArray(node.worldMatrix as unknown as number[])
+      mesh.matrixWorldNeedsUpdate = true
+    }
+    this.setCamera(camera)
+    this.mapLights(exec.lightingEnvironment)
+
+    if (!this.sizedOnce) { this.sizedOnce = true; probe.estimatedBytes = this.estimateBytes() }
+    const before = opts.stateProbe ? snapshotState(gl) : null
+    const g0 = performance.now()
+    const guard = opts.guard === 'full' ? new GlStateGuard(gl).capture() : opts.guard === 'minimal' ? new MinimalGlStateGuard(gl).capture() : null
+    probe.guardCaptureMs.push(performance.now() - g0)
+    let started = 0
+    if (opts.measureThree) {
+      const px = new Uint8Array(4)
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, exec.target)
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px)
+      started = performance.now()
+    }
+
+    renderer.resetState()
+    if (opts.mode === 'external-fb') {
+      renderer.setRenderTargetFramebuffer(this.target, exec.target as WebGLFramebuffer)
+      this.target.viewport.set(0, 0, exec.width, exec.height)
+      this.target.scissor.set(0, 0, exec.width, exec.height)
+      renderer.setRenderTarget(this.target)
+      renderer.render(this.scene, this.camera)
+      renderer.setRenderTarget(null)
+    } else {
+      this.drawViaCopy(exec)
+    }
+    renderer.resetState()
+    const g1 = performance.now()
+    guard?.restore()
+    if (guard) probe.guardRestoreMs.push(performance.now() - g1)
+    const info = renderer.info
+    probe.lastInfo = { calls: info.render.calls, triangles: info.render.triangles, geometries: info.memory.geometries, textures: info.memory.textures, programs: info.programs?.length ?? 0 }
+    info.reset()
+
+    if (opts.measureThree) {
+      const px = new Uint8Array(4)
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, exec.target)
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px)
+      probe.threeMs.push(performance.now() - started)
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null)
+    }
+    if (opts.depthProbe) this.readProbeDepth(exec)
+    if (before) probe.stateDiffs.push(diffState(before, snapshotState(gl)))
+    const error = gl.getError()
+    if (error !== gl.NO_ERROR) { glErrorCount += 1; probe.frameErrors.push(`GL error 0x${error.toString(16)} after Three pass`) }
+  }
+
+  private drawViaCopy(exec: Cinema2ModuleRenderExecutionContext): void {
+    const { gl, renderer } = this
+    if (!this.copyTarget || this.copyTarget.width !== exec.width || this.copyTarget.height !== exec.height) {
+      this.copyTarget?.dispose()
+      this.copyTarget = new THREE.WebGLRenderTarget(exec.width, exec.height, {
+        type: THREE.HalfFloatType, depthBuffer: true, depthTexture: new THREE.DepthTexture(exec.width, exec.height, THREE.UnsignedIntType),
+      })
+      this.copyTarget.texture.colorSpace = THREE.LinearSRGBColorSpace
+    }
+    renderer.setRenderTarget(this.copyTarget)
+    renderer.setClearColor(0x000000, 0)
+    renderer.clear(true, true, false)
+    renderer.render(this.scene, this.camera)
+    renderer.setRenderTarget(null)
+    const props = (renderer as unknown as { properties: { get(o: object): { __webglTexture?: WebGLTexture } } }).properties
+    const colorTex = props.get(this.copyTarget.texture).__webglTexture!
+    const depthTex = props.get(this.copyTarget.depthTexture!).__webglTexture!
+    renderer.resetState()
+    this.ensureCopy()
+    const copy = this.copy!
+    gl.bindFramebuffer(gl.FRAMEBUFFER, exec.target)
+    gl.viewport(0, 0, exec.width, exec.height)
+    gl.disable(gl.SCISSOR_TEST); gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS); gl.depthMask(true); gl.colorMask(true, true, true, true)
+    gl.useProgram(copy.program)
+    gl.bindVertexArray(copy.vao)
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, colorTex)
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, depthTex)
+    gl.uniform1i(gl.getUniformLocation(copy.program, 'u_color'), 0)
+    gl.uniform1i(gl.getUniformLocation(copy.program, 'u_depth'), 1)
+    gl.drawArrays(gl.TRIANGLES, 0, 3)
+    gl.bindTexture(gl.TEXTURE_2D, null)
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, null)
+    gl.bindVertexArray(null)
+  }
+
+  private readProbeDepth(exec: Cinema2ModuleRenderExecutionContext): void {
+    const { gl } = this
+    const camera = exec.camera!
+    const centre = this.probeSphere.position
+    const eye = camera.position
+    const dir = [centre.x - eye[0], centre.y - eye[1], centre.z - eye[2]]
+    const len = Math.hypot(dir[0]!, dir[1]!, dir[2]!)
+    const hit = [centre.x - (0.5 * dir[0]!) / len, centre.y - (0.5 * dir[1]!) / len, centre.z - (0.5 * dir[2]!) / len]
+    const m = camera.viewProjectionMatrix as unknown as number[]
+    const clip = [0, 1, 2, 3].map(row => m[row]! * hit[0]! + m[4 + row]! * hit[1]! + m[8 + row]! * hit[2]! + m[12 + row]!)
+    const expected = (clip[2]! / clip[3]! + 1) / 2
+    const cc = [0, 1, 3].map(row => m[row]! * centre.x + m[4 + row]! * centre.y + m[8 + row]! * centre.z + m[12 + row]!)
+    const px = Math.floor(((cc[0]! / cc[2]! + 1) / 2) * exec.width)
+    const py = Math.floor(((cc[1]! / cc[2]! + 1) / 2) * exec.height)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, exec.target)
+    const depthTex = gl.getFramebufferAttachmentParameter(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME) as WebGLTexture | null
+    if (!depthTex) { probe.depthReadings.push({ expected, measured: NaN, pixel: [px, py] }); return }
+    if (!this.scratch) {
+      const fb = gl.createFramebuffer()!, tex = gl.createTexture()!
+      gl.bindTexture(gl.TEXTURE_2D, tex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0)
+      const program = gl.createProgram()!
+      const sh = (t: number, s: string) => { const x = gl.createShader(t)!; gl.shaderSource(x, s); gl.compileShader(x); gl.attachShader(program, x); return x }
+      const vs = sh(gl.VERTEX_SHADER, '#version 300 es\nvoid main(){ vec2 p = vec2(float((gl_VertexID<<1)&2), float(gl_VertexID&2)); gl_Position = vec4(p*2.0-1.0,0.0,1.0); }')
+      const fs = sh(gl.FRAGMENT_SHADER, `#version 300 es
+precision highp float; precision highp sampler2D; uniform sampler2D u_depth; uniform ivec2 u_px; out vec4 o;
+void main(){ float d = texelFetch(u_depth, u_px, 0).r; vec4 e = fract(d * vec4(1.0, 255.0, 65025.0, 16581375.0)); e -= e.yzww * vec4(1.0/255.0, 1.0/255.0, 1.0/255.0, 0.0); o = vec4(e.rgb, 1.0); }`)
+      gl.linkProgram(program); gl.deleteShader(vs); gl.deleteShader(fs)
+      this.scratch = { fb, tex, program }
+    }
+    const s = this.scratch
+    gl.bindFramebuffer(gl.FRAMEBUFFER, s.fb)
+    gl.viewport(0, 0, 1, 1)
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.disable(gl.SCISSOR_TEST)
+    gl.useProgram(s.program)
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, depthTex)
+    gl.uniform1i(gl.getUniformLocation(s.program, 'u_depth'), 0)
+    gl.uniform2i(gl.getUniformLocation(s.program, 'u_px'), px, py)
+    gl.drawArrays(gl.TRIANGLES, 0, 3)
+    const out = new Uint8Array(4)
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, out)
+    gl.bindTexture(gl.TEXTURE_2D, null)
+    const measured = out[0]! / 255 + out[1]! / 65025 + out[2]! / 16581375
+    probe.depthReadings.push({ expected, measured, pixel: [px, py] })
+    gl.bindFramebuffer(gl.FRAMEBUFFER, exec.target)
+    gl.viewport(0, 0, exec.width, exec.height)
+  }
+
+  /** Rough GPU byte estimate: Three's tracked textures/geometries plus render targets. */
+  estimateBytes(): number {
+    let bytes = 0
+    this.scene.traverse(object => {
+      const mesh = object as import('three').Mesh
+      if (mesh.geometry) {
+        for (const attribute of Object.values(mesh.geometry.attributes)) bytes += (attribute as import('three').BufferAttribute).array.byteLength
+        if (mesh.geometry.index) bytes += mesh.geometry.index.array.byteLength
+      }
+    })
+    for (const item of this.disposables) {
+      const texture = item as import('three').Texture
+      if (texture.isTexture && texture.image) bytes += texture.image.width * texture.image.height * 4 * (texture.generateMipmaps ? 1.34 : 1)
+    }
+    if (this.copyTarget) bytes += this.copyTarget.width * this.copyTarget.height * (8 + 4)
+    if (this.scene.environment) bytes += 256 * 256 * 6 * 8 * 1.34 // PMREM cube atlas (estimate)
+    return bytes
+  }
+
+  dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
+    const gl = this.gl
+    this.scene.traverse(object => {
+      const mesh = object as import('three').Mesh
+      mesh.geometry?.dispose()
+      const material = mesh.material as import('three').Material | undefined
+      material?.dispose()
+    })
+    for (const item of this.disposables) item.dispose()
+    this.copyTarget?.depthTexture?.dispose()
+    this.copyTarget?.dispose()
+    // The external-framebuffer target must give up the ENGINE's framebuffer before dispose(), or Three would delete it.
+    this.renderer.setRenderTargetFramebuffer(this.target, undefined as never)
+    this.target.dispose()
+    this.renderer.resetState()
+    if (this.copy) { gl.deleteProgram(this.copy.program); gl.deleteVertexArray(this.copy.vao) }
+    if (this.scratch) { gl.deleteFramebuffer(this.scratch.fb); gl.deleteTexture(this.scratch.tex); gl.deleteProgram(this.scratch.program) }
+    probe.bridgeDisposes += 1
+    probe.afterDisposeInfo = { geometries: this.renderer.info.memory.geometries, textures: this.renderer.info.memory.textures }
+  }
+}
+
+const spikeModuleDefinition = Object.freeze({
+  typeId: SPIKE_TYPE_ID,
+  version: 1,
+  create(context: Cinema2ModuleCreateContext) {
+    const bridge = options.skipBridge ? null : context.resources.acquire('three-spike:bridge', 'ThreeBridge', gl => new ThreeBridge(gl, options), value => value.dispose())
+    const provider = Object.freeze({
+      id: `${context.module.id}:three`,
+      moduleId: context.module.id,
+      intent: 'world' as const,
+      execute(exec: Cinema2ModuleRenderExecutionContext) {
+        if (options.mode === 'none' || !bridge) return
+        bridge.draw(exec)
+      },
+    })
+    return { lifecycle: { update: () => undefined, dispose: () => undefined }, render: { providers: Object.freeze([provider]) } }
+  },
+})
+
+// ---------------------------------------------------------------- preset + scenarios
+
+const SPIKE_STATIC_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.three-spike-static')
+const SPIKE_CLOSE_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.three-spike-close')
+
+function registerSpikePreset(): void {
+  if (cinema2NativePresetRegistry.has(SPIKE_PRESET_ID)) return
+  const base = CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST
+  const manifest = {
+    ...base,
+    id: SPIKE_PRESET_ID,
+    metadata: { ...base.metadata, name: 'Three Spike', tags: ['internal', 'spike'] },
+    modules: [{ id: base.modules[0]!.id, typeId: SPIKE_TYPE_ID, version: 1, enabled: true, parameters: {}, config: {} }],
+  }
+  const result = cinema2NativePresetRegistry.register(manifest)
+  if (!result.ok) throw new Error(`spike preset rejected: ${JSON.stringify(result.diagnostics)}`)
+  const baseCamera = base.cameras[0]!
+  const { motion: _motion, controls: _controls, targetNode: _targetNode, ...cameraRest } = baseCamera as unknown as Record<string, unknown>
+  void _motion; void _controls; void _targetNode
+  const staticManifest = {
+    ...manifest,
+    id: SPIKE_STATIC_PRESET_ID,
+    cameras: [{ ...cameraRest, transform: { position: [0.6, 1.3, 6.2] }, target: [0, -0.3, -1.4], rig: { kind: 'static' }, motion: { rollDegrees: 0 }, controls: _controls }],
+  }
+  const staticResult = cinema2NativePresetRegistry.register(staticManifest)
+  if (!staticResult.ok) throw new Error(`static spike preset rejected: ${JSON.stringify(staticResult.diagnostics)}`)
+  const closeManifest = { ...staticManifest, id: SPIKE_CLOSE_PRESET_ID, cameras: [{ ...staticManifest.cameras[0], transform: { position: [0.1, 0.2, 2.3] }, target: [0, -0.15, -1.4] }] }
+  const closeResult = cinema2NativePresetRegistry.register(closeManifest)
+  if (!closeResult.ok) throw new Error(`close spike preset rejected: ${JSON.stringify(closeResult.diagnostics)}`)
+}
+
+interface Scenario {
+  runtime: Cinema2Runtime
+  canvas: HTMLCanvasElement
+  gl: WebGL2RenderingContext
+  step(frames: number, dtSec?: number): void
+  costs: number[]
+}
+
+function createScenario(canvas?: HTMLCanvasElement): Scenario {
+  const target = canvas ?? document.createElement('canvas')
+  target.width = options.width
+  target.height = options.height
+  if (!target.isConnected) document.body.append(target)
+  const callbacks = new Map<number, FrameRequestCallback>()
+  let nextId = 1
+  let clock = 0
+  if (options.rearmTimerQueries) {
+    // Runs before the engine's own restore handler: extensions must be requested again after a context restore.
+    target.addEventListener('webglcontextrestored', () => { (target.getContext('webgl2') as WebGL2RenderingContext | null)?.getExtension('EXT_disjoint_timer_query_webgl2') })
+  }
+  const created = Cinema2Runtime.create(target, {
+    presetId: options.close ? SPIKE_CLOSE_PRESET_ID : options.staticCamera ? SPIKE_STATIC_PRESET_ID : SPIKE_PRESET_ID,
+    presetRegistry: cinema2NativePresetRegistry,
+    moduleRegistry: cinema2NativeModuleRegistry,
+    renderQuality: options.quality,
+    randomness: { mode: 'deterministic', seed: 'three-spike' },
+    requestAnimationFrame: (callback: FrameRequestCallback) => { const id = nextId++; callbacks.set(id, callback); return id },
+    cancelAnimationFrame: (id: number) => { callbacks.delete(id) },
+  })
+  if (!created.runtime) throw new Error(`runtime failed: ${created.error}`)
+  const runtime = created.runtime
+  runtime.resize({ width: options.width, height: options.height, dpr: 1 })
+  runtime.start()
+  const gl = (runtime as unknown as { gl: WebGL2RenderingContext }).gl
+  const costs: number[] = []
+  const px = new Uint8Array(4)
+  return {
+    runtime, canvas: target, gl, costs,
+    step(frames: number, dtSec = 1 / 60) {
+      for (let index = 0; index < frames; index++) {
+        clock += dtSec * 1000
+        const entry = [...callbacks.entries()][0]
+        if (!entry) throw new Error('no frame scheduled')
+        callbacks.delete(entry[0])
+        const t0 = performance.now()
+        entry[1](clock)
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null)
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px)
+        costs.push(performance.now() - t0)
+        const error = gl.getError()
+        if (error !== gl.NO_ERROR) { glErrorCount += 1; probe.frameErrors.push(`GL error 0x${error.toString(16)} after frame`) }
+      }
+    },
+  }
+}
+
+function snapshotCanvas(canvas: HTMLCanvasElement): string {
+  const scratch = document.createElement('canvas')
+  scratch.width = canvas.width
+  scratch.height = canvas.height
+  scratch.getContext('2d')!.drawImage(canvas, 0, 0)
+  return scratch.toDataURL('image/png')
+}
+
+function grabPixels(canvas: HTMLCanvasElement): Uint8ClampedArray {
+  const scratch = document.createElement('canvas')
+  scratch.width = canvas.width
+  scratch.height = canvas.height
+  const context = scratch.getContext('2d', { willReadFrequently: true })!
+  context.drawImage(canvas, 0, 0)
+  return context.getImageData(0, 0, canvas.width, canvas.height).data
+}
+
+/** Mean absolute channel difference after averaging 16x16 blocks (removes grain and jitter noise). */
+function meanAbsDiff(a: Uint8ClampedArray, b: Uint8ClampedArray, width = options.width): number {
+  const height = a.length / 4 / width
+  const block = 16
+  let sum = 0
+  let count = 0
+  for (let by = 0; by + block <= height; by += block) {
+    for (let bx = 0; bx + block <= width; bx += block) {
+      const avg = [0, 0, 0, 0, 0, 0]
+      for (let y = by; y < by + block; y++) {
+        for (let x = bx; x < bx + block; x++) {
+          const o = (y * width + x) * 4
+          avg[0]! += a[o]!; avg[1]! += a[o + 1]!; avg[2]! += a[o + 2]!
+          avg[3]! += b[o]!; avg[4]! += b[o + 1]!; avg[5]! += b[o + 2]!
+        }
+      }
+      sum += (Math.abs(avg[0]! - avg[3]!) + Math.abs(avg[1]! - avg[4]!) + Math.abs(avg[2]! - avg[5]!)) / 3 / (block * block)
+      count += 1
+    }
+  }
+  return sum / count
+}
+
+function stats(values: number[], skip = 5): { mean: number; p50: number; p95: number; max: number } {
+  const v = values.slice(skip).sort((x, y) => x - y)
+  if (!v.length) return { mean: 0, p50: 0, p95: 0, max: 0 }
+  return { mean: v.reduce((s, x) => s + x, 0) / v.length, p50: v[Math.floor(v.length / 2)]!, p95: v[Math.floor(v.length * 0.95)]!, max: v[v.length - 1]! }
+}
+
+function resetProbe(): void {
+  probe.stateDiffs = []; probe.threeMs = []; probe.guardCaptureMs = []; probe.guardRestoreMs = []; probe.depthReadings = []; probe.frameErrors = []
+  probe.bridgeCreates = 0; probe.bridgeDisposes = 0
+}
+
+function configure(next: Partial<Options>): void { options = { ...DEFAULTS, ...next } }
+
+const spike = {
+  async init() {
+    THREE = await import('three')
+    RoomEnvironmentCtor = (await import('three/examples/jsm/environments/RoomEnvironment.js')).RoomEnvironment as never
+    GLTFLoaderCtor = (await import('three/examples/jsm/loaders/GLTFLoader.js')).GLTFLoader
+    const registered = cinema2NativeModuleRegistry.register(spikeModuleDefinition as never)
+    if (!registered.ok) throw new Error(JSON.stringify(registered.diagnostics))
+    registerSpikePreset()
+    return { three: THREE.REVISION }
+  },
+
+  /** Image + cost for one configuration. */
+  shot(next: Partial<Options>, warm = 20, frames = 60) {
+    configure(next)
+    resetProbe()
+    const s = createScenario()
+    const firstFrames: number[] = []
+    for (let index = 0; index < 4; index++) { s.step(1); firstFrames.push(s.costs[s.costs.length - 1]!) }
+    s.step(warm)
+    s.costs.length = 0
+    probe.threeMs = []
+    s.step(frames)
+    const image = snapshotCanvas(s.canvas)
+    const result = {
+      image,
+      firstFramesMs: firstFrames.map(v => Math.round(v * 10) / 10),
+      estimatedBytes: probe.estimatedBytes,
+      engineGpuBytes: s.runtime.getResourceManagerSnapshot().estimatedGpuMemoryBytes,
+      frameMs: stats(s.costs, 0),
+      threeMs: stats(probe.threeMs, 0),
+      guardCaptureMs: stats(probe.guardCaptureMs, 5).mean,
+      guardRestoreMs: stats(probe.guardRestoreMs, 5).mean,
+      info: probe.lastInfo,
+      glErrors: glErrorCount,
+      frameErrors: probe.frameErrors.slice(0, 5),
+      failedPasses: s.runtime.getRenderGraphExecutorSnapshot().failedPassCount,
+      status: s.runtime.getSnapshot().statusMessage,
+    }
+    s.runtime.dispose(); s.canvas.remove()
+    return result
+  },
+
+  /** Which GL state does the Three pass change (after resetState)? */
+  stateLeak(next: Partial<Options>) {
+    configure({ ...next, stateProbe: true })
+    resetProbe()
+    const s = createScenario()
+    s.step(30)
+    const merged: Record<string, string[]> = {}
+    for (const diff of probe.stateDiffs) for (const [key, [a, b]] of Object.entries(diff)) merged[key] = [...new Set([...(merged[key] ?? []), `${a} -> ${b}`])].slice(0, 3)
+    const result = { frames: probe.stateDiffs.length, changedKeys: Object.keys(merged).length, changes: merged, errors: probe.frameErrors.slice(0, 3), failedPasses: s.runtime.getRenderGraphExecutorSnapshot().failedPassCount }
+    s.runtime.dispose(); s.canvas.remove()
+    return result
+  },
+
+  depthCheck(next: Partial<Options>) {
+    configure({ ...next, depthProbe: true })
+    resetProbe()
+    const s = createScenario()
+    s.step(30)
+    const readings = probe.depthReadings.slice(-10)
+    const result = { readings, maxAbsError: Math.max(...readings.map(r => Math.abs(r.expected - r.measured))), failedPasses: s.runtime.getRenderGraphExecutorSnapshot().failedPassCount }
+    s.runtime.dispose(); s.canvas.remove()
+    return result
+  },
+
+  /** 10k-frame soak: errors, leaks, cost drift, and output stability with a static camera. */
+  async soak(next: Partial<Options>, totalFrames = 10000) {
+    configure({ ...next, staticCamera: true })
+    resetProbe()
+    const s = createScenario()
+    s.step(40)
+    const startCounts = liveCounts(s.gl)
+    const early = grabPixels(s.canvas)
+    const earlyCosts = s.costs.slice(5, 40)
+    s.costs.length = 0
+    const chunk = 500
+    const drift: number[] = []
+    for (let done = 0; done < totalFrames; done += chunk) {
+      s.step(chunk)
+      drift.push(stats(s.costs.slice(-chunk), 0).mean)
+      await new Promise(resolve => setTimeout(resolve, 0))
+    }
+    // The drawing buffer is only readable in the task that rendered it, so render then grab in one go.
+    s.step(1)
+    const late = grabPixels(s.canvas)
+    // Second consecutive frame as the natural frame-to-frame noise floor.
+    s.step(1)
+    const next1 = grabPixels(s.canvas)
+    const result = {
+      frames: totalFrames,
+      glErrors: glErrorCount,
+      errorSamples: probe.frameErrors.slice(0, 3),
+      liveStart: startCounts,
+      liveEnd: liveCounts(s.gl),
+      earlyMeanMs: stats(earlyCosts, 0).mean,
+      driftMeanMs: drift.map(v => Math.round(v * 100) / 100),
+      earlyVsLateDiff: meanAbsDiff(early, late),
+      noiseFloor: meanAbsDiff(late, next1),
+      failedPasses: s.runtime.getRenderGraphExecutorSnapshot().failedPassCount,
+    }
+    s.runtime.dispose(); s.canvas.remove()
+    return result
+  },
+
+  /** Create/dispose the whole runtime N times on one canvas; live GL objects must return to zero. */
+  cycles(next: Partial<Options>, count = 20) {
+    configure(next)
+    resetProbe()
+    const canvas = document.createElement('canvas')
+    document.body.append(canvas)
+    const rows: Record<string, number>[] = []
+    let gl: WebGL2RenderingContext | null = null
+    for (let cycle = 0; cycle < count; cycle++) {
+      const s = createScenario(canvas)
+      gl = s.gl
+      s.step(6)
+      s.runtime.dispose()
+      const counts = liveCounts(gl)
+      rows.push({ cycle, ...counts })
+    }
+    const last = rows[rows.length - 1]!
+    const result = {
+      bridgeCreates: probe.bridgeCreates,
+      bridgeDisposes: probe.bridgeDisposes,
+      afterEachCycle: rows.filter((_, index) => index === 0 || index === 1 || index === count - 1),
+      liveAtEnd: Object.fromEntries(KINDS.map(kind => [kind, last[kind]])),
+      rendererInfoAfterLastDispose: probe.afterDisposeInfo,
+      contextLostAfterDispose: gl ? gl.isContextLost() : null,
+      createdTotals: { ...createdTotals },
+      deletedTotals: { ...deletedTotals },
+      glErrors: glErrorCount,
+    }
+    canvas.remove()
+    return result
+  },
+
+  /** Lose and restore the context while running, then check the frame recovers. */
+  async contextLoss(next: Partial<Options>) {
+    configure(next)
+    resetProbe()
+    const s = createScenario()
+    s.step(20)
+    const before = grabPixels(s.canvas)
+    const ext = s.gl.getExtension('WEBGL_lose_context')
+    if (!ext) return { error: 'WEBGL_lose_context unavailable' }
+    const createsBefore = probe.bridgeCreates
+    ext.loseContext()
+    await new Promise(resolve => setTimeout(resolve, 100))
+    const phaseLost = s.runtime.getSnapshot().phase
+    ext.restoreContext()
+    await new Promise(resolve => setTimeout(resolve, 300))
+    const phaseRestored = s.runtime.getSnapshot().phase
+    s.step(30)
+    const after = grabPixels(s.canvas)
+    const result = {
+      phaseLost, phaseRestored, bridgeCreatesBefore: createsBefore, bridgeCreatesAfter: probe.bridgeCreates, bridgeDisposes: probe.bridgeDisposes,
+      diffBeforeAfter: meanAbsDiff(before, after), failedPasses: s.runtime.getRenderGraphExecutorSnapshot().failedPassCount,
+      status: s.runtime.getSnapshot().statusMessage, errors: probe.frameErrors.slice(0, 3),
+      diagnostics: s.runtime.getRenderGraphExecutorSnapshot().diagnostics.slice(0, 3).map(d => JSON.stringify(d).slice(0, 400)),
+      image: snapshotCanvas(s.canvas),
+      moduleStatus: s.runtime.getModuleRuntimeSnapshot().modules.map(m => m.status),
+    }
+    s.runtime.dispose(); s.canvas.remove()
+    return result
+  },
+
+  /** Attribute leaked GL objects after one create/dispose cycle to their creation sites. */
+  leakSites(next: Partial<Options>) {
+    configure(next)
+    resetProbe()
+    captureStacks = true
+    const canvas = document.createElement('canvas')
+    document.body.append(canvas)
+    const s = createScenario(canvas)
+    s.step(6)
+    s.runtime.dispose()
+    const live = liveByContext.get(s.gl)!
+    const sites: Record<string, number> = {}
+    for (const kind of KINDS) {
+      for (const object of live[kind]!) {
+        const stack = (stacks.get(object) ?? '').split('\n').slice(2, 16).map(line => line.trim().replace(/\(?http:\/\/127\.0\.0\.1:5197/, '(').replace(/\?v=[a-f0-9]+/, '')).filter(line => !line.includes('instrument')).slice(0, 12).join(' < ')
+        sites[`${kind}: ${stack}`] = (sites[`${kind}: ${stack}`] ?? 0) + 1
+      }
+    }
+    captureStacks = false
+    canvas.remove()
+    return sites
+  },
+
+  /** Isolate which PMREM step leaves a GL buffer behind. */
+  pmremLeak() {
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 64
+    const gl = canvas.getContext('webgl2', { alpha: false })!
+    const renderer = sharedRenderer(gl)
+    const rows: Record<string, number> = {}
+    const buffers = () => liveCounts(gl).Buffer!
+    rows.start = buffers()
+    const pmrem = new THREE.PMREMGenerator(renderer)
+    const env = new RoomEnvironmentCtor()
+    const target = pmrem.fromScene(env as never, 0.04)
+    rows.afterFromScene = buffers()
+    pmrem.dispose()
+    rows.afterPmremDispose = buffers()
+    ;(env as unknown as { dispose(): void }).dispose()
+    rows.afterEnvDispose = buffers()
+    target.dispose()
+    rows.afterTargetDispose = buffers()
+    const pmrem2 = new THREE.PMREMGenerator(renderer)
+    const env2 = new RoomEnvironmentCtor()
+    const target2 = pmrem2.fromScene(env2 as never, 0.04)
+    ;(env2 as unknown as { dispose(): void }).dispose(); pmrem2.dispose(); target2.dispose()
+    rows.secondRoundAfterAllDispose = buffers()
+    rows.geometries = renderer.info.memory.geometries
+    return rows
+  },
+
+  /** Standalone check of the documented light mapping and colour handoff (no engine involved). */
+  calibrate() {
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 64
+    const gl = canvas.getContext('webgl2', { alpha: false })!
+    const renderer = sharedRenderer(gl)
+    const target = new THREE.WebGLRenderTarget(64, 64, { type: THREE.UnsignedByteType, depthBuffer: true })
+    // Display-referred output into an 8-bit target, exactly as in the engine path: encode in shader via the XR-target flag.
+    ;(target as unknown as { isXRRenderTarget: boolean }).isXRRenderTarget = true
+    target.texture.colorSpace = THREE.SRGBColorSpace
+    // The engine's targets are plain RGBA8 (no hardware sRGB write), so force the same storage here; the shader does the encoding.
+    target.texture.internalFormat = 'RGBA8'
+    const readCentre = (scene: import('three').Scene, camera: import('three').Camera) => {
+      renderer.setRenderTarget(target); renderer.setClearColor(0x000000, 1); renderer.clear(true, true, true)
+      renderer.render(scene, camera); renderer.setRenderTarget(null)
+      const px = new Uint8Array(4)
+      renderer.readRenderTargetPixels(target, 32, 32, 1, 1, px)
+      return Array.from(px.slice(0, 3))
+    }
+    const camera = new THREE.PerspectiveCamera(20, 1, 0.1, 100)
+    camera.position.set(0, 0, 10); camera.lookAt(0, 0, 0); camera.updateMatrixWorld()
+    const out: Record<string, unknown> = {}
+    const sphere = (material: import('three').Material) => new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), material)
+    // 1. Unlit mid grey (sRGB 0.5) must land as ~128 in the display-referred target.
+    { const scene = new THREE.Scene(); scene.add(sphere(new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(0.5, 0.5, 0.5, THREE.SRGBColorSpace) }))); out.unlitGrey0_5 = readCentre(scene, camera) }
+    // 2. White diffuse under engine ambient intensity 1 -> full white; intensity 0.5 -> linear 0.5 -> sRGB ~188.
+    for (const intensity of [1, 0.5]) {
+      const scene = new THREE.Scene(); scene.add(sphere(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0 })))
+      scene.add(new THREE.AmbientLight(0xffffff, intensity * K_AMBIENT)); out[`ambient${intensity}`] = readCentre(scene, camera)
+    }
+    // 3. Spot facing the sphere from half its range: intensity 1 -> white, 0.5 -> ~188.
+    for (const intensity of [1, 0.5]) {
+      const scene = new THREE.Scene(); scene.add(sphere(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0 })))
+      const range = 20
+      const spot = new THREE.SpotLight(0xffffff, intensity * Math.PI * (range * 0.5) ** 2, range, 0.6, 0.3, 2)
+      spot.position.set(0, 0, 11); spot.target.position.set(0, 0, 0); scene.add(spot, spot.target); spot.updateMatrixWorld(); spot.target.updateMatrixWorld()
+      out[`spotAtHalfRange${intensity}`] = readCentre(scene, camera)
+    }
+    // 4. Directional intensity 1 -> white.
+    { const scene = new THREE.Scene(); scene.add(sphere(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0 })))
+      const d = new THREE.DirectionalLight(0xffffff, K_DIRECTIONAL); d.position.set(0, 0, 5); scene.add(d, d.target); out.directional1 = readCentre(scene, camera) }
+    target.setSize(1, 1)
+    return out
+  },
+
+  /** Build the hero procedurally and export it as a GLB (uncompressed) so Node can compress it. */
+  async exportHeroGlb(triangles: number, textureSize: number) {
+    const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter.js')
+    configure({ heroTriangles: triangles, textureSize, environment: false })
+    const canvas = document.createElement('canvas')
+    const gl = canvas.getContext('webgl2', { alpha: false })!
+    const bridge = new ThreeBridge(gl, options)
+    const hero = bridge.nodeMeshes[0] as import('three').Mesh
+    const t0 = performance.now()
+    const glb = await new GLTFExporter().parseAsync(hero, { binary: true, maxTextureSize: textureSize }) as ArrayBuffer
+    const exportMs = performance.now() - t0
+    bridge.dispose()
+    const bytes = new Uint8Array(glb)
+    let binary = ''
+    for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000))
+    return { base64: btoa(binary), bytes: bytes.length, exportMs }
+  },
+
+  /** Load a GLB with the chosen decoder from local files, and keep it as the hero for later shots. */
+  async loadGlb(url: string, decoder: 'none' | 'meshopt' | 'draco', dracoPath = '/node_modules/three/examples/jsm/libs/draco/gltf/') {
+    const loader = new GLTFLoaderCtor()
+    let dracoLoader: { dispose(): void } | null = null
+    if (decoder === 'meshopt') {
+      const { MeshoptDecoder } = await import('three/examples/jsm/libs/meshopt_decoder.module.js')
+      loader.setMeshoptDecoder(MeshoptDecoder as never)
+    } else if (decoder === 'draco') {
+      const { DRACOLoader } = await import('three/examples/jsm/loaders/DRACOLoader.js')
+      const draco = new DRACOLoader()
+      draco.setDecoderPath(dracoPath)
+      draco.setWorkerLimit(1)
+      loader.setDRACOLoader(draco)
+      dracoLoader = draco
+    }
+    const t0 = performance.now()
+    const response = await fetch(url)
+    const buffer = await response.arrayBuffer()
+    const fetched = performance.now()
+    const gltf = await loader.parseAsync(buffer, '')
+    const parsed = performance.now()
+    let triangles = 0
+    let vertices = 0
+    gltf.scene.traverse(object => {
+      const mesh = object as import('three').Mesh
+      if (mesh.isMesh) { triangles += (mesh.geometry.index ? mesh.geometry.index.count : mesh.geometry.attributes.position!.count) / 3; vertices += mesh.geometry.attributes.position!.count }
+    })
+    loadedHero = gltf.scene
+    dracoLoader?.dispose()
+    return { bytes: buffer.byteLength, fetchMs: fetched - t0, decodeAndParseMs: parsed - fetched, triangles, vertices }
+  },
+
+  /** Does disposing a render target that wraps an external framebuffer delete that framebuffer? */
+  fbDisposeHazard() {
+    const canvas = document.createElement('canvas')
+    const gl = canvas.getContext('webgl2', { alpha: false })!
+    const renderer = sharedRenderer(gl)
+    const make = () => {
+      const fb = gl.createFramebuffer()!
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fb)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+      const rt = new THREE.WebGLRenderTarget(8, 8)
+      renderer.setRenderTargetFramebuffer(rt, fb)
+      renderer.setRenderTarget(rt) // the real flow binds it before drawing
+      renderer.setRenderTarget(null)
+      return { fb, rt }
+    }
+    const naive = make()
+    naive.rt.dispose()
+    const safe = make()
+    renderer.setRenderTargetFramebuffer(safe.rt, undefined as never)
+    safe.rt.dispose()
+    return { naiveDisposeDeletesEngineFramebuffer: !gl.isFramebuffer(naive.fb), safeDisposeKeepsFramebuffer: gl.isFramebuffer(safe.fb) }
+  },
+
+  loadTimes() { return { bridgeFirstFrameMs: probe.firstFrameMs, estimatedBytes: probe.estimatedBytes } },
+  async glbRoundTrip() { return { loader: typeof GLTFLoaderCtor } },
+}
+
+;(window as unknown as { spike: typeof spike }).spike = spike
+document.getElementById('status')!.textContent = 'ready'
