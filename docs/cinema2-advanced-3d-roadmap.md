@@ -39,7 +39,7 @@ composition, palette and musical behavior — not pixel-for-pixel. Judge results
 - Blender is NOT part of the plan; assets can come from libraries (e.g. Poly Haven), any 3D tool that exports GLB, or code.
 
 ## What exists today (verified 2026-09-25, after #1-#4 and Threshold)
-All under `src/components/vyzualz/cinema2/` unless noted. `three@0.186.1` is installed (exact pin, from the #5 spike) but no product code imports it and no glTF loader exists in `src/` yet.
+All under `src/components/vyzualz/cinema2/` unless noted. `three@0.186.1` (+ `@types/three@0.186.0`, exact pins) is used only through lazy `import()` in `modules/three/`; the `three-scene` module (#6) loads shipped GLB models with GLTFLoader + the meshopt decoder.
 - Modules (`modules/Cinema2ModuleContracts.ts`): create/update/dispose lifecycle; render providers (`intent: 'fullscreen' | 'world'`) get the shared
   WebGL2 context, an engine-owned framebuffer, optional depth (`depthAvailable`), `spatialNodes`, `camera` (`Cinema2CameraFrame`), `lightingEnvironment`,
   and compiled upstream `inputs`. GL resources go through `context.resources.acquire(key, kind, create, dispose)` so the host disposes them even on failure.
@@ -83,7 +83,7 @@ All under `src/components/vyzualz/cinema2/` unless noted. `three@0.186.1` is ins
 | 3 | Cinematic finishing + reflective floor | Filmic polish; wet floor with reflections and beam reflections | bloom/render graph | DONE |
 | 4 | Camera upgrades | Spline paths, drift, bank, roll target, FOV limit, endless travel | camera runtime | DONE |
 | 5 | Three.js SPIKE | Answers coexistence, color+depth handoff, cost | none | DONE (GO) |
-| 6 | Three.js runtime module | Real 3D models in presets; zero cost when unused | #5 passes | READY TO START |
+| 6 | Three.js runtime module | Real 3D models in presets; zero cost when unused | #5 passes | DONE |
 | 7 | Build-time asset pipeline (+ native texture support) | Small installer, GPU-safe models and textures | #6 (texture half: none) | NOT STARTED |
 | 8 | PBR + environment lighting | Glossy skull/alien, wet rock/metal, panel-lit surroundings | #6 | NOT STARTED |
 | 9 | Instancing, distance detail | Dense foliage/rocks/housings within budget | #6 (native half: none) | NOT STARTED |
@@ -276,25 +276,33 @@ files); precompile (`compileAsync`) and pre-upload during the loading state so t
 Implication for #7: uncompressed 2k PBR sets are ~50 MB each of GPU memory and 4k sets ~250 MB, so KTX2/Basis (GPU-compressed, ~4-8x smaller in VRAM) is now clearly
 preferable to WebP (which decodes to full RGBA) for anything but tiny textures; budget every shipped set against the 96/160/256 MB tiers.
 
-### #6 Three.js runtime module — READY TO START (spike passed)
-Purpose: let a preset include real 3D models. A new module type (working name `three-scene`) registered in the module registry like the others; a preset that does
-not include it never loads Three. Design inputs are the #5 decisions above; the reference implementation of the bridge is in `docs/cinema2-three-spike/`.
-- Loading: `await import('three')` and GLTFLoader/meshopt (Draco optional) only when a preset containing the module activates; module state machine
-  `loading -> ready | failed`; while loading render nothing (or an authored placeholder), surface a diagnostic on failure and skip safely (never crash the frame).
-  Pre-warm (`compileAsync`, first upload) before the first visible frame.
-- Contract: config lists shipped asset ids (resolved via the #7 manifest, never arbitrary URLs); placement comes from Scene Graph module nodes (`spatialNodes[].worldMatrix`)
-  so choreography can move/rotate/scale models; material overrides exposed as module parameters (color, emissive, roughness) so the Design inspector can bind them.
-  It NEVER owns camera, lights or audio: camera from `Cinema2CameraFrame`, lights from the light list (fixed rig + documented mapping), music via choreography targets/module parameters.
-- Rendering: world-intent provider; draws through the external-framebuffer handoff into the engine target (color + depth), honoring layer `depthPolicy`; ONE Three renderer per
-  GL context shared by all Three modules (keyed, lifetime = the context); an engine-level GL state guard (promote the spike's `MinimalGlStateGuard`) wraps every pass.
-- Quality gating: low = simplified materials + LOD1 + smaller textures (via #7 variants); medium/high progressively richer. Budget: extend `Cinema2ModuleResourceFacet.acquire`
-  (or add a sibling) with a byte-estimate callback and include it in `Cinema2PerformanceDiagnostics` so auto-quality can react.
-- Lifecycle/robustness: dispose scene content on preset exit (live GL counts must return to the shared-renderer baseline: 20-cycle test), rebuild the renderer and every
-  GPU-generated resource after a context loss (keep decoded CPU data), preset re-entry resets state deterministically. The pre-existing timer-query restore bug is fixed (see #5), so context-loss recovery can be tested through the real Runtime.
-- Add `@types/three` (matching version) and a contract test that renders a probe sphere and checks color (sRGB 0.5 -> 128) and depth (<= 1e-4 vs analytic) through the real Runtime path.
-Acceptance: a test preset with one shipped model renders through the real Runtime path with correct occlusion by/against other modules; leaving and re-entering the preset
-leaks nothing; missing/corrupt asset produces a diagnostic and a safe skip; quality change measurably reduces cost; bundle check confirms zero cost when unused.
-Files (proposed): `modules/Cinema2ThreeSceneModule.ts`, `modules/three/` (loader, renderer bridge, GL guard, material mapping, disposal tracker), tests in `__tests__/`.
+### #6 Three.js runtime module — DELIVERED 2026-09-25, not committed by the assistant
+A `three-scene` module type that draws shipped glTF models with Three.js inside the Cinema 2.0 render graph. Cinema 2.0 keeps the camera, lights, audio and choreography; the module only turns asset ids into pixels.
+Files (all under `src/components/vyzualz/cinema2/`): `modules/Cinema2ThreeSceneModule.ts` (module definition, state machine, config validation, parameters);
+`modules/three/` = `Cinema2ThreeLibrary.ts` (lazy `import()` of three + GLTFLoader + meshopt + RoomEnvironment; failed loads are not cached), `Cinema2ThreeRendererHost.ts` (ONE renderer per GL context and a
+cached PMREM environment, dropped on context loss), `Cinema2GlStateGuard.ts` (the minimal state guard), `Cinema2ThreeCameraLightMapping.ts` (camera copy + fixed light pool with the calibrated
+intensity mapping), `Cinema2ThreeAssetRegistry.ts` / `Cinema2ThreeAssetManifest.ts` (asset ids -> app-origin URLs + license record; the manifest is hand-authored until #7 generates it),
+`Cinema2ThreeAssetCache.ts` (reference-counted decoded models; GPU freed on last release, decoded data kept in a 4-entry idle list), `Cinema2ThreeSceneBridge.ts` (per-module scene, material clones and overrides, quality tiers,
+warm-up, the draw into the engine framebuffer). Preset: `presets/Cinema2ThreeModelReferencePreset.ts` (`drmvyz.cinema2.three-model-reference`, role reference, tagged `internal`, registered in the first-party catalog).
+Shipped asset: `public/cinema2/models/reference-torus-knot.glb` (24k triangles, meshopt, 159 KB, generated in-house, license `generated-in-house`). Tests: `__tests__/Cinema2ThreeScene.test.ts` (16).
+Engine contract additions (small, additive): `Cinema2ModuleResourceFacet.reportGpuBytes(bytes)` + `estimatedGpuBytes` in the resource snapshot; optional `Cinema2ModuleInstance.getDiagnostics()` for non-fatal
+problems (the module stays `active`); the module runtime snapshot gained `estimatedGpuBytes` and `degradedModuleCount`; the Runtime status message now says when module memory pushes the total over the quality policy budget, or
+when a module skips an asset it could not load. Five test doubles of the resource facet were updated. New dev dependency `@types/three@0.186.0` (exact) next to `three@0.186.1`.
+How it behaves: config `instances: [{ asset: "<asset id>", node?: "<Scene Graph node id>" }]` (unknown ids fail preset compile); nothing loads until the first render of a preset containing the module; state `idle -> loading -> building -> ready | failed`;
+while not ready it draws nothing; warm-up takes one step per frame (environment, then one texture upload per frame, then `compileAsync`) so the first visible frame does not hitch; a missing/corrupt asset (checked with a GLB magic-number test, because a
+missing file can come back as an HTML fallback page with status 200) produces a diagnostic and the instance is skipped while the rest render. Placement follows the Scene Graph node's world matrix (choreography can move it). Bindable module parameters,
+all optional (missing = the asset's own value): `color` (multiplies the base color), `emissive`, `emissiveIntensity`, `roughness`, `metalness`, `environmentIntensity`. It never owns camera, lights or audio.
+Quality tiers: low drops normal and ambient-occlusion maps (and does not upload them); medium/high use the full set; image-based lighting stays on for every tier (metal without an environment renders almost black, and the lookup cost was not measurable). Per-tier model/texture
+variants are supported by the registry (`variants`) but the variant is chosen once when loading starts (quality changes later switch the material tier only).
+Verified in real Chrome on the M3 Pro (and the asset/protocol path in real Electron 43): the reference scene renders four shipped knots placed on the Scene Graph nodes, lit by the cyan/amber/magenta spots, reflected in the wet floor and haze, with the Model Roughness control visibly changing
+the material (0.28 glossy vs 0.95 matte); ready 6-10 frames (120-350 ms) after the first render; 1080p whole frame high 9.1 ms, medium 4.8-5.5 ms, low 2.4-3.0 ms; Three pass alone 0.8-1.4 ms (a textured 100k-triangle model x4 instances: 1.35 ms high, 1.16 medium, 0.98 low; its GPU estimate 70 MB high vs 48 MB low,
+against 43.5 MB for the engine's own targets); failure paths (missing file, non-GLB file, one of two assets missing) show a diagnostic and `Cinema 2.0 is still running while a visual module skips an asset it could not load.` with 0 failed passes; 20 create/dispose cycles: live GL objects flat at the shared-renderer baseline
+(1 buffer, 6 textures, 4 framebuffers, 1 renderbuffer); context loss and restore: the engine recreates the module, the model and reflections come back within 6 frames with 0 failed frames (this needed the #5 timer-query fix). Real app production build: Three is in separate chunks (three 747 KB raw / 190 KB gzip, GLTFLoader 47 KB / 14 KB,
+meshopt decoder 26 KB / 7 KB, RoomEnvironment 2 KB); the entry chunk contains no Three code and `index.html` references only the entry; the model is copied to `dist/cinema2/models/`; in Electron the GLB (correct magic bytes) and the Three chunk load through the `drmvyz-app://` protocol.
+Cinema2 test folder: same 15 failing files / 40 failing tests as before, 574 passing (16 new); lint and typecheck clean for the new and touched files.
+Known limits / not done: Draco is not wired (meshopt or uncompressed only; the spike showed Draco works and would need the decoder files shipped); every instance of one module shares the same material overrides (no per-instance overrides); no skinned or animated meshes; no MSAA; layer `depthPolicy` is not passed to
+world providers, so Three always tests and writes depth; quality-driven variants are chosen only at load time; a mid-run switch from low to medium/high recompiles shaders (one hitch); the environment is the procedural RoomEnvironment (a shipped HDR comes with #8); the reference asset has no textures, so the texture tier saving was measured with a textured spike model only;
+the Three module has no visible preset yet (Three Model Reference is internal): the first real consumers are the skull/cave/alien presets.
 
 ### #7 Build-time asset pipeline (+ native texture support) — NOT STARTED
 Purpose: ship models and textures with the app at controlled size and GPU cost. NO in-app optimizer (agreed principle): everything here is build-time.
@@ -438,7 +446,6 @@ Gotchas
 6. Reference image files are not in the repo: `~/Downloads/cinema2-3d-reference-images/` (re-attach if missing); the Threshold reference frames were attached in chat only.
 
 ## Where we are and what happens next
-DONE: #1-#4, the Threshold preset with refinement batch A, and the #5 Three.js spike (GO; report above; reference code in `docs/cinema2-three-spike/`). All uncommitted by the
-assistant; the owner commits. The only repo change from #5 is the `three@0.186.1` dependency (package.json + package-lock.json). The context-restore engine bug found by the spike is fixed. NEXT: #6 (the Three.js runtime module), designed
-from the #5 decisions. Consider first: #7a native textures and the asset-format decision (the spike argues for KTX2), which #6 needs before it ships a real model. Open decisions below still apply.
-Keep verifying in a real browser, keep the baseline failing set unchanged, do not commit.
+DONE: #1-#4, the Threshold preset with refinement batch A, the #5 Three.js spike (GO), the context-restore engine fix, and #6 (the `three-scene` module with the internal Three Model Reference preset). All uncommitted by the
+assistant; the owner commits. NEXT: #7 (asset pipeline: start with 7a native textures and the KTX2-vs-WebP decision, then the build script and `assets:check`), then #8 PBR + environment lighting, #9 instancing, #10 shadows. Open decisions below still apply
+(installer-size budget, source-asset storage, texture format, camera cuts, Threshold as a base). Keep verifying in a real browser, keep the baseline failing set unchanged, do not commit.

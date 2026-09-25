@@ -55,6 +55,8 @@ export interface Cinema2ModuleMediaFacet {
 export interface Cinema2ModuleResourceSnapshot {
   activeLeaseCount: number
   disposedLeaseCount: number
+  /** GPU bytes the module reported through `reportGpuBytes` (an estimate the host adds to the budget check). */
+  estimatedGpuBytes: number
 }
 
 /** Module-scoped view of engine-owned randomness. The host fixes moduleId so
@@ -78,6 +80,11 @@ export interface Cinema2ModuleResourceFacet {
     create: (gl: WebGL2RenderingContext) => T,
     dispose: (value: T) => void,
   ): T
+  /**
+   * Declares the module's current GPU memory estimate in bytes (replaces the previous value; call again when it changes).
+   * The host adds it to the engine's own render-target estimate when checking the quality policy's memory budget.
+   */
+  reportGpuBytes(bytes: number): void
   getSnapshot(): Cinema2ModuleResourceSnapshot
 }
 
@@ -179,6 +186,11 @@ export interface Cinema2ModuleLifecycleFacet {
 export interface Cinema2ModuleInstance {
   lifecycle: Cinema2ModuleLifecycleFacet
   render?: Cinema2ModuleRenderFacet
+  /**
+   * Non-fatal problems the module wants surfaced while it keeps running (for example an asset that failed to load and is
+   * skipped). Polled by the host for snapshots; the module stays `active`.
+   */
+  getDiagnostics?(): readonly Cinema2ModuleDiagnostic[]
   /** Receives only actions explicitly bound by the authored module manifest. */
   handleAction?(action: string, event: Readonly<Cinema2DispatchedTargetAction>): void
 }

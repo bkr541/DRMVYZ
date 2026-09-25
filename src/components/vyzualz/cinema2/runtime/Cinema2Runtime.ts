@@ -924,8 +924,12 @@ export class Cinema2Runtime {
       next = 'Cinema 2.0 kept the previous output size because render targets could not be resized safely.'
     } else if (renderSnapshot.diagnostics.some(diagnostic => diagnostic.code === 'CINEMA2_RENDER_RESOURCE_BUDGET_EXCEEDED')) {
       next = 'Cinema 2.0 is running with a constrained render path because the GPU resource budget was reached.'
+    } else if (moduleSnapshot.estimatedGpuBytes > 0 && moduleSnapshot.estimatedGpuBytes + this.resourceManager.getSnapshot().estimatedGpuMemoryBytes > performanceSnapshot.gpuMemoryBudgetBytes) {
+      next = 'Cinema 2.0 is running above its GPU memory budget because of loaded 3D assets.'
     } else if (moduleSnapshot.failedModuleCount > 0) {
       next = 'Cinema 2.0 is still running after isolating a failed visual module.'
+    } else if (moduleSnapshot.degradedModuleCount > 0) {
+      next = 'Cinema 2.0 is still running while a visual module skips an asset it could not load.'
     } else if (effectSnapshot.failedEffectCount > 0) {
       next = 'Cinema 2.0 is still running with a failed effect safely bypassed.'
     } else if (renderSnapshot.diagnostics.length > 0) {

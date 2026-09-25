@@ -76,8 +76,10 @@ class TestResources implements Cinema2ModuleResourceFacet {
     return value
   }
 
+  reportGpuBytes(): void {}
+
   getSnapshot() {
-    return { activeLeaseCount: this.leases.size, disposedLeaseCount: this.disposedLeaseCount }
+    return { activeLeaseCount: this.leases.size, disposedLeaseCount: this.disposedLeaseCount, estimatedGpuBytes: 0 }
   }
 
   disposeAll(): void {

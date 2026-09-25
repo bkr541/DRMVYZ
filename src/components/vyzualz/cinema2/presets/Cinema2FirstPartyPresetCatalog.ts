@@ -8,6 +8,7 @@ import { defineCinema2FirstPartyPreset } from './Cinema2PresetAuthoring'
 import { CINEMA2_REACTOR_PRESET_MANIFEST } from './Cinema2ReactorPreset'
 import { CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST } from './Cinema2ReferenceVisualPreset'
 import { CINEMA2_SPATIAL_REFERENCE_PRESET_MANIFEST } from './Cinema2SpatialReferencePreset'
+import { CINEMA2_THREE_MODEL_REFERENCE_PRESET_MANIFEST } from './Cinema2ThreeModelReferencePreset'
 import { CINEMA2_THRESHOLD_PRESET_MANIFEST } from './Cinema2ThresholdPreset'
 
 /**
@@ -55,5 +56,9 @@ export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
   defineCinema2FirstPartyPreset({
     role: 'keeper',
     manifest: CINEMA2_THRESHOLD_PRESET_MANIFEST,
+  }),
+  defineCinema2FirstPartyPreset({
+    role: 'reference',
+    manifest: CINEMA2_THREE_MODEL_REFERENCE_PRESET_MANIFEST,
   }),
 ])

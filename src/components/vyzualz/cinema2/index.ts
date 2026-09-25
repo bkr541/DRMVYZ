@@ -481,6 +481,24 @@ export {
 } from './modules/Cinema2ElectricStormThunder'
 
 export {
+  CINEMA2_THREE_SCENE_MODULE_TYPE_ID,
+  CINEMA2_THREE_SCENE_MODULE_VERSION,
+  cinema2ThreeSceneModuleDefinition,
+  createCinema2ThreeSceneModuleDefinition,
+  type Cinema2ThreeSceneModuleInspection,
+  type Cinema2ThreeSceneModuleOptions,
+  type Cinema2ThreeSceneModuleState,
+} from './modules/Cinema2ThreeSceneModule'
+export {
+  CINEMA2_REFERENCE_TORUS_KNOT_ASSET_ID,
+  cinema2ThreeAssetRegistry,
+} from './modules/three/Cinema2ThreeAssetManifest'
+export {
+  Cinema2ThreeAssetRegistry,
+  type Cinema2ThreeAssetRecord,
+} from './modules/three/Cinema2ThreeAssetRegistry'
+
+export {
   Cinema2ModuleRegistry,
   cinema2NativeModuleRegistry,
   type Cinema2ModuleRegistryResult,
@@ -596,6 +614,12 @@ export {
   CINEMA2_THRESHOLD_SHAFTS_ID,
   CINEMA2_THRESHOLD_VOID_COLOR_ID,
 } from './presets/Cinema2ThresholdPreset'
+export {
+  CINEMA2_THREE_MODEL_REFERENCE_ENVIRONMENT_ID,
+  CINEMA2_THREE_MODEL_REFERENCE_PRESET_ID,
+  CINEMA2_THREE_MODEL_REFERENCE_PRESET_MANIFEST,
+  CINEMA2_THREE_MODEL_REFERENCE_ROUGHNESS_ID,
+} from './presets/Cinema2ThreeModelReferencePreset'
 
 export {
   cinema2CinematicMotion,

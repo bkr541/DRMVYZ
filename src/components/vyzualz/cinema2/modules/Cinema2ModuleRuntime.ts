@@ -35,6 +35,8 @@ export interface Cinema2ModuleInstanceSnapshot {
   moduleId: Cinema2ModuleId
   status: Cinema2ModuleRuntimeStatus
   activeResourceLeaseCount: number
+  /** GPU bytes the module reported (estimate). */
+  estimatedGpuBytes: number
   renderProviderCount: number
   diagnostics: readonly Cinema2ModuleDiagnostic[]
 }
@@ -42,7 +44,10 @@ export interface Cinema2ModuleInstanceSnapshot {
 export interface Cinema2ModuleRuntimeSnapshot {
   activeModuleCount: number
   failedModuleCount: number
+  /** Active modules currently reporting non-fatal diagnostics (for example a skipped asset). */
+  degradedModuleCount: number
   activeResourceLeaseCount: number
+  estimatedGpuBytes: number
   modules: readonly Readonly<Cinema2ModuleInstanceSnapshot>[]
 }
 
@@ -163,17 +168,26 @@ export class Cinema2ModuleRuntime {
   }
 
   getSnapshot(): Readonly<Cinema2ModuleRuntimeSnapshot> {
-    const modules = this.records.map(record => Object.freeze({
-      moduleId: record.module.id,
-      status: record.status,
-      activeResourceLeaseCount: record.resources?.getSnapshot().activeLeaseCount ?? 0,
-      renderProviderCount: record.instance?.render?.providers.length ?? 0,
-      diagnostics: Object.freeze(record.diagnostics.map(diagnostic => Object.freeze({ ...diagnostic }))),
-    }))
+    let degradedModuleCount = 0
+    const modules = this.records.map(record => {
+      const reported = this.readInstanceDiagnostics(record)
+      if (record.status === 'active' && reported.length > 0) degradedModuleCount += 1
+      const resources = record.resources?.getSnapshot()
+      return Object.freeze({
+        moduleId: record.module.id,
+        status: record.status,
+        activeResourceLeaseCount: resources?.activeLeaseCount ?? 0,
+        estimatedGpuBytes: resources?.estimatedGpuBytes ?? 0,
+        renderProviderCount: record.instance?.render?.providers.length ?? 0,
+        diagnostics: Object.freeze([...record.diagnostics, ...reported].map(diagnostic => Object.freeze({ ...diagnostic }))),
+      })
+    })
     return Object.freeze({
       activeModuleCount: modules.filter(module => module.status === 'active').length,
       failedModuleCount: modules.filter(module => module.status === 'failed').length,
+      degradedModuleCount,
       activeResourceLeaseCount: modules.reduce((sum, module) => sum + module.activeResourceLeaseCount, 0),
+      estimatedGpuBytes: modules.reduce((sum, module) => sum + module.estimatedGpuBytes, 0),
       modules: Object.freeze(modules),
     })
   }
@@ -182,6 +196,15 @@ export class Cinema2ModuleRuntime {
     if (this.disposed) return
     this.disposed = true
     for (const record of this.records) this.retireRecord(record, 'disposed')
+  }
+
+  private readInstanceDiagnostics(record: ModuleRecord): readonly Cinema2ModuleDiagnostic[] {
+    if (record.status !== 'active' || !record.instance?.getDiagnostics) return []
+    try {
+      return record.instance.getDiagnostics().map(diagnostic => ({ ...diagnostic, moduleId: record.module.id }))
+    } catch {
+      return []
+    }
   }
 
   private activateRecord(record: ModuleRecord): void {

@@ -186,7 +186,8 @@ class TestResources implements Cinema2ModuleResourceFacet {
     this.leases.set(key, { value, dispose: dispose as (value: never) => void })
     return value
   }
-  getSnapshot() { return { activeLeaseCount: this.leases.size, disposedLeaseCount: 0 } }
+  reportGpuBytes() {}
+  getSnapshot() { return { activeLeaseCount: this.leases.size, disposedLeaseCount: 0, estimatedGpuBytes: 0 } }
 }
 
 describe('Cinema 2.0 Interlock Stage 6 Audio Intelligence and choreography', () => {

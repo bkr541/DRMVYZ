@@ -14,6 +14,7 @@ interface TrackedResource {
 export class Cinema2ModuleResourceScope implements Cinema2ModuleResourceFacet {
   private readonly resources = new Map<string, TrackedResource>()
   private disposedLeaseCount = 0
+  private estimatedGpuBytes = 0
   private disposed = false
 
   constructor(
@@ -48,16 +49,22 @@ export class Cinema2ModuleResourceScope implements Cinema2ModuleResourceFacet {
     return value
   }
 
+  reportGpuBytes(bytes: number): void {
+    this.estimatedGpuBytes = Number.isFinite(bytes) && bytes > 0 ? bytes : 0
+  }
+
   getSnapshot(): Cinema2ModuleResourceSnapshot {
     return Object.freeze({
       activeLeaseCount: this.resources.size,
       disposedLeaseCount: this.disposedLeaseCount,
+      estimatedGpuBytes: this.estimatedGpuBytes,
     })
   }
 
   disposeAll(): void {
     if (this.disposed) return
     this.disposed = true
+    this.estimatedGpuBytes = 0
     const resources = [...this.resources.values()].reverse()
     this.resources.clear()
     for (const resource of resources) {
