@@ -16,17 +16,145 @@
   z-index: 3;
   transform: translate(-50%, -50%);
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: stretch;
+  gap: 0;
   box-sizing: border-box;
   /* Never run under the page heading (which is as wide as the left window) or its mirror on the right. */
   max-width: calc(100% - 2 * (var(--vz-page-heading-width, 300px) + 16px));
-  min-height: 42px;
-  padding: 4px 10px;
-  border: 1px solid rgba(154, 178, 188, 0.32);
+  height: 42px;
+  padding: 0;
+  /* Segmented Deck (Layout Lab → Cinema → 01): one bordered instrument split into segments by hairlines. */
+  border: 1px solid rgba(154, 178, 188, 0.22);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.02);
+  background: linear-gradient(180deg, rgba(20, 28, 34, 0.95), rgba(10, 14, 17, 0.98));
 }
 
 /* A group with nothing to show (e.g. a status that is currently empty) leaves no empty box. */
 .vz-header-group:empty { display: none; }
+
+/* Every direct child is a segment; hairlines divide them. */
+.vz-header-group > * {
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid rgba(154, 178, 188, 0.16);
+  border-radius: 0;
+  background: transparent;
+}
+.vz-header-group > *:last-child { border-right: 0; }
+.vz-header-group > *:first-child { border-radius: 7px 0 0 7px; }
+.vz-header-group > *:last-child { border-radius: 0 7px 7px 0; }
+.vz-header-group > *:only-child { border-radius: 7px; }
+
+/* Nested wrappers (output controls, show actions, stage tools) just pass the height through. */
+.vz-header-group .rv-global-output,
+.vz-header-group .sm-header-show-actions,
+.vz-header-group .sm-stage-tools {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Every button in the deck is the same key: flat, hairline-separated, lit when active. */
+.vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle),
+.vz-header-group .lmv-toggle-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 36px;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0 13px;
+  /* Only the right edge is left to the segment rule below, so direct-child keys keep their divider. */
+  border-top: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-right: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: rgba(196, 207, 211, 0.62);
+  font: 700 9px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+.vz-header-group > button:not(.drm-help-info-trigger):not(:last-child),
+.vz-header-group > .lmv-toggle-row:not(:last-child) {
+  border-right: 1px solid rgba(154, 178, 188, 0.16);
+}
+.vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle) + button:not(.drm-help-info-trigger) {
+  border-left: 1px solid rgba(154, 178, 188, 0.12);
+}
+.vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle) svg { width: 16px; height: 16px; flex-shrink: 0; }
+.vz-header-group .lmv-toggle-row .lmv-toggle-label { color: inherit; font: inherit; letter-spacing: inherit; }
+
+.vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle):hover:not(:disabled),
+.vz-header-group .lmv-toggle-row:hover {
+  color: #e8f4f8;
+  background: rgba(255, 255, 255, 0.05);
+}
+.vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle):disabled { opacity: 0.4; cursor: default; }
+
+/* Active / emphasised keys: cyan ink, a cyan wash and a bar along the bottom edge. */
+.vz-header-group button.is-on,
+.vz-header-group button.is-active,
+.vz-header-group button.dv-icon-chip--primary,
+.vz-header-group button.sm-header-icon-button--primary {
+  color: #67f7ff;
+  background: rgba(74, 199, 219, 0.14);
+  box-shadow: inset 0 -2px 0 #4ac7db;
+}
+.vz-header-group button.is-on:hover:not(:disabled),
+.vz-header-group button.is-active:hover:not(:disabled),
+.vz-header-group button.dv-icon-chip--primary:hover:not(:disabled),
+.vz-header-group button.sm-header-icon-button--primary:hover:not(:disabled) {
+  color: #a8fbff;
+  background: rgba(74, 199, 219, 0.22);
+}
+
+/* Toggles (role="switch" / aria-pressed): the same key, but "on" is shown by an indicator light rather than a bar.
+   The light's space is always reserved so the deck never changes width when a toggle flips. */
+.vz-header-light,
+.vz-header-group .rv-global-output-dot {
+  display: inline-block;
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  margin: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #d6ffff, #67f7ff 55%, #167a86);
+  box-shadow: 0 0 8px #67f7ff, 0 0 0 2px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.vz-header-group button[aria-checked='true'] .vz-header-light,
+.vz-header-group button[aria-pressed='true'] .rv-global-output-dot {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.vz-header-group button.vz-header-toggle[aria-checked='true'],
+.vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle)[aria-pressed='true'] {
+  color: #67f7ff;
+  background: rgba(74, 199, 219, 0.1);
+}
+.vz-header-group button.vz-header-toggle[aria-checked='true']:hover:not(:disabled),
+.vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle)[aria-pressed='true']:hover:not(:disabled) {
+  color: #a8fbff;
+  background: rgba(74, 199, 219, 0.18);
+}

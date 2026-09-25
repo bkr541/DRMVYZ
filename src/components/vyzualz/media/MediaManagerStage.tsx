@@ -105,7 +105,7 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
   }
 
   return (
-    <div className={`mms-stage${isVideo && src && !videoError ? ' mms-stage--video' : ''}`}>
+    <div className={`mms-stage${isVideo && src && !videoError ? ' mms-stage--video' : ''}${src && (isVideo ? !videoError : !imageError) ? ' mms-stage--top' : ''}`}>
       <div className={`mms-media-area${hasAlpha ? ' mms-media-area--transparent' : ''}`}>
         {!src ? (
           <NoticeCard tone="error" role="status" title="Media unavailable">{recovering ? 'Refreshing media link…' : 'Media file unavailable'}</NoticeCard>

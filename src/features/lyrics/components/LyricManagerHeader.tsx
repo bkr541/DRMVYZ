@@ -1,4 +1,4 @@
-import { IconMorphToggle } from '../../../components/vyzualz/react/controls/IconMorphToggle'
+import { HeaderToggleKey } from '../../../components/vyzualz/layout/HeaderToggleKey'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { PageHeadingPlate, LyricHeadingIcon } from '../../../components/vyzualz/layout/PageHeadingPlate'
 import { HeaderControlGroup } from '../../../components/vyzualz/layout/HeaderControlGroup'
@@ -46,15 +46,13 @@ export function LyricManagerHeader({
 
       <HeaderControlGroup label="Lyric Manager controls">
         {saveStatusLabel && <span className={`lmv-dirty-badge lmv-dirty-badge--${saveStatus}`}>{saveStatusLabel}</span>}
-        <label className="lmv-toggle-row" title="Show or hide active lyrics in the visualizer">
-          <span className="lmv-toggle-label">Show Lyrics</span>
-          <IconMorphToggle
-            checked={lyricsDisplayEnabled}
-            onCheckedChange={onToggleLyricsDisplay}
-            className="lmv-toggle-track"
-            aria-label="Show Lyrics"
-          />
-        </label>
+        <HeaderToggleKey
+          checked={lyricsDisplayEnabled}
+          onChange={() => onToggleLyricsDisplay()}
+          title="Show or hide active lyrics in the visualizer"
+        >
+          Show Lyrics
+        </HeaderToggleKey>
 
         <IconChipButton
           onClick={onSave}

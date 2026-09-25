@@ -122,19 +122,21 @@
   overflow: hidden;
 }
 
-/* A playable video sits directly above its controls and timeline: the whole
-   group is centered in the stage, and the video is capped so the controls,
-   timeline and caption always keep their room (container height minus them). */
-.mms-stage--video {
+/* A selected video or image starts at the top of the stage (the media area's own padding is the top
+   gap). For a video the controls, timeline and caption follow it; for an image the same room is kept
+   below it, so both leave the same empty space underneath. The media is capped so that room always
+   exists (container height minus 290px). */
+.mms-stage--top {
   container-type: size;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
-.mms-stage--video .mms-media-area {
+.mms-stage--top .mms-media-area {
   flex: 0 1 auto;
 }
 
-.mms-stage--video .mms-video {
+.mms-stage--top .mms-video,
+.mms-stage--top .mms-image {
   max-height: calc(100cqh - 290px);
 }
 
@@ -784,7 +786,7 @@
 .mmec-handle--sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
 .mmec-handle--w  { left: -7px; top: calc(50% - 6px); cursor: ew-resize; }
 
-.mms-stage--video .mms-media-area .mms-edit-canvas { max-height: calc(100cqh - 290px); }
+.mms-stage--top .mms-media-area .mms-edit-canvas { max-height: calc(100cqh - 290px); }
 
 .mmi-body .rv-ctrl-row.mmi-edit-action-row {
   display: flex;

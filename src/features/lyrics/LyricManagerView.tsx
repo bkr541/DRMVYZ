@@ -389,6 +389,8 @@ export function LyricManagerView({
   >([])
   const [documentsLoading, setDocumentsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<WorkflowTab>('manual')
+  // The lyric versions window belongs to the Tracks tab only; Import and Extract get the full left rail.
+  const showLyricVersions = lyricManagementPhase !== 'unmounted' && workspaceTabForWorkflow(activeTab) === 'tracks'
   const [statusMsg, setStatusMsg] = useState<string | null>(null)
   const [recoveryCandidate, setRecoveryCandidate] = useState<LyricRecoveryRecord | null>(null)
   const [recoveryReviewing, setRecoveryReviewing] = useState(false)
@@ -2003,12 +2005,12 @@ export function LyricManagerView({
           <div
             ref={workspaceShellRef}
             className="lmv-workspace-shell"
-            data-has-selected-track={lyricManagementPhase !== 'unmounted' ? 'true' : 'false'}
+            data-has-selected-track={showLyricVersions ? 'true' : 'false'}
           >
           <section
             className="lmv-track-workspace"
             aria-label="Track Workspace"
-            style={lyricManagementHeightPct != null && lyricManagementPhase !== 'unmounted'
+            style={lyricManagementHeightPct != null && showLyricVersions
               ? { flexBasis: `${100 - lyricManagementHeightPct}%` }
               : undefined}
           >
@@ -2095,7 +2097,7 @@ export function LyricManagerView({
             </div>
           </section>
 
-          {lyricManagementPhase !== 'unmounted' && (
+          {showLyricVersions && (
           <section
             className={`lmv-lyric-management lmv-lyric-management--${lyricManagementPhase}`}
             aria-label="Lyric Management"
