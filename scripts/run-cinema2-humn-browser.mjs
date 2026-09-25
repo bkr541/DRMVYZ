@@ -45,7 +45,7 @@ async function waitForServer(url, timeoutMs = 15_000) {
 // Optional narrowing for local iteration: DRMVYZ_CINEMA2_HUMN_SPECS=src/test/e2e/a.spec.ts,src/test/e2e/b.spec.ts
 const specs = process.env.DRMVYZ_CINEMA2_HUMN_SPECS
   ? process.env.DRMVYZ_CINEMA2_HUMN_SPECS.split(',').filter(Boolean)
-  : ['src/test/e2e/cinema2HumNReactivityVisualAcceptance.spec.ts', 'src/test/e2e/cinema2HumNFinishingAcceptance.spec.ts']
+  : ['src/test/e2e/cinema2HumNVisualAcceptance.spec.ts']
 
 let server = null
 let status = 1

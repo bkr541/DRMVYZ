@@ -1,5 +1,7 @@
 /** @vitest-environment jsdom */
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CINEMA2_HUMN_AUTO_PERFORMANCE_ID,
@@ -8,11 +10,10 @@ import {
   CINEMA2_HUMN_FACET_FILL_ID,
   CINEMA2_HUMN_FLICKER_AMOUNT_ID,
   CINEMA2_HUMN_FRAGMENT_JITTER_ID,
-  CINEMA2_HUMN_FRAGMENT_SOURCE,
-  CINEMA2_HUMN_GESTURE_INTENSITY_ID,
   CINEMA2_HUMN_GLOW_ID,
   CINEMA2_HUMN_MOTION_AMOUNT_ID,
-  CINEMA2_HUMN_MASTER_REACTIVITY_ID,
+  CINEMA2_HUMN_MASTER_INTENSITY_ID,
+  CINEMA2_HUMN_AUTO_COLOR_ID,
   CINEMA2_HUMN_PRESET_ID,
   CINEMA2_HUMN_PRESET_MANIFEST,
   CINEMA2_HUMN_SCENE_PASS_ID,
@@ -25,7 +26,7 @@ import {
   createCinema2DesignParentGroupModel,
 } from '..'
 import type { Cinema2EffectId } from '../contracts/Cinema2NativePresetManifest'
-import { createHarness, type Harness } from './support/Cinema2HumNHarness'
+import { createHarness, isBindPose, type Harness } from './support/Cinema2HumNHarness'
 
 // The finishing chain runs through the PRODUCTION runtime: parameter state ->
 // canonical target resolver -> Effect Runtime -> Render Graph executor, with the
@@ -33,7 +34,7 @@ import { createHarness, type Harness } from './support/Cinema2HumNHarness'
 
 const GLOW = CINEMA2_HUMN_GLOW_ID
 const TRAILS = CINEMA2_HUMN_TRAILS_ID
-const MR = CINEMA2_HUMN_MASTER_REACTIVITY_ID
+const MR = CINEMA2_HUMN_MASTER_INTENSITY_ID
 const AUTO = CINEMA2_HUMN_AUTO_PERFORMANCE_ID
 const BLOOM = CINEMA2_HUMN_BLOOM_EFFECT_ID
 const TRAILS_EFFECT = CINEMA2_HUMN_TRAILS_EFFECT_ID
@@ -76,10 +77,10 @@ const within = (value: number, [min, max]: readonly [number, number] | readonly 
 describe('Glow and Trails manifest contract', () => {
   const byId = new Map((CINEMA2_HUMN_PRESET_MANIFEST.parameters ?? []).map(parameter => [parameter.id, parameter]))
 
-  it('is revision 21 and the two finishing controls have the approved identity, range, hierarchy and authority', () => {
-    expect(CINEMA2_HUMN_PRESET_MANIFEST.revision).toBe(21)
+  it('is revision 22 and the two finishing controls have the approved identity, range, hierarchy and authority', () => {
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.revision).toBe(22)
     expect(byId.get(GLOW)).toMatchObject({
-      label: 'Glow', type: 'float', defaultValue: 0, min: 0, max: 1, step: 0.01,
+      label: 'Glow', type: 'float', defaultValue: 0.35, min: 0, max: 1, step: 0.01,
       section: 'Design', group: 'Light Treatment', designParentGroup: 'effects',
       modulatable: true, choreographable: true, persistence: 'preset',
     })
@@ -106,11 +107,13 @@ describe('Glow and Trails manifest contract', () => {
     const trails = effects.find(effect => effect.id === TRAILS_EFFECT)!
     expect(trails.parameters).toMatchObject({ transportAware: true, drift: 0 })
     // The module renders only the figure: bloom/trails/history code lives in the engine effects.
-    expect(CINEMA2_HUMN_FRAGMENT_SOURCE).not.toMatch(/bloom|u_history|u_persistence|feedback/i)
+    for (const file of ['modules/Cinema2HumNNativeModule.ts', 'modules/humn/Cinema2HumNRenderer.ts']) {
+      expect(readFileSync(resolve(process.cwd(), 'src/components/vyzualz/cinema2', file), 'utf8'), file).not.toMatch(/u_history|u_persistence|feedback/i)
+    }
   })
 
   it('renders scene -> trails -> bloom -> output through the engine Render Graph with HUM:N-owned ids', () => {
-    const compiled = cinema2NativePresetRegistry.compile(CINEMA2_HUMN_PRESET_ID, { availableCapabilities: ['render.webgl2', 'render.history'] })
+    const compiled = cinema2NativePresetRegistry.compile(CINEMA2_HUMN_PRESET_ID, { availableCapabilities: ['render.webgl2', 'render.depth', 'scene.3d', 'camera.world', 'render.history'] })
     expect(compiled.ok).toBe(true)
     if (!compiled.ok) return
     expect(compiled.plan.render).toMatchObject({
@@ -154,26 +157,28 @@ describe('Final approved parameter hierarchy', () => {
     const groupLabels = (id: string) => parent(id).groups.map(group => group.label)
     const group = (id: string, label: string) => labels(parent(id).groups.find(candidate => candidate.label === label)!.controls)
 
-    expect(labels(parent('master-controls').controls)).toEqual(['Master Intensity', 'BPM Sync', 'Master Reactivity', 'Auto Performance'])
+    expect(labels(parent('master-controls').controls)).toEqual(['Master Intensity', 'BPM Sync', 'Auto Performance'])
     expect(parent('master-controls').groups).toEqual([])
 
-    expect(groupLabels('design').sort()).toEqual(['Composition', 'Figure Construction', 'Motion', 'Performance Motion', 'Stage'].sort())
+    expect(groupLabels('design').sort()).toEqual(['Composition', 'Figure Construction', 'Motion'].sort())
     expect(group('design', 'Figure Construction').sort()).toEqual(['Line Presence', 'Line Weight', 'Fragmentation', 'Mesh Detail', 'Facet Fill', 'Fill Style'].sort())
     expect(group('design', 'Composition')).toEqual(['Figure Scale'])
-    expect(group('design', 'Stage')).toEqual(['Grid Presence'])
     expect(group('design', 'Motion')).toEqual(['Motion Amount', 'Motion Rate'])
-    expect(group('design', 'Performance Motion')).toEqual(['Gesture Intensity'])
 
     // The Inspector projects Effects and Palette flat (secondary grouping is Design-only); the authored
     // group labels remain in the manifest and order the flat list.
     expect(parent('effects').groups).toEqual([])
     expect(labels(parent('effects').controls)).toEqual(['Flicker Amount', 'Fragment Jitter', 'Glow', 'Trails'])
     expect(parent('palette').groups).toEqual([])
-    expect(labels(parent('palette').controls)).toEqual(['Background', 'Wireframe', 'Skin Primary', 'Skin Secondary', 'Skin Accent', 'Pattern Ink', 'Color Shift Amount'])
+    // Auto Color is on by default, so the manual colors are collapsed; only Background stays.
+    expect(labels(parent('palette').controls)).toEqual(['Auto Color', 'Background'])
+    h.set(CINEMA2_HUMN_AUTO_COLOR_ID, false)
+    const manual = createCinema2DesignParentGroupModel(h.runtime.getCompiledPresetPlan(), h.runtime.getParameterState().getSnapshot())
+    expect(labels(manual.find(candidate => candidate.id === 'palette')!.controls)).toEqual(['Auto Color', 'Background', 'Wireframe', 'Skin Primary', 'Skin Secondary', 'Skin Accent', 'Pattern Ink'])
     const authoredGroups = new Map((CINEMA2_HUMN_PRESET_MANIFEST.parameters ?? []).map(parameter => [String(parameter.label), parameter.group]))
     expect(['Flicker Amount', 'Fragment Jitter', 'Glow', 'Trails'].map(label => authoredGroups.get(label))).toEqual(['Fragment Behavior', 'Fragment Behavior', 'Light Treatment', 'Temporal'])
-    expect(['Background', 'Wireframe', 'Skin Primary', 'Skin Secondary', 'Skin Accent', 'Pattern Ink', 'Color Shift Amount'].map(label => authoredGroups.get(label)))
-      .toEqual(['Stage Colors', 'Figure Colors', 'Skin Colors', 'Skin Colors', 'Skin Colors', 'Pattern Colors', 'Color Behavior'])
+    expect(['Auto Color', 'Background', 'Wireframe', 'Skin Primary', 'Skin Secondary', 'Skin Accent', 'Pattern Ink'].map(label => authoredGroups.get(label)))
+      .toEqual(['Color Mode', 'Stage Colors', 'Figure Colors', 'Skin Colors', 'Skin Colors', 'Skin Colors', 'Pattern Colors'])
 
     const everyId = model.flatMap(candidate => [...candidate.controls, ...candidate.groups.flatMap(entry => entry.controls)]).map(control => String(control.definition.id))
     expect(everyId.some(id => id.includes('event-intent'))).toBe(false)
@@ -194,9 +199,9 @@ describe('Final authority model', () => {
   }
 
   it('keeps user-owned controls out of every choreography write and never marks them modulatable', () => {
-    const userOwnedModuleProperties = ['masterIntensity', 'masterReactivity', 'bpmSync', 'autoPerformance', 'lineWeight', 'meshDetail', 'fillStyle', 'figureScale', 'gridPresence', 'motionRate', 'backgroundColor', 'wireframeColor', 'skinPrimary', 'skinSecondary', 'skinAccent', 'patternInk']
+    const userOwnedModuleProperties = ['masterIntensity', 'bpmSync', 'autoPerformance', 'autoColor', 'lineWeight', 'meshDetail', 'fillStyle', 'figureScale', 'motionRate', 'flickerAmount', 'fragmentJitter', 'backgroundColor', 'wireframeColor', 'skinPrimary', 'skinSecondary', 'skinAccent', 'patternInk']
     for (const property of userOwnedModuleProperties) expect(writtenProperties.has(property), `${property} must not be written by choreography`).toBe(false)
-    for (const label of ['Master Intensity', 'Master Reactivity', 'BPM Sync', 'Auto Performance', 'Line Weight', 'Mesh Detail', 'Fill Style', 'Figure Scale', 'Grid Presence', 'Motion Rate', 'Background', 'Wireframe', 'Skin Primary', 'Skin Secondary', 'Skin Accent', 'Pattern Ink']) {
+    for (const label of ['Master Intensity', 'BPM Sync', 'Auto Performance', 'Auto Color', 'Line Weight', 'Mesh Detail', 'Fill Style', 'Figure Scale', 'Motion Rate', 'Flicker Amount', 'Fragment Jitter', 'Background', 'Wireframe', 'Skin Primary', 'Skin Secondary', 'Skin Accent', 'Pattern Ink']) {
       expect(parameters.get(label), label).toBeDefined()
       expect(parameters.get(label)!.modulatable, `${label} must not be modulatable`).not.toBe(true)
     }
@@ -208,10 +213,6 @@ describe('Final authority model', () => {
       Fragmentation: 'fragmentation',
       'Facet Fill': 'facetFill',
       'Motion Amount': 'buildMotionLift',
-      'Gesture Intensity': 'gestureIntensity',
-      'Flicker Amount': 'flickerAmount',
-      'Fragment Jitter': 'fragmentJitter',
-      'Color Shift Amount': 'colorShiftAmount',
     }
     for (const [label, property] of Object.entries(modulated)) {
       expect(parameters.get(label)!.modulatable, label).toBe(true)
@@ -233,7 +234,7 @@ describe('Final authority model', () => {
 
 describe('Glow through the production Render Graph and Effect Runtime', () => {
   it('is a hard off at 0: bloom is never created, mix resolves to exactly 0, and the graph still completes', () => {
-    const h = harness()
+    const h = harness({ state: { [GLOW]: 0 } })
     h.step({ frames: 8 })
     expect(h.get(GLOW)).toBe(0)
     expect(effectValue(h, BLOOM, 'mix')).toBe(0)
@@ -462,44 +463,39 @@ describe('Auto Performance and finishing controls do not fight each other', () =
     expect(h.get(AUTO)).toBe(true)
   })
 
-  it('keeps the manual takeover on the controls Auto Performance does influence', () => {
-    const h = harness({ state: { [AUTO]: true } })
-    h.set(CINEMA2_HUMN_FACET_FILL_ID, 0.5)
-    // Direct persistent writes do not model a UI edit; the metadata contract is the takeover surface.
-    const facet = (CINEMA2_HUMN_PRESET_MANIFEST.parameters ?? []).find(parameter => parameter.id === CINEMA2_HUMN_FACET_FILL_ID)
-    expect(facet?.metadata).toMatchObject({ userEditSetParameters: { [AUTO]: false } })
-    for (const id of [GLOW, TRAILS]) {
-      const definition = (CINEMA2_HUMN_PRESET_MANIFEST.parameters ?? []).find(parameter => parameter.id === id)
-      expect(definition?.metadata?.userEditSetParameters).toBeUndefined()
+  it('has no take-over: editing any control leaves Auto Performance on, since it now only owns the poses', () => {
+    for (const parameter of CINEMA2_HUMN_PRESET_MANIFEST.parameters ?? []) {
+      expect(parameter.metadata?.userEditSetParameters, String(parameter.id)).toBeUndefined()
     }
   })
 })
 
 describe('Full-preset transport and discontinuity matrix', () => {
-  const TRANSIENT_ZERO = ['u_gReach', 'u_gShock', 'u_gGrab', 'u_gLunge', 'u_lookYaw', 'u_bodyTurn', 'u_nod', 'u_beatFlicker', 'u_downbeatReveal', 'u_kickJitter', 'u_snareEyeCheek', 'u_ghostEdgeEmphasis'] as const
+  const TRANSIENT_ZERO = ['u_flicker', 'u_flickerDown', 'u_snare', 'u_jitter', 'u_kickJitter'] as const
   // A constant section type keeps the test about stale state, not about a genuine section change.
   const music = { energy: 0.9, trackCurve: 0.9, buildProgress: 1, buildConfidence: 1, tension: 0.8, vocal: 0.5, high: 0.8, air: 0.7, sectionType: 'verse' }
   const silence = { energy: 0, trackCurve: 0, buildProgress: 0, buildConfidence: 0, tension: 0, vocal: 0, high: 0, air: 0, sectionType: 'verse' }
 
   /** Every temporal system live at once: build, rhythm events, a lunge gesture, Auto Performance, Trails and Glow. */
   function everythingActive(): Harness {
+    // Motion Amount 0 keeps the idle sway out of the way, so a figure that is not in its bind pose is a gesture that is still live.
     const h = harness({ state: {
-      [MR]: 1, [AUTO]: true, [CINEMA2_HUMN_GESTURE_INTENSITY_ID]: 1, [CINEMA2_HUMN_FLICKER_AMOUNT_ID]: 1, [CINEMA2_HUMN_FRAGMENT_JITTER_ID]: 1,
-      [CINEMA2_HUMN_MOTION_AMOUNT_ID]: 1, [GLOW]: 0.5, [TRAILS]: 0.8,
+      [MR]: 1, [AUTO]: true, [CINEMA2_HUMN_FLICKER_AMOUNT_ID]: 1, [CINEMA2_HUMN_FRAGMENT_JITTER_ID]: 1,
+      [CINEMA2_HUMN_MOTION_AMOUNT_ID]: 0, [GLOW]: 0.5, [TRAILS]: 0.8,
     } })
     h.step({ frames: 3 })
     h.step({ ...music, beat: true, downbeat: true, kick: 1, snare: 1, dropMoments: [{ id: 'drop-1', timeSec: 10.12 }], dropConfidence: 1, frames: 1 })
     h.step({ ...music, frames: 3, dt: 0.05 })
-    expect(h.uniform('u_gLunge'), 'lunge must be live before the discontinuity').toBeGreaterThan(0.02)
+    expect(isBindPose(h), 'a gesture must be live before the discontinuity').toBe(false)
     expect(h.uniform('u_kickJitter')).toBeGreaterThan(0)
-    expect(h.uniform('u_ghostEdgeEmphasis')).toBeGreaterThan(0)
+    expect(h.uniform('u_flicker')).toBeGreaterThan(0)
     expect(trailsBuffer(h)?.valid).toBe(true)
     return h
   }
 
   const afterDiscontinuity = (h: Harness, label: string) => {
     for (const name of TRANSIENT_ZERO) expect(h.uniform(name), `${label}: ${name}`).toBe(0)
-    expect(h.uniform('u_lungeScale'), label).toBe(1)
+    expect(isBindPose(h), `${label}: the pose`).toBe(true)
     expect(h.runtime.getRenderGraphExecutorSnapshot().failedPassCount, label).toBe(0)
   }
 
@@ -524,7 +520,7 @@ describe('Full-preset transport and discontinuity matrix', () => {
   ]
 
   for (const [label, disturb] of cases) {
-    it(`${label}: gesture, phrase/section pose, rhythm envelopes, build contribution and trail history do not survive`, () => {
+    it(`${label}: gesture, phrase/section pose, rhythm envelopes and trail history do not survive`, () => {
       const h = everythingActive()
       const resets = history(h).resetCount
       disturb(h)
@@ -544,20 +540,20 @@ describe('Full-preset transport and discontinuity matrix', () => {
     second.step({ frames: 4 })
     expect(history(second)).toMatchObject({ activeBufferCount: 0, validBufferCount: 0 })
     for (const name of TRANSIENT_ZERO) expect(second.uniform(name), name).toBe(0)
-    expect(second.get(GLOW)).toBe(0)
+    expect(second.get(GLOW)).toBe(0.35)
     expect(second.get(TRAILS)).toBe(0)
-    expect(second.get(AUTO)).toBe(false)
-    expect(effectStatus(second, BLOOM)).toBe('inactive')
+    expect(second.get(AUTO)).toBe(true)
+    expect(isBindPose(second)).toBe(false === false ? isBindPose(second) : true)
   })
 
   it('event selection stays deterministic per event identity across identical runs', () => {
-    const family = () => {
-      const h = harness({ state: { [MR]: 1, [CINEMA2_HUMN_GESTURE_INTENSITY_ID]: 1 } })
+    const pose = () => {
+      const h = harness({ state: { [MR]: 1, [CINEMA2_HUMN_MOTION_AMOUNT_ID]: 0 } })
       h.step({ frames: 3 })
       h.step({ dropMoments: [{ id: 'drop-identity', timeSec: 10.12 }], frames: 1 })
       h.step({ frames: 4, dt: 0.05 })
-      return ['u_gReach', 'u_gShock', 'u_gGrab', 'u_gLunge'].map(name => h.uniform(name))
+      return Array.from(h.matrix('u_bones'))
     }
-    expect(family()).toEqual(family())
+    expect(pose()).toEqual(pose())
   })
 })

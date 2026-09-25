@@ -30,20 +30,24 @@ export interface Harness {
   step(input: Omit<HumFrameInput, 'frameId' | 'timeSec' | 'trackId'> & { trackId?: string | null; timeSec?: number; frames?: number; dt?: number }): void
   uniform(name: string): number
   vec4(name: string): readonly number[]
+  vec3(name: string): readonly number[]
+  int(name: string): number
+  /** Last matrix uniform uploaded under this name (`u_bones` holds one 4x4 per bone, `u_model` one). */
+  matrix(name: string): Float32Array
   drawCount(): number
   set(id: Cinema2ParameterId, value: number | boolean | string): void
   pause(paused: boolean): void
   get(id: Cinema2ParameterId): unknown
   snapshot(): string
   /** Mutable host transport (source presence, pause, ...). */
-  transport: { sourcePresent: boolean; playing: boolean; analysisActive: boolean; paused: boolean; trackId: string | null; timeSec: number }
+  transport: { sourcePresent: boolean; playing: boolean; analysisActive: boolean; paused: boolean; trackId: string | null; timeSec: number; bpmSync?: boolean }
   /** The runtime's canvas, so tests can dispatch WebGL context loss/restore events. */
   canvas: EventTarget
   runtime: Cinema2Runtime
   dispose(): void
 }
 
-export function createHarness(options: { seed?: string; state?: Record<string, number | boolean> } = {}): Harness {
+export function createHarness(options: { seed?: string; state?: Record<string, number | boolean | string> } = {}): Harness {
   const gl = createCinemaMockWebGL()
   gl.getUniformLocation = vi.fn((_program: WebGLProgram, name: string) => ({ name } as unknown as WebGLUniformLocation))
   const callbacks = new Map<number, FrameRequestCallback>()
@@ -126,6 +130,21 @@ export function createHarness(options: { seed?: string; state?: Record<string, n
       const found = calls(name, gl.uniform4f)
       return found[found.length - 1]!.slice(1) as number[]
     },
+    vec3(name) {
+      const found = calls(name, gl.uniform3f)
+      if (found.length === 0) throw new Error(`Uniform ${name} was never set`)
+      return found[found.length - 1]!.slice(1) as number[]
+    },
+    int(name) {
+      const found = calls(name, gl.uniform1i)
+      if (found.length === 0) throw new Error(`Uniform ${name} was never set`)
+      return Number(found[found.length - 1]![1])
+    },
+    matrix(name) {
+      const found = calls(name, gl.uniformMatrix4fv)
+      if (found.length === 0) throw new Error(`Uniform ${name} was never set`)
+      return Float32Array.from(found[found.length - 1]![2] as ArrayLike<number>)
+    },
     drawCount: () => (gl as unknown as { __calls: { drawCount: number } }).__calls.drawCount,
     pause(paused) {
       transport.paused = paused
@@ -141,3 +160,12 @@ export function createHarness(options: { seed?: string; state?: Record<string, n
   return harness
 }
 
+
+/** True while every bone sits at the identity, i.e. the figure is in its bind pose (no idle sway, no gesture). */
+export function isBindPose(harness: Harness): boolean {
+  const bones = harness.matrix('u_bones')
+  for (let index = 0; index < bones.length; index += 1) {
+    if (Math.abs(bones[index]! - (index % 16 % 5 === 0 ? 1 : 0)) > 1e-4) return false
+  }
+  return true
+}

@@ -2,40 +2,19 @@ import { describe, expect, it } from 'vitest'
 import {
   CINEMA2_HUMN_DROP_GESTURES,
   CINEMA2_HUMN_DROP_GESTURE_TIMINGS,
-  CINEMA2_HUMN_HEAD_CRITICAL_POINTS,
-  CINEMA2_HUMN_LUNGE_PEAK_GAIN,
   CINEMA2_HUMN_STRUCTURAL_TIMINGS,
   Cinema2HumNPerformanceRuntime,
   cinema2HumNAutoDropStrength,
   cinema2HumNEnvelope,
-  cinema2HumNForwardPosePoint,
-  cinema2HumNLungeScale,
-  cinema2HumNLungeScaleCap,
-  cinema2HumNProjectFigurePoint,
   cinema2HumNStructuralAmplitude,
-  resolveCinema2HumNGestureUniforms,
-  resolveCinema2HumNReachGeometry,
   selectCinema2HumNDropGesture,
   selectCinema2HumNStructuralVariant,
   type Cinema2HumNDirectorContext,
   type Cinema2HumNDropGesture,
   type Cinema2HumNPerformancePose,
 } from '../modules/humn/Cinema2HumNPerformance'
-import { resolveCinema2HumNFigureScale } from '../modules/Cinema2HumNNativeModule'
-
-const VIEWPORTS = [
-  { name: 'landscape', width: 1600, height: 900 },
-  { name: 'square', width: 1024, height: 1024 },
-  { name: 'portrait', width: 900, height: 1200 },
-  { name: 'ultrawide', width: 2560, height: 1080 },
-] as const
 
 const BEAT = 0.5
-
-const view = (viewport: typeof VIEWPORTS[number], motion = 0) => ({
-  aspect: viewport.width / viewport.height,
-  figureScale: resolveCinema2HumNFigureScale(1, viewport.width, viewport.height, motion),
-})
 
 const context = (overrides: Partial<Cinema2HumNDirectorContext>): Cinema2HumNDirectorContext => ({
   phase: 'steady', intensity: 0.5, momentum: 0.5, build: 0, impact: 0.5, variation: 0.2, sectionType: null, ...overrides,
@@ -277,80 +256,5 @@ describe('Cinema2HumNPerformanceRuntime', () => {
     runtime.trigger({ eventId: 'center', kind: 'section', variant: 'center', strength: 1, startSec: 10 + BEAT * 0.4, beatSec: BEAT }, 10 + BEAT * 0.4)
     const centered = runtime.evaluate(10 + BEAT * 0.8, { gestureIntensity: 1, motionAmount: 1 }).lookYaw
     expect(Math.abs(centered)).toBeLessThan(Math.abs(free))
-  })
-})
-
-describe('reach, lunge and pose geometry', () => {
-  it('Reach draws a foreground hand of roughly 30-40% of frame width at full authority, never the whole canvas', () => {
-    for (const viewport of VIEWPORTS) {
-      const geometry = resolveCinema2HumNReachGeometry(1, view(viewport))
-      expect(geometry.frameWidthShare, viewport.name).toBeGreaterThanOrEqual(0.3)
-      expect(geometry.frameWidthShare, viewport.name).toBeLessThanOrEqual(0.4)
-      expect(resolveCinema2HumNReachGeometry(0.5, view(viewport)).frameWidthShare, viewport.name).toBeLessThan(geometry.frameWidthShare)
-      expect(resolveCinema2HumNReachGeometry(0, view(viewport)).handScale, viewport.name).toBe(0)
-    }
-  })
-
-  it('Reach hand stays connected to the figure shoulder through a forearm and remains inside the frame', () => {
-    for (const viewport of VIEWPORTS) {
-      const geometry = resolveCinema2HumNReachGeometry(1, view(viewport))
-      const halfWidth = view(viewport).aspect / 1.14 + 0.001
-      expect(Math.abs(geometry.handX), viewport.name).toBeLessThan(halfWidth * 1.05)
-      const shoulderToWrist = Math.hypot(geometry.wristX - geometry.shoulderX, geometry.wristY - geometry.shoulderY)
-      expect(shoulderToWrist, viewport.name).toBeGreaterThan(0)
-      expect(Number.isFinite(geometry.elbowX + geometry.elbowY)).toBe(true)
-    }
-  })
-
-  it('Lunge peaks ~20-35% above the resolved figure scale in landscape and never leaves the head outside the frame', () => {
-    const landscape = cinema2HumNLungeScale(1, view(VIEWPORTS[0]))
-    expect(landscape).toBeGreaterThanOrEqual(1.2)
-    expect(landscape).toBeLessThanOrEqual(1 + CINEMA2_HUMN_LUNGE_PEAK_GAIN + 1e-9)
-    for (const viewport of VIEWPORTS) {
-      const geometry = view(viewport)
-      const scale = cinema2HumNLungeScale(1, geometry)
-      expect(scale, viewport.name).toBeGreaterThanOrEqual(1)
-      expect(cinema2HumNLungeScale(0, geometry), viewport.name).toBe(1)
-      expect(cinema2HumNLungeScale(0.5, geometry), viewport.name).toBeLessThan(scale + 1e-9)
-      const uniforms = resolveCinema2HumNGestureUniforms({ reach: 0, shock: 0, headGrab: 0, lunge: 1, lookYaw: 0, bodyTurn: 0, nod: 0 }, geometry)
-      for (const point of CINEMA2_HUMN_HEAD_CRITICAL_POINTS) {
-        const projected = cinema2HumNProjectFigurePoint(cinema2HumNForwardPosePoint(point, uniforms), geometry)
-        expect(Math.abs(projected[0]), `${viewport.name} x ${point}`).toBeLessThanOrEqual(0.995)
-        expect(Math.abs(projected[1]), `${viewport.name} y ${point}`).toBeLessThanOrEqual(0.995)
-      }
-      expect(cinema2HumNLungeScaleCap(geometry), viewport.name).toBe(scale)
-    }
-  })
-
-  it('every gesture at maximum keeps the head critical points inside the frame in all four viewports', () => {
-    const poses: Cinema2HumNPerformancePose[] = [
-      { reach: 1, shock: 0, headGrab: 0, lunge: 0, lookYaw: 0, bodyTurn: 0, nod: 0 },
-      { reach: 0, shock: 1, headGrab: 0, lunge: 0, lookYaw: 0, bodyTurn: 0, nod: 0 },
-      { reach: 0, shock: 0, headGrab: 1, lunge: 0, lookYaw: 0, bodyTurn: 0, nod: 0 },
-      { reach: 0, shock: 0, headGrab: 0, lunge: 1, lookYaw: 1, bodyTurn: 1, nod: 1 },
-      { reach: 1, shock: 1, headGrab: 1, lunge: 1, lookYaw: 1, bodyTurn: 1, nod: 1 },
-    ]
-    for (const viewport of VIEWPORTS) {
-      const geometry = view(viewport, 1)
-      for (const pose of poses) {
-        const uniforms = resolveCinema2HumNGestureUniforms(pose, geometry)
-        for (const point of CINEMA2_HUMN_HEAD_CRITICAL_POINTS) {
-          const projected = cinema2HumNProjectFigurePoint(cinema2HumNForwardPosePoint(point, uniforms), geometry)
-          expect(Math.abs(projected[0]), `${viewport.name} ${JSON.stringify(pose)} x`).toBeLessThanOrEqual(0.995)
-          expect(Math.abs(projected[1]), `${viewport.name} ${JSON.stringify(pose)} y`).toBeLessThanOrEqual(0.995)
-        }
-      }
-    }
-  })
-
-  it('the neutral pose is an exact identity', () => {
-    const geometry = view(VIEWPORTS[0])
-    const uniforms = resolveCinema2HumNGestureUniforms({ reach: 0, shock: 0, headGrab: 0, lunge: 0, lookYaw: 0, bodyTurn: 0, nod: 0 }, geometry)
-    expect(uniforms.lungeScale).toBe(1)
-    for (const point of CINEMA2_HUMN_HEAD_CRITICAL_POINTS) {
-      const moved = cinema2HumNForwardPosePoint(point, uniforms)
-      expect(moved[0]).toBeCloseTo(point[0], 12)
-      expect(moved[1]).toBeCloseTo(point[1], 12)
-    }
   })
 })

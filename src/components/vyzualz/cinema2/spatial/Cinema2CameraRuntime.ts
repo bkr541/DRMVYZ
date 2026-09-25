@@ -10,6 +10,7 @@ import type {
   Cinema2ParameterId,
   Cinema2Vector3,
 } from '../contracts/Cinema2NativePresetManifest'
+import { Cinema2BeatClock, resolveCinema2EffectiveBpm } from '../modules/Cinema2BeatClock'
 import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
 import type { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import type {
@@ -130,7 +131,7 @@ export class Cinema2CameraRuntime {
   private previousHeadingDegrees: number | null = null
   private bankDegrees = 0
   /** Tempo motion (`motion.tempo`): a beat-position clock, the tempo-scaled flight clock and its smoothed rate, and the kick punch envelope. */
-  private tempoBeats = 0
+  private readonly beatClock = new Cinema2BeatClock()
   private tempoInitialized = false
   private flightTimeSec = 0
   private flightRate = 1
@@ -240,34 +241,20 @@ export class Cinema2CameraRuntime {
     const dt = Number.isFinite(frame.deltaTimeSec) ? clamp(frame.deltaTimeSec, 0, 0.25) : 0
     const referenceBpm = clamp(finite(tempo.referenceBpm, 120), 40, 240)
     const syncControl = readToggleControl(camera.controls, 'tempoSync', this.parameters)
-    const bpm = resolveTempoBpm(frame)
+    const bpm = resolveCinema2EffectiveBpm(frame)
     const locked = syncControl && bpm != null
-    const paused = frame.transport ? !frame.transport.animationActive || frame.transport.paused : false
+    // The beat position is the shared beat clock: it follows the track's beat grid when locked and free-runs at the reference tempo otherwise.
+    const beats = this.beatClock.update(frame, syncControl, referenceBpm).beats
 
     if (!this.tempoInitialized) {
       this.tempoInitialized = true
       this.flightTimeSec = Math.max(0, frame.elapsedTimeSec)
-      this.tempoBeats = (Math.max(0, frame.elapsedTimeSec) * referenceBpm) / 60
     } else {
       const rateTarget = locked && tempo.flightSpeed !== false
         ? clamp(bpm! / referenceBpm, finite(tempo.minRate, 0.7), Math.max(finite(tempo.minRate, 0.7), finite(tempo.maxRate, 1.5)))
         : 1
       this.flightRate += (rateTarget - this.flightRate) * (1 - Math.exp(-dt / 0.6))
       this.flightTimeSec += dt * this.flightRate
-      if (!paused) {
-        this.tempoBeats += (dt * (locked ? bpm! : referenceBpm)) / 60
-        const index = frame.audio?.rhythm.beatIndex
-        const phase = frame.audio?.rhythm.beatPhase
-        if (locked && index?.available && typeof index.value === 'number' && Number.isFinite(index.value)) {
-          const measured = index.value + (phase?.available && typeof phase.value === 'number' && Number.isFinite(phase.value) ? clamp(phase.value, 0, 0.999) : 0)
-          // Align to the grid modulo two bars (the sway's period) and only ever ease toward it: a seek or track change slides the sway into place
-          // (a beat or two of extra speed for about a second) instead of snapping it, so the camera never cuts.
-          const period = 8
-          const delta = ((((measured - this.tempoBeats) % period) + period + period / 2) % period) - period / 2
-          const maxSlide = 1.5 * dt // beats: a slide, never a whip
-          this.tempoBeats += clamp(delta * (1 - Math.exp(-dt / 0.4)), -maxSlide, maxSlide)
-        }
-      }
     }
 
     this.punchEnvelope *= Math.exp(-dt / 0.22)
@@ -276,7 +263,7 @@ export class Cinema2CameraRuntime {
       this.lastKickId = kick.id
       this.punchEnvelope = Math.max(this.punchEnvelope, clamp(finite(kick.strength, 0), 0, 1))
     }
-    return { beats: this.tempoBeats, locked }
+    return { beats, locked }
   }
 
   private resetMotionState(): void {
@@ -920,14 +907,6 @@ function readToggleControl(
 }
 
 /** The track's tempo (analysed, else the host transport's), or null when there is none. */
-function resolveTempoBpm(frame: Readonly<Cinema2ModuleFrameReadContext>): number | null {
-  const analysed = frame.audio?.rhythm.bpm
-  const valid = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 20 && value <= 400
-  if (analysed?.available && valid(analysed.value)) return analysed.value
-  const transport = frame.transport?.bpm
-  return valid(transport) ? transport : null
-}
-
 /**
  * Beat-locked sway on top of the drift: side-to-side weave and roll rock over two bars (8 beats), a vertical bob every beat, FOV breathing
  * every bar and a quick FOV punch on each kick. All of it scales with the Camera Motion amount.

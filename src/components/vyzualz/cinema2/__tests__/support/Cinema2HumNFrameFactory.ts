@@ -37,6 +37,13 @@ export interface HumFrameInput {
   sectionEndSec?: number
   /** Analyzed tempo; defaults to HUM_BPM (120). */
   bpm?: number
+  /** Detected key ("C", "F#", "A minor" ...) and mode; Auto Color reads them. */
+  key?: string | null
+  mode?: 'major' | 'minor' | null
+  chord?: string | null
+  chordChanged?: boolean
+  /** 0..1 brightness of the sound. */
+  centroid?: number
 }
 
 export const HUM_BPM = 120 // 0.5s per beat
@@ -45,7 +52,10 @@ export function humMusicFrame(input: HumFrameInput): MusicIntelligenceFrame {
   const live = input.live ?? true
   const structural = input.structural ?? true
   const rhythm = input.rhythm ?? true
-  const beatIndex = Math.floor(input.timeSec * 2)
+  // The beat grid follows the analysed tempo, so a locked clock and the grid agree.
+  const beatsPerSecond = (input.bpm ?? HUM_BPM) / 60
+  const beatPosition = input.timeSec * beatsPerSecond
+  const beatIndex = Math.floor(beatPosition)
   return {
     ...DEFAULT_MI_FRAME,
     frameId: input.frameId,
@@ -64,7 +74,7 @@ export function humMusicFrame(input: HumFrameInput): MusicIntelligenceFrame {
       bpmConfidence: 0.96,
       bpmSource: 'offline_analysis',
       beatIndex,
-      beatPhase: 0,
+      beatPhase: beatPosition - beatIndex,
       beatInBar: beatIndex % 4,
       barIndex: Math.floor(beatIndex / 4),
       beatHit: Boolean(input.beat),
@@ -77,8 +87,17 @@ export function humMusicFrame(input: HumFrameInput): MusicIntelligenceFrame {
       transient: 0.2,
       transientConfidence: 0.96,
     },
+    harmonic: {
+      ...DEFAULT_MI_FRAME.harmonic,
+      key: input.key ?? null,
+      mode: input.mode ?? null,
+      keyConfidence: input.key ? 0.9 : 0,
+      chord: input.chord ?? null,
+      chordChanged: input.chordChanged ?? false,
+    },
     energy: {
       ...DEFAULT_MI_FRAME.energy,
+      spectralCentroid: input.centroid ?? DEFAULT_MI_FRAME.energy.spectralCentroid,
       instant: input.energy ?? 0.5,
       rms: input.energy ?? 0.5,
       complexity: input.complexity ?? 0.5,

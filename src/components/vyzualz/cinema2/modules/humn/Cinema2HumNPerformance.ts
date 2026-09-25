@@ -1,22 +1,17 @@
 /**
  * HUM:N structural performance vocabulary: drop gestures, phrase/section body
- * language, deterministic selection, authority math and pose/geometry
- * resolution. Pure TypeScript with no GL access so every rule is unit-testable.
+ * language, deterministic selection, authority math and the pose timeline. Pure
+ * TypeScript with no GL access so every rule is unit-testable. The pose it
+ * produces is turned into bone rotations by Cinema2HumNRig.
  *
  * Ownership boundaries:
  * - Events arrive from shared Choreography (drop / phrase / section-change).
  * - Selection is a pure function of a module/event random draw plus (only when
  *   Auto Performance is on) shared Visual Director context.
- * - Amplitude is always bounded by live user ceilings (Gesture Intensity,
- *   Motion Amount); nothing here is ever written into parameter state.
+ * - Amplitude is always bounded by live ceilings (the gesture ceiling the
+ *   module derives from Master Intensity and Auto Performance, and Motion
+ *   Amount); nothing here is ever written into parameter state.
  */
-
-import {
-  CINEMA2_HUMN_ARM_ANCHORS,
-  CINEMA2_HUMN_HAND_UNIT_BOUNDS,
-  CINEMA2_HUMN_HAND_UNIT_WIDTH,
-  CINEMA2_HUMN_HAND_UNIT_WRIST,
-} from './Cinema2HumNLimbTopology'
 
 // ── Vocabulary ──────────────────────────────────────────────────────────────
 
@@ -57,17 +52,9 @@ export const CINEMA2_HUMN_STRUCTURAL_AUTHORITY = Object.freeze({
   section: Object.freeze({ gesture: 0.6, motion: 0.7 }),
 })
 
-/** Peak forward-lunge figure-domain scale gain at full authority (approx 20-35% band, top of it). */
-export const CINEMA2_HUMN_LUNGE_PEAK_GAIN = 0.35
-/** Reach foreground hand share of frame width at full authority (approx 30-40%). */
-export const CINEMA2_HUMN_REACH_PEAK_FRAME_WIDTH = 0.35
-export const CINEMA2_HUMN_LUNGE_PIVOT = Object.freeze({ x: 0, y: 0.7 })
-
 const MAX_ACTIVE_MOVES = 4
 const MAX_REMEMBERED_EVENTS = 64
 const RETRIGGER_RELEASE_BEATS = 0.5
-
-const COMPOSITION_ANCHOR = Object.freeze({ x: 0, y: 0.0266565 })
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
@@ -206,7 +193,7 @@ export function cinema2HumNDirectionFromUnit(unit: number): 1 | -1 {
 // ── Authority ───────────────────────────────────────────────────────────────
 
 export interface Cinema2HumNCeilings {
-  /** Resolved Gesture Intensity (user base, possibly scaled down by Auto Performance). */
+  /** Gesture ceiling: 0 with Auto Performance off, otherwise scaled by Master Intensity. */
   readonly gestureIntensity: number
   /** Resolved Motion Amount. */
   readonly motionAmount: number
@@ -377,188 +364,4 @@ export class Cinema2HumNPerformanceRuntime {
     pose.bodyTurn = clamp(pose.bodyTurn * (1 - 0.85 * centerDamp), -1, 1)
     return pose
   }
-}
-
-// ── Pose -> shader uniforms ─────────────────────────────────────────────────
-
-export interface Cinema2HumNViewGeometry {
-  aspect: number
-  /** Resolved (safe-capped) figure scale, i.e. what u_figureScale already is. */
-  figureScale: number
-}
-
-export function cinema2HumNPortraitScale(aspect: number): number {
-  return 1.02 + (1.14 - 1.02) * smoothstep(1.1, 1.9, aspect)
-}
-
-/** Screen-space (normalized, y up) position of a figure-local point under idle framing. */
-export function cinema2HumNProjectFigurePoint(
-  point: readonly [number, number],
-  view: Cinema2HumNViewGeometry,
-): readonly [number, number] {
-  const portraitScale = cinema2HumNPortraitScale(view.aspect)
-  const x = COMPOSITION_ANCHOR.x + view.figureScale * (point[0] - COMPOSITION_ANCHOR.x)
-  const y = COMPOSITION_ANCHOR.y + view.figureScale * (point[1] - COMPOSITION_ANCHOR.y)
-  return [(portraitScale * x) / view.aspect, portraitScale * (y - 0.012)]
-}
-
-/** Head critical points that must stay inside the frame at every gesture peak. */
-export const CINEMA2_HUMN_HEAD_CRITICAL_POINTS: readonly (readonly [number, number])[] = Object.freeze([
-  Object.freeze([-0.04, 0.826] as const), // crown
-  Object.freeze([-0.43, 0.30] as const), // left temple
-  Object.freeze([0.35, 0.30] as const), // right temple
-  Object.freeze([-0.34, 0.62] as const), // upper-left brow
-])
-
-const SAFE_SCREEN_LIMIT = 0.985
-
-function lungePoint(point: readonly [number, number], scale: number): readonly [number, number] {
-  const pivot = CINEMA2_HUMN_LUNGE_PIVOT
-  return [pivot.x + (point[0] - pivot.x) * scale, pivot.y + (point[1] - pivot.y) * scale]
-}
-
-/**
- * The largest lunge scale (up to the peak gain) that keeps the head's critical
- * points inside the frame for this viewport. Never below 1.
- */
-export function cinema2HumNLungeScaleCap(view: Cinema2HumNViewGeometry): number {
-  const peak = 1 + CINEMA2_HUMN_LUNGE_PEAK_GAIN
-  let scale = peak
-  for (let iteration = 0; iteration < 24; iteration++) {
-    const inside = CINEMA2_HUMN_HEAD_CRITICAL_POINTS.every(point => {
-      const projected = cinema2HumNProjectFigurePoint(lungePoint(point, scale), view)
-      return Math.abs(projected[0]) <= SAFE_SCREEN_LIMIT && Math.abs(projected[1]) <= SAFE_SCREEN_LIMIT
-    })
-    if (inside) return scale
-    scale = 1 + (scale - 1) * 0.9
-  }
-  return 1
-}
-
-export function cinema2HumNLungeScale(weight: number, view: Cinema2HumNViewGeometry): number {
-  return 1 + (cinema2HumNLungeScaleCap(view) - 1) * clamp01(weight)
-}
-
-export interface Cinema2HumNReachGeometry {
-  readonly weight: number
-  /** Hand origin (palm centre) in pre-figure-scale screen space (p0). */
-  readonly handX: number
-  readonly handY: number
-  readonly handScale: number
-  readonly handAngle: number
-  readonly shoulderX: number
-  readonly shoulderY: number
-  readonly elbowX: number
-  readonly elbowY: number
-  readonly wristX: number
-  readonly wristY: number
-  /** Hand width as a share of the visible frame width. */
-  readonly frameWidthShare: number
-}
-
-/**
- * Reach is a foreground projection: the hand is sized against the visible
- * frame (about 30-40% of its width at full authority, capped by frame height)
- * and connected back to the figure's own shoulder by a tapering forearm. The
- * figure itself and the background grid are untouched.
- */
-export function resolveCinema2HumNReachGeometry(weight: number, view: Cinema2HumNViewGeometry): Cinema2HumNReachGeometry {
-  const w = clamp01(weight)
-  const portraitScale = cinema2HumNPortraitScale(view.aspect)
-  const halfWidth = view.aspect / portraitScale
-  const frameWidth = 2 * halfWidth
-  const frameHeight = 2 / portraitScale
-  const unitHeight = CINEMA2_HUMN_HAND_UNIT_BOUNDS.maxY - CINEMA2_HUMN_HAND_UNIT_BOUNDS.minY
-  const desiredWidth = CINEMA2_HUMN_REACH_PEAK_FRAME_WIDTH * frameWidth * Math.pow(w, 0.75)
-  const heightLimitedWidth = (0.85 * frameHeight) * (CINEMA2_HUMN_HAND_UNIT_WIDTH / unitHeight)
-  const width = Math.min(desiredWidth, heightLimitedWidth)
-  const scale = width / CINEMA2_HUMN_HAND_UNIT_WIDTH
-  const angle = 0.18
-
-  const boundsCenterX = (CINEMA2_HUMN_HAND_UNIT_BOUNDS.minX + CINEMA2_HUMN_HAND_UNIT_BOUNDS.maxX) / 2
-  const boundsCenterY = (CINEMA2_HUMN_HAND_UNIT_BOUNDS.minY + CINEMA2_HUMN_HAND_UNIT_BOUNDS.maxY) / 2
-  const targetCenterX = halfWidth - width / 2 - 0.075 * frameWidth
-  const targetCenterY = -0.2
-  const restX = targetCenterX - boundsCenterX * scale
-  const restY = targetCenterY - boundsCenterY * scale
-
-  const shoulderFigure = CINEMA2_HUMN_ARM_ANCHORS.rightShoulder
-  const shoulderX = COMPOSITION_ANCHOR.x + view.figureScale * (shoulderFigure[0] - COMPOSITION_ANCHOR.x)
-  const shoulderY = COMPOSITION_ANCHOR.y + view.figureScale * (shoulderFigure[1] - COMPOSITION_ANCHOR.y)
-
-  // The hand emerges from the shoulder and settles into place over the first part of the gesture.
-  const settle = 1 - Math.pow(1 - clamp01(w * 1.6), 2)
-  const handX = shoulderX + (restX - shoulderX) * settle
-  const handY = shoulderY + (restY - shoulderY) * settle
-
-  const cos = Math.cos(angle)
-  const sin = Math.sin(angle)
-  const wristX = handX + (cos * CINEMA2_HUMN_HAND_UNIT_WRIST[0] - sin * CINEMA2_HUMN_HAND_UNIT_WRIST[1]) * scale
-  const wristY = handY + (sin * CINEMA2_HUMN_HAND_UNIT_WRIST[0] + cos * CINEMA2_HUMN_HAND_UNIT_WRIST[1]) * scale
-
-  // Elbow bows outward/down from the straight shoulder-wrist line so the arm reads as bent.
-  const dx = wristX - shoulderX
-  const dy = wristY - shoulderY
-  const length = Math.hypot(dx, dy) || 1
-  const elbowX = shoulderX + dx * 0.5 + (dy / length) * 0.2 * length
-  const elbowY = shoulderY + dy * 0.5 - (dx / length) * 0.2 * length
-
-  return Object.freeze({
-    weight: w,
-    handX, handY, handScale: scale, handAngle: angle,
-    shoulderX, shoulderY, elbowX, elbowY, wristX, wristY,
-    frameWidthShare: width / frameWidth,
-  })
-}
-
-export interface Cinema2HumNGestureUniforms {
-  readonly reach: Cinema2HumNReachGeometry
-  readonly shock: number
-  readonly headGrab: number
-  readonly lungeWeight: number
-  readonly lungeScale: number
-  readonly lookYaw: number
-  readonly bodyTurn: number
-  readonly nod: number
-}
-
-export function resolveCinema2HumNGestureUniforms(
-  pose: Readonly<Cinema2HumNPerformancePose>,
-  view: Cinema2HumNViewGeometry,
-): Cinema2HumNGestureUniforms {
-  return Object.freeze({
-    reach: resolveCinema2HumNReachGeometry(pose.reach, view),
-    shock: clamp01(pose.shock),
-    headGrab: clamp01(pose.headGrab),
-    lungeWeight: clamp01(pose.lunge),
-    lungeScale: cinema2HumNLungeScale(pose.lunge, view),
-    lookYaw: clamp(pose.lookYaw, -1, 1),
-    bodyTurn: clamp(pose.bodyTurn, -1, 1),
-    nod: clamp01(pose.nod),
-  })
-}
-
-/**
- * Forward (figure-local) pose used for safe-bound checks; the native shader
- * applies the inverse of exactly these steps when sampling. Head-only offsets
- * are deliberately tiny (<= 0.05 units) so they can never move the head out of
- * the approved frame on their own.
- */
-export function cinema2HumNForwardPosePoint(
-  point: readonly [number, number],
-  uniforms: Readonly<Cinema2HumNGestureUniforms>,
-): readonly [number, number] {
-  let [x, y] = lungePoint(point, uniforms.lungeScale)
-  const headWeight = smoothstep(-0.22, 0.05, y)
-  const shockHead = uniforms.shock * headWeight
-  x = -0.04 + (x + 0.04) * (1 - 0.07 * shockHead)
-  y = 0.35 + (y - 0.35) * (1 - 0.07 * shockHead) + 0.03 * shockHead
-  y -= 0.03 * uniforms.headGrab * headWeight
-  const tilt = 0.09 * uniforms.headGrab * headWeight
-  const px = x + 0.04
-  const py = y - 0.1
-  x = -0.04 + px * Math.cos(tilt) - py * Math.sin(tilt)
-  y = 0.1 + px * Math.sin(tilt) + py * Math.cos(tilt)
-  x += 0.05 * uniforms.lookYaw * headWeight
-  return [x, y]
 }
