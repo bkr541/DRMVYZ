@@ -22,6 +22,7 @@ import type {
 } from './Cinema2EffectContracts'
 import type { Cinema2EffectRegistry } from './Cinema2EffectRegistry'
 import type { Cinema2HistoryService } from '../runtime/Cinema2HistoryService'
+import type { Cinema2ShadowFrame } from '../runtime/Cinema2ShadowService'
 import type { Cinema2AssetTextureService } from '../assets/Cinema2AssetTextureService'
 
 export interface Cinema2EffectExecutionContext {
@@ -33,6 +34,7 @@ export interface Cinema2EffectExecutionContext {
   height: number
   camera?: Readonly<Cinema2CameraFrame>
   lightingEnvironment?: Readonly<Cinema2LightingEnvironmentFrame>
+  shadow?: Readonly<Cinema2ShadowFrame>
 }
 
 export type Cinema2EffectExecutionResult = 'applied' | 'bypassed'

@@ -211,3 +211,61 @@ describe('Cinema 2.0 volumetric floor integration', () => {
     expect(compiled.plan.render.passes.find(pass => pass.effect?.id === FINISH)?.id).toBe(compiled.plan.render.outputPassId)
   })
 })
+
+describe('Cinema 2.0 shadow map consumers', () => {
+  const shadow = {
+    lightId: 'l',
+    texture: { id: 'shadow-map' } as unknown as WebGLTexture,
+    viewProjection: new Float32Array(16),
+    resolution: 1024,
+    depthRange: 100,
+    bias: 0.5,
+    softness: 2,
+    texelWorldSize: 0.1,
+  }
+
+  function lastVec4(gl: ReturnType<typeof createCinemaMockWebGL>, name: string): number[] | undefined {
+    const calls = (gl.uniform4f as ReturnType<typeof vi.fn>).mock.calls.filter((call: unknown[]) => (call[0] as { name?: string } | null)?.name === name)
+    return calls[calls.length - 1]?.slice(1) as number[] | undefined
+  }
+
+  it('volumetric atmosphere maps the shadow-casting light into its packed arrays and passes bias, filter and strength', () => {
+    const lit = createEffectRuntime('high')
+    lit.runtime.execute(VOLUMETRIC, { ...context({ depth: true, camera: true }), shadow } as ExecutionContext)
+    expect(lastUniform(lit.gl, 'uniform1i', 'u_shadowIndex')).toBe(0)
+    expect(lastVec4(lit.gl, 'u_shadowParams')).toEqual([0.005, 2 / 1024, 1, 1])
+    lit.runtime.dispose()
+
+    // No shadow map this frame (low tier, no caster): the sampler stays inert.
+    const none = createEffectRuntime('high')
+    none.runtime.execute(VOLUMETRIC, context({ depth: true, camera: true }))
+    expect(lastUniform(none.gl, 'uniform1i', 'u_shadowIndex')).toBe(-1)
+    none.runtime.dispose()
+
+    // A map for some other light does not shadow this one.
+    const other = createEffectRuntime('high')
+    other.runtime.execute(VOLUMETRIC, { ...context({ depth: true, camera: true }), shadow: { ...shadow, lightId: 'someone-else' } } as ExecutionContext)
+    expect(lastUniform(other.gl, 'uniform1i', 'u_shadowIndex')).toBe(-1)
+    other.runtime.dispose()
+  })
+
+  it('reflective floor occludes its shadow-casting light pool and honours shadowStrength 0', () => {
+    const lit = createEffectRuntime('high')
+    lit.runtime.execute(FLOOR, { ...context({ depth: true, camera: true }), shadow } as ExecutionContext)
+    expect(lastUniform(lit.gl, 'uniform1i', 'u_shadowIndex')).toBe(0)
+    expect(lastVec4(lit.gl, 'u_shadowParams')?.[2]).toBe(1)
+    lit.runtime.dispose()
+
+    const manifest = {
+      ...CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST,
+      effects: CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST.effects!.map(effect => effect.id === FLOOR ? { ...effect, parameters: { ...effect.parameters, shadowStrength: 0 } } : effect),
+    } as Cinema2NativePresetManifest
+    const off = createEffectRuntime('high', manifest)
+    off.runtime.execute(FLOOR, { ...context({ depth: true, camera: true }), shadow } as ExecutionContext)
+    expect(lastUniform(off.gl, 'uniform1i', 'u_shadowIndex')).toBe(-1)
+    off.runtime.dispose()
+
+    const bad = { ...effectManifest(FLOOR), parameters: { mix: 1, shadowStrength: 2 } }
+    expect(cinema2ReflectiveFloorEffectDefinition.validate!(bad).map(diagnostic => diagnostic.path)).toEqual(['$.parameters.shadowStrength'])
+  })
+})

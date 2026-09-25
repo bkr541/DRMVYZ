@@ -10,6 +10,14 @@ import {
 import { assertCinema2NoGlErrors } from '../runtime/Cinema2GpuValidation'
 import type { Cinema2AssetTextureService, Cinema2TextureHandle } from '../assets/Cinema2AssetTextureService'
 import { cinema2TextureAssetRegistry } from '../assets/Cinema2TextureAssetManifest'
+import {
+  CINEMA2_SHADOW_GLSL_FUNCTIONS,
+  CINEMA2_SHADOW_GLSL_UNIFORMS,
+  CINEMA2_SHADOW_UNIFORM_NAMES,
+  CINEMA2_SHADOW_UNIT,
+  createCinema2ShadowFallbackTexture,
+  uploadCinema2ShadowUniforms,
+} from './Cinema2ShadowSampling'
 import type {
   Cinema2EffectCreateContext,
   Cinema2EffectDiagnostic,
@@ -43,7 +51,8 @@ import {
  * reflections and dark cracks from world-anchored noise, at `gritScale` world units per patch. Optional `surfaceTexture` names a shipped texture
  * (layout `surface-normal-crack-roughness`, see the texture registry) that replaces the procedural ripples with a real normal map, crack mask and
  * roughness map, tiled every `surfaceTextureScale` world units and blended in by `surfaceTextureStrength`; it fades in once loaded, and a missing or
- * failed texture leaves the procedural look untouched. It needs the scene depth; without a depth input, or without a world camera, the effect passes
+ * failed texture leaves the procedural look untouched. The shadow-casting light (`config.castShadow`, roadmap #10) is occluded in its floor
+ * pool and specular by the engine shadow map, scaled by `shadowStrength` (0-1, default 1). It needs the scene depth; without a depth input, or without a world camera, the effect passes
  * the image through unchanged.
  *
  * Screen-space limits, by design: only what is visible on screen can be reflected, reflections fade out
@@ -105,7 +114,9 @@ uniform vec4 u_lightPos[${MAX_LIGHTS}];
 uniform vec4 u_lightDir[${MAX_LIGHTS}];
 uniform vec4 u_lightCol[${MAX_LIGHTS}];
 uniform float u_lightInner[${MAX_LIGHTS}];
+${CINEMA2_SHADOW_GLSL_UNIFORMS}
 out vec4 outColor;
+${CINEMA2_SHADOW_GLSL_FUNCTIONS}
 
 float hash21(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -207,6 +218,8 @@ void floorLighting(vec3 point, vec3 viewDir, out vec3 diffuse, out vec3 specular
       attenuation = (1.0 / (1.0 + 4.0 * x * x)) * clamp(1.0 - x * x * x * x, 0.0, 1.0);
       if (kind == 3) attenuation *= smoothstep(u_lightDir[i].w, u_lightInner[i], dot(-toLight, u_lightDir[i].xyz));
     }
+    // The shadow-casting light is occluded by the engine shadow map (towers, slabs, ...).
+    if (i == u_shadowIndex) attenuation *= shadowVisibility(point);
     float lambert = max(toLight.y, 0.0);
     diffuse += color.rgb * attenuation * lambert;
     vec3 halfway = normalize(toLight + viewDir);
@@ -309,6 +322,7 @@ const NUMERIC: readonly Cinema2EffectNumericRange[] = Object.freeze([
   ['baseLift', 0.1, 20],
   ['surfaceTextureScale', 0.5, 60],
   ['surfaceTextureStrength', 0, 1],
+  ['shadowStrength', 0, 1],
 ])
 
 /** Seconds a freshly loaded surface texture takes to fade in, so it does not pop. */
@@ -325,6 +339,7 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
   private textureHandle: Cinema2TextureHandle | null = null
   private textureQuality: Cinema2RenderQualityLevel | null = null
   private textureReadySinceSec: number | null = null
+  private readonly fallbackShadowTexture: WebGLTexture | null
 
   constructor(
     private readonly gl: WebGL2RenderingContext,
@@ -340,13 +355,14 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
       requiredUniforms: ['u_source', 'u_mix'],
       optionalUniforms: [
         'u_depth', 'u_time', 'u_enabled', 'u_viewProj', 'u_invViewProj', 'u_floorY', 'u_baseColor', 'u_albedo', 'u_reflectivity',
-        'u_roughness', 'u_fresnel', 'u_fadeDistance', 'u_skyColor', 'u_pool', 'u_specular', 'u_maxReflection', 'u_thickness', 'u_grit', 'u_gritScale', 'u_baseLift', 'u_surfaceTex', 'u_surface', 'u_surfaceScale',
+        'u_roughness', 'u_fresnel', 'u_fadeDistance', 'u_skyColor', 'u_pool', 'u_specular', 'u_maxReflection', 'u_thickness', 'u_grit', 'u_gritScale', 'u_baseLift', 'u_surfaceTex', 'u_surface', 'u_surfaceScale', ...CINEMA2_SHADOW_UNIFORM_NAMES,
         'u_steps', 'u_blurTaps', 'u_ambient', 'u_lightCount', 'u_lightPos[0]', 'u_lightDir[0]', 'u_lightCol[0]', 'u_lightInner[0]',
       ],
     })
     if (!result.program) throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
     this.program = result.program
     this.pass = new FullscreenPass(gl)
+    this.fallbackShadowTexture = createCinema2ShadowFallbackTexture(gl)
   }
 
   render(context: Readonly<Cinema2EffectRenderExecutionContext>): void {
@@ -359,7 +375,8 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
     const depthInput = context.inputs.find(input => input.attachment === 'depth') ?? null
     // The floor is only meaningful when it can be depth-tested against the scene and viewed from a world camera.
     const active = camera != null && inverse != null && depthInput != null
-    const lights = packCinema2VolumetricLights(context.lightingEnvironment?.lights ?? [])
+    const shadow = context.shadow ?? null
+    const lights = packCinema2VolumetricLights(context.lightingEnvironment?.lights ?? [], shadow?.lightId ?? null)
     const base = readEffectColor(p.baseColor, DEFAULT_BASE_COLOR)
     const sky = readEffectColor(p.skyColor, DEFAULT_SKY_COLOR)
 
@@ -401,12 +418,14 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
     setEffectUniformArray(gl, program, 'u_lightDir[0]', lights.direction, 4)
     setEffectUniformArray(gl, program, 'u_lightCol[0]', lights.color, 4)
     setEffectUniformArray(gl, program, 'u_lightInner[0]', lights.inner, 1)
+    uploadCinema2ShadowUniforms(program, shadow, lights.shadowIndex, clamp(number(p, 'shadowStrength', 1), 0, 1))
     this.pass.run(program, context.target, context.width, context.height, [
       { unit: 0, texture: context.input.texture, uniformName: 'u_source' },
       // Without a depth input unit 1 re-binds the color texture; u_enabled keeps the shader from using it.
       { unit: 1, texture: depthInput?.texture ?? context.input.texture, uniformName: 'u_depth' },
       // Unit 2 falls back to the colour texture while the surface texture is absent; u_surface = 0 keeps the shader from sampling it.
       { unit: 2, texture: surface > 0 ? this.textureHandle!.texture! : context.input.texture, uniformName: 'u_surfaceTex' },
+      ...((shadow?.texture ?? this.fallbackShadowTexture) ? [{ unit: CINEMA2_SHADOW_UNIT, texture: (shadow?.texture ?? this.fallbackShadowTexture)!, uniformName: 'u_shadowMap' }] : []),
     ])
     assertCinema2NoGlErrors(gl, 'Reflective floor draw')
   }
@@ -432,6 +451,7 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
     this.disposed = true
     this.textureHandle?.release()
     this.textureHandle = null
+    if (this.fallbackShadowTexture) this.gl.deleteTexture(this.fallbackShadowTexture)
     this.pass.dispose()
     this.program.dispose()
   }

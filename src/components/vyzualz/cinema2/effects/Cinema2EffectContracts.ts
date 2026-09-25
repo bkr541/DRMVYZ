@@ -10,6 +10,7 @@ import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleCont
 import type { Cinema2CameraFrame } from '../spatial/Cinema2CameraRuntime'
 import type { Cinema2LightingEnvironmentFrame } from '../spatial/Cinema2LightingEnvironmentRuntime'
 import type { Cinema2HistoryService } from '../runtime/Cinema2HistoryService'
+import type { Cinema2ShadowFrame } from '../runtime/Cinema2ShadowService'
 import type { Cinema2AssetTextureService } from '../assets/Cinema2AssetTextureService'
 
 export interface Cinema2EffectDiagnostic {
@@ -43,6 +44,8 @@ export interface Cinema2EffectRenderExecutionContext {
   camera?: Readonly<Cinema2CameraFrame>
   /** Shared lights/environment for this frame. Effects that do not light the scene ignore it. */
   lightingEnvironment?: Readonly<Cinema2LightingEnvironmentFrame>
+  /** The frame's shadow map for the shadow-casting light, when the preset has one and this tier renders it. Effects that ignore occlusion ignore it. */
+  shadow?: Readonly<Cinema2ShadowFrame>
 }
 
 export interface Cinema2EffectCreateContext {

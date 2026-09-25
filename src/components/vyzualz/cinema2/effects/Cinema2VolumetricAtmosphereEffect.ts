@@ -11,6 +11,15 @@ import {
 import type { Cinema2Matrix4 } from '../scene/Cinema2SceneGraph'
 import type { Cinema2LightingEnvironmentFrame, Cinema2ResolvedLightFrame } from '../spatial/Cinema2LightingEnvironmentRuntime'
 import { assertCinema2NoGlErrors } from '../runtime/Cinema2GpuValidation'
+import type { Cinema2ShadowFrame } from '../runtime/Cinema2ShadowService'
+import {
+  CINEMA2_SHADOW_GLSL_FUNCTIONS,
+  CINEMA2_SHADOW_GLSL_UNIFORMS,
+  CINEMA2_SHADOW_UNIFORM_NAMES,
+  CINEMA2_SHADOW_UNIT,
+  createCinema2ShadowFallbackTexture,
+  uploadCinema2ShadowUniforms,
+} from './Cinema2ShadowSampling'
 import type {
   Cinema2EffectCreateContext,
   Cinema2EffectDiagnostic,
@@ -30,8 +39,9 @@ import type {
  * `maxDistance` (unoccluded haze). Screen-space shafts from bright pixels are a
  * separate opt-in that needs neither lights nor a camera.
  *
- * Known limit: there are no shadows, so light scatters through occluders
- * between the light and the ray sample. Shadowing is roadmap item #10.
+ * Shadows: when the preset authors a shadow-casting light (`config.castShadow`) and the tier has a shadow map, that one light's scatter is
+ * multiplied by the shadow map's visibility at every ray sample, so occluders carve real shafts out of the haze (`shadowStrength` 0-1 scales
+ * it; default 1). Every other light, and quality tiers without a shadow map, still scatter unoccluded.
  */
 export const CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('volumetric-atmosphere')
 export const CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_VERSION = 1 as const
@@ -102,6 +112,7 @@ uniform float u_lightInner[${CINEMA2_VOLUMETRIC_MAX_LIGHTS}];
 uniform float u_shafts;
 uniform vec2 u_shaftOrigin;
 uniform float u_shaftLength;
+${CINEMA2_SHADOW_GLSL_UNIFORMS}
 out vec4 outColor;
 
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
@@ -119,6 +130,7 @@ float hash21(vec2 p) {
 `
 
 const MARCH_FUNCTIONS = `
+${CINEMA2_SHADOW_GLSL_FUNCTIONS}
 float hash13(vec3 p) {
   p = fract(p * 0.1031);
   p += dot(p, p.zyx + 31.32);
@@ -171,10 +183,13 @@ vec3 lightScatter(vec3 p, vec3 rayDir) {
     int kind = int(color.w + 0.5);
     vec3 toLight;
     float attenuation = 1.0;
+    float visibility = 1.0;
+    bool shadowed = i == u_shadowIndex;
+    if (shadowed) visibility = shadowVisibility(p);
     if (kind == 1) {
-      // Directional light is unshadowed, so it is held back to avoid washing the whole volume.
+      // An unshadowed directional light is held back to avoid washing the whole volume; a shadowed one is carved by its map instead.
       toLight = -u_lightDir[i].xyz;
-      attenuation = 0.35;
+      attenuation = shadowed ? 1.0 : 0.35;
     } else {
       vec3 delta = u_lightPos[i].xyz - p;
       float dist = length(delta);
@@ -186,7 +201,7 @@ vec3 lightScatter(vec3 p, vec3 rayDir) {
         attenuation *= smoothstep(u_lightDir[i].w, u_lightInner[i], cone);
       }
     }
-    total += color.rgb * attenuation * phase(dot(rayDir, toLight), u_anisotropy);
+    total += color.rgb * attenuation * visibility * phase(dot(rayDir, toLight), u_anisotropy);
   }
   return total;
 }
@@ -346,6 +361,7 @@ const NUMERIC_PARAMETERS: readonly (readonly [name: string, min: number, max: nu
   ['noiseStrength', 0, 1],
   ['drift', 0, 4],
   ['maxDistance', 1, 200],
+  ['shadowStrength', 0, 1],
   ['shafts', 0, 1],
   ['shaftOriginX', 0, 1],
   ['shaftOriginY', 0, 1],
@@ -430,16 +446,19 @@ export interface Cinema2VolumetricLightUniforms {
   inner: Float32Array
   /** Sum of ambient lights (rgb * intensity), used to tint the haze fill. */
   ambient: readonly [number, number, number]
+  /** Index in the packed arrays of the shadow-casting light, or -1. */
+  shadowIndex: number
 }
 
 /** Packs the shared light list into fixed-size uniform arrays. Ambient lights fold into `ambient`. */
-export function packCinema2VolumetricLights(lights: readonly Readonly<Cinema2ResolvedLightFrame>[]): Cinema2VolumetricLightUniforms {
+export function packCinema2VolumetricLights(lights: readonly Readonly<Cinema2ResolvedLightFrame>[], shadowLightId: string | null = null): Cinema2VolumetricLightUniforms {
   const position = new Float32Array(CINEMA2_VOLUMETRIC_MAX_LIGHTS * 4)
   const direction = new Float32Array(CINEMA2_VOLUMETRIC_MAX_LIGHTS * 4)
   const color = new Float32Array(CINEMA2_VOLUMETRIC_MAX_LIGHTS * 4)
   const inner = new Float32Array(CINEMA2_VOLUMETRIC_MAX_LIGHTS)
   const ambient: [number, number, number] = [0, 0, 0]
   let count = 0
+  let shadowIndex = -1
   for (const light of lights) {
     if (light.type === 'ambient') {
       ambient[0] += light.color[0] * light.intensity
@@ -460,9 +479,10 @@ export function packCinema2VolumetricLights(lights: readonly Readonly<Cinema2Res
       light.type === 'directional' ? 1 : light.type === 'point' ? 2 : 3,
     ], offset)
     inner[count] = spot ? Math.cos((spot.innerAngleDegrees * Math.PI) / 180) : 1
+    if (shadowLightId != null && light.id === shadowLightId) shadowIndex = count
     count += 1
   }
-  return { count, position, direction, color, inner, ambient }
+  return { count, position, direction, color, inner, ambient, shadowIndex }
 }
 
 function environmentHazeColor(lighting: Readonly<Cinema2LightingEnvironmentFrame> | undefined): readonly [number, number, number] {
@@ -478,7 +498,7 @@ const MARCH_UNIFORMS = [
   'u_density', 'u_beam', 'u_anisotropy', 'u_occlusion', 'u_hazeColor', 'u_ambientHaze', 'u_ambientHeight', 'u_ambient',
   'u_mistAmount', 'u_mistHeight', 'u_mistFloor', 'u_noiseScale', 'u_noiseStrength', 'u_wind', 'u_lightCount',
   'u_lightPos[0]', 'u_lightDir[0]', 'u_lightCol[0]', 'u_lightInner[0]', 'u_previous', 'u_historyBlend',
-  'u_floorEnabled', 'u_floorY', 'u_floorReflection',
+  'u_floorEnabled', 'u_floorY', 'u_floorReflection', ...CINEMA2_SHADOW_UNIFORM_NAMES,
 ] as const
 const FINISH_UNIFORMS = [
   'u_source', 'u_depth', 'u_atmosphere', 'u_mix', 'u_hasDepth', 'u_nearFar', 'u_lowResolution', 'u_occlusion',
@@ -494,6 +514,7 @@ interface AtmosphereFrameValues {
   musicalLift: number
   wind: number
   hasDepth: boolean
+  shadow: Readonly<Cinema2ShadowFrame> | null
   elapsedTimeSec: number
   /** Weight of the previous reduced-resolution march (0 = none, e.g. first frame or after a reset). */
   historyBlend: number
@@ -517,6 +538,7 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
   private marchProgram: ShaderProgram | null = null
   private compositeProgram: ShaderProgram | null = null
   private directProgram: ShaderProgram | null = null
+  private readonly fallbackShadowTexture: WebGLTexture | null
   private disposed = false
   private impactEnvelope = 0
   private driftClock = 0
@@ -529,6 +551,7 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     this.label = `Cinema2/Effect/VolumetricAtmosphere/${effect.id}`
     this.historyName = `effect.${effect.id}.volumetric-atmosphere`
     this.pass = new FullscreenPass(gl)
+    this.fallbackShadowTexture = createCinema2ShadowFallbackTexture(gl)
     // Compile eagerly so a broken shader fails effect creation instead of a later frame.
     this.compositeProgram = createProgram(gl, `${this.label}/composite`, COMPOSITE_SOURCE, FINISH_UNIFORMS)
     this.marchProgram = createProgram(gl, `${this.label}/march`, MARCH_SOURCE, MARCH_UNIFORMS)
@@ -558,12 +581,13 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     const values: AtmosphereFrameValues = {
       parameters,
       profile,
-      lights: packCinema2VolumetricLights(lighting?.lights ?? []),
+      lights: packCinema2VolumetricLights(lighting?.lights ?? [], context.shadow?.lightId ?? null),
       inverseViewProjection: inverse,
       hazeColor: readColor(parameters.hazeColor) ?? environmentHazeColor(lighting),
       musicalLift,
       wind: this.driftClock,
       hasDepth: depthInput != null,
+      shadow: context.shadow ?? null,
       elapsedTimeSec: context.frame.elapsedTimeSec,
       historyBlend: 0,
     }
@@ -576,11 +600,14 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     const lowWidth = Math.max(1, Math.round(context.width * profile.scale))
     const lowHeight = Math.max(1, Math.round(context.height * profile.scale))
     const reduced = profile.scale < 1 ? this.history.beginFrame(this.historyName, lowWidth, lowHeight) : null
-    const bindings = (extra: { unit: number; texture: WebGLTexture; uniformName: string }[] = []) => [
+    const shadowTexture = values.shadow?.texture ?? this.fallbackShadowTexture
+    const bindings = (extra: { unit: number; texture: WebGLTexture; uniformName: string }[] = [], withShadow = false) => [
       { unit: 0, texture: context.input.texture, uniformName: 'u_source' },
       // Without a depth input unit 1 just re-binds the color texture; u_hasDepth keeps the shader from sampling it.
       { unit: 1, texture: depthInput?.texture ?? context.input.texture, uniformName: 'u_depth' },
       ...extra,
+      // Only the programs that march sample the shadow map; it always points at a valid depth-comparison texture.
+      ...(withShadow && shadowTexture ? [{ unit: CINEMA2_SHADOW_UNIT, texture: shadowTexture, uniformName: 'u_shadowMap' }] : []),
     ]
 
     if (reduced && this.marchProgram && this.compositeProgram) {
@@ -595,7 +622,7 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
       this.pass.run(this.marchProgram, reduced.write.framebuffer, lowWidth, lowHeight, bindings([
         // Never bind the surface being written; without valid history the blend weight is 0 and this is a placeholder.
         { unit: 3, texture: reduced.valid ? reduced.read.colorTexture : context.input.texture, uniformName: 'u_previous' },
-      ]))
+      ], true))
       assertCinema2NoGlErrors(gl, 'Volumetric atmosphere march draw')
 
       this.compositeProgram.activate()
@@ -613,7 +640,7 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     this.directProgram.activate()
     this.setMarchUniforms(this.directProgram, values)
     this.setFinishUniforms(this.directProgram, values, context, context.width, context.height, camera)
-    this.pass.run(this.directProgram, context.target, context.width, context.height, bindings())
+    this.pass.run(this.directProgram, context.target, context.width, context.height, bindings([], true))
     assertCinema2NoGlErrors(gl, 'Volumetric atmosphere direct draw')
   }
 
@@ -652,6 +679,7 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     setFloatArray(gl, program, 'u_lightDir[0]', lights.direction, 4)
     setFloatArray(gl, program, 'u_lightCol[0]', lights.color, 4)
     setFloatArray(gl, program, 'u_lightInner[0]', lights.inner, 1)
+    uploadCinema2ShadowUniforms(program, values.shadow, lights.shadowIndex, clamp(numberValue(parameters, 'shadowStrength', 1), 0, 1))
   }
 
   private setFinishUniforms(
@@ -679,6 +707,7 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     this.disposed = true
     this.history.releaseBuffer(this.historyName)
     this.pass.dispose()
+    if (this.fallbackShadowTexture) this.gl.deleteTexture(this.fallbackShadowTexture)
     this.marchProgram?.dispose()
     this.compositeProgram?.dispose()
     this.directProgram?.dispose()

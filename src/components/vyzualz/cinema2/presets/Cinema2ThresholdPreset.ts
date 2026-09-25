@@ -12,6 +12,7 @@ import {
   type Cinema2EffectId,
   type Cinema2EffectTypeId,
   type Cinema2LayerId,
+  type Cinema2LightId,
   type Cinema2ModuleId,
   type Cinema2ModuleTypeId,
   type Cinema2NativePresetManifest,
@@ -72,6 +73,7 @@ export const CINEMA2_THRESHOLD_ACCENT_COLOR_ID = parameterId('accent-color')
 export const CINEMA2_THRESHOLD_ATMOSPHERE_COLOR_ID = parameterId('atmosphere-color')
 export const CINEMA2_THRESHOLD_VOID_COLOR_ID = parameterId('void-color')
 
+export const CINEMA2_THRESHOLD_KEY_LIGHT_ID = cinema2StableId<Cinema2LightId>('shadow-key')
 export const CINEMA2_THRESHOLD_CAMERA_ID = cinema2StableId<Cinema2CameraId>('threshold-flight')
 export const CINEMA2_THRESHOLD_FLOOR_EFFECT_ID = cinema2StableId<Cinema2EffectId>('threshold-floor')
 export const CINEMA2_THRESHOLD_VOLUMETRIC_EFFECT_ID = cinema2StableId<Cinema2EffectId>('threshold-atmosphere')
@@ -203,6 +205,7 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     Object.freeze({ id: 'render.depth' as const, requirement: 'required' as const, purpose: 'Depth-tested monoliths, floor reflections and depth-aware fog.' }),
     Object.freeze({ id: 'scene.3d' as const, requirement: 'required' as const, purpose: 'World-space monolith environment.' }),
     Object.freeze({ id: 'camera.world' as const, requirement: 'required' as const, purpose: 'Shared final camera for the flight and for view-ray fog and reflections.' }),
+    Object.freeze({ id: 'lighting' as const, requirement: 'required' as const, purpose: 'One shadow-casting key light: towers cut it into blades of light in the haze and shade the floor.' }),
     Object.freeze({ id: 'audio.bands' as const, requirement: 'optional' as const, purpose: 'Bass swells the fog.' }),
     Object.freeze({ id: 'audio.features' as const, requirement: 'optional' as const, purpose: 'Energy, build, highs and vocal presence drive the screens.' }),
     Object.freeze({ id: 'music.beat' as const, requirement: 'optional' as const, purpose: 'Rows alternate every two beats.' }),
@@ -308,6 +311,21 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       controls: Object.freeze({ motionAmount: cinema2Ref(CINEMA2_THRESHOLD_CAMERA_MOTION_ID) }),
     }),
   ]),
+  lighting: Object.freeze({
+    lights: Object.freeze([
+      // The one shadow-casting light (roadmap #10): a cool directional key that streams down the aisle from the far end, high and from the left
+      // (travelling toward the camera), so the towers carve it into shafts and shade the floor. It has no position: the shadow map follows the
+      // camera along the endless flight.
+      Object.freeze({
+        id: CINEMA2_THRESHOLD_KEY_LIGHT_ID,
+        type: 'directional' as const,
+        color: color(0.62, 0.78, 1),
+        intensity: 0.9,
+        transform: Object.freeze({ rotation: vec3(-0.253, -2.715, 0) }),
+        config: Object.freeze({ castShadow: true, shadowExtent: 70, shadowDepth: 200, shadowFocusAhead: 45, shadowBias: 0.25, shadowSoftness: 1 }),
+      }),
+    ]),
+  }),
   environment: Object.freeze({
     backgroundColor: DEFAULT_VOID,
     exposure: 1,

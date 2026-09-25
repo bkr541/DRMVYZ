@@ -32,6 +32,7 @@ import {
 } from './Cinema2ResourceManager'
 import { Cinema2Compositor } from './Cinema2Compositor'
 import { assertCinema2NoGlErrors } from './Cinema2GpuValidation'
+import type { Cinema2ShadowService } from './Cinema2ShadowService'
 
 export interface Cinema2RenderGraphExecutorDiagnostic {
   code: string
@@ -70,6 +71,8 @@ export interface Cinema2RenderGraphExecutorOptions {
   spatialRuntime?: Cinema2SpatialRuntime
   cameraRuntime?: Cinema2CameraRuntime
   lightingEnvironmentRuntime?: Cinema2LightingEnvironmentRuntime
+  /** Engine-owned shadow map; refreshed once per frame before any pass runs and handed to effects and modules. */
+  shadowService?: Cinema2ShadowService
   targetResolver?: Cinema2FinalValueResolver
   /** Explicit development/test-only sparse readback. Disabled by default. */
   debugVisibilityReadback?: boolean
@@ -118,6 +121,7 @@ export class Cinema2RenderGraphExecutor {
   private readonly spatialRuntime: Cinema2SpatialRuntime | null
   private readonly cameraRuntime: Cinema2CameraRuntime | null
   private readonly lightingEnvironmentRuntime: Cinema2LightingEnvironmentRuntime | null
+  private readonly shadowService: Cinema2ShadowService | null
   private readonly targetResolver: Cinema2FinalValueResolver | null
   private readonly debugVisibilityReadback: boolean
   private readonly layerTargets = new Map<string, Readonly<Cinema2TargetHandle>>()
@@ -147,6 +151,7 @@ export class Cinema2RenderGraphExecutor {
     this.spatialRuntime = options.spatialRuntime ?? null
     this.cameraRuntime = options.cameraRuntime ?? null
     this.lightingEnvironmentRuntime = options.lightingEnvironmentRuntime ?? null
+    this.shadowService = options.shadowService ?? null
     this.targetResolver = options.targetResolver ?? null
     this.debugVisibilityReadback = options.debugVisibilityReadback === true
     if (this.targetResolver) {
@@ -179,6 +184,7 @@ export class Cinema2RenderGraphExecutor {
     for (const record of this.persistentTargets.values()) this.frameBindings.set(record.binding.colorTexture, record.binding)
 
     try {
+      this.updateShadowMap(frame, providers)
       for (const passId of this.plan.passOrder) {
         const pass = this.passById.get(passId)
         if (!pass) continue
@@ -270,6 +276,25 @@ export class Cinema2RenderGraphExecutor {
     this.resources.releaseOwner('cinema2.render-executor')
     this.compositor?.dispose()
     this.compositor = null
+  }
+
+  /** Refreshes the shadow map (if any) before the passes run; a failure only costs this frame its shadows. */
+  private updateShadowMap(
+    frame: Readonly<Cinema2ModuleFrameReadContext>,
+    providers: readonly Readonly<Cinema2ModuleRenderPassProvider>[],
+  ): void {
+    if (!this.shadowService) return
+    try {
+      this.shadowService.update({
+        frame,
+        camera: this.cameraRuntime?.getFrame(),
+        lighting: this.lightingEnvironmentRuntime?.getFrame(),
+        providers,
+      })
+    } catch (error) {
+      this.restoreDefaultFramebuffer(frame)
+      this.pushDiagnostic('CINEMA2_SHADOW_MAP_FAILED', `Shadow map update failed; shadows are skipped this frame: ${errorMessage(error)}`, null)
+    }
   }
 
   private rebindPersistentTargets(): void {
@@ -370,6 +395,7 @@ export class Cinema2RenderGraphExecutor {
         height: target?.height ?? frame.viewport.height,
         camera: this.cameraRuntime?.getFrame(),
         lightingEnvironment: this.lightingEnvironmentRuntime?.getFrame(),
+        shadow: this.shadowService?.getFrame() ?? undefined,
       })
       if (result === 'applied') return
       this.blitFirstInput(colorInputs, target, frame)
@@ -429,6 +455,7 @@ export class Cinema2RenderGraphExecutor {
         camera: provider.intent === 'world' ? this.cameraRuntime?.getFrame() : undefined,
         lightingEnvironment: this.lightingEnvironmentRuntime?.getFrame(),
         inputs,
+        shadow: this.shadowService?.getFrame() ?? undefined,
       })
     }
   }

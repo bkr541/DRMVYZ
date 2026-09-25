@@ -6,6 +6,7 @@ import {
 } from '../contracts/Cinema2NativePresetManifest'
 import type {
   Cinema2ModuleCreateContext,
+  Cinema2ModuleShadowCasterContext,
   Cinema2ModuleDiagnostic,
   Cinema2ModuleRenderExecutionContext,
   Cinema2ModuleTypeDefinition,
@@ -17,6 +18,7 @@ import {
   packThresholdInstances,
   thresholdPeriodIndices,
 } from './threshold/Cinema2ThresholdLayout'
+import { multiplyMatrices, translationMatrix } from '../spatial/Cinema2LightMatrices'
 import { ThresholdReactiveState } from './threshold/Cinema2ThresholdReactiveState'
 import { ThresholdRenderer } from './threshold/Cinema2ThresholdRenderer'
 
@@ -89,6 +91,22 @@ export const cinema2ThresholdNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           fieldVisibility: laps.map(lap => smoothstep(35, 60, -camera.position[2] - lap * THRESHOLD_PERIOD)),
           vanishing: vanishingGlow(camera.position[2], laps, viewRotation, camera.projectionMatrix, clamp(number(context, 'intensity', 1), 0, 1.5), execution),
           reactive: state,
+        })
+      },
+      // Threshold's towers cast into the engine shadow map. The field and ring fade with the camera, so the map is refreshed every frame.
+      dynamicShadowCaster: true,
+      renderShadow(shadow: Cinema2ModuleShadowCasterContext) {
+        const camera = shadow.camera
+        const laps = thresholdPeriodIndices(camera.position[2])
+        // The renderer places towers camera-relative in JS doubles; fold the camera translation into the light matrix the same way.
+        const relative = multiplyMatrices(shadow.lightViewProjection, translationMatrix(camera.position[0], camera.position[1], camera.position[2]))
+        renderer.drawShadow({
+          lightViewProjection: new Float32Array(relative),
+          laps,
+          period: THRESHOLD_PERIOD,
+          cameraPosition: camera.position,
+          widthScale: clamp(number(context, 'corridorWidth', 1), 0.5, 1.8),
+          fieldVisibility: laps.map(lap => smoothstep(35, 60, -camera.position[2] - lap * THRESHOLD_PERIOD)),
         })
       },
     })

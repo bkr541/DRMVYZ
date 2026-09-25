@@ -35,7 +35,7 @@ import { Cinema2Runtime } from '../runtime/Cinema2Runtime'
 import { humMusicFrame, type HumFrameInput } from './support/Cinema2HumNFrameFactory'
 
 const CAPABILITIES = [
-  'render.webgl2', 'render.depth', 'scene.3d', 'camera.world', 'audio.bands', 'audio.features', 'music.beat', 'music.downbeat',
+  'render.webgl2', 'render.depth', 'scene.3d', 'camera.world', 'lighting', 'audio.bands', 'audio.features', 'music.beat', 'music.downbeat',
   'music.rhythm-events', 'music.phrase', 'music.drop', 'visual-director.significance',
 ] as const
 
@@ -482,5 +482,45 @@ describe('Threshold through the real Runtime path', () => {
     expect(gl.__calls.createdPrograms).toBe(gl.__calls.deletedPrograms)
     expect(gl.__calls.createdTextures).toBe(gl.__calls.deletedTextures)
     expect(gl.__calls.createdFramebuffers).toBe(gl.__calls.deletedFramebuffers)
+  })
+
+  it('renders its towers into the engine shadow map on high and medium, and draws no shadows on low', () => {
+    for (const [quality, resolution, instancedDraws] of [['high', 2048, 6], ['medium', 1024, 6], ['low', 0, 3]] as const) {
+      const gl = createCinemaMockWebGL()
+      // The shared GL mock predates depth-comparison textures; give it the few calls the shadow map needs.
+      Object.assign(gl as unknown as Record<string, unknown>, {
+        texStorage2D: vi.fn(), polygonOffset: vi.fn(), depthFunc: vi.fn(), isEnabled: vi.fn(() => false),
+        FRAMEBUFFER: 0x8d40, TEXTURE_COMPARE_MODE: 0x884c, COMPARE_REF_TO_TEXTURE: 0x884e, TEXTURE_COMPARE_FUNC: 0x884d,
+        POLYGON_OFFSET_FILL: 0x8037, VIEWPORT: 0x0ba2, DEPTH_WRITEMASK: 0x0b72, COLOR_WRITEMASK: 0x0c23, DEPTH_FUNC: 0x0b74,
+        TEXTURE_BINDING_2D: 0x8069, TEXTURE_2D: 0x0de1, LINEAR: 0x2601, TEXTURE_MIN_FILTER: 0x2801, TEXTURE_MAG_FILTER: 0x2800,
+        TEXTURE_WRAP_S: 0x2802, TEXTURE_WRAP_T: 0x2803,
+      })
+      class FakeCanvas extends EventTarget {
+        width = 640
+        height = 360
+        getContext = vi.fn(() => gl)
+      }
+      const frameCallback: { current: FrameRequestCallback | null } = { current: null }
+      const created = Cinema2Runtime.create(new FakeCanvas() as unknown as HTMLCanvasElement, {
+        presetId: CINEMA2_THRESHOLD_PRESET_ID,
+        requestAnimationFrame: (callback: FrameRequestCallback) => { frameCallback.current = callback; return 1 },
+        cancelAnimationFrame: () => { frameCallback.current = null },
+        renderQuality: quality,
+      })
+      expect(created.error).toBeNull()
+      if (!created.runtime) return
+      created.runtime.resize({ width: 640, height: 360, dpr: 1 })
+      created.runtime.start()
+      frameCallback.current?.(1000)
+      expect(created.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ failedPassCount: 0 })
+      expect(created.runtime.getRenderGraphExecutorSnapshot().diagnostics).toEqual([])
+      // One depth-only draw per drawn lap for the shadow map plus one colour draw per lap.
+      expect(vi.mocked(gl.drawElementsInstanced).mock.calls.length).toBe(instancedDraws)
+      expect(created.runtime.getShadowServiceSnapshot()).toMatchObject({ active: resolution > 0, resolution, estimatedGpuBytes: resolution * resolution * 4 })
+      created.runtime.dispose()
+      expect(created.runtime.getShadowServiceSnapshot()).toMatchObject({ disposed: true, estimatedGpuBytes: 0 })
+      expect(gl.__calls.createdTextures).toBe(gl.__calls.deletedTextures)
+      expect(gl.__calls.createdFramebuffers).toBe(gl.__calls.deletedFramebuffers)
+    }
   })
 })

@@ -221,6 +221,56 @@ void main() {
   outColor = vec4(u_color * glow * u_strength, 1.0);
 }`
 
+/**
+ * Depth-only variant of the instanced vertex stage, used to render the towers into the engine shadow map (roadmap #10). It mirrors the
+ * main pass exactly (corridor width shift, camera-relative placement, field/ring dissolve) so a piece that is not drawn does not cast.
+ */
+const SHADOW_VERTEX_SOURCE = `#version 300 es
+precision highp float;
+layout(location = 0) in vec3 a_position;
+layout(location = 3) in vec4 i0;
+layout(location = 4) in vec4 i1;
+layout(location = 5) in vec4 i2;
+layout(location = 6) in vec4 i3;
+uniform mat4 u_lightViewProj;
+uniform vec3 u_originShift;
+uniform float u_widthScale;
+uniform float u_fieldVisibility;
+
+mat3 rotY(float a) { float c = cos(a); float s = sin(a); return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c); }
+mat3 rotX(float a) { float c = cos(a); float s = sin(a); return mat3(1.0, 0.0, 0.0, 0.0, c, s, 0.0, -s, c); }
+mat3 rotZ(float a) { float c = cos(a); float s = sin(a); return mat3(c, s, 0.0, -s, c, 0.0, 0.0, 0.0, 1.0); }
+
+void main() {
+  vec3 size = vec3(i0.w, i1.x, i1.y);
+  mat3 rotation = rotY(i1.z) * rotX(i1.w) * rotZ(i2.x);
+  float zone = i3.y;
+  vec3 center = i0.xyz;
+  center.x += sign(center.x) * 26.0 * (u_widthScale - 1.0) * step(zone, 0.5);
+  float ahead = max(-(center.z + u_originShift.z), 0.0);
+  float fade = zone > 0.5 ? smoothstep(118.0, 96.0, ahead) * (zone < 1.5 ? u_fieldVisibility : 1.0) : 1.0;
+  if (fade < 0.5) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    return;
+  }
+  gl_Position = u_lightViewProj * vec4(center + rotation * (a_position * size) + u_originShift, 1.0);
+}`
+
+const SHADOW_FRAGMENT_SOURCE = `#version 300 es
+precision mediump float;
+out vec4 outColor;
+void main() { outColor = vec4(0.0); }`
+
+export interface ThresholdShadowDrawState {
+  /** World -> light clip space, already translated to camera-relative coordinates (`world = relative + camera`). */
+  lightViewProjection: Float32Array
+  laps: readonly number[]
+  period: number
+  cameraPosition: readonly [number, number, number]
+  widthScale: number
+  fieldVisibility: readonly number[]
+}
+
 export interface ThresholdDrawState {
   viewRotation: Float32Array
   projection: Float32Array
@@ -261,6 +311,7 @@ const UNIFORMS = [
 export class ThresholdRenderer {
   private readonly program: ShaderProgram
   private readonly glowProgram: ShaderProgram
+  private readonly shadowProgram: ShaderProgram
   private readonly glowVao: WebGLVertexArrayObject
   private readonly vao: WebGLVertexArrayObject
   private readonly buffers: WebGLBuffer[] = []
@@ -285,6 +336,14 @@ export class ThresholdRenderer {
     })
     if (!glow.program) throw new Error(`Shader compilation failed at ${glow.error.stage} for "${glow.error.label}": ${glow.error.log}`)
     this.glowProgram = glow.program
+    const shadow = ShaderProgram.create(gl, new ShaderCompiler(gl), {
+      label: 'Cinema2/Threshold/ShadowCaster',
+      vertSrc: SHADOW_VERTEX_SOURCE,
+      fragSrc: SHADOW_FRAGMENT_SOURCE,
+      optionalUniforms: ['u_lightViewProj', 'u_originShift', 'u_widthScale', 'u_fieldVisibility'],
+    })
+    if (!shadow.program) throw new Error(`Shader compilation failed at ${shadow.error.stage} for "${shadow.error.label}": ${shadow.error.log}`)
+    this.shadowProgram = shadow.program
     const glowVao = gl.createVertexArray()
     if (!glowVao) throw new Error('Cinema 2.0 Threshold could not allocate a vertex array.')
     this.glowVao = glowVao
@@ -387,6 +446,23 @@ export class ThresholdRenderer {
     assertCinema2NoGlErrors(gl, 'Threshold monolith draw')
   }
 
+  /** Draws every tower depth-only into the currently bound shadow-map framebuffer. */
+  drawShadow(state: Readonly<ThresholdShadowDrawState>): void {
+    if (this.disposed || this.instanceCount === 0) return
+    const { gl, shadowProgram: program } = this
+    program.activate()
+    program.setMat4('u_lightViewProj', state.lightViewProjection)
+    program.setFloat('u_widthScale', state.widthScale)
+    gl.bindVertexArray(this.vao)
+    for (const [index, lap] of state.laps.entries()) {
+      program.setFloat('u_fieldVisibility', state.fieldVisibility[index] ?? 1)
+      program.setVec3('u_originShift', -state.cameraPosition[0], -state.cameraPosition[1], -lap * state.period - state.cameraPosition[2])
+      gl.drawElementsInstanced(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0, this.instanceCount)
+    }
+    gl.bindVertexArray(null)
+    assertCinema2NoGlErrors(gl, 'Threshold shadow draw')
+  }
+
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
@@ -395,6 +471,7 @@ export class ThresholdRenderer {
     this.gl.deleteVertexArray(this.vao)
     this.gl.deleteVertexArray(this.glowVao)
     this.glowProgram.dispose()
+    this.shadowProgram.dispose()
     this.program.dispose()
   }
 }

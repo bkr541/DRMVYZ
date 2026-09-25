@@ -28,6 +28,23 @@ export interface Cinema2ResolvedLightFrame {
   spot: Readonly<{ outerAngleDegrees: number; innerAngleDegrees: number }> | null
   /** Distance at which the light stops scattering into volumetric atmosphere (`config.range`). */
   range: number
+  /** Shadow settings when the light is a directional or spot light authored with `config.castShadow`; null otherwise. */
+  shadow?: Readonly<Cinema2LightShadowSettings> | null
+}
+
+/**
+ * Authoring of the (single) shadow-casting light, all from `light.config`:
+ * `castShadow` (boolean), `shadowExtent` (directional: half-size in world units of the square region the map covers, default 40),
+ * `shadowDepth` (directional: length of the light's depth range, default 160), `shadowFocusAhead` (directional: the covered region is
+ * centred this far ahead of the camera, default 0.5 * extent), `shadowBias` (world units of depth bias, default 0.15) and
+ * `shadowSoftness` (filter radius in shadow-map texels, default 1). Spot lights use their cone and `range` instead.
+ */
+export interface Cinema2LightShadowSettings {
+  extent: number
+  depth: number
+  focusAhead: number
+  bias: number
+  softness: number
 }
 
 export interface Cinema2ResolvedFogFrame {
@@ -167,6 +184,7 @@ export class Cinema2LightingEnvironmentRuntime {
         direction,
         spot: light.type === 'spot' ? resolveSpot(light.config) : null,
         range: resolveRange(light.config),
+        shadow: resolveShadow(light.type, light.config),
       })
     })
     this.currentFrame = freezeFrame({
@@ -233,6 +251,18 @@ function resolveSpot(config: Cinema2LightManifest['config']): NonNullable<Cinema
   const outer = Math.min(89, Math.max(1, finite(config?.coneAngleDegrees as number | undefined, DEFAULT_SPOT_OUTER_DEGREES)))
   const penumbra = clamp01(finite(config?.penumbra as number | undefined, DEFAULT_SPOT_PENUMBRA))
   return Object.freeze({ outerAngleDegrees: outer, innerAngleDegrees: outer * (1 - penumbra) })
+}
+
+function resolveShadow(type: Cinema2LightType, config: Cinema2LightManifest['config']): Readonly<Cinema2LightShadowSettings> | null {
+  if (config?.castShadow !== true || (type !== 'directional' && type !== 'spot')) return null
+  const extent = Math.min(400, Math.max(2, finite(config.shadowExtent as number | undefined, 40)))
+  return Object.freeze({
+    extent,
+    depth: Math.min(2000, Math.max(10, finite(config.shadowDepth as number | undefined, 160))),
+    focusAhead: Math.min(400, Math.max(0, finite(config.shadowFocusAhead as number | undefined, extent * 0.5))),
+    bias: Math.min(5, Math.max(0, finite(config.shadowBias as number | undefined, 0.15))),
+    softness: Math.min(4, Math.max(0, finite(config.shadowSoftness as number | undefined, 1))),
+  })
 }
 
 function resolveRange(config: Cinema2LightManifest['config']): number {

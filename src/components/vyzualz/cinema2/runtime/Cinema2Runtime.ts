@@ -55,6 +55,7 @@ import {
 } from './Cinema2ResourceManager'
 import { Cinema2RenderGraphExecutor, type Cinema2RenderGraphExecutorSnapshot } from './Cinema2RenderGraphExecutor'
 import { Cinema2HistoryService, type Cinema2HistoryServiceSnapshot } from './Cinema2HistoryService'
+import { Cinema2ShadowService, type Cinema2ShadowServiceSnapshot } from './Cinema2ShadowService'
 import { Cinema2AssetTextureService, type Cinema2AssetTextureServiceSnapshot } from '../assets/Cinema2AssetTextureService'
 import { cinema2TextureAssetRegistry } from '../assets/Cinema2TextureAssetManifest'
 import {
@@ -403,6 +404,7 @@ export class Cinema2Runtime {
   private readonly resourceManager: Cinema2ResourceManager
   private readonly historyService: Cinema2HistoryService
   private readonly textureService: Cinema2AssetTextureService
+  private readonly shadowService: Cinema2ShadowService
   private readonly renderGraphExecutor: Cinema2RenderGraphExecutor
   private readonly performanceDiagnostics: Cinema2PerformanceDiagnostics
   private readonly renderQualityOverride: Cinema2RenderQualityLevel | null
@@ -459,6 +461,7 @@ export class Cinema2Runtime {
     })
     this.historyService = new Cinema2HistoryService(gl, this.resourceManager, compiledPresetPlan.presetId)
     this.textureService = new Cinema2AssetTextureService(gl, cinema2TextureAssetRegistry, { budgetBytes: textureBudgetBytes(initialPolicy.gpuMemoryBudgetBytes) })
+    this.shadowService = new Cinema2ShadowService(gl, this.activeRenderQuality)
     let effectRuntime: Cinema2EffectRuntime | null = null
     let moduleRuntime: Cinema2ModuleRuntime | null = null
     const boundActionParameters = indexBoundActionParameters(compiledPresetPlan)
@@ -495,6 +498,7 @@ export class Cinema2Runtime {
       spatialRuntime: this.spatialRuntime,
       cameraRuntime: this.cameraRuntime,
       lightingEnvironmentRuntime: this.lightingEnvironmentRuntime,
+      shadowService: this.shadowService,
       targetResolver: this.targetResolver,
       debugVisibilityReadback: options.debugVisibilityReadback === true,
     })
@@ -519,6 +523,7 @@ export class Cinema2Runtime {
         ['render graph', () => this.renderGraphExecutor.handleContextLost()],
         ['effects', () => this.effectRuntime.handleContextLost()],
         ['textures', () => this.textureService.handleContextLost()],
+        ['shadows', () => this.shadowService.handleContextLost()],
         ['history', () => this.historyService.handleContextLost()],
         ['modules', () => this.moduleRuntime.handleContextLost()],
         ['media', () => this.mediaSlotRuntime.handleContextLost()],
@@ -538,6 +543,7 @@ export class Cinema2Runtime {
         this.performanceDiagnostics.handleContextRestored()
         this.resourceManager.handleContextRestored()
         this.textureService.handleContextRestored()
+        this.shadowService.handleContextRestored()
         this.historyService.handleContextRestored()
         this.renderGraphExecutor.handleContextRestored()
         this.effectRuntime.handleContextRestored()
@@ -749,6 +755,10 @@ export class Cinema2Runtime {
     return this.historyService.getSnapshot()
   }
 
+  getShadowServiceSnapshot(): Readonly<Cinema2ShadowServiceSnapshot> {
+    return this.shadowService.getSnapshot()
+  }
+
   getTextureServiceSnapshot(): Readonly<Cinema2AssetTextureServiceSnapshot> {
     return this.textureService.getSnapshot()
   }
@@ -930,14 +940,15 @@ export class Cinema2Runtime {
     const effectSnapshot = this.effectRuntime.getSnapshot()
     const mediaSnapshot = this.mediaSlotRuntime.getSnapshot()
     const textureSnapshot = this.textureService.getSnapshot()
+    const loadedAssetBytes = moduleSnapshot.estimatedGpuBytes + textureSnapshot.estimatedGpuBytes + this.shadowService.getSnapshot().estimatedGpuBytes
     let next: string | null = null
     if (performanceSnapshot.degradationReason?.startsWith('Resize was isolated:')) {
       next = 'Cinema 2.0 kept the previous output size because render targets could not be resized safely.'
     } else if (renderSnapshot.diagnostics.some(diagnostic => diagnostic.code === 'CINEMA2_RENDER_RESOURCE_BUDGET_EXCEEDED')) {
       next = 'Cinema 2.0 is running with a constrained render path because the GPU resource budget was reached.'
     } else if (
-      moduleSnapshot.estimatedGpuBytes + textureSnapshot.estimatedGpuBytes > 0
-      && moduleSnapshot.estimatedGpuBytes + textureSnapshot.estimatedGpuBytes + this.resourceManager.getSnapshot().estimatedGpuMemoryBytes > performanceSnapshot.gpuMemoryBudgetBytes
+      loadedAssetBytes > 0
+      && loadedAssetBytes + this.resourceManager.getSnapshot().estimatedGpuMemoryBytes > performanceSnapshot.gpuMemoryBudgetBytes
     ) {
       next = 'Cinema 2.0 is running above its GPU memory budget because of loaded 3D assets.'
     } else if (moduleSnapshot.failedModuleCount > 0) {
@@ -994,6 +1005,7 @@ export class Cinema2Runtime {
       ['choreography', () => this.choreographyRuntime.dispose()],
       ['effects', () => this.effectRuntime.dispose()],
       ['textures', () => this.textureService.dispose()],
+      ['shadows', () => this.shadowService.dispose()],
       ['history', () => this.historyService.dispose()],
       ['modules', () => this.moduleRuntime.dispose()],
       ['media', () => this.mediaSlotRuntime.dispose()],
@@ -1032,6 +1044,7 @@ export class Cinema2Runtime {
     this.renderGraphExecutor.setQuality(quality)
     this.effectRuntime.setQuality(quality)
     this.textureService.setBudgetBytes(textureBudgetBytes(policy.gpuMemoryBudgetBytes))
+    this.shadowService.setQuality(quality)
     this.lightingEnvironmentRuntime.setQuality(quality)
     try {
       const resourceSnapshot = this.resourceManager.getSnapshot()

@@ -1,3 +1,4 @@
+import type { Cinema2ShadowFrame } from '../runtime/Cinema2ShadowService'
 import type {
   Cinema2JsonValue,
   Cinema2ModuleId,
@@ -164,6 +165,25 @@ export interface Cinema2ModuleRenderExecutionContext {
   lightingEnvironment?: Readonly<Cinema2LightingEnvironmentFrame>
   /** Compiled upstream render inputs. Modules may read them but never own their lifetime. */
   inputs?: readonly Readonly<Cinema2ModuleRenderInput>[]
+  /** The frame's shadow map when the preset authors a shadow-casting light and this tier has one. Modules that receive shadows may sample it. */
+  shadow?: Readonly<Cinema2ShadowFrame>
+}
+
+/**
+ * What the engine hands a shadow-casting provider while it renders the (single) shadow map. The provider draws its casters depth-only into
+ * the framebuffer that is already bound, with viewport, depth test, colour write mask and polygon offset already set up.
+ */
+export interface Cinema2ModuleShadowCasterContext {
+  gl: WebGL2RenderingContext
+  frame: Readonly<Cinema2ModuleFrameReadContext>
+  /** World -> light clip space (column-major, double precision). Providers that render camera-relative multiply by a translation first. */
+  lightViewProjection: readonly number[]
+  /** Unit vector the light travels along. */
+  lightDirection: readonly [number, number, number]
+  /** Shadow-map resolution in texels. */
+  resolution: number
+  camera: Readonly<Cinema2CameraFrame>
+  lightingEnvironment: Readonly<Cinema2LightingEnvironmentFrame>
 }
 
 export interface Cinema2ModuleRenderPassProvider {
@@ -171,6 +191,13 @@ export interface Cinema2ModuleRenderPassProvider {
   moduleId: Cinema2ModuleId
   intent: 'fullscreen' | 'world'
   execute(context: Cinema2ModuleRenderExecutionContext): void
+  /**
+   * Optional shadow-caster facet. Called only for a preset that authors a shadow-casting light, at a quality tier that has a shadow map.
+   * The engine re-renders the map when the light's matrix changes; a provider whose casters move (or fade) between frames must also set
+   * `dynamicShadowCaster` so the map is refreshed every frame.
+   */
+  renderShadow?(context: Cinema2ModuleShadowCasterContext): void
+  dynamicShadowCaster?: boolean
 }
 
 export interface Cinema2ModuleRenderFacet {
