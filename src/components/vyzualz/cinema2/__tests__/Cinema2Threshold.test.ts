@@ -7,6 +7,7 @@ import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleCont
 import { cinema2NativeModuleRegistry } from '../modules/Cinema2ModuleRegistry'
 import {
   CINEMA2_THRESHOLD_NATIVE_MODULE_TYPE_ID,
+  cinema2ThresholdNativeModuleDefinition,
 } from '../modules/Cinema2ThresholdNativeModule'
 import {
   THRESHOLD_INSTANCE_FLOATS,
@@ -18,6 +19,15 @@ import {
   buildThresholdLayout,
   packThresholdInstances,
   thresholdPeriodIndices,
+  THRESHOLD_INSTANCE_BUDGETS,
+  THRESHOLD_PUFF_FLOATS,
+  THRESHOLD_TIER_BY_QUALITY,
+  buildThresholdChunks,
+  buildThresholdDetail,
+  buildThresholdSmoke,
+  countThresholdInstances,
+  packThresholdPuffs,
+  visibleThresholdRanges,
 } from '../modules/threshold/Cinema2ThresholdLayout'
 import { ThresholdReactiveState } from '../modules/threshold/Cinema2ThresholdReactiveState'
 import { Cinema2VisualDirector } from '../director/Cinema2VisualDirector'
@@ -66,11 +76,11 @@ function lowestPoint(instance: ReturnType<typeof buildThresholdLayout>[number]):
 }
 
 describe('Threshold layout', () => {
-  const layout = buildThresholdLayout()
+  const layout = buildThresholdLayout(1337, { extras: false })
 
   it('is deterministic and packs to the vertex layout', () => {
-    expect(buildThresholdLayout()).toEqual(layout)
-    expect(buildThresholdLayout(7)).not.toEqual(layout)
+    expect(buildThresholdLayout(1337, { extras: false })).toEqual(layout)
+    expect(buildThresholdLayout(7, { extras: false })).not.toEqual(layout)
     const packed = packThresholdInstances(layout)
     expect(packed.length).toBe(layout.length * THRESHOLD_INSTANCE_FLOATS)
     expect(packed.every(Number.isFinite)).toBe(true)
@@ -449,6 +459,117 @@ describe('Threshold preset', () => {
   })
 })
 
+// ── Detail, smoke, budgets and culling (roadmap #9, native half) ────────────────────────────────
+
+describe('Threshold detail layout', () => {
+  const base = buildThresholdLayout(1337, { extras: false })
+  const full = buildThresholdLayout(1337)
+  const detail = buildThresholdDetail(1337)
+
+  it('appends detail after an untouched base layout, deterministically, from its own seeded stream', () => {
+    expect(full.slice(0, base.length)).toEqual(base)
+    expect(full.slice(base.length)).toEqual(detail)
+    expect(buildThresholdDetail(1337)).toEqual(detail)
+    expect(buildThresholdDetail(7)).not.toEqual(detail)
+    expect(buildThresholdSmoke(1337)).toEqual(buildThresholdSmoke(1337))
+    expect(buildThresholdSmoke(7)).not.toEqual(buildThresholdSmoke(1337))
+  })
+
+  it('is plain dark structure (outer towers and an overhead grid) that never enters the flight lane', () => {
+    expect(detail.length).toBeGreaterThan(60)
+    expect(detail.every(instance => instance.role === 0 && instance.zone === THRESHOLD_ZONE_CORRIDOR)).toBe(true)
+    // Anything that crosses the flight lane (|x| < 8) hangs far above the camera; everything else on the floor is outside the housings.
+    for (const instance of detail) {
+      const crossesLane = Math.abs(instance.position[0]) - instance.size[0] / 2 < 8
+      if (crossesLane) expect(instance.position[1] - instance.size[1] / 2).toBeGreaterThan(20)
+    }
+    expect(detail.filter(instance => instance.position[1] - instance.size[1] / 2 < 0.05 && instance.position[1] > 0).every(instance => Math.abs(instance.position[0]) > 37.8)).toBe(true)
+  })
+
+  it('gates detail by quality tier: medium adds the outer rank and the main beams, high adds chords, struts and cables', () => {
+    const tierOf = (instance: (typeof detail)[number]) => instance.minTier ?? 0
+    expect(detail.every(instance => tierOf(instance) >= 1)).toBe(true)
+    const counts = ([0, 1, 2] as const).map(tier => countThresholdInstances(full, tier))
+    expect(counts[0]).toBe(base.length)
+    expect(counts[1]).toBeGreaterThan(counts[0]!)
+    expect(counts[2]).toBeGreaterThan(counts[1]!)
+    const puffs = buildThresholdSmoke(1337)
+    const puffCounts = ([0, 1, 2] as const).map(tier => countThresholdInstances(puffs, tier))
+    expect(puffCounts[0]).toBeGreaterThan(0)
+    expect(puffCounts[1]).toBeGreaterThan(puffCounts[0]!)
+    expect(puffCounts[2]).toBeGreaterThan(puffCounts[1]!)
+  })
+
+  it('stays within the declared instance budget of every quality tier', () => {
+    const puffs = buildThresholdSmoke(1337)
+    for (const quality of ['low', 'medium', 'high'] as const) {
+      const tier = THRESHOLD_TIER_BY_QUALITY[quality]
+      expect(countThresholdInstances(full, tier), `${quality} boxes`).toBeLessThanOrEqual(THRESHOLD_INSTANCE_BUDGETS[quality].boxes)
+      expect(countThresholdInstances(puffs, tier), `${quality} puffs`).toBeLessThanOrEqual(THRESHOLD_INSTANCE_BUDGETS[quality].puffs)
+    }
+    expect(THRESHOLD_INSTANCE_BUDGETS.low.boxes).toBeLessThan(THRESHOLD_INSTANCE_BUDGETS.medium.boxes)
+    expect(THRESHOLD_INSTANCE_BUDGETS.medium.boxes).toBeLessThan(THRESHOLD_INSTANCE_BUDGETS.high.boxes)
+  })
+
+  it('sorts smoke farthest first, keeps puffs at the tower bases, and packs three vec4s per puff', () => {
+    const puffs = buildThresholdSmoke(1337)
+    for (let index = 1; index < puffs.length; index += 1) expect(puffs[index]!.position[2]).toBeGreaterThanOrEqual(puffs[index - 1]!.position[2])
+    expect(puffs.every(puff => puff.position[1] > 0.5 && puff.position[1] < 6)).toBe(true)
+    expect(puffs.every(puff => Math.abs(puff.position[0]) < 26)).toBe(true)
+    const packed = packThresholdPuffs(puffs)
+    expect(packed.length).toBe(puffs.length * THRESHOLD_PUFF_FLOATS)
+    expect(Array.from(packed.slice(0, 4))).toEqual([puffs[0]!.position[0], puffs[0]!.position[1], puffs[0]!.position[2], puffs[0]!.size].map(Math.fround))
+    expect(packed[11]).toBe(puffs[0]!.minTier)
+  })
+})
+
+describe('Threshold module detail switch', () => {
+  it('validates the extras flag and the seed', () => {
+    const module = (config: Record<string, unknown>) => ({ id: 'm', typeId: 'threshold-native-render', config }) as never
+    const validate = cinema2ThresholdNativeModuleDefinition.validate!
+    expect(validate(module({ seed: 1, extras: false }))).toEqual([])
+    expect(validate(module({ extras: 'yes' })).map(item => item.code)).toEqual(['CINEMA2_THRESHOLD_EXTRAS_INVALID'])
+    expect(validate(module({ seed: 'x' })).map(item => item.code)).toEqual(['CINEMA2_THRESHOLD_SEED_INVALID'])
+  })
+})
+
+describe('Threshold lap chunk culling', () => {
+  const layout = buildThresholdLayout(1337)
+  const chunks = buildThresholdChunks(layout)
+
+  it('covers every instance exactly once with a conservative z extent', () => {
+    expect(chunks.reduce((sum, chunk) => sum + chunk.count, 0)).toBe(layout.length)
+    chunks.forEach((chunk, index) => {
+      expect(chunk.start).toBe(index === 0 ? 0 : chunks[index - 1]!.start + chunks[index - 1]!.count)
+      for (const instance of layout.slice(chunk.start, chunk.start + chunk.count)) {
+        expect(instance.position[2]).toBeGreaterThanOrEqual(chunk.zMin)
+        expect(instance.position[2]).toBeLessThanOrEqual(chunk.zMax)
+      }
+    })
+  })
+
+  it('skips the lap behind the camera, keeps the current and next laps, and drops chunks beyond the view distance', () => {
+    const period = THRESHOLD_PERIOD
+    const cameraZ = -20
+    const total = (lap: number, viewFar: number) => visibleThresholdRanges(chunks, lap, period, cameraZ, viewFar, 8).reduce((sum, range) => sum + range.count, 0)
+    expect(total(-1, 380)).toBe(0)
+    expect(total(0, 380)).toBeGreaterThan(layout.length / 2)
+    expect(total(1, 380)).toBeGreaterThan(0)
+    expect(total(1, 30)).toBeLessThan(total(1, 380))
+    expect(total(2, 380)).toBe(0)
+    // Every instance whose box overlaps the visible window is inside a returned range.
+    const ranges = visibleThresholdRanges(chunks, 0, period, cameraZ, 100, 8)
+    const drawn = new Set(ranges.flatMap(range => Array.from({ length: range.count }, (_, offset) => range.start + offset)))
+    layout.forEach((instance, index) => {
+      const reach = Math.hypot(...instance.size) / 2
+      const near = instance.position[2] + reach >= cameraZ - 100 && instance.position[2] - reach <= cameraZ + 8
+      if (near) expect(drawn.has(index)).toBe(true)
+    })
+    // Adjacent chunks are merged into one draw range.
+    expect(ranges.every((range, index) => index === 0 || range.start > ranges[index - 1]!.start + ranges[index - 1]!.count)).toBe(true)
+  })
+})
+
 // ── Production path ──────────────────────────────────────────────────────────────────────────
 
 describe('Threshold through the real Runtime path', () => {
@@ -473,8 +594,8 @@ describe('Threshold through the real Runtime path', () => {
     frameCallback.current?.(1000)
     expect(created.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ failedPassCount: 0, executedPassCount: 5 })
     expect(created.runtime.getModuleRuntimeSnapshot().modules.map(module => module.status)).toEqual(['active'])
-    // Three lap copies per frame.
-    expect(vi.mocked(gl.drawElementsInstanced).mock.calls.length).toBeGreaterThanOrEqual(3)
+    // Lap copies that cannot be seen (here the one behind the camera) are culled, so a frame at the start of the flight submits two.
+    expect(vi.mocked(gl.drawElementsInstanced).mock.calls.length).toBeGreaterThanOrEqual(2)
     expect(created.runtime.getCameraRuntimeSnapshot().camera.rig).toBe('fly')
     created.runtime.dispose()
     expect(gl.__calls.createdBuffers).toBe(gl.__calls.deletedBuffers)
@@ -485,7 +606,7 @@ describe('Threshold through the real Runtime path', () => {
   })
 
   it('renders its towers into the engine shadow map on high and medium, and draws no shadows on low', () => {
-    for (const [quality, resolution, instancedDraws] of [['high', 2048, 6], ['medium', 1024, 6], ['low', 0, 3]] as const) {
+    for (const [quality, resolution, instancedDraws] of [['high', 2048, 4], ['medium', 1024, 4], ['low', 0, 2]] as const) {
       const gl = createCinemaMockWebGL()
       // The shared GL mock predates depth-comparison textures; give it the few calls the shadow map needs.
       Object.assign(gl as unknown as Record<string, unknown>, {
@@ -514,7 +635,7 @@ describe('Threshold through the real Runtime path', () => {
       frameCallback.current?.(1000)
       expect(created.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ failedPassCount: 0 })
       expect(created.runtime.getRenderGraphExecutorSnapshot().diagnostics).toEqual([])
-      // One depth-only draw per drawn lap for the shadow map plus one colour draw per lap.
+      // One depth-only draw per visible lap for the shadow map plus one colour draw per visible lap (the lap behind the camera is culled).
       expect(vi.mocked(gl.drawElementsInstanced).mock.calls.length).toBe(instancedDraws)
       expect(created.runtime.getShadowServiceSnapshot()).toMatchObject({ active: resolution > 0, resolution, estimatedGpuBytes: resolution * resolution * 4 })
       created.runtime.dispose()

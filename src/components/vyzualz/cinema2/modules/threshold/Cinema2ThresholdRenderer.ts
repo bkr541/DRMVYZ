@@ -1,7 +1,51 @@
 import { ShaderCompiler } from '../../../react/shaders/runtime/ShaderCompiler'
 import { ShaderProgram } from '../../../react/shaders/runtime/ShaderProgram'
 import { assertCinema2NoGlErrors } from '../../runtime/Cinema2GpuValidation'
-import { THRESHOLD_HOUSING_WINDOW, THRESHOLD_INSTANCE_FLOATS } from './Cinema2ThresholdLayout'
+import {
+  THRESHOLD_HOUSING_WINDOW,
+  THRESHOLD_INSTANCE_FLOATS,
+  THRESHOLD_PUFF_FLOATS,
+  visibleThresholdRanges,
+  type ThresholdChunk,
+} from './Cinema2ThresholdLayout'
+
+/**
+ * The music-driven emission of one screen row, shared by the tower shader and the smoke billboards (which are lit by the screen they sit in
+ * front of). Roles: 2 = accent, anything else above 0.5 = primary.
+ */
+const EMISSION_GLSL = `
+uniform float u_baseLevel;
+uniform float u_accentBase;
+uniform float u_kick;
+uniform float u_snare;
+uniform float u_beat;
+uniform float u_beatParity;
+uniform float u_sweepFront;
+uniform float u_sweepStrength;
+uniform float u_drop;
+uniform float u_bass;
+uniform float u_vocal;
+uniform float u_arc;
+uniform float u_level;
+uniform float u_phraseSide;
+uniform float u_breathing;
+
+float towerEmission(float role, float row, float rank, float side, float ahead) {
+  float rowParity = mod(row, 2.0);
+  float open = smoothstep(rank - 0.05, rank + 0.05, u_arc);
+  float breathe = 0.96 + 0.04 * u_breathing;
+  float beatOn = 1.0 - abs(rowParity - u_beatParity);
+  // A negative phrase side (no music) means no leading side: the set is perfectly symmetric at idle.
+  float lead = u_phraseSide < 0.0 ? 1.0 : mix(0.72, 1.0, 1.0 - abs(side - u_phraseSide));
+  float sweep = u_sweepStrength * exp(-pow((ahead - u_sweepFront) / 16.0, 2.0));
+  // Main screens sit at full white when idle; music dims them (u_level) and hits/kick/snare lift them back over the top.
+  float primary = open * lead * (u_baseLevel * breathe * u_level + beatOn * u_beat * 0.5 + rowParity * u_snare * 0.8 + u_kick * 0.25);
+  float accent = (u_accentBase * breathe + u_kick * 1.15 + u_bass * 0.4) * (1.0 - 0.5 * u_vocal);
+  float emit = 0.0;
+  if (role > 1.5) emit = accent + sweep * 0.6 + u_drop * 0.8;
+  else if (role > 0.5) emit = primary + sweep * 1.3 + u_drop;
+  return emit;
+}`
 
 const VERTEX_SOURCE = `#version 300 es
 precision highp float;
@@ -17,22 +61,8 @@ uniform mat4 u_projection;
 uniform vec3 u_originShift;
 uniform float u_widthScale;
 uniform float u_intensity;
-uniform float u_baseLevel;
-uniform float u_accentBase;
-uniform float u_kick;
-uniform float u_snare;
-uniform float u_beat;
-uniform float u_beatParity;
-uniform float u_sweepFront;
-uniform float u_sweepStrength;
-uniform float u_drop;
 uniform float u_energy;
-uniform float u_bass;
-uniform float u_vocal;
-uniform float u_arc;
-uniform float u_level;
-uniform float u_phraseSide;
-uniform float u_breathing;
+uniform float u_tier;
 uniform float u_fieldVisibility;
 out vec3 v_normal;
 out vec2 v_uv;
@@ -44,12 +74,18 @@ out vec3 v_local;
 out vec3 v_size;
 out vec2 v_faceSize;
 out float v_fieldFade;
+${EMISSION_GLSL}
 
 mat3 rotY(float a) { float c = cos(a); float s = sin(a); return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c); }
 mat3 rotX(float a) { float c = cos(a); float s = sin(a); return mat3(1.0, 0.0, 0.0, 0.0, c, s, 0.0, -s, c); }
 mat3 rotZ(float a) { float c = cos(a); float s = sin(a); return mat3(c, s, 0.0, -s, c, 0.0, 0.0, 0.0, 1.0); }
 
 void main() {
+  // Detail above the current quality tier is moved off screen (its vertices still run, but there are only a few hundred).
+  if (i3.z > u_tier + 0.5) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    return;
+  }
   vec3 size = vec3(i0.w, i1.x, i1.y);
   mat3 rotation = rotY(i1.z) * rotX(i1.w) * rotZ(i2.x);
   float role = i2.y;
@@ -76,19 +112,8 @@ void main() {
 
   // Per-screen emission. Kept per instance (flat across the box) so the fragment stage only shades the LED face.
   float ahead = max(-(center.z + u_originShift.z), 0.0);
-  float rowParity = mod(row, 2.0);
-  float open = smoothstep(rank - 0.05, rank + 0.05, u_arc);
-  float breathe = 0.96 + 0.04 * u_breathing;
-  float beatOn = 1.0 - abs(rowParity - u_beatParity);
-  // A negative phrase side (no music) means no leading side: the set is perfectly symmetric at idle.
-  float lead = u_phraseSide < 0.0 ? 1.0 : mix(0.72, 1.0, 1.0 - abs(side - u_phraseSide));
-  float sweep = u_sweepStrength * exp(-pow((ahead - u_sweepFront) / 16.0, 2.0));
-  // Main screens sit at full white when idle; music dims them (u_level) and hits/kick/snare lift them back over the top.
-  float primary = open * lead * (u_baseLevel * breathe * u_level + beatOn * u_beat * 0.5 + rowParity * u_snare * 0.8 + u_kick * 0.25);
-  float accent = (u_accentBase * breathe + u_kick * 1.15 + u_bass * 0.4) * (1.0 - 0.5 * u_vocal);
-  float emit = 0.0;
-  if (role > 1.5) emit = accent + sweep * 0.6 + u_drop * 0.8;
-  else if (role > 0.5) emit = primary + sweep * 1.3 + u_drop; // roles 1, 3 and 4 share their screen's emission (housings and bezels catch its light)
+  // Screens, housings and bezels of a row share the row's emission (see towerEmission); roles 1, 3 and 4 use the primary, role 2 the accent.
+  float emit = towerEmission(role, row, rank, side, ahead);
   // The hanging field and the ring surface out of the fog as the camera nears them, so the far end of the corridor stays a clean vanishing point.
   // They are also a little dimmer than the corridor: a panel dead ahead in the ring fills the screen centre.
   // Field and ring pieces dissolve away (screen-door) beyond ~100 units, so the far end of the corridor is clean glow rather than a skyline.
@@ -236,12 +261,17 @@ uniform mat4 u_lightViewProj;
 uniform vec3 u_originShift;
 uniform float u_widthScale;
 uniform float u_fieldVisibility;
+uniform float u_tier;
 
 mat3 rotY(float a) { float c = cos(a); float s = sin(a); return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c); }
 mat3 rotX(float a) { float c = cos(a); float s = sin(a); return mat3(1.0, 0.0, 0.0, 0.0, c, s, 0.0, -s, c); }
 mat3 rotZ(float a) { float c = cos(a); float s = sin(a); return mat3(c, s, 0.0, -s, c, 0.0, 0.0, 0.0, 1.0); }
 
 void main() {
+  if (i3.z > u_tier + 0.5) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    return;
+  }
   vec3 size = vec3(i0.w, i1.x, i1.y);
   mat3 rotation = rotY(i1.z) * rotX(i1.w) * rotZ(i2.x);
   float zone = i3.y;
@@ -261,6 +291,110 @@ precision mediump float;
 out vec4 outColor;
 void main() { outColor = vec4(0.0); }`
 
+
+/**
+ * Ground smoke: camera-facing billboards of soft puffs at the tower bases. They are lit by the screen row they sit in front of (the same
+ * music-driven emission as the towers), faded near the camera, near the housing walls and with distance, drawn back to front with
+ * premultiplied alpha, and write depth where they are dense so the floor reflection and the haze see them instead of painting over them.
+ */
+const SMOKE_VERTEX_SOURCE = `#version 300 es
+precision highp float;
+layout(location = 0) in vec2 a_corner;
+layout(location = 1) in vec4 p0;
+layout(location = 2) in vec4 p1;
+layout(location = 3) in vec4 p2;
+uniform mat4 u_viewRotation;
+uniform mat4 u_projection;
+uniform vec3 u_originShift;
+uniform vec3 u_cameraPosition;
+uniform float u_widthScale;
+uniform float u_tier;
+uniform float u_time;
+uniform float u_intensity;
+uniform float u_smokeAmount;
+uniform float u_fogDensity;
+out vec2 v_uv;
+out float v_cell;
+out float v_alpha;
+out float v_emit;
+out float v_worldX;
+out float v_dist;
+out float v_ahead;
+${EMISSION_GLSL}
+
+void main() {
+  if (p2.w > u_tier + 0.5 || u_smokeAmount <= 0.001) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    return;
+  }
+  vec3 center = p0.xyz;
+  // The aisle widens or narrows with Corridor Width, and the smoke follows its towers.
+  center.x += sign(center.x) * 26.0 * (u_widthScale - 1.0);
+  float bob = sin(u_time * 0.35 + p1.y * 6.2831) * 0.35;
+  float breathe = 1.0 + 0.1 * u_bass + 0.04 * sin(u_time * 0.5 + p1.y * 9.0);
+  vec3 relative = center + u_originShift + vec3(0.0, bob, 0.0);
+  float size = p0.w * breathe;
+  vec3 right = vec3(u_viewRotation[0][0], u_viewRotation[1][0], u_viewRotation[2][0]);
+  vec3 up = vec3(u_viewRotation[0][1], u_viewRotation[1][1], u_viewRotation[2][1]);
+  vec3 position = relative + right * (a_corner.x * size) + up * (a_corner.y * size * p1.x);
+  gl_Position = u_projection * (u_viewRotation * vec4(position, 1.0));
+  float angle = p1.y * 6.2831 + u_time * p1.z;
+  vec2 c = a_corner;
+  v_uv = vec2(cos(angle) * c.x - sin(angle) * c.y, sin(angle) * c.x + cos(angle) * c.y) + 0.5;
+  v_cell = floor(p1.y * 3.999);
+  float ahead = max(-(center.z + u_originShift.z), 0.0);
+  v_emit = min(towerEmission(1.0, p2.x, p2.y, p2.z, ahead) * u_intensity, 1.5);
+  v_dist = length(relative);
+  v_ahead = ahead;
+  // Absolute x of this corner (the camera stays near the aisle centre, so float precision is no concern for x).
+  v_worldX = position.x + u_cameraPosition.x;
+  v_alpha = p1.w * u_smokeAmount * smoothstep(2.5, 13.0, v_dist) * (1.0 - smoothstep(55.0, 100.0, ahead));
+}`
+
+const SMOKE_FRAGMENT_SOURCE = `#version 300 es
+precision highp float;
+in vec2 v_uv;
+in float v_cell;
+in float v_alpha;
+in float v_emit;
+in float v_worldX;
+in float v_dist;
+in float v_ahead;
+uniform sampler2D u_sprites;
+uniform float u_glow;
+uniform vec3 u_fogColor;
+uniform vec3 u_primaryColor;
+uniform float u_fogDensity;
+uniform float u_wallX;
+uniform float u_depthPass;
+uniform float u_density;
+out vec4 outColor;
+
+void main() {
+  vec2 cell = vec2(mod(v_cell, 2.0), floor(v_cell / 2.0)) * 0.5;
+  vec2 uv = clamp(v_uv, 0.0, 1.0);
+  vec4 sprite = texture(u_sprites, cell + uv * 0.5);
+  // Smoke thins out toward the housing walls instead of cutting off against them.
+  float wall = smoothstep(0.0, 5.0, u_wallX - abs(v_worldX));
+  float alpha = sprite.a * v_alpha * wall * exp(-v_dist * u_fogDensity * 0.3);
+  // Two passes: colour (blended, no depth write) and then depth only for the dense core, so the floor can occlude smoke that is below it and
+  // the reflections see the core, while thin smoke leaves the haze behind it untouched.
+  if (u_depthPass > 0.5) {
+    if (alpha < 0.7) discard;
+    outColor = vec4(0.0);
+    return;
+  }
+  if (alpha < 0.02) discard;
+  alpha *= u_density;
+  // Lit fog: as bright as the haze around it (so its thin edges do not read as dark holes), lifted by the screen it sits in front of.
+  vec3 color = (u_fogColor * 2.6 + u_primaryColor * v_emit * 0.1) * (0.55 + 0.6 * sprite.rgb);
+  // The haze pass stops at the smoke's depth, so the haze that would have accumulated behind it is missing: brighten with distance to make up for it.
+  color *= 1.0 + 1.6 * smoothstep(15.0, 80.0, v_ahead);
+  // Toward the far end the smoke is backlit by the vanishing-point glow instead of standing dark against it.
+  color += u_fogColor * 2.2 * u_glow * smoothstep(50.0, 170.0, v_ahead) * sprite.rgb;
+  outColor = vec4(color * alpha, alpha);
+}`
+
 export interface ThresholdShadowDrawState {
   /** World -> light clip space, already translated to camera-relative coordinates (`world = relative + camera`). */
   lightViewProjection: Float32Array
@@ -269,6 +403,11 @@ export interface ThresholdShadowDrawState {
   cameraPosition: readonly [number, number, number]
   widthScale: number
   fieldVisibility: readonly number[]
+  /** Quality tier (0 low, 1 medium, 2 high): instances above it are skipped. */
+  tier: number
+  /** Chunks farther than this from the camera (or further behind it than `cullMargin`) are not drawn into the map. */
+  viewFar: number
+  cullMargin: number
 }
 
 export interface ThresholdDrawState {
@@ -292,6 +431,13 @@ export interface ThresholdDrawState {
   fieldVisibility: readonly number[]
   /** Where the corridor's far end lands on screen (0..1) and how strongly it glows (0 outside the corridor). */
   vanishing: { x: number; y: number; strength: number; aspect: number }
+  /** Quality tier (0 low, 1 medium, 2 high): instances above it are skipped. */
+  tier: number
+  /** View distance (the camera far plane) and how far behind the camera a chunk may still be drawn (its shadow can reach in). */
+  viewFar: number
+  cullMargin: number
+  /** Ground smoke: the sprite sheet (null until it has loaded) and its fade-in amount 0..1. */
+  smoke: { texture: WebGLTexture | null; amount: number; wallX: number }
   reactive: {
     kick: number; snare: number; beat: number; beatParity: number
     sweepFront: number; sweepStrength: number; drop: number
@@ -304,7 +450,7 @@ const UNIFORMS = [
   'u_viewRotation', 'u_projection', 'u_originShift', 'u_widthScale', 'u_intensity', 'u_baseLevel', 'u_accentBase',
   'u_kick', 'u_snare', 'u_beat', 'u_beatParity', 'u_sweepFront', 'u_sweepStrength', 'u_drop', 'u_energy', 'u_bass',
   'u_vocal', 'u_arc', 'u_level', 'u_phraseSide', 'u_breathing', 'u_primaryColor', 'u_accentColor', 'u_bodyColor', 'u_fogColor',
-  'u_fogDensity', 'u_highs', 'u_time', 'u_fieldVisibility',
+  'u_fogDensity', 'u_highs', 'u_time', 'u_fieldVisibility', 'u_tier',
 ]
 
 /** Instanced unit boxes: geometry and instance data are uploaded once; per-frame state is uniforms only. */
@@ -316,10 +462,22 @@ export class ThresholdRenderer {
   private readonly vao: WebGLVertexArrayObject
   private readonly buffers: WebGLBuffer[] = []
   private readonly instanceCount: number
+  private readonly instanceBuffer: WebGLBuffer
+  private readonly chunks: readonly ThresholdChunk[]
+  private readonly smokeProgram: ShaderProgram
+  private readonly smokeVao: WebGLVertexArrayObject
+  private readonly puffCount: number
+  private boundStart = 0
+  private stats = { boxesDrawn: 0, puffsDrawn: 0, shadowBoxesDrawn: 0 }
   private disposed = false
 
-  constructor(private readonly gl: WebGL2RenderingContext, instances: Float32Array) {
+  constructor(
+    private readonly gl: WebGL2RenderingContext,
+    instances: Float32Array,
+    options: Readonly<{ chunks?: readonly ThresholdChunk[]; puffs?: Float32Array }> = {},
+  ) {
     this.instanceCount = Math.floor(instances.length / THRESHOLD_INSTANCE_FLOATS)
+    this.chunks = options.chunks ?? Object.freeze([{ start: 0, count: this.instanceCount, zMin: -Infinity, zMax: Infinity }])
     const compiled = ShaderProgram.create(gl, new ShaderCompiler(gl), {
       label: 'Cinema2/Threshold/Monoliths',
       vertSrc: VERTEX_SOURCE,
@@ -362,7 +520,7 @@ export class ThresholdRenderer {
     gl.enableVertexAttribArray(2)
     gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24)
     this.createBuffer(gl.ELEMENT_ARRAY_BUFFER, indices)
-    this.createBuffer(gl.ARRAY_BUFFER, instances)
+    this.instanceBuffer = this.createBuffer(gl.ARRAY_BUFFER, instances)
     for (let attribute = 0; attribute < 4; attribute += 1) {
       gl.enableVertexAttribArray(3 + attribute)
       gl.vertexAttribPointer(3 + attribute, 4, gl.FLOAT, false, THRESHOLD_INSTANCE_FLOATS * 4, attribute * 16)
@@ -370,7 +528,68 @@ export class ThresholdRenderer {
     }
     gl.bindVertexArray(null)
     gl.bindBuffer(gl.ARRAY_BUFFER, null)
+
+    // Ground-smoke billboards: one unit quad plus a static instance buffer (three vec4s per puff).
+    const smoke = ShaderProgram.create(gl, new ShaderCompiler(gl), {
+      label: 'Cinema2/Threshold/GroundSmoke',
+      vertSrc: SMOKE_VERTEX_SOURCE,
+      fragSrc: SMOKE_FRAGMENT_SOURCE,
+      optionalUniforms: [
+        'u_viewRotation', 'u_projection', 'u_originShift', 'u_cameraPosition', 'u_widthScale', 'u_tier', 'u_time', 'u_intensity', 'u_smokeAmount',
+        'u_fogDensity', 'u_sprites', 'u_fogColor', 'u_primaryColor', 'u_wallX', 'u_glow', 'u_depthPass', 'u_density',
+        'u_baseLevel', 'u_accentBase', 'u_kick', 'u_snare', 'u_beat', 'u_beatParity', 'u_sweepFront', 'u_sweepStrength', 'u_drop', 'u_bass',
+        'u_vocal', 'u_arc', 'u_level', 'u_phraseSide', 'u_breathing',
+      ],
+    })
+    if (!smoke.program) throw new Error(`Shader compilation failed at ${smoke.error.stage} for "${smoke.error.label}": ${smoke.error.log}`)
+    this.smokeProgram = smoke.program
+    const puffs = options.puffs ?? new Float32Array(0)
+    this.puffCount = Math.floor(puffs.length / THRESHOLD_PUFF_FLOATS)
+    const smokeVao = gl.createVertexArray()
+    if (!smokeVao) throw new Error('Cinema 2.0 Threshold could not allocate a vertex array.')
+    this.smokeVao = smokeVao
+    gl.bindVertexArray(smokeVao)
+    this.createBuffer(gl.ARRAY_BUFFER, new Float32Array([-0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5]))
+    gl.enableVertexAttribArray(0)
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 8, 0)
+    this.createBuffer(gl.ARRAY_BUFFER, puffs.length > 0 ? puffs : new Float32Array(THRESHOLD_PUFF_FLOATS))
+    for (let attribute = 0; attribute < 3; attribute += 1) {
+      gl.enableVertexAttribArray(1 + attribute)
+      gl.vertexAttribPointer(1 + attribute, 4, gl.FLOAT, false, THRESHOLD_PUFF_FLOATS * 4, attribute * 16)
+      gl.vertexAttribDivisor(1 + attribute, 1)
+    }
+    gl.bindVertexArray(null)
+    gl.bindBuffer(gl.ARRAY_BUFFER, null)
     assertCinema2NoGlErrors(gl, 'Threshold renderer setup')
+  }
+
+  /** Points the per-instance attributes at instance `start` (the VAO must be bound). */
+  private bindInstanceStart(start: number): void {
+    if (start === this.boundStart) return
+    const { gl } = this
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer)
+    for (let attribute = 0; attribute < 4; attribute += 1) {
+      gl.vertexAttribPointer(3 + attribute, 4, gl.FLOAT, false, THRESHOLD_INSTANCE_FLOATS * 4, start * THRESHOLD_INSTANCE_FLOATS * 4 + attribute * 16)
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, null)
+    this.boundStart = start
+  }
+
+  /** Draws the visible instance ranges of one lap copy; returns how many instances were submitted. */
+  private drawRanges(lap: number, period: number, cameraZ: number, viewFar: number, margin: number): number {
+    const { gl } = this
+    let drawn = 0
+    for (const range of visibleThresholdRanges(this.chunks, lap, period, cameraZ, viewFar, margin)) {
+      this.bindInstanceStart(range.start)
+      gl.drawElementsInstanced(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0, range.count)
+      drawn += range.count
+    }
+    return drawn
+  }
+
+  /** What the last frame submitted: box instances (main and shadow passes) and smoke puffs. For tests and diagnostics. */
+  getStats(): Readonly<{ boxesDrawn: number; puffsDrawn: number; shadowBoxesDrawn: number; totalBoxes: number; totalPuffs: number }> {
+    return { ...this.stats, totalBoxes: this.instanceCount, totalPuffs: this.puffCount }
   }
 
   private createBuffer(target: number, data: Float32Array | Uint16Array): WebGLBuffer {
@@ -432,18 +651,85 @@ export class ThresholdRenderer {
       gl.disable(gl.BLEND)
       program.activate()
     }
-    gl.bindVertexArray(this.vao)
-    gl.enable(gl.CULL_FACE)
-    gl.cullFace(gl.BACK)
-    for (const [index, lap] of state.laps.entries()) {
-      program.setFloat('u_fieldVisibility', state.fieldVisibility[index] ?? 1)
+    program.setFloat('u_tier', state.tier)
+    const smoke = state.smoke
+    const smokeReady = this.puffCount > 0 && smoke.texture != null && smoke.amount > 0.001
+    this.stats.boxesDrawn = 0
+    this.stats.puffsDrawn = 0
+    // Laps far to near: the farthest copy first, so the smoke (blended) of each copy composes over what is behind it.
+    for (const index of [...state.laps.keys()].reverse()) {
+      const lap = state.laps[index]!
       // World -> camera-relative shift, computed in JS doubles so an endless flight keeps full precision.
-      program.setVec3('u_originShift', -state.cameraPosition[0], -state.cameraPosition[1], -lap * state.period - state.cameraPosition[2])
-      gl.drawElementsInstanced(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0, this.instanceCount)
+      const shift: [number, number, number] = [-state.cameraPosition[0], -state.cameraPosition[1], -lap * state.period - state.cameraPosition[2]]
+      program.activate()
+      program.setFloat('u_fieldVisibility', state.fieldVisibility[index] ?? 1)
+      program.setVec3('u_originShift', ...shift)
+      gl.bindVertexArray(this.vao)
+      gl.enable(gl.CULL_FACE)
+      gl.cullFace(gl.BACK)
+      this.stats.boxesDrawn += this.drawRanges(lap, state.period, state.cameraPosition[2], state.viewFar, state.cullMargin)
+      gl.disable(gl.CULL_FACE)
+      gl.bindVertexArray(null)
+      if (smokeReady) this.drawSmoke(state, lap, shift, r)
     }
-    gl.disable(gl.CULL_FACE)
-    gl.bindVertexArray(null)
     assertCinema2NoGlErrors(gl, 'Threshold monolith draw')
+  }
+
+  private drawSmoke(state: Readonly<ThresholdDrawState>, lap: number, shift: readonly [number, number, number], r: ThresholdDrawState['reactive']): void {
+    const { gl, smokeProgram: program } = this
+    // Puffs of this lap that are in front of (or just behind) the camera; the buffer is sorted far to near, so it draws back to front.
+    program.activate()
+    program.setMat4('u_viewRotation', state.viewRotation)
+    program.setMat4('u_projection', state.projection)
+    program.setVec3('u_originShift', ...shift)
+    program.setVec3('u_cameraPosition', ...state.cameraPosition)
+    program.setFloat('u_widthScale', state.widthScale)
+    program.setFloat('u_tier', state.tier)
+    program.setFloat('u_time', state.time)
+    program.setFloat('u_intensity', state.intensity)
+    program.setFloat('u_smokeAmount', state.smoke.amount)
+    program.setFloat('u_fogDensity', state.fogDensity)
+    program.setFloat('u_wallX', state.smoke.wallX)
+    program.setFloat('u_density', 0.4)
+    program.setFloat('u_glow', Math.min(state.vanishing.strength / 3.6, 1.5))
+    program.setVec3('u_fogColor', ...state.fogColor)
+    program.setVec3('u_primaryColor', ...state.primaryColor)
+    program.setFloat('u_baseLevel', state.baseLevel)
+    program.setFloat('u_accentBase', state.accentBase)
+    program.setFloat('u_kick', r.kick)
+    program.setFloat('u_snare', r.snare)
+    program.setFloat('u_beat', r.beat)
+    program.setFloat('u_beatParity', r.beatParity)
+    program.setFloat('u_sweepFront', r.sweepFront)
+    program.setFloat('u_sweepStrength', r.sweepStrength)
+    program.setFloat('u_drop', r.drop)
+    program.setFloat('u_bass', r.bass)
+    program.setFloat('u_vocal', r.vocal)
+    program.setFloat('u_arc', r.arc)
+    program.setFloat('u_level', r.level)
+    program.setFloat('u_phraseSide', r.phraseSide)
+    program.setFloat('u_breathing', r.breathing)
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, state.smoke.texture!)
+    program.setSampler('u_sprites', 0)
+    gl.bindVertexArray(this.smokeVao)
+    gl.enable(gl.BLEND)
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+    // Colour pass: depth-tested, blended, no depth write.
+    gl.depthMask(false)
+    program.setFloat('u_depthPass', 0)
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.puffCount)
+    // Depth pass: only the dense core writes depth (no colour), so the floor effect and the reflections see it.
+    gl.disable(gl.BLEND)
+    gl.colorMask(false, false, false, false)
+    gl.depthMask(true)
+    program.setFloat('u_depthPass', 1)
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.puffCount)
+    gl.colorMask(true, true, true, true)
+    this.stats.puffsDrawn += this.puffCount
+    gl.bindVertexArray(null)
+    gl.bindTexture(gl.TEXTURE_2D, null)
+    void lap
   }
 
   /** Draws every tower depth-only into the currently bound shadow-map framebuffer. */
@@ -453,11 +739,13 @@ export class ThresholdRenderer {
     program.activate()
     program.setMat4('u_lightViewProj', state.lightViewProjection)
     program.setFloat('u_widthScale', state.widthScale)
+    program.setFloat('u_tier', state.tier)
     gl.bindVertexArray(this.vao)
+    this.stats.shadowBoxesDrawn = 0
     for (const [index, lap] of state.laps.entries()) {
       program.setFloat('u_fieldVisibility', state.fieldVisibility[index] ?? 1)
       program.setVec3('u_originShift', -state.cameraPosition[0], -state.cameraPosition[1], -lap * state.period - state.cameraPosition[2])
-      gl.drawElementsInstanced(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0, this.instanceCount)
+      this.stats.shadowBoxesDrawn += this.drawRanges(lap, state.period, state.cameraPosition[2], state.viewFar, state.cullMargin)
     }
     gl.bindVertexArray(null)
     assertCinema2NoGlErrors(gl, 'Threshold shadow draw')
@@ -470,6 +758,8 @@ export class ThresholdRenderer {
     this.buffers.length = 0
     this.gl.deleteVertexArray(this.vao)
     this.gl.deleteVertexArray(this.glowVao)
+    this.gl.deleteVertexArray(this.smokeVao)
+    this.smokeProgram.dispose()
     this.glowProgram.dispose()
     this.shadowProgram.dispose()
     this.program.dispose()

@@ -332,8 +332,14 @@ describe('Cinema 2.0 shipped asset manifest', () => {
         for (const instance of instances ?? []) if (instance.asset) referenced.add(instance.asset)
       }
       for (const effect of manifest.effects ?? []) {
-        const texture = effect.parameters?.surfaceTexture
-        if (typeof texture === 'string') referenced.add(texture)
+        for (const name of ['surfaceTexture', 'smokeTexture'] as const) {
+          const texture = effect.parameters?.[name]
+          if (typeof texture === 'string') referenced.add(texture)
+        }
+      }
+      // Threshold's ground smoke loads its sprite sheet itself (unless its detail is switched off).
+      for (const module of manifest.modules ?? []) {
+        if (module.typeId === 'threshold-native-render' && module.config?.extras !== false) referenced.add('cinema2-smoke-sprites')
       }
       for (const id of referenced) expect(byId.has(id), `${manifest.id} references unknown asset "${id}"`).toBe(true)
       for (const tier of ['low', 'medium', 'high'] as const) {

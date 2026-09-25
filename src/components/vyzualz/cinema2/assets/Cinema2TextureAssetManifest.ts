@@ -3,6 +3,8 @@ import { Cinema2TextureAssetRegistry } from './Cinema2TextureAssetRegistry'
 
 /** Tileable wet-concrete normal / crack / roughness map used by the reflective floor (generated in house, see `assets/cinema2/cinema2-wet-concrete`). */
 export const CINEMA2_WET_CONCRETE_TEXTURE_ASSET_ID: Cinema2AssetId = 'cinema2-wet-concrete'
+/** 2x2 sheet of soft smoke puffs used by Threshold's ground-smoke billboards (generated in house, see `assets/cinema2/cinema2-smoke-sprites`). */
+export const CINEMA2_SMOKE_SPRITES_TEXTURE_ASSET_ID: Cinema2AssetId = 'cinema2-smoke-sprites'
 /** Tileable 3D smoke/noise volume used by the volumetric atmosphere (generated in house, see `assets/cinema2/cinema2-smoke-volume`). */
 export const CINEMA2_SMOKE_VOLUME_TEXTURE_ASSET_ID: Cinema2AssetId = 'cinema2-smoke-volume'
 

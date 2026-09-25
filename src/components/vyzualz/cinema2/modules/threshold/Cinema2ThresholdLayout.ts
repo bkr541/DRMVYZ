@@ -38,7 +38,44 @@ export interface ThresholdInstance {
   rank: number
   /** 0 = left of the flight path, 1 = right (or, for hanging/ring panels, by sign of x). */
   side: 0 | 1
+  /** Lowest quality tier that draws this instance: 0 = low (default), 1 = medium, 2 = high. Detail beyond the base layout is gated by tier. */
+  minTier?: ThresholdTier
 }
+
+export type ThresholdTier = 0 | 1 | 2
+
+/**
+ * Per-tier instance budgets, per lap copy: boxes (towers, screens, structure) and smoke puffs. The layout is checked against these when the
+ * module is created, so adding detail can never silently blow a tier's vertex budget.
+ */
+export const THRESHOLD_INSTANCE_BUDGETS: Readonly<Record<'low' | 'medium' | 'high', Readonly<{ boxes: number; puffs: number }>>> = Object.freeze({
+  low: Object.freeze({ boxes: 200, puffs: 30 }),
+  medium: Object.freeze({ boxes: 320, puffs: 60 }),
+  high: Object.freeze({ boxes: 420, puffs: 120 }),
+})
+
+export const THRESHOLD_TIER_BY_QUALITY: Readonly<Record<'low' | 'medium' | 'high', ThresholdTier>> = Object.freeze({ low: 0, medium: 1, high: 2 })
+
+/** A soft ground-smoke billboard (see `buildThresholdSmoke`). Positions are lap-local, like box instances. */
+export interface ThresholdPuff {
+  position: readonly [number, number, number]
+  /** World size of the billboard's width; height is `size * stretch`. */
+  size: number
+  stretch: number
+  /** 0..1: picks the sprite cell and the starting angle. */
+  seed: number
+  /** Turn rate in radians per second (sign gives direction). */
+  spin: number
+  /** Peak opacity before fog and distance fades. */
+  alpha: number
+  /** The screen this smoke belongs to lights it: same row/rank/side as the pair. */
+  row: number
+  rank: number
+  side: 0 | 1
+  minTier: ThresholdTier
+}
+
+export const THRESHOLD_PUFF_FLOATS = 12
 
 export const THRESHOLD_INSTANCE_FLOATS = 16
 
@@ -77,7 +114,7 @@ const FIELD_END = 150
 export const THRESHOLD_RING_CENTER = 184
 const RING_RADIUS = 26
 
-export function buildThresholdLayout(seed = 1337): readonly ThresholdInstance[] {
+export function buildThresholdLayout(seed = 1337, options: Readonly<{ extras?: boolean }> = {}): readonly ThresholdInstance[] {
   const random = createRandom(seed)
   const range = (min: number, max: number) => min + (max - min) * random()
   const instances: ThresholdInstance[] = []
@@ -179,7 +216,156 @@ export function buildThresholdLayout(seed = 1337): readonly ThresholdInstance[] 
     row += 1
   }
 
+  if (options.extras !== false) instances.push(...buildThresholdDetail(seed))
   return Object.freeze(instances.map(instance => Object.freeze(instance)))
+}
+
+/** |x| of the outer face of a corridor housing tower. */
+const HOUSING_OUTER_X = CORRIDOR_HALF_WIDTH + PANEL_THICKNESS / 2 + THRESHOLD_HOUSING_SIZE[2]
+const OVERHEAD_TOP_Y = 56
+const OVERHEAD_BOTTOM_Y = 52.4
+const OVERHEAD_HALF_SPAN = 40
+
+/**
+ * Detail beyond the hero colonnade, appended after the base layout so the base instances (and their indices) never change. It uses its own
+ * seeded stream, so the layout is identical run to run and the base scatter is untouched:
+ *  - an outer rank of taller dark towers, staggered half a step behind the housings (medium and up), which gives the corridor depth through
+ *    the gaps between the housings;
+ *  - overhead structure: cross beams, longitudinal rails (medium and up), lower chords, struts and hanging cables (high), a faint ceiling
+ *    the reference has and the volumetric light and shadows can rake across.
+ * Everything is role 0 (plain dark body), z-sorted so lap chunks cull well.
+ */
+export function buildThresholdDetail(seed = 1337): readonly ThresholdInstance[] {
+  const random = createRandom((seed ^ 0x9e3779b9) >>> 0)
+  const range = (min: number, max: number) => min + (max - min) * random()
+  const out: ThresholdInstance[] = []
+  const base = { role: 0 as const, zone: 0 as const, rotation: [0, 0, 0] as const }
+  let row = 0
+  for (let index = 0; index <= CORRIDOR_PAIRS; index += 1) {
+    const distance = CORRIDOR_FIRST + (index - 0.5) * CORRIDOR_SPACING
+    const rank = 0.04 + 0.92 * (Math.min(index, CORRIDOR_PAIRS - 1) / (CORRIDOR_PAIRS - 1))
+    for (const sign of [-1, 1] as const) {
+      const height = range(56, 74)
+      const width = range(11, 14)
+      out.push({
+        ...base, row, rank, side: (sign < 0 ? 0 : 1) as 0 | 1, minTier: 1,
+        position: [sign * (HOUSING_OUTER_X + range(7, 13) + width / 2), height / 2, -distance + range(-1.5, 1.5)],
+        size: [width, height, range(11, 14)],
+      })
+    }
+    row += 1
+  }
+
+  const beamZ = (index: number) => -(CORRIDOR_FIRST + (index - 0.5) * CORRIDOR_SPACING)
+  for (let index = 0; index <= CORRIDOR_PAIRS; index += 1) {
+    const z = beamZ(index)
+    const shared = { ...base, row: index, rank: 0.5, side: 0 as const }
+    out.push({ ...shared, minTier: 1, position: [0, OVERHEAD_TOP_Y, z], size: [OVERHEAD_HALF_SPAN * 2, 1.5, 1.5] })
+    out.push({ ...shared, minTier: 2, position: [0, OVERHEAD_BOTTOM_Y, z], size: [OVERHEAD_HALF_SPAN * 2, 1, 1] })
+    for (const x of [-OVERHEAD_HALF_SPAN + 1, -20, 0, 20, OVERHEAD_HALF_SPAN - 1]) {
+      out.push({ ...shared, minTier: 2, position: [x, (OVERHEAD_TOP_Y + OVERHEAD_BOTTOM_Y) / 2, z], size: [0.7, OVERHEAD_TOP_Y - OVERHEAD_BOTTOM_Y, 0.7] })
+    }
+    for (let cable = 0; cable < 3; cable += 1) {
+      const length = range(7, 18)
+      out.push({ ...shared, minTier: 2, position: [range(-30, 30), OVERHEAD_BOTTOM_Y - length / 2, z + range(-2, 2)], size: [0.25, length, 0.25] })
+    }
+  }
+  const railLength = (CORRIDOR_PAIRS + 0.5) * CORRIDOR_SPACING
+  for (const x of [-14, 14]) {
+    out.push({ ...base, row: 0, rank: 0.5, side: (x < 0 ? 0 : 1) as 0 | 1, minTier: 1, position: [x, OVERHEAD_TOP_Y - 1.2, -(CORRIDOR_FIRST - CORRIDOR_SPACING + railLength / 2)], size: [1.1, 1.1, railLength + CORRIDOR_SPACING] })
+  }
+  // Nearest last, so chunks (consecutive instances) cover compact z ranges; the long rails stay where they are.
+  return out.sort((left, right) => left.position[2] - right.position[2])
+}
+
+/**
+ * Ground smoke: soft billboards at the tower bases (two per side of every pair on every tier, more on medium and high), which the
+ * screens light. Sorted farthest first (most negative z), so drawing the buffer in order composes back to front.
+ */
+export function buildThresholdSmoke(seed = 1337): readonly ThresholdPuff[] {
+  const random = createRandom((seed ^ 0x85ebca6b) >>> 0)
+  const range = (min: number, max: number) => min + (max - min) * random()
+  const puffs: ThresholdPuff[] = []
+  for (let index = 0; index < CORRIDOR_PAIRS; index += 1) {
+    const distance = CORRIDOR_FIRST + index * CORRIDOR_SPACING
+    const rank = 0.04 + 0.92 * (index / (CORRIDOR_PAIRS - 1))
+    const make = (x: number, y: number, z: number, size: number, alpha: number, minTier: ThresholdTier, side: 0 | 1): ThresholdPuff => ({
+      position: [x, y, z], size, stretch: range(0.55, 0.8), seed: random(), spin: range(0.02, 0.06) * (random() < 0.5 ? -1 : 1), alpha, row: index, rank, side, minTier,
+    })
+    for (const sign of [-1, 1] as const) {
+      const side = (sign < 0 ? 0 : 1) as 0 | 1
+      for (let n = 0; n < 2; n += 1) puffs.push(make(sign * range(15, 24), range(2.2, 5), -distance + range(-5.5, 5.5), range(15, 22), range(0.5, 0.7), 0, side))
+      puffs.push(make(sign * range(8, 14), range(1.6, 3.4), -distance + range(-6, 6), range(18, 26), range(0.4, 0.55), 1, side))
+    }
+    for (let n = 0; n < 2; n += 1) puffs.push(make(range(-6, 6), range(1.2, 2.8), -distance + range(-6.5, 6.5), range(20, 30), range(0.3, 0.42), 2, (n % 2) as 0 | 1))
+  }
+  return Object.freeze(puffs.sort((left, right) => left.position[2] - right.position[2]).map(puff => Object.freeze(puff)))
+}
+
+/** Packs smoke puffs: three `vec4`s per puff (48 bytes). */
+export function packThresholdPuffs(puffs: readonly ThresholdPuff[]): Float32Array {
+  const data = new Float32Array(puffs.length * THRESHOLD_PUFF_FLOATS)
+  puffs.forEach((puff, index) => {
+    const o = index * THRESHOLD_PUFF_FLOATS
+    data.set([puff.position[0], puff.position[1], puff.position[2], puff.size], o)
+    data.set([puff.stretch, puff.seed, puff.spin, puff.alpha], o + 4)
+    data.set([puff.row, puff.rank, puff.side, puff.minTier], o + 8)
+  })
+  return data
+}
+
+export function countThresholdInstances(instances: readonly Readonly<{ minTier?: ThresholdTier }>[], tier: ThresholdTier): number {
+  return instances.filter(instance => (instance.minTier ?? 0) <= tier).length
+}
+
+/** A run of consecutive instances with its lap-local z extent, used to skip chunks that are behind the camera or beyond the view distance. */
+export interface ThresholdChunk {
+  start: number
+  count: number
+  zMin: number
+  zMax: number
+}
+
+export const THRESHOLD_CHUNK_SIZE = 24
+
+export function buildThresholdChunks(instances: readonly ThresholdInstance[], chunkSize = THRESHOLD_CHUNK_SIZE): readonly ThresholdChunk[] {
+  const chunks: ThresholdChunk[] = []
+  for (let start = 0; start < instances.length; start += chunkSize) {
+    const slice = instances.slice(start, start + chunkSize)
+    let zMin = Infinity
+    let zMax = -Infinity
+    for (const instance of slice) {
+      // A rotated box reaches at most half its diagonal from its centre.
+      const reach = Math.hypot(instance.size[0], instance.size[1], instance.size[2]) / 2
+      zMin = Math.min(zMin, instance.position[2] - reach)
+      zMax = Math.max(zMax, instance.position[2] + reach)
+    }
+    chunks.push({ start, count: slice.length, zMin, zMax })
+  }
+  return Object.freeze(chunks)
+}
+
+/**
+ * The instance ranges of one lap copy that can be seen from a camera at world z `cameraZ`: chunks whose world z extent intersects
+ * `[cameraZ - viewFar, cameraZ + margin]`. Adjacent visible chunks are merged into one draw range.
+ */
+export function visibleThresholdRanges(
+  chunks: readonly ThresholdChunk[],
+  lap: number,
+  period: number,
+  cameraZ: number,
+  viewFar: number,
+  margin: number,
+): readonly { start: number; count: number }[] {
+  const ranges: { start: number; count: number }[] = []
+  const shift = lap * period
+  for (const chunk of chunks) {
+    if (chunk.zMax - shift < cameraZ - viewFar || chunk.zMin - shift > cameraZ + margin) continue
+    const last = ranges[ranges.length - 1]
+    if (last && last.start + last.count === chunk.start) last.count += chunk.count
+    else ranges.push({ start: chunk.start, count: chunk.count })
+  }
+  return ranges
 }
 
 /** Packs instances into the vertex layout: four `vec4` attributes per instance (64 bytes). */
@@ -202,9 +388,10 @@ export function packThresholdInstances(instances: readonly ThresholdInstance[]):
     data[o + 9] = instance.role
     data[o + 10] = instance.row
     data[o + 11] = instance.rank
-    // i3: side, zone (two reserved)
+    // i3: side, zone, minimum quality tier (one reserved)
     data[o + 12] = instance.side
     data[o + 13] = instance.zone
+    data[o + 14] = instance.minTier ?? 0
   })
   return data
 }

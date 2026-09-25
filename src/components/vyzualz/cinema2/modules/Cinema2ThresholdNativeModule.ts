@@ -12,11 +12,20 @@ import type {
   Cinema2ModuleTypeDefinition,
   Cinema2ModuleUpdateContext,
 } from './Cinema2ModuleContracts'
+import type { Cinema2TextureHandle } from '../assets/Cinema2AssetTextureService'
+import { CINEMA2_SMOKE_SPRITES_TEXTURE_ASSET_ID } from '../assets/Cinema2TextureAssetManifest'
 import {
+  THRESHOLD_INSTANCE_BUDGETS,
   THRESHOLD_PERIOD,
+  THRESHOLD_TIER_BY_QUALITY,
+  buildThresholdChunks,
   buildThresholdLayout,
+  buildThresholdSmoke,
+  countThresholdInstances,
   packThresholdInstances,
+  packThresholdPuffs,
   thresholdPeriodIndices,
+  type ThresholdTier,
 } from './threshold/Cinema2ThresholdLayout'
 import { multiplyMatrices, translationMatrix } from '../spatial/Cinema2LightMatrices'
 import { ThresholdReactiveState } from './threshold/Cinema2ThresholdReactiveState'
@@ -43,17 +52,53 @@ export const cinema2ThresholdNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     if (seed !== undefined && (typeof seed !== 'number' || !Number.isFinite(seed))) {
       return Object.freeze([{ code: 'CINEMA2_THRESHOLD_SEED_INVALID', path: '$.config.seed', message: 'Threshold layout seed must be a finite number.' }])
     }
+    const extras = module.config?.extras
+    if (extras !== undefined && typeof extras !== 'boolean') {
+      return Object.freeze([{ code: 'CINEMA2_THRESHOLD_EXTRAS_INVALID', path: '$.config.extras', message: 'Threshold "extras" (outer towers, overhead structure and ground smoke) must be a boolean.' }])
+    }
     return Object.freeze([])
   },
   create(context: Cinema2ModuleCreateContext) {
     const seed = typeof context.module.config?.seed === 'number' ? context.module.config.seed : 1337
+    const extras = context.module.config?.extras !== false
     const reactive = new ThresholdReactiveState()
+    // Detail (outer towers, overhead structure, ground smoke) is generated deterministically from the seed, gated per quality tier, and must fit
+    // each tier's instance budget: adding detail that would blow a budget fails module creation instead of a frame.
+    const layout = buildThresholdLayout(seed, { extras })
+    const puffs = extras ? buildThresholdSmoke(seed) : []
+    for (const quality of ['low', 'medium', 'high'] as const) {
+      const tier = THRESHOLD_TIER_BY_QUALITY[quality]
+      const budget = THRESHOLD_INSTANCE_BUDGETS[quality]
+      const boxes = countThresholdInstances(layout, tier)
+      const smoke = countThresholdInstances(puffs, tier)
+      if (boxes > budget.boxes || smoke > budget.puffs) {
+        throw new Error(`Cinema 2.0 Threshold module "${context.module.id}" needs ${boxes} boxes and ${smoke} smoke puffs on ${quality}, above the ${budget.boxes} / ${budget.puffs} instance budget for that tier.`)
+      }
+    }
     const renderer = context.resources.acquire(
-      `threshold:monoliths:${seed}`,
+      `threshold:monoliths:${seed}:${extras ? 'extras' : 'base'}`,
       'ThresholdRenderer',
-      gl => new ThresholdRenderer(gl, packThresholdInstances(buildThresholdLayout(seed))),
+      gl => new ThresholdRenderer(gl, packThresholdInstances(layout), { chunks: buildThresholdChunks(layout), puffs: packThresholdPuffs(puffs) }),
       value => value.dispose(),
     )
+    // The ground-smoke sprite sheet comes from the shared texture service; smoke draws only once it has loaded (and fades in), the rest of the
+    // scene never waits for it.
+    const spriteAssetId = extras && context.textures ? CINEMA2_SMOKE_SPRITES_TEXTURE_ASSET_ID : null
+    let spriteHandle: Cinema2TextureHandle | null = null
+    let spriteQuality: string | null = null
+    let spriteReadySinceSec: number | null = null
+    const smokeState = (execution: Cinema2ModuleRenderExecutionContext, quality: 'low' | 'medium' | 'high') => {
+      if (!spriteAssetId || !context.textures) return { texture: null, amount: 0 }
+      if (spriteQuality !== quality) {
+        spriteHandle?.release()
+        spriteHandle = context.textures.acquire(spriteAssetId, quality)
+        spriteQuality = quality
+        spriteReadySinceSec = null
+      }
+      if (!spriteHandle || spriteHandle.status !== 'ready' || !spriteHandle.texture) return { texture: null, amount: 0 }
+      spriteReadySinceSec ??= execution.frame.elapsedTimeSec
+      return { texture: spriteHandle.texture, amount: clamp((execution.frame.elapsedTimeSec - spriteReadySinceSec) / 0.8, 0, 1) }
+    }
 
     const provider = Object.freeze({
       id: `${context.module.id}:threshold`,
@@ -72,13 +117,20 @@ export const cinema2ThresholdNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
         const atmosphere = color(context, 'atmosphereColor', DEFAULT_ATMOSPHERE)
         const laps = thresholdPeriodIndices(camera.position[2])
         const state = reactive.getFrame()
+        const quality = execution.lightingEnvironment?.quality ?? 'high'
+        const widthScale = clamp(number(context, 'corridorWidth', 1), 0.5, 1.8)
+        const smoke = smokeState(execution, quality)
         renderer.draw({
+          tier: THRESHOLD_TIER_BY_QUALITY[quality] as ThresholdTier,
+          viewFar: camera.far,
+          cullMargin: 8,
+          smoke: { ...smoke, wallX: 24 + 26 * (widthScale - 1) },
           viewRotation,
           projection: new Float32Array(camera.projectionMatrix),
           cameraPosition: camera.position,
           laps,
           period: THRESHOLD_PERIOD,
-          widthScale: clamp(number(context, 'corridorWidth', 1), 0.5, 1.8),
+          widthScale,
           intensity: clamp(number(context, 'intensity', 1), 0, 1.5),
           baseLevel: 1.1 + 0.15 * clamp(number(context, 'panelBrightness', 0.7), 0, 1),
           accentBase: 0.32 + 0.4 * clamp(number(context, 'panelBrightness', 0.7), 0, 1),
@@ -107,6 +159,10 @@ export const cinema2ThresholdNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           cameraPosition: camera.position,
           widthScale: clamp(number(context, 'corridorWidth', 1), 0.5, 1.8),
           fieldVisibility: laps.map(lap => smoothstep(35, 60, -camera.position[2] - lap * THRESHOLD_PERIOD)),
+          tier: THRESHOLD_TIER_BY_QUALITY[shadow.lightingEnvironment.quality],
+          viewFar: camera.far,
+          // The light's frustum reaches well behind the camera (the map is centred ahead of it), so chunks behind stay in the map.
+          cullMargin: 110,
         })
       },
     })
@@ -117,7 +173,12 @@ export const cinema2ThresholdNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           const reactivity = typeof parameters.get('reactivity') === 'number' ? parameters.get('reactivity') as number : 0.75
           reactive.update(frame, reactivity, parameters.get('bpmSync') !== false)
         },
-        dispose: () => reactive.reset(),
+        dispose: () => {
+          reactive.reset()
+          spriteHandle?.release()
+          spriteHandle = null
+          spriteQuality = null
+        },
       },
       render: { providers: Object.freeze([provider]) },
     }

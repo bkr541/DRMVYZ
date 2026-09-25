@@ -487,7 +487,7 @@ export class Cinema2Runtime {
     )
     this.choreographyRuntime = new Cinema2ChoreographyRuntime(compiledPresetPlan, parameterState, this.targetResolver, this.randomService)
     this.mediaSlotRuntime = new Cinema2MediaSlotRuntime(gl, compiledPresetPlan.manifest.mediaSlots ?? [], options.mediaLoader)
-    this.moduleRuntime = new Cinema2ModuleRuntime(gl, compiledPresetPlan, this.targetResolver, moduleRegistry, this.mediaSlotRuntime, this.randomService)
+    this.moduleRuntime = new Cinema2ModuleRuntime(gl, compiledPresetPlan, this.targetResolver, moduleRegistry, this.mediaSlotRuntime, this.randomService, this.textureService)
     moduleRuntime = this.moduleRuntime
     this.effectRuntime = new Cinema2EffectRuntime(gl, compiledPresetPlan, this.targetResolver, effectRegistry, renderQuality, this.historyService, this.textureService)
     effectRuntime = this.effectRuntime

@@ -1,3 +1,4 @@
+import type { Cinema2AssetTextureService } from '../assets/Cinema2AssetTextureService'
 import type {
   Cinema2JsonValue,
   Cinema2ModuleId,
@@ -79,6 +80,7 @@ export class Cinema2ModuleRuntime {
     private readonly registry: Cinema2ModuleRegistry,
     mediaRuntime: Cinema2MediaSlotRuntime,
     randomService: Cinema2RandomService,
+    private readonly textures?: Cinema2AssetTextureService,
   ) {
     const moduleTargets = indexModuleTargets(plan.targets.targets)
     this.records = (plan.manifest.modules ?? []).map(module => ({
@@ -219,6 +221,7 @@ export class Cinema2ModuleRuntime {
       record.diagnostics.push({ ...diagnostic, moduleId: record.module.id })
     })
     const createContext: Cinema2ModuleCreateContext = {
+      textures: this.textures,
       module: record.module,
       parameters: record.parameters,
       targets: record.targets,

@@ -14,7 +14,7 @@ export const LICENSE_ALLOWLIST = Object.freeze({
 })
 
 export const ASSET_KINDS = Object.freeze(['model', 'texture'])
-export const TEXTURE_LAYOUTS = Object.freeze(['surface-normal-crack-roughness', 'color', 'noise-volume-rgba'])
+export const TEXTURE_LAYOUTS = Object.freeze(['surface-normal-crack-roughness', 'color', 'noise-volume-rgba', 'sprite-sheet-rgba'])
 export const MODEL_COMPRESSIONS = Object.freeze(['none', 'meshopt'])
 export const QUALITY_TIERS = Object.freeze(['low', 'medium', 'high'])
 

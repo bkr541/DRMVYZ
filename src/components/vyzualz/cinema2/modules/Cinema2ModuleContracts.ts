@@ -1,4 +1,5 @@
 import type { Cinema2ShadowFrame } from '../runtime/Cinema2ShadowService'
+import type { Cinema2AssetTextureService } from '../assets/Cinema2AssetTextureService'
 import type {
   Cinema2JsonValue,
   Cinema2ModuleId,
@@ -96,6 +97,8 @@ export interface Cinema2ModuleCreateContext {
   media: Cinema2ModuleMediaFacet
   resources: Cinema2ModuleResourceFacet
   randomness: Cinema2ModuleRandomnessFacet
+  /** Shipped-texture loader (shared with effects). Optional so hosts without one still create modules; modules must cope with its absence. */
+  textures?: Cinema2AssetTextureService
 }
 
 export interface Cinema2ModuleViewport {

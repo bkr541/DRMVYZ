@@ -8,10 +8,11 @@ import type { Cinema2RenderQualityLevel } from '../contracts/Cinema2NativePreset
  * encoding (data layouts must never be lossy-compressed or colour-managed):
  * - `surface-normal-crack-roughness`: RG = tangent-space normal xy (0.5 = flat), B = crack mask, A = roughness.
  * - `color`: sRGB colour with straight alpha.
+ * - `sprite-sheet-rgba`: a grid of billboard sprites, RGB shading and A density, all data (no colour management or premultiplication).
  * - `noise-volume-rgba`: a tileable 3D noise volume (RGBA, all channels 0..1 data) stored as one image `width` wide and `width * depth` tall, uploaded as a 3D texture:
  *   R billowy puffs, G wispy ridged strands, B fine puffs, A broad patchiness.
  */
-export type Cinema2TextureAssetLayout = 'surface-normal-crack-roughness' | 'color' | 'noise-volume-rgba'
+export type Cinema2TextureAssetLayout = 'surface-normal-crack-roughness' | 'color' | 'noise-volume-rgba' | 'sprite-sheet-rgba'
 
 export interface Cinema2TextureAssetRecord {
   id: string

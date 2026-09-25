@@ -101,6 +101,14 @@ test('fails a volume that is not whole square slices or whose edge is over the v
   assert.ok(codes(analyze(volume({ files: { high: 'public/cinema2/textures/vol-256.png' } }), { maxFileBytes: 1e9 })).includes('ASSET_TEXTURE_TOO_LARGE'))
 })
 
+test('accepts a sprite sheet as an ordinary 2D data texture', () => {
+  const sheet = { id: 'sheet', kind: 'texture', layout: 'sprite-sheet-rgba', license: 'generated-in-house', origin: 'script', files: { high: 'public/cinema2/textures/ok-1024.webp', low: 'public/cinema2/textures/ok-512.webp' } }
+  const result = analyzeAssets([{ directory: 'sheet', record: sheet }], read)
+  assert.deepEqual(result.issues, [])
+  assert.equal(result.assets[0].layout, 'sprite-sheet-rgba')
+  assert.equal(result.assets[0].gpuBytes.high, estimateTextureGpuBytes(1024, 1024))
+})
+
 test('accepts valid assets and computes per-tier GPU cost with tier fallback', () => {
   const result = analyzeAssets([{ directory: 'ok-texture', record: texture() }, { directory: 'ok-model', record: model() }], read)
   assert.deepEqual(result.issues, [])

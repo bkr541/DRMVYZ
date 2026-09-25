@@ -1,0 +1,11 @@
+{
+  "id": "cinema2-smoke-sprites",
+  "kind": "texture",
+  "layout": "sprite-sheet-rgba",
+  "license": "generated-in-house",
+  "origin": "scripts/cinema2-assets/generate-smoke-sprites.mjs (512 px PNG, converted to lossless WebP; the 256 px file is a lanczos downscale)",
+  "files": {
+    "high": "public/cinema2/textures/smoke-sprites-512.webp",
+    "low": "public/cinema2/textures/smoke-sprites-256.webp"
+  }
+}
