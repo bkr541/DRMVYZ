@@ -8,8 +8,10 @@ import type { Cinema2RenderQualityLevel } from '../contracts/Cinema2NativePreset
  * encoding (data layouts must never be lossy-compressed or colour-managed):
  * - `surface-normal-crack-roughness`: RG = tangent-space normal xy (0.5 = flat), B = crack mask, A = roughness.
  * - `color`: sRGB colour with straight alpha.
+ * - `noise-volume-rgba`: a tileable 3D noise volume (RGBA, all channels 0..1 data) stored as one image `width` wide and `width * depth` tall, uploaded as a 3D texture:
+ *   R billowy puffs, G wispy ridged strands, B fine puffs, A broad patchiness.
  */
-export type Cinema2TextureAssetLayout = 'surface-normal-crack-roughness' | 'color'
+export type Cinema2TextureAssetLayout = 'surface-normal-crack-roughness' | 'color' | 'noise-volume-rgba'
 
 export interface Cinema2TextureAssetRecord {
   id: string
@@ -18,8 +20,10 @@ export interface Cinema2TextureAssetRecord {
   layout: Cinema2TextureAssetLayout
   width: number
   height: number
+  /** Volume textures: number of slices. Slice size is `width` x `height`. */
+  depth?: number
   /** Per-quality replacements for `url` (smaller resolution). Missing tiers fall back to `url`. */
-  variants?: Partial<Record<Cinema2RenderQualityLevel, Readonly<{ url: string; width: number; height: number }>>>
+  variants?: Partial<Record<Cinema2RenderQualityLevel, Readonly<{ url: string; width: number; height: number; depth?: number }>>>
   license: string
   attribution?: string
 }
@@ -30,6 +34,7 @@ export interface Cinema2ResolvedTextureAsset {
   layout: Cinema2TextureAssetLayout
   width: number
   height: number
+  depth: number | null
 }
 
 export class Cinema2TextureAssetRegistry {
@@ -69,6 +74,7 @@ export class Cinema2TextureAssetRegistry {
       layout: record.layout,
       width: variant?.width ?? record.width,
       height: variant?.height ?? record.height,
+      depth: (variant ? variant.depth : record.depth) ?? null,
     })
   }
 }

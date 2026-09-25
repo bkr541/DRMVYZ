@@ -14,7 +14,7 @@ export const LICENSE_ALLOWLIST = Object.freeze({
 })
 
 export const ASSET_KINDS = Object.freeze(['model', 'texture'])
-export const TEXTURE_LAYOUTS = Object.freeze(['surface-normal-crack-roughness', 'color'])
+export const TEXTURE_LAYOUTS = Object.freeze(['surface-normal-crack-roughness', 'color', 'noise-volume-rgba'])
 export const MODEL_COMPRESSIONS = Object.freeze(['none', 'meshopt'])
 export const QUALITY_TIERS = Object.freeze(['low', 'medium', 'high'])
 
@@ -24,6 +24,8 @@ export const DEFAULT_BUDGETS = Object.freeze({
   installerBytes: 50 * 1024 * 1024,
   maxFileBytes: 8 * 1024 * 1024,
   maxTextureDimension: 2048,
+  /** Edge length limit for volume textures (`noise-volume-rgba`); a 128^3 RGBA volume is already ~11 MB of GPU memory. */
+  maxVolumeDimension: 128,
   maxTrianglesPerAsset: 150000,
   /** GPU bytes shipped assets may take per quality tier: 20% of the engine's 96 / 160 / 256 MB tier budgets. */
   assetGpuBytes: Object.freeze({ low: 20132659, medium: 33554432, high: 53687091 }),
@@ -171,9 +173,18 @@ export function analyzeAssets(records, readFileBytes, budgetOverrides = {}) {
         if (record.kind === 'texture') {
           const size = readImageSize(bytes)
           if (!size) throw new Error('unrecognised image format (PNG, JPEG, WebP or KTX2 expected)')
-          if (Math.max(size.width, size.height) > budgets.maxTextureDimension) fail(id, 'ASSET_TEXTURE_TOO_LARGE', `"${path}" is ${size.width}x${size.height}, above the ${budgets.maxTextureDimension}px limit.`)
-          Object.assign(entry, { width: size.width, height: size.height, format: size.format })
-          gpu[tier] = estimateTextureGpuBytes(size.width, size.height, size.format)
+          if (record.layout === 'noise-volume-rgba') {
+            // A volume is stored as one tall image: `depth` square slices of `width` x `width`, stacked top to bottom.
+            if (size.height % size.width !== 0) throw new Error(`a volume image must be ${size.width} wide and a whole multiple of that tall (got ${size.width}x${size.height})`)
+            const depth = size.height / size.width
+            if (Math.max(size.width, depth) > budgets.maxVolumeDimension) fail(id, 'ASSET_TEXTURE_TOO_LARGE', `"${path}" is a ${size.width}x${size.width}x${depth} volume, above the ${budgets.maxVolumeDimension} texel edge limit.`)
+            Object.assign(entry, { width: size.width, height: size.width, depth, format: size.format })
+            gpu[tier] = Math.round(size.width * size.width * depth * 4 * MIP_CHAIN_FACTOR)
+          } else {
+            if (Math.max(size.width, size.height) > budgets.maxTextureDimension) fail(id, 'ASSET_TEXTURE_TOO_LARGE', `"${path}" is ${size.width}x${size.height}, above the ${budgets.maxTextureDimension}px limit.`)
+            Object.assign(entry, { width: size.width, height: size.height, format: size.format })
+            gpu[tier] = estimateTextureGpuBytes(size.width, size.height, size.format)
+          }
         } else {
           const glb = inspectGlb(bytes)
           if (glb.triangles > budgets.maxTrianglesPerAsset) fail(id, 'ASSET_TRIANGLES_OVER_BUDGET', `"${path}" has ${glb.triangles} triangles, above the ${budgets.maxTrianglesPerAsset} limit.`)
@@ -224,6 +235,7 @@ export function generateManifestSource(assets) {
       url: file.url,
       bytes: file.bytes,
       ...(file.width ? { width: file.width, height: file.height } : {}),
+      ...(file.depth ? { depth: file.depth } : {}),
       ...(file.triangles != null ? { triangles: file.triangles } : {}),
     }]))
     return {

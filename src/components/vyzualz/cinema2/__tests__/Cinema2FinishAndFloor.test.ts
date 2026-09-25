@@ -6,8 +6,11 @@ import {
   CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID,
   cinema2CinematicFinishEffectDefinition,
 } from '../effects/Cinema2CinematicFinishEffect'
+import { Cinema2AssetTextureService } from '../assets/Cinema2AssetTextureService'
+import { cinema2TextureAssetRegistry } from '../assets/Cinema2TextureAssetManifest'
 import { cinema2NativeEffectRegistry } from '../effects/Cinema2EffectRegistry'
 import { Cinema2EffectRuntime } from '../effects/Cinema2EffectRuntime'
+import { cinema2VolumetricAtmosphereEffectDefinition } from '../effects/Cinema2VolumetricAtmosphereEffect'
 import {
   CINEMA2_REFLECTIVE_FLOOR_EFFECT_TYPE_ID,
   CINEMA2_REFLECTIVE_FLOOR_QUALITY_PROFILES,
@@ -267,5 +270,65 @@ describe('Cinema 2.0 shadow map consumers', () => {
 
     const bad = { ...effectManifest(FLOOR), parameters: { mix: 1, shadowStrength: 2 } }
     expect(cinema2ReflectiveFloorEffectDefinition.validate!(bad).map(diagnostic => diagnostic.path)).toEqual(['$.parameters.shadowStrength'])
+  })
+})
+
+describe('Cinema 2.0 volumetric smoke volume', () => {
+  const volumetric = () => cinema2VolumetricAtmosphereEffectDefinition
+
+  it('validates smokeTexture against the registry and its layout, and the smoke controls', () => {
+    const base = effectManifest(VOLUMETRIC)
+    const withParameters = (parameters: Record<string, unknown>) => ({ ...base, parameters: { ...base.parameters, ...parameters } }) as typeof base
+    expect(volumetric().validate!(withParameters({ smokeTexture: 'cinema2-smoke-volume', smokeContrast: 2, smokeWarp: 1, smokeStrength: 0.5 }))).toEqual([])
+    expect(volumetric().validate!(withParameters({ smokeTexture: 'nope' })).map(item => item.path)).toEqual(['$.parameters.smokeTexture'])
+    expect(volumetric().validate!(withParameters({ smokeTexture: 'cinema2-wet-concrete' })).map(item => item.message).join(' ')).toMatch(/noise-volume-rgba/)
+    expect(volumetric().validate!(withParameters({ smokeContrast: 9, smokeWarp: -1, smokeStrength: 2 })).map(item => item.path)).toEqual(
+      expect.arrayContaining(['$.parameters.smokeContrast', '$.parameters.smokeWarp', '$.parameters.smokeStrength']),
+    )
+  })
+
+  it('keeps the procedural noise until the volume is ready, fades the smoke in, follows the quality variant and releases it', async () => {
+    const manifest = {
+      ...CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST,
+      effects: CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST.effects!.map(effect => effect.id === VOLUMETRIC ? { ...effect, parameters: { ...effect.parameters, smokeTexture: 'cinema2-smoke-volume' } } : effect),
+    } as Cinema2NativePresetManifest
+    const compiled = compileCinema2NativePreset(manifest, { availableCapabilities: CAPABILITIES })
+    if (!compiled.ok) throw new Error(compiled.diagnostics.map(diagnostic => diagnostic.message).join('; '))
+    const plan = compiled.plan
+    const state = new Cinema2ParameterState(plan.parameters)
+    const resolver = new Cinema2FinalValueResolver(plan.targets, { resolveBaseValue: target => target.parameterId == null ? target.authoredBaseValue : state.getValue(target.parameterId) })
+    const gl = createCinemaMockWebGL()
+    Object.assign(gl as unknown as Record<string, unknown>, { generateMipmap: vi.fn(), texParameterf: vi.fn(), texImage3D: vi.fn(), texStorage3D: vi.fn(), TEXTURE_3D: 0x806f, TEXTURE_BINDING_3D: 0x806a, TEXTURE_WRAP_R: 0x8072, MAX_3D_TEXTURE_SIZE: 0x8073 })
+    gl.getUniformLocation = vi.fn((_program: WebGLProgram, name: string) => ({ name } as unknown as WebGLUniformLocation))
+    const history = new Cinema2HistoryService(gl, new Cinema2ResourceManager(gl), plan.presetId)
+    const requested: string[] = []
+    const service = new Cinema2AssetTextureService(gl, cinema2TextureAssetRegistry, { loader: async url => { requested.push(url); return { source: {} as TexImageSource, width: 64, height: 64 * 64 } } })
+    const runtime = new Cinema2EffectRuntime(gl, plan, resolver, cinema2NativeEffectRegistry, 'high', history, service)
+    const smoke = () => {
+      const calls = (gl.uniform1f as ReturnType<typeof vi.fn>).mock.calls.filter((call: unknown[]) => (call[0] as { name?: string } | null)?.name === 'u_smoke')
+      return calls[calls.length - 1]?.[1] as number
+    }
+    const at = (elapsedTimeSec: number) => runtime.execute(VOLUMETRIC, { ...context({ depth: true, camera: true }), frame: { ...context({ depth: true, camera: true }).frame, elapsedTimeSec } } as ExecutionContext)
+
+    at(1)
+    expect(smoke()).toBe(0)
+    expect(requested).toEqual(['/cinema2/textures/smoke-volume-64.webp'])
+    await new Promise(resolve => setTimeout(resolve, 0))
+    at(2)
+    expect(smoke()).toBe(0) // the fade starts on the first frame the volume is ready
+    at(2.4)
+    expect(smoke()).toBeGreaterThan(0.3)
+    expect(smoke()).toBeLessThan(0.7)
+    at(3.5)
+    expect(smoke()).toBe(1)
+    expect(service.getSnapshot().entries.map(entry => entry.depth)).toEqual([64])
+
+    runtime.setQuality('low')
+    at(4)
+    expect(requested).toContain('/cinema2/textures/smoke-volume-32.webp')
+    expect(smoke()).toBe(0)
+    runtime.dispose()
+    expect(service.getSnapshot().entries).toEqual([])
+    service.dispose()
   })
 })

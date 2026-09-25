@@ -56,6 +56,7 @@ function createGl() {
   const extras = gl as unknown as Record<string, unknown>
   extras.generateMipmap = vi.fn()
   extras.texParameterf = vi.fn()
+  Object.assign(extras, { texImage3D: vi.fn(), TEXTURE_3D: 0x806f, TEXTURE_BINDING_3D: 0x806a, TEXTURE_WRAP_R: 0x8072, MAX_3D_TEXTURE_SIZE: 0x8073, texStorage3D: vi.fn() })
   return gl
 }
 
@@ -85,6 +86,47 @@ describe('Cinema 2.0 texture asset registry', () => {
 
   it('ships the wet-concrete texture with a license record', () => {
     expect(cinema2TextureAssetRegistry.get(CINEMA2_WET_CONCRETE_TEXTURE_ASSET_ID)).toMatchObject({ layout: 'surface-normal-crack-roughness', license: 'generated-in-house' })
+  })
+})
+
+describe('Cinema 2.0 volume textures', () => {
+  function volumeRegistry() {
+    const registry = new Cinema2TextureAssetRegistry()
+    registry.register({
+      id: 'vol', url: '/cinema2/textures/vol-64.webp', layout: 'noise-volume-rgba', width: 64, height: 64, depth: 64,
+      variants: { low: { url: '/cinema2/textures/vol-32.webp', width: 32, height: 32, depth: 32 } }, license: 'generated-in-house',
+    })
+    return registry
+  }
+
+  it('resolves volume depth per quality variant', () => {
+    const registry = volumeRegistry()
+    expect(registry.resolve('vol', 'high')).toMatchObject({ width: 64, height: 64, depth: 64 })
+    expect(registry.resolve('vol', 'low')).toMatchObject({ width: 32, depth: 32 })
+    expect(cinema2TextureAssetRegistry.resolve('cinema2-wet-concrete', 'high')?.depth).toBeNull()
+  })
+
+  it('uploads a tall image as a 3D texture with repeat wrap, prices it by volume, and rejects ragged images', async () => {
+    const gl = createGl()
+    const loader = vi.fn(async (url: string) => url.includes('32') ? image(32, 32 * 32) : url.includes('ragged') ? image(64, 100) : image(64, 64 * 64))
+    const registry = volumeRegistry()
+    registry.register({ id: 'ragged', url: '/cinema2/textures/ragged.webp', layout: 'noise-volume-rgba', width: 64, height: 64, depth: 64, license: 'generated-in-house' })
+    const service = new Cinema2AssetTextureService(gl, registry, { loader })
+    const high = service.acquire('vol', 'high')
+    const low = service.acquire('vol', 'low')
+    const ragged = service.acquire('ragged', 'high')
+    await flush()
+    expect(high.status).toBe('ready')
+    expect(high.dimension).toBe('3d')
+    expect(high.depth).toBe(64)
+    expect(low.depth).toBe(32)
+    const calls = vi.mocked((gl as unknown as { texImage3D: ReturnType<typeof vi.fn> }).texImage3D).mock.calls
+    expect(calls.map(call => call.slice(3, 6))).toEqual([[64, 64, 64], [32, 32, 32]])
+    expect(gl.bindTexture).toHaveBeenCalledWith(0x806f, expect.anything())
+    expect(service.getSnapshot().entries.find(entry => entry.url.includes('vol-64'))?.estimatedGpuBytes).toBe(Math.round(64 * 64 * 64 * 4 * 4 / 3))
+    expect(ragged.status).toBe('failed')
+    expect(service.getSnapshot().entries.find(entry => entry.assetId === 'ragged')?.error).toMatch(/square slices/)
+    service.dispose()
   })
 })
 

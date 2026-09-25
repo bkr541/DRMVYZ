@@ -22,6 +22,34 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-smoke-volume",
+    "kind": "texture",
+    "layout": "noise-volume-rgba",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/textures/smoke-volume-64.webp",
+        "bytes": 660238,
+        "width": 64,
+        "height": 64,
+        "depth": 64
+      },
+      "low": {
+        "url": "/cinema2/textures/smoke-volume-32.webp",
+        "bytes": 103852,
+        "width": 32,
+        "height": 32,
+        "depth": 32
+      }
+    },
+    "gpuBytes": {
+      "high": 1398101,
+      "medium": 1398101,
+      "low": 174763
+    }
+  },
+  {
     "id": "cinema2-wet-concrete",
     "kind": "texture",
     "layout": "surface-normal-crack-roughness",

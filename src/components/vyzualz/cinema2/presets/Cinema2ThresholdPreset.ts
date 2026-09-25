@@ -27,7 +27,7 @@ import {
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { cinema2CinematicMotion } from './Cinema2CameraMotionAuthoring'
 import { THRESHOLD_PERIOD } from '../modules/threshold/Cinema2ThresholdLayout'
-import { CINEMA2_WET_CONCRETE_TEXTURE_ASSET_ID } from '../assets/Cinema2TextureAssetManifest'
+import { CINEMA2_SMOKE_VOLUME_TEXTURE_ASSET_ID, CINEMA2_WET_CONCRETE_TEXTURE_ASSET_ID } from '../assets/Cinema2TextureAssetManifest'
 
 /**
  * THRESHOLD
@@ -375,6 +375,11 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       hazeColor: DEFAULT_ATMOSPHERE,
       noiseScale: 0.07,
       noiseStrength: 0.9,
+      // Shipped smoke volume: billowing, wispy mist instead of smooth noise (fades in once loaded; the procedural noise stays if it cannot load).
+      smokeTexture: CINEMA2_SMOKE_VOLUME_TEXTURE_ASSET_ID,
+      smokeContrast: 1.6,
+      smokeWarp: 0.6,
+      smokeStrength: 1,
       drift: 0.08,
       maxDistance: 170,
       shafts: 0.26,

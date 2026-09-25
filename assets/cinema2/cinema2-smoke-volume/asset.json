@@ -1,0 +1,11 @@
+{
+  "id": "cinema2-smoke-volume",
+  "kind": "texture",
+  "layout": "noise-volume-rgba",
+  "license": "generated-in-house",
+  "origin": "scripts/cinema2-assets/generate-smoke-volume.mjs (64^3 volume stored as a 64x4096 PNG, converted to lossless WebP because the channels are data; the 32^3 file is the same noise field sampled more coarsely)",
+  "files": {
+    "high": "public/cinema2/textures/smoke-volume-64.webp",
+    "low": "public/cinema2/textures/smoke-volume-32.webp"
+  }
+}

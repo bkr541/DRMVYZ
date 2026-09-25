@@ -74,7 +74,7 @@ export class FullscreenPass {
 
     for (const b of textures) {
       gl.activeTexture(gl.TEXTURE0 + b.unit)
-      gl.bindTexture(gl.TEXTURE_2D, b.texture)
+      gl.bindTexture(b.target ?? gl.TEXTURE_2D, b.texture)
       program.setSampler(b.uniformName, b.unit)
     }
 
@@ -83,7 +83,7 @@ export class FullscreenPass {
 
     for (const b of textures) {
       gl.activeTexture(gl.TEXTURE0 + b.unit)
-      gl.bindTexture(gl.TEXTURE_2D, null)
+      gl.bindTexture(b.target ?? gl.TEXTURE_2D, null)
     }
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)

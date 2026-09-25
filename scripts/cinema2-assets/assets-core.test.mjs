@@ -48,7 +48,12 @@ function glb({ triangles = 12, images = [], extra = {} } = {}) {
   return Buffer.concat([header, chunkHeader(jsonChunk.length, 0x4e4f534a), jsonChunk, chunkHeader(binChunk.length, 0x004e4942), binChunk])
 }
 
+// A volume is one tall image: `depth` square slices of `width` x `width`.
 const files = {
+  'public/cinema2/textures/vol-64.png': png(64, 64 * 64),
+  'public/cinema2/textures/vol-32.png': png(32, 32 * 32),
+  'public/cinema2/textures/vol-ragged.png': png(64, 100),
+  'public/cinema2/textures/vol-256.png': png(256, 256 * 256),
   'public/cinema2/textures/ok-1024.webp': webpLossless(1024, 1024),
   'public/cinema2/textures/ok-512.webp': webpLossless(512, 512),
   'public/cinema2/textures/huge.png': png(4096, 4096),
@@ -77,6 +82,23 @@ test('inspects a GLB: triangle count, decoded geometry bytes and embedded textur
   assert.equal(info.geometryBytes, 30 * 12)
   assert.deepEqual(info.textures.map(({ width, height }) => [width, height]), [[256, 128]])
   assert.throws(() => inspectGlb(Buffer.from('nope, definitely not a glb')), /magic/)
+})
+
+const volume = (overrides = {}) => ({ id: 'ok-volume', kind: 'texture', layout: 'noise-volume-rgba', license: 'generated-in-house', origin: 'script', files: { high: 'public/cinema2/textures/vol-64.png', low: 'public/cinema2/textures/vol-32.png' }, ...overrides })
+
+test('measures a volume texture as depth square slices and prices it as a 3D texture', () => {
+  const result = analyze(volume())
+  assert.deepEqual(result.issues, [])
+  const asset = result.assets[0]
+  assert.deepEqual([asset.files.high.width, asset.files.high.height, asset.files.high.depth], [64, 64, 64])
+  assert.equal(asset.gpuBytes.high, Math.round(64 * 64 * 64 * 4 * 4 / 3))
+  assert.equal(asset.gpuBytes.low, Math.round(32 * 32 * 32 * 4 * 4 / 3))
+  assert.match(generateManifestSource(result.assets), /"depth": 64/)
+})
+
+test('fails a volume that is not whole square slices or whose edge is over the volume limit', () => {
+  assert.deepEqual(codes(analyze(volume({ files: { high: 'public/cinema2/textures/vol-ragged.png' } }))), ['ASSET_FILE_INVALID'])
+  assert.ok(codes(analyze(volume({ files: { high: 'public/cinema2/textures/vol-256.png' } }), { maxFileBytes: 1e9 })).includes('ASSET_TEXTURE_TOO_LARGE'))
 })
 
 test('accepts valid assets and computes per-tier GPU cost with tier fallback', () => {

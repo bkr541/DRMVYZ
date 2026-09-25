@@ -12,6 +12,8 @@ import type { Cinema2Matrix4 } from '../scene/Cinema2SceneGraph'
 import type { Cinema2LightingEnvironmentFrame, Cinema2ResolvedLightFrame } from '../spatial/Cinema2LightingEnvironmentRuntime'
 import { assertCinema2NoGlErrors } from '../runtime/Cinema2GpuValidation'
 import type { Cinema2ShadowFrame } from '../runtime/Cinema2ShadowService'
+import type { Cinema2AssetTextureService, Cinema2TextureHandle } from '../assets/Cinema2AssetTextureService'
+import { cinema2TextureAssetRegistry } from '../assets/Cinema2TextureAssetManifest'
 import {
   CINEMA2_SHADOW_GLSL_FUNCTIONS,
   CINEMA2_SHADOW_GLSL_UNIFORMS,
@@ -38,6 +40,11 @@ import type {
  * so it works with depth from ANY module; without depth it marches to
  * `maxDistance` (unoccluded haze). Screen-space shafts from bright pixels are a
  * separate opt-in that needs neither lights nor a camera.
+ *
+ * Smoke: an optional `smokeTexture` (a shipped `noise-volume-rgba` volume) replaces the procedural noise that modulates the haze density with a
+ * two-sample, domain-warped lookup (coarse billows steer a finer, wispier lookup), so mist reads as drifting smoke instead of smooth sine noise.
+ * It fades in once loaded, `smokeContrast` (0.5-4) sharpens the wisps, `smokeWarp` (0-2) curls them and `smokeStrength` (0-1) blends it with the
+ * procedural noise; a missing or failed volume keeps the procedural look.
  *
  * Shadows: when the preset authors a shadow-casting light (`config.castShadow`) and the tier has a shadow map, that one light's scatter is
  * multiplied by the shadow map's visibility at every ray sample, so occluders carve real shafts out of the haze (`shadowStrength` 0-1 scales
@@ -100,6 +107,10 @@ uniform float u_mistHeight;
 uniform float u_mistFloor;
 uniform float u_noiseScale;
 uniform float u_noiseStrength;
+uniform highp sampler3D u_smokeVolume;
+uniform float u_smoke;
+uniform float u_smokeContrast;
+uniform float u_smokeWarp;
 uniform vec3 u_wind;
 uniform float u_floorEnabled;
 uniform float u_floorY;
@@ -168,10 +179,22 @@ float phase(float cosTheta, float g) {
   float g2 = g * g;
   return (1.0 - g2) / pow(max(1.0 + g2 - 2.0 * g * cosTheta, 0.0001), 1.5);
 }
+// Density modulation in about 0..1 (mean ~0.5). With a smoke volume: coarse billows warp the lookup of a finer, wispier layer.
+float noiseAt(vec3 p) {
+  vec3 q = p * u_noiseScale + u_wind;
+  float procedural = u_smoke < 0.999 ? fbm(q) : 0.0;
+  if (u_smoke < 0.001) return procedural;
+  // Explicit LOD: derivatives are undefined inside the march loop's divergent flow, and jitter + history already average the aliasing.
+  vec4 coarse = textureLod(u_smokeVolume, q * 0.25, 0.0);
+  vec4 fine = textureLod(u_smokeVolume, q * 0.5 + (coarse.rgb - 0.5) * u_smokeWarp, 0.5);
+  float n = coarse.r * 0.5 + fine.g * 0.3 + fine.b * 0.2;
+  n = clamp((n - 0.5) * u_smokeContrast + 0.5, 0.0, 1.0);
+  return mix(procedural, n, u_smoke);
+}
 float densityAt(vec3 p) {
   float height = max(p.y - u_mistFloor, 0.0);
   float mist = u_mistAmount * exp(-height / max(u_mistHeight, 0.05));
-  float n = fbm(p * u_noiseScale + u_wind);
+  float n = noiseAt(p);
   float modulation = mix(1.0, n * 2.0, u_noiseStrength);
   return max(u_density + mist, 0.0) * modulation;
 }
@@ -362,6 +385,9 @@ const NUMERIC_PARAMETERS: readonly (readonly [name: string, min: number, max: nu
   ['drift', 0, 4],
   ['maxDistance', 1, 200],
   ['shadowStrength', 0, 1],
+  ['smokeContrast', 0.5, 4],
+  ['smokeWarp', 0, 2],
+  ['smokeStrength', 0, 1],
   ['shafts', 0, 1],
   ['shaftOriginX', 0, 1],
   ['shaftOriginY', 0, 1],
@@ -397,6 +423,15 @@ function validateVolumetric(effect: Readonly<Cinema2EffectManifest>): readonly C
     if (value === undefined) continue
     if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) {
       diagnostics.push({ code: 'CINEMA2_EFFECT_PARAMETER_INVALID', path: `$.parameters.${name}`, message: `Effect parameter "${name}" must be between ${min} and ${max}.` })
+    }
+  }
+  const smoke = effect.parameters?.smokeTexture
+  if (smoke !== undefined) {
+    const record = typeof smoke === 'string' ? cinema2TextureAssetRegistry.get(smoke.trim()) : null
+    if (!record) {
+      diagnostics.push({ code: 'CINEMA2_EFFECT_PARAMETER_INVALID', path: '$.parameters.smokeTexture', message: 'Effect parameter "smokeTexture" must be the id of a registered texture asset.' })
+    } else if (record.layout !== 'noise-volume-rgba') {
+      diagnostics.push({ code: 'CINEMA2_EFFECT_PARAMETER_INVALID', path: '$.parameters.smokeTexture', message: `Texture asset "${record.id}" has layout "${record.layout}", but volumetric atmosphere needs "noise-volume-rgba".` })
     }
   }
   const hazeColor = effect.parameters?.hazeColor
@@ -496,7 +531,7 @@ function environmentHazeColor(lighting: Readonly<Cinema2LightingEnvironmentFrame
 const MARCH_UNIFORMS = [
   'u_depth', 'u_time', 'u_hasDepth', 'u_hasCamera', 'u_invViewProj', 'u_steps', 'u_octaves', 'u_maxDistance',
   'u_density', 'u_beam', 'u_anisotropy', 'u_occlusion', 'u_hazeColor', 'u_ambientHaze', 'u_ambientHeight', 'u_ambient',
-  'u_mistAmount', 'u_mistHeight', 'u_mistFloor', 'u_noiseScale', 'u_noiseStrength', 'u_wind', 'u_lightCount',
+  'u_mistAmount', 'u_mistHeight', 'u_mistFloor', 'u_noiseScale', 'u_noiseStrength', 'u_smokeVolume', 'u_smoke', 'u_smokeContrast', 'u_smokeWarp', 'u_wind', 'u_lightCount',
   'u_lightPos[0]', 'u_lightDir[0]', 'u_lightCol[0]', 'u_lightInner[0]', 'u_previous', 'u_historyBlend',
   'u_floorEnabled', 'u_floorY', 'u_floorReflection', ...CINEMA2_SHADOW_UNIFORM_NAMES,
 ] as const
@@ -515,6 +550,8 @@ interface AtmosphereFrameValues {
   wind: number
   hasDepth: boolean
   shadow: Readonly<Cinema2ShadowFrame> | null
+  /** 0 until the smoke volume is ready, then ramps to `smokeStrength`. */
+  smoke: number
   elapsedTimeSec: number
   /** Weight of the previous reduced-resolution march (0 = none, e.g. first frame or after a reset). */
   historyBlend: number
@@ -539,6 +576,11 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
   private compositeProgram: ShaderProgram | null = null
   private directProgram: ShaderProgram | null = null
   private readonly fallbackShadowTexture: WebGLTexture | null
+  private readonly fallbackVolumeTexture: WebGLTexture | null
+  private readonly smokeAssetId: string | null
+  private smokeHandle: Cinema2TextureHandle | null = null
+  private smokeQuality: Cinema2RenderQualityLevel | null = null
+  private smokeReadySinceSec: number | null = null
   private disposed = false
   private impactEnvelope = 0
   private driftClock = 0
@@ -547,11 +589,15 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     private readonly gl: WebGL2RenderingContext,
     private readonly history: Cinema2EffectCreateContext['history'],
     effect: Readonly<Cinema2EffectManifest>,
+    private readonly textures?: Cinema2AssetTextureService,
   ) {
+    const smokeId = effect.parameters?.smokeTexture
+    this.smokeAssetId = typeof smokeId === 'string' && smokeId.trim() ? smokeId.trim() : null
     this.label = `Cinema2/Effect/VolumetricAtmosphere/${effect.id}`
     this.historyName = `effect.${effect.id}.volumetric-atmosphere`
     this.pass = new FullscreenPass(gl)
     this.fallbackShadowTexture = createCinema2ShadowFallbackTexture(gl)
+    this.fallbackVolumeTexture = createFallbackVolumeTexture(gl)
     // Compile eagerly so a broken shader fails effect creation instead of a later frame.
     this.compositeProgram = createProgram(gl, `${this.label}/composite`, COMPOSITE_SOURCE, FINISH_UNIFORMS)
     this.marchProgram = createProgram(gl, `${this.label}/march`, MARCH_SOURCE, MARCH_UNIFORMS)
@@ -588,6 +634,7 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
       wind: this.driftClock,
       hasDepth: depthInput != null,
       shadow: context.shadow ?? null,
+      smoke: this.smokeAmount(context, clamp(numberValue(parameters, 'smokeStrength', 1), 0, 1)),
       elapsedTimeSec: context.frame.elapsedTimeSec,
       historyBlend: 0,
     }
@@ -601,13 +648,16 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     const lowHeight = Math.max(1, Math.round(context.height * profile.scale))
     const reduced = profile.scale < 1 ? this.history.beginFrame(this.historyName, lowWidth, lowHeight) : null
     const shadowTexture = values.shadow?.texture ?? this.fallbackShadowTexture
-    const bindings = (extra: { unit: number; texture: WebGLTexture; uniformName: string }[] = [], withShadow = false) => [
+    const smokeTexture = values.smoke > 0 ? this.smokeHandle!.texture! : this.fallbackVolumeTexture
+    const bindings = (extra: { unit: number; texture: WebGLTexture; uniformName: string }[] = [], withShadow = false): { unit: number; texture: WebGLTexture; uniformName: string; target?: number }[] => [
       { unit: 0, texture: context.input.texture, uniformName: 'u_source' },
       // Without a depth input unit 1 just re-binds the color texture; u_hasDepth keeps the shader from sampling it.
       { unit: 1, texture: depthInput?.texture ?? context.input.texture, uniformName: 'u_depth' },
       ...extra,
       // Only the programs that march sample the shadow map; it always points at a valid depth-comparison texture.
       ...(withShadow && shadowTexture ? [{ unit: CINEMA2_SHADOW_UNIT, texture: shadowTexture, uniformName: 'u_shadowMap' }] : []),
+      // The smoke volume sampler must always point at a valid 3D texture, so a 1x1x1 fallback stands in until (or unless) it loads.
+      ...(withShadow && smokeTexture ? [{ unit: SMOKE_UNIT, texture: smokeTexture, uniformName: 'u_smokeVolume', target: gl.TEXTURE_3D }] : []),
     ]
 
     if (reduced && this.marchProgram && this.compositeProgram) {
@@ -644,6 +694,22 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     assertCinema2NoGlErrors(gl, 'Volumetric atmosphere direct draw')
   }
 
+  /** 0 until the smoke volume is ready, then ramps to `strength`. Re-acquires when the quality tier (and so the volume resolution) changes. */
+  private smokeAmount(context: Readonly<Cinema2EffectRenderExecutionContext>, strength: number): number {
+    if (!this.smokeAssetId || !this.textures || strength <= 0) return 0
+    if (this.smokeQuality !== context.quality) {
+      this.smokeHandle?.release()
+      this.smokeHandle = this.textures.acquire(this.smokeAssetId, context.quality)
+      this.smokeQuality = context.quality
+      this.smokeReadySinceSec = null
+    }
+    const handle = this.smokeHandle
+    if (!handle || handle.status !== 'ready' || !handle.texture || handle.dimension !== '3d') return 0
+    const now = context.frame.elapsedTimeSec
+    this.smokeReadySinceSec ??= now
+    return strength * clamp((now - this.smokeReadySinceSec) / SMOKE_FADE_IN_SEC, 0, 1)
+  }
+
   private setMarchUniforms(program: ShaderProgram, values: AtmosphereFrameValues): void {
     const { gl } = this
     const { parameters, profile, lights, hazeColor, musicalLift } = values
@@ -668,6 +734,9 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     program.setFloat('u_mistFloor', clamp(numberValue(parameters, 'mistFloor', 0), -50, 50))
     program.setFloat('u_noiseScale', clamp(numberValue(parameters, 'noiseScale', 0.35), 0.02, 4))
     program.setFloat('u_noiseStrength', clamp(numberValue(parameters, 'noiseStrength', 0.6), 0, 1))
+    program.setFloat('u_smoke', values.smoke)
+    program.setFloat('u_smokeContrast', clamp(numberValue(parameters, 'smokeContrast', 1.6), 0.5, 4))
+    program.setFloat('u_smokeWarp', clamp(numberValue(parameters, 'smokeWarp', 0.6), 0, 2))
     program.setVec3('u_wind', values.wind, values.wind * 0.2, values.wind * 0.45)
     // A floor is opt-in: authoring `floorY` clamps haze at that plane and reflects the beams in it.
     const floorY = parameters.floorY
@@ -708,10 +777,36 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     this.history.releaseBuffer(this.historyName)
     this.pass.dispose()
     if (this.fallbackShadowTexture) this.gl.deleteTexture(this.fallbackShadowTexture)
+    if (this.fallbackVolumeTexture) this.gl.deleteTexture(this.fallbackVolumeTexture)
+    this.smokeHandle?.release()
+    this.smokeHandle = null
     this.marchProgram?.dispose()
     this.compositeProgram?.dispose()
     this.directProgram?.dispose()
     this.marchProgram = this.compositeProgram = this.directProgram = null
+  }
+}
+
+/** Texture unit for the smoke volume (0 source, 1 depth, 2 atmosphere, 3 previous, 4 shadow map). */
+const SMOKE_UNIT = 5
+/** Seconds a freshly loaded smoke volume takes to fade in, so the haze does not pop. */
+const SMOKE_FADE_IN_SEC = 0.8
+
+function createFallbackVolumeTexture(gl: WebGL2RenderingContext): WebGLTexture | null {
+  const texture = gl.createTexture()
+  if (!texture) return null
+  const previous = gl.getParameter(gl.TEXTURE_BINDING_3D) as WebGLTexture | null
+  try {
+    gl.bindTexture(gl.TEXTURE_3D, texture)
+    gl.texStorage3D(gl.TEXTURE_3D, 1, gl.RGBA8, 1, 1, 1)
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+    return texture
+  } catch {
+    gl.deleteTexture(texture)
+    return null
+  } finally {
+    gl.bindTexture(gl.TEXTURE_3D, previous)
   }
 }
 
@@ -737,5 +832,5 @@ export const cinema2VolumetricAtmosphereEffectDefinition: Readonly<Cinema2Effect
   version: CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_VERSION,
   label: 'Volumetric Atmosphere',
   validate: validateVolumetric,
-  create: ({ gl, effect, history }: Readonly<Cinema2EffectCreateContext>) => new VolumetricAtmosphereEffectInstance(gl, history, effect),
+  create: ({ gl, effect, history, textures }: Readonly<Cinema2EffectCreateContext>) => new VolumetricAtmosphereEffectInstance(gl, history, effect, textures),
 })

@@ -27,6 +27,10 @@ export interface Cinema2TextureHandle {
   readonly texture: WebGLTexture | null
   readonly width: number
   readonly height: number
+  /** '3d' for volume layouts (bind with `gl.TEXTURE_3D`), otherwise '2d'. */
+  readonly dimension: '2d' | '3d'
+  /** Slice count of a volume; 1 for 2D textures. */
+  readonly depth: number
   /** Idempotent. The GL texture is deleted when the last handle for it is released. */
   release(): void
 }
@@ -38,6 +42,7 @@ export interface Cinema2TextureEntrySnapshot {
   references: number
   width: number
   height: number
+  depth: number
   estimatedGpuBytes: number
   error: string | null
 }
@@ -61,6 +66,8 @@ interface TextureEntry {
   texture: WebGLTexture | null
   width: number
   height: number
+  /** Volume slice count (1 for 2D textures). */
+  depth: number
   estimatedGpuBytes: number
   error: string | null
   generation: number
@@ -116,6 +123,7 @@ export class Cinema2AssetTextureService {
         texture: null,
         width: resolved?.width ?? 0,
         height: resolved?.height ?? 0,
+        depth: resolved?.depth ?? 1,
         estimatedGpuBytes: 0,
         error: resolved ? null : this.disposed ? 'The texture service was disposed.' : `Texture asset "${assetId}" is not registered.`,
         generation: this.generation,
@@ -162,6 +170,7 @@ export class Cinema2AssetTextureService {
         references: entry.references,
         width: entry.width,
         height: entry.height,
+        depth: entry.depth,
         estimatedGpuBytes: entry.estimatedGpuBytes,
         error: entry.error,
       }))
@@ -191,6 +200,8 @@ export class Cinema2AssetTextureService {
       get texture() { return released ? null : entry.texture },
       get width() { return entry.width },
       get height() { return entry.height },
+      get dimension() { return entry.layout === 'noise-volume-rgba' ? '3d' as const : '2d' as const },
+      get depth() { return entry.depth },
       release: () => {
         if (released) return
         released = true
@@ -227,34 +238,49 @@ export class Cinema2AssetTextureService {
 
   private upload(entry: TextureEntry, image: Cinema2DecodedTextureImage): void {
     const { gl } = this
-    const bytes = Math.round(image.width * image.height * 4 * MIP_CHAIN_FACTOR)
+    const volume = entry.layout === 'noise-volume-rgba'
+    // A volume arrives as one tall image: `depth` square slices of `width` x `width` stacked top to bottom.
+    const sliceSize = image.width
+    const depth = volume ? Math.round(image.height / image.width) : 1
+    if (volume && (image.height % image.width !== 0 || (entry.depth > 1 && depth !== entry.depth))) {
+      throw new Error(`Volume "${entry.assetId}" image is ${image.width}x${image.height}, which is not ${entry.depth} square slices.`)
+    }
+    const bytes = volume
+      ? Math.round(sliceSize * sliceSize * depth * 4 * MIP_CHAIN_FACTOR)
+      : Math.round(image.width * image.height * 4 * MIP_CHAIN_FACTOR)
     const others = this.snapshotBytesExcluding(entry)
     if (others + bytes > this.budgetBytes) {
       throw new Error(`Texture "${entry.assetId}" (${formatMegabytes(bytes)}) would exceed the ${formatMegabytes(this.budgetBytes)} texture budget.`)
     }
-    const maxSize = Number(gl.getParameter(gl.MAX_TEXTURE_SIZE)) || 2048
-    if (image.width > maxSize || image.height > maxSize) {
+    const maxSize = Number((volume ? gl.getParameter(gl.MAX_3D_TEXTURE_SIZE) : gl.getParameter(gl.MAX_TEXTURE_SIZE))) || 256
+    if ((volume ? Math.max(sliceSize, depth) : Math.max(image.width, image.height)) > maxSize) {
       throw new Error(`Texture "${entry.assetId}" is ${image.width}x${image.height}, above the ${maxSize}px GPU limit.`)
     }
 
-    const previousTexture = gl.getParameter(gl.TEXTURE_BINDING_2D) as WebGLTexture | null
+    const target = volume ? gl.TEXTURE_3D : gl.TEXTURE_2D
+    const previousTexture = gl.getParameter(volume ? gl.TEXTURE_BINDING_3D : gl.TEXTURE_BINDING_2D) as WebGLTexture | null
     const previousUnit = gl.getParameter(gl.ACTIVE_TEXTURE) as number
     const texture = gl.createTexture()
     if (!texture) throw new Error('Cinema 2.0 could not allocate a texture.')
     try {
       gl.activeTexture(gl.TEXTURE0)
-      gl.bindTexture(gl.TEXTURE_2D, texture)
+      gl.bindTexture(target, texture)
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
       gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false)
-      // Colour textures are stored as sRGB so sampling returns linear values; data layouts must stay untouched.
-      const internalFormat = entry.layout === 'color' ? gl.SRGB8_ALPHA8 : gl.RGBA8
-      gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, image.width, image.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, image.source)
-      gl.generateMipmap(gl.TEXTURE_2D)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
-      const anisotropic = gl.getExtension('EXT_texture_filter_anisotropic')
+      if (volume) {
+        gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA8, sliceSize, sliceSize, depth, 0, gl.RGBA, gl.UNSIGNED_BYTE, image.source)
+        gl.texParameteri(target, gl.TEXTURE_WRAP_R, gl.REPEAT)
+      } else {
+        // Colour textures are stored as sRGB so sampling returns linear values; data layouts must stay untouched.
+        const internalFormat = entry.layout === 'color' ? gl.SRGB8_ALPHA8 : gl.RGBA8
+        gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, image.width, image.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, image.source)
+      }
+      gl.generateMipmap(target)
+      gl.texParameteri(target, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
+      gl.texParameteri(target, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+      gl.texParameteri(target, gl.TEXTURE_WRAP_S, gl.REPEAT)
+      gl.texParameteri(target, gl.TEXTURE_WRAP_T, gl.REPEAT)
+      const anisotropic = volume ? null : gl.getExtension('EXT_texture_filter_anisotropic')
       if (anisotropic) {
         const max = Number(gl.getParameter(anisotropic.MAX_TEXTURE_MAX_ANISOTROPY_EXT)) || 1
         gl.texParameterf(gl.TEXTURE_2D, anisotropic.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(MAX_ANISOTROPY, max))
@@ -265,12 +291,13 @@ export class Cinema2AssetTextureService {
       gl.deleteTexture(texture)
       throw error
     } finally {
-      gl.bindTexture(gl.TEXTURE_2D, previousTexture)
+      gl.bindTexture(target, previousTexture)
       gl.activeTexture(previousUnit)
     }
     entry.texture = texture
-    entry.width = image.width
-    entry.height = image.height
+    entry.width = volume ? sliceSize : image.width
+    entry.height = volume ? sliceSize : image.height
+    entry.depth = depth
     entry.estimatedGpuBytes = bytes
     entry.status = 'ready'
   }

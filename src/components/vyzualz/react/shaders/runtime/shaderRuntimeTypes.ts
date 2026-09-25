@@ -48,6 +48,8 @@ export interface TextureBinding {
   unit: number
   texture: WebGLTexture
   uniformName: string
+  /** GL bind target (`gl.TEXTURE_2D` by default; `gl.TEXTURE_3D` for volume samplers). */
+  target?: number
 }
 
 // ── Geometry pass input ───────────────────────────────────────────────────────

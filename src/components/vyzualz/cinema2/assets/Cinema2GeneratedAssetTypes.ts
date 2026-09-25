@@ -7,6 +7,8 @@ export interface Cinema2GeneratedAssetFile {
   readonly bytes: number
   readonly width?: number
   readonly height?: number
+  /** Volume textures only: number of slices (the image is `width` wide and `width * depth` tall). */
+  readonly depth?: number
   readonly triangles?: number
 }
 
