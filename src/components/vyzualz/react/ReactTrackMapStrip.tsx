@@ -251,6 +251,9 @@ export const TRACK_MAP_BEAT_LINE_WIDTH        = 1    // px
 export const TRACK_MAP_DOWNBEAT_LINE_WIDTH    = 2    // px
 export const TRACK_MAP_FOUR_BAR_LINE_WIDTH    = 2    // px
 export const TRACK_MAP_RULER_FONT_SIZE        = 10   // CSS px
+export const TRACK_MAP_RULER_LABEL_COLOR      = 'rgba(232,244,248,0.42)'
+export const TRACK_MAP_RULER_TICK_COLOR       = 'rgba(74,199,219,0.12)'
+export const TRACK_MAP_RULER_BACKGROUND       = 'rgba(4, 10, 15, 0.9)'
 
 function setupCanvas(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null {
   const resolution = resolveCanvasResolution({
@@ -449,8 +452,8 @@ export function drawTimelineRuler(
   ctx.clearRect(0, 0, w, h)
   ctx.font = `${TRACK_MAP_RULER_FONT_SIZE}px sans-serif`
   ctx.textBaseline = 'middle'
-  ctx.fillStyle = 'rgba(232,244,248,0.42)'
-  ctx.strokeStyle = 'rgba(74,199,219,0.12)'
+  ctx.fillStyle = TRACK_MAP_RULER_LABEL_COLOR
+  ctx.strokeStyle = TRACK_MAP_RULER_TICK_COLOR
   ctx.lineWidth = 1
 
   const count = Math.max(2, Math.floor(divisions))

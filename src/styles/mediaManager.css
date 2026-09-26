@@ -122,23 +122,33 @@
   overflow: hidden;
 }
 
-/* A selected video or image starts at the top of the stage (the media area's own padding is the top
-   gap). For a video the controls, timeline and caption follow it; for an image the same room is kept
-   below it, so both leave the same empty space underneath. The media is capped so that room always
-   exists (container height minus 290px). */
+/* The stage is two parts, split by proportion so neither depends on what is selected: the visualizer (media area)
+   above and a group below it. Both are the same size for a video and for an image; the media is fitted, centred,
+   inside the visualizer and never resizes it. The group is a share of the stage height, not a fixed height. Its
+   floor is the room a video's controls and timeline need, applied to images too so both stay identical. */
 .mms-stage--top {
-  container-type: size;
   justify-content: flex-start;
 }
 
-.mms-stage--top .mms-media-area {
-  flex: 0 1 auto;
+.mms-stage .mms-media-area { flex: 3 1 0; }
+
+.mms-group {
+  flex: 2 1 0;
+  min-height: 210px;
+  margin: 0 16px 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(154, 178, 188, 0.14);
+  border-radius: 8px;
+  /* Same fill as the library and details windows: the theme's panel-alt surface (see appearance.css, .vz-inspector-inner). */
+  background: var(--color-panel-alt, rgba(8, 12, 18, 0.96));
+  overflow: hidden;
 }
 
-.mms-stage--top .mms-video,
-.mms-stage--top .mms-image {
-  max-height: calc(100cqh - 290px);
-}
+/* The group already has its own frame and padding. */
+.mms-group .mms-controls { border-top: 0; padding: 12px 14px 4px; }
+.mms-group .mmt-timeline { padding: 4px 14px 14px; }
 
 .mms-empty {
   flex: 1;
@@ -152,7 +162,7 @@
 }
 
 .mms-media-area {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
   display: flex;
   align-items: center;
@@ -182,18 +192,6 @@
 }
 
 .mms-video { background: #000; }
-
-.mms-caption {
-  flex-shrink: 0;
-  padding: 4px 16px 16px;
-  color: rgba(232,238,240,0.7);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .mms-controls {
   display: flex;
@@ -270,32 +268,32 @@
   position: relative;
   height: 32px;
   border-bottom: 1px solid rgba(154, 178, 188, 0.15);
-  background: linear-gradient(180deg, #0c1215, #0a0f12);
+  /* The Track Map ruler's surface. */
+  background: rgba(4, 10, 15, 0.9);
 }
 
+/* Ticks hang from the top of the ruler like the Track Map's beat marks; their colour, width and height are set
+   inline from the Track Map's own constants (see MediaVideoTimeline). */
 .mmt-tick {
   position: absolute;
-  bottom: 0;
-  width: 1px;
-  background: rgba(196, 207, 211, 0.4);
+  top: 0;
 }
 
-.mmt-tick--end { margin-left: -1px; }
-.mmt-tick--end .mmt-tick-label { left: auto; right: 6px; }
+.mmt-tick--end { margin-left: -2px; }
 
-.mmt-tick--major { height: 12px; background: rgba(232, 238, 240, 0.85); }
-.mmt-tick--minor { height: 6px; }
-
+/* Numbers use the Track Map ruler's type: 10px sans-serif in its muted light tone, centred on their tick, with
+   the first and last kept inside the ends of the ruler. */
 .mmt-tick-label {
   position: absolute;
-  bottom: 16px;
-  left: 6px;
-  color: var(--color-text-muted, rgba(196, 207, 211, 0.58));
-  font: 600 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
+  top: 17px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(232, 244, 248, 0.42);
+  font: 10px/1 sans-serif;
   white-space: nowrap;
 }
+.mmt-tick--start .mmt-tick-label { left: 1px; transform: none; }
+.mmt-tick--end .mmt-tick-label { left: auto; right: 1px; transform: none; }
 
 .mmt-strip {
   position: relative;
@@ -705,6 +703,20 @@
 /* The source <img>/<video> keeps decoding and playing while the edited canvas is
    shown in its place, so it is hidden without leaving the layout or the decoder. */
 .mms-media-area { position: relative; }
+/* Room for the crop toolbar comes from the canvas, not the area's padding: padding feeds the stage's proportional
+   split, so changing it would resize the visualizer. */
+.mms-media-area--cropping > .mms-edit-canvas {
+  margin-bottom: 44px;
+  max-height: calc(100% - 44px);
+}
+
+.mms-fault {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 8px;
+  z-index: 2;
+}
 
 .mms-source--hidden {
   position: absolute;
@@ -722,7 +734,12 @@
 }
 
 .mms-crop-toolbar {
-  flex-shrink: 0;
+  /* Overlays the bottom of the media area (which makes room for it) so entering crop never resizes the workspace. */
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -786,7 +803,6 @@
 .mmec-handle--sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
 .mmec-handle--w  { left: -7px; top: calc(50% - 6px); cursor: ew-resize; }
 
-.mms-stage--top .mms-media-area .mms-edit-canvas { max-height: calc(100cqh - 290px); }
 
 .mmi-body .rv-ctrl-row.mmi-edit-action-row {
   display: flex;

@@ -124,6 +124,34 @@ describe('Media Manager stage with the edit session', () => {
     expect(lastProps(mocks.timeline)).toMatchObject({ mediaId: 'db-2', src: 'https://signed/clip.mp4' })
   })
 
+  it('images and videos share one workspace shape: the visualizer, then a group holding a video\'s controls and timeline', async () => {
+    useMediaEditStore.getState().beginSession('db-1')
+    await renderStage(media())
+    const shape = () => [...container!.querySelector('.mms-stage')!.children].map(node => node.className)
+    const image = shape()
+    expect(image).toEqual(['mms-media-area', 'mms-group'])
+    // An image leaves the group empty; there is no caption anywhere (the title is already in the inspector).
+    expect(container!.querySelector('.mms-group')!.children).toHaveLength(0)
+    expect(container!.querySelector('.mms-caption')).toBeNull()
+    expect(container!.textContent).not.toContain('Sunset')
+    act(() => root?.unmount())
+    container!.remove()
+    useMediaEditStore.getState().beginSession('db-2')
+    await renderStage(video())
+    expect(shape()).toEqual(image)
+    expect(container!.querySelector('.mms-group .mms-controls')).not.toBeNull()
+    expect(container!.querySelector('.mms-group [data-testid="video-timeline"]')).not.toBeNull()
+    expect(container!.querySelector('.mms-caption')).toBeNull()
+  })
+
+  it('crop mode keeps its toolbar inside the media area, so entering crop cannot resize the workspace', async () => {
+    useMediaEditStore.getState().beginSession('db-1')
+    await renderStage(media())
+    await act(async () => { useMediaEditStore.getState().setCropMode(true) })
+    expect(container!.querySelector('.mms-media-area .mms-crop-toolbar')).not.toBeNull()
+    expect([...container!.querySelector('.mms-stage')!.children].map(node => node.className)).toEqual(['mms-media-area mms-media-area--cropping', 'mms-group'])
+  })
+
   it('ignores an edit session that belongs to a different item', async () => {
     useMediaEditStore.getState().beginSession('db-other')
     await act(async () => { useMediaEditStore.getState().setSlider('brightness', 50) })

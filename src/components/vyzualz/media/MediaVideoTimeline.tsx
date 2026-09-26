@@ -1,9 +1,18 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { generateVideoFilmstrip, MAX_FILMSTRIP_FRAMES } from './generateThumbnail'
+import {
+  TRACK_MAP_BEAT_COLOR,
+  TRACK_MAP_BEAT_LINE_WIDTH,
+  TRACK_MAP_BEAT_TICK_HEIGHT,
+  TRACK_MAP_DOWNBEAT_COLOR,
+  TRACK_MAP_DOWNBEAT_LINE_WIDTH,
+  TRACK_MAP_DOWNBEAT_TICK_HEIGHT,
+} from '../react/ReactTrackMapStrip'
 import { clampSec, fmtTimelineLabel, rulerTickInterval } from '../timeline/tlHelpers'
 
 // A full-length timeline for one video in Media Manager: a Track Map-style
-// ruler (0:00 → duration), a strip of frames sampled across the whole video and
+// ruler (0:00 → duration; its ticks and numbers are the Track Map's beat-marker and ruler styling, read from the
+// Track Map's own constants: whole seconds take the downbeat treatment, the divisions between them the regular-beat one), a strip of frames sampled across the whole video and
 // a playhead. Clicking or dragging anywhere on it seeks. Presentation only —
 // playback state stays owned by the stage that renders it.
 
@@ -110,9 +119,19 @@ export function MediaVideoTimeline({ mediaId, src, duration, currentTime, onSeek
       >
         <div ref={laneRef} className="mmt-inner">
           <div className="mmt-ruler" aria-hidden="true">
-            {minorTicks.map(t => <span key={`m${t}`} className="mmt-tick mmt-tick--minor" style={{ left: percent(t) }} />)}
+            {minorTicks.map(t => (
+              <span
+                key={`m${t}`}
+                className="mmt-tick mmt-tick--minor"
+                style={{ left: percent(t), width: TRACK_MAP_BEAT_LINE_WIDTH, height: TRACK_MAP_BEAT_TICK_HEIGHT, background: TRACK_MAP_BEAT_COLOR }}
+              />
+            ))}
             {ticks.map(t => (
-              <span key={t} className={`mmt-tick mmt-tick--major${t === total ? ' mmt-tick--end' : ''}`} style={{ left: percent(t) }}>
+              <span
+                key={t}
+                className={`mmt-tick mmt-tick--major${t === 0 ? ' mmt-tick--start' : ''}${t === total ? ' mmt-tick--end' : ''}`}
+                style={{ left: percent(t), width: TRACK_MAP_DOWNBEAT_LINE_WIDTH, height: TRACK_MAP_DOWNBEAT_TICK_HEIGHT, background: TRACK_MAP_DOWNBEAT_COLOR }}
+              >
                 <span className="mmt-tick-label">{t === total ? formatEndLabel(t) : formatRulerLabel(t)}</span>
               </span>
             ))}

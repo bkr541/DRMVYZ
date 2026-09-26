@@ -106,7 +106,7 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
 
   return (
     <div className={`mms-stage${isVideo && src && !videoError ? ' mms-stage--video' : ''}${src && (isVideo ? !videoError : !imageError) ? ' mms-stage--top' : ''}`}>
-      <div className={`mms-media-area${hasAlpha ? ' mms-media-area--transparent' : ''}`}>
+      <div className={`mms-media-area${hasAlpha ? ' mms-media-area--transparent' : ''}${cropMode && showEditPreview ? ' mms-media-area--cropping' : ''}`}>
         {!src ? (
           <NoticeCard tone="error" role="status" title="Media unavailable">{recovering ? 'Refreshing media link…' : 'Media file unavailable'}</NoticeCard>
         ) : isVideo && videoError ? (
@@ -167,44 +167,46 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
             )}
           </>
         )}
+        {previewFault && editing && (
+          <div className="mms-fault">
+            <NoticeCard tone="warning" role="status" title="Live preview unavailable">{previewFault}</NoticeCard>
+          </div>
+        )}
+        {cropMode && showEditPreview && (
+          <div className="mms-crop-toolbar" role="toolbar" aria-label="Crop">
+            <span className="mms-crop-hint">Drag the handles to choose the area to keep.</span>
+            <IconChipButton onClick={() => setCropDraft(createDefaultMediaEdit().crop)}>Reset</IconChipButton>
+            <IconChipButton onClick={cancelCrop}>Cancel</IconChipButton>
+            <IconChipButton tone="primary" onClick={applyCrop}>Apply Crop</IconChipButton>
+          </div>
+        )}
       </div>
 
-      {previewFault && editing && (
-        <NoticeCard tone="warning" role="status" title="Live preview unavailable">{previewFault}</NoticeCard>
-      )}
-
-      {cropMode && showEditPreview && (
-        <div className="mms-crop-toolbar" role="toolbar" aria-label="Crop">
-          <span className="mms-crop-hint">Drag the handles to choose the area to keep.</span>
-          <IconChipButton onClick={() => setCropDraft(createDefaultMediaEdit().crop)}>Reset</IconChipButton>
-          <IconChipButton onClick={cancelCrop}>Cancel</IconChipButton>
-          <IconChipButton tone="primary" onClick={applyCrop}>Apply Crop</IconChipButton>
-        </div>
-      )}
-
-      {isVideo && src && !videoError && (
-        <>
-          <div className="mms-controls">
-            <button className="mms-play-btn" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
-              {playing ? <PauseIcon size={13} color="currentColor" /> : <PlayIcon size={13} color="currentColor" />}
-            </button>
-            <BubbleRevealSlider
-              type="range"
-              className="mms-scrubber"
-              min={0}
-              max={duration || 100}
-              step={0.05}
-              value={currentTime}
-              onChange={event => seekTo(parseFloat(event.target.value))}
-              aria-label="Scrub video"
-            />
-            <span className="mms-time">{formatTime(currentTime)} / {formatTime(duration)}</span>
-          </div>
-          <MediaVideoTimeline mediaId={media.id} src={src} duration={duration} currentTime={currentTime} onSeek={seekTo} />
-        </>
-      )}
-
-      <div className="mms-caption">{media.title ?? media.name}</div>
+      {/* The group under the visualizer. It is a share of the stage height, the same for images and videos; a video's
+          controls and timeline live inside it. */}
+      <section className="mms-group" aria-label="Media group">
+        {isVideo && src && !videoError && (
+          <>
+            <div className="mms-controls">
+              <button className="mms-play-btn" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
+                {playing ? <PauseIcon size={13} color="currentColor" /> : <PlayIcon size={13} color="currentColor" />}
+              </button>
+              <BubbleRevealSlider
+                type="range"
+                className="mms-scrubber"
+                min={0}
+                max={duration || 100}
+                step={0.05}
+                value={currentTime}
+                onChange={event => seekTo(parseFloat(event.target.value))}
+                aria-label="Scrub video"
+              />
+              <span className="mms-time">{formatTime(currentTime)} / {formatTime(duration)}</span>
+            </div>
+            <MediaVideoTimeline mediaId={media.id} src={src} duration={duration} currentTime={currentTime} onSeek={seekTo} />
+          </>
+        )}
+      </section>
     </div>
   )
 }
