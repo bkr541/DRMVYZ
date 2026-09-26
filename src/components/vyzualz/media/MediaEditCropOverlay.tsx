@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
+import { useRef, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
+import { useTargetBox } from './useTargetBox'
 import { dragCropRect, type CropHandle, type MediaEditCrop } from '../../../features/media/edit/mediaEditModel'
 
 const HANDLES: CropHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
@@ -13,37 +14,6 @@ interface MediaEditCropOverlayProps {
   onChange: (rect: MediaEditCrop) => void
   onApply: () => void
   onCancel: () => void
-}
-
-interface Box { left: number; top: number; width: number; height: number }
-
-/** Tracks the target's box relative to the overlay's own positioned parent. */
-function useTargetBox(targetRef: RefObject<HTMLElement>, rootRef: RefObject<HTMLElement>): Box | null {
-  const [box, setBox] = useState<Box | null>(null)
-  useEffect(() => {
-    const target = targetRef.current
-    const parent = rootRef.current?.parentElement
-    if (!target || !parent) return
-    const measure = () => {
-      const t = target.getBoundingClientRect()
-      const p = parent.getBoundingClientRect()
-      setBox(previous => {
-        const next = { left: t.left - p.left, top: t.top - p.top, width: t.width, height: t.height }
-        return previous && previous.left === next.left && previous.top === next.top
-          && previous.width === next.width && previous.height === next.height ? previous : next
-      })
-    }
-    measure()
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
-    observer?.observe(target)
-    observer?.observe(parent)
-    window.addEventListener('resize', measure)
-    return () => {
-      observer?.disconnect()
-      window.removeEventListener('resize', measure)
-    }
-  }, [targetRef, rootRef])
-  return box
 }
 
 /** Draggable crop rectangle with eight handles, drawn over the oriented preview. */

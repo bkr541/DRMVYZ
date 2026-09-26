@@ -134,7 +134,7 @@
 
 .mms-group {
   flex: 2 1 0;
-  min-height: 210px;
+  min-height: 180px;
   margin: 0 16px 16px;
   box-sizing: border-box;
   display: flex;
@@ -147,8 +147,7 @@
 }
 
 /* The group already has its own frame and padding. */
-.mms-group .mms-controls { border-top: 0; padding: 12px 14px 4px; }
-.mms-group .mmt-timeline { padding: 4px 14px 14px; }
+.mms-group .mmt-timeline { padding: 14px; }
 
 .mms-empty {
   flex: 1;
@@ -171,7 +170,10 @@
   padding: 24px;
 }
 
-.mms-media-area--transparent {
+/* Transparent media (SVGs, overlays, alpha images) shows its checkerboard behind the picture only, never behind the
+   whole stage: every media type sits on the same stage colour with the same padding. */
+.mms-image.mms-media--transparent,
+.mms-video.mms-media--transparent {
   background-image:
     linear-gradient(45deg, #1a2028 25%, transparent 25%),
     linear-gradient(-45deg, #1a2028 25%, transparent 25%),
@@ -192,6 +194,41 @@
 }
 
 .mms-video { background: #000; }
+
+/* Playback controls float over the bottom of the picture in a rounded bar. The frame is sized to the picture (see
+   VideoControlsOverlay), so the bar follows the video however it is letterboxed. */
+.mms-float-root {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.mms-float-frame {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-end;
+  padding: 12px;
+}
+
+.mms-float-controls {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px 6px 8px;
+  box-sizing: border-box;
+  pointer-events: auto;
+  /* The same instrument surface as the header control group, kept translucent so the picture shows through. */
+  border: 1px solid rgba(154, 178, 188, 0.28);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(20, 28, 34, 0.82), rgba(10, 14, 17, 0.9));
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
 
 .mms-controls {
   display: flex;

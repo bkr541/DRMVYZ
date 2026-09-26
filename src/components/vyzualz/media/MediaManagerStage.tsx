@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { MusicNote01Icon, PauseIcon, PlayIcon } from 'hugeicons-react'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import { IconChipButton } from '../react/controls/IconChipButton'
@@ -8,6 +8,7 @@ import { MediaVideoTimeline } from './MediaVideoTimeline'
 import { useWaveformPeaks } from '../hooks/useWaveformPeaks'
 import { MediaEditPreview } from './MediaEditPreview'
 import { MediaEditCropOverlay } from './MediaEditCropOverlay'
+import { useTargetBox } from './useTargetBox'
 import {
   createDefaultMediaEdit,
   isMediaEditNeutral,
@@ -29,6 +30,46 @@ function formatTime(s: number): string {
 }
 
 // ── Visual media (plain, no live effects) ────────────────────────────────────
+
+interface VideoControlsOverlayProps {
+  /** The element showing the video right now: the edited canvas while an edit is active, otherwise the <video>. */
+  targetRef: RefObject<HTMLElement>
+  playing: boolean
+  currentTime: number
+  duration: number
+  onTogglePlay: () => void
+  onSeek: (timeSec: number) => void
+}
+
+/** Play, scrub and time, floating in a rounded bar over the bottom of the picture (not the stage), wherever the video sits. */
+function VideoControlsOverlay({ targetRef, playing, currentTime, duration, onTogglePlay, onSeek }: VideoControlsOverlayProps) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const box = useTargetBox(targetRef, rootRef)
+  return (
+    <div ref={rootRef} className="mms-float-root">
+      {box && (
+        <div className="mms-float-frame" style={{ left: box.left, top: box.top, width: box.width, height: box.height }}>
+          <div className="mms-float-controls" role="group" aria-label="Video playback">
+            <button className="mms-play-btn" onClick={onTogglePlay} aria-label={playing ? 'Pause' : 'Play'}>
+              {playing ? <PauseIcon size={13} color="currentColor" /> : <PlayIcon size={13} color="currentColor" />}
+            </button>
+            <BubbleRevealSlider
+              type="range"
+              className="mms-scrubber"
+              min={0}
+              max={duration || 100}
+              step={0.05}
+              value={currentTime}
+              onChange={event => onSeek(parseFloat(event.target.value))}
+              aria-label="Scrub video"
+            />
+            <span className="mms-time">{formatTime(currentTime)} / {formatTime(duration)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function VisualMediaStage({ media }: { media: UploadedMedia }) {
   const retryMediaAsset = useMediaStore(state => state.retryMediaAsset)
@@ -69,7 +110,8 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
   }, [cropMode])
 
   const isVideo = media.type === 'video'
-  const hasAlpha = media.metadata?.hasAlpha === true
+  // Media with transparency gets its checkerboard behind the picture only; the stage behind it is the same for everything.
+  const transparentClass = media.metadata?.hasAlpha === true ? ' mms-media--transparent' : ''
   const src = media.url || null
   const editing = activeEdit !== null && (cropMode || !isMediaEditNeutral(activeEdit))
   // Untouched media is shown directly; the GPU preview only takes over while an edit is active.
@@ -106,7 +148,7 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
 
   return (
     <div className={`mms-stage${isVideo && src && !videoError ? ' mms-stage--video' : ''}${src && (isVideo ? !videoError : !imageError) ? ' mms-stage--top' : ''}`}>
-      <div className={`mms-media-area${hasAlpha ? ' mms-media-area--transparent' : ''}${cropMode && showEditPreview ? ' mms-media-area--cropping' : ''}`}>
+      <div className={`mms-media-area${cropMode && showEditPreview ? ' mms-media-area--cropping' : ''}`}>
         {!src ? (
           <NoticeCard tone="error" role="status" title="Media unavailable">{recovering ? 'Refreshing media link…' : 'Media file unavailable'}</NoticeCard>
         ) : isVideo && videoError ? (
@@ -117,7 +159,7 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
         ) : isVideo ? (
           <video
             ref={videoRef}
-            className={`mms-video${sourceClass}`}
+            className={`mms-video${transparentClass}${sourceClass}`}
             src={src}
             crossOrigin="anonymous"
             onTimeUpdate={event => setCurrentTime(event.currentTarget.currentTime)}
@@ -138,7 +180,7 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
             ref={imageRef}
             src={src}
             alt={media.title ?? media.name}
-            className={`mms-image${sourceClass}`}
+            className={`mms-image${transparentClass}${sourceClass}`}
             crossOrigin="anonymous"
             onLoad={() => markMediaAssetLoaded(media.id, 'original')}
             onError={() => { setImageError(true); void recoverAsset() }}
@@ -153,7 +195,7 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
               edit={activeEdit}
               ignoreCrop={cropMode}
               sourceKey={src ?? ''}
-              className={isVideo ? 'mms-video' : 'mms-image'}
+              className={`${isVideo ? 'mms-video' : 'mms-image'}${transparentClass}`}
               onFault={setPreviewFault}
             />
             {cropMode && (
@@ -166,6 +208,16 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
               />
             )}
           </>
+        )}
+        {isVideo && src && !videoError && !cropMode && (
+          <VideoControlsOverlay
+            targetRef={(showEditPreview ? canvasRef : videoRef) as RefObject<HTMLElement>}
+            playing={playing}
+            currentTime={currentTime}
+            duration={duration}
+            onTogglePlay={togglePlay}
+            onSeek={seekTo}
+          />
         )}
         {previewFault && editing && (
           <div className="mms-fault">
@@ -183,28 +235,10 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
       </div>
 
       {/* The group under the visualizer. It is a share of the stage height, the same for images and videos; a video's
-          controls and timeline live inside it. */}
+          timeline lives inside it. */}
       <section className="mms-group" aria-label="Media group">
         {isVideo && src && !videoError && (
-          <>
-            <div className="mms-controls">
-              <button className="mms-play-btn" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
-                {playing ? <PauseIcon size={13} color="currentColor" /> : <PlayIcon size={13} color="currentColor" />}
-              </button>
-              <BubbleRevealSlider
-                type="range"
-                className="mms-scrubber"
-                min={0}
-                max={duration || 100}
-                step={0.05}
-                value={currentTime}
-                onChange={event => seekTo(parseFloat(event.target.value))}
-                aria-label="Scrub video"
-              />
-              <span className="mms-time">{formatTime(currentTime)} / {formatTime(duration)}</span>
-            </div>
-            <MediaVideoTimeline mediaId={media.id} src={src} duration={duration} currentTime={currentTime} onSeek={seekTo} />
-          </>
+          <MediaVideoTimeline mediaId={media.id} src={src} duration={duration} currentTime={currentTime} onSeek={seekTo} />
         )}
       </section>
     </div>

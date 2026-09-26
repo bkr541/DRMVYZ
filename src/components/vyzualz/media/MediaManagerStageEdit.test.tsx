@@ -117,10 +117,10 @@ describe('Media Manager stage with the edit session', () => {
     expect(container!.querySelector('.mms-play-btn')).not.toBeNull()
     expect(container!.querySelector('.mms-scrubber')).not.toBeNull()
     expect(container!.querySelector('[data-testid="video-timeline"]')).not.toBeNull()
-    // Controls sit between the visualizer and the timeline, as before.
-    const order = [...container!.querySelectorAll('.mms-media-area, .mms-controls, [data-testid="video-timeline"]')]
+    // The controls float over the picture, then the timeline follows in the group.
+    const order = [...container!.querySelectorAll('.mms-media-area, .mms-float-controls, [data-testid="video-timeline"]')]
       .map(node => node.className || node.getAttribute('data-testid'))
-    expect(order).toEqual(['mms-media-area', 'mms-controls', 'video-timeline'])
+    expect(order).toEqual(['mms-media-area', 'mms-float-controls', 'video-timeline'])
     expect(lastProps(mocks.timeline)).toMatchObject({ mediaId: 'db-2', src: 'https://signed/clip.mp4' })
   })
 
@@ -139,7 +139,9 @@ describe('Media Manager stage with the edit session', () => {
     useMediaEditStore.getState().beginSession('db-2')
     await renderStage(video())
     expect(shape()).toEqual(image)
-    expect(container!.querySelector('.mms-group .mms-controls')).not.toBeNull()
+    // The playback controls float over the picture (inside the media area); only the timeline lives in the group.
+    expect(container!.querySelector('.mms-media-area .mms-float-controls')).not.toBeNull()
+    expect(container!.querySelector('.mms-group .mms-float-controls, .mms-group .mms-controls')).toBeNull()
     expect(container!.querySelector('.mms-group [data-testid="video-timeline"]')).not.toBeNull()
     expect(container!.querySelector('.mms-caption')).toBeNull()
   })
@@ -150,6 +152,22 @@ describe('Media Manager stage with the edit session', () => {
     await act(async () => { useMediaEditStore.getState().setCropMode(true) })
     expect(container!.querySelector('.mms-media-area .mms-crop-toolbar')).not.toBeNull()
     expect([...container!.querySelector('.mms-stage')!.children].map(node => node.className)).toEqual(['mms-media-area mms-media-area--cropping', 'mms-group'])
+  })
+
+  it('puts the transparency checkerboard on the picture only, never on the shared stage area', async () => {
+    useMediaEditStore.getState().beginSession('db-1')
+    await renderStage(media({ metadata: { hasAlpha: true } }))
+    expect(container!.querySelector('.mms-media-area')!.className).not.toContain('transparent')
+    expect(container!.querySelector('img.mms-image')!.className).toContain('mms-media--transparent')
+    // The edited canvas that replaces the picture keeps it too.
+    await act(async () => { useMediaEditStore.getState().setSlider('brightness', 30) })
+    expect(lastProps(mocks.preview).className).toContain('mms-media--transparent')
+    // Opaque media gets none.
+    act(() => root?.unmount())
+    container!.remove()
+    useMediaEditStore.getState().beginSession('db-1')
+    await renderStage(media({ metadata: {} }))
+    expect(container!.querySelector('img.mms-image')!.className).not.toContain('transparent')
   })
 
   it('ignores an edit session that belongs to a different item', async () => {
