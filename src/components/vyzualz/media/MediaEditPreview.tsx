@@ -69,8 +69,9 @@ export function MediaEditPreview({ canvasRef, sourceRef, kind, edit, ignoreCrop,
   }, [kind, sourceKey, sourceRef])
 
   // One renderer per canvas element. It must NOT be rebuilt when `draw` changes (new signed URL,
-  // for example): disposing releases the canvas's WebGL context, and a released context cannot
-  // be re-acquired on the same element.
+  // for example). Its cleanup also runs between the two mounts React StrictMode performs on the same
+  // canvas, so it must not release the WebGL context: a released context cannot be re-acquired, which
+  // used to make the preview report "GPU unavailable" on every launch.
   const drawRef = useRef(draw)
   drawRef.current = draw
   useEffect(() => {
@@ -78,14 +79,14 @@ export function MediaEditPreview({ canvasRef, sourceRef, kind, edit, ignoreCrop,
     if (!canvas) return
     const renderer = MediaEditRenderer.create(canvas)
     if (!renderer) {
-      faultRef.current('Live edit preview needs GPU (WebGL2) rendering, which is unavailable here.')
+      faultRef.current('Editing renders through the GPU (WebGL2), which this window cannot provide, so the preview and crop tools are unavailable.')
       return
     }
     rendererRef.current = renderer
     uploadedKeyRef.current = null
     drawRef.current()
     return () => {
-      renderer.dispose()
+      renderer.dispose(false)
       rendererRef.current = null
     }
   }, [canvasRef])

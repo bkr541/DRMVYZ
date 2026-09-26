@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Layers01Icon, FolderAddIcon, Add01Icon } from 'hugeicons-react'
+import { Layers01Icon, FolderAddIcon, Add01Icon, Delete02Icon } from 'hugeicons-react'
 import { useAudioStore } from '../../stores/audioStore'
 import { useMediaStore } from '../../stores/mediaStore'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
@@ -7,10 +7,11 @@ import { RailWindowHeader } from '../../components/vyzualz/layout/RailWindowHead
 import { MediaLibraryBrowser } from '../../components/vyzualz/media/MediaLibraryBrowser'
 import { MediaManagerStage } from '../../components/vyzualz/media/MediaManagerStage'
 import { PageHeadingPlate, MediaHeadingIcon } from '../../components/vyzualz/layout/PageHeadingPlate'
-import { MediaManagerInspector } from '../../components/vyzualz/media/MediaManagerInspector'
+import { MediaManagerInspector, type MediaHeaderActions } from '../../components/vyzualz/media/MediaManagerInspector'
 import { UnsavedMediaChangesDialog } from '../../components/vyzualz/media/UnsavedMediaChangesDialog'
 import { selectMediaEditNeedsGuard, useMediaEditStore } from '../../stores/mediaEditStore'
 import { MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
+import { HeaderControlGroup } from '../../components/vyzualz/layout/HeaderControlGroup'
 import { VyzualzHeaderActions } from '../../components/vyzualz/shared/VyzualzHeaderActions'
 import { IconChipButton } from '../../components/vyzualz/react/controls/IconChipButton'
 import type { LyricManagerNavigationIntent } from '../lyrics/lyricNavigation'
@@ -32,6 +33,8 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
   // A selection that would replace unsaved edits waits here until the user decides.
   const [pendingSelection, setPendingSelection] = useState<{ mediaId: string | null; trackId: string | null } | null>(null)
   const needsGuard = useMediaEditStore(selectMediaEditNeedsGuard)
+  // The Info tab owns the draft; the header's centre group owns the buttons that act on it.
+  const [headerActions, setHeaderActions] = useState<MediaHeaderActions | null>(null)
 
   const selectedMedia = selectedMediaId ? mediaItems.find(item => item.id === selectedMediaId) ?? null : null
   const selectedTrack = selectedTrackId ? savedTracks.find(track => track.id === selectedTrackId) ?? null : null
@@ -78,6 +81,25 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
         <div className="mmv-header-left">
           <PageHeadingPlate titleAs="h1" titleId="media-manager-title" title="Media Manager" icon={<MediaHeadingIcon />} />
         </div>
+        <HeaderControlGroup label="Media Manager controls">
+          <IconChipButton
+            tone="primary"
+            onClick={() => headerActions?.onSave()}
+            disabled={!headerActions || headerActions.saving}
+            title="Save the changes made on the Info tab"
+          >
+            {headerActions?.saving ? 'Saving…' : 'Save Changes'}
+          </IconChipButton>
+          <IconChipButton
+            className="dv-icon-chip--danger"
+            icon={<Delete02Icon size={13} color="currentColor" />}
+            onClick={() => headerActions?.onDelete?.()}
+            disabled={!headerActions?.onDelete || headerActions.deleting}
+            title="Delete this media item"
+          >
+            Delete Media
+          </IconChipButton>
+        </HeaderControlGroup>
         <div className="mmv-summary">
           <VyzualzHeaderActions />
         </div>
@@ -146,6 +168,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
               media={selectedMedia}
               track={selectedTrack}
               onMediaCreated={id => commitSelection(id, null)}
+              onHeaderActions={setHeaderActions}
             />
           </WorkspaceRail>
         </div>

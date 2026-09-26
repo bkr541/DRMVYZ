@@ -418,7 +418,12 @@ export class MediaEditRenderer {
     return geometry
   }
 
-  dispose(): void {
+  /**
+   * Frees every GL object. `releaseContext` also gives the GPU context back immediately (right for the throwaway
+   * canvases exports create). A canvas that will be drawn on again — the live preview, which React StrictMode and
+   * remounts dispose and recreate on the same element — must keep it: a released context cannot be re-acquired.
+   */
+  dispose(releaseContext = true): void {
     if (this.disposed) return
     this.disposed = true
     this.canvas.removeEventListener('webglcontextlost', this.onLost)
@@ -428,8 +433,7 @@ export class MediaEditRenderer {
       for (const target of this.targets) if (target) this.deleteTarget(target)
       if (this.sourceTexture) gl.deleteTexture(this.sourceTexture)
       if (this.programs) for (const entry of Object.values(this.programs)) gl.deleteProgram(entry.program)
-      // Release the GPU context immediately rather than waiting for GC.
-      gl.getExtension('WEBGL_lose_context')?.loseContext()
+      if (releaseContext) gl.getExtension('WEBGL_lose_context')?.loseContext()
     }
     this.targets.fill(null)
     this.sourceTexture = null

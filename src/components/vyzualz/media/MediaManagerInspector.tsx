@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Delete02Icon, InformationCircleIcon } from 'hugeicons-react'
+import { useEffect, useRef, useState } from 'react'
+import { InformationCircleIcon } from 'hugeicons-react'
 import { useShallow } from 'zustand/react/shallow'
 import { Collapsible, NumberInputRow, SelectRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
@@ -22,9 +22,42 @@ import {
   type MediaRole,
 } from '../../../lib/mediaRoles'
 
+/**
+ * What the Info tab hands the page header: the header's centre group owns the buttons, the tab owns the
+ * draft they act on. `null` (or a missing action) leaves the button disabled.
+ */
+export interface MediaHeaderActions {
+  onSave: () => void
+  saving: boolean
+  onDelete: (() => void) | null
+  deleting: boolean
+}
+
+type HeaderActionsSink = (actions: MediaHeaderActions | null) => void
+
+/** Publishes the tab's header actions while it is mounted. Handlers are read through a ref so publishing never loops. */
+function useHeaderActions(
+  publish: HeaderActionsSink | undefined,
+  handlers: { save: () => void; remove: (() => void) | null },
+  state: { saving: boolean; deleting: boolean },
+) {
+  const latest = useRef(handlers)
+  latest.current = handlers
+  const hasDelete = handlers.remove !== null
+  useEffect(() => {
+    publish?.({
+      onSave: () => latest.current.save(),
+      saving: state.saving,
+      onDelete: hasDelete ? () => latest.current.remove?.() : null,
+      deleting: state.deleting,
+    })
+  }, [publish, state.saving, state.deleting, hasDelete])
+  useEffect(() => () => publish?.(null), [publish])
+}
+
 // ── Visual media editor ──────────────────────────────────────────────────────
 
-function VisualMediaInspector({ media }: { media: UploadedMedia }) {
+function VisualMediaInspector({ media, onHeaderActions }: { media: UploadedMedia; onHeaderActions?: HeaderActionsSink }) {
   const { saveMediaEdits, removeItem, collections, createCollection } = useMediaStore(useShallow(state => ({
     saveMediaEdits: state.saveMediaEdits,
     removeItem: state.removeItem,
@@ -122,6 +155,12 @@ function VisualMediaInspector({ media }: { media: UploadedMedia }) {
     setConfirmingDelete(false)
     if (!deleted) setError('Could not delete this media item. Try again.')
   }
+
+  useHeaderActions(
+    onHeaderActions,
+    { save: () => { void handleSave() }, remove: () => setConfirmingDelete(true) },
+    { saving, deleting },
+  )
 
   return (
     <div className="mmi-body">
@@ -224,20 +263,6 @@ function VisualMediaInspector({ media }: { media: UploadedMedia }) {
 
       {error && <NoticeCard tone="error" role="alert" title="Save failed">{error}</NoticeCard>}
 
-      <div className="mmi-actions">
-        <IconChipButton tone="primary" onClick={() => { void handleSave() }} disabled={saving}>
-          {saving ? 'Saving…' : 'Save Changes'}
-        </IconChipButton>
-        <IconChipButton
-          className="dv-icon-chip--danger"
-          icon={<Delete02Icon size={13} color="currentColor" />}
-          onClick={() => setConfirmingDelete(true)}
-          disabled={deleting}
-        >
-          Delete Media
-        </IconChipButton>
-      </div>
-
       {confirmingDelete && (
         <MediaDeleteConfirmDialog
           count={1}
@@ -252,7 +277,7 @@ function VisualMediaInspector({ media }: { media: UploadedMedia }) {
 
 // ── Audio track editor ───────────────────────────────────────────────────────
 
-function AudioTrackInspector({ track }: { track: SavedAudioTrack }) {
+function AudioTrackInspector({ track, onHeaderActions }: { track: SavedAudioTrack; onHeaderActions?: HeaderActionsSink }) {
   const updateSavedTrackMetadata = useAudioStore(state => state.updateSavedTrackMetadata)
 
   const [title, setTitle] = useState(track.title)
@@ -290,6 +315,8 @@ function AudioTrackInspector({ track }: { track: SavedAudioTrack }) {
     if (!saved) setError('Could not save changes. Try again.')
   }
 
+  useHeaderActions(onHeaderActions, { save: () => { void handleSave() }, remove: null }, { saving, deleting: false })
+
   return (
     <div className="mmi-body">
       <Collapsible label="Track Details" defaultOpen>
@@ -301,12 +328,6 @@ function AudioTrackInspector({ track }: { track: SavedAudioTrack }) {
       </Collapsible>
 
       {error && <NoticeCard tone="error" role="alert" title="Save failed">{error}</NoticeCard>}
-
-      <div className="mmi-actions">
-        <IconChipButton tone="primary" onClick={() => { void handleSave() }} disabled={saving}>
-          {saving ? 'Saving…' : 'Save Changes'}
-        </IconChipButton>
-      </div>
     </div>
   )
 }
@@ -325,11 +346,14 @@ export function MediaManagerInspector({
   media,
   track,
   onMediaCreated,
+  onHeaderActions,
 }: {
   media: UploadedMedia | null
   track: SavedAudioTrack | null
   /** Save As created a new media item; the view selects it. */
   onMediaCreated?: (mediaId: string) => void
+  /** Receives Save Changes / Delete Media for the page header while the Info tab is showing. */
+  onHeaderActions?: HeaderActionsSink
 }) {
   const [activeTab, setActiveTab] = useState<MediaInspectorTab>('info')
   return (
@@ -359,9 +383,9 @@ export function MediaManagerInspector({
       )}
       {activeTab === 'info' && (
         media ? (
-          <VisualMediaInspector key={media.id} media={media} />
+          <VisualMediaInspector key={media.id} media={media} onHeaderActions={onHeaderActions} />
         ) : track ? (
-          <AudioTrackInspector key={track.id} track={track} />
+          <AudioTrackInspector key={track.id} track={track} onHeaderActions={onHeaderActions} />
         ) : (
           <div className="mmi-empty">
             <p>Select media from the library to view and edit its details.</p>

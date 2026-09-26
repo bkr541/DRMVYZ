@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   browserProps: vi.fn(),
+  inspectorProps: { current: null as null | { onHeaderActions?: (actions: unknown) => void } },
 }))
 
 vi.mock('../../stores/mediaStore', () => ({
@@ -26,6 +27,13 @@ vi.mock('../../components/vyzualz/media/MediaLibraryBrowser', () => ({
   MediaLibraryBrowser: (props: unknown) => {
     mocks.browserProps(props)
     return <div data-testid="media-library-browser">Shared media browser</div>
+  },
+}))
+
+vi.mock('../../components/vyzualz/media/MediaManagerInspector', () => ({
+  MediaManagerInspector: (props: { onHeaderActions?: (actions: unknown) => void }) => {
+    mocks.inspectorProps.current = props
+    return <div data-testid="inspector" />
   },
 }))
 
@@ -64,5 +72,32 @@ describe('MediaManagerView', () => {
       capabilities: MEDIA_MANAGER_CAPABILITIES,
     }))
     expect(MEDIA_MANAGER_CAPABILITIES).toEqual(expect.arrayContaining(['select', 'upload', 'edit', 'remove', 'collections']))
+  })
+
+  it('puts Save Changes and Delete Media in the header control group, wired to what the Info tab publishes', () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    act(() => { root?.render(<MediaManagerView onOpenLyricManager={vi.fn()} />) })
+
+    const group = container.querySelector('.mmv-header .vz-header-group')
+    expect(group?.getAttribute('aria-label')).toBe('Media Manager controls')
+    const buttons = () => [...group!.querySelectorAll<HTMLButtonElement>('button')]
+    expect(buttons().map(button => button.textContent?.trim())).toEqual(['Save Changes', 'Delete Media'])
+    // Nothing published yet (no Info tab showing): both keys are dead.
+    expect(buttons().every(button => button.disabled)).toBe(true)
+
+    const onSave = vi.fn()
+    const onDelete = vi.fn()
+    act(() => { mocks.inspectorProps.current?.onHeaderActions?.({ onSave, saving: false, onDelete, deleting: false }) })
+    expect(buttons().every(button => !button.disabled)).toBe(true)
+    act(() => { buttons()[0]!.click() })
+    act(() => { buttons()[1]!.click() })
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(onDelete).toHaveBeenCalledTimes(1)
+
+    act(() => { mocks.inspectorProps.current?.onHeaderActions?.({ onSave, saving: true, onDelete: null, deleting: false }) })
+    expect(buttons()[0]!.textContent?.trim()).toBe('Saving…')
+    expect(buttons().every(button => button.disabled)).toBe(true)
   })
 })
