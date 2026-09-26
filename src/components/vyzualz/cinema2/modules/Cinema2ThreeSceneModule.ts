@@ -23,6 +23,7 @@ import {
   type Cinema2ThreePanelSpec,
   type Cinema2ThreeSceneInstance,
 } from './three/Cinema2ThreeSceneBridge'
+import { Cinema2BeatClock } from './Cinema2BeatClock'
 import { cinema2ThreeEnvironmentRegistry, type Cinema2ThreeEnvironmentRegistry } from './three/Cinema2ThreeEnvironmentRegistry'
 
 export const CINEMA2_THREE_SCENE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('three-scene')
@@ -42,6 +43,10 @@ export type Cinema2ThreeSceneModuleState = 'idle' | 'loading' | 'building' | 're
  * `emissiveIntensity`, `roughness`, `metalness`, `environmentIntensity`, and the PBR set: `clearcoat` / `clearcoatRoughness` (a glossy
  * lacquer layer; using `clearcoat` upgrades the materials to physical ones), `environmentRotation` (degrees) and `panelIntensity`
  * (multiplies the configured panel lights). Missing parameters leave the asset's own values.
+ *
+ * Turntable spin: an instance with `spin: true` turns about its own vertical axis. The module parameter `spinTurnSeconds` is the time one full turn
+ * takes at the 120 BPM reference (0 or missing = no spin) and `spinSync` (default true) locks it to the track's beat grid, so the turn follows the
+ * detected tempo (a faster track turns faster; the spin stands still while playback is paused). Off, it turns at the reference rate whatever the tempo.
  *
  * `config.environment`: id of a shipped equirectangular environment used for image-based lighting (default: the built-in studio room;
  * a shipped one that fails to load falls back to it with a diagnostic). Its intensity follows the Cinema 2.0 environment exposure.
@@ -89,6 +94,8 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
       let areaLightTables: { init(): void } | null = null
       let overrides: Readonly<Cinema2ThreeMaterialOverrides> = CINEMA2_THREE_DEFAULT_OVERRIDES
       let reportedBytes = -1
+      const beatClock = new Cinema2BeatClock()
+      let spinRadians = 0
       const diagnostics: Cinema2ModuleDiagnostic[] = []
 
       const report = (code: string, message: string, path: string) => {
@@ -132,7 +139,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
             return
           }
           held = ok.map(entry => entry.asset)
-          loaded = ok.map(entry => ({ asset: entry.asset, node: entry.instance.node }))
+          loaded = ok.map(entry => ({ asset: entry.asset, node: entry.instance.node, spin: entry.instance.spin }))
           state = loaded.length > 0 ? 'building' : 'failed'
         })()
       }
@@ -163,7 +170,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           if (state === 'idle') startLoading(quality)
           if (state === 'building' && !bridge && !bridgeCreateFailed && library) buildBridge()
           if (!bridge || state === 'failed' || state === 'loading') return
-          bridge.draw(execution, overrides)
+          bridge.draw(execution, overrides, spinRadians)
           if (bridge.ready && state !== 'ready') state = 'ready'
           const bytes = bridge.estimateGpuBytes()
           if (bytes !== reportedBytes) { reportedBytes = bytes; context.resources.reportGpuBytes(bytes) }
@@ -172,9 +179,16 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
 
       return {
         lifecycle: {
-          update: ({ parameters }: Cinema2ModuleUpdateContext) => { overrides = readOverrides(parameters, overrides) },
+          update: ({ frame, parameters }: Cinema2ModuleUpdateContext) => {
+            overrides = readOverrides(parameters, overrides)
+            const turnSeconds = readNumber(parameters.get('spinTurnSeconds'), 0, 3600) ?? 0
+            const sync = parameters.get('spinSync') !== false
+            const beats = beatClock.update(frame, sync).beats
+            spinRadians = cinema2ThreeSpinRadians(beats, turnSeconds)
+          },
           dispose: () => {
             disposed = true
+            beatClock.reset()
             // With a bridge, its resource disposer releases the assets after its own materials; otherwise release here.
             if (!bridge) releaseHeld()
           },
@@ -189,9 +203,20 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
 
 export const cinema2ThreeSceneModuleDefinition = createCinema2ThreeSceneModuleDefinition()
 
+/**
+ * The turntable angle for a beat position: one full turn takes `turnSeconds` at the 120 BPM reference (2 beats a second), so a track at 240 BPM
+ * turns twice as fast when locked. 0 (or under half a second) means no spin. The result is always in [0, 2π).
+ */
+export function cinema2ThreeSpinRadians(beats: number, turnSeconds: number): number {
+  if (!Number.isFinite(beats) || !Number.isFinite(turnSeconds) || turnSeconds <= 0.5) return 0
+  const turns = beats / (2 * turnSeconds)
+  return (turns - Math.floor(turns)) * Math.PI * 2
+}
+
 interface RequestedInstance {
   asset: string
   node: string | null
+  spin: boolean
 }
 
 function parseInstances(module: Readonly<Cinema2ModuleManifest>): RequestedInstance[] {
@@ -202,7 +227,7 @@ function parseInstances(module: Readonly<Cinema2ModuleManifest>): RequestedInsta
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue
     const record = entry as Record<string, unknown>
     if (typeof record.asset !== 'string') continue
-    result.push({ asset: record.asset, node: typeof record.node === 'string' && record.node ? record.node : null })
+    result.push({ asset: record.asset, node: typeof record.node === 'string' && record.node ? record.node : null, spin: record.spin === true })
   }
   return result
 }
@@ -224,6 +249,9 @@ function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinem
       diagnostics.push({ code: 'CINEMA2_THREE_SCENE_INSTANCE_INVALID', path: `${path}.asset`, message: 'Instance "asset" must be a shipped asset id string.' })
     } else if (!registry.has(record.asset)) {
       diagnostics.push({ code: 'CINEMA2_THREE_SCENE_ASSET_UNKNOWN', path: `${path}.asset`, message: `No shipped 3D asset "${record.asset}" is registered.` })
+    }
+    if (record.spin !== undefined && typeof record.spin !== 'boolean') {
+      diagnostics.push({ code: 'CINEMA2_THREE_SCENE_INSTANCE_INVALID', path: `${path}.spin`, message: 'Instance "spin" must be true or false when present.' })
     }
     if (record.node !== undefined && (typeof record.node !== 'string' || !record.node.trim())) {
       diagnostics.push({ code: 'CINEMA2_THREE_SCENE_INSTANCE_INVALID', path: `${path}.node`, message: 'Instance "node" must be a Scene Graph node id string when present.' })

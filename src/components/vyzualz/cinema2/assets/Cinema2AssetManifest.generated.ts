@@ -3,6 +3,25 @@ import type { Cinema2GeneratedAssetRecord } from './Cinema2GeneratedAssetTypes'
 
 export const CINEMA2_ASSET_RECORDS = [
   {
+    "id": "cinema2-dvydrm-logo",
+    "kind": "model",
+    "compression": "none",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/models/dvydrm-logo.glb",
+        "bytes": 893896,
+        "triangles": 28138
+      }
+    },
+    "gpuBytes": {
+      "high": 891312,
+      "medium": 891312,
+      "low": 891312
+    }
+  },
+  {
     "id": "cinema2-reference-torus-knot",
     "kind": "model",
     "compression": "meshopt",

@@ -64,10 +64,13 @@ export interface Cinema2ThreeSceneInstance {
   asset: Cinema2ThreeLoadedAsset
   /** Scene Graph node that places this instance; when omitted the instance sits at the world origin. */
   node: string | null
+  /** The instance turns about its own vertical axis by the angle the module passes to `draw` (a turntable spin). */
+  spin?: boolean
 }
 
 interface PlacedInstance {
   node: string | null
+  spin: boolean
   root: ThreeNamespace.Group
   materials: OwnedMaterial[]
 }
@@ -113,6 +116,7 @@ export class Cinema2ThreeSceneBridge {
   private readonly target: ThreeNamespace.WebGLRenderTarget
   private readonly lightRig: Cinema2ThreeLightRig
   private readonly placed: PlacedInstance[] = []
+  private readonly spinMatrix: ThreeNamespace.Matrix4
   private readonly pendingTextures: ThreeNamespace.Texture[] = []
   private readonly guard: Cinema2GlStateGuard
   private stage: WarmStage = 'environment'
@@ -139,6 +143,7 @@ export class Cinema2ThreeSceneBridge {
     this.guard = new Cinema2GlStateGuard(gl)
     this.scene = new THREE.Scene()
     this.camera = new THREE.PerspectiveCamera()
+    this.spinMatrix = new THREE.Matrix4()
     this.lightRig = new Cinema2ThreeLightRig(THREE, this.scene)
     // A render target that only points at the engine's framebuffer: Three allocates nothing for it. Flagged like an XR target
     // so Three encodes display-referred sRGB itself (the engine's targets are plain RGBA8 with no hardware sRGB write).
@@ -175,7 +180,7 @@ export class Cinema2ThreeSceneBridge {
       })
       root.add(model)
       this.scene.add(root)
-      this.placed.push({ node: instance.node, root, materials })
+      this.placed.push({ node: instance.node, spin: instance.spin === true, root, materials })
     }
 
     // Panel lights: a fixed pool (unused ones simply hidden per tier), so the shader's light count only changes when the quality tier does.
@@ -212,7 +217,7 @@ export class Cinema2ThreeSceneBridge {
     return Math.round(bytes)
   }
 
-  draw(exec: Cinema2ModuleRenderExecutionContext, overrides: Readonly<Cinema2ThreeMaterialOverrides>): void {
+  draw(exec: Cinema2ModuleRenderExecutionContext, overrides: Readonly<Cinema2ThreeMaterialOverrides>, spinRadians = 0): void {
     if (this.disposed) return
     if (!exec.depthAvailable) throw new Error('Cinema 2.0 Three scene module requires a render target with a depth attachment.')
     const camera = exec.camera
@@ -226,7 +231,7 @@ export class Cinema2ThreeSceneBridge {
       this.applyQuality(lighting.quality)
       this.applyOverrides(overrides)
       this.applyEnvironmentAndPanels(overrides, lighting.environment.exposure)
-      this.place(exec)
+      this.place(exec, spinRadians)
       applyCinema2CameraFrame(this.camera, camera)
       this.lightRig.update(lighting)
       if (this.stage !== 'ready') {
@@ -264,7 +269,7 @@ export class Cinema2ThreeSceneBridge {
     return this.scene.environment != null
   }
 
-  private place(exec: Cinema2ModuleRenderExecutionContext): void {
+  private place(exec: Cinema2ModuleRenderExecutionContext, spinRadians: number): void {
     const nodes = exec.spatialNodes ?? []
     for (const placed of this.placed) {
       const node = placed.node ? nodes.find(candidate => candidate.id === placed.node) : null
@@ -272,6 +277,8 @@ export class Cinema2ThreeSceneBridge {
       placed.root.visible = node ? node.visible : true
       if (node) placed.root.matrix.fromArray(node.worldMatrix as unknown as number[])
       else placed.root.matrix.identity()
+      // A turntable spin: about the instance's own vertical axis, applied after the node's placement.
+      if (placed.spin && spinRadians !== 0) placed.root.matrix.multiply(this.spinMatrix.makeRotationY(spinRadians))
       placed.root.matrixWorldNeedsUpdate = true
     }
   }

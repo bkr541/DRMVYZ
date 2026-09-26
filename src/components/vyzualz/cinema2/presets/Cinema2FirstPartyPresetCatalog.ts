@@ -3,6 +3,7 @@ import { CINEMA2_AFTERHOURS_PRESET_MANIFEST } from './Cinema2AfterhoursPreset'
 import { CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST } from './Cinema2AtmosphereReferencePreset'
 import { CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST } from './Cinema2ElectricStormPreset'
 import { CINEMA2_INTERLOCK_PRESET_MANIFEST } from './Cinema2InterlockPreset'
+import { CINEMA2_GO_TO_PRESET_MANIFEST } from './Cinema2GoToPreset'
 import { CINEMA2_HUMN_PRESET_MANIFEST } from './Cinema2HumNPreset'
 import { defineCinema2FirstPartyPreset } from './Cinema2PresetAuthoring'
 import { CINEMA2_REACTOR_PRESET_MANIFEST } from './Cinema2ReactorPreset'
@@ -56,6 +57,10 @@ export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
   defineCinema2FirstPartyPreset({
     role: 'keeper',
     manifest: CINEMA2_THRESHOLD_PRESET_MANIFEST,
+  }),
+  defineCinema2FirstPartyPreset({
+    role: 'keeper',
+    manifest: CINEMA2_GO_TO_PRESET_MANIFEST,
   }),
   defineCinema2FirstPartyPreset({
     role: 'reference',
