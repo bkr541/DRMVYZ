@@ -21223,3 +21223,184 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .llhg-capsule-key.llhg-key--save { color: #04181c; border-color: transparent; background: linear-gradient(160deg, #9ff9ff, #4ac7db); font-weight: 800; }
 .llhg-capsule-key.llhg-key--save:hover { color: #04181c; border-color: transparent; box-shadow: 0 0 12px rgba(103, 247, 255, 0.45); }
 .llhg-capsule-key.is-on { color: #67f7ff; border-color: rgba(103, 247, 255, 0.85); background: rgba(74, 199, 219, 0.14); box-shadow: 0 0 10px rgba(103, 247, 255, 0.3); }
+
+/* ── Layout Lab: Media Library thumbnail styles (Template engine, REACT tab) ───────────────────────────
+   Three candidate treatments for the Media Library grid, all fitting the ~370px rail. The pictures are
+   CSS/SVG stand-ins for real thumbnails. */
+.llmt-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* One shared tile reset: every treatment is a button that holds a picture. */
+.llmt-poster,
+.llmt-sheet-tile,
+.llmt-mosaic-tile {
+  --llmt-tone: #4ac7db;
+  appearance: none;
+  position: relative;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.llmt-art {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  container-type: inline-size;
+}
+.llmt-art--dragon {
+  background:
+    radial-gradient(ellipse at 50% 92%, rgba(103, 247, 255, 0.85), transparent 52%),
+    radial-gradient(circle at 18% 28%, rgba(255, 90, 110, 0.6), transparent 34%),
+    radial-gradient(circle at 82% 28%, rgba(255, 90, 110, 0.5), transparent 32%),
+    linear-gradient(165deg, #03202e, #0a5a78 62%, #021018);
+}
+.llmt-art--samurai {
+  background:
+    radial-gradient(circle at 30% 26%, rgba(103, 247, 255, 0.28), transparent 42%),
+    linear-gradient(118deg, #031428 0%, #0b3b66 42%, #0aa5c8 46%, #9cfaff 50%, #0aa5c8 54%, #0b3b66 58%, #020c18 100%);
+}
+.llmt-art--logo {
+  background: radial-gradient(circle at 50% 46%, rgba(255, 255, 255, 0.14), transparent 62%), #05090d;
+}
+.llmt-art--chrome {
+  background: radial-gradient(circle at 50% 50%, rgba(216, 185, 90, 0.28), transparent 62%), #040608;
+}
+.llmt-art--neon {
+  background: radial-gradient(circle at 50% 50%, rgba(97, 214, 170, 0.22), transparent 64%), #030a08;
+}
+.llmt-art--demon {
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 40, 60, 0.7) 0 2px, transparent 2px 6px),
+    radial-gradient(circle at 50% 40%, rgba(255, 70, 70, 0.7), transparent 58%),
+    #130204;
+}
+.llmt-art-mark { width: 58%; height: auto; filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.35)); }
+.llmt-art-word {
+  font: 900 italic 15cqw/1 Georgia, 'Times New Roman', serif;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.llmt-art-word--chrome {
+  background: linear-gradient(180deg, #fff 10%, #cfd8ff 48%, #f6dcae 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 5px rgba(246, 220, 174, 0.5));
+}
+.llmt-art-word--neon {
+  color: transparent;
+  -webkit-text-stroke: 1px #7dffc4;
+  text-shadow: 0 0 8px rgba(97, 214, 170, 0.8);
+}
+
+/* Small overlays that sit on a picture. */
+.llmt-chip,
+.llmt-duration {
+  position: absolute;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: rgba(4, 8, 12, 0.74);
+  font: 800 7px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+}
+.llmt-chip { top: 4px; left: 4px; color: rgba(232, 244, 248, 0.86); }
+.llmt-chip--video { color: #67f7ff; }
+.llmt-chip--svg { color: #d8b95a; }
+.llmt-duration { right: 4px; bottom: 4px; color: rgba(232, 244, 248, 0.92); font-variant-numeric: tabular-nums; }
+.llmt-heart {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: rgba(4, 8, 12, 0.6);
+  color: rgba(255, 255, 255, 0.78);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.llmt-heart.is-on { opacity: 1; color: #ff6b8a; }
+.llmt-poster:hover .llmt-heart,
+.llmt-sheet-tile:hover .llmt-heart,
+.llmt-mosaic-tile:hover .llmt-heart { opacity: 1; }
+
+/* The selection ring, shared. */
+.llmt-poster-thumb,
+.llmt-sheet-tile,
+.llmt-mosaic-tile {
+  border: 1.5px solid color-mix(in srgb, var(--llmt-tone) 30%, transparent);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #050a12;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+.llmt-poster:hover .llmt-poster-thumb,
+.llmt-sheet-tile:hover,
+.llmt-mosaic-tile:hover { border-color: var(--llmt-tone); transform: translateY(-1px); }
+.llmt-poster.is-active .llmt-poster-thumb,
+.llmt-sheet-tile.is-active,
+.llmt-mosaic-tile.is-active {
+  border-color: var(--llmt-tone);
+  box-shadow: 0 0 0 1px var(--llmt-tone), 0 0 14px color-mix(in srgb, var(--llmt-tone) 40%, transparent);
+}
+.llmt-poster:focus-visible,
+.llmt-sheet-tile:focus-visible,
+.llmt-mosaic-tile:focus-visible { outline: 2px solid rgba(103, 247, 255, 0.8); outline-offset: 2px; }
+
+/* 01 · Poster Grid */
+.llmt-poster-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 8px; }
+.llmt-poster { display: flex; flex-direction: column; gap: 3px; min-width: 0; background: transparent; border: 0; }
+.llmt-poster-thumb { position: relative; display: block; aspect-ratio: 16 / 10; margin-bottom: 3px; }
+.llmt-poster-title {
+  overflow: hidden;
+  color: rgba(232, 238, 240, 0.92);
+  font: 600 10.5px/1.25 var(--az-font, Inter, system-ui, sans-serif);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.llmt-poster-detail {
+  overflow: hidden;
+  color: rgba(196, 207, 211, 0.45);
+  font: 500 9px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 02 · Contact Sheet */
+.llmt-sheet-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.llmt-sheet-tile { display: block; aspect-ratio: 1; border-radius: 7px; }
+.llmt-sheet-tile .llmt-chip { top: 3px; left: 3px; padding: 2px 3px; font-size: 6px; }
+.llmt-sheet-tile .llmt-heart { top: 3px; right: 3px; width: 16px; height: 16px; }
+.llmt-sheet-name,
+.llmt-mosaic-name {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  padding: 14px 5px 4px;
+  background: linear-gradient(0deg, rgba(2, 5, 8, 0.92), rgba(2, 5, 8, 0));
+  color: rgba(240, 246, 248, 0.94);
+  font: 600 8.5px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 03 · Justified Mosaic: three columns of tiles in their real shapes, packed to end together. */
+.llmt-mosaic { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; align-items: start; }
+.llmt-mosaic-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.llmt-mosaic-tile { display: block; width: 100%; }
+.llmt-mosaic-tile .llmt-duration { bottom: 18px; }

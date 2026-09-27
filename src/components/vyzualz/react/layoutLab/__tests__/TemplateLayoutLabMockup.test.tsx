@@ -64,6 +64,32 @@ describe('Template Layout Lab workspace', () => {
     expect(presetsTab.getAttribute('aria-selected')).toBe('true')
   })
 
+  it('shows three Media Library thumbnail treatments, six thumbnails each, in the REACT tab', async () => {
+    await selectEngine('Template')
+    const reactTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+      .find(button => button.textContent?.trim() === 'REACT')
+    if (!reactTab) throw new Error('Missing REACT tab')
+    await act(async () => reactTab.click())
+
+    const gallery = container.querySelector('.llmt-gallery')
+    expect(gallery?.querySelectorAll('.lldd-gallery-row')).toHaveLength(3)
+    expect(gallery?.querySelectorAll('.llmt-poster')).toHaveLength(6)
+    expect(gallery?.querySelectorAll('.llmt-sheet-tile')).toHaveLength(6)
+    expect(gallery?.querySelectorAll('.llmt-mosaic-tile')).toHaveLength(6)
+    // The same six items in every treatment, and clicking one selects it in all three.
+    const names = (selector: string) => [...(gallery?.querySelectorAll(selector) ?? [])].map(node => node.getAttribute('aria-label')).sort()
+    expect(names('.llmt-sheet-tile')).toEqual(names('.llmt-poster'))
+    expect(names('.llmt-mosaic-tile')).toEqual(names('.llmt-poster'))
+    const target = gallery?.querySelectorAll<HTMLButtonElement>('.llmt-sheet-tile')[2]
+    await act(async () => target?.click())
+    expect(gallery?.querySelectorAll('.is-active')).toHaveLength(3)
+
+    // Design and Output stay blank.
+    const designTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(button => button.textContent?.trim() === 'DESIGN')
+    await act(async () => designTab?.click())
+    expect(container.querySelector('.llmt-gallery')).toBeNull()
+  })
+
   it('returns to existing engines without changing their Layout Lab composition', async () => {
     await selectEngine('Template')
     await selectEngine('CANVAS')

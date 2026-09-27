@@ -41,7 +41,7 @@ interface VideoControlsOverlayProps {
   onSeek: (timeSec: number) => void
 }
 
-/** Play, scrub and time, floating in a rounded bar over the bottom of the picture (not the stage), wherever the video sits. */
+/** Play, elapsed time, scrubber and duration in a liquid-glass capsule floating over the bottom of the picture (not the stage), wherever the video sits. */
 function VideoControlsOverlay({ targetRef, playing, currentTime, duration, onTogglePlay, onSeek }: VideoControlsOverlayProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const box = useTargetBox(targetRef, rootRef)
@@ -51,8 +51,9 @@ function VideoControlsOverlay({ targetRef, playing, currentTime, duration, onTog
         <div className="mms-float-frame" style={{ left: box.left, top: box.top, width: box.width, height: box.height }}>
           <div className="mms-float-controls" role="group" aria-label="Video playback">
             <button className="mms-play-btn" onClick={onTogglePlay} aria-label={playing ? 'Pause' : 'Play'}>
-              {playing ? <PauseIcon size={13} color="currentColor" /> : <PlayIcon size={13} color="currentColor" />}
+              {playing ? <PauseIcon size={16} color="currentColor" /> : <PlayIcon size={16} color="currentColor" />}
             </button>
+            <span className="mms-time mms-time--elapsed" aria-label="Elapsed time">{formatTime(currentTime)}</span>
             <BubbleRevealSlider
               type="range"
               className="mms-scrubber"
@@ -63,7 +64,7 @@ function VideoControlsOverlay({ targetRef, playing, currentTime, duration, onTog
               onChange={event => onSeek(parseFloat(event.target.value))}
               aria-label="Scrub video"
             />
-            <span className="mms-time">{formatTime(currentTime)} / {formatTime(duration)}</span>
+            <span className="mms-time mms-time--total" aria-label="Duration">{formatTime(duration)}</span>
           </div>
         </div>
       )}

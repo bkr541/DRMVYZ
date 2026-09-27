@@ -12,6 +12,7 @@ import { NoticeStyleGallery } from './layoutLab/NoticeStyleGallery'
 import { PaletteGroupStyleGallery } from './layoutLab/PaletteGroupStyleGallery'
 import { BadgeStyleGallery } from './layoutLab/BadgeStyleGallery'
 import { LayerRowStyleGallery } from './layoutLab/LayerRowStyleGallery'
+import { MediaThumbnailStyleGallery } from './layoutLab/MediaThumbnailStyleGallery'
 import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { HeaderControlGroupStyleGallery } from './layoutLab/HeaderControlGroupStyleGallery'
@@ -360,7 +361,12 @@ export function LayoutLabMockup() {
                     <PresetCardStyleGallery />
                   </div>
                 )}
-                {/* Design, React and Output are intentionally blank in the Template engine. */}
+                {templateRightTab === 'react' && (
+                  <div className="rv-inspector rv-inspector-scroll">
+                    <MediaThumbnailStyleGallery />
+                  </div>
+                )}
+                {/* Design and Output are intentionally blank in the Template engine. */}
               </div>
             </>
           ) : engineId === 'oscilloscope' ? (
