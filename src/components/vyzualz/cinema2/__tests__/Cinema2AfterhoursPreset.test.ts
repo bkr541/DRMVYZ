@@ -205,7 +205,7 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     const plan = compileAfterhours()
     expect(plan.manifest.modules).toHaveLength(1)
     expect(plan.manifest.effects).toHaveLength(1)
-    expect(plan.manifest.revision).toBe(6)
+    expect(plan.manifest.revision).toBe(7)
     expect(plan.manifest.modules?.[0]).toMatchObject({
       id: CINEMA2_AFTERHOURS_MODULE_ID,
       typeId: CINEMA2_AFTERHOURS_NATIVE_MODULE_TYPE_ID,

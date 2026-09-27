@@ -211,7 +211,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_AFTERHOURS_PRESET_ID,
-  revision: 6,
+  revision: 7,
   metadata: Object.freeze({
     name: 'Afterhours 2.0',
     description: 'Native Cinema 2.0 world-space DJ laser rig with fixed 3D fixtures, disciplined topology, real symmetry, and renderer-owned atmosphere.',
@@ -224,7 +224,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
     Object.freeze({ id: 'scene.3d' as const, requirement: 'required' as const, purpose: 'World-space 32-fixture stage rig and laser field.' }),
     Object.freeze({ id: 'camera.world' as const, requirement: 'required' as const, purpose: 'Shared final Cinema 2.0 perspective camera frame.' }),
     Object.freeze({ id: 'audio.transport' as const, requirement: 'optional' as const, purpose: 'Pause/source lifecycle and transport-safe non-musical motion.' }),
-    Object.freeze({ id: 'music.beat' as const, requirement: 'optional' as const, purpose: 'Beat, beat2/beat4 trigger routing and BPM-synced scanner phase.' }),
+    Object.freeze({ id: 'music.beat' as const, requirement: 'optional' as const, purpose: 'Beat, beat2/beat4 trigger routing and the beat-locked laser cues.' }),
     Object.freeze({ id: 'music.bar' as const, requirement: 'optional' as const, purpose: 'Bar and true bar4/bar8 trigger routing.' }),
     Object.freeze({ id: 'music.rhythm-events' as const, requirement: 'optional' as const, purpose: 'Kick/snare fixture-family accents and Trigger routing.' }),
     Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Broader structural bank accents and Trigger routing.' }),
@@ -323,6 +323,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
     Object.freeze({
       id: CINEMA2_AFTERHOURS_MOTION_AMOUNT_ID,
       label: 'Motion Amount', type: 'float' as const, defaultValue: 0.55, min: 0, max: 1, step: 0.01,
+      description: 'How far each burst of lasers aims away from its home position, and how much a group sweeps while it is lit. Lasers fire in bursts on the beat and are dark in between; at 0 every burst fires at the pattern\'s home position.',
       section: 'Design', group: 'Motion', designParentGroup: 'design' as const, order: 41,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
@@ -341,7 +342,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
     Object.freeze({
       id: CINEMA2_AFTERHOURS_BPM_SYNC_ID,
       label: 'BPM Sync', type: 'boolean' as const, defaultValue: true,
-      description: 'Uses canonical Cinema 2.0 music timing for scanner motion when enabled; never fabricates a private beat clock.',
+      description: 'On: the laser cues (which groups fire, and when) count the track\'s own beats and bars. Off, or when the track has no beat tracking: they run at a steady 120 BPM.',
       section: 'Design', group: 'Reactivity', designParentGroup: 'master-controls' as const, order: 100,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),

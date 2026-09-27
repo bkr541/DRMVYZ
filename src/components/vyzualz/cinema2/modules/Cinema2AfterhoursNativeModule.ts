@@ -21,6 +21,11 @@ import {
   type Cinema2AfterhoursRandomSource,
   type Cinema2AfterhoursTopologyId,
 } from './afterhours/Cinema2AfterhoursDomain'
+import {
+  CINEMA2_AFTERHOURS_CUE_SCENE_BEATS,
+  evaluateCinema2AfterhoursCues,
+  type Cinema2AfterhoursCueBeam,
+} from './afterhours/Cinema2AfterhoursCueChoreography'
 import { generateCinema2AfterhoursBeamFrame } from './afterhours/Cinema2AfterhoursGeometry'
 import {
   CINEMA2_AFTERHOURS_PATTERN_CHANGE_IDS,
@@ -80,7 +85,8 @@ export const CINEMA2_AFTERHOURS_NATIVE_PARAMETER_NAMES = Object.freeze([
 ] as const)
 
 const MORPH_DURATION_SEC = 0.34
-const IDLE_SWAY_WORLD = 0.035
+/** With no beat tracking (or BPM Sync off) the cues count beats at this steady tempo. */
+const FREE_RUN_BPM = 120
 const DEFAULT_PRIMARY = Object.freeze([0.455, 0.961, 1, 1]) as Cinema2Color
 const DEFAULT_ACCENT = Object.freeze([1, 1, 1, 1]) as Cinema2Color
 const TOPOLOGY_SET = new Set<string>(CINEMA2_AFTERHOURS_TOPOLOGY_IDS)
@@ -199,6 +205,8 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
     let lastPatternChange: Cinema2AfterhoursPatternChangeId | null = null
     let lastPatternCadenceIdentity: string | null = null
     let manualPatternStep = 0
+    const cueSeed = String(context.randomness.sample('afterhours-cue-seed'))
+    let cueBeat = 0
 
     const resetTransientState = () => {
       signature = ''
@@ -330,7 +338,9 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
             settled = new Map(transition.to)
             transition = null
           }
-          renderBeams = buildRenderBeams(resolved, frame, timeSec, config, showPlan, pulse)
+          if (!paused) cueBeat = resolveCinema2AfterhoursCueBeat(frame, timeSec, config.bpmSync) ?? cueBeat
+          const sceneKey = `${structure.sourceIdentity}:${showPlan.topologyId}:${Math.floor(Math.max(0, cueBeat) / CINEMA2_AFTERHOURS_CUE_SCENE_BEATS)}`
+          renderBeams = buildRenderBeams(resolved, config, showPlan, pulse, { beat: cueBeat, sceneKey, seed: cueSeed })
 
           lastTimeSec = timeSec
           lastTrackId = frame.transport?.trackId
@@ -481,25 +491,39 @@ function compareTransitionEntries(
 
 function buildRenderBeams(
   states: ReadonlyMap<string, Readonly<BeamTransitionState>>,
-  frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
-  timeSec: number,
   config: Readonly<FrameConfig>,
   showPlan: Readonly<Cinema2AfterhoursShowPlan>,
   pulse: number,
+  cue: Readonly<{ beat: number; sceneKey: string; seed: string }>,
 ): readonly Cinema2AfterhoursRenderBeam[] {
-  const idle = frame.transport?.sourcePresent === false
-  const paused = frame.transport?.sourcePresent === true && frame.transport.paused
-  const playing = frame.transport?.sourcePresent === true && frame.transport.playing && !paused
   const pulseAuthority = resolveCinema2AfterhoursPulseAuthority(pulse, config.pulseAmount)
   const blackoutScale = clamp01(1 - showPlan.blackout * config.blackoutAmount)
+  // Motion Amount is how far a burst aims away from home (and how much it sweeps while lit); 0 fires every burst at the home position.
+  const motion = config.motionAmount > 1e-5
+    ? clamp(clamp01(config.motionAmount) * showPlan.motionScale + pulseAuthority * 0.1, 0, 1.3)
+    : 0
+  const cueBeams: Cinema2AfterhoursCueBeam[] = [...states.values()].map(state => cueBeamOf(state.descriptor))
+  const cues = evaluateCinema2AfterhoursCues({
+    beams: cueBeams,
+    beat: cue.beat,
+    sceneKey: cue.sceneKey,
+    seed: cue.seed,
+    intensity: config.directorIntensity,
+    peak: Math.max(config.directorImpact, config.dropAccent),
+    motion,
+  })
   const result: Cinema2AfterhoursRenderBeam[] = []
   for (const [fixtureId, state] of states) {
-    let target = applyPerformanceSpread(state.targetWorld, showPlan.spreadScale)
-    if (idle && !paused) {
-      target = applyIdleSway(target, state.descriptor.scanner.phase, timeSec, config.motionAmount)
-    } else if (playing) {
-      target = applyPerformanceMotion(target, state.descriptor, frame, timeSec, config, showPlan, pulseAuthority)
-    }
+    const cueState = cues.get(fixtureId)
+    const gate = cueState?.gate ?? 1
+    const home = applyPerformanceSpread(state.targetWorld, showPlan.spreadScale)
+    const target = cueState
+      ? Object.freeze([
+          clamp(home[0] + cueState.offsetX, -7.8, 7.8),
+          clamp(home[1] + cueState.offsetY, 0.6, 6.8),
+          home[2],
+        ]) as Cinema2Vector3
+      : home
     const bankIntensity = state.descriptor.bank === 'bottom'
       ? showPlan.bottomIntensity
       : state.descriptor.bank === 'overhead'
@@ -509,16 +533,31 @@ function buildRenderBeams(
       * bankIntensity
       * (1 + pulseAuthority * 0.42)
       * blackoutScale
+      * gate
     result.push(Object.freeze({
       fixtureId,
       originWorld: state.descriptor.originWorld,
       targetWorld: target,
       intensity,
-      alpha: state.alpha * blackoutScale,
+      // The shutter closes the beam completely between bursts.
+      alpha: state.alpha * blackoutScale * gate,
       accentWeight: stableUnitHash(state.descriptor.symmetry?.pairId ?? fixtureId),
     }))
   }
   return Object.freeze(result)
+}
+
+function cueBeamOf(descriptor: Readonly<Cinema2AfterhoursBeamDescriptor>): Cinema2AfterhoursCueBeam {
+  const side = descriptor.symmetry?.side === 'left' ? -1 : descriptor.symmetry?.side === 'right' ? 1 : (descriptor.originWorld[0] < 0 ? -1 : 1)
+  return {
+    fixtureId: descriptor.fixtureId,
+    slot: descriptor.slot,
+    unitKey: descriptor.symmetry?.pairId ?? descriptor.fixtureId,
+    side,
+    yawAuthorityDeg: descriptor.scanner.yawAuthorityDeg,
+    pitchAuthorityDeg: descriptor.scanner.pitchAuthorityDeg,
+    topologyId: descriptor.topologyId,
+  }
 }
 
 function applyPerformanceSpread(target: Cinema2Vector3, scale: number): Cinema2Vector3 {
@@ -529,128 +568,29 @@ function applyPerformanceSpread(target: Cinema2Vector3, scale: number): Cinema2V
   ]) as Cinema2Vector3
 }
 
-function applyPerformanceMotion(
-  target: Cinema2Vector3,
-  descriptor: Readonly<Cinema2AfterhoursBeamDescriptor>,
-  frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
-  timeSec: number,
-  config: Readonly<FrameConfig>,
-  showPlan: Readonly<Cinema2AfterhoursShowPlan>,
-  pulseAuthority: number,
-): Cinema2Vector3 {
-  const phase = resolveMotionPhase(frame, timeSec, config.bpmSync)
-  if (phase == null) return target
-  const authority = clamp(
-    clamp01(config.motionAmount) * showPlan.motionScale + pulseAuthority * 0.1,
-    0,
-    1.3,
-  )
-  if (authority <= 1e-5) return target
-
-  // Legacy Afterhours was successful because each formation had a recognizable
-  // scanner vocabulary. Preserve that behavior while keeping Cinema 2.0's
-  // native 3D fixture rig: scanner authority now controls substantial pattern-
-  // specific travel instead of every topology receiving the same tiny wobble.
-  const scannerPhase = descriptor.scanner.phase
-  const cycle = phase * Math.PI * 2 + scannerPhase * Math.PI * 2
-  const side = descriptor.symmetry?.side === 'left'
-    ? -1
-    : descriptor.symmetry?.side === 'right'
-      ? 1
-      : Math.sign(descriptor.originWorld[0] || target[0] || 1)
-  const yawSpan = (descriptor.scanner.yawAuthorityDeg / 34) * 2.35 * authority
-  const pitchSpan = (descriptor.scanner.pitchAuthorityDeg / 24) * 1.2 * authority
-  let xOffset = 0
-  let yOffset = 0
-
-  switch (descriptor.topologyId) {
-    case 'wideFan': {
-      const openClose = Math.sin(cycle)
-      xOffset = side * openClose * yawSpan
-      yOffset = Math.cos(cycle * 2) * pitchSpan * 0.16
-      break
-    }
-    case 'splitWings':
-      xOffset = side * Math.sin(cycle) * yawSpan * 1.08
-      yOffset = Math.cos(cycle) * pitchSpan * 0.38
-      break
-    case 'crossCanopy':
-      xOffset = -side * Math.sin(cycle) * yawSpan
-      yOffset = Math.cos(cycle) * pitchSpan * 0.72
-      break
-    case 'diamondStar': {
-      const diamondX = triangleWave(cycle)
-      const diamondY = triangleWave(cycle + Math.PI / 2)
-      xOffset = diamondX * yawSpan * 0.82
-      yOffset = diamondY * pitchSpan * 0.78
-      break
-    }
-    case 'chevronRoof':
-      xOffset = side * Math.cos(cycle) * yawSpan * 0.72
-      yOffset = Math.sin(cycle) * pitchSpan * 0.58
-      break
-    case 'radialCrown':
-      xOffset = Math.sin(cycle) * yawSpan * 0.96
-      yOffset = Math.cos(cycle) * pitchSpan * 0.92
-      break
-    case 'sparseArchitecture':
-      // Restrained authored architecture: lower range and slower dwell-like arcs.
-      xOffset = side * Math.sin(cycle * 0.5) * yawSpan * 0.42
-      yOffset = Math.cos(cycle * 0.5) * pitchSpan * 0.3
-      break
-    case 'fullRig':
-    default: {
-      // Bank staggering prevents the full rig from moving as one rigid fan.
-      const bankOffset = descriptor.bank === 'bottom'
-        ? 0
-        : descriptor.bank === 'left'
-          ? Math.PI * 0.5
-          : descriptor.bank === 'right'
-            ? Math.PI * 1.5
-            : Math.PI
-      const bankCycle = cycle + bankOffset
-      xOffset = side * Math.sin(bankCycle) * yawSpan
-      yOffset = Math.cos(bankCycle) * pitchSpan * 0.68
-      break
-    }
-  }
-
-  return Object.freeze([
-    clamp(target[0] + xOffset, -7.8, 7.8),
-    clamp(target[1] + yOffset, 0.6, 6.8),
-    target[2],
-  ]) as Cinema2Vector3
-}
-
-function triangleWave(angle: number): number {
-  return (2 / Math.PI) * Math.asin(Math.sin(angle))
-}
-
-function resolveMotionPhase(
+/**
+ * The musical position, in beats, that the laser cues count on. With BPM Sync on and beat tracking available it is the track's own position
+ * (bar and beat-in-bar when the grid provides them, else the beat index plus its phase); otherwise it runs at a steady 120 BPM from the
+ * clock, so the show still cues when there is no tempo to follow. Null when neither is usable.
+ */
+export function resolveCinema2AfterhoursCueBeat(
   frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
   timeSec: number,
   bpmSync: boolean,
 ): number | null {
   if (bpmSync) {
-    const beatIndex = frame.audio?.rhythm.beatIndex
-    const beatPhase = frame.audio?.rhythm.beatPhase
-    if (beatIndex?.available && beatPhase?.available && beatIndex.value != null && beatPhase.value != null) {
-      return (beatIndex.value + beatPhase.value) * 0.5
+    const rhythm = frame.audio?.rhythm
+    const phase = rhythm?.beatPhase
+    const finite = (signal: { available: boolean; value: unknown } | undefined): signal is { available: true; value: number } =>
+      signal?.available === true && typeof signal.value === 'number' && Number.isFinite(signal.value)
+    if (rhythm && finite(phase)) {
+      const fraction = Math.min(Math.max(phase.value, 0), 0.999)
+      if (finite(rhythm.barIndex) && finite(rhythm.beatInBar)) return Math.floor(rhythm.barIndex.value) * 4 + Math.floor(rhythm.beatInBar.value) + fraction
+      if (finite(rhythm.beatIndex)) return Math.floor(rhythm.beatIndex.value) + fraction
     }
-    // Beat tracking has not resolved yet (or never will for this source). Keep
-    // the rig performing on elapsed time rather than freezing until it does.
+    // Beat tracking has not resolved yet (or never will for this source): keep cueing on the clock rather than going dark.
   }
-  return Number.isFinite(timeSec) ? timeSec * 0.32 : null
-}
-
-function applyIdleSway(target: Cinema2Vector3, phase: number, timeSec: number, motionAmount: number): Cinema2Vector3 {
-  const angle = timeSec * 0.23 + phase * Math.PI * 2
-  const amplitude = IDLE_SWAY_WORLD * clamp01(motionAmount)
-  return Object.freeze([
-    target[0] + Math.sin(angle) * amplitude,
-    target[1] + Math.cos(angle * 0.83) * amplitude * 0.55,
-    target[2],
-  ]) as Cinema2Vector3
+  return Number.isFinite(timeSec) ? (timeSec * FREE_RUN_BPM) / 60 : null
 }
 
 function transitionProgress(transition: Readonly<BeamTransition>, timeSec: number): number {
