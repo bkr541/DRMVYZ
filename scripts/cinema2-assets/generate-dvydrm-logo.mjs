@@ -1,20 +1,19 @@
 // Generates the shared 3D DVYDRM logo used by Cinema 2.0 presets from the owner's master SVG.
 //   node scripts/cinema2-assets/generate-dvydrm-logo.mjs [out.glb]      (default: public/cinema2/models/dvydrm-logo.glb)
 //
-// The model has two parts, matching the production logo (a faceted crystal cloud with a thin polished gold outline):
+// The model has two parts, matching the production logo (a smooth pearl-white cloud with a thin polished gold outline):
 //   `outline`  the thin outer ring of the master SVG (path "outer-outline"): a bevelled extrusion with a polished gold PBR material.
-//   `crystal`  the cloud body and the lower star (paths "cloud-body" and "lower-star"): a faceted gem, with a near-white polished metal
-//              PBR material. The SVG only supplies outlines; the facets are cut here. The top surface is a low-poly relief: the outline is
-//              sampled, points are scattered inside it and along the owner's facet guide (sources/dvydrm-logo-facet-guides.svg), the points are
-//              joined into a Delaunay triangulation, and each point is lifted by its distance from the edge (a chamfer towards the rim, a
-//              ridge in the middle) plus a small mirror-symmetric jitter and a raise on the guide lines. Every triangle is one flat plane,
-//              so each catches the light on its own, the way a cut stone does. Side walls and a flat back close the solid.
+//   `crystal`  the cloud body and the lower star (paths "cloud-body" and "lower-star"): a smooth, rounded "pillow" like the production
+//              wordmark's letters, with a near-white PBR material. The outline is sampled finely, points are scattered inside it on a dense
+//              grid and joined into a Delaunay triangulation, and each point is lifted by a quarter-ellipse of its distance from the edge, so
+//              the surface rises steeply from the rim and rounds over into a gently domed top. Normals are smooth (averaged per point), so it
+//              shades as one soft body, not as facets. Side walls and a flat back close the solid.
 // The paths use the even-odd rule, so nesting decides which contours are holes. Gradients in the SVG are ignored: the colors are the PBR
 // materials written below, and presets can tint or re-rough each part (three-scene per-part overrides `<part>.color`, `<part>.roughness`).
 //
-// The crystal also carries a custom per-vertex attribute `_FILM_THICKNESS` (0-1, one value per top facet): where a preset gives the crystal a
-// thin-film iridescence, three-scene reads it to vary the film between `<part>.iridescenceThicknessMin` and `...Max`, so neighbouring facets
-// pick up different pastels (ice blue, lavender, pink, peach) the way the production logo's facets do. Without iridescence it is ignored.
+// The crystal also carries a custom per-vertex attribute `_FILM_THICKNESS` (0-1, a smooth drifting field): where a preset gives the crystal a
+// thin-film iridescence, three-scene reads it to vary the film between `<part>.iridescenceThicknessMin` and `...Max`, so the pastels (ice blue,
+// lavender, pink, peach) come in soft washes across the surface, as on the production wordmark. Without iridescence it is ignored.
 //
 // Coordinates: the logo is centred on the origin, 2 units wide, facing +Z, Y up.
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -25,42 +24,39 @@ import { mergeVertices, toCreasedNormals } from 'three/examples/jsm/utils/Buffer
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const sourcePath = join(root, 'scripts/cinema2-assets/sources/dvydrm-logo-master.svg')
-const guidesPath = join(root, 'scripts/cinema2-assets/sources/dvydrm-logo-facet-guides.svg')
 const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'public/cinema2/models/dvydrm-logo.glb')
 
 const WIDTH_UNITS = 2
 const SAMPLES_PER_CURVE = 3
+/** The crystal is smooth-shaded, so its contours are sampled much more finely than the ring's or the rounded edge would show kinks. */
+const CRYSTAL_SAMPLES_PER_CURVE = 16
 const CREASE_ANGLE = (38 * Math.PI) / 180
 
 /** The gold ring: extrusion depth (world units at 2 units wide) and bevel. */
 const OUTLINE = { depth: 0.06, bevel: 0.008 }
 /**
- * The crystal. z runs from `backZ` (the flat back) to `edgeZ` (the rim of the top surface); the top rises from the rim by `slope` per unit
- * of distance from the edge, up to `plateau` distance, so the rim is chamfered and the middle of a ribbon is a low ridge.
+ * The crystal. z runs from `backZ` (the flat back) to `edgeZ` (the rim of the top surface). The top rises from the rim along a quarter
+ * ellipse `bevel` wide and `height` tall (vertical at the rim, so it rounds straight into the side wall), then keeps rising by `dome` over
+ * the next `domeReach` so the middle of a ribbon is softly domed rather than flat.
  */
 const CRYSTAL = {
   backZ: -0.03,
   edgeZ: 0.004,
-  slope: 1,
-  plateau: 0.05,
-  jitter: 0.022,
-  majorRidge: 0.03,
-  minorRidge: 0.015,
-  boundarySpacing: 0.04,
-  interiorSpacing: 0.095,
-  guideSpacing: 0.04,
+  bevel: 0.045,
+  height: 0.03,
+  dome: 0.008,
+  domeReach: 0.08,
+  boundarySpacing: 0.01,
+  interiorSpacing: 0.016,
   /** A turn sharper than this at a sampled point is a real corner (kept exactly, and the wall stays creased there). */
   cornerAngle: (50 * Math.PI) / 180,
 }
-/**
- * Film thickness per top facet (0-1): a broad drifting field so the pastels come in soft patches across the logo, plus a per-facet offset
- * so neighbouring facets still differ. The walls and the back take the middle value.
- */
-const FILM = { patchScale: 2.6, patchAmount: 0.34, facetAmount: 0.32, side: 0.5 }
-/** Small shapes (the star) need finer facets to read as a gem. */
+/** Film thickness (0-1): a broad drifting field so the pastels come in soft washes across the logo. The back takes the middle value. */
+const FILM = { patchScale: 2.6, patchAmount: 0.45, side: 0.5 }
+/** Small shapes (the star) need a finer mesh. */
 const SMALL_SHAPE_AREA = 0.02
 
-/** Linear-sRGB PBR colors. Gold is the F0 of real gold, so the highlights stay warm; the crystal is a near-white polished metal. */
+/** Linear-sRGB PBR colors, both baked neutral near-white; presets choose the finish per part (three-scene per-part overrides). */
 const MATERIALS = {
   // Baked neutral/near-white, same as the crystal: every preset tints it via its own Design control (GO-TO defaults it to gold; RELIQUARY
   // leaves it white so the outline reads as one uniform crystal with the body, no separate gold ring).
@@ -77,7 +73,7 @@ function pathData(id) {
 }
 
 /** Absolute M / C / Z only (what the master SVG uses). Returns closed polylines of [x, y]. */
-function contoursOf(d) {
+function contoursOf(d, samplesPerCurve = SAMPLES_PER_CURVE) {
   const tokens = d.match(/[MCZ]|-?\d*\.?\d+(?:e-?\d+)?/gi) ?? []
   const contours = []
   let current = null
@@ -95,8 +91,8 @@ function contoursOf(d) {
         const p1 = [number(), number()]
         const p2 = [number(), number()]
         const p3 = [number(), number()]
-        for (let step = 1; step <= SAMPLES_PER_CURVE; step += 1) {
-          const t = step / SAMPLES_PER_CURVE
+        for (let step = 1; step <= samplesPerCurve; step += 1) {
+          const t = step / samplesPerCurve
           const u = 1 - t
           current.push([
             u * u * u * cursor[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0],
@@ -153,8 +149,8 @@ const areaOf = polygon => {
 const shapeArea = shape => Math.abs(areaOf(shape.outer)) - shape.holes.reduce((sum, hole) => sum + Math.abs(areaOf(hole)), 0)
 
 const outlineContours = contoursOf(pathData('outer-outline'))
-const bodyContours = contoursOf(pathData('cloud-body'))
-const starContours = contoursOf(pathData('lower-star'))
+const bodyContours = contoursOf(pathData('cloud-body'), CRYSTAL_SAMPLES_PER_CURVE)
+const starContours = contoursOf(pathData('lower-star'), CRYSTAL_SAMPLES_PER_CURVE)
 
 // One shared transform for all parts so their relative placement is exactly the SVG's.
 const all = [...outlineContours, ...bodyContours, ...starContours].flat()
@@ -190,7 +186,7 @@ function buildOutline() {
   }
 }
 
-// ── Crystal: a faceted relief ────────────────────────────────────────────────
+// ── Crystal: a smooth rounded relief ─────────────────────────────────────────
 function hash2(a, b) {
   let h = Math.imul(Math.round(a * 4096) | 0, 374761393) ^ Math.imul(Math.round(b * 4096) | 0, 668265263)
   h = Math.imul(h ^ (h >>> 13), 1274126177)
@@ -283,37 +279,17 @@ function delaunay(points) {
   return triangles.filter(({ v }) => v.every(index => index < n)).map(({ v }) => v)
 }
 
-function buildCrystalShape(shape, guides, out) {
+function buildCrystalShape(shape, out) {
   const small = shapeArea(shape) < SMALL_SHAPE_AREA
   const boundarySpacing = CRYSTAL.boundarySpacing * (small ? 0.6 : 1)
-  const interiorSpacing = CRYSTAL.interiorSpacing * (small ? 0.55 : 1)
-  const guideSpacing = CRYSTAL.guideSpacing * (small ? 0.6 : 1)
+  const interiorSpacing = CRYSTAL.interiorSpacing * (small ? 0.6 : 1)
 
   // 1. The rim: every contour resampled to an even spacing.
   const loops = [shape.outer, ...shape.holes].map(loop => resampleLoop(loop, boundarySpacing))
-  const points = [], boundary = [], ridge = []
-  for (const loop of loops) for (const { p } of loop) { points.push(p); boundary.push(true); ridge.push(0) }
+  const points = [], boundary = []
+  for (const loop of loops) for (const { p } of loop) { points.push(p); boundary.push(true) }
 
-  // 2. The owner's facet guide: points along each guide line inside this shape, raised so each line becomes a crease.
-  const minEdge = boundarySpacing * 0.6
-  const guidePoints = []
-  const addGuide = (q, raise) => {
-    if (!isInside(shape, q) || distanceToBoundary(shape, q) < minEdge) return
-    const near = guidePoints.findIndex(g => Math.hypot(g.q[0] - q[0], g.q[1] - q[1]) < guideSpacing * 0.55)
-    if (near >= 0) { guidePoints[near].raise = Math.max(guidePoints[near].raise, raise); return }
-    guidePoints.push({ q, raise })
-  }
-  for (const guide of guides) {
-    const raise = guide.major ? CRYSTAL.majorRidge : CRYSTAL.minorRidge
-    for (let i = 0; i < guide.points.length - 1; i += 1) {
-      const a = guide.points[i], b = guide.points[i + 1]
-      const steps = Math.max(1, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / guideSpacing))
-      for (let s = 0; s <= steps; s += 1) addGuide([a[0] + ((b[0] - a[0]) * s) / steps, a[1] + ((b[1] - a[1]) * s) / steps], raise)
-    }
-  }
-  for (const { q, raise } of guidePoints) { points.push(q); boundary.push(false); ridge.push(raise) }
-
-  // 3. Interior scatter: a hex grid symmetric about x = 0, with a mirror-symmetric jitter, kept clear of the rim and the guide lines.
+  // 2. Interior scatter: a jittered hex grid (the jitter keeps the Delaunay triangulation free of degenerate co-circular points), kept clear of the rim.
   const rowHeight = interiorSpacing * 0.866
   const xs = [...shape.outer.map(p => p[0])], ys = [...shape.outer.map(p => p[1])]
   const lowY = Math.min(...ys), highY = Math.max(...ys), reach = Math.max(Math.abs(Math.min(...xs)), Math.abs(Math.max(...xs)))
@@ -322,16 +298,15 @@ function buildCrystalShape(shape, guides, out) {
     for (let column = -Math.ceil(reach / interiorSpacing) - 1; column <= Math.ceil(reach / interiorSpacing) + 1; column += 1) {
       const x = column * interiorSpacing + offset, y = row * rowHeight
       const side = x < 0 ? -1 : 1
-      const jx = (hash2(Math.abs(x), y) - 0.5) * 0.36 * interiorSpacing
-      const jy = (hash2(y, Math.abs(x) + 7.13) - 0.5) * 0.36 * interiorSpacing
+      const jx = (hash2(Math.abs(x), y) - 0.5) * 0.3 * interiorSpacing
+      const jy = (hash2(y, Math.abs(x) + 7.13) - 0.5) * 0.3 * interiorSpacing
       const q = [x + side * jx, y + jy]
-      if (!isInside(shape, q) || distanceToBoundary(shape, q) < interiorSpacing * 0.42) continue
-      if (guidePoints.some(g => Math.hypot(g.q[0] - q[0], g.q[1] - q[1]) < interiorSpacing * 0.6)) continue
-      points.push(q); boundary.push(false); ridge.push(0)
+      if (!isInside(shape, q) || distanceToBoundary(shape, q) < boundarySpacing * 0.5) continue
+      points.push(q); boundary.push(false)
     }
   }
 
-  // 4. Triangulate, then drop the triangles that fall in the cut-outs or outside the shape.
+  // 3. Triangulate, then drop the triangles that fall in the cut-outs or outside the shape.
   const kept = delaunay(points).filter(([a, b, c]) => isInside(shape, [(points[a][0] + points[b][0] + points[c][0]) / 3, (points[a][1] + points[b][1] + points[c][1]) / 3]))
   const triangleArea = kept.reduce((sum, [a, b, c]) => sum + Math.abs(areaOf([points[a], points[b], points[c]])), 0)
   // Judged against the resampled rim (the walls follow it), not the original curve, which a chord cuts a little short.
@@ -346,27 +321,32 @@ function buildCrystalShape(shape, guides, out) {
     rimStart += loop.length
   }
 
-  // 5. Heights: a chamfer up from the rim, a raise on the guide lines, and a small mirror-symmetric jitter.
+  // 4. Heights: a quarter ellipse up from the rim, then a gentle dome.
   const heights = points.map((p, i) => {
     if (boundary[i]) return CRYSTAL.edgeZ
     const d = distanceToBoundary(shape, p)
-    return CRYSTAL.edgeZ + CRYSTAL.slope * Math.min(d, CRYSTAL.plateau) + ridge[i] + (hash2(Math.abs(p[0]) + 3.7, p[1] + 1.3) - 0.5) * 2 * CRYSTAL.jitter
+    const t = Math.min(1, d / CRYSTAL.bevel)
+    return CRYSTAL.edgeZ + CRYSTAL.height * Math.sqrt(1 - (1 - t) * (1 - t)) + CRYSTAL.dome * Math.min(1, Math.max(0, d - CRYSTAL.bevel) / CRYSTAL.domeReach)
   })
 
-  // 6. Emit: flat-shaded top facets, the same triangles mirrored for the flat back, and the side walls.
-  const push = (position, normal, film = FILM.side) => { out.positions.push(...position); out.normals.push(...normal); out.films.push(film); out.indices.push(out.indices.length) }
-  for (const [a, b, c] of kept) {
-    const p = [a, b, c].map(index => [points[index][0], points[index][1], heights[index]])
-    let [p0, p1, p2] = p
-    let nx = (p1[1] - p0[1]) * (p2[2] - p0[2]) - (p1[2] - p0[2]) * (p2[1] - p0[1])
-    let ny = (p1[2] - p0[2]) * (p2[0] - p0[0]) - (p1[0] - p0[0]) * (p2[2] - p0[2])
-    let nz = (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p1[1] - p0[1]) * (p2[0] - p0[0])
-    if (nz < 0) { [p1, p2] = [p2, p1]; nx = -nx; ny = -ny; nz = -nz }
-    const length = Math.hypot(nx, ny, nz) || 1
-    const film = facetFilm((p0[0] + p1[0] + p2[0]) / 3, (p0[1] + p1[1] + p2[1]) / 3)
-    for (const vertex of [p0, p1, p2]) push(vertex, [nx / length, ny / length, nz / length], film)
-    for (const vertex of [p0, p2, p1]) push([vertex[0], vertex[1], CRYSTAL.backZ], [0, 0, -1])
-  }
+  // 5. Smooth normals: each point averages the (area-weighted) normals of the top triangles around it.
+  const triangles = kept.map(([a, b, c]) => {
+    const p0 = [points[a][0], points[a][1], heights[a]], p1 = [points[b][0], points[b][1], heights[b]], p2 = [points[c][0], points[c][1], heights[c]]
+    const n = [(p1[1] - p0[1]) * (p2[2] - p0[2]) - (p1[2] - p0[2]) * (p2[1] - p0[1]), (p1[2] - p0[2]) * (p2[0] - p0[0]) - (p1[0] - p0[0]) * (p2[2] - p0[2]), (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p1[1] - p0[1]) * (p2[0] - p0[0])]
+    return n[2] < 0 ? { v: [a, c, b], n: [-n[0], -n[1], -n[2]] } : { v: [a, b, c], n }
+  })
+  const normals = points.map(() => [0, 0, 0])
+  for (const { v, n } of triangles) for (const index of v) { normals[index][0] += n[0]; normals[index][1] += n[1]; normals[index][2] += n[2] }
+  const unit = n => { const l = Math.hypot(n[0], n[1], n[2]) || 1; return [n[0] / l, n[1] / l, n[2] / l] }
+
+  // 6. Emit: the smooth top (indexed per point), the same triangles mirrored for the flat back, and the side walls.
+  const base = out.positions.length / 3
+  points.forEach((p, i) => { out.positions.push(p[0], p[1], heights[i]); out.normals.push(...unit(normals[i])); out.films.push(surfaceFilm(p[0], p[1])) })
+  for (const { v } of triangles) out.indices.push(base + v[0], base + v[1], base + v[2])
+  const push = (position, normal, film = FILM.side) => { const index = out.positions.length / 3; out.positions.push(...position); out.normals.push(...normal); out.films.push(film); out.indices.push(index) }
+  const back = out.positions.length / 3
+  points.forEach(p => { out.positions.push(p[0], p[1], CRYSTAL.backZ); out.normals.push(0, 0, -1); out.films.push(FILM.side) })
+  for (const { v } of triangles) out.indices.push(back + v[0], back + v[2], back + v[1])
   let start = 0
   for (const loop of loops) {
     // Which side is the material on? Test just off the first edge.
@@ -397,7 +377,7 @@ function buildCrystalShape(shape, guides, out) {
         const face = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]]
         const flip = face[0] * own[0] + face[1] * own[1] < 0
         const ordered = flip ? [[v0, n0], [v2, n2], [v1, n1]] : [[v0, n0], [v1, n1], [v2, n2]]
-        for (const [vertex, n] of ordered) push(vertex, [n[0], n[1], 0])
+        for (const [vertex, n] of ordered) push(vertex, [n[0], n[1], 0], surfaceFilm(vertex[0], vertex[1]))
       }
       wall(topA, na, lowA, na, lowB, nb)
       wall(topA, na, lowB, nb, topB, nb)
@@ -407,22 +387,15 @@ function buildCrystalShape(shape, guides, out) {
   out.stats.push({ points: points.length, facets: kept.length, areaRatio: triangleArea / expected, rimMissing, small })
 }
 
-function facetFilm(x, y) {
+function surfaceFilm(x, y) {
   const u = x * FILM.patchScale, v = y * FILM.patchScale
   const patch = (Math.sin(u * 1.7 + v * 0.6 + 0.4) + Math.sin(u * -0.8 + v * 2.1 + 2.3) + Math.sin(u * 2.9 - v * 1.3 + 4.1) * 0.5) / 2.5
-  const facet = hash2(x + 11.3, y - 5.9) - 0.5
-  return Math.min(1, Math.max(0, 0.5 + patch * FILM.patchAmount + facet * 2 * FILM.facetAmount))
+  return Math.min(1, Math.max(0, 0.5 + patch * FILM.patchAmount))
 }
 
 function buildCrystal() {
-  const guideSvg = readFileSync(guidesPath, 'utf8')
-  const guides = [...guideSvg.matchAll(/<path d="([^"]+)" stroke-width="(\d+)"\/>/g)].map(match => ({
-    major: Number(match[2]) >= 4,
-    points: [...match[1].matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map(point => toWorldPoint([Number(point[1]), Number(point[2])])),
-  }))
-  if (guides.length === 0) throw new Error('The facet guide SVG has no lines.')
   const out = { positions: [], normals: [], films: [], indices: [], stats: [] }
-  for (const shape of [...nestedShapes(bodyContours, toWorld), ...nestedShapes(starContours, toWorld)]) buildCrystalShape(shape, guides, out)
+  for (const shape of [...nestedShapes(bodyContours, toWorld), ...nestedShapes(starContours, toWorld)]) buildCrystalShape(shape, out)
   for (const stat of out.stats) {
     if (Math.abs(stat.areaRatio - 1) > 0.01) throw new Error(`The facets cover ${(stat.areaRatio * 100).toFixed(2)}% of a crystal shape (expected 100%): the triangulation left gaps.`)
     if (stat.rimMissing > 0) throw new Error(`${stat.rimMissing} rim edge(s) of a crystal shape are not edges of the triangulation.`)

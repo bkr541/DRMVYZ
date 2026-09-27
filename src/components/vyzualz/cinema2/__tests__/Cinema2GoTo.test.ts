@@ -79,7 +79,7 @@ describe('GO-TO preset', () => {
 })
 
 describe('shared DVYDRM logo asset', () => {
-  it('is a registered, licensed model with two parts built from the master SVG: the gold outline and the faceted crystal', () => {
+  it('is a registered, licensed model with two parts built from the master SVG: the gold outline and the smooth pearl crystal', () => {
     expect(cinema2ThreeAssetRegistry.has(CINEMA2_DVYDRM_LOGO_ASSET_ID)).toBe(true)
     const record = CINEMA2_ASSET_RECORDS.find(entry => entry.id === CINEMA2_DVYDRM_LOGO_ASSET_ID)
     expect(record).toMatchObject({ kind: 'model', license: 'generated-in-house' })

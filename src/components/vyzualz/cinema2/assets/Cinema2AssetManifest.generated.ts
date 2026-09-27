@@ -11,14 +11,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/dvydrm-logo.glb",
-        "bytes": 500224,
-        "triangles": 11984
+        "bytes": 1136736,
+        "triangles": 31216
       }
     },
     "gpuBytes": {
-      "high": 498240,
-      "medium": 498240,
-      "low": 498240
+      "high": 1134744,
+      "medium": 1134744,
+      "low": 1134744
     }
   },
   {

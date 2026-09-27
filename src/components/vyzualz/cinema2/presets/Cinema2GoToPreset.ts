@@ -31,10 +31,10 @@ import { cinema2CinematicMotion } from './Cinema2CameraMotionAuthoring'
 import { cinema2LightRigAlternate, cinema2LightRigHit, cinema2LightRigRamp } from './Cinema2LightRigAuthoring'
 
 /**
- * GO-TO: the DVYDRM logo as a real 3D object, made to match the production logo: a faceted, pearlescent white crystal cloud (pastel ice-blue, lavender, pink and peach facets) inside a thin
- * polished gold outline. The shared logo asset (`cinema2-dvydrm-logo`, built from the owner's master SVG and facet guide) has two parts, `outline` (gold)
+ * GO-TO: the DVYDRM logo as a real 3D object, made to match the production logo: a smooth, glossy pearl-white cloud (soft ice-blue, lavender, pink and peach along its rounded edges) inside a thin
+ * polished gold outline. The shared logo asset (`cinema2-dvydrm-logo`, built from the owner's master SVG) has two parts, `outline` (gold)
  * and `crystal`, each with its own material here. It turns slowly about its vertical axis on a turntable in a dark, neutral studio: soft white
- * and warm-gold spot lights rake through haze and ground fog, two LED panels and a studio environment give the facets and the gold their
+ * and warm-gold spot lights rake through haze and ground fog, two LED panels and a studio environment give the pearl and the gold their
  * reflections, and a wet floor mirrors it. Other logo presets reuse the same asset with different materials, colors and motion.
  */
 export const CINEMA2_GO_TO_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.go-to')
@@ -103,20 +103,22 @@ const DEFAULT_GOLD = color(0.86, 0.55, 0.16)
 const DEFAULT_BACKGROUND = color(0.003, 0.003, 0.004)
 /** The logo's materials as authored in the model (`cinema2-dvydrm-logo`): the gold outline and the polished crystal. */
 const GOLD_ROUGHNESS = 0.15
-const CRYSTAL_ROUGHNESS = 0.05
+const CRYSTAL_ROUGHNESS = 0.08
 const CRYSTAL_CLEARCOAT = 0
-// The production crystal is pearlescent: near-white facets that each pick up a different pastel (ice blue, lavender, pink, peach). A thin film on
-// the crystal gives each facet a hue from its angle to the camera and its own film thickness (the asset carries one per facet), like
-// mother-of-pearl. The film only shows when the metal under it is not a perfect mirror: the pearl default (a light grey in sRGB, multiplied into
-// the asset's near-white) sets how pastel the facets read; white washes them out to chrome, darker muddies them. 200-380 nm keeps the hues in
-// the first-order peach, pink, lavender and ice-blue band (thicker films add greens). A little diffuse (metalness under 1) keeps it from
-// reading as a dark mirror of the stage.
-const DEFAULT_PEARL = color(0.7, 0.7, 0.7)
+// The production wordmark's crystal is a glossy pearl: a bright white rounded body whose edges and lower curves pick up soft pastels (ice
+// blue, lavender, pink, peach). The logo asset's crystal is a smooth rounded relief carrying a film-thickness field, and a thin film on it gives
+// the pastels; they gather at grazing angles, the rounded edges, as on the wordmark. Tuned in real Chrome against the wordmark:
+// - Half metal: a full mirror reflects the dark stage and reads grey; a plain white diffuse clips flat under the spots and loses the rounding.
+// - The pearl tint is low in sRGB because the spots put a lot of light on the logo: brighter bases hit the finish's tone-curve ceiling and the
+//   rounded shading disappears. It still renders near white.
+// - No clearcoat by default: its clear top layer reflects white over the film and hides the pastels.
+// - 250-450 nm at IOR 1.3 keeps the hues in the pastel band; a higher film index dulls them.
+const DEFAULT_PEARL = color(0.4, 0.4, 0.4)
 const CRYSTAL_IRIDESCENCE = 1
-const CRYSTAL_METALNESS = 0.96
+const CRYSTAL_METALNESS = 0.5
 const CRYSTAL_IRIDESCENCE_IOR = 1.3
-const CRYSTAL_FILM_THINNEST = 200
-const CRYSTAL_FILM_THICKEST = 380
+const CRYSTAL_FILM_THINNEST = 250
+const CRYSTAL_FILM_THICKEST = 450
 const ENVIRONMENT_REFLECTION = 1.6
 
 const baseParameter = {
@@ -167,9 +169,9 @@ const PARAMETERS = Object.freeze([
   }),
   floatParameter(CINEMA2_GO_TO_SPIN_PERIOD_ID, 'Spin Period', 'How long the logo takes to turn once all the way round, in seconds (at 120 BPM). Longer is slower.', 24, 6, 120, 1, 'design', 1, 'Turntable'),
   floatParameter(CINEMA2_GO_TO_GOLD_ROUGHNESS_ID, 'Gold Roughness', 'How sharp the reflections in the gold outline are: 0 is a mirror, higher is a softer, satin gold. The production finish is softly polished.', GOLD_ROUGHNESS, 0, 1, 0.01, 'design', 2, 'Material'),
-  floatParameter(CINEMA2_GO_TO_CRYSTAL_ROUGHNESS_ID, 'Crystal Roughness', 'How sharp the reflections on the crystal facets are: 0 is a mirror, higher frosts the crystal and softens the contrast between facets.', CRYSTAL_ROUGHNESS, 0, 1, 0.01, 'design', 3, 'Material'),
-  floatParameter(CINEMA2_GO_TO_CRYSTAL_CLEARCOAT_ID, 'Crystal Clearcoat', 'A glassy lacquer layer over the crystal facets (medium and high quality).', CRYSTAL_CLEARCOAT, 0, 1, 0.01, 'design', 4, 'Material'),
-  floatParameter(CINEMA2_GO_TO_CRYSTAL_IRIDESCENCE_ID, 'Crystal Iridescence', 'The pearly pastel sheen on the crystal facets (ice blue, lavender, pink, peach), shifting as the logo turns. 0 leaves plain white crystal.', CRYSTAL_IRIDESCENCE, 0, 1, 0.01, 'design', 5, 'Material'),
+  floatParameter(CINEMA2_GO_TO_CRYSTAL_ROUGHNESS_ID, 'Crystal Roughness', 'How glossy the pearl is: 0 is a mirror finish, higher frosts it into a satin pearl.', CRYSTAL_ROUGHNESS, 0, 1, 0.01, 'design', 3, 'Material'),
+  floatParameter(CINEMA2_GO_TO_CRYSTAL_CLEARCOAT_ID, 'Crystal Clearcoat', 'A glassy lacquer layer over the pearl (medium and high quality). It also reflects white over the pastel sheen, so more lacquer means less color.', CRYSTAL_CLEARCOAT, 0, 1, 0.01, 'design', 4, 'Material'),
+  floatParameter(CINEMA2_GO_TO_CRYSTAL_IRIDESCENCE_ID, 'Crystal Iridescence', 'The pastel sheen on the pearl (ice blue, lavender, pink, peach), strongest along the rounded edges and shifting as the logo turns. 0 leaves plain white.', CRYSTAL_IRIDESCENCE, 0, 1, 0.01, 'design', 5, 'Material'),
   floatParameter(CINEMA2_GO_TO_REFLECTION_ID, 'Environment Reflection', 'How strongly the studio environment (softboxes and light strips) reflects in the crystal and the gold.', ENVIRONMENT_REFLECTION, 0, 2, 0.01, 'design', 6, 'Material'),
   floatParameter(CINEMA2_GO_TO_MOTION_AMOUNT_ID, 'Camera Motion', 'How much the camera drifts and sways around the logo (0 = locked off).', 0.4, 0, 1, 0.01, 'design', 7, 'Camera'),
   floatParameter(CINEMA2_GO_TO_HAZE_ID, 'Haze Density', 'How thick the haze is. Thicker haze makes the light beams brighter and softer.', 0.008, 0, 0.4, 0.005, 'effects', 1, 'Atmosphere'),
@@ -180,7 +182,7 @@ const PARAMETERS = Object.freeze([
   floatParameter(CINEMA2_GO_TO_FINISH_ID, 'Cinematic Finish', 'Amount of filmic tone curve, grade, vignette, fringing and grain.', 1, 0, 1, 0.05, 'effects', 6, 'Post'),
   colorParameter(CINEMA2_GO_TO_BACKGROUND_ID, 'Background', 'The stage color behind the logo. Near black by default: the haze and fog carry the atmosphere.', DEFAULT_BACKGROUND, 1, 'Stage Colors'),
   colorParameter(CINEMA2_GO_TO_GOLD_TINT_ID, 'Gold Tint', 'Tints the gold outline. Defaults to the production gold; white makes the outline match the crystal body.', DEFAULT_GOLD, 2, 'Logo Colors'),
-  colorParameter(CINEMA2_GO_TO_CRYSTAL_TINT_ID, 'Crystal Tint', 'Tints the crystal body. Defaults to the production pearl; lighter washes the pastel sheen out toward plain chrome, darker deepens it, and any hue dyes the crystal.', DEFAULT_PEARL, 3, 'Logo Colors'),
+  colorParameter(CINEMA2_GO_TO_CRYSTAL_TINT_ID, 'Crystal Tint', 'Tints the pearl body. Defaults to the production pearl (it renders near white under the stage lights); lighter flattens the rounded shading into plain white, darker greys it, and any hue dyes it.', DEFAULT_PEARL, 3, 'Logo Colors'),
   colorParameter(CINEMA2_GO_TO_KEY_COLOR_ID, 'Key Light', 'The color of the main spot light in front of the logo.', DEFAULT_KEY, 4, 'Light Colors'),
   colorParameter(CINEMA2_GO_TO_RIM_COLOR_ID, 'Rim Light', 'The color of the spot light behind and to the right, which edges the logo.', DEFAULT_RIM, 5, 'Light Colors'),
   colorParameter(CINEMA2_GO_TO_ACCENT_COLOR_ID, 'Accent Light', 'The color of the spot light behind and to the left.', DEFAULT_ACCENT, 6, 'Light Colors'),
@@ -247,7 +249,7 @@ export const CINEMA2_GO_TO_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
   revision: 3,
   metadata: Object.freeze({
     name: 'GO-TO',
-    description: 'The DVYDRM logo as a faceted crystal cloud in a thin polished gold outline, slowly turning on a turntable in a dark, hazy studio. Soft white and gold spot lights rake through the haze and across the facets, and a wet floor mirrors it.',
+    description: 'The DVYDRM logo as a glossy pearl-white cloud in a thin polished gold outline, slowly turning on a turntable in a dark, hazy studio. Soft white and gold spot lights rake through the haze and across the pearl, and a wet floor mirrors it.',
     tags: Object.freeze(['go-to', 'logo', 'native', '3d', 'crystal', 'gold', 'three', 'keeper']),
   }),
   capabilities: Object.freeze([
@@ -266,7 +268,7 @@ export const CINEMA2_GO_TO_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
     typeId: THREE_SCENE_TYPE_ID,
     version: 1,
     enabled: true,
-    // Colors, metalness and the finish live on the two parts (`outline` = gold, `crystal` = the faceted body): the model carries their PBR
+    // Colors, metalness and the finish live on the two parts (`outline` = gold, `crystal` = the pearl body): the model carries their PBR
     // values, and these are only the controls, so nothing here flattens the two looks into one.
     parameters: Object.freeze({
       'outline.color': DEFAULT_GOLD,
@@ -298,7 +300,7 @@ export const CINEMA2_GO_TO_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
       instances: Object.freeze([Object.freeze({ asset: CINEMA2_DVYDRM_LOGO_ASSET_ID, node: CINEMA2_GO_TO_LOGO_NODE_ID, spin: true })]),
       parts: Object.freeze(['outline', 'crystal']),
       environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
-      // Two rectangular LED panels (high and medium quality): a broad cool-white key panel front-left and a warm-white strip behind-right, so the facets and the gold bevel catch clean bands of light.
+      // Two rectangular LED panels (high and medium quality): a broad cool-white key panel front-left and a warm-white strip behind-right, so the pearl and the gold bevel catch clean bands of light.
       panels: Object.freeze([
         Object.freeze({ position: vec3(-3.4, 2.4, 3.6), target: vec3(0, 0, 0), size: Object.freeze([3.2, 2]), color: Object.freeze([0.88, 0.94, 1]), intensity: 6 }),
         Object.freeze({ position: vec3(3.6, 1.2, -3), target: vec3(0, 0, 0), size: Object.freeze([2.4, 2.2]), color: Object.freeze([1, 0.9, 0.72]), intensity: 5 }),
