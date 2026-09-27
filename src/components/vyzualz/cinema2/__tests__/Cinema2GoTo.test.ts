@@ -63,6 +63,12 @@ describe('GO-TO preset', () => {
     expect(cinema2ThreeEnvironmentRegistry.has(CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID)).toBe(true)
   })
 
+  it('defaults Gold Tint to the production gold so the outline still reads gold even though the shared asset\'s baked color is now neutral', () => {
+    expect(byLabel('Gold Tint')?.defaultValue).toEqual([0.86, 0.55, 0.16, 1])
+    const module = manifest.modules?.[0] as Readonly<Cinema2ModuleManifest>
+    expect(module.parameters?.['outline.color']).toEqual([0.86, 0.55, 0.16, 1])
+  })
+
   it('places the shared logo asset on its node, spinning, with the shipped studio environment', () => {
     const module = manifest.modules?.[0] as Readonly<Cinema2ModuleManifest>
     expect(module.id).toBe(CINEMA2_GO_TO_MODULE_ID)
@@ -84,10 +90,12 @@ describe('shared DVYDRM logo asset', () => {
     expect(json.nodes.map(node => node.name)).toEqual(['outline', 'crystal'])
     expect(json.materials.map(material => material.name)).toEqual(['outline', 'crystal'])
     const pbr = (json as unknown as { materials: { pbrMetallicRoughness: { baseColorFactor: number[]; metallicFactor: number } }[] }).materials.map(material => material.pbrMetallicRoughness)
-    // Gold is warm (red well above blue); the crystal is a near-white, neutral metal.
-    expect(pbr[0]!.baseColorFactor[0]! / pbr[0]!.baseColorFactor[2]!).toBeGreaterThan(3)
-    expect(Math.abs(pbr[1]!.baseColorFactor[0]! - pbr[1]!.baseColorFactor[2]!)).toBeLessThan(0.05)
-    expect(pbr[1]!.baseColorFactor[0]!).toBeGreaterThan(0.9)
+    // Both parts are baked neutral/near-white metal: each preset tints them itself (GO-TO's own Gold Tint default supplies the warm
+    // color for the outline; RELIQUARY leaves both white so the whole logo reads as one uniform crystal).
+    for (const material of pbr) {
+      expect(Math.abs(material.baseColorFactor[0]! - material.baseColorFactor[2]!)).toBeLessThan(0.05)
+      expect(material.baseColorFactor[0]!).toBeGreaterThan(0.9)
+    }
   })
 })
 

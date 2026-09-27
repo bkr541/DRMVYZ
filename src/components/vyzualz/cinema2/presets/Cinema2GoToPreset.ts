@@ -96,6 +96,9 @@ const color = (r: number, g: number, b: number, a = 1): Cinema2Color => Object.f
 const DEFAULT_KEY = color(1, 0.97, 0.94)
 const DEFAULT_RIM = color(0.92, 0.95, 1)
 const DEFAULT_ACCENT = color(1, 0.93, 0.8)
+// The shared logo asset's outline part is now baked neutral/white (matching the crystal); GO-TO keeps its gold ring by defaulting its own
+// tint to this warm gold rather than relying on the asset's baked color.
+const DEFAULT_GOLD = color(0.86, 0.55, 0.16)
 const DEFAULT_BACKGROUND = color(0.003, 0.003, 0.004)
 /** The logo's materials as authored in the model (`cinema2-dvydrm-logo`): the gold outline and the polished crystal. */
 const GOLD_ROUGHNESS = 0.15
@@ -161,7 +164,7 @@ const PARAMETERS = Object.freeze([
   floatParameter(CINEMA2_GO_TO_BLOOM_ID, 'Bloom', 'Glow added around the bright highlights and beams.', 0.4, 0, 3, 0.05, 'effects', 5, 'Post'),
   floatParameter(CINEMA2_GO_TO_FINISH_ID, 'Cinematic Finish', 'Amount of filmic tone curve, grade, vignette, fringing and grain.', 1, 0, 1, 0.05, 'effects', 6, 'Post'),
   colorParameter(CINEMA2_GO_TO_BACKGROUND_ID, 'Background', 'The stage color behind the logo. Near black by default: the haze and fog carry the atmosphere.', DEFAULT_BACKGROUND, 1, 'Stage Colors'),
-  colorParameter(CINEMA2_GO_TO_GOLD_TINT_ID, 'Gold Tint', 'Tints the gold outline. White leaves the production gold; any other color dyes it.', color(1, 1, 1), 2, 'Logo Colors'),
+  colorParameter(CINEMA2_GO_TO_GOLD_TINT_ID, 'Gold Tint', 'Tints the gold outline. Defaults to the production gold; white makes the outline match the crystal body.', DEFAULT_GOLD, 2, 'Logo Colors'),
   colorParameter(CINEMA2_GO_TO_CRYSTAL_TINT_ID, 'Crystal Tint', 'Tints the crystal body. White leaves the production near-white crystal; any other color dyes it.', color(1, 1, 1), 3, 'Logo Colors'),
   colorParameter(CINEMA2_GO_TO_KEY_COLOR_ID, 'Key Light', 'The color of the main spot light in front of the logo.', DEFAULT_KEY, 4, 'Light Colors'),
   colorParameter(CINEMA2_GO_TO_RIM_COLOR_ID, 'Rim Light', 'The color of the spot light behind and to the right, which edges the logo.', DEFAULT_RIM, 5, 'Light Colors'),
@@ -251,7 +254,7 @@ export const CINEMA2_GO_TO_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
     // Colors, metalness and the finish live on the two parts (`outline` = gold, `crystal` = the faceted body): the model carries their PBR
     // values, and these are only the controls, so nothing here flattens the two looks into one.
     parameters: Object.freeze({
-      'outline.color': color(1, 1, 1),
+      'outline.color': DEFAULT_GOLD,
       'outline.roughness': GOLD_ROUGHNESS,
       'crystal.color': color(1, 1, 1),
       'crystal.roughness': CRYSTAL_ROUGHNESS,

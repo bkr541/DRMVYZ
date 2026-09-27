@@ -22,6 +22,25 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-golden-roots",
+    "kind": "model",
+    "compression": "none",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/models/golden-roots.glb",
+        "bytes": 641472,
+        "triangles": 23040
+      }
+    },
+    "gpuBytes": {
+      "high": 616320,
+      "medium": 616320,
+      "low": 616320
+    }
+  },
+  {
     "id": "cinema2-reference-torus-knot",
     "kind": "model",
     "compression": "meshopt",

@@ -53,7 +53,9 @@ const SMALL_SHAPE_AREA = 0.02
 
 /** Linear-sRGB PBR colors. Gold is the F0 of real gold, so the highlights stay warm; the crystal is a near-white polished metal. */
 const MATERIALS = {
-  outline: { name: 'outline', baseColorFactor: [0.86, 0.55, 0.16, 1], metallicFactor: 1, roughnessFactor: 0.15 },
+  // Baked neutral/near-white, same as the crystal: every preset tints it via its own Design control (GO-TO defaults it to gold; RELIQUARY
+  // leaves it white so the outline reads as one uniform crystal with the body, no separate gold ring).
+  outline: { name: 'outline', baseColorFactor: [0.97, 0.97, 0.98, 1], metallicFactor: 1, roughnessFactor: 0.15 },
   crystal: { name: 'crystal', baseColorFactor: [0.97, 0.97, 0.98, 1], metallicFactor: 1, roughnessFactor: 0.05 },
 }
 

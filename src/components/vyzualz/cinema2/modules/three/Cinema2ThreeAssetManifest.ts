@@ -2,8 +2,10 @@ import { CINEMA2_ASSET_RECORDS, type Cinema2AssetId } from '../../assets/Cinema2
 import { Cinema2ThreeAssetRegistry } from './Cinema2ThreeAssetRegistry'
 
 export const CINEMA2_REFERENCE_TORUS_KNOT_ASSET_ID: Cinema2AssetId = 'cinema2-reference-torus-knot'
-/** The owner's DVYDRM logo as a 3D model with three parts (nodes `outline`, `body`, `star`); shared by every logo preset. */
+/** The owner's DVYDRM logo as a 3D model with two parts (nodes `outline`, `crystal`); shared by every logo preset. */
 export const CINEMA2_DVYDRM_LOGO_ASSET_ID: Cinema2AssetId = 'cinema2-dvydrm-logo'
+/** The golden root/branch structure that cradles the logo in RELIQUARY: parts `roots`, `leaves`, `dais`, `daisRing`. */
+export const CINEMA2_GOLDEN_ROOTS_ASSET_ID: Cinema2AssetId = 'cinema2-golden-roots'
 
 /**
  * Model registry, filled from the generated asset manifest (`npm run assets:build`; records live in `assets/cinema2/<id>/asset.json`).
