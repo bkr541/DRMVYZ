@@ -28,10 +28,13 @@ import { cinema2LightRigAlternate } from './Cinema2LightRigAuthoring'
 
 /**
  * RELIQUARY: the DVYDRM logo (rendered as one uniform silver crystal, no gold ring - the shared logo asset's `outline` part is tinted and
- * roughened to match its `crystal` part) held by a golden root/branch structure that rises from a stone dais, splits into two arms that dip
- * behind the logo and wrap its lower lobes from the front, and sends tendrils with small leaves climbing toward the swirls.
+ * roughened to match its `crystal` part) held by a golden root/branch structure rising from open ground: a trunk splits into two cradle
+ * arms that dip behind the logo and wrap its lower lobes from the front, canopy branches fork off those arms and climb far above and to
+ * the side of the logo (framing it the way a real tree's crown would), tendrils with small leaves climb toward the swirls and the canopy
+ * tips, and floor roots fan out at the base. Revision 2's `golden-roots` asset also carries a gnarled bark surface and glowing "vein"
+ * strands running through the branches; there is no dais (revision 1's stone platform is gone - the reference shows open ground).
  *
- * This first revision is geometry and a minimal light rig only, by design: no haze, bloom, floor reflection or cinematic finish, and no
+ * This revision is geometry and a minimal light rig only, by design: no haze, bloom, floor reflection or cinematic finish, and no
  * camera motion. The three lights (each aimed at a different part of the composition) alternate on the beat when BPM Sync is on, which is
  * enough to genuinely consume Master Intensity and BPM Sync without building the fuller, audio-synced per-facet choreography yet.
  */
@@ -65,7 +68,7 @@ const ROOT_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('reliquary-root')
 const WORLD_LAYER_ID = cinema2StableId<Cinema2LayerId>('reliquary-world-layer')
 const THREE_SCENE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('three-scene')
 
-/** The golden-roots asset builds its own dais at this Y (see `scripts/cinema2-assets/generate-golden-roots.mjs`); the logo floats above it. */
+/** The golden-roots asset's trunk starts at this floor Y (see `scripts/cinema2-assets/generate-golden-roots.mjs`); the logo floats above it. */
 const LOGO_HEIGHT = 0.05
 
 const vec3 = (x: number, y: number, z: number): Cinema2Vector3 => Object.freeze([x, y, z])
@@ -173,7 +176,7 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
   revision: 1,
   metadata: Object.freeze({
     name: 'RELIQUARY',
-    description: 'The DVYDRM logo, one uniform silver crystal, held by a golden root and branch structure that rises from a stone dais and wraps its lower lobes. Three overhead spots light the logo, the roots and the dais.',
+    description: 'The DVYDRM logo, one uniform silver crystal, held by a golden root and branch structure that rises from open ground, wraps its lower lobes, and frames it with a canopy of branches. Three overhead spots light the logo and the roots.',
     tags: Object.freeze(['reliquary', 'logo', 'native', '3d', 'crystal', 'gold', 'three', 'keeper']),
   }),
   capabilities: Object.freeze([
@@ -256,13 +259,13 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     id: CINEMA2_RELIQUARY_CAMERA_ID,
     label: 'RELIQUARY Front',
     projection: 'perspective' as const,
-    fovDegrees: 30,
+    fovDegrees: 34,
     near: 0.1,
-    far: 40,
-    // The composition is taller than GO-TO's (a dais below, tendrils reaching above the logo), so the camera sits further back and a
-    // little higher, framing the whole reliquary rather than just the logo. Static: no authored `motion`.
-    transform: Object.freeze({ position: vec3(0, 0.35, 7.2) }),
-    target: vec3(0, -0.55, 0),
+    far: 60,
+    // Revision 2's canopy branches reach roughly 3.5 units above the floor and 3.3 either side (see the generator script's console
+    // output), far beyond the logo alone, so the camera sits much further back and higher than a logo-only framing would need.
+    transform: Object.freeze({ position: vec3(0, 0.9, 10.6) }),
+    target: vec3(0, -0.1, 0),
     rig: Object.freeze({ kind: 'static' as const }),
   })]),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_RELIQUARY_CAMERA_ID) }),

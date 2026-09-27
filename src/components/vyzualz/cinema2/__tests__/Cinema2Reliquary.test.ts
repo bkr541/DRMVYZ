@@ -88,7 +88,7 @@ describe('golden-roots shared asset', () => {
     const jsonLength = glb.readUInt32LE(12)
     const json = JSON.parse(glb.subarray(20, 20 + jsonLength).toString('utf8')) as { meshes: { name: string }[]; materials: { name: string }[] }
     const parts = new Set(json.materials.map(material => material.name))
-    expect(parts).toEqual(new Set(['roots', 'leaves', 'dais', 'daisRing']))
+    expect(parts).toEqual(new Set(['roots', 'veins', 'leaves']))
     expect(json.meshes.length).toBeGreaterThan(4) // many curves/leaves, not one mesh per part
   })
 
