@@ -8,6 +8,17 @@ import type { Cinema2ThreeLoadedAsset } from './Cinema2ThreeAssetCache'
 import { measureObject } from './Cinema2ThreeAssetCache'
 import { getCinema2ThreeRenderer } from './Cinema2ThreeRendererHost'
 
+/** The material properties one named part of a model can override on its own (a part is a mesh of the asset: `outline`, `crystal`). */
+export interface Cinema2ThreePartOverrides {
+  color: readonly [number, number, number] | null
+  emissive: readonly [number, number, number] | null
+  emissiveIntensity: number | null
+  roughness: number | null
+  metalness: number | null
+  clearcoat: number | null
+  clearcoatRoughness: number | null
+}
+
 /** Material overrides exposed as module parameters. `null` means "leave the asset's own value". */
 export interface Cinema2ThreeMaterialOverrides {
   /** Multiplies the base color (linear factor from an sRGB color). */
@@ -25,6 +36,8 @@ export interface Cinema2ThreeMaterialOverrides {
   environmentRotation: number
   /** Multiplies every configured panel light's intensity (choreography drives this to make LED panels pulse). */
   panelIntensity: number
+  /** Per-part overrides keyed by part (mesh) name. For a part they replace the global value of the same property, so one model can carry different looks (gold rim, crystal body). */
+  parts: Readonly<Record<string, Readonly<Cinema2ThreePartOverrides>>>
 }
 
 /** A rectangular emitter (an LED panel) that lights the Three models: `config.panels` of the `three-scene` module. */
@@ -57,7 +70,7 @@ export const CINEMA2_THREE_PANEL_LIMITS: Readonly<Record<Cinema2RenderQualityLev
 
 export const CINEMA2_THREE_DEFAULT_OVERRIDES: Readonly<Cinema2ThreeMaterialOverrides> = Object.freeze({
   color: null, emissive: null, emissiveIntensity: null, roughness: null, metalness: null, environmentIntensity: 0.5,
-  clearcoat: null, clearcoatRoughness: null, environmentRotation: 0, panelIntensity: 1,
+  clearcoat: null, clearcoatRoughness: null, environmentRotation: 0, panelIntensity: 1, parts: Object.freeze({}),
 })
 
 export interface Cinema2ThreeSceneInstance {
@@ -76,6 +89,8 @@ interface PlacedInstance {
 }
 
 interface OwnedMaterial {
+  /** The part (mesh) this material belongs to, for per-part overrides. */
+  part: string
   material: ThreeNamespace.MeshStandardMaterial
   /** Where the mesh keeps this material, so it can be swapped for a physical one. */
   slot: { mesh: ThreeNamespace.Mesh; index: number | null }
@@ -165,6 +180,7 @@ export class Cinema2ThreeSceneBridge {
           if ((standard as { isMeshStandardMaterial?: boolean }).isMeshStandardMaterial) {
             const physical = standard as Partial<ThreeNamespace.MeshPhysicalMaterial>
             materials.push({
+              part: mesh.name || standard.name,
               material: standard,
               slot: { mesh, index: Array.isArray(mesh.material) ? index : null },
               base: {
@@ -339,23 +355,30 @@ export class Cinema2ThreeSceneBridge {
     if (this.appliedOverrides && sameOverrides(this.appliedOverrides, overrides)) return
     this.appliedOverrides = overrides
     const { THREE } = this.library
-    if (overrides.clearcoat != null) this.upgradeToPhysical()
+    if (overrides.clearcoat != null || Object.values(overrides.parts).some(part => part.clearcoat != null)) this.upgradeToPhysical()
     const detailed = this.quality !== 'low'
     const tint = overrides.color ? new THREE.Color().setRGB(overrides.color[0], overrides.color[1], overrides.color[2], THREE.SRGBColorSpace) : null
     const emissive = overrides.emissive ? new THREE.Color().setRGB(overrides.emissive[0], overrides.emissive[1], overrides.emissive[2], THREE.SRGBColorSpace) : null
+    const colorOf = (rgb: readonly [number, number, number]) => new THREE.Color().setRGB(rgb[0], rgb[1], rgb[2], THREE.SRGBColorSpace)
     for (const { materials } of this.placed) {
-      for (const { material, base } of materials) {
+      for (const { material, base, part } of materials) {
+        const own = overrides.parts[part]
+        const partTint = own?.color ? colorOf(own.color) : null
+        const partEmissive = own?.emissive ? colorOf(own.emissive) : null
+        // A part's own value wins over the global one; the tint multiplies the asset's base color.
         material.color.copy(base.color)
-        if (tint) material.color.multiply(tint)
-        material.emissive.copy(emissive ?? base.emissive)
-        material.emissiveIntensity = overrides.emissiveIntensity ?? base.emissiveIntensity
-        material.roughness = overrides.roughness ?? base.roughness
-        material.metalness = overrides.metalness ?? base.metalness
+        const effectiveTint = partTint ?? tint
+        if (effectiveTint) material.color.multiply(effectiveTint)
+        material.emissive.copy(partEmissive ?? emissive ?? base.emissive)
+        material.emissiveIntensity = own?.emissiveIntensity ?? overrides.emissiveIntensity ?? base.emissiveIntensity
+        material.roughness = own?.roughness ?? overrides.roughness ?? base.roughness
+        material.metalness = own?.metalness ?? overrides.metalness ?? base.metalness
         const physical = material as Partial<ThreeNamespace.MeshPhysicalMaterial>
         if ('clearcoat' in physical && this.upgraded) {
-          const wanted = overrides.clearcoat ?? base.clearcoat
-          physical.clearcoat = detailed && (overrides.clearcoat != null || base.clearcoat > 0) ? Math.max(0.001, wanted) : 0
-          physical.clearcoatRoughness = overrides.clearcoatRoughness ?? base.clearcoatRoughness
+          const requested = own?.clearcoat ?? overrides.clearcoat
+          const wanted = requested ?? base.clearcoat
+          physical.clearcoat = detailed && (requested != null || base.clearcoat > 0) ? Math.max(0.001, wanted) : 0
+          physical.clearcoatRoughness = own?.clearcoatRoughness ?? overrides.clearcoatRoughness ?? base.clearcoatRoughness
         }
       }
     }
@@ -414,6 +437,20 @@ function sameOverrides(a: Readonly<Cinema2ThreeMaterialOverrides>, b: Readonly<C
     && a.environmentIntensity === b.environmentIntensity
     && a.clearcoat === b.clearcoat && a.clearcoatRoughness === b.clearcoatRoughness
     && a.environmentRotation === b.environmentRotation && a.panelIntensity === b.panelIntensity
+    && samePartOverrides(a.parts, b.parts)
+}
+
+/** True when both hold the same values for the same parts (module parameter reads produce a fresh object every time). */
+export function samePartOverrides(a: Readonly<Cinema2ThreeMaterialOverrides['parts']>, b: Readonly<Cinema2ThreeMaterialOverrides['parts']>): boolean {
+  if (a === b) return true
+  const names = Object.keys(a)
+  if (names.length !== Object.keys(b).length) return false
+  const same = (x: readonly number[] | null, y: readonly number[] | null) => x === y || (x != null && y != null && x.length === y.length && x.every((value, index) => value === y[index]))
+  return names.every(name => {
+    const x = a[name], y = b[name]
+    return !!x && !!y && same(x.color, y.color) && same(x.emissive, y.emissive) && x.emissiveIntensity === y.emissiveIntensity
+      && x.roughness === y.roughness && x.metalness === y.metalness && x.clearcoat === y.clearcoat && x.clearcoatRoughness === y.clearcoatRoughness
+  })
 }
 
 const initializedAreaLightTables = new WeakSet<object>()

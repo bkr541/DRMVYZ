@@ -11,14 +11,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/dvydrm-logo.glb",
-        "bytes": 893896,
-        "triangles": 28138
+        "bytes": 475496,
+        "triangles": 11984
       }
     },
     "gpuBytes": {
-      "high": 891312,
-      "medium": 891312,
-      "low": 891312
+      "high": 473664,
+      "medium": 473664,
+      "low": 473664
     }
   },
   {
@@ -109,6 +109,31 @@ export const CINEMA2_ASSET_RECORDS = [
       "low": {
         "url": "/cinema2/environments/studio-512.hdr",
         "bytes": 42279,
+        "width": 512,
+        "height": 256
+      }
+    },
+    "gpuBytes": {
+      "high": 4194304,
+      "medium": 4194304,
+      "low": 4194304
+    }
+  },
+  {
+    "id": "cinema2-studio-environment-neutral",
+    "kind": "environment",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/environments/studio-neutral-1024.hdr",
+        "bytes": 148259,
+        "width": 1024,
+        "height": 512
+      },
+      "low": {
+        "url": "/cinema2/environments/studio-neutral-512.hdr",
+        "bytes": 41382,
         "width": 512,
         "height": 256
       }

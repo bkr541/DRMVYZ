@@ -19,7 +19,9 @@ import { loadCinema2ThreeLibrary, type Cinema2ThreeLibrary } from './three/Cinem
 import {
   CINEMA2_THREE_DEFAULT_OVERRIDES,
   Cinema2ThreeSceneBridge,
+  samePartOverrides,
   type Cinema2ThreeMaterialOverrides,
+  type Cinema2ThreePartOverrides,
   type Cinema2ThreePanelSpec,
   type Cinema2ThreeSceneInstance,
 } from './three/Cinema2ThreeSceneBridge'
@@ -43,6 +45,10 @@ export type Cinema2ThreeSceneModuleState = 'idle' | 'loading' | 'building' | 're
  * `emissiveIntensity`, `roughness`, `metalness`, `environmentIntensity`, and the PBR set: `clearcoat` / `clearcoatRoughness` (a glossy
  * lacquer layer; using `clearcoat` upgrades the materials to physical ones), `environmentRotation` (degrees) and `panelIntensity`
  * (multiplies the configured panel lights). Missing parameters leave the asset's own values.
+ *
+ * Per-part looks: `config.parts` lists the model's part (mesh) names, and each part then reads its own `<part>.color`, `<part>.emissive`,
+ * `<part>.emissiveIntensity`, `<part>.roughness`, `<part>.metalness`, `<part>.clearcoat` and `<part>.clearcoatRoughness` parameters. For that part they
+ * replace the global value of the same property, so one model can be a gold rim around a crystal body.
  *
  * Turntable spin: an instance with `spin: true` turns about its own vertical axis. The module parameter `spinTurnSeconds` is the time one full turn
  * takes at the 120 BPM reference (0 or missing = no spin) and `spinSync` (default true) locks it to the track's beat grid, so the turn follows the
@@ -84,6 +90,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
       const requested = parseInstances(context.module)
       const panels = parsePanels(context.module)
       const environmentId = typeof context.module.config?.environment === 'string' ? context.module.config.environment : null
+      const partNames = parsePartNames(context.module)
       let state: Cinema2ThreeSceneModuleState = 'idle'
       let disposed = false
       let bridge: Cinema2ThreeSceneBridge | null = null
@@ -180,7 +187,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
       return {
         lifecycle: {
           update: ({ frame, parameters }: Cinema2ModuleUpdateContext) => {
-            overrides = readOverrides(parameters, overrides)
+            overrides = readOverrides(parameters, overrides, partNames)
             const turnSeconds = readNumber(parameters.get('spinTurnSeconds'), 0, 3600) ?? 0
             const sync = parameters.get('spinSync') !== false
             const beats = beatClock.update(frame, sync).beats
@@ -261,6 +268,10 @@ function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinem
   if (environment !== undefined && (typeof environment !== 'string' || !environments.has(environment))) {
     diagnostics.push({ code: 'CINEMA2_THREE_SCENE_ENVIRONMENT_UNKNOWN', path: '$.config.environment', message: `No shipped environment "${String(environment)}" is registered.` })
   }
+  const rawParts = module.config?.parts
+  if (rawParts !== undefined && (!Array.isArray(rawParts) || rawParts.some(name => typeof name !== 'string' || !name.trim()))) {
+    diagnostics.push({ code: 'CINEMA2_THREE_SCENE_PARTS_INVALID', path: '$.config.parts', message: 'config.parts must be a list of part (mesh) name strings.' })
+  }
   const rawPanels = module.config?.panels
   if (rawPanels !== undefined) {
     if (!Array.isArray(rawPanels)) {
@@ -272,6 +283,28 @@ function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinem
     }
   }
   return diagnostics
+}
+
+function parsePartNames(module: Readonly<Cinema2ModuleManifest>): string[] {
+  const raw = module.config?.parts
+  return Array.isArray(raw) ? raw.filter((name): name is string => typeof name === 'string' && name.trim() !== '') : []
+}
+
+function readPartOverrides(parameters: Cinema2ModuleParameterReadFacet, names: readonly string[]): Readonly<Cinema2ThreeMaterialOverrides['parts']> {
+  if (names.length === 0) return CINEMA2_THREE_DEFAULT_OVERRIDES.parts
+  const parts: Record<string, Readonly<Cinema2ThreePartOverrides>> = {}
+  for (const name of names) {
+    parts[name] = Object.freeze({
+      color: readColor(parameters.get(`${name}.color`)),
+      emissive: readColor(parameters.get(`${name}.emissive`)),
+      emissiveIntensity: readNumber(parameters.get(`${name}.emissiveIntensity`), 0, 20),
+      roughness: readNumber(parameters.get(`${name}.roughness`), 0, 1),
+      metalness: readNumber(parameters.get(`${name}.metalness`), 0, 1),
+      clearcoat: readNumber(parameters.get(`${name}.clearcoat`), 0, 1),
+      clearcoatRoughness: readNumber(parameters.get(`${name}.clearcoatRoughness`), 0, 1),
+    })
+  }
+  return Object.freeze(parts)
 }
 
 function parsePanels(module: Readonly<Cinema2ModuleManifest>): Cinema2ThreePanelSpec[] {
@@ -294,7 +327,7 @@ function parsePanel(entry: unknown): Cinema2ThreePanelSpec | null {
   return { position: position as [number, number, number], target: target as [number, number, number], width: size[0]!, height: size[1]!, color: color as [number, number, number], intensity }
 }
 
-function readOverrides(parameters: Cinema2ModuleParameterReadFacet, previous: Readonly<Cinema2ThreeMaterialOverrides>): Readonly<Cinema2ThreeMaterialOverrides> {
+function readOverrides(parameters: Cinema2ModuleParameterReadFacet, previous: Readonly<Cinema2ThreeMaterialOverrides>, partNames: readonly string[]): Readonly<Cinema2ThreeMaterialOverrides> {
   const color = readColor(parameters.get('color'))
   const emissive = readColor(parameters.get('emissive'))
   const emissiveIntensity = readNumber(parameters.get('emissiveIntensity'), 0, 20)
@@ -305,12 +338,13 @@ function readOverrides(parameters: Cinema2ModuleParameterReadFacet, previous: Re
   const clearcoatRoughness = readNumber(parameters.get('clearcoatRoughness'), 0, 1)
   const environmentRotation = readNumber(parameters.get('environmentRotation'), -720, 720) ?? CINEMA2_THREE_DEFAULT_OVERRIDES.environmentRotation
   const panelIntensity = readNumber(parameters.get('panelIntensity'), 0, 40) ?? CINEMA2_THREE_DEFAULT_OVERRIDES.panelIntensity
+  const parts = readPartOverrides(parameters, partNames)
   const same = (x: readonly number[] | null, y: readonly number[] | null) => x === y || (x != null && y != null && x.every((value, index) => value === y[index]))
-  if (same(color, previous.color) && same(emissive, previous.emissive) && emissiveIntensity === previous.emissiveIntensity
+  if (samePartOverrides(parts, previous.parts) && same(color, previous.color) && same(emissive, previous.emissive) && emissiveIntensity === previous.emissiveIntensity
     && roughness === previous.roughness && metalness === previous.metalness && environmentIntensity === previous.environmentIntensity
     && clearcoat === previous.clearcoat && clearcoatRoughness === previous.clearcoatRoughness
     && environmentRotation === previous.environmentRotation && panelIntensity === previous.panelIntensity) return previous
-  return Object.freeze({ color, emissive, emissiveIntensity, roughness, metalness, environmentIntensity, clearcoat, clearcoatRoughness, environmentRotation, panelIntensity })
+  return Object.freeze({ color, emissive, emissiveIntensity, roughness, metalness, environmentIntensity, clearcoat, clearcoatRoughness, environmentRotation, panelIntensity, parts })
 }
 
 function readNumber(value: unknown, min: number, max: number): number | null {

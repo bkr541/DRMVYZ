@@ -116,6 +116,13 @@ describe('Cinema 2.0 three-scene PBR config validation', () => {
     expect(codes({ environment: CINEMA2_STUDIO_ENVIRONMENT_ASSET_ID, panels: [{ position: [0, 1, 2], target: [0, 0, 0], size: [2, 1], color: [1, 1, 1], intensity: 3 }] })).toEqual([])
   })
 
+  it('accepts a list of part names and rejects anything else', () => {
+    expect(codes({ parts: ['outline', 'crystal'] })).toEqual([])
+    expect(codes({ parts: 'outline' })).toEqual(['CINEMA2_THREE_SCENE_PARTS_INVALID'])
+    expect(codes({ parts: ['outline', 7] })).toEqual(['CINEMA2_THREE_SCENE_PARTS_INVALID'])
+    expect(codes({ parts: [' '] })).toEqual(['CINEMA2_THREE_SCENE_PARTS_INVALID'])
+  })
+
   it('rejects unknown environments and malformed panels', () => {
     expect(codes({ environment: 'nope' })).toEqual(['CINEMA2_THREE_SCENE_ENVIRONMENT_UNKNOWN'])
     expect(codes({ environment: 7 })).toEqual(['CINEMA2_THREE_SCENE_ENVIRONMENT_UNKNOWN'])
@@ -150,6 +157,36 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     }
     expect(counts).toEqual({ low: 0, medium: 2, high: 4 })
     expect(areaInit).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives each named part its own look: a part override beats the global value for that part only, and the other part keeps the global or asset value', async () => {
+    const scene = new THREE.Group()
+    const part = (name: string, material: THREE.MeshStandardMaterial) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material)
+      mesh.name = name
+      scene.add(mesh)
+    }
+    part('outline', new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 1, color: new THREE.Color(0.9, 0.6, 0.2) }))
+    part('crystal', new THREE.MeshStandardMaterial({ roughness: 0.05, metalness: 1, color: new THREE.Color(1, 1, 1) }))
+    const bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [{ asset: { id: 'two-part', scene, triangleCount: 24, gpuBytes: 100 } as never, node: null }], {})
+    const none = { color: null, emissive: null, emissiveIntensity: null, roughness: null, metalness: null, clearcoat: null, clearcoatRoughness: null }
+    const materialOf = (name: string) => ((bridge as unknown as { scene: THREE.Scene }).scene.getObjectByName(name) as THREE.Mesh).material as THREE.MeshPhysicalMaterial
+
+    // Only the crystal is overridden: rougher, tinted, with a clearcoat. The global roughness (0.6) applies to the outline; the crystal's own wins.
+    bridge.draw(execution('high'), overrides({ roughness: 0.6, parts: { crystal: { ...none, roughness: 0.3, color: [0.5, 1, 1], clearcoat: 0.4 } } }))
+    expect(materialOf('outline').roughness).toBe(0.6)
+    expect(materialOf('crystal').roughness).toBe(0.3)
+    expect(materialOf('crystal').clearcoat).toBeCloseTo(0.4)
+    expect(materialOf('outline').metalness).toBe(1) // untouched: the asset's own value
+    const gold = materialOf('outline').color
+    expect(gold.r).toBeCloseTo(0.9, 5) // no tint anywhere on the outline: the asset's gold survives
+    expect(materialOf('crystal').color.r).toBeLessThan(0.3) // the crystal's own tint multiplied its white
+
+    // No part overrides again: both go back to the global value / the asset's own.
+    bridge.draw(execution('high'), overrides({ parts: { outline: { ...none, roughness: 0.02 } } }))
+    expect(materialOf('outline').roughness).toBe(0.02)
+    expect(materialOf('crystal').roughness).toBe(0.05)
+    expect(materialOf('crystal').color.r).toBeCloseTo(1, 5)
   })
 
   it('creates no panel lights (and never touches the area-light tables) without config.panels', async () => {

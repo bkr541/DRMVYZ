@@ -25,16 +25,17 @@ import {
   type Cinema2Vector3,
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_DVYDRM_LOGO_ASSET_ID } from '../modules/three/Cinema2ThreeAssetManifest'
-import { CINEMA2_STUDIO_ENVIRONMENT_ASSET_ID } from '../modules/three/Cinema2ThreeEnvironmentRegistry'
+import { CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID } from '../modules/three/Cinema2ThreeEnvironmentRegistry'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { cinema2CinematicMotion } from './Cinema2CameraMotionAuthoring'
 import { cinema2LightRigAlternate, cinema2LightRigHit, cinema2LightRigRamp } from './Cinema2LightRigAuthoring'
 
 /**
- * GO-TO: the DVYDRM logo as a real 3D object. The shared logo asset (`cinema2-dvydrm-logo`, built from the owner's master SVG) is a bevelled
- * metal extrusion that turns slowly about its vertical axis on a turntable, lit by three colored spot lights that rake through haze, two LED
- * panels and a studio environment, and reflected in a wet floor. This first version exists to prove the SVG-to-3D path and the lighting: the
- * spin and the metal are the whole show. Other logo presets reuse the same asset with different materials, colors and motion.
+ * GO-TO: the DVYDRM logo as a real 3D object, made to match the production logo: a faceted, polished near-white crystal cloud inside a thin
+ * polished gold outline. The shared logo asset (`cinema2-dvydrm-logo`, built from the owner's master SVG and facet guide) has two parts, `outline` (gold)
+ * and `crystal`, each with its own material here. It turns slowly about its vertical axis on a turntable in a dark, neutral studio: soft white
+ * and warm-gold spot lights rake through haze and ground fog, two LED panels and a studio environment give the facets and the gold their
+ * reflections, and a wet floor mirrors it. Other logo presets reuse the same asset with different materials, colors and motion.
  */
 export const CINEMA2_GO_TO_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.go-to')
 export const CINEMA2_GO_TO_MODULE_ID = cinema2StableId<Cinema2ModuleId>('go-to-logo')
@@ -48,9 +49,9 @@ export const CINEMA2_GO_TO_FINISH_EFFECT_ID = cinema2StableId<Cinema2EffectId>('
 export const CINEMA2_GO_TO_MASTER_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('go-to-master-intensity')
 export const CINEMA2_GO_TO_BPM_SYNC_ID = cinema2StableId<Cinema2ParameterId>('go-to-bpm-sync')
 export const CINEMA2_GO_TO_SPIN_PERIOD_ID = cinema2StableId<Cinema2ParameterId>('go-to-spin-period')
-export const CINEMA2_GO_TO_METALNESS_ID = cinema2StableId<Cinema2ParameterId>('go-to-metalness')
-export const CINEMA2_GO_TO_ROUGHNESS_ID = cinema2StableId<Cinema2ParameterId>('go-to-roughness')
-export const CINEMA2_GO_TO_CLEARCOAT_ID = cinema2StableId<Cinema2ParameterId>('go-to-clearcoat')
+export const CINEMA2_GO_TO_GOLD_ROUGHNESS_ID = cinema2StableId<Cinema2ParameterId>('go-to-gold-roughness')
+export const CINEMA2_GO_TO_CRYSTAL_ROUGHNESS_ID = cinema2StableId<Cinema2ParameterId>('go-to-crystal-roughness')
+export const CINEMA2_GO_TO_CRYSTAL_CLEARCOAT_ID = cinema2StableId<Cinema2ParameterId>('go-to-crystal-clearcoat')
 export const CINEMA2_GO_TO_REFLECTION_ID = cinema2StableId<Cinema2ParameterId>('go-to-environment-reflection')
 export const CINEMA2_GO_TO_MOTION_AMOUNT_ID = cinema2StableId<Cinema2ParameterId>('go-to-motion-amount')
 export const CINEMA2_GO_TO_HAZE_ID = cinema2StableId<Cinema2ParameterId>('go-to-haze-density')
@@ -60,7 +61,8 @@ export const CINEMA2_GO_TO_FLOOR_ID = cinema2StableId<Cinema2ParameterId>('go-to
 export const CINEMA2_GO_TO_BLOOM_ID = cinema2StableId<Cinema2ParameterId>('go-to-bloom')
 export const CINEMA2_GO_TO_FINISH_ID = cinema2StableId<Cinema2ParameterId>('go-to-cinematic-finish')
 export const CINEMA2_GO_TO_BACKGROUND_ID = cinema2StableId<Cinema2ParameterId>('go-to-background')
-export const CINEMA2_GO_TO_LOGO_TINT_ID = cinema2StableId<Cinema2ParameterId>('go-to-logo-tint')
+export const CINEMA2_GO_TO_GOLD_TINT_ID = cinema2StableId<Cinema2ParameterId>('go-to-gold-tint')
+export const CINEMA2_GO_TO_CRYSTAL_TINT_ID = cinema2StableId<Cinema2ParameterId>('go-to-crystal-tint')
 export const CINEMA2_GO_TO_KEY_COLOR_ID = cinema2StableId<Cinema2ParameterId>('go-to-key-light')
 export const CINEMA2_GO_TO_RIM_COLOR_ID = cinema2StableId<Cinema2ParameterId>('go-to-rim-light')
 export const CINEMA2_GO_TO_ACCENT_COLOR_ID = cinema2StableId<Cinema2ParameterId>('go-to-accent-light')
@@ -89,10 +91,16 @@ const RIG_PEAK_INTENSITY = 3
 const vec3 = (x: number, y: number, z: number): Cinema2Vector3 => Object.freeze([x, y, z])
 const color = (r: number, g: number, b: number, a = 1): Cinema2Color => Object.freeze([r, g, b, a])
 
-const DEFAULT_KEY = color(1, 0.93, 0.82)
-const DEFAULT_RIM = color(0.3, 0.78, 1)
-const DEFAULT_ACCENT = color(1, 0.3, 0.72)
-const DEFAULT_BACKGROUND = color(0.006, 0.009, 0.016)
+// A dark, neutral studio: the background is near black with no hue, the key and rim lights are white (a hair warm and a hair cool), and only
+// the third spot is a soft gold that picks up the gold outline. Nothing tints the haze.
+const DEFAULT_KEY = color(1, 0.97, 0.94)
+const DEFAULT_RIM = color(0.92, 0.95, 1)
+const DEFAULT_ACCENT = color(1, 0.93, 0.8)
+const DEFAULT_BACKGROUND = color(0.003, 0.003, 0.004)
+/** The logo's materials as authored in the model (`cinema2-dvydrm-logo`): the gold outline and the polished crystal. */
+const GOLD_ROUGHNESS = 0.15
+const CRYSTAL_ROUGHNESS = 0.05
+const CRYSTAL_CLEARCOAT = 0
 
 const baseParameter = {
   section: 'Design',
@@ -141,22 +149,23 @@ const PARAMETERS = Object.freeze([
     order: 2,
   }),
   floatParameter(CINEMA2_GO_TO_SPIN_PERIOD_ID, 'Spin Period', 'How long the logo takes to turn once all the way round, in seconds (at 120 BPM). Longer is slower.', 24, 6, 120, 1, 'design', 1, 'Turntable'),
-  floatParameter(CINEMA2_GO_TO_METALNESS_ID, 'Metalness', 'How metallic the logo is: 1 reflects its surroundings like polished metal, 0 is a painted, glossy plastic.', 1, 0, 1, 0.01, 'design', 2, 'Material'),
-  floatParameter(CINEMA2_GO_TO_ROUGHNESS_ID, 'Roughness', 'How sharp the reflections are: 0 is a mirror, 1 is a matte, brushed surface.', 0.18, 0, 1, 0.01, 'design', 3, 'Material'),
-  floatParameter(CINEMA2_GO_TO_CLEARCOAT_ID, 'Clearcoat', 'A glossy lacquer layer over the metal (medium and high quality).', 0.5, 0, 1, 0.01, 'design', 4, 'Material'),
-  floatParameter(CINEMA2_GO_TO_REFLECTION_ID, 'Environment Reflection', 'How strongly the studio environment (softboxes and light strips) reflects in the logo.', 1, 0, 2, 0.01, 'design', 5, 'Material'),
+  floatParameter(CINEMA2_GO_TO_GOLD_ROUGHNESS_ID, 'Gold Roughness', 'How sharp the reflections in the gold outline are: 0 is a mirror, higher is a softer, satin gold. The production finish is softly polished.', GOLD_ROUGHNESS, 0, 1, 0.01, 'design', 2, 'Material'),
+  floatParameter(CINEMA2_GO_TO_CRYSTAL_ROUGHNESS_ID, 'Crystal Roughness', 'How sharp the reflections on the crystal facets are: 0 is a mirror, higher frosts the crystal and softens the contrast between facets.', CRYSTAL_ROUGHNESS, 0, 1, 0.01, 'design', 3, 'Material'),
+  floatParameter(CINEMA2_GO_TO_CRYSTAL_CLEARCOAT_ID, 'Crystal Clearcoat', 'A glassy lacquer layer over the crystal facets (medium and high quality).', CRYSTAL_CLEARCOAT, 0, 1, 0.01, 'design', 4, 'Material'),
+  floatParameter(CINEMA2_GO_TO_REFLECTION_ID, 'Environment Reflection', 'How strongly the studio environment (softboxes and light strips) reflects in the crystal and the gold.', 1, 0, 2, 0.01, 'design', 5, 'Material'),
   floatParameter(CINEMA2_GO_TO_MOTION_AMOUNT_ID, 'Camera Motion', 'How much the camera drifts and sways around the logo (0 = locked off).', 0.4, 0, 1, 0.01, 'design', 6, 'Camera'),
-  floatParameter(CINEMA2_GO_TO_HAZE_ID, 'Haze Density', 'How thick the haze is. Thicker haze makes the light beams brighter and softer.', 0.018, 0, 0.4, 0.005, 'effects', 1, 'Atmosphere'),
+  floatParameter(CINEMA2_GO_TO_HAZE_ID, 'Haze Density', 'How thick the haze is. Thicker haze makes the light beams brighter and softer.', 0.008, 0, 0.4, 0.005, 'effects', 1, 'Atmosphere'),
   floatParameter(CINEMA2_GO_TO_BEAM_ID, 'Beam Intensity', 'Brightness of the light scattering through the haze.', 1, 0, 6, 0.05, 'effects', 2, 'Atmosphere'),
-  floatParameter(CINEMA2_GO_TO_MIST_ID, 'Ground Mist', 'Extra mist that pools near the floor.', 0.3, 0, 3, 0.05, 'effects', 3, 'Atmosphere'),
+  floatParameter(CINEMA2_GO_TO_MIST_ID, 'Ground Mist', 'Extra mist that pools near the floor.', 0.5, 0, 3, 0.05, 'effects', 3, 'Atmosphere'),
   floatParameter(CINEMA2_GO_TO_FLOOR_ID, 'Floor Reflection', 'How mirror-like the wet floor under the logo is.', 0.3, 0, 1, 0.05, 'effects', 4, 'Atmosphere'),
-  floatParameter(CINEMA2_GO_TO_BLOOM_ID, 'Bloom', 'Glow added around the bright highlights and beams.', 0.55, 0, 3, 0.05, 'effects', 5, 'Post'),
+  floatParameter(CINEMA2_GO_TO_BLOOM_ID, 'Bloom', 'Glow added around the bright highlights and beams.', 0.4, 0, 3, 0.05, 'effects', 5, 'Post'),
   floatParameter(CINEMA2_GO_TO_FINISH_ID, 'Cinematic Finish', 'Amount of filmic tone curve, grade, vignette, fringing and grain.', 1, 0, 1, 0.05, 'effects', 6, 'Post'),
-  colorParameter(CINEMA2_GO_TO_BACKGROUND_ID, 'Background', 'The stage color behind the logo.', DEFAULT_BACKGROUND, 1, 'Stage Colors'),
-  colorParameter(CINEMA2_GO_TO_LOGO_TINT_ID, 'Logo Color', 'Tints the logo\'s metal. White leaves the polished silver of the model; any other color dyes it.', color(1, 1, 1), 2, 'Logo Colors'),
-  colorParameter(CINEMA2_GO_TO_KEY_COLOR_ID, 'Key Light', 'The color of the main spot light in front of the logo.', DEFAULT_KEY, 3, 'Light Colors'),
-  colorParameter(CINEMA2_GO_TO_RIM_COLOR_ID, 'Rim Light', 'The color of the spot light behind and to the right, which edges the logo.', DEFAULT_RIM, 4, 'Light Colors'),
-  colorParameter(CINEMA2_GO_TO_ACCENT_COLOR_ID, 'Accent Light', 'The color of the spot light behind and to the left.', DEFAULT_ACCENT, 5, 'Light Colors'),
+  colorParameter(CINEMA2_GO_TO_BACKGROUND_ID, 'Background', 'The stage color behind the logo. Near black by default: the haze and fog carry the atmosphere.', DEFAULT_BACKGROUND, 1, 'Stage Colors'),
+  colorParameter(CINEMA2_GO_TO_GOLD_TINT_ID, 'Gold Tint', 'Tints the gold outline. White leaves the production gold; any other color dyes it.', color(1, 1, 1), 2, 'Logo Colors'),
+  colorParameter(CINEMA2_GO_TO_CRYSTAL_TINT_ID, 'Crystal Tint', 'Tints the crystal body. White leaves the production near-white crystal; any other color dyes it.', color(1, 1, 1), 3, 'Logo Colors'),
+  colorParameter(CINEMA2_GO_TO_KEY_COLOR_ID, 'Key Light', 'The color of the main spot light in front of the logo.', DEFAULT_KEY, 4, 'Light Colors'),
+  colorParameter(CINEMA2_GO_TO_RIM_COLOR_ID, 'Rim Light', 'The color of the spot light behind and to the right, which edges the logo.', DEFAULT_RIM, 5, 'Light Colors'),
+  colorParameter(CINEMA2_GO_TO_ACCENT_COLOR_ID, 'Accent Light', 'The color of the spot light behind and to the left.', DEFAULT_ACCENT, 6, 'Light Colors'),
 ])
 
 function spotLight(id: Cinema2LightId, lightColor: Cinema2Color, position: Cinema2Vector3, colorParameterId: Cinema2ParameterId, cone: number) {
@@ -217,11 +226,11 @@ export const CINEMA2_GO_TO_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_GO_TO_PRESET_ID,
-  revision: 1,
+  revision: 2,
   metadata: Object.freeze({
     name: 'GO-TO',
-    description: 'The DVYDRM logo as a polished 3D metal object, slowly turning on a turntable. Colored spot lights rake through haze across its bevelled edges, a studio environment reflects in its surface, and a wet floor mirrors it.',
-    tags: Object.freeze(['go-to', 'logo', 'native', '3d', 'metal', 'three', 'keeper']),
+    description: 'The DVYDRM logo as a faceted crystal cloud in a thin polished gold outline, slowly turning on a turntable in a dark, hazy studio. Soft white and gold spot lights rake through the haze and across the facets, and a wet floor mirrors it.',
+    tags: Object.freeze(['go-to', 'logo', 'native', '3d', 'crystal', 'gold', 'three', 'keeper']),
   }),
   capabilities: Object.freeze([
     Object.freeze({ id: 'render.webgl2' as const, requirement: 'required' as const, purpose: 'Native Cinema 2.0 Stage rendering and the 3D logo.' }),
@@ -239,31 +248,36 @@ export const CINEMA2_GO_TO_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
     typeId: THREE_SCENE_TYPE_ID,
     version: 1,
     enabled: true,
+    // Colors, metalness and the finish live on the two parts (`outline` = gold, `crystal` = the faceted body): the model carries their PBR
+    // values, and these are only the controls, so nothing here flattens the two looks into one.
     parameters: Object.freeze({
-      color: color(1, 1, 1),
-      metalness: 1,
-      roughness: 0.18,
-      clearcoat: 0.5,
+      'outline.color': color(1, 1, 1),
+      'outline.roughness': GOLD_ROUGHNESS,
+      'crystal.color': color(1, 1, 1),
+      'crystal.roughness': CRYSTAL_ROUGHNESS,
+      'crystal.clearcoat': CRYSTAL_CLEARCOAT,
       environmentIntensity: 1,
       spinTurnSeconds: 24,
       spinSync: true,
     }),
     parameterBindings: Object.freeze({
-      color: cinema2Ref(CINEMA2_GO_TO_LOGO_TINT_ID),
-      metalness: cinema2Ref(CINEMA2_GO_TO_METALNESS_ID),
-      roughness: cinema2Ref(CINEMA2_GO_TO_ROUGHNESS_ID),
-      clearcoat: cinema2Ref(CINEMA2_GO_TO_CLEARCOAT_ID),
+      'outline.color': cinema2Ref(CINEMA2_GO_TO_GOLD_TINT_ID),
+      'outline.roughness': cinema2Ref(CINEMA2_GO_TO_GOLD_ROUGHNESS_ID),
+      'crystal.color': cinema2Ref(CINEMA2_GO_TO_CRYSTAL_TINT_ID),
+      'crystal.roughness': cinema2Ref(CINEMA2_GO_TO_CRYSTAL_ROUGHNESS_ID),
+      'crystal.clearcoat': cinema2Ref(CINEMA2_GO_TO_CRYSTAL_CLEARCOAT_ID),
       environmentIntensity: cinema2Ref(CINEMA2_GO_TO_REFLECTION_ID),
       spinTurnSeconds: cinema2Ref(CINEMA2_GO_TO_SPIN_PERIOD_ID),
       spinSync: cinema2Ref(CINEMA2_GO_TO_BPM_SYNC_ID),
     }),
     config: Object.freeze({
       instances: Object.freeze([Object.freeze({ asset: CINEMA2_DVYDRM_LOGO_ASSET_ID, node: CINEMA2_GO_TO_LOGO_NODE_ID, spin: true })]),
-      environment: CINEMA2_STUDIO_ENVIRONMENT_ASSET_ID,
-      // Two rectangular LED panels (high and medium quality): a broad key panel front-left and a magenta-cool strip behind-right, so the bevels catch clean bands of light.
+      parts: Object.freeze(['outline', 'crystal']),
+      environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
+      // Two rectangular LED panels (high and medium quality): a broad cool-white key panel front-left and a warm-white strip behind-right, so the facets and the gold bevel catch clean bands of light.
       panels: Object.freeze([
         Object.freeze({ position: vec3(-3.4, 2.4, 3.6), target: vec3(0, 0, 0), size: Object.freeze([3.2, 2]), color: Object.freeze([0.88, 0.94, 1]), intensity: 6 }),
-        Object.freeze({ position: vec3(3.6, 1.2, -3), target: vec3(0, 0, 0), size: Object.freeze([2.4, 2.2]), color: Object.freeze([1, 0.55, 0.9]), intensity: 5 }),
+        Object.freeze({ position: vec3(3.6, 1.2, -3), target: vec3(0, 0, 0), size: Object.freeze([2.4, 2.2]), color: Object.freeze([1, 0.9, 0.72]), intensity: 5 }),
       ]),
     }),
   })]),
@@ -317,13 +331,13 @@ export const CINEMA2_GO_TO_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
       spotLight(CINEMA2_GO_TO_KEY_LIGHT_ID, DEFAULT_KEY, vec3(-2.4, 4.4, 3.4), CINEMA2_GO_TO_KEY_COLOR_ID, 13),
       spotLight(CINEMA2_GO_TO_RIM_LIGHT_ID, DEFAULT_RIM, vec3(4.6, 4.2, -1.4), CINEMA2_GO_TO_RIM_COLOR_ID, 12),
       spotLight(CINEMA2_GO_TO_ACCENT_LIGHT_ID, DEFAULT_ACCENT, vec3(-4.8, 3.8, -1.2), CINEMA2_GO_TO_ACCENT_COLOR_ID, 12),
-      Object.freeze({ id: AMBIENT_LIGHT_ID, type: 'ambient' as const, color: color(0.2, 0.25, 0.34), intensity: 0.3 }),
+      Object.freeze({ id: AMBIENT_LIGHT_ID, type: 'ambient' as const, color: color(0.22, 0.22, 0.24), intensity: 0.12 }),
     ]),
   }),
   environment: Object.freeze({
     backgroundColor: DEFAULT_BACKGROUND,
     exposure: 1,
-    fog: Object.freeze({ mode: 'exponential' as const, color: color(0.03, 0.045, 0.07), density: 0.01 }),
+    fog: Object.freeze({ mode: 'exponential' as const, color: color(0.045, 0.045, 0.05), density: 0.014 }),
     controls: Object.freeze({ backgroundColor: cinema2Ref(CINEMA2_GO_TO_BACKGROUND_ID) }),
   }),
   effects: Object.freeze([
@@ -347,8 +361,8 @@ export const CINEMA2_GO_TO_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
       order: 1,
       scope: 'output' as const,
       parameters: Object.freeze({
-        mix: 1, density: 0.018, beamIntensity: 1, mistAmount: 0.3, mistHeight: 1.4, mistFloor: FLOOR_Y, floorY: FLOOR_Y, floorReflection: 0.3, anisotropy: 0.55,
-        occlusion: 0.55, ambientHaze: 0.06, noiseScale: 0.32, noiseStrength: 0.65, drift: 0.12, maxDistance: 34, reactivity: 0.8,
+        mix: 1, density: 0.008, beamIntensity: 1, mistAmount: 0.5, mistHeight: 1.4, mistFloor: FLOOR_Y, floorY: FLOOR_Y, floorReflection: 0.3, anisotropy: 0.55,
+        occlusion: 0.55, ambientHaze: 0.015, noiseScale: 0.32, noiseStrength: 0.65, drift: 0.12, maxDistance: 34, reactivity: 0.8,
       }),
       parameterBindings: Object.freeze({
         density: cinema2Ref(CINEMA2_GO_TO_HAZE_ID),
@@ -363,7 +377,7 @@ export const CINEMA2_GO_TO_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
       enabled: true,
       order: 2,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 0.45, threshold: 0.55, radius: 2.4, intensity: 0.55 }),
+      parameters: Object.freeze({ mix: 0.45, threshold: 0.6, radius: 2.4, intensity: 0.4 }),
       parameterBindings: Object.freeze({ intensity: cinema2Ref(CINEMA2_GO_TO_BLOOM_ID) }),
     }),
     Object.freeze({
@@ -373,7 +387,7 @@ export const CINEMA2_GO_TO_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
       enabled: true,
       order: 3,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 1, exposure: 1.25, vignette: 0.4, grain: 0.18, aberration: 0.2, contrast: 1.1, saturation: 1.08 }),
+      parameters: Object.freeze({ mix: 1, exposure: 1.05, vignette: 0.6, grain: 0.18, aberration: 0.2, contrast: 1.1, saturation: 1.08 }),
       parameterBindings: Object.freeze({ mix: cinema2Ref(CINEMA2_GO_TO_FINISH_ID) }),
     }),
   ]),

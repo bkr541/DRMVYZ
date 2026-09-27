@@ -1,0 +1,10 @@
+{
+  "id": "cinema2-studio-environment-neutral",
+  "kind": "environment",
+  "license": "generated-in-house",
+  "origin": "scripts/cinema2-assets/generate-studio-environment.mjs <out> <width> neutral (equirectangular Radiance RGBE: the studio room with every hue removed, so polished surfaces reflect plain white and grey; 512 px wide for the low tier)",
+  "files": {
+    "high": "public/cinema2/environments/studio-neutral-1024.hdr",
+    "low": "public/cinema2/environments/studio-neutral-512.hdr"
+  }
+}

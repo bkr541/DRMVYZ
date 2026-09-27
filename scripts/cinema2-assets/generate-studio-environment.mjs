@@ -1,5 +1,7 @@
 // Generates the in-house studio environment used for image-based lighting by the Cinema 2.0 Three.js module.
-//   node scripts/cinema2-assets/generate-studio-environment.mjs <out.hdr> [width=1024]
+//   node scripts/cinema2-assets/generate-studio-environment.mjs <out.hdr> [width=1024] [neutral]
+// The default room has a cool strip light and a magenta accent; `neutral` (used by GO-TO) keeps the same layout and brightness but takes every hue out
+// of the room and the lights, so mirror-like surfaces reflect plain white and grey (and warm gold stays gold).
 // An equirectangular (2:1) Radiance RGBE image: a dark room with a large overhead softbox, a bright key softbox front-left, a cool strip light
 // on the right, a dim warm bounce from the floor and a faint horizon gradient. High dynamic range on purpose (the softboxes reach 10-20), so
 // glossy surfaces show crisp, bright reflections and the environment can be rotated to move them. Written with the standard Radiance RLE
@@ -9,13 +11,19 @@ import { writeFileSync } from 'node:fs'
 const outPath = process.argv[2]
 const width = Number(process.argv[3] ?? 1024)
 const height = width / 2
+const neutral = process.argv[4] === 'neutral'
 if (!outPath) throw new Error('usage: generate-studio-environment.mjs <out.hdr> [width]')
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t) }
 const angularDifference = (a, b) => { const d = Math.abs(a - b) % (Math.PI * 2); return d > Math.PI ? Math.PI * 2 - d : d }
 
 // A rectangular light in (azimuth, elevation) space with soft edges: centre, half sizes in radians, edge softness, colour and intensity.
-const boxes = [
+const boxes = neutral ? [
+  { az: 0.55 * Math.PI, el: 0.62, halfAz: 0.42, halfEl: 0.22, soft: 0.12, color: [1, 0.98, 0.95], intensity: 14 },   // key softbox, front-left, high
+  { az: 0, el: 1.35, halfAz: 0.9, halfEl: 0.32, soft: 0.2, color: [0.98, 0.98, 1], intensity: 6 },                    // large overhead panel
+  { az: 1.5 * Math.PI, el: 0.25, halfAz: 0.09, halfEl: 0.5, soft: 0.05, color: [0.96, 0.98, 1], intensity: 9 },     // strip light, right
+  { az: 1.05 * Math.PI, el: 0.12, halfAz: 0.05, halfEl: 0.34, soft: 0.04, color: [1, 0.95, 0.88], intensity: 5 },    // thin accent strip, back-left
+] : [
   { az: 0.55 * Math.PI, el: 0.62, halfAz: 0.42, halfEl: 0.22, soft: 0.12, color: [1, 0.97, 0.92], intensity: 14 },   // key softbox, front-left, high
   { az: 0, el: 1.35, halfAz: 0.9, halfEl: 0.32, soft: 0.2, color: [0.9, 0.95, 1], intensity: 6 },                     // large overhead panel
   { az: 1.5 * Math.PI, el: 0.25, halfAz: 0.09, halfEl: 0.5, soft: 0.05, color: [0.55, 0.85, 1], intensity: 9 },     // cool strip, right
@@ -27,12 +35,13 @@ function radiance(u, v) {
   const el = (0.5 - v) * Math.PI
   // Base room: near-black with a faint cool gradient toward the horizon and a dim warm floor bounce.
   const horizon = Math.exp(-Math.abs(el) / 0.35)
-  let r = 0.012 + 0.03 * horizon
-  let g = 0.014 + 0.034 * horizon
-  let b = 0.02 + 0.05 * horizon
+  // The neutral room is brighter overhead (a pale ceiling) and dark below, so facets tilted up read light and facets tilted down read dark.
+  let r = neutral ? 0.045 + 0.11 * horizon + 0.17 * smooth(-0.1, 0.85, el) : 0.012 + 0.03 * horizon
+  let g = neutral ? r : 0.014 + 0.034 * horizon
+  let b = neutral ? r : 0.02 + 0.05 * horizon
   if (el < 0) {
     const floor = smooth(0, -1.2, el) * 0.06
-    r += floor * 1.0; g += floor * 0.78; b += floor * 0.55
+    if (neutral) { r += floor; g += floor; b += floor } else { r += floor * 1.0; g += floor * 0.78; b += floor * 0.55 }
   }
   for (const box of boxes) {
     const dAz = angularDifference(az, box.az)

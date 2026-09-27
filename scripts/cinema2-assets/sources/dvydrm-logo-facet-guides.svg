@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The owner's crystal facet guide for the DVYDRM cloud logo (facet lines only), same 1195 x 751 frame as dvydrm-logo-master.svg.
+     stroke-width 4 = major cuts, 2 = minor highlight cuts. The guide draws the lower-left cluster (420 607 ... 551 654) on one side only;
+     it is mirrored here (x -> 1195 - x) because the logo is symmetric. Read by scripts/cinema2-assets/generate-dvydrm-logo.mjs. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1195" height="751" viewBox="0 0 1195 751">
+<g id="facet-lines" fill="none" stroke="#68707b" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M 476 116 L 595 77 L 714 116" stroke-width="4"/>
+  <path d="M 455 176 L 595 132 L 736 176" stroke-width="4"/>
+  <path d="M 500 254 L 595 210 L 690 254" stroke-width="4"/>
+  <path d="M 540 332 L 595 288 L 650 332" stroke-width="4"/>
+  <path d="M 514 376 L 595 346 L 676 376" stroke-width="4"/>
+  <path d="M 488 442 L 595 405 L 702 442" stroke-width="4"/>
+  <path d="M 467 514 L 595 472 L 723 514" stroke-width="4"/>
+  <path d="M 543 560 L 595 525 L 647 560" stroke-width="4"/>
+  <path d="M 566 706 L 595 650 L 624 706" stroke-width="4"/>
+  <path d="M 551 688 L 595 678 L 639 688" stroke-width="4"/>
+  <path d="M 580 722 L 595 694 L 610 722" stroke-width="4"/>
+  <path d="M 500 628 L 595 595 L 690 628" stroke-width="2"/>
+  <path d="M 138 520 L 235 453 L 320 468 L 405 532" stroke-width="4"/>
+  <path d="M 166 595 L 265 542 L 365 556 L 436 603" stroke-width="4"/>
+  <path d="M 138 520 L 167 595" stroke-width="4"/>
+  <path d="M 235 453 L 265 542" stroke-width="4"/>
+  <path d="M 320 468 L 365 556" stroke-width="4"/>
+  <path d="M 405 532 L 436 603" stroke-width="4"/>
+  <path d="M 224 378 L 285 430 L 235 453" stroke-width="4"/>
+  <path d="M 110 607 L 198 640 L 287 626" stroke-width="4"/>
+  <path d="M 336 314 L 403 292 L 476 323" stroke-width="4"/>
+  <path d="M 316 372 L 389 352 L 458 382" stroke-width="4"/>
+  <path d="M 318 434 L 392 420 L 451 451" stroke-width="4"/>
+  <path d="M 361 480 L 425 476 L 468 509" stroke-width="4"/>
+  <path d="M 403 292 L 389 352 L 392 420 L 425 476" stroke-width="4"/>
+  <path d="M 476 323 L 458 382 L 451 451 L 468 509" stroke-width="4"/>
+  <path d="M 420 607 L 473 579 L 523 607" stroke-width="4"/>
+  <path d="M 443 664 L 500 628 L 551 654" stroke-width="4"/>
+  <path d="M 473 579 L 500 628" stroke-width="4"/>
+  <path d="M 523 607 L 551 654" stroke-width="4"/>
+  <path d="M 457 176 L 501 254 L 540 332" stroke-width="2"/>
+  <path d="M 222 378 L 316 372 L 318 434" stroke-width="2"/>
+  <path d="M 1057 520 L 960 453 L 875 468 L 790 532" stroke-width="4"/>
+  <path d="M 1029 595 L 930 542 L 830 556 L 759 603" stroke-width="4"/>
+  <path d="M 1057 520 L 1028 595" stroke-width="4"/>
+  <path d="M 960 453 L 930 542" stroke-width="4"/>
+  <path d="M 875 468 L 830 556" stroke-width="4"/>
+  <path d="M 790 532 L 759 603" stroke-width="4"/>
+  <path d="M 971 378 L 910 430 L 960 453" stroke-width="4"/>
+  <path d="M 1085 607 L 997 640 L 908 626" stroke-width="4"/>
+  <path d="M 859 314 L 792 292 L 719 323" stroke-width="4"/>
+  <path d="M 879 372 L 806 352 L 737 382" stroke-width="4"/>
+  <path d="M 877 434 L 803 420 L 744 451" stroke-width="4"/>
+  <path d="M 834 480 L 770 476 L 727 509" stroke-width="4"/>
+  <path d="M 792 292 L 806 352 L 803 420 L 770 476" stroke-width="4"/>
+  <path d="M 719 323 L 737 382 L 744 451 L 727 509" stroke-width="4"/>
+  <path d="M 775 607 L 722 579 L 672 607" stroke-width="4"/>
+  <path d="M 752 664 L 695 628 L 644 654" stroke-width="4"/>
+  <path d="M 722 579 L 695 628" stroke-width="4"/>
+  <path d="M 672 607 L 644 654" stroke-width="4"/>
+  <path d="M 738 176 L 694 254 L 655 332" stroke-width="2"/>
+  <path d="M 973 378 L 879 372 L 877 434" stroke-width="2"/>
+</g>
+</svg>

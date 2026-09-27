@@ -4,6 +4,9 @@ import { CINEMA2_ASSET_RECORDS, type Cinema2AssetId } from '../../assets/Cinema2
 /** Shipped studio environment (equirectangular Radiance `.hdr`) used for image-based lighting; generated in house, see `assets/cinema2/cinema2-studio-environment`. */
 export const CINEMA2_STUDIO_ENVIRONMENT_ASSET_ID: Cinema2AssetId = 'cinema2-studio-environment'
 
+/** The same room with every hue taken out (plain white and grey lights): polished surfaces reflect neutral light. Used by the logo presets; see `assets/cinema2/cinema2-studio-environment-neutral`. */
+export const CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID: Cinema2AssetId = 'cinema2-studio-environment-neutral'
+
 export interface Cinema2ThreeEnvironmentRecord {
   id: string
   url: string

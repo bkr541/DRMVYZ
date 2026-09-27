@@ -6,6 +6,7 @@ import { CINEMA2_ASSET_RECORDS } from '../assets/Cinema2AssetManifest.generated'
 import { cinema2NativeModuleRegistry } from '../modules/Cinema2ModuleRegistry'
 import { CINEMA2_THREE_SCENE_MODULE_TYPE_ID, cinema2ThreeSceneModuleDefinition, cinema2ThreeSpinRadians } from '../modules/Cinema2ThreeSceneModule'
 import { CINEMA2_DVYDRM_LOGO_ASSET_ID, cinema2ThreeAssetRegistry } from '../modules/three/Cinema2ThreeAssetManifest'
+import { CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID, cinema2ThreeEnvironmentRegistry } from '../modules/three/Cinema2ThreeEnvironmentRegistry'
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
 import { CINEMA2_GO_TO_LOGO_NODE_ID, CINEMA2_GO_TO_MODULE_ID, CINEMA2_GO_TO_PRESET_ID, CINEMA2_GO_TO_PRESET_MANIFEST } from '../presets/Cinema2GoToPreset'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
@@ -42,6 +43,26 @@ describe('GO-TO preset', () => {
     expect(manifest.cameras?.[0]?.controls?.tempoSync).toEqual({ $ref: byLabel('BPM Sync')?.id })
   })
 
+  it('gives the gold outline and the crystal their own controls (no global metal override flattening them) and lights a neutral, hue-free studio', () => {
+    const module = manifest.modules?.[0] as Readonly<Cinema2ModuleManifest>
+    expect(module.config?.parts).toEqual(['outline', 'crystal'])
+    for (const property of ['outline.color', 'outline.roughness', 'crystal.color', 'crystal.roughness', 'crystal.clearcoat']) {
+      expect(module.parameters?.[property], property).not.toBeUndefined()
+      expect(module.parameterBindings?.[property], property).toBeDefined()
+    }
+    for (const property of ['metalness', 'roughness', 'clearcoat', 'color']) expect(module.parameters?.[property], property).toBeUndefined()
+    // The stage carries no hue: a near-black neutral background and fog, and white to faint-gold lights.
+    const neutral = (rgb: readonly number[], tolerance: number) => Math.max(...rgb.slice(0, 3)) - Math.min(...rgb.slice(0, 3)) <= tolerance
+    const background = manifest.environment?.backgroundColor ?? [1, 0, 0, 1]
+    const fog = manifest.environment?.fog?.color ?? [1, 0, 0, 1]
+    expect(neutral(background, 0.002)).toBe(true)
+    expect(Math.max(...background.slice(0, 3))).toBeLessThan(0.01)
+    expect(neutral(fog, 0.01)).toBe(true)
+    for (const light of manifest.lighting?.lights ?? []) expect(neutral(light.color ?? [1, 0, 0, 1], 0.25), `${String(light.id)} is white to faint gold, not a saturated color`).toBe(true)
+    expect(module.config?.environment).toBe(CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID)
+    expect(cinema2ThreeEnvironmentRegistry.has(CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID)).toBe(true)
+  })
+
   it('places the shared logo asset on its node, spinning, with the shipped studio environment', () => {
     const module = manifest.modules?.[0] as Readonly<Cinema2ModuleManifest>
     expect(module.id).toBe(CINEMA2_GO_TO_MODULE_ID)
@@ -52,7 +73,7 @@ describe('GO-TO preset', () => {
 })
 
 describe('shared DVYDRM logo asset', () => {
-  it('is a registered, licensed model with three parts built from the master SVG', () => {
+  it('is a registered, licensed model with two parts built from the master SVG: the gold outline and the faceted crystal', () => {
     expect(cinema2ThreeAssetRegistry.has(CINEMA2_DVYDRM_LOGO_ASSET_ID)).toBe(true)
     const record = CINEMA2_ASSET_RECORDS.find(entry => entry.id === CINEMA2_DVYDRM_LOGO_ASSET_ID)
     expect(record).toMatchObject({ kind: 'model', license: 'generated-in-house' })
@@ -60,8 +81,13 @@ describe('shared DVYDRM logo asset', () => {
     expect(glb.readUInt32LE(0)).toBe(0x46546c67) // "glTF"
     const jsonLength = glb.readUInt32LE(12)
     const json = JSON.parse(glb.subarray(20, 20 + jsonLength).toString('utf8')) as { nodes: { name: string }[]; materials: { name: string }[] }
-    expect(json.nodes.map(node => node.name)).toEqual(['outline', 'body', 'star'])
-    expect(json.materials.map(material => material.name)).toEqual(['outline', 'body', 'star'])
+    expect(json.nodes.map(node => node.name)).toEqual(['outline', 'crystal'])
+    expect(json.materials.map(material => material.name)).toEqual(['outline', 'crystal'])
+    const pbr = (json as unknown as { materials: { pbrMetallicRoughness: { baseColorFactor: number[]; metallicFactor: number } }[] }).materials.map(material => material.pbrMetallicRoughness)
+    // Gold is warm (red well above blue); the crystal is a near-white, neutral metal.
+    expect(pbr[0]!.baseColorFactor[0]! / pbr[0]!.baseColorFactor[2]!).toBeGreaterThan(3)
+    expect(Math.abs(pbr[1]!.baseColorFactor[0]! - pbr[1]!.baseColorFactor[2]!)).toBeLessThan(0.05)
+    expect(pbr[1]!.baseColorFactor[0]!).toBeGreaterThan(0.9)
   })
 })
 
