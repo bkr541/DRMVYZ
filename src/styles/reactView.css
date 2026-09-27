@@ -21404,3 +21404,186 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .llmt-mosaic-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .llmt-mosaic-tile { display: block; width: 100%; }
 .llmt-mosaic-tile .llmt-duration { bottom: 18px; }
+
+/* ── Layout Lab: two-column preset list styles (Template engine, REACT tab, below the thumbnails) ─────────
+   Three candidate layouts for the PRESETS list at ~175px per column. The preset name always wraps in full;
+   it is never cut off with an ellipsis. */
+.llp2-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(154, 178, 188, 0.16);
+}
+.llp2-section { display: flex; flex-direction: column; gap: 3px; }
+.llp2-section-title {
+  color: #e8f4f8;
+  font: 800 12px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.llp2-section-blurb { color: rgba(196, 207, 211, 0.5); font: 500 10px/1.4 var(--az-font-data, Inter, system-ui, sans-serif); }
+
+.llp2-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: stretch; }
+
+.llp2-stacked,
+.llp2-corner,
+.llp2-split {
+  --llp2-tone: #4ac7db;
+  appearance: none;
+  position: relative;
+  min-width: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+.llp2-stacked:hover,
+.llp2-corner:hover,
+.llp2-split:hover { border-color: color-mix(in srgb, var(--llp2-tone) 55%, transparent); }
+.llp2-stacked.is-active,
+.llp2-corner.is-active,
+.llp2-split.is-active {
+  border-color: var(--llp2-tone);
+  box-shadow: 0 0 0 1px var(--llp2-tone), 0 0 14px color-mix(in srgb, var(--llp2-tone) 32%, transparent);
+}
+.llp2-stacked:focus-visible,
+.llp2-corner:focus-visible,
+.llp2-split:focus-visible { outline: 2px solid rgba(103, 247, 255, 0.8); outline-offset: 2px; }
+
+/* The stand-in preview: a dark plate tinted by the preset's colour, with a simple motif. */
+.llp2-thumb {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--llp2-tone) 45%, transparent), transparent 62%),
+    #020508;
+}
+.llp2-thumb::before { content: ''; position: absolute; inset: 0; opacity: 0.5; }
+.llp2-thumb--rings::before { background: repeating-radial-gradient(circle at 50% 55%, var(--llp2-tone) 0 1.5px, transparent 1.5px 10px); }
+.llp2-thumb--grid::before {
+  background-image:
+    linear-gradient(var(--llp2-tone) 1px, transparent 1px),
+    linear-gradient(90deg, var(--llp2-tone) 1px, transparent 1px);
+  background-size: 14px 14px;
+  opacity: 0.32;
+}
+.llp2-thumb--dots::before { background: radial-gradient(var(--llp2-tone) 1.6px, transparent 2.2px) 0 0 / 11px 11px; }
+.llp2-thumb--bars::before {
+  background: repeating-linear-gradient(90deg, var(--llp2-tone) 0 3px, transparent 3px 9px);
+  -webkit-mask-image: linear-gradient(0deg, #000, transparent 90%);
+  mask-image: linear-gradient(0deg, #000, transparent 90%);
+}
+.llp2-thumb--wave::before { background: repeating-linear-gradient(118deg, var(--llp2-tone) 0 1.5px, transparent 1.5px 8px); }
+.llp2-thumb--plain::before { display: none; }
+.llp2-fill { position: absolute; inset: 0; }
+
+.llp2-heart {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: rgba(4, 8, 12, 0.62);
+  color: rgba(255, 255, 255, 0.78);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.llp2-heart.is-on { opacity: 1; color: #ff6b8a; }
+.llp2-stacked:hover .llp2-heart,
+.llp2-corner:hover .llp2-heart { opacity: 1; }
+.llp2-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* 01 · Stacked Card */
+.llp2-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 6px 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.llp2-stacked.is-active { background: color-mix(in srgb, var(--llp2-tone) 8%, transparent); }
+.llp2-stacked-picture { position: relative; display: block; aspect-ratio: 16 / 10; border-radius: 6px; overflow: hidden; }
+.llp2-stacked-name {
+  padding: 0 2px;
+  color: rgba(238, 244, 246, 0.95);
+  font: 700 11.5px/1.25 var(--az-font, Inter, system-ui, sans-serif);
+  overflow-wrap: anywhere;
+}
+.llp2-stacked .llp2-chips { padding: 0 2px; margin-top: auto; }
+
+/* 02 · Corner Caption: the whole card is the preview, the name rides on a fade in its bottom-left corner. */
+.llp2-corner {
+  display: flex;
+  align-items: flex-end;
+  min-height: 104px;
+  padding: 0;
+  overflow: hidden;
+  background: #020508;
+}
+.llp2-corner-chips { position: absolute; top: 6px; left: 6px; right: 30px; z-index: 2; display: flex; flex-wrap: wrap; gap: 4px; }
+/* Chips over a busy preview get a dark glass backing so they stay readable. */
+.llp2-corner-chips > * {
+  background-color: rgba(4, 8, 12, 0.72) !important;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.llp2-corner-scrim {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  padding: 26px 9px 8px;
+  background: linear-gradient(0deg, rgba(2, 5, 8, 0.94) 0%, rgba(2, 5, 8, 0.78) 55%, rgba(2, 5, 8, 0) 100%);
+}
+.llp2-corner-name {
+  display: block;
+  color: #fff;
+  font: 700 12px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  overflow-wrap: anywhere;
+}
+
+/* 03 · Split Tile */
+.llp2-split {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 22px 8px 13px;
+  overflow: hidden;
+  background: transparent;
+}
+.llp2-split:hover { background: rgba(255, 255, 255, 0.04); }
+.llp2-split.is-active { background: color-mix(in srgb, var(--llp2-tone) 8%, transparent); }
+.llp2-split-rail { position: absolute; top: 8px; bottom: 8px; left: 0; width: 3px; border-radius: 0 3px 3px 0; background: rgba(255, 255, 255, 0.14); }
+.llp2-split.is-active .llp2-split-rail { background: var(--llp2-tone); box-shadow: 0 0 8px var(--llp2-tone); }
+.llp2-split-thumb { flex: 0 0 46px; width: 46px; height: 46px; border-radius: 6px; }
+.llp2-split-body { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
+.llp2-split-name {
+  color: rgba(238, 244, 246, 0.95);
+  font: 700 11px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  overflow-wrap: anywhere;
+}
+.llp2-modified-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: #ffb347;
+  box-shadow: 0 0 6px rgba(255, 179, 71, 0.7);
+  vertical-align: middle;
+}
+.llp2-split-fav { position: absolute; top: 6px; right: 6px; color: #ff6b8a; }

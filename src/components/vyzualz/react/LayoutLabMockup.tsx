@@ -13,6 +13,7 @@ import { PaletteGroupStyleGallery } from './layoutLab/PaletteGroupStyleGallery'
 import { BadgeStyleGallery } from './layoutLab/BadgeStyleGallery'
 import { LayerRowStyleGallery } from './layoutLab/LayerRowStyleGallery'
 import { MediaThumbnailStyleGallery } from './layoutLab/MediaThumbnailStyleGallery'
+import { PresetTwoColumnStyleGallery } from './layoutLab/PresetTwoColumnStyleGallery'
 import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { HeaderControlGroupStyleGallery } from './layoutLab/HeaderControlGroupStyleGallery'
@@ -364,6 +365,7 @@ export function LayoutLabMockup() {
                 {templateRightTab === 'react' && (
                   <div className="rv-inspector rv-inspector-scroll">
                     <MediaThumbnailStyleGallery />
+                    <PresetTwoColumnStyleGallery />
                   </div>
                 )}
                 {/* Design and Output are intentionally blank in the Template engine. */}

@@ -84,6 +84,17 @@ describe('Template Layout Lab workspace', () => {
     await act(async () => target?.click())
     expect(gallery?.querySelectorAll('.is-active')).toHaveLength(3)
 
+    // Below the thumbnails: three two-column preset list treatments, six presets each, the full name in every card.
+    const presets = container.querySelector('.llp2-gallery')
+    expect(presets?.querySelectorAll('.lldd-gallery-row')).toHaveLength(3)
+    for (const selector of ['.llp2-stacked', '.llp2-corner', '.llp2-split']) expect(presets?.querySelectorAll(selector)).toHaveLength(6)
+    expect(presets?.querySelector('.llp2-grid')?.className).toBe('llp2-grid')
+    for (const selector of ['.llp2-stacked-name', '.llp2-corner-name', '.llp2-split-name']) {
+      expect([...(presets?.querySelectorAll(selector) ?? [])].map(node => node.textContent)).toContain('Audio Reactive Ripple Grid')
+    }
+    await act(async () => presets?.querySelectorAll<HTMLButtonElement>('.llp2-corner')[4]?.click())
+    expect(presets?.querySelectorAll('.is-active')).toHaveLength(3)
+
     // Design and Output stay blank.
     const designTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(button => button.textContent?.trim() === 'DESIGN')
     await act(async () => designTab?.click())
