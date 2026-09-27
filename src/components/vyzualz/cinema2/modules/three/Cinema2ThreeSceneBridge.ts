@@ -17,6 +17,13 @@ export interface Cinema2ThreePartOverrides {
   metalness: number | null
   clearcoat: number | null
   clearcoatRoughness: number | null
+  /** Thin-film iridescence (pearl, soap film, the production crystal's pastel sheen): 0-1. Any number upgrades the materials to physical ones. */
+  iridescence: number | null
+  /** Refractive index of the film: 1-2.333. */
+  iridescenceIOR: number | null
+  /** Film thickness in nanometres across the surface, thinnest to thickest: it decides which hues the facets pick up. */
+  iridescenceThicknessMin: number | null
+  iridescenceThicknessMax: number | null
 }
 
 /** Material overrides exposed as module parameters. `null` means "leave the asset's own value". */
@@ -97,6 +104,9 @@ interface OwnedMaterial {
   base: {
     clearcoat: number
     clearcoatRoughness: number
+    iridescence: number
+    iridescenceIOR: number
+    iridescenceThicknessRange: readonly [number, number]
     color: ThreeNamespace.Color
     emissive: ThreeNamespace.Color
     emissiveIntensity: number
@@ -185,6 +195,8 @@ export class Cinema2ThreeSceneBridge {
               slot: { mesh, index: Array.isArray(mesh.material) ? index : null },
               base: {
                 clearcoat: physical.clearcoat ?? 0, clearcoatRoughness: physical.clearcoatRoughness ?? 0,
+                iridescence: physical.iridescence ?? 0, iridescenceIOR: physical.iridescenceIOR ?? 1.3,
+                iridescenceThicknessRange: [physical.iridescenceThicknessRange?.[0] ?? 100, physical.iridescenceThicknessRange?.[1] ?? 400],
                 color: standard.color.clone(), emissive: standard.emissive.clone(), emissiveIntensity: standard.emissiveIntensity,
                 roughness: standard.roughness, metalness: standard.metalness, normalMap: standard.normalMap, aoMap: standard.aoMap,
               },
@@ -321,9 +333,9 @@ export class Cinema2ThreeSceneBridge {
   }
 
   /**
-   * Swaps standard materials for physical ones the first time a clearcoat is requested. A clearcoat of exactly 0 removes the
-   * lacquer from the shader, so anything the parameter can reach is held at a tiny positive value on the tiers that draw it:
-   * turning the control up never recompiles a shader mid-show.
+   * Swaps standard materials for physical ones the first time a clearcoat or iridescence is requested. A clearcoat (or iridescence) of
+   * exactly 0 removes that layer from the shader, so anything the parameter can reach is held at a tiny positive value on the tiers that
+   * draw it: turning the control up never recompiles a shader mid-show.
    */
   private upgradeToPhysical(): void {
     if (this.upgraded) return
@@ -335,6 +347,10 @@ export class Cinema2ThreeSceneBridge {
         THREE.MeshStandardMaterial.prototype.copy.call(physical, owned.material)
         physical.clearcoat = owned.base.clearcoat
         physical.clearcoatRoughness = owned.base.clearcoatRoughness
+        physical.iridescence = owned.base.iridescence
+        physical.iridescenceIOR = owned.base.iridescenceIOR
+        physical.iridescenceThicknessRange = [owned.base.iridescenceThicknessRange[0], owned.base.iridescenceThicknessRange[1]]
+        if (owned.slot.mesh.geometry.getAttribute(CINEMA2_FILM_THICKNESS_ATTRIBUTE)) useVertexFilmThickness(physical)
         const { mesh, index } = owned.slot
         if (index == null) mesh.material = physical
         else (mesh.material as ThreeNamespace.Material[])[index] = physical
@@ -355,7 +371,7 @@ export class Cinema2ThreeSceneBridge {
     if (this.appliedOverrides && sameOverrides(this.appliedOverrides, overrides)) return
     this.appliedOverrides = overrides
     const { THREE } = this.library
-    if (overrides.clearcoat != null || Object.values(overrides.parts).some(part => part.clearcoat != null)) this.upgradeToPhysical()
+    if (overrides.clearcoat != null || Object.values(overrides.parts).some(part => part.clearcoat != null || part.iridescence != null)) this.upgradeToPhysical()
     const detailed = this.quality !== 'low'
     const tint = overrides.color ? new THREE.Color().setRGB(overrides.color[0], overrides.color[1], overrides.color[2], THREE.SRGBColorSpace) : null
     const emissive = overrides.emissive ? new THREE.Color().setRGB(overrides.emissive[0], overrides.emissive[1], overrides.emissive[2], THREE.SRGBColorSpace) : null
@@ -379,6 +395,12 @@ export class Cinema2ThreeSceneBridge {
           const wanted = requested ?? base.clearcoat
           physical.clearcoat = detailed && (requested != null || base.clearcoat > 0) ? Math.max(0.001, wanted) : 0
           physical.clearcoatRoughness = own?.clearcoatRoughness ?? overrides.clearcoatRoughness ?? base.clearcoatRoughness
+          // Iridescence stays on every tier: the thin-film term is a few instructions per pixel, and dropping it would change the logo's color.
+          const iridescence = own?.iridescence
+          physical.iridescence = iridescence != null || base.iridescence > 0 ? Math.max(0.001, iridescence ?? base.iridescence) : 0
+          physical.iridescenceIOR = own?.iridescenceIOR ?? base.iridescenceIOR
+          const thinnest = own?.iridescenceThicknessMin ?? base.iridescenceThicknessRange[0]
+          physical.iridescenceThicknessRange = [thinnest, Math.max(thinnest, own?.iridescenceThicknessMax ?? base.iridescenceThicknessRange[1])]
         }
       }
     }
@@ -450,7 +472,33 @@ export function samePartOverrides(a: Readonly<Cinema2ThreeMaterialOverrides['par
     const x = a[name], y = b[name]
     return !!x && !!y && same(x.color, y.color) && same(x.emissive, y.emissive) && x.emissiveIntensity === y.emissiveIntensity
       && x.roughness === y.roughness && x.metalness === y.metalness && x.clearcoat === y.clearcoat && x.clearcoatRoughness === y.clearcoatRoughness
+      && x.iridescence === y.iridescence && x.iridescenceIOR === y.iridescenceIOR
+      && x.iridescenceThicknessMin === y.iridescenceThicknessMin && x.iridescenceThicknessMax === y.iridescenceThicknessMax
   })
+}
+
+/**
+ * A model's custom glTF attribute `_FILM_THICKNESS` (0-1 per vertex; the loader lower-cases it). Three only varies the iridescence film across a
+ * surface through a UV texture; for a mesh that carries this attribute the film instead runs from the thinnest to the thickest value per
+ * vertex, so neighbouring facets of the logo's crystal pick up different hues without needing UVs.
+ */
+export const CINEMA2_FILM_THICKNESS_ATTRIBUTE = '_film_thickness'
+
+function useVertexFilmThickness(material: ThreeNamespace.MeshPhysicalMaterial): void {
+  material.onBeforeCompile = shader => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>\nattribute float ${CINEMA2_FILM_THICKNESS_ATTRIBUTE};\nvarying float vCinema2FilmThickness;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\nvCinema2FilmThickness = ${CINEMA2_FILM_THICKNESS_ATTRIBUTE};`)
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vCinema2FilmThickness;')
+      .replace('#include <lights_physical_fragment>', [
+        '#include <lights_physical_fragment>',
+        '#if defined( USE_IRIDESCENCE ) && !defined( USE_IRIDESCENCE_THICKNESSMAP )',
+        '  material.iridescenceThickness = mix( iridescenceThicknessMinimum, iridescenceThicknessMaximum, clamp( vCinema2FilmThickness, 0.0, 1.0 ) );',
+        '#endif',
+      ].join('\n'))
+  }
+  material.customProgramCacheKey = () => 'cinema2-vertex-film-thickness'
 }
 
 const initializedAreaLightTables = new WeakSet<object>()

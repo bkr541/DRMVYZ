@@ -31,7 +31,7 @@ import { cinema2CinematicMotion } from './Cinema2CameraMotionAuthoring'
 import { cinema2LightRigAlternate, cinema2LightRigHit, cinema2LightRigRamp } from './Cinema2LightRigAuthoring'
 
 /**
- * GO-TO: the DVYDRM logo as a real 3D object, made to match the production logo: a faceted, polished near-white crystal cloud inside a thin
+ * GO-TO: the DVYDRM logo as a real 3D object, made to match the production logo: a faceted, pearlescent white crystal cloud (pastel ice-blue, lavender, pink and peach facets) inside a thin
  * polished gold outline. The shared logo asset (`cinema2-dvydrm-logo`, built from the owner's master SVG and facet guide) has two parts, `outline` (gold)
  * and `crystal`, each with its own material here. It turns slowly about its vertical axis on a turntable in a dark, neutral studio: soft white
  * and warm-gold spot lights rake through haze and ground fog, two LED panels and a studio environment give the facets and the gold their
@@ -52,6 +52,7 @@ export const CINEMA2_GO_TO_SPIN_PERIOD_ID = cinema2StableId<Cinema2ParameterId>(
 export const CINEMA2_GO_TO_GOLD_ROUGHNESS_ID = cinema2StableId<Cinema2ParameterId>('go-to-gold-roughness')
 export const CINEMA2_GO_TO_CRYSTAL_ROUGHNESS_ID = cinema2StableId<Cinema2ParameterId>('go-to-crystal-roughness')
 export const CINEMA2_GO_TO_CRYSTAL_CLEARCOAT_ID = cinema2StableId<Cinema2ParameterId>('go-to-crystal-clearcoat')
+export const CINEMA2_GO_TO_CRYSTAL_IRIDESCENCE_ID = cinema2StableId<Cinema2ParameterId>('go-to-crystal-iridescence')
 export const CINEMA2_GO_TO_REFLECTION_ID = cinema2StableId<Cinema2ParameterId>('go-to-environment-reflection')
 export const CINEMA2_GO_TO_MOTION_AMOUNT_ID = cinema2StableId<Cinema2ParameterId>('go-to-motion-amount')
 export const CINEMA2_GO_TO_HAZE_ID = cinema2StableId<Cinema2ParameterId>('go-to-haze-density')
@@ -104,6 +105,19 @@ const DEFAULT_BACKGROUND = color(0.003, 0.003, 0.004)
 const GOLD_ROUGHNESS = 0.15
 const CRYSTAL_ROUGHNESS = 0.05
 const CRYSTAL_CLEARCOAT = 0
+// The production crystal is pearlescent: near-white facets that each pick up a different pastel (ice blue, lavender, pink, peach). A thin film on
+// the crystal gives each facet a hue from its angle to the camera and its own film thickness (the asset carries one per facet), like
+// mother-of-pearl. The film only shows when the metal under it is not a perfect mirror: the pearl default (a light grey in sRGB, multiplied into
+// the asset's near-white) sets how pastel the facets read; white washes them out to chrome, darker muddies them. 200-380 nm keeps the hues in
+// the first-order peach, pink, lavender and ice-blue band (thicker films add greens). A little diffuse (metalness under 1) keeps it from
+// reading as a dark mirror of the stage.
+const DEFAULT_PEARL = color(0.7, 0.7, 0.7)
+const CRYSTAL_IRIDESCENCE = 1
+const CRYSTAL_METALNESS = 0.96
+const CRYSTAL_IRIDESCENCE_IOR = 1.3
+const CRYSTAL_FILM_THINNEST = 200
+const CRYSTAL_FILM_THICKEST = 380
+const ENVIRONMENT_REFLECTION = 1.6
 
 const baseParameter = {
   section: 'Design',
@@ -155,8 +169,9 @@ const PARAMETERS = Object.freeze([
   floatParameter(CINEMA2_GO_TO_GOLD_ROUGHNESS_ID, 'Gold Roughness', 'How sharp the reflections in the gold outline are: 0 is a mirror, higher is a softer, satin gold. The production finish is softly polished.', GOLD_ROUGHNESS, 0, 1, 0.01, 'design', 2, 'Material'),
   floatParameter(CINEMA2_GO_TO_CRYSTAL_ROUGHNESS_ID, 'Crystal Roughness', 'How sharp the reflections on the crystal facets are: 0 is a mirror, higher frosts the crystal and softens the contrast between facets.', CRYSTAL_ROUGHNESS, 0, 1, 0.01, 'design', 3, 'Material'),
   floatParameter(CINEMA2_GO_TO_CRYSTAL_CLEARCOAT_ID, 'Crystal Clearcoat', 'A glassy lacquer layer over the crystal facets (medium and high quality).', CRYSTAL_CLEARCOAT, 0, 1, 0.01, 'design', 4, 'Material'),
-  floatParameter(CINEMA2_GO_TO_REFLECTION_ID, 'Environment Reflection', 'How strongly the studio environment (softboxes and light strips) reflects in the crystal and the gold.', 1, 0, 2, 0.01, 'design', 5, 'Material'),
-  floatParameter(CINEMA2_GO_TO_MOTION_AMOUNT_ID, 'Camera Motion', 'How much the camera drifts and sways around the logo (0 = locked off).', 0.4, 0, 1, 0.01, 'design', 6, 'Camera'),
+  floatParameter(CINEMA2_GO_TO_CRYSTAL_IRIDESCENCE_ID, 'Crystal Iridescence', 'The pearly pastel sheen on the crystal facets (ice blue, lavender, pink, peach), shifting as the logo turns. 0 leaves plain white crystal.', CRYSTAL_IRIDESCENCE, 0, 1, 0.01, 'design', 5, 'Material'),
+  floatParameter(CINEMA2_GO_TO_REFLECTION_ID, 'Environment Reflection', 'How strongly the studio environment (softboxes and light strips) reflects in the crystal and the gold.', ENVIRONMENT_REFLECTION, 0, 2, 0.01, 'design', 6, 'Material'),
+  floatParameter(CINEMA2_GO_TO_MOTION_AMOUNT_ID, 'Camera Motion', 'How much the camera drifts and sways around the logo (0 = locked off).', 0.4, 0, 1, 0.01, 'design', 7, 'Camera'),
   floatParameter(CINEMA2_GO_TO_HAZE_ID, 'Haze Density', 'How thick the haze is. Thicker haze makes the light beams brighter and softer.', 0.008, 0, 0.4, 0.005, 'effects', 1, 'Atmosphere'),
   floatParameter(CINEMA2_GO_TO_BEAM_ID, 'Beam Intensity', 'Brightness of the light scattering through the haze.', 1, 0, 6, 0.05, 'effects', 2, 'Atmosphere'),
   floatParameter(CINEMA2_GO_TO_MIST_ID, 'Ground Mist', 'Extra mist that pools near the floor.', 0.5, 0, 3, 0.05, 'effects', 3, 'Atmosphere'),
@@ -165,7 +180,7 @@ const PARAMETERS = Object.freeze([
   floatParameter(CINEMA2_GO_TO_FINISH_ID, 'Cinematic Finish', 'Amount of filmic tone curve, grade, vignette, fringing and grain.', 1, 0, 1, 0.05, 'effects', 6, 'Post'),
   colorParameter(CINEMA2_GO_TO_BACKGROUND_ID, 'Background', 'The stage color behind the logo. Near black by default: the haze and fog carry the atmosphere.', DEFAULT_BACKGROUND, 1, 'Stage Colors'),
   colorParameter(CINEMA2_GO_TO_GOLD_TINT_ID, 'Gold Tint', 'Tints the gold outline. Defaults to the production gold; white makes the outline match the crystal body.', DEFAULT_GOLD, 2, 'Logo Colors'),
-  colorParameter(CINEMA2_GO_TO_CRYSTAL_TINT_ID, 'Crystal Tint', 'Tints the crystal body. White leaves the production near-white crystal; any other color dyes it.', color(1, 1, 1), 3, 'Logo Colors'),
+  colorParameter(CINEMA2_GO_TO_CRYSTAL_TINT_ID, 'Crystal Tint', 'Tints the crystal body. Defaults to the production pearl; lighter washes the pastel sheen out toward plain chrome, darker deepens it, and any hue dyes the crystal.', DEFAULT_PEARL, 3, 'Logo Colors'),
   colorParameter(CINEMA2_GO_TO_KEY_COLOR_ID, 'Key Light', 'The color of the main spot light in front of the logo.', DEFAULT_KEY, 4, 'Light Colors'),
   colorParameter(CINEMA2_GO_TO_RIM_COLOR_ID, 'Rim Light', 'The color of the spot light behind and to the right, which edges the logo.', DEFAULT_RIM, 5, 'Light Colors'),
   colorParameter(CINEMA2_GO_TO_ACCENT_COLOR_ID, 'Accent Light', 'The color of the spot light behind and to the left.', DEFAULT_ACCENT, 6, 'Light Colors'),
@@ -229,7 +244,7 @@ export const CINEMA2_GO_TO_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_GO_TO_PRESET_ID,
-  revision: 2,
+  revision: 3,
   metadata: Object.freeze({
     name: 'GO-TO',
     description: 'The DVYDRM logo as a faceted crystal cloud in a thin polished gold outline, slowly turning on a turntable in a dark, hazy studio. Soft white and gold spot lights rake through the haze and across the facets, and a wet floor mirrors it.',
@@ -256,10 +271,15 @@ export const CINEMA2_GO_TO_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
     parameters: Object.freeze({
       'outline.color': DEFAULT_GOLD,
       'outline.roughness': GOLD_ROUGHNESS,
-      'crystal.color': color(1, 1, 1),
+      'crystal.color': DEFAULT_PEARL,
       'crystal.roughness': CRYSTAL_ROUGHNESS,
       'crystal.clearcoat': CRYSTAL_CLEARCOAT,
-      environmentIntensity: 1,
+      'crystal.metalness': CRYSTAL_METALNESS,
+      'crystal.iridescence': CRYSTAL_IRIDESCENCE,
+      'crystal.iridescenceIOR': CRYSTAL_IRIDESCENCE_IOR,
+      'crystal.iridescenceThicknessMin': CRYSTAL_FILM_THINNEST,
+      'crystal.iridescenceThicknessMax': CRYSTAL_FILM_THICKEST,
+      environmentIntensity: ENVIRONMENT_REFLECTION,
       spinTurnSeconds: 24,
       spinSync: true,
     }),
@@ -269,6 +289,7 @@ export const CINEMA2_GO_TO_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
       'crystal.color': cinema2Ref(CINEMA2_GO_TO_CRYSTAL_TINT_ID),
       'crystal.roughness': cinema2Ref(CINEMA2_GO_TO_CRYSTAL_ROUGHNESS_ID),
       'crystal.clearcoat': cinema2Ref(CINEMA2_GO_TO_CRYSTAL_CLEARCOAT_ID),
+      'crystal.iridescence': cinema2Ref(CINEMA2_GO_TO_CRYSTAL_IRIDESCENCE_ID),
       environmentIntensity: cinema2Ref(CINEMA2_GO_TO_REFLECTION_ID),
       spinTurnSeconds: cinema2Ref(CINEMA2_GO_TO_SPIN_PERIOD_ID),
       spinSync: cinema2Ref(CINEMA2_GO_TO_BPM_SYNC_ID),

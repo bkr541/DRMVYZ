@@ -12,6 +12,10 @@
 // The paths use the even-odd rule, so nesting decides which contours are holes. Gradients in the SVG are ignored: the colors are the PBR
 // materials written below, and presets can tint or re-rough each part (three-scene per-part overrides `<part>.color`, `<part>.roughness`).
 //
+// The crystal also carries a custom per-vertex attribute `_FILM_THICKNESS` (0-1, one value per top facet): where a preset gives the crystal a
+// thin-film iridescence, three-scene reads it to vary the film between `<part>.iridescenceThicknessMin` and `...Max`, so neighbouring facets
+// pick up different pastels (ice blue, lavender, pink, peach) the way the production logo's facets do. Without iridescence it is ignored.
+//
 // Coordinates: the logo is centred on the origin, 2 units wide, facing +Z, Y up.
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -48,6 +52,11 @@ const CRYSTAL = {
   /** A turn sharper than this at a sampled point is a real corner (kept exactly, and the wall stays creased there). */
   cornerAngle: (50 * Math.PI) / 180,
 }
+/**
+ * Film thickness per top facet (0-1): a broad drifting field so the pastels come in soft patches across the logo, plus a per-facet offset
+ * so neighbouring facets still differ. The walls and the back take the middle value.
+ */
+const FILM = { patchScale: 2.6, patchAmount: 0.34, facetAmount: 0.32, side: 0.5 }
 /** Small shapes (the star) need finer facets to read as a gem. */
 const SMALL_SHAPE_AREA = 0.02
 
@@ -345,7 +354,7 @@ function buildCrystalShape(shape, guides, out) {
   })
 
   // 6. Emit: flat-shaded top facets, the same triangles mirrored for the flat back, and the side walls.
-  const push = (position, normal) => { out.positions.push(...position); out.normals.push(...normal); out.indices.push(out.indices.length) }
+  const push = (position, normal, film = FILM.side) => { out.positions.push(...position); out.normals.push(...normal); out.films.push(film); out.indices.push(out.indices.length) }
   for (const [a, b, c] of kept) {
     const p = [a, b, c].map(index => [points[index][0], points[index][1], heights[index]])
     let [p0, p1, p2] = p
@@ -354,7 +363,8 @@ function buildCrystalShape(shape, guides, out) {
     let nz = (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p1[1] - p0[1]) * (p2[0] - p0[0])
     if (nz < 0) { [p1, p2] = [p2, p1]; nx = -nx; ny = -ny; nz = -nz }
     const length = Math.hypot(nx, ny, nz) || 1
-    for (const vertex of [p0, p1, p2]) push(vertex, [nx / length, ny / length, nz / length])
+    const film = facetFilm((p0[0] + p1[0] + p2[0]) / 3, (p0[1] + p1[1] + p2[1]) / 3)
+    for (const vertex of [p0, p1, p2]) push(vertex, [nx / length, ny / length, nz / length], film)
     for (const vertex of [p0, p2, p1]) push([vertex[0], vertex[1], CRYSTAL.backZ], [0, 0, -1])
   }
   let start = 0
@@ -397,6 +407,13 @@ function buildCrystalShape(shape, guides, out) {
   out.stats.push({ points: points.length, facets: kept.length, areaRatio: triangleArea / expected, rimMissing, small })
 }
 
+function facetFilm(x, y) {
+  const u = x * FILM.patchScale, v = y * FILM.patchScale
+  const patch = (Math.sin(u * 1.7 + v * 0.6 + 0.4) + Math.sin(u * -0.8 + v * 2.1 + 2.3) + Math.sin(u * 2.9 - v * 1.3 + 4.1) * 0.5) / 2.5
+  const facet = hash2(x + 11.3, y - 5.9) - 0.5
+  return Math.min(1, Math.max(0, 0.5 + patch * FILM.patchAmount + facet * 2 * FILM.facetAmount))
+}
+
 function buildCrystal() {
   const guideSvg = readFileSync(guidesPath, 'utf8')
   const guides = [...guideSvg.matchAll(/<path d="([^"]+)" stroke-width="(\d+)"\/>/g)].map(match => ({
@@ -404,13 +421,13 @@ function buildCrystal() {
     points: [...match[1].matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map(point => toWorldPoint([Number(point[1]), Number(point[2])])),
   }))
   if (guides.length === 0) throw new Error('The facet guide SVG has no lines.')
-  const out = { positions: [], normals: [], indices: [], stats: [] }
+  const out = { positions: [], normals: [], films: [], indices: [], stats: [] }
   for (const shape of [...nestedShapes(bodyContours, toWorld), ...nestedShapes(starContours, toWorld)]) buildCrystalShape(shape, guides, out)
   for (const stat of out.stats) {
     if (Math.abs(stat.areaRatio - 1) > 0.01) throw new Error(`The facets cover ${(stat.areaRatio * 100).toFixed(2)}% of a crystal shape (expected 100%): the triangulation left gaps.`)
     if (stat.rimMissing > 0) throw new Error(`${stat.rimMissing} rim edge(s) of a crystal shape are not edges of the triangulation.`)
   }
-  return { positions: new Float32Array(out.positions), normals: new Float32Array(out.normals), indices: Uint32Array.from(out.indices), stats: out.stats }
+  return { positions: new Float32Array(out.positions), normals: new Float32Array(out.normals), films: new Float32Array(out.films), indices: Uint32Array.from(out.indices), stats: out.stats }
 }
 
 const meshes = [
@@ -448,11 +465,16 @@ for (const mesh of meshes) {
   const positionAccessor = accessors.length - 1
   accessors.push({ bufferView: pushView(mesh.normals, 34962), componentType: 5126, count: mesh.normals.length / 3, type: 'VEC3' })
   const normalAccessor = accessors.length - 1
+  const extra = {}
+  if (mesh.films) {
+    accessors.push({ bufferView: pushView(mesh.films, 34962), componentType: 5126, count: mesh.films.length, type: 'SCALAR' })
+    extra._FILM_THICKNESS = accessors.length - 1
+  }
   accessors.push({ bufferView: pushView(mesh.indices, 34963), componentType: 5125, count: mesh.indices.length, type: 'SCALAR' })
   const indexAccessor = accessors.length - 1
   const { name, ...pbr } = mesh.material
   materials.push({ name, pbrMetallicRoughness: pbr })
-  gltfMeshes.push({ name: mesh.name, primitives: [{ attributes: { POSITION: positionAccessor, NORMAL: normalAccessor }, indices: indexAccessor, material: materials.length - 1, mode: 4 }] })
+  gltfMeshes.push({ name: mesh.name, primitives: [{ attributes: { POSITION: positionAccessor, NORMAL: normalAccessor, ...extra }, indices: indexAccessor, material: materials.length - 1, mode: 4 }] })
   nodes.push({ name: mesh.name, mesh: gltfMeshes.length - 1 })
   triangles += mesh.indices.length / 3
 }

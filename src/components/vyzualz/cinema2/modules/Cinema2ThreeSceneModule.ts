@@ -48,7 +48,9 @@ export type Cinema2ThreeSceneModuleState = 'idle' | 'loading' | 'building' | 're
  *
  * Per-part looks: `config.parts` lists the model's part (mesh) names, and each part then reads its own `<part>.color`, `<part>.emissive`,
  * `<part>.emissiveIntensity`, `<part>.roughness`, `<part>.metalness`, `<part>.clearcoat` and `<part>.clearcoatRoughness` parameters. For that part they
- * replace the global value of the same property, so one model can be a gold rim around a crystal body.
+ * replace the global value of the same property, so one model can be a gold rim around a crystal body. Parts also read a thin-film set with no
+ * global counterpart: `<part>.iridescence` (0-1; upgrades the materials to physical ones), `<part>.iridescenceIOR` and
+ * `<part>.iridescenceThicknessMin` / `<part>.iridescenceThicknessMax` (nanometres), for a pearly, pastel-shifting finish.
  *
  * Turntable spin: an instance with `spin: true` turns about its own vertical axis. The module parameter `spinTurnSeconds` is the time one full turn
  * takes at the 120 BPM reference (0 or missing = no spin) and `spinSync` (default true) locks it to the track's beat grid, so the turn follows the
@@ -302,6 +304,10 @@ function readPartOverrides(parameters: Cinema2ModuleParameterReadFacet, names: r
       metalness: readNumber(parameters.get(`${name}.metalness`), 0, 1),
       clearcoat: readNumber(parameters.get(`${name}.clearcoat`), 0, 1),
       clearcoatRoughness: readNumber(parameters.get(`${name}.clearcoatRoughness`), 0, 1),
+      iridescence: readNumber(parameters.get(`${name}.iridescence`), 0, 1),
+      iridescenceIOR: readNumber(parameters.get(`${name}.iridescenceIOR`), 1, 2.333),
+      iridescenceThicknessMin: readNumber(parameters.get(`${name}.iridescenceThicknessMin`), 0, 2000),
+      iridescenceThicknessMax: readNumber(parameters.get(`${name}.iridescenceThicknessMax`), 0, 2000),
     })
   }
   return Object.freeze(parts)

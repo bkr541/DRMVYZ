@@ -169,7 +169,7 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     part('outline', new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 1, color: new THREE.Color(0.9, 0.6, 0.2) }))
     part('crystal', new THREE.MeshStandardMaterial({ roughness: 0.05, metalness: 1, color: new THREE.Color(1, 1, 1) }))
     const bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [{ asset: { id: 'two-part', scene, triangleCount: 24, gpuBytes: 100 } as never, node: null }], {})
-    const none = { color: null, emissive: null, emissiveIntensity: null, roughness: null, metalness: null, clearcoat: null, clearcoatRoughness: null }
+    const none = { color: null, emissive: null, emissiveIntensity: null, roughness: null, metalness: null, clearcoat: null, clearcoatRoughness: null, iridescence: null, iridescenceIOR: null, iridescenceThicknessMin: null, iridescenceThicknessMax: null }
     const materialOf = (name: string) => ((bridge as unknown as { scene: THREE.Scene }).scene.getObjectByName(name) as THREE.Mesh).material as THREE.MeshPhysicalMaterial
 
     // Only the crystal is overridden: rougher, tinted, with a clearcoat. The global roughness (0.6) applies to the outline; the crystal's own wins.
@@ -187,6 +187,29 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     expect(materialOf('outline').roughness).toBe(0.02)
     expect(materialOf('crystal').roughness).toBe(0.05)
     expect(materialOf('crystal').color.r).toBeCloseTo(1, 5)
+  })
+
+  it('gives a part a thin-film iridescence on every tier, held above zero once requested so the control never recompiles a shader', async () => {
+    const scene = new THREE.Group()
+    for (const name of ['outline', 'crystal']) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: 0.1, metalness: 1 }))
+      mesh.name = name
+      scene.add(mesh)
+    }
+    const bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [{ asset: { id: 'two-part', scene, triangleCount: 24, gpuBytes: 100 } as never, node: null }], {})
+    const none = { color: null, emissive: null, emissiveIntensity: null, roughness: null, metalness: null, clearcoat: null, clearcoatRoughness: null, iridescence: null, iridescenceIOR: null, iridescenceThicknessMin: null, iridescenceThicknessMax: null }
+    const materialOf = (name: string) => ((bridge as unknown as { scene: THREE.Scene }).scene.getObjectByName(name) as THREE.Mesh).material as THREE.MeshPhysicalMaterial
+
+    bridge.draw(execution('low'), overrides({ parts: { crystal: { ...none, iridescence: 0.8, iridescenceIOR: 1.4, iridescenceThicknessMin: 300, iridescenceThicknessMax: 200 } } }))
+    expect(materialOf('crystal').isMeshPhysicalMaterial).toBe(true)
+    expect(materialOf('crystal').iridescence).toBeCloseTo(0.8)
+    expect(materialOf('crystal').iridescenceIOR).toBeCloseTo(1.4)
+    expect(materialOf('crystal').iridescenceThicknessRange).toEqual([300, 300]) // the thickest is never thinner than the thinnest
+    expect(materialOf('outline').iridescence).toBe(0) // only the named part
+
+    bridge.draw(execution('low'), overrides({ parts: { crystal: { ...none, iridescence: 0 } } }))
+    expect(materialOf('crystal').iridescence).toBeGreaterThan(0)
+    expect(materialOf('crystal').iridescence).toBeLessThan(0.01)
   })
 
   it('creates no panel lights (and never touches the area-light tables) without config.panels', async () => {
