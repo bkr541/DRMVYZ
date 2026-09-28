@@ -28,11 +28,11 @@ import { cinema2LightRigAlternate } from './Cinema2LightRigAuthoring'
 
 /**
  * RELIQUARY: the DVYDRM logo (rendered as one uniform silver crystal, no gold ring - the shared logo asset's `outline` part is tinted and
- * roughened to match its `crystal` part) held by a golden root/branch structure rising from open ground: a trunk splits into two cradle
- * arms that dip behind the logo and wrap its lower lobes from the front, canopy branches fork off those arms and climb far above and to
- * the side of the logo (framing it the way a real tree's crown would), tendrils with small leaves climb toward the swirls and the canopy
- * tips, and floor roots fan out at the base. Revision 2's `golden-roots` asset also carries a gnarled bark surface and glowing "vein"
- * strands running through the branches; there is no dais (revision 1's stone platform is gone - the reference shows open ground).
+ * roughened to match its `crystal` part) held by a golden tree rising from open ground: a thick trunk of four twisting strands rises from a
+ * wide flare of roots, splits just under the star into two limbs that pass in front of the logo's lower rim, wrap round the outside of its
+ * lower outer lobes and curl over their tops, with thin vines looping round the lobes and gold teardrop leaves on curling stems. Nothing
+ * reaches past the logo's sides (revision 3 of the `golden-roots` asset; revision 2's canopy branches that climbed out to the sides like
+ * wings are gone). The asset also carries a gnarled bark surface and glowing "vein" strands; there is no dais (open ground).
  *
  * This revision is geometry and a minimal light rig only, by design: no haze, bloom, floor reflection or cinematic finish, and no
  * camera motion. The three lights (each aimed at a different part of the composition) alternate on the beat when BPM Sync is on, which is
@@ -176,7 +176,7 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
   revision: 1,
   metadata: Object.freeze({
     name: 'RELIQUARY',
-    description: 'The DVYDRM logo, one uniform silver crystal, held by a golden root and branch structure that rises from open ground, wraps its lower lobes, and frames it with a canopy of branches. Three overhead spots light the logo and the roots.',
+    description: 'The DVYDRM logo, one uniform silver crystal, held by a golden root and branch structure that rises from open ground, wraps its lower lobes, and curls round its lower lobes, with gold leaves on curling stems. Three overhead spots light the logo and the roots.',
     tags: Object.freeze(['reliquary', 'logo', 'native', '3d', 'crystal', 'gold', 'three', 'keeper']),
   }),
   capabilities: Object.freeze([
@@ -262,8 +262,8 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     fovDegrees: 34,
     near: 0.1,
     far: 60,
-    // Revision 2's canopy branches reach roughly 3.5 units above the floor and 3.3 either side (see the generator script's console
-    // output), far beyond the logo alone, so the camera sits much further back and higher than a logo-only framing would need.
+    // Framed for revision 2's canopy branches (3.5 units above the floor, 3.3 either side). The revision 3 tree is only about as wide as the
+    // logo, so this now leaves it small in frame; the owner kept framing out of the root-shape pass (2026-09-27).
     transform: Object.freeze({ position: vec3(0, 0.9, 10.6) }),
     target: vec3(0, -0.1, 0),
     rig: Object.freeze({ kind: 'static' as const }),

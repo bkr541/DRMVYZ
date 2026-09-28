@@ -1,21 +1,17 @@
 // Generates the shared "golden roots" asset for Cinema 2.0's RELIQUARY preset.
 //   node scripts/cinema2-assets/generate-golden-roots.mjs [out.glb]      (default: public/cinema2/models/golden-roots.glb)
 //
-// Revision 2, built against the owner's "final production" mood reference (a dense, tree-scale golden root/branch structure with a
-// gnarled bark surface, glowing veins running through it, and canopy branches framing the whole scene, not just a small cradle under the
-// logo). A hand-authored curve network (the identity-defining shape), not a generative L-system: one trunk that splits into two mirrored
-// cradle arms which dip behind the logo, emerge in front, and curl up to hold its lower lobes from below; from each cradle arm, two
-// canopy branches fork off and climb far above and to the side of the logo, framing it the way the reference's flanking trees do; tendrils
-// fork off both the cradle arms and the canopy branches and end in small leaves; floor roots fan out from the trunk's base. No dais this
-// revision (the reference shows open ground, not a platform) - the previous revision's stone disc and ring are gone.
+// Revision 3, built against the owner's reference render of the logo held by a tree: a thick trunk of several strands twisting around each
+// other rises from a wide flare of roots spreading over the ground in every direction; just under the logo's star the trunk splits into two
+// limbs that pass in front of the logo's lower rim, wrap round the outside of its two lower outer lobes and curl over their tops; thin vines
+// loop round the lobes too, and gold teardrop leaves hang off short curling stems along the limbs, the vines and the base. Nothing reaches
+// past the logo's sides or above its lower lobes (revision 2's canopy branches, which climbed far out to the sides like wings, are gone).
+// A hand-authored curve network (the identity-defining shape), not a generative L-system.
 //
-// Every curve is swept into a tapered tube (a rotation-minimizing frame down a Catmull-Rom spline, radius shrinking along its length,
-// same technique as revision 1) with a bark perturbation added to the branch/root tubes (not the leaves or veins): each ring vertex's
-// radius is nudged by a sum of a few sine waves in the tube's local (length, angle) space, seeded per curve, so the surface reads as
-// gnarled bark instead of a smooth pipe. A second, thinner tube per major branch - offset out to just under its surface and slowly
-// spiralling along it - stands in for the reference's glowing crack pattern: a bright, strongly emissive "vein" material, cheaper than a
-// real crack-mask texture (which would need UV coordinates and embedded images the hand-written GLB writer below does not support) and
-// built entirely from the tube-sweep machinery already here.
+// Every curve is swept into a tapered tube (a rotation-minimizing frame down a Catmull-Rom spline, radius shrinking along its length) with
+// a bark perturbation on the wood (not the leaf stems or veins): each ring vertex's radius is nudged by a sum of a few sine waves in the
+// tube's local (length, angle) space, seeded per curve. A thin, strongly emissive "vein" strand rides just proud of the trunk strands and the
+// limbs, a cheap stand-in for a glowing crack texture (the hand-written GLB writer below has no UVs or embedded images).
 import { writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -122,71 +118,62 @@ function veinControlPoints(controlPoints, radiusAt, baseAngle, driftTurns, offse
   })
 }
 
-/** A small flat almond/teardrop leaf, extruded thin, placed and oriented at `at` with its length along `along`. */
+/**
+ * A plump teardrop leaf (rounded at the stem end, pointed at the tip), extruded thin and softly bevelled, with its stem end at `at`, its
+ * length along `along`, and its face turned as far toward the camera (+Z) as that allows, so it reads as a leaf, not an edge-on sliver.
+ */
 function buildLeaf(at, along, size, twist) {
   const shape = new THREE.Shape()
   shape.moveTo(0, 0)
-  shape.quadraticCurveTo(size * 0.35, size * 0.28, size, 0)
-  shape.quadraticCurveTo(size * 0.35, -size * 0.28, 0, 0)
-  let geometry = new THREE.ExtrudeGeometry(shape, { depth: size * 0.06, bevelEnabled: true, bevelThickness: size * 0.03, bevelSize: size * 0.03, bevelSegments: 1, curveSegments: 6 })
-  geometry.translate(0, 0, -size * 0.03)
-  geometry.rotateZ(twist)
-  const up = Math.abs(along.y) < 0.95 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(0, 0, 1)
-  const basis = new THREE.Matrix4().lookAt(new THREE.Vector3(), along.clone().negate(), up)
-  geometry.applyMatrix4(basis)
+  shape.bezierCurveTo(size * 0.05, size * 0.32, size * 0.55, size * 0.36, size, 0)
+  shape.bezierCurveTo(size * 0.55, -size * 0.36, size * 0.05, -size * 0.32, 0, 0)
+  let geometry = new THREE.ExtrudeGeometry(shape, { depth: size * 0.04, bevelEnabled: true, bevelThickness: size * 0.04, bevelSize: size * 0.03, bevelSegments: 2, curveSegments: 10 })
+  geometry.translate(0, 0, -size * 0.02)
+  geometry.rotateX(twist) // a little roll about the leaf's own length, so the leaves do not all face the camera identically
+  const x = along.clone().normalize()
+  const toCamera = new THREE.Vector3(0, 0, 1)
+  let z = toCamera.clone().addScaledVector(x, -toCamera.dot(x))
+  if (z.lengthSq() < 1e-6) z = new THREE.Vector3(0, 1, 0).addScaledVector(x, -x.y)
+  z.normalize()
+  const y = new THREE.Vector3().crossVectors(z, x)
+  geometry.applyMatrix4(new THREE.Matrix4().makeBasis(x, y, z))
   geometry.translate(at.x, at.y, at.z)
   geometry = mergeVertices(geometry, 1e-6)
   geometry.computeVertexNormals()
   return { positions: new Float32Array(geometry.getAttribute('position').array), normals: new Float32Array(geometry.getAttribute('normal').array), indices: Uint32Array.from(geometry.getIndex().array) }
 }
 
-// ── The curve network (right side; mirrored for the left) ────────────────────────────────────────────────────────────────────────────
-const trunk = [[0, FLOOR_Y, 0], [0.06, FLOOR_Y + 0.25, 0.02], [-0.04, FLOOR_Y + 0.52, -0.025], [0.05, FLOOR_Y + 0.78, 0.015]]
-const trunkTop = trunk[trunk.length - 1]
-const trunkStrand = [[0.055, FLOOR_Y, 0.035], [-0.065, FLOOR_Y + 0.22, -0.045], [0.075, FLOOR_Y + 0.46, 0.035], [-0.035, FLOOR_Y + 0.68, -0.02], trunkTop]
+// ── The curve network ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// Logo landmarks in world units (the logo is placed 0.05 above the origin): its bottom edge runs at y ~-0.57 from x 0.1 to 0.8, the lower
+// outer lobes reach x ~1.0 between y -0.35 and -0.01 and top out at y ~0.16 around x 0.9, and the logo is ~0.07 deep about z = 0.
+const TRUNK_TOP_Y = -0.8
 
-// Cradle arm: dips behind the logo, emerges in front, curls to a contact tip under the lower lobes (unchanged in spirit from revision 1).
-const cradleArm = [trunkTop, [0.36, FLOOR_Y + 0.95, -0.15], [0.65, FLOOR_Y + 1.18, -0.22], [0.82, FLOOR_Y + 1.4, 0.17], [0.62, FLOOR_Y + 1.58, 0.21], [0.4, FLOOR_Y + 1.67, 0.11]]
+/** Four strands twisting round the trunk's axis from the floor to just under the star; each leans out toward its limb at the top. */
+function trunkStrand(index) {
+  const points = []
+  const turns = 0.85
+  for (let k = 0; k <= 8; k += 1) {
+    const t = k / 8
+    const angle = (index / 4) * Math.PI * 2 + turns * Math.PI * 2 * t
+    const spread = 0.11 - 0.035 * Math.sin(Math.PI * Math.min(1, t * 1.25)) // pinched a little in the middle, wide at the base
+    points.push([Math.cos(angle) * spread, FLOOR_Y + 0.02 + (TRUNK_TOP_Y - FLOOR_Y - 0.02) * t, Math.sin(angle) * spread * 0.9])
+  }
+  return points
+}
 
-// Canopy branches (new): fork off the cradle arm and climb far above and out to the side of the logo, framing it the way the reference's
-// flanking trees do, instead of the whole structure staying contained under the cradle.
-const canopyBranchA = [[0.65, FLOOR_Y + 1.18, -0.22], [1.15, FLOOR_Y + 1.6, -0.4], [1.85, FLOOR_Y + 2.15, -0.3], [2.45, FLOOR_Y + 2.75, 0.05], [2.85, FLOOR_Y + 3.25, 0.35]]
-const canopyBranchB = [[0.82, FLOOR_Y + 1.4, 0.17], [1.32, FLOOR_Y + 1.75, 0.48], [1.78, FLOOR_Y + 2.2, 0.82], [2.05, FLOOR_Y + 2.7, 1.05], [2.2, FLOOR_Y + 3.1, 1.15]]
-// Secondary forks off the canopy branches, partway along, for the mass and re-branching density a real tree canopy has (rather than two
-// bare arcs): each keeps real girth most of the way out instead of whipping down to a thin line immediately.
-const canopyForkA = [[1.15, FLOOR_Y + 1.6, -0.4], [1.55, FLOOR_Y + 1.75, -0.75], [2.0, FLOOR_Y + 2.05, -0.95], [2.3, FLOOR_Y + 2.4, -1.0]]
-const canopyForkB = [[1.85, FLOOR_Y + 2.15, -0.3], [2.25, FLOOR_Y + 2.55, -0.15], [2.65, FLOOR_Y + 2.95, -0.35], [2.95, FLOOR_Y + 3.3, -0.45]]
-const canopyForkC = [[1.32, FLOOR_Y + 1.75, 0.48], [1.6, FLOOR_Y + 1.95, 0.85], [1.85, FLOOR_Y + 2.3, 1.25], [1.95, FLOOR_Y + 2.65, 1.55]]
-const canopyForkD = [[1.78, FLOOR_Y + 2.2, 0.82], [2.15, FLOOR_Y + 2.5, 1.05], [2.5, FLOOR_Y + 2.75, 0.85], [2.85, FLOOR_Y + 2.95, 0.65]]
+// Main limb (right side; mirrored for the left): from the trunk top, in front of the logo's lower rim, round the outside of the lower outer
+// lobe (behind the logo), then over the lobe's top to curl forward.
+const limb = [[0.06, TRUNK_TOP_Y - 0.06, 0.02], [0.24, -0.74, 0.1], [0.46, -0.66, 0.14], [0.7, -0.63, 0.14], [0.93, -0.53, 0.11], [1.08, -0.3, 0.0], [1.09, -0.06, -0.08], [1.0, 0.17, -0.06], [0.86, 0.23, 0.05], [0.8, 0.15, 0.1]]
+// A thin vine that leaves the limb under the lobe and loops higher round its outside, a second, finer wrap.
+const vine = [[0.86, -0.57, 0.12], [1.02, -0.47, 0.13], [1.16, -0.22, 0.06], [1.17, 0.04, -0.03], [1.08, 0.25, -0.06], [0.93, 0.33, 0.0], [0.86, 0.27, 0.07]]
+// A short inner branch that curls up in front of the lower inner lobe, toward the swirl, holding a few leaves.
+const innerBranch = [[0.3, -0.72, 0.12], [0.36, -0.6, 0.16], [0.34, -0.5, 0.17], [0.26, -0.45, 0.15]]
 
-// Tendrils fork off the cradle arm and both canopy branches, climbing further and ending in a leaf.
-const tendrils = [
-  { points: [[0.65, FLOOR_Y + 1.18, -0.06], [0.92, FLOOR_Y + 1.42, 0.0], [0.98, FLOOR_Y + 1.66, 0.05], [0.86, FLOOR_Y + 1.87, 0.03]] },
-  { points: [[0.82, FLOOR_Y + 1.4, 0.2], [0.97, FLOOR_Y + 1.62, 0.1], [0.9, FLOOR_Y + 1.82, -0.03], [0.7, FLOOR_Y + 1.97, 0.0]] },
-  { points: [[0.62, FLOOR_Y + 1.58, 0.24], [0.55, FLOOR_Y + 1.8, 0.2], [0.42, FLOOR_Y + 1.98, 0.13], [0.3, FLOOR_Y + 2.08, 0.06]] },
-  { points: [[1.85, FLOOR_Y + 2.15, -0.3], [2.15, FLOOR_Y + 2.5, -0.55], [2.35, FLOOR_Y + 2.85, -0.5], [2.35, FLOOR_Y + 3.15, -0.3]] },
-  { points: [[2.45, FLOOR_Y + 2.75, 0.05], [2.85, FLOOR_Y + 3.0, 0.15], [3.15, FLOOR_Y + 3.3, 0.35], [3.25, FLOOR_Y + 3.55, 0.55]] },
-  { points: [[1.78, FLOOR_Y + 2.2, 0.82], [2.05, FLOOR_Y + 2.55, 1.15], [2.15, FLOOR_Y + 2.9, 1.3], [2.05, FLOOR_Y + 3.15, 1.45]] },
-  { points: [[2.05, FLOOR_Y + 2.7, 1.05], [2.35, FLOOR_Y + 2.95, 1.35], [2.55, FLOOR_Y + 3.25, 1.5], [2.6, FLOOR_Y + 3.5, 1.6]] },
-]
-const forkTendrils = [
-  { points: [[2.0, FLOOR_Y + 2.05, -0.95], [2.28, FLOOR_Y + 2.3, -1.2], [2.4, FLOOR_Y + 2.6, -1.35], [2.35, FLOOR_Y + 2.85, -1.4]] },
-  { points: [[2.65, FLOOR_Y + 2.95, -0.35], [2.95, FLOOR_Y + 3.15, -0.5], [3.15, FLOOR_Y + 3.4, -0.55], [3.2, FLOOR_Y + 3.6, -0.5]] },
-  { points: [[1.85, FLOOR_Y + 2.3, 1.25], [2.05, FLOOR_Y + 2.6, 1.5], [2.05, FLOOR_Y + 2.9, 1.7], [1.9, FLOOR_Y + 3.1, 1.8]] },
-  { points: [[2.5, FLOOR_Y + 2.75, 0.85], [2.85, FLOOR_Y + 2.9, 0.95], [3.15, FLOOR_Y + 3.1, 1.05], [3.3, FLOOR_Y + 3.3, 1.1]] },
-]
-
-// Eight floor roots per side: forward, outward, backward and lateral fans, plus two shorter "buttress" roots that swell near the trunk
-// before diving down, for mass close to the base (the reference's roots are thick right where they meet the ground).
-const floorRoots = [
-  [[0.03, FLOOR_Y + 0.06, 0], [0.3, FLOOR_Y + 0.11, 0.2], [0.62, FLOOR_Y + 0.05, 0.42], [0.92, FLOOR_Y, 0.5]],
-  [[0.04, FLOOR_Y + 0.07, 0], [0.38, FLOOR_Y + 0.1, 0.32], [0.8, FLOOR_Y + 0.04, 0.28], [1.25, FLOOR_Y, 0.18]],
-  [[0.05, FLOOR_Y + 0.07, 0], [0.46, FLOOR_Y + 0.09, 0.06], [0.96, FLOOR_Y + 0.03, 0.02], [1.42, FLOOR_Y, -0.02]],
-  [[0.05, FLOOR_Y + 0.06, 0], [0.42, FLOOR_Y + 0.08, -0.22], [0.88, FLOOR_Y + 0.03, -0.3], [1.3, FLOOR_Y, -0.24]],
-  [[0.06, FLOOR_Y + 0.06, 0], [0.4, FLOOR_Y + 0.08, -0.34], [0.85, FLOOR_Y + 0.02, -0.5], [1.2, FLOOR_Y, -0.6]],
-  [[0.04, FLOOR_Y + 0.05, 0], [0.52, FLOOR_Y + 0.07, -0.08], [1.12, FLOOR_Y + 0.02, -0.14], [1.62, FLOOR_Y, -0.18]],
-  [[0.05, FLOOR_Y + 0.1, 0], [0.22, FLOOR_Y + 0.16, 0.12], [0.4, FLOOR_Y + 0.06, 0.16], [0.55, FLOOR_Y - 0.08, 0.1]],
-  [[0.05, FLOOR_Y + 0.1, 0], [0.2, FLOOR_Y + 0.17, -0.14], [0.36, FLOOR_Y + 0.07, -0.2], [0.5, FLOOR_Y - 0.1, -0.16]],
+/** Where leaves hang, as (curve, t along it, side bias): stems leave the host there, curl outward, and end in a leaf. */
+const leafSites = [
+  ['limb', 0.3, 1], ['limb', 0.45, -1], ['limb', 0.58, 1], ['limb', 0.72, -1], ['limb', 0.86, 1],
+  ['vine', 0.35, 1], ['vine', 0.62, -1], ['vine', 0.92, 1],
+  ['innerBranch', 0.7, -1], ['innerBranch', 1, 1],
 ]
 
 const mirror = points => points.map(([x, y, z]) => [-x, y, z])
@@ -197,66 +184,97 @@ function addTube(points, radiusAt, radialSegments, part, bark = null) {
   const { positions, normals, indices } = buildTaperedTube(points, { radiusAt, radialSegments, bark })
   meshes.push({ name: `${part}-${curveIndex++}`, part, positions, normals, indices })
 }
-/** A vein's own thickness is a thin fraction of the HOST branch's local radius (it must never sweep at the host's own full radius - that
- * buries most of its volume inside the branch instead of reading as a thin line on the surface), with a floor so it stays visible near
- * a branch's tapered tip. `offsetFactor` (close to 1) places its centreline just proud of the branch's nominal surface. */
+/** A vein's own thickness is a thin fraction of the HOST branch's local radius (sweeping it at the host's full radius buries it inside the
+ * branch), with a floor so it stays visible near a tapered tip. `offsetFactor` (close to 1) places it just proud of the branch surface. */
 function addVein(points, hostRadiusAt, part, baseAngle, driftTurns, offsetFactor = 1.04) {
-  const veinRadiusAt = t => Math.max(0.012, hostRadiusAt(t) * 0.16)
+  const veinRadiusAt = t => Math.max(0.008, hostRadiusAt(t) * 0.14)
   addTube(veinControlPoints(points, hostRadiusAt, baseAngle, driftTurns, offsetFactor), veinRadiusAt, 6, part)
 }
+/** A curling stem from `start` heading along `out`, bending over as it goes, with a teardrop leaf at its tip. */
+function addLeaf(start, out, key) {
+  const up = new THREE.Vector3(0, 1, 0)
+  const length = 0.09 + hash(`stem:${key}`) * 0.05
+  const droop = new THREE.Vector3().copy(out).multiplyScalar(0.55).addScaledVector(up, -0.45).normalize()
+  const curl = new THREE.Vector3().crossVectors(out, up).normalize().multiplyScalar(jitter(`curl:${key}`, 0.35))
+  const p0 = new THREE.Vector3(...start)
+  const p1 = p0.clone().addScaledVector(out, length * 0.45).addScaledVector(up, length * 0.2)
+  const p2 = p1.clone().addScaledVector(out, length * 0.35).add(curl.clone().multiplyScalar(length))
+  const p3 = p2.clone().addScaledVector(droop, length * 0.35)
+  const stem = [p0, p1, p2, p3].map(v => [v.x, v.y, v.z])
+  addTube(stem, taper(0.012, 0.005), 6, 'leaves')
+  const along = new THREE.Vector3().subVectors(p3, p2).normalize()
+  const leaf = buildLeaf(p3, along, 0.12 + hash(`leaf:${key}`) * 0.04, jitter(`leaf-twist:${key}`, 0.5))
+  meshes.push({ name: `leaf-${curveIndex++}`, part: 'leaves', positions: leaf.positions, normals: leaf.normals, indices: leaf.indices })
+}
+/** A point on a Catmull-Rom curve and a sideways direction there, for hanging leaves and forking rootlets. */
+function curvePoint(points, t, sideBias, key) {
+  const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p)), false, 'centripetal')
+  const at = curve.getPointAt(t), tangent = curve.getTangentAt(Math.min(0.999, t))
+  const toCamera = new THREE.Vector3(0, 0, 1)
+  const side = new THREE.Vector3().crossVectors(tangent, toCamera).normalize().multiplyScalar(sideBias)
+  const out = side.addScaledVector(toCamera, 0.6 + jitter(`out-z:${key}`, 0.3)).normalize()
+  return { at, out, tangent }
+}
 
+// The trunk: four twisting strands (not mirrored: a mirrored helix would untwist), each with a vein.
+const trunkR = taper(0.11, 0.09)
+for (let index = 0; index < 4; index += 1) {
+  const strand = trunkStrand(index)
+  addTube(strand, trunkR, 11, 'roots', { amplitude: 0.1, seed: hash(`bark:trunk:${index}`) })
+  addVein(strand, trunkR, 'veins', jitter(`vein:trunk:${index}`, Math.PI), 0.4)
+}
+
+// The root flare: fourteen roots all the way round the base (toward the camera too, a little shorter there so they do not run down the
+// frame), each rising from the trunk as a thick buttress, snaking out over the floor and staying thick most of the way, with two small
+// rootlets forking off it.
+const ROOT_COUNT = 14
+for (let index = 0; index < ROOT_COUNT; index += 1) {
+  const key = `root:${index}`
+  const heading = (index / ROOT_COUNT) * Math.PI * 2 + jitter(`heading:${key}`, 0.16)
+  const towardCamera = Math.max(0, Math.sin(heading))
+  const reach = (0.85 + hash(`reach:${key}`) * 0.35) * (1 - 0.3 * towardCamera)
+  const waves = 1.5 + hash(`waves:${key}`) * 1.2, phase = hash(`phase:${key}`) * Math.PI * 2, sway = 0.07 + hash(`sway:${key}`) * 0.05
+  const points = []
+  for (let k = 0; k <= 7; k += 1) {
+    const u = k / 7
+    const r = 0.06 + (reach - 0.06) * u
+    // A buttress that rises from high on the trunk and settles onto the floor, snaking side to side as it goes.
+    const y = 0.34 * Math.pow(1 - u, 2.2) + 0.015 * Math.sin(u * 9 + phase)
+    const lateral = sway * Math.sin(u * Math.PI * waves + phase) * Math.min(1, u * 3)
+    const dx = Math.cos(heading), dz = Math.sin(heading)
+    points.push([dx * r - dz * lateral, FLOOR_Y + y, (dz * r + dx * lateral) * 0.85])
+  }
+  const radiusAt = t => (0.11 - hash(`girth:${key}`) * 0.025) * Math.pow(1 - t, 0.75) + 0.012
+  addTube(points, radiusAt, 10, 'roots', { amplitude: 0.12, seed: hash(`bark:${key}`) })
+  for (const [forkT, sign] of [[0.45, index % 2 === 0 ? 1 : -1], [0.72, index % 2 === 0 ? -1 : 1]]) {
+    const fork = curvePoint(points, forkT, sign, `${key}:${forkT}`)
+    const side = new THREE.Vector3().crossVectors(fork.tangent, new THREE.Vector3(0, 1, 0)).normalize().multiplyScalar(sign)
+    const rootlet = [0, 0.1, 0.2, 0.28].map(s => {
+      const v = fork.at.clone().addScaledVector(fork.tangent, s * 0.7).addScaledVector(side, s * 0.8)
+      return [v.x, Math.max(FLOOR_Y + 0.01, v.y - s * 0.08), v.z]
+    })
+    addTube(rootlet, taper(0.026, 0.007), 7, 'roots')
+  }
+  if (index % 3 === 0) addLeaf([points[1][0], points[1][1] + 0.04, points[1][2]], new THREE.Vector3(Math.cos(heading), 0.5, Math.sin(heading)).normalize(), `base-leaf:${index}`)
+}
+
+// The two limbs, their intertwined strands, vines, inner branches and leaves (right side, mirrored for the left).
 for (const side of [1, -1]) {
   const flip = points => (side === 1 ? points : mirror(points))
-  const barkSeed = key => hash(`bark:${side}:${key}`)
-
-  const trunkR = taper(0.19, 0.11)
-  const strandR = taper(0.11, 0.065)
-  const armR = taper(0.1, 0.028)
-  const canopyAR = taper(0.14, 0.045)
-  const canopyBR = taper(0.13, 0.042)
-  const forkR = taper(0.08, 0.026)
-
-  addTube(flip(trunk), trunkR, 12, 'roots', { amplitude: 0.15, seed: barkSeed('trunk') })
-  addTube(flip(trunkStrand), strandR, 10, 'roots', { amplitude: 0.15, seed: barkSeed('strand') })
-  addTube(flip(cradleArm), armR, 10, 'roots', { amplitude: 0.14, seed: barkSeed('arm') })
-  addTube(flip(canopyBranchA), canopyAR, 11, 'roots', { amplitude: 0.14, seed: barkSeed('canopyA') })
-  addTube(flip(canopyBranchB), canopyBR, 11, 'roots', { amplitude: 0.14, seed: barkSeed('canopyB') })
-  addTube(flip(canopyForkA), forkR, 9, 'roots', { amplitude: 0.15, seed: barkSeed('forkA') })
-  addTube(flip(canopyForkB), forkR, 9, 'roots', { amplitude: 0.15, seed: barkSeed('forkB') })
-  addTube(flip(canopyForkC), forkR, 9, 'roots', { amplitude: 0.15, seed: barkSeed('forkC') })
-  addTube(flip(canopyForkD), forkR, 9, 'roots', { amplitude: 0.15, seed: barkSeed('forkD') })
-
-  // Glowing veins: two per major branch, offset just under the surface and slowly spiralling.
-  addVein(flip(trunk), trunkR, 'veins', jitter(`vein-a:${side}:trunk`, Math.PI), 0.6)
-  addVein(flip(trunk), trunkR, 'veins', jitter(`vein-b:${side}:trunk`, Math.PI) + Math.PI, -0.5)
-  addVein(flip(cradleArm), armR, 'veins', jitter(`vein-a:${side}:arm`, Math.PI), 0.7)
-  addVein(flip(cradleArm), armR, 'veins', jitter(`vein-b:${side}:arm`, Math.PI) + Math.PI, -0.6)
-  addVein(flip(canopyBranchA), canopyAR, 'veins', jitter(`vein-a:${side}:canopyA`, Math.PI), 0.8)
-  addVein(flip(canopyBranchB), canopyBR, 'veins', jitter(`vein-a:${side}:canopyB`, Math.PI), -0.8)
-  addVein(flip(canopyForkA), forkR, 'veins', jitter(`vein-a:${side}:forkA`, Math.PI), 0.6)
-  addVein(flip(canopyForkC), forkR, 'veins', jitter(`vein-a:${side}:forkC`, Math.PI), -0.6)
-
-  for (const tendril of [...tendrils, ...forkTendrils]) {
-    const points = flip(tendril.points)
-    addTube(points, taper(0.026, 0.006), 7, 'leaves')
-    const tip = points[points.length - 1], prev = points[points.length - 2]
-    const along = new THREE.Vector3(tip[0] - prev[0], tip[1] - prev[1], tip[2] - prev[2]).normalize()
-    const at = new THREE.Vector3(...tip).addScaledVector(along, 0.02)
-    const leaf = buildLeaf(at, along, 0.12 + hash(`leaf:${side}:${tip.join(',')}`) * 0.045, jitter(`leaf-twist:${side}:${tip.join(',')}`, 1.1))
-    meshes.push({ name: `leaf-${curveIndex++}`, part: 'leaves', positions: leaf.positions, normals: leaf.normals, indices: leaf.indices })
+  const limbR = taper(0.13, 0.026)
+  const curves = { limb: flip(limb), vine: flip(vine), innerBranch: flip(innerBranch) }
+  addTube(curves.limb, limbR, 11, 'roots', { amplitude: 0.1, seed: hash(`bark:limb:${side}`) })
+  addVein(curves.limb, limbR, 'veins', jitter(`vein:limb:${side}`, Math.PI), 0.9)
+  // A thinner strand twisting round the limb, so it reads as several strands like the trunk.
+  const strand = veinControlPoints(curves.limb, limbR, jitter(`strand:${side}`, Math.PI), 1.6 * side, 0.95, 16)
+  addTube(strand.slice(0, 13), taper(0.06, 0.018), 9, 'roots', { amplitude: 0.1, seed: hash(`bark:strand:${side}`) })
+  addTube(curves.vine, taper(0.03, 0.011), 8, 'roots', { amplitude: 0.08, seed: hash(`bark:vine:${side}`) })
+  addTube(curves.innerBranch, taper(0.04, 0.014), 8, 'roots', { amplitude: 0.08, seed: hash(`bark:inner:${side}`) })
+  for (const [name, t, bias] of leafSites) {
+    const key = `${name}:${t}:${side}`
+    const { at, out } = curvePoint(curves[name], t, bias * side, key)
+    addLeaf([at.x, at.y, at.z], out, key)
   }
-
-  floorRoots.forEach((points, index) => {
-    const flipped = flip(points)
-    const radiusAt = taper(0.105 - index * 0.006, 0.014)
-    addTube(flipped, radiusAt, 9, 'roots', { amplitude: 0.14, seed: barkSeed(`floor-${index}`) })
-    if (index >= 2 && index <= 5) {
-      const tip = flipped[points.length - 1], prev = flipped[points.length - 2]
-      const along = new THREE.Vector3(tip[0] - prev[0], tip[1] - prev[1], tip[2] - prev[2]).normalize()
-      const leaf = buildLeaf(new THREE.Vector3(...tip), along, 0.08 + hash(`floor-leaf:${side}:${index}`) * 0.025, jitter(`floor-leaf-twist:${side}:${index}`, 1.3))
-      meshes.push({ name: `leaf-${curveIndex++}`, part: 'leaves', positions: leaf.positions, normals: leaf.normals, indices: leaf.indices })
-    }
-  })
 }
 
 // ── PBR materials, one per part (Linear-sRGB). `roots` is a darker, rougher bark gold (metal, but rough enough to read as weathered);
@@ -328,4 +346,4 @@ writeFileSync(outputPath, Buffer.concat([header, chunkHeader(jsonChunk.length, 0
 
 console.log(`Wrote ${outputPath}`)
 console.log(`  ${meshes.length} meshes (${[...materialIndexOf.keys()].join(', ')}), ${triangles} triangles, ${(byteLength / 1024).toFixed(0)} KB`)
-console.log(`  floor Y ${FLOOR_Y}, canopy reaches ~y ${(FLOOR_Y + 3.5).toFixed(2)}, ~x 3.3`)
+console.log(`  floor Y ${FLOOR_Y}, trunk top y ${TRUNK_TOP_Y}`)

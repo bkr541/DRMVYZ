@@ -30,14 +30,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/golden-roots.glb",
-        "bytes": 1592708,
-        "triangles": 59012
+        "bytes": 1952224,
+        "triangles": 68424
       }
     },
     "gpuBytes": {
-      "high": 1522656,
-      "medium": 1522656,
-      "low": 1522656
+      "high": 1876368,
+      "medium": 1876368,
+      "low": 1876368
     }
   },
   {
