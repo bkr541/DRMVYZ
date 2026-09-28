@@ -779,6 +779,17 @@ export type Cinema2ChoreographyConditionManifest =
    */
   | { kind: 'beat-interval'; every: number; phase?: number; unit?: Cinema2BeatIntervalUnit }
 
+/**
+ * A step pattern that chops a timed action (envelope, pulse, set-for-duration) into sub-beat hits, locked to the beats elapsed since the
+ * action fired: `pattern` is read one character per step (`x` = on, anything else = off) and loops. With `stepsPerBeat` 4 a pattern of
+ * `x...x..x` is a syncopated 16th-note chase; `x` alone at 4 steps per beat is a 16th-note strobe. `duty` is the lit fraction of an on step.
+ */
+export interface Cinema2ChoreographyGateManifest {
+  stepsPerBeat: number
+  pattern: string
+  duty?: number
+}
+
 export interface Cinema2ChoreographyActionManifest {
   id: Cinema2ChoreographyActionId
   /** A `light-group` target is expanded into per-light `light` targets before compilation. */
@@ -799,6 +810,8 @@ export interface Cinema2ChoreographyActionManifest {
   /** Event-derived probability gate. Omitted means always execute. */
   probability?: number
   retrigger?: Cinema2ChoreographyRetriggerPolicy
+  /** Sub-beat on/off pattern for envelope, pulse and set-for-duration actions. Off steps scale the action's value to zero. */
+  gate?: Cinema2ChoreographyGateManifest
   config?: Cinema2JsonObject
 }
 

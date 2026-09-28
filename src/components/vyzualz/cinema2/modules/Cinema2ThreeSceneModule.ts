@@ -20,12 +20,14 @@ import {
   CINEMA2_THREE_DEFAULT_OVERRIDES,
   Cinema2ThreeSceneBridge,
   samePartOverrides,
+  type Cinema2ThreeGlowDraw,
   type Cinema2ThreeMaterialOverrides,
   type Cinema2ThreePartOverrides,
   type Cinema2ThreePanelSpec,
   type Cinema2ThreeSceneInstance,
 } from './three/Cinema2ThreeSceneBridge'
 import { Cinema2BeatClock } from './Cinema2BeatClock'
+import { Cinema2ThreeAudioGlow, readCinema2ThreeGlowMode } from './three/Cinema2ThreeAudioGlow'
 import { cinema2ThreeEnvironmentRegistry, type Cinema2ThreeEnvironmentRegistry } from './three/Cinema2ThreeEnvironmentRegistry'
 
 export const CINEMA2_THREE_SCENE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('three-scene')
@@ -50,11 +52,19 @@ export type Cinema2ThreeSceneModuleState = 'idle' | 'loading' | 'building' | 're
  * `<part>.emissiveIntensity`, `<part>.roughness`, `<part>.metalness`, `<part>.clearcoat` and `<part>.clearcoatRoughness` parameters. For that part they
  * replace the global value of the same property, so one model can be a gold rim around a crystal body. Parts also read a thin-film set with no
  * global counterpart: `<part>.iridescence` (0-1; upgrades the materials to physical ones), `<part>.iridescenceIOR` and
- * `<part>.iridescenceThicknessMin` / `<part>.iridescenceThicknessMax` (nanometres), for a pearly, pastel-shifting finish.
+ * `<part>.iridescenceThicknessMin` / `<part>.iridescenceThicknessMax` (nanometres), for a pearly, pastel-shifting finish; and a glass set:
+ * `<part>.transmission` (0-1, see-through; upgrades to physical materials; off on the low tier), `<part>.ior`, `<part>.thickness` and
+ * `<part>.dispersion` (rainbow splitting), for clear cut crystal. `<part>.environmentIntensity` scales that part's share of the environment
+ * reflections (1 = the module's level), so dark bark and polished crystal can sit in one scene.
  *
  * Turntable spin: an instance with `spin: true` turns about its own vertical axis. The module parameter `spinTurnSeconds` is the time one full turn
  * takes at the 120 BPM reference (0 or missing = no spin) and `spinSync` (default true) locks it to the track's beat grid, so the turn follows the
  * detected tempo (a faster track turns faster; the spin stands still while playback is paused). Off, it turns at the reference rate whatever the tempo.
+ *
+ * Audio glow: `config.glow` maps part names to their share of the glow (`{ "veins": 1, "roots": 0.2 }`); those parts emit light that follows the
+ * music (see Cinema2ThreeAudioGlow). Parameters: `glowMode` (`energy` | `breathing` | `both`), `glowSync` (default true: timing locked to the
+ * beat grid; off: a steady 120 BPM), `glowReactivity` (0-1, how strongly it reacts), `glowStrength` (overall brightness) and `glowColor`. A
+ * part with a `_GLOW_PHASE` vertex attribute (0 at the root tips, 1 at the top) carries climbing pulses; without it, it only breathes.
  *
  * `config.environment`: id of a shipped equirectangular environment used for image-based lighting (default: the built-in studio room;
  * a shipped one that fails to load falls back to it with a diagnostic). Its intensity follows the Cinema 2.0 environment exposure.
@@ -105,6 +115,9 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
       let reportedBytes = -1
       const beatClock = new Cinema2BeatClock()
       let spinRadians = 0
+      const glowShares = parseGlow(context.module)
+      const audioGlow = glowShares ? new Cinema2ThreeAudioGlow() : null
+      let glowDraw: Cinema2ThreeGlowDraw | null = null
       const diagnostics: Cinema2ModuleDiagnostic[] = []
 
       const report = (code: string, message: string, path: string) => {
@@ -158,7 +171,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           bridge = context.resources.acquire(
             'three-scene:bridge',
             'ThreeSceneBridge',
-            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded, { panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null }),
+            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded, { panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}) }),
             value => { value.dispose(); releaseHeld() },
           )
           state = 'building'
@@ -179,7 +192,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           if (state === 'idle') startLoading(quality)
           if (state === 'building' && !bridge && !bridgeCreateFailed && library) buildBridge()
           if (!bridge || state === 'failed' || state === 'loading') return
-          bridge.draw(execution, overrides, spinRadians)
+          bridge.draw(execution, overrides, spinRadians, glowDraw)
           if (bridge.ready && state !== 'ready') state = 'ready'
           const bytes = bridge.estimateGpuBytes()
           if (bytes !== reportedBytes) { reportedBytes = bytes; context.resources.reportGpuBytes(bytes) }
@@ -194,10 +207,19 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
             const sync = parameters.get('spinSync') !== false
             const beats = beatClock.update(frame, sync).beats
             spinRadians = cinema2ThreeSpinRadians(beats, turnSeconds)
+            if (audioGlow) {
+              const glowFrame = audioGlow.update(frame, {
+                mode: readCinema2ThreeGlowMode(parameters.get('glowMode')),
+                sync: parameters.get('glowSync') !== false,
+                reactivity: readNumber(parameters.get('glowReactivity'), 0, 1) ?? 1,
+              })
+              glowDraw = { color: readColor(parameters.get('glowColor')) ?? [1, 0.62, 0.2], strength: readNumber(parameters.get('glowStrength'), 0, 40) ?? 1, frame: glowFrame }
+            }
           },
           dispose: () => {
             disposed = true
             beatClock.reset()
+            audioGlow?.reset()
             // With a bridge, its resource disposer releases the assets after its own materials; otherwise release here.
             if (!bridge) releaseHeld()
           },
@@ -274,6 +296,11 @@ function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinem
   if (rawParts !== undefined && (!Array.isArray(rawParts) || rawParts.some(name => typeof name !== 'string' || !name.trim()))) {
     diagnostics.push({ code: 'CINEMA2_THREE_SCENE_PARTS_INVALID', path: '$.config.parts', message: 'config.parts must be a list of part (mesh) name strings.' })
   }
+  const rawGlow = module.config?.glow
+  if (rawGlow !== undefined && (!rawGlow || typeof rawGlow !== 'object' || Array.isArray(rawGlow)
+    || Object.values(rawGlow).some(share => typeof share !== 'number' || !Number.isFinite(share) || share < 0))) {
+    diagnostics.push({ code: 'CINEMA2_THREE_SCENE_GLOW_INVALID', path: '$.config.glow', message: 'config.glow must map part names to non-negative numbers (each part\'s share of the glow).' })
+  }
   const rawPanels = module.config?.panels
   if (rawPanels !== undefined) {
     if (!Array.isArray(rawPanels)) {
@@ -285,6 +312,14 @@ function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinem
     }
   }
   return diagnostics
+}
+
+function parseGlow(module: Readonly<Cinema2ModuleManifest>): Readonly<Record<string, number>> | null {
+  const raw = module.config?.glow
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const shares: Record<string, number> = {}
+  for (const [name, share] of Object.entries(raw)) if (typeof share === 'number' && Number.isFinite(share) && share > 0) shares[name] = share
+  return Object.keys(shares).length > 0 ? Object.freeze(shares) : null
 }
 
 function parsePartNames(module: Readonly<Cinema2ModuleManifest>): string[] {
@@ -308,6 +343,11 @@ function readPartOverrides(parameters: Cinema2ModuleParameterReadFacet, names: r
       iridescenceIOR: readNumber(parameters.get(`${name}.iridescenceIOR`), 1, 2.333),
       iridescenceThicknessMin: readNumber(parameters.get(`${name}.iridescenceThicknessMin`), 0, 2000),
       iridescenceThicknessMax: readNumber(parameters.get(`${name}.iridescenceThicknessMax`), 0, 2000),
+      transmission: readNumber(parameters.get(`${name}.transmission`), 0, 1),
+      ior: readNumber(parameters.get(`${name}.ior`), 1, 2.333),
+      thickness: readNumber(parameters.get(`${name}.thickness`), 0, 10),
+      dispersion: readNumber(parameters.get(`${name}.dispersion`), 0, 20),
+      environmentIntensity: readNumber(parameters.get(`${name}.environmentIntensity`), 0, 8),
     })
   }
   return Object.freeze(parts)

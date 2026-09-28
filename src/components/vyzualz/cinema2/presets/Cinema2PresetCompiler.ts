@@ -1228,6 +1228,18 @@ function validateChoreographyAction(
   if (typeof action.quantizeBeats === 'number' && action.quantizeBeats === 0) {
     diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_TIMING_INVALID', 'quantizeBeats must be greater than zero when present.', `${path}.quantizeBeats`))
   }
+  if (action.gate != null) {
+    const gate = action.gate as unknown
+    const record = isPlainObject(gate) ? gate as Record<string, unknown> : null
+    const stepsPerBeat = record?.stepsPerBeat, pattern = record?.pattern, duty = record?.duty
+    if (!record || typeof stepsPerBeat !== 'number' || !Number.isFinite(stepsPerBeat) || stepsPerBeat <= 0 || stepsPerBeat > 16
+      || typeof pattern !== 'string' || pattern.length === 0 || pattern.length > 256
+      || (duty != null && (typeof duty !== 'number' || !Number.isFinite(duty) || duty <= 0 || duty > 1))) {
+      diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_GATE_INVALID', 'gate needs stepsPerBeat (above 0, at most 16), a non-empty pattern string (at most 256 steps) and an optional duty above 0 and at most 1.', `${path}.gate`))
+    } else if (!['envelope', 'pulse', 'set-for-duration'].includes(String(action.operation))) {
+      diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_GATE_INVALID', 'gate only applies to envelope, pulse and set-for-duration actions.', `${path}.gate`))
+    }
+  }
   if (action.probability != null && (!Number.isFinite(action.probability) || action.probability < 0 || action.probability > 1)) {
     diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_PROBABILITY_INVALID', 'probability must be a finite number from 0 through 1.', `${path}.probability`))
   }

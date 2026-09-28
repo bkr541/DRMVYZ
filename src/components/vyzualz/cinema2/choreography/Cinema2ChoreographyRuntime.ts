@@ -71,6 +71,8 @@ interface ActiveEnvelope {
   holdSec: number
   releaseSec: number
   endSec: number
+  /** Beat length when the envelope started, for its step gate (null when it has none or timing was unavailable). */
+  beatSec: number | null
 }
 
 interface ActiveDuration {
@@ -80,6 +82,9 @@ interface ActiveDuration {
   eventId: string
   eventStrength: number
   endSec: number
+  /** When it started (on the same clock as endSec) and the beat length then, for its step gate. */
+  startSec?: number
+  beatSec?: number | null
 }
 
 interface ActiveToggle {
@@ -541,9 +546,12 @@ export class Cinema2ChoreographyRuntime {
         this.diagnosticOnce('CINEMA2_CHOREOGRAPHY_TIMING_UNAVAILABLE', 'Duration could not be resolved because beat timing is unavailable.', `action.${action.id}`)
         return
       }
+      const startSec = frame.audio?.upstream.timeSec != null ? frame.audio.upstream.timeSec : frame.elapsedTimeSec
       this.durations.set(action.id, {
         rule, action, target, eventId: event.id, eventStrength: event.strength,
-        endSec: frame.audio?.upstream.timeSec != null ? frame.audio.upstream.timeSec + durationSec : frame.elapsedTimeSec + durationSec,
+        endSec: startSec + durationSec,
+        startSec,
+        beatSec: beatDurationSec(frame.audio),
       })
       return
     }
@@ -603,6 +611,7 @@ export class Cinema2ChoreographyRuntime {
       holdSec: durations.holdSec,
       releaseSec: durations.releaseSec,
       endSec: startSec + durations.attackSec + durations.holdSec + durations.releaseSec,
+      beatSec: beatDurationSec(frame.audio),
     })
   }
 
@@ -630,7 +639,7 @@ export class Cinema2ChoreographyRuntime {
         this.envelopes.delete(actionId)
         continue
       }
-      const gain = envelopeGain(envelope, now)
+      const gain = envelopeGain(envelope, now) * gateGain(envelope.action.gate, now - envelope.startSec, envelope.beatSec)
       const operation = targetOperationForAction(envelope.action)
       if (operation === 'action') continue
       const strength = this.routeStrength(envelope.rule)
@@ -658,7 +667,7 @@ export class Cinema2ChoreographyRuntime {
         contribution: Object.freeze({
           contributorId: `choreography:${duration.rule.id}:${duration.action.id}`,
           operation,
-          value: eventActionValue(duration.action, duration.eventStrength, this.routeStrength(duration.rule), operation),
+          value: eventActionValue(duration.action, duration.eventStrength * gateGain(duration.action.gate, now - (duration.startSec ?? now), duration.beatSec ?? null), this.routeStrength(duration.rule), operation),
           priority: finitePriority(duration.rule.priority),
           eventId: duration.eventId,
         }),
@@ -1043,6 +1052,15 @@ function envelopeGain(envelope: Readonly<ActiveEnvelope>, nowSec: number): numbe
   const releaseElapsed = afterAttack - envelope.holdSec
   if (envelope.releaseSec <= 0) return 0
   return clamp01(1 - releaseElapsed / envelope.releaseSec)
+}
+
+/** 1 on a lit step of the action's gate, 0 otherwise; 1 when there is no gate (or no beat length to step by). */
+export function gateGain(gate: Readonly<Cinema2ChoreographyActionManifest['gate']> | undefined, elapsedSec: number, beatSec: number | null): number {
+  if (!gate || beatSec == null || !(beatSec > 0) || !(gate.stepsPerBeat > 0) || gate.pattern.length === 0) return 1
+  const steps = (Math.max(0, elapsedSec) / beatSec) * gate.stepsPerBeat
+  const index = Math.floor(steps + EPSILON)
+  if (gate.pattern[index % gate.pattern.length] !== 'x') return 0
+  return steps - index < (gate.duty ?? 0.5) ? 1 : 0
 }
 
 function beatDurationSec(audio: Readonly<Cinema2AudioIntelligenceFrame> | null): number | null {

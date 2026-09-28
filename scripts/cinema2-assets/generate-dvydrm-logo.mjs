@@ -24,7 +24,16 @@ import { mergeVertices, toCreasedNormals } from 'three/examples/jsm/utils/Buffer
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const sourcePath = join(root, 'scripts/cinema2-assets/sources/dvydrm-logo-master.svg')
-const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'public/cinema2/models/dvydrm-logo.glb')
+/**
+ * `--faceted` builds the cut-crystal variant (RELIQUARY's clear crystal logo) instead of the smooth pearl: the same outline and rounded profile,
+ * but with larger facets, the profile cut into flat bands, a little seeded jitter so neighbouring facets catch the light differently, and flat
+ * shading - so a transmissive material reads as cut glass. Written to dvydrm-logo-faceted.glb unless an output path is given.
+ */
+const FACETED = process.argv.includes('--faceted')
+const outputArgument = process.argv.slice(2).find(argument => !argument.startsWith('--'))
+const outputPath = outputArgument ? resolve(outputArgument) : join(root, FACETED ? 'public/cinema2/models/dvydrm-logo-faceted.glb' : 'public/cinema2/models/dvydrm-logo.glb')
+/** Cut-crystal facet sizing and profile (with --faceted). */
+const FACETS = { boundarySpacing: 0.03, interiorSpacing: 0.075, jitter: 0.0025, bands: [[0, 0], [0.3, 0.52], [0.72, 0.88], [1, 1]] }
 
 const WIDTH_UNITS = 2
 const SAMPLES_PER_CURVE = 3
@@ -281,8 +290,8 @@ function delaunay(points) {
 
 function buildCrystalShape(shape, out) {
   const small = shapeArea(shape) < SMALL_SHAPE_AREA
-  const boundarySpacing = CRYSTAL.boundarySpacing * (small ? 0.6 : 1)
-  const interiorSpacing = CRYSTAL.interiorSpacing * (small ? 0.6 : 1)
+  const boundarySpacing = (FACETED ? FACETS.boundarySpacing : CRYSTAL.boundarySpacing) * (small ? 0.6 : 1)
+  const interiorSpacing = (FACETED ? FACETS.interiorSpacing : CRYSTAL.interiorSpacing) * (small ? 0.6 : 1)
 
   // 1. The rim: every contour resampled to an even spacing.
   const loops = [shape.outer, ...shape.holes].map(loop => resampleLoop(loop, boundarySpacing))
@@ -326,7 +335,14 @@ function buildCrystalShape(shape, out) {
     if (boundary[i]) return CRYSTAL.edgeZ
     const d = distanceToBoundary(shape, p)
     const t = Math.min(1, d / CRYSTAL.bevel)
-    return CRYSTAL.edgeZ + CRYSTAL.height * Math.sqrt(1 - (1 - t) * (1 - t)) + CRYSTAL.dome * Math.min(1, Math.max(0, d - CRYSTAL.bevel) / CRYSTAL.domeReach)
+    const dome = CRYSTAL.dome * Math.min(1, Math.max(0, d - CRYSTAL.bevel) / CRYSTAL.domeReach)
+    if (!FACETED) return CRYSTAL.edgeZ + CRYSTAL.height * Math.sqrt(1 - (1 - t) * (1 - t)) + dome
+    // Cut profile: straight bands between the FACETS.bands knots (distance fraction -> height fraction), plus a small mirror-symmetric jitter.
+    let band = 0
+    while (band < FACETS.bands.length - 2 && t > FACETS.bands[band + 1][0]) band += 1
+    const [t0, h0] = FACETS.bands[band], [t1, h1] = FACETS.bands[band + 1]
+    const h = h0 + ((h1 - h0) * (t - t0)) / (t1 - t0)
+    return CRYSTAL.edgeZ + CRYSTAL.height * h + dome + (hash2(Math.abs(p[0]) + 9.1, p[1] - 4.4) - 0.5) * 2 * FACETS.jitter
   })
 
   // 5. Smooth normals: each point averages the (area-weighted) normals of the top triangles around it.
@@ -340,9 +356,20 @@ function buildCrystalShape(shape, out) {
   const unit = n => { const l = Math.hypot(n[0], n[1], n[2]) || 1; return [n[0] / l, n[1] / l, n[2] / l] }
 
   // 6. Emit: the smooth top (indexed per point), the same triangles mirrored for the flat back, and the side walls.
-  const base = out.positions.length / 3
-  points.forEach((p, i) => { out.positions.push(p[0], p[1], heights[i]); out.normals.push(...unit(normals[i])); out.films.push(surfaceFilm(p[0], p[1])) })
-  for (const { v } of triangles) out.indices.push(base + v[0], base + v[1], base + v[2])
+  if (FACETED) {
+    // Flat facets: every top triangle gets its own three vertices with its face normal.
+    for (const { v, n } of triangles) {
+      const normal = unit(n)
+      for (const index of v) {
+        out.indices.push(out.positions.length / 3)
+        out.positions.push(points[index][0], points[index][1], heights[index]); out.normals.push(...normal); out.films.push(surfaceFilm(points[index][0], points[index][1]))
+      }
+    }
+  } else {
+    const base = out.positions.length / 3
+    points.forEach((p, i) => { out.positions.push(p[0], p[1], heights[i]); out.normals.push(...unit(normals[i])); out.films.push(surfaceFilm(p[0], p[1])) })
+    for (const { v } of triangles) out.indices.push(base + v[0], base + v[1], base + v[2])
+  }
   const push = (position, normal, film = FILM.side) => { const index = out.positions.length / 3; out.positions.push(...position); out.normals.push(...normal); out.films.push(film); out.indices.push(index) }
   const back = out.positions.length / 3
   points.forEach(p => { out.positions.push(p[0], p[1], CRYSTAL.backZ); out.normals.push(0, 0, -1); out.films.push(FILM.side) })

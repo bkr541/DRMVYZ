@@ -169,7 +169,7 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     part('outline', new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 1, color: new THREE.Color(0.9, 0.6, 0.2) }))
     part('crystal', new THREE.MeshStandardMaterial({ roughness: 0.05, metalness: 1, color: new THREE.Color(1, 1, 1) }))
     const bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [{ asset: { id: 'two-part', scene, triangleCount: 24, gpuBytes: 100 } as never, node: null }], {})
-    const none = { color: null, emissive: null, emissiveIntensity: null, roughness: null, metalness: null, clearcoat: null, clearcoatRoughness: null, iridescence: null, iridescenceIOR: null, iridescenceThicknessMin: null, iridescenceThicknessMax: null }
+    const none = { color: null, emissive: null, emissiveIntensity: null, roughness: null, metalness: null, clearcoat: null, clearcoatRoughness: null, iridescence: null, iridescenceIOR: null, iridescenceThicknessMin: null, iridescenceThicknessMax: null, transmission: null, ior: null, thickness: null, dispersion: null, environmentIntensity: null }
     const materialOf = (name: string) => ((bridge as unknown as { scene: THREE.Scene }).scene.getObjectByName(name) as THREE.Mesh).material as THREE.MeshPhysicalMaterial
 
     // Only the crystal is overridden: rougher, tinted, with a clearcoat. The global roughness (0.6) applies to the outline; the crystal's own wins.
@@ -197,7 +197,7 @@ describe('Cinema 2.0 Three bridge PBR', () => {
       scene.add(mesh)
     }
     const bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [{ asset: { id: 'two-part', scene, triangleCount: 24, gpuBytes: 100 } as never, node: null }], {})
-    const none = { color: null, emissive: null, emissiveIntensity: null, roughness: null, metalness: null, clearcoat: null, clearcoatRoughness: null, iridescence: null, iridescenceIOR: null, iridescenceThicknessMin: null, iridescenceThicknessMax: null }
+    const none = { color: null, emissive: null, emissiveIntensity: null, roughness: null, metalness: null, clearcoat: null, clearcoatRoughness: null, iridescence: null, iridescenceIOR: null, iridescenceThicknessMin: null, iridescenceThicknessMax: null, transmission: null, ior: null, thickness: null, dispersion: null, environmentIntensity: null }
     const materialOf = (name: string) => ((bridge as unknown as { scene: THREE.Scene }).scene.getObjectByName(name) as THREE.Mesh).material as THREE.MeshPhysicalMaterial
 
     bridge.draw(execution('low'), overrides({ parts: { crystal: { ...none, iridescence: 0.8, iridescenceIOR: 1.4, iridescenceThicknessMin: 300, iridescenceThicknessMax: 200 } } }))
@@ -210,6 +210,65 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     bridge.draw(execution('low'), overrides({ parts: { crystal: { ...none, iridescence: 0 } } }))
     expect(materialOf('crystal').iridescence).toBeGreaterThan(0)
     expect(materialOf('crystal').iridescence).toBeLessThan(0.01)
+  })
+
+  it('matches a part by its material name when many meshes share one material (roots-3, leaf-12 ... -> roots, leaves)', () => {
+    const scene = new THREE.Group()
+    const shared = new THREE.MeshStandardMaterial({ roughness: 0.5, metalness: 1 })
+    shared.name = 'roots'
+    for (const name of ['roots-0', 'roots-1']) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), shared)
+      mesh.name = name
+      scene.add(mesh)
+    }
+    const bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [{ asset: { id: 'many', scene, triangleCount: 24, gpuBytes: 100 } as never, node: null }], {})
+    const none = { color: null, emissive: null, emissiveIntensity: null, roughness: null, metalness: null, clearcoat: null, clearcoatRoughness: null, iridescence: null, iridescenceIOR: null, iridescenceThicknessMin: null, iridescenceThicknessMax: null, transmission: null, ior: null, thickness: null, dispersion: null, environmentIntensity: null }
+    bridge.draw(execution('high'), overrides({ parts: { roots: { ...none, roughness: 0.2 } } }))
+    for (const name of ['roots-0', 'roots-1']) {
+      expect((((bridge as unknown as { scene: THREE.Scene }).scene.getObjectByName(name) as THREE.Mesh).material as THREE.MeshStandardMaterial).roughness).toBe(0.2)
+    }
+  })
+
+  it('makes a part clear glass on medium and high, and drops the refraction on low', () => {
+    const scene = new THREE.Group()
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: 0.1, metalness: 0 }))
+    mesh.name = 'crystal'
+    scene.add(mesh)
+    const bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [{ asset: { id: 'glass', scene, triangleCount: 12, gpuBytes: 100 } as never, node: null }], {})
+    const none = { color: null, emissive: null, emissiveIntensity: null, roughness: null, metalness: null, clearcoat: null, clearcoatRoughness: null, iridescence: null, iridescenceIOR: null, iridescenceThicknessMin: null, iridescenceThicknessMax: null, transmission: null, ior: null, thickness: null, dispersion: null, environmentIntensity: null }
+    const glass = overrides({ parts: { crystal: { ...none, transmission: 1, ior: 2.3, thickness: 0.2, dispersion: 4 } } })
+    const material = () => ((bridge as unknown as { scene: THREE.Scene }).scene.getObjectByName('crystal') as THREE.Mesh).material as THREE.MeshPhysicalMaterial
+    bridge.draw(execution('high'), glass)
+    expect(material().transmission).toBe(1)
+    expect(material().ior).toBeCloseTo(2.3)
+    expect(material().dispersion).toBe(4)
+    bridge.draw(execution('low'), glass)
+    expect(material().transmission).toBe(0)
+  })
+
+  it('installs the audio-glow shader hook on the parts listed in config.glow (and only those), and feeds it each frame', () => {
+    const scene = new THREE.Group()
+    for (const [name, material] of [['veins-0', 'veins'], ['bark-0', 'bark']] as const) {
+      const standard = new THREE.MeshStandardMaterial()
+      standard.name = material
+      const geometry = new THREE.BoxGeometry(1, 1, 1)
+      geometry.setAttribute('_glow_phase', new THREE.Float32BufferAttribute(new Float32Array(geometry.getAttribute('position').count), 1))
+      const mesh = new THREE.Mesh(geometry, standard)
+      mesh.name = name
+      scene.add(mesh)
+    }
+    const bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [{ asset: { id: 'glow', scene, triangleCount: 24, gpuBytes: 100 } as never, node: null }], { glow: { veins: 1 } })
+    const materialOf = (name: string) => ((bridge as unknown as { scene: THREE.Scene }).scene.getObjectByName(name) as THREE.Mesh).material as THREE.MeshStandardMaterial
+    expect(materialOf('veins-0').customProgramCacheKey()).toBe('cinema2-glow-phase')
+    const shader = { vertexShader: '#include <common>\n#include <begin_vertex>', fragmentShader: '#include <common>\n#include <emissivemap_fragment>', uniforms: {} as Record<string, { value: unknown }> }
+    materialOf('veins-0').onBeforeCompile(shader as never, undefined as never)
+    expect(shader.fragmentShader).toContain('totalEmissiveRadiance += uCinema2GlowColor')
+    expect(shader.vertexShader).toContain('vCinema2GlowPhase = _glow_phase')
+    expect(materialOf('bark-0').customProgramCacheKey()).not.toContain('glow')
+    bridge.draw(execution('high'), overrides({}), 0, { color: [1, 0.5, 0], strength: 2, frame: { breath: 0.4, fronts: [0.3, -10, -10, -10], gains: [0.8, 0, 0, 0] } })
+    expect((shader.uniforms.uCinema2GlowStrength as { value: number }).value).toBe(2)
+    expect((shader.uniforms.uCinema2GlowBreath as { value: number }).value).toBeCloseTo(0.4)
+    expect((shader.uniforms.uCinema2GlowFront as { value: THREE.Vector4 }).value.x).toBeCloseTo(0.3)
   })
 
   it('creates no panel lights (and never touches the area-light tables) without config.panels', async () => {

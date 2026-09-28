@@ -22,6 +22,25 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-dvydrm-logo-faceted",
+    "kind": "model",
+    "compression": "none",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/models/dvydrm-logo-faceted.glb",
+        "bytes": 520764,
+        "triangles": 12732
+      }
+    },
+    "gpuBytes": {
+      "high": 518780,
+      "medium": 518780,
+      "low": 518780
+    }
+  },
+  {
     "id": "cinema2-golden-roots",
     "kind": "model",
     "compression": "none",
@@ -30,14 +49,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/golden-roots.glb",
-        "bytes": 1952224,
+        "bytes": 2144888,
         "triangles": 68424
       }
     },
     "gpuBytes": {
-      "high": 1876368,
-      "medium": 1876368,
-      "low": 1876368
+      "high": 2052248,
+      "medium": 2052248,
+      "low": 2052248
     }
   },
   {
@@ -57,6 +76,25 @@ export const CINEMA2_ASSET_RECORDS = [
       "high": 341456,
       "medium": 341456,
       "low": 341456
+    }
+  },
+  {
+    "id": "cinema2-reliquary-trees",
+    "kind": "model",
+    "compression": "none",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/models/reliquary-trees.glb",
+        "bytes": 6081736,
+        "triangles": 144420
+      }
+    },
+    "gpuBytes": {
+      "high": 6078584,
+      "medium": 6078584,
+      "low": 6078584
     }
   },
   {

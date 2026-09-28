@@ -12,136 +12,19 @@
 // a bark perturbation on the wood (not the leaf stems or veins): each ring vertex's radius is nudged by a sum of a few sine waves in the
 // tube's local (length, angle) space, seeded per curve. A thin, strongly emissive "vein" strand rides just proud of the trunk strands and the
 // limbs, a cheap stand-in for a glowing crack texture (the hand-written GLB writer below has no UVs or embedded images).
-import { writeFileSync } from 'node:fs'
+//
+// Every vertex also carries `_GLOW_PHASE` (0-1): how far up the tree it is, 0 at the root tips, ~0.28 where the roots meet the trunk, ~0.6 at
+// the trunk top and 1 at the limb tips wrapped round the logo. three-scene's audio glow sends pulses of light up the tree along it.
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as THREE from 'three'
-import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { buildLeaf, buildTaperedTube, hash, jitter, phaseRamp, taper, veinControlPoints, writeGlb } from './cinema2-tube-kit.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'public/cinema2/models/golden-roots.glb')
 
 // Logo landmarks (measured from dvydrm-logo.glb / the master SVG): half-width 1.0, outline bottom -0.628, top +0.628, star tip -0.58.
 const FLOOR_Y = -1.55
-
-function hash(value) {
-  let h = 2166136261
-  for (let index = 0; index < value.length; index += 1) { h ^= value.charCodeAt(index); h = Math.imul(h, 16777619) }
-  h ^= h >>> 15; h = Math.imul(h, 2246822507); h ^= h >>> 13
-  return ((h >>> 0) % 1_000_003) / 1_000_003
-}
-const jitter = (key, spread) => (hash(key) - 0.5) * 2 * spread
-
-// ── Shared curve-frame math ──────────────────────────────────────────────────────────────────────────────────────────────────────────
-/**
- * Samples a Catmull-Rom spline through `controlPoints` and returns, at each sample, the point and a rotation-minimizing frame
- * (sequential parallel transport: each frame is the previous one rotated by the angle between consecutive tangents, about their cross
- * product - Rodrigues rotation). Three's Frenet frames flip when a space curve's curvature passes through zero, which these gently
- * twisting, near-straight branch curves do constantly; this does not.
- */
-function frameSamples(controlPoints, samples) {
-  const curve = new THREE.CatmullRomCurve3(controlPoints.map(p => new THREE.Vector3(...p)), false, 'centripetal')
-  const centres = curve.getSpacedPoints(samples)
-  const tangents = centres.map((_, i) => {
-    const a = centres[Math.max(0, i - 1)], b = centres[Math.min(centres.length - 1, i + 1)]
-    return new THREE.Vector3().subVectors(b, a).normalize()
-  })
-  const seedUp = Math.abs(tangents[0].y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0)
-  const normals = [new THREE.Vector3().crossVectors(tangents[0], seedUp).normalize()]
-  for (let i = 1; i < tangents.length; i += 1) {
-    const axis = new THREE.Vector3().crossVectors(tangents[i - 1], tangents[i])
-    const prev = normals[i - 1]
-    if (axis.lengthSq() < 1e-10) { normals.push(prev.clone()); continue }
-    const angle = Math.acos(Math.min(1, Math.max(-1, tangents[i - 1].dot(tangents[i]))))
-    normals.push(prev.clone().applyAxisAngle(axis.normalize(), angle))
-  }
-  const binormals = centres.map((_, i) => new THREE.Vector3().crossVectors(tangents[i], normals[i]).normalize())
-  return { centres, tangents, normals, binormals }
-}
-
-/** A few sine waves in (length, angle) space, seeded per curve: reads as a gnarled, ridged bark surface rather than a smooth pipe. */
-function barkOffset(t, angleTurns, seed) {
-  const a = Math.sin((angleTurns * 3 + seed * 7.1) * Math.PI * 2 + t * 11)
-  const b = Math.sin((angleTurns * 5.3 - seed * 3.7) * Math.PI * 2 - t * 7.4)
-  const c = Math.sin((angleTurns * 8.7 + seed * 2.3) * Math.PI * 2 + t * 19)
-  return a * 0.5 + b * 0.32 + c * 0.18
-}
-
-/** Sweeps a circular (optionally bark-perturbed) cross-section of varying radius down the curve. */
-function buildTaperedTube(controlPoints, { samples = 48, radiusAt, radialSegments = 8, capStart = true, capEnd = true, bark = null }) {
-  const { centres, tangents, normals, binormals } = frameSamples(controlPoints, samples)
-  const positions = [], vertexNormals = [], indices = []
-  for (let i = 0; i < centres.length; i += 1) {
-    const t = i / (centres.length - 1)
-    const radius = radiusAt(t)
-    for (let j = 0; j < radialSegments; j += 1) {
-      const theta = (j / radialSegments) * Math.PI * 2
-      const dir = new THREE.Vector3().addScaledVector(normals[i], Math.cos(theta)).addScaledVector(binormals[i], Math.sin(theta)).normalize()
-      const local = bark ? radius * (1 + bark.amplitude * barkOffset(t, j / radialSegments, bark.seed)) : radius
-      const point = new THREE.Vector3().copy(centres[i]).addScaledVector(dir, local)
-      positions.push(point.x, point.y, point.z)
-      vertexNormals.push(dir.x, dir.y, dir.z)
-    }
-  }
-  for (let i = 0; i < centres.length - 1; i += 1) {
-    for (let j = 0; j < radialSegments; j += 1) {
-      const a = i * radialSegments + j, b = i * radialSegments + ((j + 1) % radialSegments)
-      const c = (i + 1) * radialSegments + j, d = (i + 1) * radialSegments + ((j + 1) % radialSegments)
-      indices.push(a, c, b, b, c, d)
-    }
-  }
-  const capAt = (index, flip) => {
-    const base = positions.length / 3
-    positions.push(centres[index].x, centres[index].y, centres[index].z)
-    const n = flip ? -1 : 1
-    vertexNormals.push(tangents[index].x * n, tangents[index].y * n, tangents[index].z * n)
-    const ring = index === 0 ? 0 : (centres.length - 1) * radialSegments
-    for (let j = 0; j < radialSegments; j += 1) {
-      const j2 = (j + 1) % radialSegments
-      if (flip) indices.push(base, ring + j2, ring + j); else indices.push(base, ring + j, ring + j2)
-    }
-  }
-  if (capStart) capAt(0, true)
-  if (capEnd) capAt(centres.length - 1, false)
-  return { positions: new Float32Array(positions), normals: new Float32Array(vertexNormals), indices: Uint32Array.from(indices) }
-}
-
-/** Control points for a thin curve that hugs just under a branch's surface, slowly spiralling along it - the "vein" stand-in for a crack texture. */
-function veinControlPoints(controlPoints, radiusAt, baseAngle, driftTurns, offsetFactor, samples = 10) {
-  const { centres, normals, binormals } = frameSamples(controlPoints, samples)
-  return centres.map((c, i) => {
-    const t = i / (samples - 1)
-    const theta = baseAngle + driftTurns * Math.PI * 2 * t
-    const r = radiusAt(t) * offsetFactor
-    const dir = new THREE.Vector3().addScaledVector(normals[i], Math.cos(theta)).addScaledVector(binormals[i], Math.sin(theta))
-    return [c.x + dir.x * r, c.y + dir.y * r, c.z + dir.z * r]
-  })
-}
-
-/**
- * A plump teardrop leaf (rounded at the stem end, pointed at the tip), extruded thin and softly bevelled, with its stem end at `at`, its
- * length along `along`, and its face turned as far toward the camera (+Z) as that allows, so it reads as a leaf, not an edge-on sliver.
- */
-function buildLeaf(at, along, size, twist) {
-  const shape = new THREE.Shape()
-  shape.moveTo(0, 0)
-  shape.bezierCurveTo(size * 0.05, size * 0.32, size * 0.55, size * 0.36, size, 0)
-  shape.bezierCurveTo(size * 0.55, -size * 0.36, size * 0.05, -size * 0.32, 0, 0)
-  let geometry = new THREE.ExtrudeGeometry(shape, { depth: size * 0.04, bevelEnabled: true, bevelThickness: size * 0.04, bevelSize: size * 0.03, bevelSegments: 2, curveSegments: 10 })
-  geometry.translate(0, 0, -size * 0.02)
-  geometry.rotateX(twist) // a little roll about the leaf's own length, so the leaves do not all face the camera identically
-  const x = along.clone().normalize()
-  const toCamera = new THREE.Vector3(0, 0, 1)
-  let z = toCamera.clone().addScaledVector(x, -toCamera.dot(x))
-  if (z.lengthSq() < 1e-6) z = new THREE.Vector3(0, 1, 0).addScaledVector(x, -x.y)
-  z.normalize()
-  const y = new THREE.Vector3().crossVectors(z, x)
-  geometry.applyMatrix4(new THREE.Matrix4().makeBasis(x, y, z))
-  geometry.translate(at.x, at.y, at.z)
-  geometry = mergeVertices(geometry, 1e-6)
-  geometry.computeVertexNormals()
-  return { positions: new Float32Array(geometry.getAttribute('position').array), normals: new Float32Array(geometry.getAttribute('normal').array), indices: Uint32Array.from(geometry.getIndex().array) }
-}
 
 // ── The curve network ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
 // Logo landmarks in world units (the logo is placed 0.05 above the origin): its bottom edge runs at y ~-0.57 from x 0.1 to 0.8, the lower
@@ -177,21 +60,20 @@ const leafSites = [
 ]
 
 const mirror = points => points.map(([x, y, z]) => [-x, y, z])
-const taper = (start, end) => t => start + (end - start) * t
 const meshes = []
 let curveIndex = 0
-function addTube(points, radiusAt, radialSegments, part, bark = null) {
-  const { positions, normals, indices } = buildTaperedTube(points, { radiusAt, radialSegments, bark })
-  meshes.push({ name: `${part}-${curveIndex++}`, part, positions, normals, indices })
+function addTube(points, radiusAt, radialSegments, part, bark = null, phaseAt = () => 0) {
+  const { positions, normals, indices, phases } = buildTaperedTube(points, { radiusAt, radialSegments, bark, phaseAt })
+  meshes.push({ name: `${part}-${curveIndex++}`, part, positions, normals, indices, phases })
 }
 /** A vein's own thickness is a thin fraction of the HOST branch's local radius (sweeping it at the host's full radius buries it inside the
  * branch), with a floor so it stays visible near a tapered tip. `offsetFactor` (close to 1) places it just proud of the branch surface. */
-function addVein(points, hostRadiusAt, part, baseAngle, driftTurns, offsetFactor = 1.04) {
+function addVein(points, hostRadiusAt, part, baseAngle, driftTurns, phaseAt, offsetFactor = 1.04) {
   const veinRadiusAt = t => Math.max(0.008, hostRadiusAt(t) * 0.14)
-  addTube(veinControlPoints(points, hostRadiusAt, baseAngle, driftTurns, offsetFactor), veinRadiusAt, 6, part)
+  addTube(veinControlPoints(points, hostRadiusAt, baseAngle, driftTurns, offsetFactor), veinRadiusAt, 6, part, null, phaseAt)
 }
 /** A curling stem from `start` heading along `out`, bending over as it goes, with a teardrop leaf at its tip. */
-function addLeaf(start, out, key) {
+function addLeaf(start, out, key, phase) {
   const up = new THREE.Vector3(0, 1, 0)
   const length = 0.09 + hash(`stem:${key}`) * 0.05
   const droop = new THREE.Vector3().copy(out).multiplyScalar(0.55).addScaledVector(up, -0.45).normalize()
@@ -201,10 +83,10 @@ function addLeaf(start, out, key) {
   const p2 = p1.clone().addScaledVector(out, length * 0.35).add(curl.clone().multiplyScalar(length))
   const p3 = p2.clone().addScaledVector(droop, length * 0.35)
   const stem = [p0, p1, p2, p3].map(v => [v.x, v.y, v.z])
-  addTube(stem, taper(0.012, 0.005), 6, 'leaves')
+  addTube(stem, taper(0.012, 0.005), 6, 'leaves', null, () => phase)
   const along = new THREE.Vector3().subVectors(p3, p2).normalize()
   const leaf = buildLeaf(p3, along, 0.12 + hash(`leaf:${key}`) * 0.04, jitter(`leaf-twist:${key}`, 0.5))
-  meshes.push({ name: `leaf-${curveIndex++}`, part: 'leaves', positions: leaf.positions, normals: leaf.normals, indices: leaf.indices })
+  meshes.push({ name: `leaf-${curveIndex++}`, part: 'leaves', positions: leaf.positions, normals: leaf.normals, indices: leaf.indices, phases: new Float32Array(leaf.positions.length / 3).fill(phase) })
 }
 /** A point on a Catmull-Rom curve and a sideways direction there, for hanging leaves and forking rootlets. */
 function curvePoint(points, t, sideBias, key) {
@@ -218,10 +100,14 @@ function curvePoint(points, t, sideBias, key) {
 
 // The trunk: four twisting strands (not mirrored: a mirrored helix would untwist), each with a vein.
 const trunkR = taper(0.11, 0.09)
+/** Glow phase: root tips 0 -> trunk base ROOT_TOP -> trunk top TRUNK_TOP -> limb tips 1. */
+const ROOT_TOP = 0.28, TRUNK_TOP = 0.6
+const TRUNK_PHASE = phaseRamp(ROOT_TOP, TRUNK_TOP)
+const LIMB_PHASE = phaseRamp(TRUNK_TOP, 1)
 for (let index = 0; index < 4; index += 1) {
   const strand = trunkStrand(index)
-  addTube(strand, trunkR, 11, 'roots', { amplitude: 0.1, seed: hash(`bark:trunk:${index}`) })
-  addVein(strand, trunkR, 'veins', jitter(`vein:trunk:${index}`, Math.PI), 0.4)
+  addTube(strand, trunkR, 11, 'roots', { amplitude: 0.1, seed: hash(`bark:trunk:${index}`) }, TRUNK_PHASE)
+  addVein(strand, trunkR, 'veins', jitter(`vein:trunk:${index}`, Math.PI), 0.4, TRUNK_PHASE)
 }
 
 // The root flare: fourteen roots all the way round the base (toward the camera too, a little shorter there so they do not run down the
@@ -245,7 +131,8 @@ for (let index = 0; index < ROOT_COUNT; index += 1) {
     points.push([dx * r - dz * lateral, FLOOR_Y + y, (dz * r + dx * lateral) * 0.85])
   }
   const radiusAt = t => (0.11 - hash(`girth:${key}`) * 0.025) * Math.pow(1 - t, 0.75) + 0.012
-  addTube(points, radiusAt, 10, 'roots', { amplitude: 0.12, seed: hash(`bark:${key}`) })
+  const rootPhase = phaseRamp(ROOT_TOP, 0)
+  addTube(points, radiusAt, 10, 'roots', { amplitude: 0.12, seed: hash(`bark:${key}`) }, rootPhase)
   for (const [forkT, sign] of [[0.45, index % 2 === 0 ? 1 : -1], [0.72, index % 2 === 0 ? -1 : 1]]) {
     const fork = curvePoint(points, forkT, sign, `${key}:${forkT}`)
     const side = new THREE.Vector3().crossVectors(fork.tangent, new THREE.Vector3(0, 1, 0)).normalize().multiplyScalar(sign)
@@ -253,9 +140,9 @@ for (let index = 0; index < ROOT_COUNT; index += 1) {
       const v = fork.at.clone().addScaledVector(fork.tangent, s * 0.7).addScaledVector(side, s * 0.8)
       return [v.x, Math.max(FLOOR_Y + 0.01, v.y - s * 0.08), v.z]
     })
-    addTube(rootlet, taper(0.026, 0.007), 7, 'roots')
+    addTube(rootlet, taper(0.026, 0.007), 7, 'roots', null, phaseRamp(rootPhase(forkT), 0))
   }
-  if (index % 3 === 0) addLeaf([points[1][0], points[1][1] + 0.04, points[1][2]], new THREE.Vector3(Math.cos(heading), 0.5, Math.sin(heading)).normalize(), `base-leaf:${index}`)
+  if (index % 3 === 0) addLeaf([points[1][0], points[1][1] + 0.04, points[1][2]], new THREE.Vector3(Math.cos(heading), 0.5, Math.sin(heading)).normalize(), `base-leaf:${index}`, rootPhase(1 / 7))
 }
 
 // The two limbs, their intertwined strands, vines, inner branches and leaves (right side, mirrored for the left).
@@ -263,17 +150,19 @@ for (const side of [1, -1]) {
   const flip = points => (side === 1 ? points : mirror(points))
   const limbR = taper(0.13, 0.026)
   const curves = { limb: flip(limb), vine: flip(vine), innerBranch: flip(innerBranch) }
-  addTube(curves.limb, limbR, 11, 'roots', { amplitude: 0.1, seed: hash(`bark:limb:${side}`) })
-  addVein(curves.limb, limbR, 'veins', jitter(`vein:limb:${side}`, Math.PI), 0.9)
+  addTube(curves.limb, limbR, 11, 'roots', { amplitude: 0.1, seed: hash(`bark:limb:${side}`) }, LIMB_PHASE)
+  addVein(curves.limb, limbR, 'veins', jitter(`vein:limb:${side}`, Math.PI), 0.9, LIMB_PHASE)
   // A thinner strand twisting round the limb, so it reads as several strands like the trunk.
   const strand = veinControlPoints(curves.limb, limbR, jitter(`strand:${side}`, Math.PI), 1.6 * side, 0.95, 16)
-  addTube(strand.slice(0, 13), taper(0.06, 0.018), 9, 'roots', { amplitude: 0.1, seed: hash(`bark:strand:${side}`) })
-  addTube(curves.vine, taper(0.03, 0.011), 8, 'roots', { amplitude: 0.08, seed: hash(`bark:vine:${side}`) })
-  addTube(curves.innerBranch, taper(0.04, 0.014), 8, 'roots', { amplitude: 0.08, seed: hash(`bark:inner:${side}`) })
+  addTube(strand.slice(0, 13), taper(0.06, 0.018), 9, 'roots', { amplitude: 0.1, seed: hash(`bark:strand:${side}`) }, t => LIMB_PHASE(t * 12 / 15))
+  // The vine leaves the limb about 62% along it and the inner branch about 20% along: each picks up the limb's phase there.
+  const phaseOf = { limb: LIMB_PHASE, vine: phaseRamp(LIMB_PHASE(0.62), 1.05), innerBranch: phaseRamp(LIMB_PHASE(0.2), 0.8) }
+  addTube(curves.vine, taper(0.03, 0.011), 8, 'roots', { amplitude: 0.08, seed: hash(`bark:vine:${side}`) }, phaseOf.vine)
+  addTube(curves.innerBranch, taper(0.04, 0.014), 8, 'roots', { amplitude: 0.08, seed: hash(`bark:inner:${side}`) }, phaseOf.innerBranch)
   for (const [name, t, bias] of leafSites) {
     const key = `${name}:${t}:${side}`
     const { at, out } = curvePoint(curves[name], t, bias * side, key)
-    addLeaf([at.x, at.y, at.z], out, key)
+    addLeaf([at.x, at.y, at.z], out, key, phaseOf[name](t))
   }
 }
 
@@ -286,64 +175,7 @@ const MATERIALS = {
   veins: { baseColorFactor: [1, 0.38, 0.08, 1], metallicFactor: 0.1, roughnessFactor: 0.25, emissiveFactor: [2.4, 0.85, 0.08] },
 }
 
-// ── Binary glTF ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-const binaryChunks = []
-let byteLength = 0
-const bufferViews = []
-const accessors = []
-const gltfMeshes = []
-const nodes = []
-const materialList = []
-const materialIndexOf = new Map()
-
-function pushView(typedArray, target) {
-  const bytes = Buffer.from(typedArray.buffer, typedArray.byteOffset, typedArray.byteLength)
-  const padded = Buffer.concat([bytes, Buffer.alloc((4 - (bytes.length % 4)) % 4)])
-  bufferViews.push({ buffer: 0, byteOffset: byteLength, byteLength: bytes.length, target })
-  binaryChunks.push(padded)
-  byteLength += padded.length
-  return bufferViews.length - 1
-}
-
-let triangles = 0
-for (const mesh of meshes) {
-  const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity]
-  for (let i = 0; i < mesh.positions.length / 3; i += 1) for (let k = 0; k < 3; k += 1) {
-    const value = mesh.positions[i * 3 + k]
-    min[k] = Math.min(min[k], value); max[k] = Math.max(max[k], value)
-  }
-  accessors.push({ bufferView: pushView(mesh.positions, 34962), componentType: 5126, count: mesh.positions.length / 3, type: 'VEC3', min, max })
-  const positionAccessor = accessors.length - 1
-  accessors.push({ bufferView: pushView(mesh.normals, 34962), componentType: 5126, count: mesh.normals.length / 3, type: 'VEC3' })
-  const normalAccessor = accessors.length - 1
-  accessors.push({ bufferView: pushView(mesh.indices, 34963), componentType: 5125, count: mesh.indices.length, type: 'SCALAR' })
-  const indexAccessor = accessors.length - 1
-  if (!materialIndexOf.has(mesh.part)) {
-    materialIndexOf.set(mesh.part, materialList.length)
-    materialList.push({ name: mesh.part, pbrMetallicRoughness: { baseColorFactor: MATERIALS[mesh.part].baseColorFactor, metallicFactor: MATERIALS[mesh.part].metallicFactor, roughnessFactor: MATERIALS[mesh.part].roughnessFactor }, ...(MATERIALS[mesh.part].emissiveFactor ? { emissiveFactor: MATERIALS[mesh.part].emissiveFactor } : {}) })
-  }
-  gltfMeshes.push({ name: mesh.name, primitives: [{ attributes: { POSITION: positionAccessor, NORMAL: normalAccessor }, indices: indexAccessor, material: materialIndexOf.get(mesh.part), mode: 4 }] })
-  nodes.push({ name: mesh.name, mesh: gltfMeshes.length - 1 })
-  triangles += mesh.indices.length / 3
-}
-
-const json = {
-  asset: { version: '2.0', generator: 'DRMVYZ scripts/cinema2-assets/generate-golden-roots.mjs' },
-  scene: 0,
-  scenes: [{ name: 'golden-roots', nodes: nodes.map((_, i) => i) }],
-  nodes, meshes: gltfMeshes, materials: materialList, accessors, bufferViews,
-  buffers: [{ byteLength }],
-}
-const jsonBytes = Buffer.from(JSON.stringify(json))
-const jsonChunk = Buffer.concat([jsonBytes, Buffer.alloc((4 - (jsonBytes.length % 4)) % 4, 0x20)])
-const binaryChunk = Buffer.concat(binaryChunks)
-const header = Buffer.alloc(12)
-header.writeUInt32LE(0x46546c67, 0)
-header.writeUInt32LE(2, 4)
-header.writeUInt32LE(12 + 8 + jsonChunk.length + 8 + binaryChunk.length, 8)
-const chunkHeader = (length, type) => { const b = Buffer.alloc(8); b.writeUInt32LE(length, 0); b.writeUInt32LE(type, 4); return b }
-writeFileSync(outputPath, Buffer.concat([header, chunkHeader(jsonChunk.length, 0x4e4f534a), jsonChunk, chunkHeader(binaryChunk.length, 0x004e4942), binaryChunk]))
-
+const { triangles, byteLength, parts } = writeGlb(outputPath, meshes, MATERIALS, 'DRMVYZ scripts/cinema2-assets/generate-golden-roots.mjs', 'golden-roots')
 console.log(`Wrote ${outputPath}`)
-console.log(`  ${meshes.length} meshes (${[...materialIndexOf.keys()].join(', ')}), ${triangles} triangles, ${(byteLength / 1024).toFixed(0)} KB`)
+console.log(`  ${meshes.length} meshes (${parts.join(', ')}), ${triangles} triangles, ${(byteLength / 1024).toFixed(0)} KB`)
 console.log(`  floor Y ${FLOOR_Y}, trunk top y ${TRUNK_TOP_Y}`)

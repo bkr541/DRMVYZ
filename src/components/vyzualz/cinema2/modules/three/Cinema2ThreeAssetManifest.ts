@@ -4,8 +4,12 @@ import { Cinema2ThreeAssetRegistry } from './Cinema2ThreeAssetRegistry'
 export const CINEMA2_REFERENCE_TORUS_KNOT_ASSET_ID: Cinema2AssetId = 'cinema2-reference-torus-knot'
 /** The owner's DVYDRM logo as a 3D model with two parts (nodes `outline`, `crystal`); shared by every logo preset. */
 export const CINEMA2_DVYDRM_LOGO_ASSET_ID: Cinema2AssetId = 'cinema2-dvydrm-logo'
-/** The golden root/branch structure that cradles the logo in RELIQUARY: parts `roots`, `leaves`, `dais`, `daisRing`. */
+/** The cut-crystal variant of the logo (same parts, `outline` and `crystal`, with a faceted crystal body): RELIQUARY's clear crystal. */
+export const CINEMA2_DVYDRM_LOGO_FACETED_ASSET_ID: Cinema2AssetId = 'cinema2-dvydrm-logo-faceted'
+/** The golden tree that holds the logo in RELIQUARY: parts (materials) `roots`, `veins`, `leaves`, each vertex with a `_GLOW_PHASE`. */
 export const CINEMA2_GOLDEN_ROOTS_ASSET_ID: Cinema2AssetId = 'cinema2-golden-roots'
+/** RELIQUARY's flanking forest: dark bark trees wrapped in gold vines. Parts (materials) `bark`, `vines`, `buds`, each vertex with a `_GLOW_PHASE`. */
+export const CINEMA2_RELIQUARY_TREES_ASSET_ID: Cinema2AssetId = 'cinema2-reliquary-trees'
 
 /**
  * Model registry, filled from the generated asset manifest (`npm run assets:build`; records live in `assets/cinema2/<id>/asset.json`).

@@ -4,6 +4,7 @@ import type { Cinema2ModuleRenderExecutionContext } from '../Cinema2ModuleContra
 import { Cinema2GlStateGuard } from './Cinema2GlStateGuard'
 import { applyCinema2CameraFrame, Cinema2ThreeLightRig } from './Cinema2ThreeCameraLightMapping'
 import type { Cinema2ThreeLibrary } from './Cinema2ThreeLibrary'
+import { CINEMA2_THREE_GLOW_WAVE_COUNT, type Cinema2ThreeGlowFrame } from './Cinema2ThreeAudioGlow'
 import type { Cinema2ThreeLoadedAsset } from './Cinema2ThreeAssetCache'
 import { measureObject } from './Cinema2ThreeAssetCache'
 import { getCinema2ThreeRenderer } from './Cinema2ThreeRendererHost'
@@ -24,6 +25,16 @@ export interface Cinema2ThreePartOverrides {
   /** Film thickness in nanometres across the surface, thinnest to thickest: it decides which hues the facets pick up. */
   iridescenceThicknessMin: number | null
   iridescenceThicknessMax: number | null
+  /** See-through glass (0-1): the part refracts what is behind it. Upgrades to physical materials; off on the low tier (it costs a second scene render). */
+  transmission: number | null
+  /** Index of refraction of the part (1-2.333; diamond is ~2.4, glass ~1.5). */
+  ior: number | null
+  /** How thick the glass reads for refraction, in world units. */
+  thickness: number | null
+  /** Rainbow splitting of light through the glass (0 = none, a few = cut crystal). */
+  dispersion: number | null
+  /** This part's share of the environment reflections and fill (multiplies the module's `environmentIntensity`): dark bark wants little, cut crystal a lot. */
+  environmentIntensity: number | null
 }
 
 /** Material overrides exposed as module parameters. `null` means "leave the asset's own value". */
@@ -65,6 +76,15 @@ export interface Cinema2ThreeSceneOptions {
   areaLightTables?: { init(): void } | null
   /** Resolves the shipped environment file for a quality tier; null (or a failed load) falls back to the built-in studio room. */
   environmentUrl?: ((quality: Cinema2RenderQualityLevel) => string | null) | null
+  /** Parts that glow with the music (`config.glow`), each with its own share of the glow (1 = full). */
+  glow?: Readonly<Record<string, number>>
+}
+
+/** How the glowing parts look this frame: the glow's color (sRGB) and overall strength, plus the audio-driven breath and climbing pulses. */
+export interface Cinema2ThreeGlowDraw {
+  color: readonly [number, number, number]
+  strength: number
+  frame: Readonly<Cinema2ThreeGlowFrame>
 }
 
 export interface Cinema2ThreeBridgeDiagnostic {
@@ -96,8 +116,12 @@ interface PlacedInstance {
 }
 
 interface OwnedMaterial {
-  /** The part (mesh) this material belongs to, for per-part overrides. */
+  /** The part this material belongs to, for per-part overrides: the mesh's name, or its material's name when the mesh's is not a listed part
+   * (a model can name many meshes `roots-3`, `leaf-12` ... that share one `roots` / `leaves` material). */
   part: string
+  materialName: string
+  /** This part's share of the environment (null = the scene's level, no override). */
+  environmentShare?: number | null
   material: ThreeNamespace.MeshStandardMaterial
   /** Where the mesh keeps this material, so it can be swapped for a physical one. */
   slot: { mesh: ThreeNamespace.Mesh; index: number | null }
@@ -107,6 +131,10 @@ interface OwnedMaterial {
     iridescence: number
     iridescenceIOR: number
     iridescenceThicknessRange: readonly [number, number]
+    transmission: number
+    ior: number
+    thickness: number
+    dispersion: number
     color: ThreeNamespace.Color
     emissive: ThreeNamespace.Color
     emissiveIntensity: number
@@ -153,6 +181,8 @@ export class Cinema2ThreeSceneBridge {
   private quality: Cinema2RenderQualityLevel | null = null
   private appliedOverrides: Readonly<Cinema2ThreeMaterialOverrides> | null = null
   private disposed = false
+  /** Shared by every glowing material, so one write a frame drives them all. */
+  private readonly glowUniforms: GlowUniforms
 
   constructor(
     private readonly gl: WebGL2RenderingContext,
@@ -175,6 +205,13 @@ export class Cinema2ThreeSceneBridge {
     this.target = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: true })
     ;(this.target as unknown as { isXRRenderTarget: boolean }).isXRRenderTarget = true
     this.target.texture.colorSpace = THREE.SRGBColorSpace
+    this.glowUniforms = {
+      uCinema2GlowColor: { value: new THREE.Color(1, 0.62, 0.2) },
+      uCinema2GlowStrength: { value: 0 },
+      uCinema2GlowBreath: { value: 0 },
+      uCinema2GlowFront: { value: new THREE.Vector4(-10, -10, -10, -10) },
+      uCinema2GlowGain: { value: new THREE.Vector4(0, 0, 0, 0) },
+    }
 
     for (const instance of instances) {
       const root = new THREE.Group()
@@ -191,12 +228,14 @@ export class Cinema2ThreeSceneBridge {
             const physical = standard as Partial<ThreeNamespace.MeshPhysicalMaterial>
             materials.push({
               part: mesh.name || standard.name,
+              materialName: standard.name,
               material: standard,
               slot: { mesh, index: Array.isArray(mesh.material) ? index : null },
               base: {
                 clearcoat: physical.clearcoat ?? 0, clearcoatRoughness: physical.clearcoatRoughness ?? 0,
                 iridescence: physical.iridescence ?? 0, iridescenceIOR: physical.iridescenceIOR ?? 1.3,
                 iridescenceThicknessRange: [physical.iridescenceThicknessRange?.[0] ?? 100, physical.iridescenceThicknessRange?.[1] ?? 400],
+                transmission: physical.transmission ?? 0, ior: physical.ior ?? 1.5, thickness: physical.thickness ?? 0, dispersion: physical.dispersion ?? 0,
                 color: standard.color.clone(), emissive: standard.emissive.clone(), emissiveIntensity: standard.emissiveIntensity,
                 roughness: standard.roughness, metalness: standard.metalness, normalMap: standard.normalMap, aoMap: standard.aoMap,
               },
@@ -206,6 +245,7 @@ export class Cinema2ThreeSceneBridge {
         })
         mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0]!
       })
+      for (const owned of materials) this.decorate(owned)
       root.add(model)
       this.scene.add(root)
       this.placed.push({ node: instance.node, spin: instance.spin === true, root, materials })
@@ -245,7 +285,7 @@ export class Cinema2ThreeSceneBridge {
     return Math.round(bytes)
   }
 
-  draw(exec: Cinema2ModuleRenderExecutionContext, overrides: Readonly<Cinema2ThreeMaterialOverrides>, spinRadians = 0): void {
+  draw(exec: Cinema2ModuleRenderExecutionContext, overrides: Readonly<Cinema2ThreeMaterialOverrides>, spinRadians = 0, glow: Readonly<Cinema2ThreeGlowDraw> | null = null): void {
     if (this.disposed) return
     if (!exec.depthAvailable) throw new Error('Cinema 2.0 Three scene module requires a render target with a depth attachment.')
     const camera = exec.camera
@@ -259,6 +299,7 @@ export class Cinema2ThreeSceneBridge {
       this.applyQuality(lighting.quality)
       this.applyOverrides(overrides)
       this.applyEnvironmentAndPanels(overrides, lighting.environment.exposure)
+      this.applyGlow(glow)
       this.place(exec, spinRadians)
       applyCinema2CameraFrame(this.camera, camera)
       this.lightRig.update(lighting)
@@ -345,19 +386,65 @@ export class Cinema2ThreeSceneBridge {
       for (const owned of materials) {
         const physical = new THREE.MeshPhysicalMaterial()
         THREE.MeshStandardMaterial.prototype.copy.call(physical, owned.material)
+        // The standard copy resets `defines` to { STANDARD }; without PHYSICAL the shader drops IOR and specular (and glass cannot compile).
+        physical.defines = { STANDARD: '', PHYSICAL: '' }
         physical.clearcoat = owned.base.clearcoat
         physical.clearcoatRoughness = owned.base.clearcoatRoughness
         physical.iridescence = owned.base.iridescence
         physical.iridescenceIOR = owned.base.iridescenceIOR
         physical.iridescenceThicknessRange = [owned.base.iridescenceThicknessRange[0], owned.base.iridescenceThicknessRange[1]]
-        if (owned.slot.mesh.geometry.getAttribute(CINEMA2_FILM_THICKNESS_ATTRIBUTE)) useVertexFilmThickness(physical)
+        physical.transmission = owned.base.transmission
+        physical.ior = owned.base.ior
+        physical.thickness = owned.base.thickness
+        physical.dispersion = owned.base.dispersion
         const { mesh, index } = owned.slot
         if (index == null) mesh.material = physical
         else (mesh.material as ThreeNamespace.Material[])[index] = physical
         owned.material.dispose()
         owned.material = physical
+        this.decorate(owned)
       }
     }
+  }
+
+  /** The glow a part gets (0 when it does not glow). */
+  private glowShareOf(owned: Readonly<OwnedMaterial>): number {
+    const glow = this.options.glow
+    if (!glow) return 0
+    const share = glow[owned.part] ?? glow[owned.materialName]
+    return typeof share === 'number' && Number.isFinite(share) ? Math.max(0, share) : 0
+  }
+
+  /**
+   * Installs this material's shader hooks: the per-vertex film thickness (physical materials on meshes that carry it) and the audio glow
+   * (parts listed in `config.glow`). Re-run after a material is swapped for a physical one, since a copy does not carry the hooks.
+   */
+  private decorate(owned: OwnedMaterial): void {
+    const material = owned.material
+    const geometry = owned.slot.mesh.geometry
+    const film = (material as Partial<ThreeNamespace.MeshPhysicalMaterial>).isMeshPhysicalMaterial === true && !!geometry.getAttribute(CINEMA2_FILM_THICKNESS_ATTRIBUTE)
+    const share = this.glowShareOf(owned)
+    const phase = share > 0 && !!geometry.getAttribute(CINEMA2_GLOW_PHASE_ATTRIBUTE)
+    if (!film && share <= 0) return
+    const shareUniform = { value: share }
+    const shared = this.glowUniforms
+    material.onBeforeCompile = shader => {
+      if (film) addVertexFilmThickness(shader)
+      if (share > 0) addAudioGlow(shader, shared, shareUniform, phase)
+    }
+    material.customProgramCacheKey = () => `cinema2${film ? '-film' : ''}${share > 0 ? (phase ? '-glow-phase' : '-glow') : ''}`
+    material.needsUpdate = true
+  }
+
+  private applyGlow(glow: Readonly<Cinema2ThreeGlowDraw> | null): void {
+    const uniforms = this.glowUniforms
+    if (!glow) { uniforms.uCinema2GlowStrength.value = 0; return }
+    uniforms.uCinema2GlowColor.value.setRGB(glow.color[0], glow.color[1], glow.color[2], this.library.THREE.SRGBColorSpace)
+    uniforms.uCinema2GlowStrength.value = Math.max(0, glow.strength)
+    uniforms.uCinema2GlowBreath.value = Math.max(0, glow.frame.breath)
+    const fronts = glow.frame.fronts, gains = glow.frame.gains
+    uniforms.uCinema2GlowFront.value.set(fronts[0] ?? -10, fronts[1] ?? -10, fronts[2] ?? -10, fronts[3] ?? -10)
+    uniforms.uCinema2GlowGain.value.set(gains[0] ?? 0, gains[1] ?? 0, gains[2] ?? 0, gains[3] ?? 0)
   }
 
   private applyEnvironmentAndPanels(overrides: Readonly<Cinema2ThreeMaterialOverrides>, exposure: number): void {
@@ -365,20 +452,33 @@ export class Cinema2ThreeSceneBridge {
     this.scene.environmentIntensity = overrides.environmentIntensity * Math.max(0, exposure)
     this.scene.environmentRotation.set(0, (overrides.environmentRotation * Math.PI) / 180, 0)
     for (const { light, spec } of this.panels) light.intensity = spec.intensity * overrides.panelIntensity
+    // Three uses the scene-wide intensity for anything lit only by scene.environment; a part with its own share gets the environment as its
+    // own envMap instead, so its envMapIntensity (scene level x share) is honoured.
+    const environment = this.scene.environment
+    for (const { materials } of this.placed) {
+      for (const owned of materials) {
+        const share = owned.environmentShare
+        const material = owned.material
+        const wanted = share != null && environment ? environment : null
+        if (material.envMap !== wanted) { material.envMap = wanted; material.needsUpdate = true }
+        if (wanted) material.envMapIntensity = this.scene.environmentIntensity * (share ?? 1)
+      }
+    }
   }
 
   private applyOverrides(overrides: Readonly<Cinema2ThreeMaterialOverrides>): void {
     if (this.appliedOverrides && sameOverrides(this.appliedOverrides, overrides)) return
     this.appliedOverrides = overrides
     const { THREE } = this.library
-    if (overrides.clearcoat != null || Object.values(overrides.parts).some(part => part.clearcoat != null || part.iridescence != null)) this.upgradeToPhysical()
+    if (overrides.clearcoat != null || Object.values(overrides.parts).some(part => part.clearcoat != null || part.iridescence != null || part.transmission != null)) this.upgradeToPhysical()
     const detailed = this.quality !== 'low'
     const tint = overrides.color ? new THREE.Color().setRGB(overrides.color[0], overrides.color[1], overrides.color[2], THREE.SRGBColorSpace) : null
     const emissive = overrides.emissive ? new THREE.Color().setRGB(overrides.emissive[0], overrides.emissive[1], overrides.emissive[2], THREE.SRGBColorSpace) : null
     const colorOf = (rgb: readonly [number, number, number]) => new THREE.Color().setRGB(rgb[0], rgb[1], rgb[2], THREE.SRGBColorSpace)
     for (const { materials } of this.placed) {
-      for (const { material, base, part } of materials) {
-        const own = overrides.parts[part]
+      for (const owned of materials) {
+        const { material, base, part, materialName } = owned
+        const own = overrides.parts[part] ?? overrides.parts[materialName]
         const partTint = own?.color ? colorOf(own.color) : null
         const partEmissive = own?.emissive ? colorOf(own.emissive) : null
         // A part's own value wins over the global one; the tint multiplies the asset's base color.
@@ -389,6 +489,7 @@ export class Cinema2ThreeSceneBridge {
         material.emissiveIntensity = own?.emissiveIntensity ?? overrides.emissiveIntensity ?? base.emissiveIntensity
         material.roughness = own?.roughness ?? overrides.roughness ?? base.roughness
         material.metalness = own?.metalness ?? overrides.metalness ?? base.metalness
+        owned.environmentShare = own?.environmentIntensity ?? null
         const physical = material as Partial<ThreeNamespace.MeshPhysicalMaterial>
         if ('clearcoat' in physical && this.upgraded) {
           const requested = own?.clearcoat ?? overrides.clearcoat
@@ -401,6 +502,12 @@ export class Cinema2ThreeSceneBridge {
           physical.iridescenceIOR = own?.iridescenceIOR ?? base.iridescenceIOR
           const thinnest = own?.iridescenceThicknessMin ?? base.iridescenceThicknessRange[0]
           physical.iridescenceThicknessRange = [thinnest, Math.max(thinnest, own?.iridescenceThicknessMax ?? base.iridescenceThicknessRange[1])]
+          // Glass: held above zero once requested (a transmission of exactly 0 drops the refraction pass from the shader), off on low.
+          const transmission = own?.transmission
+          physical.transmission = detailed && (transmission != null || base.transmission > 0) ? Math.max(0.001, transmission ?? base.transmission) : 0
+          physical.ior = own?.ior ?? base.ior
+          physical.thickness = own?.thickness ?? base.thickness
+          physical.dispersion = own?.dispersion ?? base.dispersion
         }
       }
     }
@@ -474,6 +581,8 @@ export function samePartOverrides(a: Readonly<Cinema2ThreeMaterialOverrides['par
       && x.roughness === y.roughness && x.metalness === y.metalness && x.clearcoat === y.clearcoat && x.clearcoatRoughness === y.clearcoatRoughness
       && x.iridescence === y.iridescence && x.iridescenceIOR === y.iridescenceIOR
       && x.iridescenceThicknessMin === y.iridescenceThicknessMin && x.iridescenceThicknessMax === y.iridescenceThicknessMax
+      && x.transmission === y.transmission && x.ior === y.ior && x.thickness === y.thickness && x.dispersion === y.dispersion
+      && x.environmentIntensity === y.environmentIntensity
   })
 }
 
@@ -484,21 +593,66 @@ export function samePartOverrides(a: Readonly<Cinema2ThreeMaterialOverrides['par
  */
 export const CINEMA2_FILM_THICKNESS_ATTRIBUTE = '_film_thickness'
 
-function useVertexFilmThickness(material: ThreeNamespace.MeshPhysicalMaterial): void {
-  material.onBeforeCompile = shader => {
+type ShaderSource = { vertexShader: string; fragmentShader: string; uniforms: Record<string, { value: unknown }> }
+
+function addVertexFilmThickness(shader: ShaderSource): void {
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', `#include <common>\nattribute float ${CINEMA2_FILM_THICKNESS_ATTRIBUTE};\nvarying float vCinema2FilmThickness;`)
+    .replace('#include <begin_vertex>', `#include <begin_vertex>\nvCinema2FilmThickness = ${CINEMA2_FILM_THICKNESS_ATTRIBUTE};`)
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nvarying float vCinema2FilmThickness;')
+    .replace('#include <lights_physical_fragment>', [
+      '#include <lights_physical_fragment>',
+      '#if defined( USE_IRIDESCENCE ) && !defined( USE_IRIDESCENCE_THICKNESSMAP )',
+      '  material.iridescenceThickness = mix( iridescenceThicknessMinimum, iridescenceThicknessMaximum, clamp( vCinema2FilmThickness, 0.0, 1.0 ) );',
+      '#endif',
+    ].join('\n'))
+}
+
+/**
+ * A model's custom glTF attribute `_GLOW_PHASE` (0-1 per vertex; the loader lower-cases it): how far up the structure a vertex is, 0 at the
+ * root tips and 1 at the top, so a pulse of glow can climb it. A glowing part without it still breathes, but pulses cannot travel.
+ */
+export const CINEMA2_GLOW_PHASE_ATTRIBUTE = '_glow_phase'
+
+interface GlowUniforms {
+  uCinema2GlowColor: { value: ThreeNamespace.Color }
+  uCinema2GlowStrength: { value: number }
+  uCinema2GlowBreath: { value: number }
+  uCinema2GlowFront: { value: ThreeNamespace.Vector4 }
+  uCinema2GlowGain: { value: ThreeNamespace.Vector4 }
+}
+
+/** Adds the audio glow to the material's emitted light: the breath everywhere, plus each climbing pulse as a soft band around its front. */
+function addAudioGlow(shader: ShaderSource, shared: GlowUniforms, share: { value: number }, phase: boolean): void {
+  Object.assign(shader.uniforms, shared, { uCinema2GlowShare: share })
+  if (phase) {
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\nattribute float ${CINEMA2_FILM_THICKNESS_ATTRIBUTE};\nvarying float vCinema2FilmThickness;`)
-      .replace('#include <begin_vertex>', `#include <begin_vertex>\nvCinema2FilmThickness = ${CINEMA2_FILM_THICKNESS_ATTRIBUTE};`)
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vCinema2FilmThickness;')
-      .replace('#include <lights_physical_fragment>', [
-        '#include <lights_physical_fragment>',
-        '#if defined( USE_IRIDESCENCE ) && !defined( USE_IRIDESCENCE_THICKNESSMAP )',
-        '  material.iridescenceThickness = mix( iridescenceThicknessMinimum, iridescenceThicknessMaximum, clamp( vCinema2FilmThickness, 0.0, 1.0 ) );',
-        '#endif',
-      ].join('\n'))
+      .replace('#include <common>', `#include <common>\nattribute float ${CINEMA2_GLOW_PHASE_ATTRIBUTE};\nvarying float vCinema2GlowPhase;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\nvCinema2GlowPhase = ${CINEMA2_GLOW_PHASE_ATTRIBUTE};`)
   }
-  material.customProgramCacheKey = () => 'cinema2-vertex-film-thickness'
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', [
+      '#include <common>',
+      'uniform vec3 uCinema2GlowColor;',
+      'uniform float uCinema2GlowStrength;',
+      'uniform float uCinema2GlowBreath;',
+      'uniform float uCinema2GlowShare;',
+      `uniform vec4 uCinema2GlowFront;`,
+      `uniform vec4 uCinema2GlowGain;`,
+      phase ? 'varying float vCinema2GlowPhase;' : '',
+    ].join('\n'))
+    .replace('#include <emissivemap_fragment>', [
+      '#include <emissivemap_fragment>',
+      'float cinema2Glow = uCinema2GlowBreath;',
+      phase ? [
+        `for ( int i = 0; i < ${CINEMA2_THREE_GLOW_WAVE_COUNT}; i ++ ) {`,
+        '  float d = ( vCinema2GlowPhase - uCinema2GlowFront[ i ] ) / 0.09;',
+        '  cinema2Glow += uCinema2GlowGain[ i ] * exp( - d * d );',
+        '}',
+      ].join('\n') : '',
+      'totalEmissiveRadiance += uCinema2GlowColor * ( uCinema2GlowStrength * uCinema2GlowShare * cinema2Glow );',
+    ].join('\n'))
 }
 
 const initializedAreaLightTables = new WeakSet<object>()

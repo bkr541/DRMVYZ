@@ -19,7 +19,7 @@ import {
   CINEMA2_RELIQUARY_ROOTS_NODE_ID,
 } from '../presets/Cinema2ReliquaryPreset'
 
-const CAPABILITIES = ['render.webgl2', 'render.depth', 'scene.3d', 'camera.world', 'lighting', 'music.beat'] as const
+const CAPABILITIES = ['render.webgl2', 'render.depth', 'scene.3d', 'camera.world', 'lighting', 'music.beat', 'music.bar', 'music.downbeat', 'music.drop', 'visual-director.significance'] as const
 const manifest = CINEMA2_RELIQUARY_PRESET_MANIFEST
 const parameters = manifest.parameters ?? []
 const byLabel = (label: string) => parameters.find(parameter => parameter.label === label)
@@ -44,37 +44,82 @@ describe('RELIQUARY preset', () => {
     expect(byLabel('Master Intensity')?.designParentGroup).toBe('master-controls')
     expect(byLabel('BPM Sync')).toMatchObject({ designParentGroup: 'master-controls', type: 'boolean', defaultValue: true })
     expect(designControls.filter(parameter => parameter.designParentGroup === 'palette' && parameter.type === 'color').length).toBeGreaterThanOrEqual(4)
-    // Both are genuinely consumed (the beat-alternation rule), not just declared: the authoring gate's CONTROL_UNCONSUMED check already
-    // proves this, but check the wiring directly too, since a future edit could re-break it silently.
-    const rule = manifest.choreography?.rules?.[0]
-    expect(rule?.strengthParameter).toEqual({ $ref: byLabel('Master Intensity')?.id })
-    expect(rule?.enabledParameter).toEqual({ $ref: byLabel('BPM Sync')?.id })
   })
 
-  it('places the shared logo asset (its outline tinted/roughened to match the crystal, no gold ring) and the golden-roots asset, both static, sharing one three-scene module', () => {
+  it('overhead rig: six cue spots, each aimed at its own part of the logo, chase in syncopated 16th-note patterns locked to the bar while BPM Sync is on', () => {
+    const cueGroup = manifest.lighting?.groups?.find(group => group.label === 'Overhead Cues')
+    expect(cueGroup?.lights).toHaveLength(6)
+    const lights = manifest.lighting?.lights ?? []
+    const cues = lights.filter(light => cueGroup?.lights.some(ref => ref.$ref === light.id))
+    expect(new Set(cues.map(light => (light as { targetNode?: { $ref: string } }).targetNode?.$ref)).size).toBe(6) // six different aim points
+    const cueRules = (manifest.choreography?.rules ?? []).filter(rule => String(rule.id).startsWith('reliquary-cue-') && rule.actions[0]?.gate)
+    expect(cueRules).toHaveLength(12) // two alternating bars x six spots
+    for (const rule of cueRules) {
+      expect(rule.enabledParameter).toEqual({ $ref: byLabel('BPM Sync')?.id })
+      expect(rule.strengthParameter).toEqual({ $ref: byLabel('Master Intensity')?.id })
+      const gate = rule.actions[0]?.gate
+      expect(gate?.stepsPerBeat).toBe(4)
+      expect(gate?.pattern).toHaveLength(16)
+    }
+    // Syncopated: some hits land off the beat (a 16th step that is not a multiple of 4).
+    const offBeat = cueRules.some(rule => [...(rule.actions[0]?.gate?.pattern ?? '')].some((step, index) => step === 'x' && index % 4 !== 0))
+    expect(offBeat).toBe(true)
+  })
+
+  it('strobe: a 16th-note full strobe on the drop (not gated by BPM Sync) and a roll on downbeats at the top of a build', () => {
+    const rules = manifest.choreography?.rules ?? []
+    const drop = rules.find(rule => rule.source.signal === 'drop')
+    expect(drop?.enabledParameter).toBeUndefined()
+    expect(drop?.actions[0]?.gate).toMatchObject({ stepsPerBeat: 4, pattern: 'x' })
+    const peak = rules.find(rule => rule.source.signal === 'downbeat' && rule.conditions?.some(condition => condition.kind === 'build'))
+    expect(peak?.actions[0]?.gate?.stepsPerBeat).toBe(4)
+  })
+
+  it('glow: roots, veins, leaves and the tree vines glow through the module, with a Glow Mode dropdown (Energy / Breathing / Energy & Breathing) sharing BPM Sync and Master Intensity', () => {
+    const module = manifest.modules?.[0] as Readonly<Cinema2ModuleManifest>
+    expect(Object.keys(module.config?.glow as object).sort()).toEqual(['buds', 'leaves', 'roots', 'veins', 'vines'])
+    const mode = byLabel('Glow Mode') as unknown as { type: string; options: { value: string; label: string }[]; defaultValue: string }
+    expect(mode.type).toBe('enum')
+    expect(mode.options.map(option => option.label)).toEqual(['Energy', 'Breathing', 'Energy & Breathing'])
+    expect(module.parameterBindings?.glowMode).toEqual({ $ref: byLabel('Glow Mode')?.id })
+    expect(module.parameterBindings?.glowSync).toEqual({ $ref: byLabel('BPM Sync')?.id })
+    expect(module.parameterBindings?.glowReactivity).toEqual({ $ref: byLabel('Master Intensity')?.id })
+  })
+
+  it('places the faceted crystal logo (both parts clear glass), the golden tree and the forest in one three-scene module, none spinning', () => {
     const module = manifest.modules?.[0] as Readonly<Cinema2ModuleManifest>
     expect(module.id).toBe(CINEMA2_RELIQUARY_MODULE_ID)
     const instances = module.config?.instances as { asset: string; node: string; spin?: boolean }[]
-    expect(instances.map(instance => instance.asset).sort()).toEqual(['cinema2-dvydrm-logo', 'cinema2-golden-roots'].sort())
+    expect(instances.map(instance => instance.asset).sort()).toEqual(['cinema2-dvydrm-logo-faceted', 'cinema2-golden-roots', 'cinema2-reliquary-trees'].sort())
     for (const instance of instances) expect(instance.spin, `${instance.asset} does not spin`).not.toBe(true)
-    expect(module.config?.parts).toEqual(['outline', 'crystal', 'roots', 'leaves'])
-    expect(module.parameters?.['outline.color']).toEqual(module.parameters?.['crystal.color'])
-    expect(module.parameters?.['outline.roughness']).toEqual(module.parameters?.['crystal.roughness'])
-    expect(module.parameterBindings?.['outline.color']).toEqual(module.parameterBindings?.['crystal.color'])
+    for (const part of ['outline', 'crystal']) {
+      expect(module.parameters?.[`${part}.transmission`]).toBeGreaterThanOrEqual(0.8) // mostly clear glass (fully clear refracts the dark stage and reads black)
+      expect(module.parameterBindings?.[`${part}.transmission`]).toEqual({ $ref: byLabel('Crystal Clarity')?.id })
+    }
     expect(cinema2ThreeSceneModuleDefinition.validate?.(module)).toEqual([])
-    // Two distinct scene nodes place the two instances; each instance's own `node` matches one of them.
     const nodeIds = new Set((manifest.scene?.nodes ?? []).map(node => node.id))
+    for (const instance of instances) expect(nodeIds.has(instance.node as never)).toBe(true)
     expect(nodeIds.has(CINEMA2_RELIQUARY_LOGO_NODE_ID)).toBe(true)
     expect(nodeIds.has(CINEMA2_RELIQUARY_ROOTS_NODE_ID)).toBe(true)
-    expect(instances.map(instance => instance.node).sort()).toEqual([CINEMA2_RELIQUARY_LOGO_NODE_ID, CINEMA2_RELIQUARY_ROOTS_NODE_ID].sort())
   })
 
-  it('renders directly through one depth-enabled scene pass - no haze, bloom, floor reflection or cinematic finish yet - and the camera is static', () => {
-    expect(manifest.effects ?? []).toEqual([])
-    expect(manifest.render?.passes).toHaveLength(1)
-    expect(manifest.render?.passes?.[0]?.kind).toBe('scene')
+  it('renders scene -> matte ground -> haze -> bloom -> cinematic finish, with a static camera', () => {
+    expect((manifest.effects ?? []).map(effect => effect.typeId)).toEqual(['reflective-floor', 'volumetric-atmosphere', 'bloom', 'cinematic-finish'])
+    expect(manifest.render?.passes?.map(pass => pass.kind)).toEqual(['scene', 'fullscreen', 'fullscreen', 'fullscreen', 'fullscreen'])
     expect(manifest.cameras?.[0]?.rig).toEqual({ kind: 'static' })
-    expect(manifest.cameras?.[0]).not.toHaveProperty('motion')
+  })
+})
+
+describe('RELIQUARY assets', () => {
+  it('ships the forest and the faceted crystal logo as registered, licensed models; the forest has bark, vines and buds with a glow phase', () => {
+    for (const id of ['cinema2-reliquary-trees', 'cinema2-dvydrm-logo-faceted']) {
+      expect(cinema2ThreeAssetRegistry.has(id)).toBe(true)
+      expect(CINEMA2_ASSET_RECORDS.find(entry => entry.id === id)).toMatchObject({ kind: 'model', license: 'generated-in-house' })
+    }
+    const glb = readFileSync(resolve(process.cwd(), 'public/cinema2/models/reliquary-trees.glb'))
+    const json = JSON.parse(glb.subarray(20, 20 + glb.readUInt32LE(12)).toString('utf8')) as { materials: { name: string }[]; meshes: { primitives: { attributes: Record<string, number> }[] }[] }
+    expect(new Set(json.materials.map(material => material.name))).toEqual(new Set(['bark', 'vines', 'buds']))
+    for (const mesh of json.meshes) expect(mesh.primitives[0]?.attributes).toHaveProperty('_GLOW_PHASE')
   })
 })
 
@@ -90,6 +135,8 @@ describe('golden-roots shared asset', () => {
     const parts = new Set(json.materials.map(material => material.name))
     expect(parts).toEqual(new Set(['roots', 'veins', 'leaves']))
     expect(json.meshes.length).toBeGreaterThan(4) // many curves/leaves, not one mesh per part
+    const withPhase = (JSON.parse(glb.subarray(20, 20 + jsonLength).toString('utf8')) as { meshes: { primitives: { attributes: Record<string, number> }[] }[] }).meshes
+    for (const mesh of withPhase) expect(mesh.primitives[0]?.attributes).toHaveProperty('_GLOW_PHASE')
   })
 
   it('is registered in the shared studio-neutral environment (reused from GO-TO, avoids tinting the metal)', () => {
