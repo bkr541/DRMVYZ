@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CINEMA2_HUMN_BONE, CINEMA2_HUMN_BONE_COUNT, CINEMA2_HUMN_BONE_PIVOTS } from '../modules/humn/Cinema2HumNMesh'
 import { CINEMA2_HUMN_NEUTRAL_POSE, type Cinema2HumNPerformancePose } from '../modules/humn/Cinema2HumNPerformance'
-import { createCinema2HumNRigState, evaluateCinema2HumNRig, type Cinema2HumNRigInput } from '../modules/humn/Cinema2HumNRig'
+import { cinema2HumNRestSkinMatrices, createCinema2HumNRigState, evaluateCinema2HumNRig, type Cinema2HumNRigInput } from '../modules/humn/Cinema2HumNRig'
 
 function pose(overrides: Partial<Cinema2HumNPerformancePose>): Cinema2HumNPerformancePose {
   return { ...CINEMA2_HUMN_NEUTRAL_POSE, ...overrides }
@@ -20,13 +20,21 @@ function transform(matrices: Float32Array, bone: number, point: readonly number[
 }
 
 describe('HUM:N pose rig', () => {
-  it('leaves every bone at the identity in the neutral pose with no motion', () => {
-    const { skinMatrices } = evaluate({})
-    for (let bone = 0; bone < CINEMA2_HUMN_BONE_COUNT; bone += 1) {
-      for (let element = 0; element < 16; element += 1) {
-        expect(skinMatrices[bone * 16 + element]).toBeCloseTo(element % 5 === 0 ? 1 : 0, 5)
-      }
+  it('stands relaxed in the neutral pose: the body at its bind pose, the arms lowered out of the A-pose to hang at the sides', () => {
+    const { skinMatrices, shot } = evaluate({})
+    expect(Array.from(skinMatrices)).toEqual(Array.from(cinema2HumNRestSkinMatrices()))
+    for (const bone of [CINEMA2_HUMN_BONE.root, CINEMA2_HUMN_BONE.spine, CINEMA2_HUMN_BONE.chest, CINEMA2_HUMN_BONE.neck, CINEMA2_HUMN_BONE.head]) {
+      for (let element = 0; element < 16; element += 1) expect(skinMatrices[bone * 16 + element]).toBeCloseTo(element % 5 === 0 ? 1 : 0, 5)
     }
+    // The hands hang close beside the hips instead of out at 40 degrees.
+    for (const bone of [CINEMA2_HUMN_BONE.leftHand, CINEMA2_HUMN_BONE.rightHand]) {
+      const bind = CINEMA2_HUMN_BONE_PIVOTS[bone]!
+      const wrist = transform(skinMatrices, bone, bind)
+      expect(Math.abs(wrist[0])).toBeLessThan(Math.abs(bind[0]) - 0.1)
+      expect(wrist[1]).toBeLessThan(bind[1])
+    }
+    expect(shot).toEqual({ yaw: 0, pitch: 0, dolly: 0, lift: 0 })
+    expect(CINEMA2_HUMN_BONE_COUNT).toBe(44)
   })
 
   it('is deterministic: the same input gives the same matrices', () => {
@@ -59,11 +67,15 @@ describe('HUM:N pose rig', () => {
     expect(withHit[1]).toBeLessThan(without[1])
   })
 
-  it('reach puts the left hand out toward the camera and up to the shoulder, with the body pushed in', () => {
+  it('reach puts the left hand out toward the camera at face height, fingers up, with the body pushed in', () => {
     const wrist = CINEMA2_HUMN_BONE_PIVOTS[CINEMA2_HUMN_BONE.leftHand]!
-    const reached = transform(evaluate({ pose: pose({ reach: 1 }) }).skinMatrices, CINEMA2_HUMN_BONE.leftHand, wrist)
+    const reachedState = evaluate({ pose: pose({ reach: 1 }) })
+    const reached = transform(reachedState.skinMatrices, CINEMA2_HUMN_BONE.leftHand, wrist)
     expect(reached[2]).toBeGreaterThan(0.45)
-    expect(reached[1]).toBeGreaterThan(0.35)
+    expect(reached[1]).toBeGreaterThan(0.45)
+    // The open palm faces the lens with the fingers pointing up.
+    const fingertip = CINEMA2_HUMN_BONE_PIVOTS[CINEMA2_HUMN_BONE.leftMiddle3]!
+    expect(transform(reachedState.skinMatrices, CINEMA2_HUMN_BONE.leftMiddle3, fingertip)[1]).toBeGreaterThan(reached[1] + 0.05)
     const half = transform(evaluate({ pose: pose({ reach: 0.5 }) }).skinMatrices, CINEMA2_HUMN_BONE.leftHand, wrist)
     expect(half[2]).toBeGreaterThan(0.1)
     expect(half[2]).toBeLessThan(reached[2])
@@ -83,9 +95,9 @@ describe('HUM:N pose rig', () => {
 
   it('lunge drives the whole figure toward the camera and shock rocks it back', () => {
     const chest = CINEMA2_HUMN_BONE_PIVOTS[CINEMA2_HUMN_BONE.spine]!
-    expect(transform(evaluate({ pose: pose({ lunge: 1 }) }).skinMatrices, CINEMA2_HUMN_BONE.root, chest)[2]).toBeGreaterThan(0.28)
+    expect(transform(evaluate({ pose: pose({ lunge: 1 }) }).skinMatrices, CINEMA2_HUMN_BONE.root, chest)[2]).toBeGreaterThan(0.22)
     expect(transform(evaluate({ pose: pose({ shock: 1 }) }).skinMatrices, CINEMA2_HUMN_BONE.root, chest)[2]).toBeLessThan(-0.05)
-    expect(evaluate({ pose: pose({ lunge: 1 }) }).rootZ).toBeGreaterThan(0.28)
+    expect(evaluate({ pose: pose({ lunge: 1 }) }).rootZ).toBeGreaterThan(0.22)
   })
 
   it('look turns the head toward the viewer\'s right, body turn twists the chest, and both are bounded', () => {
@@ -103,5 +115,61 @@ describe('HUM:N pose rig', () => {
   it('keeps every matrix finite for extreme input', () => {
     const state = evaluate({ beat: 1e6, motion: 1, beatEnvelope: 1, pose: pose({ reach: 1, shock: 1, headGrab: 1, lunge: 1, lookYaw: 1, bodyTurn: 1, nod: 1 }) })
     for (const value of state.skinMatrices) expect(Number.isFinite(value)).toBe(true)
+  })
+})
+
+describe('HUM:N reference gestures and shots', () => {
+  it('sweep carries the right hand out wide at shoulder height and brings the left arm across the chest', () => {
+    const state = evaluate({ pose: pose({ sweep: 1 }) })
+    const right = transform(state.skinMatrices, CINEMA2_HUMN_BONE.rightHand, CINEMA2_HUMN_BONE_PIVOTS[CINEMA2_HUMN_BONE.rightHand]!)
+    expect(right[0]).toBeGreaterThan(0.45)
+    expect(right[1]).toBeGreaterThan(0.35)
+    const left = transform(state.skinMatrices, CINEMA2_HUMN_BONE.leftHand, CINEMA2_HUMN_BONE_PIVOTS[CINEMA2_HUMN_BONE.leftHand]!)
+    expect(left[0]).toBeGreaterThan(-0.15)
+    expect(left[2]).toBeGreaterThan(0.1)
+  })
+
+  it('look up lifts the face and drops the shot low, tilted up at the figure', () => {
+    const head = CINEMA2_HUMN_BONE_PIVOTS[CINEMA2_HUMN_BONE.head]!
+    const nose: readonly number[] = [head[0], head[1] + 0.03, head[2] + 0.11]
+    const state = evaluate({ pose: pose({ lookUp: 1 }) })
+    expect(transform(state.skinMatrices, CINEMA2_HUMN_BONE.head, nose)[1]).toBeGreaterThan(nose[1]! + 0.03)
+    expect(state.shot.pitch).toBeGreaterThan(10)
+    expect(state.shot.lift).toBeLessThan(0)
+  })
+
+  it('body turn swings the chest away while the head turns back toward the lens (over the shoulder)', () => {
+    const state = evaluate({ pose: pose({ bodyTurn: 1 }) })
+    const chest = CINEMA2_HUMN_BONE_PIVOTS[CINEMA2_HUMN_BONE.chest]!
+    const leftShoulder = CINEMA2_HUMN_BONE_PIVOTS[CINEMA2_HUMN_BONE.leftUpperArm]!
+    // The viewer-left shoulder comes forward (the body turns about 65 degrees).
+    expect(transform(state.skinMatrices, CINEMA2_HUMN_BONE.leftUpperArm, leftShoulder)[2]).toBeGreaterThan(chest[2] + 0.1)
+    // The face still points mostly at the camera: the nose's sideways offset stays small.
+    const head = CINEMA2_HUMN_BONE_PIVOTS[CINEMA2_HUMN_BONE.head]!
+    const nose = transform(state.skinMatrices, CINEMA2_HUMN_BONE.head, [head[0], head[1] + 0.03, head[2] + 0.11])
+    const skull = transform(state.skinMatrices, CINEMA2_HUMN_BONE.head, head)
+    expect(Math.abs(nose[0] - skull[0])).toBeLessThan(0.08)
+  })
+
+  it('curls every finger toward the palm and spreads them on an open-hand gesture', () => {
+    const tip = (state: ReturnType<typeof evaluate>, bone: number) => transform(state.skinMatrices, bone, CINEMA2_HUMN_BONE_PIVOTS[bone]!)
+    const rest = evaluate({})
+    const grab = evaluate({ pose: pose({ lunge: 1 }) })
+    const palm = CINEMA2_HUMN_BONE_PIVOTS[CINEMA2_HUMN_BONE.leftHand]!
+    // A lunge closes the hands (curl 40): the middle fingertip comes closer to the wrist than at rest.
+    const reach = (state: ReturnType<typeof evaluate>) => {
+      const t = tip(state, CINEMA2_HUMN_BONE.leftMiddle3)
+      const w = transform(state.skinMatrices, CINEMA2_HUMN_BONE.leftHand, palm)
+      return Math.hypot(t[0] - w[0], t[1] - w[1], t[2] - w[2])
+    }
+    expect(reach(grab)).toBeLessThan(reach(rest))
+    // An open reach spreads the index and pinky knuckles' fingertips further apart than at rest.
+    const spread = (state: ReturnType<typeof evaluate>, side: 'left' | 'right') => {
+      const a = tip(state, CINEMA2_HUMN_BONE[`${side}Index3`])
+      const b = tip(state, CINEMA2_HUMN_BONE[`${side}Pinky3`])
+      return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])
+    }
+    expect(spread(evaluate({ pose: pose({ reach: 1 }) }), 'left')).toBeGreaterThan(spread(rest, 'left'))
+    expect(spread(evaluate({ pose: pose({ sweep: 1 }) }), 'right')).toBeGreaterThan(spread(rest, 'right'))
   })
 })

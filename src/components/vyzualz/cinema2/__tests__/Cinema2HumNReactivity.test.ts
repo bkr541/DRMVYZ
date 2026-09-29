@@ -170,8 +170,9 @@ describe('rhythmic events', () => {
 // ── Build choreography ──────────────────────────────────────────────────────
 
 describe('build choreography', () => {
-  // BPM Sync off and Auto Performance off so nothing but the build reaches the values under test.
-  const building = (state: Record<string, number | boolean> = {}) => harness({ state: { [INTENSITY]: 1, [AUTO]: false, [SYNC]: false, [FILL]: 0.1, ...state } })
+  // BPM Sync off and Auto Performance off so nothing but the build reaches the values under test. Fragmentation is set above zero (its
+  // default is 0, continuous edges) so the build has open edges to close.
+  const building = (state: Record<string, number | boolean> = {}) => harness({ state: { [INTENSITY]: 1, [AUTO]: false, [SYNC]: false, [FILL]: 0.1, [FRAG]: 0.12, ...state } })
   const build = (h: Harness, progress: number, frames = 40) => h.step({ buildProgress: progress, buildConfidence: progress, tension: 0, energy: 0.5, frames, dt: 0.1 })
 
   it('does nothing without a build', () => {

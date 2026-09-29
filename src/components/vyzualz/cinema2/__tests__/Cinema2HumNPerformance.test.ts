@@ -154,7 +154,7 @@ describe('Cinema2HumNPerformanceRuntime', () => {
     expect(mid).toBeGreaterThan(0)
     expect(mid).toBeLessThan(1)
     const end = runtime.evaluate(10 + BEAT * (timing.attack + timing.hold + timing.release) + 0.01, ceilings)
-    expect(end).toEqual({ reach: 0, shock: 0, headGrab: 0, lunge: 0, lookYaw: 0, bodyTurn: 0, nod: 0 })
+    expect(end).toEqual({ reach: 0, shock: 0, headGrab: 0, lunge: 0, lookYaw: 0, bodyTurn: 0, nod: 0, sweep: 0, lookUp: 0 })
     expect(runtime.activeCount).toBe(0)
   })
 

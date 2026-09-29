@@ -20,7 +20,7 @@ import {
   type Cinema2HumNStructuralKind,
 } from './humn/Cinema2HumNPerformance'
 import { Cinema2HumNRenderer, type Cinema2HumNDrawState } from './humn/Cinema2HumNRenderer'
-import { createCinema2HumNRigState, evaluateCinema2HumNRig } from './humn/Cinema2HumNRig'
+import { cinema2HumNShotMatrix, createCinema2HumNRigState, evaluateCinema2HumNRig } from './humn/Cinema2HumNRig'
 import type {
   Cinema2ModuleCreateContext,
   Cinema2ModuleDiagnostic,
@@ -35,7 +35,7 @@ export const CINEMA2_HUMN_NATIVE_MODULE_VERSION = 2 as const
 export type Cinema2HumNFragmentEventKind = 'beat' | 'downbeat' | 'kick' | 'snare'
 
 /** The point of the figure Figure Scale grows about (metres, bind pose): the middle of the head, so a close-up keeps the face in frame. */
-export const CINEMA2_HUMN_FRAMING_ANCHOR = Object.freeze({ x: 0, y: 0.74, z: 0 })
+export const CINEMA2_HUMN_FRAMING_ANCHOR = Object.freeze({ x: 0, y: 0.69, z: 0 })
 export const CINEMA2_HUMN_FIGURE_SCALE_LIMITS = Object.freeze({ min: 0.4, max: 2.5 })
 
 /** Fraction of the triangles that turn over (leave/enter the filled set) per beat. */
@@ -170,13 +170,8 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
           (gl: WebGL2RenderingContext) => new Cinema2HumNRenderer(gl, buildCinema2HumNMesh(density)),
           (value: Cinema2HumNRenderer) => value.dispose(),
         )
-        const anchor = CINEMA2_HUMN_FRAMING_ANCHOR
-        const scale = figureScale
-        // Grow about the framing anchor: T(anchor) * S * T(-anchor).
-        const model = multiplyMatrices(
-          translationMatrix(anchor.x, anchor.y, anchor.z),
-          multiplyMatrices([scale, 0, 0, 0, 0, scale, 0, 0, 0, 0, scale, 0, 0, 0, 0, 1], translationMatrix(-anchor.x, -anchor.y, -anchor.z)),
-        )
+        // Grow about the framing anchor, and place the figure for the current gesture's shot (low angle, over the shoulder, close).
+        const model = cinema2HumNShotMatrix(rig.shot, CINEMA2_HUMN_FRAMING_ANCHOR, figureScale)
         renderer.draw({
           ...draw,
           lineScale: clampNumber(height / 1080, 0.6, 2),

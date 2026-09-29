@@ -8,6 +8,7 @@ import {
 } from '..'
 import { cinema2Ref, type Cinema2ParameterId } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_HUMN_BONE, CINEMA2_HUMN_BONE_COUNT, CINEMA2_HUMN_BONE_PIVOTS } from '../modules/humn/Cinema2HumNMesh'
+import { cinema2HumNRestSkinMatrices } from '../modules/humn/Cinema2HumNRig'
 import { createHarness, type Harness } from './support/Cinema2HumNHarness'
 
 // Everything below drives the PRODUCTION runtime: Audio Intelligence bridge -> Visual Director -> Choreography -> canonical targets -> native
@@ -63,14 +64,22 @@ function joint(h: Harness, bone: number): [number, number, number] {
   return [0, 1, 2].map(r => m[r]! * p[0] + m[4 + r]! * p[1] + m[8 + r]! * p[2] + m[12 + r]!) as [number, number, number]
 }
 
+/** The relaxed rest stance: the neutral pose with no idle motion (not the identity: the mesh's bind pose is MakeHuman's A-pose). */
+const REST = cinema2HumNRestSkinMatrices()
+
 function isRest(h: Harness): boolean {
   const bones = h.matrix('u_bones')
-  for (let bone = 0; bone < CINEMA2_HUMN_BONE_COUNT; bone += 1) {
-    for (let element = 0; element < 16; element += 1) {
-      if (Math.abs(bones[bone * 16 + element]! - (element % 5 === 0 ? 1 : 0)) > 1e-4) return false
-    }
+  for (let index = 0; index < CINEMA2_HUMN_BONE_COUNT * 16; index += 1) {
+    if (Math.abs(bones[index]! - REST[index]!) > 1e-4) return false
   }
   return true
+}
+
+/** Where a joint sits in the rest stance. */
+function restJoint(bone: number): [number, number, number] {
+  const p = CINEMA2_HUMN_BONE_PIVOTS[bone]!
+  const m = REST.subarray(bone * 16, bone * 16 + 16)
+  return [0, 1, 2].map(r => m[r]! * p[0] + m[4 + r]! * p[1] + m[8 + r]! * p[2] + m[12 + r]!) as [number, number, number]
 }
 
 /** Plays a drop and parks the harness a moment into its hold. */
@@ -80,14 +89,15 @@ function playDrop(h: Harness, dropId: string) {
   h.step({ frames: 4, dt: 0.05 })
 }
 
-function family(h: Harness): 'reach' | 'shock' | 'headGrab' | 'lunge' | 'none' {
+function family(h: Harness): 'reach' | 'shock' | 'headGrab' | 'lunge' | 'sweep' | 'none' {
   const chest = joint(h, CINEMA2_HUMN_BONE.spine)
   const left = joint(h, CINEMA2_HUMN_BONE.leftHand)
   const right = joint(h, CINEMA2_HUMN_BONE.rightHand)
-  if (chest[2] > 0.25) return 'lunge'
+  if (chest[2] > 0.16) return 'lunge'
   if (chest[2] < -0.04) return 'shock'
   if (left[1] > 0.55 && right[1] > 0.55) return 'headGrab'
-  if (left[2] > 0.4) return 'reach'
+  if (right[0] > 0.45) return 'sweep'
+  if (left[2] > 0.3) return 'reach'
   return 'none'
 }
 
@@ -115,7 +125,7 @@ describe('HUM:N manifest contract', () => {
 
   it('puts Auto Color first in the Palette and shows the manual colors only while it is off', () => {
     const auto = manifestParameters.get(P.autoColor)
-    expect(auto).toMatchObject({ type: 'boolean', defaultValue: true, designParentGroup: 'palette' })
+    expect(auto).toMatchObject({ type: 'boolean', defaultValue: false, designParentGroup: 'palette' })
     const palette = [...manifestParameters.values()].filter(parameter => parameter.designParentGroup === 'palette')
     const order = (parameter: { order?: number }) => parameter.order ?? 0
     expect(Math.min(...palette.map(order))).toBe(order(auto!))
@@ -127,7 +137,8 @@ describe('HUM:N manifest contract', () => {
 
   it('ships defaults that react out of the box', () => {
     expect(manifestParameters.get(P.flicker)).toMatchObject({ defaultValue: 0.5 })
-    expect(manifestParameters.get(P.jitter)).toMatchObject({ defaultValue: 0.4 })
+    // Kicks nudge a few facets off the body rather than shattering the (much finer) realistic face.
+    expect(manifestParameters.get(P.jitter)).toMatchObject({ defaultValue: 0.12 })
     expect(manifestParameters.get(P.motion)).toMatchObject({ defaultValue: 0.6 })
     expect(manifestParameters.get(P.auto)).toMatchObject({ defaultValue: true })
     expect(manifestParameters.get(P.bpmSync)).toMatchObject({ defaultValue: true })
@@ -163,7 +174,7 @@ describe('HUM:N draws a 3D figure through the production runtime', () => {
     expect(h.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ failedPassCount: 0 })
     expect(h.runtime.getModuleRuntimeSnapshot()).toMatchObject({ failedModuleCount: 0 })
     expect(isRest(h)).toBe(true)
-    expect(joint(h, CINEMA2_HUMN_BONE.head)[1]).toBeCloseTo(0.585, 3)
+    expect(joint(h, CINEMA2_HUMN_BONE.head)[1]).toBeCloseTo(CINEMA2_HUMN_BONE_PIVOTS[CINEMA2_HUMN_BONE.head]![1], 3)
   })
 
   it('moves the body when Motion Amount is raised, and more for more motion', () => {
@@ -171,7 +182,8 @@ describe('HUM:N draws a 3D figure through the production runtime', () => {
       const h = harness({ state: { [P.motion]: motion, [P.auto]: false } })
       h.step({ ...CALM, frames: 40 })
       const head = joint(h, CINEMA2_HUMN_BONE.head)
-      return Math.hypot(head[0], head[1] - 0.585, head[2])
+      const rest = restJoint(CINEMA2_HUMN_BONE.head)
+      return Math.hypot(head[0] - rest[0], head[1] - rest[1], head[2] - rest[2])
     }
     expect(at(0)).toBeLessThan(1e-5)
     expect(at(0.4)).toBeGreaterThan(0.0002)
@@ -376,7 +388,7 @@ describe('Flicker Amount and Fragment Jitter react to the rhythm', () => {
 
 describe('Auto Color', () => {
   const settled = (state: Record<string, number | boolean>, frame: Record<string, unknown> = {}) => {
-    const h = harness({ state })
+    const h = harness({ state: { [P.autoColor]: true, ...state } })
     h.step({ ...CALM, frames: 150, ...frame } as never)
     return h
   }
@@ -415,7 +427,7 @@ describe('Auto Color', () => {
   })
 
   it('steps around the color wheel on a section change', () => {
-    const h = harness({})
+    const h = harness({ state: { [P.autoColor]: true } })
     h.step({ ...CALM, key: 'C', mode: 'major', sectionType: 'verse', sectionStartSec: 0, sectionEndSec: 30, frames: 60 })
     const before = h.vec3('u_color0')
     h.step({ ...CALM, key: 'C', mode: 'major', sectionType: 'chorus', sectionStartSec: 30, sectionEndSec: 60, frames: 90 })
@@ -428,7 +440,7 @@ describe('Auto Color', () => {
 describe('Auto Performance owns every pose', () => {
   const DROP_IDS = Array.from({ length: 40 }, (_, index) => `drop-${index}`)
 
-  it('strikes reach, recoil, head grab and lunge poses on drops, all four reachable and each deterministic', () => {
+  it('strikes reach, recoil, head grab, lunge and sweep poses on drops, all five reachable and each deterministic', () => {
     const seen = new Set<string>()
     for (const dropId of DROP_IDS) {
       const a = harness({ state: { [P.motion]: 0, [P.intensity]: 1 } })
@@ -442,7 +454,7 @@ describe('Auto Performance owns every pose', () => {
       a.dispose()
       b.dispose()
     }
-    expect([...seen].filter(name => name !== 'none').sort()).toEqual(['headGrab', 'lunge', 'reach', 'shock'])
+    expect([...seen].filter(name => name !== 'none').sort()).toEqual(['headGrab', 'lunge', 'reach', 'shock', 'sweep'])
   })
 
   it('returns to exactly the rest pose after the gesture releases', () => {
@@ -469,7 +481,8 @@ describe('Auto Performance owns every pose', () => {
     const reach = (intensity: number) => {
       const h = harness({ state: { [P.motion]: 0, [P.intensity]: intensity } })
       playDrop(h, 'drop-0')
-      return Math.hypot(...joint(h, CINEMA2_HUMN_BONE.leftHand).map((value, index) => value - CINEMA2_HUMN_BONE_PIVOTS[CINEMA2_HUMN_BONE.leftHand]![index]!))
+      const rest = restJoint(CINEMA2_HUMN_BONE.leftHand)
+      return Math.hypot(...joint(h, CINEMA2_HUMN_BONE.leftHand).map((value, index) => value - rest[index]!))
     }
     expect(reach(0)).toBeLessThan(1e-5)
     expect(reach(1)).toBeGreaterThan(reach(0.5))

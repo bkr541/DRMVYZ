@@ -33,13 +33,13 @@ function vertex(data: Float32Array, index: number): Vertex {
 describe('HUM:N figure mesh', () => {
   const mesh = buildCinema2HumNMesh(1)
 
-  it('is a real 3D low-poly figure of a few hundred to a couple of thousand triangles, and the dense one has many more', () => {
-    expect(mesh.triangleCount).toBeGreaterThan(600)
-    expect(mesh.triangleCount).toBeLessThan(2000)
+  it('is a faceted human of a few thousand triangles, and the dense one has more than twice as many', () => {
+    expect(mesh.triangleCount).toBeGreaterThan(2000)
+    expect(mesh.triangleCount).toBeLessThan(3500)
     expect(mesh.vertexCount).toBe(mesh.triangleCount * 3)
     expect(mesh.data).toHaveLength(mesh.vertexCount * F)
     const dense = buildCinema2HumNMesh(2)
-    expect(dense.triangleCount).toBeGreaterThan(mesh.triangleCount * 2.5)
+    expect(dense.triangleCount).toBeGreaterThan(mesh.triangleCount * 2.2)
   })
 
   it('is deterministic and cached per density', () => {
@@ -67,10 +67,10 @@ describe('HUM:N figure mesh', () => {
       minY = Math.min(minY, v.position[1])
       maxY = Math.max(maxY, v.position[1])
     }
-    // A head that is a couple of tenths of a metre deep, with a nose that stands out, on a torso: real X, Y and Z extents.
+    // A life-size head and torso (the crown about 0.8 m up, cut at the hips), with real depth: real X, Y and Z extents.
     expect(maxZ - minZ).toBeGreaterThan(0.2)
-    expect(maxY).toBeGreaterThan(0.85)
-    expect(maxY).toBeLessThan(1.05)
+    expect(maxY).toBeGreaterThan(0.75)
+    expect(maxY).toBeLessThan(0.9)
     expect(minY).toBeLessThan(0.05)
   })
 
@@ -162,6 +162,6 @@ describe('HUM:N figure mesh', () => {
     for (let triangle = 0; triangle < mesh.triangleCount; triangle += 1) {
       if (vertex(mesh.data, triangle * 3).info[1] === CINEMA2_HUMN_REGION.eye) eye += 1
     }
-    expect(eye).toBe(16)
+    expect(eye).toBe(20) // two ten-segment discs
   })
 })

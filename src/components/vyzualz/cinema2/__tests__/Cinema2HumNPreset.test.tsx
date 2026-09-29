@@ -355,20 +355,20 @@ describe('Cinema 2.0 HUM:N Glow and Trails through the production Stage', () => 
     expect(first.getEffectRuntimeSnapshot()).toMatchObject({ activeEffectCount: 1, failedEffectCount: 0 })
     expect(first.getHistoryServiceSnapshot().activeBufferCount).toBe(0)
 
-    // Auto Color is on: the manual colors are collapsed out of the real Inspector, and come back when it is turned off.
+    // Auto Color is off by default: the manual colors show in the real Inspector, collapse when it is turned on, and come back when it is off.
     const control = (controlId: string) => host?.querySelectorAll(`[data-cinema2-control-id="${controlId}"]`).length
     expect(control(String(CINEMA2_HUMN_AUTO_COLOR_ID))).toBe(1)
     expect(control('hum-n-background')).toBe(1)
-    for (const manual of ['hum-n-wireframe', 'hum-n-skin-primary', 'hum-n-skin-secondary', 'hum-n-skin-accent', 'hum-n-pattern-ink']) expect(control(manual), manual).toBe(0)
+    for (const manual of ['hum-n-wireframe', 'hum-n-skin-primary', 'hum-n-skin-secondary', 'hum-n-skin-accent', 'hum-n-pattern-ink']) expect(control(manual), manual).toBe(1)
     for (const retired of ['hum-n-master-reactivity', 'hum-n-grid-presence', 'hum-n-gesture-intensity', 'hum-n-color-shift-amount']) expect(control(retired), retired).toBe(0)
     const autoColorSwitch = () => host?.querySelector<HTMLButtonElement>('button#cinema2-parameter-hum-n-auto-color')
-    expect(autoColorSwitch()?.getAttribute('aria-checked')).toBe('true')
-    await act(async () => autoColorSwitch()?.click())
-    expect(first.getParameterState().getValue(CINEMA2_HUMN_AUTO_COLOR_ID)).toBe(false)
-    for (const manual of ['hum-n-wireframe', 'hum-n-skin-primary', 'hum-n-skin-secondary', 'hum-n-skin-accent', 'hum-n-pattern-ink']) expect(control(manual), manual).toBe(1)
+    expect(autoColorSwitch()?.getAttribute('aria-checked')).toBe('false')
     await act(async () => autoColorSwitch()?.click())
     expect(first.getParameterState().getValue(CINEMA2_HUMN_AUTO_COLOR_ID)).toBe(true)
     for (const manual of ['hum-n-wireframe', 'hum-n-skin-primary', 'hum-n-skin-secondary', 'hum-n-skin-accent', 'hum-n-pattern-ink']) expect(control(manual), manual).toBe(0)
+    await act(async () => autoColorSwitch()?.click())
+    expect(first.getParameterState().getValue(CINEMA2_HUMN_AUTO_COLOR_ID)).toBe(false)
+    for (const manual of ['hum-n-wireframe', 'hum-n-skin-primary', 'hum-n-skin-secondary', 'hum-n-skin-accent', 'hum-n-pattern-ink']) expect(control(manual), manual).toBe(1)
 
     const state = first.getParameterState()
     expect(state.setPersistentValue(CINEMA2_HUMN_GLOW_ID, 0.5)).toMatchObject({ ok: true })

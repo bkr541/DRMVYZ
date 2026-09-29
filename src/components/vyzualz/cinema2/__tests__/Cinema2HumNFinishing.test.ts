@@ -170,11 +170,11 @@ describe('Final approved parameter hierarchy', () => {
     expect(parent('effects').groups).toEqual([])
     expect(labels(parent('effects').controls)).toEqual(['Flicker Amount', 'Fragment Jitter', 'Glow', 'Trails'])
     expect(parent('palette').groups).toEqual([])
-    // Auto Color is on by default, so the manual colors are collapsed; only Background stays.
-    expect(labels(parent('palette').controls)).toEqual(['Auto Color', 'Background'])
-    h.set(CINEMA2_HUMN_AUTO_COLOR_ID, false)
-    const manual = createCinema2DesignParentGroupModel(h.runtime.getCompiledPresetPlan(), h.runtime.getParameterState().getSnapshot())
-    expect(labels(manual.find(candidate => candidate.id === 'palette')!.controls)).toEqual(['Auto Color', 'Background', 'Wireframe', 'Skin Primary', 'Skin Secondary', 'Skin Accent', 'Pattern Ink'])
+    // Auto Color is off by default (the reference cyan / blue / magenta palette), so the manual colors show; turning it on collapses them.
+    expect(labels(parent('palette').controls)).toEqual(['Auto Color', 'Background', 'Wireframe', 'Skin Primary', 'Skin Secondary', 'Skin Accent', 'Pattern Ink'])
+    h.set(CINEMA2_HUMN_AUTO_COLOR_ID, true)
+    const automatic = createCinema2DesignParentGroupModel(h.runtime.getCompiledPresetPlan(), h.runtime.getParameterState().getSnapshot())
+    expect(labels(automatic.find(candidate => candidate.id === 'palette')!.controls)).toEqual(['Auto Color', 'Background'])
     const authoredGroups = new Map((CINEMA2_HUMN_PRESET_MANIFEST.parameters ?? []).map(parameter => [String(parameter.label), parameter.group]))
     expect(['Flicker Amount', 'Fragment Jitter', 'Glow', 'Trails'].map(label => authoredGroups.get(label))).toEqual(['Fragment Behavior', 'Fragment Behavior', 'Light Treatment', 'Temporal'])
     expect(['Auto Color', 'Background', 'Wireframe', 'Skin Primary', 'Skin Secondary', 'Skin Accent', 'Pattern Ink'].map(label => authoredGroups.get(label)))

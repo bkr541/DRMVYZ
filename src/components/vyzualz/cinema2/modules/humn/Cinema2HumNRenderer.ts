@@ -192,7 +192,8 @@ void main() {
   // Edges: distance in pixels to each triangle edge from the barycentric gradient.
   float lineAmount = 0.0;
   // Line Weight 1 is about a 2 pixel line at 1080p and scales with the frame, so the figure keeps its look at any size.
-  float halfWidth = 0.7 * u_lineWeight * u_lineScale + 0.3;
+  // Thin, like a fine wire: the realistic figure has several times more edges than the original, so a heavy line would clog the face.
+  float halfWidth = 0.42 * u_lineWeight * u_lineScale + 0.28;
   // Derivatives are taken outside any branch so they stay well defined.
   vec3 pixelStep = vec3(
     length(vec2(dFdx(v_bary.x), dFdy(v_bary.x))),

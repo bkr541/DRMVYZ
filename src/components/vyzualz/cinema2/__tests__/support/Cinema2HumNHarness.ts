@@ -8,6 +8,7 @@ import {
 } from '../../index'
 import type { Cinema2ParameterId } from '../../contracts/Cinema2NativePresetManifest'
 import { humMusicFrame, type HumFrameInput } from './Cinema2HumNFrameFactory'
+import { cinema2HumNRestSkinMatrices } from '../../modules/humn/Cinema2HumNRig'
 
 // Everything below drives the PRODUCTION runtime: Audio Intelligence bridge ->
 // Visual Director -> Choreography -> canonical targets -> native HUM:N module ->
@@ -162,10 +163,12 @@ export function createHarness(options: { seed?: string; state?: Record<string, n
 
 
 /** True while every bone sits at the identity, i.e. the figure is in its bind pose (no idle sway, no gesture). */
+/** True when the figure stands in its relaxed rest stance (no gesture, no idle motion). */
 export function isBindPose(harness: Harness): boolean {
   const bones = harness.matrix('u_bones')
+  const rest = cinema2HumNRestSkinMatrices()
   for (let index = 0; index < bones.length; index += 1) {
-    if (Math.abs(bones[index]! - (index % 16 % 5 === 0 ? 1 : 0)) > 1e-4) return false
+    if (Math.abs(bones[index]! - rest[index]!) > 1e-4) return false
   }
   return true
 }

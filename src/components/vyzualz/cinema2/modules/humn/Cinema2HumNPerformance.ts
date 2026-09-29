@@ -15,10 +15,10 @@
 
 // ── Vocabulary ──────────────────────────────────────────────────────────────
 
-export const CINEMA2_HUMN_DROP_GESTURES = Object.freeze(['reach', 'shock', 'headGrab', 'lunge'] as const)
+export const CINEMA2_HUMN_DROP_GESTURES = Object.freeze(['reach', 'shock', 'headGrab', 'lunge', 'sweep'] as const)
 export type Cinema2HumNDropGesture = typeof CINEMA2_HUMN_DROP_GESTURES[number]
 
-export const CINEMA2_HUMN_STRUCTURAL_VARIANTS = Object.freeze(['lookLeft', 'lookRight', 'bodyTurn', 'scan', 'center'] as const)
+export const CINEMA2_HUMN_STRUCTURAL_VARIANTS = Object.freeze(['lookLeft', 'lookRight', 'bodyTurn', 'scan', 'center', 'lookUp'] as const)
 export type Cinema2HumNStructuralVariant = typeof CINEMA2_HUMN_STRUCTURAL_VARIANTS[number]
 
 export type Cinema2HumNStructuralKind = 'drop' | 'phrase' | 'section'
@@ -35,6 +35,7 @@ export const CINEMA2_HUMN_DROP_GESTURE_TIMINGS: Readonly<Record<Cinema2HumNDropG
   shock: Object.freeze({ attack: 0.1, hold: 0.25, release: 1 }),
   headGrab: Object.freeze({ attack: 0.2, hold: 0.5, release: 2 }),
   lunge: Object.freeze({ attack: 0.15, hold: 0.4, release: 1.5 }),
+  sweep: Object.freeze({ attack: 0.2, hold: 0.5, release: 1.6 }),
 })
 
 /** Phrase/section variations run 1-4 beats. */
@@ -44,6 +45,7 @@ export const CINEMA2_HUMN_STRUCTURAL_TIMINGS: Readonly<Record<Cinema2HumNStructu
   bodyTurn: Object.freeze({ attack: 0.8, hold: 1, release: 1.6 }),
   scan: Object.freeze({ attack: 1, hold: 1, release: 1.8 }),
   center: Object.freeze({ attack: 0.5, hold: 0.5, release: 1 }),
+  lookUp: Object.freeze({ attack: 0.6, hold: 0.8, release: 1.2 }),
 })
 
 /** Authority bounds (fraction of the user ceiling). Phrase is calmer than section, both far calmer than drops. */
@@ -131,20 +133,20 @@ function weightedChoice<T extends string>(entries: readonly (readonly [T, number
 
 /**
  * Manual selection is a uniform pick from the event's own random draw. With
- * Auto Performance on, shared Director context only re-weights the same four
- * authored families (it never invents geometry).
+ * Auto Performance on, shared Director context only re-weights the same authored
+ * families (it never invents geometry).
  */
 export function selectCinema2HumNDropGesture(
   unit: number,
   options: { auto: Cinema2HumNDirectorContext | null; previous?: Cinema2HumNDropGesture | null } = { auto: null },
 ): Cinema2HumNDropGesture {
-  const weights: Record<Cinema2HumNDropGesture, number> = { reach: 1, shock: 1, headGrab: 1, lunge: 1 }
+  const weights: Record<Cinema2HumNDropGesture, number> = { reach: 1, shock: 1, headGrab: 1, lunge: 1, sweep: 1 }
   const context = options.auto
   if (context) {
     const impact = context.impact ?? 0.5
     const build = context.build ?? 0
     const momentum = context.momentum ?? 0.5
-    if (impact >= 0.7) { weights.lunge *= 2.2; weights.reach *= 1.6 }
+    if (impact >= 0.7) { weights.lunge *= 2.2; weights.reach *= 1.6; weights.sweep *= 1.4 }
     if (context.phase === 'peak' || momentum >= 0.7) { weights.lunge *= 1.5; weights.reach *= 1.3 }
     if (context.phase === 'release' || context.phase === 'low' || context.phase === 'steady') { weights.shock *= 2; weights.headGrab *= 2 }
     if (build >= 0.5) { weights.reach *= 1.5; weights.headGrab *= 0.6 }
@@ -158,19 +160,20 @@ export function selectCinema2HumNStructuralVariant(
   unit: number,
   auto: Cinema2HumNDirectorContext | null,
 ): Cinema2HumNStructuralVariant {
-  const weights: Record<'look' | 'bodyTurn' | 'scan' | 'center', number> = {
+  const weights: Record<'look' | 'bodyTurn' | 'scan' | 'center' | 'lookUp', number> = {
     look: 1,
+    lookUp: 0.8,
     bodyTurn: 1,
     scan: 1,
     center: kind === 'section' ? 0.5 : 0,
   }
   if (auto) {
-    if (auto.phase === 'building' || auto.phase === 'rising') weights.scan *= 2.4
+    if (auto.phase === 'building' || auto.phase === 'rising') { weights.scan *= 2.4; weights.lookUp *= 1.8 }
     if (auto.phase === 'peak') weights.bodyTurn *= 2.2
     if (auto.phase === 'release' || auto.phase === 'low') { weights.center *= 3; weights.look *= 1.4 }
     if (auto.sectionType === 'breakdown' || auto.sectionType === 'outro') weights.center *= 2
   }
-  const family = weightedChoice((['look', 'bodyTurn', 'scan', 'center'] as const).map(name => [name, weights[name]] as const), unit)
+  const family = weightedChoice((['look', 'bodyTurn', 'scan', 'center', 'lookUp'] as const).map(name => [name, weights[name]] as const), unit)
   if (family === 'look') return 'lookLeft'
   return family
 }
@@ -236,10 +239,14 @@ export interface Cinema2HumNPerformancePose {
   bodyTurn: number
   /** Brief settle/nod in [0, 1]. */
   nod: number
+  /** Arm sweeping across the body and out to the side, open hand, in [0, 1]. */
+  sweep: number
+  /** Head and chest lifting to look up past the camera, in [0, 1]. */
+  lookUp: number
 }
 
 export const CINEMA2_HUMN_NEUTRAL_POSE: Readonly<Cinema2HumNPerformancePose> = Object.freeze({
-  reach: 0, shock: 0, headGrab: 0, lunge: 0, lookYaw: 0, bodyTurn: 0, nod: 0,
+  reach: 0, shock: 0, headGrab: 0, lunge: 0, lookYaw: 0, bodyTurn: 0, nod: 0, sweep: 0, lookUp: 0,
 })
 
 function scanCurve(tau: number): number {
@@ -353,6 +360,10 @@ export class Cinema2HumNPerformanceRuntime {
           pose.bodyTurn += 0.3 * scan
           break
         }
+        case 'lookUp':
+          pose.lookUp = clamp01(pose.lookUp + amplitude)
+          pose.lookYaw += 0.25 * sign * amplitude
+          break
         case 'center':
           pose.nod = clamp01(pose.nod + amplitude)
           centerDamp = Math.max(centerDamp, envelope)
