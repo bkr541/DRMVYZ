@@ -12,6 +12,16 @@ import type { Cinema2LightingEnvironmentFrame, Cinema2ResolvedLightFrame } from 
 /** Non-ambient lights the Three scene receives (ambient lights are counted separately and always pass). */
 export const CINEMA2_THREE_MAX_LIGHTS = CINEMA2_SHARED_LIGHT_LIMIT
 
+/**
+ * Spot lights (flagged `threeShadow`) whose Three counterpart may cast shadows from the models, per quality tier, and their shadow-map size.
+ * Each shadow map is another render of the casters, so low has none.
+ */
+export const CINEMA2_THREE_SHADOW_BUDGET: Readonly<Record<'low' | 'medium' | 'high', { lights: number; mapSize: number }>> = Object.freeze({
+  low: Object.freeze({ lights: 0, mapSize: 0 }),
+  medium: Object.freeze({ lights: 2, mapSize: 512 }),
+  high: Object.freeze({ lights: 2, mapSize: 1024 }),
+})
+
 /** Copies the engine's final camera state into a Three camera without letting Three recompute any matrix. */
 export function applyCinema2CameraFrame(camera: ThreeNamespace.PerspectiveCamera, frame: Readonly<Cinema2CameraFrame>): void {
   camera.matrixAutoUpdate = false
@@ -50,6 +60,9 @@ export class Cinema2ThreeLightRig {
     this.color = new THREE.Color()
   }
 
+  /** Spot lights casting shadows after the last update (the bridge turns the renderer's shadow map on only when this is above zero). */
+  shadowCasterCount = 0
+
   /** Number of Three lights currently in the scene (including zero-intensity spares). */
   get lightCount(): number {
     return this.ambient.length + this.directional.length + this.point.length + this.spot.length
@@ -60,14 +73,45 @@ export class Cinema2ThreeLightRig {
     this.grow(counts)
     for (const light of [...this.ambient, ...this.directional, ...this.point, ...this.spot]) light.intensity = 0
     const used: LightCounts = { ambient: 0, directional: 0, point: 0, spot: 0 }
+    const budget = CINEMA2_THREE_SHADOW_BUDGET[frame.quality] ?? CINEMA2_THREE_SHADOW_BUDGET.low
+    let shadows = 0
     for (const light of frame.lights) {
       switch (light.type) {
         case 'ambient': this.applyAmbient(this.ambient[used.ambient++], light); break
         case 'directional': this.applyDirectional(this.directional[used.directional++], light); break
         case 'point': this.applyPoint(this.point[used.point++], light); break
-        case 'spot': this.applySpot(this.spot[used.spot++], light); break
+        case 'spot': {
+          const target = this.spot[used.spot++]
+          const casts = light.threeShadow === true && shadows < budget.lights && target != null
+          if (casts) shadows += 1
+          this.applySpot(target, light)
+          if (target) this.applySpotShadow(target, casts, budget.mapSize, light.range)
+          break
+        }
       }
     }
+    // Pool lights beyond this frame's list never cast (their castShadow would otherwise linger from an earlier frame).
+    for (let index = used.spot; index < this.spot.length; index += 1) this.spot[index]!.castShadow = false
+    this.shadowCasterCount = shadows
+  }
+
+  /**
+   * Turns a spot's shadow on or off. The map is re-created when the tier's map size changes; the shadow camera spans from just in front of the
+   * light to its range, so depth precision is spent where the models are.
+   */
+  private applySpotShadow(target: ThreeNamespace.SpotLight, casts: boolean, mapSize: number, range: number): void {
+    target.castShadow = casts
+    if (!casts) return
+    const shadow = target.shadow
+    if (shadow.mapSize.x !== mapSize) {
+      shadow.mapSize.set(mapSize, mapSize)
+      shadow.map?.dispose()
+      shadow.map = null
+    }
+    shadow.bias = -0.0004
+    shadow.normalBias = 0.015
+    shadow.camera.near = 0.3
+    shadow.camera.far = Math.max(1, range)
   }
 
   private setColor(target: ThreeNamespace.Color, light: Readonly<Cinema2ResolvedLightFrame>): void {

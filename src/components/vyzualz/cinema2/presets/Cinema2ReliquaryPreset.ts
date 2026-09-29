@@ -345,10 +345,19 @@ const choreographyRules: readonly Cinema2ChoreographyRuleManifest[] = Object.fre
   }),
 ])
 
+/**
+ * Cue spots that also cast shadows from the models (flagged `threeShadow`). Empty for now: with any Three shadow map active, the transmissive
+ * crystal renders flat milky white (an interaction between Three's shadow pass and its transmission pass in the shared-renderer setup; verified
+ * in real Chrome 2026-09-28, see docs/cinema2-reliquary-cinematic-plan.md step 8). The lower-lobe cues are the intended casters once that is
+ * fixed: the golden tree's branches pass in front of those lobes.
+ */
+const SHADOW_CUES: readonly CueName[] = Object.freeze([])
+
 /** A cue spot high overhead, aimed at its part of the logo, resting dim until the chase hits it. */
 function cueSpot(name: CueName) {
   const cue = CUE_SPOTS.find(entry => entry.name === name)!
-  return spot(cueLightId(name), cue.from, cueTargetId(name), 4.5, CUE_REST, CINEMA2_RELIQUARY_CUE_COLOR_ID, DEFAULT_CUE)
+  const light = spot(cueLightId(name), cue.from, cueTargetId(name), 4.5, CUE_REST, CINEMA2_RELIQUARY_CUE_COLOR_ID, DEFAULT_CUE)
+  return SHADOW_CUES.includes(name) ? Object.freeze({ ...light, config: Object.freeze({ ...light.config, threeShadow: true }) }) : light
 }
 
 function spot(id: Cinema2LightId, position: Cinema2Vector3, target: Cinema2SceneNodeId, cone: number, intensity: number, colorParameterId: Cinema2ParameterId, lightColor: Cinema2Color) {
@@ -505,6 +514,9 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       // What glows, and how much of the glow each part takes: the thin veins and the tree vines carry it, the leaves and buds catch it,
       // and the gold wood itself warms a little. The dark bark and the crystal do not glow.
       glow: Object.freeze({ veins: 1, vines: 1.4, buds: 1.1, leaves: 0.55, roots: 0.12 }),
+      // The golden tree's wood, veins and leaves cast shadows onto the crystal from the shadow-casting cue spots. The forest does not cast: it is
+      // outside those cones, and as one merged mesh it would be drawn into every shadow map for nothing.
+      shadows: Object.freeze({ cast: Object.freeze(['roots', 'veins', 'leaves']), receive: Object.freeze(['outline', 'crystal', 'roots']) }),
       environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
       // Two faint panels high front-left and back-right: just enough for the crystal's facets and the gold to catch a band between cues.
       panels: Object.freeze([

@@ -1,6 +1,6 @@
 # RELIQUARY: plan to reach the cinematic mockups
 
-Status: planned (2026-09-28). No step has started.
+Status: Stage 1 complete (2026-09-28, not yet reviewed in the app by the owner). Stage 2 in progress: step 8 (shadows) built but blocked on RELIQUARY by a glass/shadow rendering conflict; step 9 next.
 Owner decisions: add the wet reflective floor and low ground mist; follow the build order below.
 
 Scope: the RELIQUARY preset (`src/components/vyzualz/cinema2/presets/Cinema2ReliquaryPreset.ts`), the assets it uses (golden roots, flanking trees, faceted crystal logo), and the parts of Cinema 2.0 it needs (the `three-scene` module, lighting, effects).
@@ -35,19 +35,23 @@ Three owner mockups show single frames of the finished preset with the music dri
 
 Stage 1 fixes what Cinema 2.0 can already do, and makes the biggest visual difference for the least risk. Stage 2 adds new capabilities. Each step is checked in real Chrome before the next, using the synthetic-music harness (a simulated 128 BPM track with a build and a drop) and brightness measured per region of the frame, and the frame cost is measured at 1080p.
 
-### Stage 1: use what Cinema 2.0 already has
+### Stage 1: use what Cinema 2.0 already has — complete
+
+Built 2026-09-28 and checked in real Chrome at 16:9 and 4:3 with the synthetic-music harness. Each step below keeps its original plan, followed by an **As built** note where the result differed. Tests: the Cinema 2.0 suite is at its known baseline (15 files / 40 old failures), 693 passing; no new type errors; asset budgets pass. The owner has not reviewed it in the app yet.
 
 **Step 1: Fix the 8-light cap (gap 5)**
 - Raise the light limit in the 3D module (`modules/three/Cinema2ThreeCameraLightMapping.ts`, `CINEMA2_THREE_MAX_LIGHTS`) and the haze (`effects/Cinema2VolumetricAtmosphereEffect.ts`, `CINEMA2_VOLUMETRIC_MAX_LIGHTS`) from 8 to 12.
 - Add a diagnostic when a preset has more lights than the limit, naming the ones dropped, so this can't fail silently again.
 - Result: the fill and ambient lights reach the models, and there's room for the back and rim lights in step 5.
 - Check: measure the frame cost before and after (more lights cost more per pixel).
+- **As built:** the real cap was upstream. The shared lighting runtime (`spatial/Cinema2LightingEnvironmentRuntime.ts`) passed on only the first 8 lights on high, 4 on medium and 2 on low, in authoring order and counting the ambient light, before any consumer saw them; RELIQUARY's fill, back light, rim lights and ambient never existed. Now: one shared limit, `CINEMA2_SHARED_LIGHT_LIMIT = 12` (in the manifest contract), used by the lighting runtime on high, the 3D module and the haze (and through it the floor); medium keeps 6, low 2; ambient lights never count. RELIQUARY lists its lights most important first so low and medium keep the right ones. The compiler warns (`CINEMA2_PRESET_LIGHT_LIMIT_EXCEEDED`) and names any light past the limit. Side effect on other presets: GO-TO, Atmosphere Reference, Spatial Reference and Three Model Reference now keep their ambient light on low (it used to be dropped); nothing else changes, since no other preset has more than 3 non-ambient lights.
 
 **Step 2: Reframe the camera (gap 1)**
 - Move the camera back and slightly lower in the preset so the logo is about 40% of the frame width, the foreground trees sit inside the frame edges, and the floor is visible.
 - Move the foreground trees if needed (`scripts/cinema2-assets/generate-reliquary-trees.mjs`) so they frame the logo at the new distance.
 - Result: the composition matches the mockups, with the forest visible on both sides.
 - Check: compare against the mockups side by side.
+- **As built:** camera at (0, −0.55, 6) looking at (0, −0.45, 0): the logo is about a third of the frame height, framed by height so a 4:3 Stage keeps the trees. Foreground trees moved in to x ±2.85, the outer mid trees to ±4.8.
 
 **Step 3: Re-author the golden tree to thread through the logo (gap 2)**
 - Rewrite the limbs in `scripts/cinema2-assets/generate-golden-roots.mjs`. Two slender branches leave the trunk top just under the star, pass *through* the two open spaces at the bottom of the logo (in front of and behind the ribbons, so they visibly weave), and end in small curling tendrils around the lower swirls.
@@ -56,6 +60,7 @@ Stage 1 fixes what Cinema 2.0 can already do, and makes the biggest visual diffe
 - Keep the thick twisted trunk and the wide root flare, and keep the glow phase value (0 at root tips, 1 at branch tips) so the Energy pulse still climbs.
 - Result: the tree holds the logo from beneath instead of covering it.
 - Check: front and angled views, to confirm the branches pass through the openings without cutting into the logo.
+- **As built:** openings measured from a raster of the logo model. Per side, an inner branch rises behind the bottom band, crosses forward through the inner lower opening and curls in front of the lower swirl; an outer branch runs in front of the logo's bottom edge and passes back through the outer lobe's opening. Short tendrils under the logo, leaves about 40% smaller.
 
 **Step 4: Make the overhead hits read (gap 4)**
 - Lower the crystal's environment reflection share (currently 2.2) so it isn't evenly bright all the time.
@@ -64,6 +69,7 @@ Stage 1 fixes what Cinema 2.0 can already do, and makes the biggest visual diffe
 - Keep the front fill dim, so unlit parts of the logo fall into shadow.
 - Result: when a spot hits a lobe, that lobe is clearly the brightest part and the rest is darker.
 - Check: per-part brightness across a burst of frames. Target: the lit part at least 2× the unlit parts.
+- **As built:** crystal environment share 2.2 → 1.1, panels 3 → 1.2, fill 0.35, cue resting level 0.08, downbeat wash 2.2 → 0.6. Measured: a hit takes its part from about 70–110 to 170–200 (of 255) while the others stay near rest. The first pass (environment 0.6) left the logo nearly black between hits, so it was raised back partway.
 
 **Step 5: Make the background forest visible (gap 3)**
 - Add a back light behind the forest and low rim lights, so the trunks separate from the dark as silhouettes against lit haze.
@@ -72,6 +78,7 @@ Stage 1 fixes what Cinema 2.0 can already do, and makes the biggest visual diffe
 - Darken the bark so the vines stand out.
 - Result: the mockups' layered, readable forest.
 - Check: the trees must be distinguishable from the background in a resting frame.
+- **As built:** thicker vines were tried and read as a tangle of orange strands, so the vines stay thin (two per strand on the foreground trees, one on the mid and far trees). Bark is darker and glossier (roughness 0.5, environment share 0.15). The back light aimed at the camera flooded the frame through the haze, so it became the mockups' overhead light shaft behind the logo, seen side-on. The rim lights needed very low intensity (0.018; for scale, the overhead spots peak at 9) to edge the trunks without flooding them. Haze density 0.03. The trunks are still browner than the mockups' near-black; that is revisited in step 10.
 
 **Step 6: Give each tree its own glow (gap 6)**
 - Bake a random per-tree value into the trees and golden roots models (a new vertex value, like the existing glow phase).
@@ -79,6 +86,7 @@ Stage 1 fixes what Cinema 2.0 can already do, and makes the biggest visual diffe
 - The Glow Mode dropdown (Energy / Breathing / Energy & Breathing), BPM Sync and Master Intensity keep working as they do now.
 - Result: the trees pulse at different brightness, as in the mockups.
 - Check: glow brightness sampled on two different trees over time must differ.
+- **As built:** new `_GLOW_SEED` vertex value per tree in the forest model; the golden tree has none, so it stays the steady centrepiece. The glow now passes its beat position to the shader, so the per-tree variation stays locked to the music. Default glow strength 1.1.
 
 **Step 7: Wet reflective floor and ground mist (gap 10, approved)**
 - Change the ground effect (the existing `reflective-floor` effect) from matte to wet: stronger reflections of the logo, the glowing roots and the lights, with the existing wet-concrete surface texture breaking the reflection up slightly.
@@ -86,13 +94,19 @@ Stage 1 fixes what Cinema 2.0 can already do, and makes the biggest visual diffe
 - Add low ground mist around the roots and the tree bases using the haze effect's existing mist (`mistAmount`, `mistHeight`), kept low and thin so it doesn't wash out the logo or the floor reflections.
 - Result: the mirror floor with glowing reflections and the low mist from the mockups.
 - Check: the floor shows the logo and glow reflected, the mist sits below the logo; measure the frame cost.
+- **As built:** reflectivity 0.6, roughness 0.12, with the floor effect's built-in light ripple (`grit` 0.22) instead of the wet-concrete texture, which read as concrete rather than water. Ground mist `mistAmount` 0.7, `mistHeight` 0.45. Floor rings deferred to step 10.
 
-### Stage 2: new capabilities
+### Stage 2: new capabilities — in progress (step 8 blocked; next: owner decision, then step 9)
 
 **Step 8: Shadows from the 3D models (gap 9)**
 - Turn on Three.js shadow maps in the 3D module for one or two chosen lights (the main overhead key and one cue spot), not all of them.
 - The roots, branches and trees cast shadows, and the logo and floor receive them.
 - Quality tiers: high gets both lights, medium one, low none.
+- Budget: high already measures about 16 ms of GPU per frame at 1080p after Stage 1, so shadow maps must stay cheap (small maps, only the casters that matter), or pay for themselves elsewhere in step 15.
+- **Status: built, not enabled on RELIQUARY (blocked).** The 3D module now supports Three.js spot-light shadows: a light flagged `config.threeShadow` casts (up to two, 1024-pixel maps on high, 512 on medium, none on low; `CINEMA2_THREE_SHADOW_BUDGET`), and `config.shadows = { cast, receive }` names the parts. Tested (light budget per tier, part flags). In real Chrome, a controlled comparison (BPM Sync off, both lower-lobe spots held on, shadows on vs off) showed two things:
+  - With any shadow map active, the **transmissive crystal renders flat milky white** and loses its facets, even when the crystal itself does not receive shadows. With the crystal opaque (Crystal Clarity 0), shadows on and off look the same, so it is an interaction between Three's shadow pass and its transmission pass. Likely lead: the shadow pass sets its own clear color (white), and the transmission pass reads the renderer's clear state when it prepares the image it refracts; not confirmed.
+  - The branch shadows themselves barely register (about 1,100 darker pixels in the logo), because a lit lobe clips to white.
+- So RELIQUARY leaves `SHADOW_CUES` empty for now. To unblock: fix the transmission interaction in the bridge (e.g. restore the clear state between Three's passes, or render shadows in a separate pre-pass), and lower the cue peak so a lit lobe doesn't clip, then flag the two lower-lobe cues.
 - Result: branches shadow the logo and unlit areas fall off naturally.
 - Check: shadows visible on the logo; measure the frame cost per tier.
 
@@ -138,7 +152,7 @@ Stage 1 fixes what Cinema 2.0 can already do, and makes the biggest visual diffe
 
 ## Performance
 
-RELIQUARY takes about 12 ms of GPU per frame at 1080p on high, against the 16.7 ms that 60 fps allows (the timer is coarse). Stage 1 should stay close to that. Stage 2 will not all fit at full quality: each step sets its own per-tier budget, and the background forest may need a lighter version on medium and low.
+Before Stage 1, RELIQUARY took about 12 ms of GPU per frame at 1080p on high. After Stage 1 it measures about 16 ms on high, right at the 16.7 ms that 60 fps allows, 5 ms on medium and 8 ms on low (single coarse timer samples; the low reading is probably noise). The added lights, denser haze and wet floor are the likely costs. Stage 2 will not all fit at full quality: each step sets its own per-tier budget, step 15 has to bring high back under budget, and the background forest may need a lighter version on medium and low.
 
 ## New dependencies
 

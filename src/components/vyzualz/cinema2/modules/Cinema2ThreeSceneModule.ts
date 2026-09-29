@@ -66,6 +66,10 @@ export type Cinema2ThreeSceneModuleState = 'idle' | 'loading' | 'building' | 're
  * beat grid; off: a steady 120 BPM), `glowReactivity` (0-1, how strongly it reacts), `glowStrength` (overall brightness) and `glowColor`. A
  * part with a `_GLOW_PHASE` vertex attribute (0 at the root tips, 1 at the top) carries climbing pulses; without it, it only breathes.
  *
+ * Shadows: `config.shadows` = `{ cast: [parts], receive: [parts] }` names which parts cast and receive shadows from spot lights authored
+ * with `config.threeShadow` (up to two, medium and high only; see CINEMA2_THREE_SHADOW_BUDGET). Keep casters to the models inside those lights'
+ * cones: every caster is drawn again into each shadow map.
+ *
  * `config.environment`: id of a shipped equirectangular environment used for image-based lighting (default: the built-in studio room;
  * a shipped one that fails to load falls back to it with a diagnostic). Its intensity follows the Cinema 2.0 environment exposure.
  * `config.panels`: `[{ position, target, size: [width, height], color, intensity }]` rectangular LED-panel lights (Three `RectAreaLight`) that
@@ -116,6 +120,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
       const beatClock = new Cinema2BeatClock()
       let spinRadians = 0
       const glowShares = parseGlow(context.module)
+      const shadowParts = parseShadows(context.module)
       const audioGlow = glowShares ? new Cinema2ThreeAudioGlow() : null
       let glowDraw: Cinema2ThreeGlowDraw | null = null
       const diagnostics: Cinema2ModuleDiagnostic[] = []
@@ -171,7 +176,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           bridge = context.resources.acquire(
             'three-scene:bridge',
             'ThreeSceneBridge',
-            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded, { panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}) }),
+            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded, { panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}), ...(shadowParts ? { shadows: shadowParts } : {}) }),
             value => { value.dispose(); releaseHeld() },
           )
           state = 'building'
@@ -296,6 +301,14 @@ function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinem
   if (rawParts !== undefined && (!Array.isArray(rawParts) || rawParts.some(name => typeof name !== 'string' || !name.trim()))) {
     diagnostics.push({ code: 'CINEMA2_THREE_SCENE_PARTS_INVALID', path: '$.config.parts', message: 'config.parts must be a list of part (mesh) name strings.' })
   }
+  const rawShadows = module.config?.shadows
+  if (rawShadows !== undefined) {
+    const record = rawShadows && typeof rawShadows === 'object' && !Array.isArray(rawShadows) ? rawShadows as Record<string, unknown> : null
+    const isNameList = (value: unknown) => value === undefined || (Array.isArray(value) && value.every(name => typeof name === 'string' && name.trim() !== ''))
+    if (!record || !isNameList(record.cast) || !isNameList(record.receive)) {
+      diagnostics.push({ code: 'CINEMA2_THREE_SCENE_SHADOWS_INVALID', path: '$.config.shadows', message: 'config.shadows must be { cast?: [part names], receive?: [part names] }.' })
+    }
+  }
   const rawGlow = module.config?.glow
   if (rawGlow !== undefined && (!rawGlow || typeof rawGlow !== 'object' || Array.isArray(rawGlow)
     || Object.values(rawGlow).some(share => typeof share !== 'number' || !Number.isFinite(share) || share < 0))) {
@@ -312,6 +325,14 @@ function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinem
     }
   }
   return diagnostics
+}
+
+function parseShadows(module: Readonly<Cinema2ModuleManifest>): Readonly<{ cast: readonly string[]; receive: readonly string[] }> | null {
+  const raw = module.config?.shadows
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const record = raw as Record<string, unknown>
+  const names = (value: unknown) => (Array.isArray(value) ? value.filter((name): name is string => typeof name === 'string' && name.trim() !== '') : [])
+  return Object.freeze({ cast: Object.freeze(names(record.cast)), receive: Object.freeze(names(record.receive)) })
 }
 
 function parseGlow(module: Readonly<Cinema2ModuleManifest>): Readonly<Record<string, number>> | null {

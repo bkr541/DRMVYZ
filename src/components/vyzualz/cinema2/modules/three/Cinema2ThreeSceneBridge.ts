@@ -78,6 +78,8 @@ export interface Cinema2ThreeSceneOptions {
   environmentUrl?: ((quality: Cinema2RenderQualityLevel) => string | null) | null
   /** Parts that glow with the music (`config.glow`), each with its own share of the glow (1 = full). */
   glow?: Readonly<Record<string, number>>
+  /** Parts that cast and receive shadows from spot lights flagged `threeShadow` (`config.shadows`); none by default. */
+  shadows?: Readonly<{ cast: readonly string[]; receive: readonly string[] }>
 }
 
 /** How the glowing parts look this frame: the glow's color (sRGB) and overall strength, plus the audio-driven breath and climbing pulses. */
@@ -247,6 +249,14 @@ export class Cinema2ThreeSceneBridge {
         mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0]!
       })
       for (const owned of materials) this.decorate(owned)
+      const shadows = options.shadows
+      if (shadows) {
+        for (const owned of materials) {
+          const inList = (list: readonly string[]) => list.includes(owned.part) || list.includes(owned.materialName)
+          owned.slot.mesh.castShadow ||= inList(shadows.cast)
+          owned.slot.mesh.receiveShadow ||= inList(shadows.receive)
+        }
+      }
       root.add(model)
       this.scene.add(root)
       this.placed.push({ node: instance.node, spin: instance.spin === true, root, materials })
@@ -304,6 +314,9 @@ export class Cinema2ThreeSceneBridge {
       this.place(exec, spinRadians)
       applyCinema2CameraFrame(this.camera, camera)
       this.lightRig.update(lighting)
+      // Shadows only while a flagged spot casts (the renderer is shared per context, so this is set every draw).
+      renderer.shadowMap.enabled = this.lightRig.shadowCasterCount > 0
+      renderer.shadowMap.type = this.library.THREE.PCFShadowMap
       if (this.stage !== 'ready') {
         this.warmUp()
         return

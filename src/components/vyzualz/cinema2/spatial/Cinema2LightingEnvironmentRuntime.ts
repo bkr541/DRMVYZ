@@ -31,6 +31,11 @@ export interface Cinema2ResolvedLightFrame {
   range: number
   /** Shadow settings when the light is a directional or spot light authored with `config.castShadow`; null otherwise. */
   shadow?: Readonly<Cinema2LightShadowSettings> | null
+  /**
+   * `config.threeShadow`: a spot light whose Three counterpart casts shadows from the Three scene module's models (the module decides which
+   * parts cast and receive; medium and high only). Independent of `castShadow`, which drives the engine's own single shadow map.
+   */
+  threeShadow?: boolean
 }
 
 /**
@@ -192,6 +197,7 @@ export class Cinema2LightingEnvironmentRuntime {
         spot: light.type === 'spot' ? resolveSpot(light.config) : null,
         range: resolveRange(light.config),
         shadow: resolveShadow(light.type, light.config),
+        threeShadow: light.type === 'spot' && light.config?.threeShadow === true,
       })
     })
     this.currentFrame = freezeFrame({

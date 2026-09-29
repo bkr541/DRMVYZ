@@ -25,6 +25,7 @@ const host = vi.hoisted(() => ({
   renderer: {
     resetState: vi.fn(), setRenderTarget: vi.fn(), render: vi.fn(), initTexture: vi.fn(),
     setRenderTargetFramebuffer: vi.fn(), compileAsync: vi.fn(() => Promise.resolve()),
+    shadowMap: { enabled: false, type: 0 },
   },
   getEnvironment: vi.fn(),
   loadEnvironment: vi.fn(),
@@ -291,6 +292,24 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     expect(shader.vertexShader).toContain('vCinema2GlowSeed = _glow_seed')
     expect(shader.fragmentShader).toContain('cinema2TreeGain')
     expect(shader.fragmentShader).toContain('cinema2Stagger')
+  })
+
+  it('flags the parts listed in config.shadows to cast and receive, by mesh or material name', () => {
+    const scene = new THREE.Group()
+    for (const [name, material] of [['roots-0', 'roots'], ['crystal', 'crystal'], ['bark-0', 'bark']] as const) {
+      const standard = new THREE.MeshStandardMaterial()
+      standard.name = material
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), standard)
+      mesh.name = name
+      scene.add(mesh)
+    }
+    const bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [{ asset: { id: 'shadowed', scene, triangleCount: 36, gpuBytes: 100 } as never, node: null }], { shadows: { cast: ['roots'], receive: ['crystal'] } })
+    const mesh = (name: string) => (bridge as unknown as { scene: THREE.Scene }).scene.getObjectByName(name) as THREE.Mesh
+    expect(mesh('roots-0').castShadow).toBe(true)
+    expect(mesh('roots-0').receiveShadow).toBe(false)
+    expect(mesh('crystal').receiveShadow).toBe(true)
+    expect(mesh('crystal').castShadow).toBe(false)
+    expect(mesh('bark-0').castShadow).toBe(false)
   })
 
   it('creates no panel lights (and never touches the area-light tables) without config.panels', async () => {

@@ -213,6 +213,23 @@ describe('Cinema 2.0 Three camera and light mapping', () => {
     expect(scene.children).toHaveLength(childCount)
   })
 
+  it('casts shadows only from spots flagged threeShadow, within the tier budget (two on medium and high, none on low)', () => {
+    const scene = new THREE.Scene()
+    const rig = new Cinema2ThreeLightRig(THREE, scene)
+    const spots = [0, 1, 2].map(index => light({ type: 'spot', id: `spot-${index}`, spot: { outerAngleDegrees: 10, innerAngleDegrees: 5 }, threeShadow: true } as never))
+    const plain = light({ type: 'spot', id: 'plain' as never, spot: { outerAngleDegrees: 10, innerAngleDegrees: 5 } })
+    rig.update({ ...frame([...spots, plain]), quality: 'high' } as never)
+    expect(rig.shadowCasterCount).toBe(2)
+    const casting = scene.children.filter(child => (child as THREE.SpotLight).isSpotLight && (child as THREE.SpotLight).castShadow) as THREE.SpotLight[]
+    expect(casting).toHaveLength(2)
+    expect(casting[0]!.shadow.mapSize.x).toBe(1024)
+    rig.update({ ...frame([...spots, plain]), quality: 'medium' } as never)
+    expect(rig.shadowCasterCount).toBe(2)
+    rig.update({ ...frame([...spots, plain]), quality: 'low' } as never)
+    expect(rig.shadowCasterCount).toBe(0)
+    expect(scene.children.some(child => (child as THREE.SpotLight).castShadow)).toBe(false)
+  })
+
   it('caps the non-ambient pool at the shared light limit, and always keeps ambient lights', () => {
     const scene = new THREE.Scene()
     const rig = new Cinema2ThreeLightRig(THREE, scene)
