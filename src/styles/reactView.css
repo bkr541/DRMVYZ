@@ -608,6 +608,105 @@
   opacity: 0.42;
 }
 
+/* ── Poster preset card (the standard layout) ────────────────────────────────
+   Layout Lab → Presets → 01 · Poster Tile. A 3:2 tile for a two-column grid: the picture (the `backdrop`, or a plate tinted by the preset's
+   first palette colour) fills the card, the name is centred at its foot on a fade that grows with the name, the chip line sits under it, and
+   the Modified / Switch & Load badges sit on the picture. The favourite heart and the Reload / Restore actions stay top-right. The row layout
+   above is kept for the legacy Cinema engine only. */
+
+.rv-preset-group-cards.rv-preset-group-cards--poster {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-items: stretch;
+}
+
+.rv-preset-group-cards--poster > .rv-ctrl-info,
+.rv-preset-group-cards--poster > .rv-preset-library-empty {
+  grid-column: 1 / -1;
+}
+
+.rv-preset-spotlight-shell > .rv-preset-card.rv-preset-spotlight-card.rv-preset-spotlight-card--poster {
+  --rv-preset-tone: #4ac7db;
+  display: block;
+  height: auto;
+  aspect-ratio: 3 / 2;
+  padding: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.rv-preset-card.rv-preset-spotlight-card.rv-preset-spotlight-card--poster:hover {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--rv-preset-tone) 55%, transparent);
+}
+
+.rv-preset-spotlight-shell > .rv-preset-card.rv-preset-spotlight-card--poster.rv-preset-spotlight-card--active {
+  border-color: var(--rv-preset-tone);
+  background: transparent;
+  box-shadow: 0 0 0 1px var(--rv-preset-tone), 0 0 14px color-mix(in srgb, var(--rv-preset-tone) 32%, transparent);
+}
+
+.rv-preset-spotlight-card--poster .rv-preset-spotlight-thumb {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--rv-preset-tone) 45%, transparent), transparent 62%),
+    linear-gradient(160deg, #0d1a20, #060d10);
+}
+
+.rv-preset-spotlight-card--poster .rv-preset-spotlight-caption {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 1;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  padding: 26px 8px 9px;
+  text-align: center;
+  background: linear-gradient(to top, rgba(4, 8, 12, 0.94) 22%, rgba(4, 8, 12, 0.62) 62%, transparent);
+}
+
+.rv-preset-spotlight-card--poster .rv-preset-spotlight-name {
+  overflow: visible;
+  color: rgba(238, 244, 246, 0.97);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.22;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.rv-preset-poster-chip {
+  max-width: 100%;
+  color: color-mix(in srgb, var(--rv-preset-tone) 82%, white);
+  font: 700 9px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.14em;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.rv-preset-poster-badges {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  pointer-events: none;
+}
+
+/* The heart and actions ride on the picture, so give them the picture's dark plate. */
+.rv-preset-spotlight-shell:has(.rv-preset-spotlight-card--poster) .rv-preset-spotlight-actions {
+  top: 6px;
+  right: 6px;
+}
+
 .rv-production-badges,
 .rv-production-tags {
   display: flex;
@@ -21698,32 +21797,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   vertical-align: middle;
 }
 
-/* 01 · Poster Tile: a wide preview (3:2, half the height of the original 3:4 portrait), the name centred at its foot on a fade that grows with the name. */
-.llp4-poster { display: block; aspect-ratio: 3 / 2; overflow: hidden; padding: 0; }
-.llp4-poster-modified { position: absolute; top: 6px; left: 6px; z-index: 2; }
-.llp4-poster-foot {
-  position: absolute;
-  inset: auto 0 0;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 26px 8px 9px;
-  text-align: center;
-  background: linear-gradient(to top, rgba(4, 8, 12, 0.94) 22%, rgba(4, 8, 12, 0.62) 62%, transparent);
-}
-.llp4-poster-name {
-  color: rgba(238, 244, 246, 0.97);
-  font: 800 12px/1.22 var(--az-font, Inter, system-ui, sans-serif);
-  overflow-wrap: anywhere;
-}
-.llp4-poster-chip {
-  color: color-mix(in srgb, var(--llp4-tone) 82%, white);
-  font: 700 9px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
+/* The generated still behind a preset card (Poster Tile and Colour Block): a 3:2 canvas that covers whatever card it fills. */
+.llp4-art { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: cover; border-radius: inherit; background: #060d10; }
 
 /* 02 · Info Card: a small preview beside the name, the description under it, the chips at the foot. */
 .llp4-info {
@@ -21768,7 +21843,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 .llp4-block.is-active { background:
   linear-gradient(150deg, color-mix(in srgb, var(--llp4-tone) 38%, #0a1419), color-mix(in srgb, var(--llp4-tone) 10%, #060d10) 78%); }
-.llp4-block-motif { position: absolute; top: 0; right: 0; width: 46px; height: 46px; border-radius: 0 8px 0 46px; opacity: 0.55; }
+/* The generated still is the card's background; a scrim darkens it so the name and chip stay readable. */
+.llp4-block::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(100deg, rgba(4, 8, 12, 0.78) 12%, rgba(4, 8, 12, 0.42) 62%, rgba(4, 8, 12, 0.26));
+}
+.llp4-block.is-active::after { background: linear-gradient(100deg, rgba(4, 8, 12, 0.7) 12%, rgba(4, 8, 12, 0.36) 62%, rgba(4, 8, 12, 0.2)); }
 .llp4-block-name {
   position: relative;
   z-index: 1;

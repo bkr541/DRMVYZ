@@ -1,7 +1,8 @@
-import { useState, type CSSProperties } from 'react'
+import { useState } from 'react'
 import { cinema2NativePresetRegistry, type Cinema2PresetId } from '../cinema2'
 import { PresetSearchRow } from './controls/PresetSearchRow'
 import { PanelSubtabs } from './PanelSubtabs'
+import { ReactPresetCard } from './ReactPresetCard'
 
 const CINEMA2_PRESET_TONES = ['#4ac7db', '#67f7ff', '#6b4cff', '#61d6aa']
 
@@ -35,29 +36,20 @@ export function Cinema2PresetsPanel({ activePresetId, onSelectPreset }: Cinema2P
         ariaLabel="Search Cinema 2.0 presets"
       />
       {scope === 'system' && (
-      <div className="rv-cinema-preset-grid" data-cinema2-preset-grid="true">
-        {presets.map((manifest, index) => {
-          const active = manifest.id === activePresetId
-          return (
-            <button
-              type="button"
-              key={manifest.id}
-              className={`rv-cinema-preset-tile${active ? ' is-active' : ''}`}
-              aria-pressed={active}
-              data-cinema2-preset-id={manifest.id}
-              title={manifest.metadata.description}
-              onClick={() => onSelectPreset(manifest.id)}
-            >
-              <span className="rv-cinema-preset-tile-accent" aria-hidden="true" />
-              <span
-                className="rv-cinema-preset-tile-thumb"
-                style={{ '--rv-preset-tone': CINEMA2_PRESET_TONES[index % CINEMA2_PRESET_TONES.length] } as CSSProperties}
-                aria-hidden="true"
-              />
-              <span className="rv-cinema-preset-tile-name">{manifest.metadata.name}</span>
-            </button>
-          )
-        })}
+      <div className="rv-preset-group-cards rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2" data-cinema2-preset-grid="true">
+        {presets.map((manifest, index) => (
+          <ReactPresetCard
+            key={manifest.id}
+            id={manifest.id}
+            title={manifest.metadata.name}
+            description={manifest.metadata.description ?? manifest.metadata.name}
+            palette={[{ color: CINEMA2_PRESET_TONES[index % CINEMA2_PRESET_TONES.length] }]}
+            isActive={manifest.id === activePresetId}
+            activateLabel={`Load ${manifest.metadata.name}`}
+            onActivate={() => onSelectPreset(manifest.id)}
+            dataAttributes={{ 'data-cinema2-preset-id': manifest.id }}
+          />
+        ))}
         {presets.length === 0 && <div className="rv-ctrl-info">No Cinema 2.0 presets match “{query}”.</div>}
       </div>
       )}

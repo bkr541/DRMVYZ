@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type ReactNode } from 'react'
+import { type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { FavouriteIcon } from 'hugeicons-react'
 import { Badge } from './controls/Badge'
 
@@ -26,11 +26,24 @@ export interface ReactPresetCardSecondaryAction {
   onSelect: () => void
 }
 
+/**
+ * How the card is laid out. `poster` is the standard (Layout Lab → Presets → 01 · Poster Tile): a 3:2 tile for a two-column grid, the picture
+ * filling the card and the name centred at its foot. `row` is the older single-column row with a small thumbnail; only the legacy Cinema engine
+ * still uses it.
+ */
+export type ReactPresetCardLayout = 'poster' | 'row'
+
 export interface ReactPresetCardProps {
   id: string
   title: string
   description: string
+  /** Row layout only: the small thumbnail beside the name. */
   thumbnail?: ReactNode
+  /** Poster layout only: what fills the card behind the name. Without it the card shows a plate tinted by the preset's first palette colour. */
+  backdrop?: ReactNode
+  layout?: ReactPresetCardLayout
+  /** Extra `data-*` attributes for the card button (tests and automation look presets up by them). */
+  dataAttributes?: Record<`data-${string}`, string>
   chips?: ReactPresetCardChip[]
   palette?: ReactPresetCardPaletteColor[]
   isActive?: boolean
@@ -76,7 +89,7 @@ export function handlePresetCardKeyDown(event: KeyboardEvent<HTMLButtonElement>)
   if (!group) return
   const cards = Array.from(group.querySelectorAll<HTMLButtonElement>('[data-preset-card]:not(:disabled)'))
   const currentIndex = cards.indexOf(event.currentTarget)
-  const columns = group.clientWidth >= 720 ? 2 : 1
+  const columns = Number(group.dataset.presetColumns) || (group.clientWidth >= 720 ? 2 : 1)
   const nextIndex = resolvePresetCardNavigationIndex(currentIndex, event.key, cards.length, columns)
   if (nextIndex == null || nextIndex === currentIndex) return
   event.preventDefault()
@@ -92,6 +105,9 @@ export function ReactPresetCard({
   title,
   description,
   thumbnail,
+  backdrop,
+  layout = 'poster',
+  dataAttributes,
   chips = [],
   palette = [],
   isActive = false,
@@ -106,10 +122,14 @@ export function ReactPresetCard({
   titleText = description,
   disabled = false,
 }: ReactPresetCardProps) {
-  const hasThumbnail = Boolean(thumbnail)
+  const poster = layout === 'poster'
+  const hasThumbnail = !poster && Boolean(thumbnail)
   const hasActions = Boolean(onToggleFavorite) || secondaryActions.length > 0
   const visibleChips = chips.slice(0, 2)
   const chipTone = palette[0]?.color ?? DEFAULT_CHIP_TONE
+  // Poster: the switch chip is a badge on the picture; the other chips are one line of text at the foot.
+  const switchChip = visibleChips.find(chip => chip.tone === 'switch')
+  const chipLine = visibleChips.filter(chip => chip.tone !== 'switch').map(chip => chip.label).join(' · ')
 
   return (
     <div
@@ -119,39 +139,59 @@ export function ReactPresetCard({
     >
       <button
         type="button"
-        className={`rv-preset-card rv-preset-spotlight-card${hasThumbnail ? '' : ' rv-preset-spotlight-card--no-thumb'}${isActive ? ' rv-preset-card--active rv-preset-spotlight-card--active' : ''}${className ? ` ${className}` : ''}`}
+        className={`rv-preset-card rv-preset-spotlight-card${poster ? ' rv-preset-spotlight-card--poster' : hasThumbnail ? '' : ' rv-preset-spotlight-card--no-thumb'}${isActive ? ' rv-preset-card--active rv-preset-spotlight-card--active' : ''}${className ? ` ${className}` : ''}`}
         onClick={disabled ? undefined : onActivate}
         onKeyDown={handlePresetCardKeyDown}
         disabled={disabled}
         data-preset-card
         data-preset-card-id={id}
+        style={poster ? ({ '--rv-preset-tone': chipTone } as CSSProperties) : undefined}
+        {...dataAttributes}
         aria-pressed={isActive}
         aria-current={isActive ? 'true' : undefined}
         aria-label={activateLabel}
         title={titleText}
       >
-        <span className="rv-preset-spotlight-accent" aria-hidden="true" />
-        {hasThumbnail && (
+        {poster ? (
           <>
-            <span className="rv-preset-spotlight-thumb" aria-hidden="true">{thumbnail}</span>
-            <span className="rv-preset-spotlight-scrim" aria-hidden="true" />
+            <span className="rv-preset-spotlight-thumb" aria-hidden="true">{backdrop}</span>
+            {(switchChip || isModified) && (
+              <span className="rv-preset-poster-badges">
+                {switchChip && <Badge label={switchChip.label} tone={SWITCH_CHIP_TONE} />}
+                {isModified && <Badge label="Modified" tone={MODIFIED_CHIP_TONE} />}
+              </span>
+            )}
+            <span className="rv-preset-spotlight-caption">
+              <span className="rv-preset-spotlight-name">{title}</span>
+              {chipLine && <span className="rv-preset-poster-chip">{chipLine}</span>}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="rv-preset-spotlight-accent" aria-hidden="true" />
+            {hasThumbnail && (
+              <>
+                <span className="rv-preset-spotlight-thumb" aria-hidden="true">{thumbnail}</span>
+                <span className="rv-preset-spotlight-scrim" aria-hidden="true" />
+              </>
+            )}
+            <span className="rv-preset-spotlight-caption">
+              <span className="rv-preset-spotlight-name">{title}</span>
+              {(visibleChips.length > 0 || isModified) && (
+                <span className="rv-preset-spotlight-chips">
+                  {visibleChips.map((chip, index) => (
+                    <Badge
+                      key={`${chip.label}-${index}`}
+                      label={chip.label}
+                      tone={chip.tone === 'switch' ? SWITCH_CHIP_TONE : chipTone}
+                    />
+                  ))}
+                  {isModified && <Badge label="Modified" tone={MODIFIED_CHIP_TONE} />}
+                </span>
+              )}
+            </span>
           </>
         )}
-        <span className="rv-preset-spotlight-caption">
-          <span className="rv-preset-spotlight-name">{title}</span>
-          {(visibleChips.length > 0 || isModified) && (
-            <span className="rv-preset-spotlight-chips">
-              {visibleChips.map((chip, index) => (
-                <Badge
-                  key={`${chip.label}-${index}`}
-                  label={chip.label}
-                  tone={chip.tone === 'switch' ? SWITCH_CHIP_TONE : chipTone}
-                />
-              ))}
-              {isModified && <Badge label="Modified" tone={MODIFIED_CHIP_TONE} />}
-            </span>
-          )}
-        </span>
       </button>
 
       {hasActions && (

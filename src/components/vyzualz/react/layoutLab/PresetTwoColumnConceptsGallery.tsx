@@ -1,6 +1,8 @@
-import { useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { FavouriteIcon } from 'hugeicons-react'
 import { Badge } from '../controls/Badge'
+import { ReactPresetCard } from '../ReactPresetCard'
+import { drawPosterArt, POSTER_ART_HEIGHT, POSTER_ART_SCALE, POSTER_ART_WIDTH, type PosterArtKind } from './presetPosterArt'
 
 // ── PresetTwoColumnConceptsGallery ─────────────────────────────────────────
 //
@@ -9,12 +11,14 @@ import { Badge } from '../controls/Badge'
 // the full name always visible (it wraps instead of being cut off with an ellipsis). They are deliberately different ideas from the
 // thumbnail-plus-name layouts in the REACT tab's gallery (PresetTwoColumnStyleGallery):
 //
-//   01 · Poster Tile    a wide preview with the name centred at its foot; the most picture per card.
+//   01 · Poster Tile    a wide preview with the name centred at its foot; the most picture per card. Each preview is a still generated for
+//                       that preset (presetPosterArt.ts), in the style of the login screen's engine scenes, and does not animate.
 //   02 · Info Card      text first: a small preview beside the name, then the description, then the chips.
-//   03 · Colour Block   no preview image: a tinted block set in large type, with a tiny motif in the corner; the densest list.
+//   03 · Colour Block   no separate preview: the name set in large type over a block that is itself the preset's generated still, darkened
+//                       for legibility; the densest list.
 //   04 · Staggered      two independent columns of previews with alternating heights, the name under each (a masonry wall).
 //
-// The same six presets appear in each, including two long names to prove the wrapping. Choosing one selects it in all four.
+// The same eight presets appear in each, including two long names to prove the wrapping. Choosing one selects it in all four.
 
 type Motif = 'rings' | 'grid' | 'dots' | 'bars' | 'wave' | 'plain'
 
@@ -24,17 +28,21 @@ interface PresetSample {
   chips: string[]
   tone: string
   motif: Motif
+  /** Which generated still the Poster Tile paints for this preset. */
+  art: PosterArtKind
   modified?: boolean
   favorite?: boolean
 }
 
 const SAMPLES: PresetSample[] = [
-  { name: 'Clean Playback', description: 'The source video, untouched, with no effects on top.', chips: ['Source'], tone: '#e8f4f8', motif: 'plain', favorite: true },
-  { name: 'Particle Aura', description: 'A soft halo of particles that swells with the low end.', chips: ['Particles'], tone: '#4ac7db', motif: 'dots', modified: true },
-  { name: 'Fractures', description: 'The picture splits into glass shards on every beat.', chips: ['Fragments'], tone: '#8de7ff', motif: 'grid' },
-  { name: 'Laser Image FX', description: 'Scanning laser lines drawn across the image.', chips: ['Laser'], tone: '#72fff0', motif: 'bars', favorite: true },
-  { name: 'Kaleidoscope Bloom Tunnel', description: 'Mirrored rings rush toward the camera and bloom.', chips: ['Tunnel', 'Bloom'], tone: '#b84fc9', motif: 'rings' },
-  { name: 'Audio Reactive Ripple Grid', description: 'A grid of ripples that follow the track\'s energy.', chips: ['Waves'], tone: '#d8b95a', motif: 'wave', modified: true },
+  { name: 'Clean Playback', description: 'The source video, untouched, with no effects on top.', chips: ['Source'], tone: '#e8f4f8', motif: 'plain', art: 'clean', favorite: true },
+  { name: 'Particle Aura', description: 'A soft halo of particles that swells with the low end.', chips: ['Particles'], tone: '#4ac7db', motif: 'dots', art: 'particleAura', modified: true },
+  { name: 'Fractures', description: 'The picture splits into glass shards on every beat.', chips: ['Fragments'], tone: '#8de7ff', motif: 'grid', art: 'fractures' },
+  { name: 'Laser Image FX', description: 'Scanning laser lines drawn across the image.', chips: ['Laser'], tone: '#72fff0', motif: 'bars', art: 'laserImage', favorite: true },
+  { name: 'Kaleidoscope Bloom Tunnel', description: 'Mirrored rings rush toward the camera and bloom.', chips: ['Tunnel', 'Bloom'], tone: '#b84fc9', motif: 'rings', art: 'tunnel' },
+  { name: 'Audio Reactive Ripple Grid', description: 'A grid of ripples that follow the track\'s energy.', chips: ['Waves'], tone: '#d8b95a', motif: 'wave', art: 'rippleGrid', modified: true },
+  { name: 'Afterhours 2.0', description: 'A laser-lit DJ floor: beam fans cut through haze over the booth.', chips: ['Lasers'], tone: '#b84fc9', motif: 'bars', art: 'afterhours', favorite: true },
+  { name: 'RELIQUARY', description: 'A crystal cloud with a golden tree threading through it, in a dark wood.', chips: ['3D', 'Crystal'], tone: '#e8c36a', motif: 'rings', art: 'reliquary' },
 ]
 
 interface ListProps {
@@ -62,27 +70,50 @@ function Chips({ preset }: { preset: PresetSample }) {
   )
 }
 
+/**
+ * The still generated for a preset (Poster Tile preview, Colour Block background), painted once when the card mounts. It is a plain 3:2 canvas
+ * that fills its card with object-fit: cover, so it needs no resize handling, and it never animates.
+ */
+function PosterArt({ kind }: { kind: PosterArtKind }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    let context: CanvasRenderingContext2D | null = null
+    try { context = canvas.getContext('2d') } catch { /* no 2D canvas (headless): the card falls back to its dark plate */ }
+    if (context) drawPosterArt(context, kind)
+  }, [kind])
+  return <canvas ref={canvasRef} className="llp4-art" width={POSTER_ART_WIDTH * POSTER_ART_SCALE} height={POSTER_ART_HEIGHT * POSTER_ART_SCALE} aria-hidden="true" />
+}
+
 // ── 01 · Poster Tile ─────────────────────────────────────────────────────────
+// This is the real, standard card (ReactPresetCard, poster layout): the same component every engine's PRESETS tab renders, here with a
+// generated still as its backdrop. Only the favourites are local to the mockup.
 function PosterTiles({ selected, onSelect }: ListProps) {
+  const [favorites, setFavorites] = useState(() => new Set(SAMPLES.filter(preset => preset.favorite).map(preset => preset.name)))
+  const toggleFavorite = (name: string) => setFavorites(current => {
+    const next = new Set(current)
+    if (!next.delete(name)) next.add(name)
+    return next
+  })
   return (
-    <div className="llp4-grid">
+    <div className="rv-preset-group-cards rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">
       {SAMPLES.map(preset => (
-        <button
-          type="button"
+        <ReactPresetCard
           key={preset.name}
-          className={`llp4-card llp4-poster${selected === preset.name ? ' is-active' : ''}`}
-          style={toneStyle(preset.tone)}
-          aria-pressed={selected === preset.name}
-          onClick={() => onSelect(preset.name)}
-        >
-          <Thumb preset={preset} className="llp4-fill" />
-          <Heart on={preset.favorite} />
-          {preset.modified && <span className="llp4-poster-modified"><Badge label="Modified" tone="#ffb347" /></span>}
-          <span className="llp4-poster-foot">
-            <span className="llp4-poster-name">{preset.name}</span>
-            <span className="llp4-poster-chip">{preset.chips.join(' · ')}</span>
-          </span>
-        </button>
+          id={preset.name}
+          title={preset.name}
+          description={preset.description}
+          backdrop={<PosterArt kind={preset.art} />}
+          chips={preset.chips.map(label => ({ label }))}
+          palette={[{ color: preset.tone }]}
+          isActive={selected === preset.name}
+          isModified={preset.modified}
+          isFavorite={favorites.has(preset.name)}
+          activateLabel={`Load ${preset.name}`}
+          onActivate={() => onSelect(preset.name)}
+          onToggleFavorite={() => toggleFavorite(preset.name)}
+        />
       ))}
     </div>
   )
@@ -127,7 +158,7 @@ function ColourBlocks({ selected, onSelect }: ListProps) {
           aria-pressed={selected === preset.name}
           onClick={() => onSelect(preset.name)}
         >
-          <Thumb preset={preset} className="llp4-block-motif" />
+          <PosterArt kind={preset.art} />
           <span className="llp4-block-name">
             {preset.name}
             {preset.modified && <span className="llp4-modified-dot" title="Modified" aria-label="Modified" />}
@@ -175,9 +206,9 @@ function StaggeredWall({ selected, onSelect }: ListProps) {
 }
 
 const GALLERY_ENTRIES = [
-  { id: 'poster', title: '01 · Poster Tile - ReactPresetCard.tsx', blurb: 'Two columns of compact landscape cards (half the height of a portrait poster). The preview fills the card, the name is centred at its foot on a fade (long names wrap to more lines instead of being cut), and the chip and any "Modified" badge sit on the picture. The most picture per card.', List: PosterTiles },
+  { id: 'poster', title: '01 · Poster Tile - ReactPresetCard.tsx', blurb: 'Two columns of compact landscape cards (half the height of a portrait poster). The preview fills the card with a still generated for that preset in the login-screen style, and it stays still: Afterhours 2.0 is a laser-lit DJ floor, Fractures a picture broken into shards that slide and glitch apart, Particle Aura a hologram of particles. The name is centred at its foot on a fade (long names wrap to more lines instead of being cut), and the chip and any "Modified" badge sit on the picture. The most picture per card.', List: PosterTiles },
   { id: 'info', title: '02 · Info Card - ReactPresetCard.tsx', blurb: 'Text first. A small preview sits beside the full name, with the preset\'s one-line description under it (two lines at most) and the chips at the foot. The only option that says what a preset does before you pick it.', List: InfoCards },
-  { id: 'block', title: '03 · Colour Block - ReactPresetCard.tsx', blurb: 'No preview image. Each card is a block tinted with the preset\'s colour, the name set in large type, its first chip and the heart along the bottom, an orange dot marking a modified preset, and a faint motif in the corner. The shortest cards, so the most presets per screen.', List: ColourBlocks },
+  { id: 'block', title: '03 · Colour Block - ReactPresetCard.tsx', blurb: 'No separate preview. Each card is a short block whose whole background is the preset\'s own generated still, darkened so the name stays readable, with the name set in large type, its first chip and the heart along the bottom, and an orange dot marking a modified preset. The shortest cards, so the most presets per screen.', List: ColourBlocks },
   { id: 'wall', title: '04 · Staggered - ReactPresetCard.tsx', blurb: 'Two independent columns whose previews alternate between tall and short, so the cards interlock like a masonry wall instead of lining up in rows. The name and chips sit under each preview. Reads by column: the left column and the right column are two separate scrolls of the same list.', List: StaggeredWall },
 ]
 

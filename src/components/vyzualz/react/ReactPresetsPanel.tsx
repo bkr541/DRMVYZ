@@ -24,10 +24,9 @@ import { PanelSubtabs } from './PanelSubtabs'
 import {
   ReactPresetCard,
   type ReactPresetCardChip,
+  type ReactPresetCardLayout,
 } from './ReactPresetCard'
 import {
-  ShowDirectorPerformanceThumbnail,
-  ShowDirectorTemplateThumbnail,
   getShowDirectorPerformancePresetPalette,
   getShowDirectorTemplatePalette,
 } from './LaserDmxPresetThumbnail'
@@ -157,6 +156,7 @@ function StandardReactPresetCard({
   thumbnailGenerationKey,
   modeHintOverride,
   showMore = true,
+  layout,
 }: {
   preset: ReactPreset
   isActive: boolean
@@ -168,6 +168,7 @@ function StandardReactPresetCard({
   thumbnailGenerationKey: string
   modeHintOverride?: string | null
   showMore?: boolean
+  layout?: ReactPresetCardLayout
 }) {
   const deck = useReactStore(state => preset.pixGridDeck
     ? state.pixGridDecks.find(candidate => candidate.id === preset.pixGridDeck?.deckId) ?? null
@@ -195,7 +196,8 @@ function StandardReactPresetCard({
       description={isActive && modified
         ? `Source preset: ${preset.description} Current values have diverged from this recipe.`
         : preset.description}
-      thumbnail={<ReactPresetThumbnail preset={preset} generationKey={thumbnailGenerationKey} />}
+      layout={layout}
+      thumbnail={layout === 'row' ? <ReactPresetThumbnail preset={preset} generationKey={thumbnailGenerationKey} /> : undefined}
       chips={chips}
       palette={Object.values(preset.palette).slice(0, 5).map(color => ({ color }))}
       isActive={isActive}
@@ -240,6 +242,7 @@ type PresetCollectionProps = {
   onSelect: (id: string) => void
   onToggleFavorite: (id: string) => void
   thumbnailGenerationKey: string
+  layout?: ReactPresetCardLayout
 }
 
 /** Case-insensitive substring match of the preset search query against any of
@@ -266,6 +269,7 @@ function renderPresetCard(preset: ReactPreset, props: Omit<PresetCollectionProps
       onSelect={props.onSelect}
       onToggleFavorite={props.onToggleFavorite}
       thumbnailGenerationKey={props.thumbnailGenerationKey}
+      layout={props.layout}
     />
   )
 }
@@ -305,7 +309,7 @@ function CinematicCurrentPresetBrowser({
       data-preset-grid
       aria-label={`${activeGroup.world.label} presets`}
     >
-      {activeGroup.presets.map(preset => renderPresetCard(preset, props))}
+      {activeGroup.presets.map(preset => renderPresetCard(preset, { ...props, layout: 'row' }))}
     </div>
   )
 }
@@ -325,7 +329,7 @@ function CanvasPresetCollection({ thumbnailGenerationKey, query }: { thumbnailGe
   )
 
   return (
-    <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>
+    <div className="rv-preset-group-cards rv-preset-group-cards--current rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">
       {visibleCanvasPresets.length === 0 && (
         <div className="rv-ctrl-info">No CANVAS presets match your search.</div>
       )}
@@ -404,7 +408,7 @@ function ShowDirectorPerformancePresets({ query }: { query: string }) {
       ) : visiblePerformancePresets.length === 0 ? (
         <div className="rv-ctrl-info">No Performance Shows match your search.</div>
       ) : (
-        <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>
+        <div className="rv-preset-group-cards rv-preset-group-cards--current rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">
           {visiblePerformancePresets.map(preset => {
             const isActive = performance.activePresetId === preset.id
             return (
@@ -413,7 +417,6 @@ function ShowDirectorPerformancePresets({ query }: { query: string }) {
                 id={preset.id}
                 title={preset.name}
                 description={preset.description}
-                thumbnail={<ShowDirectorPerformanceThumbnail preset={preset} />}
                 chips={[
                   { label: `${preset.fixtureCount} fixtures` },
                   { label: preset.effectCountLabel ?? `≈${preset.approximatePeakBeamDemand} beams` },
@@ -473,7 +476,7 @@ function ShowDirectorTemplatePresets({ query }: { query: string }) {
 
   return (
     <Collapsible label="Show Director Rig Layouts" defaultOpen>
-      <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>
+      <div className="rv-preset-group-cards rv-preset-group-cards--current rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">
         {visibleTemplates.length === 0 && (
           <div className="rv-ctrl-info">No Rig Layouts match your search.</div>
         )}
@@ -486,7 +489,6 @@ function ShowDirectorTemplatePresets({ query }: { query: string }) {
               id={template.id}
               title={template.name}
               description={template.description}
-              thumbnail={<ShowDirectorTemplateThumbnail template={template} />}
               chips={getShowDirectorTemplateChips(template)}
               palette={getShowDirectorTemplatePalette(template).map(color => ({ color }))}
               isActive={isActive}
@@ -690,7 +692,7 @@ export function ReactPresetsPanel() {
     <CinematicCurrentPresetBrowser presets={filteredPresets} activeWorldMode={activeCinematicWorldMode} {...collectionProps} />
   ) : (
     <Collapsible label={`${activeEngine.label} Media Presets`} defaultOpen>
-      <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>{filteredPresets.map(preset => renderPresetCard(preset, collectionProps))}</div>
+      <div className="rv-preset-group-cards rv-preset-group-cards--current rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">{filteredPresets.map(preset => renderPresetCard(preset, collectionProps))}</div>
     </Collapsible>
   )
 

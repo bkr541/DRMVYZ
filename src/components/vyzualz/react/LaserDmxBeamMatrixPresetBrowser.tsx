@@ -5,10 +5,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { ReactPresetCard, type ReactPresetCardChip } from './ReactPresetCard'
 import { resolveLaserDmxBeamMatrixPresetProvenance } from './LaserDmxBeamMatrixPresetProvenance'
-import {
-  BeamMatrixPresetThumbnail,
-  getBeamMatrixPresetPalette,
-} from './LaserDmxPresetThumbnail'
+import { getBeamMatrixPresetPalette } from './LaserDmxPresetThumbnail'
 import {
   LASER_DMX_BEAM_MATRIX_PRESETS,
   summarizePreset,
@@ -309,7 +306,7 @@ export function LaserDmxBeamMatrixPresetBrowser({ externalQuery }: { externalQue
               >
                 {CATEGORY_LABELS[category]}
               </button>
-              <div className="rv-preset-group-cards rv-laser-dmx-preset-category-list" data-preset-grid>
+              <div className="rv-preset-group-cards rv-preset-group-cards--poster rv-laser-dmx-preset-category-list" data-preset-grid data-preset-columns="2">
                 {presets.map(preset => {
                   const isActive = preset.id === activeLaserDmxBeamMatrixPresetId
                   const isModified = isActive && activePresetProvenance.status === 'modified'
@@ -319,7 +316,6 @@ export function LaserDmxBeamMatrixPresetBrowser({ externalQuery }: { externalQue
                       id={preset.id}
                       title={preset.name}
                       description={preset.description}
-                      thumbnail={<BeamMatrixPresetThumbnail preset={preset} />}
                       chips={getBeamMatrixPresetChips(preset)}
                       palette={getBeamMatrixPresetPalette(preset).map(color => ({ color }))}
                       isActive={isActive}

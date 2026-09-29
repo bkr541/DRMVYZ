@@ -64,7 +64,7 @@ describe('Template Layout Lab workspace', () => {
     expect(presetsTab.getAttribute('aria-selected')).toBe('true')
   })
 
-  it('shows four two-column preset card treatments, six presets each, in the PRESETS tab', async () => {
+  it('shows four two-column preset card treatments, eight presets each, in the PRESETS tab', async () => {
     await selectEngine('Template')
     const presetsTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
       .find(button => button.textContent?.trim() === 'PRESETS')
@@ -73,11 +73,14 @@ describe('Template Layout Lab workspace', () => {
 
     const gallery = container.querySelector('.llp4-gallery')
     expect(gallery?.querySelectorAll('.lldd-gallery-row')).toHaveLength(4)
-    for (const selector of ['.llp4-poster', '.llp4-info', '.llp4-block', '.llp4-wall']) expect(gallery?.querySelectorAll(selector)).toHaveLength(6)
+    for (const selector of ['.rv-preset-spotlight-card--poster', '.llp4-info', '.llp4-block', '.llp4-wall']) expect(gallery?.querySelectorAll(selector)).toHaveLength(8)
+    // Each Poster Tile and Colour Block carries its own generated still.
+    expect(gallery?.querySelectorAll('.rv-preset-spotlight-card--poster canvas.llp4-art')).toHaveLength(8)
+    expect(gallery?.querySelectorAll('.llp4-block canvas.llp4-art')).toHaveLength(8)
     // Two columns, and the full name (including the two long ones) is in every treatment, never cut off.
     expect(gallery?.querySelector('.llp4-grid')?.className).toBe('llp4-grid')
     expect(gallery?.querySelectorAll('.llp4-wall-col')).toHaveLength(2)
-    for (const selector of ['.llp4-poster', '.llp4-info', '.llp4-block', '.llp4-wall']) {
+    for (const selector of ['.rv-preset-spotlight-card--poster', '.llp4-info', '.llp4-block', '.llp4-wall']) {
       const text = [...(gallery?.querySelectorAll(selector) ?? [])].map(node => node.textContent)
       expect(text.some(value => value?.includes('Kaleidoscope Bloom Tunnel'))).toBe(true)
       expect(text.some(value => value?.includes('Audio Reactive Ripple Grid'))).toBe(true)
@@ -85,7 +88,7 @@ describe('Template Layout Lab workspace', () => {
     // Choosing a card selects that preset in all four treatments; the one-column card above is untouched.
     expect(container.querySelector('.llpc-gallery')).not.toBeNull()
     await act(async () => gallery?.querySelectorAll<HTMLButtonElement>('.llp4-block')[4]?.click())
-    expect(gallery?.querySelectorAll('.is-active')).toHaveLength(4)
+    expect(gallery?.querySelectorAll('.is-active, .rv-preset-spotlight-card--active')).toHaveLength(4)
   })
 
   it('shows three Media Library thumbnail treatments, six thumbnails each, in the REACT tab', async () => {
