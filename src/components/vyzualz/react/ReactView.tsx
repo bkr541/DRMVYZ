@@ -57,6 +57,7 @@ import { DashboardSquare01Icon, Settings02Icon } from 'hugeicons-react'
 import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import { FontLibraryPanel } from './FontLibraryPanel'
 import { ReactEngineBrowser } from './ReactEngineBrowser'
+import { useActiveEnginePresetName } from './activeEnginePresetName'
 import { Cinema2InspectorPanel } from './Cinema2InspectorPanel'
 import { Cinema2LayersPanel } from './Cinema2LayersPanel'
 import { Cinema2PresetsPanel } from './Cinema2PresetsPanel'
@@ -424,6 +425,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     return CINEMA2_RUNTIME_FOUNDATION_PRESET_ID
   })
   const cinema2RestoreState = cinema2WorkspaceSessionStore.getPresetState(cinema2PresetId)
+  const activeEnginePresetName = useActiveEnginePresetName(activeReactEngineId, cinema2PresetId)
   const handleCinema2PresetSelect = useCallback((presetId: Cinema2PresetId) => {
     cinema2WorkspaceSessionStore.selectPreset(presetId)
     writeCinema2LastPresetId(presetId)
@@ -864,7 +866,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               aria-label={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} workspace`}
             >
               <header className="rv-context-workspace-header">
-                <ReactEngineBrowser />
+                <ReactEngineBrowser presetName={activeEnginePresetName} />
               </header>
               <div className={activeReactEngineId === 'oscilloscope'
                 ? 'rv-sound-drawing-workspace-tabs-help drm-help-overlay-anchor'

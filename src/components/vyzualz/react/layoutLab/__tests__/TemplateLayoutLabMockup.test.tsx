@@ -64,6 +64,30 @@ describe('Template Layout Lab workspace', () => {
     expect(presetsTab.getAttribute('aria-selected')).toBe('true')
   })
 
+  it('shows four two-column preset card treatments, six presets each, in the PRESETS tab', async () => {
+    await selectEngine('Template')
+    const presetsTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+      .find(button => button.textContent?.trim() === 'PRESETS')
+    if (!presetsTab) throw new Error('Missing PRESETS tab')
+    await act(async () => presetsTab.click())
+
+    const gallery = container.querySelector('.llp4-gallery')
+    expect(gallery?.querySelectorAll('.lldd-gallery-row')).toHaveLength(4)
+    for (const selector of ['.llp4-poster', '.llp4-info', '.llp4-block', '.llp4-wall']) expect(gallery?.querySelectorAll(selector)).toHaveLength(6)
+    // Two columns, and the full name (including the two long ones) is in every treatment, never cut off.
+    expect(gallery?.querySelector('.llp4-grid')?.className).toBe('llp4-grid')
+    expect(gallery?.querySelectorAll('.llp4-wall-col')).toHaveLength(2)
+    for (const selector of ['.llp4-poster', '.llp4-info', '.llp4-block', '.llp4-wall']) {
+      const text = [...(gallery?.querySelectorAll(selector) ?? [])].map(node => node.textContent)
+      expect(text.some(value => value?.includes('Kaleidoscope Bloom Tunnel'))).toBe(true)
+      expect(text.some(value => value?.includes('Audio Reactive Ripple Grid'))).toBe(true)
+    }
+    // Choosing a card selects that preset in all four treatments; the one-column card above is untouched.
+    expect(container.querySelector('.llpc-gallery')).not.toBeNull()
+    await act(async () => gallery?.querySelectorAll<HTMLButtonElement>('.llp4-block')[4]?.click())
+    expect(gallery?.querySelectorAll('.is-active')).toHaveLength(4)
+  })
+
   it('shows three Media Library thumbnail treatments, six thumbnails each, in the REACT tab', async () => {
     await selectEngine('Template')
     const reactTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]

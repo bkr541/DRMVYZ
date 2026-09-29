@@ -15,7 +15,10 @@ function ReactEngineIcon({ engineId, glyph }: { engineId: ReactEngineId, glyph: 
  * compact dropdown inside the active engine card so the left React rail keeps
  * its authoring width without carrying a separate middle navigation column.
  */
-export function ReactEngineBrowser() {
+export function ReactEngineBrowser({ presetName = null }: {
+  /** The active engine's selected preset, shown under the engine name (Cinema 2.0 and CANVAS). */
+  presetName?: string | null
+} = {}) {
   const { activeReactEngineId, selectReactEngine } = useReactStore(useShallow(state => ({
     activeReactEngineId: state.activeReactEngineId,
     selectReactEngine: state.selectReactEngine,
@@ -59,7 +62,7 @@ export function ReactEngineBrowser() {
         className="rv-engine-dropdown-trigger"
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={`Selected React engine: ${activeEngine.label}`}
+        aria-label={`Selected React engine: ${activeEngine.label}${presetName ? `, preset ${presetName}` : ''}`}
         title="Choose React engine"
         onClick={() => setOpen(value => !value)}
       >
@@ -70,6 +73,7 @@ export function ReactEngineBrowser() {
         <span className="rv-engine-dropdown-copy">
           <span className="rv-engine-dropdown-eyebrow">Engine</span>
           <span className="rv-engine-dropdown-label">{activeEngine.label}</span>
+          {presetName && <span className="rv-engine-dropdown-preset">{presetName}</span>}
         </span>
       </button>
 

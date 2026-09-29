@@ -5094,6 +5094,18 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   line-height: 1.15;
 }
 
+.rv-engine-dropdown-preset {
+  color: var(--az-cyan, #4ac7db);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .rv-engine-dropdown-description {
   color: rgba(232, 244, 248, 0.5);
   font-size: 11px;
@@ -21587,3 +21599,210 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   vertical-align: middle;
 }
 .llp2-split-fav { position: absolute; top: 6px; right: 6px; color: #ff6b8a; }
+
+/* ── Layout Lab: two-column preset CARD concepts (Template engine, PRESETS tab, below the one-column card) ──
+   Four candidate layouts at ~175px per column: poster, info card, colour block, staggered wall. The preset name
+   always wraps in full; it is never cut off with an ellipsis. */
+.llp4-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(154, 178, 188, 0.16);
+}
+.llp4-section { display: flex; flex-direction: column; gap: 3px; }
+.llp4-section-title {
+  color: #e8f4f8;
+  font: 800 12px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.llp4-section-blurb { color: rgba(196, 207, 211, 0.5); font: 500 10px/1.4 var(--az-font-data, Inter, system-ui, sans-serif); }
+
+.llp4-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: stretch; }
+.llp4-wall-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
+.llp4-wall-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+.llp4-card {
+  --llp4-tone: #4ac7db;
+  appearance: none;
+  position: relative;
+  min-width: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+.llp4-card:hover { border-color: color-mix(in srgb, var(--llp4-tone) 55%, transparent); }
+.llp4-card.is-active {
+  border-color: var(--llp4-tone);
+  box-shadow: 0 0 0 1px var(--llp4-tone), 0 0 14px color-mix(in srgb, var(--llp4-tone) 32%, transparent);
+}
+.llp4-card:focus-visible { outline: 2px solid rgba(103, 247, 255, 0.8); outline-offset: 2px; }
+
+/* The stand-in preview: a dark plate tinted by the preset's colour, with a simple motif. */
+.llp4-thumb {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--llp4-tone) 45%, transparent), transparent 62%),
+    linear-gradient(160deg, #0d1a20, #060d10);
+}
+.llp4-thumb::before { content: ''; position: absolute; inset: 0; opacity: 0.5; }
+.llp4-thumb--rings::before { background: repeating-radial-gradient(circle at 50% 55%, var(--llp4-tone) 0 1.5px, transparent 1.5px 10px); }
+.llp4-thumb--grid::before {
+  background-image:
+    linear-gradient(var(--llp4-tone) 1px, transparent 1px),
+    linear-gradient(90deg, var(--llp4-tone) 1px, transparent 1px);
+  background-size: 14px 14px;
+}
+.llp4-thumb--dots::before { background: radial-gradient(var(--llp4-tone) 1.6px, transparent 2.2px) 0 0 / 11px 11px; }
+.llp4-thumb--bars::before { background: repeating-linear-gradient(90deg, var(--llp4-tone) 0 3px, transparent 3px 9px); }
+.llp4-thumb--wave::before { background: repeating-linear-gradient(118deg, var(--llp4-tone) 0 1.5px, transparent 1.5px 8px); }
+.llp4-thumb--plain::before { display: none; }
+.llp4-fill { position: absolute; inset: 0; }
+
+.llp4-heart {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: rgba(4, 8, 12, 0.62);
+  color: rgba(255, 255, 255, 0.78);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.llp4-heart.is-on { opacity: 1; color: #ff6b8a; }
+.llp4-card:hover .llp4-heart { opacity: 1; }
+.llp4-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.llp4-modified-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: #ffb347;
+  box-shadow: 0 0 6px rgba(255, 179, 71, 0.7);
+  vertical-align: middle;
+}
+
+/* 01 · Poster Tile: a wide preview (3:2, half the height of the original 3:4 portrait), the name centred at its foot on a fade that grows with the name. */
+.llp4-poster { display: block; aspect-ratio: 3 / 2; overflow: hidden; padding: 0; }
+.llp4-poster-modified { position: absolute; top: 6px; left: 6px; z-index: 2; }
+.llp4-poster-foot {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 26px 8px 9px;
+  text-align: center;
+  background: linear-gradient(to top, rgba(4, 8, 12, 0.94) 22%, rgba(4, 8, 12, 0.62) 62%, transparent);
+}
+.llp4-poster-name {
+  color: rgba(238, 244, 246, 0.97);
+  font: 800 12px/1.22 var(--az-font, Inter, system-ui, sans-serif);
+  overflow-wrap: anywhere;
+}
+.llp4-poster-chip {
+  color: color-mix(in srgb, var(--llp4-tone) 82%, white);
+  font: 700 9px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* 02 · Info Card: a small preview beside the name, the description under it, the chips at the foot. */
+.llp4-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.llp4-info.is-active { background: color-mix(in srgb, var(--llp4-tone) 8%, transparent); }
+.llp4-info-head { display: flex; align-items: flex-start; gap: 7px; }
+.llp4-info-thumb { flex: none; width: 30px; height: 30px; border-radius: 6px; }
+.llp4-info-name {
+  flex: 1;
+  min-width: 0;
+  color: rgba(238, 244, 246, 0.95);
+  font: 700 11.5px/1.25 var(--az-font, Inter, system-ui, sans-serif);
+  overflow-wrap: anywhere;
+}
+.llp4-info-fav { flex: none; color: #ff6b8a; }
+.llp4-info-desc {
+  color: rgba(196, 207, 211, 0.6);
+  font: 500 10px/1.4 var(--az-font-data, Inter, system-ui, sans-serif);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.llp4-info .llp4-chips { margin-top: auto; }
+
+/* 03 · Colour Block: no preview image; a tinted block set in large type with a faint motif in the corner. */
+.llp4-block {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 74px;
+  padding: 9px 9px 8px;
+  overflow: hidden;
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--llp4-tone) 26%, #0a1419), color-mix(in srgb, var(--llp4-tone) 6%, #060d10) 78%);
+}
+.llp4-block.is-active { background:
+  linear-gradient(150deg, color-mix(in srgb, var(--llp4-tone) 38%, #0a1419), color-mix(in srgb, var(--llp4-tone) 10%, #060d10) 78%); }
+.llp4-block-motif { position: absolute; top: 0; right: 0; width: 46px; height: 46px; border-radius: 0 8px 0 46px; opacity: 0.55; }
+.llp4-block-name {
+  position: relative;
+  z-index: 1;
+  padding-right: 22px;
+  color: rgba(244, 249, 250, 0.98);
+  font: 800 14px/1.16 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.005em;
+  overflow-wrap: anywhere;
+}
+.llp4-block-meta { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.llp4-block-chip {
+  color: color-mix(in srgb, var(--llp4-tone) 78%, white);
+  font: 700 9px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.llp4-block-fav { color: #ff6b8a; }
+
+/* 04 · Staggered: two independent columns, previews alternating tall and short. */
+.llp4-wall {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 6px 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.llp4-wall.is-active { background: color-mix(in srgb, var(--llp4-tone) 8%, transparent); }
+.llp4-wall-picture { position: relative; display: block; border-radius: 6px; overflow: hidden; }
+.llp4-wall-picture.is-tall { aspect-ratio: 4 / 5; }
+.llp4-wall-picture.is-short { aspect-ratio: 16 / 9; }
+.llp4-wall-name {
+  padding: 0 2px;
+  color: rgba(238, 244, 246, 0.95);
+  font: 700 11.5px/1.25 var(--az-font, Inter, system-ui, sans-serif);
+  overflow-wrap: anywhere;
+}
+.llp4-wall .llp4-chips { padding: 0 2px; }

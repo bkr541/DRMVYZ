@@ -15,6 +15,7 @@ import { LayerRowStyleGallery } from './layoutLab/LayerRowStyleGallery'
 import { MediaThumbnailStyleGallery } from './layoutLab/MediaThumbnailStyleGallery'
 import { PresetTwoColumnStyleGallery } from './layoutLab/PresetTwoColumnStyleGallery'
 import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
+import { PresetTwoColumnConceptsGallery } from './layoutLab/PresetTwoColumnConceptsGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { HeaderControlGroupStyleGallery } from './layoutLab/HeaderControlGroupStyleGallery'
 import { LyricManagerTimelineStyleGallery } from './layoutLab/LyricManagerTimelineStyleGallery'
@@ -360,6 +361,7 @@ export function LayoutLabMockup() {
                 {templateRightTab === 'presets' && (
                   <div className="rv-inspector rv-inspector-scroll">
                     <PresetCardStyleGallery />
+                    <PresetTwoColumnConceptsGallery />
                   </div>
                 )}
                 {templateRightTab === 'react' && (
