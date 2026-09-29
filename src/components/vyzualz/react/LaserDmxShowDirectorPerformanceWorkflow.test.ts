@@ -216,10 +216,11 @@ describe('Show Director performance UI architecture', () => {
   const rendererSource = readFileSync(new URL('./renderers/LaserDmxRenderer.ts', import.meta.url), 'utf8')
   const thumbnailSource = readFileSync(new URL('./LaserDmxPresetThumbnail.tsx', import.meta.url), 'utf8')
 
-  it('separates Performance Shows, Rig Layouts, and Matrix looks while reusing canonical preset cards', () => {
-    expect(presetsSource).toContain('Show Director Performance Shows')
-    expect(presetsSource).toContain('Show Director Rig Layouts')
-    expect(presetsSource).toContain('Beam Matrix Presets')
+  it('keeps Performance Shows, Rig Layouts, and Matrix looks in flat card grids with no headings, reusing canonical preset cards', () => {
+    expect(presetsSource).toContain('ShowDirectorPerformanceCards')
+    expect(presetsSource).toContain('ShowDirectorRigLayoutCards')
+    expect(presetsSource).toContain('BeamMatrixRuntimePresets')
+    expect(presetsSource).not.toContain('Collapsible')
     expect(presetsSource).toContain('<ReactPresetCard')
     expect(presetsSource).not.toContain('function PerformancePresetCard')
   })

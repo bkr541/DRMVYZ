@@ -537,6 +537,24 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
     harness.resources.disposeAll()
   })
 
+  it('shows a Pattern edit at once while nothing plays instead of freezing it halfway through a morph', () => {
+    const harness = createHarness({ symmetry: false, beamCount: 8 })
+    const idle = { sourcePresent: false, playing: false, analysisActive: false, paused: false, animationActive: false, trackId: null, timeSec: 0 }
+    const draw = (frameId: number, wallClockSec: number) => {
+      const current = frame({ frameId, timeSec: wallClockSec, elapsedTimeSec: 0, transport: idle })
+      harness.gl.bufferSubData.mockClear()
+      harness.instance.lifecycle.update({ frame: current, parameters: harness.parameterFacet, targets: harness.targetFacet })
+      execute(harness, current)
+      return lastInstanceCount(harness.gl) > 0 ? Array.from(lastMockArgument(harness.gl.bufferSubData, 2) as Float32Array) : []
+    }
+    draw(1, 10)
+    harness.parameters.pattern = 'crossCanopy'
+    const first = draw(2, 10.016)
+    // Visual time is frozen, so a real morph would sit at its first frame forever. The edited layout is what is drawn, and it stays put.
+    expect(draw(3, 11)).toEqual(first)
+    expect(draw(4, 15)).toEqual(first)
+  })
+
   it('preserves mirrored pairs while enforcing an odd authored Beam Count during topology morphs', () => {
     const harness = createHarness({ symmetry: true, beamCount: 7, pattern: 'wideFan' })
     // Seven beams with symmetry on come out as three mirrored pairs; over a scene of music six distinct fixtures fire.
@@ -559,21 +577,22 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
     harness.resources.disposeAll()
   })
 
-  it('cues on the free-running clock with no source, holds still while paused, and disposes GPU leases cleanly', () => {
+  it('holds perfectly still with no source however much wall-clock time passes, cues once a source plays, holds still while paused, and disposes GPU leases cleanly', () => {
     const harness = createHarness({ beamCount: 2, symmetry: false })
     const glMocks = harness.gl as unknown as GlMocks
     const noSource = { sourcePresent: false, playing: false, analysisActive: false, paused: false, animationActive: false, trackId: null, timeSec: 0 }
-    const idleCounts: number[] = []
+    // The host freezes visual time (elapsedTimeSec) while nothing plays, but the wall clock (timestampMs) keeps running.
+    const idleDraws: number[][] = []
     for (let index = 0; index <= 64; index += 1) {
       const current = frame({ frameId: index + 1, timeSec: 2 + index / 8, elapsedTimeSec: 0, transport: noSource })
       glMocks.drawArraysInstanced.mockClear()
+      glMocks.bufferSubData.mockClear()
       harness.instance.lifecycle.update({ frame: current, parameters: harness.parameterFacet, targets: harness.targetFacet })
       execute(harness, current)
-      idleCounts.push(lastInstanceCount(harness.gl))
+      idleDraws.push(lastInstanceCount(harness.gl) > 0 ? Array.from(lastMockArgument(harness.gl.bufferSubData, 2) as Float32Array) : [])
     }
-    // With nothing playing the show still cues: lit and dark frames both occur.
-    expect(idleCounts.some(count => count > 0)).toBe(true)
-    expect(idleCounts.some(count => count === 0)).toBe(true)
+    // Eight seconds of wall clock, and every idle frame is the same frame: no cueing, no aim change, no brightness change.
+    for (const draw of idleDraws) expect(draw).toEqual(idleDraws[0])
 
     const active = frame({ frameId: 100, timeSec: 20, elapsedTimeSec: 0, audio: beatAudio(20, false, 8, 0.5) })
     harness.instance.lifecycle.update({ frame: active, parameters: harness.parameterFacet, targets: harness.targetFacet })

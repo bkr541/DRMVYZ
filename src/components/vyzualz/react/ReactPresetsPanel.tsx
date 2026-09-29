@@ -59,7 +59,6 @@ import {
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import { usePresetScopeFilter } from '../../../features/presetCatalog/presetCatalogStore'
 import type { PresetScopeTab } from '../../../features/presetCatalog/presetScope'
-import { Collapsible } from './ReactControlRows'
 
 // Clean Playback is the implicit base look CANVAS always starts on (see
 // selectReactEngine), not a preset the user picks — so it is never carded in
@@ -388,15 +387,21 @@ function getShowDirectorTemplateChips(template: LaserDmxShowDirectorTemplate): R
   ]
 }
 
-function ShowDirectorPerformancePresets({ query, inScope }: { query: string; inScope: (presetKey: string) => boolean }) {
+/** The Performance Show and Rig Layout cards that match the search and the SYSTEM / USER sub-tab. */
+function getVisibleShowDirectorPerformanceShows(query: string, inScope: (presetKey: string) => boolean) {
+  return LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.filter(preset => inScope(preset.id) && presetMatchesQuery(query, preset.name, preset.description))
+}
+
+function getVisibleShowDirectorRigLayouts(query: string, inScope: (presetKey: string) => boolean) {
+  return LASER_DMX_SHOW_DIRECTOR_TEMPLATES.filter(template => inScope(template.id) && presetMatchesQuery(query, template.name, template.description))
+}
+
+function ShowDirectorPerformanceCards({ presets }: { presets: readonly (typeof LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS)[number][] }) {
   const { performance, applyPerformancePreset } = useReactStore(useShallow(state => ({
     performance: state.laserDmxShowDirectorPerformance,
     applyPerformancePreset: state.applyLaserDmxShowDirectorPerformancePreset,
   })))
   const [favoriteIds, setFavoriteIds] = useState<string[]>(readLaserDmxShowDirectorPerformanceFavorites)
-  const visiblePerformancePresets = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.filter(preset =>
-    inScope(preset.id) && presetMatchesQuery(query, preset.name, preset.description),
-  )
 
   const toggleFavorite = (presetId: string) => {
     setFavoriteIds(current => {
@@ -407,61 +412,50 @@ function ShowDirectorPerformancePresets({ query, inScope }: { query: string; inS
   }
 
   return (
-    <Collapsible label="Show Director Performance Shows" defaultOpen>
-      {LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.length === 0 ? (
-        <div className="rv-preset-library-empty rv-show-director-performance-empty">
-          <strong>No Performance Shows installed</strong>
-          <span>Rig Layouts remain available below. Performance Shows will appear here when installed.</span>
-        </div>
-      ) : visiblePerformancePresets.length === 0 ? (
-        <div className="rv-ctrl-info">No Performance Shows match your search.</div>
-      ) : (
-        <div className="rv-preset-group-cards rv-preset-group-cards--current rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">
-          {visiblePerformancePresets.map(preset => {
-            const isActive = performance.activePresetId === preset.id
-            return (
-              <ReactPresetCard
-                key={preset.id}
-                id={preset.id}
-                title={preset.name}
-                description={preset.description}
-                chips={[
-                  { label: `${preset.fixtureCount} fixtures` },
-                  { label: preset.effectCountLabel ?? `≈${preset.approximatePeakBeamDemand} beams` },
-                  ...preset.genreTags.slice(0, 1).map(label => ({ label })),
-                  ...preset.behaviorTags.slice(0, 1).map(label => ({ label })),
-                  ...preset.musicIntelligenceCapabilities.slice(0, 1).map(label => ({ label, tone: 'mode' as const })),
-                ]}
-                palette={getShowDirectorPerformancePresetPalette(preset).map(color => ({ color }))}
-                isActive={isActive}
-                isModified={isActive && performance.presetDirty}
-                isFavorite={favoriteIds.includes(preset.id)}
-                activateLabel={`Load Show Director performance show ${preset.name}`}
-                onActivate={() => applyPerformancePreset(preset)}
-                onToggleFavorite={() => toggleFavorite(preset.id)}
-                expandedContent={(
-                  <div className="rv-show-director-performance-card-details">
-                    <span>Sections: {preset.supportedSectionRoles.join(', ')}</span>
-                    <span>Music Intelligence: {preset.musicIntelligenceCapabilities.join(', ') || 'Optional'}</span>
-                  </div>
-                )}
-                secondaryActions={isActive ? [{
-                  id: performance.presetDirty ? 'restore' : 'reload',
-                  label: performance.presetDirty ? 'Restore' : 'Reload',
-                  ariaLabel: `${performance.presetDirty ? 'Restore' : 'Reload'} performance show ${preset.name}`,
-                  onSelect: () => applyPerformancePreset(preset),
-                }] : []}
-                showMore
-              />
-            )
-          })}
-        </div>
-      )}
-    </Collapsible>
+    <>
+      {presets.map(preset => {
+        const isActive = performance.activePresetId === preset.id
+        return (
+          <ReactPresetCard
+            key={preset.id}
+            id={preset.id}
+            title={preset.name}
+            description={preset.description}
+            chips={[
+              { label: `${preset.fixtureCount} fixtures` },
+              { label: preset.effectCountLabel ?? `≈${preset.approximatePeakBeamDemand} beams` },
+              ...preset.genreTags.slice(0, 1).map(label => ({ label })),
+              ...preset.behaviorTags.slice(0, 1).map(label => ({ label })),
+              ...preset.musicIntelligenceCapabilities.slice(0, 1).map(label => ({ label, tone: 'mode' as const })),
+            ]}
+            palette={getShowDirectorPerformancePresetPalette(preset).map(color => ({ color }))}
+            isActive={isActive}
+            isModified={isActive && performance.presetDirty}
+            isFavorite={favoriteIds.includes(preset.id)}
+            activateLabel={`Load Show Director performance show ${preset.name}`}
+            onActivate={() => applyPerformancePreset(preset)}
+            onToggleFavorite={() => toggleFavorite(preset.id)}
+            expandedContent={(
+              <div className="rv-show-director-performance-card-details">
+                <span>Sections: {preset.supportedSectionRoles.join(', ')}</span>
+                <span>Music Intelligence: {preset.musicIntelligenceCapabilities.join(', ') || 'Optional'}</span>
+              </div>
+            )}
+            secondaryActions={isActive ? [{
+              id: performance.presetDirty ? 'restore' : 'reload',
+              label: performance.presetDirty ? 'Restore' : 'Reload',
+              ariaLabel: `${performance.presetDirty ? 'Restore' : 'Reload'} performance show ${preset.name}`,
+              onSelect: () => applyPerformancePreset(preset),
+            }] : []}
+            showMore
+          />
+        )
+      })}
+    </>
   )
 }
 
-function ShowDirectorTemplatePresets({ query, inScope }: { query: string; inScope: (presetKey: string) => boolean }) {
+function ShowDirectorRigLayoutCards({ templates }: { templates: readonly LaserDmxShowDirectorTemplate[] }) {
   const {
     applyTemplate,
     setAuthoringMode,
@@ -478,54 +472,52 @@ function ShowDirectorTemplatePresets({ query, inScope }: { query: string; inScop
     if (applyTemplate(templateId)) setAuthoringMode('showDirector')
   }
 
-  const visibleTemplates = LASER_DMX_SHOW_DIRECTOR_TEMPLATES.filter(template =>
-    inScope(template.id) && presetMatchesQuery(query, template.name, template.description),
-  )
-
   return (
-    <Collapsible label="Show Director Rig Layouts" defaultOpen>
-      <div className="rv-preset-group-cards rv-preset-group-cards--current rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">
-        {visibleTemplates.length === 0 && (
-          <div className="rv-ctrl-info">No Rig Layouts match your search.</div>
-        )}
-        {visibleTemplates.map(template => {
-          const isActive = showDirector.sourceTemplateId === template.id
-          const isModified = isActive && presetDirty
-          return (
-            <ReactPresetCard
-              key={template.id}
-              id={template.id}
-              title={template.name}
-              description={template.description}
-              chips={getShowDirectorTemplateChips(template)}
-              palette={getShowDirectorTemplatePalette(template).map(color => ({ color }))}
-              isActive={isActive}
-              isModified={isModified}
-              activateLabel={`Load Show Director rig layout ${template.name}`}
-              onActivate={() => handleApplyTemplate(template.id)}
-              secondaryActions={isActive ? [{
-                id: isModified ? 'restore' : 'reload',
-                label: isModified ? 'Restore' : 'Reload',
-                ariaLabel: `${isModified ? 'Restore' : 'Reload'} Show Director rig layout ${template.name}`,
-                onSelect: () => handleApplyTemplate(template.id),
-              }] : []}
-              showMore={false}
-            />
-          )
-        })}
-      </div>
-    </Collapsible>
+    <>
+      {templates.map(template => {
+        const isActive = showDirector.sourceTemplateId === template.id
+        const isModified = isActive && presetDirty
+        return (
+          <ReactPresetCard
+            key={template.id}
+            id={template.id}
+            title={template.name}
+            description={template.description}
+            chips={getShowDirectorTemplateChips(template)}
+            palette={getShowDirectorTemplatePalette(template).map(color => ({ color }))}
+            isActive={isActive}
+            isModified={isModified}
+            activateLabel={`Load Show Director rig layout ${template.name}`}
+            onActivate={() => handleApplyTemplate(template.id)}
+            secondaryActions={isActive ? [{
+              id: isModified ? 'restore' : 'reload',
+              label: isModified ? 'Restore' : 'Reload',
+              ariaLabel: `${isModified ? 'Restore' : 'Reload'} Show Director rig layout ${template.name}`,
+              onSelect: () => handleApplyTemplate(template.id),
+            }] : []}
+            showMore={false}
+          />
+        )
+      })}
+    </>
+  )
+}
+
+/** Show Director mode: Performance Shows, then Rig Layouts, in one flat grid with no headings. */
+function ShowDirectorPresetGrid({ query, scope, inScope }: { query: string; scope: PresetScopeTab; inScope: (presetKey: string) => boolean }) {
+  const performanceShows = getVisibleShowDirectorPerformanceShows(query, inScope)
+  const rigLayouts = getVisibleShowDirectorRigLayouts(query, inScope)
+  return (
+    <div className="rv-preset-group-cards rv-preset-group-cards--current rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">
+      <ShowDirectorPerformanceCards presets={performanceShows} />
+      <ShowDirectorRigLayoutCards templates={rigLayouts} />
+      {performanceShows.length + rigLayouts.length === 0 && <div className="rv-ctrl-info">{emptyScopeMessage('LaserDMX', scope, query)}</div>}
+    </div>
   )
 }
 
 function BeamMatrixRuntimePresets({ query, inScope }: { query: string; inScope: (presetKey: string) => boolean }) {
-  return (
-    <Collapsible label="Beam Matrix Presets" defaultOpen>
-      <div className="rv-laser-dmx-preset-browser-wrap">
-        <LaserDmxBeamMatrixPresetBrowser externalQuery={query} presetFilter={inScope} />
-      </div>
-    </Collapsible>
-  )
+  return <LaserDmxBeamMatrixPresetBrowser externalQuery={query} presetFilter={inScope} showFilters={false} />
 }
 
 export function ReactPresetsPanel() {
@@ -679,31 +671,19 @@ export function ReactPresetsPanel() {
     thumbnailGenerationKey,
   }
 
-  // LaserDMX draws from three libraries (Beam Matrix presets, Performance Shows, Rig Layouts). Under USER, show only the ones that hold something.
+  // LaserDMX draws from three libraries (Beam Matrix presets, Performance Shows, Rig Layouts), shown one at a time by mode, each as a flat grid.
   const isShowDirectorLibrary = laserDmxBeamMatrixAuthoringMode === 'showDirector'
-  const laserHasPerformanceShows = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.some(preset => inScope(preset.id))
-  const laserHasRigLayouts = LASER_DMX_SHOW_DIRECTOR_TEMPLATES.some(template => inScope(template.id))
-  const laserHasBeamMatrix = LASER_DMX_BEAM_MATRIX_PRESETS.some(preset => inScope(preset.id))
-  const laserScopeIsEmpty = presetScope === 'user'
-    && (isShowDirectorLibrary ? !laserHasPerformanceShows && !laserHasRigLayouts : !laserHasBeamMatrix)
+  const laserScopeIsEmpty = presetScope === 'user' && !isShowDirectorLibrary
+    && !LASER_DMX_BEAM_MATRIX_PRESETS.some(preset => inScope(preset.id))
 
   const presetLibraryContent = isCanvasCurrentLibrary ? (
     <CanvasPresetCollection thumbnailGenerationKey={thumbnailGenerationKey} query={presetQuery} scope={presetScope} inScope={inScope} />
   ) : isLaserDmxCurrentLibrary ? (
-    laserScopeIsEmpty ? (
-      <div className="rv-ctrl-info">No user presets yet.</div>
-    ) : (
-      <Collapsible label="LaserDMX Media Presets" defaultOpen>
-        {isShowDirectorLibrary
-          ? (
-              <>
-                {(presetScope === 'system' || laserHasPerformanceShows) && <ShowDirectorPerformancePresets query={presetQuery} inScope={inScope} />}
-                {(presetScope === 'system' || laserHasRigLayouts) && <ShowDirectorTemplatePresets query={presetQuery} inScope={inScope} />}
-              </>
-            )
-          : <BeamMatrixRuntimePresets query={presetQuery} inScope={inScope} />}
-      </Collapsible>
-    )
+    isShowDirectorLibrary
+      ? <ShowDirectorPresetGrid query={presetQuery} scope={presetScope} inScope={inScope} />
+      : laserScopeIsEmpty
+        ? <div className="rv-ctrl-info">No user presets yet.</div>
+        : <BeamMatrixRuntimePresets query={presetQuery} inScope={inScope} />
   ) : filteredPresets.length === 0 ? (
     presetScope === 'user' && !presetQuery.trim() ? (
       <div className="rv-ctrl-info">No user presets yet.</div>
@@ -716,9 +696,7 @@ export function ReactPresetsPanel() {
   ) : activeReactEngineId === 'cinematicPortal' ? (
     <CinematicCurrentPresetBrowser presets={filteredPresets} activeWorldMode={activeCinematicWorldMode} {...collectionProps} />
   ) : (
-    <Collapsible label={`${activeEngine.label} Media Presets`} defaultOpen>
-      <div className="rv-preset-group-cards rv-preset-group-cards--current rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">{filteredPresets.map(preset => renderPresetCard(preset, collectionProps))}</div>
-    </Collapsible>
+    <div className="rv-preset-group-cards rv-preset-group-cards--current rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">{filteredPresets.map(preset => renderPresetCard(preset, collectionProps))}</div>
   )
 
   return (

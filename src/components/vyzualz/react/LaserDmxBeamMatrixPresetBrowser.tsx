@@ -94,8 +94,12 @@ export function filterLaserDmxBeamMatrixPresets(
   })
 }
 
-/** `presetFilter` narrows the library to the presets belonging under the Presets tab's SYSTEM or USER sub-tab. */
-export function LaserDmxBeamMatrixPresetBrowser({ externalQuery, presetFilter }: { externalQuery?: string; presetFilter?: (presetId: string) => boolean } = {}) {
+/**
+ * `presetFilter` narrows the library to the presets belonging under the Presets tab's SYSTEM or USER sub-tab.
+ * `showFilters={false}` drops the category chips, the tag drawer and the Prev / Next bar, leaving the search and the card grid: the Presets tab
+ * shows every engine's presets that way.
+ */
+export function LaserDmxBeamMatrixPresetBrowser({ externalQuery, presetFilter, showFilters = true }: { externalQuery?: string; presetFilter?: (presetId: string) => boolean; showFilters?: boolean } = {}) {
   const {
     activeLaserDmxBeamMatrixPresetId,
     laserDmxBeamMatrix,
@@ -230,130 +234,122 @@ export function LaserDmxBeamMatrixPresetBrowser({ externalQuery, presetFilter }:
         </div>
       )}
 
-      <div className="rv-laser-dmx-preset-filter-row" aria-label="Beam Matrix preset categories">
-        <button
-          type="button"
-          className={filterChipClassName(activeCategory === null)}
-          onClick={() => setActiveCategory(null)}
-        >
-          All
-        </button>
-        {CATEGORY_ORDER.map(category => (
-          <button
-            key={category}
-            type="button"
-            className={filterChipClassName(activeCategory === category)}
-            onClick={() => setActiveCategory(previous => previous === category ? null : category)}
-          >
-            {CATEGORY_LABELS[category]}
-          </button>
-        ))}
-      </div>
-
-      {activeTags.size > 0 && (
-        <div className="rv-laser-dmx-preset-filter-row" aria-label="Active Beam Matrix tag filters">
-          {Array.from(activeTags).map(tag => (
+      {showFilters && (
+        <>
+          <div className="rv-laser-dmx-preset-filter-row" aria-label="Beam Matrix preset categories">
             <button
-              key={tag}
               type="button"
-              className={filterChipClassName(true)}
-              onClick={() => toggleTag(tag)}
-              title={`Remove filter: ${tag}`}
+              className={filterChipClassName(activeCategory === null)}
+              onClick={() => setActiveCategory(null)}
             >
-              {tag} ×
+              All
             </button>
-          ))}
-          <button
-            type="button"
-            className="rv-preset-mode-chip rv-laser-dmx-preset-filter-chip rv-laser-dmx-preset-filter-chip--muted"
-            onClick={() => setActiveTags(new Set())}
-          >
-            Clear tags
-          </button>
-        </div>
-      )}
+            {CATEGORY_ORDER.map(category => (
+              <button
+                key={category}
+                type="button"
+                className={filterChipClassName(activeCategory === category)}
+                onClick={() => setActiveCategory(previous => previous === category ? null : category)}
+              >
+                {CATEGORY_LABELS[category]}
+              </button>
+            ))}
+          </div>
 
-      {filtered.length > 1 && (
-        <div className="rv-laser-dmx-preset-nav">
-          <IconChipButton
-            className="rv-laser-dmx-preset-nav-btn"
-            onClick={() => navigateTo(-1)}
-          >
-            ‹ Prev
-          </IconChipButton>
-          <span className="rv-laser-dmx-preset-nav-count">
-            {activeIndex >= 0 ? `${activeIndex + 1} / ${filtered.length}` : `— / ${filtered.length}`}
-          </span>
-          <IconChipButton
-            className="rv-laser-dmx-preset-nav-btn"
-            onClick={() => navigateTo(1)}
-          >
-            Next ›
-          </IconChipButton>
-        </div>
+          {activeTags.size > 0 && (
+            <div className="rv-laser-dmx-preset-filter-row" aria-label="Active Beam Matrix tag filters">
+              {Array.from(activeTags).map(tag => (
+                <button
+                  key={tag}
+                  type="button"
+                  className={filterChipClassName(true)}
+                  onClick={() => toggleTag(tag)}
+                  title={`Remove filter: ${tag}`}
+                >
+                  {tag} ×
+                </button>
+              ))}
+              <button
+                type="button"
+                className="rv-preset-mode-chip rv-laser-dmx-preset-filter-chip rv-laser-dmx-preset-filter-chip--muted"
+                onClick={() => setActiveTags(new Set())}
+              >
+                Clear tags
+              </button>
+            </div>
+          )}
+
+          {filtered.length > 1 && (
+            <div className="rv-laser-dmx-preset-nav">
+              <IconChipButton
+                className="rv-laser-dmx-preset-nav-btn"
+                onClick={() => navigateTo(-1)}
+              >
+                ‹ Prev
+              </IconChipButton>
+              <span className="rv-laser-dmx-preset-nav-count">
+                {activeIndex >= 0 ? `${activeIndex + 1} / ${filtered.length}` : `— / ${filtered.length}`}
+              </span>
+              <IconChipButton
+                className="rv-laser-dmx-preset-nav-btn"
+                onClick={() => navigateTo(1)}
+              >
+                Next ›
+              </IconChipButton>
+            </div>
+          )}
+        </>
       )}
 
       {grouped.length === 0 ? (
         <div className="rv-ctrl-info rv-laser-dmx-preset-empty">No presets match.</div>
       ) : (
-        <div className="rv-laser-dmx-preset-groups">
-          {grouped.map(({ category, presets }) => (
-            <section key={category} className="rv-laser-dmx-preset-category">
-              <button
-                type="button"
-                className="rv-laser-dmx-preset-category-heading"
-                onClick={() => setActiveCategory(previous => previous === category ? null : category)}
-                title={`Filter by ${CATEGORY_LABELS[category]}`}
-              >
-                {CATEGORY_LABELS[category]}
-              </button>
-              <div className="rv-preset-group-cards rv-preset-group-cards--poster rv-laser-dmx-preset-category-list" data-preset-grid data-preset-columns="2">
-                {presets.map(preset => {
-                  const isActive = preset.id === activeLaserDmxBeamMatrixPresetId
-                  const isModified = isActive && activePresetProvenance.status === 'modified'
-                  return (
-                    <ReactPresetCard
-                      key={preset.id}
-                      id={preset.id}
-                      title={preset.name}
-                      description={preset.description}
-                      chips={getBeamMatrixPresetChips(preset)}
-                      palette={getBeamMatrixPresetPalette(preset).map(color => ({ color }))}
-                      isActive={isActive}
-                      isModified={isModified}
-                      activateLabel={`Load Beam Matrix preset ${preset.name}`}
-                      onActivate={() => handleApply(preset.id)}
-                      secondaryActions={isActive ? [{
-                        id: isModified ? 'restore' : 'reload',
-                        label: isModified ? 'Restore' : 'Reload',
-                        ariaLabel: `${isModified ? 'Restore' : 'Reload'} Beam Matrix preset ${preset.name}`,
-                        onSelect: () => applyLaserDmxBeamMatrixPreset(preset.id),
-                      }] : []}
-                      showMore={false}
-                    />
-                  )
-                })}
-              </div>
-            </section>
-          ))}
+        <div className="rv-preset-group-cards rv-preset-group-cards--poster rv-laser-dmx-preset-category-list" data-preset-grid data-preset-columns="2">
+          {grouped.flatMap(group => group.presets).map(preset => {
+            const isActive = preset.id === activeLaserDmxBeamMatrixPresetId
+            const isModified = isActive && activePresetProvenance.status === 'modified'
+            return (
+              <ReactPresetCard
+                key={preset.id}
+                id={preset.id}
+                title={preset.name}
+                description={preset.description}
+                chips={getBeamMatrixPresetChips(preset)}
+                palette={getBeamMatrixPresetPalette(preset).map(color => ({ color }))}
+                isActive={isActive}
+                isModified={isModified}
+                activateLabel={`Load Beam Matrix preset ${preset.name}`}
+                onActivate={() => handleApply(preset.id)}
+                secondaryActions={isActive ? [{
+                  id: isModified ? 'restore' : 'reload',
+                  label: isModified ? 'Restore' : 'Reload',
+                  ariaLabel: `${isModified ? 'Restore' : 'Reload'} Beam Matrix preset ${preset.name}`,
+                  onSelect: () => applyLaserDmxBeamMatrixPreset(preset.id),
+                }] : []}
+                showMore={false}
+              />
+            )
+          })}
         </div>
       )}
 
-      <details className="rv-laser-dmx-preset-tag-browser">
-        <summary className="rv-laser-dmx-preset-tag-summary">Filter by tag</summary>
-        <div className="rv-laser-dmx-preset-filter-row rv-laser-dmx-preset-filter-row--tags">
-          {allTags.map(tag => (
-            <button
-              key={tag}
-              type="button"
-              className={filterChipClassName(activeTags.has(tag))}
-              onClick={() => toggleTag(tag)}
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
-      </details>
+      {showFilters && (
+        <details className="rv-laser-dmx-preset-tag-browser">
+          <summary className="rv-laser-dmx-preset-tag-summary">Filter by tag</summary>
+          <div className="rv-laser-dmx-preset-filter-row rv-laser-dmx-preset-filter-row--tags">
+            {allTags.map(tag => (
+              <button
+                key={tag}
+                type="button"
+                className={filterChipClassName(activeTags.has(tag))}
+                onClick={() => toggleTag(tag)}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        </details>
+      )}
     </>
   )
 }

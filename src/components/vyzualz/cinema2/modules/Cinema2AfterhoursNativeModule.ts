@@ -253,6 +253,8 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
           const { frame } = updateContext
           config = readFrameConfig(updateContext, autoPalette)
           const timeSec = resolveTimeSec(frame)
+          // Nothing is playing (no source, paused, or analysis idle): the host has frozen visual time, so the show holds still like every other preset.
+          const animationActive = frame.transport?.animationActive !== false
           const discontinuity = Boolean(frame.audio?.discontinuity.occurred && frame.audio.discontinuity.reason !== 'activation')
           const backwards = lastTimeSec != null && timeSec < lastTimeSec - 1e-6
           const sourceReplaced = lastTrackId !== undefined && frame.transport?.trackId !== lastTrackId
@@ -312,7 +314,8 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
             })
             const current = resolveTransitionState(transition, settled, timeSec)
             const next = descriptorStateMap(nextDescriptors)
-            if (current.size === 0) {
+            if (current.size === 0 || !animationActive) {
+              // Nothing to morph from, or time is frozen and a morph would hang half done: show the new layout at once.
               settled = new Map(next)
               transition = null
             } else {
@@ -338,7 +341,7 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
             settled = new Map(transition.to)
             transition = null
           }
-          if (!paused) cueBeat = resolveCinema2AfterhoursCueBeat(frame, timeSec, config.bpmSync) ?? cueBeat
+          if (animationActive) cueBeat = resolveCinema2AfterhoursCueBeat(frame, timeSec, config.bpmSync) ?? cueBeat
           const sceneKey = `${structure.sourceIdentity}:${showPlan.topologyId}:${Math.floor(Math.max(0, cueBeat) / CINEMA2_AFTERHOURS_CUE_SCENE_BEATS)}`
           renderBeams = buildRenderBeams(resolved, config, showPlan, pulse, { beat: cueBeat, sceneKey, seed: cueSeed })
 
@@ -571,7 +574,8 @@ function applyPerformanceSpread(target: Cinema2Vector3, scale: number): Cinema2V
 /**
  * The musical position, in beats, that the laser cues count on. With BPM Sync on and beat tracking available it is the track's own position
  * (bar and beat-in-bar when the grid provides them, else the beat index plus its phase); otherwise it runs at a steady 120 BPM from the
- * clock, so the show still cues when there is no tempo to follow. Null when neither is usable.
+ * clock, so a playing source with no tempo to follow still cues. (The caller stops asking while nothing plays, so silence holds still.)
+ * Null when the time is unusable.
  */
 export function resolveCinema2AfterhoursCueBeat(
   frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
@@ -796,11 +800,12 @@ function hueChannel(p: number, q: number, input: number): number {
   return p
 }
 
+/**
+ * The module's clock. With a source it is the track's time. With no source it is the frame's visual time, which the host freezes while
+ * nothing plays (and lets run in hosts with no transport at all): never the wall clock, or the lasers would keep moving in silence.
+ */
 function resolveTimeSec(frame: Readonly<Cinema2ModuleUpdateContext['frame']>): number {
-  if (frame.transport?.sourcePresent === false) {
-    const frameClockSec = frame.timestampMs / 1000
-    return Number.isFinite(frameClockSec) ? Math.max(0, frameClockSec) : frame.elapsedTimeSec
-  }
+  if (frame.transport?.sourcePresent === false) return frame.elapsedTimeSec
   const transportTime = frame.transport?.timeSec
   return typeof transportTime === 'number' && Number.isFinite(transportTime) ? transportTime : frame.elapsedTimeSec
 }
