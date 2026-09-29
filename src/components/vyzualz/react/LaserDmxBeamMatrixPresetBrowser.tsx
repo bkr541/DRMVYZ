@@ -94,7 +94,8 @@ export function filterLaserDmxBeamMatrixPresets(
   })
 }
 
-export function LaserDmxBeamMatrixPresetBrowser({ externalQuery }: { externalQuery?: string } = {}) {
+/** `presetFilter` narrows the library to the presets belonging under the Presets tab's SYSTEM or USER sub-tab. */
+export function LaserDmxBeamMatrixPresetBrowser({ externalQuery, presetFilter }: { externalQuery?: string; presetFilter?: (presetId: string) => boolean } = {}) {
   const {
     activeLaserDmxBeamMatrixPresetId,
     laserDmxBeamMatrix,
@@ -129,12 +130,12 @@ export function LaserDmxBeamMatrixPresetBrowser({ externalQuery }: { externalQue
 
   const filtered = useMemo(
     () => filterLaserDmxBeamMatrixPresets(
-      LASER_DMX_BEAM_MATRIX_PRESETS,
+      presetFilter ? LASER_DMX_BEAM_MATRIX_PRESETS.filter(preset => presetFilter(preset.id)) : LASER_DMX_BEAM_MATRIX_PRESETS,
       effectiveQuery,
       activeCategory,
       activeTags,
     ),
-    [effectiveQuery, activeCategory, activeTags],
+    [presetFilter, effectiveQuery, activeCategory, activeTags],
   )
 
   const grouped = useMemo(() => {

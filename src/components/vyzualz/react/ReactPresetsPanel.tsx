@@ -57,6 +57,8 @@ import {
   writeReactPresetFavorites,
 } from './reactPresetLibraryState'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
+import { usePresetScopeFilter } from '../../../features/presetCatalog/presetCatalogStore'
+import type { PresetScopeTab } from '../../../features/presetCatalog/presetScope'
 import { Collapsible } from './ReactControlRows'
 
 // Clean Playback is the implicit base look CANVAS always starts on (see
@@ -245,6 +247,12 @@ type PresetCollectionProps = {
   layout?: ReactPresetCardLayout
 }
 
+/** The empty-list message for a Presets tab: a search with no hits, or a sub-tab that has no presets. */
+function emptyScopeMessage(engineLabel: string, scope: PresetScopeTab, query: string): string {
+  if (query.trim()) return `No ${engineLabel} presets match your search.`
+  return scope === 'user' ? 'No user presets yet.' : `No ${engineLabel} presets.`
+}
+
 /** Case-insensitive substring match of the preset search query against any of
  *  the supplied text fields. An empty query matches everything. */
 function presetMatchesQuery(query: string, ...fields: (string | null | undefined)[]): boolean {
@@ -314,7 +322,7 @@ function CinematicCurrentPresetBrowser({
   )
 }
 
-function CanvasPresetCollection({ thumbnailGenerationKey, query }: { thumbnailGenerationKey: string; query: string }) {
+function CanvasPresetCollection({ thumbnailGenerationKey, query, scope, inScope }: { thumbnailGenerationKey: string; query: string; scope: PresetScopeTab; inScope: (presetKey: string) => boolean }) {
   const selectedCanvasPresetId = useReactStore(state => state.selectedCanvasPresetId)
   const selectCanvasPreset = useReactStore(state => state.selectCanvasPreset)
   const canvasPresetSettings = useReactStore(state => state.canvasPresetSettings)
@@ -325,13 +333,13 @@ function CanvasPresetCollection({ thumbnailGenerationKey, query }: { thumbnailGe
     [thumbnailGenerationKey],
   )
   const visibleCanvasPresets = CANVAS_TAB_PRESETS.filter(canvasPreset =>
-    presetMatchesQuery(query, canvasPreset.name, cardById.get(canvasPreset.id)?.description),
+    inScope(canvasPreset.id) && presetMatchesQuery(query, canvasPreset.name, cardById.get(canvasPreset.id)?.description),
   )
 
   return (
     <div className="rv-preset-group-cards rv-preset-group-cards--current rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">
       {visibleCanvasPresets.length === 0 && (
-        <div className="rv-ctrl-info">No CANVAS presets match your search.</div>
+        <div className="rv-ctrl-info">{emptyScopeMessage('CANVAS', scope, query)}</div>
       )}
       {visibleCanvasPresets.map(canvasPreset => {
         const cardPreset = cardById.get(canvasPreset.id)
@@ -380,14 +388,14 @@ function getShowDirectorTemplateChips(template: LaserDmxShowDirectorTemplate): R
   ]
 }
 
-function ShowDirectorPerformancePresets({ query }: { query: string }) {
+function ShowDirectorPerformancePresets({ query, inScope }: { query: string; inScope: (presetKey: string) => boolean }) {
   const { performance, applyPerformancePreset } = useReactStore(useShallow(state => ({
     performance: state.laserDmxShowDirectorPerformance,
     applyPerformancePreset: state.applyLaserDmxShowDirectorPerformancePreset,
   })))
   const [favoriteIds, setFavoriteIds] = useState<string[]>(readLaserDmxShowDirectorPerformanceFavorites)
   const visiblePerformancePresets = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.filter(preset =>
-    presetMatchesQuery(query, preset.name, preset.description),
+    inScope(preset.id) && presetMatchesQuery(query, preset.name, preset.description),
   )
 
   const toggleFavorite = (presetId: string) => {
@@ -453,7 +461,7 @@ function ShowDirectorPerformancePresets({ query }: { query: string }) {
   )
 }
 
-function ShowDirectorTemplatePresets({ query }: { query: string }) {
+function ShowDirectorTemplatePresets({ query, inScope }: { query: string; inScope: (presetKey: string) => boolean }) {
   const {
     applyTemplate,
     setAuthoringMode,
@@ -471,7 +479,7 @@ function ShowDirectorTemplatePresets({ query }: { query: string }) {
   }
 
   const visibleTemplates = LASER_DMX_SHOW_DIRECTOR_TEMPLATES.filter(template =>
-    presetMatchesQuery(query, template.name, template.description),
+    inScope(template.id) && presetMatchesQuery(query, template.name, template.description),
   )
 
   return (
@@ -510,11 +518,11 @@ function ShowDirectorTemplatePresets({ query }: { query: string }) {
   )
 }
 
-function BeamMatrixRuntimePresets({ query }: { query: string }) {
+function BeamMatrixRuntimePresets({ query, inScope }: { query: string; inScope: (presetKey: string) => boolean }) {
   return (
     <Collapsible label="Beam Matrix Presets" defaultOpen>
       <div className="rv-laser-dmx-preset-browser-wrap">
-        <LaserDmxBeamMatrixPresetBrowser externalQuery={query} />
+        <LaserDmxBeamMatrixPresetBrowser externalQuery={query} presetFilter={inScope} />
       </div>
     </Collapsible>
   )
@@ -557,7 +565,8 @@ export function ReactPresetsPanel() {
   })))
   const [favoritePresetIds, setFavoritePresetIds] = useState<string[]>(readReactPresetFavorites)
   const [presetQuery, setPresetQuery] = useState('')
-  const [presetScope, setPresetScope] = useState<'system' | 'user'>('system')
+  const [presetScope, setPresetScope] = useState<PresetScopeTab>('system')
+  const inScope = usePresetScopeFilter(activeReactEngineId, presetScope)
 
   const displayPresets = useMemo(
     () => reactPresets.filter(preset => isSelectableReactEngineId(preset.engine)).map(preset => resolveBrandedReactPreset(
@@ -587,8 +596,8 @@ export function ReactPresetsPanel() {
     [displayPresets, activeReactEngineId, favoriteIds],
   )
   const filteredPresets = useMemo(
-    () => visiblePresets.filter(preset => presetMatchesQuery(presetQuery, preset.name, preset.description)),
-    [visiblePresets, presetQuery],
+    () => visiblePresets.filter(preset => inScope(preset.id) && presetMatchesQuery(presetQuery, preset.name, preset.description)),
+    [visiblePresets, presetQuery, inScope],
   )
   const activePresetProvenance = useMemo(() => resolveReactPresetProvenance({
     presets: reactPresets,
@@ -670,24 +679,40 @@ export function ReactPresetsPanel() {
     thumbnailGenerationKey,
   }
 
+  // LaserDMX draws from three libraries (Beam Matrix presets, Performance Shows, Rig Layouts). Under USER, show only the ones that hold something.
+  const isShowDirectorLibrary = laserDmxBeamMatrixAuthoringMode === 'showDirector'
+  const laserHasPerformanceShows = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.some(preset => inScope(preset.id))
+  const laserHasRigLayouts = LASER_DMX_SHOW_DIRECTOR_TEMPLATES.some(template => inScope(template.id))
+  const laserHasBeamMatrix = LASER_DMX_BEAM_MATRIX_PRESETS.some(preset => inScope(preset.id))
+  const laserScopeIsEmpty = presetScope === 'user'
+    && (isShowDirectorLibrary ? !laserHasPerformanceShows && !laserHasRigLayouts : !laserHasBeamMatrix)
+
   const presetLibraryContent = isCanvasCurrentLibrary ? (
-    <CanvasPresetCollection thumbnailGenerationKey={thumbnailGenerationKey} query={presetQuery} />
+    <CanvasPresetCollection thumbnailGenerationKey={thumbnailGenerationKey} query={presetQuery} scope={presetScope} inScope={inScope} />
   ) : isLaserDmxCurrentLibrary ? (
-    <Collapsible label="LaserDMX Media Presets" defaultOpen>
-      {laserDmxBeamMatrixAuthoringMode === 'showDirector'
-        ? (
-            <>
-              <ShowDirectorPerformancePresets query={presetQuery} />
-              <ShowDirectorTemplatePresets query={presetQuery} />
-            </>
-          )
-        : <BeamMatrixRuntimePresets query={presetQuery} />}
-    </Collapsible>
+    laserScopeIsEmpty ? (
+      <div className="rv-ctrl-info">No user presets yet.</div>
+    ) : (
+      <Collapsible label="LaserDMX Media Presets" defaultOpen>
+        {isShowDirectorLibrary
+          ? (
+              <>
+                {(presetScope === 'system' || laserHasPerformanceShows) && <ShowDirectorPerformancePresets query={presetQuery} inScope={inScope} />}
+                {(presetScope === 'system' || laserHasRigLayouts) && <ShowDirectorTemplatePresets query={presetQuery} inScope={inScope} />}
+              </>
+            )
+          : <BeamMatrixRuntimePresets query={presetQuery} inScope={inScope} />}
+      </Collapsible>
+    )
   ) : filteredPresets.length === 0 ? (
-    <div className="rv-preset-library-empty">
-      <strong>No {activeEngine.label} presets {presetQuery.trim() ? 'match your search' : 'found'}</strong>
-      <span>{presetQuery.trim() ? 'Clear the search to see every preset.' : 'Use the Design tab to edit the active engine look.'}</span>
-    </div>
+    presetScope === 'user' && !presetQuery.trim() ? (
+      <div className="rv-ctrl-info">No user presets yet.</div>
+    ) : (
+      <div className="rv-preset-library-empty">
+        <strong>No {activeEngine.label} presets {presetQuery.trim() ? 'match your search' : 'found'}</strong>
+        <span>{presetQuery.trim() ? 'Clear the search to see every preset.' : 'Use the Design tab to edit the active engine look.'}</span>
+      </div>
+    )
   ) : activeReactEngineId === 'cinematicPortal' ? (
     <CinematicCurrentPresetBrowser presets={filteredPresets} activeWorldMode={activeCinematicWorldMode} {...collectionProps} />
   ) : (
@@ -709,7 +734,7 @@ export function ReactPresetsPanel() {
         onQueryChange={setPresetQuery}
         ariaLabel={`Search ${activeEngine.label} presets`}
       />
-      {presetScope === 'user' ? null : activeReactEngineId === 'oscilloscope' ? (
+      {activeReactEngineId === 'oscilloscope' ? (
         <div className="rv-sound-drawing-presets-help drm-help-overlay-anchor">
           {presetLibraryContent}
           <HelpInfoTrigger

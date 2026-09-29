@@ -567,6 +567,26 @@ export interface VisualPresetRow {
   updated_at: string
 }
 
+/** One engine preset in the catalog. `scope: 'user'` presets are private to the users who hold them in `user_presets`. */
+export interface PresetRow {
+  id: string
+  engine_id: string
+  preset_key: string
+  name: string
+  scope: 'system' | 'user'
+  created_at: string
+  updated_at: string
+}
+
+/** A user holding a preset (and that user's own state for it). */
+export interface UserPresetRow {
+  user_id: string
+  preset_id: string
+  is_favorite: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface VisualSessionRow {
   id: string
   user_id: string | null
@@ -856,6 +876,21 @@ export interface Database {
       }
       effect_chain_options:     { Row: DBRec<EffectChainOptionRow>;    Insert: DBRec<Omit<EffectChainOptionRow,'created_at'|'updated_at'>>;     Update: DBRec<Partial<Omit<EffectChainOptionRow,'id'|'created_at'|'updated_at'>>>; Relationships: [] }
       visual_presets:           { Row: DBRec<VisualPresetRow>;        Insert: DBRec<Omit<VisualPresetRow,'id'|'created_at'|'updated_at'>>;     Update: DBRec<Partial<Omit<VisualPresetRow,'id'>>>; Relationships: [] }
+      presets: {
+        Row: DBRec<PresetRow>
+        Insert: never
+        Update: never
+        Relationships: []
+      }
+      user_presets: {
+        Row: DBRec<UserPresetRow>
+        Insert: never
+        Update: never
+        Relationships: [
+          { foreignKeyName: 'user_presets_user_id_fkey'; columns: ['user_id']; isOneToOne: false; referencedRelation: 'profiles'; referencedColumns: ['id'] },
+          { foreignKeyName: 'user_presets_preset_id_fkey'; columns: ['preset_id']; isOneToOne: false; referencedRelation: 'presets'; referencedColumns: ['id'] },
+        ]
+      }
       visual_sessions:          { Row: DBRec<VisualSessionRow>;       Insert: DBRec<Omit<VisualSessionRow,'id'|'created_at'|'updated_at'>>;    Update: DBRec<Partial<Omit<VisualSessionRow,'id'>>>; Relationships: [] }
       shows: {
         Row: DBRec<ShowRow>

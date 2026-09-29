@@ -14,6 +14,7 @@ import {
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { PresetSearchRow } from './controls/PresetSearchRow'
 import { PanelSubtabs } from './PanelSubtabs'
+import { usePresetScopeFilter } from '../../../features/presetCatalog/presetCatalogStore'
 import { LayerRow } from './controls/LayerRow'
 
 // Same accent palette as the LayerRow canonical component's Layout Lab gallery.
@@ -36,8 +37,10 @@ export function CinemaPresetsPanel() {
   const [query, setQuery] = useState('')
   const [scope, setScope] = useState<'system' | 'user'>('system')
   const needle = query.trim().toLowerCase()
+  const inScope = usePresetScopeFilter('cinema', scope)
   const presets = state.compositions.filter(candidate => {
     if (isCinemaEngineeringOnlyComposition(candidate)) return false
+    if (!inScope(candidate.id)) return false
     const text = `${candidate.metadata.name} ${candidate.metadata.description ?? ''} ${(candidate.metadata.tags ?? []).join(' ')}`.toLowerCase()
     return text.includes(needle)
   })
@@ -63,7 +66,6 @@ export function CinemaPresetsPanel() {
         onQueryChange={setQuery}
         ariaLabel="Search Cinema presets"
       />
-      {scope === 'system' && (
       <div className="rv-cinema-preset-grid">
         {presets.map((candidate, index) => {
           const isActive = candidate.id === preset?.id
@@ -83,9 +85,12 @@ export function CinemaPresetsPanel() {
             </button>
           )
         })}
-        {presets.length === 0 && <div className="rv-ctrl-info">No presets match “{query}”.</div>}
+        {presets.length === 0 && (
+          <div className="rv-ctrl-info">
+            {needle ? `No presets match “${query}”.` : scope === 'user' ? 'No user presets yet.' : 'No presets.'}
+          </div>
+        )}
       </div>
-      )}
     </section>
   )
 }

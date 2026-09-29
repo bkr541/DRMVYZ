@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { cinema2NativePresetRegistry, type Cinema2PresetId } from '../cinema2'
+import { usePresetScopeFilter } from '../../../features/presetCatalog/presetCatalogStore'
 import { PresetSearchRow } from './controls/PresetSearchRow'
 import { PanelSubtabs } from './PanelSubtabs'
 import { ReactPresetCard } from './ReactPresetCard'
@@ -16,8 +17,10 @@ export function Cinema2PresetsPanel({ activePresetId, onSelectPreset }: Cinema2P
   const [query, setQuery] = useState('')
   const [scope, setScope] = useState<'system' | 'user'>('system')
   const needle = query.trim().toLowerCase()
+  const inScope = usePresetScopeFilter('cinema2', scope)
   const presets = cinema2NativePresetRegistry.list().filter(manifest => {
     if (manifest.metadata.tags?.includes('internal')) return false
+    if (!inScope(manifest.id)) return false
     const text = `${manifest.metadata.name} ${manifest.metadata.description ?? ''} ${(manifest.metadata.tags ?? []).join(' ')}`.toLowerCase()
     return text.includes(needle)
   })
@@ -35,7 +38,6 @@ export function Cinema2PresetsPanel({ activePresetId, onSelectPreset }: Cinema2P
         onQueryChange={setQuery}
         ariaLabel="Search Cinema 2.0 presets"
       />
-      {scope === 'system' && (
       <div className="rv-preset-group-cards rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2" data-cinema2-preset-grid="true">
         {presets.map((manifest, index) => (
           <ReactPresetCard
@@ -50,9 +52,12 @@ export function Cinema2PresetsPanel({ activePresetId, onSelectPreset }: Cinema2P
             dataAttributes={{ 'data-cinema2-preset-id': manifest.id }}
           />
         ))}
-        {presets.length === 0 && <div className="rv-ctrl-info">No Cinema 2.0 presets match “{query}”.</div>}
+        {presets.length === 0 && (
+          <div className="rv-ctrl-info">
+            {needle ? `No Cinema 2.0 presets match “${query}”.` : scope === 'user' ? 'No user presets yet.' : 'No Cinema 2.0 presets.'}
+          </div>
+        )}
       </div>
-      )}
     </section>
   )
 }
