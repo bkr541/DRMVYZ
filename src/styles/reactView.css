@@ -21890,3 +21890,45 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   overflow-wrap: anywhere;
 }
 .llp4-wall .llp4-chips { padding: 0 2px; }
+
+/* ── Track Map follows the timeline workspace's height ───────────────────────
+   Dragging the timeline workspace higher gives the Track Map surface more height. The lanes grow into it (the ruler keeps its 24px), and what
+   sits inside each lane follows: the section strip fills its lane with the name centred above the colour bar, the cue markers fill theirs,
+   and the beat ticks are drawn longer (ReactTrackMapStrip). At the default height every number below equals the fixed value it replaces:
+   lanes 32 / 44 / 38 / 24 = 138px, section strip 32px in a 44px lane (5px above and below), cue markers 27px in a 38px lane. */
+.rv-lower-workspace-surface--track-map .rv-track-map-strip--embedded {
+  display: flex;
+  flex-direction: column;
+  /* Fill the surface. (The plain track-map rule above sets min-height: 0, which left the strip at its content height inside a taller surface.) */
+  min-height: 100%;
+}
+
+.rv-lower-workspace-surface--track-map .rv-track-map-strip--embedded .rv-timeline-lanes {
+  /* Basis 0, not auto: the lanes take whatever height is left (never less than their 138px minimum), so their rows are not sized by what the
+     canvases inside would like to be. */
+  flex: 1 1 0;
+  grid-template-rows: minmax(32px, 1fr) minmax(44px, 1.375fr) minmax(38px, 1.1875fr) 24px;
+}
+
+.rv-lower-workspace-surface--track-map .rv-timeline-lane-content .rv-section-timeline {
+  /* Pinned 5px from the top and 6px from the bottom of its lane, which is 32px in the default 44px lane (a percentage height would not resolve inside the lane's auto row). */
+  position: absolute;
+  inset: 5px 0 6px;
+  height: auto;
+  margin: 0;
+}
+
+.rv-lower-workspace-surface--track-map .rv-section-header {
+  bottom: 13px;
+  height: auto;
+}
+
+.rv-lower-workspace-surface--track-map .rv-section-color-bar {
+  top: auto;
+  bottom: 2px;
+}
+
+.rv-lower-workspace-surface--track-map .rv-timeline-cue:not(.rv-timeline-cue--cue) {
+  bottom: 6px;
+  height: auto;
+}

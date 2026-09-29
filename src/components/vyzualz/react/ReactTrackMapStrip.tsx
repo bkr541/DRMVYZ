@@ -247,6 +247,8 @@ export const TRACK_MAP_FOUR_BAR_COLOR         = 'rgba(192,49,74,0.96)'
 export const TRACK_MAP_BEAT_TICK_HEIGHT       = 5    // CSS px
 export const TRACK_MAP_DOWNBEAT_TICK_HEIGHT   = 13   // CSS px
 export const TRACK_MAP_FOUR_BAR_TICK_HEIGHT   = 20   // CSS px
+/** The beat lane's default height. In a taller lane (the timeline workspace dragged higher) the ticks grow by the same ratio. */
+export const TRACK_MAP_BEAT_LANE_BASE_HEIGHT  = 32   // CSS px
 export const TRACK_MAP_BEAT_LINE_WIDTH        = 1    // px
 export const TRACK_MAP_DOWNBEAT_LINE_WIDTH    = 2    // px
 export const TRACK_MAP_FOUR_BAR_LINE_WIDTH    = 2    // px
@@ -326,6 +328,7 @@ export function drawBeatGridCanvas(
   const stride = computeBeatStride(regularBeats.length, w)
 
   const timeToX = (t: number) => Math.floor(((t - vpStart) / vpDur) * w) + 0.5
+  const tickScale = Math.max(1, h / TRACK_MAP_BEAT_LANE_BASE_HEIGHT)
 
   // Regular beats — short top-anchored ruler marks.
   // Half-pixel x offset (+0.5) keeps 1 px strokes crisp on all DPR values.
@@ -336,7 +339,7 @@ export function drawBeatGridCanvas(
     if (beatIdx % stride === 0) {
       const x = timeToX(beat.timeSec)
       ctx.moveTo(x, 0)
-      ctx.lineTo(x, Math.min(h, TRACK_MAP_BEAT_TICK_HEIGHT))
+      ctx.lineTo(x, Math.min(h, TRACK_MAP_BEAT_TICK_HEIGHT * tickScale))
     }
     beatIdx++
   }
@@ -353,7 +356,7 @@ export function drawBeatGridCanvas(
     if (!beat.isDownbeat || fourBarDownbeats.has(beat)) continue
     const x = timeToX(beat.timeSec)
     ctx.moveTo(x, 0)
-    ctx.lineTo(x, Math.min(h, TRACK_MAP_DOWNBEAT_TICK_HEIGHT))
+    ctx.lineTo(x, Math.min(h, TRACK_MAP_DOWNBEAT_TICK_HEIGHT * tickScale))
   }
   ctx.strokeStyle = TRACK_MAP_DOWNBEAT_COLOR
   ctx.lineWidth   = TRACK_MAP_DOWNBEAT_LINE_WIDTH
@@ -365,7 +368,7 @@ export function drawBeatGridCanvas(
     if (!fourBarDownbeats.has(beat)) continue
     const x = timeToX(beat.timeSec)
     ctx.moveTo(x, 0)
-    ctx.lineTo(x, Math.min(h, TRACK_MAP_FOUR_BAR_TICK_HEIGHT))
+    ctx.lineTo(x, Math.min(h, TRACK_MAP_FOUR_BAR_TICK_HEIGHT * tickScale))
   }
   ctx.strokeStyle = TRACK_MAP_FOUR_BAR_COLOR
   ctx.lineWidth   = TRACK_MAP_FOUR_BAR_LINE_WIDTH

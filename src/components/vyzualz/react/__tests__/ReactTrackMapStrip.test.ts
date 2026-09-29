@@ -13,6 +13,8 @@ import {
   TRACK_MAP_DOWNBEAT_COLOR,
   TRACK_MAP_FOUR_BAR_COLOR,
   TRACK_MAP_BEAT_TICK_HEIGHT,
+  TRACK_MAP_BEAT_LANE_BASE_HEIGHT,
+  TRACK_MAP_DOWNBEAT_TICK_HEIGHT,
   TRACK_MAP_FOUR_BAR_TICK_HEIGHT,
   TRACK_MAP_RULER_FONT_SIZE,
   buildPresetCueId,
@@ -581,6 +583,18 @@ describe('drawBeatCanvas', () => {
       expect(fourBarMove.y).toBe(0)
       expect(fourBarLine.y).toBe(TRACK_MAP_FOUR_BAR_TICK_HEIGHT)
       expect(fourBarLine.y!).toBeGreaterThan(downbeatLine.y!)
+    })
+
+    it('draws the ticks longer in a taller lane, in proportion, and unchanged at the default lane height', () => {
+      const tall = makeTrackingCanvas(400, TRACK_MAP_BEAT_LANE_BASE_HEIGHT * 2)
+      drawBeatCanvas(tall.canvas, fourBarAnalysis())
+      expect(tall.groups[2].cmds.find(p => p.cmd === 'lineTo')!.y).toBe(TRACK_MAP_FOUR_BAR_TICK_HEIGHT * 2)
+      expect(tall.groups[1].cmds.find(p => p.cmd === 'lineTo')!.y).toBe(TRACK_MAP_DOWNBEAT_TICK_HEIGHT * 2)
+
+      const normal = makeTrackingCanvas(400, TRACK_MAP_BEAT_LANE_BASE_HEIGHT)
+      drawBeatCanvas(normal.canvas, fourBarAnalysis())
+      expect(normal.groups[2].cmds.find(p => p.cmd === 'lineTo')!.y).toBe(TRACK_MAP_FOUR_BAR_TICK_HEIGHT)
+      expect(normal.groups[1].cmds.find(p => p.cmd === 'lineTo')!.y).toBe(TRACK_MAP_DOWNBEAT_TICK_HEIGHT)
     })
 
     it('keeps the four-bar cadence global when the visible range is zoomed', () => {
