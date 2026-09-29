@@ -211,6 +211,7 @@ export class Cinema2ThreeSceneBridge {
       uCinema2GlowBreath: { value: 0 },
       uCinema2GlowFront: { value: new THREE.Vector4(-10, -10, -10, -10) },
       uCinema2GlowGain: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2GlowBeats: { value: 0 },
     }
 
     for (const instance of instances) {
@@ -425,14 +426,15 @@ export class Cinema2ThreeSceneBridge {
     const film = (material as Partial<ThreeNamespace.MeshPhysicalMaterial>).isMeshPhysicalMaterial === true && !!geometry.getAttribute(CINEMA2_FILM_THICKNESS_ATTRIBUTE)
     const share = this.glowShareOf(owned)
     const phase = share > 0 && !!geometry.getAttribute(CINEMA2_GLOW_PHASE_ATTRIBUTE)
+    const seed = share > 0 && !!geometry.getAttribute(CINEMA2_GLOW_SEED_ATTRIBUTE)
     if (!film && share <= 0) return
     const shareUniform = { value: share }
     const shared = this.glowUniforms
     material.onBeforeCompile = shader => {
       if (film) addVertexFilmThickness(shader)
-      if (share > 0) addAudioGlow(shader, shared, shareUniform, phase)
+      if (share > 0) addAudioGlow(shader, shared, shareUniform, phase, seed)
     }
-    material.customProgramCacheKey = () => `cinema2${film ? '-film' : ''}${share > 0 ? (phase ? '-glow-phase' : '-glow') : ''}`
+    material.customProgramCacheKey = () => `cinema2${film ? '-film' : ''}${share > 0 ? (phase ? '-glow-phase' : '-glow') : ''}${seed ? '-seed' : ''}`
     material.needsUpdate = true
   }
 
@@ -445,6 +447,7 @@ export class Cinema2ThreeSceneBridge {
     const fronts = glow.frame.fronts, gains = glow.frame.gains
     uniforms.uCinema2GlowFront.value.set(fronts[0] ?? -10, fronts[1] ?? -10, fronts[2] ?? -10, fronts[3] ?? -10)
     uniforms.uCinema2GlowGain.value.set(gains[0] ?? 0, gains[1] ?? 0, gains[2] ?? 0, gains[3] ?? 0)
+    uniforms.uCinema2GlowBeats.value = Number.isFinite(glow.frame.beats) ? glow.frame.beats % 4096 : 0
   }
 
   private applyEnvironmentAndPanels(overrides: Readonly<Cinema2ThreeMaterialOverrides>, exposure: number): void {
@@ -614,6 +617,11 @@ function addVertexFilmThickness(shader: ShaderSource): void {
  * root tips and 1 at the top, so a pulse of glow can climb it. A glowing part without it still breathes, but pulses cannot travel.
  */
 export const CINEMA2_GLOW_PHASE_ATTRIBUTE = '_glow_phase'
+/**
+ * Optional custom glTF attribute `_GLOW_SEED` (0-1, one value per tree): parts carrying it glow as separate trees - each swells on its own slow
+ * cycle and strength, its climbing pulses arrive a little early or late, and its brightest spots flicker like embers.
+ */
+export const CINEMA2_GLOW_SEED_ATTRIBUTE = '_glow_seed'
 
 interface GlowUniforms {
   uCinema2GlowColor: { value: ThreeNamespace.Color }
@@ -621,15 +629,18 @@ interface GlowUniforms {
   uCinema2GlowBreath: { value: number }
   uCinema2GlowFront: { value: ThreeNamespace.Vector4 }
   uCinema2GlowGain: { value: ThreeNamespace.Vector4 }
+  uCinema2GlowBeats: { value: number }
 }
 
 /** Adds the audio glow to the material's emitted light: the breath everywhere, plus each climbing pulse as a soft band around its front. */
-function addAudioGlow(shader: ShaderSource, shared: GlowUniforms, share: { value: number }, phase: boolean): void {
+function addAudioGlow(shader: ShaderSource, shared: GlowUniforms, share: { value: number }, phase: boolean, seed: boolean): void {
   Object.assign(shader.uniforms, shared, { uCinema2GlowShare: share })
-  if (phase) {
+  const attributes = [phase ? CINEMA2_GLOW_PHASE_ATTRIBUTE : null, seed ? CINEMA2_GLOW_SEED_ATTRIBUTE : null].filter((name): name is string => name != null)
+  if (attributes.length > 0) {
+    const varying = (name: string) => (name === CINEMA2_GLOW_PHASE_ATTRIBUTE ? 'vCinema2GlowPhase' : 'vCinema2GlowSeed')
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\nattribute float ${CINEMA2_GLOW_PHASE_ATTRIBUTE};\nvarying float vCinema2GlowPhase;`)
-      .replace('#include <begin_vertex>', `#include <begin_vertex>\nvCinema2GlowPhase = ${CINEMA2_GLOW_PHASE_ATTRIBUTE};`)
+      .replace('#include <common>', ['#include <common>', ...attributes.map(name => `attribute float ${name};\nvarying float ${varying(name)};`)].join('\n'))
+      .replace('#include <begin_vertex>', ['#include <begin_vertex>', ...attributes.map(name => `${varying(name)} = ${name};`)].join('\n'))
   }
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <common>', [
@@ -640,18 +651,28 @@ function addAudioGlow(shader: ShaderSource, shared: GlowUniforms, share: { value
       'uniform float uCinema2GlowShare;',
       `uniform vec4 uCinema2GlowFront;`,
       `uniform vec4 uCinema2GlowGain;`,
+      'uniform float uCinema2GlowBeats;',
       phase ? 'varying float vCinema2GlowPhase;' : '',
+      seed ? 'varying float vCinema2GlowSeed;' : '',
     ].join('\n'))
     .replace('#include <emissivemap_fragment>', [
       '#include <emissivemap_fragment>',
+      // Per tree (with a seed): its own slow swell (0.45-1.35x) over 6-14 beats, pulses arriving up to a third of the climb early or late.
+      seed ? [
+        'float cinema2Tree = vCinema2GlowSeed;',
+        'float cinema2TreeGain = 0.9 + 0.45 * sin( uCinema2GlowBeats * 6.2832 / ( 6.0 + 8.0 * cinema2Tree ) + cinema2Tree * 40.0 );',
+        'float cinema2Stagger = ( cinema2Tree - 0.5 ) * 0.66;',
+      ].join('\n') : 'float cinema2TreeGain = 1.0;\nfloat cinema2Stagger = 0.0;',
       'float cinema2Glow = uCinema2GlowBreath;',
       phase ? [
         `for ( int i = 0; i < ${CINEMA2_THREE_GLOW_WAVE_COUNT}; i ++ ) {`,
-        '  float d = ( vCinema2GlowPhase - uCinema2GlowFront[ i ] ) / 0.09;',
+        '  float d = ( vCinema2GlowPhase - ( uCinema2GlowFront[ i ] - cinema2Stagger ) ) / 0.09;',
         '  cinema2Glow += uCinema2GlowGain[ i ] * exp( - d * d );',
         '}',
       ].join('\n') : '',
-      'totalEmissiveRadiance += uCinema2GlowColor * ( uCinema2GlowStrength * uCinema2GlowShare * cinema2Glow );',
+      // Embers: seeded parts flicker a little along their length, strongest where the glow is already bright.
+      seed && phase ? 'cinema2Glow *= 0.85 + 0.3 * sin( uCinema2GlowBeats * 5.1 + vCinema2GlowPhase * 37.0 + vCinema2GlowSeed * 91.0 );' : '',
+      'totalEmissiveRadiance += uCinema2GlowColor * ( uCinema2GlowStrength * uCinema2GlowShare * cinema2TreeGain * cinema2Glow );',
     ].join('\n'))
 }
 

@@ -15,6 +15,7 @@ import {
   type Cinema2ModuleId,
   type Cinema2ModuleManifest,
 } from '..'
+import { CINEMA2_SHARED_LIGHT_LIMIT } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleCreateContext } from '../modules/Cinema2ModuleContracts'
 import { Cinema2ModuleResourceScope } from '../modules/Cinema2ModuleResources'
 import { Cinema2GlStateGuard } from '../modules/three/Cinema2GlStateGuard'
@@ -212,11 +213,11 @@ describe('Cinema 2.0 Three camera and light mapping', () => {
     expect(scene.children).toHaveLength(childCount)
   })
 
-  it('caps the pool at eight lights', () => {
+  it('caps the non-ambient pool at the shared light limit, and always keeps ambient lights', () => {
     const scene = new THREE.Scene()
     const rig = new Cinema2ThreeLightRig(THREE, scene)
-    rig.update(frame(Array.from({ length: 12 }, () => light({ type: 'point' }))))
-    expect(rig.lightCount).toBe(8)
+    rig.update(frame([...Array.from({ length: CINEMA2_SHARED_LIGHT_LIMIT + 4 }, () => light({ type: 'point' })), light({ type: 'ambient' })]))
+    expect(rig.lightCount).toBe(CINEMA2_SHARED_LIGHT_LIMIT + 1)
   })
 })
 

@@ -25,9 +25,12 @@ const FLOOR_Y = -1.55
 
 const meshes = []
 let curveIndex = 0
+/** The tree being built: every mesh it adds carries this seed as `_GLOW_SEED`, so each tree's glow pulses on its own. */
+let treeSeed = 0
+const seedsFor = positions => new Float32Array(positions.length / 3).fill(treeSeed)
 function addTube(points, radiusAt, radialSegments, part, options = {}) {
   const { positions, normals, indices, phases } = buildTaperedTube(points, { radiusAt, radialSegments, samples: options.samples ?? 48, bark: options.bark ?? null, phaseAt: options.phaseAt ?? (() => 0) })
-  meshes.push({ name: `${part}-${curveIndex++}`, part, positions, normals, indices, phases })
+  meshes.push({ name: `${part}-${curveIndex++}`, part, positions, normals, indices, phases, seeds: seedsFor(positions) })
 }
 
 /** Gold vines spiralling up a host curve (just proud of its surface), with buds along them. */
@@ -36,8 +39,8 @@ function wrapInVines(points, hostRadiusAt, key, { count, turns, phaseAt, buds = 
     const vineKey = `${key}:vine:${v}`
     const start = (v / count) * Math.PI * 2 + jitter(`${vineKey}:angle`, 0.5)
     const spiral = veinControlPoints(points, hostRadiusAt, start, (turns + jitter(`${vineKey}:turns`, 0.6)) * (v % 2 === 0 ? 1 : -1), 1.08, 28)
-    const radius = t => Math.max(0.01, 0.024 * (1 - 0.5 * t))
-    addTube(spiral, radius, 6, 'vines', { samples: 60, phaseAt })
+    const radius = t => Math.max(0.011, 0.026 * (1 - 0.45 * t))
+    addTube(spiral, radius, 6, 'vines', { samples: 48, phaseAt })
     if (!buds) continue
     const curve = new THREE.CatmullRomCurve3(spiral.map(p => new THREE.Vector3(...p)), false, 'centripetal')
     const count2 = 5 + Math.floor(hash(`${vineKey}:buds`) * 4)
@@ -50,7 +53,7 @@ function wrapInVines(points, hostRadiusAt, key, { count, turns, phaseAt, buds = 
       outward.normalize().multiplyScalar(b % 2 === 0 ? 1 : -1).addScaledVector(tangent, 0.4).add(new THREE.Vector3(0, 0.3, 0.35)).normalize()
       const leaf = buildLeaf(at, outward, 0.06 + hash(`${vineKey}:bud-size:${b}`) * 0.035, jitter(`${vineKey}:bud-twist:${b}`, 0.8))
       const phase = phaseAt(t)
-      meshes.push({ name: `bud-${curveIndex++}`, part: 'buds', positions: leaf.positions, normals: leaf.normals, indices: leaf.indices, phases: new Float32Array(leaf.positions.length / 3).fill(phase) })
+      meshes.push({ name: `bud-${curveIndex++}`, part: 'buds', positions: leaf.positions, normals: leaf.normals, indices: leaf.indices, phases: new Float32Array(leaf.positions.length / 3).fill(phase), seeds: seedsFor(leaf.positions) })
     }
   }
 }
@@ -60,6 +63,7 @@ function wrapInVines(points, hostRadiusAt, key, { count, turns, phaseAt, buds = 
  * round the trunk's axis; `inward` (+1 / -1) is the direction toward the logo, for branches and the S-curve.
  */
 function tree(key, { base, height, lean, strands, strandRadius, spread, inward, branches, roots, vines, detail }) {
+  treeSeed = hash(`${key}:glow-seed`)
   const axisAt = t => {
     // A slow S: out, then in toward the logo, then out again at the top, plus a seeded wobble.
     const s = Math.sin(t * Math.PI * 1.4 + hash(`${key}:s`) * 2) * 0.22
@@ -127,9 +131,9 @@ for (const side of [1, -1]) {
   const s = side === 1 ? 'r' : 'l'
   const inward = -side
   // Foreground: the two big trees at the frame edges, leaning in toward the logo.
-  tree(`near:${s}`, { base: [3.15 * side, 0, -1.2], height: 5.6, lean: [-0.3 * side, -0.4], strands: 3, strandRadius: 0.34, spread: 0.3, inward, branches: 2, roots: 7, vines: 2, detail: NEAR })
+  tree(`near:${s}`, { base: [2.85 * side, 0, -1.1], height: 5.6, lean: [-0.3 * side, -0.4], strands: 3, strandRadius: 0.34, spread: 0.3, inward, branches: 2, roots: 7, vines: 2, detail: NEAR })
   // Mid: one further out, one tucked in behind the logo's side.
-  tree(`mid-out:${s}`, { base: [5.6 * side, 0, -3.4], height: 6, lean: [-0.4 * side, 0.2], strands: 2, strandRadius: 0.2, spread: 0.2, inward, branches: 1, roots: 5, vines: 2, detail: MID })
+  tree(`mid-out:${s}`, { base: [4.8 * side, 0, -3.4], height: 6, lean: [-0.4 * side, 0.2], strands: 2, strandRadius: 0.22, spread: 0.2, inward, branches: 1, roots: 5, vines: 1, detail: MID })
   tree(`mid-in:${s}`, { base: [2.6 * side, 0, -6.4], height: 6.4, lean: [0.3 * side, -0.2], strands: 2, strandRadius: 0.17, spread: 0.17, inward, branches: 1, roots: 4, vines: 1, detail: MID })
   // Far: single trunks deep behind, faded by the haze.
   tree(`far-a:${s}`, { base: [4.2 * side, 0, -8.5], height: 7, lean: [0.2 * side, 0], strands: 1, strandRadius: 0.24, spread: 0.1, inward, branches: 1, roots: 3, vines: 1, detail: FAR })
@@ -142,23 +146,24 @@ for (const part of ['bark', 'vines', 'buds']) {
   const members = meshes.filter(mesh => mesh.part === part)
   const vertexCount = members.reduce((sum, mesh) => sum + mesh.positions.length / 3, 0)
   const indexCount = members.reduce((sum, mesh) => sum + mesh.indices.length, 0)
-  const positions = new Float32Array(vertexCount * 3), normals = new Float32Array(vertexCount * 3), phases = new Float32Array(vertexCount), indices = new Uint32Array(indexCount)
+  const positions = new Float32Array(vertexCount * 3), normals = new Float32Array(vertexCount * 3), phases = new Float32Array(vertexCount), seeds = new Float32Array(vertexCount), indices = new Uint32Array(indexCount)
   let vertexOffset = 0, indexOffset = 0
   for (const mesh of members) {
     positions.set(mesh.positions, vertexOffset * 3)
     normals.set(mesh.normals, vertexOffset * 3)
     phases.set(mesh.phases, vertexOffset)
+    seeds.set(mesh.seeds, vertexOffset)
     for (let i = 0; i < mesh.indices.length; i += 1) indices[indexOffset + i] = mesh.indices[i] + vertexOffset
     vertexOffset += mesh.positions.length / 3
     indexOffset += mesh.indices.length
   }
-  merged.push({ name: part, part, positions, normals, indices, phases })
+  merged.push({ name: part, part, positions, normals, indices, phases, seeds })
 }
 
 // ── PBR materials (Linear-sRGB). Bark: near-black brown, a little glossy like the reference's wet-looking trunks. Vines and buds: polished
 // gold; the audio glow adds their light on top (the buds carry a faint glow of their own so they read even between pulses). ─────────────
 const MATERIALS = {
-  bark: { baseColorFactor: [0.035, 0.022, 0.014, 1], metallicFactor: 0, roughnessFactor: 0.78 },
+  bark: { baseColorFactor: [0.03, 0.02, 0.013, 1], metallicFactor: 0, roughnessFactor: 0.5 },
   vines: { baseColorFactor: [0.95, 0.64, 0.26, 1], metallicFactor: 1, roughnessFactor: 0.28 },
   buds: { baseColorFactor: [1, 0.72, 0.32, 1], metallicFactor: 0.8, roughnessFactor: 0.25, emissiveFactor: [0.25, 0.13, 0.03] },
 }

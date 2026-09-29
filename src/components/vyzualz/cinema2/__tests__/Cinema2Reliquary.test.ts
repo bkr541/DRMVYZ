@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { CINEMA2_DESIGN_PARENT_GROUP_IDS, type Cinema2ModuleManifest } from '../contracts/Cinema2NativePresetManifest'
+import { CINEMA2_DESIGN_PARENT_GROUP_IDS, CINEMA2_SHARED_LIGHT_LIMIT, type Cinema2ModuleManifest } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_ASSET_RECORDS } from '../assets/Cinema2AssetManifest.generated'
 import { cinema2NativeModuleRegistry } from '../modules/Cinema2ModuleRegistry'
 import { cinema2ThreeSceneModuleDefinition } from '../modules/Cinema2ThreeSceneModule'
@@ -103,7 +103,20 @@ describe('RELIQUARY preset', () => {
     expect(nodeIds.has(CINEMA2_RELIQUARY_ROOTS_NODE_ID)).toBe(true)
   })
 
-  it('renders scene -> matte ground -> haze -> bloom -> cinematic finish, with a static camera', () => {
+  it('stays within the shared light limit, and a preset over it compiles with a warning naming the ignored lights', () => {
+    const drawn = (manifest.lighting?.lights ?? []).filter(light => light.type !== 'ambient')
+    expect(drawn.length).toBeLessThanOrEqual(CINEMA2_SHARED_LIGHT_LIMIT)
+    const first = drawn[0]!
+    const extra = Array.from({ length: CINEMA2_SHARED_LIGHT_LIMIT + 2 - drawn.length }, (_, index) => ({ ...first, id: `reliquary-extra-light-${index}` }))
+    const over = { ...manifest, lighting: { ...manifest.lighting, lights: [...(manifest.lighting?.lights ?? []), ...extra] } }
+    const compiled = compileCinema2NativePreset(over as never, { availableCapabilities: CAPABILITIES })
+    expect(compiled.ok).toBe(true)
+    const warning = compiled.diagnostics.find(diagnostic => diagnostic.code === 'CINEMA2_PRESET_LIGHT_LIMIT_EXCEEDED')
+    expect(warning?.severity).toBe('warning')
+    expect(warning?.message).toContain('reliquary-extra-light-')
+  })
+
+  it('renders scene -> wet floor -> haze (with ground mist) -> bloom -> cinematic finish, with a static camera', () => {
     expect((manifest.effects ?? []).map(effect => effect.typeId)).toEqual(['reflective-floor', 'volumetric-atmosphere', 'bloom', 'cinematic-finish'])
     expect(manifest.render?.passes?.map(pass => pass.kind)).toEqual(['scene', 'fullscreen', 'fullscreen', 'fullscreen', 'fullscreen'])
     expect(manifest.cameras?.[0]?.rig).toEqual({ kind: 'static' })

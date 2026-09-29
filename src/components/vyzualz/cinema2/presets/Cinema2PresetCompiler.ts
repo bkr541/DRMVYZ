@@ -1,5 +1,6 @@
 import {
   CINEMA2_CAPABILITY_IDS,
+  CINEMA2_SHARED_LIGHT_LIMIT,
   validateCinema2NativePresetManifestIdentity,
   isCinema2StableId,
   type Cinema2CameraId,
@@ -571,6 +572,15 @@ function validateReferencesAndCombinations(
       diagnostics.push(error('CINEMA2_PRESET_COMBINATION_INVALID', `Unsupported light type "${String(light.type)}".`, `${base}.type`))
     }
     validateLightDefinition(light, base, manifest, index, diagnostics)
+  }
+  const drawnLights = readArray(manifest.lighting?.lights, '$.lighting.lights', []).filter(light => light.type !== 'ambient')
+  if (drawnLights.length > CINEMA2_SHARED_LIGHT_LIMIT) {
+    const dropped = drawnLights.slice(CINEMA2_SHARED_LIGHT_LIMIT).map(light => String(light.id))
+    diagnostics.push(warning(
+      'CINEMA2_PRESET_LIGHT_LIMIT_EXCEEDED',
+      `The preset declares ${drawnLights.length} spot/point/directional lights; the 3D scene, haze and floor draw only the first ${CINEMA2_SHARED_LIGHT_LIMIT} (medium quality keeps 6 and low 2, in authoring order). Ignored: ${dropped.join(', ')}.`,
+      '$.lighting.lights',
+    ))
   }
   validateEnvironmentDefinition(manifest, index, diagnostics)
 

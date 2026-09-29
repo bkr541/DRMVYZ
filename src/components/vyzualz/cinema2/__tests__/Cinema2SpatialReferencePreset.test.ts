@@ -232,9 +232,10 @@ describe('Cinema 2.0 Stage 13 Spatial Reference preset', () => {
       if (!created.runtime) continue
       if (presetId === CINEMA2_SPATIAL_REFERENCE_PRESET_ID) {
         expect(created.runtime.getLightingEnvironmentRuntimeSnapshot()).toMatchObject({
+          // Two spots and an ambient: low keeps two non-ambient lights, and ambient lights never count toward the limit.
           authoredLightCount: 3,
-          activeLightCount: 2,
-          omittedLightCount: 1,
+          activeLightCount: 3,
+          omittedLightCount: 0,
           quality: 'low',
         })
       }

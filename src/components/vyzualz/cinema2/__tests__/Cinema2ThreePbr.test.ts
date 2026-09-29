@@ -265,10 +265,32 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     expect(shader.fragmentShader).toContain('totalEmissiveRadiance += uCinema2GlowColor')
     expect(shader.vertexShader).toContain('vCinema2GlowPhase = _glow_phase')
     expect(materialOf('bark-0').customProgramCacheKey()).not.toContain('glow')
-    bridge.draw(execution('high'), overrides({}), 0, { color: [1, 0.5, 0], strength: 2, frame: { breath: 0.4, fronts: [0.3, -10, -10, -10], gains: [0.8, 0, 0, 0] } })
+    bridge.draw(execution('high'), overrides({}), 0, { color: [1, 0.5, 0], strength: 2, frame: { breath: 0.4, fronts: [0.3, -10, -10, -10], gains: [0.8, 0, 0, 0], beats: 12.5 } })
     expect((shader.uniforms.uCinema2GlowStrength as { value: number }).value).toBe(2)
     expect((shader.uniforms.uCinema2GlowBreath as { value: number }).value).toBeCloseTo(0.4)
     expect((shader.uniforms.uCinema2GlowFront as { value: THREE.Vector4 }).value.x).toBeCloseTo(0.3)
+    expect((shader.uniforms.uCinema2GlowBeats as { value: number }).value).toBeCloseTo(12.5)
+  })
+
+  it('glows each seeded tree on its own: parts with a _glow_seed attribute get a per-tree swell, pulse stagger and ember flicker', () => {
+    const scene = new THREE.Group()
+    const standard = new THREE.MeshStandardMaterial()
+    standard.name = 'vines'
+    const geometry = new THREE.BoxGeometry(1, 1, 1)
+    const count = geometry.getAttribute('position').count
+    geometry.setAttribute('_glow_phase', new THREE.Float32BufferAttribute(new Float32Array(count), 1))
+    geometry.setAttribute('_glow_seed', new THREE.Float32BufferAttribute(new Float32Array(count).fill(0.3), 1))
+    const mesh = new THREE.Mesh(geometry, standard)
+    mesh.name = 'vines'
+    scene.add(mesh)
+    const bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [{ asset: { id: 'seeded', scene, triangleCount: 12, gpuBytes: 100 } as never, node: null }], { glow: { vines: 1 } })
+    const material = ((bridge as unknown as { scene: THREE.Scene }).scene.getObjectByName('vines') as THREE.Mesh).material as THREE.MeshStandardMaterial
+    expect(material.customProgramCacheKey()).toBe('cinema2-glow-phase-seed')
+    const shader = { vertexShader: '#include <common>\n#include <begin_vertex>', fragmentShader: '#include <common>\n#include <emissivemap_fragment>', uniforms: {} as Record<string, { value: unknown }> }
+    material.onBeforeCompile(shader as never, undefined as never)
+    expect(shader.vertexShader).toContain('vCinema2GlowSeed = _glow_seed')
+    expect(shader.fragmentShader).toContain('cinema2TreeGain')
+    expect(shader.fragmentShader).toContain('cinema2Stagger')
   })
 
   it('creates no panel lights (and never touches the area-light tables) without config.panels', async () => {

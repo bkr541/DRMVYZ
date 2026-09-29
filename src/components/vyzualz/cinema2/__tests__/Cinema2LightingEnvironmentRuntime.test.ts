@@ -143,15 +143,25 @@ describe('Cinema 2.0 Stage 12C shared Lighting and Environment foundation', () =
   })
 
   it('applies deterministic quality light limits without inventing missing services', () => {
-    const low = createServices(createManifest(6), 'low')
-    const medium = createServices(createManifest(6), 'medium')
-    const high = createServices(createManifest(6), 'high')
-    expect(low.lighting.getSnapshot()).toMatchObject({ authoredLightCount: 6, activeLightCount: 2, omittedLightCount: 4 })
-    expect(medium.lighting.getSnapshot()).toMatchObject({ activeLightCount: 4, omittedLightCount: 2 })
-    expect(high.lighting.getSnapshot()).toMatchObject({ activeLightCount: 6, omittedLightCount: 0 })
+    // Non-ambient lights kept per tier: low 2, medium 6, high 12 (the shared consumer limit), in authoring order.
+    const low = createServices(createManifest(8), 'low')
+    const medium = createServices(createManifest(8), 'medium')
+    const high = createServices(createManifest(8), 'high')
+    expect(low.lighting.getSnapshot()).toMatchObject({ authoredLightCount: 8, activeLightCount: 2, omittedLightCount: 6 })
+    expect(medium.lighting.getSnapshot()).toMatchObject({ activeLightCount: 6, omittedLightCount: 2 })
+    expect(high.lighting.getSnapshot()).toMatchObject({ activeLightCount: 8, omittedLightCount: 0 })
     low.lighting.dispose(); low.spatial.dispose()
     medium.lighting.dispose(); medium.spatial.dispose()
     high.lighting.dispose(); high.spatial.dispose()
+  })
+
+  it('always keeps ambient lights: they do not count toward a tier limit, wherever they are listed', () => {
+    const base = createManifest(4)
+    const lights = [...(base.lighting?.lights ?? []), { id: cinema2StableId('limit-ambient'), type: 'ambient' as const, color: [0.2, 0.2, 0.2, 1] as const, intensity: 0.3 }]
+    const low = createServices({ ...base, lighting: { ...base.lighting, lights } } as never, 'low')
+    const frame = low.lighting.getSnapshot()
+    expect(frame).toMatchObject({ authoredLightCount: 5, activeLightCount: 3, omittedLightCount: 2 }) // two non-ambient + the ambient
+    low.lighting.dispose(); low.spatial.dispose()
   })
 
   it('shows Lighting and Environment only from authored schema controls, with no preset-identity UI branch', () => {

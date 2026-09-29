@@ -1,12 +1,12 @@
 // Generates the shared "golden roots" asset for Cinema 2.0's RELIQUARY preset.
 //   node scripts/cinema2-assets/generate-golden-roots.mjs [out.glb]      (default: public/cinema2/models/golden-roots.glb)
 //
-// Revision 3, built against the owner's reference render of the logo held by a tree: a thick trunk of several strands twisting around each
-// other rises from a wide flare of roots spreading over the ground in every direction; just under the logo's star the trunk splits into two
-// limbs that pass in front of the logo's lower rim, wrap round the outside of its two lower outer lobes and curl over their tops; thin vines
-// loop round the lobes too, and gold teardrop leaves hang off short curling stems along the limbs, the vines and the base. Nothing reaches
-// past the logo's sides or above its lower lobes (revision 2's canopy branches, which climbed far out to the sides like wings, are gone).
-// A hand-authored curve network (the identity-defining shape), not a generative L-system.
+// Revision 4, built against the owner's cinematic mockups: a thick trunk of several strands twisting around each other rises from a wide flare
+// of roots; just under the logo's star it splits into slender branches that thread THROUGH the open spaces in the bottom of the logo instead of
+// wrapping round it. Per side: an inner branch rises behind the logo's bottom band, comes forward through the inner lower opening and ends in a
+// leafy curl in front of the lower swirl; an outer branch runs in front of the logo's bottom edge and passes back through the outer lobe's
+// opening, ending behind it. Short tendrils curl out under the logo. Nothing climbs above the swirls (revision 3's limbs wrapped round the
+// outside of the lower lobes and up over their tops, covering too much of the logo). A hand-authored curve network, not an L-system.
 //
 // Every curve is swept into a tapered tube (a rotation-minimizing frame down a Catmull-Rom spline, radius shrinking along its length) with
 // a bark perturbation on the wood (not the leaf stems or veins): each ring vertex's radius is nudged by a sum of a few sine waves in the
@@ -27,8 +27,10 @@ const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'publ
 const FLOOR_Y = -1.55
 
 // ── The curve network ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
-// Logo landmarks in world units (the logo is placed 0.05 above the origin): its bottom edge runs at y ~-0.57 from x 0.1 to 0.8, the lower
-// outer lobes reach x ~1.0 between y -0.35 and -0.01 and top out at y ~0.16 around x 0.9, and the logo is ~0.07 deep about z = 0.
+// Logo landmarks in world units (the logo is placed 0.05 above the origin), measured from a raster of the logo model: its bottom edge runs at
+// y ~-0.57 from x 0.1 to 0.8; the bottom band is solid from y ~-0.48 to -0.28; the inner lower opening spans x ~0.15-0.49 at y ~-0.22 to -0.08
+// and opens up into the space inside the lower swirl (x ~0.39-0.55 up to y ~0.1); the swirl's own ribbon is solid at x ~0.2-0.35, y ~0; the outer
+// lobe's opening spans x ~0.63-0.83, y ~-0.24 to 0.0. The logo is ~0.07 deep about z = 0 (negative z is behind it).
 const TRUNK_TOP_Y = -0.8
 
 /** Four strands twisting round the trunk's axis from the floor to just under the star; each leans out toward its limb at the top. */
@@ -44,19 +46,20 @@ function trunkStrand(index) {
   return points
 }
 
-// Main limb (right side; mirrored for the left): from the trunk top, in front of the logo's lower rim, round the outside of the lower outer
-// lobe (behind the logo), then over the lobe's top to curl forward.
-const limb = [[0.06, TRUNK_TOP_Y - 0.06, 0.02], [0.24, -0.74, 0.1], [0.46, -0.66, 0.14], [0.7, -0.63, 0.14], [0.93, -0.53, 0.11], [1.08, -0.3, 0.0], [1.09, -0.06, -0.08], [1.0, 0.17, -0.06], [0.86, 0.23, 0.05], [0.8, 0.15, 0.1]]
-// A thin vine that leaves the limb under the lobe and loops higher round its outside, a second, finer wrap.
-const vine = [[0.86, -0.57, 0.12], [1.02, -0.47, 0.13], [1.16, -0.22, 0.06], [1.17, 0.04, -0.03], [1.08, 0.25, -0.06], [0.93, 0.33, 0.0], [0.86, 0.27, 0.07]]
-// A short inner branch that curls up in front of the lower inner lobe, toward the swirl, holding a few leaves.
-const innerBranch = [[0.3, -0.72, 0.12], [0.36, -0.6, 0.16], [0.34, -0.5, 0.17], [0.26, -0.45, 0.15]]
+// Inner branch (right side; mirrored for the left): from the trunk top it goes behind the logo's bottom band, crosses forward through the inner
+// lower opening, and curls its tip in front of the lower swirl's ribbon.
+const innerBranch = [[0.05, TRUNK_TOP_Y - 0.06, 0], [0.16, -0.66, -0.06], [0.28, -0.44, -0.12], [0.4, -0.2, -0.06], [0.44, -0.13, 0.06], [0.46, -0.04, 0.13], [0.4, 0.04, 0.14], [0.33, 0.02, 0.13]]
+// Outer branch: out in front of the logo's bottom edge, up in front of the outer lobe's lower ribbon, then back through the outer lobe's opening,
+// ending behind it.
+const outerBranch = [[0.05, TRUNK_TOP_Y - 0.06, 0.02], [0.22, -0.72, 0.1], [0.46, -0.66, 0.14], [0.66, -0.6, 0.14], [0.77, -0.38, 0.12], [0.75, -0.16, 0.04], [0.74, -0.12, -0.04], [0.72, -0.04, -0.12], [0.66, 0, -0.12]]
+// A short tendril curling out and forward under the logo.
+const tendril = [[0.1, TRUNK_TOP_Y + 0.02, 0.05], [0.2, -0.76, 0.14], [0.27, -0.8, 0.2], [0.23, -0.86, 0.23]]
 
-/** Where leaves hang, as (curve, t along it, side bias): stems leave the host there, curl outward, and end in a leaf. */
+/** Where leaves hang, as (curve, t along it, side bias): few and small, mostly below the logo and at the inner branch's curl. */
 const leafSites = [
-  ['limb', 0.3, 1], ['limb', 0.45, -1], ['limb', 0.58, 1], ['limb', 0.72, -1], ['limb', 0.86, 1],
-  ['vine', 0.35, 1], ['vine', 0.62, -1], ['vine', 0.92, 1],
-  ['innerBranch', 0.7, -1], ['innerBranch', 1, 1],
+  ['outerBranch', 0.25, -1], ['outerBranch', 0.42, 1], ['outerBranch', 0.55, -1],
+  ['innerBranch', 0.82, 1], ['innerBranch', 1, -1],
+  ['tendril', 1, 1],
 ]
 
 const mirror = points => points.map(([x, y, z]) => [-x, y, z])
@@ -85,7 +88,7 @@ function addLeaf(start, out, key, phase) {
   const stem = [p0, p1, p2, p3].map(v => [v.x, v.y, v.z])
   addTube(stem, taper(0.012, 0.005), 6, 'leaves', null, () => phase)
   const along = new THREE.Vector3().subVectors(p3, p2).normalize()
-  const leaf = buildLeaf(p3, along, 0.12 + hash(`leaf:${key}`) * 0.04, jitter(`leaf-twist:${key}`, 0.5))
+  const leaf = buildLeaf(p3, along, 0.075 + hash(`leaf:${key}`) * 0.03, jitter(`leaf-twist:${key}`, 0.5))
   meshes.push({ name: `leaf-${curveIndex++}`, part: 'leaves', positions: leaf.positions, normals: leaf.normals, indices: leaf.indices, phases: new Float32Array(leaf.positions.length / 3).fill(phase) })
 }
 /** A point on a Catmull-Rom curve and a sideways direction there, for hanging leaves and forking rootlets. */
@@ -145,20 +148,21 @@ for (let index = 0; index < ROOT_COUNT; index += 1) {
   if (index % 3 === 0) addLeaf([points[1][0], points[1][1] + 0.04, points[1][2]], new THREE.Vector3(Math.cos(heading), 0.5, Math.sin(heading)).normalize(), `base-leaf:${index}`, rootPhase(1 / 7))
 }
 
-// The two limbs, their intertwined strands, vines, inner branches and leaves (right side, mirrored for the left).
+// The branches, a twisting strand on the inner branch, the tendrils and their leaves (right side, mirrored for the left).
 for (const side of [1, -1]) {
   const flip = points => (side === 1 ? points : mirror(points))
-  const limbR = taper(0.13, 0.026)
-  const curves = { limb: flip(limb), vine: flip(vine), innerBranch: flip(innerBranch) }
-  addTube(curves.limb, limbR, 11, 'roots', { amplitude: 0.1, seed: hash(`bark:limb:${side}`) }, LIMB_PHASE)
-  addVein(curves.limb, limbR, 'veins', jitter(`vein:limb:${side}`, Math.PI), 0.9, LIMB_PHASE)
-  // A thinner strand twisting round the limb, so it reads as several strands like the trunk.
-  const strand = veinControlPoints(curves.limb, limbR, jitter(`strand:${side}`, Math.PI), 1.6 * side, 0.95, 16)
-  addTube(strand.slice(0, 13), taper(0.06, 0.018), 9, 'roots', { amplitude: 0.1, seed: hash(`bark:strand:${side}`) }, t => LIMB_PHASE(t * 12 / 15))
-  // The vine leaves the limb about 62% along it and the inner branch about 20% along: each picks up the limb's phase there.
-  const phaseOf = { limb: LIMB_PHASE, vine: phaseRamp(LIMB_PHASE(0.62), 1.05), innerBranch: phaseRamp(LIMB_PHASE(0.2), 0.8) }
-  addTube(curves.vine, taper(0.03, 0.011), 8, 'roots', { amplitude: 0.08, seed: hash(`bark:vine:${side}`) }, phaseOf.vine)
-  addTube(curves.innerBranch, taper(0.04, 0.014), 8, 'roots', { amplitude: 0.08, seed: hash(`bark:inner:${side}`) }, phaseOf.innerBranch)
+  const innerR = taper(0.075, 0.02)
+  const outerR = taper(0.065, 0.018)
+  const curves = { innerBranch: flip(innerBranch), outerBranch: flip(outerBranch), tendril: flip(tendril) }
+  const phaseOf = { innerBranch: LIMB_PHASE, outerBranch: LIMB_PHASE, tendril: phaseRamp(TRUNK_TOP, 0.75) }
+  addTube(curves.innerBranch, innerR, 10, 'roots', { amplitude: 0.1, seed: hash(`bark:inner:${side}`) }, LIMB_PHASE)
+  addVein(curves.innerBranch, innerR, 'veins', jitter(`vein:inner:${side}`, Math.PI), 0.8, LIMB_PHASE)
+  addTube(curves.outerBranch, outerR, 10, 'roots', { amplitude: 0.1, seed: hash(`bark:outer:${side}`) }, LIMB_PHASE)
+  addVein(curves.outerBranch, outerR, 'veins', jitter(`vein:outer:${side}`, Math.PI), -0.8, LIMB_PHASE)
+  // A thin strand twisting round the lower part of the inner branch, so it reads as grown from the braided trunk.
+  const strand = veinControlPoints(curves.innerBranch, innerR, jitter(`strand:${side}`, Math.PI), 1.4 * side, 0.95, 16)
+  addTube(strand.slice(0, 10), taper(0.032, 0.012), 8, 'roots', { amplitude: 0.08, seed: hash(`bark:strand:${side}`) }, t => LIMB_PHASE(t * 9 / 15))
+  addTube(curves.tendril, taper(0.025, 0.008), 7, 'roots', null, phaseOf.tendril)
   for (const [name, t, bias] of leafSites) {
     const key = `${name}:${t}:${side}`
     const { at, out } = curvePoint(curves[name], t, bias * side, key)

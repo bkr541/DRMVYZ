@@ -49,14 +49,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/golden-roots.glb",
-        "bytes": 2144888,
-        "triangles": 68424
+        "bytes": 1900944,
+        "triangles": 62812
       }
     },
     "gpuBytes": {
-      "high": 2052248,
-      "medium": 2052248,
-      "low": 2052248
+      "high": 1820096,
+      "medium": 1820096,
+      "low": 1820096
     }
   },
   {
@@ -87,14 +87,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/reliquary-trees.glb",
-        "bytes": 6081736,
-        "triangles": 144420
+        "bytes": 5904756,
+        "triangles": 126952
       }
     },
     "gpuBytes": {
-      "high": 6078584,
-      "medium": 6078584,
-      "low": 6078584
+      "high": 5901152,
+      "medium": 5901152,
+      "low": 5901152
     }
   },
   {

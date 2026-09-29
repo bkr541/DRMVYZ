@@ -1,4 +1,5 @@
 import type * as ThreeNamespace from 'three'
+import { CINEMA2_SHARED_LIGHT_LIMIT } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2CameraFrame } from '../../spatial/Cinema2CameraRuntime'
 import type { Cinema2LightingEnvironmentFrame, Cinema2ResolvedLightFrame } from '../../spatial/Cinema2LightingEnvironmentRuntime'
 
@@ -8,7 +9,8 @@ import type { Cinema2LightingEnvironmentFrame, Cinema2ResolvedLightFrame } from 
  * lights, and for spot/point lights at half their range (Three additionally windows a light by its range, so a surface at
  * half range reads about 88% of nominal).
  */
-export const CINEMA2_THREE_MAX_LIGHTS = 8
+/** Non-ambient lights the Three scene receives (ambient lights are counted separately and always pass). */
+export const CINEMA2_THREE_MAX_LIGHTS = CINEMA2_SHARED_LIGHT_LIMIT
 
 /** Copies the engine's final camera state into a Three camera without letting Three recompute any matrix. */
 export function applyCinema2CameraFrame(camera: ThreeNamespace.PerspectiveCamera, frame: Readonly<Cinema2CameraFrame>): void {
@@ -129,7 +131,8 @@ function countLights(lights: readonly Readonly<Cinema2ResolvedLightFrame>[]): Li
   const counts: LightCounts = { ambient: 0, directional: 0, point: 0, spot: 0 }
   let total = 0
   for (const light of lights) {
-    if (total >= CINEMA2_THREE_MAX_LIGHTS) break
+    if (light.type === 'ambient') { counts.ambient += 1; continue }
+    if (total >= CINEMA2_THREE_MAX_LIGHTS) continue
     if (light.type in counts) { counts[light.type as keyof LightCounts] += 1; total += 1 }
   }
   return counts

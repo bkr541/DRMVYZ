@@ -1,6 +1,7 @@
 // Shared building blocks for Cinema 2.0's hand-authored organic assets (golden roots, RELIQUARY trees): deterministic hashing, tapered tubes
 // swept along splines with a rotation-minimizing frame, bark perturbation, vein strands, teardrop leaves, and a small binary glTF writer.
-// Every mesh carries a `_GLOW_PHASE` attribute (see three-scene's audio glow).
+// Every mesh carries a `_GLOW_PHASE` attribute (see three-scene's audio glow); a mesh may also carry `seeds`, written as `_GLOW_SEED` (one random
+// value per tree, so each tree's glow pulses on its own).
 import { writeFileSync } from 'node:fs'
 import * as THREE from 'three'
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
@@ -167,6 +168,12 @@ export function writeGlb(outputPath, meshes, materials, generator, sceneName) {
     const normalAccessor = accessors.length - 1
     accessors.push({ bufferView: pushView(mesh.phases, 34962), componentType: 5126, count: mesh.phases.length, type: 'SCALAR' })
     const phaseAccessor = accessors.length - 1
+    const extra = {}
+    if (mesh.seeds) {
+      if (mesh.seeds.length !== mesh.positions.length / 3) throw new Error(`${mesh.name}: ${mesh.seeds.length} glow seeds for ${mesh.positions.length / 3} vertices.`)
+      accessors.push({ bufferView: pushView(mesh.seeds, 34962), componentType: 5126, count: mesh.seeds.length, type: 'SCALAR' })
+      extra._GLOW_SEED = accessors.length - 1
+    }
     if (mesh.phases.length !== mesh.positions.length / 3) throw new Error(`${mesh.name}: ${mesh.phases.length} glow phases for ${mesh.positions.length / 3} vertices.`)
     accessors.push({ bufferView: pushView(mesh.indices, 34963), componentType: 5125, count: mesh.indices.length, type: 'SCALAR' })
     const indexAccessor = accessors.length - 1
@@ -174,7 +181,7 @@ export function writeGlb(outputPath, meshes, materials, generator, sceneName) {
       materialIndexOf.set(mesh.part, materialList.length)
       materialList.push({ name: mesh.part, pbrMetallicRoughness: { baseColorFactor: MATERIALS[mesh.part].baseColorFactor, metallicFactor: MATERIALS[mesh.part].metallicFactor, roughnessFactor: MATERIALS[mesh.part].roughnessFactor }, ...(MATERIALS[mesh.part].emissiveFactor ? { emissiveFactor: MATERIALS[mesh.part].emissiveFactor } : {}) })
     }
-    gltfMeshes.push({ name: mesh.name, primitives: [{ attributes: { POSITION: positionAccessor, NORMAL: normalAccessor, _GLOW_PHASE: phaseAccessor }, indices: indexAccessor, material: materialIndexOf.get(mesh.part), mode: 4 }] })
+    gltfMeshes.push({ name: mesh.name, primitives: [{ attributes: { POSITION: positionAccessor, NORMAL: normalAccessor, _GLOW_PHASE: phaseAccessor, ...extra }, indices: indexAccessor, material: materialIndexOf.get(mesh.part), mode: 4 }] })
     nodes.push({ name: mesh.name, mesh: gltfMeshes.length - 1 })
     triangles += mesh.indices.length / 3
   }

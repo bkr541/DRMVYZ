@@ -24,6 +24,8 @@ export interface Cinema2ThreeGlowFrame {
   fronts: readonly number[]
   /** Strength of each climbing pulse. */
   gains: readonly number[]
+  /** The glow clock's position in beats (locked to the beat grid with sync on), for per-tree variation in the shader. */
+  beats: number
 }
 
 export interface Cinema2ThreeGlowInputs {
@@ -96,6 +98,6 @@ export class Cinema2ThreeAudioGlow {
       // Fade as it reaches the top so the pulse does not stop dead.
       gains.push(alive ? wave.gain * Math.min(1, Math.max(0, (1.35 - front) / 0.35)) : 0)
     }
-    return Object.freeze({ breath, fronts: Object.freeze(fronts), gains: Object.freeze(gains) })
+    return Object.freeze({ breath, fronts: Object.freeze(fronts), gains: Object.freeze(gains), beats })
   }
 }

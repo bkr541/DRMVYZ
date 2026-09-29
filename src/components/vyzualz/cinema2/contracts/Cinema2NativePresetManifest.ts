@@ -780,6 +780,13 @@ export type Cinema2ChoreographyConditionManifest =
   | { kind: 'beat-interval'; every: number; phase?: number; unit?: Cinema2BeatIntervalUnit }
 
 /**
+ * How many non-ambient lights (spot, point, directional) the shared light consumers draw: the Three scene module, the volumetric haze and the
+ * reflective floor. Lights past this, in authoring order, are ignored by all of them, so the compiler warns when a preset declares more.
+ * (Ambient lights fold into one term and do not count.)
+ */
+export const CINEMA2_SHARED_LIGHT_LIMIT = 12
+
+/**
  * A step pattern that chops a timed action (envelope, pulse, set-for-duration) into sub-beat hits, locked to the beats elapsed since the
  * action fired: `pattern` is read one character per step (`x` = on, anything else = off) and loops. With `stepsPerBeat` 4 a pattern of
  * `x...x..x` is a syncopated 16th-note chase; `x` alone at 4 steps per beat is a 16th-note strobe. `duty` is the lit fraction of an on step.

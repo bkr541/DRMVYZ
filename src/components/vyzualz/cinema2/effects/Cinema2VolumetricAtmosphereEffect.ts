@@ -2,6 +2,7 @@ import { FULLSCREEN_VERT_SRC, FullscreenPass } from '../../react/shaders/runtime
 import { ShaderCompiler } from '../../react/shaders/runtime/ShaderCompiler'
 import { ShaderProgram } from '../../react/shaders/runtime/ShaderProgram'
 import {
+  CINEMA2_SHARED_LIGHT_LIMIT,
   cinema2StableId,
   type Cinema2EffectManifest,
   type Cinema2EffectTypeId,
@@ -53,7 +54,7 @@ import type {
 export const CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('volumetric-atmosphere')
 export const CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_VERSION = 1 as const
 
-export const CINEMA2_VOLUMETRIC_MAX_LIGHTS = 8
+export const CINEMA2_VOLUMETRIC_MAX_LIGHTS = CINEMA2_SHARED_LIGHT_LIMIT
 export const CINEMA2_VOLUMETRIC_MAX_STEPS = 48
 
 export interface Cinema2VolumetricQualityProfile {

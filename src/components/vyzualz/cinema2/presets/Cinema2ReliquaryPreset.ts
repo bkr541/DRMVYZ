@@ -46,7 +46,7 @@ import { cinema2LightRigHit, cinema2LightRigRamp } from './Cinema2LightRigAuthor
  *
  * Assets: `cinema2-dvydrm-logo-faceted` (cut-crystal logo, rendered as transmissive glass with rainbow dispersion), `cinema2-golden-roots`
  * (the tree that wraps the logo's lower lobes) and `cinema2-reliquary-trees` (the flanking forest), all drawn by one three-scene module on a
- * dark matte ground, finished with bloom and a filmic grade.
+ * dark wet floor with low mist, finished with bloom and a filmic grade.
  */
 export const CINEMA2_RELIQUARY_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.reliquary')
 export const CINEMA2_RELIQUARY_MODULE_ID = cinema2StableId<Cinema2ModuleId>('reliquary-scene')
@@ -78,6 +78,12 @@ export const CINEMA2_RELIQUARY_STROBE_COLOR_ID = cinema2StableId<Cinema2Paramete
 
 const AMBIENT_LIGHT_ID = cinema2StableId<Cinema2LightId>('reliquary-ambient')
 const FILL_LIGHT_ID = cinema2StableId<Cinema2LightId>('reliquary-fill')
+const BACK_LIGHT_ID = cinema2StableId<Cinema2LightId>('reliquary-back')
+const RIM_LEFT_LIGHT_ID = cinema2StableId<Cinema2LightId>('reliquary-rim-left')
+const RIM_RIGHT_LIGHT_ID = cinema2StableId<Cinema2LightId>('reliquary-rim-right')
+const BACK_TARGET_ID = cinema2StableId<Cinema2SceneNodeId>('reliquary-back-target')
+const RIM_LEFT_TARGET_ID = cinema2StableId<Cinema2SceneNodeId>('reliquary-rim-left-target')
+const RIM_RIGHT_TARGET_ID = cinema2StableId<Cinema2SceneNodeId>('reliquary-rim-right-target')
 const CUE_GROUP_ID = cinema2StableId<Cinema2LightGroupId>('reliquary-cues')
 const STROBE_GROUP_ID = cinema2StableId<Cinema2LightGroupId>('reliquary-strobes')
 
@@ -100,7 +106,7 @@ const LOGO_HEIGHT = 0.05
 const vec3 = (x: number, y: number, z: number): Cinema2Vector3 => Object.freeze([x, y, z])
 const color = (r: number, g: number, b: number, a = 1): Cinema2Color => Object.freeze([r, g, b, a])
 
-const DEFAULT_BACKGROUND = color(0.004, 0.0035, 0.003)
+const DEFAULT_BACKGROUND = color(0.01, 0.008, 0.007)
 const DEFAULT_GLOW = color(1, 0.52, 0.12)
 const DEFAULT_CUE = color(0.94, 0.96, 1)
 const DEFAULT_STROBE = color(1, 1, 1)
@@ -118,17 +124,18 @@ const CRYSTAL_IOR = 2.2
 const CRYSTAL_THICKNESS = 0.14
 const CRYSTAL_SPARKLE = 5
 /** Overhead cue spots: dim at rest so the crystal never vanishes, hard and bright on a hit. */
-const CUE_REST = 0.12
+const CUE_REST = 0.08
 const CUE_PEAK = 9
 const STROBE_PEAK = 6
-const GLOW_STRENGTH = 1.4
+const GLOW_STRENGTH = 1.1
 /**
- * Each material's share of the studio environment: the crystal needs a lot to sparkle, the gold a little so it reads as warm polished metal
- * rather than a mirror of a white studio, and the dark bark almost none (the shared studio environment otherwise lights it grey).
+ * Each material's share of the studio environment. Kept low for the crystal so it is not evenly lit all the time: the overhead spots do the
+ * lighting, and a part they are not hitting falls into shadow (the owner's mockups). The gold a little so it reads as warm polished metal, and
+ * the dark bark almost none (the shared studio environment otherwise lights it grey).
  */
-const CRYSTAL_ENVIRONMENT = 2.2
+const CRYSTAL_ENVIRONMENT = 1.1
 const GOLD_ENVIRONMENT = 0.45
-const BARK_ENVIRONMENT = 0.08
+const BARK_ENVIRONMENT = 0.15
 
 const baseParameter = {
   section: 'Design',
@@ -198,7 +205,7 @@ const PARAMETERS = Object.freeze([
   floatParameter(CINEMA2_RELIQUARY_CRYSTAL_ROUGHNESS_ID, 'Crystal Roughness', 'How sharp the reflections on the crystal facets are: 0 is a flawless polish, higher frosts it.', CRYSTAL_ROUGHNESS, 0, 1, 0.01, 'design', 7, 'Material'),
   floatParameter(CINEMA2_RELIQUARY_ROOT_ROUGHNESS_ID, 'Root Roughness', 'How sharp the reflections on the golden roots and vines are.', ROOT_ROUGHNESS, 0, 1, 0.01, 'design', 8, 'Material'),
   floatParameter(CINEMA2_RELIQUARY_REFLECTION_ID, 'Environment Reflection', 'How strongly the studio environment reflects in the crystal and the gold.', 1, 0, 2, 0.01, 'design', 9, 'Material'),
-  floatParameter(CINEMA2_RELIQUARY_HAZE_ID, 'Haze Density', 'How thick the haze in the air is. It is what turns the overhead lights and the strobe into visible beams.', 0.012, 0, 0.2, 0.002, 'effects', 1, 'Atmosphere'),
+  floatParameter(CINEMA2_RELIQUARY_HAZE_ID, 'Haze Density', 'How thick the haze in the air is. It is what turns the overhead lights and the strobe into visible beams and lets the forest show against the back light.', 0.03, 0, 0.2, 0.002, 'effects', 1, 'Atmosphere'),
   floatParameter(CINEMA2_RELIQUARY_BEAM_ID, 'Beam Intensity', 'Brightness of the light scattering through the haze.', 1.4, 0, 6, 0.05, 'effects', 2, 'Atmosphere'),
   floatParameter(CINEMA2_RELIQUARY_BLOOM_ID, 'Bloom', 'Soft light spilling around the glowing roots, the strobe and the crystal\'s highlights.', 0.9, 0, 3, 0.05, 'effects', 3, 'Post'),
   floatParameter(CINEMA2_RELIQUARY_FINISH_ID, 'Cinematic Finish', 'Amount of filmic tone curve, grade, vignette and grain.', 1, 0, 1, 0.05, 'effects', 4, 'Post'),
@@ -206,7 +213,7 @@ const PARAMETERS = Object.freeze([
   colorParameter(CINEMA2_RELIQUARY_CRYSTAL_TINT_ID, 'Crystal Color', 'The crystal logo\'s body. The default cool grey keeps the facets crisp under the lights; lighter turns it milky, darker smokier, and any hue colors it.', CRYSTAL_BODY, 2, 'Logo Colors'),
   colorParameter(CINEMA2_RELIQUARY_ROOT_TINT_ID, 'Root Gold', 'Tints the golden roots, branches and the vines round the trees.', color(1, 1, 1), 3, 'Tree Colors'),
   colorParameter(CINEMA2_RELIQUARY_LEAF_TINT_ID, 'Leaf Gold', 'Tints the golden leaves and the buds on the tree vines.', color(1, 1, 1), 4, 'Tree Colors'),
-  colorParameter(CINEMA2_RELIQUARY_GLOW_COLOR_ID, 'Glow Color', 'The color of the light the roots, branches and vines glow with.', DEFAULT_GLOW, 5, 'Tree Colors'),
+  colorParameter(CINEMA2_RELIQUARY_GLOW_COLOR_ID, 'Glow Color', 'The color of the light the roots, branches and vines glow with, and of the warm rim light on the forest.', DEFAULT_GLOW, 5, 'Tree Colors'),
   colorParameter(CINEMA2_RELIQUARY_CUE_COLOR_ID, 'Overhead Light Color', 'The color of the six overhead spots.', DEFAULT_CUE, 6, 'Light Colors'),
   colorParameter(CINEMA2_RELIQUARY_STROBE_COLOR_ID, 'Strobe Color', 'The color of the strobe.', DEFAULT_STROBE, 7, 'Light Colors'),
 ])
@@ -310,7 +317,7 @@ const choreographyRules: readonly Cinema2ChoreographyRuleManifest[] = Object.fre
   ...cueBarRules('a', 0),
   ...cueBarRules('b', 1),
   // The downbeat swells every cue spot together, a beat-long wash under the chase; a build lifts the whole rig.
-  ...cinema2LightRigHit({ id: 'reliquary-cues', group: CUE_GROUP_ID, signal: 'downbeat', peak: 2.2, attack: 0, hold: 0.05, release: 0.8, priority: 40, strengthParameter: master }),
+  ...cinema2LightRigHit({ id: 'reliquary-cues', group: CUE_GROUP_ID, signal: 'downbeat', peak: 0.6, attack: 0, hold: 0.05, release: 0.8, priority: 40, strengthParameter: master }),
   ...cinema2LightRigRamp({ id: 'reliquary-cues', groups: [CUE_GROUP_ID], source: 'director.build', lift: 1.4, priority: 30, strengthParameter: master }),
   // Strobe: two bars on a drop, and a roll at the top of a build. Not gated by BPM Sync: a drop is a drop.
   strobeRule('reliquary-strobe-drop', 'drop', 8, Object.freeze([Object.freeze({ kind: 'once-per-event' as const })])),
@@ -331,12 +338,18 @@ const choreographyRules: readonly Cinema2ChoreographyRuleManifest[] = Object.fre
       target: Object.freeze({ kind: 'effect' as const, ref: cinema2Ref(VOLUMETRIC_EFFECT_ID), property: 'beamIntensity' }),
       operation: 'envelope' as const,
       composition: 'add' as const,
-      value: 1.5,
+      value: 0.6,
       envelope: Object.freeze({ attack: 0, hold: 0.05, release: 0.9, unit: 'beats' as const }),
       retrigger: 'restart' as const,
     })]),
   }),
 ])
+
+/** A cue spot high overhead, aimed at its part of the logo, resting dim until the chase hits it. */
+function cueSpot(name: CueName) {
+  const cue = CUE_SPOTS.find(entry => entry.name === name)!
+  return spot(cueLightId(name), cue.from, cueTargetId(name), 4.5, CUE_REST, CINEMA2_RELIQUARY_CUE_COLOR_ID, DEFAULT_CUE)
+}
 
 function spot(id: Cinema2LightId, position: Cinema2Vector3, target: Cinema2SceneNodeId, cone: number, intensity: number, colorParameterId: Cinema2ParameterId, lightColor: Cinema2Color) {
   return Object.freeze({
@@ -493,10 +506,10 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       // and the gold wood itself warms a little. The dark bark and the crystal do not glow.
       glow: Object.freeze({ veins: 1, vines: 1.4, buds: 1.1, leaves: 0.55, roots: 0.12 }),
       environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
-      // Two soft panels high front-left and back-right give the crystal's facets and the gold a clean band to reflect between cues.
+      // Two faint panels high front-left and back-right: just enough for the crystal's facets and the gold to catch a band between cues.
       panels: Object.freeze([
-        Object.freeze({ position: vec3(-3, 3.8, 3.4), target: vec3(0, 0, 0), size: Object.freeze([2.6, 1.6]), color: Object.freeze([0.9, 0.94, 1]), intensity: 3 }),
-        Object.freeze({ position: vec3(3.2, 3, -2.4), target: vec3(0, -0.2, 0), size: Object.freeze([2.2, 1.6]), color: Object.freeze([1, 0.88, 0.7]), intensity: 3 }),
+        Object.freeze({ position: vec3(-3, 3.8, 3.4), target: vec3(0, 0, 0), size: Object.freeze([2.6, 1.6]), color: Object.freeze([0.9, 0.94, 1]), intensity: 1.2 }),
+        Object.freeze({ position: vec3(3.2, 3, -2.4), target: vec3(0, -0.2, 0), size: Object.freeze([2.2, 1.6]), color: Object.freeze([1, 0.88, 0.7]), intensity: 1.2 }),
       ]),
     }),
   })]),
@@ -520,6 +533,9 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         transform: Object.freeze({ position: vec3(aim[0], aim[1] + LOGO_HEIGHT, aim[2]) }),
       })),
       Object.freeze({ id: STROBE_TARGET_ID, kind: 'group' as const, parent: cinema2Ref(ROOT_NODE_ID), transform: Object.freeze({ position: vec3(0, -0.2, 0) }) }),
+      Object.freeze({ id: BACK_TARGET_ID, kind: 'group' as const, parent: cinema2Ref(ROOT_NODE_ID), transform: Object.freeze({ position: vec3(0.2, -1.55, -2.6) }) }),
+      Object.freeze({ id: RIM_LEFT_TARGET_ID, kind: 'group' as const, parent: cinema2Ref(ROOT_NODE_ID), transform: Object.freeze({ position: vec3(-2.8, 0.4, -1.1) }) }),
+      Object.freeze({ id: RIM_RIGHT_TARGET_ID, kind: 'group' as const, parent: cinema2Ref(ROOT_NODE_ID), transform: Object.freeze({ position: vec3(2.8, 0.4, -1.1) }) }),
     ]),
     roots: Object.freeze([cinema2Ref(ROOT_NODE_ID)]),
   }),
@@ -538,10 +554,11 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     fovDegrees: 34,
     near: 0.1,
     far: 60,
-    // Low and close, looking slightly up: the logo fills the upper middle of the frame, the golden tree stands under it and the two
-    // foreground trees sit at the frame edges, as in the owner's reference.
-    transform: Object.freeze({ position: vec3(0, -0.35, 4.6) }),
-    target: vec3(0, -0.25, 0),
+    // Framed on the owner's mockups: the logo is about a third of the frame height in the upper middle, the golden tree and its roots stand
+    // under it on the wet floor, the foreground trees frame both sides and the forest shows behind. Framed by height, so a narrower Stage
+    // (4:3) still keeps the trees in view.
+    transform: Object.freeze({ position: vec3(0, -0.55, 6) }),
+    target: vec3(0, -0.45, 0),
     rig: Object.freeze({ kind: 'static' as const }),
   })]),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_RELIQUARY_CAMERA_ID) }),
@@ -550,22 +567,36 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       Object.freeze({ id: CUE_GROUP_ID, label: 'Overhead Cues', lights: Object.freeze(CUE_SPOTS.map(({ name }) => cinema2Ref(cueLightId(name)))) }),
       Object.freeze({ id: STROBE_GROUP_ID, label: 'Strobe', lights: Object.freeze(STROBE_LIGHT_IDS.map(id => cinema2Ref(id))) }),
     ]),
+    // Most important first: the lighting runtime keeps only the first 2 non-ambient lights on low quality and 6 on medium (12 on high). Low
+    // keeps the two lower-lobe cues (the chase still alternates across the logo); medium adds the top and star cues, one strobe head and the
+    // light shaft; high adds the swirl cues, the second strobe head, the front fill and the two forest rim lights.
     lights: Object.freeze([
-      ...CUE_SPOTS.map(({ name, from }) => spot(cueLightId(name), from, cueTargetId(name), 4.5, CUE_REST, CINEMA2_RELIQUARY_CUE_COLOR_ID, DEFAULT_CUE)),
+      cueSpot('left-lobe'),
+      cueSpot('right-lobe'),
+      cueSpot('top'),
       spot(STROBE_LIGHT_IDS[0]!, vec3(-2.2, 6, 3), STROBE_TARGET_ID, 34, 0, CINEMA2_RELIQUARY_STROBE_COLOR_ID, DEFAULT_STROBE),
+      // The light shaft from the mockups: a narrow beam falling from high above, just behind the logo and off to one side, seen side-on
+      // through the haze (a light aimed at the camera scatters its brightest forward glow straight into the lens and washes the frame out).
+      spot(BACK_LIGHT_ID, vec3(1.6, 7.5, -4.5), BACK_TARGET_ID, 11, 1.4, CINEMA2_RELIQUARY_CUE_COLOR_ID, color(0.95, 0.93, 0.9)),
+      cueSpot('star'),
+      cueSpot('left-swirl'),
+      cueSpot('right-swirl'),
       spot(STROBE_LIGHT_IDS[1]!, vec3(2.2, 6, 3), STROBE_TARGET_ID, 34, 0, CINEMA2_RELIQUARY_STROBE_COLOR_ID, DEFAULT_STROBE),
-      // A dim warm fill from the front so the crystal and the tree read between cues, and a low ambient for the forest.
+      // A very dim warm fill from the front so the crystal and the tree never vanish between cues (the unlit parts stay in shadow).
       Object.freeze({
         id: FILL_LIGHT_ID,
         type: 'spot' as const,
         color: color(1, 0.9, 0.78),
-        intensity: 0.5,
+        intensity: 0.35,
         transform: Object.freeze({ position: vec3(0, 1.8, 6) }),
         node: cinema2Ref(ROOT_NODE_ID),
         targetNode: cinema2Ref(STROBE_TARGET_ID),
         config: Object.freeze({ coneAngleDegrees: 30, penumbra: 0.8, range: 30 }),
       }),
-      Object.freeze({ id: AMBIENT_LIGHT_ID, type: 'ambient' as const, color: color(0.2, 0.18, 0.16), intensity: 0.12 }),
+      // Two low warm rim lights from behind just edge the foreground trees, so the dark trunks separate from the dark.
+      spot(RIM_LEFT_LIGHT_ID, vec3(-6.5, 2.5, -7), RIM_LEFT_TARGET_ID, 24, 0.018, CINEMA2_RELIQUARY_GLOW_COLOR_ID, color(1, 0.7, 0.4)),
+      spot(RIM_RIGHT_LIGHT_ID, vec3(6.5, 2.5, -7), RIM_RIGHT_TARGET_ID, 24, 0.018, CINEMA2_RELIQUARY_GLOW_COLOR_ID, color(1, 0.7, 0.4)),
+      Object.freeze({ id: AMBIENT_LIGHT_ID, type: 'ambient' as const, color: color(0.2, 0.18, 0.16), intensity: 0.08 }),
     ]),
   }),
   environment: Object.freeze({
@@ -582,8 +613,8 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       enabled: true,
       order: 0,
       scope: 'output' as const,
-      // A dark matte ground: almost no mirror, just the pools the spots and strobe throw on it.
-      parameters: Object.freeze({ mix: 1, floorY: FLOOR_Y, reflectivity: 0.03, roughness: 0.95, fresnel: 2, albedo: 0.07, poolIntensity: 1.6, specular: 0.25, fadeDistance: 30, maxReflection: 6 }),
+      // A dark wet floor: a glossy mirror of the logo, the glowing roots and the lights, with a light ripple (grit) breaking it up.
+      parameters: Object.freeze({ mix: 1, floorY: FLOOR_Y, reflectivity: 0.6, roughness: 0.12, fresnel: 3, albedo: 0.035, poolIntensity: 1.8, specular: 1.2, fadeDistance: 34, maxReflection: 26, grit: 0.22, gritScale: 4 }),
     }),
     Object.freeze({
       id: VOLUMETRIC_EFFECT_ID,
@@ -592,10 +623,11 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       enabled: true,
       order: 1,
       scope: 'output' as const,
-      // Thin, clean haze in the air (no ground mist) so the overhead beams and the strobe read as shafts of light.
+      // Haze in the air so the overhead beams, the strobe and the back light read as shafts of light and the forest has depth, plus low thin
+      // ground mist round the roots and the tree bases (kept under the logo so it never washes out the crystal or the floor reflections).
       parameters: Object.freeze({
-        mix: 1, density: 0.012, beamIntensity: 1.4, mistAmount: 0, mistHeight: 1, mistFloor: FLOOR_Y, floorY: FLOOR_Y, floorReflection: 0.05, anisotropy: 0.6,
-        occlusion: 0.6, ambientHaze: 0.008, noiseScale: 0.3, noiseStrength: 0.45, drift: 0.08, maxDistance: 30, reactivity: 0.6,
+        mix: 1, density: 0.03, beamIntensity: 1.4, mistAmount: 0.7, mistHeight: 0.45, mistFloor: FLOOR_Y, floorY: FLOOR_Y, floorReflection: 0.4, anisotropy: 0.6,
+        occlusion: 0.6, ambientHaze: 0.02, noiseScale: 0.3, noiseStrength: 0.55, drift: 0.1, maxDistance: 34, reactivity: 0.6,
       }),
       parameterBindings: Object.freeze({ density: cinema2Ref(CINEMA2_RELIQUARY_HAZE_ID), beamIntensity: cinema2Ref(CINEMA2_RELIQUARY_BEAM_ID) }),
     }),

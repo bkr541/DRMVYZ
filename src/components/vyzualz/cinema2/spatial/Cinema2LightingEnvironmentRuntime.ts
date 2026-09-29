@@ -1,10 +1,11 @@
-import type {
-  Cinema2Color,
-  Cinema2LightId,
-  Cinema2LightManifest,
-  Cinema2LightType,
-  Cinema2RenderQualityLevel,
-  Cinema2Vector3,
+import {
+  CINEMA2_SHARED_LIGHT_LIMIT,
+  type Cinema2Color,
+  type Cinema2LightId,
+  type Cinema2LightManifest,
+  type Cinema2LightType,
+  type Cinema2RenderQualityLevel,
+  type Cinema2Vector3,
 } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2FinalValueResolver, Cinema2TargetHandle, Cinema2TargetId } from '../parameters/Cinema2TargetRuntime'
 import type { Cinema2CompiledPresetPlan } from '../presets/Cinema2PresetCompiler'
@@ -103,7 +104,12 @@ const DEFAULT_DIRECTION = Object.freeze([0, 0, -1]) as Cinema2Vector3
 const DEFAULT_SPOT_OUTER_DEGREES = 30
 const DEFAULT_SPOT_PENUMBRA = 0.3
 const DEFAULT_LIGHT_RANGE = 30
-const QUALITY_LIGHT_LIMIT = Object.freeze({ low: 2, medium: 4, high: 8 } as const)
+/**
+ * Non-ambient lights (spot, point, directional) kept per quality tier, in authoring order, so a preset should list its most important lights
+ * first. Ambient lights are always kept: they fold into one cheap term everywhere. High matches the shared consumer limit (the Three scene,
+ * the haze and the floor), so a preset within it keeps every light there.
+ */
+const QUALITY_LIGHT_LIMIT = Object.freeze({ low: 2, medium: 6, high: CINEMA2_SHARED_LIGHT_LIMIT } as const)
 
 /**
  * Canonical shared spatial Lighting/Environment service for Cinema 2.0.
@@ -159,7 +165,8 @@ export class Cinema2LightingEnvironmentRuntime {
     if (this.disposed) return this.currentFrame
     const authored = this.plan.manifest.lighting?.lights ?? []
     const maximum = QUALITY_LIGHT_LIMIT[this.quality]
-    const active = authored.slice(0, maximum).map(light => {
+    let kept = 0
+    const active = authored.filter(light => light.type === 'ambient' || kept++ < maximum).map(light => {
       const targets = this.lightTargets.get(light.id)
       const localPosition = resolveVec3(this.resolver, targets?.position, light.transform?.position ?? DEFAULT_POSITION)
       const localRotation = resolveVec3(this.resolver, targets?.rotation, light.transform?.rotation ?? DEFAULT_ROTATION)
