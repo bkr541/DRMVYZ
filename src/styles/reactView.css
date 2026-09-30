@@ -21939,3 +21939,133 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   bottom: 6px;
   height: auto;
 }
+
+/* ── Audio dock: one flat strip ─────────────────────────────────────────────
+   Colour and surface styling only; no sizes change. The three dock sections read as a single continuous slate surface
+   (the same #1c2026 as the lower tier of the rail window headers) with hairline dividers between them, not as three raised dark cards. The
+   waveform's own bordered box is the visible edge of the middle section, so the center card drops its inline padding and
+   the box lines up exactly with the Track Map above it. */
+.rv-shell > .az-dock.vz-transport-dock {
+  /* The lower tier of the rail window headers (RailWindowHeader.css), so the dock reads as part of the same chrome. */
+  background: #1c2026;
+  border-top-color: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-card {
+  background: none;
+  box-shadow: none;
+  border-color: transparent;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-help-region + .vz-dock-help-region::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  top: 12%;
+  bottom: 12%;
+  left: calc(var(--vz-dock-gap) / -2);
+  width: 1px;
+  background: rgba(255, 255, 255, 0.11);
+  pointer-events: none;
+}
+
+/* Waveform: a cyan-edged box on a dark teal field, no second outline from the canvas inside it. */
+.rv-shell > .vz-transport-dock .vz-dock-center {
+  padding-inline: 0;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-waveform-wrap {
+  background: rgb(15, 24, 29);
+  box-shadow:
+    inset 0 0 0 1px rgba(74, 199, 219, 0.4),
+    inset 0 0 26px rgba(74, 199, 219, 0.03);
+}
+
+.rv-shell > .vz-transport-dock .vz-mini-waveform {
+  border-color: transparent;
+}
+
+/* Left wing: a lighter slate cover, a stronger title over a dim subtitle, a white play button and a plain volume bar. */
+.rv-shell > .vz-transport-dock .vz-dock-art {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: linear-gradient(145deg, rgb(45, 52, 61), rgb(38, 45, 53));
+  box-shadow: none;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-art .az-dock-thumb-letter {
+  color: rgba(245, 248, 250, 0.82) !important;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-track-title {
+  font-weight: 800;
+  color: rgba(248, 251, 252, 0.96);
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-track-artist {
+  color: rgba(245, 248, 250, 0.32);
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-controls-row .az-play-btn {
+  border: 2px solid rgba(150, 188, 204, 0.34) !important;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(245, 249, 251, 0.96) !important;
+  box-shadow: none !important;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-controls-row .az-play-btn:hover:not(:disabled) {
+  border-color: rgba(74, 199, 219, 0.6) !important;
+  background: rgba(74, 199, 219, 0.1);
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-volume-row .az-dock-vol-icon {
+  display: none;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-volume-row .vz-dock-vol-db {
+  color: rgba(245, 248, 250, 0.58);
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-volume-row .az-dock-vol-slider {
+  background: linear-gradient(to right,
+    var(--az-cyan) 0%,
+    var(--az-cyan) var(--pct, 50%),
+    rgba(255, 255, 255, 0.16) var(--pct, 50%),
+    rgba(255, 255, 255, 0.16) 100%);
+}
+
+/* The bar carries the level; the handle only appears while pointing at it. */
+.rv-shell > .vz-transport-dock .vz-dock-volume-row .az-dock-vol-slider::-webkit-slider-thumb {
+  background: transparent;
+  box-shadow: none;
+  transition: background 120ms ease;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-volume-row .az-dock-vol-slider:hover::-webkit-slider-thumb,
+.rv-shell > .vz-transport-dock .vz-dock-volume-row .az-dock-vol-slider:active::-webkit-slider-thumb {
+  background: var(--az-cyan);
+}
+
+/* Right wing: evenly outlined slate buttons with TAP as the one cyan-tinted key. */
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-block-label {
+  color: rgba(245, 248, 250, 0.72);
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-cue-btn,
+.rv-shell > .vz-transport-dock .vz-dock-sync-master-btn,
+.rv-shell > .vz-transport-dock .vz-dock-source-trigger {
+  background: rgb(33, 39, 46);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(245, 248, 250, 0.82);
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-blank-btn {
+  background: rgba(255, 255, 255, 0.025);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-tap-btn {
+  background: rgb(31, 48, 55);
+  border-color: rgba(74, 199, 219, 0.5);
+  color: rgba(112, 228, 245, 0.96);
+}
