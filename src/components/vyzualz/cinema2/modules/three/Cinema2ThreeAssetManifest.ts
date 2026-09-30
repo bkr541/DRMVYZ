@@ -10,6 +10,12 @@ export const CINEMA2_DVYDRM_LOGO_FACETED_ASSET_ID: Cinema2AssetId = 'cinema2-dvy
 export const CINEMA2_GOLDEN_ROOTS_ASSET_ID: Cinema2AssetId = 'cinema2-golden-roots'
 /** RELIQUARY's flanking forest: dark bark trees wrapped in gold vines. Parts (materials) `bark`, `vines`, `buds`, each vertex with a `_GLOW_PHASE`. */
 export const CINEMA2_RELIQUARY_TREES_ASSET_ID: Cinema2AssetId = 'cinema2-reliquary-trees'
+/** CONDUIT's DVYDRM wordmark: parts `outline`, `letters`, `plate`, `rim` (emissive edge glow); vertices carry `_GLOW_PHASE` and `_SEGMENT`. */
+export const CINEMA2_CONDUIT_WORDMARK_ASSET_ID: Cinema2AssetId = 'cinema2-conduit-wordmark'
+/** CONDUIT's four energy tubes: parts `pipe`, `channel`, `flange`, `coupler`, `energy` (emissive windows); vertices carry `_GLOW_PHASE` and `_SEGMENT`. */
+export const CINEMA2_CONDUIT_TUBES_ASSET_ID: Cinema2AssetId = 'cinema2-conduit-tubes'
+/** CONDUIT's chamber: parts `shell`, `trim`, `floorTrim`, `segments` (95 emissive LED strips in 8 groups); vertices carry `_GLOW_PHASE` and `_SEGMENT`. */
+export const CINEMA2_CONDUIT_CHAMBER_ASSET_ID: Cinema2AssetId = 'cinema2-conduit-chamber'
 
 /**
  * Model registry, filled from the generated asset manifest (`npm run assets:build`; records live in `assets/cinema2/<id>/asset.json`).

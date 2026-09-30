@@ -3,6 +3,63 @@ import type { Cinema2GeneratedAssetRecord } from './Cinema2GeneratedAssetTypes'
 
 export const CINEMA2_ASSET_RECORDS = [
   {
+    "id": "cinema2-conduit-chamber",
+    "kind": "model",
+    "compression": "none",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/models/conduit-chamber.glb",
+        "bytes": 4896752,
+        "triangles": 105556
+      }
+    },
+    "gpuBytes": {
+      "high": 4892096,
+      "medium": 4892096,
+      "low": 4892096
+    }
+  },
+  {
+    "id": "cinema2-conduit-tubes",
+    "kind": "model",
+    "compression": "none",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/models/conduit-tubes.glb",
+        "bytes": 1130416,
+        "triangles": 31200
+      }
+    },
+    "gpuBytes": {
+      "high": 1109728,
+      "medium": 1109728,
+      "low": 1109728
+    }
+  },
+  {
+    "id": "cinema2-conduit-wordmark",
+    "kind": "model",
+    "compression": "none",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/models/conduit-wordmark.glb",
+        "bytes": 3396360,
+        "triangles": 59122
+      }
+    },
+    "gpuBytes": {
+      "high": 3391660,
+      "medium": 3391660,
+      "low": 3391660
+    }
+  },
+  {
     "id": "cinema2-dvydrm-logo",
     "kind": "model",
     "compression": "none",

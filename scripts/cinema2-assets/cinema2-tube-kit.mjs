@@ -132,7 +132,7 @@ export const taper = (start, end) => t => start + (end - start) * t
 export const phaseRamp = (from, to) => t => from + (to - from) * t
 
 /**
- * Writes `meshes` ([{ name, part, positions, normals, indices, phases }]) as a binary glTF, one node per mesh, one material per part from
+ * Writes `meshes` ([{ name, part, positions, normals, indices, phases, seeds?, attributes? }]) as a binary glTF, one node per mesh, one material per part from
  * `materials` ({ [part]: { baseColorFactor, metallicFactor, roughnessFactor, emissiveFactor? } }). Returns counts for the console summary.
  */
 export function writeGlb(outputPath, meshes, materials, generator, sceneName) {
@@ -173,6 +173,14 @@ export function writeGlb(outputPath, meshes, materials, generator, sceneName) {
       if (mesh.seeds.length !== mesh.positions.length / 3) throw new Error(`${mesh.name}: ${mesh.seeds.length} glow seeds for ${mesh.positions.length / 3} vertices.`)
       accessors.push({ bufferView: pushView(mesh.seeds, 34962), componentType: 5126, count: mesh.seeds.length, type: 'SCALAR' })
       extra._GLOW_SEED = accessors.length - 1
+    }
+    // Optional extra per-vertex attributes: { _NAME: { array: Float32Array, type: 'SCALAR' | 'VEC2' | 'VEC3' | 'VEC4' } }.
+    for (const [name, attribute] of Object.entries(mesh.attributes ?? {})) {
+      const size = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 }[attribute.type]
+      if (!name.startsWith('_') || !size) throw new Error(`${mesh.name}: custom attribute ${name} must start with _ and be SCALAR/VEC2/VEC3/VEC4.`)
+      if (attribute.array.length !== (mesh.positions.length / 3) * size) throw new Error(`${mesh.name}: ${name} has ${attribute.array.length / size} values for ${mesh.positions.length / 3} vertices.`)
+      accessors.push({ bufferView: pushView(attribute.array, 34962), componentType: 5126, count: attribute.array.length / size, type: attribute.type })
+      extra[name] = accessors.length - 1
     }
     if (mesh.phases.length !== mesh.positions.length / 3) throw new Error(`${mesh.name}: ${mesh.phases.length} glow phases for ${mesh.positions.length / 3} vertices.`)
     accessors.push({ bufferView: pushView(mesh.indices, 34963), componentType: 5125, count: mesh.indices.length, type: 'SCALAR' })
