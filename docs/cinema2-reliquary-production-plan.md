@@ -1,7 +1,7 @@
 # RELIQUARY: production plan
 
 **Date:** 2026-09-30
-**Status:** Phases 1-4 built (2026-09-30), awaiting the owner's review in the app. Phases 5-7 not started.
+**Status:** Phases 1-5 built (2026-09-30), awaiting the owner's review in the app. Phases 6-7 not started.
 
 **Related:**
 - `docs/cinema2-reliquary-cinematic-plan.md` is the earlier plan (Stage 1 steps 1-7 done, step 8 shadows blocked). This document takes over from it.
@@ -220,6 +220,24 @@ Deferred:
 3. **Floor rings.** Add concentric groove rings to the golden-roots asset, around the tree base on the floor, as a round platform (mockup and image 3).
 4. **Floor reflections.** Lower `grit` (0.22 → about 0.05), use the new `streak` option for polished-wet reflections, and let HDR make the glow reflect as light.
 5. **Warm spill.** Add a few warm lights near the tree base and along the vines, driven by the glow group, within the shared light limit.
+
+**Result (2026-09-30):** built; checked in the render harness against the mockup at 16:9 and at 1100×1016, while playing and on a drop. Not yet reviewed by the owner in the app.
+
+- **Light shaft.** The back light moved to (2.4, 7.5, -5.6), aimed far behind the tree at (-1.6, -1.55, -9.8), with a 9° cone at intensity 10 (was 1.4). The haze's beam brightness default went from 1.4 to 2.2. It now reads as a diagonal shaft falling from the top of the frame, right of centre, down behind the logo, like the mockup's.
+  - Aimed closer, the spot where it lands lit a white pool around the trunk.
+  - Aimed further right, the shaft ran behind the right-hand tree.
+- **Ground fog.** Mist amount 0.7 → 1.0, height 0.45 → 0.32: lower and denser.
+- **Warm spill.** The two rim spots (intensity 0.018, barely visible) were replaced by two warm spill point lights by the foreground trees. They carry the Glow Color, rest at 0.25 and swell on each downbeat (a new "Warm Spill" light group). They light the bark, the floor and the low mist round the tree bases: the mockup's warm fog. The light count stays at 12.
+- **Floor rings.** Three thin ripple rings (radius 1.95, 2.3, 2.75), half sunk in the floor round the root flare, added to the golden-roots asset as a new `rings` part. They take a little of the glow, so a pulse leaves the tree as a ripple.
+- **Floor.** Grit 0.22 → 0.05 (the grainy blotches are gone), plus `streak` 0.5, `edgeFallback` 0.6 and a thicker trace (2.5), with reflectivity 0.72 and roughness 0.2. The gold and the crystal reflect as streaked light.
+- **Strobe.** Peak 6 → 3.5. On HDR targets the drop strobe at the old peak lit the denser mist into a full white-out; it still flashes the scene white.
+- **Glow Color.** Its description no longer mentions the removed rim light.
+- **Tests.** The RELIQUARY tests cover the spill lights (Glow Color, downbeat rule), the polished floor (low grit, streak), the rings part and the glow list. The full Cinema 2.0 suite shows the same failures as the committed code. `npm run assets:check` passes.
+
+Still short of the mockup:
+- **Shaft source:** the mockup's shaft has a bright glare where it enters the frame, which needs phase 6's glints.
+- **Patch under the shaft:** where the shaft passes through the low mist behind the tree it lights a bright patch left of the trunk. Review it with the owner.
+- **Mist:** the mockup's mist is wispier and brighter across the mid-ground.
 
 **Done when:**
 - The light shaft is visible.

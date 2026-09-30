@@ -77,7 +77,7 @@ describe('RELIQUARY preset', () => {
 
   it('glow: roots, veins, leaves and the tree vines glow through the module, with a Glow Mode dropdown (Energy / Breathing / Energy & Breathing) sharing BPM Sync and Master Intensity', () => {
     const module = manifest.modules?.[0] as Readonly<Cinema2ModuleManifest>
-    expect(Object.keys(module.config?.glow as object).sort()).toEqual(['buds', 'leaves', 'roots', 'veins', 'vines'])
+    expect(Object.keys(module.config?.glow as object).sort()).toEqual(['buds', 'leaves', 'rings', 'roots', 'veins', 'vines'])
     const mode = byLabel('Glow Mode') as unknown as { type: string; options: { value: string; label: string }[]; defaultValue: string }
     expect(mode.type).toBe('enum')
     expect(mode.options.map(option => option.label)).toEqual(['Energy', 'Breathing', 'Energy & Breathing'])
@@ -136,6 +136,16 @@ describe('RELIQUARY preset', () => {
     // The front fill lights the models but stays out of the haze (aimed from the camera, it veiled the scene).
     const fill = (manifest.lighting?.lights ?? []).find(light => light.id === 'reliquary-fill')
     expect((fill as { config?: { scatter?: boolean } } | undefined)?.config?.scatter).toBe(false)
+    // Warm spill lights by the foreground trees carry the glow color and swell on the downbeat with the glow.
+    const lights = manifest.lighting?.lights ?? []
+    const spill = lights.filter(light => light.id === 'reliquary-spill-left' || light.id === 'reliquary-spill-right')
+    expect(spill).toHaveLength(2)
+    for (const light of spill) expect((light as { controls?: { color?: unknown } }).controls?.color).toEqual({ $ref: byLabel('Glow Color')?.id })
+    expect((manifest.choreography?.rules ?? []).some(rule => rule.source.signal === 'downbeat' && rule.actions.some(action => action.target.kind === 'light-group' && (action.target.ref as { $ref: string }).$ref === 'reliquary-spill'))).toBe(true)
+    // A polished wet floor: little ripple, reflections streaked.
+    const floor = (manifest.effects ?? []).find(effect => effect.typeId === 'reflective-floor')
+    expect((floor?.parameters as { grit: number }).grit).toBeLessThanOrEqual(0.08)
+    expect((floor?.parameters as { streak: number }).streak).toBeGreaterThan(0)
   })
 })
 
@@ -160,7 +170,7 @@ describe('RELIQUARY assets', () => {
 })
 
 describe('golden-roots shared asset', () => {
-  it('is a registered, licensed model with three parts built from the hand-authored root/branch curve network, merged per material', () => {
+  it('is a registered, licensed model with four parts (the tree, its glowing cracks, leaves and floor ripple rings), merged per material', () => {
     expect(cinema2ThreeAssetRegistry.has(CINEMA2_GOLDEN_ROOTS_ASSET_ID)).toBe(true)
     const record = CINEMA2_ASSET_RECORDS.find(entry => entry.id === CINEMA2_GOLDEN_ROOTS_ASSET_ID)
     expect(record).toMatchObject({ kind: 'model', license: 'generated-in-house' })
@@ -169,9 +179,9 @@ describe('golden-roots shared asset', () => {
     const jsonLength = glb.readUInt32LE(12)
     const json = JSON.parse(glb.subarray(20, 20 + jsonLength).toString('utf8')) as { meshes: { name: string }[]; materials: { name: string }[] }
     const parts = new Set(json.materials.map(material => material.name))
-    expect(parts).toEqual(new Set(['roots', 'veins', 'leaves']))
+    expect(parts).toEqual(new Set(['roots', 'veins', 'leaves', 'rings']))
     // Every curve and leaf is merged into one mesh per material (one draw call each), like the forest.
-    expect(json.meshes.map(mesh => mesh.name).sort()).toEqual(['leaves', 'roots', 'veins'])
+    expect(json.meshes.map(mesh => mesh.name).sort()).toEqual(['leaves', 'rings', 'roots', 'veins'])
     const withPhase = (JSON.parse(glb.subarray(20, 20 + jsonLength).toString('utf8')) as { meshes: { primitives: { attributes: Record<string, number> }[] }[] }).meshes
     for (const mesh of withPhase) expect(mesh.primitives[0]?.attributes).toHaveProperty('_GLOW_PHASE')
   })

@@ -223,6 +223,16 @@ for (const side of [1, -1]) {
   }
 }
 
+// Ripple rings on the floor round the root flare (the mockup's rings of light on the wet floor; the model's platform edge): thin grooves lying
+// half sunk in the floor. They take a little of the glow, starting at the root tips' phase, so a pulse leaves the tree as a ripple.
+for (const [k, radius] of [1.95, 2.3, 2.75].entries()) {
+  const points = Array.from({ length: 97 }, (_, i) => {
+    const a = (i / 96) * Math.PI * 2
+    return [Math.cos(a) * radius, FLOOR_Y + 0.002, Math.sin(a) * radius * 0.92]
+  })
+  addTube(points, () => 0.012 - k * 0.002, 6, 'rings', null, () => 0, 192)
+}
+
 // ── PBR materials, one per part (Linear-sRGB). `roots` is a darker, rougher bark gold (metal, but rough enough to read as weathered);
 // `leaves` a lighter, faintly self-lit gold; `veins` a bright, strongly emissive gold-orange standing in for the glowing crack pattern -
 // it needs no external light to read, the way a real ember-lit crack would not. ─────────────────────────────────────────────────────────
@@ -230,6 +240,7 @@ const MATERIALS = {
   roots: { baseColorFactor: [0.78, 0.53, 0.2, 1], metallicFactor: 1, roughnessFactor: 0.22 },
   leaves: { baseColorFactor: [0.92, 0.72, 0.32, 1], metallicFactor: 0.85, roughnessFactor: 0.16, emissiveFactor: [0.16, 0.09, 0.015] },
   veins: { baseColorFactor: [1, 0.38, 0.08, 1], metallicFactor: 0.1, roughnessFactor: 0.25, emissiveFactor: [2.4, 0.85, 0.08] },
+  rings: { baseColorFactor: [0.5, 0.34, 0.12, 1], metallicFactor: 1, roughnessFactor: 0.25 },
 }
 
 // One mesh per material (a draw call each) instead of one per curve.
