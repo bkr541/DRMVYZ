@@ -80,8 +80,9 @@ export type Cinema2ThreeSceneModuleState = 'idle' | 'loading' | 'building' | 're
  * color) and `segmentSync` (default true: locked to the beat grid; off: a steady 120 BPM).
  *
  * `config.hdr: true` declares that the preset renders this module into float (`rgba16f`) targets and tone-maps later: the segments'
- * light is then emitted at full strength, many times brighter than white, for bloom and the finish's tone curve to shape. Without it (or
- * on a GPU that cannot render to float textures) it rolls off softly toward white, so an 8-bit target does not clip amber to yellow.
+ * and the audio glow's light is then emitted at full strength, many times brighter than white, for bloom and the finish's tone curve to
+ * shape. On a GPU that cannot render to float textures (the targets fall back to 8-bit) both roll off softly toward white, so amber does
+ * not clip to yellow. Without it the segments roll off and the glow is emitted as is.
  *
  * Shadows: `config.shadows` = `{ cast: [parts], receive: [parts] }` names which parts cast and receive shadows from spot lights authored
  * with `config.threeShadow` (up to two, medium and high only; see CINEMA2_THREE_SHADOW_BUDGET). Keep casters to the models inside those lights'

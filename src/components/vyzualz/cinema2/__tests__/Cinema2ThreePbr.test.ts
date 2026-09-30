@@ -269,7 +269,10 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     expect(materialOf('veins-0').customProgramCacheKey()).toBe('cinema2-glow-phase')
     const shader = { vertexShader: '#include <common>\n#include <begin_vertex>', fragmentShader: '#include <common>\n#include <emissivemap_fragment>', uniforms: {} as Record<string, { value: unknown }> }
     materialOf('veins-0').onBeforeCompile(shader as never, undefined as never)
-    expect(shader.fragmentShader).toContain('totalEmissiveRadiance += uCinema2GlowColor')
+    expect(shader.fragmentShader).toContain('vec3 cinema2GlowLight = uCinema2GlowColor')
+    // Emitted as is (no config.hdr): the 8-bit roll-off only applies to an HDR preset that fell back to 8-bit targets.
+    expect(shader.fragmentShader).toContain('totalEmissiveRadiance += mix( cinema2GlowLight, 1.0 - exp( - cinema2GlowLight ), uCinema2GlowRolloff )')
+    expect((shader.uniforms.uCinema2GlowRolloff as { value: number }).value).toBe(0)
     expect(shader.vertexShader).toContain('vCinema2GlowPhase = _glow_phase')
     expect(materialOf('bark-0').customProgramCacheKey()).not.toContain('glow')
     bridge.draw(execution('high'), overrides({}), 0, { color: [1, 0.5, 0], strength: 2, frame: { breath: 0.4, fronts: [0.3, -10, -10, -10], gains: [0.8, 0, 0, 0], beats: 12.5 } })

@@ -245,6 +245,8 @@ export class Cinema2ThreeSceneBridge {
       uCinema2GlowFront: { value: new THREE.Vector4(-10, -10, -10, -10) },
       uCinema2GlowGain: { value: new THREE.Vector4(0, 0, 0, 0) },
       uCinema2GlowBeats: { value: 0 },
+      // An HDR preset (config.hdr) on a GPU without float targets renders 8-bit: roll the glow off softly instead of clipping it.
+      uCinema2GlowRolloff: { value: options.hdr === true && gl.getExtension('EXT_color_buffer_float') == null ? 1 : 0 },
     }
     this.segmentUniforms = {
       uCinema2SegColor: { value: new THREE.Color(1, 0.62, 0.2) },
@@ -727,6 +729,8 @@ interface GlowUniforms {
   uCinema2GlowFront: { value: ThreeNamespace.Vector4 }
   uCinema2GlowGain: { value: ThreeNamespace.Vector4 }
   uCinema2GlowBeats: { value: number }
+  /** 1: roll the glow off toward white (an HDR preset that fell back to 8-bit targets); 0: emit it as is. */
+  uCinema2GlowRolloff: { value: number }
 }
 
 /** Adds the audio glow to the material's emitted light: the breath everywhere, plus each climbing pulse as a soft band around its front. */
@@ -749,6 +753,7 @@ function addAudioGlow(shader: ShaderSource, shared: GlowUniforms, share: { value
       `uniform vec4 uCinema2GlowFront;`,
       `uniform vec4 uCinema2GlowGain;`,
       'uniform float uCinema2GlowBeats;',
+      'uniform float uCinema2GlowRolloff;',
       phase ? 'varying float vCinema2GlowPhase;' : '',
       seed ? 'varying float vCinema2GlowSeed;' : '',
     ].join('\n'))
@@ -769,7 +774,8 @@ function addAudioGlow(shader: ShaderSource, shared: GlowUniforms, share: { value
       ].join('\n') : '',
       // Embers: seeded parts flicker a little along their length, strongest where the glow is already bright.
       seed && phase ? 'cinema2Glow *= 0.85 + 0.3 * sin( uCinema2GlowBeats * 5.1 + vCinema2GlowPhase * 37.0 + vCinema2GlowSeed * 91.0 );' : '',
-      'totalEmissiveRadiance += uCinema2GlowColor * ( uCinema2GlowStrength * uCinema2GlowShare * cinema2TreeGain * cinema2Glow );',
+      'vec3 cinema2GlowLight = uCinema2GlowColor * ( uCinema2GlowStrength * uCinema2GlowShare * cinema2TreeGain * cinema2Glow );',
+      'totalEmissiveRadiance += mix( cinema2GlowLight, 1.0 - exp( - cinema2GlowLight ), uCinema2GlowRolloff );',
     ].join('\n'))
 }
 

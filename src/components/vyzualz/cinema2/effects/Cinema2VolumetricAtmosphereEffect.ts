@@ -487,7 +487,8 @@ export interface Cinema2VolumetricLightUniforms {
 }
 
 /** Packs the shared light list into fixed-size uniform arrays. Ambient lights fold into `ambient`. */
-export function packCinema2VolumetricLights(lights: readonly Readonly<Cinema2ResolvedLightFrame>[], shadowLightId: string | null = null): Cinema2VolumetricLightUniforms {
+/** Packs the shared lights for a fullscreen lighting pass; `scatteringOnly` leaves out lights authored `config.scatter: false` (the haze). */
+export function packCinema2VolumetricLights(lights: readonly Readonly<Cinema2ResolvedLightFrame>[], shadowLightId: string | null = null, scatteringOnly = false): Cinema2VolumetricLightUniforms {
   const position = new Float32Array(CINEMA2_VOLUMETRIC_MAX_LIGHTS * 4)
   const direction = new Float32Array(CINEMA2_VOLUMETRIC_MAX_LIGHTS * 4)
   const color = new Float32Array(CINEMA2_VOLUMETRIC_MAX_LIGHTS * 4)
@@ -502,6 +503,7 @@ export function packCinema2VolumetricLights(lights: readonly Readonly<Cinema2Res
       ambient[2] += light.color[2] * light.intensity
       continue
     }
+    if (scatteringOnly && light.scatter === false) continue
     if (count >= CINEMA2_VOLUMETRIC_MAX_LIGHTS) break
     const offset = count * 4
     position.set([light.position[0], light.position[1], light.position[2], light.range], offset)
@@ -628,7 +630,7 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     const values: AtmosphereFrameValues = {
       parameters,
       profile,
-      lights: packCinema2VolumetricLights(lighting?.lights ?? [], context.shadow?.lightId ?? null),
+      lights: packCinema2VolumetricLights(lighting?.lights ?? [], context.shadow?.lightId ?? null, true),
       inverseViewProjection: inverse,
       hazeColor: readColor(parameters.hazeColor) ?? environmentHazeColor(lighting),
       musicalLift,

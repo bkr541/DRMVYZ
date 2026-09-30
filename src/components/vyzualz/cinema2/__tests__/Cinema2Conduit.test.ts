@@ -110,9 +110,9 @@ describe('CONDUIT preset', () => {
     for (const rule of rules) expect(rule.strengthParameter).toEqual(ref(CINEMA2_CONDUIT_MASTER_INTENSITY_ID))
   })
 
-  it('finishes with the reflective floor at the chamber floor, a light haze, bloom and a filmic grade', () => {
+  it('finishes with the reflective floor at the chamber floor, a light haze, HDR bloom and a filmic grade', () => {
     const effects = manifest.effects ?? []
-    expect(effects.map(effect => effect.typeId)).toEqual(['reflective-floor', 'volumetric-atmosphere', 'bloom', 'cinematic-finish'])
+    expect(effects.map(effect => effect.typeId)).toEqual(['reflective-floor', 'volumetric-atmosphere', 'hdr-bloom', 'cinematic-finish'])
     expect(effects[0]!.parameters).toMatchObject({ floorY: 0 })
     expect((effects[1]!.parameters as { density: number }).density).toBeLessThan(0.03)
   })

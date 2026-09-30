@@ -36,6 +36,11 @@ export interface Cinema2ResolvedLightFrame {
    * parts cast and receive; medium and high only). Independent of `castShadow`, which drives the engine's own single shadow map.
    */
   threeShadow?: boolean
+  /**
+   * `config.scatter` (default true): false keeps the light out of the volumetric haze. It still lights the models and the floor; use it for a
+   * front fill aimed from near the camera, whose scattering would otherwise glow straight into the lens as a white veil.
+   */
+  scatter?: boolean
 }
 
 /**
@@ -198,6 +203,7 @@ export class Cinema2LightingEnvironmentRuntime {
         range: resolveRange(light.config),
         shadow: resolveShadow(light.type, light.config),
         threeShadow: light.type === 'spot' && light.config?.threeShadow === true,
+        scatter: light.config?.scatter !== false,
       })
     })
     this.currentFrame = freezeFrame({

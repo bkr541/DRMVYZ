@@ -91,7 +91,7 @@ const ROOT_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('reliquary-root')
 const WORLD_LAYER_ID = cinema2StableId<Cinema2LayerId>('reliquary-world-layer')
 const THREE_SCENE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('three-scene')
 const VOLUMETRIC_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('volumetric-atmosphere')
-const BLOOM_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('bloom')
+const BLOOM_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('hdr-bloom')
 const FLOOR_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('reflective-floor')
 const FINISH_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('cinematic-finish')
 const FLOOR_EFFECT_ID = cinema2StableId<Cinema2EffectId>('reliquary-ground')
@@ -107,7 +107,11 @@ const vec3 = (x: number, y: number, z: number): Cinema2Vector3 => Object.freeze(
 const color = (r: number, g: number, b: number, a = 1): Cinema2Color => Object.freeze([r, g, b, a])
 
 const DEFAULT_BACKGROUND = color(0.01, 0.008, 0.007)
-const DEFAULT_GLOW = color(1, 0.52, 0.12)
+/**
+ * Warm amber-gold, matched to the owner's mockup through the finish's filmic curve: a hot vine reads warm white, its glow amber-gold and the
+ * glow's fading edge a deep orange (the mockup's glow ramp). A deeper, yellower gold turns lemon-yellow once the glow goes brighter than white.
+ */
+const DEFAULT_GLOW = color(1, 0.54, 0.28)
 const DEFAULT_CUE = color(0.94, 0.96, 1)
 const DEFAULT_STROBE = color(1, 1, 1)
 const CRYSTAL_ROUGHNESS = 0.08
@@ -127,7 +131,8 @@ const CRYSTAL_SPARKLE = 5
 const CUE_REST = 0.08
 const CUE_PEAK = 9
 const STROBE_PEAK = 6
-const GLOW_STRENGTH = 1.1
+/** The glow renders HDR (float targets), so a lit vine can be several times brighter than white before the filmic curve rolls it off. */
+const GLOW_STRENGTH = 2.2
 /**
  * Each material's share of the studio environment. Kept low for the crystal so it is not evenly lit all the time: the overhead spots do the
  * lighting, and a part they are not hitting falls into shadow (the owner's mockups). The gold a little so it reads as warm polished metal, and
@@ -135,6 +140,11 @@ const GLOW_STRENGTH = 1.1
  */
 const CRYSTAL_ENVIRONMENT = 1.1
 const GOLD_ENVIRONMENT = 0.45
+/**
+ * The glowing gold (the tree vines and their buds) takes much less: mirroring the white studio environment it reads pale cream, and the glow,
+ * not the room, should give it its colour, as in the mockup.
+ */
+const VINE_ENVIRONMENT = 0.12
 const BARK_ENVIRONMENT = 0.15
 
 const baseParameter = {
@@ -390,9 +400,11 @@ const FINISH_PASS_ID = passId('finish')
 const SCENE_COLOR_ID = slotId('scene-color')
 const SCENE_DEPTH_ID = slotId('scene-depth')
 
+// Float targets carry the glow's light above white through the floor, haze and bloom to the finish's tone curve. A GPU that cannot render to
+// float textures gets 8-bit targets (the glow then rolls off toward white in the shader instead of clipping).
 const viewportTarget = (id: Cinema2RenderTargetId, depth = false) => Object.freeze({
   id,
-  descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba8' as const, ...(depth ? { depthFormat: 'depth24' as const } : {}) }),
+  descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba16f' as const, fallbackColorFormat: 'rgba8' as const, ...(depth ? { depthFormat: 'depth24' as const } : {}) }),
   ownership: 'transient' as const,
 })
 
@@ -469,11 +481,11 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       'veins.environmentIntensity': GOLD_ENVIRONMENT,
       'vines.color': color(1, 1, 1),
       'vines.roughness': ROOT_ROUGHNESS,
-      'vines.environmentIntensity': GOLD_ENVIRONMENT,
+      'vines.environmentIntensity': VINE_ENVIRONMENT,
       'leaves.color': color(1, 1, 1),
       'leaves.environmentIntensity': GOLD_ENVIRONMENT,
       'buds.color': color(1, 1, 1),
-      'buds.environmentIntensity': GOLD_ENVIRONMENT,
+      'buds.environmentIntensity': VINE_ENVIRONMENT,
       'bark.environmentIntensity': BARK_ENVIRONMENT,
       environmentIntensity: 1,
       glowMode: 'both',
@@ -514,6 +526,8 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       // What glows, and how much of the glow each part takes: the thin veins and the tree vines carry it, the leaves and buds catch it,
       // and the gold wood itself warms a little. The dark bark and the crystal do not glow.
       glow: Object.freeze({ veins: 1, vines: 1.4, buds: 1.1, leaves: 0.55, roots: 0.12 }),
+      // Rendered into float targets and tone-mapped by the finish, so the glow emits its full light.
+      hdr: true,
       // The golden tree's wood, veins and leaves cast shadows onto the crystal from the shadow-casting cue spots. The forest does not cast: it is
       // outside those cones, and as one merged mesh it would be drawn into every shadow map for nothing.
       shadows: Object.freeze({ cast: Object.freeze(['roots', 'veins', 'leaves']), receive: Object.freeze(['outline', 'crystal', 'roots']) }),
@@ -564,13 +578,14 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     label: 'RELIQUARY Front',
     projection: 'perspective' as const,
     fovDegrees: 34,
+    // Composed at 16:9; on a narrower Stage (the app's is nearly square) the view widens vertically instead of cropping the framing trees.
+    minAspect: 16 / 9,
     near: 0.1,
     far: 60,
-    // Framed on the owner's mockups: the logo is about a third of the frame height in the upper middle, the golden tree and its roots stand
-    // under it on the wet floor, the foreground trees frame both sides and the forest shows behind. Framed by height, so a narrower Stage
-    // (4:3) still keeps the trees in view.
-    transform: Object.freeze({ position: vec3(0, -0.55, 6) }),
-    target: vec3(0, -0.45, 0),
+    // Framed on the owner's mockup at 16:9: the logo about 40% of the frame width, a little above the middle; the golden tree and its root
+    // flare on the wet floor under it; the foreground trees framing both edges and the forest behind.
+    transform: Object.freeze({ position: vec3(0, -0.5, 4.9) }),
+    target: vec3(0, -0.4, 0),
     rig: Object.freeze({ kind: 'static' as const }),
   })]),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_RELIQUARY_CAMERA_ID) }),
@@ -603,7 +618,8 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         transform: Object.freeze({ position: vec3(0, 1.8, 6) }),
         node: cinema2Ref(ROOT_NODE_ID),
         targetNode: cinema2Ref(STROBE_TARGET_ID),
-        config: Object.freeze({ coneAngleDegrees: 30, penumbra: 0.8, range: 30 }),
+        // Kept out of the haze: aimed from the camera, its scattering glowed straight into the lens as a white veil behind the tree.
+        config: Object.freeze({ coneAngleDegrees: 30, penumbra: 0.8, range: 30, scatter: false }),
       }),
       // Two low warm rim lights from behind just edge the foreground trees, so the dark trunks separate from the dark.
       spot(RIM_LEFT_LIGHT_ID, vec3(-6.5, 2.5, -7), RIM_LEFT_TARGET_ID, 24, 0.018, CINEMA2_RELIQUARY_GLOW_COLOR_ID, color(1, 0.7, 0.4)),
@@ -650,7 +666,9 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       enabled: true,
       order: 2,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 0.6, threshold: 0.55, radius: 2.6, intensity: 0.9 }),
+      // HDR bloom: only what is brighter than white glows (the lit gold, the strobe, the crystal's hottest glints), so the crystal body and the
+      // gold wood stay crisp; the mip chain gives each lit vine a hot halo that fades into a wide amber glow.
+      parameters: Object.freeze({ mix: 1, threshold: 1.1, knee: 0.6, intensity: 0.9, spread: 0.72, levels: 7 }),
       parameterBindings: Object.freeze({ intensity: cinema2Ref(CINEMA2_RELIQUARY_BLOOM_ID) }),
     }),
     Object.freeze({
@@ -660,7 +678,9 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       enabled: true,
       order: 3,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 1, exposure: 1.05, vignette: 0.55, grain: 0.12, aberration: 0.15, contrast: 1.12, saturation: 1.05 }),
+      // Filmic tone curve: the HDR glow rolls to warm-white cores with amber edges while the dark bark keeps its depth. Light lens fringing and
+      // grain only (stronger fringing split the trees' edges into red and cyan).
+      parameters: Object.freeze({ mix: 1, toneMap: 1, exposure: 1.05, vignette: 0.55, grain: 0.05, aberration: 0.04, contrast: 1.12, saturation: 1.05 }),
       parameterBindings: Object.freeze({ mix: cinema2Ref(CINEMA2_RELIQUARY_FINISH_ID) }),
     }),
   ]),
