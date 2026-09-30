@@ -188,7 +188,17 @@
 .rv-shell > .az-dock {
   --vz-left-width: 330px;
   --vz-right-width: 400px;
+  --vz-dock-inline-pad: 12px;
+  --vz-dock-gap: 10px;
+  --vz-dock-side-min: 260px;
+  --vz-dock-left-col: max(calc(var(--vz-left-width) - var(--vz-dock-inline-pad) - var(--vz-dock-gap)), var(--vz-dock-side-min));
+  --vz-dock-right-col: max(calc(var(--vz-right-width) - var(--vz-dock-inline-pad) - var(--vz-dock-gap)), var(--vz-dock-side-min));
 }
+
+/* The rails' live state lives on .rv-layout (collapsed rails, Stage Focus); mirror it onto the dock. */
+.rv-shell:has(> .rv-layout[data-left-collapsed='true']) > .az-dock { --vz-left-width: 48px; }
+.rv-shell:has(> .rv-layout[data-right-collapsed='true']) > .az-dock { --vz-right-width: 48px; }
+.rv-shell[data-stage-focus='true'] > .az-dock { --vz-left-width: 0px; --vz-right-width: 0px; }
 
 /* ── Shared panel header ─────────────────────────────────────────────────────── */
 .rv-panel-header {
@@ -6833,12 +6843,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   bottom: 0;
   width: auto;
   height: 124px;
-  padding: 9px 12px 10px;
-  gap: 10px;
+  padding: 9px var(--vz-dock-inline-pad) 10px;
+  gap: var(--vz-dock-gap);
+  /* The waveform card spans exactly the Track Map's column (the stage column of .rv-layout), and the left and right
+     cards fill the rail widths on either side of it: the dock's inline padding and gap come out of the rail columns, so
+     the waveform's left and right edges land on the Track Map's. Below the clamp the side cards keep a usable width and
+     the alignment gives way (rails collapsed, Stage Focus, narrow windows). */
   grid-template-columns:
-    minmax(300px, 0.9fr)
-    minmax(420px, 1.8fr)
-    minmax(300px, 0.9fr);
+    var(--vz-dock-left-col)
+    minmax(0, 1fr)
+    var(--vz-dock-right-col);
   overflow: hidden;
   transition: height 180ms ease, padding 180ms ease, gap 180ms ease;
 }
@@ -7422,13 +7436,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 @media (max-width: 1320px) {
-  .rv-shell > .az-dock.vz-transport-dock {
-    grid-template-columns:
-      minmax(260px, 0.9fr)
-      minmax(340px, 1.8fr)
-      minmax(260px, 0.9fr);
-  }
-
   .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-left {
     grid-template-columns: 52px minmax(0, 1fr);
     column-gap: 9px;
