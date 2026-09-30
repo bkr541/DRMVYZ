@@ -25,7 +25,8 @@ import {
   CINEMA2_AFTERHOURS_PATTERN_CHANGE_IDS,
   CINEMA2_AFTERHOURS_TRIGGER_IDS,
 } from '../modules/Cinema2AfterhoursNativeModule'
-import { CINEMA2_AFTERHOURS_TOPOLOGY_IDS } from '../modules/afterhours/Cinema2AfterhoursDomain'
+import { CINEMA2_AFTERHOURS_MAX_LASERS, CINEMA2_AFTERHOURS_MIN_LASERS } from '../modules/afterhours/Cinema2AfterhoursDomain'
+import { CINEMA2_AFTERHOURS_PATTERNS } from '../modules/afterhours/Cinema2AfterhoursPatternLibrary'
 import { CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID } from '../effects/Cinema2BuiltinEffects'
 
 export const CINEMA2_AFTERHOURS_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.afterhours')
@@ -159,17 +160,6 @@ const COLOR_MODE_OPTIONS = Object.freeze([
   Object.freeze({ value: 'auto', label: 'Auto' }),
 ])
 
-const PATTERN_LABELS: Readonly<Record<(typeof CINEMA2_AFTERHOURS_TOPOLOGY_IDS)[number], string>> = Object.freeze({
-  wideFan: 'Wide Fan',
-  splitWings: 'Split Wings',
-  crossCanopy: 'Cross Canopy',
-  diamondStar: 'Diamond / Star',
-  chevronRoof: 'Chevron / Roof',
-  radialCrown: 'Radial Burst / Crown',
-  sparseArchitecture: 'Sparse Architecture',
-  fullRig: 'Full Rig',
-})
-
 const TRIGGER_LABELS: Readonly<Record<(typeof CINEMA2_AFTERHOURS_TRIGGER_IDS)[number], string>> = Object.freeze({
   beat: 'Beat',
   kick: 'Kick',
@@ -193,7 +183,7 @@ const PATTERN_CHANGE_LABELS: Readonly<Record<(typeof CINEMA2_AFTERHOURS_PATTERN_
   drop: 'Drop',
 })
 
-const PATTERN_OPTIONS = Object.freeze(CINEMA2_AFTERHOURS_TOPOLOGY_IDS.map(value => Object.freeze({ value, label: PATTERN_LABELS[value] })))
+const PATTERN_OPTIONS = Object.freeze(CINEMA2_AFTERHOURS_PATTERNS.map(pattern => Object.freeze({ value: pattern.id, label: pattern.label })))
 const TRIGGER_OPTIONS = Object.freeze(CINEMA2_AFTERHOURS_TRIGGER_IDS.map(value => Object.freeze({ value, label: TRIGGER_LABELS[value] })))
 const PATTERN_CHANGE_OPTIONS = Object.freeze(CINEMA2_AFTERHOURS_PATTERN_CHANGE_IDS.map(value => Object.freeze({ value, label: PATTERN_CHANGE_LABELS[value] })))
 
@@ -269,20 +259,20 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
     }),
     Object.freeze({
       id: CINEMA2_AFTERHOURS_SIDE_LASERS_ID,
-      label: 'Side Lasers', type: 'boolean' as const, defaultValue: false,
+      label: 'Side Lasers', type: 'boolean' as const, defaultValue: true,
       section: 'Design', group: 'Rig', designParentGroup: 'design' as const, order: 20,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
       id: CINEMA2_AFTERHOURS_TOP_LASERS_ID,
-      label: 'Top Lasers', type: 'boolean' as const, defaultValue: false,
+      label: 'Top Lasers', type: 'boolean' as const, defaultValue: true,
       section: 'Design', group: 'Rig', designParentGroup: 'design' as const, order: 21,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
       id: CINEMA2_AFTERHOURS_BEAM_COUNT_ID,
-      label: 'Beam Count', type: 'integer' as const, defaultValue: 8, min: 2, max: 16, step: 1,
-      description: 'Maximum simultaneously active beams. The installed rig remains 32 fixtures.',
+      label: 'Laser Count', type: 'integer' as const, defaultValue: CINEMA2_AFTERHOURS_MAX_LASERS, min: CINEMA2_AFTERHOURS_MIN_LASERS, max: CINEMA2_AFTERHOURS_MAX_LASERS, step: 1,
+      description: `Most lasers lit at once (each laser can fire a single beam, a fan or a sheet). The rig has ${CINEMA2_AFTERHOURS_MAX_LASERS} lasers: floor, top, mid-height and centre rows plus two side towers.`,
       section: 'Design', group: 'Rig', designParentGroup: 'design' as const, order: 22,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
@@ -303,14 +293,14 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
     Object.freeze({
       id: CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID,
       label: 'Auto Performance', type: 'boolean' as const, defaultValue: false,
-      description: 'Lets Cinema 2.0 choose topology and phrase-level presentation. Fixture-bank enables and other hard user controls always remain authoritative.',
+      description: 'Lets Cinema 2.0 choose patterns to suit the music: high-energy looks on drops, risers in builds, sparse looks under vocals. Side/Top Lasers, Laser Count and other hard user controls always remain authoritative.',
       section: 'Design', group: 'Pattern', designParentGroup: 'master-controls' as const, order: 31,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
     Object.freeze({
       id: CINEMA2_AFTERHOURS_PATTERN_CHANGE_ID,
       label: 'Pattern Change', type: 'enum' as const, defaultValue: 'off', options: PATTERN_CHANGE_OPTIONS,
-      description: 'Changes the selected pattern family on the chosen musical boundary even in Manual mode; Auto Performance may choose its own family when enabled.',
+      description: 'On the chosen musical boundary, switches to a random different pattern from the Pattern list (each new pattern starts from its first bar). Works in Manual mode; Auto Performance chooses its own patterns when enabled.',
       section: 'Design', group: 'Pattern', designParentGroup: 'design' as const, order: 32,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
@@ -323,7 +313,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
     Object.freeze({
       id: CINEMA2_AFTERHOURS_MOTION_AMOUNT_ID,
       label: 'Motion Amount', type: 'float' as const, defaultValue: 0.55, min: 0, max: 1, step: 0.01,
-      description: 'How far each burst of lasers aims away from its home position, and how much a group sweeps while it is lit. Lasers fire in bursts on the beat and are dark in between; at 0 every burst fires at the pattern\'s home position.',
+      description: 'How far the lasers travel between the endpoints their pattern gives them. At the default they move as programmed; at 0 every hit fires at its first endpoint.',
       section: 'Design', group: 'Motion', designParentGroup: 'design' as const, order: 41,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),
@@ -393,10 +383,10 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
       parameters: Object.freeze({
         pattern: 'wideFan',
         autoPerformance: false,
-        beamCount: 8,
+        beamCount: CINEMA2_AFTERHOURS_MAX_LASERS,
         symmetry: true,
-        sideLasers: false,
-        topLasers: false,
+        sideLasers: true,
+        topLasers: true,
         spread: 0.65,
         colorMode: 'manual',
         primaryColor: PRIMARY_COLOR,

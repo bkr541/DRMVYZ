@@ -1,9 +1,9 @@
 import type { Cinema2Color, Cinema2Vector3 } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2Matrix4 } from '../../scene/Cinema2SceneGraph'
 import { assertCinema2NoGlErrors } from '../../runtime/Cinema2GpuValidation'
-import { CINEMA2_AFTERHOURS_MAX_BEAMS } from './Cinema2AfterhoursDomain'
 
-export const CINEMA2_AFTERHOURS_MAX_RENDER_INSTANCES = CINEMA2_AFTERHOURS_MAX_BEAMS
+/** Every laser of the rig firing a full sheet stays inside this budget. */
+export const CINEMA2_AFTERHOURS_MAX_RENDER_INSTANCES = 1536
 
 export interface Cinema2AfterhoursRenderBeam {
   readonly fixtureId: string
@@ -11,16 +11,15 @@ export interface Cinema2AfterhoursRenderBeam {
   readonly targetWorld: Cinema2Vector3
   readonly intensity: number
   readonly alpha: number
-  readonly accentWeight: number
+  readonly color: Cinema2Color
+  /** Optical width multiplier: 1 for a beam, wider and softer for a sheet. */
+  readonly width: number
 }
 
 export interface Cinema2AfterhoursRendererDrawRequest {
   readonly beams: readonly Cinema2AfterhoursRenderBeam[]
   readonly worldToClipMatrix: Cinema2Matrix4
   readonly cameraPosition: Cinema2Vector3
-  readonly primaryColor: Cinema2Color
-  readonly accentColor: Cinema2Color
-  readonly accentMix: number
   readonly atmosphere: number
   readonly masterIntensity: number
 }
@@ -90,7 +89,7 @@ void main() {
   if (sideLength < 0.0001) sideAxis = cross(direction, vec3(0.0, 1.0, 0.0001));
   sideAxis = normalize(sideAxis);
   float sourceBloom = exp(-t * 34.0);
-  float widthWorld = mix(0.045, 0.085, clamp(uAtmosphere, 0.0, 1.0)) * (1.0 + sourceBloom * 1.35);
+  float widthWorld = mix(0.045, 0.085, clamp(uAtmosphere, 0.0, 1.0)) * (1.0 + sourceBloom * 1.35) * max(aMeta.w, 1.0);
   vec3 worldPosition = center + sideAxis * aCorner.y * widthWorld;
   vec4 originClip = uWorldToClip * vec4(aOrigin, 1.0);
   vec4 targetClip = uWorldToClip * vec4(aTarget, 1.0);
@@ -284,8 +283,6 @@ export class Cinema2AfterhoursRenderer {
       if (instanceCount >= CINEMA2_AFTERHOURS_MAX_RENDER_INSTANCES) return
       const alpha = clamp01(beam.alpha) * temporalWeight
       if (alpha <= 0.0001 || beam.intensity <= 0.0001) return
-      const accent = clamp01(request.accentMix) * clamp01(beam.accentWeight)
-      const inverseAccent = 1 - accent
       const offset = instanceCount * INSTANCE_FLOATS
       this.instanceData[offset] = beam.originWorld[0]
       this.instanceData[offset + 1] = beam.originWorld[1]
@@ -293,14 +290,14 @@ export class Cinema2AfterhoursRenderer {
       this.instanceData[offset + 3] = beam.targetWorld[0]
       this.instanceData[offset + 4] = beam.targetWorld[1]
       this.instanceData[offset + 5] = beam.targetWorld[2]
-      this.instanceData[offset + 6] = request.primaryColor[0] * inverseAccent + request.accentColor[0] * accent
-      this.instanceData[offset + 7] = request.primaryColor[1] * inverseAccent + request.accentColor[1] * accent
-      this.instanceData[offset + 8] = request.primaryColor[2] * inverseAccent + request.accentColor[2] * accent
-      this.instanceData[offset + 9] = request.primaryColor[3] * inverseAccent + request.accentColor[3] * accent
+      this.instanceData[offset + 6] = beam.color[0]
+      this.instanceData[offset + 7] = beam.color[1]
+      this.instanceData[offset + 8] = beam.color[2]
+      this.instanceData[offset + 9] = beam.color[3]
       this.instanceData[offset + 10] = Math.max(0, finite(beam.intensity, 0))
       this.instanceData[offset + 11] = alpha
       this.instanceData[offset + 12] = clamp01(1 - temporalWeight)
-      this.instanceData[offset + 13] = 0
+      this.instanceData[offset + 13] = Math.max(1, finite(beam.width, 1))
       instanceCount += 1
     }
 

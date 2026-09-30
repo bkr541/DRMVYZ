@@ -12,7 +12,7 @@ import {
   CINEMA2_AFTERHOURS_NATIVE_MODULE_TYPE_ID,
   CINEMA2_AFTERHOURS_NATIVE_PARAMETER_NAMES,
 } from '../modules/Cinema2AfterhoursNativeModule'
-import { CINEMA2_AFTERHOURS_TOPOLOGY_IDS } from '../modules/afterhours/Cinema2AfterhoursDomain'
+import { CINEMA2_AFTERHOURS_PATTERN_IDS } from '../modules/afterhours/Cinema2AfterhoursPatternLibrary'
 import {
   CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID,
   CINEMA2_AFTERHOURS_BACKGROUND_ID,
@@ -194,6 +194,17 @@ function lastInstancedDrawCount(gl: ReturnType<typeof createCinemaMockWebGL>): n
   return Number(calls[calls.length - 1]?.[3] ?? 0)
 }
 
+/** Distinct laser origins in the last Afterhours instance upload (a laser firing a fan draws several beams). */
+function lastDrawnLaserCount(gl: ReturnType<typeof createCinemaMockWebGL>): number {
+  const count = lastInstancedDrawCount(gl)
+  const uploads = (gl.bufferSubData as unknown as { mock: { calls: unknown[][] } }).mock.calls
+    .map(call => call[2])
+    .filter((data): data is Float32Array => data instanceof Float32Array && data.length === count * 14)
+  const upload = uploads[uploads.length - 1]
+  if (!upload) return 0
+  return new Set(Array.from({ length: count }, (_, k) => Array.from(upload.slice(k * 14, k * 14 + 3)).map(value => value.toFixed(3)).join(','))).size
+}
+
 describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
   it('registers as a first-party keeper and passes the shared authoring/compiler gates', () => {
     const declaration = CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS.find(candidate => candidate.manifest.id === CINEMA2_AFTERHOURS_PRESET_ID)
@@ -232,7 +243,8 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     expect(targetFor(plan, 'environment', 'root', 'backgroundColor').parameterId).toBe(CINEMA2_AFTERHOURS_BACKGROUND_ID)
 
     const pattern = plan.parameters.definitions.find(definition => definition.id === CINEMA2_AFTERHOURS_PATTERN_ID)
-    expect(pattern?.options?.map(option => option.value)).toEqual(CINEMA2_AFTERHOURS_TOPOLOGY_IDS)
+    expect(pattern?.options?.map(option => option.value)).toEqual([...CINEMA2_AFTERHOURS_PATTERN_IDS])
+    expect(pattern?.options?.length).toBeGreaterThanOrEqual(30)
     expect(pattern?.metadata?.userEditSetParameters).toEqual({ [CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID]: false })
     expect(plan.parameters.authoredDefaults[CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID]).toBe(false)
     expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_AFTERHOURS_RESET_TRAILS_ID)).toMatchObject({
@@ -240,7 +252,7 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
       exposure: 'hidden',
       persistence: 'runtime-only',
     })
-    expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_AFTERHOURS_BEAM_COUNT_ID)).toMatchObject({ min: 2, max: 16, step: 1 })
+    expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_AFTERHOURS_BEAM_COUNT_ID)).toMatchObject({ label: 'Laser Count', min: 2, max: 46, step: 1, defaultValue: 46 })
     expect(plan.manifest.choreography?.rules).toHaveLength(17)
     const corePerformanceRules = (plan.manifest.choreography?.rules ?? []).filter(rule => rule.enabledParameter == null)
     const autoPresentationRules = (plan.manifest.choreography?.rules ?? []).filter(rule => rule.enabledParameter != null)
@@ -295,7 +307,7 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     expect(labelsFor('Design')).toEqual([
       'Side Lasers',
       'Top Lasers',
-      'Beam Count',
+      'Laser Count',
       'Symmetry',
       'Pattern',
       'Pattern Change',
@@ -658,7 +670,8 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
       status: 'active',
     })])
     expect(lastInstancedDrawCount(gl)).toBeGreaterThan(0)
-    expect(lastInstancedDrawCount(gl)).toBeLessThanOrEqual(7)
+    expect(lastDrawnLaserCount(gl)).toBeGreaterThan(0)
+    expect(lastDrawnLaserCount(gl)).toBeLessThanOrEqual(7)
 
     expect(state.getValue(CINEMA2_AFTERHOURS_PATTERN_ID)).toBe('wideFan')
     expect(state.getValue(CINEMA2_AFTERHOURS_SIDE_LASERS_ID)).toBe(false)
@@ -788,7 +801,7 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     reentered.runtime.dispose()
   })
 
-  it('keeps the engine-owned trails pass valid across all eight topology families', () => {
+  it('keeps the engine-owned trails pass valid across every pattern', () => {
     const gl = createCinemaMockWebGL()
     let scheduledFrame: FrameRequestCallback | null = null
     const created = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
@@ -806,8 +819,8 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     created.runtime.resize({ width: 640, height: 360, dpr: 1 })
     created.runtime.start()
     let timestampMs = 16
-    for (const topologyId of CINEMA2_AFTERHOURS_TOPOLOGY_IDS) {
-      expect(created.runtime.getParameterState().setPersistentValue(CINEMA2_AFTERHOURS_PATTERN_ID, topologyId)).toMatchObject({ ok: true })
+    for (const patternId of CINEMA2_AFTERHOURS_PATTERN_IDS) {
+      expect(created.runtime.getParameterState().setPersistentValue(CINEMA2_AFTERHOURS_PATTERN_ID, patternId)).toMatchObject({ ok: true })
       expect(scheduledFrame).not.toBeNull()
       ;(scheduledFrame as FrameRequestCallback | null)?.(timestampMs)
       timestampMs += 16
@@ -815,8 +828,8 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
       expect(created.runtime.getRenderGraphExecutorSnapshot().failedPassCount).toBe(0)
     }
     expect(created.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({
-      frameCount: CINEMA2_AFTERHOURS_TOPOLOGY_IDS.length,
-      executedPassCount: CINEMA2_AFTERHOURS_TOPOLOGY_IDS.length * 2,
+      frameCount: CINEMA2_AFTERHOURS_PATTERN_IDS.length,
+      executedPassCount: CINEMA2_AFTERHOURS_PATTERN_IDS.length * 2,
     })
 
     created.runtime.dispose()

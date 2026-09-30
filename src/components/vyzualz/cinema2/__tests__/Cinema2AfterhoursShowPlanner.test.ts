@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Cinema2AfterhoursRandomSource } from '../modules/afterhours/Cinema2AfterhoursDomain'
+import { CINEMA2_AFTERHOURS_PATTERNS, CINEMA2_AFTERHOURS_PATTERN_IDS } from '../modules/afterhours/Cinema2AfterhoursPatternLibrary'
 import {
+  pickCinema2AfterhoursNextPattern,
   planCinema2AfterhoursShow,
   resolveCinema2AfterhoursCadenceIdentity,
   type Cinema2AfterhoursShowPlannerSettings,
@@ -11,7 +13,7 @@ import {
 const SETTINGS: Cinema2AfterhoursShowPlannerSettings = Object.freeze({
   pattern: 'wideFan',
   autoPerformance: false,
-  beamCount: 16,
+  laserLimit: 16,
   symmetry: true,
   sideLasers: false,
   topLasers: false,
@@ -32,7 +34,7 @@ function random(value = 0.99): Cinema2AfterhoursRandomSource {
 
 function hashedRandom(): Cinema2AfterhoursRandomSource {
   return Object.freeze({
-    sample(namespace, index = 0) {
+    sample(namespace: Parameters<Cinema2AfterhoursRandomSource['sample']>[0], index = 0) {
       const text = `${namespace.moduleId}|${namespace.eventId ?? ''}|${namespace.purpose}|${namespace.substream ?? ''}|${index}`
       let hash = 2166136261
       for (let cursor = 0; cursor < text.length; cursor += 1) {
@@ -45,24 +47,24 @@ function hashedRandom(): Cinema2AfterhoursRandomSource {
 }
 
 describe('Cinema 2.0 Afterhours 2.0 Stage 5 Show Planner', () => {
-  it('keeps authored topology and hard bank authorizations authoritative when Auto Performance is off', () => {
+  it('keeps the authored pattern and hard bank authorizations authoritative when Auto Performance is off', () => {
     const plan = planCinema2AfterhoursShow(SETTINGS, STRUCTURE, random())
-    expect(plan.topologyId).toBe('wideFan')
+    expect(plan.patternId).toBe('wideFan')
     expect(plan.sideLasers).toBe(false)
     expect(plan.topLasers).toBe(false)
     expect(plan.symmetry).toBe(true)
-    expect(plan.beamCount).toBe(16)
+    expect(plan.laserLimit).toBe(16)
     expect(plan.transitionIntent).toBe('smooth')
   })
 
-  it('keeps manual topology/banks authoritative while shared performance intent modulates the authored show', () => {
+  it('keeps the manual pattern/banks authoritative while shared performance intent modulates the authored show', () => {
     const baseline = planCinema2AfterhoursShow(SETTINGS, STRUCTURE, random(0.99))
     const reactive = planCinema2AfterhoursShow(
       SETTINGS,
       { ...STRUCTURE, hardCutIntent: true, performance: { build: 0.9, intensity: 0.8, kickAccent: 1, downbeatAccent: 1 } },
       random(0.99),
     )
-    expect(reactive.topologyId).toBe(SETTINGS.pattern)
+    expect(reactive.patternId).toBe(SETTINGS.pattern)
     expect(reactive.sideLasers).toBe(false)
     expect(reactive.topLasers).toBe(false)
     expect(reactive.transitionIntent).toBe('smooth')
@@ -71,11 +73,11 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 5 Show Planner', () => {
     expect(reactive.bottomIntensity).toBeGreaterThan(baseline.bottomIntensity)
   })
 
-  it('may choose another topology but never resurrects disabled user fixture banks', () => {
+  it('may choose another pattern but never resurrects disabled user fixture banks', () => {
     const authored = { ...SETTINGS, autoPerformance: true, patternChange: 'off' as const }
     const plan = planCinema2AfterhoursShow(authored, STRUCTURE, random(0.99))
-    expect(plan.topologyId).toBe('fullRig')
-    expect(plan.topologyId).not.toBe(authored.pattern)
+    expect(CINEMA2_AFTERHOURS_PATTERN_IDS).toContain(plan.patternId)
+    expect(plan.patternId).not.toBe(authored.pattern)
     expect(plan.sideLasers).toBe(false)
     expect(plan.topLasers).toBe(false)
     expect(authored.sideLasers).toBe(false)
@@ -83,33 +85,45 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 5 Show Planner', () => {
     expect(authored.pattern).toBe('wideFan')
   })
 
-  it('rotates Pattern Change at canonical boundaries without requiring full Auto Performance', () => {
-    const first = planCinema2AfterhoursShow(
-      { ...SETTINGS, patternChange: 'bar', patternStep: 0 },
-      { ...STRUCTURE, absoluteBarIndex: 12 },
-      random(),
-    )
-    const next = planCinema2AfterhoursShow(
-      { ...SETTINGS, patternChange: 'bar', patternStep: 1 },
-      { ...STRUCTURE, absoluteBarIndex: 13 },
-      random(),
-    )
-    expect(first.topologyId).toBe('wideFan')
-    expect(next.topologyId).toBe('splitWings')
+  it('plays the runtime pattern Pattern Change moved to, without requiring full Auto Performance', () => {
+    const first = planCinema2AfterhoursShow({ ...SETTINGS, patternChange: 'bar' }, { ...STRUCTURE, absoluteBarIndex: 12 }, random())
+    const next = planCinema2AfterhoursShow({ ...SETTINGS, patternChange: 'bar', activePattern: 'crossfire' }, { ...STRUCTURE, absoluteBarIndex: 13 }, random())
+    expect(first.patternId).toBe('wideFan')
+    expect(next.patternId).toBe('crossfire')
     expect(next.sideLasers).toBe(false)
     expect(next.topLasers).toBe(false)
+    // With Pattern Change off, a stale runtime pattern never overrides the authored one.
+    expect(planCinema2AfterhoursShow({ ...SETTINGS, patternChange: 'off', activePattern: 'crossfire' }, STRUCTURE, random()).patternId).toBe('wideFan')
   })
 
-  it('never exceeds Beam Count and preserves authored Symmetry in either authority mode', () => {
+  it('picks a random next pattern that is never the current one, deterministically per boundary', () => {
+    const source = hashedRandom()
+    const picks = new Set<string>()
+    let current = 'wideFan'
+    for (let bar = 0; bar < 60; bar += 1) {
+      const next = pickCinema2AfterhoursNextPattern(current, `track-a:bar:${bar}`, source)
+      expect(next).not.toBe(current)
+      expect(CINEMA2_AFTERHOURS_PATTERN_IDS).toContain(next)
+      expect(pickCinema2AfterhoursNextPattern(current, `track-a:bar:${bar}`, source)).toBe(next)
+      picks.add(next)
+      current = next
+    }
+    // Random, not a fixed rotation: many different patterns come up and the order is not the list order.
+    expect(picks.size).toBeGreaterThan(15)
+    const order = [...picks].map(id => CINEMA2_AFTERHOURS_PATTERN_IDS.indexOf(id))
+    expect(order).not.toEqual([...order].sort((a, b) => a - b))
+  })
+
+  it('never exceeds Laser Count and preserves authored Symmetry in either authority mode', () => {
     for (const autoPerformance of [false, true]) {
-      for (const beamCount of [2, 7, 16]) {
+      for (const laserLimit of [2, 7, 46]) {
         const plan = planCinema2AfterhoursShow(
-          { ...SETTINGS, autoPerformance, beamCount, symmetry: false },
+          { ...SETTINGS, autoPerformance, laserLimit, symmetry: false },
           STRUCTURE,
           hashedRandom(),
         )
-        expect(plan.beamCount).toBeGreaterThanOrEqual(2)
-        expect(plan.beamCount).toBeLessThanOrEqual(beamCount)
+        expect(plan.laserLimit).toBeGreaterThanOrEqual(2)
+        expect(plan.laserLimit).toBeLessThanOrEqual(laserLimit)
         expect(plan.symmetry).toBe(false)
       }
     }
@@ -141,8 +155,7 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 5 Show Planner', () => {
       hashedRandom(),
     )
     expect(offB.cadenceIdentity).toBe(offA.cadenceIdentity)
-    expect(offB.variationKey).toBe(offA.variationKey)
-    expect(offB.topologyId).toBe(offA.topologyId)
+    expect(offB.patternId).toBe(offA.patternId)
 
     const barA = resolveCinema2AfterhoursCadenceIdentity('bar', { ...STRUCTURE, absoluteBarIndex: 12 })
     const barARepeat = resolveCinema2AfterhoursCadenceIdentity('bar', { ...STRUCTURE, absoluteBarIndex: 12 })
@@ -203,7 +216,7 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 5 Show Planner', () => {
 
     expect(building.spreadScale).toBeLessThan(baseline.spreadScale)
     expect(impact.spreadScale).toBeGreaterThan(building.spreadScale)
-    expect(vocal.beamCount).toBeLessThan(baseline.beamCount)
+    expect(vocal.laserLimit).toBeLessThan(baseline.laserLimit)
     expect(vocal.motionScale).toBeLessThan(baseline.motionScale)
   })
 
@@ -226,15 +239,16 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 5 Show Planner', () => {
     expect(snare.topIntensity).toBeGreaterThan(snare.bottomIntensity)
   })
 
-  it('chooses deterministic sparse-versus-dense hero drop boundaries only inside Auto Performance authority', () => {
-    const peak = { ...STRUCTURE, performance: { impact: 1, dropAccent: 1 } }
-    const sparse = planCinema2AfterhoursShow({ ...SETTINGS, autoPerformance: true }, peak, random(0.1))
-    const dense = planCinema2AfterhoursShow({ ...SETTINGS, autoPerformance: true }, peak, random(0.5))
-    const manual = planCinema2AfterhoursShow(SETTINGS, peak, random(0.1))
-
-    expect(sparse.topologyId).toBe('sparseArchitecture')
-    expect(['fullRig', 'radialCrown', 'crossCanopy']).toContain(dense.topologyId)
-    expect(manual.topologyId).toBe(SETTINGS.pattern)
+  it('picks patterns whose energy suits the music, only inside Auto Performance authority', () => {
+    const energyOf = (id: string) => CINEMA2_AFTERHOURS_PATTERNS.find(candidate => candidate.id === id)!.energy
+    const auto = { ...SETTINGS, autoPerformance: true }
+    for (const value of [0.05, 0.4, 0.8]) {
+      expect(energyOf(planCinema2AfterhoursShow(auto, { ...STRUCTURE, performance: { impact: 1, dropAccent: 1 } }, random(value)).patternId)).toBe('high')
+      expect(energyOf(planCinema2AfterhoursShow(auto, { ...STRUCTURE, performance: { build: 0.9 } }, random(value)).patternId)).toBe('build')
+      expect(energyOf(planCinema2AfterhoursShow(auto, { ...STRUCTURE, performance: { vocalPresence: 0.9 } }, random(value)).patternId)).toBe('low')
+    }
+    const manual = planCinema2AfterhoursShow(SETTINGS, { ...STRUCTURE, performance: { impact: 1, dropAccent: 1 } }, random(0.1))
+    expect(manual.patternId).toBe(SETTINGS.pattern)
   })
 
   it('gates blackouts to sparse structural significance instead of kick/snare flicker', () => {

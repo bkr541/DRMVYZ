@@ -266,16 +266,14 @@ function sweepBeats(harness: ReturnType<typeof createHarness>, fromBeat: number,
 }
 
 const originsOf = (steps: readonly SweepStep[]) => new Set(steps.flatMap(step => step.beams.map(beam => beam.origin)))
+/** Lasers lit in one frame (a laser firing a fan draws several beams from one origin). */
+const litLasers = (step: SweepStep) => new Set(step.beams.map(beam => beam.origin)).size
 
-/** The longest stretch, in beats, one beam stays lit and the longest it stays dark. */
-function longestRuns(steps: readonly SweepStep[], origin: string): { lit: number; dark: number } {
-  let lit = 0, dark = 0, currentLit = 0, currentDark = 0
-  for (const step of steps) {
-    if (step.beams.some(beam => beam.origin === origin)) { currentLit += 1 / 8; currentDark = 0 } else { currentDark += 1 / 8; currentLit = 0 }
-    lit = Math.max(lit, currentLit)
-    dark = Math.max(dark, currentDark)
-  }
-  return { lit, dark }
+function drawnLaserCount(gl: CinemaMockWebGL): number {
+  const count = lastInstanceCount(gl)
+  if (count === 0) return 0
+  const upload = Array.from(lastMockArgument(gl.bufferSubData, 2) as Float32Array)
+  return new Set(Array.from({ length: count }, (_, k) => upload.slice(k * 14, k * 14 + 3).map(value => value.toFixed(3)).join(','))).size
 }
 
 function shaderSources(gl: CinemaMockWebGL): readonly string[] {
@@ -379,45 +377,58 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
     ]))
   })
 
-  it.each([
-    ['wideFan', 8], ['splitWings', 8], ['crossCanopy', 8], ['diamondStar', 8],
-    ['chevronRoof', 8], ['radialCrown', 8], ['sparseArchitecture', 4], ['fullRig', 8],
-  ] as const)('renders %s through a world provider with fixed 3D instances', (pattern: string, expectedCount: number) => {
-    const harness = createHarness({ pattern, beamCount: 8 })
-    // Over a scene of music every fixture of the pattern takes its turn; a frame is one instanced draw at most.
-    const steps = sweepBeats(harness, 8, 16)
-    expect(harness.provider.intent).toBe('world')
-    expect(originsOf(steps).size).toBe(expectedCount)
-    expect(steps.some(step => step.count > 0)).toBe(true)
-    harness.instance.lifecycle.dispose()
-    harness.resources.disposeAll()
-  })
+  it.each(['wideFan', 'splitWings', 'crossCanopy', 'diamondStar', 'chevronRoof', 'radialCrown', 'sparseArchitecture', 'fullRig', 'pyramidSheet', 'buildRiser'])(
+    'renders %s through a world provider as one instanced draw per frame within Laser Count',
+    (pattern: string) => {
+      const harness = createHarness({ pattern, beamCount: 8 })
+      const steps = sweepBeats(harness, 8, 16)
+      expect(harness.provider.intent).toBe('world')
+      expect(steps.some(step => step.count > 0)).toBe(true)
+      expect(Math.max(...steps.map(litLasers))).toBeLessThanOrEqual(8)
+      harness.instance.lifecycle.dispose()
+      harness.resources.disposeAll()
+    },
+  )
 
-  it('honors the 2/16 Beam Count ceiling and uses one instanced draw instead of one module per beam', () => {
-    for (const beamCount of [2, 16]) {
+  it('honors Laser Count from 2 up to the whole 46-laser rig, and a laser can fire a whole fan of beams', () => {
+    for (const beamCount of [2, 16, 46]) {
       const harness = createHarness({ beamCount, symmetry: false, pattern: 'fullRig' })
       const steps = sweepBeats(harness, 8, 16)
-      expect(originsOf(steps).size).toBe(beamCount)
-      expect(Math.max(...steps.map(step => step.count))).toBeLessThanOrEqual(beamCount)
+      expect(Math.max(...steps.map(litLasers))).toBeLessThanOrEqual(beamCount)
+      expect(Math.max(...steps.map(litLasers))).toBeGreaterThanOrEqual(Math.min(beamCount, 28))
+      // More beams than lasers: fans.
+      expect(Math.max(...steps.map(step => step.count))).toBeGreaterThan(Math.max(...steps.map(litLasers)))
       harness.instance.lifecycle.dispose()
       harness.resources.disposeAll()
     }
   })
 
-  it('fires its lasers in bursts on the beat grid: dark between bursts, and no laser lit or dark for longer than a bar', () => {
-    const harness = createHarness({ pattern: 'fullRig', beamCount: 16, symmetry: true, motionAmount: 0.8, pulseAmount: 0, bpmSync: true })
-    const steps = sweepBeats(harness, 8, 64)
-    const origins = [...originsOf(steps)]
-    expect(origins.length).toBe(16)
-    expect(steps.some(step => step.count < 16)).toBe(true)
-    expect(steps.some(step => step.count > 0)).toBe(true)
-    for (const origin of origins) {
-      const runs = longestRuns(steps, origin)
-      // Never lit for longer than one bar (4 beats, plus one sample of tolerance) and never dark for longer than a bar.
-      expect(runs.lit, origin).toBeLessThanOrEqual(4 + 1 / 8)
-      expect(runs.dark, origin).toBeLessThanOrEqual(4 + 1 / 8)
-      expect(runs.lit, origin).toBeGreaterThan(0)
+  it('lands hits exactly on the beat and can change the look on every beat', () => {
+    const harness = createHarness({ pattern: 'beatJump', beamCount: 46, symmetry: true, pulseAmount: 0, bpmSync: true })
+    const steps = sweepBeats(harness, 8, 8)
+    const onBeat = steps.filter(step => Number.isInteger(step.beat))
+    expect(onBeat.every(step => step.count > 0)).toBe(true)
+    const floorLaser = onBeat[0]!.beams[0]!.origin
+    const aims = onBeat.map(step => step.beams.find(beam => beam.origin === floorLaser)?.target.map(value => value.toFixed(2)).join(','))
+    expect(new Set(aims).size).toBeGreaterThanOrEqual(onBeat.length - 1)
+    harness.instance.lifecycle.dispose()
+    harness.resources.disposeAll()
+  })
+
+  it('holds some lasers on one look for the bar while others change within it', () => {
+    const harness = createHarness({ pattern: 'fanRow', beamCount: 46, symmetry: true, pulseAmount: 0, bpmSync: true })
+    // Bar 3 of the pattern: the mid-height row holds a fan while the floor beams re-aim every 8th note.
+    const steps = sweepBeats(harness, 8, 4).slice(0, 31)
+    const aimsOf = (y: string) => {
+      const beams = steps.flatMap(step => step.beams.filter(beam => beam.origin.split(',')[1] === y))
+      const origin = beams[0]!.origin
+      return new Set(beams.filter(beam => beam.origin === origin).map(beam => beam.target.map(value => value.toFixed(2)).join(',')))
     }
+    // One mid-row laser keeps the same seven-beam fan all bar; one floor laser jumps between its endpoints.
+    expect(aimsOf((3.8).toFixed(3)).size).toBe(7)
+    expect(aimsOf((0.35).toFixed(3)).size).toBeGreaterThanOrEqual(2)
+    // The held row is lit in every sampled frame of the bar.
+    expect(steps.every(step => step.beams.some(beam => beam.origin.split(',')[1] === (3.8).toFixed(3)))).toBe(true)
     harness.instance.lifecycle.dispose()
     harness.resources.disposeAll()
   })
@@ -434,20 +445,17 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
     harness.resources.disposeAll()
   })
 
-  it('moves each group to a new position between bursts, and Motion Amount 0 fires every burst at the home position', () => {
-    const moving = createHarness({ pattern: 'wideFan', beamCount: 2, symmetry: false, motionAmount: 1, pulseAmount: 0, bpmSync: true })
-    const movingSteps = sweepBeats(moving, 8, 64)
-    const firstBeam = [...originsOf(movingSteps)][0]!
-    const lit = (step: SweepStep | undefined) => step?.beams.some(beam => beam.origin === firstBeam) === true
-    const burstStarts = movingSteps.filter((step, index) => lit(step) && !lit(movingSteps[index - 1]))
-    const distinctAims = new Set(burstStarts.map(step => step.beams.find(beam => beam.origin === firstBeam)!.target.map(value => value.toFixed(2)).join(',')))
-    expect(burstStarts.length).toBeGreaterThan(4)
-    expect(distinctAims.size).toBeGreaterThan(2)
+  it('moves a laser between its endpoints, and Motion Amount 0 fires every hit at the first endpoint', () => {
+    const moving = createHarness({ pattern: 'gridStep', beamCount: 2, symmetry: false, motionAmount: 0.55, pulseAmount: 0, bpmSync: true })
+    const movingSteps = sweepBeats(moving, 8, 16)
+    const firstLaser = [...originsOf(movingSteps)][0]!
+    const movingAims = new Set(movingSteps.flatMap(step => step.beams.filter(beam => beam.origin === firstLaser).map(beam => beam.target.map(value => value.toFixed(2)).join(','))))
+    expect(movingAims.size).toBeGreaterThan(2)
     moving.instance.lifecycle.dispose()
     moving.resources.disposeAll()
 
-    const still = createHarness({ pattern: 'wideFan', beamCount: 2, symmetry: false, motionAmount: 0, pulseAmount: 0, bpmSync: true })
-    const stillSteps = sweepBeats(still, 8, 64)
+    const still = createHarness({ pattern: 'gridStep', beamCount: 2, symmetry: false, motionAmount: 0, pulseAmount: 0, bpmSync: true })
+    const stillSteps = sweepBeats(still, 8, 16)
     const stillFirst = [...originsOf(stillSteps)][0]!
     const stillAims = new Set(stillSteps.flatMap(step => step.beams.filter(beam => beam.origin === stillFirst).map(beam => beam.target.map(value => value.toFixed(3)).join(','))))
     expect(stillAims.size).toBe(1)
@@ -456,10 +464,10 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
   })
 
   it('still cues at a steady 120 BPM when there is no beat tracking at all', () => {
-    const free = createHarness({ pattern: 'wideFan', beamCount: 8, symmetry: true })
+    const free = createHarness({ pattern: 'wideFan', beamCount: 46, symmetry: true })
     const freeSteps = sweepBeats(free, 8, 16, false)
-    expect(freeSteps.some(step => step.count < 8)).toBe(true)
-    expect(originsOf(freeSteps).size).toBe(8)
+    expect(freeSteps.some(step => step.count > 0)).toBe(true)
+    expect(new Set(freeSteps.map(step => step.beams.map(beam => beam.target.join(',')).join('|'))).size).toBeGreaterThan(2)
     free.instance.lifecycle.dispose()
     free.resources.disposeAll()
   })
@@ -480,59 +488,25 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
     harness.resources.disposeAll()
   })
 
-  it('smoothly morphs topology changes without exceeding Beam Count and supports explicit hard cuts/lifecycle invalidation', () => {
+  it('switches patterns cleanly within Laser Count and survives hard cuts and lifecycle invalidation', () => {
     const harness = createHarness({ symmetry: false, beamCount: 8 })
-    // Beams cue in bursts, so a single frame lights only some groups: over a scene of music all eight fixtures fire.
-    expect(originsOf(sweepBeats(harness, 8, 16)).size).toBe(8)
-    const first = frame({ frameId: 500, timeSec: 20 })
-    harness.instance.lifecycle.update({ frame: first, parameters: harness.parameterFacet, targets: harness.targetFacet })
-    execute(harness, first)
-    expect(lastInstanceCount(harness.gl)).toBeLessThanOrEqual(8)
-
-    const second = frame({ frameId: 501, timeSec: 20.08 })
-    harness.instance.lifecycle.update({ frame: second, parameters: harness.parameterFacet, targets: harness.targetFacet })
-    execute(harness, second)
-    expect(lastInstanceCount(harness.gl)).toBeLessThanOrEqual(8)
-
+    const run = (frameId: number, timeSec: number, options: Partial<Cinema2ModuleFrameReadContext> = {}, currentCamera = camera()) => {
+      const current = frame({ frameId, timeSec, ...options })
+      harness.instance.lifecycle.update({ frame: current, parameters: harness.parameterFacet, targets: harness.targetFacet })
+      execute(harness, current, currentCamera)
+      expect(drawnLaserCount(harness.gl)).toBeLessThanOrEqual(8)
+      if (lastInstanceCount(harness.gl) > 0) expect(Array.from(lastMockArgument(harness.gl.bufferSubData, 2) as Float32Array).every(Number.isFinite)).toBe(true)
+    }
+    run(500, 20)
+    run(501, 20.08)
     harness.parameters.pattern = 'crossCanopy'
-    const morph = frame({ frameId: 502, timeSec: 20.12 })
-    harness.instance.lifecycle.update({ frame: morph, parameters: harness.parameterFacet, targets: harness.targetFacet })
-    execute(harness, morph)
-    expect(lastInstanceCount(harness.gl)).toBeLessThanOrEqual(8)
-    const morphUpload = lastMockArgument(harness.gl.bufferSubData, 2) as Float32Array
-    expect(Array.from(morphUpload).every(Number.isFinite)).toBe(true)
-
-    const morphMid = frame({ frameId: 503, timeSec: 20.29 })
-    harness.instance.lifecycle.update({ frame: morphMid, parameters: harness.parameterFacet, targets: harness.targetFacet })
-    execute(harness, morphMid)
-    expect(lastInstanceCount(harness.gl)).toBeLessThanOrEqual(8)
-
+    run(502, 20.12)
+    run(503, 20.29)
     harness.instance.handleAction?.(CINEMA2_AFTERHOURS_HARD_CUT_ACTION, {} as never)
-    const cut = frame({ frameId: 504, timeSec: 20.31 })
-    harness.instance.lifecycle.update({ frame: cut, parameters: harness.parameterFacet, targets: harness.targetFacet })
-    execute(harness, cut)
-    expect(lastInstanceCount(harness.gl)).toBeLessThanOrEqual(8)
-
-    const resized = frame({ frameId: 505, timeSec: 20.35, viewport: { width: 1920, height: 1080, dpr: 1 } })
-    harness.instance.lifecycle.update({ frame: resized, parameters: harness.parameterFacet, targets: harness.targetFacet })
-    execute(harness, resized, camera(16 / 9, 0.4))
-    expect(lastInstanceCount(harness.gl)).toBeLessThanOrEqual(8)
-
-    const regenerated = frame({ frameId: 506, timeSec: 20.4, contextGeneration: 2, viewport: resized.viewport })
-    harness.instance.lifecycle.update({ frame: regenerated, parameters: harness.parameterFacet, targets: harness.targetFacet })
-    execute(harness, regenerated, camera(16 / 9, 0.4))
-    expect(lastInstanceCount(harness.gl)).toBeLessThanOrEqual(8)
-
-    const discontinuity = frame({
-      frameId: 507,
-      timeSec: 24,
-      contextGeneration: 2,
-      viewport: resized.viewport,
-      audio: { discontinuity: { occurred: true, reason: 'seek', generation: 2 } } as never,
-    })
-    harness.instance.lifecycle.update({ frame: discontinuity, parameters: harness.parameterFacet, targets: harness.targetFacet })
-    execute(harness, discontinuity, camera(16 / 9, 0.4))
-    expect(lastInstanceCount(harness.gl)).toBeLessThanOrEqual(8)
+    run(504, 20.31)
+    run(505, 20.35, { viewport: { width: 1920, height: 1080, dpr: 1 } }, camera(16 / 9, 0.4))
+    run(506, 20.4, { contextGeneration: 2 }, camera(16 / 9, 0.4))
+    run(507, 24, { contextGeneration: 2, audio: beatAudio(24, true) }, camera(16 / 9, 0.4))
     harness.instance.lifecycle.dispose()
     harness.resources.disposeAll()
   })
@@ -555,24 +529,13 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
     expect(draw(4, 15)).toEqual(first)
   })
 
-  it('preserves mirrored pairs while enforcing an odd authored Beam Count during topology morphs', () => {
+  it('preserves mirrored pairs while enforcing an odd authored Laser Count', () => {
     const harness = createHarness({ symmetry: true, beamCount: 7, pattern: 'wideFan' })
-    // Seven beams with symmetry on come out as three mirrored pairs; over a scene of music six distinct fixtures fire.
-    expect(originsOf(sweepBeats(harness, 8, 16)).size).toBe(6)
-
+    const steps = sweepBeats(harness, 8, 16)
+    expect(steps.every(step => litLasers(step) <= 6 && litLasers(step) % 2 === 0)).toBe(true)
     harness.parameters.pattern = 'fullRig'
-    const morph = frame({ frameId: 1000, timeSec: 20 })
-    harness.instance.lifecycle.update({ frame: morph, parameters: harness.parameterFacet, targets: harness.targetFacet })
-    execute(harness, morph)
-    expect(lastInstanceCount(harness.gl)).toBeLessThanOrEqual(6)
-    expect(lastInstanceCount(harness.gl) % 2).toBe(0)
-
-    const morphMid = frame({ frameId: 1001, timeSec: 20.17 })
-    harness.instance.lifecycle.update({ frame: morphMid, parameters: harness.parameterFacet, targets: harness.targetFacet })
-    execute(harness, morphMid)
-    expect(lastInstanceCount(harness.gl)).toBeLessThanOrEqual(6)
-    expect(lastInstanceCount(harness.gl) % 2).toBe(0)
-
+    const after = sweepBeats(harness, 40, 8)
+    expect(after.every(step => litLasers(step) <= 6 && litLasers(step) % 2 === 0)).toBe(true)
     harness.instance.lifecycle.dispose()
     harness.resources.disposeAll()
   })

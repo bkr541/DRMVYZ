@@ -14,21 +14,20 @@ import type {
   Cinema2ModuleUpdateContext,
 } from './Cinema2ModuleContracts'
 import {
-  CINEMA2_AFTERHOURS_MAX_BEAMS,
-  CINEMA2_AFTERHOURS_MIN_BEAMS,
-  CINEMA2_AFTERHOURS_TOPOLOGY_IDS,
-  type Cinema2AfterhoursBeamDescriptor,
+  CINEMA2_AFTERHOURS_MAX_LASERS,
+  CINEMA2_AFTERHOURS_MIN_LASERS,
   type Cinema2AfterhoursRandomSource,
-  type Cinema2AfterhoursTopologyId,
 } from './afterhours/Cinema2AfterhoursDomain'
+import { evaluateCinema2AfterhoursPattern, type Cinema2AfterhoursPatternRay } from './afterhours/Cinema2AfterhoursPatternEngine'
 import {
-  CINEMA2_AFTERHOURS_CUE_SCENE_BEATS,
-  evaluateCinema2AfterhoursCues,
-  type Cinema2AfterhoursCueBeam,
-} from './afterhours/Cinema2AfterhoursCueChoreography'
-import { generateCinema2AfterhoursBeamFrame } from './afterhours/Cinema2AfterhoursGeometry'
+  CINEMA2_AFTERHOURS_DEFAULT_PATTERN_ID,
+  CINEMA2_AFTERHOURS_PATTERN_IDS,
+  getCinema2AfterhoursPattern,
+  isCinema2AfterhoursPatternId,
+} from './afterhours/Cinema2AfterhoursPatternLibrary'
 import {
   CINEMA2_AFTERHOURS_PATTERN_CHANGE_IDS,
+  pickCinema2AfterhoursNextPattern,
   planCinema2AfterhoursShow,
   resolveCinema2AfterhoursCadenceIdentity,
   type Cinema2AfterhoursPatternChangeId,
@@ -84,32 +83,20 @@ export const CINEMA2_AFTERHOURS_NATIVE_PARAMETER_NAMES = Object.freeze([
   'dropAccent',
 ] as const)
 
-const MORPH_DURATION_SEC = 0.34
 /** With no beat tracking (or BPM Sync off) the cues count beats at this steady tempo. */
 const FREE_RUN_BPM = 120
 const DEFAULT_PRIMARY = Object.freeze([0.455, 0.961, 1, 1]) as Cinema2Color
 const DEFAULT_ACCENT = Object.freeze([1, 1, 1, 1]) as Cinema2Color
-const TOPOLOGY_SET = new Set<string>(CINEMA2_AFTERHOURS_TOPOLOGY_IDS)
+const WHITE = Object.freeze([1, 1, 1, 1]) as Cinema2Color
 const TRIGGER_SET = new Set<string>(CINEMA2_AFTERHOURS_TRIGGER_IDS)
 const PATTERN_CHANGE_SET = new Set<string>(CINEMA2_AFTERHOURS_PATTERN_CHANGE_IDS)
 
 type AfterhoursColorMode = 'manual' | 'auto'
 
-interface BeamTransitionState {
-  readonly descriptor: Readonly<Cinema2AfterhoursBeamDescriptor>
-  readonly targetWorld: Cinema2Vector3
-  readonly alpha: number
-}
-
-interface BeamTransition {
-  readonly startedAtSec: number
-  readonly from: ReadonlyMap<string, Readonly<BeamTransitionState>>
-  readonly to: ReadonlyMap<string, Readonly<BeamTransitionState>>
-}
-
 interface FrameConfig {
-  readonly pattern: Cinema2AfterhoursTopologyId
+  readonly pattern: string
   readonly autoPerformance: boolean
+  /** Laser Count (authored as the beamCount parameter): most lasers lit at once. */
   readonly beamCount: number
   readonly symmetry: boolean
   readonly sideLasers: boolean
@@ -149,11 +136,11 @@ function validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2Modu
       `Afterhours native renderer requires the "${property}" parameter.`,
     ))
   }
-  if (module.parameters?.pattern !== undefined && !isTopology(module.parameters.pattern)) {
-    diagnostics.push(diagnostic('CINEMA2_AFTERHOURS_PATTERN_INVALID', '$.parameters.pattern', `Afterhours pattern must be one of: ${CINEMA2_AFTERHOURS_TOPOLOGY_IDS.join(', ')}.`))
+  if (module.parameters?.pattern !== undefined && !isCinema2AfterhoursPatternId(module.parameters.pattern)) {
+    diagnostics.push(diagnostic('CINEMA2_AFTERHOURS_PATTERN_INVALID', '$.parameters.pattern', `Afterhours pattern must be one of: ${CINEMA2_AFTERHOURS_PATTERN_IDS.join(', ')}.`))
   }
-  if (module.parameters?.beamCount !== undefined && !numberInRange(module.parameters.beamCount, CINEMA2_AFTERHOURS_MIN_BEAMS, CINEMA2_AFTERHOURS_MAX_BEAMS)) {
-    diagnostics.push(diagnostic('CINEMA2_AFTERHOURS_BEAM_COUNT_INVALID', '$.parameters.beamCount', `Afterhours Beam Count must be between ${CINEMA2_AFTERHOURS_MIN_BEAMS} and ${CINEMA2_AFTERHOURS_MAX_BEAMS}.`))
+  if (module.parameters?.beamCount !== undefined && !numberInRange(module.parameters.beamCount, CINEMA2_AFTERHOURS_MIN_LASERS, CINEMA2_AFTERHOURS_MAX_LASERS)) {
+    diagnostics.push(diagnostic('CINEMA2_AFTERHOURS_BEAM_COUNT_INVALID', '$.parameters.beamCount', `Afterhours Laser Count must be between ${CINEMA2_AFTERHOURS_MIN_LASERS} and ${CINEMA2_AFTERHOURS_MAX_LASERS}.`))
   }
   for (const property of ['autoPerformance', 'symmetry', 'sideLasers', 'topLasers', 'bpmSync'] as const) {
     if (module.parameters?.[property] !== undefined && typeof module.parameters[property] !== 'boolean') {
@@ -190,9 +177,6 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
     const autoPalette = createAutoPalette(context)
     const randomAdapter = createDomainRandomAdapter(context)
     let config = readFrameConfig(context, autoPalette)
-    let signature = ''
-    let transition: BeamTransition | null = null
-    let settled = new Map<string, Readonly<BeamTransitionState>>()
     let hardCutRequested = false
     let lastTimeSec: number | null = null
     let lastTrackId: string | null | undefined = undefined
@@ -201,24 +185,26 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
     let renderBeams: readonly Cinema2AfterhoursRenderBeam[] = Object.freeze([])
     let lastTriggerEventId: string | null = null
     let pulseStartedAtSec = Number.NEGATIVE_INFINITY
-    let lastAuthoredPattern: Cinema2AfterhoursTopologyId | null = null
+    let lastAuthoredPattern: string | null = null
     let lastPatternChange: Cinema2AfterhoursPatternChangeId | null = null
     let lastPatternCadenceIdentity: string | null = null
-    let manualPatternStep = 0
+    // The pattern Pattern Change has moved to (Manual mode), and the pattern on screen with the beat it started on.
+    let activePattern: string = config.pattern
+    let playingPattern: string | null = null
+    let patternStartBeat = 0
     const cueSeed = String(context.randomness.sample('afterhours-cue-seed'))
     let cueBeat = 0
 
     const resetTransientState = () => {
-      signature = ''
-      transition = null
-      settled = new Map()
       renderBeams = Object.freeze([])
       lastTriggerEventId = null
       pulseStartedAtSec = Number.NEGATIVE_INFINITY
       lastAuthoredPattern = null
       lastPatternChange = null
       lastPatternCadenceIdentity = null
-      manualPatternStep = 0
+      activePattern = config.pattern
+      playingPattern = null
+      patternStartBeat = 0
     }
 
     const provider = Object.freeze({
@@ -238,9 +224,6 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
           beams: renderBeams,
           worldToClipMatrix: execution.camera.viewProjectionMatrix,
           cameraPosition: execution.camera.position,
-          primaryColor: config.primaryColor,
-          accentColor: config.accentColor,
-          accentMix: config.accentMix,
           atmosphere: config.atmosphere,
           masterIntensity: config.masterIntensity,
         })
@@ -280,7 +263,7 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
           const manualCadenceActive = !config.autoPerformance && config.patternChange !== 'off'
 
           if (!manualCadenceActive || patternEdited || cadenceEdited || lastPatternCadenceIdentity == null) {
-            manualPatternStep = 0
+            activePattern = config.pattern
             lastPatternCadenceIdentity = cadenceIdentity
           } else if (
             frame.transport?.playing !== false
@@ -288,7 +271,8 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
             && cadenceIdentity !== lastPatternCadenceIdentity
             && !cadenceIdentity.endsWith(':unavailable')
           ) {
-            manualPatternStep += 1
+            // Pattern Change reached its boundary: move to a random different pattern from the list.
+            activePattern = pickCinema2AfterhoursNextPattern(activePattern, cadenceIdentity, randomAdapter)
             lastPatternCadenceIdentity = cadenceIdentity
           }
 
@@ -296,54 +280,35 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
           lastPatternChange = config.patternChange
 
           const showPlan = planCinema2AfterhoursShow(
-            Object.freeze({ ...config, patternStep: manualPatternStep }),
+            Object.freeze({
+              pattern: config.pattern,
+              autoPerformance: config.autoPerformance,
+              laserLimit: config.beamCount,
+              symmetry: config.symmetry,
+              sideLasers: config.sideLasers,
+              topLasers: config.topLasers,
+              patternChange: config.patternChange,
+              activePattern,
+            }),
             structure,
             randomAdapter,
           )
-          const nextSignature = createGeometrySignature(config, showPlan)
-          if (nextSignature !== signature) {
-            const nextDescriptors = generateCinema2AfterhoursBeamFrame({
-              topologyId: showPlan.topologyId,
-              beamCount: showPlan.beamCount,
-              symmetry: showPlan.symmetry,
-              sideLasers: showPlan.sideLasers,
-              topLasers: showPlan.topLasers,
-              spread: config.spread,
-              variationKey: showPlan.variationKey,
-              random: randomAdapter,
-            })
-            const current = resolveTransitionState(transition, settled, timeSec)
-            const next = descriptorStateMap(nextDescriptors)
-            if (current.size === 0 || !animationActive) {
-              // Nothing to morph from, or time is frozen and a morph would hang half done: show the new layout at once.
-              settled = new Map(next)
-              transition = null
-            } else {
-              transition = {
-                startedAtSec: timeSec,
-                from: current,
-                to: next,
-              }
-            }
-            signature = nextSignature
-            if (showPlan.transitionIntent === 'hardCut') hardCutRequested = true
+          if (animationActive) cueBeat = resolveCinema2AfterhoursCueBeat(frame, timeSec, config.bpmSync) ?? cueBeat
+          const barStart = Math.floor(Math.max(0, cueBeat) / 4) * 4
+          if (playingPattern == null) {
+            // The first pattern after a (re)start follows the song's own bar grid, so a seek replays the same bars.
+            playingPattern = showPlan.patternId
+            patternStartBeat = 0
+          } else if (showPlan.patternId !== playingPattern) {
+            // A new pattern always starts from its own first bar, on the bar line where it took over.
+            playingPattern = showPlan.patternId
+            patternStartBeat = barStart
           }
           if (hardCutRequested) {
-            if (transition) {
-              settled = new Map(transition.to)
-              transition = null
-            }
+            patternStartBeat = barStart
             hardCutRequested = false
           }
-
-          const resolved = limitTransitionStates(resolveTransitionState(transition, settled, timeSec), showPlan.beamCount, showPlan.symmetry)
-          if (transition && transitionProgress(transition, timeSec) >= 1) {
-            settled = new Map(transition.to)
-            transition = null
-          }
-          if (animationActive) cueBeat = resolveCinema2AfterhoursCueBeat(frame, timeSec, config.bpmSync) ?? cueBeat
-          const sceneKey = `${structure.sourceIdentity}:${showPlan.topologyId}:${Math.floor(Math.max(0, cueBeat) / CINEMA2_AFTERHOURS_CUE_SCENE_BEATS)}`
-          renderBeams = buildRenderBeams(resolved, config, showPlan, pulse, { beat: cueBeat, sceneKey, seed: cueSeed })
+          renderBeams = buildRenderBeams(config, showPlan, pulse, Math.max(0, cueBeat - patternStartBeat), cueSeed)
 
           lastTimeSec = timeSec
           lastTrackId = frame.transport?.trackId
@@ -368,15 +333,15 @@ function readFrameConfig(
 ): FrameConfig {
   const colorMode = source.parameters.get('colorMode') === 'auto' ? 'auto' : 'manual'
   return Object.freeze({
-    pattern: isTopology(source.parameters.get('pattern')) ? source.parameters.get('pattern') as Cinema2AfterhoursTopologyId : 'wideFan',
+    pattern: isCinema2AfterhoursPatternId(source.parameters.get('pattern')) ? source.parameters.get('pattern') as string : CINEMA2_AFTERHOURS_DEFAULT_PATTERN_ID,
     // Runtime authority is carried through the canonical target path. The Show
     // Auto Performance may choose topology/presentation, but fixture-bank
     // enables remain hard user authority in the Show Planner.
     autoPerformance: booleanValue(source.parameters.get('autoPerformance'), false),
-    beamCount: clamp(Math.round(numberValue(source.parameters.get('beamCount'), 8)), CINEMA2_AFTERHOURS_MIN_BEAMS, CINEMA2_AFTERHOURS_MAX_BEAMS),
+    beamCount: clamp(Math.round(numberValue(source.parameters.get('beamCount'), CINEMA2_AFTERHOURS_MAX_LASERS)), CINEMA2_AFTERHOURS_MIN_LASERS, CINEMA2_AFTERHOURS_MAX_LASERS),
     symmetry: booleanValue(source.parameters.get('symmetry'), true),
-    sideLasers: booleanValue(source.parameters.get('sideLasers'), false),
-    topLasers: booleanValue(source.parameters.get('topLasers'), false),
+    sideLasers: booleanValue(source.parameters.get('sideLasers'), true),
+    topLasers: booleanValue(source.parameters.get('topLasers'), true),
     spread: clamp01(numberValue(source.parameters.get('spread'), 0.65)),
     colorMode,
     primaryColor: colorMode === 'auto' ? autoPalette.primary : colorValue(source.parameters.get('primaryColor'), DEFAULT_PRIMARY),
@@ -414,161 +379,57 @@ function createDomainRandomAdapter(context: Cinema2ModuleCreateContext): Cinema2
   })
 }
 
-function descriptorStateMap(descriptors: readonly Cinema2AfterhoursBeamDescriptor[]): Map<string, Readonly<BeamTransitionState>> {
-  return new Map(descriptors.map(descriptor => [descriptor.fixtureId, Object.freeze({ descriptor, targetWorld: descriptor.targetWorld, alpha: 1 })]))
-}
-
-function resolveTransitionState(
-  transition: Readonly<BeamTransition> | null,
-  settled: ReadonlyMap<string, Readonly<BeamTransitionState>>,
-  timeSec: number,
-): Map<string, Readonly<BeamTransitionState>> {
-  if (!transition) return new Map(settled)
-  const progress = transitionProgress(transition, timeSec)
-  const eased = smoothstep(progress)
-  const ids = new Set([...transition.from.keys(), ...transition.to.keys()])
-  const result = new Map<string, Readonly<BeamTransitionState>>()
-  for (const fixtureId of ids) {
-    const previous = transition.from.get(fixtureId)
-    const next = transition.to.get(fixtureId)
-    const descriptor = next?.descriptor ?? previous?.descriptor
-    if (!descriptor) continue
-    const fromTarget = previous?.targetWorld ?? next!.targetWorld
-    const toTarget = next?.targetWorld ?? previous!.targetWorld
-    const alpha = lerp(previous?.alpha ?? 0, next?.alpha ?? 0, eased)
-    if (alpha <= 0.0001 && !next) continue
-    result.set(fixtureId, Object.freeze({
-      descriptor,
-      targetWorld: vectorLerp(fromTarget, toTarget, eased),
-      alpha,
-    }))
-  }
-  return result
-}
-
-function limitTransitionStates(
-  states: ReadonlyMap<string, Readonly<BeamTransitionState>>,
-  beamCount: number,
-  symmetry: boolean,
-): ReadonlyMap<string, Readonly<BeamTransitionState>> {
-  const ceiling = clamp(Math.round(beamCount), CINEMA2_AFTERHOURS_MIN_BEAMS, CINEMA2_AFTERHOURS_MAX_BEAMS)
-  if (states.size <= ceiling) return states
-
-  const ranked = [...states.entries()].sort(compareTransitionEntries)
-  if (!symmetry) return new Map(ranked.slice(0, ceiling))
-
-  const pairBudget = Math.floor(ceiling / 2)
-  const pairs = new Map<string, Array<readonly [string, Readonly<BeamTransitionState>]>>()
-  for (const entry of ranked) {
-    const pairId = entry[1].descriptor.symmetry?.pairId
-    if (!pairId) continue
-    const group = pairs.get(pairId) ?? []
-    group.push(entry)
-    pairs.set(pairId, group)
-  }
-
-  const rankedPairs = [...pairs.entries()]
-    .filter(([, entries]) => entries.length >= 2)
-    .sort((left, right) => {
-      const leftScore = left[1].reduce((sum, entry) => sum + entry[1].alpha, 0) / left[1].length
-      const rightScore = right[1].reduce((sum, entry) => sum + entry[1].alpha, 0) / right[1].length
-      if (Math.abs(rightScore - leftScore) > 1e-9) return rightScore - leftScore
-      return left[0].localeCompare(right[0])
-    })
-    .slice(0, pairBudget)
-
-  const selected = rankedPairs
-    .flatMap(([, entries]) => [...entries].sort(compareTransitionEntries).slice(0, 2))
-    .sort(compareTransitionEntries)
-  return new Map(selected)
-}
-
-function compareTransitionEntries(
-  left: readonly [string, Readonly<BeamTransitionState>],
-  right: readonly [string, Readonly<BeamTransitionState>],
-): number {
-  if (Math.abs(right[1].alpha - left[1].alpha) > 1e-9) return right[1].alpha - left[1].alpha
-  if (left[1].descriptor.slot !== right[1].descriptor.slot) return left[1].descriptor.slot - right[1].descriptor.slot
-  return left[0].localeCompare(right[0])
-}
-
 function buildRenderBeams(
-  states: ReadonlyMap<string, Readonly<BeamTransitionState>>,
   config: Readonly<FrameConfig>,
   showPlan: Readonly<Cinema2AfterhoursShowPlan>,
   pulse: number,
-  cue: Readonly<{ beat: number; sceneKey: string; seed: string }>,
+  patternBeat: number,
+  seed: string,
 ): readonly Cinema2AfterhoursRenderBeam[] {
   const pulseAuthority = resolveCinema2AfterhoursPulseAuthority(pulse, config.pulseAmount)
   const blackoutScale = clamp01(1 - showPlan.blackout * config.blackoutAmount)
-  // Motion Amount is how far a burst aims away from home (and how much it sweeps while lit); 0 fires every burst at the home position.
+  // Motion Amount scales how far each laser travels between its pattern endpoints; the default 0.55 plays them as authored and 0 fires every
+  // hit at the step's first endpoint.
   const motion = config.motionAmount > 1e-5
-    ? clamp(clamp01(config.motionAmount) * showPlan.motionScale + pulseAuthority * 0.1, 0, 1.3)
+    ? clamp((clamp01(config.motionAmount) / 0.55) * showPlan.motionScale + pulseAuthority * 0.1, 0, 1.4)
     : 0
-  const cueBeams: Cinema2AfterhoursCueBeam[] = [...states.values()].map(state => cueBeamOf(state.descriptor))
-  const cues = evaluateCinema2AfterhoursCues({
-    beams: cueBeams,
-    beat: cue.beat,
-    sceneKey: cue.sceneKey,
-    seed: cue.seed,
-    intensity: config.directorIntensity,
-    peak: Math.max(config.directorImpact, config.dropAccent),
+  const frame = evaluateCinema2AfterhoursPattern({
+    pattern: getCinema2AfterhoursPattern(showPlan.patternId),
+    beat: patternBeat,
+    seed,
+    symmetry: showPlan.symmetry,
+    spread: clamp01(config.spread * showPlan.spreadScale),
     motion,
+    sideLasers: showPlan.sideLasers,
+    topLasers: showPlan.topLasers,
+    laserLimit: showPlan.laserLimit,
   })
-  const result: Cinema2AfterhoursRenderBeam[] = []
-  for (const [fixtureId, state] of states) {
-    const cueState = cues.get(fixtureId)
-    const gate = cueState?.gate ?? 1
-    const home = applyPerformanceSpread(state.targetWorld, showPlan.spreadScale)
-    const target = cueState
-      ? Object.freeze([
-          clamp(home[0] + cueState.offsetX, -7.8, 7.8),
-          clamp(home[1] + cueState.offsetY, 0.6, 6.8),
-          home[2],
-        ]) as Cinema2Vector3
-      : home
-    const bankIntensity = state.descriptor.bank === 'bottom'
+  return Object.freeze(frame.rays.map(ray => {
+    const bankIntensity = ray.fixtureId.includes('-bottom-') || ray.fixtureId.endsWith('center-00')
       ? showPlan.bottomIntensity
-      : state.descriptor.bank === 'overhead'
+      : ray.fixtureId.includes('-overhead-') || ray.fixtureId.endsWith('center-01')
         ? showPlan.topIntensity
         : showPlan.sideIntensity
-    const intensity = state.descriptor.intensityWeight
-      * bankIntensity
-      * (1 + pulseAuthority * 0.42)
-      * blackoutScale
-      * gate
-    result.push(Object.freeze({
-      fixtureId,
-      originWorld: state.descriptor.originWorld,
-      targetWorld: target,
-      intensity,
-      // The shutter closes the beam completely between bursts.
-      alpha: state.alpha * blackoutScale * gate,
-      accentWeight: stableUnitHash(state.descriptor.symmetry?.pairId ?? fixtureId),
-    }))
-  }
-  return Object.freeze(result)
+    return Object.freeze({
+      fixtureId: ray.fixtureId,
+      originWorld: ray.originWorld,
+      targetWorld: ray.targetWorld,
+      intensity: ray.intensity * bankIntensity * (1 + pulseAuthority * 0.42) * blackoutScale,
+      alpha: blackoutScale,
+      color: rayColor(ray, config),
+      width: ray.width,
+    })
+  }))
 }
 
-function cueBeamOf(descriptor: Readonly<Cinema2AfterhoursBeamDescriptor>): Cinema2AfterhoursCueBeam {
-  const side = descriptor.symmetry?.side === 'left' ? -1 : descriptor.symmetry?.side === 'right' ? 1 : (descriptor.originWorld[0] < 0 ? -1 : 1)
-  return {
-    fixtureId: descriptor.fixtureId,
-    slot: descriptor.slot,
-    unitKey: descriptor.symmetry?.pairId ?? descriptor.fixtureId,
-    side,
-    yawAuthorityDeg: descriptor.scanner.yawAuthorityDeg,
-    pitchAuthorityDeg: descriptor.scanner.pitchAuthorityDeg,
-    topologyId: descriptor.topologyId,
-  }
-}
-
-function applyPerformanceSpread(target: Cinema2Vector3, scale: number): Cinema2Vector3 {
-  return Object.freeze([
-    clamp(target[0] * clamp(scale, 0.56, 1.08), -7.8, 7.8),
-    target[1],
-    target[2],
-  ]) as Cinema2Vector3
+/** Primary beams lean toward the accent colour by Accent Mix (a stable amount per mirrored pair); accent and white roles are exact. */
+function rayColor(ray: Readonly<Cinema2AfterhoursPatternRay>, config: Readonly<FrameConfig>): Cinema2Color {
+  if (ray.color === 'w') return WHITE
+  if (ray.color === 'a') return config.accentColor
+  const accent = clamp01(config.accentMix) * stableUnitHash(ray.pairId)
+  const primary = config.primaryColor
+  const secondary = config.accentColor
+  return Object.freeze([0, 1, 2, 3].map(channel => primary[channel]! * (1 - accent) + secondary[channel]! * accent)) as unknown as Cinema2Color
 }
 
 /**
@@ -595,22 +456,6 @@ export function resolveCinema2AfterhoursCueBeat(
     // Beat tracking has not resolved yet (or never will for this source): keep cueing on the clock rather than going dark.
   }
   return Number.isFinite(timeSec) ? (timeSec * FREE_RUN_BPM) / 60 : null
-}
-
-function transitionProgress(transition: Readonly<BeamTransition>, timeSec: number): number {
-  return clamp01((timeSec - transition.startedAtSec) / MORPH_DURATION_SEC)
-}
-
-function createGeometrySignature(config: Readonly<FrameConfig>, showPlan: Readonly<Cinema2AfterhoursShowPlan>): string {
-  return [
-    showPlan.topologyId,
-    showPlan.variationKey,
-    showPlan.beamCount,
-    showPlan.symmetry ? 1 : 0,
-    showPlan.sideLasers ? 1 : 0,
-    showPlan.topLasers ? 1 : 0,
-    config.spread.toFixed(4),
-  ].join('|')
 }
 
 function resolveShowPlannerStructure(
@@ -810,14 +655,6 @@ function resolveTimeSec(frame: Readonly<Cinema2ModuleUpdateContext['frame']>): n
   return typeof transportTime === 'number' && Number.isFinite(transportTime) ? transportTime : frame.elapsedTimeSec
 }
 
-function vectorLerp(a: Cinema2Vector3, b: Cinema2Vector3, amount: number): Cinema2Vector3 {
-  return Object.freeze([
-    lerp(a[0], b[0], amount),
-    lerp(a[1], b[1], amount),
-    lerp(a[2], b[2], amount),
-  ]) as Cinema2Vector3
-}
-
 function stableUnitHash(value: string): number {
   let hash = 2166136261
   for (let index = 0; index < value.length; index += 1) {
@@ -825,10 +662,6 @@ function stableUnitHash(value: string): number {
     hash = Math.imul(hash, 16777619)
   }
   return (hash >>> 0) / 4294967295
-}
-
-function isTopology(value: unknown): value is Cinema2AfterhoursTopologyId {
-  return typeof value === 'string' && TOPOLOGY_SET.has(value)
 }
 
 function isTrigger(value: unknown): value is Cinema2AfterhoursTriggerId {
@@ -863,10 +696,6 @@ function numberInRange(value: unknown, min: number, max: number): boolean {
 
 function diagnostic(code: string, path: string, message: string): Cinema2ModuleDiagnostic {
   return { code, path, message }
-}
-
-function lerp(a: number, b: number, amount: number): number {
-  return a + (b - a) * amount
 }
 
 function smoothstep(value: number): number {

@@ -416,17 +416,17 @@ describe('Cinema 2.0 Afterhours 2.0 Stage 7 Audio Director, camera, and trail ch
     expect(buildTrailPersistence).toBeLessThan(0.95)
 
     const baselinePlan = planCinema2AfterhoursShow({
-      pattern: 'wideFan', autoPerformance: true, beamCount: 16, symmetry: true, sideLasers: true, topLasers: true, patternChange: 'bar4',
+      pattern: 'wideFan', autoPerformance: true, laserLimit: 16, symmetry: true, sideLasers: true, topLasers: true, patternChange: 'bar4',
     }, {
       sourceIdentity: 'afterhours-stage5-track', absoluteBarIndex: 5, phraseIdentity: 'phrase-2', dropIdentity: null, hardCutIntent: false,
     }, deterministicRandom())
     const choreographedPlan = planCinema2AfterhoursShow({
-      pattern: 'wideFan', autoPerformance: true, beamCount: 16, symmetry: true, sideLasers: true, topLasers: true, patternChange: 'bar4',
+      pattern: 'wideFan', autoPerformance: true, laserLimit: 16, symmetry: true, sideLasers: true, topLasers: true, patternChange: 'bar4',
     }, {
       sourceIdentity: 'afterhours-stage5-track', absoluteBarIndex: 5, phraseIdentity: 'phrase-2', dropIdentity: null, hardCutIntent: false, performance,
     }, deterministicRandom())
 
-    expect(choreographedPlan.beamCount).toBeLessThan(baselinePlan.beamCount)
+    expect(choreographedPlan.laserLimit).toBeLessThan(baselinePlan.laserLimit)
     expect(choreographedPlan.spreadScale).toBeLessThan(baselinePlan.spreadScale)
     expect(choreographedPlan.bottomIntensity).toBeGreaterThan(1)
     expect(choreographedPlan.sideIntensity).toBeGreaterThan(1)
