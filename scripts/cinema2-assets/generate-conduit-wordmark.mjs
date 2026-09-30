@@ -54,7 +54,7 @@ const LIP = { back: -0.2, front: -0.086, bevel: 0.032, grow: 0.045, bevelSegment
 const PLATE = { back: -0.1, front: -0.078 }
 /** Glow bands: `width` = how far the glow reaches out from an edge; they lie just proud of the plate (and of the lip's front, round it). */
 /** `peak` scales the rim's light against the wall LEDs' (the logo reads as white letters edged with light, not as a lamp). */
-const RIM = { depth: 0.01, width: 0.05, spacing: 0.03, lipWidth: 0.035, fade: 0.08, peak: 0.5 }
+const RIM = { depth: 0.01, width: 0.05, spacing: 0.04, lipWidth: 0.035, fade: 0.08, peak: 0.5 }
 /** How far up a wall (from its foot) the glow climbs before it fades out. */
 const WALL_GLOW_REACH = 0.09
 /** The walls' glow at their very foot, relative to the rim's brightest line. */

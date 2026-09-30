@@ -67,7 +67,7 @@ const withPhase = (mesh, phase) => ({ ...mesh, phases: Array.from({ length: mesh
 const glowRing = (r0, r1, y0, y1) => lathe(Array.from({ length: 9 }, (_, k) => {
   const a = (k / 8) * Math.PI
   return [r0 + (r1 - r0) * Math.sin(a), y0 + ((y1 - y0) * (1 - Math.cos(a))) / 2]
-}), 48, null)
+}), 36, null)
 
 function buildLeftTube(spec) {
   const flange = v3(spec.flange)
@@ -99,9 +99,9 @@ function buildLeftTube(spec) {
   }
   const dirAt = (f, theta) => f.front.clone().multiplyScalar(Math.cos(theta)).addScaledVector(f.side, Math.sin(theta))
   const tangentialAt = (f, theta) => f.front.clone().multiplyScalar(-Math.sin(theta)).addScaledVector(f.side, Math.cos(theta))
-  const rowsFor = (s0, s1, pitch = 0.03) => Math.max(1, Math.ceil((s1 - s0) / pitch))
+  const rowsFor = (s0, s1, pitch = 0.045) => Math.max(1, Math.ceil((s1 - s0) / pitch))
   /** A surface of revolution about the pipe's spine between s0 and s1, over angles a0..a1, at radius `radius(s, theta)`. */
-  const sweep = (s0, s1, a0, a1, radius, cols, outward = (f, theta) => dirAt(f, theta), pitch = 0.03) => {
+  const sweep = (s0, s1, a0, a1, radius, cols, outward = (f, theta) => dirAt(f, theta), pitch = 0.045) => {
     const rows = rowsFor(s0, s1, pitch)
     const frames = Array.from({ length: rows + 1 }, (_, r) => frameAt(s0 + ((s1 - s0) * r) / rows))
     const thetaOf = c => a0 + ((a1 - a0) * c) / cols
@@ -162,7 +162,7 @@ function buildLeftTube(spec) {
   const windows = []
   for (let k = 0; k < count; k += 1) {
     const a = s0 + 0.02 + k * pitch, b = a + pitch - LED.rib
-    const rows = 14, cols = 12
+    const rows = 10, cols = 10
     const frames = Array.from({ length: rows + 1 }, (_, r) => frameAt(a + ((b - a) * r) / rows))
     // A domed bar with rounded ends: the width and the dome pinch in over the last few rows at each end.
     const pinch = r => Math.sqrt(Math.max(0, 1 - Math.pow((2 * r) / rows - 1, 8)))
@@ -188,7 +188,7 @@ function buildLeftTube(spec) {
     [0.46, 0.22], [0.45, 0.3], [0.41, 0.33],
     [0.3, 0.33], [0.28, 0.35], [0.28, 0.45], [0.25, 0.47], [R * 1.02, FLANGE_LENGTH],
   ]
-  const flangeParts = [lathe(flangeProfile, 64)]
+  const flangeParts = [lathe(flangeProfile, 48)]
   const hex = lathe([[0, 0], [0.034, 0], [0.034, 0.03], [0.026, 0.042], [0, 0.042]], 6)
   for (let k = 0; k < 16; k += 1) {
     const angle = (k / 16) * Math.PI * 2
@@ -208,7 +208,7 @@ function buildLeftTube(spec) {
     [R * 1.22, 0.855 * L], [R * 1.22, 0.9 * L],
     [R * 1.48, 0.905 * L], [R * 1.62, 0.925 * L], [R * 1.62, 1.0 * L - SINK * 0.5], [R * 1.4, 1.0 * L - SINK * 0.3], [R * 1.4, L + 0.05], [R * 0.9, L + 0.05],
   ]
-  const couplerParts = [withPhase(lathe(couplerProfile, 56), (i, mesh) => couplerPhase(Math.min(L, Math.max(0, mesh.positions[i * 3 + 1]))))]
+  const couplerParts = [withPhase(lathe(couplerProfile, 44), (i, mesh) => couplerPhase(Math.min(L, Math.max(0, mesh.positions[i * 3 + 1]))))]
   // Slotted blocks over the first gap; the glow shows between them.
   const block = roundedBox(0.05, 0.105 * L, 0.05, 0.012)
   for (let k = 0; k < 10; k += 1) {

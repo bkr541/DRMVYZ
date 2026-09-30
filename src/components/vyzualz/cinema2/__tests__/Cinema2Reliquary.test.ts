@@ -86,16 +86,20 @@ describe('RELIQUARY preset', () => {
     expect(module.parameterBindings?.glowReactivity).toEqual({ $ref: byLabel('Master Intensity')?.id })
   })
 
-  it('places the faceted crystal logo (both parts clear glass), the golden tree and the forest in one three-scene module, none spinning', () => {
+  it('places the cut crystal logo (clear glass, no outline ring), the golden tree and the forest in one three-scene module, none spinning', () => {
     const module = manifest.modules?.[0] as Readonly<Cinema2ModuleManifest>
     expect(module.id).toBe(CINEMA2_RELIQUARY_MODULE_ID)
     const instances = module.config?.instances as { asset: string; node: string; spin?: boolean }[]
     expect(instances.map(instance => instance.asset).sort()).toEqual(['cinema2-dvydrm-logo-faceted', 'cinema2-golden-roots', 'cinema2-reliquary-trees'].sort())
     for (const instance of instances) expect(instance.spin, `${instance.asset} does not spin`).not.toBe(true)
-    for (const part of ['outline', 'crystal']) {
-      expect(module.parameters?.[`${part}.transmission`]).toBeGreaterThanOrEqual(0.8) // mostly clear glass (fully clear refracts the dark stage and reads black)
-      expect(module.parameterBindings?.[`${part}.transmission`]).toEqual({ $ref: byLabel('Crystal Clarity')?.id })
-    }
+    expect(module.parameters?.['crystal.transmission']).toBeGreaterThanOrEqual(0.8) // mostly clear glass (fully clear refracts the dark stage and reads black)
+    expect(module.parameterBindings?.['crystal.transmission']).toEqual({ $ref: byLabel('Crystal Clarity')?.id })
+    // The mockup's crystal is the cloud itself: no separate outline ring in the asset or the preset.
+    expect(module.config?.parts).not.toContain('outline')
+    expect(Object.keys(module.parameters ?? {}).some(key => key.startsWith('outline.'))).toBe(false)
+    const logo = readFileSync(resolve(process.cwd(), 'public/cinema2/models/dvydrm-logo-faceted.glb'))
+    const logoJson = JSON.parse(logo.subarray(20, 20 + logo.readUInt32LE(12)).toString('utf8')) as { materials: { name: string }[] }
+    expect(logoJson.materials.map(material => material.name)).toEqual(['crystal'])
     expect(cinema2ThreeSceneModuleDefinition.validate?.(module)).toEqual([])
     const nodeIds = new Set((manifest.scene?.nodes ?? []).map(node => node.id))
     for (const instance of instances) expect(nodeIds.has(instance.node as never)).toBe(true)

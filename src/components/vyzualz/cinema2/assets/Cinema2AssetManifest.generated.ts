@@ -11,14 +11,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/conduit-chamber.glb",
-        "bytes": 4896752,
-        "triangles": 105556
+        "bytes": 7062324,
+        "triangles": 142240
       }
     },
     "gpuBytes": {
-      "high": 4892096,
-      "medium": 4892096,
-      "low": 4892096
+      "high": 7053320,
+      "medium": 7053320,
+      "low": 7053320
     }
   },
   {
@@ -30,14 +30,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/conduit-tubes.glb",
-        "bytes": 1130416,
-        "triangles": 31200
+        "bytes": 3651724,
+        "triangles": 74800
       }
     },
     "gpuBytes": {
-      "high": 1109728,
-      "medium": 1109728,
-      "low": 1109728
+      "high": 3630880,
+      "medium": 3630880,
+      "low": 3630880
     }
   },
   {
@@ -49,14 +49,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/conduit-wordmark.glb",
-        "bytes": 3396360,
-        "triangles": 59122
+        "bytes": 5070932,
+        "triangles": 103450
       }
     },
     "gpuBytes": {
-      "high": 3391660,
-      "medium": 3391660,
-      "low": 3391660
+      "high": 5063020,
+      "medium": 5063020,
+      "low": 5063020
     }
   },
   {
@@ -87,14 +87,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/dvydrm-logo-faceted.glb",
-        "bytes": 520764,
-        "triangles": 12732
+        "bytes": 2709024,
+        "triangles": 75366
       }
     },
     "gpuBytes": {
-      "high": 518780,
-      "medium": 518780,
-      "low": 518780
+      "high": 2707788,
+      "medium": 2707788,
+      "low": 2707788
     }
   },
   {

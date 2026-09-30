@@ -31,20 +31,27 @@ import {
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const sourcePath = join(root, 'scripts/cinema2-assets/sources/dvydrm-logo-master.svg')
 /**
- * `--faceted` builds the cut-crystal variant (RELIQUARY's clear crystal logo) instead of the smooth pearl: the same outline and rounded profile,
- * but with larger facets, the profile cut into flat bands, a little seeded jitter so neighbouring facets catch the light differently, and flat
- * shading - so a transmissive material reads as cut glass. Written to dvydrm-logo-faceted.glb unless an output path is given.
+ * `--faceted` builds the cut-crystal variant (RELIQUARY's clear crystal logo, used by no other preset) instead of the smooth pearl: a thick
+ * glass ribbon like the owner's production mockup - a flat table on top, three flat cut bands round every edge (each band catches the light on
+ * its own, so the edges sparkle) and straight side walls - with no separate outer ring (the mockup's crystal is the cloud itself). Written to
+ * dvydrm-logo-faceted.glb unless an output path is given.
  */
 const FACETED = process.argv.includes('--faceted')
 const outputArgument = process.argv.slice(2).find(argument => !argument.startsWith('--'))
 const outputPath = outputArgument ? resolve(outputArgument) : join(root, FACETED ? 'public/cinema2/models/dvydrm-logo-faceted.glb' : 'public/cinema2/models/dvydrm-logo.glb')
-/** Cut-crystal facet sizing and profile (with --faceted). */
-const FACETS = { boundarySpacing: 0.03, interiorSpacing: 0.075, jitter: 0.0025, bands: [[0, 0], [0.3, 0.52], [0.72, 0.88], [1, 1]] }
+/**
+ * The cut crystal (with --faceted): `depth` of the straight side wall, `bevel` how far the cut bands reach in from the edge (and down from the
+ * table), in `bands` flat steps. The crease angle is below one band's turn, so every band shades flat and keeps a crisp edge.
+ */
+const CUT = { depth: 0.05, bevel: 0.045, bands: 4, creaseAngle: (15 * Math.PI) / 180 }
 
 const WIDTH_UNITS = 2
 const SAMPLES_PER_CURVE = 3
-/** The crystal is smooth-shaded, so its contours are sampled much more finely than the ring's or the rounded edge would show kinks. */
-const CRYSTAL_SAMPLES_PER_CURVE = 16
+/**
+ * The crystal is smooth-shaded along its length, so its contours are sampled much more finely than the ring's or the rounded edge would show
+ * kinks (the cut crystal a little less finely: its flat bands hide small kinks, and its extruded bevel multiplies every sample).
+ */
+const CRYSTAL_SAMPLES_PER_CURVE = FACETED ? 10 : 16
 const CREASE_ANGLE = (38 * Math.PI) / 180
 
 /** The gold ring: extrusion depth (world units at 2 units wide) and bevel. */
@@ -106,6 +113,15 @@ function surfaceFilm(x, y) {
   return Math.min(1, Math.max(0, 0.5 + patch * FILM.patchAmount))
 }
 
+/** The cut-crystal ribbon (with --faceted): a bevelled extrusion whose bevel is cut into flat bands. */
+function buildCutCrystal() {
+  const shapes = [...nestedShapes(bodyContours, toWorld), ...nestedShapes(starContours, toWorld)]
+  const mesh = buildExtrusion(shapes, { depth: CUT.depth, bevel: CUT.bevel, creaseAngle: CUT.creaseAngle, bevelSegments: CUT.bands })
+  const films = new Float32Array(mesh.positions.length / 3)
+  for (let i = 0; i < films.length; i += 1) films[i] = surfaceFilm(mesh.positions[i * 3], mesh.positions[i * 3 + 1])
+  return { ...mesh, films, stats: [] }
+}
+
 function buildCrystal() {
   const out = { positions: [], normals: [], films: [], indices: [], stats: [] }
   const options = { relief: CRYSTAL, faceted: FACETED ? FACETS : null, film: surfaceFilm, filmSide: FILM.side, smallShapeArea: SMALL_SHAPE_AREA }
@@ -114,10 +130,12 @@ function buildCrystal() {
   return { positions: new Float32Array(out.positions), normals: new Float32Array(out.normals), films: new Float32Array(out.films), indices: Uint32Array.from(out.indices), stats: out.stats }
 }
 
-const meshes = [
-  { name: 'outline', material: MATERIALS.outline, ...buildOutline() },
-  { name: 'crystal', material: MATERIALS.crystal, ...buildCrystal() },
-]
+const meshes = FACETED
+  ? [{ name: 'crystal', material: MATERIALS.crystal, ...buildCutCrystal() }]
+  : [
+      { name: 'outline', material: MATERIALS.outline, ...buildOutline() },
+      { name: 'crystal', material: MATERIALS.crystal, ...buildCrystal() },
+    ]
 
 // ── Binary glTF ──────────────────────────────────────────────────────────────
 const binaryChunks = []
@@ -182,5 +200,5 @@ writeFileSync(outputPath, Buffer.concat([header, chunkHeader(jsonChunk.length, 0
 
 console.log(`Wrote ${outputPath}`)
 for (const mesh of meshes) console.log(`  ${mesh.name}: ${mesh.indices.length / 3} triangles, ${mesh.positions.length / 3} vertices`)
-for (const stat of meshes[1].stats) console.log(`  crystal shape${stat.small ? ' (small)' : ''}: ${stat.points} points, ${stat.facets} facets, area ${(stat.areaRatio * 100).toFixed(2)}%`)
+for (const stat of meshes.at(-1).stats) console.log(`  crystal shape${stat.small ? ' (small)' : ''}: ${stat.points} points, ${stat.facets} facets, area ${(stat.areaRatio * 100).toFixed(2)}%`)
 console.log(`  total ${triangles} triangles, logo ${WIDTH_UNITS} x ${(((maxY - minY) * scale)).toFixed(3)} units, ${(byteLength / 1024).toFixed(0)} KB`)

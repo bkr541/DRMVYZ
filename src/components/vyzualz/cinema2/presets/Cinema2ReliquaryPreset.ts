@@ -114,14 +114,14 @@ const DEFAULT_BACKGROUND = color(0.01, 0.008, 0.007)
 const DEFAULT_GLOW = color(1, 0.54, 0.28)
 const DEFAULT_CUE = color(0.94, 0.96, 1)
 const DEFAULT_STROBE = color(1, 1, 1)
-const CRYSTAL_ROUGHNESS = 0.08
+const CRYSTAL_ROUGHNESS = 0.03
 const ROOT_ROUGHNESS = 0.24
 /**
- * Cut crystal, tuned in real Chrome against the owner's reference: mostly clear (fully clear glass refracts the dark stage and reads black),
- * a cool mid-grey body (a white body clips flat under the spots and hides the facets), a diamond-like index, dispersion so the facets split
- * bright light into rainbows, and a faint iridescent film for spectral fringes on the facet edges.
+ * Cut crystal, tuned against the owner's production mockup: mostly clear (fully clear glass refracts the dark stage and reads black), a bright
+ * cool-white body (with the HDR chain it no longer clips flat under the spots, so the cut bands stay readable), a diamond-like index,
+ * dispersion so the cuts split bright light into rainbows, and a faint iridescent film for spectral fringes on the cut edges.
  */
-const CRYSTAL_BODY = color(0.62, 0.63, 0.66)
+const CRYSTAL_BODY = color(0.9, 0.92, 0.95)
 const CRYSTAL_IRIDESCENCE = 0.4
 const CRYSTAL_CLARITY = 0.9
 const CRYSTAL_IOR = 2.2
@@ -138,7 +138,7 @@ const GLOW_STRENGTH = 2.2
  * lighting, and a part they are not hitting falls into shadow (the owner's mockups). The gold a little so it reads as warm polished metal, and
  * the dark bark almost none (the shared studio environment otherwise lights it grey).
  */
-const CRYSTAL_ENVIRONMENT = 1.1
+const CRYSTAL_ENVIRONMENT = 1.8
 const GOLD_ENVIRONMENT = 0.45
 /**
  * The glowing gold (the tree vines and their buds) takes much less: mirroring the white studio environment it reads pale cream, and the glow,
@@ -211,8 +211,8 @@ const PARAMETERS = Object.freeze([
   }),
   floatParameter(CINEMA2_RELIQUARY_GLOW_INTENSITY_ID, 'Glow Intensity', 'How brightly the golden roots, branches and tree vines glow.', GLOW_STRENGTH, 0, 6, 0.05, 'design', 2, 'Glow'),
   floatParameter(CINEMA2_RELIQUARY_CRYSTAL_CLARITY_ID, 'Crystal Clarity', 'How see-through the crystal logo is: 1 is fully clear (it then shows the dark stage through it), 0 an opaque polished stone (medium and high quality; low is always opaque).', CRYSTAL_CLARITY, 0, 1, 0.01, 'design', 5, 'Material'),
-  floatParameter(CINEMA2_RELIQUARY_CRYSTAL_SPARKLE_ID, 'Crystal Sparkle', 'How strongly the crystal\'s facets split the light into rainbows.', CRYSTAL_SPARKLE, 0, 12, 0.1, 'design', 6, 'Material'),
-  floatParameter(CINEMA2_RELIQUARY_CRYSTAL_ROUGHNESS_ID, 'Crystal Roughness', 'How sharp the reflections on the crystal facets are: 0 is a flawless polish, higher frosts it.', CRYSTAL_ROUGHNESS, 0, 1, 0.01, 'design', 7, 'Material'),
+  floatParameter(CINEMA2_RELIQUARY_CRYSTAL_SPARKLE_ID, 'Crystal Sparkle', 'How strongly the crystal\'s cut edges split the light into rainbows.', CRYSTAL_SPARKLE, 0, 12, 0.1, 'design', 6, 'Material'),
+  floatParameter(CINEMA2_RELIQUARY_CRYSTAL_ROUGHNESS_ID, 'Crystal Roughness', 'How sharp the reflections on the crystal are: 0 is a flawless polish, higher frosts it.', CRYSTAL_ROUGHNESS, 0, 1, 0.01, 'design', 7, 'Material'),
   floatParameter(CINEMA2_RELIQUARY_ROOT_ROUGHNESS_ID, 'Root Roughness', 'How sharp the reflections on the golden roots and vines are.', ROOT_ROUGHNESS, 0, 1, 0.01, 'design', 8, 'Material'),
   floatParameter(CINEMA2_RELIQUARY_REFLECTION_ID, 'Environment Reflection', 'How strongly the studio environment reflects in the crystal and the gold.', 1, 0, 2, 0.01, 'design', 9, 'Material'),
   floatParameter(CINEMA2_RELIQUARY_HAZE_ID, 'Haze Density', 'How thick the haze in the air is. It is what turns the overhead lights and the strobe into visible beams and lets the forest show against the back light.', 0.03, 0, 0.2, 0.002, 'effects', 1, 'Atmosphere'),
@@ -220,7 +220,7 @@ const PARAMETERS = Object.freeze([
   floatParameter(CINEMA2_RELIQUARY_BLOOM_ID, 'Bloom', 'Soft light spilling around the glowing roots, the strobe and the crystal\'s highlights.', 0.9, 0, 3, 0.05, 'effects', 3, 'Post'),
   floatParameter(CINEMA2_RELIQUARY_FINISH_ID, 'Cinematic Finish', 'Amount of filmic tone curve, grade, vignette and grain.', 1, 0, 1, 0.05, 'effects', 4, 'Post'),
   colorParameter(CINEMA2_RELIQUARY_BACKGROUND_ID, 'Background', 'The color of the dark behind the forest.', DEFAULT_BACKGROUND, 1, 'Stage Colors'),
-  colorParameter(CINEMA2_RELIQUARY_CRYSTAL_TINT_ID, 'Crystal Color', 'The crystal logo\'s body. The default cool grey keeps the facets crisp under the lights; lighter turns it milky, darker smokier, and any hue colors it.', CRYSTAL_BODY, 2, 'Logo Colors'),
+  colorParameter(CINEMA2_RELIQUARY_CRYSTAL_TINT_ID, 'Crystal Color', 'The crystal logo\'s body. The default bright cool white reads as clear cut glass under the lights; darker turns it smoky, and any hue colors it.', CRYSTAL_BODY, 2, 'Logo Colors'),
   colorParameter(CINEMA2_RELIQUARY_ROOT_TINT_ID, 'Root Gold', 'Tints the golden roots, branches and the vines round the trees.', color(1, 1, 1), 3, 'Tree Colors'),
   colorParameter(CINEMA2_RELIQUARY_LEAF_TINT_ID, 'Leaf Gold', 'Tints the golden leaves and the buds on the tree vines.', color(1, 1, 1), 4, 'Tree Colors'),
   colorParameter(CINEMA2_RELIQUARY_GLOW_COLOR_ID, 'Glow Color', 'The color of the light the roots, branches and vines glow with, and of the warm rim light on the forest.', DEFAULT_GLOW, 5, 'Tree Colors'),
@@ -452,18 +452,7 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     version: 1,
     enabled: true,
     parameters: Object.freeze({
-      // The whole logo (outline ring and body) is one clear crystal: both parts read the same controls.
-      'outline.color': CRYSTAL_BODY,
-      'outline.iridescence': CRYSTAL_IRIDESCENCE,
-      'outline.iridescenceThicknessMin': 300,
-      'outline.iridescenceThicknessMax': 600,
-      'outline.roughness': CRYSTAL_ROUGHNESS,
-      'outline.metalness': 0,
-      'outline.transmission': CRYSTAL_CLARITY,
-      'outline.ior': CRYSTAL_IOR,
-      'outline.thickness': CRYSTAL_THICKNESS,
-      'outline.dispersion': CRYSTAL_SPARKLE,
-      'outline.environmentIntensity': CRYSTAL_ENVIRONMENT,
+      // The crystal logo: one cut-glass ribbon (the faceted asset has no separate outline ring, like the owner's mockup).
       'crystal.color': CRYSTAL_BODY,
       'crystal.iridescence': CRYSTAL_IRIDESCENCE,
       'crystal.iridescenceThicknessMin': 300,
@@ -495,10 +484,6 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       glowColor: DEFAULT_GLOW,
     }),
     parameterBindings: Object.freeze({
-      'outline.color': cinema2Ref(CINEMA2_RELIQUARY_CRYSTAL_TINT_ID),
-      'outline.roughness': cinema2Ref(CINEMA2_RELIQUARY_CRYSTAL_ROUGHNESS_ID),
-      'outline.transmission': cinema2Ref(CINEMA2_RELIQUARY_CRYSTAL_CLARITY_ID),
-      'outline.dispersion': cinema2Ref(CINEMA2_RELIQUARY_CRYSTAL_SPARKLE_ID),
       'crystal.color': cinema2Ref(CINEMA2_RELIQUARY_CRYSTAL_TINT_ID),
       'crystal.roughness': cinema2Ref(CINEMA2_RELIQUARY_CRYSTAL_ROUGHNESS_ID),
       'crystal.transmission': cinema2Ref(CINEMA2_RELIQUARY_CRYSTAL_CLARITY_ID),
@@ -522,7 +507,7 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         Object.freeze({ asset: CINEMA2_GOLDEN_ROOTS_ASSET_ID, node: CINEMA2_RELIQUARY_ROOTS_NODE_ID }),
         Object.freeze({ asset: CINEMA2_RELIQUARY_TREES_ASSET_ID, node: CINEMA2_RELIQUARY_TREES_NODE_ID }),
       ]),
-      parts: Object.freeze(['outline', 'crystal', 'roots', 'veins', 'leaves', 'vines', 'buds', 'bark']),
+      parts: Object.freeze(['crystal', 'roots', 'veins', 'leaves', 'vines', 'buds', 'bark']),
       // What glows, and how much of the glow each part takes: the thin veins and the tree vines carry it, the leaves and buds catch it,
       // and the gold wood itself warms a little. The dark bark and the crystal do not glow.
       glow: Object.freeze({ veins: 1, vines: 1.4, buds: 1.1, leaves: 0.55, roots: 0.12 }),
@@ -530,7 +515,7 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       hdr: true,
       // The golden tree's wood, veins and leaves cast shadows onto the crystal from the shadow-casting cue spots. The forest does not cast: it is
       // outside those cones, and as one merged mesh it would be drawn into every shadow map for nothing.
-      shadows: Object.freeze({ cast: Object.freeze(['roots', 'veins', 'leaves']), receive: Object.freeze(['outline', 'crystal', 'roots']) }),
+      shadows: Object.freeze({ cast: Object.freeze(['roots', 'veins', 'leaves']), receive: Object.freeze(['crystal', 'roots']) }),
       environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
       // Two faint panels high front-left and back-right: just enough for the crystal's facets and the gold to catch a band between cues.
       panels: Object.freeze([

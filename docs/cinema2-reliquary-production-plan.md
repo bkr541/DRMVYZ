@@ -1,7 +1,7 @@
 # RELIQUARY: production plan
 
 **Date:** 2026-09-30
-**Status:** Phase 1 built (2026-09-30), awaiting the owner's review in the app. Phases 2-7 not started.
+**Status:** Phases 1 and 2 built (2026-09-30), awaiting the owner's review in the app. Phases 3-7 not started.
 
 **Related:**
 - `docs/cinema2-reliquary-cinematic-plan.md` is the earlier plan (Stage 1 steps 1-7 done, step 8 shadows blocked). This document takes over from it.
@@ -121,6 +121,24 @@ Still open for later phases: the vines are thin tubes (phase 4); the halos are m
 3. **Material.** Retune the glass: high transmission, low roughness, a slightly cool white body, a little dispersion for rainbow edges, and a higher environment intensity on the crystal only.
 4. **Something to refract.** Place a bright panel light or light shaft behind and above the logo, so the glass refracts light instead of the dark forest. This ties in with phase 5's light shaft.
 5. **Budget.** Keep the asset within the 150k-triangle limit (`npm run assets:check`).
+
+**Result (2026-09-30):** built; checked in the render harness against the mockup. Not yet reviewed by the owner in the app.
+
+- **Geometry:** `generate-dvydrm-logo.mjs --faceted` now builds a thick cut-glass ribbon: a flat top, four flat cut bands round every edge reaching 0.045 in, and 0.05-deep straight side walls. It replaces the jittered triangle facets. Tried and rejected: a finer gem-cut relief, which sparkled but read as grey glitter.
+- **Outer ring:** removed. The faceted asset has only the `crystal` part now, and RELIQUARY no longer sets or binds any `outline.*` property.
+- **Material:**
+  - body (0.9, 0.92, 0.95) (was mid-grey 0.62);
+  - roughness 0.03 (was 0.08);
+  - environment 1.8 (was 1.1);
+  - clarity kept at 0.9.
+
+  A white body used to clip flat on 8-bit targets; with the HDR chain it keeps the cut bands readable.
+- **Control descriptions:** Crystal Color, Crystal Sparkle and Crystal Roughness updated for the cut ribbon.
+- **Shared asset:** GO-TO's smooth logo (`dvydrm-logo.glb`) is byte-identical after regeneration.
+- **Budget:** the logo went from 31k to 75k triangles (2.6 MB). Regenerating the asset manifest, which had been committed out of date, showed CONDUIT at 21.3 MB against its 20.1 MB low-tier asset budget. CONDUIT's tubes (coarser sweep and turned-part segments) and its wordmark glow bands (sample spacing 0.03 → 0.04) were trimmed with no visible change, and every preset is now within budget (`npm run assets:check` passes).
+- **Tests:** the RELIQUARY test checks there's no outline part, in the preset or the asset. The full Cinema 2.0 suite shows the same failures as the committed code.
+
+Deferred: item 4, a bright light for the glass to refract. The ribbon already reads bright, and phase 5's light shaft will add it. Still short of the mockup: its crystal is clearer, with bright edges and darker, see-through ribbon centres, where ours is more evenly white. Tune clarity and environment in phase 7 once the scene around it is lit.
 
 **Done when:**
 - The logo reads as clear bright glass with a smooth bevel.
