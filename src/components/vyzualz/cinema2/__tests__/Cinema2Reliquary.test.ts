@@ -140,7 +140,7 @@ describe('RELIQUARY preset', () => {
 })
 
 describe('RELIQUARY assets', () => {
-  it('ships the forest and the faceted crystal logo as registered, licensed models; the forest has bark, vines and buds with a glow phase', () => {
+  it('ships the forest and the faceted crystal logo as registered, licensed models; the forest has textured bark, vines and buds with a glow phase', () => {
     for (const id of ['cinema2-reliquary-trees', 'cinema2-dvydrm-logo-faceted']) {
       expect(cinema2ThreeAssetRegistry.has(id)).toBe(true)
       expect(CINEMA2_ASSET_RECORDS.find(entry => entry.id === id)).toMatchObject({ kind: 'model', license: 'generated-in-house' })
@@ -149,6 +149,13 @@ describe('RELIQUARY assets', () => {
     const json = JSON.parse(glb.subarray(20, 20 + glb.readUInt32LE(12)).toString('utf8')) as { materials: { name: string }[]; meshes: { primitives: { attributes: Record<string, number> }[] }[] }
     expect(new Set(json.materials.map(material => material.name))).toEqual(new Set(['bark', 'vines', 'buds']))
     for (const mesh of json.meshes) expect(mesh.primitives[0]?.attributes).toHaveProperty('_GLOW_PHASE')
+    // The bark carries the in-house bark texture (embedded normal + metal/roughness maps) and texture coordinates to map it.
+    const full = json as unknown as { materials: { name: string; normalTexture?: { index: number }; pbrMetallicRoughness: { metallicRoughnessTexture?: { index: number } } }[]; meshes: { name: string; primitives: { attributes: Record<string, number> }[] }[]; images?: { mimeType: string }[] }
+    const barkMaterial = full.materials.find(material => material.name === 'bark')
+    expect(barkMaterial?.normalTexture).toBeDefined()
+    expect(barkMaterial?.pbrMetallicRoughness.metallicRoughnessTexture).toBeDefined()
+    expect(full.images?.every(image => image.mimeType === 'image/png')).toBe(true)
+    expect(full.meshes.find(mesh => mesh.name === 'bark')?.primitives[0]?.attributes).toHaveProperty('TEXCOORD_0')
   })
 })
 

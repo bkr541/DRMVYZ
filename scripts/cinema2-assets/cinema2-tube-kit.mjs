@@ -3,6 +3,7 @@
 // Every mesh carries a `_GLOW_PHASE` attribute (see three-scene's audio glow); a mesh may also carry `seeds`, written as `_GLOW_SEED` (one random
 // value per tree, so each tree's glow pulses on its own).
 import { writeFileSync } from 'node:fs'
+import { deflateSync } from 'node:zlib'
 import * as THREE from 'three'
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
@@ -49,14 +50,23 @@ export function barkOffset(t, angleTurns, seed) {
   return a * 0.5 + b * 0.32 + c * 0.18
 }
 
-/** Sweeps a circular (optionally bark-perturbed) cross-section of varying radius down the curve. */
-export function buildTaperedTube(controlPoints, { samples = 48, radiusAt, radialSegments = 8, capStart = true, capEnd = true, bark = null, phaseAt = () => 0 }) {
+/**
+ * Sweeps a circular (optionally bark-perturbed) cross-section of varying radius down the curve.
+ *
+ * `uv` ({ around, along }): also emit texture coordinates - `around` texture repeats round the tube, and `along` world units per repeat down
+ * it - with a duplicated seam vertex on every ring so the texture wraps without smearing. `surfaceNormals`: shade the actual (bark-perturbed)
+ * surface instead of the smooth radial direction, so the lumps catch the light. Both are opt-in; without them the output is unchanged.
+ */
+export function buildTaperedTube(controlPoints, { samples = 48, radiusAt, radialSegments = 8, capStart = true, capEnd = true, bark = null, phaseAt = () => 0, uv = null, surfaceNormals = false }) {
   const { centres, tangents, normals, binormals } = frameSamples(controlPoints, samples)
-  const positions = [], vertexNormals = [], indices = [], phases = []
+  const positions = [], vertexNormals = [], indices = [], phases = [], uvs = []
+  const ringSize = uv ? radialSegments + 1 : radialSegments
+  let travelled = 0
   for (let i = 0; i < centres.length; i += 1) {
     const t = i / (centres.length - 1)
     const radius = radiusAt(t)
-    for (let j = 0; j < radialSegments; j += 1) {
+    if (i > 0) travelled += centres[i].distanceTo(centres[i - 1])
+    for (let j = 0; j < ringSize; j += 1) {
       const theta = (j / radialSegments) * Math.PI * 2
       const dir = new THREE.Vector3().addScaledVector(normals[i], Math.cos(theta)).addScaledVector(binormals[i], Math.sin(theta)).normalize()
       const local = bark ? radius * (1 + bark.amplitude * barkOffset(t, j / radialSegments, bark.seed)) : radius
@@ -64,13 +74,37 @@ export function buildTaperedTube(controlPoints, { samples = 48, radiusAt, radial
       positions.push(point.x, point.y, point.z)
       vertexNormals.push(dir.x, dir.y, dir.z)
       phases.push(phaseAt(t))
+      if (uv) uvs.push((j / radialSegments) * uv.around, travelled / uv.along)
     }
   }
+  const next = j => (uv ? j + 1 : (j + 1) % radialSegments)
   for (let i = 0; i < centres.length - 1; i += 1) {
     for (let j = 0; j < radialSegments; j += 1) {
-      const a = i * radialSegments + j, b = i * radialSegments + ((j + 1) % radialSegments)
-      const c = (i + 1) * radialSegments + j, d = (i + 1) * radialSegments + ((j + 1) % radialSegments)
+      const a = i * ringSize + j, b = i * ringSize + next(j)
+      const c = (i + 1) * ringSize + j, d = (i + 1) * ringSize + next(j)
       indices.push(a, c, b, b, c, d)
+    }
+  }
+  if (surfaceNormals) {
+    // Area-weighted face normals averaged per vertex (the seam's duplicate vertices are averaged together so the seam does not show).
+    const sum = new Float32Array(positions.length)
+    const p = i => new THREE.Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2])
+    for (let k = 0; k < indices.length; k += 3) {
+      const [a, b, c] = [indices[k], indices[k + 1], indices[k + 2]]
+      const n = new THREE.Vector3().crossVectors(p(b).sub(p(a)), p(c).sub(p(a)))
+      for (const v of [a, b, c]) { sum[v * 3] += n.x; sum[v * 3 + 1] += n.y; sum[v * 3 + 2] += n.z }
+    }
+    if (uv) for (let i = 0; i < centres.length; i += 1) {
+      const a = i * ringSize, b = i * ringSize + radialSegments
+      for (let k = 0; k < 3; k += 1) { const m = sum[a * 3 + k] + sum[b * 3 + k]; sum[a * 3 + k] = m; sum[b * 3 + k] = m }
+    }
+    for (let v = 0; v < sum.length / 3; v += 1) {
+      const n = new THREE.Vector3(sum[v * 3], sum[v * 3 + 1], sum[v * 3 + 2])
+      if (n.lengthSq() < 1e-18) continue
+      // Keep the normal on the outward side of the radial direction (the winding above faces outward).
+      n.normalize()
+      if (n.x * vertexNormals[v * 3] + n.y * vertexNormals[v * 3 + 1] + n.z * vertexNormals[v * 3 + 2] < 0) n.negate()
+      vertexNormals[v * 3] = n.x; vertexNormals[v * 3 + 1] = n.y; vertexNormals[v * 3 + 2] = n.z
     }
   }
   const capAt = (index, flip) => {
@@ -79,15 +113,16 @@ export function buildTaperedTube(controlPoints, { samples = 48, radiusAt, radial
     const n = flip ? -1 : 1
     vertexNormals.push(tangents[index].x * n, tangents[index].y * n, tangents[index].z * n)
     phases.push(phaseAt(index / (centres.length - 1)))
-    const ring = index === 0 ? 0 : (centres.length - 1) * radialSegments
+    if (uv) uvs.push(0.5 * uv.around, index === 0 ? 0 : travelled / uv.along)
+    const ring = index === 0 ? 0 : (centres.length - 1) * ringSize
     for (let j = 0; j < radialSegments; j += 1) {
-      const j2 = (j + 1) % radialSegments
+      const j2 = next(j)
       if (flip) indices.push(base, ring + j2, ring + j); else indices.push(base, ring + j, ring + j2)
     }
   }
   if (capStart) capAt(0, true)
   if (capEnd) capAt(centres.length - 1, false)
-  return { positions: new Float32Array(positions), normals: new Float32Array(vertexNormals), indices: Uint32Array.from(indices), phases: new Float32Array(phases) }
+  return { positions: new Float32Array(positions), normals: new Float32Array(vertexNormals), indices: Uint32Array.from(indices), phases: new Float32Array(phases), ...(uv ? { uvs: new Float32Array(uvs) } : {}) }
 }
 
 /** Control points for a thin curve that hugs just under a branch's surface, slowly spiralling along it - the "vein" stand-in for a crack texture. */
@@ -135,8 +170,43 @@ export const phaseRamp = (from, to) => t => from + (to - from) * t
  * Writes `meshes` ([{ name, part, positions, normals, indices, phases, seeds?, attributes? }]) as a binary glTF, one node per mesh, one material per part from
  * `materials` ({ [part]: { baseColorFactor, metallicFactor, roughnessFactor, emissiveFactor? } }). Returns counts for the console summary.
  */
+/** Encodes an RGBA8 buffer (`size` x `size`) as a PNG (filter 0). */
+export function encodePng(rgba, width, height = width) {
+  const crcTable = new Uint32Array(256).map((_, n) => {
+    let c = n
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    return c >>> 0
+  })
+  const crc32 = buf => {
+    let c = 0xffffffff
+    for (const byte of buf) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8)
+    return (c ^ 0xffffffff) >>> 0
+  }
+  const chunk = (type, data) => {
+    const out = Buffer.alloc(12 + data.length)
+    out.writeUInt32BE(data.length, 0)
+    out.write(type, 4, 'ascii')
+    data.copy(out, 8)
+    out.writeUInt32BE(crc32(out.subarray(4, 8 + data.length)), 8 + data.length)
+    return out
+  }
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(width, 0)
+  header.writeUInt32BE(height, 4)
+  header[8] = 8
+  header[9] = 6
+  const raw = Buffer.alloc((width * 4 + 1) * height)
+  const source = Buffer.from(rgba.buffer, rgba.byteOffset, rgba.byteLength)
+  for (let y = 0; y < height; y += 1) source.copy(raw, y * (width * 4 + 1) + 1, y * width * 4, (y + 1) * width * 4)
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', header), chunk('IDAT', deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))])
+}
+
 export function writeGlb(outputPath, meshes, materials, generator, sceneName) {
   const MATERIALS = materials
+  // Embedded PNG textures (a material's optional `textures`: { normal, metallicRoughness } PNG buffers, `normalScale`); a mesh with textures
+  // needs `uvs` (TEXCOORD_0). Images are written once each and shared by a repeating sampler.
+  const images = [], textures = []
+  const textureIndexOf = new Map()
   const binaryChunks = []
   let byteLength = 0
   const bufferViews = []
@@ -169,6 +239,11 @@ export function writeGlb(outputPath, meshes, materials, generator, sceneName) {
     accessors.push({ bufferView: pushView(mesh.phases, 34962), componentType: 5126, count: mesh.phases.length, type: 'SCALAR' })
     const phaseAccessor = accessors.length - 1
     const extra = {}
+    if (mesh.uvs) {
+      if (mesh.uvs.length !== (mesh.positions.length / 3) * 2) throw new Error(`${mesh.name}: ${mesh.uvs.length / 2} uvs for ${mesh.positions.length / 3} vertices.`)
+      accessors.push({ bufferView: pushView(mesh.uvs, 34962), componentType: 5126, count: mesh.uvs.length / 2, type: 'VEC2' })
+      extra.TEXCOORD_0 = accessors.length - 1
+    }
     if (mesh.seeds) {
       if (mesh.seeds.length !== mesh.positions.length / 3) throw new Error(`${mesh.name}: ${mesh.seeds.length} glow seeds for ${mesh.positions.length / 3} vertices.`)
       accessors.push({ bufferView: pushView(mesh.seeds, 34962), componentType: 5126, count: mesh.seeds.length, type: 'SCALAR' })
@@ -187,7 +262,25 @@ export function writeGlb(outputPath, meshes, materials, generator, sceneName) {
     const indexAccessor = accessors.length - 1
     if (!materialIndexOf.has(mesh.part)) {
       materialIndexOf.set(mesh.part, materialList.length)
-      materialList.push({ name: mesh.part, pbrMetallicRoughness: { baseColorFactor: MATERIALS[mesh.part].baseColorFactor, metallicFactor: MATERIALS[mesh.part].metallicFactor, roughnessFactor: MATERIALS[mesh.part].roughnessFactor }, ...(MATERIALS[mesh.part].emissiveFactor ? { emissiveFactor: MATERIALS[mesh.part].emissiveFactor } : {}) })
+      const spec = MATERIALS[mesh.part]
+      const textureOf = png => {
+        if (!textureIndexOf.has(png)) {
+          images.push({ bufferView: pushView(new Uint8Array(png.buffer, png.byteOffset, png.byteLength)), mimeType: 'image/png' })
+          textures.push({ source: images.length - 1, sampler: 0 })
+          textureIndexOf.set(png, textures.length - 1)
+        }
+        return textureIndexOf.get(png)
+      }
+      if (spec.textures && !mesh.uvs) throw new Error(`${mesh.name}: material ${mesh.part} has textures but the mesh has no uvs.`)
+      materialList.push({
+        name: mesh.part,
+        pbrMetallicRoughness: {
+          baseColorFactor: spec.baseColorFactor, metallicFactor: spec.metallicFactor, roughnessFactor: spec.roughnessFactor,
+          ...(spec.textures?.metallicRoughness ? { metallicRoughnessTexture: { index: textureOf(spec.textures.metallicRoughness) } } : {}),
+        },
+        ...(spec.textures?.normal ? { normalTexture: { index: textureOf(spec.textures.normal), scale: spec.textures.normalScale ?? 1 } } : {}),
+        ...(spec.emissiveFactor ? { emissiveFactor: spec.emissiveFactor } : {}),
+      })
     }
     gltfMeshes.push({ name: mesh.name, primitives: [{ attributes: { POSITION: positionAccessor, NORMAL: normalAccessor, _GLOW_PHASE: phaseAccessor, ...extra }, indices: indexAccessor, material: materialIndexOf.get(mesh.part), mode: 4 }] })
     nodes.push({ name: mesh.name, mesh: gltfMeshes.length - 1 })
@@ -199,6 +292,7 @@ export function writeGlb(outputPath, meshes, materials, generator, sceneName) {
     scene: 0,
     scenes: [{ name: sceneName, nodes: nodes.map((_, i) => i) }],
     nodes, meshes: gltfMeshes, materials: materialList, accessors, bufferViews,
+    ...(images.length > 0 ? { images, textures, samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }] } : {}),
     buffers: [{ byteLength }],
   }
   const jsonBytes = Buffer.from(JSON.stringify(json))

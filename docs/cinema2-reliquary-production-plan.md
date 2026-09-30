@@ -1,7 +1,7 @@
 # RELIQUARY: production plan
 
 **Date:** 2026-09-30
-**Status:** Phases 1-3 built (2026-09-30), awaiting the owner's review in the app. Phases 4-7 not started.
+**Status:** Phases 1-4 built (2026-09-30), awaiting the owner's review in the app. Phases 5-7 not started.
 
 **Related:**
 - `docs/cinema2-reliquary-cinematic-plan.md` is the earlier plan (Stage 1 steps 1-7 done, step 8 shadows blocked). This document takes over from it.
@@ -191,6 +191,22 @@ All in `generate-reliquary-trees.mjs`, plus a new texture pipeline.
 6. **Bark texture.** Replace the hand-written model writer with glTF Transform (`@gltf-transform/core`, MIT) so the models can carry texture coordinates and embedded textures. Generate a bark texture set in-house (surface relief, roughness and a crack glow mask). This is the earlier plan's step 10.
 7. **Bark material.** Dark, slightly glossy bark that picks up the warm spill.
 8. **Budget.** Stay within the triangle limit and the installer size budget (`npm run assets:check`), and measure the frame cost.
+
+**Result (2026-09-30):** built; checked in the render harness against the mockup and image 3, at 16:9, at 1100×1016 and on the low tier. Not yet reviewed by the owner in the app.
+
+- **Texture pipeline, no new dependency.** Instead of glTF Transform, the shared model writer (`cinema2-tube-kit.mjs` `writeGlb`) now embeds PNG textures (a material's `textures: { normal, metallicRoughness, normalScale }`) and writes `TEXCOORD_0`, using the repo's existing in-house PNG encoder (now shared as `encodePng`).
+- **Tube options.** `buildTaperedTube` gained opt-in `uv` (texture coordinates, with a duplicated seam vertex so the texture wraps cleanly) and `surfaceNormals` (shade the lumpy bark surface instead of the smooth radial direction). Without them the output is byte-identical; the golden tree was regenerated and checked.
+- **Bark texture.** A tileable 512 px texture made in-house: vertical fibre grooves, broad lumps and a few deep cracks, as a normal map plus a roughness map (rougher in the crevices). It is embedded in the forest model and mapped along the grain of every trunk, limb, root and twig. The low tier drops the normal map, as with other assets, and still renders.
+- **Foreground trees.** Four strands twisting harder (1.3 turns), leaning in toward the logo in an S-curve. Two limbs each climb and arch inward over the top of the frame. Eight heavy buttress roots settle into the floor, and four leafy twigs grow off the trunk toward the logo. Trunks sit at x = ±3.2, about 15% of the frame width each, like the mockup.
+- **Mid and far trees.** Four mid trees (the inner pair moved out from x = ±2.7 to ±3.7, so the depth around the logo stays open, as in the mockup) and eight far trunks (was four) for the haze to fade.
+- **Vines.** Broader gold vines centred on the bark's surface, so half sinks in and they read as raised bands (image 6). Every vine on a strand winds the same way: crossing vines read as a gold X. They carry leaves, as do the twigs on the limbs.
+- **Glow.** The vines' glow share went from 1.4 to 2.2 and the leaves' from 1.1 to 1.5, so the vines read warmer against the dark bark.
+- **Budget.** The forest is 128k triangles and 6.8 MB (was 127k and 5.8 MB). The leaves were most of an earlier 219k-triangle draft, so vines carry three to five leaves each. `npm run assets:check` passes.
+- **Tests.** The forest test checks for the embedded bark textures and texture coordinates. The full Cinema 2.0 suite shows the same failures as the committed code.
+
+Deferred:
+- **Crack glow:** the bark's crack glow mask (light inside the bark) needs a glow shader change to read an emissive mask. It stays for later, since the mockup's glow is mostly on the vines (image 6).
+- **Glow strength:** in the mockup the vines blaze with sparkle points, where ours are warm gold with pulses. Tune in phase 7, once phase 5's light shaft and fog and phase 6's embers are in.
 
 **Done when:**
 - The trees read as massive twisted trunks framing the scene.

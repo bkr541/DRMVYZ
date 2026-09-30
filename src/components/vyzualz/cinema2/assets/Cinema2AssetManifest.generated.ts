@@ -144,14 +144,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/reliquary-trees.glb",
-        "bytes": 5904756,
-        "triangles": 126952
+        "bytes": 7014080,
+        "triangles": 128068
       }
     },
     "gpuBytes": {
-      "high": 5901152,
-      "medium": 5901152,
-      "low": 5901152
+      "high": 9316618,
+      "medium": 9316618,
+      "low": 9316618
     }
   },
   {
