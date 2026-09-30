@@ -95,10 +95,10 @@ describe('CONDUIT preset', () => {
     expect(cinema2ThreeSceneModuleDefinition.validate!(module)).toEqual([])
   })
 
-  it('keeps its lights within the shared limit, most important first, with warm energy lights that carry the energy color and follow the music', () => {
+  it('keeps its lights within the shared limit, the symmetric wall washes first, with warm energy lights that carry the energy color and follow the music', () => {
     const lights = manifest.lighting?.lights ?? []
     expect(lights.filter(light => light.type !== 'ambient').length).toBeLessThanOrEqual(CINEMA2_SHARED_LIGHT_LIMIT)
-    expect(lights.slice(0, 2).map(light => light.id)).toEqual(['conduit-key', 'conduit-wall-wash'])
+    expect(lights.slice(0, 2).map(light => light.id)).toEqual(['conduit-wall-wash-left', 'conduit-wall-wash-right'])
     const energy = manifest.lighting?.groups?.find(group => group.label === 'Energy Lights')
     expect(energy?.lights).toHaveLength(3)
     for (const light of lights.filter(entry => energy?.lights.some(member => member.$ref === entry.id))) {

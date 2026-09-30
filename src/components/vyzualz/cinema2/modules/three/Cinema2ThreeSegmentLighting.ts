@@ -24,6 +24,9 @@ import type { Cinema2ModuleFrameReadContext } from '../Cinema2ModuleContracts'
  * Flow through a build, and otherwise a rotation of Ring Chase, Split and Energy Flow every four bars. It only changes pattern on a bar line
  * (a drop switches at once), and the change crossfades like a manual one.
  *
+ * The emitted light is 1 - e^-(color x strength x brightness) per channel (see the bridge), so a lit LED keeps its hue and only the brightest
+ * roll toward a warm-white core.
+ *
  * Everything here is a pure function of the beat clock and the audio, so the GPU shader below and `evaluateCinema2SegmentBrightness` (its
  * TypeScript twin, for tests) give the same answer.
  */
@@ -263,7 +266,7 @@ export function evaluateCinema2SegmentBrightness(role: Cinema2ThreeSegmentRole, 
 
   // Split.
   const lit = vertex.side * frame.splitSide > 0.2 ? 1 : Math.abs(vertex.side) <= 0.2 ? 0.5 : 0
-  const splitBase = code === 1 ? 0.4 + 0.5 * beatEnvelope : 0.05 + lit * (0.35 + 0.65 * beatEnvelope)
+  const splitBase = code === 1 ? 0.4 + 0.5 * beatEnvelope : 0.015 + lit * (0.35 + 0.65 * beatEnvelope)
   const split = splitBase + (1 - splitBase) * frame.drop
 
   // Pulse.
@@ -316,7 +319,7 @@ float cinema2SegmentBrightness( float role, vec4 segment, float phase ) {
       : 0.05 + 0.95 * cinema2SegComet( fract( ( segment.y - direction * uCinema2Seg1.x ) * 3.0 ) ) );
 
   float lit = segment.z * uCinema2Seg1.y > 0.2 ? 1.0 : ( abs( segment.z ) <= 0.2 ? 0.5 : 0.0 );
-  float splitBase = role > 0.5 && role < 1.5 ? 0.4 + 0.5 * beatEnvelope : 0.05 + lit * ( 0.35 + 0.65 * beatEnvelope );
+  float splitBase = role > 0.5 && role < 1.5 ? 0.4 + 0.5 * beatEnvelope : 0.015 + lit * ( 0.35 + 0.65 * beatEnvelope );
   float split = splitBase + ( 1.0 - splitBase ) * drop;
 
   float pulse = 0.12 + level * ( 0.35 + 0.65 * beatEnvelope );

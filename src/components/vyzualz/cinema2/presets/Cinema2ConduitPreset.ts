@@ -70,16 +70,19 @@ const TUBES_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('conduit-tubes-node')
 const WORDMARK_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('conduit-wordmark-node')
 const ROOT_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('conduit-root')
 const LOGO_TARGET_ID = cinema2StableId<Cinema2SceneNodeId>('conduit-logo-target')
-const WALL_TARGET_ID = cinema2StableId<Cinema2SceneNodeId>('conduit-wall-target')
+const WALL_LEFT_TARGET_ID = cinema2StableId<Cinema2SceneNodeId>('conduit-wall-left-target')
+const WALL_RIGHT_TARGET_ID = cinema2StableId<Cinema2SceneNodeId>('conduit-wall-right-target')
 const WORLD_LAYER_ID = cinema2StableId<Cinema2LayerId>('conduit-world-layer')
 
 const AMBIENT_LIGHT_ID = cinema2StableId<Cinema2LightId>('conduit-ambient')
 const KEY_LIGHT_ID = cinema2StableId<Cinema2LightId>('conduit-key')
-const WALL_LIGHT_ID = cinema2StableId<Cinema2LightId>('conduit-wall-wash')
+const WALL_LEFT_LIGHT_ID = cinema2StableId<Cinema2LightId>('conduit-wall-wash-left')
+const WALL_RIGHT_LIGHT_ID = cinema2StableId<Cinema2LightId>('conduit-wall-wash-right')
 const SPILL_LEFT_ID = cinema2StableId<Cinema2LightId>('conduit-spill-left')
 const SPILL_RIGHT_ID = cinema2StableId<Cinema2LightId>('conduit-spill-right')
 const FLOOR_POOL_ID = cinema2StableId<Cinema2LightId>('conduit-floor-pool')
 const ENERGY_GROUP_ID = cinema2StableId<Cinema2LightGroupId>('conduit-energy-lights')
+const WALL_GROUP_ID = cinema2StableId<Cinema2LightGroupId>('conduit-wall-lights')
 
 const THREE_SCENE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('three-scene')
 const FLOOR_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('reflective-floor')
@@ -94,12 +97,13 @@ const FINISH_EFFECT_ID = cinema2StableId<Cinema2EffectId>('conduit-finish')
 const vec3 = (x: number, y: number, z: number): Cinema2Vector3 => Object.freeze([x, y, z])
 const color = (r: number, g: number, b: number, a = 1): Cinema2Color => Object.freeze([r, g, b, a])
 
-export const CINEMA2_CONDUIT_DEFAULT_ENERGY_COLOR = color(1, 0.46, 0.1)
+export const CINEMA2_CONDUIT_DEFAULT_ENERGY_COLOR = color(1, 0.45, 0.12)
 const BACKGROUND = color(0.02, 0.02, 0.022)
 /** Chamber floor height (the assets' world frame). */
 const FLOOR_Y = 0
-const SEGMENT_STRENGTH = 3.6
-const ENERGY_LIGHT_REST = 0.35
+/** Segment brightness (the segment light rolls off softly toward white, so a lit LED stays amber and the brightest get a warm-white core). */
+const SEGMENT_STRENGTH = 3.4
+const ENERGY_LIGHT_REST = 0.12
 
 const PATTERN_LABELS: Readonly<Record<Cinema2ThreeSegmentPattern, string>> = Object.freeze({
   energyFlow: 'Energy Flow',
@@ -136,7 +140,9 @@ const PARAMETERS = Object.freeze([
     label: 'Master Intensity',
     description: 'How hard the whole show reacts to the music: the LED segments in the tubes, the wall and the logo rim, and the warm light they spill onto the metal. At 0 everything holds a soft steady glow; at 1 it reacts fully.',
     type: 'float' as const,
-    defaultValue: 0.85,
+    // Full reaction by default: anything less blends in some of the steady glow, and dark segments (a breakdown, the unlit half of a Split)
+    // then read as dimly lit rather than off.
+    defaultValue: 1,
     min: 0,
     max: 1,
     step: 0.01,
@@ -213,9 +219,11 @@ const actionId = (value: string) => cinema2StableId<Cinema2ChoreographyActionId>
 
 const choreographyRules: readonly Cinema2ChoreographyRuleManifest[] = Object.freeze([
   // A warm swell on every downbeat, a lift through a build, and a bright two-beat hit on a drop.
-  ...cinema2LightRigHit({ id: 'conduit-energy', group: ENERGY_GROUP_ID, signal: 'downbeat', peak: 1.1, attack: 0, hold: 0.05, release: 0.9, priority: 40, strengthParameter: master }),
-  ...cinema2LightRigRamp({ id: 'conduit-energy', groups: [ENERGY_GROUP_ID], source: 'director.build', lift: 1.2, priority: 30, strengthParameter: master }),
-  ...cinema2LightRigHit({ id: 'conduit-energy-drop', group: ENERGY_GROUP_ID, signal: 'drop', peak: 2.6, attack: 0, hold: 1, release: 1.5, priority: 60, strengthParameter: master }),
+  ...cinema2LightRigHit({ id: 'conduit-energy', group: ENERGY_GROUP_ID, signal: 'downbeat', peak: 0.3, attack: 0, hold: 0.05, release: 0.9, priority: 40, strengthParameter: master }),
+  ...cinema2LightRigRamp({ id: 'conduit-energy', groups: [ENERGY_GROUP_ID], source: 'director.build', lift: 0.35, priority: 30, strengthParameter: master }),
+  ...cinema2LightRigHit({ id: 'conduit-energy-drop', group: ENERGY_GROUP_ID, signal: 'drop', peak: 0.7, attack: 0, hold: 1, release: 1.5, priority: 60, strengthParameter: master }),
+  // The room itself follows the music: the wall washes rest dimmer and rise with the song's intensity, so a breakdown sits darker than a drop.
+  ...cinema2LightRigRamp({ id: 'conduit-wall', groups: [WALL_GROUP_ID], source: 'director.intensity', lift: 0.16, priority: 20, strengthParameter: master }),
   // The haze glows a little brighter on the downbeat with the lights.
   Object.freeze({
     id: ruleId('conduit-downbeat-beam'),
@@ -299,10 +307,10 @@ function effectPass(id: Cinema2RenderPassId, after: Cinema2RenderPassId, afterOu
 }
 
 /**
- * The LED diffusers, when a segment is dark: a dim smoked grey. Lighter diffusers catch so much of the room's light that the pattern only tints
- * them pastel; this keeps an unlit strip reading as an off LED while a lit one glows in the full energy color.
+ * The LED diffusers, when a segment is dark: near-black smoked glass, like the owner's mockups. Lighter diffusers catch the room's (and the warm
+ * energy lights') light, so an off segment looked dimly lit and the pattern only tinted them.
  */
-const LED_OFF = color(0.16, 0.16, 0.17)
+const LED_OFF = color(0.05, 0.05, 0.055)
 /** Brushed silver, a little darker than the asset's bake so the chamber reads mid-grey like the owner's mockups rather than white. */
 const SHELL = color(0.62, 0.62, 0.64)
 
@@ -334,13 +342,17 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     enabled: true,
     parameters: Object.freeze({
       // Wordmark: glossy pearl letters, polished chrome ring, dark silver back plate.
-      'letters.color': color(0.86, 0.85, 0.83),
+      'letters.color': color(0.7, 0.69, 0.67),
       'letters.roughness': 0.22,
       'letters.metalness': 0.15,
-      'letters.clearcoat': 0.8,
+      'letters.clearcoat': 0.3,
       'letters.clearcoatRoughness': 0.08,
+      // A darker chrome ring and back plate, so the white letters stand off them with a dark edge as in the mockups.
+      'outline.color': color(0.55, 0.55, 0.57),
       'outline.roughness': 0.1,
       'outline.metalness': 1,
+      'outline.environmentIntensity': 0.6,
+      'plate.color': color(0.14, 0.14, 0.15),
       'plate.roughness': 0.3,
       // Tubes: chrome pipes, darker steel couplers, a near-black channel under the windows.
       'pipe.roughness': 0.12,
@@ -350,19 +362,19 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       'shell.color': SHELL,
       'shell.roughness': 0.46,
       'shell.metalness': 0.8,
-      'shell.environmentIntensity': 0.6,
+      'shell.environmentIntensity': 0.9,
       'trim.roughness': 0.4,
       // LED diffusers, as seen when a segment is dark.
       'segments.color': LED_OFF,
       'segments.metalness': 0,
       'energy.color': LED_OFF,
       'energy.metalness': 0,
-      environmentIntensity: 0.35,
+      environmentIntensity: 0.45,
       segmentPattern: 'energyFlow',
       segmentAuto: true,
       segmentSync: true,
       segmentFlicker: 0.15,
-      segmentReactivity: 0.85,
+      segmentReactivity: 1,
       segmentStrength: SEGMENT_STRENGTH,
       segmentColor: CINEMA2_CONDUIT_DEFAULT_ENERGY_COLOR,
     }),
@@ -386,8 +398,8 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
       // Two soft panels front-left and front-right give the chrome and the pearl letters a clean highlight band.
       panels: Object.freeze([
-        Object.freeze({ position: vec3(-4, 5, 6), target: vec3(0, 2, 0), size: Object.freeze([3, 1.6]), color: Object.freeze([0.95, 0.96, 1]), intensity: 0.5 }),
-        Object.freeze({ position: vec3(4, 5, 6), target: vec3(0, 2, 0), size: Object.freeze([3, 1.6]), color: Object.freeze([0.95, 0.96, 1]), intensity: 0.5 }),
+        Object.freeze({ position: vec3(-4, 5, 6), target: vec3(0, 2, 0), size: Object.freeze([3, 1.6]), color: Object.freeze([0.95, 0.96, 1]), intensity: 0.3 }),
+        Object.freeze({ position: vec3(4, 5, 6), target: vec3(0, 2, 0), size: Object.freeze([3, 1.6]), color: Object.freeze([0.95, 0.96, 1]), intensity: 0.3 }),
       ]),
     }),
   })]),
@@ -399,7 +411,8 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       Object.freeze({ id: TUBES_NODE_ID, kind: 'module' as const, parent: cinema2Ref(ROOT_NODE_ID), module: cinema2Ref(CINEMA2_CONDUIT_MODULE_ID) }),
       Object.freeze({ id: WORDMARK_NODE_ID, kind: 'module' as const, parent: cinema2Ref(ROOT_NODE_ID), module: cinema2Ref(CINEMA2_CONDUIT_MODULE_ID) }),
       Object.freeze({ id: LOGO_TARGET_ID, kind: 'group' as const, parent: cinema2Ref(ROOT_NODE_ID), transform: Object.freeze({ position: vec3(0, 2.09, 0) }) }),
-      Object.freeze({ id: WALL_TARGET_ID, kind: 'group' as const, parent: cinema2Ref(ROOT_NODE_ID), transform: Object.freeze({ position: vec3(0, 3, -3.5) }) }),
+      Object.freeze({ id: WALL_LEFT_TARGET_ID, kind: 'group' as const, parent: cinema2Ref(ROOT_NODE_ID), transform: Object.freeze({ position: vec3(-3.6, 3, -3.5) }) }),
+      Object.freeze({ id: WALL_RIGHT_TARGET_ID, kind: 'group' as const, parent: cinema2Ref(ROOT_NODE_ID), transform: Object.freeze({ position: vec3(3.6, 3, -3.5) }) }),
     ]),
     roots: Object.freeze([cinema2Ref(ROOT_NODE_ID)]),
   }),
@@ -436,16 +449,20 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_CONDUIT_CAMERA_ID) }),
   lighting: Object.freeze({
     groups: Object.freeze([
+      Object.freeze({ id: WALL_GROUP_ID, label: 'Wall Washes', lights: Object.freeze([cinema2Ref(WALL_LEFT_LIGHT_ID), cinema2Ref(WALL_RIGHT_LIGHT_ID)]) }),
       Object.freeze({ id: ENERGY_GROUP_ID, label: 'Energy Lights', lights: Object.freeze([cinema2Ref(SPILL_LEFT_ID), cinema2Ref(SPILL_RIGHT_ID), cinema2Ref(FLOOR_POOL_ID)]) }),
     ]),
-    // Most important first: low quality keeps the key and the wall wash; medium adds the two warm spill lights and the floor pool.
+    // Most important first: low quality keeps the two wall washes (the wall stays evenly lit and symmetric); medium adds the key on the wordmark
+    // and the warm energy lights. Two washes from high left and right, each on its own half of the wall, light it evenly; a single wash aimed
+    // at the middle made a white hot spot behind the logo.
     lights: Object.freeze([
-      spot(KEY_LIGHT_ID, vec3(0, 5.5, 7), LOGO_TARGET_ID, 30, 0.32, color(1, 0.98, 0.96)),
-      spot(WALL_LIGHT_ID, vec3(0, 7.5, 5), WALL_TARGET_ID, 70, 0.22, color(0.96, 0.97, 1), 0.9),
-      energyPoint(SPILL_LEFT_ID, vec3(-3.3, 3.2, -1.4), 9),
-      energyPoint(SPILL_RIGHT_ID, vec3(3.3, 3.2, -1.4), 9),
-      energyPoint(FLOOR_POOL_ID, vec3(0, 0.5, 1.2), 7),
-      Object.freeze({ id: AMBIENT_LIGHT_ID, type: 'ambient' as const, color: color(0.9, 0.9, 0.92), intensity: 0.06 }),
+      spot(WALL_LEFT_LIGHT_ID, vec3(-5.5, 7.5, 3.5), WALL_LEFT_TARGET_ID, 44, 0.2, color(0.96, 0.97, 1), 0.9),
+      spot(WALL_RIGHT_LIGHT_ID, vec3(5.5, 7.5, 3.5), WALL_RIGHT_TARGET_ID, 44, 0.2, color(0.96, 0.97, 1), 0.9),
+      spot(KEY_LIGHT_ID, vec3(0, 7.5, 5.5), LOGO_TARGET_ID, 18, 0.08, color(1, 0.98, 0.96)),
+      energyPoint(SPILL_LEFT_ID, vec3(-3.3, 3.2, -1.4), 5),
+      energyPoint(SPILL_RIGHT_ID, vec3(3.3, 3.2, -1.4), 5),
+      energyPoint(FLOOR_POOL_ID, vec3(0, 0.5, 1.2), 4),
+      Object.freeze({ id: AMBIENT_LIGHT_ID, type: 'ambient' as const, color: color(0.9, 0.9, 0.92), intensity: 0.12 }),
     ]),
   }),
   environment: Object.freeze({
@@ -462,7 +479,7 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       scope: 'output' as const,
       // Polished metal: a glossy mirror of the wall, the tubes and the glowing segments. Where screen-space reflection finds nothing to reflect it
       // shows a dim silver (`skyColor`) instead of black, and a thicker hit test catches the thin wall details.
-      parameters: Object.freeze({ mix: 1, floorY: FLOOR_Y, reflectivity: 0.55, roughness: 0.22, fresnel: 2.4, albedo: 0.32, poolIntensity: 0.5, specular: 1.1, fadeDistance: 30, maxReflection: 24, thickness: 0.8, skyColor: color(0.3, 0.3, 0.31), grit: 0.05, gritScale: 6 }),
+      parameters: Object.freeze({ mix: 1, floorY: FLOOR_Y, reflectivity: 0.62, roughness: 0.14, fresnel: 2.4, albedo: 0.8, poolIntensity: 0.3, specular: 1.1, fadeDistance: 30, maxReflection: 24, thickness: 0.8, skyColor: color(0.45, 0.45, 0.46), baseColor: color(0.42, 0.42, 0.43), grit: 0.05, gritScale: 6 }),
     }),
     Object.freeze({
       id: VOLUMETRIC_EFFECT_ID,
@@ -484,7 +501,9 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       enabled: true,
       order: 2,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 0.6, threshold: 0.78, radius: 2.4, intensity: 0.9 }),
+      // The Stage renders in 8-bit, so bloom can only pick out what is near white; the threshold sits above the lit walls and the letters so the
+      // hot LED cores glow without smearing the wordmark.
+      parameters: Object.freeze({ mix: 0.65, threshold: 0.8, radius: 3, intensity: 1.3 }),
     }),
     Object.freeze({
       id: FINISH_EFFECT_ID,
@@ -493,7 +512,7 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       enabled: true,
       order: 3,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 1, exposure: 0.92, vignette: 0.4, grain: 0.06, aberration: 0.08, contrast: 1.08, saturation: 1.05 }),
+      parameters: Object.freeze({ mix: 1, exposure: 1, vignette: 0.4, grain: 0.06, aberration: 0.08, contrast: 1.08, saturation: 1.05 }),
     }),
   ]),
   choreography: Object.freeze({ rules: choreographyRules }),

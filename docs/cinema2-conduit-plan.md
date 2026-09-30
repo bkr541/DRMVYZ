@@ -1,6 +1,6 @@
 # CONDUIT: Cinema 2.0 preset plan
 
-**Status:** Steps 1-3 done (2026-09-30): assets, per-segment lighting, and the CONDUIT preset with its controls. Step 4 (tuning) not started.
+**Status:** All four steps done (2026-09-30). CONDUIT is tuned against the owner's mockups, with the remaining gaps listed under Step 4.
 
 ## Goal
 
@@ -235,3 +235,60 @@ All three share one world coordinate system, so they line up without per-instanc
 - **Measure, don't eyeball:** compare brightness percentiles, glow coverage and saturation against the mockups, and note honestly where the result falls short.
 - **Performance:** measure frame time on high, medium and low quality at 1080p.
 - **Tests:** add unit tests for the pattern evaluator and the preset contract.
+
+**Result (2026-09-30):**
+
+The preset was tuned in Chrome through the production runtime with synthetic music. Every pass was measured against the four mockups on the same framing.
+
+**Scenes compared:**
+- Partial: Ring Chase at mid energy.
+- Full: Pulse on a drop.
+- Split: Split at high energy.
+- Breakdown: Pulse in a quiet passage.
+
+**Metrics:** image median/p90 brightness, saturation, amber coverage, and mean brightness of the wordmark, the centre above it, each wall half, and the floor. Brightness runs from 0 (black) to 1 (white).
+
+| Scene | Wordmark (mine / mockup) | Centre | Wall | Floor | Amber coverage |
+|---|---|---|---|---|---|
+| Partial | 0.72 / 0.68 | 0.71 / 0.50 | 0.49 / 0.50 | 0.56 / 0.71 | 3.8% / 4.7% |
+| Full | 0.76 / 0.67 | 0.73 / 0.57 | 0.51 / 0.56 | 0.60 / 0.73 | 4.1% / 11.8% |
+| Split | 0.69 / 0.58 | 0.72 / 0.42 | 0.48 (both halves) / 0.59 left, 0.27 right | 0.49 / 0.61 | 4.2% / 11.9% |
+| Breakdown | 0.64 / 0.66 | 0.65 / 0.26 | 0.44 / 0.34 | 0.48 / 0.63 | 1.1% / 5.5% |
+
+**What changed, and why (each change came from a measured gap):**
+- **Warm lights:** the three energy lights flooded the silver room orange. They now rest at 0.12 and reach 4-5 units, so the warmth stays near the tubes. Downbeat, build and drop hits are scaled down to match.
+- **Wall wash:** a single wash aimed at the middle of the wall made a white hot spot behind the logo, lifting the centre from 0.57 to 0.82. It is now two washes from high left and right, each on its own half. The washes rest at 0.2 and rise with `director.intensity` (+0.16), so a breakdown sits darker.
+- **Key light:** the key moved high and narrow (18°) with a low intensity. With the lower lights, pearl letters at 0.7, lower clearcoat and a darker chrome ring and back plate, the wordmark falls from 0.88 to about 0.7 and gets the dark edge seen in the mockups.
+- **Soft roll-off for segment light:** the Stage has no tone mapping, so a bright amber clipped its green channel and turned yellow. The segment light is now `1 - e^-x`: lit LEDs stay amber and only the brightest roll toward a warm-white core. This lives in the bridge's segment hook and does not touch RELIQUARY.
+- **Energy colour:** the default is now (1, 0.45, 0.12) at strength 3.4.
+- **LED "off" colour:** near-black smoked glass (0.05). A lighter cover caught the room's and the warm lights' light, so off segments looked dimly lit.
+- **Master Intensity default:** now 1. At 0.85 it blended in 15% of the steady glow; a 5% brightness in linear light reads clearly orange on screen after sRGB conversion, so breakdowns and the unlit half of a Split never went dark.
+- **Split pattern:** the unlit half now rests at 0.015 (was 0.05).
+- **Floor:** a silver base (0.42), albedo 0.8, reflectivity 0.62, roughness 0.14, and a silver fallback for reflection misses.
+- **Bloom:** threshold 0.8. A second, wide bloom was tried and removed because it smeared the wordmark (see the first open gap).
+
+**Controls verified in the runtime:**
+- Camera Movement 1 moves the frame 13-16 px between frames 0.4 s apart; at 0 it doesn't move at all.
+- Flicker 1 changes about 2.5% of the frame between frames; at 0, none.
+- Each pattern is visibly distinct.
+
+**Performance at 1080p** (Chrome, Metal):
+
+| Tier | GPU frame time |
+|---|---|
+| High | 10.3 ms |
+| Medium | 5.3 ms |
+| Low | 7.3 ms |
+
+- CPU time is about 4 ms, every tier holds 60 fps (16.7 ms per frame), and there are no failed passes.
+- Low measuring above Medium is reported as measured and not explained yet.
+
+**Honest remaining gaps:**
+- **LED halos:** the mockups' LEDs have large orange halos and throw warm light onto the metal. The Stage's intermediate images are 8-bit, so bloom can only select what is near white. It cannot tell a bright LED from the white letters or a lit wall, and a wide bloom smeared the wordmark. Real halos need HDR render targets (an engine change) or halo geometry.
+- **Centre disc:** it stays brighter than the mockups (about 0.7 vs 0.3-0.57). The flat disc faces the camera and catches the room light. A darker disc material, which would mean a separate asset part, is the likely fix.
+- **Amber coverage in Full and Split:** 4% vs 12%. The mockups light more, larger and thicker segments, with glow bleeding into the metal around them.
+- **Split's dark half:** in the mockup the whole right half of the room goes dark. CONDUIT darkens only its LEDs, because the room lights do not follow the split.
+- **Breakdown darkness:** the room is still brighter than the mockup (0.44 vs 0.34). The wall washes fall with intensity, but not as far.
+- **Floor:** darker and less streaky than the mockups' polished silver with long warm reflections. Screen-space reflections are sharp and limited to what is on screen.
+
+**Tests:** 84 passing across CONDUIT, segment lighting, three-scene, PBR, RELIQUARY, GO-TO and audio glow. Typecheck and lint are clean on the changed files.

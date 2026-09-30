@@ -302,7 +302,7 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     materialOf('energy-0').onBeforeCompile(shader as never, undefined as never)
     expect(shader.vertexShader).toContain('vCinema2Segment = _segment')
     expect(shader.vertexShader).toContain('vCinema2SegPhase = _glow_phase')
-    expect(shader.fragmentShader).toContain('totalEmissiveRadiance = uCinema2SegColor')
+    expect(shader.fragmentShader).toContain('totalEmissiveRadiance = 1.0 - exp( - uCinema2SegColor')
     expect(shader.fragmentShader).not.toContain('uCinema2GlowColor')
     expect((shader.uniforms.uCinema2SegRole as { value: number }).value).toBe(0)
     const frame = { pattern: 'ringChase' as const, beats: 9.5, level: 0.6, drop: 0.2, quiet: 0.1, chase: 0.25, splitSide: 1, flicker: 0.3, reactivity: 0.9, weights: [0, 1, 0, 0] as const, fronts: [0.4, -10, -10, -10], gains: [1, 0, 0, 0] }

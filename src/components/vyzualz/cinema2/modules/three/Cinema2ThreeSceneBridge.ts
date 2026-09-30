@@ -777,7 +777,7 @@ interface SegmentUniforms {
   uCinema2SegGain: { value: ThreeNamespace.Vector4 }
 }
 
-/** Replaces the material's emitted light with the segment pattern's brightness times the energy color. */
+/** Replaces the material's emitted light with the segment pattern's brightness times the energy color, rolled off softly toward white. */
 export function addSegmentLighting(shader: ShaderSource, shared: SegmentUniforms, role: { value: number }): void {
   Object.assign(shader.uniforms, shared, { uCinema2SegRole: role })
   shader.vertexShader = shader.vertexShader
@@ -801,7 +801,9 @@ export function addSegmentLighting(shader: ShaderSource, shared: SegmentUniforms
     ].join('\n'))
     .replace('#include <emissivemap_fragment>', [
       '#include <emissivemap_fragment>',
-      'totalEmissiveRadiance = uCinema2SegColor * ( uCinema2SegStrength * cinema2SegmentBrightness( uCinema2SegRole, vCinema2Segment, vCinema2SegPhase ) );',
+      // Soft exponential roll-off (1 - e^-x) instead of a hard per-channel clip: the scene has no tone mapping, so a bright amber would clip its
+      // green channel and turn yellow; this keeps a moderately lit LED amber and rolls only the brightest toward a warm-white core.
+      'totalEmissiveRadiance = 1.0 - exp( - uCinema2SegColor * ( uCinema2SegStrength * cinema2SegmentBrightness( uCinema2SegRole, vCinema2Segment, vCinema2SegPhase ) ) );',
     ].join('\n'))
 }
 
