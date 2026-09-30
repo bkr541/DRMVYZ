@@ -147,7 +147,7 @@ const nearest = target => outer.reduce((best, p) => (Math.hypot(p[0] - target[0]
 const attachments = { upper: nearest([-1.62 - cx, 2.67 - cy]), lower: nearest([-2.09 - cx, 1.84 - cy]) }
 
 const halfWidth = CONDUIT_WORDMARK.width / 2
-const segmentOf = (x, y) => [0, (x / halfWidth + 1) / 2, Math.sign(x), 0.5]
+const segmentOf = x => [0, (x / halfWidth + 1) / 2, Math.sign(x), 0.5]
 const meshes = [
   withGlow(translated({ name: 'outline', part: 'outline', ...outline }, cx, cy, cz), 0, () => [0, 0, 0, 0]),
   withGlow(translated({ name: 'letters', part: 'letters', ...letters }, cx, cy, cz), 0, () => [0, 0, 0, 0]),

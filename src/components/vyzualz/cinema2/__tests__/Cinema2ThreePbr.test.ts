@@ -124,6 +124,12 @@ describe('Cinema 2.0 three-scene PBR config validation', () => {
     expect(codes({ parts: [' '] })).toEqual(['CINEMA2_THREE_SCENE_PARTS_INVALID'])
   })
 
+  it('accepts config.segments roles (feed, core, field) and rejects anything else', () => {
+    expect(codes({ segments: { energy: 'feed', rim: 'core', segments: 'field' } })).toEqual([])
+    expect(codes({ segments: ['energy'] })).toEqual(['CINEMA2_THREE_SCENE_SEGMENTS_INVALID'])
+    expect(codes({ segments: { energy: 'glow' } })).toEqual(['CINEMA2_THREE_SCENE_SEGMENTS_INVALID'])
+  })
+
   it('rejects unknown environments and malformed panels', () => {
     expect(codes({ environment: 'nope' })).toEqual(['CINEMA2_THREE_SCENE_ENVIRONMENT_UNKNOWN'])
     expect(codes({ environment: 7 })).toEqual(['CINEMA2_THREE_SCENE_ENVIRONMENT_UNKNOWN'])
@@ -271,6 +277,43 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     expect((shader.uniforms.uCinema2GlowBreath as { value: number }).value).toBeCloseTo(0.4)
     expect((shader.uniforms.uCinema2GlowFront as { value: THREE.Vector4 }).value.x).toBeCloseTo(0.3)
     expect((shader.uniforms.uCinema2GlowBeats as { value: number }).value).toBeCloseTo(12.5)
+  })
+
+  it('lights config.segments parts segment by segment: replaces their emissive with the pattern, skips the audio glow, and feeds the pattern each frame', () => {
+    const scene = new THREE.Group()
+    for (const [name, material, withSegments] of [['energy-0', 'energy', true], ['shell-0', 'shell', true], ['rim-0', 'rim', false]] as const) {
+      const standard = new THREE.MeshStandardMaterial()
+      standard.name = material
+      const geometry = new THREE.BoxGeometry(1, 1, 1)
+      const count = geometry.getAttribute('position').count
+      geometry.setAttribute('_glow_phase', new THREE.Float32BufferAttribute(new Float32Array(count), 1))
+      if (withSegments) geometry.setAttribute('_segment', new THREE.Float32BufferAttribute(new Float32Array(count * 4), 4))
+      const mesh = new THREE.Mesh(geometry, standard)
+      mesh.name = name
+      scene.add(mesh)
+    }
+    const bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [{ asset: { id: 'segments', scene, triangleCount: 36, gpuBytes: 100 } as never, node: null }], { glow: { energy: 1 }, segments: { energy: 'feed', rim: 'core' } })
+    const materialOf = (name: string) => ((bridge as unknown as { scene: THREE.Scene }).scene.getObjectByName(name) as THREE.Mesh).material as THREE.MeshStandardMaterial
+    // The segment role wins over config.glow; a part without the attribute (rim) or without a role (shell) is left alone.
+    expect(materialOf('energy-0').customProgramCacheKey()).toBe('cinema2-segments')
+    expect(materialOf('shell-0').customProgramCacheKey()).not.toContain('segments')
+    expect(materialOf('rim-0').customProgramCacheKey()).not.toContain('segments')
+    const shader = { vertexShader: '#include <common>\n#include <begin_vertex>', fragmentShader: '#include <common>\n#include <emissivemap_fragment>', uniforms: {} as Record<string, { value: unknown }> }
+    materialOf('energy-0').onBeforeCompile(shader as never, undefined as never)
+    expect(shader.vertexShader).toContain('vCinema2Segment = _segment')
+    expect(shader.vertexShader).toContain('vCinema2SegPhase = _glow_phase')
+    expect(shader.fragmentShader).toContain('totalEmissiveRadiance = uCinema2SegColor')
+    expect(shader.fragmentShader).not.toContain('uCinema2GlowColor')
+    expect((shader.uniforms.uCinema2SegRole as { value: number }).value).toBe(0)
+    const frame = { beats: 9.5, level: 0.6, drop: 0.2, quiet: 0.1, chase: 0.25, splitSide: 1, flicker: 0.3, reactivity: 0.9, weights: [0, 1, 0, 0] as const, fronts: [0.4, -10, -10, -10], gains: [1, 0, 0, 0] }
+    bridge.draw(execution('high'), overrides({}), 0, null, { color: [1, 0.5, 0], strength: 3, frame })
+    expect((shader.uniforms.uCinema2SegStrength as { value: number }).value).toBe(3)
+    expect((shader.uniforms.uCinema2Seg0 as { value: THREE.Vector4 }).value.toArray()).toEqual([9.5, 0.6, 0.2, 0.1])
+    expect((shader.uniforms.uCinema2Seg1 as { value: THREE.Vector4 }).value.toArray()).toEqual([0.25, 1, 0.3, 0.9])
+    expect((shader.uniforms.uCinema2SegWeights as { value: THREE.Vector4 }).value.y).toBe(1)
+    expect((shader.uniforms.uCinema2SegFront as { value: THREE.Vector4 }).value.x).toBeCloseTo(0.4)
+    bridge.draw(execution('high'), overrides({}))
+    expect((shader.uniforms.uCinema2SegStrength as { value: number }).value).toBe(0)
   })
 
   it('glows each seeded tree on its own: parts with a _glow_seed attribute get a per-tree swell, pulse stagger and ember flicker', () => {

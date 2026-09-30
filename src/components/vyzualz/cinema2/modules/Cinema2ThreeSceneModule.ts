@@ -25,7 +25,14 @@ import {
   type Cinema2ThreePartOverrides,
   type Cinema2ThreePanelSpec,
   type Cinema2ThreeSceneInstance,
+  type Cinema2ThreeSegmentDraw,
 } from './three/Cinema2ThreeSceneBridge'
+import {
+  CINEMA2_THREE_SEGMENT_ROLES,
+  Cinema2ThreeSegmentLighting,
+  readCinema2ThreeSegmentPattern,
+  type Cinema2ThreeSegmentRole,
+} from './three/Cinema2ThreeSegmentLighting'
 import { Cinema2BeatClock } from './Cinema2BeatClock'
 import { Cinema2ThreeAudioGlow, readCinema2ThreeGlowMode } from './three/Cinema2ThreeAudioGlow'
 import { cinema2ThreeEnvironmentRegistry, type Cinema2ThreeEnvironmentRegistry } from './three/Cinema2ThreeEnvironmentRegistry'
@@ -65,6 +72,12 @@ export type Cinema2ThreeSceneModuleState = 'idle' | 'loading' | 'building' | 're
  * music (see Cinema2ThreeAudioGlow). Parameters: `glowMode` (`energy` | `breathing` | `both`), `glowSync` (default true: timing locked to the
  * beat grid; off: a steady 120 BPM), `glowReactivity` (0-1, how strongly it reacts), `glowStrength` (overall brightness) and `glowColor`. A
  * part with a `_GLOW_PHASE` vertex attribute (0 at the root tips, 1 at the top) carries climbing pulses; without it, it only breathes.
+ *
+ * Segment lighting: `config.segments` maps part names to a role - `feed` (energy runs along it into the logo), `core` (flares when energy
+ * arrives) or `field` (the lit wall) - and those parts are lit LED segment by LED segment from their `_SEGMENT` and `_GLOW_PHASE` vertex
+ * attributes (see Cinema2ThreeSegmentLighting), replacing their own emissive. Parameters: `segmentPattern` (`energyFlow` | `ringChase` |
+ * `split` | `pulse`), `segmentFlicker` (0-1), `segmentReactivity` (0-1), `segmentStrength` (overall brightness), `segmentColor` (the energy
+ * color) and `segmentSync` (default true: locked to the beat grid; off: a steady 120 BPM).
  *
  * Shadows: `config.shadows` = `{ cast: [parts], receive: [parts] }` names which parts cast and receive shadows from spot lights authored
  * with `config.threeShadow` (up to two, medium and high only; see CINEMA2_THREE_SHADOW_BUDGET). Keep casters to the models inside those lights'
@@ -123,6 +136,9 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
       const shadowParts = parseShadows(context.module)
       const audioGlow = glowShares ? new Cinema2ThreeAudioGlow() : null
       let glowDraw: Cinema2ThreeGlowDraw | null = null
+      const segmentRoles = parseSegments(context.module)
+      const segmentLighting = segmentRoles ? new Cinema2ThreeSegmentLighting() : null
+      let segmentDraw: Cinema2ThreeSegmentDraw | null = null
       const diagnostics: Cinema2ModuleDiagnostic[] = []
 
       const report = (code: string, message: string, path: string) => {
@@ -176,7 +192,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           bridge = context.resources.acquire(
             'three-scene:bridge',
             'ThreeSceneBridge',
-            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded, { panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}), ...(shadowParts ? { shadows: shadowParts } : {}) }),
+            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded, { panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}), ...(segmentRoles ? { segments: segmentRoles } : {}), ...(shadowParts ? { shadows: shadowParts } : {}) }),
             value => { value.dispose(); releaseHeld() },
           )
           state = 'building'
@@ -197,7 +213,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           if (state === 'idle') startLoading(quality)
           if (state === 'building' && !bridge && !bridgeCreateFailed && library) buildBridge()
           if (!bridge || state === 'failed' || state === 'loading') return
-          bridge.draw(execution, overrides, spinRadians, glowDraw)
+          bridge.draw(execution, overrides, spinRadians, glowDraw, segmentDraw)
           if (bridge.ready && state !== 'ready') state = 'ready'
           const bytes = bridge.estimateGpuBytes()
           if (bytes !== reportedBytes) { reportedBytes = bytes; context.resources.reportGpuBytes(bytes) }
@@ -220,11 +236,21 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
               })
               glowDraw = { color: readColor(parameters.get('glowColor')) ?? [1, 0.62, 0.2], strength: readNumber(parameters.get('glowStrength'), 0, 40) ?? 1, frame: glowFrame }
             }
+            if (segmentLighting) {
+              const segmentFrame = segmentLighting.update(frame, {
+                pattern: readCinema2ThreeSegmentPattern(parameters.get('segmentPattern')),
+                sync: parameters.get('segmentSync') !== false,
+                flicker: readNumber(parameters.get('segmentFlicker'), 0, 1) ?? 0,
+                reactivity: readNumber(parameters.get('segmentReactivity'), 0, 1) ?? 1,
+              })
+              segmentDraw = { color: readColor(parameters.get('segmentColor')) ?? [1, 0.62, 0.2], strength: readNumber(parameters.get('segmentStrength'), 0, 40) ?? 1, frame: segmentFrame }
+            }
           },
           dispose: () => {
             disposed = true
             beatClock.reset()
             audioGlow?.reset()
+            segmentLighting?.reset()
             // With a bridge, its resource disposer releases the assets after its own materials; otherwise release here.
             if (!bridge) releaseHeld()
           },
@@ -314,6 +340,11 @@ function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinem
     || Object.values(rawGlow).some(share => typeof share !== 'number' || !Number.isFinite(share) || share < 0))) {
     diagnostics.push({ code: 'CINEMA2_THREE_SCENE_GLOW_INVALID', path: '$.config.glow', message: 'config.glow must map part names to non-negative numbers (each part\'s share of the glow).' })
   }
+  const rawSegments = module.config?.segments
+  if (rawSegments !== undefined && (!rawSegments || typeof rawSegments !== 'object' || Array.isArray(rawSegments)
+    || Object.values(rawSegments).some(role => !CINEMA2_THREE_SEGMENT_ROLES.includes(role as Cinema2ThreeSegmentRole)))) {
+    diagnostics.push({ code: 'CINEMA2_THREE_SCENE_SEGMENTS_INVALID', path: '$.config.segments', message: `config.segments must map part names to a role: ${CINEMA2_THREE_SEGMENT_ROLES.join(', ')}.` })
+  }
   const rawPanels = module.config?.panels
   if (rawPanels !== undefined) {
     if (!Array.isArray(rawPanels)) {
@@ -341,6 +372,14 @@ function parseGlow(module: Readonly<Cinema2ModuleManifest>): Readonly<Record<str
   const shares: Record<string, number> = {}
   for (const [name, share] of Object.entries(raw)) if (typeof share === 'number' && Number.isFinite(share) && share > 0) shares[name] = share
   return Object.keys(shares).length > 0 ? Object.freeze(shares) : null
+}
+
+function parseSegments(module: Readonly<Cinema2ModuleManifest>): Readonly<Record<string, Cinema2ThreeSegmentRole>> | null {
+  const raw = module.config?.segments
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const roles: Record<string, Cinema2ThreeSegmentRole> = {}
+  for (const [name, role] of Object.entries(raw)) if (CINEMA2_THREE_SEGMENT_ROLES.includes(role as Cinema2ThreeSegmentRole)) roles[name] = role as Cinema2ThreeSegmentRole
+  return Object.keys(roles).length > 0 ? Object.freeze(roles) : null
 }
 
 function parsePartNames(module: Readonly<Cinema2ModuleManifest>): string[] {

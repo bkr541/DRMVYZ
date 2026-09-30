@@ -1,6 +1,6 @@
 # CONDUIT: Cinema 2.0 preset plan
 
-**Status:** Step 1 (assets) done (2026-09-30). Steps 2-4 not started.
+**Status:** Steps 1 (assets) and 2 (per-segment lighting) done (2026-09-30). Steps 3-4 not started.
 
 ## Goal
 
@@ -143,6 +143,39 @@ All three share one world coordinate system, so they line up without per-instanc
 - **Flicker:** a seeded per-segment dropout driven by `_SEGMENT.w`.
 - **Energy Color:** tints every emissive part.
 - **Existing presets:** RELIQUARY's audio glow must keep working unchanged.
+
+**Result (2026-09-30):**
+
+- **New `modules/three/Cinema2ThreeSegmentLighting.ts`:** `Cinema2ThreeSegmentLighting` turns the beat clock and audio into a few values each frame:
+  - smoothed bass/energy level;
+  - a drop envelope, triggered on entering a drop section or crossing a drop moment, which holds at full for 0.6 s and then decays;
+  - a "quiet" factor for low-energy or vocal passages;
+  - an integrated chase position, whose speed rises with level and build;
+  - the split side, trading every beat when the music moves and every bar when it's calm;
+  - one Energy Flow pulse per beat, stronger on downbeats (0 to 1 through the tubes, then 1 to 2 across the wall);
+  - pattern crossfade weights (0.35 s).
+- **Brightness function:** the GPU function (`CINEMA2_THREE_SEGMENT_GLSL`) has a TypeScript twin, `evaluateCinema2SegmentBrightness`, which the tests use.
+- **`three-scene` config:** new `config.segments` maps part names to roles: `feed` (tubes), `core` (logo rim), `field` (wall). The parameters are:
+  - `segmentPattern`: `energyFlow` / `ringChase` / `split` / `pulse`;
+  - `segmentFlicker`;
+  - `segmentReactivity`;
+  - `segmentStrength`;
+  - `segmentColor`;
+  - `segmentSync`.
+- **Bridge:** segment parts get a shader hook that replaces their own emissive with the pattern brightness times the energy colour. A segment role wins over `config.glow`, so RELIQUARY's audio glow path is untouched.
+- **Verified on a real GPU:**
+  - the shaders compile in Chrome/Metal with no GL errors;
+  - renders on the three CONDUIT assets, driven by synthetic music, show each pattern:
+    - Energy Flow: light moves from the tubes out across the wall;
+    - Ring Chase: comets travel round the rings;
+    - Split: the halves trade sides;
+    - Pulse: the wall goes dark in a quiet passage while the tubes and logo stay lit, and a drop lights everything;
+  - Flicker drops out random segments.
+- **Tests:**
+  - `Cinema2ThreeSegmentLighting.test.ts`: 9 tests of pattern behaviour, crossfade, flicker, reactivity, pause, and GLSL/TS constants.
+  - `Cinema2ThreePbr.test.ts`: tests for the bridge hook and `config.segments` validation.
+  - The three-scene, audio glow, RELIQUARY and GO-TO suites pass (75 tests).
+- **Left for step 4:** brightness and contrast tuning. In the preview's tone mapping the amber still reads cream and the off segments aren't dark enough.
 
 ### Step 3: The CONDUIT preset and controls
 

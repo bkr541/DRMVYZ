@@ -5,6 +5,13 @@ import { Cinema2GlStateGuard } from './Cinema2GlStateGuard'
 import { applyCinema2CameraFrame, Cinema2ThreeLightRig } from './Cinema2ThreeCameraLightMapping'
 import type { Cinema2ThreeLibrary } from './Cinema2ThreeLibrary'
 import { CINEMA2_THREE_GLOW_WAVE_COUNT, type Cinema2ThreeGlowFrame } from './Cinema2ThreeAudioGlow'
+import {
+  CINEMA2_THREE_SEGMENT_GLSL,
+  CINEMA2_THREE_SEGMENT_WAVE_COUNT,
+  cinema2ThreeSegmentRoleCode,
+  type Cinema2ThreeSegmentFrame,
+  type Cinema2ThreeSegmentRole,
+} from './Cinema2ThreeSegmentLighting'
 import type { Cinema2ThreeLoadedAsset } from './Cinema2ThreeAssetCache'
 import { measureObject } from './Cinema2ThreeAssetCache'
 import { getCinema2ThreeRenderer } from './Cinema2ThreeRendererHost'
@@ -78,6 +85,11 @@ export interface Cinema2ThreeSceneOptions {
   environmentUrl?: ((quality: Cinema2RenderQualityLevel) => string | null) | null
   /** Parts that glow with the music (`config.glow`), each with its own share of the glow (1 = full). */
   glow?: Readonly<Record<string, number>>
+  /**
+   * Parts lit segment by segment (`config.segments`, part -> role): their emitted light comes only from the segment pattern (see
+   * Cinema2ThreeSegmentLighting), replacing the material's own emissive. Needs the `_SEGMENT` and `_GLOW_PHASE` vertex attributes.
+   */
+  segments?: Readonly<Record<string, Cinema2ThreeSegmentRole>>
   /** Parts that cast and receive shadows from spot lights flagged `threeShadow` (`config.shadows`); none by default. */
   shadows?: Readonly<{ cast: readonly string[]; receive: readonly string[] }>
 }
@@ -87,6 +99,13 @@ export interface Cinema2ThreeGlowDraw {
   color: readonly [number, number, number]
   strength: number
   frame: Readonly<Cinema2ThreeGlowFrame>
+}
+
+/** How the segment-lit parts look this frame: the energy color (sRGB), overall strength, and the pattern state. */
+export interface Cinema2ThreeSegmentDraw {
+  color: readonly [number, number, number]
+  strength: number
+  frame: Readonly<Cinema2ThreeSegmentFrame>
 }
 
 export interface Cinema2ThreeBridgeDiagnostic {
@@ -185,6 +204,8 @@ export class Cinema2ThreeSceneBridge {
   private disposed = false
   /** Shared by every glowing material, so one write a frame drives them all. */
   private readonly glowUniforms: GlowUniforms
+  /** Shared by every segment-lit material. */
+  private readonly segmentUniforms: SegmentUniforms
 
   constructor(
     private readonly gl: WebGL2RenderingContext,
@@ -214,6 +235,15 @@ export class Cinema2ThreeSceneBridge {
       uCinema2GlowFront: { value: new THREE.Vector4(-10, -10, -10, -10) },
       uCinema2GlowGain: { value: new THREE.Vector4(0, 0, 0, 0) },
       uCinema2GlowBeats: { value: 0 },
+    }
+    this.segmentUniforms = {
+      uCinema2SegColor: { value: new THREE.Color(1, 0.62, 0.2) },
+      uCinema2SegStrength: { value: 0 },
+      uCinema2Seg0: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2Seg1: { value: new THREE.Vector4(0, -1, 0, 1) },
+      uCinema2SegWeights: { value: new THREE.Vector4(1, 0, 0, 0) },
+      uCinema2SegFront: { value: new THREE.Vector4(-10, -10, -10, -10) },
+      uCinema2SegGain: { value: new THREE.Vector4(0, 0, 0, 0) },
     }
 
     for (const instance of instances) {
@@ -296,7 +326,13 @@ export class Cinema2ThreeSceneBridge {
     return Math.round(bytes)
   }
 
-  draw(exec: Cinema2ModuleRenderExecutionContext, overrides: Readonly<Cinema2ThreeMaterialOverrides>, spinRadians = 0, glow: Readonly<Cinema2ThreeGlowDraw> | null = null): void {
+  draw(
+    exec: Cinema2ModuleRenderExecutionContext,
+    overrides: Readonly<Cinema2ThreeMaterialOverrides>,
+    spinRadians = 0,
+    glow: Readonly<Cinema2ThreeGlowDraw> | null = null,
+    segments: Readonly<Cinema2ThreeSegmentDraw> | null = null,
+  ): void {
     if (this.disposed) return
     if (!exec.depthAvailable) throw new Error('Cinema 2.0 Three scene module requires a render target with a depth attachment.')
     const camera = exec.camera
@@ -311,6 +347,7 @@ export class Cinema2ThreeSceneBridge {
       this.applyOverrides(overrides)
       this.applyEnvironmentAndPanels(overrides, lighting.environment.exposure)
       this.applyGlow(glow)
+      this.applySegments(segments)
       this.place(exec, spinRadians)
       applyCinema2CameraFrame(this.camera, camera)
       this.lightRig.update(lighting)
@@ -433,10 +470,30 @@ export class Cinema2ThreeSceneBridge {
    * Installs this material's shader hooks: the per-vertex film thickness (physical materials on meshes that carry it) and the audio glow
    * (parts listed in `config.glow`). Re-run after a material is swapped for a physical one, since a copy does not carry the hooks.
    */
+  /** The segment role of a part, when it has one and its mesh carries the segment attributes. */
+  private segmentRoleOf(owned: Readonly<OwnedMaterial>): Cinema2ThreeSegmentRole | null {
+    const role = this.options.segments?.[owned.part] ?? this.options.segments?.[owned.materialName]
+    const geometry = owned.slot.mesh.geometry
+    return role && geometry.getAttribute(CINEMA2_SEGMENT_ATTRIBUTE) && geometry.getAttribute(CINEMA2_GLOW_PHASE_ATTRIBUTE) ? role : null
+  }
+
   private decorate(owned: OwnedMaterial): void {
     const material = owned.material
     const geometry = owned.slot.mesh.geometry
     const film = (material as Partial<ThreeNamespace.MeshPhysicalMaterial>).isMeshPhysicalMaterial === true && !!geometry.getAttribute(CINEMA2_FILM_THICKNESS_ATTRIBUTE)
+    const role = this.segmentRoleOf(owned)
+    if (role) {
+      // Segment-lit parts take their light only from the pattern; the audio glow does not also apply.
+      const roleUniform = { value: cinema2ThreeSegmentRoleCode(role) }
+      const segmentShared = this.segmentUniforms
+      material.onBeforeCompile = shader => {
+        if (film) addVertexFilmThickness(shader)
+        addSegmentLighting(shader, segmentShared, roleUniform)
+      }
+      material.customProgramCacheKey = () => `cinema2${film ? '-film' : ''}-segments`
+      material.needsUpdate = true
+      return
+    }
     const share = this.glowShareOf(owned)
     const phase = share > 0 && !!geometry.getAttribute(CINEMA2_GLOW_PHASE_ATTRIBUTE)
     const seed = share > 0 && !!geometry.getAttribute(CINEMA2_GLOW_SEED_ATTRIBUTE)
@@ -461,6 +518,20 @@ export class Cinema2ThreeSceneBridge {
     uniforms.uCinema2GlowFront.value.set(fronts[0] ?? -10, fronts[1] ?? -10, fronts[2] ?? -10, fronts[3] ?? -10)
     uniforms.uCinema2GlowGain.value.set(gains[0] ?? 0, gains[1] ?? 0, gains[2] ?? 0, gains[3] ?? 0)
     uniforms.uCinema2GlowBeats.value = Number.isFinite(glow.frame.beats) ? glow.frame.beats % 4096 : 0
+  }
+
+  private applySegments(segments: Readonly<Cinema2ThreeSegmentDraw> | null): void {
+    const uniforms = this.segmentUniforms
+    if (!segments) { uniforms.uCinema2SegStrength.value = 0; return }
+    const frame = segments.frame
+    uniforms.uCinema2SegColor.value.setRGB(segments.color[0], segments.color[1], segments.color[2], this.library.THREE.SRGBColorSpace)
+    uniforms.uCinema2SegStrength.value = Math.max(0, segments.strength)
+    uniforms.uCinema2Seg0.value.set(Number.isFinite(frame.beats) ? frame.beats % 4096 : 0, frame.level, frame.drop, frame.quiet)
+    uniforms.uCinema2Seg1.value.set(frame.chase, frame.splitSide, frame.flicker, frame.reactivity)
+    uniforms.uCinema2SegWeights.value.set(frame.weights[0], frame.weights[1], frame.weights[2], frame.weights[3])
+    const f = frame.fronts, g = frame.gains
+    uniforms.uCinema2SegFront.value.set(f[0] ?? -10, f[1] ?? -10, f[2] ?? -10, f[3] ?? -10)
+    uniforms.uCinema2SegGain.value.set(g[0] ?? 0, g[1] ?? 0, g[2] ?? 0, g[3] ?? 0)
   }
 
   private applyEnvironmentAndPanels(overrides: Readonly<Cinema2ThreeMaterialOverrides>, exposure: number): void {
@@ -688,6 +759,54 @@ function addAudioGlow(shader: ShaderSource, shared: GlowUniforms, share: { value
       'totalEmissiveRadiance += uCinema2GlowColor * ( uCinema2GlowStrength * uCinema2GlowShare * cinema2TreeGain * cinema2Glow );',
     ].join('\n'))
 }
+
+/**
+ * A model's custom glTF attribute `_SEGMENT` (vec4 per vertex; the loader lower-cases it): which group (ring, rib, tube) the vertex's LED segment
+ * belongs to (0-1), where along that group it sits (0-1), which side of the stage (-1 left, 1 right, 0 centre), and a random 0-1 identity per
+ * segment. Read by the segment lighting of parts listed in `config.segments`.
+ */
+export const CINEMA2_SEGMENT_ATTRIBUTE = '_segment'
+
+interface SegmentUniforms {
+  uCinema2SegColor: { value: ThreeNamespace.Color }
+  uCinema2SegStrength: { value: number }
+  uCinema2Seg0: { value: ThreeNamespace.Vector4 }
+  uCinema2Seg1: { value: ThreeNamespace.Vector4 }
+  uCinema2SegWeights: { value: ThreeNamespace.Vector4 }
+  uCinema2SegFront: { value: ThreeNamespace.Vector4 }
+  uCinema2SegGain: { value: ThreeNamespace.Vector4 }
+}
+
+/** Replaces the material's emitted light with the segment pattern's brightness times the energy color. */
+export function addSegmentLighting(shader: ShaderSource, shared: SegmentUniforms, role: { value: number }): void {
+  Object.assign(shader.uniforms, shared, { uCinema2SegRole: role })
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', [
+      '#include <common>',
+      `attribute vec4 ${CINEMA2_SEGMENT_ATTRIBUTE};`,
+      `attribute float ${CINEMA2_GLOW_PHASE_ATTRIBUTE};`,
+      'varying vec4 vCinema2Segment;',
+      'varying float vCinema2SegPhase;',
+    ].join('\n'))
+    .replace('#include <begin_vertex>', `#include <begin_vertex>\nvCinema2Segment = ${CINEMA2_SEGMENT_ATTRIBUTE};\nvCinema2SegPhase = ${CINEMA2_GLOW_PHASE_ATTRIBUTE};`)
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', [
+      '#include <common>',
+      'uniform vec3 uCinema2SegColor;',
+      'uniform float uCinema2SegStrength;',
+      'uniform float uCinema2SegRole;',
+      'varying vec4 vCinema2Segment;',
+      'varying float vCinema2SegPhase;',
+      CINEMA2_THREE_SEGMENT_GLSL,
+    ].join('\n'))
+    .replace('#include <emissivemap_fragment>', [
+      '#include <emissivemap_fragment>',
+      'totalEmissiveRadiance = uCinema2SegColor * ( uCinema2SegStrength * cinema2SegmentBrightness( uCinema2SegRole, vCinema2Segment, vCinema2SegPhase ) );',
+    ].join('\n'))
+}
+
+// The shader loop unrolls over the wave count; keep the two modules agreeing.
+if (CINEMA2_THREE_SEGMENT_WAVE_COUNT !== 4) throw new Error('Cinema 2.0 segment lighting packs its waves into vec4 uniforms.')
 
 const initializedAreaLightTables = new WeakSet<object>()
 
