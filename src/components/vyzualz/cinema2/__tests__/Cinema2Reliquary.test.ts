@@ -153,7 +153,7 @@ describe('RELIQUARY assets', () => {
 })
 
 describe('golden-roots shared asset', () => {
-  it('is a registered, licensed model with four parts built from the hand-authored root/branch curve network', () => {
+  it('is a registered, licensed model with three parts built from the hand-authored root/branch curve network, merged per material', () => {
     expect(cinema2ThreeAssetRegistry.has(CINEMA2_GOLDEN_ROOTS_ASSET_ID)).toBe(true)
     const record = CINEMA2_ASSET_RECORDS.find(entry => entry.id === CINEMA2_GOLDEN_ROOTS_ASSET_ID)
     expect(record).toMatchObject({ kind: 'model', license: 'generated-in-house' })
@@ -163,7 +163,8 @@ describe('golden-roots shared asset', () => {
     const json = JSON.parse(glb.subarray(20, 20 + jsonLength).toString('utf8')) as { meshes: { name: string }[]; materials: { name: string }[] }
     const parts = new Set(json.materials.map(material => material.name))
     expect(parts).toEqual(new Set(['roots', 'veins', 'leaves']))
-    expect(json.meshes.length).toBeGreaterThan(4) // many curves/leaves, not one mesh per part
+    // Every curve and leaf is merged into one mesh per material (one draw call each), like the forest.
+    expect(json.meshes.map(mesh => mesh.name).sort()).toEqual(['leaves', 'roots', 'veins'])
     const withPhase = (JSON.parse(glb.subarray(20, 20 + jsonLength).toString('utf8')) as { meshes: { primitives: { attributes: Record<string, number> }[] }[] }).meshes
     for (const mesh of withPhase) expect(mesh.primitives[0]?.attributes).toHaveProperty('_GLOW_PHASE')
   })

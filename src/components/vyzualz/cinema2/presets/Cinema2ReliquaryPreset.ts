@@ -510,7 +510,7 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       parts: Object.freeze(['crystal', 'roots', 'veins', 'leaves', 'vines', 'buds', 'bark']),
       // What glows, and how much of the glow each part takes: the thin veins and the tree vines carry it, the leaves and buds catch it,
       // and the gold wood itself warms a little. The dark bark and the crystal do not glow.
-      glow: Object.freeze({ veins: 1, vines: 1.4, buds: 1.1, leaves: 0.55, roots: 0.12 }),
+      glow: Object.freeze({ veins: 1.2, vines: 1.4, buds: 1.1, leaves: 0.3, roots: 0.12 }),
       // Rendered into float targets and tone-mapped by the finish, so the glow emits its full light.
       hdr: true,
       // The golden tree's wood, veins and leaves cast shadows onto the crystal from the shadow-casting cue spots. The forest does not cast: it is

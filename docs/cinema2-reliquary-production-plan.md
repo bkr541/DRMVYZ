@@ -1,7 +1,7 @@
 # RELIQUARY: production plan
 
 **Date:** 2026-09-30
-**Status:** Phases 1 and 2 built (2026-09-30), awaiting the owner's review in the app. Phases 3-7 not started.
+**Status:** Phases 1-3 built (2026-09-30), awaiting the owner's review in the app. Phases 4-7 not started.
 
 **Related:**
 - `docs/cinema2-reliquary-cinematic-plan.md` is the earlier plan (Stage 1 steps 1-7 done, step 8 shadows blocked). This document takes over from it.
@@ -157,6 +157,22 @@ All in `generate-golden-roots.mjs`.
 5. **Material.** Use a brighter polished warm gold (higher base colour, lower roughness).
 6. **Glow placement.** Move the glow from the separate vein tubes into the wood: either a glow mask along crack lines (needs the phase 4 texture pipeline) or an emissive edge term on the gold. Until then, make the veins thinner and sink them into the surface so they read as cracks, not tubes.
 7. **Glow phase.** Keep `_GLOW_PHASE` running from the root tips up to the limb tips, so the Energy mode still climbs the tree.
+
+**Result (2026-09-30):** built; checked in the render harness against the mockup and image 5, at 16:9 and at 1100×1016. Not yet reviewed by the owner in the app.
+
+- **Trunk:** six strands (was four). It flares wide at the base, pinches to a waist about a quarter of the logo's width, and the strands lean out at the top toward the limb they feed, so the trunk flows into the two limbs.
+- **Limbs:** the two main limbs keep their paths through the logo's openings but are thicker (base radius about 0.11, was 0.075), tapering to 0.02.
+- **Twigs and leaves:** seven twigs per side, each with one or two leaves, plus nine more leaves along the limbs and a leaf on every minor root. The leaves are larger, and their glow share went from 0.55 to 0.3 so they read gold, not pale.
+- **Root flare:** 30 roots (was 14), alternating major and minor. Major roots reach 1.45-1.85 units, about 1.7 times the logo's width across, and fork three times. Minor roots reach 0.8-1.15 and fork once.
+  - They are rope-like: thick most of the way, rounding off at the tip.
+  - They arch over the floor in low humps, so they read as roots and not flat blades from the low camera.
+  - Roots toward the camera are cut back less than before, so the flare fills in toward the viewer.
+- **Glow:** the veins now follow the grain, two per trunk strand and per limb and one on each major root. Each is a thin seam half sunk into the surface. Before, one fat vein per strand spiralled across it and read as a crossing yellow ribbon. The veins' glow share went from 1 to 1.2.
+- **Gold:** brighter and more polished: base colour (0.78, 0.53, 0.2) (was (0.6, 0.39, 0.13)), roughness 0.22 (was 0.34).
+- **Merge:** the meshes are merged per material, 3 draw calls instead of about 260, like the forest. The model is now 84k triangles and 2.7 MB (was 1.9 MB). Roots and twigs are sampled less densely to make room for the extra roots. `npm run assets:check` passes.
+- **Tests:** the golden-roots test now checks the per-material merge. The full Cinema 2.0 suite shows the same failures as the committed code.
+
+Deferred: light inside the gold via a texture crack mask needs phase 4's texture pipeline; the veins stand in for it until then. Still short of the mockup: its roots are finer and more numerous, with bright seams along every one; ours are fewer and heavier, and only the major roots carry a seam near the trunk.
 
 **Done when:**
 - The tree matches image 5's silhouette: a thick braided trunk, two limbs, a wide root flare and plenty of leaves.
